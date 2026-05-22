@@ -1,8 +1,8 @@
-# DECISIONS.md — Architectural Decision Records
+# DECISIONS.md - Architectural Decision Records
 
 Ce document trace les décisions d'architecture significatives du projet
-**REAL31 Intranet**. Chaque entrée suit un format ADR léger : **contexte →
-décision → conséquences**. Une décision n'est pas figée pour l'éternité — si
+**REAL31 Intranet**. Chaque entrée suit un format ADR léger : **contexte ->
+décision -> conséquences**. Une décision n'est pas figée pour l'éternité - si
 on la révise, on **ajoute** un nouvel ADR qui supersede l'ancien. Pour les
 révisions mineures (enrichissement à la lumière de nouveaux faits), on
 met à jour l'ADR existant et on incrémente la version dans son entête.
@@ -17,21 +17,21 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 |---|---|---|---|---|
 | ADR-001 | Pattern d'abstraction des sources de données (Ports & Adapters) | Accepted | v2 | 2026-05-22 |
 | ADR-002 | Stratégie de cache et fraîcheur des données | Accepted | v2 | 2026-05-22 |
-| ADR-003 | Migration progressive SharePoint → eStale | Accepted | v2 | 2026-05-22 |
+| ADR-003 | Migration progressive SharePoint -> eStale | Accepted | v2 | 2026-05-22 |
 | ADR-004 | Jobs, cron et orchestration | Accepted | v1 | 2026-05-22 |
 | ADR-005 | Authentification eStale et transition vers API key | Accepted | v1 | 2026-05-22 |
 | ADR-006 | Système de jalons à deux étages (légal + REAL31) | Accepted | v2 | 2026-05-22 |
 | ADR-007 | Audit RGPD niveau (b) + séparation audit/activity log | Accepted | v2 | 2026-05-22 |
-| ADR-008 | Périmètre fonctionnel — surcouche de coordination eStale | Accepted | v1 | 2026-05-22 |
-| ADR-009 | Permissions et scopes — gestionnaire cloisonné au MVP, modèle extensible | Accepted | v1 | 2026-05-22 |
-| ADR-010 | Identification utilisateurs — mapping initiales Crypto ↔ email Entra ID | Accepted | v1 | 2026-05-22 |
+| ADR-008 | Périmètre fonctionnel - surcouche de coordination eStale | Accepted | v1 | 2026-05-22 |
+| ADR-009 | Permissions et scopes - gestionnaire cloisonné au MVP, modèle extensible | Accepted | v1 | 2026-05-22 |
+| ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID | Accepted | v1 | 2026-05-22 |
 | ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies | Accepted | v1 | 2026-05-22 |
 | ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto | Accepted | v1 | 2026-05-22 |
 | ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Accepted | v1 | 2026-05-22 |
 
 ---
 
-## ADR-001 — Pattern d'abstraction des sources de données
+## ADR-001 - Pattern d'abstraction des sources de données
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
 
@@ -41,9 +41,9 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 
 Pendant un minimum de 6 mois, l'application doit lire **trois sources hétérogènes en parallèle** :
 
-1. **SharePoint** (Microsoft Graph API) — 164 copros, données exportées manuellement depuis Crypto/Septeo.
-2. **eStale** (GraphQL) — 4 copros pilotes au démarrage, 168 à terme.
-3. **Supabase** — données métier natives à l'intranet (jalons, alertes, notes, audit logs, présences pré-AG, historique d'actions, conformité…).
+1. **SharePoint** (Microsoft Graph API) - 164 copros, données exportées manuellement depuis Crypto/Septeo.
+2. **eStale** (GraphQL) - 4 copros pilotes au démarrage, 168 à terme.
+3. **Supabase** - données métier natives à l'intranet (jalons, alertes, notes, audit logs, présences pré-AG, historique d'actions, conformité...).
 
 À terme, eStale deviendra la seule source externe. **L'architecture doit pouvoir débrancher SharePoint sans toucher aux pages, composants, ou règles métier.**
 
@@ -53,33 +53,33 @@ Le piège à éviter : un `getCopros()` global qui contiendrait des `if (source 
 
 On adopte une **architecture hexagonale (Ports & Adapters)**, version pragmatique. Trois couches strictes :
 
-1. **Domaine** (`lib/domain/`) — Types TypeScript purs, zéro dépendance technique. Les règles métier (décret 1967, calcul des jalons) vivent ici.
+1. **Domaine** (`lib/domain/`) - Types TypeScript purs, zéro dépendance technique. Les règles métier (décret 1967, calcul des jalons) vivent ici.
 
-2. **Ports** (`lib/ports/`) — Interfaces TypeScript : `CoproRepository`, `EvenementRepository`, `JalonRepository`, etc. Le code applicatif ne connaît **que ça**.
+2. **Ports** (`lib/ports/`) - Interfaces TypeScript : `CoproRepository`, `EvenementRepository`, `JalonRepository`, etc. Le code applicatif ne connaît **que ça**.
 
-3. **Adapters** (`lib/adapters/`) — Implémentations concrètes :
-   - `lib/adapters/sharepoint/` — utilise Microsoft Graph
-   - `lib/adapters/estale/` — utilise le client GraphQL
-   - `lib/adapters/supabase/` — utilise supabase-js
-   - `lib/adapters/mock/` — pour développement local et tests
+3. **Adapters** (`lib/adapters/`) - Implémentations concrètes :
+   - `lib/adapters/sharepoint/` - utilise Microsoft Graph
+   - `lib/adapters/estale/` - utilise le client GraphQL
+   - `lib/adapters/supabase/` - utilise supabase-js
+   - `lib/adapters/mock/` - pour développement local et tests
 
 Un **routeur** (`lib/adapters/router.ts`) instancie le bon adapter selon le champ `copros.source` en base. Le routage est par-entité, pas global.
 
 ### Types métier (recensement complet post-mockup)
 
 Données provenant des sources externes (SharePoint ou eStale) :
-- `Copropriete` — référentiel copros (code, nom, adresse, gestionnaire, lots, tantièmes…)
-- `Evenement` — type discriminé : `AG | AGE | CS | Visite | Travaux`. Sourcé externe pour la définition de base (date, lieu, copro).
+- `Copropriete` - référentiel copros (code, nom, adresse, gestionnaire, lots, tantièmes...)
+- `Evenement` - type discriminé : `AG | AGE | CS | Visite | Travaux`. Sourcé externe pour la définition de base (date, lieu, copro).
 
 Données **natives à l'intranet** (Supabase uniquement) :
-- `Jalon` — lié à un événement de type AG/AGE. Champs : `type`, `cible_date`, `realise_date`, `statut ∈ {a_faire, accompli, en_alerte}`, `commentaire`, `marque_par_user_id`. Le jalon **n'existe pas** dans Crypto/eStale.
-- `ItemODJ` — item d'ordre du jour d'une AG. Champs : `ordre`, `libelle`, `regle_majorite ∈ {art24, art25, art26, unanimite, sans_vote}`.
-- `ConformiteCopropriete` — calcul de la fiche conformité : `ag_a_jour`, `pas_de_retard_legal`. Pour le MVP, seul `ag_a_jour` est calculé (cf. ADR-008).
-- `MembreConseilSyndical` — nom, rôle (`president | membre`), date de fin de mandat. Saisie manuelle.
-- `PresencePreAG` — compteurs avant l'AG : `presents_prevus`, `pouvoirs_recus`, `votes_correspondance_recus`, `total_lots`. Saisie manuelle.
-- `HistoriqueAction` — "FS a marqué X comme accompli". Écrit dans `activity_log` (cf. ADR-007).
-- `Alerte` — alerte calculée et son état de traitement (lue/résolue par qui, quand).
-- `User`, `GestionnaireMapping` — identité et permissions (cf. ADR-009, ADR-010).
+- `Jalon` - lié à un événement de type AG/AGE. Champs : `type`, `cible_date`, `realise_date`, `statut ∈ {a_faire, accompli, en_alerte}`, `commentaire`, `marque_par_user_id`. Le jalon **n'existe pas** dans Crypto/eStale.
+- `ItemODJ` - item d'ordre du jour d'une AG. Champs : `ordre`, `libelle`, `regle_majorite ∈ {art24, art25, art26, unanimite, sans_vote}`.
+- `ConformiteCopropriete` - calcul de la fiche conformité : `ag_a_jour`, `pas_de_retard_legal`. Pour le MVP, seul `ag_a_jour` est calculé (cf. ADR-008).
+- `MembreConseilSyndical` - nom, rôle (`president | membre`), date de fin de mandat. Saisie manuelle.
+- `PresencePreAG` - compteurs avant l'AG : `presents_prevus`, `pouvoirs_recus`, `votes_correspondance_recus`, `total_lots`. Saisie manuelle.
+- `HistoriqueAction` - "FS a marqué X comme accompli". Écrit dans `activity_log` (cf. ADR-007).
+- `Alerte` - alerte calculée et son état de traitement (lue/résolue par qui, quand).
+- `User`, `GestionnaireMapping` - identité et permissions (cf. ADR-009, ADR-010).
 
 ### Conséquences
 
@@ -92,7 +92,7 @@ Données **natives à l'intranet** (Supabase uniquement) :
 - Boilerplate au démarrage (interfaces + 4 adapters).
 - Tentation de fuites : il faut être **discipliné**.
 
-**Règle d'or non négociable** : aucun import direct de `@microsoft/microsoft-graph-client`, `graphql-request`, ou `@supabase/supabase-js` en dehors des sous-dossiers `lib/adapters/<source>/`. Cette règle est **lintable** via une règle ESLint (boundaries plugin ou règle custom). À mettre en place dans J1a — increment 1.
+**Règle d'or non négociable** : aucun import direct de `@microsoft/microsoft-graph-client`, `graphql-request`, ou `@supabase/supabase-js` en dehors des sous-dossiers `lib/adapters/<source>/`. Cette règle est **lintable** via une règle ESLint (boundaries plugin ou règle custom). À mettre en place dans J1a - increment 1.
 
 **Structure cible** :
 
@@ -148,7 +148,7 @@ Le job de sync upsert dans `evenements` (`source != 'native'`). Soft delete via 
 
 ---
 
-## ADR-002 — Stratégie de cache et fraîcheur des données
+## ADR-002 - Stratégie de cache et fraîcheur des données
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
 
@@ -169,10 +169,10 @@ Question : où lit-on, et avec quelle fraîcheur ?
 
 **Stratégies différenciées par source** :
 
-- **SharePoint → sync miroir nocturne** dans des tables Supabase miroir.  
+- **SharePoint -> sync miroir nocturne** dans des tables Supabase miroir.  
   Justification : les données sources sont elles-mêmes J-X, lire live n'apporte aucune fraîcheur réelle. Le sync apporte de la résilience aux pannes Graph et la puissance des joins SQL.
 
-- **eStale → read-through cache à TTL court** dans Supabase.  
+- **eStale -> read-through cache à TTL court** dans Supabase.  
   Justification : eStale offre du live, mais en serverless l'orchestration session cookie à chaque requête est coûteuse. Un cache court (15 min pour données chaudes, 24h pour le référentiel) donne la quasi-fraîcheur sans le coût.
 
 **Bouton "rafraîchir maintenant"** sur les pages où la fraîcheur est critique (fiche prépa AG notamment). Déclenche un sync ciblé immédiat pour la copro concernée.
@@ -202,17 +202,17 @@ Cette règle simplifie radicalement l'architecture :
 **Négatives**
 - Données potentiellement décalées (max 24h SharePoint, 15min-24h eStale).
 - Complexité du job de sync (idempotence, watermarks, gestion d'erreurs).
-- Risque de désync silencieuse → mitigé par alerting (cf. ADR-004).
+- Risque de désync silencieuse -> mitigé par alerting (cf. ADR-004).
 
 ### Détails d'implémentation à valider en J3
 
-- Tables miroir Supabase : préfixées `mirror_` (`mirror_copros`, …) pour distinguer des tables natives.
+- Tables miroir Supabase : préfixées `mirror_` (`mirror_copros`, ...) pour distinguer des tables natives.
 - Chaque ligne miroir porte : `source`, `source_id`, `synced_at`, `etag` ou `last_modified` pour delta sync.
 - Job SharePoint = **upsert** par `(source, source_id)`. Soft delete via `archived_at`.
 
 ---
 
-## ADR-003 — Migration progressive SharePoint → eStale
+## ADR-003 - Migration progressive SharePoint -> eStale
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
 
@@ -238,9 +238,9 @@ Aujourd'hui 4 copros sur eStale, 164 sur SharePoint. Dans 6 mois (estimé), 168 
 ### Conséquences UI (nouveau v2)
 
 Le mockup affiche un **badge `Source : Crypto`** (à terme `Source : eStale`) sur la fiche copro. Implications :
-- L'UI doit savoir afficher ce badge → exposer `copros.source` via le repository.
+- L'UI doit savoir afficher ce badge -> exposer `copros.source` via le repository.
 - Le bouton **"Ouvrir dans X"** est conditionnel : si `source = 'estale'`, on construit l'URL `{ESTALE_DEEPLINK_BASE}/copro/{source_id}`. Si `source = 'sharepoint'` (alias "Crypto" côté UI), le bouton est **absent** car Crypto n'est pas deep-linkable (cf. ADR-012).
-- Nomenclature UI : `'sharepoint'` côté technique → affiché `Crypto` côté utilisateur (c'est la source perçue par eux). `'estale'` → `eStale`.
+- Nomenclature UI : `'sharepoint'` côté technique -> affiché `Crypto` côté utilisateur (c'est la source perçue par eux). `'estale'` -> `eStale`.
 
 ### Conséquences techniques
 
@@ -254,11 +254,11 @@ Le mockup affiche un **badge `Source : Crypto`** (à terme `Source : eStale`) su
 
 ### Question ouverte
 
-Sort des données SharePoint quand la migration sera totalement terminée — suppression / archivage / conservation. À trancher dans un futur ADR avant la fin de la migration.
+Sort des données SharePoint quand la migration sera totalement terminée - suppression / archivage / conservation. À trancher dans un futur ADR avant la fin de la migration.
 
 ---
 
-## ADR-004 — Jobs, cron et orchestration
+## ADR-004 - Jobs, cron et orchestration
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -267,25 +267,25 @@ Sort des données SharePoint quand la migration sera totalement terminée — su
 Plusieurs besoins d'exécution en arrière-plan :
 - Sync nocturne SharePoint (~164 copros)
 - Sync incrémental eStale (read-through cache)
-- Alertes mail (J-90, J-60, J-30 sur contrats ; jalons AG en retard ; synthèse hebdo) — post-MVP
+- Alertes mail (J-90, J-60, J-30 sur contrats ; jalons AG en retard ; synthèse hebdo) - post-MVP
 - Détection d'anomalies (post-MVP)
 
 **Vercel = serverless = stateless**, pas de scheduler en mémoire.
 
 ### Décision
 
-**Phase MVP (J1-J4) — Vercel Cron uniquement.**
+**Phase MVP (J1-J4) - Vercel Cron uniquement.**
 - 1 cron `sync-sharepoint-nightly` (3h du matin)
 - 1 cron `refresh-estale-stale-entries` (toutes les heures)
 
-**Phase Alertes (J5) — Introduction d'Inngest** pour workflows durables, retry, idempotence, dashboard.
+**Phase Alertes (J5) - Introduction d'Inngest** pour workflows durables, retry, idempotence, dashboard.
 
 ### Principe transversal : jobs portables
 
 Tous les jobs sont des **fonctions TypeScript pures**, appelables :
 1. Via Vercel Cron (handler API route)
-2. Via Inngest (function declaration) — phase 2
-3. **Via CLI** (`pnpm sync:sharepoint`) — critique pour dev local et debug prod.
+2. Via Inngest (function declaration) - phase 2
+3. **Via CLI** (`pnpm sync:sharepoint`) - critique pour dev local et debug prod.
 
 ```ts
 // lib/jobs/sync-sharepoint.ts
@@ -302,7 +302,7 @@ syncSharepoint({ coproIds: process.argv.slice(2) });
 
 - Table `job_runs` Supabase : `job_name`, `started_at`, `ended_at`, `status`, `error`, `metadata`.
 - Page admin `/admin/jobs` listant les runs récents.
-- Alerting : si un cron critique n'a pas tourné depuis 36h → notification mail manager.
+- Alerting : si un cron critique n'a pas tourné depuis 36h -> notification mail manager.
 
 ### Alternatives rejetées
 
@@ -312,7 +312,7 @@ syncSharepoint({ coproIds: process.argv.slice(2) });
 
 ---
 
-## ADR-005 — Authentification eStale et transition vers API key
+## ADR-005 - Authentification eStale et transition vers API key
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -351,7 +351,7 @@ Si l'API key n'est pas disponible à **2026-11-22**, rouvrir cet ADR.
 
 ---
 
-## ADR-006 — Système de jalons à deux étages (légal + REAL31)
+## ADR-006 - Système de jalons à deux étages (légal + REAL31)
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
 
@@ -402,7 +402,7 @@ interface JalonCalcule {
 **UI / alertes** :
 - Vert : avant la date REAL31
 - Ambre : dépassement REAL31 mais dans le légal
-- Rouge : dépassement légal → alerte mail immédiate + entrée `audit_log` de niveau `LEGAL_VIOLATION`
+- Rouge : dépassement légal -> alerte mail immédiate + entrée `audit_log` de niveau `LEGAL_VIOLATION`
 
 ### 5 jalons MVP (confirmés par mockup)
 
@@ -411,7 +411,7 @@ Pour une AG/AGE :
 |---|---|---|---|
 | 1 | ODJ validé avec CS | J-45 | Cabinet REAL31 |
 | 2 | Devis et documents techniques rassemblés | J-45 | Cabinet REAL31 |
-| 3 | Convocations envoyées | J-21 | **Légal — art. 9 décret 1967** |
+| 3 | Convocations envoyées | J-21 | **Légal - art. 9 décret 1967** |
 | 4 | Pouvoirs et votes par correspondance reçus | J-2 | Cabinet REAL31 (relance reco à J-5) |
 | 5 | Tenue de l'AG | J-0 | **Légal** |
 
@@ -446,7 +446,7 @@ Pas de validation juridique externe pour le MVP. **Revue juridique recommandée 
 
 ---
 
-## ADR-007 — Audit RGPD niveau (b) + séparation audit / activity log
+## ADR-007 - Audit RGPD niveau (b) + séparation audit / activity log
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
 
@@ -462,7 +462,7 @@ Le mockup montre par ailleurs un **historique d'actions affiché dans l'UI** («
 
 **Deux tables distinctes**, deux usages distincts.
 
-#### `audit_log` — conformité RGPD
+#### `audit_log` - conformité RGPD
 
 ```sql
 create table audit_log (
@@ -488,7 +488,7 @@ create index audit_log_resource_idx on audit_log (resource_type, resource_id);
 - Conservation 1-3 ans (à valider avec DPO)
 - Purge automatique au-delà
 
-#### `activity_log` — feature produit (historique affiché)
+#### `activity_log` - feature produit (historique affiché)
 
 ```sql
 create table activity_log (
@@ -505,7 +505,7 @@ create index activity_log_resource_idx on activity_log (resource_type, resource_
 create index activity_log_actor_idx on activity_log (actor_user_id, occurred_at desc);
 ```
 
-- **Lecture user-facing** : requêté par les pages "Fiche prépa AG → Historique des actions", "Mes événements → Activité récente"
+- **Lecture user-facing** : requêté par les pages "Fiche prépa AG -> Historique des actions", "Mes événements -> Activité récente"
 - Soumis à RLS (un gestionnaire ne voit que l'activité sur ses copros)
 - Pas de purge automatique au début
 
@@ -545,7 +545,7 @@ const jalon = await withAudit(
 
 ---
 
-## ADR-008 — Périmètre fonctionnel : surcouche de coordination eStale
+## ADR-008 - Périmètre fonctionnel : surcouche de coordination eStale
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -571,7 +571,7 @@ Sans décision explicite, le scope dérivera mois après mois vers un logiciel m
 1. **Planification CS/AG transverse** au cabinet (vue manager + vue gestionnaire)
 2. **Suivi des jalons réglementaires** (échéances loi 1965 / décret 1967)
 3. **Alertes et automatisations** (J-90 contrats, jalons en retard, synthèse hebdo)
-4. **Génération de documents** (note immeuble, ODJ, convocations, courriers) — post-MVP
+4. **Génération de documents** (note immeuble, ODJ, convocations, courriers) - post-MVP
 5. **Vue centralisée** pour coordonner l'équipe (qui fait quoi, où on en est)
 6. **Mémoire institutionnelle** (notes libres, historique d'actions)
 
@@ -585,9 +585,9 @@ Sans décision explicite, le scope dérivera mois après mois vers un logiciel m
 
 **Négatives**
 - L'utilisateur a deux outils ouverts : l'intranet (coordination) + eStale (métier).
-- Risque de demande de duplication ("affiche-moi le solde compta ici aussi") — à refuser sauf cas marginal.
+- Risque de demande de duplication ("affiche-moi le solde compta ici aussi") - à refuser sauf cas marginal.
 
-**Règle de gouvernance** : toute proposition de feature qui dupliquerait une fonctionnalité existant dans eStale doit déclencher la question : *"pourquoi ne pas le faire dans eStale ?"*. Réponse acceptable uniquement si la valeur ajoutée est dans la **coordination ou la transversalité** (ex. comparer le solde de 10 copros d'un coup → c'est de la coordination, ça peut entrer).
+**Règle de gouvernance** : toute proposition de feature qui dupliquerait une fonctionnalité existant dans eStale doit déclencher la question : *"pourquoi ne pas le faire dans eStale ?"*. Réponse acceptable uniquement si la valeur ajoutée est dans la **coordination ou la transversalité** (ex. comparer le solde de 10 copros d'un coup -> c'est de la coordination, ça peut entrer).
 
 ### Conséquence sur les profils utilisateurs
 
@@ -595,7 +595,7 @@ Il n'y a **pas 6 écrans différents pour 6 rôles métier**. Il y a **une seule
 
 ---
 
-## ADR-009 — Permissions et scopes : gestionnaire cloisonné au MVP, modèle extensible
+## ADR-009 - Permissions et scopes : gestionnaire cloisonné au MVP, modèle extensible
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -604,10 +604,10 @@ Il n'y a **pas 6 écrans différents pour 6 rôles métier**. Il y a **une seule
 MVP : 4-7 gestionnaires, chacun voit uniquement ses copros (cloisonnement strict).
 
 Vision long terme :
-- Dirigeant, directeurs syndic → voient toutes les copros (ou celles de leur direction)
-- Comptables → voient toutes les copros (pour coordination avec gestionnaires)
-- Assistants → voient les copros de leur gestionnaire référent
-- Collègues d'autres services → accès lecture selon besoin
+- Dirigeant, directeurs syndic -> voient toutes les copros (ou celles de leur direction)
+- Comptables -> voient toutes les copros (pour coordination avec gestionnaires)
+- Assistants -> voient les copros de leur gestionnaire référent
+- Collègues d'autres services -> accès lecture selon besoin
 
 **L'UI reste la même.** Seul le **périmètre de filtrage** change.
 
@@ -650,26 +650,26 @@ Chaque rôle a un **scope** qui définit quelles copros il voit. Trois scopes po
 | `comptable`, `directeur`, `dirigeant` | "toutes les copros" | pas de filtre |
 | `admin` | "toutes + admin" | pas de filtre + accès aux pages admin |
 
-**Au MVP, seul le scope `gestionnaire` est activé.** Les autres rôles existent dans l'enum mais aucune politique RLS ne leur donne accès → en pratique ils ne voient rien tant qu'on n'ajoute pas la policy correspondante.
+**Au MVP, seul le scope `gestionnaire` est activé.** Les autres rôles existent dans l'enum mais aucune politique RLS ne leur donne accès -> en pratique ils ne voient rien tant qu'on n'ajoute pas la policy correspondante.
 
 ### Conséquences
 
 **Positives**
 - Extensibilité par **ajout** de policies RLS, pas par refonte (cf. ADR-011).
 - L'UI ne change pas selon le rôle, juste les données retournées.
-- Audit log inclut déjà `actor_role` → traçabilité dès J1, utile post-MVP.
+- Audit log inclut déjà `actor_role` -> traçabilité dès J1, utile post-MVP.
 
 **Négatives**
 - Plus de colonnes "inutilisées" au MVP (`reports_to_user_id`, autres rôles).
-- Tentation de coder des features par rôle plus tôt — à refuser.
+- Tentation de coder des features par rôle plus tôt - à refuser.
 
 ### Anti-pattern à éviter
 
-**Ne PAS** coder un système de permissions custom dans l'app (genre `if user.role === 'gestionnaire' && copro.gestionnaire === user.initials`). Toute la logique de scope passe par RLS Supabase (cf. ADR-011). L'app fait confiance aux requêtes — si Supabase ne retourne pas une ligne, c'est qu'on n'y a pas droit.
+**Ne PAS** coder un système de permissions custom dans l'app (genre `if user.role === 'gestionnaire' && copro.gestionnaire === user.initials`). Toute la logique de scope passe par RLS Supabase (cf. ADR-011). L'app fait confiance aux requêtes - si Supabase ne retourne pas une ligne, c'est qu'on n'y a pas droit.
 
 ---
 
-## ADR-010 — Identification utilisateurs : mapping initiales Crypto ↔ email Entra ID
+## ADR-010 - Identification utilisateurs : mapping initiales Crypto ↔ email Entra ID
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -683,7 +683,7 @@ Il faut une correspondance entre les deux.
 
 **Table de mapping native Supabase**, saisie une fois à la main par un admin.
 
-Cette table n'est pas une entité séparée — c'est le champ `users.gestionnaire_initials` introduit dans ADR-009. Le mapping est porté directement par la table `users`.
+Cette table n'est pas une entité séparée - c'est le champ `users.gestionnaire_initials` introduit dans ADR-009. Le mapping est porté directement par la table `users`.
 
 #### Process de bootstrap
 
@@ -696,10 +696,10 @@ Cette table n'est pas une entité séparée — c'est le champ `users.gestionnai
 
 #### Process au login
 
-1. User se connecte via Entra ID → token avec email.
+1. User se connecte via Entra ID -> token avec email.
 2. App cherche `users.email = <email>` :
-   - Trouvé et `is_active = true` → session OK, sa `gestionnaire_initials` est en cookie.
-   - Pas trouvé ou inactif → page "Accès non autorisé, contacter l'admin".
+   - Trouvé et `is_active = true` -> session OK, sa `gestionnaire_initials` est en cookie.
+   - Pas trouvé ou inactif -> page "Accès non autorisé, contacter l'admin".
 3. RLS Supabase utilise `users.gestionnaire_initials` côté policy pour filtrer `copros`.
 
 ### Conséquences
@@ -720,7 +720,7 @@ Quand on migrera vers eStale, eStale identifie les gestionnaires différemment (
 
 ---
 
-## ADR-011 — RLS Supabase activée dès J1, complexification par ajout de policies
+## ADR-011 - RLS Supabase activée dès J1, complexification par ajout de policies
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -750,7 +750,7 @@ create policy "gestionnaire voit ses copros" on copros
   );
 ```
 
-Mêmes patterns pour `evenements`, `jalons`, `activity_log`, etc. — toujours via une jointure sur `users`.
+Mêmes patterns pour `evenements`, `jalons`, `activity_log`, etc. - toujours via une jointure sur `users`.
 
 **Tables système exemptes de RLS** (mais accès restreint au service role) :
 - `users` (lecture limitée à soi-même via une policy dédiée)
@@ -775,19 +775,19 @@ create policy "comptable voit toutes les copros" on copros
   );
 ```
 
-PostgreSQL combine les policies en OR — le user voit la ligne si **au moins une** policy le permet. Pas de refonte.
+PostgreSQL combine les policies en OR - le user voit la ligne si **au moins une** policy le permet. Pas de refonte.
 
 ### Tests obligatoires
 
-- Tests de policies : un user gestionnaire connecté tente de lire une copro qui n'est pas la sienne → 0 lignes retournées (pas 403, juste vide).
-- Tests d'escalade : tentative de modifier `users.role` depuis l'app utilisateur → bloqué.
+- Tests de policies : un user gestionnaire connecté tente de lire une copro qui n'est pas la sienne -> 0 lignes retournées (pas 403, juste vide).
+- Tests d'escalade : tentative de modifier `users.role` depuis l'app utilisateur -> bloqué.
 
 ### Conséquences
 
 **Positives**
 - Sécurité défense-en-profondeur : même si une route oublie un filtre, RLS bloque.
 - Extensibilité = ajout de policies, jamais refonte.
-- Le code applicatif ignore les permissions → simpler.
+- Le code applicatif ignore les permissions -> simpler.
 
 **Négatives**
 - Courbe d'apprentissage RLS (syntaxe Postgres, debug parfois opaque).
@@ -799,7 +799,7 @@ Ne PAS désactiver RLS pour le service role et faire toute la logique côté Ser
 
 ---
 
-## ADR-012 — Génération PDF reportée post-MVP + retrait du deep-link Crypto
+## ADR-012 - Génération PDF reportée post-MVP + retrait du deep-link Crypto
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -807,7 +807,7 @@ Ne PAS désactiver RLS pour le service role et faire toute la logique côté Ser
 
 Le mockup affiche des boutons de génération de documents (convocations PDF, ODJ PDF, note immeuble, impression du calendrier annuel). Ces fonctions sont visuellement présentes mais non triviales à implémenter en serverless.
 
-Par ailleurs, le mockup montre un bouton "Ouvrir dans Crypto" — or Crypto est un logiciel desktop legacy non deep-linkable.
+Par ailleurs, le mockup montre un bouton "Ouvrir dans Crypto" - or Crypto est un logiciel desktop legacy non deep-linkable.
 
 ### Décision
 
@@ -839,7 +839,7 @@ Par ailleurs, le mockup montre un bouton "Ouvrir dans Crypto" — or Crypto est 
 
 **Négatives**
 - Frustration utilisateur sur les boutons grisés. À atténuer par un tooltip explicite.
-- Promesse implicite à tenir post-MVP — à inscrire en haut de la backlog vague 2.
+- Promesse implicite à tenir post-MVP - à inscrire en haut de la backlog vague 2.
 
 ### Conditions de réouverture
 
@@ -847,7 +847,7 @@ Si la génération de convocations devient critique avant la vague 2 (ex. trop d
 
 ---
 
-## ADR-013 — Géocodage des adresses via Nominatim OSM dans le job de sync
+## ADR-013 - Géocodage des adresses via Nominatim OSM dans le job de sync
 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
 
@@ -865,7 +865,7 @@ Les sources externes (SharePoint export Crypto, eStale) stockent l'adresse en te
 - Géocodage UNIQUEMENT au premier sync d'une copro, ou si l'adresse change (détectée par diff).
 - Rate limit Nominatim : 1 req/sec officiel. Sur 168 copros, premier sync = ~3 min de géocodage. Acceptable nocturne.
 - Cache permanent en base (les copros déménagent rarement).
-- Fallback en cas d'échec : adresse non géocodable → carte non affichée, message "Localisation indisponible". Pas d'erreur applicative.
+- Fallback en cas d'échec : adresse non géocodable -> carte non affichée, message "Localisation indisponible". Pas d'erreur applicative.
 
 ### Justifications
 
@@ -884,7 +884,7 @@ Les sources externes (SharePoint export Crypto, eStale) stockent l'adresse en te
 
 | Service | Pourquoi rejeté |
 |---|---|
-| MapBox Geocoding | Payant au-delà du free tier (50k req/mois — overkill). Clé API à gérer. |
+| MapBox Geocoding | Payant au-delà du free tier (50k req/mois - overkill). Clé API à gérer. |
 | OpenCage | Payant, 2500 req/jour gratuit, overkill. |
 | Google Geocoding | Payant, gestion clé API stricte. |
 | ban.openstreetmap.fr (BAN officielle) | Excellent pour FR, à reconsidérer post-MVP si Nominatim insuffisant. |
@@ -903,7 +903,7 @@ Les sources externes (SharePoint export Crypto, eStale) stockent l'adresse en te
 
 ### Critère de réévaluation
 
-Si > 5 % des adresses ne sont pas géocodables avec Nominatim → migrer vers BAN ou MapBox.
+Si > 5 % des adresses ne sont pas géocodables avec Nominatim -> migrer vers BAN ou MapBox.
 
 ---
 
@@ -917,6 +917,6 @@ Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
 - **ADR-017** : Auth library côté Next.js (Auth.js v5 vs implémentation custom OAuth Entra)
 - **ADR-018** : Strategie de devenir des données historiques SharePoint post-migration (cf. ADR-003)
 - **ADR-019** : Stratégie de tests (vitest, Playwright, contract tests sur adapters)
-- **ADR-020** : Observabilité (Sentry, Vercel Analytics, Logflare, …)
+- **ADR-020** : Observabilité (Sentry, Vercel Analytics, Logflare, ...)
 
 À traiter au moment où la décision devient bloquante.

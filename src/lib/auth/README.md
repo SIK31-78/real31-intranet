@@ -1,4 +1,4 @@
-# `lib/auth/` — Authentification et session
+# `lib/auth/` - Authentification et session
 
 Cf. **ADR-009** (permissions/scopes), **ADR-010** (mapping initiales/email),
 **ADR-011** (RLS).

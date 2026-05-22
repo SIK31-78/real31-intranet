@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# fichiers évocateurs d'agents IA, regénérés par create-next-app si re-bootstrap
+AGENTS.md
+CLAUDE.md

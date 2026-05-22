@@ -2,7 +2,7 @@
   "name": "real31-intranet",
   "version": "0.1.0",
   "private": true,
-  "description": "Intranet REAL31 — surcouche de coordination eStale/Crypto pour syndic de copropriété",
+  "description": "Intranet REAL31 - surcouche de coordination eStale/Crypto pour syndic de copropriété",
   "engines": {
     "node": ">=22 <23",
     "pnpm": ">=10"

@@ -1,4 +1,4 @@
-# `lib/audit/` — Audit RGPD + activity log produit
+# `lib/audit/` - Audit RGPD + activity log produit
 
 Cf. **ADR-007**.
 
@@ -10,8 +10,8 @@ Cf. **ADR-007**.
 
 **Deux tables séparées** :
 
-- `audit_log` — append-only, jamais affiché à l'utilisateur, conformité RGPD
-- `activity_log` — historique produit affiché dans l'UI ("FS a marqué X
+- `audit_log` - append-only, jamais affiché à l'utilisateur, conformité RGPD
+- `activity_log` - historique produit affiché dans l'UI ("FS a marqué X
   comme accompli le 5 mai")
 
 À mettre en place dans l'Increment 4 du plan J1a.

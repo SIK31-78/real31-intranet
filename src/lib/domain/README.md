@@ -1,4 +1,4 @@
-# `lib/domain/` — Types et règles métier purs
+# `lib/domain/` - Types et règles métier purs
 
 Cf. **ADR-001** (architecture hexagonale).
 

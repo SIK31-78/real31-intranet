@@ -1,4 +1,4 @@
-# `lib/adapters/sharepoint/` — Adapter SharePoint (Microsoft Graph)
+# `lib/adapters/sharepoint/` - Adapter SharePoint (Microsoft Graph)
 
 Cf. **ADR-001** (architecture hexagonale), **ADR-002** (sync miroir nocturne),
 **ADR-003** (migration progressive).
@@ -7,7 +7,7 @@ Cf. **ADR-001** (architecture hexagonale), **ADR-002** (sync miroir nocturne),
 
 - Client Microsoft Graph (`@microsoft/microsoft-graph-client`)
 - Implémentations concrètes des ports : `SharePointCoproAdapter`, etc.
-- Mappers SharePoint → Domain (noms internes de colonnes → types métier)
+- Mappers SharePoint -> Domain (noms internes de colonnes -> types métier)
 
 **Règle d'isolation :** ce dossier est **le seul** autorisé à importer
 `@microsoft/microsoft-graph-client`, `@microsoft/microsoft-graph-types`,

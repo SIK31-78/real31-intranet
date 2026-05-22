@@ -7,10 +7,10 @@ import boundaries from "eslint-plugin-boundaries";
  * TODO: migrer vers la nouvelle API `boundaries/dependencies` (eslint-plugin-boundaries v6).
  * Pour l'instant, on utilise l'API legacy `boundaries/element-types` et `boundaries/external`
  * qui fonctionne pleinement mais affiche des warnings de dépréciation à chaque lint.
- * La migration sera tracée dans un futur ADR — pas urgent, juste à faire avant la suppression
+ * La migration sera tracée dans un futur ADR - pas urgent, juste à faire avant la suppression
  * de l'API legacy (annoncée mais pas datée par le plugin).
  *
- * Architecture hexagonale (Ports & Adapters) — cf. DECISIONS.md / ADR-001.
+ * Architecture hexagonale (Ports & Adapters) - cf. DECISIONS.md / ADR-001.
  *
  * Chaque "élément" est un répertoire avec des règles strictes d'import :
  *
@@ -67,7 +67,7 @@ const eslintConfig = defineConfig([
     },
 
     rules: {
-      // Règle 1 — Qui peut importer qui (graphe de dépendances inter-modules)
+      // Règle 1 - Qui peut importer qui (graphe de dépendances inter-modules)
       // Par défaut tout est interdit ; on liste explicitement ce qui est permis.
       "boundaries/element-types": ["error", {
         default: "disallow",
@@ -102,7 +102,7 @@ const eslintConfig = defineConfig([
         ],
       }],
 
-      // Règle 2 — SDKs externes confinés à leur adapter respectif.
+      // Règle 2 - SDKs externes confinés à leur adapter respectif.
       // Évite que `@supabase/supabase-js` apparaisse dans un Server Component ou un service.
       "boundaries/external": ["error", {
         default: "allow",

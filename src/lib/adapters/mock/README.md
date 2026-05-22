@@ -1,4 +1,4 @@
-# `lib/adapters/mock/` — Adapter Mock (dev local & tests)
+# `lib/adapters/mock/` - Adapter Mock (dev local & tests)
 
 Cf. **ADR-001**.
 

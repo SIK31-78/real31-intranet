@@ -1,11 +1,11 @@
-# `lib/ports/` — Interfaces (contrats)
+# `lib/ports/` - Interfaces (contrats)
 
 Cf. **ADR-001** (architecture hexagonale).
 
 **Ce qui vit ici :**
 
 - Interfaces TypeScript pour chaque dépôt (`CoproRepository`,
-  `EvenementRepository`, `JalonRepository`, …)
+  `EvenementRepository`, `JalonRepository`, ...)
 - Types de paramètres / retours liés aux signatures
 
 Les ports définissent **quoi** est possible (lire une copro par id,

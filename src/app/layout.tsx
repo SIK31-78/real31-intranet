@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "REAL31 Intranet",
-  description: "Surcouche de coordination eStale/Crypto — cabinet de syndic REAL31",
+  description: "Surcouche de coordination eStale/Crypto - cabinet de syndic REAL31",
 };
 
 export default function RootLayout({

@@ -1,10 +1,10 @@
-# `lib/services/` — Logique applicative (orchestration)
+# `lib/services/` - Logique applicative (orchestration)
 
 Cf. **ADR-001**.
 
 **Ce qui vit ici :**
 
-- Cas d'usage métier (`marquerJalonAccompli`, `bascullerSourceCopro`, …)
+- Cas d'usage métier (`marquerJalonAccompli`, `bascullerSourceCopro`, ...)
 - Orchestration de plusieurs ports/repositories
 - Appels à `withAudit()` pour la traçabilité
 

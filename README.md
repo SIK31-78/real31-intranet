@@ -1,12 +1,12 @@
 # REAL31 Intranet
 
-Surcouche de coordination par-dessus eStale (et Crypto pendant la transition de 6 mois) pour le cabinet de syndic **REAL31** à Toulouse. Voir [`DECISIONS.md`](./DECISIONS.md) — **ADR-008** pour le périmètre exact.
+Surcouche de coordination par-dessus eStale (et Crypto pendant la transition de 6 mois) pour le cabinet de syndic **REAL31** à Toulouse. Voir [`DECISIONS.md`](./DECISIONS.md) - **ADR-008** pour le périmètre exact.
 
 > **Si tu arrives sur ce projet, lis dans cet ordre :**
-> 1. [`DECISIONS.md`](./DECISIONS.md) — les 13 ADRs qui posent l'architecture
-> 2. [`ROADMAP.md`](./ROADMAP.md) — l'état d'avancement et les jalons à venir
-> 3. [`real31-mockup.html`](./real31-mockup.html) — la référence UX (5 écrans)
-> 4. Les `README.md` à l'intérieur de `src/lib/*/` — rappel du rôle de chaque dossier
+> 1. [`DECISIONS.md`](./DECISIONS.md) - les 13 ADRs qui posent l'architecture
+> 2. [`ROADMAP.md`](./ROADMAP.md) - l'état d'avancement et les jalons à venir
+> 3. [`real31-mockup.html`](./real31-mockup.html) - la référence UX (5 écrans)
+> 4. Les `README.md` à l'intérieur de `src/lib/*/` - rappel du rôle de chaque dossier
 
 ## Stack
 
@@ -55,27 +55,27 @@ src/
 ├── app/                    # Routes Next.js (Server / Client Components)
 └── lib/
     ├── domain/             # Types métier purs, zéro dépendance technique
-    ├── ports/              # Interfaces (CoproRepository, EvenementRepository, …)
+    ├── ports/              # Interfaces (CoproRepository, EvenementRepository, ...)
     ├── adapters/
-    │   ├── sharepoint/     # Microsoft Graph — uniquement appelé par les jobs
-    │   ├── estale/         # GraphQL — appelé par les jobs (cache TTL court)
-    │   ├── supabase/       # supabase-js — chemin de lecture de toute l'UI
+    │   ├── sharepoint/     # Microsoft Graph - uniquement appelé par les jobs
+    │   ├── estale/         # GraphQL - appelé par les jobs (cache TTL court)
+    │   ├── supabase/       # supabase-js - chemin de lecture de toute l'UI
     │   ├── mock/           # données fictives (dev + tests)
     │   └── router.ts       # sélection de l'adapter selon copros.source
     ├── services/           # Cas d'usage métier, orchestration
     ├── jobs/               # Sync, alertes, automatisations (cron)
     ├── audit/              # audit_log RGPD + activity_log produit
-    └── auth/               # Session, mock-provider (J1a) → Entra ID (J1b)
+    └── auth/               # Session, mock-provider (J1a) -> Entra ID (J1b)
 ```
 
-**Règle d'isolation** : aucun import direct des SDKs externes (`@microsoft/microsoft-graph-client`, `@supabase/supabase-js`, `graphql-request`, etc.) en dehors de leur adapter respectif. C'est appliqué par `eslint-plugin-boundaries` — cf. [`eslint.config.mjs`](./eslint.config.mjs).
+**Règle d'isolation** : aucun import direct des SDKs externes (`@microsoft/microsoft-graph-client`, `@supabase/supabase-js`, `graphql-request`, etc.) en dehors de leur adapter respectif. C'est appliqué par `eslint-plugin-boundaries` - cf. [`eslint.config.mjs`](./eslint.config.mjs).
 
 Pour tester la règle :
 
 ```bash
 # crée un fichier qui viole la règle, lance le lint, observe l'erreur :
 echo "import { createClient } from '@supabase/supabase-js'; export const c = createClient('', '');" > src/lib/services/test-violation.ts
-pnpm lint   # → erreur boundaries/external
+pnpm lint   # -> erreur boundaries/external
 rm src/lib/services/test-violation.ts
 ```
 
@@ -85,12 +85,12 @@ rm src/lib/services/test-violation.ts
 
 ## Statut MVP
 
-- ✅ J1a — Fondations techniques (mock auth, scaffolding)
-- ⏸️ J1b — Branchement Entra ID (dépend du DSI, cf. `docs/entra-app-registration.md`)
-- 🔲 J2 — Écrans + MockProvider
-- 🔲 J3 — Branchement SharePoint
-- 🔲 J4 — Branchement eStale
-- 🔲 J5 — Alertes + mails
-- 🔲 J6 — Pré-prod + go-live
+- ✅ J1a - Fondations techniques (mock auth, scaffolding)
+- ⏸️ J1b - Branchement Entra ID (dépend du DSI, cf. `docs/entra-app-registration.md`)
+- 🔲 J2 - Écrans + MockProvider
+- 🔲 J3 - Branchement SharePoint
+- 🔲 J4 - Branchement eStale
+- 🔲 J5 - Alertes + mails
+- 🔲 J6 - Pré-prod + go-live
 
 Détail dans [`ROADMAP.md`](./ROADMAP.md).
