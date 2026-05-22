@@ -1,4 +1,4 @@
-# Demande d'App Registration Entra ID — REAL31 Intranet
+# Demande d'App Registration Entra ID - REAL31 Intranet
 
 Document à transmettre **tel quel** au DSI. Toutes les informations nécessaires pour créer l'App Registration et configurer les permissions sont ici.
 
@@ -34,13 +34,13 @@ Nous avons besoin d'**une seule App Registration Entra ID** couvrant ces trois u
 
 ### Identifiants à récupérer après création
 
-Le DSI doit nous transmettre **de manière sécurisée** (Bitwarden, 1Password, ou canal chiffré équivalent — **pas par email**) :
+Le DSI doit nous transmettre **de manière sécurisée** (Bitwarden, 1Password, ou canal chiffré équivalent - **pas par email**) :
 
 | Variable | Origine | Notes |
 |---|---|---|
-| `AZURE_TENANT_ID` | Onglet *Overview* → *Directory (tenant) ID* | GUID public, peu sensible |
-| `AZURE_CLIENT_ID` | Onglet *Overview* → *Application (client) ID* | GUID public, peu sensible |
-| `AZURE_CLIENT_SECRET` | Onglet *Certificates & secrets* → *Client secrets* → *New client secret* | **Très sensible**, à transmettre via canal chiffré |
+| `AZURE_TENANT_ID` | Onglet *Overview* -> *Directory (tenant) ID* | GUID public, peu sensible |
+| `AZURE_CLIENT_ID` | Onglet *Overview* -> *Application (client) ID* | GUID public, peu sensible |
+| `AZURE_CLIENT_SECRET` | Onglet *Certificates & secrets* -> *Client secrets* -> *New client secret* | **Très sensible**, à transmettre via canal chiffré |
 
 ---
 
@@ -48,7 +48,7 @@ Le DSI doit nous transmettre **de manière sécurisée** (Bitwarden, 1Password, 
 
 Le SSO Microsoft renvoie l'utilisateur sur une URL spécifique après login. Entra ID exige que **chaque URL soit explicitement déclarée** (pas de wildcard supporté).
 
-À déclarer dans la section *Authentication → Redirect URIs* (Platform : Web) :
+À déclarer dans la section *Authentication -> Redirect URIs* (Platform : Web) :
 
 ```
 http://localhost:3000/api/auth/callback/microsoft-entra-id
@@ -81,13 +81,13 @@ Trois permissions Microsoft Graph nécessaires. Deux sont de type **Application*
 
 ### Étapes côté Entra ID
 
-1. *API permissions → Add a permission → Microsoft Graph*
+1. *API permissions -> Add a permission -> Microsoft Graph*
 2. Sélectionner chaque permission ci-dessus dans le bon onglet (Delegated ou Application)
-3. **Cliquer sur *Grant admin consent for [tenant]*** — sans cette étape, les permissions Application ne sont pas effectives.
+3. **Cliquer sur *Grant admin consent for [tenant]*** - sans cette étape, les permissions Application ne sont pas effectives.
 
 ### Pourquoi `Sites.Selected` plutôt que `Sites.Read.All`
 
-`Sites.Read.All` donne accès à **tous** les sites SharePoint du tenant — c'est excessif pour notre besoin. `Sites.Selected` exige qu'un administrateur SharePoint allowliste **explicitement** chaque site auquel l'application a accès. C'est la pratique de moindre privilège recommandée par Microsoft pour les apps backend.
+`Sites.Read.All` donne accès à **tous** les sites SharePoint du tenant - c'est excessif pour notre besoin. `Sites.Selected` exige qu'un administrateur SharePoint allowliste **explicitement** chaque site auquel l'application a accès. C'est la pratique de moindre privilège recommandée par Microsoft pour les apps backend.
 
 ### Étapes additionnelles pour `Sites.Selected`
 
@@ -125,14 +125,14 @@ Le DSI nous transmettra l'**ID du ou des sites** (`siteId` au format `<tenant>.s
 
 | Champ | Valeur |
 |---|---|
-| **Description** | `REAL31 Intranet — Prod 2026` |
+| **Description** | `REAL31 Intranet - Prod 2026` |
 | **Expires** | 12 mois (rotation annuelle à mettre dans le calendrier IT) |
 
 ⚠️ **Important** : la valeur du secret n'est affichée **qu'une seule fois** au moment de la création. Si on la perd, il faut générer un nouveau secret.
 
 ### Alternative plus sécurisée (optionnelle)
 
-Microsoft recommande l'usage d'un **certificate** plutôt qu'un secret pour la production. Mise en place plus complexe (génération keypair, upload de la clé publique, stockage de la clé privée côté Vercel). Si le DSI préfère cette voie, on s'adapte — sinon, le client secret est suffisant pour notre niveau de criticité.
+Microsoft recommande l'usage d'un **certificate** plutôt qu'un secret pour la production. Mise en place plus complexe (génération keypair, upload de la clé publique, stockage de la clé privée côté Vercel). Si le DSI préfère cette voie, on s'adapte - sinon, le client secret est suffisant pour notre niveau de criticité.
 
 ---
 
@@ -162,7 +162,7 @@ New-ApplicationAccessPolicy `
   -AppId "<AZURE_CLIENT_ID>" `
   -PolicyScopeGroupId "intranet@real31.fr" `
   -AccessRight RestrictAccess `
-  -Description "REAL31 Intranet — autorisé à envoyer uniquement depuis intranet@real31.fr"
+  -Description "REAL31 Intranet - autorisé à envoyer uniquement depuis intranet@real31.fr"
 
 # Vérification
 Test-ApplicationAccessPolicy `
@@ -185,8 +185,8 @@ Une fois l'App Registration créée et toutes les configurations faites, le DSI 
 | `AZURE_CLIENT_SECRET` | Chaîne ~40 chars | **Critique** |
 | Site IDs SharePoint allowlistés | Liste de `<tenant>.sharepoint.com,<guid>,<guid>` | Faible |
 | Adresse mail expéditrice configurée | ex: `intranet@real31.fr` | Faible |
-| Confirmation Application Access Policy active | OK / KO | — |
-| Confirmation Admin consent accordé pour les 3 permissions | OK / KO | — |
+| Confirmation Application Access Policy active | OK / KO | - |
+| Confirmation Admin consent accordé pour les 3 permissions | OK / KO | - |
 
 Canal de transmission du secret : **Bitwarden / 1Password / message chiffré**. Pas d'email standard, pas de Teams non chiffré.
 
@@ -212,7 +212,7 @@ Pour information : à mesure que les modules de l'intranet s'enrichiront, nous r
 
 - Ajouter de nouveaux sites SharePoint à l'allowlist (extensions de fonctionnalités)
 - Ajouter une boîte mail secondaire (ex: `noreply-alertes@real31.fr`)
-- Ajouter le scope `Calendars.ReadWrite` (si on veut un jour synchroniser les AG vers les calendriers Outlook des collaborateurs — non prévu MVP)
+- Ajouter le scope `Calendars.ReadWrite` (si on veut un jour synchroniser les AG vers les calendriers Outlook des collaborateurs - non prévu MVP)
 - Migrer du client secret vers un certificate
 
 Aucune de ces évolutions n'est imminente. Le périmètre actuel suffit pour le MVP et les premiers mois d'exploitation.
