@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>REAL31 — Mockup interactif</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --bg-page: #f7f7f5;
+    --bg-surface: #ffffff;
+    --bg-muted: #f1efe8;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.15);
+    --text: #1a1a1a;
+    --text-secondary: #5f5e5a;
+    --text-tertiary: #888780;
+    --accent-blue-bg: #E6F1FB;
+    --accent-blue-text: #0C447C;
+    --accent-blue-border: #B5D4F4;
+    --accent-amber-bg: #FAEEDA;
+    --accent-amber-text: #854F0B;
+    --accent-amber-border: #FAC775;
+    --accent-red-bg: #FCEBEB;
+    --accent-red-text: #791F1F;
+    --accent-red-border: #F09595;
+    --accent-green-bg: #E1F5EE;
+    --accent-green-text: #085041;
+    --accent-green-border: #9FE1CB;
+    --accent-purple-bg: #EEEDFE;
+    --accent-purple-text: #3C3489;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    color: var(--text);
+    background: var(--bg-page);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  h1 { font-size: 22px; margin: 0; font-weight: 500; }
+  h2 { font-size: 18px; margin: 0; font-weight: 500; }
+  h3 { font-size: 15px; margin: 0; font-weight: 500; }
+  h4 { font-size: 13px; margin: 0; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    background: transparent;
+    border: 0.5px solid var(--border-strong);
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--text);
+    transition: all 0.15s;
+  }
+  button:hover { background: var(--bg-muted); }
+  button.primary {
+    background: var(--text);
+    color: white;
+    border-color: var(--text);
+    font-weight: 500;
+  }
+  button.primary:hover { opacity: 0.85; background: var(--text); }
+
+  /* Layout */
+  .app {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    background: var(--bg-surface);
+    border-right: 0.5px solid var(--border);
+    padding: 1rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px 14px 8px;
+    border-bottom: 0.5px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .sidebar-logo {
+    width: 28px; height: 28px;
+    border-radius: var(--radius-md);
+    background: var(--accent-blue-bg);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent-blue-text);
+  }
+  .sidebar-name { font-weight: 500; font-size: 14px; }
+  .sidebar-tag {
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: var(--radius-md);
+    background: var(--accent-amber-bg);
+    color: var(--accent-amber-text);
+    font-weight: 500;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover {
+    background: var(--bg-muted);
+    color: var(--text);
+  }
+  .nav-item.active {
+    background: var(--bg-muted);
+    color: var(--text);
+    font-weight: 500;
+  }
+  .nav-item i { font-size: 16px; }
+  .sidebar-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    padding: 14px 10px 6px 10px;
+    font-weight: 500;
+  }
+
+  .sidebar-user {
+    margin-top: auto;
+    padding: 12px 8px;
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--bg-muted);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .avatar.lg { width: 44px; height: 44px; font-size: 14px; }
+  .avatar.sm { width: 22px; height: 22px; font-size: 10px; }
+  .avatar.blue { background: var(--accent-blue-bg); color: var(--accent-blue-text); }
+
+  /* Main */
+  .main {
+    flex: 1;
+    padding: 1.75rem 2rem;
+    max-width: 1100px;
+  }
+  .page-header {
+    margin-bottom: 1.5rem;
+  }
+  .page-header p {
+    margin: 4px 0 0 0;
+    color: var(--text-secondary);
+  }
+
+  .breadcrumb {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .breadcrumb .sep { margin: 0 6px; }
+  .breadcrumb a { color: var(--text-secondary); cursor: pointer; text-decoration: none; }
+  .breadcrumb a:hover { color: var(--text); }
+  .breadcrumb .current { color: var(--text); }
+
+  /* Cards */
+  .card {
+    background: var(--bg-surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 1.25rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .card-body { padding: 1.25rem; }
+
+  /* Stat cards */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 1.25rem;
+  }
+  .stat {
+    background: var(--bg-muted);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+  }
+  .stat.warning { background: var(--accent-amber-bg); }
+  .stat.danger { background: var(--accent-red-bg); }
+  .stat-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0 0 6px 0;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1;
+    margin: 0;
+  }
+  .stat-hint {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 4px 0 0 0;
+  }
+  .stat.warning .stat-label,
+  .stat.warning .stat-hint { color: var(--accent-amber-text); }
+  .stat.warning .stat-value { color: #633806; }
+  .stat.danger .stat-label,
+  .stat.danger .stat-hint { color: var(--accent-red-text); }
+  .stat.danger .stat-value { color: #501313; }
+  .stat-icon {
+    font-size: 20px;
+    color: var(--text-secondary);
+  }
+  .stat.warning .stat-icon { color: var(--accent-amber-text); }
+  .stat.danger .stat-icon { color: var(--accent-red-text); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: var(--radius-md);
+  }
+  .badge-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    border: 0.5px solid var(--border-strong);
+  }
+  .badge-blue { background: var(--accent-blue-bg); color: var(--accent-blue-text); }
+  .badge-amber { background: var(--accent-amber-bg); color: var(--accent-amber-text); }
+  .badge-red { background: var(--accent-red-bg); color: var(--accent-red-text); font-weight: 500; }
+  .badge-green { background: var(--accent-green-bg); color: var(--accent-green-text); }
+  .badge-gray { background: var(--bg-muted); color: var(--text-secondary); }
+  .badge-purple { background: var(--accent-purple-bg); color: var(--accent-purple-text); }
+
+  /* Alert banner */
+  .alert-banner {
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    border: 0.5px solid;
+  }
+  .alert-banner.danger {
+    background: var(--accent-red-bg);
+    border-color: var(--accent-red-border);
+  }
+  .alert-banner.warning {
+    background: var(--accent-amber-bg);
+    border-color: var(--accent-amber-border);
+  }
+  .alert-title {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .alert-banner.danger .alert-title { color: #501313; font-weight: 500; }
+  .alert-banner.warning .alert-title { color: #633806; font-weight: 500; }
+  .alert-banner.danger .alert-sub { color: var(--accent-red-text); font-size: 13px; }
+  .alert-banner.warning .alert-sub { color: var(--accent-amber-text); font-size: 13px; }
+
+  /* Event row */
+  .event-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 1.25rem;
+    border-bottom: 0.5px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .event-row:last-child { border-bottom: none; }
+  .event-row:hover { background: var(--bg-page); }
+  .event-row.urgent { background: rgba(252, 235, 235, 0.4); }
+  .event-row.warning { background: rgba(250, 238, 218, 0.3); }
+
+  .event-date-block {
+    width: 52px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 0;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: white;
+  }
+  .event-date-block .month {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .event-date-block .day {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .event-date-block .time {
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .event-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .event-title-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .event-name {
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .event-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .event-sub .alert-text { color: var(--accent-red-text); }
+  .event-sub .warn-text { color: var(--accent-amber-text); }
+  .chevron {
+    color: var(--text-tertiary);
+    font-size: 16px;
+  }
+
+  /* Tags filters */
+  .filters-bar {
+    background: var(--bg-muted);
+    border-radius: var(--radius-md);
+    padding: 10px;
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--bg-surface);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .filter-chip.active {
+    background: var(--accent-blue-bg);
+    border-color: var(--accent-blue-border);
+    color: var(--accent-blue-text);
+  }
+  .filter-chip i { font-size: 11px; }
+
+  /* Toggle group */
+  .toggle-group {
+    display: inline-flex;
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 2px;
+  }
+  .toggle-group button {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-secondary);
+  }
+  .toggle-group button.active {
+    background: var(--bg-muted);
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Table */
+  .table-row {
+    display: grid;
+    grid-template-columns: 90px 70px 1fr 130px 70px 30px;
+    gap: 12px;
+    padding: 12px 1rem;
+    border-bottom: 0.5px solid var(--border);
+    align-items: center;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .table-row:hover { background: var(--bg-page); }
+  .table-row:last-child { border-bottom: none; }
+  .table-row.urgent { background: rgba(252, 235, 235, 0.4); }
+  .table-row.warning { background: rgba(250, 238, 218, 0.3); }
+  .table-header {
+    background: var(--bg-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    cursor: default;
+  }
+  .table-header:hover { background: var(--bg-muted); }
+
+  /* Calendar grid (jours × mois) */
+  .cal-grid {
+    background: var(--bg-surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  .cal-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    min-width: 700px;
+  }
+  .cal-table th {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 8px 4px;
+    background: var(--bg-muted);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+  }
+  .cal-table th.day-col {
+    width: 32px;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    text-align: right;
+    padding-right: 6px;
+  }
+  .cal-table td {
+    height: 30px;
+    border: 0.5px solid var(--border);
+    padding: 2px;
+    vertical-align: middle;
+    font-size: 10px;
+    background: var(--bg-surface);
+  }
+  .cal-table td.weekend { background: rgba(247, 247, 245, 0.5); }
+  .cal-table td.empty { background: var(--bg-muted); border: none; }
+  .cal-table td.today {
+    background: rgba(230, 241, 251, 0.5);
+    box-shadow: inset 0 0 0 1px var(--accent-blue-border);
+  }
+  .cal-event {
+    display: block;
+    padding: 3px 5px;
+    border-radius: 3px;
+    color: white;
+    font-size: 9px;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cal-event.urgent {
+    box-shadow: inset 0 0 0 1.5px #791F1F;
+  }
+  .cal-day-num {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    text-align: right;
+    padding-right: 6px;
+  }
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 4px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+
+  /* Timeline (prépa AG) */
+  .timeline-item {
+    display: flex;
+    gap: 14px;
+    padding-bottom: 1.25rem;
+    border-bottom: 0.5px solid var(--border);
+    margin-bottom: 1.25rem;
+  }
+  .timeline-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  .timeline-marker-col {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100%;
+  }
+  .timeline-circle {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .timeline-circle.done {
+    background: #1D9E75;
+    color: white;
+  }
+  .timeline-circle.alert {
+    background: var(--accent-red-bg);
+    border: 2px solid #A32D2D;
+    color: var(--accent-red-text);
+  }
+  .timeline-circle.pending {
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border-strong);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .timeline-connector {
+    width: 2px;
+    flex: 1;
+    background: var(--border);
+    margin-top: 6px;
+  }
+  .timeline-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .timeline-content.alert-content {
+    background: rgba(252, 235, 235, 0.4);
+    padding: 12px;
+    border-radius: var(--radius-md);
+    margin: -2px;
+  }
+
+  /* Two-col layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 1.25rem;
+  }
+
+  /* Side panel boxes */
+  .side-box {
+    background: var(--bg-surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+  }
+  .side-box h4 { margin: 0 0 10px 0; }
+  .side-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 12px;
+    gap: 8px;
+  }
+  .side-row .label { color: var(--text-secondary); }
+  .side-row .value { font-weight: 500; text-align: right; }
+
+  /* Misc */
+  .progress-bar {
+    height: 6px;
+    background: var(--bg-muted);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar.tall { height: 8px; }
+  .progress-fill {
+    height: 100%;
+    background: var(--text-secondary);
+    transition: width 0.3s;
+  }
+  .progress-fill.amber { background: #BA7517; }
+  .progress-fill.red { background: #A32D2D; }
+  .progress-fill.green { background: #1D9E75; }
+
+  /* Tabs (fiche copro) */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 0.5px solid var(--border);
+    margin-bottom: 1.25rem;
+  }
+  .tab {
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .tab.active {
+    border-bottom-color: var(--text);
+    font-weight: 500;
+    color: var(--text);
+  }
+  .tab.locked {
+    cursor: not-allowed;
+    color: var(--text-tertiary);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tabs-info {
+    margin-left: auto;
+    align-self: center;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding-right: 4px;
+  }
+
+  /* Page visibility */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Checkbox */
+  .check {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1.5px solid var(--border-strong);
+    flex-shrink: 0;
+  }
+  .check.alert { border-color: #A32D2D; }
+  .check.warn { border-color: #BA7517; }
+
+  /* Mini map */
+  .mini-map {
+    height: 160px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 0.5px solid var(--border);
+  }
+
+  /* Date picker pill */
+  .date-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--bg-surface);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  /* AG block */
+  .ag-block {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .ag-block > div {
+    padding: 1rem 1.25rem;
+  }
+  .ag-block > div:first-child {
+    border-right: 0.5px solid var(--border);
+  }
+  .ag-block > div.warning {
+    background: rgba(250, 238, 218, 0.3);
+  }
+
+  /* Helpers */
+  .row { display: flex; align-items: center; }
+  .gap-2 { gap: 8px; }
+  .gap-3 { gap: 12px; }
+  .between { justify-content: space-between; }
+  .ml-auto { margin-left: auto; }
+  .mb-1 { margin-bottom: 0.5rem; }
+  .mb-2 { margin-bottom: 1rem; }
+  .mb-3 { margin-bottom: 1.5rem; }
+  .mt-2 { margin-top: 1rem; }
+  .text-sm { font-size: 12px; }
+  .text-muted { color: var(--text-secondary); }
+  .text-danger { color: var(--accent-red-text); }
+  .text-warn { color: var(--accent-amber-text); }
+  .clickable { cursor: pointer; }
+
+  /* Print-friendly cal */
+  @media (max-width: 900px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .two-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" style="display: flex; flex-direction: column;">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo"><i class="ti ti-sparkles"></i></div>
+      <span class="sidebar-name">REAL31</span>
+      <span class="sidebar-tag">MOCK</span>
+    </div>
+
+    <div class="nav-item active" onclick="goTo('dashboard')">
+      <i class="ti ti-layout-dashboard"></i> Dashboard
+    </div>
+    <div class="nav-item" onclick="goTo('calendar')">
+      <i class="ti ti-calendar"></i> Calendrier
+    </div>
+    <div class="nav-item" onclick="goTo('my-events')">
+      <i class="ti ti-inbox"></i> Mes événements
+    </div>
+    <div class="nav-item" onclick="goTo('condo')">
+      <i class="ti ti-building"></i> Copropriétés
+    </div>
+
+    <div class="sidebar-section-label">Modules à venir</div>
+    <div class="nav-item" style="opacity: 0.5; cursor: not-allowed;">
+      <i class="ti ti-file-invoice"></i> Contrats
+    </div>
+    <div class="nav-item" style="opacity: 0.5; cursor: not-allowed;">
+      <i class="ti ti-shield"></i> Sinistres
+    </div>
+    <div class="nav-item" style="opacity: 0.5; cursor: not-allowed;">
+      <i class="ti ti-coin"></i> Comptabilité
+    </div>
+
+    <div class="sidebar-user">
+      <div class="avatar blue">FS</div>
+      <div style="min-width: 0;">
+        <p style="margin: 0; font-size: 12px; font-weight: 500;">François Sergent</p>
+        <p style="margin: 0; font-size: 10px; color: var(--text-secondary);">Gestionnaire</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="main">
+
+    <!-- ============ DASHBOARD ============ -->
+    <section id="page-dashboard" class="page active">
+
+      <div class="page-header">
+        <h1>Tableau de bord</h1>
+        <p>Vue d'ensemble du cabinet — vendredi 22 mai 2026</p>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-top">
+            <div>
+              <p class="stat-label">AG ce mois</p>
+              <p class="stat-value">3</p>
+              <p class="stat-hint">mai 2026</p>
+            </div>
+            <i class="ti ti-calendar-check stat-icon"></i>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-top">
+            <div>
+              <p class="stat-label">Cette semaine</p>
+              <p class="stat-value">5</p>
+              <p class="stat-hint">événements</p>
+            </div>
+            <i class="ti ti-calendar-week stat-icon"></i>
+          </div>
+        </div>
+        <div class="stat warning">
+          <div class="stat-top">
+            <div>
+              <p class="stat-label">AG à planifier</p>
+              <p class="stat-value">7</p>
+              <p class="stat-hint">action requise</p>
+            </div>
+            <i class="ti ti-clock-exclamation stat-icon"></i>
+          </div>
+        </div>
+        <div class="stat danger">
+          <div class="stat-top">
+            <div>
+              <p class="stat-label">Copros en retard</p>
+              <p class="stat-value">2</p>
+              <p class="stat-hint">+13 mois sans AG</p>
+            </div>
+            <i class="ti ti-alert-triangle stat-icon"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bandeaux d'alerte multiples -->
+      <div class="alert-banner danger">
+        <div class="alert-title">
+          <i class="ti ti-alert-triangle"></i>
+          2 copropriétés en retard d'AG annuelle
+        </div>
+        <p class="alert-sub" style="margin: 0 0 12px 0;">Obligation légale (art. 7 décret de 1967) — une AG doit être tenue par exercice</p>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div class="event-row" style="background: white; border-radius: var(--radius-md); border: 0.5px solid var(--border); padding: 10px 14px;" onclick="goTo('condo')">
+            <div style="flex: 1;">
+              <p style="margin: 0; font-weight: 500; font-size: 14px;">S145 — Résidence Bonnefoy</p>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">Dernière AG : jamais</p>
+            </div>
+            <div class="avatar">OR</div>
+            <i class="ti ti-chevron-right chevron"></i>
+          </div>
+          <div class="event-row" style="background: white; border-radius: var(--radius-md); border: 0.5px solid var(--border); padding: 10px 14px;" onclick="goTo('condo')">
+            <div style="flex: 1;">
+              <p style="margin: 0; font-weight: 500; font-size: 14px;">S055 — Le Belvédère</p>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">Dernière AG : 8 novembre 2024</p>
+            </div>
+            <div class="avatar">KN</div>
+            <i class="ti ti-chevron-right chevron"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert-banner warning">
+        <div class="alert-title">
+          <i class="ti ti-mail-exclamation"></i>
+          1 convocation J-21 à envoyer aujourd'hui
+        </div>
+        <p class="alert-sub" style="margin: 0 0 12px 0;">Délai légal (art. 9 décret de 1967) impératif</p>
+        <div class="event-row" style="background: white; border-radius: var(--radius-md); border: 0.5px solid var(--border); padding: 10px 14px;" onclick="goTo('event-prep')">
+          <div style="flex: 1;">
+            <p style="margin: 0; font-weight: 500; font-size: 14px;">S016 — 38 Jules Ferry</p>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">AG du 15 juin 2026 · 24 copropriétaires à convoquer</p>
+          </div>
+          <div class="avatar">FS</div>
+          <button class="primary" onclick="event.stopPropagation(); goTo('event-prep');">Traiter</button>
+        </div>
+      </div>
+
+      <!-- Prochains événements -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <div>
+            <h3>Prochains événements</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">Les 5 prochains rendez-vous du cabinet</p>
+          </div>
+        </div>
+        <div class="event-row" onclick="goTo('event-prep')">
+          <div class="event-date-block">
+            <span class="month">mai</span>
+            <span class="day">27</span>
+            <span class="time">18:00</span>
+          </div>
+          <div class="event-main">
+            <div class="event-title-row">
+              <span class="badge badge-mono">CS</span>
+              <span class="event-name">S016 — 38 Jules Ferry</span>
+            </div>
+            <div class="event-sub">
+              <span class="badge badge-blue">Planifiée</span>
+              <span>Validation ODJ avant AG du 15 juin</span>
+            </div>
+          </div>
+          <div class="avatar">FS</div>
+          <i class="ti ti-chevron-right chevron"></i>
+        </div>
+        <div class="event-row" onclick="goTo('condo')">
+          <div class="event-date-block">
+            <span class="month">mai</span>
+            <span class="day">28</span>
+            <span class="time">10:00</span>
+          </div>
+          <div class="event-main">
+            <div class="event-title-row">
+              <span class="badge badge-mono">Visite</span>
+              <span class="event-name">S191 — Le Parc Saint-Cyprien</span>
+            </div>
+            <div class="event-sub">
+              <span class="badge badge-blue">Planifiée</span>
+              <span>Visite annuelle bâtiment B</span>
+            </div>
+          </div>
+          <div class="avatar">SC</div>
+          <i class="ti ti-chevron-right chevron"></i>
+        </div>
+        <div class="event-row" onclick="goTo('event-prep')">
+          <div class="event-date-block">
+            <span class="month">juin</span>
+            <span class="day">03</span>
+            <span class="time">18:00</span>
+          </div>
+          <div class="event-main">
+            <div class="event-title-row">
+              <span class="badge badge-mono">CS</span>
+              <span class="event-name">S072 — Cours Dillon</span>
+            </div>
+            <div class="event-sub">
+              <span class="badge badge-blue">Planifiée</span>
+              <span>Bureau cabinet</span>
+            </div>
+          </div>
+          <div class="avatar">KN</div>
+          <i class="ti ti-chevron-right chevron"></i>
+        </div>
+        <div class="event-row warning" onclick="goTo('event-prep')">
+          <div class="event-date-block">
+            <span class="month">juin</span>
+            <span class="day">08</span>
+            <span class="time">18:30</span>
+          </div>
+          <div class="event-main">
+            <div class="event-title-row">
+              <span class="badge badge-mono">AGE</span>
+              <span class="event-name">S103 — Le Clos Fleuri</span>
+            </div>
+            <div class="event-sub">
+              <span class="badge badge-green">Convocations OK</span>
+              <span class="warn-text">• Prochaine échéance : pouvoirs reçus (15j)</span>
+            </div>
+          </div>
+          <div class="avatar">OR</div>
+          <i class="ti ti-chevron-right chevron"></i>
+        </div>
+        <div class="event-row urgent" onclick="goTo('event-prep')">
+          <div class="event-date-block">
+            <span class="month">juin</span>
+            <span class="day">15</span>
+            <span class="time">18:30</span>
+          </div>
+          <div class="event-main">
+            <div class="event-title-row">
+              <span class="badge badge-mono">AG</span>
+              <span class="event-name">S016 — 38 Jules Ferry</span>
+            </div>
+            <div class="event-sub">
+              <span class="badge badge-amber">En préparation</span>
+              <span class="alert-text">• Convocations J-21 à envoyer aujourd'hui</span>
+            </div>
+          </div>
+          <div class="avatar">FS</div>
+          <i class="ti ti-chevron-right chevron"></i>
+        </div>
+      </div>
+
+      <!-- Équipe -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>Équipe</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">4 gestionnaires actifs · 168 copropriétés au total</p>
+          </div>
+        </div>
+        <div style="padding: 1rem 1.25rem; display: flex; flex-wrap: wrap; gap: 10px;">
+          <div class="row gap-2" style="padding: 6px 12px; border: 0.5px solid var(--border); border-radius: var(--radius-md);">
+            <div class="avatar">FS</div>
+            <div>
+              <p style="margin: 0; font-size: 13px; font-weight: 500;">François Sergent</p>
+              <p style="margin: 0; font-size: 11px; color: var(--text-secondary);">42 copros</p>
+            </div>
+          </div>
+          <div class="row gap-2" style="padding: 6px 12px; border: 0.5px solid var(--border); border-radius: var(--radius-md);">
+            <div class="avatar">KN</div>
+            <div>
+              <p style="margin: 0; font-size: 13px; font-weight: 500;">Karine Noël</p>
+              <p style="margin: 0; font-size: 11px; color: var(--text-secondary);">38 copros</p>
+            </div>
+          </div>
+          <div class="row gap-2" style="padding: 6px 12px; border: 0.5px solid var(--border); border-radius: var(--radius-md);">
+            <div class="avatar">OR</div>
+            <div>
+              <p style="margin: 0; font-size: 13px; font-weight: 500;">Olivier Renaud</p>
+              <p style="margin: 0; font-size: 11px; color: var(--text-secondary);">45 copros</p>
+            </div>
+          </div>
+          <div class="row gap-2" style="padding: 6px 12px; border: 0.5px solid var(--border); border-radius: var(--radius-md);">
+            <div class="avatar">SC</div>
+            <div>
+              <p style="margin: 0; font-size: 13px; font-weight: 500;">Sandrine Charpentier</p>
+              <p style="margin: 0; font-size: 11px; color: var(--text-secondary);">43 copros</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============ CALENDAR ============ -->
+    <section id="page-calendar" class="page">
+
+      <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 1.25rem;">
+        <div>
+          <h1>Calendrier</h1>
+          <p style="margin: 4px 0 0 0; color: var(--text-secondary);" id="cal-subtitle">Tous les événements du cabinet — 47 résultats</p>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button onclick="prevPeriod()" style="padding: 6px 8px;"><i class="ti ti-chevron-left"></i></button>
+          <button onclick="todayPeriod()">Aujourd'hui</button>
+          <button onclick="nextPeriod()" style="padding: 6px 8px;"><i class="ti ti-chevron-right"></i></button>
+          <div class="toggle-group" style="margin-left: 8px;">
+            <button id="view-list" class="active" onclick="switchCalView('list')"><i class="ti ti-list"></i> Liste</button>
+            <button id="view-grid" onclick="switchCalView('grid')"><i class="ti ti-calendar-month"></i> Calendrier</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters-bar">
+        <span style="font-size: 12px; color: var(--text-secondary);"><i class="ti ti-filter"></i> Filtres :</span>
+        <span class="date-pill">
+          <span style="color: var(--text-secondary);">Du :</span>
+          <span style="font-weight: 500;">22/05/2026</span>
+        </span>
+        <span class="date-pill">
+          <span style="color: var(--text-secondary);">Au :</span>
+          <span style="font-weight: 500;">22/11/2026</span>
+        </span>
+        <span class="filter-chip">
+          <span style="color: var(--text-secondary);">Gestionnaire :</span>
+          <span style="font-weight: 500;">Tous</span>
+          <i class="ti ti-chevron-down"></i>
+        </span>
+        <span class="filter-chip active">
+          <span>Type : AG + AGE</span>
+          <i class="ti ti-x"></i>
+        </span>
+        <span class="filter-chip">
+          <span style="color: var(--text-secondary);">Statut :</span>
+          <span style="font-weight: 500;">Tous</span>
+          <i class="ti ti-chevron-down"></i>
+        </span>
+        <button style="margin-left: auto;"><i class="ti ti-download"></i> Exporter</button>
+      </div>
+
+      <!-- VIEW: LIST -->
+      <div id="cal-view-list">
+        <div class="card">
+          <div class="table-row table-header">
+            <div>Date <i class="ti ti-arrow-down"></i></div>
+            <div>Type</div>
+            <div>Copropriété</div>
+            <div>Statut</div>
+            <div>Gestion.</div>
+            <div></div>
+          </div>
+          <div class="table-row" onclick="goTo('condo')">
+            <div>
+              <div style="font-weight: 500;">28 mai</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">10:00</div>
+            </div>
+            <div><span class="badge badge-mono">Visite</span></div>
+            <div>
+              <div style="font-weight: 500;">S191 — Le Parc Saint-Cyprien</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">17 allée Charles de Fitte, Toulouse</div>
+            </div>
+            <div><span class="badge badge-blue">Planifiée</span></div>
+            <div><div class="avatar sm">SC</div></div>
+            <div><i class="ti ti-chevron-right chevron"></i></div>
+          </div>
+          <div class="table-row" onclick="goTo('event-prep')">
+            <div>
+              <div style="font-weight: 500;">3 juin</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">18:00</div>
+            </div>
+            <div><span class="badge badge-mono">CS</span></div>
+            <div>
+              <div style="font-weight: 500;">S072 — Cours Dillon</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">22 cours Dillon, Toulouse</div>
+            </div>
+            <div><span class="badge badge-blue">Planifiée</span></div>
+            <div><div class="avatar sm">KN</div></div>
+            <div><i class="ti ti-chevron-right chevron"></i></div>
+          </div>
+          <div class="table-row warning" onclick="goTo('event-prep')">
+            <div>
+              <div style="font-weight: 500;">8 juin</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">18:30</div>
+            </div>
+            <div><span class="badge badge-mono">AGE</span></div>
+            <div>
+              <div style="font-weight: 500;">S103 — Le Clos Fleuri</div>
+              <div style="font-size: 11px; color: var(--text-warn);"><i class="ti ti-alert-circle"></i> Pouvoirs reçus : à relancer (J-2)</div>
+            </div>
+            <div><span class="badge badge-green">Convocations OK</span></div>
+            <div><div class="avatar sm">OR</div></div>
+            <div><i class="ti ti-chevron-right chevron"></i></div>
+          </div>
+          <div class="table-row urgent" onclick="goTo('event-prep')">
+            <div>
+              <div style="font-weight: 500;">15 juin</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">18:30</div>
+            </div>
+            <div><span class="badge badge-mono">AG</span></div>
+            <div>
+              <div style="font-weight: 500;">S016 — 38 Jules Ferry</div>
+              <div style="font-size: 11px; color: var(--text-danger);"><i class="ti ti-alert-triangle"></i> Convocations J-21 : à envoyer aujourd'hui</div>
+            </div>
+            <div><span class="badge badge-amber">En préparation</span></div>
+            <div><div class="avatar sm">FS</div></div>
+            <div><i class="ti ti-chevron-right chevron"></i></div>
+          </div>
+          <div class="table-row" onclick="goTo('condo')">
+            <div>
+              <div style="font-weight: 500;">22 juin</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">18:00</div>
+            </div>
+            <div><span class="badge badge-mono">CS</span></div>
+            <div>
+              <div style="font-weight: 500;">S020 — Résidence Les Tilleuls</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">12 avenue des Tilleuls, Toulouse</div>
+            </div>
+            <div><span class="badge badge-blue">Planifiée</span></div>
+            <div><div class="avatar sm">FS</div></div>
+            <div><i class="ti ti-chevron-right chevron"></i></div>
+          </div>
+          <div class="table-row" onclick="goTo('event-prep')">
+            <div>
+              <div style="font-weight: 500;">2 juil.</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">19:00</div>
+            </div>
+            <div><span class="badge badge-mono">AG</span></div>
+            <div>
+              <div style="font-weight: 500;">S210 — Villa Esquirol</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">3 rue Esquirol, Toulouse</div>
+            </div>
+            <div><span class="badge badge-amber">En préparation</span></div>
+            <div><div class="avatar sm">SC</div></div>
+            <div><i class="ti ti-chevron-right chevron"></i></div>
+          </div>
+          <div class="table-row" onclick="goTo('event-prep')">
+            <div>
+              <div style="font-weight: 500;">12 sept.</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">19:00</div>
+            </div>
+            <div><span class="badge badge-mono">AG</span></div>
+            <div>
+              <div style="font-weight: 500;">S020 — Résidence Les Tilleuls</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">12 avenue des Tilleuls, Toulouse</div>
+            </div>
+            <div><span class="badge badge-blue">Planifiée</span></div>
+            <div><div class="avatar sm">FS</div></div>
+            <div><i class="ti ti-chevron-right chevron"></i></div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding: 0 4px; font-size: 12px; color: var(--text-secondary);">
+          <span>Affichage 1–7 sur 47</span>
+          <div style="display: flex; gap: 4px;">
+            <button disabled style="opacity: 0.5;">← Précédent</button>
+            <button>Suivant →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: GRID (jours × mois) -->
+      <div id="cal-view-grid" style="display: none;">
+        <div class="legend">
+          <span class="legend-item"><span class="legend-dot" style="background: #1D9E75;"></span>AG</span>
+          <span class="legend-item"><span class="legend-dot" style="background: #7F77DD;"></span>AGE</span>
+          <span class="legend-item"><span class="legend-dot" style="background: #378ADD;"></span>CS</span>
+          <span class="legend-item"><span class="legend-dot" style="background: #EF9F27;"></span>Visite</span>
+          <span class="legend-item"><span class="legend-dot" style="background: #888780;"></span>Travaux</span>
+          <span class="ml-auto"><i class="ti ti-printer"></i> Imprimer · <i class="ti ti-download"></i> PDF</span>
+        </div>
+
+        <div class="cal-grid">
+          <table class="cal-table">
+            <thead>
+              <tr>
+                <th class="day-col"></th>
+                <th>Juin</th>
+                <th>Juillet</th>
+                <th>Août</th>
+                <th>Septembre</th>
+                <th>Octobre</th>
+                <th>Novembre</th>
+              </tr>
+            </thead>
+            <tbody id="cal-tbody"></tbody>
+          </table>
+        </div>
+        <p style="margin: 12px 4px 0 4px; font-size: 11px; color: var(--text-tertiary);">
+          <i class="ti ti-info-circle"></i> Cliquer sur un événement pour ouvrir sa fiche. Bordure rouge = échéance critique non traitée.
+        </p>
+      </div>
+
+    </section>
+
+    <!-- ============ MY EVENTS ============ -->
+    <section id="page-my-events" class="page">
+
+      <!-- En-tête perso + sélecteur supervision -->
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+        <div class="row gap-3">
+          <div class="avatar lg blue">FS</div>
+          <div>
+            <h1>Bonjour, François</h1>
+            <p style="margin: 2px 0 0 0; font-size: 14px; color: var(--text-secondary);">42 copropriétés sous votre gestion · vendredi 22 mai 2026</p>
+          </div>
+        </div>
+        <div>
+          <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Mode supervision</label><br>
+          <span class="filter-chip" style="margin-top: 4px;">
+            <span style="color: var(--text-secondary);">Voir :</span>
+            <span style="font-weight: 500;">François Sergent (moi)</span>
+            <i class="ti ti-chevron-down"></i>
+          </span>
+        </div>
+      </div>
+
+      <!-- Compteur gamification -->
+      <div class="card mb-3" style="background: linear-gradient(to right, var(--bg-surface), var(--accent-blue-bg));">
+        <div style="padding: 1rem 1.25rem; display: flex; align-items: center; gap: 1rem;">
+          <i class="ti ti-trophy" style="font-size: 28px; color: var(--accent-blue-text);"></i>
+          <div style="flex: 1;">
+            <p style="margin: 0; font-size: 14px; font-weight: 500;">12 actions traitées ce mois</p>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">Excellent rythme — +3 vs mai dernier</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-size: 28px; font-weight: 500; line-height: 1; color: var(--accent-blue-text);">12</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-secondary);">actions ce mois</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- À traiter -->
+      <div class="mb-3">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+          <h3><i class="ti ti-checkbox" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>À traiter en priorité</h3>
+          <span style="font-size: 12px; color: var(--text-secondary);">5 actions ouvertes</span>
+        </div>
+        <div class="card">
+          <div class="event-row urgent" onclick="goTo('event-prep')">
+            <div class="check alert"></div>
+            <div class="event-main">
+              <div class="event-title-row">
+                <span class="event-name">Envoyer les convocations AG</span>
+                <span class="badge badge-red">AUJOURD'HUI</span>
+              </div>
+              <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">S016 — 38 Jules Ferry · AG du 15 juin · délai légal J-21</p>
+            </div>
+            <button class="primary" onclick="event.stopPropagation(); goTo('event-prep');">Traiter</button>
+          </div>
+          <div class="event-row warning" onclick="goTo('event-prep')">
+            <div class="check warn"></div>
+            <div class="event-main">
+              <div class="event-title-row">
+                <span class="event-name">Récupérer les devis de ravalement</span>
+                <span class="badge badge-amber">DANS 3 JOURS</span>
+              </div>
+              <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">S020 — Résidence Les Tilleuls · prépa AG du 12 septembre · jalon J-45</p>
+            </div>
+            <button>Traiter</button>
+          </div>
+          <div class="event-row" onclick="goTo('event-prep')">
+            <div class="check"></div>
+            <div class="event-main">
+              <div class="event-title-row">
+                <span class="event-name">Valider l'ODJ avec le Conseil Syndical</span>
+                <span class="badge badge-gray">DANS 11 JOURS</span>
+              </div>
+              <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">S020 — Résidence Les Tilleuls · CS du 3 juin avant l'AG du 12 septembre</p>
+            </div>
+            <button>Traiter</button>
+          </div>
+          <div class="event-row" onclick="goTo('condo')">
+            <div class="check"></div>
+            <div class="event-main">
+              <div class="event-title-row">
+                <span class="event-name">Planifier l'AG annuelle</span>
+                <span class="badge badge-gray">À PROGRAMMER</span>
+              </div>
+              <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">S145 — Résidence Bonnefoy · première AG depuis création</p>
+            </div>
+            <button>Traiter</button>
+          </div>
+          <div class="event-row" onclick="goTo('event-prep')">
+            <div class="check"></div>
+            <div class="event-main">
+              <div class="event-title-row">
+                <span class="event-name">Relancer les pouvoirs et votes par correspondance</span>
+                <span class="badge badge-gray">DANS 24 JOURS</span>
+              </div>
+              <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">S016 — 38 Jules Ferry · J-2 avant AG du 15 juin</p>
+            </div>
+            <button>Traiter</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mes AG à venir avec progression -->
+      <div class="mb-3">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+          <h3><i class="ti ti-flag-3" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Mes AG à venir (90 jours)</h3>
+          <span style="font-size: 12px; color: var(--text-secondary);">3 AG planifiées</span>
+        </div>
+        <div class="card">
+          <div style="padding: 14px 1rem; border-bottom: 0.5px solid var(--border); cursor: pointer;" onclick="goTo('event-prep')">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div class="row gap-2">
+                <span class="badge badge-mono">AG</span>
+                <span style="font-weight: 500; font-size: 14px;">S016 — 38 Jules Ferry</span>
+                <span style="font-size: 11px; color: var(--text-secondary);">15 juin · 18:30</span>
+              </div>
+              <span class="badge badge-amber">DANS 24 JOURS</span>
+            </div>
+            <div class="row gap-3" style="margin-bottom: 6px;">
+              <div class="progress-bar" style="flex: 1;">
+                <div class="progress-fill amber" style="width: 60%;"></div>
+              </div>
+              <span style="font-size: 11px; color: var(--text-secondary); min-width: 70px; text-align: right;">3 / 5 jalons</span>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: var(--text-danger);">
+              <i class="ti ti-alert-circle"></i> Prochain jalon : envoyer convocations (aujourd'hui)
+            </p>
+          </div>
+          <div style="padding: 14px 1rem; border-bottom: 0.5px solid var(--border); cursor: pointer;" onclick="goTo('event-prep')">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div class="row gap-2">
+                <span class="badge badge-mono">AG</span>
+                <span style="font-weight: 500; font-size: 14px;">S020 — Résidence Les Tilleuls</span>
+                <span style="font-size: 11px; color: var(--text-secondary);">12 sept. · 19:00</span>
+              </div>
+              <span class="badge badge-gray">DANS 113 JOURS</span>
+            </div>
+            <div class="row gap-3" style="margin-bottom: 6px;">
+              <div class="progress-bar" style="flex: 1;">
+                <div class="progress-fill" style="width: 20%;"></div>
+              </div>
+              <span style="font-size: 11px; color: var(--text-secondary); min-width: 70px; text-align: right;">1 / 5 jalons</span>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">Prochain jalon : récupérer devis (dans 3 jours)</p>
+          </div>
+          <div style="padding: 14px 1rem; cursor: pointer;" onclick="goTo('event-prep')">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div class="row gap-2">
+                <span class="badge badge-mono">AG</span>
+                <span style="font-weight: 500; font-size: 14px;">S210 — Villa Esquirol</span>
+                <span style="font-size: 11px; color: var(--text-secondary);">2 juil. · 19:00</span>
+              </div>
+              <span class="badge badge-gray">DANS 41 JOURS</span>
+            </div>
+            <div class="row gap-3" style="margin-bottom: 6px;">
+              <div class="progress-bar" style="flex: 1;">
+                <div class="progress-fill" style="width: 40%;"></div>
+              </div>
+              <span style="font-size: 11px; color: var(--text-secondary); min-width: 70px; text-align: right;">2 / 5 jalons</span>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">Prochain jalon : valider ODJ avec CS (dans 7 jours)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mes copros sans AG planifiée -->
+      <div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+          <h3><i class="ti ti-building-skyscraper" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Mes copros sans AG planifiée</h3>
+          <span style="font-size: 12px; color: var(--text-secondary);">3 copros</span>
+        </div>
+        <div class="card">
+          <div class="event-row" onclick="goTo('condo')">
+            <div class="event-main">
+              <p style="margin: 0; font-weight: 500; font-size: 14px;">S145 — Résidence Bonnefoy</p>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-danger);"><i class="ti ti-alert-triangle"></i> Jamais d'AG tenue · à programmer en urgence</p>
+            </div>
+            <button class="primary">Planifier</button>
+          </div>
+          <div class="event-row" onclick="goTo('condo')">
+            <div class="event-main">
+              <p style="margin: 0; font-weight: 500; font-size: 14px;">S082 — Le Mirail</p>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">Dernière AG : 18 juillet 2025 · prochaine à programmer avant juillet 2026</p>
+            </div>
+            <button>Planifier</button>
+          </div>
+          <div class="event-row" onclick="goTo('condo')">
+            <div class="event-main">
+              <p style="margin: 0; font-weight: 500; font-size: 14px;">S128 — Quai Saint-Pierre</p>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-secondary);">Dernière AG : 5 octobre 2025 · prochaine à programmer avant octobre 2026</p>
+            </div>
+            <button>Planifier</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============ EVENT PREP (Fiche prépa AG) ============ -->
+    <section id="page-event-prep" class="page">
+
+      <div class="breadcrumb">
+        <a onclick="goTo('my-events')">Mes événements</a>
+        <span class="sep">›</span>
+        <a onclick="goTo('condo')">S016 — 38 Jules Ferry</a>
+        <span class="sep">›</span>
+        <span class="current">AG du 15 juin 2026</span>
+      </div>
+
+      <!-- Header fiche -->
+      <div class="card mb-2">
+        <div style="padding: 1.25rem;">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;">
+            <div style="flex: 1;">
+              <div class="row gap-2 mb-1">
+                <span class="badge badge-mono">AG ordinaire</span>
+                <span class="badge badge-amber">En préparation</span>
+                <span class="badge badge-red"><i class="ti ti-alert-triangle"></i> Échéance critique</span>
+              </div>
+              <h1>S016 — 38 Jules Ferry</h1>
+              <p style="margin: 4px 0 0 0; font-size: 14px; color: var(--text-secondary);">
+                <i class="ti ti-calendar"></i> 15 juin 2026 à 18:30 ·
+                <i class="ti ti-map-pin"></i> Salle des fêtes Jules Ferry ·
+                <i class="ti ti-users"></i> 24 lots ·
+                <i class="ti ti-user"></i> FS
+              </p>
+            </div>
+            <div style="text-align: right; flex-shrink: 0;">
+              <div style="font-size: 11px; color: var(--text-secondary);">DANS</div>
+              <div style="font-size: 28px; font-weight: 500; line-height: 1; color: #BA7517;">24 j</div>
+            </div>
+          </div>
+          <div class="mt-2" style="padding-top: 1rem; border-top: 0.5px solid var(--border);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <span style="font-size: 12px; color: var(--text-secondary);">Progression de la préparation</span>
+              <span style="font-size: 12px; font-weight: 500;">2 / 5 jalons accomplis</span>
+            </div>
+            <div class="progress-bar tall">
+              <div class="progress-fill amber" style="width: 40%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+
+        <!-- Main : Timeline + ODJ + Historique -->
+        <div>
+
+          <h3 class="mb-2"><i class="ti ti-timeline" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Jalons réglementaires</h3>
+
+          <div class="card mb-3" style="padding: 1.25rem;">
+
+            <!-- Jalon 1 - DONE -->
+            <div class="timeline-item">
+              <div class="timeline-marker-col">
+                <div class="timeline-circle done"><i class="ti ti-check"></i></div>
+                <div class="timeline-connector"></div>
+              </div>
+              <div class="timeline-content">
+                <div class="row between mb-1">
+                  <p style="margin: 0; font-weight: 500; font-size: 14px;">ODJ validé avec le Conseil Syndical</p>
+                  <span class="badge badge-green">Accompli</span>
+                </div>
+                <p class="text-sm text-muted" style="margin: 0 0 6px 0;">
+                  <i class="ti ti-clock"></i> Cible : 1 mai 2026 (J-45) · réalisé le 28 avril
+                </p>
+                <p style="margin: 0; font-size: 12px; color: var(--text-tertiary); font-style: italic;">« CS de validation tenu en visio, ODJ validé à l'unanimité des présents (3/3) »</p>
+              </div>
+            </div>
+
+            <!-- Jalon 2 - DONE -->
+            <div class="timeline-item">
+              <div class="timeline-marker-col">
+                <div class="timeline-circle done"><i class="ti ti-check"></i></div>
+                <div class="timeline-connector"></div>
+              </div>
+              <div class="timeline-content">
+                <div class="row between mb-1">
+                  <p style="margin: 0; font-weight: 500; font-size: 14px;">Devis et documents techniques rassemblés</p>
+                  <span class="badge badge-green">Accompli</span>
+                </div>
+                <p class="text-sm text-muted" style="margin: 0;">
+                  <i class="ti ti-clock"></i> Cible : 1 mai 2026 (J-45) · réalisé le 5 mai · liens vers le drive partagé
+                </p>
+              </div>
+            </div>
+
+            <!-- Jalon 3 - ALERT -->
+            <div class="timeline-item">
+              <div class="timeline-marker-col">
+                <div class="timeline-circle alert"><i class="ti ti-alert-triangle"></i></div>
+                <div class="timeline-connector"></div>
+              </div>
+              <div class="timeline-content alert-content">
+                <div class="row between mb-1">
+                  <p style="margin: 0; font-weight: 500; font-size: 14px;">Envoyer les convocations (délai légal 21 jours)</p>
+                  <span class="badge badge-red">AUJOURD'HUI</span>
+                </div>
+                <p style="margin: 0 0 8px 0; font-size: 12px; color: var(--text-danger);">
+                  <i class="ti ti-clock"></i> Cible : 25 mai 2026 (J-21) · obligation légale art. 9 décret 1967
+                </p>
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: var(--text-secondary);">
+                  24 copropriétaires à convoquer · LRAR ou voie électronique avec accusé de réception
+                </p>
+                <div class="row gap-2" style="flex-wrap: wrap;">
+                  <button class="primary"><i class="ti ti-mail-forward"></i> Générer les convocations</button>
+                  <button>Marquer comme envoyées</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Jalon 4 -->
+            <div class="timeline-item">
+              <div class="timeline-marker-col">
+                <div class="timeline-circle pending">4</div>
+                <div class="timeline-connector"></div>
+              </div>
+              <div class="timeline-content">
+                <div class="row between mb-1">
+                  <p style="margin: 0; font-weight: 500; font-size: 14px; color: var(--text-secondary);">Pouvoirs et votes par correspondance reçus</p>
+                  <span class="badge badge-gray">DANS 22 J</span>
+                </div>
+                <p class="text-sm text-muted" style="margin: 0;">
+                  <i class="ti ti-clock"></i> Cible : 13 juin 2026 (J-2) · relance recommandée à J-5
+                </p>
+              </div>
+            </div>
+
+            <!-- Jalon 5 -->
+            <div class="timeline-item">
+              <div class="timeline-marker-col">
+                <div class="timeline-circle pending">5</div>
+              </div>
+              <div class="timeline-content">
+                <div class="row between mb-1">
+                  <p style="margin: 0; font-weight: 500; font-size: 14px; color: var(--text-secondary);">Tenue de l'AG</p>
+                  <span class="badge badge-gray">DANS 24 J</span>
+                </div>
+                <p class="text-sm text-muted" style="margin: 0;">
+                  <i class="ti ti-clock"></i> 15 juin 2026 à 18:30 · Salle des fêtes Jules Ferry
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ODJ -->
+          <h3 class="mb-2"><i class="ti ti-list-numbers" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Ordre du jour</h3>
+          <div class="card mb-3">
+            <div class="event-row">
+              <div class="avatar sm">1</div>
+              <span style="flex: 1; font-size: 13px;">Approbation des comptes de l'exercice 2025</span>
+              <span class="badge badge-gray">Majorité art. 24</span>
+            </div>
+            <div class="event-row">
+              <div class="avatar sm">2</div>
+              <span style="flex: 1; font-size: 13px;">Quitus au syndic</span>
+              <span class="badge badge-gray">Majorité art. 24</span>
+            </div>
+            <div class="event-row">
+              <div class="avatar sm">3</div>
+              <span style="flex: 1; font-size: 13px;">Vote du budget prévisionnel 2026</span>
+              <span class="badge badge-gray">Majorité art. 24</span>
+            </div>
+            <div class="event-row">
+              <div class="avatar sm">4</div>
+              <span style="flex: 1; font-size: 13px;">Travaux de ravalement façade rue — choix entreprise</span>
+              <span class="badge badge-amber">Majorité art. 25</span>
+            </div>
+            <div class="event-row">
+              <div class="avatar sm">5</div>
+              <span style="flex: 1; font-size: 13px;">Renouvellement du contrat de syndic (+2 %)</span>
+              <span class="badge badge-gray">Majorité art. 25</span>
+            </div>
+            <div class="event-row">
+              <div class="avatar sm">6</div>
+              <span style="flex: 1; font-size: 13px;">Questions diverses</span>
+              <span class="badge badge-gray">Sans vote</span>
+            </div>
+          </div>
+
+          <!-- Historique -->
+          <h3 class="mb-2"><i class="ti ti-history" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Historique des actions</h3>
+          <div class="card" style="padding: 1rem;">
+            <div class="row gap-3" style="padding: 6px 0; font-size: 12px;">
+              <span style="color: var(--text-tertiary); font-family: monospace; flex-shrink: 0;">5 mai</span>
+              <span style="color: var(--text-secondary);"><strong style="color: var(--text); font-weight: 500;">FS</strong> a marqué « Devis rassemblés » comme accompli</span>
+            </div>
+            <div class="row gap-3" style="padding: 6px 0; font-size: 12px;">
+              <span style="color: var(--text-tertiary); font-family: monospace; flex-shrink: 0;">28 avr.</span>
+              <span style="color: var(--text-secondary);"><strong style="color: var(--text); font-weight: 500;">FS</strong> a marqué « ODJ validé CS » comme accompli</span>
+            </div>
+            <div class="row gap-3" style="padding: 6px 0; font-size: 12px;">
+              <span style="color: var(--text-tertiary); font-family: monospace; flex-shrink: 0;">15 avr.</span>
+              <span style="color: var(--text-secondary);"><strong style="color: var(--text); font-weight: 500;">FS</strong> a fixé la date au 15 juin 18:30</span>
+            </div>
+            <div class="row gap-3" style="padding: 6px 0; font-size: 12px;">
+              <span style="color: var(--text-tertiary); font-family: monospace; flex-shrink: 0;">10 avr.</span>
+              <span style="color: var(--text-secondary);"><strong style="color: var(--text); font-weight: 500;">FS</strong> a créé la fiche de préparation</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sidebar -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="side-box">
+            <h4>Actions</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <button style="text-align: left; display: flex; align-items: center; gap: 8px;"><i class="ti ti-file-text"></i> Générer l'ODJ</button>
+              <button style="text-align: left; display: flex; align-items: center; gap: 8px;"><i class="ti ti-mail-forward"></i> Convocations</button>
+              <button style="text-align: left; display: flex; align-items: center; gap: 8px;"><i class="ti ti-file-pencil"></i> Note immeuble</button>
+              <button style="text-align: left; display: flex; align-items: center; gap: 8px;"><i class="ti ti-external-link"></i> Ouvrir dans Crypto</button>
+            </div>
+          </div>
+          <div class="side-box">
+            <h4>Détails</h4>
+            <div class="side-row"><span class="label">Gestionnaire</span><span class="value">FS</span></div>
+            <div class="side-row"><span class="label">Assistante</span><span class="value">LM</span></div>
+            <div class="side-row"><span class="label">Comptable</span><span class="value">PV</span></div>
+            <div class="side-row"><span class="label">Lots</span><span class="value">24</span></div>
+            <div class="side-row"><span class="label">Tantièmes</span><span class="value">10 000</span></div>
+            <div class="side-row"><span class="label">Dernière AG</span><span class="value">12 avr. 2025</span></div>
+          </div>
+          <div class="side-box">
+            <h4>Réponses (pré-AG)</h4>
+            <div class="side-row"><span class="label">Présents prévus</span><span class="value">0 / 24</span></div>
+            <div class="side-row"><span class="label">Pouvoirs</span><span class="value">0 / 24</span></div>
+            <div class="side-row"><span class="label">Vote correspondance</span><span class="value">0 / 24</span></div>
+            <p style="margin: 8px 0 0 0; font-size: 11px; color: var(--text-tertiary);">Suivi disponible après envoi des convocations</p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============ CONDO (Fiche 360°) ============ -->
+    <section id="page-condo" class="page">
+
+      <div class="breadcrumb">
+        <a onclick="goTo('dashboard')">Copropriétés</a>
+        <span class="sep">›</span>
+        <span class="current">S016 — 38 Jules Ferry</span>
+      </div>
+
+      <!-- Header copro -->
+      <div class="card mb-2">
+        <div style="padding: 1.25rem; display: flex; align-items: flex-start; gap: 1rem;">
+          <div style="width: 56px; height: 56px; border-radius: var(--radius-md); background: var(--bg-muted); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i class="ti ti-building" style="font-size: 28px; color: var(--text-secondary);"></i>
+          </div>
+          <div style="flex: 1;">
+            <div class="row gap-2 mb-1">
+              <span class="badge badge-mono">S016</span>
+              <span class="badge badge-gray">Source : Crypto</span>
+            </div>
+            <h1>38 Jules Ferry</h1>
+            <p style="margin: 4px 0 0 0; font-size: 14px; color: var(--text-secondary);">
+              <i class="ti ti-map-pin"></i> 38 rue Jules Ferry · 31000 Toulouse
+            </p>
+          </div>
+          <button><i class="ti ti-external-link"></i> Ouvrir dans Crypto</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active">Vue d'ensemble</button>
+        <button class="tab">Événements <span class="badge badge-gray" style="margin-left: 4px;">12</span></button>
+        <button class="tab locked"><i class="ti ti-lock"></i> Contrats</button>
+        <button class="tab locked"><i class="ti ti-lock"></i> Sinistres</button>
+        <button class="tab locked"><i class="ti ti-lock"></i> Comptabilité</button>
+        <button class="tab locked"><i class="ti ti-lock"></i> Documents</button>
+        <span class="tabs-info"><i class="ti ti-info-circle"></i> Onglets verrouillés disponibles dans les prochains modules</span>
+      </div>
+
+      <div class="two-col">
+        <!-- Main -->
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+
+          <!-- AG -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="ti ti-flag-3" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Assemblées générales</h3>
+              <span class="badge badge-green"><i class="ti ti-circle-check"></i> À jour</span>
+            </div>
+            <div class="ag-block">
+              <div>
+                <p style="margin: 0 0 4px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary);">Dernière AG tenue</p>
+                <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 500;">12 avril 2025</p>
+                <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">AG ordinaire · 18 présents/représentés sur 24</p>
+                <p style="margin: 6px 0 0 0;"><a style="font-size: 12px; color: var(--accent-blue-text); cursor: pointer;"><i class="ti ti-file-text"></i> Voir le PV →</a></p>
+              </div>
+              <div class="warning">
+                <p style="margin: 0 0 4px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary);">Prochaine AG</p>
+                <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 500;">15 juin 2026</p>
+                <p style="margin: 0; font-size: 12px; color: var(--text-warn);"><i class="ti ti-alert-circle"></i> En préparation · convocations à envoyer aujourd'hui</p>
+                <p style="margin: 6px 0 0 0;"><a style="font-size: 12px; color: var(--accent-blue-text); cursor: pointer;" onclick="goTo('event-prep')">Ouvrir la fiche de préparation →</a></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prochains événements -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="ti ti-calendar-event" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Prochains événements</h3>
+              <a style="font-size: 12px; color: var(--accent-blue-text); cursor: pointer;" onclick="goTo('calendar')">Voir tout →</a>
+            </div>
+            <div class="event-row" onclick="goTo('event-prep')">
+              <div class="event-date-block">
+                <span class="month">mai</span><span class="day">27</span><span class="time">18:00</span>
+              </div>
+              <div class="event-main">
+                <div class="event-title-row">
+                  <span class="badge badge-mono">CS</span>
+                  <span class="event-name">Validation ODJ avant AG du 15 juin</span>
+                </div>
+                <p style="margin: 0; font-size: 11px; color: var(--text-secondary);">Bureau cabinet · planifié</p>
+              </div>
+            </div>
+            <div class="event-row urgent" onclick="goTo('event-prep')">
+              <div class="event-date-block">
+                <span class="month">juin</span><span class="day">15</span><span class="time">18:30</span>
+              </div>
+              <div class="event-main">
+                <div class="event-title-row">
+                  <span class="badge badge-mono">AG</span>
+                  <span class="event-name">Assemblée générale ordinaire 2026</span>
+                </div>
+                <p style="margin: 0; font-size: 11px; color: var(--text-danger);"><i class="ti ti-alert-triangle"></i> Convocations J-21 à envoyer aujourd'hui</p>
+              </div>
+            </div>
+            <div class="event-row">
+              <div class="event-date-block">
+                <span class="month">juil.</span><span class="day">11</span><span class="time">10:00</span>
+              </div>
+              <div class="event-main">
+                <div class="event-title-row">
+                  <span class="badge badge-mono">Visite</span>
+                  <span class="event-name">Visite annuelle d'immeuble</span>
+                </div>
+                <p style="margin: 0; font-size: 11px; color: var(--text-secondary);">Sur site · planifié</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Historique AG -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="ti ti-history" style="vertical-align: -2px; margin-right: 6px; color: var(--text-secondary);"></i>Historique des AG</h3>
+            </div>
+            <div class="event-row" style="padding: 10px 1.25rem;">
+              <div style="flex: 1; font-size: 13px;">
+                <span style="font-weight: 500;">12 avril 2025</span>
+                <span style="color: var(--text-secondary); margin-left: 8px;">AG ordinaire · 18/24 présents-représentés</span>
+              </div>
+              <a style="font-size: 12px; color: var(--accent-blue-text); cursor: pointer;">PV →</a>
+            </div>
+            <div class="event-row" style="padding: 10px 1.25rem;">
+              <div style="flex: 1; font-size: 13px;">
+                <span style="font-weight: 500;">18 octobre 2024</span>
+                <span style="color: var(--text-secondary); margin-left: 8px;">AGE · vote ravalement façade · 21/24</span>
+              </div>
+              <a style="font-size: 12px; color: var(--accent-blue-text); cursor: pointer;">PV →</a>
+            </div>
+            <div class="event-row" style="padding: 10px 1.25rem;">
+              <div style="flex: 1; font-size: 13px;">
+                <span style="font-weight: 500;">15 avril 2024</span>
+                <span style="color: var(--text-secondary); margin-left: 8px;">AG ordinaire · 19/24</span>
+              </div>
+              <a style="font-size: 12px; color: var(--accent-blue-text); cursor: pointer;">PV →</a>
+            </div>
+            <div class="event-row" style="padding: 10px 1.25rem;">
+              <div style="flex: 1; font-size: 13px;">
+                <span style="font-weight: 500;">8 mai 2023</span>
+                <span style="color: var(--text-secondary); margin-left: 8px;">AG ordinaire · 17/24</span>
+              </div>
+              <a style="font-size: 12px; color: var(--accent-blue-text); cursor: pointer;">PV →</a>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sidebar -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <!-- Mini map -->
+          <div class="side-box" style="padding: 0; overflow: hidden;">
+            <div id="condo-map" class="mini-map"></div>
+            <div style="padding: 10px 12px; border-top: 0.5px solid var(--border);">
+              <p style="margin: 0; font-size: 11px; color: var(--text-secondary);"><i class="ti ti-map-pin" style="font-size: 12px;"></i> 38 rue Jules Ferry, 31000 Toulouse</p>
+            </div>
+          </div>
+
+          <div class="side-box">
+            <h4>Identité</h4>
+            <div class="side-row"><span class="label">Code</span><span class="value" style="font-family: monospace;">S016</span></div>
+            <div class="side-row"><span class="label">Statut</span><span class="value">Active</span></div>
+            <div class="side-row"><span class="label">Lots principaux</span><span class="value">24</span></div>
+            <div class="side-row"><span class="label">Tantièmes</span><span class="value">10 000</span></div>
+            <div class="side-row"><span class="label">Exercice</span><span class="value">01/01 → 31/12</span></div>
+            <div class="side-row"><span class="label">Prise en gestion</span><span class="value">mars 2018</span></div>
+          </div>
+
+          <div class="side-box">
+            <h4>Équipe</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="row gap-2">
+                <div class="avatar blue">FS</div>
+                <div><p style="margin: 0; font-size: 13px; font-weight: 500;">François Sergent</p><p style="margin: 0; font-size: 11px; color: var(--text-secondary);">Gestionnaire</p></div>
+              </div>
+              <div class="row gap-2">
+                <div class="avatar">LM</div>
+                <div><p style="margin: 0; font-size: 13px; font-weight: 500;">Léa Martin</p><p style="margin: 0; font-size: 11px; color: var(--text-secondary);">Assistante</p></div>
+              </div>
+              <div class="row gap-2">
+                <div class="avatar">PV</div>
+                <div><p style="margin: 0; font-size: 13px; font-weight: 500;">Pauline Vidal</p><p style="margin: 0; font-size: 11px; color: var(--text-secondary);">Comptable</p></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="side-box">
+            <h4>Conseil Syndical</h4>
+            <div style="font-size: 12px;">
+              <div style="padding: 4px 0;"><span style="font-weight: 500;">Mme Dupont</span> <span style="color: var(--text-secondary);">(présidente)</span></div>
+              <div style="padding: 4px 0;"><span style="font-weight: 500;">M. Lefèvre</span></div>
+              <div style="padding: 4px 0;"><span style="font-weight: 500;">Mme Rossi</span></div>
+              <p style="margin: 6px 0 0 0; font-size: 11px; color: var(--text-tertiary);">Mandats jusqu'à l'AG 2026</p>
+            </div>
+          </div>
+
+          <div class="side-box">
+            <h4>Conformité</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+              <div class="row gap-2"><i class="ti ti-circle-check" style="color: #1D9E75;"></i><span>AG annuelle à jour</span></div>
+              <div class="row gap-2"><i class="ti ti-circle-check" style="color: #1D9E75;"></i><span>Carnet d'entretien renseigné</span></div>
+              <div class="row gap-2"><i class="ti ti-circle-check" style="color: #1D9E75;"></i><span>DTG en cours de validité</span></div>
+              <div class="row gap-2"><i class="ti ti-alert-circle" style="color: #BA7517;"></i><span style="color: var(--text-warn);">PPT à programmer</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  let mapInitialized = false;
+
+  function goTo(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const navMap = {
+      'dashboard': 0,
+      'calendar': 1,
+      'my-events': 2,
+      'condo': 3,
+      'event-prep': 2  // event-prep est rattaché à "Mes événements" dans la nav
+    };
+    const navItems = document.querySelectorAll('.sidebar > .nav-item');
+    if (navMap[page] !== undefined && navItems[navMap[page]]) {
+      navItems[navMap[page]].classList.add('active');
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (page === 'condo' && !mapInitialized) {
+      setTimeout(initMap, 100);
+    }
+  }
+
+  function initMap() {
+    const map = L.map('condo-map', { zoomControl: false, attributionControl: false }).setView([43.6045, 1.4442], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+    L.marker([43.6045, 1.4442]).addTo(map);
+    mapInitialized = true;
+  }
+
+  function switchCalView(view) {
+    document.getElementById('cal-view-list').style.display = (view === 'list') ? 'block' : 'none';
+    document.getElementById('cal-view-grid').style.display = (view === 'grid') ? 'block' : 'none';
+    document.getElementById('view-list').classList.toggle('active', view === 'list');
+    document.getElementById('view-grid').classList.toggle('active', view === 'grid');
+    if (view === 'grid') buildCalGrid();
+  }
+
+  function prevPeriod() { /* mock */ }
+  function nextPeriod() { /* mock */ }
+  function todayPeriod() { /* mock */ }
+
+  // Construction de la grille jours × mois
+  const calEvents = {
+    // format: 'mois-jour' (juin=0, juillet=1, août=2, sept=3, oct=4, nov=5)
+    '0-3':  { type: 'CS',      copro: 'S072', time: '18:00', color: '#378ADD' },
+    '0-4':  { type: 'Travaux', copro: 'S210', time: '14:00', color: '#888780' },
+    '0-8':  { type: 'AGE',     copro: 'S103', time: '18:30', color: '#7F77DD' },
+    '0-15': { type: 'AG',      copro: 'S016', time: '18:30', color: '#1D9E75', urgent: true },
+    '0-22': { type: 'CS',      copro: 'S020', time: '18:00', color: '#378ADD' },
+    '0-28': { type: 'AG',      copro: 'S145', time: '19:00', color: '#1D9E75' },
+    '1-2':  { type: 'AG',      copro: 'S210', time: '19:00', color: '#1D9E75' },
+    '1-8':  { type: 'AG',      copro: 'S055', time: '18:30', color: '#1D9E75' },
+    '1-11': { type: 'Visite',  copro: 'S016', time: '10:00', color: '#EF9F27' },
+    '1-16': { type: 'AG',      copro: 'S103', time: '18:30', color: '#1D9E75' },
+    '3-5':  { type: 'CS',      copro: 'S145', time: '18:00', color: '#378ADD' },
+    '3-12': { type: 'AG',      copro: 'S020', time: '19:00', color: '#1D9E75' },
+    '3-18': { type: 'AG',      copro: 'S072', time: '18:30', color: '#1D9E75' },
+    '3-19': { type: 'AG',      copro: 'S191', time: '18:30', color: '#1D9E75' },
+    '3-22': { type: 'AG',      copro: 'S210', time: '19:00', color: '#1D9E75' },
+    '3-25': { type: 'AG',      copro: 'S016', time: '18:30', color: '#1D9E75' },
+    '3-29': { type: 'CS',      copro: 'S055', time: '18:00', color: '#378ADD' },
+    '4-4':  { type: 'AG',      copro: 'S145', time: '19:00', color: '#1D9E75' },
+    '4-9':  { type: 'AGE',     copro: 'S072', time: '18:30', color: '#7F77DD' },
+    '4-15': { type: 'AG',      copro: 'S210', time: '18:30', color: '#1D9E75' },
+    '4-22': { type: 'Travaux', copro: 'S103', time: '14:00', color: '#888780' },
+    '5-6':  { type: 'AG',      copro: 'S055', time: '18:30', color: '#1D9E75' },
+    '5-13': { type: 'Visite',  copro: 'S191', time: '10:00', color: '#EF9F27' },
+    '5-20': { type: 'CS',      copro: 'S016', time: '18:00', color: '#378ADD' }
+  };
+
+  // jours dans le mois (juin=30, juillet=31, août=31, sept=30, oct=31, nov=30)
+  const daysInMonth = [30, 31, 31, 30, 31, 30];
+
+  function buildCalGrid() {
+    const tbody = document.getElementById('cal-tbody');
+    if (tbody.children.length > 0) return; // déjà construit
+    let html = '';
+    for (let day = 1; day <= 31; day++) {
+      html += '<tr>';
+      html += `<th class="day-col">${day}</th>`;
+      for (let m = 0; m < 6; m++) {
+        if (day > daysInMonth[m]) {
+          html += '<td class="empty"></td>';
+        } else {
+          const key = `${m}-${day}`;
+          const evt = calEvents[key];
+          const isToday = (m === 0 && day === 22); // 22 mai n'est pas dans la grille en fait, on simule sur juin 22 → rien. Pas de today highlight.
+          let cellClass = '';
+          if (evt) {
+            const urgent = evt.urgent ? ' urgent' : '';
+            html += `<td><a class="cal-event${urgent}" style="background:${evt.color};" onclick="goTo('event-prep')">${evt.time} ${evt.type} ${evt.copro}</a></td>`;
+          } else {
+            html += `<td></td>`;
+          }
+        }
+      }
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+</script>
+
+</body>
+</html>
