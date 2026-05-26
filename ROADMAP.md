@@ -2,6 +2,28 @@
 
 Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
+> **Convention** : ce fichier est la mémoire institutionnelle inter-sessions / inter-machines (Mac/PC). À lire en premier en début de session, à mettre à jour à chaque fin d'incrément ou de session significative.
+
+---
+
+## 📍 État actuel - 2026-05-26
+
+- **Phase** : J1a - Fondations techniques, Increment 2 (Supabase + schéma initial)
+- **Branche Git active** : `increment/02-supabase` (à jour avec `origin`)
+- **Dernier incrément terminé** : ✅ Increment 1 - Bootstrap (mergé via `increment/01-bootstrap`)
+- **Incrément en cours** : 🔄 Increment 2 - Supabase + schéma initial
+  - ✅ Supabase CLI installé + scaffold du projet local (commit 20302fa)
+  - ✅ Première migration : schéma initial complet sans RLS (commit 3d7f67c)
+  - 🔲 Projet Supabase cloud EU créé + branché
+  - 🔲 Variables d'env Vercel + `.env.local` documentées
+  - 🔲 Client Supabase typé (codegen depuis le schéma)
+- **Bloqueurs / en attente** :
+  - ⏸️ **Mutualisation Supabase patron** : décision en attente du retour mail du dirigeant. Cf. memory projet `project_supabase_mutualisation.md`. Tant que pas validé : on ne crée **pas** de projet Supabase Cloud autonome, et on gèle code/migration côté cloud (le scaffold local Supabase CLI peut continuer).
+  - ⚠️ **Demande Entra ID App Registration au DSI** (J0) : à déclencher si pas encore fait - bloquant pour J1b.
+- **Prochaine action concrète** : trancher la mutualisation Supabase (réponse patron) → soit créer projet REAL31 dédié dans son org, soit créer un nouveau projet EU REAL31 autonome ; ensuite continuer Increment 2 (codegen client typé + brancher l'app sur la BDD).
+
+---
+
 **Hypothèses de chiffrage** :
 - 1 développeur, à plein temps ou quasi
 - Mocks d'abord, branchements progressifs
@@ -50,28 +72,30 @@ Squelette technique + auth **mock** pour pouvoir avancer pendant que la demande 
 
 **Plan détaillé en 5 incréments** (cf. message de séquencement). Validation à chaque incrément avant de passer au suivant.
 
-### Increment 1 - Bootstrap projet
-- 🔲 Repo Git initialisé
-- 🔲 `pnpm create next-app` (Next.js 15, TypeScript strict, App Router, ESLint, Tailwind)
-- 🔲 Règle ESLint d'**isolation des adapters** (cf. ADR-001) - boundaries plugin
-- 🔲 Scripts package.json (`dev`, `build`, `lint`, `typecheck`)
-- 🔲 README minimal
-- 🔲 Deploy Vercel : page vide propre
-- **Validation** : accès prod Vercel ok, `pnpm lint && pnpm typecheck && pnpm build` passe
+### Increment 1 - Bootstrap projet ✅ (mergé via `increment/01-bootstrap`)
+- ✅ Repo Git initialisé
+- ✅ `pnpm create next-app` - Next.js 16, TypeScript strict, App Router, ESLint, Tailwind (Node 22 LTS pin via fnm)
+- ✅ Règle ESLint d'**isolation des adapters** (cf. ADR-001) - boundaries plugin
+- ✅ Scripts package.json (`dev`, `build`, `lint`, `typecheck`)
+- ✅ Scaffold `lib/` (domain, ports, adapters, services, jobs, audit, auth)
+- ✅ README projet + page d'accueil J1a brandée
+- ✅ Deploy Vercel : page vide propre
+- **Validation** : ✅ `pnpm lint && pnpm typecheck && pnpm build` passe
 
-### Increment 2 - Supabase + schéma initial
-- 🔲 Projet Supabase EU créé
+### Increment 2 - Supabase + schéma initial 🔄 (branche `increment/02-supabase`)
+- ✅ Supabase CLI installé + scaffold du projet local (commit 20302fa)
+- ⏸️ Projet Supabase EU créé - **gelé en attendant décision mutualisation patron**
 - 🔲 Variables d'env Vercel + `.env.local` documentées
-- 🔲 Migrations Supabase initiales :
-  - `users`, `gestionnaires_mapping` (porté par `users.gestionnaire_initials` - cf. ADR-010)
-  - `copros` (avec `source` discriminateur, `gestionnaire_initials`, lat/lng - cf. ADR-003, ADR-013)
-  - `evenements`, `jalons`, `item_odj`, `presence_pre_ag`, `membres_cs`
-  - `cabinet_settings`
-  - `audit_log`, `activity_log` (cf. ADR-007)
-  - `job_runs` (cf. ADR-004)
+- ✅ Migrations Supabase initiales (commit 3d7f67c, RLS désactivée comme prévu) :
+  - ✅ `users`, `gestionnaires_mapping` (porté par `users.gestionnaire_initials` - cf. ADR-010)
+  - ✅ `copros` (avec `source` discriminateur, `gestionnaire_initials`, lat/lng - cf. ADR-003, ADR-013)
+  - ✅ `evenements`, `jalons`, `item_odj`, `presence_pre_ag`, `membres_cs`
+  - ✅ `cabinet_settings`
+  - ✅ `audit_log`, `activity_log` (cf. ADR-007)
+  - ✅ `job_runs` (cf. ADR-004)
 - 🔲 Client Supabase typé (codegen depuis le schéma)
-- 🔲 RLS **pas encore activée** (increment 5)
-- **Validation** : tables visibles dans Supabase dashboard, insert/select depuis le code
+- ✅ RLS **pas encore activée** (volontairement - increment 5)
+- **Validation** : 🔲 tables visibles dans Supabase dashboard cloud + insert/select depuis le code (bloqué par mutualisation)
 
 ### Increment 3 - Mock auth + session
 - 🔲 Provider d'auth dev : page `/dev-login` (réservée `NODE_ENV !== 'production'`) avec liste des gestionnaires fictifs (FS, KN, OR, SC + 1-2 autres)
