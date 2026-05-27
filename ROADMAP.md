@@ -195,7 +195,7 @@ Mêmes pages, mais pour les 4 copros pilotes eStale.
 - 🔲 Setup compte de service eStale (cf. ADR-005)
 - 🔲 Client GraphQL eStale (`lib/adapters/estale/graphql-client.ts`) :
   - Auth session cookie + relogin paresseux sur 401
-  - Rate limit interne à 30 req/s
+  - Rate limit interne à 50 req/s (vérifié par introspection du schéma, cf. ADR-002/ADR-022)
 - 🔲 Codegen GraphQL (graphql-codegen) basé sur `docs/estale-schema.json`
 - 🔲 `EstaleCoproAdapter`, `EstaleEvenementAdapter`
 - 🔲 Routeur d'adapters (`lib/adapters/router.ts`) lisant `copros.source`
