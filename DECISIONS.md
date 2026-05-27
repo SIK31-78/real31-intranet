@@ -16,10 +16,10 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 | # | Titre | Statut | Version | Date |
 |---|---|---|---|---|
 | ADR-001 | Pattern d'abstraction des sources de données (Ports & Adapters) | Accepted | v2 | 2026-05-22 |
-| ADR-002 | Stratégie de cache et fraîcheur des données | Accepted | v2 | 2026-05-22 |
+| ADR-002 | Stratégie de cache et fraîcheur des données | Accepted | v3 | 2026-05-22 |
 | ADR-003 | Migration progressive SharePoint -> eStale | Accepted | v2 | 2026-05-22 |
 | ADR-004 | Jobs, cron et orchestration | Accepted | v1 | 2026-05-22 |
-| ADR-005 | Authentification eStale et transition vers API key | Accepted | v1 | 2026-05-22 |
+| ADR-005 | Authentification eStale et transition vers API key | Accepted | v2 | 2026-05-22 |
 | ADR-006 | Système de jalons à deux étages (légal + REAL31) | Accepted | v2 | 2026-05-22 |
 | ADR-007 | Audit RGPD niveau (b) + séparation audit/activity log | Accepted | v2 | 2026-05-22 |
 | ADR-008 | Périmètre fonctionnel - surcouche de coordination eStale | Superseded by ADR-021 | v1 | 2026-05-22 |
@@ -27,7 +27,7 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 | ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID | Accepted | v1 | 2026-05-22 |
 | ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies | Accepted | v1 | 2026-05-22 |
 | ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto | Accepted | v1 | 2026-05-22 |
-| ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Accepted | v1 | 2026-05-22 |
+| ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Accepted | v2 | 2026-05-22 |
 | ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted | v1 | 2026-05-27 |
 | ADR-022 | Positionnement intranet vis-à-vis d'eStale et stratégie d'intégration défensive | Accepted | v1 | 2026-05-27 |
 
@@ -152,15 +152,17 @@ Le job de sync upsert dans `evenements` (`source != 'native'`). Soft delete via 
 
 ## ADR-002 - Stratégie de cache et fraîcheur des données
 
-**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
+**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v3
 
+> v3 : rate limit eStale corrigé de 30 à 50 req/s, valeur vérifiée par introspection du schéma réel (cf. ADR-022).
+>
 > v2 : clarification explicite "données natives intranet jamais répliquées vers les sources externes". Renforcement de la règle après confirmation par le mockup que toutes les écritures UI concernent du natif.
 
 ### Contexte
 
 Trois sources avec des caractéristiques très différentes :
 - **SharePoint** : données déjà J-X (export manuel Crypto). Throttling Graph API par tenant. Aucun webhook fiable.
-- **eStale** : API GraphQL conçue pour de la lecture live. Rate limit 30 req/s. Session cookie (cf. ADR-005).
+- **eStale** : API GraphQL conçue pour de la lecture live. Rate limit 50 req/s (vérifié par introspection, cf. ADR-022). Session cookie (cf. ADR-005).
 - **Supabase** : low latency, requêtes SQL puissantes, on en est propriétaire.
 
 Question : où lit-on, et avec quelle fraîcheur ?
@@ -316,7 +318,9 @@ syncSharepoint({ coproIds: process.argv.slice(2) });
 
 ## ADR-005 - Authentification eStale et transition vers API key
 
-**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
+**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
+
+> v2 : le mécanisme de bascule cookie vers clé API est désormais porté par ADR-022 (sélection par présence de `ESTALE_API_KEY`, pattern `EstaleProvider`). Les détails opérationnels ci-dessous (compte de service, secrets chiffrés, refresh paresseux, règles de log) restent valables.
 
 ### Contexte
 
@@ -335,12 +339,10 @@ eStale expose une API GraphQL authentifiée par **session cookie utilisateur**, 
   - Pas d'advisory lock, pas de pool, pas de pré-refresh planifié.
 - Audit trail applicatif tenu **dans Supabase**.
 
-**Transition future (API key)** :
-- L'adapter eStale expose `lib/adapters/estale/auth/` avec deux clients :
-  - `session-cookie-client.ts` (actuel)
-  - `api-key-client.ts` (futur)
-- Code applicatif appelle uniquement `getEstaleClient()`.
-- Bascule = variable d'env `ESTALE_AUTH_METHOD=api-key` + remplir la nouvelle classe.
+**Transition future (clé API)** :
+- Le pattern et la bascule sont portés par **ADR-022** : interface `EstaleProvider` dans `lib/ports/`, deux implémentations `EstaleCookieAdapter` et `EstaleApiKeyAdapter` dans `lib/adapters/estale/`.
+- Bascule = **présence de la variable d'env `ESTALE_API_KEY`** (présente, on prend l'adapter clé API ; absente, on reste sur le cookie). Ceci remplace l'ancienne idée d'un flag `ESTALE_AUTH_METHOD`.
+- Le code applicatif n'appelle que le port, jamais un client concret.
 
 ### Critère de réévaluation
 
@@ -853,13 +855,15 @@ Si la génération de convocations devient critique avant la vague 2 (ex. trop d
 
 ## ADR-013 - Géocodage des adresses via Nominatim OSM dans le job de sync
 
-**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
+**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
+
+> v2 : précision de l'apport eStale. Le type `Address` d'eStale expose `position: Point` (confirmé dans le SDL). Nominatim reste nécessaire pour les copros sourcées SharePoint/Crypto et devient un fallback en phase eStale (cf. ADR-022).
 
 ### Contexte
 
 Le mockup affiche une **mini-carte Leaflet** sur la fiche copro. Pour positionner le marker, il faut des coordonnées géographiques (latitude/longitude).
 
-Les sources externes (SharePoint export Crypto, eStale) stockent l'adresse en texte libre, pas les coordonnées (à confirmer pour eStale).
+Les sources externes stockent l'adresse en texte libre. SharePoint (export Crypto) ne fournit pas de coordonnées. eStale, lui, expose `Address.position: Point` (confirmé dans le SDL) : les coordonnées y sont natives.
 
 ### Décision
 
@@ -904,6 +908,15 @@ Les sources externes (SharePoint export Crypto, eStale) stockent l'adresse en te
 - Qualité géocodage parfois inférieure à Google/MapBox (rare en zone urbaine).
 - Latence non garantie (service communautaire).
 - Si REAL31 s'étend à des zones rurales, qualité à revérifier.
+
+### Évolution avec eStale (phases B/C)
+
+Le type `Address` d'eStale expose `position: Point`. Selon la source de la copro (cf. les phases d'intégration d'ADR-022) :
+
+- **Phase A (SharePoint / Crypto)** : pas de coordonnées en source, le géocodage Nominatim est **nécessaire**.
+- **Phases B/C (eStale)** : `address.position` est natif. On lit les coordonnées directement depuis eStale ; Nominatim devient un **fallback** (ou n'est plus utilisé) pour ces copros.
+
+La colonne cible `copros.lat/lng` reste alimentée soit par Nominatim (SharePoint), soit par `address.position` (eStale).
 
 ### Critère de réévaluation
 
