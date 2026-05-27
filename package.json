@@ -33,6 +33,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "eslint-plugin-boundaries": "^6.0.2",
+    "graphql": "^16.14.0",
     "supabase": "^2.101.0",
     "tailwindcss": "^4",
     "typescript": "^5"

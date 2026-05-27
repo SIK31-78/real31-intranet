@@ -1,0 +1,181 @@
+# Schema eStale - Resume exploratoire
+
+## Statistiques globales
+
+- Object types : 495
+- Input types : 314
+- Enum types : 77
+- Interface types : 18
+- Union types : 17
+- Scalar types : 10
+- Queries : 5
+- Mutations : 125
+
+## Queries disponibles
+
+- `agency(id)` -> Agency
+- `collaborator(id)` -> Collaborator
+- `condo(id)` -> Condo
+- `establishment(id)` -> Establishment
+- `me` -> User
+
+## Mutations disponibles
+
+- `actionDrive(driveID)` -> DriveActionMutation
+- `createBankAccount(input)` -> BankAccount
+- `createBankStatement(bankID, input, file)` -> BankStatement
+- `createBankTransactionTemplate(bankID, input)` -> BankTransactionTemplate
+- `createBudgetAdvance(input)` -> BudgetAdvance
+- `createBudgetALUR(input)` -> BudgetALUR
+- `createBudgetALURFrom(input)` -> BudgetALUR
+- `createBudgetExceptional(input)` -> BudgetExceptional
+- `createBudgetLoan(input)` -> BudgetLoan
+- `createBudgetOrdinary(input)` -> BudgetOrdinary
+- `createBuilding(condoID, input, address)` -> Building
+- `createCollaborator(establishmentID, role, email)` -> Collaborator
+- `createCondo(input)` -> Condo
+- `createDK(condoID, input)` -> DistributionKeys
+- `createDriveDir(input)` -> DriveDir
+- `createDriveFile(input)` -> DriveFile
+- `createEmployee(input)` -> Employee
+- `createEntry(input)` -> Entry
+- `createEntryDispatch(input)` -> AccountingAccount
+- `createEntryExpert(input)` -> Entry
+- `createEstablishment(input, address)` -> Establishment
+- `createFundraising(input)` -> Fundraising
+- `createFundsTransfert(establishmentID, input)` -> Boolean
+- `createInvoiceCondo(input)` -> Entry
+- `createInvoiceOwner(input)` -> Entry
+- `createInvoicePrediction(input)` -> InvoicePrediction
+- `createKanbanTask(condoID, label)` -> KanbanTask
+- `createLitigationAgainstOther(input)` -> Litigation
+- `createLitigationAgainstOwner(input)` -> Litigation
+- `createLitigationAgainstSupplier(input)` -> Litigation
+- `createLitigationRecovery(input)` -> Litigation
+- `createLot(condoID, input)` -> Lot
+- `createMailing(input)` -> Mailing
+- `createMailingExpress(input)` -> Mailing
+- `createMailingTemplateMail(input)` -> MailingTemplateMail
+- `createMailingTemplateWord(input)` -> MailingTemplateWord
+- `createMeeting(input)` -> Meeting
+- `createMeter(input)` -> Meter
+- `createMeterIndex(input)` -> MeterIndex
+- `createMeterIndividual(input)` -> MeterIndividual
+- `createMeterReading(input)` -> MeterReading
+- `createNotaryOffice(input)` -> NotaryOffice
+- `createOwner(condoID, input, address)` -> Owner
+- `createOwnerSEPAMandate(ownerID, input, file)` -> OwnerSEPAMandate
+- `createPayin(input)` -> Payin
+- `createPayinItemCash(input)` -> PayinItemCash
+- `createPayinItemCheck(input)` -> PayinItemCheck
+- `createPayinItemCheckBlocked(input)` -> PayinItemCheckBlocked
+- `createPayinItemDebit(input)` -> PayinItemDebit
+- `createPayinItemWire(input)` -> PayinItemWire
+- `createPayout(establishmentID, input)` -> Payout
+- `createRentalAgent(input)` -> RentalAgent
+- `createSale(input)` -> Sale
+- `createSupplier(input, condoID)` -> Supplier
+- `createSupplierAssessment(input)` -> SupplierAssessment
+- `createSupplierContact(input)` -> SupplierContact
+- `createSupplierContract(input)` -> SupplierContract
+- `createUnpaid(input)` -> Unpaid
+- `createVisit(input)` -> Visit
+- `deleteInvoicePrediction(id)` -> DeleteInvoicePredictionPayload
+- `deleteMailingTemplateMail(templateID)` -> Boolean
+- `deleteMailingTemplateWord(templateID)` -> Boolean
+- `impersonate(ownerID)` -> String
+- `importEntries(condoID, file)` -> Condo
+- `importLinks(condoID, file)` -> Condo
+- `importLots(condoID, file)` -> Condo
+- `importOwners(condoID, file)` -> Condo
+- `letterEntries(condoID, entriesID)` -> Entry
+- `me` -> UserMutation
+- `previewMailingMail(input)` -> Boolean
+- `unletterEntries(condoID, entryID)` -> Entry
+- `updateAccounting(id)` -> AccountingMutation
+- `updateAccountingAccount(id)` -> AccountingAccountMutation
+- `updateAgency(id)` -> AgencyMutation
+- `updateBankAccount(id)` -> BankAccountMutation
+- `updateBankStatement(id)` -> BankStatementMutation
+- `updateBankTransactionTemplate(id)` -> BankTransactionTemplateMutation
+- `updateBilling(billingID)` -> BillingMutation
+- `updateBudget(id)` -> BudgetMutation
+- `updateBudgetAdvance(id)` -> BudgetAdvanceMutation
+- `updateBudgetALUR(id)` -> BudgetALURMutation
+- `updateBudgetExceptional(id)` -> BudgetExceptionalMutation
+- `updateBudgetLoan(id)` -> BudgetLoanMutation
+- `updateBudgetOrdinary(id)` -> BudgetOrdinaryMutation
+- `updateBuilding(id)` -> BuildingMutation
+- `updateCollaborator(id)` -> CollaboratorMutation
+- `updateCondo(id)` -> CondoMutation
+- `updateDK(id)` -> DKMutation
+- `updateDriveItem(itemID)` -> DriveItemMutation
+- `updateEmployee(id)` -> EmployeeMutation
+- `updateEntry(id)` -> EntryMutation
+- `updateEstablishment(id)` -> EstablishmentMutation
+- `updateEstablishmentCOA(id)` -> EstablishmentCOAMutation
+- `updateFundraising(id)` -> FundraisingMutation
+- `updateFundraisings(ids)` -> FundraisingsMutation
+- `updateKanbanTask(taskID)` -> KanbanTaskMutation
+- `updateLitigation(id)` -> LitigationMutation
+- `updateLot(id)` -> LotMutation
+- `updateMailing(id)` -> MailingMutation
+- `updateMeeting(id)` -> MeetingMutation
+- `updateMeter(id)` -> MeterMutation
+- `updateMeterIndex(id)` -> MeterIndexMutation
+- `updateMeterIndividual(id)` -> MeterIndividualMutation
+- `updateMeterReading(id)` -> MeterReadingMutation
+- `updateNotaryOffice(id)` -> NotaryOfficeMutation
+- `updateOwner(id)` -> OwnerMutation
+- `updateOwners(ownerIDs)` -> OwnersMutation
+- `updateOwnerSEPAMandate(id)` -> BankSEPAMandateMutation
+- `updatePayin(id)` -> PayinMutation
+- `updatePayinItemCash(id)` -> PayinItemCashMutation
+- `updatePayinItemCheck(id)` -> PayinItemCheckMutation
+- `updatePayinItemCheckBlocked(id)` -> PayinItemCheckBlockedMutation
+- `updatePayinItemDebit(id)` -> PayinItemDebitMutation
+- `updatePayinItemWire(id)` -> PayinItemWireMutation
+- `updatePayout(payoutID)` -> PayoutMutation
+- `updatePowens(id)` -> PowensMutation
+- `updateRentalAgent(id)` -> RentalAgentMutation
+- `updateSale(id)` -> SaleMutation
+- `updateSupplier(id)` -> SupplierMutation
+- `updateSupplierAssessment(id)` -> SupplierAssessmentMutation
+- `updateSupplierContact(id)` -> SupplierContactMutation
+- `updateSupplierContract(id)` -> SupplierContractMutation
+- `updateUnpaid(unpaidID)` -> UnpaidMutation
+- `updateVisit(id)` -> VisitMutation
+- `upsertFASchedule(budgetID, schedules)` -> FASchedule
+
+## Types principaux (Object types, tries par nb de champs)
+
+- `Mutation` (125 champs)
+- `Condo` (120 champs)
+- `Owner` (68 champs)
+- `Establishment` (58 champs)
+- `Meeting` (54 champs)
+- `BudgetExceptional` (52 champs)
+- `BudgetOrdinary` (48 champs)
+- `MeetingMotion` (46 champs)
+- `BudgetLoan` (42 champs)
+- `BankAccount` (41 champs)
+- `Collaborator` (41 champs)
+- `Mailing` (41 champs)
+- `Accounting` (40 champs)
+- `Entry` (39 champs)
+- `LitigationDocument` (37 champs)
+- `SupplierCondo` (36 champs)
+- `EstablishmentMutation` (35 champs)
+- `SupplierEstablishment` (35 champs)
+- `BudgetALUR` (33 champs)
+- `AccountingAccount` (32 champs)
+- `MeetingMutation` (32 champs)
+- `Sale` (32 champs)
+- `BudgetAdvance` (31 champs)
+- `MeetingInvitation` (31 champs)
+- `MeterReading` (31 champs)
+- `BankMonitoringStatement` (30 champs)
+- `KanbanTaskMutation` (30 champs)
+- `Litigation` (30 champs)
+- `Employee` (29 champs)
+- `KanbanEventOrder` (29 champs)
