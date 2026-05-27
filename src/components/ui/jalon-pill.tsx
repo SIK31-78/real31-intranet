@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import type { Severite } from "@/lib/domain/dashboard";
+import type { Severite } from "@/lib/domain/commun";
 
 // Pastille J-x : le numero de jour + la couleur qui porte la severite.
 const SEVERITES: Record<Severite, string> = {

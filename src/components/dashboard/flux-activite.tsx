@@ -1,7 +1,8 @@
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
-import type { ItemActivite, Ton } from "@/lib/domain/dashboard";
+import type { ItemActivite } from "@/lib/domain/dashboard";
+import type { Ton } from "@/lib/domain/commun";
 
 const TON_ICONE: Record<Ton, string> = {
   ok: "text-ok-500",

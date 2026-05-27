@@ -1,6 +1,7 @@
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/icon";
-import type { CompteurAction, Severite } from "@/lib/domain/dashboard";
+import type { CompteurAction } from "@/lib/domain/dashboard";
+import type { Severite } from "@/lib/domain/commun";
 
 const SEV_DETAIL: Record<Severite, string> = {
   late: "text-err-700 font-medium",
