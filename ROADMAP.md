@@ -41,10 +41,10 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 ## Périmètre MVP - rappel
 
 - **Profils** : 4-7 **gestionnaires réels** du cabinet, cloisonnés strict (chacun voit ses copros uniquement). Cf. ADR-009.
-- **Surcouche de coordination eStale**, pas un logiciel métier (cf. ADR-008).
+- **Surcouche de coordination** au cœur (cf. ADR-008), mais le périmètre produit s'élargit désormais vers une plateforme unique à 8 modules (cf. ADR-021 et la section "Vision produit élargie" plus bas). Le MVP, lui, reste strict.
 - **Modules MVP** : Planification CS/AG + Fiche copro 360° light + alertes basiques.
 - **5 écrans** (cf. mockup) : Dashboard, Calendrier, Mes événements, Fiche prépa AG, Fiche copro 360°.
-- **Hors MVP explicite** : génération PDF, contrats détaillés, sinistres, compta, modules logistique.
+- **Hors MVP explicite** : tout le reste. Génération PDF, contrats, registre des mandats (app A), divers syndic, compta. Aucune anticipation de ces modules dans le code tant que les 5 écrans ne sont pas livrés.
 
 ---
 
@@ -247,39 +247,73 @@ Stabilisation, paperasse, lancement.
 
 ---
 
-## Post-MVP - Vagues suivantes (J7+)
+## Vision produit élargie et phasage
 
-À cadrer plus précisément quand le MVP sera stable.
+> Section **informative** (cible décidée le 2026-05-27, cf. ADR-021). Rien des modules
+> post-MVP ne doit être anticipé dans le code tant que le MVP n'est pas livré. Le
+> périmètre de dev actif reste les 5 écrans (J0 à J6 ci-dessus).
 
-### Vague 1 : extension des rôles (~1 mois)
-- Activation des scopes `assistant`, `comptable`, `directeur`, `dirigeant` (cf. ADR-009)
-- Pas de nouveaux écrans, juste ajout de policies RLS
-- Page admin enrichie pour gérer les `reports_to_user_id` (assistants)
+L'intranet REAL31 devient la **porte d'entrée unique** du cabinet, à terme 8 modules.
+Phasage en 4 temps.
 
-### Vague 2 : génération de documents (~2-3 mois)
-- ADR sur la stratégie PDF (rouvrir ADR-012)
-- Convocations AG (LRAR + voie électronique)
-- ODJ formaté
-- Note immeuble
-- Courriers types (mise en demeure, relance impayés)
+### 1. MVP (strict, en cours)
 
-### Vague 3 : contrats fournisseurs (~1 mois)
-- Registre des contrats (ascenseur, chaufferie, etc.)
-- Alertes échéances J-90/60/30
+Les 5 premiers écrans du mockup, rien de plus. Exécution détaillée : J0 à J6 ci-dessus.
 
-### Vague 4 : intelligence et autres modules (~variable)
-- Détection d'anomalies (soldes négatifs, contrats orphelins)
-- Logistique (badges Intratone, archives physiques)
-- Vues matérialisées Supabase pour les agrégations lourdes
+1. Dashboard
+2. Calendrier AG/CS
+3. Mes événements (version simple, sans gestion des mails)
+4. Fiche prépa AG
+5. Fiche copro 360°
 
-### Vague 5 : MCP server (à dater)
-- Exposition de l'API métier via MCP
-- Prérequis : Ports propres (déjà fait par ADR-001)
+Aucun module 6/7/8 ni feature post-MVP dans ce périmètre.
 
-### Migration finale eStale
-- Quand 100 % des copros sont sur eStale : décommissionner `SharePointCoproAdapter`
-- ADR-018 (sort des données historiques SharePoint)
-- Retirer les tables `mirror_*` héritées
+### 2. Post-MVP vague 1 (à intégrer juste après le MVP)
+
+- **Module 7 - Contrats** (syndic-cabinet + fournisseurs) **si** le patron valide de le
+  développer dans l'intranet plutôt qu'en standalone (décision en attente, cf. ADR-021).
+  Inclut le registre des contrats fournisseurs et les alertes d'échéance J-90/60/30.
+- **Extension des rôles et scopes** : `assistant`, `comptable`, `directeur`, `dirigeant`
+  (cf. ADR-009). Pas de nouveaux écrans, juste ajout de policies RLS et page admin
+  enrichie (`reports_to_user_id`).
+- Alertes et synthèses enrichies (suite de J5).
+
+### 3. Post-MVP vague 2 (plus lointain)
+
+- **Module 8 - Registre des mandats** : absorption de l'app A (RegistreMandats, en prod).
+  Port des intégrations OneSpan, Azure Document Intelligence et scan-email sous forme
+  d'**adapters** hexagonaux (cf. ADR-021, ADR-001).
+- **Module 6 - Divers syndic** : numérisation des Excel quotidiens (badges Intratone,
+  archives physiques, etc.).
+- **Génération de documents PDF** : convocations AG (LRAR + voie électronique), ODJ
+  formaté, note immeuble, courriers types (rouvrir ADR-012).
+- **Intelligence** : détection d'anomalies (soldes négatifs, contrats orphelins), vues
+  matérialisées Supabase pour les agrégations lourdes.
+- **Migration finale eStale** : quand 100 % des copros sont sur eStale, décommissionner
+  `SharePointCoproAdapter`, traiter le sort des données historiques (ADR-018), retirer
+  les tables `mirror_*`.
+- **Serveur MCP** : exposition de l'API métier (prérequis déjà posé par les ports d'ADR-001).
+
+### 4. Vision long terme - les 8 modules
+
+L'intranet comme porte d'entrée unique du cabinet :
+
+1. Dashboard
+2. Calendrier AG/CS
+3. Mes événements (peut-être gestion des mails plus tard)
+4. Fiche prépa AG
+5. Fiche copro 360°
+6. Divers syndic (badges, archives, Excel quotidiens)
+7. Contrats (syndic-cabinet + fournisseurs)
+8. Registre des mandats (app A absorbée)
+
+### Stratégie de transition (cf. ADR-021)
+
+- Coexistence assumée de l'app A et de l'intranet pendant **~5 à 7 mois**. Pas de big bang.
+- L'app A reste en prod et sert l'équipe pendant toute la transition.
+- L'archi hexagonale de l'intranet reste **l'autorité de qualité**.
+- Prisma (hérité de A) **cohabite** avec supabase-js le temps de la transition : dette
+  technique assumée et bornée, à résorber selon ADR-015.
 
 ---
 
