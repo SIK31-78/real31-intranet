@@ -29,6 +29,7 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 | ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto | Accepted | v1 | 2026-05-22 |
 | ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Accepted | v1 | 2026-05-22 |
 | ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted | v1 | 2026-05-27 |
+| ADR-022 | Positionnement intranet vis-à-vis d'eStale et stratégie d'intégration défensive | Accepted | v1 | 2026-05-27 |
 
 ---
 
@@ -965,6 +966,97 @@ Dettes assumées sciemment, avec une cible de résolution pour éviter qu'elles 
 - Dépend de **ADR-015** (ORM cible) pour la résorption finale de la cohabitation.
 - Le port des intégrations de A suit le pattern adapters de **ADR-001**.
 - Le modèle de sécurité cible reste **ADR-011** (RLS).
+
+---
+
+## ADR-022 - Positionnement de l'intranet vis-à-vis d'eStale et stratégie d'intégration défensive
+
+**Date** : 2026-05-27 · **Statut** : Accepted · **Version** : v1
+
+### Contexte
+
+L'introspection du schéma GraphQL réel d'eStale (versionnée dans `docs/estale-schema.json`, SDL dans `docs/estale-schema.graphql`, résumé dans `docs/estale-schema-summary.md`) confirme une couverture métier très large : 495 object types, 314 input types, 125 mutations. eStale couvre la compta (6 types de Budget, Bank/Payin/Payout, Entry), les AG (Meeting 54 champs, MeetingMotion, MeetingInvitation), les fournisseurs, l'Open Banking (Powens), le Drive documentaire, le Mailing, le Kanban. `Condo` porte 120 champs, `Owner` 68.
+
+Trois faits techniques structurants, vérifiés par introspection :
+
+1. **5 queries top-level seulement** : `agency(id)`, `collaborator(id)`, `condo(id)`, `establishment(id)`, `me`. Aucune query "liste" cross-copros. Pour itérer sur les copros d'un gestionnaire, il faut passer par `me.collaborator.condos`.
+2. **Pas de clé API stable et documentée à ce jour.** L'authentification se fait par cookie de session, obtenu via un login REST `POST /api/login`, puis appels GraphQL sur `POST https://api.estale.app/graphql/intranet`. eStale annonce une clé API "dans 2 mois", mais on planifie sur un scénario pessimiste (au plus tôt T+6 mois, au plus tard T+12 mois). Le test technique est validé : l'extraction du schéma en est la preuve.
+3. **Contraintes d'API** : rate limit 50 req/s, timeout 30s.
+
+Côté calendrier, la migration de REAL31 vers eStale prendra 6 à 7 mois minimum (4 copros pilotes aujourd'hui sur 160+). Pendant cette fenêtre, l'intranet doit délivrer de la valeur sur Crypto + SharePoint sans dépendre d'eStale.
+
+### Décision
+
+#### 1. Positionnement : extension, pas substitut
+
+L'intranet REAL31 est l'**extension propre d'eStale, pas son concurrent**. Il ne redéveloppe pas le transactionnel (compta, AG, fournisseurs) qu'eStale fait nativement. Il remplace les bricolages Tampermonkey individuels par une plateforme unifiée, et apporte une couche de **pilotage et d'orchestration** au-dessus du transactionnel. Il consomme l'API eStale massivement en **lecture**, et écrit peu (les écritures concernent les workflows propres à REAL31 : jalons, audit log, présences pré-AG).
+
+Périmètre = ce qu'eStale ne fait pas en natif, plus les workflows spécifiques REAL31 :
+- Jalons réglementaires AG avec alertes automatiques (J-21, J-30, etc.) - cf. ADR-006.
+- Vue cross-copros / dashboard transverse d'un gestionnaire (eStale n'a pas de query liste : on agrège côté intranet via `me.collaborator.condos`).
+- Coordination interne et suivi des présences pré-AG (probabilité de quorum).
+- Mapping initiales vers email Entra ID, spécifique REAL31 - cf. ADR-010.
+- Audit log applicatif interne (conformité, qui a fait quoi) - cf. ADR-007.
+- Modules secondaires : registre des mandats (app A à absorber, cf. ADR-021), divers syndic (badges, archives), agrégation des contrats fournisseurs.
+
+#### 2. Stratégie défensive d'intégration en 3 phases
+
+But : ne jamais faire dépendre une fonction critique d'un mécanisme d'accès eStale fragile, et absorber chaque évolution d'auth dans l'adapter sans toucher l'UI.
+
+- **Phase A (T+0 à T+6 mois)** : source primaire = SharePoint (export Crypto). Aucune dépendance critique à eStale. L'intranet a déjà sa valeur (jalons, coordination, dashboard).
+- **Phase B (T+6 à T+12 mois)** : source primaire = eStale via `EstaleCookieAdapter`. Auth par cookie de session (login REST `/api/login` avec un compte de service dédié, puis appels GraphQL avec le cookie). Tout le bricolage d'auth est isolé dans l'adapter.
+- **Phase C (T+12 mois et au-delà, ou plus tôt si la clé API arrive)** : source primaire = eStale via `EstaleApiKeyAdapter` (Bearer token). Bascule par simple changement de variable d'environnement.
+
+#### 3. Pattern technique
+
+- Interface `EstaleProvider` dans `lib/ports/`.
+- Deux implémentations dans `lib/adapters/estale/` : une à cookie de session, une à clé API.
+- Sélection à l'initialisation selon la **présence de la variable d'env `ESTALE_API_KEY`** : présente, on prend l'adapter clé API ; absente, on retombe sur l'adapter cookie.
+- L'archi hexagonale (ADR-001) absorbe la transition Phase B vers Phase C sans toucher l'UI ni les règles métier.
+
+Cette décision **prolonge et précise ADR-005**, qui posait déjà la transition cookie vers clé API et deux clients d'auth. ADR-022 reformule le mécanisme de bascule autour de la présence de `ESTALE_API_KEY` plutôt que d'un flag `ESTALE_AUTH_METHOD`, et l'inscrit dans le plan de phases A/B/C. Les autres dispositions d'ADR-005 (compte de service unique, refresh paresseux sur 401, secrets chiffrés) restent valables.
+
+#### 4. Mesures de protection contre les ruptures d'API
+
+- **Ré-extraction périodique du schéma** : relancer l'introspection eStale puis régénérer SDL + résumé via `scripts/estale-schema-explore.mjs` (déjà créé). Cadence suggérée : mensuelle en manuel pour démarrer, hebdomadaire automatisée ensuite. Un diff du SDL versionné signale toute évolution cassante.
+- **Génération de types TypeScript** via graphql-codegen, pour que toute suppression ou renommage de champ casse à la compilation. Choix de la lib à acter dans un ADR ultérieur, pas maintenant.
+- **Cache local agressif côté Supabase** (read-through, cf. ADR-002) pour amortir le rate limit et survivre à une indisponibilité ponctuelle d'eStale.
+- **Tests de contrat** pour détecter les régressions d'API, à introduire quand l'adapter eStale sera branché (Phase B).
+
+#### 5. Limites connues de l'API eStale (contraintes architecturales)
+
+- **Pas de query liste cross-copros** : impose le pattern `me.collaborator.condos` pour l'itération, et l'agrégation côté intranet pour les vues transverses.
+- **Rate limit 50 req/s** : impose le batching et le cache. ADR-002 mentionnait 30 req/s par hypothèse ; l'introspection confirme 50 req/s, qui fait foi.
+- **Timeout 30s** : impose des queries simples et ciblées, pas de méga-requêtes.
+- **Auth par cookie de session** : sessions à rafraîchir périodiquement ; la durée de vie réelle est à mesurer côté `EstaleCookieAdapter`.
+
+#### 6. Levier commercial
+
+REAL31 va signer eStale pour ~7000 lots. C'est un levier de négociation, à actionner par le dirigeant lors du contrat eStale :
+- accès anticipé à la clé API (programme bêta),
+- engagement contractuel sur le délai de mise à disposition,
+- documentation prioritaire.
+
+### Conséquences
+
+**Positives**
+- L'intranet délivre de la valeur dès la Phase A, sans dépendre d'un accès eStale fragile.
+- Chaque évolution d'auth eStale est absorbée dans un adapter, l'UI ne bouge pas.
+- Schéma versionné + codegen + tests de contrat transforment une rupture d'API silencieuse en erreur visible (compilation ou test).
+- Positionnement clair "extension d'eStale" : pas de redéveloppement du transactionnel, périmètre tenable.
+
+**Négatives**
+- L'auth par cookie reste un bricolage tant que la clé API n'est pas là (dette bornée, isolée dans l'adapter).
+- L'absence de query liste impose de l'agrégation maison, plus coûteuse que si eStale l'offrait.
+- Dépendance à un fournisseur dont le calendrier API n'est pas garanti ; mitigée par la stratégie de phases et le levier commercial.
+
+### Liens
+- **ADR-001** : l'abstraction ports/adapters rend la transition de phases invisible à l'UI.
+- **ADR-002** : cache read-through, central pour amortir le rate limit et les indisponibilités (rate limit eStale : 50 req/s, valeur vérifiée).
+- **ADR-003** : migration progressive Crypto vers eStale, copro par copro via `copros.source`.
+- **ADR-005** : auth opérationnelle eStale (compte de service, refresh paresseux) ; ADR-022 précise le mécanisme de bascule via la présence de `ESTALE_API_KEY`.
+- **ADR-013** : `Address` d'eStale expose `position: Point` (confirmé dans le SDL). En phase B/C les coordonnées sont natives ; Nominatim devient un fallback pour les copros sourcées SharePoint.
+- **ADR-021** : plateforme unifiée ; l'intégration eStale est le socle de lecture de cette plateforme.
 
 ---
 
