@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>REAL31 — Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+<style>
+  /* ===========================================================================
+     TOKENS — repris VERBATIM du design system REAL31 v0.1 (pas de derive).
+     On garde le DS valide tel quel : seule la composition de l'ecran change.
+     =========================================================================== */
+  :root {
+    --bg:        #fafaf9;
+    --surface:   #ffffff;
+    --surface-2: #f4f4f2;
+    --surface-3: #ededea;
+    --line:      #e6e5e1;
+    --line-2:    #d4d3ce;
+    --ink:       #18181b;
+    --ink-2:     #525258;
+    --ink-3:     #8a8a90;
+    --ink-4:     #b5b4b0;
+
+    --green-50:  oklch(0.97 0.02 155);
+    --green-100: oklch(0.93 0.04 155);
+    --green-200: oklch(0.85 0.06 155);
+    --green-300: oklch(0.72 0.08 155);
+    --green-500: oklch(0.48 0.09 155);
+    --green-600: oklch(0.40 0.08 155);
+    --green-700: oklch(0.32 0.06 155);
+    --green-900: oklch(0.20 0.04 155);
+
+    --ok-50:  #ecfdf5;  --ok-500:  #059669;  --ok-700:  #047857;
+    --warn-50:#fffbeb;  --warn-500:#d97706;  --warn-700:#b45309;
+    --err-50: #fef2f2;  --err-500: #dc2626;  --err-700: #b91c1c;
+    --info-50:#eff6ff;  --info-500:#2563eb;  --info-700:#1d4ed8;
+
+    --r-sm: 4px;
+    --r:    6px;
+    --r-lg: 8px;
+    --shadow-1: 0 1px 0 rgba(24,24,27,.04), 0 1px 2px rgba(24,24,27,.04);
+    --shadow-2: 0 4px 12px -2px rgba(24,24,27,.06), 0 2px 4px -1px rgba(24,24,27,.04);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, monospace; font-feature-settings: 'zero', 'ss01'; }
+
+  .label-eyebrow {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* Boutons (DS) */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 32px; padding: 0 12px; border-radius: var(--r);
+    font-size: 13px; font-weight: 500; line-height: 1;
+    border: 1px solid transparent; cursor: pointer; user-select: none;
+    transition: background 80ms ease, border-color 80ms ease, color 80ms ease;
+  }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary { background: var(--green-700); color: #fff; }
+  .btn-primary:hover { background: var(--green-600); }
+  .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+  .btn-secondary:hover { background: var(--surface-2); border-color: var(--line-2); }
+  .btn-ghost { background: transparent; color: var(--ink-2); }
+  .btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+  .btn-sm { height: 26px; padding: 0 9px; font-size: 12px; border-radius: var(--r-sm); }
+
+  /* Badges (DS) */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 20px; padding: 0 7px; border-radius: 4px;
+    font-size: 11.5px; font-weight: 500; line-height: 1; border: 1px solid transparent;
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+  .badge-neutral { background: var(--surface-2); color: var(--ink-2); border-color: var(--line); }
+  .badge-ok   { background: var(--ok-50);   color: var(--ok-700); }
+  .badge-warn { background: var(--warn-50); color: var(--warn-700); }
+  .badge-err  { background: var(--err-50);  color: var(--err-700); }
+  .badge-info { background: var(--info-50); color: var(--info-700); }
+  .badge-brand{ background: var(--green-50); color: var(--green-700); }
+  .badge-outline { background: transparent; color: var(--ink-2); border-color: var(--line); }
+
+  /* Inputs (DS) */
+  .input {
+    display: flex; align-items: center; gap: 8px;
+    height: 28px; padding: 0 10px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--r);
+    font-size: 13px; color: var(--ink); transition: border-color 80ms, box-shadow 80ms;
+  }
+  .input:focus-within { border-color: var(--green-500); box-shadow: 0 0 0 3px var(--green-50); }
+  .input input { outline: none; background: transparent; flex: 1; color: var(--ink); font-size: 13px; }
+  .input input::placeholder { color: var(--ink-4); }
+  .input svg { width: 14px; height: 14px; color: var(--ink-3); }
+
+  /* Cards (DS) */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+  .card-pad { padding: 16px; }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+  }
+  .card-header h3 { font-size: 13px; font-weight: 600; color: var(--ink); }
+
+  /* Avatars (DS) — hue par gestionnaire, meme formule oklch, seul le hue change */
+  .avatar {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    background: var(--green-100); color: var(--green-700); border: 1px solid var(--green-200);
+  }
+  .avatar[data-hue="el"] { background: oklch(0.93 0.04 155); color: oklch(0.32 0.06 155); border-color: oklch(0.85 0.06 155); }
+  .avatar[data-hue="sk"] { background: oklch(0.93 0.04 245); color: oklch(0.34 0.06 245); border-color: oklch(0.85 0.05 245); }
+  .avatar[data-hue="fa"] { background: oklch(0.93 0.05 60);  color: oklch(0.40 0.07 60);  border-color: oklch(0.85 0.06 60); }
+
+  /* Lignes "a traiter" — reprend la logique du composant jalon du DS */
+  .row-task { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--line); transition: background 80ms ease; cursor: pointer; }
+  .row-task:last-child { border-bottom: 0; }
+  .row-task:hover { background: var(--surface-2); }
+  .jx { /* pastille J-x, sens porte par la couleur */
+    flex-shrink: 0; min-width: 42px; height: 22px; padding: 0 7px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--r-sm); font-size: 12px; font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .jx-late { background: var(--err-50);  color: var(--err-700);  border-color: #f3c1c1; }
+  .jx-soon { background: var(--warn-50); color: var(--warn-700); border-color: #f0dcae; }
+  .jx-ok   { background: var(--surface-2); color: var(--ink-3);  border-color: var(--line); }
+
+  /* Carte chiffre actionnable. Big number autorise PARCE QUE c'est une action a faire,
+     pas une vanity metric. Le hover suggere que c'est cliquable. */
+  .kpi { display: block; transition: border-color 80ms ease, background 80ms ease; }
+  .kpi:hover { border-color: var(--line-2); background: var(--surface); }
+  .kpi .num { font-size: 34px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; }
+
+  /* Navigation (chrome partage entre les 5 ecrans) */
+  .nav-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border-radius: var(--r); font-size: 13px; color: var(--ink);
+    transition: background 80ms ease, color 80ms ease;
+  }
+  .nav-item:hover { background: var(--surface-2); }
+  .nav-item .ico { width: 14px; height: 14px; color: var(--ink-3); }
+  .nav-item.active { background: var(--green-50); color: var(--green-700); font-weight: 500; }
+  .nav-item.active .ico { color: var(--green-700); }
+
+  :focus-visible { outline: 2px solid var(--green-500); outline-offset: 2px; border-radius: var(--r-sm); }
+</style>
+</head>
+
+<body>
+<!-- ===========================================================================
+     CHROME D'APPLICATION — identique sur les 5 ecrans (topbar 48 + sidebar 216).
+     =========================================================================== -->
+<div class="flex flex-col" style="min-height: 100vh;">
+
+  <!-- Topbar -->
+  <header class="flex items-center justify-between px-4 shrink-0" style="height: 48px; border-bottom: 1px solid var(--line); background: var(--surface);">
+    <div class="flex items-center gap-3">
+      <div class="w-6 h-6 rounded-[5px] flex items-center justify-center mono text-[10px] font-semibold" style="background: var(--green-700); color: #fff;">R31</div>
+      <span class="text-[12.5px] font-medium">REAL31</span>
+      <span style="color: var(--ink-4)">/</span>
+      <span class="text-[12.5px]" style="color: var(--ink-2)">Dashboard</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <label class="input" style="width: 260px;">
+        <i data-lucide="search"></i>
+        <input placeholder="Rechercher une copro, un copropriétaire…" aria-label="Recherche" />
+        <span class="mono text-[10px] px-1 py-0.5 rounded" style="color:var(--ink-3); background: var(--surface-3)">⌘K</span>
+      </label>
+      <button class="btn btn-sm btn-ghost" aria-label="Notifications" style="position: relative;">
+        <i data-lucide="bell"></i>
+        <span style="position:absolute; top:3px; right:5px; width:6px; height:6px; border-radius:999px; background: var(--err-500);"></span>
+      </button>
+      <span class="avatar" data-hue="el" title="Élise Lacombe">EL</span>
+    </div>
+  </header>
+
+  <div class="flex flex-1" style="min-height: 0;">
+
+    <!-- Sidebar -->
+    <aside class="shrink-0" style="width: 216px; border-right: 1px solid var(--line); background: var(--surface);">
+      <nav class="px-3 py-3">
+        <div class="label-eyebrow px-2 mb-1.5">Mon travail</div>
+        <a href="#" class="nav-item active"><i data-lucide="layout-dashboard" class="ico"></i> Dashboard</a>
+        <a href="#" class="nav-item"><i data-lucide="inbox" class="ico"></i> Mes événements <span class="ml-auto mono text-[11px]" style="color: var(--ink-3)">12</span></a>
+        <a href="#" class="nav-item"><i data-lucide="calendar" class="ico"></i> Calendrier AG/CS</a>
+        <a href="#" class="nav-item"><i data-lucide="building-2" class="ico"></i> Mes copros <span class="ml-auto mono text-[11px]" style="color: var(--ink-3)">23</span></a>
+
+        <div class="label-eyebrow px-2 mt-4 mb-1.5">Cabinet</div>
+        <a href="#" class="nav-item"><i data-lucide="users" class="ico"></i> Équipe</a>
+        <a href="#" class="nav-item"><i data-lucide="archive" class="ico"></i> Toutes les copros</a>
+        <a href="#" class="nav-item"><i data-lucide="alert-triangle" class="ico"></i> Sinistres <span class="ml-auto mono text-[11px]" style="color: var(--ink-3)">2</span></a>
+      </nav>
+    </aside>
+
+    <!-- ===========================================================================
+         STAGE — 3 zones seulement, beaucoup d'air. On lutte contre le "hyper charge".
+         =========================================================================== -->
+    <main class="flex-1 overflow-auto">
+      <div class="mx-auto px-8 py-8" style="max-width: 1100px;">
+
+        <!-- En-tete : pas de hero "Bonjour Elise". On attaque par l'operationnel. -->
+        <div class="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div class="text-[12.5px]" style="color: var(--ink-3)">Mercredi 27 mai 2026 · Élise Lacombe</div>
+            <h1 class="mt-1 text-[26px] font-medium tracking-tight" style="letter-spacing: -0.02em">Ce qui demande votre attention</h1>
+          </div>
+          <button class="btn btn-primary"><i data-lucide="plus"></i> Préparer une AG</button>
+        </div>
+
+        <!-- ZONE 1 — Chiffres ACTIONNABLES (pas de vanity metric).
+             Chaque carte = une pile de choses A FAIRE, cliquable. -->
+        <div class="grid gap-4 mt-6" style="grid-template-columns: repeat(3, 1fr);">
+
+          <a href="#" class="card card-pad kpi">
+            <div class="flex items-center justify-between">
+              <div class="label-eyebrow">À envoyer</div>
+              <i data-lucide="send" style="width:15px;height:15px;color:var(--ink-3)"></i>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span class="num">3</span>
+              <span class="text-[13px]" style="color: var(--ink-2)">convocations</span>
+            </div>
+            <div class="mt-2 text-[12.5px]" style="color: var(--ink-3)">cette semaine · <span style="color: var(--err-700); font-weight: 500;">1 en retard</span></div>
+          </a>
+
+          <a href="#" class="card card-pad kpi">
+            <div class="flex items-center justify-between">
+              <div class="label-eyebrow">À planifier</div>
+              <i data-lucide="calendar-clock" style="width:15px;height:15px;color:var(--ink-3)"></i>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span class="num">2</span>
+              <span class="text-[13px]" style="color: var(--ink-2)">AG en retard</span>
+            </div>
+            <div class="mt-2 text-[12.5px]" style="color: var(--ink-3)">pas d'AG depuis &gt; 11 mois</div>
+          </a>
+
+          <a href="#" class="card card-pad kpi">
+            <div class="flex items-center justify-between">
+              <div class="label-eyebrow">À traiter</div>
+              <i data-lucide="alert-triangle" style="width:15px;height:15px;color:var(--ink-3)"></i>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span class="num">2</span>
+              <span class="text-[13px]" style="color: var(--ink-2)">sinistres actifs</span>
+            </div>
+            <div class="mt-2 text-[12.5px]" style="color: var(--ink-3)">dont 1 en attente de devis</div>
+          </a>
+        </div>
+
+        <!-- ZONE 2 + 3 — la liste de priorites (large) et l'activite (etroite). -->
+        <div class="grid gap-6 mt-6" style="grid-template-columns: 1.6fr 1fr;">
+
+          <!-- ZONE 2 — Le coeur : une SEULE liste, triee par urgence. -->
+          <section class="card">
+            <div class="card-header">
+              <h3>À traiter, par ordre d'urgence</h3>
+              <div class="flex items-center gap-1" id="filtres" role="tablist" aria-label="Filtrer les tâches">
+                <button class="btn btn-sm btn-secondary" data-f="all" aria-pressed="true">Tout</button>
+                <button class="btn btn-sm btn-ghost" data-f="late" aria-pressed="false">En retard</button>
+                <button class="btn btn-sm btn-ghost" data-f="soon" aria-pressed="false">≤ 7 jours</button>
+              </div>
+            </div>
+
+            <div id="liste">
+              <!-- En retard (rouge) -->
+              <a href="#" class="row-task" data-sev="late">
+                <span class="jx jx-late mono">+2 j</span>
+                <span class="mono text-[12px]" style="color: var(--ink-2); width: 38px;">S104</span>
+                <span class="flex-1 text-[13px]">Résidence Les Marronniers — convocation en retard</span>
+                <span class="badge badge-err"><span class="dot" style="background:var(--err-500)"></span> Légal dépassé</span>
+                <i data-lucide="chevron-right" style="color: var(--ink-4); width: 14px; height: 14px;"></i>
+              </a>
+
+              <!-- Imminents (ambre) -->
+              <a href="#" class="row-task" data-sev="soon">
+                <span class="jx jx-soon mono">J‑2</span>
+                <span class="mono text-[12px]" style="color: var(--ink-2); width: 38px;">S016</span>
+                <span class="flex-1 text-[13px]">12 boulevard de la République — convocation à envoyer</span>
+                <span class="text-[12px] mono" style="color: var(--ink-3)">29/05</span>
+                <i data-lucide="chevron-right" style="color: var(--ink-4); width: 14px; height: 14px;"></i>
+              </a>
+              <a href="#" class="row-task" data-sev="soon">
+                <span class="jx jx-soon mono">J‑5</span>
+                <span class="mono text-[12px]" style="color: var(--ink-2); width: 38px;">S088</span>
+                <span class="flex-1 text-[13px]">Résidence Foch — relance des pouvoirs et présences</span>
+                <span class="text-[12px] mono" style="color: var(--ink-3)">01/06</span>
+                <i data-lucide="chevron-right" style="color: var(--ink-4); width: 14px; height: 14px;"></i>
+              </a>
+              <a href="#" class="row-task" data-sev="soon">
+                <span class="jx jx-soon mono">J‑6</span>
+                <span class="mono text-[12px]" style="color: var(--ink-2); width: 38px;">S073</span>
+                <span class="flex-1 text-[13px]">Le Clos Voltaire — valider l'ordre du jour avec le CS</span>
+                <span class="text-[12px] mono" style="color: var(--ink-3)">02/06</span>
+                <i data-lucide="chevron-right" style="color: var(--ink-4); width: 14px; height: 14px;"></i>
+              </a>
+
+              <!-- Plus loin (neutre) -->
+              <a href="#" class="row-task" data-sev="ok">
+                <span class="jx jx-ok mono">J‑12</span>
+                <span class="mono text-[12px]" style="color: var(--ink-2); width: 38px;">S121</span>
+                <span class="flex-1 text-[13px]">Villa des Vallées — préparer les supports d'AG</span>
+                <span class="text-[12px] mono" style="color: var(--ink-3)">08/06</span>
+                <i data-lucide="chevron-right" style="color: var(--ink-4); width: 14px; height: 14px;"></i>
+              </a>
+              <a href="#" class="row-task" data-sev="ok">
+                <span class="jx jx-ok mono">J‑18</span>
+                <span class="mono text-[12px]" style="color: var(--ink-2); width: 38px;">S045</span>
+                <span class="flex-1 text-[13px]">8 rue Sartoris — envoyer le PV de la dernière AG</span>
+                <span class="text-[12px] mono" style="color: var(--ink-3)">14/06</span>
+                <i data-lucide="chevron-right" style="color: var(--ink-4); width: 14px; height: 14px;"></i>
+              </a>
+            </div>
+
+            <div class="px-4 py-2.5 text-[12px]" style="border-top: 1px solid var(--line); color: var(--ink-3)">
+              6 tâches sur vos 23 copros · <a href="#" style="color: var(--green-700);">voir tout le portefeuille</a>
+            </div>
+          </section>
+
+          <!-- ZONE 3 — Activite recente : volontairement discrete, en lecture seule. -->
+          <aside class="card">
+            <div class="card-header"><h3>Activité récente</h3></div>
+            <div class="px-4 py-1">
+              <div class="flex gap-3 py-2.5" style="border-bottom: 1px solid var(--line);">
+                <i data-lucide="file-check" style="width:15px;height:15px;color:var(--ok-500); margin-top:2px;"></i>
+                <div class="text-[13px] leading-snug">
+                  <div>PV de l'AG publié <span class="mono text-[12px]" style="color: var(--ink-3)">S121</span></div>
+                  <div class="text-[12px]" style="color: var(--ink-3)">il y a 2 h</div>
+                </div>
+              </div>
+              <div class="flex gap-3 py-2.5" style="border-bottom: 1px solid var(--line);">
+                <i data-lucide="mail" style="width:15px;height:15px;color:var(--info-500); margin-top:2px;"></i>
+                <div class="text-[13px] leading-snug">
+                  <div>3 mails copropriétaires <span class="mono text-[12px]" style="color: var(--ink-3)">S016</span></div>
+                  <div class="text-[12px]" style="color: var(--ink-3)">il y a 4 h</div>
+                </div>
+              </div>
+              <div class="flex gap-3 py-2.5" style="border-bottom: 1px solid var(--line);">
+                <i data-lucide="banknote" style="width:15px;height:15px;color:var(--ink-3); margin-top:2px;"></i>
+                <div class="text-[13px] leading-snug">
+                  <div>Devis ascenseur reçu <span class="mono text-[12px]" style="color: var(--ink-3)">S088</span></div>
+                  <div class="text-[12px]" style="color: var(--ink-3)">hier, 16:40</div>
+                </div>
+              </div>
+              <div class="flex gap-3 py-2.5">
+                <i data-lucide="vote" style="width:15px;height:15px;color:var(--ink-3); margin-top:2px;"></i>
+                <div class="text-[13px] leading-snug">
+                  <div>5 pouvoirs reçus <span class="mono text-[12px]" style="color: var(--ink-3)">S104</span></div>
+                  <div class="text-[12px]" style="color: var(--ink-3)">hier, 11:15</div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  lucide.createIcons({ attrs: { 'stroke-width': 1.5, width: 14, height: 14 } });
+
+  // Filtre de la liste "a traiter". Interaction legere, sans librairie.
+  (function () {
+    const barre = document.getElementById('filtres');
+    const lignes = Array.from(document.querySelectorAll('#liste .row-task'));
+    barre.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-f]');
+      if (!btn) return;
+      const f = btn.dataset.f;
+      barre.querySelectorAll('button').forEach(function (b) {
+        const actif = b === btn;
+        b.classList.toggle('btn-secondary', actif);
+        b.classList.toggle('btn-ghost', !actif);
+        b.setAttribute('aria-pressed', String(actif));
+      });
+      lignes.forEach(function (l) {
+        const sev = l.dataset.sev;
+        let visible = true;
+        if (f === 'late') visible = sev === 'late';
+        else if (f === 'soon') visible = sev === 'late' || sev === 'soon';
+        l.style.display = visible ? '' : 'none';
+      });
+    });
+  })();
+</script>
+</body>
+</html>
