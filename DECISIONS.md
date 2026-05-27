@@ -22,12 +22,13 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 | ADR-005 | Authentification eStale et transition vers API key | Accepted | v1 | 2026-05-22 |
 | ADR-006 | Système de jalons à deux étages (légal + REAL31) | Accepted | v2 | 2026-05-22 |
 | ADR-007 | Audit RGPD niveau (b) + séparation audit/activity log | Accepted | v2 | 2026-05-22 |
-| ADR-008 | Périmètre fonctionnel - surcouche de coordination eStale | Accepted | v1 | 2026-05-22 |
+| ADR-008 | Périmètre fonctionnel - surcouche de coordination eStale | Superseded by ADR-021 | v1 | 2026-05-22 |
 | ADR-009 | Permissions et scopes - gestionnaire cloisonné au MVP, modèle extensible | Accepted | v1 | 2026-05-22 |
 | ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID | Accepted | v1 | 2026-05-22 |
 | ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies | Accepted | v1 | 2026-05-22 |
 | ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto | Accepted | v1 | 2026-05-22 |
 | ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Accepted | v1 | 2026-05-22 |
+| ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted | v1 | 2026-05-27 |
 
 ---
 
@@ -547,7 +548,9 @@ const jalon = await withAudit(
 
 ## ADR-008 - Périmètre fonctionnel : surcouche de coordination eStale
 
-**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
+**Date** : 2026-05-22 · **Statut** : Superseded by ADR-021 · **Version** : v1
+
+> Superseded by ADR-021 (plateforme unifiée, MVP strict comme nouveau garde-fou). Le cœur d'ADR-008 reste pertinent (ne pas redévelopper ce qu'eStale fait déjà), mais le positionnement "surcouche fine, pas un logiciel métier" est dépassé : l'intranet devient une plateforme à modules. La protection contre la dérive de périmètre n'est plus "rester fin" mais "MVP strict" (cf. ADR-021).
 
 ### Contexte
 
@@ -907,6 +910,64 @@ Si > 5 % des adresses ne sont pas géocodables avec Nominatim -> migrer vers BAN
 
 ---
 
+## ADR-021 - Plateforme REAL31 unifiée : absorber l'app A, MVP strict, cohabitation Prisma/supabase-js
+
+**Date** : 2026-05-27 · **Statut** : Accepted · **Version** : v1
+
+### Contexte
+
+REAL31 a deux applications web qui servent le même groupe :
+
+- **App A - Registre des mandats** : gestion des mandats immobiliers (vente, gestion, dont contrats de syndic), signature électronique OneSpan, OCR scan-email. **En production** depuis mai 2026, utilisée quotidiennement par toute l'équipe, données réelles. Stack : Next 14, Prisma, Supabase (Paris), Vercel Pro, auth magic-link, users syncés depuis une liste SharePoint.
+- **App B - Intranet REAL31** (ce projet) : surcouche de coordination AG/CS de copropriété. Bootstrap solide (archi hexagonale, ADR-001 à 013) mais peu de code applicatif, pas en prod.
+
+Le dirigeant et l'équipe ont décidé d'unifier les deux en une seule plateforme : l'intranet devient la **porte d'entrée unique**, à terme 8 modules (cf. `ROADMAP.md`, section "Vision produit élargie"). Deux apps en prod en parallèle à terme = friction, double maintenance, double authentification.
+
+Cette décision **élargit le périmètre posé par ADR-008**, qui cantonnait l'intranet à une fine surcouche de coordination, explicitement "pas un logiciel métier". ADR-008 reste valable pour son cœur (ne pas redévelopper ce qu'eStale fait déjà), mais le périmètre produit s'étend désormais à des modules métier (mandats, contrats). **ADR-021 prévaut sur ADR-008 pour la question du périmètre produit.**
+
+### Décision
+
+**1. Absorption, pas fusion 50/50.** L'app A sera **absorbée** dans l'intranet comme un module (module 8), pas fusionnée à parts égales. L'intranet (archi hexagonale) est la base cible et **l'autorité de qualité**. L'app A reste en prod telle quelle pendant la transition.
+
+**2. MVP strict.** Le périmètre de développement actif est limité aux **5 premiers écrans** du mockup (Dashboard, Calendrier AG/CS, Mes événements simple, Fiche prépa AG, Fiche copro 360°). Aucun module 6/7/8 ni feature post-MVP n'est codé ou anticipé tant que le MVP n'est pas livré. Cette discipline protège un développeur solo de la dispersion.
+
+**3. Coexistence bornée (~5 à 7 mois).** Pas de big bang. L'app A continue de servir l'équipe pendant que l'intranet se construit. L'absorption (port des intégrations OneSpan / Azure Document Intelligence / scan-email sous forme d'adapters) intervient **après le MVP**, en vague post-MVP.
+
+**4. Cohabitation Prisma / supabase-js comme dette technique consciente.** Pendant la transition, l'app A garde Prisma (son ORM de prod) et l'intranet utilise supabase-js. Les deux coexisteront dans la plateforme cible le temps du port. C'est une **dette technique assumée et bornée**, pas un choix d'architecture durable. Le choix d'ORM cible final est traité par ADR-015 (resté ouvert), qui devra trancher la convergence en fin de transition. Conséquence connue : Prisma se connecte en direct au pooler et **bypasse la RLS** ; le code hérité de A garde donc son modèle de sécurité applicatif (rôle + scope) tant qu'il n'est pas reporté sous le modèle RLS de l'intranet (ADR-011).
+
+**5. Module Contrats (module 7) - placement en attente.** Le dirigeant démarre un module de gestion des contrats (syndic-cabinet + fournisseurs). Proposition en cours : le développer **dans l'intranet** dès le départ plutôt qu'en standalone, pour éviter une seconde absorption douloureuse. **Décision en attente de sa validation** :
+- Si oui : le module 7 entre dans la roadmap intranet en vague post-MVP 1 (après les 5 écrans).
+- Si non : il démarre en standalone ; on coordonne uniquement la **modélisation des copropriétés** pour préparer une fusion ultérieure.
+
+### Conséquences
+
+**Positives**
+- L'app A en prod n'est jamais mise en risque : zéro rupture de service, données réelles intactes.
+- Time-to-value : le MVP syndic avance sans attendre une réécriture de A.
+- La qualité (hexagonal, ADRs) s'applique au neuf ; l'existant est porté progressivement.
+- Une seule porte d'entrée à terme pour l'équipe.
+
+**Négatives**
+- Dette de cohabitation Prisma / supabase-js à maintenir pendant ~5-7 mois, à résorber (ADR-015).
+- Deux modèles de sécurité (applicatif côté A, RLS côté intranet) coexistent transitoirement.
+- Risque de scope creep si la discipline "MVP strict" n'est pas tenue ; risque explicitement adressé par le point 2.
+
+### Dettes techniques bornées
+
+Dettes assumées sciemment, avec une cible de résolution pour éviter qu'elles s'installent durablement :
+
+- **Cohabitation Prisma / supabase-js** : à résorber avant la fin du Q2 suivant l'absorption de l'app A (date à ajuster quand on aura un planning plus précis). La convergence d'ORM est tranchée par ADR-015.
+- **Cohabitation magic link / Entra SSO** : à résorber dès que l'auth Entra SSO sera en place sur l'intranet (Increment J1b). Une fois Entra SSO opérationnel, le magic link hérité de l'app A est retiré au profit d'un modèle d'auth unique.
+
+### Liens
+
+- Élargit / prévaut sur **ADR-008** (périmètre) pour la question du scope produit.
+- Dépend de **ADR-015** (ORM cible) pour la résorption finale de la cohabitation.
+- Le port des intégrations de A suit le pattern adapters de **ADR-001**.
+- Le modèle de sécurité cible reste **ADR-011** (RLS).
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
@@ -920,3 +981,5 @@ Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
 - **ADR-020** : Observabilité (Sentry, Vercel Analytics, Logflare, ...)
 
 À traiter au moment où la décision devient bloquante.
+
+> Note de numérotation : ADR-021 (plateforme unifiée) a été formalisé en premier, hors de cette liste, le 2026-05-27. Les numéros 014 à 020 restent réservés aux sujets ci-dessus pour ne pas casser les renvois existants (notamment ADR-015 ORM, référencé par ADR-021).
