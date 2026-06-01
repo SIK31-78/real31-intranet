@@ -24,11 +24,13 @@ type EvenementChipProps = {
 };
 
 export function EvenementChip({ evenement, taille = "md", className }: EvenementChipProps) {
-  const { type, statut, coproNomCourt, coproCode, heure, jalon } = evenement;
+  const { id, type, statut, coproNomCourt, coproCode, heure, jalon } = evenement;
   const small = taille === "sm";
+  // Les AG/AGE pointent vers leur fiche de supervision. CS pas de cible pour l'instant.
+  const href = type === "AG" || type === "AGE" ? `/supervision-ag/${id}` : "#";
   return (
     <a
-      href="#"
+      href={href}
       title={`${type} · ${coproNomCourt} · ${coproCode}${heure ? ` · ${heure}` : ""}`}
       className={cn(
         "flex items-center gap-1 rounded-sm border transition-colors duration-75",
