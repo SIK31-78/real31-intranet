@@ -9,17 +9,18 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 ## 📍 État actuel - 2026-06-01
 
 - **Phase** : J2 anticipé - écrans MVP avec données mock (lancé en parallèle pendant que Supabase patron est gelé et que Entra ID DSI est en attente)
-- **Branche Git active** : `increment/02-supabase` (à jour avec `origin`)
+- **Branche Git active** : `increment/02-supabase` (locale en avance de 5 commits sur `origin`)
 - **Derniers incréments terminés** :
   - ✅ Increment 1 - Bootstrap (mergé via `increment/01-bootstrap`)
   - ✅ Migrations Supabase initiales (schéma complet sans RLS, commit 3d7f67c) - Increment 2 partiel, gelé sur le branchement cloud
   - ✅ Design system REAL31 (tokens Tailwind 4 @theme, primitives UI, app shell sidebar/topbar)
   - ✅ **Écran Dashboard** (mock, hexagonal complet : domain + port + adapter mock + service + page)
   - ✅ **Écran Calendrier AG/CS** (mock, 3 vues mois/semaine/liste, filtres types, agenda latéral)
+  - ✅ **Écran Supervision AG** (mock, 5 sections × 34 items, Server Actions + `useOptimistic`, persistance module-level reset au restart `pnpm dev`, lien depuis chips AG du calendrier)
 - **Bloqueurs / en attente** :
   - ⏸️ **Mutualisation Supabase patron** : décision en attente du retour mail du dirigeant. Cf. memory projet `project_supabase_mutualisation.md`. Tant que pas validé : on ne crée **pas** de projet Supabase Cloud autonome, on gèle code/migration côté cloud.
   - ⚠️ **Demande Entra ID App Registration au DSI** (J0) : toujours bloquant pour J1b.
-- **Prochaine action concrète** : enchaîner sur l'écran **Mes événements** (3e des 5 écrans MVP), même approche hexa+mock que Dashboard et Calendrier.
+- **Prochaine action concrète** : décider quel écran prendre après Supervision AG : **Mes événements** (vue agrégée multi-copros) ou **Fiche copro 360°** (vue détail d'une copro). Les deux restent à faire.
 
 ---
 
@@ -153,8 +154,8 @@ Construction des 5 écrans avec données mock. Si J2 fonctionne, le reste est du
 - 🔄 5 écrans Next.js fidèles au mockup :
   - ✅ Dashboard (compteurs actionnables, attention, flux activité) - hexa mock complet
   - ✅ Calendrier AG/CS (3 vues mois/semaine/liste, filtres, agenda latéral) - hexa mock complet
+  - ✅ Supervision AG (5 sections × 34 items, Server Actions + `useOptimistic`, visa final) - renomme "Fiche prépa AG" du périmètre initial, scope élargi vers une vraie checklist de supervision
   - 🔲 Mes événements (à traiter, AG à venir, copros sans AG)
-  - 🔲 Fiche prépa AG (timeline jalons, ODJ, historique actions)
   - 🔲 Fiche copro 360° light (vue d'ensemble, événements, historique AG, mini-map Leaflet)
 - 🔲 Découpage Server / Client Components documenté dans `docs/component-strategy.md`
 - 🔲 Tests E2E (Playwright) sur le parcours golden
