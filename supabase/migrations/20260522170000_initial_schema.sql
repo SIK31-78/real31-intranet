@@ -1,24 +1,33 @@
 -- Migration initiale du schema REAL31 Intranet.
--- Cf. DECISIONS.md (ADR-001 a ADR-013) pour le contexte architectural.
 --
--- IMPORTANT : aucune policy RLS n'est definie dans cette migration.
--- L'activation de la RLS (cf. ADR-011) arrive dans une migration ulterieure
--- une fois que les relations sont stabilisees et qu'on est en mesure de
--- tester proprement le cloisonnement par gestionnaire.
+-- Tout l'intranet vit dans le schema `real31_intranet`, isole du schema
+-- `public` que le projet Supabase mutualise avec l'app A du patron
+-- (Prisma + PascalCase, cf. ADR-021).
+--
+-- La RLS et les policies sont activees dans une migration suivante
+-- (cf. ADR-011, migration 20260601120000_enable_rls.sql) pour rester
+-- decoupable / desactivable independamment du schema.
 
 -- ============================================================================
 -- Extensions
 -- ============================================================================
 
--- pgcrypto est active par defaut sur Supabase, on le declare explicitement
--- pour faciliter la portabilite si on devait sortir de Supabase un jour.
+-- pgcrypto est typiquement deja active sur le projet Supabase (schema
+-- `extensions`). `if not exists` rend la commande idempotente. Fournit
+-- gen_random_uuid().
 create extension if not exists "pgcrypto";
+
+-- ============================================================================
+-- Schema dedie
+-- ============================================================================
+
+create schema if not exists real31_intranet;
 
 -- ============================================================================
 -- Helper : trigger d'auto-update du champ updated_at
 -- ============================================================================
 
-create or replace function public.set_updated_at()
+create or replace function real31_intranet.set_updated_at()
 returns trigger
 language plpgsql
 as $$
@@ -35,7 +44,7 @@ $$;
 -- Une seule table pour tous les profils utilisateurs. Au MVP seul le role
 -- 'gestionnaire' est actif cote permissions ; les autres roles sont prets
 -- pour les vagues post-MVP sans refonte de schema.
-create table public.users (
+create table real31_intranet.users (
   id uuid primary key default gen_random_uuid(),
   email text unique not null,
   display_name text not null,
@@ -53,20 +62,20 @@ create table public.users (
   gestionnaire_initials text,
   -- Pour role='assistant' : reference au gestionnaire dont il depend.
   -- Pas exploite au MVP, present pour anticiper la vague 1 post-MVP.
-  reports_to_user_id uuid references public.users(id) on delete set null,
+  reports_to_user_id uuid references real31_intranet.users(id) on delete set null,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-create index users_email_idx on public.users (email);
-create index users_initials_idx on public.users (gestionnaire_initials)
+create index users_email_idx on real31_intranet.users (email);
+create index users_initials_idx on real31_intranet.users (gestionnaire_initials)
   where gestionnaire_initials is not null;
-create index users_role_active_idx on public.users (role) where is_active = true;
+create index users_role_active_idx on real31_intranet.users (role) where is_active = true;
 
 create trigger users_set_updated_at
-  before update on public.users
-  for each row execute function public.set_updated_at();
+  before update on real31_intranet.users
+  for each row execute function real31_intranet.set_updated_at();
 
 -- ============================================================================
 -- Cabinet settings (cf. ADR-006 systeme de jalons configurable)
@@ -78,7 +87,7 @@ create trigger users_set_updated_at
 -- Les delais legaux (loi 1965 / decret 1967) restent codes en dur dans
 -- lib/domain/jalons-ag/legal/ pour eviter qu'une modif accidentelle de
 -- ces valeurs cabinet ne tombe sous le legal.
-create table public.cabinet_settings (
+create table real31_intranet.cabinet_settings (
   key text primary key,
   value jsonb not null,
   description text,
@@ -86,11 +95,11 @@ create table public.cabinet_settings (
 );
 
 create trigger cabinet_settings_set_updated_at
-  before update on public.cabinet_settings
-  for each row execute function public.set_updated_at();
+  before update on real31_intranet.cabinet_settings
+  for each row execute function real31_intranet.set_updated_at();
 
 -- Seed des defaults REAL31 pour les jalons d'AG.
-insert into public.cabinet_settings (key, value, description) values
+insert into real31_intranet.cabinet_settings (key, value, description) values
   ('jalon.odj_cs.jours_avant_ag',
    '45',
    'Jalon REAL31 : validation ODJ avec le Conseil Syndical'),
@@ -111,7 +120,7 @@ insert into public.cabinet_settings (key, value, description) values
 -- Copropriétés (cf. ADR-003 migration progressive SharePoint -> eStale)
 -- ============================================================================
 
-create table public.copros (
+create table real31_intranet.copros (
   id uuid primary key default gen_random_uuid(),
   -- Discriminateur de source. 'sharepoint' au MVP pour les 164 copros
   -- exportees de Crypto, 'estale' pour les 4 pilotes (puis 168 a terme),
@@ -153,15 +162,15 @@ create table public.copros (
   unique (source, source_id)
 );
 
-create index copros_code_idx on public.copros (code);
-create index copros_gestionnaire_idx on public.copros (gestionnaire_initials)
+create index copros_code_idx on real31_intranet.copros (code);
+create index copros_gestionnaire_idx on real31_intranet.copros (gestionnaire_initials)
   where archived_at is null;
-create index copros_source_idx on public.copros (source) where archived_at is null;
-create index copros_synced_at_idx on public.copros (synced_at);
+create index copros_source_idx on real31_intranet.copros (source) where archived_at is null;
+create index copros_synced_at_idx on real31_intranet.copros (synced_at);
 
 create trigger copros_set_updated_at
-  before update on public.copros
-  for each row execute function public.set_updated_at();
+  before update on real31_intranet.copros
+  for each row execute function real31_intranet.set_updated_at();
 
 -- ============================================================================
 -- Evenements (cf. ADR-001 - schema unifie pour sources externes ET natives)
@@ -170,11 +179,11 @@ create trigger copros_set_updated_at
 -- Une seule table pour AG, AGE, CS, visites d'immeuble, RDV travaux.
 -- Le champ 'source' distingue les evenements importes (SharePoint/eStale)
 -- des evenements crees directement dans l'intranet ('native').
-create table public.evenements (
+create table real31_intranet.evenements (
   id uuid primary key default gen_random_uuid(),
   source text not null check (source in ('sharepoint', 'estale', 'native')),
   source_id text,
-  copro_id uuid not null references public.copros(id) on delete cascade,
+  copro_id uuid not null references real31_intranet.copros(id) on delete cascade,
   type text not null check (type in ('AG', 'AGE', 'CS', 'VISITE', 'TRAVAUX')),
   titre text,
   date_evenement timestamptz not null,
@@ -195,24 +204,24 @@ create table public.evenements (
   unique (source, source_id)
 );
 
-create index evenements_copro_idx on public.evenements (copro_id)
+create index evenements_copro_idx on real31_intranet.evenements (copro_id)
   where archived_at is null;
-create index evenements_date_idx on public.evenements (date_evenement);
-create index evenements_type_statut_idx on public.evenements (type, statut)
+create index evenements_date_idx on real31_intranet.evenements (date_evenement);
+create index evenements_type_statut_idx on real31_intranet.evenements (type, statut)
   where archived_at is null;
-create index evenements_source_idx on public.evenements (source);
+create index evenements_source_idx on real31_intranet.evenements (source);
 
 create trigger evenements_set_updated_at
-  before update on public.evenements
-  for each row execute function public.set_updated_at();
+  before update on real31_intranet.evenements
+  for each row execute function real31_intranet.set_updated_at();
 
 -- ============================================================================
 -- Jalons (cf. ADR-006) - natifs intranet, lies aux AG / AGE
 -- ============================================================================
 
-create table public.jalons (
+create table real31_intranet.jalons (
   id uuid primary key default gen_random_uuid(),
-  evenement_id uuid not null references public.evenements(id) on delete cascade,
+  evenement_id uuid not null references real31_intranet.evenements(id) on delete cascade,
   -- Code interne du jalon. Doit matcher les types definis dans
   -- lib/domain/jalons-ag/types.ts (a creer en Increment 2 cote code).
   type text not null check (type in (
@@ -237,7 +246,7 @@ create table public.jalons (
   commentaire text,
   -- Utilisateur ayant marque le jalon (pour traçabilite et affichage UI).
   -- on delete set null pour conserver l'historique meme si l'user disparait.
-  marque_par_user_id uuid references public.users(id) on delete set null,
+  marque_par_user_id uuid references real31_intranet.users(id) on delete set null,
   marque_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -245,24 +254,24 @@ create table public.jalons (
   unique (evenement_id, type)
 );
 
-create index jalons_evenement_idx on public.jalons (evenement_id);
+create index jalons_evenement_idx on real31_intranet.jalons (evenement_id);
 -- Index partiel : on cherche surtout les jalons a faire pour les alertes.
-create index jalons_cible_date_idx on public.jalons (cible_date)
+create index jalons_cible_date_idx on real31_intranet.jalons (cible_date)
   where statut = 'a_faire';
-create index jalons_statut_idx on public.jalons (statut)
+create index jalons_statut_idx on real31_intranet.jalons (statut)
   where statut != 'accompli';
 
 create trigger jalons_set_updated_at
-  before update on public.jalons
-  for each row execute function public.set_updated_at();
+  before update on real31_intranet.jalons
+  for each row execute function real31_intranet.set_updated_at();
 
 -- ============================================================================
 -- Items d'ordre du jour (cf. ADR-001)
 -- ============================================================================
 
-create table public.item_odj (
+create table real31_intranet.item_odj (
   id uuid primary key default gen_random_uuid(),
-  evenement_id uuid not null references public.evenements(id) on delete cascade,
+  evenement_id uuid not null references real31_intranet.evenements(id) on delete cascade,
   ordre integer not null check (ordre > 0),
   libelle text not null,
   -- Regle de majorite applicable (loi 1965). 'sans_vote' pour les points
@@ -279,15 +288,15 @@ create table public.item_odj (
   unique (evenement_id, ordre)
 );
 
-create index item_odj_evenement_idx on public.item_odj (evenement_id);
+create index item_odj_evenement_idx on real31_intranet.item_odj (evenement_id);
 
 -- ============================================================================
 -- Membres du Conseil Syndical (cf. ADR-001)
 -- ============================================================================
 
-create table public.membres_cs (
+create table real31_intranet.membres_cs (
   id uuid primary key default gen_random_uuid(),
-  copro_id uuid not null references public.copros(id) on delete cascade,
+  copro_id uuid not null references real31_intranet.copros(id) on delete cascade,
   nom text not null,
   role text not null default 'membre' check (role in ('president', 'membre')),
   email text,
@@ -299,12 +308,12 @@ create table public.membres_cs (
   updated_at timestamptz not null default now()
 );
 
-create index membres_cs_copro_idx on public.membres_cs (copro_id)
+create index membres_cs_copro_idx on real31_intranet.membres_cs (copro_id)
   where is_active = true;
 
 create trigger membres_cs_set_updated_at
-  before update on public.membres_cs
-  for each row execute function public.set_updated_at();
+  before update on real31_intranet.membres_cs
+  for each row execute function real31_intranet.set_updated_at();
 
 -- ============================================================================
 -- Presences pre-AG (cf. ADR-001)
@@ -312,9 +321,9 @@ create trigger membres_cs_set_updated_at
 
 -- Compteurs de retour pre-AG saisis manuellement par le gestionnaire
 -- au fur et a mesure que les pouvoirs et votes par correspondance arrivent.
-create table public.presence_pre_ag (
+create table real31_intranet.presence_pre_ag (
   id uuid primary key default gen_random_uuid(),
-  evenement_id uuid not null references public.evenements(id) on delete cascade,
+  evenement_id uuid not null references real31_intranet.evenements(id) on delete cascade,
   presents_prevus integer not null default 0 check (presents_prevus >= 0),
   pouvoirs_recus integer not null default 0 check (pouvoirs_recus >= 0),
   votes_correspondance_recus integer not null default 0
@@ -329,8 +338,8 @@ create table public.presence_pre_ag (
 );
 
 create trigger presence_pre_ag_set_updated_at
-  before update on public.presence_pre_ag
-  for each row execute function public.set_updated_at();
+  before update on real31_intranet.presence_pre_ag
+  for each row execute function real31_intranet.set_updated_at();
 
 -- ============================================================================
 -- Audit log RGPD (cf. ADR-007) - append-only, jamais user-facing
@@ -342,11 +351,11 @@ create trigger presence_pre_ag_set_updated_at
 --
 -- bigserial plutot que uuid : append-only haut volume, l'integer est plus
 -- compact et plus rapide a indexer chronologiquement.
-create table public.audit_log (
+create table real31_intranet.audit_log (
   id bigserial primary key,
   occurred_at timestamptz not null default now(),
   -- Nullable pour les actions systeme (jobs cron, scripts admin).
-  actor_user_id uuid references public.users(id) on delete set null,
+  actor_user_id uuid references real31_intranet.users(id) on delete set null,
   -- Role au moment de l'action (peut differer du role actuel si l'user
   -- change de role apres coup).
   actor_role text not null,
@@ -360,10 +369,10 @@ create table public.audit_log (
   user_agent text
 );
 
-create index audit_log_occurred_at_idx on public.audit_log (occurred_at desc);
-create index audit_log_actor_user_id_idx on public.audit_log (actor_user_id, occurred_at desc);
-create index audit_log_resource_idx on public.audit_log (resource_type, resource_id, occurred_at desc);
-create index audit_log_action_idx on public.audit_log (action);
+create index audit_log_occurred_at_idx on real31_intranet.audit_log (occurred_at desc);
+create index audit_log_actor_user_id_idx on real31_intranet.audit_log (actor_user_id, occurred_at desc);
+create index audit_log_resource_idx on real31_intranet.audit_log (resource_type, resource_id, occurred_at desc);
+create index audit_log_action_idx on real31_intranet.audit_log (action);
 
 -- ============================================================================
 -- Activity log produit (cf. ADR-007) - user-facing dans l'UI
@@ -372,13 +381,13 @@ create index audit_log_action_idx on public.audit_log (action);
 -- Historique des actions affiche dans l'UI (ex: "FS a marque les
 -- convocations comme envoyees le 25 mai"). Requete par ressource pour
 -- afficher le fil d'activite d'une AG, d'une copro, etc.
-create table public.activity_log (
+create table real31_intranet.activity_log (
   id bigserial primary key,
   occurred_at timestamptz not null default now(),
   -- NOT NULL : pas d'actions systeme dans l'activity log, uniquement les
   -- actions metier user-meaningful. Les actions systeme vont dans audit_log
   -- uniquement.
-  actor_user_id uuid not null references public.users(id),
+  actor_user_id uuid not null references real31_intranet.users(id),
   resource_type text not null,
   resource_id uuid not null,
   -- Code d'action stable, independant de la traduction.
@@ -389,14 +398,14 @@ create table public.activity_log (
   payload jsonb
 );
 
-create index activity_log_resource_idx on public.activity_log (resource_type, resource_id, occurred_at desc);
-create index activity_log_actor_idx on public.activity_log (actor_user_id, occurred_at desc);
+create index activity_log_resource_idx on real31_intranet.activity_log (resource_type, resource_id, occurred_at desc);
+create index activity_log_actor_idx on real31_intranet.activity_log (actor_user_id, occurred_at desc);
 
 -- ============================================================================
 -- Job runs (cf. ADR-004) - observabilite des jobs cron
 -- ============================================================================
 
-create table public.job_runs (
+create table real31_intranet.job_runs (
   id bigserial primary key,
   job_name text not null,
   started_at timestamptz not null default now(),
@@ -407,8 +416,40 @@ create table public.job_runs (
   metadata jsonb
 );
 
-create index job_runs_name_started_idx on public.job_runs (job_name, started_at desc);
+create index job_runs_name_started_idx on real31_intranet.job_runs (job_name, started_at desc);
 -- Index partiel : on cherche surtout les runs en cours ou en erreur pour
 -- l'alerting et le debug.
-create index job_runs_status_idx on public.job_runs (status, started_at desc)
+create index job_runs_status_idx on real31_intranet.job_runs (status, started_at desc)
   where status != 'success';
+
+-- ============================================================================
+-- Grants : permissions baseline.
+-- La RLS (migration suivante 20260601120000_enable_rls.sql) filtre ensuite
+-- ligne par ligne. Sans grants, PostgREST ne voit meme pas le schema.
+-- ============================================================================
+
+grant usage on schema real31_intranet to anon, authenticated, service_role;
+
+grant select on all tables in schema real31_intranet to anon;
+grant select, insert, update, delete on all tables in schema real31_intranet to authenticated;
+grant all on all tables in schema real31_intranet to service_role;
+
+grant usage, select on all sequences in schema real31_intranet to anon, authenticated;
+grant all on all sequences in schema real31_intranet to service_role;
+
+grant execute on all functions in schema real31_intranet to authenticated, service_role;
+
+-- Defaults appliques aux objets crees par les migrations futures, sans avoir
+-- a re-grant manuellement a chaque table ajoutee.
+alter default privileges in schema real31_intranet
+  grant select on tables to anon;
+alter default privileges in schema real31_intranet
+  grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema real31_intranet
+  grant all on tables to service_role;
+alter default privileges in schema real31_intranet
+  grant usage, select on sequences to anon, authenticated;
+alter default privileges in schema real31_intranet
+  grant all on sequences to service_role;
+alter default privileges in schema real31_intranet
+  grant execute on functions to authenticated, service_role;
