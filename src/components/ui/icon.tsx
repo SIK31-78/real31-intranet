@@ -10,6 +10,7 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 
 type IconComp = ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -26,6 +27,7 @@ const MAP: Record<string, IconComp> = {
   "file-text": FileText,
   "chevron-left": ChevronLeft,
   "chevron-right": ChevronRight,
+  "message-square": MessageSquare,
 };
 
 export function Icon({
