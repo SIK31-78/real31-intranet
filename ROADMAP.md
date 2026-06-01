@@ -6,21 +6,20 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
-## 📍 État actuel - 2026-05-26
+## 📍 État actuel - 2026-06-01
 
-- **Phase** : J1a - Fondations techniques, Increment 2 (Supabase + schéma initial)
+- **Phase** : J2 anticipé - écrans MVP avec données mock (lancé en parallèle pendant que Supabase patron est gelé et que Entra ID DSI est en attente)
 - **Branche Git active** : `increment/02-supabase` (à jour avec `origin`)
-- **Dernier incrément terminé** : ✅ Increment 1 - Bootstrap (mergé via `increment/01-bootstrap`)
-- **Incrément en cours** : 🔄 Increment 2 - Supabase + schéma initial
-  - ✅ Supabase CLI installé + scaffold du projet local (commit 20302fa)
-  - ✅ Première migration : schéma initial complet sans RLS (commit 3d7f67c)
-  - 🔲 Projet Supabase cloud EU créé + branché
-  - 🔲 Variables d'env Vercel + `.env.local` documentées
-  - 🔲 Client Supabase typé (codegen depuis le schéma)
+- **Derniers incréments terminés** :
+  - ✅ Increment 1 - Bootstrap (mergé via `increment/01-bootstrap`)
+  - ✅ Migrations Supabase initiales (schéma complet sans RLS, commit 3d7f67c) - Increment 2 partiel, gelé sur le branchement cloud
+  - ✅ Design system REAL31 (tokens Tailwind 4 @theme, primitives UI, app shell sidebar/topbar)
+  - ✅ **Écran Dashboard** (mock, hexagonal complet : domain + port + adapter mock + service + page)
+  - ✅ **Écran Calendrier AG/CS** (mock, 3 vues mois/semaine/liste, filtres types, agenda latéral)
 - **Bloqueurs / en attente** :
-  - ⏸️ **Mutualisation Supabase patron** : décision en attente du retour mail du dirigeant. Cf. memory projet `project_supabase_mutualisation.md`. Tant que pas validé : on ne crée **pas** de projet Supabase Cloud autonome, et on gèle code/migration côté cloud (le scaffold local Supabase CLI peut continuer).
-  - ⚠️ **Demande Entra ID App Registration au DSI** (J0) : à déclencher si pas encore fait - bloquant pour J1b.
-- **Prochaine action concrète** : trancher la mutualisation Supabase (réponse patron) → soit créer projet REAL31 dédié dans son org, soit créer un nouveau projet EU REAL31 autonome ; ensuite continuer Increment 2 (codegen client typé + brancher l'app sur la BDD).
+  - ⏸️ **Mutualisation Supabase patron** : décision en attente du retour mail du dirigeant. Cf. memory projet `project_supabase_mutualisation.md`. Tant que pas validé : on ne crée **pas** de projet Supabase Cloud autonome, on gèle code/migration côté cloud.
+  - ⚠️ **Demande Entra ID App Registration au DSI** (J0) : toujours bloquant pour J1b.
+- **Prochaine action concrète** : enchaîner sur l'écran **Mes événements** (3e des 5 écrans MVP), même approche hexa+mock que Dashboard et Calendrier.
 
 ---
 
@@ -151,12 +150,12 @@ Construction des 5 écrans avec données mock. Si J2 fonctionne, le reste est du
   - `legal/` : constantes immutables + tests exhaustifs
   - `cabinet/` : defaults REAL31 + table `cabinet_settings`
   - Calculator avec couverture tests > 90 %
-- 🔲 5 écrans Next.js fidèles au mockup :
-  - Dashboard (stats, alertes, prochains événements, équipe)
-  - Calendrier (vue liste + vue grille jours×mois, filtres)
-  - Mes événements (à traiter, AG à venir, copros sans AG)
-  - Fiche prépa AG (timeline jalons, ODJ, historique actions)
-  - Fiche copro 360° light (vue d'ensemble, événements, historique AG, mini-map Leaflet)
+- 🔄 5 écrans Next.js fidèles au mockup :
+  - ✅ Dashboard (compteurs actionnables, attention, flux activité) - hexa mock complet
+  - ✅ Calendrier AG/CS (3 vues mois/semaine/liste, filtres, agenda latéral) - hexa mock complet
+  - 🔲 Mes événements (à traiter, AG à venir, copros sans AG)
+  - 🔲 Fiche prépa AG (timeline jalons, ODJ, historique actions)
+  - 🔲 Fiche copro 360° light (vue d'ensemble, événements, historique AG, mini-map Leaflet)
 - 🔲 Découpage Server / Client Components documenté dans `docs/component-strategy.md`
 - 🔲 Tests E2E (Playwright) sur le parcours golden
 
