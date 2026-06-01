@@ -8,6 +8,8 @@ import {
   Banknote,
   Vote,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 type IconComp = ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -22,6 +24,8 @@ const MAP: Record<string, IconComp> = {
   banknote: Banknote,
   vote: Vote,
   "file-text": FileText,
+  "chevron-left": ChevronLeft,
+  "chevron-right": ChevronRight,
 };
 
 export function Icon({
