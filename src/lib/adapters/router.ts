@@ -12,6 +12,9 @@ import type { SupervisionAgProvider } from "@/lib/ports/supervision-ag-provider"
 import { MockDashboardProvider } from "@/lib/adapters/mock/mock-dashboard-provider";
 import { MockCalendrierProvider } from "@/lib/adapters/mock/mock-calendrier-provider";
 import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-ag-provider";
+import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
+
+export type { DbHealth };
 
 export function getDashboardProvider(): DashboardProvider {
   return new MockDashboardProvider();
@@ -25,4 +28,9 @@ export function getCalendrierProvider(): CalendrierProvider {
 // donc instancier ici a chaque appel est sans effet sur la persistance.
 export function getSupervisionAgProvider(): SupervisionAgProvider {
   return new MockSupervisionAgProvider();
+}
+
+// Health check BDD (lecture cabinet_settings via service_role).
+export async function getDbHealth(): Promise<DbHealth> {
+  return checkDbHealth();
 }
