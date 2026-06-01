@@ -8,8 +8,10 @@
 
 import type { DashboardProvider } from "@/lib/ports/dashboard-provider";
 import type { CalendrierProvider } from "@/lib/ports/calendrier-provider";
+import type { SupervisionAgProvider } from "@/lib/ports/supervision-ag-provider";
 import { MockDashboardProvider } from "@/lib/adapters/mock/mock-dashboard-provider";
 import { MockCalendrierProvider } from "@/lib/adapters/mock/mock-calendrier-provider";
+import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-ag-provider";
 
 export function getDashboardProvider(): DashboardProvider {
   return new MockDashboardProvider();
@@ -17,4 +19,10 @@ export function getDashboardProvider(): DashboardProvider {
 
 export function getCalendrierProvider(): CalendrierProvider {
   return new MockCalendrierProvider();
+}
+
+// Note : le STORE de mutations vit au module-level dans l'adapter (cf. fichier),
+// donc instancier ici a chaque appel est sans effet sur la persistance.
+export function getSupervisionAgProvider(): SupervisionAgProvider {
+  return new MockSupervisionAgProvider();
 }
