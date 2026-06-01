@@ -43,13 +43,18 @@ export function prochainsEvenements(
 
 /** Regroupe les evenements par jour, dates triees croissantes. */
 export function grouperParJour(evenements: Evenement[]): JourEvenements[] {
-  const parDate = new Map<string, Evenement[]>();
-  for (const e of evenements) {
-    const liste = parDate.get(e.date);
-    if (liste) liste.push(e);
-    else parDate.set(e.date, [e]);
-  }
-  return [...parDate.entries()]
+  return [...indexerParDate(evenements).entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, evs]) => ({ date, evenements: evs }));
+}
+
+/** Index date ISO -> evenements, pour lookup O(1) cote vues. */
+export function indexerParDate(evenements: Evenement[]): Map<string, Evenement[]> {
+  const m = new Map<string, Evenement[]>();
+  for (const e of evenements) {
+    const liste = m.get(e.date);
+    if (liste) liste.push(e);
+    else m.set(e.date, [e]);
+  }
+  return m;
 }
