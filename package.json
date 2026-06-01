@@ -17,7 +17,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm build",
     "db:push": "supabase db push",
     "db:diff": "supabase db diff --linked",
-    "db:types": "supabase gen types typescript --linked > src/types/database.ts",
+    "db:types": "supabase gen types typescript --linked --schema real31_intranet > src/types/database.ts",
     "db:reset": "supabase db reset"
   },
   "dependencies": {
