@@ -6,10 +6,10 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
-## 📍 État actuel - 2026-06-01
+## 📍 État actuel - 2026-06-09
 
 - **Phase** : J2 anticipé - écrans MVP avec données mock (lancé en parallèle pendant que Supabase patron est gelé et que Entra ID DSI est en attente)
-- **Branche Git active** : `increment/02-supabase` (locale en avance de 5 commits sur `origin`)
+- **Branche Git active** : `increment/02-supabase`
 - **Derniers incréments terminés** :
   - ✅ Increment 1 - Bootstrap (mergé via `increment/01-bootstrap`)
   - ✅ Migrations Supabase initiales (schéma complet sans RLS, commit 3d7f67c) - Increment 2 partiel, gelé sur le branchement cloud
@@ -17,10 +17,11 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
   - ✅ **Écran Dashboard** (mock, hexagonal complet : domain + port + adapter mock + service + page)
   - ✅ **Écran Calendrier AG/CS** (mock, 3 vues mois/semaine/liste, filtres types, agenda latéral)
   - ✅ **Écran Supervision AG** (mock, 5 sections × 34 items, Server Actions + `useOptimistic`, persistance module-level reset au restart `pnpm dev`, lien depuis chips AG du calendrier)
+  - ✅ **Écran Fiche copro 360° light** (mock hexa, route `/copro/[code]`) : référentiel (port `CoproRepository`, source cible App A `public.Copropriete`) + blocs sourcés eStale mockés (port `CondoEstaleProvider` : Conseil Syndical, historique AG, conformité) + prochains événements (réutilise le calendrier). **Sans mini-map ni tantièmes** (décision 2026-06-09 → ADR-013 déprécié). Onglets Contrats/Sinistres/Compta/Documents grisés (post-MVP). typecheck + lint + build OK.
 - **Bloqueurs / en attente** :
-  - ⏸️ **Mutualisation Supabase patron** : décision en attente du retour mail du dirigeant. Cf. memory projet `project_supabase_mutualisation.md`. Tant que pas validé : on ne crée **pas** de projet Supabase Cloud autonome, on gèle code/migration côté cloud.
+  - ⏸️ **Base Supabase cible (nouvelle base patron)** : la base désignée est `lgrsnrclufsulglbwcqi` (≠ prod App A `vwmvmgljddbxazjjjbrn`). **Exploration faite le 2026-06-09** : c'est un **clone du modèle + données de l'App A** (Prisma `public`, `Copropriete` 264 / `User` 51, RLS off, pas de schéma `real31_intranet`). Le repo pointe **encore** sur l'ancienne base (rien rebranché). Direction pressentie = **Option C** (lire `public.Copropriete`/`User` comme référentiel via adapter, données natives intranet dans `real31_intranet`) — **à confirmer** avec le patron (référentiel partagé ? convergence App A dès le MVP ?). `db:push` **gelé**. Cf. memory `project_supabase_mutualisation.md`.
   - ⚠️ **Demande Entra ID App Registration au DSI** (J0) : toujours bloquant pour J1b.
-- **Prochaine action concrète** : décider quel écran prendre après Supervision AG : **Mes événements** (vue agrégée multi-copros) ou **Fiche copro 360°** (vue détail d'une copro). Les deux restent à faire.
+- **Prochaine action concrète** : **dernier écran MVP = Mes événements** (vue agrégée multi-copros : à traiter, AG à venir, copros sans AG). En parallèle (hors code) : confirmation gouvernance base Supabase + relance Entra ID DSI.
 
 ---
 
@@ -155,8 +156,8 @@ Construction des 5 écrans avec données mock. Si J2 fonctionne, le reste est du
   - ✅ Dashboard (compteurs actionnables, attention, flux activité) - hexa mock complet
   - ✅ Calendrier AG/CS (3 vues mois/semaine/liste, filtres, agenda latéral) - hexa mock complet
   - ✅ Supervision AG (5 sections × 34 items, Server Actions + `useOptimistic`, visa final) - renomme "Fiche prépa AG" du périmètre initial, scope élargi vers une vraie checklist de supervision
-  - 🔲 Mes événements (à traiter, AG à venir, copros sans AG)
-  - 🔲 Fiche copro 360° light (vue d'ensemble, événements, historique AG, mini-map Leaflet)
+  - 🔲 Mes événements (à traiter, AG à venir, copros sans AG) — **dernier écran MVP restant**
+  - ✅ Fiche copro 360° light (vue d'ensemble, événements, historique AG) — **mini-map Leaflet et tantièmes retirés** (ADR-013 déprécié) ; CS/historique AG/conformité = blocs sourcés eStale, mockés en attendant J4
 - 🔲 Découpage Server / Client Components documenté dans `docs/component-strategy.md`
 - 🔲 Tests E2E (Playwright) sur le parcours golden
 

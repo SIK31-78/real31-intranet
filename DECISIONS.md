@@ -27,7 +27,7 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 | ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID | Accepted | v1 | 2026-05-22 |
 | ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies | Accepted | v1 | 2026-05-22 |
 | ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto | Accepted | v1 | 2026-05-22 |
-| ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Accepted | v2 | 2026-05-22 |
+| ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Deprecated (MVP) | v3 | 2026-06-09 |
 | ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted | v1 | 2026-05-27 |
 | ADR-022 | Positionnement intranet vis-à-vis d'eStale et stratégie d'intégration défensive | Accepted | v1 | 2026-05-27 |
 
@@ -855,8 +855,10 @@ Si la génération de convocations devient critique avant la vague 2 (ex. trop d
 
 ## ADR-013 - Géocodage des adresses via Nominatim OSM dans le job de sync
 
-**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v2
+**Date** : 2026-05-22 · **Statut** : Deprecated (MVP) · **Version** : v3
 
+> v3 (2026-06-09) : **déprécié pour le MVP**. La mini-map Leaflet de la fiche copro est retirée (décision produit : pas d'utilité pour la coordination). Sans carte, plus de besoin de coordonnées lat/lng, donc plus de géocodage. L'ADR reste archivé : **à rouvrir** si un besoin cartographique réapparaît (vue carte du portefeuille, etc.). Les colonnes `copros.lat/lng` ne sont pas alimentées au MVP.
+>
 > v2 : précision de l'apport eStale. Le type `Address` d'eStale expose `position: Point` (confirmé dans le SDL). Nominatim reste nécessaire pour les copros sourcées SharePoint/Crypto et devient un fallback en phase eStale (cf. ADR-022).
 
 ### Contexte
