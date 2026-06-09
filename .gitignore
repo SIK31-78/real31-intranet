@@ -43,7 +43,7 @@ next-env.d.ts
 
 # fichiers évocateurs d'agents IA, regénérés par create-next-app si re-bootstrap
 AGENTS.md
-CLAUDE.md
+# CLAUDE.md : SUIVI par git (protocole doc partagé Mac/PC) — volontairement pas ignoré
 
-# Vraies donn�es seed (RGPD : jamais commit)
+# Vraies donn�es seed (RGPD : jamais commit)
 data/seed/local/
