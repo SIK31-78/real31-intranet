@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { LayoutDashboard, Inbox, Calendar, Building2, Users, AlertTriangle } from "lucide-react";
+import { LayoutDashboard, Inbox, Calendar, Building2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export type NavKey =
@@ -24,11 +24,6 @@ const TRAVAIL: Item[] = [
   { key: "evenements", label: "Mes événements", href: "/mes-evenements", icon: Inbox },
   { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
-];
-
-const CABINET: Item[] = [
-  { key: "equipe", label: "Équipe", href: "#", icon: Users },
-  { key: "sinistres", label: "Sinistres", href: "#", icon: AlertTriangle, count: 2 },
 ];
 
 function NavItem({ item, active }: { item: Item; active: boolean }) {
@@ -59,11 +54,6 @@ export function Sidebar({ active }: { active: NavKey }) {
       <nav className="px-3 py-3">
         <div className="px-2 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">Mon travail</div>
         {TRAVAIL.map((item) => (
-          <NavItem key={item.key} item={item} active={item.key === active} />
-        ))}
-
-        <div className="px-2 mt-4 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">Cabinet</div>
-        {CABINET.map((item) => (
           <NavItem key={item.key} item={item} active={item.key === active} />
         ))}
       </nav>
