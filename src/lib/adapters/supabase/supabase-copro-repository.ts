@@ -36,6 +36,9 @@ type CoproRow = {
   syndicInitialDate: string | null;
   lastAGDate: string | null;
   nextAGDate: string | null;
+  lastCSDate: string | null;
+  nextCSDate: string | null;
+  ppt: boolean | null;
 };
 
 type UserRow = { id: string; name: string; initials: string | null };
@@ -44,7 +47,7 @@ const COPRO_COLS =
   "id, referenceCrypto, referenceEstale, externalIdEstale, dataSource, name, " +
   "address1, address2, postalCode, city, status, managerId, assistantId, accountantId, " +
   "mainLotsCount, otherLotsCount, accountingStartDate, accountingEndDate, " +
-  "syndicInitialDate, lastAGDate, nextAGDate";
+  "syndicInitialDate, lastAGDate, nextAGDate, lastCSDate, nextCSDate, ppt";
 
 const MOIS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
@@ -102,6 +105,8 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
   const source = mapSource(row.dataSource);
   const derniereDate = dateISO(row.lastAGDate);
   const prochaineDate = dateISO(row.nextAGDate);
+  const derniereCs = dateISO(row.lastCSDate);
+  const prochaineCs = dateISO(row.nextCSDate);
   const deepBase = process.env.ESTALE_DEEPLINK_BASE;
   return {
     code: codeDe(row),
@@ -118,6 +123,9 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
     ...(prochaineDate
       ? { prochaineAg: { date: prochaineDate, statut: "planifiee" as const } }
       : {}),
+    ...(derniereCs ? { derniereCsDate: derniereCs } : {}),
+    ...(prochaineCs ? { prochaineCsDate: prochaineCs } : {}),
+    ...(row.ppt !== null ? { pptVote: row.ppt } : {}),
     ...(source === "estale" && deepBase && (row.externalIdEstale ?? row.referenceEstale)
       ? { estaleDeepLink: `${deepBase}/condo/${row.externalIdEstale ?? row.referenceEstale}` }
       : {}),

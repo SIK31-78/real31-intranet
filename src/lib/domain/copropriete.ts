@@ -70,6 +70,11 @@ export interface Copropriete {
   /** Date de la dernière AG tenue (ISO "YYYY-MM-DD"), depuis le référentiel. */
   derniereAgDate?: string;
   prochaineAg?: ProchaineAg;
+  /** Dernier / prochain conseil syndical (ISO "YYYY-MM-DD"), depuis le référentiel. */
+  derniereCsDate?: string;
+  prochaineCsDate?: string;
+  /** PPT voté (true) / à programmer (false) ; undefined si inconnu. Référentiel. */
+  pptVote?: boolean;
   /** Deep-link eStale, present uniquement si source = 'estale' (ADR-003/012 :
    *  pas de deep-link Crypto). */
   estaleDeepLink?: string;
@@ -125,6 +130,8 @@ export interface FicheCopro {
   derniereAg?: AgPassee;
   /** Historique des AG : detaille si eStale dispo, sinon la derniere AG du referentiel. */
   historique: AgPassee[];
+  /** Conformite composee : items du referentiel (PPT) + items eStale. */
+  conformite: ItemConformite[];
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

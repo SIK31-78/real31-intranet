@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { LayoutDashboard, Inbox, Calendar, Building2, Users, Archive, AlertTriangle } from "lucide-react";
+import { LayoutDashboard, Inbox, Calendar, Building2, Users, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export type NavKey =
@@ -23,12 +23,11 @@ const TRAVAIL: Item[] = [
   { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { key: "evenements", label: "Mes événements", href: "/mes-evenements", icon: Inbox },
   { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
-  { key: "copros", label: "Mes copropriétés", href: "/copropriete", icon: Building2 },
+  { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
 ];
 
 const CABINET: Item[] = [
   { key: "equipe", label: "Équipe", href: "#", icon: Users },
-  { key: "toutes-copros", label: "Toutes les copropriétés", href: "#", icon: Archive },
   { key: "sinistres", label: "Sinistres", href: "#", icon: AlertTriangle, count: 2 },
 ];
 

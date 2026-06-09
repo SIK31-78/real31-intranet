@@ -7,7 +7,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export const metadata: Metadata = { title: "Mes copropriétés — REAL31 Intranet" };
+export const metadata: Metadata = { title: "Toutes les copropriétés — REAL31 Intranet" };
 
 // Mock session : meme ancre que les autres ecrans.
 const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };
@@ -19,9 +19,9 @@ export default async function CoproprietesPage() {
     <AppShell user={GESTIONNAIRE} active="copros" breadcrumb="Copropriétés">
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <div className="mb-5">
-          <h1 className="text-[20px] font-medium tracking-tight text-ink">Mes copropriétés</h1>
+          <h1 className="text-[20px] font-medium tracking-tight text-ink">Toutes les copropriétés</h1>
           <p className="text-[13px] text-ink-3 mt-0.5">
-            {copros.length} copropriété{copros.length > 1 ? "s" : ""} dans votre portefeuille.
+            {copros.length} copropriété{copros.length > 1 ? "s" : ""} · cloisonnement par gestionnaire à venir (authentification).
           </p>
         </div>
 

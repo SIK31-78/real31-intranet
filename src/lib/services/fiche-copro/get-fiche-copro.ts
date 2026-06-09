@@ -2,7 +2,7 @@
 // (CS / historique / conformite) + les prochains evenements (calendrier). Passe par
 // le routeur, jamais un adapter en direct (ADR-001).
 
-import type { DonneesEstaleCopro, FicheCopro } from "@/lib/domain/copropriete";
+import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { getCoproRepository, getCondoEstaleProvider } from "@/lib/adapters/router";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
@@ -41,5 +41,17 @@ export async function getFicheCopro(
         ? [{ date: copro.derniereAgDate, type: "AG" as const }]
         : [];
 
-  return { copro, estale, prochains, derniereAg: historique[0], historique };
+  // Conformite : item PPT du referentiel (Copropriete.pptVote) + items eStale.
+  const conformiteReferentiel: ItemConformite[] =
+    copro.pptVote === undefined
+      ? []
+      : [
+          {
+            libelle: copro.pptVote ? "PPT voté" : "PPT à programmer",
+            etat: copro.pptVote ? "ok" : "attention",
+          },
+        ];
+  const conformite = [...conformiteReferentiel, ...estale.conformite];
+
+  return { copro, estale, prochains, derniereAg: historique[0], historique, conformite };
 }

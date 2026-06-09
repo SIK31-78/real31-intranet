@@ -7,6 +7,7 @@ import {
   AlertCircle,
   FileText,
   ArrowRight,
+  Users,
 } from "lucide-react";
 import type {
   AgPassee,
@@ -52,7 +53,11 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
         <BlocAg
           derniere={fiche.derniereAg}
           prochaine={fiche.copro.prochaineAg}
-          conformite={fiche.estale.conformite}
+          conformite={fiche.conformite}
+        />
+        <BlocCs
+          derniereCs={fiche.copro.derniereCsDate}
+          prochaineCs={fiche.copro.prochaineCsDate}
         />
         <ProchainsEvenements evenements={fiche.prochains} />
         <HistoriqueAg historique={fiche.historique} />
@@ -65,7 +70,7 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
           membres={fiche.estale.conseilSyndical}
           mandatJusqua={fiche.estale.mandatJusqua}
         />
-        <SideConformite items={fiche.estale.conformite} />
+        <SideConformite items={fiche.conformite} />
       </div>
     </div>
   );
@@ -145,6 +150,43 @@ function BlocAg({
           ) : (
             <p className="text-[13px] text-ink-3">Aucune AG planifiée.</p>
           )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// --- Conseils syndicaux ---------------------------------------------------
+
+function BlocCs({
+  derniereCs,
+  prochaineCs,
+}: {
+  derniereCs?: string;
+  prochaineCs?: string;
+}) {
+  // Pas de bloc si aucune date de CS connue.
+  if (!derniereCs && !prochaineCs) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Users strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+          Conseils syndicaux
+        </CardTitle>
+      </CardHeader>
+      <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
+        <div className="p-4">
+          <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Dernier CS tenu</p>
+          <p className="text-[16px] font-medium text-ink">
+            {derniereCs ? formatDateLongue(derniereCs) : "—"}
+          </p>
+        </div>
+        <div className="p-4">
+          <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochain CS</p>
+          <p className="text-[16px] font-medium text-ink">
+            {prochaineCs ? formatDateLongue(prochaineCs) : "—"}
+          </p>
         </div>
       </div>
     </Card>
