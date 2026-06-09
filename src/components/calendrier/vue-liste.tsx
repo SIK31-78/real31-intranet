@@ -7,7 +7,7 @@ export function VueListe({ evenements }: { evenements: Evenement[] }) {
   if (jours.length === 0) {
     return (
       <div className="bg-surface border border-line rounded-md p-8 text-center text-[13px] text-ink-3">
-        Aucun evenement sur la periode.
+        Aucun événement sur la période.
       </div>
     );
   }

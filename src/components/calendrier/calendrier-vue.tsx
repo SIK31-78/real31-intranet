@@ -79,7 +79,7 @@ export function CalendrierVue({
   const libellePeriode = useMemo(() => {
     if (vue === "mois") return libelleMois(pivotMois.annee, pivotMois.mois);
     if (vue === "semaine") return libelleSemaine(grilleSemaine);
-    return "Tous les evenements";
+    return "Tous les événements";
   }, [vue, pivotMois, grilleSemaine]);
 
   return (
@@ -92,7 +92,7 @@ export function CalendrierVue({
                 type="button"
                 onClick={navigatePrev}
                 className="h-7 w-7 inline-flex items-center justify-center rounded-sm border border-line bg-surface hover:border-line-2"
-                aria-label="Periode precedente"
+                aria-label="Période précédente"
               >
                 <Icon name="chevron-left" className="w-4 h-4 text-ink-2" />
               </button>
@@ -107,7 +107,7 @@ export function CalendrierVue({
                 type="button"
                 onClick={navigateNext}
                 className="h-7 w-7 inline-flex items-center justify-center rounded-sm border border-line bg-surface hover:border-line-2"
-                aria-label="Periode suivante"
+                aria-label="Période suivante"
               >
                 <Icon name="chevron-right" className="w-4 h-4 text-ink-2" />
               </button>
