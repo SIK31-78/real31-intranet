@@ -2,6 +2,18 @@
 // Volontairement deterministes (memes inputs -> meme output) pour eviter les
 // hydration mismatches Server/Client.
 
+const MOIS_FR = [
+  "janvier", "février", "mars", "avril", "mai", "juin",
+  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+];
+
+/** "2025-04-12" -> "12 avril 2025". Deterministe (UTC) pour eviter les
+ *  hydration mismatches Server/Client. */
+export function formatDateLongue(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return `${d.getUTCDate()} ${MOIS_FR[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
 /** Format relatif court "il y a 2 j" / "hier" / "le 15/04" a partir d'une
  *  ancre de reference (date "aujourd'hui" passee par la page). */
 export function formatAuditeRelatif(iso: string, aujourdhuiISO: string): string {

@@ -9,9 +9,13 @@
 import type { DashboardProvider } from "@/lib/ports/dashboard-provider";
 import type { CalendrierProvider } from "@/lib/ports/calendrier-provider";
 import type { SupervisionAgProvider } from "@/lib/ports/supervision-ag-provider";
+import type { CoproRepository } from "@/lib/ports/copro-repository";
+import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
 import { MockDashboardProvider } from "@/lib/adapters/mock/mock-dashboard-provider";
 import { MockCalendrierProvider } from "@/lib/adapters/mock/mock-calendrier-provider";
 import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-ag-provider";
+import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
+import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 
 export type { DbHealth };
@@ -28,6 +32,17 @@ export function getCalendrierProvider(): CalendrierProvider {
 // donc instancier ici a chaque appel est sans effet sur la persistance.
 export function getSupervisionAgProvider(): SupervisionAgProvider {
   return new MockSupervisionAgProvider();
+}
+
+// Referentiel copro. Source cible : App A (public.Copropriete), lue via un adapter.
+export function getCoproRepository(): CoproRepository {
+  return new MockCoproRepository();
+}
+
+// Donnees copro sourcees eStale (CS, historique AG, conformite). Source cible : eStale
+// (GraphQL), branchee en J4 -> le choix de l'adapter se fera ICI, sans toucher au service.
+export function getCondoEstaleProvider(): CondoEstaleProvider {
+  return new MockCondoEstaleProvider();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
