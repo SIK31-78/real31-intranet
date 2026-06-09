@@ -55,6 +55,32 @@ const COPROS: Record<string, Copropriete> = {
     prochaineAg: { date: "2026-06-18", statut: "planifiee" },
     estaleDeepLink: "https://app.estale.app/condo/S045",
   },
+  // Deux copros sans prochaine AG (-> section "copros sans AG" de Mes evenements).
+  // Pas de donnees eStale mockees -> leur fiche montre l'etat "non disponible".
+  S019: {
+    code: "S019",
+    source: "crypto",
+    nom: "Rue de l'Aigle",
+    adresse: { ligne1: "5 rue de l'Aigle", codePostal: "31500", ville: "Toulouse" },
+    statut: "active",
+    lotsPrincipaux: 12,
+    lotsAutres: 0,
+    exercice: { debut: "01/01", fin: "31/12" },
+    priseEnGestion: "juin 2019",
+    equipe: [EL, PV],
+  },
+  S121: {
+    code: "S121",
+    source: "crypto",
+    nom: "Villa des Vallées",
+    adresse: { ligne1: "27 chemin des Vallées", codePostal: "31100", ville: "Toulouse" },
+    statut: "active",
+    lotsPrincipaux: 9,
+    lotsAutres: 0,
+    exercice: { debut: "01/01", fin: "31/12" },
+    priseEnGestion: "février 2023",
+    equipe: [EL],
+  },
 };
 
 export class MockCoproRepository implements CoproRepository {

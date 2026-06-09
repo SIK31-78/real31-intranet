@@ -21,7 +21,7 @@ type Item = {
 
 const TRAVAIL: Item[] = [
   { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { key: "evenements", label: "Mes événements", href: "#", icon: Inbox, count: 12 },
+  { key: "evenements", label: "Mes événements", href: "/mes-evenements", icon: Inbox },
   { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
   { key: "copros", label: "Mes copropriétés", href: "/copropriete", icon: Building2 },
 ];

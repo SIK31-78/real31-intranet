@@ -11,11 +11,13 @@ import type { CalendrierProvider } from "@/lib/ports/calendrier-provider";
 import type { SupervisionAgProvider } from "@/lib/ports/supervision-ag-provider";
 import type { CoproRepository } from "@/lib/ports/copro-repository";
 import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
+import type { MesEvenementsProvider } from "@/lib/ports/mes-evenements-provider";
 import { MockDashboardProvider } from "@/lib/adapters/mock/mock-dashboard-provider";
 import { MockCalendrierProvider } from "@/lib/adapters/mock/mock-calendrier-provider";
 import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-ag-provider";
 import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
 import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
+import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 
 export type { DbHealth };
@@ -43,6 +45,12 @@ export function getCoproRepository(): CoproRepository {
 // (GraphQL), branchee en J4 -> le choix de l'adapter se fera ICI, sans toucher au service.
 export function getCondoEstaleProvider(): CondoEstaleProvider {
   return new MockCondoEstaleProvider();
+}
+
+// Vue agregee "Mes evenements". Cote reel, ce sera un service composant jalons +
+// evenements + referentiel ; pour l'instant un agregat mocke.
+export function getMesEvenementsProvider(): MesEvenementsProvider {
+  return new MockMesEvenementsProvider();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
