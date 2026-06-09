@@ -14,7 +14,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm lint && pnpm build",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "db:push": "supabase db push",
     "db:diff": "supabase db diff --linked",
     "db:types": "supabase gen types typescript --linked --schema real31_intranet > src/types/database.ts",
@@ -39,6 +40,7 @@
     "graphql": "^16.14.0",
     "supabase": "^2.101.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.8"
   }
 }
