@@ -67,6 +67,8 @@ export interface Copropriete {
   /** Date de prise en gestion, deja formatee, ex "mars 2018". */
   priseEnGestion: string;
   equipe: MembreEquipe[];
+  /** Date de la dernière AG tenue (ISO "YYYY-MM-DD"), depuis le référentiel. */
+  derniereAgDate?: string;
   prochaineAg?: ProchaineAg;
   /** Deep-link eStale, present uniquement si source = 'estale' (ADR-003/012 :
    *  pas de deep-link Crypto). */
@@ -82,16 +84,17 @@ export interface MembreConseilSyndical {
   role: RoleConseil;
 }
 
-/** Une AG passee (eStale Meeting). */
+/** Une AG passee. La date vient du referentiel (lastAGDate) ; les details
+ *  (presents, PV) viennent d'eStale et sont donc optionnels. */
 export interface AgPassee {
   /** Date ISO "YYYY-MM-DD". */
   date: string;
   type: "AG" | "AGE";
   /** Libelle court optionnel, ex "vote ravalement facade". */
   libelle?: string;
-  presents: number;
-  total: number;
-  pvDispo: boolean;
+  presents?: number;
+  total?: number;
+  pvDispo?: boolean;
 }
 
 export type EtatConformite = "ok" | "attention" | "ko";
@@ -118,8 +121,10 @@ export interface FicheCopro {
   estale: DonneesEstaleCopro;
   /** Prochains evenements de la copro (reutilise le calendrier). */
   prochains: Evenement[];
-  /** Derniere AG tenue (= estale.historiqueAg[0]), remontee pour le bloc AG. */
+  /** Derniere AG tenue (referentiel ou eStale), remontee pour le bloc AG. */
   derniereAg?: AgPassee;
+  /** Historique des AG : detaille si eStale dispo, sinon la derniere AG du referentiel. */
+  historique: AgPassee[];
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

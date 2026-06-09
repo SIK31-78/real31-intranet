@@ -32,5 +32,14 @@ export async function getFicheCopro(
     5,
   );
 
-  return { copro, estale, prochains, derniereAg: estale.historiqueAg[0] };
+  // Historique : detaille si eStale dispo, sinon la derniere AG du referentiel
+  // (lastAGDate) -> on affiche au moins ce qu'on a en base.
+  const historique =
+    estale.historiqueAg.length > 0
+      ? estale.historiqueAg
+      : copro.derniereAgDate
+        ? [{ date: copro.derniereAgDate, type: "AG" as const }]
+        : [];
+
+  return { copro, estale, prochains, derniereAg: historique[0], historique };
 }

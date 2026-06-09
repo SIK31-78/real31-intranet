@@ -55,7 +55,7 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
           conformite={fiche.estale.conformite}
         />
         <ProchainsEvenements evenements={fiche.prochains} />
-        <HistoriqueAg historique={fiche.estale.historiqueAg} />
+        <HistoriqueAg historique={fiche.historique} />
       </div>
 
       <div className="flex flex-col gap-3">
@@ -104,8 +104,10 @@ function BlocAg({
             <>
               <p className="text-[16px] font-medium text-ink">{formatDateLongue(derniere.date)}</p>
               <p className="mt-1.5 text-[12px] text-ink-3">
-                {derniere.type === "AGE" ? "AGE" : "AG ordinaire"} ·{" "}
-                {derniere.presents} présents/représentés sur {derniere.total}
+                {derniere.type === "AGE" ? "AGE" : "AG ordinaire"}
+                {derniere.presents != null
+                  ? ` · ${derniere.presents} présents/représentés sur ${derniere.total}`
+                  : ""}
               </p>
               {derniere.pvDispo && (
                 <span className="mt-2 inline-flex items-center gap-1 text-[12px] text-info-700">
@@ -203,7 +205,7 @@ function HistoriqueAg({ historique }: { historique: AgPassee[] }) {
 
       {historique.length === 0 ? (
         <p className="px-4 py-6 text-[13px] text-ink-3">
-          Donnée eStale — disponible après migration de la copro.
+          Aucune AG enregistrée.
         </p>
       ) : (
         <ul className="divide-y divide-line">
@@ -212,7 +214,8 @@ function HistoriqueAg({ historique }: { historique: AgPassee[] }) {
               <span className="font-medium text-ink shrink-0">{formatDateLongue(ag.date)}</span>
               <span className="text-ink-3 flex-1 truncate">
                 {ag.type === "AGE" ? "AGE" : "AG ordinaire"}
-                {ag.libelle ? ` · ${ag.libelle}` : ""} · {ag.presents}/{ag.total}
+                {ag.libelle ? ` · ${ag.libelle}` : ""}
+                {ag.presents != null ? ` · ${ag.presents}/${ag.total}` : ""}
               </span>
               {ag.pvDispo && (
                 <span className="text-[12px] text-info-700 shrink-0">PV</span>

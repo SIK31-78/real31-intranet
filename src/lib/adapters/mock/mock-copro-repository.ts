@@ -68,6 +68,7 @@ const COPROS: Record<string, Copropriete> = {
     exercice: { debut: "01/01", fin: "31/12" },
     priseEnGestion: "juin 2019",
     equipe: [EL, PV],
+    derniereAgDate: "2025-05-12",
   },
   S121: {
     code: "S121",

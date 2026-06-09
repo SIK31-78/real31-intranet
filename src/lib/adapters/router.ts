@@ -18,6 +18,7 @@ import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-
 import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
 import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
 import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
+import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 
 export type { DbHealth };
@@ -36,8 +37,11 @@ export function getSupervisionAgProvider(): SupervisionAgProvider {
   return new MockSupervisionAgProvider();
 }
 
-// Referentiel copro. Source cible : App A (public.Copropriete), lue via un adapter.
+// Referentiel copro. Bascule par env COPRO_SOURCE :
+//   - "supabase" -> lit la vraie data public.Copropriete (App A) en lecture seule ;
+//   - sinon       -> donnees mockees (defaut).
 export function getCoproRepository(): CoproRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoproRepository();
   return new MockCoproRepository();
 }
 
