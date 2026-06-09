@@ -5,6 +5,7 @@ import { DELAIS_LEGAUX } from "./legal/delais";
 import { DELAIS_CABINET } from "./cabinet/real31-defaults";
 import { joursFeries } from "./jours-feries";
 import type { JalonCalcule, JalonCode } from "./types";
+import type { Jalon } from "../commun";
 
 function parseISO(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
@@ -17,6 +18,9 @@ function moinsJours(isoDate: string, n: number): string {
   const d = parseISO(isoDate);
   d.setUTCDate(d.getUTCDate() - n);
   return toISO(d);
+}
+function joursEntre(aISO: string, bISO: string): number {
+  return (parseISO(bISO).getTime() - parseISO(aISO).getTime()) / 86_400_000;
 }
 function estChomme(d: Date, feries: Set<string>): boolean {
   const jour = d.getUTCDay(); // 0 = dimanche, 6 = samedi
@@ -65,4 +69,23 @@ export function calculerJalons(agISO: string): JalonCalcule[] {
     { code: "POUVOIRS", libelle: LIBELLES.POUVOIRS, cibleDate: moinsJours(agISO, DELAIS_CABINET.POUVOIRS_JOURS), source: "cabinet" },
     { code: "TENUE", libelle: LIBELLES.TENUE, cibleDate: agISO, source: "legal" },
   ];
+}
+
+/** Pastille de compte a rebours vers une date cible (label J-x / +x j + severite).
+ *  Severite : retard si la cible est passee, proche a 7 jours ou moins, sinon ok. */
+export function compteARebours(cibleISO: string, aujourdhuiISO: string): Jalon {
+  const jours = joursEntre(aujourdhuiISO, cibleISO);
+  if (jours < 0) return { label: `+${-jours} j`, severite: "late" };
+  return { label: `J-${jours}`, severite: jours <= 7 ? "soon" : "ok" };
+}
+
+/** Jalon "courant" d'une AG : compte a rebours vers le prochain jalon a echeance
+ *  (le premier dont la cible n'est pas passee ; a defaut la tenue). Sans etat des
+ *  jalons (pas encore en base), on se base uniquement sur les dates. */
+export function jalonCourantAg(agISO: string, aujourdhuiISO: string): Jalon {
+  const tries = [...calculerJalons(agISO)].sort((a, b) =>
+    a.cibleDate.localeCompare(b.cibleDate),
+  );
+  const prochain = tries.find((j) => j.cibleDate >= aujourdhuiISO) ?? tries[tries.length - 1];
+  return compteARebours(prochain.cibleDate, aujourdhuiISO);
 }
