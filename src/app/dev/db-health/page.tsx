@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getDbHealth } from "@/lib/services/db/get-db-health";
 
-export const metadata: Metadata = { title: "DB health — REAL31 Intranet" };
+export const metadata: Metadata = { title: "DB health - REAL31 Intranet" };
 
 // Force le rendu dynamique : on lit la BDD a chaque requete, jamais de cache statique.
 export const dynamic = "force-dynamic";

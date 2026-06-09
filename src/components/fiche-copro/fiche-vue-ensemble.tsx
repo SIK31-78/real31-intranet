@@ -179,13 +179,13 @@ function BlocCs({
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Dernier CS tenu</p>
           <p className="text-[16px] font-medium text-ink">
-            {derniereCs ? formatDateLongue(derniereCs) : "—"}
+            {derniereCs ? formatDateLongue(derniereCs) : "-"}
           </p>
         </div>
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochain CS</p>
           <p className="text-[16px] font-medium text-ink">
-            {prochaineCs ? formatDateLongue(prochaineCs) : "—"}
+            {prochaineCs ? formatDateLongue(prochaineCs) : "-"}
           </p>
         </div>
       </div>
@@ -299,7 +299,7 @@ function SideIdentite({ copro }: { copro: Copropriete }) {
       <SideRow label="Statut" value={copro.statut === "active" ? "Active" : "Inactive"} />
       <SideRow label="Lots principaux" value={String(copro.lotsPrincipaux)} />
       {copro.lotsAutres > 0 && <SideRow label="Autres lots" value={String(copro.lotsAutres)} />}
-      <SideRow label="Exercice" value={`${copro.exercice.debut} → ${copro.exercice.fin}`} />
+      <SideRow label="Exercice" value={`${copro.exercice.debut} -> ${copro.exercice.fin}`} />
       <SideRow label="Prise en gestion" value={copro.priseEnGestion} />
     </SideBox>
   );
@@ -335,7 +335,7 @@ function SideConseil({
   return (
     <SideBox titre="Conseil Syndical">
       {membres.length === 0 ? (
-        <p className="text-[12px] text-ink-3">Donnée eStale — non disponible.</p>
+        <p className="text-[12px] text-ink-3">Donnée eStale - non disponible.</p>
       ) : (
         <div className="text-[12.5px]">
           {membres.map((m) => (
@@ -363,7 +363,7 @@ function SideConformite({ items }: { items: ItemConformite[] }) {
   return (
     <SideBox titre="Conformité">
       {items.length === 0 ? (
-        <p className="text-[12px] text-ink-3">Donnée eStale — non disponible.</p>
+        <p className="text-[12px] text-ink-3">Donnée eStale - non disponible.</p>
       ) : (
         <div className="flex flex-col gap-1.5">
           {items.map((item) => {

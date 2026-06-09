@@ -3,7 +3,7 @@ import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
 import { AppShell } from "@/components/layout/app-shell";
 import { CalendrierVue } from "@/components/calendrier/calendrier-vue";
 
-export const metadata: Metadata = { title: "Calendrier AG/CS — REAL31 Intranet" };
+export const metadata: Metadata = { title: "Calendrier AG/CS - REAL31 Intranet" };
 
 // Mock session : ancre temporelle calee sur les donnees du mock adapter (2026-05-27).
 // A remplacer quand l'auth/horloge arrive en increment dedie.

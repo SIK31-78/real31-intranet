@@ -27,7 +27,7 @@ export function Topbar({ user, breadcrumb }: TopbarProps) {
           <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
           <input
             aria-label="Rechercher"
-            placeholder="Rechercher une copro, un copropriétaire…"
+            placeholder="Rechercher une copro, un copropriétaire..."
             className="flex-1 min-w-0 bg-transparent outline-none text-[13px] placeholder:text-ink-4"
           />
           <span className="font-mono text-[10px] px-1 py-0.5 rounded text-ink-3 bg-surface-3">⌘K</span>

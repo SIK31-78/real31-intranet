@@ -6,7 +6,7 @@ import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ListeAttention } from "@/components/dashboard/liste-attention";
 import { FluxActivite } from "@/components/dashboard/flux-activite";
 
-export const metadata: Metadata = { title: "Dashboard — REAL31 Intranet" };
+export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 
 export default async function DashboardPage() {
   const data = await getDashboard("el");

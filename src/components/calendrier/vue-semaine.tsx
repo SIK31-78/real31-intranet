@@ -49,7 +49,7 @@ export function VueSemaine({
             </div>
             <div className="p-2 flex flex-col gap-1.5 flex-1">
               {evs.length === 0 && (
-                <span className="text-[12px] text-ink-4 pl-1 pt-1">—</span>
+                <span className="text-[12px] text-ink-4 pl-1 pt-1">-</span>
               )}
               {evs.map((e) => (
                 <EvenementChip key={e.id} evenement={e} taille="md" />

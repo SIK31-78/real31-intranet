@@ -7,7 +7,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export const metadata: Metadata = { title: "Toutes les copropriétés — REAL31 Intranet" };
+export const metadata: Metadata = { title: "Toutes les copropriétés - REAL31 Intranet" };
 
 // Mock session : meme ancre que les autres ecrans.
 const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };

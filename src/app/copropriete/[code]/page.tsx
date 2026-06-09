@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
 
 export const metadata: Metadata = {
-  title: "Fiche copropriété — REAL31 Intranet",
+  title: "Fiche copropriété - REAL31 Intranet",
 };
 
 // Mock session : meme ancre que les autres ecrans (cf. dashboard, calendrier, supervision).

@@ -39,7 +39,7 @@ export interface ItemAttention {
   jalon: Jalon;
   /** Code copro, ex "S104". */
   coproCode: string;
-  /** Intitule de la tache, ex "Résidence Les Marronniers — convocation en retard". */
+  /** Intitule de la tache, ex "Résidence Les Marronniers - convocation en retard". */
   titre: string;
   /** Echeance courte, ex "29/05". Absente pour les taches sans date ferme. */
   echeance?: string;

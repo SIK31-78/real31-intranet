@@ -29,7 +29,7 @@ export function ConclureBouton({
     raisonDisabled === "role"
       ? "Seul le gestionnaire de la copro peut conclure"
       : raisonDisabled === "probleme"
-        ? "Items en statut Problème — résoudre avant de conclure"
+        ? "Items en statut Problème - résoudre avant de conclure"
         : `Connecté en tant que ${role}`;
   return (
     <button

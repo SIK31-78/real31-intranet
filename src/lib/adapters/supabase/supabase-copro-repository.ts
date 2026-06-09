@@ -78,9 +78,9 @@ function adresseDe(row: CoproRow): Adresse {
 // Les dates sont lues DEPUIS LA CHAINE "YYYY-MM-DD..." (et non via `new Date`),
 // pour eviter tout decalage de fuseau sur un timestamp a minuit (01/01 -> 31/12).
 
-/** "01/01" depuis un timestamp ISO ; "—" si absent. */
+/** "01/01" depuis un timestamp ISO ; "-" si absent. */
 function jourMois(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}`;
 }
@@ -89,9 +89,9 @@ function exerciceDe(row: CoproRow): Exercice {
   return { debut: jourMois(row.accountingStartDate), fin: jourMois(row.accountingEndDate) };
 }
 
-/** "mars 2018" depuis un timestamp ISO ; "—" si absent. */
+/** "mars 2018" depuis un timestamp ISO ; "-" si absent. */
 function moisAnnee(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [y, m] = iso.slice(0, 10).split("-");
   return `${MOIS[Number(m) - 1]} ${y}`;
 }

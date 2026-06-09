@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   Design system REAL31 — tokens.
+   Design system REAL31 - tokens.
    Source de verite visuelle : docs/mockups/dashboard-reference.html.
    Tailwind 4 = config CSS-first : chaque token declare ici devient
    automatiquement une utilitaire (bg-surface, text-ink-2, border-line, ...)
    ET une variable CSS dans :root (utilisable en var(--color-surface)).
    ============================================================================ */
 @theme {
-  /* Neutres — fonds chauds, jamais de blanc pur sur le canvas. */
+  /* Neutres - fonds chauds, jamais de blanc pur sur le canvas. */
   --color-canvas:    #fafaf9;
   --color-surface:   #ffffff;
   --color-surface-2: #f4f4f2;
@@ -16,13 +16,13 @@
   --color-line:      #e6e5e1;
   --color-line-2:    #d4d3ce;
 
-  /* Encre (texte) — 4 niveaux suffisent. */
+  /* Encre (texte) - 4 niveaux suffisent. */
   --color-ink:   #18181b;
   --color-ink-2: #525258;
   --color-ink-3: #8a8a90;
   --color-ink-4: #b5b4b0;
 
-  /* Vert sapin REAL31 (oklch, desature) — actions et chrome de marque
+  /* Vert sapin REAL31 (oklch, desature) - actions et chrome de marque
      uniquement, jamais un statut. */
   --color-green-50:  oklch(0.97 0.02 155);
   --color-green-100: oklch(0.93 0.04 155);
@@ -33,21 +33,21 @@
   --color-green-700: oklch(0.32 0.06 155);
   --color-green-900: oklch(0.20 0.04 155);
 
-  /* Semantiques — hue volontairement differente du brand, pour ne pas
+  /* Semantiques - hue volontairement differente du brand, pour ne pas
      confondre "statut OK" et "bouton". */
   --color-ok-50:   #ecfdf5;  --color-ok-500:   #059669;  --color-ok-700:   #047857;
   --color-warn-50: #fffbeb;  --color-warn-500: #d97706;  --color-warn-700: #b45309;
   --color-err-50:  #fef2f2;  --color-err-500:  #dc2626;  --color-err-700:  #b91c1c;
   --color-info-50: #eff6ff;  --color-info-500: #2563eb;  --color-info-700: #1d4ed8;
 
-  /* Typo — Geist (UI) + JetBrains Mono (codes copro S0xx, lots, montants).
+  /* Typo - Geist (UI) + JetBrains Mono (codes copro S0xx, lots, montants).
      Les variables --font-*-mono/sans sont posees par next/font dans layout.tsx. */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-sans--font-feature-settings: "ss01", "cv11";
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
   --font-mono--font-feature-settings: "zero", "ss01";
 
-  /* Ombres — tres subtiles, jamais plus de 2 couches. */
+  /* Ombres - tres subtiles, jamais plus de 2 couches. */
   --shadow-1: 0 1px 0 rgba(24,24,27,.04), 0 1px 2px rgba(24,24,27,.04);
   --shadow-2: 0 4px 12px -2px rgba(24,24,27,.06), 0 2px 4px -1px rgba(24,24,27,.04);
 }

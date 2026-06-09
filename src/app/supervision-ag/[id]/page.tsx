@@ -10,7 +10,7 @@ import {
 } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Supervision AG — REAL31 Intranet",
+  title: "Supervision AG - REAL31 Intranet",
 };
 
 // Mock session : meme ancre que les autres ecrans (cf. dashboard, calendrier).

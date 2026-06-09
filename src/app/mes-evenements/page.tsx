@@ -3,7 +3,7 @@ import { getMesEvenements } from "@/lib/services/mes-evenements/get-mes-evenemen
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEvenementsVue } from "@/components/mes-evenements/mes-evenements-vue";
 
-export const metadata: Metadata = { title: "Mes événements — REAL31 Intranet" };
+export const metadata: Metadata = { title: "Mes événements - REAL31 Intranet" };
 
 // Mock session : meme ancre que les autres ecrans.
 const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };

@@ -101,7 +101,7 @@ function Compteur({ actionsCeMois }: { actionsCeMois: number }) {
       <Trophy strokeWidth={1.5} className="w-7 h-7 text-info-700 shrink-0" />
       <div className="flex-1">
         <p className="text-[14px] font-medium text-ink">{actionsCeMois} actions traitées ce mois</p>
-        <p className="text-[12px] text-ink-3 mt-0.5">Bon rythme — +3 vs mai dernier.</p>
+        <p className="text-[12px] text-ink-3 mt-0.5">Bon rythme - +3 vs mai dernier.</p>
       </div>
       <p className="text-[28px] font-medium leading-none text-info-700">{actionsCeMois}</p>
     </Card>

@@ -1,4 +1,4 @@
-# Supabase setup — branchement du projet mutualise
+# Supabase setup - branchement du projet mutualise
 
 Procedure a suivre **avant** le premier `pnpm db:push`. Le projet Supabase
 est celui du patron (mutualisation actee, cf. ADR-021). L'intranet vit
@@ -13,18 +13,18 @@ Cette procedure est a faire une seule fois par machine de dev.
 
 Aller sur https://supabase.com/dashboard et ouvrir le projet du patron.
 
-- **Settings → General** : noter le **Project Ref** (20 caracteres, format
+- **Settings -> General** : noter le **Project Ref** (20 caracteres, format
   `xxxxxxxxxxxxxxxxxxxx`).
-- **Settings → API → Project URL** : noter (`https://<ref>.supabase.co`).
-- **Settings → API → Project API keys** :
+- **Settings -> API -> Project URL** : noter (`https://<ref>.supabase.co`).
+- **Settings -> API -> Project API keys** :
   - copier `anon` `public` key (visible).
-  - copier `service_role` `secret` key (cliquer "Reveal" — sensible, ne
+  - copier `service_role` `secret` key (cliquer "Reveal" - sensible, ne
     jamais commit).
-- **Settings → API → Data API → Exposed schemas** : ajouter `real31_intranet`
+- **Settings -> API -> Data API -> Exposed schemas** : ajouter `real31_intranet`
   a la liste a cote de `public` et `graphql_public`. **Sauvegarder.**
   > Sans cette etape, PostgREST renvoie `schema not found` malgre les
   > grants poses dans la migration.
-- **Settings → Database → Connection string** : noter le password de la
+- **Settings -> Database -> Connection string** : noter le password de la
   BDD (sera demande par `supabase link`).
 
 ## 2. Linker le CLI Supabase au projet du patron
@@ -42,7 +42,7 @@ supabase login
 
 # Linkage au projet du patron.
 supabase link --project-ref <REF_NOTÉE_ETAPE_1>
-# → te demandera le password BDD note a l'etape 1.
+# -> te demandera le password BDD note a l'etape 1.
 ```
 
 Verification :
@@ -54,7 +54,7 @@ supabase migration list --linked
 - Les migrations remote du patron (sur `public`, Prisma) peuvent apparaitre :
   c'est normal, on ne les touche pas.
 - Nos deux migrations (`20260522170000_initial_schema.sql`,
-  `20260601120000_enable_rls.sql`) doivent apparaitre en `local only` —
+  `20260601120000_enable_rls.sql`) doivent apparaitre en `local only` -
   c'est ce qu'on s'apprete a pousser.
 
 ## 3. Creer `.env.local`
