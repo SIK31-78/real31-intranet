@@ -4,7 +4,7 @@
 
 import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
-import { getCoproRepository, getCondoEstaleProvider } from "@/lib/adapters/router";
+import { getCoproRepository, getCondoEstaleProvider, getJalonRepository } from "@/lib/adapters/router";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
 
 const DONNEES_ESTALE_VIDES: DonneesEstaleCopro = {
@@ -53,5 +53,10 @@ export async function getFicheCopro(
         ];
   const conformite = [...conformiteReferentiel, ...estale.conformite];
 
-  return { copro, estale, prochains, derniereAg: historique[0], historique, conformite };
+  // Jalons de la prochaine AG (cibles calculees + etat persiste), si AG a venir.
+  const jalons = copro.prochaineAg
+    ? await getJalonRepository().getJalons(copro.code, copro.prochaineAg.date)
+    : [];
+
+  return { copro, estale, prochains, derniereAg: historique[0], historique, conformite, jalons };
 }

@@ -19,6 +19,9 @@ import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
 import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
 import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
+import type { JalonRepository } from "@/lib/ports/jalon-repository";
+import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
+import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 
 export type { DbHealth };
@@ -43,6 +46,12 @@ export function getSupervisionAgProvider(): SupervisionAgProvider {
 export function getCoproRepository(): CoproRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoproRepository();
   return new MockCoproRepository();
+}
+
+// Etat des jalons (table native intranet_jalons). Meme bascule que le referentiel.
+export function getJalonRepository(): JalonRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseJalonRepository();
+  return new MockJalonRepository();
 }
 
 // Donnees copro sourcees eStale (CS, historique AG, conformite). Source cible : eStale

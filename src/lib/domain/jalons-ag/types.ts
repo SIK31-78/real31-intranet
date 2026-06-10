@@ -16,3 +16,14 @@ export interface JalonCalcule {
   dateCabinet?: string;
   source: SourceJalon;
 }
+
+export type StatutJalon = "a_faire" | "accompli" | "en_alerte";
+
+/** Jalon calcule + son etat persiste (table intranet_jalons). */
+export interface JalonAvecEtat extends JalonCalcule {
+  statut: StatutJalon;
+  /** Date de realisation, ISO "YYYY-MM-DD". */
+  realiseDate?: string;
+  /** Initiales de qui a marque. */
+  marquePar?: string;
+}

@@ -7,6 +7,7 @@
 // Ici tout est mocke ; chaque bloc se branchera sur sa source via son propre port.
 
 import type { Evenement } from "@/lib/domain/calendrier";
+import type { JalonAvecEtat } from "@/lib/domain/jalons-ag/types";
 
 // --- Referentiel copro (source App A) -------------------------------------
 
@@ -132,6 +133,8 @@ export interface FicheCopro {
   historique: AgPassee[];
   /** Conformite composee : items du referentiel (PPT) + items eStale. */
   conformite: ItemConformite[];
+  /** Jalons de la prochaine AG (cibles calculees + etat) ; vide si pas d'AG a venir. */
+  jalons: JalonAvecEtat[];
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */
