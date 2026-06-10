@@ -8,7 +8,6 @@ import {
   FileText,
   ArrowRight,
   Users,
-  ListChecks,
 } from "lucide-react";
 import type {
   AgPassee,
@@ -22,11 +21,11 @@ import type {
   RoleEquipe,
 } from "@/lib/domain/copropriete";
 import type { Evenement } from "@/lib/domain/calendrier";
-import type { JalonAvecEtat, StatutJalon } from "@/lib/domain/jalons-ag/types";
 import type { Severite } from "@/lib/domain/commun";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
+import { BlocJalons } from "./bloc-jalons";
 
 const ROLE_LABEL: Record<RoleEquipe, string> = {
   gestionnaire: "Gestionnaire",
@@ -61,7 +60,11 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
           derniereCs={fiche.copro.derniereCsDate}
           prochaineCs={fiche.copro.prochaineCsDate}
         />
-        <BlocJalons jalons={fiche.jalons} />
+        <BlocJalons
+          jalons={fiche.jalons}
+          coproCode={fiche.copro.code}
+          agDate={fiche.copro.prochaineAg?.date ?? ""}
+        />
         <ProchainsEvenements evenements={fiche.prochains} />
         <HistoriqueAg historique={fiche.historique} />
       </div>
@@ -192,45 +195,6 @@ function BlocCs({
           </p>
         </div>
       </div>
-    </Card>
-  );
-}
-
-// --- Jalons reglementaires de la prochaine AG -----------------------------
-
-const STATUT_JALON: Record<StatutJalon, { label: string; ton: "neutral" | "ok" | "err" }> = {
-  a_faire: { label: "À faire", ton: "neutral" },
-  accompli: { label: "Accompli", ton: "ok" },
-  en_alerte: { label: "En alerte", ton: "err" },
-};
-
-function BlocJalons({ jalons }: { jalons: JalonAvecEtat[] }) {
-  if (jalons.length === 0) return null;
-  const faits = jalons.filter((j) => j.statut === "accompli").length;
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <ListChecks strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
-          Jalons réglementaires de la prochaine AG
-        </CardTitle>
-        <Badge ton="outline" className="font-mono">{faits} / {jalons.length}</Badge>
-      </CardHeader>
-      <ul className="divide-y divide-line">
-        {jalons.map((j) => (
-          <li key={j.code} className="flex items-center gap-3 px-4 py-2.5">
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] text-ink">{j.libelle}</p>
-              <p className="text-[11px] text-ink-3">
-                Cible {formatDateLongue(j.cibleDate)} · {j.source === "legal" ? "Légal" : "Cabinet"}
-              </p>
-            </div>
-            <Badge ton={STATUT_JALON[j.statut].ton} className="shrink-0">
-              {STATUT_JALON[j.statut].label}
-            </Badge>
-          </li>
-        ))}
-      </ul>
     </Card>
   );
 }
