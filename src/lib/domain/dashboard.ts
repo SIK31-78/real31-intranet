@@ -31,6 +31,8 @@ export interface CompteurAction {
   severiteDetail?: Severite;
   /** Nom d'icone lucide, ex "send". */
   icone: string;
+  /** Lien vers la vue concernee (carte cliquable). */
+  lien?: string;
 }
 
 /** Une ligne de la liste "Ce qui demande votre attention", triee par urgence. */
@@ -45,6 +47,8 @@ export interface ItemAttention {
   echeance?: string;
   /** Badge optionnel de statut, ex "Légal dépassé". */
   badge?: { texte: string; ton: Ton };
+  /** Lien vers la preparation concernee (ligne cliquable). */
+  lien?: string;
 }
 
 /** Une entree du flux d'activite recente (lecture seule). */

@@ -101,6 +101,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
           coproCode: c.code,
           titre: `${c.nom} - ${LIBELLE_COURT[prochain.code]}`,
           echeance: jourMoisCourt(prochain.cibleDate),
+          lien: `/supervision-ag/${c.code}__${agDate}`,
           ...(d < 0 ? { badge: { texte: "En retard", ton: "err" as Ton } } : {}),
         });
       }
@@ -122,6 +123,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
         ? { detailFort: `${convocRetard} en retard`, severiteDetail: "late" as Severite }
         : {}),
       icone: "send",
+      lien: "/mes-evenements",
     },
     {
       id: "sans-ag",
@@ -130,6 +132,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       unite: "AG",
       detail: "copros sans AG planifiée",
       icone: "calendar-clock",
+      lien: "/mes-evenements",
     },
     {
       id: "jalons-retard",
@@ -139,6 +142,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       detail: "échéance dépassée",
       ...(jalonsRetard > 0 ? { severiteDetail: "late" as Severite } : {}),
       icone: "alert-triangle",
+      lien: "/mes-evenements",
     },
   ];
 

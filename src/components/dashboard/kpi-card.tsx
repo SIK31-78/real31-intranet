@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/icon";
 import type { CompteurAction } from "@/lib/domain/dashboard";
@@ -10,12 +11,12 @@ const SEV_DETAIL: Record<Severite, string> = {
 };
 
 export function KpiCard({ compteur }: { compteur: CompteurAction }) {
-  const { label, valeur, unite, detail, detailFort, severiteDetail, icone } = compteur;
-  return (
-    <a
-      href="#"
-      className="block bg-surface border border-line rounded-md p-4 transition-colors duration-75 hover:border-line-2"
-    >
+  const { label, valeur, unite, detail, detailFort, severiteDetail, icone, lien } = compteur;
+  const classes =
+    "block bg-surface border border-line rounded-md p-4 transition-colors duration-75 hover:border-line-2";
+
+  const contenu = (
+    <>
       <div className="flex items-center justify-between">
         <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">{label}</div>
         <Icon name={icone} className="w-[15px] h-[15px] text-ink-3" />
@@ -35,6 +36,14 @@ export function KpiCard({ compteur }: { compteur: CompteurAction }) {
           </>
         )}
       </div>
-    </a>
+    </>
+  );
+
+  return lien ? (
+    <Link href={lien} className={classes}>
+      {contenu}
+    </Link>
+  ) : (
+    <div className={classes}>{contenu}</div>
   );
 }
