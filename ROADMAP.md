@@ -6,7 +6,7 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
-## 📍 État actuel - 2026-06-09
+## 📍 État actuel - 2026-06-11
 
 - **Phase** : 5 écrans MVP **branchés sur la vraie data** (264 copros + 2 tables natives) **avec cloisonnement gestionnaire** (sélecteur dev + filtrage `managerId`). Reste : **auth réelle (Entra ID)** qui remplacera le sélecteur, + durcissement. Le mock demeure le fallback (`COPRO_SOURCE` absent).
 - **Branche Git active** : `increment/02-supabase`
