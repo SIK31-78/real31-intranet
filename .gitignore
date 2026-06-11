@@ -47,3 +47,7 @@ AGENTS.md
 
 # Vraies donn�es seed (RGPD : jamais commit)
 data/seed/local/
+
+# Exports PowerApps : binaires lourds / re-exportables (on garde les flux JSON + le guide)
+docs/powerapps/*.zip
+docs/powerapps/**/*.msapp
