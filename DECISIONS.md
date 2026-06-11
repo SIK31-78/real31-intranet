@@ -1075,6 +1075,28 @@ REAL31 va signer eStale pour ~7000 lots. C'est un levier de négociation, à act
 
 ---
 
+## ADR-023 - Écriture des dates AG/CS dans Copropriete (base partagée, dérogation ADR-002)
+
+**Date** : 2026-06-11 - **Statut** : accepté (décision Sekou)
+
+### Contexte
+L'intranet partage la base Supabase `lgrsnrclufsulglbwcqi` avec un autre projet du patron (modèle Prisma de l'App A). Les dates de prochaine AG (`nextAGDate`) et de prochain CS (`nextCSDate`) vivent dans `public."Copropriete"`. Besoin métier : un gestionnaire doit pouvoir planifier / replanifier une AG ou un CS **non encore tenu** depuis la fiche. ADR-002 posait que l'intranet ne réécrit jamais la source ; mais la base est ici explicitement **partagée et mise à jour par les deux projets**.
+
+### Décision
+On écrit directement `nextAGDate` / `nextCSDate` dans `public."Copropriete"` (**option A** retenue par Sekou plutôt qu'un override natif), via service_role, **scopé par `managerId`** (un gestionnaire n'écrit que sur ses copros), avec `updatedAt` rafraîchi pour rester cohérent avec l'App A. `null` = déplanifier. C'est une **dérogation assumée à ADR-002**, justifiée par le modèle de base partagée : la date de planification est une donnée commune aux deux apps, pas une donnée de source en lecture seule.
+
+### Conséquences
+- La date modifiée est **visible côté App A** (propagation immédiate) ; concurrence d'écriture possible sur le même champ (risque faible, écritures rares).
+- Le « CS préparatoire le » de la supervision (fiche 450) alimente `nextCSDate` par ce même chemin.
+- Rappel : pas de RLS sur `public` (schéma Prisma, service_role) -> le cloisonnement est appliqué **en code** (filtre `managerId`), ce qui déroge aussi à ADR-011 (RLS dès J1). À reconsidérer si une RLS/vues devient possible.
+
+### Liens
+- **ADR-002** (dérogation au principe de non-réécriture de la source).
+- **ADR-011** (RLS non disponible sur le schéma partagé Prisma -> cloisonnement en code).
+- **ADR-021** (plateforme unifiée, cohabitation Prisma / supabase-js).
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
