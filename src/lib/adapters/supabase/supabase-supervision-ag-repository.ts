@@ -149,6 +149,7 @@ function construire(
         libelle: t.libelle,
         statut: (e?.statut as StatutItem) ?? "non_verifie",
       };
+      if (t.type) item.type = t.type;
       if (e?.commentaire) item.commentaire = e.commentaire;
       if (e?.marque_at) item.audite = { initiales: e.marque_par ?? "?", le: e.marque_at };
       return item;

@@ -1,10 +1,16 @@
-// Template de la checklist de supervision AG (34 items, 5 sections). Structure
-// metier partagee mock / reel. L'ETAT (statut, commentaire) vit ailleurs :
-// store mock, ou table intranet_supervision_items en reel.
+// Template de la checklist de supervision AG. Reprend la fiche REAL31 "450 -
+// Couverture AG" (5 phases chronologiques) + une section Verifications comptables.
+// Structure metier partagee ; l'ETAT (statut, commentaire, dates) vit dans la table
+// intranet_supervision_items. Le "Visa gestionnaire (archivage)" n'est PAS un item :
+// c'est la conclusion / visa final (cf. ITEM_CONCLUSION).
+
+export type TypeItem = "check" | "date";
 
 export interface ItemTemplate {
   id: string;
   libelle: string;
+  /** "check" (case a cocher, defaut) ou "date" (vrai champ date renseigne). */
+  type?: TypeItem;
 }
 export interface SectionTemplate {
   id: string;
@@ -14,14 +20,66 @@ export interface SectionTemplate {
 
 export const SECTIONS_TEMPLATE: SectionTemplate[] = [
   {
-    id: "logistique",
-    titre: "Logistique AG",
+    id: "avant-cs",
+    titre: "Avant CS",
     items: [
-      { id: "log.date-ag-confirmee", libelle: "Date AG confirmée" },
-      { id: "log.lieu-reserve", libelle: "Lieu réservé" },
-      { id: "log.modalite-decidee", libelle: "Modalité décidée (présentiel / hybride / visio)" },
-      { id: "log.date-limite-odj-communiquee", libelle: "Date limite ajout points ODJ communiquée" },
-      { id: "log.mise-sous-pli-planifiee", libelle: "Mise sous pli convocation planifiée" },
+      { id: "avcs.avancement-tx", libelle: "Contrôle avancement travaux + dossiers AG N-1" },
+      { id: "avcs.carnet-entretien", libelle: "Carnet d'entretien à jour sur Crypto" },
+      { id: "avcs.cs-prepa-date", libelle: "CS préparatoire de l'AG le", type: "date" },
+    ],
+  },
+  {
+    id: "apres-cs",
+    titre: "Après CS",
+    items: [
+      { id: "apcs.honos", libelle: "Honoraires CS (horaire dépassé ?)" },
+      { id: "apcs.cr-cs-extranet", libelle: "Compte rendu CS diffusé sur l'extranet" },
+      { id: "apcs.suppr-fichiers-n1", libelle: "Suppression des anciens fichiers inutiles AG N-1" },
+      { id: "apcs.dates-cs-ag", libelle: "Dates CS + AG mises à jour (fiche immeuble)" },
+    ],
+  },
+  {
+    id: "convocation",
+    titre: "Convocation",
+    items: [
+      { id: "conv.date", libelle: "Date de convocation", type: "date" },
+      { id: "conv.mail-dispo", libelle: "Mail aux copropriétaires pour annoncer la dispo de la convocation" },
+      { id: "conv.agconnect-transfert", libelle: "Si AG Connect : AG transférée + courriers d'invitation envoyés" },
+      { id: "conv.agconnect-surplus", libelle: "Si AG Connect et copro > 50 lots : surplus d'abonnement payé (process 471)" },
+      { id: "conv.rappel-pouvoirs", libelle: "Rappel Outlook pour relancer pouvoirs / VPC (J-8 avant l'AG)" },
+    ],
+  },
+  {
+    id: "documents-ag",
+    titre: "Documents pour l'AG (jour J)",
+    items: [
+      { id: "doc.evenements-attente", libelle: "Vérification des évènements en attente de l'immeuble" },
+      { id: "doc.vpc-saisis", libelle: "Tous les VPC saisis (Crypto / AG Connect) + pouvoirs imprimés" },
+      { id: "doc.ag-nomade", libelle: "Si AG extérieure : transfert sur PC AG Nomade (fiche 459)" },
+      { id: "doc.mutations-jourj", libelle: "Mutations vérifiées le jour J (onglet saisie des présences)" },
+      { id: "doc.feuille-presence", libelle: "Feuille de présence (5 clés ou tablette si AG Connect)" },
+      { id: "doc.contrat-syndic", libelle: "Contrat de syndic (n° mandat G-XXXX à obtenir le jour J)" },
+      { id: "doc.cr-cs", libelle: "CR réunion CS" },
+    ],
+  },
+  {
+    id: "apres-ag",
+    titre: "Après AG",
+    items: [
+      { id: "apag.recap-reality", libelle: "Récap AG sur Reality" },
+      { id: "apag.lre", libelle: "Copros LRE cochés (mail correspondant / Extranet client)" },
+      { id: "apag.scan-pv", libelle: "Scan PV + évènement Crypto" },
+      { id: "apag.scan-contrat", libelle: "Scan contrat + évènement Crypto (J+2 max)" },
+      { id: "apag.tarifs", libelle: "Vérification / mise à jour des tarifs (frais de relance)" },
+      { id: "apag.membres-cs", libelle: "Membres CS cochés sur Crypto + mise à jour liste de diffusion" },
+      { id: "apag.notif-pv-date", libelle: "Notification du PV le (process 470)", type: "date" },
+      { id: "apag.mail-dispo-pv", libelle: "Mails aux copropriétaires pour annoncer la dispo du PV" },
+      { id: "apag.registre-pv", libelle: "Registre PV (avec feuille de présence)" },
+      { id: "apag.rappel-actions", libelle: "Rappel Outlook actions en cours (décisions et QD)" },
+      { id: "apag.dossiers-travaux", libelle: "Dossiers travaux créés et transmis au gestionnaire travaux (454)" },
+      { id: "apag.devis-contrats", libelle: "Devis et contrats acceptés" },
+      { id: "apag.entreprises-non-retenues", libelle: "Entreprises non retenues prévenues" },
+      { id: "apag.maj-fiche-immeuble", libelle: "Mise à jour de la fiche immeuble sur Crypto (process 438)" },
     ],
   },
   {
@@ -39,43 +97,7 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
       { id: "compta.affectations-recup", libelle: "Affectations entretien / réparations contrôlées (récup / loc)" },
     ],
   },
-  {
-    id: "gestion",
-    titre: "Gestion courante",
-    items: [
-      { id: "ges.sinistres-listes", libelle: "Sinistres en cours listés" },
-      { id: "ges.f9-sinistre", libelle: "Dossiers F9 sinistre à jour" },
-      { id: "ges.procedures-listees", libelle: "Procédures en cours listées" },
-      { id: "ges.f9-travaux", libelle: "Dossiers F9 travaux à jour" },
-      { id: "ges.contrat-gaz", libelle: "Contrat gaz renseigné (dates effet / fin + prix molécule)" },
-      { id: "ges.contrat-elec", libelle: "Contrat électricité renseigné (dates effet / fin + prix molécule)" },
-      { id: "ges.optimisation-engie", libelle: "Optimisation contrat ENGIE étudiée" },
-      { id: "ges.dtg-pppt", libelle: "DTG / PPPT : avancement renseigné" },
-      { id: "ges.subvention-metropole-dtg", libelle: "Subvention Métropole DTG : statut" },
-    ],
-  },
-  {
-    id: "odj",
-    titre: "Points ODJ AG suivante",
-    items: [
-      { id: "odj.rapport-moral-cs", libelle: "Rapport moral CS demandé" },
-      { id: "odj.budget-n1", libelle: "Budget N+1 préparé" },
-      { id: "odj.fonds-travaux-montant", libelle: "Fonds travaux : montant à proposer décidé" },
-      { id: "odj.contrat-syndic", libelle: "Contrat syndic : nouvelle proposition prête" },
-      { id: "odj.renouvellement-cs", libelle: "Renouvellement CS : candidatures recueillies" },
-      { id: "odj.ppt", libelle: "PPT : décision selon nb lots" },
-      { id: "odj.dpe-collectif", libelle: "DPE collectif : décision selon nb lots" },
-      { id: "odj.irve", libelle: "IRVE (bornes véhicules électriques) : analyse stationnement" },
-      { id: "odj.local-velos", libelle: "Local vélos sécurisé : analyse faite" },
-      { id: "odj.ag-hybride", libelle: "AG hybride / visio (AG Connect) : décision CS" },
-    ],
-  },
-  {
-    id: "debiteurs",
-    titre: "Copropriétaires débiteurs",
-    items: [{ id: "deb.liste", libelle: "Liste à jour disponible" }],
-  },
 ];
 
-/** Id reserve a la ligne de conclusion (visa final) dans la table d'etat. */
+/** Id reserve a la ligne de conclusion (visa gestionnaire = dossier archivable). */
 export const ITEM_CONCLUSION = "__conclusion__";

@@ -20,6 +20,8 @@ export interface ItemChecklist {
   id: string;
   libelle: string;
   statut: StatutItem;
+  /** "date" = champ date (valeur ISO stockee dans commentaire) ; sinon case a cocher. */
+  type?: "check" | "date";
   commentaire?: string;
   audite?: AuditeurItem;
 }
@@ -46,8 +48,10 @@ export interface SupervisionAg {
   sections: SectionChecklist[];
 }
 
-/** Un item est "verifie" des qu'il a quitte l'etat initial. */
+/** Un item est "verifie" des qu'il a quitte l'etat initial. Un item "date" l'est
+ *  des qu'une date est renseignee. */
 export function estVerifie(item: ItemChecklist): boolean {
+  if (item.type === "date") return Boolean(item.commentaire);
   return item.statut !== "non_verifie";
 }
 

@@ -80,6 +80,15 @@ export function ChecklistItem({
     });
   };
 
+  // Item "date" : la valeur (ISO) est stockee dans le commentaire.
+  const estDate = item.type === "date";
+  const handleDateChange = (val: string) => {
+    startTransition(async () => {
+      setCommentaireOpt(val === "" ? undefined : val);
+      await onCommenter(item.id, val);
+    });
+  };
+
   return (
     <div
       className={cn(
@@ -123,26 +132,37 @@ export function ChecklistItem({
             </>
           )}
         </div>
-        {!lectureSeule && !editComment && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditComment(true);
-              setDraft(item.commentaire ?? "");
-            }}
-            className="text-[11.5px] text-ink-3 hover:text-ink-2 inline-flex items-center gap-1"
-          >
-            <Icon name="message-square" className="w-3 h-3" />
-            {commentaireOpt ? "Modifier" : "Commenter"}
-          </button>
+        {estDate ? (
+          <input
+            type="date"
+            value={commentaireOpt ?? ""}
+            disabled={lectureSeule}
+            onChange={(e) => handleDateChange(e.target.value)}
+            className="h-8 px-2 rounded-sm border border-line bg-surface text-[12px] disabled:opacity-60"
+          />
+        ) : (
+          !lectureSeule &&
+          !editComment && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditComment(true);
+                setDraft(item.commentaire ?? "");
+              }}
+              className="text-[11.5px] text-ink-3 hover:text-ink-2 inline-flex items-center gap-1"
+            >
+              <Icon name="message-square" className="w-3 h-3" />
+              {commentaireOpt ? "Modifier" : "Commenter"}
+            </button>
+          )
         )}
       </div>
-      {commentaireOpt && !editComment && (
+      {!estDate && commentaireOpt && !editComment && (
         <div className="text-[12px] text-ink-2 bg-surface-2 border border-line rounded-sm px-2.5 py-1.5">
           {commentaireOpt}
         </div>
       )}
-      {editComment && !lectureSeule && (
+      {!estDate && editComment && !lectureSeule && (
         <form onSubmit={handleSubmitCommentaire} className="flex items-center gap-2">
           <input
             type="text"
