@@ -153,7 +153,7 @@ function BlocAg({
                   href={`/supervision-ag/${prochaine.supervisionId}`}
                   className="mt-2 inline-flex items-center gap-1 text-[12px] text-info-700 hover:underline"
                 >
-                  Ouvrir la fiche de préparation
+                  Ouvrir la supervision AG
                   <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
                 </Link>
               )}

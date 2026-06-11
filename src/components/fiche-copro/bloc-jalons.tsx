@@ -1,7 +1,8 @@
 "use client";
 
 import { useOptimistic, useTransition } from "react";
-import { ListChecks } from "lucide-react";
+import Link from "next/link";
+import { ListChecks, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { JalonAvecEtat, StatutJalon } from "@/lib/domain/jalons-ag/types";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +34,16 @@ export function BlocJalons({
           <ListChecks strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
           Jalons réglementaires de la prochaine AG
         </CardTitle>
-        <Badge ton="outline" className="font-mono">{faits} / {jalons.length}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge ton="outline" className="font-mono">{faits} / {jalons.length}</Badge>
+          <Link
+            href={`/supervision-ag/${coproCode}__${agDate}`}
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors"
+          >
+            Supervision AG
+            <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </CardHeader>
       <ul className="divide-y divide-line">
         {jalons.map((j) => (
