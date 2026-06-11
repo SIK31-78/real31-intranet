@@ -5,12 +5,18 @@ import { CalendrierVue } from "@/components/calendrier/calendrier-vue";
 
 export const metadata: Metadata = { title: "Calendrier AG/CS - REAL31 Intranet" };
 
-// Mock session : ancre temporelle calee sur les donnees du mock adapter (2026-05-27).
-// A remplacer quand l'auth/horloge arrive en increment dedie.
+// Mock session : gestionnaire fixe tant qu'il n'y a pas d'auth.
 const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };
-const AUJOURDHUI_ISO = "2026-05-27";
+
+// Lit la vraie data en mode supabase : rendu a la demande.
+export const dynamic = "force-dynamic";
 
 export default async function CalendrierPage() {
+  // Vraie data : aujourd'hui reel ; mock : ancre calee sur les donnees mockees (2026-05-27).
+  const aujourdhuiISO =
+    process.env.COPRO_SOURCE === "supabase"
+      ? new Date().toISOString().slice(0, 10)
+      : "2026-05-27";
   const evenements = await getEvenements(GESTIONNAIRE.id);
 
   return (
@@ -24,7 +30,7 @@ export default async function CalendrierPage() {
             Vue d&apos;ensemble de vos assemblees et conseils syndicaux.
           </p>
         </div>
-        <CalendrierVue evenements={evenements} aujourdhuiISO={AUJOURDHUI_ISO} />
+        <CalendrierVue evenements={evenements} aujourdhuiISO={aujourdhuiISO} />
       </div>
     </AppShell>
   );
