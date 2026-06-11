@@ -328,6 +328,22 @@ L'intranet comme porte d'entrée unique du cabinet :
 
 ---
 
+## Migration des automatisations MYTHEC (PowerApps) - backlog
+
+Solution Power Platform `MYTHEC_REAL31_Automation` exportée le 2026-06-11 (cf. `docs/powerapps/`, binaires `.zip`/`.msapp` gitignorés). Architecture MYTHEC : données en **listes SharePoint** (Coproprietes, SuiviContratsCopro, Tarifs, Produits, Facturation, Historique Récap AG / Création Contrat, Paramètres...), logique en **6 flux Power Automate**, 1 **canvas app** (UI), facturation via **Pennylane** (API REST), source **Crypto** (sync Crypto -> SharePoint). À **auditer puis réimplémenter** dans l'intranet (pas de conversion automatique possible).
+
+Les 6 automatisations à reprendre :
+- 🔲 **Facturation dépassement AG** (`REALFacturationPennylane`) : Récap AG N-1 x taux horaire -> brouillon de facture Pennylane. **Candidat n°1** (logique pure + appel API, ni doc-gen ni mail).
+- 🔲 **Facturation gestion courante** (`REALFacturationGestionCourante`) : honoraires de gestion courante sur les copros actives -> Pennylane.
+- 🔲 **Facturation syndic + sinistre** (`REALFacturationSyndic`) : honoraires syndic + frais sinistre (expertise, mesures conservatoires, déplacement, suivi assureur) -> Pennylane.
+- 🔲 **Génération du contrat de syndic / mandat** (`REALGenerationducontratdesyndic`) : depuis un modèle Excel (~70 actions). Dépend de la **génération de documents** (ADR-012, post-MVP).
+- 🔲 **Notification comptable** (`REALNotifComptable`) : dépend de l'**envoi de mail** (Graph / Entra ID, bloqué DSI).
+- 🔲 **Synchro Crypto -> SharePoint** (`REALSynchroCrypto-SharePoint`) : à étudier comme référence pour notre propre extraction Crypto.
+
+**Dépendances transverses** : accès **API Pennylane** (token aujourd'hui dans la liste SharePoint « Paramètres »), données de référence **Tarifs / Produits**, et décision sur la **source de données** (listes SharePoint vs notre Supabase). Le **récap AG** alimente la facturation dépassement ; le **mandat** est lié à la génération de contrat.
+
+---
+
 ## Risques et mitigations (vivant)
 
 | Risque | Statut | Mitigation |
