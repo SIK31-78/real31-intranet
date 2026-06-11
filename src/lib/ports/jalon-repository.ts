@@ -4,6 +4,14 @@
 
 import type { JalonAvecEtat, JalonCode, StatutJalon } from "@/lib/domain/jalons-ag/types";
 
+/** Etat brut d'un jalon (pour les vues agregees, ex Mes evenements). */
+export interface EtatJalon {
+  coproCode: string;
+  agDate: string;
+  type: JalonCode;
+  statut: StatutJalon;
+}
+
 export interface MarquageJalon {
   /** Code copro (referenceCrypto), cle logique dans intranet_jalons. */
   coproCode: string;
@@ -20,4 +28,6 @@ export interface JalonRepository {
   getJalons(coproCode: string, agDateISO: string): Promise<JalonAvecEtat[]>;
   /** Marque un jalon (upsert de l'etat). */
   marquer(input: MarquageJalon): Promise<void>;
+  /** Etats persistes pour un lot de copros (vue agregee). */
+  getEtats(coproCodes: string[]): Promise<EtatJalon[]>;
 }

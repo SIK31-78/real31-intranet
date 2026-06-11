@@ -5,6 +5,9 @@ import { MesEvenementsVue } from "@/components/mes-evenements/mes-evenements-vue
 
 export const metadata: Metadata = { title: "Mes événements - REAL31 Intranet" };
 
+// Lit la vraie data (copros + jalons) : rendu a la demande, jamais prerendu statique.
+export const dynamic = "force-dynamic";
+
 // Mock session : meme ancre que les autres ecrans.
 const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };
 

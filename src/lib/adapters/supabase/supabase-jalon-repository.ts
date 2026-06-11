@@ -1,8 +1,8 @@
 // Adapter Supabase de l'etat des jalons : lit/ecrit public.intranet_jalons
 // (base patron) via service_role. Fusionne avec les cibles calculees (jalons-ag).
 
-import type { JalonRepository, MarquageJalon } from "@/lib/ports/jalon-repository";
-import type { JalonAvecEtat, StatutJalon } from "@/lib/domain/jalons-ag/types";
+import type { EtatJalon, JalonRepository, MarquageJalon } from "@/lib/ports/jalon-repository";
+import type { JalonAvecEtat, JalonCode, StatutJalon } from "@/lib/domain/jalons-ag/types";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -56,5 +56,21 @@ export class SupabaseJalonRepository implements JalonRepository {
       { onConflict: "copropriete_id,ag_date,type" },
     );
     if (error) throw new Error(`Marquage jalon : ${error.message}`);
+  }
+
+  async getEtats(coproCodes: string[]): Promise<EtatJalon[]> {
+    if (coproCodes.length === 0) return [];
+    const supabase = createSupabasePublicClient();
+    const { data } = await supabase
+      .from("intranet_jalons")
+      .select("copropriete_id, ag_date, type, statut")
+      .in("copropriete_id", coproCodes);
+    type Row = { copropriete_id: string; ag_date: string; type: string; statut: string };
+    return ((data as Row[] | null) ?? []).map((r) => ({
+      coproCode: r.copropriete_id,
+      agDate: r.ag_date,
+      type: r.type as JalonCode,
+      statut: r.statut as StatutJalon,
+    }));
   }
 }
