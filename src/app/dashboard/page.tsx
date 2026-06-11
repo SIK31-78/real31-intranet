@@ -8,6 +8,9 @@ import { FluxActivite } from "@/components/dashboard/flux-activite";
 
 export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 
+// Lit la vraie data en mode supabase : rendu a la demande.
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const data = await getDashboard("el");
 

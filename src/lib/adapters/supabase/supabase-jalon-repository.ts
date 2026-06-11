@@ -63,14 +63,23 @@ export class SupabaseJalonRepository implements JalonRepository {
     const supabase = createSupabasePublicClient();
     const { data } = await supabase
       .from("intranet_jalons")
-      .select("copropriete_id, ag_date, type, statut")
+      .select("copropriete_id, ag_date, type, statut, marque_par, marque_at")
       .in("copropriete_id", coproCodes);
-    type Row = { copropriete_id: string; ag_date: string; type: string; statut: string };
+    type Row = {
+      copropriete_id: string;
+      ag_date: string;
+      type: string;
+      statut: string;
+      marque_par: string | null;
+      marque_at: string | null;
+    };
     return ((data as Row[] | null) ?? []).map((r) => ({
       coproCode: r.copropriete_id,
       agDate: r.ag_date,
       type: r.type as JalonCode,
       statut: r.statut as StatutJalon,
+      ...(r.marque_par ? { marquePar: r.marque_par } : {}),
+      ...(r.marque_at ? { marqueAt: r.marque_at } : {}),
     }));
   }
 }

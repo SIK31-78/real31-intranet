@@ -4,12 +4,15 @@
 
 import type { JalonAvecEtat, JalonCode, StatutJalon } from "@/lib/domain/jalons-ag/types";
 
-/** Etat brut d'un jalon (pour les vues agregees, ex Mes evenements). */
+/** Etat brut d'un jalon (pour les vues agregees, ex Mes evenements, dashboard). */
 export interface EtatJalon {
   coproCode: string;
   agDate: string;
   type: JalonCode;
   statut: StatutJalon;
+  marquePar?: string;
+  /** Horodatage ISO du dernier marquage. */
+  marqueAt?: string;
 }
 
 export interface MarquageJalon {
