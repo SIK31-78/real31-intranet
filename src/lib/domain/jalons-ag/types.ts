@@ -1,6 +1,15 @@
 // Domaine des jalons reglementaires d'une AG (ADR-006). Types purs.
 
-export type JalonCode = "ODJ_CS" | "DEVIS" | "CONVOC" | "POUVOIRS" | "TENUE";
+export type JalonCode =
+  | "ODJ_CS"
+  | "DEVIS"
+  | "CONVOC"
+  | "RELANCE_POUVOIRS"
+  | "POUVOIRS"
+  | "TENUE"
+  | "SCAN_CONTRAT"
+  | "NOTIF_PV"
+  | "ARCHIVAGE";
 
 /** Qui fixe la date : le legal (intangible) ou le cabinet (marge REAL31). */
 export type SourceJalon = "legal" | "cabinet";

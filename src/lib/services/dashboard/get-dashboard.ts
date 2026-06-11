@@ -32,8 +32,12 @@ const LIBELLE_COURT: Record<string, string> = {
   ODJ_CS: "ODJ avec le CS",
   DEVIS: "Devis",
   CONVOC: "Convocations",
+  RELANCE_POUVOIRS: "Relance pouvoirs",
   POUVOIRS: "Pouvoirs",
   TENUE: "Tenue de l'AG",
+  SCAN_CONTRAT: "Scan contrat",
+  NOTIF_PV: "Notification PV",
+  ARCHIVAGE: "Archivage",
 };
 
 function aujourdhuiISO(): string {

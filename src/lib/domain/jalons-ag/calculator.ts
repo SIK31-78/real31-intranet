@@ -19,6 +19,11 @@ function moinsJours(isoDate: string, n: number): string {
   d.setUTCDate(d.getUTCDate() - n);
   return toISO(d);
 }
+function plusJours(isoDate: string, n: number): string {
+  const d = parseISO(isoDate);
+  d.setUTCDate(d.getUTCDate() + n);
+  return toISO(d);
+}
 function joursEntre(aISO: string, bISO: string): number {
   return (parseISO(bISO).getTime() - parseISO(aISO).getTime()) / 86_400_000;
 }
@@ -44,11 +49,16 @@ const LIBELLES: Record<JalonCode, string> = {
   ODJ_CS: "ODJ valide avec le Conseil Syndical",
   DEVIS: "Devis et documents techniques rassembles",
   CONVOC: "Convocations envoyees",
+  RELANCE_POUVOIRS: "Relance des pouvoirs / VPC",
   POUVOIRS: "Pouvoirs et votes par correspondance recus",
   TENUE: "Tenue de l'AG",
+  SCAN_CONTRAT: "Scan du contrat + evenement Crypto",
+  NOTIF_PV: "Notification du PV",
+  ARCHIVAGE: "Archivage du dossier AG",
 };
 
-/** Calcule les 5 jalons d'une AG a partir de sa date (ISO "YYYY-MM-DD"). */
+/** Calcule les 9 jalons d'une AG a partir de sa date (ISO "YYYY-MM-DD") :
+ *  6 avant la tenue (ODJ -> tenue) + 3 apres (scan contrat, notif PV, archivage). */
 export function calculerJalons(agISO: string): JalonCalcule[] {
   const convocLegale = dateConvocationLegale(agISO);
   const convocCabinet = moinsJours(agISO, DELAIS_CABINET.CONVOC_JOURS);
@@ -66,8 +76,12 @@ export function calculerJalons(agISO: string): JalonCalcule[] {
       dateCabinet: convocCabinet,
       source: convocCible === convocLegale ? "legal" : "cabinet",
     },
+    { code: "RELANCE_POUVOIRS", libelle: LIBELLES.RELANCE_POUVOIRS, cibleDate: moinsJours(agISO, DELAIS_CABINET.RELANCE_POUVOIRS_JOURS), source: "cabinet" },
     { code: "POUVOIRS", libelle: LIBELLES.POUVOIRS, cibleDate: moinsJours(agISO, DELAIS_CABINET.POUVOIRS_JOURS), source: "cabinet" },
     { code: "TENUE", libelle: LIBELLES.TENUE, cibleDate: agISO, source: "legal" },
+    { code: "SCAN_CONTRAT", libelle: LIBELLES.SCAN_CONTRAT, cibleDate: plusJours(agISO, DELAIS_CABINET.SCAN_CONTRAT_JOURS), source: "cabinet" },
+    { code: "NOTIF_PV", libelle: LIBELLES.NOTIF_PV, cibleDate: plusJours(agISO, DELAIS_CABINET.NOTIF_PV_JOURS), source: "cabinet" },
+    { code: "ARCHIVAGE", libelle: LIBELLES.ARCHIVAGE, cibleDate: plusJours(agISO, DELAIS_CABINET.ARCHIVAGE_JOURS), source: "cabinet" },
   ];
 }
 

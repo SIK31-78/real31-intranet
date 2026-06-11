@@ -21,9 +21,12 @@ function jalon(jalons: ReturnType<typeof calculerJalons>, code: JalonCode) {
 const AG_DATES = ["2026-06-15", "2026-08-20", "2024-03-15", "2027-01-04", "2026-12-28"];
 
 describe("calculerJalons", () => {
-  it("renvoie les 5 jalons attendus", () => {
+  it("renvoie les 9 jalons attendus (pre + post-AG, ordre chronologique)", () => {
     const codes = calculerJalons("2026-06-15").map((j) => j.code);
-    expect(codes).toEqual(["ODJ_CS", "DEVIS", "CONVOC", "POUVOIRS", "TENUE"]);
+    expect(codes).toEqual([
+      "ODJ_CS", "DEVIS", "CONVOC", "RELANCE_POUVOIRS", "POUVOIRS", "TENUE",
+      "SCAN_CONTRAT", "NOTIF_PV", "ARCHIVAGE",
+    ]);
   });
 
   for (const ag of AG_DATES) {
@@ -41,6 +44,16 @@ describe("calculerJalons", () => {
 
       it("POUVOIRS a J-2", () => {
         expect(joursEntre(jalon(j, "POUVOIRS").cibleDate, ag)).toBe(2);
+      });
+
+      it("RELANCE_POUVOIRS a J-8", () => {
+        expect(joursEntre(jalon(j, "RELANCE_POUVOIRS").cibleDate, ag)).toBe(8);
+      });
+
+      it("post-AG : scan contrat J+2, notif PV J+30, archivage J+180", () => {
+        expect(joursEntre(ag, jalon(j, "SCAN_CONTRAT").cibleDate)).toBe(2);
+        expect(joursEntre(ag, jalon(j, "NOTIF_PV").cibleDate)).toBe(30);
+        expect(joursEntre(ag, jalon(j, "ARCHIVAGE").cibleDate)).toBe(180);
       });
 
       it("CONVOC : >= 21 jours francs, jour ouvre, source legale", () => {
