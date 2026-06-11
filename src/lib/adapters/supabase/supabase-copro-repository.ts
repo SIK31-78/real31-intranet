@@ -121,7 +121,13 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
     equipe,
     ...(derniereDate ? { derniereAgDate: derniereDate } : {}),
     ...(prochaineDate
-      ? { prochaineAg: { date: prochaineDate, statut: "planifiee" as const } }
+      ? {
+          prochaineAg: {
+            date: prochaineDate,
+            statut: "planifiee" as const,
+            supervisionId: `${codeDe(row)}__${prochaineDate}`,
+          },
+        }
       : {}),
     ...(derniereCs ? { derniereCsDate: derniereCs } : {}),
     ...(prochaineCs ? { prochaineCsDate: prochaineCs } : {}),

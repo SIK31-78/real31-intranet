@@ -13,9 +13,11 @@ export const metadata: Metadata = {
   title: "Supervision AG - REAL31 Intranet",
 };
 
-// Mock session : meme ancre que les autres ecrans (cf. dashboard, calendrier).
+// Mock session : gestionnaire fixe tant qu'il n'y a pas d'auth.
 const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };
-const AUJOURDHUI_ISO = "2026-05-27";
+
+// Lit la vraie data en mode supabase : rendu a la demande.
+export const dynamic = "force-dynamic";
 
 export default async function SupervisionAgPage({
   params,
@@ -23,6 +25,10 @@ export default async function SupervisionAgPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const aujourdhuiISO =
+    process.env.COPRO_SOURCE === "supabase"
+      ? new Date().toISOString().slice(0, 10)
+      : "2026-05-27";
   const supervision = await getSupervisionAg(id);
   if (!supervision) notFound();
 
@@ -39,7 +45,7 @@ export default async function SupervisionAgPage({
         <SupervisionVue
           supervision={supervision}
           role={role}
-          aujourdhuiISO={AUJOURDHUI_ISO}
+          aujourdhuiISO={aujourdhuiISO}
           onCocher={cocherItemAction.bind(null, id)}
           onCommenter={commenterItemAction.bind(null, id)}
           onConclure={conclureAgAction.bind(null, id)}

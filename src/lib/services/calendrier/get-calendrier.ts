@@ -24,8 +24,9 @@ async function composerEvenementsReels(): Promise<Evenement[]> {
   for (const c of copros) {
     const base = { coproCode: c.code, coproNomCourt: c.nom };
     if (c.prochaineAg) {
+      // id composite CODE__DATE : ouvre directement la supervision de cette AG.
       evs.push({
-        id: `${c.code}-ag-next`,
+        id: `${c.code}__${c.prochaineAg.date}`,
         ...base,
         type: "AG",
         statut: "planifiee",
@@ -44,7 +45,7 @@ async function composerEvenementsReels(): Promise<Evenement[]> {
       });
     }
     if (c.derniereAgDate) {
-      evs.push({ id: `${c.code}-ag-last`, ...base, type: "AG", statut: "tenue", date: c.derniereAgDate });
+      evs.push({ id: `${c.code}__${c.derniereAgDate}`, ...base, type: "AG", statut: "tenue", date: c.derniereAgDate });
     }
     if (c.derniereCsDate) {
       evs.push({ id: `${c.code}-cs-last`, ...base, type: "CS", statut: "tenue", date: c.derniereCsDate });

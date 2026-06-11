@@ -22,6 +22,7 @@ import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
+import { SupabaseSupervisionAgRepository } from "@/lib/adapters/supabase/supabase-supervision-ag-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 
 export type { DbHealth };
@@ -34,9 +35,10 @@ export function getCalendrierProvider(): CalendrierProvider {
   return new MockCalendrierProvider();
 }
 
-// Note : le STORE de mutations vit au module-level dans l'adapter (cf. fichier),
-// donc instancier ici a chaque appel est sans effet sur la persistance.
+// Supervision AG. En reel : etat persiste dans intranet_supervision_items (id
+// composite CODE__DATE). En mock : STORE module-level dans l'adapter.
 export function getSupervisionAgProvider(): SupervisionAgProvider {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseSupervisionAgRepository();
   return new MockSupervisionAgProvider();
 }
 
