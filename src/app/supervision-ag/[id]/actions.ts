@@ -9,7 +9,9 @@ import {
 } from "@/lib/services/supervision-ag/mettre-a-jour-item";
 import { conclureAg } from "@/lib/services/supervision-ag/conclure-ag";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
+import { definirDateEvenement } from "@/lib/services/coproprietes/definir-date-evenement";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { ITEM_CS_PREPA } from "@/lib/domain/supervision-ag-template";
 
 // L'id de supervision est "CODE__DATE" en reel ; en mock c'est un id simple (e1).
 function codeDe(agId: string): string {
@@ -44,6 +46,13 @@ export async function commenterItemAction(
   const g = await autorise(agId);
   if (!g) return;
   await commenterItem(agId, itemId, commentaire, { initiales: g.initiales });
+  // Le "CS preparatoire le" alimente la date de prochain CS de la copro (calendrier).
+  if (itemId === ITEM_CS_PREPA) {
+    const code = codeDe(agId);
+    await definirDateEvenement(code, "cs", commentaire || null, g.id);
+    revalidatePath(`/copropriete/${code}`);
+    revalidatePath("/calendrier");
+  }
   revalidatePath(`/supervision-ag/${agId}`);
 }
 

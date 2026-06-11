@@ -101,3 +101,6 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
 
 /** Id reserve a la ligne de conclusion (visa gestionnaire = dossier archivable). */
 export const ITEM_CONCLUSION = "__conclusion__";
+
+/** Item "CS preparatoire le" : sa date alimente le prochain CS de la copro (calendrier). */
+export const ITEM_CS_PREPA = "avcs.cs-prepa-date";
