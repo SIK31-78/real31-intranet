@@ -255,4 +255,7 @@ export class MockSupervisionAgProvider implements SupervisionAgProvider {
     STORE.set(agId, next);
     return next;
   }
+
+  // Pas de supervision "sans date" en mock : rien a reporter.
+  async reporterSansDate(): Promise<void> {}
 }

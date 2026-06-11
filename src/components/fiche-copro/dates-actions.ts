@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { definirDateEvenement } from "@/lib/services/coproprietes/definir-date-evenement";
+import { reporterSupervisionSansDate } from "@/lib/services/supervision-ag/reporter-sans-date";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 
 // Modifie la prochaine date d'AG / CS (ecrit dans public.Copropriete, partage App A).
@@ -10,6 +11,8 @@ async function definir(coproCode: string, type: "ag" | "cs", dateISO: string): P
   const g = await getGestionnaireCourant();
   if (!g) return;
   await definirDateEvenement(coproCode, type, dateISO || null, g.id);
+  // (Re)fixer une date d'AG reporte la prepa "sans date" sur la supervision datee.
+  if (type === "ag" && dateISO) await reporterSupervisionSansDate(coproCode, dateISO);
   revalidatePath(`/copropriete/${coproCode}`);
 }
 

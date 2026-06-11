@@ -24,4 +24,7 @@ export interface SupervisionAgProvider {
     auditeur: Auditeur,
   ): Promise<SupervisionAg>;
   conclureAg(agId: string, visa: VisaFinal): Promise<SupervisionAg>;
+  /** Reporte la prepa "sans date" (id = CODE seul) sur la supervision datee
+   *  quand une date d'AG est (re)fixee. No-op s'il n'y a rien a reporter. */
+  reporterSansDate(coproCode: string, nouvelleDateISO: string): Promise<void>;
 }

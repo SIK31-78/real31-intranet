@@ -129,6 +129,37 @@ export class SupabaseSupervisionAgRepository implements SupervisionAgProvider {
     if (error) throw new Error(`conclureAg : ${error.message}`);
     return (await this.getSupervision(agId))!;
   }
+
+  async reporterSansDate(coproCode: string, nouvelleDateISO: string): Promise<void> {
+    if (nouvelleDateISO === SENTINEL_SANS_DATE) return;
+    const supabase = createSupabasePublicClient();
+    const { data } = await supabase
+      .from("intranet_supervision_items")
+      .select("item_id, statut, commentaire, marque_par, marque_at")
+      .eq("copropriete_id", coproCode)
+      .eq("ag_date", SENTINEL_SANS_DATE);
+    const rows = (data as EtatRow[] | null) ?? [];
+    if (rows.length === 0) return;
+    const payload = rows.map((r) => ({
+      copropriete_id: coproCode,
+      ag_date: nouvelleDateISO,
+      item_id: r.item_id,
+      statut: r.statut,
+      commentaire: r.commentaire,
+      marque_par: r.marque_par,
+      marque_at: r.marque_at,
+    }));
+    // La prepa "sans date" prime (upsert), puis on supprime les lignes sentinelles.
+    const up = await supabase
+      .from("intranet_supervision_items")
+      .upsert(payload, { onConflict: "copropriete_id,ag_date,item_id" });
+    if (up.error) throw new Error(`reporterSansDate : ${up.error.message}`);
+    await supabase
+      .from("intranet_supervision_items")
+      .delete()
+      .eq("copropriete_id", coproCode)
+      .eq("ag_date", SENTINEL_SANS_DATE);
+  }
 }
 
 function exiger(agId: string): Ref {
