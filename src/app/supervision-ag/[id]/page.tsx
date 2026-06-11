@@ -29,7 +29,7 @@ export default async function SupervisionAgPage({
     process.env.COPRO_SOURCE === "supabase"
       ? new Date().toISOString().slice(0, 10)
       : "2026-05-27";
-  const supervision = await getSupervisionAg(id);
+  const supervision = await getSupervisionAg(id, g.id);
   if (!supervision) notFound();
 
   // MVP : EL est gestionnaire de la copro courante. Permissions UI-only.

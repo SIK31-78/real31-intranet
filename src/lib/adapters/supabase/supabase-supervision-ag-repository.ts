@@ -34,15 +34,13 @@ function dateCourte(iso: string): string {
 }
 
 export class SupabaseSupervisionAgRepository implements SupervisionAgProvider {
-  async getSupervision(agId: string): Promise<SupervisionAg | undefined> {
+  async getSupervision(agId: string, managerId?: string): Promise<SupervisionAg | undefined> {
     const ref = parse(agId);
     if (!ref) return undefined;
     const supabase = createSupabasePublicClient();
-    const { data: copro } = await supabase
-      .from("Copropriete")
-      .select("name")
-      .eq("referenceCrypto", ref.code)
-      .maybeSingle();
+    let q = supabase.from("Copropriete").select("name").eq("referenceCrypto", ref.code);
+    if (managerId) q = q.eq("managerId", managerId); // cloisonnement : hors scope -> undefined
+    const { data: copro } = await q.maybeSingle();
     if (!copro) return undefined;
     const { data } = await supabase
       .from("intranet_supervision_items")

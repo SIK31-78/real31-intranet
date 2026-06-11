@@ -9,7 +9,8 @@ export interface Auditeur {
 }
 
 export interface SupervisionAgProvider {
-  getSupervision(agId: string): Promise<SupervisionAg | undefined>;
+  /** managerId : si fourni, ne renvoie la supervision que si la copro appartient au gestionnaire. */
+  getSupervision(agId: string, managerId?: string): Promise<SupervisionAg | undefined>;
   setStatutItem(
     agId: string,
     itemId: string,
