@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
+import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { SupervisionVue } from "@/components/supervision-ag/supervision-vue";
 import {
@@ -13,9 +14,6 @@ export const metadata: Metadata = {
   title: "Supervision AG - REAL31 Intranet",
 };
 
-// Mock session : gestionnaire fixe tant qu'il n'y a pas d'auth.
-const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };
-
 // Lit la vraie data en mode supabase : rendu a la demande.
 export const dynamic = "force-dynamic";
 
@@ -25,6 +23,8 @@ export default async function SupervisionAgPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const g = await getGestionnaireCourant();
+  if (!g) redirect("/dev-login");
   const aujourdhuiISO =
     process.env.COPRO_SOURCE === "supabase"
       ? new Date().toISOString().slice(0, 10)
@@ -37,7 +37,7 @@ export default async function SupervisionAgPage({
 
   return (
     <AppShell
-      user={GESTIONNAIRE}
+      user={g}
       active="calendrier"
       breadcrumb={`Supervision AG · ${supervision.copro.nomCourt}`}
     >

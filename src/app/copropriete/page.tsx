@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { redirect } from "next/navigation";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
+import { getGestionnaireCourant } from "@/lib/auth/session";
 import { libelleSource } from "@/lib/domain/copropriete";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
@@ -12,14 +14,13 @@ export const metadata: Metadata = { title: "Toutes les copropriétés - REAL31 I
 // Lit la vraie data : rendu a la demande, jamais prerendu statique.
 export const dynamic = "force-dynamic";
 
-// Mock session : meme ancre que les autres ecrans.
-const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };
-
 export default async function CoproprietesPage() {
-  const copros = await getCoproprietes();
+  const g = await getGestionnaireCourant();
+  if (!g) redirect("/dev-login");
+  const copros = await getCoproprietes(g.id);
 
   return (
-    <AppShell user={GESTIONNAIRE} active="copros" breadcrumb="Copropriétés">
+    <AppShell user={g} active="copros" breadcrumb="Copropriétés">
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <div className="mb-5">
           <h1 className="text-[20px] font-medium tracking-tight text-ink">Toutes les copropriétés</h1>

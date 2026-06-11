@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { getDashboard } from "@/lib/services/dashboard/get-dashboard";
+import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
@@ -12,7 +14,9 @@ export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const data = await getDashboard("el");
+  const g = await getGestionnaireCourant();
+  if (!g) redirect("/dev-login");
+  const data = await getDashboard(g);
 
   return (
     <AppShell user={data.gestionnaire} active="dashboard" breadcrumb="Dashboard">

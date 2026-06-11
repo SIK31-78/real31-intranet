@@ -11,14 +11,14 @@ export async function getEvenements(gestionnaireId: string): Promise<Evenement[]
   if (process.env.COPRO_SOURCE !== "supabase") {
     return getCalendrierProvider().getEvenements(gestionnaireId);
   }
-  return composerEvenementsReels();
+  return composerEvenementsReels(gestionnaireId);
 }
 
 // Une copro reelle n'expose pas une liste d'evenements, mais 4 dates cles
 // (prochaine/derniere AG, prochain/dernier CS). On en derive des evenements.
-async function composerEvenementsReels(): Promise<Evenement[]> {
+async function composerEvenementsReels(managerId: string): Promise<Evenement[]> {
   const today = new Date().toISOString().slice(0, 10);
-  const copros = await getCoproRepository().list();
+  const copros = await getCoproRepository().list(managerId);
   const evs: Evenement[] = [];
 
   for (const c of copros) {

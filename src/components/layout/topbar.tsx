@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Search, Bell } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -40,7 +41,13 @@ export function Topbar({ user, breadcrumb }: TopbarProps) {
           <Bell strokeWidth={1.5} className="w-3.5 h-3.5" />
           <span className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-err-500" />
         </button>
-        <Avatar initiales={user.initiales} title={user.nomComplet} />
+        <Link
+          href="/dev-login"
+          title={`${user.nomComplet} - changer de gestionnaire`}
+          className="rounded-full"
+        >
+          <Avatar initiales={user.initiales} title={user.nomComplet} />
+        </Link>
       </div>
     </header>
   );

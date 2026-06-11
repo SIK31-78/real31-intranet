@@ -18,7 +18,8 @@ export async function getFicheCopro(
   gestionnaireId: string,
   aujourdhuiISO: string,
 ): Promise<FicheCopro | null> {
-  const copro = await getCoproRepository().findByCode(code);
+  // gestionnaireId sert aussi de scope de cloisonnement (managerId).
+  const copro = await getCoproRepository().findByCode(code, gestionnaireId);
   if (!copro) return null;
 
   // Donnees eStale : null si la copro n'est pas encore sur eStale -> bloc vide assume.

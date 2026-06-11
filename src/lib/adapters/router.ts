@@ -23,6 +23,9 @@ import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
 import { SupabaseSupervisionAgRepository } from "@/lib/adapters/supabase/supabase-supervision-ag-repository";
+import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
+import { SupabaseGestionnaireRepository } from "@/lib/adapters/supabase/supabase-gestionnaire-repository";
+import { MockGestionnaireRepository } from "@/lib/adapters/mock/mock-gestionnaire-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 
 export type { DbHealth };
@@ -66,6 +69,12 @@ export function getCondoEstaleProvider(): CondoEstaleProvider {
 // evenements + referentiel ; pour l'instant un agregat mocke.
 export function getMesEvenementsProvider(): MesEvenementsProvider {
   return new MockMesEvenementsProvider();
+}
+
+// Gestionnaires (cloisonnement). Source cible : public."User" via les managerId.
+export function getGestionnaireRepository(): GestionnaireRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseGestionnaireRepository();
+  return new MockGestionnaireRepository();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).

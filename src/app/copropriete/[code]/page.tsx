@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
+import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
 
@@ -8,22 +9,24 @@ export const metadata: Metadata = {
   title: "Fiche copropriété - REAL31 Intranet",
 };
 
-// Mock session : meme ancre que les autres ecrans (cf. dashboard, calendrier, supervision).
-const GESTIONNAIRE = { id: "el", nomComplet: "Élise Lambert", initiales: "EL" };
-const AUJOURDHUI_ISO = "2026-05-27";
-
 export default async function CoproprietePage({
   params,
 }: {
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
-  const fiche = await getFicheCopro(code, GESTIONNAIRE.id, AUJOURDHUI_ISO);
+  const g = await getGestionnaireCourant();
+  if (!g) redirect("/dev-login");
+  const aujourdhuiISO =
+    process.env.COPRO_SOURCE === "supabase"
+      ? new Date().toISOString().slice(0, 10)
+      : "2026-05-27";
+  const fiche = await getFicheCopro(code, g.id, aujourdhuiISO);
   if (!fiche) notFound();
 
   return (
     <AppShell
-      user={GESTIONNAIRE}
+      user={g}
       active="copros"
       breadcrumb={`Copropriétés · ${fiche.copro.code}`}
     >

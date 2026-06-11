@@ -11,6 +11,7 @@ import type {
   MesEvenements,
 } from "@/lib/domain/mes-evenements";
 import type { Severite } from "@/lib/domain/commun";
+import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import {
   getCoproRepository,
@@ -19,11 +20,11 @@ import {
 } from "@/lib/adapters/router";
 import { formatDateLongue } from "@/lib/format-date";
 
-export async function getMesEvenements(gestionnaireId: string): Promise<MesEvenements> {
+export async function getMesEvenements(g: Gestionnaire): Promise<MesEvenements> {
   if (process.env.COPRO_SOURCE !== "supabase") {
-    return getMesEvenementsProvider().getMesEvenements(gestionnaireId);
+    return getMesEvenementsProvider().getMesEvenements(g.id);
   }
-  return composerDepuisVraieData();
+  return composerDepuisVraieData(g);
 }
 
 const HORIZON_JOURS = 90;
@@ -59,9 +60,9 @@ function badgeUrgence(severite: Severite): BadgeUrgence {
   return { texte: "À VENIR", ton: "neutral" };
 }
 
-async function composerDepuisVraieData(): Promise<MesEvenements> {
+async function composerDepuisVraieData(g: Gestionnaire): Promise<MesEvenements> {
   const today = aujourdhuiISO();
-  const copros = await getCoproRepository().list();
+  const copros = await getCoproRepository().list(g.id);
 
   // AG a venir : prochaine AG dans l'horizon de 90 jours, triees par date.
   const avenir = copros
@@ -133,7 +134,7 @@ async function composerDepuisVraieData(): Promise<MesEvenements> {
     }));
 
   return {
-    gestionnaire: { nomComplet: "Élise Lambert", initiales: "EL" },
+    gestionnaire: { nomComplet: g.nomComplet, initiales: g.initiales },
     nbCopros: copros.length,
     dateCourante: formatDateLongue(today),
     actionsCeMois: etats.filter((e) => e.statut === "accompli").length,

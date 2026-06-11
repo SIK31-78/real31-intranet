@@ -139,34 +139,32 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
 }
 
 export class SupabaseCoproRepository implements CoproRepository {
-  async list(): Promise<Copropriete[]> {
+  async list(managerId?: string): Promise<Copropriete[]> {
     const supabase = createSupabasePublicClient();
-    const { data, error } = await supabase
+    let q = supabase
       .from("Copropriete")
       .select(COPRO_COLS)
       .order("name", { ascending: true })
       .limit(500);
+    if (managerId) q = q.eq("managerId", managerId); // cloisonnement gestionnaire
+    const { data, error } = await q;
     if (error) throw new Error(`Lecture public.Copropriete : ${error.message}`);
     // Pas de resolution d'equipe en liste (la vue liste ne l'affiche pas).
     return (data as unknown as CoproRow[]).map((row) => toDomaine(row, []));
   }
 
-  async findByCode(code: string): Promise<Copropriete | null> {
+  async findByCode(code: string, managerId?: string): Promise<Copropriete | null> {
     const supabase = createSupabasePublicClient();
 
     // Le code affiche correspond a referenceCrypto, ou referenceEstale pour une copro eStale.
-    let { data } = await supabase
-      .from("Copropriete")
-      .select(COPRO_COLS)
-      .eq("referenceCrypto", code)
-      .maybeSingle();
-    if (!data) {
-      ({ data } = await supabase
-        .from("Copropriete")
-        .select(COPRO_COLS)
-        .eq("referenceEstale", code)
-        .maybeSingle());
-    }
+    // Le filtre managerId cloisonne : une copro hors scope renvoie null (-> notFound).
+    const requete = (colonne: "referenceCrypto" | "referenceEstale") => {
+      let q = supabase.from("Copropriete").select(COPRO_COLS).eq(colonne, code);
+      if (managerId) q = q.eq("managerId", managerId);
+      return q.maybeSingle();
+    };
+    let { data } = await requete("referenceCrypto");
+    if (!data) ({ data } = await requete("referenceEstale"));
     if (!data) return null;
 
     const row = data as unknown as CoproRow;

@@ -4,6 +4,6 @@
 import type { Copropriete } from "@/lib/domain/copropriete";
 import { getCoproRepository } from "@/lib/adapters/router";
 
-export async function getCoproprietes(): Promise<Copropriete[]> {
-  return getCoproRepository().list();
+export async function getCoproprietes(managerId?: string): Promise<Copropriete[]> {
+  return getCoproRepository().list(managerId);
 }

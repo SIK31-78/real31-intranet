@@ -10,6 +10,7 @@ import type {
   ItemAttention,
 } from "@/lib/domain/dashboard";
 import type { Severite, Ton } from "@/lib/domain/commun";
+import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { calculerJalons, compteARebours } from "@/lib/domain/jalons-ag/calculator";
 import {
   getCoproRepository,
@@ -18,11 +19,11 @@ import {
 } from "@/lib/adapters/router";
 import { formatDateLongue, formatAuditeRelatif } from "@/lib/format-date";
 
-export async function getDashboard(gestionnaireId: string): Promise<DashboardData> {
+export async function getDashboard(g: Gestionnaire): Promise<DashboardData> {
   if (process.env.COPRO_SOURCE !== "supabase") {
-    return getDashboardProvider().getDashboard(gestionnaireId);
+    return getDashboardProvider().getDashboard(g.id);
   }
-  return composerDepuisVraieData();
+  return composerDepuisVraieData(g);
 }
 
 const HORIZON_JOURS = 90;
@@ -51,9 +52,9 @@ function rangSeverite(s: Severite): number {
   return s === "late" ? 0 : s === "soon" ? 1 : 2;
 }
 
-async function composerDepuisVraieData(): Promise<DashboardData> {
+async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> {
   const today = aujourdhuiISO();
-  const copros = await getCoproRepository().list();
+  const copros = await getCoproRepository().list(g.id);
 
   const avenir = copros.filter((c) => {
     const d = c.prochaineAg?.date;
@@ -155,7 +156,7 @@ async function composerDepuisVraieData(): Promise<DashboardData> {
     }));
 
   return {
-    gestionnaire: { id: "el", nomComplet: "Élise Lambert", initiales: "EL" },
+    gestionnaire: g,
     dateCourante: formatDateLongue(today),
     compteurs,
     attention: attention.slice(0, 10),
