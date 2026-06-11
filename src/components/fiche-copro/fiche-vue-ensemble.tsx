@@ -26,6 +26,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import { BlocJalons } from "./bloc-jalons";
+import { EditeurDate } from "./editeur-date";
 
 const ROLE_LABEL: Record<RoleEquipe, string> = {
   gestionnaire: "Gestionnaire",
@@ -52,11 +53,13 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
       <div className="flex flex-col gap-5">
         <BlocAg
+          coproCode={fiche.copro.code}
           derniere={fiche.derniereAg}
           prochaine={fiche.copro.prochaineAg}
           conformite={fiche.conformite}
         />
         <BlocCs
+          coproCode={fiche.copro.code}
           derniereCs={fiche.copro.derniereCsDate}
           prochaineCs={fiche.copro.prochaineCsDate}
         />
@@ -85,10 +88,12 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
 // --- Bloc AG (derniere tenue + prochaine) ---------------------------------
 
 function BlocAg({
+  coproCode,
   derniere,
   prochaine,
   conformite,
 }: {
+  coproCode: string;
   derniere?: AgPassee;
   prochaine?: ProchaineAg;
   conformite: ItemConformite[];
@@ -133,9 +138,9 @@ function BlocAg({
 
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochaine AG</p>
-          {prochaine ? (
+          <EditeurDate coproCode={coproCode} type="ag" dateISO={prochaine?.date} />
+          {prochaine && (
             <>
-              <p className="text-[16px] font-medium text-ink">{formatDateLongue(prochaine.date)}</p>
               <p className="mt-1.5 text-[12px] text-ink-3">{STATUT_AG_LABEL[prochaine.statut]}</p>
               {prochaine.alerte && (
                 <p className="mt-1 text-[12px] text-warn-700 flex items-center gap-1">
@@ -153,8 +158,6 @@ function BlocAg({
                 </Link>
               )}
             </>
-          ) : (
-            <p className="text-[13px] text-ink-3">Aucune AG planifiée.</p>
           )}
         </div>
       </div>
@@ -165,14 +168,14 @@ function BlocAg({
 // --- Conseils syndicaux ---------------------------------------------------
 
 function BlocCs({
+  coproCode,
   derniereCs,
   prochaineCs,
 }: {
+  coproCode: string;
   derniereCs?: string;
   prochaineCs?: string;
 }) {
-  // Pas de bloc si aucune date de CS connue.
-  if (!derniereCs && !prochaineCs) return null;
   return (
     <Card>
       <CardHeader>
@@ -190,9 +193,7 @@ function BlocCs({
         </div>
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochain CS</p>
-          <p className="text-[16px] font-medium text-ink">
-            {prochaineCs ? formatDateLongue(prochaineCs) : "-"}
-          </p>
+          <EditeurDate coproCode={coproCode} type="cs" dateISO={prochaineCs} />
         </div>
       </div>
     </Card>

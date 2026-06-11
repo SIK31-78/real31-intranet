@@ -172,6 +172,24 @@ export class SupabaseCoproRepository implements CoproRepository {
     return toDomaine(row, equipe);
   }
 
+  async setDateEvenement(
+    coproCode: string,
+    type: "ag" | "cs",
+    dateISO: string | null,
+    managerId: string,
+  ): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const colonne = type === "ag" ? "nextAGDate" : "nextCSDate";
+    // Ecriture dans la source partagee (App A). Scope managerId : seulement ses copros.
+    // updatedAt rafraichi pour rester coherent avec l'App A (qui s'appuie dessus).
+    const { error } = await supabase
+      .from("Copropriete")
+      .update({ [colonne]: dateISO, updatedAt: new Date().toISOString() })
+      .or(`referenceCrypto.eq.${coproCode},referenceEstale.eq.${coproCode}`)
+      .eq("managerId", managerId);
+    if (error) throw new Error(`MAJ date ${type} : ${error.message}`);
+  }
+
   /** Resout l'equipe a partir des FK manager/assistant/accountant vers public."User".
    *  Le role vient du champ d'origine (et non de User.role, dont l'enum n'est pas mappe). */
   private async resoudreEquipe(
