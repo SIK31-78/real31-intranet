@@ -23,9 +23,13 @@ type EtatRow = {
 };
 type Ref = { code: string; agDate: string };
 
+// Supervision sans AG planifiee : id = CODE seul, stocke sous une date sentinelle
+// (evite un schema nullable). dateAgCible affichee = "Date non definie".
+const SENTINEL_SANS_DATE = "0001-01-01";
+
 function parse(agId: string): Ref | null {
   const i = agId.indexOf("__");
-  if (i < 0) return null;
+  if (i < 0) return agId ? { code: agId, agDate: SENTINEL_SANS_DATE } : null;
   return { code: agId.slice(0, i), agDate: agId.slice(i + 2) };
 }
 function dateCourte(iso: string): string {
@@ -161,7 +165,7 @@ function construire(
   const sup: SupervisionAg = {
     id: agId,
     copro: { code: ref.code, nomCourt: nom },
-    dateAgCible: dateCourte(ref.agDate),
+    dateAgCible: ref.agDate === SENTINEL_SANS_DATE ? "Date non définie" : dateCourte(ref.agDate),
     statut,
     sections,
   };

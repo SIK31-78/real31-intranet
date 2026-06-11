@@ -106,9 +106,18 @@ function BlocAg({
           <Flag strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
           Assemblées générales
         </CardTitle>
-        {agAJour?.etat === "ok" && (
-          <Badge ton="ok" dot>À jour</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {agAJour?.etat === "ok" && <Badge ton="ok" dot>À jour</Badge>}
+          {!prochaine && (
+            <Link
+              href={`/supervision-ag/${coproCode}`}
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors"
+            >
+              Supervision AG
+              <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
+            </Link>
+          )}
+        </div>
       </CardHeader>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
