@@ -182,7 +182,6 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         champ("comptes.compteurs-eau", "Compteurs d'eau collectes", "supabase", e),
         champ("comptes.repartiteurs", "Repartiteurs de frais de chauffage collectes", "supabase", e),
         champ("comptes.fonds-travaux", "Fonds travaux (montant fin d'exercice)", "estale", { editable: true, type: "montant", valeur: valeurFonds }),
-        champ("comptes.anciens-proprios", "Comptes debiteurs / crediteurs d'anciens proprietaires", "estale", e),
       ],
     },
     {
