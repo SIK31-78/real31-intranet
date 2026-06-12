@@ -1,17 +1,23 @@
 // Domaine de l'ODJ (document de preparation d'AG issu du CS, modele REAL31).
 // Chaque champ porte sa SOURCE : eStale (primaire, a venir), supabase (referentiel
-// Crypto + tables natives), jalon (calcule), ou manuel. Objectif : basculer vers
-// eStale au branchement sans refondre l'UI (cf. memory eStale = source primaire).
+// Crypto + tables natives), jalon (calcule depuis la date d'AG), calcul (derive
+// d'autres champs), ou manuel. Objectif : basculer vers eStale au branchement
+// sans refondre l'UI (cf. memory eStale = source primaire).
 
-export type SourceDonnee = "estale" | "supabase" | "jalon" | "manuel";
+export type SourceDonnee = "estale" | "supabase" | "jalon" | "calcul" | "manuel";
+
+/** Type de saisie d'un champ : texte libre, montant en euros, pourcentage,
+ *  ou booleen (rendu en bouton on/off). */
+export type TypeChamp = "texte" | "montant" | "pourcentage" | "booleen";
 
 export interface ChampOdj {
   /** Slug stable, cle de persistance dans intranet_odj_champs (ex "lieu"). */
   id: string;
   libelle: string;
-  /** Valeur si on a su l'auto-remplir ; sinon vide (a saisir / a venir d'eStale). */
+  /** Valeur BRUTE si connue (saisie ou auto) ; l'affichage formate via formatChampValeur. */
   valeur?: string;
   source: SourceDonnee;
+  type?: TypeChamp;
   /** Alerte au gestionnaire quand une donnee attendue manque (ex. date de CS). */
   alerte?: string;
   /** Saisissable par le gestionnaire (la saisie prime sur la valeur auto). */
@@ -21,7 +27,6 @@ export interface ChampOdj {
 export interface SectionOdj {
   id: string;
   titre: string;
-  /** Champs surtout sources eStale/compta : vides pour l'instant (saisie), a brancher. */
   champs: ChampOdj[];
 }
 
@@ -30,7 +35,7 @@ export interface PointLegal {
   titre: string;
   /** Texte legal pre-ecrit (le gain : ne plus le retaper). */
   texte: string;
-  /** Inclus par defaut ; le gestionnaire retire si non applicable. */
+  /** Inclus dans le document ; certains points sont retires d'office (ex. ALUR). */
   applicable: boolean;
   /** Condition d'applicabilite, affichee au gestionnaire. */
   condition?: string;
@@ -43,6 +48,51 @@ export interface Odj {
   sections: SectionOdj[];
   pointsLegaux: PointLegal[];
 }
+
+// --- Montants ---------------------------------------------------------------
+
+/** Parse un montant saisi ("4500", "4 500,50", "4500.5") ; null si illisible. */
+export function parseMontant(brut: string | undefined): number | null {
+  if (!brut) return null;
+  const normalise = brut.replace(/[\s  €]/g, "").replace(",", ".");
+  const n = Number(normalise);
+  return Number.isFinite(n) ? n : null;
+}
+
+const EUROS = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+
+/** Formate en euros francais : 4500 -> "4 500,00 EUR" (espace insecable). */
+export function formatEuros(n: number): string {
+  return EUROS.format(n);
+}
+
+/** Valeur affichable d'un champ selon son type (montant / pourcentage / booleen). */
+export function formatChampValeur(champ: ChampOdj): string | undefined {
+  if (!champ.valeur) return undefined;
+  if (champ.type === "montant") {
+    const n = parseMontant(champ.valeur);
+    return n === null ? champ.valeur : formatEuros(n);
+  }
+  if (champ.type === "pourcentage") {
+    const n = parseMontant(champ.valeur);
+    return n === null ? champ.valeur : `${n.toLocaleString("fr-FR")} %`;
+  }
+  if (champ.type === "booleen") return champ.valeur === "oui" ? "Oui" : "Non";
+  return champ.valeur;
+}
+
+/** Ecart budgetaire : budget - depenses. Positif = trop-percu (rendu aux copros),
+ *  negatif = depassement (cf. modele ODJ / exemple 31 Foch). */
+export function libelleEcartBudget(budgetBrut?: string, depensesBrut?: string): string | undefined {
+  const budget = parseMontant(budgetBrut);
+  const depenses = parseMontant(depensesBrut);
+  if (budget === null || depenses === null) return undefined;
+  const ecart = budget - depenses;
+  if (ecart >= 0) return `Trop-perçu de ${formatEuros(ecart)}`;
+  return `Dépassement de ${formatEuros(-ecart)}`;
+}
+
+// --- Points legaux ----------------------------------------------------------
 
 /** Seuils legaux PPT par nombre de lots principaux (art. 171 loi 2021-1104). */
 function datePpt(lots: number): string {
@@ -61,15 +111,18 @@ function dateDpe(lots: number): string {
 /**
  * Catalogue des points legaux/recurrents a porter a l'ODJ, avec leur texte pre-ecrit.
  * `lots` sert a injecter la bonne echeance PPT/DPE. Les points conditionnels
- * (IRVE, velo, AG hybride) sont inclus par defaut avec leur condition rappelee :
- * le gestionnaire les retire si la copro n'est pas concernee.
+ * (IRVE, velo, AG hybride) sont inclus par defaut avec leur condition rappelee ;
+ * le fonds travaux ALUR est RETIRE d'office (pas obligatoire, restaurable si le
+ * CS le souhaite). Le renouvellement du CS et le contrat de syndic sont des
+ * CHAMPS (pre-remplis / calcules), pas des points statiques.
  */
 export function pointsLegaux(lots: number): PointLegal[] {
   return [
     {
       id: "fonds-travaux-alur",
       titre: "Fonds travaux (loi ALUR)",
-      applicable: true,
+      applicable: false,
+      condition: "Retiré d'office (proposition non obligatoire) : restaurer si le CS souhaite modifier le montant.",
       texte:
         "Depuis le 1er janvier 2017, conformement a la loi ALUR, un fonds travaux est appele. Il sera propose a la prochaine AG d'en modifier eventuellement le montant (aujourd'hui = 5% du budget annuel).",
     },
@@ -79,13 +132,6 @@ export function pointsLegaux(lots: number): PointLegal[] {
       applicable: true,
       texte:
         "Pour toute personne adherant au service de recommande electronique, un avoir annuel sur les frais postaux est consenti par REAL 31 : 10 EUR de moins pour la convocation en LRE (mail recommande), 3 EUR de moins pour l'envoi des appels de fonds par mail.",
-    },
-    {
-      id: "renouvellement-cs",
-      titre: "Renouvellement du Conseil Syndical",
-      applicable: true,
-      texte:
-        "Recueillir les membres actuels du CS et les candidatures (membres se representant + nouvelles candidatures) en vue du renouvellement.",
     },
     {
       id: "ppt",

@@ -2,9 +2,14 @@
 // imprimable et l'apercu live de la page d'edition. Composant pur (props only).
 
 import type { ChampOdj, Odj } from "@/lib/domain/odj";
+import { formatChampValeur } from "@/lib/domain/odj";
 
+function champDe(champs: ChampOdj[], id: string): ChampOdj | undefined {
+  return champs.find((c) => c.id === id);
+}
 function valeurDe(champs: ChampOdj[], id: string): string | undefined {
-  return champs.find((c) => c.id === id)?.valeur;
+  const c = champDe(champs, id);
+  return c ? formatChampValeur(c) : undefined;
 }
 
 function Valeur({ v }: { v?: string }) {
@@ -22,6 +27,8 @@ function LigneDoc({ libelle, valeur }: { libelle: string; valeur?: string }) {
 
 export function DocumentOdj({ odj }: { odj: Odj }) {
   const points = odj.pointsLegaux.filter((p) => p.applicable);
+  // Modalite derivee du bouton visio : presentiel par defaut.
+  const visio = champDe(odj.enTete, "visio")?.valeur === "oui";
 
   return (
     <>
@@ -37,10 +44,13 @@ export function DocumentOdj({ odj }: { odj: Odj }) {
 
       <section className="mb-6">
         <LigneDoc libelle="Conseil syndical du" valeur={valeurDe(odj.enTete, "date-cs")} />
-        <LigneDoc libelle="En présence de" valeur={valeurDe(odj.enTete, "presents")} />
+        <LigneDoc libelle="Pour le syndic" valeur={valeurDe(odj.enTete, "presents-syndic")} />
+        <LigneDoc libelle="Pour le conseil syndical" valeur={valeurDe(odj.enTete, "presents-cs")} />
         <LigneDoc libelle="L'assemblée générale est fixée au" valeur={valeurDe(odj.enTete, "date-ag")} />
         <LigneDoc libelle="Lieu de l'AG" valeur={valeurDe(odj.enTete, "lieu")} />
-        <LigneDoc libelle="Modalité" valeur={valeurDe(odj.enTete, "modalite")} />
+        <p className="text-[12.5px] leading-relaxed">
+          Modalité : <span className="font-medium">{visio ? "Présentiel et visio (hybride)" : "Présentiel"}</span>
+        </p>
         <LigneDoc
           libelle="Les copropriétaires pourront ajouter des points à l'ordre du jour jusqu'au"
           valeur={valeurDe(odj.enTete, "limite-odj")}
@@ -55,7 +65,7 @@ export function DocumentOdj({ odj }: { odj: Odj }) {
         <section key={s.id} className="mb-6 break-inside-avoid-page">
           <h2 className="text-[14px] font-semibold border-b border-neutral-300 pb-1 mb-2">{s.titre}</h2>
           {s.champs.map((c) => (
-            <LigneDoc key={c.id} libelle={c.libelle} valeur={c.valeur} />
+            <LigneDoc key={c.id} libelle={c.libelle} valeur={formatChampValeur(c)} />
           ))}
         </section>
       ))}

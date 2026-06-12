@@ -21,11 +21,13 @@ export async function retirerPointOdj(
   retire: boolean,
   par: string,
 ): Promise<void> {
+  // Toujours explicite ("retire" / "inclus") : certains points sont retires
+  // d'office dans le catalogue (ex. fonds ALUR), restaurer doit primer le defaut.
   return getOdjRepository().setChamp(
     coproCode,
     agDateISO,
     `${PREFIXE_POINT}${pointId}`,
-    retire ? "retire" : null,
+    retire ? "retire" : "inclus",
     par,
   );
 }

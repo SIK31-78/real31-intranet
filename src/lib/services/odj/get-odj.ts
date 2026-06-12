@@ -1,10 +1,15 @@
 // Compose l'ODJ pour une AG (id = CODE ou CODE__DATE) : squelette auto (referentiel
 // Supabase + jalons + eStale) puis superposition de l'ETAT saisi (intranet_odj_champs :
-// la saisie du gestionnaire prime sur la valeur auto ; points legaux retires).
-// Scope managerId.
+// la saisie du gestionnaire prime sur la valeur auto ; points legaux retires/restaures),
+// puis champs CALCULES (ecart budget, proposition contrat). Scope managerId.
 
 import type { ChampOdj, Odj, SectionOdj, SourceDonnee } from "@/lib/domain/odj";
-import { pointsLegaux } from "@/lib/domain/odj";
+import {
+  pointsLegaux,
+  libelleEcartBudget,
+  parseMontant,
+  formatEuros,
+} from "@/lib/domain/odj";
 import {
   getCoproRepository,
   getCondoEstaleProvider,
@@ -33,7 +38,12 @@ function champ(
   id: string,
   libelle: string,
   source: SourceDonnee,
-  options?: { valeur?: string; alerte?: string; editable?: boolean },
+  options?: {
+    valeur?: string;
+    alerte?: string;
+    editable?: boolean;
+    type?: ChampOdj["type"];
+  },
 ): ChampOdj {
   return {
     id,
@@ -42,6 +52,7 @@ function champ(
     ...(options?.valeur ? { valeur: options.valeur } : {}),
     ...(options?.alerte ? { alerte: options.alerte } : {}),
     ...(options?.editable !== undefined ? { editable: options.editable } : {}),
+    ...(options?.type ? { type: options.type } : {}),
   };
 }
 
@@ -55,8 +66,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     .filter(Boolean)
     .join(", ");
 
-  // Mise sous pli = jalon CONVOC (J-30 cabinet : 1 mois avant l'AG, pas tributaire
-  // des delais postaux). Date limite d'ajout de points = 10 jours avant la mise sous pli.
+  // Mise sous pli = jalon CONVOC (J-30 cabinet). Limite d'ajout de points = J-40.
   const convocISO = dateAg
     ? calculerJalons(dateAg).find((j) => j.code === "CONVOC")?.cibleDate
     : undefined;
@@ -64,16 +74,16 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     ? moinsJours(convocISO, DELAIS_CABINET.AJOUT_ODJ_AVANT_CONVOC_JOURS)
     : undefined;
 
-  // Presents au CS : d'office gestionnaire + assistant (referentiel) + les membres
-  // du conseil syndical (eStale). Le jour de la reunion, on retire les absents.
+  // Presents : une ligne syndic (gestionnaire + assistant, referentiel) et une
+  // ligne conseil syndical (eStale). Le jour du CS, on retire les absents.
   const estale = await getCondoEstaleProvider().getDonneesCopro(code);
   const syndic = copro.equipe
     .filter((m) => m.role === "gestionnaire" || m.role === "assistant")
-    .map((m) => `${m.nomComplet} (syndic)`);
-  const membresCs = (estale?.conseilSyndical ?? []).map(
-    (m) => `${m.nomComplet}${m.role === "president" ? " (president CS)" : " (CS)"}`,
-  );
-  const presents = [...syndic, ...membresCs].join(", ");
+    .map((m) => m.nomComplet)
+    .join(", ");
+  const membresCs = (estale?.conseilSyndical ?? [])
+    .map((m) => `${m.nomComplet}${m.role === "president" ? " (président)" : ""}`)
+    .join(", ");
 
   const enTete: ChampOdj[] = [
     champ("adresse", "Adresse", "supabase", { valeur: adresse }),
@@ -85,14 +95,17 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         : "Date de CS non renseignee : a planifier (fiche copro ou supervision).",
     }),
     champ("lieu", "Lieu de l'AG", "manuel", { editable: true }),
-    champ("modalite", "Modalite (presentiel / hybride)", "manuel", { editable: true }),
-    champ("presents", "Presents (syndic + conseil syndical)", "estale", {
-      valeur: presents || undefined,
+    champ("visio", "Visio (AG hybride)", "manuel", { editable: true, type: "booleen" }),
+    champ("presents-syndic", "Pour le syndic", "supabase", {
+      valeur: syndic || undefined,
       editable: true,
-      alerte:
-        membresCs.length === 0
-          ? "Membres du CS a recuperer depuis eStale (retirer les absents le jour du CS)."
-          : undefined,
+    }),
+    champ("presents-cs", "Pour le conseil syndical", "estale", {
+      valeur: membresCs || undefined,
+      editable: true,
+      alerte: membresCs
+        ? undefined
+        : "Membres du CS a recuperer depuis eStale (retirer les absents le jour du CS).",
     }),
     champ("limite-odj", "Date limite d'ajout de points a l'ODJ", limiteOdjISO ? "jalon" : "manuel", {
       valeur: dateCourte(limiteOdjISO),
@@ -103,21 +116,22 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   ];
 
   const e = { editable: true };
+  const m = { editable: true, type: "montant" as const };
   const sections: SectionOdj[] = [
     {
       id: "verif-comptes",
       titre: "Verification des comptes",
       champs: [
-        champ("comptes.depenses-courantes", "Total des depenses courantes", "estale", e),
-        champ("comptes.budget", "Budget previsionnel", "estale", e),
-        champ("comptes.ecart-budget", "Trop-percu / depassement budget courant", "estale", e),
+        champ("comptes.depenses-courantes", "Total des depenses courantes", "estale", m),
+        champ("comptes.budget", "Budget previsionnel", "estale", m),
+        champ("comptes.ecart-budget", "Trop-percu / depassement budget courant", "calcul"),
         champ("comptes.eau", "Consommation eau (volume + prix au m3, vs N-1)", "estale", e),
         champ("comptes.travaux-votes", "Depenses travaux votees (budget vote / constate, cloture)", "estale", e),
         champ("comptes.debiteurs", "Coproprietaire(s) debiteur(s)", "estale", e),
         champ("comptes.compteurs-eau", "Compteurs d'eau collectes", "supabase", e),
         champ("comptes.repartiteurs", "Repartiteurs de frais de chauffage collectes", "supabase", e),
-        champ("comptes.fonds-travaux", "Fonds travaux (montant fin d'exercice, interets)", "estale", e),
-        champ("comptes.solde-sinistre", "Solde du compte sinistre", "estale", e),
+        champ("comptes.fonds-travaux", "Fonds travaux (montant fin d'exercice, interets)", "estale", m),
+        champ("comptes.solde-sinistre", "Solde du compte sinistre", "estale", m),
         champ("comptes.anciens-proprios", "Comptes debiteurs / crediteurs d'anciens proprietaires", "estale", e),
         champ("comptes.affectations", "Affectations entretien / reparations (recup / loc)", "estale", e),
       ],
@@ -141,13 +155,23 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       titre: "Points a porter a l'ordre du jour",
       champs: [
         champ("points.rapport-cs", "Rapport moral du CS", "manuel", e),
-        champ("points.budget-n1", "Budget N+1 propose", "estale", e),
-        champ("points.contrat-syndic", "Contrat de syndic (en cours / proposition)", "supabase", e),
+        champ("points.budget-n1", "Budget N+1 propose", "estale", m),
+        champ("points.renouvellement-cs", "Renouvellement du CS - candidats (retirer ceux qui ne se representent pas)", "estale", {
+          editable: true,
+          valeur: membresCs || undefined,
+        }),
+        champ("points.contrat-syndic-actuel", "Contrat de syndic actuel (TTC)", "estale", m),
+        champ("points.contrat-syndic-augmentation", "Augmentation proposee (%)", "manuel", {
+          editable: true,
+          type: "pourcentage",
+        }),
+        champ("points.contrat-syndic-proposition", "Proposition de nouveau contrat (TTC)", "calcul"),
       ],
     },
   ];
 
-  // Superposition de l'etat saisi : la saisie prime sur l'auto ; points retires.
+  // Superposition de l'etat saisi : la saisie prime sur l'auto ; points retires
+  // ("retire") ou restaures ("inclus"), sinon le defaut du catalogue.
   const etat = await getOdjRepository().getEtat(code, dateAg ?? ODJ_SANS_DATE);
   const saisies = new Map(etat.map((s) => [s.champId, s.valeur]));
   const appliquer = (c: ChampOdj): ChampOdj => {
@@ -158,15 +182,45 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     return corrige;
   };
 
-  const points = pointsLegaux(copro.lotsPrincipaux).map((p) =>
-    saisies.get(`${PREFIXE_POINT}${p.id}`) === "retire" ? { ...p, applicable: false } : p,
+  const enTeteFinal = enTete.map(appliquer);
+  const sectionsFinales = sections.map((s) => ({ ...s, champs: s.champs.map(appliquer) }));
+
+  // Champs calcules (apres superposition, pour partir des valeurs effectives).
+  const valeurDe = (id: string): string | undefined =>
+    sectionsFinales.flatMap((s) => s.champs).find((c) => c.id === id)?.valeur;
+  const poser = (id: string, valeur: string | undefined) => {
+    for (const s of sectionsFinales) {
+      const c = s.champs.find((x) => x.id === id);
+      if (c && valeur) c.valeur = valeur;
+    }
+  };
+
+  poser(
+    "comptes.ecart-budget",
+    libelleEcartBudget(valeurDe("comptes.budget"), valeurDe("comptes.depenses-courantes")),
   );
+
+  const actuel = parseMontant(valeurDe("points.contrat-syndic-actuel"));
+  const pct = parseMontant(valeurDe("points.contrat-syndic-augmentation"));
+  if (actuel !== null && pct !== null) {
+    poser(
+      "points.contrat-syndic-proposition",
+      `${formatEuros(actuel * (1 + pct / 100))} (+${pct.toLocaleString("fr-FR")} %)`,
+    );
+  }
+
+  const points = pointsLegaux(copro.lotsPrincipaux).map((p) => {
+    const v = saisies.get(`${PREFIXE_POINT}${p.id}`);
+    if (v === "retire") return { ...p, applicable: false };
+    if (v === "inclus") return { ...p, applicable: true };
+    return p;
+  });
 
   return {
     copro: { code: copro.code, nom: copro.nom, adresse },
     ...(dateAg ? { dateAg: dateCourte(dateAg) } : {}),
-    enTete: enTete.map(appliquer),
-    sections: sections.map((s) => ({ ...s, champs: s.champs.map(appliquer) })),
+    enTete: enTeteFinal,
+    sections: sectionsFinales,
     pointsLegaux: points,
   };
 }
