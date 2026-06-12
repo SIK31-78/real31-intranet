@@ -139,8 +139,14 @@ export interface DonneesEstaleCopro {
   budgetPrevisionnel?: number;
   /** Total des depenses courantes de l'exercice (debit des comptes de charges), en euros. */
   depensesCourantes?: number;
+  /** Depenses travaux votees (debit du compte de charges travaux, classe 67), en euros. */
+  depensesTravaux?: number;
+  /** Montant du fonds de travaux ALUR (compte 105) en fin d'exercice, en euros. */
+  fondsTravaux?: number;
   /** Nombre de coproprietaires debiteurs (impayes). */
   nbDebiteurs?: number;
+  /** La copro a-t-elle accepte la tenue des AG en visio (eStale `meetingVideo`). */
+  agVisioAcceptee?: boolean;
 }
 
 // --- Agregat rendu par la fiche -------------------------------------------

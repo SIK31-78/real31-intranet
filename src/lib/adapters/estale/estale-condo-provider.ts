@@ -41,6 +41,7 @@ async function resoudreCondoId(code: string): Promise<string | null> {
 type CondoData = {
   condo: {
     constructionDate: number | null;
+    meetingVideo: boolean | null;
     council: {
       role: "PRESIDENT" | "MEMBER";
       expiry: number | null;
@@ -64,6 +65,7 @@ type CondoData = {
 const QUERY_CONDO = `query DonneesCopro($id: ID!) {
   condo(id: $id) {
     constructionDate
+    meetingVideo
     council { role expiry owner { fullname } }
     meetings { category startAt transcript { validated } }
     contracts { label category period }
@@ -73,22 +75,38 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
   }
 }`;
 
-// Requete ISOLEE (try/catch) : accountByNomenclature renvoie un champ NON NULL et
-// leve une erreur si le compte n'existe pas -> on l'isole pour ne pas casser le
-// reste (CS, contrats...). Total des depenses courantes = debit des charges (classe 6).
-const QUERY_DEPENSES = `query Depenses($id: ID!, $p: Daterange!) {
-  condo(id: $id) { accountByNomenclature(nomenclature: "6") { statisticsPeriod(period: $p) { debit } } }
+// Requete comptable ISOLEE (try/catch) : on lit la liste des comptes de l'exercice
+// avec leurs stats, puis on agrege par nomenclature (plan comptable copro). Isolee
+// car une erreur compta ne doit pas casser le reste (CS, contrats...).
+//   6   = comptes de charges  -> debit = depenses courantes
+//   67  = charges travaux     -> debit = depenses travaux votees
+//   105 = fonds de travaux ALUR -> -balance = montant du fonds (solde crediteur)
+type StatCompte = { debit: number | null; balance: number | null };
+const QUERY_COMPTES = `query Comptes($id: ID!, $p: Daterange!) {
+  condo(id: $id) {
+    accountingV2 { exercice { accounts(archived: false) { nomenclature statisticsPeriod(period: $p) { debit balance } } } }
+  }
 }`;
 
-async function depensesCourantes(condoId: string, periode: [string, string]): Promise<number | undefined> {
+type Comptes = { depenses?: number; travaux?: number; fonds?: number };
+
+async function comptesExercice(condoId: string, periode: [string, string]): Promise<Comptes> {
   try {
-    const d = await estaleGql<{ condo: { accountByNomenclature: { statisticsPeriod: { debit: number } } } }>(
-      QUERY_DEPENSES,
-      { id: condoId, p: periode },
-    );
-    return d.condo.accountByNomenclature.statisticsPeriod.debit;
+    const d = await estaleGql<{
+      condo: { accountingV2: { exercice: { accounts: { nomenclature: string; statisticsPeriod: StatCompte }[] } } };
+    }>(QUERY_COMPTES, { id: condoId, p: periode });
+    const accounts = d.condo.accountingV2.exercice.accounts;
+    const stat = (n: string): StatCompte | undefined => accounts.find((a) => a.nomenclature === n)?.statisticsPeriod;
+    const charges = stat("6");
+    const travaux = stat("67");
+    const fonds = stat("105");
+    return {
+      ...(charges?.debit ? { depenses: charges.debit } : {}),
+      ...(travaux?.debit ? { travaux: travaux.debit } : {}),
+      ...(fonds?.balance ? { fonds: -fonds.balance } : {}),
+    };
   } catch {
-    return undefined; // pas de comptes de charges sur cet exercice
+    return {}; // exercice sans comptabilite alimentee
   }
 }
 
@@ -140,13 +158,13 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(borneISO(c.period?.[1]) ? { fin: borneISO(c.period[1]) } : {}),
     }));
 
-    // Comptabilite : exercice courant -> budget previsionnel + depenses (charges).
+    // Comptabilite : exercice courant -> budget previsionnel + agregats par compte.
     const acc = condo.accountingV2;
     const exCourant =
       acc.exercices.find((e) => acc.periodCurrent && e.period[0] === acc.periodCurrent[0]) ??
       acc.exercices[0];
     const budgetPrevisionnel = exCourant?.budgetOrdinary?.amount;
-    const depenses = exCourant ? await depensesCourantes(condoId, exCourant.period) : undefined;
+    const comptes = exCourant ? await comptesExercice(condoId, exCourant.period) : {};
 
     return {
       conseilSyndical,
@@ -154,10 +172,13 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       historiqueAg,
       conformite: [], // la conformite (PPT...) reste composee depuis le referentiel
       ...(condo.constructionDate ? { anneeConstruction: condo.constructionDate } : {}),
+      ...(condo.meetingVideo != null ? { agVisioAcceptee: condo.meetingVideo } : {}),
       ...(contrats.length > 0 ? { contrats } : {}),
       ...(condo.litigation.count > 0 ? { nbProcedures: condo.litigation.count } : {}),
       ...(budgetPrevisionnel != null ? { budgetPrevisionnel } : {}),
-      ...(depenses != null ? { depensesCourantes: depenses } : {}),
+      ...(comptes.depenses != null ? { depensesCourantes: comptes.depenses } : {}),
+      ...(comptes.travaux != null ? { depensesTravaux: comptes.travaux } : {}),
+      ...(comptes.fonds != null ? { fondsTravaux: comptes.fonds } : {}),
       ...(condo.unpaid.count > 0 ? { nbDebiteurs: condo.unpaid.count } : {}),
     };
   }

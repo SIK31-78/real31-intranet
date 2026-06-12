@@ -93,10 +93,16 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   const valeurElec = formatContrat("ENERGY_ELECTRICITY");
   const valeurProc = estale?.nbProcedures ? `${estale.nbProcedures} procedure(s) en cours` : undefined;
 
-  // Comptabilite (eStale) : budget previsionnel + depenses (-> ecart auto) + debiteurs.
+  // Comptabilite (eStale) : budget previsionnel + depenses (-> ecart auto) + travaux + fonds + debiteurs.
   const valeurBudget = estale?.budgetPrevisionnel != null ? String(estale.budgetPrevisionnel) : undefined;
   const valeurDepenses = estale?.depensesCourantes != null ? String(estale.depensesCourantes) : undefined;
+  const valeurTravaux = estale?.depensesTravaux != null ? String(estale.depensesTravaux) : undefined;
+  const valeurFonds = estale?.fondsTravaux != null ? String(estale.fondsTravaux) : undefined;
   const valeurDebiteurs = estale?.nbDebiteurs ? `${estale.nbDebiteurs} copropriétaire(s) débiteur(s)` : undefined;
+  // AG en visio : pre-rempli depuis eStale (meetingVideo) ; le gestionnaire ajuste.
+  const visioInitial = estale?.agVisioAcceptee != null ? (estale.agVisioAcceptee ? "oui" : "non") : undefined;
+  const RAPPORT_CS =
+    "Le syndic rappelle au CS qu'un rapport / compte rendu de son activité sur l'année devra nous être adressé afin d'être joint à la convocation.";
 
   const enTete: ChampOdj[] = [
     champ("adresse", "Adresse", "supabase", { valeur: adresse }),
@@ -108,7 +114,11 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         : "Date de CS non renseignee : a planifier (fiche copro ou supervision).",
     }),
     champ("lieu", "Lieu de l'AG", "manuel", { editable: true }),
-    champ("visio", "Visio (AG hybride)", "manuel", { editable: true, type: "booleen" }),
+    champ("visio", "AG en visio (hybride)", visioInitial != null ? "estale" : "manuel", {
+      editable: true,
+      type: "booleen",
+      valeur: visioInitial,
+    }),
     champ("presents-syndic", "Pour le syndic", "supabase", {
       valeur: syndic || undefined,
       editable: true,
@@ -141,14 +151,12 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         champ("comptes.budget", "Budget previsionnel", "estale", { editable: true, type: "montant", valeur: valeurBudget }),
         champ("comptes.ecart-budget", "Trop-percu / depassement budget courant", "calcul"),
         champ("comptes.eau", "Consommation eau (volume + prix au m3, vs N-1)", "estale", e),
-        champ("comptes.travaux-votes", "Depenses travaux votees (budget vote / constate, cloture)", "estale", e),
+        champ("comptes.travaux-votes", "Depenses travaux votees", "estale", { editable: true, type: "montant", valeur: valeurTravaux }),
         champ("comptes.debiteurs", "Coproprietaire(s) debiteur(s)", "estale", { editable: true, valeur: valeurDebiteurs }),
         champ("comptes.compteurs-eau", "Compteurs d'eau collectes", "supabase", e),
         champ("comptes.repartiteurs", "Repartiteurs de frais de chauffage collectes", "supabase", e),
-        champ("comptes.fonds-travaux", "Fonds travaux (montant fin d'exercice, interets)", "estale", m),
-        champ("comptes.solde-sinistre", "Solde du compte sinistre", "estale", m),
+        champ("comptes.fonds-travaux", "Fonds travaux (montant fin d'exercice)", "estale", { editable: true, type: "montant", valeur: valeurFonds }),
         champ("comptes.anciens-proprios", "Comptes debiteurs / crediteurs d'anciens proprietaires", "estale", e),
-        champ("comptes.affectations", "Affectations entretien / reparations (recup / loc)", "estale", e),
       ],
     },
     {
@@ -169,7 +177,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       id: "points-a-porter",
       titre: "Points a porter a l'ordre du jour",
       champs: [
-        champ("points.rapport-cs", "Rapport moral du CS", "manuel", e),
+        champ("points.rapport-cs", "Rapport moral du CS", "manuel", { editable: true, valeur: RAPPORT_CS }),
         champ("points.budget-n1", "Budget N+1 propose", "estale", m),
         champ("points.renouvellement-cs", "Renouvellement du CS - candidats (retirer ceux qui ne se representent pas)", "estale", {
           editable: true,
