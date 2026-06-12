@@ -26,6 +26,9 @@ import { SupabaseSupervisionAgRepository } from "@/lib/adapters/supabase/supabas
 import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
 import { SupabaseGestionnaireRepository } from "@/lib/adapters/supabase/supabase-gestionnaire-repository";
 import { MockGestionnaireRepository } from "@/lib/adapters/mock/mock-gestionnaire-repository";
+import type { OdjRepository } from "@/lib/ports/odj-repository";
+import { SupabaseOdjRepository } from "@/lib/adapters/supabase/supabase-odj-repository";
+import { MockOdjRepository } from "@/lib/adapters/mock/mock-odj-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 
 export type { DbHealth };
@@ -69,6 +72,13 @@ export function getCondoEstaleProvider(): CondoEstaleProvider {
 // evenements + referentiel ; pour l'instant un agregat mocke.
 export function getMesEvenementsProvider(): MesEvenementsProvider {
   return new MockMesEvenementsProvider();
+}
+
+// Etat de l'ODJ (saisies du gestionnaire + points legaux retires). En reel :
+// table native intranet_odj_champs.
+export function getOdjRepository(): OdjRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseOdjRepository();
+  return new MockOdjRepository();
 }
 
 // Gestionnaires (cloisonnement). Source cible : public."User" via les managerId.

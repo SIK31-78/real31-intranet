@@ -6,12 +6,16 @@
 export type SourceDonnee = "estale" | "supabase" | "jalon" | "manuel";
 
 export interface ChampOdj {
+  /** Slug stable, cle de persistance dans intranet_odj_champs (ex "lieu"). */
+  id: string;
   libelle: string;
   /** Valeur si on a su l'auto-remplir ; sinon vide (a saisir / a venir d'eStale). */
   valeur?: string;
   source: SourceDonnee;
   /** Alerte au gestionnaire quand une donnee attendue manque (ex. date de CS). */
   alerte?: string;
+  /** Saisissable par le gestionnaire (la saisie prime sur la valeur auto). */
+  editable?: boolean;
 }
 
 export interface SectionOdj {
