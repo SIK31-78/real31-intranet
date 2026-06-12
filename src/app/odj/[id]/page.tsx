@@ -8,6 +8,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { LigneChamp } from "@/components/odj/ligne-champ";
 import { PointLegalRow } from "@/components/odj/point-legal-row";
+import { PanneauApercu } from "@/components/odj/panneau-apercu";
+import { DocumentOdj } from "@/components/odj/document-odj";
 import { saisirChampAction, togglePointAction } from "./actions";
 
 export const metadata: Metadata = { title: "ODJ - REAL31 Intranet" };
@@ -25,7 +27,8 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
 
   return (
     <AppShell user={g} active="calendrier" breadcrumb={`ODJ - ${odj.copro.nom}`}>
-      <div className="mx-auto max-w-[900px] px-8 py-8 flex flex-col gap-5">
+      <div className="mx-auto max-w-[1380px] px-8 py-8 flex items-start gap-6">
+        <div className="flex-1 min-w-0 max-w-[900px] flex flex-col gap-5">
         <div>
           <div className="flex items-start justify-between gap-4">
             <h1 className="text-[22px] font-medium tracking-tight">Ordre du jour - preparation AG</h1>
@@ -80,6 +83,14 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
             ))}
           </ul>
         </Card>
+        </div>
+
+        {/* Apercu live du document (repliable), rafraichi a chaque saisie */}
+        <div className="hidden xl:block">
+          <PanneauApercu>
+            <DocumentOdj odj={odj} />
+          </PanneauApercu>
+        </div>
       </div>
     </AppShell>
   );
