@@ -145,6 +145,8 @@ export interface DonneesEstaleCopro {
   fondsTravaux?: number;
   /** Coproprietaires debiteurs (solde a ce jour > 0), tries par montant decroissant. */
   debiteurs?: DebiteurEstale[];
+  /** Consommation d'eau de l'exercice (compte 601, volume lu dans les libelles). */
+  eau?: ConsommationEau;
   /** La copro a-t-elle accepte la tenue des AG en visio (eStale `meetingVideo`). */
   agVisioAcceptee?: boolean;
 }
@@ -155,6 +157,16 @@ export interface DebiteurEstale {
   montant: number;
   /** Debit > 5% du budget annuel -> a signaler (candidat recouvrement). */
   depasse5pct: boolean;
+}
+
+/** Consommation d'eau de l'exercice (compte 601). */
+export interface ConsommationEau {
+  /** Volume total en m3 (extrait des libelles d'ecriture, ex "... - 71m3"). */
+  volume: number;
+  /** Montant total paye (debit du compte 601), en euros. */
+  montant: number;
+  /** Prix moyen au m3 = montant / volume, en euros. */
+  prixM3: number;
 }
 
 // --- Agregat rendu par la fiche -------------------------------------------

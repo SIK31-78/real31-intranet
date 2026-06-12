@@ -113,6 +113,13 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
           .map((d) => `${d.nom} ${formatEuros(d.montant)}${d.depasse5pct ? " (>5% budget)" : ""}`)
           .join(" ; ")
       : undefined;
+  // Consommation eau (compte 601) : volume + montant + prix au m3.
+  const valeurEau = estale?.eau
+    ? `${estale.eau.volume.toLocaleString("fr-FR")} m³ pour ${formatEuros(estale.eau.montant)} (${estale.eau.prixM3.toLocaleString(
+        "fr-FR",
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+      )} €/m³)`
+    : undefined;
   // AG en visio : pre-rempli depuis eStale (meetingVideo) ; le gestionnaire ajuste.
   const visioInitial = estale?.agVisioAcceptee != null ? (estale.agVisioAcceptee ? "oui" : "non") : undefined;
   const RAPPORT_CS =
@@ -164,7 +171,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         champ("comptes.depenses-courantes", "Total des depenses courantes", "estale", { editable: true, type: "montant", valeur: valeurDepenses }),
         champ("comptes.budget", "Budget previsionnel", "estale", { editable: true, type: "montant", valeur: valeurBudget }),
         champ("comptes.ecart-budget", "Trop-percu / depassement budget courant", "calcul"),
-        champ("comptes.eau", "Consommation eau (volume + prix au m3, vs N-1)", "estale", e),
+        champ("comptes.eau", "Consommation eau (volume + prix au m3)", "estale", { editable: true, valeur: valeurEau }),
         champ("comptes.travaux-votes", "Depenses travaux votees", "estale", { editable: true, type: "montant", valeur: valeurTravaux }),
         champ("comptes.debiteurs", "Coproprietaire(s) debiteur(s)", "estale", { editable: true, valeur: valeurDebiteurs }),
         champ("comptes.compteurs-eau", "Compteurs d'eau collectes", "supabase", e),

@@ -7,6 +7,7 @@
 import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
 import type {
   AgPassee,
+  ConsommationEau,
   ContratEstale,
   DebiteurEstale,
   DonneesEstaleCopro,
@@ -108,29 +109,60 @@ async function debiteursExercice(
 type StatCompte = { debit: number | null; balance: number | null };
 const QUERY_COMPTES = `query Comptes($id: ID!, $p: Daterange!) {
   condo(id: $id) {
-    accountingV2 { exercice { accounts(archived: false) { nomenclature statisticsPeriod(period: $p) { debit balance } } } }
+    accountingV2 { exercice { accounts(archived: false) { id nomenclature statisticsPeriod(period: $p) { debit balance } } } }
   }
 }`;
 
-type Comptes = { depenses?: number; travaux?: number; fonds?: number };
+type Comptes = { depenses?: number; travaux?: number; fonds?: number; eauIds: string[] };
 
 async function comptesExercice(condoId: string, periode: [string, string]): Promise<Comptes> {
   try {
     const d = await estaleGql<{
-      condo: { accountingV2: { exercice: { accounts: { nomenclature: string; statisticsPeriod: StatCompte }[] } } };
+      condo: {
+        accountingV2: { exercice: { accounts: { id: string; nomenclature: string; statisticsPeriod: StatCompte }[] } };
+      };
     }>(QUERY_COMPTES, { id: condoId, p: periode });
     const accounts = d.condo.accountingV2.exercice.accounts;
     const stat = (n: string): StatCompte | undefined => accounts.find((a) => a.nomenclature === n)?.statisticsPeriod;
     const charges = stat("6");
     const travaux = stat("67");
     const fonds = stat("105");
+    const eauIds = accounts.filter((a) => a.nomenclature.startsWith("601")).map((a) => a.id);
     return {
+      eauIds,
       ...(charges?.debit ? { depenses: charges.debit } : {}),
       ...(travaux?.debit ? { travaux: travaux.debit } : {}),
       ...(fonds?.balance ? { fonds: -fonds.balance } : {}),
     };
   } catch {
-    return {}; // exercice sans comptabilite alimentee
+    return { eauIds: [] }; // exercice sans comptabilite alimentee
+  }
+}
+
+// Consommation d'eau : ecritures du compte 601, volume lu dans le libelle ("... - 71m3").
+// Prix au m3 = montant total (debit) / volume total.
+const QUERY_EAU = `query Eau($id: ID!, $ids: [ID!]!) {
+  condo(id: $id) { accountingV2 { exercice { entries(coaIDs: $ids) { label amount movement } } } }
+}`;
+
+async function consommationEau(condoId: string, eauIds: string[]): Promise<ConsommationEau | undefined> {
+  if (eauIds.length === 0) return undefined;
+  try {
+    const d = await estaleGql<{
+      condo: { accountingV2: { exercice: { entries: { label: string; amount: number; movement: string }[] } } };
+    }>(QUERY_EAU, { id: condoId, ids: eauIds });
+    let volume = 0;
+    let montant = 0;
+    for (const e of d.condo.accountingV2.exercice.entries) {
+      if (e.movement !== "DEBIT") continue;
+      montant += e.amount;
+      const m = e.label.match(/(\d+(?:[.,]\d+)?)\s*m3/i);
+      if (m) volume += Number(m[1].replace(",", "."));
+    }
+    if (volume <= 0 || montant <= 0) return undefined;
+    return { volume, montant, prixM3: montant / volume };
+  } catch {
+    return undefined;
   }
 }
 
@@ -212,8 +244,9 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       acc.exercices.find((e) => acc.periodCurrent && e.period[0] === acc.periodCurrent[0]) ??
       acc.exercices[0];
     const budgetPrevisionnel = exCourant?.budgetOrdinary?.amount;
-    const comptes = exCourant ? await comptesExercice(condoId, exCourant.period) : {};
+    const comptes = exCourant ? await comptesExercice(condoId, exCourant.period) : { eauIds: [] };
     const debiteurs = exCourant ? await debiteursExercice(condoId, exCourant.id, budgetPrevisionnel) : [];
+    const eau = await consommationEau(condoId, comptes.eauIds);
 
     return {
       conseilSyndical,
@@ -229,6 +262,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(comptes.travaux != null ? { depensesTravaux: comptes.travaux } : {}),
       ...(comptes.fonds != null ? { fondsTravaux: comptes.fonds } : {}),
       ...(debiteurs.length > 0 ? { debiteurs } : {}),
+      ...(eau ? { eau } : {}),
     };
   }
 }
