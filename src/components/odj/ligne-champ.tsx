@@ -58,7 +58,6 @@ export function LigneChamp({
           >
             {actif ? "Visio : oui" : "Visio : non"}
           </button>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-sm shrink-0 ${src.cls}`}>{src.texte}</span>
         </div>
       </div>
     );

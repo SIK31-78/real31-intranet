@@ -82,14 +82,18 @@ export function formatChampValeur(champ: ChampOdj): string | undefined {
 }
 
 /** Ecart budgetaire : budget - depenses. Positif = trop-percu (rendu aux copros),
- *  negatif = depassement (cf. modele ODJ / exemple 31 Foch). */
-export function libelleEcartBudget(budgetBrut?: string, depensesBrut?: string): string | undefined {
+ *  negatif = depassement (cf. modele ODJ / exemple 31 Foch). Renvoie le libelle
+ *  ADAPTE + le montant, pour eviter le doublon "Trop-percu / depassement : Depassement de X". */
+export function ecartBudget(
+  budgetBrut?: string,
+  depensesBrut?: string,
+): { libelle: string; valeur: string } | undefined {
   const budget = parseMontant(budgetBrut);
   const depenses = parseMontant(depensesBrut);
   if (budget === null || depenses === null) return undefined;
   const ecart = budget - depenses;
-  if (ecart >= 0) return `Trop-perçu de ${formatEuros(ecart)}`;
-  return `Dépassement de ${formatEuros(-ecart)}`;
+  if (ecart >= 0) return { libelle: "Trop-perçu budget courant", valeur: formatEuros(ecart) };
+  return { libelle: "Dépassement budget courant", valeur: formatEuros(-ecart) };
 }
 
 // --- Points legaux ----------------------------------------------------------

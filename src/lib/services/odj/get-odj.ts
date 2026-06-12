@@ -4,12 +4,7 @@
 // puis champs CALCULES (ecart budget, proposition contrat). Scope managerId.
 
 import type { ChampOdj, Odj, SectionOdj, SourceDonnee } from "@/lib/domain/odj";
-import {
-  pointsLegaux,
-  libelleEcartBudget,
-  parseMontant,
-  formatEuros,
-} from "@/lib/domain/odj";
+import { pointsLegaux, ecartBudget, parseMontant, formatEuros } from "@/lib/domain/odj";
 import {
   getCoproRepository,
   getCondoEstaleProvider,
@@ -109,9 +104,11 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     }),
     champ("limite-odj", "Date limite d'ajout de points a l'ODJ", limiteOdjISO ? "jalon" : "manuel", {
       valeur: dateCourte(limiteOdjISO),
+      editable: true,
     }),
     champ("mise-sous-pli", "Mise sous pli de la convocation (1 mois avant l'AG)", convocISO ? "jalon" : "manuel", {
       valeur: dateCourte(convocISO),
+      editable: true,
     }),
   ];
 
@@ -195,10 +192,17 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     }
   };
 
-  poser(
-    "comptes.ecart-budget",
-    libelleEcartBudget(valeurDe("comptes.budget"), valeurDe("comptes.depenses-courantes")),
-  );
+  // Ecart budget : libelle adapte selon le signe (trop-percu / depassement).
+  const ecart = ecartBudget(valeurDe("comptes.budget"), valeurDe("comptes.depenses-courantes"));
+  if (ecart) {
+    for (const s of sectionsFinales) {
+      const c = s.champs.find((x) => x.id === "comptes.ecart-budget");
+      if (c) {
+        c.libelle = ecart.libelle;
+        c.valeur = ecart.valeur;
+      }
+    }
+  }
 
   const actuel = parseMontant(valeurDe("points.contrat-syndic-actuel"));
   const pct = parseMontant(valeurDe("points.contrat-syndic-augmentation"));
