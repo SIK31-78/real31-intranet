@@ -4,8 +4,9 @@
 
 import type { ChampOdj, Odj, SectionOdj, SourceDonnee } from "@/lib/domain/odj";
 import { pointsLegaux } from "@/lib/domain/odj";
-import { getCoproRepository } from "@/lib/adapters/router";
+import { getCoproRepository, getCondoEstaleProvider } from "@/lib/adapters/router";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
+import { DELAIS_CABINET } from "@/lib/domain/jalons-ag/cabinet/real31-defaults";
 
 function parse(id: string): { code: string; agDate?: string } {
   const i = id.indexOf("__");
@@ -16,8 +17,14 @@ function dateCourte(iso?: string): string | undefined {
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 }
-function champ(libelle: string, source: SourceDonnee, valeur?: string): ChampOdj {
-  return { libelle, source, ...(valeur ? { valeur } : {}) };
+function moinsJours(iso: string, n: number): string {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  t.setUTCDate(t.getUTCDate() - n);
+  return t.toISOString().slice(0, 10);
+}
+function champ(libelle: string, source: SourceDonnee, valeur?: string, alerte?: string): ChampOdj {
+  return { libelle, source, ...(valeur ? { valeur } : {}), ...(alerte ? { alerte } : {}) };
 }
 
 export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | null> {
@@ -30,20 +37,57 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     .filter(Boolean)
     .join(", ");
 
-  // Mise sous pli / convocation = jalon CONVOC calcule depuis la date d'AG.
-  const dateConvoc = dateAg
-    ? dateCourte(calculerJalons(dateAg).find((j) => j.code === "CONVOC")?.cibleDate)
+  // Mise sous pli = jalon CONVOC (J-30 cabinet : 1 mois avant l'AG, pas tributaire
+  // des delais postaux). Date limite d'ajout de points = 10 jours avant la mise sous pli.
+  const convocISO = dateAg
+    ? calculerJalons(dateAg).find((j) => j.code === "CONVOC")?.cibleDate
     : undefined;
+  const limiteOdjISO = convocISO
+    ? moinsJours(convocISO, DELAIS_CABINET.AJOUT_ODJ_AVANT_CONVOC_JOURS)
+    : undefined;
+
+  // Presents au CS : d'office gestionnaire + assistant (referentiel) + les membres
+  // du conseil syndical (eStale). Le jour de la reunion, on retire les absents.
+  const estale = await getCondoEstaleProvider().getDonneesCopro(code);
+  const syndic = copro.equipe
+    .filter((m) => m.role === "gestionnaire" || m.role === "assistant")
+    .map((m) => `${m.nomComplet} (syndic)`);
+  const membresCs = (estale?.conseilSyndical ?? []).map(
+    (m) => `${m.nomComplet}${m.role === "president" ? " (president CS)" : " (CS)"}`,
+  );
+  const presents = [...syndic, ...membresCs].join(", ");
 
   const enTete: ChampOdj[] = [
     champ("Adresse", "supabase", adresse),
     champ("Date de l'AG", dateAg ? "supabase" : "manuel", dateCourte(dateAg)),
-    champ("Date du CS preparatoire", copro.prochaineCsDate ? "supabase" : "manuel", dateCourte(copro.prochaineCsDate)),
+    champ(
+      "Date du CS preparatoire",
+      "supabase",
+      dateCourte(copro.prochaineCsDate),
+      copro.prochaineCsDate
+        ? undefined
+        : "Date de CS non renseignee : a planifier (fiche copro ou supervision).",
+    ),
     champ("Lieu de l'AG", "manuel"),
     champ("Modalite (presentiel / hybride)", "manuel"),
-    champ("Presents (conseil syndical + syndic)", "manuel"),
-    champ("Date limite d'ajout de points a l'ODJ", "manuel"),
-    champ("Mise sous pli de la convocation", dateConvoc ? "jalon" : "manuel", dateConvoc),
+    champ(
+      "Presents (syndic + conseil syndical)",
+      "estale",
+      presents || undefined,
+      membresCs.length === 0
+        ? "Membres du CS a recuperer depuis eStale (retirer les absents le jour du CS)."
+        : undefined,
+    ),
+    champ(
+      "Date limite d'ajout de points a l'ODJ",
+      limiteOdjISO ? "jalon" : "manuel",
+      dateCourte(limiteOdjISO),
+    ),
+    champ(
+      "Mise sous pli de la convocation (1 mois avant l'AG)",
+      convocISO ? "jalon" : "manuel",
+      dateCourte(convocISO),
+    ),
   ];
 
   const sections: SectionOdj[] = [
@@ -70,7 +114,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       titre: "Gestion courante",
       champs: [
         champ("Dossiers sinistres en cours", "estale"),
-        champ("Dossiers procedure en cours ou a lancer", "manuel"),
+        champ("Dossiers procedure en cours ou a lancer", "estale"),
         champ("Autres dossiers de gestion courante", "manuel"),
         champ("Contrat gaz (dates effet / fin + prix molecule)", "supabase"),
         champ("Contrat electricite (dates effet / fin + prix molecule)", "supabase"),

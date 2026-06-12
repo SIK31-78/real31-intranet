@@ -19,12 +19,17 @@ const SOURCE_LABEL: Record<SourceDonnee, { texte: string; cls: string }> = {
 function Ligne({ champ }: { champ: ChampOdj }) {
   const src = SOURCE_LABEL[champ.source];
   return (
-    <div className="flex items-start justify-between gap-3 px-4 py-2 border-b border-line last:border-b-0">
-      <span className="text-[13px] text-ink-2 flex-1 min-w-0">{champ.libelle}</span>
-      <span className="text-[13px] text-ink shrink-0 max-w-[45%] text-right">
-        {champ.valeur ?? <span className="text-ink-4 italic">-</span>}
-      </span>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded-sm shrink-0 ${src.cls}`}>{src.texte}</span>
+    <div className="px-4 py-2 border-b border-line last:border-b-0">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[13px] text-ink-2 flex-1 min-w-0">{champ.libelle}</span>
+        <span className="text-[13px] text-ink shrink-0 max-w-[45%] text-right">
+          {champ.valeur ?? <span className="text-ink-4 italic">-</span>}
+        </span>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-sm shrink-0 ${src.cls}`}>{src.texte}</span>
+      </div>
+      {champ.alerte && (
+        <p className="mt-1 text-[11.5px] text-warn-700">⚠ {champ.alerte}</p>
+      )}
     </div>
   );
 }

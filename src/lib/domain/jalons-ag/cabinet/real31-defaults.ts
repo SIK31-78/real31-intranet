@@ -7,8 +7,12 @@ export const DELAIS_CABINET = {
   ODJ_CS_JOURS: 45,
   /** Devis et documents techniques rassembles. */
   DEVIS_JOURS: 45,
-  /** Convocations envoyees (aligne sur le legal, borne par le calcul jours francs). */
-  CONVOC_JOURS: 21,
+  /** Mise sous pli / envoi des convocations : 1 mois avant l'AG (regle cabinet,
+   *  pour ne pas etre tributaire des delais postaux ; le legal 21 jours francs
+   *  reste le plancher). */
+  CONVOC_JOURS: 30,
+  /** Date limite d'ajout de points a l'ODJ : 10 jours avant la mise sous pli. */
+  AJOUT_ODJ_AVANT_CONVOC_JOURS: 10,
   /** Relance des pouvoirs / VPC (rappel Outlook fiche 450). */
   RELANCE_POUVOIRS_JOURS: 8,
   /** Pouvoirs et votes par correspondance recus (butoir). */

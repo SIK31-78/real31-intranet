@@ -56,12 +56,19 @@ describe("calculerJalons", () => {
         expect(joursEntre(ag, jalon(j, "ARCHIVAGE").cibleDate)).toBe(180);
       });
 
-      it("CONVOC : >= 21 jours francs, jour ouvre, source legale", () => {
+      it("CONVOC : cible cabinet J-30 (mise sous pli 1 mois avant l'AG)", () => {
+        const c = jalon(j, "CONVOC");
+        expect(joursEntre(c.cibleDate, ag)).toBeGreaterThanOrEqual(30);
+        expect(c.source).toBe("cabinet");
+      });
+
+      it("CONVOC : la date legale reste calculee (>= 21 jours francs, jour ouvre)", () => {
         const c = jalon(j, "CONVOC");
         // Jours francs : ni l'envoi ni l'AG ne comptent -> ecart calendaire >= 22.
-        expect(joursEntre(c.cibleDate, ag)).toBeGreaterThanOrEqual(22);
-        expect(estChomme(c.cibleDate)).toBe(false);
-        expect(c.source).toBe("legal");
+        expect(joursEntre(c.dateLegale!, ag)).toBeGreaterThanOrEqual(22);
+        expect(estChomme(c.dateLegale!)).toBe(false);
+        // La cible (la plus contraignante) est toujours <= a la date legale.
+        expect(c.cibleDate <= c.dateLegale!).toBe(true);
       });
     });
   }

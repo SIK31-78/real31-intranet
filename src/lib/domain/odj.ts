@@ -10,6 +10,8 @@ export interface ChampOdj {
   /** Valeur si on a su l'auto-remplir ; sinon vide (a saisir / a venir d'eStale). */
   valeur?: string;
   source: SourceDonnee;
+  /** Alerte au gestionnaire quand une donnee attendue manque (ex. date de CS). */
+  alerte?: string;
 }
 
 export interface SectionOdj {
