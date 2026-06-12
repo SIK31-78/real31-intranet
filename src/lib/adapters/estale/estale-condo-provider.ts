@@ -45,7 +45,7 @@ type CondoData = {
     council: {
       role: "PRESIDENT" | "MEMBER";
       expiry: number | null;
-      owner: { fullname: string };
+      owner: { fullname: string; lastname: string; firstname: string | null };
     }[];
     meetings: {
       category: string;
@@ -66,7 +66,7 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
   condo(id: $id) {
     constructionDate
     meetingVideo
-    council { role expiry owner { fullname } }
+    council { role expiry owner { fullname lastname firstname } }
     meetings { category startAt transcript { validated } }
     contracts { label category period }
     litigation { count }
@@ -116,6 +116,18 @@ function borneISO(v: string | undefined): string | undefined {
   return v.slice(0, 10);
 }
 
+/** Present "NOM Prenom" si eStale a un prenom separe (NOM en capitales) ; sinon
+ *  on garde le fullname tel quel (donnee eStale ou le nom complet est dans lastname,
+ *  on evite de tout mettre en majuscules et de perdre le prenom). */
+export function formatPresent(owner: {
+  fullname: string;
+  lastname: string;
+  firstname: string | null;
+}): string {
+  const prenom = owner.firstname?.trim();
+  return prenom ? `${owner.lastname.trim().toUpperCase()} ${prenom}` : owner.fullname.trim();
+}
+
 /** ORDINARY -> AG ; tout le reste (EXTRAORDINARY, URGENT, SPECIAL...) -> AGE. */
 function typeAg(category: string): "AG" | "AGE" {
   return category === "ORDINARY" ? "AG" : "AGE";
@@ -130,7 +142,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
 
     const conseilSyndical: MembreConseilSyndical[] = condo.council
       .map((c) => ({
-        nomComplet: c.owner.fullname,
+        nomComplet: formatPresent(c.owner),
         role: c.role === "PRESIDENT" ? ("president" as const) : ("membre" as const),
       }))
       // President en premier, puis alphabetique.

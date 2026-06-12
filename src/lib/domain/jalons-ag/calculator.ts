@@ -32,17 +32,23 @@ function estChomme(d: Date, feries: Set<string>): boolean {
   return jour === 0 || jour === 6 || feries.has(toISO(d));
 }
 
-/** Date limite d'envoi de la convocation : 21 jours francs avant l'AG.
- *  Jours francs = ni le jour d'envoi ni le jour de l'AG ne comptent, d'ou
- *  AG - (21 + 1) jours calendaires. Si ce jour est chomme (week-end / ferie),
- *  on recule au jour ouvre precedent (envoyer plus tot reste valide). */
-function dateConvocationLegale(agISO: string): string {
-  const d = parseISO(moinsJours(agISO, DELAIS_LEGAUX.CONVOCATION_AG_JOURS_FRANCS + 1));
-  const feries = joursFeries(d.getUTCFullYear());
+/** Recule une date au jour ouvre precedent si elle tombe un week-end / ferie
+ *  (envoyer/mettre sous pli plus tot reste valide). */
+function reculerJourOuvre(iso: string): string {
+  const d = parseISO(iso);
+  let feries = joursFeries(d.getUTCFullYear());
   while (estChomme(d, feries)) {
     d.setUTCDate(d.getUTCDate() - 1);
+    feries = joursFeries(d.getUTCFullYear()); // au cas ou on recule sur l'annee precedente
   }
   return toISO(d);
+}
+
+/** Date limite d'envoi de la convocation : 21 jours francs avant l'AG.
+ *  Jours francs = ni le jour d'envoi ni le jour de l'AG ne comptent, d'ou
+ *  AG - (21 + 1) jours calendaires, recule au jour ouvre precedent si chomme. */
+function dateConvocationLegale(agISO: string): string {
+  return reculerJourOuvre(moinsJours(agISO, DELAIS_LEGAUX.CONVOCATION_AG_JOURS_FRANCS + 1));
 }
 
 const LIBELLES: Record<JalonCode, string> = {
@@ -62,8 +68,9 @@ const LIBELLES: Record<JalonCode, string> = {
 export function calculerJalons(agISO: string): JalonCalcule[] {
   const convocLegale = dateConvocationLegale(agISO);
   const convocCabinet = moinsJours(agISO, DELAIS_CABINET.CONVOC_JOURS);
-  // La plus contraignante = la plus tot = la plus petite date ISO.
-  const convocCible = convocLegale <= convocCabinet ? convocLegale : convocCabinet;
+  // La plus contraignante = la plus tot = la plus petite date ISO, reculee au
+  // jour ouvre precedent (mise sous pli un jour ouvre, pas un week-end / ferie).
+  const convocCible = reculerJourOuvre(convocLegale <= convocCabinet ? convocLegale : convocCabinet);
 
   return [
     { code: "ODJ_CS", libelle: LIBELLES.ODJ_CS, cibleDate: moinsJours(agISO, DELAIS_CABINET.ODJ_CS_JOURS), source: "cabinet" },

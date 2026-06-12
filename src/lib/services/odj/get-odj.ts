@@ -72,9 +72,17 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   // Presents : une ligne syndic (gestionnaire + assistant, referentiel) et une
   // ligne conseil syndical (eStale). Le jour du CS, on retire les absents.
   const estale = await getCondoEstaleProvider().getDonneesCopro(code);
+  // Presents en "NOM Prenom" : les noms du referentiel sont "Prenom NOM" (NOM en
+  // capitales) -> on detecte les tokens tout-majuscule comme nom de famille.
+  const nomMajuscule = (nomComplet: string): string => {
+    const tokens = nomComplet.trim().split(/\s+/);
+    const nom = tokens.filter((t) => t.length > 1 && t === t.toUpperCase());
+    const prenom = tokens.filter((t) => !(t.length > 1 && t === t.toUpperCase()));
+    return nom.length && prenom.length ? `${nom.join(" ")} ${prenom.join(" ")}` : nomComplet;
+  };
   const syndic = copro.equipe
     .filter((m) => m.role === "gestionnaire" || m.role === "assistant")
-    .map((m) => m.nomComplet)
+    .map((m) => nomMajuscule(m.nomComplet))
     .join(", ");
   const membresCs = (estale?.conseilSyndical ?? [])
     .map((m) => `${m.nomComplet}${m.role === "president" ? " (président)" : ""}`)

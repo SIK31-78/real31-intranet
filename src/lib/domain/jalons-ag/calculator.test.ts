@@ -62,6 +62,10 @@ describe("calculerJalons", () => {
         expect(c.source).toBe("cabinet");
       });
 
+      it("CONVOC : la cible (mise sous pli) tombe toujours un jour ouvre", () => {
+        expect(estChomme(jalon(j, "CONVOC").cibleDate)).toBe(false);
+      });
+
       it("CONVOC : la date legale reste calculee (>= 21 jours francs, jour ouvre)", () => {
         const c = jalon(j, "CONVOC");
         // Jours francs : ni l'envoi ni l'AG ne comptent -> ecart calendaire >= 22.
