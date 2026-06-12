@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Printer } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { getOdj } from "@/lib/services/odj/get-odj";
 import { getGestionnaireCourant } from "@/lib/auth/session";
@@ -25,7 +27,16 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
     <AppShell user={g} active="calendrier" breadcrumb={`ODJ - ${odj.copro.nom}`}>
       <div className="mx-auto max-w-[900px] px-8 py-8 flex flex-col gap-5">
         <div>
-          <h1 className="text-[22px] font-medium tracking-tight">Ordre du jour - preparation AG</h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="text-[22px] font-medium tracking-tight">Ordre du jour - preparation AG</h1>
+            <Link
+              href={`/odj/${id}/imprimer`}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-[13px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors shrink-0"
+            >
+              <Printer strokeWidth={1.5} className="w-3.5 h-3.5" />
+              Version imprimable
+            </Link>
+          </div>
           <p className="text-[13px] text-ink-3 mt-1">
             {odj.copro.nom} ({odj.copro.code}){odj.dateAg ? ` - AG du ${odj.dateAg}` : " - date d'AG non definie"}
           </p>
