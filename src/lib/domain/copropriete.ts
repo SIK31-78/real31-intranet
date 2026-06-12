@@ -135,6 +135,12 @@ export interface DonneesEstaleCopro {
   contrats?: ContratEstale[];
   /** Nombre de procedures / litiges en cours. */
   nbProcedures?: number;
+  /** Budget previsionnel de l'exercice courant (budget ordinaire vote), en euros. */
+  budgetPrevisionnel?: number;
+  /** Total des depenses courantes de l'exercice (debit des comptes de charges), en euros. */
+  depensesCourantes?: number;
+  /** Nombre de coproprietaires debiteurs (impayes). */
+  nbDebiteurs?: number;
 }
 
 // --- Agregat rendu par la fiche -------------------------------------------

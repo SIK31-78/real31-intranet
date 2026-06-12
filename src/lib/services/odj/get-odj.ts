@@ -93,6 +93,11 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   const valeurElec = formatContrat("ENERGY_ELECTRICITY");
   const valeurProc = estale?.nbProcedures ? `${estale.nbProcedures} procedure(s) en cours` : undefined;
 
+  // Comptabilite (eStale) : budget previsionnel + depenses (-> ecart auto) + debiteurs.
+  const valeurBudget = estale?.budgetPrevisionnel != null ? String(estale.budgetPrevisionnel) : undefined;
+  const valeurDepenses = estale?.depensesCourantes != null ? String(estale.depensesCourantes) : undefined;
+  const valeurDebiteurs = estale?.nbDebiteurs ? `${estale.nbDebiteurs} copropriétaire(s) débiteur(s)` : undefined;
+
   const enTete: ChampOdj[] = [
     champ("adresse", "Adresse", "supabase", { valeur: adresse }),
     champ("date-ag", "Date de l'AG", dateAg ? "supabase" : "manuel", { valeur: dateCourte(dateAg) }),
@@ -132,12 +137,12 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       id: "verif-comptes",
       titre: "Verification des comptes",
       champs: [
-        champ("comptes.depenses-courantes", "Total des depenses courantes", "estale", m),
-        champ("comptes.budget", "Budget previsionnel", "estale", m),
+        champ("comptes.depenses-courantes", "Total des depenses courantes", "estale", { editable: true, type: "montant", valeur: valeurDepenses }),
+        champ("comptes.budget", "Budget previsionnel", "estale", { editable: true, type: "montant", valeur: valeurBudget }),
         champ("comptes.ecart-budget", "Trop-percu / depassement budget courant", "calcul"),
         champ("comptes.eau", "Consommation eau (volume + prix au m3, vs N-1)", "estale", e),
         champ("comptes.travaux-votes", "Depenses travaux votees (budget vote / constate, cloture)", "estale", e),
-        champ("comptes.debiteurs", "Coproprietaire(s) debiteur(s)", "estale", e),
+        champ("comptes.debiteurs", "Coproprietaire(s) debiteur(s)", "estale", { editable: true, valeur: valeurDebiteurs }),
         champ("comptes.compteurs-eau", "Compteurs d'eau collectes", "supabase", e),
         champ("comptes.repartiteurs", "Repartiteurs de frais de chauffage collectes", "supabase", e),
         champ("comptes.fonds-travaux", "Fonds travaux (montant fin d'exercice, interets)", "estale", m),

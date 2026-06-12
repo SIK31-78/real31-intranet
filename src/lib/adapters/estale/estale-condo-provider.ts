@@ -53,6 +53,11 @@ type CondoData = {
     }[];
     contracts: { label: string; category: string; period: [string, string] }[];
     litigation: { count: number };
+    unpaid: { count: number };
+    accountingV2: {
+      periodCurrent: [string, string] | null;
+      exercices: { period: [string, string]; budgetOrdinary: { amount: number } | null }[];
+    };
   };
 };
 
@@ -63,8 +68,29 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
     meetings { category startAt transcript { validated } }
     contracts { label category period }
     litigation { count }
+    unpaid { count }
+    accountingV2 { periodCurrent exercices { period budgetOrdinary { amount } } }
   }
 }`;
+
+// Requete ISOLEE (try/catch) : accountByNomenclature renvoie un champ NON NULL et
+// leve une erreur si le compte n'existe pas -> on l'isole pour ne pas casser le
+// reste (CS, contrats...). Total des depenses courantes = debit des charges (classe 6).
+const QUERY_DEPENSES = `query Depenses($id: ID!, $p: Daterange!) {
+  condo(id: $id) { accountByNomenclature(nomenclature: "6") { statisticsPeriod(period: $p) { debit } } }
+}`;
+
+async function depensesCourantes(condoId: string, periode: [string, string]): Promise<number | undefined> {
+  try {
+    const d = await estaleGql<{ condo: { accountByNomenclature: { statisticsPeriod: { debit: number } } } }>(
+      QUERY_DEPENSES,
+      { id: condoId, p: periode },
+    );
+    return d.condo.accountByNomenclature.statisticsPeriod.debit;
+  } catch {
+    return undefined; // pas de comptes de charges sur cet exercice
+  }
+}
 
 /** Borne de Daterange eStale -> ISO ou undefined (gere "infinity" / vide). */
 function borneISO(v: string | undefined): string | undefined {
@@ -114,6 +140,14 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(borneISO(c.period?.[1]) ? { fin: borneISO(c.period[1]) } : {}),
     }));
 
+    // Comptabilite : exercice courant -> budget previsionnel + depenses (charges).
+    const acc = condo.accountingV2;
+    const exCourant =
+      acc.exercices.find((e) => acc.periodCurrent && e.period[0] === acc.periodCurrent[0]) ??
+      acc.exercices[0];
+    const budgetPrevisionnel = exCourant?.budgetOrdinary?.amount;
+    const depenses = exCourant ? await depensesCourantes(condoId, exCourant.period) : undefined;
+
     return {
       conseilSyndical,
       ...(expiry > 0 ? { mandatJusqua: `AG ${expiry}` } : {}),
@@ -122,6 +156,9 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(condo.constructionDate ? { anneeConstruction: condo.constructionDate } : {}),
       ...(contrats.length > 0 ? { contrats } : {}),
       ...(condo.litigation.count > 0 ? { nbProcedures: condo.litigation.count } : {}),
+      ...(budgetPrevisionnel != null ? { budgetPrevisionnel } : {}),
+      ...(depenses != null ? { depensesCourantes: depenses } : {}),
+      ...(condo.unpaid.count > 0 ? { nbDebiteurs: condo.unpaid.count } : {}),
     };
   }
 }
