@@ -116,16 +116,28 @@ function borneISO(v: string | undefined): string | undefined {
   return v.slice(0, 10);
 }
 
-/** Present "NOM Prenom" si eStale a un prenom separe (NOM en capitales) ; sinon
- *  on garde le fullname tel quel (donnee eStale ou le nom complet est dans lastname,
- *  on evite de tout mettre en majuscules et de perdre le prenom). */
+/** Une chaine est-elle "en capitales" (au moins une lettre, aucune minuscule) ? */
+function estCapitales(s: string): boolean {
+  return s === s.toUpperCase() && s !== s.toLowerCase();
+}
+
+/** Present "NOM Prenom" (NOM en capitales). Convention eStale : nom en MAJUSCULES,
+ *  prenom en casse normale. Si la saisie est inversee (prenom tout en capitales,
+ *  nom non capitalise -> ex. last="Emmanuel" first="LOPES"), on remet a l'endroit.
+ *  Sans prenom separe (nom complet dans lastname), on garde le fullname tel quel. */
 export function formatPresent(owner: {
   fullname: string;
   lastname: string;
   firstname: string | null;
 }): string {
-  const prenom = owner.firstname?.trim();
-  return prenom ? `${owner.lastname.trim().toUpperCase()} ${prenom}` : owner.fullname.trim();
+  const prenomBrut = owner.firstname?.trim();
+  if (!prenomBrut) return owner.fullname.trim();
+  let nom = owner.lastname.trim();
+  let prenom = prenomBrut;
+  if (estCapitales(prenom) && !estCapitales(nom)) {
+    [nom, prenom] = [prenom, nom]; // saisie inversee dans eStale
+  }
+  return `${nom.toUpperCase()} ${prenom}`;
 }
 
 /** ORDINARY -> AG ; tout le reste (EXTRAORDINARY, URGENT, SPECIAL...) -> AGE. */
