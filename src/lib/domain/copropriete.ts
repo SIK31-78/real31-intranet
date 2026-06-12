@@ -143,10 +143,18 @@ export interface DonneesEstaleCopro {
   depensesTravaux?: number;
   /** Montant du fonds de travaux ALUR (compte 105) en fin d'exercice, en euros. */
   fondsTravaux?: number;
-  /** Nombre de coproprietaires debiteurs (impayes). */
-  nbDebiteurs?: number;
+  /** Coproprietaires debiteurs (solde a ce jour > 0), tries par montant decroissant. */
+  debiteurs?: DebiteurEstale[];
   /** La copro a-t-elle accepte la tenue des AG en visio (eStale `meetingVideo`). */
   agVisioAcceptee?: boolean;
+}
+
+/** Un coproprietaire debiteur (solde du compte 450 a l'exercice courant). */
+export interface DebiteurEstale {
+  nom: string;
+  montant: number;
+  /** Debit > 5% du budget annuel -> a signaler (candidat recouvrement). */
+  depasse5pct: boolean;
 }
 
 // --- Agregat rendu par la fiche -------------------------------------------

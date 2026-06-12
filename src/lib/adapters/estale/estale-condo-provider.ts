@@ -8,6 +8,7 @@ import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
 import type {
   AgPassee,
   ContratEstale,
+  DebiteurEstale,
   DonneesEstaleCopro,
   MembreConseilSyndical,
 } from "@/lib/domain/copropriete";
@@ -54,10 +55,9 @@ type CondoData = {
     }[];
     contracts: { label: string; category: string; period: [string, string] }[];
     litigation: { count: number };
-    unpaid: { count: number };
     accountingV2: {
       periodCurrent: [string, string] | null;
-      exercices: { period: [string, string]; budgetOrdinary: { amount: number } | null }[];
+      exercices: { id: string; period: [string, string]; budgetOrdinary: { amount: number } | null }[];
     };
   };
 };
@@ -70,10 +70,34 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
     meetings { category startAt transcript { validated } }
     contracts { label category period }
     litigation { count }
-    unpaid { count }
-    accountingV2 { periodCurrent exercices { period budgetOrdinary { amount } } }
+    accountingV2 { periodCurrent exercices { id period budgetOrdinary { amount } } }
   }
 }`;
+
+// Debiteurs (compte 450) a l'exercice courant : solde par coproprietaire > 0.
+// On signale ceux dont le debit depasse 5% du budget annuel (candidats recouvrement).
+const QUERY_DEBITEURS = `query Debiteurs($id: ID!, $ex: ID!) {
+  condo(id: $id) { owners(archived: false) { fullname lastname firstname balance(accountingID: $ex) } }
+}`;
+
+async function debiteursExercice(
+  condoId: string,
+  exId: string,
+  budget: number | undefined,
+): Promise<DebiteurEstale[]> {
+  try {
+    const d = await estaleGql<{
+      condo: { owners: { fullname: string; lastname: string; firstname: string | null; balance: number }[] };
+    }>(QUERY_DEBITEURS, { id: condoId, ex: exId });
+    const seuil = budget != null ? budget * 0.05 : Number.POSITIVE_INFINITY;
+    return d.condo.owners
+      .filter((o) => o.balance > 0)
+      .map((o) => ({ nom: formatPresent(o), montant: o.balance, depasse5pct: o.balance > seuil }))
+      .sort((a, b) => b.montant - a.montant);
+  } catch {
+    return [];
+  }
+}
 
 // Requete comptable ISOLEE (try/catch) : on lit la liste des comptes de l'exercice
 // avec leurs stats, puis on agrege par nomenclature (plan comptable copro). Isolee
@@ -189,6 +213,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       acc.exercices[0];
     const budgetPrevisionnel = exCourant?.budgetOrdinary?.amount;
     const comptes = exCourant ? await comptesExercice(condoId, exCourant.period) : {};
+    const debiteurs = exCourant ? await debiteursExercice(condoId, exCourant.id, budgetPrevisionnel) : [];
 
     return {
       conseilSyndical,
@@ -203,7 +228,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(comptes.depenses != null ? { depensesCourantes: comptes.depenses } : {}),
       ...(comptes.travaux != null ? { depensesTravaux: comptes.travaux } : {}),
       ...(comptes.fonds != null ? { fondsTravaux: comptes.fonds } : {}),
-      ...(condo.unpaid.count > 0 ? { nbDebiteurs: condo.unpaid.count } : {}),
+      ...(debiteurs.length > 0 ? { debiteurs } : {}),
     };
   }
 }

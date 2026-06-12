@@ -106,7 +106,13 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   const valeurDepenses = estale?.depensesCourantes != null ? String(estale.depensesCourantes) : undefined;
   const valeurTravaux = estale?.depensesTravaux != null ? String(estale.depensesTravaux) : undefined;
   const valeurFonds = estale?.fondsTravaux != null ? String(estale.fondsTravaux) : undefined;
-  const valeurDebiteurs = estale?.nbDebiteurs ? `${estale.nbDebiteurs} copropriétaire(s) débiteur(s)` : undefined;
+  // Debiteurs a ce jour : "NOM Prenom montant (>5% budget)" pour ceux qui depassent le seuil.
+  const valeurDebiteurs =
+    estale?.debiteurs && estale.debiteurs.length > 0
+      ? estale.debiteurs
+          .map((d) => `${d.nom} ${formatEuros(d.montant)}${d.depasse5pct ? " (>5% budget)" : ""}`)
+          .join(" ; ")
+      : undefined;
   // AG en visio : pre-rempli depuis eStale (meetingVideo) ; le gestionnaire ajuste.
   const visioInitial = estale?.agVisioAcceptee != null ? (estale.agVisioAcceptee ? "oui" : "non") : undefined;
   const RAPPORT_CS =
