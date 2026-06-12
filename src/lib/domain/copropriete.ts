@@ -110,7 +110,18 @@ export interface ItemConformite {
   etat: EtatConformite;
 }
 
-/** Bloc de donnees copro provenant d'eStale (CS, historique AG, conformite). */
+/** Un contrat fournisseur (eStale), reduit a ce que l'ODJ exploite. */
+export interface ContratEstale {
+  libelle: string;
+  /** Categorie eStale brute, ex "ENERGY_GAS". */
+  categorie: string;
+  /** Bornes du contrat, ISO "YYYY-MM-DD" (fin absente si "infinity"). */
+  debut?: string;
+  fin?: string;
+}
+
+/** Bloc de donnees copro provenant d'eStale (CS, historique AG, conformite,
+ *  + donnees alimentant l'ODJ : annee de construction, contrats, procedures). */
 export interface DonneesEstaleCopro {
   conseilSyndical: MembreConseilSyndical[];
   /** Echeance des mandats CS, ex "AG 2026". */
@@ -118,6 +129,12 @@ export interface DonneesEstaleCopro {
   /** AG passees, plus recente en premier. */
   historiqueAg: AgPassee[];
   conformite: ItemConformite[];
+  /** Annee de construction (eStale `constructionDate`) -> applicabilite PPT/DPE. */
+  anneeConstruction?: number;
+  /** Contrats fournisseurs (gaz, electricite...) pour la gestion courante. */
+  contrats?: ContratEstale[];
+  /** Nombre de procedures / litiges en cours. */
+  nbProcedures?: number;
 }
 
 // --- Agregat rendu par la fiche -------------------------------------------

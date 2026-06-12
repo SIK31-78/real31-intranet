@@ -7,6 +7,7 @@
 import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
 import type {
   AgPassee,
+  ContratEstale,
   DonneesEstaleCopro,
   MembreConseilSyndical,
 } from "@/lib/domain/copropriete";
@@ -39,6 +40,7 @@ async function resoudreCondoId(code: string): Promise<string | null> {
 
 type CondoData = {
   condo: {
+    constructionDate: number | null;
     council: {
       role: "PRESIDENT" | "MEMBER";
       expiry: number | null;
@@ -49,15 +51,26 @@ type CondoData = {
       startAt: string | null;
       transcript: { validated: boolean };
     }[];
+    contracts: { label: string; category: string; period: [string, string] }[];
+    litigation: { count: number };
   };
 };
 
 const QUERY_CONDO = `query DonneesCopro($id: ID!) {
   condo(id: $id) {
+    constructionDate
     council { role expiry owner { fullname } }
     meetings { category startAt transcript { validated } }
+    contracts { label category period }
+    litigation { count }
   }
 }`;
+
+/** Borne de Daterange eStale -> ISO ou undefined (gere "infinity" / vide). */
+function borneISO(v: string | undefined): string | undefined {
+  if (!v || v === "infinity" || v === "-infinity") return undefined;
+  return v.slice(0, 10);
+}
 
 /** ORDINARY -> AG ; tout le reste (EXTRAORDINARY, URGENT, SPECIAL...) -> AGE. */
 function typeAg(category: string): "AG" | "AGE" {
@@ -94,11 +107,21 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       }))
       .sort((a, b) => b.date.localeCompare(a.date));
 
+    const contrats: ContratEstale[] = condo.contracts.map((c) => ({
+      libelle: c.label,
+      categorie: c.category,
+      ...(borneISO(c.period?.[0]) ? { debut: borneISO(c.period[0]) } : {}),
+      ...(borneISO(c.period?.[1]) ? { fin: borneISO(c.period[1]) } : {}),
+    }));
+
     return {
       conseilSyndical,
       ...(expiry > 0 ? { mandatJusqua: `AG ${expiry}` } : {}),
       historiqueAg,
       conformite: [], // la conformite (PPT...) reste composee depuis le referentiel
+      ...(condo.constructionDate ? { anneeConstruction: condo.constructionDate } : {}),
+      ...(contrats.length > 0 ? { contrats } : {}),
+      ...(condo.litigation.count > 0 ? { nbProcedures: condo.litigation.count } : {}),
     };
   }
 }

@@ -120,7 +120,17 @@ function dateDpe(lots: number): string {
  * CS le souhaite). Le renouvellement du CS et le contrat de syndic sont des
  * CHAMPS (pre-remplis / calcules), pas des points statiques.
  */
-export function pointsLegaux(lots: number): PointLegal[] {
+export function pointsLegaux(
+  lots: number,
+  opts?: { anneeConstruction?: number; anneeCourante?: number },
+): PointLegal[] {
+  const annee = opts?.anneeConstruction;
+  const courante = opts?.anneeCourante;
+  // PPT : copros de plus de 15 ans. DPE collectif : permis < 1er juillet 2013
+  // (on approxime via l'annee de construction). Si l'annee est inconnue -> on
+  // garde le point (defaut prudent), le gestionnaire ajuste.
+  const pptApplicable = annee && courante ? courante - annee > 15 : true;
+  const dpeApplicable = annee ? annee <= 2013 : true;
   return [
     {
       id: "fonds-travaux-alur",
@@ -140,15 +150,17 @@ export function pointsLegaux(lots: number): PointLegal[] {
     {
       id: "ppt",
       titre: "Plan Pluriannuel de Travaux (PPT)",
-      applicable: true,
-      condition: "Copropriete de plus de 15 ans.",
+      applicable: pptApplicable,
+      condition: annee
+        ? `Immeuble de ${annee} (${pptApplicable ? "plus" : "moins"} de 15 ans).`
+        : "Copropriete de plus de 15 ans.",
       texte:
         `Les coproprietes de plus de 15 ans doivent elaborer un plan pluriannuel de travaux (PPT). Pour cette copropriete (selon le nombre de lots), l'obligation s'applique a compter du ${datePpt(lots)} (art. 171 loi n0 2021-1104). Une fois realise, le PPT est presente a chaque AG ordinaire.`,
     },
     {
       id: "dpe-collectif",
       titre: "DPE collectif",
-      applicable: true,
+      applicable: dpeApplicable,
       condition: "Immeuble d'habitation, permis de construire anterieur au 1er juillet 2013.",
       texte:
         `Le DPE collectif (loi Climat et Resilience, art. 158) est obligatoire pour cette copropriete a compter du ${dateDpe(lots)} (selon le nombre de lots principaux).`,

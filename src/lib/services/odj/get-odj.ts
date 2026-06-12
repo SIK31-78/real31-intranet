@@ -80,6 +80,19 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     .map((m) => `${m.nomComplet}${m.role === "president" ? " (président)" : ""}`)
     .join(", ");
 
+  // Donnees eStale alimentant la gestion courante : contrats (gaz / elec) + procedures.
+  const formatContrat = (categorie: string): string | undefined => {
+    const c = (estale?.contrats ?? []).find((x) => x.categorie === categorie);
+    if (!c) return undefined;
+    const d = c.debut ? dateCourte(c.debut) : undefined;
+    const f = c.fin ? dateCourte(c.fin) : undefined;
+    const bornes = d && f ? `du ${d} au ${f}` : d ? `depuis le ${d}` : f ? `jusqu'au ${f}` : "";
+    return `${c.libelle}${bornes ? ` (${bornes})` : ""}`;
+  };
+  const valeurGaz = formatContrat("ENERGY_GAS");
+  const valeurElec = formatContrat("ENERGY_ELECTRICITY");
+  const valeurProc = estale?.nbProcedures ? `${estale.nbProcedures} procedure(s) en cours` : undefined;
+
   const enTete: ChampOdj[] = [
     champ("adresse", "Adresse", "supabase", { valeur: adresse }),
     champ("date-ag", "Date de l'AG", dateAg ? "supabase" : "manuel", { valeur: dateCourte(dateAg) }),
@@ -138,10 +151,10 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       titre: "Gestion courante",
       champs: [
         champ("gestion.sinistres", "Dossiers sinistres en cours", "estale", e),
-        champ("gestion.procedures", "Dossiers procedure en cours ou a lancer", "estale", e),
+        champ("gestion.procedures", "Dossiers procedure en cours ou a lancer", "estale", { editable: true, valeur: valeurProc }),
         champ("gestion.autres", "Autres dossiers de gestion courante", "manuel", e),
-        champ("gestion.gaz", "Contrat gaz (dates effet / fin + prix molecule)", "supabase", e),
-        champ("gestion.electricite", "Contrat electricite (dates effet / fin + prix molecule)", "supabase", e),
+        champ("gestion.gaz", "Contrat gaz (dates effet / fin)", "estale", { editable: true, valeur: valeurGaz }),
+        champ("gestion.electricite", "Contrat electricite (dates effet / fin)", "estale", { editable: true, valeur: valeurElec }),
         champ("gestion.engie", "Optimisation du contrat ENGIE", "manuel", e),
         champ("gestion.subvention-dtg", "Subvention Metropole pour le DTG", "manuel", e),
         champ("gestion.dtg-pppt", "Avancement DTG / PPPT", "manuel", e),
@@ -213,7 +226,10 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     );
   }
 
-  const points = pointsLegaux(copro.lotsPrincipaux).map((p) => {
+  const points = pointsLegaux(copro.lotsPrincipaux, {
+    anneeConstruction: estale?.anneeConstruction,
+    anneeCourante: new Date().getUTCFullYear(),
+  }).map((p) => {
     const v = saisies.get(`${PREFIXE_POINT}${p.id}`);
     if (v === "retire") return { ...p, applicable: false };
     if (v === "inclus") return { ...p, applicable: true };
