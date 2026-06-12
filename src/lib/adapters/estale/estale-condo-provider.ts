@@ -106,6 +106,7 @@ async function debiteursExercice(
 //   6   = comptes de charges   -> debit = depenses courantes
 //   105 = fonds de travaux ALUR -> -balance = montant du fonds (solde crediteur)
 //   702Txx = provisions travaux par chantier -> credit = budget vote/appele
+//   671Txx = charges travaux du meme chantier -> debit = depenses constatees
 type StatCompte = { debit: number | null; credit: number | null; balance: number | null };
 type Compte = { id: string; nomenclature: string; name: string; statisticsPeriod: StatCompte };
 const QUERY_COMPTES = `query Comptes($id: ID!, $p: Daterange!) {
@@ -117,7 +118,7 @@ const QUERY_COMPTES = `query Comptes($id: ID!, $p: Daterange!) {
 type Comptes = {
   depenses?: number;
   fonds?: number;
-  travauxVotes: { libelle: string; montant: number }[];
+  travauxVotes: { libelle: string; budgetVote: number; depenses: number }[];
   eauIds: string[];
 };
 
@@ -132,13 +133,20 @@ async function comptesExercice(condoId: string, periode: [string, string]): Prom
     const charges = stat("6");
     const fonds = stat("105");
     const eauIds = accounts.filter((a) => a.nomenclature.startsWith("601")).map((a) => a.id);
-    // Travaux votes = niveau "chantier" du 702 (702Txx, hors lignes "Lot n0X"), credit = appele.
+    // Travaux votes = niveau "chantier" du 702 (702Txx, hors lignes "Lot n0X"). Le
+    // budget appele = credit du 702Txx ; les depenses constatees = debit du 671 du
+    // meme chantier (meme suffixe T-code, ex 702T01 <-> 671T01).
+    const debitDe = (n: string): number => accounts.find((a) => a.nomenclature === n)?.statisticsPeriod.debit ?? 0;
     const travauxVotes = accounts
       .filter(
         (a) =>
           a.nomenclature.startsWith("702T") && !a.name.startsWith("Lot") && (a.statisticsPeriod.credit ?? 0) > 0,
       )
-      .map((a) => ({ libelle: a.name, montant: a.statisticsPeriod.credit! }));
+      .map((a) => ({
+        libelle: a.name,
+        budgetVote: a.statisticsPeriod.credit!,
+        depenses: debitDe(`671${a.nomenclature.slice(3)}`),
+      }));
     return {
       eauIds,
       travauxVotes,

@@ -139,8 +139,8 @@ export interface DonneesEstaleCopro {
   budgetPrevisionnel?: number;
   /** Total des depenses courantes de l'exercice (debit des comptes de charges), en euros. */
   depensesCourantes?: number;
-  /** Travaux votes (provisions appelees, compte 702) : un libelle + montant par chantier. */
-  travauxVotes?: { libelle: string; montant: number }[];
+  /** Travaux votes par chantier : libelle + budget appele (702) + depenses constatees (671). */
+  travauxVotes?: { libelle: string; budgetVote: number; depenses: number }[];
   /** Montant du fonds de travaux ALUR (compte 105) en fin d'exercice, en euros. */
   fondsTravaux?: number;
   /** Coproprietaires debiteurs (solde a ce jour > 0), tries par montant decroissant. */

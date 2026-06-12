@@ -106,7 +106,9 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   const valeurDepenses = estale?.depensesCourantes != null ? String(estale.depensesCourantes) : undefined;
   const valeurTravaux =
     estale?.travauxVotes && estale.travauxVotes.length > 0
-      ? estale.travauxVotes.map((t) => `${t.libelle} : ${formatEuros(t.montant)}`).join(" ; ")
+      ? estale.travauxVotes
+          .map((t) => `${t.libelle} : voté ${formatEuros(t.budgetVote)}, dépensé ${formatEuros(t.depenses)}`)
+          .join(" ; ")
       : undefined;
   const valeurFonds = estale?.fondsTravaux != null ? String(estale.fondsTravaux) : undefined;
   // Debiteurs a ce jour : "NOM Prenom montant (>5% budget)" pour ceux qui depassent le seuil.
