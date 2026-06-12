@@ -232,6 +232,7 @@ Passage de "consultatif" à "proactif".
   - Copros sans AG planifiée depuis > 11 mois
   - Synthèse hebdo manager (lundi 8h)
 - 🔲 Templates mail (probable `react-email`)
+- 🔲 **Réservation de salle d'agence depuis l'intranet** (demande Sekou 2026-06-12) : pour une AG/un CS tenu en agence, sélectionner la date puis **réserver la salle directement sur Outlook** (calendriers de salles, via Graph `Calendars`), avec **vérification de disponibilité**. Alimenterait le champ « Lieu » de l'ODJ (aujourd'hui : copropriété ou agence, saisie manuelle).
 - 🔲 Audit log enrichi : couverture lectures sensibles (niveau b - ADR-007)
 - 🔲 Tests E2E enrichis : trigger d'alerte -> mail dans boîte de test
 
