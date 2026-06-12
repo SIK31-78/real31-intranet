@@ -37,6 +37,12 @@ export function BlocJalons({
         <div className="flex items-center gap-2">
           <Badge ton="outline" className="font-mono">{faits} / {jalons.length}</Badge>
           <Link
+            href={`/odj/${coproCode}__${agDate}`}
+            className="inline-flex items-center h-7 px-2.5 rounded-sm border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
+          >
+            ODJ
+          </Link>
+          <Link
             href={`/supervision-ag/${coproCode}__${agDate}`}
             className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors"
           >

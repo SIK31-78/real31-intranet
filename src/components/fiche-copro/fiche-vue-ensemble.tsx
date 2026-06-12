@@ -109,13 +109,21 @@ function BlocAg({
         <div className="flex items-center gap-2">
           {agAJour?.etat === "ok" && <Badge ton="ok" dot>À jour</Badge>}
           {!prochaine && (
-            <Link
-              href={`/supervision-ag/${coproCode}`}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors"
-            >
-              Supervision AG
-              <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-            </Link>
+            <>
+              <Link
+                href={`/odj/${coproCode}`}
+                className="inline-flex items-center h-7 px-2.5 rounded-sm border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
+              >
+                ODJ
+              </Link>
+              <Link
+                href={`/supervision-ag/${coproCode}`}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors"
+              >
+                Supervision AG
+                <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
+              </Link>
+            </>
           )}
         </div>
       </CardHeader>
