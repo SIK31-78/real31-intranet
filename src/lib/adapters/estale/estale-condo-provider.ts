@@ -103,39 +103,50 @@ async function debiteursExercice(
 // Requete comptable ISOLEE (try/catch) : on lit la liste des comptes de l'exercice
 // avec leurs stats, puis on agrege par nomenclature (plan comptable copro). Isolee
 // car une erreur compta ne doit pas casser le reste (CS, contrats...).
-//   6   = comptes de charges  -> debit = depenses courantes
-//   67  = charges travaux     -> debit = depenses travaux votees
+//   6   = comptes de charges   -> debit = depenses courantes
 //   105 = fonds de travaux ALUR -> -balance = montant du fonds (solde crediteur)
-type StatCompte = { debit: number | null; balance: number | null };
+//   702Txx = provisions travaux par chantier -> credit = budget vote/appele
+type StatCompte = { debit: number | null; credit: number | null; balance: number | null };
+type Compte = { id: string; nomenclature: string; name: string; statisticsPeriod: StatCompte };
 const QUERY_COMPTES = `query Comptes($id: ID!, $p: Daterange!) {
   condo(id: $id) {
-    accountingV2 { exercice { accounts(archived: false) { id nomenclature statisticsPeriod(period: $p) { debit balance } } } }
+    accountingV2 { exercice { accounts(archived: false) { id nomenclature name statisticsPeriod(period: $p) { debit credit balance } } } }
   }
 }`;
 
-type Comptes = { depenses?: number; travaux?: number; fonds?: number; eauIds: string[] };
+type Comptes = {
+  depenses?: number;
+  fonds?: number;
+  travauxVotes: { libelle: string; montant: number }[];
+  eauIds: string[];
+};
 
 async function comptesExercice(condoId: string, periode: [string, string]): Promise<Comptes> {
   try {
-    const d = await estaleGql<{
-      condo: {
-        accountingV2: { exercice: { accounts: { id: string; nomenclature: string; statisticsPeriod: StatCompte }[] } };
-      };
-    }>(QUERY_COMPTES, { id: condoId, p: periode });
+    const d = await estaleGql<{ condo: { accountingV2: { exercice: { accounts: Compte[] } } } }>(
+      QUERY_COMPTES,
+      { id: condoId, p: periode },
+    );
     const accounts = d.condo.accountingV2.exercice.accounts;
     const stat = (n: string): StatCompte | undefined => accounts.find((a) => a.nomenclature === n)?.statisticsPeriod;
     const charges = stat("6");
-    const travaux = stat("67");
     const fonds = stat("105");
     const eauIds = accounts.filter((a) => a.nomenclature.startsWith("601")).map((a) => a.id);
+    // Travaux votes = niveau "chantier" du 702 (702Txx, hors lignes "Lot n0X"), credit = appele.
+    const travauxVotes = accounts
+      .filter(
+        (a) =>
+          a.nomenclature.startsWith("702T") && !a.name.startsWith("Lot") && (a.statisticsPeriod.credit ?? 0) > 0,
+      )
+      .map((a) => ({ libelle: a.name, montant: a.statisticsPeriod.credit! }));
     return {
       eauIds,
+      travauxVotes,
       ...(charges?.debit ? { depenses: charges.debit } : {}),
-      ...(travaux?.debit ? { travaux: travaux.debit } : {}),
       ...(fonds?.balance ? { fonds: -fonds.balance } : {}),
     };
   } catch {
-    return { eauIds: [] }; // exercice sans comptabilite alimentee
+    return { eauIds: [], travauxVotes: [] }; // exercice sans comptabilite alimentee
   }
 }
 
@@ -244,7 +255,9 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       acc.exercices.find((e) => acc.periodCurrent && e.period[0] === acc.periodCurrent[0]) ??
       acc.exercices[0];
     const budgetPrevisionnel = exCourant?.budgetOrdinary?.amount;
-    const comptes = exCourant ? await comptesExercice(condoId, exCourant.period) : { eauIds: [] };
+    const comptes = exCourant
+      ? await comptesExercice(condoId, exCourant.period)
+      : { eauIds: [], travauxVotes: [] };
     const debiteurs = exCourant ? await debiteursExercice(condoId, exCourant.id, budgetPrevisionnel) : [];
     const eau = await consommationEau(condoId, comptes.eauIds);
 
@@ -259,7 +272,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(condo.litigation.count > 0 ? { nbProcedures: condo.litigation.count } : {}),
       ...(budgetPrevisionnel != null ? { budgetPrevisionnel } : {}),
       ...(comptes.depenses != null ? { depensesCourantes: comptes.depenses } : {}),
-      ...(comptes.travaux != null ? { depensesTravaux: comptes.travaux } : {}),
+      ...(comptes.travauxVotes.length > 0 ? { travauxVotes: comptes.travauxVotes } : {}),
       ...(comptes.fonds != null ? { fondsTravaux: comptes.fonds } : {}),
       ...(debiteurs.length > 0 ? { debiteurs } : {}),
       ...(eau ? { eau } : {}),

@@ -104,7 +104,10 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   // Comptabilite (eStale) : budget previsionnel + depenses (-> ecart auto) + travaux + fonds + debiteurs.
   const valeurBudget = estale?.budgetPrevisionnel != null ? String(estale.budgetPrevisionnel) : undefined;
   const valeurDepenses = estale?.depensesCourantes != null ? String(estale.depensesCourantes) : undefined;
-  const valeurTravaux = estale?.depensesTravaux != null ? String(estale.depensesTravaux) : undefined;
+  const valeurTravaux =
+    estale?.travauxVotes && estale.travauxVotes.length > 0
+      ? estale.travauxVotes.map((t) => `${t.libelle} : ${formatEuros(t.montant)}`).join(" ; ")
+      : undefined;
   const valeurFonds = estale?.fondsTravaux != null ? String(estale.fondsTravaux) : undefined;
   // Debiteurs a ce jour : "NOM Prenom montant (>5% budget)" pour ceux qui depassent le seuil.
   const valeurDebiteurs =
@@ -172,7 +175,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         champ("comptes.budget", "Budget previsionnel", "estale", { editable: true, type: "montant", valeur: valeurBudget }),
         champ("comptes.ecart-budget", "Trop-percu / depassement budget courant", "calcul"),
         champ("comptes.eau", "Consommation eau (volume + prix au m3)", "estale", { editable: true, valeur: valeurEau }),
-        champ("comptes.travaux-votes", "Depenses travaux votees", "estale", { editable: true, type: "montant", valeur: valeurTravaux }),
+        champ("comptes.travaux-votes", "Travaux votes (budget appele)", "estale", { editable: true, valeur: valeurTravaux }),
         champ("comptes.debiteurs", "Coproprietaire(s) debiteur(s)", "estale", { editable: true, valeur: valeurDebiteurs }),
         champ("comptes.compteurs-eau", "Compteurs d'eau collectes", "supabase", e),
         champ("comptes.repartiteurs", "Repartiteurs de frais de chauffage collectes", "supabase", e),
