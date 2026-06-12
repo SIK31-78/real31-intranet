@@ -30,6 +30,8 @@ import type { OdjRepository } from "@/lib/ports/odj-repository";
 import { SupabaseOdjRepository } from "@/lib/adapters/supabase/supabase-odj-repository";
 import { MockOdjRepository } from "@/lib/adapters/mock/mock-odj-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
+import { EstaleCondoProvider } from "@/lib/adapters/estale/estale-condo-provider";
+import { estaleConfigure } from "@/lib/adapters/estale/client";
 
 export type { DbHealth };
 
@@ -62,9 +64,12 @@ export function getJalonRepository(): JalonRepository {
   return new MockJalonRepository();
 }
 
-// Donnees copro sourcees eStale (CS, historique AG, conformite). Source cible : eStale
-// (GraphQL), branchee en J4 -> le choix de l'adapter se fera ICI, sans toucher au service.
+// Donnees copro sourcees eStale (CS, historique AG). Branche en reel (Phase B,
+// ADR-022) quand les identifiants eStale sont presents ; sinon mock.
 export function getCondoEstaleProvider(): CondoEstaleProvider {
+  if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
+    return new EstaleCondoProvider();
+  }
   return new MockCondoEstaleProvider();
 }
 
