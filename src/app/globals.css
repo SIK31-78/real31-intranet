@@ -64,3 +64,16 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+/* Impression : format A4 + marges, et on force le rendu des couleurs (accents
+   verts, fonds) pour les documents (ex. l'ODJ). */
+@media print {
+  @page {
+    size: A4;
+    margin: 1.5cm;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
