@@ -1,16 +1,19 @@
-// SSO Microsoft Entra ID (Auth.js v5). Le provider n'est actif que si les
-// identifiants Azure sont presents (fournis par le DSI / patron) ; sinon l'app
-// retombe sur le selecteur dev-login. Cf. docs/entra-app-registration.md + ADR-017.
+// SSO Microsoft Entra ID (Auth.js v5). Memes noms de variables que le projet App A
+// du patron (convention Auth.js par defaut) -> config quasi identique, meme tenant.
+// Le provider n'est actif que si les identifiants sont presents ; sinon fallback
+// dev-login. Cf. docs/entra-app-registration.md + ADR-017.
 //
-// Flux : login Microsoft -> id token (email) -> on retrouve le gestionnaire par
-// email dans public."User" (cf. lib/auth/session.ts) -> cloisonnement par managerId.
+// Flux : login Microsoft -> id token (email) -> gestionnaire par email dans
+// public."User" (cf. lib/auth/session.ts) -> cloisonnement par managerId.
 
 import NextAuth from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 
-/** Le SSO est-il configure (identifiants Azure presents) ? */
+/** Le SSO est-il configure (identifiants Entra ID presents) ? */
 export const ssoConfigure = Boolean(
-  process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID,
+  process.env.AUTH_MICROSOFT_ENTRA_ID_ID &&
+    process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
+    process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
 );
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -18,9 +21,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: ssoConfigure
     ? [
         MicrosoftEntraID({
-          clientId: process.env.AZURE_CLIENT_ID,
-          clientSecret: process.env.AZURE_CLIENT_SECRET,
-          issuer: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`,
+          clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+          clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
+          issuer: process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
         }),
       ]
     : [],

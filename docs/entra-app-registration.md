@@ -11,14 +11,28 @@ Document à transmettre **tel quel** au DSI. Toutes les informations nécessaire
 
 ## ⭐ Étape 1 (maintenant) : SSO seul
 
-Pour la première mise en service, **seule l'authentification (SSO) est nécessaire**. Le SharePoint (`Sites.Selected`) et l'envoi de mail (`Mail.Send`) viendront **plus tard** - on ne s'en sert pas encore (les données viennent de Supabase). Donc, pour démarrer, suivre **uniquement** :
+Pour la première mise en service, **seule l'authentification (SSO) est nécessaire**. Le SharePoint (`Sites.Selected`) et l'envoi de mail (`Mail.Send`) viendront **plus tard** - on ne s'en sert pas encore (les données viennent de Supabase).
+
+> [!note] Même tenant, même techno que l'App A (registre-mandats)
+> L'intranet et l'App A du patron partagent le **même tenant Microsoft 365** et la **même librairie** (Auth.js v5). Les variables d'env portent donc les **mêmes noms** : `AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET`, `AUTH_MICROSOFT_ENTRA_ID_ISSUER`, `AUTH_SECRET`, `AUTH_URL`.
+>
+> **Deux options pour l'App Registration :**
+> - **(a) Réutiliser celle de l'App A** (la plus rapide) : le patron ajoute notre Redirect URI `http://localhost:3000/api/auth/callback/microsoft-entra-id` à l'app existante et nous donne le **client secret**. On reprend alors le même `AUTH_MICROSOFT_ENTRA_ID_ID` et le même `AUTH_MICROSOFT_ENTRA_ID_ISSUER` que l'App A.
+> - **(b) Créer une App Registration dédiée `REAL31 Intranet`** (plus propre à terme : secrets/URIs/permissions indépendants) : suivre les sections 2-3-4-5 ci-dessous.
+
+Pour l'option (b), suivre **uniquement** :
 
 - **Section 2** : créer l'App Registration (single tenant).
 - **Section 3** : déclarer les Redirect URIs + cocher **ID tokens**.
 - **Section 4**, mais **une seule permission** : `User.Read` (Delegated) - inutile d'ajouter `Sites.Selected` et `Mail.Send` pour l'instant.
 - **Section 5** : créer un client secret.
 
-**À nous transmettre** (canal chiffré, pas par email pour le secret) : `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`. C'est tout pour le SSO. (Le `AUTH_SECRET`, on le génère de notre côté, ce n'est pas une valeur Azure.)
+**À nous transmettre** (canal chiffré, pas par email pour le secret) :
+- `AUTH_MICROSOFT_ENTRA_ID_ID` = *Application (client) ID*
+- `AUTH_MICROSOFT_ENTRA_ID_SECRET` = la valeur du client secret
+- le *Directory (tenant) ID*, pour construire `AUTH_MICROSOFT_ENTRA_ID_ISSUER` = `https://login.microsoftonline.com/<TENANT_ID>/v2.0`
+
+C'est tout pour le SSO. (`AUTH_SECRET` et `AUTH_URL`, on les met de notre côté - ce ne sont pas des valeurs Azure.)
 
 Le reste du document (SharePoint, mail, Application Access Policy) reste valable pour les étapes suivantes.
 
@@ -53,9 +67,9 @@ Le DSI doit nous transmettre **de manière sécurisée** (Bitwarden, 1Password, 
 
 | Variable | Origine | Notes |
 |---|---|---|
-| `AZURE_TENANT_ID` | Onglet *Overview* -> *Directory (tenant) ID* | GUID public, peu sensible |
-| `AZURE_CLIENT_ID` | Onglet *Overview* -> *Application (client) ID* | GUID public, peu sensible |
-| `AZURE_CLIENT_SECRET` | Onglet *Certificates & secrets* -> *Client secrets* -> *New client secret* | **Très sensible**, à transmettre via canal chiffré |
+| *Directory (tenant) ID* (-> `AUTH_MICROSOFT_ENTRA_ID_ISSUER`) | Onglet *Overview* -> *Directory (tenant) ID* | GUID public, peu sensible |
+| `AUTH_MICROSOFT_ENTRA_ID_ID` | Onglet *Overview* -> *Application (client) ID* | GUID public, peu sensible |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET` | Onglet *Certificates & secrets* -> *Client secrets* -> *New client secret* | **Très sensible**, à transmettre via canal chiffré |
 
 ---
 
@@ -195,9 +209,9 @@ Une fois l'App Registration créée et toutes les configurations faites, le DSI 
 
 | Information | Format | Sensibilité |
 |---|---|---|
-| `AZURE_TENANT_ID` | GUID | Faible |
-| `AZURE_CLIENT_ID` | GUID | Faible |
-| `AZURE_CLIENT_SECRET` | Chaîne ~40 chars | **Critique** |
+| *Directory (tenant) ID* (-> `AUTH_MICROSOFT_ENTRA_ID_ISSUER`) | GUID | Faible |
+| `AUTH_MICROSOFT_ENTRA_ID_ID` (Application/client ID) | GUID | Faible |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET` | Chaîne ~40 chars | **Critique** |
 | Site IDs SharePoint allowlistés | Liste de `<tenant>.sharepoint.com,<guid>,<guid>` | Faible |
 | Adresse mail expéditrice configurée | ex: `intranet@real31.fr` | Faible |
 | Confirmation Application Access Policy active | OK / KO | - |

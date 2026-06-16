@@ -14,7 +14,9 @@ const MOT_DE_PASSE = process.env.SITE_PASSWORD ?? "real31";
 // SSO Microsoft actif (identifiants Azure presents) : c'est lui qui controle
 // l'acces (login Entra ID), le mot de passe partage n'a plus lieu d'etre.
 const SSO_ACTIF = Boolean(
-  process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID,
+  process.env.AUTH_MICROSOFT_ENTRA_ID_ID &&
+    process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
+    process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
 );
 
 export function proxy(req: NextRequest) {
