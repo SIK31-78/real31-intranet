@@ -3,12 +3,18 @@
 // bricolage d'auth est isole ICI ; quand la cle API arrivera (ESTALE_API_KEY),
 // on basculera sans toucher les adapters metier.
 //
-// Contraintes API (ADR-022) : rate limit 50 req/s, timeout 30 s -> requetes
-// ciblees, pas de mega-queries. Endpoints verifies le 2026-06-12 :
+// Contraintes API (ADR-022) : rate limit 50 req/s, timeout serveur 30 s -> requetes
+// ciblees, pas de mega-queries. NB : notre abort client est plus court (TIMEOUT_MS)
+// pour degrader vite en cas de panne. Endpoints verifies le 2026-06-12 :
 //   login  POST https://api.estale.app/api/login  {email, password} -> cookie "estale"
 //   gql    POST https://api.estale.app/graphql/intranet
 
 const BASE = (process.env.ESTALE_BASE_URL ?? "https://api.estale.app").replace(/\/$/, "");
+
+// Timeout client : court expres. Si l'API eStale hang (panne), la fiche/ODJ doivent
+// se degrader (banniere) vite, sans faire patienter le gestionnaire. 10 s est large
+// pour une requete ciblee qui marche (rate limit eStale = 50 req/s).
+const TIMEOUT_MS = 10_000;
 
 // Cookie de session en cache module (re-login automatique sur 401/403).
 let cookieSession: string | null = null;
@@ -30,7 +36,7 @@ async function login(): Promise<string> {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new EstaleError(`Login eStale refuse (HTTP ${res.status})`, res.status);
   const cookies = res.headers.getSetCookie();
@@ -52,7 +58,7 @@ export async function estaleGql<T>(
       method: "POST",
       headers: { "content-type": "application/json", cookie: cookieSession! },
       body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
   let res = await appel();
