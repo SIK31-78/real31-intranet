@@ -8,6 +8,7 @@
 
 import type { Evenement } from "@/lib/domain/calendrier";
 import type { JalonAvecEtat } from "@/lib/domain/jalons-ag/types";
+import type { LigneParcours } from "@/lib/domain/dashboard";
 
 // --- Referentiel copro (source App A) -------------------------------------
 
@@ -187,6 +188,9 @@ export interface FicheCopro {
   /** Vrai si eStale a echoue (panne / timeout) : les blocs eStale sont vides mais la
    *  copro EST sur eStale -> l'UI distingue "indisponible" de "non disponible". */
   estaleIndisponible?: boolean;
+  /** Parcours AG de la copro (etape courante + prochaine action) ; absent si le cycle
+   *  est complet ou hors fenetre. Meme calcul que le dashboard (domain/parcours-ag). */
+  parcours?: LigneParcours;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

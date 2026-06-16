@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   FileText,
   ArrowRight,
+  Route,
   Users,
 } from "lucide-react";
 import type {
@@ -23,8 +24,10 @@ import type {
 } from "@/lib/domain/copropriete";
 import type { Evenement } from "@/lib/domain/calendrier";
 import type { Severite } from "@/lib/domain/commun";
+import type { LigneParcours } from "@/lib/domain/dashboard";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { formatDateLongue } from "@/lib/format-date";
 import { BlocJalons } from "./bloc-jalons";
 import { EditeurDate } from "./editeur-date";
@@ -54,6 +57,7 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
   return (
     <div className="flex flex-col gap-5">
       {indispo && <BanniereEstaleIndispo />}
+      {fiche.parcours && <BlocParcours ligne={fiche.parcours} />}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
         <div className="flex flex-col gap-5">
           <BlocAg
@@ -88,6 +92,45 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// --- Parcours AG (ou en est cette copro + prochaine action) ---------------
+
+function BlocParcours({ ligne }: { ligne: LigneParcours }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Route strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+          Où en est cette AG
+        </CardTitle>
+        {ligne.echeance && (
+          <Badge
+            ton={ligne.enRetard ? "err" : ligne.echeance.startsWith("J-") ? "outline" : "warn"}
+            className="font-mono"
+            dot={Boolean(ligne.enRetard)}
+          >
+            {ligne.echeance}
+          </Badge>
+        )}
+      </CardHeader>
+      <div className="px-4 py-3.5">
+        <FriseEtapes etapes={ligne.etapes} />
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[12px] text-ink-3">
+            Prochaine action : <span className="text-ink-2">{ligne.prochaineAction}</span>
+          </p>
+          <Link
+            href={ligne.lien}
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors shrink-0"
+          >
+            {ligne.actionLabel}
+            <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+    </Card>
   );
 }
 

@@ -4,6 +4,7 @@
 
 import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
+import { construireLigne } from "@/lib/domain/parcours-ag";
 import { getCoproRepository, getCondoEstaleProvider, getJalonRepository } from "@/lib/adapters/router";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
 
@@ -67,6 +68,11 @@ export async function getFicheCopro(
     ? await getJalonRepository().getJalons(copro.code, copro.prochaineAg.date)
     : [];
 
+  // Parcours AG de la copro (meme logique que le dashboard) : l'etat "accompli" se
+  // deduit des jalons deja charges -> pas de requete supplementaire.
+  const accompli = new Set(jalons.filter((j) => j.statut === "accompli").map((j) => j.code));
+  const parcours = construireLigne(copro, accompli, aujourdhuiISO)?.ligne;
+
   return {
     copro,
     estale,
@@ -76,5 +82,6 @@ export async function getFicheCopro(
     conformite,
     jalons,
     ...(estaleIndisponible ? { estaleIndisponible } : {}),
+    ...(parcours ? { parcours } : {}),
   };
 }
