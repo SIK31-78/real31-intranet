@@ -1097,6 +1097,28 @@ On écrit directement `nextAGDate` / `nextCSDate` dans `public."Copropriete"` (*
 
 ---
 
+## ADR-017 - Auth library : Auth.js (NextAuth) v5
+
+**Date** : 2026-06-16 - **Statut** : accepté
+
+### Contexte
+Le SSO Microsoft 365 (Entra ID) doit authentifier les collaborateurs. Deux voies : **Auth.js (NextAuth) v5** (provider Microsoft Entra ID intégré, gestion OAuth/OIDC + session) ou une **implémentation OIDC custom** (plus de contrôle, mais state/nonce/PKCE/validation des tokens à écrire et maintenir nous-mêmes - surface de sécurité).
+
+### Décision
+**Auth.js v5** (`next-auth@5`). Standard de l'écosystème Next.js, provider Entra ID natif, callback `/api/auth/callback/microsoft-entra-id` (déjà déclaré dans `docs/entra-app-registration.md`). Configuration `src/auth.ts` ; le provider n'est actif que si `AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET` sont présents, sinon **fallback dev-login** (sélecteur de gestionnaire), pour ne pas bloquer le dev tant que le DSI/patron n'a pas créé l'App Registration.
+
+L'identité (email du token) est mappée vers `public."User"` (`GestionnaireRepository.findByEmail`) -> le **cloisonnement par `managerId`** reste inchangé (cf. ADR-009). Le gate mot de passe (`proxy.ts`) se désactive automatiquement quand le SSO est actif.
+
+### Conséquences
+- Dette d'auth custom évitée ; mises à jour de sécurité déléguées à Auth.js.
+- Dépendance beta (`next-auth@5.0.0-beta`) - acceptable, version largement utilisée ; à figer en stable quand elle sort.
+- `AUTH_SECRET` (chiffrement session) généré côté projet, distinct des valeurs Azure.
+
+### Liens
+- **ADR-009** (cloisonnement gestionnaire), **ADR-010** (mapping identité), `docs/entra-app-registration.md`.
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
@@ -1104,7 +1126,7 @@ Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
 - **ADR-014** : UI library (shadcn/ui + Radix vs Mantine vs autre)
 - **ADR-015** : ORM / data access Supabase (drizzle vs prisma vs supabase-js + types générés)
 - **ADR-016** : Validation runtime (Zod vs Valibot)
-- **ADR-017** : Auth library côté Next.js (Auth.js v5 vs implémentation custom OAuth Entra)
+- ~~**ADR-017** : Auth library~~ -> **tranché** (Auth.js v5), cf. section ADR-017 ci-dessus.
 - **ADR-018** : Strategie de devenir des données historiques SharePoint post-migration (cf. ADR-003)
 - **ADR-019** : Stratégie de tests (vitest, Playwright, contract tests sur adapters)
 - **ADR-020** : Observabilité (Sentry, Vercel Analytics, Logflare, ...)

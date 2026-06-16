@@ -9,6 +9,21 @@ Document à transmettre **tel quel** au DSI. Toutes les informations nécessaire
 
 ---
 
+## ⭐ Étape 1 (maintenant) : SSO seul
+
+Pour la première mise en service, **seule l'authentification (SSO) est nécessaire**. Le SharePoint (`Sites.Selected`) et l'envoi de mail (`Mail.Send`) viendront **plus tard** - on ne s'en sert pas encore (les données viennent de Supabase). Donc, pour démarrer, suivre **uniquement** :
+
+- **Section 2** : créer l'App Registration (single tenant).
+- **Section 3** : déclarer les Redirect URIs + cocher **ID tokens**.
+- **Section 4**, mais **une seule permission** : `User.Read` (Delegated) - inutile d'ajouter `Sites.Selected` et `Mail.Send` pour l'instant.
+- **Section 5** : créer un client secret.
+
+**À nous transmettre** (canal chiffré, pas par email pour le secret) : `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`. C'est tout pour le SSO. (Le `AUTH_SECRET`, on le génère de notre côté, ce n'est pas une valeur Azure.)
+
+Le reste du document (SharePoint, mail, Application Access Policy) reste valable pour les étapes suivantes.
+
+---
+
 ## 1. Vue d'ensemble du besoin
 
 Une application web interne (intranet REAL31) hébergée sur Vercel doit :
