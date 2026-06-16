@@ -269,6 +269,21 @@ Stabilisation, paperasse, lancement.
 - 🔲 Sauvegardes Supabase vérifiées (PITR activé)
 - 🔲 Runbook incident dans `docs/runbook.md`
 
+### Passage en prod Vercel - SSO (checklist, aucune modif de code)
+
+Le code est prêt (`src/auth.ts` a `trustHost: true` -> Auth.js déduit l'URL depuis le host, rien à recompiler entre local et prod). Au déploiement, c'est uniquement de la **config d'environnement** :
+
+- 🔲 **Ajouter la Redirect URI de prod dans l'App Registration Entra** : `https://<domaine-prod>/api/auth/callback/microsoft-entra-id` (Entra exige chaque URL explicitement, pas de wildcard). Déjà listée dans `docs/entra-app-registration.md` section 3 -> à faire déclarer **dès la création de l'app** par le patron pour éviter un 2e aller-retour.
+- 🔲 **Variables d'env Vercel** (scope *Production*) : `AUTH_MICROSOFT_ENTRA_ID_ID/SECRET/ISSUER` (identiques au local), `AUTH_SECRET`, et `AUTH_URL=https://<domaine-prod>` (au lieu de `http://localhost:3000`).
+- ⚠️ **Preview deployments** : les URLs Vercel de preview (`*-git-*.vercel.app`) changent à chaque push et **ne peuvent pas** être déclarées dans Entra -> le SSO **ne marche pas** sur les previews. Prévoir un **domaine stable** : prod (`intranet.real31.fr`) + **staging permanent** (`intranet-staging.real31.fr`) déclarés une fois. Sur les previews on reste sur dev-login (l'app y retombe automatiquement si les vars `AUTH_*` ne sont pas définies sur ce scope).
+
+| Élément | Change au déploiement ? |
+|---|---|
+| Code (`src/auth.ts`, callbacks) | non (`trustHost: true`) |
+| Client ID / secret / issuer | non (même app, même tenant) |
+| `AUTH_URL` | oui (localhost -> domaine prod) |
+| Redirect URI dans Entra | à ajouter (le doc le prévoit déjà) |
+
 **Livrable démontrable** : "go-live MVP, les gestionnaires utilisent l'intranet quotidiennement."
 
 ---
