@@ -32,9 +32,9 @@ function Ligne({ libelle, valeur }: { libelle: string; valeur?: string }) {
 
 function TitreSection({ n, titre }: { n: number; titre: string }) {
   return (
-    <h2 className="flex items-baseline gap-2 mb-2 pb-1 border-b border-neutral-300 break-after-avoid">
+    <h2 className="flex items-baseline gap-2 mb-2 pb-1 border-b border-green-700/40 break-after-avoid">
       <span className="text-green-700 font-bold text-[12.5px] tabular-nums">{n}.</span>
-      <span className="text-[13px] font-semibold uppercase tracking-[0.04em] text-neutral-800">{titre}</span>
+      <span className="text-[13px] font-semibold uppercase tracking-[0.04em] text-green-700">{titre}</span>
     </h2>
   );
 }
@@ -46,18 +46,9 @@ export function DocumentOdj({ odj }: { odj: Odj }) {
   return (
     <div className="text-neutral-900 [font-feature-settings:'tnum'] [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
       {/* En-tete de marque */}
-      <header className="flex items-start justify-between gap-6 pb-3 mb-5 border-b-2 border-green-700">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-md bg-green-700 text-white flex items-center justify-center font-mono text-[14px] font-bold shrink-0 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
-            R31
-          </div>
-          <div>
-            <div className="text-[16px] font-bold tracking-tight text-green-900 leading-none">REAL 31</div>
-            <div className="text-[9.5px] uppercase tracking-[0.12em] text-neutral-500 mt-0.5">
-              Syndic de copropriété
-            </div>
-          </div>
-        </div>
+      <header className="flex items-end justify-between gap-6 pb-3 mb-5 border-b-2 border-green-700">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-real31.png" alt="REAL 31 Immobilier" className="h-16 w-auto" />
         <div className="text-right">
           <div className="text-[14px] font-semibold text-neutral-800">Préparation d&apos;assemblée générale</div>
           <div className="text-[10px] text-neutral-500">Document issu du conseil syndical</div>
