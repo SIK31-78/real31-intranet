@@ -64,6 +64,44 @@ export interface ItemActivite {
   quand: string;
 }
 
+// --- Parcours AG (sequence guidee : Dates -> ODJ -> Convoc -> Tenue -> PV) --
+
+/** Les cinq etapes du cycle de preparation d'une AG, dans l'ordre. */
+export type CodeEtape = "dates" | "odj" | "convoc" | "tenue" | "pv";
+
+/** Etat d'une etape pour une copro donnee : faite, en cours (etape actuelle), a venir. */
+export type StatutEtape = "fait" | "encours" | "avenir";
+
+export interface EtapeParcours {
+  code: CodeEtape;
+  /** Libelle court affiche sous le jalon, ex "ODJ". */
+  label: string;
+  statut: StatutEtape;
+}
+
+/**
+ * Une ligne du parcours : une copro en cycle AG, sa progression sur les 5 etapes,
+ * et sa prochaine action concrete. Pensee pour qu'un junior voie "j'en suis ou,
+ * je fais quoi ensuite" sans connaitre le process par coeur.
+ */
+export interface LigneParcours {
+  id: string;
+  coproCode: string;
+  coproNom: string;
+  /** Toujours 5 etapes, dans l'ordre. */
+  etapes: EtapeParcours[];
+  /** Phrase d'action, ex "preparer l'ODJ". */
+  prochaineAction: string;
+  /** Texte du bouton, ex "ODJ", "Fixer", "Supervision". */
+  actionLabel: string;
+  /** Cible du bouton. */
+  lien: string;
+  /** Echeance courte de l'etape courante, ex "J-30", "à dater". */
+  echeance?: string;
+  /** Vrai si l'echeance de l'etape courante est depassee. */
+  enRetard?: boolean;
+}
+
 /** Agregat complet rendu par le dashboard pour un gestionnaire donne. */
 export interface DashboardData {
   gestionnaire: Gestionnaire;
@@ -72,4 +110,6 @@ export interface DashboardData {
   compteurs: CompteurAction[];
   attention: ItemAttention[];
   activite: ItemActivite[];
+  /** Parcours AG guide. Optionnel : present en mode supabase, absent en mock. */
+  parcours?: LigneParcours[];
 }

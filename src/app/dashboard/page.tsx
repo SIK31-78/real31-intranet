@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ListeAttention } from "@/components/dashboard/liste-attention";
 import { FluxActivite } from "@/components/dashboard/flux-activite";
+import { ParcoursAg } from "@/components/dashboard/parcours-ag";
 
 export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 
@@ -28,6 +29,12 @@ export default async function DashboardPage() {
             <KpiCard key={compteur.id} compteur={compteur} />
           ))}
         </div>
+
+        {data.parcours && (
+          <div className="mt-6">
+            <ParcoursAg lignes={data.parcours} />
+          </div>
+        )}
 
         <div className="grid gap-6 mt-6 grid-cols-1 lg:grid-cols-[1.6fr_1fr]">
           <ListeAttention items={data.attention} />
