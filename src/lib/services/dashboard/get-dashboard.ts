@@ -66,10 +66,11 @@ function ajouterJours(iso: string, n: number): string {
 
 // --- Parcours AG : sequence Dates -> ODJ -> Convoc -> Tenue -> PV ----------
 // Fenetre des copros "en cycle" : AG a venir (preparation) ou recente non close,
-// + celles sans date dont l'AG est due (~12 mois apres la derniere).
-const PARCOURS_HORIZON = 150; // jours avant l'AG ou on commence a la preparer
+// + celles sans date dont l'AG est legalement due (cloture exercice + 6 mois).
+const PARCOURS_HORIZON = 150; // jours avant l'echeance ou on commence a preparer
 const PARCOURS_RETRO = 90; // jours apres l'AG ou on suit encore (PV, archivage)
-const AG_DUE_JOURS = 330; // au-dela, l'AG annuelle est consideree comme due
+const DELAI_APPROBATION_MOIS = 6; // l'AG approuve les comptes < 6 mois apres cloture
+const CS_PREP_FENETRE_JOURS = 150; // un CS tenu dans cette fenetre avant l'AG = CS de prep
 
 const ETAPES: { code: CodeEtape; label: string; jalon?: string }[] = [
   { code: "dates", label: "Dates" },
@@ -79,15 +80,62 @@ const ETAPES: { code: CodeEtape; label: string; jalon?: string }[] = [
   { code: "pv", label: "PV", jalon: "NOTIF_PV" },
 ];
 
+function ajouterMois(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + n, d)).toISOString().slice(0, 10);
+}
+
+/** CS de preparation traite ? CS a venir planifie, ou CS tenu dans la fenetre de
+ *  prep avant l'AG (agDate suppose defini). Limite #1 : l'etape Dates couvre CS + AG. */
+function csTraite(c: Copropriete, agDate: string): boolean {
+  if (c.prochaineCsDate) return true;
+  if (c.derniereCsDate) {
+    return c.derniereCsDate <= agDate && joursEntre(c.derniereCsDate, agDate) <= CS_PREP_FENETRE_JOURS;
+  }
+  return false;
+}
+
+/**
+ * Echeance legale de l'AG a tenir = cloture du dernier exercice clos + 6 mois (delai
+ * d'approbation des comptes). Renvoie cette date si l'AG n'est pas planifiee et qu'on
+ * entre dans la fenetre de preparation (ou qu'on est en retard) ; null sinon. Limite #2 :
+ * regle ancree sur l'exercice reel (accountingEndDate), repli "derniere AG + 12 mois" si
+ * l'exercice est inconnu.
+ */
+function agDueDeadline(c: Copropriete, today: string): string | null {
+  if (c.prochaineAg) return null; // deja planifiee
+
+  let deadline: string;
+  let clotureISO: string | null = null;
+  if (/^\d{2}\/\d{2}$/.test(c.exercice.fin)) {
+    const [dd, mm] = c.exercice.fin.split("/");
+    const annee = Number(today.slice(0, 4));
+    let cloture = `${annee}-${mm}-${dd}`;
+    if (cloture > today) cloture = `${annee - 1}-${mm}-${dd}`; // cloture la plus recente <= today
+    clotureISO = cloture;
+    deadline = ajouterMois(cloture, DELAI_APPROBATION_MOIS);
+  } else if (c.derniereAgDate) {
+    deadline = ajouterJours(c.derniereAgDate, 365); // repli : cycle annuel approximatif
+  } else {
+    return null; // ni exercice ni derniere AG : rien a deduire
+  }
+
+  // AG deja tenue pour cet exercice ? (derniere AG posterieure a la cloture)
+  if (clotureISO && c.derniereAgDate && c.derniereAgDate > clotureISO) return null;
+  // Dans la fenetre de preparation (ou en retard si negatif).
+  return joursEntre(today, deadline) <= PARCOURS_HORIZON ? deadline : null;
+}
+
 function etapeFaite(
   code: CodeEtape,
+  c: Copropriete,
   agDate: string | undefined,
   accompli: Set<string>,
   today: string,
 ): boolean {
   switch (code) {
     case "dates":
-      return agDate !== undefined;
+      return agDate !== undefined && csTraite(c, agDate);
     case "odj":
       return accompli.has("ODJ_CS");
     case "convoc":
@@ -107,7 +155,12 @@ function actionEtape(
   const sup = agDate ? `/supervision-ag/${c.code}__${agDate}` : `/supervision-ag/${c.code}`;
   switch (code) {
     case "dates":
-      return { prochaineAction: "fixer les dates CS + AG", actionLabel: "Fixer", lien: `/copropriete/${c.code}` };
+      return {
+        // AG posee mais CS manquant -> on cible juste le CS ; sinon les deux.
+        prochaineAction: agDate ? "fixer la date du CS" : "fixer les dates CS + AG",
+        actionLabel: "Fixer",
+        lien: `/copropriete/${c.code}`,
+      };
     case "odj":
       return { prochaineAction: "préparer l'ODJ", actionLabel: "ODJ", lien: `/odj/${c.code}` };
     case "convoc":
@@ -125,7 +178,7 @@ function construireLigne(
   today: string,
 ): { ligne: LigneParcours; tri: string } | null {
   const agDate = c.prochaineAg?.date;
-  const faits = ETAPES.map((e) => etapeFaite(e.code, agDate, accompli, today));
+  const faits = ETAPES.map((e) => etapeFaite(e.code, c, agDate, accompli, today));
   const courant = faits.findIndex((f) => !f);
   if (courant === -1) return null; // cycle complet : hors parcours
 
@@ -135,33 +188,35 @@ function construireLigne(
     statut: faits[i] ? "fait" : i === courant ? "encours" : "avenir",
   }));
 
-  // Echeance de l'etape courante : date cible du jalon associe, sinon date d'AG
-  // due deduite de la derniere AG (etape Dates des copros non datees).
+  // Echeance de l'etape courante.
+  const courantCode = ETAPES[courant].code;
   const jalonCode = ETAPES[courant].jalon;
   let dueDate: string | undefined;
-  if (agDate && jalonCode) {
-    dueDate = calculerJalons(agDate).find((j) => j.code === jalonCode)?.cibleDate;
-  } else if (!agDate && c.derniereAgDate) {
-    dueDate = ajouterJours(c.derniereAgDate, 365);
-  }
-
   let echeance: string | undefined;
-  let enRetard = false;
-  if (!agDate) {
-    echeance = "à dater";
-    enRetard = dueDate !== undefined && dueDate < today;
-  } else if (dueDate) {
-    const d = joursEntre(today, dueDate);
-    enRetard = d < 0;
-    echeance = enRetard ? "en retard" : `J-${d}`;
+  if (courantCode === "dates") {
+    if (!agDate) {
+      dueDate = agDueDeadline(c, today) ?? undefined; // echeance legale de l'AG a tenir
+      echeance = dueDate !== undefined && dueDate < today ? "en retard" : "à dater";
+    } else {
+      // AG posee, CS manquant : le CS doit preceder la convocation.
+      dueDate = calculerJalons(agDate).find((j) => j.code === "CONVOC")?.cibleDate;
+      echeance = dueDate !== undefined && dueDate < today ? "en retard" : "CS à fixer";
+    }
+  } else if (agDate && jalonCode) {
+    dueDate = calculerJalons(agDate).find((j) => j.code === jalonCode)?.cibleDate;
+    if (dueDate) {
+      const d = joursEntre(today, dueDate);
+      echeance = d < 0 ? "en retard" : `J-${d}`;
+    }
   }
+  const enRetard = dueDate !== undefined && dueDate < today;
 
   const ligne: LigneParcours = {
     id: `parc-${c.code}`,
     coproCode: c.code,
     coproNom: c.nom,
     etapes,
-    ...actionEtape(ETAPES[courant].code, c, agDate),
+    ...actionEtape(courantCode, c, agDate),
     ...(echeance ? { echeance } : {}),
     ...(enRetard ? { enRetard } : {}),
   };
@@ -194,14 +249,14 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     (accompliPar.get(k) ?? accompliPar.set(k, new Set()).get(k)!).add(e.type);
   }
 
-  // Parcours AG : copros datees en cycle + copros sans date dont l'AG est due.
+  // Parcours AG : copros datees en cycle + copros sans date dont l'AG est legalement due.
   const coprosParcours = copros.filter((c) => {
     const d = c.prochaineAg?.date;
     if (d !== undefined) {
       const j = joursEntre(today, d);
       return j <= PARCOURS_HORIZON && j >= -PARCOURS_RETRO;
     }
-    return c.derniereAgDate !== undefined && joursEntre(c.derniereAgDate, today) >= AG_DUE_JOURS;
+    return agDueDeadline(c, today) !== null;
   });
   const parcours = coprosParcours
     .map((c) => construireLigne(c, accompliPar.get(`${c.code}|${c.prochaineAg?.date}`) ?? new Set(), today))
