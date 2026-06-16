@@ -42,4 +42,15 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       .maybeSingle();
     return data ? toGestionnaire(data as UserRow) : null;
   }
+
+  async findByEmail(email: string): Promise<Gestionnaire | null> {
+    const supabase = createSupabasePublicClient();
+    // ilike sans joker = egalite insensible a la casse (l'email Entra peut differer).
+    const { data } = await supabase
+      .from("User")
+      .select("id, name, initials")
+      .ilike("email", email)
+      .maybeSingle();
+    return data ? toGestionnaire(data as UserRow) : null;
+  }
 }

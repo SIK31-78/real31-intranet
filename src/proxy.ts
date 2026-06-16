@@ -11,8 +11,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const MOT_DE_PASSE = process.env.SITE_PASSWORD ?? "real31";
+// SSO Microsoft actif (identifiants Azure presents) : c'est lui qui controle
+// l'acces (login Entra ID), le mot de passe partage n'a plus lieu d'etre.
+const SSO_ACTIF = Boolean(
+  process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID,
+);
 
 export function proxy(req: NextRequest) {
+  if (SSO_ACTIF) return NextResponse.next();
   const header = req.headers.get("authorization");
   if (header?.startsWith("Basic ")) {
     const decode = atob(header.slice(6));

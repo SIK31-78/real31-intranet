@@ -1,13 +1,38 @@
 import type { Metadata } from "next";
 import { getGestionnaireRepository } from "@/lib/adapters/router";
-import { choisirGestionnaire } from "./actions";
+import { ssoConfigure } from "@/auth";
+import { choisirGestionnaire, connecterMicrosoft } from "./actions";
 
-export const metadata: Metadata = { title: "Choisir un gestionnaire - REAL31 Intranet" };
+export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
 export default async function DevLoginPage() {
-  const gestionnaires = await getGestionnaireRepository().list();
+  // SSO configure : connexion Microsoft 365 (plus de selecteur dev).
+  if (ssoConfigure) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
+        <div className="w-full max-w-sm bg-surface border border-line rounded-md p-7 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-real31.png" alt="REAL 31 Immobilier" className="h-12 w-auto mx-auto mb-5" />
+          <h1 className="text-[18px] font-medium text-ink">Intranet REAL 31</h1>
+          <p className="text-[13px] text-ink-3 mt-1 mb-6">
+            Connectez-vous avec votre compte Microsoft 365.
+          </p>
+          <form action={connecterMicrosoft}>
+            <button
+              type="submit"
+              className="w-full h-10 rounded-md bg-green-700 text-white text-[14px] font-medium hover:bg-green-600 transition-colors"
+            >
+              Se connecter avec Microsoft
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
+  // Mode dev : selecteur de gestionnaire (sera remplace par le SSO en prod).
+  const gestionnaires = await getGestionnaireRepository().list();
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
       <div className="w-full max-w-md bg-surface border border-line rounded-md p-6">

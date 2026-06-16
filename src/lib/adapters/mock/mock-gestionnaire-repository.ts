@@ -15,4 +15,9 @@ export class MockGestionnaireRepository implements GestionnaireRepository {
   async findById(id: string): Promise<Gestionnaire | null> {
     return GESTIONNAIRES.find((g) => g.id === id) ?? null;
   }
+
+  // Pas d'email en mock (le SSO suppose le mode supabase) -> premier gestionnaire.
+  async findByEmail(): Promise<Gestionnaire | null> {
+    return GESTIONNAIRES[0] ?? null;
+  }
 }

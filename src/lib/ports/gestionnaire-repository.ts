@@ -7,4 +7,6 @@ export interface GestionnaireRepository {
   /** Gestionnaires reels (Users qui gerent au moins une copro). */
   list(): Promise<Gestionnaire[]>;
   findById(id: string): Promise<Gestionnaire | null>;
+  /** Resout un gestionnaire par email (SSO Entra ID -> public."User"). */
+  findByEmail(email: string): Promise<Gestionnaire | null>;
 }
