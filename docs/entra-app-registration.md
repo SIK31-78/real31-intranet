@@ -16,13 +16,11 @@ Pour la première mise en service, **seule l'authentification (SSO) est nécessa
 > [!note] Même tenant, même techno que l'App A (registre-mandats)
 > L'intranet et l'App A du patron partagent le **même tenant Microsoft 365** et la **même librairie** (Auth.js v5). Les variables d'env portent donc les **mêmes noms** : `AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET`, `AUTH_MICROSOFT_ENTRA_ID_ISSUER`, `AUTH_SECRET`, `AUTH_URL`.
 >
-> **Deux options pour l'App Registration :**
-> - **(a) Réutiliser celle de l'App A** (la plus rapide) : le patron ajoute notre Redirect URI `http://localhost:3000/api/auth/callback/microsoft-entra-id` à l'app existante et nous donne le **client secret**. On reprend alors le même `AUTH_MICROSOFT_ENTRA_ID_ID` et le même `AUTH_MICROSOFT_ENTRA_ID_ISSUER` que l'App A.
-> - **(b) Créer une App Registration dédiée `REAL31 Intranet`** (plus propre à terme : secrets/URIs/permissions indépendants) : suivre les sections 2-3-4-5 ci-dessous.
+> **Décision (Sekou) : App Registration DÉDIÉE `REAL31 Intranet`** - on ne réutilise PAS celle de l'App A. Choix de robustesse : secrets, Redirect URIs et permissions **indépendants** de l'App A (une rotation de secret ou une permission ajoutée d'un côté n'impacte pas l'autre).
 
-Pour l'option (b), suivre **uniquement** :
+**Marche à suivre - suivre uniquement** :
 
-- **Section 2** : créer l'App Registration (single tenant).
+- **Section 2** : créer l'App Registration `REAL31 Intranet` (single tenant).
 - **Section 3** : déclarer les Redirect URIs + cocher **ID tokens**.
 - **Section 4**, mais **une seule permission** : `User.Read` (Delegated) - inutile d'ajouter `Sites.Selected` et `Mail.Send` pour l'instant.
 - **Section 5** : créer un client secret.
