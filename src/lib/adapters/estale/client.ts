@@ -60,6 +60,11 @@ export async function estaleGql<T>(
     cookieSession = await login(); // session expiree : refresh paresseux (ADR-005)
     res = await appel();
   }
+  // eStale a des 5xx passagers (502/503/504) : un retry court avant d'abandonner.
+  if (res.status >= 500) {
+    await new Promise((r) => setTimeout(r, 600));
+    res = await appel();
+  }
   if (!res.ok) throw new EstaleError(`GraphQL eStale HTTP ${res.status}`, res.status);
 
   const corps = (await res.json()) as GqlReponse<T>;

@@ -23,8 +23,16 @@ export async function getFicheCopro(
   if (!copro) return null;
 
   // Donnees eStale : null si la copro n'est pas encore sur eStale -> bloc vide assume.
-  const estale =
-    (await getCondoEstaleProvider().getDonneesCopro(code)) ?? DONNEES_ESTALE_VIDES;
+  // Si eStale tombe (5xx / timeout), on NE crashe PAS la fiche : on degrade sur le
+  // referentiel et on signale l'indisponibilite (robustesse, source secondaire).
+  let estale = DONNEES_ESTALE_VIDES;
+  let estaleIndisponible = false;
+  try {
+    estale = (await getCondoEstaleProvider().getDonneesCopro(code)) ?? DONNEES_ESTALE_VIDES;
+  } catch (err) {
+    estaleIndisponible = true;
+    console.warn(`[fiche-copro] eStale indisponible pour ${code} :`, (err as Error).message);
+  }
 
   const tous = await getEvenements(gestionnaireId);
   const prochains = prochainsEvenements(
@@ -59,5 +67,14 @@ export async function getFicheCopro(
     ? await getJalonRepository().getJalons(copro.code, copro.prochaineAg.date)
     : [];
 
-  return { copro, estale, prochains, derniereAg: historique[0], historique, conformite, jalons };
+  return {
+    copro,
+    estale,
+    prochains,
+    derniereAg: historique[0],
+    historique,
+    conformite,
+    jalons,
+    ...(estaleIndisponible ? { estaleIndisponible } : {}),
+  };
 }

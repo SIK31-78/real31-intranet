@@ -4,6 +4,7 @@
 // puis champs CALCULES (ecart budget, proposition contrat). Scope managerId.
 
 import type { ChampOdj, Odj, SectionOdj, SourceDonnee } from "@/lib/domain/odj";
+import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 import { pointsLegaux, ecartBudget, parseMontant, formatEuros } from "@/lib/domain/odj";
 import {
   getCoproRepository,
@@ -71,7 +72,15 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
 
   // Presents : une ligne syndic (gestionnaire + assistant, referentiel) et une
   // ligne conseil syndical (eStale). Le jour du CS, on retire les absents.
-  const estale = await getCondoEstaleProvider().getDonneesCopro(code);
+  // eStale est secondaire ici : s'il tombe (5xx / timeout), on ne crashe pas l'ODJ.
+  // Tous les acces ci-dessous sont en `estale?.` -> les champs auto restent vides,
+  // le squelette + la saisie du gestionnaire s'affichent normalement.
+  let estale: DonneesEstaleCopro | null = null;
+  try {
+    estale = await getCondoEstaleProvider().getDonneesCopro(code);
+  } catch (err) {
+    console.warn(`[odj] eStale indisponible pour ${code} :`, (err as Error).message);
+  }
   // Presents en "NOM Prenom" : les noms du referentiel sont "Prenom NOM" (NOM en
   // capitales) -> on detecte les tokens tout-majuscule comme nom de famille.
   const nomMajuscule = (nomComplet: string): string => {

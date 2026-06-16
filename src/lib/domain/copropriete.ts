@@ -184,6 +184,9 @@ export interface FicheCopro {
   conformite: ItemConformite[];
   /** Jalons de la prochaine AG (cibles calculees + etat) ; vide si pas d'AG a venir. */
   jalons: JalonAvecEtat[];
+  /** Vrai si eStale a echoue (panne / timeout) : les blocs eStale sont vides mais la
+   *  copro EST sur eStale -> l'UI distingue "indisponible" de "non disponible". */
+  estaleIndisponible?: boolean;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

@@ -5,6 +5,7 @@ import {
   History,
   CircleCheck,
   AlertCircle,
+  AlertTriangle,
   FileText,
   ArrowRight,
   Users,
@@ -49,38 +50,58 @@ const SEVERITE_TON: Record<Severite, "err" | "warn" | "ok"> = {
 };
 
 export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
+  const indispo = Boolean(fiche.estaleIndisponible);
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
-      <div className="flex flex-col gap-5">
-        <BlocAg
-          coproCode={fiche.copro.code}
-          derniere={fiche.derniereAg}
-          prochaine={fiche.copro.prochaineAg}
-          conformite={fiche.conformite}
-        />
-        <BlocCs
-          coproCode={fiche.copro.code}
-          derniereCs={fiche.copro.derniereCsDate}
-          prochaineCs={fiche.copro.prochaineCsDate}
-        />
-        <BlocJalons
-          jalons={fiche.jalons}
-          coproCode={fiche.copro.code}
-          agDate={fiche.copro.prochaineAg?.date ?? ""}
-        />
-        <ProchainsEvenements evenements={fiche.prochains} />
-        <HistoriqueAg historique={fiche.historique} />
-      </div>
+    <div className="flex flex-col gap-5">
+      {indispo && <BanniereEstaleIndispo />}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
+        <div className="flex flex-col gap-5">
+          <BlocAg
+            coproCode={fiche.copro.code}
+            derniere={fiche.derniereAg}
+            prochaine={fiche.copro.prochaineAg}
+            conformite={fiche.conformite}
+          />
+          <BlocCs
+            coproCode={fiche.copro.code}
+            derniereCs={fiche.copro.derniereCsDate}
+            prochaineCs={fiche.copro.prochaineCsDate}
+          />
+          <BlocJalons
+            jalons={fiche.jalons}
+            coproCode={fiche.copro.code}
+            agDate={fiche.copro.prochaineAg?.date ?? ""}
+          />
+          <ProchainsEvenements evenements={fiche.prochains} />
+          <HistoriqueAg historique={fiche.historique} />
+        </div>
 
-      <div className="flex flex-col gap-3">
-        <SideIdentite copro={fiche.copro} />
-        <SideEquipe equipe={fiche.copro.equipe} />
-        <SideConseil
-          membres={fiche.estale.conseilSyndical}
-          mandatJusqua={fiche.estale.mandatJusqua}
-        />
-        <SideConformite items={fiche.conformite} />
+        <div className="flex flex-col gap-3">
+          <SideIdentite copro={fiche.copro} />
+          <SideEquipe equipe={fiche.copro.equipe} />
+          <SideConseil
+            membres={fiche.estale.conseilSyndical}
+            mandatJusqua={fiche.estale.mandatJusqua}
+            indisponible={indispo}
+          />
+          <SideConformite items={fiche.conformite} indisponible={indispo} />
+        </div>
       </div>
+    </div>
+  );
+}
+
+// --- Banniere eStale indisponible (panne passagere) -----------------------
+
+function BanniereEstaleIndispo() {
+  return (
+    <div className="flex items-start gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
+      <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
+      <p className="text-[12.5px] text-warn-700">
+        Données eStale temporairement indisponibles (panne passagère du service). Le
+        référentiel reste affiché ; rechargez la page dans un instant pour retrouver le
+        conseil syndical, l&apos;historique et la conformité.
+      </p>
     </div>
   );
 }
@@ -333,8 +354,8 @@ function SideEquipe({ equipe }: { equipe: MembreEquipe[] }) {
   return (
     <SideBox titre="Équipe">
       <div className="flex flex-col gap-2">
-        {equipe.map((m) => (
-          <div key={m.initiales} className="flex items-center gap-2">
+        {equipe.map((m, i) => (
+          <div key={`${m.initiales}-${i}`} className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-full bg-surface-2 text-ink-2 text-[11px] font-medium flex items-center justify-center shrink-0">
               {m.initiales}
             </span>
@@ -352,14 +373,18 @@ function SideEquipe({ equipe }: { equipe: MembreEquipe[] }) {
 function SideConseil({
   membres,
   mandatJusqua,
+  indisponible,
 }: {
   membres: MembreConseilSyndical[];
   mandatJusqua?: string;
+  indisponible?: boolean;
 }) {
   return (
     <SideBox titre="Conseil Syndical">
       {membres.length === 0 ? (
-        <p className="text-[12px] text-ink-3">Donnée eStale - non disponible.</p>
+        <p className="text-[12px] text-ink-3">
+          {indisponible ? "eStale temporairement indisponible." : "Donnée eStale - non disponible."}
+        </p>
       ) : (
         <div className="text-[12.5px]">
           {membres.map((m) => (
@@ -383,11 +408,19 @@ const CONFORMITE_STYLE: Record<EtatConformite, { className: string }> = {
   ko: { className: "text-err-700" },
 };
 
-function SideConformite({ items }: { items: ItemConformite[] }) {
+function SideConformite({
+  items,
+  indisponible,
+}: {
+  items: ItemConformite[];
+  indisponible?: boolean;
+}) {
   return (
     <SideBox titre="Conformité">
       {items.length === 0 ? (
-        <p className="text-[12px] text-ink-3">Donnée eStale - non disponible.</p>
+        <p className="text-[12px] text-ink-3">
+          {indisponible ? "eStale temporairement indisponible." : "Donnée eStale - non disponible."}
+        </p>
       ) : (
         <div className="flex flex-col gap-1.5">
           {items.map((item) => {
