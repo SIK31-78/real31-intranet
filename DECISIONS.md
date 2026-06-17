@@ -1119,6 +1119,29 @@ L'identité (email du token) est mappée vers `public."User"` (`GestionnaireRepo
 
 ---
 
+## ADR-024 - ODJ / résolutions : la "motion bank" eStale est la source, l'intranet orchestre
+
+**Date** : 2026-06-17 - **Statut** : accepté
+
+### Contexte
+L'ODJ d'une AG = une liste de résolutions. Question : l'intranet doit-il gérer sa propre bibliothèque de modèles, ou réutiliser celle d'eStale ? Exploration de l'API (introspection `/graphql/intranet` + lecture live via le compte de service) : eStale expose une **"motion bank" à 3 niveaux** - `establishment` (cabinet), `collaborator` (gestionnaire), `condo` (copro). Le cabinet REAL31 y a déjà **109 résolutions** structurées (`title`, `body`, `preamble`/`postamble`, `majority` parmi `A24/A25/A25_1/A26/A26_1/UNANIMITY/QUESTION`, `keywords`, clé de répartition `dk`, pièces jointes), dont 95 `isDefault`. Mutations dispo : `createMotionBankItem/update/copy/order` ; côté AG (`Meeting`) : `createMotionsFromBank(itemIDs)`, `createMotion(input, files)`, `orderMotions`, `invitation` (convocation), `transcript` (PV).
+
+### Décision
+La **motion bank eStale est la source** des résolutions. L'intranet **ne stocke PAS de résolutions** et **ne reconstruit PAS de bibliothèque** (donc **pas de table `intranet_odj_resolutions`**, idée abandonnée). L'intranet = **couche d'orchestration / UX** : il lit la bank, aide à composer l'ODJ (mode CS), pousse les motions dans le `Meeting` eStale, gère le circuit de validation côté intranet (case "validé CS"), puis la convocation se déclenche dans eStale. Cohérent avec ADR-022 (eStale = primaire).
+
+### Conséquences
+- Annule la table de résolutions côté intranet (et l'écriture infra associée dans la base patron).
+- Nouveau **port** hexagonal (bibliothèque de résolutions / motion bank) + adapter eStale - **lecture d'abord**, écriture ensuite.
+- Les mutations écrivent dans eStale pour de vrai -> **commencer READ-ONLY**, tester les writes sur une AG de test, valider avant tout write réel.
+- Renforce **ADR-005** (compte de service dédié) : les writes agissent au nom du compte connecté (auj. compte perso Sekou).
+- convoc / tenue / PV se lisent du `Meeting` eStale (partage de responsabilité intranet / eStale).
+- Script d'exploration : `scripts/estale-motion-bank.mjs` (lecture seule, sans secret).
+
+### Liens
+- **ADR-022** (positionnement eStale), **ADR-005** (compte service eStale), **ADR-001** (port).
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
