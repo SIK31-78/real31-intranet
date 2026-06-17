@@ -164,22 +164,12 @@ export function ComposerOdj({
     const meetingId = assemblee.meetingId;
     const supprimer = [...aSupprimer];
     const items = draft.map((r) => ({ id: r.id, titre: r.titre, corps: r.corps, majorite: r.majorite }));
-
-    // Nouvel ordre : rangs hierarchiques (top "1","2".. + enfants "N.j"), hors motions retirees.
-    const inputOrdre: { motionID: string; rank: string }[] = [];
-    if (ordreChange) {
-      const enfantsDe = grouperEnfants(assemblee.motions);
-      const tops = (ordre ?? topLevelIds).filter((id) => !aSupprimer.has(id));
-      tops.forEach((topId, i) => {
-        inputOrdre.push({ motionID: topId, rank: String(i + 1) });
-        (enfantsDe.get(topId) ?? [])
-          .filter((e) => !aSupprimer.has(e.id))
-          .forEach((e, j) => inputOrdre.push({ motionID: e.id, rank: `${i + 1}.${j + 1}` }));
-      });
-    }
+    // Ordre voulu des motions de tete EXISTANTES (hors retirees) ; le serveur recalcule
+    // tous les rangs (existant + nouvelles, avec nesting des groupes).
+    const ordreTop = (ordre ?? topLevelIds).filter((id) => !aSupprimer.has(id));
 
     demarrerEnregistrement(async () => {
-      const res = await enregistrerProjetAction(meetingId, supprimer, items, inputOrdre);
+      const res = await enregistrerProjetAction(copro.code, meetingId, supprimer, items, ordreTop);
       if (res.ok) {
         setMessage({
           ton: "ok",

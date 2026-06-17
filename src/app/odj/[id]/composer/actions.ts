@@ -8,17 +8,17 @@ import { revalidatePath } from "next/cache";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { appliquerOdjAg, creerAssembleeAg } from "@/lib/services/odj/get-assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
-import type { OrdreMotion } from "@/lib/domain/assemblee";
 
 type ItemAjout = { id: string; titre: string; corps: string; majorite: MajoriteResolution };
 
 type Resultat = { ok: true; supprimees: number; ajoutees: number } | { ok: false; erreur: string };
 
 export async function enregistrerProjetAction(
+  coproCode: string,
   meetingId: string,
   supprimerMotionIds: string[],
   items: ItemAjout[],
-  ordre: OrdreMotion[],
+  ordreTopExistant: string[],
 ): Promise<Resultat> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée, reconnecte-toi." };
@@ -32,11 +32,12 @@ export async function enregistrerProjetAction(
 
   try {
     const { supprimees, ajoutees } = await appliquerOdjAg(
+      coproCode,
       meetingId,
       supprimerMotionIds,
       bankItemIds,
       libres,
-      ordre,
+      ordreTopExistant,
     );
     revalidatePath("/odj", "layout");
     return { ok: true, supprimees, ajoutees };

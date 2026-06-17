@@ -1,7 +1,7 @@
 // Service : l'AG eStale d'une copro (palier 1, lecture). Passe par le routeur
 // (ADR-001). Degrade proprement : null si pas d'AG ou si eStale tombe.
 
-import type { AssembleeAg, OrdreMotion, ResolutionLibre } from "@/lib/domain/assemblee";
+import type { AssembleeAg, ResolutionLibre } from "@/lib/domain/assemblee";
 import { getAssembleeEstaleProvider } from "@/lib/adapters/router";
 
 export async function getAssemblee(coproCode: string): Promise<AssembleeAg | null> {
@@ -15,18 +15,20 @@ export async function getAssemblee(coproCode: string): Promise<AssembleeAg | nul
 
 /** Reconcilie l'AG eStale avec la composition du mode CS (palier 2b). Ecriture reelle. */
 export async function appliquerOdjAg(
+  coproCode: string,
   meetingId: string,
   supprimerMotionIds: string[],
   bankItemIds: string[],
   libres: ResolutionLibre[],
-  ordre: OrdreMotion[],
+  ordreTopExistant: string[],
 ): Promise<{ supprimees: number; ajoutees: number }> {
   return getAssembleeEstaleProvider().appliquerOdj(
+    coproCode,
     meetingId,
     supprimerMotionIds,
     bankItemIds,
     libres,
-    ordre,
+    ordreTopExistant,
   );
 }
 

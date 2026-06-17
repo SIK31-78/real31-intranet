@@ -2,23 +2,24 @@
 // (palier 1) ; les ecritures (ajout/suppression/ordre des motions) viendront.
 // Ne depend que du domaine.
 
-import type { AssembleeAg, OrdreMotion, ResolutionLibre } from "@/lib/domain/assemblee";
+import type { AssembleeAg, ResolutionLibre } from "@/lib/domain/assemblee";
 
 export interface AssembleeEstaleProvider {
   /** L'AG eStale pertinente d'une copro (ORDINARY non close en priorite), ou null. */
   getAssemblee(coproCode: string): Promise<AssembleeAg | null>;
   /**
-   * Reconcilie l'AG eStale avec la composition du mode CS (palier 2b). Supprime les
-   * motions retirees (`supprimerMotionIds`), ajoute les resolutions piochees dans la
-   * bibliotheque (`bankItemIds`, recreees fidelement via createMotion) et les
-   * resolutions saisies (`libres`). Ecriture reelle dans eStale.
+   * Reconcilie l'AG eStale avec la composition du mode CS. Supprime (`supprimerMotionIds`),
+   * ajoute (`bankItemIds` de la bibliotheque + `libres`), puis reordonne TOUT : les motions
+   * de tete existantes dans l'ordre `ordreTopExistant`, puis les nouvelles ; rangs
+   * hierarchiques pour nester les groupes. `coproCode` sert a relire l'AG. Ecriture reelle.
    */
   appliquerOdj(
+    coproCode: string,
     meetingId: string,
     supprimerMotionIds: string[],
     bankItemIds: string[],
     libres: ResolutionLibre[],
-    ordre: OrdreMotion[],
+    ordreTopExistant: string[],
   ): Promise<{ supprimees: number; ajoutees: number }>;
   /**
    * Cree une nouvelle AG ordinaire dans eStale pour la copro (palier 3). eStale
