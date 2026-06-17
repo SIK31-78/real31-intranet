@@ -11,6 +11,10 @@ export interface MotionAg {
   majorite: MajoriteResolution;
   /** Cle de repartition (nom), ex "Charges communes generales". */
   cleRepartition?: string;
+  /** En-tete de groupe (type eStale "group") : regroupe des sous-resolutions. */
+  estGroupe?: boolean;
+  /** Sous-resolution rattachee a un groupe (a une motion parente). */
+  estEnfant?: boolean;
 }
 
 /** L'AG eStale d'une copro + ses motions, dans l'ordre. */

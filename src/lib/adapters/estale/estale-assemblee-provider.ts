@@ -44,9 +44,11 @@ function majorite(v: string): MajoriteResolution {
 type MotionRow = {
   id: string;
   rank: string;
+  type: string;
   title: string;
   majority: string;
   dk: { name: string } | null;
+  parent: { id: string } | null;
 };
 type MeetingRow = {
   id: string;
@@ -71,7 +73,7 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
         condo(id: $id) {
           meetings {
             id name category startAt isClosed
-            motions { id rank title majority dk { name } }
+            motions { id rank type title majority dk { name } parent { id } }
           }
         }
       }`,
@@ -92,6 +94,8 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
         titre: m.title,
         majorite: majorite(m.majority),
         ...(m.dk?.name ? { cleRepartition: m.dk.name } : {}),
+        ...(m.type === "group" ? { estGroupe: true } : {}),
+        ...(m.parent ? { estEnfant: true } : {}),
       }));
 
     return {

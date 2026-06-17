@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
 import { MAJORITE_LABEL, MAJORITE_ORDRE } from "@/lib/domain/resolution";
-import type { AssembleeAg } from "@/lib/domain/assemblee";
+import type { AssembleeAg, MotionAg } from "@/lib/domain/assemblee";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
 import { enregistrerProjetAction } from "@/app/odj/[id]/composer/actions";
 
@@ -152,6 +152,8 @@ export function ComposerOdj({
         </p>
       </div>
 
+      {etatAg !== "ouverte" && <AlerteEtatAg etat={etatAg} />}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         <BibliothequePicker
           data={data}
@@ -162,6 +164,7 @@ export function ComposerOdj({
           setFiltre={setFiltre}
           dejaAjoute={dejaAjoute}
           onAjouter={ajouter}
+          editable={etatAg === "ouverte"}
         />
 
         <div className="flex flex-col gap-5">
@@ -197,6 +200,15 @@ export function ComposerOdj({
 }
 
 // --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans eStale ----
+
+/** Numerote les motions de tete (1, 2, 3...) ; les enfants de groupe n'ont pas de numero. */
+function numeroter(motions: MotionAg[]): { m: MotionAg; numero: number }[] {
+  let n = 0;
+  return motions.map((m) => {
+    if (!m.estEnfant) n += 1;
+    return { m, numero: n };
+  });
+}
 
 function AssembleeExistante({
   assemblee,
@@ -238,17 +250,32 @@ function AssembleeExistante({
           <p className="px-4 py-6 text-[13px] text-ink-3 text-center">AG sans résolution.</p>
         ) : (
           <ol className="divide-y divide-line">
-            {assemblee.motions.map((m, i) => {
+            {numeroter(assemblee.motions).map(({ m, numero }) => {
               const marque = aSupprimer.has(m.id);
               return (
-                <li key={m.id} className={`flex items-start gap-2.5 px-3 py-2 ${marque ? "opacity-50" : ""}`}>
-                  <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">{i + 1}.</span>
+                <li
+                  key={m.id}
+                  className={`flex items-start gap-2 px-3 py-2 ${marque ? "opacity-50" : ""} ${m.estEnfant ? "pl-7" : ""}`}
+                >
+                  <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">
+                    {m.estEnfant ? "·" : `${numero}.`}
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[13px] text-ink ${marque ? "line-through" : ""}`}>{m.titre}</span>
-                      <MajoriteBadge majorite={m.majorite} />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`text-[13px] ${m.estGroupe ? "font-semibold text-ink" : "text-ink"} ${marque ? "line-through" : ""}`}
+                      >
+                        {m.titre}
+                      </span>
+                      {m.estGroupe ? (
+                        <span className="text-[10px] uppercase tracking-wide text-ink-4">groupe</span>
+                      ) : (
+                        <MajoriteBadge majorite={m.majorite} />
+                      )}
                     </div>
-                    {m.cleRepartition && <p className="mt-0.5 text-[11px] text-ink-4">{m.cleRepartition}</p>}
+                    {m.cleRepartition && !m.estGroupe && (
+                      <p className="mt-0.5 text-[11px] text-ink-4">{m.cleRepartition}</p>
+                    )}
                   </div>
                   {editable && (
                     <button
@@ -275,6 +302,30 @@ function AssembleeExistante({
   );
 }
 
+// --- Banniere d'etat de l'AG (cloturee / absente) -------------------------
+
+function AlerteEtatAg({ etat }: { etat: "cloturee" | "absente" }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
+      <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
+      <p className="text-[12.5px] text-warn-700">
+        {etat === "cloturee" ? (
+          <>
+            <span className="font-medium">AG clôturée</span> - on ne peut plus la modifier. Pour
+            préparer une nouvelle convocation (ex. comptes refusés, reconvocation), il faut{" "}
+            <span className="font-medium">créer une nouvelle AG</span> (bouton à venir, palier 3).
+          </>
+        ) : (
+          <>
+            <span className="font-medium">Aucune AG eStale</span> pour cette copropriété. Il faut en
+            créer une avant de composer l&apos;ordre du jour (bouton à venir, palier 3).
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 // --- Colonne gauche : la bibliotheque (picker) ----------------------------
 
 function BibliothequePicker({
@@ -286,6 +337,7 @@ function BibliothequePicker({
   setFiltre,
   dejaAjoute,
   onAjouter,
+  editable,
 }: {
   data: BibliothequeData;
   visibles: Resolution[];
@@ -295,6 +347,7 @@ function BibliothequePicker({
   setFiltre: (v: MajoriteResolution | "all") => void;
   dejaAjoute: Set<string>;
   onAjouter: (r: Resolution) => void;
+  editable: boolean;
 }) {
   const parMajorite = useMemo(() => {
     const m = new Map<MajoriteResolution, number>();
@@ -356,8 +409,8 @@ function BibliothequePicker({
                     <button
                       type="button"
                       onClick={() => onAjouter(r)}
-                      disabled={ajoute}
-                      className={`inline-flex items-center gap-1 h-7 px-2 rounded-sm text-[12px] font-medium shrink-0 transition-colors ${
+                      disabled={ajoute || !editable}
+                      className={`inline-flex items-center gap-1 h-7 px-2 rounded-sm text-[12px] font-medium shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                         ajoute
                           ? "text-ok-700 cursor-default"
                           : "bg-green-700 text-surface hover:bg-green-600"
@@ -522,7 +575,8 @@ function OdjEnConstruction({
         <button
           type="button"
           onClick={() => setFormOuvert(true)}
-          className="inline-flex items-center justify-center gap-1.5 h-9 rounded-md border border-dashed border-line-2 text-[13px] text-ink-2 hover:border-green-700 hover:text-green-700 transition-colors"
+          disabled={etatAg !== "ouverte"}
+          className="inline-flex items-center justify-center gap-1.5 h-9 rounded-md border border-dashed border-line-2 text-[13px] text-ink-2 hover:border-green-700 hover:text-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-line-2 disabled:hover:text-ink-2"
         >
           <Plus strokeWidth={1.5} className="w-4 h-4" /> Ajouter une résolution libre
         </button>
