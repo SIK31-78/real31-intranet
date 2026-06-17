@@ -2,7 +2,7 @@
 // (palier 1) ; les ecritures (ajout/suppression/ordre des motions) viendront.
 // Ne depend que du domaine.
 
-import type { AssembleeAg, ResolutionLibre } from "@/lib/domain/assemblee";
+import type { AssembleeAg, OrdreMotion, ResolutionLibre } from "@/lib/domain/assemblee";
 
 export interface AssembleeEstaleProvider {
   /** L'AG eStale pertinente d'une copro (ORDINARY non close en priorite), ou null. */
@@ -18,6 +18,7 @@ export interface AssembleeEstaleProvider {
     supprimerMotionIds: string[],
     bankItemIds: string[],
     libres: ResolutionLibre[],
+    ordre: OrdreMotion[],
   ): Promise<{ supprimees: number; ajoutees: number }>;
   /**
    * Cree une nouvelle AG ordinaire dans eStale pour la copro (palier 3). eStale

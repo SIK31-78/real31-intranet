@@ -52,6 +52,42 @@ export function ComposerOdj({
     });
   }
 
+  // Ordre des motions de tete (null = ordre naturel d'eStale). Les enfants suivent leur groupe.
+  const topLevelIds = useMemo(
+    () => (assemblee?.motions ?? []).filter((m) => !m.estEnfant).map((m) => m.id),
+    [assemblee],
+  );
+  const [ordre, setOrdre] = useState<string[] | null>(null);
+  const ordreChange =
+    ordre !== null &&
+    (ordre.length !== topLevelIds.length || ordre.some((id, i) => id !== topLevelIds[i]));
+
+  function deplacerTop(topId: string, delta: number) {
+    setOrdre(() => {
+      const base = ordre ?? topLevelIds;
+      const i = base.indexOf(topId);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= base.length) return base;
+      const copie = [...base];
+      [copie[i], copie[j]] = [copie[j], copie[i]];
+      return copie;
+    });
+  }
+
+  const motionsOrdonnees = useMemo(() => {
+    const motions = assemblee?.motions ?? [];
+    const parId = new Map(motions.map((m) => [m.id, m]));
+    const enfantsDe = grouperEnfants(motions);
+    const out: MotionAg[] = [];
+    for (const topId of ordre ?? topLevelIds) {
+      const t = parId.get(topId);
+      if (!t) continue;
+      out.push(t);
+      for (const e of enfantsDe.get(topId) ?? []) out.push(e);
+    }
+    return out;
+  }, [assemblee, ordre, topLevelIds]);
+
   const dejaAjoute = useMemo(() => new Set(draft.map((r) => r.id)), [draft]);
 
   const visibles = useMemo(() => {
@@ -109,7 +145,7 @@ export function ComposerOdj({
       ? "cloturee"
       : "ouverte";
 
-  const nbModifs = draft.length + aSupprimer.size;
+  const nbModifs = draft.length + aSupprimer.size + (ordreChange ? 1 : 0);
 
   function enregistrer() {
     if (!assemblee || assemblee.cloturee) return;
@@ -121,15 +157,30 @@ export function ComposerOdj({
     const meetingId = assemblee.meetingId;
     const supprimer = [...aSupprimer];
     const items = draft.map((r) => ({ id: r.id, titre: r.titre, corps: r.corps, majorite: r.majorite }));
+
+    // Nouvel ordre : rangs hierarchiques (top "1","2".. + enfants "N.j"), hors motions retirees.
+    const inputOrdre: { motionID: string; rank: string }[] = [];
+    if (ordreChange) {
+      const enfantsDe = grouperEnfants(assemblee.motions);
+      const tops = (ordre ?? topLevelIds).filter((id) => !aSupprimer.has(id));
+      tops.forEach((topId, i) => {
+        inputOrdre.push({ motionID: topId, rank: String(i + 1) });
+        (enfantsDe.get(topId) ?? [])
+          .filter((e) => !aSupprimer.has(e.id))
+          .forEach((e, j) => inputOrdre.push({ motionID: e.id, rank: `${i + 1}.${j + 1}` }));
+      });
+    }
+
     demarrerEnregistrement(async () => {
-      const res = await enregistrerProjetAction(meetingId, supprimer, items);
+      const res = await enregistrerProjetAction(meetingId, supprimer, items, inputOrdre);
       if (res.ok) {
         setMessage({
           ton: "ok",
-          texte: `AG mise à jour : ${res.ajoutees} ajout(s), ${res.supprimees} retrait(s).`,
+          texte: `AG mise à jour : ${res.ajoutees} ajout(s), ${res.supprimees} retrait(s)${ordreChange ? ", ordre appliqué" : ""}.`,
         });
         setDraft([]);
         setASupprimer(new Set());
+        setOrdre(null);
         router.refresh();
       } else {
         setMessage({ ton: "err", texte: res.erreur });
@@ -194,9 +245,11 @@ export function ComposerOdj({
         <div className="flex flex-col gap-5">
           <AssembleeExistante
             assemblee={assemblee}
+            motionsAffichees={motionsOrdonnees}
             editable={etatAg === "ouverte"}
             aSupprimer={aSupprimer}
             onToggleSupprimer={toggleSupprimer}
+            onDeplacerTop={deplacerTop}
           />
           <OdjEnConstruction
             draft={draft}
@@ -224,25 +277,51 @@ export function ComposerOdj({
 
 // --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans eStale ----
 
-/** Numerote les motions de tete (1, 2, 3...) ; les enfants de groupe n'ont pas de numero. */
-function numeroter(motions: MotionAg[]): { m: MotionAg; numero: number }[] {
+/** Regroupe les sous-resolutions par id de groupe parent (dans leur ordre). */
+function grouperEnfants(motions: MotionAg[]): Map<string, MotionAg[]> {
+  const m = new Map<string, MotionAg[]>();
+  for (const mo of motions) {
+    if (mo.estEnfant && mo.parentId) {
+      const arr = m.get(mo.parentId) ?? [];
+      arr.push(mo);
+      m.set(mo.parentId, arr);
+    }
+  }
+  return m;
+}
+
+/** Numerote les motions de tete (1, 2, 3...) ; les enfants n'ont pas de numero. Marque
+ *  le premier / dernier de tete (pour desactiver monter / descendre). */
+function numeroter(
+  motions: MotionAg[],
+): { m: MotionAg; numero: number; premierTop: boolean; dernierTop: boolean }[] {
+  const nbTops = motions.filter((mo) => !mo.estEnfant).length;
   let n = 0;
   return motions.map((m) => {
     if (!m.estEnfant) n += 1;
-    return { m, numero: n };
+    return {
+      m,
+      numero: n,
+      premierTop: !m.estEnfant && n === 1,
+      dernierTop: !m.estEnfant && n === nbTops,
+    };
   });
 }
 
 function AssembleeExistante({
   assemblee,
+  motionsAffichees,
   editable,
   aSupprimer,
   onToggleSupprimer,
+  onDeplacerTop,
 }: {
   assemblee: AssembleeAg | null;
+  motionsAffichees: MotionAg[];
   editable: boolean;
   aSupprimer: Set<string>;
   onToggleSupprimer: (motionId: string) => void;
+  onDeplacerTop: (topId: string, delta: number) => void;
 }) {
   if (!assemblee) {
     return (
@@ -266,14 +345,18 @@ function AssembleeExistante({
       <p className="text-[11.5px] text-ink-4 -mt-1">
         {assemblee.nom}
         {assemblee.dateISO ? ` - ${assemblee.dateISO}` : ""}
-        {assemblee.cloturee ? " · clôturée (non modifiable)" : editable ? " · retire ce que tu ne veux pas" : ""}
+        {assemblee.cloturee
+          ? " · clôturée (non modifiable)"
+          : editable
+            ? " · retire, réordonne (flèches) ce que tu veux"
+            : ""}
       </p>
       <Card>
-        {assemblee.motions.length === 0 ? (
+        {motionsAffichees.length === 0 ? (
           <p className="px-4 py-6 text-[13px] text-ink-3 text-center">AG sans résolution.</p>
         ) : (
           <ol className="divide-y divide-line">
-            {numeroter(assemblee.motions).map(({ m, numero }) => {
+            {numeroter(motionsAffichees).map(({ m, numero, premierTop, dernierTop }) => {
               const marque = aSupprimer.has(m.id);
               return (
                 <li
@@ -283,6 +366,30 @@ function AssembleeExistante({
                   <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">
                     {m.estEnfant ? "·" : `${numero}.`}
                   </span>
+                  {editable && !m.estEnfant && (
+                    <span className="flex flex-col -my-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => onDeplacerTop(m.id, -1)}
+                        disabled={premierTop}
+                        aria-label="Monter"
+                        title="Monter"
+                        className="h-4 inline-flex items-center text-ink-3 hover:text-ink disabled:opacity-25"
+                      >
+                        <ArrowUp strokeWidth={1.5} className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeplacerTop(m.id, 1)}
+                        disabled={dernierTop}
+                        aria-label="Descendre"
+                        title="Descendre"
+                        className="h-4 inline-flex items-center text-ink-3 hover:text-ink disabled:opacity-25"
+                      >
+                        <ArrowDown strokeWidth={1.5} className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span

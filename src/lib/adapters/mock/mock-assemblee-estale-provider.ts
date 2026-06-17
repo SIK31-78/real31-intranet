@@ -10,6 +10,7 @@ export class MockAssembleeEstaleProvider implements AssembleeEstaleProvider {
   async appliquerOdj(): Promise<{ supprimees: number; ajoutees: number }> {
     return { supprimees: 0, ajoutees: 0 };
   }
+  // appliquerOdj ignore ses arguments en mock (signature complete cote port).
   async creerAssemblee(): Promise<string> {
     throw new Error("Création d'AG indisponible hors connexion eStale.");
   }

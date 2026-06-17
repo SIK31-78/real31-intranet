@@ -15,6 +15,14 @@ export interface MotionAg {
   estGroupe?: boolean;
   /** Sous-resolution rattachee a un groupe (a une motion parente). */
   estEnfant?: boolean;
+  /** Id de la motion parente (groupe), si c'est une sous-resolution. */
+  parentId?: string;
+}
+
+/** Nouvel ordre d'une motion : son id + son rang cible (ex "3" ou "3.1"). */
+export interface OrdreMotion {
+  motionID: string;
+  rank: string;
 }
 
 /** L'AG eStale d'une copro + ses motions, dans l'ordre. */

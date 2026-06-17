@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { appliquerOdjAg, creerAssembleeAg } from "@/lib/services/odj/get-assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
+import type { OrdreMotion } from "@/lib/domain/assemblee";
 
 type ItemAjout = { id: string; titre: string; corps: string; majorite: MajoriteResolution };
 
@@ -17,6 +18,7 @@ export async function enregistrerProjetAction(
   meetingId: string,
   supprimerMotionIds: string[],
   items: ItemAjout[],
+  ordre: OrdreMotion[],
 ): Promise<Resultat> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée, reconnecte-toi." };
@@ -29,7 +31,13 @@ export async function enregistrerProjetAction(
     .map((i) => ({ titre: i.titre, corps: i.corps, majorite: i.majorite }));
 
   try {
-    const { supprimees, ajoutees } = await appliquerOdjAg(meetingId, supprimerMotionIds, bankItemIds, libres);
+    const { supprimees, ajoutees } = await appliquerOdjAg(
+      meetingId,
+      supprimerMotionIds,
+      bankItemIds,
+      libres,
+      ordre,
+    );
     revalidatePath("/odj", "layout");
     return { ok: true, supprimees, ajoutees };
   } catch (e) {

@@ -3,7 +3,7 @@
 // l'AG ORDINARY pertinente (non close en priorite). Cf. ADR-024.
 
 import type { AssembleeEstaleProvider } from "@/lib/ports/assemblee-estale-provider";
-import type { AssembleeAg, MotionAg, ResolutionLibre } from "@/lib/domain/assemblee";
+import type { AssembleeAg, MotionAg, OrdreMotion, ResolutionLibre } from "@/lib/domain/assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 import { estaleGql } from "./client";
 
@@ -95,7 +95,7 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
         majorite: majorite(m.majority),
         ...(m.dk?.name ? { cleRepartition: m.dk.name } : {}),
         ...(m.type === "group" ? { estGroupe: true } : {}),
-        ...(m.parent ? { estEnfant: true } : {}),
+        ...(m.parent ? { estEnfant: true, parentId: m.parent.id } : {}),
       }));
 
     return {
@@ -167,6 +167,7 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
     supprimerMotionIds: string[],
     bankItemIds: string[],
     libres: ResolutionLibre[],
+    ordre: OrdreMotion[],
   ): Promise<{ supprimees: number; ajoutees: number }> {
     let supprimees = 0;
     let ajoutees = 0;
@@ -219,6 +220,17 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
         majority: l.majorite,
       });
       ajoutees++;
+    }
+
+    // 3. Reordonnancement (orderMotions exige l'ensemble des motions avec leurs
+    // nouveaux rangs hierarchiques : top-niveau "1","2"... + enfants "N.j").
+    if (ordre.length > 0) {
+      await estaleGql(
+        `mutation Ordonner($mid: ID!, $in: [MeetingMotionOrderInput!]!) {
+          updateMeeting(id: $mid) { orderMotions(input: $in) { id } }
+        }`,
+        { mid: meetingId, in: ordre },
+      );
     }
 
     return { supprimees, ajoutees };
