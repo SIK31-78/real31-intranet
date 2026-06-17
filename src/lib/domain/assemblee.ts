@@ -19,6 +19,8 @@ export interface AssembleeAg {
   nom: string;
   /** Date de l'AG (ISO), si fixee. */
   dateISO?: string;
+  /** AG cloturee : lecture seule, on ne peut plus modifier les motions. */
+  cloturee: boolean;
   motions: MotionAg[];
 }
 

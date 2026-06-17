@@ -92,8 +92,14 @@ export function ComposerOdj({
     setFormOuvert(false);
   }
 
+  const etatAg: "ouverte" | "cloturee" | "absente" = !assemblee
+    ? "absente"
+    : assemblee.cloturee
+      ? "cloturee"
+      : "ouverte";
+
   function enregistrer() {
-    if (!assemblee || draft.length === 0) return;
+    if (!assemblee || assemblee.cloturee || draft.length === 0) return;
     setMessage(null);
     const meetingId = assemblee.meetingId;
     const items = draft.map((r) => ({ id: r.id, titre: r.titre, corps: r.corps, majorite: r.majorite }));
@@ -155,7 +161,7 @@ export function ComposerOdj({
             libreCorps={libreCorps}
             setLibreCorps={setLibreCorps}
             onAjouterLibre={ajouterLibre}
-            aAg={Boolean(assemblee)}
+            etatAg={etatAg}
             enregistrement={enregistrement}
             onEnregistrer={enregistrer}
             message={message}
@@ -190,8 +196,8 @@ function AssembleeExistante({ assemblee }: { assemblee: AssembleeAg | null }) {
       </h2>
       <p className="text-[11.5px] text-ink-4 -mt-1">
         {assemblee.nom}
-        {assemblee.dateISO ? ` - ${assemblee.dateISO}` : ""} · lecture seule (l&apos;édition arrive
-        au palier suivant)
+        {assemblee.dateISO ? ` - ${assemblee.dateISO}` : ""}
+        {assemblee.cloturee ? " · clôturée (non modifiable)" : ""}
       </p>
       <Card>
         {assemblee.motions.length === 0 ? (
@@ -346,7 +352,7 @@ function OdjEnConstruction({
   libreCorps,
   setLibreCorps,
   onAjouterLibre,
-  aAg,
+  etatAg,
   enregistrement,
   onEnregistrer,
   message,
@@ -363,7 +369,7 @@ function OdjEnConstruction({
   libreCorps: string;
   setLibreCorps: (v: string) => void;
   onAjouterLibre: () => void;
-  aAg: boolean;
+  etatAg: "ouverte" | "cloturee" | "absente";
   enregistrement: boolean;
   onEnregistrer: () => void;
   message: { ton: "ok" | "err"; texte: string } | null;
@@ -473,12 +479,22 @@ function OdjEnConstruction({
       <button
         type="button"
         onClick={onEnregistrer}
-        disabled={!aAg || draft.length === 0 || enregistrement}
-        title={aAg ? "Ajoute les résolutions composées dans l'AG eStale" : "Aucune AG eStale (création à venir, palier 3)"}
+        disabled={etatAg !== "ouverte" || draft.length === 0 || enregistrement}
+        title={
+          etatAg === "ouverte"
+            ? "Ajoute les résolutions composées dans l'AG eStale"
+            : etatAg === "cloturee"
+              ? "AG clôturée : non modifiable"
+              : "Aucune AG eStale (création à venir, palier 3)"
+        }
         className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 transition-colors disabled:bg-surface-2 disabled:text-ink-3 disabled:cursor-not-allowed"
       >
         {enregistrement && <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" />}
-        {aAg ? "Enregistrer dans l'AG eStale" : "Créer l'AG d'abord (à venir)"}
+        {etatAg === "ouverte"
+          ? "Enregistrer dans l'AG eStale"
+          : etatAg === "cloturee"
+            ? "AG clôturée (non modifiable)"
+            : "Créer l'AG d'abord (à venir)"}
       </button>
 
       {message && (

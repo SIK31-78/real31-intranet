@@ -98,6 +98,7 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
       meetingId: choisie.id,
       nom: choisie.name,
       ...(choisie.startAt ? { dateISO: choisie.startAt.slice(0, 10) } : {}),
+      cloturee: choisie.isClosed,
       motions,
     };
   }
