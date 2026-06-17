@@ -6,15 +6,16 @@
 
 import { revalidatePath } from "next/cache";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { ajouterResolutionsAg } from "@/lib/services/odj/get-assemblee";
+import { appliquerOdjAg } from "@/lib/services/odj/get-assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 
 type ItemAjout = { id: string; titre: string; corps: string; majorite: MajoriteResolution };
 
-type Resultat = { ok: true; ajoutees: number } | { ok: false; erreur: string };
+type Resultat = { ok: true; supprimees: number; ajoutees: number } | { ok: false; erreur: string };
 
 export async function enregistrerProjetAction(
   meetingId: string,
+  supprimerMotionIds: string[],
   items: ItemAjout[],
 ): Promise<Resultat> {
   const g = await getGestionnaireCourant();
@@ -28,9 +29,9 @@ export async function enregistrerProjetAction(
     .map((i) => ({ titre: i.titre, corps: i.corps, majorite: i.majorite }));
 
   try {
-    const ajoutees = await ajouterResolutionsAg(meetingId, bankItemIds, libres);
+    const { supprimees, ajoutees } = await appliquerOdjAg(meetingId, supprimerMotionIds, bankItemIds, libres);
     revalidatePath("/odj", "layout");
-    return { ok: true, ajoutees };
+    return { ok: true, supprimees, ajoutees };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message };
   }

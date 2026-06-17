@@ -13,11 +13,12 @@ export async function getAssemblee(coproCode: string): Promise<AssembleeAg | nul
   }
 }
 
-/** Ajoute des resolutions a une AG eStale (palier 2a). Ecriture reelle. */
-export async function ajouterResolutionsAg(
+/** Reconcilie l'AG eStale avec la composition du mode CS (palier 2b). Ecriture reelle. */
+export async function appliquerOdjAg(
   meetingId: string,
+  supprimerMotionIds: string[],
   bankItemIds: string[],
   libres: ResolutionLibre[],
-): Promise<number> {
-  return getAssembleeEstaleProvider().ajouterAuMeeting(meetingId, bankItemIds, libres);
+): Promise<{ supprimees: number; ajoutees: number }> {
+  return getAssembleeEstaleProvider().appliquerOdj(meetingId, supprimerMotionIds, bankItemIds, libres);
 }

@@ -8,13 +8,15 @@ export interface AssembleeEstaleProvider {
   /** L'AG eStale pertinente d'une copro (ORDINARY non close en priorite), ou null. */
   getAssemblee(coproCode: string): Promise<AssembleeAg | null>;
   /**
-   * Ajoute des resolutions a une AG (palier 2a). `bankItemIds` = resolutions piochees
-   * dans la bibliotheque cabinet (recreees fidelement via createMotion) ; `libres` =
-   * resolutions saisies. Ecriture reelle dans eStale, additive.
+   * Reconcilie l'AG eStale avec la composition du mode CS (palier 2b). Supprime les
+   * motions retirees (`supprimerMotionIds`), ajoute les resolutions piochees dans la
+   * bibliotheque (`bankItemIds`, recreees fidelement via createMotion) et les
+   * resolutions saisies (`libres`). Ecriture reelle dans eStale.
    */
-  ajouterAuMeeting(
+  appliquerOdj(
     meetingId: string,
+    supprimerMotionIds: string[],
     bankItemIds: string[],
     libres: ResolutionLibre[],
-  ): Promise<number>;
+  ): Promise<{ supprimees: number; ajoutees: number }>;
 }

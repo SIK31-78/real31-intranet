@@ -7,7 +7,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle, ListChecks, Loader2 } from "lucide-react";
+import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle, ListChecks, Loader2, RotateCcw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
@@ -40,6 +40,17 @@ export function ComposerOdj({
   const router = useRouter();
   const [enregistrement, demarrerEnregistrement] = useTransition();
   const [message, setMessage] = useState<{ ton: "ok" | "err"; texte: string } | null>(null);
+  // Motions existantes (eStale) marquees pour suppression.
+  const [aSupprimer, setASupprimer] = useState<Set<string>>(new Set());
+
+  function toggleSupprimer(motionId: string) {
+    setASupprimer((s) => {
+      const n = new Set(s);
+      if (n.has(motionId)) n.delete(motionId);
+      else n.add(motionId);
+      return n;
+    });
+  }
 
   const dejaAjoute = useMemo(() => new Set(draft.map((r) => r.id)), [draft]);
 
@@ -98,16 +109,23 @@ export function ComposerOdj({
       ? "cloturee"
       : "ouverte";
 
+  const nbModifs = draft.length + aSupprimer.size;
+
   function enregistrer() {
-    if (!assemblee || assemblee.cloturee || draft.length === 0) return;
+    if (!assemblee || assemblee.cloturee || nbModifs === 0) return;
     setMessage(null);
     const meetingId = assemblee.meetingId;
+    const supprimer = [...aSupprimer];
     const items = draft.map((r) => ({ id: r.id, titre: r.titre, corps: r.corps, majorite: r.majorite }));
     demarrerEnregistrement(async () => {
-      const res = await enregistrerProjetAction(meetingId, items);
+      const res = await enregistrerProjetAction(meetingId, supprimer, items);
       if (res.ok) {
-        setMessage({ ton: "ok", texte: `${res.ajoutees} résolution(s) ajoutée(s) à l'AG eStale.` });
+        setMessage({
+          ton: "ok",
+          texte: `AG mise à jour : ${res.ajoutees} ajout(s), ${res.supprimees} retrait(s).`,
+        });
         setDraft([]);
+        setASupprimer(new Set());
         router.refresh();
       } else {
         setMessage({ ton: "err", texte: res.erreur });
@@ -147,7 +165,12 @@ export function ComposerOdj({
         />
 
         <div className="flex flex-col gap-5">
-          <AssembleeExistante assemblee={assemblee} />
+          <AssembleeExistante
+            assemblee={assemblee}
+            editable={etatAg === "ouverte"}
+            aSupprimer={aSupprimer}
+            onToggleSupprimer={toggleSupprimer}
+          />
           <OdjEnConstruction
             draft={draft}
             onRetirer={retirer}
@@ -162,6 +185,7 @@ export function ComposerOdj({
             setLibreCorps={setLibreCorps}
             onAjouterLibre={ajouterLibre}
             etatAg={etatAg}
+            nbModifs={nbModifs}
             enregistrement={enregistrement}
             onEnregistrer={enregistrer}
             message={message}
@@ -174,7 +198,17 @@ export function ComposerOdj({
 
 // --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans eStale ----
 
-function AssembleeExistante({ assemblee }: { assemblee: AssembleeAg | null }) {
+function AssembleeExistante({
+  assemblee,
+  editable,
+  aSupprimer,
+  onToggleSupprimer,
+}: {
+  assemblee: AssembleeAg | null;
+  editable: boolean;
+  aSupprimer: Set<string>;
+  onToggleSupprimer: (motionId: string) => void;
+}) {
   if (!assemblee) {
     return (
       <Card>
@@ -197,27 +231,43 @@ function AssembleeExistante({ assemblee }: { assemblee: AssembleeAg | null }) {
       <p className="text-[11.5px] text-ink-4 -mt-1">
         {assemblee.nom}
         {assemblee.dateISO ? ` - ${assemblee.dateISO}` : ""}
-        {assemblee.cloturee ? " · clôturée (non modifiable)" : ""}
+        {assemblee.cloturee ? " · clôturée (non modifiable)" : editable ? " · retire ce que tu ne veux pas" : ""}
       </p>
       <Card>
         {assemblee.motions.length === 0 ? (
           <p className="px-4 py-6 text-[13px] text-ink-3 text-center">AG sans résolution.</p>
         ) : (
           <ol className="divide-y divide-line">
-            {assemblee.motions.map((m, i) => (
-              <li key={m.id} className="flex items-start gap-2.5 px-3 py-2">
-                <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">{i + 1}.</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] text-ink">{m.titre}</span>
-                    <MajoriteBadge majorite={m.majorite} />
+            {assemblee.motions.map((m, i) => {
+              const marque = aSupprimer.has(m.id);
+              return (
+                <li key={m.id} className={`flex items-start gap-2.5 px-3 py-2 ${marque ? "opacity-50" : ""}`}>
+                  <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">{i + 1}.</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[13px] text-ink ${marque ? "line-through" : ""}`}>{m.titre}</span>
+                      <MajoriteBadge majorite={m.majorite} />
+                    </div>
+                    {m.cleRepartition && <p className="mt-0.5 text-[11px] text-ink-4">{m.cleRepartition}</p>}
                   </div>
-                  {m.cleRepartition && (
-                    <p className="mt-0.5 text-[11px] text-ink-4">{m.cleRepartition}</p>
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleSupprimer(m.id)}
+                      aria-label={marque ? "Annuler le retrait" : "Retirer de l'ODJ"}
+                      title={marque ? "Annuler le retrait" : "Retirer de l'ODJ"}
+                      className="w-7 h-7 inline-flex items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink shrink-0"
+                    >
+                      {marque ? (
+                        <RotateCcw strokeWidth={1.5} className="w-3.5 h-3.5" />
+                      ) : (
+                        <X strokeWidth={1.5} className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                   )}
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
         )}
       </Card>
@@ -353,6 +403,7 @@ function OdjEnConstruction({
   setLibreCorps,
   onAjouterLibre,
   etatAg,
+  nbModifs,
   enregistrement,
   onEnregistrer,
   message,
@@ -370,6 +421,7 @@ function OdjEnConstruction({
   setLibreCorps: (v: string) => void;
   onAjouterLibre: () => void;
   etatAg: "ouverte" | "cloturee" | "absente";
+  nbModifs: number;
   enregistrement: boolean;
   onEnregistrer: () => void;
   message: { ton: "ok" | "err"; texte: string } | null;
@@ -479,7 +531,7 @@ function OdjEnConstruction({
       <button
         type="button"
         onClick={onEnregistrer}
-        disabled={etatAg !== "ouverte" || draft.length === 0 || enregistrement}
+        disabled={etatAg !== "ouverte" || nbModifs === 0 || enregistrement}
         title={
           etatAg === "ouverte"
             ? "Ajoute les résolutions composées dans l'AG eStale"

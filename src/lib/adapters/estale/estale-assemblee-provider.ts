@@ -103,14 +103,27 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
     };
   }
 
-  async ajouterAuMeeting(
+  async appliquerOdj(
     meetingId: string,
+    supprimerMotionIds: string[],
     bankItemIds: string[],
     libres: ResolutionLibre[],
-  ): Promise<number> {
+  ): Promise<{ supprimees: number; ajoutees: number }> {
+    let supprimees = 0;
     let ajoutees = 0;
 
-    // Resolutions de la bibliotheque : on recupere leur contenu COMPLET (texte legal,
+    // 1. Suppressions des motions retirees.
+    for (const motionId of supprimerMotionIds) {
+      await estaleGql(
+        `mutation Suppr($mid: ID!, $id: ID!) {
+          updateMeeting(id: $mid) { updateMotion(id: $id) { delete { id } } }
+        }`,
+        { mid: meetingId, id: motionId },
+      );
+      supprimees++;
+    }
+
+    // 2. Resolutions de la bibliotheque : on recupere leur contenu COMPLET (texte legal,
     // preambule...) au moment de l'ecriture, et on les recree fidelement dans l'AG.
     // (createMotionsFromBank n'accepte pas les ids de bank etablissement.)
     if (bankItemIds.length > 0) {
@@ -149,7 +162,7 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
       ajoutees++;
     }
 
-    return ajoutees;
+    return { supprimees, ajoutees };
   }
 
   private async creerMotion(meetingId: string, input: MotionInput): Promise<void> {

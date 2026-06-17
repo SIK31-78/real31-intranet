@@ -7,7 +7,7 @@ export class MockAssembleeEstaleProvider implements AssembleeEstaleProvider {
   async getAssemblee(): Promise<AssembleeAg | null> {
     return null;
   }
-  async ajouterAuMeeting(): Promise<number> {
-    return 0;
+  async appliquerOdj(): Promise<{ supprimees: number; ajoutees: number }> {
+    return { supprimees: 0, ajoutees: 0 };
   }
 }
