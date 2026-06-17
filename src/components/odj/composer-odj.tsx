@@ -6,21 +6,24 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle } from "lucide-react";
+import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle, ListChecks } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
 import { MAJORITE_LABEL, MAJORITE_ORDRE } from "@/lib/domain/resolution";
+import type { AssembleeAg } from "@/lib/domain/assemblee";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
 
 export function ComposerOdj({
   copro,
   dateAg,
   data,
+  assemblee,
 }: {
   copro: { code: string; nom: string };
   dateAg?: string;
   data: BibliothequeData;
+  assemblee: AssembleeAg | null;
 }) {
   const [draft, setDraft] = useState<Resolution[]>([]);
   const [q, setQ] = useState("");
@@ -114,21 +117,77 @@ export function ComposerOdj({
           onAjouter={ajouter}
         />
 
-        <OdjEnConstruction
-          draft={draft}
-          onRetirer={retirer}
-          onDeplacer={deplacer}
-          formOuvert={formOuvert}
-          setFormOuvert={setFormOuvert}
-          libreTitre={libreTitre}
-          setLibreTitre={setLibreTitre}
-          libreMajorite={libreMajorite}
-          setLibreMajorite={setLibreMajorite}
-          libreCorps={libreCorps}
-          setLibreCorps={setLibreCorps}
-          onAjouterLibre={ajouterLibre}
-        />
+        <div className="flex flex-col gap-5">
+          <AssembleeExistante assemblee={assemblee} />
+          <OdjEnConstruction
+            draft={draft}
+            onRetirer={retirer}
+            onDeplacer={deplacer}
+            formOuvert={formOuvert}
+            setFormOuvert={setFormOuvert}
+            libreTitre={libreTitre}
+            setLibreTitre={setLibreTitre}
+            libreMajorite={libreMajorite}
+            setLibreMajorite={setLibreMajorite}
+            libreCorps={libreCorps}
+            setLibreCorps={setLibreCorps}
+            onAjouterLibre={ajouterLibre}
+          />
+        </div>
       </div>
+    </div>
+  );
+}
+
+// --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans eStale ----
+
+function AssembleeExistante({ assemblee }: { assemblee: AssembleeAg | null }) {
+  if (!assemblee) {
+    return (
+      <Card>
+        <div className="px-4 py-4 flex items-start gap-2.5">
+          <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0 mt-px" />
+          <p className="text-[12.5px] text-ink-3">
+            Aucune AG ordinaire trouvée pour cette copro dans eStale. Elle sera créée à
+            l&apos;enregistrement (le socle standard s&apos;ajoutera automatiquement).
+          </p>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2.5">
+      <h2 className="text-[13px] font-semibold uppercase tracking-[0.05em] text-ink-3 flex items-center gap-1.5">
+        <ListChecks strokeWidth={1.5} className="w-3.5 h-3.5" />
+        Déjà dans l&apos;AG eStale ({assemblee.motions.length})
+      </h2>
+      <p className="text-[11.5px] text-ink-4 -mt-1">
+        {assemblee.nom}
+        {assemblee.dateISO ? ` - ${assemblee.dateISO}` : ""} · lecture seule (l&apos;édition arrive
+        au palier suivant)
+      </p>
+      <Card>
+        {assemblee.motions.length === 0 ? (
+          <p className="px-4 py-6 text-[13px] text-ink-3 text-center">AG sans résolution.</p>
+        ) : (
+          <ol className="divide-y divide-line">
+            {assemblee.motions.map((m, i) => (
+              <li key={m.id} className="flex items-start gap-2.5 px-3 py-2">
+                <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">{i + 1}.</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] text-ink">{m.titre}</span>
+                    <MajoriteBadge majorite={m.majorite} />
+                  </div>
+                  {m.cleRepartition && (
+                    <p className="mt-0.5 text-[11px] text-ink-4">{m.cleRepartition}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
     </div>
   );
 }
@@ -275,9 +334,9 @@ function OdjEnConstruction({
   onAjouterLibre: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 lg:sticky lg:top-4">
+    <div className="flex flex-col gap-3">
       <h2 className="text-[13px] font-semibold uppercase tracking-[0.05em] text-ink-3">
-        Ordre du jour ({draft.length} résolution{draft.length > 1 ? "s" : ""})
+        À ajouter ({draft.length} résolution{draft.length > 1 ? "s" : ""})
       </h2>
 
       <Card>

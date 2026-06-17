@@ -35,6 +35,9 @@ import { estaleConfigure } from "@/lib/adapters/estale/client";
 import type { BibliothequeResolutionsProvider } from "@/lib/ports/bibliotheque-resolutions";
 import { EstaleBibliothequeResolutions } from "@/lib/adapters/estale/estale-bibliotheque-resolutions";
 import { MockBibliothequeResolutions } from "@/lib/adapters/mock/mock-bibliotheque-resolutions";
+import type { AssembleeEstaleProvider } from "@/lib/ports/assemblee-estale-provider";
+import { EstaleAssembleeProvider } from "@/lib/adapters/estale/estale-assemblee-provider";
+import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-estale-provider";
 
 export type { DbHealth };
 
@@ -102,6 +105,15 @@ export function getBibliothequeResolutions(): BibliothequeResolutionsProvider {
     return new EstaleBibliothequeResolutions();
   }
   return new MockBibliothequeResolutions();
+}
+
+// AG eStale (Meeting + motions, ADR-024). En reel : lit l'AG de la copro via eStale ;
+// sinon mock (null). LECTURE pour le palier 1.
+export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
+  if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
+    return new EstaleAssembleeProvider();
+  }
+  return new MockAssembleeEstaleProvider();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
