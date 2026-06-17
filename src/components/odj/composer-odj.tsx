@@ -112,8 +112,12 @@ export function ComposerOdj({
   const nbModifs = draft.length + aSupprimer.size;
 
   function enregistrer() {
-    if (!assemblee || assemblee.cloturee || nbModifs === 0) return;
+    if (!assemblee || assemblee.cloturee) return;
     setMessage(null);
+    if (nbModifs === 0) {
+      setMessage({ ton: "ok", texte: "AG déjà à jour - aucune modification à enregistrer." });
+      return;
+    }
     const meetingId = assemblee.meetingId;
     const supprimer = [...aSupprimer];
     const items = draft.map((r) => ({ id: r.id, titre: r.titre, corps: r.corps, majorite: r.majorite }));
@@ -208,7 +212,6 @@ export function ComposerOdj({
             setLibreCorps={setLibreCorps}
             onAjouterLibre={ajouterLibre}
             etatAg={etatAg}
-            nbModifs={nbModifs}
             enregistrement={enregistrement}
             onEnregistrer={enregistrer}
             message={message}
@@ -495,7 +498,6 @@ function OdjEnConstruction({
   setLibreCorps,
   onAjouterLibre,
   etatAg,
-  nbModifs,
   enregistrement,
   onEnregistrer,
   message,
@@ -513,7 +515,6 @@ function OdjEnConstruction({
   setLibreCorps: (v: string) => void;
   onAjouterLibre: () => void;
   etatAg: "ouverte" | "cloturee" | "absente";
-  nbModifs: number;
   enregistrement: boolean;
   onEnregistrer: () => void;
   message: { ton: "ok" | "err"; texte: string } | null;
@@ -624,7 +625,7 @@ function OdjEnConstruction({
       <button
         type="button"
         onClick={onEnregistrer}
-        disabled={etatAg !== "ouverte" || nbModifs === 0 || enregistrement}
+        disabled={etatAg !== "ouverte" || enregistrement}
         title={
           etatAg === "ouverte"
             ? "Ajoute les résolutions composées dans l'AG eStale"
