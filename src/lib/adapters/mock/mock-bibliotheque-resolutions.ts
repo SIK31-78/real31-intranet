@@ -12,6 +12,17 @@ const RESOLUTIONS: Resolution[] = [
     majorite: "QUESTION",
     motsCles: ["bureau", "séance"],
     parDefaut: true,
+    rank: "1",
+    estGroupe: true,
+  },
+  {
+    id: "mock-1-1",
+    titre: "Désignation du Président de séance",
+    corps: "L'assemblée désigne le président de séance.",
+    majorite: "A24",
+    motsCles: ["bureau"],
+    parDefaut: true,
+    rank: "1.1",
   },
   {
     id: "mock-2",
@@ -20,6 +31,7 @@ const RESOLUTIONS: Resolution[] = [
     majorite: "A24",
     motsCles: ["comptes", "approbation"],
     parDefaut: true,
+    rank: "2",
   },
   {
     id: "mock-3",
@@ -28,6 +40,7 @@ const RESOLUTIONS: Resolution[] = [
     majorite: "A24",
     motsCles: ["budget"],
     parDefaut: true,
+    rank: "3",
   },
   {
     id: "mock-4",
@@ -36,6 +49,7 @@ const RESOLUTIONS: Resolution[] = [
     majorite: "A25_1",
     motsCles: ["syndic", "contrat"],
     parDefaut: true,
+    rank: "4",
   },
   {
     id: "mock-5",
@@ -44,6 +58,7 @@ const RESOLUTIONS: Resolution[] = [
     majorite: "A25",
     motsCles: ["travaux", "devis"],
     parDefaut: false,
+    rank: "5",
   },
   {
     id: "mock-6",
@@ -52,6 +67,7 @@ const RESOLUTIONS: Resolution[] = [
     majorite: "QUESTION",
     motsCles: ["divers"],
     parDefaut: true,
+    rank: "6",
   },
 ];
 

@@ -10,6 +10,8 @@ import { estaleGql } from "./client";
 
 type BankItem = {
   id: string;
+  type: string;
+  rank: string;
   title: string;
   body: string | null;
   majority: string;
@@ -35,7 +37,7 @@ const QUERY = `query BibliothequeCabinet {
   me {
     collaborator {
       establishment {
-        motionsBank { id title body majority isDefault keywords }
+        motionsBank { id type rank title body majority isDefault keywords }
       }
     }
   }
@@ -54,6 +56,8 @@ export class EstaleBibliothequeResolutions implements BibliothequeResolutionsPro
       majorite: majorite(it.majority),
       motsCles: it.keywords ?? [],
       parDefaut: it.isDefault,
+      rank: it.rank,
+      ...(it.type === "group" ? { estGroupe: true } : {}),
     }));
   }
 }

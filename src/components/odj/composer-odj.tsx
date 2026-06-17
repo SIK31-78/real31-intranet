@@ -11,7 +11,7 @@ import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle, L
 import { Card } from "@/components/ui/card";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
-import { MAJORITE_LABEL, MAJORITE_ORDRE } from "@/lib/domain/resolution";
+import { MAJORITE_LABEL, MAJORITE_ORDRE, rangParent } from "@/lib/domain/resolution";
 import type { AssembleeAg, MotionAg } from "@/lib/domain/assemblee";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
 import { enregistrerProjetAction, creerAgAction } from "@/app/odj/[id]/composer/actions";
@@ -90,33 +90,39 @@ export function ComposerOdj({
 
   const dejaAjoute = useMemo(() => new Set(draft.map((r) => r.id)), [draft]);
 
+  // Picker conscient des groupes : on liste les resolutions de TETE (les sous-resolutions
+  // s'affichent sous leur groupe). Un groupe matche s'il matche lui-meme ou un de ses enfants.
   const visibles = useMemo(() => {
     const terme = q.trim().toLowerCase();
+    const match = (r: Resolution) =>
+      r.titre.toLowerCase().includes(terme) ||
+      r.corps.toLowerCase().includes(terme) ||
+      r.motsCles.some((m) => m.toLowerCase().includes(terme));
     return data.resolutions.filter((r) => {
+      if (rangParent(r.rank) !== null) return false; // les enfants sont montres sous leur groupe
       if (filtre !== "all" && r.majorite !== filtre) return false;
       if (!terme) return true;
-      return (
-        r.titre.toLowerCase().includes(terme) ||
-        r.corps.toLowerCase().includes(terme) ||
-        r.motsCles.some((m) => m.toLowerCase().includes(terme))
-      );
+      const enfants = data.resolutions.filter((c) => rangParent(c.rank) === r.rank);
+      return match(r) || enfants.some(match);
     });
   }, [data.resolutions, q, filtre]);
 
   function ajouter(r: Resolution) {
     if (dejaAjoute.has(r.id)) return;
-    setDraft((d) => [...d, r]);
+    const enfants = r.estGroupe
+      ? data.resolutions.filter((c) => rangParent(c.rank) === r.rank)
+      : [];
+    const aAjouter = [r, ...enfants];
+    setDraft((d) => [...d, ...aAjouter.filter((x) => !d.some((y) => y.id === x.id))]);
   }
   function retirer(id: string) {
-    setDraft((d) => d.filter((r) => r.id !== id));
-  }
-  function deplacer(i: number, delta: number) {
     setDraft((d) => {
-      const j = i + delta;
-      if (j < 0 || j >= d.length) return d;
-      const copie = [...d];
-      [copie[i], copie[j]] = [copie[j], copie[i]];
-      return copie;
+      const cible = d.find((r) => r.id === id);
+      // Retirer un groupe retire aussi ses sous-resolutions.
+      if (cible?.estGroupe) {
+        return d.filter((r) => r.id !== id && rangParent(r.rank) !== cible.rank);
+      }
+      return d.filter((r) => r.id !== id);
     });
   }
   function ajouterLibre() {
@@ -132,6 +138,7 @@ export function ComposerOdj({
         majorite: libreMajorite,
         motsCles: [],
         parDefaut: false,
+        rank: "",
       },
     ]);
     setLibreTitre("");
@@ -254,7 +261,6 @@ export function ComposerOdj({
           <OdjEnConstruction
             draft={draft}
             onRetirer={retirer}
-            onDeplacer={deplacer}
             formOuvert={formOuvert}
             setFormOuvert={setFormOuvert}
             libreTitre={libreTitre}
@@ -276,6 +282,16 @@ export function ComposerOdj({
 }
 
 // --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans eStale ----
+
+/** Numerote le brouillon : resolutions de tete numerotees, enfants de groupe sans numero. */
+function numeroterDraft(draft: Resolution[]): { r: Resolution; numero: number; enfant: boolean }[] {
+  let n = 0;
+  return draft.map((r) => {
+    const enfant = rangParent(r.rank) !== null;
+    if (!enfant) n += 1;
+    return { r, numero: n, enfant };
+  });
+}
 
 /** Regroupe les sous-resolutions par id de groupe parent (dans leur ordre). */
 function grouperEnfants(motions: MotionAg[]): Map<string, MotionAg[]> {
@@ -545,15 +561,37 @@ function BibliothequePicker({
           <div className="flex flex-col gap-2 max-h-[60vh] overflow-auto pr-1">
             {visibles.map((r) => {
               const ajoute = dejaAjoute.has(r.id);
+              const enfants = r.estGroupe
+                ? data.resolutions.filter((c) => rangParent(c.rank) === r.rank)
+                : [];
               return (
                 <Card key={r.id}>
                   <div className="px-3 py-2.5 flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[13px] font-medium text-ink">{r.titre}</span>
-                        <MajoriteBadge majorite={r.majorite} />
+                        {r.estGroupe ? (
+                          <span className="text-[10px] uppercase tracking-wide text-ink-4">
+                            groupe · {enfants.length}
+                          </span>
+                        ) : (
+                          <MajoriteBadge majorite={r.majorite} />
+                        )}
                       </div>
-                      {r.corps && <p className="mt-1 text-[12px] text-ink-3 line-clamp-2">{r.corps}</p>}
+                      {r.corps && !r.estGroupe && (
+                        <p className="mt-1 text-[12px] text-ink-3 line-clamp-2">{r.corps}</p>
+                      )}
+                      {r.estGroupe && enfants.length > 0 && (
+                        <ul className="mt-1.5 flex flex-col gap-1">
+                          {enfants.map((e) => (
+                            <li key={e.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-3">
+                              <span className="text-ink-4">·</span>
+                              <span className="truncate">{e.titre}</span>
+                              <MajoriteBadge majorite={e.majorite} />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -571,7 +609,7 @@ function BibliothequePicker({
                         </>
                       ) : (
                         <>
-                          <Plus strokeWidth={2} className="w-3.5 h-3.5" /> Ajouter
+                          <Plus strokeWidth={2} className="w-3.5 h-3.5" /> {r.estGroupe ? "Ajouter le groupe" : "Ajouter"}
                         </>
                       )}
                     </button>
@@ -594,7 +632,6 @@ function BibliothequePicker({
 function OdjEnConstruction({
   draft,
   onRetirer,
-  onDeplacer,
   formOuvert,
   setFormOuvert,
   libreTitre,
@@ -611,7 +648,6 @@ function OdjEnConstruction({
 }: {
   draft: Resolution[];
   onRetirer: (id: string) => void;
-  onDeplacer: (i: number, delta: number) => void;
   formOuvert: boolean;
   setFormOuvert: (v: boolean) => void;
   libreTitre: string;
@@ -626,6 +662,9 @@ function OdjEnConstruction({
   onEnregistrer: () => void;
   message: { ton: "ok" | "err"; texte: string } | null;
 }) {
+  // Numerote les resolutions de tete du brouillon (enfants de groupe : sans numero).
+  const lignes = numeroterDraft(draft);
+
   return (
     <div className="flex flex-col gap-3">
       <h2 className="text-[13px] font-semibold uppercase tracking-[0.05em] text-ink-3">
@@ -639,32 +678,38 @@ function OdjEnConstruction({
           </p>
         ) : (
           <ol className="divide-y divide-line">
-            {draft.map((r, i) => (
-              <li key={r.id} className="flex items-start gap-2.5 px-3 py-2.5">
-                <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">{i + 1}.</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium text-ink">{r.titre}</span>
-                    <MajoriteBadge majorite={r.majorite} />
-                    {r.id.startsWith("libre-") && (
-                      <span className="text-[10px] text-ink-4 uppercase tracking-wide">libre</span>
+            {lignes.map(({ r, numero, enfant }) => {
+              return (
+                <li key={r.id} className={`flex items-start gap-2.5 px-3 py-2.5 ${enfant ? "pl-7" : ""}`}>
+                  <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">
+                    {enfant ? "·" : `${numero}.`}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[13px] ${r.estGroupe ? "font-semibold" : "font-medium"} text-ink`}>
+                        {r.titre}
+                      </span>
+                      {r.estGroupe ? (
+                        <span className="text-[10px] uppercase tracking-wide text-ink-4">groupe</span>
+                      ) : (
+                        <MajoriteBadge majorite={r.majorite} />
+                      )}
+                      {r.id.startsWith("libre-") && (
+                        <span className="text-[10px] text-ink-4 uppercase tracking-wide">libre</span>
+                      )}
+                    </div>
+                    {r.corps && !r.estGroupe && (
+                      <p className="mt-1 text-[12px] text-ink-3 line-clamp-2">{r.corps}</p>
                     )}
                   </div>
-                  {r.corps && <p className="mt-1 text-[12px] text-ink-3 line-clamp-2">{r.corps}</p>}
-                </div>
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <IconBtn label="Monter" onClick={() => onDeplacer(i, -1)} disabled={i === 0}>
-                    <ArrowUp strokeWidth={1.5} className="w-3.5 h-3.5" />
-                  </IconBtn>
-                  <IconBtn label="Descendre" onClick={() => onDeplacer(i, 1)} disabled={i === draft.length - 1}>
-                    <ArrowDown strokeWidth={1.5} className="w-3.5 h-3.5" />
-                  </IconBtn>
-                  <IconBtn label="Retirer" onClick={() => onRetirer(r.id)}>
-                    <X strokeWidth={1.5} className="w-3.5 h-3.5" />
-                  </IconBtn>
-                </div>
-              </li>
-            ))}
+                  {!enfant && (
+                    <IconBtn label="Retirer" onClick={() => onRetirer(r.id)}>
+                      <X strokeWidth={1.5} className="w-3.5 h-3.5" />
+                    </IconBtn>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         )}
       </Card>

@@ -21,6 +21,7 @@ type MotionInput = {
 type BankFull = {
   id: string;
   type: string;
+  rank: string;
   title: string;
   body: string | null;
   majority: string;
@@ -191,15 +192,18 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
         me: { collaborator: { establishment: { motionsBank: BankFull[] } } };
       }>(
         `{ me { collaborator { establishment { motionsBank {
-          id type title body majority preamble postamble comment
+          id type rank title body majority preamble postamble comment
         } } } } }`,
       );
       const parId = new Map(data.me.collaborator.establishment.motionsBank.map((m) => [m.id, m]));
-      for (const id of bankItemIds) {
-        const it = parId.get(id);
-        if (!it) continue;
+      const selection = bankItemIds.map((id) => parId.get(id)).filter((it): it is BankFull => !!it);
+      // L'en-tete de groupe (type "group") n'est pas une motion votable : on cree ses
+      // sous-resolutions (presentes dans la selection), a plat. Le nesting visuel exact
+      // dans eStale (rangs "N.j") viendra avec la reconciliation complete de l'ordre.
+      for (const it of selection) {
+        if (it.type === "group") continue;
         await this.creerMotion(meetingId, {
-          type: it.type || "generic",
+          type: "generic",
           title: it.title,
           body: it.body || it.title,
           majority: majorite(it.majority),
@@ -236,12 +240,17 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
     return { supprimees, ajoutees };
   }
 
-  private async creerMotion(meetingId: string, input: MotionInput): Promise<void> {
-    await estaleGql(
-      `mutation AjoutMotion($id: ID!, $input: MeetingMotionCreateInput!) {
-        updateMeeting(id: $id) { createMotion(input: $input) { id } }
+  private async creerMotion(
+    meetingId: string,
+    input: MotionInput,
+    parentID?: string,
+  ): Promise<string> {
+    const d = await estaleGql<{ updateMeeting: { createMotion: { id: string } } }>(
+      `mutation AjoutMotion($id: ID!, $input: MeetingMotionCreateInput!, $parentID: ID) {
+        updateMeeting(id: $id) { createMotion(input: $input, parentID: $parentID) { id } }
       }`,
-      { id: meetingId, input },
+      { id: meetingId, input, parentID: parentID ?? null },
     );
+    return d.updateMeeting.createMotion.id;
   }
 }

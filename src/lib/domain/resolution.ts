@@ -19,6 +19,16 @@ export interface Resolution {
   motsCles: string[];
   /** Resolution standard fournie par defaut (vs ajoutee par le cabinet). */
   parDefaut: boolean;
+  /** Rang hierarchique dans la bank ("1", "78", "78.1"...) : encode les groupes. */
+  rank: string;
+  /** En-tete de groupe (type eStale "group") : regroupe des sous-resolutions. */
+  estGroupe?: boolean;
+}
+
+/** Rang parent d'un rang hierarchique ("78.1" -> "78"), ou null si rang de tete. */
+export function rangParent(rank: string): string | null {
+  const i = rank.lastIndexOf(".");
+  return i < 0 ? null : rank.slice(0, i);
 }
 
 /** Libelle court de la majorite (art. de la loi du 10 juillet 1965). */
