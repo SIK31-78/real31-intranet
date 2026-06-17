@@ -3,9 +3,31 @@
 // l'AG ORDINARY pertinente (non close en priorite). Cf. ADR-024.
 
 import type { AssembleeEstaleProvider } from "@/lib/ports/assemblee-estale-provider";
-import type { AssembleeAg, MotionAg } from "@/lib/domain/assemblee";
+import type { AssembleeAg, MotionAg, ResolutionLibre } from "@/lib/domain/assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 import { estaleGql } from "./client";
+
+// createMotion attend un `type` (chaine eStale) : "generic" = resolution normale,
+// "group" = en-tete de groupe. La majorite est l'enum MeetingMotionMajority.
+type MotionInput = {
+  type: string;
+  title: string;
+  body: string;
+  majority: MajoriteResolution;
+  preamble?: string | null;
+  postamble?: string | null;
+  comment?: string | null;
+};
+type BankFull = {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  majority: string;
+  preamble: string | null;
+  postamble: string | null;
+  comment: string | null;
+};
 
 function normaliserRef(ref: string): string {
   const m = ref.trim().toUpperCase().match(/^([A-Z]+)0*(\d+)$/);
@@ -78,5 +100,63 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
       ...(choisie.startAt ? { dateISO: choisie.startAt.slice(0, 10) } : {}),
       motions,
     };
+  }
+
+  async ajouterAuMeeting(
+    meetingId: string,
+    bankItemIds: string[],
+    libres: ResolutionLibre[],
+  ): Promise<number> {
+    let ajoutees = 0;
+
+    // Resolutions de la bibliotheque : on recupere leur contenu COMPLET (texte legal,
+    // preambule...) au moment de l'ecriture, et on les recree fidelement dans l'AG.
+    // (createMotionsFromBank n'accepte pas les ids de bank etablissement.)
+    if (bankItemIds.length > 0) {
+      const data = await estaleGql<{
+        me: { collaborator: { establishment: { motionsBank: BankFull[] } } };
+      }>(
+        `{ me { collaborator { establishment { motionsBank {
+          id type title body majority preamble postamble comment
+        } } } } }`,
+      );
+      const parId = new Map(data.me.collaborator.establishment.motionsBank.map((m) => [m.id, m]));
+      for (const id of bankItemIds) {
+        const it = parId.get(id);
+        if (!it) continue;
+        await this.creerMotion(meetingId, {
+          type: it.type || "generic",
+          title: it.title,
+          body: it.body || it.title,
+          majority: majorite(it.majority),
+          preamble: it.preamble,
+          postamble: it.postamble,
+          comment: it.comment,
+        });
+        ajoutees++;
+      }
+    }
+
+    // Resolutions libres saisies par le gestionnaire.
+    for (const l of libres) {
+      await this.creerMotion(meetingId, {
+        type: "generic",
+        title: l.titre,
+        body: l.corps || l.titre,
+        majority: l.majorite,
+      });
+      ajoutees++;
+    }
+
+    return ajoutees;
+  }
+
+  private async creerMotion(meetingId: string, input: MotionInput): Promise<void> {
+    await estaleGql(
+      `mutation AjoutMotion($id: ID!, $input: MeetingMotionCreateInput!) {
+        updateMeeting(id: $id) { createMotion(input: $input) { id } }
+      }`,
+      { id: meetingId, input },
+    );
   }
 }

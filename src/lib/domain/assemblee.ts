@@ -21,3 +21,10 @@ export interface AssembleeAg {
   dateISO?: string;
   motions: MotionAg[];
 }
+
+/** Une resolution libre a creer dans l'AG (saisie par le gestionnaire). */
+export interface ResolutionLibre {
+  titre: string;
+  corps: string;
+  majorite: MajoriteResolution;
+}

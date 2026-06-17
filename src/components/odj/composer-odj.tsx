@@ -4,15 +4,17 @@
 // resolutions du cabinet (motion bank eStale, ADR-024), + ajout de resolutions libres.
 // Brouillon CLIENT (pas encore de persistance ni d'ecriture eStale - increment suivant).
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle, ListChecks } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle, ListChecks, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
 import { MAJORITE_LABEL, MAJORITE_ORDRE } from "@/lib/domain/resolution";
 import type { AssembleeAg } from "@/lib/domain/assemblee";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
+import { enregistrerProjetAction } from "@/app/odj/[id]/composer/actions";
 
 export function ComposerOdj({
   copro,
@@ -34,6 +36,10 @@ export function ComposerOdj({
   const [libreTitre, setLibreTitre] = useState("");
   const [libreMajorite, setLibreMajorite] = useState<MajoriteResolution>("A25");
   const [libreCorps, setLibreCorps] = useState("");
+
+  const router = useRouter();
+  const [enregistrement, demarrerEnregistrement] = useTransition();
+  const [message, setMessage] = useState<{ ton: "ok" | "err"; texte: string } | null>(null);
 
   const dejaAjoute = useMemo(() => new Set(draft.map((r) => r.id)), [draft]);
 
@@ -86,6 +92,23 @@ export function ComposerOdj({
     setFormOuvert(false);
   }
 
+  function enregistrer() {
+    if (!assemblee || draft.length === 0) return;
+    setMessage(null);
+    const meetingId = assemblee.meetingId;
+    const items = draft.map((r) => ({ id: r.id, titre: r.titre, corps: r.corps, majorite: r.majorite }));
+    demarrerEnregistrement(async () => {
+      const res = await enregistrerProjetAction(meetingId, items);
+      if (res.ok) {
+        setMessage({ ton: "ok", texte: `${res.ajoutees} résolution(s) ajoutée(s) à l'AG eStale.` });
+        setDraft([]);
+        router.refresh();
+      } else {
+        setMessage({ ton: "err", texte: res.erreur });
+      }
+    });
+  }
+
   const retour = `/odj/${dateAg ? `${copro.code}__${dateAg}` : copro.code}`;
 
   return (
@@ -132,6 +155,10 @@ export function ComposerOdj({
             libreCorps={libreCorps}
             setLibreCorps={setLibreCorps}
             onAjouterLibre={ajouterLibre}
+            aAg={Boolean(assemblee)}
+            enregistrement={enregistrement}
+            onEnregistrer={enregistrer}
+            message={message}
           />
         </div>
       </div>
@@ -319,6 +346,10 @@ function OdjEnConstruction({
   libreCorps,
   setLibreCorps,
   onAjouterLibre,
+  aAg,
+  enregistrement,
+  onEnregistrer,
+  message,
 }: {
   draft: Resolution[];
   onRetirer: (id: string) => void;
@@ -332,6 +363,10 @@ function OdjEnConstruction({
   libreCorps: string;
   setLibreCorps: (v: string) => void;
   onAjouterLibre: () => void;
+  aAg: boolean;
+  enregistrement: boolean;
+  onEnregistrer: () => void;
+  message: { ton: "ok" | "err"; texte: string } | null;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -437,12 +472,20 @@ function OdjEnConstruction({
 
       <button
         type="button"
-        disabled
-        title="Bientôt : enregistrer le projet et l'envoyer vers eStale"
-        className="h-9 rounded-md bg-surface-2 text-ink-3 text-[13px] font-medium cursor-not-allowed"
+        onClick={onEnregistrer}
+        disabled={!aAg || draft.length === 0 || enregistrement}
+        title={aAg ? "Ajoute les résolutions composées dans l'AG eStale" : "Aucune AG eStale (création à venir, palier 3)"}
+        className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 transition-colors disabled:bg-surface-2 disabled:text-ink-3 disabled:cursor-not-allowed"
       >
-        Enregistrer le projet (à venir)
+        {enregistrement && <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" />}
+        {aAg ? "Enregistrer dans l'AG eStale" : "Créer l'AG d'abord (à venir)"}
       </button>
+
+      {message && (
+        <p className={`text-[12px] ${message.ton === "ok" ? "text-ok-700" : "text-err-700"}`}>
+          {message.texte}
+        </p>
+      )}
     </div>
   );
 }
