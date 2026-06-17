@@ -1,6 +1,6 @@
 # REAL31 Intranet
 
-Surcouche de coordination par-dessus eStale (et Crypto pendant la transition de 6 mois) pour le cabinet de syndic **REAL31** à Toulouse. Voir [`DECISIONS.md`](./DECISIONS.md) - **ADR-008** pour le périmètre exact.
+Surcouche de coordination par-dessus eStale (et Crypto pendant la transition de 6 mois) pour le cabinet de syndic **REAL31**. Voir [`DECISIONS.md`](./DECISIONS.md) - **ADR-008** pour le périmètre exact.
 
 > **Si tu arrives sur ce projet, lis dans cet ordre :**
 > 1. [`DECISIONS.md`](./DECISIONS.md) - les 13 ADRs qui posent l'architecture
