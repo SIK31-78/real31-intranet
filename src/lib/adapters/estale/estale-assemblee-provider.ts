@@ -107,6 +107,61 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
     };
   }
 
+  async creerAssemblee(coproCode: string): Promise<string> {
+    const moi = await estaleGql<{
+      me: { collaborator: { id: string; condos: { id: string; reference: string }[] } };
+    }>(`{ me { collaborator { id condos(archived: false) { id reference } } } }`);
+    const collabId = moi.me.collaborator.id;
+    const cible = normaliserRef(coproCode);
+    const condoId = moi.me.collaborator.condos.find((c) => normaliserRef(c.reference) === cible)?.id;
+    if (!condoId) throw new Error(`Copropriété ${coproCode} introuvable dans eStale.`);
+
+    const data = await estaleGql<{
+      condo: {
+        dks: { id: string; isDefault: boolean }[];
+        accountingV2: {
+          periodCurrent: [string, string] | null;
+          exercices: { id: string; period: [string, string] }[];
+        };
+      };
+    }>(
+      `query Pieces($id: ID!) {
+        condo(id: $id) {
+          dks { id isDefault }
+          accountingV2 { periodCurrent exercices { id period } }
+        }
+      }`,
+      { id: condoId },
+    );
+
+    const dkId = (data.condo.dks.find((k) => k.isDefault) ?? data.condo.dks[0])?.id;
+    const acc = data.condo.accountingV2;
+    // Exercice courant (periodCurrent) en priorite, sinon le plus recent.
+    const debutCourant = acc.periodCurrent?.[0];
+    const exercice =
+      acc.exercices.find((e) => e.period?.[0] === debutCourant) ??
+      [...acc.exercices].sort((a, b) => (b.period?.[0] ?? "").localeCompare(a.period?.[0] ?? ""))[0];
+    if (!dkId || !exercice) {
+      throw new Error("Exercice ou clé de répartition introuvable pour cette copropriété.");
+    }
+
+    const annee = exercice.period?.[0]?.slice(0, 4) ?? "";
+    const res = await estaleGql<{ createMeeting: { id: string } }>(
+      `mutation CreerAg($input: MeetingCreateInput!) { createMeeting(input: $input) { id } }`,
+      {
+        input: {
+          condoID: condoId,
+          accountingID: exercice.id,
+          dkID: dkId,
+          name: `Assemblée Générale Ordinaire${annee ? ` ${annee}` : ""}`,
+          category: "ORDINARY",
+          participantsIDs: [collabId],
+        },
+      },
+    );
+    return res.createMeeting.id;
+  }
+
   async appliquerOdj(
     meetingId: string,
     supprimerMotionIds: string[],

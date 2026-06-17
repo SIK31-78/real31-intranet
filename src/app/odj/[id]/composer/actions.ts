@@ -6,7 +6,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { appliquerOdjAg } from "@/lib/services/odj/get-assemblee";
+import { appliquerOdjAg, creerAssembleeAg } from "@/lib/services/odj/get-assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 
 type ItemAjout = { id: string; titre: string; corps: string; majorite: MajoriteResolution };
@@ -32,6 +32,21 @@ export async function enregistrerProjetAction(
     const { supprimees, ajoutees } = await appliquerOdjAg(meetingId, supprimerMotionIds, bankItemIds, libres);
     revalidatePath("/odj", "layout");
     return { ok: true, supprimees, ajoutees };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
+}
+
+type ResultatCreation = { ok: true } | { ok: false; erreur: string };
+
+/** Cree une nouvelle AG ordinaire dans eStale pour la copro (palier 3). */
+export async function creerAgAction(coproCode: string): Promise<ResultatCreation> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée, reconnecte-toi." };
+  try {
+    await creerAssembleeAg(coproCode);
+    revalidatePath("/odj", "layout");
+    return { ok: true };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message };
   }

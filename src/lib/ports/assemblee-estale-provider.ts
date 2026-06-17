@@ -19,4 +19,9 @@ export interface AssembleeEstaleProvider {
     bankItemIds: string[],
     libres: ResolutionLibre[],
   ): Promise<{ supprimees: number; ajoutees: number }>;
+  /**
+   * Cree une nouvelle AG ordinaire dans eStale pour la copro (palier 3). eStale
+   * auto-injecte le socle standard. Renvoie l'id du Meeting cree. Ecriture reelle.
+   */
+  creerAssemblee(coproCode: string): Promise<string>;
 }

@@ -22,3 +22,8 @@ export async function appliquerOdjAg(
 ): Promise<{ supprimees: number; ajoutees: number }> {
   return getAssembleeEstaleProvider().appliquerOdj(meetingId, supprimerMotionIds, bankItemIds, libres);
 }
+
+/** Cree une nouvelle AG ordinaire dans eStale pour la copro (palier 3). Ecriture reelle. */
+export async function creerAssembleeAg(coproCode: string): Promise<string> {
+  return getAssembleeEstaleProvider().creerAssemblee(coproCode);
+}

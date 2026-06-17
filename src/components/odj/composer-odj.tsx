@@ -14,7 +14,7 @@ import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
 import { MAJORITE_LABEL, MAJORITE_ORDRE } from "@/lib/domain/resolution";
 import type { AssembleeAg, MotionAg } from "@/lib/domain/assemblee";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
-import { enregistrerProjetAction } from "@/app/odj/[id]/composer/actions";
+import { enregistrerProjetAction, creerAgAction } from "@/app/odj/[id]/composer/actions";
 
 export function ComposerOdj({
   copro,
@@ -133,6 +133,24 @@ export function ComposerOdj({
     });
   }
 
+  const [creation, demarrerCreation] = useTransition();
+  function creerAg() {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Créer une nouvelle AG ordinaire dans eStale pour cette copropriété ? Le socle standard sera ajouté automatiquement.",
+      )
+    ) {
+      return;
+    }
+    setMessage(null);
+    demarrerCreation(async () => {
+      const res = await creerAgAction(copro.code);
+      if (res.ok) router.refresh();
+      else setMessage({ ton: "err", texte: res.erreur });
+    });
+  }
+
   const retour = `/odj/${dateAg ? `${copro.code}__${dateAg}` : copro.code}`;
 
   return (
@@ -146,13 +164,15 @@ export function ComposerOdj({
           {copro.nom} ({copro.code}){dateAg ? ` - AG du ${dateAg}` : " - date d'AG non définie"}
         </p>
         <p className="mt-1 text-[12px] text-ink-4">
-          Pioche les résolutions dans la bibliothèque du cabinet (eStale) pour bâtir l&apos;ordre du
-          jour ; ajoute des résolutions libres au besoin. Brouillon non encore enregistré - la
-          sauvegarde et l&apos;envoi vers eStale arrivent à l&apos;étape suivante.
+          Retire ce que tu ne veux pas dans l&apos;AG, pioche dans la bibliothèque du cabinet (eStale)
+          ou ajoute des résolutions libres, puis enregistre : l&apos;AG eStale est mise à jour pour
+          correspondre exactement à ta composition.
         </p>
       </div>
 
-      {etatAg !== "ouverte" && <AlerteEtatAg etat={etatAg} />}
+      {etatAg !== "ouverte" && (
+        <AlerteEtatAg etat={etatAg} onCreer={creerAg} creation={creation} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         <BibliothequePicker
@@ -304,24 +324,43 @@ function AssembleeExistante({
 
 // --- Banniere d'etat de l'AG (cloturee / absente) -------------------------
 
-function AlerteEtatAg({ etat }: { etat: "cloturee" | "absente" }) {
+function AlerteEtatAg({
+  etat,
+  onCreer,
+  creation,
+}: {
+  etat: "cloturee" | "absente";
+  onCreer: () => void;
+  creation: boolean;
+}) {
   return (
-    <div className="flex items-start gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
+    <div className="flex items-start gap-3 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
       <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
-      <p className="text-[12.5px] text-warn-700">
-        {etat === "cloturee" ? (
-          <>
-            <span className="font-medium">AG clôturée</span> - on ne peut plus la modifier. Pour
-            préparer une nouvelle convocation (ex. comptes refusés, reconvocation), il faut{" "}
-            <span className="font-medium">créer une nouvelle AG</span> (bouton à venir, palier 3).
-          </>
-        ) : (
-          <>
-            <span className="font-medium">Aucune AG eStale</span> pour cette copropriété. Il faut en
-            créer une avant de composer l&apos;ordre du jour (bouton à venir, palier 3).
-          </>
-        )}
-      </p>
+      <div className="flex-1 min-w-0">
+        <p className="text-[12.5px] text-warn-700">
+          {etat === "cloturee" ? (
+            <>
+              <span className="font-medium">AG clôturée</span> - on ne peut plus la modifier. Pour
+              préparer une nouvelle convocation (ex. comptes refusés, reconvocation), crée une
+              nouvelle AG.
+            </>
+          ) : (
+            <>
+              <span className="font-medium">Aucune AG eStale</span> pour cette copropriété. Crée-en
+              une avant de composer l&apos;ordre du jour.
+            </>
+          )}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onCreer}
+        disabled={creation}
+        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-warn-700 text-surface text-[12px] font-medium hover:opacity-90 transition-opacity disabled:opacity-60 shrink-0"
+      >
+        {creation && <Loader2 strokeWidth={2} className="w-3.5 h-3.5 animate-spin" />}
+        Créer une nouvelle AG
+      </button>
     </div>
   );
 }
