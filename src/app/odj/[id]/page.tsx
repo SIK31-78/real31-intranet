@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Printer } from "lucide-react";
+import { Printer, ListChecks } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { getOdj } from "@/lib/services/odj/get-odj";
 import { getGestionnaireCourant } from "@/lib/auth/session";
@@ -32,13 +32,22 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
         <div>
           <div className="flex items-start justify-between gap-4">
             <h1 className="text-[22px] font-medium tracking-tight">Ordre du jour - preparation AG</h1>
-            <Link
-              href={`/odj/${id}/imprimer`}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-[13px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors shrink-0"
-            >
-              <Printer strokeWidth={1.5} className="w-3.5 h-3.5" />
-              Version imprimable
-            </Link>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href={`/odj/${id}/composer`}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 transition-colors"
+              >
+                <ListChecks strokeWidth={1.5} className="w-3.5 h-3.5" />
+                Mode CS - composer
+              </Link>
+              <Link
+                href={`/odj/${id}/imprimer`}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-[13px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
+              >
+                <Printer strokeWidth={1.5} className="w-3.5 h-3.5" />
+                Version imprimable
+              </Link>
+            </div>
           </div>
           <p className="text-[13px] text-ink-3 mt-1">
             {odj.copro.nom} ({odj.copro.code}){odj.dateAg ? ` - AG du ${odj.dateAg}` : " - date d'AG non definie"}

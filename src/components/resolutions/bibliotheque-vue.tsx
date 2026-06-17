@@ -9,17 +9,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
 import { MAJORITE_LABEL, MAJORITE_ORDRE } from "@/lib/domain/resolution";
+import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
-
-const MAJORITE_TON: Record<MajoriteResolution, "ok" | "warn" | "info" | "neutral" | "brand"> = {
-  A24: "info",
-  A25: "warn",
-  A25_1: "warn",
-  A26: "brand",
-  A26_1: "brand",
-  UNANIMITY: "neutral",
-  QUESTION: "neutral",
-};
 
 export function BibliothequeVue({ data }: { data: BibliothequeData }) {
   const [q, setQ] = useState("");
@@ -148,9 +139,7 @@ function ResolutionCard({ resolution }: { resolution: Resolution }) {
       <div className="px-4 py-3">
         <div className="flex items-start gap-2">
           <span className="flex-1 text-[14px] font-medium text-ink">{resolution.titre}</span>
-          <Badge ton={MAJORITE_TON[resolution.majorite]} className="shrink-0">
-            {MAJORITE_LABEL[resolution.majorite]}
-          </Badge>
+          <MajoriteBadge majorite={resolution.majorite} />
           {resolution.parDefaut && (
             <Badge ton="outline" className="shrink-0">
               standard
