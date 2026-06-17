@@ -32,6 +32,9 @@ import { MockOdjRepository } from "@/lib/adapters/mock/mock-odj-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 import { EstaleCondoProvider } from "@/lib/adapters/estale/estale-condo-provider";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
+import type { BibliothequeResolutionsProvider } from "@/lib/ports/bibliotheque-resolutions";
+import { EstaleBibliothequeResolutions } from "@/lib/adapters/estale/estale-bibliotheque-resolutions";
+import { MockBibliothequeResolutions } from "@/lib/adapters/mock/mock-bibliotheque-resolutions";
 
 export type { DbHealth };
 
@@ -90,6 +93,15 @@ export function getOdjRepository(): OdjRepository {
 export function getGestionnaireRepository(): GestionnaireRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseGestionnaireRepository();
   return new MockGestionnaireRepository();
+}
+
+// Bibliotheque de resolutions (motion bank eStale, ADR-024). En reel : lit la bank
+// du cabinet via eStale ; sinon mock. LECTURE SEULE pour l'instant.
+export function getBibliothequeResolutions(): BibliothequeResolutionsProvider {
+  if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
+    return new EstaleBibliothequeResolutions();
+  }
+  return new MockBibliothequeResolutions();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
