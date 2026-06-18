@@ -9,6 +9,7 @@
 import type { Evenement } from "@/lib/domain/calendrier";
 import type { JalonAvecEtat } from "@/lib/domain/jalons-ag/types";
 import type { LigneParcours } from "@/lib/domain/dashboard";
+import type { EtatCompta } from "@/lib/domain/compta";
 
 // --- Referentiel copro (source App A) -------------------------------------
 
@@ -191,6 +192,8 @@ export interface FicheCopro {
   /** Parcours AG de la copro (etape courante + prochaine action) ; absent si le cycle
    *  est complet ou hors fenetre. Meme calcul que le dashboard (domain/parcours-ag). */
   parcours?: LigneParcours;
+  /** Etat compta de la prochaine AG (flags + fil de notes) ; absent si pas d'AG datee. */
+  compta?: EtatCompta;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

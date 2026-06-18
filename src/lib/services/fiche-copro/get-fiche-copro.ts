@@ -7,6 +7,7 @@ import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { construireLigne } from "@/lib/domain/parcours-ag";
 import { getCoproRepository, getCondoEstaleProvider, getJalonRepository } from "@/lib/adapters/router";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
+import { getEtatCompta } from "@/lib/services/compta/get-compta";
 
 const DONNEES_ESTALE_VIDES: DonneesEstaleCopro = {
   conseilSyndical: [],
@@ -73,6 +74,9 @@ export async function getFicheCopro(
   const accompli = new Set(jalons.filter((j) => j.statut === "accompli").map((j) => j.code));
   const parcours = construireLigne(copro, accompli, aujourdhuiISO)?.ligne;
 
+  // Etat compta de la prochaine AG (flags + notes), si une AG est datee.
+  const compta = copro.prochaineAg ? await getEtatCompta(copro.code, copro.prochaineAg.date) : undefined;
+
   return {
     copro,
     estale,
@@ -83,5 +87,6 @@ export async function getFicheCopro(
     jalons,
     ...(estaleIndisponible ? { estaleIndisponible } : {}),
     ...(parcours ? { parcours } : {}),
+    ...(compta ? { compta } : {}),
   };
 }

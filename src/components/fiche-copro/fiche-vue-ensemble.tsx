@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Route,
   Users,
+  Calculator,
 } from "lucide-react";
 import type {
   AgPassee,
@@ -25,6 +26,8 @@ import type {
 import type { Evenement } from "@/lib/domain/calendrier";
 import type { Severite } from "@/lib/domain/commun";
 import type { LigneParcours } from "@/lib/domain/dashboard";
+import type { EtatCompta } from "@/lib/domain/compta";
+import { ComptaPanel } from "@/components/compta/compta-panel";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FriseEtapes } from "@/components/parcours/frise-etapes";
@@ -76,6 +79,13 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             coproCode={fiche.copro.code}
             agDate={fiche.copro.prochaineAg?.date ?? ""}
           />
+          {fiche.compta && fiche.copro.prochaineAg && (
+            <BlocCompta
+              coproCode={fiche.copro.code}
+              agDate={fiche.copro.prochaineAg.date}
+              compta={fiche.compta}
+            />
+          )}
           <ProchainsEvenements evenements={fiche.prochains} />
           <HistoriqueAg historique={fiche.historique} />
         </div>
@@ -129,6 +139,46 @@ function BlocParcours({ ligne }: { ligne: LigneParcours }) {
             <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
           </Link>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+// --- Preparation comptable (flags + fil de notes, cote gestionnaire) -------
+
+function BlocCompta({
+  coproCode,
+  agDate,
+  compta,
+}: {
+  coproCode: string;
+  agDate: string;
+  compta: EtatCompta;
+}) {
+  const ouvertes = compta.notes.filter((n) => !n.resolu).length;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Calculator strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+          Préparation comptable
+        </CardTitle>
+        {compta.comptesVerifies ? (
+          <Badge ton="ok" dot>
+            Comptes vérifiés
+          </Badge>
+        ) : (
+          <Badge ton="outline">comptes à vérifier</Badge>
+        )}
+      </CardHeader>
+      <div className="px-4 py-3">
+        {ouvertes > 0 && (
+          <p className="text-[12px] text-warn-700 mb-2">
+            {ouvertes} note{ouvertes > 1 ? "s" : ""} de la comptable à traiter - réponds ici pour
+            ne rien oublier.
+          </p>
+        )}
+        <ComptaPanel coproCode={coproCode} agDateISO={agDate} etat={compta} role="gestionnaire" />
       </div>
     </Card>
   );
