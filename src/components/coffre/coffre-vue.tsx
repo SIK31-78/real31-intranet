@@ -6,17 +6,19 @@
 // avec la cle du coffre. Le serveur ne recoit que des blobs chiffres.
 
 import { useState, type ReactNode, type ComponentType } from "react";
-import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2 } from "lucide-react";
+import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint } from "lucide-react";
 import {
   enrolerMotDePasse,
   deverrouillerMotDePasse,
+  activerPasskey,
+  deverrouillerPasskey,
   creerCleCoffrePour,
   ouvrirCleCoffre,
   chiffrerSecret,
   dechiffrerSecret,
   CRYPTO_VERSION,
 } from "@/lib/coffre/coffre-client";
-import { enrolerAction, chargerSecretsAction, ajouterSecretAction } from "@/app/coffre/actions";
+import { enrolerAction, chargerSecretsAction, ajouterSecretAction, ajouterPasskeyAction } from "@/app/coffre/actions";
 import type { ApercuCoffre } from "@/lib/services/coffre/coffre-service";
 import type { SecretClair } from "@/lib/domain/coffre";
 
@@ -36,10 +38,13 @@ const champClasse =
 
 export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: ApercuCoffre }) {
   const dejaEnrole = apercu.collaborateur !== null;
+  const passkeyDev = apercu.deverrouillages.find((d) => d.method === "passkey_prf") ?? null;
   const [prive, setPrive] = useState<CryptoKey | null>(null);
   const [coffres, setCoffres] = useState<CoffreOuvert[]>([]);
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [passkeyActivee, setPasskeyActivee] = useState(passkeyDev !== null);
+  const [info, setInfo] = useState<string | null>(null);
 
   // --- Enrolement (1er acces) ---------------------------------------------
   const [mdp, setMdp] = useState("");
@@ -71,24 +76,30 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
   }
 
   // --- Deverrouillage ------------------------------------------------------
+
+  // Ouvre tous les coffres de l'utilisateur avec sa cle privee (commun mot de
+  // passe / passkey) : derive la cle de chaque coffre et dechiffre ses secrets.
+  async function chargerCoffres(privateKey: CryptoKey): Promise<void> {
+    const ouverts: CoffreOuvert[] = [];
+    for (const c of apercu.coffres) {
+      const vaultKey = await ouvrirCleCoffre(privateKey, c.wrappedVaultKey);
+      const chiffres = await chargerSecretsAction(c.id);
+      const secrets = await Promise.all(
+        chiffres.map(async (s) => ({ id: s.id, clair: await dechiffrerSecret(vaultKey, s.blob) })),
+      );
+      ouverts.push({ id: c.id, nom: c.nom, vaultKey, secrets });
+    }
+    setPrive(privateKey);
+    setCoffres(ouverts);
+  }
+
   async function deverrouiller() {
     setErreur(null);
     setBusy(true);
     try {
       const dev = apercu.deverrouillages.find((d) => d.method === "master_password");
       if (!dev) throw new Error("Aucune methode de deverrouillage par mot de passe.");
-      const privateKey = await deverrouillerMotDePasse(mdp, dev);
-      const ouverts: CoffreOuvert[] = [];
-      for (const c of apercu.coffres) {
-        const vaultKey = await ouvrirCleCoffre(privateKey, c.wrappedVaultKey);
-        const chiffres = await chargerSecretsAction(c.id);
-        const secrets = await Promise.all(
-          chiffres.map(async (s) => ({ id: s.id, clair: await dechiffrerSecret(vaultKey, s.blob) })),
-        );
-        ouverts.push({ id: c.id, nom: c.nom, vaultKey, secrets });
-      }
-      setPrive(privateKey);
-      setCoffres(ouverts);
+      await chargerCoffres(await deverrouillerMotDePasse(mdp, dev));
       setMdp("");
     } catch {
       setErreur("Mot de passe incorrect.");
@@ -97,9 +108,46 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
     }
   }
 
+  async function deverrouillerViaPasskey() {
+    if (!passkeyDev) return;
+    setErreur(null);
+    setBusy(true);
+    try {
+      await chargerCoffres(await deverrouillerPasskey(passkeyDev));
+    } catch (e) {
+      setErreur((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Active une passkey (Windows Hello...) pour cet utilisateur deja deverrouille.
+  async function activerPasskeyHandler() {
+    if (prive === null || !apercu.collaborateur) return;
+    setErreur(null);
+    setInfo(null);
+    setBusy(true);
+    try {
+      const { wrappedPrivateKey, params } = await activerPasskey(
+        prive,
+        apercu.collaborateur.id,
+        apercu.collaborateur.email || nomComplet,
+        nomComplet,
+      );
+      await ajouterPasskeyAction(wrappedPrivateKey, params);
+      setPasskeyActivee(true);
+      setInfo("Passkey activee. La prochaine fois, tu pourras deverrouiller sans mot de passe.");
+    } catch (e) {
+      setErreur((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function verrouiller() {
     setPrive(null);
     setCoffres([]);
+    setInfo(null);
   }
 
   // --- Etats d'affichage ---------------------------------------------------
@@ -114,9 +162,23 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
         {dejaEnrole ? (
           <>
             <p className="text-[13px] text-ink-3 mb-4">
-              Bonjour {nomComplet}. Saisis ton mot de passe maitre pour deverrouiller ton coffre.
+              Bonjour {nomComplet}.{" "}
+              {passkeyDev
+                ? "Deverrouille ton coffre avec ta passkey, ou ton mot de passe maitre."
+                : "Saisis ton mot de passe maitre pour deverrouiller ton coffre."}
             </p>
             <div className="flex flex-col gap-2 max-w-xs">
+              {passkeyDev && (
+                <>
+                  <Bouton
+                    onClick={deverrouillerViaPasskey}
+                    busy={busy}
+                    label="Deverrouiller avec une passkey"
+                    icone={Fingerprint}
+                  />
+                  <div className="text-[11px] text-ink-4 text-center my-0.5">ou mot de passe maitre</div>
+                </>
+              )}
               <input
                 type="password"
                 className={champClasse}
@@ -124,7 +186,7 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
                 value={mdp}
                 onChange={(e) => setMdp(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !busy && deverrouiller()}
-                autoFocus
+                autoFocus={!passkeyDev}
               />
               <Bouton onClick={deverrouiller} busy={busy} label="Deverrouiller" icone={Lock} />
             </div>
@@ -172,13 +234,27 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
           <KeyRound className="w-5 h-5 text-green-700" strokeWidth={1.5} />
           <h1 className="text-[17px] font-medium text-ink">Coffre-fort</h1>
         </div>
-        <button
-          onClick={verrouiller}
-          className="flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
-        >
-          <Lock className="w-3.5 h-3.5" strokeWidth={1.5} /> Verrouiller
-        </button>
+        <div className="flex items-center gap-1">
+          {!passkeyActivee && (
+            <button
+              onClick={activerPasskeyHandler}
+              disabled={busy}
+              className="flex items-center gap-1.5 text-[12px] text-green-700 hover:bg-green-50 px-2 py-1 rounded-md disabled:opacity-60"
+            >
+              <Fingerprint className="w-3.5 h-3.5" strokeWidth={1.5} /> Activer une passkey
+            </button>
+          )}
+          <button
+            onClick={verrouiller}
+            className="flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
+          >
+            <Lock className="w-3.5 h-3.5" strokeWidth={1.5} /> Verrouiller
+          </button>
+        </div>
       </div>
+      {info && (
+        <p className="text-[12px] text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">{info}</p>
+      )}
       {erreur && <p className="text-[12px] text-red-600">{erreur}</p>}
       {coffres.map((c) => (
         <CoffrePanel

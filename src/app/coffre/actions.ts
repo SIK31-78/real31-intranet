@@ -8,6 +8,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import {
   enrolerCollaborateur,
   ajouterSecretCoffre,
+  ajouterDeverrouillageCoffre,
   getApercuCoffre,
   getSecretsCoffre,
 } from "@/lib/services/coffre/coffre-service";
@@ -57,4 +58,15 @@ export async function ajouterSecretAction(
   }
   const id = await ajouterSecretCoffre(coffreId, blob, cryptoVersion, collaborateur.id);
   return { id };
+}
+
+export async function ajouterPasskeyAction(
+  wrappedPrivateKey: BlobChiffreStocke,
+  params: { credentialId: string; salt: string },
+): Promise<void> {
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.collaborateur) throw new Error("Coffre non initialise");
+  await ajouterDeverrouillageCoffre(apercu.collaborateur.id, "passkey_prf", wrappedPrivateKey, params);
 }

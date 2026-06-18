@@ -4,6 +4,7 @@
 // ces fonctions, jamais crypto-core directement.
 
 import * as cc from "./crypto/crypto-core";
+import { creerPasskeyPrf, obtenirPrf } from "./crypto/webauthn-prf";
 import type {
   BlobChiffreStocke,
   CleEnrobeeMembre,
@@ -68,6 +69,35 @@ export async function deverrouillerMotDePasse(motDePasse: string, dev: Deverroui
   const salt = cc.fromBase64(dev.params.salt as string);
   const iterations = (dev.params.iterations as number) || cc.PBKDF2_ITERATIONS;
   const unlock = await cc.deriveUnlockKeyFromPassword(motDePasse, salt, iterations);
+  return cc.unwrapPrivateKey(unlock, deBlob(dev.wrappedPrivateKey));
+}
+
+// --- Deverrouillage par passkey (PRF) --------------------------------------
+
+/** Donnees a persister pour une nouvelle methode passkey (cle privee re-wrappee). */
+export interface DonneesPasskey {
+  wrappedPrivateKey: BlobChiffreStocke;
+  params: { credentialId: string; salt: string };
+}
+
+/** Active une passkey pour un utilisateur DEJA deverrouille (on a sa cle privee).
+ *  Cree la passkey, en derive la cle d'enrobage (PRF) et re-wrappe la cle privee. */
+export async function activerPasskey(
+  privateKey: CryptoKey,
+  userId: string,
+  userName: string,
+  displayName: string,
+): Promise<DonneesPasskey> {
+  const pk = await creerPasskeyPrf(userId, userName, displayName);
+  const unlock = await cc.deriveUnlockKeyFromPrf(pk.prfOutput);
+  const wrapped = await cc.wrapPrivateKey(unlock, privateKey);
+  return { wrappedPrivateKey: enBlob(wrapped), params: { credentialId: pk.credentialId, salt: pk.salt } };
+}
+
+/** Deballe la cle privee via la passkey (empreinte / Windows Hello / PIN). */
+export async function deverrouillerPasskey(dev: Deverrouillage): Promise<CryptoKey> {
+  const prf = await obtenirPrf(dev.params.credentialId as string, dev.params.salt as string);
+  const unlock = await cc.deriveUnlockKeyFromPrf(prf);
   return cc.unwrapPrivateKey(unlock, deBlob(dev.wrappedPrivateKey));
 }
 

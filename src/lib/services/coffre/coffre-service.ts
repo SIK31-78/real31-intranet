@@ -8,6 +8,7 @@ import type {
   SecretChiffre,
   BlobChiffreStocke,
   CleEnrobeeMembre,
+  MethodeDeverrouillage,
 } from "@/lib/domain/coffre";
 import { getCoffreRepository, getCoffreIdentiteRepository } from "@/lib/adapters/router";
 
@@ -68,4 +69,14 @@ export async function ajouterSecretCoffre(
   createdBy: string,
 ): Promise<string> {
   return getCoffreRepository().ajouterSecret(coffreId, blob, cryptoVersion, createdBy);
+}
+
+/** Ajoute une methode de deverrouillage (ex: passkey PRF) a un collaborateur. */
+export async function ajouterDeverrouillageCoffre(
+  userId: string,
+  method: MethodeDeverrouillage,
+  wrappedPrivateKey: BlobChiffreStocke,
+  params: Record<string, unknown>,
+): Promise<void> {
+  await getCoffreIdentiteRepository().ajouterDeverrouillage(userId, method, wrappedPrivateKey, params);
 }
