@@ -13,23 +13,23 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 
 ## Index
 
-| # | Titre | Statut | Version | Date |
-|---|---|---|---|---|
-| ADR-001 | Pattern d'abstraction des sources de données (Ports & Adapters) | Accepted | v2 | 2026-05-22 |
-| ADR-002 | Stratégie de cache et fraîcheur des données | Accepted | v3 | 2026-05-22 |
-| ADR-003 | Migration progressive SharePoint -> eStale | Accepted | v2 | 2026-05-22 |
-| ADR-004 | Jobs, cron et orchestration | Accepted | v1 | 2026-05-22 |
-| ADR-005 | Authentification eStale et transition vers API key | Accepted | v2 | 2026-05-22 |
-| ADR-006 | Système de jalons à deux étages (légal + REAL31) | Accepted | v2 | 2026-05-22 |
-| ADR-007 | Audit RGPD niveau (b) + séparation audit/activity log | Accepted | v2 | 2026-05-22 |
-| ADR-008 | Périmètre fonctionnel - surcouche de coordination eStale | Superseded by ADR-021 | v1 | 2026-05-22 |
-| ADR-009 | Permissions et scopes - gestionnaire cloisonné au MVP, modèle extensible | Accepted | v1 | 2026-05-22 |
-| ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID | Accepted | v1 | 2026-05-22 |
-| ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies | Accepted | v1 | 2026-05-22 |
-| ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto | Accepted | v1 | 2026-05-22 |
-| ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync | Deprecated (MVP) | v3 | 2026-06-09 |
-| ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted | v1 | 2026-05-27 |
-| ADR-022 | Positionnement intranet vis-à-vis d'eStale et stratégie d'intégration défensive | Accepted | v1 | 2026-05-27 |
+| #       | Titre                                                                                     | Statut                | Version | Date       |
+| ------- | ----------------------------------------------------------------------------------------- | --------------------- | ------- | ---------- |
+| ADR-001 | Pattern d'abstraction des sources de données (Ports & Adapters)                           | Accepted              | v2      | 2026-05-22 |
+| ADR-002 | Stratégie de cache et fraîcheur des données                                               | Accepted              | v3      | 2026-05-22 |
+| ADR-003 | Migration progressive SharePoint -> eStale                                                | Accepted              | v2      | 2026-05-22 |
+| ADR-004 | Jobs, cron et orchestration                                                               | Accepted              | v1      | 2026-05-22 |
+| ADR-005 | Authentification eStale et transition vers API key                                        | Accepted              | v2      | 2026-05-22 |
+| ADR-006 | Système de jalons à deux étages (légal + REAL31)                                          | Accepted              | v2      | 2026-05-22 |
+| ADR-007 | Audit RGPD niveau (b) + séparation audit/activity log                                     | Accepted              | v2      | 2026-05-22 |
+| ADR-008 | Périmètre fonctionnel - surcouche de coordination eStale                                  | Superseded by ADR-021 | v1      | 2026-05-22 |
+| ADR-009 | Permissions et scopes - gestionnaire cloisonné au MVP, modèle extensible                  | Accepted              | v1      | 2026-05-22 |
+| ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID                   | Accepted              | v1      | 2026-05-22 |
+| ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies                       | Accepted              | v1      | 2026-05-22 |
+| ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto                            | Accepted              | v1      | 2026-05-22 |
+| ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync                              | Deprecated (MVP)      | v3      | 2026-06-09 |
+| ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted              | v1      | 2026-05-27 |
+| ADR-022 | Positionnement intranet vis-à-vis d'eStale et stratégie d'intégration défensive           | Accepted              | v1      | 2026-05-27 |
 
 ---
 
@@ -60,9 +60,13 @@ On adopte une **architecture hexagonale (Ports & Adapters)**, version pragmatiqu
 2. **Ports** (`lib/ports/`) - Interfaces TypeScript : `CoproRepository`, `EvenementRepository`, `JalonRepository`, etc. Le code applicatif ne connaît **que ça**.
 
 3. **Adapters** (`lib/adapters/`) - Implémentations concrètes :
+   
    - `lib/adapters/sharepoint/` - utilise Microsoft Graph
+   
    - `lib/adapters/estale/` - utilise le client GraphQL
+   
    - `lib/adapters/supabase/` - utilise supabase-js
+   
    - `lib/adapters/mock/` - pour développement local et tests
 
 Un **routeur** (`lib/adapters/router.ts`) instancie le bon adapter selon le champ `copros.source` en base. Le routage est par-entité, pas global.
@@ -70,10 +74,12 @@ Un **routeur** (`lib/adapters/router.ts`) instancie le bon adapter selon le cham
 ### Types métier (recensement complet post-mockup)
 
 Données provenant des sources externes (SharePoint ou eStale) :
+
 - `Copropriete` - référentiel copros (code, nom, adresse, gestionnaire, lots, tantièmes...)
 - `Evenement` - type discriminé : `AG | AGE | CS | Visite | Travaux`. Sourcé externe pour la définition de base (date, lieu, copro).
 
 Données **natives à l'intranet** (Supabase uniquement) :
+
 - `Jalon` - lié à un événement de type AG/AGE. Champs : `type`, `cible_date`, `realise_date`, `statut ∈ {a_faire, accompli, en_alerte}`, `commentaire`, `marque_par_user_id`. Le jalon **n'existe pas** dans Crypto/eStale.
 - `ItemODJ` - item d'ordre du jour d'une AG. Champs : `ordre`, `libelle`, `regle_majorite ∈ {art24, art25, art26, unanimite, sans_vote}`.
 - `ConformiteCopropriete` - calcul de la fiche conformité : `ag_a_jour`, `pas_de_retard_legal`. Pour le MVP, seul `ag_a_jour` est calculé (cf. ADR-008).
@@ -86,11 +92,13 @@ Données **natives à l'intranet** (Supabase uniquement) :
 ### Conséquences
 
 **Positives**
+
 - Migration eStale = supprimer `SharePointCoproAdapter` + retirer la valeur `'sharepoint'` de l'enum `source`. Zéro impact UI.
 - Tests : on injecte `MockCoproAdapter` partout, plus besoin de mocker `fetch` ou Graph SDK.
 - L'abstraction reste utile **même sans eStale** (mocks, séparation propre, testabilité).
 
 **Négatives**
+
 - Boilerplate au démarrage (interfaces + 4 adapters).
 - Tentation de fuites : il faut être **discipliné**.
 
@@ -155,12 +163,13 @@ Le job de sync upsert dans `evenements` (`source != 'native'`). Soft delete via 
 **Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v3
 
 > v3 : rate limit eStale corrigé de 30 à 50 req/s, valeur vérifiée par introspection du schéma réel (cf. ADR-022).
->
+> 
 > v2 : clarification explicite "données natives intranet jamais répliquées vers les sources externes". Renforcement de la règle après confirmation par le mockup que toutes les écritures UI concernent du natif.
 
 ### Contexte
 
 Trois sources avec des caractéristiques très différentes :
+
 - **SharePoint** : données déjà J-X (export manuel Crypto). Throttling Graph API par tenant. Aucun webhook fiable.
 - **eStale** : API GraphQL conçue pour de la lecture live. Rate limit 50 req/s (vérifié par introspection, cf. ADR-022). Session cookie (cf. ADR-005).
 - **Supabase** : low latency, requêtes SQL puissantes, on en est propriétaire.
@@ -188,6 +197,7 @@ Question : où lit-on, et avec quelle fraîcheur ?
 Pour les modifications profondes côté source (lots, tantièmes, gestionnaire assigné, mouvements compta) : l'UI propose un bouton **"Ouvrir dans [source]"** qui est un **deep-link** vers le logiciel métier. L'intranet n'écrit jamais dans la source.
 
 Cette règle simplifie radicalement l'architecture :
+
 - Pas de gestion de conflit bidirectionnel
 - Pas de write-through complexe vers les sources
 - Pas de file d'attente de sync sortant
@@ -198,12 +208,14 @@ Cette règle simplifie radicalement l'architecture :
 ### Conséquences
 
 **Positives**
+
 - **Un seul chemin de lecture pour l'UI** = simplicité maximale, performance prédictible, mocks triviaux.
 - Les pannes Graph ou eStale ne cassent pas l'app, juste la fraîcheur.
 - Tests E2E ne dépendent pas de la disponibilité des APIs externes.
 - Pas de risque de corruption de la source par bug d'intranet.
 
 **Négatives**
+
 - Données potentiellement décalées (max 24h SharePoint, 15min-24h eStale).
 - Complexité du job de sync (idempotence, watermarks, gestion d'erreurs).
 - Risque de désync silencieuse -> mitigé par alerting (cf. ADR-004).
@@ -231,9 +243,12 @@ Aujourd'hui 4 copros sur eStale, 164 sur SharePoint. Dans 6 mois (estimé), 168 
 **Discriminateur unique** : champ `source: 'sharepoint' | 'estale'` sur `copros`. Le routeur d'adapters (ADR-001) lit ce champ et délègue.
 
 **Process de bascule d'une copro** :
+
 1. État initial : `copros.source = 'sharepoint'`. Job SharePoint la maintient.
 2. **Action admin** (page dédiée) : passage à `source = 'estale'`. À partir de là :
+   
    - Job SharePoint l'**ignore** lors du prochain run.
+   
    - Job eStale la prend en charge.
 3. **Pas de double-écriture, pas de merge.** Bascule sec et unidirectionnelle.
 
@@ -242,6 +257,7 @@ Aujourd'hui 4 copros sur eStale, 164 sur SharePoint. Dans 6 mois (estimé), 168 
 ### Conséquences UI (nouveau v2)
 
 Le mockup affiche un **badge `Source : Crypto`** (à terme `Source : eStale`) sur la fiche copro. Implications :
+
 - L'UI doit savoir afficher ce badge -> exposer `copros.source` via le repository.
 - Le bouton **"Ouvrir dans X"** est conditionnel : si `source = 'estale'`, on construit l'URL `{ESTALE_DEEPLINK_BASE}/copro/{source_id}`. Si `source = 'sharepoint'` (alias "Crypto" côté UI), le bouton est **absent** car Crypto n'est pas deep-linkable (cf. ADR-012).
 - Nomenclature UI : `'sharepoint'` côté technique -> affiché `Crypto` côté utilisateur (c'est la source perçue par eux). `'estale'` -> `eStale`.
@@ -249,11 +265,13 @@ Le mockup affiche un **badge `Source : Crypto`** (à terme `Source : eStale`) su
 ### Conséquences techniques
 
 **Positives**
+
 - Migration testable copro par copro.
 - Si une copro eStale pose problème, on la repasse `source = 'sharepoint'` en un click.
 - Audit trail clair via `audit_log`.
 
 **Négatives**
+
 - Possible incohérence transitoire après bascule. Mitigation : le job SharePoint **vérifie `source` au moment du run**, pas au moment de la planification.
 
 ### Question ouverte
@@ -269,6 +287,7 @@ Sort des données SharePoint quand la migration sera totalement terminée - supp
 ### Contexte
 
 Plusieurs besoins d'exécution en arrière-plan :
+
 - Sync nocturne SharePoint (~164 copros)
 - Sync incrémental eStale (read-through cache)
 - Alertes mail (J-90, J-60, J-30 sur contrats ; jalons AG en retard ; synthèse hebdo) - post-MVP
@@ -279,6 +298,7 @@ Plusieurs besoins d'exécution en arrière-plan :
 ### Décision
 
 **Phase MVP (J1-J4) - Vercel Cron uniquement.**
+
 - 1 cron `sync-sharepoint-nightly` (3h du matin)
 - 1 cron `refresh-estale-stale-entries` (toutes les heures)
 
@@ -287,6 +307,7 @@ Plusieurs besoins d'exécution en arrière-plan :
 ### Principe transversal : jobs portables
 
 Tous les jobs sont des **fonctions TypeScript pures**, appelables :
+
 1. Via Vercel Cron (handler API route)
 2. Via Inngest (function declaration) - phase 2
 3. **Via CLI** (`pnpm sync:sharepoint`) - critique pour dev local et debug prod.
@@ -331,6 +352,7 @@ eStale expose une API GraphQL authentifiée par **session cookie utilisateur**, 
 ### Décision
 
 **Phase actuelle (session cookie)** :
+
 - **Compte de service unique** côté serveur.
 - Credentials stockés **chiffrés dans Supabase Vault** (ou variable env Vercel chiffrée).
 - Gestion de session **minimale** :
@@ -340,6 +362,7 @@ eStale expose une API GraphQL authentifiée par **session cookie utilisateur**, 
 - Audit trail applicatif tenu **dans Supabase**.
 
 **Transition future (clé API)** :
+
 - Le pattern et la bascule sont portés par **ADR-022** : interface `EstaleProvider` dans `lib/ports/`, deux implémentations `EstaleCookieAdapter` et `EstaleApiKeyAdapter` dans `lib/adapters/estale/`.
 - Bascule = **présence de la variable d'env `ESTALE_API_KEY`** (présente, on prend l'adapter clé API ; absente, on reste sur le cookie). Ceci remplace l'ancienne idée d'un flag `ESTALE_AUTH_METHOD`.
 - Le code applicatif n'appelle que le port, jamais un client concret.
@@ -364,6 +387,7 @@ Si l'API key n'est pas disponible à **2026-11-22**, rouvrir cet ADR.
 ### Contexte
 
 Deux niveaux de délais :
+
 - **Délais légaux** (loi 1965, décret 1967) : intangibles, codifiés. Dépassement = **responsabilité civile du syndic**.
 - **Délais REAL31** : plus stricts que la loi (marge), configurables, propres à REAL31.
 
@@ -394,6 +418,7 @@ export const DELAIS_LEGAUX = {
 **Couche cabinet** : table Supabase `cabinet_settings` (clé/valeur typée), avec defaults code comme fallback.
 
 **Calculator** retourne :
+
 ```ts
 interface JalonCalcule {
   date: Date;           // = max(légal, cabinet) effective
@@ -404,6 +429,7 @@ interface JalonCalcule {
 ```
 
 **UI / alertes** :
+
 - Vert : avant la date REAL31
 - Ambre : dépassement REAL31 mais dans le légal
 - Rouge : dépassement légal -> alerte mail immédiate + entrée `audit_log` de niveau `LEGAL_VIOLATION`
@@ -534,11 +560,13 @@ const jalon = await withAudit(
 ### Conséquences
 
 **Positives**
+
 - Audit RGPD propre, immuable, non pollué par les besoins UI.
 - Historique UI requêtable efficacement (indexé par ressource).
 - Un seul point d'entrée pour la capture = pas d'oubli, pas de double-écriture manuelle.
 
 **Négatives**
+
 - Deux tables au lieu d'une (mais leurs schémas divergent vite, c'est mieux séparé).
 - Discipline d'équipe : toujours utiliser `withAudit()` pour les actions métier.
 
@@ -566,6 +594,7 @@ Sans décision explicite, le scope dérivera mois après mois vers un logiciel m
 **L'intranet REAL31 est une surcouche de coordination par-dessus eStale** (et Crypto pendant la transition de 6 mois). Ce n'est PAS un logiciel métier.
 
 **Ce qui reste dans le logiciel métier (eStale/Crypto)** :
+
 - Comptabilité (tous mouvements, soldes, RIB, écritures)
 - Gestion locative
 - Contrats détaillés (clauses, avenants, montants)
@@ -574,6 +603,7 @@ Sans décision explicite, le scope dérivera mois après mois vers un logiciel m
 - Génération des appels de fonds
 
 **Ce que l'intranet apporte** :
+
 1. **Planification CS/AG transverse** au cabinet (vue manager + vue gestionnaire)
 2. **Suivi des jalons réglementaires** (échéances loi 1965 / décret 1967)
 3. **Alertes et automatisations** (J-90 contrats, jalons en retard, synthèse hebdo)
@@ -584,12 +614,14 @@ Sans décision explicite, le scope dérivera mois après mois vers un logiciel m
 ### Conséquences
 
 **Positives**
+
 - Périmètre tenable par 1 dev sur plusieurs mois sans burn-out.
 - Pas de redondance fonctionnelle avec eStale (qui le fait déjà mieux pour le métier).
 - Investissement de REAL31 dans eStale préservé.
 - L'intranet reste fin et focalisé, donc maintenable des années.
 
 **Négatives**
+
 - L'utilisateur a deux outils ouverts : l'intranet (coordination) + eStale (métier).
 - Risque de demande de duplication ("affiche-moi le solde compta ici aussi") - à refuser sauf cas marginal.
 
@@ -610,6 +642,7 @@ Il n'y a **pas 6 écrans différents pour 6 rôles métier**. Il y a **une seule
 MVP : 4-7 gestionnaires, chacun voit uniquement ses copros (cloisonnement strict).
 
 Vision long terme :
+
 - Dirigeant, directeurs syndic -> voient toutes les copros (ou celles de leur direction)
 - Comptables -> voient toutes les copros (pour coordination avec gestionnaires)
 - Assistants -> voient les copros de leur gestionnaire référent
@@ -649,23 +682,25 @@ create table users (
 
 Chaque rôle a un **scope** qui définit quelles copros il voit. Trois scopes possibles à terme :
 
-| Rôle | Scope | Implémentation |
-|---|---|---|
-| `gestionnaire` | "mes copros" | `copros.gestionnaire_initials = users.gestionnaire_initials` |
-| `assistant` | "copros de mon gestionnaire" | via `reports_to_user_id` (post-MVP) |
-| `comptable`, `directeur`, `dirigeant` | "toutes les copros" | pas de filtre |
-| `admin` | "toutes + admin" | pas de filtre + accès aux pages admin |
+| Rôle                                  | Scope                        | Implémentation                                               |
+| ------------------------------------- | ---------------------------- | ------------------------------------------------------------ |
+| `gestionnaire`                        | "mes copros"                 | `copros.gestionnaire_initials = users.gestionnaire_initials` |
+| `assistant`                           | "copros de mon gestionnaire" | via `reports_to_user_id` (post-MVP)                          |
+| `comptable`, `directeur`, `dirigeant` | "toutes les copros"          | pas de filtre                                                |
+| `admin`                               | "toutes + admin"             | pas de filtre + accès aux pages admin                        |
 
 **Au MVP, seul le scope `gestionnaire` est activé.** Les autres rôles existent dans l'enum mais aucune politique RLS ne leur donne accès -> en pratique ils ne voient rien tant qu'on n'ajoute pas la policy correspondante.
 
 ### Conséquences
 
 **Positives**
+
 - Extensibilité par **ajout** de policies RLS, pas par refonte (cf. ADR-011).
 - L'UI ne change pas selon le rôle, juste les données retournées.
 - Audit log inclut déjà `actor_role` -> traçabilité dès J1, utile post-MVP.
 
 **Négatives**
+
 - Plus de colonnes "inutilisées" au MVP (`reports_to_user_id`, autres rôles).
 - Tentation de coder des features par rôle plus tôt - à refuser.
 
@@ -695,8 +730,11 @@ Cette table n'est pas une entité séparée - c'est le champ `users.gestionnaire
 
 1. Le job de sync SharePoint extrait la liste d'**initiales uniques** vues sur le terrain (colonne `Gestionnaire`).
 2. La liste est exposée sur une page admin `/admin/users` avec :
+   
    - Les initiales connues côté SharePoint
+   
    - Les users existants côté `users`
+   
    - Les initiales non encore mappées (orphelines)
 3. L'admin crée manuellement le user (`email Entra ID` + `display_name` + `gestionnaire_initials`).
 
@@ -704,19 +742,23 @@ Cette table n'est pas une entité séparée - c'est le champ `users.gestionnaire
 
 1. User se connecte via Entra ID -> token avec email.
 2. App cherche `users.email = <email>` :
+   
    - Trouvé et `is_active = true` -> session OK, sa `gestionnaire_initials` est en cookie.
+   
    - Pas trouvé ou inactif -> page "Accès non autorisé, contacter l'admin".
 3. RLS Supabase utilise `users.gestionnaire_initials` côté policy pour filtrer `copros`.
 
 ### Conséquences
 
 **Positives**
+
 - Mapping explicite et auditables.
 - Nouveau collaborateur = 30 secondes de saisie admin.
 - Départ d'un collaborateur = `is_active = false`, audit conservé.
 - Découplage robuste entre la source (initiales SharePoint) et l'identité (Entra ID email).
 
 **Négatives**
+
 - Saisie manuelle initiale (~5-7 users).
 - Si un gestionnaire change d'initiales côté Crypto (rare), il faut mettre à jour le mapping (admin alerté via la page `/admin/users` qui afficherait l'incohérence).
 
@@ -735,6 +777,7 @@ Quand on migrera vers eStale, eStale identifie les gestionnaires différemment (
 Le projet manipule des données sensibles (coordonnées, finances) avec un cloisonnement strict par gestionnaire au MVP, et un modèle de permissions extensible (cf. ADR-009).
 
 Deux approches possibles :
+
 1. Filtrer côté app (WHERE clauses dans tous les services). Risque : oubli, fuite si une route mal protégée tape la base.
 2. **RLS Supabase** : la base elle-même refuse de retourner les lignes hors scope. Pas de fuite possible.
 
@@ -759,6 +802,7 @@ create policy "gestionnaire voit ses copros" on copros
 Mêmes patterns pour `evenements`, `jalons`, `activity_log`, etc. - toujours via une jointure sur `users`.
 
 **Tables système exemptes de RLS** (mais accès restreint au service role) :
+
 - `users` (lecture limitée à soi-même via une policy dédiée)
 - `audit_log` (insert ok via fonction RPC, jamais select user-facing)
 - `job_runs`
@@ -791,11 +835,13 @@ PostgreSQL combine les policies en OR - le user voit la ligne si **au moins une*
 ### Conséquences
 
 **Positives**
+
 - Sécurité défense-en-profondeur : même si une route oublie un filtre, RLS bloque.
 - Extensibilité = ajout de policies, jamais refonte.
 - Le code applicatif ignore les permissions -> simpler.
 
 **Négatives**
+
 - Courbe d'apprentissage RLS (syntaxe Postgres, debug parfois opaque).
 - Performance : RLS ajoute du WHERE implicite sur chaque requête. Pour notre volumétrie (168 copros), négligeable. À monitorer post-MVP si on dépasse les 10k lignes par table.
 
@@ -826,12 +872,14 @@ Par ailleurs, le mockup montre un bouton "Ouvrir dans Crypto" - or Crypto est un
 ### Justifications
 
 **PDF reportée** :
+
 - Puppeteer en serverless = bundle lourd, cold start élevé, gestion mémoire délicate (Vercel a une limite ~250 MB pour la fonction).
 - Alternatives (react-pdf, @react-pdf/renderer) limitées côté layout complexe (convocations LRAR, ODJ multi-pages, etc.).
 - Implémentation propre = 3-5 jours dédiés. Sort du périmètre MVP.
 - Le manager peut utiliser Crypto/eStale en attendant pour générer ces documents.
 
 **Retrait Crypto deep-link** :
+
 - Crypto est un client lourd desktop, pas une web app.
 - Pas d'URL scheme utilisable depuis un navigateur.
 - Forcer l'utilisateur à copier le code copro pour le coller dans Crypto = friction acceptable au MVP.
@@ -840,10 +888,12 @@ Par ailleurs, le mockup montre un bouton "Ouvrir dans Crypto" - or Crypto est un
 ### Conséquences
 
 **Positives**
+
 - Périmètre MVP allégé, focus sur le différenciant (coordination, jalons, alertes).
 - Pas de dette technique liée à un Puppeteer mal intégré.
 
 **Négatives**
+
 - Frustration utilisateur sur les boutons grisés. À atténuer par un tooltip explicite.
 - Promesse implicite à tenir post-MVP - à inscrire en haut de la backlog vague 2.
 
@@ -858,7 +908,7 @@ Si la génération de convocations devient critique avant la vague 2 (ex. trop d
 **Date** : 2026-05-22 · **Statut** : Deprecated (MVP) · **Version** : v3
 
 > v3 (2026-06-09) : **déprécié pour le MVP**. La mini-map Leaflet de la fiche copro est retirée (décision produit : pas d'utilité pour la coordination). Sans carte, plus de besoin de coordonnées lat/lng, donc plus de géocodage. L'ADR reste archivé : **à rouvrir** si un besoin cartographique réapparaît (vue carte du portefeuille, etc.). Les colonnes `copros.lat/lng` ne sont pas alimentées au MVP.
->
+> 
 > v2 : précision de l'apport eStale. Le type `Address` d'eStale expose `position: Point` (confirmé dans le SDL). Nominatim reste nécessaire pour les copros sourcées SharePoint/Crypto et devient un fallback en phase eStale (cf. ADR-022).
 
 ### Contexte
@@ -880,33 +930,37 @@ Les sources externes stockent l'adresse en texte libre. SharePoint (export Crypt
 ### Justifications
 
 **Pourquoi Nominatim OSM** :
+
 - Gratuit, pas de clé API à gérer côté Vercel.
 - Couverture France excellente.
 - Suffisant pour 168 adresses + ~10 nouvelles par an.
 - Cohérent avec Leaflet (déjà OpenStreetMap).
 
 **Conditions d'usage Nominatim** (importantes) :
+
 - User-Agent identifiable obligatoire (header `User-Agent: REAL31-Intranet/1.0 (contact@real31.fr)`).
 - Pas plus de 1 req/sec.
 - Pas de bulk download, on est OK car on appelle à la demande.
 
 ### Alternatives rejetées (pour le MVP)
 
-| Service | Pourquoi rejeté |
-|---|---|
-| MapBox Geocoding | Payant au-delà du free tier (50k req/mois - overkill). Clé API à gérer. |
-| OpenCage | Payant, 2500 req/jour gratuit, overkill. |
-| Google Geocoding | Payant, gestion clé API stricte. |
-| ban.openstreetmap.fr (BAN officielle) | Excellent pour FR, à reconsidérer post-MVP si Nominatim insuffisant. |
+| Service                               | Pourquoi rejeté                                                         |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| MapBox Geocoding                      | Payant au-delà du free tier (50k req/mois - overkill). Clé API à gérer. |
+| OpenCage                              | Payant, 2500 req/jour gratuit, overkill.                                |
+| Google Geocoding                      | Payant, gestion clé API stricte.                                        |
+| ban.openstreetmap.fr (BAN officielle) | Excellent pour FR, à reconsidérer post-MVP si Nominatim insuffisant.    |
 
 ### Conséquences
 
 **Positives**
+
 - Zéro coût, zéro clé à gérer.
 - Couverture suffisante pour Toulouse + agglo.
 - Si Nominatim down un soir, le sync continue (échec géocodage = lat/lng restent vides, on réessaye au prochain sync).
 
 **Négatives**
+
 - Qualité géocodage parfois inférieure à Google/MapBox (rare en zone urbaine).
 - Latence non garantie (service communautaire).
 - Si REAL31 s'étend à des zones rurales, qualité à revérifier.
@@ -952,18 +1006,21 @@ Cette décision **élargit le périmètre posé par ADR-008**, qui cantonnait l'
 **4. Cohabitation Prisma / supabase-js comme dette technique consciente.** Pendant la transition, l'app A garde Prisma (son ORM de prod) et l'intranet utilise supabase-js. Les deux coexisteront dans la plateforme cible le temps du port. C'est une **dette technique assumée et bornée**, pas un choix d'architecture durable. Le choix d'ORM cible final est traité par ADR-015 (resté ouvert), qui devra trancher la convergence en fin de transition. Conséquence connue : Prisma se connecte en direct au pooler et **bypasse la RLS** ; le code hérité de A garde donc son modèle de sécurité applicatif (rôle + scope) tant qu'il n'est pas reporté sous le modèle RLS de l'intranet (ADR-011).
 
 **5. Module Contrats (module 7) - placement en attente.** Le dirigeant démarre un module de gestion des contrats (syndic-cabinet + fournisseurs). Proposition en cours : le développer **dans l'intranet** dès le départ plutôt qu'en standalone, pour éviter une seconde absorption douloureuse. **Décision en attente de sa validation** :
+
 - Si oui : le module 7 entre dans la roadmap intranet en vague post-MVP 1 (après les 5 écrans).
 - Si non : il démarre en standalone ; on coordonne uniquement la **modélisation des copropriétés** pour préparer une fusion ultérieure.
 
 ### Conséquences
 
 **Positives**
+
 - L'app A en prod n'est jamais mise en risque : zéro rupture de service, données réelles intactes.
 - Time-to-value : le MVP syndic avance sans attendre une réécriture de A.
 - La qualité (hexagonal, ADRs) s'applique au neuf ; l'existant est porté progressivement.
 - Une seule porte d'entrée à terme pour l'équipe.
 
 **Négatives**
+
 - Dette de cohabitation Prisma / supabase-js à maintenir pendant ~5-7 mois, à résorber (ADR-015).
 - Deux modèles de sécurité (applicatif côté A, RLS côté intranet) coexistent transitoirement.
 - Risque de scope creep si la discipline "MVP strict" n'est pas tenue ; risque explicitement adressé par le point 2.
@@ -1007,6 +1064,7 @@ Côté calendrier, la migration de REAL31 vers eStale prendra 6 à 7 mois minimu
 L'intranet REAL31 est l'**extension propre d'eStale, pas son concurrent**. Il ne redéveloppe pas le transactionnel (compta, AG, fournisseurs) qu'eStale fait nativement. Il remplace les bricolages Tampermonkey individuels par une plateforme unifiée, et apporte une couche de **pilotage et d'orchestration** au-dessus du transactionnel. Il consomme l'API eStale massivement en **lecture**, et écrit peu (les écritures concernent les workflows propres à REAL31 : jalons, audit log, présences pré-AG).
 
 Périmètre = ce qu'eStale ne fait pas en natif, plus les workflows spécifiques REAL31 :
+
 - Jalons réglementaires AG avec alertes automatiques (J-21, J-30, etc.) - cf. ADR-006.
 - Vue cross-copros / dashboard transverse d'un gestionnaire (eStale n'a pas de query liste : on agrège côté intranet via `me.collaborator.condos`).
 - Coordination interne et suivi des présences pré-AG (probabilité de quorum).
@@ -1048,6 +1106,7 @@ Cette décision **prolonge et précise ADR-005**, qui posait déjà la transitio
 #### 6. Levier commercial
 
 REAL31 va signer eStale pour ~7000 lots. C'est un levier de négociation, à actionner par le dirigeant lors du contrat eStale :
+
 - accès anticipé à la clé API (programme bêta),
 - engagement contractuel sur le délai de mise à disposition,
 - documentation prioritaire.
@@ -1055,17 +1114,20 @@ REAL31 va signer eStale pour ~7000 lots. C'est un levier de négociation, à act
 ### Conséquences
 
 **Positives**
+
 - L'intranet délivre de la valeur dès la Phase A, sans dépendre d'un accès eStale fragile.
 - Chaque évolution d'auth eStale est absorbée dans un adapter, l'UI ne bouge pas.
 - Schéma versionné + codegen + tests de contrat transforment une rupture d'API silencieuse en erreur visible (compilation ou test).
 - Positionnement clair "extension d'eStale" : pas de redéveloppement du transactionnel, périmètre tenable.
 
 **Négatives**
+
 - L'auth par cookie reste un bricolage tant que la clé API n'est pas là (dette bornée, isolée dans l'adapter).
 - L'absence de query liste impose de l'agrégation maison, plus coûteuse que si eStale l'offrait.
 - Dépendance à un fournisseur dont le calendrier API n'est pas garanti ; mitigée par la stratégie de phases et le levier commercial.
 
 ### Liens
+
 - **ADR-001** : l'abstraction ports/adapters rend la transition de phases invisible à l'UI.
 - **ADR-002** : cache read-through, central pour amortir le rate limit et les indisponibilités (rate limit eStale : 50 req/s, valeur vérifiée).
 - **ADR-003** : migration progressive Crypto vers eStale, copro par copro via `copros.source`.
@@ -1080,17 +1142,21 @@ REAL31 va signer eStale pour ~7000 lots. C'est un levier de négociation, à act
 **Date** : 2026-06-11 - **Statut** : accepté (décision Sekou)
 
 ### Contexte
+
 L'intranet partage la base Supabase `lgrsnrclufsulglbwcqi` avec un autre projet du patron (modèle Prisma de l'App A). Les dates de prochaine AG (`nextAGDate`) et de prochain CS (`nextCSDate`) vivent dans `public."Copropriete"`. Besoin métier : un gestionnaire doit pouvoir planifier / replanifier une AG ou un CS **non encore tenu** depuis la fiche. ADR-002 posait que l'intranet ne réécrit jamais la source ; mais la base est ici explicitement **partagée et mise à jour par les deux projets**.
 
 ### Décision
+
 On écrit directement `nextAGDate` / `nextCSDate` dans `public."Copropriete"` (**option A** retenue par Sekou plutôt qu'un override natif), via service_role, **scopé par `managerId`** (un gestionnaire n'écrit que sur ses copros), avec `updatedAt` rafraîchi pour rester cohérent avec l'App A. `null` = déplanifier. C'est une **dérogation assumée à ADR-002**, justifiée par le modèle de base partagée : la date de planification est une donnée commune aux deux apps, pas une donnée de source en lecture seule.
 
 ### Conséquences
+
 - La date modifiée est **visible côté App A** (propagation immédiate) ; concurrence d'écriture possible sur le même champ (risque faible, écritures rares).
 - Le « CS préparatoire le » de la supervision (fiche 450) alimente `nextCSDate` par ce même chemin.
 - Rappel : pas de RLS sur `public` (schéma Prisma, service_role) -> le cloisonnement est appliqué **en code** (filtre `managerId`), ce qui déroge aussi à ADR-011 (RLS dès J1). À reconsidérer si une RLS/vues devient possible.
 
 ### Liens
+
 - **ADR-002** (dérogation au principe de non-réécriture de la source).
 - **ADR-011** (RLS non disponible sur le schéma partagé Prisma -> cloisonnement en code).
 - **ADR-021** (plateforme unifiée, cohabitation Prisma / supabase-js).
@@ -1102,19 +1168,23 @@ On écrit directement `nextAGDate` / `nextCSDate` dans `public."Copropriete"` (*
 **Date** : 2026-06-16 - **Statut** : accepté
 
 ### Contexte
+
 Le SSO Microsoft 365 (Entra ID) doit authentifier les collaborateurs. Deux voies : **Auth.js (NextAuth) v5** (provider Microsoft Entra ID intégré, gestion OAuth/OIDC + session) ou une **implémentation OIDC custom** (plus de contrôle, mais state/nonce/PKCE/validation des tokens à écrire et maintenir nous-mêmes - surface de sécurité).
 
 ### Décision
+
 **Auth.js v5** (`next-auth@5`). Standard de l'écosystème Next.js, provider Entra ID natif, callback `/api/auth/callback/microsoft-entra-id` (déjà déclaré dans `docs/entra-app-registration.md`). Configuration `src/auth.ts` ; le provider n'est actif que si `AUTH_MICROSOFT_ENTRA_ID_ID/SECRET/ISSUER` sont présents, sinon **fallback dev-login** (sélecteur de gestionnaire), pour ne pas bloquer le dev tant que le DSI/patron n'a pas créé l'App Registration. **Noms de variables alignés sur le projet App A du patron** (convention Auth.js par défaut, même tenant) -> config quasi identique. **App Registration dédiée `REAL31 Intranet`** (et non réutilisation de celle de l'App A) : choix de robustesse - secrets, Redirect URIs et permissions indépendants des deux applications.
 
 L'identité (email du token) est mappée vers `public."User"` (`GestionnaireRepository.findByEmail`) -> le **cloisonnement par `managerId`** reste inchangé (cf. ADR-009). Le gate mot de passe (`proxy.ts`) se désactive automatiquement quand le SSO est actif.
 
 ### Conséquences
+
 - Dette d'auth custom évitée ; mises à jour de sécurité déléguées à Auth.js.
 - Dépendance beta (`next-auth@5.0.0-beta`) - acceptable, version largement utilisée ; à figer en stable quand elle sort.
 - `AUTH_SECRET` (chiffrement session) généré côté projet, distinct des valeurs Azure.
 
 ### Liens
+
 - **ADR-009** (cloisonnement gestionnaire), **ADR-010** (mapping identité), `docs/entra-app-registration.md`.
 
 ---
@@ -1124,12 +1194,15 @@ L'identité (email du token) est mappée vers `public."User"` (`GestionnaireRepo
 **Date** : 2026-06-17 - **Statut** : accepté
 
 ### Contexte
+
 L'ODJ d'une AG = une liste de résolutions. Question : l'intranet doit-il gérer sa propre bibliothèque de modèles, ou réutiliser celle d'eStale ? Exploration de l'API (introspection `/graphql/intranet` + lecture live via le compte de service) : eStale expose une **"motion bank" à 3 niveaux** - `establishment` (cabinet), `collaborator` (gestionnaire), `condo` (copro). Le cabinet REAL31 y a déjà **109 résolutions** structurées (`title`, `body`, `preamble`/`postamble`, `majority` parmi `A24/A25/A25_1/A26/A26_1/UNANIMITY/QUESTION`, `keywords`, clé de répartition `dk`, pièces jointes), dont 95 `isDefault`. Mutations dispo : `createMotionBankItem/update/copy/order` ; côté AG (`Meeting`) : `createMotionsFromBank(itemIDs)`, `createMotion(input, files)`, `orderMotions`, `invitation` (convocation), `transcript` (PV).
 
 ### Décision
+
 La **motion bank eStale est la source** des résolutions. L'intranet **ne stocke PAS de résolutions** et **ne reconstruit PAS de bibliothèque** (donc **pas de table `intranet_odj_resolutions`**, idée abandonnée). L'intranet = **couche d'orchestration / UX** : il lit la bank, aide à composer l'ODJ (mode CS), pousse les motions dans le `Meeting` eStale, gère le circuit de validation côté intranet (case "validé CS"), puis la convocation se déclenche dans eStale. Cohérent avec ADR-022 (eStale = primaire).
 
 ### Conséquences
+
 - Annule la table de résolutions côté intranet (et l'écriture infra associée dans la base patron).
 - Nouveau **port** hexagonal (bibliothèque de résolutions / motion bank) + adapter eStale - **lecture d'abord**, écriture ensuite.
 - Les mutations écrivent dans eStale pour de vrai -> **commencer READ-ONLY**, tester les writes sur une AG de test, valider avant tout write réel.
@@ -1138,7 +1211,50 @@ La **motion bank eStale est la source** des résolutions. L'intranet **ne stocke
 - Script d'exploration : `scripts/estale-motion-bank.mjs` (lecture seule, sans secret).
 
 ### Liens
+
 - **ADR-022** (positionnement eStale), **ADR-005** (compte service eStale), **ADR-001** (port).
+
+---
+
+## ADR-025 - Gestionnaire de mots de passe : maison, zero-knowledge, sur briques OSS auditées (serverless)
+
+**Date** : 2026-06-18 - **Statut** : accepté
+
+### Contexte
+
+Besoin d'un coffre-fort de mots de passe pour le réseau immobilier (4 agences dont 1 siège, 4 services Vente/Syndic/Location/Gestion Locative, ~40 collaborateurs), intégré à l'intranet. Trois niveaux d'accès prioritaires : **réseau** (tous), **service** (transversal réseau : un coffre Vente pour les 4 agences), **personnel** ; un niveau **agence** à prévoir mais **latent** (pas exposé en UI). Migration initiale depuis un Excel de mots de passe en clair.
+
+Build vs buy challengé : Bitwarden / 1Password org sont audités et se branchent sur Entra (SCIM), mais coût par siège, et l'auto-hébergement (Vaultwarden) impose Docker. Contrainte réelle de Sekou : **pas de coût récurrent par siège, pas de Docker/self-host** (on est serverless sur Vercel), ouvert à réutiliser de l'open source.
+
+Contrainte cryptographique structurante : **aucune source d'entropie stable ET secrète n'existe dans un token MSAL/OIDC**. L'`oid`/`sub` est un identifiant (lu par le serveur, présent en base), pas un secret. Dériver une clé de chiffrement du SSO = théâtre de sécurité. SSO authentifie auprès du serveur ; il ne remet pas de secret côté utilisateur.
+
+### Décision validé par Sekou
+
+Construire le gestionnaire **maison**, en **zero-knowledge** (le serveur Vercel ne voit jamais ni secrets ni clés : c'est un coffre à blobs chiffrés + un coursier), **mais sans coder les primitives cryptographiques**. On assemble des briques **auditées** : **Web Crypto API** (AES-256-GCM, ECDH P-256, HKDF, PBKDF2), **SimpleWebAuthn** (passkey + extension PRF), **noble / hash-wasm** (Argon2id pour le chemin master-password). Modèle de référence = whitepaper sécurité **Bitwarden** / archi **Padloc**, sans copier leur code applicatif (licence AGPL). On écrit le produit et la glue, pas la cryptographie.
+
+Choix verrouillés (validés avec Sekou) :
+
+- **SSO Entra = authentification seulement, JAMAIS la clé de chiffrement.**
+- **Déverrouillage : passkey / Windows Hello en primaire** (PRF -> clé stable tenue par l'authenticator = fluide ET zero-knowledge), **master password en repli**, **recovery code + escrow admin** pour la récupération. La clé privée de l'utilisateur est stockée **wrappée plusieurs fois** (une par méthode), donc le modèle est agnostique à la méthode de déverrouillage.
+- **Modèle de données générique** : `vault.scope` (network / agency / service / personal) + FK nullables -> ajouter le niveau agence plus tard = activer un scope déjà prévu, **zéro migration**. **Tout accès est médié par `pm_membership`** (clé du coffre wrappée vers la clé publique du membre) -> RLS **uniforme et triviale**, identique pour les 4 scopes.
+- **Partage** : paire ECDH par utilisateur, clé AES-GCM par coffre. L'octroi/re-wrap se fait par un **client admin custodien** (le serveur ne peut pas, il n'a pas la clé en clair) -> accès non instantané (flux "pending"). **Rotation au départ** = retrait du membership + rotation de la clé du coffre par un client admin + rotation des **vrais** mots de passe sensibles (la personne les a déjà lus).
+- **Coffre "très sensible"** = tier **step-up** (facteur supplémentaire à l'ouverture, clé non gardée en cache) ; colonne `sensitivity` prévue dès maintenant, exploitée en phase 2.
+- **Import Excel** : parsing **100% navigateur** (le fichier ne monte jamais en clair au serveur), chiffrement vers le coffre choisi, dédupe (url+email), puis rotation des secrets sensibles + destruction de l'Excel.
+- **RLS = défense en profondeur, pas le rempart principal** : le vrai contrôle est la crypto (un bug RLS ne livre que du chiffré). Pont d'identité : le serveur valide le SSO puis émet un **JWT compatible Supabase** (signé avec le secret JWT du projet, `sub` = `pm_user.id`) pour que la RLS lise `auth.uid()`.
+- **Risque n°1 = XSS** sur les routes du coffre (vol des secrets déchiffrés ou de la clé en mémoire) -> CSP stricte, pas de script tiers sur ces routes.
+
+### Conséquences
+
+- Nouvelles tables natives (schéma `public`, préfixe `intranet_pm_`) : `agency`, `service`, `user`, `user_service`, `user_unlock`, `vault`, `membership`, `secret`. RLS activée (service_role passe), médiée par `pm_membership`.
+- Dépendances à ajouter : `@simplewebauthn/browser` + `@simplewebauthn/server`, `hash-wasm` (Argon2id), éventuellement `@noble/*`. Pas de Docker, tout serverless.
+- Toute la crypto vit dans le navigateur (Web Crypto) -> le stateless serverless de Vercel n'est pas un problème (aucun état crypto côté serveur).
+- Construction par **5 phases**, chacune validée avant la suivante (cf. ROADMAP) : (1) socle crypto + identité + pont MSAL->JWT ; (2) coffre perso end-to-end ; (3) coffres partagés (réseau+service, octroi admin) ; (4) import Excel ; (5) coffre très sensible (step-up) + rotation/révocation + audit.
+- v1 (MVP) = phases 1 à 4 (coffres réseau/service/perso + unlock passkey + import). Phase 5 = au-delà.
+- À vérifier en phase 1 : support PRF (`hmac-secret`) sur le parc (Windows Hello, navigateurs) ; gestion multi-postes (passkey souvent liée à l'appareil -> 2e passkey ou recovery code).
+
+### Liens
+
+- **ADR-001** (ports & adapters : la source de chaque donnée vit derrière un port), **ADR-011** (RLS Supabase), **ADR-017** (Auth.js v5 / Entra = couche d'authentification), **ADR-005** (compte de service / identité). Branche : `increment/03-coffre-mdp`.
 
 ---
 
