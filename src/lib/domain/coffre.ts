@@ -62,6 +62,21 @@ export interface ClePubliqueMembre {
   publicKey: string;
 }
 
+/** Entree d'annuaire (pour octroyer un acces a un coffre partage : il faut la
+ *  cle publique du destinataire). */
+export interface CollaborateurAnnuaire {
+  id: string;
+  email: string;
+  nomComplet?: string;
+  publicKey: string;
+}
+
+/** Un service de l'organisation (Vente, Syndic, Location, Gestion Locative). */
+export interface ServiceOrg {
+  id: string;
+  nom: string;
+}
+
 /** Une facon de deverrouiller : la cle privee wrappee + parametres publics
  *  (credentialId passkey, salt/iterations KDF, version...). Une par methode. */
 export interface Deverrouillage {

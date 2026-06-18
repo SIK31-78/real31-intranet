@@ -5,6 +5,8 @@
 import type {
   Collaborateur,
   ClePubliqueMembre,
+  CollaborateurAnnuaire,
+  ServiceOrg,
   Deverrouillage,
   MethodeDeverrouillage,
   BlobChiffreStocke,
@@ -28,6 +30,12 @@ export interface CoffreIdentiteRepository {
   /** Cles publiques (pour wrapper une cle de coffre vers des membres). */
   getClePublique(userId: string): Promise<ClePubliqueMembre | null>;
   listerClesPubliques(userIds: string[]): Promise<ClePubliqueMembre[]>;
+
+  /** Annuaire des collaborateurs enroles (avec cle publique), pour le partage. */
+  listerCollaborateurs(): Promise<CollaborateurAnnuaire[]>;
+
+  /** Services de l'organisation (pour cibler un coffre de service). */
+  listerServices(): Promise<ServiceOrg[]>;
 
   /** Methodes de deverrouillage (cle privee wrappee, une par methode). */
   listerDeverrouillages(userId: string): Promise<Deverrouillage[]>;

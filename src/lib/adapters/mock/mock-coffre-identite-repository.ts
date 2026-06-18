@@ -6,6 +6,8 @@ import type { CoffreIdentiteRepository, NouveauCollaborateur } from "@/lib/ports
 import type {
   Collaborateur,
   ClePubliqueMembre,
+  CollaborateurAnnuaire,
+  ServiceOrg,
   Deverrouillage,
   MethodeDeverrouillage,
   BlobChiffreStocke,
@@ -15,6 +17,13 @@ const collaborateurs = new Map<string, Collaborateur>();
 const parOid = new Map<string, string>();
 const clesPubliques = new Map<string, string>();
 const deverrouillages = new Map<string, Deverrouillage[]>();
+
+const SERVICES: ServiceOrg[] = [
+  { id: "svc-vente", nom: "Vente" },
+  { id: "svc-syndic", nom: "Syndic" },
+  { id: "svc-location", nom: "Location" },
+  { id: "svc-gestion-locative", nom: "Gestion Locative" },
+];
 
 export class MockCoffreIdentiteRepository implements CoffreIdentiteRepository {
   async trouverParAzureOid(azureOid: string): Promise<Collaborateur | null> {
@@ -49,6 +58,19 @@ export class MockCoffreIdentiteRepository implements CoffreIdentiteRepository {
         return publicKey ? { userId, publicKey } : null;
       })
       .filter((x): x is ClePubliqueMembre => x !== null);
+  }
+
+  async listerCollaborateurs(): Promise<CollaborateurAnnuaire[]> {
+    return [...collaborateurs.values()]
+      .map((c) => {
+        const publicKey = clesPubliques.get(c.id);
+        return publicKey ? { id: c.id, email: c.email, publicKey, ...(c.nomComplet ? { nomComplet: c.nomComplet } : {}) } : null;
+      })
+      .filter((x): x is CollaborateurAnnuaire => x !== null);
+  }
+
+  async listerServices(): Promise<ServiceOrg[]> {
+    return SERVICES;
   }
 
   async listerDeverrouillages(userId: string): Promise<Deverrouillage[]> {

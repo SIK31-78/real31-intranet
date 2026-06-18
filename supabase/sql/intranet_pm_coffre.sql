@@ -216,3 +216,11 @@ create policy pm_secret_member_read on public.intranet_pm_secret
 -- ne passent que par service_role (server actions). Les flux d'octroi/rotation
 -- cote client ecrivent des blobs deja chiffres via ces server actions. Des
 -- policies d'ecriture directe pourront etre ajoutees par phase si besoin.
+
+-- ========================================================================
+-- Seed : les 4 services de l'organisation (coffres de service transversaux).
+-- ========================================================================
+
+insert into public.intranet_pm_service (name) values
+  ('Vente'), ('Syndic'), ('Location'), ('Gestion Locative')
+on conflict (name) do nothing;

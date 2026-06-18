@@ -118,6 +118,14 @@ export async function ouvrirCleCoffre(privateKey: CryptoKey, wrapped: CleEnrobee
   return cc.importVaultKey(await cc.unwrapKeyFromSender(privateKey, deMembre(wrapped)));
 }
 
+/** Enrobe une cle de coffre DEJA ouverte vers la cle publique d'un membre
+ *  (octroi d'acces a un coffre partage). Fait par le client d'un admin. */
+export async function enroberCoffrePour(vaultKey: CryptoKey, publicKeyB64: string): Promise<CleEnrobeeMembre> {
+  const raw = await cc.exportRawKey(vaultKey);
+  const pub = await cc.importPublicKey(cc.fromBase64(publicKeyB64));
+  return enMembre(await cc.wrapKeyForRecipient(pub, raw));
+}
+
 // --- Secrets ----------------------------------------------------------------
 
 export async function chiffrerSecret(vaultKey: CryptoKey, secret: SecretClair): Promise<BlobChiffreStocke> {

@@ -11,8 +11,24 @@ import {
   ajouterDeverrouillageCoffre,
   getApercuCoffre,
   getSecretsCoffre,
+  creerCoffrePartage,
+  octroyerAcces,
+  retirerAcces,
+  listerMembres,
+  listerAnnuaire,
 } from "@/lib/services/coffre/coffre-service";
 import type { BlobChiffreStocke, CleEnrobeeMembre, SecretChiffre } from "@/lib/domain/coffre";
+
+/** Verifie que l'appelant est membre admin du coffre ; renvoie son id pm_user. */
+async function exigerAdmin(coffreId: string): Promise<string> {
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  const coffre = apercu.coffres.find((c) => c.id === coffreId);
+  if (!apercu.collaborateur || !coffre) throw new Error("Coffre non accessible");
+  if (coffre.role !== "admin") throw new Error("Reserve aux administrateurs du coffre");
+  return apercu.collaborateur.id;
+}
 
 export interface PayloadEnrolement {
   publicKey: string;
@@ -69,4 +85,55 @@ export async function ajouterPasskeyAction(
   const apercu = await getApercuCoffre(g.id);
   if (!apercu.collaborateur) throw new Error("Coffre non initialise");
   await ajouterDeverrouillageCoffre(apercu.collaborateur.id, "passkey_prf", wrappedPrivateKey, params);
+}
+
+// --- Coffres partages -------------------------------------------------------
+
+export async function creerCoffrePartageAction(
+  scope: "network" | "service",
+  nom: string,
+  wrappedVaultKey: CleEnrobeeMembre,
+  serviceId?: string,
+): Promise<{ coffreId: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.collaborateur) throw new Error("Coffre non initialise");
+  const coffreId = await creerCoffrePartage(
+    scope,
+    nom,
+    { userId: apercu.collaborateur.id, wrappedVaultKey },
+    serviceId,
+  );
+  return { coffreId };
+}
+
+export interface MembreAffiche {
+  userId: string;
+  role: string;
+  nom: string;
+}
+
+export async function listerMembresAction(coffreId: string): Promise<MembreAffiche[]> {
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.coffres.some((c) => c.id === coffreId)) throw new Error("Coffre non accessible");
+  const [membres, annuaire] = await Promise.all([listerMembres(coffreId), listerAnnuaire()]);
+  const nomPar = new Map(annuaire.map((a) => [a.id, a.nomComplet || a.email || a.id]));
+  return membres.map((m) => ({ userId: m.userId, role: m.role, nom: nomPar.get(m.userId) ?? m.userId }));
+}
+
+export async function octroyerAccesAction(
+  coffreId: string,
+  userId: string,
+  wrappedVaultKey: CleEnrobeeMembre,
+): Promise<void> {
+  const adminId = await exigerAdmin(coffreId);
+  await octroyerAcces(coffreId, userId, wrappedVaultKey, adminId);
+}
+
+export async function retirerAccesAction(coffreId: string, userId: string): Promise<void> {
+  await exigerAdmin(coffreId);
+  await retirerAcces(coffreId, userId);
 }

@@ -1,26 +1,37 @@
 "use client";
 
 // Cockpit du coffre-fort (ADR-025). TOUTE la crypto se fait ici (navigateur) :
-// l'enrolement genere la paire et wrappe la cle privee avec le mot de passe
-// maitre ; le deverrouillage la deballe ; les secrets sont chiffres/dechiffres
-// avec la cle du coffre. Le serveur ne recoit que des blobs chiffres.
+// enrolement, deverrouillage (mot de passe maitre ou passkey), chiffrement des
+// secrets, et PARTAGE (enrobage de la cle d'un coffre vers la cle publique d'un
+// membre). Le serveur ne recoit que des blobs chiffres.
 
 import { useState, type ReactNode, type ComponentType } from "react";
-import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint } from "lucide-react";
+import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X } from "lucide-react";
 import {
   enrolerMotDePasse,
   deverrouillerMotDePasse,
   activerPasskey,
   deverrouillerPasskey,
   creerCleCoffrePour,
+  enroberCoffrePour,
   ouvrirCleCoffre,
   chiffrerSecret,
   dechiffrerSecret,
   CRYPTO_VERSION,
 } from "@/lib/coffre/coffre-client";
-import { enrolerAction, chargerSecretsAction, ajouterSecretAction, ajouterPasskeyAction } from "@/app/coffre/actions";
+import {
+  enrolerAction,
+  chargerSecretsAction,
+  ajouterSecretAction,
+  ajouterPasskeyAction,
+  creerCoffrePartageAction,
+  octroyerAccesAction,
+  retirerAccesAction,
+  listerMembresAction,
+  type MembreAffiche,
+} from "@/app/coffre/actions";
 import type { ApercuCoffre } from "@/lib/services/coffre/coffre-service";
-import type { SecretClair } from "@/lib/domain/coffre";
+import type { SecretClair, RoleMembre, ScopeCoffre, CollaborateurAnnuaire, ServiceOrg } from "@/lib/domain/coffre";
 
 interface SecretOuvert {
   id: string;
@@ -31,14 +42,36 @@ interface CoffreOuvert {
   nom: string;
   vaultKey: CryptoKey;
   secrets: SecretOuvert[];
+  role: RoleMembre;
+  scope: ScopeCoffre;
 }
 
 const champClasse =
   "w-full h-9 px-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus:ring-1 focus:ring-green-600";
 
-export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: ApercuCoffre }) {
+const LIBELLE_SCOPE: Record<ScopeCoffre, string> = {
+  network: "Reseau",
+  service: "Service",
+  agency: "Agence",
+  personal: "Personnel",
+};
+
+export function CoffreVue({
+  nomComplet,
+  apercu,
+  annuaire,
+  services,
+}: {
+  nomComplet: string;
+  apercu: ApercuCoffre;
+  annuaire: CollaborateurAnnuaire[];
+  services: ServiceOrg[];
+}) {
   const dejaEnrole = apercu.collaborateur !== null;
+  const monUserId = apercu.collaborateur?.id ?? "";
+  const maClePublique = annuaire.find((a) => a.id === monUserId)?.publicKey ?? null;
   const passkeyDev = apercu.deverrouillages.find((d) => d.method === "passkey_prf") ?? null;
+
   const [prive, setPrive] = useState<CryptoKey | null>(null);
   const [coffres, setCoffres] = useState<CoffreOuvert[]>([]);
   const [busy, setBusy] = useState(false);
@@ -46,10 +79,10 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
   const [passkeyActivee, setPasskeyActivee] = useState(passkeyDev !== null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // --- Enrolement (1er acces) ---------------------------------------------
   const [mdp, setMdp] = useState("");
   const [mdp2, setMdp2] = useState("");
 
+  // --- Enrolement (1er acces) ---------------------------------------------
   async function enroler() {
     setErreur(null);
     if (mdp.length < 8) return setErreur("Choisis un mot de passe maitre d'au moins 8 caracteres.");
@@ -65,7 +98,7 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
         coffrePerso: { nom: "Mes mots de passe", wrappedVaultKey },
       });
       setPrive(privateKey);
-      setCoffres([{ id: coffreId, nom: "Mes mots de passe", vaultKey, secrets: [] }]);
+      setCoffres([{ id: coffreId, nom: "Mes mots de passe", vaultKey, secrets: [], role: "admin", scope: "personal" }]);
       setMdp("");
       setMdp2("");
     } catch (e) {
@@ -76,9 +109,6 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
   }
 
   // --- Deverrouillage ------------------------------------------------------
-
-  // Ouvre tous les coffres de l'utilisateur avec sa cle privee (commun mot de
-  // passe / passkey) : derive la cle de chaque coffre et dechiffre ses secrets.
   async function chargerCoffres(privateKey: CryptoKey): Promise<void> {
     const ouverts: CoffreOuvert[] = [];
     for (const c of apercu.coffres) {
@@ -87,7 +117,7 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
       const secrets = await Promise.all(
         chiffres.map(async (s) => ({ id: s.id, clair: await dechiffrerSecret(vaultKey, s.blob) })),
       );
-      ouverts.push({ id: c.id, nom: c.nom, vaultKey, secrets });
+      ouverts.push({ id: c.id, nom: c.nom, vaultKey, secrets, role: c.role, scope: c.scope });
     }
     setPrive(privateKey);
     setCoffres(ouverts);
@@ -121,7 +151,6 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
     }
   }
 
-  // Active une passkey (Windows Hello...) pour cet utilisateur deja deverrouille.
   async function activerPasskeyHandler() {
     if (prive === null || !apercu.collaborateur) return;
     setErreur(null);
@@ -144,14 +173,29 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
     }
   }
 
+  // --- Creation d'un coffre partage ---------------------------------------
+  async function creerPartage(scope: "network" | "service", nom: string, serviceId?: string) {
+    setErreur(null);
+    if (!maClePublique) return setErreur("Cle publique introuvable.");
+    setBusy(true);
+    try {
+      const { vaultKey, wrappedVaultKey } = await creerCleCoffrePour(maClePublique);
+      const { coffreId } = await creerCoffrePartageAction(scope, nom, wrappedVaultKey, serviceId);
+      setCoffres((prev) => [...prev, { id: coffreId, nom, vaultKey, secrets: [], role: "admin", scope }]);
+    } catch (e) {
+      setErreur((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function verrouiller() {
     setPrive(null);
     setCoffres([]);
     setInfo(null);
   }
 
-  // --- Etats d'affichage ---------------------------------------------------
-
+  // --- Ecran verrouille ----------------------------------------------------
   if (prive === null) {
     return (
       <Cadre>
@@ -256,26 +300,92 @@ export function CoffreVue({ nomComplet, apercu }: { nomComplet: string; apercu: 
         <p className="text-[12px] text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">{info}</p>
       )}
       {erreur && <p className="text-[12px] text-red-600">{erreur}</p>}
+
       {coffres.map((c) => (
         <CoffrePanel
           key={c.id}
           coffre={c}
+          monUserId={monUserId}
+          annuaire={annuaire}
           onAjout={(secret) => setCoffres((prev) => prev.map((x) => (x.id === c.id ? secret : x)))}
           onErreur={setErreur}
         />
       ))}
+
+      <CreerPartage services={services} busy={busy} onCreer={creerPartage} />
     </div>
   );
 }
 
-// --- Un coffre + ses secrets + ajout ---------------------------------------
+// --- Creation d'un coffre partage (reseau / service) -----------------------
+
+function CreerPartage({
+  services,
+  busy,
+  onCreer,
+}: {
+  services: ServiceOrg[];
+  busy: boolean;
+  onCreer: (scope: "network" | "service", nom: string, serviceId?: string) => void;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [nom, setNom] = useState("");
+  const [cible, setCible] = useState("network");
+
+  function creer() {
+    const nomFinal = nom.trim() || (cible === "network" ? "Reseau" : services.find((s) => `service:${s.id}` === cible)?.nom || "Service");
+    if (cible === "network") onCreer("network", nomFinal);
+    else onCreer("service", nomFinal, cible.slice("service:".length));
+    setNom("");
+    setOuvert(false);
+  }
+
+  if (!ouvert) {
+    return (
+      <button
+        onClick={() => setOuvert(true)}
+        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] text-green-700 hover:bg-green-50 border border-dashed border-line rounded-lg"
+      >
+        <Network className="w-3.5 h-3.5" strokeWidth={1.5} /> Creer un coffre partage
+      </button>
+    );
+  }
+  return (
+    <div className="border border-line rounded-lg bg-surface px-4 py-3 flex flex-col gap-2">
+      <div className="text-[13px] font-medium text-ink">Nouveau coffre partage</div>
+      <div className="flex gap-2">
+        <select className={champClasse} value={cible} onChange={(e) => setCible(e.target.value)}>
+          <option value="network">Reseau (tous les collaborateurs)</option>
+          {services.map((s) => (
+            <option key={s.id} value={`service:${s.id}`}>
+              Service - {s.nom}
+            </option>
+          ))}
+        </select>
+        <input className={champClasse} placeholder="Nom (optionnel)" value={nom} onChange={(e) => setNom(e.target.value)} />
+      </div>
+      <div className="flex gap-2">
+        <Bouton onClick={creer} busy={busy} label="Creer" icone={Plus} />
+        <button onClick={() => setOuvert(false)} className="text-[12px] text-ink-3 hover:text-ink px-3">
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// --- Un coffre + ses secrets + (si partage et admin) ses membres -----------
 
 function CoffrePanel({
   coffre,
+  monUserId,
+  annuaire,
   onAjout,
   onErreur,
 }: {
   coffre: CoffreOuvert;
+  monUserId: string;
+  annuaire: CollaborateurAnnuaire[];
   onAjout: (c: CoffreOuvert) => void;
   onErreur: (e: string | null) => void;
 }) {
@@ -283,6 +393,13 @@ function CoffrePanel({
   const [ajout, setAjout] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<SecretClair>({ titre: "", url: "", login: "", motDePasse: "", notes: "" });
+
+  const partage = coffre.scope !== "personal";
+  const admin = coffre.role === "admin";
+
+  // --- membres (coffres partages, admin) ---
+  const [gestion, setGestion] = useState(false);
+  const [membres, setMembres] = useState<MembreAffiche[] | null>(null);
 
   function basculer(id: string) {
     setReveles((prev) => {
@@ -310,12 +427,107 @@ function CoffrePanel({
     }
   }
 
+  async function chargerMembres() {
+    setGestion(true);
+    try {
+      setMembres(await listerMembresAction(coffre.id));
+    } catch (e) {
+      onErreur((e as Error).message);
+    }
+  }
+
+  async function octroyer(membre: CollaborateurAnnuaire) {
+    onErreur(null);
+    setBusy(true);
+    try {
+      const wrapped = await enroberCoffrePour(coffre.vaultKey, membre.publicKey);
+      await octroyerAccesAction(coffre.id, membre.id, wrapped);
+      setMembres(await listerMembresAction(coffre.id));
+    } catch (e) {
+      onErreur((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retirer(userId: string) {
+    onErreur(null);
+    setBusy(true);
+    try {
+      await retirerAccesAction(coffre.id, userId);
+      setMembres(await listerMembresAction(coffre.id));
+    } catch (e) {
+      onErreur((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const candidats = annuaire.filter(
+    (a) => a.id !== monUserId && !(membres ?? []).some((m) => m.userId === a.id),
+  );
+
   return (
     <div className="border border-line rounded-lg bg-surface">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
-        <span className="text-[13px] font-medium text-ink">{coffre.nom}</span>
-        <span className="text-[11px] text-ink-4 font-mono">{coffre.secrets.length} secret(s)</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-medium text-ink">{coffre.nom}</span>
+          {partage && (
+            <span className="text-[10.5px] uppercase tracking-wide text-ink-3 bg-surface-2 rounded px-1.5 py-0.5">
+              {LIBELLE_SCOPE[coffre.scope]}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {partage && admin && (
+            <button
+              onClick={() => (gestion ? setGestion(false) : chargerMembres())}
+              className="flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink"
+            >
+              <Users className="w-3.5 h-3.5" strokeWidth={1.5} /> Membres
+            </button>
+          )}
+          <span className="text-[11px] text-ink-4 font-mono">{coffre.secrets.length} secret(s)</span>
+        </div>
       </div>
+
+      {gestion && partage && admin && (
+        <div className="px-4 py-3 border-b border-line bg-surface-2/40 flex flex-col gap-2">
+          <div className="text-[12px] font-medium text-ink-2">Membres</div>
+          {membres === null ? (
+            <div className="text-[12px] text-ink-3">Chargement...</div>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {membres.map((m) => (
+                <li key={m.userId} className="flex items-center justify-between text-[12.5px]">
+                  <span className="text-ink">
+                    {m.nom} {m.role === "admin" && <span className="text-ink-4">(admin)</span>}
+                  </span>
+                  {m.userId !== monUserId && (
+                    <button onClick={() => retirer(m.userId)} disabled={busy} className="text-red-600 hover:text-red-700 p-0.5" title="Retirer">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {candidats.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {candidats.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => octroyer(a)}
+                  disabled={busy}
+                  className="flex items-center gap-1 text-[11.5px] text-green-700 border border-green-200 hover:bg-green-50 rounded-full px-2 py-0.5 disabled:opacity-60"
+                >
+                  <Plus className="w-3 h-3" strokeWidth={2} /> {a.nomComplet || a.email}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {coffre.secrets.length === 0 && !ajout && (
         <p className="px-4 py-6 text-[12.5px] text-ink-3 text-center">Aucun mot de passe pour l&apos;instant.</p>

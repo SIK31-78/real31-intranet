@@ -6,6 +6,8 @@ import type { CoffreIdentiteRepository, NouveauCollaborateur } from "@/lib/ports
 import type {
   Collaborateur,
   ClePubliqueMembre,
+  CollaborateurAnnuaire,
+  ServiceOrg,
   Deverrouillage,
   MethodeDeverrouillage,
   BlobChiffreStocke,
@@ -101,6 +103,24 @@ export class SupabaseCoffreIdentiteRepository implements CoffreIdentiteRepositor
       userId: r.id,
       publicKey: r.public_key,
     }));
+  }
+
+  async listerCollaborateurs(): Promise<CollaborateurAnnuaire[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_pm_user")
+      .select("id, email, display_name, public_key");
+    if (error) throw new Error(`Lecture annuaire pm_user : ${error.message}`);
+    return ((data as { id: string; email: string; display_name: string | null; public_key: string }[] | null) ?? []).map(
+      (r) => ({ id: r.id, email: r.email, publicKey: r.public_key, ...(r.display_name ? { nomComplet: r.display_name } : {}) }),
+    );
+  }
+
+  async listerServices(): Promise<ServiceOrg[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase.from("intranet_pm_service").select("id, name").order("name");
+    if (error) throw new Error(`Lecture pm_service : ${error.message}`);
+    return ((data as { id: string; name: string }[] | null) ?? []).map((r) => ({ id: r.id, nom: r.name }));
   }
 
   async listerDeverrouillages(userId: string): Promise<Deverrouillage[]> {

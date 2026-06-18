@@ -8,7 +8,11 @@ import type {
   SecretChiffre,
   BlobChiffreStocke,
   CleEnrobeeMembre,
+  CollaborateurAnnuaire,
+  ServiceOrg,
+  Membership,
   MethodeDeverrouillage,
+  ScopeCoffre,
 } from "@/lib/domain/coffre";
 import { getCoffreRepository, getCoffreIdentiteRepository } from "@/lib/adapters/router";
 
@@ -79,4 +83,55 @@ export async function ajouterDeverrouillageCoffre(
   params: Record<string, unknown>,
 ): Promise<void> {
   await getCoffreIdentiteRepository().ajouterDeverrouillage(userId, method, wrappedPrivateKey, params);
+}
+
+// --- Coffres partages (reseau / service) -----------------------------------
+
+/** Annuaire des collaborateurs enroles (avec cle publique), pour l'octroi. */
+export async function listerAnnuaire(): Promise<CollaborateurAnnuaire[]> {
+  return getCoffreIdentiteRepository().listerCollaborateurs();
+}
+
+/** Services de l'organisation (pour cibler un coffre de service). */
+export async function listerServicesCoffre(): Promise<ServiceOrg[]> {
+  return getCoffreIdentiteRepository().listerServices();
+}
+
+/** Cree un coffre partage (reseau ou service) ; le createur en est l'admin. */
+export async function creerCoffrePartage(
+  scope: Exclude<ScopeCoffre, "personal" | "agency">,
+  nom: string,
+  premierMembre: { userId: string; wrappedVaultKey: CleEnrobeeMembre },
+  serviceId?: string,
+): Promise<string> {
+  return getCoffreRepository().creerCoffre(
+    { scope, nom, ...(serviceId ? { serviceId } : {}) },
+    { userId: premierMembre.userId, wrappedVaultKey: premierMembre.wrappedVaultKey },
+  );
+}
+
+/** Octroie l'acces d'un coffre a un membre (sa cle de coffre enrobee vers lui). */
+export async function octroyerAcces(
+  coffreId: string,
+  userId: string,
+  wrappedVaultKey: CleEnrobeeMembre,
+  grantedBy: string,
+): Promise<void> {
+  await getCoffreRepository().ajouterMembership({
+    coffreId,
+    userId,
+    role: "member",
+    wrappedVaultKey,
+    grantedBy,
+  });
+}
+
+/** Retire l'acces d'un membre (coupe les lectures futures via RLS/cloisonnement).
+ *  La rotation complete de la cle du coffre est traitee en phase 5. */
+export async function retirerAcces(coffreId: string, userId: string): Promise<void> {
+  await getCoffreRepository().retirerMembership(coffreId, userId);
+}
+
+export async function listerMembres(coffreId: string): Promise<Membership[]> {
+  return getCoffreRepository().listerMemberships(coffreId);
 }
