@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
-import { LayoutDashboard, Inbox, Calendar, Building2, Library, Calculator } from "lucide-react";
+import { LayoutDashboard, Inbox, Mail, Calendar, Building2, Library, Calculator } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export type NavKey =
   | "dashboard"
   | "evenements"
+  | "emails"
   | "calendrier"
   | "copros"
   | "resolutions"
@@ -24,6 +25,7 @@ type Item = {
 const TRAVAIL: Item[] = [
   { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { key: "evenements", label: "Mes événements", href: "/mes-evenements", icon: Inbox },
+  { key: "emails", label: "Mes emails", href: "/mes-emails", icon: Mail },
   { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
   { key: "resolutions", label: "Résolutions", href: "/resolutions", icon: Library },

@@ -12,12 +12,14 @@ import type { SupervisionAgProvider } from "@/lib/ports/supervision-ag-provider"
 import type { CoproRepository } from "@/lib/ports/copro-repository";
 import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
 import type { MesEvenementsProvider } from "@/lib/ports/mes-evenements-provider";
+import type { MesEmailsProvider } from "@/lib/ports/mes-emails-provider";
 import { MockDashboardProvider } from "@/lib/adapters/mock/mock-dashboard-provider";
 import { MockCalendrierProvider } from "@/lib/adapters/mock/mock-calendrier-provider";
 import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-ag-provider";
 import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
 import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
 import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
+import { MockMesEmailsProvider } from "@/lib/adapters/mock/mock-mes-emails-provider";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -86,6 +88,12 @@ export function getCondoEstaleProvider(): CondoEstaleProvider {
 // evenements + referentiel ; pour l'instant un agregat mocke.
 export function getMesEvenementsProvider(): MesEvenementsProvider {
   return new MockMesEvenementsProvider();
+}
+
+// Boite mail triee "Mes emails" (resultat du tri assistant-ia, backtest). Mock
+// (donnees anonymisees) pour l'instant ; le vrai branchement se fera ICI.
+export function getMesEmailsProvider(): MesEmailsProvider {
+  return new MockMesEmailsProvider();
 }
 
 // Etat de l'ODJ (saisies du gestionnaire + points legaux retires). En reel :

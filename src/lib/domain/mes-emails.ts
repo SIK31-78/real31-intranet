@@ -1,0 +1,169 @@
+// Domaine de l'ecran "Mes emails" : cockpit de traitement des mails entrants.
+// Flux par mail : reception -> analyse -> rattachement a un dossier (ou
+// nouveau) -> historique du dossier -> reponse + flow d'actions proposes ->
+// classement + MAJ du dossier. Types metier purs (ADR-001).
+//
+// Note archi : l'analyse vient d'un port (AnalyseMailProvider, a venir) ; mock
+// aujourd'hui, API demain, modele local plus tard = swap d'adapter, sans toucher ici.
+
+import type { Severite } from "@/lib/domain/commun";
+
+/** Ton du badge de priorite : rouge (urgent), ambre (a traiter), neutre (info). */
+export type UrgenceTon = "err" | "warn" | "neutral";
+
+export interface BadgeUrgence {
+  texte: string;
+  ton: UrgenceTon;
+}
+
+/** Taxonomie de tete du tri (cf. assistant-ia/src/types.ts). */
+export type TypeMail =
+  | "panne_intervention"
+  | "sinistre_degat_eaux"
+  | "demande_copro_cs"
+  | "devis_validation"
+  | "facture_contrat_fournisseur"
+  | "comptabilite"
+  | "ag_cs"
+  | "vefa_reserves"
+  | "non_ticketable"
+  | "autre";
+
+/** Libelle affichable du type classe. */
+export const LIBELLE_TYPE: Record<TypeMail, string> = {
+  panne_intervention: "Panne / intervention",
+  sinistre_degat_eaux: "Sinistre dégât des eaux",
+  demande_copro_cs: "Demande copro / CS",
+  devis_validation: "Devis / validation",
+  facture_contrat_fournisseur: "Facture / contrat",
+  comptabilite: "Comptabilité",
+  ag_cs: "AG / CS",
+  vefa_reserves: "VEFA / réserves",
+  non_ticketable: "Sans action",
+  autre: "Autre",
+};
+
+/** Une etape du flow d'actions propose par l'assistant. */
+export interface ActionFlow {
+  ordre: number;
+  libelle: string;
+}
+
+/** Rattachement du mail a un dossier (affaire) existant ou nouveau. */
+export interface Rattachement {
+  statut: "existant" | "nouveau";
+  dossierId: string;
+  dossierLabel: string;
+  /** Confiance du rattachement (%) si dossier existant. */
+  confiance?: number;
+}
+
+/** Piece jointe signifiante (les images de signature sont deja ecartees). */
+export interface PieceJointe {
+  nom: string;
+}
+
+/** Un mail entrant en cours de traitement. */
+export interface MailEntrant {
+  id: string;
+  /** Nom affiche de l'expediteur, ex "M. Bardet (copropriétaire)". */
+  de: string;
+  /** Adresse email de l'expediteur. */
+  expediteurEmail: string;
+  /** Destinataires (champ A). */
+  destinataires: string[];
+  /** Copie (champ Cc). */
+  copie: string[];
+  objet: string;
+  /** Date ISO "YYYY-MM-DD" de reception. */
+  date: string;
+  /** Copropriete d'origine (la boite agrege plusieurs copros). */
+  coproCode: string;
+  coproNom: string;
+  /** Lu / non lu (feeling boite mail ; passe a true a l'ouverture). */
+  lu: boolean;
+  /** Corps complet du mail (deja nettoye). */
+  corps: string;
+  attachments: PieceJointe[];
+  // --- Analyse ---
+  type: TypeMail;
+  ticketable: boolean;
+  priorite: Severite;
+  badge: BadgeUrgence;
+  rattachement: Rattachement;
+  // --- Propositions ---
+  brouillonReponse?: string;
+  flow: ActionFlow[];
+}
+
+export type EvenementKind = "mail" | "action" | "pj" | "jalon";
+
+/** Un evenement de l'historique d'un dossier (timeline). */
+export interface EvenementDossier {
+  /** Date ISO "YYYY-MM-DD". */
+  date: string;
+  acteur: string;
+  resume: string;
+  kind: EvenementKind;
+}
+
+/** Un dossier (affaire) suivi dans le temps, avec son historique. */
+export interface Dossier {
+  id: string;
+  label: string;
+  coproCode: string;
+  coproNom: string;
+  type: TypeMail;
+  /** Historique du plus recent au plus ancien. */
+  historique: EvenementDossier[];
+}
+
+/**
+ * Contexte metier REEL d'une copropriete, source eStale (CS, AG, comptes...).
+ * Enrichit le dossier d'un mail. Construit par le service depuis DonneesEstaleCopro
+ * (port CondoEstaleProvider) ; `disponible=false` si la copro n'est pas sur eStale
+ * ou si eStale est indisponible (degradation propre).
+ */
+export interface ContexteCopro {
+  coproCode: string;
+  disponible: boolean;
+  conseilSyndical: { nomComplet: string; role: "president" | "membre" }[];
+  derniereAg?: { date: string; type: "AG" | "AGE"; pvDispo?: boolean };
+  budgetPrevisionnel?: number;
+  depensesCourantes?: number;
+  fondsTravaux?: number;
+  nbProcedures?: number;
+  nbDebiteurs?: number;
+  contrats?: { libelle: string; categorie: string }[];
+  anneeConstruction?: number;
+}
+
+export interface MesEmails {
+  gestionnaire: { nomComplet: string; initiales: string };
+  /** Nombre de mails du backtest passes au tri. */
+  nbMailsAnalyses: number;
+  /** Date du jour deja formatee, ex "12 juin 2026". */
+  dateCourante: string;
+  mails: MailEntrant[];
+  dossiers: Dossier[];
+  /** Contexte eStale par copro (rempli par le service). */
+  contextes: ContexteCopro[];
+}
+
+const ORDRE_SEVERITE: Record<Severite, number> = { late: 0, soon: 1, ok: 2 };
+
+/** Trie les mails par priorite (urgent d'abord) puis par date decroissante. */
+export function trierMails(mails: MailEntrant[]): MailEntrant[] {
+  return [...mails].sort(
+    (a, b) =>
+      ORDRE_SEVERITE[a.priorite] - ORDRE_SEVERITE[b.priorite] || b.date.localeCompare(a.date),
+  );
+}
+
+export function trouverDossier(dossiers: Dossier[], id: string): Dossier | undefined {
+  return dossiers.find((d) => d.id === id);
+}
+
+export function trouverContexte(contextes: ContexteCopro[], coproCode: string): ContexteCopro | undefined {
+  return contextes.find((c) => c.coproCode === coproCode);
+}
