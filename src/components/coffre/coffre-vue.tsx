@@ -6,7 +6,7 @@
 // membre). Le serveur ne recoit que des blobs chiffres.
 
 import { useState, type ReactNode, type ComponentType } from "react";
-import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X } from "lucide-react";
+import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload } from "lucide-react";
 import {
   enrolerMotDePasse,
   deverrouillerMotDePasse,
@@ -30,6 +30,7 @@ import {
   listerMembresAction,
   type MembreAffiche,
 } from "@/app/coffre/actions";
+import { ImportPanel } from "@/components/coffre/import-panel";
 import type { ApercuCoffre } from "@/lib/services/coffre/coffre-service";
 import type { SecretClair, RoleMembre, ScopeCoffre, CollaborateurAnnuaire, ServiceOrg } from "@/lib/domain/coffre";
 
@@ -391,8 +392,18 @@ function CoffrePanel({
 }) {
   const [reveles, setReveles] = useState<Set<string>>(new Set());
   const [ajout, setAjout] = useState(false);
+  const [importer, setImporter] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<SecretClair>({ titre: "", url: "", login: "", motDePasse: "", notes: "" });
+
+  // Recharge et redechiffre les secrets du coffre (apres un import).
+  async function rechargerSecrets() {
+    const chiffres = await chargerSecretsAction(coffre.id);
+    const secrets = await Promise.all(
+      chiffres.map(async (s) => ({ id: s.id, clair: await dechiffrerSecret(coffre.vaultKey, s.blob) })),
+    );
+    onAjout({ ...coffre, secrets });
+  }
 
   const partage = coffre.scope !== "personal";
   const admin = coffre.role === "admin";
@@ -560,7 +571,15 @@ function CoffrePanel({
         ))}
       </ul>
 
-      {ajout ? (
+      {importer ? (
+        <ImportPanel
+          coffreId={coffre.id}
+          vaultKey={coffre.vaultKey}
+          secretsExistants={coffre.secrets.map((s) => s.clair)}
+          onTermine={rechargerSecrets}
+          onErreur={onErreur}
+        />
+      ) : ajout ? (
         <div className="px-4 py-3 border-t border-line flex flex-col gap-2">
           <input className={champClasse} placeholder="Titre (ex: Logiciel Vente)" value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} autoFocus />
           <div className="flex gap-2">
@@ -576,12 +595,20 @@ function CoffrePanel({
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setAjout(true)}
-          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] text-green-700 hover:bg-green-50 border-t border-line"
-        >
-          <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Ajouter un mot de passe
-        </button>
+        <div className="flex border-t border-line text-[12.5px]">
+          <button
+            onClick={() => setAjout(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-green-700 hover:bg-green-50"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Ajouter un mot de passe
+          </button>
+          <button
+            onClick={() => setImporter(true)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-ink-3 hover:text-ink border-l border-line"
+          >
+            <Upload className="w-3.5 h-3.5" strokeWidth={1.5} /> Importer (CSV)
+          </button>
+        </div>
       )}
     </div>
   );

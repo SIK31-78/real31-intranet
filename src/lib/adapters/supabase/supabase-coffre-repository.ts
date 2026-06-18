@@ -201,4 +201,21 @@ export class SupabaseCoffreRepository implements CoffreRepository {
     const { error } = await supabase.from("intranet_pm_secret").delete().eq("id", secretId);
     if (error) throw new Error(`Suppression pm_secret : ${error.message}`);
   }
+
+  async ajouterSecrets(
+    coffreId: string,
+    items: { blob: BlobChiffreStocke; cryptoVersion: number }[],
+    createdBy?: string,
+  ): Promise<void> {
+    if (items.length === 0) return;
+    const supabase = createSupabasePublicClient();
+    const rows = items.map((it) => ({
+      vault_id: coffreId,
+      blob: it.blob,
+      crypto_version: it.cryptoVersion,
+      created_by: createdBy ?? null,
+    }));
+    const { error } = await supabase.from("intranet_pm_secret").insert(rows);
+    if (error) throw new Error(`Import pm_secret : ${error.message}`);
+  }
 }

@@ -95,4 +95,24 @@ export class MockCoffreRepository implements CoffreRepository {
   async supprimerSecret(secretId: string): Promise<void> {
     secrets.delete(secretId);
   }
+
+  async ajouterSecrets(
+    coffreId: string,
+    items: { blob: BlobChiffreStocke; cryptoVersion: number }[],
+    createdBy?: string,
+  ): Promise<void> {
+    const maintenant = new Date().toISOString();
+    for (const it of items) {
+      const id = globalThis.crypto.randomUUID();
+      secrets.set(id, {
+        id,
+        coffreId,
+        blob: it.blob,
+        cryptoVersion: it.cryptoVersion,
+        createdBy,
+        createdAt: maintenant,
+        updatedAt: maintenant,
+      });
+    }
+  }
 }

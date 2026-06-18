@@ -16,6 +16,7 @@ import {
   retirerAcces,
   listerMembres,
   listerAnnuaire,
+  importerSecretsCoffre,
 } from "@/lib/services/coffre/coffre-service";
 import type { BlobChiffreStocke, CleEnrobeeMembre, SecretChiffre } from "@/lib/domain/coffre";
 
@@ -136,4 +137,17 @@ export async function octroyerAccesAction(
 export async function retirerAccesAction(coffreId: string, userId: string): Promise<void> {
   await exigerAdmin(coffreId);
   await retirerAcces(coffreId, userId);
+}
+
+export async function importerSecretsAction(
+  coffreId: string,
+  items: { blob: BlobChiffreStocke; cryptoVersion: number }[],
+): Promise<void> {
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.collaborateur || !apercu.coffres.some((c) => c.id === coffreId)) {
+    throw new Error("Coffre non accessible");
+  }
+  await importerSecretsCoffre(coffreId, items, apercu.collaborateur.id);
 }

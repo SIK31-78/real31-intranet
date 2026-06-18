@@ -135,3 +135,12 @@ export async function retirerAcces(coffreId: string, userId: string): Promise<vo
 export async function listerMembres(coffreId: string): Promise<Membership[]> {
   return getCoffreRepository().listerMemberships(coffreId);
 }
+
+/** Import par lot de secrets deja chiffres cote client. */
+export async function importerSecretsCoffre(
+  coffreId: string,
+  items: { blob: BlobChiffreStocke; cryptoVersion: number }[],
+  createdBy: string,
+): Promise<void> {
+  await getCoffreRepository().ajouterSecrets(coffreId, items, createdBy);
+}

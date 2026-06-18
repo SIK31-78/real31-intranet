@@ -49,4 +49,11 @@ export interface CoffreRepository {
   ): Promise<string>;
   modifierSecret(secretId: string, blob: BlobChiffreStocke, cryptoVersion: number): Promise<void>;
   supprimerSecret(secretId: string): Promise<void>;
+
+  /** Insertion par lot (import) de secrets deja chiffres. */
+  ajouterSecrets(
+    coffreId: string,
+    items: { blob: BlobChiffreStocke; cryptoVersion: number }[],
+    createdBy?: string,
+  ): Promise<void>;
 }
