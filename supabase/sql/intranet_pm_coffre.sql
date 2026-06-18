@@ -49,7 +49,7 @@ create table if not exists public.intranet_pm_user (
   email         text not null,
   display_name  text,
   agency_id     uuid references public.intranet_pm_agency (id),
-  public_key    bytea not null,            -- cle publique ECDH P-256 (publique par nature)
+  public_key    text not null,             -- cle publique ECDH P-256 (spki), base64 (publique par nature)
   status        text not null default 'active',  -- active | suspended
   created_at    timestamptz not null default now()
 );
@@ -74,7 +74,8 @@ create table if not exists public.intranet_pm_user_unlock (
   label                 text,              -- ex "Poste bureau", "Cle de recuperation"
   -- cle privee ECDH de l'utilisateur, chiffree par la cle d'enrobage derivee de
   -- la methode (PRF, KDF du master password, etc.). Le serveur ne peut pas la lire.
-  wrapped_private_key   bytea not null,
+  -- jsonb : BlobChiffreStocke { iv, ciphertext } (base64).
+  wrapped_private_key   jsonb not null,
   -- parametres publics necessaires au deverrouillage cote client :
   -- credential_id de la passkey, salt + iterations KDF, algo, version crypto...
   params                jsonb not null default '{}'::jsonb,
@@ -130,8 +131,9 @@ create table if not exists public.intranet_pm_membership (
   role              text not null default 'member',  -- member | admin
   -- cle AES-256-GCM du coffre, chiffree vers la cle publique du membre
   -- (ECDH + wrap). Calculee par un CLIENT (membre existant) ; le serveur la
-  -- stocke sans pouvoir la lire.
-  wrapped_vault_key bytea not null,
+  -- stocke sans pouvoir la lire. jsonb : CleEnrobeeMembre
+  -- { ephemeralPublicKey, iv, ciphertext } (base64).
+  wrapped_vault_key jsonb not null,
   granted_by        uuid references public.intranet_pm_user (id),  -- tracabilite de l'octroi
   created_at        timestamptz not null default now(),
   unique (vault_id, user_id)
@@ -146,8 +148,9 @@ create index if not exists intranet_pm_membership_user_idx
 create table if not exists public.intranet_pm_secret (
   id              uuid primary key default gen_random_uuid(),
   vault_id        uuid not null references public.intranet_pm_vault (id) on delete cascade,
-  encrypted_blob  bytea not null,          -- AES-256-GCM
-  nonce           bytea not null,          -- IV unique par chiffrement, jamais reutilise
+  -- jsonb : BlobChiffreStocke { iv, ciphertext } (base64, AES-256-GCM ; l'IV est
+  -- neuf a chaque chiffrement, jamais reutilise).
+  blob            jsonb not null,
   crypto_version  integer not null default 1,  -- agilite crypto : algo/params versionnes
   created_by      uuid references public.intranet_pm_user (id),
   created_at      timestamptz not null default now(),

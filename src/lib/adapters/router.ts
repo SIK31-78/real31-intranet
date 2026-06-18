@@ -47,6 +47,8 @@ import type { CoffreRepository } from "@/lib/ports/coffre-repository";
 import type { CoffreIdentiteRepository } from "@/lib/ports/coffre-identite-repository";
 import { MockCoffreRepository } from "@/lib/adapters/mock/mock-coffre-repository";
 import { MockCoffreIdentiteRepository } from "@/lib/adapters/mock/mock-coffre-identite-repository";
+import { SupabaseCoffreRepository } from "@/lib/adapters/supabase/supabase-coffre-repository";
+import { SupabaseCoffreIdentiteRepository } from "@/lib/adapters/supabase/supabase-coffre-identite-repository";
 
 export type { DbHealth };
 
@@ -138,13 +140,16 @@ export function getComptaRepository(): ComptaRepository {
   return new MockComptaRepository();
 }
 
-// Gestionnaire de mots de passe (ADR-025). Mock pour l'instant ; l'adapter
-// Supabase (tables intranet_pm_*) + le pont d'identite arrivent en phase 1.
+// Gestionnaire de mots de passe (ADR-025). Tables intranet_pm_* en Supabase
+// (service_role) quand COPRO_SOURCE=supabase, sinon mock en memoire. Le serveur
+// ne voit que des blobs chiffres dans les deux cas (zero-knowledge).
 export function getCoffreRepository(): CoffreRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoffreRepository();
   return new MockCoffreRepository();
 }
 
 export function getCoffreIdentiteRepository(): CoffreIdentiteRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoffreIdentiteRepository();
   return new MockCoffreIdentiteRepository();
 }
 
