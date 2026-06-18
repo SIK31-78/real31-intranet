@@ -38,6 +38,9 @@ import { MockBibliothequeResolutions } from "@/lib/adapters/mock/mock-bibliotheq
 import type { AssembleeEstaleProvider } from "@/lib/ports/assemblee-estale-provider";
 import { EstaleAssembleeProvider } from "@/lib/adapters/estale/estale-assemblee-provider";
 import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-estale-provider";
+import type { ComptaRepository } from "@/lib/ports/compta-repository";
+import { SupabaseComptaRepository } from "@/lib/adapters/supabase/supabase-compta-repository";
+import { MockComptaRepository } from "@/lib/adapters/mock/mock-compta-repository";
 
 export type { DbHealth };
 
@@ -114,6 +117,13 @@ export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
     return new EstaleAssembleeProvider();
   }
   return new MockAssembleeEstaleProvider();
+}
+
+// Pole compta (notes gestionnaire <-> comptable + flags). Table native
+// intranet_compta_notes ; flags dans intranet_odj_champs. Meme bascule que le reste.
+export function getComptaRepository(): ComptaRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseComptaRepository();
+  return new MockComptaRepository();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
