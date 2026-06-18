@@ -43,6 +43,10 @@ import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-
 import type { ComptaRepository } from "@/lib/ports/compta-repository";
 import { SupabaseComptaRepository } from "@/lib/adapters/supabase/supabase-compta-repository";
 import { MockComptaRepository } from "@/lib/adapters/mock/mock-compta-repository";
+import type { CoffreRepository } from "@/lib/ports/coffre-repository";
+import type { CoffreIdentiteRepository } from "@/lib/ports/coffre-identite-repository";
+import { MockCoffreRepository } from "@/lib/adapters/mock/mock-coffre-repository";
+import { MockCoffreIdentiteRepository } from "@/lib/adapters/mock/mock-coffre-identite-repository";
 
 export type { DbHealth };
 
@@ -132,6 +136,16 @@ export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
 export function getComptaRepository(): ComptaRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseComptaRepository();
   return new MockComptaRepository();
+}
+
+// Gestionnaire de mots de passe (ADR-025). Mock pour l'instant ; l'adapter
+// Supabase (tables intranet_pm_*) + le pont d'identite arrivent en phase 1.
+export function getCoffreRepository(): CoffreRepository {
+  return new MockCoffreRepository();
+}
+
+export function getCoffreIdentiteRepository(): CoffreIdentiteRepository {
+  return new MockCoffreIdentiteRepository();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
