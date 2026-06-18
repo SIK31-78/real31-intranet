@@ -548,10 +548,17 @@ function CoffrePanel({
         {coffre.secrets.map((s) => (
           <li key={s.id} className="px-4 py-2.5 flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] text-ink truncate">{s.clair.titre}</div>
+              <div className="text-[13px] text-ink truncate">
+                {s.clair.titre}
+                {(s.clair.copropriete || s.clair.immeuble) && (
+                  <span className="text-ink-3 font-normal">
+                    {" "}
+                    - {[s.clair.copropriete, s.clair.immeuble].filter(Boolean).join(" - ")}
+                  </span>
+                )}
+              </div>
               <div className="text-[11.5px] text-ink-3 truncate">
-                {s.clair.login}
-                {s.clair.url ? ` - ${s.clair.url}` : ""}
+                {[s.clair.login, s.clair.url].filter(Boolean).join(" - ")}
               </div>
             </div>
             <code className="text-[12px] text-ink-2 font-mono">
@@ -581,7 +588,11 @@ function CoffrePanel({
         />
       ) : ajout ? (
         <div className="px-4 py-3 border-t border-line flex flex-col gap-2">
-          <input className={champClasse} placeholder="Titre (ex: Logiciel Vente)" value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} autoFocus />
+          <input className={champClasse} placeholder="Titre (ex: EDF)" value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} autoFocus />
+          <div className="flex gap-2">
+            <input className={champClasse} placeholder="Copropriete" value={form.copropriete ?? ""} onChange={(e) => setForm({ ...form, copropriete: e.target.value })} />
+            <input className={champClasse} placeholder="Immeuble" value={form.immeuble ?? ""} onChange={(e) => setForm({ ...form, immeuble: e.target.value })} />
+          </div>
           <div className="flex gap-2">
             <input className={champClasse} placeholder="URL" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
             <input className={champClasse} placeholder="Identifiant" value={form.login} onChange={(e) => setForm({ ...form, login: e.target.value })} />

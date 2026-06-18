@@ -35,18 +35,25 @@ describe("parserCsv", () => {
 });
 
 describe("detecterColonnes (modele REAL31)", () => {
-  it("mappe Entreprise->titre, Identifiant->login, Mot de passe->motDePasse, Autre info->notes", () => {
+  it("mappe Entite->copropriete, Immeuble->immeuble, Entreprise->titre, Identifiant->login, Mot de passe, Autre info->notes", () => {
     const m = detecterColonnes(ENTETES);
-    expect(m).toEqual({ titre: 2, login: 3, motDePasse: 4, url: null, notes: 5 });
+    expect(m).toEqual({ titre: 2, copropriete: 0, immeuble: 1, login: 3, motDePasse: 4, url: null, notes: 5 });
   });
 });
 
 describe("versSecret", () => {
   const map = detecterColonnes(ENTETES);
 
-  it("transforme une ligne en secret", () => {
-    const s = versSecret(["- ", "Toutes", "EDF", "denis@real31.fr", "secret1", "SIRET 123"], map);
-    expect(s).toEqual({ titre: "EDF", motDePasse: "secret1", login: "denis@real31.fr", notes: "SIRET 123" });
+  it("transforme une ligne en secret (avec copropriete + immeuble)", () => {
+    const s = versSecret(["Toutes coproprietes", "40 JBONAL", "EDF", "denis@real31.fr", "secret1", "SIRET 123"], map);
+    expect(s).toEqual({
+      titre: "EDF",
+      copropriete: "Toutes coproprietes",
+      immeuble: "40 JBONAL",
+      login: "denis@real31.fr",
+      motDePasse: "secret1",
+      notes: "SIRET 123",
+    });
   });
 
   it("ignore une ligne sans mot de passe", () => {

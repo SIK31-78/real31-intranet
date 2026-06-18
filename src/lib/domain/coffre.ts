@@ -126,9 +126,12 @@ export interface SecretChiffre {
 }
 
 /** Secret EN CLAIR : n'existe qu'en memoire du navigateur, apres dechiffrement.
- *  C'est ce qui est serialise puis chiffre dans SecretChiffre.blob. */
+ *  C'est ce qui est serialise puis chiffre dans SecretChiffre.blob.
+ *  copropriete + immeuble = contexte metier REAL31 (colonnes Entite / Immeuble). */
 export interface SecretClair {
   titre: string;
+  copropriete?: string;
+  immeuble?: string;
   url?: string;
   login?: string;
   motDePasse: string;

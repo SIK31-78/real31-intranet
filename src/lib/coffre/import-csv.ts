@@ -12,12 +12,14 @@ export interface CsvParse {
   lignes: string[][];
 }
 
-export type ChampSecret = "titre" | "url" | "login" | "motDePasse" | "notes";
+export type ChampSecret = "titre" | "copropriete" | "immeuble" | "url" | "login" | "motDePasse" | "notes";
 export type Mapping = Record<ChampSecret, number | null>;
 
 /** Ordre d'affichage des champs cibles dans l'UI de mapping. */
 export const CHAMPS: { cle: ChampSecret; libelle: string }[] = [
   { cle: "titre", libelle: "Titre" },
+  { cle: "copropriete", libelle: "Copropriete" },
+  { cle: "immeuble", libelle: "Immeuble" },
   { cle: "login", libelle: "Identifiant" },
   { cle: "motDePasse", libelle: "Mot de passe" },
   { cle: "url", libelle: "URL" },
@@ -89,7 +91,9 @@ export function detecterColonnes(entetes: string[]): Mapping {
   return {
     motDePasse: trouve(/mot.?de.?passe|password|pass\b|mdp/),
     login: trouve(/identifiant|e.?mail|login|user|utilisateur|compte/),
-    url: trouve(/\burl\b|site|lien|adresse|web|domaine/),
+    copropriete: trouve(/entit|copro/),
+    immeuble: trouve(/immeuble|batiment|residence|adresse/),
+    url: trouve(/\burl\b|site|lien|web|domaine/),
     titre: trouve(/entreprise|fournisseur|titre|libell|application|outil|service|name|^nom$/),
     notes: trouve(/autre|info|note|remarque|commentaire|divers/),
   };
@@ -104,10 +108,14 @@ export function versSecret(ligne: string[], map: Mapping): SecretClair | null {
   const url = val(map.url);
   const login = val(map.login);
   const notes = val(map.notes);
-  const titre = val(map.titre) || url || login || "Sans titre";
+  const copropriete = val(map.copropriete);
+  const immeuble = val(map.immeuble);
+  const titre = val(map.titre) || copropriete || url || login || "Sans titre";
   return {
     titre,
     motDePasse,
+    ...(copropriete ? { copropriete } : {}),
+    ...(immeuble ? { immeuble } : {}),
     ...(url ? { url } : {}),
     ...(login ? { login } : {}),
     ...(notes ? { notes } : {}),
