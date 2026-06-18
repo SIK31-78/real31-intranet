@@ -1,0 +1,71 @@
+// Service du coffre : compose l'identite + les coffres via le routeur, jamais un
+// adapter en direct (ADR-001). Ne manipule que des blobs chiffres (zero-knowledge).
+
+import type {
+  Collaborateur,
+  Deverrouillage,
+  CoffreAccessible,
+  SecretChiffre,
+  BlobChiffreStocke,
+  CleEnrobeeMembre,
+} from "@/lib/domain/coffre";
+import { getCoffreRepository, getCoffreIdentiteRepository } from "@/lib/adapters/router";
+
+export interface ApercuCoffre {
+  collaborateur: Collaborateur | null;
+  deverrouillages: Deverrouillage[];
+  coffres: CoffreAccessible[];
+}
+
+/** Etat du coffre pour l'utilisateur : enrole ou non, ses coffres, ses methodes. */
+export async function getApercuCoffre(azureOid: string): Promise<ApercuCoffre> {
+  const identite = getCoffreIdentiteRepository();
+  const collaborateur = await identite.trouverParAzureOid(azureOid);
+  if (!collaborateur) return { collaborateur: null, deverrouillages: [], coffres: [] };
+  const [deverrouillages, coffres] = await Promise.all([
+    identite.listerDeverrouillages(collaborateur.id),
+    getCoffreRepository().listerCoffresAccessibles(collaborateur.id),
+  ]);
+  return { collaborateur, deverrouillages, coffres };
+}
+
+export async function getSecretsCoffre(coffreId: string): Promise<SecretChiffre[]> {
+  return getCoffreRepository().listerSecrets(coffreId);
+}
+
+export interface DemandeEnrolement {
+  azureOid: string;
+  email: string;
+  nomComplet?: string;
+  publicKey: string;
+  wrappedPrivateKey: BlobChiffreStocke;
+  params: Record<string, unknown>;
+  coffrePerso: { nom: string; wrappedVaultKey: CleEnrobeeMembre };
+}
+
+/** Enrole un collaborateur : cree son identite, sa methode de deverrouillage, et
+ *  son coffre perso (avec la cle de coffre deja enrobee vers lui-meme). */
+export async function enrolerCollaborateur(d: DemandeEnrolement): Promise<{ userId: string; coffreId: string }> {
+  const identite = getCoffreIdentiteRepository();
+  const collaborateur = await identite.creer({
+    azureOid: d.azureOid,
+    email: d.email,
+    nomComplet: d.nomComplet,
+    publicKey: d.publicKey,
+  });
+  await identite.ajouterDeverrouillage(collaborateur.id, "master_password", d.wrappedPrivateKey, d.params);
+  const coffreId = await getCoffreRepository().creerCoffre(
+    { scope: "personal", nom: d.coffrePerso.nom, ownerId: collaborateur.id },
+    { userId: collaborateur.id, wrappedVaultKey: d.coffrePerso.wrappedVaultKey },
+  );
+  return { userId: collaborateur.id, coffreId };
+}
+
+export async function ajouterSecretCoffre(
+  coffreId: string,
+  blob: BlobChiffreStocke,
+  cryptoVersion: number,
+  createdBy: string,
+): Promise<string> {
+  return getCoffreRepository().ajouterSecret(coffreId, blob, cryptoVersion, createdBy);
+}

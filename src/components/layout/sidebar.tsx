@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { LayoutDashboard, Inbox, Mail, Calendar, Building2, Library, Calculator } from "lucide-react";
+import { LayoutDashboard, Inbox, Mail, Calendar, Building2, Library, Calculator, KeyRound } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export type NavKey =
@@ -10,6 +10,7 @@ export type NavKey =
   | "copros"
   | "resolutions"
   | "compta"
+  | "coffre"
   | "equipe"
   | "toutes-copros"
   | "sinistres";
@@ -30,6 +31,7 @@ const TRAVAIL: Item[] = [
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
   { key: "resolutions", label: "Résolutions", href: "/resolutions", icon: Library },
   { key: "compta", label: "Pôle compta", href: "/compta", icon: Calculator },
+  { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
 ];
 
 function NavItem({ item, active }: { item: Item; active: boolean }) {
