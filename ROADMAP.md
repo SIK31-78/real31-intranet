@@ -273,6 +273,8 @@ Stabilisation, paperasse, lancement.
 
 ### Passage en prod Vercel - SSO (checklist, aucune modif de code)
 
+✅ **1er déploiement Vercel fait (2026-06-18)** : branche `increment/02-supabase` en production + `demo/mes-emails` en preview ; env vars Supabase + eStale + `SITE_PASSWORD` (gate) + `AUTH_SECRET` posées. **SSO OFF** (gate seul) -> déploiement **test perso / interne** (mot de passe gardé par Sekou), pas encore ouvert aux gestionnaires car le mode CS **écrit dans le vrai eStale** + pas de vraie auth. Reste pour ouvrir aux gestionnaires : SSO (ci-dessous) + cloisonnement.
+
 Le code est prêt (`src/auth.ts` a `trustHost: true` -> Auth.js déduit l'URL depuis le host, rien à recompiler entre local et prod). Au déploiement, c'est uniquement de la **config d'environnement** :
 
 - 🔲 **Ajouter la Redirect URI de prod dans l'App Registration Entra** : `https://<domaine-prod>/api/auth/callback/microsoft-entra-id` (Entra exige chaque URL explicitement, pas de wildcard). Déjà listée dans `docs/entra-app-registration.md` section 3 -> à faire déclarer **dès la création de l'app** par le patron pour éviter un 2e aller-retour.
