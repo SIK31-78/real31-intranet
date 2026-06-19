@@ -60,11 +60,16 @@ export class SupabaseJalonRepository implements JalonRepository {
 
   async getEtats(coproCodes: string[]): Promise<EtatJalon[]> {
     if (coproCodes.length === 0) return [];
+    // Borne temporelle : jalons dont l'AG est dans la fenetre -12 mois / aujourd'hui.
+    const borneMin = new Date();
+    borneMin.setMonth(borneMin.getMonth() - 12);
+    const borneMinISO = borneMin.toISOString().slice(0, 10);
     const supabase = createSupabasePublicClient();
     const { data } = await supabase
       .from("intranet_jalons")
       .select("copropriete_id, ag_date, type, statut, marque_par, marque_at")
-      .in("copropriete_id", coproCodes);
+      .in("copropriete_id", coproCodes)
+      .gte("ag_date", borneMinISO);
     type Row = {
       copropriete_id: string;
       ag_date: string;

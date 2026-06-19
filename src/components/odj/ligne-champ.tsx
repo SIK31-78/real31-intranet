@@ -97,6 +97,7 @@ export function LigneChamp({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             autoFocus
+            aria-label={champ.libelle}
             inputMode={champ.type === "montant" || champ.type === "pourcentage" ? "decimal" : "text"}
             className="flex-1 h-8 px-2.5 rounded-sm border border-line bg-surface text-[12.5px] focus:outline-none focus:border-line-2"
             placeholder={

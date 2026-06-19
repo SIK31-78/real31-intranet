@@ -42,6 +42,7 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors duration-75",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
         active ? "bg-green-50 text-green-700 font-medium" : "text-ink hover:bg-surface-2",
       )}
     >

@@ -17,10 +17,16 @@ export async function getEtatCompta(coproCode: string, agDateISO: string): Promi
   }
 }
 
-/** File comptable : les copros avec une AG datee + leur etat compta, triees par date. */
-export async function listerAgAPreparer(): Promise<AgAPreparer[]> {
+/** Copro de la fiche compta, cloisonnee au gestionnaire (null si hors scope). */
+export async function getCoproCompta(coproCode: string, gestionnaireId: string) {
+  return getCoproRepository().findByCode(coproCode, gestionnaireId);
+}
+
+/** File comptable : les copros (cloisonnees au gestionnaire) avec une AG datee + leur
+ *  etat compta, triees par date. */
+export async function listerAgAPreparer(gestionnaireId: string): Promise<AgAPreparer[]> {
   try {
-    const copros = await getCoproRepository().list();
+    const copros = await getCoproRepository().list(gestionnaireId);
     const avecAg = copros.filter((c) => c.prochaineAg?.date);
     const etats = await getComptaRepository().getEtats(
       avecAg.map((c) => ({ coproCode: c.code, agDateISO: c.prochaineAg!.date })),
@@ -56,8 +62,14 @@ export async function ajouterNoteCompta(
   return getComptaRepository().ajouterNote(coproCode, agDateISO, auteur, texte, par);
 }
 
-export async function marquerNoteCompta(noteId: string, resolu: boolean, par: string): Promise<void> {
-  return getComptaRepository().marquerNote(noteId, resolu, par);
+export async function marquerNoteCompta(
+  coproCode: string,
+  agDateISO: string,
+  noteId: string,
+  resolu: boolean,
+  par: string,
+): Promise<void> {
+  return getComptaRepository().marquerNote(coproCode, agDateISO, noteId, resolu, par);
 }
 
 export async function setFlagCompta(

@@ -100,7 +100,7 @@ export function ComptaPanel({
               <li key={n.id} className={`px-3 py-2.5 flex items-start gap-2.5 ${n.resolu ? "opacity-55" : ""}`}>
                 <button
                   type="button"
-                  onClick={() => agir(marquerNoteAction(n.id, !n.resolu))}
+                  onClick={() => agir(marquerNoteAction(coproCode, agDateISO, n.id, !n.resolu))}
                   disabled={pending}
                   aria-label={n.resolu ? "Marquer non traitée" : "Marquer traitée"}
                   title={n.resolu ? "Marquer non traitée" : "Marquer traitée"}
@@ -136,6 +136,7 @@ export function ComptaPanel({
             value={texte}
             onChange={(e) => setTexte(e.target.value)}
             placeholder={role === "comptable" ? "Note / question sur les comptes..." : "Réponse à la comptable..."}
+            aria-label={role === "comptable" ? "Note ou question sur les comptes" : "Reponse a la comptable"}
             rows={2}
             className="flex-1 px-2.5 py-1.5 rounded-md border border-line bg-surface text-[13px] focus:outline-none focus:border-green-700 resize-y"
           />
@@ -143,6 +144,7 @@ export function ComptaPanel({
             type="button"
             onClick={envoyer}
             disabled={pending || !texte.trim()}
+            aria-busy={pending}
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 disabled:opacity-50 shrink-0"
           >
             {pending ? <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" /> : <Send strokeWidth={1.5} className="w-4 h-4" />}
@@ -151,7 +153,11 @@ export function ComptaPanel({
         </div>
       </Card>
 
-      {erreur && <p className="text-[12px] text-err-700">{erreur}</p>}
+      {erreur && (
+        <p role="alert" className="text-[12px] text-err-700">
+          {erreur}
+        </p>
+      )}
     </div>
   );
 }

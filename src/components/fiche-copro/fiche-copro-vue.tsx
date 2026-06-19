@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useId, type ReactNode } from "react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { FicheCopro } from "@/lib/domain/copropriete";
@@ -16,16 +16,29 @@ const VERROUILLES = ["Contrats", "Sinistres", "Comptabilité", "Documents"];
 
 export function FicheCoproVue({ fiche }: { fiche: FicheCopro }) {
   const [onglet, setOnglet] = useState<Onglet>("ensemble");
+  const panelId = useId();
 
   return (
     <div className="flex flex-col gap-5">
       <CoproHeader copro={fiche.copro} />
 
-      <div className="flex items-center gap-1 border-b border-line overflow-x-auto">
-        <Tab active={onglet === "ensemble"} onClick={() => setOnglet("ensemble")}>
+      {/* role=tablist requis WCAG 2.2 - pattern Tabs */}
+      <div
+        role="tablist"
+        aria-label="Sections de la fiche"
+        className="flex items-center gap-1 border-b border-line overflow-x-auto"
+      >
+        <Tab
+          id="tab-ensemble"
+          panelId={`${panelId}-ensemble`}
+          active={onglet === "ensemble"}
+          onClick={() => setOnglet("ensemble")}
+        >
           Vue d&apos;ensemble
         </Tab>
         <Tab
+          id="tab-evenements"
+          panelId={`${panelId}-evenements`}
           active={onglet === "evenements"}
           onClick={() => setOnglet("evenements")}
           count={fiche.prochains.length}
@@ -33,32 +46,58 @@ export function FicheCoproVue({ fiche }: { fiche: FicheCopro }) {
           Événements
         </Tab>
         {VERROUILLES.map((label) => (
-          <span
+          // Onglet verrouille : button disabled pour rester dans le tablist et etre annonce par les SR
+          <button
             key={label}
+            type="button"
+            role="tab"
+            disabled
+            aria-disabled="true"
+            aria-selected={false}
             title="Disponible dans un prochain module"
             className="inline-flex items-center gap-1 px-3 py-2 text-[13px] text-ink-3 opacity-60 cursor-not-allowed whitespace-nowrap"
           >
-            <Lock strokeWidth={1.5} className="w-3 h-3" />
+            {/* aria-hidden : l'icone cadenas est decorative, le texte suffit */}
+            <Lock strokeWidth={1.5} className="w-3 h-3" aria-hidden="true" />
             {label}
-          </span>
+            <span className="sr-only">(non disponible)</span>
+          </button>
         ))}
       </div>
 
       {onglet === "ensemble" ? (
-        <FicheVueEnsemble fiche={fiche} />
+        <div
+          role="tabpanel"
+          id={`${panelId}-ensemble`}
+          aria-labelledby="tab-ensemble"
+          tabIndex={0}
+        >
+          <FicheVueEnsemble fiche={fiche} />
+        </div>
       ) : (
-        <FicheEvenements evenements={fiche.prochains} />
+        <div
+          role="tabpanel"
+          id={`${panelId}-evenements`}
+          aria-labelledby="tab-evenements"
+          tabIndex={0}
+        >
+          <FicheEvenements evenements={fiche.prochains} />
+        </div>
       )}
     </div>
   );
 }
 
 function Tab({
+  id,
+  panelId,
   active,
   onClick,
   count,
   children,
 }: {
+  id: string;
+  panelId: string;
   active: boolean;
   onClick: () => void;
   count?: number;
@@ -67,6 +106,10 @@ function Tab({
   return (
     <button
       type="button"
+      role="tab"
+      id={id}
+      aria-controls={panelId}
+      aria-selected={active}
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 px-3 py-2 text-[13px] -mb-px border-b-2 transition-colors whitespace-nowrap",

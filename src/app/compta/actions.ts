@@ -5,7 +5,12 @@
 
 import { revalidatePath } from "next/cache";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { ajouterNoteCompta, marquerNoteCompta, setFlagCompta } from "@/lib/services/compta/get-compta";
+import {
+  ajouterNoteCompta,
+  getCoproCompta,
+  marquerNoteCompta,
+  setFlagCompta,
+} from "@/lib/services/compta/get-compta";
 import type { AuteurNote } from "@/lib/domain/compta";
 import type { FlagCompta } from "@/lib/ports/compta-repository";
 
@@ -34,11 +39,20 @@ export async function ajouterNoteAction(
   }
 }
 
-export async function marquerNoteAction(noteId: string, resolu: boolean): Promise<Res> {
+export async function marquerNoteAction(
+  coproCode: string,
+  agDateISO: string,
+  noteId: string,
+  resolu: boolean,
+): Promise<Res> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
+  // Garde d'appartenance : la copro doit relever du gestionnaire courant (cloisonnement),
+  // sinon on refuse avant tout UPDATE (anti-IDOR). L'UPDATE est ensuite borne a copro/AG.
+  const copro = await getCoproCompta(coproCode, g.id);
+  if (!copro) return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    await marquerNoteCompta(noteId, resolu, g.initiales);
+    await marquerNoteCompta(coproCode, agDateISO, noteId, resolu, g.initiales);
     revalider();
     return { ok: true };
   } catch (e) {

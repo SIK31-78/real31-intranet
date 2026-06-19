@@ -25,6 +25,8 @@ export function Button({ variant = "secondary", size = "md", className, ...props
       className={cn(
         "inline-flex items-center justify-center gap-1.5 font-medium leading-none border cursor-pointer",
         "transition-colors duration-75 [&>svg]:w-3.5 [&>svg]:h-3.5",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
+        "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
         VARIANTS[variant],
         SIZES[size],
         className,

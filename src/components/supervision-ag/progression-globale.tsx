@@ -62,7 +62,15 @@ export function ProgressionGlobale({ supervision }: { supervision: SupervisionAg
           <span className="text-ink-3">items</span>
         </div>
       </div>
-      <div className="mt-3 h-1.5 bg-surface-2 rounded-full overflow-hidden">
+      {/* role=progressbar requis WCAG 2.2 - 4.1.2 Name, Role, Value */}
+      <div
+        role="progressbar"
+        aria-valuenow={progression.pourcentage}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Progression : ${progression.pourcentage}%`}
+        className="mt-3 h-1.5 bg-surface-2 rounded-full overflow-hidden"
+      >
         <div
           className="h-full bg-green-700 transition-[width] duration-200"
           style={{ width: `${progression.pourcentage}%` }}

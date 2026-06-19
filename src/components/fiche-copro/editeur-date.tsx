@@ -54,11 +54,13 @@ export function EditeurDate({
         type="date"
         value={valeur}
         onChange={(e) => setValeur(e.target.value)}
+        aria-label={type === "ag" ? "Date de l'AG" : "Date du CS"}
         className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px]"
       />
       <button
         type="button"
         disabled={pending}
+        aria-busy={pending}
         onClick={enregistrer}
         className="h-8 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 disabled:opacity-50"
       >

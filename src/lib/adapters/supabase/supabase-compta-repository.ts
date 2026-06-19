@@ -78,12 +78,22 @@ export class SupabaseComptaRepository implements ComptaRepository {
     if (error) throw new Error(`Ajout note compta : ${error.message}`);
   }
 
-  async marquerNote(noteId: string, resolu: boolean, par: string): Promise<void> {
+  async marquerNote(
+    coproCode: string,
+    agDateISO: string,
+    noteId: string,
+    resolu: boolean,
+    par: string,
+  ): Promise<void> {
     const supabase = createSupabasePublicClient();
+    // L'UPDATE est borne a la copro + AG ciblees : un noteId d'une autre copro ne
+    // matche pas (anti-IDOR), en complement de la garde d'appartenance cote action.
     const { error } = await supabase
       .from("intranet_compta_notes")
       .update({ resolu, marque_par: par })
-      .eq("id", noteId);
+      .eq("id", noteId)
+      .eq("copropriete_id", coproCode)
+      .eq("ag_date", agDateISO);
     if (error) throw new Error(`Maj note compta : ${error.message}`);
   }
 

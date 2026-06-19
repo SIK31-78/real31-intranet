@@ -16,8 +16,15 @@ export interface ComptaRepository {
     texte: string,
     par: string,
   ): Promise<void>;
-  /** Marque une note resolue / non resolue. */
-  marquerNote(noteId: string, resolu: boolean, par: string): Promise<void>;
+  /** Marque une note resolue / non resolue. La note doit relever de la copro + AG
+   *  ciblees (cloisonnement : l'UPDATE est borne a copro/AG, pas au seul noteId). */
+  marquerNote(
+    coproCode: string,
+    agDateISO: string,
+    noteId: string,
+    resolu: boolean,
+    par: string,
+  ): Promise<void>;
   /** Pose / retire un flag (comptes verifies, envoyer avant). */
   setFlag(coproCode: string, agDateISO: string, flag: FlagCompta, valeur: boolean, par: string): Promise<void>;
   /** Etats compta de plusieurs AG d'un coup (pour la file comptable). */

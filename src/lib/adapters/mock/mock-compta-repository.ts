@@ -37,16 +37,22 @@ export class MockComptaRepository implements ComptaRepository {
     };
     ETATS.set(k, { ...e, notes: [...e.notes, note] });
   }
-  async marquerNote(noteId: string, resolu: boolean, par: string): Promise<void> {
-    for (const [k, e] of ETATS) {
-      if (e.notes.some((n) => n.id === noteId)) {
-        ETATS.set(k, {
-          ...e,
-          notes: e.notes.map((n) => (n.id === noteId ? { ...n, resolu, marquePar: par } : n)),
-        });
-        return;
-      }
-    }
+  async marquerNote(
+    coproCode: string,
+    agDateISO: string,
+    noteId: string,
+    resolu: boolean,
+    par: string,
+  ): Promise<void> {
+    // Cloisonnement : on ne touche la note que dans l'etat de la copro + AG ciblees ;
+    // un noteId d'une autre copro reste hors de portee (coherent avec l'adapter Supabase).
+    const k = cle(coproCode, agDateISO);
+    const e = ETATS.get(k);
+    if (!e || !e.notes.some((n) => n.id === noteId)) return;
+    ETATS.set(k, {
+      ...e,
+      notes: e.notes.map((n) => (n.id === noteId ? { ...n, resolu, marquePar: par } : n)),
+    });
   }
   async setFlag(
     coproCode: string,

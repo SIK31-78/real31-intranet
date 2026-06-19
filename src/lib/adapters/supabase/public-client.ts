@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Client Supabase service_role sur le schema `public`.
 //
@@ -11,7 +11,13 @@ import { createClient } from "@supabase/supabase-js";
 // ATTENTION : service_role bypasse la RLS. Le cloisonnement gestionnaire
 // (ADR-009/011) n'est donc PAS applique ici. A reconstruire (vues RLS / filtrage
 // au branchement de l'auth Entra ID) avant tout usage multi-utilisateurs reel.
-export function createSupabasePublicClient() {
+
+// Singleton module-level : une seule instance par processus Node.
+let _client: SupabaseClient | null = null;
+
+export function createSupabasePublicClient(): SupabaseClient {
+  if (_client) return _client;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
@@ -19,8 +25,9 @@ export function createSupabasePublicClient() {
       "Supabase public client : NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquant dans l'env.",
     );
   }
-  return createClient(url, key, {
+  _client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     db: { schema: "public" },
   });
+  return _client;
 }

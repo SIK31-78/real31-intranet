@@ -534,6 +534,7 @@ function BibliothequePicker({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Rechercher..."
+              aria-label="Rechercher dans la bibliotheque"
               className="w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
             />
           </div>
@@ -711,11 +712,13 @@ function OdjEnConstruction({
               value={libreTitre}
               onChange={(e) => setLibreTitre(e.target.value)}
               placeholder="Intitulé de la résolution"
+              aria-label="Intitule de la resolution libre"
               className="w-full h-9 px-3 rounded-md border border-line bg-surface text-[13px] focus:outline-none focus:border-green-700"
             />
             <div className="flex items-center gap-2">
-              <label className="text-[12px] text-ink-3">Majorité</label>
+              <label htmlFor="libre-majorite" className="text-[12px] text-ink-3">Majorité</label>
               <select
+                id="libre-majorite"
                 value={libreMajorite}
                 onChange={(e) => setLibreMajorite(e.target.value as MajoriteResolution)}
                 className="h-8 px-2 rounded-md border border-line bg-surface text-[12px] focus:outline-none focus:border-green-700"
@@ -768,6 +771,7 @@ function OdjEnConstruction({
         type="button"
         onClick={onEnregistrer}
         disabled={etatAg !== "ouverte" || enregistrement}
+        aria-busy={enregistrement}
         title={
           etatAg === "ouverte"
             ? "Ajoute les résolutions composées dans l'AG eStale"
@@ -786,9 +790,15 @@ function OdjEnConstruction({
       </button>
 
       {message && (
-        <p className={`text-[12px] ${message.ton === "ok" ? "text-ok-700" : "text-err-700"}`}>
-          {message.texte}
-        </p>
+        message.ton === "ok" ? (
+          <p role="status" aria-live="polite" className="text-[12px] text-ok-700">
+            {message.texte}
+          </p>
+        ) : (
+          <p role="alert" className="text-[12px] text-err-700">
+            {message.texte}
+          </p>
+        )
       )}
     </div>
   );

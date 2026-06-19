@@ -19,8 +19,8 @@
   /* Encre (texte) - 4 niveaux suffisent. */
   --color-ink:   #18181b;
   --color-ink-2: #525258;
-  --color-ink-3: #8a8a90;
-  --color-ink-4: #b5b4b0;
+  --color-ink-3: #6b6b70;
+  --color-ink-4: #8a8a90;
 
   /* Vert sapin REAL31 (oklch, desature) - actions et chrome de marque
      uniquement, jamais un statut. */

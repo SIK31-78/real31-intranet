@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function ComptaPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const file = await listerAgAPreparer();
+  const file = await listerAgAPreparer(g.id);
 
   return (
     <AppShell user={g} active="compta" breadcrumb="Pôle compta">

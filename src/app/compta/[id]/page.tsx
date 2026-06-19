@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getEtatCompta } from "@/lib/services/compta/get-compta";
-import { getCoproRepository } from "@/lib/adapters/router";
+import { getCoproCompta, getEtatCompta } from "@/lib/services/compta/get-compta";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { ComptaPanel } from "@/components/compta/compta-panel";
@@ -24,7 +23,9 @@ export default async function ComptaDetailPage({ params }: { params: Promise<{ i
   const { code, agDate } = parse(id);
   if (!agDate) notFound();
 
-  const copro = await getCoproRepository().findByCode(code);
+  // Cloisonnement : une copro hors scope du gestionnaire renvoie null -> notFound.
+  const copro = await getCoproCompta(code, g.id);
+  if (!copro) notFound();
   const etat = await getEtatCompta(code, agDate);
 
   return (
@@ -35,7 +36,7 @@ export default async function ComptaDetailPage({ params }: { params: Promise<{ i
             <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Pôle compta
           </Link>
           <h1 className="mt-1 text-[20px] font-semibold text-ink">
-            {copro?.nom ?? code} <span className="text-[14px] font-normal text-ink-3">({code})</span>
+            {copro.nom} <span className="text-[14px] font-normal text-ink-3">({code})</span>
           </h1>
           <p className="mt-0.5 text-[13px] text-ink-2">AG du {formatDateLongue(agDate)}</p>
         </div>
