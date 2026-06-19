@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Printer, ListChecks } from "lucide-react";
+import { Printer, ListChecks, AlertTriangle } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { getOdj } from "@/lib/services/odj/get-odj";
 import { getGestionnaireCourant } from "@/lib/auth/session";
@@ -38,7 +38,7 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
                 className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 transition-colors"
               >
                 <ListChecks strokeWidth={1.5} className="w-3.5 h-3.5" />
-                Mode CS - composer
+                Composer l&apos;ODJ
               </Link>
               <Link
                 href={`/odj/${id}/imprimer`}
@@ -50,12 +50,24 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
             </div>
           </div>
           <p className="text-[13px] text-ink-3 mt-1">
-            {odj.copro.nom} ({odj.copro.code}){odj.dateAg ? ` - AG du ${odj.dateAg}` : " - date d'AG non definie"}
+            {odj.copro.nom} ({odj.copro.code}){odj.dateAg ? ` - AG du ${odj.dateAg}` : ""}
           </p>
           <p className="text-[12px] text-ink-4 mt-2">
-            En-tete et echeances pre-remplis, points legaux pre-ecrits. Le crayon saisit ou corrige un champ
-            (vider = retour a la valeur auto) ; les chiffres viendront depuis eStale.
+            En-tete et echeances pre-remplis, points legaux pre-ecrits. Cliquez le crayon pour saisir ou
+            corriger un champ (le vider retablit la valeur automatique).
           </p>
+          {!odj.dateAg && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
+              <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
+              <p className="text-[12.5px] text-warn-700">
+                Aucune date d&apos;AG definie : les echeances (mise sous pli, convocation) ne sont pas calculees.{" "}
+                <Link href={`/copropriete/${odj.copro.code}`} className="font-medium underline">
+                  Definir la date sur la fiche copro
+                </Link>
+                .
+              </p>
+            </div>
+          )}
         </div>
 
         <Card>
