@@ -6,10 +6,12 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
-## 📍 État actuel - 2026-06-18
+## 📍 État actuel - 2026-06-19
 
-- **Phase** : 5 écrans MVP + **ODJ** **branchés sur la vraie data** (264 copros + **3 tables natives**) **avec cloisonnement gestionnaire** (sélecteur dev + filtrage `managerId`), et **eStale BRANCHÉ EN RÉEL** (Phase B, ADR-022 : CS + historique AG sur les copros pilotes). Reste : **auth réelle (Entra ID)** qui remplacera le sélecteur, + durcissement. Le mock demeure le fallback (`COPRO_SOURCE` absent ou copro hors eStale).
-- **Branche Git active** : `increment/03-coffre-mdp` (gestionnaire de mots de passe, ADR-025) ; le MVP intranet reste sur `increment/02-supabase` (Mes emails + pôle compta intégrés, non encore poussés)
+- **Phase** : 5 écrans MVP + **ODJ** + **coffre-fort de mots de passe** (ADR-025) + **référentiel App A exploité hors eStale** (lot 1), **branchés sur la vraie data** (264 copros). Reste : **auth réelle (Entra ID / SSO)** qui remplacera le sélecteur dev, + durcissement.
+- **CONSOLIDATION (2026-06-19)** : **tout est sur une seule branche `increment/02-supabase`** (= prod Vercel, un seul déploiement). Les branches `increment/03-coffre-mdp` et `increment/04-referentiel` ont été **mergées puis supprimées** (contenu intégralement dans 02). Poussé en prod (`4011a8d`).
+- **AUDIT SaaS multi-agents (2026-06-19)** : audit 8 dimensions (sécurité, UI, UX, archi, a11y, perf, idées, code mort) + vérification adversariale + synthèse -> `docs/audit-saas-2026-06.md`. **Correctifs autonomes appliqués** (5 agents à périmètres disjoints) : **3 fuites de cloisonnement compta CORRIGÉES** (listerAgAPreparer/managerId, compta/[id] scopé, IDOR marquerNote), client Supabase singleton, getEtats borné, focus-visible + disabled + contrastes AA, rôles ARIA + labels + live regions. tsc 0, lint, 66 tests, build OK. **Restes audit** : durcissement auth, `service_role`->RLS, règle ESLint `boundaries` inopérante (à refixer), fausse recherche globale, mobile, + idées produit (alertes jalons, journal d'activité, dashboard cabinet).
+- **Branche Git active** : `increment/02-supabase` (unique, = prod). `demo/mes-emails` traîne encore (autre worktree, contenu déjà dans 02).
 - **Derniers incréments terminés** :
   - ✅ Increment 1 - Bootstrap (mergé via `increment/01-bootstrap`)
   - ✅ Migrations Supabase initiales (schéma complet sans RLS, commit 3d7f67c) - Increment 2 partiel, gelé sur le branchement cloud
