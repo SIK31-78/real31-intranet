@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Flag,
-  CalendarClock,
   History,
   CircleCheck,
   AlertCircle,
@@ -23,8 +22,6 @@ import type {
   ProchaineAg,
   RoleEquipe,
 } from "@/lib/domain/copropriete";
-import type { Evenement } from "@/lib/domain/calendrier";
-import type { Severite } from "@/lib/domain/commun";
 import type { LigneParcours } from "@/lib/domain/dashboard";
 import type { EtatCompta } from "@/lib/domain/compta";
 import { ComptaPanel } from "@/components/compta/compta-panel";
@@ -49,12 +46,6 @@ const STATUT_AG_LABEL: Record<ProchaineAg["statut"], string> = {
   convoquee: "Convoquée",
 };
 
-const SEVERITE_TON: Record<Severite, "err" | "warn" | "ok"> = {
-  late: "err",
-  soon: "warn",
-  ok: "ok",
-};
-
 export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
   const indispo = Boolean(fiche.estaleIndisponible);
   return (
@@ -68,9 +59,6 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             derniere={fiche.derniereAg}
             prochaine={fiche.copro.prochaineAg}
             conformite={fiche.conformite}
-          />
-          <BlocCs
-            coproCode={fiche.copro.code}
             derniereCs={fiche.copro.derniereCsDate}
             prochaineCs={fiche.copro.prochaineCsDate}
           />
@@ -86,7 +74,6 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
               compta={fiche.compta}
             />
           )}
-          <ProchainsEvenements evenements={fiche.prochains} />
           <HistoriqueAg historique={fiche.historique} />
         </div>
 
@@ -206,11 +193,15 @@ function BlocAg({
   derniere,
   prochaine,
   conformite,
+  derniereCs,
+  prochaineCs,
 }: {
   coproCode: string;
   derniere?: AgPassee;
   prochaine?: ProchaineAg;
   conformite: ItemConformite[];
+  derniereCs?: string;
+  prochaineCs?: string;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
   return (
@@ -292,81 +283,26 @@ function BlocAg({
           )}
         </div>
       </div>
-    </Card>
-  );
-}
 
-// --- Conseils syndicaux ---------------------------------------------------
-
-function BlocCs({
-  coproCode,
-  derniereCs,
-  prochaineCs,
-}: {
-  coproCode: string;
-  derniereCs?: string;
-  prochaineCs?: string;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <Users strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
-          Conseils syndicaux
-        </CardTitle>
-      </CardHeader>
-      <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
-        <div className="p-4">
-          <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Dernier CS tenu</p>
-          <p className="text-[16px] font-medium text-ink">
-            {derniereCs ? formatDateLongue(derniereCs) : "-"}
-          </p>
-        </div>
-        <div className="p-4">
-          <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochain CS</p>
-          <EditeurDate coproCode={coproCode} type="cs" dateISO={prochaineCs} />
+      {/* Conseil syndical : prepare l'AG -> rattache au meme bloc (compact). */}
+      <div className="border-t border-line px-4 py-3">
+        <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-2 flex items-center gap-1.5">
+          <Users strokeWidth={1.5} className="w-3.5 h-3.5" />
+          Conseil syndical
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[12px] text-ink-3">Dernier CS :</span>
+            <span className="text-[13px] font-medium text-ink">
+              {derniereCs ? formatDateLongue(derniereCs) : "-"}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[12px] text-ink-3 shrink-0">Prochain CS :</span>
+            <EditeurDate coproCode={coproCode} type="cs" dateISO={prochaineCs} />
+          </div>
         </div>
       </div>
-    </Card>
-  );
-}
-
-// --- Prochains evenements -------------------------------------------------
-
-function ProchainsEvenements({ evenements }: { evenements: Evenement[] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <CalendarClock strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
-          Prochains événements
-        </CardTitle>
-        <Link href="/calendrier" className="text-[12px] text-info-700 hover:underline">
-          Voir tout
-        </Link>
-      </CardHeader>
-
-      {evenements.length === 0 ? (
-        <p className="px-4 py-6 text-[13px] text-ink-3">Aucun événement à venir.</p>
-      ) : (
-        <ul className="divide-y divide-line">
-          {evenements.map((e) => (
-            <li key={e.id} className="flex items-center gap-3 px-4 py-3">
-              <span className="font-mono text-[11px] text-ink-3 w-[68px] shrink-0">
-                {formatDateLongue(e.date).replace(/ \d{4}$/, "")}
-                {e.heure ? ` · ${e.heure}` : ""}
-              </span>
-              <Badge ton="outline" className="font-mono shrink-0">{e.type}</Badge>
-              <span className="text-[13px] text-ink flex-1 truncate">{e.coproNomCourt}</span>
-              {e.jalon && (
-                <Badge ton={SEVERITE_TON[e.jalon.severite]} className="font-mono shrink-0">
-                  {e.jalon.label}
-                </Badge>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
     </Card>
   );
 }
