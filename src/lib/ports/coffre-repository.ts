@@ -10,6 +10,8 @@ import type {
   CleEnrobeeMembre,
   ScopeCoffre,
   Sensibilite,
+  EntreeAudit,
+  ActionAudit,
 } from "@/lib/domain/coffre";
 
 export interface NouveauCoffre {
@@ -47,8 +49,9 @@ export interface CoffreRepository {
     cryptoVersion: number,
     createdBy?: string,
   ): Promise<string>;
-  modifierSecret(secretId: string, blob: BlobChiffreStocke, cryptoVersion: number): Promise<void>;
-  supprimerSecret(secretId: string): Promise<void>;
+  /** Modif / suppression scopees au coffre (le coffreId borne l'operation). */
+  modifierSecret(coffreId: string, secretId: string, blob: BlobChiffreStocke, cryptoVersion: number): Promise<void>;
+  supprimerSecret(coffreId: string, secretId: string): Promise<void>;
 
   /** Insertion par lot (import) de secrets deja chiffres. */
   ajouterSecrets(
@@ -56,4 +59,15 @@ export interface CoffreRepository {
     items: { blob: BlobChiffreStocke; cryptoVersion: number }[],
     createdBy?: string,
   ): Promise<void>;
+
+  /** Journal d'audit : ecrit une entree (metadonnees seulement). */
+  journaliser(
+    coffreId: string,
+    userId: string,
+    action: ActionAudit,
+    secretId?: string,
+    details?: Record<string, unknown>,
+  ): Promise<void>;
+  /** Lit l'historique d'un coffre, plus recent en premier. */
+  listerAudit(coffreId: string, limite?: number): Promise<EntreeAudit[]>;
 }

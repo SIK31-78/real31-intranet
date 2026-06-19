@@ -224,3 +224,29 @@ create policy pm_secret_member_read on public.intranet_pm_secret
 insert into public.intranet_pm_service (name) values
   ('Vente'), ('Syndic'), ('Location'), ('Gestion Locative')
 on conflict (name) do nothing;
+
+-- ========================================================================
+-- Journal d'audit : qui a fait quoi sur les secrets (create / update / delete
+-- / import). METADONNEES SEULEMENT, jamais le contenu (zero-knowledge).
+-- ========================================================================
+
+create table if not exists public.intranet_pm_audit (
+  id          uuid primary key default gen_random_uuid(),
+  vault_id    uuid not null references public.intranet_pm_vault (id) on delete cascade,
+  secret_id   uuid,                      -- null si l'action ne vise pas un secret precis (import)
+  user_id     uuid references public.intranet_pm_user (id),
+  action      text not null,             -- create | update | delete | import
+  details     jsonb,                     -- metadonnees non sensibles, ex { "count": 12 }
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists intranet_pm_audit_vault_idx
+  on public.intranet_pm_audit (vault_id, created_at desc);
+
+alter table public.intranet_pm_audit enable row level security;
+
+-- Lisible par les membres du coffre (defense en profondeur ; metadonnees seulement).
+create policy pm_audit_member_read on public.intranet_pm_audit
+  for select to authenticated using (
+    vault_id in (select vault_id from public.intranet_pm_membership where user_id = auth.uid())
+  );

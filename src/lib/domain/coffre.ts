@@ -125,6 +125,20 @@ export interface SecretChiffre {
   updatedAt: string;
 }
 
+// --- Journal d'audit (metadonnees seulement, jamais le contenu) ------------
+
+export type ActionAudit = "create" | "update" | "delete" | "import";
+
+export interface EntreeAudit {
+  id: string;
+  coffreId: string;
+  secretId?: string;
+  userId?: string;
+  action: ActionAudit;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
 /** Secret EN CLAIR : n'existe qu'en memoire du navigateur, apres dechiffrement.
  *  C'est ce qui est serialise puis chiffre dans SecretChiffre.blob.
  *  copropriete + immeuble = contexte metier REAL31 (colonnes Entite / Immeuble). */

@@ -6,7 +6,7 @@
 // membre). Le serveur ne recoit que des blobs chiffres.
 
 import { useState, type ReactNode, type ComponentType } from "react";
-import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload } from "lucide-react";
+import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload, Pencil, Trash2, History } from "lucide-react";
 import {
   enrolerMotDePasse,
   deverrouillerMotDePasse,
@@ -28,7 +28,11 @@ import {
   octroyerAccesAction,
   retirerAccesAction,
   listerMembresAction,
+  modifierSecretAction,
+  supprimerSecretAction,
+  listerAuditAction,
   type MembreAffiche,
+  type EntreeAuditAffichee,
 } from "@/app/coffre/actions";
 import { ImportPanel } from "@/components/coffre/import-panel";
 import type { ApercuCoffre } from "@/lib/services/coffre/coffre-service";
@@ -55,6 +59,13 @@ const LIBELLE_SCOPE: Record<ScopeCoffre, string> = {
   service: "Service",
   agency: "Agence",
   personal: "Personnel",
+};
+
+const LIBELLE_ACTION: Record<string, string> = {
+  create: "Ajout",
+  update: "Modification",
+  delete: "Suppression",
+  import: "Import",
 };
 
 export function CoffreVue({
@@ -412,6 +423,13 @@ function CoffrePanel({
   const [gestion, setGestion] = useState(false);
   const [membres, setMembres] = useState<MembreAffiche[] | null>(null);
 
+  // --- edition + historique ---
+  const [editId, setEditId] = useState<string | null>(null);
+  const [historique, setHistorique] = useState(false);
+  const [entrees, setEntrees] = useState<EntreeAuditAffichee[] | null>(null);
+
+  const formVide: SecretClair = { titre: "", url: "", login: "", motDePasse: "", notes: "" };
+
   function basculer(id: string) {
     setReveles((prev) => {
       const n = new Set(prev);
@@ -421,20 +439,61 @@ function CoffrePanel({
     });
   }
 
-  async function ajouter() {
+  function ouvrirAjout() {
+    setEditId(null);
+    setForm(formVide);
+    setAjout(true);
+  }
+
+  function ouvrirEdition(s: SecretOuvert) {
+    setEditId(s.id);
+    setForm({ ...formVide, ...s.clair });
+    setAjout(true);
+  }
+
+  async function enregistrer() {
     onErreur(null);
     if (!form.titre.trim() || !form.motDePasse) return onErreur("Titre et mot de passe sont requis.");
     setBusy(true);
     try {
       const blob = await chiffrerSecret(coffre.vaultKey, form);
-      const { id } = await ajouterSecretAction(coffre.id, blob, CRYPTO_VERSION);
-      onAjout({ ...coffre, secrets: [...coffre.secrets, { id, clair: form }] });
-      setForm({ titre: "", url: "", login: "", motDePasse: "", notes: "" });
+      if (editId) {
+        await modifierSecretAction(coffre.id, editId, blob, CRYPTO_VERSION);
+        onAjout({ ...coffre, secrets: coffre.secrets.map((x) => (x.id === editId ? { id: editId, clair: form } : x)) });
+      } else {
+        const { id } = await ajouterSecretAction(coffre.id, blob, CRYPTO_VERSION);
+        onAjout({ ...coffre, secrets: [...coffre.secrets, { id, clair: form }] });
+      }
+      setForm(formVide);
+      setEditId(null);
       setAjout(false);
     } catch (e) {
       onErreur((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function supprimer(s: SecretOuvert) {
+    if (!confirm(`Supprimer "${s.clair.titre}" ? Cette action est definitive.`)) return;
+    onErreur(null);
+    setBusy(true);
+    try {
+      await supprimerSecretAction(coffre.id, s.id);
+      onAjout({ ...coffre, secrets: coffre.secrets.filter((x) => x.id !== s.id) });
+    } catch (e) {
+      onErreur((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function chargerAudit() {
+    setHistorique(true);
+    try {
+      setEntrees(await listerAuditAction(coffre.id));
+    } catch (e) {
+      onErreur((e as Error).message);
     }
   }
 
@@ -498,6 +557,12 @@ function CoffrePanel({
               <Users className="w-3.5 h-3.5" strokeWidth={1.5} /> Membres
             </button>
           )}
+          <button
+            onClick={() => (historique ? setHistorique(false) : chargerAudit())}
+            className="flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink"
+          >
+            <History className="w-3.5 h-3.5" strokeWidth={1.5} /> Historique
+          </button>
           <span className="text-[11px] text-ink-4 font-mono">{coffre.secrets.length} secret(s)</span>
         </div>
       </div>
@@ -540,6 +605,28 @@ function CoffrePanel({
         </div>
       )}
 
+      {historique && (
+        <div className="px-4 py-3 border-b border-line bg-surface-2/40 flex flex-col gap-1.5">
+          <div className="text-[12px] font-medium text-ink-2">Historique</div>
+          {entrees === null ? (
+            <div className="text-[12px] text-ink-3">Chargement...</div>
+          ) : entrees.length === 0 ? (
+            <div className="text-[12px] text-ink-3">Aucune action enregistree.</div>
+          ) : (
+            <ul className="flex flex-col gap-0.5 max-h-48 overflow-auto">
+              {entrees.map((e) => (
+                <li key={e.id} className="text-[12px] text-ink-3 flex gap-2">
+                  <span className="text-ink">{LIBELLE_ACTION[e.action] ?? e.action}</span>
+                  {e.action === "import" && typeof e.details?.count === "number" && <span>({e.details.count})</span>}
+                  <span>par {e.nom}</span>
+                  <span className="text-ink-4 ml-auto whitespace-nowrap">{new Date(e.createdAt).toLocaleString("fr-FR")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {coffre.secrets.length === 0 && !ajout && (
         <p className="px-4 py-6 text-[12.5px] text-ink-3 text-center">Aucun mot de passe pour l&apos;instant.</p>
       )}
@@ -574,6 +661,12 @@ function CoffrePanel({
             >
               <Copy className="w-3.5 h-3.5" />
             </button>
+            <button onClick={() => ouvrirEdition(s)} className="text-ink-3 hover:text-ink p-1" title="Modifier">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => supprimer(s)} disabled={busy} className="text-ink-3 hover:text-red-600 p-1" title="Supprimer">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </li>
         ))}
       </ul>
@@ -588,6 +681,7 @@ function CoffrePanel({
         />
       ) : ajout ? (
         <div className="px-4 py-3 border-t border-line flex flex-col gap-2">
+          <div className="text-[12px] font-medium text-ink-2">{editId ? "Modifier le mot de passe" : "Nouveau mot de passe"}</div>
           <input className={champClasse} placeholder="Titre (ex: EDF)" value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} autoFocus />
           <div className="flex gap-2">
             <input className={champClasse} placeholder="Copropriete" value={form.copropriete ?? ""} onChange={(e) => setForm({ ...form, copropriete: e.target.value })} />
@@ -599,8 +693,14 @@ function CoffrePanel({
           </div>
           <input className={champClasse} placeholder="Mot de passe" value={form.motDePasse} onChange={(e) => setForm({ ...form, motDePasse: e.target.value })} />
           <div className="flex gap-2">
-            <Bouton onClick={ajouter} busy={busy} label="Enregistrer" icone={Plus} />
-            <button onClick={() => setAjout(false)} className="text-[12px] text-ink-3 hover:text-ink px-3">
+            <Bouton onClick={enregistrer} busy={busy} label="Enregistrer" icone={Plus} />
+            <button
+              onClick={() => {
+                setAjout(false);
+                setEditId(null);
+              }}
+              className="text-[12px] text-ink-3 hover:text-ink px-3"
+            >
               Annuler
             </button>
           </div>
@@ -608,7 +708,7 @@ function CoffrePanel({
       ) : (
         <div className="flex border-t border-line text-[12.5px]">
           <button
-            onClick={() => setAjout(true)}
+            onClick={ouvrirAjout}
             className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-green-700 hover:bg-green-50"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Ajouter un mot de passe

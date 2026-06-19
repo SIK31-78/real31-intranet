@@ -8,11 +8,14 @@ import type {
   Membership,
   SecretChiffre,
   BlobChiffreStocke,
+  EntreeAudit,
+  ActionAudit,
 } from "@/lib/domain/coffre";
 
 const coffres = new Map<string, Coffre>();
 let memberships: Membership[] = [];
 const secrets = new Map<string, SecretChiffre>();
+const audit: EntreeAudit[] = [];
 
 export class MockCoffreRepository implements CoffreRepository {
   async listerCoffresAccessibles(userId: string): Promise<CoffreAccessible[]> {
@@ -86,14 +89,20 @@ export class MockCoffreRepository implements CoffreRepository {
     return secret.id;
   }
 
-  async modifierSecret(secretId: string, blob: BlobChiffreStocke, cryptoVersion: number): Promise<void> {
+  async modifierSecret(
+    coffreId: string,
+    secretId: string,
+    blob: BlobChiffreStocke,
+    cryptoVersion: number,
+  ): Promise<void> {
     const secret = secrets.get(secretId);
-    if (!secret) return;
+    if (!secret || secret.coffreId !== coffreId) return;
     secrets.set(secretId, { ...secret, blob, cryptoVersion, updatedAt: new Date().toISOString() });
   }
 
-  async supprimerSecret(secretId: string): Promise<void> {
-    secrets.delete(secretId);
+  async supprimerSecret(coffreId: string, secretId: string): Promise<void> {
+    const secret = secrets.get(secretId);
+    if (secret && secret.coffreId === coffreId) secrets.delete(secretId);
   }
 
   async ajouterSecrets(
@@ -114,5 +123,30 @@ export class MockCoffreRepository implements CoffreRepository {
         updatedAt: maintenant,
       });
     }
+  }
+
+  async journaliser(
+    coffreId: string,
+    userId: string,
+    action: ActionAudit,
+    secretId?: string,
+    details?: Record<string, unknown>,
+  ): Promise<void> {
+    audit.push({
+      id: globalThis.crypto.randomUUID(),
+      coffreId,
+      userId,
+      action,
+      createdAt: new Date().toISOString(),
+      ...(secretId ? { secretId } : {}),
+      ...(details ? { details } : {}),
+    });
+  }
+
+  async listerAudit(coffreId: string, limite = 50): Promise<EntreeAudit[]> {
+    return audit
+      .filter((e) => e.coffreId === coffreId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limite);
   }
 }

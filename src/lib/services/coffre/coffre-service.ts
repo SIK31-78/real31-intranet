@@ -13,6 +13,8 @@ import type {
   Membership,
   MethodeDeverrouillage,
   ScopeCoffre,
+  EntreeAudit,
+  ActionAudit,
 } from "@/lib/domain/coffre";
 import { getCoffreRepository, getCoffreIdentiteRepository } from "@/lib/adapters/router";
 
@@ -66,13 +68,51 @@ export async function enrolerCollaborateur(d: DemandeEnrolement): Promise<{ user
   return { userId: collaborateur.id, coffreId };
 }
 
+// L'audit ne doit jamais casser l'operation metier : best-effort, on degrade en
+// warning si l'ecriture echoue (ex : table d'audit pas encore creee).
+async function journaliser(
+  coffreId: string,
+  userId: string,
+  action: ActionAudit,
+  secretId?: string,
+  details?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getCoffreRepository().journaliser(coffreId, userId, action, secretId, details);
+  } catch (err) {
+    console.warn(`[coffre] audit non ecrit (${action}) :`, (err as Error).message);
+  }
+}
+
 export async function ajouterSecretCoffre(
   coffreId: string,
   blob: BlobChiffreStocke,
   cryptoVersion: number,
   createdBy: string,
 ): Promise<string> {
-  return getCoffreRepository().ajouterSecret(coffreId, blob, cryptoVersion, createdBy);
+  const id = await getCoffreRepository().ajouterSecret(coffreId, blob, cryptoVersion, createdBy);
+  await journaliser(coffreId, createdBy, "create", id);
+  return id;
+}
+
+export async function editerSecret(
+  coffreId: string,
+  secretId: string,
+  blob: BlobChiffreStocke,
+  cryptoVersion: number,
+  userId: string,
+): Promise<void> {
+  await getCoffreRepository().modifierSecret(coffreId, secretId, blob, cryptoVersion);
+  await journaliser(coffreId, userId, "update", secretId);
+}
+
+export async function supprimerSecretCoffre(coffreId: string, secretId: string, userId: string): Promise<void> {
+  await getCoffreRepository().supprimerSecret(coffreId, secretId);
+  await journaliser(coffreId, userId, "delete", secretId);
+}
+
+export async function listerAuditCoffre(coffreId: string): Promise<EntreeAudit[]> {
+  return getCoffreRepository().listerAudit(coffreId);
 }
 
 /** Ajoute une methode de deverrouillage (ex: passkey PRF) a un collaborateur. */
@@ -142,5 +182,7 @@ export async function importerSecretsCoffre(
   items: { blob: BlobChiffreStocke; cryptoVersion: number }[],
   createdBy: string,
 ): Promise<void> {
-  await getCoffreRepository().ajouterSecrets(coffreId, items, createdBy);
+  const repo = getCoffreRepository();
+  await repo.ajouterSecrets(coffreId, items, createdBy);
+  if (items.length > 0) await repo.journaliser(coffreId, createdBy, "import", undefined, { count: items.length });
 }

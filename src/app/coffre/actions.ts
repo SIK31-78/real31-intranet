@@ -17,8 +17,22 @@ import {
   listerMembres,
   listerAnnuaire,
   importerSecretsCoffre,
+  editerSecret,
+  supprimerSecretCoffre,
+  listerAuditCoffre,
 } from "@/lib/services/coffre/coffre-service";
-import type { BlobChiffreStocke, CleEnrobeeMembre, SecretChiffre } from "@/lib/domain/coffre";
+import type { BlobChiffreStocke, CleEnrobeeMembre, SecretChiffre, ActionAudit } from "@/lib/domain/coffre";
+
+/** Verifie que l'appelant est membre du coffre ; renvoie son id pm_user. */
+async function exigerMembre(coffreId: string): Promise<string> {
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.collaborateur || !apercu.coffres.some((c) => c.id === coffreId)) {
+    throw new Error("Coffre non accessible");
+  }
+  return apercu.collaborateur.id;
+}
 
 /** Verifie que l'appelant est membre admin du coffre ; renvoie son id pm_user. */
 async function exigerAdmin(coffreId: string): Promise<string> {
@@ -150,4 +164,40 @@ export async function importerSecretsAction(
     throw new Error("Coffre non accessible");
   }
   await importerSecretsCoffre(coffreId, items, apercu.collaborateur.id);
+}
+
+export async function modifierSecretAction(
+  coffreId: string,
+  secretId: string,
+  blob: BlobChiffreStocke,
+  cryptoVersion: number,
+): Promise<void> {
+  const userId = await exigerMembre(coffreId);
+  await editerSecret(coffreId, secretId, blob, cryptoVersion, userId);
+}
+
+export async function supprimerSecretAction(coffreId: string, secretId: string): Promise<void> {
+  const userId = await exigerMembre(coffreId);
+  await supprimerSecretCoffre(coffreId, secretId, userId);
+}
+
+export interface EntreeAuditAffichee {
+  id: string;
+  action: ActionAudit;
+  nom: string;
+  createdAt: string;
+  details?: Record<string, unknown>;
+}
+
+export async function listerAuditAction(coffreId: string): Promise<EntreeAuditAffichee[]> {
+  await exigerMembre(coffreId);
+  const [entrees, annuaire] = await Promise.all([listerAuditCoffre(coffreId), listerAnnuaire()]);
+  const nomPar = new Map(annuaire.map((a) => [a.id, a.nomComplet || a.email || a.id]));
+  return entrees.map((e) => ({
+    id: e.id,
+    action: e.action,
+    nom: e.userId ? nomPar.get(e.userId) ?? "Inconnu" : "Inconnu",
+    createdAt: e.createdAt,
+    ...(e.details ? { details: e.details } : {}),
+  }));
 }

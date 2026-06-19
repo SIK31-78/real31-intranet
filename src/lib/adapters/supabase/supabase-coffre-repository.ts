@@ -13,6 +13,8 @@ import type {
   ScopeCoffre,
   Sensibilite,
   RoleMembre,
+  EntreeAudit,
+  ActionAudit,
 } from "@/lib/domain/coffre";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -187,18 +189,28 @@ export class SupabaseCoffreRepository implements CoffreRepository {
     return (data as { id: string }).id;
   }
 
-  async modifierSecret(secretId: string, blob: BlobChiffreStocke, cryptoVersion: number): Promise<void> {
+  async modifierSecret(
+    coffreId: string,
+    secretId: string,
+    blob: BlobChiffreStocke,
+    cryptoVersion: number,
+  ): Promise<void> {
     const supabase = createSupabasePublicClient();
     const { error } = await supabase
       .from("intranet_pm_secret")
       .update({ blob, crypto_version: cryptoVersion, updated_at: new Date().toISOString() })
-      .eq("id", secretId);
+      .eq("id", secretId)
+      .eq("vault_id", coffreId);
     if (error) throw new Error(`Maj pm_secret : ${error.message}`);
   }
 
-  async supprimerSecret(secretId: string): Promise<void> {
+  async supprimerSecret(coffreId: string, secretId: string): Promise<void> {
     const supabase = createSupabasePublicClient();
-    const { error } = await supabase.from("intranet_pm_secret").delete().eq("id", secretId);
+    const { error } = await supabase
+      .from("intranet_pm_secret")
+      .delete()
+      .eq("id", secretId)
+      .eq("vault_id", coffreId);
     if (error) throw new Error(`Suppression pm_secret : ${error.message}`);
   }
 
@@ -217,5 +229,52 @@ export class SupabaseCoffreRepository implements CoffreRepository {
     }));
     const { error } = await supabase.from("intranet_pm_secret").insert(rows);
     if (error) throw new Error(`Import pm_secret : ${error.message}`);
+  }
+
+  async journaliser(
+    coffreId: string,
+    userId: string,
+    action: ActionAudit,
+    secretId?: string,
+    details?: Record<string, unknown>,
+  ): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase.from("intranet_pm_audit").insert({
+      vault_id: coffreId,
+      user_id: userId,
+      action,
+      secret_id: secretId ?? null,
+      details: details ?? null,
+    });
+    if (error) throw new Error(`Ecriture pm_audit : ${error.message}`);
+  }
+
+  async listerAudit(coffreId: string, limite = 50): Promise<EntreeAudit[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_pm_audit")
+      .select("id, vault_id, secret_id, user_id, action, details, created_at")
+      .eq("vault_id", coffreId)
+      .order("created_at", { ascending: false })
+      .limit(limite);
+    if (error) throw new Error(`Lecture pm_audit : ${error.message}`);
+    type AuditRow = {
+      id: string;
+      vault_id: string;
+      secret_id: string | null;
+      user_id: string | null;
+      action: string;
+      details: Record<string, unknown> | null;
+      created_at: string;
+    };
+    return ((data as AuditRow[] | null) ?? []).map((r) => ({
+      id: r.id,
+      coffreId: r.vault_id,
+      action: r.action as ActionAudit,
+      createdAt: r.created_at,
+      ...(r.secret_id ? { secretId: r.secret_id } : {}),
+      ...(r.user_id ? { userId: r.user_id } : {}),
+      ...(r.details ? { details: r.details } : {}),
+    }));
   }
 }
