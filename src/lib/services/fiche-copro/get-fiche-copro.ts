@@ -15,6 +15,13 @@ const DONNEES_ESTALE_VIDES: DonneesEstaleCopro = {
   conformite: [],
 };
 
+/** "JJ/MM/AAAA" depuis une date ISO "YYYY-MM-DD" ; "" si absent. */
+function jjmmaaaa(iso?: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
 export async function getFicheCopro(
   code: string,
   gestionnaireId: string,
@@ -52,16 +59,27 @@ export async function getFicheCopro(
         ? [{ date: copro.derniereAgDate, type: "AG" as const }]
         : [];
 
-  // Conformite : item PPT du referentiel (Copropriete.pptVote) + items eStale.
-  const conformiteReferentiel: ItemConformite[] =
-    copro.pptVote === undefined
-      ? []
-      : [
-          {
-            libelle: copro.pptVote ? "PPT voté" : "PPT à programmer",
-            etat: copro.pptVote ? "ok" : "attention",
-          },
-        ];
+  // Conformite : items du referentiel App A (PPT, assurance, mandat de syndic -
+  // exploitables SANS eStale) + items eStale.
+  const conformiteReferentiel: ItemConformite[] = [];
+  if (copro.pptVote !== undefined) {
+    conformiteReferentiel.push({
+      libelle: copro.pptVote ? "PPT voté" : "PPT à programmer",
+      etat: copro.pptVote ? "ok" : "attention",
+    });
+  }
+  if (copro.assuranceEcheance) {
+    conformiteReferentiel.push({
+      libelle: `Assurance jusqu'au ${jjmmaaaa(copro.assuranceEcheance)}`,
+      etat: copro.assuranceEcheance < aujourdhuiISO ? "ko" : "ok",
+    });
+  }
+  if (copro.mandatSyndicFin) {
+    conformiteReferentiel.push({
+      libelle: `Mandat de syndic jusqu'au ${jjmmaaaa(copro.mandatSyndicFin)}`,
+      etat: copro.mandatSyndicFin < aujourdhuiISO ? "ko" : "attention",
+    });
+  }
   const conformite = [...conformiteReferentiel, ...estale.conformite];
 
   // Jalons de la prochaine AG (cibles calculees + etat persiste), si AG a venir.

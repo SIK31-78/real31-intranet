@@ -81,6 +81,25 @@ export interface Copropriete {
   /** Deep-link eStale, present uniquement si source = 'estale' (ADR-003/012 :
    *  pas de deep-link Crypto). */
   estaleDeepLink?: string;
+
+  // --- Champs du referentiel App A exploitables SANS eStale (source = referentiel).
+  //     Permettent de preparer les AG des copros pas encore sur eStale.
+  /** Echeance d'assurance (ISO "YYYY-MM-DD"). */
+  assuranceEcheance?: string;
+  /** Echeance du mandat de syndic (ISO) -> jalon renouvellement / point ODJ. */
+  mandatSyndicFin?: string;
+  /** Date du dernier controle technique gaz/VMC (ISO). */
+  ctqGazVmcDate?: string;
+  /** Numero d'immatriculation au registre national des coproprietes (en-tete convoc). */
+  immatriculation?: string;
+  /** Nom officiel du syndicat des coproprietaires (en-tete convoc / ODJ). */
+  nomSdc?: string;
+  /** Eligible AG Connect / visio. */
+  agConnect?: boolean;
+  /** Lien SharePoint de la copro (deep-link depuis la fiche). */
+  sharepointUrl?: string;
+  /** Id de l'agence gestionnaire. */
+  agenceId?: string;
 }
 
 // --- Donnees sourcees eStale (branchees en J4) ----------------------------
