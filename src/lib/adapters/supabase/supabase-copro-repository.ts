@@ -39,6 +39,15 @@ type CoproRow = {
   lastCSDate: string | null;
   nextCSDate: string | null;
   ppt: boolean | null;
+  // Champs referentiel exploitables sans eStale.
+  insuranceDueDate: string | null;
+  syndicContractEndDate: string | null;
+  lastGasVmcCtqDate: string | null;
+  registrationNumber: string | null;
+  sdcName: string | null;
+  agConnect: boolean | null;
+  sharepointUrl: string | null;
+  agencyId: string | null;
 };
 
 type UserRow = { id: string; name: string; initials: string | null };
@@ -47,7 +56,9 @@ const COPRO_COLS =
   "id, referenceCrypto, referenceEstale, externalIdEstale, dataSource, name, " +
   "address1, address2, postalCode, city, status, managerId, assistantId, accountantId, " +
   "mainLotsCount, otherLotsCount, accountingStartDate, accountingEndDate, " +
-  "syndicInitialDate, lastAGDate, nextAGDate, lastCSDate, nextCSDate, ppt";
+  "syndicInitialDate, lastAGDate, nextAGDate, lastCSDate, nextCSDate, ppt, " +
+  "insuranceDueDate, syndicContractEndDate, lastGasVmcCtqDate, registrationNumber, " +
+  "sdcName, agConnect, sharepointUrl, agencyId";
 
 const MOIS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
@@ -135,6 +146,15 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
     ...(source === "estale" && deepBase && (row.externalIdEstale ?? row.referenceEstale)
       ? { estaleDeepLink: `${deepBase}/condo/${row.externalIdEstale ?? row.referenceEstale}` }
       : {}),
+    // Champs referentiel (exploitables sans eStale).
+    ...(dateISO(row.insuranceDueDate) ? { assuranceEcheance: dateISO(row.insuranceDueDate)! } : {}),
+    ...(dateISO(row.syndicContractEndDate) ? { mandatSyndicFin: dateISO(row.syndicContractEndDate)! } : {}),
+    ...(dateISO(row.lastGasVmcCtqDate) ? { ctqGazVmcDate: dateISO(row.lastGasVmcCtqDate)! } : {}),
+    ...(row.registrationNumber ? { immatriculation: row.registrationNumber } : {}),
+    ...(row.sdcName ? { nomSdc: row.sdcName } : {}),
+    ...(row.agConnect !== null ? { agConnect: row.agConnect } : {}),
+    ...(row.sharepointUrl ? { sharepointUrl: row.sharepointUrl } : {}),
+    ...(row.agencyId ? { agenceId: row.agencyId } : {}),
   };
 }
 
