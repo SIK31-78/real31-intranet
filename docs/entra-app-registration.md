@@ -2,10 +2,10 @@
 
 Document à transmettre **tel quel** au DSI. Toutes les informations nécessaires pour créer l'App Registration et configurer les permissions sont ici.
 
-**Contact projet** : <à compléter par toi>  
-**Demandeur** : <à compléter>  
-**Date de la demande** : <à compléter>  
-**Délai souhaité** : avant le démarrage de la phase J3 du projet (probable T+5 semaines)
+**Contact projet** : Sekou KOMA - SEKOU.koma@real31.fr  
+**Demandeur** : Sekou KOMA  
+**Date de la demande** : 2026-06-19  
+**Délai souhaité** : dès que possible (mise en service du SSO de l'intranet ; le code est prêt, il n'attend que les identifiants)
 
 ---
 
@@ -79,12 +79,13 @@ Le SSO Microsoft renvoie l'utilisateur sur une URL spécifique après login. Ent
 
 ```
 http://localhost:3000/api/auth/callback/microsoft-entra-id
+http://localhost:3001/api/auth/callback/microsoft-entra-id
 https://intranet.real31.fr/api/auth/callback/microsoft-entra-id
 https://intranet-staging.real31.fr/api/auth/callback/microsoft-entra-id
 ```
 
 **Notes** :
-- L'URL `localhost:3000` est nécessaire pour le développement local. Microsoft autorise `http://localhost` sans HTTPS.
+- Les URLs `localhost:3000` et `localhost:3001` sont nécessaires pour le développement local (le serveur de dev tourne sur l'un ou l'autre). Microsoft autorise `http://localhost` sans HTTPS.
 - L'URL `intranet.real31.fr` est l'URL de production (le sous-domaine définitif est à confirmer avec le DSI).
 - L'URL `intranet-staging.real31.fr` est un environnement de staging permanent (pour les tests). Le projet n'utilisera **pas** les URLs de preview Vercel dynamiques (`*.vercel.app`) côté auth, car elles changent à chaque déploiement.
 
