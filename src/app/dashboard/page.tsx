@@ -5,7 +5,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
-import { ListeAttention } from "@/components/dashboard/liste-attention";
+import { ResumeAttention } from "@/components/dashboard/resume-attention";
 import { FluxActivite } from "@/components/dashboard/flux-activite";
 import { ParcoursAg } from "@/components/dashboard/parcours-ag";
 
@@ -37,7 +37,7 @@ export default async function DashboardPage() {
         )}
 
         <div className="grid gap-6 mt-6 grid-cols-1 lg:grid-cols-[1.6fr_1fr]">
-          <ListeAttention items={data.attention} />
+          <ResumeAttention items={data.attention} />
           <FluxActivite activite={data.activite} />
         </div>
       </div>
