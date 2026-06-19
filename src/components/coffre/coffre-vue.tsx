@@ -7,6 +7,8 @@
 
 import { useState, type ReactNode, type ComponentType } from "react";
 import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload, Pencil, Trash2, History, Shield, Search } from "lucide-react";
+import { useConfirm } from "@/components/ui/confirm";
+import { useToast } from "@/components/ui/toast";
 import {
   enrolerMotDePasse,
   deverrouillerMotDePasse,
@@ -576,6 +578,8 @@ function CoffrePanel({
   onAjout: (c: CoffreOuvert) => void;
   onErreur: (e: string | null) => void;
 }) {
+  const confirmer = useConfirm();
+  const toast = useToast();
   const [reveles, setReveles] = useState<Set<string>>(new Set());
   const [ajout, setAjout] = useState(false);
   const [importer, setImporter] = useState(false);
@@ -639,6 +643,7 @@ function CoffrePanel({
         const { id } = await ajouterSecretAction(coffre.id, blob, CRYPTO_VERSION);
         onAjout({ ...coffre, secrets: [...coffre.secrets, { id, clair: form }] });
       }
+      toast.ok(editId ? "Mot de passe modifié." : "Mot de passe ajouté.");
       setForm(formVide);
       setEditId(null);
       setAjout(false);
@@ -650,12 +655,19 @@ function CoffrePanel({
   }
 
   async function supprimer(s: SecretOuvert) {
-    if (!confirm(`Supprimer "${s.clair.titre}" ? Cette action est definitive.`)) return;
+    const ok = await confirmer({
+      titre: "Supprimer ce mot de passe ?",
+      message: `"${s.clair.titre}" sera définitivement supprimé.`,
+      confirmer: "Supprimer",
+      danger: true,
+    });
+    if (!ok) return;
     onErreur(null);
     setBusy(true);
     try {
       await supprimerSecretAction(coffre.id, s.id);
       onAjout({ ...coffre, secrets: coffre.secrets.filter((x) => x.id !== s.id) });
+      toast.ok("Mot de passe supprimé.");
     } catch (e) {
       onErreur((e as Error).message);
     } finally {

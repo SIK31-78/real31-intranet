@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Plus, X, ArrowUp, ArrowDown, ArrowLeft, Check, AlertTriangle, ListChecks, Loader2, RotateCcw } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
 import { MAJORITE_LABEL, MAJORITE_ORDRE, rangParent } from "@/lib/domain/resolution";
@@ -27,6 +28,7 @@ export function ComposerOdj({
   data: BibliothequeData;
   assemblee: AssembleeAg | null;
 }) {
+  const confirmer = useConfirm();
   const [draft, setDraft] = useState<Resolution[]>([]);
   const [q, setQ] = useState("");
   const [filtre, setFiltre] = useState<MajoriteResolution | "all">("all");
@@ -186,15 +188,13 @@ export function ComposerOdj({
   }
 
   const [creation, demarrerCreation] = useTransition();
-  function creerAg() {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Créer une nouvelle AG ordinaire dans eStale pour cette copropriété ? Le socle standard sera ajouté automatiquement.",
-      )
-    ) {
-      return;
-    }
+  async function creerAg() {
+    const ok = await confirmer({
+      titre: "Créer une nouvelle AG ordinaire ?",
+      message: "Une AG ordinaire sera créée dans eStale pour cette copropriété (le socle standard est ajouté automatiquement).",
+      confirmer: "Créer l'AG",
+    });
+    if (!ok) return;
     setMessage(null);
     demarrerCreation(async () => {
       const res = await creerAgAction(copro.code);

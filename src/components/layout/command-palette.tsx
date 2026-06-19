@@ -98,12 +98,12 @@ export function CommandPalette() {
       <button
         type="button"
         onClick={() => setOuvert(true)}
-        aria-label="Rechercher (Cmd+K)"
+        aria-label="Rechercher (Ctrl+K)"
         className="hidden md:flex items-center gap-2 w-[260px] h-7 px-2.5 rounded-md border border-line bg-surface hover:border-line-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
       >
         <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
         <span className="flex-1 text-left text-[13px] text-ink-4 truncate">Rechercher une copro...</span>
-        <span className="font-mono text-[10px] px-1 py-0.5 rounded text-ink-3 bg-surface-3">Cmd+K</span>
+        <span className="font-mono text-[10px] px-1 py-0.5 rounded text-ink-3 bg-surface-3">Ctrl K</span>
       </button>
 
       {ouvert && (

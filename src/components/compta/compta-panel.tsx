@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Check, Loader2, Send, CircleCheck, Circle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import type { AuteurNote, EtatCompta } from "@/lib/domain/compta";
 import { ajouterNoteAction, marquerNoteAction, setFlagAction } from "@/app/compta/actions";
 
@@ -30,6 +31,7 @@ export function ComptaPanel({
   role: AuteurNote;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [pending, demarrer] = useTransition();
   const [texte, setTexte] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export function ComptaPanel({
       const r = await ajouterNoteAction(coproCode, agDateISO, role, texte);
       if (r.ok) {
         setTexte("");
+        toast.ok("Note ajoutée.");
         router.refresh();
       } else setErreur(r.erreur ?? "Erreur.");
     });

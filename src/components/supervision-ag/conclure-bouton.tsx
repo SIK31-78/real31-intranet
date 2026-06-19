@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { cn } from "@/lib/cn";
+import { useConfirm } from "@/components/ui/confirm";
 import type { Role } from "@/lib/domain/supervision-ag";
 
 type ConclureBoutonProps = {
@@ -18,9 +19,16 @@ export function ConclureBouton({
   onConclure,
 }: ConclureBoutonProps) {
   const [pending, startTransition] = useTransition();
-  const handleClick = () => {
+  const confirmer = useConfirm();
+  const handleClick = async () => {
     if (disabled || pending) return;
-    if (!confirm("Conclure l'AG ? La fiche passe en lecture seule.")) return;
+    const ok = await confirmer({
+      titre: "Conclure l'AG ?",
+      message: "La fiche passe en lecture seule.",
+      confirmer: "Conclure",
+      danger: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       await onConclure();
     });
