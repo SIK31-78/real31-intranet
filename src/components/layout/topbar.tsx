@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Search, Bell } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { CommandPalette } from "@/components/layout/command-palette";
 
 type TopbarProps = {
   user: { initiales: string; nomComplet: string };
@@ -24,23 +25,15 @@ export function Topbar({ user, breadcrumb }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <label className="hidden md:flex items-center gap-2 w-[260px] h-7 px-2.5 rounded-md border border-line bg-surface focus-within:border-green-500 focus-within:ring-[3px] focus-within:ring-green-50">
-          <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-          <input
-            aria-label="Rechercher"
-            placeholder="Rechercher une copro, un copropriétaire..."
-            className="flex-1 min-w-0 bg-transparent outline-none text-[13px] placeholder:text-ink-4"
-          />
-          <span className="font-mono text-[10px] px-1 py-0.5 rounded text-ink-3 bg-surface-3">⌘K</span>
-        </label>
-        <button
-          type="button"
-          aria-label="Notifications"
-          className="relative inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2 transition-colors duration-75"
+        <CommandPalette />
+        <Link
+          href="/mes-evenements"
+          aria-label="Mes événements à traiter"
+          title="Mes événements à traiter"
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2 transition-colors duration-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
         >
           <Bell strokeWidth={1.5} className="w-3.5 h-3.5" />
-          <span className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-err-500" />
-        </button>
+        </Link>
         <Link
           href="/dev-login"
           title={`${user.nomComplet} - changer de gestionnaire`}
