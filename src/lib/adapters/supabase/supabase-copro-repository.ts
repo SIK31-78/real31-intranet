@@ -195,11 +195,16 @@ export class SupabaseCoproRepository implements CoproRepository {
   async setDateEvenement(
     coproCode: string,
     type: "ag" | "cs",
+    quand: "prochaine" | "derniere",
     dateISO: string | null,
     managerId: string,
   ): Promise<void> {
     const supabase = createSupabasePublicClient();
-    const colonne = type === "ag" ? "nextAGDate" : "nextCSDate";
+    const colonnes = {
+      ag: { prochaine: "nextAGDate", derniere: "lastAGDate" },
+      cs: { prochaine: "nextCSDate", derniere: "lastCSDate" },
+    } as const;
+    const colonne = colonnes[type][quand];
     // Ecriture dans la source partagee (App A). Scope managerId : seulement ses copros.
     // updatedAt rafraichi pour rester coherent avec l'App A (qui s'appuie dessus).
     const { error } = await supabase

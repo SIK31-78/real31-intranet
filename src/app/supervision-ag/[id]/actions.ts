@@ -49,7 +49,7 @@ export async function commenterItemAction(
   // Le "CS preparatoire le" alimente la date de prochain CS de la copro (calendrier).
   if (itemId === ITEM_CS_PREPA) {
     const code = codeDe(agId);
-    await definirDateEvenement(code, "cs", commentaire || null, g.id);
+    await definirDateEvenement(code, "cs", "prochaine", commentaire || null, g.id);
     revalidatePath(`/copropriete/${code}`);
     revalidatePath("/calendrier");
   }

@@ -93,16 +93,27 @@ export class MockCoproRepository implements CoproRepository {
     return COPROS[code] ?? null;
   }
 
-  async setDateEvenement(coproCode: string, type: "ag" | "cs", dateISO: string | null): Promise<void> {
+  async setDateEvenement(
+    coproCode: string,
+    type: "ag" | "cs",
+    quand: "prochaine" | "derniere",
+    dateISO: string | null,
+  ): Promise<void> {
     const c = COPROS[coproCode];
     if (!c) return;
-    if (type === "ag") {
+    if (type === "ag" && quand === "prochaine") {
       if (dateISO) c.prochaineAg = { date: dateISO, statut: "planifiee" };
       else delete c.prochaineAg;
+    } else if (type === "ag") {
+      if (dateISO) c.derniereAgDate = dateISO;
+      else delete c.derniereAgDate;
+    } else if (quand === "prochaine") {
+      if (dateISO) c.prochaineCsDate = dateISO;
+      else delete c.prochaineCsDate;
     } else if (dateISO) {
-      c.prochaineCsDate = dateISO;
+      c.derniereCsDate = dateISO;
     } else {
-      delete c.prochaineCsDate;
+      delete c.derniereCsDate;
     }
   }
 }

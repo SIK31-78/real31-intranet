@@ -57,6 +57,7 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
           <BlocAg
             coproCode={fiche.copro.code}
             derniere={fiche.derniereAg}
+            derniereAgDate={fiche.copro.derniereAgDate}
             prochaine={fiche.copro.prochaineAg}
             conformite={fiche.conformite}
             derniereCs={fiche.copro.derniereCsDate}
@@ -191,6 +192,7 @@ function BanniereEstaleIndispo() {
 function BlocAg({
   coproCode,
   derniere,
+  derniereAgDate,
   prochaine,
   conformite,
   derniereCs,
@@ -198,6 +200,7 @@ function BlocAg({
 }: {
   coproCode: string;
   derniere?: AgPassee;
+  derniereAgDate?: string;
   prochaine?: ProchaineAg;
   conformite: ItemConformite[];
   derniereCs?: string;
@@ -238,9 +241,9 @@ function BlocAg({
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">
             Dernière AG tenue
           </p>
-          {derniere ? (
+          <EditeurDate coproCode={coproCode} type="ag" quand="derniere" dateISO={derniereAgDate} />
+          {derniere && (
             <>
-              <p className="text-[16px] font-medium text-ink">{formatDateLongue(derniere.date)}</p>
               <p className="mt-1.5 text-[12px] text-ink-3">
                 {derniere.type === "AGE" ? "AGE" : "AG ordinaire"}
                 {derniere.presents != null
@@ -253,8 +256,6 @@ function BlocAg({
                 </span>
               )}
             </>
-          ) : (
-            <p className="text-[13px] text-ink-3">Aucune AG enregistrée.</p>
           )}
         </div>
 
@@ -292,10 +293,8 @@ function BlocAg({
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-[12px] text-ink-3">Dernier CS :</span>
-            <span className="text-[13px] font-medium text-ink">
-              {derniereCs ? formatDateLongue(derniereCs) : "-"}
-            </span>
+            <span className="text-[12px] text-ink-3 shrink-0">Dernier CS :</span>
+            <EditeurDate coproCode={coproCode} type="cs" quand="derniere" dateISO={derniereCs} />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-[12px] text-ink-3 shrink-0">Prochain CS :</span>
