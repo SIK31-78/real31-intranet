@@ -6,7 +6,7 @@
 // membre). Le serveur ne recoit que des blobs chiffres.
 
 import { useState, type ReactNode, type ComponentType } from "react";
-import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload, Pencil, Trash2, History } from "lucide-react";
+import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload, Pencil, Trash2, History, Shield } from "lucide-react";
 import {
   enrolerMotDePasse,
   deverrouillerMotDePasse,
@@ -31,6 +31,7 @@ import {
   modifierSecretAction,
   supprimerSecretAction,
   listerAuditAction,
+  definirAdminAction,
   type MembreAffiche,
   type EntreeAuditAffichee,
 } from "@/app/coffre/actions";
@@ -81,6 +82,7 @@ export function CoffreVue({
 }) {
   const dejaEnrole = apercu.collaborateur !== null;
   const monUserId = apercu.collaborateur?.id ?? "";
+  const suisAdmin = apercu.collaborateur?.estAdmin ?? false;
   const maClePublique = annuaire.find((a) => a.id === monUserId)?.publicKey ?? null;
   const passkeyDev = apercu.deverrouillages.find((d) => d.method === "passkey_prf") ?? null;
 
@@ -318,13 +320,15 @@ export function CoffreVue({
           key={c.id}
           coffre={c}
           monUserId={monUserId}
+          suisAdmin={suisAdmin}
           annuaire={annuaire}
           onAjout={(secret) => setCoffres((prev) => prev.map((x) => (x.id === c.id ? secret : x)))}
           onErreur={setErreur}
         />
       ))}
 
-      <CreerPartage services={services} busy={busy} onCreer={creerPartage} />
+      {suisAdmin && <CreerPartage services={services} busy={busy} onCreer={creerPartage} />}
+      {suisAdmin && <AdminPanel annuaire={annuaire} monUserId={monUserId} onErreur={setErreur} />}
     </div>
   );
 }
@@ -386,17 +390,92 @@ function CreerPartage({
   );
 }
 
+// --- Administration : gouvernance des roles (admins globaux) ---------------
+
+function AdminPanel({
+  annuaire,
+  monUserId,
+  onErreur,
+}: {
+  annuaire: CollaborateurAnnuaire[];
+  monUserId: string;
+  onErreur: (e: string | null) => void;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [liste, setListe] = useState(annuaire);
+  const [busy, setBusy] = useState(false);
+
+  async function basculer(a: CollaborateurAnnuaire) {
+    onErreur(null);
+    setBusy(true);
+    try {
+      await definirAdminAction(a.id, !a.estAdmin);
+      setListe((prev) => prev.map((x) => (x.id === a.id ? { ...x, estAdmin: !a.estAdmin } : x)));
+    } catch (e) {
+      onErreur((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!ouvert) {
+    return (
+      <button
+        onClick={() => setOuvert(true)}
+        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] text-ink-3 hover:text-ink border border-dashed border-line rounded-lg"
+      >
+        <Shield className="w-3.5 h-3.5" strokeWidth={1.5} /> Administration
+      </button>
+    );
+  }
+  return (
+    <div className="border border-line rounded-lg bg-surface">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
+        <span className="text-[13px] font-medium text-ink flex items-center gap-1.5">
+          <Shield className="w-3.5 h-3.5 text-green-700" strokeWidth={1.5} /> Administration - roles
+        </span>
+        <button onClick={() => setOuvert(false)} className="text-[12px] text-ink-3 hover:text-ink">
+          Fermer
+        </button>
+      </div>
+      <ul className="divide-y divide-line">
+        {liste.map((a) => (
+          <li key={a.id} className="px-4 py-2 flex items-center justify-between text-[12.5px]">
+            <span className="text-ink">
+              {a.nomComplet || a.email}
+              {a.estAdmin && (
+                <span className="ml-1.5 text-[10.5px] uppercase tracking-wide text-green-700 bg-green-50 rounded px-1.5 py-0.5">
+                  admin
+                </span>
+              )}
+            </span>
+            <button
+              onClick={() => basculer(a)}
+              disabled={busy || (a.id === monUserId && a.estAdmin)}
+              className="text-[11.5px] text-ink-3 hover:text-ink disabled:opacity-40"
+            >
+              {a.estAdmin ? "Retirer admin" : "Promouvoir admin"}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // --- Un coffre + ses secrets + (si partage et admin) ses membres -----------
 
 function CoffrePanel({
   coffre,
   monUserId,
+  suisAdmin,
   annuaire,
   onAjout,
   onErreur,
 }: {
   coffre: CoffreOuvert;
   monUserId: string;
+  suisAdmin: boolean;
   annuaire: CollaborateurAnnuaire[];
   onAjout: (c: CoffreOuvert) => void;
   onErreur: (e: string | null) => void;
@@ -417,7 +496,6 @@ function CoffrePanel({
   }
 
   const partage = coffre.scope !== "personal";
-  const admin = coffre.role === "admin";
 
   // --- membres (coffres partages, admin) ---
   const [gestion, setGestion] = useState(false);
@@ -549,7 +627,7 @@ function CoffrePanel({
           )}
         </div>
         <div className="flex items-center gap-3">
-          {partage && admin && (
+          {partage && suisAdmin && (
             <button
               onClick={() => (gestion ? setGestion(false) : chargerMembres())}
               className="flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink"
@@ -567,7 +645,7 @@ function CoffrePanel({
         </div>
       </div>
 
-      {gestion && partage && admin && (
+      {gestion && partage && suisAdmin && (
         <div className="px-4 py-3 border-b border-line bg-surface-2/40 flex flex-col gap-2">
           <div className="text-[12px] font-medium text-ink-2">Membres</div>
           {membres === null ? (

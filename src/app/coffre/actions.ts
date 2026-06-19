@@ -20,6 +20,7 @@ import {
   editerSecret,
   supprimerSecretCoffre,
   listerAuditCoffre,
+  definirAdminCollaborateur,
 } from "@/lib/services/coffre/coffre-service";
 import type { BlobChiffreStocke, CleEnrobeeMembre, SecretChiffre, ActionAudit } from "@/lib/domain/coffre";
 
@@ -34,14 +35,23 @@ async function exigerMembre(coffreId: string): Promise<string> {
   return apercu.collaborateur.id;
 }
 
-/** Verifie que l'appelant est membre admin du coffre ; renvoie son id pm_user. */
+/** Verifie que l'appelant est admin GLOBAL et membre du coffre ; renvoie son id. */
 async function exigerAdmin(coffreId: string): Promise<string> {
   const g = await getGestionnaireCourant();
   if (!g) throw new Error("Non authentifie");
   const apercu = await getApercuCoffre(g.id);
   const coffre = apercu.coffres.find((c) => c.id === coffreId);
   if (!apercu.collaborateur || !coffre) throw new Error("Coffre non accessible");
-  if (coffre.role !== "admin") throw new Error("Reserve aux administrateurs du coffre");
+  if (!apercu.collaborateur.estAdmin) throw new Error("Reserve aux administrateurs");
+  return apercu.collaborateur.id;
+}
+
+/** Verifie que l'appelant est admin global ; renvoie son id pm_user. */
+async function exigerAdminGlobal(): Promise<string> {
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.collaborateur?.estAdmin) throw new Error("Reserve aux administrateurs");
   return apercu.collaborateur.id;
 }
 
@@ -114,6 +124,7 @@ export async function creerCoffrePartageAction(
   if (!g) throw new Error("Non authentifie");
   const apercu = await getApercuCoffre(g.id);
   if (!apercu.collaborateur) throw new Error("Coffre non initialise");
+  if (!apercu.collaborateur.estAdmin) throw new Error("Seuls les administrateurs creent des coffres partages");
   const coffreId = await creerCoffrePartage(
     scope,
     nom,
@@ -200,4 +211,15 @@ export async function listerAuditAction(coffreId: string): Promise<EntreeAuditAf
     createdAt: e.createdAt,
     ...(e.details ? { details: e.details } : {}),
   }));
+}
+
+// --- Gouvernance des roles --------------------------------------------------
+
+export async function definirAdminAction(cibleUserId: string, estAdmin: boolean): Promise<void> {
+  const moi = await exigerAdminGlobal();
+  // Garde-fou : on ne peut pas se retirer soi-meme le role (risque de blocage).
+  if (cibleUserId === moi && !estAdmin) {
+    throw new Error("Tu ne peux pas te retirer toi-meme le role admin.");
+  }
+  await definirAdminCollaborateur(cibleUserId, estAdmin);
 }

@@ -51,6 +51,7 @@ create table if not exists public.intranet_pm_user (
   agency_id     uuid references public.intranet_pm_agency (id),
   public_key    text not null,             -- cle publique ECDH P-256 (spki), base64 (publique par nature)
   status        text not null default 'active',  -- active | suspended
+  is_admin      boolean not null default false,  -- admin global du coffre (gouvernance)
   created_at    timestamptz not null default now()
 );
 
@@ -250,3 +251,13 @@ create policy pm_audit_member_read on public.intranet_pm_audit
   for select to authenticated using (
     vault_id in (select vault_id from public.intranet_pm_membership where user_id = auth.uid())
   );
+
+-- ========================================================================
+-- Gouvernance : colonne is_admin (admin global). Pour une base deja creee
+-- avant cette colonne, l'ALTER ci-dessous la rajoute (idempotent).
+-- Le 1er collaborateur enrole devient admin automatiquement (cote service).
+-- BOOTSTRAP d'un compte existant (ex : Sekou) :
+--   update public.intranet_pm_user set is_admin = true where azure_oid = '<son id User>';
+-- ========================================================================
+
+alter table public.intranet_pm_user add column if not exists is_admin boolean not null default false;

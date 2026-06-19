@@ -34,6 +34,12 @@ export interface CoffreIdentiteRepository {
   /** Annuaire des collaborateurs enroles (avec cle publique), pour le partage. */
   listerCollaborateurs(): Promise<CollaborateurAnnuaire[]>;
 
+  /** Nombre de collaborateurs enroles (bootstrap : 1er = admin). */
+  compterCollaborateurs(): Promise<number>;
+
+  /** Promeut / retrograde un collaborateur comme admin global. */
+  definirAdmin(userId: string, estAdmin: boolean): Promise<void>;
+
   /** Services de l'organisation (pour cibler un coffre de service). */
   listerServices(): Promise<ServiceOrg[]>;
 

@@ -54,12 +54,15 @@ export interface DemandeEnrolement {
  *  son coffre perso (avec la cle de coffre deja enrobee vers lui-meme). */
 export async function enrolerCollaborateur(d: DemandeEnrolement): Promise<{ userId: string; coffreId: string }> {
   const identite = getCoffreIdentiteRepository();
+  // Bootstrap : le tout premier collaborateur enrole devient admin global.
+  const premier = (await identite.compterCollaborateurs()) === 0;
   const collaborateur = await identite.creer({
     azureOid: d.azureOid,
     email: d.email,
     nomComplet: d.nomComplet,
     publicKey: d.publicKey,
   });
+  if (premier) await identite.definirAdmin(collaborateur.id, true);
   await identite.ajouterDeverrouillage(collaborateur.id, "master_password", d.wrappedPrivateKey, d.params);
   const coffreId = await getCoffreRepository().creerCoffre(
     { scope: "personal", nom: d.coffrePerso.nom, ownerId: collaborateur.id },
@@ -135,6 +138,11 @@ export async function listerAnnuaire(): Promise<CollaborateurAnnuaire[]> {
 /** Services de l'organisation (pour cibler un coffre de service). */
 export async function listerServicesCoffre(): Promise<ServiceOrg[]> {
   return getCoffreIdentiteRepository().listerServices();
+}
+
+/** Promeut / retrograde un collaborateur comme admin global (gouvernance). */
+export async function definirAdminCollaborateur(userId: string, estAdmin: boolean): Promise<void> {
+  await getCoffreIdentiteRepository().definirAdmin(userId, estAdmin);
 }
 
 /** Cree un coffre partage (reseau ou service) ; le createur en est l'admin. */

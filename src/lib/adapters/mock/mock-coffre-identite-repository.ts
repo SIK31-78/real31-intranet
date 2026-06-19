@@ -39,6 +39,7 @@ export class MockCoffreIdentiteRepository implements CoffreIdentiteRepository {
       nomComplet: nouveau.nomComplet,
       agenceId: nouveau.agenceId,
       serviceIds: [],
+      estAdmin: false,
     };
     collaborateurs.set(c.id, c);
     parOid.set(c.azureOid, c.id);
@@ -64,9 +65,20 @@ export class MockCoffreIdentiteRepository implements CoffreIdentiteRepository {
     return [...collaborateurs.values()]
       .map((c) => {
         const publicKey = clesPubliques.get(c.id);
-        return publicKey ? { id: c.id, email: c.email, publicKey, ...(c.nomComplet ? { nomComplet: c.nomComplet } : {}) } : null;
+        return publicKey
+          ? { id: c.id, email: c.email, publicKey, estAdmin: c.estAdmin, ...(c.nomComplet ? { nomComplet: c.nomComplet } : {}) }
+          : null;
       })
       .filter((x): x is CollaborateurAnnuaire => x !== null);
+  }
+
+  async compterCollaborateurs(): Promise<number> {
+    return collaborateurs.size;
+  }
+
+  async definirAdmin(userId: string, estAdmin: boolean): Promise<void> {
+    const c = collaborateurs.get(userId);
+    if (c) collaborateurs.set(userId, { ...c, estAdmin });
   }
 
   async listerServices(): Promise<ServiceOrg[]> {

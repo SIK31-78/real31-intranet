@@ -53,6 +53,8 @@ export interface Collaborateur {
   nomComplet?: string;
   agenceId?: string;
   serviceIds: string[];
+  /** Admin global du coffre (gouvernance : creer des coffres partages, gerer les acces). */
+  estAdmin: boolean;
 }
 
 /** Cle publique d'un collaborateur, pour wrapper une cle de coffre vers lui. */
@@ -69,6 +71,7 @@ export interface CollaborateurAnnuaire {
   email: string;
   nomComplet?: string;
   publicKey: string;
+  estAdmin: boolean;
 }
 
 /** Un service de l'organisation (Vente, Syndic, Location, Gestion Locative). */

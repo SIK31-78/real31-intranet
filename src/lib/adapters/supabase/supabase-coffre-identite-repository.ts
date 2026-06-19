@@ -20,6 +20,7 @@ type UserRow = {
   email: string;
   display_name: string | null;
   agency_id: string | null;
+  is_admin: boolean;
 };
 type UnlockRow = {
   id: string;
@@ -44,6 +45,7 @@ function toCollaborateur(r: UserRow, services: string[]): Collaborateur {
     azureOid: r.azure_oid,
     email: r.email,
     serviceIds: services,
+    estAdmin: r.is_admin,
     ...(r.display_name ? { nomComplet: r.display_name } : {}),
     ...(r.agency_id ? { agenceId: r.agency_id } : {}),
   };
@@ -54,7 +56,7 @@ export class SupabaseCoffreIdentiteRepository implements CoffreIdentiteRepositor
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("intranet_pm_user")
-      .select("id, azure_oid, email, display_name, agency_id")
+      .select("id, azure_oid, email, display_name, agency_id, is_admin")
       .eq("azure_oid", azureOid)
       .maybeSingle();
     if (error) throw new Error(`Lecture pm_user : ${error.message}`);
@@ -74,7 +76,7 @@ export class SupabaseCoffreIdentiteRepository implements CoffreIdentiteRepositor
         agency_id: nouveau.agenceId ?? null,
         public_key: nouveau.publicKey,
       })
-      .select("id, azure_oid, email, display_name, agency_id")
+      .select("id, azure_oid, email, display_name, agency_id, is_admin")
       .single();
     if (error) throw new Error(`Creation pm_user : ${error.message}`);
     return toCollaborateur(data as UserRow, []);
@@ -109,11 +111,31 @@ export class SupabaseCoffreIdentiteRepository implements CoffreIdentiteRepositor
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("intranet_pm_user")
-      .select("id, email, display_name, public_key");
+      .select("id, email, display_name, public_key, is_admin");
     if (error) throw new Error(`Lecture annuaire pm_user : ${error.message}`);
-    return ((data as { id: string; email: string; display_name: string | null; public_key: string }[] | null) ?? []).map(
-      (r) => ({ id: r.id, email: r.email, publicKey: r.public_key, ...(r.display_name ? { nomComplet: r.display_name } : {}) }),
-    );
+    type Row = { id: string; email: string; display_name: string | null; public_key: string; is_admin: boolean };
+    return ((data as Row[] | null) ?? []).map((r) => ({
+      id: r.id,
+      email: r.email,
+      publicKey: r.public_key,
+      estAdmin: r.is_admin,
+      ...(r.display_name ? { nomComplet: r.display_name } : {}),
+    }));
+  }
+
+  async compterCollaborateurs(): Promise<number> {
+    const supabase = createSupabasePublicClient();
+    const { count, error } = await supabase
+      .from("intranet_pm_user")
+      .select("id", { count: "exact", head: true });
+    if (error) throw new Error(`Comptage pm_user : ${error.message}`);
+    return count ?? 0;
+  }
+
+  async definirAdmin(userId: string, estAdmin: boolean): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase.from("intranet_pm_user").update({ is_admin: estAdmin }).eq("id", userId);
+    if (error) throw new Error(`Maj is_admin pm_user : ${error.message}`);
   }
 
   async listerServices(): Promise<ServiceOrg[]> {
