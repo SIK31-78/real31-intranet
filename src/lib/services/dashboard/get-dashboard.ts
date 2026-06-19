@@ -89,7 +89,6 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     .map((c) => construireLigne(c, accompliPar.get(`${c.code}|${c.prochaineAg?.date}`) ?? new Set(), today))
     .filter((r): r is { ligne: LigneParcours; tri: string } => r !== null)
     .sort((a, b) => a.tri.localeCompare(b.tri))
-    .slice(0, 12)
     .map((r) => r.ligne);
 
   let convocDues = 0;

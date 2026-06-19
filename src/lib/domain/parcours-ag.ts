@@ -195,6 +195,7 @@ export function construireLigne(
     ...actionEtape(courantCode, c, agDate),
     ...(echeance ? { echeance } : {}),
     ...(enRetard ? { enRetard } : {}),
+    ...(/^\d{2}\/\d{2}$/.test(c.exercice.fin) ? { exerciceCloture: c.exercice.fin } : {}),
   };
   return { ligne, tri: dueDate ?? "9999-99-99" };
 }

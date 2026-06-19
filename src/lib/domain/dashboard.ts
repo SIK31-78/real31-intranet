@@ -100,6 +100,8 @@ export interface LigneParcours {
   echeance?: string;
   /** Vrai si l'echeance de l'etape courante est depassee. */
   enRetard?: boolean;
+  /** Cloture de l'exercice comptable "JJ/MM" (sert au filtre du dashboard). */
+  exerciceCloture?: string;
 }
 
 /** Agregat complet rendu par le dashboard pour un gestionnaire donne. */
