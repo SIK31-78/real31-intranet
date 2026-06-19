@@ -117,7 +117,12 @@ export function detecterColonnes(entetes: string[]): Mapping {
 /** Transforme une ligne en secret. null si pas de mot de passe (ligne ignoree).
  *  Le titre tombe sur l'url ou le login si aucune colonne titre. */
 export function versSecret(ligne: string[], map: Mapping): SecretClair | null {
-  const val = (i: number | null): string => (i !== null && i < ligne.length ? ligne[i].trim() : "");
+  const val = (i: number | null): string => {
+    if (i === null || i >= ligne.length) return "";
+    const v = ligne[i].trim();
+    // "-", "--", "- " = placeholders vides dans les fichiers REAL31.
+    return /^-+$/.test(v) ? "" : v;
+  };
   const motDePasse = val(map.motDePasse);
   if (!motDePasse) return null;
   const url = val(map.url);

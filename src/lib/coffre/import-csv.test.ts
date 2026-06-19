@@ -82,6 +82,12 @@ describe("versSecret", () => {
     const s = versSecret(["", "", "", "login@x.fr", "p", ""], map);
     expect(s?.titre).toBe("login@x.fr");
   });
+
+  it("traite les placeholders '-' comme vides", () => {
+    // Entite='-', Immeuble='-', Entreprise='-' -> titre retombe sur le login.
+    const s = versSecret(["-", "- ", "-", "user@x.fr", "p", "--"], map);
+    expect(s).toEqual({ titre: "user@x.fr", motDePasse: "p", login: "user@x.fr" });
+  });
 });
 
 describe("cleDedup", () => {

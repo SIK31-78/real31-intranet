@@ -69,6 +69,11 @@ const LIBELLE_ACTION: Record<string, string> = {
   import: "Import",
 };
 
+// Une valeur "renseignee" : non vide et pas un placeholder "-" / "--".
+function estRenseigne(v?: string): v is string {
+  return !!v && !/^-+$/.test(v.trim());
+}
+
 // Recherche : tous les termes (separes par espace) doivent apparaitre dans l'un
 // des champs du secret (titre, entreprise via titre, copro, immeuble, login, url, notes).
 function correspond(s: SecretClair, q: string): boolean {
@@ -108,7 +113,7 @@ export function CoffreVue({
   const [info, setInfo] = useState<string | null>(null);
   const [recherche, setRecherche] = useState("");
   const [filtreCopro, setFiltreCopro] = useState("");
-  const [filtreImmeuble, setFiltreImmeuble] = useState("");
+  const [filtreEntreprise, setFiltreEntreprise] = useState("");
 
   const [mdp, setMdp] = useState("");
   const [mdp2, setMdp2] = useState("");
@@ -303,19 +308,17 @@ export function CoffreVue({
 
   // --- Coffre deverrouille -------------------------------------------------
 
-  // Valeurs distinctes pour les filtres (copropriete / immeuble), tous coffres.
-  const valeursDistinctes = (champ: "copropriete" | "immeuble"): string[] =>
-    [...new Set(coffres.flatMap((c) => c.secrets.map((s) => s.clair[champ]).filter((v): v is string => !!v)))].sort(
-      (a, b) => a.localeCompare(b),
-    );
-  const coprosDispo = valeursDistinctes("copropriete");
-  const immeublesDispo = valeursDistinctes("immeuble");
+  // Valeurs distinctes pour les filtres (copropriete / entreprise), tous coffres.
+  const distinct = (vals: (string | undefined)[]): string[] =>
+    [...new Set(vals.filter(estRenseigne))].sort((a, b) => a.localeCompare(b));
+  const coprosDispo = distinct(coffres.flatMap((c) => c.secrets.map((s) => s.clair.copropriete)));
+  const entreprisesDispo = distinct(coffres.flatMap((c) => c.secrets.map((s) => s.clair.titre)));
 
-  const filtreActif = recherche.trim() !== "" || filtreCopro !== "" || filtreImmeuble !== "";
+  const filtreActif = recherche.trim() !== "" || filtreCopro !== "" || filtreEntreprise !== "";
   const filtre = (s: SecretClair): boolean =>
     correspond(s, recherche) &&
     (filtreCopro === "" || s.copropriete === filtreCopro) &&
-    (filtreImmeuble === "" || s.immeuble === filtreImmeuble);
+    (filtreEntreprise === "" || s.titre === filtreEntreprise);
 
   return (
     <div className="flex flex-col gap-4">
@@ -372,14 +375,14 @@ export function CoffreVue({
             ))}
           </select>
         )}
-        {immeublesDispo.length > 0 && (
+        {entreprisesDispo.length > 0 && (
           <select
-            value={filtreImmeuble}
-            onChange={(e) => setFiltreImmeuble(e.target.value)}
+            value={filtreEntreprise}
+            onChange={(e) => setFiltreEntreprise(e.target.value)}
             className="h-9 px-2 rounded-md border border-line bg-surface text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
           >
-            <option value="">Tous les immeubles</option>
-            {immeublesDispo.map((v) => (
+            <option value="">Toutes les entreprises</option>
+            {entreprisesDispo.map((v) => (
               <option key={v} value={v}>
                 {v}
               </option>
@@ -391,7 +394,7 @@ export function CoffreVue({
             onClick={() => {
               setRecherche("");
               setFiltreCopro("");
-              setFiltreImmeuble("");
+              setFiltreEntreprise("");
             }}
             className="h-9 px-3 text-[12px] text-ink-3 hover:text-ink"
           >
@@ -815,15 +818,15 @@ function CoffrePanel({
             <div className="min-w-0 flex-1">
               <div className="text-[13px] text-ink truncate">
                 {s.clair.titre}
-                {(s.clair.copropriete || s.clair.immeuble) && (
+                {[s.clair.copropriete, s.clair.immeuble].some(estRenseigne) && (
                   <span className="text-ink-3 font-normal">
                     {" "}
-                    - {[s.clair.copropriete, s.clair.immeuble].filter(Boolean).join(" - ")}
+                    - {[s.clair.copropriete, s.clair.immeuble].filter(estRenseigne).join(" - ")}
                   </span>
                 )}
               </div>
               <div className="text-[11.5px] text-ink-3 truncate">
-                {[s.clair.login, s.clair.url].filter(Boolean).join(" - ")}
+                {[s.clair.login, s.clair.url].filter(estRenseigne).join(" - ")}
               </div>
             </div>
             <code className="text-[12px] text-ink-2 font-mono">
