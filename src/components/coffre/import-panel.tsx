@@ -10,6 +10,7 @@ import { chiffrerSecret, CRYPTO_VERSION } from "@/lib/coffre/coffre-client";
 import { importerSecretsAction } from "@/app/coffre/actions";
 import {
   parserCsv,
+  decoderTexte,
   detecterColonnes,
   versSecret,
   cleDedup,
@@ -48,7 +49,7 @@ export function ImportPanel({
     onErreur(null);
     setResultat(null);
     try {
-      const p = parserCsv(await f.text());
+      const p = parserCsv(decoderTexte(await f.arrayBuffer()));
       setParse(p);
       setMapping(detecterColonnes(p.entetes));
       setNomFichier(f.name);

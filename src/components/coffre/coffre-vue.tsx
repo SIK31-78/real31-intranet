@@ -6,7 +6,7 @@
 // membre). Le serveur ne recoit que des blobs chiffres.
 
 import { useState, type ReactNode, type ComponentType } from "react";
-import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload, Pencil, Trash2, History, Shield } from "lucide-react";
+import { KeyRound, Lock, Plus, Eye, EyeOff, Copy, Loader2, Fingerprint, Users, Network, X, Upload, Pencil, Trash2, History, Shield, Search } from "lucide-react";
 import {
   enrolerMotDePasse,
   deverrouillerMotDePasse,
@@ -69,6 +69,20 @@ const LIBELLE_ACTION: Record<string, string> = {
   import: "Import",
 };
 
+// Recherche : tous les termes (separes par espace) doivent apparaitre dans l'un
+// des champs du secret (titre, entreprise via titre, copro, immeuble, login, url, notes).
+function correspond(s: SecretClair, q: string): boolean {
+  const foin = [s.titre, s.copropriete, s.immeuble, s.login, s.url, s.notes]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return q
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((t) => foin.includes(t));
+}
+
 export function CoffreVue({
   nomComplet,
   apercu,
@@ -92,6 +106,9 @@ export function CoffreVue({
   const [erreur, setErreur] = useState<string | null>(null);
   const [passkeyActivee, setPasskeyActivee] = useState(passkeyDev !== null);
   const [info, setInfo] = useState<string | null>(null);
+  const [recherche, setRecherche] = useState("");
+  const [filtreCopro, setFiltreCopro] = useState("");
+  const [filtreImmeuble, setFiltreImmeuble] = useState("");
 
   const [mdp, setMdp] = useState("");
   const [mdp2, setMdp2] = useState("");
@@ -285,6 +302,21 @@ export function CoffreVue({
   }
 
   // --- Coffre deverrouille -------------------------------------------------
+
+  // Valeurs distinctes pour les filtres (copropriete / immeuble), tous coffres.
+  const valeursDistinctes = (champ: "copropriete" | "immeuble"): string[] =>
+    [...new Set(coffres.flatMap((c) => c.secrets.map((s) => s.clair[champ]).filter((v): v is string => !!v)))].sort(
+      (a, b) => a.localeCompare(b),
+    );
+  const coprosDispo = valeursDistinctes("copropriete");
+  const immeublesDispo = valeursDistinctes("immeuble");
+
+  const filtreActif = recherche.trim() !== "" || filtreCopro !== "" || filtreImmeuble !== "";
+  const filtre = (s: SecretClair): boolean =>
+    correspond(s, recherche) &&
+    (filtreCopro === "" || s.copropriete === filtreCopro) &&
+    (filtreImmeuble === "" || s.immeuble === filtreImmeuble);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -315,17 +347,74 @@ export function CoffreVue({
       )}
       {erreur && <p className="text-[12px] text-red-600">{erreur}</p>}
 
-      {coffres.map((c) => (
-        <CoffrePanel
-          key={c.id}
-          coffre={c}
-          monUserId={monUserId}
-          suisAdmin={suisAdmin}
-          annuaire={annuaire}
-          onAjout={(secret) => setCoffres((prev) => prev.map((x) => (x.id === c.id ? secret : x)))}
-          onErreur={setErreur}
-        />
-      ))}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-4" strokeWidth={1.5} />
+          <input
+            type="text"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Rechercher (entreprise, identifiant, URL...)"
+            className="w-full h-9 pl-8 pr-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus:ring-1 focus:ring-green-600"
+          />
+        </div>
+        {coprosDispo.length > 0 && (
+          <select
+            value={filtreCopro}
+            onChange={(e) => setFiltreCopro(e.target.value)}
+            className="h-9 px-2 rounded-md border border-line bg-surface text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
+          >
+            <option value="">Toutes les coproprietes</option>
+            {coprosDispo.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        )}
+        {immeublesDispo.length > 0 && (
+          <select
+            value={filtreImmeuble}
+            onChange={(e) => setFiltreImmeuble(e.target.value)}
+            className="h-9 px-2 rounded-md border border-line bg-surface text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
+          >
+            <option value="">Tous les immeubles</option>
+            {immeublesDispo.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        )}
+        {filtreActif && (
+          <button
+            onClick={() => {
+              setRecherche("");
+              setFiltreCopro("");
+              setFiltreImmeuble("");
+            }}
+            className="h-9 px-3 text-[12px] text-ink-3 hover:text-ink"
+          >
+            Reinitialiser
+          </button>
+        )}
+      </div>
+
+      {coffres
+        .filter((c) => !filtreActif || c.secrets.some((s) => filtre(s.clair)))
+        .map((c) => (
+          <CoffrePanel
+            key={c.id}
+            coffre={c}
+            monUserId={monUserId}
+            suisAdmin={suisAdmin}
+            annuaire={annuaire}
+            filtre={filtre}
+            filtreActif={filtreActif}
+            onAjout={(secret) => setCoffres((prev) => prev.map((x) => (x.id === c.id ? secret : x)))}
+            onErreur={setErreur}
+          />
+        ))}
 
       {suisAdmin && <CreerPartage services={services} busy={busy} onCreer={creerPartage} />}
       {suisAdmin && <AdminPanel annuaire={annuaire} monUserId={monUserId} onErreur={setErreur} />}
@@ -470,6 +559,8 @@ function CoffrePanel({
   monUserId,
   suisAdmin,
   annuaire,
+  filtre,
+  filtreActif,
   onAjout,
   onErreur,
 }: {
@@ -477,6 +568,8 @@ function CoffrePanel({
   monUserId: string;
   suisAdmin: boolean;
   annuaire: CollaborateurAnnuaire[];
+  filtre: (s: SecretClair) => boolean;
+  filtreActif: boolean;
   onAjout: (c: CoffreOuvert) => void;
   onErreur: (e: string | null) => void;
 }) {
@@ -496,6 +589,7 @@ function CoffrePanel({
   }
 
   const partage = coffre.scope !== "personal";
+  const secretsAffiches = filtreActif ? coffre.secrets.filter((s) => filtre(s.clair)) : coffre.secrets;
 
   // --- membres (coffres partages, admin) ---
   const [gestion, setGestion] = useState(false);
@@ -641,7 +735,9 @@ function CoffrePanel({
           >
             <History className="w-3.5 h-3.5" strokeWidth={1.5} /> Historique
           </button>
-          <span className="text-[11px] text-ink-4 font-mono">{coffre.secrets.length} secret(s)</span>
+          <span className="text-[11px] text-ink-4 font-mono">
+            {filtreActif ? `${secretsAffiches.length}/${coffre.secrets.length}` : `${coffre.secrets.length} secret(s)`}
+          </span>
         </div>
       </div>
 
@@ -709,8 +805,12 @@ function CoffrePanel({
         <p className="px-4 py-6 text-[12.5px] text-ink-3 text-center">Aucun mot de passe pour l&apos;instant.</p>
       )}
 
+      {filtreActif && secretsAffiches.length === 0 && coffre.secrets.length > 0 && (
+        <p className="px-4 py-4 text-[12.5px] text-ink-4 text-center">Aucun resultat dans ce coffre.</p>
+      )}
+
       <ul className="divide-y divide-line">
-        {coffre.secrets.map((s) => (
+        {secretsAffiches.map((s) => (
           <li key={s.id} className="px-4 py-2.5 flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <div className="text-[13px] text-ink truncate">

@@ -26,6 +26,21 @@ export const CHAMPS: { cle: ChampSecret; libelle: string }[] = [
   { cle: "notes", libelle: "Notes" },
 ];
 
+/** Decode les octets d'un CSV en gerant l'encodage : UTF-8 si valide (ou BOM
+ *  UTF-8), sinon Windows-1252 (l'export "CSV" d'Excel FR n'est pas UTF-8 ->
+ *  sinon les accents deviennent des caracteres de remplacement). */
+export function decoderTexte(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
 /** Detecte le delimiteur (Excel FR exporte souvent en point-virgule). */
 export function detecterDelimiteur(premiereLigne: string): string {
   const pv = (premiereLigne.match(/;/g) ?? []).length;

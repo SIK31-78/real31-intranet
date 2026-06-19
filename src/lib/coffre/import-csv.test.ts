@@ -1,7 +1,7 @@
 // Tests du parseur CSV d'import (ADR-025), cales sur le vrai modele REAL31
 // (colonnes Entite, Immeuble, Entreprise, Identifiant, Mot de passe, Autre info).
 import { describe, it, expect } from "vitest";
-import { parserCsv, detecterColonnes, versSecret, cleDedup, detecterDelimiteur } from "./import-csv";
+import { parserCsv, detecterColonnes, versSecret, cleDedup, detecterDelimiteur, decoderTexte } from "./import-csv";
 
 const ENTETES = ["Entite", "Immeuble", "Entreprise", "Identifiant", "Mot de passe", "Autre info"];
 
@@ -31,6 +31,24 @@ describe("parserCsv", () => {
   it("detecterDelimiteur prefere ; quand il domine", () => {
     expect(detecterDelimiteur("a;b;c")).toBe(";");
     expect(detecterDelimiteur("a,b,c")).toBe(",");
+  });
+});
+
+describe("decoderTexte (encodage)", () => {
+  it("decode l'UTF-8", () => {
+    const buf = new TextEncoder().encode("Deroule").buffer;
+    expect(decoderTexte(buf)).toBe("Deroule");
+  });
+
+  it("decode l'UTF-8 accentue", () => {
+    const buf = new TextEncoder().encode("Déroulé").buffer;
+    expect(decoderTexte(buf)).toBe("Déroulé");
+  });
+
+  it("retombe sur Windows-1252 quand ce n'est pas de l'UTF-8 valide", () => {
+    // "Déroulé" en Windows-1252 : e accent aigu = 0xE9 (invalide en UTF-8 isole).
+    const bytes = new Uint8Array([0x44, 0xe9, 0x72, 0x6f, 0x75, 0x6c, 0xe9]);
+    expect(decoderTexte(bytes.buffer)).toBe("Déroulé");
   });
 });
 
