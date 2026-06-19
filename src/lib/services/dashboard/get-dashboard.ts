@@ -91,9 +91,12 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     .sort((a, b) => a.tri.localeCompare(b.tri))
     .map((r) => r.ligne);
 
-  let convocDues = 0;
-  let convocRetard = 0;
-  let jalonsRetard = 0;
+  // Modele d'alarme honnete : un jalon de preparation echu mais non marque n'est PAS
+  // un retard (le travail se fait sans doute dans eStale, l'intranet n'en a juste pas
+  // la trace). On le presente "a confirmer" (neutre), jamais en rouge. Le rouge ne sort
+  // que de donnees positives (jalon marque ou, ailleurs, AG non planifiee legalement due).
+  let convocAEnvoyer = 0; // CONVOC a venir sous 7j (echeance non encore passee)
+  let nbAgAConfirmer = 0; // AG ayant >=1 jalon prep echu non confirme
   const attention: ItemAttention[] = [];
 
   for (const c of avenir) {
@@ -101,22 +104,36 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     const jalons = calculerJalons(agDate);
     const accompli = accompliPar.get(`${c.code}|${agDate}`) ?? new Set<string>();
 
+    let aConfirmerCopro = false;
     for (const j of jalons) {
       if (accompli.has(j.code)) continue;
       const d = joursEntre(today, j.cibleDate);
-      if (d < 0) jalonsRetard++;
-      if (j.code === "CONVOC") {
-        if (d <= SEUIL_SOON) convocDues++;
-        if (d < 0) convocRetard++;
-      }
+      if (d < 0) aConfirmerCopro = true;
+      else if (j.code === "CONVOC" && d <= SEUIL_SOON) convocAEnvoyer++;
     }
+    if (aConfirmerCopro) nbAgAConfirmer++;
 
     const prochain = [...jalons]
       .sort((a, b) => a.cibleDate.localeCompare(b.cibleDate))
       .find((j) => !accompli.has(j.code));
     if (prochain) {
       const d = joursEntre(today, prochain.cibleDate);
-      if (d <= SEUIL_SOON) {
+      if (d < 0) {
+        // Echeance passee, non confirmee : etat neutre + action "marquer fait".
+        attention.push({
+          id: `att-${c.code}`,
+          jalon: { label: "à conf.", severite: "ok" },
+          coproCode: c.code,
+          titre: `${c.nom} - ${LIBELLE_COURT[prochain.code]}`,
+          echeance: jourMoisCourt(prochain.cibleDate),
+          lien: `/supervision-ag/${c.code}__${agDate}`,
+          badge: { texte: "À confirmer", ton: "neutral" as Ton },
+          aConfirmer: true,
+          jalonCode: prochain.code,
+          agDate,
+        });
+      } else if (d <= SEUIL_SOON) {
+        // Echeance proche, a venir : compte a rebours normal.
         attention.push({
           id: `att-${c.code}`,
           jalon: compteARebours(prochain.cibleDate, today),
@@ -124,12 +141,12 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
           titre: `${c.nom} - ${LIBELLE_COURT[prochain.code]}`,
           echeance: jourMoisCourt(prochain.cibleDate),
           lien: `/supervision-ag/${c.code}__${agDate}`,
-          ...(d < 0 ? { badge: { texte: "En retard", ton: "err" as Ton } } : {}),
         });
       }
     }
   }
 
+  // Tri : echeances a venir (soon) avant les "a confirmer" (neutres).
   attention.sort((a, b) => rangSeverite(a.jalon.severite) - rangSeverite(b.jalon.severite));
 
   const nbSansAg = copros.filter((c) => c.prochaineAg === undefined).length;
@@ -138,12 +155,9 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     {
       id: "convoc",
       label: "À envoyer",
-      valeur: convocDues,
+      valeur: convocAEnvoyer,
       unite: "convocations",
       detail: "sous 7 jours",
-      ...(convocRetard > 0
-        ? { detailFort: `${convocRetard} en retard`, severiteDetail: "late" as Severite }
-        : {}),
       icone: "send",
       lien: "/mes-evenements",
     },
@@ -157,13 +171,12 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       lien: "/mes-evenements",
     },
     {
-      id: "jalons-retard",
-      label: "En retard",
-      valeur: jalonsRetard,
-      unite: "jalons",
-      detail: "échéance dépassée",
-      ...(jalonsRetard > 0 ? { severiteDetail: "late" as Severite } : {}),
-      icone: "alert-triangle",
+      id: "a-confirmer",
+      label: "À confirmer",
+      valeur: nbAgAConfirmer,
+      unite: "AG",
+      detail: "échéances passées, statut géré dans eStale",
+      icone: "circle-help",
       lien: "/mes-evenements",
     },
   ];

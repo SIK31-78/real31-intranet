@@ -169,23 +169,27 @@ export function construireLigne(
   const jalonCode = ETAPES[courant].jalon;
   let dueDate: string | undefined;
   let echeance: string | undefined;
+  // Une etape de PREPARATION echue mais non marquee n'est pas un retard rouge : le
+  // travail se fait sans doute dans eStale. On l'affiche "a confirmer" (neutre). Seul
+  // le defaut de PLANIFICATION (AG non posee, delai legal depasse) reste un vrai rouge.
+  let enRetard = false;
   if (courantCode === "dates") {
     if (!agDate) {
       dueDate = agDueDeadline(c, today) ?? undefined; // echeance legale de l'AG a tenir
-      echeance = dueDate !== undefined && dueDate < today ? "en retard" : "à dater";
+      enRetard = dueDate !== undefined && dueDate < today;
+      echeance = enRetard ? "en retard" : "à dater";
     } else {
       // AG posee, CS manquant : le CS doit preceder la convocation.
       dueDate = calculerJalons(agDate).find((j) => j.code === "CONVOC")?.cibleDate;
-      echeance = dueDate !== undefined && dueDate < today ? "en retard" : "CS à fixer";
+      echeance = dueDate !== undefined && dueDate < today ? "à confirmer" : "CS à fixer";
     }
   } else if (agDate && jalonCode) {
     dueDate = calculerJalons(agDate).find((j) => j.code === jalonCode)?.cibleDate;
     if (dueDate) {
       const d = joursEntre(today, dueDate);
-      echeance = d < 0 ? "en retard" : `J-${d}`;
+      echeance = d < 0 ? "à confirmer" : `J-${d}`;
     }
   }
-  const enRetard = dueDate !== undefined && dueDate < today;
 
   const ligne: LigneParcours = {
     id: `parc-${c.code}`,

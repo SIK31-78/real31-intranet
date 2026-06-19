@@ -3,6 +3,7 @@ import { ChevronRight, ArrowRight, CircleCheck } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { JalonPill } from "@/components/ui/jalon-pill";
+import { BoutonConfirmerJalon } from "@/components/dashboard/bouton-confirmer-jalon";
 import type { ItemAttention } from "@/lib/domain/dashboard";
 
 // Resume des priorites sur le dashboard (pilotage) : top 3 urgences + renvoi vers
@@ -28,9 +29,10 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
         <>
           <div>
             {top.map((item) => {
-              const cls =
+              const rowCls =
                 "flex items-center gap-3 px-4 py-[11px] border-b border-line last:border-b-0 hover:bg-surface-2 transition-colors duration-75";
-              const contenu = (
+              const infoCls = "flex items-center gap-3 flex-1 min-w-0";
+              const info = (
                 <>
                   <JalonPill label={item.jalon.label} severite={item.jalon.severite} />
                   <span className="font-mono text-[12px] text-ink-2 w-[38px] shrink-0">{item.coproCode}</span>
@@ -42,16 +44,27 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
                   ) : item.echeance ? (
                     <span className="font-mono text-[12px] text-ink-3">{item.echeance}</span>
                   ) : null}
-                  <ChevronRight strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
                 </>
               );
-              return item.lien ? (
-                <Link key={item.id} href={item.lien} className={cls}>
-                  {contenu}
-                </Link>
-              ) : (
-                <div key={item.id} className={cls}>
-                  {contenu}
+              const peutConfirmer = item.aConfirmer && item.jalonCode && item.agDate;
+              return (
+                <div key={item.id} className={rowCls}>
+                  {item.lien ? (
+                    <Link href={item.lien} className={infoCls}>
+                      {info}
+                    </Link>
+                  ) : (
+                    <div className={infoCls}>{info}</div>
+                  )}
+                  {peutConfirmer ? (
+                    <BoutonConfirmerJalon
+                      coproCode={item.coproCode}
+                      agDate={item.agDate!}
+                      jalonCode={item.jalonCode!}
+                    />
+                  ) : (
+                    <ChevronRight strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
+                  )}
                 </div>
               );
             })}

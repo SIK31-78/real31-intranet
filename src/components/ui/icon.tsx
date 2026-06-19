@@ -12,6 +12,7 @@ import {
   ChevronRight,
   MessageSquare,
   CheckCircle,
+  CircleHelp,
 } from "lucide-react";
 
 type IconComp = ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -30,6 +31,7 @@ const MAP: Record<string, IconComp> = {
   "chevron-right": ChevronRight,
   "message-square": MessageSquare,
   "check-circle": CheckCircle,
+  "circle-help": CircleHelp,
 };
 
 export function Icon({

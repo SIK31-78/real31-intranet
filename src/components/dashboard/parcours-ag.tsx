@@ -102,7 +102,15 @@ function LigneVue({ ligne }: { ligne: LigneParcours }) {
         <span className="text-[13px] font-medium text-ink truncate">{ligne.coproNom}</span>
         {ligne.echeance && (
           <Badge
-            ton={ligne.enRetard ? "err" : ligne.echeance.startsWith("J-") ? "outline" : "warn"}
+            ton={
+              ligne.enRetard
+                ? "err"
+                : ligne.echeance === "à confirmer"
+                  ? "neutral"
+                  : ligne.echeance.startsWith("J-")
+                    ? "outline"
+                    : "warn"
+            }
             className="font-mono shrink-0"
             dot={Boolean(ligne.enRetard)}
           >
