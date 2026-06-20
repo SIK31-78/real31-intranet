@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, ListChecks, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
-  FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, ExternalLink,
+  FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -58,6 +58,7 @@ const APPS_EXTERNES: LienApp[] = [
 
 // Outils externes (tiers) qu'on utilise mais qui ne sont pas a nous.
 const OUTILS_EXTERNES: LienApp[] = [
+  { label: "Estale", href: "https://estale.app/auth/signin", icon: Database },
   { label: "OneSpan Sign", href: "https://apps.esignlive.eu/login", icon: Signature },
   { label: "Extranet Crypto", href: "https://real31.crypto-extranet.com/syndic", icon: Globe },
   { label: "AG Connect", href: "https://ag-connect.fr/fr/participants/sign_in", icon: Vote },
