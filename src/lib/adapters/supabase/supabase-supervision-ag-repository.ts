@@ -11,7 +11,7 @@ import type {
   SupervisionAg,
   VisaFinal,
 } from "@/lib/domain/supervision-ag";
-import { SECTIONS_TEMPLATE, ITEM_CONCLUSION } from "@/lib/domain/supervision-ag-template";
+import { SECTIONS_TEMPLATE, ITEM_CONCLUSION, ITEM_CS_PREPA } from "@/lib/domain/supervision-ag-template";
 import { createSupabasePublicClient } from "./public-client";
 
 type EtatRow = {
@@ -42,17 +42,24 @@ export class SupabaseSupervisionAgRepository implements SupervisionAgProvider {
     const ref = parse(agId);
     if (!ref) return undefined;
     const supabase = createSupabasePublicClient();
-    let q = supabase.from("Copropriete").select("name").eq("referenceCrypto", ref.code);
+    let q = supabase
+      .from("Copropriete")
+      .select("name, nextCSDate, lastCSDate")
+      .eq("referenceCrypto", ref.code);
     if (managerId) q = q.eq("managerId", managerId); // cloisonnement : hors scope -> undefined
     const { data: copro } = await q.maybeSingle();
     if (!copro) return undefined;
+    const c = copro as { name: string; nextCSDate: string | null; lastCSDate: string | null };
+    // Date du CS preparatoire connue sur la copro (prochain, sinon dernier) : sert de
+    // valeur par defaut a l'item "CS preparatoire le" tant qu'il n'est pas saisi ici.
+    const csDate = (c.nextCSDate ?? c.lastCSDate)?.slice(0, 10) ?? null;
     const { data } = await supabase
       .from("intranet_supervision_items")
       .select("item_id, statut, commentaire, marque_par, marque_at")
       .eq("copropriete_id", ref.code)
       .eq("ag_date", ref.agDate);
     const etat = new Map((data as EtatRow[] | null)?.map((r) => [r.item_id, r]) ?? []);
-    return construire(agId, ref, (copro as { name: string }).name, etat);
+    return construire(agId, ref, c.name, etat, csDate);
   }
 
   async setStatutItem(
@@ -173,6 +180,7 @@ function construire(
   ref: Ref,
   nom: string,
   etat: Map<string, EtatRow>,
+  csDate: string | null,
 ): SupervisionAg {
   const sections: SectionChecklist[] = SECTIONS_TEMPLATE.map((s) => ({
     id: s.id,
@@ -186,6 +194,8 @@ function construire(
       };
       if (t.type) item.type = t.type;
       if (e?.commentaire) item.commentaire = e.commentaire;
+      // Pre-remplit "CS preparatoire le" avec la date CS de la copro si pas encore saisi.
+      else if (t.id === ITEM_CS_PREPA && csDate) item.commentaire = csDate;
       if (e?.marque_at) item.audite = { initiales: e.marque_par ?? "?", le: e.marque_at };
       return item;
     }),
