@@ -170,7 +170,10 @@ export class SupabaseCoproRepository implements CoproRepository {
     const { data, error } = await q;
     if (error) throw new Error(`Lecture public.Copropriete : ${error.message}`);
     // Pas de resolution d'equipe en liste (la vue liste ne l'affiche pas).
-    return (data as unknown as CoproRow[]).map((row) => toDomaine(row, []));
+    // On n'affiche que les copros ACTIVES (les inactives sont masquees des listes).
+    return (data as unknown as CoproRow[])
+      .map((row) => toDomaine(row, []))
+      .filter((c) => c.statut === "active");
   }
 
   async findByCode(code: string, managerId?: string): Promise<Copropriete | null> {
