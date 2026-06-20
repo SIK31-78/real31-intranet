@@ -28,8 +28,8 @@ export function Topbar({ user, breadcrumb }: TopbarProps) {
         <CommandPalette />
         <Link
           href="/mes-evenements"
-          aria-label="Mes événements à traiter"
-          title="Mes événements à traiter"
+          aria-label="Actions à traiter"
+          title="Actions à traiter"
           className="inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2 transition-colors duration-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
         >
           <Bell strokeWidth={1.5} className="w-3.5 h-3.5" />

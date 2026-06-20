@@ -5,7 +5,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 
-export const metadata: Metadata = { title: "Mes emails - REAL31 Intranet" };
+export const metadata: Metadata = { title: "Mes événements - REAL31 Intranet" };
 
 // Tri issu d'un backtest : rendu a la demande (pas de prerender statique).
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function MesEmailsPage() {
   const data = await getMesEmails(g);
 
   return (
-    <AppShell user={g} active="emails" breadcrumb="Mes emails">
+    <AppShell user={g} active="emails" breadcrumb="Mes événements">
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <MesEmailsVue data={data} />
       </div>

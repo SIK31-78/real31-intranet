@@ -410,7 +410,7 @@ function EnTete({
       <div>
         <h1 className="text-[20px] font-medium tracking-tight text-ink flex items-center gap-2">
           <Mail strokeWidth={1.5} className="w-5 h-5 text-ink-3" />
-          Mes emails
+          Mes événements
         </h1>
         <p className="text-[13px] text-ink-3 mt-0.5">
           {nbNonLus} non lus · {nbATraiter} à traiter · {nbClasses} classés
