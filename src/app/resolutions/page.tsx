@@ -7,7 +7,7 @@ import { BibliothequeVue } from "@/components/resolutions/bibliotheque-vue";
 
 export const metadata: Metadata = { title: "Résolutions - REAL31 Intranet" };
 
-// Lit la motion bank eStale a la demande.
+// Lit la motion bank Estale a la demande.
 export const dynamic = "force-dynamic";
 
 export default async function ResolutionsPage() {

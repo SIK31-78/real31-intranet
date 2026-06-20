@@ -172,14 +172,14 @@ function BlocCompta({
   );
 }
 
-// --- Banniere eStale indisponible (panne passagere) -----------------------
+// --- Banniere Estale indisponible (panne passagere) -----------------------
 
 function BanniereEstaleIndispo() {
   return (
     <div className="flex items-start gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
       <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
       <p className="text-[12.5px] text-warn-700">
-        Données eStale temporairement indisponibles (panne passagère du service). Le
+        Données Estale temporairement indisponibles (panne passagère du service). Le
         référentiel reste affiché ; rechargez la page dans un instant pour retrouver le
         conseil syndical, l&apos;historique et la conformité.
       </p>
@@ -411,7 +411,7 @@ function SideConseil({
     <SideBox titre="Conseil Syndical">
       {membres.length === 0 ? (
         <p className="text-[12px] text-ink-3">
-          {indisponible ? "eStale temporairement indisponible." : "Donnée eStale - non disponible."}
+          {indisponible ? "Estale temporairement indisponible." : "Donnée Estale - non disponible."}
         </p>
       ) : (
         <div className="text-[12.5px]">
@@ -447,7 +447,7 @@ function SideConformite({
     <SideBox titre="Conformité">
       {items.length === 0 ? (
         <p className="text-[12px] text-ink-3">
-          {indisponible ? "eStale temporairement indisponible." : "Donnée eStale - non disponible."}
+          {indisponible ? "Estale temporairement indisponible." : "Donnée Estale - non disponible."}
         </p>
       ) : (
         <div className="flex flex-col gap-1.5">

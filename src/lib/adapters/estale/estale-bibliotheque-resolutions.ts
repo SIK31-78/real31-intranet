@@ -1,7 +1,7 @@
-// Adapter eStale de la bibliotheque de resolutions (ADR-024) : lit la "motion bank"
+// Adapter Estale de la bibliotheque de resolutions (ADR-024) : lit la "motion bank"
 // du cabinet (niveau etablissement) via me.collaborator.establishment.motionsBank.
 // LECTURE SEULE. Les ecritures (creer des motions sur une AG) viendront ensuite,
-// avec prudence (ce sont des ecritures reelles dans eStale).
+// avec prudence (ce sont des ecritures reelles dans Estale).
 
 import type { BibliothequeResolutionsProvider } from "@/lib/ports/bibliotheque-resolutions";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";

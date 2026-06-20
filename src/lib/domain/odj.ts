@@ -1,8 +1,8 @@
 // Domaine de l'ODJ (document de preparation d'AG issu du CS, modele REAL31).
-// Chaque champ porte sa SOURCE : eStale (primaire, a venir), supabase (referentiel
+// Chaque champ porte sa SOURCE : Estale (primaire, a venir), supabase (referentiel
 // Crypto + tables natives), jalon (calcule depuis la date d'AG), calcul (derive
-// d'autres champs), ou manuel. Objectif : basculer vers eStale au branchement
-// sans refondre l'UI (cf. memory eStale = source primaire).
+// d'autres champs), ou manuel. Objectif : basculer vers Estale au branchement
+// sans refondre l'UI (cf. memory Estale = source primaire).
 
 export type SourceDonnee = "estale" | "supabase" | "jalon" | "calcul" | "manuel";
 

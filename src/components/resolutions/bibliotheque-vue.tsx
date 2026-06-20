@@ -1,6 +1,6 @@
 "use client";
 
-// Vue lecture seule de la bibliotheque de resolutions (motion bank eStale, ADR-024).
+// Vue lecture seule de la bibliotheque de resolutions (motion bank Estale, ADR-024).
 // Recherche par mot-cle + filtre par majorite. C'est le futur "picker" du mode CS.
 
 import { useMemo, useState } from "react";
@@ -43,7 +43,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
           Bibliothèque de résolutions
         </h1>
         <p className="mt-1 text-[13px] text-ink-3">
-          Modèles de résolutions du cabinet, depuis eStale. Lecture seule pour l&apos;instant -
+          Modèles de résolutions du cabinet, depuis Estale. Lecture seule pour l&apos;instant -
           serviront à composer l&apos;ordre du jour des AG.
         </p>
       </div>
@@ -53,7 +53,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
           <div className="flex items-start gap-2.5 px-4 py-6">
             <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
             <p className="text-[13px] text-warn-700">
-              Bibliothèque eStale temporairement indisponible (panne passagère). Rechargez la page
+              Bibliothèque Estale temporairement indisponible (panne passagère). Rechargez la page
               dans un instant.
             </p>
           </div>

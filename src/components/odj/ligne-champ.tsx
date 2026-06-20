@@ -9,8 +9,8 @@ const SOURCE_LABEL: Record<SourceDonnee, { texte: string; cls: string }> = {
   supabase: { texte: "auto", cls: "bg-ok-50 text-ok-700" },
   jalon: { texte: "auto (jalon)", cls: "bg-ok-50 text-ok-700" },
   calcul: { texte: "calculé", cls: "bg-ok-50 text-ok-700" },
-  estale: { texte: "a venir (eStale)", cls: "bg-info-50 text-info-700" },
-  manuel: { texte: "a saisir", cls: "bg-surface-2 text-ink-3" },
+  estale: { texte: "à venir (Estale)", cls: "bg-info-50 text-info-700" },
+  manuel: { texte: "à saisir", cls: "bg-surface-2 text-ink-3" },
 };
 
 export function LigneChamp({

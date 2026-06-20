@@ -2,7 +2,7 @@
 //
 // Deux origines de donnees, branchees a des moments differents :
 //  - le REFERENTIEL (identite, equipe, lots, dates AG) vient de l'App A (public.Copropriete) ;
-//  - le CONSEIL SYNDICAL, l'HISTORIQUE DES AG et la CONFORMITE viennent d'eStale
+//  - le CONSEIL SYNDICAL, l'HISTORIQUE DES AG et la CONFORMITE viennent d'Estale
 //    (Council / Meeting / CondoServiceBook), branches en J4.
 // Ici tout est mocke ; chaque bloc se branchera sur sa source via son propre port.
 
@@ -13,7 +13,7 @@ import type { EtatCompta } from "@/lib/domain/compta";
 
 // --- Referentiel copro (source App A) -------------------------------------
 
-/** Source de la copro. UI (ADR-003) : 'crypto' -> "Crypto", 'estale' -> "eStale". */
+/** Source de la copro. UI (ADR-003) : 'crypto' -> "Crypto", 'estale' -> "Estale". */
 export type SourceCopro = "crypto" | "estale";
 
 export type StatutCopro = "active" | "inactive";
@@ -78,12 +78,12 @@ export interface Copropriete {
   prochaineCsDate?: string;
   /** PPT voté (true) / à programmer (false) ; undefined si inconnu. Référentiel. */
   pptVote?: boolean;
-  /** Deep-link eStale, present uniquement si source = 'estale' (ADR-003/012 :
+  /** Deep-link Estale, present uniquement si source = 'estale' (ADR-003/012 :
    *  pas de deep-link Crypto). */
   estaleDeepLink?: string;
 
-  // --- Champs du referentiel App A exploitables SANS eStale (source = referentiel).
-  //     Permettent de preparer les AG des copros pas encore sur eStale.
+  // --- Champs du referentiel App A exploitables SANS Estale (source = referentiel).
+  //     Permettent de preparer les AG des copros pas encore sur Estale.
   /** Echeance d'assurance (ISO "YYYY-MM-DD"). */
   assuranceEcheance?: string;
   /** Echeance du mandat de syndic (ISO) -> jalon renouvellement / point ODJ. */
@@ -102,7 +102,7 @@ export interface Copropriete {
   agenceId?: string;
 }
 
-// --- Donnees sourcees eStale (branchees en J4) ----------------------------
+// --- Donnees sourcees Estale (branchees en J4) ----------------------------
 
 export type RoleConseil = "president" | "membre";
 
@@ -112,7 +112,7 @@ export interface MembreConseilSyndical {
 }
 
 /** Une AG passee. La date vient du referentiel (lastAGDate) ; les details
- *  (presents, PV) viennent d'eStale et sont donc optionnels. */
+ *  (presents, PV) viennent d'Estale et sont donc optionnels. */
 export interface AgPassee {
   /** Date ISO "YYYY-MM-DD". */
   date: string;
@@ -131,17 +131,17 @@ export interface ItemConformite {
   etat: EtatConformite;
 }
 
-/** Un contrat fournisseur (eStale), reduit a ce que l'ODJ exploite. */
+/** Un contrat fournisseur (Estale), reduit a ce que l'ODJ exploite. */
 export interface ContratEstale {
   libelle: string;
-  /** Categorie eStale brute, ex "ENERGY_GAS". */
+  /** Categorie Estale brute, ex "ENERGY_GAS". */
   categorie: string;
   /** Bornes du contrat, ISO "YYYY-MM-DD" (fin absente si "infinity"). */
   debut?: string;
   fin?: string;
 }
 
-/** Bloc de donnees copro provenant d'eStale (CS, historique AG, conformite,
+/** Bloc de donnees copro provenant d'Estale (CS, historique AG, conformite,
  *  + donnees alimentant l'ODJ : annee de construction, contrats, procedures). */
 export interface DonneesEstaleCopro {
   conseilSyndical: MembreConseilSyndical[];
@@ -150,7 +150,7 @@ export interface DonneesEstaleCopro {
   /** AG passees, plus recente en premier. */
   historiqueAg: AgPassee[];
   conformite: ItemConformite[];
-  /** Annee de construction (eStale `constructionDate`) -> applicabilite PPT/DPE. */
+  /** Annee de construction (Estale `constructionDate`) -> applicabilite PPT/DPE. */
   anneeConstruction?: number;
   /** Contrats fournisseurs (gaz, electricite...) pour la gestion courante. */
   contrats?: ContratEstale[];
@@ -168,7 +168,7 @@ export interface DonneesEstaleCopro {
   debiteurs?: DebiteurEstale[];
   /** Consommation d'eau de l'exercice (compte 601, volume lu dans les libelles). */
   eau?: ConsommationEau;
-  /** La copro a-t-elle accepte la tenue des AG en visio (eStale `meetingVideo`). */
+  /** La copro a-t-elle accepte la tenue des AG en visio (Estale `meetingVideo`). */
   agVisioAcceptee?: boolean;
 }
 
@@ -197,16 +197,16 @@ export interface FicheCopro {
   estale: DonneesEstaleCopro;
   /** Prochains evenements de la copro (reutilise le calendrier). */
   prochains: Evenement[];
-  /** Derniere AG tenue (referentiel ou eStale), remontee pour le bloc AG. */
+  /** Derniere AG tenue (referentiel ou Estale), remontee pour le bloc AG. */
   derniereAg?: AgPassee;
-  /** Historique des AG : detaille si eStale dispo, sinon la derniere AG du referentiel. */
+  /** Historique des AG : detaille si Estale dispo, sinon la derniere AG du referentiel. */
   historique: AgPassee[];
-  /** Conformite composee : items du referentiel (PPT) + items eStale. */
+  /** Conformite composee : items du referentiel (PPT) + items Estale. */
   conformite: ItemConformite[];
   /** Jalons de la prochaine AG (cibles calculees + etat) ; vide si pas d'AG a venir. */
   jalons: JalonAvecEtat[];
-  /** Vrai si eStale a echoue (panne / timeout) : les blocs eStale sont vides mais la
-   *  copro EST sur eStale -> l'UI distingue "indisponible" de "non disponible". */
+  /** Vrai si Estale a echoue (panne / timeout) : les blocs Estale sont vides mais la
+   *  copro EST sur Estale -> l'UI distingue "indisponible" de "non disponible". */
   estaleIndisponible?: boolean;
   /** Parcours AG de la copro (etape courante + prochaine action) ; absent si le cycle
    *  est complet ou hors fenetre. Meme calcul que le dashboard (domain/parcours-ag). */
@@ -217,5 +217,5 @@ export interface FicheCopro {
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */
 export function libelleSource(source: SourceCopro): string {
-  return source === "estale" ? "eStale" : "Crypto";
+  return source === "estale" ? "Estale" : "Crypto";
 }

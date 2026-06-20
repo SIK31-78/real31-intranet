@@ -1,5 +1,5 @@
 // Adapter mock du dashboard : donnees en memoire, zero dependance externe.
-// Sert au dev et aux tests tant que Supabase / eStale ne sont pas branches.
+// Sert au dev et aux tests tant que Supabase / Estale ne sont pas branches.
 // Cf. ADR-001. Un adapter ne depend que du domaine et des ports, jamais d'un autre adapter.
 
 import type { DashboardProvider } from "@/lib/ports/dashboard-provider";

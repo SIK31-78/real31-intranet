@@ -1,5 +1,5 @@
-// Service : l'AG eStale d'une copro (palier 1, lecture). Passe par le routeur
-// (ADR-001). Degrade proprement : null si pas d'AG ou si eStale tombe.
+// Service : l'AG Estale d'une copro (palier 1, lecture). Passe par le routeur
+// (ADR-001). Degrade proprement : null si pas d'AG ou si Estale tombe.
 
 import type { AssembleeAg, ResolutionLibre } from "@/lib/domain/assemblee";
 import { getAssembleeEstaleProvider } from "@/lib/adapters/router";
@@ -8,12 +8,12 @@ export async function getAssemblee(coproCode: string): Promise<AssembleeAg | nul
   try {
     return await getAssembleeEstaleProvider().getAssemblee(coproCode);
   } catch (err) {
-    console.warn(`[assemblee] eStale indisponible pour ${coproCode} :`, (err as Error).message);
+    console.warn(`[assemblee] Estale indisponible pour ${coproCode} :`, (err as Error).message);
     return null;
   }
 }
 
-/** Reconcilie l'AG eStale avec la composition du mode CS (palier 2b). Ecriture reelle. */
+/** Reconcilie l'AG Estale avec la composition du mode CS (palier 2b). Ecriture reelle. */
 export async function appliquerOdjAg(
   coproCode: string,
   meetingId: string,
@@ -32,7 +32,7 @@ export async function appliquerOdjAg(
   );
 }
 
-/** Cree une nouvelle AG ordinaire dans eStale pour la copro (palier 3). Ecriture reelle. */
+/** Cree une nouvelle AG ordinaire dans Estale pour la copro (palier 3). Ecriture reelle. */
 export async function creerAssembleeAg(coproCode: string): Promise<string> {
   return getAssembleeEstaleProvider().creerAssemblee(coproCode);
 }

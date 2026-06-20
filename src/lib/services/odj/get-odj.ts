@@ -1,5 +1,5 @@
 // Compose l'ODJ pour une AG (id = CODE ou CODE__DATE) : squelette auto (referentiel
-// Supabase + jalons + eStale) puis superposition de l'ETAT saisi (intranet_odj_champs :
+// Supabase + jalons + Estale) puis superposition de l'ETAT saisi (intranet_odj_champs :
 // la saisie du gestionnaire prime sur la valeur auto ; points legaux retires/restaures),
 // puis champs CALCULES (ecart budget, proposition contrat). Scope managerId.
 
@@ -71,15 +71,15 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     : undefined;
 
   // Presents : une ligne syndic (gestionnaire + assistant, referentiel) et une
-  // ligne conseil syndical (eStale). Le jour du CS, on retire les absents.
-  // eStale est secondaire ici : s'il tombe (5xx / timeout), on ne crashe pas l'ODJ.
+  // ligne conseil syndical (Estale). Le jour du CS, on retire les absents.
+  // Estale est secondaire ici : s'il tombe (5xx / timeout), on ne crashe pas l'ODJ.
   // Tous les acces ci-dessous sont en `estale?.` -> les champs auto restent vides,
   // le squelette + la saisie du gestionnaire s'affichent normalement.
   let estale: DonneesEstaleCopro | null = null;
   try {
     estale = await getCondoEstaleProvider().getDonneesCopro(code);
   } catch (err) {
-    console.warn(`[odj] eStale indisponible pour ${code} :`, (err as Error).message);
+    console.warn(`[odj] Estale indisponible pour ${code} :`, (err as Error).message);
   }
   // Presents en "NOM Prenom" : les noms du referentiel sont "Prenom NOM" (NOM en
   // capitales) -> on detecte les tokens tout-majuscule comme nom de famille.
@@ -97,7 +97,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     .map((m) => `${m.nomComplet}${m.role === "president" ? " (président)" : ""}`)
     .join(", ");
 
-  // Donnees eStale alimentant la gestion courante : contrats (gaz / elec) + procedures.
+  // Donnees Estale alimentant la gestion courante : contrats (gaz / elec) + procedures.
   const formatContrat = (categorie: string): string | undefined => {
     const c = (estale?.contrats ?? []).find((x) => x.categorie === categorie);
     if (!c) return undefined;
@@ -110,7 +110,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   const valeurElec = formatContrat("ENERGY_ELECTRICITY");
   const valeurProc = estale?.nbProcedures ? `${estale.nbProcedures} procedure(s) en cours` : undefined;
 
-  // Comptabilite (eStale) : budget previsionnel + depenses (-> ecart auto) + travaux + fonds + debiteurs.
+  // Comptabilite (Estale) : budget previsionnel + depenses (-> ecart auto) + travaux + fonds + debiteurs.
   const valeurBudget = estale?.budgetPrevisionnel != null ? String(estale.budgetPrevisionnel) : undefined;
   const valeurDepenses = estale?.depensesCourantes != null ? String(estale.depensesCourantes) : undefined;
   const valeurTravaux =
@@ -134,7 +134,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         { minimumFractionDigits: 2, maximumFractionDigits: 2 },
       )} €/m³)`
     : undefined;
-  // AG en visio : pre-rempli depuis eStale (meetingVideo) ; le gestionnaire ajuste.
+  // AG en visio : pre-rempli depuis Estale (meetingVideo) ; le gestionnaire ajuste.
   const visioInitial = estale?.agVisioAcceptee != null ? (estale.agVisioAcceptee ? "oui" : "non") : undefined;
   const RAPPORT_CS =
     "Le syndic rappelle au CS qu'un rapport / compte rendu de son activité sur l'année devra nous être adressé afin d'être joint à la convocation.";
@@ -163,7 +163,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       editable: true,
       alerte: membresCs
         ? undefined
-        : "Membres du CS a recuperer depuis eStale (retirer les absents le jour du CS).",
+        : "Membres du CS a recuperer depuis Estale (retirer les absents le jour du CS).",
     }),
     champ("limite-odj", "Date limite d'ajout de points a l'ODJ", limiteOdjISO ? "jalon" : "manuel", {
       valeur: dateCourte(limiteOdjISO),

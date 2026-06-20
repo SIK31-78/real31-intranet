@@ -39,7 +39,7 @@ type CoproRow = {
   lastCSDate: string | null;
   nextCSDate: string | null;
   ppt: boolean | null;
-  // Champs referentiel exploitables sans eStale.
+  // Champs referentiel exploitables sans Estale.
   insuranceDueDate: string | null;
   syndicContractEndDate: string | null;
   lastGasVmcCtqDate: string | null;
@@ -146,7 +146,7 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
     ...(source === "estale" && deepBase && (row.externalIdEstale ?? row.referenceEstale)
       ? { estaleDeepLink: `${deepBase}/condo/${row.externalIdEstale ?? row.referenceEstale}` }
       : {}),
-    // Champs referentiel (exploitables sans eStale).
+    // Champs referentiel (exploitables sans Estale).
     ...(dateISO(row.insuranceDueDate) ? { assuranceEcheance: dateISO(row.insuranceDueDate)! } : {}),
     ...(dateISO(row.syndicContractEndDate) ? { mandatSyndicFin: dateISO(row.syndicContractEndDate)! } : {}),
     ...(dateISO(row.lastGasVmcCtqDate) ? { ctqGazVmcDate: dateISO(row.lastGasVmcCtqDate)! } : {}),
@@ -176,7 +176,7 @@ export class SupabaseCoproRepository implements CoproRepository {
   async findByCode(code: string, managerId?: string): Promise<Copropriete | null> {
     const supabase = createSupabasePublicClient();
 
-    // Le code affiche correspond a referenceCrypto, ou referenceEstale pour une copro eStale.
+    // Le code affiche correspond a referenceCrypto, ou referenceEstale pour une copro Estale.
     // Le filtre managerId cloisonne : une copro hors scope renvoie null (-> notFound).
     const requete = (colonne: "referenceCrypto" | "referenceEstale") => {
       let q = supabase.from("Copropriete").select(COPRO_COLS).eq(colonne, code);

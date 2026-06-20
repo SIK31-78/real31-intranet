@@ -92,7 +92,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     .map((r) => r.ligne);
 
   // Modele d'alarme honnete : un jalon de preparation echu mais non marque n'est PAS
-  // un retard (le travail se fait sans doute dans eStale, l'intranet n'en a juste pas
+  // un retard (le travail se fait sans doute dans Estale, l'intranet n'en a juste pas
   // la trace). On le presente "a confirmer" (neutre), jamais en rouge. Le rouge ne sort
   // que de donnees positives (jalon marque ou, ailleurs, AG non planifiee legalement due).
   let convocAEnvoyer = 0; // CONVOC a venir sous 7j (echeance non encore passee)
@@ -175,7 +175,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       label: "À confirmer",
       valeur: nbAgAConfirmer,
       unite: "AG",
-      detail: "échéances passées, statut géré dans eStale",
+      detail: "échéances passées, statut géré dans Estale",
       icone: "circle-help",
       lien: "/mes-evenements",
     },

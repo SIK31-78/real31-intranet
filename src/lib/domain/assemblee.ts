@@ -1,17 +1,17 @@
-// Domaine de l'AG eStale (le "Meeting" et ses motions reelles). Source = eStale
+// Domaine de l'AG Estale (le "Meeting" et ses motions reelles). Source = Estale
 // (ADR-024). Types purs. Sert au mode CS pour afficher/editer l'ODJ reel d'une AG.
 
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 
-/** Une motion (resolution) telle qu'elle existe dans l'AG eStale. */
+/** Une motion (resolution) telle qu'elle existe dans l'AG Estale. */
 export interface MotionAg {
-  /** Id eStale de la motion (cle pour edition/suppression a venir). */
+  /** Id Estale de la motion (cle pour edition/suppression a venir). */
   id: string;
   titre: string;
   majorite: MajoriteResolution;
   /** Cle de repartition (nom), ex "Charges communes generales". */
   cleRepartition?: string;
-  /** En-tete de groupe (type eStale "group") : regroupe des sous-resolutions. */
+  /** En-tete de groupe (type Estale "group") : regroupe des sous-resolutions. */
   estGroupe?: boolean;
   /** Sous-resolution rattachee a un groupe (a une motion parente). */
   estEnfant?: boolean;
@@ -25,7 +25,7 @@ export interface OrdreMotion {
   rank: string;
 }
 
-/** L'AG eStale d'une copro + ses motions, dans l'ordre. */
+/** L'AG Estale d'une copro + ses motions, dans l'ordre. */
 export interface AssembleeAg {
   meetingId: string;
   nom: string;

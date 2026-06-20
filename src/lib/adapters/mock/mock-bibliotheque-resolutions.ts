@@ -1,4 +1,4 @@
-// Adapter mock de la bibliotheque de resolutions (hors mode supabase/eStale).
+// Adapter mock de la bibliotheque de resolutions (hors mode supabase/Estale).
 // Quelques resolutions representatives pour que la vue ait du contenu en dev.
 
 import type { BibliothequeResolutionsProvider } from "@/lib/ports/bibliotheque-resolutions";

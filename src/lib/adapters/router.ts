@@ -3,7 +3,7 @@
 // d'importer directement un adapter ; ils passent par ce routeur.
 //
 // Tant qu'on est en donnees mockees, on renvoie toujours les adapters mock.
-// Quand Supabase / eStale arriveront, le choix de l'adapter se fera ICI
+// Quand Supabase / Estale arriveront, le choix de l'adapter se fera ICI
 // (selon copros.source, env, etc.), sans toucher aux services ni aux composants.
 
 import type { DashboardProvider } from "@/lib/ports/dashboard-provider";
@@ -81,8 +81,8 @@ export function getJalonRepository(): JalonRepository {
   return new MockJalonRepository();
 }
 
-// Donnees copro sourcees eStale (CS, historique AG). Branche en reel (Phase B,
-// ADR-022) quand les identifiants eStale sont presents ; sinon mock.
+// Donnees copro sourcees Estale (CS, historique AG). Branche en reel (Phase B,
+// ADR-022) quand les identifiants Estale sont presents ; sinon mock.
 export function getCondoEstaleProvider(): CondoEstaleProvider {
   if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
     return new EstaleCondoProvider();
@@ -115,8 +115,8 @@ export function getGestionnaireRepository(): GestionnaireRepository {
   return new MockGestionnaireRepository();
 }
 
-// Bibliotheque de resolutions (motion bank eStale, ADR-024). En reel : lit la bank
-// du cabinet via eStale ; sinon mock. LECTURE SEULE pour l'instant.
+// Bibliotheque de resolutions (motion bank Estale, ADR-024). En reel : lit la bank
+// du cabinet via Estale ; sinon mock. LECTURE SEULE pour l'instant.
 export function getBibliothequeResolutions(): BibliothequeResolutionsProvider {
   if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
     return new EstaleBibliothequeResolutions();
@@ -124,7 +124,7 @@ export function getBibliothequeResolutions(): BibliothequeResolutionsProvider {
   return new MockBibliothequeResolutions();
 }
 
-// AG eStale (Meeting + motions, ADR-024). En reel : lit l'AG de la copro via eStale ;
+// AG Estale (Meeting + motions, ADR-024). En reel : lit l'AG de la copro via Estale ;
 // sinon mock (null). LECTURE pour le palier 1.
 export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
   if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {

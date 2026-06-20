@@ -1,4 +1,4 @@
-// Service de la fiche copro : compose le referentiel (App A) + les donnees eStale
+// Service de la fiche copro : compose le referentiel (App A) + les donnees Estale
 // (CS / historique / conformite) + les prochains evenements (calendrier). Passe par
 // le routeur, jamais un adapter en direct (ADR-001).
 
@@ -31,8 +31,8 @@ export async function getFicheCopro(
   const copro = await getCoproRepository().findByCode(code, gestionnaireId);
   if (!copro) return null;
 
-  // Donnees eStale : null si la copro n'est pas encore sur eStale -> bloc vide assume.
-  // Si eStale tombe (5xx / timeout), on NE crashe PAS la fiche : on degrade sur le
+  // Donnees Estale : null si la copro n'est pas encore sur Estale -> bloc vide assume.
+  // Si Estale tombe (5xx / timeout), on NE crashe PAS la fiche : on degrade sur le
   // referentiel et on signale l'indisponibilite (robustesse, source secondaire).
   let estale = DONNEES_ESTALE_VIDES;
   let estaleIndisponible = false;
@@ -40,7 +40,7 @@ export async function getFicheCopro(
     estale = (await getCondoEstaleProvider().getDonneesCopro(code)) ?? DONNEES_ESTALE_VIDES;
   } catch (err) {
     estaleIndisponible = true;
-    console.warn(`[fiche-copro] eStale indisponible pour ${code} :`, (err as Error).message);
+    console.warn(`[fiche-copro] Estale indisponible pour ${code} :`, (err as Error).message);
   }
 
   const tous = await getEvenements(gestionnaireId);
@@ -50,7 +50,7 @@ export async function getFicheCopro(
     5,
   );
 
-  // Historique : detaille si eStale dispo, sinon la derniere AG du referentiel
+  // Historique : detaille si Estale dispo, sinon la derniere AG du referentiel
   // (lastAGDate) -> on affiche au moins ce qu'on a en base.
   const historique =
     estale.historiqueAg.length > 0
@@ -60,7 +60,7 @@ export async function getFicheCopro(
         : [];
 
   // Conformite : items du referentiel App A (PPT, assurance, mandat de syndic -
-  // exploitables SANS eStale) + items eStale.
+  // exploitables SANS Estale) + items Estale.
   const conformiteReferentiel: ItemConformite[] = [];
   if (copro.pptVote !== undefined) {
     conformiteReferentiel.push({

@@ -1,5 +1,5 @@
-// Domaine d'une resolution d'AG ("motion" cote eStale). Source = la motion bank
-// eStale (ADR-024) : l'intranet ne stocke pas de resolutions, il les lit. Types purs.
+// Domaine d'une resolution d'AG ("motion" cote Estale). Source = la motion bank
+// Estale (ADR-024) : l'intranet ne stocke pas de resolutions, il les lit. Types purs.
 
 export type MajoriteResolution =
   | "A24"
@@ -13,7 +13,7 @@ export type MajoriteResolution =
 export interface Resolution {
   id: string;
   titre: string;
-  /** Corps en texte simple (HTML eStale nettoye), pour apercu. */
+  /** Corps en texte simple (HTML Estale nettoye), pour apercu. */
   corps: string;
   majorite: MajoriteResolution;
   motsCles: string[];
@@ -21,7 +21,7 @@ export interface Resolution {
   parDefaut: boolean;
   /** Rang hierarchique dans la bank ("1", "78", "78.1"...) : encode les groupes. */
   rank: string;
-  /** En-tete de groupe (type eStale "group") : regroupe des sous-resolutions. */
+  /** En-tete de groupe (type Estale "group") : regroupe des sous-resolutions. */
   estGroupe?: boolean;
 }
 
@@ -53,7 +53,7 @@ export const MAJORITE_ORDRE: MajoriteResolution[] = [
   "QUESTION",
 ];
 
-/** Nettoie le HTML d'eStale en texte simple pour un apercu lisible. */
+/** Nettoie le HTML d'Estale en texte simple pour un apercu lisible. */
 export function texteSimple(html: string): string {
   return html
     .replace(/<[^>]+>/g, " ")

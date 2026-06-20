@@ -1,5 +1,5 @@
-// Adapter mock des donnees copro sourcees eStale (CS, historique AG, conformite).
-// Reflete la forme des types eStale (Council / Meeting / CondoServiceBook) sans en
+// Adapter mock des donnees copro sourcees Estale (CS, historique AG, conformite).
+// Reflete la forme des types Estale (Council / Meeting / CondoServiceBook) sans en
 // dependre. En J4, un EstaleCondoAdapter remplacera ce mock derriere le meme port.
 
 import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";

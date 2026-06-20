@@ -3,8 +3,8 @@ import type { Copropriete } from "@/lib/domain/copropriete";
 import { libelleSource } from "@/lib/domain/copropriete";
 import { Badge } from "@/components/ui/badge";
 
-// En-tete de la fiche copro. Le bouton "Ouvrir dans eStale" n'apparait que pour les
-// copros sourcees eStale : Crypto n'est pas deep-linkable (ADR-012).
+// En-tete de la fiche copro. Le bouton "Ouvrir dans Estale" n'apparait que pour les
+// copros sourcees Estale : Crypto n'est pas deep-linkable (ADR-012).
 export function CoproHeader({ copro }: { copro: Copropriete }) {
   const rue = [copro.adresse.ligne1, copro.adresse.ligne2].filter(Boolean).join(", ");
   return (
@@ -37,7 +37,7 @@ export function CoproHeader({ copro }: { copro: Copropriete }) {
           className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-[13px] text-ink hover:bg-surface-2 transition-colors"
         >
           <ExternalLink strokeWidth={1.5} className="w-3.5 h-3.5" />
-          Ouvrir dans eStale
+          Ouvrir dans Estale
         </a>
       )}
     </div>

@@ -1,4 +1,4 @@
-// Adapter eStale du CondoEstaleProvider (Phase B, ADR-022) : Conseil Syndical
+// Adapter Estale du CondoEstaleProvider (Phase B, ADR-022) : Conseil Syndical
 // (Condo.council), historique des AG (Condo.meetings). La copro est resolue par
 // REFERENCE NORMALISEE (S0299 -> S299) via me.collaborator.condos : pas de query
 // liste cross-copros dans l'API, et les references font foi (decision Sekou
@@ -185,7 +185,7 @@ async function consommationEau(condoId: string, eauIds: string[]): Promise<Conso
   }
 }
 
-/** Borne de Daterange eStale -> ISO ou undefined (gere "infinity" / vide). */
+/** Borne de Daterange Estale -> ISO ou undefined (gere "infinity" / vide). */
 function borneISO(v: string | undefined): string | undefined {
   if (!v || v === "infinity" || v === "-infinity") return undefined;
   return v.slice(0, 10);
@@ -196,7 +196,7 @@ function estCapitales(s: string): boolean {
   return s === s.toUpperCase() && s !== s.toLowerCase();
 }
 
-/** Present "NOM Prenom" (NOM en capitales). Convention eStale : nom en MAJUSCULES,
+/** Present "NOM Prenom" (NOM en capitales). Convention Estale : nom en MAJUSCULES,
  *  prenom en casse normale. Si la saisie est inversee (prenom tout en capitales,
  *  nom non capitalise -> ex. last="Emmanuel" first="LOPES"), on remet a l'endroit.
  *  Sans prenom separe (nom complet dans lastname), on garde le fullname tel quel. */
@@ -210,7 +210,7 @@ export function formatPresent(owner: {
   let nom = owner.lastname.trim();
   let prenom = prenomBrut;
   if (estCapitales(prenom) && !estCapitales(nom)) {
-    [nom, prenom] = [prenom, nom]; // saisie inversee dans eStale
+    [nom, prenom] = [prenom, nom]; // saisie inversee dans Estale
   }
   return `${nom.toUpperCase()} ${prenom}`;
 }
@@ -223,7 +223,7 @@ function typeAg(category: string): "AG" | "AGE" {
 export class EstaleCondoProvider implements CondoEstaleProvider {
   async getDonneesCopro(code: string): Promise<DonneesEstaleCopro | null> {
     const condoId = await resoudreCondoId(code);
-    if (!condoId) return null; // copro pas (encore) sur eStale -> blocs "a venir"
+    if (!condoId) return null; // copro pas (encore) sur Estale -> blocs "a venir"
 
     const { condo } = await estaleGql<CondoData>(QUERY_CONDO, { id: condoId });
 

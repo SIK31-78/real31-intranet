@@ -1,5 +1,5 @@
 // Adapter mock du referentiel copro. Codes alignes sur le mock calendrier pour que
-// "prochains evenements" remonte des donnees. Une copro en source eStale (S045) pour
+// "prochains evenements" remonte des donnees. Une copro en source Estale (S045) pour
 // demontrer le badge + deep-link (ADR-003). Ne depend que du domaine et des ports.
 
 import type { CoproRepository } from "@/lib/ports/copro-repository";
@@ -56,7 +56,7 @@ const COPROS: Record<string, Copropriete> = {
     estaleDeepLink: "https://app.estale.app/condo/S045",
   },
   // Deux copros sans prochaine AG (-> section "copros sans AG" de Mes evenements).
-  // Pas de donnees eStale mockees -> leur fiche montre l'etat "non disponible".
+  // Pas de donnees Estale mockees -> leur fiche montre l'etat "non disponible".
   S019: {
     code: "S019",
     source: "crypto",

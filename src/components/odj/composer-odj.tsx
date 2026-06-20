@@ -1,8 +1,8 @@
 "use client";
 
 // Mode CS : composer l'ordre du jour d'une AG en piochant dans la bibliotheque de
-// resolutions du cabinet (motion bank eStale, ADR-024), + ajout de resolutions libres.
-// Brouillon CLIENT (pas encore de persistance ni d'ecriture eStale - increment suivant).
+// resolutions du cabinet (motion bank Estale, ADR-024), + ajout de resolutions libres.
+// Brouillon CLIENT (pas encore de persistance ni d'ecriture Estale - increment suivant).
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -42,7 +42,7 @@ export function ComposerOdj({
   const router = useRouter();
   const [enregistrement, demarrerEnregistrement] = useTransition();
   const [message, setMessage] = useState<{ ton: "ok" | "err"; texte: string } | null>(null);
-  // Motions existantes (eStale) marquees pour suppression.
+  // Motions existantes (Estale) marquees pour suppression.
   const [aSupprimer, setASupprimer] = useState<Set<string>>(new Set());
 
   function toggleSupprimer(motionId: string) {
@@ -54,7 +54,7 @@ export function ComposerOdj({
     });
   }
 
-  // Ordre des motions de tete (null = ordre naturel d'eStale). Les enfants suivent leur groupe.
+  // Ordre des motions de tete (null = ordre naturel d'Estale). Les enfants suivent leur groupe.
   const topLevelIds = useMemo(
     () => (assemblee?.motions ?? []).filter((m) => !m.estEnfant).map((m) => m.id),
     [assemblee],
@@ -191,7 +191,7 @@ export function ComposerOdj({
   async function creerAg() {
     const ok = await confirmer({
       titre: "Créer une nouvelle AG ordinaire ?",
-      message: "Une AG ordinaire sera créée dans eStale pour cette copropriété (le socle standard est ajouté automatiquement).",
+      message: "Une AG ordinaire sera créée dans Estale pour cette copropriété (le socle standard est ajouté automatiquement).",
       confirmer: "Créer l'AG",
     });
     if (!ok) return;
@@ -216,8 +216,8 @@ export function ComposerOdj({
           {copro.nom} ({copro.code}){dateAg ? ` - AG du ${dateAg}` : " - date d'AG non définie"}
         </p>
         <p className="mt-1 text-[12px] text-ink-4">
-          Retire ce que tu ne veux pas dans l&apos;AG, pioche dans la bibliothèque du cabinet (eStale)
-          ou ajoute des résolutions libres, puis enregistre : l&apos;AG eStale est mise à jour pour
+          Retire ce que tu ne veux pas dans l&apos;AG, pioche dans la bibliothèque du cabinet (Estale)
+          ou ajoute des résolutions libres, puis enregistre : l&apos;AG Estale est mise à jour pour
           correspondre exactement à ta composition.
         </p>
       </div>
@@ -271,7 +271,7 @@ export function ComposerOdj({
   );
 }
 
-// --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans eStale ----
+// --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans Estale ----
 
 /** Numerote le brouillon : resolutions de tete numerotees, enfants de groupe sans numero. */
 function numeroterDraft(draft: Resolution[]): { r: Resolution; numero: number; enfant: boolean }[] {
@@ -335,7 +335,7 @@ function AssembleeExistante({
         <div className="px-4 py-4 flex items-start gap-2.5">
           <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0 mt-px" />
           <p className="text-[12.5px] text-ink-3">
-            Aucune AG ordinaire trouvée pour cette copro dans eStale. Elle sera créée à
+            Aucune AG ordinaire trouvée pour cette copro dans Estale. Elle sera créée à
             l&apos;enregistrement (le socle standard s&apos;ajoutera automatiquement).
           </p>
         </div>
@@ -346,7 +346,7 @@ function AssembleeExistante({
     <div className="flex flex-col gap-2.5">
       <h2 className="text-[13px] font-semibold uppercase tracking-[0.05em] text-ink-3 flex items-center gap-1.5">
         <ListChecks strokeWidth={1.5} className="w-3.5 h-3.5" />
-        Déjà dans l&apos;AG eStale ({assemblee.motions.length})
+        Déjà dans l&apos;AG Estale ({assemblee.motions.length})
       </h2>
       <p className="text-[11.5px] text-ink-4 -mt-1">
         {assemblee.nom}
@@ -462,7 +462,7 @@ function AlerteEtatAg({
             </>
           ) : (
             <>
-              <span className="font-medium">Aucune AG eStale</span> pour cette copropriété. Crée-en
+              <span className="font-medium">Aucune AG Estale</span> pour cette copropriété. Crée-en
               une avant de composer l&apos;ordre du jour.
             </>
           )}
@@ -521,7 +521,7 @@ function BibliothequePicker({
           <div className="flex items-start gap-2.5 px-4 py-6">
             <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
             <p className="text-[13px] text-warn-700">
-              Bibliothèque eStale temporairement indisponible. Rechargez la page dans un instant.
+              Bibliothèque Estale temporairement indisponible. Rechargez la page dans un instant.
             </p>
           </div>
         </Card>
@@ -774,16 +774,16 @@ function OdjEnConstruction({
         aria-busy={enregistrement}
         title={
           etatAg === "ouverte"
-            ? "Ajoute les résolutions composées dans l'AG eStale"
+            ? "Ajoute les résolutions composées dans l'AG Estale"
             : etatAg === "cloturee"
               ? "AG clôturée : non modifiable"
-              : "Aucune AG eStale (création à venir, palier 3)"
+              : "Aucune AG Estale (création à venir, palier 3)"
         }
         className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 transition-colors disabled:bg-surface-2 disabled:text-ink-3 disabled:cursor-not-allowed"
       >
         {enregistrement && <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" />}
         {etatAg === "ouverte"
-          ? "Enregistrer dans l'AG eStale"
+          ? "Enregistrer dans l'AG Estale"
           : etatAg === "cloturee"
             ? "AG clôturée (non modifiable)"
             : "Créer l'AG d'abord (à venir)"}

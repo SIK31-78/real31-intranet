@@ -170,7 +170,7 @@ export function construireLigne(
   let dueDate: string | undefined;
   let echeance: string | undefined;
   // Une etape de PREPARATION echue mais non marquee n'est pas un retard rouge : le
-  // travail se fait sans doute dans eStale. On l'affiche "a confirmer" (neutre). Seul
+  // travail se fait sans doute dans Estale. On l'affiche "a confirmer" (neutre). Seul
   // le defaut de PLANIFICATION (AG non posee, delai legal depasse) reste un vrai rouge.
   let enRetard = false;
   if (courantCode === "dates") {

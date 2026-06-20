@@ -1,4 +1,4 @@
-// Adapter eStale de l'AG (palier 1, LECTURE SEULE). Resout la copro par reference
+// Adapter Estale de l'AG (palier 1, LECTURE SEULE). Resout la copro par reference
 // normalisee (S0299 -> S299) via me.collaborator.condos, puis lit les motions de
 // l'AG ORDINARY pertinente (non close en priorite). Cf. ADR-024.
 
@@ -8,7 +8,7 @@ import type { MajoriteResolution } from "@/lib/domain/resolution";
 import { rangParent } from "@/lib/domain/resolution";
 import { estaleGql } from "./client";
 
-// createMotion attend un `type` (chaine eStale) : "generic" = resolution normale,
+// createMotion attend un `type` (chaine Estale) : "generic" = resolution normale,
 // "group" = en-tete de groupe. La majorite est l'enum MeetingMotionMajority.
 type MotionInput = {
   type: string;
@@ -116,7 +116,7 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
     const collabId = moi.me.collaborator.id;
     const cible = normaliserRef(coproCode);
     const condoId = moi.me.collaborator.condos.find((c) => normaliserRef(c.reference) === cible)?.id;
-    if (!condoId) throw new Error(`Copropriété ${coproCode} introuvable dans eStale.`);
+    if (!condoId) throw new Error(`Copropriété ${coproCode} introuvable dans Estale.`);
 
     const data = await estaleGql<{
       condo: {

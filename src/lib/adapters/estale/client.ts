@@ -1,4 +1,4 @@
-// Client eStale (Phase B, ADR-022) : auth par cookie de session via le compte de
+// Client Estale (Phase B, ADR-022) : auth par cookie de session via le compte de
 // service (POST /api/login), appels GraphQL sur /graphql/intranet. Tout le
 // bricolage d'auth est isole ICI ; quand la cle API arrivera (ESTALE_API_KEY),
 // on basculera sans toucher les adapters metier.
@@ -11,9 +11,9 @@
 
 const BASE = (process.env.ESTALE_BASE_URL ?? "https://api.estale.app").replace(/\/$/, "");
 
-// Timeout client : court expres. Si l'API eStale hang (panne), la fiche/ODJ doivent
+// Timeout client : court expres. Si l'API Estale hang (panne), la fiche/ODJ doivent
 // se degrader (banniere) vite, sans faire patienter le gestionnaire. 10 s est large
-// pour une requete ciblee qui marche (rate limit eStale = 50 req/s).
+// pour une requete ciblee qui marche (rate limit Estale = 50 req/s).
 const TIMEOUT_MS = 10_000;
 
 // Cookie de session en cache module (re-login automatique sur 401/403).
@@ -38,15 +38,15 @@ async function login(): Promise<string> {
     body: JSON.stringify({ email, password }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) throw new EstaleError(`Login eStale refuse (HTTP ${res.status})`, res.status);
+  if (!res.ok) throw new EstaleError(`Login Estale refuse (HTTP ${res.status})`, res.status);
   const cookies = res.headers.getSetCookie();
-  if (cookies.length === 0) throw new EstaleError("Login eStale : aucun cookie de session recu");
+  if (cookies.length === 0) throw new EstaleError("Login Estale : aucun cookie de session recu");
   return cookies.map((c) => c.split(";")[0]).join("; ");
 }
 
 type GqlReponse<T> = { data?: T; errors?: { message: string }[] };
 
-/** Execute une query GraphQL eStale. Re-login automatique (une fois) sur 401/403. */
+/** Execute une query GraphQL Estale. Re-login automatique (une fois) sur 401/403. */
 export async function estaleGql<T>(
   query: string,
   variables?: Record<string, unknown>,
@@ -66,22 +66,22 @@ export async function estaleGql<T>(
     cookieSession = await login(); // session expiree : refresh paresseux (ADR-005)
     res = await appel();
   }
-  // eStale a des 5xx passagers (502/503/504) : un retry court avant d'abandonner.
+  // Estale a des 5xx passagers (502/503/504) : un retry court avant d'abandonner.
   if (res.status >= 500) {
     await new Promise((r) => setTimeout(r, 600));
     res = await appel();
   }
-  if (!res.ok) throw new EstaleError(`GraphQL eStale HTTP ${res.status}`, res.status);
+  if (!res.ok) throw new EstaleError(`GraphQL Estale HTTP ${res.status}`, res.status);
 
   const corps = (await res.json()) as GqlReponse<T>;
   if (corps.errors?.length) {
-    throw new EstaleError(`GraphQL eStale : ${corps.errors.map((e) => e.message).join(" ; ")}`);
+    throw new EstaleError(`GraphQL Estale : ${corps.errors.map((e) => e.message).join(" ; ")}`);
   }
-  if (corps.data === undefined) throw new EstaleError("GraphQL eStale : reponse sans data");
+  if (corps.data === undefined) throw new EstaleError("GraphQL Estale : reponse sans data");
   return corps.data;
 }
 
-/** L'integration eStale est-elle configuree (identifiants presents) ? */
+/** L'integration Estale est-elle configuree (identifiants presents) ? */
 export function estaleConfigure(): boolean {
   return Boolean(process.env.ESTALE_EMAIL && process.env.ESTALE_PASSWORD);
 }

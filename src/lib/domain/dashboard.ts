@@ -50,7 +50,7 @@ export interface ItemAttention {
   badge?: { texte: string; ton: Ton };
   /** Lien vers la preparation concernee (ligne cliquable). */
   lien?: string;
-  /** Echeance passee non confirmee (geree dans eStale ?) : etat neutre + action 1 clic. */
+  /** Echeance passee non confirmee (geree dans Estale ?) : etat neutre + action 1 clic. */
   aConfirmer?: boolean;
   /** Jalon + AG vises, pour le bouton "marquer fait" (present si aConfirmer). */
   jalonCode?: JalonCode;
