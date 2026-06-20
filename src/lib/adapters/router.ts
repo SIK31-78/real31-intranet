@@ -20,6 +20,7 @@ import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
 import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
 import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
 import { MockMesEmailsProvider } from "@/lib/adapters/mock/mock-mes-emails-provider";
+import { FichierMesEmailsProvider, triageFichierPresent } from "@/lib/adapters/fichier/fichier-mes-emails-provider";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -96,9 +97,11 @@ export function getMesEvenementsProvider(): MesEvenementsProvider {
   return new MockMesEvenementsProvider();
 }
 
-// Boite mail triee "Mes emails" (resultat du tri assistant-ia, backtest). Mock
-// (donnees anonymisees) pour l'instant ; le vrai branchement se fera ICI.
+// Boite mail triee "Mes emails" (resultat du tri assistant-ia). Si un triage reel
+// (data/mes-emails-triage.json, git-ignore, PII) est present sur le poste, on le
+// sert ; sinon donnees mockees anonymisees. Bascule sans toucher service ni vue.
 export function getMesEmailsProvider(): MesEmailsProvider {
+  if (triageFichierPresent()) return new FichierMesEmailsProvider();
   return new MockMesEmailsProvider();
 }
 

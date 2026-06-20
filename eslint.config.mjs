@@ -57,6 +57,7 @@ const eslintConfig = defineConfig([
         { type: "adapter-estale",      pattern: "src/lib/adapters/estale/**" },
         { type: "adapter-supabase",    pattern: "src/lib/adapters/supabase/**" },
         { type: "adapter-mock",        pattern: "src/lib/adapters/mock/**" },
+        { type: "adapter-fichier",     pattern: "src/lib/adapters/fichier/**" },
         { type: "router",              pattern: "src/lib/adapters/router*.ts" },
         { type: "services",            pattern: "src/lib/services/**" },
         { type: "jobs",                pattern: "src/lib/jobs/**" },
@@ -83,9 +84,10 @@ const eslintConfig = defineConfig([
           { from: "adapter-estale",     allow: ["domain", "ports"] },
           { from: "adapter-supabase",   allow: ["domain", "ports"] },
           { from: "adapter-mock",       allow: ["domain", "ports"] },
+          { from: "adapter-fichier",    allow: ["domain", "ports"] },
 
           // Router : seul endroit qui connaît tous les adapters
-          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock"] },
+          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock", "adapter-fichier"] },
 
           // Audit, auth : helpers transverses qui parlent au domaine via ports
           { from: "audit",              allow: ["domain", "ports"] },

@@ -48,6 +48,9 @@ AGENTS.md
 # Vraies donn�es seed (RGPD : jamais commit)
 data/seed/local/
 
+# Triage reel du cockpit Mes emails (PII coproprietaires, produit par assistant-ia)
+data/mes-emails-triage.json
+
 # Exports PowerApps : binaires lourds / re-exportables (on garde les flux JSON + le guide)
 docs/powerapps/*.zip
 docs/powerapps/**/*.msapp
