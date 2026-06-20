@@ -80,16 +80,17 @@ Le SSO Microsoft renvoie l'utilisateur sur une URL spécifique après login. Ent
 ```
 http://localhost:3000/api/auth/callback/microsoft-entra-id
 http://localhost:3001/api/auth/callback/microsoft-entra-id
-https://intranet.real31.fr/api/auth/callback/microsoft-entra-id
-https://intranet-staging.real31.fr/api/auth/callback/microsoft-entra-id
+https://real31.app/api/auth/callback/microsoft-entra-id
 ```
 
 **Notes** :
 - Les URLs `localhost:3000` et `localhost:3001` sont nécessaires pour le développement local (le serveur de dev tourne sur l'un ou l'autre). Microsoft autorise `http://localhost` sans HTTPS.
-- L'URL `intranet.real31.fr` est l'URL de production (le sous-domaine définitif est à confirmer avec le DSI).
-- L'URL `intranet-staging.real31.fr` est un environnement de staging permanent (pour les tests). Le projet n'utilisera **pas** les URLs de preview Vercel dynamiques (`*.vercel.app`) côté auth, car elles changent à chaque déploiement.
+- L'URL de production est `https://real31.app` (racine) - décision Sekou 2026-06-20 : le site migre prochainement sur le domaine `real31.app`, l'intranet est servi à la racine. On abandonne l'ancien `intranet.real31.fr`.
+- Staging optionnel : `https://staging.real31.app/api/auth/callback/microsoft-entra-id` si un environnement de staging permanent est créé.
+- Le projet n'utilisera **pas** les URLs de preview Vercel dynamiques (`*.vercel.app`) côté auth, car elles changent à chaque déploiement.
+- Bonus : `real31.app` étant un domaine **stable**, c'est aussi lui qui rendra les **passkeys du coffre** pérennes (le `rpId` = le domaine courant).
 
-Si le sous-domaine `intranet.real31.fr` n'est pas encore créé côté DNS, indiquer une URL temporaire à corriger plus tard.
+Tant que `real31.app` n'est pas live côté DNS, on teste le SSO en local (`localhost:3000`).
 
 ### Cases à cocher (section *Authentication*)
 - ✅ **ID tokens** (utilisé pour le SSO)
