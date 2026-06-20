@@ -35,7 +35,6 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
       { id: "apcs.honos", libelle: "Honoraires CS (horaire dépassé ?)" },
       { id: "apcs.cr-cs-extranet", libelle: "Compte rendu CS diffusé sur l'extranet" },
       { id: "apcs.suppr-fichiers-n1", libelle: "Suppression des anciens fichiers inutiles AG N-1" },
-      { id: "apcs.dates-cs-ag", libelle: "Dates CS + AG mises à jour (fiche immeuble)" },
     ],
   },
   {
@@ -46,7 +45,7 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
       { id: "conv.mail-dispo", libelle: "Mail aux copropriétaires pour annoncer la dispo de la convocation" },
       { id: "conv.agconnect-transfert", libelle: "Si AG Connect : AG transférée + courriers d'invitation envoyés" },
       { id: "conv.agconnect-surplus", libelle: "Si AG Connect et copro > 50 lots : surplus d'abonnement payé (process 471)" },
-      { id: "conv.rappel-pouvoirs", libelle: "Rappel Outlook pour relancer pouvoirs / VPC (J-8 avant l'AG)" },
+      { id: "conv.rappel-pouvoirs", libelle: "Relancer pouvoirs / VPC (J-8 avant l'AG)" },
     ],
   },
   {
@@ -55,7 +54,6 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
     items: [
       { id: "doc.evenements-attente", libelle: "Vérification des évènements en attente de l'immeuble" },
       { id: "doc.vpc-saisis", libelle: "Tous les VPC saisis (Crypto / AG Connect) + pouvoirs imprimés" },
-      { id: "doc.ag-nomade", libelle: "Si AG extérieure : transfert sur PC AG Nomade (fiche 459)" },
       { id: "doc.mutations-jourj", libelle: "Mutations vérifiées le jour J (onglet saisie des présences)" },
       { id: "doc.feuille-presence", libelle: "Feuille de présence (5 clés ou tablette si AG Connect)" },
       { id: "doc.contrat-syndic", libelle: "Contrat de syndic (n° mandat G-XXXX à obtenir le jour J)" },
@@ -75,10 +73,9 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
       { id: "apag.notif-pv-date", libelle: "Notification du PV le (process 470)", type: "date" },
       { id: "apag.mail-dispo-pv", libelle: "Mails aux copropriétaires pour annoncer la dispo du PV" },
       { id: "apag.registre-pv", libelle: "Registre PV (avec feuille de présence)" },
-      { id: "apag.rappel-actions", libelle: "Rappel Outlook actions en cours (décisions et QD)" },
+      { id: "apag.rappel-actions", libelle: "Suivi des actions en cours (décisions et QD)" },
       { id: "apag.dossiers-travaux", libelle: "Dossiers travaux créés et transmis au gestionnaire travaux (454)" },
       { id: "apag.devis-contrats", libelle: "Devis et contrats acceptés" },
-      { id: "apag.entreprises-non-retenues", libelle: "Entreprises non retenues prévenues" },
       { id: "apag.maj-fiche-immeuble", libelle: "Mise à jour de la fiche immeuble sur Crypto (process 438)" },
     ],
   },

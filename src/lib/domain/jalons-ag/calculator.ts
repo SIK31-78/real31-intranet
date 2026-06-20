@@ -52,13 +52,13 @@ function dateConvocationLegale(agISO: string): string {
 }
 
 const LIBELLES: Record<JalonCode, string> = {
-  ODJ_CS: "ODJ valide avec le Conseil Syndical",
-  DEVIS: "Devis et documents techniques rassembles",
-  CONVOC: "Convocations envoyees",
+  ODJ_CS: "ODJ validé avec le Conseil Syndical",
+  DEVIS: "Devis et documents techniques rassemblés",
+  CONVOC: "Convocations envoyées",
   RELANCE_POUVOIRS: "Relance des pouvoirs / VPC",
-  POUVOIRS: "Pouvoirs et votes par correspondance recus",
+  POUVOIRS: "Pouvoirs et votes par correspondance reçus",
   TENUE: "Tenue de l'AG",
-  SCAN_CONTRAT: "Scan du contrat + evenement Crypto",
+  SCAN_CONTRAT: "Scan du contrat + événement Crypto",
   NOTIF_PV: "Notification du PV",
   ARCHIVAGE: "Archivage du dossier AG",
 };

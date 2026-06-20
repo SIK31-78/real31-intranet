@@ -13,7 +13,7 @@ export const DELAIS_CABINET = {
   CONVOC_JOURS: 30,
   /** Date limite d'ajout de points a l'ODJ : 10 jours avant la mise sous pli. */
   AJOUT_ODJ_AVANT_CONVOC_JOURS: 10,
-  /** Relance des pouvoirs / VPC (rappel Outlook fiche 450). */
+  /** Relance des pouvoirs / VPC (fiche 450). */
   RELANCE_POUVOIRS_JOURS: 8,
   /** Pouvoirs et votes par correspondance recus (butoir). */
   POUVOIRS_JOURS: 2,

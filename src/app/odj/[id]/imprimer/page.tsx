@@ -30,7 +30,7 @@ export default async function OdjImprimerPage({ params }: { params: Promise<{ id
             className="inline-flex items-center gap-1.5 text-[13px] text-neutral-600 hover:text-neutral-900"
           >
             <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" />
-            Retour a l&apos;edition
+            Retour à l&apos;édition
           </Link>
           <BoutonImprimer />
         </div>
