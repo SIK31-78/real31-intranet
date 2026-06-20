@@ -15,9 +15,6 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Priorités du moment</CardTitle>
-        <Link href="/mes-evenements" className="text-[12px] text-info-700 hover:underline">
-          Voir tout
-        </Link>
       </CardHeader>
 
       {top.length === 0 ? (

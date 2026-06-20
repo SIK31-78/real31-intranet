@@ -16,7 +16,7 @@ export default async function ResolutionsPage() {
   const data = await getBibliotheque();
 
   return (
-    <AppShell user={g} active="resolutions" breadcrumb="Bibliothèque de résolutions">
+    <AppShell user={g} active="resolutions" breadcrumb="Résolutions">
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <BibliothequeVue data={data} />
       </div>

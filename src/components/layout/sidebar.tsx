@@ -1,7 +1,8 @@
 import type { ComponentType } from "react";
+import Link from "next/link";
 import {
   LayoutDashboard, ListChecks, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
-  FileSignature, ShieldAlert, AppWindow, ExternalLink,
+  FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -37,8 +38,10 @@ const TRAVAIL: Item[] = [
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
 ];
 
-// Applications externes REAL31 (s'ouvrent dans un nouvel onglet).
-const APPS_EXTERNES: { label: string; href: string; icon: ComponentType<{ className?: string; strokeWidth?: number }> }[] = [
+type LienApp = { label: string; href: string; icon: ComponentType<{ className?: string; strokeWidth?: number }> };
+
+// Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
+const APPS_EXTERNES: LienApp[] = [
   { label: "Registre des mandats", href: "https://mandats.real31.app/", icon: FileSignature },
   { label: "Sinistres", href: "https://sinistres.real31.app/", icon: ShieldAlert },
   {
@@ -46,12 +49,24 @@ const APPS_EXTERNES: { label: string; href: string; icon: ComponentType<{ classN
     href: "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/1b4ec6f7-8172-4ccd-a63b-1fca272acb1d?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686",
     icon: AppWindow,
   },
+  {
+    label: "Gestion des clés",
+    href: "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/87a42a4c-89cb-4e40-a579-5ce9b51d5a89?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686",
+    icon: Key,
+  },
+];
+
+// Outils externes (tiers) qu'on utilise mais qui ne sont pas a nous.
+const OUTILS_EXTERNES: LienApp[] = [
+  { label: "OneSpan Sign", href: "https://apps.esignlive.eu/login", icon: Signature },
+  { label: "Extranet Crypto", href: "https://real31.crypto-extranet.com/syndic", icon: Globe },
+  { label: "AG Connect", href: "https://ag-connect.fr/fr/participants/sign_in", icon: Vote },
 ];
 
 function NavItem({ item, active }: { item: Item; active: boolean }) {
   const Icon = item.icon;
   return (
-    <a
+    <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -67,7 +82,7 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
           {item.count}
         </span>
       )}
-    </a>
+    </Link>
   );
 }
 
@@ -97,20 +112,34 @@ function LienExterne({
   );
 }
 
+function SectionTitre({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">{children}</div>
+  );
+}
+
 export function Sidebar({ active }: { active: NavKey }) {
   return (
-    <aside className="shrink-0 w-[216px] border-r border-line bg-surface flex flex-col">
+    <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto">
       <nav className="px-3 py-3">
-        <div className="px-2 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">Mon travail</div>
+        <SectionTitre>Mon travail</SectionTitre>
         {TRAVAIL.map((item) => (
           <NavItem key={item.key} item={item} active={item.key === active} />
         ))}
-      </nav>
-      <nav className="px-3 py-3 mt-auto border-t border-line">
-        <div className="px-2 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">Nos applications</div>
-        {APPS_EXTERNES.map((app) => (
-          <LienExterne key={app.label} {...app} />
-        ))}
+
+        <div className="mt-4 pt-3 border-t border-line">
+          <SectionTitre>Nos applications</SectionTitre>
+          {APPS_EXTERNES.map((app) => (
+            <LienExterne key={app.label} {...app} />
+          ))}
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-line">
+          <SectionTitre>Outils externes</SectionTitre>
+          {OUTILS_EXTERNES.map((app) => (
+            <LienExterne key={app.label} {...app} />
+          ))}
+        </div>
       </nav>
     </aside>
   );
