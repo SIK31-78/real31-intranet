@@ -276,12 +276,12 @@ export function CoffreVue({
         ) : (
           <>
             <p className="text-[13px] text-ink-3 mb-1">
-              Premier acces : choisis un <strong>mot de passe maitre</strong>. Il chiffre ton coffre et
-              n&apos;est jamais envoye au serveur.
+              Première connexion : choisis un <strong>mot de passe maître</strong>. C&apos;est la clé de ton
+              coffre, et il ne quitte jamais ton appareil.
             </p>
-            <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4 max-w-md">
-              Si tu l&apos;oublies, ton coffre personnel est definitivement illisible (c&apos;est le principe du
-              zero-knowledge). La recuperation par passkey / cle de secours arrive ensuite.
+            <p className="text-[12px] text-warn-700 bg-warn-50 border border-warn-500/30 rounded-md px-3 py-2 mb-4 max-w-md">
+              À retenir : personne ne peut le récupérer à ta place, pas même nous. Si tu l&apos;oublies, le
+              contenu de ton coffre est perdu. Note-le dans un endroit sûr.
             </p>
             <div className="flex flex-col gap-2 max-w-xs">
               <input
