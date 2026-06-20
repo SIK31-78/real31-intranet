@@ -136,6 +136,13 @@ export function CalendrierVue({
       </div>
       <div className="flex gap-4">
         <div className="flex-1 min-w-0">
+          {vue !== "liste" && evenementsFiltres.length === 0 && (
+            <div className="mb-3 rounded-md border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-3 text-center">
+              {typesActifs.length === 0
+                ? "Aucun type sélectionné - réactivez un filtre ci-dessus."
+                : "Aucun événement à afficher pour le moment."}
+            </div>
+          )}
           {vue === "mois" && (
             <VueMois grille={grilleMois} evenements={evenementsFiltres} />
           )}

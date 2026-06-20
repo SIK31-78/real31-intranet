@@ -1,3 +1,4 @@
+import { Children } from "react";
 import Link from "next/link";
 import {
   Trophy,
@@ -28,7 +29,7 @@ const SEVERITE_DOT: Record<Severite, string> = {
 const SEVERITE_FILL: Record<Severite, string> = {
   late: "bg-err-500",
   soon: "bg-warn-500",
-  ok: "bg-green-500",
+  ok: "bg-ok-500",
 };
 
 /** "2026-05-28" -> "28 mai" (sans l'annee). */
@@ -46,6 +47,7 @@ export function MesEvenementsVue({ data }: { data: MesEvenements }) {
         icone={<CheckSquare strokeWidth={1.5} className="w-4 h-4 text-ink-3" />}
         titre="À traiter en priorité"
         compte={`${data.aTraiter.length} actions ouvertes`}
+        vide="Tout est à jour, aucune action en priorité."
       >
         {data.aTraiter.map((a) => (
           <ActionRow key={a.id} action={a} />
@@ -56,6 +58,7 @@ export function MesEvenementsVue({ data }: { data: MesEvenements }) {
         icone={<Flag strokeWidth={1.5} className="w-4 h-4 text-ink-3" />}
         titre="Mes AG à venir (90 jours)"
         compte={`${data.agAVenir.length} AG planifiées`}
+        vide="Aucune AG planifiée dans les 90 prochains jours."
       >
         {data.agAVenir.map((ag) => (
           <AgRow key={ag.id} ag={ag} />
@@ -66,6 +69,7 @@ export function MesEvenementsVue({ data }: { data: MesEvenements }) {
         icone={<Building2 strokeWidth={1.5} className="w-4 h-4 text-ink-3" />}
         titre="Mes copros sans AG planifiée"
         compte={`${data.coprosSansAg.length} copros`}
+        vide="Toutes vos copropriétés ont une AG planifiée."
       >
         {data.coprosSansAg.map((c) => (
           <SansAgRow key={c.coproCode} copro={c} />
@@ -79,7 +83,7 @@ function EnTete({ data }: { data: MesEvenements }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-center gap-3">
-        <span className="w-11 h-11 rounded-full bg-info-50 text-info-700 text-[14px] font-medium flex items-center justify-center shrink-0">
+        <span className="w-11 h-11 rounded-full bg-green-50 text-green-700 text-[14px] font-medium flex items-center justify-center shrink-0">
           {data.gestionnaire.initiales}
         </span>
         <div>
@@ -98,12 +102,12 @@ function EnTete({ data }: { data: MesEvenements }) {
 function Compteur({ actionsCeMois }: { actionsCeMois: number }) {
   return (
     <Card className="flex items-center gap-4 px-5 py-4">
-      <Trophy strokeWidth={1.5} className="w-7 h-7 text-info-700 shrink-0" />
+      <Trophy strokeWidth={1.5} className="w-7 h-7 text-green-700 shrink-0" />
       <div className="flex-1">
-        <p className="text-[14px] font-medium text-ink">{actionsCeMois} actions traitées ce mois</p>
-        <p className="text-[12px] text-ink-3 mt-0.5">Bon rythme - +3 vs mai dernier.</p>
+        <p className="text-[14px] font-medium text-ink">Actions traitées ce mois</p>
+        <p className="text-[12px] text-ink-3 mt-0.5">Votre activité de pilotage du mois en cours.</p>
       </div>
-      <p className="text-[28px] font-medium leading-none text-info-700">{actionsCeMois}</p>
+      <p className="text-[28px] font-medium leading-none text-green-700">{actionsCeMois}</p>
     </Card>
   );
 }
@@ -112,13 +116,16 @@ function Section({
   icone,
   titre,
   compte,
+  vide,
   children,
 }: {
   icone: React.ReactNode;
   titre: string;
   compte: string;
+  vide: string;
   children: React.ReactNode;
 }) {
+  const estVide = Children.count(children) === 0;
   return (
     <section>
       <div className="flex items-center justify-between mb-2.5">
@@ -129,7 +136,11 @@ function Section({
         <span className="text-[12px] text-ink-3">{compte}</span>
       </div>
       <Card className="overflow-hidden">
-        <ul className="divide-y divide-line">{children}</ul>
+        {estVide ? (
+          <p className="px-4 py-6 text-[13px] text-ink-3 text-center">{vide}</p>
+        ) : (
+          <ul className="divide-y divide-line">{children}</ul>
+        )}
       </Card>
     </section>
   );

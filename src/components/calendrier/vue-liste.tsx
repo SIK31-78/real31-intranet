@@ -19,7 +19,7 @@ export function VueListe({ evenements }: { evenements: Evenement[] }) {
             <div className="text-[13px] font-medium text-ink">
               {libelleJourLong(j.date)}
             </div>
-            <div className="font-mono text-[11px] text-ink-3">{j.date}</div>
+            <div className="text-[11px] text-ink-3">{j.date.split("-").reverse().join("/")}</div>
           </div>
           <div className="flex-1 flex flex-col gap-1.5 min-w-0">
             {j.evenements.map((e) => (

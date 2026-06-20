@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, AlertTriangle } from "lucide-react";
 import type { ChampOdj, SourceDonnee } from "@/lib/domain/odj";
 import { formatChampValeur } from "@/lib/domain/odj";
 
@@ -88,7 +88,9 @@ export function LigneChamp({
         <span className={`text-[10px] px-1.5 py-0.5 rounded-sm shrink-0 ${src.cls}`}>{src.texte}</span>
       </div>
       {champ.alerte && !edition && (
-        <p className="mt-1 text-[11.5px] text-warn-700">⚠ {champ.alerte}</p>
+        <p className="mt-1 text-[11.5px] text-warn-700 flex items-center gap-1">
+          <AlertTriangle strokeWidth={1.5} className="w-3 h-3 shrink-0" /> {champ.alerte}
+        </p>
       )}
       {edition && (
         <form onSubmit={enregistrer} className="mt-2 flex items-center gap-2">

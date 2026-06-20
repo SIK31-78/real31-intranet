@@ -2,7 +2,7 @@
 
 // Mode CS : composer l'ordre du jour d'une AG en piochant dans la bibliotheque de
 // resolutions du cabinet (motion bank Estale, ADR-024), + ajout de resolutions libres.
-// Brouillon CLIENT (pas encore de persistance ni d'ecriture Estale - increment suivant).
+// L'enregistrement ecrit REELLEMENT dans l'AG Estale (ajouts/retraits/ordre, additif).
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";

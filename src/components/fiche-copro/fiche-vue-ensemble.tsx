@@ -5,7 +5,6 @@ import {
   CircleCheck,
   AlertCircle,
   AlertTriangle,
-  FileText,
   ArrowRight,
   Route,
   Users,
@@ -251,9 +250,9 @@ function BlocAg({
                   : ""}
               </p>
               {derniere.pvDispo && (
-                <span className="mt-2 inline-flex items-center gap-1 text-[12px] text-info-700">
-                  <FileText strokeWidth={1.5} className="w-3.5 h-3.5" /> Voir le PV
-                </span>
+                <div className="mt-2">
+                  <Badge ton="outline">PV disponible</Badge>
+                </div>
               )}
             </>
           )}
@@ -332,9 +331,7 @@ function HistoriqueAg({ historique }: { historique: AgPassee[] }) {
                 {ag.libelle ? ` · ${ag.libelle}` : ""}
                 {ag.presents != null ? ` · ${ag.presents}/${ag.total}` : ""}
               </span>
-              {ag.pvDispo && (
-                <span className="text-[12px] text-info-700 shrink-0">PV</span>
-              )}
+              {ag.pvDispo && <Badge ton="outline" className="shrink-0">PV</Badge>}
             </li>
           ))}
         </ul>

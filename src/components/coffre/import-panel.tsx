@@ -163,7 +163,7 @@ export function ImportPanel({
             <button
               onClick={importer}
               disabled={busy || nouveaux.length === 0}
-              className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-[12.5px] font-medium hover:bg-green-800 disabled:opacity-60"
+              className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-[12.5px] font-medium hover:bg-green-600 disabled:opacity-60"
             >
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" strokeWidth={2} />}
               Importer {nouveaux.length} mot(s) de passe

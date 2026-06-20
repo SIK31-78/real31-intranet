@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { JalonPill } from "@/components/ui/jalon-pill";
 import type { Evenement, TypeEvenement, StatutEvenement } from "@/lib/domain/calendrier";
@@ -26,20 +27,20 @@ type EvenementChipProps = {
 export function EvenementChip({ evenement, taille = "md", className }: EvenementChipProps) {
   const { id, type, statut, coproNomCourt, coproCode, heure, jalon } = evenement;
   const small = taille === "sm";
-  // Les AG/AGE pointent vers leur fiche de supervision. CS pas de cible pour l'instant.
-  const href = type === "AG" || type === "AGE" ? `/supervision-ag/${id}` : "#";
-  return (
-    <a
-      href={href}
-      title={`${type} · ${coproNomCourt} · ${coproCode}${heure ? ` · ${heure}` : ""}`}
-      className={cn(
-        "flex items-center gap-1 rounded-sm border transition-colors duration-75",
-        small ? "h-[18px] px-1 text-[11px]" : "h-6 px-1.5 text-[12px] gap-1.5",
-        TYPE_STYLE[type],
-        STATUT_STYLE[statut],
-        className,
-      )}
-    >
+  // Seules les AG/AGE ont une fiche de supervision. Un CS n'a pas (encore) de cible :
+  // on le rend NON cliquable plutot qu'un lien mort vers "#".
+  const cliquable = type === "AG" || type === "AGE";
+  const classes = cn(
+    "flex items-center gap-1 rounded-sm border transition-colors duration-75",
+    small ? "h-[18px] px-1 text-[11px]" : "h-6 px-1.5 text-[12px] gap-1.5",
+    TYPE_STYLE[type],
+    STATUT_STYLE[statut],
+    cliquable ? "cursor-pointer hover:brightness-[0.97]" : "cursor-default",
+    className,
+  );
+  const titre = `${type} · ${coproNomCourt} · ${coproCode}${heure ? ` · ${heure}` : ""}`;
+  const contenu = (
+    <>
       <span className="font-semibold tracking-tight shrink-0">{type}</span>
       <span className="truncate flex-1 min-w-0">{coproNomCourt}</span>
       {!small && (heure || jalon) && (
@@ -54,6 +55,19 @@ export function EvenementChip({ evenement, taille = "md", className }: Evenement
           )}
         </span>
       )}
-    </a>
+    </>
+  );
+
+  if (cliquable) {
+    return (
+      <Link href={`/supervision-ag/${id}`} title={titre} className={classes}>
+        {contenu}
+      </Link>
+    );
+  }
+  return (
+    <div title={titre} className={classes}>
+      {contenu}
+    </div>
   );
 }
