@@ -80,12 +80,13 @@ export function progressionGlobale(supervision: SupervisionAg): Progression {
   return calculer(supervision.sections.flatMap((s) => s.items));
 }
 
-/** L'AG est concluable s'il n'y a aucun probleme actif, qu'elle est encore
- *  en preparation et que l'utilisateur a le role gestionnaire. */
+/** L'AG est concluable si le dossier est COMPLET (tous les items traites), sans
+ *  probleme actif, encore en preparation, et l'utilisateur a le role gestionnaire.
+ *  (Avant : seul un probleme bloquait -> on pouvait conclure une checklist vide.) */
 export function peutConclure(supervision: SupervisionAg, role: Role): boolean {
   if (role !== "gestionnaire") return false;
   if (supervision.statut === "conclue_archivee") return false;
-  return !supervision.sections
-    .flatMap((s) => s.items)
-    .some((i) => i.statut === "probleme");
+  const items = supervision.sections.flatMap((s) => s.items);
+  if (items.some((i) => i.statut === "probleme")) return false;
+  return items.every(estVerifie);
 }

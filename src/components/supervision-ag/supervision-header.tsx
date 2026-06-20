@@ -1,5 +1,6 @@
 import {
   peutConclure,
+  estVerifie,
   type Role,
   type SupervisionAg,
 } from "@/lib/domain/supervision-ag";
@@ -14,12 +15,11 @@ type SupervisionHeaderProps = {
 function calculRaisonDisabled(
   supervision: SupervisionAg,
   role: Role,
-): "role" | "probleme" | null {
+): "role" | "probleme" | "incomplet" | null {
   if (role !== "gestionnaire") return "role";
-  const aProbleme = supervision.sections
-    .flatMap((s) => s.items)
-    .some((i) => i.statut === "probleme");
-  if (aProbleme) return "probleme";
+  const items = supervision.sections.flatMap((s) => s.items);
+  if (items.some((i) => i.statut === "probleme")) return "probleme";
+  if (!items.every(estVerifie)) return "incomplet";
   return null;
 }
 

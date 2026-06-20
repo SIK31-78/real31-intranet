@@ -8,7 +8,7 @@ import type { Role } from "@/lib/domain/supervision-ag";
 type ConclureBoutonProps = {
   disabled: boolean;
   role: Role;
-  raisonDisabled: "role" | "probleme" | null;
+  raisonDisabled: "role" | "probleme" | "incomplet" | null;
   onConclure: () => Promise<void>;
 };
 
@@ -38,7 +38,9 @@ export function ConclureBouton({
       ? "Seul le gestionnaire de la copro peut conclure"
       : raisonDisabled === "probleme"
         ? "Items en statut Problème - résoudre avant de conclure"
-        : `Connecté en tant que ${role}`;
+        : raisonDisabled === "incomplet"
+          ? "Checklist incomplète - traiter tous les items avant de conclure"
+          : `Connecté en tant que ${role}`;
   return (
     <button
       type="button"
