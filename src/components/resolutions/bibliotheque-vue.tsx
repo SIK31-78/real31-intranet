@@ -8,7 +8,7 @@ import { Search, AlertTriangle, Library } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
-import { MAJORITE_LABEL, MAJORITE_ORDRE } from "@/lib/domain/resolution";
+import { MAJORITE_LABEL, MAJORITE_ORDRE, rangParent } from "@/lib/domain/resolution";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
 
@@ -16,9 +16,16 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
   const [q, setQ] = useState("");
   const [filtre, setFiltre] = useState<MajoriteResolution | "all">("all");
 
+  // Resolutions de tete uniquement (groupes + autonomes) : on ne compte/affiche PAS
+  // les sous-resolutions de groupe (rang "78.1"...), elles vivent dans leur groupe.
+  const racines = useMemo(
+    () => data.resolutions.filter((r) => rangParent(r.rank) === null),
+    [data.resolutions],
+  );
+
   const visibles = useMemo(() => {
     const terme = q.trim().toLowerCase();
-    return data.resolutions.filter((r) => {
+    return racines.filter((r) => {
       if (filtre !== "all" && r.majorite !== filtre) return false;
       if (!terme) return true;
       return (
@@ -27,13 +34,13 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
         r.motsCles.some((m) => m.toLowerCase().includes(terme))
       );
     });
-  }, [data.resolutions, q, filtre]);
+  }, [racines, q, filtre]);
 
   const parMajorite = useMemo(() => {
     const m = new Map<MajoriteResolution, number>();
-    for (const r of data.resolutions) m.set(r.majorite, (m.get(r.majorite) ?? 0) + 1);
+    for (const r of racines) m.set(r.majorite, (m.get(r.majorite) ?? 0) + 1);
     return m;
-  }, [data.resolutions]);
+  }, [racines]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -77,7 +84,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
 
             <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filtrer par majorité">
               <Chip actif={filtre === "all"} onClick={() => setFiltre("all")}>
-                Tout ({data.resolutions.length})
+                Tout ({racines.length})
               </Chip>
               {MAJORITE_ORDRE.filter((m) => parMajorite.has(m)).map((m) => (
                 <Chip key={m} actif={filtre === m} onClick={() => setFiltre(m)}>
@@ -89,7 +96,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
 
           <p className="text-[12px] text-ink-3">
             {visibles.length} résolution{visibles.length > 1 ? "s" : ""}
-            {filtre !== "all" || q ? ` sur ${data.resolutions.length}` : ""}
+            {filtre !== "all" || q ? ` sur ${racines.length}` : ""}
           </p>
 
           <div className="flex flex-col gap-2.5">
