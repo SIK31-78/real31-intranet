@@ -11,8 +11,23 @@ import { auth, ssoConfigure } from "@/auth";
 
 export const COOKIE_GESTIONNAIRE = "gid";
 
+// Acces dev "impersonation" : en local (next dev) on peut se mettre dans la peau de
+// n'importe quel gestionnaire via le cookie gid (selecteur /dev-login). JAMAIS en prod
+// (NODE_ENV=production sur Vercel) : la, le SSO est seul maitre du cloisonnement.
+export const devLoginActif = process.env.NODE_ENV !== "production";
+
 export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
   const repo = getGestionnaireRepository();
+
+  // DEV uniquement : un cookie gid (choisi via /dev-login) prime sur le SSO -> on peut
+  // tester / demontrer en tant que n'importe quel gestionnaire. Inerte en prod.
+  if (devLoginActif) {
+    const id = (await cookies()).get(COOKIE_GESTIONNAIRE)?.value;
+    if (id) {
+      const g = await repo.findById(id);
+      if (g) return g;
+    }
+  }
 
   // SSO actif : email de la session Microsoft -> gestionnaire (public."User").
   if (ssoConfigure) {
