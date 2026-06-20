@@ -24,7 +24,12 @@ async function definir(
     await reporterSupervisionSansDate(coproCode, dateISO);
     await reporterOdjSansDate(coproCode, dateISO);
   }
+  // Changer une date recalcule les jalons : revalider TOUTES les vues qui les affichent
+  // (sinon le calendrier / dashboard / Actions restent sur l'ancien calcul).
   revalidatePath(`/copropriete/${coproCode}`);
+  revalidatePath("/calendrier");
+  revalidatePath("/dashboard");
+  revalidatePath("/mes-evenements");
 }
 
 export async function definirDateAg(
