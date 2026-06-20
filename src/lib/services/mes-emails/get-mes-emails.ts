@@ -9,10 +9,23 @@
 import type { ContexteCopro, MesEmails } from "@/lib/domain/mes-emails";
 import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
-import { getCondoEstaleProvider, getMesEmailsProvider } from "@/lib/adapters/router";
+import { getCondoEstaleProvider, getCoproRepository, getMesEmailsProvider } from "@/lib/adapters/router";
 
 export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
-  const data = await getMesEmailsProvider().getMesEmails(g.id);
+  const brut = await getMesEmailsProvider().getMesEmails(g.id);
+
+  // Cloisonnement : on ne garde que les copros du portefeuille du gestionnaire
+  // courant (managerId reel cote Supabase), comme calendrier / odj. L'identite
+  // vient de getGestionnaireCourant (SSO Entra si actif, dev-login sinon) : le
+  // jour ou le SSO est branche, ce filtre ne change pas. Un autre gestionnaire
+  // ne voit donc pas le triage d'une copro qui n'est pas la sienne.
+  const miennes = new Set((await getCoproRepository().list(g.id)).map((c) => c.code));
+  const data: MesEmails = {
+    ...brut,
+    mails: brut.mails.filter((m) => miennes.has(m.coproCode)),
+    dossiers: brut.dossiers.filter((d) => miennes.has(d.coproCode)),
+  };
+
   const contextes = await enrichirContextes(data);
   return {
     ...data,
