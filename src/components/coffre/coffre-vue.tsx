@@ -123,7 +123,7 @@ export function CoffreVue({
   // --- Enrolement (1er acces) ---------------------------------------------
   async function enroler() {
     setErreur(null);
-    if (mdp.length < 8) return setErreur("Choisis un mot de passe maitre d'au moins 8 caracteres.");
+    if (mdp.length < 8) return setErreur("Choisis un mot de passe maître d'au moins 8 caractères.");
     if (mdp !== mdp2) return setErreur("Les deux mots de passe ne correspondent pas.");
     setBusy(true);
     try {
@@ -203,7 +203,7 @@ export function CoffreVue({
       );
       await ajouterPasskeyAction(wrappedPrivateKey, params);
       setPasskeyActivee(true);
-      setInfo("Passkey activee. La prochaine fois, tu pourras deverrouiller sans mot de passe.");
+      setInfo("C'est activé. La prochaine fois, tu ouvriras ton coffre avec Windows Hello, sans mot de passe.");
     } catch (e) {
       setErreur((e as Error).message);
     } finally {
@@ -246,8 +246,8 @@ export function CoffreVue({
             <p className="text-[13px] text-ink-3 mb-4">
               Bonjour {nomComplet}.{" "}
               {passkeyDev
-                ? "Deverrouille ton coffre avec ta passkey, ou ton mot de passe maitre."
-                : "Saisis ton mot de passe maitre pour deverrouiller ton coffre."}
+                ? "Ouvre ton coffre avec Windows Hello (empreinte ou code PIN), ou avec ton mot de passe maître."
+                : "Saisis ton mot de passe maître pour ouvrir ton coffre."}
             </p>
             <div className="flex flex-col gap-2 max-w-xs">
               {passkeyDev && (
@@ -255,22 +255,22 @@ export function CoffreVue({
                   <Bouton
                     onClick={deverrouillerViaPasskey}
                     busy={busy}
-                    label="Deverrouiller avec une passkey"
+                    label="Ouvrir avec Windows Hello"
                     icone={Fingerprint}
                   />
-                  <div className="text-[11px] text-ink-4 text-center my-0.5">ou mot de passe maitre</div>
+                  <div className="text-[11px] text-ink-4 text-center my-0.5">ou avec ton mot de passe maître</div>
                 </>
               )}
               <input
                 type="password"
                 className={champClasse}
-                placeholder="Mot de passe maitre"
+                placeholder="Mot de passe maître"
                 value={mdp}
                 onChange={(e) => setMdp(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !busy && deverrouiller()}
                 autoFocus={!passkeyDev}
               />
-              <Bouton onClick={deverrouiller} busy={busy} label="Deverrouiller" icone={Lock} />
+              <Bouton onClick={deverrouiller} busy={busy} label="Ouvrir le coffre" icone={Lock} />
             </div>
           </>
         ) : (
@@ -336,7 +336,7 @@ export function CoffreVue({
               disabled={busy}
               className="flex items-center gap-1.5 text-[12px] text-green-700 hover:bg-green-50 px-2 py-1 rounded-md disabled:opacity-60"
             >
-              <Fingerprint className="w-3.5 h-3.5" strokeWidth={1.5} /> Activer une passkey
+              <Fingerprint className="w-3.5 h-3.5" strokeWidth={1.5} /> Activer Windows Hello
             </button>
           )}
           <button
