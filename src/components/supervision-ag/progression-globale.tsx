@@ -80,7 +80,7 @@ export function ProgressionGlobale({ supervision }: { supervision: SupervisionAg
         <Breakdown label="OK" count={counts.ok} tone="ok" />
         <Breakdown label="Problème" count={counts.probleme} tone="err" />
         <Breakdown label="N/A" count={counts.non_applicable} tone="neutral" />
-        <Breakdown label="À vérifier" count={counts.non_verifie} tone="ghost" />
+        <Breakdown label="Restant" count={counts.non_verifie} tone="ghost" />
       </div>
     </div>
   );

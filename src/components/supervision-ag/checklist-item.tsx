@@ -12,12 +12,11 @@ import type { ItemChecklist, StatutItem } from "@/lib/domain/supervision-ag";
 import { STATUT_LIBELLES } from "./statut-pill";
 import { formatAuditeRelatif } from "@/lib/format-date";
 
-const ORDRE_STATUT: StatutItem[] = [
-  "ok",
-  "probleme",
-  "non_applicable",
-  "non_verifie",
-];
+// Statuts proposes : OK / Probleme / N/A pour un item normal ; juste Probleme pour un
+// item "date" (la date renseignee vaut deja validation). Plus de bouton "A verifier" :
+// c'est l'etat par defaut, et recliquer le statut actif le remet a "non_verifie" (RAZ).
+const STATUTS_CHECK: StatutItem[] = ["ok", "probleme", "non_applicable"];
+const STATUTS_DATE: StatutItem[] = ["probleme"];
 
 const BTN_STYLES: Record<StatutItem, { actif: string; inactif: string }> = {
   ok: {
@@ -63,10 +62,12 @@ export function ChecklistItem({
   const [draft, setDraft] = useState(item.commentaire ?? "");
 
   const handleCocher = (statut: StatutItem) => {
-    if (lectureSeule || statut === statutOpt) return;
+    if (lectureSeule) return;
+    // Recliquer le statut actif le remet a "non_verifie" (RAZ).
+    const cible: StatutItem = statut === statutOpt ? "non_verifie" : statut;
     startTransition(async () => {
-      setStatutOpt(statut);
-      await onCocher(item.id, statut);
+      setStatutOpt(cible);
+      await onCocher(item.id, cible);
     });
   };
 
@@ -101,7 +102,7 @@ export function ChecklistItem({
           {item.libelle}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {ORDRE_STATUT.map((s) => {
+          {(estDate ? STATUTS_DATE : STATUTS_CHECK).map((s) => {
             const actif = statutOpt === s;
             return (
               <button
@@ -110,6 +111,7 @@ export function ChecklistItem({
                 disabled={lectureSeule}
                 onClick={() => handleCocher(s)}
                 aria-pressed={actif}
+                title={actif ? "Cliquer à nouveau pour réinitialiser" : STATUT_LIBELLES[s]}
                 className={cn(
                   "h-7 px-2 rounded-sm border text-[11px] font-medium transition-colors duration-75 disabled:cursor-not-allowed",
                   actif ? BTN_STYLES[s].actif : BTN_STYLES[s].inactif,
