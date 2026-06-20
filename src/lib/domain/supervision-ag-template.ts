@@ -11,7 +11,14 @@ export interface ItemTemplate {
   libelle: string;
   /** "check" (case a cocher, defaut) ou "date" (vrai champ date renseigne). */
   type?: TypeItem;
+  /** Lien externe vers l'app metier concernee (Registre des mandats, Reality...). */
+  lien?: string;
 }
+
+// Apps externes REAL31 referencees par les items.
+const URL_MANDATS = "https://mandats.real31.app/";
+const URL_REALITY =
+  "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/1b4ec6f7-8172-4ccd-a63b-1fca272acb1d?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686";
 export interface SectionTemplate {
   id: string;
   titre: string;
@@ -32,7 +39,7 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
     id: "apres-cs",
     titre: "Après CS",
     items: [
-      { id: "apcs.honos", libelle: "Honoraires CS (horaire dépassé ?)" },
+      { id: "apcs.honos", libelle: "Honoraires CS (horaire dépassé ?)", lien: URL_REALITY },
       { id: "apcs.cr-cs-extranet", libelle: "Compte rendu CS diffusé sur l'extranet" },
       { id: "apcs.suppr-fichiers-n1", libelle: "Suppression des anciens fichiers inutiles AG N-1" },
     ],
@@ -56,7 +63,7 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
       { id: "doc.vpc-saisis", libelle: "Tous les VPC saisis (Crypto / AG Connect) + pouvoirs imprimés" },
       { id: "doc.mutations-jourj", libelle: "Mutations vérifiées le jour J (onglet saisie des présences)" },
       { id: "doc.feuille-presence", libelle: "Feuille de présence (5 clés ou tablette si AG Connect)" },
-      { id: "doc.contrat-syndic", libelle: "Contrat de syndic (n° mandat G-XXXX à obtenir le jour J)" },
+      { id: "doc.contrat-syndic", libelle: "Contrat de syndic (n° mandat G-XXXX à obtenir le jour J)", lien: URL_MANDATS },
       { id: "doc.cr-cs", libelle: "CR réunion CS" },
     ],
   },
@@ -64,7 +71,7 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
     id: "apres-ag",
     titre: "Après AG",
     items: [
-      { id: "apag.recap-reality", libelle: "Récap AG sur Reality" },
+      { id: "apag.recap-reality", libelle: "Récap AG sur Reality", lien: URL_REALITY },
       { id: "apag.lre", libelle: "Copros LRE cochés (mail correspondant / Extranet client)" },
       { id: "apag.scan-pv", libelle: "Scan PV + évènement Crypto" },
       { id: "apag.scan-contrat", libelle: "Scan contrat + évènement Crypto (J+2 max)" },

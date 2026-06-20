@@ -193,6 +193,7 @@ function construire(
         statut: (e?.statut as StatutItem) ?? "non_verifie",
       };
       if (t.type) item.type = t.type;
+      if (t.lien) item.lien = t.lien;
       if (e?.commentaire) item.commentaire = e.commentaire;
       // Pre-remplit "CS preparatoire le" avec la date CS de la copro si pas encore saisi.
       else if (t.id === ITEM_CS_PREPA && csDate) item.commentaire = csDate;

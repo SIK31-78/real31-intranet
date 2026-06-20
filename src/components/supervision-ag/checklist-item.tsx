@@ -6,6 +6,7 @@ import {
   useTransition,
   type FormEvent,
 } from "react";
+import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/icon";
 import type { ItemChecklist, StatutItem } from "@/lib/domain/supervision-ag";
@@ -100,6 +101,17 @@ export function ChecklistItem({
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0 text-[13px] text-ink leading-snug pt-1">
           {item.libelle}
+          {item.lien && (
+            <a
+              href={item.lien}
+              target="_blank"
+              rel="noreferrer"
+              title="Ouvrir l'application"
+              className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[11.5px] text-info-700 hover:underline"
+            >
+              <ExternalLink strokeWidth={1.5} className="w-3 h-3" /> ouvrir
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {(estDate ? STATUTS_DATE : STATUTS_CHECK).map((s) => {

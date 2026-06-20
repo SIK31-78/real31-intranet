@@ -24,6 +24,8 @@ export interface ItemChecklist {
   type?: "check" | "date";
   commentaire?: string;
   audite?: AuditeurItem;
+  /** Lien externe vers l'app metier concernee (Registre des mandats, Reality...). */
+  lien?: string;
 }
 
 export interface SectionChecklist {
