@@ -18,6 +18,11 @@ function codeDe(agId: string): string {
   const i = agId.indexOf("__");
   return i < 0 ? agId : agId.slice(0, i);
 }
+/** Date de l'AG portee par l'id "CODE__YYYY-MM-DD" (null si id simple, ex mock). */
+function dateDe(agId: string): string | null {
+  const i = agId.indexOf("__");
+  return i < 0 ? null : agId.slice(i + 2);
+}
 
 /** Gestionnaire courant s'il est autorise sur cette supervision, sinon null. */
 async function autorise(agId: string): Promise<Gestionnaire | null> {
@@ -63,5 +68,19 @@ export async function conclureAgAction(agId: string): Promise<void> {
     initiales: g.initiales,
     le: new Date().toLocaleDateString("fr-FR"),
   });
+
+  // AG tenue + dossier boucle : la date planifiee devient la "derniere AG", et on
+  // efface la "prochaine AG" (la copro repasse "a planifier" pour le cycle suivant).
+  const code = codeDe(agId);
+  const agDate = dateDe(agId);
+  if (agDate) {
+    await definirDateEvenement(code, "ag", "derniere", agDate, g.id);
+    await definirDateEvenement(code, "ag", "prochaine", null, g.id);
+    revalidatePath(`/copropriete/${code}`);
+    revalidatePath("/calendrier");
+    revalidatePath("/dashboard");
+    revalidatePath("/mes-evenements");
+  }
+
   revalidatePath(`/supervision-ag/${agId}`);
 }
