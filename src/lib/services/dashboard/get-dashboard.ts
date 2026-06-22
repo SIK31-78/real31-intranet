@@ -18,6 +18,7 @@ import {
   estEnParcours,
 } from "@/lib/domain/parcours-ag";
 import { etatCycleAg, ETAT_CYCLE_ORDRE } from "@/lib/domain/etat-cycle-ag";
+import { getPrisesEnMain } from "@/lib/services/coproprietes/prise-en-main";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { calculerJalons, compteARebours } from "@/lib/domain/jalons-ag/calculator";
 import {
@@ -66,7 +67,13 @@ function rangSeverite(s: Severite): number {
 
 async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> {
   const today = aujourdhuiISO();
-  const copros = await getCoproRepository().list(g.id);
+  const tous = await getCoproRepository().list(g.id);
+
+  // Onboarding : le cockpit n'alarme QUE sur les copros prises en main (dates validees).
+  // Les autres sont comptees a part (bac "a prendre en main"), sans alarme. null = inerte.
+  const prises = await getPrisesEnMain(tous.map((c) => c.code));
+  const copros = prises === null ? tous : tous.filter((c) => prises.has(c.code));
+  const aPrendreEnMain = tous.length - copros.length;
 
   const avenir = copros.filter((c) => {
     const d = c.prochaineAg?.date;
@@ -217,5 +224,6 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     activite,
     parcours,
     pipeline,
+    aPrendreEnMain,
   };
 }

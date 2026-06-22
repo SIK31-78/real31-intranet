@@ -3,15 +3,17 @@
 // Pilotage du portefeuille : bascule Liste / Pipeline (kanban par etat du cycle AG).
 // Filtres source / etat / exercice. Decision Sekou 2026-06-22 (cockpit).
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { List, LayoutGrid, Search, ChevronRight } from "lucide-react";
+import { List, LayoutGrid, Search, ChevronRight, ClipboardCheck, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import { libelleSource } from "@/lib/domain/copropriete";
 import { ETAT_CYCLE_LABEL, ETAT_CYCLE_ORDRE, type EtatCycle } from "@/lib/domain/etat-cycle-ag";
 import type { CoproPilotage } from "@/lib/services/coproprietes/get-copros-pilotage";
+import { prendreEnMainAction, prendreEnMainLotAction } from "@/app/copropriete/actions";
 
 const ETAT_TON: Record<EtatCycle, "neutral" | "warn" | "info" | "ok"> = {
   a_planifier: "neutral",
@@ -47,18 +49,31 @@ export function CoprosVue({
   const [source, setSource] = useState<"all" | "crypto" | "estale">("all");
   const [etat, setEtat] = useState<"all" | EtatCycle>(etatInitial ?? "all");
   const [cloture, setCloture] = useState("");
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
+
+  // Onboarding : copros confirmees (cockpit actif) vs a prendre en main (bac calme).
+  const actives = useMemo(() => copros.filter((c) => c.prise), [copros]);
+  const aPrendre = useMemo(() => copros.filter((c) => !c.prise), [copros]);
+
+  const prendre = (codes: string[]) =>
+    startTransition(async () => {
+      if (codes.length === 1) await prendreEnMainAction(codes[0]);
+      else await prendreEnMainLotAction(codes);
+      toast.ok(codes.length > 1 ? `${codes.length} copropriétés prises en main.` : "Copropriété prise en main.");
+    });
 
   const clotures = useMemo(
     () =>
-      Array.from(new Set(copros.map((c) => c.exerciceCloture).filter((x): x is string => Boolean(x)))).sort(
+      Array.from(new Set(actives.map((c) => c.exerciceCloture).filter((x): x is string => Boolean(x)))).sort(
         (a, b) => rangCloture(a) - rangCloture(b),
       ),
-    [copros],
+    [actives],
   );
 
   const filtrees = useMemo(() => {
     const terme = q.trim().toLowerCase();
-    return copros.filter((c) => {
+    return actives.filter((c) => {
       if (source !== "all" && c.source !== source) return false;
       if (etat !== "all" && c.etat !== etat) return false;
       if (cloture && c.exerciceCloture !== cloture) return false;
@@ -73,7 +88,7 @@ export function CoprosVue({
         return false;
       return true;
     });
-  }, [copros, q, source, etat, cloture]);
+  }, [actives, q, source, etat, cloture]);
 
   const parEtat = useMemo(() => {
     const m: Record<EtatCycle, CoproPilotage[]> = {
@@ -91,6 +106,10 @@ export function CoprosVue({
 
   return (
     <div className="flex flex-col gap-4">
+      {aPrendre.length > 0 && (
+        <PriseEnMainSection copros={aPrendre} pending={pending} onPrendre={prendre} />
+      )}
+
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search strokeWidth={1.5} className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
@@ -133,7 +152,7 @@ export function CoprosVue({
 
       <p className="text-[12px] text-ink-3">
         {filtrees.length} copropriété{filtrees.length > 1 ? "s" : ""}
-        {filtre ? ` sur ${copros.length}` : ""}
+        {filtre ? ` sur ${actives.length}` : ""}
       </p>
 
       {vue === "liste" ? <VueListe copros={filtrees} /> : <VuePipeline parEtat={parEtat} />}
@@ -248,5 +267,65 @@ function VuePipeline({ parEtat }: { parEtat: Record<EtatCycle, CoproPilotage[]> 
         </div>
       ))}
     </div>
+  );
+}
+
+function fmtDate(iso?: string): string {
+  return iso ? iso.split("-").reverse().join("/") : "-";
+}
+
+// Bac d'onboarding : copros aux dates heritees non encore validees. Calme, sans alarme.
+function PriseEnMainSection({
+  copros,
+  pending,
+  onPrendre,
+}: {
+  copros: CoproPilotage[];
+  pending: boolean;
+  onPrendre: (codes: string[]) => void;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-warn-50/50 border-b border-line">
+        <div className="flex items-center gap-2">
+          <ClipboardCheck strokeWidth={1.5} className="w-4 h-4 text-warn-700" />
+          <span className="text-[13px] font-medium text-ink">À prendre en main ({copros.length})</span>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => onPrendre(copros.map((c) => c.code))}
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 disabled:opacity-50"
+        >
+          Tout prendre en main
+        </button>
+      </div>
+      <p className="px-4 py-2 text-[12px] text-ink-3 border-b border-line">
+        Vérifie les dates héritées (souvent fausses à la première migration) puis confirme. Tant qu'une copro
+        n'est pas prise en main, elle ne déclenche aucune alarme.
+      </p>
+      <ul className="divide-y divide-line">
+        {copros.map((c) => (
+          <li key={c.code} className="flex items-center gap-3 px-4 py-2.5">
+            <span className="font-mono text-[12px] text-ink-2 shrink-0 w-[42px]">{c.code}</span>
+            <span className="text-[13px] font-medium text-ink flex-1 truncate min-w-0">{c.nom}</span>
+            <span className="text-[11.5px] text-ink-3 hidden md:block shrink-0">
+              Dern. AG {fmtDate(c.derniereAgDate)} - Proch. AG {fmtDate(c.agDate)}
+            </span>
+            <Link href={`/copropriete/${c.code}`} className="text-[12px] text-info-700 hover:underline shrink-0">
+              Vérifier
+            </Link>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => onPrendre([c.code])}
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 disabled:opacity-50 shrink-0"
+            >
+              <Check strokeWidth={2} className="w-3.5 h-3.5" /> Prendre en main
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

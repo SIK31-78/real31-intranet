@@ -28,6 +28,9 @@ import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
+import type { PriseEnMainRepository } from "@/lib/ports/prise-en-main-repository";
+import { SupabasePriseEnMainRepository } from "@/lib/adapters/supabase/supabase-prise-en-main-repository";
+import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-main-repository";
 import { SupabaseSupervisionAgRepository } from "@/lib/adapters/supabase/supabase-supervision-ag-repository";
 import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
 import { SupabaseGestionnaireRepository } from "@/lib/adapters/supabase/supabase-gestionnaire-repository";
@@ -83,6 +86,12 @@ export function getCoproRepository(): CoproRepository {
 export function getJalonRepository(): JalonRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseJalonRepository();
   return new MockJalonRepository();
+}
+
+// Prise en main des copros (onboarding, table native intranet_copro_prise_en_main).
+export function getPriseEnMainRepository(): PriseEnMainRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabasePriseEnMainRepository();
+  return new MockPriseEnMainRepository();
 }
 
 // Donnees copro sourcees Estale (CS, historique AG). Branche en reel (Phase B,

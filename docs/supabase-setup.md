@@ -119,3 +119,24 @@ pnpm dev          # ouvrir /dev/db-health pour valider la connexion
   attendre Increment 3.
 - **Linkage Supabase casse** : `supabase unlink` puis `supabase link
   --project-ref ...` a nouveau.
+
+## Table native : prise en main des copros (onboarding, 2026-06-22)
+
+A executer dans le SQL editor Supabase (schema public, base patron). Tant que la
+table n'existe pas, la fonctionnalite "prise en main" est inerte (tout est considere
+pris en main, l'app fonctionne comme avant).
+
+```sql
+create table if not exists public.intranet_copro_prise_en_main (
+  copropriete_id text primary key,
+  confirme_at    timestamptz not null default now(),
+  confirme_par   text
+);
+
+alter table public.intranet_copro_prise_en_main enable row level security;
+-- Acces via service_role uniquement (comme les autres tables intranet) : pas de
+-- policy publique. Le cloisonnement gestionnaire est applique en code (managerId).
+```
+
+Une fois la table creee, chaque copro demarre "a prendre en main" : le gestionnaire
+valide/corrige ses dates puis confirme, et la copro rejoint le cockpit actif.

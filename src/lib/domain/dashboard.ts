@@ -131,4 +131,6 @@ export interface DashboardData {
   parcours?: LigneParcours[];
   /** Pipeline des AG (cockpit) : compteur par etat du cycle. Present en mode supabase. */
   pipeline?: PipelineEtat[];
+  /** Nb de copros pas encore prises en main (onboarding) : exclues des alarmes. */
+  aPrendreEnMain?: number;
 }
