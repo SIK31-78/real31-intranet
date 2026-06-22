@@ -1,7 +1,8 @@
-import type {
-  Role,
-  StatutItem,
-  SupervisionAg,
+import {
+  progressionSection,
+  type Role,
+  type StatutItem,
+  type SupervisionAg,
 } from "@/lib/domain/supervision-ag";
 import { SupervisionHeader } from "./supervision-header";
 import { BandeauConclue } from "./bandeau-conclue";
@@ -27,6 +28,9 @@ export function SupervisionVue({
 }: SupervisionVueProps) {
   const lectureSeule =
     supervision.statut === "conclue_archivee" || role === "lecture";
+  // Mode expert replie : seule la PHASE EN COURS (premiere section non terminee) est
+  // ouverte au chargement. Fini le mur de 40 cases (decision Sekou 2026-06-22).
+  const sectionCourante = supervision.sections.find((s) => progressionSection(s).pourcentage < 100);
   return (
     <div className="flex flex-col gap-4">
       <SupervisionHeader
@@ -43,6 +47,7 @@ export function SupervisionVue({
             section={section}
             aujourdhuiISO={aujourdhuiISO}
             lectureSeule={lectureSeule}
+            ouvertParDefaut={section.id === sectionCourante?.id}
             onCocher={onCocher}
             onCommenter={onCommenter}
           />
