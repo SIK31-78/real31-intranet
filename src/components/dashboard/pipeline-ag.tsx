@@ -17,7 +17,7 @@ export function PipelineAg({ pipeline }: { pipeline: PipelineEtat[] }) {
         </CardTitle>
         <span className="text-[12px] text-ink-3">{total} copropriété{total > 1 ? "s" : ""}</span>
       </CardHeader>
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-line">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-line border-line [&>*]:border-b [&>*]:border-r">
         {pipeline.map((p) => (
           <Link
             key={p.etat}

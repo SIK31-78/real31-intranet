@@ -32,9 +32,14 @@ describe("etatCycleAg", () => {
     expect(r.enRetard).toBe(true); // 30/06 < 01/08
   });
 
-  it("AG future, convoc non marquee -> en_preparation", () => {
+  it("AG proche (dans la fenetre), convoc non marquee -> en_preparation", () => {
     const r = etatCycleAg(copro({ prochaineAg: { date: "2026-06-30", statut: "planifiee" } }), false, "2026-06-22");
     expect(r.etat).toBe("en_preparation");
+  });
+
+  it("AG lointaine (au-dela de la fenetre, ex placeholder 31/12) -> a_venir", () => {
+    const r = etatCycleAg(copro({ prochaineAg: { date: "2026-12-31", statut: "planifiee" } }), false, "2026-06-22");
+    expect(r.etat).toBe("a_venir");
   });
 
   it("AG future, convoc marquee -> convoquee", () => {

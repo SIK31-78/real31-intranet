@@ -15,6 +15,7 @@ import type { CoproPilotage } from "@/lib/services/coproprietes/get-copros-pilot
 
 const ETAT_TON: Record<EtatCycle, "neutral" | "warn" | "info" | "ok"> = {
   a_planifier: "neutral",
+  a_venir: "neutral",
   en_preparation: "warn",
   convoquee: "info",
   tenue: "ok",
@@ -77,6 +78,7 @@ export function CoprosVue({
   const parEtat = useMemo(() => {
     const m: Record<EtatCycle, CoproPilotage[]> = {
       a_planifier: [],
+      a_venir: [],
       en_preparation: [],
       convoquee: [],
       tenue: [],
@@ -205,7 +207,7 @@ function VueListe({ copros }: { copros: CoproPilotage[] }) {
 
 function VuePipeline({ parEtat }: { parEtat: Record<EtatCycle, CoproPilotage[]> }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
       {ETAT_CYCLE_ORDRE.map((etat) => (
         <div key={etat} className="flex flex-col">
           <div className="flex items-center justify-between px-1 mb-2">
