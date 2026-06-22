@@ -4,10 +4,9 @@ import { getDashboard } from "@/lib/services/dashboard/get-dashboard";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { KpiCard } from "@/components/dashboard/kpi-card";
+import { PipelineAg } from "@/components/dashboard/pipeline-ag";
 import { ResumeAttention } from "@/components/dashboard/resume-attention";
 import { FluxActivite } from "@/components/dashboard/flux-activite";
-import { ParcoursAg } from "@/components/dashboard/parcours-ag";
 
 export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 
@@ -24,15 +23,9 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <DashboardHeader gestionnaire={data.gestionnaire} dateCourante={data.dateCourante} />
 
-        <div className="grid gap-4 mt-6 grid-cols-1 sm:grid-cols-3">
-          {data.compteurs.map((compteur) => (
-            <KpiCard key={compteur.id} compteur={compteur} />
-          ))}
-        </div>
-
-        {data.parcours && (
+        {data.pipeline && (
           <div className="mt-6">
-            <ParcoursAg lignes={data.parcours} />
+            <PipelineAg pipeline={data.pipeline} />
           </div>
         )}
 

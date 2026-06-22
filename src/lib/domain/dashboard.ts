@@ -4,6 +4,15 @@
 // Primitives partagees (Severite, Ton, Jalon) deplacees dans domain/commun.ts.
 import type { Severite, Ton, Jalon } from "@/lib/domain/commun";
 import type { JalonCode } from "@/lib/domain/jalons-ag/types";
+import type { EtatCycle } from "@/lib/domain/etat-cycle-ag";
+
+/** Une colonne du pipeline des AG (cockpit) : un etat du cycle + son compteur. */
+export interface PipelineEtat {
+  etat: EtatCycle;
+  count: number;
+  /** Sous-ensemble en retard (delai legal depasse) - pertinent pour a_planifier. */
+  enRetard: number;
+}
 
 export interface Gestionnaire {
   id: string;
@@ -120,4 +129,6 @@ export interface DashboardData {
   activite: ItemActivite[];
   /** Parcours AG guide. Optionnel : present en mode supabase, absent en mock. */
   parcours?: LigneParcours[];
+  /** Pipeline des AG (cockpit) : compteur par etat du cycle. Present en mode supabase. */
+  pipeline?: PipelineEtat[];
 }

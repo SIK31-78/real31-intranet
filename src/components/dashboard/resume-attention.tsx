@@ -14,7 +14,7 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Priorités du moment</CardTitle>
+        <CardTitle>À faire maintenant</CardTitle>
       </CardHeader>
 
       {top.length === 0 ? (

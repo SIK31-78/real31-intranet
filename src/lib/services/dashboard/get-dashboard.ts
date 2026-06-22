@@ -9,6 +9,7 @@ import type {
   ItemActivite,
   ItemAttention,
   LigneParcours,
+  PipelineEtat,
 } from "@/lib/domain/dashboard";
 import type { Severite, Ton } from "@/lib/domain/commun";
 import {
@@ -16,6 +17,7 @@ import {
   estDateeEnCycle,
   estEnParcours,
 } from "@/lib/domain/parcours-ag";
+import { etatCycleAg, ETAT_CYCLE_ORDRE } from "@/lib/domain/etat-cycle-ag";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { calculerJalons, compteARebours } from "@/lib/domain/jalons-ag/calculator";
 import {
@@ -81,6 +83,19 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     if (e.statut !== "accompli") continue;
     const k = `${e.coproCode}|${e.agDate}`;
     (accompliPar.get(k) ?? accompliPar.set(k, new Set()).get(k)!).add(e.type);
+  }
+
+  // Pipeline des AG (cockpit) : repartition de TOUTES les copros du gestionnaire par
+  // etat du cycle. "Convoquee" = jalon CONVOC marque accompli (decision Sekou).
+  const pipeline: PipelineEtat[] = ETAT_CYCLE_ORDRE.map((etat) => ({ etat, count: 0, enRetard: 0 }));
+  const parEtat = new Map(pipeline.map((p) => [p.etat, p]));
+  for (const c of copros) {
+    const ag = c.prochaineAg?.date;
+    const convoc = ag ? (accompliPar.get(`${c.code}|${ag}`)?.has("CONVOC") ?? false) : false;
+    const { etat, enRetard } = etatCycleAg(c, convoc, today);
+    const p = parEtat.get(etat)!;
+    p.count++;
+    if (enRetard) p.enRetard++;
   }
 
   // Parcours AG : copros datees en cycle + copros sans date dont l'AG est legalement due.
@@ -201,5 +216,6 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     attention: attention.slice(0, 10),
     activite,
     parcours,
+    pipeline,
   };
 }
