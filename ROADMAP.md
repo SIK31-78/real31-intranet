@@ -6,7 +6,10 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
-## 📍 État actuel - 2026-06-20
+## 📍 État actuel - 2026-06-22
+
+- **REFONTE COCKPIT (2026-06-22)** : la "ligne claire" = l'**état du cycle AG** comme colonne vertébrale (`a_planifier / en_preparation / convoquee / tenue`, domaine `etat-cycle-ag.ts` + tests ; "Convoquee" = jalon CONVOC coché, décision Sekou). Trois principes : état partout · une seule prochaine action · checklist en mode expert replié. Livré : **Dashboard cockpit** (pipeline des AG en héros, colonnes cliquables -> liste filtrée ; retire les 3 KPI + le parcours redondants ; "À faire maintenant" conservé) · **Toutes les copropriétés** = page de pilotage avec **bascule Liste / Pipeline** (kanban par état, filtres source/état/exercice, clic -> fiche) · **Supervision en accordéon** (seule la phase en cours ouverte). tsc + 71 tests + build OK. Reste possible : nettoyer le code mort (`parcours-ag.tsx`, `kpi-card.tsx` désormais inutilisés sur le dashboard).
+
 
 - **Phase** : 5 écrans MVP + **ODJ** + **coffre-fort de mots de passe** (ADR-025) + **référentiel App A exploité hors eStale** (lot 1), **branchés sur la vraie data** (264 copros). **SSO Entra ID ACTIF en local (2026-06-20)** : le sélecteur dev est remplacé par le vrai login Microsoft dès que les identifiants sont présents. Reste : activer le SSO **en prod** (bloqué sur le domaine `real31.app`) + durcissement.
 - **SESSION 2026-06-20** :
