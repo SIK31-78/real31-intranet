@@ -39,6 +39,14 @@ import type { Severite } from "@/lib/domain/commun";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
+import {
+  validerMailAction,
+  devaliderMailAction,
+  toggleEtapeAction,
+  editBrouillonAction,
+  rattachementAction,
+  marquerLuAction,
+} from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
 
@@ -81,9 +89,22 @@ export function MesEmailsVue({ data }: { data: MesEmails }) {
   const [lus, setLus] = useState<Set<string>>(
     () => new Set(data.mails.filter((m) => m.lu).map((m) => m.id)),
   );
-  const [repondus, setRepondus] = useState<Set<string>>(new Set());
-  const [classes, setClasses] = useState<Set<string>>(new Set());
-  const [etapes, setEtapes] = useState<Set<string>>(new Set());
+  const [repondus, setRepondus] = useState<Set<string>>(
+    () =>
+      new Set(
+        data.mails
+          .filter((m) => m.statutTraitement === "classe" || m.statutTraitement === "repondu")
+          .map((m) => m.id),
+      ),
+  );
+  const [classes, setClasses] = useState<Set<string>>(
+    () => new Set(data.mails.filter((m) => m.statutTraitement === "classe").map((m) => m.id)),
+  );
+  const [etapes, setEtapes] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    for (const m of data.mails) for (const o of m.etapesFaites ?? []) s.add(`${m.id}:${o}`);
+    return s;
+  });
   const [edits, setEdits] = useState<Map<string, string>>(new Map());
   const [overrides, setOverrides] = useState<Map<string, Rattachement>>(new Map());
   const [changer, setChanger] = useState(false);
@@ -123,6 +144,8 @@ export function MesEmailsVue({ data }: { data: MesEmails }) {
     setChanger(false);
     setOuverts(new Set());
     setLus((prev) => new Set(prev).add(id));
+    const m = data.mails.find((x) => x.id === id);
+    if (m) void marquerLuAction(id, m.coproCode);
   }
   const add = (set: Set<string>, id: string) => new Set(set).add(id);
   const del = (set: Set<string>, id: string) => {
@@ -141,6 +164,7 @@ export function MesEmailsVue({ data }: { data: MesEmails }) {
         m.flow.forEach((e) => n.add(`${m.id}:${e.ordre}`));
         return n;
       });
+    void validerMailAction(m.id, m.coproCode, m.flow.map((e) => e.ordre), brouillonDe(m));
     // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
     if (vue === "recus") {
       const idx = visibles.findIndex((x) => x.id === m.id);
@@ -158,12 +182,20 @@ export function MesEmailsVue({ data }: { data: MesEmails }) {
       m.flow.forEach((e) => n.delete(`${m.id}:${e.ordre}`));
       return n;
     });
+    void devaliderMailAction(m.id, m.coproCode);
   }
-  const toggleEtape = (mailId: string, ordre: number) =>
-    setEtapes((p) => {
-      const c = `${mailId}:${ordre}`;
-      return p.has(c) ? del(p, c) : add(p, c);
-    });
+  const toggleEtape = (mailId: string, ordre: number) => {
+    const c = `${mailId}:${ordre}`;
+    const apres = etapes.has(c) ? del(etapes, c) : add(etapes, c);
+    setEtapes(apres);
+    const m = data.mails.find((x) => x.id === mailId);
+    if (m) {
+      const ordres = [...apres]
+        .filter((x) => x.startsWith(`${mailId}:`))
+        .map((x) => Number(x.slice(mailId.length + 1)));
+      void toggleEtapeAction(mailId, m.coproCode, ordres);
+    }
+  };
   const toggleSection = (cle: string) =>
     setOuverts((p) => (p.has(cle) ? del(p, cle) : add(p, cle)));
 
@@ -300,27 +332,26 @@ export function MesEmailsVue({ data }: { data: MesEmails }) {
               ouverts={ouverts}
               copie={copie === selection.id}
               onEditBrouillon={(t) => setEdits((p) => new Map(p).set(selection.id, t))}
+              onBlurBrouillon={() =>
+                void editBrouillonAction(selection.id, selection.coproCode, brouillonDe(selection))
+              }
               onToggleEtape={(o) => toggleEtape(selection.id, o)}
               onToggleChanger={() => setChanger((v) => !v)}
               onChoisir={(d) => {
-                setOverrides((prev) =>
-                  new Map(prev).set(selection.id, {
-                    statut: "existant",
-                    dossierId: d.id,
-                    dossierLabel: d.label,
-                  }),
-                );
+                const r: Rattachement = { statut: "existant", dossierId: d.id, dossierLabel: d.label };
+                setOverrides((prev) => new Map(prev).set(selection.id, r));
                 setChanger(false);
+                void rattachementAction(selection.id, selection.coproCode, r);
               }}
               onNouveau={() => {
-                setOverrides((prev) =>
-                  new Map(prev).set(selection.id, {
-                    statut: "nouveau",
-                    dossierId: `N-${selection.id}`,
-                    dossierLabel: selection.objet,
-                  }),
-                );
+                const r: Rattachement = {
+                  statut: "nouveau",
+                  dossierId: `N-${selection.id}`,
+                  dossierLabel: selection.objet,
+                };
+                setOverrides((prev) => new Map(prev).set(selection.id, r));
                 setChanger(false);
+                void rattachementAction(selection.id, selection.coproCode, r);
               }}
               onCopier={() => {
                 void navigator.clipboard?.writeText(brouillonDe(selection));
@@ -504,6 +535,7 @@ function AnalysePane({
   ouverts,
   copie,
   onEditBrouillon,
+  onBlurBrouillon,
   onToggleEtape,
   onToggleChanger,
   onChoisir,
@@ -525,6 +557,7 @@ function AnalysePane({
   ouverts: Set<string>;
   copie: boolean;
   onEditBrouillon: (t: string) => void;
+  onBlurBrouillon: () => void;
   onToggleEtape: (ordre: number) => void;
   onToggleChanger: () => void;
   onChoisir: (d: Dossier) => void;
@@ -621,6 +654,7 @@ function AnalysePane({
               <textarea
                 value={brouillon}
                 onChange={(e) => onEditBrouillon(e.target.value)}
+                onBlur={onBlurBrouillon}
                 rows={7}
                 className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[12.5px] text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
               />

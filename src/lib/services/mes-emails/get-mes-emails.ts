@@ -6,10 +6,16 @@
 //     reelle ; degradation propre si eStale absent/indisponible.
 // Passe par le routeur, jamais un adapter en direct (ADR-001).
 
-import type { ContexteCopro, MesEmails } from "@/lib/domain/mes-emails";
+import type { ContexteCopro, MailEntrant, MesEmails } from "@/lib/domain/mes-emails";
 import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
-import { getCondoEstaleProvider, getCoproRepository, getMesEmailsProvider } from "@/lib/adapters/router";
+import type { EtatMail } from "@/lib/ports/mes-emails-etat-provider";
+import {
+  getCondoEstaleProvider,
+  getCoproRepository,
+  getMesEmailsEtatRepository,
+  getMesEmailsProvider,
+} from "@/lib/adapters/router";
 
 export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
   const brut = await getMesEmailsProvider().getMesEmails(g.id);
@@ -20,9 +26,17 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
   // jour ou le SSO est branche, ce filtre ne change pas. Un autre gestionnaire
   // ne voit donc pas le triage d'une copro qui n'est pas la sienne.
   const miennes = new Set((await getCoproRepository().list(g.id)).map((c) => c.code));
+
+  // Etat de traitement persiste (ce que CE gestionnaire a deja fait sur ses mails).
+  const etats = new Map(
+    (await getMesEmailsEtatRepository().getEtats(g.id)).map((e) => [e.emailId, e]),
+  );
+
   const data: MesEmails = {
     ...brut,
-    mails: brut.mails.filter((m) => miennes.has(m.coproCode)),
+    mails: brut.mails
+      .filter((m) => miennes.has(m.coproCode))
+      .map((m) => appliquerEtat(m, etats.get(m.id))),
     dossiers: brut.dossiers.filter((d) => miennes.has(d.coproCode)),
   };
 
@@ -31,6 +45,19 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
     ...data,
     gestionnaire: { nomComplet: g.nomComplet, initiales: g.initiales },
     contextes,
+  };
+}
+
+/** Applique l'etat persiste sur un mail : statut, etapes cochees, brouillon/rattachement edites, lu. */
+function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
+  if (!e) return m;
+  return {
+    ...m,
+    lu: e.lu || m.lu,
+    statutTraitement: e.statut,
+    etapesFaites: e.etapesFaites,
+    ...(e.brouillon !== undefined ? { brouillonReponse: e.brouillon } : {}),
+    ...(e.rattachement !== undefined ? { rattachement: e.rattachement } : {}),
   };
 }
 

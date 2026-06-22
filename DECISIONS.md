@@ -1258,6 +1258,35 @@ Choix verrouillés (validés avec Sekou) :
 
 ---
 
+## ADR-026 - Persistance des actions du cockpit "Mes emails" (table native intranet_mes_emails_etat)
+
+**Date** : 2026-06-22 - **Statut** : accepté
+
+### Contexte
+
+Le cockpit "Mes emails" affiche le triage produit par assistant-ia (mails, classification, réponse + plan proposés). Jusqu'ici, les actions du gestionnaire (valider/classer, cocher une étape du plan, éditer le brouillon, changer le rattachement) n'étaient que de l'état local React : un rechargement effaçait tout. Le triage lui-même reste en lecture seule (fichier git-ignoré côté poste, cf. adapter-fichier) et n'a pas vocation à être réécrit.
+
+### Décision validé par Sekou
+
+Persister uniquement ce que le gestionnaire FAIT sur un mail, dans une table native `public.intranet_mes_emails_etat`, cloisonnée par gestionnaire, clé logique `(gestionnaire_id, email_id)`. Le triage (la proposition) reste la source amont en lecture ; l'état de traitement est une couche intranet par-dessus, exactement comme `intranet_supervision_items` / `intranet_jalons` portent l'état et non le référentiel.
+
+- Colonnes : `statut` ('nouveau'|'repondu'|'classe'), `etapes_faites` (jsonb), `lu`, `brouillon` (réponse éditée), `rattachement` (override jsonb).
+- Chaîne hexagonale standard : port `MesEmailsEtatRepository`, adapters mock + supabase (upsert service_role), routeur (bascule `COPRO_SOURCE`), fusion de l'état dans `getMesEmails`, server actions sous `app/mes-emails/`.
+- Cloisonnement : l'identité vient de `getGestionnaireCourant` (SSO Entra ou dev-login) ; chaque server action vérifie `coproAppartient(coproCode)` avant d'écrire, et `getEtats` ne lit que les lignes du gestionnaire. Conforme ADR-009/011 (cloisonnement en code, RLS post-MVP).
+
+### Conséquences
+
+- Nouvelle table native (schéma public, préfixe `intranet_`), à créer une fois via `supabase/sql/intranet_mes_emails_etat.sql`. RLS non activée au MVP (service_role), cloisonnement en code.
+- Le cockpit reflète l'état persisté au rechargement (le service fusionne l'état dans chaque `MailEntrant`) ; l'UI garde un état optimiste local pour la réactivité.
+- L'override de rattachement et le brouillon édité sont conservés ; le triage d'origine n'est jamais muté.
+- Étape suivante naturelle (hors scope) : transformer "valider" en véritable action sortante (envoi réel via Graph, création de ticket/dossier), une fois M365 branché.
+
+### Liens
+
+- **ADR-001** (ports & adapters), **ADR-002** (intranet = tables natives, on ne réécrit pas la source), **ADR-009/011** (cloisonnement managerId puis RLS). Branche : `increment/02-supabase`. Source du triage : assistant-ia (pipeline Mistral) + adapter-fichier.
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :

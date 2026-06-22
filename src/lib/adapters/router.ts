@@ -21,6 +21,9 @@ import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-p
 import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
 import { MockMesEmailsProvider } from "@/lib/adapters/mock/mock-mes-emails-provider";
 import { FichierMesEmailsProvider, triageFichierPresent } from "@/lib/adapters/fichier/fichier-mes-emails-provider";
+import type { MesEmailsEtatRepository } from "@/lib/ports/mes-emails-etat-provider";
+import { MockMesEmailsEtatRepository } from "@/lib/adapters/mock/mock-mes-emails-etat-repository";
+import { SupabaseMesEmailsEtatRepository } from "@/lib/adapters/supabase/supabase-mes-emails-etat-repository";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -103,6 +106,14 @@ export function getMesEvenementsProvider(): MesEvenementsProvider {
 export function getMesEmailsProvider(): MesEmailsProvider {
   if (triageFichierPresent()) return new FichierMesEmailsProvider();
   return new MockMesEmailsProvider();
+}
+
+// Etat de traitement du cockpit Mes emails (table native intranet_mes_emails_etat).
+// Ce que le gestionnaire fait sur un mail (statut, etapes, brouillon, rattachement),
+// cloisonne par gestionnaire. Meme bascule mock/supabase que les autres tables natives.
+export function getMesEmailsEtatRepository(): MesEmailsEtatRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseMesEmailsEtatRepository();
+  return new MockMesEmailsEtatRepository();
 }
 
 // Etat de l'ODJ (saisies du gestionnaire + points legaux retires). En reel :

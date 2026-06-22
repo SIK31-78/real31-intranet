@@ -49,6 +49,9 @@ export interface ActionFlow {
   libelle: string;
 }
 
+/** Etat de traitement d'un mail par le gestionnaire (persiste, cloisonne). */
+export type StatutTraitement = "nouveau" | "repondu" | "classe";
+
 /** Rattachement du mail a un dossier (affaire) existant ou nouveau. */
 export interface Rattachement {
   statut: "existant" | "nouveau";
@@ -94,6 +97,9 @@ export interface MailEntrant {
   // --- Propositions ---
   brouillonReponse?: string;
   flow: ActionFlow[];
+  // --- Etat de traitement persiste (rempli par le service, cloisonne par gestionnaire) ---
+  statutTraitement?: StatutTraitement;
+  etapesFaites?: number[];
 }
 
 export type EvenementKind = "mail" | "action" | "pj" | "jalon";
