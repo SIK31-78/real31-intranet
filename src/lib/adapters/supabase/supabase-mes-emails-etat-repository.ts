@@ -38,9 +38,16 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
       .select("email_id, statut, etapes_faites, lu, brouillon, rattachement")
       .eq("gestionnaire_id", gestionnaireId);
     if (error) {
-      // Table pas encore creee (42P01) : on degrade proprement (cockpit sans
-      // persistance) au lieu de casser la page. Disparait des le SQL execute.
-      if (error.code === "42P01") return [];
+      // Table pas encore creee : on degrade proprement (cockpit sans persistance) au
+      // lieu de casser la page. 42P01 = table absente (SQL direct) ; PGRST205 / "schema
+      // cache" = PostgREST ne la voit pas. Disparait des le SQL execute.
+      if (
+        error.code === "42P01" ||
+        error.code === "PGRST205" ||
+        /schema cache|could not find the table/i.test(error.message)
+      ) {
+        return [];
+      }
       throw new Error(`getEtats mes-emails : ${error.message}`);
     }
     return ((data as Row[] | null) ?? []).map((r) => ({
@@ -66,7 +73,15 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
       },
       { onConflict: "gestionnaire_id,email_id" },
     );
-    if (error) throw new Error(`maj etat mes-emails : ${error.message}`);
+    // Table absente : on ignore (pas de persistance) au lieu de casser l'action.
+    if (
+      error &&
+      error.code !== "42P01" &&
+      error.code !== "PGRST205" &&
+      !/schema cache|could not find the table/i.test(error.message)
+    ) {
+      throw new Error(`maj etat mes-emails : ${error.message}`);
+    }
   }
 
   async setStatut(p: MajStatut): Promise<void> {
