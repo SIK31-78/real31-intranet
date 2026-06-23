@@ -1,0 +1,86 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { getGestionnaireCourant } from "@/lib/auth/session";
+import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
+import { getDossierRepository } from "@/lib/adapters/router";
+import {
+  MODELES_ETAPES,
+  STATUT_DOSSIER_LABEL,
+  type EtapeDossier,
+  type PorteeDossier,
+  type StatutDossier,
+  type TypeDossier,
+} from "@/lib/domain/dossier";
+import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+
+// Cloisonne : n'agit que sur une copro du perimetre du gestionnaire.
+async function autorise(coproCode: string): Promise<Gestionnaire | null> {
+  const g = await getGestionnaireCourant();
+  if (!g) return null;
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) return null;
+  return g;
+}
+
+function nouvelleEtape(label: string): EtapeDossier {
+  return { id: Math.random().toString(36).slice(2, 10), label, fait: false };
+}
+
+export async function creerDossierAction(form: {
+  coproCode: string;
+  type: TypeDossier;
+  portee: PorteeDossier;
+  cible?: string;
+  titre: string;
+  modele: boolean;
+}): Promise<void> {
+  const g = await autorise(form.coproCode);
+  if (!g) return;
+  const etapes = form.modele ? MODELES_ETAPES[form.type].map(nouvelleEtape) : [];
+  const id = await getDossierRepository().creer({
+    coproCode: form.coproCode,
+    type: form.type,
+    portee: form.portee,
+    ...(form.cible ? { cible: form.cible } : {}),
+    titre: form.titre,
+    etapes,
+    journal: [{ le: new Date().toISOString(), par: g.initiales, texte: "Dossier ouvert", kind: "statut" }],
+    ouvertPar: g.initiales,
+  });
+  revalidatePath("/dossiers");
+  redirect(`/dossiers/${id}`);
+}
+
+export async function majEtapesAction(id: string, etapes: EtapeDossier[]): Promise<void> {
+  const d = await getDossierRepository().get(id);
+  if (!d || !(await autorise(d.coproCode))) return;
+  await getDossierRepository().patch(id, { etapes });
+  revalidatePath(`/dossiers/${id}`);
+}
+
+export async function ajouterNoteAction(id: string, texte: string): Promise<void> {
+  const valeur = texte.trim();
+  if (!valeur) return;
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode);
+  if (!g) return;
+  const journal = [...d.journal, { le: new Date().toISOString(), par: g.initiales, texte: valeur, kind: "note" as const }];
+  await getDossierRepository().patch(id, { journal });
+  revalidatePath(`/dossiers/${id}`);
+}
+
+export async function changerStatutAction(id: string, statut: StatutDossier): Promise<void> {
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode);
+  if (!g) return;
+  const journal = [
+    ...d.journal,
+    { le: new Date().toISOString(), par: g.initiales, texte: `Statut : ${STATUT_DOSSIER_LABEL[statut]}`, kind: "statut" as const },
+  ];
+  await getDossierRepository().patch(id, { statut, journal });
+  revalidatePath(`/dossiers/${id}`);
+  revalidatePath("/dossiers");
+}

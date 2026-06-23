@@ -140,3 +140,29 @@ alter table public.intranet_copro_prise_en_main enable row level security;
 
 Une fois la table creee, chaque copro demarre "a prendre en main" : le gestionnaire
 valide/corrige ses dates puis confirme, et la copro rejoint le cockpit actif.
+
+## Table native : module Dossiers (2026-06-23)
+
+A executer dans le SQL editor Supabase (schema public, base patron). Tant que la table
+n'existe pas, le module Dossiers liste vide (pas de crash) ; la creation necessite la table.
+
+```sql
+create table if not exists public.intranet_dossiers (
+  id             uuid primary key default gen_random_uuid(),
+  copropriete_id text not null,
+  type           text not null,           -- travaux|sinistre|impaye|procedure|recouvrement
+  portee         text not null default 'copropriete', -- copropriete|coproprietaire|lot
+  cible          text,                    -- nom coproprietaire / ref lot (libre)
+  titre          text not null,
+  statut         text not null default 'ouvert',       -- ouvert|en_cours|clos
+  origine        text,                    -- ex "AG du 30/06/2026 - reso 7"
+  etapes         jsonb not null default '[]'::jsonb,   -- [{id,label,fait,faitLe,faitPar}]
+  journal        jsonb not null default '[]'::jsonb,   -- [{le,par,texte,kind,ref}]
+  ouvert_par     text,
+  ouvert_at      timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists idx_intranet_dossiers_copro on public.intranet_dossiers (copropriete_id);
+alter table public.intranet_dossiers enable row level security;
+-- Acces service_role uniquement ; cloisonnement gestionnaire applique en code (via la copro).
+```

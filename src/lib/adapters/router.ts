@@ -31,6 +31,9 @@ import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
 import type { PriseEnMainRepository } from "@/lib/ports/prise-en-main-repository";
 import { SupabasePriseEnMainRepository } from "@/lib/adapters/supabase/supabase-prise-en-main-repository";
 import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-main-repository";
+import type { DossierRepository } from "@/lib/ports/dossier-repository";
+import { SupabaseDossierRepository } from "@/lib/adapters/supabase/supabase-dossier-repository";
+import { MockDossierRepository } from "@/lib/adapters/mock/mock-dossier-repository";
 import { SupabaseSupervisionAgRepository } from "@/lib/adapters/supabase/supabase-supervision-ag-repository";
 import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
 import { SupabaseGestionnaireRepository } from "@/lib/adapters/supabase/supabase-gestionnaire-repository";
@@ -92,6 +95,12 @@ export function getJalonRepository(): JalonRepository {
 export function getPriseEnMainRepository(): PriseEnMainRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabasePriseEnMainRepository();
   return new MockPriseEnMainRepository();
+}
+
+// Module Dossiers (table native intranet_dossiers).
+export function getDossierRepository(): DossierRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseDossierRepository();
+  return new MockDossierRepository();
 }
 
 // Donnees copro sourcees Estale (CS, historique AG). Branche en reel (Phase B,
