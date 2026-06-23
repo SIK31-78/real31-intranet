@@ -6,6 +6,7 @@ import { getDashboard } from "@/lib/services/dashboard/get-dashboard";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
 import { PipelineAg } from "@/components/dashboard/pipeline-ag";
 import { ResumeAttention } from "@/components/dashboard/resume-attention";
 import { FluxActivite } from "@/components/dashboard/flux-activite";
@@ -24,6 +25,10 @@ export default async function DashboardPage() {
     <AppShell user={data.gestionnaire} active="dashboard" breadcrumb="Dashboard">
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <DashboardHeader gestionnaire={data.gestionnaire} dateCourante={data.dateCourante} />
+
+        <div className="mt-5">
+          <AnnoncesPanel />
+        </div>
 
         {data.aPrendreEnMain ? (
           <Link
