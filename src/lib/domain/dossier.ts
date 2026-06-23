@@ -7,13 +7,19 @@ export type TypeDossier = "travaux" | "sinistre" | "impaye" | "procedure" | "rec
 export type PorteeDossier = "copropriete" | "coproprietaire" | "lot";
 export type StatutDossier = "ouvert" | "en_cours" | "clos";
 
-/** Une etape du workflow (editable : ajout/cochage/reordo/suppression). */
+/** A qui une tache/etape est assignee : gestionnaire ou assistant de la copro (pas la
+ *  compta). Role plutot que personne : stable, et le nom est resolu via l'equipe copro. */
+export type AssigneRole = "gestionnaire" | "assistant";
+
+/** Une etape du workflow (editable : ajout/cochage/reordo/suppression/assignation). */
 export interface EtapeDossier {
   id: string;
   label: string;
   fait: boolean;
   faitLe?: string;
   faitPar?: string;
+  /** Tache assignee au gestionnaire ou a l'assistant (optionnel). */
+  assigneA?: AssigneRole;
 }
 
 // Timeline du dossier : un fil d'evenements TYPES. Brique 1 produit note/etape/statut ;

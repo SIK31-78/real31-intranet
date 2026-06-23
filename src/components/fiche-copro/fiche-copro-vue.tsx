@@ -4,17 +4,19 @@ import { useState, useId, type ReactNode } from "react";
 import { Lock, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { FicheCopro } from "@/lib/domain/copropriete";
+import type { Dossier } from "@/lib/domain/dossier";
 import { CoproHeader } from "./copro-header";
 import { FicheVueEnsemble } from "./fiche-vue-ensemble";
 import { FicheEvenements } from "./fiche-evenements";
+import { DossiersCoproApercu } from "@/components/dossiers/dossiers-copro-apercu";
 
-type Onglet = "ensemble" | "evenements";
+type Onglet = "ensemble" | "evenements" | "dossiers";
 
 // Onglets verrouilles : modules a venir. Grises, non cliquables (post-MVP). Sinistres
 // est un onglet-lien vers l'app externe ; Documents a ete retire (decision Sekou).
 const VERROUILLES = ["Contrats", "Comptabilité"];
 
-export function FicheCoproVue({ fiche }: { fiche: FicheCopro }) {
+export function FicheCoproVue({ fiche, dossiers }: { fiche: FicheCopro; dossiers: Dossier[] }) {
   const [onglet, setOnglet] = useState<Onglet>("ensemble");
   const panelId = useId();
 
@@ -44,6 +46,15 @@ export function FicheCoproVue({ fiche }: { fiche: FicheCopro }) {
           count={fiche.prochains.length}
         >
           Événements
+        </Tab>
+        <Tab
+          id="tab-dossiers"
+          panelId={`${panelId}-dossiers`}
+          active={onglet === "dossiers"}
+          onClick={() => setOnglet("dossiers")}
+          count={dossiers.length}
+        >
+          Dossiers
         </Tab>
         {/* Sinistres : onglet-lien vers l'app externe (nouvel onglet). */}
         <a
@@ -77,23 +88,19 @@ export function FicheCoproVue({ fiche }: { fiche: FicheCopro }) {
         ))}
       </div>
 
-      {onglet === "ensemble" ? (
-        <div
-          role="tabpanel"
-          id={`${panelId}-ensemble`}
-          aria-labelledby="tab-ensemble"
-          tabIndex={0}
-        >
+      {onglet === "ensemble" && (
+        <div role="tabpanel" id={`${panelId}-ensemble`} aria-labelledby="tab-ensemble" tabIndex={0}>
           <FicheVueEnsemble fiche={fiche} />
         </div>
-      ) : (
-        <div
-          role="tabpanel"
-          id={`${panelId}-evenements`}
-          aria-labelledby="tab-evenements"
-          tabIndex={0}
-        >
+      )}
+      {onglet === "evenements" && (
+        <div role="tabpanel" id={`${panelId}-evenements`} aria-labelledby="tab-evenements" tabIndex={0}>
           <FicheEvenements evenements={fiche.prochains} />
+        </div>
+      )}
+      {onglet === "dossiers" && (
+        <div role="tabpanel" id={`${panelId}-dossiers`} aria-labelledby="tab-dossiers" tabIndex={0}>
+          <DossiersCoproApercu dossiers={dossiers} />
         </div>
       )}
     </div>

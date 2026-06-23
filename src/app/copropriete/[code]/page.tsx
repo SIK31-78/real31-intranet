@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
+import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
@@ -23,6 +24,7 @@ export default async function CoproprietePage({
       : "2026-05-27";
   const fiche = await getFicheCopro(code, g.id, aujourdhuiISO);
   if (!fiche) notFound();
+  const dossiers = await getDossiersCopro(code, g.id);
 
   return (
     <AppShell
@@ -31,7 +33,7 @@ export default async function CoproprietePage({
       breadcrumb={`Copropriétés · ${fiche.copro.code}`}
     >
       <div className="mx-auto max-w-[1100px] px-8 py-8">
-        <FicheCoproVue fiche={fiche} />
+        <FicheCoproVue fiche={fiche} dossiers={dossiers} />
       </div>
     </AppShell>
   );

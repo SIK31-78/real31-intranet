@@ -13,13 +13,13 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const dossier = await getDossier(id, g.id);
-  if (!dossier) notFound();
+  const vue = await getDossier(id, g.id);
+  if (!vue) notFound();
 
   return (
-    <AppShell user={g} active="dossiers" breadcrumb={`Dossier - ${dossier.titre}`}>
+    <AppShell user={g} active="dossiers" breadcrumb={`Dossier - ${vue.dossier.titre}`}>
       <div className="mx-auto max-w-[900px] px-8 py-8">
-        <DossierFiche dossier={dossier} />
+        <DossierFiche dossier={vue.dossier} gestionnaire={vue.gestionnaire} assistant={vue.assistant} />
       </div>
     </AppShell>
   );

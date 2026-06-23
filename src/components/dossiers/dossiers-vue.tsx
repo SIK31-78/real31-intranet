@@ -44,16 +44,24 @@ export function DossiersVue({
 }) {
   const [filtreType, setFiltreType] = useState<"all" | TypeDossier>("all");
   const [filtreStatut, setFiltreStatut] = useState<"all" | StatutDossier>("all");
+  const [filtreCopro, setFiltreCopro] = useState<"all" | string>("all");
   const [formOuvert, setFormOuvert] = useState(false);
+
+  // Copros qui ont au moins un dossier (pour ne proposer que celles-la dans le filtre).
+  const coprosAvecDossier = useMemo(() => {
+    const codes = new Set(dossiers.map((d) => d.coproCode));
+    return copros.filter((c) => codes.has(c.code));
+  }, [dossiers, copros]);
 
   const visibles = useMemo(
     () =>
       dossiers.filter(
         (d) =>
           (filtreType === "all" || d.type === filtreType) &&
-          (filtreStatut === "all" || d.statut === filtreStatut),
+          (filtreStatut === "all" || d.statut === filtreStatut) &&
+          (filtreCopro === "all" || d.coproCode === filtreCopro),
       ),
-    [dossiers, filtreType, filtreStatut],
+    [dossiers, filtreType, filtreStatut, filtreCopro],
   );
 
   return (
@@ -71,6 +79,14 @@ export function DossiersVue({
             <option key={s} value={s}>{STATUT_DOSSIER_LABEL[s]}</option>
           ))}
         </select>
+        {coprosAvecDossier.length > 1 && (
+          <select value={filtreCopro} onChange={(e) => setFiltreCopro(e.target.value)} className={SELECT}>
+            <option value="all">Toutes les copros</option>
+            {coprosAvecDossier.map((c) => (
+              <option key={c.code} value={c.code}>{c.code} - {c.nom}</option>
+            ))}
+          </select>
+        )}
         <span className="text-[12px] text-ink-3">{visibles.length} dossier{visibles.length > 1 ? "s" : ""}</span>
         <button
           type="button"
