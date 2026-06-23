@@ -12,11 +12,9 @@ import { auth, ssoConfigure } from "@/auth";
 export const COOKIE_GESTIONNAIRE = "gid";
 
 // Impersonation : se mettre dans la peau de n'importe quel gestionnaire via le cookie
-// gid (selecteur /dev-login). Autorisee pour : le dev local (next dev), OU un SUPER-ADMIN
-// (email allowliste, meme en prod SSO), OU le mode sans SSO. Un gestionnaire normal en
-// prod SSO reste cloisonne a son seul compte.
-export const devLoginActif = process.env.NODE_ENV !== "production";
-
+// gid (selecteur /dev-login). Quand le SSO est actif, l'auth Microsoft passe TOUJOURS
+// en premier ; seul un SUPER-ADMIN (email allowliste) peut ensuite changer de gestionnaire.
+// Sans SSO (dev pur) : selecteur libre. Un gestionnaire normal reste cloisonne a son compte.
 const SUPER_ADMINS = (process.env.SUPER_ADMINS ?? "")
   .split(",")
   .map((s) => s.trim().toLowerCase())
@@ -35,18 +33,17 @@ async function emailSso(): Promise<string | null> {
 
 /** Le user courant peut-il incarner un autre gestionnaire (selecteur /dev-login) ? */
 export async function impersonationAutorisee(): Promise<boolean> {
-  if (!ssoConfigure) return true; // mode dev sans SSO
-  if (devLoginActif) return true; // dev local
-  return estSuperAdmin(await emailSso()); // prod SSO : seulement super-admin
+  if (!ssoConfigure) return true; // mode dev sans SSO : selecteur libre
+  return estSuperAdmin(await emailSso()); // SSO actif : seulement super-admin (apres login)
 }
 
 export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
   const repo = getGestionnaireRepository();
   const email = await emailSso();
 
-  // Impersonation autorisee (dev local, super-admin, ou sans SSO) : le cookie gid prime.
-  // IMPORTANT : avant le check SSO -> en dev on choisit un gestionnaire sans login Microsoft.
-  if (!ssoConfigure || devLoginActif || estSuperAdmin(email)) {
+  // Impersonation (super-admin connecte, ou mode sans SSO) : le cookie gid prime. Un
+  // super-admin doit etre LOGGE en SSO (email) pour etre reconnu -> le SSO passe d'abord.
+  if (!ssoConfigure || estSuperAdmin(email)) {
     const id = (await cookies()).get(COOKIE_GESTIONNAIRE)?.value;
     if (id) {
       const g = await repo.findById(id);
