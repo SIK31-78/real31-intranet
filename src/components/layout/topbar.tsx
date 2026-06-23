@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
-import { Avatar } from "@/components/ui/avatar";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { UserMenu } from "@/components/layout/user-menu";
 
 type TopbarProps = {
   user: { initiales: string; nomComplet: string };
   breadcrumb?: string;
+  peutImpersonner?: boolean;
 };
 
-export function Topbar({ user, breadcrumb }: TopbarProps) {
+export function Topbar({ user, breadcrumb, peutImpersonner = false }: TopbarProps) {
   return (
     <header className="flex items-center justify-between gap-4 px-4 h-12 shrink-0 border-b border-line bg-surface">
       <div className="flex items-center gap-3 min-w-0">
@@ -34,13 +35,7 @@ export function Topbar({ user, breadcrumb }: TopbarProps) {
         >
           <Bell strokeWidth={1.5} className="w-3.5 h-3.5" />
         </Link>
-        <Link
-          href="/dev-login"
-          title={`${user.nomComplet} - changer de gestionnaire`}
-          className="rounded-full"
-        >
-          <Avatar initiales={user.initiales} title={user.nomComplet} />
-        </Link>
+        <UserMenu user={user} peutImpersonner={peutImpersonner} />
       </div>
     </header>
   );

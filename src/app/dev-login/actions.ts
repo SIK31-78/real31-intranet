@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE_GESTIONNAIRE } from "@/lib/auth/session";
-import { signIn, signOut } from "@/auth";
+import { signIn, signOut, ssoConfigure } from "@/auth";
 
 /** Selectionne le gestionnaire courant (session dev) et redirige vers le dashboard. */
 export async function choisirGestionnaire(id: string): Promise<void> {
@@ -21,7 +21,12 @@ export async function connecterMicrosoft(): Promise<void> {
   await signIn("microsoft-entra-id", { redirectTo: "/dashboard" });
 }
 
-/** Deconnexion (SSO). */
+/** Deconnexion : efface l'impersonation (cookie gid) puis ferme la session SSO. */
 export async function deconnecter(): Promise<void> {
-  await signOut({ redirectTo: "/dev-login" });
+  (await cookies()).delete(COOKIE_GESTIONNAIRE);
+  if (ssoConfigure) {
+    await signOut({ redirectTo: "/dev-login" });
+  } else {
+    redirect("/dev-login");
+  }
 }
