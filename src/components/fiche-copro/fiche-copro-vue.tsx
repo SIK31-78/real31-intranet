@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useId, type ReactNode } from "react";
-import { Lock } from "lucide-react";
+import { Lock, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { FicheCopro } from "@/lib/domain/copropriete";
 import { CoproHeader } from "./copro-header";
@@ -10,9 +10,9 @@ import { FicheEvenements } from "./fiche-evenements";
 
 type Onglet = "ensemble" | "evenements";
 
-// Onglets verrouilles : modules a venir (Contrats, Sinistres...). Grises, non cliquables
-// (cf. mockup + ADR-021 : MVP strict, ces modules sont post-MVP).
-const VERROUILLES = ["Contrats", "Sinistres", "Comptabilité", "Documents"];
+// Onglets verrouilles : modules a venir. Grises, non cliquables (post-MVP). Sinistres
+// est un onglet-lien vers l'app externe ; Documents a ete retire (decision Sekou).
+const VERROUILLES = ["Contrats", "Comptabilité"];
 
 export function FicheCoproVue({ fiche }: { fiche: FicheCopro }) {
   const [onglet, setOnglet] = useState<Onglet>("ensemble");
@@ -45,6 +45,18 @@ export function FicheCoproVue({ fiche }: { fiche: FicheCopro }) {
         >
           Événements
         </Tab>
+        {/* Sinistres : onglet-lien vers l'app externe (nouvel onglet). */}
+        <a
+          href="https://sinistres.real31.app/"
+          target="_blank"
+          rel="noreferrer"
+          role="tab"
+          title="Ouvrir l'application Sinistres (nouvel onglet)"
+          className="inline-flex items-center gap-1 px-3 py-2 text-[13px] -mb-px border-b-2 border-transparent text-ink-2 hover:text-ink transition-colors whitespace-nowrap"
+        >
+          Sinistres
+          <ExternalLink strokeWidth={1.5} className="w-3 h-3 text-ink-4" aria-hidden="true" />
+        </a>
         {VERROUILLES.map((label) => (
           // Onglet verrouille : button disabled pour rester dans le tablist et etre annonce par les SR
           <button
