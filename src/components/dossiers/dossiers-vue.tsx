@@ -45,6 +45,7 @@ export function DossiersVue({
   const [filtreType, setFiltreType] = useState<"all" | TypeDossier>("all");
   const [filtreStatut, setFiltreStatut] = useState<"all" | StatutDossier>("all");
   const [filtreCopro, setFiltreCopro] = useState<"all" | string>("all");
+  const [tri, setTri] = useState<"recent" | "copro">("recent");
   const [formOuvert, setFormOuvert] = useState(false);
 
   // Copros qui ont au moins un dossier (pour ne proposer que celles-la dans le filtre).
@@ -53,16 +54,19 @@ export function DossiersVue({
     return copros.filter((c) => codes.has(c.code));
   }, [dossiers, copros]);
 
-  const visibles = useMemo(
-    () =>
-      dossiers.filter(
-        (d) =>
-          (filtreType === "all" || d.type === filtreType) &&
-          (filtreStatut === "all" || d.statut === filtreStatut) &&
-          (filtreCopro === "all" || d.coproCode === filtreCopro),
-      ),
-    [dossiers, filtreType, filtreStatut, filtreCopro],
-  );
+  const visibles = useMemo(() => {
+    const f = dossiers.filter(
+      (d) =>
+        (filtreType === "all" || d.type === filtreType) &&
+        (filtreStatut === "all" || d.statut === filtreStatut) &&
+        (filtreCopro === "all" || d.coproCode === filtreCopro),
+    );
+    return [...f].sort((a, b) =>
+      tri === "copro"
+        ? a.coproCode.localeCompare(b.coproCode) || b.ouvertLe.localeCompare(a.ouvertLe)
+        : b.ouvertLe.localeCompare(a.ouvertLe),
+    );
+  }, [dossiers, filtreType, filtreStatut, filtreCopro, tri]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -79,7 +83,7 @@ export function DossiersVue({
             <option key={s} value={s}>{STATUT_DOSSIER_LABEL[s]}</option>
           ))}
         </select>
-        {coprosAvecDossier.length > 1 && (
+        {coprosAvecDossier.length > 0 && (
           <select value={filtreCopro} onChange={(e) => setFiltreCopro(e.target.value)} className={SELECT}>
             <option value="all">Toutes les copros</option>
             {coprosAvecDossier.map((c) => (
@@ -87,6 +91,10 @@ export function DossiersVue({
             ))}
           </select>
         )}
+        <select value={tri} onChange={(e) => setTri(e.target.value as typeof tri)} className={SELECT} title="Trier">
+          <option value="recent">Tri : récents</option>
+          <option value="copro">Tri : par copropriété</option>
+        </select>
         <span className="text-[12px] text-ink-3">{visibles.length} dossier{visibles.length > 1 ? "s" : ""}</span>
         <button
           type="button"
