@@ -11,17 +11,42 @@ import { auth, ssoConfigure } from "@/auth";
 
 export const COOKIE_GESTIONNAIRE = "gid";
 
-// Acces dev "impersonation" : en local (next dev) on peut se mettre dans la peau de
-// n'importe quel gestionnaire via le cookie gid (selecteur /dev-login). JAMAIS en prod
-// (NODE_ENV=production sur Vercel) : la, le SSO est seul maitre du cloisonnement.
+// Impersonation : se mettre dans la peau de n'importe quel gestionnaire via le cookie
+// gid (selecteur /dev-login). Autorisee pour : le dev local (next dev), OU un SUPER-ADMIN
+// (email allowliste, meme en prod SSO), OU le mode sans SSO. Un gestionnaire normal en
+// prod SSO reste cloisonne a son seul compte.
 export const devLoginActif = process.env.NODE_ENV !== "production";
+
+const SUPER_ADMINS = (process.env.SUPER_ADMINS ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+export function estSuperAdmin(email: string | null | undefined): boolean {
+  return Boolean(email && SUPER_ADMINS.includes(email.toLowerCase()));
+}
+
+/** Email de la session SSO (null si SSO inactif ou non connecte). */
+async function emailSso(): Promise<string | null> {
+  if (!ssoConfigure) return null;
+  const session = await auth();
+  return session?.user?.email ?? null;
+}
+
+/** Le user courant peut-il incarner un autre gestionnaire (selecteur /dev-login) ? */
+export async function impersonationAutorisee(): Promise<boolean> {
+  if (!ssoConfigure) return true; // mode dev sans SSO
+  if (devLoginActif) return true; // dev local
+  return estSuperAdmin(await emailSso()); // prod SSO : seulement super-admin
+}
 
 export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
   const repo = getGestionnaireRepository();
+  const email = await emailSso();
+  if (ssoConfigure && !email) return null; // SSO actif mais non connecte -> /dev-login
 
-  // DEV uniquement : un cookie gid (choisi via /dev-login) prime sur le SSO -> on peut
-  // tester / demontrer en tant que n'importe quel gestionnaire. Inerte en prod.
-  if (devLoginActif) {
+  // Impersonation autorisee (dev, super-admin, ou sans SSO) : le cookie gid prime.
+  if (!ssoConfigure || devLoginActif || estSuperAdmin(email)) {
     const id = (await cookies()).get(COOKIE_GESTIONNAIRE)?.value;
     if (id) {
       const g = await repo.findById(id);
@@ -29,20 +54,10 @@ export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
     }
   }
 
-  // SSO actif : email de la session Microsoft -> gestionnaire (public."User").
-  if (ssoConfigure) {
-    const session = await auth();
-    const email = session?.user?.email;
-    if (!email) return null; // non connecte -> les pages redirigent vers /dev-login
-    return repo.findByEmail(email);
-  }
+  // SSO : le gestionnaire reel par email.
+  if (ssoConfigure && email) return repo.findByEmail(email);
 
-  // Fallback dev : cookie gid, defaut = premier gestionnaire.
-  const id = (await cookies()).get(COOKIE_GESTIONNAIRE)?.value;
-  if (id) {
-    const g = await repo.findById(id);
-    if (g) return g;
-  }
+  // Fallback dev sans SSO : premier gestionnaire.
   const tous = await repo.list();
   return tous[0] ?? null;
 }

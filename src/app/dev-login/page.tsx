@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import { getGestionnaireRepository } from "@/lib/adapters/router";
-import { ssoConfigure } from "@/auth";
-import { devLoginActif } from "@/lib/auth/session";
+import { impersonationAutorisee } from "@/lib/auth/session";
 import { choisirGestionnaire, connecterMicrosoft } from "./actions";
 
 export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
 export default async function DevLoginPage() {
-  // En PROD avec SSO : bouton Microsoft 365 uniquement. En DEV (next dev), meme si le
-  // SSO est configure, on montre le selecteur pour pouvoir incarner n'importe quel
-  // gestionnaire (impersonation locale, cf. lib/auth/session.devLoginActif).
-  if (ssoConfigure && !devLoginActif) {
+  // Bouton Microsoft 365 si l'utilisateur n'a PAS le droit d'incarner un gestionnaire
+  // (gestionnaire normal en prod SSO, ou non connecte). Sinon (dev, super-admin, sans
+  // SSO) : le selecteur pour choisir / changer de gestionnaire.
+  if (!(await impersonationAutorisee())) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
         <div className="w-full max-w-sm bg-surface border border-line rounded-md p-7 text-center">
