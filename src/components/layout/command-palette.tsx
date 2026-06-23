@@ -15,8 +15,6 @@ const NAV: { label: string; href: string }[] = [
   { label: "Mes événements", href: "/mes-emails" },
   { label: "Calendrier AG/CS", href: "/calendrier" },
   { label: "Toutes les copropriétés", href: "/copropriete" },
-  { label: "Résolutions", href: "/resolutions" },
-  { label: "Pôle compta", href: "/compta" },
   { label: "Coffre-fort", href: "/coffre" },
 ];
 

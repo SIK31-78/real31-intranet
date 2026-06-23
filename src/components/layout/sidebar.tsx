@@ -25,17 +25,36 @@ type Item = {
   href: string;
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   count?: number;
+  /** Page pas encore ouverte : grisee, non cliquable, badge "a venir". */
+  aVenir?: boolean;
 };
 
-const TRAVAIL: Item[] = [
-  { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { key: "evenements", label: "Actions", href: "/mes-evenements", icon: ListChecks },
-  { key: "emails", label: "Mes événements", href: "/mes-emails", icon: Inbox },
-  { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
-  { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
-  { key: "resolutions", label: "Résolutions", href: "/resolutions", icon: Library },
-  { key: "compta", label: "Pôle compta", href: "/compta", icon: Calculator },
-  { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+// Navigation groupee par usage : Vue d'ensemble (pilotage) / A traiter (worklists) /
+// Ressources (outils transverses). Resolutions et Comptabilite sont "a venir".
+const GROUPES: { titre: string; items: Item[] }[] = [
+  {
+    titre: "Vue d'ensemble",
+    items: [
+      { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
+      { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
+    ],
+  },
+  {
+    titre: "À traiter",
+    items: [
+      { key: "evenements", label: "Actions", href: "/mes-evenements", icon: ListChecks },
+      { key: "emails", label: "Mes événements", href: "/mes-emails", icon: Inbox },
+    ],
+  },
+  {
+    titre: "Ressources",
+    items: [
+      { key: "resolutions", label: "Résolutions", href: "/resolutions", icon: Library, aVenir: true },
+      { key: "compta", label: "Comptabilité", href: "/compta", icon: Calculator, aVenir: true },
+      { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+    ],
+  },
 ];
 
 type LienApp = { label: string; href: string; icon: ComponentType<{ className?: string; strokeWidth?: number }> };
@@ -66,6 +85,22 @@ const OUTILS_EXTERNES: LienApp[] = [
 
 function NavItem({ item, active }: { item: Item; active: boolean }) {
   const Icon = item.icon;
+
+  if (item.aVenir) {
+    return (
+      <div
+        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-ink-4 cursor-not-allowed select-none"
+        title="Bientôt disponible"
+      >
+        <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-4" />
+        <span className="truncate">{item.label}</span>
+        <span className="ml-auto text-[9.5px] font-medium uppercase tracking-wide text-ink-4 border border-line rounded px-1 py-px">
+          à venir
+        </span>
+      </div>
+    );
+  }
+
   return (
     <Link
       href={item.href}
@@ -122,20 +157,24 @@ function SectionTitre({ children }: { children: React.ReactNode }) {
 export function Sidebar({ active }: { active: NavKey }) {
   return (
     <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto">
-      <nav className="px-3 py-3">
-        <SectionTitre>Mon travail</SectionTitre>
-        {TRAVAIL.map((item) => (
-          <NavItem key={item.key} item={item} active={item.key === active} />
+      <nav className="px-3 py-3 flex flex-col gap-4">
+        {GROUPES.map((groupe) => (
+          <div key={groupe.titre}>
+            <SectionTitre>{groupe.titre}</SectionTitre>
+            {groupe.items.map((item) => (
+              <NavItem key={item.key} item={item} active={item.key === active} />
+            ))}
+          </div>
         ))}
 
-        <div className="mt-4 pt-3 border-t border-line">
+        <div className="pt-3 border-t border-line">
           <SectionTitre>Nos applications</SectionTitre>
           {APPS_EXTERNES.map((app) => (
             <LienExterne key={app.label} {...app} />
           ))}
         </div>
 
-        <div className="mt-4 pt-3 border-t border-line">
+        <div className="pt-3 border-t border-line">
           <SectionTitre>Outils externes</SectionTitre>
           {OUTILS_EXTERNES.map((app) => (
             <LienExterne key={app.label} {...app} />
