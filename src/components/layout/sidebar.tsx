@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, ListChecks, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
-  FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
+  FolderOpen, FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -12,6 +12,7 @@ export type NavKey =
   | "emails"
   | "calendrier"
   | "copros"
+  | "dossiers"
   | "resolutions"
   | "compta"
   | "coffre"
@@ -37,6 +38,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     items: [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
+      { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
       { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
     ],
   },
