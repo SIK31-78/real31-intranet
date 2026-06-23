@@ -43,9 +43,9 @@ export async function impersonationAutorisee(): Promise<boolean> {
 export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
   const repo = getGestionnaireRepository();
   const email = await emailSso();
-  if (ssoConfigure && !email) return null; // SSO actif mais non connecte -> /dev-login
 
-  // Impersonation autorisee (dev, super-admin, ou sans SSO) : le cookie gid prime.
+  // Impersonation autorisee (dev local, super-admin, ou sans SSO) : le cookie gid prime.
+  // IMPORTANT : avant le check SSO -> en dev on choisit un gestionnaire sans login Microsoft.
   if (!ssoConfigure || devLoginActif || estSuperAdmin(email)) {
     const id = (await cookies()).get(COOKIE_GESTIONNAIRE)?.value;
     if (id) {
@@ -54,8 +54,11 @@ export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
     }
   }
 
-  // SSO : le gestionnaire reel par email.
-  if (ssoConfigure && email) return repo.findByEmail(email);
+  // SSO actif : le gestionnaire reel par email (null = non connecte -> /dev-login).
+  if (ssoConfigure) {
+    if (!email) return null;
+    return repo.findByEmail(email);
+  }
 
   // Fallback dev sans SSO : premier gestionnaire.
   const tous = await repo.list();
