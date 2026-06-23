@@ -54,7 +54,10 @@ export function EditeurDate({
         disabled={pending}
         aria-label={`Date ${quand === "derniere" ? "de la dernière" : "de la prochaine"} ${type === "ag" ? "AG" : "réunion de CS"}`}
         onChange={(e) => {
-          if (e.target.value) enregistrer(e.target.value); // choisir une date = enregistrer
+          const v = e.target.value;
+          // N'enregistre que quand l'annee est complete (4 chiffres) : evite de sauver
+          // "0002" pendant la frappe de "2026".
+          if (v && Number(v.slice(0, 4)) >= 1000) enregistrer(v);
         }}
         onKeyDown={(e) => {
           if (e.key === "Escape") setEdition(false);

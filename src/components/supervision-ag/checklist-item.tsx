@@ -85,6 +85,9 @@ export function ChecklistItem({
   // Item "date" : la valeur (ISO) est stockee dans le commentaire.
   const estDate = item.type === "date";
   const handleDateChange = (val: string) => {
+    // Annee incomplete (< 4 chiffres) pendant la frappe : on attend, sinon on sauverait
+    // "0002" avant "2026" (et le champ controle se bloquerait sur l'annee).
+    if (val && Number(val.slice(0, 4)) < 1000) return;
     startTransition(async () => {
       setCommentaireOpt(val === "" ? undefined : val);
       await onCommenter(item.id, val);
