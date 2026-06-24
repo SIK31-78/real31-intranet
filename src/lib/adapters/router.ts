@@ -24,6 +24,9 @@ import { FichierMesEmailsProvider, triageFichierPresent } from "@/lib/adapters/f
 import type { MesEmailsEtatRepository } from "@/lib/ports/mes-emails-etat-provider";
 import { MockMesEmailsEtatRepository } from "@/lib/adapters/mock/mock-mes-emails-etat-repository";
 import { SupabaseMesEmailsEtatRepository } from "@/lib/adapters/supabase/supabase-mes-emails-etat-repository";
+import type { AnalyseMailProvider } from "@/lib/ports/analyse-mail-provider";
+import { MistralAnalyseProvider } from "@/lib/adapters/mistral/mistral-analyse-provider";
+import { MockAnalyseProvider } from "@/lib/adapters/mock/mock-analyse-provider";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -132,6 +135,13 @@ export function getMesEmailsProvider(): MesEmailsProvider {
 export function getMesEmailsEtatRepository(): MesEmailsEtatRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseMesEmailsEtatRepository();
   return new MockMesEmailsEtatRepository();
+}
+
+// Analyse d'un mail (classification + reponse/plan). Mistral si MISTRAL_API_KEY est
+// presente, sinon mock deterministe (permet de tester l'ingestion sans cle).
+export function getAnalyseMailProvider(): AnalyseMailProvider {
+  if (process.env.MISTRAL_API_KEY) return new MistralAnalyseProvider();
+  return new MockAnalyseProvider();
 }
 
 // Etat de l'ODJ (saisies du gestionnaire + points legaux retires). En reel :
