@@ -1287,6 +1287,41 @@ Persister uniquement ce que le gestionnaire FAIT sur un mail, dans une table nat
 
 ---
 
+## ADR-027 - Ingestion mail "Mes emails" : Application (app-only) + Access Policy, pas délégué
+
+**Date** : 2026-06-24 - **Statut** : accepté
+
+### Contexte
+
+Le module "Mes emails" doit lire la boîte entrante d'un gestionnaire pour la trier. Deux modèles d'accès Microsoft Graph :
+
+- **Délégué** : l'app lit la boîte de l'utilisateur connecté avec son jeton SSO (`Mail.Read` Delegated + `offline_access`). Moindre privilège intrinsèque, **zéro PowerShell**, mais **interactif** (synchro déclenchée quand l'utilisateur est connecté) et nécessite de capter l'access token dans Auth.js.
+- **Application (app-only)** : l'app lit via son propre identifiant (client credentials), **en tâche de fond**, sans utilisateur. `Mail.Read` Application donne accès à TOUTES les boîtes -> on borne par une **Application Access Policy** (PowerShell Exchange) à un groupe de boîtes autorisées.
+
+Au moment de brancher le pilote, le DSI était prêt à accorder l'accès et proposait précisément la **restriction par boîte en PowerShell** — qui EST le mécanisme Application Access Policy. Et le besoin exprimé (Sekou) = synchroniser **toute l'inbox** du pilote, y compris en tâche de fond. Le choix initial "délégué" est donc révisé.
+
+### Décision validé par Sekou
+
+**Ingestion en mode Application (app-only) + Application Access Policy**, pas délégué.
+
+- Permission `Mail.Read` **Application** sur l'app existante `REAL31 Intranet` + admin consent.
+- **Application Access Policy** (`New-ApplicationAccessPolicy ... -AccessRight RestrictAccess`) scopée sur un **groupe de sécurité à extension messagerie** `REAL31-Intranet-MailRead` -> moindre privilège réel (l'app ne lit que les boîtes du groupe, pas les ~44 du tenant).
+- Adapter Graph **app-only en plain fetch** (token client_credentials avec le secret de l'app, `GET /users/{boite}/mailFolders/inbox/messages`), derrière le port `MailIngestionProvider`. Pas de SDK Graph, pas de nouveau secret. Activation par `MAIL_SOURCE=graph`.
+- Instructions DSI : `docs/entra-app-registration.md` étape 2bis.
+
+### Conséquences
+
+- **Passage à l'échelle** : la policy se crée UNE fois ; ajouter un gestionnaire = `Add-DistributionGroupMember` sur le groupe (ou via l'admin center, sans PowerShell). **Pas de commande complète par salarié.** Probablement seuls les gestionnaires syndic sont concernés, pas les 44.
+- **Synchro de fond** possible (cron à venir) sans que le gestionnaire soit connecté.
+- **Réversibilité** : tout est derrière le port `MailIngestionProvider`. Basculer en délégué plus tard (zéro intervention DSI à chaque arrivée, au prix de l'interactif) = un autre adapter + capter le token SSO, **sans toucher le pipeline ni le cockpit**.
+- Le cache du triage vit dans `intranet_mes_emails_triage` (cf. ADR-026).
+
+### Liens
+
+- **ADR-001** (ports & adapters : ingestion derrière `MailIngestionProvider`), **ADR-026** (état/triage "Mes emails"), **ADR-017** (Auth.js v5 / Entra), **ADR-005** (compte de service / identité d'app). Branche : `increment/02-supabase`. Instructions DSI : `docs/entra-app-registration.md` étape 2bis.
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
