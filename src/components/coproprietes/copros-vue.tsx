@@ -301,8 +301,8 @@ function PriseEnMainSection({
         </button>
       </div>
       <p className="px-4 py-2 text-[12px] text-ink-3 border-b border-line">
-        Vérifie les dates héritées (souvent fausses à la première migration) puis confirme. Tant qu'une copro
-        n'est pas prise en main, elle ne déclenche aucune alarme.
+        Vérifie les dates héritées (souvent fausses à la première migration) puis confirme. Tant qu’une copro
+        n’est pas prise en main, elle ne déclenche aucune alarme.
       </p>
       <ul className="divide-y divide-line">
         {copros.map((c) => (
