@@ -150,7 +150,7 @@ n'existe pas, le module Dossiers liste vide (pas de crash) ; la creation necessi
 create table if not exists public.intranet_dossiers (
   id             uuid primary key default gen_random_uuid(),
   copropriete_id text not null,
-  type           text not null,           -- travaux|sinistre|impaye|procedure|recouvrement
+  type           text not null,           -- travaux|sinistre|impaye|procedure|recouvrement|question_diverse|autre
   portee         text not null default 'copropriete', -- copropriete|coproprietaire|lot
   cible          text,                    -- nom coproprietaire / ref lot (libre)
   titre          text not null,
@@ -165,4 +165,9 @@ create table if not exists public.intranet_dossiers (
 create index if not exists idx_intranet_dossiers_copro on public.intranet_dossiers (copropriete_id);
 alter table public.intranet_dossiers enable row level security;
 -- Acces service_role uniquement ; cloisonnement gestionnaire applique en code (via la copro).
+
+-- C5 (2026-06-24) : rattacher un dossier a une AG + une resolution (champs structures).
+alter table public.intranet_dossiers
+  add column if not exists ag_date date,
+  add column if not exists numero_resolution text;
 ```
