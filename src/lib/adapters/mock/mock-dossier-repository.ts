@@ -34,6 +34,12 @@ export class MockDossierRepository implements DossierRepository {
   }
   async patch(id: string, fields: PatchDossier): Promise<void> {
     const d = STORE.get(id);
-    if (d) STORE.set(id, { ...d, ...fields });
+    if (!d) return;
+    // agDate/numeroResolution acceptent null (= effacer) -> on normalise en undefined.
+    const { agDate, numeroResolution, ...rest } = fields;
+    const next: Dossier = { ...d, ...rest };
+    if (agDate !== undefined) next.agDate = agDate ?? undefined;
+    if (numeroResolution !== undefined) next.numeroResolution = numeroResolution ?? undefined;
+    STORE.set(id, next);
   }
 }

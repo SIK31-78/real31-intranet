@@ -6,7 +6,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Check, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, Flag, Mail, Phone, Inbox,
+  ArrowLeft, Check, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, Flag, Mail, Phone, Inbox, Pencil, Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,7 @@ import {
   ajouterNoteAction,
   changerStatutAction,
   supprimerNoteAction,
+  rattacherAgAction,
 } from "@/app/dossiers/actions";
 
 const KIND_ICON: Record<KindEvenement, typeof Flag> = {
@@ -125,6 +126,13 @@ export function DossierFiche({
               {dossier.coproNom ?? ""}
               {dossier.origine ? ` · Origine : ${dossier.origine}` : ""}
             </p>
+            <div className="mt-2">
+              <RattachementAg
+                dossierId={dossier.id}
+                agDate={dossier.agDate}
+                numeroResolution={dossier.numeroResolution}
+              />
+            </div>
           </div>
           <label className="flex flex-col gap-1 text-[11px] text-ink-3 shrink-0">
             Statut
@@ -291,6 +299,94 @@ export function DossierFiche({
           </div>
         </Card>
       )}
+    </div>
+  );
+}
+
+// Rattachement structure a une AG + resolution (C5). Affiche un resume cliquable ;
+// l'edition propose une date d'AG + un numero de resolution. Vide = effacer.
+function RattachementAg({
+  dossierId,
+  agDate,
+  numeroResolution,
+}: {
+  dossierId: string;
+  agDate?: string;
+  numeroResolution?: string;
+}) {
+  const [edit, setEdit] = useState(false);
+  const [date, setDate] = useState(agDate ?? "");
+  const [reso, setReso] = useState(numeroResolution ?? "");
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
+
+  const enregistrer = () => {
+    // Annee incomplete pendant la frappe : on attend (evite de sauver "0002").
+    if (date && Number(date.slice(0, 4)) < 1000) return;
+    startTransition(async () => {
+      await rattacherAgAction(dossierId, date, reso);
+      setEdit(false);
+      toast.ok("Rattachement enregistré.");
+    });
+  };
+
+  if (!edit) {
+    const vide = !agDate && !numeroResolution;
+    return (
+      <button
+        type="button"
+        onClick={() => setEdit(true)}
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-green-700 transition-colors"
+      >
+        <Gavel strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+        {vide ? (
+          <span className="text-ink-4">Rattacher à une AG / résolution</span>
+        ) : (
+          <span>
+            Rattaché à : AG{agDate ? ` du ${formatDateLongue(agDate)}` : ""}
+            {numeroResolution ? ` · résolution n° ${numeroResolution}` : ""}
+          </span>
+        )}
+        <Pencil strokeWidth={1.5} className="w-3 h-3 text-ink-4 shrink-0" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <label className="flex items-center gap-1 text-[11px] text-ink-3">
+        AG du
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="h-7 rounded border border-line bg-surface px-1.5 text-[12px]"
+        />
+      </label>
+      <label className="flex items-center gap-1 text-[11px] text-ink-3">
+        résolution n°
+        <input
+          value={reso}
+          onChange={(e) => setReso(e.target.value)}
+          placeholder="ex. 7"
+          className="h-7 w-20 rounded border border-line bg-surface px-1.5 text-[12px]"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={enregistrer}
+        disabled={pending}
+        className="h-7 px-2.5 rounded bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 disabled:opacity-50"
+      >
+        OK
+      </button>
+      <button
+        type="button"
+        onClick={() => setEdit(false)}
+        className="h-7 px-2 rounded border border-line text-[12px] text-ink-2 hover:border-line-2"
+      >
+        Annuler
+      </button>
     </div>
   );
 }

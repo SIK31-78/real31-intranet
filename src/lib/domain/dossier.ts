@@ -54,8 +54,12 @@ export interface Dossier {
   statut: StatutDossier;
   ouvertLe: string;
   ouvertPar?: string;
-  /** Origine du dossier (ex "AG du 30/06/2026 - resolution 7"), pour le rattachement AG. */
+  /** Origine du dossier (ex "AG du 30/06/2026 - resolution 7"), texte libre legacy. */
   origine?: string;
+  /** Rattachement structure a une AG (C5) : date de l'AG, ISO "YYYY-MM-DD". */
+  agDate?: string;
+  /** Numero de la resolution d'AG dont decoule le dossier (C5), ex "7" ou "B.3". */
+  numeroResolution?: string;
   etapes: EtapeDossier[];
   journal: EvenementDossier[];
 }

@@ -14,7 +14,7 @@ import { createSupabasePublicClient } from "./public-client";
 
 const TABLE = "intranet_dossiers";
 const COLS =
-  "id, copropriete_id, type, portee, cible, titre, statut, origine, etapes, journal, ouvert_par, ouvert_at";
+  "id, copropriete_id, type, portee, cible, titre, statut, origine, ag_date, numero_resolution, etapes, journal, ouvert_par, ouvert_at";
 
 type Row = {
   id: string;
@@ -25,6 +25,8 @@ type Row = {
   titre: string;
   statut: string;
   origine: string | null;
+  ag_date: string | null;
+  numero_resolution: string | null;
   etapes: EtapeDossier[] | null;
   journal: EvenementDossier[] | null;
   ouvert_par: string | null;
@@ -44,6 +46,8 @@ function map(r: Row): Dossier {
     journal: r.journal ?? [],
     ...(r.cible ? { cible: r.cible } : {}),
     ...(r.origine ? { origine: r.origine } : {}),
+    ...(r.ag_date ? { agDate: r.ag_date } : {}),
+    ...(r.numero_resolution ? { numeroResolution: r.numero_resolution } : {}),
     ...(r.ouvert_par ? { ouvertPar: r.ouvert_par } : {}),
   };
 }
@@ -105,10 +109,16 @@ export class SupabaseDossierRepository implements DossierRepository {
 
   async patch(id: string, fields: PatchDossier): Promise<void> {
     const sb = createSupabasePublicClient();
-    const { error } = await sb
-      .from(TABLE)
-      .update({ ...fields, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    // agDate/numeroResolution -> colonnes snake_case ; le reste (etapes/journal/statut/
+    // titre/cible) porte deja le nom de la colonne et passe tel quel.
+    const { agDate, numeroResolution, ...rest } = fields;
+    const update: Record<string, unknown> = {
+      ...rest,
+      updated_at: new Date().toISOString(),
+    };
+    if (agDate !== undefined) update.ag_date = agDate;
+    if (numeroResolution !== undefined) update.numero_resolution = numeroResolution;
+    const { error } = await sb.from(TABLE).update(update).eq("id", id);
     if (error) throw new Error(`maj dossier : ${error.message}`);
   }
 }

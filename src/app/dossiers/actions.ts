@@ -98,6 +98,24 @@ export async function supprimerNoteAction(id: string, le: string): Promise<void>
   revalidatePath(`/dossiers/${id}`);
 }
 
+// Rattache (ou met a jour) le dossier a une AG + une resolution (C5). Champs vides
+// = effacer le rattachement (null). Cloisonne au perimetre.
+export async function rattacherAgAction(
+  id: string,
+  agDate: string,
+  numeroResolution: string,
+): Promise<void> {
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode);
+  if (!g) return;
+  await getDossierRepository().patch(id, {
+    agDate: agDate.trim() || null,
+    numeroResolution: numeroResolution.trim() || null,
+  });
+  revalidatePath(`/dossiers/${id}`);
+}
+
 export async function changerStatutAction(id: string, statut: StatutDossier): Promise<void> {
   const d = await getDossierRepository().get(id);
   if (!d) return;

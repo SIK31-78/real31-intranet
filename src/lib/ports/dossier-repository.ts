@@ -20,7 +20,13 @@ export interface CreationDossier {
   ouvertPar?: string;
 }
 
-export type PatchDossier = Partial<Pick<Dossier, "etapes" | "journal" | "statut" | "titre" | "cible">>;
+export type PatchDossier = Partial<
+  Pick<Dossier, "etapes" | "journal" | "statut" | "titre" | "cible">
+> & {
+  /** Rattachement AG (C5). null = effacer le rattachement. */
+  agDate?: string | null;
+  numeroResolution?: string | null;
+};
 
 export interface DossierRepository {
   /** Dossiers rattaches a un lot de copros (cloisonnement applique en amont). */
