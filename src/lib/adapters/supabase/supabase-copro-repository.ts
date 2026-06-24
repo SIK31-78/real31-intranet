@@ -158,6 +158,14 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
   };
 }
 
+// Cloisonnement = perimetre du user courant : il voit/agit sur les copros qu'il
+// GERE (managerId) OU qu'il ASSISTE (assistantId). Le meme id technique
+// (public."User".id) sert dans les deux colonnes -> un gestionnaire voit ses copros,
+// un assistant voit celles qu'il assiste. Filtre PostgREST "or" (managerId=id OU assistantId=id).
+function filtrePerimetre(userId: string): string {
+  return `managerId.eq.${userId},assistantId.eq.${userId}`;
+}
+
 export class SupabaseCoproRepository implements CoproRepository {
   async list(managerId?: string): Promise<Copropriete[]> {
     const supabase = createSupabasePublicClient();
@@ -166,7 +174,7 @@ export class SupabaseCoproRepository implements CoproRepository {
       .select(COPRO_COLS)
       .order("name", { ascending: true })
       .limit(500);
-    if (managerId) q = q.eq("managerId", managerId); // cloisonnement gestionnaire
+    if (managerId) q = q.or(filtrePerimetre(managerId)); // cloisonnement : gere OU assiste
     const { data, error } = await q;
     if (error) throw new Error(`Lecture public.Copropriete : ${error.message}`);
     // Pas de resolution d'equipe en liste (la vue liste ne l'affiche pas).
@@ -183,7 +191,7 @@ export class SupabaseCoproRepository implements CoproRepository {
     // Le filtre managerId cloisonne : une copro hors scope renvoie null (-> notFound).
     const requete = (colonne: "referenceCrypto" | "referenceEstale") => {
       let q = supabase.from("Copropriete").select(COPRO_COLS).eq(colonne, code);
-      if (managerId) q = q.eq("managerId", managerId);
+      if (managerId) q = q.or(filtrePerimetre(managerId)); // cloisonnement : gere OU assiste
       return q.maybeSingle();
     };
     let { data } = await requete("referenceCrypto");
@@ -213,8 +221,9 @@ export class SupabaseCoproRepository implements CoproRepository {
     const { error } = await supabase
       .from("Copropriete")
       .update({ [colonne]: dateISO, updatedAt: new Date().toISOString() })
+      // Les deux .or sont ANDes par PostgREST : (bonne copro) ET (geree | assistee).
       .or(`referenceCrypto.eq.${coproCode},referenceEstale.eq.${coproCode}`)
-      .eq("managerId", managerId);
+      .or(filtrePerimetre(managerId));
     if (error) throw new Error(`MAJ date ${type} : ${error.message}`);
   }
 
