@@ -66,7 +66,10 @@ Import-Module ExchangeOnlineManagement
 # Connexion (ouvre la fenêtre de login Microsoft, MFA supporté)
 Connect-ExchangeOnline -UserPrincipalName <admin>@real31.fr
 
-# Groupe de sécurité à extension messagerie contenant la/les boîte(s) autorisée(s)
+# Groupe de sécurité à extension messagerie contenant la/les boîte(s) autorisée(s).
+# NB : -PrimarySmtpAddress est l'adresse DU GROUPE, creee par cette commande (elle
+# n'existe pas avant, ce n'est pas une boite mail). N'importe quel nom libre convient.
+# La vraie boite a lire = le(s) -Members (ex. <pilote>@real31.fr).
 New-DistributionGroup -Name "REAL31-Intranet-MailRead" -Type Security `
   -PrimarySmtpAddress real31-intranet-mailread@real31.fr `
   -Members <pilote>@real31.fr
