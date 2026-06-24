@@ -12,6 +12,7 @@ import type {
   StatutCopro,
 } from "@/lib/domain/copropriete";
 import { createSupabasePublicClient } from "./public-client";
+import { filtrePerimetre } from "./perimetre";
 
 // Sous-ensemble des 62 colonnes de public."Copropriete" reellement utilise par la fiche.
 type CoproRow = {
@@ -156,14 +157,6 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
     ...(row.sharepointUrl ? { sharepointUrl: row.sharepointUrl } : {}),
     ...(row.agencyId ? { agenceId: row.agencyId } : {}),
   };
-}
-
-// Cloisonnement = perimetre du user courant : il voit/agit sur les copros qu'il
-// GERE (managerId) OU qu'il ASSISTE (assistantId). Le meme id technique
-// (public."User".id) sert dans les deux colonnes -> un gestionnaire voit ses copros,
-// un assistant voit celles qu'il assiste. Filtre PostgREST "or" (managerId=id OU assistantId=id).
-function filtrePerimetre(userId: string): string {
-  return `managerId.eq.${userId},assistantId.eq.${userId}`;
 }
 
 export class SupabaseCoproRepository implements CoproRepository {

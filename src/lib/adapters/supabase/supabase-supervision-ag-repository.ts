@@ -13,6 +13,7 @@ import type {
 } from "@/lib/domain/supervision-ag";
 import { SECTIONS_TEMPLATE, ITEM_CONCLUSION, ITEM_CS_PREPA } from "@/lib/domain/supervision-ag-template";
 import { createSupabasePublicClient } from "./public-client";
+import { filtrePerimetre } from "./perimetre";
 
 type EtatRow = {
   item_id: string;
@@ -46,7 +47,7 @@ export class SupabaseSupervisionAgRepository implements SupervisionAgProvider {
       .from("Copropriete")
       .select("name, nextCSDate, lastCSDate")
       .eq("referenceCrypto", ref.code);
-    if (managerId) q = q.eq("managerId", managerId); // cloisonnement : hors scope -> undefined
+    if (managerId) q = q.or(filtrePerimetre(managerId)); // cloisonnement : gere OU assiste (hors scope -> undefined)
     const { data: copro } = await q.maybeSingle();
     if (!copro) return undefined;
     const c = copro as { name: string; nextCSDate: string | null; lastCSDate: string | null };
