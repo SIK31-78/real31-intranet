@@ -1,9 +1,10 @@
 // Service du cockpit "Mes emails".
-//   - mails + dossiers : agregat issu du backtest (provider mock aujourd'hui ;
-//     adapter API/modele local demain, branche dans le routeur).
-//   - contextes : enrichissement REEL eStale par copro (CS, AG, comptes...) via
-//     le port CondoEstaleProvider deja branche dans l'intranet. SE999 = copro test
-//     reelle ; degradation propre si eStale absent/indisponible.
+//   - Source du triage : le CACHE (table intranet_mes_emails_triage), alimente par
+//     la synchro de la boite du gestionnaire. Repli sur le triage fichier/mock
+//     (archive) tant qu'aucune synchro n'a eu lieu.
+//   - etat de traitement : fusionne depuis intranet_mes_emails_etat (ce que le
+//     gestionnaire a fait sur chaque mail).
+//   - contextes : enrichissement REEL eStale par copro (degradation propre si absent).
 // Passe par le routeur, jamais un adapter en direct (ADR-001).
 
 import type { ContexteCopro, MailEntrant, MesEmails } from "@/lib/domain/mes-emails";
@@ -15,36 +16,45 @@ import {
   getCoproRepository,
   getMesEmailsEtatRepository,
   getMesEmailsProvider,
+  getMesEmailsTriageStore,
 } from "@/lib/adapters/router";
 
 export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
-  const brut = await getMesEmailsProvider().getMesEmails(g.id);
-
-  // Cloisonnement : on ne garde que les copros du portefeuille du gestionnaire
-  // courant (managerId reel cote Supabase), comme calendrier / odj. L'identite
-  // vient de getGestionnaireCourant (SSO Entra si actif, dev-login sinon) : le
-  // jour ou le SSO est branche, ce filtre ne change pas. Un autre gestionnaire
-  // ne voit donc pas le triage d'une copro qui n'est pas la sienne.
-  const miennes = new Set((await getCoproRepository().list(g.id)).map((c) => c.code));
-
-  // Etat de traitement persiste (ce que CE gestionnaire a deja fait sur ses mails).
+  const triage = await getMesEmailsTriageStore().lire(g.id);
   const etats = new Map(
     (await getMesEmailsEtatRepository().getEtats(g.id)).map((e) => [e.emailId, e]),
   );
 
-  const data: MesEmails = {
-    ...brut,
-    mails: brut.mails
-      .filter((m) => miennes.has(m.coproCode))
-      .map((m) => appliquerEtat(m, etats.get(m.id))),
-    dossiers: brut.dossiers.filter((d) => miennes.has(d.coproCode)),
-  };
+  let mails: MailEntrant[];
+  let dossiers: MesEmails["dossiers"] = triage.dossiers;
+  let nbMailsAnalyses: number;
+  let dateCourante: string;
 
-  const contextes = await enrichirContextes(data);
+  if (triage.mails.length > 0) {
+    // Triage live : la boite du gestionnaire connecte, deja a lui. Pas de filtre
+    // portefeuille (tout lui appartient).
+    mails = triage.mails;
+    nbMailsAnalyses = triage.nbMailsAnalyses;
+    dateCourante = triage.syncAt ? `synchronisé le ${triage.syncAt.slice(0, 10)}` : "";
+  } else {
+    // Repli : triage fichier/mock (archive multi-copros) -> cloisonnement par portefeuille.
+    const brut = await getMesEmailsProvider().getMesEmails(g.id);
+    const miennes = new Set((await getCoproRepository().list(g.id)).map((c) => c.code));
+    mails = brut.mails.filter((m) => miennes.has(m.coproCode));
+    dossiers = brut.dossiers.filter((d) => miennes.has(d.coproCode));
+    nbMailsAnalyses = brut.nbMailsAnalyses;
+    dateCourante = brut.dateCourante;
+  }
+
+  mails = mails.map((m) => appliquerEtat(m, etats.get(m.id)));
+
   return {
-    ...data,
     gestionnaire: { nomComplet: g.nomComplet, initiales: g.initiales },
-    contextes,
+    nbMailsAnalyses,
+    dateCourante,
+    mails,
+    dossiers,
+    contextes: await enrichirContextes(mails),
   };
 }
 
@@ -61,17 +71,15 @@ function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
   };
 }
 
-/** Pour chaque copro de la boite, tire son contexte eStale (en parallele). */
-async function enrichirContextes(data: MesEmails): Promise<ContexteCopro[]> {
-  const codes = [...new Set(data.mails.map((m) => m.coproCode))];
+/** Pour chaque copro rattachee, tire son contexte eStale (en parallele). */
+async function enrichirContextes(mails: MailEntrant[]): Promise<ContexteCopro[]> {
+  const codes = [...new Set(mails.map((m) => m.coproCode).filter(Boolean))];
   const provider = getCondoEstaleProvider();
   return Promise.all(
     codes.map(async (code) => {
       try {
-        // null = copro pas (encore) sur eStale -> contexte indisponible assume.
         return versContexte(code, await provider.getDonneesCopro(code));
       } catch (err) {
-        // eStale tombe (5xx / timeout) : on NE crashe PAS le cockpit.
         console.warn(`[mes-emails] eStale indisponible pour ${code} :`, (err as Error).message);
         return { coproCode: code, disponible: false, conseilSyndical: [] };
       }

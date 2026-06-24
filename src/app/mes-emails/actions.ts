@@ -17,6 +17,7 @@ import {
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
 import type { Rattachement } from "@/lib/domain/mes-emails";
+import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
@@ -76,4 +77,14 @@ export async function marquerLuAction(emailId: string, coproCode: string): Promi
   const c = await cible(emailId, coproCode);
   if (!c) return;
   await enregistrerLu(c);
+}
+
+// Synchronise la boite du gestionnaire connecte : ingestion -> pipeline -> cache du
+// triage. L'identite vient du serveur ; en delegue, l'adapter lit la boite du
+// connecte (cloisonnement intrinseque).
+export async function synchroniserAction(): Promise<void> {
+  const g = await getGestionnaireCourant();
+  if (!g) return;
+  await synchroniserMesEmails(g);
+  revalidatePath("/mes-emails");
 }
