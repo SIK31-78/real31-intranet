@@ -36,6 +36,9 @@ import { GraphMailIngestionProvider } from "@/lib/adapters/mail/graph-mail-inges
 import type { SignatureProvider } from "@/lib/ports/signature-provider";
 import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
+import type { AnalyseCacheStore } from "@/lib/ports/analyse-cache-store";
+import { MockAnalyseCacheStore } from "@/lib/adapters/mock/mock-analyse-cache-store";
+import { SupabaseAnalyseCacheStore } from "@/lib/adapters/supabase/supabase-analyse-cache-store";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -151,6 +154,13 @@ export function getMesEmailsEtatRepository(): MesEmailsEtatRepository {
 export function getAnalyseMailProvider(): AnalyseMailProvider {
   if (process.env.MISTRAL_API_KEY) return new MistralAnalyseProvider();
   return new MockAnalyseProvider();
+}
+
+// Cache d'analyse par mail (table native intranet_mes_emails_analyse) : memoisation
+// LLM, un mail deja analyse n'est jamais renvoye au modele. Meme bascule mock/supabase.
+export function getAnalyseCacheStore(): AnalyseCacheStore {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseAnalyseCacheStore();
+  return new MockAnalyseCacheStore();
 }
 
 // Cache du triage Mes emails (table native intranet_mes_emails_triage). Ecrit par

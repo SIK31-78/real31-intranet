@@ -8,6 +8,8 @@ import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 const ECHANTILLON: RawMail[] = [
   {
     id: "smp-1",
+    internetMessageId: "<smp-1@example.real31.fr>",
+    conversationId: "conv-1",
     from: "jean.bardet@gmail.com",
     to: ["copropriete@real31.fr"],
     subject: "S104 - Fuite au sous-sol, places 48/49",
@@ -19,6 +21,8 @@ const ECHANTILLON: RawMail[] = [
   },
   {
     id: "smp-2",
+    internetMessageId: "<smp-2@example.real31.fr>",
+    conversationId: "conv-2",
     from: "contact@ravalys.fr",
     to: ["copropriete@real31.fr"],
     subject: "S104 Devis ravalement de facade",
@@ -30,6 +34,8 @@ const ECHANTILLON: RawMail[] = [
   },
   {
     id: "smp-3",
+    internetMessageId: "<smp-3@example.real31.fr>",
+    conversationId: "conv-3",
     from: "m.lefort@orange.fr",
     to: ["copropriete@real31.fr"],
     subject: "Ascenseur batiment A de nouveau en panne",
@@ -41,6 +47,8 @@ const ECHANTILLON: RawMail[] = [
   },
   {
     id: "smp-4",
+    internetMessageId: "<smp-4@example.real31.fr>",
+    conversationId: "conv-4",
     from: "no-reply@notifications-banque.fr",
     to: ["compta@real31.fr"],
     subject: "Notification automatique : prelevement traite",

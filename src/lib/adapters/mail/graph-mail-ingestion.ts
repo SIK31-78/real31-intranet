@@ -42,6 +42,8 @@ async function jeton(): Promise<string> {
 
 type GraphMessage = {
   id: string;
+  internetMessageId?: string;
+  conversationId?: string;
   subject: string | null;
   from?: { emailAddress?: { address?: string; name?: string } };
   toRecipients?: { emailAddress?: { address?: string } }[];
@@ -54,6 +56,8 @@ type GraphMessage = {
 function versRaw(m: GraphMessage): RawMail {
   return {
     id: m.id,
+    internetMessageId: m.internetMessageId ?? m.id,
+    ...(m.conversationId ? { conversationId: m.conversationId } : {}),
     from: m.from?.emailAddress?.address ?? m.from?.emailAddress?.name ?? "",
     to: (m.toRecipients ?? []).map((d) => d.emailAddress?.address ?? "").filter(Boolean),
     subject: m.subject ?? "",
@@ -69,7 +73,8 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     const boite = opts.email;
     if (!boite) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");
     const tk = await jeton();
-    const select = "id,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments";
+    const select =
+      "id,internetMessageId,conversationId,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments";
     let url: string =
       `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/inbox/messages` +
       `?$top=${PAGE}&$orderby=receivedDateTime desc&$select=${select}`;

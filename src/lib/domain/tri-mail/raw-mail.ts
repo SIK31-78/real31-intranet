@@ -7,6 +7,10 @@ import type { TypeMail } from "@/lib/domain/mes-emails";
 /** Mail normalise, issu de l'ingestion (Graph) ou d'un echantillon de test. */
 export interface RawMail {
   id: string;
+  /** Message-Id RFC, immuable et global -> cle de memoisation (cache d'analyse). */
+  internetMessageId: string;
+  /** Id de conversation Graph (le fil) -> ancre d'affaire. */
+  conversationId?: string;
   from: string;
   to: string[];
   subject: string;
