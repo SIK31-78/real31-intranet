@@ -18,8 +18,8 @@ import {
   getMesEmailsTriageStore,
 } from "@/lib/adapters/router";
 
-const MAX_INGEST = 30;
-const MAX_AFFAIRES = 20;
+const MAX_INGEST = 80;
+const MAX_AFFAIRES = 40;
 
 export interface ResultatSync {
   nbMails: number;
@@ -60,7 +60,10 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
   const bruts = await getMailIngestionProvider().lireRecents({ email: g.email, max: MAX_INGEST });
   for (const b of bruts) b.copro = attribuerCopro(b.subject, copros);
 
-  const affaires = groupAffaires(bruts).slice(0, MAX_AFFAIRES);
+  // Affaires les plus recentes d'abord (la boite live = on veut le frais en haut).
+  const affaires = groupAffaires(bruts)
+    .sort((a, b) => b.last.localeCompare(a.last))
+    .slice(0, MAX_AFFAIRES);
   const analyse = getAnalyseMailProvider();
 
   const mails: MailEntrant[] = [];
