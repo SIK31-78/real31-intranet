@@ -103,6 +103,11 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
   },
 ];
 
+/** Libelle d'un item par son id (pour afficher un probleme sans recharger la section). */
+export const ITEM_LIBELLE: Record<string, string> = Object.fromEntries(
+  SECTIONS_TEMPLATE.flatMap((s) => s.items.map((i) => [i.id, i.libelle])),
+);
+
 /** Id reserve a la ligne de conclusion (visa gestionnaire = dossier archivable). */
 export const ITEM_CONCLUSION = "__conclusion__";
 

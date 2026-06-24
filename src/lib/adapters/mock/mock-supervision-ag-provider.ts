@@ -8,6 +8,7 @@ import type {
 } from "@/lib/ports/supervision-ag-provider";
 import type {
   ItemChecklist,
+  ItemProbleme,
   StatutItem,
   SupervisionAg,
   VisaFinal,
@@ -258,4 +259,9 @@ export class MockSupervisionAgProvider implements SupervisionAgProvider {
 
   // Pas de supervision "sans date" en mock : rien a reporter.
   async reporterSansDate(): Promise<void> {}
+
+  // Mode dev : pas de remontee de problemes (le vrai panneau vit en mode supabase).
+  async listerProblemes(): Promise<ItemProbleme[]> {
+    return [];
+  }
 }

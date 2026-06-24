@@ -9,7 +9,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
 import { PipelineAg } from "@/components/dashboard/pipeline-ag";
 import { ResumeAttention } from "@/components/dashboard/resume-attention";
-import { FluxActivite } from "@/components/dashboard/flux-activite";
+import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
 
 export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 
@@ -52,7 +52,7 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6 mt-6 grid-cols-1 lg:grid-cols-[1.6fr_1fr]">
           <ResumeAttention items={data.attention} />
-          <FluxActivite activite={data.activite} />
+          <ProblemesPanel problemes={data.problemes ?? []} />
         </div>
       </div>
     </AppShell>

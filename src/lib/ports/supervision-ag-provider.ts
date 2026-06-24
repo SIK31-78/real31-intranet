@@ -1,4 +1,5 @@
 import type {
+  ItemProbleme,
   StatutItem,
   SupervisionAg,
   VisaFinal,
@@ -27,4 +28,7 @@ export interface SupervisionAgProvider {
   /** Reporte la prepa "sans date" (id = CODE seul) sur la supervision datee
    *  quand une date d'AG est (re)fixee. No-op s'il n'y a rien a reporter. */
   reporterSansDate(coproCode: string, nouvelleDateISO: string): Promise<void>;
+  /** Liste les items coches "probleme" sur un ensemble de copros (cloisonnement amont).
+   *  Sert au panneau "Problemes" du dashboard et a la page Actions. */
+  listerProblemes(coproCodes: string[]): Promise<ItemProbleme[]>;
 }

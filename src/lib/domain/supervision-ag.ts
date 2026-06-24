@@ -50,6 +50,37 @@ export interface SupervisionAg {
   sections: SectionChecklist[];
 }
 
+// --- Problemes signales (item coche "probleme") : remontent au dashboard + Actions ---
+
+/** Un item de supervision en "probleme", brut (sortie du provider). */
+export interface ItemProbleme {
+  coproCode: string;
+  /** Date de l'AG, ISO "YYYY-MM-DD" (ou sentinelle "0001-01-01" si AG sans date). */
+  agDate: string;
+  itemId: string;
+  commentaire?: string;
+  marquePar?: string;
+  /** Horodatage ISO du marquage. */
+  marqueAt?: string;
+}
+
+/** Un probleme, pret a afficher (libelle resolu + lien vers la supervision). */
+export interface ProblemeVue {
+  /** Id de supervision "CODE__DATE" (ou "CODE" si sans date) -> /supervision-ag/[agId]. */
+  agId: string;
+  itemLibelle: string;
+  commentaire?: string;
+  par?: string;
+  le?: string;
+}
+
+/** Les problemes d'une copro, groupes (decision Sekou : regroupes par copropriete). */
+export interface ProblemesCopro {
+  coproCode: string;
+  coproNom: string;
+  items: ProblemeVue[];
+}
+
 /** Un item est "verifie" des qu'il a quitte l'etat initial. Un item "date" l'est
  *  des qu'une date est renseignee. */
 export function estVerifie(item: ItemChecklist): boolean {

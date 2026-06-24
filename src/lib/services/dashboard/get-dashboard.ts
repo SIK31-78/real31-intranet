@@ -19,6 +19,7 @@ import {
 } from "@/lib/domain/parcours-ag";
 import { etatCycleAg, ETAT_CYCLE_ORDRE } from "@/lib/domain/etat-cycle-ag";
 import { getPrisesEnMain } from "@/lib/services/coproprietes/prise-en-main";
+import { getProblemes } from "@/lib/services/problemes/get-problemes";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { calculerJalons, compteARebours } from "@/lib/domain/jalons-ag/calculator";
 import {
@@ -216,6 +217,14 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       quand: formatAuditeRelatif(e.marqueAt!, today),
     }));
 
+  // Problemes signales (items "probleme") sur TOUT le perimetre (pas seulement les
+  // copros prises en main : un probleme coche est un signal explicite, jamais du bruit
+  // de migration). Reutilise `tous` pour eviter un second fetch des copros.
+  const problemes = await getProblemes(
+    g.id,
+    tous.map((c) => ({ code: c.code, nom: c.nom })),
+  );
+
   return {
     gestionnaire: g,
     dateCourante: formatDateLongue(today),
@@ -225,5 +234,6 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     parcours,
     pipeline,
     aPrendreEnMain,
+    problemes,
   };
 }

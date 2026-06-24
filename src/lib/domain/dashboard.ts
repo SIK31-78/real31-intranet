@@ -5,6 +5,7 @@
 import type { Severite, Ton, Jalon } from "@/lib/domain/commun";
 import type { JalonCode } from "@/lib/domain/jalons-ag/types";
 import type { EtatCycle } from "@/lib/domain/etat-cycle-ag";
+import type { ProblemesCopro } from "@/lib/domain/supervision-ag";
 
 /** Une colonne du pipeline des AG (cockpit) : un etat du cycle + son compteur. */
 export interface PipelineEtat {
@@ -133,4 +134,6 @@ export interface DashboardData {
   pipeline?: PipelineEtat[];
   /** Nb de copros pas encore prises en main (onboarding) : exclues des alarmes. */
   aPrendreEnMain?: number;
+  /** Problemes signales (items "probleme"), groupes par copro. Remplace "Activite recente". */
+  problemes?: ProblemesCopro[];
 }

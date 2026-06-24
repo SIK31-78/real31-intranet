@@ -5,6 +5,7 @@
 import type { Auditeur, SupervisionAgProvider } from "@/lib/ports/supervision-ag-provider";
 import type {
   ItemChecklist,
+  ItemProbleme,
   SectionChecklist,
   StatutAg,
   StatutItem,
@@ -136,6 +137,40 @@ export class SupabaseSupervisionAgRepository implements SupervisionAgProvider {
     );
     if (error) throw new Error(`conclureAg : ${error.message}`);
     return (await this.getSupervision(agId))!;
+  }
+
+  async listerProblemes(coproCodes: string[]): Promise<ItemProbleme[]> {
+    if (coproCodes.length === 0) return [];
+    const supabase = createSupabasePublicClient();
+    // Degrade proprement (panneau vide) si la requete echoue plutot que casser le dashboard.
+    try {
+      const { data, error } = await supabase
+        .from("intranet_supervision_items")
+        .select("copropriete_id, ag_date, item_id, commentaire, marque_par, marque_at")
+        .eq("statut", "probleme")
+        .in("copropriete_id", coproCodes);
+      if (error) throw error;
+      return ((data as
+        | {
+            copropriete_id: string;
+            ag_date: string;
+            item_id: string;
+            commentaire: string | null;
+            marque_par: string | null;
+            marque_at: string | null;
+          }[]
+        | null) ?? []).map((r) => ({
+        coproCode: r.copropriete_id,
+        agDate: r.ag_date,
+        itemId: r.item_id,
+        commentaire: r.commentaire ?? undefined,
+        marquePar: r.marque_par ?? undefined,
+        marqueAt: r.marque_at ?? undefined,
+      }));
+    } catch (err) {
+      console.warn("[supervision] listerProblemes indisponible :", (err as Error).message);
+      return [];
+    }
   }
 
   async reporterSansDate(coproCode: string, nouvelleDateISO: string): Promise<void> {
