@@ -9,6 +9,7 @@ import {
   MODELES_ETAPES,
   STATUT_DOSSIER_LABEL,
   type EtapeDossier,
+  type EtapeModele,
   type PorteeDossier,
   type StatutDossier,
   type TypeDossier,
@@ -23,8 +24,13 @@ async function autorise(coproCode: string): Promise<Gestionnaire | null> {
   return g;
 }
 
-function nouvelleEtape(label: string): EtapeDossier {
-  return { id: Math.random().toString(36).slice(2, 10), label, fait: false };
+function nouvelleEtape(m: EtapeModele): EtapeDossier {
+  return {
+    id: Math.random().toString(36).slice(2, 10),
+    label: m.label,
+    fait: false,
+    ...(m.assigneA ? { assigneA: m.assigneA } : {}),
+  };
 }
 
 export async function creerDossierAction(form: {

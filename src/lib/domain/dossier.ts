@@ -91,45 +91,84 @@ export const STATUT_DOSSIER_LABEL: Record<StatutDossier, string> = {
   clos: "Clos",
 };
 
+/** Une etape de modele : libelle + assignataire PAR DEFAUT (pre-attribution, C7).
+ *  Les defauts (admin -> assistant, decisions / juridique -> gestionnaire) sont des
+ *  SUGGESTIONS : tout reste editable et reassignable a la creation comme apres. */
+export interface EtapeModele {
+  label: string;
+  assigneA?: AssigneRole;
+}
+
 /** Modeles de DEPART (suggestions) par type : pre-remplissent les etapes a la creation,
  *  puis sont entierement editables. Rien de fige. */
-export const MODELES_ETAPES: Record<TypeDossier, string[]> = {
+export const MODELES_ETAPES: Record<TypeDossier, EtapeModele[]> = {
   travaux: [
-    "Devis demandés",
-    "Devis validés en AG",
-    "Entreprise retenue",
-    "Ordre de service",
-    "Réception des travaux",
-    "Clôture (DGD / garanties)",
+    { label: "Devis demandés", assigneA: "assistant" },
+    { label: "Devis validés en AG", assigneA: "gestionnaire" },
+    { label: "Entreprise retenue", assigneA: "gestionnaire" },
+    { label: "Ordre de service", assigneA: "gestionnaire" },
+    { label: "Réception des travaux", assigneA: "gestionnaire" },
+    { label: "Clôture (DGD / garanties)", assigneA: "assistant" },
   ],
   sinistre: [
-    "Déclaration à l'assurance",
-    "Expertise",
-    "Devis de réparation",
-    "Accord d'indemnisation",
-    "Travaux",
-    "Règlement",
-    "Clôture",
+    { label: "Déclaration à l'assurance", assigneA: "assistant" },
+    { label: "Expertise", assigneA: "gestionnaire" },
+    { label: "Devis de réparation", assigneA: "assistant" },
+    { label: "Accord d'indemnisation", assigneA: "gestionnaire" },
+    { label: "Travaux", assigneA: "gestionnaire" },
+    { label: "Règlement", assigneA: "assistant" },
+    { label: "Clôture", assigneA: "assistant" },
   ],
   impaye: [
-    "Identification de l'impayé",
-    "Relance amiable 1",
-    "Relance amiable 2",
-    "Mise en demeure",
-    "Transmission au recouvrement",
+    { label: "Identification de l'impayé", assigneA: "assistant" },
+    { label: "Relance amiable 1", assigneA: "assistant" },
+    { label: "Relance amiable 2", assigneA: "assistant" },
+    { label: "Mise en demeure", assigneA: "gestionnaire" },
+    { label: "Transmission au recouvrement", assigneA: "gestionnaire" },
   ],
   recouvrement: [
-    "Dossier transmis",
-    "Injonction de payer / assignation",
-    "Décision",
-    "Exécution",
-    "Soldé",
+    { label: "Dossier transmis", assigneA: "gestionnaire" },
+    { label: "Injonction de payer / assignation", assigneA: "gestionnaire" },
+    { label: "Décision", assigneA: "gestionnaire" },
+    { label: "Exécution", assigneA: "gestionnaire" },
+    { label: "Soldé", assigneA: "assistant" },
   ],
-  procedure: ["Constat", "Saisine avocat", "Assignation", "Audience", "Décision", "Exécution"],
+  procedure: [
+    { label: "Constat", assigneA: "assistant" },
+    { label: "Saisine avocat", assigneA: "gestionnaire" },
+    { label: "Assignation", assigneA: "gestionnaire" },
+    { label: "Audience", assigneA: "gestionnaire" },
+    { label: "Décision", assigneA: "gestionnaire" },
+    { label: "Exécution", assigneA: "gestionnaire" },
+  ],
   // Catch-all : aucune etape pre-remplie (entierement libre, on ajoute a la main).
   question_diverse: [],
   autre: [],
 };
+
+/** Prochaine etape a faire d'un dossier (premiere non cochee), ou undefined si tout
+ *  est fait / aucune etape. Sert au panneau "Dossiers a suivre" du dashboard (C3). */
+export function prochaineEtape(d: Dossier): EtapeDossier | undefined {
+  return d.etapes.find((e) => !e.fait);
+}
+
+// --- Actions de dossiers remontees au dashboard (C3) : la prochaine etape de chaque
+//     dossier ouvert, groupee par copropriete. ---
+
+export interface ActionDossier {
+  dossierId: string;
+  titre: string;
+  type: TypeDossier;
+  /** Libelle de la prochaine etape a faire. */
+  etapeLabel: string;
+  assigneA?: AssigneRole;
+}
+
+export interface ActionsDossierCopro {
+  coproCode: string;
+  coproNom: string;
+  actions: ActionDossier[];
+}
 
 /** Progression d'un dossier (etapes faites / total). */
 export function progressionDossier(d: Dossier): { faites: number; total: number; pct: number } {

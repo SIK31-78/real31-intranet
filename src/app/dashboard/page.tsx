@@ -10,6 +10,7 @@ import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
 import { PipelineAg } from "@/components/dashboard/pipeline-ag";
 import { ResumeAttention } from "@/components/dashboard/resume-attention";
 import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
+import { ActionsDossiersPanel } from "@/components/dashboard/actions-dossiers-panel";
 
 export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 
@@ -54,6 +55,12 @@ export default async function DashboardPage() {
           <ResumeAttention items={data.attention} />
           <ProblemesPanel problemes={data.problemes ?? []} />
         </div>
+
+        {data.actionsDossiers && data.actionsDossiers.length > 0 && (
+          <div className="mt-6">
+            <ActionsDossiersPanel actions={data.actionsDossiers} />
+          </div>
+        )}
       </div>
     </AppShell>
   );

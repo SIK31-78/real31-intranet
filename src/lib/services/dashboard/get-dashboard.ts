@@ -20,6 +20,7 @@ import {
 import { etatCycleAg, ETAT_CYCLE_ORDRE } from "@/lib/domain/etat-cycle-ag";
 import { getPrisesEnMain } from "@/lib/services/coproprietes/prise-en-main";
 import { getProblemes } from "@/lib/services/problemes/get-problemes";
+import { getActionsDossiers } from "@/lib/services/dossiers/get-actions-dossiers";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { calculerJalons, compteARebours } from "@/lib/domain/jalons-ag/calculator";
 import {
@@ -220,10 +221,10 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
   // Problemes signales (items "probleme") sur TOUT le perimetre (pas seulement les
   // copros prises en main : un probleme coche est un signal explicite, jamais du bruit
   // de migration). Reutilise `tous` pour eviter un second fetch des copros.
-  const problemes = await getProblemes(
-    g.id,
-    tous.map((c) => ({ code: c.code, nom: c.nom })),
-  );
+  const coprosMin = tous.map((c) => ({ code: c.code, nom: c.nom }));
+  const problemes = await getProblemes(g.id, coprosMin);
+  // Actions de dossiers : prochaine etape de chaque dossier ouvert (C3), tout le perimetre.
+  const actionsDossiers = await getActionsDossiers(g.id, coprosMin);
 
   return {
     gestionnaire: g,
@@ -235,5 +236,6 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
     pipeline,
     aPrendreEnMain,
     problemes,
+    actionsDossiers,
   };
 }
