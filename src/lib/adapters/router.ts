@@ -39,6 +39,9 @@ import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provid
 import type { AnalyseCacheStore } from "@/lib/ports/analyse-cache-store";
 import { MockAnalyseCacheStore } from "@/lib/adapters/mock/mock-analyse-cache-store";
 import { SupabaseAnalyseCacheStore } from "@/lib/adapters/supabase/supabase-analyse-cache-store";
+import type { MailOutboundProvider } from "@/lib/ports/mail-outbound-provider";
+import { GraphMailOutboundProvider } from "@/lib/adapters/mail/graph-mail-outbound";
+import { NoopMailOutboundProvider } from "@/lib/adapters/mail/noop-mail-outbound";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -175,6 +178,13 @@ export function getMesEmailsTriageStore(): MesEmailsTriageStore {
 export function getMailIngestionProvider(): MailIngestionProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailIngestionProvider();
   return new SampleMailIngestionProvider();
+}
+
+// Mail sortant (creer un brouillon, envoyer). Graph en reel (MAIL_SOURCE=graph),
+// sinon no-op (le bouton ne casse pas en dev/demo sans boite).
+export function getMailOutboundProvider(): MailOutboundProvider {
+  if (process.env.MAIL_SOURCE === "graph") return new GraphMailOutboundProvider();
+  return new NoopMailOutboundProvider();
 }
 
 // Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie

@@ -18,6 +18,7 @@ import {
 } from "@/lib/services/mes-emails/maj-etat";
 import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
+import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
@@ -87,4 +88,24 @@ export async function synchroniserAction(): Promise<void> {
   if (!g) return;
   await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
+}
+
+// Cree un brouillon de reponse dans la boite Outlook du gestionnaire (Graph
+// createReply). Renvoie un resultat pour que le cockpit affiche succes/erreur.
+export async function creerBrouillonAction(
+  emailId: string,
+  coproCode: string,
+  corps: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
+  }
+  try {
+    await creerBrouillonOutlook(g, emailId, corps);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 }

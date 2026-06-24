@@ -46,6 +46,7 @@ import {
   editBrouillonAction,
   rattachementAction,
   marquerLuAction,
+  creerBrouillonAction,
 } from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
@@ -120,11 +121,18 @@ export function MesEmailsVue({
   const [filtreCopro, setFiltreCopro] = useState<string>("toutes");
   const [recherche, setRecherche] = useState("");
   const [copie, setCopie] = useState<string | null>(null);
+  const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
 
   const statutDe = (id: string): Statut =>
     classes.has(id) ? "classe" : repondus.has(id) ? "repondu" : "nouveau";
   const rattDe = (m: MailEntrant): Rattachement => overrides.get(m.id) ?? m.rattachement;
   const brouillonDe = (m: MailEntrant): string => edits.get(m.id) ?? m.brouillonReponse ?? "";
+
+  async function creerBrouillon(m: MailEntrant) {
+    setMsgBrouillon("Création du brouillon dans Outlook...");
+    const r = await creerBrouillonAction(m.id, m.coproCode, brouillonDe(m));
+    setMsgBrouillon(r.ok ? "Brouillon créé dans Outlook." : `Échec : ${r.message ?? ""}`);
+  }
 
   const q = recherche.trim().toLowerCase();
   const matchVue = (m: MailEntrant): boolean =>
@@ -149,6 +157,7 @@ export function MesEmailsVue({
     setSelId(id);
     setChanger(false);
     setOuverts(new Set());
+    setMsgBrouillon(null);
     setLus((prev) => new Set(prev).add(id));
     const m = data.mails.find((x) => x.id === id);
     if (m) void marquerLuAction(id, m.coproCode);
@@ -334,6 +343,8 @@ export function MesEmailsVue({
               statut={statutDe(selection.id)}
               brouillon={brouillonDe(selection)}
               signatureHtml={signatureHtml}
+              onCreerBrouillon={() => void creerBrouillon(selection)}
+              msgBrouillon={msgBrouillon}
               etapes={etapes}
               changer={changer}
               ouverts={ouverts}
@@ -544,6 +555,8 @@ function AnalysePane({
   onEditBrouillon,
   onBlurBrouillon,
   signatureHtml,
+  onCreerBrouillon,
+  msgBrouillon,
   onToggleEtape,
   onToggleChanger,
   onChoisir,
@@ -567,6 +580,8 @@ function AnalysePane({
   onEditBrouillon: (t: string) => void;
   onBlurBrouillon: () => void;
   signatureHtml?: string | null;
+  onCreerBrouillon: () => void;
+  msgBrouillon: string | null;
   onToggleEtape: (ordre: number) => void;
   onToggleChanger: () => void;
   onChoisir: (d: Dossier) => void;
@@ -655,10 +670,16 @@ function AnalysePane({
             <>
               <div className="flex items-center justify-between mt-3 mb-1">
                 <span className="text-[11.5px] text-ink-3">Réponse (modifiable)</span>
-                <button type="button" onClick={onCopier} className={BTN}>
-                  <Copy strokeWidth={1.5} className="w-3.5 h-3.5" />
-                  {copie ? "Copié" : "Copier"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={onCopier} className={BTN}>
+                    <Copy strokeWidth={1.5} className="w-3.5 h-3.5" />
+                    {copie ? "Copié" : "Copier"}
+                  </button>
+                  <button type="button" onClick={onCreerBrouillon} className={BTN}>
+                    <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5" />
+                    Brouillon Outlook
+                  </button>
+                </div>
               </div>
               <textarea
                 value={brouillon}
@@ -677,6 +698,9 @@ function AnalysePane({
                     className="mt-1 w-full h-[110px] rounded-md border border-line bg-white"
                   />
                 </div>
+              ) : null}
+              {msgBrouillon ? (
+                <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p>
               ) : null}
             </>
           )}
