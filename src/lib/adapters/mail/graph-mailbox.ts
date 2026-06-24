@@ -47,8 +47,15 @@ export class GraphMailboxProvider implements MailboxProvider {
     if (!p.boite) throw new Error("Classement : boite manquante.");
     if (!p.coproCode && !p.coproNom) return { deplace: false };
     const tk = await jetonGraph();
-    const cible = trouverDossier(await sousDossiersInbox(tk, p.boite), p.coproCode, p.coproNom);
-    if (!cible) return { deplace: false };
+    const dossiers = await sousDossiersInbox(tk, p.boite);
+    const cible = trouverDossier(dossiers, p.coproCode, p.coproNom);
+    if (!cible) {
+      console.warn(
+        `[mailbox] aucun sous-dossier inbox ne correspond a copro "${p.coproCode}"/"${p.coproNom}". ` +
+          `Dossiers trouves: ${dossiers.map((d) => d.displayName).join(" | ") || "(aucun)"}`,
+      );
+      return { deplace: false };
+    }
     const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
     const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/move`, {
       method: "POST",
@@ -56,6 +63,7 @@ export class GraphMailboxProvider implements MailboxProvider {
       body: JSON.stringify({ destinationId: cible.id }),
     });
     if (!r.ok) throw new Error(`Graph move ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    console.log(`[mailbox] mail deplace vers "${cible.displayName}" (boite ${p.boite}).`);
     return { deplace: true, dossier: cible.displayName };
   }
 }

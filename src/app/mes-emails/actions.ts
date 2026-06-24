@@ -44,10 +44,13 @@ export async function validerMailAction(
   // Classer = deplacer le mail dans le sous-dossier copro Outlook (best-effort).
   if (c.email) {
     try {
-      await classerDansCopro(c.email, emailId, coproCode, coproNom);
+      const res = await classerDansCopro(c.email, emailId, coproCode, coproNom);
+      console.log(`[mes-emails] classement ${emailId} copro ${coproCode} -> ${res.deplace ? res.dossier : "non deplace"}`);
     } catch (e) {
       console.warn("[mes-emails] classement Outlook KO :", (e as Error).message);
     }
+  } else {
+    console.warn("[mes-emails] pas d'email gestionnaire -> classement Outlook ignore.");
   }
   revalidatePath("/mes-emails");
 }
