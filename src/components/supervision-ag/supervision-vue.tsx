@@ -31,6 +31,11 @@ export function SupervisionVue({
   // Mode expert replie : seule la PHASE EN COURS (premiere section non terminee) est
   // ouverte au chargement. Fini le mur de 40 cases (decision Sekou 2026-06-22).
   const sectionCourante = supervision.sections.find((s) => progressionSection(s).pourcentage < 100);
+  // Date ISO de l'AG, extraite de l'id "CODE__YYYY-MM-DD" (null si AG sans date =
+  // sentinelle) -> alimente la colonne d'echeances reglementaires des items (B4).
+  const sep = supervision.id.indexOf("__");
+  const agDateBrute = sep >= 0 ? supervision.id.slice(sep + 2) : null;
+  const agDateISO = agDateBrute && agDateBrute !== "0001-01-01" ? agDateBrute : null;
   return (
     <div className="flex flex-col gap-4">
       <SupervisionHeader
@@ -45,6 +50,7 @@ export function SupervisionVue({
           <ChecklistSection
             key={section.id}
             section={section}
+            agDateISO={agDateISO}
             aujourdhuiISO={aujourdhuiISO}
             lectureSeule={lectureSeule}
             ouvertParDefaut={section.id === sectionCourante?.id}

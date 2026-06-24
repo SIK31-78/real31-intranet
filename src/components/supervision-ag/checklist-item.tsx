@@ -10,8 +10,16 @@ import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/icon";
 import type { ItemChecklist, StatutItem } from "@/lib/domain/supervision-ag";
+import { echeanceItem } from "@/lib/domain/supervision-echeances";
 import { STATUT_LIBELLES } from "./statut-pill";
 import { formatAuditeRelatif } from "@/lib/format-date";
+
+// Styles de la pastille d'echeance reglementaire selon la severite du compte a rebours.
+const ECHEANCE_STYLES: Record<"ok" | "soon" | "late", string> = {
+  ok: "bg-surface-2 text-ink-3 border-line",
+  soon: "bg-warn-50 text-warn-700 border-warn-500/30",
+  late: "bg-err-50 text-err-700 border-err-500/30",
+};
 
 // Statuts proposes : OK / Probleme / N/A pour un item normal ; juste Probleme pour un
 // item "date" (la date renseignee vaut deja validation). Plus de bouton "A verifier" :
@@ -43,6 +51,8 @@ const BTN_STYLES: Record<StatutItem, { actif: string; inactif: string }> = {
 
 type ChecklistItemProps = {
   item: ItemChecklist;
+  /** Date ISO de l'AG, pour l'echeance reglementaire de l'item (null si AG sans date). */
+  agDateISO: string | null;
   aujourdhuiISO: string;
   lectureSeule?: boolean;
   onCocher: (itemId: string, statut: StatutItem) => Promise<void>;
@@ -51,11 +61,13 @@ type ChecklistItemProps = {
 
 export function ChecklistItem({
   item,
+  agDateISO,
   aujourdhuiISO,
   lectureSeule = false,
   onCocher,
   onCommenter,
 }: ChecklistItemProps) {
+  const echeance = echeanceItem(item.id, agDateISO, aujourdhuiISO);
   const [isPending, startTransition] = useTransition();
   const [statutOpt, setStatutOpt] = useOptimistic(item.statut);
   const [commentaireOpt, setCommentaireOpt] = useOptimistic(item.commentaire);
@@ -116,6 +128,19 @@ export function ChecklistItem({
             </a>
           )}
         </div>
+        {echeance && (
+          <span
+            title={`Échéance réglementaire : ${echeance.dateISO.slice(8, 10)}/${echeance.dateISO.slice(5, 7)}/${echeance.dateISO.slice(0, 4)}`}
+            className={cn(
+              "shrink-0 inline-flex items-center gap-1 h-6 px-1.5 mt-0.5 rounded-sm border text-[11px] font-medium tabular-nums",
+              ECHEANCE_STYLES[echeance.severite],
+            )}
+          >
+            {echeance.label}
+            <span className="text-ink-4">·</span>
+            {echeance.dateISO.slice(8, 10)}/{echeance.dateISO.slice(5, 7)}
+          </span>
+        )}
         <div className="flex items-center gap-1 shrink-0">
           {(estDate ? STATUTS_DATE : STATUTS_CHECK).map((s) => {
             const actif = statutOpt === s;

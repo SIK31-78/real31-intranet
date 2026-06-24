@@ -28,7 +28,6 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { formatDateLongue } from "@/lib/format-date";
-import { BlocJalons } from "./bloc-jalons";
 import { EditeurDate } from "./editeur-date";
 
 const ROLE_LABEL: Record<RoleEquipe, string> = {
@@ -62,11 +61,9 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             derniereCs={fiche.copro.derniereCsDate}
             prochaineCs={fiche.copro.prochaineCsDate}
           />
-          <BlocJalons
-            jalons={fiche.jalons}
-            coproCode={fiche.copro.code}
-            agDate={fiche.copro.prochaineAg?.date ?? ""}
-          />
+          {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
+              colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
+              jalons (intranet_jalons + alarme dashboard) reste inchangee. */}
           {fiche.compta && fiche.copro.prochaineAg && (
             <BlocCompta
               coproCode={fiche.copro.code}

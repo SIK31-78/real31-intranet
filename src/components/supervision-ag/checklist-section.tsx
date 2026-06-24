@@ -12,6 +12,8 @@ import { ChecklistItem } from "./checklist-item";
 
 type ChecklistSectionProps = {
   section: SectionChecklist;
+  /** Date ISO de l'AG (pour les echeances reglementaires des items), null si sans date. */
+  agDateISO: string | null;
   aujourdhuiISO: string;
   lectureSeule?: boolean;
   /** Ouverte au chargement (= phase en cours). Les autres sont repliees. */
@@ -22,6 +24,7 @@ type ChecklistSectionProps = {
 
 export function ChecklistSection({
   section,
+  agDateISO,
   aujourdhuiISO,
   lectureSeule,
   ouvertParDefaut = false,
@@ -60,6 +63,7 @@ export function ChecklistSection({
             <ChecklistItem
               key={item.id}
               item={item}
+              agDateISO={agDateISO}
               aujourdhuiISO={aujourdhuiISO}
               lectureSeule={lectureSeule}
               onCocher={onCocher}
