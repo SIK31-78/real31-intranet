@@ -50,12 +50,16 @@ function nomCourt(from: string): string {
   return (from.split("@")[0] ?? from).replace(/[._]/g, " ");
 }
 
-/** Rattachement copro best-effort depuis l'objet (la boite live n'a pas de dossier copro). */
-function attribuerCopro(subject: string, copros: Copropriete[]): string {
-  const s = (subject || "").toLowerCase();
-  const parCode = copros.find((c) => c.code && s.includes(c.code.toLowerCase()));
+/**
+ * Rattachement copro best-effort depuis l'objet ET le corps (la boite live n'a pas
+ * de dossier copro). Le code/nom de copro est souvent dans le texte ou la signature,
+ * pas seulement l'objet. Code en priorite (plus specifique), puis nom (>= 4 car.).
+ */
+function attribuerCopro(subject: string, body: string, copros: Copropriete[]): string {
+  const texte = `${subject || ""}\n${body || ""}`.toLowerCase();
+  const parCode = copros.find((c) => c.code && texte.includes(c.code.toLowerCase()));
   if (parCode) return parCode.code;
-  const parNom = copros.find((c) => c.nom && c.nom.length >= 4 && s.includes(c.nom.toLowerCase()));
+  const parNom = copros.find((c) => c.nom && c.nom.length >= 4 && texte.includes(c.nom.toLowerCase()));
   return parNom ? parNom.code : "";
 }
 
@@ -64,7 +68,7 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
 
   const bruts = await getMailIngestionProvider().lireRecents({ email: g.email, max: MAX_INGEST });
-  for (const b of bruts) b.copro = attribuerCopro(b.subject, copros);
+  for (const b of bruts) b.copro = attribuerCopro(b.subject, b.bodyText, copros);
 
   // Affaires les plus recentes d'abord (la boite live = on veut le frais en haut).
   const affaires = groupAffaires(bruts)

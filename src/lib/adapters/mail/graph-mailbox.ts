@@ -8,10 +8,10 @@ import { GRAPH, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
 
-async function sousDossiersInbox(tk: string, boite: string): Promise<Folder[]> {
+async function childFolders(tk: string, boite: string, folderId: string): Promise<Folder[]> {
   const out: Folder[] = [];
   let url: string =
-    `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/inbox/childFolders` +
+    `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/${folderId}/childFolders` +
     `?$top=100&$select=id,displayName`;
   while (url) {
     const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
@@ -21,6 +21,23 @@ async function sousDossiersInbox(tk: string, boite: string): Promise<Folder[]> {
     url = j["@odata.nextLink"] ?? "";
   }
   return out;
+}
+
+/**
+ * Tous les dossiers sous la boite de reception, en descendant les niveaux : les
+ * sous-dossiers copro sont souvent ranges sous un dossier parent (ex. "Boite de
+ * reception > copropriete > S234 ..."). Profondeur bornee (defaut 2 niveaux).
+ */
+async function dossiersSousInbox(tk: string, boite: string, profondeur = 2): Promise<Folder[]> {
+  let niveau = await childFolders(tk, boite, "inbox");
+  const tous: Folder[] = [...niveau];
+  for (let d = 1; d < profondeur && niveau.length > 0; d++) {
+    const suivant: Folder[] = [];
+    for (const f of niveau) suivant.push(...(await childFolders(tk, boite, f.id)));
+    tous.push(...suivant);
+    niveau = suivant;
+  }
+  return tous;
 }
 
 function trouverDossier(dossiers: Folder[], coproCode: string, coproNom: string): Folder | undefined {
@@ -47,7 +64,7 @@ export class GraphMailboxProvider implements MailboxProvider {
     if (!p.boite) throw new Error("Classement : boite manquante.");
     if (!p.coproCode && !p.coproNom) return { deplace: false };
     const tk = await jetonGraph();
-    const dossiers = await sousDossiersInbox(tk, p.boite);
+    const dossiers = await dossiersSousInbox(tk, p.boite);
     const cible = trouverDossier(dossiers, p.coproCode, p.coproNom);
     if (!cible) {
       console.warn(
