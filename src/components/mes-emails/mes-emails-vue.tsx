@@ -179,7 +179,7 @@ export function MesEmailsVue({
         m.flow.forEach((e) => n.add(`${m.id}:${e.ordre}`));
         return n;
       });
-    void validerMailAction(m.id, m.coproCode, m.flow.map((e) => e.ordre), brouillonDe(m));
+    void validerMailAction(m.id, m.coproCode, m.coproNom, m.flow.map((e) => e.ordre), brouillonDe(m));
     // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
     if (vue === "recus") {
       const idx = visibles.findIndex((x) => x.id === m.id);

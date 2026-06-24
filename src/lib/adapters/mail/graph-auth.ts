@@ -33,3 +33,21 @@ export async function jetonGraph(): Promise<string> {
   if (!j.access_token) throw new Error("Token Graph : access_token absent.");
   return j.access_token;
 }
+
+/** Resout l'id Graph courant d'un message par son internetMessageId (immuable). */
+export async function resoudreMessageId(
+  tk: string,
+  boite: string,
+  internetMessageId: string,
+): Promise<string> {
+  const imid = internetMessageId.replace(/'/g, "''"); // echappe les quotes OData
+  const url =
+    `${GRAPH}/users/${encodeURIComponent(boite)}/messages` +
+    `?$filter=${encodeURIComponent(`internetMessageId eq '${imid}'`)}&$select=id&$top=1`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+  if (!r.ok) throw new Error(`Graph resoudre message ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  const j = (await r.json()) as { value?: { id: string }[] };
+  const id = j.value?.[0]?.id;
+  if (!id) throw new Error("Message introuvable dans la boite (deplace ou supprime ?).");
+  return id;
+}

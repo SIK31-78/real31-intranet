@@ -42,6 +42,9 @@ import { SupabaseAnalyseCacheStore } from "@/lib/adapters/supabase/supabase-anal
 import type { MailOutboundProvider } from "@/lib/ports/mail-outbound-provider";
 import { GraphMailOutboundProvider } from "@/lib/adapters/mail/graph-mail-outbound";
 import { NoopMailOutboundProvider } from "@/lib/adapters/mail/noop-mail-outbound";
+import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
+import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
+import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -185,6 +188,13 @@ export function getMailIngestionProvider(): MailIngestionProvider {
 export function getMailOutboundProvider(): MailOutboundProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailOutboundProvider();
   return new NoopMailOutboundProvider();
+}
+
+// Boite aux lettres (deplacer un mail dans le sous-dossier copro, etc.). Graph en
+// reel (MAIL_SOURCE=graph), sinon no-op (le classement reste cote intranet).
+export function getMailboxProvider(): MailboxProvider {
+  if (process.env.MAIL_SOURCE === "graph") return new GraphMailboxProvider();
+  return new NoopMailboxProvider();
 }
 
 // Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie

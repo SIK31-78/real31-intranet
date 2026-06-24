@@ -5,7 +5,7 @@ import type { Rattachement, StatutTraitement } from "@/lib/domain/mes-emails";
 import { getMesEmailsEtatRepository } from "@/lib/adapters/router";
 
 /** Identite + cible commune a toutes les ecritures. */
-export type Cible = { gid: string; emailId: string; coproCode: string; initiales: string };
+export type Cible = { gid: string; emailId: string; coproCode: string; initiales: string; email?: string };
 
 function cle(c: Cible) {
   return { gestionnaireId: c.gid, emailId: c.emailId, coproCode: c.coproCode, initiales: c.initiales };

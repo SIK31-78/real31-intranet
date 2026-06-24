@@ -19,6 +19,7 @@ import {
 import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
+import { classerDansCopro } from "@/lib/services/mes-emails/classer";
 
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
@@ -27,18 +28,27 @@ async function cible(emailId: string, coproCode: string): Promise<Cible | null> 
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
     return null;
   }
-  return { gid: g.id, emailId, coproCode, initiales: g.initiales };
+  return { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) };
 }
 
 export async function validerMailAction(
   emailId: string,
   coproCode: string,
+  coproNom: string,
   etapes: number[],
   brouillon: string,
 ): Promise<void> {
   const c = await cible(emailId, coproCode);
   if (!c) return;
   await enregistrerStatut(c, "classe", etapes, brouillon);
+  // Classer = deplacer le mail dans le sous-dossier copro Outlook (best-effort).
+  if (c.email) {
+    try {
+      await classerDansCopro(c.email, emailId, coproCode, coproNom);
+    } catch (e) {
+      console.warn("[mes-emails] classement Outlook KO :", (e as Error).message);
+    }
+  }
   revalidatePath("/mes-emails");
 }
 
