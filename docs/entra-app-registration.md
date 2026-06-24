@@ -36,6 +36,34 @@ Le reste du document (SharePoint, mail, Application Access Policy) reste valable
 
 ---
 
+## Étape 2bis (pilote "Mes emails") : LECTURE de mail déléguée
+
+> [!important] Nouvelle permission à ajouter sur l'app `REAL31 Intranet` existante
+> Aucune nouvelle App Registration. On ajoute **une permission** à l'app déjà créée, pour le pilote du module de tri des emails.
+
+**Besoin** : l'intranet doit **lire la boîte mail du gestionnaire connecté** (le pilote) pour trier ses emails entrants et proposer un classement + une réponse. La lecture est **déléguée** : l'app n'accède **qu'à la boîte de la personne connectée**, avec son consentement, jamais à celle d'un autre.
+
+**Permissions à ajouter** (Microsoft Graph, type **Delegated**) :
+
+| Permission | Type | Usage | Admin consent |
+|---|---|---|---|
+| `Mail.Read` | Delegated | Lire les messages de la boîte **du gestionnaire connecté** (lecture seule, pas d'envoi) | **Oui** (selon politique du tenant) |
+| `offline_access` | Delegated | Rafraîchir l'accès sans redemander le login à chaque fois (refresh token) | Non |
+
+**Étapes côté Entra ID** :
+1. `REAL31 Intranet` -> *API permissions* -> *Add a permission* -> *Microsoft Graph* -> *Delegated permissions*
+2. Ajouter `Mail.Read` et `offline_access`
+3. *Grant admin consent for [tenant]*
+
+**Précisions importantes** :
+- C'est de la **lecture seule** (`Mail.Read`), distincte du futur `Mail.Send` (envoi) qui reste pour plus tard.
+- **Délégué** = moindre privilège : contrairement à une permission *Application*, l'app ne peut PAS lire les boîtes des autres collaborateurs, seulement celle de l'utilisateur connecté. Pas besoin d'*Application Access Policy* ici.
+- Aucune nouvelle Redirect URI, aucun nouveau secret : la même app, juste deux scopes en plus.
+
+**Test d'acceptation** : une fois consenti, le pilote se connecte, déclenche une synchro, et voit ses emails récents triés. Une tentative de lire une autre boîte que la sienne échoue (preuve du périmètre délégué).
+
+---
+
 ## 1. Vue d'ensemble du besoin
 
 Une application web interne (intranet REAL31) hébergée sur Vercel doit :
