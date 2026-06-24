@@ -25,7 +25,12 @@ import {
   type AssigneRole,
 } from "@/lib/domain/dossier";
 import type { MembreAssignable } from "@/lib/services/dossiers/get-dossiers";
-import { majEtapesAction, ajouterNoteAction, changerStatutAction } from "@/app/dossiers/actions";
+import {
+  majEtapesAction,
+  ajouterNoteAction,
+  changerStatutAction,
+  supprimerNoteAction,
+} from "@/app/dossiers/actions";
 
 const KIND_ICON: Record<KindEvenement, typeof Flag> = {
   note: MessageSquare,
@@ -45,10 +50,13 @@ export function DossierFiche({
   dossier,
   gestionnaire,
   assistant,
+  monInitiales,
 }: {
   dossier: Dossier;
   gestionnaire?: MembreAssignable;
   assistant?: MembreAssignable;
+  /** Initiales de l'utilisateur courant : il ne peut supprimer QUE ses propres notes. */
+  monInitiales: string;
 }) {
   const [onglet, setOnglet] = useState<OngletDossier>("suivi");
   const [etapes, setEtapes] = useState<EtapeDossier[]>(dossier.etapes);
@@ -90,6 +98,11 @@ export function DossierFiche({
     });
     setNote("");
   };
+  const supprimerNote = (le: string) =>
+    startTransition(async () => {
+      await supprimerNoteAction(dossier.id, le);
+      toast.ok("Note supprimée.");
+    });
 
   return (
     <div className="flex flex-col gap-5">
@@ -240,13 +253,26 @@ export function DossierFiche({
               <ul className="divide-y divide-line">
                 {[...dossier.journal].reverse().map((ev, idx) => {
                   const Icon = KIND_ICON[ev.kind] ?? MessageSquare;
+                  const maNote = ev.kind === "note" && ev.par === monInitiales;
                   return (
-                    <li key={idx} className="flex items-start gap-2.5 px-4 py-2.5">
+                    <li key={idx} className="group flex items-start gap-2.5 px-4 py-2.5">
                       <Icon strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 mt-0.5 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] text-ink">{ev.texte}</p>
                         <p className="text-[11px] text-ink-4 mt-0.5">{ev.par} · {formatDateLongue(ev.le.slice(0, 10))}</p>
                       </div>
+                      {maNote && (
+                        <button
+                          type="button"
+                          onClick={() => supprimerNote(ev.le)}
+                          disabled={pending}
+                          aria-label="Supprimer ma note"
+                          title="Supprimer ma note"
+                          className="p-1 text-ink-4 hover:text-err-700 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-30"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </li>
                   );
                 })}

@@ -19,7 +19,12 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   return (
     <AppShell user={g} active="dossiers" breadcrumb={`Dossier - ${vue.dossier.titre}`}>
       <div className="mx-auto max-w-[900px] px-8 py-8">
-        <DossierFiche dossier={vue.dossier} gestionnaire={vue.gestionnaire} assistant={vue.assistant} />
+        <DossierFiche
+          dossier={vue.dossier}
+          gestionnaire={vue.gestionnaire}
+          assistant={vue.assistant}
+          monInitiales={g.initiales}
+        />
       </div>
     </AppShell>
   );

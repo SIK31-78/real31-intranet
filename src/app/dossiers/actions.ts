@@ -71,6 +71,27 @@ export async function ajouterNoteAction(id: string, texte: string): Promise<void
   revalidatePath(`/dossiers/${id}`);
 }
 
+// Supprime UNE note du journal, et seulement si elle appartient a l'utilisateur courant
+// (kind "note" + memes initiales). Un assistant ne peut donc pas effacer la note d'un
+// gestionnaire, et inversement. Verifie cote serveur (jamais de confiance au client).
+export async function supprimerNoteAction(id: string, le: string): Promise<void> {
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode);
+  if (!g) return;
+  let retire = false;
+  const journal = d.journal.filter((e) => {
+    if (!retire && e.kind === "note" && e.le === le && e.par === g.initiales) {
+      retire = true;
+      return false; // on retire cette entree (la premiere qui matche)
+    }
+    return true;
+  });
+  if (!retire) return; // pas ma note (ou introuvable) -> no-op
+  await getDossierRepository().patch(id, { journal });
+  revalidatePath(`/dossiers/${id}`);
+}
+
 export async function changerStatutAction(id: string, statut: StatutDossier): Promise<void> {
   const d = await getDossierRepository().get(id);
   if (!d) return;
