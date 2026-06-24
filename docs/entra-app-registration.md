@@ -82,7 +82,8 @@ Test-ApplicationAccessPolicy -Identity <pilote>@real31.fr -AppId "<CLIENT_ID>"
 - Étendre plus tard à d'autres gestionnaires = ajouter leur boîte au groupe `REAL31-Intranet-MailRead`, rien d'autre.
 
 **Précisions** :
-- **Envoi restreint** : `Mail.Send` Application est lui aussi borné par l'Access Policy -> l'app ne peut envoyer QUE depuis les boîtes du groupe (impossible d'usurper une autre adresse).
+- **Une seule policy pour tout** : `New-ApplicationAccessPolicy` borne l'**application** (pas une permission donnée) -> la même policy restreint d'un coup la lecture, l'écriture ET l'**envoi** aux boîtes du groupe. Inutile de répéter une commande pour `Mail.Send` (c'est même l'usage historique de cette commande : restreindre depuis quelle boîte une app peut envoyer).
+- **Envoi restreint** : `Mail.Send` Application est donc borné lui aussi -> l'app ne peut envoyer QUE depuis les boîtes du groupe (impossible d'usurper une autre adresse).
 - Sans l'Access Policy, `Mail.Read` / `Mail.Send` Application donneraient accès à TOUTES les boîtes : la policy garantit le moindre privilège (uniquement les boîtes du groupe).
 - Aucun nouveau secret, aucune nouvelle Redirect URI : la même app.
 
