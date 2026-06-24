@@ -36,20 +36,25 @@ Le reste du document (SharePoint, mail, Application Access Policy) reste valable
 
 ---
 
-## Étape 2bis (pilote "Mes emails") : LECTURE de mail (Application + Access Policy)
+## Étape 2bis (pilote "Mes emails") : LIRE + RÉPONDRE (Application + Access Policy)
 
-> [!important] Une permission Application + une Application Access Policy sur l'app `REAL31 Intranet` existante
-> Aucune nouvelle App Registration. Modèle **Application** (app-only) : l'app lit la boîte **en tâche de fond**, l'accès étant **restreint à UNE boîte** par une Application Access Policy (PowerShell). Choisi car le besoin est de synchroniser toute l'inbox du pilote, sans qu'il soit connecté.
+> [!important] Deux permissions Application + une Application Access Policy sur l'app `REAL31 Intranet` existante
+> Aucune nouvelle App Registration. Modèle **Application** (app-only) : l'app lit la boîte et envoie depuis elle **en tâche de fond**, l'accès étant **restreint aux boîtes autorisées** par une Application Access Policy (PowerShell). Choisi car le besoin est de synchroniser l'inbox du pilote et d'envoyer la réponse, sans qu'il soit connecté.
 
-**Besoin** : l'intranet lit la boîte mail du **pilote** pour trier ses emails entrants (classement + réponse proposée). Lecture seule.
+**Besoin** : l'intranet **lit** la boîte du **pilote** pour trier ses emails (classement + réponse proposée), et **envoie** la réponse validée (avec la signature Signitic). Le brouillon est préparé dans le cockpit.
 
-**1. Permission à ajouter** (Microsoft Graph, type **Application**) :
+**1. Permissions à ajouter** (Microsoft Graph, type **Application**) — module complet (lire, préparer, envoyer) :
 
 | Permission | Type | Usage | Admin consent |
 |---|---|---|---|
-| `Mail.Read` | Application | Lire les messages (lecture seule), **borné** à la boîte autorisée par l'Access Policy | **Oui** |
+| `Mail.Read` | Application | **Lire** les messages entrants (tri) | **Oui** |
+| `Mail.Send` | Application | **Envoyer** la réponse validée (signature Signitic) | **Oui** |
 
-Étapes Entra ID : `REAL31 Intranet` -> *API permissions* -> *Add a permission* -> *Microsoft Graph* -> *Application permissions* -> `Mail.Read` -> *Add* -> **Grant admin consent for [tenant]**.
+Les deux sont **bornées aux boîtes autorisées** par l'Access Policy ci-dessous.
+
+> **Brouillon** : il est généré et édité **dans le cockpit**, pas écrit dans la boîte -> `Mail.Read` + `Mail.Send` suffisent. **Option** (si tu veux que le brouillon apparaisse dans le dossier *Brouillons* d'Outlook) : remplacer `Mail.Read` par **`Mail.ReadWrite`** (inclut lecture + création de brouillons ; donne un accès en écriture à la boîte, borné par la même policy).
+
+Étapes Entra ID : `REAL31 Intranet` -> *API permissions* -> *Add a permission* -> *Microsoft Graph* -> *Application permissions* -> cocher `Mail.Read` **et** `Mail.Send` -> *Add* -> **Grant admin consent for [tenant]**.
 
 **2. Application Access Policy (PowerShell Exchange Online)** — borne l'app à la seule boîte du pilote :
 
@@ -62,11 +67,11 @@ New-DistributionGroup -Name "REAL31-Intranet-MailRead" -Type Security `
   -PrimarySmtpAddress real31-intranet-mailread@real31.fr `
   -Members <pilote>@real31.fr
 
-# La policy : l'app ne peut lire QUE les boîtes de ce groupe
+# La policy : l'app ne peut acceder (lecture ET envoi) QU'aux boîtes de ce groupe
 New-ApplicationAccessPolicy -AppId "<CLIENT_ID>" `
   -PolicyScopeGroupId real31-intranet-mailread@real31.fr `
   -AccessRight RestrictAccess `
-  -Description "REAL31 Intranet - Mail.Read limite au pilote"
+  -Description "REAL31 Intranet - acces mail limite au pilote"
 
 # Vérification (doit indiquer AccessCheckResult: Granted)
 Test-ApplicationAccessPolicy -Identity <pilote>@real31.fr -AppId "<CLIENT_ID>"
@@ -77,8 +82,8 @@ Test-ApplicationAccessPolicy -Identity <pilote>@real31.fr -AppId "<CLIENT_ID>"
 - Étendre plus tard à d'autres gestionnaires = ajouter leur boîte au groupe `REAL31-Intranet-MailRead`, rien d'autre.
 
 **Précisions** :
-- **Lecture seule** (`Mail.Read`), distincte du futur `Mail.Send`.
-- Sans l'Access Policy, `Mail.Read` Application donnerait accès à TOUTES les boîtes : la policy est ce qui garantit le moindre privilège (une seule boîte).
+- **Envoi restreint** : `Mail.Send` Application est lui aussi borné par l'Access Policy -> l'app ne peut envoyer QUE depuis les boîtes du groupe (impossible d'usurper une autre adresse).
+- Sans l'Access Policy, `Mail.Read` / `Mail.Send` Application donneraient accès à TOUTES les boîtes : la policy garantit le moindre privilège (uniquement les boîtes du groupe).
 - Aucun nouveau secret, aucune nouvelle Redirect URI : la même app.
 
 **Test d'acceptation** : `Test-ApplicationAccessPolicy` renvoie `Granted` pour la boîte du pilote ; côté intranet, "Synchroniser ma boîte" remonte les mails récents de son inbox.
