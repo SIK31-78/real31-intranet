@@ -18,11 +18,19 @@ function toGestionnaire(u: UserRow): Gestionnaire {
 export class SupabaseGestionnaireRepository implements GestionnaireRepository {
   async list(): Promise<Gestionnaire[]> {
     const supabase = createSupabasePublicClient();
+    // On collecte les managers ET les assistants (les deux colonnes d'equipe) : le
+    // selecteur dev-login (impersonation super-admin) doit pouvoir incarner un assistant
+    // pour tester son perimetre, pas seulement un gestionnaire.
     const { data: copros } = await supabase
       .from("Copropriete")
-      .select("managerId")
-      .not("managerId", "is", null);
-    const ids = [...new Set(((copros as { managerId: string }[] | null) ?? []).map((c) => c.managerId))];
+      .select("managerId, assistantId");
+    const ids = [
+      ...new Set(
+        ((copros as { managerId: string | null; assistantId: string | null }[] | null) ?? [])
+          .flatMap((c) => [c.managerId, c.assistantId])
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
     if (ids.length === 0) return [];
     const { data: users } = await supabase
       .from("User")
