@@ -154,3 +154,59 @@ export interface SecretClair {
   motDePasse: string;
   notes?: string;
 }
+
+// --- Force du mot de passe MAITRE -----------------------------------------
+// Le mot de passe maitre derive la cle du coffre (zero-knowledge) : il doit etre
+// fort, sinon tout le coffre est faible. On REFUSE les mots de passe faibles a
+// l'enrolement (avant : seul "8 caracteres" etait exige -> "12345678" passait).
+
+export type NiveauForce = "faible" | "moyen" | "fort";
+
+export interface ForceMotDePasse {
+  niveau: NiveauForce;
+  /** Acceptable comme mot de passe maitre ? On bloque "faible". */
+  ok: boolean;
+  /** Raison / conseil court si pas acceptable. */
+  raison?: string;
+}
+
+// Petite liste de mots de passe / suites trop courants (compares en minuscules).
+const MDP_COURANTS = new Set(
+  [
+    "12345678", "123456789", "1234567890", "123456789012", "azertyuiop", "qwertyuiop",
+    "motdepasse", "password", "passw0rd", "azerty123", "qwerty123", "00000000",
+    "11111111", "abcdefgh", "abcd1234", "real31", "soleil123", "loulou123",
+  ].map((s) => s.toLowerCase()),
+);
+
+function nbClasses(mdp: string): number {
+  let n = 0;
+  if (/[a-z]/.test(mdp)) n++;
+  if (/[A-Z]/.test(mdp)) n++;
+  if (/[0-9]/.test(mdp)) n++;
+  if (/[^a-zA-Z0-9]/.test(mdp)) n++;
+  return n;
+}
+
+/** Evalue un mot de passe MAITRE. Regle : >= 12 caracteres, pas dans la liste des
+ *  courants / pas un seul caractere repete, et soit du melange (>=3 classes) soit
+ *  une vraie longueur (>=16, passphrase). Tout le reste est "faible" -> refuse. */
+export function evaluerForceMotDePasse(mdp: string): ForceMotDePasse {
+  const m = mdp ?? "";
+  if (m.length < 12) {
+    return { niveau: "faible", ok: false, raison: "Au moins 12 caractères." };
+  }
+  if (MDP_COURANTS.has(m.toLowerCase()) || /^(.)\1+$/.test(m)) {
+    return { niveau: "faible", ok: false, raison: "Trop courant ou trop répétitif, choisis-en un autre." };
+  }
+  const c = nbClasses(m);
+  if (m.length < 16 && c < 3) {
+    return {
+      niveau: "faible",
+      ok: false,
+      raison: "Ajoute des majuscules, chiffres et symboles — ou allonge-le (16 caractères et plus).",
+    };
+  }
+  const fort = m.length >= 16 || c >= 4 || (m.length >= 14 && c >= 3);
+  return { niveau: fort ? "fort" : "moyen", ok: true };
+}

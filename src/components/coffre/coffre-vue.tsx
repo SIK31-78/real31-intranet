@@ -39,7 +39,23 @@ import {
 } from "@/app/coffre/actions";
 import { ImportPanel } from "@/components/coffre/import-panel";
 import type { ApercuCoffre } from "@/lib/services/coffre/coffre-service";
+import { evaluerForceMotDePasse, type NiveauForce } from "@/lib/domain/coffre";
 import type { SecretClair, RoleMembre, ScopeCoffre, CollaborateurAnnuaire, ServiceOrg } from "@/lib/domain/coffre";
+
+// Genere un mot de passe maitre robuste (alphabet sans caracteres ambigus : pas de
+// l/I/1/O/0). 20 caracteres tires de crypto.getRandomValues -> 4 classes, "fort".
+function genererMotDePasseFort(longueur = 20): string {
+  const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*?-_=+";
+  const arr = new Uint32Array(longueur);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (n) => alphabet[n % alphabet.length]).join("");
+}
+
+const FORCE_STYLE: Record<NiveauForce, { libelle: string; barre: string; texte: string; pct: string }> = {
+  faible: { libelle: "Faible", barre: "bg-err-500", texte: "text-err-700", pct: "w-1/3" },
+  moyen: { libelle: "Moyen", barre: "bg-warn-500", texte: "text-warn-700", pct: "w-2/3" },
+  fort: { libelle: "Fort", barre: "bg-ok-500", texte: "text-ok-700", pct: "w-full" },
+};
 
 interface SecretOuvert {
   id: string;
@@ -119,11 +135,23 @@ export function CoffreVue({
 
   const [mdp, setMdp] = useState("");
   const [mdp2, setMdp2] = useState("");
+  // Mot de passe genere a reveler une fois (pour le copier / l'enregistrer dans Chrome).
+  const [mdpRevele, setMdpRevele] = useState<string | null>(null);
+
+  function genererMaitre() {
+    const genere = genererMotDePasseFort();
+    setMdp(genere);
+    setMdp2(genere);
+    setMdpRevele(genere);
+    setErreur(null);
+  }
 
   // --- Enrolement (1er acces) ---------------------------------------------
   async function enroler() {
     setErreur(null);
-    if (mdp.length < 8) return setErreur("Choisis un mot de passe maître d'au moins 8 caractères.");
+    // Refuse les mots de passe faibles (avant : seul "8 caracteres" -> "12345678" passait).
+    const force = evaluerForceMotDePasse(mdp);
+    if (!force.ok) return setErreur(force.raison ?? "Mot de passe trop faible.");
     if (mdp !== mdp2) return setErreur("Les deux mots de passe ne correspondent pas.");
     setBusy(true);
     try {
@@ -283,22 +311,75 @@ export function CoffreVue({
               À retenir : personne ne peut le récupérer à ta place, pas même nous. Si tu l&apos;oublies, le
               contenu de ton coffre est perdu. Note-le dans un endroit sûr.
             </p>
-            <div className="flex flex-col gap-2 max-w-xs">
+            <div className="flex flex-col gap-2 max-w-sm">
               <input
                 type="password"
+                autoComplete="new-password"
                 className={champClasse}
-                placeholder="Mot de passe maitre"
+                placeholder="Mot de passe maître"
                 value={mdp}
-                onChange={(e) => setMdp(e.target.value)}
+                onChange={(e) => {
+                  setMdp(e.target.value);
+                  setMdpRevele(null);
+                }}
               />
+              {mdp.length > 0 &&
+                (() => {
+                  const f = evaluerForceMotDePasse(mdp);
+                  const st = FORCE_STYLE[f.niveau];
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between gap-2 text-[11px] mb-1">
+                        <span className={st.texte}>Force : {st.libelle}</span>
+                        {!f.ok && f.raison && <span className="text-ink-4 text-right">{f.raison}</span>}
+                      </div>
+                      <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
+                        <div className={`h-full transition-all ${st.barre} ${st.pct}`} />
+                      </div>
+                    </div>
+                  );
+                })()}
               <input
                 type="password"
+                autoComplete="new-password"
                 className={champClasse}
                 placeholder="Confirmer"
                 value={mdp2}
                 onChange={(e) => setMdp2(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !busy && enroler()}
               />
+              <button
+                type="button"
+                onClick={genererMaitre}
+                className="self-start text-[12px] text-green-700 hover:underline"
+              >
+                Générer un mot de passe robuste
+              </button>
+              {mdpRevele && (
+                <div className="rounded-md border border-ok-500/30 bg-ok-50 px-3 py-2">
+                  <div className="text-[12px] font-medium text-ok-700 mb-1">
+                    Mot de passe généré - copie-le maintenant
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 font-mono text-[13px] text-ink break-all select-all">{mdpRevele}</code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(mdpRevele);
+                        setInfo("Mot de passe copié.");
+                      }}
+                      aria-label="Copier"
+                      className="shrink-0 p-1 text-ink-3 hover:text-ink"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-ink-4">
+                    Garde-le dans ton gestionnaire (Chrome te proposera de l&apos;enregistrer). Personne ne
+                    peut le récupérer à ta place.
+                  </p>
+                </div>
+              )}
               <Bouton onClick={enroler} busy={busy} label="Creer mon coffre" icone={KeyRound} />
             </div>
           </>
