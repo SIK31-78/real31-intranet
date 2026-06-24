@@ -520,7 +520,7 @@ function BoiteItem({
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-[11px] text-ink-3">
           <Building2 strokeWidth={1.5} className="w-3 h-3 shrink-0" />
           <span className="truncate">
-            {m.coproCode} · {m.de.replace(/ \(.*\)$/, "")}
+            {m.coproNom} · {m.de.replace(/ \(.*\)$/, "")}
           </span>
           <span className="ml-auto shrink-0">{jourMois(m.date)}</span>
         </div>
@@ -634,8 +634,12 @@ function AnalysePane({
                 À : {m.destinataires.join(", ")}
                 {m.copie.length > 0 && <> · Cc : {m.copie.join(", ")}</>}
               </p>
-              <p className="text-ink-3">
-                {formatDateLongue(m.date)} · {m.coproCode} · {m.coproNom}
+              <p className="text-ink-3">{formatDateLongue(m.date)}</p>
+              <p className="mt-0.5 inline-flex items-center gap-1 text-[12px]">
+                <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                <span className={m.coproCode ? "font-medium text-ink" : "text-ink-3 italic"}>
+                  {m.coproCode ? `${m.coproNom} (${m.coproCode})` : "Copropriété non identifiée"}
+                </span>
               </p>
             </div>
           </div>
