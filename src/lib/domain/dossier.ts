@@ -3,7 +3,14 @@
 // (copro / coproprietaire / lot), un statut, une liste d'ETAPES editable (le workflow
 // n'est PAS fige - decision Sekou 2026-06-23) et un journal. Types purs (ADR-001).
 
-export type TypeDossier = "travaux" | "sinistre" | "impaye" | "procedure" | "recouvrement";
+export type TypeDossier =
+  | "travaux"
+  | "sinistre"
+  | "impaye"
+  | "procedure"
+  | "recouvrement"
+  | "question_diverse"
+  | "autre";
 export type PorteeDossier = "copropriete" | "coproprietaire" | "lot";
 export type StatutDossier = "ouvert" | "en_cours" | "clos";
 
@@ -59,6 +66,8 @@ export const TYPE_DOSSIER_LABEL: Record<TypeDossier, string> = {
   impaye: "Impayé",
   procedure: "Procédure",
   recouvrement: "Recouvrement",
+  question_diverse: "Questions diverses",
+  autre: "Autres",
 };
 export const TYPE_DOSSIER_ORDRE: TypeDossier[] = [
   "travaux",
@@ -66,6 +75,8 @@ export const TYPE_DOSSIER_ORDRE: TypeDossier[] = [
   "impaye",
   "recouvrement",
   "procedure",
+  "question_diverse",
+  "autre",
 ];
 
 export const PORTEE_LABEL: Record<PorteeDossier, string> = {
@@ -115,6 +126,9 @@ export const MODELES_ETAPES: Record<TypeDossier, string[]> = {
     "Soldé",
   ],
   procedure: ["Constat", "Saisine avocat", "Assignation", "Audience", "Décision", "Exécution"],
+  // Catch-all : aucune etape pre-remplie (entierement libre, on ajoute a la main).
+  question_diverse: [],
+  autre: [],
 };
 
 /** Progression d'un dossier (etapes faites / total). */

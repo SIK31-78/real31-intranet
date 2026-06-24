@@ -26,6 +26,8 @@ const TYPE_TON: Record<TypeDossier, "info" | "warn" | "err" | "neutral"> = {
   impaye: "err",
   recouvrement: "err",
   procedure: "neutral",
+  question_diverse: "neutral",
+  autre: "neutral",
 };
 const STATUT_TON: Record<StatutDossier, "warn" | "info" | "ok"> = {
   ouvert: "warn",
@@ -67,6 +69,19 @@ export function DossiersVue({
         : b.ouvertLe.localeCompare(a.ouvertLe),
     );
   }, [dossiers, filtreType, filtreStatut, filtreCopro, tri]);
+
+  // Tri "par copropriete" -> on affiche les dossiers REGROUPES sous un en-tete de copro
+  // (et non une simple liste a plat). `visibles` est deja trie par copro puis par date.
+  const groupes = useMemo(() => {
+    if (tri !== "copro") return null;
+    const map = new Map<string, { code: string; nom: string; items: Dossier[] }>();
+    for (const d of visibles) {
+      const g = map.get(d.coproCode) ?? { code: d.coproCode, nom: d.coproNom ?? "", items: [] };
+      g.items.push(d);
+      map.set(d.coproCode, g);
+    }
+    return [...map.values()];
+  }, [visibles, tri]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -114,36 +129,61 @@ export function DossiersVue({
             <p className="text-[13px] text-ink-3">Aucun dossier. Crée le premier avec « Nouveau dossier ».</p>
           </div>
         </Card>
+      ) : groupes ? (
+        <div className="flex flex-col gap-4">
+          {groupes.map((g) => (
+            <Card key={g.code} className="overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2 bg-surface-2 border-b border-line">
+                <span className="font-mono text-[12px] text-ink-2">{g.code}</span>
+                <span className="text-[12.5px] font-medium text-ink truncate">{g.nom}</span>
+                <span className="ml-auto text-[11px] text-ink-3">{g.items.length} dossier{g.items.length > 1 ? "s" : ""}</span>
+              </div>
+              <ul className="divide-y divide-line">
+                {g.items.map((d) => <LigneDossier key={d.id} d={d} masquerCopro />)}
+              </ul>
+            </Card>
+          ))}
+        </div>
       ) : (
         <Card className="overflow-hidden">
           <ul className="divide-y divide-line">
-            {visibles.map((d) => {
-              const p = progressionDossier(d);
-              return (
-                <li key={d.id}>
-                  <Link
-                    href={`/dossiers/${d.id}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
-                  >
-                    <Badge ton={TYPE_TON[d.type]} className="shrink-0 w-[100px] justify-center">{TYPE_DOSSIER_LABEL[d.type]}</Badge>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-medium text-ink truncate">{d.titre}</div>
-                      <div className="text-[12px] text-ink-3 truncate">
-                        <span className="font-mono">{d.coproCode}</span> {d.coproNom ?? ""}
-                        {d.cible ? ` - ${d.cible}` : ""}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-ink-3 font-mono shrink-0 hidden sm:block">{p.faites}/{p.total}</span>
-                    <Badge ton={STATUT_TON[d.statut]} dot className="shrink-0">{STATUT_DOSSIER_LABEL[d.statut]}</Badge>
-                    <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
-                  </Link>
-                </li>
-              );
-            })}
+            {visibles.map((d) => <LigneDossier key={d.id} d={d} />)}
           </ul>
         </Card>
       )}
     </div>
+  );
+}
+
+// Une ligne de dossier. `masquerCopro` quand on est deja sous un en-tete de copro
+// (vue groupee) -> evite de repeter le code/nom de copro a chaque ligne.
+function LigneDossier({ d, masquerCopro = false }: { d: Dossier; masquerCopro?: boolean }) {
+  const p = progressionDossier(d);
+  return (
+    <li>
+      <Link
+        href={`/dossiers/${d.id}`}
+        className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
+      >
+        <Badge ton={TYPE_TON[d.type]} className="shrink-0 w-[100px] justify-center">{TYPE_DOSSIER_LABEL[d.type]}</Badge>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-medium text-ink truncate">{d.titre}</div>
+          <div className="text-[12px] text-ink-3 truncate">
+            {masquerCopro ? (
+              d.cible ?? ""
+            ) : (
+              <>
+                <span className="font-mono">{d.coproCode}</span> {d.coproNom ?? ""}
+                {d.cible ? ` - ${d.cible}` : ""}
+              </>
+            )}
+          </div>
+        </div>
+        <span className="text-[11px] text-ink-3 font-mono shrink-0 hidden sm:block">{p.faites}/{p.total}</span>
+        <Badge ton={STATUT_TON[d.statut]} dot className="shrink-0">{STATUT_DOSSIER_LABEL[d.statut]}</Badge>
+        <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
+      </Link>
+    </li>
   );
 }
 

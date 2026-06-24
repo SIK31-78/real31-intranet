@@ -94,6 +94,7 @@ export function CommandPalette() {
 
   return (
     <>
+      {/* Desktop : barre de recherche complete. */}
       <button
         type="button"
         onClick={() => setOuvert(true)}
@@ -103,6 +104,16 @@ export function CommandPalette() {
         <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
         <span className="flex-1 text-left text-[13px] text-ink-4 truncate">Rechercher une copro...</span>
         <span className="font-mono text-[10px] px-1 py-0.5 rounded text-ink-3 bg-surface-3">Ctrl K</span>
+      </button>
+
+      {/* Mobile / une main : icone tactile (le raccourci clavier n'est pas atteignable). */}
+      <button
+        type="button"
+        onClick={() => setOuvert(true)}
+        aria-label="Rechercher"
+        className="flex md:hidden items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2 transition-colors duration-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+      >
+        <Search strokeWidth={1.5} className="w-3.5 h-3.5" />
       </button>
 
       {ouvert && (
