@@ -78,6 +78,14 @@ export function progressionSection(section: SectionChecklist): Progression {
   return calculer(section.items);
 }
 
+/** Une phase (section) est TERMINEE pour le parcours par paliers quand tous ses items
+ *  sont traites (OK / N/A / date renseignee) ET qu'aucun n'est en "probleme". Plus
+ *  strict que progressionSection (qui, elle, compte un "probleme" comme verifie).
+ *  Sert a savoir si la phase suivante se deverrouille. */
+export function phaseTerminee(section: SectionChecklist): boolean {
+  return section.items.every((i) => estVerifie(i) && i.statut !== "probleme");
+}
+
 export function progressionGlobale(supervision: SupervisionAg): Progression {
   return calculer(supervision.sections.flatMap((s) => s.items));
 }
