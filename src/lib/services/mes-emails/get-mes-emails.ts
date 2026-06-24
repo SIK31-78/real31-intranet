@@ -24,6 +24,7 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
   const etats = new Map(
     (await getMesEmailsEtatRepository().getEtats(g.id)).map((e) => [e.emailId, e]),
   );
+  const mesCopros = await getCoproRepository().list(g.id);
 
   let mails: MailEntrant[];
   let dossiers: MesEmails["dossiers"] = triage.dossiers;
@@ -39,7 +40,7 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
   } else {
     // Repli : triage fichier/mock (archive multi-copros) -> cloisonnement par portefeuille.
     const brut = await getMesEmailsProvider().getMesEmails(g.id);
-    const miennes = new Set((await getCoproRepository().list(g.id)).map((c) => c.code));
+    const miennes = new Set(mesCopros.map((c) => c.code));
     mails = brut.mails.filter((m) => miennes.has(m.coproCode));
     dossiers = brut.dossiers.filter((d) => miennes.has(d.coproCode));
     nbMailsAnalyses = brut.nbMailsAnalyses;
@@ -55,6 +56,7 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
     mails,
     dossiers,
     contextes: await enrichirContextes(mails),
+    coprosDuGestionnaire: mesCopros.map((c) => ({ code: c.code, nom: c.nom })),
   };
 }
 
@@ -68,6 +70,7 @@ function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
     etapesFaites: e.etapesFaites,
     ...(e.brouillon !== undefined ? { brouillonReponse: e.brouillon } : {}),
     ...(e.rattachement !== undefined ? { rattachement: e.rattachement } : {}),
+    ...(e.coproCode ? { coproCode: e.coproCode, coproNom: e.coproNom ?? m.coproNom } : {}),
   };
 }
 

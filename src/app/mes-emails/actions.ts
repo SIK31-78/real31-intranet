@@ -10,6 +10,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
   enregistrerBrouillon,
+  enregistrerCopro,
   enregistrerEtapes,
   enregistrerLu,
   enregistrerRattachement,
@@ -101,6 +102,30 @@ export async function synchroniserAction(): Promise<void> {
   if (!g) return;
   await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
+}
+
+// Rattache un mail a une copropriete A LA MAIN. Le cloisonnement porte sur la
+// copro CHOISIE (elle doit etre dans le portefeuille du gestionnaire).
+export async function rattacherCoproAction(
+  emailId: string,
+  coproCode: string,
+  coproNom: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Cette copropriété n'est pas dans ton périmètre." };
+  }
+  try {
+    await enregistrerCopro(
+      { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
+      coproNom,
+    );
+    revalidatePath("/mes-emails");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 }
 
 // Cree un brouillon de reponse dans la boite Outlook du gestionnaire (Graph

@@ -154,6 +154,8 @@ export interface MesEmails {
   dossiers: Dossier[];
   /** Contexte eStale par copro (rempli par le service). */
   contextes: ContexteCopro[];
+  /** Copros du portefeuille du gestionnaire (rempli par le service ; rattachement manuel). */
+  coprosDuGestionnaire?: { code: string; nom: string }[];
 }
 
 const ORDRE_SEVERITE: Record<Severite, number> = { late: 0, soon: 1, ok: 2 };

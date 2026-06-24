@@ -47,6 +47,7 @@ import {
   rattachementAction,
   marquerLuAction,
   creerBrouillonAction,
+  rattacherCoproAction,
 } from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
@@ -122,11 +123,23 @@ export function MesEmailsVue({
   const [recherche, setRecherche] = useState("");
   const [copie, setCopie] = useState<string | null>(null);
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
+  const [coprosChoisies, setCoprosChoisies] = useState<Map<string, { code: string; nom: string }>>(
+    new Map(),
+  );
 
   const statutDe = (id: string): Statut =>
     classes.has(id) ? "classe" : repondus.has(id) ? "repondu" : "nouveau";
   const rattDe = (m: MailEntrant): Rattachement => overrides.get(m.id) ?? m.rattachement;
   const brouillonDe = (m: MailEntrant): string => edits.get(m.id) ?? m.brouillonReponse ?? "";
+  const coproDe = (m: MailEntrant): { code: string; nom: string } =>
+    coprosChoisies.get(m.id) ?? { code: m.coproCode, nom: m.coproNom };
+
+  const choisirCopro = (m: MailEntrant, code: string) => {
+    if (!code) return;
+    const nom = (data.coprosDuGestionnaire ?? []).find((c) => c.code === code)?.nom ?? code;
+    setCoprosChoisies((p) => new Map(p).set(m.id, { code, nom }));
+    void rattacherCoproAction(m.id, code, nom);
+  };
 
   async function creerBrouillon(m: MailEntrant) {
     setMsgBrouillon("Création du brouillon dans Outlook...");
@@ -179,7 +192,8 @@ export function MesEmailsVue({
         m.flow.forEach((e) => n.add(`${m.id}:${e.ordre}`));
         return n;
       });
-    void validerMailAction(m.id, m.coproCode, m.coproNom, m.flow.map((e) => e.ordre), brouillonDe(m));
+    const cp = coproDe(m);
+    void validerMailAction(m.id, cp.code, cp.nom, m.flow.map((e) => e.ordre), brouillonDe(m));
     // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
     if (vue === "recus") {
       const idx = visibles.findIndex((x) => x.id === m.id);
@@ -340,12 +354,16 @@ export function MesEmailsVue({
               ratt={rattDe(selection)}
               dossier={trouverDossier(data.dossiers, rattDe(selection).dossierId)}
               dossiersCopro={
-                selection.coproCode
-                  ? data.dossiers.filter((d) => d.coproCode === selection.coproCode)
+                coproDe(selection).code
+                  ? data.dossiers.filter((d) => d.coproCode === coproDe(selection).code)
                   : []
               }
               statut={statutDe(selection.id)}
               brouillon={brouillonDe(selection)}
+              coproCode={coproDe(selection).code}
+              coproNom={coproDe(selection).nom}
+              coprosDispo={data.coprosDuGestionnaire ?? []}
+              onRattacherCopro={(code) => choisirCopro(selection, code)}
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
               msgBrouillon={msgBrouillon}
@@ -552,6 +570,10 @@ function AnalysePane({
   dossiersCopro,
   statut,
   brouillon,
+  coproCode,
+  coproNom,
+  coprosDispo,
+  onRattacherCopro,
   etapes,
   changer,
   ouverts,
@@ -577,6 +599,10 @@ function AnalysePane({
   dossiersCopro: Dossier[];
   statut: Statut;
   brouillon: string;
+  coproCode: string;
+  coproNom: string;
+  coprosDispo: { code: string; nom: string }[];
+  onRattacherCopro: (code: string) => void;
   etapes: Set<string>;
   changer: boolean;
   ouverts: Set<string>;
@@ -635,12 +661,26 @@ function AnalysePane({
                 {m.copie.length > 0 && <> · Cc : {m.copie.join(", ")}</>}
               </p>
               <p className="text-ink-3">{formatDateLongue(m.date)}</p>
-              <p className="mt-0.5 inline-flex items-center gap-1 text-[12px]">
-                <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                <span className={m.coproCode ? "font-medium text-ink" : "text-ink-3 italic"}>
-                  {m.coproCode ? `${m.coproNom} (${m.coproCode})` : "Copropriété non identifiée"}
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-[12px]">
+                  <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                  <span className={coproCode ? "font-medium text-ink" : "text-ink-3 italic"}>
+                    {coproCode ? `${coproNom} (${coproCode})` : "Copropriété non identifiée"}
+                  </span>
                 </span>
-              </p>
+                <select
+                  value={coproCode}
+                  onChange={(e) => onRattacherCopro(e.target.value)}
+                  className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
+                >
+                  <option value="">Rattacher à une copropriété…</option>
+                  {coprosDispo.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.nom} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>

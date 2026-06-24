@@ -15,6 +15,9 @@ export interface EtatMail {
   brouillon?: string;
   /** Dossier choisi a la main (absent = rattachement propose garde). */
   rattachement?: Rattachement;
+  /** Copropriete rattachee a la main (absent = attribution auto gardee). */
+  coproCode?: string;
+  coproNom?: string;
 }
 
 /** Cle commune a toutes les ecritures. `initiales` = trace de l'auteur. */
@@ -29,6 +32,7 @@ export type MajStatut = CleEtat & { statut: StatutTraitement; etapesFaites: numb
 export type MajEtapes = CleEtat & { etapesFaites: number[] };
 export type MajBrouillon = CleEtat & { brouillon: string };
 export type MajRattachement = CleEtat & { rattachement: Rattachement };
+export type MajCopro = CleEtat & { coproNom: string };
 
 export interface MesEmailsEtatRepository {
   /** Tous les etats d'un gestionnaire (cle emailId). */
@@ -39,4 +43,6 @@ export interface MesEmailsEtatRepository {
   setLu(p: CleEtat): Promise<void>;
   setBrouillon(p: MajBrouillon): Promise<void>;
   setRattachement(p: MajRattachement): Promise<void>;
+  /** Rattache le mail a une copropriete a la main (coproCode de la cle = la copro). */
+  setCopro(p: MajCopro): Promise<void>;
 }

@@ -18,6 +18,8 @@ create table if not exists public.intranet_mes_emails_etat (
   lu              boolean not null default false,
   brouillon       text,
   rattachement    jsonb,
+  copro_code      text,
+  copro_nom       text,
   marque_par      text,
   marque_at       timestamptz,
   created_at      timestamptz not null default now(),

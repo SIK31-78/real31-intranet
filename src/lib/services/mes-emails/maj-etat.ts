@@ -31,3 +31,6 @@ export function enregistrerBrouillon(c: Cible, brouillon: string) {
 export function enregistrerRattachement(c: Cible, rattachement: Rattachement) {
   return getMesEmailsEtatRepository().setRattachement({ ...cle(c), rattachement });
 }
+export function enregistrerCopro(c: Cible, coproNom: string) {
+  return getMesEmailsEtatRepository().setCopro({ ...cle(c), coproNom });
+}

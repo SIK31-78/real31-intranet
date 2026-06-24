@@ -5,6 +5,7 @@ import type {
   CleEtat,
   EtatMail,
   MajBrouillon,
+  MajCopro,
   MajEtapes,
   MajRattachement,
   MajStatut,
@@ -42,5 +43,8 @@ export class MockMesEmailsEtatRepository implements MesEmailsEtatRepository {
   }
   async setRattachement(p: MajRattachement): Promise<void> {
     maj(p.gestionnaireId, p.emailId, { rattachement: p.rattachement });
+  }
+  async setCopro(p: MajCopro): Promise<void> {
+    maj(p.gestionnaireId, p.emailId, { coproCode: p.coproCode, coproNom: p.coproNom });
   }
 }

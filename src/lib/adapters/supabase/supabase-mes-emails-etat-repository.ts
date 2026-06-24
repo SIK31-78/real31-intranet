@@ -7,6 +7,7 @@ import type {
   CleEtat,
   EtatMail,
   MajBrouillon,
+  MajCopro,
   MajEtapes,
   MajRattachement,
   MajStatut,
@@ -24,6 +25,8 @@ type Row = {
   lu: boolean | null;
   brouillon: string | null;
   rattachement: Rattachement | null;
+  copro_code?: string | null;
+  copro_nom?: string | null;
 };
 
 function versStatut(s: string): StatutTraitement {
@@ -35,7 +38,7 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
     const sb = createSupabasePublicClient();
     const { data, error } = await sb
       .from(TABLE)
-      .select("email_id, statut, etapes_faites, lu, brouillon, rattachement")
+      .select("*")
       .eq("gestionnaire_id", gestionnaireId);
     if (error) {
       // Table pas encore creee : on degrade proprement (cockpit sans persistance) au
@@ -57,6 +60,7 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
       lu: r.lu ?? false,
       ...(r.brouillon != null ? { brouillon: r.brouillon } : {}),
       ...(r.rattachement != null ? { rattachement: r.rattachement } : {}),
+      ...(r.copro_code ? { coproCode: r.copro_code, coproNom: r.copro_nom ?? "" } : {}),
     }));
   }
 
@@ -102,5 +106,8 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
   }
   async setRattachement(p: MajRattachement): Promise<void> {
     await this.upsert(p, { rattachement: p.rattachement });
+  }
+  async setCopro(p: MajCopro): Promise<void> {
+    await this.upsert(p, { copro_code: p.coproCode, copro_nom: p.coproNom });
   }
 }
