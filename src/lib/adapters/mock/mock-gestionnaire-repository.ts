@@ -4,8 +4,8 @@ import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 
 const GESTIONNAIRES: Gestionnaire[] = [
-  { id: "el", nomComplet: "Élise Lambert", initiales: "EL" },
-  { id: "fa", nomComplet: "Farid Amrani", initiales: "FA" },
+  { id: "el", nomComplet: "Élise Lambert", initiales: "EL", email: "e.lambert@real31.fr" },
+  { id: "fa", nomComplet: "Farid Amrani", initiales: "FA", email: "f.amrani@real31.fr" },
 ];
 
 export class MockGestionnaireRepository implements GestionnaireRepository {

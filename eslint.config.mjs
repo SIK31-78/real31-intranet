@@ -60,6 +60,7 @@ const eslintConfig = defineConfig([
         { type: "adapter-fichier",     pattern: "src/lib/adapters/fichier/**" },
         { type: "adapter-mistral",     pattern: "src/lib/adapters/mistral/**" },
         { type: "adapter-mail",        pattern: "src/lib/adapters/mail/**" },
+        { type: "adapter-signitic",    pattern: "src/lib/adapters/signitic/**" },
         { type: "router",              pattern: "src/lib/adapters/router*.ts" },
         { type: "services",            pattern: "src/lib/services/**" },
         { type: "jobs",                pattern: "src/lib/jobs/**" },
@@ -89,9 +90,10 @@ const eslintConfig = defineConfig([
           { from: "adapter-fichier",    allow: ["domain", "ports"] },
           { from: "adapter-mistral",    allow: ["domain", "ports"] },
           { from: "adapter-mail",       allow: ["domain", "ports"] },
+          { from: "adapter-signitic",   allow: ["domain", "ports"] },
 
           // Router : seul endroit qui connaît tous les adapters
-          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail"] },
+          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic"] },
 
           // Audit, auth : helpers transverses qui parlent au domaine via ports
           { from: "audit",              allow: ["domain", "ports"] },
@@ -101,7 +103,7 @@ const eslintConfig = defineConfig([
           { from: "services",           allow: ["domain", "ports", "router", "audit"] },
 
           // Jobs (cron) : peuvent appeler les adapters directement (orchestration de syncs)
-          { from: "jobs",               allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "router", "audit"] },
+          { from: "jobs",               allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic", "router", "audit"] },
 
           // App : routes Next.js, passent par services / audit / auth
           { from: "app",                allow: ["domain", "ports", "services", "audit", "auth"] },

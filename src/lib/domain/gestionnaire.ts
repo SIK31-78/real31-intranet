@@ -6,4 +6,6 @@ export interface Gestionnaire {
   id: string;
   nomComplet: string;
   initiales: string;
+  /** Email (SSO Entra / public."User") ; sert a recuperer la signature Signitic. */
+  email?: string;
 }

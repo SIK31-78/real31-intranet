@@ -77,7 +77,13 @@ const PRIORITES: { cle: FiltrePriorite; label: string }[] = [
 const BTN =
   "inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] text-ink hover:bg-surface-2 transition-colors";
 
-export function MesEmailsVue({ data }: { data: MesEmails }) {
+export function MesEmailsVue({
+  data,
+  signatureHtml,
+}: {
+  data: MesEmails;
+  signatureHtml?: string | null;
+}) {
   const mailsTries = useMemo(() => trierMails(data.mails), [data.mails]);
   const copros = useMemo(() => {
     const vus = new Map<string, string>();
@@ -327,6 +333,7 @@ export function MesEmailsVue({ data }: { data: MesEmails }) {
               dossiersCopro={data.dossiers.filter((d) => d.coproCode === selection.coproCode)}
               statut={statutDe(selection.id)}
               brouillon={brouillonDe(selection)}
+              signatureHtml={signatureHtml}
               etapes={etapes}
               changer={changer}
               ouverts={ouverts}
@@ -536,6 +543,7 @@ function AnalysePane({
   copie,
   onEditBrouillon,
   onBlurBrouillon,
+  signatureHtml,
   onToggleEtape,
   onToggleChanger,
   onChoisir,
@@ -558,6 +566,7 @@ function AnalysePane({
   copie: boolean;
   onEditBrouillon: (t: string) => void;
   onBlurBrouillon: () => void;
+  signatureHtml?: string | null;
   onToggleEtape: (ordre: number) => void;
   onToggleChanger: () => void;
   onChoisir: (d: Dossier) => void;
@@ -658,6 +667,17 @@ function AnalysePane({
                 rows={7}
                 className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[12.5px] text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
               />
+              {signatureHtml ? (
+                <div className="mt-2">
+                  <span className="text-[11px] text-ink-3">Signature (ajoutée à l’envoi)</span>
+                  <iframe
+                    title="Signature"
+                    sandbox=""
+                    srcDoc={signatureHtml}
+                    className="mt-1 w-full h-[110px] rounded-md border border-line bg-white"
+                  />
+                </div>
+              ) : null}
             </>
           )}
         </div>

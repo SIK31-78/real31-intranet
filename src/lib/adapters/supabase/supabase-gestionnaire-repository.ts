@@ -5,13 +5,14 @@ import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { createSupabasePublicClient } from "./public-client";
 
-type UserRow = { id: string; name: string; initials: string | null };
+type UserRow = { id: string; name: string; initials: string | null; email: string | null };
 
 function toGestionnaire(u: UserRow): Gestionnaire {
   return {
     id: u.id,
     nomComplet: u.name,
     initiales: u.initials ?? u.name.slice(0, 2).toUpperCase(),
+    ...(u.email ? { email: u.email } : {}),
   };
 }
 
@@ -34,7 +35,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
     if (ids.length === 0) return [];
     const { data: users } = await supabase
       .from("User")
-      .select("id, name, initials")
+      .select("id, name, initials, email")
       .in("id", ids);
     return ((users as UserRow[] | null) ?? [])
       .map(toGestionnaire)
@@ -45,7 +46,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
     const supabase = createSupabasePublicClient();
     const { data } = await supabase
       .from("User")
-      .select("id, name, initials")
+      .select("id, name, initials, email")
       .eq("id", id)
       .maybeSingle();
     return data ? toGestionnaire(data as UserRow) : null;
@@ -56,7 +57,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
     // ilike sans joker = egalite insensible a la casse (l'email Entra peut differer).
     const { data } = await supabase
       .from("User")
-      .select("id, name, initials")
+      .select("id, name, initials, email")
       .ilike("email", email)
       .maybeSingle();
     return data ? toGestionnaire(data as UserRow) : null;

@@ -33,6 +33,9 @@ import { SupabaseMesEmailsTriageStore } from "@/lib/adapters/supabase/supabase-m
 import type { MailIngestionProvider } from "@/lib/ports/mail-ingestion-provider";
 import { SampleMailIngestionProvider } from "@/lib/adapters/mail/sample-mail-ingestion";
 import { GraphMailIngestionProvider } from "@/lib/adapters/mail/graph-mail-ingestion";
+import type { SignatureProvider } from "@/lib/ports/signature-provider";
+import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
+import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -162,6 +165,13 @@ export function getMesEmailsTriageStore(): MesEmailsTriageStore {
 export function getMailIngestionProvider(): MailIngestionProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailIngestionProvider();
   return new SampleMailIngestionProvider();
+}
+
+// Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie
+// signature ; sinon mock (rendu de demo). Sert a "reprendre la signature" a l'envoi.
+export function getSignatureProvider(): SignatureProvider {
+  if (process.env.SIGNITIC_API_KEY) return new SigniticSignatureProvider();
+  return new MockSignatureProvider();
 }
 
 // Etat de l'ODJ (saisies du gestionnaire + points legaux retires). En reel :

@@ -54,7 +54,8 @@ export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
   // SSO actif : le gestionnaire reel par email (null = non connecte -> /dev-login).
   if (ssoConfigure) {
     if (!email) return null;
-    return repo.findByEmail(email);
+    const g = await repo.findByEmail(email);
+    return g ? { ...g, email } : null;
   }
 
   // Fallback dev sans SSO : premier gestionnaire.

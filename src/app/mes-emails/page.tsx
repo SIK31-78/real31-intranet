@@ -4,6 +4,7 @@ import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
+import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { synchroniserAction } from "./actions";
 
 export const metadata: Metadata = { title: "Mes événements - REAL31 Intranet" };
@@ -15,6 +16,7 @@ export default async function MesEmailsPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
   const data = await getMesEmails(g);
+  const signatureHtml = await getSignatureGestionnaire(g);
 
   return (
     <AppShell user={g} active="emails" breadcrumb="Mes événements">
@@ -30,7 +32,7 @@ export default async function MesEmailsPage() {
             Synchroniser ma boîte
           </button>
         </form>
-        <MesEmailsVue data={data} />
+        <MesEmailsVue data={data} signatureHtml={signatureHtml} />
       </div>
     </AppShell>
   );
