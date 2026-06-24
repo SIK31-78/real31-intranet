@@ -59,7 +59,11 @@ Les deux sont **bornées aux boîtes autorisées** par l'Access Policy ci-dessou
 **2. Application Access Policy (PowerShell Exchange Online)** — borne l'app à la seule boîte du pilote :
 
 ```powershell
-# Connexion (admin Exchange Online)
+# Module Exchange Online (une seule fois sur le poste)
+Install-Module -Name ExchangeOnlineManagement -Scope CurrentUser -Force
+Import-Module ExchangeOnlineManagement
+
+# Connexion (ouvre la fenêtre de login Microsoft, MFA supporté)
 Connect-ExchangeOnline -UserPrincipalName <admin>@real31.fr
 
 # Groupe de sécurité à extension messagerie contenant la/les boîte(s) autorisée(s)
@@ -75,6 +79,9 @@ New-ApplicationAccessPolicy -AppId "<CLIENT_ID>" `
 
 # Vérification (doit indiquer AccessCheckResult: Granted)
 Test-ApplicationAccessPolicy -Identity <pilote>@real31.fr -AppId "<CLIENT_ID>"
+
+# Fin de session
+Disconnect-ExchangeOnline -Confirm:$false
 ```
 
 - `<CLIENT_ID>` = l'*Application (client) ID* de l'app `REAL31 Intranet` (notre `AUTH_MICROSOFT_ENTRA_ID_ID`).
