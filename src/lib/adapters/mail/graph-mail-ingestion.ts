@@ -1,26 +1,82 @@
-// Adapter Graph (delegue) d'ingestion : lit la boite du gestionnaire connecte via
-// Microsoft Graph (GET /me/messages). STUB pour l'instant : tant que la permission
-// Mail.Read (Delegated) n'est pas accordee par le DSI, que le SSO ne capte pas
-// l'access token, et que le SDK n'est pas installe, on echoue proprement.
-//
-// A brancher (cf. docs/entra-app-registration.md, etape 2bis) :
-//   1. DSI : Mail.Read (Delegated) + offline_access + admin consent.
-//   2. src/auth.ts : demander les scopes + capter access_token/refresh_token (JWT/session).
-//   3. Installer @microsoft/microsoft-graph-client (+ @azure/identity si besoin).
-//   4. Ici : client Graph avec le token de session -> GET /me/messages?$top=...&$select=...
-//      -> mapper Message -> RawMail (id, from, to, subject, receivedDateTime, body.content, attachments).
+// Adapter Microsoft Graph (app-only / client credentials) d'ingestion de mail.
+// Lit la boite indiquee (opts.email) via GET /users/{email}/mailFolders/inbox/messages.
+// Le token est obtenu avec le secret de l'app (AUTH_MICROSOFT_ENTRA_ID_*) ; l'acces
+// est borne cote tenant par une Application Access Policy (cf. docs/entra-app-registration.md).
+// Plain fetch (pas de SDK Graph). Active par MAIL_SOURCE=graph.
 
 import type { MailIngestionProvider, OptionsIngestion } from "@/lib/ports/mail-ingestion-provider";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 
+const GRAPH = "https://graph.microsoft.com/v1.0";
+
+function tenant(): string | null {
+  const m = (process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER || "").match(
+    /login\.microsoftonline\.com\/([^/]+)/,
+  );
+  return m?.[1] ?? null;
+}
+
+async function jeton(): Promise<string> {
+  const t = tenant();
+  const id = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
+  const secret = process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;
+  if (!t || !id || !secret) {
+    throw new Error("Identifiants Entra absents (AUTH_MICROSOFT_ENTRA_ID_ID/SECRET/ISSUER).");
+  }
+  const r = await fetch(`https://login.microsoftonline.com/${t}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: id,
+      client_secret: secret,
+      scope: "https://graph.microsoft.com/.default",
+      grant_type: "client_credentials",
+    }),
+  });
+  if (!r.ok) throw new Error(`Token Graph ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  const j = (await r.json()) as { access_token?: string };
+  if (!j.access_token) throw new Error("Token Graph : access_token absent.");
+  return j.access_token;
+}
+
+type GraphMessage = {
+  id: string;
+  subject: string | null;
+  from?: { emailAddress?: { address?: string; name?: string } };
+  toRecipients?: { emailAddress?: { address?: string } }[];
+  receivedDateTime: string;
+  bodyPreview?: string;
+  body?: { content?: string };
+  hasAttachments?: boolean;
+};
+
 export class GraphMailIngestionProvider implements MailIngestionProvider {
-  lireRecents(opts: OptionsIngestion): Promise<RawMail[]> {
-    void opts;
-    return Promise.reject(
-      new Error(
-        "Ingestion Graph pas encore branchee : en attente de la permission Mail.Read (Delegated) " +
-          "et de la capture du token SSO (cf. docs/entra-app-registration.md, etape 2bis).",
-      ),
-    );
+  async lireRecents(opts: OptionsIngestion): Promise<RawMail[]> {
+    const boite = opts.email;
+    if (!boite) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");
+    const tk = await jeton();
+    const url =
+      `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/inbox/messages` +
+      `?$top=${Math.min(opts.max, 50)}&$orderby=receivedDateTime desc` +
+      `&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments`;
+    const r = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${tk}`,
+        // Corps en texte brut plutot qu'en HTML (plus propre pour le pipeline).
+        Prefer: 'outlook.body-content-type="text"',
+      },
+    });
+    if (!r.ok) throw new Error(`Graph messages ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as { value?: GraphMessage[] };
+    return (j.value ?? []).map((m): RawMail => ({
+      id: m.id,
+      from: m.from?.emailAddress?.address ?? m.from?.emailAddress?.name ?? "",
+      to: (m.toRecipients ?? []).map((d) => d.emailAddress?.address ?? "").filter(Boolean),
+      subject: m.subject ?? "",
+      receivedAt: m.receivedDateTime,
+      bodyText: m.body?.content ?? m.bodyPreview ?? "",
+      copro: "",
+      attachments: m.hasAttachments ? [{ name: "piece jointe" }] : [],
+    }));
   }
 }

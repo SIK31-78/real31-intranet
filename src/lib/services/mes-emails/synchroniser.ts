@@ -57,7 +57,7 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
   const copros = await getCoproRepository().list(g.id);
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
 
-  const bruts = await getMailIngestionProvider().lireRecents({ max: MAX_INGEST });
+  const bruts = await getMailIngestionProvider().lireRecents({ email: g.email, max: MAX_INGEST });
   for (const b of bruts) b.copro = attribuerCopro(b.subject, copros);
 
   const affaires = groupAffaires(bruts).slice(0, MAX_AFFAIRES);

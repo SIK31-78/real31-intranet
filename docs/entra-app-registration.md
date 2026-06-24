@@ -36,31 +36,52 @@ Le reste du document (SharePoint, mail, Application Access Policy) reste valable
 
 ---
 
-## Étape 2bis (pilote "Mes emails") : LECTURE de mail déléguée
+## Étape 2bis (pilote "Mes emails") : LECTURE de mail (Application + Access Policy)
 
-> [!important] Nouvelle permission à ajouter sur l'app `REAL31 Intranet` existante
-> Aucune nouvelle App Registration. On ajoute **une permission** à l'app déjà créée, pour le pilote du module de tri des emails.
+> [!important] Une permission Application + une Application Access Policy sur l'app `REAL31 Intranet` existante
+> Aucune nouvelle App Registration. Modèle **Application** (app-only) : l'app lit la boîte **en tâche de fond**, l'accès étant **restreint à UNE boîte** par une Application Access Policy (PowerShell). Choisi car le besoin est de synchroniser toute l'inbox du pilote, sans qu'il soit connecté.
 
-**Besoin** : l'intranet doit **lire la boîte mail du gestionnaire connecté** (le pilote) pour trier ses emails entrants et proposer un classement + une réponse. La lecture est **déléguée** : l'app n'accède **qu'à la boîte de la personne connectée**, avec son consentement, jamais à celle d'un autre.
+**Besoin** : l'intranet lit la boîte mail du **pilote** pour trier ses emails entrants (classement + réponse proposée). Lecture seule.
 
-**Permissions à ajouter** (Microsoft Graph, type **Delegated**) :
+**1. Permission à ajouter** (Microsoft Graph, type **Application**) :
 
 | Permission | Type | Usage | Admin consent |
 |---|---|---|---|
-| `Mail.Read` | Delegated | Lire les messages de la boîte **du gestionnaire connecté** (lecture seule, pas d'envoi) | **Oui** (selon politique du tenant) |
-| `offline_access` | Delegated | Rafraîchir l'accès sans redemander le login à chaque fois (refresh token) | Non |
+| `Mail.Read` | Application | Lire les messages (lecture seule), **borné** à la boîte autorisée par l'Access Policy | **Oui** |
 
-**Étapes côté Entra ID** :
-1. `REAL31 Intranet` -> *API permissions* -> *Add a permission* -> *Microsoft Graph* -> *Delegated permissions*
-2. Ajouter `Mail.Read` et `offline_access`
-3. *Grant admin consent for [tenant]*
+Étapes Entra ID : `REAL31 Intranet` -> *API permissions* -> *Add a permission* -> *Microsoft Graph* -> *Application permissions* -> `Mail.Read` -> *Add* -> **Grant admin consent for [tenant]**.
 
-**Précisions importantes** :
-- C'est de la **lecture seule** (`Mail.Read`), distincte du futur `Mail.Send` (envoi) qui reste pour plus tard.
-- **Délégué** = moindre privilège : contrairement à une permission *Application*, l'app ne peut PAS lire les boîtes des autres collaborateurs, seulement celle de l'utilisateur connecté. Pas besoin d'*Application Access Policy* ici.
-- Aucune nouvelle Redirect URI, aucun nouveau secret : la même app, juste deux scopes en plus.
+**2. Application Access Policy (PowerShell Exchange Online)** — borne l'app à la seule boîte du pilote :
 
-**Test d'acceptation** : une fois consenti, le pilote se connecte, déclenche une synchro, et voit ses emails récents triés. Une tentative de lire une autre boîte que la sienne échoue (preuve du périmètre délégué).
+```powershell
+# Connexion (admin Exchange Online)
+Connect-ExchangeOnline -UserPrincipalName <admin>@real31.fr
+
+# Groupe de sécurité à extension messagerie contenant la/les boîte(s) autorisée(s)
+New-DistributionGroup -Name "REAL31-Intranet-MailRead" -Type Security `
+  -PrimarySmtpAddress real31-intranet-mailread@real31.fr `
+  -Members <pilote>@real31.fr
+
+# La policy : l'app ne peut lire QUE les boîtes de ce groupe
+New-ApplicationAccessPolicy -AppId "<CLIENT_ID>" `
+  -PolicyScopeGroupId real31-intranet-mailread@real31.fr `
+  -AccessRight RestrictAccess `
+  -Description "REAL31 Intranet - Mail.Read limite au pilote"
+
+# Vérification (doit indiquer AccessCheckResult: Granted)
+Test-ApplicationAccessPolicy -Identity <pilote>@real31.fr -AppId "<CLIENT_ID>"
+```
+
+- `<CLIENT_ID>` = l'*Application (client) ID* de l'app `REAL31 Intranet` (notre `AUTH_MICROSOFT_ENTRA_ID_ID`).
+- `<pilote>@real31.fr` = la boîte à synchroniser pour le pilote.
+- Étendre plus tard à d'autres gestionnaires = ajouter leur boîte au groupe `REAL31-Intranet-MailRead`, rien d'autre.
+
+**Précisions** :
+- **Lecture seule** (`Mail.Read`), distincte du futur `Mail.Send`.
+- Sans l'Access Policy, `Mail.Read` Application donnerait accès à TOUTES les boîtes : la policy est ce qui garantit le moindre privilège (une seule boîte).
+- Aucun nouveau secret, aucune nouvelle Redirect URI : la même app.
+
+**Test d'acceptation** : `Test-ApplicationAccessPolicy` renvoie `Granted` pour la boîte du pilote ; côté intranet, "Synchroniser ma boîte" remonte les mails récents de son inbox.
 
 ---
 
