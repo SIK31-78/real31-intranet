@@ -339,7 +339,11 @@ export function MesEmailsVue({
               contexte={trouverContexte(data.contextes, selection.coproCode)}
               ratt={rattDe(selection)}
               dossier={trouverDossier(data.dossiers, rattDe(selection).dossierId)}
-              dossiersCopro={data.dossiers.filter((d) => d.coproCode === selection.coproCode)}
+              dossiersCopro={
+                selection.coproCode
+                  ? data.dossiers.filter((d) => d.coproCode === selection.coproCode)
+                  : []
+              }
               statut={statutDe(selection.id)}
               brouillon={brouillonDe(selection)}
               signatureHtml={signatureHtml}
