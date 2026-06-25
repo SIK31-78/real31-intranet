@@ -1,14 +1,10 @@
 // Port "boite aux lettres" : operations d'ecriture sur la boite (deplacer, plus
 // tard categoriser/marquer lu). Sert a refleter le classement du cockpit dans
-// Outlook. Ne depend de rien.
+// Outlook. Le type DossierBoite vit dans le domaine (mes-emails).
 
-/** Un dossier reel de la boite Outlook (pour le selecteur de classement). */
-export interface DossierBoite {
-  id: string;
-  nom: string;
-  /** 0 = dossier racine de la boite, 1 = sous-dossier de la boite de reception. */
-  niveau: number;
-}
+import type { DossierBoite } from "@/lib/domain/mes-emails";
+
+export type { DossierBoite };
 
 export interface MailboxProvider {
   /**

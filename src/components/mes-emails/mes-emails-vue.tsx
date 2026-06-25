@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Mail,
   Sparkles,
@@ -25,10 +25,12 @@ import {
   CalendarCheck,
   ChevronRight,
   Zap,
+  FolderInput,
 } from "lucide-react";
 import type {
   ContexteCopro,
   Dossier,
+  DossierBoite,
   EvenementKind,
   MailEntrant,
   MesEmails,
@@ -40,7 +42,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import {
-  validerMailAction,
   devaliderMailAction,
   toggleEtapeAction,
   editBrouillonAction,
@@ -48,6 +49,8 @@ import {
   marquerLuAction,
   creerBrouillonAction,
   rattacherCoproAction,
+  chargerDossiersAction,
+  classerDansDossierAction,
 } from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
@@ -126,6 +129,16 @@ export function MesEmailsVue({
   const [coprosChoisies, setCoprosChoisies] = useState<Map<string, { code: string; nom: string }>>(
     new Map(),
   );
+  // Vrais dossiers Outlook de la boite (charges en lazy) + dossier choisi par mail.
+  const [dossiers, setDossiers] = useState<DossierBoite[] | null>(null);
+  const [dossiersChoisis, setDossiersChoisis] = useState<Map<string, string>>(new Map());
+  const [msgClasser, setMsgClasser] = useState<string | null>(null);
+
+  useEffect(() => {
+    void chargerDossiersAction()
+      .then(setDossiers)
+      .catch(() => setDossiers([]));
+  }, []);
 
   const statutDe = (id: string): Statut =>
     classes.has(id) ? "classe" : repondus.has(id) ? "repondu" : "nouveau";
@@ -133,6 +146,19 @@ export function MesEmailsVue({
   const brouillonDe = (m: MailEntrant): string => edits.get(m.id) ?? m.brouillonReponse ?? "";
   const coproDe = (m: MailEntrant): { code: string; nom: string } =>
     coprosChoisies.get(m.id) ?? { code: m.coproCode, nom: m.coproNom };
+
+  // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
+  // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
+  const autoDossier = (m: MailEntrant): string => {
+    if (!dossiers) return "";
+    const code = m.coproCode.toLowerCase();
+    const nom = m.coproNom.toLowerCase();
+    const f =
+      (code ? dossiers.find((d) => d.nom.toLowerCase().includes(code)) : undefined) ??
+      (nom.length >= 4 ? dossiers.find((d) => d.nom.toLowerCase().includes(nom)) : undefined);
+    return f?.id ?? "";
+  };
+  const dossierIdDe = (m: MailEntrant): string => dossiersChoisis.get(m.id) ?? autoDossier(m);
 
   const choisirCopro = (m: MailEntrant, code: string) => {
     if (!code) return;
@@ -182,8 +208,15 @@ export function MesEmailsVue({
     return n;
   };
 
-  // Valider = exécuter le plan : envoyer la réponse + marquer les étapes + classer.
+  // Valider = exécuter le plan + classer dans le dossier Outlook CHOISI. Bloqué tant
+  // qu'aucun dossier n'est choisi (plus de mail "traité" qui ne part nulle part).
   function valider(m: MailEntrant) {
+    const folderId = dossierIdDe(m);
+    if (!folderId) {
+      setMsgClasser("Choisis un dossier de destination avant de classer ce mail.");
+      return;
+    }
+    setMsgClasser(null);
     if (m.brouillonReponse) setRepondus((p) => add(p, m.id));
     setClasses((p) => add(p, m.id));
     if (m.flow.length > 0)
@@ -192,8 +225,15 @@ export function MesEmailsVue({
         m.flow.forEach((e) => n.add(`${m.id}:${e.ordre}`));
         return n;
       });
-    const cp = coproDe(m);
-    void validerMailAction(m.id, cp.code, cp.nom, m.flow.map((e) => e.ordre), brouillonDe(m));
+    void classerDansDossierAction(
+      m.id,
+      coproDe(m).code,
+      folderId,
+      m.flow.map((e) => e.ordre),
+      brouillonDe(m),
+    ).then((r) => {
+      if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
+    });
     // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
     if (vue === "recus") {
       const idx = visibles.findIndex((x) => x.id === m.id);
@@ -364,6 +404,12 @@ export function MesEmailsVue({
               coproNom={coproDe(selection).nom}
               coprosDispo={data.coprosDuGestionnaire ?? []}
               onRattacherCopro={(code) => choisirCopro(selection, code)}
+              dossiers={dossiers}
+              dossierIdChoisi={dossierIdDe(selection)}
+              onChoisirDossier={(id) =>
+                setDossiersChoisis((p) => new Map(p).set(selection.id, id))
+              }
+              msgClasser={msgClasser}
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
               msgBrouillon={msgBrouillon}
@@ -574,6 +620,10 @@ function AnalysePane({
   coproNom,
   coprosDispo,
   onRattacherCopro,
+  dossiers,
+  dossierIdChoisi,
+  onChoisirDossier,
+  msgClasser,
   etapes,
   changer,
   ouverts,
@@ -603,6 +653,10 @@ function AnalysePane({
   coproNom: string;
   coprosDispo: { code: string; nom: string }[];
   onRattacherCopro: (code: string) => void;
+  dossiers: DossierBoite[] | null;
+  dossierIdChoisi: string;
+  onChoisirDossier: (id: string) => void;
+  msgClasser: string | null;
   etapes: Set<string>;
   changer: boolean;
   ouverts: Set<string>;
@@ -680,6 +734,24 @@ function AnalysePane({
                     </option>
                   ))}
                 </select>
+                <span className="inline-flex items-center gap-1 text-[11.5px]">
+                  <FolderInput strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                  <select
+                    value={dossierIdChoisi}
+                    onChange={(e) => onChoisirDossier(e.target.value)}
+                    aria-label="Dossier Outlook de classement"
+                    className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
+                  >
+                    <option value="">
+                      {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
+                    </option>
+                    {(dossiers ?? []).map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.niveau > 0 ? `  ${d.nom}` : d.nom}
+                      </option>
+                    ))}
+                  </select>
+                </span>
               </div>
             </div>
           </div>
@@ -810,12 +882,15 @@ function AnalysePane({
             <button
               type="button"
               onClick={onValider}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90"
+              disabled={!dossierIdChoisi}
+              title={!dossierIdChoisi ? "Choisis un dossier de destination" : undefined}
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Check strokeWidth={2} className="w-4 h-4" />
               {labelValider}
             </button>
           )}
+          {msgClasser ? <p className="mt-1.5 text-[11.5px] text-err-700">{msgClasser}</p> : null}
         </div>
 
         {/* Ligne meta discrete : type + rattachement modifiable */}

@@ -16,6 +16,14 @@ export interface BadgeUrgence {
   ton: UrgenceTon;
 }
 
+/** Un dossier reel de la boite Outlook (selecteur de classement du cockpit). */
+export interface DossierBoite {
+  id: string;
+  nom: string;
+  /** 0 = dossier racine de la boite, 1 = sous-dossier de la boite de reception. */
+  niveau: number;
+}
+
 /** Taxonomie de tete du tri (cf. assistant-ia/src/types.ts). */
 export type TypeMail =
   | "panne_intervention"

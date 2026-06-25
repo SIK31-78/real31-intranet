@@ -21,7 +21,7 @@ import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansCopro, classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
-import type { DossierBoite } from "@/lib/ports/mailbox-provider";
+import type { DossierBoite } from "@/lib/domain/mes-emails";
 
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
