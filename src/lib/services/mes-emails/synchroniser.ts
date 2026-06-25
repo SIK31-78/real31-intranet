@@ -21,7 +21,6 @@ import {
 } from "@/lib/adapters/router";
 
 const MAX_INGEST = 80;
-const MAX_AFFAIRES = 40;
 // Bumpe cette version si tu changes les prompts -> le cache se reanalyse tout seul.
 const VERSION_ANALYSE = "v1";
 
@@ -66,43 +65,44 @@ function attribuerCopro(subject: string, body: string, copros: Copropriete[]): s
 export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSync> {
   const copros = await getCoproRepository().list(g.id);
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
+  const coproNomDe = (code: string) => nomDe.get(code) ?? (code || "Non rattaché");
 
   const bruts = await getMailIngestionProvider().lireRecents({ email: g.email, max: MAX_INGEST });
   for (const b of bruts) b.copro = attribuerCopro(b.subject, b.bodyText, copros);
 
-  // Affaires les plus recentes d'abord (la boite live = on veut le frais en haut).
-  const affaires = groupAffaires(bruts)
-    .sort((a, b) => b.last.localeCompare(a.last))
-    .slice(0, MAX_AFFAIRES);
+  // Les affaires servent de CONTEXTE (le fil auquel un mail appartient) : on ne plie
+  // PLUS la liste. Un mail = une carte (decision Sekou 2026-06-25) -> on ne perd aucun
+  // contenu. Les affaires alimentent le rattachement (dossier) et l'historique du fil.
+  const affaires = groupAffaires(bruts).sort((a, b) => b.last.localeCompare(a.last));
+  const idxAffaireDe = new Map<string, number>();
+  affaires.forEach((aff, i) => {
+    for (const m of aff.mails) idxAffaireDe.set(m.id, i);
+  });
 
-  // Mails (les plus anciens d'abord) et mail "de tete" (le plus recent) par affaire.
-  const triesParAffaire = affaires.map((a) =>
-    [...a.mails].sort((x, y) => x.receivedAt.localeCompare(y.receivedAt)),
+  // Un mail = une carte, les plus recents d'abord (plafond = tout l'ingere).
+  const tous = [...bruts]
+    .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+    .slice(0, MAX_INGEST);
+
+  // Cache d'analyse lu en LOT pour TOUS les mails -> zero appel LLM sur le deja-vu.
+  const cacheStore = getAnalyseCacheStore();
+  const cache = await cacheStore.lirePar(
+    g.id,
+    tous.map((m) => m.internetMessageId).filter(Boolean),
   );
 
-  // Cache d'analyse lu en LOT pour tous les mails de tete -> zero appel LLM sur le deja-vu.
-  const cacheStore = getAnalyseCacheStore();
-  const idsTete = triesParAffaire
-    .map((t) => t[t.length - 1]?.internetMessageId ?? "")
-    .filter(Boolean);
-  const cache = await cacheStore.lirePar(g.id, idsTete);
-
   const analyse = getAnalyseMailProvider();
-  const mails: MailEntrant[] = [];
-  const dossiers: Dossier[] = [];
+  const anDe = new Map<string, AnalyseCachee>();
   let nbAnalyses = 0;
 
-  for (let i = 0; i < affaires.length; i++) {
-    const a = affaires[i]!;
-    const tries = triesParAffaire[i]!;
-    const dernier = tries[tries.length - 1]!;
-    const imid = dernier.internetMessageId;
-    const corps = cleanBody(dernier);
+  for (const m of tous) {
+    const imid = m.internetMessageId;
+    const corps = cleanBody(m);
 
     // Reutilise l'analyse memoisee si presente et si les prompts n'ont pas change.
     let an = cache.get(imid);
     if (!an || an.promptVersion !== VERSION_ANALYSE) {
-      const pf = prefilter(dernier);
+      const pf = prefilter(m);
       let type: TypeMail = "non_ticketable";
       let ticketable = false;
       let estNouveau = false;
@@ -112,16 +112,18 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
       let etapes: string[] = [];
 
       if (pf.decision === "pass") {
-        const cls = await analyse.classifier({ de: dernier.from, objet: dernier.subject, corps });
+        const cls = await analyse.classifier({ de: m.from, objet: m.subject, corps });
         type = cls.type;
         ticketable = cls.ticketable;
         estNouveau = cls.est_nouveau_ticket;
         confidence = cls.confidence;
         rationale = cls.rationale;
         if (cls.ticketable) {
+          const idx = idxAffaireDe.get(m.id);
+          const label = idx !== undefined ? affaires[idx]!.label : m.subject;
           const p = await analyse.genererReponseEtPlan(
-            { de: dernier.from, objet: dernier.subject, corps },
-            a.label,
+            { de: m.from, objet: m.subject, corps },
+            label,
           );
           brouillon = p.reponse;
           etapes = p.etapes;
@@ -142,58 +144,64 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
       nbAnalyses++;
       if (imid) await cacheStore.ecrire(g.id, an);
     }
+    anDe.set(m.id, an);
+  }
 
-    const dossierId = `S${i + 1}`;
+  // Une carte par mail.
+  const mails: MailEntrant[] = tous.map((m) => {
+    const an = anDe.get(m.id)!;
+    const idx = idxAffaireDe.get(m.id);
+    const aff = idx !== undefined ? affaires[idx] : undefined;
+    const filMultiple = (aff?.mails.length ?? 1) > 1;
     const prio = priorite(an.type, an.ticketable);
-    const exp = resoudreExpediteur(dernier.from);
-    const coproNom = nomDe.get(a.copro) ?? (a.copro || "Non rattaché");
-    const flow = an.etapes.map((e, k) => ({ ordre: k + 1, libelle: e }));
-
-    mails.push({
-      id: imid || dernier.id,
-      de: nomCourt(dernier.from),
-      expediteurEmail: exp.type === "interne" ? "(interne real31)" : dernier.from,
-      destinataires: dernier.to,
+    const exp = resoudreExpediteur(m.from);
+    const corps = cleanBody(m);
+    return {
+      id: m.internetMessageId || m.id,
+      de: nomCourt(m.from),
+      expediteurEmail: exp.type === "interne" ? "(interne real31)" : m.from,
+      destinataires: m.to,
       copie: [],
-      objet: dernier.subject || "(sans objet)",
-      date: dernier.receivedAt.slice(0, 10),
-      coproCode: a.copro,
-      coproNom,
+      objet: m.subject || "(sans objet)",
+      date: m.receivedAt.slice(0, 10),
+      coproCode: m.copro,
+      coproNom: coproNomDe(m.copro),
       lu: false,
       corps: corps || "(corps vide)",
-      attachments: significantAttachments(dernier).map((x) => ({ nom: x.name })),
+      attachments: significantAttachments(m).map((x) => ({ nom: x.name })),
       type: an.type,
       ticketable: an.ticketable,
       priorite: prio,
       badge: badge(prio),
       rattachement: {
-        statut: a.mails.length > 1 ? "existant" : "nouveau",
-        dossierId,
-        dossierLabel: a.label,
-        ...(a.mails.length > 1 ? { confiance: Math.round(an.confidence * 100) } : {}),
+        statut: filMultiple ? "existant" : "nouveau",
+        dossierId: idx !== undefined ? `S${idx + 1}` : `N-${m.id}`,
+        dossierLabel: aff?.label ?? (m.subject || "(sans objet)"),
+        ...(filMultiple ? { confiance: Math.round(an.confidence * 100) } : {}),
       },
       ...(an.brouillon ? { brouillonReponse: an.brouillon } : {}),
-      flow,
-    });
+      flow: an.etapes.map((e, k) => ({ ordre: k + 1, libelle: e })),
+    };
+  });
 
-    dossiers.push({
-      id: dossierId,
-      label: a.label,
-      coproCode: a.copro,
-      coproNom,
-      type: an.type,
-      historique: tries
-        .slice(0, -1)
-        .reverse()
-        .slice(0, 8)
-        .map((m) => ({
-          date: m.receivedAt.slice(0, 10),
-          acteur: nomCourt(m.from),
-          resume: (m.subject || cleanBody(m).slice(0, 60) || "mail").slice(0, 90),
-          kind: "mail" as const,
-        })),
-    });
-  }
+  // Dossiers : un par affaire (fil), pour le contexte/historique.
+  const dossiers: Dossier[] = affaires.map((aff, i) => {
+    const parDate = [...aff.mails].sort((x, y) => y.receivedAt.localeCompare(x.receivedAt));
+    const tete = parDate[0]!;
+    return {
+      id: `S${i + 1}`,
+      label: aff.label,
+      coproCode: aff.copro,
+      coproNom: coproNomDe(aff.copro),
+      type: anDe.get(tete.id)?.type ?? "autre",
+      historique: parDate.slice(0, 8).map((m) => ({
+        date: m.receivedAt.slice(0, 10),
+        acteur: nomCourt(m.from),
+        resume: (m.subject || cleanBody(m).slice(0, 60) || "mail").slice(0, 90),
+        kind: "mail" as const,
+      })),
+    };
+  });
 
   await getMesEmailsTriageStore().remplacer(g.id, { mails, dossiers, nbMailsAnalyses: bruts.length });
   return { nbMails: mails.length, nbAffaires: affaires.length, nbAnalyses };
