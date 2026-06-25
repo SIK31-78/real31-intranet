@@ -2,6 +2,14 @@
 // tard categoriser/marquer lu). Sert a refleter le classement du cockpit dans
 // Outlook. Ne depend de rien.
 
+/** Un dossier reel de la boite Outlook (pour le selecteur de classement). */
+export interface DossierBoite {
+  id: string;
+  nom: string;
+  /** 0 = dossier racine de la boite, 1 = sous-dossier de la boite de reception. */
+  niveau: number;
+}
+
 export interface MailboxProvider {
   /**
    * Deplace le mail dans le sous-dossier Outlook de la copropriete (best-effort,
@@ -14,4 +22,16 @@ export interface MailboxProvider {
     coproCode: string;
     coproNom: string;
   }): Promise<{ deplace: boolean; dossier?: string }>;
+
+  /** Liste les vrais dossiers de la boite (racine + sous-dossiers de l'inbox sur 2
+   *  niveaux, dedupliques) pour alimenter le selecteur de classement du cockpit. */
+  listerDossiers(boite: string): Promise<DossierBoite[]>;
+
+  /** Deplace le mail dans un dossier CHOISI (par son id Graph) : pas de matching,
+   *  destination explicite. Renvoie si le deplacement a eu lieu. */
+  classerDansDossier(p: {
+    boite: string;
+    internetMessageId: string;
+    folderId: string;
+  }): Promise<{ deplace: boolean }>;
 }

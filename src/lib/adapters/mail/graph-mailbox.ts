@@ -3,10 +3,27 @@
 // (S234) puis par nom de copro (tolerant), et deplace le message (POST .../move).
 // Best-effort : si aucun dossier ne correspond, on ne deplace rien.
 
-import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
+import type { DossierBoite, MailboxProvider } from "@/lib/ports/mailbox-provider";
 import { GRAPH, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
+
+// Dossiers racine de la boite (Boite de reception, Archive, et tout dossier cree a
+// la racine : "Communication agence", "Spam", "Perso"...). Q1 du handoff resolue en
+// listant racine ET sous-inbox -> aucune hypothese sur l'emplacement des generiques.
+async function rootFolders(tk: string, boite: string): Promise<Folder[]> {
+  const out: Folder[] = [];
+  let url: string =
+    `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders` + `?$top=100&$select=id,displayName`;
+  while (url) {
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    if (!r.ok) throw new Error(`Graph dossiers racine ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as { value?: Folder[]; "@odata.nextLink"?: string };
+    out.push(...(j.value ?? []));
+    url = j["@odata.nextLink"] ?? "";
+  }
+  return out;
+}
 
 async function childFolders(tk: string, boite: string, folderId: string): Promise<Folder[]> {
   const out: Folder[] = [];
@@ -82,5 +99,45 @@ export class GraphMailboxProvider implements MailboxProvider {
     if (!r.ok) throw new Error(`Graph move ${r.status} : ${(await r.text()).slice(0, 200)}`);
     console.log(`[mailbox] mail deplace vers "${cible.displayName}" (boite ${p.boite}).`);
     return { deplace: true, dossier: cible.displayName };
+  }
+
+  async listerDossiers(boite: string): Promise<DossierBoite[]> {
+    if (!boite) throw new Error("Liste dossiers : boite manquante.");
+    const tk = await jetonGraph();
+    const [racine, sousInbox] = await Promise.all([
+      rootFolders(tk, boite),
+      dossiersSousInbox(tk, boite),
+    ]);
+    const vus = new Set<string>();
+    const out: DossierBoite[] = [];
+    for (const f of racine) {
+      if (vus.has(f.id)) continue;
+      vus.add(f.id);
+      out.push({ id: f.id, nom: f.displayName, niveau: 0 });
+    }
+    for (const f of sousInbox) {
+      if (vus.has(f.id)) continue;
+      vus.add(f.id);
+      out.push({ id: f.id, nom: f.displayName, niveau: 1 });
+    }
+    return out.sort((a, b) => a.nom.localeCompare(b.nom));
+  }
+
+  async classerDansDossier(p: {
+    boite: string;
+    internetMessageId: string;
+    folderId: string;
+  }): Promise<{ deplace: boolean }> {
+    if (!p.boite) throw new Error("Classement : boite manquante.");
+    if (!p.folderId) return { deplace: false };
+    const tk = await jetonGraph();
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/move`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ destinationId: p.folderId }),
+    });
+    if (!r.ok) throw new Error(`Graph move ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    return { deplace: true };
   }
 }

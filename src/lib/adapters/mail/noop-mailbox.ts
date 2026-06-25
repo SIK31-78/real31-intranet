@@ -1,7 +1,7 @@
 // Adapter "boite aux lettres" no-op : ne deplace rien (pas de Graph). Pour
 // MAIL_SOURCE != graph (dev/demo) -> le classement reste cote intranet seulement.
 
-import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
+import type { DossierBoite, MailboxProvider } from "@/lib/ports/mailbox-provider";
 
 export class NoopMailboxProvider implements MailboxProvider {
   async classerDansCopro(p: {
@@ -11,6 +11,19 @@ export class NoopMailboxProvider implements MailboxProvider {
     coproNom: string;
   }): Promise<{ deplace: boolean; dossier?: string }> {
     console.log(`[mailbox:noop] classement simule de ${p.internetMessageId} (copro ${p.coproCode})`);
+    return { deplace: false };
+  }
+
+  async listerDossiers(): Promise<DossierBoite[]> {
+    return [];
+  }
+
+  async classerDansDossier(p: {
+    boite: string;
+    internetMessageId: string;
+    folderId: string;
+  }): Promise<{ deplace: boolean }> {
+    console.log(`[mailbox:noop] classement simule de ${p.internetMessageId} -> dossier ${p.folderId}`);
     return { deplace: false };
   }
 }

@@ -20,7 +20,8 @@ import {
 import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
-import { classerDansCopro } from "@/lib/services/mes-emails/classer";
+import { classerDansCopro, classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
+import type { DossierBoite } from "@/lib/ports/mailbox-provider";
 
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
@@ -123,6 +124,54 @@ export async function rattacherCoproAction(
     );
     revalidatePath("/mes-emails");
     return { ok: true };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+// Liste les vrais dossiers de la boite du gestionnaire connecte (racine + sous-Inbox),
+// pour le selecteur de classement du cockpit. Boite = celle du connecte (g.email) ->
+// cloisonnement intrinseque. Degrade en liste vide si Graph indisponible.
+export async function chargerDossiersAction(): Promise<DossierBoite[]> {
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return [];
+  try {
+    return await listerDossiersBoite(g.email);
+  } catch (e) {
+    console.warn("[mes-emails] liste dossiers Outlook KO :", (e as Error).message);
+    return [];
+  }
+}
+
+// Classe un mail dans un dossier Outlook CHOISI (par son id) et marque le mail traite.
+// Bloque si aucun dossier n'est choisi (plus de mail "classe" qui ne part nulle part).
+// La destination etant un dossier de la boite du connecte, le cloisonnement est
+// intrinseque ; si une copro est associee, on la verifie en defense en profondeur.
+// `coproCode` est passe tel quel a l'etat pour NE PAS ecraser le rattachement existant.
+export async function classerDansDossierAction(
+  emailId: string,
+  coproCode: string,
+  folderId: string,
+  etapes: number[],
+  brouillon: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (!folderId) return { ok: false, message: "Choisis un dossier de destination." };
+  if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
+  if (coproCode && process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
+  }
+  try {
+    const res = await classerDansDossier(g.email, emailId, folderId);
+    await enregistrerStatut(
+      { gid: g.id, emailId, coproCode, initiales: g.initiales, email: g.email },
+      "classe",
+      etapes,
+      brouillon,
+    );
+    revalidatePath("/mes-emails");
+    return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
