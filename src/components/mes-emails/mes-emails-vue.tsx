@@ -158,7 +158,9 @@ export function MesEmailsVue({
       (nom.length >= 4 ? dossiers.find((d) => d.nom.toLowerCase().includes(nom)) : undefined);
     return f?.id ?? "";
   };
-  const dossierIdDe = (m: MailEntrant): string => dossiersChoisis.get(m.id) ?? autoDossier(m);
+  // Priorite : choix de session > dossier persiste (reload) > auto-detection.
+  const dossierIdDe = (m: MailEntrant): string =>
+    dossiersChoisis.get(m.id) ?? m.dossierClasseId ?? autoDossier(m);
 
   const choisirCopro = (m: MailEntrant, code: string) => {
     if (!code) return;
@@ -225,10 +227,12 @@ export function MesEmailsVue({
         m.flow.forEach((e) => n.add(`${m.id}:${e.ordre}`));
         return n;
       });
+    const folderNom = (dossiers ?? []).find((d) => d.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
     void classerDansDossierAction(
       m.id,
       coproDe(m).code,
       folderId,
+      folderNom,
       m.flow.map((e) => e.ordre),
       brouillonDe(m),
     ).then((r) => {
@@ -870,14 +874,21 @@ function AnalysePane({
         {/* Action principale : exécute le plan + classe */}
         <div>
           {classe ? (
-            <button
-              type="button"
-              onClick={onDevalider}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium border border-line bg-surface text-ink-2 hover:bg-surface-2"
-            >
-              <RotateCcw strokeWidth={1.5} className="w-4 h-4" />
-              Annuler (classé)
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={onDevalider}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium border border-line bg-surface text-ink-2 hover:bg-surface-2"
+              >
+                <RotateCcw strokeWidth={1.5} className="w-4 h-4" />
+                Annuler (classé)
+              </button>
+              {m.dossierClasseNom ? (
+                <span className="text-[11.5px] text-ink-3">
+                  classé dans «&nbsp;{m.dossierClasseNom}&nbsp;»
+                </span>
+              ) : null}
+            </div>
           ) : (
             <button
               type="button"

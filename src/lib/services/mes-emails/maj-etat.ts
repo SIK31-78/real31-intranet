@@ -34,3 +34,6 @@ export function enregistrerRattachement(c: Cible, rattachement: Rattachement) {
 export function enregistrerCopro(c: Cible, coproNom: string) {
   return getMesEmailsEtatRepository().setCopro({ ...cle(c), coproNom });
 }
+export function enregistrerDossier(c: Cible, dossierId: string, dossierNom: string) {
+  return getMesEmailsEtatRepository().setDossier({ ...cle(c), dossierId, dossierNom });
+}

@@ -45,6 +45,7 @@ Fichiers dans `supabase/sql/` :
 - `intranet_mes_emails_etat.sql` (etat ; inclut deja copro_code/copro_nom dans le create)
 - `intranet_mes_emails_analyse.sql` (cache d'analyse / memoisation)
 - Si la table etat existait deja avant le rattachement copro : `alter table public.intranet_mes_emails_etat add column if not exists copro_code text, add column if not exists copro_nom text;`
+- Dossier de classement choisi (pivot section 8, 2026-06-25) : `alter table public.intranet_mes_emails_etat add column if not exists dossier_id text, add column if not exists dossier_nom text;` (executee par Sekou)
 
 Lecture de l'etat en `select *` -> non-cassant si une colonne manque encore.
 
@@ -75,9 +76,23 @@ Modele **Application (app-only) + Application Access Policy**, pas delegue. Perm
 - Les affaires/dossiers ont des IDs jetables `S1..Sn` recalcules a chaque synchro (P2 = affaires stables).
 - Synchro = bouton synchrone (1-2 min pour ~40 affaires) ; pas encore de tache de fond.
 
-## 8. EN COURS - decision a finaliser (reprendre ICI)
+## 8. Selecteur de dossiers Outlook - FAIT (2026-06-25)
 
-**Sujet** : que faire quand on classe un mail, et comment ranger au-dela des copros.
+> Pivot livre (decisions multi-copro et multi-boites DIFFEREES par Sekou). Backend +
+> cockpit + persistance committes en local sur `increment/02-supabase` (non pousses).
+> - Port `MailboxProvider` : `listerDossiers(boite)` (racine + sous-Inbox 2 niveaux,
+>   dedup -> Q1 reglee en code) et `classerDansDossier(folderId)` (move par id).
+> - Cockpit : selecteur "Classer dans..." (vrais dossiers), preselection du dossier
+>   copro auto-detecte, "Valider" BLOQUE tant qu'aucun dossier (fini le "Traite" qui ne
+>   part nulle part), classer = move + statut classe.
+> - Persistance : colonnes `dossier_id`/`dossier_nom` de `intranet_mes_emails_etat` ->
+>   preselection + "classe dans X" au reload.
+> - **Reprendre ICI** : items de l'audit prod non couverts par le pivot (fuite contexte
+>   eStale hors perimetre dans `get-mes-emails`, garde `choisirGestionnaire`, "Demo" en
+>   dur ligne ~490, PII dans les logs Graph), puis backlog section 9 (apprentissage du
+>   ton ELRON = priorite qualite).
+
+Contexte initial de la decision (conserve) :
 
 - Sekou a choisi **bloquer "Valider" tant qu'aucune destination** (pas de mail qui part dans le vide).
 - Mais le rattachement ne doit pas se limiter aux copros : il faut aussi `Communication agence`, `Spam`, `Perso`, etc., et certains mails vont dans **plusieurs** copros.

@@ -11,6 +11,7 @@ import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
   enregistrerBrouillon,
   enregistrerCopro,
+  enregistrerDossier,
   enregistrerEtapes,
   enregistrerLu,
   enregistrerRattachement,
@@ -152,6 +153,7 @@ export async function classerDansDossierAction(
   emailId: string,
   coproCode: string,
   folderId: string,
+  folderNom: string,
   etapes: number[],
   brouillon: string,
 ): Promise<{ ok: boolean; message?: string }> {
@@ -164,12 +166,10 @@ export async function classerDansDossierAction(
   }
   try {
     const res = await classerDansDossier(g.email, emailId, folderId);
-    await enregistrerStatut(
-      { gid: g.id, emailId, coproCode, initiales: g.initiales, email: g.email },
-      "classe",
-      etapes,
-      brouillon,
-    );
+    const c: Cible = { gid: g.id, emailId, coproCode, initiales: g.initiales, email: g.email };
+    await enregistrerStatut(c, "classe", etapes, brouillon);
+    // Memorise le dossier choisi (reaffichage + presélection au reload).
+    await enregistrerDossier(c, folderId, folderNom);
     revalidatePath("/mes-emails");
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
   } catch (e) {

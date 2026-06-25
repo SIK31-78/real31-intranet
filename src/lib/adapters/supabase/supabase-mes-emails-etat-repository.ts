@@ -8,6 +8,7 @@ import type {
   EtatMail,
   MajBrouillon,
   MajCopro,
+  MajDossier,
   MajEtapes,
   MajRattachement,
   MajStatut,
@@ -27,6 +28,8 @@ type Row = {
   rattachement: Rattachement | null;
   copro_code?: string | null;
   copro_nom?: string | null;
+  dossier_id?: string | null;
+  dossier_nom?: string | null;
 };
 
 function versStatut(s: string): StatutTraitement {
@@ -61,6 +64,7 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
       ...(r.brouillon != null ? { brouillon: r.brouillon } : {}),
       ...(r.rattachement != null ? { rattachement: r.rattachement } : {}),
       ...(r.copro_code ? { coproCode: r.copro_code, coproNom: r.copro_nom ?? "" } : {}),
+      ...(r.dossier_id ? { dossierId: r.dossier_id, dossierNom: r.dossier_nom ?? "" } : {}),
     }));
   }
 
@@ -109,5 +113,8 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
   }
   async setCopro(p: MajCopro): Promise<void> {
     await this.upsert(p, { copro_code: p.coproCode, copro_nom: p.coproNom });
+  }
+  async setDossier(p: MajDossier): Promise<void> {
+    await this.upsert(p, { dossier_id: p.dossierId, dossier_nom: p.dossierNom });
   }
 }

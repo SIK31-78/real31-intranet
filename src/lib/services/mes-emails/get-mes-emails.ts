@@ -71,6 +71,7 @@ function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
     ...(e.brouillon !== undefined ? { brouillonReponse: e.brouillon } : {}),
     ...(e.rattachement !== undefined ? { rattachement: e.rattachement } : {}),
     ...(e.coproCode ? { coproCode: e.coproCode, coproNom: e.coproNom ?? m.coproNom } : {}),
+    ...(e.dossierId ? { dossierClasseId: e.dossierId, dossierClasseNom: e.dossierNom ?? "" } : {}),
   };
 }
 

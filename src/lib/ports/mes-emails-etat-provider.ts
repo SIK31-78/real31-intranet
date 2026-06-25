@@ -18,6 +18,9 @@ export interface EtatMail {
   /** Copropriete rattachee a la main (absent = attribution auto gardee). */
   coproCode?: string;
   coproNom?: string;
+  /** Dossier Outlook choisi pour le classement (id Graph + nom affichable). */
+  dossierId?: string;
+  dossierNom?: string;
 }
 
 /** Cle commune a toutes les ecritures. `initiales` = trace de l'auteur. */
@@ -33,6 +36,7 @@ export type MajEtapes = CleEtat & { etapesFaites: number[] };
 export type MajBrouillon = CleEtat & { brouillon: string };
 export type MajRattachement = CleEtat & { rattachement: Rattachement };
 export type MajCopro = CleEtat & { coproNom: string };
+export type MajDossier = CleEtat & { dossierId: string; dossierNom: string };
 
 export interface MesEmailsEtatRepository {
   /** Tous les etats d'un gestionnaire (cle emailId). */
@@ -45,4 +49,6 @@ export interface MesEmailsEtatRepository {
   setRattachement(p: MajRattachement): Promise<void>;
   /** Rattache le mail a une copropriete a la main (coproCode de la cle = la copro). */
   setCopro(p: MajCopro): Promise<void>;
+  /** Memorise le dossier Outlook de classement choisi (pour le reafficher au reload). */
+  setDossier(p: MajDossier): Promise<void>;
 }

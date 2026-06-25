@@ -108,6 +108,9 @@ export interface MailEntrant {
   // --- Etat de traitement persiste (rempli par le service, cloisonne par gestionnaire) ---
   statutTraitement?: StatutTraitement;
   etapesFaites?: number[];
+  /** Dossier Outlook ou le mail a ete classe (presélection + affichage apres reload). */
+  dossierClasseId?: string;
+  dossierClasseNom?: string;
 }
 
 export type EvenementKind = "mail" | "action" | "pj" | "jalon";
