@@ -51,9 +51,11 @@ data/seed/local/
 # Triage reel du cockpit Mes emails (PII coproprietaires, produit par assistant-ia)
 data/mes-emails-triage.json
 
-# Tout JSON depose a la racine de data/ = exports Crypto / PII coproprietaires
-# (identites, emails, lots...) -> jamais commit. Les samples vont dans data/samples/.
+# Tout export depose a la racine de data/ = Crypto / PII coproprietaires (identites,
+# emails, mandats, lots...) -> JAMAIS commit. Les samples anonymises vont dans data/samples/.
 data/*.json
+data/*.txt
+data/*.csv
 
 # Exports PowerApps : binaires lourds / re-exportables (on garde les flux JSON + le guide)
 docs/powerapps/*.zip

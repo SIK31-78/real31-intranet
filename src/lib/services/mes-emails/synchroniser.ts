@@ -23,7 +23,8 @@ import {
 
 const MAX_INGEST = 80;
 // Bumpe cette version si tu changes les prompts -> le cache se reanalyse tout seul.
-const VERSION_ANALYSE = "v1";
+// v2 : prompts reecrits (ton syndic REAL31, formule adaptee, anti-invention).
+const VERSION_ANALYSE = "v2";
 
 export interface ResultatSync {
   nbMails: number;
