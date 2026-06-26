@@ -27,11 +27,20 @@ import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/
 import type { DossierBoite } from "@/lib/domain/mes-emails";
 import type { TypeDossier } from "@/lib/domain/dossier";
 
+// En mode boite REELLE (MAIL_SOURCE=graph), le cockpit lit la PROPRE boite du
+// gestionnaire connecte : chaque mail lui appartient deja, quelle que soit la copro
+// qu'il concerne (il peut recevoir un mail sur une copro qu'il ne gere pas). Le
+// cloisonnement par copro n'a alors pas de sens et bloquerait a tort. On ne verifie
+// l'appartenance copro que dans le REPLI archive (donnees multi-gestionnaires partagees).
+function cloisonnementCoproRequis(): boolean {
+  return process.env.COPRO_SOURCE === "supabase" && process.env.MAIL_SOURCE !== "graph";
+}
+
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
   if (!g) return null;
-  // Pas de cloisonnement en mock ; sinon la copro doit appartenir au gestionnaire.
-  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+  // Cloisonnement copro seulement en repli archive (cf. cloisonnementCoproRequis).
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
     return null;
   }
   return { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) };
@@ -158,7 +167,7 @@ export async function rattacherCoproAction(
 ): Promise<{ ok: boolean; message?: string }> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, message: "Non connecté." };
-  if (coproCode && process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
     return { ok: false, message: "Cette copropriété n'est pas dans ton périmètre." };
   }
   try {
@@ -204,7 +213,7 @@ export async function classerDansDossierAction(
   if (!g) return { ok: false, message: "Non connecté." };
   if (!folderId) return { ok: false, message: "Choisis un dossier de destination." };
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  if (coproCode && process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
     return { ok: false, message: "Copropriété hors de ton périmètre." };
   }
   try {
@@ -229,7 +238,7 @@ export async function creerBrouillonAction(
 ): Promise<{ ok: boolean; message?: string }> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, message: "Non connecté." };
-  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
     return { ok: false, message: "Copropriété hors de ton périmètre." };
   }
   try {
