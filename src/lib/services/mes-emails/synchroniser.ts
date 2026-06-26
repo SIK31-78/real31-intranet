@@ -56,10 +56,17 @@ function nomCourt(from: string): string {
  */
 function attribuerCopro(subject: string, body: string, copros: Copropriete[]): string {
   const texte = `${subject || ""}\n${body || ""}`.toLowerCase();
+  // Code (le plus specifique) > nom (>= 4 car.) > adresse de l'immeuble (>= 8 car., la
+  // rue complete avec le numero est assez specifique pour eviter les faux positifs).
   const parCode = copros.find((c) => c.code && texte.includes(c.code.toLowerCase()));
   if (parCode) return parCode.code;
   const parNom = copros.find((c) => c.nom && c.nom.length >= 4 && texte.includes(c.nom.toLowerCase()));
-  return parNom ? parNom.code : "";
+  if (parNom) return parNom.code;
+  const parAdresse = copros.find((c) => {
+    const rue = c.adresse.ligne1.toLowerCase().trim();
+    return rue.length >= 8 && texte.includes(rue);
+  });
+  return parAdresse ? parAdresse.code : "";
 }
 
 export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSync> {
@@ -74,6 +81,17 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
   // PLUS la liste. Un mail = une carte (decision Sekou 2026-06-25) -> on ne perd aucun
   // contenu. Les affaires alimentent le rattachement (dossier) et l'historique du fil.
   const affaires = groupAffaires(bruts).sort((a, b) => b.last.localeCompare(a.last));
+
+  // Heritage par fil : un mail sans copro herite de la copro d'un autre mail du meme
+  // fil (les reponses ne re-citent pas toujours la copro). Met a jour les RawMail (donc
+  // les cartes) ET l'affaire (donc le dossier/contexte).
+  for (const aff of affaires) {
+    const coproDuFil = aff.mails.find((m) => m.copro)?.copro;
+    if (!coproDuFil) continue;
+    if (!aff.copro) aff.copro = coproDuFil;
+    for (const m of aff.mails) if (!m.copro) m.copro = coproDuFil;
+  }
+
   const idxAffaireDe = new Map<string, number>();
   affaires.forEach((aff, i) => {
     for (const m of aff.mails) idxAffaireDe.set(m.id, i);
