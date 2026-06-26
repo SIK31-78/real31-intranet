@@ -107,8 +107,11 @@ export interface MailEntrant {
   /** Copie (champ Cc). */
   copie: string[];
   objet: string;
-  /** Date ISO "YYYY-MM-DD" de reception. */
+  /** Date ISO "YYYY-MM-DD" de reception (affichage). */
   date: string;
+  /** Horodatage complet de reception (ISO). Sert au tri chronologique fidele a la
+   *  vraie boite (ordre exact d'Outlook). Optionnel : repli sur `date` si absent. */
+  recuLe?: string;
   /** Copropriete d'origine (la boite agrege plusieurs copros). */
   coproCode: string;
   coproNom: string;
@@ -190,14 +193,12 @@ export interface MesEmails {
   coprosDuGestionnaire?: { code: string; nom: string }[];
 }
 
-const ORDRE_SEVERITE: Record<Severite, number> = { late: 0, soon: 1, ok: 2 };
-
-/** Trie les mails par priorite (urgent d'abord) puis par date decroissante. */
+// Tri CHRONOLOGIQUE (plus recent d'abord), comme une vraie boite mail. On NE trie plus
+// par urgence : tant que l'IA/synchro ne sont pas fiables, l'ordre doit refleter la boite
+// telle quelle pour qu'on verifie d'un coup d'oeil que le cockpit = Outlook. (decision
+// Sekou 2026-06-26). Cle = horodatage complet `recuLe` (repli sur `date` au jour pres).
 export function trierMails(mails: MailEntrant[]): MailEntrant[] {
-  return [...mails].sort(
-    (a, b) =>
-      ORDRE_SEVERITE[a.priorite] - ORDRE_SEVERITE[b.priorite] || b.date.localeCompare(a.date),
-  );
+  return [...mails].sort((a, b) => (b.recuLe ?? b.date).localeCompare(a.recuLe ?? a.date));
 }
 
 export function trouverDossier(dossiers: Dossier[], id: string): Dossier | undefined {

@@ -197,6 +197,7 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
       copie: [],
       objet: m.subject || "(sans objet)",
       date: m.receivedAt.slice(0, 10),
+      recuLe: m.receivedAt,
       coproCode: m.copro,
       coproNom: coproNomDe(m.copro),
       lu: false,
