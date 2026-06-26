@@ -6,7 +6,7 @@
 // L'identite (gid, initiales) vient du serveur, jamais du client.
 
 import { revalidatePath } from "next/cache";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
   enregistrerBrouillon,
@@ -142,6 +142,8 @@ export async function marquerLuAction(emailId: string, coproCode: string): Promi
 export async function synchroniserAction(): Promise<void> {
   const g = await getGestionnaireCourant();
   if (!g) return;
+  // Module grise en prod : pas de synchro tant que la boite n'est pas branchee.
+  if (!mailModuleActif()) return;
   await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
 }

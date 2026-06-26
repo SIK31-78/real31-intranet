@@ -24,6 +24,14 @@ export function estSuperAdmin(email: string | null | undefined): boolean {
   return Boolean(email && SUPER_ADMINS.includes(email.toLowerCase()));
 }
 
+// "Mes evenements" (boite mail Graph) n'apparait QUE si la vraie boite est branchee
+// (MAIL_SOURCE=graph). En prod, tant que le module n'est pas pret, MAIL_SOURCE n'est
+// pas defini -> l'entree est grisee (et l'acces direct redirige). Tout le dev mail se
+// fait en local (ou MAIL_SOURCE=graph) jusqu'a ce que ce soit OK pour la prod.
+export function mailModuleActif(): boolean {
+  return process.env.MAIL_SOURCE === "graph";
+}
+
 /** Email de la session SSO (null si SSO inactif ou non connecte). */
 async function emailSso(): Promise<string | null> {
   if (!ssoConfigure) return null;

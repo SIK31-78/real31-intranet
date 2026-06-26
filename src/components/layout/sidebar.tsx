@@ -156,16 +156,18 @@ function SectionTitre({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Sidebar({ active }: { active: NavKey }) {
+export function Sidebar({ active, emailsOuvert = true }: { active: NavKey; emailsOuvert?: boolean }) {
   return (
     <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto">
       <nav className="px-3 py-3 flex flex-col gap-4">
         {GROUPES.map((groupe) => (
           <div key={groupe.titre}>
             <SectionTitre>{groupe.titre}</SectionTitre>
-            {groupe.items.map((item) => (
-              <NavItem key={item.key} item={item} active={item.key === active} />
-            ))}
+            {groupe.items.map((item) => {
+              // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
+              const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
+              return <NavItem key={it.key} item={it} active={it.key === active} />;
+            })}
           </div>
         ))}
 

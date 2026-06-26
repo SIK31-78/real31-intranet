@@ -26,7 +26,7 @@ interface Item {
   copro: boolean;
 }
 
-export function CommandPalette() {
+export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean }) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [query, setQuery] = useState("");
@@ -55,7 +55,11 @@ export function CommandPalette() {
 
   const items: Item[] = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return NAV.map((n) => ({ cle: n.href, titre: n.label, href: n.href, copro: false }));
+    if (!q) {
+      // "Mes evenements" (boite mail) reserve au pilote -> hors navigation si verrouille.
+      const nav = emailsOuvert ? NAV : NAV.filter((n) => n.href !== "/mes-emails");
+      return nav.map((n) => ({ cle: n.href, titre: n.label, href: n.href, copro: false }));
+    }
     const termes = q.split(/\s+/).filter(Boolean);
     return (copros ?? [])
       .filter((c) => {
@@ -64,7 +68,7 @@ export function CommandPalette() {
       })
       .slice(0, 8)
       .map((c) => ({ cle: c.code, titre: `${c.code} - ${c.nom}`, sous: c.ville, href: `/copropriete/${c.code}`, copro: true }));
-  }, [query, copros]);
+  }, [query, copros, emailsOuvert]);
 
   function fermer() {
     setOuvert(false);

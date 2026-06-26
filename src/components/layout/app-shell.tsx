@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Sidebar, type NavKey } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { impersonationAutorisee } from "@/lib/auth/session";
+import { impersonationAutorisee, mailModuleActif } from "@/lib/auth/session";
 
 type AppShellProps = {
   user: { initiales: string; nomComplet: string };
@@ -12,11 +12,13 @@ type AppShellProps = {
 
 export async function AppShell({ user, active, breadcrumb, children }: AppShellProps) {
   const peutImpersonner = await impersonationAutorisee();
+  // "Mes evenements" visible seulement si la vraie boite est branchee (MAIL_SOURCE=graph).
+  const emailsOuvert = mailModuleActif();
   return (
     <div className="flex flex-col min-h-screen">
-      <Topbar user={user} breadcrumb={breadcrumb} peutImpersonner={peutImpersonner} />
+      <Topbar user={user} breadcrumb={breadcrumb} peutImpersonner={peutImpersonner} emailsOuvert={emailsOuvert} />
       <div className="flex flex-1 min-h-0">
-        <Sidebar active={active} />
+        <Sidebar active={active} emailsOuvert={emailsOuvert} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
