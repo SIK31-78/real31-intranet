@@ -84,10 +84,8 @@ export class GraphMailboxProvider implements MailboxProvider {
     const dossiers = await dossiersSousInbox(tk, p.boite);
     const cible = trouverDossier(dossiers, p.coproCode, p.coproNom);
     if (!cible) {
-      console.warn(
-        `[mailbox] aucun sous-dossier inbox ne correspond a copro "${p.coproCode}"/"${p.coproNom}". ` +
-          `Dossiers trouves: ${dossiers.map((d) => d.displayName).join(" | ") || "(aucun)"}`,
-      );
+      // Pas de PII en log (ni boite, ni noms de dossiers copro) : juste le nombre.
+      console.warn(`[mailbox] aucun sous-dossier inbox ne correspond (${dossiers.length} dossiers).`);
       return { deplace: false };
     }
     const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
@@ -97,7 +95,6 @@ export class GraphMailboxProvider implements MailboxProvider {
       body: JSON.stringify({ destinationId: cible.id }),
     });
     if (!r.ok) throw new Error(`Graph move ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    console.log(`[mailbox] mail deplace vers "${cible.displayName}" (boite ${p.boite}).`);
     return { deplace: true, dossier: cible.displayName };
   }
 

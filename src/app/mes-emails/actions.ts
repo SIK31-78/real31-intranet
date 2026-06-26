@@ -21,7 +21,7 @@ import {
 import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
-import { classerDansCopro, classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
+import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import type { DossierBoite } from "@/lib/domain/mes-emails";
 
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
@@ -32,30 +32,6 @@ async function cible(emailId: string, coproCode: string): Promise<Cible | null> 
     return null;
   }
   return { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) };
-}
-
-export async function validerMailAction(
-  emailId: string,
-  coproCode: string,
-  coproNom: string,
-  etapes: number[],
-  brouillon: string,
-): Promise<void> {
-  const c = await cible(emailId, coproCode);
-  if (!c) return;
-  await enregistrerStatut(c, "classe", etapes, brouillon);
-  // Classer = deplacer le mail dans le sous-dossier copro Outlook (best-effort).
-  if (c.email) {
-    try {
-      const res = await classerDansCopro(c.email, emailId, coproCode, coproNom);
-      console.log(`[mes-emails] classement ${emailId} copro ${coproCode} -> ${res.deplace ? res.dossier : "non deplace"}`);
-    } catch (e) {
-      console.warn("[mes-emails] classement Outlook KO :", (e as Error).message);
-    }
-  } else {
-    console.warn("[mes-emails] pas d'email gestionnaire -> classement Outlook ignore.");
-  }
-  revalidatePath("/mes-emails");
 }
 
 export async function devaliderMailAction(emailId: string, coproCode: string): Promise<void> {

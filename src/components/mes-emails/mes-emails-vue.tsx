@@ -537,7 +537,7 @@ function EnTete({
           {nbNonLus} non lus · {nbATraiter} à traiter · {nbClasses} classés
         </p>
         <p className="text-[11px] text-ink-4 mt-0.5">
-          Démo · tri automatique sur backtest anonymisé · contexte copro réel (eStale)
+          Tri automatique de la boîte de réception · rattachement aux copropriétés
         </p>
       </div>
     </div>

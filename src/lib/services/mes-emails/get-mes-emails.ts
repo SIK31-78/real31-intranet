@@ -55,7 +55,7 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
     dateCourante,
     mails,
     dossiers,
-    contextes: await enrichirContextes(mails),
+    contextes: await enrichirContextes(mails, new Set(mesCopros.map((c) => c.code))),
     coprosDuGestionnaire: mesCopros.map((c) => ({ code: c.code, nom: c.nom })),
   };
 }
@@ -75,9 +75,16 @@ function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
   };
 }
 
-/** Pour chaque copro rattachee, tire son contexte eStale (en parallele). */
-async function enrichirContextes(mails: MailEntrant[]): Promise<ContexteCopro[]> {
-  const codes = [...new Set(mails.map((m) => m.coproCode).filter(Boolean))];
+/** Pour chaque copro rattachee ET dans le perimetre du gestionnaire, tire son contexte
+ *  eStale. Le filtre perimetre evite de divulguer le contexte (CS, debiteurs, procedures)
+ *  d'une copro hors scope si un mail/override pointe dehors (audit prod 2026-06-25). */
+async function enrichirContextes(
+  mails: MailEntrant[],
+  perimetre: Set<string>,
+): Promise<ContexteCopro[]> {
+  const codes = [...new Set(mails.map((m) => m.coproCode).filter(Boolean))].filter((c) =>
+    perimetre.has(c),
+  );
   const provider = getCondoEstaleProvider();
   return Promise.all(
     codes.map(async (code) => {

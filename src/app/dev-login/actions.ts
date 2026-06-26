@@ -2,11 +2,17 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { COOKIE_GESTIONNAIRE } from "@/lib/auth/session";
+import { COOKIE_GESTIONNAIRE, impersonationAutorisee } from "@/lib/auth/session";
 import { signIn, signOut, ssoConfigure } from "@/auth";
 
 /** Selectionne le gestionnaire courant (session dev) et redirige vers le dashboard. */
 export async function choisirGestionnaire(id: string): Promise<void> {
+  // Garde cote action : une Server Action est un endpoint POST appelable directement,
+  // on ne se fie pas au rendu de la page. Seul un super-admin (SSO actif) ou le mode dev
+  // sans SSO peut incarner un autre gestionnaire (audit prod 2026-06-25).
+  if (!(await impersonationAutorisee())) {
+    redirect("/dev-login");
+  }
   (await cookies()).set(COOKIE_GESTIONNAIRE, id, {
     path: "/",
     httpOnly: true,
