@@ -62,11 +62,13 @@ function attribuerCopro(subject: string, body: string, copros: Copropriete[]): s
   if (parCode) return parCode.code;
   const parNom = copros.find((c) => c.nom && c.nom.length >= 4 && texte.includes(c.nom.toLowerCase()));
   if (parNom) return parNom.code;
-  const parAdresse = copros.find((c) => {
+  // Adresse AMBIGUE (ex. 6 copros "rue de l'Aigle") : on n'attribue que si UNE seule
+  // copro matche. Sinon non-rattache (mieux qu'un faux positif = mauvais contexte).
+  const parAdresse = copros.filter((c) => {
     const rue = c.adresse.ligne1.toLowerCase().trim();
     return rue.length >= 8 && texte.includes(rue);
   });
-  return parAdresse ? parAdresse.code : "";
+  return parAdresse.length === 1 ? parAdresse[0]!.code : "";
 }
 
 export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSync> {
