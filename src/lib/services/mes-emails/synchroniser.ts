@@ -16,6 +16,7 @@ import {
   getAnalyseCacheStore,
   getAnalyseMailProvider,
   getCoproRepository,
+  getCryptoContactsProvider,
   getMailIngestionProvider,
   getMesEmailsTriageStore,
 } from "@/lib/adapters/router";
@@ -83,6 +84,18 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
   // PLUS la liste. Un mail = une carte (decision Sekou 2026-06-25) -> on ne perd aucun
   // contenu. Les affaires alimentent le rattachement (dossier) et l'historique du fil.
   const affaires = groupAffaires(bruts).sort((a, b) => b.last.localeCompare(a.last));
+
+  // Resolveur Crypto : pour les mails encore non-rattaches, on cherche la copro par
+  // l'email de l'EXPEDITEUR (annuaire Crypto importe). Attribution SEULEMENT si une
+  // seule copro (anti-ambiguite). Vide tant que le JSON Crypto n'est pas importe.
+  const sansCopro = bruts.filter((b) => !b.copro);
+  if (sansCopro.length > 0) {
+    const parEmail = await getCryptoContactsProvider().coprosPourEmails(sansCopro.map((b) => b.from));
+    for (const b of sansCopro) {
+      const copros = parEmail.get((b.from || "").toLowerCase().trim());
+      if (copros && new Set(copros).size === 1) b.copro = copros[0]!;
+    }
+  }
 
   // Heritage par fil : un mail sans copro herite de la copro d'un autre mail du meme
   // fil (les reponses ne re-citent pas toujours la copro). Met a jour les RawMail (donc

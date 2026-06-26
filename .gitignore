@@ -51,6 +51,9 @@ data/seed/local/
 # Triage reel du cockpit Mes emails (PII coproprietaires, produit par assistant-ia)
 data/mes-emails-triage.json
 
+# Annuaire Crypto (identites + emails coproprietaires, PII) : sert a l'import one-shot
+data/crypto-contacts.json
+
 # Exports PowerApps : binaires lourds / re-exportables (on garde les flux JSON + le guide)
 docs/powerapps/*.zip
 docs/powerapps/**/*.msapp
