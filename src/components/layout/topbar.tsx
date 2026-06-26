@@ -13,9 +13,8 @@ export function Topbar({ user, breadcrumb, peutImpersonner = false }: TopbarProp
   return (
     <header className="flex items-center justify-between gap-4 px-4 h-12 shrink-0 border-b border-line bg-surface">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-6 h-6 rounded-[5px] flex items-center justify-center bg-green-700 text-white font-mono text-[10px] font-semibold">
-          R31
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icon.png" alt="REAL31" className="w-6 h-6 rounded-[5px] object-contain shrink-0" />
         <span className="text-[12.5px] font-medium">REAL31</span>
         {breadcrumb && (
           <>
