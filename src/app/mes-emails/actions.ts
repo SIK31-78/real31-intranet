@@ -148,8 +148,9 @@ export async function synchroniserAction(): Promise<void> {
   revalidatePath("/mes-emails");
 }
 
-// Rattache un mail a une copropriete A LA MAIN. Le cloisonnement porte sur la
-// copro CHOISIE (elle doit etre dans le portefeuille du gestionnaire).
+// Rattache un mail a une copropriete A LA MAIN, ou la RETIRE (coproCode vide).
+// Le cloisonnement porte sur la copro CHOISIE (elle doit etre dans le portefeuille) ;
+// le retrait (vide) est toujours autorise (la copro n'est pas obligatoire).
 export async function rattacherCoproAction(
   emailId: string,
   coproCode: string,
@@ -157,7 +158,7 @@ export async function rattacherCoproAction(
 ): Promise<{ ok: boolean; message?: string }> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, message: "Non connecté." };
-  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+  if (coproCode && process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
     return { ok: false, message: "Cette copropriété n'est pas dans ton périmètre." };
   }
   try {

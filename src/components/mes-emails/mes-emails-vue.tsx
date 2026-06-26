@@ -147,9 +147,10 @@ export function MesEmailsVue({
   const dossierIdDe = (m: MailEntrant): string =>
     dossiersChoisis.get(m.id) ?? m.dossierClasseId ?? autoDossier(m);
 
+  // code vide = RETIRER la copropriete (elle n'est pas obligatoire). La copro reste
+  // optionnelle et reversible : on peut toujours revenir a "sans copropriete".
   const choisirCopro = (m: MailEntrant, code: string) => {
-    if (!code) return;
-    const nom = (data.coprosDuGestionnaire ?? []).find((c) => c.code === code)?.nom ?? code;
+    const nom = code ? ((data.coprosDuGestionnaire ?? []).find((c) => c.code === code)?.nom ?? code) : "";
     setCoprosChoisies((p) => new Map(p).set(m.id, { code, nom }));
     void rattacherCoproAction(m.id, code, nom);
   };
@@ -742,15 +743,17 @@ function AnalysePane({
                 <span className="inline-flex items-center gap-1 text-[12px]">
                   <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                   <span className={coproCode ? "font-medium text-ink" : "text-ink-3 italic"}>
-                    {coproCode ? `${coproNom} (${coproCode})` : "Copropriété non identifiée"}
+                    {coproCode ? `${coproNom} (${coproCode})` : "Sans copropriété"}
                   </span>
                 </span>
                 <select
                   value={coproCode}
                   onChange={(e) => onRattacherCopro(e.target.value)}
+                  aria-label="Copropriété (facultatif)"
                   className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
                 >
-                  <option value="">Rattacher à une copropriété…</option>
+                  {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
+                  <option value="">{coproCode ? "— Retirer la copropriété" : "Rattacher à une copropriété…"}</option>
                   {coprosDispo.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.nom} ({c.code})
@@ -907,7 +910,8 @@ function AnalysePane({
 
         {changer && !coproCode && (
           <div className="rounded-md border border-dashed border-line px-3 py-2 text-[12px] text-ink-3">
-            Rattache d&apos;abord ce mail à une copropriété (ci-dessus) pour pouvoir créer ou lier un dossier.
+            Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété. Pour simplement
+            <strong> ranger</strong> ce mail, utilise «&nbsp;Classer dans…&nbsp;» en haut — aucune copropriété requise.
           </div>
         )}
 
