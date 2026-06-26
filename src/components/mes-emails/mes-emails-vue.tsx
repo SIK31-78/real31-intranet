@@ -36,7 +36,6 @@ import type {
 import { LIBELLE_TYPE, trierMails, trouverContexte, trouverDossier, typeDossierSuggere } from "@/lib/domain/mes-emails";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
-import type { Severite } from "@/lib/domain/commun";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
@@ -55,12 +54,6 @@ import {
 
 type Statut = "nouveau" | "repondu" | "classe";
 
-const SEVERITE_DOT: Record<Severite, string> = {
-  late: "bg-err-500",
-  soon: "bg-warn-500",
-  ok: "bg-ink-3",
-};
-
 function jourMois(iso: string): string {
   return formatDateLongue(iso).replace(/ \d{4}$/, "");
 }
@@ -70,14 +63,6 @@ function initiales(nom: string): string {
   const parts = nom.replace(/ \(.*\)$/, "").trim().split(/\s+/).filter(Boolean);
   return parts.slice(0, 2).map((p) => (p[0] ?? "").toUpperCase()).join("");
 }
-
-type FiltrePriorite = "toutes" | Severite;
-const PRIORITES: { cle: FiltrePriorite; label: string }[] = [
-  { cle: "toutes", label: "Toutes" },
-  { cle: "late", label: "Urgent" },
-  { cle: "soon", label: "À traiter" },
-  { cle: "ok", label: "Info" },
-];
 
 const BTN =
   "inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] text-ink hover:bg-surface-2 transition-colors";
@@ -116,7 +101,6 @@ export function MesEmailsVue({
   const [changer, setChanger] = useState(false);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
   const [vue, setVue] = useState<"recus" | "traites" | "tous">("recus");
-  const [filtre, setFiltre] = useState<FiltrePriorite>("toutes");
   const [filtreCopro, setFiltreCopro] = useState<string>("toutes");
   const [recherche, setRecherche] = useState("");
   const [copie, setCopie] = useState<string | null>(null);
@@ -188,7 +172,6 @@ export function MesEmailsVue({
   const visibles = mailsTries.filter(
     (m) =>
       matchVue(m) &&
-      (filtre === "toutes" || m.priorite === filtre) &&
       (filtreCopro === "toutes" || m.coproCode === filtreCopro) &&
       (q === "" || `${m.objet} ${m.de} ${m.coproNom}`.toLowerCase().includes(q)),
   );
@@ -304,25 +287,6 @@ export function MesEmailsVue({
               >
                 {d.label}
                 <span className={vue === d.cle ? "text-green-700/70" : "text-ink-4"}>{d.n}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Filtre priorité */}
-          <div className="flex items-center gap-1">
-            {PRIORITES.map((p) => (
-              <button
-                key={p.cle}
-                type="button"
-                onClick={() => setFiltre(p.cle)}
-                className={
-                  "h-7 px-2.5 rounded-md text-[12px] border transition-colors " +
-                  (p.cle === filtre
-                    ? "bg-green-50 text-green-700 border-green-500/30 font-medium"
-                    : "bg-surface text-ink-2 border-line hover:bg-surface-2")
-                }
-              >
-                {p.label}
               </button>
             ))}
           </div>
@@ -584,7 +548,8 @@ function BoiteItem({
         }
       >
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${SEVERITE_DOT[m.priorite]}`} />
+          {/* Indicateur neutre lu/non-lu (plus d'urgence IA). */}
+          <span className={`w-2 h-2 rounded-full shrink-0 ${!lu ? "bg-info-500" : "bg-transparent"}`} />
           <span
             className={
               "text-[12.5px] text-ink truncate flex-1 " +
@@ -594,11 +559,7 @@ function BoiteItem({
           >
             {m.objet}
           </span>
-          {statut !== "nouveau" ? (
-            <StatutBadge statut={statut} />
-          ) : (
-            !lu && <span className="w-1.5 h-1.5 rounded-full bg-info-500 shrink-0" />
-          )}
+          {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
         </div>
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-[11px] text-ink-3">
           <Building2 strokeWidth={1.5} className="w-3 h-3 shrink-0" />
@@ -758,7 +719,6 @@ function AnalysePane({
             </span>
             <div className="flex items-center gap-2 shrink-0">
               <StatutBadge statut={statut} />
-              <Badge ton={m.badge.ton}>{m.badge.texte}</Badge>
             </div>
           </div>
 
