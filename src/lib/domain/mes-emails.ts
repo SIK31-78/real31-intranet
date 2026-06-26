@@ -7,6 +7,7 @@
 // aujourd'hui, API demain, modele local plus tard = swap d'adapter, sans toucher ici.
 
 import type { Severite } from "@/lib/domain/commun";
+import type { TypeDossier } from "@/lib/domain/dossier";
 
 /** Ton du badge de priorite : rouge (urgent), ambre (a traiter), neutre (info). */
 export type UrgenceTon = "err" | "warn" | "neutral";
@@ -60,13 +61,33 @@ export interface ActionFlow {
 /** Etat de traitement d'un mail par le gestionnaire (persiste, cloisonne). */
 export type StatutTraitement = "nouveau" | "repondu" | "classe";
 
-/** Rattachement du mail a un dossier (affaire) existant ou nouveau. */
+/** Rattachement du mail a un dossier existant ou nouveau. */
 export interface Rattachement {
   statut: "existant" | "nouveau";
   dossierId: string;
   dossierLabel: string;
   /** Confiance du rattachement (%) si dossier existant. */
   confiance?: number;
+  /** true = dossier REEL du module Dossiers (intranet_dossiers) -> lien /dossiers/[id].
+   *  false/absent = simple fil de conversation (legacy, non persiste comme dossier). */
+  intranet?: boolean;
+}
+
+/** Type de dossier suggere a partir de la classification du mail (editable a la creation). */
+export function typeDossierSuggere(type: TypeMail): TypeDossier {
+  switch (type) {
+    case "sinistre_degat_eaux":
+      return "sinistre";
+    case "panne_intervention":
+    case "devis_validation":
+    case "vefa_reserves":
+      return "travaux";
+    case "demande_copro_cs":
+    case "ag_cs":
+      return "question_diverse";
+    default:
+      return "autre";
+  }
 }
 
 /** Piece jointe signifiante (les images de signature sont deja ecartees). */

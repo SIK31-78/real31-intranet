@@ -22,7 +22,10 @@ import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
+import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
+import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
 import type { DossierBoite } from "@/lib/domain/mes-emails";
+import type { TypeDossier } from "@/lib/domain/dossier";
 
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
@@ -64,6 +67,67 @@ export async function rattachementAction(
   if (!c) return;
   await enregistrerRattachement(c, rattachement);
   revalidatePath("/mes-emails");
+}
+
+// --- Pont vers le module Dossiers (intranet_dossiers) ---------------------
+
+/** Dossiers REELS de la copro (pour le selecteur de rattachement du cockpit). */
+export async function chargerDossiersCoproAction(
+  coproCode: string,
+): Promise<{ id: string; titre: string; type: TypeDossier }[]> {
+  const g = await getGestionnaireCourant();
+  if (!g || !coproCode) return [];
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) return [];
+  const dossiers = await getDossiersCopro(coproCode, g.id);
+  return dossiers.map((d) => ({ id: d.id, titre: d.titre, type: d.type }));
+}
+
+/** Rattache le mail a un dossier REEL existant : ajoute l'email a son journal + memorise
+ *  le rattachement cote mail. */
+export async function rattacherADossierAction(
+  emailId: string,
+  coproCode: string,
+  dossierId: string,
+  dossierTitre: string,
+  resume: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
+  }
+  const ok = await rattacherEmailAuDossier(dossierId, g.id, g.initiales, resume, emailId);
+  if (!ok) return { ok: false, message: "Dossier introuvable ou hors périmètre." };
+  await enregistrerRattachement(
+    { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
+    { statut: "existant", dossierId, dossierLabel: dossierTitre, intranet: true },
+  );
+  revalidatePath("/mes-emails");
+  return { ok: true };
+}
+
+/** Cree un dossier REEL depuis le mail (type + titre) et y rattache l'email. */
+export async function creerDossierDepuisMailAction(
+  emailId: string,
+  coproCode: string,
+  type: TypeDossier,
+  titre: string,
+  resume: string,
+): Promise<{ ok: boolean; dossierId?: string; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (!titre.trim()) return { ok: false, message: "Donne un titre au dossier." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
+  }
+  const id = await creerDossierDepuisMail(coproCode, g.id, g.initiales, type, titre.trim(), resume, emailId);
+  if (!id) return { ok: false, message: "Création impossible (hors périmètre)." };
+  await enregistrerRattachement(
+    { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
+    { statut: "existant", dossierId: id, dossierLabel: titre.trim(), intranet: true },
+  );
+  revalidatePath("/mes-emails");
+  return { ok: true, dossierId: id };
 }
 
 export async function marquerLuAction(emailId: string, coproCode: string): Promise<void> {

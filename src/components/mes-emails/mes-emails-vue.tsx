@@ -36,7 +36,9 @@ import type {
   MesEmails,
   Rattachement,
 } from "@/lib/domain/mes-emails";
-import { LIBELLE_TYPE, trierMails, trouverContexte, trouverDossier } from "@/lib/domain/mes-emails";
+import { LIBELLE_TYPE, trierMails, trouverContexte, trouverDossier, typeDossierSuggere } from "@/lib/domain/mes-emails";
+import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
+import Link from "next/link";
 import type { Severite } from "@/lib/domain/commun";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,12 +47,14 @@ import {
   devaliderMailAction,
   toggleEtapeAction,
   editBrouillonAction,
-  rattachementAction,
   marquerLuAction,
   creerBrouillonAction,
   rattacherCoproAction,
   chargerDossiersAction,
   classerDansDossierAction,
+  chargerDossiersCoproAction,
+  rattacherADossierAction,
+  creerDossierDepuisMailAction,
 } from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
@@ -133,12 +137,18 @@ export function MesEmailsVue({
   const [dossiers, setDossiers] = useState<DossierBoite[] | null>(null);
   const [dossiersChoisis, setDossiersChoisis] = useState<Map<string, string>>(new Map());
   const [msgClasser, setMsgClasser] = useState<string | null>(null);
+  // Dossiers REELS (module Dossiers) de la copro, charges en lazy a l'ouverture du picker.
+  const [dossiersReels, setDossiersReels] = useState<
+    Map<string, { id: string; titre: string; type: TypeDossier }[]>
+  >(new Map());
 
   useEffect(() => {
     void chargerDossiersAction()
       .then(setDossiers)
       .catch(() => setDossiers([]));
   }, []);
+
+  const resumeMail = (m: MailEntrant): string => `${m.objet} — de ${m.de}`;
 
   const statutDe = (id: string): Statut =>
     classes.has(id) ? "classe" : repondus.has(id) ? "repondu" : "nouveau";
@@ -193,6 +203,22 @@ export function MesEmailsVue({
   );
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
+
+  // Charge les dossiers reels de la copro quand on ouvre le picker de rattachement.
+  const coproSel = selection?.coproCode ?? "";
+  useEffect(() => {
+    if (!changer || !coproSel || dossiersReels.has(coproSel)) return;
+    void chargerDossiersCoproAction(coproSel).then((ds) =>
+      setDossiersReels((p) => new Map(p).set(coproSel, ds)),
+    );
+  }, [changer, coproSel, dossiersReels]);
+
+  const rafraichirDossiersCopro = (code: string) =>
+    setDossiersReels((p) => {
+      const n = new Map(p);
+      n.delete(code);
+      return n;
+    });
 
   function ouvrir(id: string) {
     setSelId(id);
@@ -397,11 +423,8 @@ export function MesEmailsVue({
               contexte={trouverContexte(data.contextes, selection.coproCode)}
               ratt={rattDe(selection)}
               dossier={trouverDossier(data.dossiers, rattDe(selection).dossierId)}
-              dossiersCopro={
-                coproDe(selection).code
-                  ? data.dossiers.filter((d) => d.coproCode === coproDe(selection).code)
-                  : []
-              }
+              dossiersReels={dossiersReels.get(coproDe(selection).code) ?? null}
+              typeSuggere={typeDossierSuggere(selection.type)}
               statut={statutDe(selection.id)}
               brouillon={brouillonDe(selection)}
               coproCode={coproDe(selection).code}
@@ -427,21 +450,46 @@ export function MesEmailsVue({
               }
               onToggleEtape={(o) => toggleEtape(selection.id, o)}
               onToggleChanger={() => setChanger((v) => !v)}
-              onChoisir={(d) => {
-                const r: Rattachement = { statut: "existant", dossierId: d.id, dossierLabel: d.label };
-                setOverrides((prev) => new Map(prev).set(selection.id, r));
+              onRattacherDossier={(dossierId, titre) => {
+                setOverrides((prev) =>
+                  new Map(prev).set(selection.id, {
+                    statut: "existant",
+                    dossierId,
+                    dossierLabel: titre,
+                    intranet: true,
+                  }),
+                );
                 setChanger(false);
-                void rattachementAction(selection.id, selection.coproCode, r);
+                void rattacherADossierAction(
+                  selection.id,
+                  coproDe(selection).code,
+                  dossierId,
+                  titre,
+                  resumeMail(selection),
+                );
               }}
-              onNouveau={() => {
-                const r: Rattachement = {
-                  statut: "nouveau",
-                  dossierId: `N-${selection.id}`,
-                  dossierLabel: selection.objet,
-                };
-                setOverrides((prev) => new Map(prev).set(selection.id, r));
-                setChanger(false);
-                void rattachementAction(selection.id, selection.coproCode, r);
+              onCreerDossier={(type, titre) => {
+                void creerDossierDepuisMailAction(
+                  selection.id,
+                  coproDe(selection).code,
+                  type,
+                  titre,
+                  resumeMail(selection),
+                ).then((res) => {
+                  if (res.ok && res.dossierId) {
+                    const id = res.dossierId;
+                    setOverrides((prev) =>
+                      new Map(prev).set(selection.id, {
+                        statut: "existant",
+                        dossierId: id,
+                        dossierLabel: titre,
+                        intranet: true,
+                      }),
+                    );
+                    setChanger(false);
+                    rafraichirDossiersCopro(coproDe(selection).code);
+                  }
+                });
               }}
               onCopier={() => {
                 void navigator.clipboard?.writeText(brouillonDe(selection));
@@ -612,12 +660,64 @@ function recommandation(m: MailEntrant, ratt: Rattachement): string {
     : `Traiter et classer dans ${dossier}.`;
 }
 
+// Mini-formulaire de creation d'un dossier reel depuis un mail (type pre-suggere +
+// titre = objet du mail, editables).
+function FormCreerDossier({
+  typeSuggere,
+  titreSuggere,
+  onCreer,
+}: {
+  typeSuggere: TypeDossier;
+  titreSuggere: string;
+  onCreer: (type: TypeDossier, titre: string) => void;
+}) {
+  const [type, setType] = useState<TypeDossier>(typeSuggere);
+  const [titre, setTitre] = useState(titreSuggere);
+  return (
+    <div className="border-t border-line bg-surface-2/40 px-3 py-2 flex flex-col gap-2">
+      <p className="text-[11px] font-medium text-ink-3 flex items-center gap-1">
+        <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 text-green-700" /> Créer un dossier
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as TypeDossier)}
+          aria-label="Type de dossier"
+          className="h-7 rounded border border-line bg-surface px-1.5 text-[12px]"
+        >
+          {TYPE_DOSSIER_ORDRE.map((t) => (
+            <option key={t} value={t}>
+              {TYPE_DOSSIER_LABEL[t]}
+            </option>
+          ))}
+        </select>
+        <input
+          value={titre}
+          onChange={(e) => setTitre(e.target.value)}
+          placeholder="Titre du dossier"
+          aria-label="Titre du dossier"
+          className="flex-1 min-w-[140px] h-7 rounded border border-line bg-surface px-2 text-[12px]"
+        />
+        <button
+          type="button"
+          disabled={!titre.trim()}
+          onClick={() => onCreer(type, titre.trim())}
+          className="h-7 px-2.5 rounded bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 disabled:opacity-50"
+        >
+          Créer
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AnalysePane({
   m,
   contexte,
   ratt,
   dossier,
-  dossiersCopro,
+  dossiersReels,
+  typeSuggere,
   statut,
   brouillon,
   coproCode,
@@ -639,8 +739,8 @@ function AnalysePane({
   msgBrouillon,
   onToggleEtape,
   onToggleChanger,
-  onChoisir,
-  onNouveau,
+  onRattacherDossier,
+  onCreerDossier,
   onCopier,
   onValider,
   onDevalider,
@@ -650,7 +750,8 @@ function AnalysePane({
   contexte: ContexteCopro | undefined;
   ratt: Rattachement;
   dossier: Dossier | undefined;
-  dossiersCopro: Dossier[];
+  dossiersReels: { id: string; titre: string; type: TypeDossier }[] | null;
+  typeSuggere: TypeDossier;
   statut: Statut;
   brouillon: string;
   coproCode: string;
@@ -672,8 +773,8 @@ function AnalysePane({
   msgBrouillon: string | null;
   onToggleEtape: (ordre: number) => void;
   onToggleChanger: () => void;
-  onChoisir: (d: Dossier) => void;
-  onNouveau: () => void;
+  onRattacherDossier: (dossierId: string, titre: string) => void;
+  onCreerDossier: (type: TypeDossier, titre: string) => void;
   onCopier: () => void;
   onValider: () => void;
   onDevalider: () => void;
@@ -907,51 +1008,56 @@ function AnalysePane({
         {/* Ligne meta discrete : type + rattachement modifiable */}
         <div className="flex items-center gap-2 flex-wrap text-[12px] text-ink-3">
           <Badge ton="outline">{LIBELLE_TYPE[m.type]}</Badge>
-          <span className="inline-flex items-center gap-1">
-            {ratt.statut === "existant" ? (
-              <>
-                <Link2 strokeWidth={1.5} className="w-3.5 h-3.5" />
-                {ratt.dossierLabel}
-                {ratt.confiance !== undefined && <span className="text-ink-4">· {ratt.confiance}%</span>}
-              </>
-            ) : (
-              <>
-                <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 text-green-700" />
-                nouveau dossier
-              </>
-            )}
-          </span>
+          {ratt.intranet ? (
+            <Link
+              href={`/dossiers/${ratt.dossierId}`}
+              className="inline-flex items-center gap-1 text-info-700 hover:underline"
+            >
+              <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+              {ratt.dossierLabel}
+            </Link>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-ink-4">
+              <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+              non rattaché à un dossier
+            </span>
+          )}
           <button type="button" onClick={onToggleChanger} className="text-ink-3 underline hover:text-ink">
-            {changer ? "fermer" : "modifier"}
+            {changer ? "fermer" : ratt.intranet ? "changer" : "rattacher / créer"}
           </button>
         </div>
 
-        {changer && (
+        {changer && !coproCode && (
+          <div className="rounded-md border border-dashed border-line px-3 py-2 text-[12px] text-ink-3">
+            Rattache d&apos;abord ce mail à une copropriété (ci-dessus) pour pouvoir créer ou lier un dossier.
+          </div>
+        )}
+
+        {changer && coproCode && (
           <div className="rounded-md border border-line overflow-hidden">
-            <ul className="divide-y divide-line">
-              {dossiersCopro.map((d) => (
-                <li key={d.id}>
-                  <button
-                    type="button"
-                    onClick={() => onChoisir(d)}
-                    className="w-full text-left px-3 py-2 text-[12.5px] text-ink hover:bg-surface-2 flex items-center gap-2"
-                  >
-                    <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                    {d.label}
-                  </button>
-                </li>
-              ))}
-              <li>
-                <button
-                  type="button"
-                  onClick={onNouveau}
-                  className="w-full text-left px-3 py-2 text-[12.5px] text-green-700 hover:bg-surface-2 flex items-center gap-2"
-                >
-                  <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
-                  Créer un nouveau dossier
-                </button>
-              </li>
-            </ul>
+            {dossiersReels === null ? (
+              <p className="px-3 py-2 text-[12px] text-ink-3">Chargement des dossiers…</p>
+            ) : (
+              <ul className="divide-y divide-line">
+                {dossiersReels.map((d) => (
+                  <li key={d.id}>
+                    <button
+                      type="button"
+                      onClick={() => onRattacherDossier(d.id, d.titre)}
+                      className="w-full text-left px-3 py-2 text-[12.5px] text-ink hover:bg-surface-2 flex items-center gap-2"
+                    >
+                      <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                      <span className="flex-1 min-w-0 truncate">{d.titre}</span>
+                      <Badge ton="outline">{TYPE_DOSSIER_LABEL[d.type]}</Badge>
+                    </button>
+                  </li>
+                ))}
+                {dossiersReels.length === 0 && (
+                  <li className="px-3 py-2 text-[12px] text-ink-4">Aucun dossier sur cette copropriété.</li>
+                )}
+              </ul>
+            )}
+            <FormCreerDossier typeSuggere={typeSuggere} titreSuggere={m.objet} onCreer={onCreerDossier} />
           </div>
         )}
 
