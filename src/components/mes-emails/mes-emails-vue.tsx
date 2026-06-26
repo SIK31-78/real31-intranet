@@ -14,8 +14,6 @@ import {
   Flag,
   Copy,
   Check,
-  CheckCircle2,
-  Circle,
   RotateCcw,
   Building2,
   Users,
@@ -24,7 +22,6 @@ import {
   FileText,
   CalendarCheck,
   ChevronRight,
-  Zap,
   FolderInput,
 } from "lucide-react";
 import type {
@@ -45,7 +42,6 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import {
   devaliderMailAction,
-  toggleEtapeAction,
   editBrouillonAction,
   marquerLuAction,
   creerBrouillonAction,
@@ -115,11 +111,6 @@ export function MesEmailsVue({
   const [classes, setClasses] = useState<Set<string>>(
     () => new Set(data.mails.filter((m) => m.statutTraitement === "classe").map((m) => m.id)),
   );
-  const [etapes, setEtapes] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    for (const m of data.mails) for (const o of m.etapesFaites ?? []) s.add(`${m.id}:${o}`);
-    return s;
-  });
   const [edits, setEdits] = useState<Map<string, string>>(new Map());
   const [overrides, setOverrides] = useState<Map<string, Rattachement>>(new Map());
   const [changer, setChanger] = useState(false);
@@ -236,8 +227,9 @@ export function MesEmailsVue({
     return n;
   };
 
-  // Valider = exécuter le plan + classer dans le dossier Outlook CHOISI. Bloqué tant
+  // Valider = repondre (brouillon) + classer dans le dossier Outlook CHOISI. Bloqué tant
   // qu'aucun dossier n'est choisi (plus de mail "traité" qui ne part nulle part).
+  // (Le plan d'action / etapes IA est differe -> ROADMAP.)
   function valider(m: MailEntrant) {
     const folderId = dossierIdDe(m);
     if (!folderId) {
@@ -247,19 +239,13 @@ export function MesEmailsVue({
     setMsgClasser(null);
     if (m.brouillonReponse) setRepondus((p) => add(p, m.id));
     setClasses((p) => add(p, m.id));
-    if (m.flow.length > 0)
-      setEtapes((p) => {
-        const n = new Set(p);
-        m.flow.forEach((e) => n.add(`${m.id}:${e.ordre}`));
-        return n;
-      });
     const folderNom = (dossiers ?? []).find((d) => d.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
     void classerDansDossierAction(
       m.id,
       coproDe(m).code,
       folderId,
       folderNom,
-      m.flow.map((e) => e.ordre),
+      [],
       brouillonDe(m),
     ).then((r) => {
       if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
@@ -276,25 +262,8 @@ export function MesEmailsVue({
   function devalider(m: MailEntrant) {
     setClasses((p) => del(p, m.id));
     setRepondus((p) => del(p, m.id));
-    setEtapes((p) => {
-      const n = new Set(p);
-      m.flow.forEach((e) => n.delete(`${m.id}:${e.ordre}`));
-      return n;
-    });
     void devaliderMailAction(m.id, m.coproCode);
   }
-  const toggleEtape = (mailId: string, ordre: number) => {
-    const c = `${mailId}:${ordre}`;
-    const apres = etapes.has(c) ? del(etapes, c) : add(etapes, c);
-    setEtapes(apres);
-    const m = data.mails.find((x) => x.id === mailId);
-    if (m) {
-      const ordres = [...apres]
-        .filter((x) => x.startsWith(`${mailId}:`))
-        .map((x) => Number(x.slice(mailId.length + 1)));
-      void toggleEtapeAction(mailId, m.coproCode, ordres);
-    }
-  };
   const toggleSection = (cle: string) =>
     setOuverts((p) => (p.has(cle) ? del(p, cle) : add(p, cle)));
 
@@ -415,7 +384,7 @@ export function MesEmailsVue({
           </Card>
         </aside>
 
-        {/* Volet droit : recommandation + plan + detail */}
+        {/* Volet droit : recommandation + detail */}
         <section className="flex-1 min-w-0">
           {selection ? (
             <AnalysePane
@@ -440,7 +409,6 @@ export function MesEmailsVue({
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
               msgBrouillon={msgBrouillon}
-              etapes={etapes}
               changer={changer}
               ouverts={ouverts}
               copie={copie === selection.id}
@@ -448,7 +416,6 @@ export function MesEmailsVue({
               onBlurBrouillon={() =>
                 void editBrouillonAction(selection.id, selection.coproCode, brouillonDe(selection))
               }
-              onToggleEtape={(o) => toggleEtape(selection.id, o)}
               onToggleChanger={() => setChanger((v) => !v)}
               onRattacherDossier={(dossierId, titre) => {
                 setOverrides((prev) =>
@@ -656,7 +623,7 @@ function recommandation(m: MailEntrant, ratt: Rattachement): string {
       ? `le dossier « ${ratt.dossierLabel} »`
       : `un nouveau dossier « ${ratt.dossierLabel} »`;
   return m.brouillonReponse
-    ? `Répondre à ${cible}, exécuter le plan d’action et classer dans ${dossier}.`
+    ? `Répondre à ${cible} et classer dans ${dossier}.`
     : `Traiter et classer dans ${dossier}.`;
 }
 
@@ -728,7 +695,6 @@ function AnalysePane({
   dossierIdChoisi,
   onChoisirDossier,
   msgClasser,
-  etapes,
   changer,
   ouverts,
   copie,
@@ -737,7 +703,6 @@ function AnalysePane({
   signatureHtml,
   onCreerBrouillon,
   msgBrouillon,
-  onToggleEtape,
   onToggleChanger,
   onRattacherDossier,
   onCreerDossier,
@@ -762,7 +727,6 @@ function AnalysePane({
   dossierIdChoisi: string;
   onChoisirDossier: (id: string) => void;
   msgClasser: string | null;
-  etapes: Set<string>;
   changer: boolean;
   ouverts: Set<string>;
   copie: boolean;
@@ -771,7 +735,6 @@ function AnalysePane({
   signatureHtml?: string | null;
   onCreerBrouillon: () => void;
   msgBrouillon: string | null;
-  onToggleEtape: (ordre: number) => void;
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
   onCreerDossier: (type: TypeDossier, titre: string) => void;
@@ -781,12 +744,7 @@ function AnalysePane({
   onToggleSection: (cle: string) => void;
 }) {
   const classe = statut === "classe";
-  const labelValider =
-    m.flow.length > 0
-      ? "Valider & exécuter le plan"
-      : m.brouillonReponse
-        ? "Valider - répondre & classer"
-        : "Classer (sans action)";
+  const labelValider = m.brouillonReponse ? "Valider - répondre & classer" : "Classer (sans action)";
 
   return (
     <Card className="overflow-hidden">
@@ -931,48 +889,8 @@ function AnalysePane({
           )}
         </div>
 
-        {/* Plan d'action - MIS EN AVANT (cible d'automatisation) */}
-        {m.flow.length > 0 && (
-          <div className="rounded-lg border border-line p-3.5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[12.5px] font-semibold text-ink flex items-center gap-1.5">
-                <Zap strokeWidth={1.5} className="w-4 h-4 text-warn-700" />
-                Plan d’action
-              </p>
-              <Badge ton="brand" dot>
-                automatisable
-              </Badge>
-            </div>
-            <ol className="flex flex-col gap-1.5">
-              {m.flow.map((e) => {
-                const fait = etapes.has(`${m.id}:${e.ordre}`);
-                return (
-                  <li key={e.ordre}>
-                    <button
-                      type="button"
-                      onClick={() => onToggleEtape(e.ordre)}
-                      className="w-full flex items-center gap-2 text-left"
-                    >
-                      {fait ? (
-                        <CheckCircle2 strokeWidth={1.5} className="w-4 h-4 text-green-700 shrink-0" />
-                      ) : (
-                        <Circle strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
-                      )}
-                      <span className={`text-[12.5px] ${fait ? "text-ink-3 line-through" : "text-ink-2"}`}>
-                        {e.ordre}. {e.libelle}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-            <p className="text-[11px] text-ink-4 mt-2.5">
-              À terme, ces actions s’exécuteront automatiquement à la validation.
-            </p>
-          </div>
-        )}
-
-        {/* Action principale : exécute le plan + classe */}
+        {/* Action principale : repond (brouillon) + classe dans le dossier choisi.
+            Le "Plan d'action" (etapes IA) est differe -> cf. ROADMAP (a venir). */}
         <div>
           {classe ? (
             <div className="flex items-center gap-2 flex-wrap">
