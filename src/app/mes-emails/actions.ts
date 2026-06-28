@@ -24,6 +24,7 @@ import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
+import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
@@ -219,6 +220,34 @@ export async function genererBrouillonAction(
     }
     revalidatePath("/mes-emails");
     return { ok: true, brouillon: reponse };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+// ENVOIE la reponse (vrai mail, irreversible) avec les destinataires choisis. L'UI
+// confirme avant d'appeler. L'envoi reel n'a lieu qu'en MAIL_SOURCE=graph.
+export async function envoyerReponseAction(
+  emailId: string,
+  coproCode: string,
+  corps: string,
+  a: string[],
+  cc: string[],
+  cci: string[],
+): Promise<{ ok: boolean; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
+  }
+  if (!corps.trim()) return { ok: false, message: "Le message est vide." };
+  if (a.filter((x) => x.includes("@")).length === 0) {
+    return { ok: false, message: "Ajoute au moins un destinataire en 'À'." };
+  }
+  try {
+    await envoyerReponseMail({ boite: g.email, internetMessageId: emailId, corps, a, cc, cci });
+    revalidatePath("/mes-emails");
+    return { ok: true };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }

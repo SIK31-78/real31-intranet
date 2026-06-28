@@ -8,4 +8,18 @@ export interface MailOutboundProvider {
    * On n'injecte PAS la signature ici : Signitic l'ajoute (cf. decision design).
    */
   creerBrouillon(p: { boite: string; internetMessageId: string; corps: string }): Promise<void>;
+
+  /**
+   * ENVOIE une reponse au message d'origine (fil + citation conserves) avec des
+   * destinataires CHOISIS (A / Cc / Cci). Cree un brouillon de reponse, y pose le
+   * corps + les destinataires, puis l'envoie. Action irreversible (vrai mail).
+   */
+  envoyer(p: {
+    boite: string;
+    internetMessageId: string;
+    corps: string;
+    a: string[];
+    cc: string[];
+    cci: string[];
+  }): Promise<void>;
 }

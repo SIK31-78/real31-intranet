@@ -1,0 +1,16 @@
+// Service : ENVOIE la reponse au mail (vrai envoi, action irreversible) avec les
+// destinataires choisis. Passe par le routeur (ADR-001) ; l'envoi reel n'a lieu qu'en
+// MAIL_SOURCE=graph (sinon no-op). Le cloisonnement est verifie dans la server action.
+
+import { getMailOutboundProvider } from "@/lib/adapters/router";
+
+export async function envoyerReponseMail(p: {
+  boite: string;
+  internetMessageId: string;
+  corps: string;
+  a: string[];
+  cc: string[];
+  cci: string[];
+}): Promise<void> {
+  return getMailOutboundProvider().envoyer(p);
+}

@@ -24,6 +24,7 @@ import {
   ChevronRight,
   FolderInput,
   Download,
+  X,
 } from "lucide-react";
 import type {
   ContexteCopro,
@@ -47,6 +48,7 @@ import {
   marquerLuAction,
   creerBrouillonAction,
   genererBrouillonAction,
+  envoyerReponseAction,
   chargerPiecesJointesAction,
   telechargerPieceJointeAction,
   rattacherCoproAction,
@@ -58,6 +60,19 @@ import {
 } from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
+
+type Destinataires = { to: string[]; cc: string[]; cci: string[] };
+
+// Destinataires par defaut d'une reponse : A = l'expediteur ; Cc = les autres
+// participants (To + Cc d'origine, dedupliques, sans l'expediteur) ; Cci vide.
+function defautDestinataires(m: MailEntrant): Destinataires {
+  const exp = (m.expediteurEmail || "").trim();
+  const to = exp.includes("@") ? [exp] : [];
+  const autres = [...m.destinataires, ...m.copie]
+    .map((e) => e.trim())
+    .filter((e) => e.includes("@") && e.toLowerCase() !== exp.toLowerCase());
+  return { to, cc: [...new Set(autres)], cci: [] };
+}
 
 function jourMois(iso: string): string {
   return formatDateLongue(iso).replace(/ \d{4}$/, "");
@@ -129,6 +144,8 @@ export function MesEmailsVue({
   >(new Map());
   // Pieces jointes REELLES chargees a la demande a l'ouverture (null = en cours).
   const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
+  // Destinataires editables de la reponse (A / Cc / Cci), par mail.
+  const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
 
   useEffect(() => {
     void chargerDossiersAction()
@@ -144,6 +161,10 @@ export function MesEmailsVue({
   const brouillonDe = (m: MailEntrant): string => edits.get(m.id) ?? m.brouillonReponse ?? "";
   const coproDe = (m: MailEntrant): { code: string; nom: string } =>
     coprosChoisies.get(m.id) ?? { code: m.coproCode, nom: m.coproNom };
+  const destinatairesDe = (m: MailEntrant): Destinataires =>
+    destParMail.get(m.id) ?? defautDestinataires(m);
+  const majDest = (m: MailEntrant, champ: keyof Destinataires, valeurs: string[]) =>
+    setDestParMail((p) => new Map(p).set(m.id, { ...destinatairesDe(m), [champ]: valeurs }));
 
   // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
   // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
@@ -260,27 +281,36 @@ export function MesEmailsVue({
     return n;
   };
 
-  // Valider = repondre (brouillon) + classer dans le dossier Outlook CHOISI. Bloqué tant
-  // qu'aucun dossier n'est choisi (plus de mail "traité" qui ne part nulle part).
-  // (Le plan d'action / etapes IA est differe -> ROADMAP.)
-  function valider(m: MailEntrant) {
+  // Valider = (s'il y a une reponse) ENVOYER le vrai mail avec confirmation, PUIS classer
+  // dans le dossier Outlook choisi. Bloqué tant qu'aucun dossier n'est choisi.
+  async function valider(m: MailEntrant) {
     const folderId = dossierIdDe(m);
     if (!folderId) {
       setMsgClasser("Choisis un dossier de destination avant de classer ce mail.");
       return;
     }
+    const corps = brouillonDe(m);
+    // Une reponse est rédigée -> envoi RÉEL (irréversible), avec confirmation.
+    if (corps) {
+      const dest = destinatairesDe(m);
+      if (dest.to.filter((x) => x.includes("@")).length === 0) {
+        setMsgClasser("Ajoute au moins un destinataire en « À ».");
+        return;
+      }
+      const recap = `Envoyer la réponse à ${dest.to.join(", ")}${dest.cc.length ? `\n(cc : ${dest.cc.join(", ")})` : ""}${dest.cci.length ? `\n(cci : ${dest.cci.join(", ")})` : ""} ?`;
+      if (!window.confirm(recap)) return;
+      setMsgClasser("Envoi en cours…");
+      const env = await envoyerReponseAction(m.id, coproDe(m).code, corps, dest.to, dest.cc, dest.cci);
+      if (!env.ok) {
+        setMsgClasser(`Échec de l'envoi : ${env.message ?? ""}`);
+        return;
+      }
+      setRepondus((p) => add(p, m.id));
+    }
     setMsgClasser(null);
-    if (brouillonDe(m)) setRepondus((p) => add(p, m.id));
     setClasses((p) => add(p, m.id));
-    const folderNom = (dossiers ?? []).find((d) => d.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
-    void classerDansDossierAction(
-      m.id,
-      coproDe(m).code,
-      folderId,
-      folderNom,
-      [],
-      brouillonDe(m),
-    ).then((r) => {
+    const folderNom = (dossiers ?? []).find((f) => f.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
+    void classerDansDossierAction(m.id, coproDe(m).code, folderId, folderNom, [], corps).then((r) => {
       if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
     });
     // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
@@ -427,6 +457,8 @@ export function MesEmailsVue({
                 pjParMail.has(selection.id) ? (pjParMail.get(selection.id) ?? null) : []
               }
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
+              destinataires={destinatairesDe(selection)}
+              onMajDestinataires={(champ, v) => majDest(selection, champ, v)}
               msgBrouillon={msgBrouillon}
               changer={changer}
               ouverts={ouverts}
@@ -481,7 +513,7 @@ export function MesEmailsVue({
                 void navigator.clipboard?.writeText(brouillonDe(selection));
                 setCopie(selection.id);
               }}
-              onValider={() => valider(selection)}
+              onValider={() => void valider(selection)}
               onDevalider={() => devalider(selection)}
               onToggleSection={toggleSection}
             />
@@ -643,6 +675,78 @@ function recommandation(m: MailEntrant, ratt: Rattachement): string {
     : `Traiter et classer dans ${dossier}.`;
 }
 
+// Editeur de destinataires de la reponse : A / Cc / Cci, chips + ajout/retrait.
+function ChampsDestinataires({
+  valeur,
+  onChange,
+}: {
+  valeur: Destinataires;
+  onChange: (champ: keyof Destinataires, v: string[]) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 mb-2 rounded-md border border-line bg-surface px-2.5 py-2">
+      <LigneDest label="À" champ="to" valeurs={valeur.to} onChange={onChange} />
+      <LigneDest label="Cc" champ="cc" valeurs={valeur.cc} onChange={onChange} />
+      <LigneDest label="Cci" champ="cci" valeurs={valeur.cci} onChange={onChange} />
+    </div>
+  );
+}
+
+function LigneDest({
+  label,
+  champ,
+  valeurs,
+  onChange,
+}: {
+  label: string;
+  champ: keyof Destinataires;
+  valeurs: string[];
+  onChange: (champ: keyof Destinataires, v: string[]) => void;
+}) {
+  const [saisie, setSaisie] = useState("");
+  const ajouter = () => {
+    const e = saisie.trim().replace(/[,;]$/, "").trim();
+    if (e && !valeurs.includes(e)) onChange(champ, [...valeurs, e]);
+    setSaisie("");
+  };
+  return (
+    <div className="flex items-start gap-2 min-h-[24px]">
+      <span className="w-7 shrink-0 pt-1 text-[11px] font-medium text-ink-3">{label}</span>
+      <div className="flex-1 flex flex-wrap items-center gap-1">
+        {valeurs.map((e) => (
+          <span
+            key={e}
+            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-[11.5px] text-ink-2"
+          >
+            <span className="truncate max-w-[200px]">{e}</span>
+            <button
+              type="button"
+              onClick={() => onChange(champ, valeurs.filter((x) => x !== e))}
+              aria-label={`Retirer ${e}`}
+              className="text-ink-4 hover:text-err-700"
+            >
+              <X strokeWidth={2} className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={saisie}
+          onChange={(ev) => setSaisie(ev.target.value)}
+          onKeyDown={(ev) => {
+            if (ev.key === "Enter" || ev.key === "," || ev.key === ";") {
+              ev.preventDefault();
+              ajouter();
+            }
+          }}
+          onBlur={ajouter}
+          placeholder="ajouter une adresse…"
+          className="flex-1 min-w-[120px] h-6 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-4"
+        />
+      </div>
+    </div>
+  );
+}
+
 // Mini-formulaire de creation d'un dossier reel depuis un mail (type pre-suggere +
 // titre = objet du mail, editables).
 function FormCreerDossier({
@@ -721,6 +825,8 @@ function AnalysePane({
   onGenererBrouillon,
   piecesJointes,
   onTelecharger,
+  destinataires,
+  onMajDestinataires,
   msgBrouillon,
   onToggleChanger,
   onRattacherDossier,
@@ -756,6 +862,8 @@ function AnalysePane({
   onGenererBrouillon: () => void;
   piecesJointes: PieceJointeRef[] | null;
   onTelecharger: (pj: PieceJointeRef) => void;
+  destinataires: Destinataires;
+  onMajDestinataires: (champ: keyof Destinataires, v: string[]) => void;
   msgBrouillon: string | null;
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
@@ -766,7 +874,7 @@ function AnalysePane({
   onToggleSection: (cle: string) => void;
 }) {
   const classe = statut === "classe";
-  const labelValider = brouillon ? "Valider - répondre & classer" : "Classer (sans action)";
+  const labelValider = brouillon ? "Envoyer & classer" : "Classer (sans action)";
   const genEnCours = (msgBrouillon ?? "").startsWith("Génération");
 
   return (
@@ -901,6 +1009,7 @@ function AnalysePane({
                   </button>
                 </div>
               </div>
+              <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
               <textarea
                 value={brouillon}
                 onChange={(e) => onEditBrouillon(e.target.value)}
