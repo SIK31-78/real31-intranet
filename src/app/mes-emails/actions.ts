@@ -41,6 +41,9 @@ function cloisonnementCoproRequis(): boolean {
   return process.env.COPRO_SOURCE === "supabase" && process.env.MAIL_SOURCE !== "graph";
 }
 
+// Validation d'adresse email (simple mais stricte : un seul @, un domaine avec point).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
   const g = await getGestionnaireCourant();
   if (!g) return null;
@@ -244,9 +247,15 @@ export async function envoyerReponseAction(
     return { ok: false, message: "Copropriété hors de ton périmètre." };
   }
   if (!corps.trim()) return { ok: false, message: "Le message est vide." };
-  if (a.filter((x) => x.includes("@")).length === 0) {
-    return { ok: false, message: "Ajoute au moins un destinataire en 'À'." };
+  // Validation stricte des destinataires (anti-relais de spam) : adresses bien formees,
+  // au moins une en "A", et plafond global. Les Server Actions sont des endpoints publics.
+  const tous = [...a, ...cc, ...cci].map((x) => x.trim()).filter(Boolean);
+  if (a.filter((x) => EMAIL_RE.test(x.trim())).length === 0) {
+    return { ok: false, message: "Ajoute au moins un destinataire valide en 'À'." };
   }
+  const invalide = tous.find((x) => !EMAIL_RE.test(x));
+  if (invalide) return { ok: false, message: `Adresse invalide : ${invalide}` };
+  if (tous.length > 50) return { ok: false, message: "Trop de destinataires (50 maximum)." };
   try {
     // Signature recuperee cote serveur (Signitic) et injectee dans le corps : un envoi
     // app-only ne passe pas par l'add-in Outlook qui l'ajoute d'habitude.

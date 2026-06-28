@@ -16,6 +16,7 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     cc: string[];
     cci: string[];
   }): Promise<void> {
-    console.log(`[mail-outbound:noop] envoi simule pour ${p.internetMessageId} -> ${p.a.join(", ")}`);
+    // Pas de PII en log (RGPD) : seulement le nombre de destinataires, pas les adresses.
+    console.log(`[mail-outbound:noop] envoi simule pour ${p.internetMessageId} (${p.a.length} dest.)`);
   }
 }

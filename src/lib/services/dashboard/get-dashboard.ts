@@ -222,9 +222,11 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
   // copros prises en main : un probleme coche est un signal explicite, jamais du bruit
   // de migration). Reutilise `tous` pour eviter un second fetch des copros.
   const coprosMin = tous.map((c) => ({ code: c.code, nom: c.nom }));
-  const problemes = await getProblemes(g.id, coprosMin);
-  // Actions de dossiers : prochaine etape de chaque dossier ouvert (C3), tout le perimetre.
-  const actionsDossiers = await getActionsDossiers(g.id, coprosMin);
+  // Problemes + actions dossiers : independants -> en parallele (gain de latence).
+  const [problemes, actionsDossiers] = await Promise.all([
+    getProblemes(g.id, coprosMin),
+    getActionsDossiers(g.id, coprosMin),
+  ]);
 
   return {
     gestionnaire: g,

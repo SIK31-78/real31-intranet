@@ -11,7 +11,12 @@ function tenant(): string | null {
   return m?.[1] ?? null;
 }
 
+// Cache module-level du token applicatif : meme token pour toute l'app, valable ~3600s.
+// Evite un POST OAuth a Microsoft a chaque appel Graph (le cookie eStale fait deja pareil).
+let _tokenCache: { value: string; expiresAt: number } | null = null;
+
 export async function jetonGraph(): Promise<string> {
+  if (_tokenCache && Date.now() < _tokenCache.expiresAt - 60_000) return _tokenCache.value;
   const t = tenant();
   const id = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
   const secret = process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;
@@ -29,8 +34,9 @@ export async function jetonGraph(): Promise<string> {
     }),
   });
   if (!r.ok) throw new Error(`Token Graph ${r.status} : ${(await r.text()).slice(0, 200)}`);
-  const j = (await r.json()) as { access_token?: string };
+  const j = (await r.json()) as { access_token?: string; expires_in?: number };
   if (!j.access_token) throw new Error("Token Graph : access_token absent.");
+  _tokenCache = { value: j.access_token, expiresAt: Date.now() + (j.expires_in ?? 3600) * 1000 };
   return j.access_token;
 }
 

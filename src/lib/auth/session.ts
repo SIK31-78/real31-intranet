@@ -4,6 +4,7 @@
 //  - sinon (dev) : selecteur dev-login (cookie gid), defaut = premier gestionnaire.
 // Le cloisonnement (filtrage par managerId) reste applique cote service/adapter.
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireRepository } from "@/lib/adapters/router";
@@ -32,12 +33,13 @@ export function mailModuleActif(): boolean {
   return process.env.MAIL_SOURCE === "graph";
 }
 
-/** Email de la session SSO (null si SSO inactif ou non connecte). */
-async function emailSso(): Promise<string | null> {
+/** Email de la session SSO (null si SSO inactif ou non connecte). Memoise par requete
+ *  (React.cache) -> auth() n'est lu qu'une fois par rendu, pas a chaque appel. */
+const emailSso = cache(async (): Promise<string | null> => {
   if (!ssoConfigure) return null;
   const session = await auth();
   return session?.user?.email ?? null;
-}
+});
 
 /** Le user courant peut-il incarner un autre gestionnaire (selecteur /dev-login) ? */
 export async function impersonationAutorisee(): Promise<boolean> {
@@ -45,7 +47,9 @@ export async function impersonationAutorisee(): Promise<boolean> {
   return estSuperAdmin(await emailSso()); // SSO actif : seulement super-admin (apres login)
 }
 
-export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
+// Memoise par requete (React.cache) : appele dans la page ET dans AppShell -> une seule
+// resolution (auth() + requete DB User) par rendu serveur au lieu de plusieurs.
+export const getGestionnaireCourant = cache(async (): Promise<Gestionnaire | null> => {
   const repo = getGestionnaireRepository();
   const email = await emailSso();
 
@@ -69,4 +73,4 @@ export async function getGestionnaireCourant(): Promise<Gestionnaire | null> {
   // Fallback dev sans SSO : premier gestionnaire.
   const tous = await repo.list();
   return tous[0] ?? null;
-}
+});
