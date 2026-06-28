@@ -23,5 +23,7 @@ export interface MailOutboundProvider {
     cc: string[];
     cci: string[];
     signatureHtml?: string;
+    /** Ids des pieces jointes du mail D'ORIGINE a re-joindre a la reponse. */
+    pjIds?: string[];
   }): Promise<void>;
 }

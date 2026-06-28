@@ -236,6 +236,7 @@ export async function envoyerReponseAction(
   a: string[],
   cc: string[],
   cci: string[],
+  pjIds: string[],
 ): Promise<{ ok: boolean; message?: string }> {
   const g = await getGestionnaireCourant();
   if (!g?.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
@@ -259,6 +260,7 @@ export async function envoyerReponseAction(
       cc,
       cci,
       signatureHtml,
+      pjIds,
     });
     revalidatePath("/mes-emails");
     return { ok: true };

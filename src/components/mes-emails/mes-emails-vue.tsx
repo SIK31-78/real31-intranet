@@ -156,6 +156,8 @@ export function MesEmailsVue({
   const [composeParMail, setComposeParMail] = useState<Set<string>>(new Set());
   // Sujet editable de la reponse, par mail.
   const [sujetParMail, setSujetParMail] = useState<Map<string, string>>(new Map());
+  // PJ reçues a RE-JOINDRE a la reponse (ids d'attachment selectionnes), par mail.
+  const [pjJointesParMail, setPjJointesParMail] = useState<Map<string, Set<string>>>(new Map());
   // Visionneuse de piece jointe (PDF/image) : blob courant ouvert dans la modale.
   const [apercu, setApercu] = useState<{ nom: string; type: string; url: string } | null>(null);
 
@@ -179,6 +181,14 @@ export function MesEmailsVue({
     setDestParMail((p) => new Map(p).set(m.id, { ...destinatairesDe(m), [champ]: valeurs }));
   const sujetDe = (m: MailEntrant): string => sujetParMail.get(m.id) ?? defautSujet(m);
   const majSujet = (m: MailEntrant, v: string) => setSujetParMail((p) => new Map(p).set(m.id, v));
+  const pjJointesDe = (m: MailEntrant): Set<string> => pjJointesParMail.get(m.id) ?? new Set();
+  const togglePjJointe = (m: MailEntrant, id: string) =>
+    setPjJointesParMail((p) => {
+      const courant = new Set(p.get(m.id) ?? []);
+      if (courant.has(id)) courant.delete(id);
+      else courant.add(id);
+      return new Map(p).set(m.id, courant);
+    });
 
   // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
   // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
@@ -331,7 +341,16 @@ export function MesEmailsVue({
     const recap = `Envoyer la réponse à ${dst.to.join(", ")}${dst.cc.length ? `\n(cc : ${dst.cc.join(", ")})` : ""}${dst.cci.length ? `\n(cci : ${dst.cci.join(", ")})` : ""} ?`;
     if (!window.confirm(recap)) return;
     setMsgBrouillon("Envoi en cours…");
-    const r = await envoyerReponseAction(m.id, coproDe(m).code, brouillonDe(m), sujetDe(m), dst.to, dst.cc, dst.cci);
+    const r = await envoyerReponseAction(
+      m.id,
+      coproDe(m).code,
+      brouillonDe(m),
+      sujetDe(m),
+      dst.to,
+      dst.cc,
+      dst.cci,
+      [...pjJointesDe(m)],
+    );
     if (!r.ok) {
       setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
       return;
@@ -500,6 +519,8 @@ export function MesEmailsVue({
               }
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
+              pjJointes={pjJointesDe(selection)}
+              onTogglePjJointe={(id) => togglePjJointe(selection, id)}
               destinataires={destinatairesDe(selection)}
               onMajDestinataires={(champ, v) => majDest(selection, champ, v)}
               sujet={sujetDe(selection)}
@@ -924,6 +945,8 @@ function AnalysePane({
   piecesJointes,
   onTelecharger,
   onApercu,
+  pjJointes,
+  onTogglePjJointe,
   destinataires,
   onMajDestinataires,
   sujet,
@@ -967,6 +990,8 @@ function AnalysePane({
   piecesJointes: PieceJointeRef[] | null;
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
+  pjJointes: Set<string>;
+  onTogglePjJointe: (id: string) => void;
   destinataires: Destinataires;
   onMajDestinataires: (champ: keyof Destinataires, v: string[]) => void;
   sujet: string;
@@ -1137,6 +1162,30 @@ function AnalysePane({
                 aria-label="Sujet de la réponse"
                 className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink outline-none focus:ring-1 focus:ring-green-500/40"
               />
+              {piecesJointes && piecesJointes.length > 0 ? (
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-ink-3">Joindre&nbsp;:</span>
+                  {piecesJointes.map((pj) => {
+                    const jointe = pjJointes.has(pj.id);
+                    return (
+                      <button
+                        key={pj.id}
+                        type="button"
+                        onClick={() => onTogglePjJointe(pj.id)}
+                        title={jointe ? "Jointe à la réponse" : "Joindre à la réponse"}
+                        className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full border text-[11.5px] transition-colors ${jointe ? "border-green-500/40 bg-green-50 text-green-700" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}
+                      >
+                        {jointe ? (
+                          <Check strokeWidth={2} className="w-3 h-3 shrink-0" />
+                        ) : (
+                          <Paperclip strokeWidth={1.5} className="w-3 h-3 shrink-0" />
+                        )}
+                        <span className="truncate max-w-[160px]">{pj.nom}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               <textarea
                 value={brouillon}
                 onChange={(e) => onEditBrouillon(e.target.value)}

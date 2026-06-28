@@ -13,6 +13,7 @@ export async function envoyerReponseMail(p: {
   cc: string[];
   cci: string[];
   signatureHtml?: string;
+  pjIds?: string[];
 }): Promise<void> {
   return getMailOutboundProvider().envoyer(p);
 }

@@ -40,6 +40,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     cc: string[];
     cci: string[];
     signatureHtml?: string;
+    pjIds?: string[];
   }): Promise<void> {
     if (!p.boite) throw new Error("Envoi : boite manquante.");
     if (dest(p.a).length === 0) throw new Error("Envoi : au moins un destinataire en 'A'.");
@@ -52,6 +53,25 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     const r1 = await fetch(`${u}/messages/${id}/createReply`, { method: "POST", headers: h, body: "{}" });
     if (!r1.ok) throw new Error(`Graph createReply ${r1.status} : ${(await r1.text()).slice(0, 200)}`);
     const draft = (await r1.json()) as { id: string; body?: { content?: string } };
+
+    // 1bis. Re-joint les PJ choisies du mail d'origine (recuperees puis ajoutees au draft).
+    for (const aid of p.pjIds ?? []) {
+      const ra = await fetch(`${u}/messages/${id}/attachments/${aid}`, { headers: { Authorization: `Bearer ${tk}` } });
+      if (!ra.ok) throw new Error(`Graph lire PJ ${ra.status} : ${(await ra.text()).slice(0, 200)}`);
+      const att = (await ra.json()) as { name: string; contentType: string; contentBytes?: string };
+      if (!att.contentBytes) continue;
+      const rp = await fetch(`${u}/messages/${draft.id}/attachments`, {
+        method: "POST",
+        headers: h,
+        body: JSON.stringify({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: att.name,
+          contentType: att.contentType,
+          contentBytes: att.contentBytes,
+        }),
+      });
+      if (!rp.ok) throw new Error(`Graph ajout PJ ${rp.status} : ${(await rp.text()).slice(0, 200)}`);
+    }
 
     // 2. Pose le corps (mon texte + signature AU-DESSUS de la citation), le sujet et les
     //    destinataires. Signature injectee ICI car Signitic (add-in Outlook) ne s'applique
