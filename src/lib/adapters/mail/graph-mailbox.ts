@@ -3,7 +3,7 @@
 // (S234) puis par nom de copro (tolerant), et deplace le message (POST .../move).
 // Best-effort : si aucun dossier ne correspond, on ne deplace rien.
 
-import type { DossierBoite, MailboxProvider } from "@/lib/ports/mailbox-provider";
+import type { DossierBoite, MailboxProvider, PieceJointeRef } from "@/lib/ports/mailbox-provider";
 import { GRAPH, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
@@ -136,5 +136,37 @@ export class GraphMailboxProvider implements MailboxProvider {
     });
     if (!r.ok) throw new Error(`Graph move ${r.status} : ${(await r.text()).slice(0, 200)}`);
     return { deplace: true };
+  }
+
+  async listerPiecesJointes(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]> {
+    if (!p.boite) throw new Error("Pieces jointes : boite manquante.");
+    const tk = await jetonGraph();
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    const url =
+      `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments` +
+      `?$select=id,name,size,contentType,isInline`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    if (!r.ok) throw new Error(`Graph attachments ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as {
+      value?: { id: string; name: string; size: number; contentType: string; isInline?: boolean }[];
+    };
+    return (j.value ?? [])
+      .filter((a) => !a.isInline) // exclut les images inline (signatures)
+      .map((a) => ({ id: a.id, nom: a.name, taille: a.size, type: a.contentType }));
+  }
+
+  async lirePieceJointe(p: {
+    boite: string;
+    internetMessageId: string;
+    attachmentId: string;
+  }): Promise<{ nom: string; type: string; base64: string }> {
+    if (!p.boite) throw new Error("Piece jointe : boite manquante.");
+    const tk = await jetonGraph();
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    const url = `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments/${p.attachmentId}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    if (!r.ok) throw new Error(`Graph piece jointe ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const a = (await r.json()) as { name: string; contentType: string; contentBytes?: string };
+    return { nom: a.name, type: a.contentType, base64: a.contentBytes ?? "" };
   }
 }

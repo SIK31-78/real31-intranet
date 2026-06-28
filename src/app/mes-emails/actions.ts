@@ -23,6 +23,8 @@ import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
+import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
+import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
 import type { DossierBoite } from "@/lib/domain/mes-emails";
@@ -156,6 +158,42 @@ export async function synchroniserAction(): Promise<void> {
   if (!mailModuleActif()) return;
   await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
+}
+
+// Liste les pieces jointes REELLES du mail (a l'ouverture, lazy). Boite = celle du
+// gestionnaire connecte -> cloisonnement intrinseque. Degrade en [] si Graph indispo.
+export async function chargerPiecesJointesAction(
+  emailId: string,
+  coproCode: string,
+): Promise<PieceJointeRef[]> {
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return [];
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) return [];
+  try {
+    return await listerPiecesJointesMail(g.email, emailId);
+  } catch (e) {
+    console.warn("[mes-emails] pieces jointes indisponibles :", (e as Error).message);
+    return [];
+  }
+}
+
+// Recupere le contenu d'une piece jointe (base64) pour telechargement cote client.
+export async function telechargerPieceJointeAction(
+  emailId: string,
+  coproCode: string,
+  attachmentId: string,
+): Promise<{ ok: boolean; nom?: string; type?: string; base64?: string; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
+  }
+  try {
+    const pj = await lirePieceJointeMail(g.email, emailId, attachmentId);
+    return { ok: true, ...pj };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 }
 
 // Genere le brouillon de reponse A LA DEMANDE (quand le gestionnaire ouvre/traite un

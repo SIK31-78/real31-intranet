@@ -95,6 +95,14 @@ export interface PieceJointe {
   nom: string;
 }
 
+/** Piece jointe REELLE (metadonnees Graph), chargee a la demande a l'ouverture du mail. */
+export interface PieceJointeRef {
+  id: string;
+  nom: string;
+  taille: number;
+  type: string;
+}
+
 /** Un mail entrant en cours de traitement. */
 export interface MailEntrant {
   id: string;

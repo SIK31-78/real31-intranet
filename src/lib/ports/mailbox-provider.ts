@@ -2,9 +2,9 @@
 // tard categoriser/marquer lu). Sert a refleter le classement du cockpit dans
 // Outlook. Le type DossierBoite vit dans le domaine (mes-emails).
 
-import type { DossierBoite } from "@/lib/domain/mes-emails";
+import type { DossierBoite, PieceJointeRef } from "@/lib/domain/mes-emails";
 
-export type { DossierBoite };
+export type { DossierBoite, PieceJointeRef };
 
 export interface MailboxProvider {
   /**
@@ -30,4 +30,15 @@ export interface MailboxProvider {
     internetMessageId: string;
     folderId: string;
   }): Promise<{ deplace: boolean }>;
+
+  /** Pieces jointes REELLES du mail (metadonnees), chargees a la demande. Exclut les
+   *  images inline (signatures). */
+  listerPiecesJointes(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]>;
+
+  /** Contenu d'une piece jointe (base64) pour telechargement cote client. */
+  lirePieceJointe(p: {
+    boite: string;
+    internetMessageId: string;
+    attachmentId: string;
+  }): Promise<{ nom: string; type: string; base64: string }>;
 }

@@ -23,6 +23,7 @@ import {
   CalendarCheck,
   ChevronRight,
   FolderInput,
+  Download,
 } from "lucide-react";
 import type {
   ContexteCopro,
@@ -31,6 +32,7 @@ import type {
   EvenementKind,
   MailEntrant,
   MesEmails,
+  PieceJointeRef,
   Rattachement,
 } from "@/lib/domain/mes-emails";
 import { LIBELLE_TYPE, trierMails, trouverContexte, trouverDossier, typeDossierSuggere } from "@/lib/domain/mes-emails";
@@ -45,6 +47,8 @@ import {
   marquerLuAction,
   creerBrouillonAction,
   genererBrouillonAction,
+  chargerPiecesJointesAction,
+  telechargerPieceJointeAction,
   rattacherCoproAction,
   chargerDossiersAction,
   classerDansDossierAction,
@@ -57,6 +61,12 @@ type Statut = "nouveau" | "repondu" | "classe";
 
 function jourMois(iso: string): string {
   return formatDateLongue(iso).replace(/ \d{4}$/, "");
+}
+
+function formatTaille(octets: number): string {
+  if (octets >= 1_000_000) return `${(octets / 1_000_000).toFixed(1)} Mo`;
+  if (octets >= 1000) return `${Math.round(octets / 1000)} Ko`;
+  return `${octets} o`;
 }
 
 /** Initiales de l'expediteur (sans la qualite entre parentheses). */
@@ -117,6 +127,8 @@ export function MesEmailsVue({
   const [dossiersReels, setDossiersReels] = useState<
     Map<string, { id: string; titre: string; type: TypeDossier }[]>
   >(new Map());
+  // Pieces jointes REELLES chargees a la demande a l'ouverture (null = en cours).
+  const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
 
   useEffect(() => {
     void chargerDossiersAction()
@@ -160,6 +172,21 @@ export function MesEmailsVue({
     setMsgBrouillon("Création du brouillon dans Outlook...");
     const r = await creerBrouillonAction(m.id, m.coproCode, brouillonDe(m));
     setMsgBrouillon(r.ok ? "Brouillon créé dans Outlook." : `Échec : ${r.message ?? ""}`);
+  }
+
+  // Telecharge une piece jointe : recupere le base64 cote serveur -> Blob -> download.
+  async function telechargerPj(m: MailEntrant, pj: PieceJointeRef) {
+    const r = await telechargerPieceJointeAction(m.id, coproDe(m).code, pj.id);
+    if (!r.ok || !r.base64) return;
+    const bin = atob(r.base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: r.type || "application/octet-stream" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = r.nom || pj.nom;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Brouillon IA A LA DEMANDE : genere le texte sur clic, le met dans l'editeur (edits).
@@ -215,7 +242,16 @@ export function MesEmailsVue({
     setMsgBrouillon(null);
     setLus((prev) => new Set(prev).add(id));
     const m = data.mails.find((x) => x.id === id);
-    if (m) void marquerLuAction(id, m.coproCode);
+    if (m) {
+      void marquerLuAction(id, m.coproCode);
+      // Charge les vraies pieces jointes a la demande (une seule fois par mail).
+      if (m.attachments.length > 0 && !pjParMail.has(id)) {
+        setPjParMail((p) => new Map(p).set(id, null));
+        void chargerPiecesJointesAction(id, coproDe(m).code).then((pjs) =>
+          setPjParMail((prev) => new Map(prev).set(id, pjs)),
+        );
+      }
+    }
   }
   const add = (set: Set<string>, id: string) => new Set(set).add(id);
   const del = (set: Set<string>, id: string) => {
@@ -387,6 +423,10 @@ export function MesEmailsVue({
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
               onGenererBrouillon={() => void genererBrouillon(selection)}
+              piecesJointes={
+                pjParMail.has(selection.id) ? (pjParMail.get(selection.id) ?? null) : []
+              }
+              onTelecharger={(pj) => void telechargerPj(selection, pj)}
               msgBrouillon={msgBrouillon}
               changer={changer}
               ouverts={ouverts}
@@ -679,6 +719,8 @@ function AnalysePane({
   signatureHtml,
   onCreerBrouillon,
   onGenererBrouillon,
+  piecesJointes,
+  onTelecharger,
   msgBrouillon,
   onToggleChanger,
   onRattacherDossier,
@@ -712,6 +754,8 @@ function AnalysePane({
   signatureHtml?: string | null;
   onCreerBrouillon: () => void;
   onGenererBrouillon: () => void;
+  piecesJointes: PieceJointeRef[] | null;
+  onTelecharger: (pj: PieceJointeRef) => void;
   msgBrouillon: string | null;
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
@@ -806,15 +850,28 @@ function AnalysePane({
           </div>
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              {m.attachments.map((pj) => (
-                <span
-                  key={pj.nom}
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-[11.5px] text-ink-2"
-                >
-                  <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3" />
-                  {pj.nom}
+              {piecesJointes === null ? (
+                <span className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-[11.5px] text-ink-3">
+                  <Paperclip strokeWidth={1.5} className="w-3 h-3" />
+                  Chargement des pièces jointes…
                 </span>
-              ))}
+              ) : piecesJointes.length === 0 ? (
+                <span className="text-[11.5px] text-ink-4 italic">Pièces jointes indisponibles</span>
+              ) : (
+                piecesJointes.map((pj) => (
+                  <button
+                    key={pj.id}
+                    type="button"
+                    onClick={() => onTelecharger(pj)}
+                    title={`Télécharger (${formatTaille(pj.taille)})`}
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-[11.5px] text-ink-2 hover:bg-surface-2 hover:border-line-2"
+                  >
+                    <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3" />
+                    <span className="truncate max-w-[220px]">{pj.nom}</span>
+                    <Download strokeWidth={1.5} className="w-3 h-3 text-ink-3" />
+                  </button>
+                ))
+              )}
             </div>
           )}
         </div>
