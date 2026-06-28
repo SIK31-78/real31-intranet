@@ -35,9 +35,11 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     boite: string;
     internetMessageId: string;
     corps: string;
+    sujet?: string;
     a: string[];
     cc: string[];
     cci: string[];
+    signatureHtml?: string;
   }): Promise<void> {
     if (!p.boite) throw new Error("Envoi : boite manquante.");
     if (dest(p.a).length === 0) throw new Error("Envoi : au moins un destinataire en 'A'.");
@@ -51,18 +53,23 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     if (!r1.ok) throw new Error(`Graph createReply ${r1.status} : ${(await r1.text()).slice(0, 200)}`);
     const draft = (await r1.json()) as { id: string; body?: { content?: string } };
 
-    // 2. Pose le corps (mon texte AU-DESSUS de la citation) + les destinataires choisis.
+    // 2. Pose le corps (mon texte + signature AU-DESSUS de la citation), le sujet et les
+    //    destinataires. Signature injectee ICI car Signitic (add-in Outlook) ne s'applique
+    //    pas a un envoi app-only.
     const citation = draft.body?.content ?? "";
     const monTexte = `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
+    const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
+    const corpsPatch: Record<string, unknown> = {
+      body: { contentType: "HTML", content: monTexte + signature + citation },
+      toRecipients: dest(p.a),
+      ccRecipients: dest(p.cc),
+      bccRecipients: dest(p.cci),
+    };
+    if (p.sujet && p.sujet.trim()) corpsPatch.subject = p.sujet.trim();
     const r2 = await fetch(`${u}/messages/${draft.id}`, {
       method: "PATCH",
       headers: h,
-      body: JSON.stringify({
-        body: { contentType: "HTML", content: monTexte + citation },
-        toRecipients: dest(p.a),
-        ccRecipients: dest(p.cc),
-        bccRecipients: dest(p.cci),
-      }),
+      body: JSON.stringify(corpsPatch),
     });
     if (!r2.ok) throw new Error(`Graph PATCH brouillon ${r2.status} : ${(await r2.text()).slice(0, 200)}`);
 

@@ -25,6 +25,7 @@ import {
   FolderInput,
   Download,
   X,
+  Send,
 } from "lucide-react";
 import type {
   ContexteCopro,
@@ -62,6 +63,11 @@ import {
 type Statut = "nouveau" | "repondu" | "classe";
 
 type Destinataires = { to: string[]; cc: string[]; cci: string[] };
+
+// Sujet par defaut d'une reponse : prefixe "Re:" si l'objet n'en a pas deja un.
+function defautSujet(m: MailEntrant): string {
+  return /^(re|ré|tr|fwd?)\s*:/i.test(m.objet.trim()) ? m.objet : `Re: ${m.objet}`;
+}
 
 // Destinataires par defaut d'une reponse : A = l'expediteur ; Cc = les autres
 // participants (To + Cc d'origine, dedupliques, sans l'expediteur) ; Cci vide.
@@ -148,6 +154,8 @@ export function MesEmailsVue({
   const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
   // Mails dont l'editeur de reponse est ouvert manuellement (ex. mail sans action).
   const [composeParMail, setComposeParMail] = useState<Set<string>>(new Set());
+  // Sujet editable de la reponse, par mail.
+  const [sujetParMail, setSujetParMail] = useState<Map<string, string>>(new Map());
   // Visionneuse de piece jointe (PDF/image) : blob courant ouvert dans la modale.
   const [apercu, setApercu] = useState<{ nom: string; type: string; url: string } | null>(null);
 
@@ -169,6 +177,8 @@ export function MesEmailsVue({
     destParMail.get(m.id) ?? defautDestinataires(m);
   const majDest = (m: MailEntrant, champ: keyof Destinataires, valeurs: string[]) =>
     setDestParMail((p) => new Map(p).set(m.id, { ...destinatairesDe(m), [champ]: valeurs }));
+  const sujetDe = (m: MailEntrant): string => sujetParMail.get(m.id) ?? defautSujet(m);
+  const majSujet = (m: MailEntrant, v: string) => setSujetParMail((p) => new Map(p).set(m.id, v));
 
   // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
   // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
@@ -305,36 +315,42 @@ export function MesEmailsVue({
     return n;
   };
 
-  // Valider = (s'il y a une reponse) ENVOYER le vrai mail avec confirmation, PUIS classer
-  // dans le dossier Outlook choisi. Bloqué tant qu'aucun dossier n'est choisi.
-  async function valider(m: MailEntrant) {
+  // ENVOYER la reponse, INDEPENDAMMENT du classement (on peut repondre maintenant et
+  // classer/agir plus tard). Pas besoin de choisir un dossier. Irreversible -> confirmation.
+  async function envoyerSeul(m: MailEntrant) {
+    const corps = brouillonDe(m).trim();
+    if (!corps) {
+      setMsgBrouillon("Le message est vide.");
+      return;
+    }
+    const dst = destinatairesDe(m);
+    if (dst.to.filter((x) => x.includes("@")).length === 0) {
+      setMsgBrouillon("Ajoute au moins un destinataire en « À ».");
+      return;
+    }
+    const recap = `Envoyer la réponse à ${dst.to.join(", ")}${dst.cc.length ? `\n(cc : ${dst.cc.join(", ")})` : ""}${dst.cci.length ? `\n(cci : ${dst.cci.join(", ")})` : ""} ?`;
+    if (!window.confirm(recap)) return;
+    setMsgBrouillon("Envoi en cours…");
+    const r = await envoyerReponseAction(m.id, coproDe(m).code, brouillonDe(m), sujetDe(m), dst.to, dst.cc, dst.cci);
+    if (!r.ok) {
+      setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
+      return;
+    }
+    setRepondus((p) => add(p, m.id));
+    setMsgBrouillon("Réponse envoyée ✓");
+  }
+
+  // Classer = deplacer dans le dossier Outlook choisi (independant de l'envoi).
+  function valider(m: MailEntrant) {
     const folderId = dossierIdDe(m);
     if (!folderId) {
       setMsgClasser("Choisis un dossier de destination avant de classer ce mail.");
       return;
     }
-    const corps = brouillonDe(m);
-    // Une reponse est rédigée -> envoi RÉEL (irréversible), avec confirmation.
-    if (corps) {
-      const dest = destinatairesDe(m);
-      if (dest.to.filter((x) => x.includes("@")).length === 0) {
-        setMsgClasser("Ajoute au moins un destinataire en « À ».");
-        return;
-      }
-      const recap = `Envoyer la réponse à ${dest.to.join(", ")}${dest.cc.length ? `\n(cc : ${dest.cc.join(", ")})` : ""}${dest.cci.length ? `\n(cci : ${dest.cci.join(", ")})` : ""} ?`;
-      if (!window.confirm(recap)) return;
-      setMsgClasser("Envoi en cours…");
-      const env = await envoyerReponseAction(m.id, coproDe(m).code, corps, dest.to, dest.cc, dest.cci);
-      if (!env.ok) {
-        setMsgClasser(`Échec de l'envoi : ${env.message ?? ""}`);
-        return;
-      }
-      setRepondus((p) => add(p, m.id));
-    }
     setMsgClasser(null);
     setClasses((p) => add(p, m.id));
     const folderNom = (dossiers ?? []).find((f) => f.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
-    void classerDansDossierAction(m.id, coproDe(m).code, folderId, folderNom, [], corps).then((r) => {
+    void classerDansDossierAction(m.id, coproDe(m).code, folderId, folderNom, [], brouillonDe(m)).then((r) => {
       if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
     });
     // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
@@ -486,6 +502,9 @@ export function MesEmailsVue({
               onApercu={(pj) => void voirPj(selection, pj)}
               destinataires={destinatairesDe(selection)}
               onMajDestinataires={(champ, v) => majDest(selection, champ, v)}
+              sujet={sujetDe(selection)}
+              onMajSujet={(v) => majSujet(selection, v)}
+              onEnvoyer={() => void envoyerSeul(selection)}
               msgBrouillon={msgBrouillon}
               changer={changer}
               ouverts={ouverts}
@@ -907,6 +926,9 @@ function AnalysePane({
   onApercu,
   destinataires,
   onMajDestinataires,
+  sujet,
+  onMajSujet,
+  onEnvoyer,
   msgBrouillon,
   onToggleChanger,
   onRattacherDossier,
@@ -947,6 +969,9 @@ function AnalysePane({
   onApercu: (pj: PieceJointeRef) => void;
   destinataires: Destinataires;
   onMajDestinataires: (champ: keyof Destinataires, v: string[]) => void;
+  sujet: string;
+  onMajSujet: (v: string) => void;
+  onEnvoyer: () => void;
   msgBrouillon: string | null;
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
@@ -957,7 +982,7 @@ function AnalysePane({
   onToggleSection: (cle: string) => void;
 }) {
   const classe = statut === "classe";
-  const labelValider = brouillon ? "Envoyer & classer" : "Classer (sans action)";
+  const labelValider = "Classer";
   const genEnCours = (msgBrouillon ?? "").startsWith("Génération");
 
   return (
@@ -1105,6 +1130,13 @@ function AnalysePane({
                 </div>
               </div>
               <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
+              <input
+                value={sujet}
+                onChange={(e) => onMajSujet(e.target.value)}
+                placeholder="Sujet"
+                aria-label="Sujet de la réponse"
+                className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink outline-none focus:ring-1 focus:ring-green-500/40"
+              />
               <textarea
                 value={brouillon}
                 onChange={(e) => onEditBrouillon(e.target.value)}
@@ -1123,9 +1155,17 @@ function AnalysePane({
                   />
                 </div>
               ) : null}
-              {msgBrouillon ? (
-                <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p>
-              ) : null}
+              <div className="mt-2.5 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onEnvoyer}
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90"
+                >
+                  <Send strokeWidth={2} className="w-4 h-4" />
+                  Envoyer la réponse
+                </button>
+                {msgBrouillon ? <span className="text-[11.5px] text-ink-3">{msgBrouillon}</span> : null}
+              </div>
             </>
           ) : (
             // Repondre possible sur N'IMPORTE QUEL mail (meme sans action). Pour les mails

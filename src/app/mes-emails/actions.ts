@@ -25,6 +25,7 @@ import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emai
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
+import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
@@ -231,6 +232,7 @@ export async function envoyerReponseAction(
   emailId: string,
   coproCode: string,
   corps: string,
+  sujet: string,
   a: string[],
   cc: string[],
   cci: string[],
@@ -245,7 +247,19 @@ export async function envoyerReponseAction(
     return { ok: false, message: "Ajoute au moins un destinataire en 'À'." };
   }
   try {
-    await envoyerReponseMail({ boite: g.email, internetMessageId: emailId, corps, a, cc, cci });
+    // Signature recuperee cote serveur (Signitic) et injectee dans le corps : un envoi
+    // app-only ne passe pas par l'add-in Outlook qui l'ajoute d'habitude.
+    const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
+    await envoyerReponseMail({
+      boite: g.email,
+      internetMessageId: emailId,
+      corps,
+      sujet,
+      a,
+      cc,
+      cci,
+      signatureHtml,
+    });
     revalidatePath("/mes-emails");
     return { ok: true };
   } catch (e) {

@@ -8,9 +8,11 @@ export async function envoyerReponseMail(p: {
   boite: string;
   internetMessageId: string;
   corps: string;
+  sujet?: string;
   a: string[];
   cc: string[];
   cci: string[];
+  signatureHtml?: string;
 }): Promise<void> {
   return getMailOutboundProvider().envoyer(p);
 }
