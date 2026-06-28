@@ -146,6 +146,10 @@ export function MesEmailsVue({
   const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
   const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
+  // Mails dont l'editeur de reponse est ouvert manuellement (ex. mail sans action).
+  const [composeParMail, setComposeParMail] = useState<Set<string>>(new Set());
+  // Visionneuse de piece jointe (PDF/image) : blob courant ouvert dans la modale.
+  const [apercu, setApercu] = useState<{ nom: string; type: string; url: string } | null>(null);
 
   useEffect(() => {
     void chargerDossiersAction()
@@ -195,20 +199,40 @@ export function MesEmailsVue({
     setMsgBrouillon(r.ok ? "Brouillon créé dans Outlook." : `Échec : ${r.message ?? ""}`);
   }
 
-  // Telecharge une piece jointe : recupere le base64 cote serveur -> Blob -> download.
-  async function telechargerPj(m: MailEntrant, pj: PieceJointeRef) {
+  // Ouvre l'editeur de reponse sur un mail (meme sans action) : reponse manuelle.
+  const repondre = (m: MailEntrant) => setComposeParMail((p) => new Set(p).add(m.id));
+
+  // Recupere une PJ (base64 cote serveur) -> Blob -> URL objet (pour download OU apercu).
+  async function chargerBlobPj(
+    m: MailEntrant,
+    pj: PieceJointeRef,
+  ): Promise<{ nom: string; type: string; url: string } | null> {
     const r = await telechargerPieceJointeAction(m.id, coproDe(m).code, pj.id);
-    if (!r.ok || !r.base64) return;
+    if (!r.ok || !r.base64) return null;
     const bin = atob(r.base64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const url = URL.createObjectURL(new Blob([bytes], { type: r.type || "application/octet-stream" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = r.nom || pj.nom;
-    a.click();
-    URL.revokeObjectURL(url);
+    return { nom: r.nom || pj.nom, type: r.type || "", url };
   }
+  async function telechargerPj(m: MailEntrant, pj: PieceJointeRef) {
+    const b = await chargerBlobPj(m, pj);
+    if (!b) return;
+    const a = document.createElement("a");
+    a.href = b.url;
+    a.download = b.nom;
+    a.click();
+    URL.revokeObjectURL(b.url);
+  }
+  async function voirPj(m: MailEntrant, pj: PieceJointeRef) {
+    const b = await chargerBlobPj(m, pj);
+    if (b) setApercu(b);
+  }
+  const fermerApercu = () =>
+    setApercu((a) => {
+      if (a) URL.revokeObjectURL(a.url);
+      return null;
+    });
 
   // Brouillon IA A LA DEMANDE : genere le texte sur clic, le met dans l'editeur (edits).
   async function genererBrouillon(m: MailEntrant) {
@@ -453,10 +477,13 @@ export function MesEmailsVue({
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
               onGenererBrouillon={() => void genererBrouillon(selection)}
+              compose={composeParMail.has(selection.id)}
+              onRepondre={() => repondre(selection)}
               piecesJointes={
                 pjParMail.has(selection.id) ? (pjParMail.get(selection.id) ?? null) : []
               }
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
+              onApercu={(pj) => void voirPj(selection, pj)}
               destinataires={destinatairesDe(selection)}
               onMajDestinataires={(champ, v) => majDest(selection, champ, v)}
               msgBrouillon={msgBrouillon}
@@ -532,6 +559,56 @@ export function MesEmailsVue({
           )}
         </section>
       </div>
+
+      {apercu ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Aperçu ${apercu.nom}`}
+        >
+          <div className="absolute inset-0 bg-black/50" onClick={fermerApercu} />
+          <div className="relative flex flex-col w-full max-w-[920px] h-[85vh] rounded-lg border border-line bg-surface shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 h-11 border-b border-line shrink-0">
+              <span className="text-[13px] font-medium text-ink truncate">{apercu.nom}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={apercu.url}
+                  download={apercu.nom}
+                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line text-[12px] text-ink-2 hover:bg-surface-2"
+                >
+                  <Download strokeWidth={1.5} className="w-3.5 h-3.5" /> Télécharger
+                </a>
+                <button
+                  type="button"
+                  onClick={fermerApercu}
+                  aria-label="Fermer"
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2"
+                >
+                  <X strokeWidth={1.5} className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 bg-surface-2">
+              {apercu.type === "application/pdf" ? (
+                <iframe src={apercu.url} title={apercu.nom} className="w-full h-full" />
+              ) : apercu.type.startsWith("image/") ? (
+                <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={apercu.url} alt={apercu.nom} className="max-w-full max-h-full object-contain" />
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-[13px] text-ink-3 px-4 text-center">
+                  <p>Aperçu non disponible pour ce type de fichier.</p>
+                  <a href={apercu.url} download={apercu.nom} className="text-green-700 hover:underline">
+                    Télécharger «&nbsp;{apercu.nom}&nbsp;»
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -823,8 +900,11 @@ function AnalysePane({
   signatureHtml,
   onCreerBrouillon,
   onGenererBrouillon,
+  compose,
+  onRepondre,
   piecesJointes,
   onTelecharger,
+  onApercu,
   destinataires,
   onMajDestinataires,
   msgBrouillon,
@@ -860,8 +940,11 @@ function AnalysePane({
   signatureHtml?: string | null;
   onCreerBrouillon: () => void;
   onGenererBrouillon: () => void;
+  compose: boolean;
+  onRepondre: () => void;
   piecesJointes: PieceJointeRef[] | null;
   onTelecharger: (pj: PieceJointeRef) => void;
+  onApercu: (pj: PieceJointeRef) => void;
   destinataires: Destinataires;
   onMajDestinataires: (champ: keyof Destinataires, v: string[]) => void;
   msgBrouillon: string | null;
@@ -967,17 +1050,29 @@ function AnalysePane({
                 <span className="text-[11.5px] text-ink-4 italic">Pièces jointes indisponibles</span>
               ) : (
                 piecesJointes.map((pj) => (
-                  <button
+                  <span
                     key={pj.id}
-                    type="button"
-                    onClick={() => onTelecharger(pj)}
-                    title={`Télécharger (${formatTaille(pj.taille)})`}
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-[11.5px] text-ink-2 hover:bg-surface-2 hover:border-line-2"
+                    title={formatTaille(pj.taille)}
+                    className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded border border-line bg-surface text-[11.5px] text-ink-2"
                   >
-                    <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3" />
-                    <span className="truncate max-w-[220px]">{pj.nom}</span>
-                    <Download strokeWidth={1.5} className="w-3 h-3 text-ink-3" />
-                  </button>
+                    <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3 shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => onApercu(pj)}
+                      title="Aperçu"
+                      className="truncate max-w-[200px] hover:underline"
+                    >
+                      {pj.nom}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onTelecharger(pj)}
+                      title="Télécharger"
+                      className="text-ink-4 hover:text-ink"
+                    >
+                      <Download strokeWidth={1.5} className="w-3 h-3" />
+                    </button>
+                  </span>
                 ))
               )}
             </div>
@@ -994,7 +1089,7 @@ function AnalysePane({
           </p>
           <p className="text-[13.5px] text-ink leading-snug">{recommandation(m, ratt)}</p>
 
-          {brouillon ? (
+          {brouillon || compose ? (
             <>
               <div className="flex items-center justify-between mt-3 mb-1">
                 <span className="text-[11.5px] text-ink-3">Réponse (modifiable)</span>
@@ -1032,23 +1127,34 @@ function AnalysePane({
                 <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p>
               ) : null}
             </>
-          ) : m.ticketable ? (
-            // Brouillon A LA DEMANDE : on ne genere (et ne paie l'IA) que sur clic.
-            <div className="mt-3">
+          ) : (
+            // Repondre possible sur N'IMPORTE QUEL mail (meme sans action). Pour les mails
+            // a traiter, on propose en plus la generation IA (a la demande = sur clic).
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={onGenererBrouillon}
-                disabled={genEnCours}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-green-500/30 bg-surface text-[12.5px] font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={onRepondre}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-[12.5px] font-medium text-ink-2 hover:bg-surface-2"
               >
-                <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
-                {genEnCours ? "Génération…" : "Générer un brouillon de réponse"}
+                <Mail strokeWidth={1.5} className="w-3.5 h-3.5" />
+                Répondre
               </button>
+              {m.ticketable ? (
+                <button
+                  type="button"
+                  onClick={onGenererBrouillon}
+                  disabled={genEnCours}
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-green-500/30 bg-surface text-[12.5px] font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
+                  {genEnCours ? "Génération…" : "Générer un brouillon (IA)"}
+                </button>
+              ) : null}
               {msgBrouillon ? (
-                <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p>
+                <p className="w-full mt-1 text-[11.5px] text-ink-3">{msgBrouillon}</p>
               ) : null}
             </div>
-          ) : null}
+          )}
         </div>
 
         {/* Action principale : repond (brouillon) + classe dans le dossier choisi.
