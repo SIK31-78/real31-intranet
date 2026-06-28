@@ -57,7 +57,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     //    destinataires. Signature injectee ICI car Signitic (add-in Outlook) ne s'applique
     //    pas a un envoi app-only.
     const citation = draft.body?.content ?? "";
-    const monTexte = `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
+    const monTexte = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
     const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
     const corpsPatch: Record<string, unknown> = {
       body: { contentType: "HTML", content: monTexte + signature + citation },
