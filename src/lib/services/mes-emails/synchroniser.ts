@@ -137,47 +137,64 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
     // Reutilise l'analyse memoisee si presente et si les prompts n'ont pas change.
     let an = cache.get(imid);
     if (!an || an.promptVersion !== VERSION_ANALYSE) {
-      const pf = prefilter(m);
-      let type: TypeMail = "non_ticketable";
-      let ticketable = false;
-      let estNouveau = false;
-      let confidence = 0.8;
-      let rationale: string = pf.decision;
-      let brouillon = "";
-      let etapes: string[] = [];
+      try {
+        const pf = prefilter(m);
+        let type: TypeMail = "non_ticketable";
+        let ticketable = false;
+        let estNouveau = false;
+        let confidence = 0.8;
+        let rationale: string = pf.decision;
+        let brouillon = "";
+        let etapes: string[] = [];
 
-      if (pf.decision === "pass") {
-        const cls = await analyse.classifier({ de: m.from, objet: m.subject, corps });
-        type = cls.type;
-        ticketable = cls.ticketable;
-        estNouveau = cls.est_nouveau_ticket;
-        confidence = cls.confidence;
-        rationale = cls.rationale;
-        if (cls.ticketable) {
-          const idx = idxAffaireDe.get(m.id);
-          const label = idx !== undefined ? affaires[idx]!.label : m.subject;
-          const p = await analyse.genererReponseEtPlan(
-            { de: m.from, objet: m.subject, corps },
-            label,
-          );
-          brouillon = p.reponse;
-          etapes = p.etapes;
+        if (pf.decision === "pass") {
+          const cls = await analyse.classifier({ de: m.from, objet: m.subject, corps });
+          type = cls.type;
+          ticketable = cls.ticketable;
+          estNouveau = cls.est_nouveau_ticket;
+          confidence = cls.confidence;
+          rationale = cls.rationale;
+          if (cls.ticketable) {
+            const idx = idxAffaireDe.get(m.id);
+            const label = idx !== undefined ? affaires[idx]!.label : m.subject;
+            const p = await analyse.genererReponseEtPlan(
+              { de: m.from, objet: m.subject, corps },
+              label,
+            );
+            brouillon = p.reponse;
+            etapes = p.etapes;
+          }
         }
-      }
 
-      an = {
-        internetMessageId: imid,
-        type,
-        ticketable,
-        estNouveauTicket: estNouveau,
-        confidence,
-        rationale,
-        brouillon,
-        etapes,
-        promptVersion: VERSION_ANALYSE,
-      } satisfies AnalyseCachee;
-      nbAnalyses++;
-      if (imid) await cacheStore.ecrire(g.id, an);
+        an = {
+          internetMessageId: imid,
+          type,
+          ticketable,
+          estNouveauTicket: estNouveau,
+          confidence,
+          rationale,
+          brouillon,
+          etapes,
+          promptVersion: VERSION_ANALYSE,
+        } satisfies AnalyseCachee;
+        nbAnalyses++;
+        if (imid) await cacheStore.ecrire(g.id, an);
+      } catch (err) {
+        // Analyse indisponible (ex. limite API Mistral) : on NE casse PAS la synchro.
+        // Fallback NON mis en cache -> reessaye au prochain sync (la limite se libere).
+        console.warn(`[mes-emails] analyse indisponible pour ${m.id} :`, (err as Error).message);
+        an = {
+          internetMessageId: imid,
+          type: "autre",
+          ticketable: false,
+          estNouveauTicket: true,
+          confidence: 0,
+          rationale: "analyse en attente (limite API, reessayer)",
+          brouillon: "",
+          etapes: [],
+          promptVersion: "pending",
+        } satisfies AnalyseCachee;
+      }
     }
     anDe.set(m.id, an);
   }

@@ -66,9 +66,19 @@ function extraireJson(raw: string): string {
   return s;
 }
 
+// Throttle simple : le tier gratuit Mistral limite ~1 req/s. On espace les appels pour
+// eviter les 429 en rafale (et la synchro degrade par mail si la limite persiste).
+let dernierAppelMistral = 0;
+async function attendreCreneauMistral(): Promise<void> {
+  const attente = dernierAppelMistral + 1200 - Date.now();
+  if (attente > 0) await new Promise((r) => setTimeout(r, attente));
+  dernierAppelMistral = Date.now();
+}
+
 async function completion(model: string, systeme: string, utilisateur: string): Promise<string> {
   const key = process.env.MISTRAL_API_KEY;
   if (!key) throw new Error("MISTRAL_API_KEY absente");
+  await attendreCreneauMistral();
   const body = JSON.stringify({
     model,
     temperature: 0,
