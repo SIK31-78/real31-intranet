@@ -22,9 +22,10 @@ import {
 } from "@/lib/adapters/router";
 
 const MAX_INGEST = 80;
-// Bumpe cette version si tu changes les prompts -> le cache se reanalyse tout seul.
-// v2 : prompts reecrits (ton syndic REAL31, formule adaptee, anti-invention).
-const VERSION_ANALYSE = "v2";
+// Bumpe cette version si tu changes les prompts/modele -> le cache se reanalyse tout seul.
+// v3 : invalide les sorties MOCK mises en cache quand MISTRAL_API_KEY etait absent
+// (le routeur servait le mock) ; force la reanalyse via le vrai modele.
+const VERSION_ANALYSE = "v3";
 
 export interface ResultatSync {
   nbMails: number;
