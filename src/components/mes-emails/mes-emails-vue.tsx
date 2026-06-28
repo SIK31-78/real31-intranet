@@ -44,6 +44,7 @@ import {
   editBrouillonAction,
   marquerLuAction,
   creerBrouillonAction,
+  genererBrouillonAction,
   rattacherCoproAction,
   chargerDossiersAction,
   classerDansDossierAction,
@@ -161,6 +162,18 @@ export function MesEmailsVue({
     setMsgBrouillon(r.ok ? "Brouillon créé dans Outlook." : `Échec : ${r.message ?? ""}`);
   }
 
+  // Brouillon IA A LA DEMANDE : genere le texte sur clic, le met dans l'editeur (edits).
+  async function genererBrouillon(m: MailEntrant) {
+    setMsgBrouillon("Génération du brouillon…");
+    const r = await genererBrouillonAction(m.id, coproDe(m).code);
+    if (r.ok) {
+      setEdits((p) => new Map(p).set(m.id, r.brouillon ?? ""));
+      setMsgBrouillon(r.brouillon ? null : "Aucune réponse externe pertinente pour ce mail.");
+    } else {
+      setMsgBrouillon(`Échec : ${r.message ?? ""}`);
+    }
+  }
+
   const q = recherche.trim().toLowerCase();
   const matchVue = (m: MailEntrant): boolean =>
     vue === "tous" || (vue === "traites" ? classes.has(m.id) : !classes.has(m.id));
@@ -221,7 +234,7 @@ export function MesEmailsVue({
       return;
     }
     setMsgClasser(null);
-    if (m.brouillonReponse) setRepondus((p) => add(p, m.id));
+    if (brouillonDe(m)) setRepondus((p) => add(p, m.id));
     setClasses((p) => add(p, m.id));
     const folderNom = (dossiers ?? []).find((d) => d.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
     void classerDansDossierAction(
@@ -373,6 +386,7 @@ export function MesEmailsVue({
               msgClasser={msgClasser}
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
+              onGenererBrouillon={() => void genererBrouillon(selection)}
               msgBrouillon={msgBrouillon}
               changer={changer}
               ouverts={ouverts}
@@ -664,6 +678,7 @@ function AnalysePane({
   onBlurBrouillon,
   signatureHtml,
   onCreerBrouillon,
+  onGenererBrouillon,
   msgBrouillon,
   onToggleChanger,
   onRattacherDossier,
@@ -696,6 +711,7 @@ function AnalysePane({
   onBlurBrouillon: () => void;
   signatureHtml?: string | null;
   onCreerBrouillon: () => void;
+  onGenererBrouillon: () => void;
   msgBrouillon: string | null;
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
@@ -706,7 +722,8 @@ function AnalysePane({
   onToggleSection: (cle: string) => void;
 }) {
   const classe = statut === "classe";
-  const labelValider = m.brouillonReponse ? "Valider - répondre & classer" : "Classer (sans action)";
+  const labelValider = brouillon ? "Valider - répondre & classer" : "Classer (sans action)";
+  const genEnCours = (msgBrouillon ?? "").startsWith("Génération");
 
   return (
     <Card className="overflow-hidden">
@@ -812,7 +829,7 @@ function AnalysePane({
           </p>
           <p className="text-[13.5px] text-ink leading-snug">{recommandation(m, ratt)}</p>
 
-          {m.brouillonReponse && (
+          {brouillon ? (
             <>
               <div className="flex items-center justify-between mt-3 mb-1">
                 <span className="text-[11.5px] text-ink-3">Réponse (modifiable)</span>
@@ -849,7 +866,23 @@ function AnalysePane({
                 <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p>
               ) : null}
             </>
-          )}
+          ) : m.ticketable ? (
+            // Brouillon A LA DEMANDE : on ne genere (et ne paie l'IA) que sur clic.
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={onGenererBrouillon}
+                disabled={genEnCours}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-green-500/30 bg-surface text-[12.5px] font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
+                {genEnCours ? "Génération…" : "Générer un brouillon de réponse"}
+              </button>
+              {msgBrouillon ? (
+                <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {/* Action principale : repond (brouillon) + classe dans le dossier choisi.

@@ -22,6 +22,7 @@ import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
+import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
 import type { DossierBoite } from "@/lib/domain/mes-emails";
@@ -155,6 +156,34 @@ export async function synchroniserAction(): Promise<void> {
   if (!mailModuleActif()) return;
   await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
+}
+
+// Genere le brouillon de reponse A LA DEMANDE (quand le gestionnaire ouvre/traite un
+// mail), au lieu de le produire pour tous les mails au sync. Persiste le brouillon
+// genere (etat) et le renvoie pour affichage immediat.
+export async function genererBrouillonAction(
+  emailId: string,
+  coproCode: string,
+): Promise<{ ok: boolean; brouillon?: string; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
+  }
+  try {
+    const reponse = await genererBrouillonMail(g.id, emailId);
+    if (reponse === null) return { ok: false, message: "Mail introuvable." };
+    if (reponse) {
+      await enregistrerBrouillon(
+        { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
+        reponse,
+      );
+    }
+    revalidatePath("/mes-emails");
+    return { ok: true, brouillon: reponse };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 }
 
 // Rattache un mail a une copropriete A LA MAIN, ou la RETIRE (coproCode vide).

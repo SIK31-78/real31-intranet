@@ -144,8 +144,11 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
         let estNouveau = false;
         let confidence = 0.8;
         let rationale: string = pf.decision;
-        let brouillon = "";
-        let etapes: string[] = [];
+        // Brouillon (et etapes) NON generes au sync : produits A LA DEMANDE quand le
+        // gestionnaire ouvre le mail (genererBrouillonAction). On ne depense de l'IA que
+        // sur les mails qu'on traite vraiment -> moins de cout, surtout en prod. (Sekou)
+        const brouillon = "";
+        const etapes: string[] = [];
 
         if (pf.decision === "pass") {
           const cls = await analyse.classifier({ de: m.from, objet: m.subject, corps });
@@ -154,16 +157,6 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
           estNouveau = cls.est_nouveau_ticket;
           confidence = cls.confidence;
           rationale = cls.rationale;
-          if (cls.ticketable) {
-            const idx = idxAffaireDe.get(m.id);
-            const label = idx !== undefined ? affaires[idx]!.label : m.subject;
-            const p = await analyse.genererReponseEtPlan(
-              { de: m.from, objet: m.subject, corps },
-              label,
-            );
-            brouillon = p.reponse;
-            etapes = p.etapes;
-          }
         }
 
         an = {
