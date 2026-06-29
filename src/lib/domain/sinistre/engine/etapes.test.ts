@@ -34,7 +34,6 @@ function wizardTranche1Cas1(): WizardState {
   return parcours([
     'Oui, dégât des eaux',
     'Non',
-    'Non',
     'Oui',
     'Oui, au moins deux assureurs',
     'Local privatif',

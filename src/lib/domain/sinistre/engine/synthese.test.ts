@@ -46,7 +46,6 @@ function wizardTranche1Cas1(): WizardState {
   return parcours([
     'Oui, dégât des eaux', // q_nature
     'Non', // q_cause_exclue
-    'Non', // q_local_exclu
     'Oui', // q_origine
     'Oui, au moins deux assureurs', // q_deux_assureurs
     'Local privatif', // q_local_type

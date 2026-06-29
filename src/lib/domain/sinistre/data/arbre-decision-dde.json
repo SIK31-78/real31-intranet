@@ -67,22 +67,8 @@
       "references": ["IRSI art. 1.1.1", "IRSI art. 1.1.1.a"],
       "options": [
         { "label": "Oui, cause exclue (ou pluralité avec une cause exclue)", "suivant": "r_hors_irsi_cause" },
-        { "label": "Non", "suivant": "q_local_exclu" },
-        { "label": "Je ne sais pas / cause indéterminée", "suivant": "q_local_exclu", "note": "Convention applicable malgré l'indétermination" }
-      ]
-    },
-
-    "q_local_exclu": {
-      "type": "question",
-      "phase": "1 — Qualification",
-      "question": "Le local sinistré est-il une chambre d'hôtel ou une chambre d'hôtes ?",
-      "option_par_defaut": 1,
-      "aide": "Exclusion absolue (art. 1.1.2). Les locaux à usage autre qu'habitation ou mixtes ne sont exclus qu'en tranche 2 : la question sera posée à la phase tranche.",
-      "aide_trancher": "Usage du local : règlement de copropriété, état descriptif de division.",
-      "references": ["IRSI art. 1.1.2"],
-      "options": [
-        { "label": "Oui", "suivant": "r_hors_irsi_local" },
-        { "label": "Non", "suivant": "q_origine" }
+        { "label": "Non", "suivant": "q_origine" },
+        { "label": "Je ne sais pas / cause indéterminée", "suivant": "q_origine", "note": "Convention applicable malgré l'indétermination" }
       ]
     },
 
@@ -102,7 +88,7 @@
     "q_deux_assureurs": {
       "type": "question",
       "phase": "1 — Qualification",
-      "question": "Au moins deux assureurs adhérents sont-ils en cause (couvrant chacun le DDE en assurance de choses et/ou de responsabilité) ?",
+      "question": "Au moins deux assureurs sont-ils concernés par ce dégât des eaux (chacun adhérent à la convention IRSI, et pouvant le couvrir au titre des dommages aux biens et/ou de la responsabilité) ?",
       "aide": "Réputé garanti (art. 1.1.4) : tout contrat de local est réputé couvrir la RDF, les dommages matériels (contenu ; embellissements et PIP en valeur à neuf) et les frais afférents — franchises, plafonds et règles proportionnelles inopposables sur ces postes. Le contrat d'un (co)propriétaire non occupant couvrant uniquement la RC est réputé couvrir aussi en assurance de choses (art. 1.1.4.d). Non-assurance limitativement opposable : absence, résiliation, suspension, nullité du contrat — appréciées au jour du sinistre (art. 1.1.5).",
       "references": ["IRSI art. 1.1", "IRSI art. 1.1.4", "IRSI art. 1.1.5"],
       "options": [
@@ -519,14 +505,6 @@
         "Si infiltration façade/toiture : engager le traitement de la cause (travaux, AG si nécessaire)"
       ],
       "references": ["IRSI art. 1.1.1.a"]
-    },
-
-    "r_hors_irsi_local": {
-      "type": "resultat",
-      "phase": "Sortie",
-      "titre": "Hors IRSI — local exclu (chambre d'hôtel / chambre d'hôtes)",
-      "conduite": "Règlement contractuel et droit commun.",
-      "references": ["IRSI art. 1.1.2"]
     },
 
     "r_assureur_unique": {
