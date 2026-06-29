@@ -1,11 +1,13 @@
 "use server";
 
-// Server actions du cockpit "Mes emails" : persistance de ce que le gestionnaire
-// fait sur un mail. Chaque action verifie le cloisonnement (la copro du mail
-// appartient bien au gestionnaire courant) avant d'ecrire, puis revalide la page.
-// L'identite (gid, initiales) vient du serveur, jamais du client.
+// Server actions du cockpit "Mes emails". Chaque action : (1) VALIDE ses entrees (zod)
+// car une Server Action est un endpoint POST public ; (2) resout le gestionnaire +
+// verifie le cloisonnement via withGestionnaire (defense en profondeur, on ne se repose
+// pas que sur l'UI) ; (3) ecrit puis revalide. L'identite vient du serveur, jamais du client.
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
@@ -30,48 +32,73 @@ import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
 import type { DossierBoite } from "@/lib/domain/mes-emails";
-import type { TypeDossier } from "@/lib/domain/dossier";
+import { TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 
-// En mode boite REELLE (MAIL_SOURCE=graph), le cockpit lit la PROPRE boite du
-// gestionnaire connecte : chaque mail lui appartient deja, quelle que soit la copro
-// qu'il concerne (il peut recevoir un mail sur une copro qu'il ne gere pas). Le
-// cloisonnement par copro n'a alors pas de sens et bloquerait a tort. On ne verifie
-// l'appartenance copro que dans le REPLI archive (donnees multi-gestionnaires partagees).
+// --- Cloisonnement -----------------------------------------------------------
+// En mode boite REELLE (MAIL_SOURCE=graph), le cockpit lit la PROPRE boite du gestionnaire :
+// chaque mail lui appartient, quelle que soit la copro qu'il concerne -> le cloisonnement
+// copro n'a pas de sens et bloquerait a tort. On ne le verifie que dans le REPLI archive.
 function cloisonnementCoproRequis(): boolean {
   return process.env.COPRO_SOURCE === "supabase" && process.env.MAIL_SOURCE !== "graph";
 }
+// Les dossiers intranet, eux, sont TOUJOURS copro-scopes (perimetre du gestionnaire).
+function dossierIntranetCloisonne(): boolean {
+  return process.env.COPRO_SOURCE === "supabase";
+}
 
-// Validation d'adresse email (simple mais stricte : un seul @, un domaine avec point).
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+type Auth = { ok: true; g: Gestionnaire } | { ok: false; message: string };
 
-async function cible(emailId: string, coproCode: string): Promise<Cible | null> {
+// Resout le gestionnaire courant + (si demande) verifie que la copro est dans son
+// portefeuille. Point unique d'auth + perimetre pour toutes les actions (audit E1).
+async function withGestionnaire(coproCode: string, verifierPerimetre: boolean): Promise<Auth> {
   const g = await getGestionnaireCourant();
-  if (!g) return null;
-  // Cloisonnement copro seulement en repli archive (cf. cloisonnementCoproRequis).
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
-    return null;
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (verifierPerimetre && coproCode && !(await coproAppartient(coproCode, g.id))) {
+    return { ok: false, message: "Copropriété hors de ton périmètre." };
   }
+  return { ok: true, g };
+}
+
+// --- Validation (zod) : endpoints POST publics -> on borne tout (format, longueur, enum) -
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const zId = z.string().trim().min(1).max(600); // internetMessageId / id Graph
+const zCopro = z.string().trim().max(40); // code copro (peut etre vide = retrait)
+const zCourt = z.string().max(2000); // sujet, nom, titre, resume, nom de dossier
+const zCorps = z.string().max(100_000); // corps de mail / brouillon
+const zEmails = z.array(z.string().trim().max(320)).max(50);
+const zIds = z.array(z.string().max(600)).max(50);
+const zEtapes = z.array(z.number().int()).max(200);
+
+/** Construit la Cible d'ecriture d'etat depuis un gestionnaire valide. */
+function cibleDe(g: Gestionnaire, emailId: string, coproCode: string): Cible {
   return { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) };
 }
 
+// --- Actions d'etat (retour void : sur entree/auth invalide, on ne fait rien) -----------
+
 export async function devaliderMailAction(emailId: string, coproCode: string): Promise<void> {
-  const c = await cible(emailId, coproCode);
-  if (!c) return;
-  await enregistrerStatut(c, "nouveau", []);
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return;
+  await enregistrerStatut(cibleDe(auth.g, emailId, coproCode), "nouveau", []);
   revalidatePath("/mes-emails");
 }
 
 export async function toggleEtapeAction(emailId: string, coproCode: string, etapes: number[]): Promise<void> {
-  const c = await cible(emailId, coproCode);
-  if (!c) return;
-  await enregistrerEtapes(c, etapes);
+  if (!z.object({ emailId: zId, coproCode: zCopro, etapes: zEtapes }).safeParse({ emailId, coproCode, etapes }).success)
+    return;
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return;
+  await enregistrerEtapes(cibleDe(auth.g, emailId, coproCode), etapes);
   revalidatePath("/mes-emails");
 }
 
 export async function editBrouillonAction(emailId: string, coproCode: string, brouillon: string): Promise<void> {
-  const c = await cible(emailId, coproCode);
-  if (!c) return;
-  await enregistrerBrouillon(c, brouillon);
+  if (!z.object({ emailId: zId, coproCode: zCopro, brouillon: zCorps }).safeParse({ emailId, coproCode, brouillon }).success)
+    return;
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return;
+  await enregistrerBrouillon(cibleDe(auth.g, emailId, coproCode), brouillon);
   revalidatePath("/mes-emails");
 }
 
@@ -80,27 +107,32 @@ export async function rattachementAction(
   coproCode: string,
   rattachement: Rattachement,
 ): Promise<void> {
-  const c = await cible(emailId, coproCode);
-  if (!c) return;
-  await enregistrerRattachement(c, rattachement);
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return;
+  await enregistrerRattachement(cibleDe(auth.g, emailId, coproCode), rattachement);
   revalidatePath("/mes-emails");
 }
 
-// --- Pont vers le module Dossiers (intranet_dossiers) ---------------------
+export async function marquerLuAction(emailId: string, coproCode: string): Promise<void> {
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return;
+  await enregistrerLu(cibleDe(auth.g, emailId, coproCode));
+}
 
-/** Dossiers REELS de la copro (pour le selecteur de rattachement du cockpit). */
+// --- Pont vers le module Dossiers (intranet_dossiers, TOUJOURS copro-scope) --------------
+
 export async function chargerDossiersCoproAction(
   coproCode: string,
 ): Promise<{ id: string; titre: string; type: TypeDossier }[]> {
-  const g = await getGestionnaireCourant();
-  if (!g || !coproCode) return [];
-  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) return [];
-  const dossiers = await getDossiersCopro(coproCode, g.id);
+  if (!zCopro.safeParse(coproCode).success || !coproCode) return [];
+  const auth = await withGestionnaire(coproCode, dossierIntranetCloisonne());
+  if (!auth.ok) return [];
+  const dossiers = await getDossiersCopro(coproCode, auth.g.id);
   return dossiers.map((d) => ({ id: d.id, titre: d.titre, type: d.type }));
 }
 
-/** Rattache le mail a un dossier REEL existant : ajoute l'email a son journal + memorise
- *  le rattachement cote mail. */
 export async function rattacherADossierAction(
   emailId: string,
   coproCode: string,
@@ -108,22 +140,25 @@ export async function rattacherADossierAction(
   dossierTitre: string,
   resume: string,
 ): Promise<{ ok: boolean; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Non connecté." };
-  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Copropriété hors de ton périmètre." };
-  }
+  const v = z
+    .object({ emailId: zId, coproCode: zCopro, dossierId: zId, dossierTitre: zCourt, resume: zCourt })
+    .safeParse({ emailId, coproCode, dossierId, dossierTitre, resume });
+  if (!v.success) return { ok: false, message: "Données invalides." };
+  const auth = await withGestionnaire(coproCode, dossierIntranetCloisonne());
+  if (!auth.ok) return auth;
+  const g = auth.g;
   const ok = await rattacherEmailAuDossier(dossierId, g.id, g.initiales, resume, emailId);
   if (!ok) return { ok: false, message: "Dossier introuvable ou hors périmètre." };
-  await enregistrerRattachement(
-    { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
-    { statut: "existant", dossierId, dossierLabel: dossierTitre, intranet: true },
-  );
+  await enregistrerRattachement(cibleDe(g, emailId, coproCode), {
+    statut: "existant",
+    dossierId,
+    dossierLabel: dossierTitre,
+    intranet: true,
+  });
   revalidatePath("/mes-emails");
   return { ok: true };
 }
 
-/** Cree un dossier REEL depuis le mail (type + titre) et y rattache l'email. */
 export async function creerDossierDepuisMailAction(
   emailId: string,
   coproCode: string,
@@ -131,97 +166,92 @@ export async function creerDossierDepuisMailAction(
   titre: string,
   resume: string,
 ): Promise<{ ok: boolean; dossierId?: string; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Non connecté." };
+  const v = z
+    .object({
+      emailId: zId,
+      coproCode: zCopro,
+      type: z.enum(TYPE_DOSSIER_ORDRE as [TypeDossier, ...TypeDossier[]]),
+      titre: zCourt,
+      resume: zCourt,
+    })
+    .safeParse({ emailId, coproCode, type, titre, resume });
+  if (!v.success) return { ok: false, message: "Données invalides." };
   if (!titre.trim()) return { ok: false, message: "Donne un titre au dossier." };
-  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Copropriété hors de ton périmètre." };
-  }
+  const auth = await withGestionnaire(coproCode, dossierIntranetCloisonne());
+  if (!auth.ok) return auth;
+  const g = auth.g;
   const id = await creerDossierDepuisMail(coproCode, g.id, g.initiales, type, titre.trim(), resume, emailId);
   if (!id) return { ok: false, message: "Création impossible (hors périmètre)." };
-  await enregistrerRattachement(
-    { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
-    { statut: "existant", dossierId: id, dossierLabel: titre.trim(), intranet: true },
-  );
+  await enregistrerRattachement(cibleDe(g, emailId, coproCode), {
+    statut: "existant",
+    dossierId: id,
+    dossierLabel: titre.trim(),
+    intranet: true,
+  });
   revalidatePath("/mes-emails");
   return { ok: true, dossierId: id };
 }
 
-export async function marquerLuAction(emailId: string, coproCode: string): Promise<void> {
-  const c = await cible(emailId, coproCode);
-  if (!c) return;
-  await enregistrerLu(c);
-}
+// --- Synchro -----------------------------------------------------------------
 
-// Synchronise la boite du gestionnaire connecte : ingestion -> pipeline -> cache du
-// triage. L'identite vient du serveur ; en delegue, l'adapter lit la boite du
-// connecte (cloisonnement intrinseque).
 export async function synchroniserAction(): Promise<void> {
   const g = await getGestionnaireCourant();
   if (!g) return;
-  // Module grise en prod : pas de synchro tant que la boite n'est pas branchee.
-  if (!mailModuleActif()) return;
+  if (!mailModuleActif()) return; // grise en prod tant que la boite n'est pas branchee
   await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
 }
 
-// Liste les pieces jointes REELLES du mail (a l'ouverture, lazy). Boite = celle du
-// gestionnaire connecte -> cloisonnement intrinseque. Degrade en [] si Graph indispo.
+// --- Pieces jointes (boite propre du connecte) -------------------------------
+
 export async function chargerPiecesJointesAction(
   emailId: string,
   coproCode: string,
 ): Promise<PieceJointeRef[]> {
-  const g = await getGestionnaireCourant();
-  if (!g?.email) return [];
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) return [];
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return [];
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok || !auth.g.email) return [];
   try {
-    return await listerPiecesJointesMail(g.email, emailId);
+    return await listerPiecesJointesMail(auth.g.email, emailId);
   } catch (e) {
     console.warn("[mes-emails] pieces jointes indisponibles :", (e as Error).message);
     return [];
   }
 }
 
-// Recupere le contenu d'une piece jointe (base64) pour telechargement cote client.
 export async function telechargerPieceJointeAction(
   emailId: string,
   coproCode: string,
   attachmentId: string,
 ): Promise<{ ok: boolean; nom?: string; type?: string; base64?: string; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g?.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Copropriété hors de ton périmètre." };
-  }
+  if (!z.object({ emailId: zId, coproCode: zCopro, attachmentId: zId }).safeParse({ emailId, coproCode, attachmentId }).success)
+    return { ok: false, message: "Données invalides." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
+  if (!auth.g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
   try {
-    const pj = await lirePieceJointeMail(g.email, emailId, attachmentId);
+    const pj = await lirePieceJointeMail(auth.g.email, emailId, attachmentId);
     return { ok: true, ...pj };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
 }
 
-// Genere le brouillon de reponse A LA DEMANDE (quand le gestionnaire ouvre/traite un
-// mail), au lieu de le produire pour tous les mails au sync. Persiste le brouillon
-// genere (etat) et le renvoie pour affichage immediat.
+// --- Brouillon IA a la demande -----------------------------------------------
+
 export async function genererBrouillonAction(
   emailId: string,
   coproCode: string,
 ): Promise<{ ok: boolean; brouillon?: string; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Non connecté." };
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Copropriété hors de ton périmètre." };
-  }
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success)
+    return { ok: false, message: "Données invalides." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
+  const g = auth.g;
   try {
     const reponse = await genererBrouillonMail(g.id, emailId);
     if (reponse === null) return { ok: false, message: "Mail introuvable." };
-    if (reponse) {
-      await enregistrerBrouillon(
-        { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
-        reponse,
-      );
-    }
+    if (reponse) await enregistrerBrouillon(cibleDe(g, emailId, coproCode), reponse);
     revalidatePath("/mes-emails");
     return { ok: true, brouillon: reponse };
   } catch (e) {
@@ -229,8 +259,8 @@ export async function genererBrouillonAction(
   }
 }
 
-// ENVOIE la reponse (vrai mail, irreversible) avec les destinataires choisis. L'UI
-// confirme avant d'appeler. L'envoi reel n'a lieu qu'en MAIL_SOURCE=graph.
+// --- ENVOI REEL de la reponse (irreversible) ---------------------------------
+
 export async function envoyerReponseAction(
   emailId: string,
   coproCode: string,
@@ -241,14 +271,25 @@ export async function envoyerReponseAction(
   cci: string[],
   pjIds: string[],
 ): Promise<{ ok: boolean; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g?.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Copropriété hors de ton périmètre." };
-  }
+  const v = z
+    .object({
+      emailId: zId,
+      coproCode: zCopro,
+      corps: zCorps,
+      sujet: zCourt,
+      a: zEmails,
+      cc: zEmails,
+      cci: zEmails,
+      pjIds: zIds,
+    })
+    .safeParse({ emailId, coproCode, corps, sujet, a, cc, cci, pjIds });
+  if (!v.success) return { ok: false, message: "Données invalides." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
+  const g = auth.g;
+  if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
   if (!corps.trim()) return { ok: false, message: "Le message est vide." };
-  // Validation stricte des destinataires (anti-relais de spam) : adresses bien formees,
-  // au moins une en "A", et plafond global. Les Server Actions sont des endpoints publics.
+  // Destinataires : adresses bien formees, au moins une en "A", plafond global (anti-spam).
   const tous = [...a, ...cc, ...cci].map((x) => x.trim()).filter(Boolean);
   if (a.filter((x) => EMAIL_RE.test(x.trim())).length === 0) {
     return { ok: false, message: "Ajoute au moins un destinataire valide en 'À'." };
@@ -257,20 +298,10 @@ export async function envoyerReponseAction(
   if (invalide) return { ok: false, message: `Adresse invalide : ${invalide}` };
   if (tous.length > 50) return { ok: false, message: "Trop de destinataires (50 maximum)." };
   try {
-    // Signature recuperee cote serveur (Signitic) et injectee dans le corps : un envoi
-    // app-only ne passe pas par l'add-in Outlook qui l'ajoute d'habitude.
+    // Signature recuperee cote serveur (Signitic) et injectee : un envoi app-only ne passe
+    // pas par l'add-in Outlook qui l'ajoute d'habitude.
     const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
-    await envoyerReponseMail({
-      boite: g.email,
-      internetMessageId: emailId,
-      corps,
-      sujet,
-      a,
-      cc,
-      cci,
-      signatureHtml,
-      pjIds,
-    });
+    await envoyerReponseMail({ boite: g.email, internetMessageId: emailId, corps, sujet, a, cc, cci, signatureHtml, pjIds });
     revalidatePath("/mes-emails");
     return { ok: true };
   } catch (e) {
@@ -278,24 +309,19 @@ export async function envoyerReponseAction(
   }
 }
 
-// Rattache un mail a une copropriete A LA MAIN, ou la RETIRE (coproCode vide).
-// Le cloisonnement porte sur la copro CHOISIE (elle doit etre dans le portefeuille) ;
-// le retrait (vide) est toujours autorise (la copro n'est pas obligatoire).
+// --- Attribution copro (a la main, ou retrait si vide) -----------------------
+
 export async function rattacherCoproAction(
   emailId: string,
   coproCode: string,
   coproNom: string,
 ): Promise<{ ok: boolean; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Non connecté." };
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Cette copropriété n'est pas dans ton périmètre." };
-  }
+  if (!z.object({ emailId: zId, coproCode: zCopro, coproNom: zCourt }).safeParse({ emailId, coproCode, coproNom }).success)
+    return { ok: false, message: "Données invalides." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
   try {
-    await enregistrerCopro(
-      { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) },
-      coproNom,
-    );
+    await enregistrerCopro(cibleDe(auth.g, emailId, coproCode), coproNom);
     revalidatePath("/mes-emails");
     return { ok: true };
   } catch (e) {
@@ -303,9 +329,8 @@ export async function rattacherCoproAction(
   }
 }
 
-// Liste les vrais dossiers de la boite du gestionnaire connecte (racine + sous-Inbox),
-// pour le selecteur de classement du cockpit. Boite = celle du connecte (g.email) ->
-// cloisonnement intrinseque. Degrade en liste vide si Graph indisponible.
+// --- Dossiers Outlook + classement (boite propre) ----------------------------
+
 export async function chargerDossiersAction(): Promise<DossierBoite[]> {
   const g = await getGestionnaireCourant();
   if (!g?.email) return [];
@@ -317,11 +342,6 @@ export async function chargerDossiersAction(): Promise<DossierBoite[]> {
   }
 }
 
-// Classe un mail dans un dossier Outlook CHOISI (par son id) et marque le mail traite.
-// Bloque si aucun dossier n'est choisi (plus de mail "classe" qui ne part nulle part).
-// La destination etant un dossier de la boite du connecte, le cloisonnement est
-// intrinseque ; si une copro est associee, on la verifie en defense en profondeur.
-// `coproCode` est passe tel quel a l'etat pour NE PAS ecraser le rattachement existant.
 export async function classerDansDossierAction(
   emailId: string,
   coproCode: string,
@@ -330,18 +350,19 @@ export async function classerDansDossierAction(
   etapes: number[],
   brouillon: string,
 ): Promise<{ ok: boolean; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Non connecté." };
+  const v = z
+    .object({ emailId: zId, coproCode: zCopro, folderId: zId, folderNom: zCourt, etapes: zEtapes, brouillon: zCorps })
+    .safeParse({ emailId, coproCode, folderId, folderNom, etapes, brouillon });
+  if (!v.success) return { ok: false, message: "Données invalides." };
   if (!folderId) return { ok: false, message: "Choisis un dossier de destination." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
+  const g = auth.g;
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Copropriété hors de ton périmètre." };
-  }
   try {
     const res = await classerDansDossier(g.email, emailId, folderId);
-    const c: Cible = { gid: g.id, emailId, coproCode, initiales: g.initiales, email: g.email };
+    const c = cibleDe(g, emailId, coproCode);
     await enregistrerStatut(c, "classe", etapes, brouillon);
-    // Memorise le dossier choisi (reaffichage + presélection au reload).
     await enregistrerDossier(c, folderId, folderNom);
     revalidatePath("/mes-emails");
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
@@ -350,20 +371,17 @@ export async function classerDansDossierAction(
   }
 }
 
-// Cree un brouillon de reponse dans la boite Outlook du gestionnaire (Graph
-// createReply). Renvoie un resultat pour que le cockpit affiche succes/erreur.
 export async function creerBrouillonAction(
   emailId: string,
   coproCode: string,
   corps: string,
 ): Promise<{ ok: boolean; message?: string }> {
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Non connecté." };
-  if (cloisonnementCoproRequis() && coproCode && !(await coproAppartient(coproCode, g.id))) {
-    return { ok: false, message: "Copropriété hors de ton périmètre." };
-  }
+  if (!z.object({ emailId: zId, coproCode: zCopro, corps: zCorps }).safeParse({ emailId, coproCode, corps }).success)
+    return { ok: false, message: "Données invalides." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
   try {
-    await creerBrouillonOutlook(g, emailId, corps);
+    await creerBrouillonOutlook(auth.g, emailId, corps);
     return { ok: true };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
