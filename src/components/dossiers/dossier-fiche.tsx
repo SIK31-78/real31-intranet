@@ -17,12 +17,15 @@ import {
   TYPE_DOSSIER_LABEL,
   STATUT_DOSSIER_LABEL,
   PORTEE_LABEL,
+  TYPE_DOSSIER_ORDRE,
   progressionDossier,
   type Dossier,
   type EtapeDossier,
   type StatutDossier,
   type KindEvenement,
   type AssigneRole,
+  type TypeDossier,
+  type PorteeDossier,
 } from "@/lib/domain/dossier";
 import type { MembreAssignable } from "@/lib/services/dossiers/get-dossiers";
 import {
@@ -31,7 +34,11 @@ import {
   changerStatutAction,
   supprimerNoteAction,
   rattacherAgAction,
+  modifierDossierAction,
+  supprimerDossierAction,
 } from "@/app/dossiers/actions";
+
+const PORTEE_ORDRE: PorteeDossier[] = ["copropriete", "coproprietaire", "lot"];
 
 const KIND_ICON: Record<KindEvenement, typeof Flag> = {
   note: MessageSquare,
@@ -60,6 +67,7 @@ export function DossierFiche({
   monInitiales: string;
 }) {
   const [onglet, setOnglet] = useState<OngletDossier>("suivi");
+  const [editMeta, setEditMeta] = useState(false);
   const [etapes, setEtapes] = useState<EtapeDossier[]>(dossier.etapes);
   const [nouvelle, setNouvelle] = useState("");
   const [note, setNote] = useState("");
@@ -114,13 +122,30 @@ export function DossierFiche({
       <div className="bg-surface border border-line rounded-md p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Badge ton="outline">{TYPE_DOSSIER_LABEL[dossier.type]}</Badge>
-              <span className="text-[12px] text-ink-3">
-                {PORTEE_LABEL[dossier.portee]}{dossier.cible ? ` - ${dossier.cible}` : ""}
-              </span>
-            </div>
-            <h1 className="text-[20px] font-medium tracking-tight text-ink">{dossier.titre}</h1>
+            {editMeta ? (
+              <EditionMetadonnees dossier={dossier} onFerme={() => setEditMeta(false)} />
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge ton="outline">{TYPE_DOSSIER_LABEL[dossier.type]}</Badge>
+                  <span className="text-[12px] text-ink-3">
+                    {PORTEE_LABEL[dossier.portee]}{dossier.cible ? ` - ${dossier.cible}` : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-[20px] font-medium tracking-tight text-ink">{dossier.titre}</h1>
+                  <button
+                    type="button"
+                    onClick={() => setEditMeta(true)}
+                    aria-label="Modifier le dossier"
+                    title="Modifier le dossier"
+                    className="p-1 text-ink-4 hover:text-green-700 shrink-0"
+                  >
+                    <Pencil strokeWidth={1.5} className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
             <p className="mt-1 text-[13px] text-ink-3">
               <Link href={`/copropriete/${dossier.coproCode}`} className="font-mono hover:text-green-700">{dossier.coproCode}</Link>{" "}
               {dossier.coproNom ?? ""}
@@ -309,6 +334,148 @@ export function DossierFiche({
           </div>
         </Card>
       )}
+
+      <ZoneSuppression dossierId={dossier.id} dossierTitre={dossier.titre} />
+    </div>
+  );
+}
+
+// Edition inline des metadonnees (titre, type, portee, cible). Reutilise le bloc
+// d'en-tete : on bascule en formulaire, "Enregistrer" appelle modifierDossierAction.
+function EditionMetadonnees({ dossier, onFerme }: { dossier: Dossier; onFerme: () => void }) {
+  const [titre, setTitre] = useState(dossier.titre);
+  const [type, setType] = useState<TypeDossier>(dossier.type);
+  const [portee, setPortee] = useState<PorteeDossier>(dossier.portee);
+  const [cible, setCible] = useState(dossier.cible ?? "");
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
+
+  const enregistrer = () => {
+    const t = titre.trim();
+    if (!t) return;
+    startTransition(async () => {
+      await modifierDossierAction(dossier.id, {
+        titre: t,
+        type,
+        portee,
+        ...(cible.trim() ? { cible: cible.trim() } : {}),
+      });
+      onFerme();
+      toast.ok("Dossier modifié.");
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        value={titre}
+        onChange={(e) => setTitre(e.target.value)}
+        placeholder="Titre du dossier"
+        className="h-9 w-full rounded-md border border-line bg-surface px-2.5 text-[15px] font-medium"
+      />
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="flex flex-col gap-0.5 text-[11px] text-ink-3">
+          Type
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as TypeDossier)}
+            className="h-8 rounded-md border border-line bg-surface px-2 text-[13px]"
+          >
+            {TYPE_DOSSIER_ORDRE.map((t) => (
+              <option key={t} value={t}>{TYPE_DOSSIER_LABEL[t]}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-0.5 text-[11px] text-ink-3">
+          Portée
+          <select
+            value={portee}
+            onChange={(e) => setPortee(e.target.value as PorteeDossier)}
+            className="h-8 rounded-md border border-line bg-surface px-2 text-[13px]"
+          >
+            {PORTEE_ORDRE.map((pp) => (
+              <option key={pp} value={pp}>{PORTEE_LABEL[pp]}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-0.5 text-[11px] text-ink-3 flex-1 min-w-[140px]">
+          Cible (optionnel)
+          <input
+            value={cible}
+            onChange={(e) => setCible(e.target.value)}
+            placeholder="Copropriétaire / lot concerné"
+            className="h-8 rounded-md border border-line bg-surface px-2 text-[13px]"
+          />
+        </label>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={enregistrer}
+          disabled={pending || !titre.trim()}
+          className="h-8 px-3 rounded-md bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 disabled:opacity-50"
+        >
+          Enregistrer
+        </button>
+        <button
+          type="button"
+          onClick={onFerme}
+          className="h-8 px-3 rounded-md border border-line text-[12px] text-ink-2 hover:border-line-2"
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Suppression DISCRETE (bas de fiche) avec confirmation explicite en deux temps :
+// un lien sobre ouvre la confirmation, puis "Supprimer définitivement" agit.
+// L'action serveur redirige vers /dossiers.
+function ZoneSuppression({ dossierId, dossierTitre }: { dossierId: string; dossierTitre: string }) {
+  const [confirme, setConfirme] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  const supprimer = () => startTransition(() => supprimerDossierAction(dossierId));
+
+  if (!confirme) {
+    return (
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={() => setConfirme(true)}
+          className="inline-flex items-center gap-1.5 text-[12px] text-ink-4 hover:text-err-700 transition-colors"
+        >
+          <Trash2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+          Supprimer définitivement le dossier
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-2 flex items-center gap-3 flex-wrap rounded-md border border-err-700/40 bg-err-50 px-3 py-2.5">
+      <p className="text-[12px] text-ink-2">
+        Supprimer définitivement « {dossierTitre} » ? Cette action est irréversible.
+      </p>
+      <div className="flex items-center gap-2 ml-auto">
+        <button
+          type="button"
+          onClick={supprimer}
+          disabled={pending}
+          className="h-8 px-3 rounded-md bg-err-700 text-white text-[12px] font-medium hover:bg-err-500 disabled:opacity-50 shrink-0"
+        >
+          Supprimer définitivement
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirme(false)}
+          disabled={pending}
+          className="h-8 px-3 rounded-md border border-line text-[12px] text-ink-2 hover:border-line-2 shrink-0"
+        >
+          Annuler
+        </button>
+      </div>
     </div>
   );
 }

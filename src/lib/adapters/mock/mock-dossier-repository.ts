@@ -42,4 +42,7 @@ export class MockDossierRepository implements DossierRepository {
     if (numeroResolution !== undefined) next.numeroResolution = numeroResolution ?? undefined;
     STORE.set(id, next);
   }
+  async supprimer(id: string): Promise<void> {
+    STORE.delete(id);
+  }
 }

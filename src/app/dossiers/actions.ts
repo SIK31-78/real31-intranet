@@ -225,6 +225,68 @@ export async function rattacherAgAction(
   revalidatePath(`/dossiers/${id}`);
 }
 
+// Edite les METADONNEES du dossier (titre, type, portee, cible). NON DESTRUCTIF
+// sur les etapes/journal existants (on ne touche que ces 4 champs). Journalise une
+// note "Metadonnees modifiees". Cloisonne au perimetre + anti-IDOR (coproCode RELU
+// du dossier serveur, jamais du client).
+const TYPES_DOSSIER = [
+  "travaux",
+  "sinistre",
+  "impaye",
+  "procedure",
+  "recouvrement",
+  "question_diverse",
+  "autre",
+] as const;
+const PORTEES_DOSSIER = ["copropriete", "coproprietaire", "lot"] as const;
+
+export async function modifierDossierAction(
+  id: string,
+  champs: { titre: string; type: TypeDossier; portee: PorteeDossier; cible?: string },
+): Promise<void> {
+  const valid = z
+    .object({
+      id: zId,
+      titre: z.string().trim().min(1).max(300),
+      type: z.enum(TYPES_DOSSIER),
+      portee: z.enum(PORTEES_DOSSIER),
+      cible: zCourt.optional(),
+    })
+    .safeParse({ id, ...champs });
+  if (!valid.success) return;
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode); // coproCode RELU du dossier serveur (anti-IDOR)
+  if (!g) return;
+  const cible = valid.data.cible?.trim();
+  const journal = [
+    ...d.journal,
+    { le: new Date().toISOString(), par: g.initiales, texte: "Métadonnées du dossier modifiées", kind: "statut" as const },
+  ];
+  await getDossierRepository().patch(id, {
+    titre: valid.data.titre,
+    type: valid.data.type,
+    portee: valid.data.portee,
+    cible: cible || undefined,
+    journal,
+  });
+  revalidatePath(`/dossiers/${id}`);
+  revalidatePath("/dossiers");
+}
+
+// Supprime DEFINITIVEMENT le dossier (destructif, irreversible). Cloisonne au
+// perimetre + anti-IDOR (coproCode RELU du dossier serveur). Redirige vers la liste.
+export async function supprimerDossierAction(id: string): Promise<void> {
+  if (!z.object({ id: zId }).safeParse({ id }).success) return;
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode); // coproCode RELU du dossier serveur (anti-IDOR)
+  if (!g) return;
+  await getDossierRepository().supprimer(id);
+  revalidatePath("/dossiers");
+  redirect("/dossiers");
+}
+
 export async function changerStatutAction(id: string, statut: StatutDossier): Promise<void> {
   if (!z.object({ id: zId, statut: zCourt }).safeParse({ id, statut }).success) return;
   const d = await getDossierRepository().get(id);
