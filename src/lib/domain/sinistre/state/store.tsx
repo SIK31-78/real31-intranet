@@ -68,6 +68,13 @@ export interface DossierState {
   coproprieteId?: string;
   /** Agence dérivée de la copropriété sélectionnée (D2) - posée par le sélecteur, lue au save. */
   agenceId?: string;
+  /**
+   * Gestionnaire-signataire du dossier (identité de l'utilisateur courant). Posé par
+   * le sélecteur d'immeuble / le pré-remplissage depuis un dossier ; alimente la fusion
+   * des courriers (`gestionnaire.nom` / `gestionnaire.email`). Absent tant que le
+   * contexte n'a pas été chargé.
+   */
+  gestionnaire?: { nom: string; email: string; initiales: string };
   descriptif: string;
   /** Statut du dossier (défaut `'brouillon'`). Persisté ; sert plus tard à la frontière requalification. */
   statut: StatutDossier;
@@ -108,6 +115,8 @@ type Action =
       adresse: string;
       assureurNom: string;
       assureurPolice: string;
+      /** Signataire courant (alimente la fusion des courriers). Facultatif. */
+      gestionnaire?: { nom: string; email: string; initiales: string };
     };
 
 function newId(): string {
@@ -296,18 +305,22 @@ function reducer(state: DossierState, action: Action): DossierState {
       // Id + référence assignés par le serveur après enregistrement (mode supabase).
       return { ...state, id: action.id, referenceInterne: action.referenceInterne };
     case 'SELECTIONNER_COPROPRIETE': {
-      // Sélecteur d'immeuble (mode supabase) : copropriété + agence dérivée +
+      // Sélecteur d'immeuble (mode supabase) : copropriété + agence dérivée + signataire +
       // nom/adresse/assurance (nom/police LUS de la copro, D5 ; numeroSinistre conservé).
+      // Non destructif : une assurance déjà saisie n'est pas écrasée par un champ vide
+      // (le pré-remplissage depuis un dossier ne connaît pas l'assureur).
+      const courant = state.assureurImmeuble;
       const assureurImmeuble: AssureurImmeuble = {
-        nom: action.assureurNom,
-        numeroPolice: action.assureurPolice,
+        nom: action.assureurNom || courant?.nom || '',
+        numeroPolice: action.assureurPolice || courant?.numeroPolice || '',
       };
-      const numeroSinistre = state.assureurImmeuble?.numeroSinistre;
+      const numeroSinistre = courant?.numeroSinistre;
       if (numeroSinistre) assureurImmeuble.numeroSinistre = numeroSinistre;
       return {
         ...state,
         coproprieteId: action.coproprieteId,
         agenceId: action.agenceId,
+        ...(action.gestionnaire ? { gestionnaire: action.gestionnaire } : {}),
         immeuble: { nom: action.nom, adresse: action.adresse },
         assureurImmeuble,
       };

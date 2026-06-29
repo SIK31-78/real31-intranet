@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { chargerContexteDossierAction } from '@/app/sinistre/actions';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { currentNode, isTransparent, cheminMixte, pathOf } from '@/lib/domain/sinistre/engine/wizard';
 import { aujourdhuiISO, dateEstFuture } from '@/lib/domain/sinistre/util/date';
@@ -104,6 +105,35 @@ export function WizardScreen() {
   const peutReculer = local.wizard.steps.length > 0;
 
   const dossierId = useSearchParams().get('dossier');
+
+  // Pré-remplissage immeuble/copro/signataire depuis le dossier rattaché (?dossier=<id>).
+  // Tue la double-saisie : on ne re-tape plus le nom/adresse de l'immeuble.
+  // NON DESTRUCTIF : on ne remplit QUE si l'immeuble est encore vide (jamais d'écrasement
+  // d'une saisie en cours ni d'un brouillon repris). On attend que le provider ait fini son
+  // init (referenceInterne posée) pour ne pas courir avec le chargement du brouillon, et on
+  // ne déclenche qu'une fois.
+  const [, demarrer] = useTransition();
+  const prerempliFait = useRef(false);
+  const immeubleVide = !state.immeuble.nom && !state.immeuble.adresse;
+  useEffect(() => {
+    if (!dossierId || prerempliFait.current) return;
+    if (!state.referenceInterne || !immeubleVide) return;
+    prerempliFait.current = true;
+    demarrer(async () => {
+      const ctx = await chargerContexteDossierAction(dossierId);
+      if (!ctx) return;
+      dispatch({
+        type: 'SELECTIONNER_COPROPRIETE',
+        coproprieteId: ctx.coproCode,
+        ...(ctx.agenceId ? { agenceId: ctx.agenceId } : {}),
+        nom: ctx.coproNom,
+        adresse: ctx.immeubleAdresse,
+        assureurNom: '',
+        assureurPolice: '',
+        gestionnaire: ctx.gestionnaire,
+      });
+    });
+  }, [dossierId, state.referenceInterne, immeubleVide, dispatch]);
 
   const blocages = blocagesProgression(state.date, local.libelle);
   const bloque = blocages.length > 0;

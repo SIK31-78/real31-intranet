@@ -10,6 +10,7 @@
  */
 
 import { gestionnaireNode } from './wizard';
+import { CABINET } from '../data/cabinet';
 import type { AssureurImmeuble, AssureurRef, LocalSinistre, RolePartie } from '../types';
 import type { DossierState } from '../state/store';
 
@@ -55,6 +56,15 @@ const DIRECT: Record<string, (ctx: MappingContext) => string | undefined> = {
   'sinistre.locaux_touches': (c) => c.state.locaux.map((l) => l.libelle).join(', '),
   'immeuble.nom': (c) => c.state.immeuble.nom,
   'immeuble.adresse': (c) => c.state.immeuble.adresse,
+  // Cabinet (en-tête courrier) : constantes centralisées (data/cabinet.ts).
+  'syndic.nom': () => CABINET.nom,
+  'syndic.adresse': () => CABINET.adresse,
+  'syndic.email': () => CABINET.email,
+  'syndic.telephone': () => CABINET.telephone,
+  // Gestionnaire-signataire : identité de l'utilisateur courant, posée sur le dossier
+  // par le pré-remplissage (SELECTIONNER_COPROPRIETE) ; plus de saisie manuelle.
+  'gestionnaire.nom': (c) => c.state.gestionnaire?.nom,
+  'gestionnaire.email': (c) => c.state.gestionnaire?.email,
   'lot.numero': (c) => c.local.libelle,
   'partie.coproprietaire.nom': (c) => c.local.parties?.coproprietaire?.nom,
   'assureur_immeuble.numero_police': (c) => c.state.assureurImmeuble?.numeroPolice,
