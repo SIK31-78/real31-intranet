@@ -88,8 +88,8 @@
     "q_deux_assureurs": {
       "type": "question",
       "phase": "1 — Qualification",
-      "question": "Au moins deux assureurs sont-ils concernés par ce dégât des eaux (chacun adhérent à la convention IRSI, et pouvant le couvrir au titre des dommages aux biens et/ou de la responsabilité) ?",
-      "aide": "Réputé garanti (art. 1.1.4) : tout contrat de local est réputé couvrir la RDF, les dommages matériels (contenu ; embellissements et PIP en valeur à neuf) et les frais afférents — franchises, plafonds et règles proportionnelles inopposables sur ces postes. Le contrat d'un (co)propriétaire non occupant couvrant uniquement la RC est réputé couvrir aussi en assurance de choses (art. 1.1.4.d). Non-assurance limitativement opposable : absence, résiliation, suspension, nullité du contrat — appréciées au jour du sinistre (art. 1.1.5).",
+      "question": "Au moins deux assureurs sont-ils concernés par ce dégât des eaux ?",
+      "aide": "Condition d'application de la convention : il faut au moins deux assureurs concernés, chacun adhérent à la convention IRSI et pouvant couvrir ce dégât des eaux au titre des dommages aux biens et/ou de la responsabilité. Un seul assureur concerné : gestion contractuelle directe, hors convention. Réputé garanti (art. 1.1.4) : tout contrat de local est réputé couvrir la RDF, les dommages matériels (contenu ; embellissements et PIP en valeur à neuf) et les frais afférents — franchises, plafonds et règles proportionnelles inopposables sur ces postes. Le contrat d'un (co)propriétaire non occupant couvrant uniquement la RC est réputé couvrir aussi en assurance de choses (art. 1.1.4.d). Non-assurance limitativement opposable : absence, résiliation, suspension, nullité du contrat — appréciées au jour du sinistre (art. 1.1.5).",
       "references": ["IRSI art. 1.1", "IRSI art. 1.1.4", "IRSI art. 1.1.5"],
       "options": [
         { "label": "Oui, au moins deux assureurs", "suivant": "q_local_type" },
