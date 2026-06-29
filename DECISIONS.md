@@ -1324,7 +1324,7 @@ Au moment de brancher le pilote, le DSI était prêt à accorder l'accès et pro
 
 ## ADR-028 - Courriers sinistre : composer un brouillon mail NEUF via le module Mail (extension du port)
 
-**Date** : 2026-06-29 - **Statut** : proposé (à valider par Sekou avant code)
+**Date** : 2026-06-29 - **Statut** : accepté (validé par Sekou le 2026-06-29, Vague 4 lancée)
 
 ### Contexte
 
