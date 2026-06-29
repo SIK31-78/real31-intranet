@@ -36,13 +36,15 @@ const zItems = z
  * connecte pourrait ecrire dans l'AG Estale de n'importe quelle copro (IDOR).
  * En mock (COPRO_SOURCE != supabase) on ne cloisonne pas.
  */
-async function gererCopro(coproCode: string): Promise<{ ok: true } | { ok: false; erreur: string }> {
+async function gererCopro(
+  coproCode: string,
+): Promise<{ ok: true; managerId: string } | { ok: false; erreur: string }> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée, reconnecte-toi." };
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
     return { ok: false, erreur: "Copropriété hors de ton périmètre." };
   }
-  return { ok: true };
+  return { ok: true, managerId: g.id };
 }
 
 export async function enregistrerProjetAction(
@@ -80,6 +82,7 @@ export async function enregistrerProjetAction(
       bankItemIds,
       libres,
       ordreTopExistant,
+      garde.managerId,
     );
     revalidatePath("/odj", "layout");
     return { ok: true, supprimees, ajoutees };
@@ -96,7 +99,7 @@ export async function creerAgAction(coproCode: string): Promise<ResultatCreation
   const garde = await gererCopro(coproCode);
   if (!garde.ok) return garde;
   try {
-    await creerAssembleeAg(coproCode);
+    await creerAssembleeAg(coproCode, garde.managerId);
     revalidatePath("/odj", "layout");
     return { ok: true };
   } catch (e) {

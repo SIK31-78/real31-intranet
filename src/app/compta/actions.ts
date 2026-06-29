@@ -44,7 +44,7 @@ export async function ajouterNoteAction(
   // Garde d'appartenance (anti-IDOR) : la copro doit relever du gestionnaire courant.
   if (!(await getCoproCompta(coproCode, g.id))) return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    await ajouterNoteCompta(coproCode, agDateISO, auteur, texte.trim(), g.initiales);
+    await ajouterNoteCompta(coproCode, agDateISO, auteur, texte.trim(), g.initiales, g.id);
     revalider();
     return { ok: true };
   } catch (e) {
@@ -67,7 +67,7 @@ export async function marquerNoteAction(
   const copro = await getCoproCompta(coproCode, g.id);
   if (!copro) return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    await marquerNoteCompta(coproCode, agDateISO, noteId, resolu, g.initiales);
+    await marquerNoteCompta(coproCode, agDateISO, noteId, resolu, g.initiales, g.id);
     revalider();
     return { ok: true };
   } catch (e) {
@@ -88,7 +88,7 @@ export async function setFlagAction(
   // Garde d'appartenance (anti-IDOR) : la copro doit relever du gestionnaire courant.
   if (!(await getCoproCompta(coproCode, g.id))) return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    await setFlagCompta(coproCode, agDateISO, flag, valeur, g.initiales);
+    await setFlagCompta(coproCode, agDateISO, flag, valeur, g.initiales, g.id);
     revalider();
     return { ok: true };
   } catch (e) {

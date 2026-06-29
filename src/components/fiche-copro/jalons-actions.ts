@@ -28,6 +28,6 @@ export async function marquerJalon(
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
     return; // hors scope
   }
-  await marquerJalonService({ coproCode, agDate, type, statut, par: g.initiales });
+  await marquerJalonService({ coproCode, agDate, type, statut, par: g.initiales }, g.id);
   revalidatePath(`/copropriete/${coproCode}`);
 }

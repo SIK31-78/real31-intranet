@@ -33,7 +33,7 @@ export async function saisirChampAction(id: string, champId: string, valeur: str
   const { code, agDate } = parse(id);
   const g = await autorise(code);
   if (!g) return;
-  await saisirChampOdj(code, agDate, champId, valeur, g.initiales);
+  await saisirChampOdj(code, agDate, champId, valeur, g.initiales, g.id);
   revalidatePath(`/odj/${id}`);
 }
 
@@ -42,6 +42,6 @@ export async function togglePointAction(id: string, pointId: string, retire: boo
   const { code, agDate } = parse(id);
   const g = await autorise(code);
   if (!g) return;
-  await retirerPointOdj(code, agDate, pointId, retire, g.initiales);
+  await retirerPointOdj(code, agDate, pointId, retire, g.initiales, g.id);
   revalidatePath(`/odj/${id}`);
 }

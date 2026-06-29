@@ -29,8 +29,8 @@ async function definir(
   // (Re)fixer la PROCHAINE date d'AG reporte les prepas "sans date" (supervision + ODJ).
   // Corriger la derniere AG tenue est une mise a jour du referentiel : pas de report.
   if (type === "ag" && quand === "prochaine" && dateISO) {
-    await reporterSupervisionSansDate(coproCode, dateISO);
-    await reporterOdjSansDate(coproCode, dateISO);
+    await reporterSupervisionSansDate(coproCode, dateISO, g.id);
+    await reporterOdjSansDate(coproCode, dateISO, g.id);
   }
   // Changer une date recalcule les jalons : revalider TOUTES les vues qui les affichent
   // (sinon le calendrier / dashboard / Actions restent sur l'ancien calcul).

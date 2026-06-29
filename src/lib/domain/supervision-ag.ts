@@ -1,6 +1,12 @@
 // Domaine de la supervision AG : checklist multi-sections par AG.
 // Types metier + helpers purs, zero dependance technique.
 
+/** Code copro porte par un id de supervision "CODE__YYYY-MM-DD" (ou "CODE"/"e1" simple). */
+export function coproCodeDeAgId(agId: string): string {
+  const i = agId.indexOf("__");
+  return i < 0 ? agId : agId.slice(0, i);
+}
+
 export type StatutItem = "non_verifie" | "ok" | "probleme" | "non_applicable";
 
 export type StatutAg = "en_preparation" | "conclue_archivee";

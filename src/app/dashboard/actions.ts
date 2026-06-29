@@ -25,7 +25,7 @@ export async function confirmerJalonAction(
   const g = await getGestionnaireCourant();
   if (!g) return;
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) return;
-  await marquerJalon({ coproCode, agDate, type: jalonCode, statut: "accompli", par: g.initiales });
+  await marquerJalon({ coproCode, agDate, type: jalonCode, statut: "accompli", par: g.initiales }, g.id);
   revalidatePath("/dashboard");
   revalidatePath(`/supervision-ag/${coproCode}__${agDate}`);
 }

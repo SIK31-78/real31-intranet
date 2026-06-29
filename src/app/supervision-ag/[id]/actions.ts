@@ -47,7 +47,7 @@ export async function cocherItemAction(
   if (!z.object({ agId: zAgId, itemId: zItemId, statut: zStatut }).safeParse({ agId, itemId, statut }).success) return;
   const g = await autorise(agId);
   if (!g) return;
-  await cocherItem(agId, itemId, statut, { initiales: g.initiales });
+  await cocherItem(agId, itemId, statut, { initiales: g.initiales }, g.id);
   revalidatePath(`/supervision-ag/${agId}`);
 }
 
@@ -60,7 +60,7 @@ export async function commenterItemAction(
     return;
   const g = await autorise(agId);
   if (!g) return;
-  await commenterItem(agId, itemId, commentaire, { initiales: g.initiales });
+  await commenterItem(agId, itemId, commentaire, { initiales: g.initiales }, g.id);
   // Le "CS preparatoire le" alimente la date de prochain CS de la copro (calendrier).
   if (itemId === ITEM_CS_PREPA) {
     const code = codeDe(agId);
@@ -78,7 +78,7 @@ export async function conclureAgAction(agId: string): Promise<void> {
   await conclureAg(agId, {
     initiales: g.initiales,
     le: new Date().toLocaleDateString("fr-FR"),
-  });
+  }, g.id);
 
   // AG tenue + dossier boucle : la date planifiee devient la "derniere AG", et on
   // efface la "prochaine AG" (la copro repasse "a planifier" pour le cycle suivant).
