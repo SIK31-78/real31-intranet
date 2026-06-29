@@ -1322,6 +1322,54 @@ Au moment de brancher le pilote, le DSI était prêt à accorder l'accès et pro
 
 ---
 
+## ADR-028 - Courriers sinistre : composer un brouillon mail NEUF via le module Mail (extension du port)
+
+**Date** : 2026-06-29 - **Statut** : proposé (à valider par Sekou avant code)
+
+### Contexte
+
+Le module sinistre genere 9 courriers-types (demande d'attestation, declaration assureur, recours...). Aujourd'hui leur sortie est `mailto:` + copier + imprimer (`CourriersScreen.tsx`) : corps en texte brut, mise en forme perdue, limite de longueur d'URL sur les gros courriers, aucune tracabilite (pas de fil, pas de brouillon archive). On veut les envoyer via le module Mail (Graph), comme pour Mes emails.
+
+Probleme d'architecture : le port `MailOutboundProvider` (partage avec Mes emails) est **reponse-seulement**. Ses deux methodes (`creerBrouillon`, `envoyer`) exigent un `internetMessageId` (elles font `createReply` sur un mail existant : fil + citation conserves). Or un courrier sinistre est un mail **neuf**, sortant a froid vers un assureur ou un tiers : il n'y a pas de message d'origine auquel repondre. **Aucune methode de composition fraiche n'existe.**
+
+### Décision proposée
+
+Etendre `MailOutboundProvider` avec une methode additive de composition neuve, sans casser l'existant :
+
+```
+creerBrouillonNeuf(p: {
+  boite: string;          // la boite du gestionnaire (resolue de la session, JAMAIS du client)
+  sujet: string;
+  corps: string;          // HTML (meme rendu Aptos 11 que envoyer())
+  a?: string[];           // destinataires optionnels (souvent a completer a la main par le gestionnaire)
+  cc?: string[];
+  pjIds?: never;          // pas de PJ a re-joindre ici (mail neuf, pas une reponse)
+}): Promise<{ webLink?: string }>;  // lien Outlook du brouillon cree, si dispo
+```
+
+Adapter Graph : `POST /users/{boite}/messages` (cree un brouillon dans la boite, statut Draft). Mock : no-op tracable.
+
+**Par defaut : brouillon SEULEMENT, pas d'envoi automatique.** Un courrier sinistre part vers un tiers externe (assureur) : on ne l'envoie pas en app-only sans relecture humaine. Le gestionnaire ouvre le brouillon dans Outlook, complete/verifie le destinataire, et envoie lui-meme (l'add-in Signitic s'applique alors a l'ouverture cote client -> on n'injecte PAS la signature dans le brouillon, coherent avec la decision design de `creerBrouillon`). Un envoi direct (`Mail.Send`, deja accorde) reste possible plus tard, mais hors scope de cet ADR.
+
+### Alternatives ecartees
+
+- **A - Statu quo `mailto:`** : zero cout mais perd la mise en forme, bute sur la longueur d'URL, aucune tracabilite. Insuffisant pour un courrier officiel.
+- **B - Generer un PDF/docx telechargeable** : complement utile (archivage, courrier papier) mais ne donne ni le fil mail ni la tracabilite Outlook ; et la generation PDF est deja reportee post-MVP (ADR-012). A traiter separement, pas un substitut.
+- **C - Reutiliser `envoyer()` avec un faux `internetMessageId`** : impossible proprement (la methode fait `createReply`, il faut un vrai message). Detournement fragile, rejete.
+
+### Conséquences
+
+- Une methode additive sur un port PARTAGE : Mes emails n'est pas impacte (signature inchangee de `creerBrouillon`/`envoyer`). Adapter Graph + mock a etendre, plus le routeur si besoin.
+- Cote sinistre : `CourriersScreen` remplace `mailto:` par un bouton "Creer le brouillon dans ma boite" qui appelle une Server Action -> `creerBrouillonNeuf`. **Cloisonnement** : la `boite` vient de `getGestionnaireCourant` (la sienne), jamais d'un parametre client ; bornes zod sur sujet/corps/destinataires.
+- **Permissions Graph** : la creation de brouillon est couverte par `Mail.ReadWrite` (deja accorde), **aucune nouvelle permission DSI requise** tant qu'on reste en brouillon. Un futur envoi direct utiliserait `Mail.Send` (deja accorde), borne par l'Application Access Policy (ADR-027).
+- Le destinataire reste souvent a completer a la main (l'assureur exact depend du dossier) : viser d'abord "brouillon pre-rempli sujet+corps, destinataire optionnel", pas un envoi force.
+
+### Liens
+
+- **ADR-001** (ports & adapters), **ADR-027** (mail app-only + Access Policy), **ADR-012** (PDF reporte). Module Mail : `MailOutboundProvider`, `graph-mail-outbound.ts`. Branche : `increment/05-sinistres`. Declencheur : Vague 4 du chantier sinistre (automatisation des courriers).
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
