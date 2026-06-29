@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { chargerContexteDossierAction, enregistrerSinistreAction } from '@/app/sinistre/actions';
+import {
+  chargerContexteDossierAction,
+  chargerMesImmeublesAction,
+  enregistrerSinistreAction,
+  type ImmeubleOption,
+} from '@/app/sinistre/actions';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { currentNode, isTransparent, cheminMixte, pathOf } from '@/lib/domain/sinistre/engine/wizard';
 import { aujourdhuiISO, dateEstFuture } from '@/lib/domain/sinistre/util/date';
@@ -23,6 +28,54 @@ function DossierPanel() {
   const [ouvert, setOuvert] = useState(true);
   const [enregistrement, demarrerEnregistrement] = useTransition();
   const [retour, setRetour] = useState<{ ok: boolean; texte: string } | null>(null);
+
+  // Selecteur d'immeuble : SES copros (cloisonnees cote serveur). Charge une seule
+  // fois au montage du panel. Saisie libre par defaut -> permet de rattacher une copro
+  // et donc de poser coproprieteId/agenceId (debloque l'enregistrement serveur).
+  const [immeubles, setImmeubles] = useState<ImmeubleOption[]>([]);
+  const [signataire, setSignataire] =
+    useState<{ nom: string; email: string; initiales: string } | null>(null);
+  const [saisieCopro, setSaisieCopro] = useState('');
+  const [charge, setCharge] = useState(false);
+  const [, chargerImmeubles] = useTransition();
+  const immeublesCharges = useRef(false);
+
+  useEffect(() => {
+    if (immeublesCharges.current) return;
+    immeublesCharges.current = true;
+    chargerImmeubles(async () => {
+      const res = await chargerMesImmeublesAction();
+      setImmeubles(res.immeubles);
+      setSignataire(res.gestionnaire);
+      setCharge(true);
+    });
+  }, []);
+
+  // Nom de la copro rattachee (indicateur "Rattachee : ..."). On retrouve l'option par
+  // son code (= coproprieteId) ; repli sur le nom d'immeuble saisi si l'option n'est pas
+  // dans la liste (ex. pre-remplie depuis ?dossier avant chargement).
+  const coproRattachee = state.coproprieteId
+    ? (immeubles.find((i) => i.code === state.coproprieteId)?.nom ?? state.immeuble.nom)
+    : '';
+
+  // Selection d'une copro depuis la datalist : on retrouve l'option par "nom (code)"
+  // puis on dispatch (pose nom + adresse + coproprieteId + agenceId + signataire).
+  const choisirCopro = (valeur: string) => {
+    setSaisieCopro(valeur);
+    const choix = immeubles.find((i) => `${i.nom} (${i.code})` === valeur);
+    if (!choix) return;
+    dispatch({
+      type: 'SELECTIONNER_COPROPRIETE',
+      coproprieteId: choix.code,
+      ...(choix.agenceId ? { agenceId: choix.agenceId } : {}),
+      nom: choix.nom,
+      adresse: choix.adresse,
+      assureurNom: '',
+      assureurPolice: '',
+      ...(signataire ? { gestionnaire: signataire } : {}),
+    });
+    setSaisieCopro('');
+  };
 
   const enregistrer = () => {
     setRetour(null);
@@ -52,6 +105,37 @@ function DossierPanel() {
 
       {ouvert && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm sm:col-span-2">
+            <span className="text-ink-3">Copropriété concernée</span>
+            <input
+              list="liste-mes-immeubles"
+              value={saisieCopro}
+              placeholder={
+                !charge
+                  ? 'Chargement de vos copropriétés…'
+                  : immeubles.length
+                    ? 'Rechercher une de vos copropriétés (nom ou code)'
+                    : 'Aucune copropriété dans votre périmètre'
+              }
+              onChange={(e) => choisirCopro(e.target.value)}
+              className="mt-1 w-full rounded border border-line-2 px-2 py-1"
+            />
+            <datalist id="liste-mes-immeubles">
+              {immeubles.map((i) => (
+                <option key={i.code} value={`${i.nom} (${i.code})`} />
+              ))}
+            </datalist>
+            {coproRattachee ? (
+              <span className="mt-1 block text-xs text-green-700">
+                Rattachée : {coproRattachee} — enregistrement débloqué.
+              </span>
+            ) : (
+              <span className="mt-1 block text-xs text-ink-4">
+                Choisissez une copropriété pour rattacher ce dossier (nécessaire à
+                l’enregistrement).
+              </span>
+            )}
+          </label>
           <label className="text-sm">
             <span className="text-ink-3">Référence interne</span>
             <output className="mt-1 block w-full rounded border border-line bg-surface-2 px-2 py-1 text-ink-2">

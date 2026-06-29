@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
+import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
 import {
   getCoproRepository,
   getDossierRepository,
@@ -80,6 +81,51 @@ export async function chargerContexteDossierAction(
       email: g.email ?? "",
       initiales: g.initiales,
     },
+  };
+}
+
+// --- Selecteur d'immeuble : liste des copros DU gestionnaire (saisie libre) -----
+// Sans ?dossier, le wizard n'a aucune copro rattachee -> l'enregistrement serveur
+// renverrait "hors perimetre". Ce loader alimente un selecteur qui permet de choisir
+// une de SES copros (et donc de poser coproprieteId/agenceId + immeuble nom/adresse).
+
+/** Une copro proposee au selecteur (adresse deja mise en forme sur une ligne). */
+export interface ImmeubleOption {
+  /** Code referentiel = coproprieteId du store. */
+  code: string;
+  nom: string;
+  /** Adresse immeuble sur une ligne. */
+  adresse: string;
+  /** Agence derivee de la copro, si connue. */
+  agenceId?: string;
+}
+
+export interface MesImmeublesResultat {
+  gestionnaire: { nom: string; email: string; initiales: string };
+  immeubles: ImmeubleOption[];
+}
+
+// Charge les copros du gestionnaire courant pour le selecteur d'immeuble du wizard.
+// CLOISONNEMENT : getCoproprietes(g.id) renvoie DEJA uniquement ses copros (pas
+// d'IDOR : on n'expose jamais la copro d'autrui). Jamais d'erreur cote client :
+// pas de gestionnaire -> structure vide coherente.
+export async function chargerMesImmeublesAction(): Promise<MesImmeublesResultat> {
+  const g = await getGestionnaireCourant();
+  if (!g) {
+    return { gestionnaire: { nom: "", email: "", initiales: "" }, immeubles: [] };
+  }
+
+  const copros = await getCoproprietes(g.id);
+  const immeubles: ImmeubleOption[] = copros.map((c) => ({
+    code: c.code,
+    nom: c.nom,
+    adresse: adresseUneLigne(c.adresse),
+    ...(c.agenceId ? { agenceId: c.agenceId } : {}),
+  }));
+
+  return {
+    gestionnaire: { nom: g.nomComplet, email: g.email ?? "", initiales: g.initiales },
+    immeubles,
   };
 }
 
