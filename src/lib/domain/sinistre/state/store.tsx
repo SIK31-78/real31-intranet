@@ -18,6 +18,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from 'react';
@@ -363,8 +364,20 @@ function chargerBrouillon(): DossierState | null {
   }
 }
 
-function lazyInit(): DossierState {
-  return chargerBrouillon() ?? nouveauDossier();
+// Seed DETERMINISTE, identique au SSR et au premier rendu client : aucune valeur
+// aleatoire (reference, ids) ici, sinon le HTML serveur differe du HTML client et
+// l'hydratation echoue. La vraie reference / le brouillon sont charges apres montage
+// (useEffect, cote client uniquement). Le placeholder se reconnait a referenceInterne ''.
+function etatInitialDeterministe(): DossierState {
+  return {
+    referenceInterne: '',
+    date: '',
+    immeuble: { nom: '', adresse: '' },
+    descriptif: '',
+    statut: 'brouillon',
+    locaux: [{ id: 'loc-initial', libelle: '', wizard: initialState() }],
+    activeLocalId: 'loc-initial',
+  };
 }
 
 interface DossierContextValue {
@@ -375,15 +388,27 @@ interface DossierContextValue {
 const DossierContext = createContext<DossierContextValue | null>(null);
 
 export function DossierProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, lazyInit);
+  const [state, dispatch] = useReducer(reducer, undefined, etatInitialDeterministe);
+  const initialise = useRef(false);
 
-  // Auto-save localStorage (read-only : plus de bascule persistenceMode). SSR-safe.
+  // Initialisation client-only (apres hydratation) : on charge le brouillon
+  // localStorage, ou on cree un nouveau dossier (reference/ids aleatoires generes
+  // ICI, jamais au rendu serveur). Garde anti-double-exec (StrictMode).
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (initialise.current) return;
+    initialise.current = true;
+    dispatch({ type: 'CHARGER', state: chargerBrouillon() ?? nouveauDossier() });
+  }, []);
+
+  // Auto-save localStorage (read-only : plus de bascule persistenceMode). On
+  // n'ecrit jamais le placeholder (referenceInterne vide) pour ne pas ecraser un
+  // brouillon existant avant son chargement.
+  useEffect(() => {
+    if (!state.referenceInterne) return;
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
     } catch {
-      /* quota / mode privé : on ignore, l'état in-memory reste la source */
+      /* quota / mode prive : on ignore, l'etat in-memory reste la source */
     }
   }, [state]);
 
