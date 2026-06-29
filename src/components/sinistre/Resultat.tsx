@@ -14,6 +14,7 @@ import {
 import { syntheseDossierSinistre } from '@/lib/domain/sinistre/engine/synthese';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { reporterRdvExpertiseAction, reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
+import { genererEtapesSinistreAction } from '@/app/sinistre/actions';
 import { ListeCourriersLiens } from './CourriersLiens';
 import type { ResultatNode } from '@/lib/domain/sinistre/types';
 
@@ -57,6 +58,22 @@ export function Resultat() {
     startRdvTransition(async () => {
       await reporterRdvExpertiseAction(dossierId, rdvsPayload);
       setRdvReportes(true);
+    });
+  };
+
+  // Generation des etapes du dossier depuis le parcours (incrément 5). On envoie
+  // l'etat complet : la projection se fait cote SERVEUR (le client ne fabrique pas
+  // la liste d'etapes). Retour minimal (genere N / rien a ajouter / erreur).
+  const [pendingEtapes, startEtapesTransition] = useTransition();
+  const [etapesMessage, setEtapesMessage] = useState<string | null>(null);
+
+  const genererEtapes = () => {
+    if (!dossierId) return;
+    startEtapesTransition(async () => {
+      const res = await genererEtapesSinistreAction(dossierId, state);
+      if (!res.ok) setEtapesMessage('Erreur lors de la génération.');
+      else if (res.ajoutees === 0) setEtapesMessage('Aucune nouvelle étape à ajouter.');
+      else setEtapesMessage(`${res.ajoutees} étape${res.ajoutees > 1 ? 's' : ''} ajoutée${res.ajoutees > 1 ? 's' : ''} au dossier.`);
     });
   };
 
@@ -106,6 +123,23 @@ export function Resultat() {
               Revenir au dossier
             </Link>
           </div>
+        </div>
+      )}
+
+      {dossierId && (
+        <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm">
+          {etapesMessage ? (
+            <span className="font-medium text-sky-900">{etapesMessage}</span>
+          ) : (
+            <span className="text-sky-900">
+              Générer les étapes du dossier (courriers recommandés, jalons) depuis ce parcours. N&apos;écrase aucune étape existante.
+            </span>
+          )}
+          {!etapesMessage && (
+            <Button variant="primary" onClick={genererEtapes} disabled={pendingEtapes}>
+              {pendingEtapes ? 'Génération en cours…' : 'Générer les étapes depuis le parcours'}
+            </Button>
+          )}
         </div>
       )}
 

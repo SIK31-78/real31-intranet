@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
@@ -10,6 +11,7 @@ import {
   getSinistreRepository,
 } from "@/lib/adapters/router";
 import { SinistrePersistanceIndisponible } from "@/lib/ports/sinistre-repository";
+import { projeterEtapesDepuisParcours } from "@/lib/domain/sinistre/engine/etapes";
 import type { DossierState } from "@/lib/domain/sinistre/types";
 
 // Contexte immeuble/copro + signataire pre-rempli depuis un dossier de type sinistre.
@@ -190,4 +192,83 @@ export async function chargerSinistreAction(id: string): Promise<DossierState | 
     return null;
   }
   return etat;
+}
+
+// --- Generation des etapes du dossier DEPUIS le parcours (incrément 5) ----------
+// On projette cote SERVEUR (et non cote client) : l'action recoit l'etat du
+// parcours (DossierState, deja borne par zDossierState) et fabrique elle-meme les
+// etapes via la projection PURE. Le client ne peut donc pas injecter une etape
+// arbitraire (label bidon, fait:true, assignation imposee) - meme posture
+// "ne jamais faire confiance au client" que le reste de ce fichier.
+
+export type GenererEtapesSinistreResultat =
+  | { ok: true; ajoutees: number }
+  | { ok: false; erreur: string };
+
+/** Cle de dedup d'une etape : id stable, sinon label normalise (insensible casse/accents/espaces). */
+function cleEtape(e: { id?: string; label: string }): string {
+  if (e.id && e.id.trim()) return `id:${e.id.trim()}`;
+  const label = e.label
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return `label:${label}`;
+}
+
+// Genere les etapes d'un dossier sinistre a partir du parcours DDE. NON DESTRUCTIF :
+// on n'ecrase / ne supprime JAMAIS une etape existante (toute etape deja presente,
+// y compris cochee `fait`, est conservee intacte). On n'AJOUTE que les etapes
+// projetees absentes (dedup par id stable, repli sur label normalise). Garde : meme
+// pattern que reporterRdvExpertiseAction (auth + dossier relu + type sinistre +
+// perimetre relu du dossier serveur (anti-IDOR) + zod sur l'etat). Journalise l'ajout.
+export async function genererEtapesSinistreAction(
+  dossierId: string,
+  etat: DossierState,
+): Promise<GenererEtapesSinistreResultat> {
+  if (!zId.safeParse(dossierId).success) return { ok: false, erreur: "Identifiant invalide." };
+
+  // Borne de taille puis forme (meme garde-fou que enregistrerSinistreAction).
+  let serialise: string;
+  try {
+    serialise = JSON.stringify(etat);
+  } catch {
+    return { ok: false, erreur: "Parcours non sérialisable." };
+  }
+  if (serialise.length > TAILLE_MAX_PAYLOAD) {
+    return { ok: false, erreur: "Parcours trop volumineux." };
+  }
+  if (!zDossierState.safeParse(etat).success) return { ok: false, erreur: "Parcours invalide." };
+
+  const d = await getDossierRepository().get(dossierId);
+  if (!d || d.type !== "sinistre") return { ok: false, erreur: "Dossier sinistre introuvable." };
+
+  // coproCode RELU du dossier serveur (anti-IDOR) ; cloisonnement en mode supabase.
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Non connecté." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(d.coproCode, g.id))) {
+    return { ok: false, erreur: "Copropriété hors de votre périmètre." };
+  }
+
+  // Projection PURE cote serveur (le client n'a pas fabrique la liste).
+  const proposees = projeterEtapesDepuisParcours(etat);
+  const existantes = new Set(d.etapes.map(cleEtape));
+  const ajouts = proposees.filter((e) => !existantes.has(cleEtape(e)));
+  if (ajouts.length === 0) return { ok: true, ajoutees: 0 };
+
+  // Append uniquement : les etapes existantes (et leur etat `fait`) restent intactes.
+  const etapes = [...d.etapes, ...ajouts];
+  const journal = [
+    ...d.journal,
+    {
+      le: new Date().toISOString(),
+      par: g.initiales,
+      texte: `Étapes générées depuis le parcours sinistre : ${ajouts.length} ajoutée${ajouts.length > 1 ? "s" : ""}`,
+      kind: "etape" as const,
+    },
+  ];
+  await getDossierRepository().patch(dossierId, { etapes, journal });
+  revalidatePath(`/dossiers/${dossierId}`);
+  return { ok: true, ajoutees: ajouts.length };
 }
