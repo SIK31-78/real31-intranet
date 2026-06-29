@@ -3,6 +3,7 @@
 
 import type { AssembleeAg, ResolutionLibre } from "@/lib/domain/assemblee";
 import { getAssembleeEstaleProvider } from "@/lib/adapters/router";
+import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 
 export async function getAssemblee(coproCode: string): Promise<AssembleeAg | null> {
   try {
@@ -21,7 +22,9 @@ export async function appliquerOdjAg(
   bankItemIds: string[],
   libres: ResolutionLibre[],
   ordreTopExistant: string[],
+  managerId: string,
 ): Promise<{ supprimees: number; ajoutees: number }> {
+  await exigerPerimetre(coproCode, managerId);
   return getAssembleeEstaleProvider().appliquerOdj(
     coproCode,
     meetingId,
@@ -33,6 +36,7 @@ export async function appliquerOdjAg(
 }
 
 /** Cree une nouvelle AG ordinaire dans Estale pour la copro (palier 3). Ecriture reelle. */
-export async function creerAssembleeAg(coproCode: string): Promise<string> {
+export async function creerAssembleeAg(coproCode: string, managerId: string): Promise<string> {
+  await exigerPerimetre(coproCode, managerId);
   return getAssembleeEstaleProvider().creerAssemblee(coproCode);
 }

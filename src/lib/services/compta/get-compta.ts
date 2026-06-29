@@ -5,6 +5,7 @@
 import type { AgAPreparer, AuteurNote, EtatCompta } from "@/lib/domain/compta";
 import type { FlagCompta } from "@/lib/ports/compta-repository";
 import { getComptaRepository, getCoproRepository } from "@/lib/adapters/router";
+import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 
 const ETAT_VIDE: EtatCompta = { comptesVerifies: false, envoyerAvant: false, notes: [] };
 
@@ -58,7 +59,9 @@ export async function ajouterNoteCompta(
   auteur: AuteurNote,
   texte: string,
   par: string,
+  managerId: string,
 ): Promise<void> {
+  await exigerPerimetre(coproCode, managerId);
   return getComptaRepository().ajouterNote(coproCode, agDateISO, auteur, texte, par);
 }
 
@@ -68,7 +71,9 @@ export async function marquerNoteCompta(
   noteId: string,
   resolu: boolean,
   par: string,
+  managerId: string,
 ): Promise<void> {
+  await exigerPerimetre(coproCode, managerId);
   return getComptaRepository().marquerNote(coproCode, agDateISO, noteId, resolu, par);
 }
 
@@ -78,6 +83,8 @@ export async function setFlagCompta(
   flag: FlagCompta,
   valeur: boolean,
   par: string,
+  managerId: string,
 ): Promise<void> {
+  await exigerPerimetre(coproCode, managerId);
   return getComptaRepository().setFlag(coproCode, agDateISO, flag, valeur, par);
 }

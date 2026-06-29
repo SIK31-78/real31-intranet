@@ -3,6 +3,7 @@
 
 import { getOdjRepository } from "@/lib/adapters/router";
 import { PREFIXE_POINT } from "@/lib/ports/odj-repository";
+import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 
 export async function saisirChampOdj(
   coproCode: string,
@@ -10,7 +11,9 @@ export async function saisirChampOdj(
   champId: string,
   valeur: string,
   par: string,
+  managerId: string,
 ): Promise<void> {
+  await exigerPerimetre(coproCode, managerId);
   return getOdjRepository().setChamp(coproCode, agDateISO, champId, valeur.trim() || null, par);
 }
 
@@ -20,7 +23,9 @@ export async function retirerPointOdj(
   pointId: string,
   retire: boolean,
   par: string,
+  managerId: string,
 ): Promise<void> {
+  await exigerPerimetre(coproCode, managerId);
   // Toujours explicite ("retire" / "inclus") : certains points sont retires
   // d'office dans le catalogue (ex. fonds ALUR), restaurer doit primer le defaut.
   return getOdjRepository().setChamp(
@@ -35,6 +40,8 @@ export async function retirerPointOdj(
 export async function reporterOdjSansDate(
   coproCode: string,
   nouvelleDateISO: string,
+  managerId: string,
 ): Promise<void> {
+  await exigerPerimetre(coproCode, managerId);
   return getOdjRepository().reporterSansDate(coproCode, nouvelleDateISO);
 }

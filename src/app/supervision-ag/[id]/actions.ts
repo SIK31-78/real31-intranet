@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import type { StatutItem } from "@/lib/domain/supervision-ag";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import {
@@ -12,6 +13,12 @@ import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { definirDateEvenement } from "@/lib/services/coproprietes/definir-date-evenement";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { ITEM_CS_PREPA } from "@/lib/domain/supervision-ag-template";
+
+// Validation des entrees (zod) : ces Server Actions sont des endpoints POST publics.
+const zAgId = z.string().trim().min(1).max(120); // "CODE__YYYY-MM-DD" (ou id simple en mock)
+const zItemId = z.string().trim().min(1).max(120);
+const zStatut = z.enum(["non_verifie", "ok", "probleme", "non_applicable"]);
+const zCommentaire = z.string().max(5000);
 
 // L'id de supervision est "CODE__DATE" en reel ; en mock c'est un id simple (e1).
 function codeDe(agId: string): string {
@@ -37,9 +44,10 @@ export async function cocherItemAction(
   itemId: string,
   statut: StatutItem,
 ): Promise<void> {
+  if (!z.object({ agId: zAgId, itemId: zItemId, statut: zStatut }).safeParse({ agId, itemId, statut }).success) return;
   const g = await autorise(agId);
   if (!g) return;
-  await cocherItem(agId, itemId, statut, { initiales: g.initiales });
+  await cocherItem(agId, itemId, statut, { initiales: g.initiales }, g.id);
   revalidatePath(`/supervision-ag/${agId}`);
 }
 
@@ -48,9 +56,11 @@ export async function commenterItemAction(
   itemId: string,
   commentaire: string,
 ): Promise<void> {
+  if (!z.object({ agId: zAgId, itemId: zItemId, commentaire: zCommentaire }).safeParse({ agId, itemId, commentaire }).success)
+    return;
   const g = await autorise(agId);
   if (!g) return;
-  await commenterItem(agId, itemId, commentaire, { initiales: g.initiales });
+  await commenterItem(agId, itemId, commentaire, { initiales: g.initiales }, g.id);
   // Le "CS preparatoire le" alimente la date de prochain CS de la copro (calendrier).
   if (itemId === ITEM_CS_PREPA) {
     const code = codeDe(agId);
@@ -62,12 +72,13 @@ export async function commenterItemAction(
 }
 
 export async function conclureAgAction(agId: string): Promise<void> {
+  if (!zAgId.safeParse(agId).success) return;
   const g = await autorise(agId);
   if (!g) return;
   await conclureAg(agId, {
     initiales: g.initiales,
     le: new Date().toLocaleDateString("fr-FR"),
-  });
+  }, g.id);
 
   // AG tenue + dossier boucle : la date planifiee devient la "derniere AG", et on
   // efface la "prochaine AG" (la copro repasse "a planifier" pour le cycle suivant).
