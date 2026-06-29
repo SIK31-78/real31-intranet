@@ -12,7 +12,6 @@ import { LocauxBar } from './LocauxBar';
 import { QuestionView } from './QuestionView';
 import { EtapeView } from './EtapeView';
 import { Resultat } from './Resultat';
-import { CapturePanel } from './CapturePanel';
 import { Button, Card } from './ui';
 
 // INCRÉMENT 1 (read-only) : saisie immeuble en texte libre uniquement ; pas de
@@ -186,8 +185,6 @@ export function WizardScreen() {
         )}
         {node.type === 'resultat' && <Resultat />}
       </Card>
-
-      {node.type !== 'resultat' && <CapturePanel nodeId={local.wizard.current} />}
 
       {peutReculer && (
         <div className="no-print mt-4">

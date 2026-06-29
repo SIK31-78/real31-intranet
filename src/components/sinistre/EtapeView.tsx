@@ -4,20 +4,10 @@ import Link from 'next/link';
 import { Glose } from './Glossaire';
 import { ChecklistMesures } from './ChecklistMesures';
 import { ListeCourriersLiens, courriersDuNoeud } from './CourriersLiens';
-import { AlertBox, Button, GlosedList, References, SectionTitle } from './ui';
+import { AlertBox, Button } from './ui';
 import { subsidiariteParIncertitude } from '@/lib/domain/sinistre/engine/wizard';
 import { useActiveLocal, useDossier } from '@/lib/domain/sinistre/state/store';
 import type { EtapeNode } from '@/lib/domain/sinistre/types';
-
-function Block({ title, items }: { title: string; items?: string[] }) {
-  if (!items?.length) return null;
-  return (
-    <div className="mt-4">
-      <SectionTitle>{title}</SectionTitle>
-      <GlosedList items={items} />
-    </div>
-  );
-}
 
 /**
  * Bandeau d'avertissement (E-2) : la subsidiarité résulte ici d'un « Je ne sais
@@ -78,11 +68,6 @@ export function EtapeView({
           Assureur gestionnaire désigné : {node.gestionnaire.replace(/_/g, ' ')}
         </p>
       )}
-      {node.role_gestionnaire && (
-        <p className="mt-2 text-sm text-ink-3">
-          <Glose>{node.role_gestionnaire}</Glose>
-        </p>
-      )}
 
       {node.checklist && (
         <div className="mt-4">
@@ -91,25 +76,7 @@ export function EtapeView({
         </div>
       )}
 
-      <Block title="Règles" items={node.regles} />
-      <Block title="Qui organise" items={node.regles_organisation} />
-      <Block title="Prise en charge" items={node.regles_prise_en_charge} />
-      <Block title="Actions du syndic" items={node.actions_syndic} />
-
-      {node.composition_assiette && (
-        <div className="mt-4">
-          {Object.entries(node.composition_assiette).map(([key, items]) => (
-            <div key={key} className="mt-3">
-              <SectionTitle>{key.replace(/_/g, ' ')}</SectionTitle>
-              <GlosedList items={items} />
-            </div>
-          ))}
-        </div>
-      )}
-
       {node.alerte && <AlertBox>{node.alerte}</AlertBox>}
-
-      <References items={node.references} />
 
       {/* Modèles déclenchés par cet écran (ex. C9 sur la recherche de fuite) — H-2. */}
       <ListeCourriersLiens ids={courriersDuNoeud(local.wizard.current)} />

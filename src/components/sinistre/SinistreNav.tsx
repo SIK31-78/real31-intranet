@@ -14,9 +14,7 @@ import { cn } from '@/lib/cn';
 const NAV = [
   { href: '/sinistre', label: 'Accueil', exact: true },
   { href: '/sinistre/wizard', label: 'Parcours guidé' },
-  { href: '/sinistre/fiches', label: 'Fiches réflexes' },
   { href: '/sinistre/courriers', label: 'Courriers' },
-  { href: '/sinistre/lexique', label: 'Lexique' },
 ];
 
 export function SinistreNav() {

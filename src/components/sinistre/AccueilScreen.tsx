@@ -46,7 +46,7 @@ export function AccueilScreen() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6">
         <button
           onClick={demarrer}
           className="group rounded-lg border border-green-200 bg-surface p-8 text-left shadow-1 transition hover:border-green-600 hover:shadow-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
@@ -61,21 +61,6 @@ export function AccueilScreen() {
             Démarrer →
           </span>
         </button>
-
-        <Link
-          href="/sinistre/fiches"
-          className="group rounded-lg border border-line bg-surface p-8 text-left shadow-1 transition hover:border-ink-4 hover:shadow-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-        >
-          <div className="text-xl font-semibold text-ink">Accès direct</div>
-          <div className="mt-1 font-medium text-ink-2">Fiches réflexes</div>
-          <p className="mt-3 text-sm text-ink-3">
-            Tableaux de désignation du gestionnaire, recherche de fuite, tranches &amp; assiette,
-            recours &amp; barème, CIDECOP. Pour les gestionnaires confirmés.
-          </p>
-          <span className="mt-4 inline-block font-medium text-ink-2 group-hover:underline">
-            Consulter →
-          </span>
-        </Link>
       </div>
     </div>
   );
