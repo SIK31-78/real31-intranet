@@ -1,5 +1,8 @@
 'use client';
 
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Glose } from './Glossaire';
 import { Button, GlosedList, References, SectionTitle } from './ui';
 import {
@@ -11,8 +14,10 @@ import {
   reponses,
   resultatNode,
 } from '@/lib/domain/sinistre/engine/wizard';
+import { syntheseDossierSinistre } from '@/lib/domain/sinistre/engine/synthese';
 import { nodes } from '@/lib/domain/sinistre/data';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
+import { reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
 import { MesureRow } from './ChecklistMesures';
 import { ListeCourriersLiens } from './CourriersLiens';
 import { EncartVigilance } from './PointsVigilance';
@@ -80,6 +85,21 @@ export function Resultat() {
   const wizard = local.wizard;
   const node = resultatNode(wizard) as ResultatNode;
 
+  // Contexte dossier (incrément 2) : si on est arrivé via /sinistre/wizard?dossier=<id>,
+  // on propose de reporter la synthèse dans le journal de ce dossier.
+  const dossierId = useSearchParams().get('dossier');
+  const [pending, startTransition] = useTransition();
+  const [reporte, setReporte] = useState(false);
+
+  const reporterDansDossier = () => {
+    if (!dossierId) return;
+    const texte = syntheseDossierSinistre(state);
+    startTransition(async () => {
+      await reporterSyntheseSinistreAction(dossierId, texte);
+      setReporte(true);
+    });
+  };
+
   const gest = gestionnaireNode(wizard);
   const cas = cas213(wizard);
   const actions = actionsSyndic(wizard);
@@ -111,6 +131,31 @@ export function Resultat() {
           </Button>
         </div>
       </div>
+
+      {dossierId && (
+        <div className="no-print mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm">
+          {reporte ? (
+            <span className="font-medium text-green-900">Synthèse reportée dans le dossier ✓</span>
+          ) : (
+            <span className="text-green-900">
+              Reporter cette synthèse (résultat, gestionnaire, tranche, courriers) dans le journal du dossier.
+            </span>
+          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {!reporte && (
+              <Button variant="primary" onClick={reporterDansDossier} disabled={pending}>
+                {pending ? 'Report en cours…' : 'Reporter la synthèse dans le dossier'}
+              </Button>
+            )}
+            <Link
+              href={`/dossiers/${dossierId}`}
+              className="text-[13px] font-medium text-green-700 underline hover:text-green-900"
+            >
+              Revenir au dossier
+            </Link>
+          </div>
+        </div>
+      )}
 
       {gest && (
         <div className="mt-4 rounded-md border border-green-100 bg-green-50 p-3 text-sm">

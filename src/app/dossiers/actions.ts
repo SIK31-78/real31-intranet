@@ -58,6 +58,24 @@ export async function creerDossierAction(form: {
   redirect(`/dossiers/${id}`);
 }
 
+// Reporte la synthèse de l'assistant sinistre dans le JOURNAL du dossier (incrément 2,
+// ancrage option C). NON DESTRUCTIF : ajoute une note, ne touche ni aux étapes ni au
+// reste. Réservé aux dossiers de type "sinistre". Cloisonné au périmètre.
+export async function reporterSyntheseSinistreAction(dossierId: string, texte: string): Promise<void> {
+  const valeur = texte.trim();
+  if (!valeur) return;
+  const d = await getDossierRepository().get(dossierId);
+  if (!d || d.type !== "sinistre") return;
+  const g = await autorise(d.coproCode);
+  if (!g) return;
+  const journal = [
+    ...d.journal,
+    { le: new Date().toISOString(), par: g.initiales, texte: valeur, kind: "note" as const },
+  ];
+  await getDossierRepository().patch(dossierId, { journal });
+  revalidatePath(`/dossiers/${dossierId}`);
+}
+
 export async function majEtapesAction(id: string, etapes: EtapeDossier[]): Promise<void> {
   const d = await getDossierRepository().get(id);
   if (!d || !(await autorise(d.coproCode))) return;

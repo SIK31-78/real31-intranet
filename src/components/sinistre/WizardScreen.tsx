@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { currentNode, isTransparent, cheminMixte, pathOf } from '@/lib/domain/sinistre/engine/wizard';
 import { aujourdhuiISO, dateEstFuture } from '@/lib/domain/sinistre/util/date';
@@ -102,6 +104,8 @@ export function WizardScreen() {
   const node = currentNode(local.wizard);
   const peutReculer = local.wizard.steps.length > 0;
 
+  const dossierId = useSearchParams().get('dossier');
+
   const blocages = blocagesProgression(state.date, local.libelle);
   const bloque = blocages.length > 0;
 
@@ -115,6 +119,14 @@ export function WizardScreen() {
 
   return (
     <div>
+      {dossierId && (
+        <div className="no-print mb-4 flex items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+          <span>Analyse rattachée à un dossier · la synthèse pourra y être reportée depuis l’écran de résultat.</span>
+          <Link href={`/dossiers/${dossierId}`} className="shrink-0 font-medium underline hover:text-green-700">
+            Revenir au dossier
+          </Link>
+        </div>
+      )}
       <DossierPanel />
       <Breadcrumb node={node} />
       <LocauxBar />

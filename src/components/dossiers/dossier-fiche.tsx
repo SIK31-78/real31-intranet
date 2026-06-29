@@ -6,7 +6,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Check, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, Flag, Mail, Phone, Inbox, Pencil, Gavel,
+  ArrowLeft, Check, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, Flag, Mail, Phone, Inbox, Pencil, Gavel, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,6 +133,16 @@ export function DossierFiche({
                 numeroResolution={dossier.numeroResolution}
               />
             </div>
+            {dossier.type === "sinistre" && (
+              <div className="mt-3">
+                <Link
+                  href={`/sinistre/wizard?dossier=${dossier.id}`}
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 w-fit"
+                >
+                  <ClipboardList strokeWidth={1.5} className="w-3.5 h-3.5" /> Ouvrir l’assistant sinistre
+                </Link>
+              </div>
+            )}
           </div>
           <label className="flex flex-col gap-1 text-[11px] text-ink-3 shrink-0">
             Statut
