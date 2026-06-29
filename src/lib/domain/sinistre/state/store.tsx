@@ -39,85 +39,20 @@ import { nodes } from '../data';
 import type {
   AssureurImmeuble,
   AssureurRef,
-  ImmeubleInfo,
   LocalSinistre,
-  MesureEtat,
   NodeId,
   Partie,
-  RendezVousExpertise,
   RolePartie,
-  StatutDossier,
   WizardState,
 } from '../types';
+// DossierState + Action vivent desormais dans le domaine pur (types/), pour qu'un
+// adapter serveur puisse en dependre sans tirer ce fichier 'use client'.
+import type { Action, DossierState } from '../types';
 import type { Ecriture } from '../engine/mapping';
 
+export type { DossierState } from '../types';
+
 const DRAFT_KEY = 'sinistre-draft-v3';
-
-export interface DossierState {
-  /** Id Supabase du sinistre (uuid). Absent tant que le dossier n'a jamais été persisté. */
-  id?: string;
-  referenceInterne: string;
-  date: string;
-  immeuble: ImmeubleInfo;
-  /**
-   * Id de la copropriété dans le référentiel cabinet (public."Copropriete", PK text),
-   * choisie via le sélecteur d'immeuble (mode supabase). `immeuble` (nom/adresse) en
-   * reste la projection lisible. Absent en mode localstorage tant que le sélecteur
-   * n'est pas branché (étape 5).
-   */
-  coproprieteId?: string;
-  /** Agence dérivée de la copropriété sélectionnée (D2) - posée par le sélecteur, lue au save. */
-  agenceId?: string;
-  /**
-   * Gestionnaire-signataire du dossier (identité de l'utilisateur courant). Posé par
-   * le sélecteur d'immeuble / le pré-remplissage depuis un dossier ; alimente la fusion
-   * des courriers (`gestionnaire.nom` / `gestionnaire.email`). Absent tant que le
-   * contexte n'a pas été chargé.
-   */
-  gestionnaire?: { nom: string; email: string; initiales: string };
-  descriptif: string;
-  /** Statut du dossier (défaut `'brouillon'`). Persisté ; sert plus tard à la frontière requalification. */
-  statut: StatutDossier;
-  assureurImmeuble?: AssureurImmeuble;
-  locaux: LocalSinistre[];
-  activeLocalId: string;
-}
-
-type Action =
-  | { type: 'NOUVEAU' }
-  | { type: 'CHARGER'; state: DossierState }
-  | { type: 'META'; patch: Partial<Pick<DossierState, 'date' | 'descriptif'>> }
-  | { type: 'IMMEUBLE'; patch: Partial<ImmeubleInfo> }
-  | { type: 'ANSWER'; optionIndex: number }
-  | { type: 'ADVANCE' }
-  | { type: 'BACK' }
-  | { type: 'MODIFIER_REPONSE'; nodeId: NodeId }
-  | { type: 'AJOUTER_LOCAL' }
-  | { type: 'AJOUTER_LOCAL_COMMUNS' }
-  | { type: 'SUPPRIMER_LOCAL'; id: string }
-  | { type: 'ACTIVER_LOCAL'; id: string }
-  | { type: 'LIBELLE_LOCAL'; id: string; libelle: string }
-  | { type: 'LIBELLE_ACTIF'; libelle: string }
-  | { type: 'SET_PARTIE'; role: RolePartie; patch: Partial<Partie> }
-  | { type: 'SET_PARTIE_ASSUREUR'; role: RolePartie; patch: Partial<AssureurRef> }
-  | { type: 'SET_ASSUREUR_IMMEUBLE'; patch: Partial<AssureurImmeuble> }
-  | { type: 'SET_MESURE'; key: string; etat: MesureEtat | null }
-  | { type: 'SET_POINT_VIGILANCE'; id: string; valeur: boolean }
-  | { type: 'AJOUTER_RDV' }
-  | { type: 'MAJ_RDV'; id: string; patch: Partial<RendezVousExpertise> }
-  | { type: 'SUPPRIMER_RDV'; id: string }
-  | { type: 'PERSISTE_OK'; id: string; referenceInterne: string }
-  | {
-      type: 'SELECTIONNER_COPROPRIETE';
-      coproprieteId: string;
-      agenceId?: string;
-      nom: string;
-      adresse: string;
-      assureurNom: string;
-      assureurPolice: string;
-      /** Signataire courant (alimente la fusion des courriers). Facultatif. */
-      gestionnaire?: { nom: string; email: string; initiales: string };
-    };
 
 function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto

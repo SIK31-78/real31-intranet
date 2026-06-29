@@ -11,8 +11,7 @@
 
 import { gestionnaireNode } from './wizard';
 import { CABINET } from '../data/cabinet';
-import type { AssureurImmeuble, AssureurRef, LocalSinistre, RolePartie } from '../types';
-import type { DossierState } from '../state/store';
+import type { AssureurImmeuble, AssureurRef, DossierState, LocalSinistre, RolePartie } from '../types';
 
 export interface MappingContext {
   state: DossierState;

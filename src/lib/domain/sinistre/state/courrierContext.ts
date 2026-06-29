@@ -10,8 +10,7 @@
 import { extractConditions, extractFields, type Conditions, type FieldValues } from '../engine/merge';
 import { pathOf, resultatId } from '../engine/wizard';
 import { resoudreChamp } from '../engine/mapping';
-import type { DossierState } from './store';
-import type { LocalSinistre } from '../types';
+import type { DossierState, LocalSinistre } from '../types';
 
 /** Nœuds dont la traversée pré-coche une condition de bloc. */
 const CONDITION_PAR_NOEUD: Record<string, string> = {

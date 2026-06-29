@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initialState } from './wizard';
 import { syntheseDossierSinistre } from './synthese';
-import type { DossierState } from '../state/store';
+import type { DossierState } from '../types';
 
 describe('syntheseDossierSinistre', () => {
   it('inclut la référence, l’immeuble et le local', () => {

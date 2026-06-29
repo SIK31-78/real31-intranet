@@ -171,3 +171,39 @@ alter table public.intranet_dossiers
   add column if not exists ag_date date,
   add column if not exists numero_resolution text;
 ```
+
+## Table native : module Sinistre (incrément 3, 2026-06-29)
+
+A executer dans le SQL editor Supabase (schema public, base PARTAGEE du patron).
+**Deploy-only : jamais de `migrate reset` / `db reset` sur cette base.** Tant que la
+table n'existe pas, l'assistant sinistre fonctionne en localStorage seul (lecture/
+ecriture serveur inertes : `chargerSinistreAction` renvoie null, le bouton
+"Enregistrer" affiche "Persistance indisponible (table absente)", aucun crash).
+
+L'agregat metier complet (`DossierState` : locaux, parties, mesures, rendez-vous...)
+est serialise dans la colonne `payload` (jsonb). Quelques champs sont projetes a plat
+pour les filtres et le cloisonnement. La `reference_interne` est generee COTE SERVEUR
+au format `SIN-<annee>-<NNNN>` (sequentielle par annee, unicite garantie par la
+contrainte UNIQUE + retry applicatif).
+
+```sql
+create table if not exists public.intranet_sinistres (
+  id                uuid primary key default gen_random_uuid(),
+  reference_interne text not null unique,   -- SIN-<annee>-<NNNN>, generee serveur
+  copropriete_id    text,                   -- = coproCode (referentiel cabinet) ; cloisonnement
+  agence_id         text,
+  date              text,                   -- date du sinistre (YYYY-MM-DD, saisie libre cote wizard)
+  statut            text,                   -- brouillon|qualifié|en_expertise|en_attente_facturation|clos|annulé
+  created_by        text,                   -- initiales du gestionnaire-signataire
+  payload           jsonb not null,         -- DossierState complet serialise (agregat lourd)
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+create index if not exists idx_intranet_sinistres_copro on public.intranet_sinistres (copropriete_id);
+
+alter table public.intranet_sinistres enable row level security;
+-- RLS on, service_role uniquement (comme les autres tables intranet) : pas de policy
+-- publique. Le cloisonnement gestionnaire est applique EN CODE (via la copro :
+-- coproAppartient sur get/patch, exigerPerimetre avant insert). Anti-IDOR : le
+-- copropriete_id vient du client, jamais de confiance -> verifie cote serveur.
+```

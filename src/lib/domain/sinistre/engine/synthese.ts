@@ -14,8 +14,7 @@ import {
   tranche,
   type Tranche,
 } from './wizard';
-import type { DossierState } from '../state/store';
-import type { LocalSinistre } from '../types';
+import type { DossierState, LocalSinistre } from '../types';
 
 const TRANCHE_LABEL: Record<Tranche, string> = {
   tranche_1: 'Tranche 1 IRSI',

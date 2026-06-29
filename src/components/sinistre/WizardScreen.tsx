@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { chargerContexteDossierAction } from '@/app/sinistre/actions';
+import { chargerContexteDossierAction, enregistrerSinistreAction } from '@/app/sinistre/actions';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { currentNode, isTransparent, cheminMixte, pathOf } from '@/lib/domain/sinistre/engine/wizard';
 import { aujourdhuiISO, dateEstFuture } from '@/lib/domain/sinistre/util/date';
@@ -15,11 +15,27 @@ import { EtapeView } from './EtapeView';
 import { Resultat } from './Resultat';
 import { Button, Card } from './ui';
 
-// INCRÉMENT 1 (read-only) : saisie immeuble en texte libre uniquement ; pas de
-// sélecteur Supabase ni de bouton « Enregistrer » (la persistance arrive plus tard).
+// Enregistrement serveur (incrément 3) : la vérité devient le serveur une fois le
+// dossier enregistré ; le brouillon localStorage reste un filet hors-ligne. Le
+// parcours n'est jamais bloqué si la persistance échoue (mode dégradé).
 function DossierPanel() {
   const { state, dispatch } = useDossier();
   const [ouvert, setOuvert] = useState(true);
+  const [enregistrement, demarrerEnregistrement] = useTransition();
+  const [retour, setRetour] = useState<{ ok: boolean; texte: string } | null>(null);
+
+  const enregistrer = () => {
+    setRetour(null);
+    demarrerEnregistrement(async () => {
+      const res = await enregistrerSinistreAction(state);
+      if (res.ok) {
+        dispatch({ type: 'PERSISTE_OK', id: res.id, referenceInterne: res.referenceInterne });
+        setRetour({ ok: true, texte: `Enregistré (${res.referenceInterne})` });
+      } else {
+        setRetour({ ok: false, texte: res.erreur });
+      }
+    });
+  };
 
   return (
     <Card className="no-print mb-4">
@@ -84,6 +100,24 @@ function DossierPanel() {
               className="mt-1 w-full rounded border border-line-2 px-2 py-1"
             />
           </label>
+
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+            <Button variant="primary" onClick={enregistrer} disabled={enregistrement}>
+              {enregistrement
+                ? 'Enregistrement…'
+                : state.id
+                  ? 'Enregistrer les modifications'
+                  : 'Enregistrer'}
+            </Button>
+            {retour && (
+              <span
+                role="status"
+                className={`text-sm ${retour.ok ? 'text-green-700' : 'text-warn-700'}`}
+              >
+                {retour.texte}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </Card>

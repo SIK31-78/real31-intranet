@@ -58,6 +58,9 @@ import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-mai
 import type { DossierRepository } from "@/lib/ports/dossier-repository";
 import { SupabaseDossierRepository } from "@/lib/adapters/supabase/supabase-dossier-repository";
 import { MockDossierRepository } from "@/lib/adapters/mock/mock-dossier-repository";
+import type { SinistreRepository } from "@/lib/ports/sinistre-repository";
+import { SupabaseSinistreRepository } from "@/lib/adapters/supabase/supabase-sinistre-repository";
+import { MockSinistreRepository } from "@/lib/adapters/mock/mock-sinistre-repository";
 import { SupabaseSupervisionAgRepository } from "@/lib/adapters/supabase/supabase-supervision-ag-repository";
 import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
 import { SupabaseGestionnaireRepository } from "@/lib/adapters/supabase/supabase-gestionnaire-repository";
@@ -128,6 +131,13 @@ export function getPriseEnMainRepository(): PriseEnMainRepository {
 export function getDossierRepository(): DossierRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseDossierRepository();
   return new MockDossierRepository();
+}
+
+// Module Sinistre (table native intranet_sinistres). Persistance serveur cloisonnee
+// du dossier sinistre (agregat jsonb). Meme bascule mock/supabase que le reste.
+export function getSinistreRepository(): SinistreRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseSinistreRepository();
+  return new MockSinistreRepository();
 }
 
 // Donnees copro sourcees Estale (CS, historique AG). Branche en reel (Phase B,
