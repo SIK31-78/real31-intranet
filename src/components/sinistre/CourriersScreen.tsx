@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { courriers } from '@/lib/domain/sinistre/data';
+import { creerBrouillonCourrierAction } from '@/app/sinistre/actions';
 import {
   activeFields,
   canExport,
@@ -97,6 +98,21 @@ function Generateur({ courrier }: { courrier: Courrier }) {
     } catch {
       alert("Impossible d'accéder au presse-papiers.");
     }
+  }
+
+  // Brouillon mail neuf dans la boite du gestionnaire (ADR-028). La boite est
+  // resolue serveur (session), on n'envoie ici que sujet + corps fusionnes. Repli
+  // mailto conserve ci-dessous : ce bouton est un PLUS (marche en mode mail actif).
+  const [brouillon, setBrouillon] = useState<{ webLink?: string; erreur?: string } | null>(null);
+  const [enCours, startBrouillon] = useTransition();
+
+  function creerBrouillon() {
+    setBrouillon(null);
+    startBrouillon(async () => {
+      const r = await creerBrouillonCourrierAction({ sujet: objet, corps: apercu });
+      if (r.ok) setBrouillon(r.webLink ? { webLink: r.webLink } : {});
+      else setBrouillon({ erreur: r.erreur });
+    });
   }
 
   return (
@@ -199,6 +215,14 @@ function Generateur({ courrier }: { courrier: Courrier }) {
             >
               Imprimer
             </Button>
+            <Button
+              variant="secondary"
+              onClick={creerBrouillon}
+              disabled={!exportable || enCours}
+              title={exportable ? '' : 'Complétez les champs requis surlignés'}
+            >
+              {enCours ? 'Création...' : 'Créer le brouillon dans ma boîte'}
+            </Button>
             <a href={mailto}>
               <Button variant="ghost">Ouvrir dans la messagerie (mailto)</Button>
             </a>
@@ -208,6 +232,28 @@ function Generateur({ courrier }: { courrier: Courrier }) {
               </span>
             )}
           </div>
+
+          {brouillon && (
+            <p className="no-print mt-2 text-xs">
+              {brouillon.erreur ? (
+                <span className="text-warn-700">{brouillon.erreur}</span>
+              ) : brouillon.webLink ? (
+                <span className="text-green-700">
+                  Brouillon créé dans votre boîte.{' '}
+                  <a
+                    href={brouillon.webLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Ouvrir dans Outlook
+                  </a>
+                </span>
+              ) : (
+                <span className="text-green-700">Brouillon créé dans votre boîte.</span>
+              )}
+            </p>
+          )}
 
           {courrier.references && (
             <p className="mt-3 text-xs text-ink-4">Références : {courrier.references.join(' · ')}</p>

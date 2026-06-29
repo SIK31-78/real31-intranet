@@ -8,6 +8,7 @@ import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import {
   getCoproRepository,
   getDossierRepository,
+  getMailOutboundProvider,
   getSinistreRepository,
 } from "@/lib/adapters/router";
 import { SinistrePersistanceIndisponible } from "@/lib/ports/sinistre-repository";
@@ -271,4 +272,62 @@ export async function genererEtapesSinistreAction(
   await getDossierRepository().patch(dossierId, { etapes, journal });
   revalidatePath(`/dossiers/${dossierId}`);
   return { ok: true, ajoutees: ajouts.length };
+}
+
+// --- Brouillon mail neuf depuis un courrier-type sinistre (ADR-028) -------------
+// Cree un brouillon NEUF (pas une reponse) dans la boite DU gestionnaire courant
+// via Graph. La boite vient de la SESSION (g.email), JAMAIS d'un parametre client :
+// le gestionnaire ne peut composer que dans sa propre boite. Degrade proprement si
+// le module mail n'est pas actif (MAIL_SOURCE != graph) ou si Graph echoue : on
+// renvoie {ok:false, erreur} et l'UI garde le repli mailto. Ne crashe jamais.
+
+export type CreerBrouillonCourrierResultat =
+  | { ok: true; webLink?: string }
+  | { ok: false; erreur: string };
+
+const zEmails = z
+  .array(z.string().trim().max(254))
+  .max(20)
+  .optional()
+  .transform((arr) => (arr ?? []).filter((a) => a.includes("@")));
+
+const zBrouillonCourrier = z.object({
+  sujet: z.string().trim().min(1).max(300),
+  corps: z.string().min(1).max(50000),
+  a: zEmails,
+  cc: zEmails,
+});
+
+export async function creerBrouillonCourrierAction(p: {
+  sujet: string;
+  corps: string;
+  a?: string[];
+  cc?: string[];
+}): Promise<CreerBrouillonCourrierResultat> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Non connecté." };
+  // La boite = SA propre adresse (session), jamais un parametre client.
+  if (!g.email) return { ok: false, erreur: "Adresse du gestionnaire inconnue." };
+
+  const parsed = zBrouillonCourrier.safeParse(p);
+  if (!parsed.success) return { ok: false, erreur: "Courrier invalide (sujet ou corps)." };
+
+  // Mail non actif (provider = noop) : pas de Graph, on le dit clairement plutot
+  // que de faire croire a un succes (le noop renverrait {} sans webLink).
+  if (process.env.MAIL_SOURCE !== "graph") {
+    return { ok: false, erreur: "Module mail non actif (brouillon indisponible)." };
+  }
+
+  try {
+    const { webLink } = await getMailOutboundProvider().creerBrouillonNeuf({
+      boite: g.email,
+      sujet: parsed.data.sujet,
+      corps: parsed.data.corps,
+      a: parsed.data.a,
+      cc: parsed.data.cc,
+    });
+    return webLink ? { ok: true, webLink } : { ok: true };
+  } catch {
+    return { ok: false, erreur: "Création du brouillon impossible (Graph indisponible)." };
+  }
 }

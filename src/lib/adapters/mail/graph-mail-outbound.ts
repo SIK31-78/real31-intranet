@@ -99,4 +99,32 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     const r3 = await fetch(`${u}/messages/${draft.id}/send`, { method: "POST", headers: h });
     if (!r3.ok) throw new Error(`Graph send ${r3.status} : ${(await r3.text()).slice(0, 200)}`);
   }
+
+  async creerBrouillonNeuf(p: {
+    boite: string;
+    sujet: string;
+    corps: string;
+    a?: string[];
+    cc?: string[];
+  }): Promise<{ webLink?: string }> {
+    if (!p.boite) throw new Error("Creation brouillon neuf : boite manquante.");
+    const tk = await jetonGraph();
+    // Meme rendu HTML que envoyer() (police Aptos 11). Pas de signature (Signitic
+    // s'applique a l'ouverture du brouillon cote Outlook).
+    const content = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
+    // POST /messages cree un message en statut Draft (on n'envoie PAS).
+    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: p.sujet,
+        body: { contentType: "HTML", content },
+        toRecipients: dest(p.a ?? []),
+        ccRecipients: dest(p.cc ?? []),
+      }),
+    });
+    if (!r.ok) throw new Error(`Graph creer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as { webLink?: string };
+    return j.webLink ? { webLink: j.webLink } : {};
+  }
 }
