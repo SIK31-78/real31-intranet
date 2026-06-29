@@ -18,14 +18,14 @@ export function ListeCourriersLiens({ ids }: { ids: CourrierId[] }) {
             <li key={id} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <div>
                 <span className="font-medium text-ink">
-                  {c.id} — {c.titre}
+                  {c.id} - {c.titre}
                 </span>
                 <div className="text-xs text-ink-3">
                   {c.destinataire} · {c.mode_envoi} · {c.delai}
                 </div>
               </div>
               <Link href={`/sinistre/courriers/${c.id}`}>
-                <Button variant="secondary">Générer →</Button>
+                <Button variant="secondary">Générer -</Button>
               </Link>
             </li>
           );

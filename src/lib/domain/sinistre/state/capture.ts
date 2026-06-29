@@ -31,7 +31,7 @@ export function cibleCapture(nodeId: NodeId): CaptureCible | undefined {
 
 /**
  * Déduit le statut d'assurance d'une partie depuis l'option choisie sur un nœud
- * de question « … est-il assuré ? » (option 0 = Oui → assuré, sinon non assuré).
+ * de question « … est-il assuré ? » (option 0 = Oui - assuré, sinon non assuré).
  * Renvoie `undefined` pour les nœuds qui ne portent pas cette sémantique.
  */
 const NOEUDS_ASSURANCE = new Set<NodeId>([

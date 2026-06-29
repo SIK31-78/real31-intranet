@@ -29,7 +29,6 @@ export function AlertBox({ children }: { children: ReactNode }) {
       role="note"
       className="mt-3 flex gap-2 rounded-md border-l-4 border-warn-500 bg-warn-50 p-3 text-sm text-warn-700"
     >
-      <span aria-hidden className="font-bold">⚠</span>
       <span>{typeof children === 'string' ? <Glose>{children}</Glose> : children}</span>
     </div>
   );

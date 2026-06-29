@@ -28,7 +28,7 @@ function DossierPanel() {
       >
         <span className="font-semibold text-ink-2">
           Dossier {state.referenceInterne}
-          {state.immeuble.nom ? ` — ${state.immeuble.nom}` : ''}
+          {state.immeuble.nom ? ` - ${state.immeuble.nom}` : ''}
         </span>
         <span className="text-ink-4">{ouvert ? '▲' : '▼'}</span>
       </button>
@@ -59,7 +59,7 @@ function DossierPanel() {
             )}
           </label>
           <label className="text-sm">
-            <span className="text-ink-3">Immeuble — nom</span>
+            <span className="text-ink-3">Immeuble - nom</span>
             <input
               value={state.immeuble.nom}
               onChange={(e) => dispatch({ type: 'IMMEUBLE', patch: { nom: e.target.value } })}
@@ -67,7 +67,7 @@ function DossierPanel() {
             />
           </label>
           <label className="text-sm">
-            <span className="text-ink-3">Immeuble — adresse</span>
+            <span className="text-ink-3">Immeuble - adresse</span>
             <input
               value={state.immeuble.adresse}
               onChange={(e) => dispatch({ type: 'IMMEUBLE', patch: { adresse: e.target.value } })}
@@ -130,7 +130,7 @@ export function WizardScreen() {
       <Breadcrumb node={node} />
       <LocauxBar />
 
-      {/* G-5 : sinistre mixte → rappeler la part commune et proposer le raccourci. */}
+      {/* G-5 : sinistre mixte - rappeler la part commune et proposer le raccourci. */}
       {cheminMixte(local.wizard) && node.type !== 'resultat' && (
         <div className="no-print mb-4 rounded-md border-l-4 border-info-500 bg-info-50 p-3 text-sm text-info-700">
           <p>
@@ -189,7 +189,7 @@ export function WizardScreen() {
       {peutReculer && (
         <div className="no-print mt-4">
           <Button variant="ghost" onClick={() => dispatch({ type: 'BACK' })}>
-            ← Précédent
+            - Précédent
           </Button>
         </div>
       )}

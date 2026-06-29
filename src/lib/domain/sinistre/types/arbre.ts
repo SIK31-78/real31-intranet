@@ -14,9 +14,9 @@ export interface NodeOption {
   suivant: NodeId;
   /** Cas du tableau IRSI 2.1.3 (désignation du gestionnaire), si porté par l'option. */
   cas_213?: number;
-  /** Marque une réponse d'incertitude (« Je ne sais pas ») — E-2. */
+  /** Marque une réponse d'incertitude (« Je ne sais pas ») - E-2. */
   incertitude?: boolean;
-  /** Marque un sinistre mixte (privatif + parties communes) — G-5. */
+  /** Marque un sinistre mixte (privatif + parties communes) - G-5. */
   mixte?: boolean;
   /** Note explicative facultative (ex. « Convention applicable malgré l'indétermination »). */
   note?: string;

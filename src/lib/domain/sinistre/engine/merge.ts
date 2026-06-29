@@ -1,9 +1,9 @@
 /**
- * Moteur de fusion des courriers — interprète la syntaxe des gabarits.
+ * Moteur de fusion des courriers - interprète la syntaxe des gabarits.
  *
  * Syntaxe (CLAUDE.md §2) :
- *   {{champ}}                  variable simple
- *   {{#si condition}}…{{/si}}  bloc conditionnel (imbricable)
+ * {{champ}} variable simple
+ * {{#si condition}}…{{/si}} bloc conditionnel (imbricable)
  *
  * Le moteur ne connaît AUCUN champ ni condition en particulier : il les
  * découvre dans le gabarit. Ajouter un courrier ne nécessite aucun code.

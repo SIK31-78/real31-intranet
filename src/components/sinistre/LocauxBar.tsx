@@ -9,7 +9,7 @@ import type { LocalSinistre } from '@/lib/domain/sinistre/types';
 function statutLocal(local: LocalSinistre): string {
   const node = currentNode(local.wizard);
   if (isTerminal(local.wizard) && 'titre' in node) return node.titre;
-  return 'titre' in node ? `En cours — ${node.titre}` : 'En cours';
+  return 'titre' in node ? `En cours - ${node.titre}` : 'En cours';
 }
 
 export function LocauxBar() {

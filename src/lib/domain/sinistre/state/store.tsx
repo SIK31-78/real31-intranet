@@ -65,7 +65,7 @@ export interface DossierState {
    * n'est pas branché (étape 5).
    */
   coproprieteId?: string;
-  /** Agence dérivée de la copropriété sélectionnée (D2) — posée par le sélecteur, lue au save. */
+  /** Agence dérivée de la copropriété sélectionnée (D2) - posée par le sélecteur, lue au save. */
   agenceId?: string;
   descriptif: string;
   /** Statut du dossier (défaut `'brouillon'`). Persisté ; sert plus tard à la frontière requalification. */
@@ -222,7 +222,7 @@ function reducer(state: DossierState, action: Action): DossierState {
       return { ...state, locaux: [...state.locaux, local], activeLocalId: id };
     }
     case 'AJOUTER_LOCAL_COMMUNS': {
-      // G-5 : crée un local pré-qualifié « parties communes » (→ assureur immeuble).
+      // G-5 : crée un local pré-qualifié « parties communes » (- assureur immeuble).
       const active = localActif(state);
       if (!active) return state;
       const { prefix, branchNode } = communePrefix(active.wizard);
@@ -356,7 +356,7 @@ function chargerBrouillon(): DossierState | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DossierState;
     if (!draftValide(parsed)) return null;
-    // Brouillon antérieur sans `statut` → défaut brouillon (compat ascendante).
+    // Brouillon antérieur sans `statut` - défaut brouillon (compat ascendante).
     return { ...parsed, statut: parsed.statut ?? 'brouillon' };
   } catch {
     return null;

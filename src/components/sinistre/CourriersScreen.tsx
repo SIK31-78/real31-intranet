@@ -41,14 +41,14 @@ function ListeCourriers() {
           <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-4">
             <div>
               <span className="font-medium text-ink">
-                {c.id} — {c.titre}
+                {c.id} - {c.titre}
               </span>
               <div className="text-xs text-ink-3">
                 {c.destinataire} · {c.mode_envoi} · {c.delai}
               </div>
             </div>
             <Link href={`/sinistre/courriers/${c.id}`}>
-              <Button variant="secondary">Générer →</Button>
+              <Button variant="secondary">Générer -</Button>
             </Link>
           </li>
         ))}
@@ -66,7 +66,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
 
   // Contexte pré-rempli depuis le dossier, calculé une fois au montage. Le
   // composant est remonté à chaque changement de courrier (key=courrier.id côté
-  // parent), donc l'initialisation suffit — pas d'effet de (ré)initialisation.
+  // parent), donc l'initialisation suffit - pas d'effet de (ré)initialisation.
   const ctx = useMemo(
     () => construireContexte(courrier.gabarit, state, local),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,7 +80,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
   const actifs = new Set(activeFields(courrier.gabarit, conditions));
   const exportable = canExport(courrier.gabarit, values, conditions);
 
-  const objet = `${state.referenceInterne} — ${courrier.titre}`;
+  const objet = `${state.referenceInterne} - ${courrier.titre}`;
   const mailto = `mailto:?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(apercu)}`;
 
   // La saisie alimente en retour la FicheSinistre (sens inverse du mapping).
@@ -103,7 +103,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
     <div>
       <div className="no-print mb-4 flex items-center justify-between">
         <Link href="/sinistre/courriers" className="text-sm text-green-700 hover:underline">
-          ← Tous les courriers
+          - Tous les courriers
         </Link>
         <span className="text-xs text-ink-3">
           {courrier.destinataire} · {courrier.mode_envoi} · {courrier.delai}
@@ -111,7 +111,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
       </div>
 
       <h1 className="text-xl font-bold text-ink">
-        {courrier.id} — {courrier.titre}
+        {courrier.id} - {courrier.titre}
       </h1>
 
       <div className="mt-4 grid gap-6 lg:grid-cols-2">

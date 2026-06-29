@@ -2,7 +2,7 @@
  * Synthèse texte d'un dossier sinistre, destinée à être reportée dans le JOURNAL
  * d'un Dossier de l'intranet (incrément 2, ancrage option C). Fonction PURE : ne
  * fait que dériver un résumé factuel depuis l'état du dossier via les sélecteurs
- * de l'engine — aucune invention, aucun effet de bord.
+ * de l'engine - aucune invention, aucun effet de bord.
  */
 
 import { courriers } from '../data';
@@ -31,28 +31,28 @@ function syntheseLocal(local: LocalSinistre): string {
   const w = local.wizard;
   const res = resultatNode(w);
   const lignes: string[] = [
-    `• ${local.libelle || 'Local'} : ${res ? res.titre : 'parcours en cours (non terminé)'}`,
+    `- ${local.libelle || 'Local'} : ${res ? res.titre : 'parcours en cours (non terminé)'}`,
   ];
 
   const gest = gestionnaireNode(w);
   if (gest?.gestionnaire) {
     const cas = cas213(w);
     lignes.push(
-      `  Assureur gestionnaire : ${gest.gestionnaire.replace(/_/g, ' ')}` +
+      ` Assureur gestionnaire : ${gest.gestionnaire.replace(/_/g, ' ')}` +
         (cas !== undefined ? ` (cas ${cas} du tableau IRSI 2.1.3)` : ''),
     );
   }
 
   const t = tranche(w);
-  if (t) lignes.push(`  Tranche : ${TRANCHE_LABEL[t]}`);
+  if (t) lignes.push(` Tranche : ${TRANCHE_LABEL[t]}`);
 
   if (res?.prise_en_charge?.length) {
-    lignes.push(`  Prise en charge : ${res.prise_en_charge.join(' ; ')}`);
+    lignes.push(` Prise en charge : ${res.prise_en_charge.join(' ; ')}`);
   }
-  if (res?.recours) lignes.push(`  Recours : ${res.recours}`);
+  if (res?.recours) lignes.push(` Recours : ${res.recours}`);
 
   const titres = courriersRecommandes(w).map((id) => TITRE_COURRIER.get(id) ?? id);
-  if (titres.length) lignes.push(`  Courriers recommandés : ${titres.join(', ')}`);
+  if (titres.length) lignes.push(` Courriers recommandés : ${titres.join(', ')}`);
 
   return lignes.join('\n');
 }
@@ -63,7 +63,7 @@ function syntheseLocal(local: LocalSinistre): string {
  */
 export function syntheseDossierSinistre(state: DossierState): string {
   const entete = [
-    `Synthèse assistant sinistre (DDE) — ${state.referenceInterne}`,
+    `Synthèse assistant sinistre (DDE) - ${state.referenceInterne}`,
     state.immeuble?.nom ? `Immeuble : ${state.immeuble.nom}` : '',
     state.date ? `Date du sinistre : ${state.date}` : '',
   ].filter(Boolean);

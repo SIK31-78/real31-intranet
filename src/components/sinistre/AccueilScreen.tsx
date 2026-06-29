@@ -32,7 +32,7 @@ export function AccueilScreen() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-green-900">
               Un dossier est en cours&nbsp;: <strong>{state.referenceInterne}</strong>
-              {state.immeuble.nom ? ` — ${state.immeuble.nom}` : ''}.
+              {state.immeuble.nom ? ` - ${state.immeuble.nom}` : ''}.
             </span>
             <div className="flex gap-2">
               <Link href="/sinistre/wizard">
@@ -58,7 +58,7 @@ export function AccueilScreen() {
             synthèse imprimable et courriers. Recommandé pour tous les profils.
           </p>
           <span className="mt-4 inline-block font-medium text-green-700 group-hover:underline">
-            Démarrer →
+            Démarrer -
           </span>
         </button>
       </div>

@@ -3,13 +3,13 @@
  *
  * La phase 1 (qualification) est COMMUNE au sinistre ; à partir de la phase 2
  * (assureur gestionnaire), le parcours est exécuté PAR LOCAL. On détecte le
- * point de bascule par le rang de phase du nœud — sans coder d'id en dur.
+ * point de bascule par le rang de phase du nœud - sans coder d'id en dur.
  */
 
 import { getNode, pathOf } from './wizard';
 import type { DecisionNode, NodeId, WizardState } from '../types';
 
-/** Rang numérique d'une phase (« 2 — … » → 2 ; « 5/6/7 — … » → 5 ; « Sortie » → null). */
+/** Rang numérique d'une phase (« 2 - … » - 2 ; « 5/6/7 - … » - 5 ; « Sortie » - null). */
 export function phaseRank(node: DecisionNode): number | null {
   const m = node.phase.match(/^\s*(\d+)/);
   return m ? Number(m[1]) : null;

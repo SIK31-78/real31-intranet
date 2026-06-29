@@ -33,7 +33,7 @@ export function MesureRow({ item }: { item: ChecklistItem }) {
             tiers ? 'bg-warn-50 text-warn-700' : 'bg-green-50 text-green-900'
           }`}
         >
-          {tiers ? '— à demander : ' : ''}
+          {tiers ? '- à demander : ' : ''}
           {labelResponsable(item.responsable)}
         </span>
       </span>
@@ -64,7 +64,7 @@ export function ChecklistMesures({ items }: { items: ChecklistItem[] }) {
   return (
     <div>
       <p className="mb-2 text-sm font-medium text-ink-2">
-        Mesures à réaliser — indiquez où vous en êtes{' '}
+        Mesures à réaliser - indiquez où vous en êtes{' '}
         <span className="font-normal text-ink-3">(rien ne bloque la suite)</span>
       </p>
       <ul className="space-y-2">

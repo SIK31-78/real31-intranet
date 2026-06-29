@@ -1,5 +1,5 @@
 /**
- * Référence interne normée `SIN-{ANNEE}-{NNNN}` (CLAUDE.md §10 — clé de
+ * Référence interne normée `SIN-{ANNEE}-{NNNN}` (CLAUDE.md §10 - clé de
  * rattachement des mails en V3). Générée puis modifiable par l'utilisateur.
  */
 

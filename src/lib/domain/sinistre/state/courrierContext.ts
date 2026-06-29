@@ -4,7 +4,7 @@
  * Les champs alimentables par la `FicheSinistre` sont pré-remplis ; les autres
  * restent vides (l'UI les surligne). Certaines conditions de blocs sont
  * pré-cochées lorsqu'elles sont déductibles du parcours (heuristiques de
- * couche UI, explicitement prévues au §6.5 — non codées dans le moteur pur).
+ * couche UI, explicitement prévues au §6.5 - non codées dans le moteur pur).
  */
 
 import { extractConditions, extractFields, type Conditions, type FieldValues } from '../engine/merge';

@@ -18,7 +18,7 @@ function BandeauIncertitude() {
   const { dispatch } = useDossier();
   return (
     <div className="no-print mb-4 rounded-md border-l-4 border-warn-500 bg-warn-50 p-4 text-sm text-warn-700">
-      <p className="font-semibold">Résultat provisoire — situation d’assurance à confirmer</p>
+      <p className="font-semibold">Résultat provisoire - situation d’assurance à confirmer</p>
       <p className="mt-1">
         Vous avez indiqué ne pas connaître la situation d’assurance de cette partie. Par prudence,
         le sinistre est ici orienté vers l’assureur de l’immeuble (subsidiarité).{' '}
@@ -78,12 +78,12 @@ export function EtapeView({
 
       {node.alerte && <AlertBox>{node.alerte}</AlertBox>}
 
-      {/* Modèles déclenchés par cet écran (ex. C9 sur la recherche de fuite) — H-2. */}
+      {/* Modèles déclenchés par cet écran (ex. C9 sur la recherche de fuite) - H-2. */}
       <ListeCourriersLiens ids={courriersDuNoeud(local.wizard.current)} />
 
       <div className="no-print mt-6">
         <Button onClick={onContinue} disabled={disabled}>
-          Continuer →
+          Continuer -
         </Button>
       </div>
     </div>

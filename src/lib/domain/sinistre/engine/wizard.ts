@@ -1,5 +1,5 @@
 /**
- * Moteur de wizard — navigation pure et data-driven dans l'arbre de décision.
+ * Moteur de wizard - navigation pure et data-driven dans l'arbre de décision.
  *
  * Aucune règle métier ni id de nœud n'est codé ici : le moteur ne connaît que
  * les TYPES de nœuds (question | etape | resultat) et lit l'arbre fourni par
@@ -19,7 +19,7 @@ import type {
 
 // --- Accès aux nœuds ------------------------------------------------------
 
-/** Récupère un nœud par son id (lève si introuvable — invariant garanti par validate-data). */
+/** Récupère un nœud par son id (lève si introuvable - invariant garanti par validate-data). */
 export function getNode(id: NodeId): DecisionNode {
   const node = nodes[id];
   if (!node) throw new Error(`Nœud introuvable : « ${id} »`);
@@ -94,7 +94,7 @@ export function revenirA(state: WizardState, nodeId: NodeId): WizardState {
   return { steps: state.steps.slice(0, idx), current: nodeId };
 }
 
-/** Étape « transparente » (non affichée en plein écran) — G-3. */
+/** Étape « transparente » (non affichée en plein écran) - G-3. */
 export function isTransparent(node: DecisionNode): boolean {
   return node.type === 'etape' && node.transparent === true;
 }
@@ -183,7 +183,7 @@ export function gestionnaireNode(state: WizardState): EtapeNode | undefined {
 
 /**
  * Vrai si le nœud courant a été atteint par une réponse d'incertitude
- * (« Je ne sais pas », option marquée `incertitude`) — E-2. On regarde le
+ * (« Je ne sais pas », option marquée `incertitude`) - E-2. On regarde le
  * DERNIER pas franchi : c'est la réponse qui a déterminé l'orientation actuelle
  * (typiquement vers la subsidiarité immeuble).
  */
@@ -272,7 +272,7 @@ export function divergenceAssietteTranche(
 
 /**
  * Reconstruit un `WizardState` ordonné à partir d'une map `reponses`
- * (nœud -> libellé) et du nœud courant — utile pour réhydrater un brouillon
+ * (nœud -> libellé) et du nœud courant - utile pour réhydrater un brouillon
  * sérialisé au format §5. Rejoue le parcours depuis le nœud initial.
  */
 export function rebuild(reponsesMap: Record<NodeId, string>, noeudCourant: NodeId): WizardState {

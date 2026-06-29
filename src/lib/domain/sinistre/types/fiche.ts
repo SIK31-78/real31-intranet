@@ -49,7 +49,7 @@ export type RolePartie = keyof PartiesLocal;
 /** État explicite d'un item de checklist tri-états (absence = « à faire »). */
 export type MesureEtat = 'fait' | 'sans_objet';
 
-/** Statut du dossier — liste fermée (miroir du CHECK SQL `sinistres.statut`). */
+/** Statut du dossier - liste fermée (miroir du CHECK SQL `sinistres.statut`). */
 export type StatutDossier =
   | 'brouillon'
   | 'qualifié'
@@ -58,7 +58,7 @@ export type StatutDossier =
   | 'clos'
   | 'annulé';
 
-/** Poste d'assiette (justificatif persisté de la tranche — arbitrage 3). */
+/** Poste d'assiette (justificatif persisté de la tranche - arbitrage 3). */
 export interface AssiettePoste {
   libelle: string;
   montantHt: number;
@@ -97,9 +97,9 @@ export interface LocalSinistre {
    * Une clé absente vaut « à faire ». Non bloquant pour la navigation.
    */
   mesures?: Record<string, MesureEtat>;
-  /** Points de vigilance cochés (clé = id du point, ex. « parquet ») — G-6. */
+  /** Points de vigilance cochés (clé = id du point, ex. « parquet ») - G-6. */
   pointsVigilance?: Record<string, boolean>;
-  /** Rendez-vous d'expertise notés pour ce local — H-3. */
+  /** Rendez-vous d'expertise notés pour ce local - H-3. */
   rendezVousExpertise?: RendezVousExpertise[];
   /**
    * Postes d'assiette (justificatif, arbitrage 3). Le total est une projection

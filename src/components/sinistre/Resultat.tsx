@@ -65,7 +65,7 @@ export function Resultat() {
       {dossierId && (
         <div className="no-print mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm">
           {reporte ? (
-            <span className="font-medium text-green-900">Synthèse reportée dans le dossier ✓</span>
+            <span className="font-medium text-green-900">Synthèse reportée dans le dossier</span>
           ) : (
             <span className="text-green-900">
               Reporter cette synthèse (résultat, gestionnaire, tranche, courriers) dans le journal du dossier.
@@ -92,7 +92,7 @@ export function Resultat() {
           <span className="font-semibold text-green-900">Assureur gestionnaire : </span>
           <span className="text-green-900">{gest.gestionnaire?.replace(/_/g, ' ')}</span>
           {cas !== undefined && (
-            <span className="text-green-700"> — cas {cas} du tableau IRSI 2.1.3</span>
+            <span className="text-green-700"> - cas {cas} du tableau IRSI 2.1.3</span>
           )}
         </div>
       )}

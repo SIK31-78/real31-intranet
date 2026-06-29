@@ -6,7 +6,7 @@
  * centralisée dans ce seul fichier et testée. Sens direct (pré-remplissage) et
  * sens inverse (la saisie dans le générateur alimente en retour le dossier).
  *
- * Une clé sans correspondance reste vide → surlignée et bloquante à l'export.
+ * Une clé sans correspondance reste vide - surlignée et bloquante à l'export.
  */
 
 import { gestionnaireNode } from './wizard';
@@ -61,7 +61,7 @@ const DIRECT: Record<string, (ctx: MappingContext) => string | undefined> = {
   'assureur_partie.numero_police': (c) => c.local.parties?.coproprietaire?.assureur?.numeroPolice,
   'assureur.numero_sinistre': (c) => assureurDe(c, cibleGestionnaire(c))?.numeroSinistre,
   // Désignation lisible du gestionnaire, extraite du titre du nœud r_gest_*
-  // (« … : assureur du (co)propriétaire occupant » → « du (co)propriétaire occupant »).
+  // (« … : assureur du (co)propriétaire occupant » - « du (co)propriétaire occupant »).
   'assureur_gestionnaire': (c) => {
     const titre = gestionnaireNode(c.local.wizard)?.titre;
     return titre?.match(/:\s*assureur\s+(.+)$/i)?.[1];
