@@ -45,11 +45,9 @@ function syntheseLocal(local: LocalSinistre): string {
   const t = tranche(w);
   if (t) lignes.push(` Tranche : ${TRANCHE_LABEL[t]}`);
 
-  if (res?.prise_en_charge?.length) {
-    lignes.push(` Prise en charge : ${res.prise_en_charge.join(' ; ')}`);
-  }
-  if (res?.recours) lignes.push(` Recours : ${res.recours}`);
-
+  // On NE recopie PAS les paves juridiques (prise en charge, recours) : la synthese
+  // du journal reste un digest actionnable (qui gere, quelle tranche, quoi envoyer).
+  // Le detail complet reste consultable sur l'ecran resultat de l'assistant.
   const titres = courriersRecommandes(w).map((id) => TITRE_COURRIER.get(id) ?? id);
   if (titres.length) lignes.push(` Courriers recommandés : ${titres.join(', ')}`);
 

@@ -107,7 +107,7 @@ describe('syntheseDossierSinistre', () => {
     expect(texte).toContain('parcours en cours');
   });
 
-  it('parcours terminé : restitue gestionnaire, cas 2.1.3, tranche, prise en charge, recours et courriers', () => {
+  it('parcours terminé : restitue gestionnaire, cas 2.1.3, tranche et courriers (digest, sans les paves juridiques)', () => {
     const w = wizardTranche1Cas1();
     const res = resultatNode(w)!;
     const state = dossier([local('l1', 'Appartement 3B', w)]);
@@ -127,10 +127,10 @@ describe('syntheseDossierSinistre', () => {
     expect(texte).toContain('cas 1 du tableau IRSI 2.1.3');
     // Tranche.
     expect(texte).toContain('Tranche 1 IRSI');
-    // Prise en charge et recours réellement présents dans le résultat.
-    expect(texte).toContain('Prise en charge :');
-    expect(texte).toContain('Recours :');
-    expect(texte).toContain(res.recours!);
+    // Digest : les paves juridiques (prise en charge, recours) ne sont PAS recopies
+    // dans la synthese du journal (ils restent sur l'ecran resultat de l'assistant).
+    expect(texte).not.toContain('Prise en charge :');
+    expect(texte).not.toContain('Recours :');
     // Courriers recommandés.
     expect(texte).toContain('Courriers recommandés :');
     expect(texte).not.toContain('parcours en cours');
