@@ -13,7 +13,7 @@ import {
 } from '@/lib/domain/sinistre/engine/wizard';
 import { syntheseDossierSinistre } from '@/lib/domain/sinistre/engine/synthese';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
-import { reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
+import { reporterRdvExpertiseAction, reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
 import { ListeCourriersLiens } from './CourriersLiens';
 import type { ResultatNode } from '@/lib/domain/sinistre/types';
 
@@ -35,6 +35,28 @@ export function Resultat() {
     startTransition(async () => {
       await reporterSyntheseSinistreAction(dossierId, texte);
       setReporte(true);
+    });
+  };
+
+  // RDV d'expertise notés sur l'ensemble des locaux (H-3). Jusqu'ici prisonniers
+  // du localStorage du wizard : on propose de les reporter dans le journal du dossier.
+  const rdvsPayload = state.locaux.flatMap((l) =>
+    (l.rendezVousExpertise ?? []).map((r) => ({
+      date: r.date,
+      ...(r.lieu ? { lieu: r.lieu } : {}),
+      convoquePar: r.convoquePar,
+      ...(r.precisionConvocant ? { precisionConvocant: r.precisionConvocant } : {}),
+      ...(l.libelle ? { local: l.libelle } : {}),
+    })),
+  );
+  const [pendingRdv, startRdvTransition] = useTransition();
+  const [rdvReportes, setRdvReportes] = useState(false);
+
+  const reporterRdvDansDossier = () => {
+    if (!dossierId || rdvsPayload.length === 0) return;
+    startRdvTransition(async () => {
+      await reporterRdvExpertiseAction(dossierId, rdvsPayload);
+      setRdvReportes(true);
     });
   };
 
@@ -87,6 +109,25 @@ export function Resultat() {
         </div>
       )}
 
+      {dossierId && rdvsPayload.length > 0 && (
+        <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+          {rdvReportes ? (
+            <span className="font-medium text-amber-900">
+              {rdvsPayload.length > 1 ? 'Rendez-vous d’expertise reportés' : 'Rendez-vous d’expertise reporté'} dans le dossier
+            </span>
+          ) : (
+            <span className="text-amber-900">
+              Reporter {rdvsPayload.length > 1 ? `les ${rdvsPayload.length} rendez-vous` : 'le rendez-vous'} d&apos;expertise dans le journal du dossier.
+            </span>
+          )}
+          {!rdvReportes && (
+            <Button variant="primary" onClick={reporterRdvDansDossier} disabled={pendingRdv}>
+              {pendingRdv ? 'Report en cours…' : 'Reporter les RDV d’expertise dans le dossier'}
+            </Button>
+          )}
+        </div>
+      )}
+
       {gest && (
         <div className="mt-4 rounded-md border border-green-100 bg-green-50 p-3 text-sm">
           <span className="font-semibold text-green-900">Assureur gestionnaire : </span>
@@ -101,6 +142,13 @@ export function Resultat() {
         <div className="mt-4">
           <SectionTitle>Règles de prise en charge</SectionTitle>
           <GlosedList items={node.prise_en_charge} />
+        </div>
+      )}
+
+      {node.recours && (
+        <div className="mt-4">
+          <SectionTitle>Recours</SectionTitle>
+          <GlosedList items={[node.recours]} />
         </div>
       )}
 

@@ -105,6 +105,63 @@ export async function reporterSyntheseSinistreAction(dossierId: string, texte: s
   revalidatePath(`/dossiers/${dossierId}`);
 }
 
+// Reporte les RENDEZ-VOUS d'expertise capturés dans l'assistant sinistre (H-3,
+// piégés jusqu'ici dans le localStorage du wizard) vers le JOURNAL du dossier.
+// Même garde que reporterSyntheseSinistreAction : type "sinistre" + périmètre +
+// anti-IDOR (coproCode relu du dossier serveur). NON DESTRUCTIF : append d'une
+// note par RDV. Choix de kind : "note" avec préfixe texte clair "RDV expertise :"
+// (on n'ouvre pas l'union KindEvenement pour éviter de toucher le rendu timeline).
+const CONVOQUE_PAR_LABEL: Record<string, string> = {
+  assureur_partie: "assureur de la partie",
+  assureur_immeuble: "assureur de l'immeuble",
+  autre: "autre",
+};
+
+const zRdvExpertise = z
+  .array(
+    z.object({
+      date: z.string().max(40),
+      lieu: z.string().max(300).optional(),
+      convoquePar: z.enum(["assureur_partie", "assureur_immeuble", "autre"]),
+      precisionConvocant: z.string().max(300).optional(),
+      local: z.string().max(300).optional(),
+    }),
+  )
+  .min(1)
+  .max(50);
+
+type RdvExpertiseEntree = z.infer<typeof zRdvExpertise>[number];
+
+function texteRdvExpertise(r: RdvExpertiseEntree): string {
+  const parts: string[] = [];
+  parts.push(`RDV expertise : ${r.date.trim() || "date à préciser"}`);
+  if (r.lieu?.trim()) parts.push(`lieu ${r.lieu.trim()}`);
+  const convocant = r.precisionConvocant?.trim() || CONVOQUE_PAR_LABEL[r.convoquePar];
+  parts.push(`convoqué par ${convocant}`);
+  if (r.local?.trim()) parts.push(`local ${r.local.trim()}`);
+  return parts.join(" - ");
+}
+
+export async function reporterRdvExpertiseAction(
+  dossierId: string,
+  rdvs: RdvExpertiseEntree[],
+): Promise<void> {
+  if (!z.object({ dossierId: zId, rdvs: zRdvExpertise }).safeParse({ dossierId, rdvs }).success) return;
+  const d = await getDossierRepository().get(dossierId);
+  if (!d || d.type !== "sinistre") return;
+  const g = await autorise(d.coproCode); // coproCode RELU du dossier serveur (anti-IDOR)
+  if (!g) return;
+  const le = new Date().toISOString();
+  const ajouts = rdvs.map((r) => ({
+    le,
+    par: g.initiales,
+    texte: texteRdvExpertise(r),
+    kind: "note" as const,
+  }));
+  await getDossierRepository().patch(dossierId, { journal: [...d.journal, ...ajouts] });
+  revalidatePath(`/dossiers/${dossierId}`);
+}
+
 export async function majEtapesAction(id: string, etapes: EtapeDossier[]): Promise<void> {
   if (!z.object({ id: zId, etapes: zEtapes }).safeParse({ id, etapes }).success) return;
   const d = await getDossierRepository().get(id);
