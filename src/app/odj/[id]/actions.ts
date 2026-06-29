@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import {
   saisirChampOdj,
   retirerPointOdj,
@@ -9,6 +10,10 @@ import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+
+const zId = z.string().trim().min(1).max(160);
+const zChampId = z.string().trim().min(1).max(120);
+const zValeur = z.string().max(20_000);
 
 function parse(id: string): { code: string; agDate: string } {
   const i = id.indexOf("__");
@@ -24,6 +29,7 @@ async function autorise(code: string): Promise<Gestionnaire | null> {
 }
 
 export async function saisirChampAction(id: string, champId: string, valeur: string): Promise<void> {
+  if (!z.object({ id: zId, champId: zChampId, valeur: zValeur }).safeParse({ id, champId, valeur }).success) return;
   const { code, agDate } = parse(id);
   const g = await autorise(code);
   if (!g) return;
@@ -32,6 +38,7 @@ export async function saisirChampAction(id: string, champId: string, valeur: str
 }
 
 export async function togglePointAction(id: string, pointId: string, retire: boolean): Promise<void> {
+  if (!z.object({ id: zId, pointId: zChampId, retire: z.boolean() }).safeParse({ id, pointId, retire }).success) return;
   const { code, agDate } = parse(id);
   const g = await autorise(code);
   if (!g) return;

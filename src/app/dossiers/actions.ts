@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getDossierRepository } from "@/lib/adapters/router";
@@ -15,6 +16,23 @@ import {
   type TypeDossier,
 } from "@/lib/domain/dossier";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+
+// Validation des entrees (zod). Les enums (type/portee/statut) sont bornes en longueur ;
+// le service/repo rejette une valeur hors domaine.
+const zId = z.string().trim().min(1).max(120);
+const zCode = z.string().trim().min(1).max(40);
+const zCourt = z.string().max(200);
+const zTexte = z.string().max(5_000);
+const zEtapes = z
+  .array(
+    z.object({
+      id: z.string().trim().min(1).max(40),
+      label: z.string().max(500),
+      fait: z.boolean(),
+      assigneA: z.string().max(120).optional(),
+    }),
+  )
+  .max(200);
 
 // Cloisonne : n'agit que sur une copro du perimetre du gestionnaire.
 async function autorise(coproCode: string): Promise<Gestionnaire | null> {
@@ -41,6 +59,17 @@ export async function creerDossierAction(form: {
   titre: string;
   modele: boolean;
 }): Promise<void> {
+  const valid = z
+    .object({
+      coproCode: zCode,
+      type: zCourt,
+      portee: zCourt,
+      cible: zCourt.optional(),
+      titre: z.string().trim().min(1).max(300),
+      modele: z.boolean(),
+    })
+    .safeParse(form);
+  if (!valid.success) return;
   const g = await autorise(form.coproCode);
   if (!g) return;
   const etapes = form.modele ? MODELES_ETAPES[form.type].map(nouvelleEtape) : [];
@@ -59,6 +88,7 @@ export async function creerDossierAction(form: {
 }
 
 export async function majEtapesAction(id: string, etapes: EtapeDossier[]): Promise<void> {
+  if (!z.object({ id: zId, etapes: zEtapes }).safeParse({ id, etapes }).success) return;
   const d = await getDossierRepository().get(id);
   if (!d || !(await autorise(d.coproCode))) return;
   await getDossierRepository().patch(id, { etapes });
@@ -66,6 +96,7 @@ export async function majEtapesAction(id: string, etapes: EtapeDossier[]): Promi
 }
 
 export async function ajouterNoteAction(id: string, texte: string): Promise<void> {
+  if (!z.object({ id: zId, texte: zTexte }).safeParse({ id, texte }).success) return;
   const valeur = texte.trim();
   if (!valeur) return;
   const d = await getDossierRepository().get(id);
@@ -81,6 +112,7 @@ export async function ajouterNoteAction(id: string, texte: string): Promise<void
 // (kind "note" + memes initiales). Un assistant ne peut donc pas effacer la note d'un
 // gestionnaire, et inversement. Verifie cote serveur (jamais de confiance au client).
 export async function supprimerNoteAction(id: string, le: string): Promise<void> {
+  if (!z.object({ id: zId, le: z.string().trim().min(1).max(40) }).safeParse({ id, le }).success) return;
   const d = await getDossierRepository().get(id);
   if (!d) return;
   const g = await autorise(d.coproCode);
@@ -105,6 +137,8 @@ export async function rattacherAgAction(
   agDate: string,
   numeroResolution: string,
 ): Promise<void> {
+  if (!z.object({ id: zId, agDate: z.string().max(40), numeroResolution: z.string().max(120) }).safeParse({ id, agDate, numeroResolution }).success)
+    return;
   const d = await getDossierRepository().get(id);
   if (!d) return;
   const g = await autorise(d.coproCode);
@@ -117,6 +151,7 @@ export async function rattacherAgAction(
 }
 
 export async function changerStatutAction(id: string, statut: StatutDossier): Promise<void> {
+  if (!z.object({ id: zId, statut: zCourt }).safeParse({ id, statut }).success) return;
   const d = await getDossierRepository().get(id);
   if (!d) return;
   const g = await autorise(d.coproCode);
