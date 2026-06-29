@@ -14,7 +14,7 @@ import {
 import { syntheseDossierSinistre } from '@/lib/domain/sinistre/engine/synthese';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { reporterRdvExpertiseAction, reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
-import { genererEtapesSinistreAction } from '@/app/sinistre/actions';
+import { ajouterRdvAgendaAction, genererEtapesSinistreAction } from '@/app/sinistre/actions';
 import { ListeCourriersLiens } from './CourriersLiens';
 import type { ResultatNode } from '@/lib/domain/sinistre/types';
 
@@ -58,6 +58,39 @@ export function Resultat() {
     startRdvTransition(async () => {
       await reporterRdvExpertiseAction(dossierId, rdvsPayload);
       setRdvReportes(true);
+    });
+  };
+
+  // Ajout des RDV d'expertise a l'agenda Outlook reel (voie durable Graph). Payload
+  // construit depuis les memes RDV agreges des locaux : date + lieu + un intitule
+  // lisible (immeuble/copro + local). INERTE tant que le DSI n'a pas accorde
+  // Calendars.ReadWrite -> l'action renvoie le message degrade, on l'affiche.
+  const rdvsAgenda = state.locaux.flatMap((l) =>
+    (l.rendezVousExpertise ?? []).map((r) => {
+      const contexte = [state.immeuble.nom, l.libelle].filter(Boolean).join(' - ');
+      const intitule = contexte ? `Expertise sinistre - ${contexte}` : 'Expertise sinistre';
+      return {
+        date: r.date,
+        ...(r.lieu ? { lieu: r.lieu } : {}),
+        intitule,
+      };
+    }),
+  );
+  const [pendingAgenda, startAgendaTransition] = useTransition();
+  const [agendaMessage, setAgendaMessage] = useState<string | null>(null);
+  const [agendaWebLink, setAgendaWebLink] = useState<string | null>(null);
+
+  const ajouterAgenda = () => {
+    if (rdvsAgenda.length === 0) return;
+    startAgendaTransition(async () => {
+      const res = await ajouterRdvAgendaAction({ rdvs: rdvsAgenda });
+      if (!res.ok) {
+        setAgendaMessage(res.erreur);
+        setAgendaWebLink(null);
+      } else {
+        setAgendaMessage(`${res.ajoutes} RDV ajouté${res.ajoutes > 1 ? 's' : ''} à votre agenda Outlook.`);
+        setAgendaWebLink(res.webLink ?? null);
+      }
     });
   };
 
@@ -157,6 +190,38 @@ export function Resultat() {
           {!rdvReportes && (
             <Button variant="primary" onClick={reporterRdvDansDossier} disabled={pendingRdv}>
               {pendingRdv ? 'Report en cours…' : 'Reporter les RDV d’expertise dans le dossier'}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {rdvsAgenda.length > 0 && (
+        <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm">
+          {agendaMessage ? (
+            <span className="font-medium text-indigo-900">
+              {agendaMessage}
+              {agendaWebLink && (
+                <>
+                  {' '}
+                  <a
+                    href={agendaWebLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-indigo-700 underline hover:text-indigo-900"
+                  >
+                    Ouvrir dans Outlook
+                  </a>
+                </>
+              )}
+            </span>
+          ) : (
+            <span className="text-indigo-900">
+              Ajouter {rdvsAgenda.length > 1 ? `les ${rdvsAgenda.length} rendez-vous` : 'le rendez-vous'} d&apos;expertise à votre agenda Outlook.
+            </span>
+          )}
+          {!agendaMessage && (
+            <Button variant="primary" onClick={ajouterAgenda} disabled={pendingAgenda}>
+              {pendingAgenda ? 'Ajout en cours…' : 'Ajouter les RDV à mon agenda Outlook'}
             </Button>
           )}
         </div>

@@ -45,6 +45,9 @@ import { SupabaseAnalyseCacheStore } from "@/lib/adapters/supabase/supabase-anal
 import type { MailOutboundProvider } from "@/lib/ports/mail-outbound-provider";
 import { GraphMailOutboundProvider } from "@/lib/adapters/mail/graph-mail-outbound";
 import { NoopMailOutboundProvider } from "@/lib/adapters/mail/noop-mail-outbound";
+import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
+import { GraphCalendrierOutboundProvider } from "@/lib/adapters/calendrier/graph-calendrier-outbound";
+import { NoopCalendrierOutboundProvider } from "@/lib/adapters/calendrier/noop-calendrier-outbound";
 import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
 import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
 import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
@@ -224,6 +227,14 @@ export function getMailOutboundProvider(): MailOutboundProvider {
 export function getMailboxProvider(): MailboxProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailboxProvider();
   return new NoopMailboxProvider();
+}
+
+// Agenda Outlook sortant (creer un evenement, ex. RDV d'expertise sinistre). Meme
+// infra Graph que le mail -> meme gate MAIL_SOURCE=graph. INERTE tant que le DSI
+// n'a pas accorde Calendars.ReadWrite (Graph renverra 403, l'action degradera).
+export function getCalendrierOutboundProvider(): CalendrierOutboundProvider {
+  if (process.env.MAIL_SOURCE === "graph") return new GraphCalendrierOutboundProvider();
+  return new NoopCalendrierOutboundProvider();
 }
 
 // Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie

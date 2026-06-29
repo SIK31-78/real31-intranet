@@ -7,6 +7,7 @@ import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
 import {
+  getCalendrierOutboundProvider,
   getCoproRepository,
   getDossierRepository,
   getMailOutboundProvider,
@@ -376,4 +377,82 @@ export async function creerBrouillonCourrierAction(p: {
   } catch {
     return { ok: false, erreur: "Création du brouillon impossible (Graph indisponible)." };
   }
+}
+
+// --- Ajout des RDV d'expertise a l'agenda Outlook (voie durable Graph) -----------
+// Cree un evenement par RDV dans l'agenda DU gestionnaire courant via Graph. La
+// boite vient de la SESSION (g.email), JAMAIS d'un parametre client : le
+// gestionnaire ne peut ecrire que dans son propre agenda.
+//
+// INERTE AUJOURD'HUI : la permission Graph Calendars.ReadWrite n'est PAS encore
+// accordee par le DSI. Le chemin nominal est donc le 403 -> on CATCHe et on
+// renvoie {ok:false} avec un message clair (jamais de crash). Quand le DSI
+// accorde la permission, la brique s'allume sans autre changement. Meme pattern
+// que creerBrouillonCourrierAction (degradation propre du module mail).
+
+export type AjouterRdvAgendaResultat =
+  | { ok: true; ajoutes: number; webLink?: string }
+  | { ok: false; erreur: string };
+
+const zRdvAgenda = z
+  .array(
+    z.object({
+      date: z.string().trim().min(1).max(40),
+      lieu: z.string().trim().max(300).optional(),
+      intitule: z.string().trim().max(300).optional(),
+    }),
+  )
+  .min(1)
+  .max(50);
+
+// Un RDV "jour seul" (date 'YYYY-MM-DD' sans heure) -> evenement journee entiere ;
+// sinon (ISO datetime) -> evenement date. Choix le plus simple/sur : on n'invente
+// pas une heure quand l'utilisateur n'en a pas saisi (RDV note "le 12/06" -> tout
+// le 12/06 dans l'agenda, pas une heure arbitraire).
+function rdvJourSeul(date: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date.trim());
+}
+
+export async function ajouterRdvAgendaAction(p: {
+  rdvs: { date: string; lieu?: string; intitule?: string }[];
+}): Promise<AjouterRdvAgendaResultat> {
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Non connecté." };
+  // La boite = SA propre adresse (session), jamais un parametre client.
+  if (!g.email) return { ok: false, erreur: "Adresse du gestionnaire inconnue." };
+
+  const parsed = zRdvAgenda.safeParse(p.rdvs);
+  if (!parsed.success) return { ok: false, erreur: "Rendez-vous invalides." };
+
+  // Agenda non actif (provider = noop) : pas de Graph, on le dit clairement.
+  if (process.env.MAIL_SOURCE !== "graph") {
+    return { ok: false, erreur: "Agenda Outlook non actif." };
+  }
+
+  const provider = getCalendrierOutboundProvider();
+  let ajoutes = 0;
+  let premierWebLink: string | undefined;
+  try {
+    for (const rdv of parsed.data) {
+      const { webLink } = await provider.creerEvenement({
+        boite: g.email,
+        sujet: rdv.intitule || "Expertise sinistre",
+        debut: rdv.date,
+        journeeEntiere: rdvJourSeul(rdv.date),
+        ...(rdv.lieu ? { lieu: rdv.lieu } : {}),
+      });
+      ajoutes += 1;
+      if (!premierWebLink && webLink) premierWebLink = webLink;
+    }
+  } catch {
+    // Etat nominal aujourd'hui : 403 (permission DSI absente). Jamais de crash.
+    return {
+      ok: false,
+      erreur:
+        "Agenda Outlook indisponible : la permission Calendars.ReadWrite n'est pas encore accordée par le DSI.",
+    };
+  }
+
+  if (ajoutes === 0) return { ok: false, erreur: "Aucun rendez-vous ajouté." };
+  return premierWebLink ? { ok: true, ajoutes, webLink: premierWebLink } : { ok: true, ajoutes };
 }
