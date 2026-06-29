@@ -5,7 +5,8 @@
 import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { construireLigne } from "@/lib/domain/parcours-ag";
-import { getCoproRepository, getCondoEstaleProvider, getJalonRepository } from "@/lib/adapters/router";
+import { getCoproRepository, getJalonRepository } from "@/lib/adapters/router";
+import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
 import { getEtatCompta } from "@/lib/services/compta/get-compta";
 
@@ -37,7 +38,7 @@ export async function getFicheCopro(
   let estale = DONNEES_ESTALE_VIDES;
   let estaleIndisponible = false;
   try {
-    estale = (await getCondoEstaleProvider().getDonneesCopro(code)) ?? DONNEES_ESTALE_VIDES;
+    estale = (await donneesCoproEstale(code)) ?? DONNEES_ESTALE_VIDES;
   } catch (err) {
     estaleIndisponible = true;
     console.warn(`[fiche-copro] Estale indisponible pour ${code} :`, (err as Error).message);

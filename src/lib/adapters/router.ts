@@ -68,6 +68,9 @@ import { MockOdjRepository } from "@/lib/adapters/mock/mock-odj-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 import { EstaleCondoProvider } from "@/lib/adapters/estale/estale-condo-provider";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
+import type { EstaleCacheStore } from "@/lib/ports/estale-cache-store";
+import { SupabaseEstaleCacheStore } from "@/lib/adapters/supabase/supabase-estale-cache-store";
+import { MockEstaleCacheStore } from "@/lib/adapters/mock/mock-estale-cache-store";
 import type { BibliothequeResolutionsProvider } from "@/lib/ports/bibliotheque-resolutions";
 import { EstaleBibliothequeResolutions } from "@/lib/adapters/estale/estale-bibliotheque-resolutions";
 import { MockBibliothequeResolutions } from "@/lib/adapters/mock/mock-bibliotheque-resolutions";
@@ -134,6 +137,12 @@ export function getCondoEstaleProvider(): CondoEstaleProvider {
     return new EstaleCondoProvider();
   }
   return new MockCondoEstaleProvider();
+}
+
+// Cache read-through des donnees eStale (ADR-002) : table native si Supabase, sinon no-op.
+export function getEstaleCacheStore(): EstaleCacheStore {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseEstaleCacheStore();
+  return new MockEstaleCacheStore();
 }
 
 // Vue agregee "Mes evenements". Cote reel, ce sera un service composant jalons +

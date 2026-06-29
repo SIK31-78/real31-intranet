@@ -12,12 +12,12 @@ import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import type { EtatMail } from "@/lib/ports/mes-emails-etat-provider";
 import {
-  getCondoEstaleProvider,
   getCoproRepository,
   getMesEmailsEtatRepository,
   getMesEmailsProvider,
   getMesEmailsTriageStore,
 } from "@/lib/adapters/router";
+import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 
 export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
   const triage = await getMesEmailsTriageStore().lire(g.id);
@@ -85,11 +85,10 @@ async function enrichirContextes(
   const codes = [...new Set(mails.map((m) => m.coproCode).filter(Boolean))].filter((c) =>
     perimetre.has(c),
   );
-  const provider = getCondoEstaleProvider();
   return Promise.all(
     codes.map(async (code) => {
       try {
-        return versContexte(code, await provider.getDonneesCopro(code));
+        return versContexte(code, await donneesCoproEstale(code));
       } catch (err) {
         console.warn(`[mes-emails] eStale indisponible pour ${code} :`, (err as Error).message);
         return { coproCode: code, disponible: false, conseilSyndical: [] };
