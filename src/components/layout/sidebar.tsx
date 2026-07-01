@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, ListChecks, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
   FolderOpen, FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
+  PackagePlus,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -13,6 +14,7 @@ export type NavKey =
   | "calendrier"
   | "copros"
   | "dossiers"
+  | "reprise"
   | "resolutions"
   | "compta"
   | "coffre"
@@ -39,6 +41,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
       { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
+      { key: "reprise", label: "Reprise de copro", href: "/reprise-copro", icon: PackagePlus },
       { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
     ],
   },
