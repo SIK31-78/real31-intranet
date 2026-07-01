@@ -135,7 +135,20 @@ Auth = le **client GraphQL déjà authentifié** (cookie session aujourd'hui, cl
 
 **Le point des codes 4-caractères** (ce qui force le workflow links en 2 phases) : eStale attribue une référence de 4 car. à chaque copropriétaire **au moment de l'import des owners**, et `links` doit référencer cette ref. Aujourd'hui : phase A = `links_DRAFT` (nom en clair), import manuel des owners, export des codes, phase B = `links` final avec les codes. **Les `create*` retournent la `reference`** -> on peut capturer les codes au fil de l'eau et éviter la phase B.
 
-**Nuance importante** : il n'y a **pas** d'`importKeys`/`importTantiemes` dans le schéma - les clés + tantièmes passent par `createDK` (granulaire, `DistributionKeys` avec `shares`). Donc **même une stratégie "tout bulk" ne peut pas éviter le granulaire pour les clés/tantièmes**. (À confirmer : que `DKInput` accepte les parts par lot en un seul appel.)
+**Carte d'écriture vérifiée (2026-07-01)** - eStale utilise un pattern "objet-mutation" (`updateX(id) -> XMutation`, sur lequel on chaîne des sous-opérations). Le patrimoine complet est couvrable **par ID capturé** :
+
+| Étape | Granulaire (retourne l'entité + son ID/`reference`) | Bulk (fichier) |
+|---|---|---|
+| Lots | `createLot(condoID, LotInput) -> Lot!` | `importLots(condoID, file)` |
+| Clés | `createDK(condoID, DKInput) -> DistributionKeys!` (`DKInput.tantieme` = total de la clé) | - |
+| Tantièmes par lot | `updateDK(dkID).upsertLot(lotID, share: Int!)` | `updateDK(dkID).importLots(file)` (le fichier tantiemes par clé) |
+| Owners | `createOwner(condoID, OwnerInput, AddressInput) -> Owner!` | `importOwners(condoID, file)` |
+| Links (lot<->owner) | `updateLot(lotID).upsertOwner([LotOwnerInput])` (`{ownerID, representative, division, share}`) | `importLinks(condoID, file)` |
+
+Conséquences majeures :
+- **La voie granulaire couvre TOUT par ID** (les `create*` retournent l'entité créée). On enchaîne create -> capture ID -> relie par ID. **Plus besoin des codes 4-car ni de la phase B links** : on référence par `lotID`/`ownerID` internes, pas par la ref eStale. C'est la voie "la plus automatisée".
+- **Rollback FAISABLE** (correction) : pas de `delete*` top-level, MAIS chaque objet-mutation a un `.delete()` (`updateLot(id).delete()`, `updateOwner(id).delete()`, `updateDK(id).delete()`, `updateCondo(id).delete()`). En capturant les IDs créés, on peut défaire une injection partielle.
+- `Upload` = scalaire présent -> l'import multipart (voie bulk) est faisable techniquement.
 
 ### Options
 
@@ -162,7 +175,7 @@ Auth = le **client GraphQL déjà authentifié** (cookie session aujourd'hui, cl
 ### Architecture proposée (à acter en ADR)
 - **Nouveau port d'écriture** `ports/estale-ecriture-provider.ts` : `injecterPatrimoine(condoID, jeu)` orchestrant l'ordre strict + la capture des refs, renvoyant un rapport `{ créés, échecs, refs }`. **Distinct** du port de lecture (ADR-002 : l'adapter lecture reste read-only).
 - **Nouvel adapter** `adapters/estale-ecriture/` : parle GraphQL via le client authentifié existant, confine les mutations. Sélection par env (comme le read : réel si creds, sinon un adapter `mock`/`dry-run` qui simule sans écrire).
-- **Idempotence** : marquer chaque dossier avec l'état d'injection (quelles entités déjà créées + leurs refs), pour reprendre sans doublonner ; en cas d'échec en cours, soit rollback best-effort (supprimer ce qui a été créé si eStale expose les `delete*`), soit reprise idempotente (ne recréer que le manquant). **À trancher selon ce qu'eStale permet** (à vérifier : mutations `delete*`).
+- **Idempotence** : marquer chaque dossier avec l'état d'injection (quelles entités déjà créées + leurs IDs eStale), pour reprendre sans doublonner ; en cas d'échec en cours, deux filets désormais **confirmés possibles** : rollback best-effort (`.delete()` via les objets-mutation sur les IDs capturés) ou reprise idempotente (ne recréer que le manquant). Reco : reprise idempotente par défaut, rollback en option explicite.
 - **Ce qui reste manuel** : le paramétrage administratif de la copro dans eStale en amont (ou `createCondo` si on l'automatise), et tout ce qui n'a pas de mutation (à recenser).
 
 ### Risques
@@ -199,4 +212,4 @@ Auth = le **client GraphQL déjà authentifié** (cookie session aujourd'hui, cl
 3. **Axe 2** : porter le wizard (Option B) ? Et modèle de suivi B-α (Dossier unifié) vs B-β (agrégat reprise spécifique) au démarrage ?
 4. **Axe 3** : stratégie hybride (Option 3) confirmée ? xlsx en repli obligatoire ?
 5. **IA / RGPD** : reprise-copro extrait par défaut sur **Claude EU** (`inference_geo=eu`), l'intranet (mes-emails) sur **Mistral**. On garde le port `ExtractionProvider` de reprise-copro (plus mûr) et on aligne le choix moteur/RGPD comment ? (PII copropriétaires = sujet juridique ouvert dans le ROADMAP reprise-copro).
-6. **Points à vérifier techniquement** avant l'Inc. 3 : `DKInput` accepte-t-il les parts par lot en un appel ? eStale expose-t-il des `delete*` (pour le rollback) ? Le protocole multipart de `file: Upload!` ?
+6. **Points techniques : RESOLUS (2026-07-01, cf. carte d'écriture vérifiée en axe 3)** - tantièmes par lot = `updateDK(dkID).upsertLot(lotID, share)` ; rollback = `.delete()` via les objets-mutation (existe) ; `Upload` scalaire présent. Reste à valider en conditions réelles (un vrai `condoID` de test + creds eStale) au moment de l'Inc. 3, en dry-run d'abord.
