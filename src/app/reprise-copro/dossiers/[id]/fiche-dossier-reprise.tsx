@@ -1,24 +1,62 @@
 "use client";
 
-// Fiche detaillee d'un dossier de reprise : en-tete (ref + nom + statut global +
-// avancement), colonne de vie groupee par PHASE (Patrimoine / Verification /
-// Comptabilite / Mise en service), checklist cochable (cycle des 4 statuts via Server
-// Action), et journal (timeline inversee + ajout de note).
+// Fiche-HUB d'un dossier de reprise = onboarding d'une copro, en 4 zones :
+//   1. EN-TETE : ref (S0XXX) + nom + adresse + Badge statut global + avancement %.
+//   2. PATRIMOINE (pilote IA) : coeur du hub. Tant qu'aucune analyse -> upload multi-PDF +
+//      "Analyser les documents". Apres analyse -> (a) cadrage extrait a verifier (cases que
+//      l'humain bascule), (b) patrimoine extrait (compteurs + ecart par cle + anomalies +
+//      badge "pret a produire"), (c) actions (injecter dry-run -> rapport ; produire xlsx).
+//      Le patrimoine n'est PAS une liste de cases manuelles : c'est une ACTION IA + des
+//      RESULTATS affiches (les etapes P1-P4 sont refletees ici, pas cochees a la main).
+//   3. SUIVI HUMAIN : frise des phases + checklist courte de ce que l'IA ne fait PAS
+//      (Verification V1-V4, Finalisation P5, Comptabilite C1-C6, Cloture) - cases cochables.
+//   4. JOURNAL : timeline + ajout de note.
 //
-// Presentation seule + appels aux Server Actions. On EXPOSE fidelement le dossier.ts
-// existant ; on ne reinvente pas de modele ni de wizard (le moteur viendra plus tard).
+// L'analyse (server) reporte deja compteurs + anomalies dans le dossier (appliquerRecap).
+// Le jeu de donnees vit cote client (state) le temps d'une session pour injecter/produire :
+// l'etat memoire ne le persiste pas, une re-analyse le regenere.
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Minus, Circle, MessageSquare } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Minus,
+  Circle,
+  MessageSquare,
+  FileUp,
+  Sparkles,
+  Download,
+  Database,
+  MapPin,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { formatDateLongue } from "@/lib/format-date";
 import type { Phase, StatutEtape, StatutDossier } from "@/lib/reprise/domain/dossier";
 import { PHASES } from "@/lib/reprise/domain/dossier";
-import { majEtapeAction, ajouterNoteAction } from "./actions";
+import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
+import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
+import {
+  majEtapeAction,
+  ajouterNoteAction,
+  analyserAction,
+  produireAction,
+  injecterAction,
+  type FichierProduit,
+  type RapportInjectionVue,
+} from "./actions";
+
+const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+// Phases dont les etapes sont du SUIVI HUMAIN (cochable). Le PATRIMOINE est pilote par
+// l'IA (zone 2) : ses etapes P1-P4 ne sont PAS des cases ici.
+const PHASES_SUIVI: Phase[] = ["VERIFICATION", "COMPTABILITE", "MISE_EN_SERVICE"];
+// Seule etape PATRIMOINE qui reste un geste humain de finalisation.
+const ETAPE_PATRIMOINE_SUIVI = "P5";
 
 // Vue serialisable d'une etape (ce que la page server projette).
 export interface EtapeVue {
@@ -28,16 +66,27 @@ export interface EtapeVue {
   statut: StatutEtape;
 }
 
-// Vue serialisable d'un dossier pour la fiche.
+export interface PatrimoineVue {
+  analyseFaite: boolean;
+  nbLots: number;
+  nbCles: number;
+  nbCoproprietaires: number;
+  nbAttributions: number;
+  nbAnomalies: number;
+}
+
+// Vue serialisable d'un dossier pour la fiche-hub.
 export interface DossierFicheVue {
   ref: string;
   nomUsuel: string;
+  adresse?: string;
   statut: StatutDossier;
   avancement: number; // 0..1
   etapesFaites: number;
   etapesTotal: number;
   etapes: EtapeVue[];
   anomalies: string[];
+  patrimoine: PatrimoineVue;
   journal: { date: string; texte: string }[];
 }
 
@@ -59,8 +108,6 @@ const STATUT_DOSSIER_TON: Record<StatutDossier, "neutral" | "info" | "warn" | "o
   termine: "ok",
 };
 
-// Libelles humains des phases (ordre = PHASES). OFFRE n'a pas d'etape par defaut mais
-// on garde la table complete pour rester robuste si des etapes OFFRE apparaissent.
 const PHASE_LABEL: Record<Phase, string> = {
   OFFRE: "Offre",
   PATRIMOINE: "Patrimoine",
@@ -69,7 +116,7 @@ const PHASE_LABEL: Record<Phase, string> = {
   MISE_EN_SERVICE: "Mise en service",
 };
 
-// Cycle de statut au clic sur une etape : a_faire -> en_cours -> fait -> ignore -> a_faire.
+// Cycle de statut au clic : a_faire -> en_cours -> fait -> ignore -> a_faire.
 const STATUT_SUIVANT: Record<StatutEtape, StatutEtape> = {
   a_faire: "en_cours",
   en_cours: "fait",
@@ -84,14 +131,27 @@ const STATUT_ETAPE_LABEL: Record<StatutEtape, string> = {
   ignore: "Ignore",
 };
 
+interface Analyse {
+  recap: RecapPatrimoine;
+  jeu: JeuDeDonnees;
+}
+
 export function FicheDossierReprise({ dossier }: { dossier: DossierFicheVue }) {
   const pct = Math.round(dossier.avancement * 100);
 
-  // Groupe les etapes par phase, dans l'ordre canonique de PHASES.
-  const groupes = PHASES.map((phase) => ({
+  // Session : le recap + jeu vivent cote client apres une analyse (l'etat memoire ne
+  // persiste pas le jeu). Necessaire pour injecter / produire tant que la session dure.
+  const [analyse, setAnalyse] = useState<Analyse | null>(null);
+
+  // Etapes de SUIVI HUMAIN uniquement (Verification / Comptabilite / Mise en service +
+  // la finalisation P5), groupees par phase dans l'ordre canonique.
+  const etapesSuivi = dossier.etapes.filter(
+    (e) => PHASES_SUIVI.includes(e.phase) || e.code === ETAPE_PATRIMOINE_SUIVI,
+  );
+  const groupesSuivi = PHASES.map((phase) => ({
     phase,
-    etapes: dossier.etapes.filter((e) => e.phase === phase),
-  })).filter((g) => g.etapes.length > 0);
+    etapes: etapesSuivi.filter((e) => e.phase === phase),
+  })).filter((gr) => gr.etapes.length > 0);
 
   return (
     <div className="flex flex-col gap-5">
@@ -102,7 +162,7 @@ export function FicheDossierReprise({ dossier }: { dossier: DossierFicheVue }) {
         <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Tous les dossiers
       </Link>
 
-      {/* En-tete */}
+      {/* ZONE 1 - En-tete */}
       <div className="bg-surface border border-line rounded-md p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
@@ -113,6 +173,12 @@ export function FicheDossierReprise({ dossier }: { dossier: DossierFicheVue }) {
               </Badge>
             </div>
             <h1 className="text-[20px] font-medium tracking-tight text-ink">{dossier.nomUsuel}</h1>
+            {dossier.adresse && (
+              <p className="mt-1 flex items-center gap-1.5 text-[12.5px] text-ink-3">
+                <MapPin strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
+                {dossier.adresse}
+              </p>
+            )}
           </div>
           <div className="text-right shrink-0">
             <div className="text-[22px] font-semibold text-green-700 leading-none">{pct}%</div>
@@ -131,37 +197,531 @@ export function FicheDossierReprise({ dossier }: { dossier: DossierFicheVue }) {
         </div>
       </div>
 
-      {/* Anomalies (si presentes) */}
-      {dossier.anomalies.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Anomalies a traiter ({dossier.anomalies.length})</CardTitle>
-          </CardHeader>
-          <ul className="divide-y divide-line">
-            {dossier.anomalies.map((a, i) => (
-              <li key={i} className="px-4 py-2 text-[13px] text-err-700">
-                {a}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      {/* ZONE 2 - Patrimoine (pilote IA) */}
+      <ZonePatrimoine dossier={dossier} analyse={analyse} onAnalyse={setAnalyse} />
 
-      {/* Colonne de vie : etapes groupees par phase, chacune cochable (cycle de statut). */}
+      {/* ZONE 3 - Suivi humain (ce que l'IA ne fait pas) */}
       <Card>
         <CardHeader>
-          <CardTitle>Parcours de reprise</CardTitle>
-          <span className="text-[11px] text-ink-4">Cliquer une etape la fait avancer</span>
+          <CardTitle>Suivi humain</CardTitle>
+          <span className="text-[11px] text-ink-4">Ce que l&apos;IA ne fait pas - cliquer pour avancer</span>
         </CardHeader>
+
+        {/* Frise des phases en tete du bloc de suivi. */}
+        <FrisePhases etapes={dossier.etapes} />
+
         <div className="flex flex-col">
-          {groupes.map((g) => (
-            <GroupePhase key={g.phase} dossierRef={dossier.ref} phase={g.phase} etapes={g.etapes} />
+          {groupesSuivi.map((gr) => (
+            <GroupePhase key={gr.phase} dossierRef={dossier.ref} phase={gr.phase} etapes={gr.etapes} />
           ))}
         </div>
       </Card>
 
-      {/* Journal */}
+      {/* ZONE 4 - Journal */}
       <JournalDossier dossierRef={dossier.ref} journal={dossier.journal} />
+    </div>
+  );
+}
+
+// --- ZONE 2 : PATRIMOINE (pilote IA) ---------------------------------------
+
+function ZonePatrimoine({
+  dossier,
+  analyse,
+  onAnalyse,
+}: {
+  dossier: DossierFicheVue;
+  analyse: Analyse | null;
+  onAnalyse: (a: Analyse | null) => void;
+}) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [analysePending, startAnalyse] = useTransition();
+  const toast = useToast();
+
+  const lancerAnalyse = () => {
+    if (files.length === 0) return;
+    startAnalyse(async () => {
+      const fd = new FormData();
+      for (const f of files) fd.append("pdfs", f);
+      const r = await analyserAction(dossier.ref, fd);
+      if (r.ok) {
+        onAnalyse({ recap: r.recap, jeu: r.jeu });
+        toast.ok("Analyse terminee - dossier alimente.");
+      } else {
+        toast.err(r.message);
+      }
+    });
+  };
+
+  // Deja analyse au moins une fois (compteurs persistes) mais pas dans cette session :
+  // on affiche les resultats persistes et on invite a re-analyser pour injecter/produire.
+  const dejaAnalyse = dossier.patrimoine.analyseFaite;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Patrimoine</CardTitle>
+        <Badge ton="warn" className="gap-1.5">
+          <Sparkles strokeWidth={1.5} className="w-3 h-3" /> pilote IA - mode demonstration
+        </Badge>
+      </CardHeader>
+
+      <div className="p-4 flex flex-col gap-4">
+        {/* Upload + analyse : toujours disponible (relancer une analyse actualise). */}
+        <div className="rounded-md border border-line bg-surface-2 p-3.5">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
+            <FileUp strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+            Documents du syndic sortant (PDF)
+          </div>
+          <p className="mt-1 text-[12px] text-ink-3">
+            L&apos;IA extrait le cadrage ET le patrimoine. Vous ne faites que verifier ce qu&apos;elle
+            a sorti.
+          </p>
+          <input
+            type="file"
+            accept="application/pdf"
+            multiple
+            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            className="mt-3 block w-full text-[13px] text-ink-2 file:mr-3 file:rounded-md file:border-0 file:bg-green-700 file:px-3 file:py-2 file:text-white file:text-[13px] file:font-medium hover:file:bg-green-600 file:cursor-pointer"
+          />
+          {files.length > 0 && (
+            <ul className="mt-2 text-[12px] text-ink-3 space-y-0.5">
+              {files.map((f) => (
+                <li key={f.name}>- {f.name}</li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3">
+            <Button type="button" variant="primary" onClick={lancerAnalyse} disabled={files.length === 0 || analysePending}>
+              {analysePending ? "Analyse en cours..." : dejaAnalyse ? "Relancer l'analyse" : "Analyser les documents"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Cas 1 : analyse dans cette session -> vue complete + actions. */}
+        {analyse ? (
+          <ResultatsAnalyse dossierRef={dossier.ref} recap={analyse.recap} jeu={analyse.jeu} />
+        ) : dejaAnalyse ? (
+          // Cas 2 : deja analyse (compteurs persistes) mais pas dans cette session.
+          <PatrimoinePersistant patrimoine={dossier.patrimoine} anomalies={dossier.anomalies} />
+        ) : (
+          // Cas 3 : jamais analyse.
+          <p className="text-[13px] text-ink-3">
+            Aucune analyse pour le moment. Deposez les documents ci-dessus, puis lancez l&apos;analyse.
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// Vue apres une analyse EN SESSION : cadrage a verifier + patrimoine extrait + actions.
+function ResultatsAnalyse({
+  dossierRef,
+  recap,
+  jeu,
+}: {
+  dossierRef: string;
+  recap: RecapPatrimoine;
+  jeu: JeuDeDonnees;
+}) {
+  // (a) Cadrage extrait, a verifier : etats "a verifier / verifie" bascules par l'humain.
+  const nbBatiments = new Set(
+    jeu.lots.map((l) => l.escalier).filter((s): s is string => !!s && s.trim().length > 0),
+  ).size;
+  const clesDetectees = recap.cles.length;
+  const cleDefaut = jeu.cles.find((c) => c.defaut)?.code;
+  const notesEdd = recap.notes.length;
+  const mappingOwners = recap.owners.total;
+
+  const cadrage: PointCadrage[] = [
+    { cle: "bat", libelle: "Batiments detectes", valeur: nbBatiments > 0 ? `${nbBatiments}` : "1 (aucun escalier distinct)" },
+    { cle: "cles", libelle: "Cles de repartition detectees", valeur: `${clesDetectees}${cleDefaut ? ` (defaut : ${cleDefaut})` : ""}` },
+    { cle: "edd", libelle: "EDD retenu (notes d'extraction)", valeur: notesEdd > 0 ? `${notesEdd} point(s) de vigilance` : "aucune note - EDD direct" },
+    { cle: "owners", libelle: "Mapping coproprietaires", valeur: `${mappingOwners} owner(s) - ${recap.owners.sci} SCI, ${recap.owners.couples} couple(s)` },
+  ];
+
+  return (
+    <div className="flex flex-col gap-5">
+      <CadrageAVerifier points={cadrage} />
+      <PatrimoineExtrait recap={recap} />
+      <ActionsPatrimoine dossierRef={dossierRef} jeu={jeu} pretAProduire={recap.pretAProduire} />
+    </div>
+  );
+}
+
+interface PointCadrage {
+  cle: string;
+  libelle: string;
+  valeur: string;
+}
+
+// (a) Cadrage extrait, a verifier : chaque ligne bascule "a verifier" <-> "verifie".
+function CadrageAVerifier({ points }: { points: PointCadrage[] }) {
+  const [verifies, setVerifies] = useState<Record<string, boolean>>({});
+  const tousVerifies = points.every((p) => verifies[p.cle]);
+
+  return (
+    <section>
+      <div className="flex items-center gap-2">
+        <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Cadrage extrait, a verifier</h3>
+        {tousVerifies && (
+          <Badge ton="ok" dot>
+            tout verifie
+          </Badge>
+        )}
+      </div>
+      <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+        {points.map((p) => {
+          const ok = !!verifies[p.cle];
+          return (
+            <li key={p.cle} className="flex items-center gap-3 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setVerifies((v) => ({ ...v, [p.cle]: !v[p.cle] }))}
+                aria-label={`${p.libelle} : ${ok ? "verifie" : "a verifier"}`}
+                className="shrink-0"
+              >
+                <span
+                  className={cn(
+                    "w-5 h-5 rounded-full flex items-center justify-center transition-colors",
+                    ok ? "bg-green-700 text-white" : "bg-surface border border-line",
+                  )}
+                  aria-hidden
+                >
+                  {ok && <Check strokeWidth={3} className="w-3 h-3" />}
+                </span>
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] text-ink">{p.libelle}</p>
+                <p className="text-[12px] text-ink-3">{p.valeur}</p>
+              </div>
+              <Badge ton={ok ? "ok" : "neutral"} className="shrink-0">
+                {ok ? "Verifie" : "A verifier"}
+              </Badge>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// (b) Patrimoine extrait : compteurs + ecart par cle + anomalies + badge "pret a produire".
+function PatrimoineExtrait({ recap }: { recap: RecapPatrimoine }) {
+  const anomalies = [
+    ...recap.notes.map((m) => ({ ton: "info" as const, message: m })),
+    ...recap.checks.warnings.map((w) => ({ ton: "warn" as const, message: w.message })),
+    ...recap.checks.erreurs.map((e) => ({ ton: "err" as const, message: e.message })),
+  ];
+
+  return (
+    <section>
+      <div className="flex items-center gap-2">
+        <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Patrimoine extrait</h3>
+        <Badge ton={recap.pretAProduire ? "ok" : "err"} dot>
+          {recap.pretAProduire ? "pret a produire" : "erreurs bloquantes"}
+        </Badge>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Lots" valeur={recap.lots.total} />
+        <Stat label="Cles" valeur={recap.cles.length} />
+        <Stat label="Coproprietaires" valeur={recap.owners.total} />
+        <Stat label="Attributions" valeur={recap.attributions.total} />
+      </div>
+
+      {recap.attributions.lotsOrphelins > 0 && (
+        <p className="mt-2 text-[12px] text-err-700">
+          {recap.attributions.lotsOrphelins} lot(s) orphelin(s) (sans coproprietaire).
+        </p>
+      )}
+
+      <h4 className="mt-4 text-[11px] font-medium text-ink-3 uppercase tracking-wide">Ecart par cle</h4>
+      <div className="mt-1.5 overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead className="text-left text-[11px] uppercase text-ink-4">
+            <tr>
+              <th className="py-1 font-medium">Code</th>
+              <th className="font-medium">Libelle</th>
+              <th className="text-right font-medium">Lots</th>
+              <th className="text-right font-medium">Somme</th>
+              <th className="text-right font-medium">Ecart</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recap.cles.map((c) => (
+              <tr key={c.code} className="border-t border-line">
+                <td className="py-1.5 font-mono text-ink-2">{c.code}</td>
+                <td className="text-ink">{c.libelle}</td>
+                <td className="text-right text-ink-2">{c.nbLots}</td>
+                <td className="text-right text-ink-2">{c.sommeCalculee}</td>
+                <td className="text-right">
+                  <Badge ton={c.ecart === 0 ? "ok" : "err"}>{c.ecart}</Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {anomalies.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-[11px] font-medium text-ink-3 uppercase tracking-wide">
+            Anomalies et points de vigilance ({anomalies.length})
+          </h4>
+          <ul className="mt-1.5 space-y-1">
+            {anomalies.map((a, i) => (
+              <li
+                key={i}
+                className={cn(
+                  "text-[12.5px]",
+                  a.ton === "err" && "text-err-700",
+                  a.ton === "warn" && "text-warn-700",
+                  a.ton === "info" && "text-ink-2",
+                )}
+              >
+                - {a.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// (c) Actions : injecter dry-run (rapport) + produire xlsx (repli).
+function ActionsPatrimoine({
+  dossierRef,
+  jeu,
+  pretAProduire,
+}: {
+  dossierRef: string;
+  jeu: JeuDeDonnees;
+  pretAProduire: boolean;
+}) {
+  const [rapport, setRapport] = useState<RapportInjectionVue | null>(null);
+  const [fichiers, setFichiers] = useState<FichierProduit[] | null>(null);
+  const [injPending, startInjection] = useTransition();
+  const [prodPending, startProduction] = useTransition();
+  const toast = useToast();
+
+  const injecter = () => {
+    startInjection(async () => {
+      const r = await injecterAction(dossierRef, jeu);
+      if (r.ok) {
+        setRapport(r.rapport);
+        toast.ok(r.rapport.succes ? "Simulation d'injection reussie." : "Simulation arretee sur une erreur.");
+      } else {
+        toast.err(r.message);
+      }
+    });
+  };
+
+  const produire = () => {
+    startProduction(async () => {
+      const r = await produireAction(dossierRef, jeu);
+      if (r.ok) {
+        setFichiers(r.fichiers);
+        toast.ok("Fichiers eStale produits.");
+      } else {
+        toast.err(r.message);
+      }
+    });
+  };
+
+  return (
+    <section>
+      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Actions</h3>
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
+        <Button type="button" variant="primary" onClick={injecter} disabled={injPending}>
+          <Database strokeWidth={1.5} /> {injPending ? "Simulation..." : "Injecter dans eStale (dry-run)"}
+        </Button>
+        <Button type="button" variant="secondary" onClick={produire} disabled={!pretAProduire || prodPending}>
+          <Download strokeWidth={1.5} /> {prodPending ? "Generation..." : "Produire les xlsx (repli)"}
+        </Button>
+        {!pretAProduire && (
+          <span className="text-[12px] text-err-700">Production bloquee tant qu&apos;il reste des erreurs.</span>
+        )}
+      </div>
+
+      {rapport && <RapportInjection rapport={rapport} />}
+      {fichiers && <TelechargementsXlsx fichiers={fichiers} />}
+    </section>
+  );
+}
+
+function RapportInjection({ rapport }: { rapport: RapportInjectionVue }) {
+  const c = rapport.compteurs;
+  return (
+    <div className="mt-3 rounded-md border border-line bg-surface-2 p-3.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[12px] font-medium text-ink">Rapport d&apos;injection (dry-run)</span>
+        <Badge ton={rapport.succes ? "ok" : "err"} dot>
+          {rapport.succes ? "plan complet" : "arrete sur erreur"}
+        </Badge>
+      </div>
+      <p className="mt-1 text-[11.5px] text-ink-4 font-mono">condo {rapport.condoID} - aucune ecriture reelle</p>
+
+      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+        <Stat label="Lots" valeur={c.lots} petit />
+        <Stat label="Cles" valeur={c.cles} petit />
+        <Stat label="Tantiemes" valeur={c.tantiemes} petit />
+        <Stat label="Owners" valeur={c.owners} petit />
+        <Stat label="Liens" valeur={c.links} petit />
+      </div>
+
+      <h4 className="mt-3 text-[11px] font-medium text-ink-3 uppercase tracking-wide">
+        Plan ordonne ({rapport.operationsTotal} operation{rapport.operationsTotal > 1 ? "s" : ""})
+      </h4>
+      <ol className="mt-1.5 space-y-0.5">
+        {rapport.operations.map((op) => (
+          <li key={op.seq} className="flex items-baseline gap-2 text-[12px]">
+            <span className="font-mono text-ink-4 w-6 shrink-0 text-right">{op.seq}</span>
+            <span className="font-mono text-green-700 shrink-0">{op.mutation}</span>
+            <span className="text-ink-2 min-w-0 truncate">{op.cible}</span>
+            {op.ref && <span className="font-mono text-ink-4 shrink-0">-&gt; {op.ref}</span>}
+          </li>
+        ))}
+        {rapport.operationsTotal > rapport.operations.length && (
+          <li className="text-[12px] text-ink-4 pl-8">
+            + {rapport.operationsTotal - rapport.operations.length} operation(s) de plus...
+          </li>
+        )}
+      </ol>
+
+      {rapport.avertissements.length > 0 && (
+        <div className="mt-3">
+          <h4 className="text-[11px] font-medium text-warn-700 uppercase tracking-wide">
+            Avertissements ({rapport.avertissements.length})
+          </h4>
+          <ul className="mt-1 space-y-0.5">
+            {rapport.avertissements.map((a, i) => (
+              <li key={i} className="text-[12px] text-warn-700">
+                - {a}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {rapport.erreur && (
+        <p className="mt-3 text-[12px] text-err-700">Erreur : {rapport.erreur}</p>
+      )}
+    </div>
+  );
+}
+
+function TelechargementsXlsx({ fichiers }: { fichiers: FichierProduit[] }) {
+  return (
+    <div className="mt-3 rounded-md border border-line bg-surface-2 p-3.5">
+      <div className="flex items-center gap-2 text-[12px] font-medium text-ink">
+        <Download strokeWidth={1.5} className="w-4 h-4 text-ink-3" /> Fichiers eStale (repli)
+      </div>
+      <p className="mt-1 text-[12px] text-ink-3">
+        Import eStale dans l&apos;ordre strict : lots -&gt; cles -&gt; tantiemes -&gt; owners -&gt; links.
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {fichiers.map((f) => (
+          <li key={f.nom}>
+            <a
+              href={`data:${MIME_XLSX};base64,${f.base64}`}
+              download={f.nom}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-green-700 hover:text-green-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded"
+            >
+              <Download strokeWidth={1.5} className="w-3.5 h-3.5" />
+              {f.nom}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Vue "compteurs persistes" (analyse d'une session precedente, jeu non conserve).
+function PatrimoinePersistant({
+  patrimoine,
+  anomalies,
+}: {
+  patrimoine: PatrimoineVue;
+  anomalies: string[];
+}) {
+  return (
+    <section>
+      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Patrimoine extrait (dernier resultat)</h3>
+      <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Lots" valeur={patrimoine.nbLots} />
+        <Stat label="Cles" valeur={patrimoine.nbCles} />
+        <Stat label="Coproprietaires" valeur={patrimoine.nbCoproprietaires} />
+        <Stat label="Attributions" valeur={patrimoine.nbAttributions} />
+      </div>
+      {anomalies.length > 0 && (
+        <div className="mt-3">
+          <h4 className="text-[11px] font-medium text-ink-3 uppercase tracking-wide">
+            Anomalies et points de vigilance ({anomalies.length})
+          </h4>
+          <ul className="mt-1.5 space-y-1">
+            {anomalies.map((a, i) => (
+              <li key={i} className="text-[12.5px] text-ink-2">
+                - {a}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="mt-3 text-[12px] text-ink-3">
+        Relancez l&apos;analyse ci-dessus pour injecter (dry-run) ou produire les fichiers : le detail
+        du jeu de donnees n&apos;est pas conserve entre deux sessions.
+      </p>
+    </section>
+  );
+}
+
+function Stat({ label, valeur, alerte, petit }: { label: string; valeur: number; alerte?: boolean; petit?: boolean }) {
+  return (
+    <div className="rounded-md border border-line bg-surface px-3 py-2">
+      <div className={cn(petit ? "text-[15px]" : "text-[18px]", "font-semibold", alerte ? "text-err-700" : "text-ink")}>
+        {valeur}
+      </div>
+      <div className="text-[11px] text-ink-3">{label}</div>
+    </div>
+  );
+}
+
+// --- ZONE 3 : SUIVI HUMAIN --------------------------------------------------
+
+// Frise des phases : etat d'avancement de chaque grande phase (part des etapes faites).
+function FrisePhases({ etapes }: { etapes: EtapeVue[] }) {
+  const groupes = PHASES.map((phase) => {
+    const liste = etapes.filter((e) => e.phase === phase);
+    const faites = liste.filter((e) => e.statut === "fait" || e.statut === "ignore").length;
+    return { phase, total: liste.length, faites };
+  }).filter((gr) => gr.total > 0);
+
+  return (
+    <div className="px-4 py-3 border-b border-line flex items-stretch gap-2 overflow-x-auto">
+      {groupes.map((gr) => {
+        const complet = gr.faites === gr.total;
+        const entame = gr.faites > 0 && !complet;
+        return (
+          <div
+            key={gr.phase}
+            className={cn(
+              "flex-1 min-w-[120px] rounded-md border px-2.5 py-1.5",
+              complet && "border-green-600/40 bg-green-50",
+              entame && "border-info-500/30 bg-info-50",
+              !complet && !entame && "border-line bg-surface-2",
+            )}
+          >
+            <div className="text-[11px] font-semibold text-ink-2 truncate">{PHASE_LABEL[gr.phase]}</div>
+            <div className={cn("text-[11px] font-mono", complet ? "text-green-700" : "text-ink-3")}>
+              {gr.faites}/{gr.total}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -249,11 +809,7 @@ const BADGE_TON: Record<StatutEtape, "neutral" | "info" | "ok"> = {
   ignore: "neutral",
 };
 
-// Pastille cochable, un rendu par statut :
-//  - fait     -> pastille verte pleine + coche
-//  - en_cours -> cercle accentue (bordure verte)
-//  - a_faire  -> cercle gris vide
-//  - ignore   -> pastille discrete barree (Minus)
+// Pastille cochable, un rendu par statut.
 function PastilleEtape({ statut }: { statut: StatutEtape }) {
   const base = "w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors";
   if (statut === "fait") {
@@ -279,6 +835,8 @@ function PastilleEtape({ statut }: { statut: StatutEtape }) {
   }
   return <span className={cn(base, "bg-surface border border-line")} aria-hidden />;
 }
+
+// --- ZONE 4 : JOURNAL -------------------------------------------------------
 
 function JournalDossier({
   dossierRef,

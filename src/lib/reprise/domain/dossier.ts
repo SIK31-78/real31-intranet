@@ -55,6 +55,8 @@ export interface Dossier {
   /** Reference eStale, ex. "S0302". */
   ref: string;
   nomUsuel: string;
+  /** Adresse de l'immeuble (saisie a la creation, optionnelle). */
+  adresse?: string;
   statut: StatutDossier;
   etapes: Etape[];
   compteurs: CompteursDossier;
@@ -87,10 +89,11 @@ export function etapesParDefaut(): Etape[] {
 }
 
 /** Cree un dossier neuf en phase OFFRE/production avec la checklist par defaut. */
-export function creerDossier(ref: string, nomUsuel: string): Dossier {
+export function creerDossier(ref: string, nomUsuel: string, adresse?: string): Dossier {
   return {
     ref,
     nomUsuel,
+    ...(adresse ? { adresse } : {}),
     statut: "production",
     etapes: etapesParDefaut(),
     compteurs: {},

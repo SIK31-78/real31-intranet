@@ -13,10 +13,22 @@ import type { ExtractionProvider } from "@/lib/reprise/ports/extraction-provider
 import { MockExtractionProvider } from "@/lib/reprise/adapters/extraction/mock-extraction-provider";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
+import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
+import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
 
 /** Provider d'extraction du patrimoine (mock = mode demonstration pour l'instant). */
 export function getExtractionProvider(): ExtractionProvider {
   return new MockExtractionProvider();
+}
+
+/**
+ * Provider d'ECRITURE eStale. En mode demonstration : l'adapter DRY-RUN, qui deroule le
+ * plan d'injection SANS aucun reseau (IDs deterministes, journal en memoire). L'adapter
+ * GraphQL reel viendra plus tard et se branchera ICI, sans toucher au service ni a l'UI.
+ * Instance neuve a chaque appel (les compteurs internes du dry-run repartent a zero).
+ */
+export function getEstaleEcritureProvider(): EstaleEcritureProvider {
+  return new DryRunEstaleEcritureProvider();
 }
 
 /**

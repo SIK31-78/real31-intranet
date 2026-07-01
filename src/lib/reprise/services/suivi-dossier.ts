@@ -19,9 +19,10 @@ export async function creerDossierSuivi(
   repo: DossierRepository,
   ref: string,
   nomUsuel: string,
+  adresse?: string,
 ): Promise<Dossier> {
   if (await repo.obtenir(ref)) throw new Error(`Dossier deja existant : ${ref}`);
-  const d = creerDossier(ref, nomUsuel);
+  const d = creerDossier(ref, nomUsuel, adresse);
   await repo.sauver(d);
   return d;
 }

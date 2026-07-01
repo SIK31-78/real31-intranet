@@ -128,17 +128,23 @@ function LigneDossier({ d }: { d: DossierResume }) {
 function FormCreation({ onFait }: { onFait: () => void }) {
   const [ref, setRef] = useState("");
   const [nomUsuel, setNomUsuel] = useState("");
+  const [adresse, setAdresse] = useState("");
   const [pending, startTransition] = useTransition();
   const toast = useToast();
 
   const submit = () => {
     if (!ref.trim() || !nomUsuel.trim()) return;
     startTransition(async () => {
-      const r = await creerDossierAction({ ref: ref.trim(), nomUsuel: nomUsuel.trim() });
+      const r = await creerDossierAction({
+        ref: ref.trim(),
+        nomUsuel: nomUsuel.trim(),
+        adresse: adresse.trim() || undefined,
+      });
       if (r.ok) {
         toast.ok("Dossier de reprise cree.");
         setRef("");
         setNomUsuel("");
+        setAdresse("");
         onFait();
       } else {
         toast.err(r.message);
@@ -168,6 +174,16 @@ function FormCreation({ onFait }: { onFait: () => void }) {
               onChange={(e) => setNomUsuel(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="ex. 31 Foch"
+              className={INPUT}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[12px] text-ink-3 sm:col-span-2">
+            Adresse de l&apos;immeuble <span className="text-ink-4">(optionnel)</span>
+            <input
+              value={adresse}
+              onChange={(e) => setAdresse(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              placeholder="ex. 31 avenue Foch, 31000 Toulouse"
               className={INPUT}
             />
           </label>

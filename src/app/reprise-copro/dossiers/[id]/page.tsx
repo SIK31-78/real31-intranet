@@ -1,7 +1,7 @@
-// Fiche detaillee d'un dossier de reprise. Server component (force-dynamic) : lit le repo
-// memoire via le service suivi (par ref, qui sert d'id d'URL), projette une vue
-// serialisable, delegue l'affichage au composant client. 404 propre si le dossier
-// n'existe pas.
+// Fiche-HUB d'un dossier de reprise. Server component (force-dynamic) : lit le repo
+// memoire via le service suivi, projette une vue serialisable (en-tete + compteurs
+// patrimoine deja reportes + etapes de suivi humain + journal), delegue l'affichage +
+// le pilotage IA au composant client. 404 propre si le dossier n'existe pas.
 
 import { notFound, redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
@@ -21,9 +21,19 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   if (!dossier) notFound();
 
   const faites = dossier.etapes.filter((e) => e.statut === "fait" || e.statut === "ignore").length;
+
+  // Les compteurs patrimoine ne sont renseignes qu'apres une premiere analyse.
+  const c = dossier.compteurs;
+  const analyseFaite =
+    c.nbLots !== undefined ||
+    c.nbCles !== undefined ||
+    c.nbCoproprietaires !== undefined ||
+    c.nbAttributions !== undefined;
+
   const vue: DossierFicheVue = {
     ref: dossier.ref,
     nomUsuel: dossier.nomUsuel,
+    adresse: dossier.adresse,
     statut: dossier.statut,
     avancement: avancement(dossier),
     etapesFaites: faites,
@@ -35,6 +45,14 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
       statut: e.statut,
     })),
     anomalies: dossier.anomalies,
+    patrimoine: {
+      analyseFaite,
+      nbLots: c.nbLots ?? 0,
+      nbCles: c.nbCles ?? 0,
+      nbCoproprietaires: c.nbCoproprietaires ?? 0,
+      nbAttributions: c.nbAttributions ?? 0,
+      nbAnomalies: c.nbAnomalies ?? 0,
+    },
     journal: dossier.journal.map((j) => ({ date: j.date, texte: j.texte })),
   };
 
@@ -44,7 +62,8 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
 
       <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
         Etat non persistant (memoire) : ce dossier est perdu au redemarrage du serveur. La persistance
-        Supabase arrivera plus tard, sans changer cet ecran.
+        Supabase arrivera plus tard, sans changer cet ecran. L&apos;injection eStale est en mode
+        DRY-RUN (aucune ecriture reelle).
       </p>
     </div>
   );

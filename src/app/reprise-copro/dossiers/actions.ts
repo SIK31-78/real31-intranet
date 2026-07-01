@@ -17,6 +17,7 @@ import { creerDossierSuivi } from "@/lib/reprise/services/suivi-dossier";
 const schemaCreation = z.object({
   ref: z.string().trim().min(1).max(40),
   nomUsuel: z.string().trim().min(1).max(200),
+  adresse: z.string().trim().max(200).optional(),
 });
 
 export type CreerDossierResultat = { ok: true } | { ok: false; message: string };
@@ -24,6 +25,7 @@ export type CreerDossierResultat = { ok: true } | { ok: false; message: string }
 export async function creerDossierAction(form: {
   ref: string;
   nomUsuel: string;
+  adresse?: string;
 }): Promise<CreerDossierResultat> {
   const valid = schemaCreation.safeParse(form);
   if (!valid.success) {
@@ -35,7 +37,8 @@ export async function creerDossierAction(form: {
 
   const repo = getRepriseDossierRepository();
   try {
-    await creerDossierSuivi(repo, valid.data.ref, valid.data.nomUsuel);
+    const adresse = valid.data.adresse?.trim() || undefined;
+    await creerDossierSuivi(repo, valid.data.ref, valid.data.nomUsuel, adresse);
   } catch (e) {
     // Ex. dossier deja existant (meme ref). On remonte un message propre, pas un throw.
     return { ok: false, message: e instanceof Error ? e.message : "Creation impossible." };

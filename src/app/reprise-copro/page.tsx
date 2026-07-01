@@ -21,10 +21,10 @@ export default function RepriseAccueil() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <LienCard
-          href="/reprise-copro/nouvelle"
+          href="/reprise-copro/dossiers"
           icon={FolderInput}
           titre="Nouvelle reprise"
-          desc="Importer les documents du syndic sortant, extraire le patrimoine, contrôler, puis produire l'import eStale."
+          desc="Créer la copropriété (nom, référence, adresse), puis analyser les documents depuis sa fiche : l'IA extrait le patrimoine, vous vérifiez."
         />
         <LienCard
           href="/reprise-copro/dossiers"
