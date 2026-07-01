@@ -5,7 +5,7 @@
 
 import { notFound, redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { getRepriseDossierRepository } from "@/lib/reprise/adapters/router";
+import { getRepriseDossierRepository, modeExtraction } from "@/lib/reprise/adapters/router";
 import { obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
 import { avancement } from "@/lib/reprise/domain/dossier";
 import { FicheDossierReprise, type DossierFicheVue } from "./fiche-dossier-reprise";
@@ -56,9 +56,11 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     journal: dossier.journal.map((j) => ({ date: j.date, texte: j.texte })),
   };
 
+  const modeIa = modeExtraction();
+
   return (
     <div className="flex flex-col gap-6">
-      <FicheDossierReprise dossier={vue} />
+      <FicheDossierReprise dossier={vue} modeIa={modeIa} />
 
       <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
         Etat non persistant (memoire) : ce dossier est perdu au redemarrage du serveur. La persistance

@@ -136,7 +136,13 @@ interface Analyse {
   jeu: JeuDeDonnees;
 }
 
-export function FicheDossierReprise({ dossier }: { dossier: DossierFicheVue }) {
+export function FicheDossierReprise({
+  dossier,
+  modeIa,
+}: {
+  dossier: DossierFicheVue;
+  modeIa: "claude" | "mistral" | "mock";
+}) {
   const pct = Math.round(dossier.avancement * 100);
 
   // Session : le recap + jeu vivent cote client apres une analyse (l'etat memoire ne
@@ -198,7 +204,7 @@ export function FicheDossierReprise({ dossier }: { dossier: DossierFicheVue }) {
       </div>
 
       {/* ZONE 2 - Patrimoine (pilote IA) */}
-      <ZonePatrimoine dossier={dossier} analyse={analyse} onAnalyse={setAnalyse} />
+      <ZonePatrimoine dossier={dossier} analyse={analyse} onAnalyse={setAnalyse} modeIa={modeIa} />
 
       {/* ZONE 3 - Suivi humain (ce que l'IA ne fait pas) */}
       <Card>
@@ -229,10 +235,12 @@ function ZonePatrimoine({
   dossier,
   analyse,
   onAnalyse,
+  modeIa,
 }: {
   dossier: DossierFicheVue;
   analyse: Analyse | null;
   onAnalyse: (a: Analyse | null) => void;
+  modeIa: "claude" | "mistral" | "mock";
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [analysePending, startAnalyse] = useTransition();
@@ -261,8 +269,13 @@ function ZonePatrimoine({
     <Card>
       <CardHeader>
         <CardTitle>Patrimoine</CardTitle>
-        <Badge ton="warn" className="gap-1.5">
-          <Sparkles strokeWidth={1.5} className="w-3 h-3" /> pilote IA - mode demonstration
+        <Badge ton={modeIa === "mock" ? "warn" : "ok"} className="gap-1.5">
+          <Sparkles strokeWidth={1.5} className="w-3 h-3" />
+          {modeIa === "mock"
+            ? "pilote IA - mode demonstration"
+            : modeIa === "claude"
+              ? "pilote IA - Claude"
+              : "pilote IA - Mistral"}
         </Badge>
       </CardHeader>
 

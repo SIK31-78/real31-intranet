@@ -21,6 +21,8 @@ import {
   getRepriseDossierRepository,
   getExtractionProvider,
   getEstaleEcritureProvider,
+  modeExtraction,
+  type ModeExtraction,
 } from "@/lib/reprise/adapters/router";
 import {
   majEtape,
@@ -110,7 +112,7 @@ export async function ajouterNoteAction(dossierId: string, texte: string): Promi
 // --- PATRIMOINE (pilote IA) -------------------------------------------------
 
 export type AnalyseResultat =
-  | { ok: true; recap: RecapPatrimoine; jeu: JeuDeDonnees; mode: "mock" }
+  | { ok: true; recap: RecapPatrimoine; jeu: JeuDeDonnees; mode: ModeExtraction }
   | { ok: false; message: string };
 
 /**
@@ -146,7 +148,7 @@ export async function analyserAction(dossierId: string, formData: FormData): Pro
     );
     revalidatePath(`/reprise-copro/dossiers/${idOk.data}`);
     revalidatePath("/reprise-copro/dossiers");
-    return { ok: true, recap, jeu, mode: "mock" };
+    return { ok: true, recap, jeu, mode: modeExtraction() };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant l'analyse." };
   }
