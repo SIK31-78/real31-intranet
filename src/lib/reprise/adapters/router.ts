@@ -13,22 +13,25 @@ import type { ExtractionProvider } from "@/lib/reprise/ports/extraction-provider
 import { MockExtractionProvider } from "@/lib/reprise/adapters/extraction/mock-extraction-provider";
 import { ClaudeExtractionProvider } from "@/lib/reprise/adapters/claude/claude-extraction-provider";
 import { MistralExtractionProvider } from "@/lib/reprise/adapters/mistral/mistral-extraction-provider";
+import { ClaudeCliExtractionProvider } from "@/lib/reprise/adapters/claude-cli/claude-cli-extraction-provider";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
 import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
 import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
 import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
 
-export type ModeExtraction = "claude" | "mistral" | "mock";
+export type ModeExtraction = "claude" | "claude-cli" | "mistral" | "mock";
 
 /**
  * Mode d'extraction selon l'environnement. Claude si credentials (ANTHROPIC_API_KEY /
  * ANTHROPIC_AUTH_TOKEN, ou EXTRACTION_PROVIDER=claude pour un profil OAuth sur disque) ;
  * sinon Mistral si MISTRAL_API_KEY (ou EXTRACTION_PROVIDER=mistral) ; sinon mock (mode
- * demonstration). Les auto-checks deterministes rattrapent les erreurs quel que soit le moteur.
+ * demonstration). EXTRACTION_PROVIDER=claude-cli force la CLI Claude Code (mode TEST : session
+ * locale, sans cle API). Les auto-checks deterministes rattrapent les erreurs quel que soit le moteur.
  */
 export function modeExtraction(): ModeExtraction {
   const choix = (process.env.EXTRACTION_PROVIDER || "auto").toLowerCase();
+  if (choix === "claude-cli") return "claude-cli";
   if (choix === "claude") return "claude";
   if (choix === "mistral") return "mistral";
   if (choix === "mock") return "mock";
@@ -40,6 +43,8 @@ export function modeExtraction(): ModeExtraction {
 /** Provider d'extraction du patrimoine, choisi selon l'environnement (cf. modeExtraction). */
 export function getExtractionProvider(): ExtractionProvider {
   switch (modeExtraction()) {
+    case "claude-cli":
+      return new ClaudeCliExtractionProvider();
     case "claude":
       return new ClaudeExtractionProvider();
     case "mistral":

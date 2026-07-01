@@ -141,7 +141,7 @@ export function FicheDossierReprise({
   modeIa,
 }: {
   dossier: DossierFicheVue;
-  modeIa: "claude" | "mistral" | "mock";
+  modeIa: "claude" | "claude-cli" | "mistral" | "mock";
 }) {
   const pct = Math.round(dossier.avancement * 100);
 
@@ -240,7 +240,7 @@ function ZonePatrimoine({
   dossier: DossierFicheVue;
   analyse: Analyse | null;
   onAnalyse: (a: Analyse | null) => void;
-  modeIa: "claude" | "mistral" | "mock";
+  modeIa: "claude" | "claude-cli" | "mistral" | "mock";
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [analysePending, startAnalyse] = useTransition();
@@ -275,7 +275,9 @@ function ZonePatrimoine({
             ? "pilote IA - mode demonstration"
             : modeIa === "claude"
               ? "pilote IA - Claude"
-              : "pilote IA - Mistral"}
+              : modeIa === "claude-cli"
+                ? "pilote IA - Claude (CLI)"
+                : "pilote IA - Mistral"}
         </Badge>
       </CardHeader>
 
