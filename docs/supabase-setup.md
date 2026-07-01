@@ -207,3 +207,12 @@ alter table public.intranet_sinistres enable row level security;
 -- coproAppartient sur get/patch, exigerPerimetre avant insert). Anti-IDOR : le
 -- copropriete_id vient du client, jamais de confiance -> verifie cote serveur.
 ```
+
+## Table native : module Reprise de copro (2026-07-01)
+
+SQL complet dans `supabase/sql/reprise_dossier.sql`, a executer une fois dans le SQL editor
+Supabase (schema public, base patron). Tant que la table n'existe pas, le module degrade
+proprement (liste vide, creation no-op silencieux, pas de crash). Persistance active des
+ce SQL execute + COPRO_SOURCE=supabase cote app ; sinon repli sur l'adapter memoire
+(non persistant, perdu au redemarrage). Une ligne par dossier (cle = ref eStale), parties
+variables (etapes/compteurs/anomalies/journal) en JSONB, colonne `adresse` incluse.

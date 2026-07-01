@@ -15,6 +15,7 @@ import { ClaudeExtractionProvider } from "@/lib/reprise/adapters/claude/claude-e
 import { MistralExtractionProvider } from "@/lib/reprise/adapters/mistral/mistral-extraction-provider";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
+import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
 import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
 import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
 
@@ -59,13 +60,27 @@ export function getEstaleEcritureProvider(): EstaleEcritureProvider {
 }
 
 /**
- * Repository des dossiers de reprise. Singleton module-level : la memoire doit
- * survivre entre deux requetes du meme process serveur (sinon un dossier cree
- * disparaitrait au rendu suivant). NON PERSISTANT : perdu au redemarrage du serveur.
+ * true si la persistance Supabase des dossiers de reprise est active (meme convention
+ * que le reste de l'intranet : COPRO_SOURCE=supabase). L'UI s'en sert pour afficher (ou
+ * masquer) le bandeau "non persistant (memoire)".
+ */
+export function reprisePersistanceSupabase(): boolean {
+  return process.env.COPRO_SOURCE === "supabase";
+}
+
+/**
+ * Repository des dossiers de reprise. Supabase quand COPRO_SOURCE=supabase (persistance
+ * reelle dans public.reprise_dossier de la base patron), sinon adapter memoire.
+ *
+ * Le repo memoire est un singleton module-level : la memoire doit survivre entre deux
+ * requetes du meme process serveur (sinon un dossier cree disparaitrait au rendu suivant).
+ * NON PERSISTANT : perdu au redemarrage du serveur. L'adapter Supabase, lui, est sans etat
+ * (une instance neuve suffit, l'etat vit dans la base).
  */
 let repoMemoire: DossierRepository | null = null;
 
 export function getRepriseDossierRepository(): DossierRepository {
+  if (reprisePersistanceSupabase()) return new DossierRepositorySupabase();
   if (!repoMemoire) repoMemoire = new DossierRepositoryMemoire();
   return repoMemoire;
 }

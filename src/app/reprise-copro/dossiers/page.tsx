@@ -4,7 +4,7 @@
 
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { getRepriseDossierRepository } from "@/lib/reprise/adapters/router";
+import { getRepriseDossierRepository, reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
 import { listerDossiers } from "@/lib/reprise/services/suivi-dossier";
 import { avancement } from "@/lib/reprise/domain/dossier";
 import { DossiersRepriseVue, type DossierResume } from "./dossiers-reprise-vue";
@@ -38,10 +38,12 @@ export default async function DossiersReprisePage() {
         </p>
       </div>
 
-      <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
-        Etat non persistant (memoire) : les dossiers sont perdus au redemarrage du serveur. La persistance
-        Supabase arrivera plus tard, sans changer cet ecran.
-      </p>
+      {!reprisePersistanceSupabase() && (
+        <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
+          Etat non persistant (memoire) : les dossiers sont perdus au redemarrage du serveur. La persistance
+          Supabase s&apos;active avec COPRO_SOURCE=supabase, sans changer cet ecran.
+        </p>
+      )}
 
       <DossiersRepriseVue dossiers={resumes} />
     </div>
