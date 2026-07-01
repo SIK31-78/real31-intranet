@@ -5,7 +5,8 @@
 // memoire cote serveur (repo memoire) : bandeau "non persistant" affiche par la page.
 
 import { useState, useTransition } from "react";
-import { Plus, FolderOpen } from "lucide-react";
+import Link from "next/link";
+import { Plus, FolderOpen, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,29 +92,35 @@ export function DossiersRepriseVue({ dossiers }: { dossiers: DossierResume[] }) 
 function LigneDossier({ d }: { d: DossierResume }) {
   const pct = Math.round(d.avancement * 100);
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[12px] text-ink-2 shrink-0">{d.ref}</span>
-          <span className="text-[13px] font-medium text-ink truncate">{d.nomUsuel}</span>
-        </div>
-        <div className="mt-1.5 flex items-center gap-2">
-          <div className="h-1.5 w-[120px] max-w-[40vw] rounded-full bg-surface-2 overflow-hidden">
-            <div className="h-full rounded-full bg-green-600" style={{ width: `${pct}%` }} />
+    <li>
+      <Link
+        href={`/reprise-copro/dossiers/${encodeURIComponent(d.ref)}`}
+        className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:bg-surface-2"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[12px] text-ink-2 shrink-0">{d.ref}</span>
+            <span className="text-[13px] font-medium text-ink truncate">{d.nomUsuel}</span>
           </div>
-          <span className="text-[11px] text-ink-3 font-mono">
-            {d.etapesFaites}/{d.etapesTotal}
-          </span>
-          {d.nbAnomalies > 0 && (
-            <span className="text-[11px] text-err-700">
-              {d.nbAnomalies} anomalie{d.nbAnomalies > 1 ? "s" : ""}
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="h-1.5 w-[120px] max-w-[40vw] rounded-full bg-surface-2 overflow-hidden">
+              <div className="h-full rounded-full bg-green-600" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-[11px] text-ink-3 font-mono">
+              {d.etapesFaites}/{d.etapesTotal}
             </span>
-          )}
+            {d.nbAnomalies > 0 && (
+              <span className="text-[11px] text-err-700">
+                {d.nbAnomalies} anomalie{d.nbAnomalies > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-      <Badge ton={STATUT_TON[d.statut]} dot className="shrink-0">
-        {STATUT_LABEL[d.statut]}
-      </Badge>
+        <Badge ton={STATUT_TON[d.statut]} dot className="shrink-0">
+          {STATUT_LABEL[d.statut]}
+        </Badge>
+        <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
+      </Link>
     </li>
   );
 }
