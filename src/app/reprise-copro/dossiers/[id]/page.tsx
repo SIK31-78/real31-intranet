@@ -5,7 +5,12 @@
 
 import { notFound, redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { getRepriseDossierRepository, modeExtraction, reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
+import {
+  getRepriseDossierRepository,
+  modeExtraction,
+  reprisePersistanceSupabase,
+  ecritureEstaleReelle,
+} from "@/lib/reprise/adapters/router";
 import { obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
 import { avancement } from "@/lib/reprise/domain/dossier";
 import { FicheDossierReprise, type DossierFicheVue } from "./fiche-dossier-reprise";
@@ -58,10 +63,11 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
 
   const modeIa = modeExtraction();
   const persistant = reprisePersistanceSupabase();
+  const ecritureReelle = ecritureEstaleReelle();
 
   return (
     <div className="flex flex-col gap-6">
-      <FicheDossierReprise dossier={vue} modeIa={modeIa} />
+      <FicheDossierReprise dossier={vue} modeIa={modeIa} ecritureReelle={ecritureReelle} />
 
       <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
         {!persistant && (
@@ -70,7 +76,13 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
             Supabase s&apos;active avec COPRO_SOURCE=supabase, sans changer cet ecran.{" "}
           </>
         )}
-        L&apos;injection eStale est en mode DRY-RUN (aucune ecriture reelle).
+        {ecritureReelle ? (
+          <span className="font-medium text-err-700">
+            ATTENTION : l&apos;injection eStale est en mode REEL (ESTALE_ECRITURE=reel) - ecritures en PRODUCTION.
+          </span>
+        ) : (
+          <>L&apos;injection eStale est en mode DRY-RUN (aucune ecriture reelle).</>
+        )}
       </p>
     </div>
   );

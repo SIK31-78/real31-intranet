@@ -21,6 +21,7 @@ import {
   getRepriseDossierRepository,
   getExtractionProvider,
   getEstaleEcritureProvider,
+  ecritureEstaleReelle,
   modeExtraction,
   type ModeExtraction,
 } from "@/lib/reprise/adapters/router";
@@ -34,7 +35,8 @@ import {
   produirePhaseABuffers,
   type RecapPatrimoine,
 } from "@/lib/reprise/services/orchestrateur-patrimoine";
-import { injecterPatrimoine } from "@/lib/reprise/services/injecter-patrimoine";
+import { onboarderCopro, type MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
+import { ETABLISSEMENT_IDS } from "@/lib/reprise/domain/etablissements";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 
@@ -185,13 +187,17 @@ export async function produireAction(dossierId: string, jeu: JeuDeDonnees): Prom
   }
 }
 
-// --- INJECTION eStale (dry-run) ---------------------------------------------
+// --- INJECTION eStale (dry-run par defaut, reel si ESTALE_ECRITURE=reel) -----
 
 /** Une operation du plan, resumee pour l'affichage. */
 export type OperationVue = { seq: number; mutation: string; cible: string; ref?: string };
 
 export type RapportInjectionVue = {
   succes: boolean;
+  /** true si l'ecriture a eu lieu en REEL (PROD), false si simulation dry-run. */
+  reel: boolean;
+  /** true si la copro a ete creee par cet appel (createCondo). */
+  coproCreee: boolean;
   condoID: string;
   compteurs: { lots: number; cles: number; tantiemes: number; owners: number; links: number };
   /** Plan ordonne resume (les 1res operations de chaque famille + total). */
@@ -203,47 +209,96 @@ export type RapportInjectionVue = {
 
 export type InjecterResultat = { ok: true; rapport: RapportInjectionVue } | { ok: false; message: string };
 
+// Metadonnees copro fournies par l'UI (selecteur d'etablissement + champs manquants).
+// L'establishmentID est valide contre la liste FERMEE des 4 etablissements REAL31.
+const zMetaCopro = z.object({
+  name: z.string().trim().min(1).max(120),
+  reference: z.string().trim().min(1).max(40),
+  management: z.enum(["CONDO", "AS", "AFU"]),
+  establishmentID: z.enum(ETABLISSEMENT_IDS as [string, ...string[]]),
+  address: z.object({
+    postcode: z.string().trim().min(1).max(10),
+    city: z.string().trim().min(1).max(80),
+    country: z.string().trim().min(1).max(60),
+    housenumber: z.string().trim().max(20).optional(),
+    street: z.string().trim().max(120).optional(),
+  }),
+});
+
 /**
- * Deroule le service d'injection via l'adapter DRY-RUN (AUCUN reseau) et renvoie un rapport
- * serialisable (compteurs + plan ordonne resume + avertissements). Le condoID reel n'est pas
- * connu (copro hors eStale) -> on derive un condoID de simulation depuis la ref du dossier.
+ * Onboarde la copro dans eStale : cree la copro (createCondo) PUIS injecte le patrimoine.
+ * Passe par le service onboarderCopro et le provider du routeur.
+ *
+ * MODE : par defaut DRY-RUN (aucun reseau). Si ESTALE_ECRITURE=reel + identifiants presents,
+ * le provider du routeur ECRIT en PRODUCTION. L'UI reflete le mode et exige un GO/STOP avant.
+ * Le rapport porte `reel` pour que l'UI le rappelle explicitement.
  */
-export async function injecterAction(dossierId: string, jeu: JeuDeDonnees): Promise<InjecterResultat> {
+export async function injecterAction(
+  dossierId: string,
+  jeu: JeuDeDonnees,
+  meta: MetadonneesCopro,
+): Promise<InjecterResultat> {
   const idOk = z.string().trim().min(1).max(40).safeParse(dossierId);
   if (!idOk.success) return { ok: false, message: "Dossier invalide." };
 
   const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour simuler l'injection." };
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour lancer l'injection." };
 
   const valid = zJeu.safeParse(jeu);
   if (!valid.success) return { ok: false, message: "Jeu de donnees invalide ou absent." };
 
+  const metaOk = zMetaCopro.safeParse(meta);
+  if (!metaOk.success) {
+    return { ok: false, message: "Etablissement ou metadonnees copro invalides (etablissement + adresse requis)." };
+  }
+
+  const reel = ecritureEstaleReelle();
+
   try {
     const provider = getEstaleEcritureProvider();
-    const condoID = `dry-run:${idOk.data}`;
-    const r = await injecterPatrimoine(provider, condoID, jeu);
+    const r = await onboarderCopro(provider, jeu, { metadonnees: metaOk.data as MetadonneesCopro });
 
     // Plan resume : on garde jusqu'a 12 lignes representatives (les 1res operations),
     // le total complet reste affiche par ailleurs.
     const LIMITE = 12;
-    const operations: OperationVue[] = r.operations.slice(0, LIMITE).map((op) => ({
+    const operations: OperationVue[] = r.injection.operations.slice(0, LIMITE).map((op) => ({
       seq: op.seq,
       mutation: op.mutation,
       cible: op.cibleDomaine,
       ref: op.resultat?.reference ?? op.resultat?.code,
     }));
 
+    const erreur =
+      r.erreurCreation !== undefined
+        ? `createCondo (${metaOk.data.reference}) : ${r.erreurCreation}`
+        : r.injection.erreur
+          ? `${r.injection.erreur.operation} (${r.injection.erreur.cibleDomaine}) : ${r.injection.erreur.message}`
+          : undefined;
+
+    // Trace au journal quand c'est une ecriture REELLE reussie (tracabilite PROD).
+    if (reel && r.succes) {
+      await ajouterJournal(
+        getRepriseDossierRepository(),
+        idOk.data,
+        new Date().toISOString(),
+        `Injection eStale REELLE : copro creee (condo ${r.condoID}), ${r.injection.compteurs.lots} lot(s), ${r.injection.compteurs.owners} coproprietaire(s).`,
+      );
+      revalidatePath(`/reprise-copro/dossiers/${idOk.data}`);
+    }
+
     const rapport: RapportInjectionVue = {
       succes: r.succes,
+      reel,
+      coproCreee: r.coproCreee,
       condoID: r.condoID,
-      compteurs: r.compteurs,
+      compteurs: r.injection.compteurs,
       operations,
-      operationsTotal: r.operations.length,
-      avertissements: r.avertissements.map((a) => a.message),
-      ...(r.erreur ? { erreur: `${r.erreur.operation} (${r.erreur.cibleDomaine}) : ${r.erreur.message}` } : {}),
+      operationsTotal: r.injection.operations.length,
+      avertissements: r.injection.avertissements.map((a) => a.message),
+      ...(erreur ? { erreur } : {}),
     };
     return { ok: true, rapport };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant la simulation." };
+    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant l'injection." };
   }
 }

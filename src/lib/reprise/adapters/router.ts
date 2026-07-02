@@ -19,6 +19,8 @@ import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier
 import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
 import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
 import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
+import { ReelEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/reel-provider";
+import { estaleConfigure } from "@/lib/adapters/estale/client";
 
 export type ModeExtraction = "claude" | "claude-cli" | "mistral" | "mock";
 
@@ -55,12 +57,29 @@ export function getExtractionProvider(): ExtractionProvider {
 }
 
 /**
- * Provider d'ECRITURE eStale. En mode demonstration : l'adapter DRY-RUN, qui deroule le
- * plan d'injection SANS aucun reseau (IDs deterministes, journal en memoire). L'adapter
- * GraphQL reel viendra plus tard et se branchera ICI, sans toucher au service ni a l'UI.
- * Instance neuve a chaque appel (les compteurs internes du dry-run repartent a zero).
+ * L'ecriture eStale est-elle en mode REEL ?
+ *
+ * DANGER : true => les injections ECRIVENT dans l'eStale de PRODUCTION du cabinet.
+ * Deux conditions cumulatives (verrou volontaire) :
+ *   - ESTALE_ECRITURE=reel (interrupteur d'env explicite, absent par defaut) ;
+ *   - identifiants eStale presents (estaleConfigure()) : sinon aucune connexion possible.
+ * Toute autre situation => DRY-RUN (defaut sur). L'UI appelle ce helper pour afficher le
+ * mode et exiger une confirmation GO/STOP avant une ecriture reelle.
+ */
+export function ecritureEstaleReelle(): boolean {
+  return process.env.ESTALE_ECRITURE === "reel" && estaleConfigure();
+}
+
+/**
+ * Provider d'ECRITURE eStale. Par defaut : l'adapter DRY-RUN, qui deroule le plan
+ * d'injection SANS aucun reseau (IDs deterministes, journal en memoire).
+ *
+ * DANGER : renvoie l'adapter REEL (ecritures en PRODUCTION) UNIQUEMENT si
+ * ecritureEstaleReelle() est vrai (ESTALE_ECRITURE=reel + identifiants presents).
+ * Instance neuve a chaque appel (l'etat interne repart a zero).
  */
 export function getEstaleEcritureProvider(): EstaleEcritureProvider {
+  if (ecritureEstaleReelle()) return new ReelEstaleEcritureProvider();
   return new DryRunEstaleEcritureProvider();
 }
 

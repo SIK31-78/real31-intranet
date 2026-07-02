@@ -117,12 +117,36 @@ export interface LotOwnerInputEstale {
 }
 
 /**
+ * Type de gestion d'une copro cote eStale (enum CondoManagement).
+ * CONDO = copropriete (defaut), AS = association syndicale, AFU = association fonciere urbaine.
+ */
+export type CondoManagementEstale = "CONDO" | "AS" | "AFU";
+
+/**
+ * Entree de createCondo(CondoCreateInput). establishmentID = l'un des 4 etablissements
+ * REAL31 (cf. domain/etablissements.ts). address : postcode/city/country obligatoires.
+ */
+export interface CondoCreateInputEstale {
+  name: string;
+  reference: string;
+  management: CondoManagementEstale;
+  establishmentID: string;
+  address: AddressInputEstale;
+}
+
+/**
  * Contrat bas-niveau d'ecriture eStale. Une methode = une mutation ; chaque creation
  * retourne l'ID (et la reference/code) capture pour cabler les etapes suivantes.
  * L'implementation reelle enchainera les objets-mutation eStale (updateDK/updateLot) ;
  * le port n'expose que le resultat utile a l'orchestration.
  */
 export interface EstaleEcritureProvider {
+  /**
+   * createCondo(CondoCreateInput) -> Condo! (on capture l'id). Cree la copro AVANT toute
+   * injection de patrimoine : le condoID retourne alimente ensuite lots/cles/owners.
+   */
+  creerCopro(input: CondoCreateInputEstale): Promise<{ id: string }>;
+
   /** createLot(condoID, LotInput) -> Lot! (on capture id + reference). */
   creerLot(condoID: string, input: LotInputEstale): Promise<{ id: string; reference: string }>;
 

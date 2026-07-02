@@ -35,10 +35,13 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
 import { formatDateLongue } from "@/lib/format-date";
 import type { Phase, StatutEtape, StatutDossier } from "@/lib/reprise/domain/dossier";
 import { PHASES } from "@/lib/reprise/domain/dossier";
+import { ETABLISSEMENTS_REAL31 } from "@/lib/reprise/domain/etablissements";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
+import type { MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
 import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import {
   majEtapeAction,
@@ -139,9 +142,11 @@ interface Analyse {
 export function FicheDossierReprise({
   dossier,
   modeIa,
+  ecritureReelle,
 }: {
   dossier: DossierFicheVue;
   modeIa: "claude" | "claude-cli" | "mistral" | "mock";
+  ecritureReelle: boolean;
 }) {
   const pct = Math.round(dossier.avancement * 100);
 
@@ -204,7 +209,13 @@ export function FicheDossierReprise({
       </div>
 
       {/* ZONE 2 - Patrimoine (pilote IA) */}
-      <ZonePatrimoine dossier={dossier} analyse={analyse} onAnalyse={setAnalyse} modeIa={modeIa} />
+      <ZonePatrimoine
+        dossier={dossier}
+        analyse={analyse}
+        onAnalyse={setAnalyse}
+        modeIa={modeIa}
+        ecritureReelle={ecritureReelle}
+      />
 
       {/* ZONE 3 - Suivi humain (ce que l'IA ne fait pas) */}
       <Card>
@@ -236,11 +247,13 @@ function ZonePatrimoine({
   analyse,
   onAnalyse,
   modeIa,
+  ecritureReelle,
 }: {
   dossier: DossierFicheVue;
   analyse: Analyse | null;
   onAnalyse: (a: Analyse | null) => void;
   modeIa: "claude" | "claude-cli" | "mistral" | "mock";
+  ecritureReelle: boolean;
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [analysePending, startAnalyse] = useTransition();
@@ -292,6 +305,15 @@ function ZonePatrimoine({
             L&apos;IA extrait le cadrage ET le patrimoine. Vous ne faites que verifier ce qu&apos;elle
             a sorti.
           </p>
+          <div className="mt-2.5 rounded-md border border-line bg-surface px-3 py-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Documents attendus</p>
+            <ul className="mt-1 text-[12px] text-ink-2 space-y-0.5">
+              <li>EDD (etat descriptif de division) + RCP et modificatifs <span className="text-ink-4">- lots, cles, tantiemes</span></li>
+              <li>Feuille de presence de la derniere AG <span className="text-ink-4">- coproprietaires</span></li>
+              <li>PV de la derniere AG <span className="text-ink-4">- coproprietaires, resolutions</span></li>
+              <li>Fiche synthese, registre national <span className="text-ink-4">- controle : nb lots, batiments</span></li>
+            </ul>
+          </div>
           <input
             type="file"
             accept="application/pdf"
@@ -315,7 +337,7 @@ function ZonePatrimoine({
 
         {/* Cas 1 : analyse dans cette session -> vue complete + actions. */}
         {analyse ? (
-          <ResultatsAnalyse dossierRef={dossier.ref} recap={analyse.recap} jeu={analyse.jeu} />
+          <ResultatsAnalyse dossier={dossier} recap={analyse.recap} jeu={analyse.jeu} ecritureReelle={ecritureReelle} />
         ) : dejaAnalyse ? (
           // Cas 2 : deja analyse (compteurs persistes) mais pas dans cette session.
           <PatrimoinePersistant patrimoine={dossier.patrimoine} anomalies={dossier.anomalies} />
@@ -332,13 +354,15 @@ function ZonePatrimoine({
 
 // Vue apres une analyse EN SESSION : cadrage a verifier + patrimoine extrait + actions.
 function ResultatsAnalyse({
-  dossierRef,
+  dossier,
   recap,
   jeu,
+  ecritureReelle,
 }: {
-  dossierRef: string;
+  dossier: DossierFicheVue;
   recap: RecapPatrimoine;
   jeu: JeuDeDonnees;
+  ecritureReelle: boolean;
 }) {
   // (a) Cadrage extrait, a verifier : etats "a verifier / verifie" bascules par l'humain.
   const nbBatiments = new Set(
@@ -360,7 +384,7 @@ function ResultatsAnalyse({
     <div className="flex flex-col gap-5">
       <CadrageAVerifier points={cadrage} />
       <PatrimoineExtrait recap={recap} />
-      <ActionsPatrimoine dossierRef={dossierRef} jeu={jeu} pretAProduire={recap.pretAProduire} />
+      <ActionsPatrimoine dossier={dossier} jeu={jeu} pretAProduire={recap.pretAProduire} ecritureReelle={ecritureReelle} />
     </div>
   );
 }
@@ -506,37 +530,100 @@ function PatrimoineExtrait({ recap }: { recap: RecapPatrimoine }) {
   );
 }
 
-// (c) Actions : injecter dry-run (rapport) + produire xlsx (repli).
+// (c) Actions : creer la copro + injecter (dry-run ou reel) + produire xlsx (repli).
+// Un mini-formulaire copro (etablissement + nom + gestion + adresse) precede l'injection :
+// createCondo a besoin de ces metadonnees avant d'injecter le patrimoine.
 function ActionsPatrimoine({
-  dossierRef,
+  dossier,
   jeu,
   pretAProduire,
+  ecritureReelle,
 }: {
-  dossierRef: string;
+  dossier: DossierFicheVue;
   jeu: JeuDeDonnees;
   pretAProduire: boolean;
+  ecritureReelle: boolean;
 }) {
   const [rapport, setRapport] = useState<RapportInjectionVue | null>(null);
   const [fichiers, setFichiers] = useState<FichierProduit[] | null>(null);
   const [injPending, startInjection] = useTransition();
   const [prodPending, startProduction] = useTransition();
   const toast = useToast();
+  const confirmer = useConfirm();
 
-  const injecter = () => {
+  // Champs copro. Reference = ref du dossier (non modifiable). Nom pre-rempli depuis le
+  // nom usuel. Gestion CONDO par defaut. Adresse : on pre-decoupe grossierement l'adresse
+  // du dossier si presente, mais code postal / ville restent a saisir (obligatoires eStale).
+  const [establishmentID, setEstablishmentID] = useState("");
+  const [name, setName] = useState(dossier.nomUsuel);
+  const [management, setManagement] = useState<"CONDO" | "AS" | "AFU">("CONDO");
+  const [street, setStreet] = useState(dossier.adresse ?? "");
+  const [postcode, setPostcode] = useState("");
+  const [city, setCity] = useState("");
+
+  // Injection possible seulement si l'etablissement + les champs adresse obligatoires
+  // sont renseignes (createCondo exige postcode/city/country).
+  const metaComplet =
+    establishmentID.trim().length > 0 &&
+    name.trim().length > 0 &&
+    postcode.trim().length > 0 &&
+    city.trim().length > 0;
+
+  const lancerInjection = () => {
     startInjection(async () => {
-      const r = await injecterAction(dossierRef, jeu);
+      const meta: MetadonneesCopro = {
+        name: name.trim(),
+        reference: dossier.ref,
+        management,
+        establishmentID,
+        address: {
+          postcode: postcode.trim(),
+          city: city.trim(),
+          country: "France",
+          ...(street.trim() ? { street: street.trim() } : {}),
+        },
+      };
+      const r = await injecterAction(dossier.ref, jeu, meta);
       if (r.ok) {
         setRapport(r.rapport);
-        toast.ok(r.rapport.succes ? "Simulation d'injection reussie." : "Simulation arretee sur une erreur.");
+        if (r.rapport.succes) {
+          toast.ok(r.rapport.reel ? "Injection REELLE terminee (copro creee dans eStale)." : "Simulation d'injection reussie.");
+        } else {
+          toast.err(r.rapport.reel ? "Injection reelle arretee sur une erreur." : "Simulation arretee sur une erreur.");
+        }
       } else {
         toast.err(r.message);
       }
     });
   };
 
+  // GO/STOP : confirmation systematique. En mode REEL, la modale est en rouge (danger) et
+  // rappelle qu'on ECRIT en PRODUCTION. En dry-run, confirmation legere (aucun effet reseau).
+  const injecter = async () => {
+    if (!metaComplet) return;
+    const ok = await confirmer(
+      ecritureReelle
+        ? {
+            titre: "Ecriture REELLE dans eStale (PRODUCTION)",
+            message: `La copro "${name.trim()}" (ref ${dossier.ref}) va etre CREEE puis alimentee dans l'eStale de PRODUCTION. Cette action est irreversible cote eStale. Confirmer ?`,
+            confirmer: "GO - ecrire en PROD",
+            annuler: "STOP",
+            danger: true,
+          }
+        : {
+            titre: "Simulation d'injection (dry-run)",
+            message: "Aucune ecriture reelle : on deroule le plan pour verification. Lancer la simulation ?",
+            confirmer: "Lancer la simulation",
+            annuler: "Annuler",
+          },
+    );
+    if (!ok) return;
+    lancerInjection();
+  };
+
   const produire = () => {
     startProduction(async () => {
-      const r = await produireAction(dossierRef, jeu);
+      const r = await produireAction(dossier.ref, jeu);
       if (r.ok) {
         setFichiers(r.fichiers);
         toast.ok("Fichiers eStale produits.");
@@ -549,13 +636,125 @@ function ActionsPatrimoine({
   return (
     <section>
       <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Actions</h3>
-      <div className="mt-2 flex items-center gap-2 flex-wrap">
-        <Button type="button" variant="primary" onClick={injecter} disabled={injPending}>
-          <Database strokeWidth={1.5} /> {injPending ? "Simulation..." : "Injecter dans eStale (dry-run)"}
+
+      {/* Indicateur de MODE : dry-run (defaut, vert) vs reel (rouge, ecritures PROD). */}
+      <div
+        className={cn(
+          "mt-2 rounded-md border px-3 py-2 text-[12px]",
+          ecritureReelle ? "border-err-500/40 bg-err-50 text-err-700" : "border-line bg-surface-2 text-ink-2",
+        )}
+      >
+        {ecritureReelle ? (
+          <span>
+            <span className="font-semibold">Mode REEL</span> - l&apos;injection ECRIT dans l&apos;eStale de
+            PRODUCTION. Une confirmation GO/STOP sera demandee.
+          </span>
+        ) : (
+          <span>
+            <span className="font-semibold">Mode DRY-RUN</span> - simulation sans aucune ecriture reelle
+            (ESTALE_ECRITURE non positionne sur &laquo; reel &raquo;).
+          </span>
+        )}
+      </div>
+
+      {/* Mini-formulaire copro : createCondo a besoin de ces metadonnees. */}
+      <div className="mt-3 rounded-md border border-line bg-surface p-3.5">
+        <div className="text-[12px] font-medium text-ink">Copropriete a creer dans eStale</div>
+        <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-ink-3">Etablissement (obligatoire)</span>
+            <select
+              value={establishmentID}
+              onChange={(e) => setEstablishmentID(e.target.value)}
+              className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+            >
+              <option value="">- choisir -</option>
+              {ETABLISSEMENTS_REAL31.map((et) => (
+                <option key={et.id} value={et.id}>
+                  {et.sigle} - {et.nom}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-ink-3">Reference (ref du dossier)</span>
+            <input
+              value={dossier.ref}
+              readOnly
+              className="h-8 rounded-md border border-line bg-surface-2 px-2 text-[13px] font-mono text-ink-3"
+            />
+          </label>
+          <label className="flex flex-col gap-1 sm:col-span-2">
+            <span className="text-[11px] font-medium text-ink-3">Nom de la copropriete</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-ink-3">Type de gestion</span>
+            <select
+              value={management}
+              onChange={(e) => setManagement(e.target.value as "CONDO" | "AS" | "AFU")}
+              className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+            >
+              <option value="CONDO">CONDO - copropriete (defaut)</option>
+              <option value="AS">AS - association syndicale</option>
+              <option value="AFU">AFU - association fonciere urbaine</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-ink-3">Rue (optionnel)</span>
+            <input
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+              className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-ink-3">Code postal (obligatoire)</span>
+            <input
+              value={postcode}
+              onChange={(e) => setPostcode(e.target.value)}
+              inputMode="numeric"
+              className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-ink-3">Ville (obligatoire)</span>
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+            />
+          </label>
+        </div>
+        <p className="mt-2 text-[11px] text-ink-4">Pays : France (par defaut). L&apos;etablissement et l&apos;adresse (CP + ville) sont exiges par eStale.</p>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <Button
+          type="button"
+          variant={ecritureReelle ? "danger" : "primary"}
+          onClick={injecter}
+          disabled={injPending || !metaComplet}
+        >
+          <Database strokeWidth={1.5} />{" "}
+          {injPending
+            ? ecritureReelle
+              ? "Injection reelle..."
+              : "Simulation..."
+            : ecritureReelle
+              ? "Creer + injecter dans eStale (REEL)"
+              : "Creer + injecter (dry-run)"}
         </Button>
         <Button type="button" variant="secondary" onClick={produire} disabled={!pretAProduire || prodPending}>
           <Download strokeWidth={1.5} /> {prodPending ? "Generation..." : "Produire les xlsx (repli)"}
         </Button>
+        {!metaComplet && (
+          <span className="text-[12px] text-ink-3">Choisir un etablissement + saisir CP et ville pour injecter.</span>
+        )}
         {!pretAProduire && (
           <span className="text-[12px] text-err-700">Production bloquee tant qu&apos;il reste des erreurs.</span>
         )}
@@ -571,13 +770,22 @@ function RapportInjection({ rapport }: { rapport: RapportInjectionVue }) {
   const c = rapport.compteurs;
   return (
     <div className="mt-3 rounded-md border border-line bg-surface-2 p-3.5">
-      <div className="flex items-center gap-2">
-        <span className="text-[12px] font-medium text-ink">Rapport d&apos;injection (dry-run)</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[12px] font-medium text-ink">
+          Rapport d&apos;injection ({rapport.reel ? "REEL - PRODUCTION" : "dry-run"})
+        </span>
+        <Badge ton={rapport.reel ? "err" : "info"} dot>
+          {rapport.reel ? "ecriture reelle" : "simulation"}
+        </Badge>
         <Badge ton={rapport.succes ? "ok" : "err"} dot>
           {rapport.succes ? "plan complet" : "arrete sur erreur"}
         </Badge>
       </div>
-      <p className="mt-1 text-[11.5px] text-ink-4 font-mono">condo {rapport.condoID} - aucune ecriture reelle</p>
+      <p className="mt-1 text-[11.5px] text-ink-4 font-mono">
+        condo {rapport.condoID || "(non cree)"}
+        {rapport.coproCreee ? " - copro creee" : ""}
+        {rapport.reel ? "" : " - aucune ecriture reelle"}
+      </p>
 
       <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
         <Stat label="Lots" valeur={c.lots} petit />
