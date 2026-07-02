@@ -318,13 +318,36 @@ function ZonePatrimoine({
             type="file"
             accept="application/pdf"
             multiple
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            onChange={(e) => {
+              const ajoutes = Array.from(e.target.files ?? []);
+              setFiles((prev) => {
+                const parCle = new Map(prev.map((f) => [`${f.name}:${f.size}`, f]));
+                for (const f of ajoutes) parCle.set(`${f.name}:${f.size}`, f);
+                return [...parCle.values()];
+              });
+              e.target.value = ""; // permet de re-selectionner / rajouter les memes
+            }}
             className="mt-3 block w-full text-[13px] text-ink-2 file:mr-3 file:rounded-md file:border-0 file:bg-green-700 file:px-3 file:py-2 file:text-white file:text-[13px] file:font-medium hover:file:bg-green-600 file:cursor-pointer"
           />
+          <p className="mt-1.5 text-[11px] text-ink-4">
+            Ajoute les documents un par un ou en lot : ils s&apos;accumulent (retire au besoin).
+          </p>
           {files.length > 0 && (
-            <ul className="mt-2 text-[12px] text-ink-3 space-y-0.5">
+            <ul className="mt-2 text-[12px] text-ink-3 space-y-1">
               {files.map((f) => (
-                <li key={f.name}>- {f.name}</li>
+                <li key={`${f.name}:${f.size}`} className="flex items-center gap-2">
+                  <span className="truncate">- {f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFiles((prev) => prev.filter((x) => `${x.name}:${x.size}` !== `${f.name}:${f.size}`))
+                    }
+                    className="shrink-0 text-ink-4 hover:text-err-700"
+                    aria-label={`Retirer ${f.name}`}
+                  >
+                    retirer
+                  </button>
+                </li>
               ))}
             </ul>
           )}
