@@ -29,6 +29,7 @@ import {
   Download,
   Database,
   MapPin,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -365,8 +366,18 @@ function ZonePatrimoine({
           </div>
         </div>
 
-        {/* Cas 1 : analyse dans cette session -> vue complete + actions. */}
-        {analyse ? (
+        {/* Chargement : l'analyse (CLI / IA) prend 1 a 3 min -> etat clair, pas juste un bouton grise. */}
+        {analysePending ? (
+          <div className="flex items-center gap-3 rounded-md border border-line bg-surface-2 px-4 py-4">
+            <Loader2 strokeWidth={1.75} className="w-5 h-5 text-green-700 animate-spin shrink-0" />
+            <div>
+              <p className="text-[13px] font-medium text-ink">Analyse en cours...</p>
+              <p className="text-[12px] text-ink-3">
+                L&apos;IA lit les documents (structure + coproprietaires). Compte 1 a 3 minutes, ne quitte pas la page.
+              </p>
+            </div>
+          </div>
+        ) : analyse ? (
           <ResultatsAnalyse dossier={dossier} recap={analyse.recap} jeu={analyse.jeu} ecritureReelle={ecritureReelle} />
         ) : dejaAnalyse ? (
           // Cas 2 : deja analyse (compteurs persistes) mais pas dans cette session.
