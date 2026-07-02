@@ -16,14 +16,16 @@ export const SYSTEME_PROPRIETAIRES = `Tu es un assistant de migration pour un sy
 
 Format : {"owners":[...],"attributions":[...],"notes":[...]}
 - owners : {"id":str unique (ex "o1"),"civilite":str,"nom":str,"prenom":str?,"pro":bool,"formeJuridique":str?,"raisonSociale":str?,"siren":str?,"capital":num?,"naissance":str?,"email":str?,"notes":str?}.
+- nom OBLIGATOIRE, JAMAIS vide, EN MAJUSCULES : patronyme (personne physique) ou raison sociale (personne morale). Si tu ne peux VRAIMENT pas determiner de nom pour une ligne, NE CREE PAS cet owner et signale-le en note (un owner manquant vaut mieux qu'un nom vide).
 - DEDUPLICATION STRICTE (R5) : une personne = UN seul owner. JAMAIS "X n°1 / X n°2" meme si l'ancien syndic le faisait ; si tu fusionnes, signale-le dans notes.
 - HOMONYMES (R6) : meme nom+prenom sans element distinctif -> NE PAS fusionner, garder les deux, signaler dans notes.
-- civilite : LISTE FERMEE STRICTE : m, mm, mme, mmes, m&mme, m|mme, doctor, doctors, master, masters, professor, professors, indivision, inheritance, sdc, asl, aful. JAMAIS "autre", "M.", "Mme", ni vide.
-- COUPLE marie/pacse sans indivision declaree : UNE ligne, civilite "m&mme", prenom "Prenom Mr & Prenom Mme".
+- civilite : LISTE FERMEE STRICTE : m, mm, mme, mmes, m&mme, m|mme, doctor, doctors, master, masters, professor, professors, indivision, inheritance, sdc, asl, aful. JAMAIS "autre", "M.", "Mme", le caractere "|" seul, ni vide.
+- COUPLE marie/pacse, MEME patronyme : UNE ligne, civilite "m&mme", nom = le patronyme commun (MAJUSCULES), prenom "Prenom Mr & Prenom Mme".
+- COUPLE / co-acquereurs a patronymes DIFFERENTS (Mr X et Mme Y) : UNE ligne, civilite "m|mme", nom = les DEUX patronymes MAJUSCULES separes par " / " (ex "D'ORNANO / DUVAL-ARNOLD"), prenom "Prenom1 & Prenom2". Jamais de nom vide.
 - INDIVISION : civilite "indivision" SEULEMENT si l'EDD/FDP le declare (succession, divorce). Pas d'inference. Succession en cours declaree -> "inheritance".
-- SCI / personne morale : pro=true ; formeJuridique ("SCI","SARL","SDC","ASL","AFUL", <=10 car) ; raisonSociale (<=38 car) ; civilite = celle du gerant si connu, SINON "m" (jamais "autre"). Si K-bis absent : formeJuridique/siren/capital vides + note "K-bis a fournir".
-- attributions : {"ownerId":str,"lot":int} pour CHAQUE lot detenu par l'owner.
-- notes : identites a verifier (scrutateur/president au PV absent de l'EDD -> 3 hypotheses : epoux non declare / mandataire / acquereur recent ; fusions R5 effectuees ; homonymes R6 non fusionnes ; SCI sans gerant).
+- SCI / personne morale : pro=true ; formeJuridique ("SCI","SARL","SDC","ASL","AFUL", <=10 car) ; raisonSociale (<=38 car) ; nom = la raison sociale (MAJUSCULES) ; civilite = celle du gerant si connu, SINON "m" (jamais "autre"). Si K-bis absent : formeJuridique/siren/capital vides + note "K-bis a fournir".
+- attributions : {"ownerId":str,"lot":int} pour CHAQUE lot detenu par l'owner. Si un lot (souvent parking/cave) n'a AUCUN proprietaire identifiable dans les documents, NE L'ATTRIBUE PAS et n'invente PAS de proprietaire : le lot restera a completer en finalisation.
+- notes : identites a verifier (scrutateur/president au PV absent de l'EDD -> 3 hypotheses : epoux non declare / mandataire / acquereur recent ; fusions R5 effectuees ; homonymes R6 non fusionnes ; SCI sans gerant ; lots sans proprietaire connu).
 
 Les coordonnees detaillees (email, tel, naissance, occupant) sont quasi toujours absentes de la FDP : ne PAS les inventer, une seule note consolidee suffit. Reponds UNIQUEMENT en JSON, sans aucun texte autour.`;
 
