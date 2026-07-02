@@ -37,7 +37,13 @@ function nomSafe(nom: string): string {
 // Lance `claude -p` en headless (prompt via stdin), renvoie la sortie texte ou throw.
 function lancer(args: string[], stdin: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(BIN, args, { shell: process.platform === "win32" });
+    // On RETIRE ANTHROPIC_API_KEY / AUTH_TOKEN de l'env du sous-processus : sinon la CLI
+    // detecte la cle API et l'utilise (metree + limite de debit) AU LIEU de la session Max
+    // locale. En mode CLI on veut la session Max (gratuite, gros debit), pas l'API.
+    const env = { ...process.env };
+    delete env.ANTHROPIC_API_KEY;
+    delete env.ANTHROPIC_AUTH_TOKEN;
+    const child = spawn(BIN, args, { shell: process.platform === "win32", env });
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
