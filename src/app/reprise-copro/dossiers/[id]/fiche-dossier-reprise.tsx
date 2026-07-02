@@ -382,7 +382,7 @@ function ZonePatrimoine({
             <div>
               <p className="text-[13px] font-medium text-ink">Analyse en cours...</p>
               <p className="text-[12px] text-ink-3">
-                L&apos;IA lit les documents (structure + coproprietaires). Compte 1 a 3 minutes, ne quitte pas la page.
+                L&apos;IA lit les documents (structure + coproprietaires). Compte plusieurs minutes (jusqu&apos;a ~15 min avec Opus sur de gros scans), ne quitte pas la page.
               </p>
             </div>
           </div>
