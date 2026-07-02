@@ -15,7 +15,6 @@ import type {
 } from "@/lib/reprise/ports/extraction-provider";
 import { normaliserPatrimoine, normaliserProprietaires } from "@/lib/reprise/adapters/shared/normaliser";
 import { SYSTEME_PATRIMOINE, SYSTEME_PROPRIETAIRES, extraireJson } from "@/lib/reprise/adapters/shared/prompts-extraction";
-import { detecterCoucheTexte } from "@/lib/reprise/adapters/pdf/detecter-couche-texte";
 
 const MODEL_PATRIMOINE = process.env.CLAUDE_MODEL_PATRIMOINE || "claude-sonnet-4-6";
 const MODEL_PROPRIETAIRES = process.env.CLAUDE_MODEL_PROPRIETAIRES || "claude-haiku-4-5";
@@ -31,22 +30,20 @@ function client(): Anthropic {
 }
 
 /**
- * Construit les blocs de contenu utilisateur : texte extrait si PDF natif (tokens texte,
- * moins cher), sinon le PDF en document base64 (Claude OCR-ise via vision).
+ * Construit les blocs de contenu utilisateur : chaque PDF est envoye comme document base64.
+ * Claude lit NATIVEMENT la couche texte des PDF natifs ET OCR-ise les scans (vision) : pas
+ * besoin de detecter/extraire le texte cote serveur. On EVITE ainsi unpdf (pdf.js), qui
+ * utilise des workers + objets transferables et plante sous le runtime serveur Next/Turbopack
+ * ("Cannot transfer object of unsupported type").
  */
 async function blocsDocuments(docs: DocumentSource[]): Promise<Anthropic.ContentBlockParam[]> {
   const blocs: Anthropic.ContentBlockParam[] = [];
   for (const d of docs) {
-    const analyse = await detecterCoucheTexte(d.contenu);
-    if (analyse.natif) {
-      blocs.push({ type: "text", text: `### DOCUMENT : ${d.nom} (couche texte native)\n\n${analyse.texte}` });
-    } else {
-      blocs.push({ type: "text", text: `### DOCUMENT : ${d.nom} (scanne)` });
-      blocs.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: Buffer.from(d.contenu).toString("base64") },
-      });
-    }
+    blocs.push({ type: "text", text: `### DOCUMENT : ${d.nom}` });
+    blocs.push({
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: Buffer.from(d.contenu).toString("base64") },
+    });
   }
   return blocs;
 }
