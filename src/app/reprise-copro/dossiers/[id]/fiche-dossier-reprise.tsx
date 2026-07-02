@@ -325,6 +325,7 @@ function ZonePatrimoine({
             <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Documents attendus</p>
             <ul className="mt-1 text-[12px] text-ink-2 space-y-0.5">
               <li>EDD (etat descriptif de division) + RCP et modificatifs <span className="text-ink-4">- lots, cles, tantiemes</span></li>
+              <li>RGDD / annexes comptables de la convocation <span className="text-ink-4">- cles reelles (eau froide/chaude, chauffage, ascenseur...)</span></li>
               <li>Feuille de presence de la derniere AG <span className="text-ink-4">- coproprietaires</span></li>
               <li>PV de la derniere AG <span className="text-ink-4">- coproprietaires, resolutions</span></li>
               <li>Fiche synthese, registre national <span className="text-ink-4">- controle : nb lots, batiments</span></li>
