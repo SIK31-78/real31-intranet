@@ -46,7 +46,6 @@ import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patri
 import {
   majEtapeAction,
   ajouterNoteAction,
-  analyserAction,
   produireAction,
   injecterAction,
   type FichierProduit,
@@ -263,13 +262,21 @@ function ZonePatrimoine({
     if (files.length === 0) return;
     startAnalyse(async () => {
       const fd = new FormData();
+      fd.append("dossierId", dossier.ref);
       for (const f of files) fd.append("pdfs", f);
-      const r = await analyserAction(dossier.ref, fd);
-      if (r.ok) {
-        onAnalyse({ recap: r.recap, jeu: r.jeu });
-        toast.ok("Analyse terminee - dossier alimente.");
-      } else {
-        toast.err(r.message);
+      try {
+        // Upload via route handler (pas Server Action) : evite la limite de body + le
+        // souci de transfert des objets File sous Turbopack/Next 16.
+        const res = await fetch("/api/reprise/analyser", { method: "POST", body: fd });
+        const r = await res.json();
+        if (res.ok && r.ok) {
+          onAnalyse({ recap: r.recap, jeu: r.jeu });
+          toast.ok("Analyse terminee - dossier alimente.");
+        } else {
+          toast.err(r.message ?? "Erreur pendant l'analyse.");
+        }
+      } catch {
+        toast.err("Erreur reseau pendant l'analyse.");
       }
     });
   };
