@@ -8,7 +8,8 @@ Format : {"lots":[...],"cles":[...],"tantiemes":[...],"notes":[...]}
 - lots : {"numero":int>0,"type":str,"usage":str,"escalier":str?,"etage":int?,"porte":str?,"surface":num?,"nbPiece":int?,"commentaire":str}. usage parmi : residential | office | commercial | mixed | parking | other. commentaire = description RCP fidele (<=256 car). Partir de l'EDD FINAL : ne JAMAIS renumeroter, les trous de numerotation (lots supprimes par modificatif) sont NORMAUX.
 - cles : {"code":str numerique,"libelle":str,"totalAttendu":int}. Une cle par nature de charges (001 charges generales, 100 batiment A, 210 ascenseur...).
 - tantiemes : {"cleCode":str,"lot":int,"valeur":int>0}. UNE entree par lot CONCERNE par la cle. OMETTRE les lots non concernes (ne JAMAIS mettre 0). Sigma des tantiemes d'une cle = totalAttendu.
-- notes : points de vigilance (quel EDD retenu, quels modificatifs integres avec leur date, ecarts registre national / EDD final, lots crees ou supprimes par modificatif).
+- CLES REELLES (comptabilite) : si des ANNEXES COMPTABLES / RGDD (repartition generale des depenses) / etats de repartition / budget de la convocation sont fournis, ils FONT FOI pour les cles reellement utilisees en compta. Une charge regroupee en UNE seule colonne au RCP peut y etre ECLATEE en plusieurs cles (ex. eau froide vs eau chaude/chauffage) -> cree alors DEUX cles distinctes avec leurs tantiemes propres ; a l'inverse ne fusionne pas deux cles que la compta separe. Sans document comptable : se baser sur le tableau RCP et SIGNALER l'ambiguite (fusion possible a confirmer) en note.
+- notes : points de vigilance (quel EDD retenu, quels modificatifs integres avec leur date, ecarts registre national / EDD final, lots crees ou supprimes par modificatif, cles fusionnees/eclatees selon la compta ou a confirmer).
 
 N'invente JAMAIS une valeur. Donnee absente = champ omis (ou commentaire vide + note). Reponds UNIQUEMENT en JSON, sans aucun texte autour.`;
 

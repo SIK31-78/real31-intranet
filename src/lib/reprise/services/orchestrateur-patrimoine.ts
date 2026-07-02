@@ -103,7 +103,7 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
 // = RCP / EDD / modificatifs ; Agent 2 (owners) = feuille de presence / PV. Un document non
 // reconnu (ex. fiche synthese) part aux DEUX (securite). Si un filtre est vide -> tous les docs.
 function pourStructure(nom: string): boolean {
-  return /rcp|edd|reglement|règlement|modificatif|descriptif|division/i.test(nom);
+  return /rcp|edd|rgdd|reglement|règlement|modificatif|descriptif|division|repartition|répartition|annexe|comptable|budget|convocation/i.test(nom);
 }
 function pourProprietaires(nom: string): boolean {
   return /presence|présence|\bpv\b|proces|procès|assemblee|assemblée|feuille/i.test(nom);
