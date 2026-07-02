@@ -92,13 +92,26 @@ function recapPourcentages(jeu: JeuDeDonnees): RecapPatrimoine {
 /**
  * ETAPE 1 + 2 : extraction parallele puis recap GO/STOP. NE PRODUIT PAS les .xlsx.
  */
+// Aiguillage des documents par nom de fichier vers le bon agent : reduit le nombre de pages
+// par requete (Claude limite a 100 pages/requete) ET cible chaque agent. Agent 1 (structure)
+// = RCP / EDD / modificatifs ; Agent 2 (owners) = feuille de presence / PV. Un document non
+// reconnu (ex. fiche synthese) part aux DEUX (securite). Si un filtre est vide -> tous les docs.
+function pourStructure(nom: string): boolean {
+  return /rcp|edd|reglement|règlement|modificatif|descriptif|division/i.test(nom);
+}
+function pourProprietaires(nom: string): boolean {
+  return /presence|présence|\bpv\b|proces|procès|assemblee|assemblée|feuille/i.test(nom);
+}
+
 export async function analyserPatrimoine(
   provider: ExtractionProvider,
   docs: DocumentSource[],
 ): Promise<AnalysePatrimoine> {
+  const docsStructure = docs.filter((d) => pourStructure(d.nom) || !pourProprietaires(d.nom));
+  const docsProprietaires = docs.filter((d) => pourProprietaires(d.nom) || !pourStructure(d.nom));
   const [patrimoine, proprietaires] = await Promise.all([
-    provider.extrairePatrimoine(docs),
-    provider.extraireProprietaires(docs),
+    provider.extrairePatrimoine(docsStructure.length ? docsStructure : docs),
+    provider.extraireProprietaires(docsProprietaires.length ? docsProprietaires : docs),
   ]);
 
   const jeu: JeuDeDonnees = {
