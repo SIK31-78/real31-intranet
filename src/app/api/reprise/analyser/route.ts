@@ -14,7 +14,7 @@ import {
   getExtractionProvider,
   modeExtraction,
 } from "@/lib/reprise/adapters/router";
-import { appliquerRecap, ajouterJournal } from "@/lib/reprise/services/suivi-dossier";
+import { appliquerRecap, ajouterJournal, enregistrerJeu } from "@/lib/reprise/services/suivi-dossier";
 import { analyserPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 
@@ -50,6 +50,9 @@ export async function POST(req: Request) {
     const repo = getRepriseDossierRepository();
     // Reporte compteurs + anomalies dans le dossier (le patrimoine devient des etats).
     await appliquerRecap(repo, dossierId, recap);
+    // Persiste le jeu complet pour rehydrater la fiche a l'ouverture sans re-analyser.
+    // Degrade proprement si la colonne jeu n'existe pas encore (ne casse pas l'analyse).
+    await enregistrerJeu(repo, dossierId, jeu);
     await ajouterJournal(
       repo,
       dossierId,

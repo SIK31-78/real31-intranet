@@ -5,6 +5,7 @@
 
 import type { Dossier, StatutEtape } from "@/lib/reprise/domain/dossier";
 import { creerDossier } from "@/lib/reprise/domain/dossier";
+import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import type { RecapPatrimoine } from "./orchestrateur-patrimoine";
 
@@ -93,4 +94,20 @@ export async function appliquerRecap(
   for (const a of nouvelles) if (!d.anomalies.includes(a)) d.anomalies.push(a);
   await repo.sauver(d);
   return d;
+}
+
+/**
+ * Persiste le jeu de donnees extrait dans le dossier, pour rehydrater la fiche a
+ * l'ouverture SANS re-analyser. Tolerant a la degradation cote adapter : si la colonne
+ * n'existe pas encore (ALTER pas lance), l'ecriture est un no-op silencieux et l'analyse
+ * marche quand meme (les compteurs restent, seul le detail du jeu n'est pas conserve).
+ */
+export async function enregistrerJeu(
+  repo: DossierRepository,
+  ref: string,
+  jeu: JeuDeDonnees,
+): Promise<void> {
+  const d = await exiger(repo, ref);
+  d.jeu = jeu;
+  await repo.sauver(d);
 }

@@ -48,7 +48,13 @@ export interface AnalysePatrimoine {
   recap: RecapPatrimoine;
 }
 
-function recapPourcentages(jeu: JeuDeDonnees): RecapPatrimoine {
+/**
+ * Derive le mini-recap GO/STOP depuis un jeu de donnees (compteurs, ecarts par cle,
+ * auto-checks). `notes` reste vide : c'est a l'appelant de les re-injecter s'il les a
+ * (l'extraction les fournit ; une rehydratation depuis le jeu persiste ne les a plus).
+ * Utilise a l'analyse ET a la rehydratation d'un dossier deja analyse (jeu persiste).
+ */
+export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
   const parUsage = Object.fromEntries(USAGES.map((u) => [u, 0])) as Record<Usage, number>;
   for (const l of jeu.lots) parUsage[l.usage] = (parUsage[l.usage] ?? 0) + 1;
 
@@ -122,7 +128,7 @@ export async function analyserPatrimoine(
     attributions: proprietaires.attributions,
   };
 
-  const recap = recapPourcentages(jeu);
+  const recap = calculerRecap(jeu);
   recap.notes = [...patrimoine.notes, ...proprietaires.notes];
   return { jeu, recap };
 }

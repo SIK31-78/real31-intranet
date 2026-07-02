@@ -12,8 +12,9 @@ import {
   ecritureEstaleReelle,
 } from "@/lib/reprise/adapters/router";
 import { obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
+import { calculerRecap } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import { avancement } from "@/lib/reprise/domain/dossier";
-import { FicheDossierReprise, type DossierFicheVue } from "./fiche-dossier-reprise";
+import { FicheDossierReprise, type DossierFicheVue, type AnalyseInitiale } from "./fiche-dossier-reprise";
 
 export const dynamic = "force-dynamic";
 
@@ -61,13 +62,25 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     journal: dossier.journal.map((j) => ({ date: j.date, texte: j.texte })),
   };
 
+  // Si le jeu est persiste, on rehydrate l'analyse cote client (recap recalcule depuis le
+  // jeu) : la fiche affiche directement les resultats et injection/production marchent SANS
+  // re-analyser. Les notes d'extraction ne sont pas conservees -> recap.notes vide (repli).
+  const analyseInitiale: AnalyseInitiale | null = dossier.jeu
+    ? { jeu: dossier.jeu, recap: calculerRecap(dossier.jeu) }
+    : null;
+
   const modeIa = modeExtraction();
   const persistant = reprisePersistanceSupabase();
   const ecritureReelle = ecritureEstaleReelle();
 
   return (
     <div className="flex flex-col gap-6">
-      <FicheDossierReprise dossier={vue} modeIa={modeIa} ecritureReelle={ecritureReelle} />
+      <FicheDossierReprise
+        dossier={vue}
+        analyseInitiale={analyseInitiale}
+        modeIa={modeIa}
+        ecritureReelle={ecritureReelle}
+      />
 
       <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
         {!persistant && (

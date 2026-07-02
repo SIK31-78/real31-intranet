@@ -9,6 +9,8 @@
 //
 // Degradation propre : si la table n'existe pas encore (42P01 / PGRST205 / schema cache),
 // la lecture renvoie vide et l'ecriture est un no-op silencieux (pas de crash de page).
+// Idem si la colonne jeu n'existe pas encore (ALTER pas lance) : lecture -> undefined,
+// ecriture -> no-op silencieux, pour que l'analyse marche AVANT la migration.
 
 import type { Dossier, StatutDossier } from "@/lib/reprise/domain/dossier";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
@@ -25,6 +27,21 @@ function tableAbsente(error: { code?: string; message: string }): boolean {
   );
 }
 
+/**
+ * true si l'erreur Supabase signale que la colonne jeu n'existe pas encore (ALTER pas
+ * lance). Permet un no-op silencieux en ecriture pour que l'analyse marche AVANT la
+ * migration reprise_dossier_jeu.sql. Couvre le code Postgres 42703 (undefined_column)
+ * et les messages PostgREST ("could not find the 'jeu' column", schema cache).
+ */
+function colonneAbsente(error: { code?: string; message: string }): boolean {
+  return (
+    error.code === "42703" ||
+    (/column/i.test(error.message) && /does not exist/i.test(error.message)) ||
+    /could not find the 'jeu' column/i.test(error.message) ||
+    /schema cache/i.test(error.message)
+  );
+}
+
 interface LigneDossier {
   ref: string;
   nom_usuel: string;
@@ -34,6 +51,8 @@ interface LigneDossier {
   compteurs: Dossier["compteurs"] | null;
   anomalies: string[] | null;
   journal: Dossier["journal"] | null;
+  /** Peut etre absent si la colonne n'a pas encore ete creee (ALTER a la main). */
+  jeu?: Dossier["jeu"] | null;
 }
 
 function versDossier(l: LigneDossier): Dossier {
@@ -46,6 +65,7 @@ function versDossier(l: LigneDossier): Dossier {
     compteurs: l.compteurs ?? {},
     anomalies: l.anomalies ?? [],
     journal: l.journal ?? [],
+    ...(l.jeu ? { jeu: l.jeu } : {}),
   };
 }
 
@@ -59,6 +79,7 @@ function versLigne(d: Dossier): LigneDossier & { updated_at: string } {
     compteurs: d.compteurs,
     anomalies: d.anomalies,
     journal: d.journal,
+    jeu: d.jeu ?? null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -86,10 +107,23 @@ export class DossierRepositorySupabase implements DossierRepository {
 
   async sauver(dossier: Dossier): Promise<void> {
     const sb = createSupabasePublicClient();
-    const { error } = await sb.from(TABLE).upsert(versLigne(dossier), { onConflict: "ref" });
-    if (error && !tableAbsente(error)) {
-      throw new Error(`Reprise sauver dossier : ${error.message}`);
+    const ligne = versLigne(dossier);
+    const { error } = await sb.from(TABLE).upsert(ligne, { onConflict: "ref" });
+    if (!error) return;
+    if (tableAbsente(error)) return; // table pas encore creee : no-op silencieux
+    if (colonneAbsente(error)) {
+      // Colonne jeu absente (ALTER pas lance) : on rejoue SANS jeu pour que le reste
+      // (compteurs / anomalies / journal) persiste quand meme. Le jeu est simplement
+      // ignore jusqu'a la migration -> l'analyse marche sans l'ALTER.
+      const { jeu: _ignore, ...sansJeu } = ligne;
+      void _ignore;
+      const { error: err2 } = await sb.from(TABLE).upsert(sansJeu, { onConflict: "ref" });
+      if (err2 && !tableAbsente(err2)) {
+        throw new Error(`Reprise sauver dossier : ${err2.message}`);
+      }
+      return;
     }
+    throw new Error(`Reprise sauver dossier : ${error.message}`);
   }
 
   async supprimer(ref: string): Promise<void> {

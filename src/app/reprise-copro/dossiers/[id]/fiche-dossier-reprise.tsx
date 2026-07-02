@@ -139,20 +139,28 @@ interface Analyse {
   jeu: JeuDeDonnees;
 }
 
+// Analyse rehydratee cote serveur depuis le jeu persiste (dossier.jeu). Meme forme que
+// l'analyse de session : recap recalcule + jeu complet, pour injecter/produire directement.
+export type AnalyseInitiale = Analyse;
+
 export function FicheDossierReprise({
   dossier,
+  analyseInitiale,
   modeIa,
   ecritureReelle,
 }: {
   dossier: DossierFicheVue;
+  analyseInitiale: AnalyseInitiale | null;
   modeIa: "claude" | "claude-cli" | "mistral" | "mock";
   ecritureReelle: boolean;
 }) {
   const pct = Math.round(dossier.avancement * 100);
 
-  // Session : le recap + jeu vivent cote client apres une analyse (l'etat memoire ne
-  // persiste pas le jeu). Necessaire pour injecter / produire tant que la session dure.
-  const [analyse, setAnalyse] = useState<Analyse | null>(null);
+  // Le recap + jeu vivent cote client apres une analyse. Initialise avec le jeu PERSISTE
+  // (analyseInitiale) s'il existe : la vue ResultatsAnalyse s'affiche des l'ouverture et
+  // injection/production marchent SANS re-analyser. Sinon null (jamais analyse dans un
+  // adapter qui persiste le jeu).
+  const [analyse, setAnalyse] = useState<Analyse | null>(analyseInitiale);
 
   // Etapes de SUIVI HUMAIN uniquement (Verification / Comptabilite / Mise en service +
   // la finalisation P5), groupees par phase dans l'ordre canonique.

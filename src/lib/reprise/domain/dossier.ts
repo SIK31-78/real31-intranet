@@ -6,6 +6,8 @@
 // La nomenclature des etapes (P1..P5, V1..V4, C1..C6, cloture) reprend les fiches
 // S0XXX du vault Obsidian, pour une continuite directe avec l'existant. Pur, testable.
 
+import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
+
 /** Grandes phases du flux d'onboarding, dans l'ordre. */
 export const PHASES = [
   "OFFRE", // prospection, mandat (placeholder MVP)
@@ -63,6 +65,12 @@ export interface Dossier {
   /** Anomalies actionnables (synthese de l'orchestrateur + saisies manuelles). */
   anomalies: string[];
   journal: EntreeJournal[];
+  /**
+   * Jeu de donnees extrait par l'analyse (lots / cles / tantiemes / owners / attributions).
+   * Persiste pour rehydrater la fiche a l'ouverture SANS re-analyser (injection / production
+   * possibles directement). Optionnel : absent tant qu'aucune analyse n'a ete lancee.
+   */
+  jeu?: JeuDeDonnees;
 }
 
 /** Checklist par defaut d'un nouveau dossier (nomenclature des fiches S0XXX). */
