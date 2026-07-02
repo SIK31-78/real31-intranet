@@ -33,7 +33,10 @@ export function proxy(req: NextRequest) {
   });
 }
 
-// Tout est protege sauf les assets statiques de Next.
+// Tout est protege sauf les assets statiques de Next ET la route d'upload/analyse reprise :
+// celle-ci recoit des PDF volumineux (multipart, >4 Mo) et le middleware en runtime Edge
+// tronque les gros bodies qui le traversent (-> "Failed to parse body as FormData"). Elle fait
+// deja sa propre auth (getGestionnaireCourant), le gate global n'est donc pas necessaire.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/reprise/analyser).*)"],
 };
