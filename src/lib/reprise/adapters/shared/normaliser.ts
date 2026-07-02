@@ -56,6 +56,18 @@ const OwnerBrut = z.object({
   capital: optNum,
   naissance: optStr,
   email: optStr,
+  // Adresse postale (souvent presente sur la feuille de presence). Objet optionnel :
+  // chaque sous-champ est optionnel, l'objet entier peut manquer.
+  adresse: z
+    .object({
+      num: optStr,
+      voie: optStr,
+      complement: optStr,
+      codePostal: optStr,
+      ville: optStr,
+      pays: optStr,
+    })
+    .optional(),
   notes: optStr,
 });
 
@@ -113,6 +125,12 @@ export function normaliserProprietaires(brut: unknown): ResultatProprietaires {
     capital: o.capital,
     naissance: o.naissance,
     email: o.email,
+    adrNum: o.adresse?.num,
+    adrVoie: o.adresse?.voie,
+    adrComplement: o.adresse?.complement,
+    adrCodePostal: o.adresse?.codePostal,
+    adrVille: o.adresse?.ville,
+    paysAdresse: o.adresse?.pays,
     commentaire: o.notes,
   }));
   const attributions: Attribution[] = p.attributions.map((a) => ({ ownerId: a.ownerId.trim(), lot: a.lot }));

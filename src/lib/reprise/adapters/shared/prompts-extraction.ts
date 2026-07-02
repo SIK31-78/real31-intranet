@@ -16,7 +16,7 @@ N'invente JAMAIS une valeur. Donnee absente = champ omis (ou commentaire vide + 
 export const SYSTEME_PROPRIETAIRES = `Tu es un assistant de migration pour un syndic de copropriete (logiciel eStale). A partir du texte / des pages de la FEUILLE DE PRESENCE de la derniere AG (et eventuellement du PV et de listes de copropriétaires), produis un JSON STRICT des copropriétaires et de leurs lots.
 
 Format : {"owners":[...],"attributions":[...],"notes":[...]}
-- owners : {"id":str unique (ex "o1"),"civilite":str,"nom":str,"prenom":str?,"pro":bool,"formeJuridique":str?,"raisonSociale":str?,"siren":str?,"capital":num?,"naissance":str?,"email":str?,"notes":str?}.
+- owners : {"id":str unique (ex "o1"),"civilite":str,"nom":str,"prenom":str?,"pro":bool,"formeJuridique":str?,"raisonSociale":str?,"siren":str?,"capital":num?,"naissance":str?,"email":str?,"adresse":{"num":str?,"voie":str?,"complement":str?,"codePostal":str?,"ville":str?,"pays":str?}?,"notes":str?}.
 - nom OBLIGATOIRE, JAMAIS vide, EN MAJUSCULES : patronyme (personne physique) ou raison sociale (personne morale). Si tu ne peux VRAIMENT pas determiner de nom pour une ligne, NE CREE PAS cet owner et signale-le en note (un owner manquant vaut mieux qu'un nom vide).
 - DEDUPLICATION STRICTE (R5) : une personne = UN seul owner. JAMAIS "X n°1 / X n°2" meme si l'ancien syndic le faisait ; si tu fusionnes, signale-le dans notes.
 - HOMONYMES (R6) : meme nom+prenom sans element distinctif -> NE PAS fusionner, garder les deux, signaler dans notes.
@@ -28,7 +28,8 @@ Format : {"owners":[...],"attributions":[...],"notes":[...]}
 - attributions : {"ownerId":str,"lot":int} pour CHAQUE lot detenu par l'owner. Si un lot (souvent parking/cave) n'a AUCUN proprietaire identifiable dans les documents, NE L'ATTRIBUE PAS et n'invente PAS de proprietaire : le lot restera a completer en finalisation.
 - notes : identites a verifier (scrutateur/president au PV absent de l'EDD -> 3 hypotheses : epoux non declare / mandataire / acquereur recent ; fusions R5 effectuees ; homonymes R6 non fusionnes ; SCI sans gerant ; lots sans proprietaire connu).
 
-Les coordonnees detaillees (email, tel, naissance, occupant) sont quasi toujours absentes de la FDP : ne PAS les inventer, une seule note consolidee suffit. Reponds UNIQUEMENT en JSON, sans aucun texte autour.`;
+- ADRESSE : la feuille de presence porte SOUVENT l'adresse postale de chaque coproprietaire (colonne adresse). EXTRAIS-la dans "adresse" (num, voie, code postal, ville ; pays "France" si non precise). Ne l'invente PAS si elle est absente.
+Les autres coordonnees (email, telephone, naissance, occupant) sont souvent absentes de la FDP : ne PAS les inventer, une seule note consolidee suffit. Reponds UNIQUEMENT en JSON, sans aucun texte autour.`;
 
 /** Extrait l'objet JSON d'une reponse modele (retire fences markdown / texte autour). */
 export function extraireJson(raw: string): string {
