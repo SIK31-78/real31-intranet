@@ -28,8 +28,17 @@ export async function POST(req: Request) {
   let form: FormData;
   try {
     form = await req.formData();
-  } catch {
-    return NextResponse.json({ ok: false, message: "Requete invalide (multipart attendu)." }, { status: 400 });
+  } catch (e) {
+    // Diagnostic : on remonte le content-type, la taille et l'erreur reelle (le message
+    // generique masquait la cause - souvent un body trop volumineux ou un content-type absent).
+    const ct = req.headers.get("content-type") ?? "(absent)";
+    const cl = req.headers.get("content-length") ?? "(absent)";
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("[reprise/analyser] formData KO", { ct, cl, detail });
+    return NextResponse.json(
+      { ok: false, message: `Requete invalide. content-type=${ct} ; taille=${cl} octets ; erreur=${detail}` },
+      { status: 400 },
+    );
   }
 
   const dossierId = String(form.get("dossierId") ?? "").trim();
