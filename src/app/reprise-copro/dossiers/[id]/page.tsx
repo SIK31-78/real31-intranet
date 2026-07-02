@@ -64,10 +64,17 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
 
   // Si le jeu est persiste, on rehydrate l'analyse cote client (recap recalcule depuis le
   // jeu) : la fiche affiche directement les resultats et injection/production marchent SANS
-  // re-analyser. Les notes d'extraction ne sont pas conservees -> recap.notes vide (repli).
-  const analyseInitiale: AnalyseInitiale | null = dossier.jeu
-    ? { jeu: dossier.jeu, recap: calculerRecap(dossier.jeu) }
-    : null;
+  // re-analyser. Les notes d'extraction (le gros bloc de vigilance) ne sont PAS dans le jeu,
+  // mais ont ete persistees dans dossier.anomalies (appliquerRecap = notes + warnings). On les
+  // y relit en retirant les warnings deterministes (recalcules par calculerRecap) pour ne pas
+  // les afficher deux fois.
+  let analyseInitiale: AnalyseInitiale | null = null;
+  if (dossier.jeu) {
+    const recap = calculerRecap(dossier.jeu);
+    const warnings = new Set(recap.checks.warnings.map((w) => w.message));
+    recap.notes = dossier.anomalies.filter((a) => !warnings.has(a));
+    analyseInitiale = { jeu: dossier.jeu, recap };
+  }
 
   const modeIa = modeExtraction();
   const persistant = reprisePersistanceSupabase();
