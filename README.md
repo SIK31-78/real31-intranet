@@ -3,7 +3,7 @@
 Surcouche de coordination par-dessus eStale (et Crypto pendant la transition de 6 mois) pour le cabinet de syndic **REAL31**. Voir [`DECISIONS.md`](./DECISIONS.md) - **ADR-008** pour le périmètre exact.
 
 > **Si tu arrives sur ce projet, lis dans cet ordre :**
-> 1. [`DECISIONS.md`](./DECISIONS.md) - les 13 ADRs qui posent l'architecture
+> 1. [`DECISIONS.md`](./DECISIONS.md) - les ADR qui posent l'architecture
 > 2. [`ROADMAP.md`](./ROADMAP.md) - l'état d'avancement et les jalons à venir
 > 3. [`real31-mockup.html`](./real31-mockup.html) - la référence UX (5 écrans)
 > 4. Les `README.md` à l'intérieur de `src/lib/*/` - rappel du rôle de chaque dossier
