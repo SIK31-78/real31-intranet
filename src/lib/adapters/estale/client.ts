@@ -44,7 +44,7 @@ async function login(): Promise<string> {
   return cookies.map((c) => c.split(";")[0]).join("; ");
 }
 
-type GqlReponse<T> = { data?: T; errors?: { message: string }[] };
+type GqlReponse<T> = { data?: T; errors?: { message: string; extensions?: unknown; path?: unknown }[] };
 
 /** Execute une query GraphQL Estale. Re-login automatique (une fois) sur 401/403. */
 export async function estaleGql<T>(
@@ -75,6 +75,14 @@ export async function estaleGql<T>(
 
   const corps = (await res.json()) as GqlReponse<T>;
   if (corps.errors?.length) {
+    // Le message affiche a l'humain reste generique (souvent un catch-all cote eStale) :
+    // on logge la requete + la reponse d'erreur COMPLETE (extensions, path) cote serveur
+    // pour pouvoir diagnostiquer sans deviner.
+    console.error("[estale/client] erreur GraphQL", {
+      query: query.slice(0, 200),
+      variables,
+      errors: corps.errors,
+    });
     throw new EstaleError(`GraphQL Estale : ${corps.errors.map((e) => e.message).join(" ; ")}`);
   }
   if (corps.data === undefined) throw new EstaleError("GraphQL Estale : reponse sans data");
