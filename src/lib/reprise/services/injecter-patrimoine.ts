@@ -101,6 +101,10 @@ export async function injecterPatrimoine(
 
   const compteurs = { lots: 0, cles: 0, tantiemes: 0, owners: 0, links: 0 };
   let seq = 0;
+  // Operation sur le point d'etre tentee : mise a jour AVANT chaque appel reseau, pour que
+  // le catch pointe la vraie operation fautive (et non la derniere reussie, qui induisait
+  // en erreur : un echec sur la 1re cle etait ainsi attribue au dernier lot cree).
+  let enCours: { mutation: OperationInjection["mutation"]; cibleDomaine: string } | undefined;
 
   const rapport = (succes: boolean, erreur?: RapportInjection["erreur"]): RapportInjection => ({
     condoID,
@@ -121,6 +125,7 @@ export async function injecterPatrimoine(
     // 1) LOTS -----------------------------------------------------------------
     for (const lot of jeu.lots) {
       const input = mapLot(lot, avertissements);
+      enCours = { mutation: "createLot", cibleDomaine: `lot ${lot.numero}` };
       const { id, reference } = await provider.creerLot(condoID, input);
       lotParNum.set(String(lot.numero), id);
       rollback.push({ type: "lot", id, cibleDomaine: `lot ${lot.numero}` });
@@ -136,6 +141,7 @@ export async function injecterPatrimoine(
     // 2) CLES -----------------------------------------------------------------
     for (const cle of jeu.cles) {
       const input = mapCle(cle);
+      enCours = { mutation: "createDK", cibleDomaine: `cle ${cle.code}` };
       const { id, code } = await provider.creerCle(condoID, input);
       cleParCode.set(cle.code, id);
       rollback.push({ type: "cle", id, cibleDomaine: `cle ${cle.code}` });
@@ -154,6 +160,7 @@ export async function injecterPatrimoine(
       const lotID = lotParNum.get(String(tant.lot));
       if (!dkID) throw new Error(`tantieme : cle "${tant.cleCode}" non capturee (dkID introuvable).`);
       if (!lotID) throw new Error(`tantieme : lot "${tant.lot}" non capture (lotID introuvable).`);
+      enCours = { mutation: "upsertLot", cibleDomaine: `cle ${tant.cleCode} / lot ${tant.lot} = ${tant.valeur}` };
       await provider.poserTantieme(dkID, lotID, tant.valeur);
       operations.push({
         seq: ++seq,
@@ -166,6 +173,7 @@ export async function injecterPatrimoine(
     // 4) OWNERS ---------------------------------------------------------------
     for (const owner of jeu.owners) {
       const { owner: ownerInput, address } = mapOwner(owner, avertissements, adresseCopro);
+      enCours = { mutation: "createOwner", cibleDomaine: `owner ${owner.id}` };
       const { id, reference } = await provider.creerOwner(condoID, ownerInput, address);
       ownerParId.set(owner.id, id);
       rollback.push({ type: "owner", id, cibleDomaine: `owner ${owner.id}` });
@@ -189,6 +197,7 @@ export async function injecterPatrimoine(
       const lotID = lotParNum.get(String(numLot));
       if (!lotID) throw new Error(`link : lot "${numLot}" non capture (lotID introuvable).`);
       const data = construireLiensLot(attrs, ownerParId, avertissements);
+      enCours = { mutation: "upsertOwner", cibleDomaine: `lot ${numLot} <- ${data.length} owner(s)` };
       await provider.relierOwnerAuLot(lotID, data);
       operations.push({
         seq: ++seq,
@@ -201,10 +210,9 @@ export async function injecterPatrimoine(
     return rapport(true);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    const derniere = operations[operations.length - 1];
     return rapport(false, {
-      operation: derniere?.mutation ?? "(avant 1re operation)",
-      cibleDomaine: derniere?.cibleDomaine ?? "-",
+      operation: enCours?.mutation ?? "(avant 1re operation)",
+      cibleDomaine: enCours?.cibleDomaine ?? "-",
       message,
     });
   }
