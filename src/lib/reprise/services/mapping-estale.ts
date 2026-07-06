@@ -201,6 +201,19 @@ export function mapCle(cle: Cle, avertissements: AvertissementMapping[]): DKInpu
 const REPRESENTANT_DEFAUT = "SERVICE SYNDIC";
 /** Limite eStale sur AddressInput.housenumber (verifiee via l'UI : "176 BIS" -> "176 B"). */
 const LIMITE_NUM_ADRESSE = 5;
+
+/**
+ * Decoupe un numero de voie brut ("176 BIS") en numero pur ("176") + suffixe ("BIS").
+ * housenumber ne doit porter QUE le numero (limite eStale, cf. LIMITE_NUM_ADRESSE) : le
+ * suffixe (bis/ter/quater...) est reporte en tete de la voie plutot que tronque/perdu.
+ */
+function decouperNumeroVoie(adrNum: string): { numero: string; suffixe?: string } {
+  const m = adrNum.trim().match(/^(\d+)\s*(.*)$/);
+  if (!m) return { numero: adrNum.trim() };
+  const numero = m[1]!;
+  const suffixe = m[2]!.trim();
+  return suffixe ? { numero, suffixe } : { numero };
+}
 export function mapOwner(
   owner: Owner,
   avertissements: AvertissementMapping[],
@@ -259,13 +272,19 @@ export function mapOwner(
   }
 
   let housenumber = owner.adrNum;
-  if (housenumber && housenumber.length > LIMITE_NUM_ADRESSE) {
-    const original = housenumber;
-    housenumber = housenumber.slice(0, LIMITE_NUM_ADRESSE).trim();
-    avertissements.push({
-      code: "MAP_OWNER_NUM_TRONQUE",
-      message: `Owner "${owner.id}" : numero de voie "${original}" tronque a ${LIMITE_NUM_ADRESSE} caracteres ("${housenumber}") - a completer/verifier.`,
-    });
+  let street = owner.adrVoie;
+  if (housenumber) {
+    const { numero, suffixe } = decouperNumeroVoie(housenumber);
+    housenumber = numero;
+    if (suffixe) street = street ? `${suffixe} ${street}` : suffixe;
+    if (housenumber.length > LIMITE_NUM_ADRESSE) {
+      const original = housenumber;
+      housenumber = housenumber.slice(0, LIMITE_NUM_ADRESSE).trim();
+      avertissements.push({
+        code: "MAP_OWNER_NUM_TRONQUE",
+        message: `Owner "${owner.id}" : numero de voie "${original}" tronque a ${LIMITE_NUM_ADRESSE} caracteres ("${housenumber}") - a completer/verifier.`,
+      });
+    }
   }
 
   const addressInput: AddressInputEstale = {
@@ -273,7 +292,7 @@ export function mapOwner(
     city,
     country,
     ...(housenumber ? { housenumber } : {}),
-    ...(owner.adrVoie ? { street: owner.adrVoie } : {}),
+    ...(street ? { street } : {}),
     ...(owner.adrComplement ? { addressL2: owner.adrComplement } : {}),
   };
 

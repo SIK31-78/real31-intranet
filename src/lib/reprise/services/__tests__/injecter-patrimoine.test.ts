@@ -296,8 +296,9 @@ describe("injecterPatrimoine (dry-run)", () => {
     expect(rapport.avertissements.map((a) => a.code)).toContain("MAP_OWNER_REPRESENTANT_DEFAUT");
   });
 
-  it("tronque le numero de voie d'un owner a 5 caracteres (limite eStale)", async () => {
-    // Incident reel : eStale tronque "176 BIS" en "176 B" (constate via l'UI).
+  it("decoupe le numero de voie : le numero pur va en housenumber, le suffixe (BIS/TER) rejoint la voie", async () => {
+    // eStale limite housenumber a 5 car (constate via l'UI, "176 BIS" -> "176 B" tronque) :
+    // on isole le numero ("176") et on reporte "BIS" en tete de la voie, sans rien perdre.
     const provider = new DryRunEstaleEcritureProvider();
     const jeu: JeuDeDonnees = {
       lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
@@ -310,7 +311,24 @@ describe("injecterPatrimoine (dry-run)", () => {
 
     expect(rapport.succes).toBe(true);
     const owner = provider.journal.find((e) => e.type === "creerOwner");
-    expect(owner?.address.housenumber).toBe("176 B");
+    expect(owner?.address.housenumber).toBe("176");
+    expect(owner?.address.street).toBe("BIS RUE GALLIENI");
+    expect(rapport.avertissements.map((a) => a.code)).not.toContain("MAP_OWNER_NUM_TRONQUE");
+  });
+
+  it("tronque quand meme si le numero pur (sans suffixe) depasse 5 caracteres (garde-fou de secours)", async () => {
+    const provider = new DryRunEstaleEcritureProvider();
+    const jeu: JeuDeDonnees = {
+      lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
+      cles: [{ code: "001", libelle: "Charges generales", totalAttendu: 100, defaut: true }],
+      tantiemes: [{ cleCode: "001", lot: 1, valeur: 100 }],
+      owners: [{ id: "a", civilite: "m", nom: "A", pro: false, adrNum: "123456", adrVoie: "RUE X" }],
+      attributions: [{ ownerId: "a", lot: 1 }],
+    };
+    const rapport = await injecterPatrimoine(provider, CONDO, jeu, undefined, "dk#defaut-42");
+
+    const owner = provider.journal.find((e) => e.type === "creerOwner");
+    expect(owner?.address.housenumber).toBe("12345");
     expect(rapport.avertissements.map((a) => a.code)).toContain("MAP_OWNER_NUM_TRONQUE");
   });
 });
