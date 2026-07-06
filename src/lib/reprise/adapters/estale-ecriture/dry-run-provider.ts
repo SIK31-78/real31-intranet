@@ -19,7 +19,7 @@ import type {
 
 /** Une entree du journal dry-run (trace lisible de ce qui aurait ete envoye a eStale). */
 export type EntreeJournal =
-  | { type: "creerCopro"; input: CondoCreateInputEstale; sortie: { id: string } }
+  | { type: "creerCopro"; input: CondoCreateInputEstale; sortie: { id: string; mainDKID: string } }
   | { type: "creerLot"; condoID: string; input: LotInputEstale; sortie: { id: string; reference: string } }
   | { type: "creerCle"; condoID: string; input: DKInputEstale; sortie: { id: string; code: string } }
   | { type: "poserTantieme"; dkID: string; lotID: string; share: number }
@@ -50,9 +50,10 @@ export class DryRunEstaleEcritureProvider implements EstaleEcritureProvider {
     return `${prefixe}${String(n).padStart(3, "0")}`;
   }
 
-  async creerCopro(input: CondoCreateInputEstale): Promise<{ id: string }> {
-    // Id deterministe : une seule copro par deroulement dry-run.
-    const sortie = { id: "condo#dry" };
+  async creerCopro(input: CondoCreateInputEstale): Promise<{ id: string; mainDKID: string }> {
+    // Id deterministe : une seule copro par deroulement dry-run. mainDKID simule la cle
+    // "Charges generales" qu'eStale cree automatiquement (a reutiliser, jamais recreee).
+    const sortie = { id: "condo#dry", mainDKID: "dk#defaut-dry" };
     this.journal.push({ type: "creerCopro", input, sortie });
     return sortie;
   }

@@ -23,7 +23,7 @@ import type {
 } from "@/lib/reprise/ports/estale-ecriture-provider";
 
 // --- Mutations (verifiees ; NE PAS deviner) --------------------------------
-const M_CREATE_CONDO = `mutation($input:CondoCreateInput!){ createCondo(input:$input){ id } }`;
+const M_CREATE_CONDO = `mutation($input:CondoCreateInput!){ createCondo(input:$input){ id mainDKID } }`;
 const M_CREATE_LOT = `mutation($condoID:ID!,$input:LotInput!){ createLot(condoID:$condoID,input:$input){ id reference } }`;
 const M_CREATE_DK = `mutation($condoID:ID!,$input:DKInput!){ createDK(condoID:$condoID,input:$input){ id code } }`;
 const M_UPSERT_TANTIEME = `mutation($dkID:ID!,$lotID:ID!,$share:Int!){ updateDK(id:$dkID){ upsertLot(lotID:$lotID,share:$share){ value } } }`;
@@ -38,7 +38,7 @@ const M_UPSERT_OWNER = `mutation($lotID:ID!,$data:[LotOwnerInput!]!){ updateLot(
 const ESPACEMENT_MIN_MS = 25;
 
 /** Formes des reponses GraphQL (on ne lit que les champs utiles). */
-type CreateCondoData = { createCondo: { id: string } };
+type CreateCondoData = { createCondo: { id: string; mainDKID: string } };
 type CreateLotData = { createLot: { id: string; reference: string } };
 type CreateDKData = { createDK: { id: string; code: string } };
 type UpsertTantiemeData = { updateDK: { upsertLot: { value: number } } };
@@ -67,9 +67,9 @@ export class ReelEstaleEcritureProvider implements EstaleEcritureProvider {
     return estaleGql<T>(query, variables);
   }
 
-  async creerCopro(input: CondoCreateInputEstale): Promise<{ id: string }> {
+  async creerCopro(input: CondoCreateInputEstale): Promise<{ id: string; mainDKID: string }> {
     const data = await this.appel<CreateCondoData>(M_CREATE_CONDO, { input });
-    return { id: data.createCondo.id };
+    return { id: data.createCondo.id, mainDKID: data.createCondo.mainDKID };
   }
 
   async creerLot(condoID: string, input: LotInputEstale): Promise<{ id: string; reference: string }> {

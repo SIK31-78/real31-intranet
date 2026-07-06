@@ -193,4 +193,48 @@ describe("injecterPatrimoine (dry-run)", () => {
     expect(rapport.compteurs.owners).toBe(0);
     expect(rapport.compteurs.links).toBe(0);
   });
+
+  it("l'erreur remontee pointe l'operation qui a REELLEMENT echoue (pas la derniere reussie)", async () => {
+    const jeu = await jeuMock();
+    // Provider qui casse a la creation de la 1re cle (pas d'owner) : le bug corrige
+    // attribuait a tort l'echec au dernier LOT cree (operation precedente reussie).
+    const provider = new DryRunEstaleEcritureProvider();
+    const casse = Object.assign(Object.create(Object.getPrototypeOf(provider)), provider, {
+      creerCle: async () => {
+        throw new Error("boom eStale cle");
+      },
+    });
+    const rapport = await injecterPatrimoine(casse, CONDO, jeu);
+
+    expect(rapport.succes).toBe(false);
+    expect(rapport.erreur?.operation).toBe("createDK");
+    expect(rapport.erreur?.cibleDomaine).toMatch(/^cle /);
+    expect(rapport.erreur?.message).toMatch(/boom eStale cle/);
+    // Les 3 lots sont bien dans le rollback (crees avant l'echec), aucune cle.
+    expect(rapport.rollback).toHaveLength(3);
+    expect(rapport.compteurs.cles).toBe(0);
+  });
+
+  it("reutilise la cle DEFAUT (mainDKID) au lieu de la recreer via createDK", async () => {
+    const provider = new DryRunEstaleEcritureProvider();
+    const jeu: JeuDeDonnees = {
+      lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
+      cles: [{ code: "001", libelle: "Charges generales", totalAttendu: 100, defaut: true }],
+      tantiemes: [{ cleCode: "001", lot: 1, valeur: 100 }],
+      owners: [{ id: "a", civilite: "m", nom: "A", pro: false }],
+      attributions: [{ ownerId: "a", lot: 1 }],
+    };
+    const rapport = await injecterPatrimoine(provider, CONDO, jeu, undefined, "dk#defaut-42");
+
+    expect(rapport.succes).toBe(true);
+    // Aucun appel createDK reel : le journal dry-run ne doit pas contenir de creerCle.
+    expect(provider.journal.filter((e) => e.type === "creerCle")).toHaveLength(0);
+    // La cle "001" est cablee sur le mainDKID fourni, pas sur un ID fabrique par creerCle.
+    expect(rapport.ids.cleParCode["001"]).toBe("dk#defaut-42");
+    // Le tantieme est bien pose sur ce meme dkID.
+    const tantiemes = provider.journal.filter((e) => e.type === "poserTantieme");
+    expect(tantiemes).toHaveLength(1);
+    expect(tantiemes[0]!.dkID).toBe("dk#defaut-42");
+    expect(rapport.compteurs.cles).toBe(1);
+  });
 });

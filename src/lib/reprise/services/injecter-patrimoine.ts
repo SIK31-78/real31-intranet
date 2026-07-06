@@ -90,6 +90,7 @@ export async function injecterPatrimoine(
   condoID: string,
   jeu: JeuDeDonnees,
   adresseCopro?: AddressInputEstale,
+  dkDefautID?: string,
 ): Promise<RapportInjection> {
   const operations: OperationInjection[] = [];
   const avertissements: AvertissementMapping[] = [];
@@ -139,7 +140,21 @@ export async function injecterPatrimoine(
     }
 
     // 2) CLES -----------------------------------------------------------------
+    // La cle "defaut" (charges generales) est creee AUTOMATIQUEMENT par eStale a la
+    // creation de la copro (mainDKID) : on la REUTILISE au lieu de la recreer, sinon
+    // conflit cote eStale (createDK plante avec un message generique).
     for (const cle of jeu.cles) {
+      if (cle.defaut && dkDefautID) {
+        cleParCode.set(cle.code, dkDefautID);
+        operations.push({
+          seq: ++seq,
+          mutation: "createDK",
+          cibleDomaine: `cle ${cle.code} (par defaut, reutilise la cle Charges generales creee par eStale)`,
+          resultat: { id: dkDefautID, code: cle.code },
+        });
+        compteurs.cles++;
+        continue;
+      }
       const input = mapCle(cle);
       enCours = { mutation: "createDK", cibleDomaine: `cle ${cle.code}` };
       const { id, code } = await provider.creerCle(condoID, input);

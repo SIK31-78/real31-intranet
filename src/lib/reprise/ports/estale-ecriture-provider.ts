@@ -142,10 +142,13 @@ export interface CondoCreateInputEstale {
  */
 export interface EstaleEcritureProvider {
   /**
-   * createCondo(CondoCreateInput) -> Condo! (on capture l'id). Cree la copro AVANT toute
-   * injection de patrimoine : le condoID retourne alimente ensuite lots/cles/owners.
+   * createCondo(CondoCreateInput) -> Condo! (on capture id + mainDKID). Cree la copro AVANT
+   * toute injection de patrimoine : le condoID alimente ensuite lots/cles/owners. eStale cree
+   * AUTOMATIQUEMENT une cle "Charges generales" par defaut a la creation : mainDKID en est
+   * l'ID, a reutiliser pour la cle "defaut" du jeu (ne JAMAIS la recreer via createDK, sinon
+   * conflit cote eStale).
    */
-  creerCopro(input: CondoCreateInputEstale): Promise<{ id: string }>;
+  creerCopro(input: CondoCreateInputEstale): Promise<{ id: string; mainDKID: string }>;
 
   /** createLot(condoID, LotInput) -> Lot! (on capture id + reference). */
   creerLot(condoID: string, input: LotInputEstale): Promise<{ id: string; reference: string }>;

@@ -60,13 +60,19 @@ export async function onboarderCopro(
 ): Promise<RapportOnboarding> {
   let condoID: string;
   let coproCreee = false;
+  // mainDKID : la cle "Charges generales" qu'eStale cree automatiquement a la creation de
+  // la copro. Non disponible si condoID etait deja fourni (copro deja existante, cle deja
+  // consommee ou geree ailleurs) : dans ce cas la cle "defaut" du jeu serait recreee (limite
+  // connue, non geree ici faute de query de lecture du condo dans le port actuel).
+  let mainDKID: string | undefined;
 
   if ("condoID" in cible) {
     condoID = cible.condoID;
   } else {
     try {
-      const { id } = await provider.creerCopro(cible.metadonnees);
+      const { id, mainDKID: dk } = await provider.creerCopro(cible.metadonnees);
       condoID = id;
+      mainDKID = dk;
       coproCreee = true;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -91,7 +97,7 @@ export async function onboarderCopro(
   }
 
   const adresseCopro = "metadonnees" in cible ? cible.metadonnees.address : undefined;
-  const injection = await injecterPatrimoine(provider, condoID, jeu, adresseCopro);
+  const injection = await injecterPatrimoine(provider, condoID, jeu, adresseCopro, mainDKID);
 
   return {
     coproCreee,
