@@ -189,11 +189,18 @@ export function mapCle(cle: Cle, avertissements: AvertissementMapping[]): DKInpu
  *     adresse incomplete passera peut-etre le mapping mais devra etre completee avant l'injection reelle.
  *
  * Personne morale (pro) : on remplit companyName/companyForm/companySiret/companyCapital
- * depuis raisonSociale/formeJuridique/siren/capital.
+ * depuis raisonSociale/formeJuridique/siren/capital. OwnerInput.firstname sert de
+ * "representant legal" pour une societe et est OBLIGATOIRE cote eStale (verifie via l'UI :
+ * une societe sans representant est refusee). Si aucun gerant/representant n'est identifie
+ * (owner.prenom absent), on utilise "SERVICE SYNDIC" par defaut (convention cabinet pour les
+ * bailleurs sociaux/personnes morales sans representant visible), avec avertissement.
  *
  * `adresseCopro` optionnelle : adresse de l'immeuble (AddressInput de createCondo), pour la
  * derivation resident ci-dessus. Absente -> comportement inchange (resident=false + avertissement).
  */
+const REPRESENTANT_DEFAUT = "SERVICE SYNDIC";
+/** Limite eStale sur AddressInput.housenumber (verifiee via l'UI : "176 BIS" -> "176 B"). */
+const LIMITE_NUM_ADRESSE = 5;
 export function mapOwner(
   owner: Owner,
   avertissements: AvertissementMapping[],
@@ -215,11 +222,20 @@ export function mapOwner(
     }
   }
 
+  let firstname = owner.prenom;
+  if (owner.pro && !firstname) {
+    firstname = REPRESENTANT_DEFAUT;
+    avertissements.push({
+      code: "MAP_OWNER_REPRESENTANT_DEFAUT",
+      message: `Owner "${owner.id}" : personne morale sans representant legal identifie -> "${REPRESENTANT_DEFAUT}" utilise par defaut (a completer si le gerant est connu).`,
+    });
+  }
+
   const ownerInput: OwnerInputEstale = {
     civility: mapCivilite(owner.civilite, avertissements),
     lastname: owner.nom,
     resident,
-    ...(owner.prenom ? { firstname: owner.prenom } : {}),
+    ...(firstname ? { firstname } : {}),
     ...(owner.naissance ? { birthDate: owner.naissance } : {}),
     ...(owner.lieuNaissance ? { birthPlace: owner.lieuNaissance } : {}),
     ...(owner.nationalite ? { birthCountry: owner.nationalite } : {}),
@@ -242,11 +258,21 @@ export function mapOwner(
     });
   }
 
+  let housenumber = owner.adrNum;
+  if (housenumber && housenumber.length > LIMITE_NUM_ADRESSE) {
+    const original = housenumber;
+    housenumber = housenumber.slice(0, LIMITE_NUM_ADRESSE).trim();
+    avertissements.push({
+      code: "MAP_OWNER_NUM_TRONQUE",
+      message: `Owner "${owner.id}" : numero de voie "${original}" tronque a ${LIMITE_NUM_ADRESSE} caracteres ("${housenumber}") - a completer/verifier.`,
+    });
+  }
+
   const addressInput: AddressInputEstale = {
     postcode,
     city,
     country,
-    ...(owner.adrNum ? { housenumber: owner.adrNum } : {}),
+    ...(housenumber ? { housenumber } : {}),
     ...(owner.adrVoie ? { street: owner.adrVoie } : {}),
     ...(owner.adrComplement ? { addressL2: owner.adrComplement } : {}),
   };

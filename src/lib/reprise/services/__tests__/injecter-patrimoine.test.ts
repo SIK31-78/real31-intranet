@@ -277,4 +277,40 @@ describe("injecterPatrimoine (dry-run)", () => {
     expect(creerCle?.input.comment).toBe(libelleLong.slice(80).trim());
     expect(rapport.avertissements.map((a) => a.code)).toContain("MAP_CLE_NOM_TRONQUE");
   });
+
+  it("une personne morale sans representant legal recoit 'SERVICE SYNDIC' par defaut", async () => {
+    // Incident reel : eStale refuse de creer une societe sans representant legal (firstname).
+    const provider = new DryRunEstaleEcritureProvider();
+    const jeu: JeuDeDonnees = {
+      lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
+      cles: [{ code: "001", libelle: "Charges generales", totalAttendu: 100, defaut: true }],
+      tantiemes: [{ cleCode: "001", lot: 1, valeur: 100 }],
+      owners: [{ id: "a", civilite: "m", nom: "IMMOBILIERE 3F", pro: true, raisonSociale: "IMMOBILIERE 3F", formeJuridique: "SA" }],
+      attributions: [{ ownerId: "a", lot: 1 }],
+    };
+    const rapport = await injecterPatrimoine(provider, CONDO, jeu, undefined, "dk#defaut-42");
+
+    expect(rapport.succes).toBe(true);
+    const owner = provider.journal.find((e) => e.type === "creerOwner");
+    expect(owner?.owner.firstname).toBe("SERVICE SYNDIC");
+    expect(rapport.avertissements.map((a) => a.code)).toContain("MAP_OWNER_REPRESENTANT_DEFAUT");
+  });
+
+  it("tronque le numero de voie d'un owner a 5 caracteres (limite eStale)", async () => {
+    // Incident reel : eStale tronque "176 BIS" en "176 B" (constate via l'UI).
+    const provider = new DryRunEstaleEcritureProvider();
+    const jeu: JeuDeDonnees = {
+      lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
+      cles: [{ code: "001", libelle: "Charges generales", totalAttendu: 100, defaut: true }],
+      tantiemes: [{ cleCode: "001", lot: 1, valeur: 100 }],
+      owners: [{ id: "a", civilite: "m", nom: "A", pro: false, adrNum: "176 BIS", adrVoie: "RUE GALLIENI" }],
+      attributions: [{ ownerId: "a", lot: 1 }],
+    };
+    const rapport = await injecterPatrimoine(provider, CONDO, jeu, undefined, "dk#defaut-42");
+
+    expect(rapport.succes).toBe(true);
+    const owner = provider.journal.find((e) => e.type === "creerOwner");
+    expect(owner?.address.housenumber).toBe("176 B");
+    expect(rapport.avertissements.map((a) => a.code)).toContain("MAP_OWNER_NUM_TRONQUE");
+  });
 });
