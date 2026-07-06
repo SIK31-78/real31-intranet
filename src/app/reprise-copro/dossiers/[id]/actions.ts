@@ -9,8 +9,9 @@
 //
 // Deux familles d'actions :
 //   - SUIVI HUMAIN : majEtapeAction / ajouterNoteAction (cyclage de statut + journal).
-//   - PATRIMOINE (pilote IA) : analyserAction (extraction + report dans le dossier via
-//     appliquerRecap), produireAction (xlsx de repli), injecterAction (dry-run eStale).
+//   - PATRIMOINE (pilote IA) : produireAction (xlsx de repli), injecterAction (dry-run ou
+//     REEL selon ESTALE_ECRITURE). L'ANALYSE vit dans la route POST /api/reprise/analyser
+//     (multipart natif, sans les limites body/serialisation des Server Actions).
 //
 // L'injection dry-run NE TOUCHE AUCUN RESEAU (adapter dry-run du routeur).
 
@@ -19,25 +20,13 @@ import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import {
   getRepriseDossierRepository,
-  getExtractionProvider,
   getEstaleEcritureProvider,
   ecritureEstaleReelle,
-  modeExtraction,
-  type ModeExtraction,
 } from "@/lib/reprise/adapters/router";
-import {
-  majEtape,
-  ajouterJournal,
-  appliquerRecap,
-} from "@/lib/reprise/services/suivi-dossier";
-import {
-  analyserPatrimoine,
-  produirePhaseABuffers,
-  type RecapPatrimoine,
-} from "@/lib/reprise/services/orchestrateur-patrimoine";
+import { majEtape, ajouterJournal } from "@/lib/reprise/services/suivi-dossier";
+import { produirePhaseABuffers } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import { onboarderCopro, type MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
 import { ETABLISSEMENT_IDS } from "@/lib/reprise/domain/etablissements";
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 
 export type ActionResultat = { ok: true } | { ok: false; message: string };
@@ -112,49 +101,8 @@ export async function ajouterNoteAction(dossierId: string, texte: string): Promi
 }
 
 // --- PATRIMOINE (pilote IA) -------------------------------------------------
-
-export type AnalyseResultat =
-  | { ok: true; recap: RecapPatrimoine; jeu: JeuDeDonnees; mode: ModeExtraction }
-  | { ok: false; message: string };
-
-/**
- * Analyse les documents deposes (extraction Agent 1 + 2 + auto-checks), PUIS reporte le
- * recap dans le dossier (appliquerRecap : compteurs + anomalies actionnables) et trace une
- * ligne de journal. Renvoie recap + jeu : le jeu reste cote client pour produire / injecter.
- */
-export async function analyserAction(dossierId: string, formData: FormData): Promise<AnalyseResultat> {
-  const idOk = z.string().trim().min(1).max(40).safeParse(dossierId);
-  if (!idOk.success) return { ok: false, message: "Dossier invalide." };
-
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour lancer une analyse." };
-
-  const files = formData.getAll("pdfs").filter((f): f is File => f instanceof File);
-  if (files.length === 0) return { ok: false, message: "Aucun PDF fourni." };
-  if (files.length > 50) return { ok: false, message: "Trop de fichiers (50 maximum)." };
-
-  const docs: DocumentSource[] = await Promise.all(
-    files.map(async (f) => ({ nom: f.name, contenu: new Uint8Array(await f.arrayBuffer()) })),
-  );
-
-  const repo = getRepriseDossierRepository();
-  try {
-    const { jeu, recap } = await analyserPatrimoine(getExtractionProvider(), docs);
-    // Reporte les compteurs + anomalies dans le dossier (le patrimoine devient des etats).
-    await appliquerRecap(repo, idOk.data, recap);
-    await ajouterJournal(
-      repo,
-      idOk.data,
-      new Date().toISOString(),
-      `Analyse des documents : ${recap.lots.total} lot(s), ${recap.cles.length} cle(s), ${recap.owners.total} coproprietaire(s).`,
-    );
-    revalidatePath(`/reprise-copro/dossiers/${idOk.data}`);
-    revalidatePath("/reprise-copro/dossiers");
-    return { ok: true, recap, jeu, mode: modeExtraction() };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant l'analyse." };
-  }
-}
+// L'ANALYSE des documents ne vit plus ici : c'est la route handler POST /api/reprise/analyser
+// (multipart natif, sans les limites body/serialisation des Server Actions).
 
 export type FichierProduit = { nom: string; base64: string };
 
