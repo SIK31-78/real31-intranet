@@ -137,15 +137,41 @@ export function mapLot(lot: Lot, avertissements: AvertissementMapping[]): LotInp
   };
 }
 
+/** Limite eStale sur DKInput.name (verifiee via l'UI : au-dela, l'API plante avec un message generique). */
+const LIMITE_NOM_CLE = 80;
+/** Limite eStale sur DKInput.comment. */
+const LIMITE_COMMENTAIRE_CLE = 500;
+
 /**
  * Cle (domaine) -> DKInput (eStale). DKInput.tantieme = TOTAL de la cle.
  * On prend totalAttendu (la somme EDD) comme total de la cle.
+ *
+ * GARDE-FOU : DKInput.name est limite a 80 caracteres cote eStale (au-dela, l'API renvoie
+ * une erreur generique non-actionnable plutot qu'un message de validation). Si le libelle
+ * depasse cette limite (l'extraction est censee deja produire un libelle court, mais un jeu
+ * deja persiste peut porter un libelle plus ancien, plus verbeux), on tronque et on reporte
+ * le reste dans "comment" (en le concatenant a un commentaire existant), avec avertissement.
  */
-export function mapCle(cle: Cle): DKInputEstale {
+export function mapCle(cle: Cle, avertissements: AvertissementMapping[]): DKInputEstale {
+  let name = cle.libelle;
+  let comment = cle.commentaire;
+  if (name.length > LIMITE_NOM_CLE) {
+    const reste = name.slice(LIMITE_NOM_CLE).trim();
+    name = name.slice(0, LIMITE_NOM_CLE).trim();
+    comment = comment ? `${reste} ${comment}` : reste;
+    avertissements.push({
+      code: "MAP_CLE_NOM_TRONQUE",
+      message: `Cle "${cle.code}" : libelle tronque a ${LIMITE_NOM_CLE} caracteres (le reste est passe en commentaire) - a valider.`,
+    });
+  }
+  if (comment && comment.length > LIMITE_COMMENTAIRE_CLE) {
+    comment = comment.slice(0, LIMITE_COMMENTAIRE_CLE);
+  }
   return {
-    name: cle.libelle,
+    name,
     code: cle.code,
     tantieme: cle.totalAttendu,
+    ...(comment ? { comment } : {}),
   };
 }
 

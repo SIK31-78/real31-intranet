@@ -255,4 +255,26 @@ describe("injecterPatrimoine (dry-run)", () => {
     expect(provider.journal.filter((e) => e.type === "creerCle")).toHaveLength(0);
     expect(rapport.ids.cleParCode["001"]).toBe("dk#defaut-42");
   });
+
+  it("tronque le libelle d'une cle a 80 caracteres (limite eStale) et reporte le reste en commentaire", async () => {
+    // Incident reel : eStale plante (message generique) si DKInput.name depasse 80 car.
+    const provider = new DryRunEstaleEcritureProvider();
+    const libelleLong =
+      "Chauffage / eau chaude-froide - frais communs repartis aux tantiemes, sans lot 1 (colonne 8)"; // 94 car
+    const jeu: JeuDeDonnees = {
+      lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
+      cles: [{ code: "701", libelle: libelleLong, totalAttendu: 100 }],
+      tantiemes: [{ cleCode: "701", lot: 1, valeur: 100 }],
+      owners: [{ id: "a", civilite: "m", nom: "A", pro: false }],
+      attributions: [{ ownerId: "a", lot: 1 }],
+    };
+    const rapport = await injecterPatrimoine(provider, CONDO, jeu);
+
+    expect(rapport.succes).toBe(true);
+    const creerCle = provider.journal.find((e) => e.type === "creerCle");
+    expect(creerCle?.input.name.length).toBeLessThanOrEqual(80);
+    expect(creerCle?.input.name).toBe(libelleLong.slice(0, 80));
+    expect(creerCle?.input.comment).toBe(libelleLong.slice(80).trim());
+    expect(rapport.avertissements.map((a) => a.code)).toContain("MAP_CLE_NOM_TRONQUE");
+  });
 });

@@ -61,11 +61,14 @@ export interface Lot {
 export interface Cle {
   /** 3 chiffres minimum, prefixe par 0 : "001", "100", "101", "200"... */
   code: string;
+  /** <= 80 car (limite eStale) : le libelle STRICT du RCP/de la compta, pas une paraphrase. */
   libelle: string;
   /** Total attendu (somme EDD). */
   totalAttendu: number;
   /** Cle des charges communes generales (cochee "Defaut" cote eStale). */
   defaut?: boolean;
+  /** <= 500 car. Precision complementaire si le libelle RCP depasse 80 car (rare). */
+  commentaire?: string;
 }
 
 /**

@@ -159,7 +159,7 @@ export async function injecterPatrimoine(
         compteurs.cles++;
         continue;
       }
-      const input = mapCle(cle);
+      const input = mapCle(cle, avertissements);
       enCours = { mutation: "createDK", cibleDomaine: `cle ${cle.code}` };
       const { id, code } = await provider.creerCle(condoID, input);
       cleParCode.set(cle.code, id);

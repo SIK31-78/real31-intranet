@@ -29,6 +29,7 @@ const CleBrute = z.object({
   libelle: z.coerce.string().default(""),
   totalAttendu: z.coerce.number(),
   defaut: z.coerce.boolean().optional(),
+  commentaire: optStr,
 });
 
 const TantiemeBrut = z.object({
@@ -101,6 +102,7 @@ export function normaliserPatrimoine(brut: unknown): ResultatPatrimoine {
     libelle: c.libelle,
     totalAttendu: c.totalAttendu,
     defaut: c.defaut,
+    commentaire: c.commentaire,
   }));
   const tantiemes: Tantieme[] = p.tantiemes.map((t) => ({
     cleCode: formaterCodeCle(t.cleCode),
