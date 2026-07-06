@@ -17,7 +17,7 @@
 // d'accroche pret pour l'implementation reelle.
 
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
-import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
+import type { AddressInputEstale, EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
 import {
   mapLot,
   mapCle,
@@ -89,6 +89,7 @@ export async function injecterPatrimoine(
   provider: EstaleEcritureProvider,
   condoID: string,
   jeu: JeuDeDonnees,
+  adresseCopro?: AddressInputEstale,
 ): Promise<RapportInjection> {
   const operations: OperationInjection[] = [];
   const avertissements: AvertissementMapping[] = [];
@@ -164,7 +165,7 @@ export async function injecterPatrimoine(
 
     // 4) OWNERS ---------------------------------------------------------------
     for (const owner of jeu.owners) {
-      const { owner: ownerInput, address } = mapOwner(owner, avertissements);
+      const { owner: ownerInput, address } = mapOwner(owner, avertissements, adresseCopro);
       const { id, reference } = await provider.creerOwner(condoID, ownerInput, address);
       ownerParId.set(owner.id, id);
       rollback.push({ type: "owner", id, cibleDomaine: `owner ${owner.id}` });

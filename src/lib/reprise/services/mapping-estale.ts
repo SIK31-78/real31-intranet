@@ -70,6 +70,32 @@ const CIVILITE_VERS_CIVILITY: Record<Civilite, CivilityEstale> = {
 /** Pays par defaut quand le domaine ne le porte pas (adresse souvent completee en P5). */
 const PAYS_DEFAUT = "France";
 
+/** Normalise une chaine pour comparaison d'adresse (minuscules, accents retires, espaces reduits). */
+function normaliserAdresse(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * true si l'adresse du owner correspond a celle de la copro (meme code postal + meme
+ * ville, et la voie de l'un contient celle de l'autre) : signe que le proprietaire habite
+ * son propre lot. Comparaison approximative (numeros de voie type "4-6" vs "4" tolerees) :
+ * sert a une DERIVATION non bloquante, jamais a une donnee certaine.
+ */
+export function adresseCorrespondCopro(owner: Owner, adresseCopro: AddressInputEstale): boolean {
+  if (!owner.adrCodePostal || !owner.adrVille) return false;
+  if (normaliserAdresse(owner.adrCodePostal) !== normaliserAdresse(adresseCopro.postcode)) return false;
+  if (normaliserAdresse(owner.adrVille) !== normaliserAdresse(adresseCopro.city)) return false;
+  const voieOwner = owner.adrVoie ? normaliserAdresse(owner.adrVoie) : "";
+  const voieCopro = adresseCopro.street ? normaliserAdresse(adresseCopro.street) : "";
+  if (!voieOwner || !voieCopro) return true; // CP + ville identiques deja un signal fort
+  return voieOwner.includes(voieCopro) || voieCopro.includes(voieOwner);
+}
+
 export function mapUsage(usage: Usage, avertissements: AvertissementMapping[]): LotCategoryEstale {
   const cat = USAGE_VERS_CATEGORY[usage];
   if (!cat) {
@@ -128,25 +154,39 @@ export function mapCle(cle: Cle): DKInputEstale {
  *
  * Champs eStale obligatoires ABSENTS du domaine, derives ici (a valider par un humain) :
  *   - OwnerInput.resident (Boolean!) : le domaine porte `occupant?: boolean|null` (Oui/Non/vide).
- *     On derive resident = (occupant === true). Un occupant inconnu (null/undefined) -> false
- *     (non resident par defaut, hypothese prudente) + avertissement.
+ *     On derive resident = (occupant === true). Si occupant est inconnu (null/undefined) ET
+ *     l'adresse de la copro est fournie : resident = true si l'adresse postale du owner
+ *     correspond a celle de l'immeuble (il habite alors son propre lot), sinon false.
+ *     Dans les deux cas c'est une DERIVATION signalee (a valider), jamais une certitude.
  *   - AddressInput.postcode / city / country (String!) : le domaine les a en optionnel.
  *     Si absents, on met "" (postcode/city) et PAYS_DEFAUT (country) + avertissement : une
  *     adresse incomplete passera peut-etre le mapping mais devra etre completee avant l'injection reelle.
  *
  * Personne morale (pro) : on remplit companyName/companyForm/companySiret/companyCapital
  * depuis raisonSociale/formeJuridique/siren/capital.
+ *
+ * `adresseCopro` optionnelle : adresse de l'immeuble (AddressInput de createCondo), pour la
+ * derivation resident ci-dessus. Absente -> comportement inchange (resident=false + avertissement).
  */
 export function mapOwner(
   owner: Owner,
   avertissements: AvertissementMapping[],
+  adresseCopro?: AddressInputEstale,
 ): { owner: OwnerInputEstale; address: AddressInputEstale } {
-  const resident = owner.occupant === true;
+  let resident = owner.occupant === true;
   if (owner.occupant === null || owner.occupant === undefined) {
-    avertissements.push({
-      code: "MAP_OWNER_RESIDENT_INCONNU",
-      message: `Owner "${owner.id}" : occupant inconnu -> resident=false par defaut (a valider).`,
-    });
+    if (adresseCopro && adresseCorrespondCopro(owner, adresseCopro)) {
+      resident = true;
+      avertissements.push({
+        code: "MAP_OWNER_RESIDENT_DERIVE",
+        message: `Owner "${owner.id}" : occupant inconnu, adresse identique a la copro -> resident=true derive (a valider).`,
+      });
+    } else {
+      avertissements.push({
+        code: "MAP_OWNER_RESIDENT_INCONNU",
+        message: `Owner "${owner.id}" : occupant inconnu -> resident=false par defaut (a valider).`,
+      });
+    }
   }
 
   const ownerInput: OwnerInputEstale = {

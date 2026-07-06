@@ -90,7 +90,8 @@ export async function onboarderCopro(
     }
   }
 
-  const injection = await injecterPatrimoine(provider, condoID, jeu);
+  const adresseCopro = "metadonnees" in cible ? cible.metadonnees.address : undefined;
+  const injection = await injecterPatrimoine(provider, condoID, jeu, adresseCopro);
 
   return {
     coproCreee,
