@@ -51,8 +51,16 @@ data/seed/local/
 # Triage reel du cockpit Mes emails (PII coproprietaires, produit par assistant-ia)
 data/mes-emails-triage.json
 
-# Tout export depose a la racine de data/ = Crypto / PII coproprietaires (identites,
-# emails, mandats, lots...) -> JAMAIS commit. Les samples anonymises vont dans data/samples/.
+# Tout export depose dans data/ (racine ET sous-dossiers) = Crypto / PII coproprietaires
+# (identites, emails, mandats, lots...) -> JAMAIS commit. Regle RECURSIVE : l'audit pre-prod
+# 2026-07-06 a montre que data/*.csv (non recursif) laissait passer data/Export crypto/*.csv.
+# Les samples anonymises vont dans data/samples/ (a re-autoriser explicitement si besoin).
+data/**/*.json
+data/**/*.txt
+data/**/*.csv
+data/**/*.pdf
+data/**/*.doc
+data/**/*.docx
 data/*.json
 data/*.txt
 data/*.csv
