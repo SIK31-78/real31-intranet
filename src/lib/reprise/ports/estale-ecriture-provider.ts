@@ -156,6 +156,14 @@ export interface EstaleEcritureProvider {
   /** createDK(condoID, DKInput) -> DistributionKeys! (on capture id + code). */
   creerCle(condoID: string, input: DKInputEstale): Promise<{ id: string; code: string }>;
 
+  /**
+   * updateDK(id).update(DKInput) -> DistributionKeys! : corrige nom/code/tantieme d'une cle
+   * DEJA existante. Sert a mettre a jour la cle "Charges generales" auto-creee par eStale
+   * (mainDKID, reutilisee plutot que recreee) : elle porte un tantieme place-holder (ex. 1)
+   * tant qu'on ne l'aligne pas sur le vrai total EDD.
+   */
+  mettreAJourCle(dkID: string, input: DKInputEstale): Promise<void>;
+
   /** updateDK(dkID).upsertLot(lotID, share) : pose un tantieme granulaire (un appel par (cle, lot)). */
   poserTantieme(dkID: string, lotID: string, share: number): Promise<void>;
 

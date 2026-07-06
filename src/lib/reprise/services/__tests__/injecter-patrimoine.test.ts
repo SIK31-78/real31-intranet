@@ -229,6 +229,12 @@ describe("injecterPatrimoine (dry-run)", () => {
     expect(rapport.succes).toBe(true);
     // Aucun appel createDK reel : le journal dry-run ne doit pas contenir de creerCle.
     expect(provider.journal.filter((e) => e.type === "creerCle")).toHaveLength(0);
+    // La cle auto-creee par eStale porte un tantieme place-holder : on la met a jour avec
+    // le vrai total EDD via updateDK.update, plutot que de la laisser telle quelle.
+    const maj = provider.journal.filter((e) => e.type === "mettreAJourCle");
+    expect(maj).toHaveLength(1);
+    expect(maj[0]!.dkID).toBe("dk#defaut-42");
+    expect(maj[0]!.input.tantieme).toBe(100);
     // La cle "001" est cablee sur le mainDKID fourni, pas sur un ID fabrique par creerCle.
     expect(rapport.ids.cleParCode["001"]).toBe("dk#defaut-42");
     // Le tantieme est bien pose sur ce meme dkID.

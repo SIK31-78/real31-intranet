@@ -22,6 +22,7 @@ export type EntreeJournal =
   | { type: "creerCopro"; input: CondoCreateInputEstale; sortie: { id: string; mainDKID: string } }
   | { type: "creerLot"; condoID: string; input: LotInputEstale; sortie: { id: string; reference: string } }
   | { type: "creerCle"; condoID: string; input: DKInputEstale; sortie: { id: string; code: string } }
+  | { type: "mettreAJourCle"; dkID: string; input: DKInputEstale }
   | { type: "poserTantieme"; dkID: string; lotID: string; share: number }
   | {
       type: "creerOwner";
@@ -71,6 +72,10 @@ export class DryRunEstaleEcritureProvider implements EstaleEcritureProvider {
     const sortie = { id: `cle#${this.nbCles}`, code: input.code };
     this.journal.push({ type: "creerCle", condoID, input, sortie });
     return sortie;
+  }
+
+  async mettreAJourCle(dkID: string, input: DKInputEstale): Promise<void> {
+    this.journal.push({ type: "mettreAJourCle", dkID, input });
   }
 
   async poserTantieme(dkID: string, lotID: string, share: number): Promise<void> {

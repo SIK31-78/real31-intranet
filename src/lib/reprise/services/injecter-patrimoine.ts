@@ -34,7 +34,7 @@ export interface OperationInjection {
   /** Numero d'ordre global (1-based) dans le plan. */
   seq: number;
   /** La mutation eStale appelee. */
-  mutation: "createLot" | "createDK" | "upsertLot" | "createOwner" | "upsertOwner";
+  mutation: "createLot" | "createDK" | "updateDK" | "upsertLot" | "createOwner" | "upsertOwner";
   /** Cle domaine concernee (num de lot, code de cle, id owner...) pour lisibilite. */
   cibleDomaine: string;
   /** ID/reference eStale capture(s) apres l'appel (undefined pour les upsert sans retour). */
@@ -149,11 +149,16 @@ export async function injecterPatrimoine(
     for (const cle of jeu.cles) {
       const estDefaut = cle.defaut === true || cle.code === "001";
       if (estDefaut && dkDefautID) {
+        // La cle auto-creee par eStale porte un tantieme place-holder (ex. 1) : on la met a
+        // jour avec le VRAI total EDD (mapCle applique aussi la troncature nom/commentaire).
+        const inputMaj = mapCle(cle, avertissements);
+        enCours = { mutation: "updateDK", cibleDomaine: `cle ${cle.code} (par defaut)` };
+        await provider.mettreAJourCle(dkDefautID, inputMaj);
         cleParCode.set(cle.code, dkDefautID);
         operations.push({
           seq: ++seq,
-          mutation: "createDK",
-          cibleDomaine: `cle ${cle.code} (par defaut, reutilise la cle Charges generales creee par eStale)`,
+          mutation: "updateDK",
+          cibleDomaine: `cle ${cle.code} (par defaut, reutilise la cle Charges generales creee par eStale, tantieme mis a jour a ${cle.totalAttendu})`,
           resultat: { id: dkDefautID, code: cle.code },
         });
         compteurs.cles++;

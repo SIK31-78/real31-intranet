@@ -26,6 +26,7 @@ import type {
 const M_CREATE_CONDO = `mutation($input:CondoCreateInput!){ createCondo(input:$input){ id mainDKID } }`;
 const M_CREATE_LOT = `mutation($condoID:ID!,$input:LotInput!){ createLot(condoID:$condoID,input:$input){ id reference } }`;
 const M_CREATE_DK = `mutation($condoID:ID!,$input:DKInput!){ createDK(condoID:$condoID,input:$input){ id code } }`;
+const M_UPDATE_DK = `mutation($dkID:ID!,$input:DKInput!){ updateDK(id:$dkID){ update(input:$input){ id } } }`;
 const M_UPSERT_TANTIEME = `mutation($dkID:ID!,$lotID:ID!,$share:Int!){ updateDK(id:$dkID){ upsertLot(lotID:$lotID,share:$share){ value } } }`;
 const M_CREATE_OWNER = `mutation($condoID:ID!,$input:OwnerInput!,$address:AddressInput!){ createOwner(condoID:$condoID,input:$input,address:$address){ id reference } }`;
 const M_UPSERT_OWNER = `mutation($lotID:ID!,$data:[LotOwnerInput!]!){ updateLot(id:$lotID){ upsertOwner(data:$data){ id } } }`;
@@ -41,6 +42,7 @@ const ESPACEMENT_MIN_MS = 25;
 type CreateCondoData = { createCondo: { id: string; mainDKID: string } };
 type CreateLotData = { createLot: { id: string; reference: string } };
 type CreateDKData = { createDK: { id: string; code: string } };
+type UpdateDKData = { updateDK: { update: { id: string } } };
 type UpsertTantiemeData = { updateDK: { upsertLot: { value: number } } };
 type CreateOwnerData = { createOwner: { id: string; reference: string } };
 type UpsertOwnerData = { updateLot: { upsertOwner: { id: string } } };
@@ -80,6 +82,10 @@ export class ReelEstaleEcritureProvider implements EstaleEcritureProvider {
   async creerCle(condoID: string, input: DKInputEstale): Promise<{ id: string; code: string }> {
     const data = await this.appel<CreateDKData>(M_CREATE_DK, { condoID, input });
     return { id: data.createDK.id, code: data.createDK.code };
+  }
+
+  async mettreAJourCle(dkID: string, input: DKInputEstale): Promise<void> {
+    await this.appel<UpdateDKData>(M_UPDATE_DK, { dkID, input });
   }
 
   async poserTantieme(dkID: string, lotID: string, share: number): Promise<void> {
