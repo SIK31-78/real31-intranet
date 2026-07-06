@@ -70,7 +70,10 @@ export const getGestionnaireCourant = cache(async (): Promise<Gestionnaire | nul
     return g ? { ...g, email } : null;
   }
 
-  // Fallback dev sans SSO : premier gestionnaire.
+  // Fallback dev sans SSO : premier gestionnaire. JAMAIS en production : un deploiement
+  // sans SSO configure servirait sinon toutes les routes a des ANONYMES sous l'identite
+  // d'un gestionnaire reel. En prod on retourne null (l'appelant renvoie 401 / redirige).
+  if (process.env.NODE_ENV === "production") return null;
   const tous = await repo.list();
   return tous[0] ?? null;
 });

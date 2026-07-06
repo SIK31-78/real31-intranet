@@ -21,6 +21,10 @@ import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Plafond de taille TOTALE des uploads : les PDF sont lus entierement en RAM le temps
+// de l'analyse, sans plafond un lot de gros scans pourrait faire tomber le process.
+const TAILLE_TOTALE_MAX_OCTETS = 40 * 1024 * 1024; // 40 Mo
+
 export async function POST(req: Request) {
   const g = await getGestionnaireCourant();
   if (!g) return NextResponse.json({ ok: false, message: "Session expiree : reconnecte-toi." }, { status: 401 });
@@ -50,9 +54,25 @@ export async function POST(req: Request) {
   if (files.length === 0) return NextResponse.json({ ok: false, message: "Aucun PDF fourni." }, { status: 400 });
   if (files.length > 50) return NextResponse.json({ ok: false, message: "Trop de fichiers (50 maximum)." }, { status: 400 });
 
-  const docs: DocumentSource[] = await Promise.all(
-    files.map(async (f) => ({ nom: f.name, contenu: new Uint8Array(await f.arrayBuffer()) })),
-  );
+  // Verifie la somme des tailles AVANT toute lecture (f.size vient du multipart, gratuit).
+  const totalOctets = files.reduce((somme, f) => somme + f.size, 0);
+  if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
+    const totalMo = Math.ceil(totalOctets / (1024 * 1024));
+    return NextResponse.json(
+      {
+        ok: false,
+        message: `Documents trop volumineux : ${totalMo} Mo au total, plafond 40 Mo. Retire des fichiers ou analyse en plusieurs fois.`,
+      },
+      { status: 400 },
+    );
+  }
+
+  // Lecture SEQUENTIELLE (pas de Promise.all) : lisse le pic memoire quand plusieurs
+  // gros PDF arrivent dans la meme requete.
+  const docs: DocumentSource[] = [];
+  for (const f of files) {
+    docs.push({ nom: f.name, contenu: new Uint8Array(await f.arrayBuffer()) });
+  }
 
   try {
     const { jeu, recap } = await analyserPatrimoine(getExtractionProvider(), docs);

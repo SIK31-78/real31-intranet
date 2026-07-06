@@ -44,7 +44,17 @@ export function modeExtraction(): ModeExtraction {
 
 /** Provider d'extraction du patrimoine, choisi selon l'environnement (cf. modeExtraction). */
 export function getExtractionProvider(): ExtractionProvider {
-  switch (modeExtraction()) {
+  const mode = modeExtraction();
+  // En production, le mock ne doit JAMAIS repondre a de vrais PDF : il renverrait la
+  // copro de demonstration comme si c'etait le resultat de l'analyse (donnees fausses,
+  // silencieusement). On prefere une erreur explicite ; modeExtraction() continue de
+  // retourner "mock" pour que les badges UI affichent l'etat reel de la config.
+  if (mode === "mock" && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Extraction IA non configuree en production : poser EXTRACTION_PROVIDER + la cle correspondante (ANTHROPIC_API_KEY ou MISTRAL_API_KEY).",
+    );
+  }
+  switch (mode) {
     case "claude-cli":
       return new ClaudeCliExtractionProvider();
     case "claude":
