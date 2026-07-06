@@ -33,6 +33,22 @@ export function mailModuleActif(): boolean {
   return process.env.MAIL_SOURCE === "graph";
 }
 
+// PILOTES du module mail : MAIL_SOURCE=graph est un interrupteur GLOBAL (il ouvre le
+// module a tous les gestionnaires). Pour un deploiement pilote (ex. Remi seul), on borne
+// en plus par MAIL_PILOTES = emails autorises, separes par des virgules. Absent/vide =
+// pas de restriction (dev local inchange).
+const MAIL_PILOTES = (process.env.MAIL_PILOTES ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+/** Le module mail est-il actif POUR ce gestionnaire (gate global + allowlist pilotes) ? */
+export function mailModuleActifPour(email: string | null | undefined): boolean {
+  if (!mailModuleActif()) return false;
+  if (MAIL_PILOTES.length === 0) return true;
+  return Boolean(email && MAIL_PILOTES.includes(email.toLowerCase()));
+}
+
 /** Email de la session SSO (null si SSO inactif ou non connecte). Memoise par requete
  *  (React.cache) -> auth() n'est lu qu'une fois par rendu, pas a chaque appel. */
 const emailSso = cache(async (): Promise<string | null> => {

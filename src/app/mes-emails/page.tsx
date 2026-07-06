@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
-import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
@@ -15,8 +15,9 @@ export const dynamic = "force-dynamic";
 export default async function MesEmailsPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  // Module grise en prod tant que la vraie boite n'est pas branchee (MAIL_SOURCE=graph).
-  if (!mailModuleActif()) redirect("/dashboard");
+  // Module grise en prod tant que la vraie boite n'est pas branchee (MAIL_SOURCE=graph),
+  // et reserve aux pilotes si MAIL_PILOTES est pose (deploiement pilote).
+  if (!mailModuleActifPour(g.email)) redirect("/dashboard");
   const data = await getMesEmails(g);
   const signatureHtml = await getSignatureGestionnaire(g);
 
