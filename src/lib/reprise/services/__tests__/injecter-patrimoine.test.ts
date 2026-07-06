@@ -237,4 +237,22 @@ describe("injecterPatrimoine (dry-run)", () => {
     expect(tantiemes[0]!.dkID).toBe("dk#defaut-42");
     expect(rapport.compteurs.cles).toBe(1);
   });
+
+  it("reutilise aussi la cle DEFAUT par repli sur le code 001 (sans flag 'defaut' explicite)", async () => {
+    // Cas d'un jeu extrait AVANT l'ajout du flag "defaut" au prompt (deja persiste) : le
+    // code "001" (convention cabinet = charges generales) doit suffire.
+    const provider = new DryRunEstaleEcritureProvider();
+    const jeu: JeuDeDonnees = {
+      lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
+      cles: [{ code: "001", libelle: "Charges generales", totalAttendu: 100 }], // pas de "defaut"
+      tantiemes: [{ cleCode: "001", lot: 1, valeur: 100 }],
+      owners: [{ id: "a", civilite: "m", nom: "A", pro: false }],
+      attributions: [{ ownerId: "a", lot: 1 }],
+    };
+    const rapport = await injecterPatrimoine(provider, CONDO, jeu, undefined, "dk#defaut-42");
+
+    expect(rapport.succes).toBe(true);
+    expect(provider.journal.filter((e) => e.type === "creerCle")).toHaveLength(0);
+    expect(rapport.ids.cleParCode["001"]).toBe("dk#defaut-42");
+  });
 });

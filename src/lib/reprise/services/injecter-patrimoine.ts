@@ -142,9 +142,13 @@ export async function injecterPatrimoine(
     // 2) CLES -----------------------------------------------------------------
     // La cle "defaut" (charges generales) est creee AUTOMATIQUEMENT par eStale a la
     // creation de la copro (mainDKID) : on la REUTILISE au lieu de la recreer, sinon
-    // conflit cote eStale (createDK plante avec un message generique).
+    // conflit cote eStale (createDK plante avec un message generique). Repli sur le code
+    // "001" (convention cabinet REAL31 = charges generales, verifiee sur tous les runs) si
+    // le flag "defaut" n'est pas present dans le jeu (ex. jeu extrait avant l'ajout du flag
+    // au prompt, deja persiste) : evite de dependre d'une re-analyse pour ce cas.
     for (const cle of jeu.cles) {
-      if (cle.defaut && dkDefautID) {
+      const estDefaut = cle.defaut === true || cle.code === "001";
+      if (estDefaut && dkDefautID) {
         cleParCode.set(cle.code, dkDefautID);
         operations.push({
           seq: ++seq,
