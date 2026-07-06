@@ -46,10 +46,12 @@ export class MockExtractionProvider implements ExtractionProvider {
   ) {}
 
   async extrairePatrimoine(_docs: DocumentSource[]): Promise<ResultatPatrimoine> {
+    void _docs;
     return this.patrimoine;
   }
 
   async extraireProprietaires(_docs: DocumentSource[]): Promise<ResultatProprietaires> {
+    void _docs;
     return this.proprietaires;
   }
 }

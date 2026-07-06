@@ -9,7 +9,7 @@
 // produit un avertissement (voir mapUsage / mapCivilite) que le service remonte dans le
 // RapportInjection ; on choisit un repli explicite (OTHER / M) plutot que d'echouer.
 
-import type { Lot, Owner, Tantieme, Attribution, Usage, Civilite } from "@/lib/reprise/domain/patrimoine";
+import type { Lot, Owner, Attribution, Usage, Civilite } from "@/lib/reprise/domain/patrimoine";
 import type {
   LotInputEstale,
   DKInputEstale,
