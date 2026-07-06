@@ -316,6 +316,25 @@ describe("injecterPatrimoine (dry-run)", () => {
     expect(rapport.avertissements.map((a) => a.code)).not.toContain("MAP_OWNER_NUM_TRONQUE");
   });
 
+  it("garde un numero COMPOSE ('64-66', plage d'adresse) entier - ne le scinde PAS en pseudo-suffixe", async () => {
+    // Incident reel : "-66" bascule a tort dans la voie ("BOULEVARD...") et l'a fait
+    // depasser sa limite de longueur cote eStale (extensions.field="street", code="lte").
+    const provider = new DryRunEstaleEcritureProvider();
+    const jeu: JeuDeDonnees = {
+      lots: [{ numero: 1, type: "Appartement", usage: "residential", commentaire: "x" }],
+      cles: [{ code: "001", libelle: "Charges generales", totalAttendu: 100, defaut: true }],
+      tantiemes: [{ cleCode: "001", lot: 1, valeur: 100 }],
+      owners: [{ id: "a", civilite: "m", nom: "A", pro: false, adrNum: "64-66", adrVoie: "BOULEVARD DE LA MISSION MARCHAND" }],
+      attributions: [{ ownerId: "a", lot: 1 }],
+    };
+    const rapport = await injecterPatrimoine(provider, CONDO, jeu, undefined, "dk#defaut-42");
+
+    expect(rapport.succes).toBe(true);
+    const owner = provider.journal.find((e) => e.type === "creerOwner");
+    expect(owner?.address.housenumber).toBe("64-66");
+    expect(owner?.address.street).toBe("BOULEVARD DE LA MISSION MARCHAND");
+  });
+
   it("tronque quand meme si le numero pur (sans suffixe) depasse 5 caracteres (garde-fou de secours)", async () => {
     const provider = new DryRunEstaleEcritureProvider();
     const jeu: JeuDeDonnees = {

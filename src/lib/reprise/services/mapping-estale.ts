@@ -206,13 +206,18 @@ const LIMITE_NUM_ADRESSE = 5;
  * Decoupe un numero de voie brut ("176 BIS") en numero pur ("176") + suffixe ("BIS").
  * housenumber ne doit porter QUE le numero (limite eStale, cf. LIMITE_NUM_ADRESSE) : le
  * suffixe (bis/ter/quater...) est reporte en tete de la voie plutot que tronque/perdu.
+ *
+ * Le "suffixe" deplace doit etre ALPHABETIQUE uniquement (bis/ter/quater...) : un numero
+ * COMPOSE comme "64-66" (plage d'adresse, chiffre-tiret-chiffre) reste ENTIER dans le
+ * numero, il n'est jamais scinde (incident reel : "-66" bascule a tort dans la voie a
+ * fait depasser sa limite de longueur cote eStale).
  */
 function decouperNumeroVoie(adrNum: string): { numero: string; suffixe?: string } {
-  const m = adrNum.trim().match(/^(\d+)\s*(.*)$/);
+  const m = adrNum.trim().match(/^(\d+)\s*([a-zA-Z].*)?$/);
   if (!m) return { numero: adrNum.trim() };
   const numero = m[1]!;
-  const suffixe = m[2]!.trim();
-  return suffixe ? { numero, suffixe } : { numero };
+  const suffixe = m[2]?.trim();
+  return suffixe ? { numero, suffixe } : { numero: adrNum.trim() };
 }
 export function mapOwner(
   owner: Owner,
