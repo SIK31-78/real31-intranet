@@ -23,6 +23,20 @@ function jjmmaaaa(iso?: string): string {
   return `${d}/${m}/${y}`;
 }
 
+/** Charge les donnees Estale, degrade sur DONNEES_ESTALE_VIDES si Estale tombe (meme
+ *  comportement que l'ancien try/catch inline, extrait pour paralleliser avec le reste). */
+async function chargerEstale(
+  code: string,
+): Promise<{ estale: DonneesEstaleCopro; estaleIndisponible: boolean }> {
+  try {
+    const donnees = await donneesCoproEstale(code);
+    return { estale: donnees ?? DONNEES_ESTALE_VIDES, estaleIndisponible: false };
+  } catch (err) {
+    console.warn(`[fiche-copro] Estale indisponible pour ${code} :`, (err as Error).message);
+    return { estale: DONNEES_ESTALE_VIDES, estaleIndisponible: true };
+  }
+}
+
 export async function getFicheCopro(
   code: string,
   gestionnaireId: string,
@@ -35,16 +49,15 @@ export async function getFicheCopro(
   // Donnees Estale : null si la copro n'est pas encore sur Estale -> bloc vide assume.
   // Si Estale tombe (5xx / timeout), on NE crashe PAS la fiche : on degrade sur le
   // referentiel et on signale l'indisponibilite (robustesse, source secondaire).
-  let estale = DONNEES_ESTALE_VIDES;
-  let estaleIndisponible = false;
-  try {
-    estale = (await donneesCoproEstale(code)) ?? DONNEES_ESTALE_VIDES;
-  } catch (err) {
-    estaleIndisponible = true;
-    console.warn(`[fiche-copro] Estale indisponible pour ${code} :`, (err as Error).message);
-  }
-
-  const tous = await getEvenements(gestionnaireId);
+  // Les 4 appels ci-dessous ne dependent que de copro/gestionnaireId (pas les uns des
+  // autres) -> parallelises. La tolerance aux pannes d'Estale (chargerEstale) est
+  // inchangee : elle ne rejette jamais, donc ne fait pas echouer le Promise.all.
+  const [{ estale, estaleIndisponible }, tous, jalons, compta] = await Promise.all([
+    chargerEstale(code),
+    getEvenements(gestionnaireId),
+    copro.prochaineAg ? getJalonRepository().getJalons(copro.code, copro.prochaineAg.date) : Promise.resolve([]),
+    copro.prochaineAg ? getEtatCompta(copro.code, copro.prochaineAg.date) : Promise.resolve(undefined),
+  ]);
   const prochains = prochainsEvenements(
     tous.filter((e) => e.coproCode === code),
     aujourdhuiISO,
@@ -83,18 +96,10 @@ export async function getFicheCopro(
   }
   const conformite = [...conformiteReferentiel, ...estale.conformite];
 
-  // Jalons de la prochaine AG (cibles calculees + etat persiste), si AG a venir.
-  const jalons = copro.prochaineAg
-    ? await getJalonRepository().getJalons(copro.code, copro.prochaineAg.date)
-    : [];
-
   // Parcours AG de la copro (meme logique que le dashboard) : l'etat "accompli" se
-  // deduit des jalons deja charges -> pas de requete supplementaire.
+  // deduit des jalons deja charges (Promise.all ci-dessus) -> pas de requete supplementaire.
   const accompli = new Set(jalons.filter((j) => j.statut === "accompli").map((j) => j.code));
   const parcours = construireLigne(copro, accompli, aujourdhuiISO)?.ligne;
-
-  // Etat compta de la prochaine AG (flags + notes), si une AG est datee.
-  const compta = copro.prochaineAg ? await getEtatCompta(copro.code, copro.prochaineAg.date) : undefined;
 
   return {
     copro,

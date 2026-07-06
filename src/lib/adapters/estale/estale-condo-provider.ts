@@ -263,10 +263,15 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       acc.exercices.find((e) => acc.periodCurrent && e.period[0] === acc.periodCurrent[0]) ??
       acc.exercices[0];
     const budgetPrevisionnel = exCourant?.budgetOrdinary?.amount;
-    const comptes = exCourant
-      ? await comptesExercice(condoId, exCourant.period)
-      : { eauIds: [], travauxVotes: [] };
-    const debiteurs = exCourant ? await debiteursExercice(condoId, exCourant.id, budgetPrevisionnel) : [];
+    // Comptes et debiteurs sont deux requetes independantes du meme exercice (debiteurs
+    // ne depend PAS du resultat de comptes) -> parallelisees. Eau depend de comptes.eauIds,
+    // donc reste sequentiel apres.
+    const [comptes, debiteurs] = exCourant
+      ? await Promise.all([
+          comptesExercice(condoId, exCourant.period),
+          debiteursExercice(condoId, exCourant.id, budgetPrevisionnel),
+        ])
+      : ([{ eauIds: [], travauxVotes: [] }, []] as [Comptes, DebiteurEstale[]]);
     const eau = await consommationEau(condoId, comptes.eauIds);
 
     return {

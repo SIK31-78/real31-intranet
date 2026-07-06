@@ -87,7 +87,11 @@ function versLigne(d: Dossier): LigneDossier & { updated_at: string } {
 export class DossierRepositorySupabase implements DossierRepository {
   async lister(): Promise<Dossier[]> {
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb.from(TABLE).select("*");
+    // Colonnes explicites SANS jeu : la page liste ne l'utilise pas et jeu (jsonb) est
+    // lourd (documents/donnees d'analyse). obtenir() ci-dessous continue de charger jeu.
+    const { data, error } = await sb
+      .from(TABLE)
+      .select("ref, nom_usuel, adresse, statut, etapes, compteurs, anomalies, journal");
     if (error) {
       if (tableAbsente(error)) return [];
       throw new Error(`Reprise lister dossiers : ${error.message}`);
