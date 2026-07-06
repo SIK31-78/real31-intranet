@@ -8,7 +8,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
-import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
   enregistrerBrouillon,
@@ -197,7 +197,9 @@ export async function creerDossierDepuisMailAction(
 export async function synchroniserAction(): Promise<void> {
   const g = await getGestionnaireCourant();
   if (!g) return;
-  if (!mailModuleActif()) return; // grise en prod tant que la boite n'est pas branchee
+  // Grise en prod tant que la boite n'est pas branchee, et reserve aux pilotes
+  // (MAIL_PILOTES) : un POST direct d'un non-pilote est refuse ici aussi.
+  if (!mailModuleActifPour(g.email)) return;
   await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
 }
