@@ -78,11 +78,10 @@ export async function estaleGql<T>(
     // Le message affiche a l'humain reste generique (souvent un catch-all cote eStale) :
     // on logge la requete + la reponse d'erreur COMPLETE (extensions, path) cote serveur
     // pour pouvoir diagnostiquer sans deviner.
-    console.error("[estale/client] erreur GraphQL", {
-      query: query.slice(0, 200),
-      variables,
-      errors: corps.errors,
-    });
+    console.error(
+      "[estale/client] erreur GraphQL",
+      JSON.stringify({ query: query.slice(0, 200), variables, errors: corps.errors }, null, 2),
+    );
     throw new EstaleError(`GraphQL Estale : ${corps.errors.map((e) => e.message).join(" ; ")}`);
   }
   if (corps.data === undefined) throw new EstaleError("GraphQL Estale : reponse sans data");
