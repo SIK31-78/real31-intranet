@@ -6,8 +6,9 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
-## 📍 État actuel - 2026-06-29
+## 📍 État actuel - 2026-07-08
 
+- **🔄 CHANTIER "DATES CS/AG A CONFIRMER" (demande patron, 2026-07-08, URGENT)** : 4 increments cadres. **INC. 1 LIVRE (`fdbe977`, local)** : statut de confirmation des dates CS/AG - poser/changer une date "prochaine" -> **a confirmer** (table native `intranet_confirmations_evenement`, **SQL A LANCER par Sekou**), bouton **Confirmer** sur la fiche (cloisonne, relit la date cote serveur), planning : libelle "AG a confirmer / AG confirmee" + bordure pointillee ; **AG passees de l'exercice comptable en cours MASQUEES du calendrier** (double condition patron, gere exercices a cheval, 13 tests domaine). **RESTE** : Inc. 2 = mail CS modele auto (import des listes de diffusion CS depuis `data/Export crypto/listes_diffusion_20260630.csv`, meme pattern que l'annuaire Crypto ; Mail.Send deja la) ; Inc. 3 = dashboard comptable (AG confirmees + preparation de compte ; decision : role comptable pour Romain - ADR-009) ; Inc. 4 = verif agenda collaborateurs + salles + ecriture multi-agendas -> **DEBLOQUE : `Calendars.ReadWrite` VERIFIE dans le token le 2026-07-08** (le DSI a fini par le poser) - reste a confirmer que le groupe Access Policy Exchange contient salles + boites des collaborateurs. NB : `Application.ReadWrite.All` + `AppRoleAssignment.ReadWrite.All` toujours sur l'app (retrait DSI toujours attendu).
 - **🗺️ CARTE DES BRANCHES & WORKTREES (lire en premier - mis à jour 2026-06-30)** : pour ne plus se perdre. **Tout le travail est préservé et poussé sur origin** ; rien n'est supprimé tant que ce n'est pas mergé dans le tronc.
   - **`increment/02-supabase`** = **LE TRONC** (déployé en prod via Vercel). Worktree `real31-02supabase`. Sécu (Vague 2 zod/IDOR, E1), perf, eStale cache, Mes emails (gaté), coffre, etc.
   - **`increment/05-sinistres`** = module **sinistre** (⏸️ en pause). Contient le tronc + le sinistre (`02` y est mergé). **Pas mergé au tronc.** Worktree retiré (le recréer pour reprendre : `git worktree add ../real31-sin increment/05-sinistres`).
