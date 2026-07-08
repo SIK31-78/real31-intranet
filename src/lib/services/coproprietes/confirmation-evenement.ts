@@ -36,9 +36,14 @@ export async function confirmerEvenement(
   if (!copro) return null;
   const date = type === "AG" ? copro.prochaineAg?.date : copro.prochaineCsDate;
   if (!date) return null;
+  // La confirmation porte sur le JOUR : on stocke / renvoie la date pure (inchange).
   await getConfirmationEvenementRepository().confirmer(coproCode, type, date, par);
-  // Projection Outlook : renomme l'evenement projete ("a confirmer" -> "confirmee").
-  // Degrade propre : n'empeche jamais la confirmation intranet.
-  await projeterEvenementOutlook(coproCode, type, date, "confirme", boite);
+  // Projection Outlook : recompose date + heure eventuelle pour garder l'evenement
+  // timed (l'heure vit dans le referentiel, pas dans la table confirmation).
+  const heure = type === "AG" ? copro.prochaineAg?.heure : copro.prochaineCsHeure;
+  const debut = heure ? `${date}T${heure}:00` : date;
+  // Renomme l'evenement projete ("a confirmer" -> "confirmee"). Degrade propre :
+  // n'empeche jamais la confirmation intranet.
+  await projeterEvenementOutlook(coproCode, type, debut, "confirme", boite);
   return date;
 }

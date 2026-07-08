@@ -14,8 +14,8 @@ import type { Copropriete } from "@/lib/domain/copropriete";
 const etat = vi.hoisted(() => {
   const confirmations = new Map<string, Record<string, unknown>>();
   const appels = {
-    creer: [] as { boite: string; sujet: string; debut: string }[],
-    patch: [] as { boite: string; eventId: string; titre?: string; date?: string }[],
+    creer: [] as { boite: string; sujet: string; debut: string; fin?: string }[],
+    patch: [] as { boite: string; eventId: string; titre?: string; debut?: string; fin?: string }[],
     suppr: [] as { boite: string; eventId: string }[],
     setDate: [] as unknown[],
   };
@@ -26,6 +26,8 @@ const etat = vi.hoisted(() => {
     cle,
     // Dates du referentiel copro (relues par confirmerEvenement cote serveur).
     datesCopro: { ag: undefined as string | undefined, cs: undefined as string | undefined },
+    // Heures de reunion du referentiel (accompagnent la date relue).
+    heuresCopro: { ag: undefined as string | undefined, cs: undefined as string | undefined },
     // Simule un Graph en panne (403 Access Policy, timeout...) : tout appel throw.
     graphEnPanne: false,
     reset() {
@@ -35,6 +37,7 @@ const etat = vi.hoisted(() => {
       appels.suppr.length = 0;
       appels.setDate.length = 0;
       ref.datesCopro = { ag: undefined, cs: undefined };
+      ref.heuresCopro = { ag: undefined, cs: undefined };
       ref.graphEnPanne = false;
     },
   };
@@ -95,8 +98,16 @@ vi.mock("@/lib/adapters/router", () => ({
     async findByCode(code: string) {
       return {
         code,
-        ...(etat.datesCopro.ag ? { prochaineAg: { date: etat.datesCopro.ag } } : {}),
+        ...(etat.datesCopro.ag
+          ? {
+              prochaineAg: {
+                date: etat.datesCopro.ag,
+                ...(etat.heuresCopro.ag ? { heure: etat.heuresCopro.ag } : {}),
+              },
+            }
+          : {}),
         ...(etat.datesCopro.cs ? { prochaineCsDate: etat.datesCopro.cs } : {}),
+        ...(etat.heuresCopro.cs ? { prochaineCsHeure: etat.heuresCopro.cs } : {}),
       } as unknown as Copropriete;
     },
     async setDateEvenement(...args: unknown[]) {
@@ -107,7 +118,7 @@ vi.mock("@/lib/adapters/router", () => ({
     },
   }),
   getCalendrierOutboundProvider: () => ({
-    async creerEvenement(p: { boite: string; sujet: string; debut: string }) {
+    async creerEvenement(p: { boite: string; sujet: string; debut: string; fin?: string }) {
       if (etat.graphEnPanne) throw new Error("Graph creer evenement 403");
       etat.appels.creer.push(p);
       return { id: `evt-${etat.appels.creer.length}` };
@@ -115,7 +126,7 @@ vi.mock("@/lib/adapters/router", () => ({
     async mettreAJourEvenement(
       boite: string,
       eventId: string,
-      patch: { titre?: string; date?: string },
+      patch: { titre?: string; debut?: string; fin?: string },
     ) {
       if (etat.graphEnPanne) throw new Error("Graph mettre a jour evenement 403");
       etat.appels.patch.push({ boite, eventId, ...patch });
@@ -179,7 +190,7 @@ describe("pose d'une prochaine date (definirDateEvenement)", () => {
       boite: BOITE,
       eventId: "evt-1",
       titre: "S024 : AG à confirmer", // le titre repasse / reste "a confirmer"
-      date: "2026-10-01",
+      debut: "2026-10-01",
     });
     expect(confirmation("S024", "AG")?.outlookEventId).toBe("evt-1");
   });
@@ -211,7 +222,7 @@ describe("confirmation (confirmerEvenement)", () => {
     expect(etat.appels.patch[0]).toMatchObject({
       eventId: "evt-1",
       titre: "S024 : AG confirmée",
-      date: "2026-09-15",
+      debut: "2026-09-15",
     });
   });
 
@@ -295,5 +306,61 @@ describe("degradation propre (Outlook ne bloque jamais l'intranet)", () => {
       projeterEvenementOutlook("S024", "AG", "2026-09-15", "a_confirmer", BOITE),
     ).resolves.toBeUndefined();
     warn.mockRestore();
+  });
+});
+
+describe("heure de reunion (evenement timed vs journee entiere)", () => {
+  it("date + heure -> POST avec un debut datetime et une fin +2h (evenement timed)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE);
+
+    expect(etat.appels.creer).toHaveLength(1);
+    expect(etat.appels.creer[0]).toMatchObject({
+      debut: "2026-09-07T18:00:00",
+      fin: "2026-09-07T20:00:00", // debut + DUREE_REUNION_HEURES (2h)
+    });
+    // La confirmation ne porte que sur le JOUR (pas l'heure).
+    expect(confirmation("S024", "AG")?.date).toBe("2026-09-07");
+  });
+
+  it("passage de minuit : 23:00 + 2h -> fin le lendemain a 01:00", async () => {
+    await definirDateEvenement("S031", "cs", "prochaine", "2026-09-07T23:00:00", "g1", BOITE);
+
+    expect(etat.appels.creer[0]).toMatchObject({
+      debut: "2026-09-07T23:00:00",
+      fin: "2026-09-08T01:00:00",
+    });
+  });
+
+  it("date sans heure -> POST journee entiere (aucune fin transmise)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07", "g1", BOITE);
+
+    expect(etat.appels.creer[0]?.debut).toBe("2026-09-07");
+    expect(etat.appels.creer[0]?.fin).toBeUndefined();
+  });
+
+  it("re-poser avec une heure DEPLACE l'evenement en timed (PATCH debut + fin +2h)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07", "g1", BOITE);
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-10-01T18:30:00", "g1", BOITE);
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]).toMatchObject({
+      debut: "2026-10-01T18:30:00",
+      fin: "2026-10-01T20:30:00",
+    });
+  });
+
+  it("confirmer recompose date + heure du referentiel pour la projection timed", async () => {
+    etat.datesCopro.ag = "2026-09-07";
+    etat.heuresCopro.ag = "18:00";
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE);
+    const date = await confirmerEvenement("S024", "AG", "EL", "g1", BOITE);
+
+    expect(date).toBe("2026-09-07"); // renvoie la date pure
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]).toMatchObject({
+      titre: "S024 : AG confirmée",
+      debut: "2026-09-07T18:00:00",
+      fin: "2026-09-07T20:00:00",
+    });
   });
 });

@@ -45,6 +45,8 @@ export type StatutProchaineAg = "planifiee" | "en_preparation" | "convoquee";
 export interface ProchaineAg {
   /** Date ISO "YYYY-MM-DD". */
   date: string;
+  /** Heure de la reunion "HH:mm" ; absente = journee entiere (retrocompatible). */
+  heure?: string;
   statut: StatutProchaineAg;
   /** Message d'alerte court, ex "Convocations a envoyer aujourd'hui". */
   alerte?: string;
@@ -77,6 +79,8 @@ export interface Copropriete {
   /** Dernier / prochain conseil syndical (ISO "YYYY-MM-DD"), depuis le référentiel. */
   derniereCsDate?: string;
   prochaineCsDate?: string;
+  /** Heure du prochain CS "HH:mm" ; absente = journee entiere (retrocompatible). */
+  prochaineCsHeure?: string;
   /** PPT voté (true) / à programmer (false) ; undefined si inconnu. Référentiel. */
   pptVote?: boolean;
   /** Deep-link Estale, present uniquement si source = 'estale' (ADR-003/012 :

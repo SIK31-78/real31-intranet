@@ -45,6 +45,7 @@ async function composerEvenementsReels(managerId: string): Promise<Evenement[]> 
         type: "AG",
         statut: "planifiee",
         date: c.prochaineAg.date,
+        ...(c.prochaineAg.heure ? { heure: c.prochaineAg.heure } : {}),
         jalon: jalonCourantAg(c.prochaineAg.date, today),
         ...(c.prochaineAg.date >= today
           ? { confirmation: statutPourDate(confParCle.get(`${c.code}__AG`) ?? null, c.prochaineAg.date) }
@@ -58,6 +59,7 @@ async function composerEvenementsReels(managerId: string): Promise<Evenement[]> 
         type: "CS",
         statut: "planifiee",
         date: c.prochaineCsDate,
+        ...(c.prochaineCsHeure ? { heure: c.prochaineCsHeure } : {}),
         jalon: compteARebours(c.prochaineCsDate, today),
         ...(c.prochaineCsDate >= today
           ? { confirmation: statutPourDate(confParCle.get(`${c.code}__CS`) ?? null, c.prochaineCsDate) }

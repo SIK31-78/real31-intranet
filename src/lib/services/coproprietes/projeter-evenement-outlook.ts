@@ -14,15 +14,25 @@ import {
   titreProjectionOutlook,
   type StatutConfirmation,
 } from "@/lib/domain/confirmation-evenement";
+import { finReunion } from "@/lib/domain/reunion";
 import {
   getCalendrierOutboundProvider,
   getConfirmationEvenementRepository,
 } from "@/lib/adapters/router";
 
+// Un `debut` datetime ('YYYY-MM-DDTHH:mm:00') porte une heure de reunion -> on fixe
+// une fin explicite (debut + duree reunion). Un jour seul ('YYYY-MM-DD') n'en a pas
+// (journee entiere) : on ne passe pas de fin.
+function finDe(debut: string): string | undefined {
+  return debut.includes("T") ? finReunion(debut) : undefined;
+}
+
 /**
- * Projette (cree ou met a jour) l'evenement Outlook refletant la date `date` de
- * l'evenement (copro, type) avec le statut donne. Si une projection existe deja
- * (eventId + boite en base) -> PATCH (titre + date, l'evenement est deplace /
+ * Projette (cree ou met a jour) l'evenement Outlook refletant le `debut` de
+ * l'evenement (copro, type) avec le statut donne. `debut` est un jour seul
+ * ('YYYY-MM-DD' -> journee entiere) OU un datetime ('YYYY-MM-DDTHH:mm:00' ->
+ * evenement de duree reunion, fin = debut + 2h). Si une projection existe deja
+ * (eventId + boite en base) -> PATCH (titre + debut, l'evenement est deplace /
  * renomme). Sinon -> POST dans l'agenda `boite` (email du gestionnaire connecte,
  * fourni par l'action) puis enregistrement de (eventId, boite). Sans `boite` et
  * sans projection existante, il n'y a pas d'agenda cible : on ne fait rien.
@@ -30,7 +40,7 @@ import {
 export async function projeterEvenementOutlook(
   coproCode: string,
   type: "AG" | "CS",
-  date: string,
+  debut: string,
   statut: StatutConfirmation,
   boite?: string,
 ): Promise<void> {
@@ -38,21 +48,28 @@ export async function projeterEvenementOutlook(
     const repo = getConfirmationEvenementRepository();
     const provider = getCalendrierOutboundProvider();
     const titre = titreProjectionOutlook(coproCode, type, statut);
+    const fin = finDe(debut);
 
     const existante = (await repo.get(coproCode)).find((c) => c.type === type);
     if (existante?.outlookEventId && existante.outlookBoite) {
       // Projection deja en place : on la fait suivre (jamais de doublon d'evenement).
       await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
         titre,
-        date,
+        debut,
+        ...(fin ? { fin } : {}),
       });
       return;
     }
 
     if (!boite) return; // pas d'agenda cible (ex. dev-login sans email) -> pas de projection
 
-    // `date` est un jour seul ('YYYY-MM-DD') -> evenement journee entiere.
-    const { id } = await provider.creerEvenement({ boite, sujet: titre, debut: date });
+    // `debut` jour seul -> journee entiere ; datetime -> evenement de duree reunion.
+    const { id } = await provider.creerEvenement({
+      boite,
+      sujet: titre,
+      debut,
+      ...(fin ? { fin } : {}),
+    });
     // Pas d'id (provider no-op) : rien a memoriser, la projection reste inexistante.
     if (id) await repo.enregistrerProjection(coproCode, type, id, boite);
   } catch {

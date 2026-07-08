@@ -25,13 +25,15 @@ export interface CalendrierOutboundProvider {
   }): Promise<{ id?: string; webLink?: string }>;
 
   /**
-   * Met a jour un evenement existant : `titre` (subject) et/ou `date` ('YYYY-MM-DD',
-   * l'evenement est replace en journee entiere sur ce jour). Champs absents = inchanges.
+   * Met a jour un evenement existant : `titre` (subject) et/ou `debut`. Si `debut`
+   * est un jour seul ('YYYY-MM-DD'), l'evenement est replace en journee entiere sur
+   * ce jour ; s'il porte une heure (ISO datetime), il devient un evenement date de
+   * `fin - debut` (fin par defaut = debut + duree reunion). Champs absents = inchanges.
    */
   mettreAJourEvenement(
     boite: string,
     eventId: string,
-    patch: { titre?: string; date?: string },
+    patch: { titre?: string; debut?: string; fin?: string },
   ): Promise<void>;
 
   /**

@@ -25,9 +25,12 @@ export async function definirDateEvenement(
   if (quand === "prochaine") {
     const typeConfirmation = type === "ag" ? "AG" : "CS";
     if (dateISO) {
-      await getConfirmationEvenementRepository().proposer(coproCode, typeConfirmation, dateISO);
+      // La confirmation porte sur le JOUR (pas l'heure) : la table confirmation ne
+      // stocke que la date pure, cohérente avec statutPourDate (compare la date).
+      await getConfirmationEvenementRepository().proposer(coproCode, typeConfirmation, dateISO.slice(0, 10));
       // Projection Outlook : cree l'evenement "a confirmer" ou DEPLACE l'existant
-      // (replanification). Degrade propre : n'empeche jamais la pose de la date.
+      // (replanification). On passe le `debut` COMPLET (date + heure eventuelle).
+      // Degrade propre : n'empeche jamais la pose de la date.
       await projeterEvenementOutlook(coproCode, typeConfirmation, dateISO, "a_confirmer", boite);
     } else {
       // Effacer la date : l'evenement Outlook projete n'a plus lieu d'etre.

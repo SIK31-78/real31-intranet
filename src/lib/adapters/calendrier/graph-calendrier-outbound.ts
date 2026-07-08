@@ -8,6 +8,7 @@
 // jamais bloquee par Outlook).
 
 import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
+import { finReunion } from "@/lib/domain/reunion";
 import { GRAPH, jetonGraph } from "../mail/graph-auth";
 
 const TZ = "Europe/Paris";
@@ -116,19 +117,27 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
   async mettreAJourEvenement(
     boite: string,
     eventId: string,
-    patch: { titre?: string; date?: string },
+    patch: { titre?: string; debut?: string; fin?: string },
   ): Promise<void> {
     if (!boite || !eventId) throw new Error("Mise a jour evenement : boite ou id manquant.");
 
     const body: Record<string, unknown> = {};
     if (patch.titre !== undefined) body.subject = patch.titre;
-    if (patch.date !== undefined) {
-      // Projection dates CS/AG : toujours en journee entiere sur le jour donne.
-      const jour = patch.date.trim().slice(0, 10);
-      const bornes = bornesJourneeEntiere(jour);
-      body.isAllDay = true;
-      body.start = bornes.start;
-      body.end = bornes.end;
+    if (patch.debut !== undefined) {
+      const debut = patch.debut.trim();
+      if (estJourSeul(debut)) {
+        // Jour seul -> journee entiere sur ce jour (comportement historique).
+        const bornes = bornesJourneeEntiere(debut);
+        body.isAllDay = true;
+        body.start = bornes.start;
+        body.end = bornes.end;
+      } else {
+        // Heure presente -> evenement date ; fin fournie ou debut + duree reunion.
+        const fin = patch.fin?.trim() || finReunion(debut);
+        body.isAllDay = false;
+        body.start = { dateTime: debut, timeZone: TZ };
+        body.end = { dateTime: fin, timeZone: TZ };
+      }
     }
     if (Object.keys(body).length === 0) return; // rien a changer
 

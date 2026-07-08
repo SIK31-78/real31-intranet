@@ -62,6 +62,7 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             conformite={fiche.conformite}
             derniereCs={fiche.copro.derniereCsDate}
             prochaineCs={fiche.copro.prochaineCsDate}
+            prochaineCsHeure={fiche.copro.prochaineCsHeure}
             confirmationAg={fiche.confirmationAg}
             confirmationCs={fiche.confirmationCs}
           />
@@ -197,6 +198,7 @@ function BlocAg({
   conformite,
   derniereCs,
   prochaineCs,
+  prochaineCsHeure,
   confirmationAg,
   confirmationCs,
 }: {
@@ -207,6 +209,7 @@ function BlocAg({
   conformite: ItemConformite[];
   derniereCs?: string;
   prochaineCs?: string;
+  prochaineCsHeure?: string;
   confirmationAg?: StatutConfirmation;
   confirmationCs?: StatutConfirmation;
 }) {
@@ -266,7 +269,7 @@ function BlocAg({
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochaine AG</p>
           <div className="flex items-center gap-2 flex-wrap">
-            <EditeurDate coproCode={coproCode} type="ag" dateISO={prochaine?.date} />
+            <EditeurDate coproCode={coproCode} type="ag" dateISO={prochaine?.date} heure={prochaine?.heure} />
             {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
                 (le service ne pose un statut que dans ce cas). */}
             {prochaine && confirmationAg && (
@@ -310,7 +313,7 @@ function BlocAg({
           <div className="flex items-baseline gap-2">
             <span className="text-[12px] text-ink-3 shrink-0">Prochain CS :</span>
             <span className="inline-flex items-center gap-2 flex-wrap">
-              <EditeurDate coproCode={coproCode} type="cs" dateISO={prochaineCs} />
+              <EditeurDate coproCode={coproCode} type="cs" dateISO={prochaineCs} heure={prochaineCsHeure} />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
               )}
