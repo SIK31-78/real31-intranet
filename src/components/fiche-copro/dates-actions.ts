@@ -13,50 +13,62 @@ const zCode = z.string().trim().min(1).max(40);
 const zDate = z.string().trim().max(40); // ISO ou vide (= effacer la date)
 const zTypeEvenement = z.enum(["AG", "CS"]);
 
+/** Resultat explicite d'une action de date : succes, ou echec avec message a afficher. */
+type ResultatAction = { ok: true } | { ok: false; erreur: string };
+
 // Modifie une date d'AG / CS (ecrit dans public.Copropriete, partage App A).
 // `quand` = prochaine (planifiee) ou derniere (tenue, correction du referentiel App A).
 // Cloisonne : garde coproAppartient au niveau action (le scope managerId de l'adapter
 // ne protege que l'UPDATE principal ; les follow-ups reporter* tournent sinon hors scope).
+// Renvoie TOUJOURS un resultat explicite : plus aucun echec silencieux (l'UI affiche
+// l'erreur au lieu de ne rien montrer, cf. bug remonte par les gestionnaires).
 async function definir(
   coproCode: string,
   type: "ag" | "cs",
   quand: "prochaine" | "derniere",
   dateISO: string,
-): Promise<void> {
-  if (!z.object({ coproCode: zCode, dateISO: zDate }).safeParse({ coproCode, dateISO }).success) return;
+): Promise<ResultatAction> {
+  if (!z.object({ coproCode: zCode, dateISO: zDate }).safeParse({ coproCode, dateISO }).success)
+    return { ok: false, erreur: "Données invalides." };
   const g = await getGestionnaireCourant();
-  if (!g) return;
-  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) return;
-  // La boite de projection Outlook = email de SESSION (jamais un parametre client),
-  // comme le RDV sinistre : le gestionnaire n'ecrit que dans son propre agenda.
-  await definirDateEvenement(coproCode, type, quand, dateISO || null, g.id, g.email);
-  // (Re)fixer la PROCHAINE date d'AG reporte les prepas "sans date" (supervision + ODJ).
-  // Corriger la derniere AG tenue est une mise a jour du referentiel : pas de report.
-  if (type === "ag" && quand === "prochaine" && dateISO) {
-    await reporterSupervisionSansDate(coproCode, dateISO, g.id);
-    await reporterOdjSansDate(coproCode, dateISO, g.id);
+  if (!g) return { ok: false, erreur: "Session expirée, reconnectez-vous." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
+    return { ok: false, erreur: "Copropriété hors de votre périmètre." };
+  try {
+    // La boite de projection Outlook = email de SESSION (jamais un parametre client),
+    // comme le RDV sinistre : le gestionnaire n'ecrit que dans son propre agenda.
+    await definirDateEvenement(coproCode, type, quand, dateISO || null, g.id, g.email);
+    // (Re)fixer la PROCHAINE date d'AG reporte les prepas "sans date" (supervision + ODJ).
+    // Corriger la derniere AG tenue est une mise a jour du referentiel : pas de report.
+    if (type === "ag" && quand === "prochaine" && dateISO) {
+      await reporterSupervisionSansDate(coproCode, dateISO, g.id);
+      await reporterOdjSansDate(coproCode, dateISO, g.id);
+    }
+    // Changer une date recalcule les jalons : revalider TOUTES les vues qui les affichent
+    // (sinon le calendrier / dashboard / Actions restent sur l'ancien calcul).
+    revalidatePath(`/copropriete/${coproCode}`);
+    revalidatePath("/calendrier");
+    revalidatePath("/dashboard");
+    revalidatePath("/mes-evenements");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message || "Enregistrement impossible." };
   }
-  // Changer une date recalcule les jalons : revalider TOUTES les vues qui les affichent
-  // (sinon le calendrier / dashboard / Actions restent sur l'ancien calcul).
-  revalidatePath(`/copropriete/${coproCode}`);
-  revalidatePath("/calendrier");
-  revalidatePath("/dashboard");
-  revalidatePath("/mes-evenements");
 }
 
 export async function definirDateAg(
   coproCode: string,
   dateISO: string,
   quand: "prochaine" | "derniere" = "prochaine",
-): Promise<void> {
-  await definir(coproCode, "ag", quand, dateISO);
+): Promise<ResultatAction> {
+  return definir(coproCode, "ag", quand, dateISO);
 }
 export async function definirDateCs(
   coproCode: string,
   dateISO: string,
   quand: "prochaine" | "derniere" = "prochaine",
-): Promise<void> {
-  await definir(coproCode, "cs", quand, dateISO);
+): Promise<ResultatAction> {
+  return definir(coproCode, "cs", quand, dateISO);
 }
 
 // Confirme la prochaine date AG/CS : le conseil syndical a valide par retour de mail.
