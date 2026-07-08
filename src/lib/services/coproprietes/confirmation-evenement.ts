@@ -1,0 +1,37 @@
+// Service : confirmation des dates de CS / AG (date provisoire proposee au conseil
+// syndical, puis confirmee au retour de mail). Passe par le routeur (ADR-001).
+
+import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
+import { getConfirmationEvenementRepository, getCoproRepository } from "@/lib/adapters/router";
+
+/** Confirmations (AG et CS) d'une copro - pour la fiche. */
+export async function getConfirmations(coproCode: string): Promise<ConfirmationEvenement[]> {
+  return getConfirmationEvenementRepository().get(coproCode);
+}
+
+/** Confirmations d'un lot de copros (lecture batch) - pour le calendrier. */
+export async function getConfirmationsPourCopros(
+  codes: string[],
+): Promise<ConfirmationEvenement[]> {
+  return getConfirmationEvenementRepository().getPourCopros(codes);
+}
+
+/**
+ * Confirme la PROCHAINE date AG/CS de la copro : le conseil syndical a valide par
+ * retour de mail. La date confirmee est RELUE dans le referentiel cote serveur
+ * (jamais prise du client) : si elle a change entre-temps, on confirme la vraie.
+ * Renvoie la date confirmee, ou null si la copro est hors scope / sans date.
+ */
+export async function confirmerEvenement(
+  coproCode: string,
+  type: "AG" | "CS",
+  par: string,
+  managerId: string,
+): Promise<string | null> {
+  const copro = await getCoproRepository().findByCode(coproCode, managerId);
+  if (!copro) return null;
+  const date = type === "AG" ? copro.prochaineAg?.date : copro.prochaineCsDate;
+  if (!date) return null;
+  await getConfirmationEvenementRepository().confirmer(coproCode, type, date, par);
+  return date;
+}

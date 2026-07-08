@@ -4,9 +4,11 @@
 
 import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
+import { statutPourDate } from "@/lib/domain/confirmation-evenement";
 import { construireLigne } from "@/lib/domain/parcours-ag";
 import { getCoproRepository, getJalonRepository } from "@/lib/adapters/router";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
+import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
 import { getEtatCompta } from "@/lib/services/compta/get-compta";
 
@@ -96,6 +98,19 @@ export async function getFicheCopro(
   // Etat compta de la prochaine AG (flags + notes), si une AG est datee.
   const compta = copro.prochaineAg ? await getEtatCompta(copro.code, copro.prochaineAg.date) : undefined;
 
+  // Confirmation des prochaines dates AG/CS par le conseil syndical (demande patron :
+  // une date posee est provisoire tant que le CS n'a pas valide). Seules les dates A
+  // VENIR portent un statut : confirmer une date passee n'a pas de sens.
+  const confirmations = await getConfirmations(copro.code);
+  const confirmationAg =
+    copro.prochaineAg && copro.prochaineAg.date >= aujourdhuiISO
+      ? statutPourDate(confirmations.find((c) => c.type === "AG") ?? null, copro.prochaineAg.date)
+      : undefined;
+  const confirmationCs =
+    copro.prochaineCsDate && copro.prochaineCsDate >= aujourdhuiISO
+      ? statutPourDate(confirmations.find((c) => c.type === "CS") ?? null, copro.prochaineCsDate)
+      : undefined;
+
   return {
     copro,
     estale,
@@ -107,5 +122,7 @@ export async function getFicheCopro(
     ...(estaleIndisponible ? { estaleIndisponible } : {}),
     ...(parcours ? { parcours } : {}),
     ...(compta ? { compta } : {}),
+    ...(confirmationAg ? { confirmationAg } : {}),
+    ...(confirmationCs ? { confirmationCs } : {}),
   };
 }

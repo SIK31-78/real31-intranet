@@ -25,8 +25,18 @@ type EvenementChipProps = {
 };
 
 export function EvenementChip({ evenement, taille = "md", className }: EvenementChipProps) {
-  const { id, type, statut, coproNomCourt, coproCode, heure, jalon } = evenement;
+  const { id, type, statut, coproNomCourt, coproCode, heure, jalon, confirmation } = evenement;
   const small = taille === "sm";
+  // Confirmation par le conseil syndical (prochaines AG/CS) : le libelle devient
+  // "AG a confirmer" / "AG confirmee" (demande patron). CS est masculin.
+  const mentionConf =
+    confirmation === "a_confirmer"
+      ? "à confirmer"
+      : confirmation === "confirme"
+        ? type === "CS"
+          ? "confirmé"
+          : "confirmée"
+        : undefined;
   // Seules les AG/AGE ont une fiche de supervision. Un CS n'a pas (encore) de cible :
   // on le rend NON cliquable plutot qu'un lien mort vers "#".
   const cliquable = type === "AG" || type === "AGE";
@@ -35,13 +45,20 @@ export function EvenementChip({ evenement, taille = "md", className }: Evenement
     small ? "h-[18px] px-1 text-[11px]" : "h-6 px-1.5 text-[12px] gap-1.5",
     TYPE_STYLE[type],
     STATUT_STYLE[statut],
+    // Date pas encore confirmee par le CS : bordure pointillee, sobre.
+    confirmation === "a_confirmer" && "border-dashed",
     cliquable ? "cursor-pointer hover:brightness-[0.97]" : "cursor-default",
     className,
   );
-  const titre = `${type} · ${coproNomCourt} · ${coproCode}${heure ? ` · ${heure}` : ""}`;
+  const titre = `${type}${mentionConf ? ` ${mentionConf}` : ""} · ${coproNomCourt} · ${coproCode}${heure ? ` · ${heure}` : ""}`;
   const contenu = (
     <>
       <span className="font-semibold tracking-tight shrink-0">{type}</span>
+      {mentionConf && (
+        <span className={cn("shrink-0 italic opacity-80", small ? "text-[10px]" : "text-[11px]")}>
+          {mentionConf}
+        </span>
+      )}
       <span className="truncate flex-1 min-w-0">{coproNomCourt}</span>
       {!small && (heure || jalon) && (
         <span className="flex items-center gap-1.5 shrink-0">

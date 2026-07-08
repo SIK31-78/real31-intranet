@@ -10,6 +10,7 @@ import type { Evenement } from "@/lib/domain/calendrier";
 import type { JalonAvecEtat } from "@/lib/domain/jalons-ag/types";
 import type { LigneParcours } from "@/lib/domain/dashboard";
 import type { EtatCompta } from "@/lib/domain/compta";
+import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 
 // --- Referentiel copro (source App A) -------------------------------------
 
@@ -213,6 +214,11 @@ export interface FicheCopro {
   parcours?: LigneParcours;
   /** Etat compta de la prochaine AG (flags + fil de notes) ; absent si pas d'AG datee. */
   compta?: EtatCompta;
+  /** Confirmation par le conseil syndical de la prochaine AG / du prochain CS (date
+   *  proposee par mail -> a_confirmer, validee -> confirme). Absent si pas de date
+   *  a venir : confirmer une date passee n'a pas de sens. */
+  confirmationAg?: StatutConfirmation;
+  confirmationCs?: StatutConfirmation;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

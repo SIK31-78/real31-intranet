@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { definirDateEvenement } from "@/lib/services/coproprietes/definir-date-evenement";
+import { confirmerEvenement } from "@/lib/services/coproprietes/confirmation-evenement";
 import { reporterSupervisionSansDate } from "@/lib/services/supervision-ag/reporter-sans-date";
 import { reporterOdjSansDate } from "@/lib/services/odj/saisir-champ-odj";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
@@ -10,6 +11,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 
 const zCode = z.string().trim().min(1).max(40);
 const zDate = z.string().trim().max(40); // ISO ou vide (= effacer la date)
+const zTypeEvenement = z.enum(["AG", "CS"]);
 
 // Modifie une date d'AG / CS (ecrit dans public.Copropriete, partage App A).
 // `quand` = prochaine (planifiee) ou derniere (tenue, correction du referentiel App A).
@@ -53,4 +55,29 @@ export async function definirDateCs(
   quand: "prochaine" | "derniere" = "prochaine",
 ): Promise<void> {
   await definir(coproCode, "cs", quand, dateISO);
+}
+
+// Confirme la prochaine date AG/CS : le conseil syndical a valide par retour de mail.
+// La date confirmee est RELUE cote serveur dans le referentiel (jamais prise du client).
+// Cloisonne : coproAppartient avant toute ecriture (anti-IDOR).
+export async function confirmerEvenementAction(
+  coproCode: string,
+  type: "AG" | "CS",
+): Promise<{ ok: true } | { ok: false; erreur: string }> {
+  if (!z.object({ coproCode: zCode, type: zTypeEvenement }).safeParse({ coproCode, type }).success)
+    return { ok: false, erreur: "Données invalides." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
+    return { ok: false, erreur: "Copropriété hors de votre périmètre." };
+  try {
+    const date = await confirmerEvenement(coproCode, type, g.initiales, g.id);
+    if (!date) return { ok: false, erreur: "Aucune date à confirmer." };
+    revalidatePath(`/copropriete/${coproCode}`);
+    revalidatePath("/calendrier");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
 }

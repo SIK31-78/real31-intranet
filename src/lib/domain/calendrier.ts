@@ -2,6 +2,7 @@
 // Ne depend que du domaine (cf. ADR-001).
 
 import type { Jalon } from "@/lib/domain/commun";
+import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 
 /** AG ordinaire, AG extraordinaire, conseil syndical. */
 export type TypeEvenement = "AG" | "AGE" | "CS";
@@ -21,6 +22,9 @@ export interface Evenement {
   heure?: string;
   /** Jalon en cours sur cet evenement (J-x + severite). */
   jalon?: Jalon;
+  /** Confirmation de la date par le conseil syndical (prochaines AG/CS seulement) :
+   *  la chip affiche "AG a confirmer" / "AG confirmee". */
+  confirmation?: StatutConfirmation;
 }
 
 /** Un groupe de la vue liste : une date et ses evenements. */
