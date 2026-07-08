@@ -25,4 +25,16 @@ export interface ConfirmationEvenementRepository {
     eventId: string | null,
     boite: string | null,
   ): Promise<void>;
+  /**
+   * Pose (ou efface avec null) la salle et le vehicule reserves pour l'evenement
+   * (copro, type) : UPDATE cible de la ligne existante (comme enregistrerProjection).
+   * No-op si aucune ligne n'existe. Degrade proprement si les colonnes ne sont pas
+   * encore deployees (l'app fonctionne comme avant, sans ressources persistees).
+   */
+  enregistrerRessources(
+    coproCode: string,
+    type: "AG" | "CS",
+    salleEmail: string | null,
+    vehiculeEmail: string | null,
+  ): Promise<void>;
 }

@@ -51,12 +51,19 @@ export async function projeterEvenementOutlook(
     const fin = finDe(debut);
 
     const existante = (await repo.get(coproCode)).find((c) => c.type === type);
+    // Salle + vehicule reserves (persistes AVANT la projection par definirDateEvenement) :
+    // ajoutes comme ressources de l'evenement. La MAJ (confirm / replanif) les REMET donc
+    // ils sont conserves. Liste vide -> aucune ressource attachee (ou retiree).
+    const ressources = [existante?.salleEmail, existante?.vehiculeEmail].filter(
+      (e): e is string => Boolean(e),
+    );
     if (existante?.outlookEventId && existante.outlookBoite) {
       // Projection deja en place : on la fait suivre (jamais de doublon d'evenement).
       await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
         titre,
         debut,
         ...(fin ? { fin } : {}),
+        ressources,
       });
       return;
     }
@@ -69,6 +76,7 @@ export async function projeterEvenementOutlook(
       sujet: titre,
       debut,
       ...(fin ? { fin } : {}),
+      ...(ressources.length > 0 ? { ressources } : {}),
     });
     // Pas d'id (provider no-op) : rien a memoriser, la projection reste inexistante.
     if (id) await repo.enregistrerProjection(coproCode, type, id, boite);

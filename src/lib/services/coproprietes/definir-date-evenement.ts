@@ -17,6 +17,7 @@ export async function definirDateEvenement(
   dateISO: string | null,
   managerId: string,
   boite?: string,
+  ressources?: { salleEmail?: string | null; vehiculeEmail?: string | null },
 ): Promise<void> {
   await getCoproRepository().setDateEvenement(coproCode, type, quand, dateISO, managerId);
   // (Re)poser la PROCHAINE date la propose au conseil syndical : la confirmation
@@ -28,6 +29,15 @@ export async function definirDateEvenement(
       // La confirmation porte sur le JOUR (pas l'heure) : la table confirmation ne
       // stocke que la date pure, cohérente avec statutPourDate (compare la date).
       await getConfirmationEvenementRepository().proposer(coproCode, typeConfirmation, dateISO.slice(0, 10));
+      // Salle + vehicule reserves : persistes AVANT la projection (proposer a cree la
+      // ligne, enregistrerRessources la complete) pour que projeterEvenementOutlook les
+      // relise et les attache a l'evenement. Degrade propre si colonnes absentes.
+      await getConfirmationEvenementRepository().enregistrerRessources(
+        coproCode,
+        typeConfirmation,
+        ressources?.salleEmail ?? null,
+        ressources?.vehiculeEmail ?? null,
+      );
       // Projection Outlook : cree l'evenement "a confirmer" ou DEPLACE l'existant
       // (replanification). On passe le `debut` COMPLET (date + heure eventuelle).
       // Degrade propre : n'empeche jamais la pose de la date.

@@ -102,14 +102,22 @@ export async function getFicheCopro(
   // une date posee est provisoire tant que le CS n'a pas valide). Seules les dates A
   // VENIR portent un statut : confirmer une date passee n'a pas de sens.
   const confirmations = await getConfirmations(copro.code);
+  const confAg = confirmations.find((c) => c.type === "AG") ?? null;
+  const confCs = confirmations.find((c) => c.type === "CS") ?? null;
   const confirmationAg =
     copro.prochaineAg && copro.prochaineAg.date >= aujourdhuiISO
-      ? statutPourDate(confirmations.find((c) => c.type === "AG") ?? null, copro.prochaineAg.date)
+      ? statutPourDate(confAg, copro.prochaineAg.date)
       : undefined;
   const confirmationCs =
     copro.prochaineCsDate && copro.prochaineCsDate >= aujourdhuiISO
-      ? statutPourDate(confirmations.find((c) => c.type === "CS") ?? null, copro.prochaineCsDate)
+      ? statutPourDate(confCs, copro.prochaineCsDate)
       : undefined;
+  // Ressources reservees (salle / ZOE) portees par la confirmation, remontees pour
+  // l'affichage a cote de la date et la pre-selection dans l'editeur.
+  const salleAgEmail = confAg?.salleEmail;
+  const vehiculeAgEmail = confAg?.vehiculeEmail;
+  const salleCsEmail = confCs?.salleEmail;
+  const vehiculeCsEmail = confCs?.vehiculeEmail;
 
   return {
     copro,
@@ -124,5 +132,9 @@ export async function getFicheCopro(
     ...(compta ? { compta } : {}),
     ...(confirmationAg ? { confirmationAg } : {}),
     ...(confirmationCs ? { confirmationCs } : {}),
+    ...(salleAgEmail ? { salleAgEmail } : {}),
+    ...(vehiculeAgEmail ? { vehiculeAgEmail } : {}),
+    ...(salleCsEmail ? { salleCsEmail } : {}),
+    ...(vehiculeCsEmail ? { vehiculeCsEmail } : {}),
   };
 }

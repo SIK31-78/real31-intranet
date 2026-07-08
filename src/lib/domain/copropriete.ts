@@ -223,6 +223,13 @@ export interface FicheCopro {
    *  a venir : confirmer une date passee n'a pas de sens. */
   confirmationAg?: StatutConfirmation;
   confirmationCs?: StatutConfirmation;
+  /** Salle / vehicule reserves pour la prochaine AG (room mailbox + ZOE) ; absents si
+   *  rien de reserve. Affiches a cote de la date et pre-remplissent l'editeur. */
+  salleAgEmail?: string;
+  vehiculeAgEmail?: string;
+  /** Salle / vehicule reserves pour le prochain CS. */
+  salleCsEmail?: string;
+  vehiculeCsEmail?: string;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

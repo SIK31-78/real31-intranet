@@ -65,6 +65,10 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             prochaineCsHeure={fiche.copro.prochaineCsHeure}
             confirmationAg={fiche.confirmationAg}
             confirmationCs={fiche.confirmationCs}
+            salleAgEmail={fiche.salleAgEmail}
+            vehiculeAgEmail={fiche.vehiculeAgEmail}
+            salleCsEmail={fiche.salleCsEmail}
+            vehiculeCsEmail={fiche.vehiculeCsEmail}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
@@ -201,6 +205,10 @@ function BlocAg({
   prochaineCsHeure,
   confirmationAg,
   confirmationCs,
+  salleAgEmail,
+  vehiculeAgEmail,
+  salleCsEmail,
+  vehiculeCsEmail,
 }: {
   coproCode: string;
   derniere?: AgPassee;
@@ -212,6 +220,10 @@ function BlocAg({
   prochaineCsHeure?: string;
   confirmationAg?: StatutConfirmation;
   confirmationCs?: StatutConfirmation;
+  salleAgEmail?: string;
+  vehiculeAgEmail?: string;
+  salleCsEmail?: string;
+  vehiculeCsEmail?: string;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
   return (
@@ -269,7 +281,14 @@ function BlocAg({
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochaine AG</p>
           <div className="flex items-center gap-2 flex-wrap">
-            <EditeurDate coproCode={coproCode} type="ag" dateISO={prochaine?.date} heure={prochaine?.heure} />
+            <EditeurDate
+              coproCode={coproCode}
+              type="ag"
+              dateISO={prochaine?.date}
+              heure={prochaine?.heure}
+              salleEmail={salleAgEmail}
+              vehiculeEmail={vehiculeAgEmail}
+            />
             {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
                 (le service ne pose un statut que dans ce cas). */}
             {prochaine && confirmationAg && (
@@ -313,7 +332,14 @@ function BlocAg({
           <div className="flex items-baseline gap-2">
             <span className="text-[12px] text-ink-3 shrink-0">Prochain CS :</span>
             <span className="inline-flex items-center gap-2 flex-wrap">
-              <EditeurDate coproCode={coproCode} type="cs" dateISO={prochaineCs} heure={prochaineCsHeure} />
+              <EditeurDate
+                coproCode={coproCode}
+                type="cs"
+                dateISO={prochaineCs}
+                heure={prochaineCsHeure}
+                salleEmail={salleCsEmail}
+                vehiculeEmail={vehiculeCsEmail}
+              />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
               )}

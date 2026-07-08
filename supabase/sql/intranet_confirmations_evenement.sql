@@ -29,6 +29,8 @@ create table if not exists public.intranet_confirmations_evenement (
   confirme_par   text,                                 -- initiales du gestionnaire, ex 'EL'
   outlook_event_id text,                               -- id Graph de l'evenement Outlook projete
   outlook_boite    text,                               -- email de l'agenda ou vit la projection
+  salle_email      text,                               -- salle reservee (room mailbox RESSOURCES_REAL31)
+  vehicule_email   text,                               -- vehicule reserve (la ZOE), AG a l'exterieur
   updated_at     timestamptz default now(),
   primary key (copro_code, type)
 );

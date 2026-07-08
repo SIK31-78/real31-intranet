@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Pencil, X, Check } from "lucide-react";
 import { formatDateLongue, formatHeure } from "@/lib/format-date";
 import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
+import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
 import { Button } from "@/components/ui/button";
-import { definirDateAg, definirDateCs } from "./dates-actions";
+import { definirDateAg, definirDateCs, verifierDispoSalleAction } from "./dates-actions";
+
+// La ZOE : seul vehicule reservable (case "Reserver la voiture ZOE"). Email pris dans
+// la liste fermee du domaine (jamais code en dur ici).
+const ZOE_EMAIL = vehicules()[0]?.email ?? "";
 
 // Edition inline d'une date d'AG / CS. `quand` = prochaine (planifiee) ou derniere
 // (tenue, correction du referentiel App A). Clic sur la date -> selecteur inline.
@@ -31,6 +36,8 @@ export function EditeurDate({
   dateISO,
   heure,
   quand = "prochaine",
+  salleEmail,
+  vehiculeEmail,
 }: {
   coproCode: string;
   type: "ag" | "cs";
@@ -38,15 +45,29 @@ export function EditeurDate({
   /** Heure existante "HH:mm" (prochaine reunion) ; absente = journee entiere. */
   heure?: string;
   quand?: "prochaine" | "derniere";
+  /** Salle deja reservee pour la prochaine reunion (pre-remplit le selecteur). */
+  salleEmail?: string;
+  /** Vehicule (la ZOE) deja reserve pour la prochaine reunion. */
+  vehiculeEmail?: string;
 }) {
   const [edition, setEdition] = useState(false);
   const [pending, startTransition] = useTransition();
   const [dateVal, setDateVal] = useState("");
   const [heureVal, setHeureVal] = useState("");
+  const [salleVal, setSalleVal] = useState("");
+  const [zoeVal, setZoeVal] = useState(false);
+  // Resultat de dispo indexe par le creneau interroge (date|heure|salle) : on n'affiche
+  // que s'il correspond a la saisie courante -> pas de reset synchrone dans l'effet
+  // (evite les rendus en cascade) ni d'indicateur perime apres un changement de salle.
+  const [dispo, setDispo] = useState<{
+    cle: string;
+    valeur: "libre" | "occupee" | "inconnu";
+  } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmeEffacer, setConfirmeEffacer] = useState(false);
 
-  // L'heure ne concerne que la PROCHAINE reunion : masquee (et vide) pour "derniere".
+  // L'heure et la reservation de salle ne concernent que la PROCHAINE reunion :
+  // masquees (et vides) pour "derniere" (simple correction du referentiel).
   const avecHeure = quand === "prochaine";
   const action = type === "ag" ? definirDateAg : definirDateCs;
   const labelVide = quand === "derniere" ? "Non renseignée" : "Non planifiée";
@@ -66,9 +87,38 @@ export function EditeurDate({
   // Valeur actuellement enregistree (props), pour detecter un vrai changement.
   const valeurEnregistree = combiner(dateISO ?? "", avecHeure ? (heure ?? "") : "");
   const valeurSaisie = combiner(dateVal, avecHeure ? heureVal : "");
-  const inchange = valeurSaisie === valeurEnregistree;
+  // Ressources deja enregistrees (props) vs saisie, pour detecter un changement de salle
+  // / vehicule meme a date inchangee. Sans heure ("derniere") : pas de ressource.
+  const salleEnregistree = avecHeure ? (salleEmail ?? "") : "";
+  const zoeEnregistree = avecHeure ? Boolean(vehiculeEmail) : false;
+  const ressourceInchangee = salleVal === salleEnregistree && zoeVal === zoeEnregistree;
+  const inchange = valeurSaisie === valeurEnregistree && ressourceInchangee;
 
   const avertissement = dateVal ? avertissementDateReunion(quand, dateVal, todayISO) : null;
+
+  // Creneau interroge et resultat correspondant a la saisie courante (null tant qu'on
+  // n'a pas de reponse pour CE creneau -> affichage "Vérification...").
+  const cleDispo = `${dateVal}|${heureVal}|${salleVal}`;
+  const dispoCreneau = avecHeure && salleVal && dateVal && heureVal;
+  const dispoValeur = dispo && dispo.cle === cleDispo ? dispo.valeur : null;
+
+  // Verifie la dispo de la salle des qu'une salle est choisie ET la date+heure valides.
+  // Degrade "inconnu" (Graph indisponible / 403 Access Policy) : jamais bloquant. Aucun
+  // setState synchrone dans le corps de l'effet (uniquement dans les callbacks async).
+  useEffect(() => {
+    if (!edition || !dispoCreneau) return;
+    let annule = false;
+    verifierDispoSalleAction(coproCode, type === "ag" ? "AG" : "CS", dateVal, heureVal, salleVal)
+      .then((r) => {
+        if (!annule) setDispo({ cle: cleDispo, valeur: r.dispo });
+      })
+      .catch(() => {
+        if (!annule) setDispo({ cle: cleDispo, valeur: "inconnu" });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [edition, dispoCreneau, cleDispo, coproCode, type, dateVal, heureVal, salleVal]);
 
   const ouvrir = () => {
     // Re-lecture des props courantes a chaque ouverture (corrige l'etat fige).
@@ -77,6 +127,10 @@ export function EditeurDate({
     // veut une heure sur les evenements). Rien n'est sauve tant que "Valider" n'est
     // pas clique, donc ce defaut ne peut plus etre pose par accident.
     setHeureVal(avecHeure ? (heure ?? HEURE_DEFAUT_REUNION) : "");
+    // Pre-remplissage salle / ZOE depuis la reservation existante.
+    setSalleVal(avecHeure ? (salleEmail ?? "") : "");
+    setZoeVal(avecHeure ? Boolean(vehiculeEmail) : false);
+    setDispo(null);
     setErreur(null);
     setConfirmeEffacer(false);
     setEdition(true);
@@ -90,31 +144,46 @@ export function EditeurDate({
 
   const enregistrer = (valeur: string) => {
     setErreur(null);
+    // Ressources transmises seulement pour une prochaine date reelle (pas a l'effacement).
+    const salle = avecHeure && valeur ? salleVal : "";
+    const vehicule = avecHeure && valeur && zoeVal ? ZOE_EMAIL : "";
     startTransition(async () => {
-      const r = await action(coproCode, valeur, quand);
+      const r = await action(coproCode, valeur, quand, salle || undefined, vehicule || undefined);
       if (!r.ok) setErreur(r.erreur); // on garde l'edition ouverte pour reessayer
       else fermer();
     });
   };
 
   if (!edition) {
+    // Salle / vehicule reserves (hors edition) : affiches discretement sous la date.
+    const salleNom = avecHeure ? ressourceParEmail(salleEmail)?.nom : undefined;
+    const zoeReservee = avecHeure && Boolean(vehiculeEmail);
     return (
-      <button
-        type="button"
-        onClick={ouvrir}
-        className="inline-flex items-center gap-1.5 text-[16px] font-medium text-ink hover:text-green-700 transition-colors"
-        title="Modifier la date"
-      >
-        {dateISO ? (
-          <span>
-            {formatDateLongue(dateISO)}
-            {avecHeure && heure && <span className="text-ink-3"> à {formatHeure(heure)}</span>}
+      <span className="inline-flex flex-col gap-0.5">
+        <button
+          type="button"
+          onClick={ouvrir}
+          className="inline-flex items-center gap-1.5 text-[16px] font-medium text-ink hover:text-green-700 transition-colors"
+          title="Modifier la date"
+        >
+          {dateISO ? (
+            <span>
+              {formatDateLongue(dateISO)}
+              {avecHeure && heure && <span className="text-ink-3"> à {formatHeure(heure)}</span>}
+            </span>
+          ) : (
+            <span className="text-ink-3">{labelVide}</span>
+          )}
+          <Pencil strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" />
+        </button>
+        {dateISO && (salleNom || zoeReservee) && (
+          <span className="text-[12px] text-ink-3">
+            {salleNom && <>salle {salleNom}</>}
+            {salleNom && zoeReservee && <> · </>}
+            {zoeReservee && <>voiture ZOE</>}
           </span>
-        ) : (
-          <span className="text-ink-3">{labelVide}</span>
         )}
-        <Pencil strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" />
-      </button>
+      </span>
     );
   }
 
@@ -172,6 +241,62 @@ export function EditeurDate({
           </Button>
         )}
       </span>
+
+      {/* Reservation de salle (prochaine reunion seulement) : selecteur groupe par
+          agence + case ZOE. La room mailbox auto-accepte si le creneau est libre. */}
+      {avecHeure && (
+        <span className="inline-flex items-center gap-2 flex-wrap">
+          <select
+            value={salleVal}
+            disabled={pending}
+            aria-label="Salle de réunion à réserver"
+            onChange={(e) => setSalleVal(e.target.value)}
+            className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
+          >
+            <option value="">Aucune salle</option>
+            {sallesReunion().map((s) => (
+              <option key={s.email} value={s.email}>
+                {s.nom}
+              </option>
+            ))}
+          </select>
+
+          <label className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
+            <input
+              type="checkbox"
+              checked={zoeVal}
+              disabled={pending}
+              onChange={(e) => setZoeVal(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Réserver la voiture ZOE
+          </label>
+
+          {/* Indicateur de dispo : vert (libre) / ambre (occupee) / gris (inconnue).
+              N'apparait que quand une salle est choisie et la date+heure saisies. */}
+          {dispoCreneau && (
+            <span
+              className={
+                "inline-flex items-center gap-1 text-[12px] " +
+                (dispoValeur === "libre"
+                  ? "text-ok-700"
+                  : dispoValeur === "occupee"
+                    ? "text-warn-700"
+                    : "text-ink-3")
+              }
+              aria-live="polite"
+            >
+              {dispoValeur === null
+                ? "Vérification..."
+                : dispoValeur === "libre"
+                  ? "Salle libre"
+                  : dispoValeur === "occupee"
+                    ? "Salle occupée"
+                    : "Dispo inconnue"}
+            </span>
+          )}
+        </span>
+      )}
 
       {/* Confirmation legere de l'effacement (geste destructif : ca deplanifie). */}
       {confirmeEffacer && (

@@ -19,6 +19,10 @@ export interface ConfirmationEvenement {
   outlookEventId?: string;
   /** Email de l'agenda ou vit l'evenement projete (boite du gestionnaire). */
   outlookBoite?: string;
+  /** Email de la salle reservee pour la reunion (room mailbox de RESSOURCES_REAL31). */
+  salleEmail?: string;
+  /** Email du vehicule reserve (la ZOE, AG a l'exterieur) ; absent sinon. */
+  vehiculeEmail?: string;
 }
 
 /**

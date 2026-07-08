@@ -14,8 +14,21 @@ import type { Copropriete } from "@/lib/domain/copropriete";
 const etat = vi.hoisted(() => {
   const confirmations = new Map<string, Record<string, unknown>>();
   const appels = {
-    creer: [] as { boite: string; sujet: string; debut: string; fin?: string }[],
-    patch: [] as { boite: string; eventId: string; titre?: string; debut?: string; fin?: string }[],
+    creer: [] as {
+      boite: string;
+      sujet: string;
+      debut: string;
+      fin?: string;
+      ressources?: string[];
+    }[],
+    patch: [] as {
+      boite: string;
+      eventId: string;
+      titre?: string;
+      debut?: string;
+      fin?: string;
+      ressources?: string[];
+    }[],
     suppr: [] as { boite: string; eventId: string }[],
     setDate: [] as unknown[],
   };
@@ -75,6 +88,9 @@ vi.mock("@/lib/adapters/router", () => ({
         ...(avant?.outlookEventId
           ? { outlookEventId: avant.outlookEventId, outlookBoite: avant.outlookBoite }
           : {}),
+        // Salle / vehicule survivent a la re-proposition (comme l'upsert SQL / le mock reel).
+        ...(avant?.salleEmail ? { salleEmail: avant.salleEmail } : {}),
+        ...(avant?.vehiculeEmail ? { vehiculeEmail: avant.vehiculeEmail } : {}),
       });
     },
     async enregistrerProjection(
@@ -92,6 +108,19 @@ vi.mock("@/lib/adapters/router", () => ({
         delete c.outlookEventId;
         delete c.outlookBoite;
       }
+    },
+    async enregistrerRessources(
+      coproCode: string,
+      type: string,
+      salleEmail: string | null,
+      vehiculeEmail: string | null,
+    ) {
+      const c = etat.confirmations.get(etat.cle(coproCode, type));
+      if (!c) return;
+      delete c.salleEmail;
+      delete c.vehiculeEmail;
+      if (salleEmail) c.salleEmail = salleEmail;
+      if (vehiculeEmail) c.vehiculeEmail = vehiculeEmail;
     },
   }),
   getCoproRepository: () => ({
@@ -118,7 +147,13 @@ vi.mock("@/lib/adapters/router", () => ({
     },
   }),
   getCalendrierOutboundProvider: () => ({
-    async creerEvenement(p: { boite: string; sujet: string; debut: string; fin?: string }) {
+    async creerEvenement(p: {
+      boite: string;
+      sujet: string;
+      debut: string;
+      fin?: string;
+      ressources?: string[];
+    }) {
       if (etat.graphEnPanne) throw new Error("Graph creer evenement 403");
       etat.appels.creer.push(p);
       return { id: `evt-${etat.appels.creer.length}` };
@@ -126,7 +161,7 @@ vi.mock("@/lib/adapters/router", () => ({
     async mettreAJourEvenement(
       boite: string,
       eventId: string,
-      patch: { titre?: string; debut?: string; fin?: string },
+      patch: { titre?: string; debut?: string; fin?: string; ressources?: string[] },
     ) {
       if (etat.graphEnPanne) throw new Error("Graph mettre a jour evenement 403");
       etat.appels.patch.push({ boite, eventId, ...patch });
@@ -134,6 +169,9 @@ vi.mock("@/lib/adapters/router", () => ({
     async supprimerEvenement(boite: string, eventId: string) {
       if (etat.graphEnPanne) throw new Error("Graph supprimer evenement 403");
       etat.appels.suppr.push({ boite, eventId });
+    },
+    async disponibiliteSalle() {
+      return "inconnu" as const;
     },
   }),
 }));
@@ -362,5 +400,60 @@ describe("heure de reunion (evenement timed vs journee entiere)", () => {
       debut: "2026-09-07T18:00:00",
       fin: "2026-09-07T20:00:00",
     });
+  });
+});
+
+describe("reservation de salle / vehicule (ressources de l'evenement)", () => {
+  const SALLE = "real31lgc@real31.fr";
+  const ZOE = "zoe@real31.fr";
+
+  it("pose avec salle + ZOE : le POST attache les deux ressources", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      vehiculeEmail: ZOE,
+    });
+
+    expect(etat.appels.creer).toHaveLength(1);
+    expect(etat.appels.creer[0]?.ressources).toEqual([SALLE, ZOE]);
+    // Les ressources sont aussi persistees avec la confirmation.
+    const c = confirmation("S024", "AG");
+    expect(c?.salleEmail).toBe(SALLE);
+    expect(c?.vehiculeEmail).toBe(ZOE);
+  });
+
+  it("pose sans salle : aucune ressource transmise", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      salleEmail: null,
+      vehiculeEmail: null,
+    });
+    expect(etat.appels.creer[0]?.ressources).toBeUndefined();
+  });
+
+  it("re-poser conserve les ressources (PATCH avec la liste des salles / vehicules)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      vehiculeEmail: ZOE,
+    });
+    // Re-pose SANS repasser les ressources : elles survivent (persistees), donc rejouees.
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-10-01T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      vehiculeEmail: ZOE,
+    });
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]?.ressources).toEqual([SALLE, ZOE]);
+  });
+
+  it("confirmer conserve les ressources persistees (PATCH ressources)", async () => {
+    etat.datesCopro.ag = "2026-09-07";
+    etat.heuresCopro.ag = "18:00";
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      vehiculeEmail: null,
+    });
+    await confirmerEvenement("S024", "AG", "EL", "g1", BOITE);
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]?.ressources).toEqual([SALLE]);
   });
 });

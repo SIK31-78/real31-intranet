@@ -14,9 +14,13 @@ export class NoopCalendrierOutboundProvider implements CalendrierOutboundProvide
     journeeEntiere?: boolean;
     lieu?: string;
     description?: string;
+    ressources?: string[];
   }): Promise<{ id?: string; webLink?: string }> {
-    // Pas de PII en log : seulement la date et la presence d'un lieu.
-    console.log(`[calendrier-outbound:noop] evenement simule le ${p.debut} (lieu: ${p.lieu ? "oui" : "non"})`);
+    // Pas de PII en log : seulement la date, la presence d'un lieu et le nombre de ressources.
+    const nbRessources = p.ressources?.length ?? 0;
+    console.log(
+      `[calendrier-outbound:noop] evenement simule le ${p.debut} (lieu: ${p.lieu ? "oui" : "non"}, ressources: ${nbRessources})`,
+    );
     return {};
   }
 
@@ -26,5 +30,11 @@ export class NoopCalendrierOutboundProvider implements CalendrierOutboundProvide
 
   async supprimerEvenement(): Promise<void> {
     console.log("[calendrier-outbound:noop] suppression simulee");
+  }
+
+  async disponibiliteSalle(): Promise<"libre" | "occupee" | "inconnu"> {
+    // Sans Graph reel, pas de verification possible : degrade "inconnu" (l'UI n'affiche
+    // aucun blocage, seulement l'indicateur "dispo inconnue").
+    return "inconnu";
   }
 }

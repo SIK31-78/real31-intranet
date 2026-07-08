@@ -8,8 +8,12 @@ import type { ConfirmationEvenementRepository } from "@/lib/ports/confirmation-e
 import { createSupabasePublicClient } from "./public-client";
 
 const TABLE = "intranet_confirmations_evenement";
-const COLONNES =
+// Colonnes historiques (toujours presentes). Les colonnes de ressources (salle /
+// vehicule, increment 4) sont ajoutees SEPAREMENT : tant que l'ALTER n'est pas lance,
+// on retombe sur cette liste de base (degradation, cf. colonneAbsente).
+const COLONNES_BASE =
   "copro_code, type, date_evenement, statut, confirme_le, confirme_par, outlook_event_id, outlook_boite";
+const COLONNES = `${COLONNES_BASE}, salle_email, vehicule_email`;
 
 type Row = {
   copro_code: string;
@@ -20,7 +24,19 @@ type Row = {
   confirme_par: string | null;
   outlook_event_id: string | null;
   outlook_boite: string | null;
+  // Absentes tant que l'ALTER intranet_confirmations_evenement_ressources n'est pas lance.
+  salle_email?: string | null;
+  vehicule_email?: string | null;
 };
+
+// Colonne absente (ALTER pas encore lance) : code Postgres 42703, ou message explicite
+// selon le chemin (PostgREST / cache de schema). Meme filet que le module reprise.
+function colonneAbsente(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === "42703" ||
+    /column .* does not exist|schema cache|could not find the .* column/i.test(error.message ?? "")
+  );
+}
 
 function versDomaine(r: Row): ConfirmationEvenement {
   return {
@@ -32,6 +48,8 @@ function versDomaine(r: Row): ConfirmationEvenement {
     ...(r.confirme_par ? { confirmePar: r.confirme_par } : {}),
     ...(r.outlook_event_id ? { outlookEventId: r.outlook_event_id } : {}),
     ...(r.outlook_boite ? { outlookBoite: r.outlook_boite } : {}),
+    ...(r.salle_email ? { salleEmail: r.salle_email } : {}),
+    ...(r.vehicule_email ? { vehiculeEmail: r.vehicule_email } : {}),
   };
 }
 
@@ -40,14 +58,28 @@ export class SupabaseConfirmationEvenementRepository implements ConfirmationEven
     if (codes.length === 0) return [];
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase.from(TABLE).select(COLONNES).in("copro_code", codes);
-    if (error) return []; // table absente / non deployee -> feature inerte
+    if (error) {
+      // Colonnes ressources absentes (ALTER pas lance) : on relit SANS elles, pour ne
+      // pas faire disparaitre les dates. Autre erreur (table absente) -> feature inerte.
+      if (colonneAbsente(error)) {
+        const r = await supabase.from(TABLE).select(COLONNES_BASE).in("copro_code", codes);
+        return r.error ? [] : (r.data as Row[]).map(versDomaine);
+      }
+      return [];
+    }
     return (data as Row[]).map(versDomaine);
   }
 
   async get(coproCode: string): Promise<ConfirmationEvenement[]> {
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase.from(TABLE).select(COLONNES).eq("copro_code", coproCode);
-    if (error) return [];
+    if (error) {
+      if (colonneAbsente(error)) {
+        const r = await supabase.from(TABLE).select(COLONNES_BASE).eq("copro_code", coproCode);
+        return r.error ? [] : (r.data as Row[]).map(versDomaine);
+      }
+      return [];
+    }
     return (data as Row[]).map(versDomaine);
   }
 
@@ -105,5 +137,29 @@ export class SupabaseConfirmationEvenementRepository implements ConfirmationEven
       })
       .eq("copro_code", coproCode)
       .eq("type", type);
+  }
+
+  async enregistrerRessources(
+    coproCode: string,
+    type: "AG" | "CS",
+    salleEmail: string | null,
+    vehiculeEmail: string | null,
+  ): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    // UPDATE cible (comme enregistrerProjection) : une ressource sans ligne de
+    // confirmation n'a pas de sens.
+    const { error } = await supabase
+      .from(TABLE)
+      .update({
+        salle_email: salleEmail,
+        vehicule_email: vehiculeEmail,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("copro_code", coproCode)
+      .eq("type", type);
+    // Colonnes absentes (ALTER pas lance) : on ne peut pas persister les ressources,
+    // mais la date/heure/statut restent la source -> no-op silencieux (degrade propre).
+    // Toute autre erreur (table absente) est deja avalee par les autres ecritures.
+    if (error && colonneAbsente(error)) return;
   }
 }

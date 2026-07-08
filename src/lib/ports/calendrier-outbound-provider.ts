@@ -13,6 +13,8 @@ export interface CalendrierOutboundProvider {
    * (par defaut +1h pour un evenement date, lendemain pour une journee entiere).
    * Renvoie l'id Graph de l'evenement cree (pour le retrouver ensuite : renommer,
    * deplacer, supprimer) et son webLink Outlook si Graph les fournit.
+   * `ressources` : emails de salles / vehicules (room mailboxes) ajoutes comme
+   * attendees de type "resource" -> la salle auto-accepte si le creneau est libre.
    */
   creerEvenement(p: {
     boite: string;
@@ -22,6 +24,7 @@ export interface CalendrierOutboundProvider {
     journeeEntiere?: boolean;
     lieu?: string;
     description?: string;
+    ressources?: string[];
   }): Promise<{ id?: string; webLink?: string }>;
 
   /**
@@ -29,12 +32,28 @@ export interface CalendrierOutboundProvider {
    * est un jour seul ('YYYY-MM-DD'), l'evenement est replace en journee entiere sur
    * ce jour ; s'il porte une heure (ISO datetime), il devient un evenement date de
    * `fin - debut` (fin par defaut = debut + duree reunion). Champs absents = inchanges.
+   * `ressources` (si fourni) REMPLACE la liste des attendees de type "resource"
+   * (salles / vehicules) - `[]` retire toute ressource, absent = inchange.
    */
   mettreAJourEvenement(
     boite: string,
     eventId: string,
-    patch: { titre?: string; debut?: string; fin?: string },
+    patch: { titre?: string; debut?: string; fin?: string; ressources?: string[] },
   ): Promise<void>;
+
+  /**
+   * Disponibilite d'une salle (room mailbox) sur un creneau, via getSchedule de la
+   * `boite` interrogeante. `debutISO` / `finISO` : datetime local 'YYYY-MM-DDTHH:mm:ss'
+   * (fuseau Europe/Paris). Renvoie "libre" / "occupee" d'apres l'availabilityView, ou
+   * "inconnu" en degrade (Graph indisponible, 403 Access Policy pas encore ouverte
+   * pour les salles, reponse illisible) : l'UI n'est jamais bloquee.
+   */
+  disponibiliteSalle(
+    boite: string,
+    salleEmail: string,
+    debutISO: string,
+    finISO: string,
+  ): Promise<"libre" | "occupee" | "inconnu">;
 
   /**
    * Supprime un evenement de l'agenda. Tolere l'evenement deja absent (404 = deja

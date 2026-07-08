@@ -22,7 +22,7 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
 
   async confirmer(coproCode: string, type: "AG" | "CS", date: string, par: string): Promise<void> {
     STORE.set(cle(coproCode, type), {
-      ...projection(coproCode, type), // la projection Outlook survit (comme l'upsert SQL)
+      ...report(coproCode, type), // projection Outlook + ressources survivent (comme l'upsert SQL)
       coproCode,
       type,
       date,
@@ -34,7 +34,7 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
 
   async proposer(coproCode: string, type: "AG" | "CS", date: string): Promise<void> {
     STORE.set(cle(coproCode, type), {
-      ...projection(coproCode, type), // idem : replanifier ne perd pas l'evenement projete
+      ...report(coproCode, type), // idem : replanifier ne perd ni l'evenement ni la salle
       coproCode,
       type,
       date,
@@ -59,16 +59,34 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
     }
     STORE.set(cle(coproCode, type), maj);
   }
+
+  async enregistrerRessources(
+    coproCode: string,
+    type: "AG" | "CS",
+    salleEmail: string | null,
+    vehiculeEmail: string | null,
+  ): Promise<void> {
+    const existante = STORE.get(cle(coproCode, type));
+    if (!existante) return; // pas de ligne de confirmation -> pas de ressource (comme le SQL)
+    const maj = { ...existante };
+    delete maj.salleEmail;
+    delete maj.vehiculeEmail;
+    if (salleEmail) maj.salleEmail = salleEmail;
+    if (vehiculeEmail) maj.vehiculeEmail = vehiculeEmail;
+    STORE.set(cle(coproCode, type), maj);
+  }
 }
 
-/** Champs de projection Outlook de l'entree existante (a reporter dans l'upsert). */
-function projection(
+/** Champs a reporter dans un upsert (projection Outlook + ressources reservees). */
+function report(
   coproCode: string,
   type: "AG" | "CS",
-): Pick<ConfirmationEvenement, "outlookEventId" | "outlookBoite"> {
+): Pick<ConfirmationEvenement, "outlookEventId" | "outlookBoite" | "salleEmail" | "vehiculeEmail"> {
   const c = STORE.get(cle(coproCode, type));
   return {
     ...(c?.outlookEventId ? { outlookEventId: c.outlookEventId } : {}),
     ...(c?.outlookBoite ? { outlookBoite: c.outlookBoite } : {}),
+    ...(c?.salleEmail ? { salleEmail: c.salleEmail } : {}),
+    ...(c?.vehiculeEmail ? { vehiculeEmail: c.vehiculeEmail } : {}),
   };
 }
