@@ -14,4 +14,15 @@ export interface ConfirmationEvenementRepository {
   confirmer(coproCode: string, type: "AG" | "CS", date: string, par: string): Promise<void>;
   /** Upsert statut a_confirmer - appele quand une prochaine date est posee / changee. */
   proposer(coproCode: string, type: "AG" | "CS", date: string): Promise<void>;
+  /**
+   * Pose (eventId + boite) ou efface (null + null) la projection Outlook de
+   * l'evenement : id Graph de l'evenement projete et agenda ou il vit. No-op si
+   * aucune ligne n'existe pour (copro, type).
+   */
+  enregistrerProjection(
+    coproCode: string,
+    type: "AG" | "CS",
+    eventId: string | null,
+    boite: string | null,
+  ): Promise<void>;
 }

@@ -15,6 +15,27 @@ export interface ConfirmationEvenement {
   confirmeLe?: string;
   /** Initiales du gestionnaire qui a confirme. */
   confirmePar?: string;
+  /** Id Graph de l'evenement Outlook projete (projection automatique de la date). */
+  outlookEventId?: string;
+  /** Email de l'agenda ou vit l'evenement projete (boite du gestionnaire). */
+  outlookBoite?: string;
+}
+
+/**
+ * Titre de l'evenement Outlook projete pour une date CS/AG. Outlook est un reflet
+ * de la donnee intranet (decision Sekou 2026-07-08) : "S024 : AG à confirmer" tant
+ * que le CS n'a pas valide, "S024 : AG confirmée" apres le clic Confirmer.
+ * NOTE : les accents sont VOULUS ici (titre lisible dans Outlook) ; AG au feminin
+ * (assemblee), CS au masculin (conseil).
+ */
+export function titreProjectionOutlook(
+  coproCode: string,
+  type: "AG" | "CS",
+  statut: StatutConfirmation,
+): string {
+  const suffixe =
+    statut === "confirme" ? (type === "AG" ? "confirmée" : "confirmé") : "à confirmer";
+  return `${coproCode} : ${type} ${suffixe}`;
 }
 
 /**

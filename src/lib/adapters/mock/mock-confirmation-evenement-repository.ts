@@ -22,6 +22,7 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
 
   async confirmer(coproCode: string, type: "AG" | "CS", date: string, par: string): Promise<void> {
     STORE.set(cle(coproCode, type), {
+      ...projection(coproCode, type), // la projection Outlook survit (comme l'upsert SQL)
       coproCode,
       type,
       date,
@@ -32,6 +33,42 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
   }
 
   async proposer(coproCode: string, type: "AG" | "CS", date: string): Promise<void> {
-    STORE.set(cle(coproCode, type), { coproCode, type, date, statut: "a_confirmer" });
+    STORE.set(cle(coproCode, type), {
+      ...projection(coproCode, type), // idem : replanifier ne perd pas l'evenement projete
+      coproCode,
+      type,
+      date,
+      statut: "a_confirmer",
+    });
   }
+
+  async enregistrerProjection(
+    coproCode: string,
+    type: "AG" | "CS",
+    eventId: string | null,
+    boite: string | null,
+  ): Promise<void> {
+    const existante = STORE.get(cle(coproCode, type));
+    if (!existante) return; // pas de ligne de confirmation -> pas de projection (comme le SQL)
+    const maj = { ...existante };
+    delete maj.outlookEventId;
+    delete maj.outlookBoite;
+    if (eventId && boite) {
+      maj.outlookEventId = eventId;
+      maj.outlookBoite = boite;
+    }
+    STORE.set(cle(coproCode, type), maj);
+  }
+}
+
+/** Champs de projection Outlook de l'entree existante (a reporter dans l'upsert). */
+function projection(
+  coproCode: string,
+  type: "AG" | "CS",
+): Pick<ConfirmationEvenement, "outlookEventId" | "outlookBoite"> {
+  const c = STORE.get(cle(coproCode, type));
+  return {
+    ...(c?.outlookEventId ? { outlookEventId: c.outlookEventId } : {}),
+    ...(c?.outlookBoite ? { outlookBoite: c.outlookBoite } : {}),
+  };
 }

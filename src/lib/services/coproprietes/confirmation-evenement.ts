@@ -3,6 +3,7 @@
 
 import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
 import { getConfirmationEvenementRepository, getCoproRepository } from "@/lib/adapters/router";
+import { projeterEvenementOutlook } from "@/lib/services/coproprietes/projeter-evenement-outlook";
 
 /** Confirmations (AG et CS) d'une copro - pour la fiche. */
 export async function getConfirmations(coproCode: string): Promise<ConfirmationEvenement[]> {
@@ -21,17 +22,23 @@ export async function getConfirmationsPourCopros(
  * retour de mail. La date confirmee est RELUE dans le referentiel cote serveur
  * (jamais prise du client) : si elle a change entre-temps, on confirme la vraie.
  * Renvoie la date confirmee, ou null si la copro est hors scope / sans date.
+ * `boite` (email du gestionnaire connecte, passe par l'action) sert a la projection
+ * Outlook : l'evenement projete est renomme "confirmee" - facultatif, jamais bloquant.
  */
 export async function confirmerEvenement(
   coproCode: string,
   type: "AG" | "CS",
   par: string,
   managerId: string,
+  boite?: string,
 ): Promise<string | null> {
   const copro = await getCoproRepository().findByCode(coproCode, managerId);
   if (!copro) return null;
   const date = type === "AG" ? copro.prochaineAg?.date : copro.prochaineCsDate;
   if (!date) return null;
   await getConfirmationEvenementRepository().confirmer(coproCode, type, date, par);
+  // Projection Outlook : renomme l'evenement projete ("a confirmer" -> "confirmee").
+  // Degrade propre : n'empeche jamais la confirmation intranet.
+  await projeterEvenementOutlook(coproCode, type, date, "confirme", boite);
   return date;
 }

@@ -48,6 +48,9 @@ import { NoopMailOutboundProvider } from "@/lib/adapters/mail/noop-mail-outbound
 import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
 import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
 import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
+import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
+import { GraphCalendrierOutboundProvider } from "@/lib/adapters/calendrier/graph-calendrier-outbound";
+import { NoopCalendrierOutboundProvider } from "@/lib/adapters/calendrier/noop-calendrier-outbound";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -224,6 +227,14 @@ export function getMailOutboundProvider(): MailOutboundProvider {
 export function getMailboxProvider(): MailboxProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailboxProvider();
   return new NoopMailboxProvider();
+}
+
+// Calendrier sortant (projection des dates CS/AG dans l'agenda Outlook du
+// gestionnaire, meme infra Graph que le mail). Graph en reel (MAIL_SOURCE=graph),
+// sinon no-op : la projection est sautee, la donnee intranet reste la source.
+export function getCalendrierOutboundProvider(): CalendrierOutboundProvider {
+  if (process.env.MAIL_SOURCE === "graph") return new GraphCalendrierOutboundProvider();
+  return new NoopCalendrierOutboundProvider();
 }
 
 // Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie

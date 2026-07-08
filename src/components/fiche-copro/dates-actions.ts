@@ -27,7 +27,9 @@ async function definir(
   const g = await getGestionnaireCourant();
   if (!g) return;
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) return;
-  await definirDateEvenement(coproCode, type, quand, dateISO || null, g.id);
+  // La boite de projection Outlook = email de SESSION (jamais un parametre client),
+  // comme le RDV sinistre : le gestionnaire n'ecrit que dans son propre agenda.
+  await definirDateEvenement(coproCode, type, quand, dateISO || null, g.id, g.email);
   // (Re)fixer la PROCHAINE date d'AG reporte les prepas "sans date" (supervision + ODJ).
   // Corriger la derniere AG tenue est une mise a jour du referentiel : pas de report.
   if (type === "ag" && quand === "prochaine" && dateISO) {
@@ -71,7 +73,8 @@ export async function confirmerEvenementAction(
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
     return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    const date = await confirmerEvenement(coproCode, type, g.initiales, g.id);
+    // Boite de projection Outlook = email de session (cf. definir ci-dessus).
+    const date = await confirmerEvenement(coproCode, type, g.initiales, g.id, g.email);
     if (!date) return { ok: false, erreur: "Aucune date à confirmer." };
     revalidatePath(`/copropriete/${coproCode}`);
     revalidatePath("/calendrier");

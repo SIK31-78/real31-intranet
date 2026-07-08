@@ -7,6 +7,12 @@
 -- par retour de mail, le gestionnaire clique "Confirmer" -> "AG confirmee". Replanifier
 -- la date invalide la confirmation (comparaison de date cote code, domaine pur).
 --
+-- Projection Outlook (decision 2026-07-08) : la date intranet reste LA source ;
+-- l'agenda du gestionnaire recoit un reflet automatique ("S024 : AG a confirmer",
+-- renomme / deplace / supprime au fil des gestes). Les colonnes outlook_event_id
+-- (id Graph de l'evenement projete) et outlook_boite (email de l'agenda ou il vit)
+-- memorisent cette projection - nulles tant qu'aucun evenement n'a ete cree.
+--
 -- A executer une fois dans le SQL editor Supabase de la base cible.
 -- Pas de contrainte FK vers public."Copropriete" : reference logique seulement,
 -- pour ne rien imposer aux tables de l'App A (minimise le risque de drift Prisma).
@@ -21,6 +27,8 @@ create table if not exists public.intranet_confirmations_evenement (
                  check (statut in ('a_confirmer','confirme')),
   confirme_le    timestamptz,
   confirme_par   text,                                 -- initiales du gestionnaire, ex 'EL'
+  outlook_event_id text,                               -- id Graph de l'evenement Outlook projete
+  outlook_boite    text,                               -- email de l'agenda ou vit la projection
   updated_at     timestamptz default now(),
   primary key (copro_code, type)
 );
