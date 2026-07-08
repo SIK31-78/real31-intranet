@@ -1372,7 +1372,7 @@ Adapter Graph : `POST /users/{boite}/messages` (cree un brouillon dans la boite,
 
 ## ADR-029 - reprise-copro devient un module natif de l'intranet (domaine copié, voie B1)
 
-**Date** : 2026-07-06 - **Statut** : proposé (Sekou tranchera)
+**Date** : 2026-07-06 - **Statut** : accepté (Sekou, 2026-07-08)
 
 ### Contexte
 
@@ -1384,10 +1384,10 @@ Adapter Graph : `POST /users/{boite}/messages` (cree un brouillon dans la boite,
 
 **Sous-décision (axe 2, parcours) - révisée le 2026-07-01** : le parcours n'utilise **pas** le moteur de wizard du module sinistre (arbre de décision) : la reprise est une procédure **linéaire**, pilotée par l'IA. Le parcours retenu est une **fiche-hub** (`/reprise-copro/dossiers/[id]`) : créer la copro (nom, référence S0XXX, adresse) -> l'IA extrait cadrage + patrimoine des documents -> l'humain vérifie (coche) -> injection eStale -> checklist humaine pour ce que l'IA ne fait pas (vérifications V1-V4, finalisation P5, comptabilité C1-C6, clôture). Le suivi reste porté par le `dossier.ts` propre à reprise-copro (agrégat jumeau, voie B-β) plutôt que par le `Dossier` générique de l'intranet ; l'unification (B-α) est différée à un ADR ultérieur, quand le modèle de suivi partagé sera stabilisé.
 
-### B1 vs B2 (à trancher)
+### B1 vs B2 - tranché (2026-07-08)
 
-- **B1 - copie** (retenue au démarrage) : simple, immédiat, mais deux copies à synchroniser tant que le repo `reprise-copro` externe subsiste.
-- **B2 - package partagé** (monorepo/workspace) : propre à terme, mais impose un monorepo - plus lourd, à réserver au cas où les deux bases doivent cohabiter durablement.
+- **B1 - copie : retenue DURABLEMENT.** La version sous `src/lib/reprise/` est la seule vivante ; le repo externe `reprise-copro` reste gelé et sera archivé. Pas de synchronisation retour.
+- **B2 - package partagé (monorepo)** : écarté - il ne se justifierait que si les deux bases devaient cohabiter durablement, ce qui n'est pas le cas.
 
 ### Conséquences
 
@@ -1410,7 +1410,7 @@ Adapter Graph : `POST /users/{boite}/messages` (cree un brouillon dans la boite,
 
 ## ADR-030 - Port d'écriture eStale + injection full-granular par ID capturé
 
-**Date** : 2026-07-06 - **Statut** : proposé (Sekou tranchera)
+**Date** : 2026-07-06 - **Statut** : accepté avec ajustements (Sekou, 2026-07-08)
 
 ### Contexte
 
@@ -1437,9 +1437,11 @@ Cette voie (**la plus automatisée**, option 3 du doc `docs/reprise-copro-integr
 
 **Rollback préparé mais non auto-exécuté** : `RapportInjection.rollback` liste, dans l'ordre inverse de création, chaque entité créée (`EntiteCreee { type, id, cibleDomaine }`). eStale expose un `.delete()` par objet-mutation (`updateLot(id).delete()`, `updateOwner(id).delete()`, `updateDK(id).delete()`, `updateCondo(id).delete()`) qui permettrait de défaire une injection partielle, mais **le service ne l'appelle jamais automatiquement** en cas d'échec - il s'arrête et renvoie le plan de rollback prêt à l'emploi, laissant le geste de défaire (ou de reprendre) à un humain. Aujourd'hui, une injection interrompue en cours de route laisse une copro partielle à nettoyer à la main côté eStale (constaté sur plusieurs runs d'essai).
 
-**Règle d'exploitation : jamais `ESTALE_ECRITURE=reel` sur Vercel.** Une injection réelle est un **geste de poste local** : Sekou pose la variable et les identifiants dans son environnement de dev, jamais dans les variables d'environnement du déploiement Vercel. Ça évite qu'un déploiement prod expose, même accidentellement, la possibilité d'écrire en production eStale depuis une requête HTTP publique.
+**Règle d'exploitation TRANSITOIRE : jamais `ESTALE_ECRITURE=reel` sur Vercel (aujourd'hui).** Une injection réelle est pour l'instant un **geste de poste local** : Sekou pose la variable et les identifiants dans son environnement de dev, jamais dans les variables d'environnement du déploiement Vercel. Ça évite qu'un déploiement prod expose, même accidentellement, la possibilité d'écrire en production eStale depuis une requête HTTP publique. **Ajustement 2026-07-08 (Sekou) : ce n'est PAS une règle permanente - la cible produit est de pouvoir injecter DEPUIS LE SITE.** Prérequis avant de lever la règle : (a) SSO obligatoire sur le chemin (pas de fallback), (b) exécution longue maîtrisée sur Vercel (maxDuration/jobs - cf. murs plateforme relevés par l'audit pré-prod), (c) le GO/STOP humain conservé tel quel, (d) **pouvoir CORRIGER les données extraites dans l'UI avant d'injecter** (voir "Manque produit" ci-dessous).
 
-**Ligne rouge : pas d'injection via API/MCP.** Le GO/STOP humain (la modale de confirmation dans l'UI, servie par une session de poste local) est **le seul verrou** avant une écriture réelle. Aucun chemin d'automatisation (script, API exposée, MCP, cron) ne doit pouvoir déclencher `ecritureEstaleReelle()` sans ce geste humain explicite.
+**Manque produit identifié (Sekou, 2026-07-08) : pas d'édition du jeu extrait.** Quand l'analyse remonte des erreurs bloquantes (lot orphelin, nom vide, adresse incomplète...), l'utilisateur n'a AUCUN moyen de corriger dans l'app : le jeu est en lecture seule, la seule issue est de re-analyser en espérant mieux, ou d'abandonner. C'est une impasse d'usage réel (constatée sur S0305 : la correction de la ville de l'owner o9 a dû être faite par script directement en base). **Chantier prioritaire : un éditeur de corrections du jeu persisté** (éditer lots/clés/tantièmes/owners/attributions, re-passer les auto-checks, persister) - c'est aussi le prérequis (d) de l'injection depuis le site.
+
+**Ligne rouge (inchangée) : pas d'injection via API/MCP.** Le GO/STOP humain (la modale de confirmation dans l'UI) est **le seul verrou** avant une écriture réelle. Aucun chemin d'automatisation (script, API exposée, MCP, cron) ne doit pouvoir déclencher `ecritureEstaleReelle()` sans ce geste humain explicite - y compris le jour où l'injection se fera depuis le site.
 
 ### Conséquences
 
@@ -1463,7 +1465,7 @@ Cette voie (**la plus automatisée**, option 3 du doc `docs/reprise-copro-integr
 
 ## ADR-031 - Extraction des documents par IA avec routeur de providers
 
-**Date** : 2026-07-06 - **Statut** : proposé (Sekou tranchera)
+**Date** : 2026-07-06 - **Statut** : accepté (Sekou, 2026-07-08 - le mode CLI reste un outil de test local assumé ; la prod visera une clé API dédiée)
 
 ### Contexte
 
