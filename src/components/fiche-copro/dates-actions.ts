@@ -144,13 +144,15 @@ export async function verifierDispoSalleAction(
     .object({ coproCode: zCode, type: zTypeEvenement, dateISO: zDate, heure: zHeure, salleEmail: zEmail })
     .safeParse({ coproCode, type, dateISO, heure, salleEmail });
   if (!parse.success) return { dispo: "inconnu" };
-  const salle = validerRessource(salleEmail, "salle");
-  if (salle === "invalide" || salle === null) return { dispo: "inconnu" };
+  // Salle OU vehicule (la ZOE) : getSchedule marche sur toute boite ressource. On valide
+  // juste que l'email est dans la liste fermee RESSOURCES_REAL31 (n'importe quel type).
+  const ressource = ressourceParEmail(salleEmail.trim());
+  if (!ressource) return { dispo: "inconnu" };
   const g = await getGestionnaireCourant();
   if (!g?.email) return { dispo: "inconnu" }; // sans agenda cible, pas d'interrogation possible
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
     return { dispo: "inconnu" };
   // Boite interrogeante = email de session (le gestionnaire interroge depuis son agenda).
-  const dispo = await verifierDispoSalle(coproCode, type, dateISO, heure, salle, g.email);
+  const dispo = await verifierDispoSalle(coproCode, type, dateISO, heure, ressource.email, g.email);
   return { dispo };
 }

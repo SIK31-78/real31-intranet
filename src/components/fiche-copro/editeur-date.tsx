@@ -63,6 +63,11 @@ export function EditeurDate({
     cle: string;
     valeur: "libre" | "occupee" | "inconnu";
   } | null>(null);
+  // Dispo de la ZOE (meme mecanique que la salle, indexee par creneau).
+  const [dispoZoe, setDispoZoe] = useState<{
+    cle: string;
+    valeur: "libre" | "occupee" | "inconnu";
+  } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmeEffacer, setConfirmeEffacer] = useState(false);
 
@@ -102,6 +107,11 @@ export function EditeurDate({
   const dispoCreneau = avecHeure && salleVal && dateVal && heureVal;
   const dispoValeur = dispo && dispo.cle === cleDispo ? dispo.valeur : null;
 
+  // Idem pour la ZOE (quand la case est cochee et la date+heure saisies).
+  const cleZoe = `${dateVal}|${heureVal}|zoe`;
+  const dispoZoeCreneau = avecHeure && zoeVal && dateVal && heureVal;
+  const dispoZoeValeur = dispoZoe && dispoZoe.cle === cleZoe ? dispoZoe.valeur : null;
+
   // Verifie la dispo de la salle des qu'une salle est choisie ET la date+heure valides.
   // Degrade "inconnu" (Graph indisponible / 403 Access Policy) : jamais bloquant. Aucun
   // setState synchrone dans le corps de l'effet (uniquement dans les callbacks async).
@@ -120,6 +130,22 @@ export function EditeurDate({
     };
   }, [edition, dispoCreneau, cleDispo, coproCode, type, dateVal, heureVal, salleVal]);
 
+  // Verifie la dispo de la ZOE quand la case est cochee (getSchedule marche sur sa boite).
+  useEffect(() => {
+    if (!edition || !dispoZoeCreneau) return;
+    let annule = false;
+    verifierDispoSalleAction(coproCode, type === "ag" ? "AG" : "CS", dateVal, heureVal, ZOE_EMAIL)
+      .then((r) => {
+        if (!annule) setDispoZoe({ cle: cleZoe, valeur: r.dispo });
+      })
+      .catch(() => {
+        if (!annule) setDispoZoe({ cle: cleZoe, valeur: "inconnu" });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [edition, dispoZoeCreneau, cleZoe, coproCode, type, dateVal, heureVal]);
+
   const ouvrir = () => {
     // Re-lecture des props courantes a chaque ouverture (corrige l'etat fige).
     setDateVal(dateISO ?? "");
@@ -131,6 +157,7 @@ export function EditeurDate({
     setSalleVal(avecHeure ? (salleEmail ?? "") : "");
     setZoeVal(avecHeure ? Boolean(vehiculeEmail) : false);
     setDispo(null);
+    setDispoZoe(null);
     setErreur(null);
     setConfirmeEffacer(false);
     setEdition(true);
@@ -271,6 +298,29 @@ export function EditeurDate({
             />
             Réserver la voiture ZOE
           </label>
+
+          {/* Dispo de la ZOE (meme code couleur), a cote de la case. */}
+          {dispoZoeCreneau && (
+            <span
+              className={
+                "inline-flex items-center gap-1 text-[12px] " +
+                (dispoZoeValeur === "libre"
+                  ? "text-ok-700"
+                  : dispoZoeValeur === "occupee"
+                    ? "text-warn-700"
+                    : "text-ink-3")
+              }
+              aria-live="polite"
+            >
+              {dispoZoeValeur === null
+                ? "Vérification..."
+                : dispoZoeValeur === "libre"
+                  ? "ZOE libre"
+                  : dispoZoeValeur === "occupee"
+                    ? "ZOE occupée"
+                    : "Dispo inconnue"}
+            </span>
+          )}
 
           {/* Indicateur de dispo : vert (libre) / ambre (occupee) / gris (inconnue).
               N'apparait que quand une salle est choisie et la date+heure saisies. */}
