@@ -22,8 +22,12 @@ export function ConfirmationEvenement({
 }) {
   const [pending, startTransition] = useTransition();
   const [erreur, setErreur] = useState<string | null>(null);
+  // Affichage optimiste : au succes du clic, on bascule le badge en "Confirmee" tout de
+  // suite (la revalidation serveur ne rafraichit pas toujours ce composant client en place ;
+  // au prochain chargement, statutPourDate confirmera - la base est deja a jour).
+  const [confirmeOptimiste, setConfirmeOptimiste] = useState(false);
 
-  if (statut === "confirme") {
+  if (statut === "confirme" || confirmeOptimiste) {
     return (
       <Badge ton="ok" dot>
         {type === "CS" ? "Confirmé" : "Confirmée"}
@@ -42,6 +46,7 @@ export function ConfirmationEvenement({
           startTransition(async () => {
             const r = await confirmerEvenementAction(coproCode, type);
             if (!r.ok) setErreur(r.erreur);
+            else setConfirmeOptimiste(true);
           });
         }}
       >
