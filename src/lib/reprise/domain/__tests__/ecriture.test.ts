@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   balanceDesEcritures,
   grouperEcrituresParCompte,
+  grouperEcrituresPourRevue,
   verifierEquilibreGrandLivre,
   type LigneEcriture,
   type SensEcriture,
@@ -111,5 +112,26 @@ describe("grouperEcrituresParCompte - vue grand livre par compte", () => {
     ]);
     expect(g["6060.0"].totalDebit).toBe(0.3);
     expect(g["6060.0"].solde).toBe(0.3);
+  });
+});
+
+describe("grouperEcrituresPourRevue - detail bloc A, soldes seulement ailleurs", () => {
+  it("garde les lignes pour les classes 4/5 et les vide pour 6 et 1/7 (totaux conserves)", () => {
+    const g = grouperEcrituresPourRevue([
+      ligne("4501.100", "debit", 500), // bloc A (classe 4) -> detail conserve
+      ligne("5120.000", "debit", 800), // bloc A (classe 5) -> detail conserve
+      ligne("6060.0", "debit", 300), // classe 6 -> soldes seulement (regle Sekou)
+      ligne("6060.0", "debit", 100),
+      ligne("7010.0", "credit", 400), // classe 7 -> soldes seulement
+    ]);
+    expect(g["4501.100"].lignes).toHaveLength(1);
+    expect(g["5120.000"].lignes).toHaveLength(1);
+    // Classes reportees : aucune ligne transmise, mais totaux/solde/nbLignes intacts.
+    expect(g["6060.0"].lignes).toHaveLength(0);
+    expect(g["6060.0"].nbLignes).toBe(2);
+    expect(g["6060.0"].totalDebit).toBe(400);
+    expect(g["6060.0"].solde).toBe(400);
+    expect(g["7010.0"].lignes).toHaveLength(0);
+    expect(g["7010.0"].totalCredit).toBe(400);
   });
 });

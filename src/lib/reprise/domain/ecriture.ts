@@ -195,3 +195,22 @@ export function grouperEcrituresParCompte(lignes: LigneEcriture[]): Record<strin
   }
   return out;
 }
+
+/**
+ * Vue grand livre POUR LA REVUE de mapping (regle Sekou) : le detail ligne a ligne n'est utile
+ * que pour le BLOC A (classes 4/5, tiers et tresorerie - c'est la qu'on decide a qui imputer,
+ * notamment les 450 homonymes). Pour les classes reportees (6 et 1/2/3/7), on controle les
+ * SOLDES de chaque compte, pas chaque ligne -> on garde totaux + nbLignes mais on vide `lignes`
+ * (allege aussi nettement le payload : la classe 6 est le gros du grand livre).
+ */
+export function grouperEcrituresPourRevue(lignes: LigneEcriture[]): Record<string, GrandLivreCompte> {
+  const classeParCompte = new Map<string, ClasseComptable>();
+  for (const l of lignes) if (!classeParCompte.has(l.compte)) classeParCompte.set(l.compte, l.classe);
+
+  const groupes = grouperEcrituresParCompte(lignes);
+  for (const g of Object.values(groupes)) {
+    const classe = classeParCompte.get(g.compte);
+    if (classe !== 4 && classe !== 5) g.lignes = [];
+  }
+  return groupes;
+}
