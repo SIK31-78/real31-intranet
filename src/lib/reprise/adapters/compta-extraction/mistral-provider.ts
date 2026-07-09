@@ -24,6 +24,8 @@ import {
   type SpecFormatGrandLivre,
 } from "@/lib/reprise/adapters/shared/format-grand-livre";
 import { parserGrandLivre } from "@/lib/reprise/adapters/shared/parseur-grand-livre";
+import { extraireTextePages, estPdfNatif, type PageTexte } from "@/lib/reprise/adapters/shared/pdf-texte";
+import { parserGrandLivrePositions } from "@/lib/reprise/adapters/shared/parseur-grand-livre-positions";
 
 const BASE = "https://api.mistral.ai/v1";
 const MODEL_OCR = process.env.MODEL_OCR || "mistral-ocr-latest";
@@ -191,8 +193,53 @@ async function extraireParLots(pages: string[]): Promise<JeuEcritures> {
   return jeu;
 }
 
+/**
+ * Voie COUCHE TEXTE (PDF natif) : lit le texte positionne, verifie que c'est bien un PDF natif
+ * (couche texte fournie), puis parse par positions de facon DETERMINISTE (aucun reseau, aucun
+ * appel IA). Renvoie null si un doc n'est PAS natif (scan) ou si l'extraction n'est pas
+ * exploitable (0 ecriture, gros desequilibre) -> l'appelant garde le pipeline OCR intact.
+ */
+async function extraireParCoucheTexte(docs: DocumentSource[]): Promise<JeuEcritures | null> {
+  const pages: PageTexte[] = [];
+  for (const d of docs) {
+    const p = await extraireTextePages(d.contenu);
+    if (!estPdfNatif(p)) return null; // au moins un doc scanne -> voie OCR
+    pages.push(...p);
+  }
+  if (pages.length === 0) return null;
+
+  const parse = parserGrandLivrePositions(pages);
+  if (parse.lignes.length === 0) return null;
+
+  const jeu = normaliserGrandLivre({ lignes: parse.lignes, notes: parse.notes });
+  jeu.controles = parse.controles;
+
+  const equ = verifierEquilibreGrandLivre(jeu.lignes);
+  // Desequilibre ENORME = mapping de colonnes rate -> on prefere retomber sur l'OCR/IA.
+  if (!equ.equilibre && Math.abs(equ.ecart) > SEUIL_FALLBACK_EUR) return null;
+
+  const controle = verifierTotauxParCompte(jeu.lignes, parse.controles);
+  jeu.notes.push(
+    `Controle par compte : ${controle.nbComptesControles} controle(s), ${controle.nbEnEcart} en ecart.`,
+  );
+  jeu.notes.push(
+    `Pipeline COUCHE TEXTE (PDF natif, positions) : ${jeu.lignes.length} ecriture(s), equilibre global ecart ${equ.ecart}.`,
+  );
+  return jeu;
+}
+
 export class MistralComptaExtractionProvider implements ExtractionComptaProvider {
   async extraireGrandLivre(docs: DocumentSource[]): Promise<JeuEcritures> {
+    // VOIE PREFEREE : couche texte des PDF natifs (gratuite, instantanee, exacte -> chaque chiffre
+    // est deja dans le fichier). On ne re-OCRise que les scans. Toute erreur ici (pdfjs KO, doc
+    // corrompu) retombe silencieusement sur le pipeline OCR ci-dessous.
+    try {
+      const jeuTexte = await extraireParCoucheTexte(docs);
+      if (jeuTexte) return jeuTexte;
+    } catch {
+      // pdfjs indisponible / PDF illisible -> on bascule sur l'OCR.
+    }
+
     // OCR (une fois par doc) -> toutes les pages.
     const pages: string[] = [];
     for (const d of docs) pages.push(...(await ocrPages(d)));
