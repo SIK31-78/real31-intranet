@@ -22,9 +22,16 @@ export interface EcartCompte {
   debitImprime?: number;
   /** Total credit imprime par la source (si publie). */
   creditImprime?: number;
-  /** Ecart signe cote debit = calcule - imprime (undefined si pas de total debit imprime). */
+  /** Report a-nouveau debit capture pour ce compte (0 si aucun). */
+  reportDebit: number;
+  /** Report a-nouveau credit capture pour ce compte (0 si aucun). */
+  reportCredit: number;
+  /**
+   * Ecart signe cote debit = (report + calcule) - imprime (undefined si pas de total debit
+   * imprime). Le total imprime INCLUT le report a-nouveau, que l'on n'extrait pas en ecritures.
+   */
   ecartDebit?: number;
-  /** Ecart signe cote credit = calcule - imprime (undefined si pas de total credit imprime). */
+  /** Ecart signe cote credit = (report + calcule) - imprime (undefined si pas de total credit imprime). */
   ecartCredit?: number;
 }
 
@@ -45,9 +52,11 @@ function arrondi(n: number): number {
 
 /**
  * Confronte les ecritures extraites aux totaux imprimes par compte. Pour chaque ControleCompte
- * porteur d'au moins un total, on cumule les debits/credits des ecritures du meme compte et on
- * compare. Un compte est "en ecart" si |calcule - imprime| depasse SEUIL_EQUILIBRE cote debit
- * OU cote credit. PUR, deterministe.
+ * porteur d'au moins un total, on cumule les debits/credits des ecritures du meme compte, on y
+ * REINTEGRE le report a-nouveau capture (le total imprime l'inclut, alors qu'on n'extrait pas
+ * les reports en ecritures), et on compare : report + somme(ecritures) == total imprime. Un
+ * compte est "en ecart" si |report + calcule - imprime| depasse SEUIL_EQUILIBRE cote debit OU
+ * cote credit. PUR, deterministe.
  */
 export function verifierTotauxParCompte(
   lignes: LigneEcriture[],
@@ -74,8 +83,12 @@ export function verifierTotauxParCompte(
     const agg = parCompte.get(c.compte) ?? { debit: 0, credit: 0 };
     const debitCalcule = arrondi(agg.debit);
     const creditCalcule = arrondi(agg.credit);
-    const ecartDebit = aDebit ? arrondi(debitCalcule - (c.totalDebit as number)) : undefined;
-    const ecartCredit = aCredit ? arrondi(creditCalcule - (c.totalCredit as number)) : undefined;
+    // Le total imprime INCLUT le report a-nouveau (solde d'ouverture), or on ne reprend PAS les
+    // reports comme ecritures -> on les reintegre ici : report + somme(ecritures) == total.
+    const reportDebit = arrondi(c.reportDebit ?? 0);
+    const reportCredit = arrondi(c.reportCredit ?? 0);
+    const ecartDebit = aDebit ? arrondi(reportDebit + debitCalcule - (c.totalDebit as number)) : undefined;
+    const ecartCredit = aCredit ? arrondi(reportCredit + creditCalcule - (c.totalCredit as number)) : undefined;
 
     const enEcartDebit = ecartDebit !== undefined && Math.abs(ecartDebit) >= SEUIL_EQUILIBRE;
     const enEcartCredit = ecartCredit !== undefined && Math.abs(ecartCredit) >= SEUIL_EQUILIBRE;
@@ -86,6 +99,8 @@ export function verifierTotauxParCompte(
         creditCalcule,
         debitImprime: c.totalDebit,
         creditImprime: c.totalCredit,
+        reportDebit,
+        reportCredit,
         ecartDebit,
         ecartCredit,
       });

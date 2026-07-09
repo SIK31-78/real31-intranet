@@ -57,6 +57,14 @@ export interface ControleCompte {
   totalDebit?: number;
   /** Total des credits imprime pour ce compte (si la source le publie). */
   totalCredit?: number;
+  /**
+   * Report a-nouveau / solde anterieur DEBIT de ce compte (report d'ouverture, exclu des
+   * ecritures mais INTEGRE au controle : le "Total compte" imprime inclut le report, or on ne
+   * reprend pas les reports comme ecritures -> report + somme(ecritures) doit egaler le total).
+   */
+  reportDebit?: number;
+  /** Report a-nouveau / solde anterieur CREDIT de ce compte (idem cote credit). */
+  reportCredit?: number;
 }
 
 /** Sortie de l'extraction du grand livre : les ecritures + notes de vigilance. */

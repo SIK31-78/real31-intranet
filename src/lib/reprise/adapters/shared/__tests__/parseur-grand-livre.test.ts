@@ -12,6 +12,7 @@ const SPEC_DEUX_COLONNES: SpecFormatGrandLivre = {
   signePositif: "debit",
   motsClesReport: ["report", "a nouveau", "solde anterieur"],
   motsClesTotalCompte: ["total compte"],
+  motsClesReportANouveau: ["a nouveau", "solde anterieur"],
 };
 
 const SPEC_MONTANT_SIGNE: SpecFormatGrandLivre = {
@@ -21,6 +22,7 @@ const SPEC_MONTANT_SIGNE: SpecFormatGrandLivre = {
   signePositif: "debit",
   motsClesReport: ["report"],
   motsClesTotalCompte: ["total"],
+  motsClesReportANouveau: ["report a nouveau"],
 };
 
 describe("parseNombreFr - nombres francais", () => {
@@ -38,6 +40,13 @@ describe("parseNombreFr - nombres francais", () => {
     expect(parseNombreFr("Debit")).toBeNull();
     expect(parseNombreFr("")).toBeNull();
     expect(parseNombreFr("   ")).toBeNull();
+  });
+  it("retire la decoration markdown d'emphase (gras/italique) sur les totaux", () => {
+    // L'OCR met souvent les totaux en gras : "**688,78**" doit se lire 688,78.
+    expect(parseNombreFr("**688,78**")).toBe(688.78);
+    expect(parseNombreFr("**10 302,78**")).toBe(10302.78);
+    expect(parseNombreFr("_1 200,00_")).toBe(1200);
+    expect(parseNombreFr("**")).toBeNull();
   });
 });
 
@@ -77,6 +86,40 @@ describe("parserGrandLivre - presentation deux colonnes", () => {
     const c512 = r.controles.find((c) => c.compte === "512000");
     expect(c401).toEqual({ compte: "401000", totalDebit: 1200, totalCredit: 1200 });
     expect(c512).toEqual({ compte: "512000", totalDebit: 800, totalCredit: 1200 });
+  });
+
+  it("capture les totaux meme en GRAS markdown (** **), comme l'OCR les rend", () => {
+    // Reproduit le pattern reel : totaux imprimes en gras -> ne doivent plus echapper a la capture.
+    const pageGras = [
+      "# 401000 FOURNISSEURS",
+      "| Date | Libelle | Piece | Debit | Credit |",
+      "|------|---------|-------|-------|--------|",
+      "| 01/10/2025 | Facture | FA1 |  | 1 200,00 |",
+      "| Total compte 401000 |  |  | **0,00** | **1 200,00** |",
+    ].join("\n");
+    const r = parserGrandLivre([pageGras], SPEC_DEUX_COLONNES);
+    const c401 = r.controles.find((c) => c.compte === "401000");
+    expect(c401).toEqual({ compte: "401000", totalDebit: 0, totalCredit: 1200 });
+  });
+
+  it("capture l'a-nouveau (solde anterieur) par compte pour reconcilier le total", () => {
+    // Reproduit le pattern reel : le total imprime INCLUT le report d'ouverture, exclu des
+    // ecritures. On doit capturer le report pour que report + ecritures == total.
+    const pageReport = [
+      "# 512000 BANQUE",
+      "| Date | Libelle | Piece | Debit | Credit |",
+      "|------|---------|-------|-------|--------|",
+      "| Solde anterieur |  |  | 9 614,00 |  |",
+      "| 24/10/2025 | Encaissement | VR1 | 143,17 |  |",
+      "| Total compte 512000 |  |  | **9 757,17** |  |",
+    ].join("\n");
+    const r = parserGrandLivre([pageReport], SPEC_DEUX_COLONNES);
+    // L'a-nouveau n'est PAS une ecriture.
+    expect(r.lignes).toHaveLength(1);
+    const c512 = r.controles.find((c) => c.compte === "512000");
+    expect(c512).toMatchObject({ compte: "512000", reportDebit: 9614, totalDebit: 9757.17 });
+    expect(c512?.reportCredit).toBeUndefined();
+    expect(r.notes.some((n) => /a-nouveau/.test(n))).toBe(true);
   });
 });
 

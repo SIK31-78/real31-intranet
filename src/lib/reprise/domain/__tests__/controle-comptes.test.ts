@@ -60,4 +60,26 @@ describe("verifierTotauxParCompte", () => {
     const r = verifierTotauxParCompte(lignes, controles);
     expect(r.nbEnEcart).toBe(0);
   });
+
+  it("reconcilie l'a-nouveau : report + ecritures == total imprime (pas d'ecart)", () => {
+    // Le total imprime inclut un report d'ouverture debit de 500 que l'on n'extrait pas en
+    // ecriture. Sans reconciliation ce serait un faux positif ; avec, l'ecart est nul.
+    const controles: ControleCompte[] = [
+      { compte: "512000", totalDebit: 1300, totalCredit: 1200, reportDebit: 500 },
+    ];
+    const r = verifierTotauxParCompte(lignes, controles);
+    expect(r.nbComptesControles).toBe(1);
+    expect(r.nbEnEcart).toBe(0); // 500 (report) + 800 (ecritures) == 1300 imprime
+  });
+
+  it("localise une VRAIE erreur meme apres reintegration du report", () => {
+    // report 500 + ecritures 800 = 1300, or le total imprime est 1350 -> ecart reel de -50.
+    const controles: ControleCompte[] = [
+      { compte: "512000", totalDebit: 1350, reportDebit: 500 },
+    ];
+    const r = verifierTotauxParCompte(lignes, controles);
+    expect(r.nbEnEcart).toBe(1);
+    expect(r.enEcart[0].ecartDebit).toBe(-50);
+    expect(r.enEcart[0].reportDebit).toBe(500);
+  });
 });

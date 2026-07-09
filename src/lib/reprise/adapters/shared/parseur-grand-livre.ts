@@ -38,6 +38,12 @@ const EPS = 0.005;
 export function parseNombreFr(brut: string): number | null {
   let s = (brut ?? "").trim();
   if (!s) return null;
+  // Retire la decoration markdown d'emphase/code (** gras **, _italique_, `code`) : l'OCR met
+  // souvent les TOTAUX en gras (ex. "**688,78**"), ce qui ferait echouer la reconnaissance du
+  // nombre et perdrait la capture des totaux de controle. Les montants ne contiennent jamais
+  // ces caracteres, donc les retirer est neutre pour les ecritures.
+  s = s.replace(/[*_`]/g, "").trim();
+  if (!s) return null;
   let negatif = false;
   if (/^\(.*\)$/.test(s)) {
     negatif = true;
@@ -137,11 +143,16 @@ export function parserGrandLivre(pagesMarkdown: string[], spec: SpecFormatGrandL
 
   let nbReportExclus = 0;
   let nbTotauxCaptures = 0;
+  let nbReportsCaptures = 0;
   let nbAmbigus = 0;
   let nbNonExploitees = 0;
 
   const col = spec.colonnes;
-  const regexEntete = compilerRegexEntete(spec.motifEnteteCompte);
+  // Compte-colonne et motif d'en-tete s'excluent (le compte est SOIT une colonne repetee, SOIT
+  // suivi via un motif hors tableau). Si une colonne compte existe, on IGNORE le motif meme si
+  // l'IA en a fourni un : un motif large peut sinon capturer un pied de page ("1. ADRESSE ...")
+  // et creer un faux compte qui vole des ecritures. La colonne est la source fiable.
+  const regexEntete = col.compte === null ? compilerRegexEntete(spec.motifEnteteCompte) : null;
 
   // Tente de reconnaitre un en-tete de compte sur une ligne (brute ou nettoyee). Met a jour le
   // compte courant si trouve. Renvoie true si la ligne EST un en-tete (a ne pas traiter ensuite).
@@ -201,6 +212,35 @@ export function parserGrandLivre(pagesMarkdown: string[], spec: SpecFormatGrandL
           if (tc !== null) prec.totalCredit = Math.abs(tc);
           controlesParCompte.set(compte, prec);
           nbTotauxCaptures++;
+        }
+        continue;
+      }
+
+      // Ligne d'A-NOUVEAU / solde anterieur d'OUVERTURE : exclue des ecritures (on ne reprend
+      // pas les reports) MAIS son montant est CAPTURE par compte -> permet de reconcilier le
+      // controle (le "Total compte" imprime INCLUT le report : report + ecritures == total).
+      // On teste l'a-nouveau AVANT le report generique (ex. "total mois") pour ne capturer QUE
+      // l'ouverture et jamais un sous-total periodique.
+      if (contientMotCle(texteLigne, spec.motsClesReportANouveau)) {
+        const rd = col.debit !== null ? parseNombreFr(cellule(cells, col.debit)) : null;
+        const rc = col.credit !== null ? parseNombreFr(cellule(cells, col.credit)) : null;
+        // Presentation montant-signe : le report est porte par la colonne montant (signe).
+        let rDeb = rd !== null ? Math.abs(rd) : 0;
+        let rCred = rc !== null ? Math.abs(rc) : 0;
+        if (spec.presentation !== "deux-colonnes" && col.montant !== null) {
+          const rm = parseNombreFr(cellule(cells, col.montant));
+          if (rm !== null && Math.abs(rm) >= EPS) {
+            const sensPos = rm >= 0 ? spec.signePositif : spec.signePositif === "debit" ? "credit" : "debit";
+            if (sensPos === "debit") rDeb = Math.abs(rm);
+            else rCred = Math.abs(rm);
+          }
+        }
+        if ((rDeb >= EPS || rCred >= EPS) && compte) {
+          const prec = controlesParCompte.get(compte) ?? { compte };
+          if (rDeb >= EPS) prec.reportDebit = (prec.reportDebit ?? 0) + rDeb;
+          if (rCred >= EPS) prec.reportCredit = (prec.reportCredit ?? 0) + rCred;
+          controlesParCompte.set(compte, prec);
+          nbReportsCaptures++;
         }
         continue;
       }
@@ -273,6 +313,7 @@ export function parserGrandLivre(pagesMarkdown: string[], spec: SpecFormatGrandL
     `Parseur deterministe (spec IA, ${spec.presentation}) : ${pagesMarkdown.length} page(s), ${lignes.length} ecriture(s), ${nbComptesSuivis} en-tete(s) de compte.`,
   );
   if (nbReportExclus) notes.push(`Parseur : ${nbReportExclus} ligne(s) report/solde/sous-total exclue(s).`);
+  if (nbReportsCaptures) notes.push(`Parseur : ${nbReportsCaptures} a-nouveau(x) capture(s) pour reconcilier le controle.`);
   if (nbTotauxCaptures) notes.push(`Parseur : ${nbTotauxCaptures} total(aux) de compte capture(s) pour controle.`);
   if (nbAmbigus) notes.push(`Parseur : ${nbAmbigus} ligne(s) debit ET credit remplis (net retenu).`);
   if (nbNonExploitees) notes.push(`Parseur : ${nbNonExploitees} ligne(s) datee(s) sans montant lisible (ignorees).`);

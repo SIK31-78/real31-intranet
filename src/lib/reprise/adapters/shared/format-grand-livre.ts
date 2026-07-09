@@ -61,6 +61,15 @@ export interface SpecFormatGrandLivre {
    * les totaux quand des montants sont presents, sinon exclut simplement.
    */
   motsClesTotalCompte: string[];
+  /**
+   * Mots-cles marquant SPECIFIQUEMENT la ligne d'A-NOUVEAU / SOLDE ANTERIEUR d'OUVERTURE d'un
+   * compte (ex. ["solde anterieur", "a nouveau", "report a nouveau"]). Sous-ensemble de
+   * motsClesReport : cette ligne est EXCLUE des ecritures (on ne reprend pas les reports) MAIS
+   * son montant (report debit/credit) est CAPTURE par compte pour RECONCILIER le controle : le
+   * "Total compte" imprime inclut le report, donc report + somme(ecritures) == total imprime.
+   * A distinguer des sous-totaux periodiques (total mois) qui, eux, ne se capturent pas.
+   */
+  motsClesReportANouveau: string[];
 }
 
 const IndexCol = z.number().int().min(0).max(60).nullable();
@@ -83,6 +92,10 @@ const SpecZ = z.object({
   signePositif: z.enum(["debit", "credit"]).default("debit"),
   motsClesReport: z.array(z.coerce.string()).default([]),
   motsClesTotalCompte: z.array(z.coerce.string()).default([]),
+  // Defaut robuste : si l'IA omet ce champ, on reconnait quand meme les a-nouveaux usuels.
+  motsClesReportANouveau: z
+    .array(z.coerce.string())
+    .default(["solde anterieur", "a nouveau", "a-nouveau", "report a nouveau"]),
 });
 
 /** Erreur de spec incoherente : l'adapter la traite comme un signal de FALLBACK full-LLM. */
@@ -143,7 +156,8 @@ Renvoie UNIQUEMENT un JSON STRICT decrivant comment PARSER ce grand livre :
   "colonnes": {"compte":int|null,"date":int|null,"libelle":int|null,"piece":int|null,"debit":int|null,"credit":int|null,"montant":int|null,"sens":int|null},
   "signePositif": "debit" | "credit",
   "motsClesReport": [string],
-  "motsClesTotalCompte": [string]
+  "motsClesTotalCompte": [string],
+  "motsClesReportANouveau": [string]
 }
 
 COMMENT COMPTER LES COLONNES (crucial) : dans une ligne de tableau markdown, chaque cellule entre deux barres | est une colonne, MEME SI ELLE EST VIDE. Ignore uniquement les barres de BORD (tout a gauche et tout a droite), puis numerote les cellules de GAUCHE a DROITE en partant de 0, en INCLUANT les cellules vides. Ne saute JAMAIS une cellule vide.
@@ -161,5 +175,6 @@ REGLES :
 - signePositif : en "montant-signe", indique si un montant POSITIF signifie "debit" ou "credit" (regarde des lignes evidentes). Sinon "debit".
 - motsClesReport : mots-cles (minuscule) des lignes a EXCLURE car ce sont des syntheses : report a nouveau, solde anterieur, "a nouveau", sous-totaux, cumuls, total general.
 - motsClesTotalCompte : mots-cles de la ligne de TOTAL d'un compte (ex. "total compte", "total"). Ces lignes seront exclues des ecritures mais leurs montants serviront de controle.
+- motsClesReportANouveau : mots-cles marquant PRECISEMENT la ligne d'A-NOUVEAU / SOLDE ANTERIEUR d'ouverture d'un compte (ex. "solde anterieur", "a nouveau", "report a nouveau"). C'est un SOUS-ENSEMBLE de motsClesReport : cette ligne est exclue des ecritures mais son montant (report debit/credit) est capture pour reconcilier le total du compte. N'y mets PAS les sous-totaux periodiques (ex. "total mois") : eux ne se capturent pas.
 
 N'INVENTE PAS de colonnes. Reponds UNIQUEMENT le JSON, sans aucun texte autour.`;
