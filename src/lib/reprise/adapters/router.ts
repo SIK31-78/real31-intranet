@@ -14,6 +14,11 @@ import { MockExtractionProvider } from "@/lib/reprise/adapters/extraction/mock-e
 import { ClaudeExtractionProvider } from "@/lib/reprise/adapters/claude/claude-extraction-provider";
 import { MistralExtractionProvider } from "@/lib/reprise/adapters/mistral/mistral-extraction-provider";
 import { ClaudeCliExtractionProvider } from "@/lib/reprise/adapters/claude-cli/claude-cli-extraction-provider";
+import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
+import { MockComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/mock-provider";
+import { ClaudeComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/claude-provider";
+import { MistralComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/mistral-provider";
+import { ClaudeCliComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/claude-cli-provider";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
 import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
@@ -66,6 +71,32 @@ export function getExtractionProvider(): ExtractionProvider {
       return new MistralExtractionProvider();
     default:
       return new MockExtractionProvider();
+  }
+}
+
+/**
+ * Provider d'extraction du GRAND LIVRE comptable, choisi selon l'environnement. Meme gate que
+ * le patrimoine (EXTRACTION_PROVIDER -> modeExtraction) : Claude / Claude CLI / Mistral selon
+ * les credentials, sinon MOCK (grand livre fictif equilibre, mode demonstration). Comme pour
+ * le patrimoine, le mock ne doit JAMAIS repondre a de vrais PDF en production (il renverrait le
+ * jeu de demo comme s'il etait le resultat de l'analyse) -> erreur explicite dans ce cas.
+ */
+export function getExtractionComptaProvider(): ExtractionComptaProvider {
+  const mode = modeExtraction();
+  if (mode === "mock" && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Extraction IA non configuree en production : poser EXTRACTION_PROVIDER + la cle correspondante (ANTHROPIC_API_KEY ou MISTRAL_API_KEY).",
+    );
+  }
+  switch (mode) {
+    case "claude-cli":
+      return new ClaudeCliComptaExtractionProvider();
+    case "claude":
+      return new ClaudeComptaExtractionProvider();
+    case "mistral":
+      return new MistralComptaExtractionProvider();
+    default:
+      return new MockComptaExtractionProvider();
   }
 }
 
