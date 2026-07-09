@@ -22,6 +22,9 @@ import { ClaudeCliComptaExtractionProvider } from "@/lib/reprise/adapters/compta
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
 import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
+import type { MappingDecisionRepository } from "@/lib/reprise/ports/mapping-decision-repository";
+import { MappingDecisionRepositoryMemoire } from "@/lib/reprise/adapters/memoire/mapping-decision-repository-memoire";
+import { MappingDecisionRepositorySupabase } from "@/lib/reprise/adapters/supabase/mapping-decision-repository-supabase";
 import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
 import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
 import { ReelEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/reel-provider";
@@ -162,4 +165,18 @@ export function getRepriseDossierRepository(): DossierRepository {
   if (reprisePersistanceSupabase()) return new DossierRepositorySupabase();
   if (!repoMemoire) repoMemoire = new DossierRepositoryMemoire();
   return repoMemoire;
+}
+
+/**
+ * Repository des DECISIONS de revue du mapping comptable. Meme convention que les dossiers :
+ * Supabase quand COPRO_SOURCE=supabase (public.reprise_mapping_decision de la base patron),
+ * sinon adapter memoire (singleton module-level, survit entre requetes du meme process, perdu
+ * au redemarrage). L'adapter Supabase est sans etat (l'etat vit dans la base).
+ */
+let repoDecisionsMemoire: MappingDecisionRepository | null = null;
+
+export function getMappingDecisionRepository(): MappingDecisionRepository {
+  if (reprisePersistanceSupabase()) return new MappingDecisionRepositorySupabase();
+  if (!repoDecisionsMemoire) repoDecisionsMemoire = new MappingDecisionRepositoryMemoire();
+  return repoDecisionsMemoire;
 }

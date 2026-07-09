@@ -20,6 +20,7 @@ import {
   construirePlan,
   mapperCompte,
   racineCompte,
+  type CandidatCompte,
   type ContexteEstale,
   type PlanMapping,
 } from "@/lib/reprise/domain/mapping-compta";
@@ -95,5 +96,60 @@ export async function construirePlanMapping(
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return { ok: false, message: `Mapping eStale impossible pour "${coproCode}" : ${message}` };
+  }
+}
+
+/** Referentiel eStale expose a l'ecran de revue (pour les listes deroulantes de mapping manuel). */
+export interface CandidatsEstale {
+  /** Comptes 401 fournisseurs existants (nomenclature + nom). PII : noms affiches en UI seulement. */
+  fournisseurs: CandidatCompte[];
+  /** Comptes 450 coproprietaires existants (nomenclature + nom). PII : idem. */
+  coproprietaires: CandidatCompte[];
+}
+
+export type ResultatRevueMapping =
+  | { ok: true; plan: PlanMapping; candidats: CandidatsEstale; ref: RefAccounting }
+  | { ok: false; message: string };
+
+/**
+ * Prepare la REVUE HUMAINE du mapping : construit le plan (comme construirePlanMapping) MAIS
+ * expose en plus le referentiel eStale (comptes 401/450 avec leur nom) dont l'ecran a besoin
+ * pour les listes deroulantes de mapping manuel. Le rejeu des decisions humaines (recalcul du
+ * verdict) reste PUR cote domaine (appliquerDecisions) : ce service ne lit qu'eStale.
+ *
+ * DRY-RUN strict : aucune ecriture, aucune mutation. Degrade proprement (copro introuvable /
+ * eStale indisponible => { ok:false, message }, jamais d'exception qui remonte).
+ */
+export async function preparerRevueMapping(
+  jeu: JeuEcritures,
+  coproCode: string,
+  provider: EstaleComptaLectureProvider = getEstaleComptaLectureProvider(),
+): Promise<ResultatRevueMapping> {
+  try {
+    const ref = await provider.resoudreAccounting(coproCode);
+    if (!ref) {
+      return {
+        ok: false,
+        message: `Copro "${coproCode}" introuvable dans eStale ou sans exercice comptable ouvert.`,
+      };
+    }
+
+    const comptes = await provider.lireComptes(ref);
+    const contexte = construireContexteEstale(comptes);
+
+    const entrees = comptesSourceDistincts(jeu).map(({ compte, intitule }) =>
+      mapperCompte(compte, intitule, contexte),
+    );
+    const plan = construirePlan(entrees);
+
+    return {
+      ok: true,
+      plan,
+      candidats: { fournisseurs: contexte.fournisseurs, coproprietaires: contexte.coproprietaires },
+      ref,
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, message: `Revue mapping eStale impossible pour "${coproCode}" : ${message}` };
   }
 }

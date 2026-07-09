@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import type { ComponentType } from "react";
-import { FolderInput, ListChecks, ArrowRight } from "lucide-react";
+import { FolderInput, ListChecks, Calculator, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 export default function RepriseAccueil() {
@@ -31,6 +31,12 @@ export default function RepriseAccueil() {
           icon={ListChecks}
           titre="Suivi des dossiers"
           desc="Suivre l'avancement des reprises en cours, étape par étape (patrimoine, vérification, mise en service)."
+        />
+        <LienCard
+          href="/reprise-copro/mapping-compta"
+          icon={Calculator}
+          titre="Reprise comptable (mapping)"
+          desc="Analyser le grand livre N-1, mapper chaque compte source vers eStale, trancher les alertes d'appariement avant l'import."
         />
       </div>
     </div>
