@@ -20,6 +20,9 @@ import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossi
 import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
 import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
 import { ReelEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/reel-provider";
+import type { EstaleComptaLectureProvider } from "@/lib/reprise/ports/estale-compta-lecture-provider";
+import { ReelEstaleComptaLectureProvider } from "@/lib/reprise/adapters/estale-compta/reel-provider";
+import { MockEstaleComptaLectureProvider } from "@/lib/reprise/adapters/estale-compta/mock-provider";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
 
 export type ModeExtraction = "claude" | "claude-cli" | "mistral" | "mock";
@@ -91,6 +94,17 @@ export function ecritureEstaleReelle(): boolean {
 export function getEstaleEcritureProvider(): EstaleEcritureProvider {
   if (ecritureEstaleReelle()) return new ReelEstaleEcritureProvider();
   return new DryRunEstaleEcritureProvider();
+}
+
+/**
+ * Provider de LECTURE comptable eStale (reprise, increment 0). Contrairement a l'ecriture,
+ * aucun gate ESTALE_ECRITURE : la lecture est sans danger (aucune mutation). On choisit donc
+ * l'adapter REEL des que eStale est configure (identifiants presents), sinon le MOCK (mode
+ * demonstration, copro fictive equilibree). Instance neuve a chaque appel.
+ */
+export function getEstaleComptaLectureProvider(): EstaleComptaLectureProvider {
+  if (estaleConfigure()) return new ReelEstaleComptaLectureProvider();
+  return new MockEstaleComptaLectureProvider();
 }
 
 /**
