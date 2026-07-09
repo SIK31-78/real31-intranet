@@ -44,11 +44,32 @@ export interface LigneEcriture {
   piece?: string;
 }
 
+/**
+ * Total IMPRIME d'un compte tel que la source le publie (ligne "Total compte X" ou solde de
+ * fin de compte). Ce n'est PAS une ecriture : c'est un point de controle deterministe. Quand
+ * le grand livre imprime ces totaux, on peut verifier que la somme des ecritures qu'on a
+ * extraites pour ce compte retombe bien dessus -> localisation fine d'un desequilibre.
+ */
+export interface ControleCompte {
+  /** Compte tel que la source le nomme (nomenclature du syndic sortant). */
+  compte: string;
+  /** Total des debits imprime pour ce compte (si la source le publie). */
+  totalDebit?: number;
+  /** Total des credits imprime pour ce compte (si la source le publie). */
+  totalCredit?: number;
+}
+
 /** Sortie de l'extraction du grand livre : les ecritures + notes de vigilance. */
 export interface JeuEcritures {
   lignes: LigneEcriture[];
   /** Points de vigilance (lignes exclues, comptes hors 1-7, formats douteux...). */
   notes: string[];
+  /**
+   * Totaux imprimes par compte captures a l'extraction (optionnel : seul le pipeline hybride
+   * les fournit ; les adapters full-LLM ne les remplissent pas). Champ ADDITIF : ne casse
+   * aucun adapter existant, ne modifie pas le port ExtractionComptaProvider.
+   */
+  controles?: ControleCompte[];
 }
 
 /** Verdict d'equilibre GLOBAL d'un grand livre + detail par classe. */
