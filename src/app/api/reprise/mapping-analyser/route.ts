@@ -23,6 +23,7 @@ import {
 } from "@/lib/reprise/adapters/router";
 import { extraireEtVerifierGrandLivre } from "@/lib/reprise/services/reprendre-compta";
 import { preparerRevueMapping } from "@/lib/reprise/services/mapping-compta";
+import { grouperEcrituresParCompte } from "@/lib/reprise/domain/ecriture";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 
 export const runtime = "nodejs";
@@ -89,11 +90,18 @@ export async function POST(req: Request) {
     // 3. Decisions humaines deja tranchees pour cette copro (rehydratation de l'ecran).
     const decisions = await getMappingDecisionRepository().lister(coproCode);
 
+    // 4. Grand livre GROUPE par compte source (colonnes debit/credit) : sert a l'ecran a deplier
+    // les ecritures de chaque compte a trancher. Vient de l'analyse DEJA faite (pas de re-fetch) ;
+    // groupe cote serveur pour ne pas envoyer les ~800 lignes a plat. PII : libelles affiches en
+    // UI (app interne) mais jamais logues.
+    const grandLivre = grouperEcrituresParCompte(jeu.lignes);
+
     return NextResponse.json({
       ok: true,
       plan: revue.plan,
       candidats: revue.candidats,
       decisions,
+      grandLivre,
       equilibre: equilibreGlobal,
       mode: modeExtraction(),
     });

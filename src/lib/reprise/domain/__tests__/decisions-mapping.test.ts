@@ -68,6 +68,32 @@ describe("appliquerDecisions - types de decision", () => {
     expect(r.pretAImporter).toBe(true);
   });
 
+  it("creer_compte_separe : un 450 non mappe devient action_requise (rattache a un owner)", () => {
+    const plan = resoudre([["4501.3", "PERSONNE ABSENTE"]]); // 450 introuvable -> non_mappe (erreur)
+    expect(plan.pretAImporter).toBe(false);
+
+    const decisions: DecisionEntree[] = [
+      { compteSource: "4501.3", decision: { type: "creer_compte_separe", owner: "4500001" } },
+    ];
+    const r = appliquerDecisions(plan, decisions);
+
+    expect(r.erreurs).toHaveLength(0);
+    expect(r.entrees[0]?.statut).toBe("action_requise");
+    expect(r.entrees[0]?.action).toEqual({ type: "creer_compte_separe", ownerNomenclature: "4500001" });
+    expect(r.entrees[0]?.cible).toBeUndefined();
+    expect(r.compteurs.action_requise).toBe(1);
+    expect(r.pretAImporter).toBe(true);
+  });
+
+  it("creer_compte_separe inapplicable sur un non-450 (ex. fournisseur) : entree inchangee + note", () => {
+    const plan = resoudre([["4010.9", "FOURNISSEUR NOUVEAU"]]); // 401 sans candidat -> action creer_fournisseur
+    const r = appliquerDecisions(plan, [
+      { compteSource: "4010.9", decision: { type: "creer_compte_separe", owner: "4500001" } },
+    ]);
+    expect(r.entrees[0]?.action).toEqual({ type: "creer_fournisseur", intituleSource: "FOURNISSEUR NOUVEAU" });
+    expect(r.notes.some((n) => /inapplicable/i.test(n))).toBe(true);
+  });
+
   it("ignorer : le compte sort des erreurs mais garde son statut brut + flag ignore", () => {
     const plan = resoudre([["4501.3", "PERSONNE ABSENTE"]]); // non_mappe -> erreur
     const decisions: DecisionEntree[] = [

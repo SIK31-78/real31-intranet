@@ -7,12 +7,15 @@ import {
   classifierCompte,
   cible471vers472,
   construirePlan,
+  detecterGroupesHomonymes,
   mapperCompte,
   normaliserNom,
   racineCompte,
+  resoudreComptes,
   scoreAppariement,
   tokensNom,
   type CandidatCompte,
+  type CompteSource,
   type ContexteEstale,
   type EntreeMapping,
 } from "../mapping-compta";
@@ -195,5 +198,70 @@ describe("construirePlan - garde-fou et readiness", () => {
     expect(plan.warnings).toHaveLength(1);
     expect(plan.warnings[0]).toMatch(/confiance 0\.50/);
     expect(plan.pretAImporter).toBe(false);
+  });
+});
+
+describe("groupes homonymes (coproprietaires a comptes multiples)", () => {
+  // 3 comptes source 450 : DURAND JEANNE apparait 2 fois (homonyme), NOVAK 1 fois.
+  const COMPTES: CompteSource[] = [
+    { compte: "4501.100", intitule: "DURAND JEANNE" },
+    { compte: "4501.200", intitule: "Durand  Jeanne" }, // meme nom normalise
+    { compte: "4501.300", intitule: "NOVAK ELENA" },
+    { compte: "4010.1", intitule: "DURAND JEANNE" }, // fournisseur, PAS un homonyme 450
+  ];
+
+  it("detecte les 450 partageant le meme nom normalise (>= 2), ignore les autres classes", () => {
+    const groupes = detecterGroupesHomonymes(COMPTES);
+    expect(groupes).toHaveLength(1);
+    expect(groupes[0].comptes).toEqual(["4501.100", "4501.200"]);
+  });
+
+  it("aucun groupe si les noms different ou si un seul compte porte le nom", () => {
+    expect(detecterGroupesHomonymes([{ compte: "4501.1", intitule: "NOVAK ELENA" }])).toHaveLength(0);
+  });
+
+  it("mapperCompte avec option homonyme DESACTIVE l'appariement automatique (fort -> warning)", () => {
+    // Sans l'option : appariement exact -> mappe.
+    const auto = mapperCompte("4501.1", "ELENA NOVAK", CTX);
+    expect(auto.statut).toBe("mappe");
+    // Avec l'option homonyme : meme match parfait est retrograde en warning (revue humaine).
+    const homo = mapperCompte("4501.1", "ELENA NOVAK", CTX, { homonyme: true });
+    expect(homo.statut).toBe("warning_appariement");
+    expect(homo.cible?.nomenclature).toBe("4500002");
+  });
+
+  it("resoudreComptes : tout un groupe homonyme passe en revue (aucun mappe auto), plan bloquant", () => {
+    // Referentiel avec un owner DURAND JEANNE : sans la regle, les 2 comptes se mapperaient
+    // (silencieusement) sur le meme owner -> fusion. La regle l'interdit.
+    const ctx: ContexteEstale = {
+      fournisseurs: [],
+      coproprietaires: [{ nomenclature: "4500009", intitule: "DURAND JEANNE" }],
+    };
+    const plan = resoudreComptes(
+      [
+        { compte: "4501.100", intitule: "DURAND JEANNE" },
+        { compte: "4501.200", intitule: "DURAND JEANNE" },
+      ],
+      ctx,
+    );
+    expect(plan.groupesHomonymes).toHaveLength(1);
+    expect(plan.compteurs.mappe).toBe(0); // aucun mappe automatique
+    expect(plan.compteurs.warning_appariement).toBe(2); // les 2 en revue
+    expect(plan.pretAImporter).toBe(false);
+    // Chaque entree du groupe porte l'index de groupe (0).
+    for (const e of plan.entrees) expect(e.groupeHomonyme).toBe(0);
+  });
+
+  it("resoudreComptes : hors homonyme, l'appariement automatique fonctionne normalement", () => {
+    const plan = resoudreComptes(
+      [
+        { compte: "4501.1", intitule: "ELENA NOVAK" }, // unique -> mappe auto
+        { compte: "4010.1", intitule: "ACME NETTOYAGE" }, // fournisseur -> mappe auto
+      ],
+      CTX,
+    );
+    expect(plan.groupesHomonymes).toBeUndefined();
+    expect(plan.compteurs.mappe).toBe(2);
+    expect(plan.pretAImporter).toBe(true);
   });
 });

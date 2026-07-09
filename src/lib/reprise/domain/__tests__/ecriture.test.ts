@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   balanceDesEcritures,
+  grouperEcrituresParCompte,
   verifierEquilibreGrandLivre,
   type LigneEcriture,
   type SensEcriture,
@@ -73,5 +74,42 @@ describe("verifierEquilibreGrandLivre - auto-check fort", () => {
     expect(eq.parClasse[1]).toEqual({ debit: 0, credit: 0, solde: 0 });
     expect(eq.parClasse[6].debit).toBe(500);
     expect(eq.parClasse[7].credit).toBe(500);
+  });
+});
+
+describe("grouperEcrituresParCompte - vue grand livre par compte", () => {
+  it("groupe par compte source, mappe sens->debit/credit et totalise", () => {
+    const g = grouperEcrituresParCompte([
+      ligne("4501.100", "debit", 500),
+      ligne("4501.100", "credit", 200),
+      ligne("5120.000", "debit", 800),
+    ]);
+    expect(Object.keys(g)).toEqual(["4501.100", "5120.000"]);
+
+    const c = g["4501.100"];
+    expect(c.nbLignes).toBe(2);
+    expect(c.lignes[0]).toMatchObject({ debit: 500, credit: 0 });
+    expect(c.lignes[1]).toMatchObject({ debit: 0, credit: 200 });
+    expect(c.totalDebit).toBe(500);
+    expect(c.totalCredit).toBe(200);
+    expect(c.solde).toBe(300);
+  });
+
+  it("conserve la piece quand elle est presente et l'ordre d'apparition des lignes", () => {
+    const l1: LigneEcriture = { ...ligne("4010.1", "credit", 100), piece: "FA-1", libelle: "Facture 1" };
+    const l2: LigneEcriture = { ...ligne("4010.1", "credit", 50), libelle: "Facture 2" };
+    const g = grouperEcrituresParCompte([l1, l2]);
+    expect(g["4010.1"].lignes[0]).toMatchObject({ piece: "FA-1", libelle: "Facture 1" });
+    expect(g["4010.1"].lignes[1].piece).toBeUndefined();
+    expect(g["4010.1"].totalCredit).toBe(150);
+  });
+
+  it("additionne sans bruit flottant (arrondi centime)", () => {
+    const g = grouperEcrituresParCompte([
+      ligne("6060.0", "debit", 0.1),
+      ligne("6060.0", "debit", 0.2),
+    ]);
+    expect(g["6060.0"].totalDebit).toBe(0.3);
+    expect(g["6060.0"].solde).toBe(0.3);
   });
 });

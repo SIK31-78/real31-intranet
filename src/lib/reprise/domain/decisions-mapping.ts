@@ -24,15 +24,18 @@ import {
 
 /**
  * Geste humain applique a UN compte source lors de la revue.
- *   - valider_candidat : accepter le candidat eStale propose (statut warning -> mappe) ;
- *   - choisir_cible    : mapper vers un autre compte eStale choisi a la main (-> mappe) ;
- *   - creer_fournisseur: forcer la creation d'un fournisseur 401 (-> action_requise) ;
- *   - ignorer          : ecarter volontairement le compte (trace par un motif).
+ *   - valider_candidat    : accepter le candidat eStale propose (statut warning -> mappe) ;
+ *   - choisir_cible       : mapper vers un autre compte eStale choisi a la main (-> mappe) ;
+ *   - creer_fournisseur   : forcer la creation d'un fournisseur 401 (-> action_requise) ;
+ *   - creer_compte_separe : creer un compte 450 SEPARE rattache a un owner eStale, pour un
+ *                           coproprietaire a comptes multiples (pas de fusion) (-> action_requise) ;
+ *   - ignorer             : ecarter volontairement le compte (trace par un motif).
  */
 export type DecisionMapping =
   | { type: "valider_candidat" }
   | { type: "choisir_cible"; nomenclature: string }
   | { type: "creer_fournisseur" }
+  | { type: "creer_compte_separe"; owner: string }
   | { type: "ignorer"; motif: string };
 
 /** Une decision rattachee a son compte source (+ tracabilite : qui / quand). */
@@ -122,6 +125,28 @@ function appliquerUneDecision(e: EntreeMapping, d: DecisionMapping): Applique {
           action: { type: "creer_fournisseur", ...(e.intitule ? { intituleSource: e.intitule } : {}) },
           decision: d,
           note: "creation de fournisseur confirmee",
+        },
+        applique: true,
+      };
+    }
+    case "creer_compte_separe": {
+      // Reserve aux comptes 450 (coproprietaire) : creer un compte SEPARE plutot que fusionner
+      // deux comptes source homonymes. Rattache a un owner eStale (owner = sa nomenclature 450).
+      if (e.categorie !== "coproprietaire") {
+        return {
+          entree: e,
+          applique: false,
+          note: `compte ${e.compteSource} : compte separe inapplicable (categorie ${e.categorie})`,
+        };
+      }
+      return {
+        entree: {
+          ...e,
+          statut: "action_requise",
+          cible: undefined,
+          action: { type: "creer_compte_separe", ownerNomenclature: d.owner },
+          decision: d,
+          note: "compte separe planifie (rattache a un owner eStale)",
         },
         applique: true,
       };

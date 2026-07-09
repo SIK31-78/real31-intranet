@@ -17,9 +17,8 @@
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
 import type { SoldeCompte } from "@/lib/reprise/domain/compta";
 import {
-  construirePlan,
-  mapperCompte,
   racineCompte,
+  resoudreComptes,
   type CandidatCompte,
   type ContexteEstale,
   type PlanMapping,
@@ -87,10 +86,7 @@ export async function construirePlanMapping(
     const comptes = await provider.lireComptes(ref);
     const contexte = construireContexteEstale(comptes);
 
-    const entrees = comptesSourceDistincts(jeu).map(({ compte, intitule }) =>
-      mapperCompte(compte, intitule, contexte),
-    );
-    const plan = construirePlan(entrees);
+    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte);
 
     return { ok: true, plan, ref };
   } catch (e) {
@@ -137,10 +133,7 @@ export async function preparerRevueMapping(
     const comptes = await provider.lireComptes(ref);
     const contexte = construireContexteEstale(comptes);
 
-    const entrees = comptesSourceDistincts(jeu).map(({ compte, intitule }) =>
-      mapperCompte(compte, intitule, contexte),
-    );
-    const plan = construirePlan(entrees);
+    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte);
 
     return {
       ok: true,

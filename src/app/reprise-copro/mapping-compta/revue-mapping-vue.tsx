@@ -25,15 +25,20 @@ import {
   ChevronDown,
   Database,
   Undo2,
+  BookOpen,
+  Split,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import type { GrandLivreCompte } from "@/lib/reprise/domain/ecriture";
 import type {
   CandidatCompte,
   CategorieCompte,
+  GroupeHomonymes,
   PlanMapping,
   StatutMapping,
 } from "@/lib/reprise/domain/mapping-compta";
@@ -61,8 +66,16 @@ interface DonneesRevue {
   code: string;
   plan: PlanMapping;
   candidats: Candidats;
+  /** Grand livre groupe par compte source (colonnes debit/credit), issu de l'analyse. */
+  grandLivre: Record<string, GrandLivreCompte>;
   equilibre: Equilibre;
   mode: ModeIa;
+}
+
+/** Formate un montant en euros (fr-FR) ; masque le 0 pour alleger les colonnes debit/credit. */
+function montantEuro(n: number): string {
+  if (n === 0) return "";
+  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 const CATEGORIE_LABEL: Record<CategorieCompte, string> = {
@@ -112,7 +125,14 @@ export function RevueMappingVue({ modeIa, persistant }: { modeIa: ModeIa; persis
         const res = await fetch("/api/reprise/mapping-analyser", { method: "POST", body: fd });
         const r = await res.json();
         if (res.ok && r.ok) {
-          setData({ code, plan: r.plan, candidats: r.candidats, equilibre: r.equilibre, mode: r.mode });
+          setData({
+            code,
+            plan: r.plan,
+            candidats: r.candidats,
+            grandLivre: r.grandLivre ?? {},
+            equilibre: r.equilibre,
+            mode: r.mode,
+          });
           const carte: Record<string, DecisionMapping> = {};
           for (const d of r.decisions as DecisionEntree[]) carte[d.compteSource] = d.decision;
           setDecisions(carte);
@@ -338,21 +358,46 @@ function ResultatRevue({
   };
 
   const entrees = resolu.entrees;
+
+  // Groupes homonymes (coproprietaires a comptes multiples) : presentes ENSEMBLE dans une section
+  // dediee, et EXCLUS des groupes standards pour ne pas les afficher deux fois.
+  const groupes = useMemo(() => data.plan.groupesHomonymes ?? [], [data.plan.groupesHomonymes]);
+  const homonymeCompteSet = useMemo(() => new Set(groupes.flatMap((g) => g.comptes)), [groupes]);
+  const entreeParCompte = useMemo(() => {
+    const m = new Map<string, EntreeMappingResolue>();
+    for (const e of entrees) m.set(e.compteSource, e);
+    return m;
+  }, [entrees]);
+
+  const horsHomonyme = (e: EntreeMappingResolue) => !homonymeCompteSet.has(e.compteSource);
   const aTraiter = entrees.filter(
-    (e) => !e.ignore && (e.statut === "warning_appariement" || e.statut === "non_mappe"),
+    (e) => horsHomonyme(e) && !e.ignore && (e.statut === "warning_appariement" || e.statut === "non_mappe"),
   );
-  const actions = entrees.filter((e) => !e.ignore && e.statut === "action_requise");
-  const mappes = entrees.filter((e) => !e.ignore && e.statut === "mappe");
-  const ignores = entrees.filter((e) => e.ignore);
+  const actions = entrees.filter((e) => horsHomonyme(e) && !e.ignore && e.statut === "action_requise");
+  const mappes = entrees.filter((e) => horsHomonyme(e) && !e.ignore && e.statut === "mappe");
+  const ignores = entrees.filter((e) => horsHomonyme(e) && e.ignore);
   const reportes = entrees.filter(
-    (e) => !e.ignore && (e.statut === "reporte_bloc_b" || e.statut === "reporte_bloc_c"),
+    (e) => horsHomonyme(e) && !e.ignore && (e.statut === "reporte_bloc_b" || e.statut === "reporte_bloc_c"),
   );
 
   const nomDe = (nomenclature?: string) => (nomenclature ? nomParNomenclature.get(nomenclature) ?? "" : "");
+  const gl = (compteSource: string) => data.grandLivre[compteSource];
 
   return (
     <div className="flex flex-col gap-5">
       <BandeauRecap resolu={resolu} equilibre={data.equilibre} total={entrees.length} />
+
+      {groupes.length > 0 && (
+        <SectionHomonymes
+          groupes={groupes}
+          entreeParCompte={entreeParCompte}
+          coproprietaires={data.candidats.coproprietaires}
+          grandLivre={data.grandLivre}
+          nomDe={nomDe}
+          onTrancher={trancher}
+          onAnnuler={annuler}
+        />
+      )}
 
       {aTraiter.length > 0 && (
         <section>
@@ -370,6 +415,7 @@ function ResultatRevue({
                 candidats={
                   e.categorie === "fournisseur" ? data.candidats.fournisseurs : data.candidats.coproprietaires
                 }
+                grandLivreCompte={gl(e.compteSource)}
                 nomDe={nomDe}
                 onTrancher={trancher}
               />
@@ -392,6 +438,7 @@ function ResultatRevue({
                 key={e.compteSource}
                 entree={e}
                 candidats={data.candidats.fournisseurs}
+                grandLivreCompte={gl(e.compteSource)}
                 nomDe={nomDe}
                 onTrancher={trancher}
                 onAnnuler={annuler}
@@ -404,17 +451,17 @@ function ResultatRevue({
       {resolu.notes.length > 0 && <PointsAttention notes={resolu.notes} />}
 
       <Accordeon titre="Mappes" compte={mappes.length} ton="ok">
-        <TableEntrees entrees={mappes} nomDe={nomDe} onAnnuler={annuler} />
+        <TableEntrees entrees={mappes} grandLivre={data.grandLivre} nomDe={nomDe} onAnnuler={annuler} />
       </Accordeon>
 
       {ignores.length > 0 && (
         <Accordeon titre="Ignores" compte={ignores.length} ton="neutral">
-          <TableEntrees entrees={ignores} nomDe={nomDe} onAnnuler={annuler} />
+          <TableEntrees entrees={ignores} grandLivre={data.grandLivre} nomDe={nomDe} onAnnuler={annuler} />
         </Accordeon>
       )}
 
       <Accordeon titre="Reportes (blocs B / C)" compte={reportes.length} ton="info">
-        <TableEntrees entrees={reportes} nomDe={nomDe} onAnnuler={annuler} />
+        <TableEntrees entrees={reportes} grandLivre={data.grandLivre} nomDe={nomDe} onAnnuler={annuler} />
       </Accordeon>
 
       <ZoneImport pret={resolu.pretAImporter} aTraiter={resolu.aTraiter} />
@@ -489,16 +536,145 @@ function EnTeteGroupe({
   );
 }
 
+// --- Section "Coproprietaires a comptes multiples" (groupes homonymes) ------
+//
+// Un coproprietaire apparait sur plusieurs comptes 450 source (meme nom, tous 4501,
+// indiscernables). On les presente ENSEMBLE avec leur grand livre depliable + leurs soldes
+// pour decider en connaissance de cause : valider / choisir une cible / creer un compte SEPARE
+// (pas de fusion silencieuse) / ignorer. L'appariement auto est desactive cote domaine.
+
+function SectionHomonymes({
+  groupes,
+  entreeParCompte,
+  coproprietaires,
+  grandLivre,
+  nomDe,
+  onTrancher,
+  onAnnuler,
+}: {
+  groupes: GroupeHomonymes[];
+  entreeParCompte: Map<string, EntreeMappingResolue>;
+  coproprietaires: CandidatCompte[];
+  grandLivre: Record<string, GrandLivreCompte>;
+  nomDe: (n?: string) => string;
+  onTrancher: (compteSource: string, decision: DecisionMapping) => void;
+  onAnnuler: (compteSource: string) => void;
+}) {
+  return (
+    <section>
+      <div className="flex items-center gap-2">
+        <Users strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+        <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">
+          Coproprietaires a comptes multiples
+        </h3>
+        <Badge ton="warn" dot>
+          {groupes.length} groupe(s)
+        </Badge>
+      </div>
+      <p className="mt-0.5 text-[12px] text-ink-3">
+        Un meme nom porte plusieurs comptes 450 (indiscernables). Appariement automatique desactive :
+        tranche chaque compte (valider, choisir une cible, ou creer un compte separe). Deplie le grand
+        livre pour voir les ecritures avant de decider.
+      </p>
+
+      <div className="mt-3 flex flex-col gap-4">
+        {groupes.map((g, i) => {
+          const membres = g.comptes.map((c) => entreeParCompte.get(c)).filter((e): e is EntreeMappingResolue => !!e);
+          const nomGroupe = membres.find((m) => m.intitule)?.intitule ?? "(nom absent)";
+          return (
+            <div key={i} className="rounded-md border border-warn-500/30 bg-warn-50/30 p-3">
+              <div className="flex items-center gap-2">
+                <Split strokeWidth={1.5} className="w-4 h-4 text-warn-700" />
+                <span className="text-[13px] font-medium text-ink">{nomGroupe}</span>
+                <Badge ton="neutral">{membres.length} comptes</Badge>
+              </div>
+              <div className="mt-2.5 flex flex-col gap-3">
+                {membres.map((e) =>
+                  e.decision ? (
+                    <MembreHomonymeResolu
+                      key={e.compteSource}
+                      entree={e}
+                      grandLivreCompte={grandLivre[e.compteSource]}
+                      nomDe={nomDe}
+                      onAnnuler={onAnnuler}
+                    />
+                  ) : (
+                    <EntreeATraiter
+                      key={e.compteSource}
+                      entree={e}
+                      candidats={coproprietaires}
+                      grandLivreCompte={grandLivre[e.compteSource]}
+                      nomDe={nomDe}
+                      onTrancher={onTrancher}
+                    />
+                  ),
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Un compte homonyme deja tranche : rappel compact de la decision + Annuler + grand livre. */
+function MembreHomonymeResolu({
+  entree: e,
+  grandLivreCompte,
+  nomDe,
+  onAnnuler,
+}: {
+  entree: EntreeMappingResolue;
+  grandLivreCompte?: GrandLivreCompte;
+  nomDe: (n?: string) => string;
+  onAnnuler: (compteSource: string) => void;
+}) {
+  const action = e.action;
+  const ownerSepare = action?.type === "creer_compte_separe" ? action.ownerNomenclature : undefined;
+  return (
+    <div className="rounded-md border border-line bg-surface px-3.5 py-2.5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-[12px] text-ink-2">{e.compteSource}</span>
+            <Badge ton={e.ignore ? "neutral" : "ok"} dot>
+              {e.ignore ? "ignore" : STATUT_LABEL[e.statut]}
+            </Badge>
+          </div>
+          {ownerSepare ? (
+            <p className="mt-1 text-[12px] text-ink-3">
+              Compte separe rattache a <span className="font-mono text-ink-2">{ownerSepare}</span>
+              {nomDe(ownerSepare) && <span> - {nomDe(ownerSepare)}</span>}
+            </p>
+          ) : e.cible ? (
+            <p className="mt-1 text-[12px] text-ink-3">
+              Cible : <span className="font-mono text-ink-2">{e.cible.nomenclature}</span>
+              {nomDe(e.cible.nomenclature) && <span> - {nomDe(e.cible.nomenclature)}</span>}
+            </p>
+          ) : null}
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => onAnnuler(e.compteSource)}>
+          <Undo2 strokeWidth={1.5} /> Annuler
+        </Button>
+      </div>
+      <VueGrandLivreCompte compte={grandLivreCompte} />
+    </div>
+  );
+}
+
 // --- Carte d'une entree A TRAITER (warning / non mappe) ---------------------
 
 function EntreeATraiter({
   entree,
   candidats,
+  grandLivreCompte,
   nomDe,
   onTrancher,
 }: {
   entree: EntreeMappingResolue;
   candidats: CandidatCompte[];
+  grandLivreCompte?: GrandLivreCompte;
   nomDe: (n?: string) => string;
   onTrancher: (compteSource: string, decision: DecisionMapping) => void;
 }) {
@@ -506,6 +682,7 @@ function EntreeATraiter({
   const [motif, setMotif] = useState("");
   const cs = entree.compteSource;
   const estFournisseur = entree.categorie === "fournisseur";
+  const estCoproprietaire = entree.categorie === "coproprietaire";
 
   return (
     <div className="rounded-md border border-line bg-surface p-3.5">
@@ -555,6 +732,13 @@ function EntreeATraiter({
           </Button>
         )}
 
+        {estCoproprietaire && (
+          <SelectCompteSepare
+            candidats={candidats}
+            onChoisir={(owner) => onTrancher(cs, { type: "creer_compte_separe", owner })}
+          />
+        )}
+
         <Button type="button" variant="danger" size="sm" onClick={() => setMotifOuvert((v) => !v)}>
           <Ban strokeWidth={1.5} /> Ignorer
         </Button>
@@ -579,6 +763,8 @@ function EntreeATraiter({
           </Button>
         </div>
       )}
+
+      <VueGrandLivreCompte compte={grandLivreCompte} />
     </div>
   );
 }
@@ -609,25 +795,138 @@ function SelectCible({
   );
 }
 
+/**
+ * Selecteur du compte 450 owner eStale auquel RATTACHER un compte separe (pour un coproprietaire
+ * a comptes multiples : on cree un compte a part, on ne fusionne pas). L'owner designe fournit la
+ * cle de repartition du sous-compte cree a l'import (Inc. 3).
+ */
+function SelectCompteSepare({
+  candidats,
+  onChoisir,
+}: {
+  candidats: CandidatCompte[];
+  onChoisir: (owner: string) => void;
+}) {
+  return (
+    <select
+      value=""
+      onChange={(e) => {
+        if (e.target.value) onChoisir(e.target.value);
+      }}
+      className="h-[26px] rounded-sm border border-line bg-surface px-2 text-[12px] text-ink max-w-[240px]"
+      aria-label="Creer un compte separe rattache a un owner eStale"
+    >
+      <option value="">Compte separe rattache a...</option>
+      {candidats.map((c) => (
+        <option key={c.nomenclature} value={c.nomenclature}>
+          {c.nomenclature} - {c.intitule}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// --- Vue "grand livre" d'un compte source (accordeon, replie par defaut) -----------
+
+/**
+ * Deplie les ecritures d'UN compte source : tableau date / libelle / piece / debit / credit +
+ * total. Replie par defaut, scroll interne si long. Ne fait AUCUN fetch : tout vient de l'analyse
+ * deja faite (data.grandLivre). PII : les libelles peuvent porter des noms (affiches, jamais logues).
+ */
+function VueGrandLivreCompte({
+  compte,
+  initialementOuvert = false,
+}: {
+  compte?: GrandLivreCompte;
+  initialementOuvert?: boolean;
+}) {
+  const [ouvert, setOuvert] = useState(initialementOuvert);
+  if (!compte || compte.nbLignes === 0) return null;
+  return (
+    <div className="mt-2.5 rounded-md border border-line bg-surface-2">
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left"
+        aria-expanded={ouvert}
+      >
+        <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
+          <BookOpen strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4" />
+          Grand livre du compte
+          <Badge ton="neutral">{compte.nbLignes} ecriture(s)</Badge>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="font-mono text-[11.5px] text-ink-3">
+            D {montantEuro(compte.totalDebit) || "0,00"} / C {montantEuro(compte.totalCredit) || "0,00"}
+          </span>
+          <ChevronDown
+            strokeWidth={1.5}
+            className={cn("w-4 h-4 text-ink-4 transition-transform", ouvert && "rotate-180")}
+          />
+        </span>
+      </button>
+      {ouvert && (
+        <div className="border-t border-line max-h-[280px] overflow-auto">
+          <table className="w-full text-[12px]">
+            <thead className="text-left text-[10.5px] uppercase text-ink-4 sticky top-0 bg-surface-2">
+              <tr>
+                <th className="px-2.5 py-1 font-medium">Date</th>
+                <th className="px-2 font-medium">Libelle</th>
+                <th className="px-2 font-medium">Piece</th>
+                <th className="px-2 font-medium text-right">Debit</th>
+                <th className="px-2.5 font-medium text-right">Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {compte.lignes.map((l, i) => (
+                <tr key={i} className="border-t border-line/60">
+                  <td className="px-2.5 py-1 font-mono text-ink-3 whitespace-nowrap align-top">{l.date}</td>
+                  <td className="px-2 text-ink-2 align-top">{l.libelle}</td>
+                  <td className="px-2 font-mono text-ink-4 align-top whitespace-nowrap">{l.piece ?? ""}</td>
+                  <td className="px-2 font-mono text-ink-2 text-right align-top whitespace-nowrap">{montantEuro(l.debit)}</td>
+                  <td className="px-2.5 font-mono text-ink-2 text-right align-top whitespace-nowrap">{montantEuro(l.credit)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-line bg-surface">
+                <td className="px-2.5 py-1 text-[11px] uppercase text-ink-4" colSpan={3}>
+                  Total compte
+                </td>
+                <td className="px-2 font-mono text-ink text-right whitespace-nowrap">{montantEuro(compte.totalDebit) || "0,00"}</td>
+                <td className="px-2.5 font-mono text-ink text-right whitespace-nowrap">{montantEuro(compte.totalCredit) || "0,00"}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Carte d'une entree ACTION (creation) -----------------------------------
 
 function EntreeAction({
   entree,
   candidats,
+  grandLivreCompte,
   nomDe,
   onTrancher,
   onAnnuler,
 }: {
   entree: EntreeMappingResolue;
   candidats: CandidatCompte[];
+  grandLivreCompte?: GrandLivreCompte;
   nomDe: (n?: string) => string;
   onTrancher: (compteSource: string, decision: DecisionMapping) => void;
   onAnnuler: (compteSource: string) => void;
 }) {
   const cs = entree.compteSource;
-  const confirme = entree.decision?.type === "creer_fournisseur";
+  const decisionType = entree.decision?.type;
+  const confirme = decisionType === "creer_fournisseur" || decisionType === "creer_compte_separe";
   const estFournisseur = entree.categorie === "fournisseur";
   const action = entree.action;
+  const ownerSepare = action?.type === "creer_compte_separe" ? action.ownerNomenclature : undefined;
 
   return (
     <div className="rounded-md border border-line bg-surface px-3.5 py-2.5">
@@ -648,7 +947,9 @@ function EntreeAction({
               ? "Fournisseur a creer dans eStale."
               : action?.type === "creer_sous_compte"
                 ? `Sous-compte d'attente a creer (${action.parent}${action.suffix} - ${action.nom}).`
-                : "Creation planifiee."}
+                : action?.type === "creer_compte_separe"
+                  ? "Compte 450 separe a creer dans eStale (coproprietaire a comptes multiples, pas de fusion)."
+                  : "Creation planifiee."}
           </p>
         </div>
 
@@ -671,11 +972,18 @@ function EntreeAction({
           )}
         </div>
       </div>
+      {ownerSepare && (
+        <p className="mt-1 text-[12px] text-ink-3">
+          Rattache a : <span className="font-mono text-ink-2">{ownerSepare}</span>
+          {nomDe(ownerSepare) && <span> - {nomDe(ownerSepare)}</span>}
+        </p>
+      )}
       {nomDe(entree.cible?.nomenclature) && (
         <p className="mt-1 text-[12px] text-ink-3">
           Cible : <span className="font-mono text-ink-2">{entree.cible?.nomenclature}</span> - {nomDe(entree.cible?.nomenclature)}
         </p>
       )}
+      <VueGrandLivreCompte compte={grandLivreCompte} />
     </div>
   );
 }
@@ -737,10 +1045,12 @@ function Accordeon({
 
 function TableEntrees({
   entrees,
+  grandLivre,
   nomDe,
   onAnnuler,
 }: {
   entrees: EntreeMappingResolue[];
+  grandLivre: Record<string, GrandLivreCompte>;
   nomDe: (n?: string) => string;
   onAnnuler: (compteSource: string) => void;
 }) {
@@ -761,43 +1071,90 @@ function TableEntrees({
         </thead>
         <tbody>
           {entrees.map((e) => (
-            <tr key={e.compteSource} className="border-t border-line">
-              <td className="px-2 py-1.5 font-mono text-ink-2 align-top">{e.compteSource}</td>
-              <td className="px-2 text-ink align-top">{CATEGORIE_LABEL[e.categorie]}</td>
-              <td className="px-2 align-top">
-                {e.cible ? (
-                  <span>
-                    <span className="font-mono text-ink-2">{e.cible.nomenclature}</span>
-                    {nomDe(e.cible.nomenclature) && <span className="text-ink-3"> - {nomDe(e.cible.nomenclature)}</span>}
-                  </span>
-                ) : (
-                  <span className="text-ink-4">-</span>
-                )}
-              </td>
-              <td className="px-2 align-top">
-                <span className="inline-flex items-center gap-1.5">
-                  {STATUT_LABEL[e.statut]}
-                  {e.decision && (
-                    <Badge ton="brand">{e.ignore ? "ignore" : "manuel"}</Badge>
-                  )}
-                </span>
-              </td>
-              <td className="px-2 align-top text-right">
-                {e.decision && (
-                  <button
-                    type="button"
-                    onClick={() => onAnnuler(e.compteSource)}
-                    className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-green-700"
-                  >
-                    <Undo2 strokeWidth={1.5} className="w-3.5 h-3.5" /> annuler
-                  </button>
-                )}
-              </td>
-            </tr>
+            <LigneTable
+              key={e.compteSource}
+              entree={e}
+              grandLivreCompte={grandLivre[e.compteSource]}
+              nomDe={nomDe}
+              onAnnuler={onAnnuler}
+            />
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Une ligne de la table + son grand livre depliable (colonne pleine largeur en dessous). */
+function LigneTable({
+  entree: e,
+  grandLivreCompte,
+  nomDe,
+  onAnnuler,
+}: {
+  entree: EntreeMappingResolue;
+  grandLivreCompte?: GrandLivreCompte;
+  nomDe: (n?: string) => string;
+  onAnnuler: (compteSource: string) => void;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const consultable = !!grandLivreCompte && grandLivreCompte.nbLignes > 0;
+  return (
+    <>
+      <tr className="border-t border-line">
+        <td className="px-2 py-1.5 font-mono text-ink-2 align-top">
+          <span className="inline-flex items-center gap-1.5">
+            {consultable && (
+              <button
+                type="button"
+                onClick={() => setOuvert((v) => !v)}
+                className="text-ink-4 hover:text-green-700"
+                aria-label="Voir les ecritures du compte"
+                aria-expanded={ouvert}
+              >
+                <ChevronDown strokeWidth={1.5} className={cn("w-3.5 h-3.5 transition-transform", ouvert && "rotate-180")} />
+              </button>
+            )}
+            {e.compteSource}
+          </span>
+        </td>
+        <td className="px-2 text-ink align-top">{CATEGORIE_LABEL[e.categorie]}</td>
+        <td className="px-2 align-top">
+          {e.cible ? (
+            <span>
+              <span className="font-mono text-ink-2">{e.cible.nomenclature}</span>
+              {nomDe(e.cible.nomenclature) && <span className="text-ink-3"> - {nomDe(e.cible.nomenclature)}</span>}
+            </span>
+          ) : (
+            <span className="text-ink-4">-</span>
+          )}
+        </td>
+        <td className="px-2 align-top">
+          <span className="inline-flex items-center gap-1.5">
+            {STATUT_LABEL[e.statut]}
+            {e.decision && <Badge ton="brand">{e.ignore ? "ignore" : "manuel"}</Badge>}
+          </span>
+        </td>
+        <td className="px-2 align-top text-right">
+          {e.decision && (
+            <button
+              type="button"
+              onClick={() => onAnnuler(e.compteSource)}
+              className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-green-700"
+            >
+              <Undo2 strokeWidth={1.5} className="w-3.5 h-3.5" /> annuler
+            </button>
+          )}
+        </td>
+      </tr>
+      {ouvert && consultable && (
+        <tr>
+          <td colSpan={5} className="px-2 pb-2">
+            <VueGrandLivreCompte compte={grandLivreCompte} initialementOuvert />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

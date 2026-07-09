@@ -131,3 +131,67 @@ export function verifierEquilibreGrandLivre(lignes: LigneEcriture[]): EquilibreG
   const b = balanceDesEcritures(lignes);
   return { equilibre: b.equilibre, ecart: b.ecart, parClasse: b.parClasse };
 }
+
+// --- Vue "grand livre par compte" (pour la revue humaine du mapping) ---------------
+//
+// Presente les ecritures d'UN compte source en colonnes debit/credit (au lieu du couple
+// sens+montant du domaine). Sert a l'ecran de revue : voir les mouvements d'un compte 450
+// avant de trancher a qui l'imputer. On groupe COTE DOMAINE (pur, teste) pour que la route
+// n'envoie pas 835 lignes a plat mais un dictionnaire indexe par compte.
+//
+// ATTENTION PII : `libelle` peut porter un nom -> affiche en UI (app interne, c'est le but)
+// mais JAMAIS logue ni recopie dans une note/rapport.
+
+/** Une ecriture rendue en colonnes debit/credit (0 dans la colonne non concernee). */
+export interface LigneGrandLivreVue {
+  date: string;
+  libelle: string;
+  piece?: string;
+  /** Montant au debit (0 si l'ecriture est au credit). */
+  debit: number;
+  /** Montant au credit (0 si l'ecriture est au debit). */
+  credit: number;
+}
+
+/** Ecritures d'UN compte source + totaux (le "grand livre" de ce compte). */
+export interface GrandLivreCompte {
+  compte: string;
+  lignes: LigneGrandLivreVue[];
+  totalDebit: number;
+  totalCredit: number;
+  /** Solde signe = totalDebit - totalCredit. */
+  solde: number;
+  nbLignes: number;
+}
+
+/** Arrondi comptable au centime (local : evite d'importer un util technique dans ce domaine pur). */
+function arrondiCentime(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Groupe les ecritures d'un grand livre PAR compte source, en colonnes debit/credit + totaux.
+ * Pur : meme entree => meme sortie. L'ordre des lignes d'un compte suit l'ordre d'apparition.
+ */
+export function grouperEcrituresParCompte(lignes: LigneEcriture[]): Record<string, GrandLivreCompte> {
+  const out: Record<string, GrandLivreCompte> = {};
+  for (const l of lignes) {
+    const g =
+      out[l.compte] ??
+      (out[l.compte] = { compte: l.compte, lignes: [], totalDebit: 0, totalCredit: 0, solde: 0, nbLignes: 0 });
+    const debit = l.sens === "debit" ? l.montant : 0;
+    const credit = l.sens === "credit" ? l.montant : 0;
+    const ligne: LigneGrandLivreVue = { date: l.date, libelle: l.libelle, debit, credit };
+    if (l.piece) ligne.piece = l.piece;
+    g.lignes.push(ligne);
+    g.totalDebit += debit;
+    g.totalCredit += credit;
+    g.nbLignes++;
+  }
+  for (const g of Object.values(out)) {
+    g.totalDebit = arrondiCentime(g.totalDebit);
+    g.totalCredit = arrondiCentime(g.totalCredit);
+    g.solde = arrondiCentime(g.totalDebit - g.totalCredit);
+  }
+  return out;
+}

@@ -47,7 +47,11 @@ export interface CibleMapping {
 /** Action A FAIRE a l'increment 3 (jamais executee ici : le plan reste un DRY-RUN strict). */
 export type ActionMapping =
   | { type: "creer_fournisseur"; intituleSource?: string }
-  | { type: "creer_sous_compte"; parent: string; suffix: string; nom: string };
+  | { type: "creer_sous_compte"; parent: string; suffix: string; nom: string }
+  // Coproprietaire a comptes multiples : creer un compte 450 SEPARE (pas de fusion silencieuse),
+  // rattache a un owner eStale existant (ownerNomenclature). A l'import (Inc. 3), on append un
+  // sous-compte sous le 450 owner en reprenant sa cle de repartition (dkID). Cf. rapport.
+  | { type: "creer_compte_separe"; ownerNomenclature: string };
 
 /** Statut de resolution d'un compte source. */
 export type StatutMapping =
@@ -90,8 +94,24 @@ export interface EntreeMapping {
   action?: ActionMapping;
   /** Score d'appariement 0..1 (tiers 401/450 uniquement). */
   confiance?: number;
+  /**
+   * Index (dans PlanMapping.groupesHomonymes) du groupe de comptes 450 partageant le meme nom
+   * normalise. Present uniquement pour un compte membre d'un tel groupe. PII-free (un entier).
+   */
+  groupeHomonyme?: number;
   /** Note explicative (jamais de nom : regle appliquee, motif du warning...). */
   note?: string;
+}
+
+/**
+ * Groupe de comptes source 450 partageant le MEME nom normalise (coproprietaire a comptes
+ * multiples). On ne stocke que les numeros de compte (PII-free) ; le nom affiche en UI est relu
+ * depuis l'intitule des entrees. Dans un tel groupe, l'appariement automatique est DESACTIVE
+ * (ambigu par construction) -> tout le groupe passe en revue humaine.
+ */
+export interface GroupeHomonymes {
+  /** Comptes source (>= 2) du groupe, dans l'ordre d'apparition. */
+  comptes: string[];
 }
 
 /** Le PLAN de mapping complet. */
@@ -106,6 +126,8 @@ export interface PlanMapping {
   warnings: string[];
   /** Notes informatives (regles reportees, 489...). PII-free. */
   notes: string[];
+  /** Groupes de comptes 450 homonymes (a comptes multiples). Absent si aucun. PII-free. */
+  groupesHomonymes?: GroupeHomonymes[];
   /** true si aucune erreur ET aucun warning -> le plan peut etre execute a l'increment 3. */
   pretAImporter: boolean;
 }
@@ -272,14 +294,26 @@ function cible(nomenclature: string): CibleMapping {
   return { nomenclature, cle: CLE_DEFAUT, journal: JOURNAL_REPRISE };
 }
 
+/** Options de resolution d'un compte (reglages qui dependent du reste du jeu, pas du compte seul). */
+export interface OptionsMapperCompte {
+  /**
+   * Le compte appartient a un GROUPE HOMONYME (coproprietaire a comptes multiples) : l'appariement
+   * automatique >= SEUIL_APPARIEMENT_FORT est DESACTIVE (ambigu par construction). Meme un match
+   * parfait est retrograde en warning_appariement -> revue humaine obligatoire (pas de fusion
+   * silencieuse ; l'humain choisit / cree un compte separe).
+   */
+  homonyme?: boolean;
+}
+
 /**
  * Resout UN compte source en une EntreeMapping, en appliquant sa regle metier. Pur : ne depend
- * que du compte, de son intitule et du referentiel eStale (ContexteEstale) - aucune I/O.
+ * que du compte, de son intitule, du referentiel eStale (ContexteEstale) et d'options - aucune I/O.
  */
 export function mapperCompte(
   compteSource: string,
   intitule: string | undefined,
   contexte: ContexteEstale,
+  options?: OptionsMapperCompte,
 ): EntreeMapping {
   const classe = (classeSafe(compteSource) ?? 4) as ClasseComptable;
   const categorie = classifierCompte(compteSource);
@@ -326,6 +360,25 @@ export function mapperCompte(
         };
       }
       const ap = apparierParNom(intitule, contexte.coproprietaires);
+      // Groupe homonyme : on NE mappe JAMAIS automatiquement (meme un match parfait est ambigu
+      // par construction - plusieurs comptes source portent le meme nom). Tout part en revue.
+      if (options?.homonyme) {
+        if (ap.cible && ap.confiance >= SEUIL_APPARIEMENT_MINI) {
+          return {
+            ...base,
+            statut: "warning_appariement",
+            confiance: ap.confiance,
+            cible: cible(ap.cible),
+            note: "groupe homonyme : appariement automatique desactive, revue humaine requise",
+          };
+        }
+        return {
+          ...base,
+          statut: "non_mappe",
+          confiance: ap.confiance,
+          note: "groupe homonyme sans candidat fiable : revue humaine requise (compte separe ou choix manuel)",
+        };
+      }
       if (ap.cible && ap.confiance >= SEUIL_APPARIEMENT_FORT && !ap.ambigu) {
         return { ...base, statut: "mappe", confiance: ap.confiance, cible: cible(ap.cible) };
       }
@@ -470,4 +523,57 @@ export function construirePlan(entrees: EntreeMapping[]): PlanMapping {
 
   const pretAImporter = erreurs.length === 0 && warnings.length === 0;
   return { entrees, compteurs, erreurs, warnings, notes, pretAImporter };
+}
+
+// --- Groupes homonymes (coproprietaires a comptes multiples) -----------------------
+
+/** Un compte source avec son intitule (entree du resolveur). */
+export interface CompteSource {
+  compte: string;
+  intitule?: string;
+}
+
+/**
+ * Detecte les GROUPES HOMONYMES : comptes source 450 (coproprietaire) partageant le MEME nom
+ * normalise (normaliserNom). Un groupe = au moins 2 comptes. C'est le cas metier de la reprise
+ * reelle : un coproprietaire apparait sur plusieurs comptes 450 (tous prefixe 4501, indiscernables
+ * par le nom). Pur : ne lit que la liste des comptes source. PII-free (ne renvoie que des numeros).
+ */
+export function detecterGroupesHomonymes(comptes: CompteSource[]): GroupeHomonymes[] {
+  const parNom = new Map<string, string[]>();
+  for (const { compte, intitule } of comptes) {
+    if (!intitule) continue;
+    if (classifierCompte(compte) !== "coproprietaire") continue;
+    const cle = normaliserNom(intitule);
+    if (!cle) continue;
+    const arr = parNom.get(cle) ?? [];
+    arr.push(compte);
+    parNom.set(cle, arr);
+  }
+  const groupes: GroupeHomonymes[] = [];
+  for (const membres of parNom.values()) {
+    if (membres.length >= 2) groupes.push({ comptes: membres });
+  }
+  return groupes;
+}
+
+/**
+ * Resout une liste de comptes source en un PLAN complet : detecte les groupes homonymes,
+ * DESACTIVE l'appariement automatique pour leurs membres (revue humaine forcee), mappe chaque
+ * compte puis assemble le plan et y attache les groupes. C'est le point d'entree PUR du resolveur
+ * (les services LIsent eStale puis delegent ici). Meme entree => meme sortie.
+ */
+export function resoudreComptes(comptes: CompteSource[], contexte: ContexteEstale): PlanMapping {
+  const groupes = detecterGroupesHomonymes(comptes);
+  const indexParCompte = new Map<string, number>();
+  groupes.forEach((g, i) => g.comptes.forEach((c) => indexParCompte.set(c, i)));
+
+  const entrees = comptes.map(({ compte, intitule }) => {
+    const idx = indexParCompte.get(compte);
+    const e = mapperCompte(compte, intitule, contexte, { homonyme: idx !== undefined });
+    return idx !== undefined ? { ...e, groupeHomonyme: idx } : e;
+  });
+
+  const plan = construirePlan(entrees);
+  return groupes.length > 0 ? { ...plan, groupesHomonymes: groupes } : plan;
 }
