@@ -235,12 +235,16 @@ export class MistralComptaExtractionProvider implements ExtractionComptaProvider
   async extraireGrandLivre(docs: DocumentSource[]): Promise<JeuEcritures> {
     // VOIE PREFEREE : couche texte des PDF natifs (gratuite, instantanee, exacte -> chaque chiffre
     // est deja dans le fichier). On ne re-OCRise que les scans. Toute erreur ici (pdfjs KO, doc
-    // corrompu) retombe silencieusement sur le pipeline OCR ci-dessous.
+    // corrompu) bascule sur l'OCR mais doit rester VISIBLE : un fallback silencieux fait
+    // reapparaitre l'ecart OCR (-25,57 constate) et prive le mapping des intitules sans explication.
+    let noteFallback: string | null = null;
     try {
       const jeuTexte = await extraireParCoucheTexte(docs);
       if (jeuTexte) return jeuTexte;
-    } catch {
-      // pdfjs indisponible / PDF illisible -> on bascule sur l'OCR.
+      noteFallback = "Couche texte non utilisee (PDF detecte comme scanne ou parsing incomplet) -> pipeline OCR.";
+    } catch (e) {
+      noteFallback = `Couche texte INDISPONIBLE (${e instanceof Error ? e.message.slice(0, 160) : "erreur inconnue"}) -> pipeline OCR. Precision degradee possible (ecart OCR, intitules absents).`;
+      console.error("[reprise-compta] voie couche texte KO, fallback OCR :", e);
     }
 
     // OCR (une fois par doc) -> toutes les pages.
@@ -256,6 +260,7 @@ export class MistralComptaExtractionProvider implements ExtractionComptaProvider
       const spec = await demanderSpec(echantillon);
       const parse = parserGrandLivre(pages, spec);
       const jeu = normaliserGrandLivre({ lignes: parse.lignes, notes: parse.notes });
+      if (noteFallback) jeu.notes.unshift(noteFallback);
       jeu.controles = parse.controles;
 
       const equ = verifierEquilibreGrandLivre(jeu.lignes);
@@ -279,11 +284,13 @@ export class MistralComptaExtractionProvider implements ExtractionComptaProvider
           : `desequilibre global ${equ.ecart} > seuil ${SEUIL_FALLBACK_EUR}`;
       const jeuFallback = await extraireParLots(pages);
       jeuFallback.notes.unshift(`Pipeline hybride ABANDONNE (${raison}) -> fallback full-LLM.`);
+      if (noteFallback) jeuFallback.notes.unshift(noteFallback);
       return jeuFallback;
     } catch (e) {
       // Spec invalide / erreur reseau sur la spec : on retombe sur le pipeline full-LLM.
       const jeuFallback = await extraireParLots(pages);
       jeuFallback.notes.unshift(`Pipeline hybride indisponible (${(e as Error).message.slice(0, 120)}) -> fallback full-LLM.`);
+      if (noteFallback) jeuFallback.notes.unshift(noteFallback);
       return jeuFallback;
     }
   }
