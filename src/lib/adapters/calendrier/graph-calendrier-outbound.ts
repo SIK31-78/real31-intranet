@@ -1,12 +1,15 @@
-// Adapter Graph sortant : cree un evenement dans l'agenda de la boite via
-// POST /users/{boite}/events. Meme token app-only que le mail (jetonGraph).
+// Adapter Graph sortant : cree / met a jour / supprime un evenement dans l'agenda
+// de la boite via /users/{boite}/events. Meme token app-only que le mail (jetonGraph).
+// Permission requise : Calendars.ReadWrite (Application) - verifiee presente dans le
+// token depuis le 2026-07-08.
 //
-// IMPORTANT : la permission Calendars.ReadWrite n'est PAS encore accordee par le
-// DSI. Tant qu'elle est absente, Graph renvoie 403 -> on throw (status + extrait),
-// l'action appelante CATCHe et degrade proprement (message clair, jamais de crash).
-// Quand le DSI accorde la permission, cet adapter s'allume sans autre changement.
+// Sur echec Graph (403 Access Policy, timeout...), on throw (status + extrait) :
+// l'appelant CATCHe et degrade proprement (la donnee intranet reste la source,
+// jamais bloquee par Outlook).
 
 import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
+import { finReunion } from "@/lib/domain/reunion";
+import { attendeesRessource, interpreterAvailabilityView } from "@/lib/domain/salles-reunion";
 import { GRAPH, jetonGraph } from "../mail/graph-auth";
 
 const TZ = "Europe/Paris";
@@ -48,6 +51,18 @@ function echapperHtml(s: string): string {
     .replace(/\n/g, "<br/>");
 }
 
+// start/end "journee entiere" au format Graph pour un jour 'YYYY-MM-DD' (Graph
+// exige start a minuit et end au jour suivant).
+function bornesJourneeEntiere(jour: string): {
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+} {
+  return {
+    start: { dateTime: `${jour}T00:00:00`, timeZone: TZ },
+    end: { dateTime: `${lendemain(jour)}T00:00:00`, timeZone: TZ },
+  };
+}
+
 export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvider {
   async creerEvenement(p: {
     boite: string;
@@ -57,7 +72,8 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     journeeEntiere?: boolean;
     lieu?: string;
     description?: string;
-  }): Promise<{ webLink?: string }> {
+    ressources?: string[];
+  }): Promise<{ id?: string; webLink?: string }> {
     if (!p.boite) throw new Error("Creation evenement : boite manquante.");
     const tk = await jetonGraph();
 
@@ -68,10 +84,12 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     if (allDay) {
       // Journee entiere : Graph exige start a minuit et end au jour suivant.
       const jour = p.debut.trim().slice(0, 10);
-      const finJour = p.fin?.trim().slice(0, 10) || lendemain(jour);
+      const bornes = bornesJourneeEntiere(jour);
       body.isAllDay = true;
-      body.start = { dateTime: `${jour}T00:00:00`, timeZone: TZ };
-      body.end = { dateTime: `${finJour}T00:00:00`, timeZone: TZ };
+      body.start = bornes.start;
+      body.end = p.fin?.trim()
+        ? { dateTime: `${p.fin.trim().slice(0, 10)}T00:00:00`, timeZone: TZ }
+        : bornes.end;
     } else {
       // Evenement date : fin = debut + 1h par defaut.
       const fin = p.fin?.trim() || plusUneHeure(p.debut.trim());
@@ -83,15 +101,112 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     if (p.description?.trim()) {
       body.body = { contentType: "HTML", content: echapperHtml(p.description.trim()) };
     }
+    // Salles / vehicules : ajoutees comme attendees "resource" (auto-acceptation).
+    const ressources = attendeesRessource(p.ressources ?? []);
+    if (ressources.length > 0) body.attendees = ressources;
 
     const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/events`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    // Un 403 = Calendars.ReadWrite non accordee par le DSI (etat nominal aujourd'hui).
+    // Un 403 = Application Access Policy qui bloque la boite (a border cote tenant).
     if (!r.ok) throw new Error(`Graph creer evenement ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    const j = (await r.json()) as { webLink?: string };
-    return j.webLink ? { webLink: j.webLink } : {};
+    const j = (await r.json()) as { id?: string; webLink?: string };
+    return {
+      ...(j.id ? { id: j.id } : {}),
+      ...(j.webLink ? { webLink: j.webLink } : {}),
+    };
+  }
+
+  async mettreAJourEvenement(
+    boite: string,
+    eventId: string,
+    patch: { titre?: string; debut?: string; fin?: string; ressources?: string[] },
+  ): Promise<void> {
+    if (!boite || !eventId) throw new Error("Mise a jour evenement : boite ou id manquant.");
+
+    const body: Record<string, unknown> = {};
+    if (patch.titre !== undefined) body.subject = patch.titre;
+    // `ressources` fourni -> REMPLACE la liste des attendees resource (PATCH attendees
+    // ecrase la liste cote Graph) ; `[]` retire toute salle, absent = inchange.
+    if (patch.ressources !== undefined) body.attendees = attendeesRessource(patch.ressources);
+    if (patch.debut !== undefined) {
+      const debut = patch.debut.trim();
+      if (estJourSeul(debut)) {
+        // Jour seul -> journee entiere sur ce jour (comportement historique).
+        const bornes = bornesJourneeEntiere(debut);
+        body.isAllDay = true;
+        body.start = bornes.start;
+        body.end = bornes.end;
+      } else {
+        // Heure presente -> evenement date ; fin fournie ou debut + duree reunion.
+        const fin = patch.fin?.trim() || finReunion(debut);
+        body.isAllDay = false;
+        body.start = { dateTime: debut, timeZone: TZ };
+        body.end = { dateTime: fin, timeZone: TZ };
+      }
+    }
+    if (Object.keys(body).length === 0) return; // rien a changer
+
+    const tk = await jetonGraph();
+    const r = await fetch(
+      `${GRAPH}/users/${encodeURIComponent(boite)}/events/${encodeURIComponent(eventId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!r.ok) {
+      throw new Error(`Graph mettre a jour evenement ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    }
+  }
+
+  async supprimerEvenement(boite: string, eventId: string): Promise<void> {
+    if (!boite || !eventId) throw new Error("Suppression evenement : boite ou id manquant.");
+    const tk = await jetonGraph();
+    const r = await fetch(
+      `${GRAPH}/users/${encodeURIComponent(boite)}/events/${encodeURIComponent(eventId)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } },
+    );
+    // 404 = deja supprime (ex. efface a la main dans Outlook) : etat cible atteint.
+    if (r.status === 404) return;
+    if (!r.ok) {
+      throw new Error(`Graph supprimer evenement ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    }
+  }
+
+  async disponibiliteSalle(
+    boite: string,
+    salleEmail: string,
+    debutISO: string,
+    finISO: string,
+  ): Promise<"libre" | "occupee" | "inconnu"> {
+    // Degrade "inconnu" a la moindre anomalie : ce controle est un CONFORT (la
+    // reservation, elle, s'appuie sur l'auto-acceptation de la room mailbox). Jamais
+    // bloquant, jamais throw vers l'UI.
+    if (!boite || !salleEmail) return "inconnu";
+    try {
+      const tk = await jetonGraph();
+      const r = await fetch(`${GRAPH}/users/${encodeURIComponent(boite)}/calendar/getSchedule`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schedules: [salleEmail],
+          startTime: { dateTime: debutISO, timeZone: TZ },
+          endTime: { dateTime: finISO, timeZone: TZ },
+          availabilityViewInterval: 30,
+        }),
+      });
+      // 403 = Application Access Policy pas encore ouverte pour les salles (cote DSI).
+      if (!r.ok) return "inconnu";
+      const j = (await r.json()) as { value?: Array<{ availabilityView?: string }> };
+      const vue = j.value?.[0]?.availabilityView;
+      if (typeof vue !== "string") return "inconnu";
+      return interpreterAvailabilityView(vue);
+    } catch {
+      return "inconnu";
+    }
   }
 }

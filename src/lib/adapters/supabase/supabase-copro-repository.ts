@@ -11,6 +11,7 @@ import type {
   SourceCopro,
   StatutCopro,
 } from "@/lib/domain/copropriete";
+import { heureDe } from "@/lib/domain/reunion";
 import { createSupabasePublicClient } from "./public-client";
 import { filtrePerimetre } from "./perimetre";
 
@@ -119,6 +120,9 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
   const prochaineDate = dateISO(row.nextAGDate);
   const derniereCs = dateISO(row.lastCSDate);
   const prochaineCs = dateISO(row.nextCSDate);
+  // Heure de reunion extraite du timestamp (T00:00 des donnees existantes -> pas d'heure).
+  const prochaineHeure = heureDe(row.nextAGDate);
+  const prochaineCsHeure = heureDe(row.nextCSDate);
   const deepBase = process.env.ESTALE_DEEPLINK_BASE;
   return {
     code: codeDe(row),
@@ -136,6 +140,7 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
       ? {
           prochaineAg: {
             date: prochaineDate,
+            ...(prochaineHeure ? { heure: prochaineHeure } : {}),
             statut: "planifiee" as const,
             supervisionId: `${codeDe(row)}__${prochaineDate}`,
           },
@@ -143,6 +148,7 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
       : {}),
     ...(derniereCs ? { derniereCsDate: derniereCs } : {}),
     ...(prochaineCs ? { prochaineCsDate: prochaineCs } : {}),
+    ...(prochaineCs && prochaineCsHeure ? { prochaineCsHeure } : {}),
     ...(row.ppt !== null ? { pptVote: row.ppt } : {}),
     ...(source === "estale" && deepBase && (row.externalIdEstale ?? row.referenceEstale)
       ? { estaleDeepLink: `${deepBase}/condo/${row.externalIdEstale ?? row.referenceEstale}` }

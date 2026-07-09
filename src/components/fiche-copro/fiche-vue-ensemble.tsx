@@ -23,12 +23,14 @@ import type {
 } from "@/lib/domain/copropriete";
 import type { LigneParcours } from "@/lib/domain/dashboard";
 import type { EtatCompta } from "@/lib/domain/compta";
+import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 import { ComptaPanel } from "@/components/compta/compta-panel";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { formatDateLongue } from "@/lib/format-date";
 import { EditeurDate } from "./editeur-date";
+import { ConfirmationEvenement } from "./confirmation-evenement";
 
 const ROLE_LABEL: Record<RoleEquipe, string> = {
   gestionnaire: "Gestionnaire",
@@ -60,6 +62,13 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             conformite={fiche.conformite}
             derniereCs={fiche.copro.derniereCsDate}
             prochaineCs={fiche.copro.prochaineCsDate}
+            prochaineCsHeure={fiche.copro.prochaineCsHeure}
+            confirmationAg={fiche.confirmationAg}
+            confirmationCs={fiche.confirmationCs}
+            salleAgEmail={fiche.salleAgEmail}
+            vehiculeAgEmail={fiche.vehiculeAgEmail}
+            salleCsEmail={fiche.salleCsEmail}
+            vehiculeCsEmail={fiche.vehiculeCsEmail}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
@@ -193,6 +202,13 @@ function BlocAg({
   conformite,
   derniereCs,
   prochaineCs,
+  prochaineCsHeure,
+  confirmationAg,
+  confirmationCs,
+  salleAgEmail,
+  vehiculeAgEmail,
+  salleCsEmail,
+  vehiculeCsEmail,
 }: {
   coproCode: string;
   derniere?: AgPassee;
@@ -201,6 +217,13 @@ function BlocAg({
   conformite: ItemConformite[];
   derniereCs?: string;
   prochaineCs?: string;
+  prochaineCsHeure?: string;
+  confirmationAg?: StatutConfirmation;
+  confirmationCs?: StatutConfirmation;
+  salleAgEmail?: string;
+  vehiculeAgEmail?: string;
+  salleCsEmail?: string;
+  vehiculeCsEmail?: string;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
   return (
@@ -257,7 +280,21 @@ function BlocAg({
 
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochaine AG</p>
-          <EditeurDate coproCode={coproCode} type="ag" dateISO={prochaine?.date} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <EditeurDate
+              coproCode={coproCode}
+              type="ag"
+              dateISO={prochaine?.date}
+              heure={prochaine?.heure}
+              salleEmail={salleAgEmail}
+              vehiculeEmail={vehiculeAgEmail}
+            />
+            {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
+                (le service ne pose un statut que dans ce cas). */}
+            {prochaine && confirmationAg && (
+              <ConfirmationEvenement coproCode={coproCode} type="AG" statut={confirmationAg} />
+            )}
+          </div>
           {prochaine && (
             <>
               <p className="mt-1.5 text-[12px] text-ink-3">{STATUT_AG_LABEL[prochaine.statut]}</p>
@@ -294,7 +331,19 @@ function BlocAg({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-[12px] text-ink-3 shrink-0">Prochain CS :</span>
-            <EditeurDate coproCode={coproCode} type="cs" dateISO={prochaineCs} />
+            <span className="inline-flex items-center gap-2 flex-wrap">
+              <EditeurDate
+                coproCode={coproCode}
+                type="cs"
+                dateISO={prochaineCs}
+                heure={prochaineCsHeure}
+                salleEmail={salleCsEmail}
+                vehiculeEmail={vehiculeCsEmail}
+              />
+              {prochaineCs && confirmationCs && (
+                <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
+              )}
+            </span>
           </div>
         </div>
       </div>

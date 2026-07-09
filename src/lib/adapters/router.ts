@@ -58,6 +58,9 @@ import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
 import type { PriseEnMainRepository } from "@/lib/ports/prise-en-main-repository";
 import { SupabasePriseEnMainRepository } from "@/lib/adapters/supabase/supabase-prise-en-main-repository";
 import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-main-repository";
+import type { ConfirmationEvenementRepository } from "@/lib/ports/confirmation-evenement-repository";
+import { SupabaseConfirmationEvenementRepository } from "@/lib/adapters/supabase/supabase-confirmation-evenement-repository";
+import { MockConfirmationEvenementRepository } from "@/lib/adapters/mock/mock-confirmation-evenement-repository";
 import type { DossierRepository } from "@/lib/ports/dossier-repository";
 import { SupabaseDossierRepository } from "@/lib/adapters/supabase/supabase-dossier-repository";
 import { MockDossierRepository } from "@/lib/adapters/mock/mock-dossier-repository";
@@ -128,6 +131,13 @@ export function getJalonRepository(): JalonRepository {
 export function getPriseEnMainRepository(): PriseEnMainRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabasePriseEnMainRepository();
   return new MockPriseEnMainRepository();
+}
+
+// Confirmation des dates AG/CS par le conseil syndical (table native
+// intranet_confirmations_evenement). Meme bascule que les autres tables natives.
+export function getConfirmationEvenementRepository(): ConfirmationEvenementRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseConfirmationEvenementRepository();
+  return new MockConfirmationEvenementRepository();
 }
 
 // Module Dossiers (table native intranet_dossiers).
@@ -229,9 +239,9 @@ export function getMailboxProvider(): MailboxProvider {
   return new NoopMailboxProvider();
 }
 
-// Agenda Outlook sortant (creer un evenement, ex. RDV d'expertise sinistre). Meme
-// infra Graph que le mail -> meme gate MAIL_SOURCE=graph. INERTE tant que le DSI
-// n'a pas accorde Calendars.ReadWrite (Graph renverra 403, l'action degradera).
+// Calendrier sortant (projection des dates CS/AG + RDV d'expertise sinistre dans
+// l'agenda Outlook, meme infra Graph que le mail). Graph en reel (MAIL_SOURCE=graph),
+// sinon no-op : la projection est sautee, la donnee intranet reste la source.
 export function getCalendrierOutboundProvider(): CalendrierOutboundProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphCalendrierOutboundProvider();
   return new NoopCalendrierOutboundProvider();

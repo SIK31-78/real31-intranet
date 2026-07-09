@@ -14,6 +14,11 @@ export function formatDateLongue(iso: string): string {
   return `${d.getUTCDate()} ${MOIS_FR[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
+/** "18:00" -> "18h00" (heure de reunion lisible a cote d'une date). */
+export function formatHeure(hhmm: string): string {
+  return hhmm.replace(":", "h");
+}
+
 /** Format relatif court "il y a 2 j" / "hier" / "le 15/04" a partir d'une
  *  ancre de reference (date "aujourd'hui" passee par la page). */
 export function formatAuditeRelatif(iso: string, aujourdhuiISO: string): string {

@@ -10,6 +10,7 @@ import type { Evenement } from "@/lib/domain/calendrier";
 import type { JalonAvecEtat } from "@/lib/domain/jalons-ag/types";
 import type { LigneParcours } from "@/lib/domain/dashboard";
 import type { EtatCompta } from "@/lib/domain/compta";
+import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 
 // --- Referentiel copro (source App A) -------------------------------------
 
@@ -44,6 +45,8 @@ export type StatutProchaineAg = "planifiee" | "en_preparation" | "convoquee";
 export interface ProchaineAg {
   /** Date ISO "YYYY-MM-DD". */
   date: string;
+  /** Heure de la reunion "HH:mm" ; absente = journee entiere (retrocompatible). */
+  heure?: string;
   statut: StatutProchaineAg;
   /** Message d'alerte court, ex "Convocations a envoyer aujourd'hui". */
   alerte?: string;
@@ -76,6 +79,8 @@ export interface Copropriete {
   /** Dernier / prochain conseil syndical (ISO "YYYY-MM-DD"), depuis le référentiel. */
   derniereCsDate?: string;
   prochaineCsDate?: string;
+  /** Heure du prochain CS "HH:mm" ; absente = journee entiere (retrocompatible). */
+  prochaineCsHeure?: string;
   /** PPT voté (true) / à programmer (false) ; undefined si inconnu. Référentiel. */
   pptVote?: boolean;
   /** Deep-link Estale, present uniquement si source = 'estale' (ADR-003/012 :
@@ -213,6 +218,18 @@ export interface FicheCopro {
   parcours?: LigneParcours;
   /** Etat compta de la prochaine AG (flags + fil de notes) ; absent si pas d'AG datee. */
   compta?: EtatCompta;
+  /** Confirmation par le conseil syndical de la prochaine AG / du prochain CS (date
+   *  proposee par mail -> a_confirmer, validee -> confirme). Absent si pas de date
+   *  a venir : confirmer une date passee n'a pas de sens. */
+  confirmationAg?: StatutConfirmation;
+  confirmationCs?: StatutConfirmation;
+  /** Salle / vehicule reserves pour la prochaine AG (room mailbox + ZOE) ; absents si
+   *  rien de reserve. Affiches a cote de la date et pre-remplissent l'editeur. */
+  salleAgEmail?: string;
+  vehiculeAgEmail?: string;
+  /** Salle / vehicule reserves pour le prochain CS. */
+  salleCsEmail?: string;
+  vehiculeCsEmail?: string;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */
