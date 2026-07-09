@@ -109,3 +109,79 @@ export function verifierTotauxParCompte(
 
   return { enEcart, nbComptesControles, nbEnEcart: enEcart.length };
 }
+
+/**
+ * Ligne de la BALANCE PAR COMPTE presentee a la comptable : sa verification metier porte sur
+ * la balance de chaque compte (pas sur chaque ecriture - regle REAL31). `statut` :
+ * "ok" = controle et reconcilie au centime ; "ecart" = controle et faux (a investiguer) ;
+ * "non_controle" = la source n'imprime aucun total pour ce compte (rien a comparer).
+ */
+export interface LigneBalanceCompte {
+  compte: string;
+  intitule?: string;
+  reportDebit: number;
+  reportCredit: number;
+  debitCalcule: number;
+  creditCalcule: number;
+  debitImprime?: number;
+  creditImprime?: number;
+  ecartDebit?: number;
+  ecartCredit?: number;
+  /** Solde des ecritures extraites (report inclus) : debit - credit. */
+  solde: number;
+  statut: "ok" | "ecart" | "non_controle";
+}
+
+/**
+ * Construit la balance complete par compte (TOUS les comptes ayant des ecritures ou un total
+ * imprime), triee par numero de compte. C'est l'artefact de verification de la comptable :
+ * elle valide la balance de chaque compte, pas les lignes une a une. PUR, deterministe.
+ */
+export function balanceParCompte(
+  lignes: LigneEcriture[],
+  controles: ControleCompte[],
+  intitules?: Record<string, string>,
+): LigneBalanceCompte[] {
+  const parCompte = new Map<string, { debit: number; credit: number }>();
+  for (const l of lignes) {
+    const agg = parCompte.get(l.compte) ?? { debit: 0, credit: 0 };
+    if (l.sens === "debit") agg.debit += l.montant;
+    else agg.credit += l.montant;
+    parCompte.set(l.compte, agg);
+  }
+  const controleParCompte = new Map(controles.map((c) => [c.compte, c]));
+  const tousComptes = new Set<string>([...parCompte.keys(), ...controleParCompte.keys()]);
+
+  const balance: LigneBalanceCompte[] = [];
+  for (const compte of tousComptes) {
+    const agg = parCompte.get(compte) ?? { debit: 0, credit: 0 };
+    const c = controleParCompte.get(compte);
+    const debitCalcule = arrondi(agg.debit);
+    const creditCalcule = arrondi(agg.credit);
+    const reportDebit = arrondi(c?.reportDebit ?? 0);
+    const reportCredit = arrondi(c?.reportCredit ?? 0);
+    const aDebit = typeof c?.totalDebit === "number";
+    const aCredit = typeof c?.totalCredit === "number";
+    const ecartDebit = aDebit ? arrondi(reportDebit + debitCalcule - (c!.totalDebit as number)) : undefined;
+    const ecartCredit = aCredit ? arrondi(reportCredit + creditCalcule - (c!.totalCredit as number)) : undefined;
+    const enEcart =
+      (ecartDebit !== undefined && Math.abs(ecartDebit) >= SEUIL_EQUILIBRE) ||
+      (ecartCredit !== undefined && Math.abs(ecartCredit) >= SEUIL_EQUILIBRE);
+    balance.push({
+      compte,
+      ...(intitules?.[compte] ? { intitule: intitules[compte] } : {}),
+      reportDebit,
+      reportCredit,
+      debitCalcule,
+      creditCalcule,
+      debitImprime: c?.totalDebit,
+      creditImprime: c?.totalCredit,
+      ecartDebit,
+      ecartCredit,
+      solde: arrondi(reportDebit + debitCalcule - reportCredit - creditCalcule),
+      statut: !aDebit && !aCredit ? "non_controle" : enEcart ? "ecart" : "ok",
+    });
+  }
+  balance.sort((a, b) => a.compte.localeCompare(b.compte));
+  return balance;
+}

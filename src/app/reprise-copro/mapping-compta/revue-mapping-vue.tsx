@@ -62,12 +62,33 @@ interface Equilibre {
   ecart: number;
 }
 
+/**
+ * Ligne de balance par compte (artefact de verification de la comptable : elle valide la
+ * balance de chaque compte, pas les ecritures une a une - regle REAL31).
+ */
+interface LigneBalance {
+  compte: string;
+  intitule?: string;
+  reportDebit: number;
+  reportCredit: number;
+  debitCalcule: number;
+  creditCalcule: number;
+  debitImprime?: number;
+  creditImprime?: number;
+  ecartDebit?: number;
+  ecartCredit?: number;
+  solde: number;
+  statut: "ok" | "ecart" | "non_controle";
+}
+
 interface DonneesRevue {
   code: string;
   plan: PlanMapping;
   candidats: Candidats;
   /** Grand livre groupe par compte source (colonnes debit/credit), issu de l'analyse. */
   grandLivre: Record<string, GrandLivreCompte>;
+  /** Balance complete par compte (verification comptable). */
+  balance: LigneBalance[];
   equilibre: Equilibre;
   mode: ModeIa;
 }
@@ -130,6 +151,7 @@ export function RevueMappingVue({ modeIa, persistant }: { modeIa: ModeIa; persis
             plan: r.plan,
             candidats: r.candidats,
             grandLivre: r.grandLivre ?? {},
+            balance: r.balance ?? [],
             equilibre: r.equilibre,
             mode: r.mode,
           });
@@ -449,6 +471,8 @@ function ResultatRevue({
       )}
 
       {resolu.notes.length > 0 && <PointsAttention notes={resolu.notes} />}
+
+      {data.balance.length > 0 && <SectionBalance balance={data.balance} />}
 
       <Accordeon titre="Mappes" compte={mappes.length} ton="ok">
         <TableEntrees entrees={mappes} grandLivre={data.grandLivre} nomDe={nomDe} onAnnuler={annuler} />
@@ -829,9 +853,13 @@ function SelectCompteSepare({
 // --- Vue "grand livre" d'un compte source (accordeon, replie par defaut) -----------
 
 /**
- * Deplie les ecritures d'UN compte source : tableau date / libelle / piece / debit / credit +
- * total. Replie par defaut, scroll interne si long. Ne fait AUCUN fetch : tout vient de l'analyse
- * deja faite (data.grandLivre). PII : les libelles peuvent porter des noms (affiches, jamais logues).
+ * Grand livre d'UN compte source. Deux modes (regle Sekou) :
+ *   - bloc A (classes 4/5) : lignes presentes -> accordeon depliable, tableau date / libelle /
+ *     piece / debit / credit + total (replie par defaut, scroll interne si long) ;
+ *   - classes reportees (6, 1/2/3/7) : lignes videes cote serveur -> on controle les SOLDES du
+ *     compte (bandeau statique D / C / solde), pas chaque ligne.
+ * Ne fait AUCUN fetch : tout vient de l'analyse deja faite (data.grandLivre). PII : les libelles
+ * peuvent porter des noms (affiches, jamais logues).
  */
 function VueGrandLivreCompte({
   compte,
@@ -842,6 +870,24 @@ function VueGrandLivreCompte({
 }) {
   const [ouvert, setOuvert] = useState(initialementOuvert);
   if (!compte || compte.nbLignes === 0) return null;
+
+  // Mode "soldes seulement" (classes reportees) : bandeau statique, pas de detail ligne a ligne.
+  if (compte.lignes.length === 0) {
+    return (
+      <div className="mt-2.5 rounded-md border border-line bg-surface-2 px-3 py-1.5 flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
+          <BookOpen strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4" />
+          Soldes du compte
+          <Badge ton="neutral">{compte.nbLignes} ecriture(s)</Badge>
+        </span>
+        <span className="font-mono text-[11.5px] text-ink-3">
+          D {montantEuro(compte.totalDebit) || "0,00"} / C {montantEuro(compte.totalCredit) || "0,00"} / solde{" "}
+          {compte.solde.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-2.5 rounded-md border border-line bg-surface-2">
       <button
@@ -1007,6 +1053,110 @@ function PointsAttention({ notes }: { notes: string[] }) {
 
 // --- Accordeon + table (mappes / ignores / reportes) ------------------------
 
+/**
+ * Balance par compte = l'artefact de verification de la COMPTABLE (regle REAL31 : elle valide
+ * la balance de chaque compte, pas chaque ecriture). Table complete triee par compte : report
+ * a-nouveau + ecritures extraites vs totaux imprimes par la source ; les comptes en ecart sont
+ * mis en avant (a investiguer AVANT tout import), les reconcilies au centime rassurent d'un
+ * coup d'oeil.
+ */
+function SectionBalance({ balance }: { balance: LigneBalance[] }) {
+  const [ouvert, setOuvert] = useState(false);
+  const enEcart = balance.filter((l) => l.statut === "ecart");
+  const ok = balance.filter((l) => l.statut === "ok").length;
+  const nonControles = balance.filter((l) => l.statut === "non_controle").length;
+  return (
+    <div className={cn("rounded-md border bg-surface", enEcart.length > 0 ? "border-err/40" : "border-line")}>
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left"
+        aria-expanded={ouvert}
+      >
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">
+            Balance par compte (verification comptable)
+          </span>
+          <Badge ton="ok" dot>
+            {ok} reconcilie{ok > 1 ? "s" : ""}
+          </Badge>
+          {enEcart.length > 0 && (
+            <Badge ton="err" dot>
+              {enEcart.length} en ecart
+            </Badge>
+          )}
+          {nonControles > 0 && (
+            <Badge ton="neutral" dot>
+              {nonControles} non controle{nonControles > 1 ? "s" : ""}
+            </Badge>
+          )}
+        </span>
+        <ChevronDown
+          strokeWidth={1.5}
+          className={cn("w-4 h-4 text-ink-4 transition-transform", ouvert && "rotate-180")}
+        />
+      </button>
+      {ouvert && (
+        <div className="border-t border-line px-2 py-2">
+          <p className="px-2 pb-2 text-[12px] text-ink-3">
+            Report a-nouveau + ecritures extraites, confrontes aux totaux imprimes par l&apos;ancien
+            syndic. Un compte &laquo; reconcilie &raquo; est verifie au centime : la comptable
+            valide la balance, pas les lignes une a une.
+          </p>
+          <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+            <table className="w-full text-[12.5px]">
+              <thead className="text-left text-[11px] uppercase text-ink-4 sticky top-0 bg-surface">
+                <tr>
+                  <th className="px-2 py-1.5">Compte</th>
+                  <th className="px-2 py-1.5">Intitule</th>
+                  <th className="px-2 py-1.5 text-right">Report D</th>
+                  <th className="px-2 py-1.5 text-right">Report C</th>
+                  <th className="px-2 py-1.5 text-right">Debit</th>
+                  <th className="px-2 py-1.5 text-right">Credit</th>
+                  <th className="px-2 py-1.5 text-right">Solde</th>
+                  <th className="px-2 py-1.5 text-right">Ecart</th>
+                  <th className="px-2 py-1.5">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {balance.map((l) => {
+                  const ecart =
+                    (l.ecartDebit && Math.abs(l.ecartDebit) >= 0.005 ? l.ecartDebit : 0) ||
+                    (l.ecartCredit && Math.abs(l.ecartCredit) >= 0.005 ? l.ecartCredit : 0);
+                  return (
+                    <tr
+                      key={l.compte}
+                      className={cn("border-t border-line/60", l.statut === "ecart" && "bg-err/5")}
+                    >
+                      <td className="px-2 py-1 font-mono text-[12px] whitespace-nowrap">{l.compte}</td>
+                      <td className="px-2 py-1 max-w-[220px] truncate" title={l.intitule}>
+                        {l.intitule ?? ""}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">{montantEuro(l.reportDebit)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{montantEuro(l.reportCredit)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{montantEuro(l.debitCalcule)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{montantEuro(l.creditCalcule)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums font-medium">{montantEuro(l.solde)}</td>
+                      <td className={cn("px-2 py-1 text-right tabular-nums", ecart !== 0 && "text-err font-semibold")}>
+                        {ecart !== 0 ? montantEuro(ecart) : ""}
+                      </td>
+                      <td className="px-2 py-1">
+                        {l.statut === "ok" && <Badge ton="ok">Reconcilie</Badge>}
+                        {l.statut === "ecart" && <Badge ton="err">Ecart</Badge>}
+                        {l.statut === "non_controle" && <Badge ton="neutral">Non controle</Badge>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Accordeon({
   titre,
   compte,
@@ -1066,6 +1216,7 @@ function TableEntrees({
             <th className="px-2 font-medium">Categorie</th>
             <th className="px-2 font-medium">Cible eStale</th>
             <th className="px-2 font-medium">Statut</th>
+            <th className="px-2 font-medium text-right">Solde</th>
             <th className="px-2 font-medium"></th>
           </tr>
         </thead>
@@ -1098,7 +1249,9 @@ function LigneTable({
   onAnnuler: (compteSource: string) => void;
 }) {
   const [ouvert, setOuvert] = useState(false);
-  const consultable = !!grandLivreCompte && grandLivreCompte.nbLignes > 0;
+  // Detail ligne a ligne consultable = bloc A seulement (les classes reportees arrivent sans
+  // lignes : on controle leur SOLDE, affiche en colonne - regle Sekou).
+  const consultable = !!grandLivreCompte && grandLivreCompte.lignes.length > 0;
   return (
     <>
       <tr className="border-t border-line">
@@ -1135,6 +1288,11 @@ function LigneTable({
             {e.decision && <Badge ton="brand">{e.ignore ? "ignore" : "manuel"}</Badge>}
           </span>
         </td>
+        <td className="px-2 align-top text-right font-mono text-ink-2 whitespace-nowrap">
+          {grandLivreCompte
+            ? grandLivreCompte.solde.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : "-"}
+        </td>
         <td className="px-2 align-top text-right">
           {e.decision && (
             <button
@@ -1149,7 +1307,7 @@ function LigneTable({
       </tr>
       {ouvert && consultable && (
         <tr>
-          <td colSpan={5} className="px-2 pb-2">
+          <td colSpan={6} className="px-2 pb-2">
             <VueGrandLivreCompte compte={grandLivreCompte} initialementOuvert />
           </td>
         </tr>

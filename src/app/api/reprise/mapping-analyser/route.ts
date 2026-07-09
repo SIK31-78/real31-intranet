@@ -23,7 +23,8 @@ import {
 } from "@/lib/reprise/adapters/router";
 import { extraireEtVerifierGrandLivre } from "@/lib/reprise/services/reprendre-compta";
 import { preparerRevueMapping } from "@/lib/reprise/services/mapping-compta";
-import { grouperEcrituresParCompte } from "@/lib/reprise/domain/ecriture";
+import { grouperEcrituresPourRevue } from "@/lib/reprise/domain/ecriture";
+import { balanceParCompte } from "@/lib/reprise/domain/controle-comptes";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 
 export const runtime = "nodejs";
@@ -92,9 +93,16 @@ export async function POST(req: Request) {
 
     // 4. Grand livre GROUPE par compte source (colonnes debit/credit) : sert a l'ecran a deplier
     // les ecritures de chaque compte a trancher. Vient de l'analyse DEJA faite (pas de re-fetch) ;
-    // groupe cote serveur pour ne pas envoyer les ~800 lignes a plat. PII : libelles affiches en
-    // UI (app interne) mais jamais logues.
-    const grandLivre = grouperEcrituresParCompte(jeu.lignes);
+    // groupe cote serveur pour ne pas envoyer les ~800 lignes a plat. Regle Sekou : le detail
+    // ligne a ligne ne sert qu'au bloc A (classes 4/5) ; pour la classe 6 et les classes 1/2/3/7
+    // on controle les SOLDES par compte -> lignes videes cote serveur (payload allege). PII :
+    // libelles affiches en UI (app interne) mais jamais logues.
+    const grandLivre = grouperEcrituresPourRevue(jeu.lignes);
+
+    // 5. Balance par compte = l'artefact de verification de la COMPTABLE (regle REAL31 :
+    // elle valide la balance de chaque compte, pas les ecritures une a une). Deja calculee
+    // implicitement par les controles ; on l'expose en table complete triee.
+    const balance = balanceParCompte(jeu.lignes, jeu.controles ?? [], jeu.intitules);
 
     return NextResponse.json({
       ok: true,
@@ -102,6 +110,7 @@ export async function POST(req: Request) {
       candidats: revue.candidats,
       decisions,
       grandLivre,
+      balance,
       equilibre: equilibreGlobal,
       mode: modeExtraction(),
     });

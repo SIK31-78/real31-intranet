@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { verifierTotauxParCompte } from "../controle-comptes";
+import { balanceParCompte, verifierTotauxParCompte } from "../controle-comptes";
 import type { ControleCompte, LigneEcriture, SensEcriture } from "../ecriture";
 import { classeDe } from "../compta";
 
@@ -81,5 +81,52 @@ describe("verifierTotauxParCompte", () => {
     expect(r.nbEnEcart).toBe(1);
     expect(r.enEcart[0].ecartDebit).toBe(-50);
     expect(r.enEcart[0].reportDebit).toBe(500);
+  });
+});
+
+describe("balanceParCompte", () => {
+  const ecr = (compte: string, sens: SensEcriture, montant: number): LigneEcriture => ({
+    date: "2026-01-15",
+    compte,
+    libelle: "TEST",
+    sens,
+    montant,
+    classe: classeDe(compte),
+  });
+
+  it("construit la balance complete triee avec statuts ok / ecart / non_controle", () => {
+    const lignes = [ecr("450100", "debit", 100), ecr("401200", "credit", 60), ecr("512000", "debit", 40)];
+    const controles: ControleCompte[] = [
+      { compte: "450100", totalDebit: 100 }, // reconcilie
+      { compte: "401200", totalCredit: 80 }, // ecart de -20
+      // 512000 : aucun total imprime -> non controle
+    ];
+    const b = balanceParCompte(lignes, controles, { "450100": "COPRO TEST" });
+    expect(b.map((l) => l.compte)).toEqual(["401200", "450100", "512000"]); // tri par compte
+    const l450 = b.find((l) => l.compte === "450100")!;
+    expect(l450.statut).toBe("ok");
+    expect(l450.intitule).toBe("COPRO TEST");
+    expect(l450.solde).toBe(100);
+    const l401 = b.find((l) => l.compte === "401200")!;
+    expect(l401.statut).toBe("ecart");
+    expect(l401.ecartCredit).toBe(-20);
+    expect(l401.solde).toBe(-60);
+    const l512 = b.find((l) => l.compte === "512000")!;
+    expect(l512.statut).toBe("non_controle");
+  });
+
+  it("reintegre le report a-nouveau dans le solde et le controle", () => {
+    const lignes = [ecr("450100", "debit", 800)];
+    const controles: ControleCompte[] = [{ compte: "450100", totalDebit: 1300, reportDebit: 500 }];
+    const b = balanceParCompte(lignes, controles);
+    expect(b[0].statut).toBe("ok"); // 500 + 800 == 1300
+    expect(b[0].solde).toBe(1300);
+    expect(b[0].reportDebit).toBe(500);
+  });
+
+  it("inclut un compte present uniquement dans les controles (aucune ecriture)", () => {
+    const b = balanceParCompte([], [{ compte: "450900", totalDebit: 250, reportDebit: 250 }]);
+    expect(b).toHaveLength(1);
+    expect(b[0].statut).toBe("ok"); // 250 (report) + 0 == 250
   });
 });
