@@ -213,6 +213,9 @@ async function extraireParCoucheTexte(docs: DocumentSource[]): Promise<JeuEcritu
 
   const jeu = normaliserGrandLivre({ lignes: parse.lignes, notes: parse.notes });
   jeu.controles = parse.controles;
+  // Intitules d'en-tete de compte (noms) captures par le parseur positionne -> exposes pour
+  // l'appariement par nom du mapping (reprise). PII : jamais logue, reste dans la structure.
+  if (parse.intitules) jeu.intitules = parse.intitules;
 
   const equ = verifierEquilibreGrandLivre(jeu.lignes);
   // Desequilibre ENORME = mapping de colonnes rate -> on prefere retomber sur l'OCR/IA.

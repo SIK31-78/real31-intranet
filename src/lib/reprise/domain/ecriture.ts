@@ -78,6 +78,15 @@ export interface JeuEcritures {
    * aucun adapter existant, ne modifie pas le port ExtractionComptaProvider.
    */
   controles?: ControleCompte[];
+  /**
+   * Intitule (nom) imprime dans l'EN-TETE de chaque compte source, indexe par numero de compte
+   * (ex. "4501.100489139" -> "M DUPONT JEAN"). Champ ADDITIF, optionnel : seul le pipeline couche
+   * texte (positions) le remplit aujourd'hui ; les adapters full-LLM ne le fournissent pas. Sert
+   * a l'appariement par NOM du mapping (401 fournisseurs, 450 coproprietaires) de la reprise.
+   * ATTENTION PII : ces valeurs portent des noms de personnes -> ne JAMAIS les logguer ni les
+   * exposer dans une note/rapport ; elles restent internes au resolveur de mapping.
+   */
+  intitules?: Record<string, string>;
 }
 
 /** Verdict d'equilibre GLOBAL d'un grand livre + detail par classe. */

@@ -25,6 +25,12 @@ export interface ResultatParsage {
   lignes: LigneEcritureBrute[];
   controles: ControleCompte[];
   notes: string[];
+  /**
+   * Intitule (nom) de l'en-tete de chaque compte, indexe par numero de compte. Optionnel : seul
+   * le parseur positionne (couche texte) le renseigne ; le parseur markdown ne le remplit pas.
+   * PII (noms de personnes) -> jamais logue.
+   */
+  intitules?: Record<string, string>;
 }
 
 /** Seuil sous lequel un montant est considere nul/absent (bruit d'arrondi). */

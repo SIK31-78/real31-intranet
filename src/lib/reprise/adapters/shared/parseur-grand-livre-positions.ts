@@ -153,6 +153,9 @@ function extraireDate(texte: string): string {
 export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
   const lignes: LigneEcritureBrute[] = [];
   const controlesParCompte = new Map<string, ControleCompte>();
+  // Intitule de compte capture depuis la ligne d'en-tete (le texte apres le numero de compte).
+  // PII (noms) : reste dans la structure de sortie, jamais logue dans les notes.
+  const intitulesParCompte = new Map<string, string>();
   let compteCourant = "";
   let colPrec: ColonnesMontant | null = null;
 
@@ -184,6 +187,17 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
       if (RE_COMPTE.test(premierToken)) {
         compteCourant = premierToken;
         nbEntetes++;
+        // Le reste de la zone texte (apres le numero) est l'INTITULE imprime du compte (nom du
+        // fournisseur / coproprietaire...). On le garde pour l'appariement par nom du mapping.
+        const intitule = itemsTexte
+          .slice(1)
+          .map((it) => it.chaine)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (intitule && !intitulesParCompte.has(compteCourant)) {
+          intitulesParCompte.set(compteCourant, intitule);
+        }
         continue;
       }
 
@@ -260,5 +274,10 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
   if (nbAmbigus) notes.push(`Parseur positions : ${nbAmbigus} ligne(s) debit ET credit (net retenu).`);
   if (nbPagesSansColonnes) notes.push(`Parseur positions : ${nbPagesSansColonnes} page(s) sans en-tete Debit/Credit exploitable.`);
 
-  return { lignes, controles: [...controlesParCompte.values()], notes };
+  return {
+    lignes,
+    controles: [...controlesParCompte.values()],
+    notes,
+    intitules: Object.fromEntries(intitulesParCompte),
+  };
 }

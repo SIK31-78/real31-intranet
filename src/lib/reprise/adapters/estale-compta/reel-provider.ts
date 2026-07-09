@@ -21,13 +21,43 @@ import type {
 } from "@/lib/reprise/ports/estale-compta-lecture-provider";
 
 // --- Resolution CODE copro -> condoID (meme approche que EstaleCondoProvider) ----
-// eStale n'a pas de query liste cross-copros : on passe par me.collaborator.condos et on
-// apparie par REFERENCE NORMALISEE (S0302 -> S302). Cache module a TTL court pour ne pas
-// re-interroger l'annuaire a chaque mesure.
+// eStale n'a pas de query liste cross-copros : on rassemble les condos accessibles a
+// l'utilisateur et on apparie par REFERENCE NORMALISEE (S0302 -> S302). Cache module a TTL
+// court pour ne pas re-interroger l'annuaire a chaque mesure.
+//
+// MULTI-AGENCE (finding Inc. 2) : me.collaborator.condos ne liste QUE les copros du portefeuille
+// du collaborateur connecte (souvent une seule agence). Or une copro cible peut relever d'une
+// AUTRE agence a laquelle l'utilisateur a acces (ex. S0302 = agence de Houilles). On elargit
+// donc la resolution a toutes les sources de condos exposees par le schema :
+//   - me.collaborator.condos      (portefeuille du collaborateur)
+//   - me.agency.condos            (toute l'agence de l'utilisateur)
+//   - me.accesses (union Agency | Establishment | Collaborator) -> condos de chaque acces
+// On deduplique par id. Aucune ecriture : lecture seule.
 
 type CondoRef = { id: string; reference: string };
 let cacheCondos: { liste: CondoRef[]; expire: number } | null = null;
 const TTL_MS = 10 * 60 * 1000;
+
+const Q_CONDOS_ACCESSIBLES = `{
+  me {
+    collaborator { condos(archived: false) { id reference } }
+    agency { condos(archived: false) { id reference } }
+    accesses {
+      __typename
+      ... on Agency { condos(archived: false) { id reference } }
+      ... on Establishment { condos(archived: false) { id reference } }
+      ... on Collaborator { condos(archived: false) { id reference } }
+    }
+  }
+}`;
+
+type CondosAccessiblesData = {
+  me: {
+    collaborator: { condos: CondoRef[] } | null;
+    agency: { condos: CondoRef[] } | null;
+    accesses: ({ condos?: CondoRef[] } | null)[] | null;
+  };
+};
 
 /** "S0302" / "s302 " -> "S302" : prefixe lettre + numero sans zeros de tete. */
 function normaliserRef(ref: string): string {
@@ -35,12 +65,22 @@ function normaliserRef(ref: string): string {
   return m ? `${m[1]}${m[2]}` : ref.trim().toUpperCase();
 }
 
+/** Rassemble et deduplique (par id) tous les condos accessibles a l'utilisateur connecte. */
+async function chargerCondosAccessibles(): Promise<CondoRef[]> {
+  const data = await estaleGql<CondosAccessiblesData>(Q_CONDOS_ACCESSIBLES);
+  const parId = new Map<string, CondoRef>();
+  const ajouter = (liste?: CondoRef[] | null) => {
+    for (const c of liste ?? []) if (c && c.id) parId.set(c.id, c);
+  };
+  ajouter(data.me.collaborator?.condos);
+  ajouter(data.me.agency?.condos);
+  for (const acces of data.me.accesses ?? []) ajouter(acces?.condos);
+  return [...parId.values()];
+}
+
 async function resoudreCondoId(code: string): Promise<string | null> {
   if (!cacheCondos || Date.now() > cacheCondos.expire) {
-    const data = await estaleGql<{ me: { collaborator: { condos: CondoRef[] } } }>(
-      `{ me { collaborator { condos(archived: false) { id reference } } } }`,
-    );
-    cacheCondos = { liste: data.me.collaborator.condos, expire: Date.now() + TTL_MS };
+    cacheCondos = { liste: await chargerCondosAccessibles(), expire: Date.now() + TTL_MS };
   }
   const cible = normaliserRef(code);
   return cacheCondos.liste.find((c) => normaliserRef(c.reference) === cible)?.id ?? null;
