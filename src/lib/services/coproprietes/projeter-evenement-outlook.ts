@@ -15,6 +15,8 @@ import {
   type StatutConfirmation,
 } from "@/lib/domain/confirmation-evenement";
 import { finReunion } from "@/lib/domain/reunion";
+import { ressourceParEmail } from "@/lib/domain/salles-reunion";
+import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
 import {
   getCalendrierOutboundProvider,
   getConfirmationEvenementRepository,
@@ -25,6 +27,17 @@ import {
 // (journee entiere) : on ne passe pas de fin.
 function finDe(debut: string): string | undefined {
   return debut.includes("T") ? finReunion(debut) : undefined;
+}
+
+/**
+ * Lieu de l'evenement Outlook deduit du mode de tenue (bonus, degrade OK) : "Visio"
+ * en visio, sinon le libelle de la salle reservee (presentiel / hybride). undefined si
+ * rien a afficher (aucun mode ni salle) -> le lieu Outlook est alors laisse inchange.
+ * Pas de lien Teams genere ici (limitation assumee).
+ */
+function lieuDe(conf: ConfirmationEvenement | undefined): string | undefined {
+  if (conf?.modeReunion === "visio") return "Visio";
+  return ressourceParEmail(conf?.salleEmail)?.nom;
 }
 
 /**
@@ -57,6 +70,9 @@ export async function projeterEvenementOutlook(
     const ressources = [existante?.salleEmail, existante?.vehiculeEmail].filter(
       (e): e is string => Boolean(e),
     );
+    // Lieu deduit du mode (bonus) : "Visio" en visio, sinon la salle. undefined -> lieu
+    // inchange cote Outlook (degrade propre, jamais bloquant).
+    const lieu = lieuDe(existante);
     if (existante?.outlookEventId && existante.outlookBoite) {
       // Projection deja en place : on la fait suivre (jamais de doublon d'evenement).
       await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
@@ -64,6 +80,7 @@ export async function projeterEvenementOutlook(
         debut,
         ...(fin ? { fin } : {}),
         ressources,
+        ...(lieu ? { lieu } : {}),
       });
       return;
     }
@@ -77,6 +94,7 @@ export async function projeterEvenementOutlook(
       debut,
       ...(fin ? { fin } : {}),
       ...(ressources.length > 0 ? { ressources } : {}),
+      ...(lieu ? { lieu } : {}),
     });
     // Pas d'id (provider no-op) : rien a memoriser, la projection reste inexistante.
     if (id) await repo.enregistrerProjection(coproCode, type, id, boite);

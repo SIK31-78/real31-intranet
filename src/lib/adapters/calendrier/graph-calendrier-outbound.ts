@@ -122,12 +122,13 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
   async mettreAJourEvenement(
     boite: string,
     eventId: string,
-    patch: { titre?: string; debut?: string; fin?: string; ressources?: string[] },
+    patch: { titre?: string; debut?: string; fin?: string; ressources?: string[]; lieu?: string },
   ): Promise<void> {
     if (!boite || !eventId) throw new Error("Mise a jour evenement : boite ou id manquant.");
 
     const body: Record<string, unknown> = {};
     if (patch.titre !== undefined) body.subject = patch.titre;
+    if (patch.lieu !== undefined) body.location = { displayName: patch.lieu };
     // `ressources` fourni -> REMPLACE la liste des attendees resource (PATCH attendees
     // ecrase la liste cote Graph) ; `[]` retire toute salle, absent = inchange.
     if (patch.ressources !== undefined) body.attendees = attendeesRessource(patch.ressources);

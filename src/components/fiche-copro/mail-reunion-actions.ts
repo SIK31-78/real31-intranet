@@ -1,9 +1,10 @@
 "use server";
 
-// Server actions du mail au conseil syndical (increment 2 "dates CS/AG"). Deux temps,
-// separes par une RELECTURE humaine (jamais d'envoi automatique) :
+// Server actions du mail au conseil syndical (increment 2 "dates CS/AG"). UN SEUL mail
+// PROPOSE les dates a venir (CS preparatoire + AG ensemble, verbatim cabinet). Deux
+// temps, separes par une RELECTURE humaine (jamais d'envoi automatique) :
 //   1. preparerMailReunionAction : compose un brouillon (destinataires + objet + corps)
-//      a partir des donnees SERVEUR (copro, date, salle, statut) -> le gestionnaire relit.
+//      a partir des donnees SERVEUR (copro, dates, heures, modes, salles) -> relu.
 //   2. envoyerMailReunionAction : envoie REELLEMENT apres son clic (confirmation UI).
 //
 // Chaque action : (1) VALIDE ses entrees (zod : endpoint POST public) ; (2) resout le
@@ -16,13 +17,14 @@ import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session"
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getCoproRepository } from "@/lib/adapters/router";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
-import { statutPourDate } from "@/lib/domain/confirmation-evenement";
 import { ressourceParEmail } from "@/lib/domain/salles-reunion";
+import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
 import {
-  corpsMailReunion,
-  objetMailReunion,
-  type InfosMailReunion,
-  type TypeReunion,
+  corpsMailDatesReunion,
+  objetMailDatesReunion,
+  dateConfirmationJ7,
+  type DateReunionMail,
+  type InfosMailDatesReunion,
 } from "@/lib/domain/mail-reunion";
 import {
   destinatairesConseilSyndical,
@@ -33,7 +35,6 @@ import { envoyerMailReunion } from "@/lib/services/coproprietes/envoyer-mail-reu
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const zCode = z.string().trim().min(1).max(40);
-const zType = z.enum(["AG", "CS"]);
 const zSujet = z.string().trim().min(1).max(2000);
 const zCorps = z.string().min(1).max(100_000);
 const zEmails = z.array(z.string().trim().max(320)).max(50);
@@ -60,15 +61,32 @@ async function garde(
   return { ok: true, g: { id: g.id, email: g.email } };
 }
 
+/**
+ * Construit le fragment "date proposee" d'un type (CS / AG) SI la date est a venir.
+ * Mode + salle sont portes par la confirmation ; la salle n'est reprise dans le mail
+ * que si le mode est presentiel / hybride (logique du modele).
+ */
+function dateAProposer(
+  dateISO: string | undefined,
+  heure: string | undefined,
+  conf: ConfirmationEvenement | null,
+  todayISO: string,
+): DateReunionMail | undefined {
+  const jour = dateISO?.slice(0, 10);
+  if (!jour || jour < todayISO) return undefined; // pas de date, ou deja passee
+  const salleLibelle = ressourceParEmail(conf?.salleEmail)?.nom;
+  return {
+    dateISO: jour,
+    ...(heure ? { heure } : {}),
+    ...(conf?.modeReunion ? { mode: conf.modeReunion } : {}),
+    ...(salleLibelle ? { salleLibelle } : {}),
+  };
+}
+
 // --- 1. Preparation du brouillon (pre-remplissage) ---------------------------
 
-export async function preparerMailReunionAction(
-  coproCode: string,
-  type: TypeReunion,
-): Promise<PreparerResult> {
-  if (!z.object({ coproCode: zCode, type: zType }).safeParse({ coproCode, type }).success) {
-    return { ok: false, message: "Données invalides." };
-  }
+export async function preparerMailReunionAction(coproCode: string): Promise<PreparerResult> {
+  if (!zCode.safeParse(coproCode).success) return { ok: false, message: "Données invalides." };
   const garder = await garde(coproCode);
   if (!garder.ok) return garder;
   const g = garder.g;
@@ -76,24 +94,25 @@ export async function preparerMailReunionAction(
   // Donnees de reunion RELUES cote serveur (jamais prises du client).
   const copro = await getCoproRepository().findByCode(coproCode, g.id);
   if (!copro) return { ok: false, message: "Copropriété introuvable." };
-  const dateISO = type === "CS" ? copro.prochaineCsDate : copro.prochaineAg?.date;
-  if (!dateISO) return { ok: false, message: "Aucune date à venir pour cette réunion." };
-  const heure = type === "CS" ? copro.prochaineCsHeure : copro.prochaineAg?.heure;
 
-  // Statut de confirmation + salle reservee (portes par la confirmation de la copro).
+  // Aujourd'hui (UTC, cohérent avec formatDateLongue) : sert au filtre "date a venir"
+  // et au calcul de la date de confirmation J+7.
+  const todayISO = new Date().toISOString().slice(0, 10);
+
   const confirmations = await getConfirmations(coproCode);
-  const conf = confirmations.find((c) => c.type === type) ?? null;
-  const confirme = statutPourDate(conf, dateISO) === "confirme";
-  const salleLibelle = ressourceParEmail(conf?.salleEmail)?.nom;
+  const confCs = confirmations.find((c) => c.type === "CS") ?? null;
+  const confAg = confirmations.find((c) => c.type === "AG") ?? null;
 
-  const infos: InfosMailReunion = {
-    type,
+  const cs = dateAProposer(copro.prochaineCsDate, copro.prochaineCsHeure, confCs, todayISO);
+  const ag = dateAProposer(copro.prochaineAg?.date, copro.prochaineAg?.heure, confAg, todayISO);
+  if (!cs && !ag) return { ok: false, message: "Aucune date à venir pour proposer une réunion." };
+
+  const infos: InfosMailDatesReunion = {
     coproCode: copro.code,
     coproNom: copro.nom,
-    dateISO,
-    ...(heure ? { heure } : {}),
-    ...(salleLibelle ? { salleLibelle } : {}),
-    confirme,
+    ...(cs ? { cs } : {}),
+    ...(ag ? { ag } : {}),
+    dateConfirmationISO: dateConfirmationJ7(todayISO),
   };
 
   const { source, emails } = await destinatairesConseilSyndical(coproCode);
@@ -101,8 +120,8 @@ export async function preparerMailReunionAction(
     ok: true,
     source,
     emails,
-    sujet: objetMailReunion(infos),
-    corps: corpsMailReunion(infos),
+    sujet: objetMailDatesReunion(infos),
+    corps: corpsMailDatesReunion(infos),
   };
 }
 
@@ -110,15 +129,14 @@ export async function preparerMailReunionAction(
 
 export async function envoyerMailReunionAction(
   coproCode: string,
-  type: TypeReunion,
   a: string[],
   cc: string[],
   sujet: string,
   corps: string,
 ): Promise<EnvoiResult> {
   const v = z
-    .object({ coproCode: zCode, type: zType, a: zEmails, cc: zEmails, sujet: zSujet, corps: zCorps })
-    .safeParse({ coproCode, type, a, cc, sujet, corps });
+    .object({ coproCode: zCode, a: zEmails, cc: zEmails, sujet: zSujet, corps: zCorps })
+    .safeParse({ coproCode, a, cc, sujet, corps });
   if (!v.success) return { ok: false, message: "Données invalides." };
   const garder = await garde(coproCode);
   if (!garder.ok) return garder;

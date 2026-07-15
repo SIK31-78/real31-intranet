@@ -20,6 +20,7 @@ const etat = vi.hoisted(() => {
       debut: string;
       fin?: string;
       ressources?: string[];
+      lieu?: string;
     }[],
     patch: [] as {
       boite: string;
@@ -28,6 +29,7 @@ const etat = vi.hoisted(() => {
       debut?: string;
       fin?: string;
       ressources?: string[];
+      lieu?: string;
     }[],
     suppr: [] as { boite: string; eventId: string }[],
     setDate: [] as unknown[],
@@ -88,9 +90,10 @@ vi.mock("@/lib/adapters/router", () => ({
         ...(avant?.outlookEventId
           ? { outlookEventId: avant.outlookEventId, outlookBoite: avant.outlookBoite }
           : {}),
-        // Salle / vehicule survivent a la re-proposition (comme l'upsert SQL / le mock reel).
+        // Salle / vehicule / mode survivent a la re-proposition (comme l'upsert SQL / le mock reel).
         ...(avant?.salleEmail ? { salleEmail: avant.salleEmail } : {}),
         ...(avant?.vehiculeEmail ? { vehiculeEmail: avant.vehiculeEmail } : {}),
+        ...(avant?.modeReunion ? { modeReunion: avant.modeReunion } : {}),
       });
     },
     async enregistrerProjection(
@@ -121,6 +124,12 @@ vi.mock("@/lib/adapters/router", () => ({
       delete c.vehiculeEmail;
       if (salleEmail) c.salleEmail = salleEmail;
       if (vehiculeEmail) c.vehiculeEmail = vehiculeEmail;
+    },
+    async enregistrerModeReunion(coproCode: string, type: string, mode: string | null) {
+      const c = etat.confirmations.get(etat.cle(coproCode, type));
+      if (!c) return;
+      delete c.modeReunion;
+      if (mode) c.modeReunion = mode;
     },
   }),
   getCoproRepository: () => ({
@@ -153,6 +162,7 @@ vi.mock("@/lib/adapters/router", () => ({
       debut: string;
       fin?: string;
       ressources?: string[];
+      lieu?: string;
     }) {
       if (etat.graphEnPanne) throw new Error("Graph creer evenement 403");
       etat.appels.creer.push(p);
@@ -161,7 +171,7 @@ vi.mock("@/lib/adapters/router", () => ({
     async mettreAJourEvenement(
       boite: string,
       eventId: string,
-      patch: { titre?: string; debut?: string; fin?: string; ressources?: string[] },
+      patch: { titre?: string; debut?: string; fin?: string; ressources?: string[]; lieu?: string },
     ) {
       if (etat.graphEnPanne) throw new Error("Graph mettre a jour evenement 403");
       etat.appels.patch.push({ boite, eventId, ...patch });
@@ -455,5 +465,30 @@ describe("reservation de salle / vehicule (ressources de l'evenement)", () => {
 
     expect(etat.appels.patch).toHaveLength(1);
     expect(etat.appels.patch[0]?.ressources).toEqual([SALLE]);
+  });
+});
+
+describe("mode de reunion -> lieu Outlook (bonus)", () => {
+  const SALLE = "real31lgc@real31.fr";
+
+  it("mode visio : le lieu de l'evenement est 'Visio'", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      modeReunion: "visio",
+    });
+    expect(etat.appels.creer[0]?.lieu).toBe("Visio");
+  });
+
+  it("mode presentiel avec salle : le lieu est le libelle de la salle", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      modeReunion: "presentiel",
+    });
+    // Libelle depuis RESSOURCES_REAL31 (pas l'email brut).
+    expect(etat.appels.creer[0]?.lieu).toBe("LGC - Salle de reunions");
+  });
+
+  it("sans mode ni salle : aucun lieu transmis (inchange)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE);
+    expect(etat.appels.creer[0]?.lieu).toBeUndefined();
   });
 });

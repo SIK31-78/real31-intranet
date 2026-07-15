@@ -4,6 +4,7 @@
 // `boite` (email du gestionnaire connecte, passe par l'action) sert a la projection
 // Outlook automatique de la prochaine date - facultatif, jamais bloquant.
 
+import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { getConfirmationEvenementRepository, getCoproRepository } from "@/lib/adapters/router";
 import {
   deprojeterEvenementOutlook,
@@ -17,7 +18,11 @@ export async function definirDateEvenement(
   dateISO: string | null,
   managerId: string,
   boite?: string,
-  ressources?: { salleEmail?: string | null; vehiculeEmail?: string | null },
+  details?: {
+    salleEmail?: string | null;
+    vehiculeEmail?: string | null;
+    modeReunion?: ModeReunion | null;
+  },
 ): Promise<void> {
   await getCoproRepository().setDateEvenement(coproCode, type, quand, dateISO, managerId);
   // (Re)poser la PROCHAINE date la propose au conseil syndical : la confirmation
@@ -35,8 +40,16 @@ export async function definirDateEvenement(
       await getConfirmationEvenementRepository().enregistrerRessources(
         coproCode,
         typeConfirmation,
-        ressources?.salleEmail ?? null,
-        ressources?.vehiculeEmail ?? null,
+        details?.salleEmail ?? null,
+        details?.vehiculeEmail ?? null,
+      );
+      // Mode de tenue (visio / presentiel / hybride) : UPDATE separe, persiste AVANT la
+      // projection pour que projeterEvenementOutlook en deduise le lieu. Degrade propre
+      // si la colonne mode_reunion n'est pas encore deployee.
+      await getConfirmationEvenementRepository().enregistrerModeReunion(
+        coproCode,
+        typeConfirmation,
+        details?.modeReunion ?? null,
       );
       // Projection Outlook : cree l'evenement "a confirmer" ou DEPLACE l'existant
       // (replanification). On passe le `debut` COMPLET (date + heure eventuelle).

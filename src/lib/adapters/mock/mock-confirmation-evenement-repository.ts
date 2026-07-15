@@ -1,7 +1,7 @@
 // Adapter mock de la confirmation des dates AG/CS : etat en memoire (module-level),
 // suffisant pour le dev / la demo. Cle CODE__TYPE, comme la table (pk copro_code, type).
 
-import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
+import type { ConfirmationEvenement, ModeReunion } from "@/lib/domain/confirmation-evenement";
 import type { ConfirmationEvenementRepository } from "@/lib/ports/confirmation-evenement-repository";
 
 const STORE = new Map<string, ConfirmationEvenement>();
@@ -75,18 +75,35 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
     if (vehiculeEmail) maj.vehiculeEmail = vehiculeEmail;
     STORE.set(cle(coproCode, type), maj);
   }
+
+  async enregistrerModeReunion(
+    coproCode: string,
+    type: "AG" | "CS",
+    mode: ModeReunion | null,
+  ): Promise<void> {
+    const existante = STORE.get(cle(coproCode, type));
+    if (!existante) return; // pas de ligne de confirmation -> pas de mode (comme le SQL)
+    const maj = { ...existante };
+    delete maj.modeReunion;
+    if (mode) maj.modeReunion = mode;
+    STORE.set(cle(coproCode, type), maj);
+  }
 }
 
-/** Champs a reporter dans un upsert (projection Outlook + ressources reservees). */
+/** Champs a reporter dans un upsert (projection Outlook + ressources + mode reserves). */
 function report(
   coproCode: string,
   type: "AG" | "CS",
-): Pick<ConfirmationEvenement, "outlookEventId" | "outlookBoite" | "salleEmail" | "vehiculeEmail"> {
+): Pick<
+  ConfirmationEvenement,
+  "outlookEventId" | "outlookBoite" | "salleEmail" | "vehiculeEmail" | "modeReunion"
+> {
   const c = STORE.get(cle(coproCode, type));
   return {
     ...(c?.outlookEventId ? { outlookEventId: c.outlookEventId } : {}),
     ...(c?.outlookBoite ? { outlookBoite: c.outlookBoite } : {}),
     ...(c?.salleEmail ? { salleEmail: c.salleEmail } : {}),
     ...(c?.vehiculeEmail ? { vehiculeEmail: c.vehiculeEmail } : {}),
+    ...(c?.modeReunion ? { modeReunion: c.modeReunion } : {}),
   };
 }

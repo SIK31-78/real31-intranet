@@ -24,11 +24,9 @@ const SOURCE_LABEL: Record<SourceDestinataires, string> = {
 
 export function MailReunionBouton({
   coproCode,
-  type,
   actif,
 }: {
   coproCode: string;
-  type: "AG" | "CS";
   actif: boolean;
 }) {
   const toast = useToast();
@@ -42,11 +40,9 @@ export function MailReunionBouton({
   const [sujet, setSujet] = useState("");
   const [corps, setCorps] = useState("");
 
-  const labelReunion = type === "CS" ? "au CS" : "à l'AG (invitation CS)";
-
   function ouvrir() {
     startPrep(async () => {
-      const r = await preparerMailReunionAction(coproCode, type);
+      const r = await preparerMailReunionAction(coproCode);
       if (!r.ok) {
         toast.err(r.message);
         return;
@@ -80,7 +76,7 @@ export function MailReunionBouton({
       return;
     }
     setEnvoiEnCours(true);
-    const r = await envoyerMailReunionAction(coproCode, type, a, cc, sujet, corps);
+    const r = await envoyerMailReunionAction(coproCode, a, cc, sujet, corps);
     setEnvoiEnCours(false);
     if (r.ok) {
       toast.ok("Mail envoyé au conseil syndical.");
@@ -104,7 +100,7 @@ export function MailReunionBouton({
         onClick={ouvrir}
       >
         <Mail strokeWidth={1.5} />
-        {prep ? "Préparation…" : `Préparer le mail ${labelReunion}`}
+        {prep ? "Préparation…" : "Préparer le mail au CS (dates CS/AG)"}
       </Button>
 
       {ouvert && (

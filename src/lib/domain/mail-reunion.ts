@@ -1,94 +1,124 @@
-// Modele du mail au conseil syndical pour une date de CS / AG (increment 2 "dates CS/AG",
-// demande patron). Logique PURE (domaine, ADR-001) : compose l'objet + le corps a partir
-// des infos de la reunion. C'est un POINT DE DEPART : le gestionnaire relit et modifie
-// tout (destinataires, objet, corps) dans l'UI avant d'envoyer. La signature n'est PAS
-// dans le corps : elle est injectee a l'envoi (Signitic), comme pour Mes emails.
+// Modele du mail au conseil syndical pour PROPOSER les dates de CS / AG (increment 2
+// "dates CS/AG", demande patron). Logique PURE (domaine, ADR-001) : compose l'objet +
+// le corps a partir des dates posees. C'est un POINT DE DEPART : le gestionnaire relit
+// et modifie TOUT (destinataires, objet, corps) dans l'UI avant d'envoyer. La signature
+// n'est PAS dans le corps : elle est injectee a l'envoi (Signitic), comme "Mes emails".
+//
+// UN SEUL mail couvre les deux dates (verbatim du cabinet, 2026-07) : on propose
+// ensemble le CS preparatoire ET l'AG. Si une seule des deux est a venir, on ne met
+// que la ligne correspondante et l'intro s'adapte.
 
-import { formatDateLongue, formatHeure } from "@/lib/format-date";
+import { formatHeure } from "@/lib/format-date";
+import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
+import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 
-export type TypeReunion = "AG" | "CS";
+/** Une date de reunion a proposer (CS ou AG) telle qu'injectee dans le mail. */
+export interface DateReunionMail {
+  /** Date ISO "YYYY-MM-DD". */
+  dateISO: string;
+  /** Heure "HH:mm" si connue ; absente = 18h00 par defaut (verbatim cabinet). */
+  heure?: string;
+  /** Mode de tenue ; absent = on n'ecrit pas de parenthese (on n'invente rien). */
+  mode?: ModeReunion;
+  /** Libelle de la salle reservee (RESSOURCES_REAL31) ; mentionne si mode presentiel/hybride. */
+  salleLibelle?: string;
+}
 
-export interface InfosMailReunion {
-  type: TypeReunion;
+export interface InfosMailDatesReunion {
   /** Code affiche de la copro, ex "S046". */
   coproCode: string;
   /** Nom de la copro, ex "Residence Les Acacias". */
   coproNom: string;
-  /** Date ISO "YYYY-MM-DD" de la reunion. */
-  dateISO: string;
-  /** Heure "HH:mm" si connue ; absente = reunion sans heure precise. */
-  heure?: string;
-  /** Libelle de la salle reservee (depuis RESSOURCES_REAL31), si presente. */
-  salleLibelle?: string;
-  /** true = date deja confirmee par le CS ; false = encore a confirmer (mention ajoutee). */
-  confirme: boolean;
+  /** Date de CS preparatoire a proposer (absente = pas de CS a venir). */
+  cs?: DateReunionMail;
+  /** Date d'AG a proposer (absente = pas d'AG a venir). */
+  ag?: DateReunionMail;
+  /** Date ISO "YYYY-MM-DD" a laquelle on confirmera sauf avis contraire (J+7 calcule). */
+  dateConfirmationISO: string;
 }
 
-const LIBELLE: Record<TypeReunion, string> = {
-  CS: "Conseil syndical",
-  AG: "Assemblée générale",
+/** Parenthese de mode, verbatim cabinet. Mode absent -> pas de parenthese. */
+const MODE_PHRASE: Record<ModeReunion, string> = {
+  visio: "en visio",
+  presentiel: "en présentiel",
+  hybride: "en hybride visio + présentiel",
 };
 
-/** "2026-04-12" -> "12/04/2026" (date numerique pour l'objet). Deterministe. */
+/** "2026-04-12" -> "12/04/2026" (date numerique FR). Deterministe. */
 function dateNumerique(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 }
 
 /**
- * Objet du mail, ex "S046 - Conseil syndical du 12/04/2026 à 18h00". Sans heure connue,
- * on s'arrete a la date. Format demande par le patron (reference copro en tete).
+ * Date de confirmation "sauf avis contraire" : aujourd'hui + 7 jours. Calcul en UTC
+ * (deterministe, gere fins de mois) a partir d'une date ISO "YYYY-MM-DD".
  */
-export function objetMailReunion(infos: InfosMailReunion): string {
-  const base = `${infos.coproCode} - ${LIBELLE[infos.type]} du ${dateNumerique(infos.dateISO)}`;
-  return infos.heure ? `${base} à ${formatHeure(infos.heure)}` : base;
+export function dateConfirmationJ7(aujourdhuiISO: string): string {
+  const d = new Date(`${aujourdhuiISO.slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 7);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Fragment "le JJ/MM/AAAA à XXhXX (mode), salle ..." d'une date proposee. */
+function fragmentDate(d: DateReunionMail): string {
+  const heure = formatHeure(d.heure ?? HEURE_DEFAUT_REUNION);
+  let frag = `le ${dateNumerique(d.dateISO)} à ${heure}`;
+  if (d.mode) frag += ` (${MODE_PHRASE[d.mode]})`;
+  // Salle mentionnee seulement en presentiel / hybride (une visio n'a pas de salle).
+  if (d.salleLibelle && (d.mode === "presentiel" || d.mode === "hybride")) {
+    frag += `, salle ${d.salleLibelle}`;
+  }
+  return frag;
 }
 
 /**
- * Corps du mail (texte brut, saut de ligne = \n ; l'UI/adapter le rend en HTML). Ton
- * syndic sobre, vouvoiement, demande de confirmation de presence. Mentionne la salle si
- * reservee et signale "date a confirmer" tant que le CS n'a pas valide. Pas de signature
- * ici (Signitic l'ajoute a l'envoi).
+ * Objet du mail. Deux dates -> "S046 - Dates de CS et d'AG à fixer" ; une seule ->
+ * variante ("Date de CS à fixer" / "Date d'AG à fixer"). Reference copro en tete.
  */
-export function corpsMailReunion(infos: InfosMailReunion): string {
-  const quand = infos.heure
-    ? `le ${formatDateLongue(infos.dateISO)} à ${formatHeure(infos.heure)}`
-    : `le ${formatDateLongue(infos.dateISO)}`;
-  const lignes: string[] = ["Bonjour,", ""];
+export function objetMailDatesReunion(infos: InfosMailDatesReunion): string {
+  const quoi =
+    infos.cs && infos.ag
+      ? "Dates de CS et d'AG à fixer"
+      : infos.cs
+        ? "Date de CS à fixer"
+        : "Date d'AG à fixer";
+  return `${infos.coproCode} - ${quoi}`;
+}
 
-  if (infos.type === "CS") {
-    lignes.push(
-      `Un conseil syndical de la copropriété ${infos.coproNom} (${infos.coproCode}) est prévu ${quand}.`,
-    );
-  } else {
-    lignes.push(
-      `L'assemblée générale de la copropriété ${infos.coproNom} (${infos.coproCode}) est prévue ${quand}.`,
-    );
-  }
+/**
+ * Corps du mail (texte brut, \n ; l'adapter le rend en HTML). VERBATIM du cabinet
+ * (2026-07) : on ne reformule pas le ton, on injecte seulement les dates / heures /
+ * modes / salles et la date de confirmation J+7. Pas de signature ici (Signitic
+ * l'ajoute a l'envoi). Au moins une des deux dates (cs / ag) doit etre presente.
+ */
+export function corpsMailDatesReunion(infos: InfosMailDatesReunion): string {
+  // Intro adaptee selon les dates a proposer (verbatim tail).
+  const objetIntro =
+    infos.cs && infos.ag
+      ? "les dates de CS et d'AG"
+      : infos.cs
+        ? "la date du CS préparatoire"
+        : "la date de l'assemblée générale";
 
-  if (infos.salleLibelle) {
-    lignes.push("", `Lieu de la réunion : ${infos.salleLibelle}.`);
-  }
+  const lignes: string[] = [
+    "Bonjour à tous,",
+    "",
+    `Afin de préparer la prochaine assemblée générale, nous vous proposons de fixer dès à présent ${objetIntro}.`,
+    "",
+    "Nous vous proposons donc :",
+  ];
 
-  if (!infos.confirme) {
-    lignes.push(
-      "",
-      "Cette date reste à confirmer par le conseil syndical : merci de nous indiquer si elle vous convient.",
-    );
-  }
-
-  if (infos.type === "AG") {
-    lignes.push(
-      "",
-      "La convocation officielle, accompagnée de l'ordre du jour, vous parviendra dans les délais légaux.",
-    );
-  }
+  if (infos.cs) lignes.push(`- pour la tenue du CS préparatoire ${fragmentDate(infos.cs)}`);
+  if (infos.ag) lignes.push(`- pour l'assemblée ${fragmentDate(infos.ag)}`);
 
   lignes.push(
     "",
-    "Nous vous remercions de bien vouloir nous confirmer votre présence.",
+    `Sauf avis contraire nous confirmerons la date le ${dateNumerique(infos.dateConfirmationISO)}. En cas d'indisponibilité du Conseil Syndical, nous vous remercions de revenir vers nous avec deux dates afin que nous puissions la fixer.`,
     "",
-    "Bien cordialement,",
+    "Vous pouvez également dès à présent me faire part des éventuels sujets à mettre à l'ordre du jour.",
+    "",
+    "Cordialement,",
   );
   return lignes.join("\n");
 }

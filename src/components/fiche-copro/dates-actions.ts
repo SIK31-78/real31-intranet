@@ -16,6 +16,8 @@ const zDate = z.string().trim().max(40); // ISO ou vide (= effacer la date)
 const zTypeEvenement = z.enum(["AG", "CS"]);
 const zEmail = z.string().trim().max(120); // valide ENSUITE contre la liste fermee
 const zHeure = z.string().trim().regex(/^\d{2}:\d{2}$/); // "HH:mm"
+// Mode de reunion : liste fermee, ou "" (= non precise). Valide cote domaine (ModeReunion).
+const zMode = z.enum(["visio", "presentiel", "hybride", ""]);
 
 /** Resultat explicite d'une action de date : succes, ou echec avec message a afficher. */
 type ResultatAction = { ok: true } | { ok: false; erreur: string };
@@ -47,14 +49,19 @@ async function definir(
   dateISO: string,
   salleEmail?: string,
   vehiculeEmail?: string,
+  modeReunion?: string,
 ): Promise<ResultatAction> {
-  if (!z.object({ coproCode: zCode, dateISO: zDate }).safeParse({ coproCode, dateISO }).success)
-    return { ok: false, erreur: "Données invalides." };
+  const parseBase = z
+    .object({ coproCode: zCode, dateISO: zDate, mode: zMode })
+    .safeParse({ coproCode, dateISO, mode: modeReunion ?? "" });
+  if (!parseBase.success) return { ok: false, erreur: "Données invalides." };
   // Ressources validees contre la liste fermee (salle = type salle, ZOE = type vehicule).
   const salle = validerRessource(salleEmail, "salle");
   const vehicule = validerRessource(vehiculeEmail, "vehicule");
   if (salle === "invalide" || vehicule === "invalide")
     return { ok: false, erreur: "Ressource de réunion invalide." };
+  // "" (non precise) -> null ; sinon le mode valide (zMode a deja borne les valeurs).
+  const mode = parseBase.data.mode === "" ? null : parseBase.data.mode;
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée, reconnectez-vous." };
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
@@ -65,6 +72,7 @@ async function definir(
     await definirDateEvenement(coproCode, type, quand, dateISO || null, g.id, g.email, {
       salleEmail: salle,
       vehiculeEmail: vehicule,
+      modeReunion: mode,
     });
     // (Re)fixer la PROCHAINE date d'AG reporte les prepas "sans date" (supervision + ODJ).
     // Corriger la derniere AG tenue est une mise a jour du referentiel : pas de report.
@@ -90,8 +98,9 @@ export async function definirDateAg(
   quand: "prochaine" | "derniere" = "prochaine",
   salleEmail?: string,
   vehiculeEmail?: string,
+  modeReunion?: string,
 ): Promise<ResultatAction> {
-  return definir(coproCode, "ag", quand, dateISO, salleEmail, vehiculeEmail);
+  return definir(coproCode, "ag", quand, dateISO, salleEmail, vehiculeEmail, modeReunion);
 }
 export async function definirDateCs(
   coproCode: string,
@@ -99,8 +108,9 @@ export async function definirDateCs(
   quand: "prochaine" | "derniere" = "prochaine",
   salleEmail?: string,
   vehiculeEmail?: string,
+  modeReunion?: string,
 ): Promise<ResultatAction> {
-  return definir(coproCode, "cs", quand, dateISO, salleEmail, vehiculeEmail);
+  return definir(coproCode, "cs", quand, dateISO, salleEmail, vehiculeEmail, modeReunion);
 }
 
 // Confirme la prochaine date AG/CS : le conseil syndical a valide par retour de mail.

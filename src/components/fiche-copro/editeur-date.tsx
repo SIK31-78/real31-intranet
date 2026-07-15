@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Pencil, X, Check } from "lucide-react";
 import { formatDateLongue, formatHeure } from "@/lib/format-date";
 import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
+import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
 import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,19 @@ import { definirDateAg, definirDateCs, verifierDispoSalleAction } from "./dates-
 // La ZOE : seul vehicule reservable (case "Reserver la voiture ZOE"). Email pris dans
 // la liste fermee du domaine (jamais code en dur ici).
 const ZOE_EMAIL = vehicules()[0]?.email ?? "";
+
+// Modes de reunion proposes dans le selecteur (+ "" = non precise). Libelle du badge
+// affiche a cote de la date hors edition.
+const MODES: { valeur: ModeReunion; label: string }[] = [
+  { valeur: "visio", label: "Visio" },
+  { valeur: "presentiel", label: "Présentiel" },
+  { valeur: "hybride", label: "Hybride" },
+];
+const MODE_LABEL: Record<ModeReunion, string> = {
+  visio: "Visio",
+  presentiel: "Présentiel",
+  hybride: "Hybride",
+};
 
 // Edition inline d'une date d'AG / CS. `quand` = prochaine (planifiee) ou derniere
 // (tenue, correction du referentiel App A). Clic sur la date -> selecteur inline.
@@ -38,6 +52,7 @@ export function EditeurDate({
   quand = "prochaine",
   salleEmail,
   vehiculeEmail,
+  modeReunion,
 }: {
   coproCode: string;
   type: "ag" | "cs";
@@ -49,6 +64,8 @@ export function EditeurDate({
   salleEmail?: string;
   /** Vehicule (la ZOE) deja reserve pour la prochaine reunion. */
   vehiculeEmail?: string;
+  /** Mode de tenue deja choisi (visio / presentiel / hybride) pour la prochaine reunion. */
+  modeReunion?: ModeReunion;
 }) {
   const [edition, setEdition] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -56,6 +73,8 @@ export function EditeurDate({
   const [heureVal, setHeureVal] = useState("");
   const [salleVal, setSalleVal] = useState("");
   const [zoeVal, setZoeVal] = useState(false);
+  // Mode de reunion : "" = non precise (aucun mode). Cf. MODES / zMode cote action.
+  const [modeVal, setModeVal] = useState<ModeReunion | "">("");
   // Resultat de dispo indexe par le creneau interroge (date|heure|salle) : on n'affiche
   // que s'il correspond a la saisie courante -> pas de reset synchrone dans l'effet
   // (evite les rendus en cascade) ni d'indicateur perime apres un changement de salle.
@@ -96,7 +115,9 @@ export function EditeurDate({
   // / vehicule meme a date inchangee. Sans heure ("derniere") : pas de ressource.
   const salleEnregistree = avecHeure ? (salleEmail ?? "") : "";
   const zoeEnregistree = avecHeure ? Boolean(vehiculeEmail) : false;
-  const ressourceInchangee = salleVal === salleEnregistree && zoeVal === zoeEnregistree;
+  const modeEnregistre = avecHeure ? (modeReunion ?? "") : "";
+  const ressourceInchangee =
+    salleVal === salleEnregistree && zoeVal === zoeEnregistree && modeVal === modeEnregistre;
   const inchange = valeurSaisie === valeurEnregistree && ressourceInchangee;
 
   const avertissement = dateVal ? avertissementDateReunion(quand, dateVal, todayISO) : null;
@@ -153,9 +174,10 @@ export function EditeurDate({
     // veut une heure sur les evenements). Rien n'est sauve tant que "Valider" n'est
     // pas clique, donc ce defaut ne peut plus etre pose par accident.
     setHeureVal(avecHeure ? (heure ?? HEURE_DEFAUT_REUNION) : "");
-    // Pre-remplissage salle / ZOE depuis la reservation existante.
+    // Pre-remplissage salle / ZOE / mode depuis la reservation existante.
     setSalleVal(avecHeure ? (salleEmail ?? "") : "");
     setZoeVal(avecHeure ? Boolean(vehiculeEmail) : false);
+    setModeVal(avecHeure ? (modeReunion ?? "") : "");
     setDispo(null);
     setDispoZoe(null);
     setErreur(null);
@@ -171,38 +193,55 @@ export function EditeurDate({
 
   const enregistrer = (valeur: string) => {
     setErreur(null);
-    // Ressources transmises seulement pour une prochaine date reelle (pas a l'effacement).
+    // Ressources / mode transmis seulement pour une prochaine date reelle (pas a l'effacement).
     const salle = avecHeure && valeur ? salleVal : "";
     const vehicule = avecHeure && valeur && zoeVal ? ZOE_EMAIL : "";
+    const mode = avecHeure && valeur ? modeVal : "";
     startTransition(async () => {
-      const r = await action(coproCode, valeur, quand, salle || undefined, vehicule || undefined);
+      const r = await action(
+        coproCode,
+        valeur,
+        quand,
+        salle || undefined,
+        vehicule || undefined,
+        mode || undefined,
+      );
       if (!r.ok) setErreur(r.erreur); // on garde l'edition ouverte pour reessayer
       else fermer();
     });
   };
 
   if (!edition) {
-    // Salle / vehicule reserves (hors edition) : affiches discretement sous la date.
+    // Salle / vehicule / mode reserves (hors edition) : affiches discretement.
     const salleNom = avecHeure ? ressourceParEmail(salleEmail)?.nom : undefined;
     const zoeReservee = avecHeure && Boolean(vehiculeEmail);
+    const modeNom = avecHeure ? modeReunion : undefined;
     return (
       <span className="inline-flex flex-col gap-0.5">
-        <button
-          type="button"
-          onClick={ouvrir}
-          className="inline-flex items-center gap-1.5 text-[16px] font-medium text-ink hover:text-green-700 transition-colors"
-          title="Modifier la date"
-        >
-          {dateISO ? (
-            <span>
-              {formatDateLongue(dateISO)}
-              {avecHeure && heure && <span className="text-ink-3"> à {formatHeure(heure)}</span>}
+        <span className="inline-flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={ouvrir}
+            className="inline-flex items-center gap-1.5 text-[16px] font-medium text-ink hover:text-green-700 transition-colors"
+            title="Modifier la date"
+          >
+            {dateISO ? (
+              <span>
+                {formatDateLongue(dateISO)}
+                {avecHeure && heure && <span className="text-ink-3"> à {formatHeure(heure)}</span>}
+              </span>
+            ) : (
+              <span className="text-ink-3">{labelVide}</span>
+            )}
+            <Pencil strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" />
+          </button>
+          {/* Mode de tenue : badge discret a cote de la date. */}
+          {dateISO && modeNom && (
+            <span className="inline-flex items-center h-5 px-1.5 rounded-full bg-surface-3 text-ink-2 text-[11px] font-medium">
+              {MODE_LABEL[modeNom]}
             </span>
-          ) : (
-            <span className="text-ink-3">{labelVide}</span>
           )}
-          <Pencil strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" />
-        </button>
+        </span>
         {dateISO && (salleNom || zoeReservee) && (
           <span className="text-[12px] text-ink-3">
             {salleNom && <>salle {salleNom}</>}
@@ -268,6 +307,28 @@ export function EditeurDate({
           </Button>
         )}
       </span>
+
+      {/* Mode de tenue (prochaine reunion seulement) : visio / presentiel / hybride,
+          ou "non precise". Note : pas de lien Teams genere pour l'instant (limitation),
+          la salle reste optionnelle meme en visio / hybride. */}
+      {avecHeure && (
+        <span className="inline-flex items-center gap-2 flex-wrap">
+          <select
+            value={modeVal}
+            disabled={pending}
+            aria-label="Mode de tenue de la réunion"
+            onChange={(e) => setModeVal(e.target.value as ModeReunion | "")}
+            className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
+          >
+            <option value="">Mode non précisé</option>
+            {MODES.map((m) => (
+              <option key={m.valeur} value={m.valeur}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </span>
+      )}
 
       {/* Reservation de salle (prochaine reunion seulement) : selecteur groupe par
           agence + case ZOE. La room mailbox auto-accepte si le creneau est libre. */}

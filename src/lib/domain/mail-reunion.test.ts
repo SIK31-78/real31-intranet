@@ -1,69 +1,118 @@
 // Tests du modele de mail au conseil syndical (increment 2 "dates CS/AG"). Fonctions
-// PURES : composition de l'objet + du corps selon le type (CS/AG) et les infos de reunion.
+// PURES : composition de l'objet + du corps qui PROPOSE les dates de CS et d'AG.
 // Aucun envoi reel. Pas de vraie adresse (PII).
 
 import { describe, it, expect } from "vitest";
-import { objetMailReunion, corpsMailReunion, type InfosMailReunion } from "./mail-reunion";
+import {
+  objetMailDatesReunion,
+  corpsMailDatesReunion,
+  dateConfirmationJ7,
+  type InfosMailDatesReunion,
+} from "./mail-reunion";
 
-const BASE: InfosMailReunion = {
-  type: "CS",
+const BASE: InfosMailDatesReunion = {
   coproCode: "S46",
   coproNom: "Résidence Les Acacias",
-  dateISO: "2026-09-15",
-  heure: "18:00",
-  confirme: false,
+  cs: { dateISO: "2026-09-08", heure: "18:00" },
+  ag: { dateISO: "2026-09-15", heure: "18:30" },
+  dateConfirmationISO: "2026-07-22",
 };
 
-describe("objetMailReunion", () => {
-  it("CS avec heure -> reference + libelle + date FR + heure", () => {
-    expect(objetMailReunion(BASE)).toBe("S46 - Conseil syndical du 15/09/2026 à 18h00");
+describe("dateConfirmationJ7", () => {
+  it("ajoute 7 jours (meme mois)", () => {
+    expect(dateConfirmationJ7("2026-07-15")).toBe("2026-07-22");
   });
-
-  it("AG utilise 'Assemblée générale'", () => {
-    expect(objetMailReunion({ ...BASE, type: "AG" })).toBe(
-      "S46 - Assemblée générale du 15/09/2026 à 18h00",
-    );
-  });
-
-  it("sans heure -> s'arrete a la date", () => {
-    const sansHeure: InfosMailReunion = { ...BASE, heure: undefined };
-    expect(objetMailReunion(sansHeure)).toBe("S46 - Conseil syndical du 15/09/2026");
+  it("gere le passage de mois", () => {
+    expect(dateConfirmationJ7("2026-07-28")).toBe("2026-08-04");
   });
 });
 
-describe("corpsMailReunion", () => {
-  it("CS non confirme : mentionne la date a confirmer + demande de presence, sans salle", () => {
-    const c = corpsMailReunion(BASE);
-    expect(c).toContain("Résidence Les Acacias (S46)");
-    expect(c).toContain("le 15 septembre 2026 à 18h00");
-    expect(c).toContain("à confirmer par le conseil syndical");
-    expect(c).toContain("confirmer votre présence");
-    expect(c).not.toContain("Lieu de la réunion");
-    // Pas de convocation officielle pour un CS.
-    expect(c).not.toContain("convocation officielle");
+describe("objetMailDatesReunion", () => {
+  it("deux dates -> 'Dates de CS et d'AG à fixer'", () => {
+    expect(objetMailDatesReunion(BASE)).toBe("S46 - Dates de CS et d'AG à fixer");
+  });
+  it("CS seul -> 'Date de CS à fixer'", () => {
+    expect(objetMailDatesReunion({ ...BASE, ag: undefined })).toBe("S46 - Date de CS à fixer");
+  });
+  it("AG seule -> 'Date d'AG à fixer'", () => {
+    expect(objetMailDatesReunion({ ...BASE, cs: undefined })).toBe("S46 - Date d'AG à fixer");
+  });
+});
+
+describe("corpsMailDatesReunion", () => {
+  it("deux dates : intro combinee + les deux lignes avec dates/heures FR", () => {
+    const c = corpsMailDatesReunion(BASE);
+    expect(c).toContain("Bonjour à tous,");
+    expect(c).toContain("fixer dès à présent les dates de CS et d'AG.");
+    expect(c).toContain("- pour la tenue du CS préparatoire le 08/09/2026 à 18h00");
+    expect(c).toContain("- pour l'assemblée le 15/09/2026 à 18h30");
+    expect(c).toContain("Sauf avis contraire nous confirmerons la date le 22/07/2026.");
+    expect(c).toContain("me faire part des éventuels sujets à mettre à l'ordre du jour");
+    expect(c).toContain("Cordialement,");
   });
 
-  it("CS confirme : pas de mention 'a confirmer'", () => {
-    const c = corpsMailReunion({ ...BASE, confirme: true });
-    expect(c).not.toContain("à confirmer");
+  it("CS seul : intro adaptee + une seule ligne (pas de ligne AG)", () => {
+    const c = corpsMailDatesReunion({ ...BASE, ag: undefined });
+    expect(c).toContain("fixer dès à présent la date du CS préparatoire.");
+    expect(c).toContain("- pour la tenue du CS préparatoire le 08/09/2026");
+    expect(c).not.toContain("- pour l'assemblée");
   });
 
-  it("avec salle reservee : ajoute le lieu", () => {
-    const c = corpsMailReunion({ ...BASE, salleLibelle: "LGC - Salle de reunions" });
-    expect(c).toContain("Lieu de la réunion : LGC - Salle de reunions.");
+  it("AG seule : intro adaptee + une seule ligne (pas de ligne CS)", () => {
+    const c = corpsMailDatesReunion({ ...BASE, cs: undefined });
+    expect(c).toContain("fixer dès à présent la date de l'assemblée générale.");
+    expect(c).toContain("- pour l'assemblée le 15/09/2026");
+    expect(c).not.toContain("- pour la tenue du CS préparatoire");
   });
 
-  it("AG : mentionne la convocation officielle et l'ordre du jour", () => {
-    const c = corpsMailReunion({ ...BASE, type: "AG", confirme: true });
-    expect(c).toContain("assemblée générale");
-    expect(c).toContain("convocation officielle");
-    expect(c).toContain("ordre du jour");
+  it("heure absente -> 18h00 par defaut", () => {
+    const c = corpsMailDatesReunion({
+      ...BASE,
+      cs: { dateISO: "2026-09-08" },
+      ag: undefined,
+    });
+    expect(c).toContain("le 08/09/2026 à 18h00");
   });
 
-  it("sans heure : formule 'le <date>' sans heure", () => {
-    const sansHeure: InfosMailReunion = { ...BASE, heure: undefined };
-    const c = corpsMailReunion(sansHeure);
-    expect(c).toContain("le 15 septembre 2026.");
-    expect(c).not.toContain("à 18h00");
+  it("mode present -> parenthese verbatim ; hybride explicite", () => {
+    const c = corpsMailDatesReunion({
+      ...BASE,
+      cs: { dateISO: "2026-09-08", heure: "18:00", mode: "visio" },
+      ag: { dateISO: "2026-09-15", heure: "18:30", mode: "hybride" },
+    });
+    expect(c).toContain("le 08/09/2026 à 18h00 (en visio)");
+    expect(c).toContain("le 15/09/2026 à 18h30 (en hybride visio + présentiel)");
+  });
+
+  it("mode absent -> aucune parenthese (on n'invente rien)", () => {
+    const c = corpsMailDatesReunion({ ...BASE, cs: undefined });
+    expect(c).toContain("le 15/09/2026 à 18h30");
+    expect(c).not.toContain("(en ");
+  });
+
+  it("salle mentionnee en presentiel ; ignoree en visio", () => {
+    const enPresentiel = corpsMailDatesReunion({
+      ...BASE,
+      cs: undefined,
+      ag: {
+        dateISO: "2026-09-15",
+        heure: "18:30",
+        mode: "presentiel",
+        salleLibelle: "LGC - Salle de reunions",
+      },
+    });
+    expect(enPresentiel).toContain("(en présentiel), salle LGC - Salle de reunions");
+
+    const enVisio = corpsMailDatesReunion({
+      ...BASE,
+      cs: undefined,
+      ag: {
+        dateISO: "2026-09-15",
+        heure: "18:30",
+        mode: "visio",
+        salleLibelle: "LGC - Salle de reunions",
+      },
+    });
+    expect(enVisio).not.toContain("salle LGC");
   });
 });

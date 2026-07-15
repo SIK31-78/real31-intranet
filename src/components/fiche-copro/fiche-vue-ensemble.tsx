@@ -23,7 +23,7 @@ import type {
 } from "@/lib/domain/copropriete";
 import type { LigneParcours } from "@/lib/domain/dashboard";
 import type { EtatCompta } from "@/lib/domain/compta";
-import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
+import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 import { ComptaPanel } from "@/components/compta/compta-panel";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,8 @@ export function FicheVueEnsemble({ fiche, mailActif = false }: { fiche: FicheCop
             vehiculeAgEmail={fiche.vehiculeAgEmail}
             salleCsEmail={fiche.salleCsEmail}
             vehiculeCsEmail={fiche.vehiculeCsEmail}
+            modeAgReunion={fiche.modeAgReunion}
+            modeCsReunion={fiche.modeCsReunion}
             mailActif={mailActif}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
@@ -211,6 +213,8 @@ function BlocAg({
   vehiculeAgEmail,
   salleCsEmail,
   vehiculeCsEmail,
+  modeAgReunion,
+  modeCsReunion,
   mailActif,
 }: {
   coproCode: string;
@@ -227,9 +231,15 @@ function BlocAg({
   vehiculeAgEmail?: string;
   salleCsEmail?: string;
   vehiculeCsEmail?: string;
+  modeAgReunion?: ModeReunion;
+  modeCsReunion?: ModeReunion;
   mailActif: boolean;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
+  // Le mail au CS propose les dates a venir (CS + AG en un seul mail). Visible des
+  // qu'au moins une date a venir est posee (confirmationAg / confirmationCs ne sont
+  // definis que pour une date future).
+  const auMoinsUneDate = Boolean(confirmationAg) || Boolean(confirmationCs);
   return (
     <Card>
       <CardHeader>
@@ -292,16 +302,12 @@ function BlocAg({
               heure={prochaine?.heure}
               salleEmail={salleAgEmail}
               vehiculeEmail={vehiculeAgEmail}
+              modeReunion={modeAgReunion}
             />
             {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
                 (le service ne pose un statut que dans ce cas). */}
             {prochaine && confirmationAg && (
               <ConfirmationEvenement coproCode={coproCode} type="AG" statut={confirmationAg} />
-            )}
-            {/* Mail au conseil syndical (date d'AG a venir posee). Pre-rempli -> relu ->
-                envoye sur clic. Grise tant que le mail n'est pas active pour ce compte. */}
-            {prochaine && confirmationAg && (
-              <MailReunionBouton coproCode={coproCode} type="AG" actif={mailActif} />
             )}
           </div>
           {prochaine && (
@@ -348,16 +354,23 @@ function BlocAg({
                 heure={prochaineCsHeure}
                 salleEmail={salleCsEmail}
                 vehiculeEmail={vehiculeCsEmail}
+                modeReunion={modeCsReunion}
               />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
               )}
-              {prochaineCs && confirmationCs && (
-                <MailReunionBouton coproCode={coproCode} type="CS" actif={mailActif} />
-              )}
             </span>
           </div>
         </div>
+
+        {/* UN seul mail au CS propose les dates a venir (CS preparatoire + AG ensemble,
+            verbatim cabinet). Pre-rempli -> relu -> envoye sur clic. Grise tant que le
+            mail n'est pas active pour ce compte. */}
+        {auMoinsUneDate && (
+          <div className="mt-3 flex justify-end">
+            <MailReunionBouton coproCode={coproCode} actif={mailActif} />
+          </div>
+        )}
       </div>
     </Card>
   );

@@ -5,6 +5,13 @@
 
 export type StatutConfirmation = "a_confirmer" | "confirme";
 
+/**
+ * Mode de tenue d'une reunion AG / CS (demande patron 2026-07 : "il faut un bouton
+ * pour gerer ca"). Optionnel : absent = non precise (on n'invente rien). Le mode se
+ * choisit dans l'editeur de date et vit sur la confirmation, comme la salle reservee.
+ */
+export type ModeReunion = "visio" | "presentiel" | "hybride";
+
 export interface ConfirmationEvenement {
   coproCode: string;
   type: "AG" | "CS";
@@ -23,6 +30,8 @@ export interface ConfirmationEvenement {
   salleEmail?: string;
   /** Email du vehicule reserve (la ZOE, AG a l'exterieur) ; absent sinon. */
   vehiculeEmail?: string;
+  /** Mode de tenue choisi (visio / presentiel / hybride) ; absent = non precise. */
+  modeReunion?: ModeReunion;
 }
 
 /**
