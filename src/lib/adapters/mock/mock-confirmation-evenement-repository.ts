@@ -89,6 +89,19 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
     if (mode) maj.modeReunion = mode;
     STORE.set(cle(coproCode, type), maj);
   }
+
+  async enregistrerCollaborateurs(
+    coproCode: string,
+    type: "AG" | "CS",
+    emails: string[],
+  ): Promise<void> {
+    const existante = STORE.get(cle(coproCode, type));
+    if (!existante) return; // pas de ligne de confirmation -> pas de collaborateur (comme le SQL)
+    const maj = { ...existante };
+    delete maj.collaborateursEmails;
+    if (emails.length > 0) maj.collaborateursEmails = [...emails];
+    STORE.set(cle(coproCode, type), maj);
+  }
 }
 
 /** Champs a reporter dans un upsert (projection Outlook + ressources + mode reserves). */
@@ -97,7 +110,12 @@ function report(
   type: "AG" | "CS",
 ): Pick<
   ConfirmationEvenement,
-  "outlookEventId" | "outlookBoite" | "salleEmail" | "vehiculeEmail" | "modeReunion"
+  | "outlookEventId"
+  | "outlookBoite"
+  | "salleEmail"
+  | "vehiculeEmail"
+  | "modeReunion"
+  | "collaborateursEmails"
 > {
   const c = STORE.get(cle(coproCode, type));
   return {
@@ -106,5 +124,6 @@ function report(
     ...(c?.salleEmail ? { salleEmail: c.salleEmail } : {}),
     ...(c?.vehiculeEmail ? { vehiculeEmail: c.vehiculeEmail } : {}),
     ...(c?.modeReunion ? { modeReunion: c.modeReunion } : {}),
+    ...(c?.collaborateursEmails?.length ? { collaborateursEmails: c.collaborateursEmails } : {}),
   };
 }

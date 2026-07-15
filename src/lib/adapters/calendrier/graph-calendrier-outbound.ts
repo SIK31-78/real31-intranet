@@ -9,7 +9,11 @@
 
 import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
 import { finReunion } from "@/lib/domain/reunion";
-import { attendeesRessource, interpreterAvailabilityView } from "@/lib/domain/salles-reunion";
+import {
+  attendeesParticipant,
+  attendeesRessource,
+  interpreterAvailabilityView,
+} from "@/lib/domain/salles-reunion";
 import { GRAPH, jetonGraph } from "../mail/graph-auth";
 
 const TZ = "Europe/Paris";
@@ -73,6 +77,7 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     lieu?: string;
     description?: string;
     ressources?: string[];
+    participants?: string[];
   }): Promise<{ id?: string; webLink?: string }> {
     if (!p.boite) throw new Error("Creation evenement : boite manquante.");
     const tk = await jetonGraph();
@@ -101,9 +106,13 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     if (p.description?.trim()) {
       body.body = { contentType: "HTML", content: echapperHtml(p.description.trim()) };
     }
-    // Salles / vehicules : ajoutees comme attendees "resource" (auto-acceptation).
-    const ressources = attendeesRessource(p.ressources ?? []);
-    if (ressources.length > 0) body.attendees = ressources;
+    // Salles / vehicules : attendees "resource" (auto-acceptation). Collegues :
+    // attendees "required" (l'evenement apparait dans leur agenda). Meme tableau Graph.
+    const attendees = [
+      ...attendeesRessource(p.ressources ?? []),
+      ...attendeesParticipant(p.participants ?? []),
+    ];
+    if (attendees.length > 0) body.attendees = attendees;
 
     const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/events`, {
       method: "POST",
@@ -122,16 +131,31 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
   async mettreAJourEvenement(
     boite: string,
     eventId: string,
-    patch: { titre?: string; debut?: string; fin?: string; ressources?: string[]; lieu?: string },
+    patch: {
+      titre?: string;
+      debut?: string;
+      fin?: string;
+      ressources?: string[];
+      participants?: string[];
+      lieu?: string;
+    },
   ): Promise<void> {
     if (!boite || !eventId) throw new Error("Mise a jour evenement : boite ou id manquant.");
 
     const body: Record<string, unknown> = {};
     if (patch.titre !== undefined) body.subject = patch.titre;
     if (patch.lieu !== undefined) body.location = { displayName: patch.lieu };
-    // `ressources` fourni -> REMPLACE la liste des attendees resource (PATCH attendees
-    // ecrase la liste cote Graph) ; `[]` retire toute salle, absent = inchange.
-    if (patch.ressources !== undefined) body.attendees = attendeesRessource(patch.ressources);
+    // Le PATCH `attendees` de Graph ecrase TOUTE la liste : des que ressources OU
+    // participants est fourni, on recompose les deux ensemble (salles "resource" +
+    // collegues "required"). Une liste absente compte comme [] pour son type -> le
+    // service passe donc TOUJOURS les deux ensemble (jamais un seul, qui effacerait
+    // l'autre). `[]` des deux cotes retire tout attendee.
+    if (patch.ressources !== undefined || patch.participants !== undefined) {
+      body.attendees = [
+        ...attendeesRessource(patch.ressources ?? []),
+        ...attendeesParticipant(patch.participants ?? []),
+      ];
+    }
     if (patch.debut !== undefined) {
       const debut = patch.debut.trim();
       if (estJourSeul(debut)) {

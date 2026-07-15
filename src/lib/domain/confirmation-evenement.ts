@@ -32,6 +32,10 @@ export interface ConfirmationEvenement {
   vehiculeEmail?: string;
   /** Mode de tenue choisi (visio / presentiel / hybride) ; absent = non precise. */
   modeReunion?: ModeReunion;
+  /** Emails des collaborateurs (collegues gestionnaires) associes a la reunion :
+   *  invites en attendees "required" de l'evenement Outlook (il apparait dans leur
+   *  agenda). Absent / vide = aucun collegue associe. */
+  collaborateursEmails?: string[];
 }
 
 /**

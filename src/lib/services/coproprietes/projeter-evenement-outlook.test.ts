@@ -20,6 +20,7 @@ const etat = vi.hoisted(() => {
       debut: string;
       fin?: string;
       ressources?: string[];
+      participants?: string[];
       lieu?: string;
     }[],
     patch: [] as {
@@ -29,6 +30,7 @@ const etat = vi.hoisted(() => {
       debut?: string;
       fin?: string;
       ressources?: string[];
+      participants?: string[];
       lieu?: string;
     }[],
     suppr: [] as { boite: string; eventId: string }[],
@@ -90,10 +92,11 @@ vi.mock("@/lib/adapters/router", () => ({
         ...(avant?.outlookEventId
           ? { outlookEventId: avant.outlookEventId, outlookBoite: avant.outlookBoite }
           : {}),
-        // Salle / vehicule / mode survivent a la re-proposition (comme l'upsert SQL / le mock reel).
+        // Salle / vehicule / mode / collegues survivent a la re-proposition (comme l'upsert SQL / le mock reel).
         ...(avant?.salleEmail ? { salleEmail: avant.salleEmail } : {}),
         ...(avant?.vehiculeEmail ? { vehiculeEmail: avant.vehiculeEmail } : {}),
         ...(avant?.modeReunion ? { modeReunion: avant.modeReunion } : {}),
+        ...(avant?.collaborateursEmails ? { collaborateursEmails: avant.collaborateursEmails } : {}),
       });
     },
     async enregistrerProjection(
@@ -132,6 +135,12 @@ vi.mock("@/lib/adapters/router", () => ({
       delete c.modeReunion;
       if (mode) c.modeReunion = mode;
     },
+    async enregistrerCollaborateurs(coproCode: string, type: string, emails: string[]) {
+      const c = etat.confirmations.get(etat.cle(coproCode, type));
+      if (!c) return;
+      delete c.collaborateursEmails;
+      if (emails.length > 0) c.collaborateursEmails = [...emails];
+    },
   }),
   getCoproRepository: () => ({
     async findByCode(code: string) {
@@ -163,6 +172,7 @@ vi.mock("@/lib/adapters/router", () => ({
       debut: string;
       fin?: string;
       ressources?: string[];
+      participants?: string[];
       lieu?: string;
     }) {
       if (etat.graphEnPanne) throw new Error("Graph creer evenement 403");
@@ -172,7 +182,14 @@ vi.mock("@/lib/adapters/router", () => ({
     async mettreAJourEvenement(
       boite: string,
       eventId: string,
-      patch: { titre?: string; debut?: string; fin?: string; ressources?: string[]; lieu?: string },
+      patch: {
+        titre?: string;
+        debut?: string;
+        fin?: string;
+        ressources?: string[];
+        participants?: string[];
+        lieu?: string;
+      },
     ) {
       if (etat.graphEnPanne) throw new Error("Graph mettre a jour evenement 403");
       etat.appels.patch.push({ boite, eventId, ...patch });
@@ -566,5 +583,64 @@ describe("salle visible dans le rendez-vous du gestionnaire (lieu au PATCH)", ()
     expect(etat.appels.patch).toHaveLength(1);
     expect(etat.appels.patch[0]?.ressources).toEqual([]);
     expect(etat.appels.patch[0]?.lieu).toBe("");
+  });
+});
+
+describe("collaborateurs associes (participants de l'evenement)", () => {
+  const COLLEGUE1 = "emmanuel@real31.fr";
+  const COLLEGUE2 = "dimitri@real31.fr";
+
+  it("pose avec collegues : le POST les attache en participants ET les persiste", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      collaborateursEmails: [COLLEGUE1, COLLEGUE2],
+    });
+
+    expect(etat.appels.creer).toHaveLength(1);
+    expect(etat.appels.creer[0]?.participants).toEqual([COLLEGUE1, COLLEGUE2]);
+    expect(confirmation("S024", "AG")?.collaborateursEmails).toEqual([COLLEGUE1, COLLEGUE2]);
+  });
+
+  it("pose sans collegue : aucun participant transmis", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      collaborateursEmails: [],
+    });
+    expect(etat.appels.creer[0]?.participants).toBeUndefined();
+  });
+
+  it("re-poser conserve les collegues (PATCH participants)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      collaborateursEmails: [COLLEGUE1],
+    });
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-10-01T18:00:00", "g1", BOITE, {
+      collaborateursEmails: [COLLEGUE1],
+    });
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]?.participants).toEqual([COLLEGUE1]);
+  });
+
+  it("retirer les collegues : PATCH participants [] (ils sont desinvites)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      collaborateursEmails: [COLLEGUE1, COLLEGUE2],
+    });
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-10-01T18:00:00", "g1", BOITE, {
+      collaborateursEmails: [],
+    });
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]?.participants).toEqual([]);
+  });
+
+  it("confirmer conserve les collegues persistes (PATCH participants)", async () => {
+    etat.datesCopro.ag = "2026-09-07";
+    etat.heuresCopro.ag = "18:00";
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      collaborateursEmails: [COLLEGUE1],
+    });
+    await confirmerEvenement("S024", "AG", "EL", "g1", BOITE);
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]?.participants).toEqual([COLLEGUE1]);
+    expect(etat.appels.patch[0]?.titre).toBe("S024 : AG confirmée");
   });
 });

@@ -22,6 +22,8 @@ export async function definirDateEvenement(
     salleEmail?: string | null;
     vehiculeEmail?: string | null;
     modeReunion?: ModeReunion | null;
+    /** Emails des collegues associes (deja valides cote action). [] / absent = aucun. */
+    collaborateursEmails?: string[];
   },
 ): Promise<void> {
   await getCoproRepository().setDateEvenement(coproCode, type, quand, dateISO, managerId);
@@ -50,6 +52,14 @@ export async function definirDateEvenement(
         coproCode,
         typeConfirmation,
         details?.modeReunion ?? null,
+      );
+      // Collaborateurs associes : UPDATE separe, persiste AVANT la projection pour que
+      // projeterEvenementOutlook les relise et les invite (attendees "required").
+      // [] retire tout collegue. Degrade propre si la colonne n'est pas deployee.
+      await getConfirmationEvenementRepository().enregistrerCollaborateurs(
+        coproCode,
+        typeConfirmation,
+        details?.collaborateursEmails ?? [],
       );
       // Projection Outlook : cree l'evenement "a confirmer" ou DEPLACE l'existant
       // (replanification). On passe le `debut` COMPLET (date + heure eventuelle).

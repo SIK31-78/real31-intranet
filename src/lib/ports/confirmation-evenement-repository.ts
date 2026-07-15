@@ -52,4 +52,16 @@ export interface ConfirmationEvenementRepository {
     type: "AG" | "CS",
     mode: ModeReunion | null,
   ): Promise<void>;
+  /**
+   * Pose (ou vide avec []) la liste des collaborateurs (collegues) associes a
+   * l'evenement (copro, type) : UPDATE cible SEPARE (comme enregistrerModeReunion).
+   * `[]` retire tout collaborateur, une liste les remplace. No-op si aucune ligne
+   * n'existe, et degrade proprement si la colonne collaborateurs_emails n'est pas
+   * encore deployee (l'app fonctionne comme avant, sans collaborateurs persistes).
+   */
+  enregistrerCollaborateurs(
+    coproCode: string,
+    type: "AG" | "CS",
+    emails: string[],
+  ): Promise<void>;
 }

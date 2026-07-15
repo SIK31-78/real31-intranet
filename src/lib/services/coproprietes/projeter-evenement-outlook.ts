@@ -70,6 +70,10 @@ export async function projeterEvenementOutlook(
     const ressources = [existante?.salleEmail, existante?.vehiculeEmail].filter(
       (e): e is string => Boolean(e),
     );
+    // Collegues associes (persistes de meme AVANT la projection) : invites comme
+    // participants "required" -> l'evenement apparait dans leur agenda. Liste vide ->
+    // aucun participant (ou retire au PATCH, comme les ressources).
+    const participants = existante?.collaborateursEmails ?? [];
     // Lieu deduit du mode (bonus) : "Visio" en visio, sinon la salle. undefined -> aucun
     // lieu a afficher (ni mode ni salle).
     const lieu = lieuDe(existante);
@@ -84,6 +88,7 @@ export async function projeterEvenementOutlook(
         debut,
         ...(fin ? { fin } : {}),
         ressources,
+        participants,
         lieu: lieu ?? "",
       });
       // Re-memorise (id + boite) a l'identique : idempotent, mais self-heal si la colonne
@@ -111,6 +116,7 @@ export async function projeterEvenementOutlook(
       debut,
       ...(fin ? { fin } : {}),
       ...(ressources.length > 0 ? { ressources } : {}),
+      ...(participants.length > 0 ? { participants } : {}),
       ...(lieu ? { lieu } : {}),
     });
     // Pas d'id (provider no-op) : rien a memoriser, la projection reste inexistante.

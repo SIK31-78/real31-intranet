@@ -15,11 +15,14 @@ export class NoopCalendrierOutboundProvider implements CalendrierOutboundProvide
     lieu?: string;
     description?: string;
     ressources?: string[];
+    participants?: string[];
   }): Promise<{ id?: string; webLink?: string }> {
-    // Pas de PII en log : seulement la date, la presence d'un lieu et le nombre de ressources.
+    // Pas de PII en log : seulement la date, la presence d'un lieu et les NOMBRES de
+    // ressources / participants (jamais les emails).
     const nbRessources = p.ressources?.length ?? 0;
+    const nbParticipants = p.participants?.length ?? 0;
     console.log(
-      `[calendrier-outbound:noop] evenement simule le ${p.debut} (lieu: ${p.lieu ? "oui" : "non"}, ressources: ${nbRessources})`,
+      `[calendrier-outbound:noop] evenement simule le ${p.debut} (lieu: ${p.lieu ? "oui" : "non"}, ressources: ${nbRessources}, participants: ${nbParticipants})`,
     );
     return {};
   }

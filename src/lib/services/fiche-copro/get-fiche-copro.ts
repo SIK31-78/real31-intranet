@@ -6,7 +6,7 @@ import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domai
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { statutPourDate } from "@/lib/domain/confirmation-evenement";
 import { construireLigne } from "@/lib/domain/parcours-ag";
-import { getCoproRepository, getJalonRepository } from "@/lib/adapters/router";
+import { getCoproRepository, getJalonRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
@@ -129,7 +129,24 @@ export async function getFicheCopro(
   // cote de la date + pre-selection dans l'editeur.
   const modeAgReunion = confAg?.modeReunion;
   const modeCsReunion = confCs?.modeReunion;
-
+  // Collaborateurs associes portes par la confirmation : resolus en {email, nom} pour le
+  // badge (hors edition) et la pre-selection de l'editeur. On ne charge l'annuaire des
+  // gestionnaires QUE s'il y a au moins un collaborateur (evite une requete inutile).
+  const emailsCollab = [
+    ...(confAg?.collaborateursEmails ?? []),
+    ...(confCs?.collaborateursEmails ?? []),
+  ];
+  const nomParEmail = new Map<string, string>();
+  if (emailsCollab.length > 0) {
+    const gestionnaires = await getGestionnaireRepository().list();
+    for (const g of gestionnaires) {
+      if (g.email) nomParEmail.set(g.email.toLowerCase(), g.nomComplet);
+    }
+  }
+  const resoudreCollab = (emails: string[] | undefined): { email: string; nom: string }[] =>
+    (emails ?? []).map((email) => ({ email, nom: nomParEmail.get(email.toLowerCase()) ?? email }));
+  const collaborateursAg = resoudreCollab(confAg?.collaborateursEmails);
+  const collaborateursCs = resoudreCollab(confCs?.collaborateursEmails);
 
   return {
     copro,
@@ -150,5 +167,7 @@ export async function getFicheCopro(
     ...(vehiculeCsEmail ? { vehiculeCsEmail } : {}),
     ...(modeAgReunion ? { modeAgReunion } : {}),
     ...(modeCsReunion ? { modeCsReunion } : {}),
+    ...(collaborateursAg.length > 0 ? { collaborateursAg } : {}),
+    ...(collaborateursCs.length > 0 ? { collaborateursCs } : {}),
   };
 }

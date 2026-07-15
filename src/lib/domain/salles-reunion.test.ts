@@ -9,6 +9,7 @@ import {
   vehicules,
   ressourceParEmail,
   attendeesRessource,
+  attendeesParticipant,
   interpreterAvailabilityView,
 } from "./salles-reunion";
 
@@ -80,5 +81,21 @@ describe("attendeesRessource", () => {
       { type: "resource", emailAddress: { address: "real31JF@real31.fr" } },
     ]);
     expect(attendeesRessource([])).toEqual([]);
+  });
+});
+
+describe("attendeesParticipant", () => {
+  it("construit un attendee 'required' par email non vide", () => {
+    expect(attendeesParticipant(["emmanuel@real31.fr", "dimitri@real31.fr"])).toEqual([
+      { type: "required", emailAddress: { address: "emmanuel@real31.fr" } },
+      { type: "required", emailAddress: { address: "dimitri@real31.fr" } },
+    ]);
+  });
+
+  it("ignore les entrees vides et dedoublonne (insensible a la casse)", () => {
+    expect(
+      attendeesParticipant(["", "  ", "Emmanuel@real31.fr", "emmanuel@REAL31.fr"]),
+    ).toEqual([{ type: "required", emailAddress: { address: "Emmanuel@real31.fr" } }]);
+    expect(attendeesParticipant([])).toEqual([]);
   });
 });

@@ -237,6 +237,11 @@ export interface FicheCopro {
    *  prochain CS ; absent = non precise. Affiche en badge, pre-remplit l'editeur. */
   modeAgReunion?: ModeReunion;
   modeCsReunion?: ModeReunion;
+  /** Collaborateurs (collegues) associes a la prochaine AG / au prochain CS, resolus
+   *  en {email, nom} ; absents si aucun. Badge discret a cote de la date + pre-selection
+   *  de l'editeur. */
+  collaborateursAg?: { email: string; nom: string }[];
+  collaborateursCs?: { email: string; nom: string }[];
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

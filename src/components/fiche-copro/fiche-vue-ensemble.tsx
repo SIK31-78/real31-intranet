@@ -72,6 +72,8 @@ export function FicheVueEnsemble({ fiche, mailActif = false }: { fiche: FicheCop
             vehiculeCsEmail={fiche.vehiculeCsEmail}
             modeAgReunion={fiche.modeAgReunion}
             modeCsReunion={fiche.modeCsReunion}
+            collaborateursAg={fiche.collaborateursAg}
+            collaborateursCs={fiche.collaborateursCs}
             mailActif={mailActif}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
@@ -215,6 +217,8 @@ function BlocAg({
   vehiculeCsEmail,
   modeAgReunion,
   modeCsReunion,
+  collaborateursAg,
+  collaborateursCs,
   mailActif,
 }: {
   coproCode: string;
@@ -233,6 +237,8 @@ function BlocAg({
   vehiculeCsEmail?: string;
   modeAgReunion?: ModeReunion;
   modeCsReunion?: ModeReunion;
+  collaborateursAg?: { email: string; nom: string }[];
+  collaborateursCs?: { email: string; nom: string }[];
   mailActif: boolean;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
@@ -303,6 +309,7 @@ function BlocAg({
               salleEmail={salleAgEmail}
               vehiculeEmail={vehiculeAgEmail}
               modeReunion={modeAgReunion}
+              collaborateurs={collaborateursAg}
             />
             {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
                 (le service ne pose un statut que dans ce cas). */}
@@ -355,6 +362,7 @@ function BlocAg({
                 salleEmail={salleCsEmail}
                 vehiculeEmail={vehiculeCsEmail}
                 modeReunion={modeCsReunion}
+                collaborateurs={collaborateursCs}
               />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />

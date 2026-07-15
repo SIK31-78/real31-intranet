@@ -8,7 +8,13 @@ import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
 import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
 import { Button } from "@/components/ui/button";
-import { definirDateAg, definirDateCs, verifierDispoSalleAction } from "./dates-actions";
+import {
+  definirDateAg,
+  definirDateCs,
+  verifierDispoSalleAction,
+  verifierDispoAgendaAction,
+  listerCollaborateursAction,
+} from "./dates-actions";
 
 // La ZOE : seul vehicule reservable (case "Reserver la voiture ZOE"). Email pris dans
 // la liste fermee du domaine (jamais code en dur ici).
@@ -26,6 +32,16 @@ const MODE_LABEL: Record<ModeReunion, string> = {
   presentiel: "Présentiel",
   hybride: "Hybride",
 };
+
+/** Un collaborateur (collegue) associable a une reunion : email + nom lisible. */
+type Collaborateur = { email: string; nom: string };
+
+/** Deux listes d'emails designent-elles le MEME ensemble (ordre / casse ignores) ? */
+function memeEnsemble(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = new Set(a.map((e) => e.toLowerCase()));
+  return b.every((e) => sa.has(e.toLowerCase()));
+}
 
 // Edition inline d'une date d'AG / CS. `quand` = prochaine (planifiee) ou derniere
 // (tenue, correction du referentiel App A). Clic sur la date -> selecteur inline.
@@ -53,6 +69,7 @@ export function EditeurDate({
   salleEmail,
   vehiculeEmail,
   modeReunion,
+  collaborateurs,
 }: {
   coproCode: string;
   type: "ag" | "cs";
@@ -66,6 +83,9 @@ export function EditeurDate({
   vehiculeEmail?: string;
   /** Mode de tenue deja choisi (visio / presentiel / hybride) pour la prochaine reunion. */
   modeReunion?: ModeReunion;
+  /** Collaborateurs (collegues) deja associes a la prochaine reunion (email + nom) :
+   *  badge hors edition + pre-selection du selecteur. */
+  collaborateurs?: Collaborateur[];
 }) {
   const [edition, setEdition] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -75,6 +95,11 @@ export function EditeurDate({
   const [zoeVal, setZoeVal] = useState(false);
   // Mode de reunion : "" = non precise (aucun mode). Cf. MODES / zMode cote action.
   const [modeVal, setModeVal] = useState<ModeReunion | "">("");
+  // Collaborateurs selectionnes (emails) + annuaire des collegues associables (charge a
+  // l'ouverture via l'action). L'annuaire porte les noms lisibles ; la selection ne
+  // stocke que les emails (transmis a l'action, revalides serveur).
+  const [collaborateursVal, setCollaborateursVal] = useState<string[]>([]);
+  const [collabList, setCollabList] = useState<Collaborateur[]>([]);
   // Resultat de dispo indexe par le creneau interroge (date|heure|salle) : on n'affiche
   // que s'il correspond a la saisie courante -> pas de reset synchrone dans l'effet
   // (evite les rendus en cascade) ni d'indicateur perime apres un changement de salle.
@@ -87,14 +112,29 @@ export function EditeurDate({
     cle: string;
     valeur: "libre" | "occupee" | "inconnu";
   } | null>(null);
+  // Dispo de MON agenda (le gestionnaire connecte) sur le creneau, meme mecanique.
+  const [dispoAgenda, setDispoAgenda] = useState<{
+    cle: string;
+    valeur: "libre" | "occupee" | "inconnu";
+  } | null>(null);
+  // Dispo de chaque collegue selectionne, indexee par `${email}|${cleAgenda}` : on ne
+  // lit que la valeur qui correspond au creneau courant (pas d'indicateur perime).
+  const [dispoCollab, setDispoCollab] = useState<
+    Record<string, "libre" | "occupee" | "inconnu">
+  >({});
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmeEffacer, setConfirmeEffacer] = useState(false);
+  // Un creneau "occupe" (mon agenda ou un collegue) ne BLOQUE pas : il exige une
+  // confirmation explicite au Valider. Ce drapeau passe a true au 1er clic si un
+  // conflit existe, et affiche l'avertissement + le bouton "planifier quand meme".
+  const [confirmeOccupe, setConfirmeOccupe] = useState(false);
 
   // L'heure et la reservation de salle ne concernent que la PROCHAINE reunion :
   // masquees (et vides) pour "derniere" (simple correction du referentiel).
   const avecHeure = quand === "prochaine";
   const action = type === "ag" ? definirDateAg : definirDateCs;
   const labelVide = quand === "derniere" ? "Non renseignée" : "Non planifiée";
+  const typeApi = type === "ag" ? "AG" : "CS";
 
   // Aujourd'hui en date LOCALE 'YYYY-MM-DD' (pour l'avertissement passe/futur, du point
   // de vue de l'utilisateur). Comparaison de chaines cote domaine : aucun decalage de jour.
@@ -116,8 +156,12 @@ export function EditeurDate({
   const salleEnregistree = avecHeure ? (salleEmail ?? "") : "";
   const zoeEnregistree = avecHeure ? Boolean(vehiculeEmail) : false;
   const modeEnregistre = avecHeure ? (modeReunion ?? "") : "";
+  const collaborateursEnregistres = avecHeure ? (collaborateurs?.map((c) => c.email) ?? []) : [];
   const ressourceInchangee =
-    salleVal === salleEnregistree && zoeVal === zoeEnregistree && modeVal === modeEnregistre;
+    salleVal === salleEnregistree &&
+    zoeVal === zoeEnregistree &&
+    modeVal === modeEnregistre &&
+    memeEnsemble(collaborateursVal, collaborateursEnregistres);
   const inchange = valeurSaisie === valeurEnregistree && ressourceInchangee;
 
   const avertissement = dateVal ? avertissementDateReunion(quand, dateVal, todayISO) : null;
@@ -133,13 +177,18 @@ export function EditeurDate({
   const dispoZoeCreneau = avecHeure && zoeVal && dateVal && heureVal;
   const dispoZoeValeur = dispoZoe && dispoZoe.cle === cleZoe ? dispoZoe.valeur : null;
 
+  // Creneau des AGENDAS (mon agenda + collegues) : des que date + heure sont saisies.
+  const cleAgenda = `${dateVal}|${heureVal}`;
+  const agendaCreneau = avecHeure && dateVal && heureVal;
+  const dispoAgendaValeur = dispoAgenda && dispoAgenda.cle === cleAgenda ? dispoAgenda.valeur : null;
+
   // Verifie la dispo de la salle des qu'une salle est choisie ET la date+heure valides.
   // Degrade "inconnu" (Graph indisponible / 403 Access Policy) : jamais bloquant. Aucun
   // setState synchrone dans le corps de l'effet (uniquement dans les callbacks async).
   useEffect(() => {
     if (!edition || !dispoCreneau) return;
     let annule = false;
-    verifierDispoSalleAction(coproCode, type === "ag" ? "AG" : "CS", dateVal, heureVal, salleVal)
+    verifierDispoSalleAction(coproCode, typeApi, dateVal, heureVal, salleVal)
       .then((r) => {
         if (!annule) setDispo({ cle: cleDispo, valeur: r.dispo });
       })
@@ -149,13 +198,13 @@ export function EditeurDate({
     return () => {
       annule = true;
     };
-  }, [edition, dispoCreneau, cleDispo, coproCode, type, dateVal, heureVal, salleVal]);
+  }, [edition, dispoCreneau, cleDispo, coproCode, typeApi, dateVal, heureVal, salleVal]);
 
   // Verifie la dispo de la ZOE quand la case est cochee (getSchedule marche sur sa boite).
   useEffect(() => {
     if (!edition || !dispoZoeCreneau) return;
     let annule = false;
-    verifierDispoSalleAction(coproCode, type === "ag" ? "AG" : "CS", dateVal, heureVal, ZOE_EMAIL)
+    verifierDispoSalleAction(coproCode, typeApi, dateVal, heureVal, ZOE_EMAIL)
       .then((r) => {
         if (!annule) setDispoZoe({ cle: cleZoe, valeur: r.dispo });
       })
@@ -165,7 +214,71 @@ export function EditeurDate({
     return () => {
       annule = true;
     };
-  }, [edition, dispoZoeCreneau, cleZoe, coproCode, type, dateVal, heureVal]);
+  }, [edition, dispoZoeCreneau, cleZoe, coproCode, typeApi, dateVal, heureVal]);
+
+  // Verifie MON agenda (le gestionnaire connecte) des que date + heure sont saisies :
+  // email absent cote action -> l'agenda de session. Meme degrade "inconnu".
+  useEffect(() => {
+    if (!edition || !agendaCreneau) return;
+    let annule = false;
+    verifierDispoAgendaAction(coproCode, typeApi, dateVal, heureVal)
+      .then((r) => {
+        if (!annule) setDispoAgenda({ cle: cleAgenda, valeur: r.dispo });
+      })
+      .catch(() => {
+        if (!annule) setDispoAgenda({ cle: cleAgenda, valeur: "inconnu" });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [edition, agendaCreneau, cleAgenda, coproCode, typeApi, dateVal, heureVal]);
+
+  // Verifie la dispo de CHAQUE collegue selectionne sur le creneau. Une seule passe (pas
+  // un hook par collegue) : on interroge tous les selectionnes en parallele et on range
+  // les reponses par `${email}|${cleAgenda}`. Degrade "inconnu" par collegue.
+  useEffect(() => {
+    if (!edition || !agendaCreneau || collaborateursVal.length === 0) return;
+    let annule = false;
+    for (const email of collaborateursVal) {
+      const k = `${email}|${cleAgenda}`;
+      verifierDispoAgendaAction(coproCode, typeApi, dateVal, heureVal, email)
+        .then((r) => {
+          if (!annule) setDispoCollab((prev) => ({ ...prev, [k]: r.dispo }));
+        })
+        .catch(() => {
+          if (!annule) setDispoCollab((prev) => ({ ...prev, [k]: "inconnu" }));
+        });
+    }
+    return () => {
+      annule = true;
+    };
+    // collaborateursVal (ref) ne change qu'a une (de)selection reelle ; cleAgenda au
+    // changement de creneau -> l'effet ne se rejoue que sur un vrai changement.
+  }, [edition, agendaCreneau, cleAgenda, collaborateursVal, coproCode, typeApi, dateVal, heureVal]);
+
+  // Charge l'annuaire des collegues associables a l'ouverture (prochaine reunion seule).
+  useEffect(() => {
+    if (!edition || !avecHeure) return;
+    let annule = false;
+    listerCollaborateursAction()
+      .then((l) => {
+        if (!annule) setCollabList(l);
+      })
+      .catch(() => {
+        if (!annule) setCollabList([]);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [edition, avecHeure]);
+
+  // Dispo d'un collegue pour le creneau courant (undefined = pas encore de reponse).
+  const dispoCollabValeur = (email: string) => dispoCollab[`${email}|${cleAgenda}`];
+
+  // Conflit d'agenda = mon agenda occupe OU au moins un collegue occupe (sur ce creneau).
+  const monAgendaOccupe = dispoAgendaValeur === "occupee";
+  const collabOccupe = collaborateursVal.some((e) => dispoCollabValeur(e) === "occupee");
+  const aUnConflit = avecHeure && (monAgendaOccupe || collabOccupe);
 
   const ouvrir = () => {
     // Re-lecture des props courantes a chaque ouverture (corrige l'etat fige).
@@ -174,14 +287,18 @@ export function EditeurDate({
     // veut une heure sur les evenements). Rien n'est sauve tant que "Valider" n'est
     // pas clique, donc ce defaut ne peut plus etre pose par accident.
     setHeureVal(avecHeure ? (heure ?? HEURE_DEFAUT_REUNION) : "");
-    // Pre-remplissage salle / ZOE / mode depuis la reservation existante.
+    // Pre-remplissage salle / ZOE / mode / collegues depuis la reservation existante.
     setSalleVal(avecHeure ? (salleEmail ?? "") : "");
     setZoeVal(avecHeure ? Boolean(vehiculeEmail) : false);
     setModeVal(avecHeure ? (modeReunion ?? "") : "");
+    setCollaborateursVal(avecHeure ? (collaborateurs?.map((c) => c.email) ?? []) : []);
     setDispo(null);
     setDispoZoe(null);
+    setDispoAgenda(null);
+    setDispoCollab({});
     setErreur(null);
     setConfirmeEffacer(false);
+    setConfirmeOccupe(false);
     setEdition(true);
   };
 
@@ -189,14 +306,27 @@ export function EditeurDate({
     setEdition(false);
     setErreur(null);
     setConfirmeEffacer(false);
+    setConfirmeOccupe(false);
+  };
+
+  // (De)selectionne un collegue. Toute modification annule une confirmation d'occupation
+  // en cours (le conflit peut avoir change).
+  const toggleCollaborateur = (email: string) => {
+    setConfirmeOccupe(false);
+    setCollaborateursVal((prev) =>
+      prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email],
+    );
   };
 
   const enregistrer = (valeur: string) => {
     setErreur(null);
-    // Ressources / mode transmis seulement pour une prochaine date reelle (pas a l'effacement).
+    setConfirmeOccupe(false);
+    // Ressources / mode / collegues transmis seulement pour une prochaine date reelle
+    // (pas a l'effacement).
     const salle = avecHeure && valeur ? salleVal : "";
     const vehicule = avecHeure && valeur && zoeVal ? ZOE_EMAIL : "";
     const mode = avecHeure && valeur ? modeVal : "";
+    const collabs = avecHeure && valeur ? collaborateursVal : [];
     startTransition(async () => {
       const r = await action(
         coproCode,
@@ -205,17 +335,29 @@ export function EditeurDate({
         salle || undefined,
         vehicule || undefined,
         mode || undefined,
+        collabs,
       );
       if (!r.ok) setErreur(r.erreur); // on garde l'edition ouverte pour reessayer
       else fermer();
     });
   };
 
+  // Clic sur "Valider" : un conflit d'agenda non encore confirme n'enregistre pas tout
+  // de suite -> il affiche l'avertissement (bloc dedie). "Inconnu" ne bloque jamais.
+  const tenterEnregistrer = () => {
+    if (aUnConflit && !confirmeOccupe) {
+      setConfirmeOccupe(true);
+      return;
+    }
+    enregistrer(valeurSaisie);
+  };
+
   if (!edition) {
-    // Salle / vehicule / mode reserves (hors edition) : affiches discretement.
+    // Salle / vehicule / mode / collegues reserves (hors edition) : affiches discretement.
     const salleNom = avecHeure ? ressourceParEmail(salleEmail)?.nom : undefined;
     const zoeReservee = avecHeure && Boolean(vehiculeEmail);
     const modeNom = avecHeure ? modeReunion : undefined;
+    const collabs = avecHeure ? (collaborateurs ?? []) : [];
     return (
       <span className="inline-flex flex-col gap-0.5">
         <span className="inline-flex items-center gap-2 flex-wrap">
@@ -249,6 +391,10 @@ export function EditeurDate({
             {zoeReservee && <>voiture ZOE</>}
           </span>
         )}
+        {/* Collegues associes : prenoms/noms discrets a cote de la date. */}
+        {dateISO && collabs.length > 0 && (
+          <span className="text-[12px] text-ink-3">avec {collabs.map((c) => c.nom).join(", ")}</span>
+        )}
       </span>
     );
   }
@@ -267,7 +413,10 @@ export function EditeurDate({
           autoFocus
           disabled={pending}
           aria-label={`Date ${quand === "derniere" ? "de la dernière" : "de la prochaine"} ${type === "ag" ? "AG" : "réunion de CS"}`}
-          onChange={(e) => setDateVal(e.target.value)}
+          onChange={(e) => {
+            setConfirmeOccupe(false);
+            setDateVal(e.target.value);
+          }}
           className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
         />
         {avecHeure && (
@@ -276,7 +425,10 @@ export function EditeurDate({
             value={heureVal}
             disabled={pending || !dateVal}
             aria-label={`Heure de la prochaine ${type === "ag" ? "AG" : "réunion de CS"}`}
-            onChange={(e) => setHeureVal(e.target.value)}
+            onChange={(e) => {
+              setConfirmeOccupe(false);
+              setHeureVal(e.target.value);
+            }}
             className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
           />
         )}
@@ -285,7 +437,7 @@ export function EditeurDate({
           size="sm"
           variant="primary"
           disabled={pending || !dateVal || inchange}
-          onClick={() => enregistrer(valeurSaisie)}
+          onClick={tenterEnregistrer}
           title="Enregistrer la date"
         >
           <Check strokeWidth={2} />
@@ -307,6 +459,31 @@ export function EditeurDate({
           </Button>
         )}
       </span>
+
+      {/* Mon agenda (le gestionnaire connecte) : meme code couleur que la ZOE / la salle.
+          Apparait des que date + heure sont saisies. "Occupe" n'empeche pas de valider,
+          mais demande une confirmation ; "inconnu" (Graph off / 403) ne bloque rien. */}
+      {avecHeure && agendaCreneau && (
+        <span
+          className={
+            "inline-flex items-center gap-1 text-[12px] " +
+            (dispoAgendaValeur === "libre"
+              ? "text-ok-700"
+              : dispoAgendaValeur === "occupee"
+                ? "text-warn-700"
+                : "text-ink-3")
+          }
+          aria-live="polite"
+        >
+          {dispoAgendaValeur === null
+            ? "Ton agenda : vérification..."
+            : dispoAgendaValeur === "libre"
+              ? "Ton agenda : libre"
+              : dispoAgendaValeur === "occupee"
+                ? "Ton agenda : occupé"
+                : "Ton agenda : dispo inconnue"}
+        </span>
+      )}
 
       {/* Mode de tenue (prochaine reunion seulement) : visio / presentiel / hybride,
           ou "non precise". Note : pas de lien Teams genere pour l'instant (limitation),
@@ -409,6 +586,59 @@ export function EditeurDate({
         </span>
       )}
 
+      {/* Collaborateurs associes (prochaine reunion seulement) : multi-selection des
+          collegues du cabinet. Chaque collegue coche est invite a l'evenement Outlook
+          (il apparait dans son agenda) et sa dispo est verifiee sur le creneau. */}
+      {avecHeure && collabList.length > 0 && (
+        <span className="inline-flex flex-col gap-1">
+          <span className="text-[11px] uppercase tracking-[0.5px] text-ink-3">
+            Collaborateurs associés
+          </span>
+          <span className="inline-flex flex-col gap-0.5">
+            {collabList.map((c) => {
+              const coche = collaborateursVal.includes(c.email);
+              const d = coche && agendaCreneau ? dispoCollabValeur(c.email) : undefined;
+              return (
+                <label
+                  key={c.email}
+                  className="inline-flex items-center gap-1.5 text-[13px] text-ink-2"
+                >
+                  <input
+                    type="checkbox"
+                    checked={coche}
+                    disabled={pending}
+                    onChange={() => toggleCollaborateur(c.email)}
+                    className="h-3.5 w-3.5"
+                  />
+                  {c.nom}
+                  {coche && agendaCreneau && (
+                    <span
+                      className={
+                        "text-[12px] " +
+                        (d === "libre"
+                          ? "text-ok-700"
+                          : d === "occupee"
+                            ? "text-warn-700"
+                            : "text-ink-3")
+                      }
+                      aria-live="polite"
+                    >
+                      {d === undefined
+                        ? "· vérification..."
+                        : d === "libre"
+                          ? "· libre"
+                          : d === "occupee"
+                            ? "· occupé"
+                            : "· dispo inconnue"}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </span>
+        </span>
+      )}
+
       {/* Confirmation legere de l'effacement (geste destructif : ca deplanifie). */}
       {confirmeEffacer && (
         <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
@@ -430,6 +660,35 @@ export function EditeurDate({
             onClick={() => setConfirmeEffacer(false)}
           >
             Non
+          </Button>
+        </span>
+      )}
+
+      {/* Conflit d'agenda (non bloquant) : confirmation explicite avant d'enregistrer. */}
+      {confirmeOccupe && (
+        <span className="inline-flex items-center gap-1.5 flex-wrap text-[12px] text-warn-700">
+          {monAgendaOccupe && collabOccupe
+            ? "Ton agenda et celui d'un collègue ont déjà un rendez-vous sur ce créneau."
+            : monAgendaOccupe
+              ? "Tu as déjà un rendez-vous sur ce créneau."
+              : "Un collègue a déjà un rendez-vous sur ce créneau."}
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            disabled={pending}
+            onClick={() => enregistrer(valeurSaisie)}
+          >
+            {pending ? "Enregistrement..." : "Planifier quand même"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() => setConfirmeOccupe(false)}
+          >
+            Annuler
           </Button>
         </span>
       )}
