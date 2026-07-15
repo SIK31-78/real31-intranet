@@ -80,7 +80,7 @@ async function jetonGraph() {
 // Liste les evenements de la boite (pagination suivie) et garde ceux qui correspondent
 // au motif des projections intranet.
 async function listerEvenementsProjetes(tk, boite) {
-  const select = "id,subject,start,end,location,attendees";
+  const select = "id,subject,start,end,location,attendees,organizer";
   // Filtre serveur sur les evenements RECENTS/A VENIR (60 jours en arriere) : les boites
   // des salles portent 10+ ans d'historique -> sans filtre, la pagination ascendante
   // plafonnee n'atteint jamais les evenements de test recents (constate : que du 2015).
@@ -100,7 +100,12 @@ async function listerEvenementsProjetes(tk, boite) {
     if (!r.ok) throw new Error(`Graph liste evenements ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = await r.json();
     for (const e of j.value ?? []) {
-      if (estSujetProjection(e.subject)) trouves.push(e);
+      // On garde TOUT ce qui tombe dans la fenetre : sur une room mailbox, Exchange
+      // remplace souvent le sujet par le NOM DE L'ORGANISATEUR (AddOrganizerToSubject
+      // actif par defaut) -> le motif de sujet ne peut pas matcher cote salle. On marque
+      // simplement ceux qui ressemblent a une projection intranet.
+      e._projection = estSujetProjection(e.subject);
+      trouves.push(e);
     }
     url = j["@odata.nextLink"] ?? null;
   }
@@ -150,15 +155,19 @@ async function main() {
   const evenements = await listerEvenementsProjetes(tk, boite);
 
   console.log(`\nBoite : ${boite}`);
-  console.log(`Evenements de test (projections CS/AG) trouves : ${evenements.length}\n`);
+  console.log(`Evenements des 60 derniers jours + futur : ${evenements.length}`);
+  console.log(`(marques [PROJECTION] quand le sujet ressemble a une projection intranet ;`);
+  console.log(` sur une salle, Exchange remplace souvent le sujet par le nom de l'organisateur)\n`);
   for (const e of evenements) {
     const { resources, lieu } = sallesDe(e);
     const debut = e.start?.dateTime?.slice(0, 16)?.replace("T", " ") ?? "?";
-    console.log(`- ${e.subject}`);
-    console.log(`    id     : ${e.id}`);
-    console.log(`    debut  : ${debut}`);
-    console.log(`    lieu   : ${lieu}`);
-    console.log(`    salles : ${resources.length ? resources.join(", ") : "(aucune)"}`);
+    const organisateur = e.organizer?.emailAddress?.address ?? "?";
+    console.log(`- ${e._projection ? "[PROJECTION] " : ""}${e.subject}`);
+    console.log(`    id           : ${e.id}`);
+    console.log(`    debut        : ${debut}`);
+    console.log(`    organisateur : ${organisateur}`);
+    console.log(`    lieu         : ${lieu}`);
+    console.log(`    salles       : ${resources.length ? resources.join(", ") : "(aucune)"}`);
   }
 
   const ids = (idsArg ?? "")
