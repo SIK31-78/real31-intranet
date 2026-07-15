@@ -60,8 +60,10 @@ export async function analyserDossierUnifie(
   docs: DocumentSource[],
 ): Promise<AnalyseDossier> {
   const glDocs = docs.filter((d) => estGrandLivre(d.nom));
-  const patriDocs = docs.filter((d) => !estGrandLivre(d.nom));
   const avecGrandLivre = glDocs.length > 0 && extractionCompta !== null;
+  // Sans provider compta, le grand livre RESTE dans le lot patrimoine (comportement d'avant
+  // l'unification) ; avec provider, il est aiguille vers le pipeline compta.
+  const patriDocs = avecGrandLivre ? docs.filter((d) => !estGrandLivre(d.nom)) : docs;
 
   // Les agents patrimoine gardent leur propre aiguillage interne (structure vs proprietaires) ;
   // on leur passe les documents NON grand-livre. Sans grand livre, patriDocs == tous les docs
