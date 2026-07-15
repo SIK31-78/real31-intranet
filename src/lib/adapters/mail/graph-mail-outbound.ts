@@ -127,4 +127,38 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     const j = (await r.json()) as { webLink?: string };
     return j.webLink ? { webLink: j.webLink } : {};
   }
+
+  async envoyerNeuf(p: {
+    boite: string;
+    a: string[];
+    cc: string[];
+    cci: string[];
+    sujet: string;
+    corps: string;
+    signatureHtml?: string;
+  }): Promise<void> {
+    if (!p.boite) throw new Error("Envoi : boite manquante.");
+    if (dest(p.a).length === 0) throw new Error("Envoi : au moins un destinataire en 'A'.");
+    const tk = await jetonGraph();
+
+    // Corps : mon texte (Aptos 11pt) puis la signature Signitic dessous. Signature
+    // injectee ICI car un envoi app-only ne passe pas par l'add-in Outlook.
+    const monTexte = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
+    const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
+    const message = {
+      subject: p.sujet,
+      body: { contentType: "HTML", content: monTexte + signature },
+      toRecipients: dest(p.a),
+      ccRecipients: dest(p.cc),
+      bccRecipients: dest(p.cci),
+    };
+
+    // sendMail : Graph cree, envoie et archive dans "Elements envoyes" en un appel.
+    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/sendMail`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message, saveToSentItems: true }),
+    });
+    if (!r.ok) throw new Error(`Graph sendMail ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  }
 }

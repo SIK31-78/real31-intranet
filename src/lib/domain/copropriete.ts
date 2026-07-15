@@ -10,7 +10,7 @@ import type { Evenement } from "@/lib/domain/calendrier";
 import type { JalonAvecEtat } from "@/lib/domain/jalons-ag/types";
 import type { LigneParcours } from "@/lib/domain/dashboard";
 import type { EtatCompta } from "@/lib/domain/compta";
-import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
+import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 
 // --- Referentiel copro (source App A) -------------------------------------
 
@@ -114,6 +114,9 @@ export type RoleConseil = "president" | "membre";
 export interface MembreConseilSyndical {
   nomComplet: string;
   role: RoleConseil;
+  /** Email du membre (Estale `owner.email`), si renseigne. Sert au pre-remplissage du
+   *  mail au conseil syndical ; absent pour beaucoup de copros -> fallback liste Crypto. */
+  email?: string;
 }
 
 /** Une AG passee. La date vient du referentiel (lastAGDate) ; les details
@@ -230,6 +233,10 @@ export interface FicheCopro {
   /** Salle / vehicule reserves pour le prochain CS. */
   salleCsEmail?: string;
   vehiculeCsEmail?: string;
+  /** Mode de tenue choisi (visio / presentiel / hybride) pour la prochaine AG / le
+   *  prochain CS ; absent = non precise. Affiche en badge, pre-remplit l'editeur. */
+  modeAgReunion?: ModeReunion;
+  modeCsReunion?: ModeReunion;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

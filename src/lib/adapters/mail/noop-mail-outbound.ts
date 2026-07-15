@@ -31,4 +31,16 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     console.log(`[mail-outbound:noop] brouillon neuf simule (${p.corps.length} car.)`);
     return {};
   }
+
+  async envoyerNeuf(p: {
+    boite: string;
+    a: string[];
+    cc: string[];
+    cci: string[];
+    sujet: string;
+    corps: string;
+  }): Promise<void> {
+    // Pas de PII en log (RGPD) : nombre de destinataires seulement, jamais les adresses.
+    console.log(`[mail-outbound:noop] mail neuf simule (${p.a.length} dest., ${p.corps.length} car.)`);
+  }
 }

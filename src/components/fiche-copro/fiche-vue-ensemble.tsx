@@ -23,7 +23,7 @@ import type {
 } from "@/lib/domain/copropriete";
 import type { LigneParcours } from "@/lib/domain/dashboard";
 import type { EtatCompta } from "@/lib/domain/compta";
-import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
+import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 import { ComptaPanel } from "@/components/compta/compta-panel";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { formatDateLongue } from "@/lib/format-date";
 import { EditeurDate } from "./editeur-date";
 import { ConfirmationEvenement } from "./confirmation-evenement";
+import { MailReunionBouton } from "./mail-reunion-bouton";
 
 const ROLE_LABEL: Record<RoleEquipe, string> = {
   gestionnaire: "Gestionnaire",
@@ -46,7 +47,7 @@ const STATUT_AG_LABEL: Record<ProchaineAg["statut"], string> = {
   convoquee: "Convoquée",
 };
 
-export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
+export function FicheVueEnsemble({ fiche, mailActif = false }: { fiche: FicheCopro; mailActif?: boolean }) {
   const indispo = Boolean(fiche.estaleIndisponible);
   return (
     <div className="flex flex-col gap-5">
@@ -69,6 +70,9 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             vehiculeAgEmail={fiche.vehiculeAgEmail}
             salleCsEmail={fiche.salleCsEmail}
             vehiculeCsEmail={fiche.vehiculeCsEmail}
+            modeAgReunion={fiche.modeAgReunion}
+            modeCsReunion={fiche.modeCsReunion}
+            mailActif={mailActif}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
@@ -209,6 +213,9 @@ function BlocAg({
   vehiculeAgEmail,
   salleCsEmail,
   vehiculeCsEmail,
+  modeAgReunion,
+  modeCsReunion,
+  mailActif,
 }: {
   coproCode: string;
   derniere?: AgPassee;
@@ -224,8 +231,15 @@ function BlocAg({
   vehiculeAgEmail?: string;
   salleCsEmail?: string;
   vehiculeCsEmail?: string;
+  modeAgReunion?: ModeReunion;
+  modeCsReunion?: ModeReunion;
+  mailActif: boolean;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
+  // Le mail au CS propose les dates a venir (CS + AG en un seul mail). Visible des
+  // qu'au moins une date a venir est posee (confirmationAg / confirmationCs ne sont
+  // definis que pour une date future).
+  const auMoinsUneDate = Boolean(confirmationAg) || Boolean(confirmationCs);
   return (
     <Card>
       <CardHeader>
@@ -288,6 +302,7 @@ function BlocAg({
               heure={prochaine?.heure}
               salleEmail={salleAgEmail}
               vehiculeEmail={vehiculeAgEmail}
+              modeReunion={modeAgReunion}
             />
             {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
                 (le service ne pose un statut que dans ce cas). */}
@@ -339,6 +354,7 @@ function BlocAg({
                 heure={prochaineCsHeure}
                 salleEmail={salleCsEmail}
                 vehiculeEmail={vehiculeCsEmail}
+                modeReunion={modeCsReunion}
               />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
@@ -346,6 +362,15 @@ function BlocAg({
             </span>
           </div>
         </div>
+
+        {/* UN seul mail au CS propose les dates a venir (CS preparatoire + AG ensemble,
+            verbatim cabinet). Pre-rempli -> relu -> envoye sur clic. Grise tant que le
+            mail n'est pas active pour ce compte. */}
+        {auMoinsUneDate && (
+          <div className="mt-3 flex justify-end">
+            <MailReunionBouton coproCode={coproCode} actif={mailActif} />
+          </div>
+        )}
       </div>
     </Card>
   );

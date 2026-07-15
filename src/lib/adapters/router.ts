@@ -27,6 +27,9 @@ import { SupabaseMesEmailsEtatRepository } from "@/lib/adapters/supabase/supabas
 import { MockCryptoContactsRepository } from "@/lib/adapters/mock/mock-crypto-contacts-repository";
 import { SupabaseCryptoContactsRepository } from "@/lib/adapters/supabase/supabase-crypto-contacts-repository";
 import type { CryptoContactsProvider } from "@/lib/ports/crypto-contacts-provider";
+import type { ListesDiffusionProvider } from "@/lib/ports/listes-diffusion-provider";
+import { SupabaseListesDiffusionRepository } from "@/lib/adapters/supabase/supabase-listes-diffusion-repository";
+import { MockListesDiffusionRepository } from "@/lib/adapters/mock/mock-listes-diffusion-repository";
 import type { AnalyseMailProvider } from "@/lib/ports/analyse-mail-provider";
 import { MistralAnalyseProvider } from "@/lib/adapters/mistral/mistral-analyse-provider";
 import { MockAnalyseProvider } from "@/lib/adapters/mock/mock-analyse-provider";
@@ -216,6 +219,13 @@ export function getMesEmailsTriageStore(): MesEmailsTriageStore {
 export function getCryptoContactsProvider(): CryptoContactsProvider {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCryptoContactsRepository();
   return new MockCryptoContactsRepository();
+}
+
+// Listes de diffusion Crypto (fallback destinataires du conseil syndical, table native
+// intranet_listes_diffusion). Vide tant que le CSV Crypto n'est pas importe.
+export function getListesDiffusionProvider(): ListesDiffusionProvider {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseListesDiffusionRepository();
+  return new MockListesDiffusionRepository();
 }
 
 // Ingestion de mail. MAIL_SOURCE=graph -> boite reelle du gestionnaire (delegue,

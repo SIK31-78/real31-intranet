@@ -3,7 +3,7 @@
 // de mail. Etat persiste dans la table native intranet_confirmations_evenement
 // (une ligne par copro et par type).
 
-import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
+import type { ConfirmationEvenement, ModeReunion } from "@/lib/domain/confirmation-evenement";
 
 export interface ConfirmationEvenementRepository {
   /** Confirmations des copros `codes` (lecture batch pour le calendrier). */
@@ -36,5 +36,17 @@ export interface ConfirmationEvenementRepository {
     type: "AG" | "CS",
     salleEmail: string | null,
     vehiculeEmail: string | null,
+  ): Promise<void>;
+  /**
+   * Pose (ou efface avec null) le mode de tenue (visio / presentiel / hybride) de
+   * l'evenement (copro, type) : UPDATE cible SEPARE (comme enregistrerRessources).
+   * Separe pour que l'absence de la colonne mode_reunion (ALTER pas encore lance) ne
+   * fasse pas echouer, au passage, la persistance de la salle / du vehicule. No-op si
+   * aucune ligne n'existe, et degrade proprement si la colonne n'est pas deployee.
+   */
+  enregistrerModeReunion(
+    coproCode: string,
+    type: "AG" | "CS",
+    mode: ModeReunion | null,
   ): Promise<void>;
 }

@@ -125,6 +125,10 @@ export async function getFicheCopro(
   const vehiculeAgEmail = confAg?.vehiculeEmail;
   const salleCsEmail = confCs?.salleEmail;
   const vehiculeCsEmail = confCs?.vehiculeEmail;
+  // Mode de tenue (visio / presentiel / hybride) porte par la confirmation : badge a
+  // cote de la date + pre-selection dans l'editeur.
+  const modeAgReunion = confAg?.modeReunion;
+  const modeCsReunion = confCs?.modeReunion;
 
 
   return {
@@ -144,5 +148,7 @@ export async function getFicheCopro(
     ...(vehiculeAgEmail ? { vehiculeAgEmail } : {}),
     ...(salleCsEmail ? { salleCsEmail } : {}),
     ...(vehiculeCsEmail ? { vehiculeCsEmail } : {}),
+    ...(modeAgReunion ? { modeAgReunion } : {}),
+    ...(modeCsReunion ? { modeCsReunion } : {}),
   };
 }

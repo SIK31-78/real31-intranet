@@ -47,7 +47,7 @@ type CondoData = {
     council: {
       role: "PRESIDENT" | "MEMBER";
       expiry: number | null;
-      owner: { fullname: string; lastname: string; firstname: string | null };
+      owner: { fullname: string; lastname: string; firstname: string | null; email: string | null };
     }[];
     meetings: {
       category: string;
@@ -67,7 +67,7 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
   condo(id: $id) {
     constructionDate
     meetingVideo
-    council { role expiry owner { fullname lastname firstname } }
+    council { role expiry owner { fullname lastname firstname email } }
     meetings { category startAt transcript { validated } }
     contracts { label category period }
     litigation { count }
@@ -231,6 +231,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       .map((c) => ({
         nomComplet: formatPresent(c.owner),
         role: c.role === "PRESIDENT" ? ("president" as const) : ("membre" as const),
+        ...(c.owner.email && c.owner.email.includes("@") ? { email: c.owner.email.trim() } : {}),
       }))
       // President en premier, puis alphabetique.
       .sort((a, b) =>

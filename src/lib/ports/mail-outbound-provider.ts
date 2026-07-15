@@ -42,4 +42,20 @@ export interface MailOutboundProvider {
     a?: string[];
     cc?: string[];
   }): Promise<{ webLink?: string }>;
+
+  /**
+   * ENVOIE un mail NEUF (pas une reponse : aucun fil d'origine) depuis la boite, avec
+   * destinataires CHOISIS (A / Cc / Cci), objet et corps. Le corps est du TEXTE brut,
+   * rendu en HTML (Aptos 11pt) par l'adapter ; la signature est ajoutee dessous.
+   * Action irreversible (vrai mail). Sert au mail au conseil syndical (dates CS/AG).
+   */
+  envoyerNeuf(p: {
+    boite: string;
+    a: string[];
+    cc: string[];
+    cci: string[];
+    sujet: string;
+    corps: string;
+    signatureHtml?: string;
+  }): Promise<void>;
 }
