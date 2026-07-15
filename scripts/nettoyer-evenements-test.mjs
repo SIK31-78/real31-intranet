@@ -81,9 +81,15 @@ async function jetonGraph() {
 // au motif des projections intranet.
 async function listerEvenementsProjetes(tk, boite) {
   const select = "id,subject,start,end,location,attendees";
+  // Filtre serveur sur les evenements RECENTS/A VENIR (60 jours en arriere) : les boites
+  // des salles portent 10+ ans d'historique -> sans filtre, la pagination ascendante
+  // plafonnee n'atteint jamais les evenements de test recents (constate : que du 2015).
+  const depuis = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString().slice(0, 19);
+  const filtre = `start/dateTime ge '${depuis}'`;
   let url =
     `${GRAPH}/users/${encodeURIComponent(boite)}/events` +
-    `?$select=${encodeURIComponent(select)}&$top=100&$orderby=${encodeURIComponent("start/dateTime")}`;
+    `?$select=${encodeURIComponent(select)}&$top=100&$filter=${encodeURIComponent(filtre)}` +
+    `&$orderby=${encodeURIComponent("start/dateTime")}`;
   const trouves = [];
   let garde = 0;
   while (url && garde < 20) {
