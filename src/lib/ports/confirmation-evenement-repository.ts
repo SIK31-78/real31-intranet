@@ -16,15 +16,18 @@ export interface ConfirmationEvenementRepository {
   proposer(coproCode: string, type: "AG" | "CS", date: string): Promise<void>;
   /**
    * Pose (eventId + boite) ou efface (null + null) la projection Outlook de
-   * l'evenement : id Graph de l'evenement projete et agenda ou il vit. No-op si
-   * aucune ligne n'existe pour (copro, type).
+   * l'evenement : id Graph de l'evenement projete et agenda ou il vit.
+   * Renvoie `true` si une ligne a bien ete mise a jour (id memorise), `false` si
+   * AUCUNE ligne n'existe pour (copro, type) ou si la persistance a echoue. Ce
+   * booleen permet a l'appelant de detecter un evenement ORPHELIN (cree cote Graph
+   * mais dont l'id n'a pas pu etre memorise) et de le supprimer -> jamais de doublon.
    */
   enregistrerProjection(
     coproCode: string,
     type: "AG" | "CS",
     eventId: string | null,
     boite: string | null,
-  ): Promise<void>;
+  ): Promise<boolean>;
   /**
    * Pose (ou efface avec null) la salle et le vehicule reserves pour l'evenement
    * (copro, type) : UPDATE cible de la ligne existante (comme enregistrerProjection).

@@ -103,7 +103,7 @@ vi.mock("@/lib/adapters/router", () => ({
       boite: string | null,
     ) {
       const c = etat.confirmations.get(etat.cle(coproCode, type));
-      if (!c) return;
+      if (!c) return false; // pas de ligne -> id non memorise (comme l'UPDATE SQL 0 ligne)
       if (eventId && boite) {
         c.outlookEventId = eventId;
         c.outlookBoite = boite;
@@ -111,6 +111,7 @@ vi.mock("@/lib/adapters/router", () => ({
         delete c.outlookEventId;
         delete c.outlookBoite;
       }
+      return true;
     },
     async enregistrerRessources(
       coproCode: string,
@@ -490,5 +491,80 @@ describe("mode de reunion -> lieu Outlook (bonus)", () => {
   it("sans mode ni salle : aucun lieu transmis (inchange)", async () => {
     await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE);
     expect(etat.appels.creer[0]?.lieu).toBeUndefined();
+  });
+});
+
+describe("anti-doublon : jamais deux evenements pour une meme date", () => {
+  it("evenement cree mais id non memorise (ligne absente) : on le SUPPRIME (pas d'orphelin)", async () => {
+    // Projection directe SANS ligne de confirmation en base (simule proposer en echec /
+    // colonne perdue) : l'id ne peut pas etre memorise -> l'evenement cree serait
+    // introuvable au prochain geste (doublon). Il doit etre supprime dans la foulee.
+    await projeterEvenementOutlook("S099", "AG", "2026-09-15", "a_confirmer", BOITE);
+
+    expect(etat.appels.creer).toHaveLength(1);
+    expect(etat.appels.suppr).toHaveLength(1);
+    expect(etat.appels.suppr[0]).toEqual({ boite: BOITE, eventId: "evt-1" });
+    expect(confirmation("S099", "AG")).toBeUndefined(); // aucune projection fantome
+  });
+
+  it("deux gestes sur une ligne absente : chaque evenement est nettoye (aucune accumulation)", async () => {
+    await projeterEvenementOutlook("S099", "AG", "2026-09-15", "a_confirmer", BOITE);
+    await projeterEvenementOutlook("S099", "AG", "2026-10-01", "a_confirmer", BOITE);
+
+    // 2 creations tentees, 2 suppressions : au pire zero evenement, jamais deux.
+    expect(etat.appels.creer).toHaveLength(2);
+    expect(etat.appels.suppr).toHaveLength(2);
+  });
+
+  it("id connu mais boite perdue (etat incoherent) : on supprime l'ancien AVANT de recreer", async () => {
+    // Ligne avec un id d'evenement mais SANS boite (ne peut pas etre PATCHee).
+    etat.confirmations.set(etat.cle("S050", "AG"), {
+      coproCode: "S050",
+      type: "AG",
+      date: "2026-09-15",
+      statut: "a_confirmer",
+      outlookEventId: "vieux-evt",
+    });
+
+    await projeterEvenementOutlook("S050", "AG", "2026-10-01", "a_confirmer", BOITE);
+
+    // L'ancien evenement est supprime, puis un seul nouveau est cree (jamais deux).
+    expect(etat.appels.suppr).toContainEqual({ boite: BOITE, eventId: "vieux-evt" });
+    expect(etat.appels.creer).toHaveLength(1);
+  });
+});
+
+describe("salle visible dans le rendez-vous du gestionnaire (lieu au PATCH)", () => {
+  const SALLE = "real31lgc@real31.fr";
+
+  it("re-poser reflete la salle dans le lieu de l'evenement (location suit l'etat)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      modeReunion: "presentiel",
+    });
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-10-01T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      modeReunion: "presentiel",
+    });
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]?.lieu).toBe("LGC - Salle de reunions");
+    expect(etat.appels.patch[0]?.ressources).toEqual([SALLE]);
+  });
+
+  it("retirer la salle : PATCH ressources [] ET lieu vide (l'ancien lieu ne reste pas)", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      salleEmail: SALLE,
+      modeReunion: "presentiel",
+    });
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-10-01T18:00:00", "g1", BOITE, {
+      salleEmail: null,
+      vehiculeEmail: null,
+      modeReunion: null,
+    });
+
+    expect(etat.appels.patch).toHaveLength(1);
+    expect(etat.appels.patch[0]?.ressources).toEqual([]);
+    expect(etat.appels.patch[0]?.lieu).toBe("");
   });
 });

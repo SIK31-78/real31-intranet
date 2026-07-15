@@ -70,19 +70,36 @@ export async function projeterEvenementOutlook(
     const ressources = [existante?.salleEmail, existante?.vehiculeEmail].filter(
       (e): e is string => Boolean(e),
     );
-    // Lieu deduit du mode (bonus) : "Visio" en visio, sinon la salle. undefined -> lieu
-    // inchange cote Outlook (degrade propre, jamais bloquant).
+    // Lieu deduit du mode (bonus) : "Visio" en visio, sinon la salle. undefined -> aucun
+    // lieu a afficher (ni mode ni salle).
     const lieu = lieuDe(existante);
+
     if (existante?.outlookEventId && existante.outlookBoite) {
-      // Projection deja en place : on la fait suivre (jamais de doublon d'evenement).
+      // Projection deja en place : on DEPLACE / RENOMME le MEME evenement (jamais de doublon).
+      // `lieu` est TOUJOURS transmis (chaine vide si ni mode ni salle) pour que la salle /
+      // "Visio" apparaisse dans le rendez-vous du gestionnaire ET soit retiree quand on
+      // retire la salle (sinon un ancien lieu resterait affiche a tort).
       await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
         titre,
         debut,
         ...(fin ? { fin } : {}),
         ressources,
-        ...(lieu ? { lieu } : {}),
+        lieu: lieu ?? "",
       });
+      // Re-memorise (id + boite) a l'identique : idempotent, mais self-heal si la colonne
+      // avait ete videe entre-temps (l'id relu reste la reference du meme evenement).
+      await repo.enregistrerProjection(coproCode, type, existante.outlookEventId, existante.outlookBoite);
       return;
+    }
+
+    // Etat incoherent : un id d'evenement est connu mais SANS boite exploitable (on ne
+    // peut pas le PATCHer). Avant de recreer, on supprime l'ancien (best-effort) pour ne
+    // jamais laisser deux evenements en parallele.
+    if (existante?.outlookEventId) {
+      const boiteAncienne = existante.outlookBoite ?? boite;
+      if (boiteAncienne) {
+        await provider.supprimerEvenement(boiteAncienne, existante.outlookEventId).catch(() => {});
+      }
     }
 
     if (!boite) return; // pas d'agenda cible (ex. dev-login sans email) -> pas de projection
@@ -97,7 +114,15 @@ export async function projeterEvenementOutlook(
       ...(lieu ? { lieu } : {}),
     });
     // Pas d'id (provider no-op) : rien a memoriser, la projection reste inexistante.
-    if (id) await repo.enregistrerProjection(coproCode, type, id, boite);
+    if (!id) return;
+    // On memorise l'id. Si AUCUNE ligne n'a ete mise a jour (row de confirmation absente
+    // ou persistance en echec), l'evenement qu'on vient de creer serait un ORPHELIN :
+    // introuvable au prochain geste, il produirait un DOUBLON (et la salle resterait
+    // bloquee sur lui). On le supprime immediatement -> au pire pas d'evenement, jamais deux.
+    const memorise = await repo.enregistrerProjection(coproCode, type, id, boite);
+    if (!memorise) {
+      await provider.supprimerEvenement(boite, id).catch(() => {});
+    }
   } catch {
     // Degradation propre : la donnee intranet est deja ecrite, Outlook rattrapera au
     // prochain geste (re-pose / confirmation). Pas de PII en log.

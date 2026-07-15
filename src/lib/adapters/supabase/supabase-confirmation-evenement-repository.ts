@@ -144,11 +144,13 @@ export class SupabaseConfirmationEvenementRepository implements ConfirmationEven
     type: "AG" | "CS",
     eventId: string | null,
     boite: string | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const supabase = createSupabasePublicClient();
     // UPDATE cible (pas d'upsert) : une projection sans ligne de confirmation n'a pas
-    // de sens. Erreur (table absente) avalee, comme les autres ecritures.
-    await supabase
+    // de sens. `.select()` -> RETURNING : on sait si une ligne a reellement ete mise a
+    // jour (id memorise). Renvoie `false` si aucune ligne (row absente) ou erreur (table
+    // absente) : l'appelant supprime alors l'evenement Graph orphelin (jamais de doublon).
+    const { data, error } = await supabase
       .from(TABLE)
       .update({
         outlook_event_id: eventId,
@@ -156,7 +158,9 @@ export class SupabaseConfirmationEvenementRepository implements ConfirmationEven
         updated_at: new Date().toISOString(),
       })
       .eq("copro_code", coproCode)
-      .eq("type", type);
+      .eq("type", type)
+      .select("copro_code");
+    return !error && Array.isArray(data) && data.length > 0;
   }
 
   async enregistrerRessources(
