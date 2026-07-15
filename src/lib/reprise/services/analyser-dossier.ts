@@ -66,31 +66,50 @@ export async function analyserDossierUnifie(
   // Les agents patrimoine gardent leur propre aiguillage interne (structure vs proprietaires) ;
   // on leur passe les documents NON grand-livre. Sans grand livre, patriDocs == tous les docs
   // -> comportement identique a l'existant (degradation stricte).
+  // GRAND LIVRE SEUL (constate par Sekou : 4 min au lieu de 2 s) : sans document patrimoine,
+  // on N'APPELLE PAS l'extraction IA patrimoine (minutes d'IA pour zero document) - l'analyse
+  // reste la compta couche texte, quasi instantanee.
   const [patrimoine, grandLivre] = await Promise.all([
-    analyserPatrimoine(extraction, patriDocs),
+    patriDocs.length > 0 ? analyserPatrimoine(extraction, patriDocs) : Promise.resolve(null),
     avecGrandLivre ? extraireEtVerifierGrandLivre(extractionCompta!, glDocs) : Promise.resolve(null),
   ]);
 
+  if (!patrimoine && !grandLivre) {
+    throw new Error("Aucun document exploitable (ni patrimoine ni grand livre).");
+  }
+
   // Pas de grand livre : degradation stricte -> patrimoine seul, comme avant.
-  if (!grandLivre) return { jeu: patrimoine.jeu, recap: patrimoine.recap };
+  if (!grandLivre) return { jeu: patrimoine!.jeu, recap: patrimoine!.recap };
+
+  // Grand livre SEUL : jeu patrimoine vide (aucune extraction IA lancee), la compta porte tout.
+  const jeuPatrimoine: JeuDeDonnees = patrimoine?.jeu ?? {
+    lots: [],
+    cles: [],
+    tantiemes: [],
+    owners: [],
+    attributions: [],
+  };
+  const notesPatrimoine = patrimoine?.recap.notes ?? [
+    "Aucun document patrimoine fourni : analyse comptable seule (patrimoine a analyser separement).",
+  ];
 
   // Liaison owners <-> comptes 450 (reutilise le scoring conservateur de mapping-compta).
   const comptes450 = comptes450DeIntitules(grandLivre.jeu.intitules);
-  const liaison = lierOwnersComptes(patrimoine.jeu.owners, comptes450);
+  const liaison = lierOwnersComptes(jeuPatrimoine.owners, comptes450);
 
-  const jeu: JeuDeDonnees = { ...patrimoine.jeu, liaisons450: liaison.liaisons };
+  const jeu: JeuDeDonnees = { ...jeuPatrimoine, liaisons450: liaison.liaisons };
 
   // Recalcule le recap depuis le jeu ENRICHI (bloc liaison) puis re-injecte les notes
   // d'extraction (patrimoine + proprietaires) + les warnings de liaison (PII-free) + une note
   // de vigilance si les intitules 450 n'ont pas ete captures (extraction non couche-texte).
   const recap = calculerRecap(jeu);
   const notesLiaison = [...liaison.warnings];
-  if (comptes450.length === 0 && patrimoine.jeu.owners.length > 0) {
+  if (comptes450.length === 0 && jeuPatrimoine.owners.length > 0) {
     notesLiaison.push(
       "Liaison 450 impossible : intitules des comptes 450 non captures par l'extraction du grand livre (pipeline couche texte requis).",
     );
   }
-  recap.notes = [...patrimoine.recap.notes, ...notesLiaison];
+  recap.notes = [...notesPatrimoine, ...notesLiaison];
 
   const compta: RecapCompta = {
     equilibre: grandLivre.equilibreGlobal.equilibre,
