@@ -265,3 +265,39 @@ describe("groupes homonymes (coproprietaires a comptes multiples)", () => {
     expect(plan.pretAImporter).toBe(true);
   });
 });
+
+describe("consommation de la LIAISON (onboarding unifie)", () => {
+  it("mappe un 450 par la cle compte->owner sans appariement par nom", () => {
+    // Contexte eStale SANS coproprietaire apparie : sans liaison, ce compte serait non_mappe.
+    const ctx: ContexteEstale = { fournisseurs: [], coproprietaires: [] };
+    const e = mapperCompte("4501.100", "PEU IMPORTE LE NOM", ctx, { liaisonNomenclature: "4500042" });
+    expect(e.statut).toBe("mappe");
+    expect(e.cible?.nomenclature).toBe("4500042");
+  });
+
+  it("la liaison court-circuite meme un groupe homonyme (revue faite a l'analyse)", () => {
+    const ctx: ContexteEstale = { fournisseurs: [], coproprietaires: [] };
+    const plan = resoudreComptes(
+      [
+        { compte: "4501.100", intitule: "DURAND JEANNE" },
+        { compte: "4501.200", intitule: "DURAND JEANNE" }, // homonyme
+      ],
+      ctx,
+      { liaisonParCompte: { "4501.100": "4500011", "4501.200": "4500012" } },
+    );
+    // Le groupe homonyme est toujours detecte, mais les 2 comptes sont mappes par cle.
+    expect(plan.groupesHomonymes).toHaveLength(1);
+    expect(plan.compteurs.mappe).toBe(2);
+    expect(plan.compteurs.warning_appariement).toBe(0);
+    expect(plan.pretAImporter).toBe(true);
+  });
+
+  it("sans liaison sur un compte, l'appariement par nom reste le fallback", () => {
+    const plan = resoudreComptes(
+      [{ compte: "4501.1", intitule: "ELENA NOVAK" }],
+      CTX,
+      { liaisonParCompte: { "4999.9": "4500099" } }, // liaison sur un autre compte
+    );
+    expect(plan.compteurs.mappe).toBe(1); // apparie par nom a 4500002 (NOVAK ELENA)
+  });
+});

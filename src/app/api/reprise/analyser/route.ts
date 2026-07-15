@@ -12,10 +12,16 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import {
   getRepriseDossierRepository,
   getExtractionProvider,
+  getExtractionComptaProvider,
   modeExtraction,
 } from "@/lib/reprise/adapters/router";
-import { appliquerRecap, ajouterJournal, enregistrerJeu } from "@/lib/reprise/services/suivi-dossier";
-import { analyserPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
+import {
+  appliquerRecap,
+  ajouterJournal,
+  enregistrerJeu,
+  enregistrerComptaResume,
+} from "@/lib/reprise/services/suivi-dossier";
+import { analyserDossierUnifie, estGrandLivre } from "@/lib/reprise/services/analyser-dossier";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 
 export const runtime = "nodejs";
@@ -74,19 +80,32 @@ export async function POST(req: Request) {
     docs.push({ nom: f.name, contenu: new Uint8Array(await f.arrayBuffer()) });
   }
 
+  // Analyse UNIFIEE : patrimoine + (si un grand livre est joint) compta + liaison owners<->450.
+  // Le provider compta n'est construit QUE si un grand livre est present (evite le throw du
+  // routeur en prod-mock quand aucune compta n'est demandee).
+  const avecGrandLivre = docs.some((d) => estGrandLivre(d.nom));
+
   try {
-    const { jeu, recap } = await analyserPatrimoine(getExtractionProvider(), docs);
+    const extractionCompta = avecGrandLivre ? getExtractionComptaProvider() : null;
+    const { jeu, recap, compta } = await analyserDossierUnifie(getExtractionProvider(), extractionCompta, docs);
     const repo = getRepriseDossierRepository();
     // Reporte compteurs + anomalies dans le dossier (le patrimoine devient des etats).
     await appliquerRecap(repo, dossierId, recap);
-    // Persiste le jeu complet pour rehydrater la fiche a l'ouverture sans re-analyser.
-    // Degrade proprement si la colonne jeu n'existe pas encore (ne casse pas l'analyse).
+    // Persiste le resume compta (dans les compteurs, JSONB) pour rehydrater le bloc compta.
+    if (compta) await enregistrerComptaResume(repo, dossierId, compta);
+    // Persiste le jeu complet (avec liaisons450 le cas echeant) pour rehydrater la fiche a
+    // l'ouverture sans re-analyser. Degrade proprement si la colonne jeu n'existe pas encore.
     await enregistrerJeu(repo, dossierId, jeu);
     await ajouterJournal(
       repo,
       dossierId,
       new Date().toISOString(),
-      `Analyse des documents : ${recap.lots.total} lot(s), ${recap.cles.length} cle(s), ${recap.owners.total} coproprietaire(s).`,
+      `Analyse des documents : ${recap.lots.total} lot(s), ${recap.cles.length} cle(s), ${recap.owners.total} coproprietaire(s)` +
+        (compta
+          ? ` ; grand livre : ${compta.nbEcritures} ecriture(s), ${compta.nbComptes} compte(s), balance ${compta.equilibre ? "equilibree" : `ecart ${compta.ecart}`}` +
+            (recap.liaison ? `, liaison 450 : ${recap.liaison.lies} lie(s) / ${recap.liaison.aTrancher} a trancher / ${recap.liaison.sansCompte} sans compte` : "")
+          : "") +
+        ".",
     );
     revalidatePath(`/reprise-copro/dossiers/${dossierId}`);
     revalidatePath("/reprise-copro/dossiers");

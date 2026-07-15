@@ -28,6 +28,30 @@ export interface RecapCle {
   ecart: number;
 }
 
+/** Etat de la liaison owners <-> comptes 450 (analyse unifiee avec grand livre). */
+export interface RecapLiaison {
+  /** Total d'owners traites. */
+  total: number;
+  /** Owners lies a un compte 450 (deterministe pour la compta). */
+  lies: number;
+  /** Owners a trancher (appariement ambigu / homonyme). */
+  aTrancher: number;
+  /** Owners sans compte 450 apparie. */
+  sansCompte: number;
+}
+
+/** Resume de la reprise comptable (grand livre) pour le mini-recap GO/STOP. */
+export interface RecapCompta {
+  /** true si le grand livre est equilibre (total debit == total credit). */
+  equilibre: boolean;
+  /** Ecart signe totalDebit - totalCredit (0 si equilibre). */
+  ecart: number;
+  /** Nombre de comptes source distincts. */
+  nbComptes: number;
+  /** Nombre d'ecritures extraites. */
+  nbEcritures: number;
+}
+
 /** Mini-recap presente a l'humain pour decision GO/STOP (cf. ETAPE 2 du protocole). */
 export interface RecapPatrimoine {
   lots: { total: number; parUsage: Record<Usage, number> };
@@ -41,6 +65,17 @@ export interface RecapPatrimoine {
   checks: ResultatChecks;
   /** true si aucune ERREUR bloquante (le GO final reste humain). */
   pretAProduire: boolean;
+  /**
+   * Etat de la liaison owners <-> comptes 450. Present UNIQUEMENT si le jeu porte des liaisons
+   * (analyse unifiee avec grand livre) ; absent pour le parcours patrimoine seul. Une liaison
+   * ambigue NE BLOQUE PAS l'injection (pretAProduire inchange) : elle se tranche dans l'UI.
+   */
+  liaison?: RecapLiaison;
+  /**
+   * Resume de la reprise comptable. Renseigne par l'analyse unifiee (route), PAS par
+   * calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans grand livre.
+   */
+  compta?: RecapCompta;
 }
 
 export interface AnalysePatrimoine {
@@ -75,6 +110,17 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
   const groupes = detecterDoublons(jeu.owners);
   const checks = verifierTout(jeu);
 
+  // Bloc liaison (owners <-> comptes 450) : present seulement si le jeu porte des liaisons
+  // (analyse unifiee avec grand livre). Derivable du jeu seul -> recalcule a la rehydratation.
+  const liaison: RecapLiaison | undefined = jeu.liaisons450
+    ? {
+        total: jeu.liaisons450.length,
+        lies: jeu.liaisons450.filter((l) => l.statut === "lie").length,
+        aTrancher: jeu.liaisons450.filter((l) => l.statut === "ambigu").length,
+        sansCompte: jeu.liaisons450.filter((l) => l.statut === "non_trouve").length,
+      }
+    : undefined;
+
   return {
     lots: { total: jeu.lots.length, parUsage },
     cles,
@@ -92,6 +138,7 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
     notes: [],
     checks,
     pretAProduire: checks.ok,
+    ...(liaison ? { liaison } : {}),
   };
 }
 

@@ -73,6 +73,9 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     const recap = calculerRecap(dossier.jeu);
     const warnings = new Set(recap.checks.warnings.map((w) => w.message));
     recap.notes = dossier.anomalies.filter((a) => !warnings.has(a));
+    // Bloc compta : recalcule depuis le jeu (liaison) par calculerRecap ; le resume compta
+    // (balance / nb comptes) n'est pas dans le jeu -> relu depuis les compteurs persistes.
+    if (dossier.compteurs.compta) recap.compta = dossier.compteurs.compta;
     analyseInitiale = { jeu: dossier.jeu, recap };
   }
 

@@ -303,6 +303,14 @@ export interface OptionsMapperCompte {
    * silencieuse ; l'humain choisit / cree un compte separe).
    */
   homonyme?: boolean;
+  /**
+   * LIAISON deja etablie (analyse unifiee) : nomenclature eStale du compte 450 de l'owner auquel
+   * ce compte source est rattache. Quand elle est presente pour un coproprietaire, le mapping est
+   * DETERMINISTE par la CLE compte->owner : statut "mappe", sans appariement par nom, MEME dans un
+   * groupe homonyme (la revue humaine a deja tranche a l'analyse -> les homonymes sont distingues
+   * par leur compte). C'est le gain de l'onboarding unifie sur l'appariement par nom apres coup.
+   */
+  liaisonNomenclature?: string;
 }
 
 /**
@@ -352,6 +360,17 @@ export function mapperCompte(
     }
 
     case "coproprietaire": {
+      // LIAISON PRIORITAIRE : si l'owner de ce compte 450 est deja rattache (analyse unifiee,
+      // revue humaine faite), on mappe par la CLE compte->owner. Deterministe, homonyme-proof :
+      // aucun appariement par nom, court-circuite meme la desactivation du groupe homonyme.
+      if (options?.liaisonNomenclature) {
+        return {
+          ...base,
+          statut: "mappe",
+          cible: cible(options.liaisonNomenclature),
+          note: "liaison compte->owner (revue faite a l'analyse unifiee) : appariement par nom court-circuite",
+        };
+      }
       if (!intitule) {
         return {
           ...base,
@@ -563,14 +582,30 @@ export function detecterGroupesHomonymes(comptes: CompteSource[]): GroupeHomonym
  * compte puis assemble le plan et y attache les groupes. C'est le point d'entree PUR du resolveur
  * (les services LIsent eStale puis delegent ici). Meme entree => meme sortie.
  */
-export function resoudreComptes(comptes: CompteSource[], contexte: ContexteEstale): PlanMapping {
+/** Options de resolution d'un plan complet (au-dela du compte seul). */
+export interface OptionsResoudre {
+  /**
+   * LIAISON compte source 450 -> nomenclature eStale de l'owner (issue de l'analyse unifiee, une
+   * fois les owners injectes). Optionnelle : l'ecran mapping-compta standalone n'en fournit pas
+   * (retro-compatible). Quand un compte y figure, il est mappe par la cle (sans appariement par
+   * nom), meme homonyme.
+   */
+  liaisonParCompte?: Record<string, string>;
+}
+
+export function resoudreComptes(
+  comptes: CompteSource[],
+  contexte: ContexteEstale,
+  options?: OptionsResoudre,
+): PlanMapping {
   const groupes = detecterGroupesHomonymes(comptes);
   const indexParCompte = new Map<string, number>();
   groupes.forEach((g, i) => g.comptes.forEach((c) => indexParCompte.set(c, i)));
 
   const entrees = comptes.map(({ compte, intitule }) => {
     const idx = indexParCompte.get(compte);
-    const e = mapperCompte(compte, intitule, contexte, { homonyme: idx !== undefined });
+    const liaisonNomenclature = options?.liaisonParCompte?.[compte];
+    const e = mapperCompte(compte, intitule, contexte, { homonyme: idx !== undefined, liaisonNomenclature });
     return idx !== undefined ? { ...e, groupeHomonyme: idx } : e;
   });
 

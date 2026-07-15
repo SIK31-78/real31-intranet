@@ -3,9 +3,10 @@
 // le port DossierRepository (persistance interchangeable : memoire aujourd'hui, Supabase
 // demain). La logique reste testable avec l'adapter memoire.
 
-import type { Dossier, StatutEtape } from "@/lib/reprise/domain/dossier";
+import type { ComptaResume, Dossier, StatutEtape } from "@/lib/reprise/domain/dossier";
 import { creerDossier } from "@/lib/reprise/domain/dossier";
-import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
+import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
+import { trancherLiaison } from "@/lib/reprise/domain/liaison-comptes";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import type { RecapPatrimoine } from "./orchestrateur-patrimoine";
 
@@ -110,4 +111,37 @@ export async function enregistrerJeu(
   const d = await exiger(repo, ref);
   d.jeu = jeu;
   await repo.sauver(d);
+}
+
+/**
+ * Persiste le resume de la reprise comptable dans les compteurs du dossier (loge dans le JSONB
+ * `compteurs` deja persiste : zero migration). Sert a rehydrater le bloc compta du recap GO/STOP.
+ */
+export async function enregistrerComptaResume(
+  repo: DossierRepository,
+  ref: string,
+  compta: ComptaResume,
+): Promise<void> {
+  const d = await exiger(repo, ref);
+  d.compteurs = { ...d.compteurs, compta };
+  await repo.sauver(d);
+}
+
+/**
+ * Tranche une liaison owner <-> compte 450 (revue humaine) et repersiste le jeu. Le compte choisi
+ * (ou null pour "sans compte") vient d'un candidat propose. Pur cote domaine (trancherLiaison) ;
+ * ce service ne fait que charger / muter / sauver. No-op propre si aucune liaison sur le dossier.
+ */
+export async function trancherLiaisonDossier(
+  repo: DossierRepository,
+  ref: string,
+  ownerId: string,
+  compteSource: string | null,
+): Promise<LiaisonOwnerCompte[]> {
+  const d = await exiger(repo, ref);
+  if (!d.jeu?.liaisons450) return [];
+  const liaisons = trancherLiaison(d.jeu.liaisons450, ownerId, compteSource);
+  d.jeu = { ...d.jeu, liaisons450: liaisons };
+  await repo.sauver(d);
+  return liaisons;
 }

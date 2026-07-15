@@ -41,7 +41,7 @@ import { formatDateLongue } from "@/lib/format-date";
 import type { Phase, StatutEtape, StatutDossier } from "@/lib/reprise/domain/dossier";
 import { PHASES } from "@/lib/reprise/domain/dossier";
 import { ETABLISSEMENTS_REAL31 } from "@/lib/reprise/domain/etablissements";
-import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
+import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import type { MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
 import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import {
@@ -49,6 +49,7 @@ import {
   ajouterNoteAction,
   produireAction,
   injecterAction,
+  trancherLiaisonAction,
   type FichierProduit,
   type RapportInjectionVue,
 } from "./actions";
@@ -324,11 +325,14 @@ function ZonePatrimoine({
           <div className="mt-2.5 rounded-md border border-line bg-surface px-3 py-2">
             <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Documents attendus</p>
             <ul className="mt-1 text-[12px] text-ink-2 space-y-0.5">
-              <li>EDD (etat descriptif de division) + RCP et modificatifs <span className="text-ink-4">- lots, cles, tantiemes</span></li>
+              <li>PV d&apos;AG de nomination + feuille de presence <span className="text-ink-4">- coproprietaires, mandat</span></li>
               <li>RGDD / annexes comptables de la convocation <span className="text-ink-4">- cles reelles (eau froide/chaude, chauffage, ascenseur...)</span></li>
-              <li>Feuille de presence de la derniere AG <span className="text-ink-4">- coproprietaires</span></li>
-              <li>PV de la derniere AG <span className="text-ink-4">- coproprietaires, resolutions</span></li>
+              <li>EDD (etat descriptif de division) + RCP et modificatifs <span className="text-ink-4">- lots, cles, tantiemes</span></li>
               <li>Fiche synthese, registre national <span className="text-ink-4">- controle : nb lots, batiments</span></li>
+              <li>
+                Grand livre N-1 <span className="text-ink-4">- compta : ecritures, comptes 450 lies aux coproprietaires</span>
+                <span className="ml-1 inline-block rounded bg-surface-2 px-1 text-[10px] text-ink-3">nom de fichier avec &laquo; grand livre &raquo; ou &laquo; GL &raquo;</span>
+              </li>
             </ul>
           </div>
           <input
@@ -434,8 +438,144 @@ function ResultatsAnalyse({
     <div className="flex flex-col gap-5">
       <CadrageAVerifier points={cadrage} />
       <PatrimoineExtrait recap={recap} />
+      {(recap.compta || recap.liaison) && <ComptaLiaison dossierRef={dossier.ref} recap={recap} jeu={jeu} />}
       <ActionsPatrimoine dossier={dossier} jeu={jeu} pretAProduire={recap.pretAProduire} ecritureReelle={ecritureReelle} />
     </div>
+  );
+}
+
+// Bloc COMPTA + LIAISON (analyse unifiee avec grand livre) : balance du grand livre + etat de la
+// liaison owners <-> comptes 450, avec la revue humaine des cas ambigus. La liaison ambigue NE
+// BLOQUE PAS l'injection patrimoine : c'est un complement compta reutilise par le mapping.
+function ComptaLiaison({
+  dossierRef,
+  recap,
+  jeu,
+}: {
+  dossierRef: string;
+  recap: RecapPatrimoine;
+  jeu: JeuDeDonnees;
+}) {
+  // Etat local des liaisons (seed depuis le jeu) : mis a jour a chaque tranche pour refleter
+  // instantanement les compteurs sans re-analyser.
+  const [liaisons, setLiaisons] = useState<LiaisonOwnerCompte[]>(jeu.liaisons450 ?? []);
+  const nomParOwner = new Map(jeu.owners.map((o) => [o.id, [o.nom, o.prenom].filter(Boolean).join(" ")]));
+
+  const lies = liaisons.filter((l) => l.statut === "lie").length;
+  const aTrancher = liaisons.filter((l) => l.statut === "ambigu").length;
+  const sansCompte = liaisons.filter((l) => l.statut === "non_trouve").length;
+  const ambigues = liaisons.filter((l) => l.statut === "ambigu");
+
+  return (
+    <section>
+      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Comptabilite (grand livre)</h3>
+
+      {recap.compta && (
+        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-md border border-line bg-surface px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <Badge ton={recap.compta.equilibre ? "ok" : "err"} dot>
+                {recap.compta.equilibre ? "equilibree" : `ecart ${recap.compta.ecart}`}
+              </Badge>
+            </div>
+            <div className="text-[11px] text-ink-3 mt-1">Balance grand livre</div>
+          </div>
+          <Stat label="Comptes" valeur={recap.compta.nbComptes} petit />
+          <Stat label="Ecritures" valeur={recap.compta.nbEcritures} petit />
+          <div className="rounded-md border border-line bg-surface px-3 py-2">
+            <div className="text-[15px] font-semibold text-ink">
+              <span className="text-green-700">{lies}</span>
+              <span className="text-ink-4"> / </span>
+              <span className={aTrancher > 0 ? "text-warn-700" : "text-ink-3"}>{aTrancher}</span>
+              <span className="text-ink-4"> / </span>
+              <span className="text-ink-3">{sansCompte}</span>
+            </div>
+            <div className="text-[11px] text-ink-3">Liaison 450 : lies / a trancher / sans compte</div>
+          </div>
+        </div>
+      )}
+
+      <p className="mt-2 text-[12px] text-ink-3">
+        La liaison rattache chaque coproprietaire a son compte 450 de l&apos;ancien syndic (cle de la reprise
+        comptable). Les cas ambigus se tranchent ci-dessous ; ils ne bloquent pas l&apos;injection du patrimoine.
+      </p>
+
+      {ambigues.length > 0 ? (
+        <ul className="mt-3 divide-y divide-line rounded-md border border-line">
+          {ambigues.map((l) => (
+            <LigneLiaisonAmbigue
+              key={l.ownerId}
+              dossierRef={dossierRef}
+              liaison={l}
+              nom={nomParOwner.get(l.ownerId) ?? l.ownerId}
+              onTranchee={setLiaisons}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-[12px] text-ink-3">
+          {liaisons.length > 0 ? "Aucune liaison ambigue a trancher." : "Aucune liaison (pas de grand livre exploite)."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+// Une ligne de liaison AMBIGUE : owner + selecteur de compte 450 candidat (ou "sans compte").
+function LigneLiaisonAmbigue({
+  dossierRef,
+  liaison,
+  nom,
+  onTranchee,
+}: {
+  dossierRef: string;
+  liaison: LiaisonOwnerCompte;
+  nom: string;
+  onTranchee: (liaisons: LiaisonOwnerCompte[]) => void;
+}) {
+  const [choix, setChoix] = useState<string>(liaison.candidats?.[0]?.compteSource ?? "");
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
+
+  const trancher = () => {
+    startTransition(async () => {
+      const r = await trancherLiaisonAction(dossierRef, liaison.ownerId, choix);
+      if (r.ok) {
+        onTranchee(r.liaisons);
+        toast.ok(choix ? "Liaison rattachee." : "Coproprietaire marque sans compte 450.");
+      } else {
+        toast.err(r.message);
+      }
+    });
+  };
+
+  return (
+    <li className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[13px] text-ink truncate">{nom}</p>
+        <p className="text-[11px] text-ink-4">
+          {liaison.groupeHomonyme ? "homonyme cote grand livre - " : ""}
+          confiance {liaison.confiance !== undefined ? liaison.confiance.toFixed(2) : "?"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <select
+          value={choix}
+          onChange={(e) => setChoix(e.target.value)}
+          className="h-8 rounded-md border border-line bg-surface px-2 text-[12px] font-mono text-ink"
+        >
+          {(liaison.candidats ?? []).map((c) => (
+            <option key={c.compteSource} value={c.compteSource}>
+              {c.compteSource} ({c.confiance.toFixed(2)})
+            </option>
+          ))}
+          <option value="">- sans compte 450 -</option>
+        </select>
+        <Button type="button" variant="secondary" onClick={trancher} disabled={pending}>
+          {pending ? "..." : "Trancher"}
+        </Button>
+      </div>
+    </li>
   );
 }
 

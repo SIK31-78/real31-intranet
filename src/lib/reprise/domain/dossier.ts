@@ -37,6 +37,18 @@ export interface Etape {
   statut: StatutEtape;
 }
 
+/** Resume de la reprise comptable (grand livre) : present si un grand livre a ete analyse. */
+export interface ComptaResume {
+  /** true si le grand livre est equilibre (total debit == total credit). */
+  equilibre: boolean;
+  /** Ecart signe totalDebit - totalCredit. */
+  ecart: number;
+  /** Nombre de comptes source distincts. */
+  nbComptes: number;
+  /** Nombre d'ecritures extraites. */
+  nbEcritures: number;
+}
+
 /** Compteurs du dossier (alignes sur le frontmatter des fiches S0XXX). */
 export interface CompteursDossier {
   nbLots?: number;
@@ -45,6 +57,11 @@ export interface CompteursDossier {
   nbAttributions?: number;
   nbAnomalies?: number;
   nbFusionsEffectuees?: number;
+  /**
+   * Resume de la reprise comptable, renseigne par l'analyse unifiee (grand livre fourni).
+   * Loge dans `compteurs` (JSONB deja persiste) : ADDITIF, zero migration, rehydratation souple.
+   */
+  compta?: ComptaResume;
 }
 
 export interface EntreeJournal {

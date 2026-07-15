@@ -73,6 +73,7 @@ export async function construirePlanMapping(
   jeu: JeuEcritures,
   coproCode: string,
   provider: EstaleComptaLectureProvider = getEstaleComptaLectureProvider(),
+  liaisonParCompte?: Record<string, string>,
 ): Promise<ResultatPlanMapping> {
   try {
     const ref = await provider.resoudreAccounting(coproCode);
@@ -86,7 +87,7 @@ export async function construirePlanMapping(
     const comptes = await provider.lireComptes(ref);
     const contexte = construireContexteEstale(comptes);
 
-    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte);
+    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
 
     return { ok: true, plan, ref };
   } catch (e) {
@@ -120,6 +121,7 @@ export async function preparerRevueMapping(
   jeu: JeuEcritures,
   coproCode: string,
   provider: EstaleComptaLectureProvider = getEstaleComptaLectureProvider(),
+  liaisonParCompte?: Record<string, string>,
 ): Promise<ResultatRevueMapping> {
   try {
     const ref = await provider.resoudreAccounting(coproCode);
@@ -133,7 +135,7 @@ export async function preparerRevueMapping(
     const comptes = await provider.lireComptes(ref);
     const contexte = construireContexteEstale(comptes);
 
-    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte);
+    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
 
     return {
       ok: true,

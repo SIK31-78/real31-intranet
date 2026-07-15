@@ -23,7 +23,8 @@ import {
   getEstaleEcritureProvider,
   ecritureEstaleReelle,
 } from "@/lib/reprise/adapters/router";
-import { majEtape, ajouterJournal } from "@/lib/reprise/services/suivi-dossier";
+import { majEtape, ajouterJournal, trancherLiaisonDossier } from "@/lib/reprise/services/suivi-dossier";
+import type { LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import { produirePhaseABuffers } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import { onboarderCopro, type MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
 import { ETABLISSEMENT_IDS } from "@/lib/reprise/domain/etablissements";
@@ -98,6 +99,49 @@ export async function ajouterNoteAction(dossierId: string, texte: string): Promi
 
   revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
   return { ok: true };
+}
+
+// --- LIAISON owners <-> comptes 450 (revue humaine des cas ambigus) ---------
+
+const schemaTrancherLiaison = z.object({
+  dossierId: z.string().trim().min(1).max(40),
+  ownerId: z.string().trim().min(1).max(80),
+  // Numero de compte 450 choisi, ou "" pour "sans compte" (dissociation).
+  compteSource: z.string().trim().max(60),
+});
+
+export type TrancherLiaisonResultat =
+  | { ok: true; liaisons: LiaisonOwnerCompte[] }
+  | { ok: false; message: string };
+
+/**
+ * Tranche une liaison owner <-> compte 450 ambigue : rattache le compte choisi (ou dissocie si
+ * vide). Persiste le jeu. Cloisonnement : gestionnaire connecte exige. Ne bloque jamais
+ * l'injection patrimoine (la liaison est un complement compta, pas un pre-requis).
+ */
+export async function trancherLiaisonAction(
+  dossierId: string,
+  ownerId: string,
+  compteSource: string,
+): Promise<TrancherLiaisonResultat> {
+  const valid = schemaTrancherLiaison.safeParse({ dossierId, ownerId, compteSource });
+  if (!valid.success) return { ok: false, message: "Liaison invalide." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour trancher cette liaison." };
+
+  try {
+    const liaisons = await trancherLiaisonDossier(
+      getRepriseDossierRepository(),
+      valid.data.dossierId,
+      valid.data.ownerId,
+      valid.data.compteSource.length > 0 ? valid.data.compteSource : null,
+    );
+    revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
+    return { ok: true, liaisons };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Mise a jour de la liaison impossible." };
+  }
 }
 
 // --- PATRIMOINE (pilote IA) -------------------------------------------------
