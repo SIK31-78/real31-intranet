@@ -72,6 +72,8 @@ export interface GenererResultat {
   courriers: CourrierOwner[];
   /** Owners ignores car deja soumis/valides (on n'ecrase pas leur reponse). */
   ignores: number;
+  /** Persistance indisponible : aucun courrier produit (codes qui seraient invalides). */
+  erreur?: string;
 }
 
 /**
@@ -121,6 +123,22 @@ export async function genererCourriers(
       code,
       ...(opts.relance ? { relance: true } : {}),
     });
+  }
+
+  // GARDE-FOU (constate par Sekou : codes imprimes invalides) : si la persistance est un no-op
+  // silencieux (table reprise_fiche_renseignements absente -> l'adapter degrade), les courriers
+  // porteraient des tokens que RIEN ne peut verifier. On relit une fiche ecrite : introuvable =
+  // persistance KO -> on le dit clairement au lieu de laisser imprimer des courriers morts.
+  if (courriers.length > 0) {
+    const relue = await repo.obtenirParTokenHash(hacher(courriers[courriers.length - 1].lien.split("/fiche/")[1]));
+    if (!relue) {
+      return {
+        courriers: [],
+        ignores,
+        erreur:
+          "Persistance indisponible : les fiches generees ne sont pas enregistrees (table reprise_fiche_renseignements absente ?). Execute supabase/sql/reprise_fiche_renseignements.sql puis regenere - les courriers n'ont pas ete produits pour eviter d'imprimer des codes invalides.",
+      };
+    }
   }
 
   return { courriers, ignores };
