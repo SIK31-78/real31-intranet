@@ -6,6 +6,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { peutVoirComptabilite } from "@/lib/auth/roles";
 import {
   ajouterNoteCompta,
   getCoproCompta,
@@ -41,10 +42,14 @@ export async function ajouterNoteAction(
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
   if (!texte.trim()) return { ok: false, erreur: "Note vide." };
-  // Garde d'appartenance (anti-IDOR) : la copro doit relever du gestionnaire courant.
-  if (!(await getCoproCompta(coproCode, g.id))) return { ok: false, erreur: "Copropriété hors de votre périmètre." };
+  // Autorisation : le pole comptable (COMPTABLES) / super-admin ecrit sur toute copro (le
+  // dialogue compta est prevu pour eux) ; sinon garde d'appartenance (anti-IDOR) : la copro
+  // doit relever du gestionnaire courant.
+  const transverse = peutVoirComptabilite(g.email);
+  if (!transverse && !(await getCoproCompta(coproCode, g.id)))
+    return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    await ajouterNoteCompta(coproCode, agDateISO, auteur, texte.trim(), g.initiales, g.id);
+    await ajouterNoteCompta(coproCode, agDateISO, auteur, texte.trim(), g.initiales, g.id, { transverse });
     revalider();
     return { ok: true };
   } catch (e) {
@@ -62,12 +67,13 @@ export async function marquerNoteAction(
     return { ok: false, erreur: "Données invalides." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
-  // Garde d'appartenance : la copro doit relever du gestionnaire courant (cloisonnement),
-  // sinon on refuse avant tout UPDATE (anti-IDOR). L'UPDATE est ensuite borne a copro/AG.
-  const copro = await getCoproCompta(coproCode, g.id);
-  if (!copro) return { ok: false, erreur: "Copropriété hors de votre périmètre." };
+  // Autorisation : pole comptable / super-admin sur toute copro, sinon garde d'appartenance
+  // (anti-IDOR) avant tout UPDATE. L'UPDATE est ensuite borne a copro/AG.
+  const transverse = peutVoirComptabilite(g.email);
+  if (!transverse && !(await getCoproCompta(coproCode, g.id)))
+    return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    await marquerNoteCompta(coproCode, agDateISO, noteId, resolu, g.initiales, g.id);
+    await marquerNoteCompta(coproCode, agDateISO, noteId, resolu, g.initiales, g.id, { transverse });
     revalider();
     return { ok: true };
   } catch (e) {
@@ -85,10 +91,13 @@ export async function setFlagAction(
     return { ok: false, erreur: "Données invalides." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
-  // Garde d'appartenance (anti-IDOR) : la copro doit relever du gestionnaire courant.
-  if (!(await getCoproCompta(coproCode, g.id))) return { ok: false, erreur: "Copropriété hors de votre périmètre." };
+  // Autorisation : pole comptable / super-admin sur toute copro, sinon garde d'appartenance
+  // (anti-IDOR) : la copro doit relever du gestionnaire courant.
+  const transverse = peutVoirComptabilite(g.email);
+  if (!transverse && !(await getCoproCompta(coproCode, g.id)))
+    return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
-    await setFlagCompta(coproCode, agDateISO, flag, valeur, g.initiales, g.id);
+    await setFlagCompta(coproCode, agDateISO, flag, valeur, g.initiales, g.id, { transverse });
     revalider();
     return { ok: true };
   } catch (e) {

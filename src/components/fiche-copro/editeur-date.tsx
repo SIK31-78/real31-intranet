@@ -7,6 +7,7 @@ import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
 import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
 import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
+import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { Button } from "@/components/ui/button";
 import {
   definirDateAg,
@@ -124,10 +125,6 @@ export function EditeurDate({
   >({});
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmeEffacer, setConfirmeEffacer] = useState(false);
-  // Un creneau "occupe" (mon agenda ou un collegue) ne BLOQUE pas : il exige une
-  // confirmation explicite au Valider. Ce drapeau passe a true au 1er clic si un
-  // conflit existe, et affiche l'avertissement + le bouton "planifier quand meme".
-  const [confirmeOccupe, setConfirmeOccupe] = useState(false);
 
   // L'heure et la reservation de salle ne concernent que la PROCHAINE reunion :
   // masquees (et vides) pour "derniere" (simple correction du referentiel).
@@ -275,10 +272,43 @@ export function EditeurDate({
   // Dispo d'un collegue pour le creneau courant (undefined = pas encore de reponse).
   const dispoCollabValeur = (email: string) => dispoCollab[`${email}|${cleAgenda}`];
 
-  // Conflit d'agenda = mon agenda occupe OU au moins un collegue occupe (sur ce creneau).
-  const monAgendaOccupe = dispoAgendaValeur === "occupee";
-  const collabOccupe = collaborateursVal.some((e) => dispoCollabValeur(e) === "occupee");
-  const aUnConflit = avecHeure && (monAgendaOccupe || collabOccupe);
+  // OCCUPE = BLOQUANT (decision Sekou 2026-07). On ne PEUT PAS fixer la date si la salle,
+  // mon agenda OU un collegue invite est OCCUPE sur le creneau. Le plan (domaine pur, meme
+  // regle que le serveur) EXCLUT les cibles dont un "occupe" viendrait de NOTRE propre
+  // evenement deja projete (replanification creneau inchange) : re-sauver une reunion
+  // inchangee (ex. ajouter un collegue) n'est jamais bloque par notre propre reservation.
+  // "inconnu" (Graph off / 403) ne bloque JAMAIS. La ZOE (vehicule) reste non bloquante.
+  const plan =
+    avecHeure && dateVal && heureVal
+      ? planifierControlesDispo(
+          {
+            date: dateISO ?? "",
+            heure: heure ?? "",
+            salle: salleEmail ?? "",
+            collaborateurs: collaborateurs?.map((c) => c.email) ?? [],
+          },
+          { date: dateVal, heure: heureVal, salle: salleVal, collaborateurs: collaborateursVal },
+        )
+      : null;
+  const blocages: string[] = [];
+  if (plan) {
+    if (plan.verifierAgenda && dispoAgendaValeur === "occupee")
+      blocages.push("Ton agenda est occupé sur ce créneau.");
+    if (plan.salleAverifier && dispoValeur === "occupee")
+      blocages.push(
+        `La salle ${ressourceParEmail(salleVal)?.nom ?? "sélectionnée"} est occupée sur ce créneau.`,
+      );
+    for (const c of collabList) {
+      if (
+        collaborateursVal.includes(c.email) &&
+        plan.collaborateursAverifier.includes(c.email) &&
+        dispoCollabValeur(c.email) === "occupee"
+      )
+        blocages.push(`L'agenda de ${c.nom.split(" ")[0]} est occupé sur ce créneau.`);
+    }
+  }
+  // Un creneau occupe grise "Valider" et affiche la liste de ce qui bloque.
+  const bloque = blocages.length > 0;
 
   const ouvrir = () => {
     // Re-lecture des props courantes a chaque ouverture (corrige l'etat fige).
@@ -298,7 +328,6 @@ export function EditeurDate({
     setDispoCollab({});
     setErreur(null);
     setConfirmeEffacer(false);
-    setConfirmeOccupe(false);
     setEdition(true);
   };
 
@@ -306,13 +335,10 @@ export function EditeurDate({
     setEdition(false);
     setErreur(null);
     setConfirmeEffacer(false);
-    setConfirmeOccupe(false);
   };
 
-  // (De)selectionne un collegue. Toute modification annule une confirmation d'occupation
-  // en cours (le conflit peut avoir change).
+  // (De)selectionne un collegue.
   const toggleCollaborateur = (email: string) => {
-    setConfirmeOccupe(false);
     setCollaborateursVal((prev) =>
       prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email],
     );
@@ -320,7 +346,6 @@ export function EditeurDate({
 
   const enregistrer = (valeur: string) => {
     setErreur(null);
-    setConfirmeOccupe(false);
     // Ressources / mode / collegues transmis seulement pour une prochaine date reelle
     // (pas a l'effacement).
     const salle = avecHeure && valeur ? salleVal : "";
@@ -342,13 +367,10 @@ export function EditeurDate({
     });
   };
 
-  // Clic sur "Valider" : un conflit d'agenda non encore confirme n'enregistre pas tout
-  // de suite -> il affiche l'avertissement (bloc dedie). "Inconnu" ne bloque jamais.
+  // Clic sur "Valider" : refuse tant qu'un creneau occupe bloque (le bouton est deja grise,
+  // c'est une double securite). "inconnu" ne bloque jamais.
   const tenterEnregistrer = () => {
-    if (aUnConflit && !confirmeOccupe) {
-      setConfirmeOccupe(true);
-      return;
-    }
+    if (bloque) return;
     enregistrer(valeurSaisie);
   };
 
@@ -413,10 +435,7 @@ export function EditeurDate({
           autoFocus
           disabled={pending}
           aria-label={`Date ${quand === "derniere" ? "de la dernière" : "de la prochaine"} ${type === "ag" ? "AG" : "réunion de CS"}`}
-          onChange={(e) => {
-            setConfirmeOccupe(false);
-            setDateVal(e.target.value);
-          }}
+          onChange={(e) => setDateVal(e.target.value)}
           className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
         />
         {avecHeure && (
@@ -425,10 +444,7 @@ export function EditeurDate({
             value={heureVal}
             disabled={pending || !dateVal}
             aria-label={`Heure de la prochaine ${type === "ag" ? "AG" : "réunion de CS"}`}
-            onChange={(e) => {
-              setConfirmeOccupe(false);
-              setHeureVal(e.target.value);
-            }}
+            onChange={(e) => setHeureVal(e.target.value)}
             className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
           />
         )}
@@ -436,9 +452,9 @@ export function EditeurDate({
           type="button"
           size="sm"
           variant="primary"
-          disabled={pending || !dateVal || inchange}
+          disabled={pending || !dateVal || inchange || bloque}
           onClick={tenterEnregistrer}
-          title="Enregistrer la date"
+          title={bloque ? "Créneau occupé : change de date, de salle ou de collaborateur" : "Enregistrer la date"}
         >
           <Check strokeWidth={2} />
           {pending ? "Enregistrement..." : "Valider"}
@@ -664,32 +680,19 @@ export function EditeurDate({
         </span>
       )}
 
-      {/* Conflit d'agenda (non bloquant) : confirmation explicite avant d'enregistrer. */}
-      {confirmeOccupe && (
-        <span className="inline-flex items-center gap-1.5 flex-wrap text-[12px] text-warn-700">
-          {monAgendaOccupe && collabOccupe
-            ? "Ton agenda et celui d'un collègue ont déjà un rendez-vous sur ce créneau."
-            : monAgendaOccupe
-              ? "Tu as déjà un rendez-vous sur ce créneau."
-              : "Un collègue a déjà un rendez-vous sur ce créneau."}
-          <Button
-            type="button"
-            size="sm"
-            variant="primary"
-            disabled={pending}
-            onClick={() => enregistrer(valeurSaisie)}
-          >
-            {pending ? "Enregistrement..." : "Planifier quand même"}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={pending}
-            onClick={() => setConfirmeOccupe(false)}
-          >
-            Annuler
-          </Button>
+      {/* Creneau occupe : BLOQUANT (le bouton Valider est grise). On liste precisement QUI
+          / QUOI bloque et on invite a changer de creneau / salle / collaborateurs. */}
+      {bloque && (
+        <span
+          className="inline-flex flex-col gap-0.5 text-[12px] text-err-700"
+          role="alert"
+          aria-live="polite"
+        >
+          <span className="font-medium">Impossible de fixer cette date sur ce créneau :</span>
+          {blocages.map((b) => (
+            <span key={b}>· {b}</span>
+          ))}
+          <span className="text-ink-3">Change de créneau, de salle ou de collaborateurs.</span>
         </span>
       )}
 

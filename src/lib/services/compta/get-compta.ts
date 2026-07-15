@@ -53,6 +53,10 @@ export async function listerAgAPreparer(gestionnaireId: string): Promise<AgAPrep
 
 // --- Ecritures (pass-through vers le routeur, ADR-001) ---------------------
 
+// `transverse` : le pole comptable (COMPTABLES) / super-admin ecrit sur N'IMPORTE quelle
+// copro (le dialogue compta est justement prevu pour eux). Dans ce cas on saute le
+// cloisonnement managerId (exigerPerimetre) ; l'autorisation par role est faite en amont
+// (action). Un gestionnaire normal reste cloisonne a son portefeuille (transverse absent).
 export async function ajouterNoteCompta(
   coproCode: string,
   agDateISO: string,
@@ -60,8 +64,9 @@ export async function ajouterNoteCompta(
   texte: string,
   par: string,
   managerId: string,
+  options?: { transverse?: boolean },
 ): Promise<void> {
-  await exigerPerimetre(coproCode, managerId);
+  if (!options?.transverse) await exigerPerimetre(coproCode, managerId);
   return getComptaRepository().ajouterNote(coproCode, agDateISO, auteur, texte, par);
 }
 
@@ -72,8 +77,9 @@ export async function marquerNoteCompta(
   resolu: boolean,
   par: string,
   managerId: string,
+  options?: { transverse?: boolean },
 ): Promise<void> {
-  await exigerPerimetre(coproCode, managerId);
+  if (!options?.transverse) await exigerPerimetre(coproCode, managerId);
   return getComptaRepository().marquerNote(coproCode, agDateISO, noteId, resolu, par);
 }
 
@@ -84,7 +90,8 @@ export async function setFlagCompta(
   valeur: boolean,
   par: string,
   managerId: string,
+  options?: { transverse?: boolean },
 ): Promise<void> {
-  await exigerPerimetre(coproCode, managerId);
+  if (!options?.transverse) await exigerPerimetre(coproCode, managerId);
   return getComptaRepository().setFlag(coproCode, agDateISO, flag, valeur, par);
 }

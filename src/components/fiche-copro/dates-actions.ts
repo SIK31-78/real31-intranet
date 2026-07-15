@@ -3,14 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { definirDateEvenement } from "@/lib/services/coproprietes/definir-date-evenement";
-import { confirmerEvenement } from "@/lib/services/coproprietes/confirmation-evenement";
+import { confirmerEvenement, getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import { verifierDispoSalle } from "@/lib/services/coproprietes/verifier-dispo-salle";
+import { controlerDisposReunion } from "@/lib/services/coproprietes/controler-dispo-reunion";
 import { reporterSupervisionSansDate } from "@/lib/services/supervision-ag/reporter-sans-date";
 import { reporterOdjSansDate } from "@/lib/services/odj/saisir-champ-odj";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { getGestionnaireRepository } from "@/lib/adapters/router";
+import { getGestionnaireRepository, getCoproRepository } from "@/lib/adapters/router";
 import { ressourceParEmail } from "@/lib/domain/salles-reunion";
+import { heureDe } from "@/lib/domain/reunion";
+import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { validerCollaborateursConnus } from "@/lib/domain/collaborateurs-reunion";
 
 const zCode = z.string().trim().min(1).max(40);
@@ -94,6 +97,33 @@ async function definir(
   const collaborateurs = await validerCollaborateurs(parseBase.data.collaborateurs, g.email);
   if (collaborateurs === "invalide")
     return { ok: false, erreur: "Collaborateur inconnu." };
+
+  // OCCUPE = BLOQUANT (defense en profondeur) : avant d'ecrire, on re-verifie cote serveur
+  // que le creneau est libre (salle / mon agenda / collegues). "occupee" -> refus ;
+  // "inconnu" / erreur Graph -> laisse passer (jamais bloquant). On EXCLUT les cibles dont
+  // un "occupe" viendrait de notre PROPRE evenement deja projete (cas replanification
+  // creneau inchange), via le plan pur. Ne concerne qu'une PROCHAINE date AVEC heure.
+  const typeApi = type === "ag" ? "AG" : "CS";
+  const heure = heureDe(dateISO);
+  if (quand === "prochaine" && dateISO && g.email && heure) {
+    const copro = await getCoproRepository().findByCode(coproCode, g.id);
+    const ancienDate =
+      type === "ag" ? (copro?.prochaineAg?.date ?? "") : (copro?.prochaineCsDate ?? "");
+    const ancienHeure =
+      type === "ag" ? (copro?.prochaineAg?.heure ?? "") : (copro?.prochaineCsHeure ?? "");
+    const conf = (await getConfirmations(coproCode)).find((c) => c.type === typeApi);
+    const plan = planifierControlesDispo(
+      {
+        date: ancienDate,
+        heure: ancienHeure,
+        salle: conf?.salleEmail ?? "",
+        collaborateurs: conf?.collaborateursEmails ?? [],
+      },
+      { date: dateISO.slice(0, 10), heure, salle: salle ?? "", collaborateurs },
+    );
+    const refus = await controlerDisposReunion(coproCode, typeApi, dateISO, g.email, plan);
+    if (refus) return { ok: false, erreur: refus };
+  }
   try {
     // La boite de projection Outlook = email de SESSION (jamais un parametre client),
     // comme le RDV sinistre : le gestionnaire n'ecrit que dans son propre agenda.

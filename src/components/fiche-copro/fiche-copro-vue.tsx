@@ -20,10 +20,14 @@ export function FicheCoproVue({
   fiche,
   dossiers,
   mailActif = false,
+  estComptable = false,
 }: {
   fiche: FicheCopro;
   dossiers: Dossier[];
   mailActif?: boolean;
+  /** Le visiteur est du pole comptable (lecture transverse) : le pole compta de la fiche
+   *  s'ouvre a lui (role "comptable"), le reste de la fiche reste en lecture. */
+  estComptable?: boolean;
 }) {
   const [onglet, setOnglet] = useState<Onglet>("ensemble");
   const panelId = useId();
@@ -98,7 +102,7 @@ export function FicheCoproVue({
 
       {onglet === "ensemble" && (
         <div role="tabpanel" id={`${panelId}-ensemble`} aria-labelledby="tab-ensemble" tabIndex={0}>
-          <FicheVueEnsemble fiche={fiche} mailActif={mailActif} />
+          <FicheVueEnsemble fiche={fiche} mailActif={mailActif} estComptable={estComptable} />
         </div>
       )}
       {onglet === "evenements" && (

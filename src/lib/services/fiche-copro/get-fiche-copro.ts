@@ -43,9 +43,15 @@ export async function getFicheCopro(
   code: string,
   gestionnaireId: string,
   aujourdhuiISO: string,
+  options?: { transverse?: boolean },
 ): Promise<FicheCopro | null> {
-  // gestionnaireId sert aussi de scope de cloisonnement (managerId).
-  const copro = await getCoproRepository().findByCode(code, gestionnaireId);
+  // gestionnaireId sert aussi de scope de cloisonnement (managerId). En LECTURE TRANSVERSE
+  // (pole comptable / super-admin, cf. peutVoirComptabilite), on lit la copro SANS scope :
+  // le comptable ouvre n'importe quelle fiche. Le cloisonnement des ECRITURES (dates,
+  // jalons, supervision, ODJ...) reste porte par chaque action, pas par la lecture.
+  const copro = options?.transverse
+    ? await getCoproRepository().findByCode(code)
+    : await getCoproRepository().findByCode(code, gestionnaireId);
   if (!copro) return null;
 
   // Donnees Estale : null si la copro n'est pas encore sur Estale -> bloc vide assume.
