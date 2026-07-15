@@ -23,6 +23,13 @@
 //   node --env-file=.env.local scripts/nettoyer-evenements-test.mjs remi@real31.fr
 //   node --env-file=.env.local scripts/nettoyer-evenements-test.mjs remi@real31.fr AAkALg...=,AAkALg...=
 //
+// >>> SALLE RESTEE BLOQUEE alors que l'evenement a disparu du calendrier du gestionnaire
+//     (DELETE historique sans annulation) : lancer le script contre la BOITE DE LA SALLE
+//     (ex. real31lgc@real31.fr) -> lister -> supprimer les ids voulus : retirer la copie
+//     du calendrier de la salle LIBERE le creneau. Si Graph renvoie 403 sur la salle,
+//     c'est que la room mailbox n'est pas dans le groupe de l'Application Access Policy
+//     (demande DSI en cours) -> nettoyage manuel via Outlook en attendant.
+//
 // Le script NE DEVINE JAMAIS quoi supprimer : il ne supprime que ce qu'on lui donne.
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
@@ -105,13 +112,22 @@ function sallesDe(e) {
 }
 
 async function supprimerEvenement(tk, boite, id) {
-  const r = await fetch(
-    `${GRAPH}/users/${encodeURIComponent(boite)}/events/${encodeURIComponent(id)}`,
-    { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } },
-  );
+  const base = `${GRAPH}/users/${encodeURIComponent(boite)}/events/${encodeURIComponent(id)}`;
+  const h = { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" };
+  // PIEGE Graph : DELETE ne previent PAS les participants (la salle resterait reservee).
+  // POST /cancel envoie l'annulation puis supprime. Fallback DELETE si cancel inapplicable
+  // (evenement sans participant, copie d'attendee comme une room mailbox, deja annule).
+  const rc = await fetch(`${base}/cancel`, {
+    method: "POST",
+    headers: h,
+    body: JSON.stringify({ comment: "Nettoyage des evenements de test intranet REAL31." }),
+  });
+  if (rc.ok) return "annule (annulation envoyee aux salles -> salle liberee)";
+  if (rc.status === 404) return "deja absent";
+  const r = await fetch(base, { method: "DELETE", headers: h });
   if (r.status === 404) return "deja absent";
   if (!r.ok) throw new Error(`Graph suppression ${r.status} : ${(await r.text()).slice(0, 200)}`);
-  return "supprime (annulation envoyee aux salles -> salle liberee)";
+  return "supprime (copie retiree du calendrier)";
 }
 
 async function main() {
