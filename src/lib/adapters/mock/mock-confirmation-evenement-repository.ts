@@ -47,9 +47,9 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
     type: "AG" | "CS",
     eventId: string | null,
     boite: string | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const existante = STORE.get(cle(coproCode, type));
-    if (!existante) return; // pas de ligne de confirmation -> pas de projection (comme le SQL)
+    if (!existante) return false; // pas de ligne de confirmation -> pas de projection (comme le SQL)
     const maj = { ...existante };
     delete maj.outlookEventId;
     delete maj.outlookBoite;
@@ -58,6 +58,7 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
       maj.outlookBoite = boite;
     }
     STORE.set(cle(coproCode, type), maj);
+    return true;
   }
 
   async enregistrerRessources(
