@@ -167,10 +167,23 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
   async supprimerEvenement(boite: string, eventId: string): Promise<void> {
     if (!boite || !eventId) throw new Error("Suppression evenement : boite ou id manquant.");
     const tk = await jetonGraph();
-    const r = await fetch(
-      `${GRAPH}/users/${encodeURIComponent(boite)}/events/${encodeURIComponent(eventId)}`,
-      { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } },
-    );
+    const base = `${GRAPH}/users/${encodeURIComponent(boite)}/events/${encodeURIComponent(eventId)}`;
+    const h = { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" };
+
+    // PIEGE Graph : DELETE ne supprime QUE la copie de l'organisateur, SANS envoyer
+    // d'annulation aux participants -> une salle (attendee resource) resterait RESERVEE
+    // a jamais (constate en reel le 2026-07-10). POST /cancel envoie l'annulation (la
+    // salle se libere) ET supprime l'evenement. On tente cancel d'abord ; s'il n'est pas
+    // applicable (evenement sans participant, deja annule -> 4xx), on retombe sur DELETE.
+    const rc = await fetch(`${base}/cancel`, {
+      method: "POST",
+      headers: h,
+      body: JSON.stringify({ comment: "Reunion annulee depuis l'intranet REAL31." }),
+    });
+    if (rc.ok) return; // 202 : annulation envoyee (salle liberee), evenement supprime
+    if (rc.status === 404) return; // deja absent : etat cible atteint
+
+    const r = await fetch(base, { method: "DELETE", headers: h });
     // 404 = deja supprime (ex. efface a la main dans Outlook) : etat cible atteint.
     if (r.status === 404) return;
     if (!r.ok) {
