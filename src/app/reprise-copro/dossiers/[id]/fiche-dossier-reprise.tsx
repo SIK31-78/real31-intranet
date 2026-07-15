@@ -53,6 +53,7 @@ import {
   type FichierProduit,
   type RapportInjectionVue,
 } from "./actions";
+import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
 
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -149,11 +150,17 @@ export function FicheDossierReprise({
   analyseInitiale,
   modeIa,
   ecritureReelle,
+  fiches,
+  aDesOwners,
+  mailActif,
 }: {
   dossier: DossierFicheVue;
   analyseInitiale: AnalyseInitiale | null;
   modeIa: "claude" | "claude-cli" | "mistral" | "mock";
   ecritureReelle: boolean;
+  fiches: FicheOwnerVue[];
+  aDesOwners: boolean;
+  mailActif: boolean;
 }) {
   const pct = Math.round(dossier.avancement * 100);
 
@@ -223,6 +230,15 @@ export function FicheDossierReprise({
         analyse={analyse}
         onAnalyse={setAnalyse}
         modeIa={modeIa}
+        ecritureReelle={ecritureReelle}
+      />
+
+      {/* ZONE 2bis - Fiches de renseignements (courriers -> formulaire public -> validation) */}
+      <FicheRenseignementsBloc
+        dossierRef={dossier.ref}
+        aDesOwners={aDesOwners}
+        fiches={fiches}
+        mailActif={mailActif}
         ecritureReelle={ecritureReelle}
       />
 

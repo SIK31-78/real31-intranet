@@ -1,0 +1,261 @@
+// Service d'orchestration des FICHES DE RENSEIGNEMENTS (post-reprise). Server-only.
+// Trois moments :
+//   1. genererCourriers  : depuis le jeu persiste (owners), cree/regenere une fiche par owner
+//      (token + code neufs, hashes) et renvoie les secrets EN CLAIR (une seule fois, jamais
+//      relogues/restockes) pour bâtir le document courrier.
+//   2. consulterFiche / soumettreFiche : cote PUBLIC, apres verification du code.
+//   3. validerFiche : cote gestionnaire, ecrit l'email dans eStale (via le port) + declenche
+//      le mail "espace client pret" (callback fourni par l'action, qui porte le gate mail).
+//
+// Le token/code en clair ne sortent QUE de genererCourriers (retour direct). Tout le reste ne
+// manipule que des hash.
+
+import type { Owner } from "@/lib/reprise/domain/patrimoine";
+import type { Dossier } from "@/lib/reprise/domain/dossier";
+import {
+  calculerExpiration,
+  peutSoumettre,
+  estExpiree,
+  type DonneesConnues,
+  type DonneesSoumises,
+  type FicheRenseignement,
+  type FicheStatut,
+} from "@/lib/reprise/domain/fiche-renseignements";
+import type { FicheRenseignementsRepository } from "@/lib/reprise/ports/fiche-renseignements-repository";
+import type {
+  EstaleFicheContactProvider,
+  MajEmailResultat,
+} from "@/lib/reprise/ports/estale-fiche-contact-provider";
+import type { CourrierOwner } from "@/lib/reprise/domain/fiche-courrier";
+import { genererToken, genererCode, hacher, hashEgal, normaliserCode } from "@/lib/reprise/services/fiche-token";
+
+/** Snapshot "connu" a partir d'un owner du jeu (PII : reste en base interne). */
+export function connuesDepuisOwner(owner: Owner, lots: number[]): DonneesConnues {
+  return {
+    civilite: owner.civilite,
+    nom: owner.nom,
+    ...(owner.prenom ? { prenom: owner.prenom } : {}),
+    pro: owner.pro,
+    ...(owner.email ? { emailConnu: owner.email } : {}),
+    ...(owner.telFixe ? { telFixe: owner.telFixe } : {}),
+    ...(owner.telPortable ? { telPortable: owner.telPortable } : {}),
+    ...(owner.adrNum ? { adrNum: owner.adrNum } : {}),
+    ...(owner.adrVoie ? { adrVoie: owner.adrVoie } : {}),
+    ...(owner.adrComplement ? { adrComplement: owner.adrComplement } : {}),
+    ...(owner.adrCodePostal ? { adrCodePostal: owner.adrCodePostal } : {}),
+    ...(owner.adrVille ? { adrVille: owner.adrVille } : {}),
+    ...(owner.paysAdresse ? { pays: owner.paysAdresse } : {}),
+    ...(lots.length > 0 ? { lots } : {}),
+  };
+}
+
+/** Lots detenus par un owner, depuis les attributions du jeu. */
+function lotsDeOwner(dossier: Dossier, ownerId: string): number[] {
+  return (dossier.jeu?.attributions ?? [])
+    .filter((a) => a.ownerId === ownerId)
+    .map((a) => a.lot)
+    .sort((a, b) => a - b);
+}
+
+export interface GenererOptions {
+  /** Base URL publique (ex "https://intranet.real31.fr") : le lien = base + /fiche/<token>. */
+  baseUrl: string;
+  /** Restreindre a ces ownerIds (relance ciblee). Absent = tous les owners du jeu. */
+  ownerIds?: string[];
+  /** true = relance (marque derniereRelanceAt). */
+  relance?: boolean;
+  /** Horloge ISO (fournie par l'appelant). */
+  nowISO: string;
+}
+
+export interface GenererResultat {
+  courriers: CourrierOwner[];
+  /** Owners ignores car deja soumis/valides (on n'ecrase pas leur reponse). */
+  ignores: number;
+}
+
+/**
+ * Cree/regenere les fiches d'une copro et renvoie les courriers (secrets EN CLAIR). Une fiche
+ * deja SOUMISE ou VALIDEE n'est PAS regeneree (on ne detruit pas une reponse recue) -> comptee
+ * dans `ignores`. Sinon : token + code neufs (les anciens deviennent caducs), expiration a +90j.
+ */
+export async function genererCourriers(
+  repo: FicheRenseignementsRepository,
+  dossier: Dossier,
+  opts: GenererOptions,
+): Promise<GenererResultat> {
+  const owners = dossier.jeu?.owners ?? [];
+  const cibles = opts.ownerIds ? owners.filter((o) => opts.ownerIds!.includes(o.id)) : owners;
+
+  const existantes = await repo.listerParDossier(dossier.ref);
+  const parOwner = new Map(existantes.map((f) => [f.ownerId, f]));
+
+  const courriers: CourrierOwner[] = [];
+  let ignores = 0;
+
+  for (const owner of cibles) {
+    const dejaLa = parOwner.get(owner.id);
+    if (dejaLa && dejaLa.statut !== "courrier_genere") {
+      ignores++; // reponse deja recue : on ne regenere pas
+      continue;
+    }
+    const token = genererToken();
+    const code = genererCode();
+    const connues = connuesDepuisOwner(owner, lotsDeOwner(dossier, owner.id));
+    const fiche: FicheRenseignement = {
+      coproCode: dossier.ref,
+      ownerId: owner.id,
+      tokenHash: hacher(token),
+      codeHash: hacher(code),
+      statut: "courrier_genere",
+      connues,
+      courrierGenereAt: opts.nowISO,
+      expiresAt: calculerExpiration(opts.nowISO),
+      ...(opts.relance ? { derniereRelanceAt: opts.nowISO } : {}),
+    };
+    await repo.sauver(fiche);
+    courriers.push({
+      ownerId: owner.id,
+      connues,
+      lien: `${opts.baseUrl.replace(/\/$/, "")}/fiche/${token}`,
+      code,
+      ...(opts.relance ? { relance: true } : {}),
+    });
+  }
+
+  return { courriers, ignores };
+}
+
+// --- COTE PUBLIC : consultation + soumission (apres verification du code) --------
+
+export type ConsulterResultat =
+  | { ok: false; raison: "introuvable" | "code" }
+  | {
+      ok: true;
+      statut: FicheStatut;
+      expiree: boolean;
+      soumissionPossible: boolean;
+      coproCode: string;
+      connues: DonneesConnues;
+      soumises?: DonneesSoumises;
+    };
+
+/**
+ * Verifie (tokenHash, codeSaisi) et renvoie l'etat de la fiche. ANTI-ENUMERATION : un token
+ * inconnu ET un mauvais code renvoient la MEME raison ("code") -> impossible de distinguer un
+ * token valide d'un invalide. Aucune PII n'est renvoyee tant que le code n'est pas bon.
+ */
+export async function consulterFiche(
+  repo: FicheRenseignementsRepository,
+  tokenHash: string,
+  codeSaisi: string,
+  nowISO: string,
+): Promise<ConsulterResultat> {
+  const fiche = await repo.obtenirParTokenHash(tokenHash);
+  // Token inconnu -> on renvoie "code" (jamais "introuvable") pour ne pas fuiter la validite.
+  if (!fiche) return { ok: false, raison: "code" };
+  if (!hashEgal(hacher(normaliserCode(codeSaisi)), fiche.codeHash)) return { ok: false, raison: "code" };
+  return {
+    ok: true,
+    statut: fiche.statut,
+    expiree: estExpiree(fiche, nowISO),
+    soumissionPossible: peutSoumettre(fiche, nowISO),
+    coproCode: fiche.coproCode,
+    connues: fiche.connues,
+    ...(fiche.soumises ? { soumises: fiche.soumises } : {}),
+  };
+}
+
+export type SoumettreResultat =
+  | { ok: false; raison: "code" | "deja_soumis" | "expiree" }
+  | { ok: true };
+
+/**
+ * Enregistre la soumission d'un coproprietaire (une seule fois). Re-verifie code + etat +
+ * expiration cote serveur (on ne fait jamais confiance a l'appel precedent). Passe la fiche a
+ * "soumis".
+ */
+export async function soumettreFiche(
+  repo: FicheRenseignementsRepository,
+  tokenHash: string,
+  codeSaisi: string,
+  donnees: DonneesSoumises,
+  nowISO: string,
+): Promise<SoumettreResultat> {
+  const fiche = await repo.obtenirParTokenHash(tokenHash);
+  if (!fiche || !hashEgal(hacher(normaliserCode(codeSaisi)), fiche.codeHash)) return { ok: false, raison: "code" };
+  if (estExpiree(fiche, nowISO)) return { ok: false, raison: "expiree" };
+  if (fiche.statut !== "courrier_genere") return { ok: false, raison: "deja_soumis" };
+
+  await repo.sauver({ ...fiche, statut: "soumis", soumises: donnees, soumisAt: nowISO });
+  return { ok: true };
+}
+
+// --- COTE GESTIONNAIRE : validation (eStale + mail) ------------------------------
+
+export interface ValiderResultat {
+  ok: boolean;
+  message: string;
+  /** Detail de l'ecriture eStale (dry-run vs reel). */
+  estale?: MajEmailResultat;
+  /** true si le mail "espace client pret" est parti. */
+  mailEnvoye: boolean;
+  /** Note quand le mail n'a pas ete envoye (module inactif...). */
+  mailNote?: string;
+}
+
+/**
+ * Valide une fiche SOUMISE : (a) ecrit l'email dans eStale via le port (dry-run ou reel selon
+ * le routeur), (b) declenche le mail "espace client pret" via le callback `envoyerMail` (fourni
+ * par l'action, qui porte le gate MAIL_SOURCE/MAIL_PILOTES ; renvoie true si envoye, false si
+ * module inactif), (c) passe la fiche a "valide". L'ecriture eStale est la SEULE mutation ; elle
+ * est confirmee owner par owner (jamais en masse). Idempotence douce : une fiche deja "valide"
+ * n'est pas rejouee.
+ */
+export async function validerFiche(
+  repo: FicheRenseignementsRepository,
+  contact: EstaleFicheContactProvider,
+  ownerId: string,
+  coproCode: string,
+  envoyerMail: (p: { email: string; destinataire: string }) => Promise<{ envoye: boolean; note?: string }>,
+  nowISO: string,
+): Promise<ValiderResultat> {
+  const fiches = await repo.listerParDossier(coproCode);
+  const fiche = fiches.find((f) => f.ownerId === ownerId);
+  if (!fiche) return { ok: false, message: "Fiche introuvable.", mailEnvoye: false };
+  if (fiche.statut === "valide") return { ok: false, message: "Fiche deja validee.", mailEnvoye: false };
+  if (fiche.statut !== "soumis" || !fiche.soumises) {
+    return { ok: false, message: "Aucune reponse a valider pour ce coproprietaire.", mailEnvoye: false };
+  }
+
+  const email = fiche.soumises.email;
+  // (a) eStale : la SEULE mutation, derriere le gate du routeur.
+  const estale = await contact.mettreAJourEmailOwner({
+    coproCode,
+    nom: fiche.connues.nom,
+    ...(fiche.connues.prenom ? { prenom: fiche.connues.prenom } : {}),
+    email,
+  });
+
+  // (b) mail "espace client pret" (le gate mail est porte par le callback).
+  const destinataire = [fiche.connues.civilite, fiche.connues.nom].filter(Boolean).join(" ");
+  const r = await envoyerMail({ email, destinataire });
+
+  // (c) fiche -> valide.
+  await repo.sauver({
+    ...fiche,
+    statut: "valide",
+    valideAt: nowISO,
+    ...(r.envoye ? { mailEnvoyeAt: nowISO } : {}),
+  });
+
+  return {
+    ok: true,
+    message: estale.applique
+      ? "Email ecrit dans eStale."
+      : "Validee (eStale en dry-run : aucune ecriture reelle).",
+    estale,
+    mailEnvoye: r.envoye,
+    ...(r.note ? { mailNote: r.note } : {}),
+  };
+}

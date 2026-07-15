@@ -4,9 +4,10 @@
 // le pilotage IA au composant client. 404 propre si le dossier n'existe pas.
 
 import { notFound, redirect } from "next/navigation";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import {
   getRepriseDossierRepository,
+  getFicheRenseignementsRepository,
   modeExtraction,
   reprisePersistanceSupabase,
   ecritureEstaleReelle,
@@ -15,6 +16,7 @@ import { obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
 import { calculerRecap } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import { avancement } from "@/lib/reprise/domain/dossier";
 import { FicheDossierReprise, type DossierFicheVue, type AnalyseInitiale } from "./fiche-dossier-reprise";
+import type { FicheOwnerVue } from "./fiche-renseignements-bloc";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +84,36 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   const modeIa = modeExtraction();
   const persistant = reprisePersistanceSupabase();
   const ecritureReelle = ecritureEstaleReelle();
+  const mailActif = mailModuleActifPour(g.email);
+
+  // Fiches de renseignements : on joint les owners du jeu (nom) aux fiches persistees (statut,
+  // dates, reponse). Un owner sans fiche apparait en statut "aucune" (courrier a generer).
+  const owners = dossier.jeu?.owners ?? [];
+  const fichesBrutes = await getFicheRenseignementsRepository().listerParDossier(dossier.ref);
+  const parOwner = new Map(fichesBrutes.map((f) => [f.ownerId, f]));
+  const fichesVue: FicheOwnerVue[] = owners.map((o) => {
+    const nom = [o.civilite, o.nom, o.prenom].filter(Boolean).join(" ").trim() || o.id;
+    const f = parOwner.get(o.id);
+    if (!f) return { ownerId: o.id, nom, statut: "aucune" };
+    return {
+      ownerId: o.id,
+      nom,
+      statut: f.statut,
+      courrierGenereAt: f.courrierGenereAt,
+      ...(f.soumisAt ? { soumisAt: f.soumisAt } : {}),
+      ...(f.valideAt ? { valideAt: f.valideAt } : {}),
+      ...(f.mailEnvoyeAt ? { mailEnvoyeAt: f.mailEnvoyeAt } : {}),
+      ...(f.derniereRelanceAt ? { derniereRelanceAt: f.derniereRelanceAt } : {}),
+      ...(f.connues.emailConnu ? { emailConnu: f.connues.emailConnu } : {}),
+      ...(f.soumises?.email ? { emailSoumis: f.soumises.email } : {}),
+      ...(f.soumises ? { soumises: f.soumises } : {}),
+      connues: {
+        ...(f.connues.telFixe ? { telFixe: f.connues.telFixe } : {}),
+        ...(f.connues.telPortable ? { telPortable: f.connues.telPortable } : {}),
+        ...(f.connues.adrVille ? { adrVille: f.connues.adrVille } : {}),
+      },
+    };
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -90,6 +122,9 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
         analyseInitiale={analyseInitiale}
         modeIa={modeIa}
         ecritureReelle={ecritureReelle}
+        fiches={fichesVue}
+        aDesOwners={owners.length > 0}
+        mailActif={mailActif}
       />
 
       <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">

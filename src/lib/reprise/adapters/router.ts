@@ -31,6 +31,12 @@ import { ReelEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecritu
 import type { EstaleComptaLectureProvider } from "@/lib/reprise/ports/estale-compta-lecture-provider";
 import { ReelEstaleComptaLectureProvider } from "@/lib/reprise/adapters/estale-compta/reel-provider";
 import { MockEstaleComptaLectureProvider } from "@/lib/reprise/adapters/estale-compta/mock-provider";
+import type { FicheRenseignementsRepository } from "@/lib/reprise/ports/fiche-renseignements-repository";
+import { FicheRenseignementsRepositoryMemoire } from "@/lib/reprise/adapters/memoire/fiche-renseignements-repository-memoire";
+import { FicheRenseignementsRepositorySupabase } from "@/lib/reprise/adapters/supabase/fiche-renseignements-repository-supabase";
+import type { EstaleFicheContactProvider } from "@/lib/reprise/ports/estale-fiche-contact-provider";
+import { DryRunEstaleFicheContactProvider } from "@/lib/reprise/adapters/estale-fiche-contact/dry-run-provider";
+import { ReelEstaleFicheContactProvider } from "@/lib/reprise/adapters/estale-fiche-contact/reel-provider";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
 
 export type ModeExtraction = "claude" | "claude-cli" | "mistral" | "mock";
@@ -179,4 +185,31 @@ export function getMappingDecisionRepository(): MappingDecisionRepository {
   if (reprisePersistanceSupabase()) return new MappingDecisionRepositorySupabase();
   if (!repoDecisionsMemoire) repoDecisionsMemoire = new MappingDecisionRepositoryMemoire();
   return repoDecisionsMemoire;
+}
+
+/**
+ * Repository des FICHES DE RENSEIGNEMENTS. Meme convention : Supabase quand
+ * COPRO_SOURCE=supabase (public.reprise_fiche_renseignements de la base patron), sinon adapter
+ * memoire (singleton module-level, survit entre requetes du meme process, perdu au redemarrage).
+ *
+ * IMPORTANT : la route PUBLIQUE /fiche/[token] et l'ecran gestionnaire lisent la MEME fiche.
+ * En memoire, le singleton garantit qu'une fiche generee cote gestionnaire soit visible cote
+ * public dans le meme process. En prod (Supabase), la persistance rend ce partage trivial.
+ */
+let repoFichesMemoire: FicheRenseignementsRepository | null = null;
+
+export function getFicheRenseignementsRepository(): FicheRenseignementsRepository {
+  if (reprisePersistanceSupabase()) return new FicheRenseignementsRepositorySupabase();
+  if (!repoFichesMemoire) repoFichesMemoire = new FicheRenseignementsRepositoryMemoire();
+  return repoFichesMemoire;
+}
+
+/**
+ * Provider d'ECRITURE eStale DEDIE a la fiche (mise a jour de l'email d'un owner). Meme gate
+ * que le reste de l'ecriture eStale : REEL uniquement si ecritureEstaleReelle() (ESTALE_ECRITURE
+ * =reel + identifiants presents), sinon DRY-RUN (defaut, aucun reseau). Instance neuve a chaque appel.
+ */
+export function getEstaleFicheContactProvider(): EstaleFicheContactProvider {
+  if (ecritureEstaleReelle()) return new ReelEstaleFicheContactProvider();
+  return new DryRunEstaleFicheContactProvider();
 }

@@ -16,14 +16,22 @@
 // L'injection dry-run NE TOUCHE AUCUN RESEAU (adapter dry-run du routeur).
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import {
   getRepriseDossierRepository,
   getEstaleEcritureProvider,
   ecritureEstaleReelle,
+  getFicheRenseignementsRepository,
+  getEstaleFicheContactProvider,
 } from "@/lib/reprise/adapters/router";
-import { majEtape, ajouterJournal, trancherLiaisonDossier } from "@/lib/reprise/services/suivi-dossier";
+import { majEtape, ajouterJournal, trancherLiaisonDossier, obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
+import { genererCourriers, validerFiche } from "@/lib/reprise/services/fiches-renseignements";
+import { genererCourriersDocument, type ContexteCourrier } from "@/lib/reprise/domain/fiche-courrier";
+import { objetMailEspaceClient, corpsMailEspaceClient } from "@/lib/reprise/domain/mail-espace-client";
+import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
+import { envoyerMailReunion } from "@/lib/services/coproprietes/envoyer-mail-reunion";
 import type { LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import { produirePhaseABuffers } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import { onboarderCopro, type MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
@@ -292,5 +300,159 @@ export async function injecterAction(
     return { ok: true, rapport };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant l'injection." };
+  }
+}
+
+// --- FICHES DE RENSEIGNEMENTS (courriers -> formulaire public -> validation) -----
+
+/** Base URL publique du formulaire : env explicite, sinon reconstruite depuis la requete. */
+async function baseUrlPublique(): Promise<string> {
+  const override = process.env.FICHE_PUBLIC_BASE_URL;
+  if (override) return override.replace(/\/$/, "");
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+export type GenererCourriersResultat =
+  | { ok: true; html: string; nbCourriers: number; ignores: number }
+  | { ok: false; message: string };
+
+const zGenerer = z.object({
+  dossierId: z.string().trim().min(1).max(40),
+  ownerIds: z.array(z.string().trim().min(1).max(80)).max(50_000).optional(),
+  relance: z.boolean().optional(),
+});
+
+/**
+ * Genere le document HTML imprimable des courriers "fiche de renseignements" (une page par
+ * coproprietaire, lien + code personnel). Cree/regenere les fiches en base (token + code
+ * hashes). Les fiches DEJA soumises/validees ne sont pas regenerees. Le HTML (secrets en clair)
+ * n'est renvoye QU'ICI, jamais relogue ni restocke.
+ */
+export async function genererCourriersFicheAction(
+  dossierId: string,
+  options?: { ownerIds?: string[]; relance?: boolean },
+): Promise<GenererCourriersResultat> {
+  const valid = zGenerer.safeParse({ dossierId, ...options });
+  if (!valid.success) return { ok: false, message: "Parametres invalides." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour generer les courriers." };
+
+  const dossier = await obtenirDossier(getRepriseDossierRepository(), valid.data.dossierId);
+  if (!dossier) return { ok: false, message: "Dossier introuvable." };
+  if (!dossier.jeu || dossier.jeu.owners.length === 0) {
+    return { ok: false, message: "Aucun coproprietaire dans le jeu : lance d'abord l'analyse (l'onglet Patrimoine)." };
+  }
+
+  try {
+    const nowISO = new Date().toISOString();
+    const r = await genererCourriers(getFicheRenseignementsRepository(), dossier, {
+      baseUrl: await baseUrlPublique(),
+      nowISO,
+      ...(valid.data.ownerIds ? { ownerIds: valid.data.ownerIds } : {}),
+      ...(valid.data.relance ? { relance: true } : {}),
+    });
+    if (r.courriers.length === 0) {
+      return { ok: false, message: `Aucun courrier a generer (${r.ignores} deja repondu(s)).` };
+    }
+
+    const ctx: ContexteCourrier = {
+      coproNom: dossier.nomUsuel,
+      coproRef: dossier.ref,
+      ...(dossier.adresse ? { coproAdresseLigne1: dossier.adresse } : {}),
+      retourEmail: g.email ?? "votre gestionnaire REAL31",
+      ...(g.email ? { gestionnaireEmail: g.email } : {}),
+      expediteur: ["REAL 31", "Syndic de copropriete"],
+    };
+    const html = genererCourriersDocument(ctx, r.courriers);
+
+    await ajouterJournal(
+      getRepriseDossierRepository(),
+      valid.data.dossierId,
+      nowISO,
+      valid.data.relance
+        ? `Courriers de relance generes pour ${r.courriers.length} coproprietaire(s).`
+        : `Courriers "fiche de renseignements" generes pour ${r.courriers.length} coproprietaire(s).`,
+    );
+    revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
+    return { ok: true, html, nbCourriers: r.courriers.length, ignores: r.ignores };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant la generation." };
+  }
+}
+
+export type ValiderFicheResultat =
+  | { ok: true; message: string; estaleApplique: boolean; mailEnvoye: boolean; mailNote?: string }
+  | { ok: false; message: string };
+
+const zValider = z.object({
+  dossierId: z.string().trim().min(1).max(40),
+  ownerId: z.string().trim().min(1).max(80),
+});
+
+/**
+ * Valide la fiche d'UN coproprietaire (jamais en masse) : ecrit l'email dans eStale (via le
+ * port dedie, dry-run ou reel selon ESTALE_ECRITURE) PUIS envoie le mail "espace client pret"
+ * si le module mail est actif pour ce gestionnaire (MAIL_SOURCE=graph + MAIL_PILOTES). Sinon,
+ * note visible "mail non envoye". Boite d'envoi = email de session (jamais un parametre).
+ */
+export async function validerFicheAction(dossierId: string, ownerId: string): Promise<ValiderFicheResultat> {
+  const valid = zValider.safeParse({ dossierId, ownerId });
+  if (!valid.success) return { ok: false, message: "Parametres invalides." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour valider." };
+
+  const dossier = await obtenirDossier(getRepriseDossierRepository(), valid.data.dossierId);
+  if (!dossier) return { ok: false, message: "Dossier introuvable." };
+
+  const mailActif = mailModuleActifPour(g.email) && Boolean(g.email);
+
+  // Callback d'envoi : porte le gate mail. Renvoie envoye=false + note si le module est inactif.
+  const envoyerMail = async ({ email, destinataire }: { email: string; destinataire: string }) => {
+    if (!mailActif) {
+      return { envoye: false, note: "Mail non envoye : module mail inactif (MAIL_SOURCE / MAIL_PILOTES)." };
+    }
+    try {
+      const sujet = objetMailEspaceClient({ destinataire, coproNom: dossier.nomUsuel, coproRef: dossier.ref });
+      const corps = corpsMailEspaceClient({ destinataire, coproNom: dossier.nomUsuel, coproRef: dossier.ref });
+      const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
+      await envoyerMailReunion({ boite: g.email!, a: [email], cc: [], cci: [], sujet, corps, signatureHtml });
+      return { envoye: true };
+    } catch (e) {
+      return { envoye: false, note: `Mail non envoye : ${(e as Error).message || "erreur Graph"}.` };
+    }
+  };
+
+  try {
+    const r = await validerFiche(
+      getFicheRenseignementsRepository(),
+      getEstaleFicheContactProvider(),
+      valid.data.ownerId,
+      dossier.ref,
+      envoyerMail,
+      new Date().toISOString(),
+    );
+    if (!r.ok) return { ok: false, message: r.message };
+
+    await ajouterJournal(
+      getRepriseDossierRepository(),
+      valid.data.dossierId,
+      new Date().toISOString(),
+      `Fiche validee (owner ${valid.data.ownerId}) : ${r.estale?.applique ? "email ecrit dans eStale" : "eStale dry-run"}${r.mailEnvoye ? ", mail espace client envoye" : ", mail non envoye"}.`,
+    );
+    revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
+    return {
+      ok: true,
+      message: r.message,
+      estaleApplique: r.estale?.applique ?? false,
+      mailEnvoye: r.mailEnvoye,
+      ...(r.mailNote ? { mailNote: r.mailNote } : {}),
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant la validation." };
   }
 }
