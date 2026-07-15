@@ -87,6 +87,16 @@ export async function genererCourriers(
   opts: GenererOptions,
 ): Promise<GenererResultat> {
   const owners = dossier.jeu?.owners ?? [];
+  // Dossier sans coproprietaires (ex. analyse GRAND LIVRE SEUL -> jeu patrimoine vide) : message
+  // explicite plutot qu'un "0 courrier" muet - les fiches partent des owners du PATRIMOINE.
+  if (owners.length === 0) {
+    return {
+      courriers: [],
+      ignores: 0,
+      erreur:
+        "Aucun coproprietaire dans le jeu de ce dossier : analyse d'abord le PATRIMOINE (feuille de presence, EDD/RCP...) - les fiches de renseignements sont generees pour les coproprietaires extraits.",
+    };
+  }
   const cibles = opts.ownerIds ? owners.filter((o) => opts.ownerIds!.includes(o.id)) : owners;
 
   const existantes = await repo.listerParDossier(dossier.ref);

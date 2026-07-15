@@ -355,6 +355,9 @@ export async function genererCourriersFicheAction(
       ...(valid.data.ownerIds ? { ownerIds: valid.data.ownerIds } : {}),
       ...(valid.data.relance ? { relance: true } : {}),
     });
+    // L'erreur du service (ex. persistance indisponible = table absente) prime sur le
+    // message generique : c'est elle qui dit QUOI faire.
+    if (r.erreur) return { ok: false, message: r.erreur };
     if (r.courriers.length === 0) {
       return { ok: false, message: `Aucun courrier a generer (${r.ignores} deja repondu(s)).` };
     }
