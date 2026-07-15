@@ -29,6 +29,8 @@ export interface InfosMailDatesReunion {
   coproCode: string;
   /** Nom de la copro, ex "Residence Les Acacias". */
   coproNom: string;
+  /** Adresse courte de la copro pour l'objet, ex "12 rue Gabriel Peri COURBEVOIE" (demande Sekou). */
+  coproAdresse?: string;
   /** Date de CS preparatoire a proposer (absente = pas de CS a venir). */
   cs?: DateReunionMail;
   /** Date d'AG a proposer (absente = pas d'AG a venir). */
@@ -83,7 +85,9 @@ export function objetMailDatesReunion(infos: InfosMailDatesReunion): string {
       : infos.cs
         ? "Date de CS à fixer"
         : "Date d'AG à fixer";
-  return `${infos.coproCode} - ${quoi}`;
+  // Demande Sekou (2026-07-10) : reference + adresse de la copro dans l'objet.
+  const adresse = infos.coproAdresse ? ` - ${infos.coproAdresse}` : "";
+  return `${infos.coproCode}${adresse} - ${quoi}`;
 }
 
 /**
