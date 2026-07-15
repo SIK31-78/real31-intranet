@@ -56,7 +56,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     titre: "Ressources",
     items: [
       { key: "resolutions", label: "Résolutions", href: "/resolutions", icon: Library, aVenir: true },
-      { key: "compta", label: "Comptabilité", href: "/compta", icon: Calculator, aVenir: true },
+      { key: "compta", label: "Comptabilité", href: "/comptabilite", icon: Calculator },
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
     ],
   },
@@ -159,7 +159,15 @@ function SectionTitre({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Sidebar({ active, emailsOuvert = true }: { active: NavKey; emailsOuvert?: boolean }) {
+export function Sidebar({
+  active,
+  emailsOuvert = true,
+  comptaOuvert = false,
+}: {
+  active: NavKey;
+  emailsOuvert?: boolean;
+  comptaOuvert?: boolean;
+}) {
   return (
     <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto">
       <nav className="px-3 py-3 flex flex-col gap-4">
@@ -167,6 +175,9 @@ export function Sidebar({ active, emailsOuvert = true }: { active: NavKey; email
           <div key={groupe.titre}>
             <SectionTitre>{groupe.titre}</SectionTitre>
             {groupe.items.map((item) => {
+              // "Comptabilite" (dashboard transverse) : lien ABSENT hors role comptable /
+              // super-admin (le pole compta est transverse, pas un gestionnaire).
+              if (item.key === "compta" && !comptaOuvert) return null;
               // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
               const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
               return <NavItem key={it.key} item={it} active={it.key === active} />;

@@ -183,6 +183,49 @@ export class SupabaseCoproRepository implements CoproRepository {
       .filter((c) => c.statut === "active");
   }
 
+  // Vue transverse (dashboard comptable) : toutes les copros ACTIVES avec l'equipe
+  // resolue. La resolution se fait en UNE requete User batch (tous les managers/assistants/
+  // comptables d'un coup) -> pas de N+1, contrairement a un findByCode par copro.
+  async listerToutes(): Promise<Copropriete[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("Copropriete")
+      .select(COPRO_COLS)
+      .order("name", { ascending: true })
+      .limit(500);
+    if (error) throw new Error(`Lecture public.Copropriete : ${error.message}`);
+    const rows = data as unknown as CoproRow[];
+
+    // Un seul aller-retour pour tous les membres d'equipe referencies.
+    const ids = new Set<string>();
+    for (const r of rows) {
+      if (r.managerId) ids.add(r.managerId);
+      if (r.assistantId) ids.add(r.assistantId);
+      if (r.accountantId) ids.add(r.accountantId);
+    }
+    const users = new Map<string, UserRow>();
+    if (ids.size > 0) {
+      const { data: u } = await supabase.from("User").select("id, name, initials").in("id", [...ids]);
+      for (const usr of (u as unknown as UserRow[] | null) ?? []) users.set(usr.id, usr);
+    }
+
+    const equipeDe = (row: CoproRow): MembreEquipe[] => {
+      const refs: { id: string | null; role: MembreEquipe["role"] }[] = [
+        { id: row.managerId, role: "gestionnaire" },
+        { id: row.assistantId, role: "assistant" },
+        { id: row.accountantId, role: "comptable" },
+      ];
+      return refs.flatMap((ref) => {
+        if (!ref.id) return [];
+        const usr = users.get(ref.id);
+        if (!usr) return [];
+        return [{ initiales: usr.initials ?? usr.name.slice(0, 2).toUpperCase(), nomComplet: usr.name, role: ref.role }];
+      });
+    };
+
+    return rows.map((row) => toDomaine(row, equipeDe(row))).filter((c) => c.statut === "active");
+  }
+
   async findByCode(code: string, managerId?: string): Promise<Copropriete | null> {
     const supabase = createSupabasePublicClient();
 
