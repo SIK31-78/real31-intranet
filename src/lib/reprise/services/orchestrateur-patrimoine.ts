@@ -8,6 +8,7 @@
 
 import type { JeuDeDonnees, Usage } from "@/lib/reprise/domain/patrimoine";
 import { USAGES } from "@/lib/reprise/domain/patrimoine";
+import type { CompteAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
 import { verifierTout, type ResultatChecks } from "@/lib/reprise/domain/auto-checks";
 import { detecterDoublons } from "@/lib/reprise/domain/dedup";
 import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
@@ -50,6 +51,12 @@ export interface RecapCompta {
   nbComptes: number;
   /** Nombre d'ecritures extraites. */
   nbEcritures: number;
+  /**
+   * Comptes de classe 6/7 avec report a-nouveau non nul = signature "grand livre AVANT
+   * repartition". Present (et non vide) UNIQUEMENT si la signature est detectee -> alerte rouge
+   * dans le recap : demander a l'ancien syndic le grand livre APRES repartition. PII-free.
+   */
+  avantRepartition?: CompteAvantRepartition[];
 }
 
 /** Mini-recap presente a l'humain pour decision GO/STOP (cf. ETAPE 2 du protocole). */

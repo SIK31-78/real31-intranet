@@ -23,6 +23,7 @@ const zDecision = z.discriminatedUnion("type", [
   z.object({ type: z.literal("choisir_cible"), nomenclature: z.string().trim().min(1).max(40) }),
   z.object({ type: z.literal("creer_fournisseur") }),
   z.object({ type: z.literal("creer_compte_separe"), owner: z.string().trim().min(1).max(40) }),
+  z.object({ type: z.literal("coproprietaire_parti"), nomenclature: z.string().trim().min(1).max(40) }),
   z.object({ type: z.literal("ignorer"), motif: z.string().trim().min(1).max(300) }),
 ]);
 

@@ -2,7 +2,13 @@
 // et recalcul du verdict pretAImporter. Tous les noms sont SYNTHETIQUES (inventes) - aucune
 // donnee reelle, aucun nom dans les messages du plan (regle PII).
 import { describe, expect, it } from "vitest";
-import { construirePlan, mapperCompte, type ContexteEstale } from "../mapping-compta";
+import {
+  appliquerAvantRepartition,
+  construirePlan,
+  mapperCompte,
+  type ContexteEstale,
+} from "../mapping-compta";
+import type { VerdictAvantRepartition } from "../controle-comptes";
 import { appliquerDecisions, type DecisionEntree } from "../decisions-mapping";
 
 const CTX: ContexteEstale = {
@@ -94,6 +100,34 @@ describe("appliquerDecisions - types de decision", () => {
     expect(r.notes.some((n) => /inapplicable/i.test(n))).toBe(true);
   });
 
+  it("coproprietaire_parti : un 450 non mappe devient mappe sur le compte 47x dedie", () => {
+    const plan = resoudre([["4501.3", "PERSONNE ABSENTE"]]); // 450 introuvable -> non_mappe (erreur)
+    expect(plan.pretAImporter).toBe(false);
+
+    const decisions: DecisionEntree[] = [
+      { compteSource: "4501.3", decision: { type: "coproprietaire_parti", nomenclature: "471005" } },
+    ];
+    const r = appliquerDecisions(plan, decisions);
+
+    expect(r.erreurs).toHaveLength(0);
+    expect(r.entrees[0]?.statut).toBe("mappe");
+    expect(r.entrees[0]?.cible?.nomenclature).toBe("471005");
+    expect(r.entrees[0]?.action).toBeUndefined();
+    expect(r.compteurs.mappe).toBe(1);
+    expect(r.pretAImporter).toBe(true);
+  });
+
+  it("coproprietaire_parti inapplicable sur un non-450 (fournisseur) : entree inchangee + note", () => {
+    const plan = resoudre([["4010.9", "FOURNISSEUR NOUVEAU"]]); // 401 -> action creer_fournisseur
+    const r = appliquerDecisions(plan, [
+      { compteSource: "4010.9", decision: { type: "coproprietaire_parti", nomenclature: "471005" } },
+    ]);
+    expect(r.entrees[0]?.action).toEqual({ type: "creer_fournisseur", intituleSource: "FOURNISSEUR NOUVEAU" });
+    expect(r.notes.some((n) => /inapplicable/i.test(n))).toBe(true);
+    // Le numero cible ne fuit pas dans les messages (pas de PII de toute facon, mais coherence).
+    expect(r.entrees[0]?.cible).toBeUndefined();
+  });
+
   it("ignorer : le compte sort des erreurs mais garde son statut brut + flag ignore", () => {
     const plan = resoudre([["4501.3", "PERSONNE ABSENTE"]]); // non_mappe -> erreur
     const decisions: DecisionEntree[] = [
@@ -154,6 +188,29 @@ describe("appliquerDecisions - recalcul global et robustesse", () => {
     expect(r.entrees[0]?.statut).toBe("non_mappe"); // inchange
     expect(r.pretAImporter).toBe(false); // toujours bloquant
     expect(r.notes.some((n) => /inapplicable/i.test(n))).toBe(true);
+  });
+
+  it("garde-fou avant-repartition : bloquant STRICT meme quand tout est mappe", () => {
+    // Plan sans aucune alerte de mapping (un fournisseur bien apparie).
+    const planOk = resoudre([["4010.1", "ACME NETTOYAGE"]]);
+    expect(planOk.pretAImporter).toBe(true);
+
+    // On y attache le verdict avant-repartition (comptes de classe 6/7 avec report).
+    const verdict: VerdictAvantRepartition = {
+      avantRepartition: true,
+      comptes: [{ compte: "6200000", reportDebit: 1500, reportCredit: 0 }],
+    };
+    const planBloque = appliquerAvantRepartition(planOk, verdict);
+    expect(planBloque.pretAImporter).toBe(false);
+    expect(planBloque.erreurs.some((e) => /AVANT repartition/i.test(e))).toBe(true);
+
+    // Le recalcul cote client (appliquerDecisions) DOIT conserver le blocage, meme sans decision.
+    const r = appliquerDecisions(planBloque, []);
+    expect(r.pretAImporter).toBe(false);
+    expect(r.aTraiter).toBeGreaterThanOrEqual(1);
+    expect(r.erreurs.some((e) => /AVANT repartition/i.test(e))).toBe(true);
+    // Et aucun geste humain ne le leve (pas d'override) : on ne peut pas trancher ce compte.
+    expect(r.avantRepartition?.avantRepartition).toBe(true);
   });
 
   it("sans decision : le plan resolu est equivalent au plan de depart", () => {

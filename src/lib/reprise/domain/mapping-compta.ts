@@ -16,6 +16,10 @@
 // recopie JAMAIS dans les messages/notes du plan (seuls numeros de compte, scores et compteurs).
 
 import { classeDe, type ClasseComptable } from "@/lib/reprise/domain/compta";
+import {
+  messageAvantRepartition,
+  type VerdictAvantRepartition,
+} from "@/lib/reprise/domain/controle-comptes";
 
 // --- Constantes de reglage (a arbitrer avec Sekou) --------------------------------
 
@@ -128,6 +132,13 @@ export interface PlanMapping {
   notes: string[];
   /** Groupes de comptes 450 homonymes (a comptes multiples). Absent si aucun. PII-free. */
   groupesHomonymes?: GroupeHomonymes[];
+  /**
+   * Verdict "grand livre AVANT repartition" (comptes de classe 6/7 avec report non nul). Present
+   * (et bloquant) uniquement quand la signature est detectee. Bloquant STRICT : tant qu'il est la,
+   * pretAImporter reste false (pas d'override). PII-free. Attache par les services (qui ont acces
+   * aux ControleCompte) via appliquerAvantRepartition ; rejoue par appliquerDecisions.
+   */
+  avantRepartition?: VerdictAvantRepartition;
   /** true si aucune erreur ET aucun warning -> le plan peut etre execute a l'increment 3. */
   pretAImporter: boolean;
 }
@@ -542,6 +553,25 @@ export function construirePlan(entrees: EntreeMapping[]): PlanMapping {
 
   const pretAImporter = erreurs.length === 0 && warnings.length === 0;
   return { entrees, compteurs, erreurs, warnings, notes, pretAImporter };
+}
+
+/**
+ * Applique le GARDE-FOU avant-repartition a un plan : si le verdict est bloquant (au moins un
+ * compte de classe 6/7 avec report non nul), attache le verdict, PREPEND l'erreur bloquante et
+ * force pretAImporter = false. Bloquant STRICT : aucun override. Renvoie le plan inchange si le
+ * verdict n'est pas bloquant (retro-compatible). Pur : ne mute pas le plan d'entree.
+ */
+export function appliquerAvantRepartition(
+  plan: PlanMapping,
+  verdict: VerdictAvantRepartition,
+): PlanMapping {
+  if (!verdict.avantRepartition) return plan;
+  return {
+    ...plan,
+    avantRepartition: verdict,
+    erreurs: [messageAvantRepartition(verdict), ...plan.erreurs],
+    pretAImporter: false,
+  };
 }
 
 // --- Groupes homonymes (coproprietaires a comptes multiples) -----------------------

@@ -21,6 +21,7 @@ import {
   type PlanMapping,
   type StatutMapping,
 } from "@/lib/reprise/domain/mapping-compta";
+import { messageAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
 
 /**
  * Geste humain applique a UN compte source lors de la revue.
@@ -29,6 +30,9 @@ import {
  *   - creer_fournisseur   : forcer la creation d'un fournisseur 401 (-> action_requise) ;
  *   - creer_compte_separe : creer un compte 450 SEPARE rattache a un owner eStale, pour un
  *                           coproprietaire a comptes multiples (pas de fusion) (-> action_requise) ;
+ *   - coproprietaire_parti: le titulaire du compte 450 a VENDU en cours d'exercice (introuvable dans
+ *                           eStale) -> ses ecritures vont sur un compte dedie 47x/46x "coproprietaires
+ *                           partis" (nomenclature CIBLE saisie/choisie par le gestionnaire) (-> mappe) ;
  *   - ignorer             : ecarter volontairement le compte (trace par un motif).
  */
 export type DecisionMapping =
@@ -36,6 +40,7 @@ export type DecisionMapping =
   | { type: "choisir_cible"; nomenclature: string }
   | { type: "creer_fournisseur" }
   | { type: "creer_compte_separe"; owner: string }
+  | { type: "coproprietaire_parti"; nomenclature: string }
   | { type: "ignorer"; motif: string };
 
 /** Une decision rattachee a son compte source (+ tracabilite : qui / quand). */
@@ -151,6 +156,31 @@ function appliquerUneDecision(e: EntreeMapping, d: DecisionMapping): Applique {
         applique: true,
       };
     }
+    case "coproprietaire_parti": {
+      // Reserve aux comptes 450 (coproprietaire) : le titulaire a vendu en cours d'exercice et
+      // n'existe plus dans eStale. Ses ecritures sont imputees a un compte DEDIE "coproprietaires
+      // partis" (47x standard, decision cabinet ; 46x existant tolere). La nomenclature cible est
+      // saisie/choisie par le gestionnaire (pas de numero fige) -> statut mappe. Le compte cible
+      // est resolu/cree a l'import (Inc. 3), comme toute cible de mapping.
+      if (e.categorie !== "coproprietaire") {
+        return {
+          entree: e,
+          applique: false,
+          note: `compte ${e.compteSource} : decision 'coproprietaire parti' inapplicable (categorie ${e.categorie})`,
+        };
+      }
+      return {
+        entree: {
+          ...e,
+          statut: "mappe",
+          cible: cibleDe(d.nomenclature),
+          action: undefined,
+          decision: d,
+          note: "coproprietaire parti (vendu) : ecritures imputees a un compte dedie 47x/46x",
+        },
+        applique: true,
+      };
+    }
     case "ignorer": {
       // Le motif reste dans la decision (PII possible) : jamais dans la note du plan.
       return {
@@ -235,6 +265,13 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
   }
   notes.push(...notesSupplementaires);
 
+  // GARDE-FOU avant-repartition (bloquant STRICT) : si le plan porte le verdict, on prepend
+  // l'erreur et on force pretAImporter = false. Aucun geste humain ne le leve (il faut le bon
+  // grand livre). Rejoue ici pour survivre au recalcul cote client (appliquerDecisions).
+  if (plan.avantRepartition?.avantRepartition) {
+    erreurs.unshift(messageAvantRepartition(plan.avantRepartition));
+  }
+
   const pretAImporter = erreurs.length === 0 && warnings.length === 0;
   return {
     entrees,
@@ -242,6 +279,7 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
     erreurs,
     warnings,
     notes,
+    ...(plan.avantRepartition ? { avantRepartition: plan.avantRepartition } : {}),
     pretAImporter,
     aTraiter: erreurs.length + warnings.length,
     decisionsAppliquees,

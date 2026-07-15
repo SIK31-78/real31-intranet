@@ -19,6 +19,7 @@ import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/ext
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 import { comptes450DeIntitules, lierOwnersComptes } from "@/lib/reprise/domain/liaison-comptes";
+import { detecterAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
 import {
   analyserPatrimoine,
   calculerRecap,
@@ -113,11 +114,16 @@ export async function analyserDossierUnifie(
   }
   recap.notes = [...notesPatrimoine, ...notesLiaison];
 
+  // Garde-fou "grand livre AVANT repartition" (classe 6/7 avec report non nul) : alerte rouge
+  // dans le recap unifie (il faut redemander le grand livre APRES repartition). PII-free.
+  const avantRep = detecterAvantRepartition(grandLivre.jeu.controles ?? []);
+
   const compta: RecapCompta = {
     equilibre: grandLivre.equilibreGlobal.equilibre,
     ecart: grandLivre.equilibreGlobal.ecart,
     nbComptes: new Set(grandLivre.jeu.lignes.map((l) => l.compte)).size,
     nbEcritures: grandLivre.jeu.lignes.length,
+    ...(avantRep.avantRepartition ? { avantRepartition: avantRep.comptes } : {}),
   };
   recap.compta = compta;
 

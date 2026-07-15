@@ -28,6 +28,7 @@ import {
   BookOpen,
   Split,
   Users,
+  UserMinus,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,15 @@ type ModeIa = "claude" | "claude-cli" | "mistral" | "mock";
 interface Candidats {
   fournisseurs: CandidatCompte[];
   coproprietaires: CandidatCompte[];
+  /** Comptes d'attente/regularisation 46x/47x existants (cibles "coproprietaire parti"). */
+  partis: CandidatCompte[];
+}
+
+/** Un compte de classe 6/7 avec report non nul (signature "grand livre avant repartition"). */
+interface CompteAvantRepart {
+  compte: string;
+  reportDebit: number;
+  reportCredit: number;
 }
 
 interface Equilibre {
@@ -405,8 +415,12 @@ function ResultatRevue({
   const nomDe = (nomenclature?: string) => (nomenclature ? nomParNomenclature.get(nomenclature) ?? "" : "");
   const gl = (compteSource: string) => data.grandLivre[compteSource];
 
+  const avantRep = data.plan.avantRepartition;
+
   return (
     <div className="flex flex-col gap-5">
+      {avantRep?.avantRepartition && <AlerteAvantRepartition comptes={avantRep.comptes} />}
+
       <BandeauRecap resolu={resolu} equilibre={data.equilibre} total={entrees.length} />
 
       {groupes.length > 0 && (
@@ -414,6 +428,7 @@ function ResultatRevue({
           groupes={groupes}
           entreeParCompte={entreeParCompte}
           coproprietaires={data.candidats.coproprietaires}
+          partis={data.candidats.partis}
           grandLivre={data.grandLivre}
           nomDe={nomDe}
           onTrancher={trancher}
@@ -437,6 +452,7 @@ function ResultatRevue({
                 candidats={
                   e.categorie === "fournisseur" ? data.candidats.fournisseurs : data.candidats.coproprietaires
                 }
+                partis={data.candidats.partis}
                 grandLivreCompte={gl(e.compteSource)}
                 nomDe={nomDe}
                 onTrancher={trancher}
@@ -571,6 +587,7 @@ function SectionHomonymes({
   groupes,
   entreeParCompte,
   coproprietaires,
+  partis,
   grandLivre,
   nomDe,
   onTrancher,
@@ -579,6 +596,7 @@ function SectionHomonymes({
   groupes: GroupeHomonymes[];
   entreeParCompte: Map<string, EntreeMappingResolue>;
   coproprietaires: CandidatCompte[];
+  partis: CandidatCompte[];
   grandLivre: Record<string, GrandLivreCompte>;
   nomDe: (n?: string) => string;
   onTrancher: (compteSource: string, decision: DecisionMapping) => void;
@@ -627,6 +645,7 @@ function SectionHomonymes({
                       key={e.compteSource}
                       entree={e}
                       candidats={coproprietaires}
+                      partis={partis}
                       grandLivreCompte={grandLivre[e.compteSource]}
                       nomDe={nomDe}
                       onTrancher={onTrancher}
@@ -665,6 +684,9 @@ function MembreHomonymeResolu({
             <Badge ton={e.ignore ? "neutral" : "ok"} dot>
               {e.ignore ? "ignore" : STATUT_LABEL[e.statut]}
             </Badge>
+            {e.decision?.type === "coproprietaire_parti" && (
+              <Badge ton="brand">Parti -&gt; {e.cible?.nomenclature ?? ""}</Badge>
+            )}
           </div>
           {ownerSepare ? (
             <p className="mt-1 text-[12px] text-ink-3">
@@ -692,12 +714,15 @@ function MembreHomonymeResolu({
 function EntreeATraiter({
   entree,
   candidats,
+  partis,
   grandLivreCompte,
   nomDe,
   onTrancher,
 }: {
   entree: EntreeMappingResolue;
   candidats: CandidatCompte[];
+  /** Cibles 46x/47x existantes (pour la decision "coproprietaire parti"). Optionnel. */
+  partis?: CandidatCompte[];
   grandLivreCompte?: GrandLivreCompte;
   nomDe: (n?: string) => string;
   onTrancher: (compteSource: string, decision: DecisionMapping) => void;
@@ -760,6 +785,13 @@ function EntreeATraiter({
           <SelectCompteSepare
             candidats={candidats}
             onChoisir={(owner) => onTrancher(cs, { type: "creer_compte_separe", owner })}
+          />
+        )}
+
+        {estCoproprietaire && (
+          <CoproprietaireParti
+            partis={partis ?? []}
+            onChoisir={(nomenclature) => onTrancher(cs, { type: "coproprietaire_parti", nomenclature })}
           />
         )}
 
@@ -847,6 +879,113 @@ function SelectCompteSepare({
         </option>
       ))}
     </select>
+  );
+}
+
+/**
+ * Decision "COPROPRIETAIRE PARTI" (a vendu en cours d'exercice, introuvable dans eStale) : imputer
+ * ses ecritures a un compte dedie. Deux voies : (a) choisir un compte 46x/47x DEJA dans eStale
+ * (ex. un 461-005 cree par la comptable) ; (b) saisir une nomenclature a creer, pre-remplie "471"
+ * (standard cabinet decide par Sekou : 471xxx "Coproprietaires partis"). Numero jamais fige : le
+ * suffixe est complete/edite par le gestionnaire.
+ */
+function CoproprietaireParti({
+  partis,
+  onChoisir,
+}: {
+  partis: CandidatCompte[];
+  onChoisir: (nomenclature: string) => void;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [nouveau, setNouveau] = useState("471");
+  return (
+    <div className="relative">
+      <Button type="button" variant="secondary" size="sm" onClick={() => setOuvert((v) => !v)}>
+        <UserMinus strokeWidth={1.5} /> Coproprietaire parti
+      </Button>
+      {ouvert && (
+        <div className="absolute z-10 mt-1 w-[290px] rounded-md border border-line bg-surface p-2.5 shadow-md">
+          <p className="text-[11px] text-ink-3">
+            Le titulaire a vendu : imputer ses ecritures a un compte dedie 47x (standard) ou 46x existant.
+          </p>
+          {partis.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  onChoisir(e.target.value);
+                  setOuvert(false);
+                }
+              }}
+              className="mt-2 h-[26px] w-full rounded-sm border border-line bg-surface px-2 text-[12px] text-ink"
+              aria-label="Choisir un compte 46x/47x existant"
+            >
+              <option value="">Compte 46x/47x existant...</option>
+              {partis.map((c) => (
+                <option key={c.nomenclature} value={c.nomenclature}>
+                  {c.nomenclature} - {c.intitule}
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="mt-2 flex items-center gap-1.5">
+            <input
+              value={nouveau}
+              onChange={(e) => setNouveau(e.target.value)}
+              placeholder="471xxx"
+              className="h-[26px] flex-1 rounded-sm border border-line bg-surface px-2 text-[12px] font-mono text-ink"
+              aria-label="Nomenclature du compte coproprietaires partis"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={nouveau.trim().length === 0}
+              onClick={() => {
+                onChoisir(nouveau.trim());
+                setOuvert(false);
+              }}
+            >
+              <Check strokeWidth={2} /> Valider
+            </Button>
+          </div>
+          <p className="mt-1.5 text-[10.5px] text-ink-4">
+            Standard cabinet : 471xxx &laquo; Coproprietaires partis &raquo;. Numero a completer/editer.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * ALERTE ROUGE "grand livre AVANT repartition" : des comptes de classe 6/7 portent un solde
+ * anterieur non nul (apres cloture+repartition ils repartent a zero) -> mauvais grand livre.
+ * Bloquant strict (l'import reste desactive, pretAImporter=false). PII-free (numeros + montants).
+ */
+function AlerteAvantRepartition({ comptes }: { comptes: CompteAvantRepart[] }) {
+  return (
+    <div className="rounded-md border border-err-500/50 bg-err-50 px-4 py-3 text-[13px] text-err-700">
+      <div className="flex items-start gap-2">
+        <AlertTriangle strokeWidth={1.75} className="w-5 h-5 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-semibold">Ce grand livre semble etre la version AVANT repartition.</p>
+          <p className="mt-1 text-[12.5px] text-err-700/90">
+            {comptes.length} compte(s) de classe 6/7 portent un solde anterieur (report a-nouveau) non nul,
+            alors qu&apos;apres cloture+repartition ils repartent a zero. Aucune reprise fiable n&apos;est
+            possible : demander a l&apos;ancien syndic le grand livre APRES repartition/regule. Import bloque.
+          </p>
+          <ul className="mt-2 space-y-0.5 font-mono text-[11.5px]">
+            {comptes.map((c) => (
+              <li key={c.compte}>
+                {c.compte} :{c.reportDebit ? ` report D ${montantEuro(c.reportDebit)}` : ""}
+                {c.reportCredit ? ` report C ${montantEuro(c.reportCredit)}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1285,7 +1424,11 @@ function LigneTable({
         <td className="px-2 align-top">
           <span className="inline-flex items-center gap-1.5">
             {STATUT_LABEL[e.statut]}
-            {e.decision && <Badge ton="brand">{e.ignore ? "ignore" : "manuel"}</Badge>}
+            {e.decision?.type === "coproprietaire_parti" ? (
+              <Badge ton="brand">Parti -&gt; {e.cible?.nomenclature ?? ""}</Badge>
+            ) : (
+              e.decision && <Badge ton="brand">{e.ignore ? "ignore" : "manuel"}</Badge>
+            )}
           </span>
         </td>
         <td className="px-2 align-top text-right font-mono text-ink-2 whitespace-nowrap">

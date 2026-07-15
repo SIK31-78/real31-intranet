@@ -17,12 +17,14 @@
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
 import type { SoldeCompte } from "@/lib/reprise/domain/compta";
 import {
+  appliquerAvantRepartition,
   racineCompte,
   resoudreComptes,
   type CandidatCompte,
   type ContexteEstale,
   type PlanMapping,
 } from "@/lib/reprise/domain/mapping-compta";
+import { detecterAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
 import type {
   EstaleComptaLectureProvider,
   RefAccounting,
@@ -87,7 +89,9 @@ export async function construirePlanMapping(
     const comptes = await provider.lireComptes(ref);
     const contexte = construireContexteEstale(comptes);
 
-    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
+    const planBrut = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
+    // Garde-fou "grand livre avant repartition" (classe 6/7 avec report non nul) : bloquant strict.
+    const plan = appliquerAvantRepartition(planBrut, detecterAvantRepartition(jeu.controles ?? []));
 
     return { ok: true, plan, ref };
   } catch (e) {
@@ -102,6 +106,18 @@ export interface CandidatsEstale {
   fournisseurs: CandidatCompte[];
   /** Comptes 450 coproprietaires existants (nomenclature + nom). PII : idem. */
   coproprietaires: CandidatCompte[];
+  /**
+   * Comptes d'attente/regularisation 46x et 47x existants (nomenclature + nom) : cibles candidates
+   * pour la decision "coproprietaire parti" (ex. 471xxx "Coproprietaires partis", ou un 461-005
+   * deja cree par la comptable). PII : noms affiches en UI seulement.
+   */
+  partis: CandidatCompte[];
+}
+
+/** true si le compte est un compte d'attente/regularisation 46x ou 47x (cible "coproprietaire parti"). */
+function estComptePartis(nomenclature: string): boolean {
+  const r = racineCompte(nomenclature);
+  return r.startsWith("46") || r.startsWith("47");
 }
 
 export type ResultatRevueMapping =
@@ -135,12 +151,23 @@ export async function preparerRevueMapping(
     const comptes = await provider.lireComptes(ref);
     const contexte = construireContexteEstale(comptes);
 
-    const plan = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
+    const planBrut = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
+    // Garde-fou "grand livre avant repartition" (classe 6/7 avec report non nul) : bloquant strict.
+    const plan = appliquerAvantRepartition(planBrut, detecterAvantRepartition(jeu.controles ?? []));
+
+    // Cibles "coproprietaire parti" : comptes d'attente/regularisation 46x/47x deja dans eStale.
+    const partis = comptes
+      .filter((c) => estComptePartis(c.nomenclature))
+      .map((c) => ({ nomenclature: c.nomenclature, intitule: c.libelle ?? "" }));
 
     return {
       ok: true,
       plan,
-      candidats: { fournisseurs: contexte.fournisseurs, coproprietaires: contexte.coproprietaires },
+      candidats: {
+        fournisseurs: contexte.fournisseurs,
+        coproprietaires: contexte.coproprietaires,
+        partis,
+      },
       ref,
     };
   } catch (e) {

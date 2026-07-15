@@ -7,6 +7,7 @@
 // S0XXX du vault Obsidian, pour une continuite directe avec l'existant. Pur, testable.
 
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
+import type { CompteAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
 
 /** Grandes phases du flux d'onboarding, dans l'ordre. */
 export const PHASES = [
@@ -47,6 +48,12 @@ export interface ComptaResume {
   nbComptes: number;
   /** Nombre d'ecritures extraites. */
   nbEcritures: number;
+  /**
+   * Comptes de classe 6/7 avec report a-nouveau non nul (signature "grand livre AVANT
+   * repartition"). Present/non vide seulement si detecte. Persiste dans le JSONB `compteurs`
+   * (ADDITIF, zero migration) pour rehydrater l'alerte rouge du recap. PII-free.
+   */
+  avantRepartition?: CompteAvantRepartition[];
 }
 
 /** Compteurs du dossier (alignes sur le frontmatter des fiches S0XXX). */

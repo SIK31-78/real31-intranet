@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { balanceParCompte, verifierTotauxParCompte } from "../controle-comptes";
+import {
+  balanceParCompte,
+  detecterAvantRepartition,
+  messageAvantRepartition,
+  verifierTotauxParCompte,
+} from "../controle-comptes";
 import type { ControleCompte, LigneEcriture, SensEcriture } from "../ecriture";
 import { classeDe } from "../compta";
 
@@ -128,5 +133,65 @@ describe("balanceParCompte", () => {
     const b = balanceParCompte([], [{ compte: "450900", totalDebit: 250, reportDebit: 250 }]);
     expect(b).toHaveLength(1);
     expect(b[0].statut).toBe("ok"); // 250 (report) + 0 == 250
+  });
+});
+
+describe("detecterAvantRepartition", () => {
+  it("classe 6 avec report non nul -> bloquant (indice avant repartition)", () => {
+    const controles: ControleCompte[] = [{ compte: "6200000", reportDebit: 1500 }];
+    const r = detecterAvantRepartition(controles);
+    expect(r.avantRepartition).toBe(true);
+    expect(r.comptes).toHaveLength(1);
+    expect(r.comptes[0]).toEqual({ compte: "6200000", reportDebit: 1500, reportCredit: 0 });
+  });
+
+  it("classe 7 avec report credit non nul -> bloquant", () => {
+    const controles: ControleCompte[] = [{ compte: "7000000", reportCredit: 900 }];
+    const r = detecterAvantRepartition(controles);
+    expect(r.avantRepartition).toBe(true);
+    expect(r.comptes[0].reportCredit).toBe(900);
+  });
+
+  it("classe 4/5 avec report non nul -> PAS bloquant (report de tiers/tresorerie normal)", () => {
+    const controles: ControleCompte[] = [
+      { compte: "4500001", reportDebit: 800 }, // coproprietaire : report normal
+      { compte: "5120000", reportCredit: 1200 }, // banque : report normal
+    ];
+    const r = detecterAvantRepartition(controles);
+    expect(r.avantRepartition).toBe(false);
+    expect(r.comptes).toHaveLength(0);
+  });
+
+  it("classe 6 avec report SOUS le seuil d'arrondi -> ignore (bruit)", () => {
+    const controles: ControleCompte[] = [{ compte: "6200000", reportDebit: 0.002 }];
+    const r = detecterAvantRepartition(controles);
+    expect(r.avantRepartition).toBe(false);
+  });
+
+  it("grand livre bien post-repartition (classe 6/7 sans report) -> non bloquant", () => {
+    const controles: ControleCompte[] = [
+      { compte: "6200000", totalDebit: 5000 }, // que des ecritures, aucun report
+      { compte: "7000000", totalCredit: 5000 },
+      { compte: "4500001", reportDebit: 800 },
+    ];
+    const r = detecterAvantRepartition(controles);
+    expect(r.avantRepartition).toBe(false);
+  });
+
+  it("trie les comptes concernes et le message reste PII-free (numeros + montants seulement)", () => {
+    const controles: ControleCompte[] = [
+      { compte: "7010000", reportCredit: 300 },
+      { compte: "6100000", reportDebit: 200 },
+    ];
+    const r = detecterAvantRepartition(controles);
+    expect(r.comptes.map((c) => c.compte)).toEqual(["6100000", "7010000"]); // tri
+    const msg = messageAvantRepartition(r);
+    expect(msg).toContain("6100000");
+    expect(msg).toContain("7010000");
+    expect(msg).toMatch(/AVANT repartition/i);
+    // PII : la detection ne prend que des ControleCompte (numeros + montants, aucun intitule) ->
+    // aucun nom ne peut apparaitre. On verifie que les montants captures y figurent.
+    expect(msg).toContain("200");
+    expect(msg).toContain("300");
   });
 });

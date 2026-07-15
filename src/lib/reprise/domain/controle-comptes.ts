@@ -8,7 +8,7 @@
 // Un compte SANS total imprime n'est pas une erreur : il est simplement NON CONTROLE (on ne
 // dispose d'aucune reference pour lui). On ne signale que les comptes reellement en ecart.
 
-import { SEUIL_EQUILIBRE } from "@/lib/reprise/domain/compta";
+import { SEUIL_EQUILIBRE, classeDe } from "@/lib/reprise/domain/compta";
 import type { ControleCompte, LigneEcriture } from "@/lib/reprise/domain/ecriture";
 
 /** Verdict de controle d'UN compte (somme des ecritures vs total imprime). */
@@ -48,6 +48,86 @@ export interface ResultatControleComptes {
 /** Arrondi au centime (evite le bruit flottant sur les cumuls). */
 function arrondi(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Classe comptable tolerante (ne leve pas : renvoie null si hors 1..7 ou non numerique). */
+function classeSafe(compte: string): number | null {
+  try {
+    return classeDe(compte);
+  } catch {
+    return null;
+  }
+}
+
+// --- Garde-fou "grand livre AVANT repartition" (signature comptable) ---------------
+//
+// La comptable a un cas reel : l'ancien syndic transmet parfois le grand livre AVANT la
+// repartition de l'exercice cloture. Signature comptable : les comptes de CHARGES (classe 6)
+// et de PRODUITS (classe 7) portent un report a-nouveau / solde anterieur NON NUL alors qu'apres
+// cloture+repartition ils DOIVENT repartir a ZERO (ils sont soldes par la repartition). Un
+// report non nul sur un compte de classe 6/7 est donc l'indice que le grand livre n'est pas le
+// bon -> aucune reprise fiable n'est possible, il faut redemander le grand livre APRES regule.
+//
+// A l'inverse, un report sur un compte de classe 4/5 (tiers, tresorerie) est NORMAL (les soldes
+// des coproprietaires, fournisseurs, banques se reportent d'un exercice a l'autre) : on ne
+// signale QUE les classes 6 et 7. PUR, deterministe, PII-free (numeros + montants seulement).
+
+/** Un compte de classe 6/7 porteur d'un report a-nouveau non nul (indice avant-repartition). */
+export interface CompteAvantRepartition {
+  /** Numero de compte source (PII-free). */
+  compte: string;
+  /** Report a-nouveau debit capture (arrondi ; 0 si aucun). */
+  reportDebit: number;
+  /** Report a-nouveau credit capture (arrondi ; 0 si aucun). */
+  reportCredit: number;
+}
+
+/** Verdict du garde-fou avant-repartition. */
+export interface VerdictAvantRepartition {
+  /** true si au moins un compte de classe 6/7 porte un report non nul (bloquant strict). */
+  avantRepartition: boolean;
+  /** Comptes concernes (tries par numero), vide si le grand livre est bien post-repartition. */
+  comptes: CompteAvantRepartition[];
+}
+
+/**
+ * Detecte la signature "grand livre AVANT repartition" : un compte de classe 6 (charges) ou 7
+ * (produits) portant un report a-nouveau (reportDebit/reportCredit) au-dela du seuil d'arrondi.
+ * Les reports sont captures dans les ControleCompte (remplis par le parseur couche texte). Pur.
+ */
+export function detecterAvantRepartition(controles: ControleCompte[]): VerdictAvantRepartition {
+  const comptes: CompteAvantRepartition[] = [];
+  for (const c of controles) {
+    const classe = classeSafe(c.compte);
+    if (classe !== 6 && classe !== 7) continue;
+    const reportDebit = arrondi(c.reportDebit ?? 0);
+    const reportCredit = arrondi(c.reportCredit ?? 0);
+    if (Math.abs(reportDebit) >= SEUIL_EQUILIBRE || Math.abs(reportCredit) >= SEUIL_EQUILIBRE) {
+      comptes.push({ compte: c.compte, reportDebit, reportCredit });
+    }
+  }
+  comptes.sort((a, b) => a.compte.localeCompare(b.compte));
+  return { avantRepartition: comptes.length > 0, comptes };
+}
+
+/**
+ * Message BLOQUANT (PII-free : numeros + montants, jamais de libelle) explicitant le verdict
+ * avant-repartition. Reutilise par le plan de mapping (erreur) et l'ecran de revue.
+ */
+export function messageAvantRepartition(verdict: VerdictAvantRepartition): string {
+  const liste = verdict.comptes
+    .map((c) => {
+      const parts: string[] = [];
+      if (Math.abs(c.reportDebit) >= SEUIL_EQUILIBRE) parts.push(`report D ${c.reportDebit}`);
+      if (Math.abs(c.reportCredit) >= SEUIL_EQUILIBRE) parts.push(`report C ${c.reportCredit}`);
+      return `${c.compte} (${parts.join(", ")})`;
+    })
+    .join(" ; ");
+  return (
+    `Ce grand livre semble etre la version AVANT repartition : ${verdict.comptes.length} compte(s) de ` +
+    `classe 6/7 avec un solde anterieur non nul (${liste}). Apres cloture+repartition ces comptes ` +
+    `repartent a zero. Demander a l'ancien syndic le grand livre APRES repartition/regule avant toute reprise.`
+  );
 }
 
 /**

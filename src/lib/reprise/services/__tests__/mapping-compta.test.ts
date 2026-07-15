@@ -2,7 +2,7 @@
 // eStale 100 % SYNTHETIQUES (noms inventes) - aucune donnee reelle. On verifie la composition de
 // bout en bout : resolution de la copro, lecture du referentiel, plan complet + degradation propre.
 import { describe, expect, it } from "vitest";
-import { construireContexteEstale, construirePlanMapping } from "../mapping-compta";
+import { construireContexteEstale, construirePlanMapping, preparerRevueMapping } from "../mapping-compta";
 import { normaliserGrandLivre } from "@/lib/reprise/adapters/shared/normaliser-compta";
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
 import type { SoldeCompte } from "@/lib/reprise/domain/compta";
@@ -104,6 +104,17 @@ describe("construirePlanMapping - plan complet (mock)", () => {
     expect(r.message).toMatch(/introuvable/i);
   });
 
+  it("garde-fou avant-repartition : un compte de classe 6 avec report bloque le plan", async () => {
+    const jeu = jeuSynthetique();
+    jeu.controles = [{ compte: "6200000", reportDebit: 1500 }]; // signature avant-repartition
+    const r = await construirePlanMapping(jeu, "S0TEST", new MockProvider());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.avantRepartition?.avantRepartition).toBe(true);
+    expect(r.plan.pretAImporter).toBe(false);
+    expect(r.plan.erreurs.some((e) => /AVANT repartition/i.test(e))).toBe(true);
+  });
+
   it("panne du provider -> { ok:false, message } (aucune exception qui remonte)", async () => {
     const enPanne: EstaleComptaLectureProvider = {
       async resoudreAccounting(): Promise<RefAccounting | null> {
@@ -121,5 +132,27 @@ describe("construirePlanMapping - plan complet (mock)", () => {
     if (r.ok) return;
     expect(r.message).toMatch(/impossible/i);
     expect(r.message).toMatch(/503/);
+  });
+});
+
+describe("preparerRevueMapping - referentiel partis + garde-fou", () => {
+  it("expose les comptes 46x/47x (cibles 'coproprietaire parti')", async () => {
+    const r = await preparerRevueMapping(jeuSynthetique(), "S0TEST", new MockProvider());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // 4719990 (racine 471) est propose comme cible pour un coproprietaire parti.
+    expect(r.candidats.partis.map((c) => c.nomenclature)).toContain("4719990");
+    // Sans compte de classe 6/7 avec report : aucun blocage avant-repartition.
+    expect(r.plan.avantRepartition).toBeUndefined();
+  });
+
+  it("bloque le plan si le grand livre est avant repartition (classe 6/7 avec report)", async () => {
+    const jeu = jeuSynthetique();
+    jeu.controles = [{ compte: "7000000", reportCredit: 900 }];
+    const r = await preparerRevueMapping(jeu, "S0TEST", new MockProvider());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.avantRepartition?.avantRepartition).toBe(true);
+    expect(r.plan.pretAImporter).toBe(false);
   });
 });

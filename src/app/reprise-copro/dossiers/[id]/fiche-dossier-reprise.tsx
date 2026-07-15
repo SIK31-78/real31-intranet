@@ -30,6 +30,7 @@ import {
   Database,
   MapPin,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -460,6 +461,43 @@ function ResultatsAnalyse({
   );
 }
 
+/**
+ * ALERTE ROUGE "grand livre AVANT repartition" : des comptes de classe 6/7 portent un solde
+ * anterieur non nul (apres cloture+repartition ils repartent a zero) -> le grand livre transmis
+ * est le mauvais. Bloquant metier : redemander a l'ancien syndic le grand livre APRES regule.
+ * Libelles ok en UI (app interne) ; ici on n'a que des numeros + montants (PII-free par nature).
+ */
+function AlerteAvantRepartition({
+  comptes,
+}: {
+  comptes: { compte: string; reportDebit: number; reportCredit: number }[];
+}) {
+  const euro = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="mt-2 rounded-md border border-err-500/50 bg-err-50 px-3 py-2.5 text-[12.5px] text-err-700">
+      <div className="flex items-start gap-2">
+        <AlertTriangle strokeWidth={1.75} className="w-4 h-4 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-medium">Ce grand livre semble etre la version AVANT repartition.</p>
+          <p className="mt-1 text-err-700/90">
+            {comptes.length} compte(s) de classe 6/7 portent un solde anterieur non nul, alors qu&apos;apres
+            cloture+repartition ils repartent a zero. Demander a l&apos;ancien syndic le grand livre APRES
+            repartition/regule avant toute reprise.
+          </p>
+          <ul className="mt-1.5 space-y-0.5 font-mono text-[11.5px]">
+            {comptes.map((c) => (
+              <li key={c.compte}>
+                {c.compte} :{c.reportDebit ? ` report D ${euro(c.reportDebit)}` : ""}
+                {c.reportCredit ? ` report C ${euro(c.reportCredit)}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Bloc COMPTA + LIAISON (analyse unifiee avec grand livre) : balance du grand livre + etat de la
 // liaison owners <-> comptes 450, avec la revue humaine des cas ambigus. La liaison ambigue NE
 // BLOQUE PAS l'injection patrimoine : c'est un complement compta reutilise par le mapping.
@@ -485,6 +523,10 @@ function ComptaLiaison({
   return (
     <section>
       <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Comptabilite (grand livre)</h3>
+
+      {recap.compta?.avantRepartition && recap.compta.avantRepartition.length > 0 && (
+        <AlerteAvantRepartition comptes={recap.compta.avantRepartition} />
+      )}
 
       {recap.compta && (
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
