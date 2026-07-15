@@ -31,6 +31,7 @@ import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { formatDateLongue } from "@/lib/format-date";
 import { EditeurDate } from "./editeur-date";
 import { ConfirmationEvenement } from "./confirmation-evenement";
+import { MailReunionBouton } from "./mail-reunion-bouton";
 
 const ROLE_LABEL: Record<RoleEquipe, string> = {
   gestionnaire: "Gestionnaire",
@@ -46,7 +47,7 @@ const STATUT_AG_LABEL: Record<ProchaineAg["statut"], string> = {
   convoquee: "Convoquée",
 };
 
-export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
+export function FicheVueEnsemble({ fiche, mailActif = false }: { fiche: FicheCopro; mailActif?: boolean }) {
   const indispo = Boolean(fiche.estaleIndisponible);
   return (
     <div className="flex flex-col gap-5">
@@ -69,6 +70,7 @@ export function FicheVueEnsemble({ fiche }: { fiche: FicheCopro }) {
             vehiculeAgEmail={fiche.vehiculeAgEmail}
             salleCsEmail={fiche.salleCsEmail}
             vehiculeCsEmail={fiche.vehiculeCsEmail}
+            mailActif={mailActif}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
@@ -209,6 +211,7 @@ function BlocAg({
   vehiculeAgEmail,
   salleCsEmail,
   vehiculeCsEmail,
+  mailActif,
 }: {
   coproCode: string;
   derniere?: AgPassee;
@@ -224,6 +227,7 @@ function BlocAg({
   vehiculeAgEmail?: string;
   salleCsEmail?: string;
   vehiculeCsEmail?: string;
+  mailActif: boolean;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
   return (
@@ -294,6 +298,11 @@ function BlocAg({
             {prochaine && confirmationAg && (
               <ConfirmationEvenement coproCode={coproCode} type="AG" statut={confirmationAg} />
             )}
+            {/* Mail au conseil syndical (date d'AG a venir posee). Pre-rempli -> relu ->
+                envoye sur clic. Grise tant que le mail n'est pas active pour ce compte. */}
+            {prochaine && confirmationAg && (
+              <MailReunionBouton coproCode={coproCode} type="AG" actif={mailActif} />
+            )}
           </div>
           {prochaine && (
             <>
@@ -342,6 +351,9 @@ function BlocAg({
               />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
+              )}
+              {prochaineCs && confirmationCs && (
+                <MailReunionBouton coproCode={coproCode} type="CS" actif={mailActif} />
               )}
             </span>
           </div>

@@ -114,6 +114,9 @@ export type RoleConseil = "president" | "membre";
 export interface MembreConseilSyndical {
   nomComplet: string;
   role: RoleConseil;
+  /** Email du membre (Estale `owner.email`), si renseigne. Sert au pre-remplissage du
+   *  mail au conseil syndical ; absent pour beaucoup de copros -> fallback liste Crypto. */
+  email?: string;
 }
 
 /** Une AG passee. La date vient du referentiel (lastAGDate) ; les details

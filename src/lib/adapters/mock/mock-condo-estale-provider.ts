@@ -7,10 +7,12 @@ import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 
 const DONNEES: Record<string, DonneesEstaleCopro> = {
   S104: {
+    // Emails FICTIFS (domaine example.test) : demontrent la source "eStale" du mail au
+    // conseil en local. Aucune vraie adresse (pas de PII dans un mock committe).
     conseilSyndical: [
-      { nomComplet: "Mme Dupont", role: "president" },
-      { nomComplet: "M. Lefèvre", role: "membre" },
-      { nomComplet: "Mme Rossi", role: "membre" },
+      { nomComplet: "Mme Dupont", role: "president", email: "dupont@example.test" },
+      { nomComplet: "M. Lefèvre", role: "membre", email: "lefevre@example.test" },
+      { nomComplet: "Mme Rossi", role: "membre", email: "rossi@example.test" },
     ],
     mandatJusqua: "AG 2026",
     historiqueAg: [

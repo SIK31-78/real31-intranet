@@ -16,7 +16,15 @@ type Onglet = "ensemble" | "evenements" | "dossiers";
 // est un onglet-lien vers l'app externe ; Documents a ete retire (decision Sekou).
 const VERROUILLES = ["Contrats", "Comptabilité"];
 
-export function FicheCoproVue({ fiche, dossiers }: { fiche: FicheCopro; dossiers: Dossier[] }) {
+export function FicheCoproVue({
+  fiche,
+  dossiers,
+  mailActif = false,
+}: {
+  fiche: FicheCopro;
+  dossiers: Dossier[];
+  mailActif?: boolean;
+}) {
   const [onglet, setOnglet] = useState<Onglet>("ensemble");
   const panelId = useId();
 
@@ -90,7 +98,7 @@ export function FicheCoproVue({ fiche, dossiers }: { fiche: FicheCopro; dossiers
 
       {onglet === "ensemble" && (
         <div role="tabpanel" id={`${panelId}-ensemble`} aria-labelledby="tab-ensemble" tabIndex={0}>
-          <FicheVueEnsemble fiche={fiche} />
+          <FicheVueEnsemble fiche={fiche} mailActif={mailActif} />
         </div>
       )}
       {onglet === "evenements" && (
