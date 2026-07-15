@@ -22,10 +22,14 @@ import { createSupabasePublicClient } from "@/lib/adapters/supabase/public-clien
 const TABLE = "reprise_fiche_renseignements";
 
 function tableAbsente(error: { code?: string; message: string }): boolean {
+  // ATTENTION : ne matcher QUE la table absente. Une COLONNE manquante (PGRST204,
+  // "could not find the 'x' column ... in the schema cache") doit THROW, pas no-op -
+  // c'est un bug de schema a corriger, pas un etat attendu (constate en reel : la
+  // colonne 'soumises' au lieu de 'donnees_soumises' etait avalee en silence).
   return (
     error.code === "42P01" ||
     error.code === "PGRST205" ||
-    /schema cache|could not find the table/i.test(error.message)
+    /could not find the table/i.test(error.message)
   );
 }
 
@@ -36,7 +40,7 @@ interface LigneFiche {
   code_hash: string;
   statut: string;
   connues: DonneesConnues;
-  soumises: DonneesSoumises | null;
+  donnees_soumises: DonneesSoumises | null;
   courrier_genere_at: string;
   soumis_at: string | null;
   valide_at: string | null;
@@ -53,7 +57,7 @@ function versFiche(l: LigneFiche): FicheRenseignement {
     codeHash: l.code_hash,
     statut: l.statut as FicheStatut,
     connues: l.connues,
-    ...(l.soumises ? { soumises: l.soumises } : {}),
+    ...(l.donnees_soumises ? { soumises: l.donnees_soumises } : {}),
     courrierGenereAt: l.courrier_genere_at,
     ...(l.soumis_at ? { soumisAt: l.soumis_at } : {}),
     ...(l.valide_at ? { valideAt: l.valide_at } : {}),
@@ -71,7 +75,7 @@ function versLigne(f: FicheRenseignement): LigneFiche {
     code_hash: f.codeHash,
     statut: f.statut,
     connues: f.connues,
-    soumises: f.soumises ?? null,
+    donnees_soumises: f.soumises ?? null,
     courrier_genere_at: f.courrierGenereAt,
     soumis_at: f.soumisAt ?? null,
     valide_at: f.valideAt ?? null,
