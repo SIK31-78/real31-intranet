@@ -110,6 +110,7 @@ export async function preparerMailReunionAction(coproCode: string): Promise<Prep
   const infos: InfosMailDatesReunion = {
     coproCode: copro.code,
     coproNom: copro.nom,
+    coproAdresse: [copro.adresse.ligne1, copro.adresse.ville].filter(Boolean).join(" "),
     ...(cs ? { cs } : {}),
     ...(ag ? { ag } : {}),
     dateConfirmationISO: dateConfirmationJ7(todayISO),

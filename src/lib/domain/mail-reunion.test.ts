@@ -116,3 +116,26 @@ describe("corpsMailDatesReunion", () => {
     expect(enVisio).not.toContain("salle LGC");
   });
 });
+
+describe("objet avec adresse (demande Sekou)", () => {
+  it("insere l'adresse entre la reference et le sujet", () => {
+    const objet = objetMailDatesReunion({
+      coproCode: "S046",
+      coproNom: "Copro Test",
+      coproAdresse: "12 rue des Lilas COURBEVOIE",
+      cs: { dateISO: "2026-09-08" },
+      dateConfirmationISO: "2026-07-17",
+    });
+    expect(objet).toBe("S046 - 12 rue des Lilas COURBEVOIE - Date de CS à fixer");
+  });
+
+  it("sans adresse : objet inchange", () => {
+    const objet = objetMailDatesReunion({
+      coproCode: "S046",
+      coproNom: "Copro Test",
+      ag: { dateISO: "2026-09-15" },
+      dateConfirmationISO: "2026-07-17",
+    });
+    expect(objet).toBe("S046 - Date d'AG à fixer");
+  });
+});
