@@ -8,6 +8,62 @@ Perimetre : lecture seule, 367 fichiers TS/TSX, tsc 0, 172 tests verts (0 skip),
 
 ---
 
+## Statut au 2026-07-10
+
+> Relecture de la checklist 4 jours apres l'audit (chantiers reprise-compta, dates CS/AG, mail CS, fixes Outlook). Perimetre : **tout SAUF le volet API/MCP** (section 6 + items 15-16), sorti du scope par decision Sekou 2026-07-10.
+>
+> **Synthese : 22 faits / 4 partiels / 8 a faire / 2 en attente d'un tiers (DSI) / section 6 hors scope.** L'essentiel des correctifs code de l'audit a ete traite dans la vague multi-agents (commits `20817c0`, `81e9090`, `473db7f`, `129d0bb`, `ee54c28`, `f91bab7`, `798b7f3`/`43b6291`). Ce qui reste avant prod est surtout **decision + plateforme + tiers**, pas du code de detail.
+
+### Tableau de synthese
+
+| Item | Etat | Preuve / reste-a-faire |
+|---|---|---|
+| **1.1** Prod sans correctifs secu | 🔄 PARTIEL | Les correctifs de fin juin SONT en prod : IDOR (`17cd7fe`,`32fe78b`,`c091f83`) + E1 profond (`e5c70c6`) sont ancetres de `deploy` (a `beb287c`). MAIS `deploy` est desormais **-21 commits** sur `origin/increment/02-supabase` = tout le chantier dates CS/AG (mail, Outlook, salles) **pas deploye**. La secu est OK ; la prod est en retard de 4 jours de feature. |
+| **1.2** `integration/reprise-copro` nulle part | ✅ FAIT | `origin/integration/reprise-copro` existe, branche suivie, a jour (`3bcb107`). Jalon sauvegarde. |
+| **1.3** Module reprise increprenable sur Vercel | 🔄 PARTIEL | Orientation tranchee par **ADR-030 (Sekou 2026-07-08)** : cible = injecter depuis le site, sous 4 prerequis (SSO strict, `maxDuration`/jobs, GO/STOP humain, editeur de corrections). Transitoire tenu : jamais `ESTALE_ECRITURE` sur Vercel. MAIS **aucun `maxDuration` pose nulle part** (verifie) et la refonte upload (Storage/jobs) n'est pas faite. Voir surprise n°3 (route `mapping-analyser`). |
+| **1.4** Repli mock silencieux en prod | ✅ FAIT | `adapters/router.ts:63` et `:89` : `throw` si `mode==="mock" && NODE_ENV==="production"`. |
+| **1.5** Route analyser anonyme sans SSO | ✅ FAIT | `auth/session.ts:92` : fallback dev-login renvoie `null` en production. |
+| **1.6** PII coproprietaires dans les logs eStale | ✅ FAIT | `adapters/estale/client.ts` : `expurgerVariables()` retire les PII du log GraphQL (`473db7f`). |
+| **1.7** `.gitignore` PII de `data/` | 🔄 PARTIEL | `data/**` recursif pose (`20817c0`, verifie `.gitignore:58-63`). MAIS les **fichiers metier de `docs/` toujours untracked et non ranges** (Convoc de base.pdf, ODJ 31 Foch.docx, estale-inputs-extract.txt, 450 - Couverture AG.doc...) - a ranger/ignorer avant tout push. |
+| **1.8** Jamais `ESTALE_ECRITURE` sur Vercel | ✅ FAIT | Regle documentee et cadree dans ADR-030 (transitoire, geste de poste local). |
+| **2.1** Retry non idempotent des mutations | ✅ FAIT | `473db7f` : mutations jamais rejouees sur 5xx (anti-doublon). |
+| **2.2** Timeout 10 s sur les mutations | ✅ FAIT | `473db7f` : timeout ecritures porte a 30 s. |
+| **2.3** `mapping-estale.ts` zero test | ✅ FAIT | `129d0bb` : 38 tests dedies (`services/__tests__/mapping-estale.test.ts`). |
+| **2.4** `services/**` 34 fichiers 0 test (dont auth) | 🔲 A FAIRE | Toujours ~2 fichiers de test seulement sous `src/lib/services` ; `auth/session.ts` (impersonation/super-admin) non teste. Non adresse. |
+| **2.5** Pas de rate limit sur la route analyse | 🔲 A FAIRE | Aucun compteur/rate-limit dans `api/reprise/`. |
+| **2.6** Upload sans plafond de taille totale | ✅ FAIT | `473db7f` : plafond 40 Mo + lecture sequentielle. |
+| **2.7** `jeu` jsonb = PII copro, pas de RLS | 🔲 A FAIRE | Durcissement RLS = **chantier separe jamais demarre** (recurrent depuis l'audit du 2026-06-29). Voir action prioritaire n°5. |
+| **2.8** `AUTH_SECRET` presente sur Vercel ? | ✅ VERIFIE | Posee sur Vercel (ROADMAP:369, "env vars ... `AUTH_SECRET` posees") ; documentee DECISIONS.md:1184. |
+| **3.1** `get-odj.ts` contourne le cache ADR-002 | ✅ FAIT | `ee54c28` ; `get-odj.ts:77` passe par `donneesCoproEstale()` (read-through). |
+| **3.2** Bibliotheque resolutions + assemblee non cachees | ✅ FAIT | `ee54c28` : `React.cache` sur bibliotheque + assemblee. |
+| **3.3** Waterfall comptes/debiteurs | ✅ FAIT | `ee54c28` : parallelisation. |
+| **3.4** `lister()` reprise `select("*")` avec `jeu` | ✅ FAIT | `ee54c28` : liste reprise sans la colonne `jeu`. |
+| **3.5** Waterfall `get-fiche-copro` x4 | ✅ FAIT | `ee54c28` : appels independants parallelises. |
+| **3.6** Zero Suspense / loading.tsx | ✅ FAIT | `f91bab7` : 4 `loading.tsx` (copropriete/[code], mes-emails, odj composer, resolutions). |
+| **3.7** `/resolutions` force-dynamic | ✅ FAIT | Resolu avec 3.2 (cache). |
+| **4** 4 fichiers morts + `unpdf` + `graphql` | ✅ FAIT | `81e9090` : les 4 fichiers supprimes, `unpdf` et `graphql` retires de package.json (verifie). |
+| **4b** eslint-boundaries `auth -> router` | 🔄 PARTIEL | Arete ajoutee + **bug documente** dans `eslint.config` (le pattern `router*.ts` sans `mode:'file'` ne matche jamais -> toute dependance vers `router.ts` passe silencieusement). Documente mais **pas corrige**. |
+| **4c** eslint-plugin-boundaries API depreciee | 🔲 A FAIRE | Toujours sur l'API legacy `element-types` (verifie `eslint.config:76`). Migration non faite. |
+| **5-ADR** ADR ecriture eStale + 2 candidats | ✅ FAIT | ADR-029/030/031 dans DECISIONS.md, **acceptes** (`43b6291`, Sekou 2026-07-08). |
+| **5-powerapps** Suppression `docs/powerapps/` | ✅ FAIT | Absent du working tree ; portage assume vers `mythec-refactor/` + migrations facturation/recap (voir surprise n°4). |
+| **5-ROADMAP** Archiver ROADMAP + liste SQL executes | 🔲 A FAIRE | Pas de `supabase/sql/EXECUTES.md` ; ROADMAP non archive par sections. Le suivi SQL reste en prose (plusieurs `SQL A LANCER` dispersés). |
+| **13** Strategie de merge sinistre | 🔲 A FAIRE | `origin/increment/05-sinistres` **toujours ancetre** de `integration/reprise-copro`, module `src/app/sinistre/**` present -> merger dans `02-supabase` livrerait le sinistre jamais valide. Non tranche. |
+| **DSI-1** Retrait `Application.ReadWrite.All` + `AppRoleAssignment.ReadWrite.All` | ⏸️ ATTENTE DSI | Toujours liste comme action DSI critique (ROADMAP:49). Pas fait. |
+| **DSI-2** Access Policy salles / Mail.Send | ⏸️ ATTENTE DSI | Nouveau bloqueur introduit par le chantier dates (`908c86f`, Access Policy des salles) + Mail.Send (ROADMAP:338, encore 🔲). |
+| **Section 6 + items 15-16** API v1 / MCP | ⛔ HORS SCOPE | Sorti du scope par decision Sekou 2026-07-10 - non evalue. |
+
+### Les 5 actions restantes les plus importantes avant prod (ordonnees)
+
+1. **[Sekou - decision]** Trancher la **strategie de merge sinistre** (item 13). C'est le noeud qui bloque tout : `05-sinistres` est ancetre de `integration/reprise-copro`, donc merger la reprise/les dates dans le tronc `02-supabase` livrerait aussi le module sinistre jamais valide. Sans ce choix, on ne peut pas rapprocher proprement la prod.
+2. **[Sekou - GO + code]** **Rapprocher `deploy` d'`origin/increment/02-supabase`** (prod a -21 commits). Le chantier dates CS/AG (mail au CS, projection Outlook, salles) tourne en local/origin mais **n'est pas en prod**. Deploiement via le Vercel de la collegue (`git push deploy ...`), a arbitrer avec l'action 1.
+3. **[code]** **Mur Vercel du module reprise** (1.3). Aucun `maxDuration` pose nulle part, et la nouvelle route `mapping-analyser` reproduit le probleme des gros bodies + longue duree. Tant que non traite : garder la reprise **local-only** (ne pas exposer `analyser`/`mapping-analyser` ni poser `ESTALE_ECRITURE` en prod). L'editeur de corrections du jeu (prerequis (d) d'ADR-030) reste le chantier produit prioritaire.
+4. **[DSI]** **Retrait `Application.ReadWrite.All` + `AppRoleAssignment.ReadWrite.All`** de l'app Entra (critique, en attente depuis le 2026-06-29) + **Access Policy Exchange** (salles + boite service pour Mail.Send). Relancer la DSI.
+5. **[Sekou/code]** **Durcissement RLS** (2.7 + recurrent). Tout passe en `service_role`, cloisonnement 100% en code, et la reprise ajoute du PII coproprietaires en jsonb (`reprise_dossier.jeu`). Le pont d'identite Auth.js -> JWT Supabase reste le chantier secu de fond jamais demarre.
+
+> Notes secondaires (fil de l'eau, non bloquantes) : ranger les fichiers metier de `docs/` avant push (1.7 reste), rate limit sur la route analyse (2.5), tests de la couche `services/**` + `auth/session.ts` (2.4), migration eslint-boundaries vers `mode:'file'` (4b/4c), `EXECUTES.md` pour le suivi SQL (item 14).
+
+---
+
 ## 1. BLOQUANTS (a traiter avant toute mise en prod)
 
 ### 1.1 La prod (real31.app) tourne SANS les correctifs de securite 🔴
