@@ -7,8 +7,9 @@ import type { ComptaResume, Dossier, StatutEtape } from "@/lib/reprise/domain/do
 import { creerDossier, reconcilierEtapes } from "@/lib/reprise/domain/dossier";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import { trancherLiaison } from "@/lib/reprise/domain/liaison-comptes";
+import { appliquerCorrections, resumerCorrections, type Correction } from "@/lib/reprise/domain/corrections-patrimoine";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
-import type { RecapPatrimoine } from "./orchestrateur-patrimoine";
+import { calculerRecap, type RecapPatrimoine } from "./orchestrateur-patrimoine";
 
 /**
  * Reconcilie les etapes persistees avec la checklist COURANTE (migration douce, sans perte).
@@ -151,6 +152,69 @@ export async function enregistrerComptaErreur(
   const d = await exiger(repo, ref);
   d.compteurs = { ...d.compteurs, comptaErreur: erreur };
   await repo.sauver(d);
+}
+
+/** Recalcule les compteurs patrimoine du dossier depuis un recap (miroir de appliquerRecap). */
+function reporterCompteurs(d: Dossier, recap: RecapPatrimoine): void {
+  d.compteurs = {
+    ...d.compteurs,
+    nbLots: recap.lots.total,
+    nbCles: recap.cles.length,
+    nbCoproprietaires: recap.owners.total,
+    nbAttributions: recap.attributions.total,
+    nbAnomalies: recap.checks.erreurs.length + recap.checks.warnings.length,
+  };
+}
+
+/** Resultat d'une correction manuelle : jeu + recap recalcules (a renvoyer a l'UI) + notes. */
+export interface ResultatCorrectionDossier {
+  jeu: JeuDeDonnees;
+  recap: RecapPatrimoine;
+  /** Notes informatives PII-free (cascades, fusions, reattachements). */
+  notes: string[];
+}
+
+/**
+ * Applique des corrections MANUELLES au jeu persiste d'un dossier (editeur de corrections, ADR-030).
+ * Relit le dossier (cloisonnement en amont via l'action), applique les corrections au domaine PUR
+ * (transactionnel : tout ou rien), RE-PASSE verifierTout + detecterDoublons + calculerRecap (via
+ * calculerRecap), repersiste le jeu + les compteurs, et JOURNALISE un resume PII-free (detail des
+ * notes dans le journal du dossier, en base). Le recap/pretAProduire se met a jour tout seul.
+ *
+ * AUCUNE mutation eStale : les corrections ne touchent QUE le jeu local. Leve si le jeu est absent
+ * (analyse jamais lancee) ou si une correction reference une entite inconnue (message clair).
+ */
+export async function corrigerJeuDossier(
+  repo: DossierRepository,
+  ref: string,
+  corrections: Correction[],
+  nowISO: string,
+): Promise<ResultatCorrectionDossier> {
+  const d = await exiger(repo, ref);
+  if (!d.jeu) throw new Error("Aucun jeu de donnees a corriger : lance d'abord l'analyse.");
+  if (corrections.length === 0) throw new Error("Aucune correction fournie.");
+
+  const res = appliquerCorrections(d.jeu, corrections);
+  if (!res.ok) throw new Error(res.erreurs.join(" | "));
+
+  d.jeu = res.jeu;
+  const recap = calculerRecap(res.jeu);
+  reporterCompteurs(d, recap);
+
+  const resume = resumerCorrections(corrections);
+  const detail = res.notes.length > 0 ? ` ${res.notes.join(" ")}` : "";
+  d.journal.push({
+    date: nowISO,
+    texte: `Correction manuelle : ${corrections.length} modification(s) (${resume}).${detail}`,
+  });
+  await repo.sauver(d);
+
+  // Le resume compta (balance / nb comptes / erreur GL) ne vit pas dans le jeu : on le rehydrate
+  // depuis les compteurs persistes pour que l'UI n'ait pas a re-analyser le grand livre.
+  if (d.compteurs.compta) recap.compta = d.compteurs.compta;
+  if (d.compteurs.comptaErreur) recap.comptaErreur = d.compteurs.comptaErreur;
+
+  return { jeu: res.jeu, recap, notes: res.notes };
 }
 
 /**

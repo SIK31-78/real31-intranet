@@ -56,6 +56,7 @@ import {
   type RapportInjectionVue,
 } from "./actions";
 import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
+import { EditeurPatrimoine } from "./editeur-patrimoine";
 
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -146,6 +147,7 @@ export function FicheDossierReprise({
   analyseInitiale,
   modeIa,
   ecritureReelle,
+  dejaInjecte,
   fiches,
   aDesOwners,
   mailActif,
@@ -154,6 +156,7 @@ export function FicheDossierReprise({
   analyseInitiale: AnalyseInitiale | null;
   modeIa: "claude" | "claude-cli" | "mistral" | "mock";
   ecritureReelle: boolean;
+  dejaInjecte: boolean;
   fiches: FicheOwnerVue[];
   aDesOwners: boolean;
   mailActif: boolean;
@@ -225,6 +228,7 @@ export function FicheDossierReprise({
         onAnalyse={setAnalyse}
         modeIa={modeIa}
         ecritureReelle={ecritureReelle}
+        dejaInjecte={dejaInjecte}
       />
 
       {/* ZONE 2bis - Fiches de renseignements (courriers -> formulaire public -> validation) */}
@@ -267,12 +271,14 @@ function ZonePatrimoine({
   onAnalyse,
   modeIa,
   ecritureReelle,
+  dejaInjecte,
 }: {
   dossier: DossierFicheVue;
   analyse: Analyse | null;
   onAnalyse: (a: Analyse | null) => void;
   modeIa: "claude" | "claude-cli" | "mistral" | "mock";
   ecritureReelle: boolean;
+  dejaInjecte: boolean;
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [analysePending, startAnalyse] = useTransition();
@@ -401,7 +407,14 @@ function ZonePatrimoine({
             </div>
           </div>
         ) : analyse ? (
-          <ResultatsAnalyse dossier={dossier} recap={analyse.recap} jeu={analyse.jeu} ecritureReelle={ecritureReelle} />
+          <ResultatsAnalyse
+            dossier={dossier}
+            recap={analyse.recap}
+            jeu={analyse.jeu}
+            ecritureReelle={ecritureReelle}
+            dejaInjecte={dejaInjecte}
+            onAnalyse={onAnalyse}
+          />
         ) : dejaAnalyse ? (
           // Cas 2 : deja analyse (compteurs persistes) mais pas dans cette session.
           <PatrimoinePersistant patrimoine={dossier.patrimoine} anomalies={dossier.anomalies} />
@@ -416,18 +429,24 @@ function ZonePatrimoine({
   );
 }
 
-// Vue apres une analyse EN SESSION : cadrage a verifier + patrimoine extrait + actions.
+// Vue apres une analyse EN SESSION : cadrage a verifier + patrimoine extrait + editeur + actions.
 function ResultatsAnalyse({
   dossier,
   recap,
   jeu,
   ecritureReelle,
+  dejaInjecte,
+  onAnalyse,
 }: {
   dossier: DossierFicheVue;
   recap: RecapPatrimoine;
   jeu: JeuDeDonnees;
   ecritureReelle: boolean;
+  dejaInjecte: boolean;
+  onAnalyse: (a: Analyse | null) => void;
 }) {
+  // Guidage par l'ecart : cliquer "corriger" sur une cle en ecart ouvre son editeur de tantiemes.
+  const [focusCle, setFocusCle] = useState<string | null>(null);
   // (a) Cadrage extrait, a verifier : etats "a verifier / verifie" bascules par l'humain.
   const nbBatiments = new Set(
     jeu.lots.map((l) => l.escalier).filter((s): s is string => !!s && s.trim().length > 0),
@@ -447,10 +466,19 @@ function ResultatsAnalyse({
   return (
     <div className="flex flex-col gap-5">
       <CadrageAVerifier points={cadrage} />
-      <PatrimoineExtrait recap={recap} />
+      <PatrimoineExtrait recap={recap} onCorrigerCle={setFocusCle} />
       {(recap.compta || recap.liaison || recap.comptaErreur) && (
         <ComptaLiaison dossierRef={dossier.ref} recap={recap} jeu={jeu} />
       )}
+      <EditeurPatrimoine
+        dossierRef={dossier.ref}
+        jeu={jeu}
+        recap={recap}
+        dejaInjecte={dejaInjecte}
+        expandeeCle={focusCle}
+        onExpandCle={setFocusCle}
+        onApplied={(nouveauJeu, nouveauRecap) => onAnalyse({ jeu: nouveauJeu, recap: nouveauRecap })}
+      />
       <ActionsPatrimoine dossier={dossier} jeu={jeu} pretAProduire={recap.pretAProduire} ecritureReelle={ecritureReelle} />
     </div>
   );
@@ -722,7 +750,8 @@ function CadrageAVerifier({ points }: { points: PointCadrage[] }) {
 }
 
 // (b) Patrimoine extrait : compteurs + ecart par cle + anomalies + badge "pret a produire".
-function PatrimoineExtrait({ recap }: { recap: RecapPatrimoine }) {
+// onCorrigerCle : guidage par l'ecart -> ouvre l'editeur de tantiemes de la cle fautive.
+function PatrimoineExtrait({ recap, onCorrigerCle }: { recap: RecapPatrimoine; onCorrigerCle: (code: string) => void }) {
   const anomalies = [
     ...recap.notes.map((m) => ({ ton: "info" as const, message: m })),
     ...recap.checks.warnings.map((w) => ({ ton: "warn" as const, message: w.message })),
@@ -761,6 +790,7 @@ function PatrimoineExtrait({ recap }: { recap: RecapPatrimoine }) {
               <th className="text-right font-medium">Lots</th>
               <th className="text-right font-medium">Somme</th>
               <th className="text-right font-medium">Ecart</th>
+              <th className="text-right font-medium" />
             </tr>
           </thead>
           <tbody>
@@ -772,6 +802,17 @@ function PatrimoineExtrait({ recap }: { recap: RecapPatrimoine }) {
                 <td className="text-right text-ink-2">{c.sommeCalculee}</td>
                 <td className="text-right">
                   <Badge ton={c.ecart === 0 ? "ok" : "err"}>{c.ecart}</Badge>
+                </td>
+                <td className="text-right">
+                  {c.ecart !== 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onCorrigerCle(c.code)}
+                      className="text-[12px] font-medium text-green-700 hover:text-green-600 underline decoration-dotted underline-offset-2"
+                    >
+                      corriger
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

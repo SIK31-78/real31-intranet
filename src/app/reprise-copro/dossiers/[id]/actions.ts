@@ -26,7 +26,10 @@ import {
   getFicheRenseignementsRepository,
   getEstaleFicheContactProvider,
 } from "@/lib/reprise/adapters/router";
-import { majEtape, ajouterJournal, trancherLiaisonDossier, obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
+import { majEtape, ajouterJournal, trancherLiaisonDossier, obtenirDossier, corrigerJeuDossier } from "@/lib/reprise/services/suivi-dossier";
+import type { Correction } from "@/lib/reprise/domain/corrections-patrimoine";
+import { USAGES, CIVILITES } from "@/lib/reprise/domain/patrimoine";
+import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import { genererCourriers, validerFiche } from "@/lib/reprise/services/fiches-renseignements";
 import { genererCourriersDocument, type ContexteCourrier } from "@/lib/reprise/domain/fiche-courrier";
 import { objetMailEspaceClient, corpsMailEspaceClient } from "@/lib/reprise/domain/mail-espace-client";
@@ -149,6 +152,126 @@ export async function trancherLiaisonAction(
     return { ok: true, liaisons };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Mise a jour de la liaison impossible." };
+  }
+}
+
+// --- EDITEUR DE CORRECTIONS du jeu patrimoine (ADR-030) ---------------------
+// Quand l'extraction IA lit mal un scan, on corrige le jeu persiste A LA MAIN (tantieme faux,
+// lot manque, doublon d'owner) : les corrections sont validees en Zod puis appliquees au domaine
+// PUR (transactionnel), les auto-checks repassent, le dossier redevient injectable. AUCUNE
+// mutation eStale : ca ne touche QUE le jeu local.
+
+const zUsage = z.enum(USAGES as unknown as [string, ...string[]]);
+const zCivilite = z.enum(CIVILITES as unknown as [string, ...string[]]);
+
+const zLot = z.object({
+  numero: z.number().int().positive(),
+  type: z.string().max(100),
+  usage: zUsage,
+  escalier: z.string().max(10).optional(),
+  etage: z.number().int().optional(),
+  porte: z.string().max(10).optional(),
+  surface: z.number().optional(),
+  nbPiece: z.number().int().optional(),
+  commentaire: z.string().max(256),
+});
+const zLotChamps = zLot.omit({ numero: true }).partial();
+
+const zCle = z.object({
+  code: z.string().min(1).max(10),
+  libelle: z.string().max(500),
+  totalAttendu: z.number(),
+  defaut: z.boolean().optional(),
+  commentaire: z.string().max(500).optional(),
+});
+const zCleChamps = zCle.omit({ code: true }).partial();
+
+const zTantieme = z.object({
+  cleCode: z.string().min(1).max(10),
+  lot: z.number().int(),
+  valeur: z.number(),
+});
+
+const zOwner = z.object({
+  id: z.string().min(1).max(80),
+  civilite: zCivilite,
+  nom: z.string().max(80),
+  prenom: z.string().max(80).optional(),
+  pro: z.boolean(),
+  naissance: z.string().max(20).optional(),
+  email: z.string().max(120).optional(),
+  occupant: z.boolean().nullable().optional(),
+  lieuNaissance: z.string().max(120).optional(),
+  nationalite: z.string().max(120).optional(),
+  telPortable: z.string().max(30).optional(),
+  telFixe: z.string().max(30).optional(),
+  adrNum: z.string().max(40).optional(),
+  adrVoie: z.string().max(200).optional(),
+  adrComplement: z.string().max(200).optional(),
+  adrCodePostal: z.string().max(20).optional(),
+  adrVille: z.string().max(120).optional(),
+  paysAdresse: z.string().max(80).optional(),
+  formeJuridique: z.string().max(40).optional(),
+  raisonSociale: z.string().max(120).optional(),
+  siren: z.string().max(20).optional(),
+  capital: z.number().optional(),
+  commentaire: z.string().max(200).optional(),
+});
+const zOwnerChamps = zOwner.omit({ id: true }).partial();
+
+const zCorrection = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("lot.modifier"), numero: z.number().int(), champs: zLotChamps }),
+  z.object({ type: z.literal("lot.ajouter"), lot: zLot }),
+  z.object({ type: z.literal("lot.supprimer"), numero: z.number().int(), cascade: z.boolean().optional() }),
+  z.object({ type: z.literal("cle.modifier"), code: z.string().max(10), champs: zCleChamps }),
+  z.object({ type: z.literal("cle.ajouter"), cle: zCle }),
+  z.object({ type: z.literal("cle.supprimer"), code: z.string().max(10), cascade: z.boolean().optional() }),
+  z.object({ type: z.literal("tantieme.modifier"), cleCode: z.string().max(10), lot: z.number().int(), valeur: z.number() }),
+  z.object({ type: z.literal("tantieme.ajouter"), tantieme: zTantieme }),
+  z.object({ type: z.literal("tantieme.supprimer"), cleCode: z.string().max(10), lot: z.number().int() }),
+  z.object({ type: z.literal("owner.modifier"), id: z.string().max(80), champs: zOwnerChamps }),
+  z.object({ type: z.literal("owner.ajouter"), owner: zOwner }),
+  z.object({ type: z.literal("owner.supprimer"), id: z.string().max(80), reattribuerVers: z.string().max(80).optional() }),
+  z.object({ type: z.literal("owner.fusionner"), survivantId: z.string().max(80), absorbeId: z.string().max(80) }),
+  z.object({ type: z.literal("attribution.reattacher"), lot: z.number().int(), versOwnerId: z.string().max(80), deOwnerId: z.string().max(80).optional() }),
+  z.object({ type: z.literal("attribution.ajouter"), ownerId: z.string().max(80), lot: z.number().int() }),
+  z.object({ type: z.literal("attribution.supprimer"), ownerId: z.string().max(80), lot: z.number().int() }),
+]);
+const zCorrections = z.array(zCorrection).min(1).max(5000);
+
+export type CorrigerResultat =
+  | { ok: true; jeu: JeuDeDonnees; recap: RecapPatrimoine; notes: string[] }
+  | { ok: false; message: string };
+
+/**
+ * Applique un lot de corrections manuelles au jeu persiste du dossier (editeur ADR-030).
+ * Cloisonnement (gestionnaire connecte) + Zod strict. Renvoie le jeu + recap recalcules pour que
+ * l'UI rafraichisse compteurs/badges/ecarts SANS re-analyser. Le detail vit dans le journal (base) ;
+ * le log serveur reste PII-free (compteur de modifications, pas de nom).
+ */
+export async function corrigerJeuAction(dossierId: string, corrections: Correction[]): Promise<CorrigerResultat> {
+  const idOk = z.string().trim().min(1).max(40).safeParse(dossierId);
+  if (!idOk.success) return { ok: false, message: "Dossier invalide." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour corriger le jeu." };
+
+  const valid = zCorrections.safeParse(corrections);
+  if (!valid.success) return { ok: false, message: "Corrections invalides (format inattendu)." };
+
+  try {
+    const res = await corrigerJeuDossier(
+      getRepriseDossierRepository(),
+      idOk.data,
+      valid.data as Correction[],
+      new Date().toISOString(),
+    );
+    // Log serveur PII-free : seul le compteur de modifications, jamais un nom (detail = journal).
+    console.info(`[reprise] Correction manuelle dossier ${idOk.data} : ${valid.data.length} modification(s).`);
+    revalidatePath(`/reprise-copro/dossiers/${idOk.data}`);
+    return { ok: true, jeu: res.jeu, recap: res.recap, notes: res.notes };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Correction impossible." };
   }
 }
 

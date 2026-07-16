@@ -89,6 +89,11 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   const ecritureReelle = ecritureEstaleReelle();
   const mailActif = mailModuleActifPour(g.email);
 
+  // "Deja injecte" = trace d'une injection REELLE dans le journal (seul marqueur fiable : les
+  // injections reelles reussies journalisent "Injection eStale REELLE ...", jamais les dry-runs).
+  // Sert a avertir dans l'editeur que les corrections ne touchent QUE le jeu local, pas eStale.
+  const dejaInjecte = dossier.journal.some((j) => j.texte.startsWith("Injection eStale REELLE"));
+
   // Fiches de renseignements : on joint les owners du jeu (nom) aux fiches persistees (statut,
   // dates, reponse). Un owner sans fiche apparait en statut "aucune" (courrier a generer).
   const owners = dossier.jeu?.owners ?? [];
@@ -125,6 +130,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
         analyseInitiale={analyseInitiale}
         modeIa={modeIa}
         ecritureReelle={ecritureReelle}
+        dejaInjecte={dejaInjecte}
         fiches={fichesVue}
         aDesOwners={owners.length > 0}
         mailActif={mailActif}
