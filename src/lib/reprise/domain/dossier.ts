@@ -69,6 +69,12 @@ export interface CompteursDossier {
    * Loge dans `compteurs` (JSONB deja persiste) : ADDITIF, zero migration, rehydratation souple.
    */
   compta?: ComptaResume;
+  /**
+   * Erreur d'extraction du grand livre (ex. PDF scanne / couche texte inexploitable) constatee a
+   * la derniere analyse. Loge dans `compteurs` (JSONB, ADDITIF, zero migration) pour rehydrater le
+   * bloc compta en erreur a l'ouverture. Efface (undefined) des qu'une extraction reussit. PII-free.
+   */
+  comptaErreur?: string;
 }
 
 export interface EntreeJournal {
@@ -97,27 +103,64 @@ export interface Dossier {
   jeu?: JeuDeDonnees;
 }
 
-/** Checklist par defaut d'un nouveau dossier (nomenclature des fiches S0XXX). */
+/**
+ * CHECKLIST DE SUIVI HUMAIN = les etapes REELLES du pipeline de reprise, dans l'ordre (decision
+ * Sekou : l'ancienne nomenclature P/V/C « ne colle pas au reel »). C'est un simple TABLEAU
+ * EDITABLE : ajuster un libelle = modifier une ligne ci-dessous (les codes R1..R11 restent
+ * stables, ne pas les renumeroter sous peine de casser la retro-compat des dossiers persistes).
+ *
+ * Toutes ces etapes sont MANUELLES (cochees par le gestionnaire) : une case cochee = fait ET
+ * verifie. Certaines pourraient etre auto-derivees (analyse lancee, injection faite...), mais
+ * chacune porte un jugement humain (cadrage verifie, GO/STOP, alerte levee, revue tranchee) qui
+ * ne se capture pas de facon fiable en un booleen -> on reste sur du manuel (cf. ADR / rapport).
+ */
+export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle: string }> = [
+  { code: "R1", phase: "PATRIMOINE", libelle: "Documents recus de l'ancien syndic (PV nomination, presence, RGDD/annexes, EDD+RCP+modificatifs, fiche synthese, grand livre N-1)" },
+  { code: "R2", phase: "PATRIMOINE", libelle: "Analyse lancee + cadrage verifie (clefs, EDD, coproprietaires)" },
+  { code: "R3", phase: "PATRIMOINE", libelle: "Patrimoine injecte dans eStale (GO/STOP)" },
+  { code: "R4", phase: "PATRIMOINE", libelle: "Corrections manuelles eStale faites (si besoin)" },
+  { code: "R5", phase: "PATRIMOINE", libelle: "Fiches de renseignements generees + envoyees (courrier/mailing)" },
+  { code: "R6", phase: "COMPTABILITE", libelle: "Grand livre APRES repartition recu et analyse (balance 0, alerte avant-repartition levee)" },
+  { code: "R7", phase: "COMPTABILITE", libelle: "Revue du mapping compta tranchee (warnings, homonymes, partis)" },
+  { code: "R8", phase: "COMPTABILITE", libelle: "Comptabilite importee dans eStale (Inc. 3 - a venir)" },
+  { code: "R9", phase: "COMPTABILITE", libelle: "Balance eStale verifiee (soldes conformes au grand livre)" },
+  { code: "R10", phase: "MISE_EN_SERVICE", libelle: "Retours fiches traites (emails valides, espaces extranet ouverts)" },
+  { code: "R11", phase: "MISE_EN_SERVICE", libelle: "Cloture de la reprise" },
+];
+
+/** Checklist par defaut d'un nouveau dossier = le pipeline de reprise reel (toutes a_faire). */
 export function etapesParDefaut(): Etape[] {
-  const def = (code: string, phase: Phase, libelle: string): Etape => ({ code, phase, libelle, statut: "a_faire" });
-  return [
-    def("P1", "PATRIMOINE", "Preparation (note + PDFs sources)"),
-    def("P2", "PATRIMOINE", "Cadrage (EDD, cles eStale, batiments)"),
-    def("P3", "PATRIMOINE", "Production (lots / tantiemes / owners / links_DRAFT)"),
-    def("P4", "PATRIMOINE", "Import eStale (ordre strict)"),
-    def("P5", "PATRIMOINE", "Finalisation (coordonnees, cas particuliers)"),
-    def("V1", "VERIFICATION", "Apres lots + cles + tantiemes"),
-    def("V2", "VERIFICATION", "Apres owners"),
-    def("V3", "VERIFICATION", "Apres links"),
-    def("V4", "VERIFICATION", "Sanity check global"),
-    def("C1", "COMPTABILITE", "Budget d'amorcage et comptes"),
-    def("C2", "COMPTABILITE", "Fournisseurs"),
-    def("C3", "COMPTABILITE", "Budget travaux (si vote)"),
-    def("C4", "COMPTABILITE", "Ecritures classes 4, 5, 6"),
-    def("C5", "COMPTABILITE", "Classes 1 et 7 (eclatement)"),
-    def("C6", "COMPTABILITE", "Budgets definitifs et appels de fonds"),
-    def("CLOTURE", "MISE_EN_SERVICE", "Cloture"),
-  ];
+  return ETAPES_REPRISE.map((e) => ({ ...e, statut: "a_faire" as StatutEtape }));
+}
+
+/**
+ * RECONCILIATION retro-compatible des etapes d'un dossier persiste avec la checklist COURANTE.
+ *
+ * Des dossiers ont ete persistes avec l'ANCIENNE nomenclature (P1..P5, V1..V4, C1..C6, CLOTURE)
+ * dont l'etat coche vit en JSONB. Strategie SANS PERTE et SANS remap hasardeux :
+ *   - on repart de la checklist canonique (R1..R11, a_faire) ;
+ *   - une etape persistee dont le code EST canonique (R*) : on reporte son statut (idempotent) ;
+ *   - une ANCIENNE etape (code inconnu de la checklist courante) est PRESERVEE et affichee telle
+ *     quelle UNIQUEMENT si elle porte de l'information (statut != "a_faire") -> aucun etat coche
+ *     n'est perdu, aucun crash a la rehydratation. On ne DEVINE aucun mapping P/V/C -> R (ce serait
+ *     un mensonge semantique) : on garde la trace brute pour l'humain.
+ *   - une ancienne etape restee "a_faire" (aucune info) est abandonnee proprement.
+ *
+ * Idempotente : rejouee sur une liste deja canonique, elle ne fait que reporter les statuts.
+ */
+export function reconcilierEtapes(persistees: Etape[]): Etape[] {
+  const canon = etapesParDefaut();
+  const parCode = new Map(canon.map((e) => [e.code, e]));
+  const legacy: Etape[] = [];
+  for (const e of persistees) {
+    const cible = parCode.get(e.code);
+    if (cible) {
+      cible.statut = e.statut;
+    } else if (e.statut !== "a_faire") {
+      legacy.push({ ...e });
+    }
+  }
+  return [...canon, ...legacy];
 }
 
 /** Cree un dossier neuf en phase OFFRE/production avec la checklist par defaut. */

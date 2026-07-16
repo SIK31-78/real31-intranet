@@ -8,6 +8,7 @@ import {
   creerDossierSuivi,
   listerDossiers,
   majEtape,
+  obtenirDossier,
 } from "../suivi-dossier";
 
 let repo: DossierRepositoryMemoire;
@@ -29,14 +30,43 @@ describe("suivi-dossier", () => {
 
   it("met a jour le statut d'une etape par code", async () => {
     await creerDossierSuivi(repo, "S0302", "X");
-    const d = await majEtape(repo, "S0302", "P3", "fait");
-    expect(d.etapes.find((e) => e.code === "P3")!.statut).toBe("fait");
+    const d = await majEtape(repo, "S0302", "R3", "fait");
+    expect(d.etapes.find((e) => e.code === "R3")!.statut).toBe("fait");
   });
 
   it("rejette une etape inconnue et un dossier introuvable", async () => {
     await creerDossierSuivi(repo, "S0302", "X");
     await expect(majEtape(repo, "S0302", "ZZ", "fait")).rejects.toThrow(/Etape inconnue/);
-    await expect(majEtape(repo, "S9999", "P3", "fait")).rejects.toThrow(/introuvable/);
+    await expect(majEtape(repo, "S9999", "R3", "fait")).rejects.toThrow(/introuvable/);
+  });
+
+  it("migre en douceur un dossier persiste a l'ancienne nomenclature (P/V/C) sans crash ni perte", async () => {
+    // Dossier stocke a l'ancienne (P3 fait) : la lecture doit le rehydrater sur R1..R11 et
+    // preserver l'etat coche de P3. Une etape R* reste modifiable (pas de "Etape inconnue").
+    const ancien = {
+      ref: "S0400",
+      nomUsuel: "Ancien",
+      statut: "production" as const,
+      etapes: [
+        { code: "P3", phase: "PATRIMOINE" as const, libelle: "Production", statut: "fait" as const },
+        { code: "P1", phase: "PATRIMOINE" as const, libelle: "Preparation", statut: "a_faire" as const },
+      ],
+      compteurs: {},
+      anomalies: [],
+      journal: [],
+    };
+    await repo.sauver(ancien);
+
+    const lu = await obtenirDossier(repo, "S0400");
+    expect(lu!.etapes.map((e) => e.code).slice(0, 11)).toEqual([
+      "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11",
+    ]);
+    // P3 (coche) preserve ; P1 (a_faire, sans info) abandonne.
+    expect(lu!.etapes.find((e) => e.code === "P3")!.statut).toBe("fait");
+    expect(lu!.etapes.find((e) => e.code === "P1")).toBeUndefined();
+    // Une etape canonique reste modifiable apres migration.
+    const d = await majEtape(repo, "S0400", "R6", "en_cours");
+    expect(d.etapes.find((e) => e.code === "R6")!.statut).toBe("en_cours");
   });
 
   it("ajoute anomalies (sans doublon) et journal", async () => {

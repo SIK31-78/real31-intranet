@@ -83,6 +83,13 @@ export interface RecapPatrimoine {
    * calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans grand livre.
    */
   compta?: RecapCompta;
+  /**
+   * Erreur d'extraction du GRAND LIVRE (ex. couche texte inexploitable / scan). Present quand un
+   * grand livre a ete joint mais que son extraction a echoue : le patrimoine reste analyse
+   * (degradation PARTIELLE), le bloc compta affiche cette erreur au lieu de faire echouer tout le
+   * dossier. PII-free (message technique). Renseigne par l'analyse unifiee, jamais par calculerRecap.
+   */
+  comptaErreur?: string;
 }
 
 export interface AnalysePatrimoine {

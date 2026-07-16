@@ -72,17 +72,40 @@ export async function analyserDossierUnifie(
   // GRAND LIVRE SEUL (constate par Sekou : 4 min au lieu de 2 s) : sans document patrimoine,
   // on N'APPELLE PAS l'extraction IA patrimoine (minutes d'IA pour zero document) - l'analyse
   // reste la compta couche texte, quasi instantanee.
-  const [patrimoine, grandLivre] = await Promise.all([
+  //
+  // L'extraction du grand livre est ISOLEE dans un try/catch : la couche-texte-only leve une
+  // erreur explicite sur un PDF scanne. Cette erreur NE DOIT PAS faire echouer le patrimoine
+  // (degradation PARTIELLE) -> on la capture et on l'expose via recap.comptaErreur.
+  const [patrimoine, grandLivreRes] = await Promise.all([
     patriDocs.length > 0 ? analyserPatrimoine(extraction, patriDocs) : Promise.resolve(null),
-    avecGrandLivre ? extraireEtVerifierGrandLivre(extractionCompta!, glDocs) : Promise.resolve(null),
+    avecGrandLivre
+      ? extraireEtVerifierGrandLivre(extractionCompta!, glDocs).then(
+          (res) => ({ ok: true as const, res }),
+          (e: unknown) => ({
+            ok: false as const,
+            erreur: e instanceof Error ? e.message : "Extraction du grand livre impossible.",
+          }),
+        )
+      : Promise.resolve(null),
   ]);
 
+  const grandLivre = grandLivreRes?.ok ? grandLivreRes.res : null;
+  const comptaErreur = grandLivreRes && !grandLivreRes.ok ? grandLivreRes.erreur : undefined;
+
   if (!patrimoine && !grandLivre) {
-    throw new Error("Aucun document exploitable (ni patrimoine ni grand livre).");
+    // Ni patrimoine, ni grand livre exploitable. Si un grand livre etait joint mais a echoue
+    // (ex. scan), on remonte SON erreur explicite ; sinon le message generique.
+    throw new Error(comptaErreur ?? "Aucun document exploitable (ni patrimoine ni grand livre).");
   }
 
-  // Pas de grand livre : degradation stricte -> patrimoine seul, comme avant.
-  if (!grandLivre) return { jeu: patrimoine!.jeu, recap: patrimoine!.recap };
+  // Pas de grand livre exploitable mais patrimoine OK : degradation PARTIELLE. On renvoie le
+  // patrimoine seul, en attachant l'erreur d'extraction du grand livre au recap (le bloc compta
+  // l'affichera au lieu de tout faire echouer).
+  if (!grandLivre) {
+    const recap = patrimoine!.recap;
+    if (comptaErreur) recap.comptaErreur = comptaErreur;
+    return { jeu: patrimoine!.jeu, recap };
+  }
 
   // Grand livre SEUL : jeu patrimoine vide (aucune extraction IA lancee), la compta porte tout.
   const jeuPatrimoine: JeuDeDonnees = patrimoine?.jeu ?? {

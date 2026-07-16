@@ -4,17 +4,27 @@
 // demain). La logique reste testable avec l'adapter memoire.
 
 import type { ComptaResume, Dossier, StatutEtape } from "@/lib/reprise/domain/dossier";
-import { creerDossier } from "@/lib/reprise/domain/dossier";
+import { creerDossier, reconcilierEtapes } from "@/lib/reprise/domain/dossier";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import { trancherLiaison } from "@/lib/reprise/domain/liaison-comptes";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import type { RecapPatrimoine } from "./orchestrateur-patrimoine";
 
+/**
+ * Reconcilie les etapes persistees avec la checklist COURANTE (migration douce, sans perte).
+ * Applique a chaque lecture : un dossier a l'ancienne nomenclature (P/V/C) se rehydrate sur la
+ * checklist reelle (R1..R11) et, des la premiere mutation, se repersiste migre. Idempotent.
+ */
+function migrer(d: Dossier): Dossier {
+  d.etapes = reconcilierEtapes(d.etapes);
+  return d;
+}
+
 /** Erreur si le dossier n'existe pas (evite les mutations silencieuses). */
 async function exiger(repo: DossierRepository, ref: string): Promise<Dossier> {
   const d = await repo.obtenir(ref);
   if (!d) throw new Error(`Dossier introuvable : ${ref}`);
-  return d;
+  return migrer(d);
 }
 
 export async function creerDossierSuivi(
@@ -31,11 +41,12 @@ export async function creerDossierSuivi(
 
 export async function listerDossiers(repo: DossierRepository): Promise<Dossier[]> {
   const dossiers = await repo.lister();
-  return dossiers.sort((a, b) => a.ref.localeCompare(b.ref));
+  return dossiers.map(migrer).sort((a, b) => a.ref.localeCompare(b.ref));
 }
 
-export function obtenirDossier(repo: DossierRepository, ref: string): Promise<Dossier | null> {
-  return repo.obtenir(ref);
+export async function obtenirDossier(repo: DossierRepository, ref: string): Promise<Dossier | null> {
+  const d = await repo.obtenir(ref);
+  return d ? migrer(d) : null;
 }
 
 /** Met a jour le statut d'une etape (par code, ex. "P3"). */
@@ -124,6 +135,21 @@ export async function enregistrerComptaResume(
 ): Promise<void> {
   const d = await exiger(repo, ref);
   d.compteurs = { ...d.compteurs, compta };
+  await repo.sauver(d);
+}
+
+/**
+ * Persiste (ou EFFACE) l'erreur d'extraction du grand livre dans les compteurs du dossier
+ * (JSONB `compteurs`, ADDITIF, zero migration). Passer `undefined` efface l'erreur (extraction
+ * reussie a la relance) pour ne pas laisser trainer une alerte perimee. PII-free.
+ */
+export async function enregistrerComptaErreur(
+  repo: DossierRepository,
+  ref: string,
+  erreur: string | undefined,
+): Promise<void> {
+  const d = await exiger(repo, ref);
+  d.compteurs = { ...d.compteurs, comptaErreur: erreur };
   await repo.sauver(d);
 }
 

@@ -78,6 +78,9 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     // Bloc compta : recalcule depuis le jeu (liaison) par calculerRecap ; le resume compta
     // (balance / nb comptes) n'est pas dans le jeu -> relu depuis les compteurs persistes.
     if (dossier.compteurs.compta) recap.compta = dossier.compteurs.compta;
+    // Erreur d'extraction du grand livre (couche texte scannee) persistee -> rehydrate le bloc
+    // compta en erreur a la reouverture, sans re-analyser.
+    if (dossier.compteurs.comptaErreur) recap.comptaErreur = dossier.compteurs.comptaErreur;
     analyseInitiale = { jeu: dossier.jeu, recap };
   }
 

@@ -16,9 +16,7 @@ import { MistralExtractionProvider } from "@/lib/reprise/adapters/mistral/mistra
 import { ClaudeCliExtractionProvider } from "@/lib/reprise/adapters/claude-cli/claude-cli-extraction-provider";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import { MockComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/mock-provider";
-import { ClaudeComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/claude-provider";
-import { MistralComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/mistral-provider";
-import { ClaudeCliComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/claude-cli-provider";
+import { CoucheTexteComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/couche-texte-provider";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
 import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
@@ -84,29 +82,30 @@ export function getExtractionProvider(): ExtractionProvider {
 }
 
 /**
- * Provider d'extraction du GRAND LIVRE comptable, choisi selon l'environnement. Meme gate que
- * le patrimoine (EXTRACTION_PROVIDER -> modeExtraction) : Claude / Claude CLI / Mistral selon
- * les credentials, sinon MOCK (grand livre fictif equilibre, mode demonstration). Comme pour
- * le patrimoine, le mock ne doit JAMAIS repondre a de vrais PDF en production (il renverrait le
- * jeu de demo comme s'il etait le resultat de l'analyse) -> erreur explicite dans ce cas.
+ * Provider d'extraction du GRAND LIVRE comptable pour le flux de reprise COMPTA.
+ *
+ * COUCHE TEXTE UNIQUEMENT (decision Sekou : « enlever la partie IA sur le grand livre, garder
+ * texte, sinon trop lourd »). Des qu'un moteur reel est configure (EXTRACTION_PROVIDER = claude
+ * / claude-cli / mistral, ou credentials presents), on renvoie l'adapter COUCHE TEXTE : il lit le
+ * PDF NATIF de facon deterministe (zero IA), et renvoie une ERREUR EXPLICITE si le PDF est un scan
+ * plutot que de basculer sur un OCR/IA lourd. Les adapters IA (claude/mistral OCR) restent dans le
+ * repo pour un usage futur explicite mais ne sont PLUS le fallback du flux compta.
+ *
+ * Le MOCK (grand livre fictif equilibre) reste le mode DEMONSTRATION quand aucun moteur n'est
+ * configure ; comme pour le patrimoine il ne doit JAMAIS repondre a de vrais PDF en production
+ * (il renverrait le jeu de demo comme s'il etait le resultat de l'analyse) -> erreur explicite.
  */
 export function getExtractionComptaProvider(): ExtractionComptaProvider {
   const mode = modeExtraction();
-  if (mode === "mock" && process.env.NODE_ENV === "production") {
-    throw new Error(
-      "Extraction IA non configuree en production : poser EXTRACTION_PROVIDER + la cle correspondante (ANTHROPIC_API_KEY ou MISTRAL_API_KEY).",
-    );
+  if (mode === "mock") {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Extraction non configuree en production : poser EXTRACTION_PROVIDER + la cle correspondante (ANTHROPIC_API_KEY ou MISTRAL_API_KEY).",
+      );
+    }
+    return new MockComptaExtractionProvider();
   }
-  switch (mode) {
-    case "claude-cli":
-      return new ClaudeCliComptaExtractionProvider();
-    case "claude":
-      return new ClaudeComptaExtractionProvider();
-    case "mistral":
-      return new MistralComptaExtractionProvider();
-    default:
-      return new MockComptaExtractionProvider();
-  }
+  return new CoucheTexteComptaExtractionProvider();
 }
 
 /**

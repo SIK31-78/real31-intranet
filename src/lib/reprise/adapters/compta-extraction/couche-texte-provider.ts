@@ -1,0 +1,72 @@
+// Adapter COUCHE TEXTE UNIQUEMENT du port ExtractionComptaProvider (decision Sekou :
+// « enlever la partie IA sur le grand livre, garder texte, sinon trop lourd »).
+//
+// Le flux de reprise COMPTA lit UNIQUEMENT la couche texte des PDF NATIFS exportes par
+// l'ancien syndic : pdfjs rend le texte deja positionne, parserGrandLivrePositions reconstruit
+// les colonnes de facon DETERMINISTE (zero reseau, zero IA, ~2 s). C'est le cas reel (les
+// syndics exportent un PDF natif). AUCUN fallback OCR/IA : si la couche texte n'est pas
+// exploitable (PDF scanne, pdfjs KO, 0 ecriture), on renvoie une ERREUR EXPLICITE et actionnable
+// plutot que de basculer sur un pipeline OCR/IA lourd, lent et imprevisible.
+//
+// Les adapters IA (claude-provider, mistral-provider avec son etage OCR) restent dans le repo
+// pour un usage futur EXPLICITE, mais ne sont plus le fallback par defaut du flux compta.
+
+import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
+import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
+import { verifierEquilibreGrandLivre } from "@/lib/reprise/domain/ecriture";
+import { verifierTotauxParCompte } from "@/lib/reprise/domain/controle-comptes";
+import { normaliserGrandLivre } from "@/lib/reprise/adapters/shared/normaliser-compta";
+import { extraireTextePages, estPdfNatif, type PageTexte } from "@/lib/reprise/adapters/shared/pdf-texte";
+import { parserGrandLivrePositions } from "@/lib/reprise/adapters/shared/parseur-grand-livre-positions";
+
+/**
+ * Message d'erreur unique quand la couche texte n'est pas exploitable. Actionnable : dit
+ * exactement quoi redemander a l'ancien syndic (le PDF NATIF, pas un scan). Expose pour que les
+ * tests et les deux flux consommateurs (mapping-compta, dossier unifie) partagent le meme libelle.
+ */
+export const MESSAGE_ERREUR_COUCHE_TEXTE =
+  "Ce PDF ne porte pas de couche texte exploitable (scan ?). La reprise compta exige le grand livre PDF NATIF exporte par l'ancien syndic - redemande le fichier d'origine, pas un scan.";
+
+export class CoucheTexteComptaExtractionProvider implements ExtractionComptaProvider {
+  async extraireGrandLivre(docs: DocumentSource[]): Promise<JeuEcritures> {
+    const pages: PageTexte[] = [];
+    for (const d of docs) {
+      let p: PageTexte[];
+      try {
+        p = await extraireTextePages(d.contenu);
+      } catch {
+        // pdfjs KO (PDF corrompu / illisible) : aucun fallback, erreur explicite.
+        throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+      }
+      // Un scan (page = image) n'a quasiment aucun item de texte -> couche texte inexploitable.
+      if (!estPdfNatif(p)) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+      pages.push(...p);
+    }
+    if (pages.length === 0) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+
+    const parse = parserGrandLivrePositions(pages);
+    // 0 ecriture parsee = couche texte presente mais illisible par le parseur (mise en page
+    // non reconnue) : sans fallback IA, on prefere l'erreur explicite au silence.
+    if (parse.lignes.length === 0) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+
+    const jeu = normaliserGrandLivre({ lignes: parse.lignes, notes: parse.notes });
+    jeu.controles = parse.controles;
+    // Intitules d'en-tete de compte (noms) captures par le parseur positionne -> exposes pour
+    // l'appariement par nom du mapping (reprise). PII : jamais logue, reste dans la structure.
+    if (parse.intitules) jeu.intitules = parse.intitules;
+
+    // Filets de verification DETERMINISTES (aucun reseau) : equilibre global + totaux par compte.
+    // Un desequilibre n'est PAS une erreur bloquante ici (la comptable valide la balance par
+    // compte en aval, cf. balanceParCompte) : on le remonte en note, le grand livre reste exploite.
+    const equ = verifierEquilibreGrandLivre(jeu.lignes);
+    const controle = verifierTotauxParCompte(jeu.lignes, parse.controles);
+    jeu.notes.push(
+      `Controle par compte : ${controle.nbComptesControles} controle(s), ${controle.nbEnEcart} en ecart.`,
+    );
+    jeu.notes.push(
+      `Pipeline COUCHE TEXTE (PDF natif, positions) : ${jeu.lignes.length} ecriture(s), equilibre global ecart ${equ.ecart}.`,
+    );
+    return jeu;
+  }
+}

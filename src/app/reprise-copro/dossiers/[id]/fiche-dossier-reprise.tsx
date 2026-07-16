@@ -8,8 +8,9 @@
 //      badge "pret a produire"), (c) actions (injecter dry-run -> rapport ; produire xlsx).
 //      Le patrimoine n'est PAS une liste de cases manuelles : c'est une ACTION IA + des
 //      RESULTATS affiches (les etapes P1-P4 sont refletees ici, pas cochees a la main).
-//   3. SUIVI HUMAIN : frise des phases + checklist courte de ce que l'IA ne fait PAS
-//      (Verification V1-V4, Finalisation P5, Comptabilite C1-C6, Cloture) - cases cochables.
+//   3. SUIVI HUMAIN : frise des phases + checklist des etapes REELLES du pipeline de reprise
+//      (documents recus -> analyse -> injection -> fiches -> compta -> balance -> cloture),
+//      R1..R11, cases cochables. Simple tableau editable cote domaine (ETAPES_REPRISE).
 //   4. JOURNAL : timeline + ajout de note.
 //
 // L'analyse (server) reporte deja compteurs + anomalies dans le dossier (appliquerRecap).
@@ -57,12 +58,6 @@ import {
 import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
 
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-// Phases dont les etapes sont du SUIVI HUMAIN (cochable). Le PATRIMOINE est pilote par
-// l'IA (zone 2) : ses etapes P1-P4 ne sont PAS des cases ici.
-const PHASES_SUIVI: Phase[] = ["VERIFICATION", "COMPTABILITE", "MISE_EN_SERVICE"];
-// Seule etape PATRIMOINE qui reste un geste humain de finalisation.
-const ETAPE_PATRIMOINE_SUIVI = "P5";
 
 // Vue serialisable d'une etape (ce que la page server projette).
 export interface EtapeVue {
@@ -171,14 +166,12 @@ export function FicheDossierReprise({
   // adapter qui persiste le jeu).
   const [analyse, setAnalyse] = useState<Analyse | null>(analyseInitiale);
 
-  // Etapes de SUIVI HUMAIN uniquement (Verification / Comptabilite / Mise en service +
-  // la finalisation P5), groupees par phase dans l'ordre canonique.
-  const etapesSuivi = dossier.etapes.filter(
-    (e) => PHASES_SUIVI.includes(e.phase) || e.code === ETAPE_PATRIMOINE_SUIVI,
-  );
+  // Checklist de SUIVI HUMAIN = TOUTES les etapes reelles du pipeline de reprise (R1..R11 +
+  // eventuelles anciennes etapes preservees par la migration), groupees par phase dans l'ordre
+  // canonique. Le patrimoine reste pilote par l'IA en zone 2 ; ici on suit l'avancement humain.
   const groupesSuivi = PHASES.map((phase) => ({
     phase,
-    etapes: etapesSuivi.filter((e) => e.phase === phase),
+    etapes: dossier.etapes.filter((e) => e.phase === phase),
   })).filter((gr) => gr.etapes.length > 0);
 
   return (
@@ -247,7 +240,7 @@ export function FicheDossierReprise({
       <Card>
         <CardHeader>
           <CardTitle>Suivi humain</CardTitle>
-          <span className="text-[11px] text-ink-4">Ce que l&apos;IA ne fait pas - cliquer pour avancer</span>
+          <span className="text-[11px] text-ink-4">Etapes reelles de la reprise - cliquer pour avancer</span>
         </CardHeader>
 
         {/* Frise des phases en tete du bloc de suivi. */}
@@ -455,7 +448,9 @@ function ResultatsAnalyse({
     <div className="flex flex-col gap-5">
       <CadrageAVerifier points={cadrage} />
       <PatrimoineExtrait recap={recap} />
-      {(recap.compta || recap.liaison) && <ComptaLiaison dossierRef={dossier.ref} recap={recap} jeu={jeu} />}
+      {(recap.compta || recap.liaison || recap.comptaErreur) && (
+        <ComptaLiaison dossierRef={dossier.ref} recap={recap} jeu={jeu} />
+      )}
       <ActionsPatrimoine dossier={dossier} jeu={jeu} pretAProduire={recap.pretAProduire} ecritureReelle={ecritureReelle} />
     </div>
   );
@@ -498,6 +493,27 @@ function AlerteAvantRepartition({
   );
 }
 
+// Erreur d'extraction du grand livre (couche texte UNIQUEMENT : un PDF scanne n'est pas
+// exploitable). Message actionnable, PII-free : il dit quoi redemander a l'ancien syndic. Le
+// patrimoine, lui, reste analyse (degradation partielle) : ce bloc ne remplace que la compta.
+function ErreurGrandLivre({ message }: { message: string }) {
+  return (
+    <div className="mt-2 rounded-md border border-err-500/50 bg-err-50 px-3 py-2.5 text-[12.5px] text-err-700">
+      <div className="flex items-start gap-2">
+        <AlertTriangle strokeWidth={1.75} className="w-4 h-4 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-medium">Grand livre non exploite.</p>
+          <p className="mt-1 text-err-700/90">{message}</p>
+          <p className="mt-1 text-err-700/80">
+            Le reste de l&apos;analyse (patrimoine) est valide. Redeposez le grand livre PDF natif puis
+            relancez l&apos;analyse pour reprendre la comptabilite.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Bloc COMPTA + LIAISON (analyse unifiee avec grand livre) : balance du grand livre + etat de la
 // liaison owners <-> comptes 450, avec la revue humaine des cas ambigus. La liaison ambigue NE
 // BLOQUE PAS l'injection patrimoine : c'est un complement compta reutilise par le mapping.
@@ -519,6 +535,17 @@ function ComptaLiaison({
   const aTrancher = liaisons.filter((l) => l.statut === "ambigu").length;
   const sansCompte = liaisons.filter((l) => l.statut === "non_trouve").length;
   const ambigues = liaisons.filter((l) => l.statut === "ambigu");
+
+  // Degradation PARTIELLE : le grand livre n'a pas pu etre extrait (ex. PDF scanne, couche texte
+  // only). Le patrimoine reste analyse ; on affiche l'erreur GL ici sans faire echouer le dossier.
+  if (recap.comptaErreur) {
+    return (
+      <section>
+        <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Comptabilite (grand livre)</h3>
+        <ErreurGrandLivre message={recap.comptaErreur} />
+      </section>
+    );
+  }
 
   return (
     <section>

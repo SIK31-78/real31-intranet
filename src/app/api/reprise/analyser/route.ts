@@ -20,6 +20,7 @@ import {
   ajouterJournal,
   enregistrerJeu,
   enregistrerComptaResume,
+  enregistrerComptaErreur,
 } from "@/lib/reprise/services/suivi-dossier";
 import { analyserDossierUnifie, estGrandLivre } from "@/lib/reprise/services/analyser-dossier";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
@@ -93,6 +94,10 @@ export async function POST(req: Request) {
     await appliquerRecap(repo, dossierId, recap);
     // Persiste le resume compta (dans les compteurs, JSONB) pour rehydrater le bloc compta.
     if (compta) await enregistrerComptaResume(repo, dossierId, compta);
+    // Persiste (ou efface) l'erreur d'extraction du grand livre UNIQUEMENT si un grand livre
+    // etait joint : degradation partielle (couche texte scannee) rehydratee a la reouverture ;
+    // effacee des qu'une extraction reussit. Sans grand livre joint, on ne touche a rien.
+    if (avecGrandLivre) await enregistrerComptaErreur(repo, dossierId, recap.comptaErreur);
     // Persiste le jeu complet (avec liaisons450 le cas echeant) pour rehydrater la fiche a
     // l'ouverture sans re-analyser. Degrade proprement si la colonne jeu n'existe pas encore.
     await enregistrerJeu(repo, dossierId, jeu);
@@ -104,7 +109,9 @@ export async function POST(req: Request) {
         (compta
           ? ` ; grand livre : ${compta.nbEcritures} ecriture(s), ${compta.nbComptes} compte(s), balance ${compta.equilibre ? "equilibree" : `ecart ${compta.ecart}`}` +
             (recap.liaison ? `, liaison 450 : ${recap.liaison.lies} lie(s) / ${recap.liaison.aTrancher} a trancher / ${recap.liaison.sansCompte} sans compte` : "")
-          : "") +
+          : recap.comptaErreur
+            ? ` ; grand livre NON exploite : ${recap.comptaErreur}`
+            : "") +
         ".",
     );
     revalidatePath(`/reprise-copro/dossiers/${dossierId}`);
