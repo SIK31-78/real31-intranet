@@ -28,7 +28,16 @@ import type {
 } from "@/lib/reprise/ports/estale-fiche-contact-provider";
 import type { CourrierOwner } from "@/lib/reprise/domain/fiche-courrier";
 import { genererToken, genererCode, hacher, hashEgal, normaliserCode } from "@/lib/reprise/services/fiche-token";
+import {
+  objetMailFicheRenseignements,
+  corpsMailFicheRenseignements,
+} from "@/lib/reprise/domain/mail-fiche-renseignements";
 import QRCode from "qrcode";
+
+/** Validation SOUPLE d'un email (le vrai controle reste eStale a l'ecriture). */
+export function emailValide(email: string | undefined): email is string {
+  return typeof email === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+}
 
 /**
  * QR code SVG (chaine, encode le lien tokenise complet) pour l'impression papier : gros et net
@@ -170,6 +179,106 @@ export async function genererCourriers(
   }
 
   return { courriers, ignores };
+}
+
+// --- BONUS EMAIL : envoyer la fiche PAR EMAIL (au lieu du courrier postal) --------
+
+export interface EnvoyerFicheEmailResultat {
+  ok: boolean;
+  message: string;
+  /** true si le mail est effectivement parti (module mail actif). */
+  envoye: boolean;
+  /** Note quand le mail n'a pas ete envoye (module inactif, erreur Graph...). */
+  note?: string;
+}
+
+/**
+ * Envoie la fiche de renseignements d'UN coproprietaire PAR EMAIL (le gain metier : les owners
+ * dont on connait deja l'email n'ont pas besoin d'un courrier postal). Genere/regenere la fiche
+ * (token + code neufs) EXACTEMENT comme le courrier (meme persistance, meme securite), puis compose
+ * un mail portant le LIEN + le CODE (pas de QR) et le fait partir via le callback `envoyerMail`
+ * (qui porte le gate MAIL_SOURCE/MAIL_PILOTES, comme la validation de fiche). Le statut/canal de la
+ * fiche indique "email". Une fiche deja SOUMISE/VALIDEE n'est pas renvoyee (on ne detruit pas une
+ * reponse). Owner sans email valide -> refus explicite (il reste au courrier).
+ */
+export async function envoyerFicheParEmail(
+  repo: FicheRenseignementsRepository,
+  dossier: Dossier,
+  ownerId: string,
+  opts: { baseUrl: string; nowISO: string },
+  envoyerMail: (p: {
+    email: string;
+    destinataire: string;
+    sujet: string;
+    corps: string;
+  }) => Promise<{ envoye: boolean; note?: string }>,
+): Promise<EnvoyerFicheEmailResultat> {
+  const owner = (dossier.jeu?.owners ?? []).find((o) => o.id === ownerId);
+  if (!owner) return { ok: false, message: "Coproprietaire introuvable dans le jeu.", envoye: false };
+  if (!emailValide(owner.email)) {
+    return {
+      ok: false,
+      message: "Ce coproprietaire n'a pas d'email valide dans le jeu : il reste au courrier postal.",
+      envoye: false,
+    };
+  }
+
+  const existante = (await repo.listerParDossier(dossier.ref)).find((f) => f.ownerId === ownerId);
+  if (existante && existante.statut !== "courrier_genere") {
+    return { ok: false, message: "Ce coproprietaire a deja repondu : rien a renvoyer.", envoye: false };
+  }
+
+  const token = genererToken();
+  const code = genererCode();
+  const connues = connuesDepuisOwner(owner, lotsDeOwner(dossier, ownerId));
+  const fiche: FicheRenseignement = {
+    coproCode: dossier.ref,
+    ownerId,
+    tokenHash: hacher(token),
+    codeHash: hacher(code),
+    statut: "courrier_genere",
+    connues,
+    courrierGenereAt: opts.nowISO,
+    expiresAt: calculerExpiration(opts.nowISO),
+    canal: "email",
+  };
+  await repo.sauver(fiche);
+
+  // GARDE-FOU persistance (comme genererCourriers) : une fiche non enregistree porterait un code
+  // que rien ne peut verifier -> on le detecte avant d'envoyer un mail avec un code mort.
+  const relue = await repo.obtenirParTokenHash(hacher(token));
+  if (!relue) {
+    return {
+      ok: false,
+      message:
+        "Persistance indisponible : la fiche n'a pas ete enregistree (table reprise_fiche_renseignements absente ?). Mail non envoye pour eviter un code invalide.",
+      envoye: false,
+    };
+  }
+
+  const lien = `${opts.baseUrl.replace(/\/$/, "")}/fiche/${token}`;
+  const destinataire = [connues.civilite, connues.nom].filter(Boolean).join(" ").trim();
+  const sujet = objetMailFicheRenseignements({ coproNom: dossier.nomUsuel, coproRef: dossier.ref });
+  const corps = corpsMailFicheRenseignements({
+    destinataire,
+    coproNom: dossier.nomUsuel,
+    coproRef: dossier.ref,
+    lien,
+    code,
+  });
+  const r = await envoyerMail({ email: owner.email, destinataire, sujet, corps });
+
+  if (r.envoye) {
+    await repo.sauver({ ...fiche, envoiEmailAt: opts.nowISO });
+    return { ok: true, message: "Fiche envoyee par email.", envoye: true };
+  }
+  // Mail non parti (module inactif / erreur) : la fiche reste valide (le lien marche), on le signale.
+  return {
+    ok: true,
+    message: "Fiche prete (lien + code) mais mail non envoye.",
+    envoye: false,
+    ...(r.note ? { note: r.note } : {}),
+  };
 }
 
 // --- COTE PUBLIC : consultation + soumission (apres verification du code) --------

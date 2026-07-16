@@ -17,6 +17,9 @@ import { ClaudeCliExtractionProvider } from "@/lib/reprise/adapters/claude-cli/c
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import { MockComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/mock-provider";
 import { CoucheTexteComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/couche-texte-provider";
+import type { ExtractionAnnexeProvider } from "@/lib/reprise/ports/extraction-annexe-provider";
+import { MockAnnexeExtractionProvider } from "@/lib/reprise/adapters/annexe-extraction/mock-provider";
+import { MistralAnnexeExtractionProvider } from "@/lib/reprise/adapters/annexe-extraction/mistral-provider";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
 import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
@@ -106,6 +109,26 @@ export function getExtractionComptaProvider(): ExtractionComptaProvider {
     return new MockComptaExtractionProvider();
   }
   return new CoucheTexteComptaExtractionProvider();
+}
+
+/**
+ * Provider d'extraction des DOCUMENTS ANNEXES (contacts + precisions). Null quand le moteur ne
+ * sait pas analyser d'annexe : dans ce cas les annexes RESTENT dans le lot patrimoine (retro-compat
+ * stricte, comportement d'avant). Choix :
+ *   - mode mock (dev) : MockAnnexeExtractionProvider (mode demonstration, aucune donnee reelle) ;
+ *   - MISTRAL_API_KEY presente : MistralAnnexeExtractionProvider (OCR si scan -> chat json_object) ;
+ *   - moteur Claude sans cle Mistral : null (annexes non analysees, on ne casse rien).
+ * Le mock ne repond jamais a de vrais PDF en production -> null (jamais atteint : l'extraction
+ * patrimoine leve deja en prod-mock, cf. getExtractionProvider).
+ */
+export function getExtractionAnnexeProvider(): ExtractionAnnexeProvider | null {
+  const mode = modeExtraction();
+  if (mode === "mock") {
+    if (process.env.NODE_ENV === "production") return null;
+    return new MockAnnexeExtractionProvider();
+  }
+  if (process.env.MISTRAL_API_KEY) return new MistralAnnexeExtractionProvider();
+  return null;
 }
 
 /**

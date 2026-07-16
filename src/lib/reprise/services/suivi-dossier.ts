@@ -8,6 +8,11 @@ import type { VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes"
 import { creerDossier, reconcilierEtapes } from "@/lib/reprise/domain/dossier";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import { trancherLiaison } from "@/lib/reprise/domain/liaison-comptes";
+import {
+  marquerContact,
+  type AnnexeAnalysee,
+  type ContactRapproche,
+} from "@/lib/reprise/domain/rapprochement-contacts";
 import { appliquerCorrections, resumerCorrections, type Correction } from "@/lib/reprise/domain/corrections-patrimoine";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import type { FicheRenseignementsRepository } from "@/lib/reprise/ports/fiche-renseignements-repository";
@@ -224,6 +229,10 @@ export async function appliquerResultatAnalyse(
     /** Un grand livre etait-il joint a l'analyse ? (gouverne l'ecriture/effacement de comptaErreur) */
     grandLivreJoint: boolean;
     comptaErreur?: string;
+    /** Documents annexes analyses (remplace ceux persistes ; undefined efface -> re-analyse propre). */
+    annexes?: AnnexeAnalysee[];
+    /** Contacts rapproches aux owners (remplace ceux persistes ; undefined efface). */
+    contactsAnnexes?: ContactRapproche[];
     /** Date de l'entree de journal (fournie par l'appelant, service sans horloge). */
     nowISO: string;
     journalTexte: string;
@@ -235,6 +244,11 @@ export async function appliquerResultatAnalyse(
   reporterCompteurs(d, resultat.recap);
   const nouvelles = [...resultat.recap.notes, ...resultat.recap.checks.warnings.map((w) => w.message)];
   for (const a of nouvelles) if (!d.anomalies.includes(a)) d.anomalies.push(a);
+
+  // 1bis. Documents annexes : remplacent ceux persistes (undefined efface -> une re-analyse sans
+  // annexe ne laisse pas de contacts perimes ; meme semantique que compta/en cours). PII : reste
+  // dans le JSONB de la ligne, jamais logue.
+  d.compteurs = { ...d.compteurs, annexes: resultat.annexes, contactsAnnexes: resultat.contactsAnnexes };
 
   // 2. Resume compta (meme logique que enregistrerComptaResume : undefined efface en cours/croise).
   if (resultat.compta) {
@@ -342,4 +356,76 @@ export async function trancherLiaisonDossier(
   d.jeu = { ...d.jeu, liaisons450: liaisons };
   await repo.sauver(d);
   return liaisons;
+}
+
+/** Resultat d'une decision sur un contact annexe : jeu (eventuellement enrichi) + contacts a jour. */
+export interface ResultatContactAnnexe {
+  jeu?: JeuDeDonnees;
+  contacts: ContactRapproche[];
+}
+
+/**
+ * VALIDE un contact d'annexe : ecrit son email/telephone sur l'owner du JEU choisi (`ownerId` =
+ * l'owner apparie OU un owner corrige par l'humain). REUTILISE le mecanisme de corrections existant
+ * (appliquerCorrections owner.modifier -> transactionnel + journalise + auto-checks re-passes) : on
+ * ne duplique pas la logique d'ecriture du jeu. Le contact est ensuite marque "valide". AUCUNE
+ * mutation eStale (le jeu local seulement ; la remontee vers eStale passe par la validation de
+ * fiche existante). PII : ni email ni nom dans le journal (seul l'ownerId interne).
+ */
+export async function validerContactAnnexeDossier(
+  repo: DossierRepository,
+  ref: string,
+  contactId: string,
+  ownerId: string,
+  nowISO: string,
+): Promise<ResultatContactAnnexe> {
+  const d = await exiger(repo, ref);
+  const contacts = d.compteurs.contactsAnnexes ?? [];
+  const contact = contacts.find((c) => c.id === contactId);
+  if (!contact) throw new Error("Contact annexe introuvable (re-analyse peut-etre necessaire).");
+  if (!d.jeu) throw new Error("Aucun jeu de donnees a enrichir : lance d'abord l'analyse.");
+  if (!contact.email && !contact.telephone) {
+    throw new Error("Ce contact ne porte ni email ni telephone : rien a reporter sur le coproprietaire.");
+  }
+  if (!d.jeu.owners.some((o) => o.id === ownerId)) {
+    throw new Error(`Coproprietaire ${ownerId} introuvable dans le jeu.`);
+  }
+
+  const champs = {
+    ...(contact.email ? { email: contact.email } : {}),
+    ...(contact.telephone ? { telPortable: contact.telephone } : {}),
+  };
+  const res = appliquerCorrections(d.jeu, [{ type: "owner.modifier", id: ownerId, champs }]);
+  if (!res.ok) throw new Error(res.erreurs.join(" | "));
+
+  d.jeu = res.jeu;
+  const recap = calculerRecap(res.jeu);
+  reporterCompteurs(d, recap);
+  d.compteurs = { ...d.compteurs, contactsAnnexes: marquerContact(contacts, contactId, "valide", ownerId) };
+  d.journal.push({
+    date: nowISO,
+    texte: `Contact d'annexe reporte sur un coproprietaire (email/telephone). Owner ${ownerId}.`,
+  });
+  await repo.sauver(d);
+  return { jeu: d.jeu, contacts: d.compteurs.contactsAnnexes ?? [] };
+}
+
+/**
+ * IGNORE un contact d'annexe (proposition ecartee) : le marque "ignore", sans toucher au jeu.
+ * No-op propre si le contact n'existe pas / plus. Journalise le geste (PII-free).
+ */
+export async function ignorerContactAnnexeDossier(
+  repo: DossierRepository,
+  ref: string,
+  contactId: string,
+  nowISO: string,
+): Promise<ContactRapproche[]> {
+  const d = await exiger(repo, ref);
+  const contacts = d.compteurs.contactsAnnexes ?? [];
+  if (!contacts.some((c) => c.id === contactId)) return contacts;
+  const maj = marquerContact(contacts, contactId, "ignore");
+  d.compteurs = { ...d.compteurs, contactsAnnexes: maj };
+  d.journal.push({ date: nowISO, texte: `Contact d'annexe ignore (${contactId}).` });
+  await repo.sauver(d);
+  return maj;
 }

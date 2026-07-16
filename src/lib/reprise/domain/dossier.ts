@@ -8,6 +8,7 @@
 
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 import type { CompteAvantRepartition, VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
+import type { AnnexeAnalysee, ContactRapproche } from "@/lib/reprise/domain/rapprochement-contacts";
 
 /** Grandes phases du flux d'onboarding, dans l'ordre. */
 export const PHASES = [
@@ -96,6 +97,19 @@ export interface CompteursDossier {
    * plutot qu'une colonne dediee. Efface (undefined) au desarchivage pour garder le JSONB propre.
    */
   archive?: boolean;
+  /**
+   * Documents ANNEXES analyses a la derniere analyse (nom + type detecte + resume). JSONB
+   * `compteurs`, ADDITIF, zero migration. Absent pour les dossiers sans annexe -> rehydratation
+   * souple. Remplace a chaque analyse.
+   */
+  annexes?: AnnexeAnalysee[];
+  /**
+   * Contacts rapproches aux owners (issus des annexes), EN ATTENTE de validation humaine (email/
+   * telephone a ecrire sur l'owner). PII : ne quitte jamais cette ligne vers un log. JSONB
+   * `compteurs`, ADDITIF, zero migration. Remplace a chaque analyse ; enrichi par les decisions
+   * humaines (valide/ignore/re-cible).
+   */
+  contactsAnnexes?: ContactRapproche[];
 }
 
 export interface EntreeJournal {

@@ -74,6 +74,8 @@ import {
 } from "./actions";
 import type { ProchaineEtape, ActionCible } from "@/lib/reprise/domain/prochaine-etape";
 import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
+import { DocumentsAnnexesBloc } from "./documents-annexes-bloc";
+import type { AnnexeAnalysee, ContactRapproche } from "@/lib/reprise/domain/rapprochement-contacts";
 import { EditeurPatrimoine } from "./editeur-patrimoine";
 import { NotesAnalyse } from "@/components/reprise/notes-analyse";
 import { classerNotes, sourceNote, type NoteStructuree } from "@/lib/reprise/domain/classement-notes";
@@ -154,9 +156,17 @@ const STATUT_ETAPE_LABEL: Record<StatutEtape, string> = {
   ignore: "Ignore",
 };
 
+/** Bloc annexes (contacts + metadonnees) porte par l'analyse cote client. Serialisable. */
+export interface AnnexesVue {
+  annexes: AnnexeAnalysee[];
+  contacts: ContactRapproche[];
+}
+
 interface Analyse {
   recap: RecapPatrimoine;
   jeu: JeuDeDonnees;
+  /** Documents annexes analyses + contacts rapproches (present si des annexes ont ete fournies). */
+  annexes?: AnnexesVue;
 }
 
 // Analyse rehydratee cote serveur depuis le jeu persiste (dossier.jeu). Meme forme que
@@ -599,7 +609,7 @@ function ZonePatrimoine({
         const res = await fetch("/api/reprise/analyser", { method: "POST", body: fd });
         const r = await res.json();
         if (res.ok && r.ok) {
-          onAnalyse({ recap: r.recap, jeu: r.jeu });
+          onAnalyse({ recap: r.recap, jeu: r.jeu, ...(r.annexes ? { annexes: r.annexes } : {}) });
           toast.ok("Analyse terminee - dossier alimente.");
         } else {
           toast.err(r.message ?? "Erreur pendant l'analyse.");
@@ -714,6 +724,7 @@ function ZonePatrimoine({
             dossier={dossier}
             recap={analyse.recap}
             jeu={analyse.jeu}
+            annexes={analyse.annexes}
             ecritureReelle={ecritureReelle}
             dejaInjecte={dejaInjecte}
             onAnalyse={onAnalyse}
@@ -737,6 +748,7 @@ function ResultatsAnalyse({
   dossier,
   recap,
   jeu,
+  annexes,
   ecritureReelle,
   dejaInjecte,
   onAnalyse,
@@ -744,6 +756,7 @@ function ResultatsAnalyse({
   dossier: DossierFicheVue;
   recap: RecapPatrimoine;
   jeu: JeuDeDonnees;
+  annexes?: AnnexesVue;
   ecritureReelle: boolean;
   dejaInjecte: boolean;
   onAnalyse: (a: Analyse | null) => void;
@@ -772,6 +785,15 @@ function ResultatsAnalyse({
       <PatrimoineExtrait recap={recap} onCorrigerCle={setFocusCle} />
       {(recap.compta || recap.liaison || recap.comptaErreur) && (
         <ComptaLiaison dossierRef={dossier.ref} recap={recap} jeu={jeu} />
+      )}
+      {annexes && annexes.annexes.length > 0 && (
+        <DocumentsAnnexesBloc
+          dossierRef={dossier.ref}
+          jeu={jeu}
+          annexes={annexes.annexes}
+          contacts={annexes.contacts}
+          onJeuChange={(nouveauJeu) => onAnalyse({ jeu: nouveauJeu, recap, ...(annexes ? { annexes } : {}) })}
+        />
       )}
       <EditeurPatrimoine
         dossierRef={dossier.ref}

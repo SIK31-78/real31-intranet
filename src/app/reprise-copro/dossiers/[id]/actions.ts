@@ -35,11 +35,14 @@ import {
   corrigerJeuDossier,
   archiverDossier,
   supprimerDossierEtFiches,
+  validerContactAnnexeDossier,
+  ignorerContactAnnexeDossier,
 } from "@/lib/reprise/services/suivi-dossier";
 import type { Correction } from "@/lib/reprise/domain/corrections-patrimoine";
+import type { ContactRapproche } from "@/lib/reprise/domain/rapprochement-contacts";
 import { USAGES, CIVILITES } from "@/lib/reprise/domain/patrimoine";
 import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
-import { genererCourriers, validerFiche } from "@/lib/reprise/services/fiches-renseignements";
+import { genererCourriers, validerFiche, envoyerFicheParEmail } from "@/lib/reprise/services/fiches-renseignements";
 import { genererCourriersDocument, type ContexteCourrier } from "@/lib/reprise/domain/fiche-courrier";
 import { objetMailEspaceClient, corpsMailEspaceClient } from "@/lib/reprise/domain/mail-espace-client";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
@@ -209,6 +212,80 @@ export async function trancherLiaisonAction(
     return { ok: true, liaisons };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Mise a jour de la liaison impossible." };
+  }
+}
+
+// --- DOCUMENTS ANNEXES : contacts rapproches (valider -> owner.modifier / ignorer) ----------
+
+const schemaValiderContact = z.object({
+  dossierId: z.string().trim().min(1).max(40),
+  contactId: z.string().trim().min(1).max(60),
+  ownerId: z.string().trim().min(1).max(80),
+});
+
+export type ContactAnnexeResultat =
+  | { ok: true; jeu?: JeuDeDonnees; contacts: ContactRapproche[] }
+  | { ok: false; message: string };
+
+/**
+ * VALIDE un contact d'annexe : ecrit son email/telephone sur l'owner choisi (`ownerId` = l'owner
+ * apparie OU un owner corrige a la main). Reutilise le mecanisme de corrections (owner.modifier ->
+ * transactionnel + journalise + auto-checks). Cloisonnement : gestionnaire connecte. AUCUNE
+ * mutation eStale (jeu local seulement).
+ */
+export async function validerContactAnnexeAction(
+  dossierId: string,
+  contactId: string,
+  ownerId: string,
+): Promise<ContactAnnexeResultat> {
+  const valid = schemaValiderContact.safeParse({ dossierId, contactId, ownerId });
+  if (!valid.success) return { ok: false, message: "Parametres invalides." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour valider ce contact." };
+
+  try {
+    const r = await validerContactAnnexeDossier(
+      getRepriseDossierRepository(),
+      valid.data.dossierId,
+      valid.data.contactId,
+      valid.data.ownerId,
+      new Date().toISOString(),
+    );
+    revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
+    return { ok: true, jeu: r.jeu, contacts: r.contacts };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Validation du contact impossible." };
+  }
+}
+
+const schemaIgnorerContact = z.object({
+  dossierId: z.string().trim().min(1).max(40),
+  contactId: z.string().trim().min(1).max(60),
+});
+
+/** IGNORE un contact d'annexe (proposition ecartee). Cloisonnement : gestionnaire connecte. */
+export async function ignorerContactAnnexeAction(
+  dossierId: string,
+  contactId: string,
+): Promise<ContactAnnexeResultat> {
+  const valid = schemaIgnorerContact.safeParse({ dossierId, contactId });
+  if (!valid.success) return { ok: false, message: "Parametres invalides." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi." };
+
+  try {
+    const contacts = await ignorerContactAnnexeDossier(
+      getRepriseDossierRepository(),
+      valid.data.dossierId,
+      valid.data.contactId,
+      new Date().toISOString(),
+    );
+    revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
+    return { ok: true, contacts };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Action impossible." };
   }
 }
 
@@ -637,5 +714,79 @@ export async function validerFicheAction(dossierId: string, ownerId: string): Pr
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant la validation." };
+  }
+}
+
+export type EnvoyerFicheEmailResultat =
+  | { ok: true; message: string; envoye: boolean; note?: string }
+  | { ok: false; message: string };
+
+const zEnvoyerFicheEmail = z.object({
+  dossierId: z.string().trim().min(1).max(40),
+  ownerId: z.string().trim().min(1).max(80),
+});
+
+/**
+ * BONUS EMAIL : envoie la fiche de renseignements d'un coproprietaire PAR EMAIL (lien + code) au
+ * lieu du courrier postal, quand son email est connu dans le jeu. Genere/regenere la fiche (token +
+ * code) puis envoie le mail via le gate MAIL_SOURCE/MAIL_PILOTES (comme la validation de fiche).
+ * Owner sans email valide -> refus (il reste au courrier). Boite d'envoi = email de session.
+ */
+export async function envoyerFicheEmailAction(dossierId: string, ownerId: string): Promise<EnvoyerFicheEmailResultat> {
+  const valid = zEnvoyerFicheEmail.safeParse({ dossierId, ownerId });
+  if (!valid.success) return { ok: false, message: "Parametres invalides." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour envoyer la fiche." };
+
+  const dossier = await obtenirDossier(getRepriseDossierRepository(), valid.data.dossierId);
+  if (!dossier) return { ok: false, message: "Dossier introuvable." };
+
+  const mailActif = mailModuleActifPour(g.email) && Boolean(g.email);
+
+  // Callback d'envoi : porte le gate mail (comme validerFicheAction). Le corps/objet sont composes
+  // par le service (lien + code) ; ici on ne fait que router vers Graph avec la signature du gestionnaire.
+  const envoyerMail = async ({
+    email,
+    sujet,
+    corps,
+  }: {
+    email: string;
+    destinataire: string;
+    sujet: string;
+    corps: string;
+  }) => {
+    if (!mailActif) {
+      return { envoye: false, note: "Mail non envoye : module mail inactif (MAIL_SOURCE / MAIL_PILOTES)." };
+    }
+    try {
+      const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
+      await envoyerMailReunion({ boite: g.email!, a: [email], cc: [], cci: [], sujet, corps, signatureHtml });
+      return { envoye: true };
+    } catch (e) {
+      return { envoye: false, note: `Mail non envoye : ${(e as Error).message || "erreur Graph"}.` };
+    }
+  };
+
+  try {
+    const r = await envoyerFicheParEmail(
+      getFicheRenseignementsRepository(),
+      dossier,
+      valid.data.ownerId,
+      { baseUrl: await baseUrlPublique(), nowISO: new Date().toISOString() },
+      envoyerMail,
+    );
+    if (!r.ok) return { ok: false, message: r.message };
+
+    await ajouterJournal(
+      getRepriseDossierRepository(),
+      valid.data.dossierId,
+      new Date().toISOString(),
+      `Fiche envoyee par EMAIL (owner ${valid.data.ownerId})${r.envoye ? "" : " - mail non parti"}.`,
+    );
+    revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
+    return { ok: true, message: r.message, envoye: r.envoye, ...(r.note ? { note: r.note } : {}) };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant l'envoi." };
   }
 }

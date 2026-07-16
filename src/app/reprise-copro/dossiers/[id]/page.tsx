@@ -83,7 +83,16 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     // Erreur d'extraction du grand livre (couche texte scannee) persistee -> rehydrate le bloc
     // compta en erreur a la reouverture, sans re-analyser.
     if (dossier.compteurs.comptaErreur) recap.comptaErreur = dossier.compteurs.comptaErreur;
-    analyseInitiale = { jeu: dossier.jeu, recap };
+    // Documents annexes persistes (metadonnees + contacts rapproches) -> rehydrate le bloc annexes
+    // a la reouverture, sans re-analyser.
+    const annexesPersistees = dossier.compteurs.annexes;
+    analyseInitiale = {
+      jeu: dossier.jeu,
+      recap,
+      ...(annexesPersistees && annexesPersistees.length > 0
+        ? { annexes: { annexes: annexesPersistees, contacts: dossier.compteurs.contactsAnnexes ?? [] } }
+        : {}),
+    };
   }
 
   const modeIa = modeExtraction();
@@ -104,17 +113,22 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   const fichesVue: FicheOwnerVue[] = owners.map((o) => {
     const nom = [o.civilite, o.nom, o.prenom].filter(Boolean).join(" ").trim() || o.id;
     const f = parOwner.get(o.id);
-    if (!f) return { ownerId: o.id, nom, statut: "aucune" };
+    // Email connu = celui de la fiche (snapshot) OU, a defaut, celui de l'owner dans le jeu (permet
+    // le bouton "envoyer par email" AVANT toute generation de fiche). Bonus email.
+    const emailJeu = o.email;
+    if (!f) return { ownerId: o.id, nom, statut: "aucune", ...(emailJeu ? { emailConnu: emailJeu } : {}) };
     return {
       ownerId: o.id,
       nom,
       statut: f.statut,
       courrierGenereAt: f.courrierGenereAt,
+      ...(f.canal ? { canal: f.canal } : {}),
+      ...(f.envoiEmailAt ? { envoiEmailAt: f.envoiEmailAt } : {}),
       ...(f.soumisAt ? { soumisAt: f.soumisAt } : {}),
       ...(f.valideAt ? { valideAt: f.valideAt } : {}),
       ...(f.mailEnvoyeAt ? { mailEnvoyeAt: f.mailEnvoyeAt } : {}),
       ...(f.derniereRelanceAt ? { derniereRelanceAt: f.derniereRelanceAt } : {}),
-      ...(f.connues.emailConnu ? { emailConnu: f.connues.emailConnu } : {}),
+      ...((f.connues.emailConnu ?? emailJeu) ? { emailConnu: f.connues.emailConnu ?? emailJeu } : {}),
       ...(f.soumises?.email ? { emailSoumis: f.soumises.email } : {}),
       ...(f.soumises ? { soumises: f.soumises } : {}),
       connues: {

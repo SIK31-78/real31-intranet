@@ -11,7 +11,7 @@
 // ouvert dans un onglet via un Blob et n'est jamais conserve.
 
 import { useState, useTransition } from "react";
-import { Mail, Printer, RefreshCw, CheckCircle2, FileText } from "lucide-react";
+import { Mail, Printer, RefreshCw, CheckCircle2, FileText, Send } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { formatDateLongue } from "@/lib/format-date";
 import type { DonneesSoumises, FicheStatut } from "@/lib/reprise/domain/fiche-renseignements";
-import { genererCourriersFicheAction, validerFicheAction } from "./actions";
+import { genererCourriersFicheAction, validerFicheAction, envoyerFicheEmailAction } from "./actions";
 
 export interface FicheOwnerVue {
   ownerId: string;
@@ -32,6 +32,10 @@ export interface FicheOwnerVue {
   derniereRelanceAt?: string;
   emailConnu?: string;
   emailSoumis?: string;
+  /** Canal d'envoi de la fiche (courrier postal / email), quand une fiche a ete generee. */
+  canal?: "courrier" | "email";
+  /** Date d'envoi de la fiche par email (bonus email). */
+  envoiEmailAt?: string;
   soumises?: DonneesSoumises;
   connues?: { telFixe?: string; telPortable?: string; adrVille?: string };
 }
@@ -180,6 +184,7 @@ export function FicheRenseignementsBloc({
                     <th className="font-medium">Repondu</th>
                     <th className="font-medium">Valide</th>
                     <th className="font-medium">Mail</th>
+                    <th className="font-medium">Envoi fiche</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -191,7 +196,17 @@ export function FicheRenseignementsBloc({
                           {STATUT_LABEL[f.statut]}
                         </Badge>
                       </td>
-                      <td className="text-ink-3">{f.courrierGenereAt ? formatDateLongue(f.courrierGenereAt.slice(0, 10)) : "-"}</td>
+                      <td className="text-ink-3">
+                        {f.canal === "email" ? (
+                          <span className="inline-flex items-center gap-1 text-ink-2">
+                            <Send strokeWidth={1.5} className="w-3 h-3" /> email
+                          </span>
+                        ) : f.courrierGenereAt ? (
+                          formatDateLongue(f.courrierGenereAt.slice(0, 10))
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                       <td className="text-ink-3">{f.soumisAt ? formatDateLongue(f.soumisAt.slice(0, 10)) : "-"}</td>
                       <td className="text-ink-3">{f.valideAt ? formatDateLongue(f.valideAt.slice(0, 10)) : "-"}</td>
                       <td className="text-ink-3">
@@ -203,6 +218,9 @@ export function FicheRenseignementsBloc({
                           "-"
                         )}
                       </td>
+                      <td>
+                        <EnvoiFiche dossierRef={dossierRef} fiche={f} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -212,6 +230,38 @@ export function FicheRenseignementsBloc({
         )}
       </div>
     </Card>
+  );
+}
+
+// BONUS EMAIL : bouton "Envoyer par email" par coproprietaire. Ne s'affiche que si un email est
+// connu dans le jeu ET que la fiche n'a pas encore ete repondue (aucune / courrier genere). Les
+// owners sans email restent au courrier postal (mention discrete). Le gate mail est cote serveur.
+function EnvoiFiche({ dossierRef, fiche }: { dossierRef: string; fiche: FicheOwnerVue }) {
+  const [pending, startTransition] = useTransition();
+  const [envoye, setEnvoye] = useState(Boolean(fiche.envoiEmailAt));
+  const toast = useToast();
+
+  // Deja repondu -> plus rien a envoyer.
+  if (fiche.statut === "soumis" || fiche.statut === "valide") return <span className="text-ink-4">-</span>;
+  // Pas d'email connu -> courrier postal (le bouton n'a pas de sens).
+  if (!fiche.emailConnu) return <span className="text-[11px] text-ink-4">courrier</span>;
+
+  const envoyer = () => {
+    startTransition(async () => {
+      const r = await envoyerFicheEmailAction(dossierRef, fiche.ownerId);
+      if (r.ok) {
+        setEnvoye(true);
+        toast.ok(r.envoye ? "Fiche envoyee par email." : `${r.message}${r.note ? ` ${r.note}` : ""}`);
+      } else {
+        toast.err(r.message);
+      }
+    });
+  };
+
+  return (
+    <Button type="button" variant="secondary" onClick={envoyer} disabled={pending}>
+      <Send strokeWidth={1.5} /> {pending ? "..." : envoye ? "Renvoyer" : "Par email"}
+    </Button>
   );
 }
 

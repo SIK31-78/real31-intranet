@@ -13,6 +13,7 @@ import {
   getRepriseDossierRepository,
   getExtractionProvider,
   getExtractionComptaProvider,
+  getExtractionAnnexeProvider,
   modeExtraction,
 } from "@/lib/reprise/adapters/router";
 import { appliquerResultatAnalyse } from "@/lib/reprise/services/suivi-dossier";
@@ -143,7 +144,15 @@ export async function POST(req: Request) {
 
   try {
     const extractionCompta = avecGrandLivre ? getExtractionComptaProvider() : null;
-    const { jeu, recap, compta } = await analyserDossierUnifie(getExtractionProvider(), extractionCompta, docs);
+    // Provider ANNEXES : null si le moteur ne sait pas les analyser (les annexes restent alors au
+    // patrimoine, retro-compat). Le service ne l'appelle que s'il y a des documents annexes.
+    const extractionAnnexe = getExtractionAnnexeProvider();
+    const { jeu, recap, compta, annexes } = await analyserDossierUnifie(
+      getExtractionProvider(),
+      extractionCompta,
+      docs,
+      extractionAnnexe,
+    );
     const repo = getRepriseDossierRepository();
     // Persistance GROUPEE (audit API 2026-07-16, P1-7) : recap + resume compta + erreur GL +
     // jeu + journal en UNE lecture / UNE ecriture du dossier, au lieu de 5 cycles obtenir()/
@@ -163,6 +172,9 @@ export async function POST(req: Request) {
           : recap.comptaErreur
             ? ` ; grand livre NON exploite : ${recap.comptaErreur}`
             : "") +
+        (annexes
+          ? ` ; ${annexes.annexes.length} document(s) annexe(s) : ${annexes.contacts.length} contact(s) rapproche(s)`
+          : "") +
         ".";
     await appliquerResultatAnalyse(repo, dossierId, {
       recap,
@@ -172,12 +184,14 @@ export async function POST(req: Request) {
       raccordement: recap.raccordement,
       grandLivreJoint: avecGrandLivre,
       comptaErreur: recap.comptaErreur,
+      annexes: annexes?.annexes,
+      contactsAnnexes: annexes?.contacts,
       nowISO: new Date().toISOString(),
       journalTexte,
     });
     revalidatePath(`/reprise-copro/dossiers/${dossierId}`);
     revalidatePath("/reprise-copro/dossiers");
-    return NextResponse.json({ ok: true, recap, jeu, mode: modeExtraction() });
+    return NextResponse.json({ ok: true, recap, jeu, annexes, mode: modeExtraction() });
   } catch (e) {
     return NextResponse.json(
       { ok: false, message: e instanceof Error ? e.message : "Erreur pendant l'analyse." },

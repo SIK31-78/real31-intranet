@@ -18,8 +18,19 @@
 import { estNomGrandLivre as estGrandLivre } from "@/lib/reprise/domain/limites-upload";
 import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
-import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
+import type {
+  AnnexeExtraite,
+  ContactAnnexe,
+  ExtractionAnnexeProvider,
+} from "@/lib/reprise/ports/extraction-annexe-provider";
+import type { JeuDeDonnees, Owner } from "@/lib/reprise/domain/patrimoine";
 import { comptes450DeIntitules, lierOwnersComptes } from "@/lib/reprise/domain/liaison-comptes";
+import {
+  rapprocherContacts,
+  noteVigilanceAnnexe,
+  type AnnexeAnalysee,
+  type ContactRapproche,
+} from "@/lib/reprise/domain/rapprochement-contacts";
 import {
   classerParExercice,
   detecterAvantRepartition,
@@ -30,6 +41,7 @@ import {
 import {
   analyserPatrimoine,
   calculerRecap,
+  estDocPatrimoine,
   type RecapCompta,
   type RecapPatrimoine,
 } from "@/lib/reprise/services/orchestrateur-patrimoine";
@@ -38,6 +50,14 @@ import {
   type ResultatRepriseCompta,
 } from "@/lib/reprise/services/reprendre-compta";
 
+/** Resultat du pipeline ANNEXES : metadonnees des annexes + contacts rapproches aux owners. */
+export interface AnalyseAnnexes {
+  /** Une entree par annexe analysee (nom de fichier, type detecte, resume). */
+  annexes: AnnexeAnalysee[];
+  /** Contacts rapproches aux owners du jeu (statut sur/ambigu/inconnu, a valider par l'humain). */
+  contacts: ContactRapproche[];
+}
+
 export interface AnalyseDossier {
   /** Jeu patrimoine, enrichi de `liaisons450` si un grand livre a ete fourni. */
   jeu: JeuDeDonnees;
@@ -45,6 +65,8 @@ export interface AnalyseDossier {
   recap: RecapPatrimoine;
   /** Resume compta a persister (present seulement si grand livre fourni). */
   compta?: RecapCompta;
+  /** Documents annexes analyses + contacts rapproches (present seulement si des annexes fournies). */
+  annexes?: AnalyseAnnexes;
 }
 
 /**
@@ -53,6 +75,79 @@ export interface AnalyseDossier {
  * puissent pre-verifier les plafonds d'upload ; re-exportee ici pour les appelants existants.
  */
 export { estGrandLivre };
+
+/**
+ * Un document est-il une ANNEXE ? Troisieme voie de l'aiguillage : ni grand livre, ni patrimoine
+ * reconnu (structure / proprietaires). Ce sont les documents qui partaient jusqu'ici "aux deux
+ * agents patrimoine par securite" (bruit + cout) : liste coproprietaires, courrier, avis de
+ * mutation... Un grand livre n'est JAMAIS une annexe (estGrandLivre prime).
+ */
+export function estAnnexe(nom: string): boolean {
+  return !estGrandLivre(nom) && !estDocPatrimoine(nom);
+}
+
+/**
+ * Extrait les documents ANNEXES : UN appel IA par annexe (jamais en masse). Tolerant : toute
+ * erreur sur une annexe est capturee et remontee en note de vigilance PII-free (nom de fichier +
+ * message technique), sans jamais faire echouer le reste de l'analyse. Renvoie les metadonnees
+ * des annexes exploitees, la liste PLATE des contacts bruts (a rapprocher ensuite avec les owners)
+ * et les notes de vigilance (precisions importantes + echecs). Ne rapproche PAS ici (les owners ne
+ * sont connus qu'apres l'extraction patrimoine).
+ */
+async function extraireAnnexes(
+  provider: ExtractionAnnexeProvider,
+  docs: DocumentSource[],
+): Promise<{ annexes: AnnexeAnalysee[]; contactsBruts: ContactAnnexe[]; notes: string[] }> {
+  const annexes: AnnexeAnalysee[] = [];
+  const contactsBruts: ContactAnnexe[] = [];
+  const notes: string[] = [];
+
+  const resultats = await Promise.all(
+    docs.map((d) =>
+      provider.extraireAnnexe(d).then(
+        (res) => ({ ok: true as const, nom: d.nom, res }),
+        (e: unknown) => ({
+          ok: false as const,
+          nom: d.nom,
+          erreur: e instanceof Error ? e.message : "extraction impossible",
+        }),
+      ),
+    ),
+  );
+
+  for (const r of resultats) {
+    if (!r.ok) {
+      notes.push(`Document annexe "${r.nom}" non analyse (${r.erreur.slice(0, 160)}) - a verifier / re-deposer.`);
+      continue;
+    }
+    const ext: AnnexeExtraite = r.res;
+    annexes.push({ nom: r.nom, typeDetecte: ext.typeDetecte, resume: ext.resume });
+    for (const c of ext.contacts) contactsBruts.push(c);
+    for (const p of ext.pointsAttention) notes.push(noteVigilanceAnnexe(ext.typeDetecte, p));
+  }
+
+  return { annexes, contactsBruts, notes };
+}
+
+/**
+ * Finalise le bloc annexes : rapproche les contacts bruts des OWNERS du jeu (domaine pur) et
+ * PREPEND les notes annexes (precisions/echecs) aux notes du recap (classees "vigilance"). Mute
+ * recap.notes en place. Renvoie l'objet AnalyseAnnexes a persister (ou undefined si rien).
+ */
+function finaliserAnnexes(
+  owners: Owner[],
+  recap: RecapPatrimoine,
+  brut: { annexes: AnnexeAnalysee[]; contactsBruts: ContactAnnexe[]; notes: string[] } | null,
+): AnalyseAnnexes | undefined {
+  if (!brut || brut.annexes.length === 0) {
+    // Aucune annexe exploitee : on remonte quand meme d'eventuelles notes d'echec.
+    if (brut && brut.notes.length > 0) recap.notes = [...recap.notes, ...brut.notes];
+    return undefined;
+  }
+  const contacts = rapprocherContacts(brut.contactsBruts, owners);
+  recap.notes = [...recap.notes, ...brut.notes];
+  return { annexes: brut.annexes, contacts };
+}
 
 /** Resultat de l'analyse des GRANDS LIVRES : exercice cloture, exercice en cours, controle croise. */
 interface AnalyseGrandsLivres {
@@ -185,12 +280,24 @@ export async function analyserDossierUnifie(
   extraction: ExtractionProvider,
   extractionCompta: ExtractionComptaProvider | null,
   docs: DocumentSource[],
+  extractionAnnexe: ExtractionAnnexeProvider | null = null,
 ): Promise<AnalyseDossier> {
   const glDocs = docs.filter((d) => estGrandLivre(d.nom));
   const avecGrandLivre = glDocs.length > 0 && extractionCompta !== null;
+
+  // AIGUILLAGE A TROIS VOIES : grand livre / patrimoine / ANNEXE (tout le reste). Les annexes ne
+  // sont deroutees du lot patrimoine QUE si un provider annexe existe : sans lui, elles restent au
+  // patrimoine (comportement d'avant, retro-compat STRICTE). Un dossier SANS annexe -> patriDocs et
+  // le pipeline sont identiques a l'existant.
+  const annexeDocs = docs.filter((d) => estAnnexe(d.nom));
+  const avecAnnexe = annexeDocs.length > 0 && extractionAnnexe !== null;
+
   // Sans provider compta, le grand livre RESTE dans le lot patrimoine (comportement d'avant
   // l'unification) ; avec provider, il est aiguille vers le pipeline compta.
-  const patriDocs = avecGrandLivre ? docs.filter((d) => !estGrandLivre(d.nom)) : docs;
+  const patriDocsAll = avecGrandLivre ? docs.filter((d) => !estGrandLivre(d.nom)) : docs;
+  // Les annexes sortent du lot patrimoine uniquement quand elles seront analysees par leur pipeline
+  // dedie (sinon on ne casse rien : elles restent aux agents patrimoine comme aujourd'hui).
+  const patriDocs = avecAnnexe ? patriDocsAll.filter((d) => !estAnnexe(d.nom)) : patriDocsAll;
 
   // Les agents patrimoine gardent leur propre aiguillage interne (structure vs proprietaires) ;
   // on leur passe les documents NON grand-livre. Sans grand livre, patriDocs == tous les docs
@@ -202,9 +309,10 @@ export async function analyserDossierUnifie(
   // L'extraction du grand livre est ISOLEE dans un try/catch : la couche-texte-only leve une
   // erreur explicite sur un PDF scanne. Cette erreur NE DOIT PAS faire echouer le patrimoine
   // (degradation PARTIELLE) -> on la capture et on l'expose via recap.comptaErreur.
-  const [patrimoine, grandLivresRes] = await Promise.all([
+  const [patrimoine, grandLivresRes, annexesBrut] = await Promise.all([
     patriDocs.length > 0 ? analyserPatrimoine(extraction, patriDocs) : Promise.resolve(null),
     avecGrandLivre ? analyserGrandsLivres(extractionCompta!, glDocs) : Promise.resolve(null),
+    avecAnnexe ? extraireAnnexes(extractionAnnexe!, annexeDocs) : Promise.resolve(null),
   ]);
 
   const grandLivre = grandLivresRes?.cloture ?? null;
@@ -214,18 +322,28 @@ export async function analyserDossierUnifie(
   const notesGrandsLivres = grandLivresRes?.notes ?? [];
 
   if (!patrimoine && !grandLivre) {
-    // Ni patrimoine, ni grand livre exploitable. Si un grand livre etait joint mais a echoue
-    // (ex. scan), on remonte SON erreur explicite ; sinon le message generique.
+    // Ni patrimoine, ni grand livre. ANNEXES SEULES (aucun patrimoine, aucun GL) : on ne throw
+    // plus si des annexes ont ete exploitees (contacts/precisions) -> jeu patrimoine vide + bloc
+    // annexes (meme esprit que le pattern GL-seul). Sinon, rien d'exploitable -> erreur explicite.
+    const jeuVide: JeuDeDonnees = { lots: [], cles: [], tantiemes: [], owners: [], attributions: [] };
+    const recap = calculerRecap(jeuVide);
+    recap.notes = [
+      "Aucun document patrimoine ni grand livre : seuls des documents annexes ont ete analyses (contacts / precisions).",
+    ];
+    const annexes = finaliserAnnexes(jeuVide.owners, recap, annexesBrut);
+    if (annexes) return { jeu: jeuVide, recap, ...(annexes ? { annexes } : {}) };
+    // Si un grand livre etait joint mais a echoue (ex. scan), on remonte SON erreur explicite.
     throw new Error(comptaErreur ?? "Aucun document exploitable (ni patrimoine ni grand livre).");
   }
 
   // Pas de grand livre exploitable mais patrimoine OK : degradation PARTIELLE. On renvoie le
   // patrimoine seul, en attachant l'erreur d'extraction du grand livre au recap (le bloc compta
-  // l'affichera au lieu de tout faire echouer).
+  // l'affichera au lieu de tout faire echouer) + le bloc annexes (contacts rapproches aux owners).
   if (!grandLivre) {
     const recap = patrimoine!.recap;
     if (comptaErreur) recap.comptaErreur = comptaErreur;
-    return { jeu: patrimoine!.jeu, recap };
+    const annexes = finaliserAnnexes(patrimoine!.jeu.owners, recap, annexesBrut);
+    return { jeu: patrimoine!.jeu, recap, ...(annexes ? { annexes } : {}) };
   }
 
   // Grand livre SEUL : jeu patrimoine vide (aucune extraction IA lancee), la compta porte tout.
@@ -301,5 +419,8 @@ export async function analyserDossierUnifie(
     if (!raccordement.raccorde) recap.notes.push(messageRaccordement(raccordement));
   }
 
-  return { jeu, recap, compta };
+  // Bloc ANNEXES : contacts rapproches aux owners du jeu (patrimoine ou empty) + notes vigilance.
+  const annexes = finaliserAnnexes(jeu.owners, recap, annexesBrut);
+
+  return { jeu, recap, compta, ...(annexes ? { annexes } : {}) };
 }

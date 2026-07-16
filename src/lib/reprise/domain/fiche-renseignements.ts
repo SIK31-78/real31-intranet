@@ -105,6 +105,14 @@ export interface FicheRenseignement {
   mailEnvoyeAt?: string;
   derniereRelanceAt?: string;
   expiresAt: string;
+  /**
+   * Canal d'envoi de la fiche : "courrier" (postal, defaut historique) ou "email" (quand un email
+   * valide est connu -> on envoie le lien + le code par mail au lieu d'imprimer un courrier). ADDITIF :
+   * absent = courrier (retro-compat). Le mail "espace client pret" a la validation reste inchange.
+   */
+  canal?: "courrier" | "email";
+  /** Date d'envoi de la fiche PAR EMAIL (bonus email). Distinct de mailEnvoyeAt (mail de validation). */
+  envoiEmailAt?: string;
 }
 
 /** true si la fiche est expiree a la date donnee (ISO). */

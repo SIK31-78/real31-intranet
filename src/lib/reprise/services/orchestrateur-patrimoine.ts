@@ -185,6 +185,16 @@ function pourProprietaires(nom: string): boolean {
   return /presence|présence|\bpv\b|proces|procès|assemblee|assemblée|feuille/i.test(nom);
 }
 
+/**
+ * Un document est-il RECONNU comme document patrimoine (structure OU proprietaires) par son nom ?
+ * Sert a l'aiguillage a TROIS voies (grand livre / patrimoine / ANNEXE) dans analyser-dossier :
+ * un document ni grand livre ni patrimoine est une ANNEXE (courrier, liste, avis de mutation...).
+ * Expose ici car les predicats d'aiguillage patrimoine vivent dans cet orchestrateur.
+ */
+export function estDocPatrimoine(nom: string): boolean {
+  return pourStructure(nom) || pourProprietaires(nom);
+}
+
 export async function analyserPatrimoine(
   provider: ExtractionProvider,
   docs: DocumentSource[],
