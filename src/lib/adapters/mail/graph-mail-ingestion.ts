@@ -6,7 +6,7 @@
 
 import type { MailIngestionProvider, OptionsIngestion } from "@/lib/ports/mail-ingestion-provider";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
-import { GRAPH, jetonGraph } from "./graph-auth";
+import { GRAPH, graphFetch, jetonGraph } from "./graph-auth";
 
 const PAGE = 50;
 
@@ -51,7 +51,7 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
 
     const out: RawMail[] = [];
     while (url && out.length < opts.max) {
-      const r = await fetch(url, {
+      const r = await graphFetch(url, {
         headers: {
           Authorization: `Bearer ${tk}`,
           // Corps en texte brut plutot qu'en HTML (plus propre pour le pipeline).

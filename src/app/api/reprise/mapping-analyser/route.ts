@@ -29,6 +29,11 @@ import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Sur Vercel, une fonction sans maxDuration est coupee au bout de ~10-15 s (defaut du plan) :
+// la lecture couche texte d'un gros grand livre + le plan de mapping + les lectures eStale
+// peuvent depasser ca -> 504 en plein vol. 300 s = plafond Fluid compute ; si le deploiement
+// echoue sur un plan plus bas, redescendre a 60. En local : sans effet.
+export const maxDuration = 300;
 
 // Plafond de taille TOTALE des uploads (le PDF est lu entierement en RAM le temps de l'analyse).
 const TAILLE_TOTALE_MAX_OCTETS = 40 * 1024 * 1024; // 40 Mo

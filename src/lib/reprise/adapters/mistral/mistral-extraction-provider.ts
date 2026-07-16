@@ -19,6 +19,9 @@ import { SYSTEME_PATRIMOINE, SYSTEME_PROPRIETAIRES, extraireJson } from "@/lib/r
 const BASE = "https://api.mistral.ai/v1";
 const MODEL_OCR = process.env.MODEL_OCR || "mistral-ocr-latest";
 const MODEL_EXTRACTION = process.env.MODEL_EXTRACTION || "mistral-large-latest";
+// Timeout par appel (aligne sur l'adapter compta) : sans lui, un OCR/extraction qui hang
+// laisse trainer la requete jusqu'au HeadersTimeout undici (~300 s).
+const TIMEOUT_MS = Number(process.env.MISTRAL_TIMEOUT_MS) || 180_000;
 
 // Throttle simple (le tier gratuit Mistral limite ~1 req/s).
 let dernierAppel = 0;
@@ -41,6 +44,7 @@ async function appel(path: string, body: unknown): Promise<Response> {
       method: "POST",
       headers: { Authorization: `Bearer ${cle()}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (r.status === 429 || r.status >= 500) {
       const retryAfter = Number(r.headers.get("retry-after"));
@@ -53,16 +57,31 @@ async function appel(path: string, body: unknown): Promise<Response> {
   throw new Error(`Mistral ${path} : rate limit persistant apres retries`);
 }
 
-/** OCR d'un PDF -> markdown (toutes pages concatenees). */
-async function ocr(doc: DocumentSource): Promise<string> {
-  const b64 = Buffer.from(doc.contenu).toString("base64");
-  const r = await appel("/ocr", {
-    model: MODEL_OCR,
-    document: { type: "document_url", document_url: `data:${doc.mime || "application/pdf"};base64,${b64}` },
-    include_image_base64: false,
-  });
-  const j = (await r.json()) as { pages?: { markdown?: string }[] };
-  return (j.pages ?? []).map((p) => p.markdown ?? "").join("\n\n");
+// Deduplication de l'OCR PAR DOCUMENT (WeakMap sur l'objet DocumentSource) : l'analyse
+// patrimoine appelle extrairePatrimoine ET extraireProprietaires en parallele sur les MEMES
+// objets docs -> sans ce cache, chaque PDF etait OCRise DEUX fois (2x le cout OCR, 2x le
+// temps). On memorise la PROMESSE (pas le resultat) pour dedupliquer aussi les appels en vol
+// (Promise.all). WeakMap : la memoire se libere avec les docs, aucune retention inter-requetes.
+const ocrEnCours = new WeakMap<DocumentSource, Promise<string>>();
+
+/** OCR d'un PDF -> markdown (toutes pages concatenees). Deduplique par objet document. */
+function ocr(doc: DocumentSource): Promise<string> {
+  const deja = ocrEnCours.get(doc);
+  if (deja) return deja;
+  const promesse = (async () => {
+    const b64 = Buffer.from(doc.contenu).toString("base64");
+    const r = await appel("/ocr", {
+      model: MODEL_OCR,
+      document: { type: "document_url", document_url: `data:${doc.mime || "application/pdf"};base64,${b64}` },
+      include_image_base64: false,
+    });
+    const j = (await r.json()) as { pages?: { markdown?: string }[] };
+    return (j.pages ?? []).map((p) => p.markdown ?? "").join("\n\n");
+  })();
+  ocrEnCours.set(doc, promesse);
+  // Un echec ne doit pas rester memorise (retry possible au prochain appel).
+  promesse.catch(() => ocrEnCours.delete(doc));
+  return promesse;
 }
 
 async function ocrTous(docs: DocumentSource[]): Promise<string> {

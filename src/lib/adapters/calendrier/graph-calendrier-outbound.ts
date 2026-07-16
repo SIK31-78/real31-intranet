@@ -14,7 +14,7 @@ import {
   attendeesRessource,
   interpreterAvailabilityView,
 } from "@/lib/domain/salles-reunion";
-import { GRAPH, jetonGraph } from "../mail/graph-auth";
+import { GRAPH, graphFetch, jetonGraph } from "../mail/graph-auth";
 
 const TZ = "Europe/Paris";
 
@@ -114,7 +114,7 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     ];
     if (attendees.length > 0) body.attendees = attendees;
 
-    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/events`, {
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/events`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -175,7 +175,7 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     if (Object.keys(body).length === 0) return; // rien a changer
 
     const tk = await jetonGraph();
-    const r = await fetch(
+    const r = await graphFetch(
       `${GRAPH}/users/${encodeURIComponent(boite)}/events/${encodeURIComponent(eventId)}`,
       {
         method: "PATCH",
@@ -199,7 +199,7 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     // a jamais (constate en reel le 2026-07-10). POST /cancel envoie l'annulation (la
     // salle se libere) ET supprime l'evenement. On tente cancel d'abord ; s'il n'est pas
     // applicable (evenement sans participant, deja annule -> 4xx), on retombe sur DELETE.
-    const rc = await fetch(`${base}/cancel`, {
+    const rc = await graphFetch(`${base}/cancel`, {
       method: "POST",
       headers: h,
       body: JSON.stringify({ comment: "Reunion annulee depuis l'intranet REAL31." }),
@@ -207,7 +207,7 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     if (rc.ok) return; // 202 : annulation envoyee (salle liberee), evenement supprime
     if (rc.status === 404) return; // deja absent : etat cible atteint
 
-    const r = await fetch(base, { method: "DELETE", headers: h });
+    const r = await graphFetch(base, { method: "DELETE", headers: h });
     // 404 = deja supprime (ex. efface a la main dans Outlook) : etat cible atteint.
     if (r.status === 404) return;
     if (!r.ok) {
@@ -227,7 +227,9 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     if (!boite || !salleEmail) return "inconnu";
     try {
       const tk = await jetonGraph();
-      const r = await fetch(`${GRAPH}/users/${encodeURIComponent(boite)}/calendar/getSchedule`, {
+      // Timeout court (8 s) : ce controle alimente un indicateur temps reel dans
+      // l'editeur de date ; mieux vaut "inconnu" vite qu'une verification qui traine.
+      const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(boite)}/calendar/getSchedule`, {
         method: "POST",
         headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -236,7 +238,7 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
           endTime: { dateTime: finISO, timeZone: TZ },
           availabilityViewInterval: 30,
         }),
-      });
+      }, 8_000);
       // 403 = Application Access Policy pas encore ouverte pour les salles (cote DSI).
       if (!r.ok) return "inconnu";
       const j = (await r.json()) as { value?: Array<{ availabilityView?: string }> };

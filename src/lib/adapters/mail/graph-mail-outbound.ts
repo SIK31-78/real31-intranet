@@ -5,7 +5,7 @@
 // signature injectee (Signitic s'en charge cote Outlook).
 
 import type { MailOutboundProvider } from "@/lib/ports/mail-outbound-provider";
-import { GRAPH, jetonGraph, resoudreMessageId } from "./graph-auth";
+import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 function echapperHtml(s: string): string {
   return s
@@ -25,7 +25,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     if (!p.boite) throw new Error("Creation brouillon : boite manquante.");
     const tk = await jetonGraph();
     const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
-    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/createReply`, {
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/createReply`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
       body: JSON.stringify({ comment: p.corps }),
@@ -52,17 +52,18 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     const h = { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" };
 
     // 1. Brouillon de reponse (Graph garde le fil + la citation HTML).
-    const r1 = await fetch(`${u}/messages/${id}/createReply`, { method: "POST", headers: h, body: "{}" });
+    const r1 = await graphFetch(`${u}/messages/${id}/createReply`, { method: "POST", headers: h, body: "{}" });
     if (!r1.ok) throw new Error(`Graph createReply ${r1.status} : ${(await r1.text()).slice(0, 200)}`);
     const draft = (await r1.json()) as { id: string; body?: { content?: string } };
 
     // 1bis. Re-joint les PJ choisies du mail d'origine (recuperees puis ajoutees au draft).
     for (const aid of p.pjIds ?? []) {
-      const ra = await fetch(`${u}/messages/${id}/attachments/${aid}`, { headers: { Authorization: `Bearer ${tk}` } });
+      // Timeout double sur la lecture/re-upload de PJ (plusieurs Mo en base64 possibles).
+      const ra = await graphFetch(`${u}/messages/${id}/attachments/${aid}`, { headers: { Authorization: `Bearer ${tk}` } }, 60_000);
       if (!ra.ok) throw new Error(`Graph lire PJ ${ra.status} : ${(await ra.text()).slice(0, 200)}`);
       const att = (await ra.json()) as { name: string; contentType: string; contentBytes?: string };
       if (!att.contentBytes) continue;
-      const rp = await fetch(`${u}/messages/${draft.id}/attachments`, {
+      const rp = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
         method: "POST",
         headers: h,
         body: JSON.stringify({
@@ -71,7 +72,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
           contentType: att.contentType,
           contentBytes: att.contentBytes,
         }),
-      });
+      }, 60_000);
       if (!rp.ok) throw new Error(`Graph ajout PJ ${rp.status} : ${(await rp.text()).slice(0, 200)}`);
     }
 
@@ -88,7 +89,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
       bccRecipients: dest(p.cci),
     };
     if (p.sujet && p.sujet.trim()) corpsPatch.subject = p.sujet.trim();
-    const r2 = await fetch(`${u}/messages/${draft.id}`, {
+    const r2 = await graphFetch(`${u}/messages/${draft.id}`, {
       method: "PATCH",
       headers: h,
       body: JSON.stringify(corpsPatch),
@@ -96,7 +97,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     if (!r2.ok) throw new Error(`Graph PATCH brouillon ${r2.status} : ${(await r2.text()).slice(0, 200)}`);
 
     // 3. Envoi.
-    const r3 = await fetch(`${u}/messages/${draft.id}/send`, { method: "POST", headers: h });
+    const r3 = await graphFetch(`${u}/messages/${draft.id}/send`, { method: "POST", headers: h });
     if (!r3.ok) throw new Error(`Graph send ${r3.status} : ${(await r3.text()).slice(0, 200)}`);
   }
 
@@ -113,7 +114,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     // s'applique a l'ouverture du brouillon cote Outlook).
     const content = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
     // POST /messages cree un message en statut Draft (on n'envoie PAS).
-    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages`, {
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -154,7 +155,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     };
 
     // sendMail : Graph cree, envoie et archive dans "Elements envoyes" en un appel.
-    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/sendMail`, {
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/sendMail`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
       body: JSON.stringify({ message, saveToSentItems: true }),

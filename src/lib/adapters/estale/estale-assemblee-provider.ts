@@ -36,6 +36,29 @@ function normaliserRef(ref: string): string {
   return m ? `${m[1]}${m[2]}` : ref.trim().toUpperCase();
 }
 
+// --- Resolution reference -> condo id (cache module, TTL court) --------------
+// Meme approche que EstaleCondoProvider : la liste complete des condos accessibles
+// etait refetchee a CHAQUE appel (getAssemblee, creerAssemblee, appliquerOdj en
+// refaisaient chacun une) alors qu'elle ne bouge pas a l'echelle de la minute.
+type CondoRef = { id: string; reference: string };
+let cacheCondos: { liste: CondoRef[]; expire: number } | null = null;
+const TTL_CONDOS_MS = 10 * 60 * 1000;
+
+async function condosAccessibles(): Promise<CondoRef[]> {
+  if (!cacheCondos || Date.now() > cacheCondos.expire) {
+    const data = await estaleGql<{ me: { collaborator: { condos: CondoRef[] } } }>(
+      `{ me { collaborator { condos(archived: false) { id reference } } } }`,
+    );
+    cacheCondos = { liste: data.me.collaborator.condos, expire: Date.now() + TTL_CONDOS_MS };
+  }
+  return cacheCondos.liste;
+}
+
+async function resoudreCondoIdCache(coproCode: string): Promise<string | null> {
+  const cible = normaliserRef(coproCode);
+  return (await condosAccessibles()).find((c) => normaliserRef(c.reference) === cible)?.id ?? null;
+}
+
 const MAJORITES = new Set<MajoriteResolution>([
   "A24", "A25", "A25_1", "A26", "A26_1", "UNANIMITY", "QUESTION",
 ]);
@@ -63,11 +86,7 @@ type MeetingRow = {
 
 export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
   async getAssemblee(coproCode: string): Promise<AssembleeAg | null> {
-    const condos = await estaleGql<{ me: { collaborator: { condos: { id: string; reference: string }[] } } }>(
-      `{ me { collaborator { condos(archived: false) { id reference } } } }`,
-    );
-    const cible = normaliserRef(coproCode);
-    const condoId = condos.me.collaborator.condos.find((c) => normaliserRef(c.reference) === cible)?.id;
+    const condoId = await resoudreCondoIdCache(coproCode);
     if (!condoId) return null;
 
     const data = await estaleGql<{ condo: { meetings: MeetingRow[] } }>(
@@ -110,12 +129,11 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
   }
 
   async creerAssemblee(coproCode: string): Promise<string> {
-    const moi = await estaleGql<{
-      me: { collaborator: { id: string; condos: { id: string; reference: string }[] } };
-    }>(`{ me { collaborator { id condos(archived: false) { id reference } } } }`);
+    const moi = await estaleGql<{ me: { collaborator: { id: string } } }>(
+      `{ me { collaborator { id } } }`,
+    );
     const collabId = moi.me.collaborator.id;
-    const cible = normaliserRef(coproCode);
-    const condoId = moi.me.collaborator.condos.find((c) => normaliserRef(c.reference) === cible)?.id;
+    const condoId = await resoudreCondoIdCache(coproCode);
     if (!condoId) throw new Error(`Copropriété ${coproCode} introuvable dans Estale.`);
 
     const data = await estaleGql<{
@@ -300,11 +318,7 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
   }
 
   private async resoudreCondoId(coproCode: string): Promise<string | null> {
-    const condos = await estaleGql<{ me: { collaborator: { condos: { id: string; reference: string }[] } } }>(
-      `{ me { collaborator { condos(archived: false) { id reference } } } }`,
-    );
-    const cible = normaliserRef(coproCode);
-    return condos.me.collaborator.condos.find((c) => normaliserRef(c.reference) === cible)?.id ?? null;
+    return resoudreCondoIdCache(coproCode);
   }
 
   private async creerMotion(
