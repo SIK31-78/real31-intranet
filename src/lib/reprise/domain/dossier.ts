@@ -120,6 +120,11 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
   { code: "R3", phase: "PATRIMOINE", libelle: "Patrimoine injecte dans eStale (GO/STOP)" },
   { code: "R4", phase: "PATRIMOINE", libelle: "Corrections manuelles eStale faites (si besoin)" },
   { code: "R5", phase: "PATRIMOINE", libelle: "Fiches de renseignements generees + envoyees (courrier/mailing)" },
+  // RB1/RB2 : codes hors sequence R* volontairement (inseres apres coup, demande Sekou
+  // 2026-07-16) - renumeroter R6..R11 aurait change le SENS des etats deja coches en base.
+  // L'ordre d'affichage = l'ordre de CE tableau, pas les codes.
+  { code: "RB1", phase: "COMPTABILITE", libelle: "Compte bancaire de la copropriete ouvert (compte separe)" },
+  { code: "RB2", phase: "COMPTABILITE", libelle: "Compte bancaire synchronise sur eStale (flux bancaires actifs)" },
   { code: "R6", phase: "COMPTABILITE", libelle: "Grand livre APRES repartition recu et analyse (balance 0, alerte avant-repartition levee)" },
   { code: "R7", phase: "COMPTABILITE", libelle: "Revue du mapping compta tranchee (warnings, homonymes, partis)" },
   { code: "R8", phase: "COMPTABILITE", libelle: "Comptabilite importee dans eStale (Inc. 3 - a venir)" },
