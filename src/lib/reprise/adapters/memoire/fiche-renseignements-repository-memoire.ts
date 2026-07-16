@@ -30,4 +30,16 @@ export class FicheRenseignementsRepositoryMemoire implements FicheRenseignements
   async sauver(fiche: FicheRenseignement): Promise<void> {
     this.store.set(cle(fiche.coproCode, fiche.ownerId), structuredClone(fiche));
   }
+
+  async supprimerParDossier(coproCode: string): Promise<number> {
+    const prefixe = `${coproCode}::`;
+    let n = 0;
+    for (const k of [...this.store.keys()]) {
+      if (k.startsWith(prefixe)) {
+        this.store.delete(k);
+        n++;
+      }
+    }
+    return n;
+  }
 }

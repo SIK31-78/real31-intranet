@@ -139,8 +139,17 @@ function versTableau(decisions: Record<string, DecisionMapping>): DecisionEntree
   return Object.entries(decisions).map(([compteSource, decision]) => ({ compteSource, decision }));
 }
 
-export function RevueMappingVue({ modeIa, persistant }: { modeIa: ModeIa; persistant: boolean }) {
-  const [coproCode, setCoproCode] = useState("");
+export function RevueMappingVue({
+  modeIa,
+  persistant,
+  refInitiale = "",
+}: {
+  modeIa: ModeIa;
+  persistant: boolean;
+  /** Code copro pre-rempli depuis le bandeau "prochaine etape" (?ref=S0xxx). Reste editable. */
+  refInitiale?: string;
+}) {
+  const [coproCode, setCoproCode] = useState(refInitiale);
   const [files, setFiles] = useState<File[]>([]);
   const [pending, startAnalyse] = useTransition();
   const [data, setData] = useState<DonneesRevue | null>(null);

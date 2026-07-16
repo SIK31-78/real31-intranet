@@ -115,4 +115,19 @@ export class FicheRenseignementsRepositorySupabase implements FicheRenseignement
       throw new Error(`Reprise sauver fiche : ${error.message}`);
     }
   }
+
+  async supprimerParDossier(coproCode: string): Promise<number> {
+    const sb = createSupabasePublicClient();
+    // .select() renvoie les lignes supprimees -> on compte ce qui part (annonce a l'utilisateur).
+    const { data, error } = await sb
+      .from(TABLE)
+      .delete()
+      .eq("copro_code", coproCode)
+      .select("owner_id");
+    if (error) {
+      if (tableAbsente(error)) return 0; // table pas encore creee : rien a supprimer
+      throw new Error(`Reprise supprimer fiches : ${error.message}`);
+    }
+    return (data as unknown[] | null)?.length ?? 0;
+  }
 }

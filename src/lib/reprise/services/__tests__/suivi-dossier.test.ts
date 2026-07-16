@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ETAPES_REPRISE } from "@/lib/reprise/domain/dossier";
+import { estArchive, ETAPES_REPRISE } from "@/lib/reprise/domain/dossier";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
+import { FicheRenseignementsRepositoryMemoire } from "@/lib/reprise/adapters/memoire/fiche-renseignements-repository-memoire";
+import type { FicheRenseignement } from "@/lib/reprise/domain/fiche-renseignements";
 import type { RecapPatrimoine } from "../orchestrateur-patrimoine";
 import {
   ajouterAnomalie,
   ajouterJournal,
   appliquerRecap,
+  archiverDossier,
   corrigerJeuDossier,
   creerDossierSuivi,
   enregistrerJeu,
   listerDossiers,
   majEtape,
   obtenirDossier,
+  supprimerDossierEtFiches,
 } from "../suivi-dossier";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 
@@ -102,6 +106,51 @@ describe("suivi-dossier", () => {
     expect(d.anomalies).toEqual(["K-bis a fournir", "fusion X"]);
   });
 });
+
+describe("archivage / suppression", () => {
+  it("archive puis desarchive (flag JSONB, reversible) + journalise", async () => {
+    await creerDossierSuivi(repo, "S0302", "X");
+    const arch = await archiverDossier(repo, "S0302", true, "2026-07-16T09:00:00.000Z");
+    expect(estArchive(arch)).toBe(true);
+    expect(arch.compteurs.archive).toBe(true);
+    expect(arch.journal.at(-1)!.texte).toMatch(/archive/i);
+
+    const des = await archiverDossier(repo, "S0302", false, "2026-07-16T09:05:00.000Z");
+    expect(estArchive(des)).toBe(false);
+    // Efface (undefined) au desarchivage pour garder le JSONB propre.
+    expect(des.compteurs.archive).toBeUndefined();
+    expect(des.journal.at(-1)!.texte).toMatch(/desarchive/i);
+  });
+
+  it("supprime le dossier ET ses fiches liees, en renvoyant le compte de fiches parties", async () => {
+    const fichesRepo = new FicheRenseignementsRepositoryMemoire();
+    await creerDossierSuivi(repo, "S0302", "X");
+    // Deux fiches sur S0302, une sur un autre dossier (ne doit PAS partir).
+    await fichesRepo.sauver(ficheMinimale("S0302", "o1"));
+    await fichesRepo.sauver(ficheMinimale("S0302", "o2"));
+    await fichesRepo.sauver(ficheMinimale("S0303", "o1"));
+
+    const { fichesSupprimees } = await supprimerDossierEtFiches(repo, fichesRepo, "S0302");
+    expect(fichesSupprimees).toBe(2);
+    expect(await obtenirDossier(repo, "S0302")).toBeNull();
+    expect(await fichesRepo.listerParDossier("S0302")).toHaveLength(0);
+    // Les fiches d'un autre dossier sont intactes.
+    expect(await fichesRepo.listerParDossier("S0303")).toHaveLength(1);
+  });
+});
+
+function ficheMinimale(coproCode: string, ownerId: string): FicheRenseignement {
+  return {
+    coproCode,
+    ownerId,
+    tokenHash: `tok-${coproCode}-${ownerId}`,
+    codeHash: `code-${coproCode}-${ownerId}`,
+    statut: "courrier_genere",
+    connues: { civilite: "m", nom: "X", pro: false },
+    courrierGenereAt: "2026-07-16T00:00:00.000Z",
+    expiresAt: "2026-12-31T00:00:00.000Z",
+  };
+}
 
 // Jeu minimal COHERENT (passe verifierTout) sauf un tantieme faux qui casse la cle 100.
 function jeuAvecEcart(): JeuDeDonnees {

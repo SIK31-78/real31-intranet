@@ -6,11 +6,12 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, FolderOpen, ChevronRight } from "lucide-react";
+import { Plus, FolderOpen, ChevronRight, Archive } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/cn";
 import type { StatutDossier } from "@/lib/reprise/domain/dossier";
 import { creerDossierAction } from "./actions";
 
@@ -20,6 +21,7 @@ export interface DossierResume {
   ref: string;
   nomUsuel: string;
   statut: StatutDossier;
+  archive: boolean;
   avancement: number; // 0..1
   etapesFaites: number;
   etapesTotal: number;
@@ -48,13 +50,34 @@ const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] tex
 
 export function DossiersRepriseVue({ dossiers }: { dossiers: DossierResume[] }) {
   const [formOuvert, setFormOuvert] = useState(false);
+  // Les dossiers ARCHIVES sont masques par defaut ; un filtre "Archives (N)" les affiche.
+  const [voirArchives, setVoirArchives] = useState(false);
+
+  const actifs = dossiers.filter((d) => !d.archive);
+  const archives = dossiers.filter((d) => d.archive);
+  const affiches = voirArchives ? archives : actifs;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[12px] text-ink-3">
-          {dossiers.length} dossier{dossiers.length > 1 ? "s" : ""}
+          {actifs.length} dossier{actifs.length > 1 ? "s" : ""}
         </span>
+        {archives.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setVoirArchives((v) => !v)}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12px] transition-colors",
+              voirArchives
+                ? "border-green-600/40 bg-green-50 text-green-800"
+                : "border-line text-ink-3 hover:border-line-2",
+            )}
+          >
+            <Archive strokeWidth={1.5} className="w-3.5 h-3.5" />
+            {voirArchives ? "Voir les actifs" : `Archives (${archives.length})`}
+          </button>
+        )}
         <Button
           type="button"
           variant="primary"
@@ -67,19 +90,21 @@ export function DossiersRepriseVue({ dossiers }: { dossiers: DossierResume[] }) 
 
       {formOuvert && <FormCreation onFait={() => setFormOuvert(false)} />}
 
-      {dossiers.length === 0 ? (
+      {affiches.length === 0 ? (
         <Card>
           <div className="px-4 py-10 text-center">
             <FolderOpen strokeWidth={1.5} className="w-6 h-6 text-ink-4 mx-auto mb-2" />
             <p className="text-[13px] text-ink-3">
-              Aucun dossier de reprise. Cree le premier avec &laquo;&nbsp;Nouveau dossier&nbsp;&raquo;.
+              {voirArchives
+                ? "Aucun dossier archive."
+                : "Aucun dossier de reprise. Cree le premier avec « Nouveau dossier »."}
             </p>
           </div>
         </Card>
       ) : (
         <Card className="overflow-hidden">
           <ul className="divide-y divide-line">
-            {dossiers.map((d) => (
+            {affiches.map((d) => (
               <LigneDossier key={d.ref} d={d} />
             ))}
           </ul>
@@ -116,6 +141,11 @@ function LigneDossier({ d }: { d: DossierResume }) {
             )}
           </div>
         </div>
+        {d.archive && (
+          <Badge ton="neutral" className="shrink-0 gap-1">
+            <Archive strokeWidth={1.5} className="w-3 h-3" /> Archive
+          </Badge>
+        )}
         <Badge ton={STATUT_TON[d.statut]} dot className="shrink-0">
           {STATUT_LABEL[d.statut]}
         </Badge>

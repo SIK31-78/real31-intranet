@@ -16,6 +16,7 @@
 // L'injection dry-run NE TOUCHE AUCUN RESEAU (adapter dry-run du routeur).
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
@@ -26,7 +27,15 @@ import {
   getFicheRenseignementsRepository,
   getEstaleFicheContactProvider,
 } from "@/lib/reprise/adapters/router";
-import { majEtape, ajouterJournal, trancherLiaisonDossier, obtenirDossier, corrigerJeuDossier } from "@/lib/reprise/services/suivi-dossier";
+import {
+  majEtape,
+  ajouterJournal,
+  trancherLiaisonDossier,
+  obtenirDossier,
+  corrigerJeuDossier,
+  archiverDossier,
+  supprimerDossierEtFiches,
+} from "@/lib/reprise/services/suivi-dossier";
 import type { Correction } from "@/lib/reprise/domain/corrections-patrimoine";
 import { USAGES, CIVILITES } from "@/lib/reprise/domain/patrimoine";
 import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
@@ -110,6 +119,54 @@ export async function ajouterNoteAction(dossierId: string, texte: string): Promi
 
   revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
   return { ok: true };
+}
+
+// --- ARCHIVAGE / SUPPRESSION d'un dossier de reprise ------------------------
+
+const schemaArchiver = z.object({
+  dossierId: z.string().trim().min(1).max(40),
+  archive: z.boolean(),
+});
+
+/** Archive ou desarchive un dossier (reversible, flag JSONB). Cloisonnement : gestionnaire connecte. */
+export async function archiverDossierAction(dossierId: string, archive: boolean): Promise<ActionResultat> {
+  const valid = schemaArchiver.safeParse({ dossierId, archive });
+  if (!valid.success) return { ok: false, message: "Parametres invalides." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour archiver ce dossier." };
+
+  try {
+    await archiverDossier(getRepriseDossierRepository(), valid.data.dossierId, valid.data.archive, new Date().toISOString());
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Archivage impossible." };
+  }
+
+  revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
+  revalidatePath("/reprise-copro/dossiers");
+  return { ok: true };
+}
+
+/**
+ * Supprime DEFINITIVEMENT un dossier de reprise + ses fiches de renseignements liees (hard delete,
+ * irreversible). Cloisonnement : gestionnaire connecte. Redirige vers la liste (comme le module
+ * Dossiers generaliste). AUCUNE mutation eStale (une copro deja injectee n'est pas touchee).
+ */
+export async function supprimerDossierRepriseAction(dossierId: string): Promise<ActionResultat> {
+  const valid = z.string().trim().min(1).max(40).safeParse(dossierId);
+  if (!valid.success) return { ok: false, message: "Dossier invalide." };
+
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour supprimer ce dossier." };
+
+  try {
+    await supprimerDossierEtFiches(getRepriseDossierRepository(), getFicheRenseignementsRepository(), valid.data);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Suppression impossible." };
+  }
+
+  revalidatePath("/reprise-copro/dossiers");
+  redirect("/reprise-copro/dossiers");
 }
 
 // --- LIAISON owners <-> comptes 450 (revue humaine des cas ambigus) ---------

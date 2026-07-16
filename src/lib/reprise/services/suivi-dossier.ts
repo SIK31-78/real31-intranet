@@ -10,6 +10,7 @@ import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patr
 import { trancherLiaison } from "@/lib/reprise/domain/liaison-comptes";
 import { appliquerCorrections, resumerCorrections, type Correction } from "@/lib/reprise/domain/corrections-patrimoine";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
+import type { FicheRenseignementsRepository } from "@/lib/reprise/ports/fiche-renseignements-repository";
 import { calculerRecap, type RecapPatrimoine } from "./orchestrateur-patrimoine";
 
 /**
@@ -64,6 +65,40 @@ export async function majEtape(
   etape.statut = statut;
   await repo.sauver(d);
   return d;
+}
+
+/**
+ * Archive / desarchive un dossier (reversible). Le flag vit dans le JSONB `compteurs` (ADDITIF,
+ * zero SQL) : on le pose (true) ou on l'efface (undefined au desarchivage, pour garder le JSONB
+ * propre). Journalise le geste (date fournie par l'appelant, domaine sans horloge).
+ */
+export async function archiverDossier(
+  repo: DossierRepository,
+  ref: string,
+  archive: boolean,
+  nowISO: string,
+): Promise<Dossier> {
+  const d = await exiger(repo, ref);
+  d.compteurs = { ...d.compteurs, archive: archive ? true : undefined };
+  d.journal.push({ date: nowISO, texte: archive ? "Dossier archive." : "Dossier desarchive." });
+  await repo.sauver(d);
+  return d;
+}
+
+/**
+ * Supprime DEFINITIVEMENT un dossier de reprise ET les fiches de renseignements liees (hard delete,
+ * irreversible). Renvoie le nombre de fiches parties (pour l'annoncer). Le jeu de donnees, les
+ * compteurs, le journal et les etapes disparaissent avec le dossier. AUCUNE mutation eStale (une
+ * copro deja injectee dans eStale n'est PAS touchee : on ne supprime que le suivi de reprise).
+ */
+export async function supprimerDossierEtFiches(
+  dossierRepo: DossierRepository,
+  fichesRepo: FicheRenseignementsRepository,
+  ref: string,
+): Promise<{ fichesSupprimees: number }> {
+  const fichesSupprimees = await fichesRepo.supprimerParDossier(ref);
+  await dossierRepo.supprimer(ref);
+  return { fichesSupprimees };
 }
 
 export async function ajouterAnomalie(repo: DossierRepository, ref: string, texte: string): Promise<Dossier> {

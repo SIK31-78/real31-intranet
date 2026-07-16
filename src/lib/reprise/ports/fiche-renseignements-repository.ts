@@ -13,4 +13,10 @@ export interface FicheRenseignementsRepository {
   obtenirParTokenHash(tokenHash: string): Promise<FicheRenseignement | null>;
   /** Cree ou remplace une fiche (upsert, cle = coproCode + ownerId). */
   sauver(fiche: FicheRenseignement): Promise<void>;
+  /**
+   * Supprime TOUTES les fiches d'une copro (suppression definitive d'un dossier de reprise).
+   * Renvoie le nombre de fiches supprimees (pour tracer/annoncer ce qui part). No-op propre si
+   * la table est absente ou si aucune fiche n'existe.
+   */
+  supprimerParDossier(coproCode: string): Promise<number>;
 }

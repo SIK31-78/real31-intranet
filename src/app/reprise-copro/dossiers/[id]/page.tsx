@@ -14,7 +14,8 @@ import {
 } from "@/lib/reprise/adapters/router";
 import { obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
 import { calculerRecap } from "@/lib/reprise/services/orchestrateur-patrimoine";
-import { avancement } from "@/lib/reprise/domain/dossier";
+import { avancement, estArchive } from "@/lib/reprise/domain/dossier";
+import { prochaineEtape } from "@/lib/reprise/domain/prochaine-etape";
 import { FicheDossierReprise, type DossierFicheVue, type AnalyseInitiale } from "./fiche-dossier-reprise";
 import type { FicheOwnerVue } from "./fiche-renseignements-bloc";
 
@@ -43,6 +44,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     nomUsuel: dossier.nomUsuel,
     adresse: dossier.adresse,
     statut: dossier.statut,
+    archive: estArchive(dossier),
     avancement: avancement(dossier),
     etapesFaites: faites,
     etapesTotal: dossier.etapes.length,
@@ -123,11 +125,36 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     };
   });
 
+  // GUIDAGE "prochaine etape" : on assemble l'etat REEL (jamais un etat invente) depuis le jeu,
+  // les compteurs JSONB, le journal, les fiches et la checklist, puis le domaine pur en derive
+  // l'action a mettre en avant. Les etapes tardives (revue mapping, import, cloture) n'ont pas de
+  // signal plus profond persiste -> on lit la checklist humaine (R7/R8/R11).
+  const etapeFaite = (code: string): boolean => {
+    const e = dossier.etapes.find((et) => et.code === code);
+    return e ? e.statut === "fait" || e.statut === "ignore" : false;
+  };
+  const raccordement = dossier.compteurs.raccordement;
+  const etapeSuivante = prochaineEtape({
+    jeuPresent: Boolean(dossier.jeu),
+    pretAProduire: analyseInitiale?.recap.pretAProduire ?? false,
+    comptaErreur: Boolean(dossier.compteurs.comptaErreur),
+    avantRepartitionBloquant: Boolean(dossier.compteurs.compta?.avantRepartition?.length),
+    raccordementKO: raccordement ? !raccordement.raccorde : false,
+    dejaInjecte,
+    auMoinsUneFicheGeneree: fichesBrutes.length > 0,
+    comptaEnCoursPresente: Boolean(dossier.compteurs.comptaEnCours),
+    revueMappingFaite: etapeFaite("R7"),
+    importComptaFait: etapeFaite("R8"),
+    clotureFaite: etapeFaite("R11"),
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <FicheDossierReprise
         dossier={vue}
         analyseInitiale={analyseInitiale}
+        etapeSuivante={etapeSuivante}
+        nbFichesGenerees={fichesBrutes.length}
         modeIa={modeIa}
         ecritureReelle={ecritureReelle}
         dejaInjecte={dejaInjecte}

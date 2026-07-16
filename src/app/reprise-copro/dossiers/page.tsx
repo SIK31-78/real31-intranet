@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getRepriseDossierRepository, reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
 import { listerDossiers } from "@/lib/reprise/services/suivi-dossier";
-import { avancement } from "@/lib/reprise/domain/dossier";
+import { avancement, estArchive } from "@/lib/reprise/domain/dossier";
 import { DossiersRepriseVue, type DossierResume } from "./dossiers-reprise-vue";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ export default async function DossiersReprisePage() {
       ref: d.ref,
       nomUsuel: d.nomUsuel,
       statut: d.statut,
+      archive: estArchive(d),
       avancement: avancement(d),
       etapesFaites: faites,
       etapesTotal: d.etapes.length,

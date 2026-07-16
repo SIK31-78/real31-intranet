@@ -89,6 +89,13 @@ export interface CompteursDossier {
    * bloc compta en erreur a l'ouverture. Efface (undefined) des qu'une extraction reussit. PII-free.
    */
   comptaErreur?: string;
+  /**
+   * Dossier ARCHIVE (reversible) : masque de la liste par defaut, reste consultable en lecture.
+   * Loge dans le JSONB `compteurs` (deja persiste) : ADDITIF, ZERO SQL, retro-compatible (absent =
+   * actif). Meme mecanique que `comptaErreur` : un fait de dossier range dans le sac JSONB existant
+   * plutot qu'une colonne dediee. Efface (undefined) au desarchivage pour garder le JSONB propre.
+   */
+  archive?: boolean;
 }
 
 export interface EntreeJournal {
@@ -198,6 +205,11 @@ export function creerDossier(ref: string, nomUsuel: string, adresse?: string): D
     anomalies: [],
     journal: [],
   };
+}
+
+/** true si le dossier est archive (masque de la liste par defaut, lecture seule). */
+export function estArchive(dossier: Dossier): boolean {
+  return dossier.compteurs.archive === true;
 }
 
 /** Avancement (0..1) = part des etapes "fait" ou "ignore" sur le total. */
