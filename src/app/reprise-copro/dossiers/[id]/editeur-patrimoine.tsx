@@ -806,7 +806,7 @@ function OwnersEditor({
         </div>
       )}
 
-      {editing && <AjouterOwner appliquer={appliquer} pending={pending} existingIds={jeu.owners.map((o) => o.id)} />}
+      {editing && <AjouterOwner appliquer={appliquer} pending={pending} jeu={jeu} />}
     </div>
   );
 }
@@ -814,41 +814,77 @@ function OwnersEditor({
 function AjouterOwner({
   appliquer,
   pending,
-  existingIds,
+  jeu,
 }: {
   appliquer: (c: Correction[], msg: string, apres?: () => void) => void;
   pending: boolean;
-  existingIds: string[];
+  jeu: JeuDeDonnees;
 }) {
   const [civilite, setCivilite] = useState<Civilite>("m");
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
+  const [lotsSaisis, setLotsSaisis] = useState("");
+
+  const existingIds = jeu.owners.map((o) => o.id);
+  const numerosConnus = new Set(jeu.lots.map((l) => l.numero));
+
+  // Lots a rattacher (cas comptable : l'ancien syndic avait plusieurs comptes 450 pour une
+  // meme personne / une identite manquante -> on cree le coproprietaire ET ses attributions
+  // en UN geste transactionnel). Saisie "3, 115, 124" ; lots inconnus refuses avant envoi.
+  const lots = lotsSaisis
+    .split(/[\s,;]+/)
+    .filter(Boolean)
+    .map((s) => Number(s));
+  const lotsInvalides = lots.filter((n) => !Number.isInteger(n) || !numerosConnus.has(n));
 
   const ajouter = () => {
-    if (nom.trim() === "") return;
+    if (nom.trim() === "" || lotsInvalides.length > 0) return;
     // Identifiant interne stable, unique : suffixe incremental sur "manuel".
     let n = 1;
     let id = `manuel-${n}`;
     while (existingIds.includes(id)) id = `manuel-${++n}`;
+    const corrections: Correction[] = [
+      { type: "owner.ajouter", owner: { id, civilite, nom: nom.trim(), ...(prenom.trim() ? { prenom: prenom.trim() } : {}), pro: false } },
+      // Sequentiel et transactionnel : l'owner existe quand les attributions sont validees.
+      ...lots.map((numero): Correction => ({ type: "attribution.ajouter", lot: numero, ownerId: id })),
+    ];
     appliquer(
-      [{ type: "owner.ajouter", owner: { id, civilite, nom: nom.trim(), ...(prenom.trim() ? { prenom: prenom.trim() } : {}), pro: false } }],
-      "Coproprietaire ajoute.",
+      corrections,
+      lots.length > 0 ? `Coproprietaire ajoute + ${lots.length} lot(s) rattache(s).` : "Coproprietaire ajoute.",
       () => {
         setNom("");
         setPrenom("");
+        setLotsSaisis("");
       },
     );
   };
 
   return (
     <div className="mt-2 flex flex-wrap items-end gap-2 rounded border border-dashed border-line bg-surface-2 p-2">
-      <span className="text-[11px] font-medium text-ink-3 w-full">Ajouter un coproprietaire</span>
+      <span className="text-[11px] font-medium text-ink-3 w-full">
+        Ajouter un coproprietaire (et rattacher ses lots en un geste)
+      </span>
       <select value={civilite} onChange={(e) => setCivilite(e.target.value as Civilite)} className={cn(inputCls, "w-20")}>
         {CIVILITES.map((c) => <option key={c} value={c}>{c}</option>)}
       </select>
       <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="NOM" className={cn(inputCls, "w-32")} />
       <input value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Prenom" className={cn(inputCls, "w-28")} />
-      <Button type="button" variant="secondary" onClick={ajouter} disabled={pending || nom.trim() === ""}>
+      <input
+        value={lotsSaisis}
+        onChange={(e) => setLotsSaisis(e.target.value)}
+        placeholder="Lots (ex. 3, 115)"
+        className={cn(inputCls, "w-32", lotsInvalides.length > 0 && "border-err")}
+        title="Numeros de lots a rattacher, separes par des virgules (optionnel)"
+      />
+      {lotsInvalides.length > 0 && (
+        <span className="text-[11px] text-err">Lot(s) inconnu(s) : {lotsInvalides.join(", ")}</span>
+      )}
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={ajouter}
+        disabled={pending || nom.trim() === "" || lotsInvalides.length > 0}
+      >
         <Plus strokeWidth={1.5} className="w-3.5 h-3.5" /> Ajouter
       </Button>
     </div>
