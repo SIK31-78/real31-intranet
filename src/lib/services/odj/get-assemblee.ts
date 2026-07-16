@@ -26,7 +26,7 @@ export async function appliquerOdjAg(
   libres: ResolutionLibre[],
   ordreTopExistant: string[],
   managerId: string,
-): Promise<{ supprimees: number; ajoutees: number }> {
+): Promise<{ supprimees: number; ajoutees: number; dejaPresentes: number }> {
   await exigerPerimetre(coproCode, managerId);
   return getAssembleeEstaleProvider().appliquerOdj(
     coproCode,

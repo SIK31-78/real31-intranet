@@ -25,6 +25,7 @@ import { extraireEtVerifierGrandLivre } from "@/lib/reprise/services/reprendre-c
 import { preparerRevueMapping } from "@/lib/reprise/services/mapping-compta";
 import { grouperEcrituresPourRevue } from "@/lib/reprise/domain/ecriture";
 import { balanceParCompte } from "@/lib/reprise/domain/controle-comptes";
+import { TAILLE_TOTALE_MAX_OCTETS, TAILLE_TOTALE_MAX_LABEL, enMo } from "@/lib/reprise/domain/limites-upload";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 
 export const runtime = "nodejs";
@@ -36,7 +37,10 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 // Plafond de taille TOTALE des uploads (le PDF est lu entierement en RAM le temps de l'analyse).
-const TAILLE_TOTALE_MAX_OCTETS = 40 * 1024 * 1024; // 40 Mo
+// Cette route reste au plafond RAM (40 Mo) et n'a PAS de plafond IA (audit API 2026-07-16,
+// P1-8) : le grand livre est extrait par la COUCHE TEXTE locale (pdfjs, zero appel IA), les
+// limites de l'API Anthropic/Mistral ne s'appliquent donc pas ici - contrairement a
+// /api/reprise/analyser qui borne a 20 Mo / 100 pages ce qui part chez Claude.
 
 export async function POST(req: Request) {
   const g = await getGestionnaireCourant();
@@ -67,11 +71,10 @@ export async function POST(req: Request) {
 
   const totalOctets = files.reduce((somme, f) => somme + f.size, 0);
   if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
-    const totalMo = Math.ceil(totalOctets / (1024 * 1024));
     return NextResponse.json(
       {
         ok: false,
-        message: `Documents trop volumineux : ${totalMo} Mo au total, plafond 40 Mo. Retire des fichiers ou analyse en plusieurs fois.`,
+        message: `Documents trop volumineux : ${enMo(totalOctets)} Mo au total, plafond ${TAILLE_TOTALE_MAX_LABEL}. Retire des fichiers ou analyse en plusieurs fois.`,
       },
       { status: 400 },
     );

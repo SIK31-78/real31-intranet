@@ -13,7 +13,9 @@ import type { MajoriteResolution } from "@/lib/domain/resolution";
 
 type ItemAjout = { id: string; titre: string; corps: string; majorite: MajoriteResolution };
 
-type Resultat = { ok: true; supprimees: number; ajoutees: number } | { ok: false; erreur: string };
+type Resultat =
+  | { ok: true; supprimees: number; ajoutees: number; dejaPresentes: number }
+  | { ok: false; erreur: string };
 
 // Validation des entrees (zod). Ces actions ECRIVENT dans l'AG Estale : on borne tout.
 const zCode = z.string().trim().min(1).max(40);
@@ -75,7 +77,7 @@ export async function enregistrerProjetAction(
     .map((i) => ({ titre: i.titre, corps: i.corps, majorite: i.majorite }));
 
   try {
-    const { supprimees, ajoutees } = await appliquerOdjAg(
+    const { supprimees, ajoutees, dejaPresentes } = await appliquerOdjAg(
       coproCode,
       meetingId,
       supprimerMotionIds,
@@ -85,8 +87,10 @@ export async function enregistrerProjetAction(
       garde.managerId,
     );
     revalidatePath("/odj", "layout");
-    return { ok: true, supprimees, ajoutees };
+    return { ok: true, supprimees, ajoutees, dejaPresentes };
   } catch (e) {
+    // Le message de l'adapter est deja explicite en cas d'echec partiel ("relance pour
+    // completer, rien ne sera duplique") : on le remonte tel quel a l'UI.
     return { ok: false, erreur: (e as Error).message };
   }
 }

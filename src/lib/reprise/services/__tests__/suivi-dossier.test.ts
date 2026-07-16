@@ -8,9 +8,12 @@ import {
   ajouterAnomalie,
   ajouterJournal,
   appliquerRecap,
+  appliquerResultatAnalyse,
   archiverDossier,
   corrigerJeuDossier,
   creerDossierSuivi,
+  enregistrerComptaErreur,
+  enregistrerComptaResume,
   enregistrerJeu,
   listerDossiers,
   majEtape,
@@ -104,6 +107,117 @@ describe("suivi-dossier", () => {
     expect(d.compteurs.nbAttributions).toBe(12);
     expect(d.compteurs.nbAnomalies).toBe(1); // 0 erreur + 1 warning
     expect(d.anomalies).toEqual(["K-bis a fournir", "fusion X"]);
+  });
+});
+
+// --- appliquerResultatAnalyse (audit API 2026-07-16, P1-7 : ecriture groupee) ---------------
+
+function recapDeTest(): RecapPatrimoine {
+  return {
+    lots: { total: 12, parUsage: {} },
+    cles: [{ code: "001", libelle: "CG", totalAttendu: 1000, sommeCalculee: 1000, nbLots: 12, ecart: 0 }],
+    owners: { total: 8, sci: 1, couples: 2 },
+    attributions: { total: 12, lotsOrphelins: 0 },
+    fusionsProposees: 1,
+    doublonsNonTranchables: 0,
+    notes: ["K-bis a fournir"],
+    checks: { ok: true, erreurs: [], warnings: [{ code: "OWNER_FUSION_A_VALIDER", niveau: "warning", message: "fusion X" }] },
+    pretAProduire: true,
+  } as unknown as RecapPatrimoine;
+}
+
+/** Repo qui COMPTE les lectures/ecritures (verifie le "1 obtenir + 1 sauver" du chemin groupe). */
+class RepoCompteur extends DossierRepositoryMemoire {
+  lectures = 0;
+  ecritures = 0;
+  override async obtenir(ref: string) {
+    this.lectures++;
+    return super.obtenir(ref);
+  }
+  override async sauver(d: Parameters<DossierRepositoryMemoire["sauver"]>[0]) {
+    this.ecritures++;
+    return super.sauver(d);
+  }
+}
+
+describe("appliquerResultatAnalyse (ecriture groupee)", () => {
+  const compta = { equilibre: true, ecart: 0, nbComptes: 42, nbEcritures: 800 };
+  const comptaEnCours = { equilibre: false, ecart: 12.5, nbComptes: 40, nbEcritures: 300 };
+
+  it("persiste tout le resultat d'analyse en UNE lecture + UNE ecriture", async () => {
+    const compteur = new RepoCompteur();
+    await creerDossierSuivi(compteur, "S0302", "X");
+    compteur.lectures = 0;
+    compteur.ecritures = 0;
+
+    await appliquerResultatAnalyse(compteur, "S0302", {
+      recap: recapDeTest(),
+      jeu: jeuAvecEcart(),
+      compta,
+      comptaEnCours,
+      raccordement: undefined,
+      grandLivreJoint: true,
+      comptaErreur: undefined,
+      nowISO: "2026-07-16T10:00:00.000Z",
+      journalTexte: "Analyse des documents : 12 lot(s).",
+    });
+
+    expect(compteur.lectures).toBe(1); // plus les 5 cycles obtenir()/sauver() d'avant
+    expect(compteur.ecritures).toBe(1);
+
+    const d = await obtenirDossier(compteur, "S0302");
+    expect(d!.compteurs.nbLots).toBe(12);
+    expect(d!.compteurs.compta).toEqual(compta);
+    expect(d!.compteurs.comptaEnCours).toEqual(comptaEnCours);
+    expect(d!.anomalies).toEqual(["K-bis a fournir", "fusion X"]);
+    expect(d!.jeu!.lots).toHaveLength(2);
+    expect(d!.journal.at(-1)!.texte).toBe("Analyse des documents : 12 lot(s).");
+  });
+
+  it("produit EXACTEMENT le meme dossier que l'ancienne sequence de helpers unitaires", async () => {
+    // Ancienne sequence (celle de la route avant regroupement) sur un dossier temoin.
+    await creerDossierSuivi(repo, "S0400", "Temoin");
+    await appliquerRecap(repo, "S0400", recapDeTest());
+    await enregistrerComptaResume(repo, "S0400", compta, comptaEnCours, undefined);
+    await enregistrerComptaErreur(repo, "S0400", undefined);
+    await enregistrerJeu(repo, "S0400", jeuAvecEcart());
+    await ajouterJournal(repo, "S0400", "2026-07-16T10:00:00.000Z", "Analyse.");
+
+    // Chemin groupe sur un second dossier.
+    await creerDossierSuivi(repo, "S0401", "Temoin");
+    await appliquerResultatAnalyse(repo, "S0401", {
+      recap: recapDeTest(),
+      jeu: jeuAvecEcart(),
+      compta,
+      comptaEnCours,
+      raccordement: undefined,
+      grandLivreJoint: true,
+      comptaErreur: undefined,
+      nowISO: "2026-07-16T10:00:00.000Z",
+      journalTexte: "Analyse.",
+    });
+
+    const ancien = await obtenirDossier(repo, "S0400");
+    const groupe = await obtenirDossier(repo, "S0401");
+    expect({ ...groupe!, ref: "X" }).toEqual({ ...ancien!, ref: "X" }); // identiques hors ref
+  });
+
+  it("ne touche pas a comptaErreur quand aucun grand livre n'etait joint", async () => {
+    await creerDossierSuivi(repo, "S0302", "X");
+    // Une erreur GL preexistante (analyse precedente avec GL scanne).
+    await enregistrerComptaErreur(repo, "S0302", "GL scanne, couche texte impossible");
+
+    await appliquerResultatAnalyse(repo, "S0302", {
+      recap: recapDeTest(),
+      jeu: jeuAvecEcart(),
+      grandLivreJoint: false, // re-analyse SANS grand livre : l'erreur precedente reste
+      nowISO: "2026-07-16T11:00:00.000Z",
+      journalTexte: "Analyse.",
+    });
+
+    const d = await obtenirDossier(repo, "S0302");
+    expect(d!.compteurs.comptaErreur).toBe("GL scanne, couche texte impossible");
+    expect(d!.compteurs.compta).toBeUndefined(); // pas de compta fournie -> pas touchee
   });
 });
 

@@ -182,6 +182,19 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
     return res.createMeeting.id;
   }
 
+  /**
+   * IDEMPOTENT par reconciliation (audit API 2026-07-16, P0-4). Probleme d'origine : la
+   * sequence N suppressions + M creations + 1 reordonnancement n'est pas atomique ; un 502
+   * au milieu laissait l'AG a moitie modifiee, et un re-clic du gestionnaire DUPLIQUAIT les
+   * motions deja creees. Desormais on RELIT l'etat reel de l'AG en tete et on ne joue que
+   * le DELTA :
+   *   - une suppression dont l'id a deja disparu est sautee (deja faite) ;
+   *   - une motion a creer dont un ORPHELIN de meme type + meme titre existe deja dans l'AG
+   *     (motion inconnue de la composition envoyee par l'UI = laissee par une application
+   *     precedente interrompue) est ADOPTEE au lieu d'etre recreee -> comptee `dejaPresentes` ;
+   *   - le reordonnancement final replace TOUT (existant + adopte + cree).
+   * Rejouer 2x la meme application = meme etat final, zero doublon.
+   */
   async appliquerOdj(
     coproCode: string,
     meetingId: string,
@@ -189,132 +202,205 @@ export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
     bankItemIds: string[],
     libres: ResolutionLibre[],
     ordreTopExistant: string[],
-  ): Promise<{ supprimees: number; ajoutees: number }> {
+  ): Promise<{ supprimees: number; ajoutees: number; dejaPresentes: number }> {
+    // 0. Etat REEL de l'AG avant toute mutation. Sans lui, pas de reconciliation possible :
+    // on refuse d'appliquer en aveugle (risque de doublon) plutot que de degrader.
+    const condoId = await this.resoudreCondoId(coproCode);
+    if (!condoId) {
+      throw new Error(
+        `Copropriété ${coproCode} introuvable dans Estale : impossible de vérifier l'état de l'AG avant d'appliquer l'ODJ.`,
+      );
+    }
+    type Cour = { id: string; rank: string; type: string; title: string; parent: { id: string } | null };
+    const courant: Cour[] = (
+      await estaleGql<{ condo: { meeting: { motions: Cour[] } } }>(
+        `query MotionsAg($cid: ID!, $mid: ID!) {
+          condo(id: $cid) { meeting(id: $mid) { motions { id rank type title parent { id } } } }
+        }`,
+        { cid: condoId, mid: meetingId },
+      )
+    ).condo.meeting.motions;
+
+    const presentsAvant = new Set(courant.map((m) => m.id));
+    // Motions CONNUES de la composition envoyee par l'UI : les tetes listees (ordreTopExistant),
+    // les ids marques pour suppression, et les enfants de ces motions connues. Tout le reste est
+    // ORPHELIN : inconnu de l'UI, donc laisse par une application precedente interrompue (ou un
+    // ajout concurrent cote eStale) -> candidat a l'ADOPTION par titre.
+    const idsConnus = new Set([...ordreTopExistant, ...supprimerMotionIds]);
+    const cleMotion = (type: string, titre: string): string =>
+      `${type === "group" ? "g" : "m"}|${titre.trim().replace(/\s+/g, " ").toLowerCase()}`;
+    const orphelinsParCle = new Map<string, string[]>();
+    for (const m of courant) {
+      if (idsConnus.has(m.id)) continue;
+      if (m.parent && idsConnus.has(m.parent.id)) continue; // enfant existant d'une motion connue
+      const k = cleMotion(m.type, m.title);
+      (orphelinsParCle.get(k) ?? orphelinsParCle.set(k, []).get(k)!).push(m.id);
+    }
+
     let supprimees = 0;
     let ajoutees = 0;
+    let dejaPresentes = 0;
 
-    // 1. Suppressions des motions retirees.
-    for (const motionId of supprimerMotionIds) {
-      await estaleGql(
-        `mutation Suppr($mid: ID!, $id: ID!) {
-          updateMeeting(id: $mid) { updateMotion(id: $id) { delete { id } } }
-        }`,
-        { mid: meetingId, id: motionId },
-      );
-      supprimees++;
-    }
-
-    // 2. Creation des nouvelles motions (a plat ; le nesting se fera par orderMotions).
-    // On recupere le contenu COMPLET de la bank (texte legal, preambule...) et on garde
-    // la structure des groupes (en-tete + sous-resolutions) pour les ranger ensuite.
-    const nouveauxTops: { id: string; enfants: string[] }[] = [];
-    if (bankItemIds.length > 0) {
-      const data = await estaleGql<{
-        me: { collaborator: { establishment: { motionsBank: BankFull[] } } };
-      }>(
-        `{ me { collaborator { establishment { motionsBank {
-          id type rank title body majority preamble postamble comment
-        } } } } }`,
-      );
-      const parId = new Map(data.me.collaborator.establishment.motionsBank.map((m) => [m.id, m]));
-      const selection = bankItemIds.map((id) => parId.get(id)).filter((it): it is BankFull => !!it);
-      const input = (it: BankFull): MotionInput => ({
-        type: it.type === "group" ? "group" : "generic",
-        title: it.title,
-        body: it.body || it.title,
-        majority: majorite(it.majority),
-        preamble: it.preamble,
-        postamble: it.postamble,
-        comment: it.comment,
-      });
-      const groupes = selection.filter((it) => it.type === "group");
-      const rangsGroupes = new Set(groupes.map((g) => g.rank));
-      const estEnfantSelectionne = (it: BankFull) =>
-        it.type !== "group" && rangParent(it.rank) !== null && rangsGroupes.has(rangParent(it.rank)!);
-
-      // Groupes : en-tete + sous-resolutions.
-      for (const g of groupes) {
-        const gid = await this.creerMotion(meetingId, input(g));
-        ajoutees++;
-        const enfants = selection
-          .filter((it) => rangParent(it.rank) === g.rank && it.type !== "group")
-          .sort((a, b) => a.rank.localeCompare(b.rank));
-        const cids: string[] = [];
-        for (const e of enfants) {
-          cids.push(await this.creerMotion(meetingId, input(e)));
-          ajoutees++;
-        }
-        nouveauxTops.push({ id: gid, enfants: cids });
+    // Adopte un orphelin equivalent (multiset : chaque orphelin n'est adopte qu'une fois),
+    // sinon cree la motion. C'est LA brique qui rend la relance sans doublon.
+    const obtenirOuCreer = async (input: MotionInput): Promise<string> => {
+      const k = cleMotion(input.type, input.title);
+      const dispo = orphelinsParCle.get(k);
+      if (dispo && dispo.length > 0) {
+        dejaPresentes++;
+        return dispo.shift()!;
       }
-      // Resolutions autonomes (ni groupe, ni enfant d'un groupe selectionne).
-      for (const it of selection) {
-        if (it.type === "group" || estEnfantSelectionne(it)) continue;
-        const sid = await this.creerMotion(meetingId, input(it));
-        ajoutees++;
-        nouveauxTops.push({ id: sid, enfants: [] });
-      }
-    }
-    // Resolutions libres saisies par le gestionnaire.
-    for (const l of libres) {
-      const lid = await this.creerMotion(meetingId, {
-        type: "generic",
-        title: l.titre,
-        body: l.corps || l.titre,
-        majority: l.majorite,
-      });
+      const id = await this.creerMotion(meetingId, input);
       ajoutees++;
-      nouveauxTops.push({ id: lid, enfants: [] });
-    }
+      return id;
+    };
 
-    // 3. Reconciliation de l'ordre. On relit l'AG (enfants des groupes EXISTANTS), on place
-    // l'existant (ordre voulu) puis les nouvelles motions, et on assigne des rangs
-    // hierarchiques ("1","2".. + "N.j"). orderMotions exige l'ENSEMBLE des motions.
-    const condoId = await this.resoudreCondoId(coproCode);
-    type Cour = { id: string; rank: string; parent: { id: string } | null };
-    const courant: Cour[] = condoId
-      ? (
-          await estaleGql<{ condo: { meeting: { motions: Cour[] } } }>(
-            `query MotionsAg($cid: ID!, $mid: ID!) {
-              condo(id: $cid) { meeting(id: $mid) { motions { id rank parent { id } } } }
-            }`,
-            { cid: condoId, mid: meetingId },
-          )
-        ).condo.meeting.motions
-      : [];
-    const presents = new Set(courant.map((m) => m.id));
-    const nouveauxIds = new Set(nouveauxTops.flatMap((t) => [t.id, ...t.enfants]));
-    const enfantsExistantsDe = new Map<string, Cour[]>();
-    for (const m of courant) {
-      if (m.parent && !nouveauxIds.has(m.id)) {
-        (enfantsExistantsDe.get(m.parent.id) ?? enfantsExistantsDe.set(m.parent.id, []).get(m.parent.id)!).push(m);
+    const nouveauxTops: { id: string; enfants: string[] }[] = [];
+    try {
+      // 1. Suppressions des motions retirees - en sautant celles deja disparues (relance).
+      for (const motionId of supprimerMotionIds) {
+        if (!presentsAvant.has(motionId)) continue; // deja supprimee par une application precedente
+        await estaleGql(
+          `mutation Suppr($mid: ID!, $id: ID!) {
+            updateMeeting(id: $mid) { updateMotion(id: $id) { delete { id } } }
+          }`,
+          { mid: meetingId, id: motionId },
+        );
+        supprimees++;
       }
-    }
 
-    const topsExistants = ordreTopExistant
-      .filter((id) => presents.has(id) && !nouveauxIds.has(id))
-      .map((id) => ({
-        id,
-        enfants: (enfantsExistantsDe.get(id) ?? [])
-          .sort((a, b) => a.rank.localeCompare(b.rank))
-          .map((c) => c.id),
-      }));
-    const finalTops = [...topsExistants, ...nouveauxTops];
+      // 2. Creation (ou adoption) des motions voulues, a plat ; le nesting se fera par
+      // orderMotions. On recupere le contenu COMPLET de la bank (texte legal, preambule...)
+      // et on garde la structure des groupes (en-tete + sous-resolutions).
+      if (bankItemIds.length > 0) {
+        const data = await estaleGql<{
+          me: { collaborator: { establishment: { motionsBank: BankFull[] } } };
+        }>(
+          `{ me { collaborator { establishment { motionsBank {
+            id type rank title body majority preamble postamble comment
+          } } } } }`,
+        );
+        const parId = new Map(data.me.collaborator.establishment.motionsBank.map((m) => [m.id, m]));
+        const selection = bankItemIds.map((id) => parId.get(id)).filter((it): it is BankFull => !!it);
+        const input = (it: BankFull): MotionInput => ({
+          type: it.type === "group" ? "group" : "generic",
+          title: it.title,
+          body: it.body || it.title,
+          majority: majorite(it.majority),
+          preamble: it.preamble,
+          postamble: it.postamble,
+          comment: it.comment,
+        });
+        const groupes = selection.filter((it) => it.type === "group");
+        const rangsGroupes = new Set(groupes.map((g) => g.rank));
+        const estEnfantSelectionne = (it: BankFull) =>
+          it.type !== "group" && rangParent(it.rank) !== null && rangsGroupes.has(rangParent(it.rank)!);
 
-    const ordreInput: OrdreMotion[] = [];
-    finalTops.forEach((t, i) => {
-      ordreInput.push({ motionID: t.id, rank: String(i + 1) });
-      t.enfants.forEach((cid, j) => ordreInput.push({ motionID: cid, rank: `${i + 1}.${j + 1}` }));
-    });
-    if (ordreInput.length > 0) {
-      await estaleGql(
-        `mutation Ordonner($mid: ID!, $in: [MeetingMotionOrderInput!]!) {
-          updateMeeting(id: $mid) { orderMotions(input: $in) { id } }
-        }`,
-        { mid: meetingId, in: ordreInput },
+        // Groupes : en-tete + sous-resolutions.
+        for (const g of groupes) {
+          const gid = await obtenirOuCreer(input(g));
+          const enfants = selection
+            .filter((it) => rangParent(it.rank) === g.rank && it.type !== "group")
+            .sort((a, b) => a.rank.localeCompare(b.rank));
+          const cids: string[] = [];
+          for (const e of enfants) {
+            cids.push(await obtenirOuCreer(input(e)));
+          }
+          nouveauxTops.push({ id: gid, enfants: cids });
+        }
+        // Resolutions autonomes (ni groupe, ni enfant d'un groupe selectionne).
+        for (const it of selection) {
+          if (it.type === "group" || estEnfantSelectionne(it)) continue;
+          const sid = await obtenirOuCreer(input(it));
+          nouveauxTops.push({ id: sid, enfants: [] });
+        }
+      }
+      // Resolutions libres saisies par le gestionnaire.
+      for (const l of libres) {
+        const lid = await obtenirOuCreer({
+          type: "generic",
+          title: l.titre,
+          body: l.corps || l.titre,
+          majority: l.majorite,
+        });
+        nouveauxTops.push({ id: lid, enfants: [] });
+      }
+
+      // 3. Reconciliation de l'ordre a partir de l'etat lu en tete : les tetes existantes dans
+      // l'ordre voulu (avec leurs enfants existants), puis les motions voulues (adoptees ou
+      // creees), puis le RELIQUAT (orphelins non adoptes, ex. ajout concurrent cote eStale) -
+      // orderMotions exige l'ENSEMBLE des motions. Rangs hierarchiques "N" + "N.j".
+      const supprimesEffectifs = new Set(supprimerMotionIds.filter((id) => presentsAvant.has(id)));
+      const nouveauxIds = new Set(nouveauxTops.flatMap((t) => [t.id, ...t.enfants]));
+      const enfantsExistantsDe = new Map<string, Cour[]>();
+      for (const m of courant) {
+        if (m.parent && !supprimesEffectifs.has(m.id) && !nouveauxIds.has(m.id)) {
+          (enfantsExistantsDe.get(m.parent.id) ?? enfantsExistantsDe.set(m.parent.id, []).get(m.parent.id)!).push(m);
+        }
+      }
+
+      const topsExistants = ordreTopExistant
+        .filter((id) => presentsAvant.has(id) && !supprimesEffectifs.has(id) && !nouveauxIds.has(id))
+        .map((id) => ({
+          id,
+          enfants: (enfantsExistantsDe.get(id) ?? [])
+            .sort((a, b) => a.rank.localeCompare(b.rank))
+            .map((c) => c.id),
+        }));
+      const finalTops = [...topsExistants, ...nouveauxTops];
+
+      // Reliquat : motions encore presentes mais ni connues, ni adoptees, ni creees. On les
+      // rattache a leur parent s'il figure dans finalTops, sinon en tete de liste (fin).
+      const places = new Set(finalTops.flatMap((t) => [t.id, ...t.enfants]));
+      const reliquat = courant
+        .filter((m) => !supprimesEffectifs.has(m.id) && !places.has(m.id))
+        .sort((a, b) => a.rank.localeCompare(b.rank));
+      const topParId = new Map(finalTops.map((t) => [t.id, t]));
+      const reliquatTops: Cour[] = [];
+      for (const m of reliquat) {
+        const parent = m.parent ? topParId.get(m.parent.id) : undefined;
+        if (parent) parent.enfants.push(m.id);
+        else reliquatTops.push(m);
+      }
+      for (const m of reliquatTops) {
+        const enfants = reliquat
+          .filter((c) => c.parent?.id === m.id)
+          .map((c) => c.id);
+        const top = { id: m.id, enfants };
+        topParId.set(m.id, top);
+        finalTops.push(top);
+      }
+      // Derniere passe : un reliquat dont le parent vient d'etre appendu (2 niveaux max cote
+      // eStale, donc ce cas est deja couvert ci-dessus) ou orphelin de parent supprime -> tete.
+      const placesFinal = new Set(finalTops.flatMap((t) => [t.id, ...t.enfants]));
+      for (const m of reliquat) {
+        if (!placesFinal.has(m.id)) finalTops.push({ id: m.id, enfants: [] });
+      }
+
+      const ordreInput: OrdreMotion[] = [];
+      finalTops.forEach((t, i) => {
+        ordreInput.push({ motionID: t.id, rank: String(i + 1) });
+        t.enfants.forEach((cid, j) => ordreInput.push({ motionID: cid, rank: `${i + 1}.${j + 1}` }));
+      });
+      if (ordreInput.length > 0) {
+        await estaleGql(
+          `mutation Ordonner($mid: ID!, $in: [MeetingMotionOrderInput!]!) {
+            updateMeeting(id: $mid) { orderMotions(input: $in) { id } }
+          }`,
+          { mid: meetingId, in: ordreInput },
+        );
+      }
+    } catch (e) {
+      // Echec PARTIEL : on dit clairement ou on en est et que la relance est SANS RISQUE
+      // (la reconciliation ci-dessus saute/adopte ce qui est deja applique).
+      throw new Error(
+        `Application de l'ODJ interrompue (${supprimees} retrait(s) et ${ajoutees} ajout(s) déjà appliqués) : ` +
+          `${e instanceof Error ? e.message : String(e)} ` +
+          `Relance l'enregistrement pour compléter : rien ne sera dupliqué.`,
       );
     }
 
-    return { supprimees, ajoutees };
+    return { supprimees, ajoutees, dejaPresentes };
   }
 
   private async resoudreCondoId(coproCode: string): Promise<string | null> {

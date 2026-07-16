@@ -50,6 +50,14 @@ import type { Phase, StatutEtape, StatutDossier } from "@/lib/reprise/domain/dos
 import { PHASES } from "@/lib/reprise/domain/dossier";
 import { ETABLISSEMENTS_REAL31 } from "@/lib/reprise/domain/etablissements";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
+import {
+  TAILLE_TOTALE_MAX_OCTETS,
+  TAILLE_TOTALE_MAX_LABEL,
+  TAILLE_IA_MAX_OCTETS,
+  TAILLE_IA_MAX_LABEL,
+  enMo,
+  estNomGrandLivre,
+} from "@/lib/reprise/domain/limites-upload";
 import type { MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
 import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import type { VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
@@ -563,6 +571,24 @@ function ZonePatrimoine({
 
   const lancerAnalyse = () => {
     if (files.length === 0) return;
+    // Pre-verification des plafonds AVANT l'upload (audit API 2026-07-16, P1-8) : message
+    // actionnable immediat plutot qu'un echec API apres l'upload et des minutes d'attente.
+    // Le grand livre (couche texte locale) n'est pas soumis au plafond IA. Raisonnement
+    // complet : lib/reprise/domain/limites-upload.ts ; la route refait les memes controles.
+    const totalOctets = files.reduce((s, f) => s + f.size, 0);
+    if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
+      toast.err(
+        `Documents trop volumineux : ${enMo(totalOctets)} Mo au total, plafond ${TAILLE_TOTALE_MAX_LABEL}. Retire des fichiers ou analyse en plusieurs fois.`,
+      );
+      return;
+    }
+    const iaOctets = files.filter((f) => !estNomGrandLivre(f.name)).reduce((s, f) => s + f.size, 0);
+    if (iaOctets > TAILLE_IA_MAX_OCTETS) {
+      toast.err(
+        `Documents patrimoine trop volumineux pour l'analyse IA : ${enMo(iaOctets)} Mo (hors grand livre), plafond ${TAILLE_IA_MAX_LABEL} (limite de l'API d'extraction). Scinde les PDF ou analyse en plusieurs fois.`,
+      );
+      return;
+    }
     startAnalyse(async () => {
       const fd = new FormData();
       fd.append("dossierId", dossier.ref);

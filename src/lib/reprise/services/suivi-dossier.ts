@@ -197,6 +197,68 @@ export async function enregistrerComptaErreur(
   await repo.sauver(d);
 }
 
+/**
+ * Reporte le resultat COMPLET d'une analyse dans le dossier en UNE lecture + UNE ecriture
+ * (audit API 2026-07-16, P1-7). La route /api/reprise/analyser enchainait appliquerRecap,
+ * enregistrerComptaResume, enregistrerComptaErreur, enregistrerJeu et ajouterJournal : chacun
+ * refaisait obtenir() (SELECT de toute la ligne) puis sauver() (upsert de toute la ligne, JSONB
+ * `jeu` de plusieurs Mo inclus) -> jusqu'a 10 allers-retours Supabase lourds par analyse, avec
+ * risque de lost-update entre les cycles. Ici : 1 obtenir() + toutes les mutations en memoire +
+ * 1 sauver(). Semantique STRICTEMENT identique a la sequence d'origine :
+ *   - recap -> compteurs + anomalies (sans doublon), comme appliquerRecap ;
+ *   - compta (si fournie) -> compteurs.compta/comptaEnCours/raccordement (undefined EFFACE,
+ *     comme enregistrerComptaResume) ;
+ *   - comptaErreur appliquee UNIQUEMENT si grandLivreJoint (comme le garde de la route) ;
+ *   - jeu remplace ; journal appendu.
+ * Les helpers unitaires ci-dessus restent inchanges (utilises ailleurs : actions, corrections...).
+ */
+export async function appliquerResultatAnalyse(
+  repo: DossierRepository,
+  ref: string,
+  resultat: {
+    recap: RecapPatrimoine;
+    jeu: JeuDeDonnees;
+    compta?: ComptaResume;
+    comptaEnCours?: ComptaResume;
+    raccordement?: VerdictRaccordement;
+    /** Un grand livre etait-il joint a l'analyse ? (gouverne l'ecriture/effacement de comptaErreur) */
+    grandLivreJoint: boolean;
+    comptaErreur?: string;
+    /** Date de l'entree de journal (fournie par l'appelant, service sans horloge). */
+    nowISO: string;
+    journalTexte: string;
+  },
+): Promise<void> {
+  const d = await exiger(repo, ref);
+
+  // 1. Recap -> compteurs + anomalies (meme logique que appliquerRecap).
+  reporterCompteurs(d, resultat.recap);
+  const nouvelles = [...resultat.recap.notes, ...resultat.recap.checks.warnings.map((w) => w.message)];
+  for (const a of nouvelles) if (!d.anomalies.includes(a)) d.anomalies.push(a);
+
+  // 2. Resume compta (meme logique que enregistrerComptaResume : undefined efface en cours/croise).
+  if (resultat.compta) {
+    d.compteurs = {
+      ...d.compteurs,
+      compta: resultat.compta,
+      comptaEnCours: resultat.comptaEnCours,
+      raccordement: resultat.raccordement,
+    };
+  }
+
+  // 3. Erreur d'extraction du grand livre : posee OU effacee seulement si un GL etait joint
+  // (meme garde que la route ; sans GL joint on ne touche a rien).
+  if (resultat.grandLivreJoint) {
+    d.compteurs = { ...d.compteurs, comptaErreur: resultat.comptaErreur };
+  }
+
+  // 4. Jeu complet (rehydratation de la fiche sans re-analyse) + 5. journal.
+  d.jeu = resultat.jeu;
+  d.journal.push({ date: resultat.nowISO, texte: resultat.journalTexte });
+
+  await repo.sauver(d);
+}
+
 /** Recalcule les compteurs patrimoine du dossier depuis un recap (miroir de appliquerRecap). */
 function reporterCompteurs(d: Dossier, recap: RecapPatrimoine): void {
   d.compteurs = {

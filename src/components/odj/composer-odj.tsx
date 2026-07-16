@@ -175,7 +175,12 @@ export function ComposerOdj({
       if (res.ok) {
         setMessage({
           ton: "ok",
-          texte: `AG mise à jour : ${res.ajoutees} ajout(s), ${res.supprimees} retrait(s)${ordreChange ? ", ordre appliqué" : ""}.`,
+          texte:
+            `AG mise à jour : ${res.ajoutees} ajout(s), ${res.supprimees} retrait(s)` +
+            (res.dejaPresentes > 0
+              ? `, ${res.dejaPresentes} déjà présente(s) (non dupliquées)`
+              : "") +
+            `${ordreChange ? ", ordre appliqué" : ""}.`,
         });
         setDraft([]);
         setASupprimer(new Set());
@@ -782,12 +787,23 @@ function OdjEnConstruction({
         className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 transition-colors disabled:bg-surface-2 disabled:text-ink-3 disabled:cursor-not-allowed"
       >
         {enregistrement && <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" />}
-        {etatAg === "ouverte"
-          ? "Enregistrer dans l'AG Estale"
-          : etatAg === "cloturee"
-            ? "AG clôturée (non modifiable)"
-            : "Créer l'AG d'abord (à venir)"}
+        {enregistrement
+          ? "Application en cours..."
+          : etatAg === "ouverte"
+            ? "Enregistrer dans l'AG Estale"
+            : etatAg === "cloturee"
+              ? "AG clôturée (non modifiable)"
+              : "Créer l'AG d'abord (à venir)"}
       </button>
+
+      {/* Progression : le bouton est verrouille pendant l'application (mutations eStale en
+          sequence) - on l'explique pour eviter le re-clic / la fermeture d'onglet. */}
+      {enregistrement && (
+        <p role="status" aria-live="polite" className="text-[12px] text-ink-3">
+          Application de l&apos;ODJ dans eStale... Ne ferme pas la page. En cas d&apos;échec en
+          cours de route, relance l&apos;enregistrement : rien ne sera dupliqué.
+        </p>
+      )}
 
       {message && (
         message.ton === "ok" ? (

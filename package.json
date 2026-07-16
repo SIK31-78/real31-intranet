@@ -15,6 +15,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:smoke": "vitest run --config vitest.smoke.config.mts",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "db:push": "supabase db push",
     "db:diff": "supabase db diff --linked",

@@ -44,6 +44,26 @@ function memeEnsemble(a: string[], b: string[]): boolean {
   return b.every((e) => sa.has(e.toLowerCase()));
 }
 
+/**
+ * Valeur DEBOUNCEE (audit API 2026-07-16, P1-6) : ne se propage qu'apres `delaiMs` sans
+ * changement. Les verifications de dispo (getSchedule Graph) ne partent plus a CHAQUE frappe
+ * dans les champs date/heure (6-10 appels Graph en quelques secondes en reglant une heure au
+ * clavier) mais une fois la saisie stabilisee. Les appels obsoletes restent neutralises par
+ * la cle de creneau (le resultat n'est affiche que s'il correspond a la saisie COURANTE) +
+ * le flag `annule` du cleanup de chaque effet.
+ */
+function useValeurDebouncee<T>(valeur: T, delaiMs: number): T {
+  const [debouncee, setDebouncee] = useState(valeur);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncee(valeur), delaiMs);
+    return () => clearTimeout(t);
+  }, [valeur, delaiMs]);
+  return debouncee;
+}
+
+/** Delai de stabilisation de la saisie avant de verifier les dispos (400-600 ms recommande). */
+const DELAI_DISPO_MS = 500;
+
 // Edition inline d'une date d'AG / CS. `quand` = prochaine (planifiee) ou derniere
 // (tenue, correction du referentiel App A). Clic sur la date -> selecteur inline.
 //
@@ -179,66 +199,85 @@ export function EditeurDate({
   const agendaCreneau = avecHeure && dateVal && heureVal;
   const dispoAgendaValeur = dispoAgenda && dispoAgenda.cle === cleAgenda ? dispoAgenda.valeur : null;
 
+  // Cles DEBOUNCEES (audit API 2026-07-16, P1-6) : les verifications getSchedule partent sur
+  // la saisie STABILISEE, plus a chaque frappe/toggle. Le "|" est un separateur sur : ni les
+  // dates, ni les heures, ni les emails de salle n'en contiennent -> on re-derive date/heure/
+  // salle de la cle debouncee, ce qui garantit que la reponse est rangee sous LA cle qui a
+  // servi a la requete (un resultat perime n'est jamais affiche : l'UI ne lit que la cle
+  // correspondant a la saisie courante).
+  const cleDispoDebouncee = useValeurDebouncee(cleDispo, DELAI_DISPO_MS);
+  const cleZoeDebouncee = useValeurDebouncee(cleZoe, DELAI_DISPO_MS);
+  const cleAgendaDebouncee = useValeurDebouncee(cleAgenda, DELAI_DISPO_MS);
+
   // Verifie la dispo de la salle des qu'une salle est choisie ET la date+heure valides.
   // Degrade "inconnu" (Graph indisponible / 403 Access Policy) : jamais bloquant. Aucun
   // setState synchrone dans le corps de l'effet (uniquement dans les callbacks async).
   useEffect(() => {
-    if (!edition || !dispoCreneau) return;
+    if (!edition || !avecHeure) return;
+    const [date, heure, salle] = cleDispoDebouncee.split("|");
+    if (!date || !heure || !salle) return;
     let annule = false;
-    verifierDispoSalleAction(coproCode, typeApi, dateVal, heureVal, salleVal)
+    verifierDispoSalleAction(coproCode, typeApi, date, heure, salle)
       .then((r) => {
-        if (!annule) setDispo({ cle: cleDispo, valeur: r.dispo });
+        if (!annule) setDispo({ cle: cleDispoDebouncee, valeur: r.dispo });
       })
       .catch(() => {
-        if (!annule) setDispo({ cle: cleDispo, valeur: "inconnu" });
+        if (!annule) setDispo({ cle: cleDispoDebouncee, valeur: "inconnu" });
       });
     return () => {
-      annule = true;
+      annule = true; // garde anti-appel-obsolete : la reponse d'un creneau abandonne est jetee
     };
-  }, [edition, dispoCreneau, cleDispo, coproCode, typeApi, dateVal, heureVal, salleVal]);
+  }, [edition, avecHeure, cleDispoDebouncee, coproCode, typeApi]);
 
   // Verifie la dispo de la ZOE quand la case est cochee (getSchedule marche sur sa boite).
+  // Le toggle de la case reste immediat (geste deliberee) ; seule la saisie date/heure debounce.
   useEffect(() => {
-    if (!edition || !dispoZoeCreneau) return;
+    if (!edition || !avecHeure || !zoeVal) return;
+    const [date, heure] = cleZoeDebouncee.split("|");
+    if (!date || !heure) return;
     let annule = false;
-    verifierDispoSalleAction(coproCode, typeApi, dateVal, heureVal, ZOE_EMAIL)
+    verifierDispoSalleAction(coproCode, typeApi, date, heure, ZOE_EMAIL)
       .then((r) => {
-        if (!annule) setDispoZoe({ cle: cleZoe, valeur: r.dispo });
+        if (!annule) setDispoZoe({ cle: cleZoeDebouncee, valeur: r.dispo });
       })
       .catch(() => {
-        if (!annule) setDispoZoe({ cle: cleZoe, valeur: "inconnu" });
+        if (!annule) setDispoZoe({ cle: cleZoeDebouncee, valeur: "inconnu" });
       });
     return () => {
       annule = true;
     };
-  }, [edition, dispoZoeCreneau, cleZoe, coproCode, typeApi, dateVal, heureVal]);
+  }, [edition, avecHeure, zoeVal, cleZoeDebouncee, coproCode, typeApi]);
 
   // Verifie MON agenda (le gestionnaire connecte) des que date + heure sont saisies :
   // email absent cote action -> l'agenda de session. Meme degrade "inconnu".
   useEffect(() => {
-    if (!edition || !agendaCreneau) return;
+    if (!edition || !avecHeure) return;
+    const [date, heure] = cleAgendaDebouncee.split("|");
+    if (!date || !heure) return;
     let annule = false;
-    verifierDispoAgendaAction(coproCode, typeApi, dateVal, heureVal)
+    verifierDispoAgendaAction(coproCode, typeApi, date, heure)
       .then((r) => {
-        if (!annule) setDispoAgenda({ cle: cleAgenda, valeur: r.dispo });
+        if (!annule) setDispoAgenda({ cle: cleAgendaDebouncee, valeur: r.dispo });
       })
       .catch(() => {
-        if (!annule) setDispoAgenda({ cle: cleAgenda, valeur: "inconnu" });
+        if (!annule) setDispoAgenda({ cle: cleAgendaDebouncee, valeur: "inconnu" });
       });
     return () => {
       annule = true;
     };
-  }, [edition, agendaCreneau, cleAgenda, coproCode, typeApi, dateVal, heureVal]);
+  }, [edition, avecHeure, cleAgendaDebouncee, coproCode, typeApi]);
 
   // Verifie la dispo de CHAQUE collegue selectionne sur le creneau. Une seule passe (pas
   // un hook par collegue) : on interroge tous les selectionnes en parallele et on range
   // les reponses par `${email}|${cleAgenda}`. Degrade "inconnu" par collegue.
   useEffect(() => {
-    if (!edition || !agendaCreneau || collaborateursVal.length === 0) return;
+    if (!edition || !avecHeure || collaborateursVal.length === 0) return;
+    const [date, heure] = cleAgendaDebouncee.split("|");
+    if (!date || !heure) return;
     let annule = false;
     for (const email of collaborateursVal) {
-      const k = `${email}|${cleAgenda}`;
-      verifierDispoAgendaAction(coproCode, typeApi, dateVal, heureVal, email)
+      const k = `${email}|${cleAgendaDebouncee}`;
+      verifierDispoAgendaAction(coproCode, typeApi, date, heure, email)
         .then((r) => {
           if (!annule) setDispoCollab((prev) => ({ ...prev, [k]: r.dispo }));
         })
@@ -249,9 +288,9 @@ export function EditeurDate({
     return () => {
       annule = true;
     };
-    // collaborateursVal (ref) ne change qu'a une (de)selection reelle ; cleAgenda au
-    // changement de creneau -> l'effet ne se rejoue que sur un vrai changement.
-  }, [edition, agendaCreneau, cleAgenda, collaborateursVal, coproCode, typeApi, dateVal, heureVal]);
+    // collaborateursVal (ref) ne change qu'a une (de)selection reelle ; la cle debouncee au
+    // changement de creneau STABILISE -> l'effet ne se rejoue que sur un vrai changement.
+  }, [edition, avecHeure, cleAgendaDebouncee, collaborateursVal, coproCode, typeApi]);
 
   // Charge l'annuaire des collegues associables a l'ouverture (prochaine reunion seule).
   useEffect(() => {

@@ -89,6 +89,29 @@ export function estPdfNatif(pages: PageTexte[]): boolean {
 }
 
 /**
+ * Nombre de pages d'un PDF (lecture du xref seulement : pas d'extraction de contenu, cout
+ * negligeable). Sert a la pre-verification des plafonds API AVANT de lancer une extraction IA
+ * (audit API 2026-07-16, P1-8 : l'API Anthropic borne un PDF a 100 pages sur un modele 200K -
+ * mieux vaut le dire au gestionnaire tout de suite qu'echouer apres l'upload et l'attente).
+ * Leve si le PDF est illisible : a l'appelant de degrader (l'extraction remontera sa propre erreur).
+ */
+export async function nombrePagesPdf(pdf: Uint8Array): Promise<number> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const params: Record<string, unknown> = {
+    data: new Uint8Array(pdf), // copie defensive : pdfjs peut detacher le buffer d'entree
+    disableWorker: true,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  };
+  const doc = await pdfjs.getDocument(params as Parameters<typeof pdfjs.getDocument>[0]).promise;
+  try {
+    return doc.numPages;
+  } finally {
+    await doc.destroy();
+  }
+}
+
+/**
  * Lit la couche texte d'un PDF -> pages structurees (items positionnes + lignes reconstruites).
  * Import dynamique du build LEGACY de pdfjs (compatible Node), sans worker. Ne rend AUCUN pixel :
  * on ne lit que le texte et ses coordonnees -> pas besoin de canvas ni de polices systeme.

@@ -15,6 +15,7 @@
 // PII : la liaison lit des noms (owners + intitules 450) mais ne renvoie QUE des ownerId, numeros
 // de compte et scores dans ses warnings ; jamais de nom dans les notes/warnings.
 
+import { estNomGrandLivre as estGrandLivre } from "@/lib/reprise/domain/limites-upload";
 import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
@@ -47,15 +48,11 @@ export interface AnalyseDossier {
 }
 
 /**
- * Un document est-il un GRAND LIVRE ? Aiguillage par nom de fichier (conservateur) :
- * "grand livre" / "grand_livre" / "grandlivre" ou le sigle "GL" isole. Insensible a la casse.
+ * Un document est-il un GRAND LIVRE ? Aiguillage par nom de fichier (conservateur).
+ * La logique vit desormais dans le domaine (limites-upload.ts) pour que les composants client
+ * puissent pre-verifier les plafonds d'upload ; re-exportee ici pour les appelants existants.
  */
-export function estGrandLivre(nom: string): boolean {
-  const n = nom.toLowerCase();
-  if (/grand[\s_-]*livre/.test(n)) return true;
-  // "GL" comme mot isole (gl.pdf, gl_2025.pdf, S0302-GL.pdf), pas au milieu d'un mot (ex. "angle").
-  return /(^|[\s_-])gl($|[\s_.-])/.test(n);
-}
+export { estGrandLivre };
 
 /** Resultat de l'analyse des GRANDS LIVRES : exercice cloture, exercice en cours, controle croise. */
 interface AnalyseGrandsLivres {

@@ -21,6 +21,7 @@ import type {
 } from "@/lib/reprise/ports/extraction-provider";
 import { normaliserPatrimoine, normaliserProprietaires } from "@/lib/reprise/adapters/shared/normaliser";
 import { SYSTEME_PATRIMOINE, SYSTEME_PROPRIETAIRES, extraireJson } from "@/lib/reprise/adapters/shared/prompts-extraction";
+import { tuerArbreProcessus } from "@/lib/reprise/adapters/shared/tuer-arbre-processus";
 
 const BIN = process.env.CLAUDE_CLI_BIN || "claude";
 // La CLI attend des alias de modele (sonnet / haiku / opus), pas les ids complets du SDK.
@@ -47,7 +48,9 @@ function lancer(args: string[], stdin: string): Promise<string> {
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
-      child.kill();
+      // Kill de l'ARBRE de processus (audit API 2026-07-16, P2-1) : avec shell: true sous
+      // Windows, child.kill() ne tuait que le shell, l'enfant `claude` restait zombie.
+      tuerArbreProcessus(child);
       reject(new Error("Extraction CLI : delai depasse (la CLI n'a pas repondu a temps)."));
     }, TIMEOUT_MS);
     child.stdout.on("data", (b) => (out += b.toString()));

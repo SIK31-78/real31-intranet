@@ -52,6 +52,7 @@ import {
 import { enregistrerDecisionAction, oublierDecisionAction } from "./actions";
 import { NotesAnalyse } from "@/components/reprise/notes-analyse";
 import { classerNotes } from "@/lib/reprise/domain/classement-notes";
+import { TAILLE_TOTALE_MAX_OCTETS, TAILLE_TOTALE_MAX_LABEL, enMo } from "@/lib/reprise/domain/limites-upload";
 
 type ModeIa = "claude" | "claude-cli" | "mistral" | "mock";
 
@@ -159,6 +160,16 @@ export function RevueMappingVue({
   const lancerAnalyse = () => {
     const code = coproCode.trim();
     if (!code || files.length === 0) return;
+    // Pre-verification du plafond AVANT l'upload (audit API 2026-07-16, P1-8) : message
+    // immediat plutot qu'un 400 apres l'upload. Ici pipeline couche texte (pas d'appel IA) :
+    // seul le plafond RAM global s'applique - la route refait le meme controle.
+    const totalOctets = files.reduce((s, f) => s + f.size, 0);
+    if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
+      toast.err(
+        `Documents trop volumineux : ${enMo(totalOctets)} Mo au total, plafond ${TAILLE_TOTALE_MAX_LABEL}. Retire des fichiers ou analyse en plusieurs fois.`,
+      );
+      return;
+    }
     startAnalyse(async () => {
       const fd = new FormData();
       fd.append("coproCode", code);

@@ -14,6 +14,7 @@ import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-co
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
 import { normaliserGrandLivre } from "@/lib/reprise/adapters/shared/normaliser-compta";
 import { SYSTEME_GRAND_LIVRE, extraireJson } from "@/lib/reprise/adapters/shared/prompts-compta";
+import { tuerArbreProcessus } from "@/lib/reprise/adapters/shared/tuer-arbre-processus";
 
 const BIN = process.env.CLAUDE_CLI_BIN || "claude";
 // La CLI attend un alias de modele (sonnet / haiku / opus), pas l'id complet du SDK.
@@ -38,7 +39,9 @@ function lancer(args: string[], stdin: string): Promise<string> {
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
-      child.kill();
+      // Kill de l'ARBRE de processus (audit API 2026-07-16, P2-1) : avec shell: true sous
+      // Windows, child.kill() ne tuait que le shell, l'enfant `claude` restait zombie.
+      tuerArbreProcessus(child);
       reject(new Error("Extraction CLI : delai depasse (la CLI n'a pas repondu a temps)."));
     }, TIMEOUT_MS);
     child.stdout.on("data", (b) => (out += b.toString()));
