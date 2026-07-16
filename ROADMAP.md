@@ -6,6 +6,14 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
+## 📍 État actuel - 2026-07-16
+
+- **✏️ EDITEUR DE CORRECTIONS PATRIMOINE LIVRE (2026-07-16, chantier prioritaire ADR-030 = prerequis d de l'injection depuis le site)** : 16 types de corrections (lots/cles/tantiemes/owners/attributions, cascades explicites, fusion d'owners, liaisons450 gerees), application transactionnelle tout-ou-rien, re-passe des auto-checks + journalisation ; UI dans la fiche dossier avec GUIDAGE PAR L'ECART (cle en ecart -> corriger -> lignes depliees somme vs attendu live) ; le RCP scanne illisible = 5 min de correction au lieu d'un script SQL (cas Bougival). 599 tests.
+- **⚡ GRAND LIVRE = COUCHE TEXTE UNIQUEMENT (decision Sekou)** : provider dedie sans OCR/IA possible, PDF scanne -> erreur actionnable (fichier natif exige), degrade partiel dans le dossier unifie. + **CHECKLIST SUIVI R1->R11** collee au pipeline reel (migration douce des anciens dossiers).
+- **📬 ETUDE MAIL CENTRAL ECRITE (docs/etude-mail-central.md)** : reception centralisee intranet (boites partagees d'agence ingerees par Mes emails, attribution auto gestionnaire = fin des 2h/jour de dispatch Crypto) + envoi eStale avec reply-to boucle ; VERDICT : reply-to configurable sur les MAILINGS eStale (nativement boucle), NON expose sur les OS (question support eStale), zero webhook -> pull. 5 increments (Inc.1 sans dependance eStale). 3 QUESTIONS : Access Policy boites partagees (DSI), reply-to OS (eStale), pool agence vs cloisonnement (ADR avant code).
+- **📋 FICHE DE RENSEIGNEMENTS FINALISEE** : courrier conforme docx (accents, bloc extranet), QR code 3,4cm + code XXXX-XXXX imprimables N&B, adresse de retour = gestionnaire courant (decision Sekou) ; mailing eStale investigue (API riche mais personnalisation par destinataire limitee -> hybride PDF perso + circuit postal eStale recommande). Bugs persistance corriges (colonne donnees_soumises, garde-fou relecture).
+- **REGLES DU JOUR** : le courrier postal porte QR+code (l'encart web etait invisible a l'impression) ; les vieux RCP scannes passent par IA patrimoine + auto-checks + editeur de corrections (pas de couche texte possible).
+
 ## 📍 État actuel - 2026-07-10 (après-midi)
 
 - **🚀 VAGUE MULTI-AGENTS (2026-07-10, 6 chantiers livrés en parallèle, branche integration/reprise-copro, 537 tests)** :
