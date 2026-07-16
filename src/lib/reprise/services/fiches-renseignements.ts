@@ -28,6 +28,21 @@ import type {
 } from "@/lib/reprise/ports/estale-fiche-contact-provider";
 import type { CourrierOwner } from "@/lib/reprise/domain/fiche-courrier";
 import { genererToken, genererCode, hacher, hashEgal, normaliserCode } from "@/lib/reprise/services/fiche-token";
+import QRCode from "qrcode";
+
+/**
+ * QR code SVG (chaine, encode le lien tokenise complet) pour l'impression papier : gros et net
+ * (le SVG est vectoriel, la taille finale est fixee par le CSS >= 3 cm). Correction 'M' :
+ * bon compromis lisibilite / robustesse a un scan de courrier plie. Ne jette jamais : un QR
+ * absent (cas improbable) laisse simplement l'encadre afficher lien + code.
+ */
+async function genererQrSvg(lien: string): Promise<string | undefined> {
+  try {
+    return await QRCode.toString(lien, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+  } catch {
+    return undefined;
+  }
+}
 
 /** Snapshot "connu" a partir d'un owner du jeu (PII : reste en base interne). */
 export function connuesDepuisOwner(owner: Owner, lots: number[]): DonneesConnues {
@@ -126,11 +141,14 @@ export async function genererCourriers(
       ...(opts.relance ? { derniereRelanceAt: opts.nowISO } : {}),
     };
     await repo.sauver(fiche);
+    const lien = `${opts.baseUrl.replace(/\/$/, "")}/fiche/${token}`;
+    const qrSvg = await genererQrSvg(lien);
     courriers.push({
       ownerId: owner.id,
       connues,
-      lien: `${opts.baseUrl.replace(/\/$/, "")}/fiche/${token}`,
+      lien,
       code,
+      ...(qrSvg ? { qrSvg } : {}),
       ...(opts.relance ? { relance: true } : {}),
     });
   }

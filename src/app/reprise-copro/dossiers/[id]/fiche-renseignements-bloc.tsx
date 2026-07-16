@@ -66,7 +66,9 @@ export function FicheRenseignementsBloc({
   const [genPending, startGen] = useTransition();
 
   const ouvrirDocument = (html: string) => {
-    const blob = new Blob([html], { type: "text/html" });
+    // charset=utf-8 explicite : sans lui, un blob: URL laisse le navigateur deviner l'encodage
+    // et les accents des noms/libelles peuvent casser. On force UTF-8 (le HTML est deja en UTF-8).
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
     // Libere l'URL apres un delai (le temps que l'onglet charge).

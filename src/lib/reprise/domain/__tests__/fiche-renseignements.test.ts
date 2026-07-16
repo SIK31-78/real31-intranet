@@ -59,18 +59,44 @@ describe("courrier HTML", () => {
     code: "4F7K2Q9C",
   };
 
-  it("reproduit les sections du modele + injecte lien/code/adresse", () => {
+  it("reproduit les sections accentuees du modele + injecte lien/code/adresse", () => {
     const html = genererCourrierPage(CTX, courrier);
-    expect(html).toContain("FICHE DE RENSEIGNEMENTS COPROPRIETAIRE");
-    expect(html).toContain("Votre copropriete");
-    expect(html).toContain("Vos coordonnees");
-    expect(html).toContain("Occupation de votre lot");
-    expect(html).toContain("Consentements");
-    expect(html).toContain("4F7K2Q9C");
+    // Libelles EXACTS du docx (avec accents) - fidelite au modele cabinet.
+    expect(html).toContain("FICHE DE RENSEIGNEMENTS COPROPRIÉTAIRE");
+    expect(html).toContain("VOTRE COPROPRIÉTÉ");
+    expect(html).toContain("VOS COORDONNÉES");
+    expect(html).toContain("OCCUPATION DE VOTRE LOT");
+    expect(html).toContain("CONSENTEMENTS");
+    expect(html).toContain("Accès à l'extranet");
+    expect(html).toContain("Donnée enregistrée (préremplie)");
+    expect(html).toContain("Correction éventuelle");
+    // Code formate en groupes de 4 (saisie papier), lien complet, nom, copro, lots.
+    expect(html).toContain("4F7K-2Q9C");
     expect(html).toContain("https://intra.example.test/fiche/AbC123");
     expect(html).toContain("DURAND");
     expect(html).toContain("Residence des Lilas");
     expect(html).toContain("3, 7"); // lots
+  });
+
+  it("restitue un nom accentue INTACT (aucune translitteration)", () => {
+    // Donnees synthetiques accentuees : elles doivent ressortir telles quelles dans le HTML.
+    const html = genererCourrierPage(CTX, {
+      ...courrier,
+      connues: { ...courrier.connues, civilite: "Mme", nom: "BÉRARD", prenom: "Rémi", adrVoie: "allée des Écoles" },
+    });
+    expect(html).toContain("Mme BÉRARD Rémi"); // accents intacts (é, È)
+    expect(html).toContain("allée des Écoles");
+    // Pas de version desaccentuee.
+    expect(html).not.toContain("BERARD");
+    expect(html).not.toContain("Remi");
+  });
+
+  it("injecte le QR SVG quand il est fourni (sinon rien)", () => {
+    const avecQr = genererCourrierPage(CTX, { ...courrier, qrSvg: "<svg id='qr-test'></svg>" });
+    expect(avecQr).toContain("<svg id='qr-test'></svg>");
+    expect(avecQr).toContain("Scannez pour répondre");
+    const sansQr = genererCourrierPage(CTX, courrier);
+    expect(sansQr).not.toContain("ew-qr\">");
   });
 
   it("echappe le HTML des noms (anti-injection)", () => {
