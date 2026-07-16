@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   balanceParCompte,
+  classerParExercice,
   detecterAvantRepartition,
   messageAvantRepartition,
+  messageRaccordement,
+  raccorderExercices,
   verifierTotauxParCompte,
 } from "../controle-comptes";
 import type { ControleCompte, LigneEcriture, SensEcriture } from "../ecriture";
@@ -193,5 +196,123 @@ describe("detecterAvantRepartition", () => {
     // aucun nom ne peut apparaitre. On verifie que les montants captures y figurent.
     expect(msg).toContain("200");
     expect(msg).toContain("300");
+  });
+});
+
+describe("raccorderExercices (le controle croise)", () => {
+  const ligne = (date: string, compte: string, sens: SensEcriture, montant: number): LigneEcriture => ({
+    date,
+    compte,
+    libelle: "x",
+    sens,
+    montant,
+    classe: classeDe(compte),
+  });
+
+  it("raccorde au centime : solde final cloture == report a-nouveau en cours", () => {
+    // Cloture : le coproprietaire 450 finit debiteur de 300 (report 200 + ecriture debit 100).
+    const cloture = {
+      lignes: [ligne("2024-06-01", "4500001", "debit", 100)],
+      controles: [{ compte: "4500001", reportDebit: 200 }] as ControleCompte[],
+    };
+    // En cours : son a-nouveau d'ouverture est 300 debiteur -> raccorde.
+    const enCours = {
+      lignes: [ligne("2025-01-15", "4500001", "credit", 50)],
+      controles: [{ compte: "4500001", reportDebit: 300 }] as ControleCompte[],
+    };
+    const v = raccorderExercices(cloture, enCours);
+    expect(v.raccorde).toBe(true);
+    expect(v.ecarts).toHaveLength(0);
+    expect(v.comptesSansVisAVis).toHaveLength(0);
+    expect(v.nbComptesRaccordes).toBe(1);
+  });
+
+  it("detecte un ecart : le report en cours ne colle pas au solde cloture", () => {
+    const cloture = {
+      lignes: [ligne("2024-06-01", "4500001", "debit", 100)],
+      controles: [{ compte: "4500001", reportDebit: 200 }] as ControleCompte[],
+    };
+    // Report en cours 250 au lieu de 300 -> ecart de +50 (solde cloture 300 - report 250).
+    const enCours = {
+      lignes: [],
+      controles: [{ compte: "4500001", reportDebit: 250 }] as ControleCompte[],
+    };
+    const v = raccorderExercices(cloture, enCours);
+    expect(v.raccorde).toBe(false);
+    expect(v.ecarts).toHaveLength(1);
+    expect(v.ecarts[0]).toMatchObject({ compte: "4500001", soldeCloture: 300, reportEnCours: 250, ecart: 50 });
+    const msg = messageRaccordement(v);
+    expect(msg).toContain("4500001");
+    expect(msg).toMatch(/ecart/i);
+    // PII-free : numeros + montants uniquement.
+    expect(msg).toContain("50");
+  });
+
+  it("un compte 6/7 soldé a zero cote cloture, absent en cours -> raccorde (ignore le zero)", () => {
+    const cloture = {
+      lignes: [ligne("2024-06-01", "6200000", "debit", 500), ligne("2024-06-01", "6200000", "credit", 500)],
+      controles: [] as ControleCompte[],
+    };
+    const enCours = { lignes: [], controles: [] as ControleCompte[] };
+    const v = raccorderExercices(cloture, enCours);
+    expect(v.raccorde).toBe(true);
+    expect(v.comptesSansVisAVis).toHaveLength(0);
+  });
+
+  it("un solde de tiers non nul sans vis-a-vis en cours -> comptesSansVisAVis (bloquant)", () => {
+    const cloture = {
+      lignes: [ligne("2024-06-01", "4500009", "debit", 700)],
+      controles: [] as ControleCompte[],
+    };
+    const enCours = { lignes: [], controles: [] as ControleCompte[] };
+    const v = raccorderExercices(cloture, enCours);
+    expect(v.raccorde).toBe(false);
+    expect(v.comptesSansVisAVis).toEqual([{ compte: "4500009", cote: "cloture", montant: 700 }]);
+  });
+
+  it("un report en cours surgi sans origine cloture -> comptesSansVisAVis cote en_cours", () => {
+    const cloture = { lignes: [], controles: [] as ControleCompte[] };
+    const enCours = { lignes: [], controles: [{ compte: "4500123", reportCredit: 420 }] as ControleCompte[] };
+    const v = raccorderExercices(cloture, enCours);
+    expect(v.raccorde).toBe(false);
+    expect(v.comptesSansVisAVis).toEqual([{ compte: "4500123", cote: "en_cours", montant: -420 }]);
+  });
+});
+
+describe("classerParExercice", () => {
+  const ligne = (date: string): LigneEcriture => ({
+    date,
+    compte: "4500001",
+    libelle: "x",
+    sens: "debit",
+    montant: 1,
+    classe: 4,
+  });
+
+  it("classe le plus ancien en cloture, le plus recent en en cours (par plage de dates)", () => {
+    const recent = { lignes: [ligne("2025-01-10"), ligne("2025-06-30")], id: "recent" };
+    const ancien = { lignes: [ligne("2024-01-05"), ligne("2024-12-31")], id: "ancien" };
+    const r = classerParExercice(recent, ancien);
+    expect(r.cloture.id).toBe("ancien");
+    expect(r.enCours.id).toBe("recent");
+    expect(r.chevauchement).toBe(false);
+    expect(r.datesIndisponibles).toBe(false);
+  });
+
+  it("signale un chevauchement quand le cloture deborde sur l'en cours", () => {
+    const a = { lignes: [ligne("2024-01-05"), ligne("2025-02-15")], id: "a" }; // deborde sur 2025
+    const b = { lignes: [ligne("2025-01-10"), ligne("2025-06-30")], id: "b" };
+    const r = classerParExercice(a, b);
+    expect(r.cloture.id).toBe("a");
+    expect(r.chevauchement).toBe(true);
+  });
+
+  it("dates absentes des deux cotes -> ordre d'entree + datesIndisponibles", () => {
+    const a = { lignes: [] as LigneEcriture[], id: "a" };
+    const b = { lignes: [] as LigneEcriture[], id: "b" };
+    const r = classerParExercice(a, b);
+    expect(r.cloture.id).toBe("a");
+    expect(r.enCours.id).toBe("b");
+    expect(r.datesIndisponibles).toBe(true);
   });
 });

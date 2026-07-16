@@ -19,14 +19,23 @@ import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/ext
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 import { comptes450DeIntitules, lierOwnersComptes } from "@/lib/reprise/domain/liaison-comptes";
-import { detecterAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
+import {
+  classerParExercice,
+  detecterAvantRepartition,
+  messageRaccordement,
+  raccorderExercices,
+  type VerdictRaccordement,
+} from "@/lib/reprise/domain/controle-comptes";
 import {
   analyserPatrimoine,
   calculerRecap,
   type RecapCompta,
   type RecapPatrimoine,
 } from "@/lib/reprise/services/orchestrateur-patrimoine";
-import { extraireEtVerifierGrandLivre } from "@/lib/reprise/services/reprendre-compta";
+import {
+  extraireEtVerifierGrandLivre,
+  type ResultatRepriseCompta,
+} from "@/lib/reprise/services/reprendre-compta";
 
 export interface AnalyseDossier {
   /** Jeu patrimoine, enrichi de `liaisons450` si un grand livre a ete fourni. */
@@ -46,6 +55,126 @@ export function estGrandLivre(nom: string): boolean {
   if (/grand[\s_-]*livre/.test(n)) return true;
   // "GL" comme mot isole (gl.pdf, gl_2025.pdf, S0302-GL.pdf), pas au milieu d'un mot (ex. "angle").
   return /(^|[\s_-])gl($|[\s_.-])/.test(n);
+}
+
+/** Resultat de l'analyse des GRANDS LIVRES : exercice cloture, exercice en cours, controle croise. */
+interface AnalyseGrandsLivres {
+  /** Exercice CLOTURE (base : liaison + garde-fou avant-repartition + resume compta principal). */
+  cloture: ResultatRepriseCompta | null;
+  /** Exercice EN COURS (second grand livre classe), si fourni et exploite. */
+  enCours: ResultatRepriseCompta | null;
+  /** Controle croise cloture <-> en cours (present si les deux GL exploites ET reports captures). */
+  raccordement?: VerdictRaccordement;
+  /** Erreur d'extraction du GL cloture (compta globalement non exploitee) -> recap.comptaErreur. */
+  erreur?: string;
+  /** Notes de vigilance PII-free (en cours attendu / KO, chevauchement, reports absents...). */
+  notes: string[];
+}
+
+/** Extrait UN grand livre isole (try/catch : la couche texte leve sur un scan). PII-free. */
+async function extraireUn(
+  provider: ExtractionComptaProvider,
+  doc: DocumentSource,
+): Promise<{ ok: true; res: ResultatRepriseCompta } | { ok: false; erreur: string }> {
+  return extraireEtVerifierGrandLivre(provider, [doc]).then(
+    (res) => ({ ok: true as const, res }),
+    (e: unknown) => ({
+      ok: false as const,
+      erreur: e instanceof Error ? e.message : "Extraction du grand livre impossible.",
+    }),
+  );
+}
+
+/**
+ * Classe et controle les grands livres d'une reprise. AIGUILLAGE ROBUSTE par le CONTENU (dates des
+ * ecritures), pas par le nom de fichier :
+ *   - 0 ou 1 GL, ou plus de 2 : pipeline mono (comportement d'avant) -> un seul exercice CLOTURE ;
+ *     un seul GL laisse une VIGILANCE "en cours attendu" (le controle croise ne peut pas etre fait).
+ *   - exactement 2 GL : extraction SEPAREE de chacun, classement par plage de dates (le plus ancien
+ *     = cloture, le plus recent = en cours), verification de chevauchement, puis CONTROLE CROISE
+ *     (raccorderExercices). Un seul des deux exploitable -> il sert de cloture, l'autre est note KO.
+ * Ne leve jamais : toute erreur d'extraction est capturee et remontee via `erreur`/`notes`.
+ */
+async function analyserGrandsLivres(
+  provider: ExtractionComptaProvider,
+  glDocs: DocumentSource[],
+): Promise<AnalyseGrandsLivres> {
+  // Cas mono-pipeline : 0/1 GL (retro-compat stricte) ou >2 (classement auto non applique).
+  if (glDocs.length !== 2) {
+    const r = await extraireEtVerifierGrandLivre(provider, glDocs).then(
+      (res) => ({ ok: true as const, res }),
+      (e: unknown) => ({
+        ok: false as const,
+        erreur: e instanceof Error ? e.message : "Extraction du grand livre impossible.",
+      }),
+    );
+    if (!r.ok) return { cloture: null, enCours: null, erreur: r.erreur, notes: [] };
+    const notes: string[] = [];
+    if (glDocs.length === 1) {
+      notes.push(
+        "Grand livre de l'exercice EN COURS a fournir : un seul grand livre recu, le controle croise cloture <-> en cours n'a pas pu etre fait (a verifier).",
+      );
+    } else if (glDocs.length > 2) {
+      notes.push(
+        `${glDocs.length} grands livres fournis : classement automatique cloture/en cours limite a 2 documents, a verifier manuellement.`,
+      );
+    }
+    return { cloture: r.res, enCours: null, notes };
+  }
+
+  // Exactement 2 grands livres : extraction SEPAREE puis classement par exercice.
+  const [a, b] = await Promise.all([extraireUn(provider, glDocs[0]), extraireUn(provider, glDocs[1])]);
+
+  // Les deux echouent -> compta non exploitee (remonte la 1re erreur, comme le pipeline mono).
+  if (!a.ok && !b.ok) return { cloture: null, enCours: null, erreur: a.erreur, notes: [] };
+  // Un seul exploitable -> il sert d'exercice CLOTURE (base), l'autre est note KO (pas de croise).
+  if (!a.ok || !b.ok) {
+    const okRes = a.ok ? a.res : (b as { ok: true; res: ResultatRepriseCompta }).res;
+    const erreurAutre = a.ok ? (b as { ok: false; erreur: string }).erreur : a.erreur;
+    return {
+      cloture: okRes,
+      enCours: null,
+      notes: [
+        `Un des deux grands livres n'a pas pu etre extrait (${erreurAutre}) : controle croise cloture <-> en cours impossible (a verifier).`,
+      ],
+    };
+  }
+
+  // Deux GL exploitables : classement par plage de dates (le plus ancien = cloture).
+  const notes: string[] = [];
+  const classe = classerParExercice({ lignes: a.res.jeu.lignes, res: a.res }, { lignes: b.res.jeu.lignes, res: b.res });
+  const cloture = classe.cloture.res;
+  const enCours = classe.enCours.res;
+
+  if (classe.datesIndisponibles) {
+    notes.push(
+      "Dates des ecritures indisponibles sur les deux grands livres : classement cloture/en cours par ordre de depot (peu fiable, a verifier).",
+    );
+  }
+  if (classe.chevauchement) {
+    notes.push(
+      "Chevauchement des dates entre les deux grands livres (l'exercice cloture deborde sur l'en cours) : coherence a verifier.",
+    );
+  }
+
+  // CONTROLE CROISE : les a-nouveaux de l'en cours doivent egaler les soldes finaux du cloture. Si
+  // l'en cours ne porte AUCUN report capture, le croise n'est pas concluant -> on ne le calcule pas
+  // (eviter de bloquer a tort), on note la limitation.
+  const enCoursSansReports = !(enCours.jeu.controles ?? []).some(
+    (c) => (c.reportDebit ?? 0) !== 0 || (c.reportCredit ?? 0) !== 0,
+  );
+  if (enCoursSansReports) {
+    notes.push(
+      "Reports a-nouveau non captures sur le grand livre EN COURS : controle croise non concluant (extraction couche texte requise, a verifier).",
+    );
+    return { cloture, enCours, notes };
+  }
+
+  const raccordement = raccorderExercices(
+    { lignes: cloture.jeu.lignes, controles: cloture.jeu.controles },
+    { lignes: enCours.jeu.lignes, controles: enCours.jeu.controles },
+  );
+  return { cloture, enCours, raccordement, notes };
 }
 
 /**
@@ -76,21 +205,16 @@ export async function analyserDossierUnifie(
   // L'extraction du grand livre est ISOLEE dans un try/catch : la couche-texte-only leve une
   // erreur explicite sur un PDF scanne. Cette erreur NE DOIT PAS faire echouer le patrimoine
   // (degradation PARTIELLE) -> on la capture et on l'expose via recap.comptaErreur.
-  const [patrimoine, grandLivreRes] = await Promise.all([
+  const [patrimoine, grandLivresRes] = await Promise.all([
     patriDocs.length > 0 ? analyserPatrimoine(extraction, patriDocs) : Promise.resolve(null),
-    avecGrandLivre
-      ? extraireEtVerifierGrandLivre(extractionCompta!, glDocs).then(
-          (res) => ({ ok: true as const, res }),
-          (e: unknown) => ({
-            ok: false as const,
-            erreur: e instanceof Error ? e.message : "Extraction du grand livre impossible.",
-          }),
-        )
-      : Promise.resolve(null),
+    avecGrandLivre ? analyserGrandsLivres(extractionCompta!, glDocs) : Promise.resolve(null),
   ]);
 
-  const grandLivre = grandLivreRes?.ok ? grandLivreRes.res : null;
-  const comptaErreur = grandLivreRes && !grandLivreRes.ok ? grandLivreRes.erreur : undefined;
+  const grandLivre = grandLivresRes?.cloture ?? null;
+  const grandLivreEnCours = grandLivresRes?.enCours ?? null;
+  const raccordement = grandLivresRes?.raccordement;
+  const comptaErreur = grandLivresRes?.erreur;
+  const notesGrandsLivres = grandLivresRes?.notes ?? [];
 
   if (!patrimoine && !grandLivre) {
     // Ni patrimoine, ni grand livre exploitable. Si un grand livre etait joint mais a echoue
@@ -119,8 +243,16 @@ export async function analyserDossierUnifie(
     "Aucun document patrimoine fourni : analyse comptable seule (patrimoine a analyser separement).",
   ];
 
-  // Liaison owners <-> comptes 450 (reutilise le scoring conservateur de mapping-compta).
-  const comptes450 = comptes450DeIntitules(grandLivre.jeu.intitules);
+  // Liaison owners <-> comptes 450 (reutilise le scoring conservateur de mapping-compta). Les
+  // intitules 450 sont l'UNION des deux grands livres : l'exercice en cours peut porter des
+  // coproprietaires nouveaux (ventes recentes) absents de l'exercice cloture. On ne fusionne PAS les
+  // ecritures (elles restent separees pour l'import Inc. 3) : seuls les intitules (nom -> compte) sont
+  // unis pour l'appariement. L'en cours (plus recent) prime en cas de meme compte.
+  const intitulesUnion: Record<string, string> = {
+    ...(grandLivre.jeu.intitules ?? {}),
+    ...(grandLivreEnCours?.jeu.intitules ?? {}),
+  };
+  const comptes450 = comptes450DeIntitules(intitulesUnion);
   const liaison = lierOwnersComptes(jeuPatrimoine.owners, comptes450);
 
   const jeu: JeuDeDonnees = { ...jeuPatrimoine, liaisons450: liaison.liaisons };
@@ -135,7 +267,7 @@ export async function analyserDossierUnifie(
       "Liaison 450 impossible : intitules des comptes 450 non captures par l'extraction du grand livre (pipeline couche texte requis).",
     );
   }
-  recap.notes = [...notesPatrimoine, ...notesLiaison];
+  recap.notes = [...notesPatrimoine, ...notesLiaison, ...notesGrandsLivres];
 
   // Garde-fou "grand livre AVANT repartition" (classe 6/7 avec report non nul) : alerte rouge
   // dans le recap unifie (il faut redemander le grand livre APRES repartition). PII-free.
@@ -149,6 +281,28 @@ export async function analyserDossierUnifie(
     ...(avantRep.avantRepartition ? { avantRepartition: avantRep.comptes } : {}),
   };
   recap.compta = compta;
+
+  // Exercice EN COURS (second grand livre) : resume compta + ANOMALIE si des comptes 6/7 portent un
+  // report non nul (apres cloture ils repartent a zero -> report 6/7 non nul = anomalie). Meme
+  // detection que l'avant-repartition, mais ici c'est une anomalie de l'en cours (pas "mauvais
+  // document"). Le bloc compta l'affiche distinctement.
+  if (grandLivreEnCours) {
+    const reports67 = detecterAvantRepartition(grandLivreEnCours.jeu.controles ?? []);
+    recap.comptaEnCours = {
+      equilibre: grandLivreEnCours.equilibreGlobal.equilibre,
+      ecart: grandLivreEnCours.equilibreGlobal.ecart,
+      nbComptes: new Set(grandLivreEnCours.jeu.lignes.map((l) => l.compte)).size,
+      nbEcritures: grandLivreEnCours.jeu.lignes.length,
+      ...(reports67.avantRepartition ? { avantRepartition: reports67.comptes } : {}),
+    };
+  }
+
+  // CONTROLE CROISE (le joyau) : si KO, on le remonte aussi en note (classee anomalie/erreur par le
+  // systeme de notes) en plus du verdict structure (affiche en rouge par le bloc compta).
+  if (raccordement) {
+    recap.raccordement = raccordement;
+    if (!raccordement.raccorde) recap.notes.push(messageRaccordement(raccordement));
+  }
 
   return { jeu, recap, compta };
 }

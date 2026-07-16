@@ -92,8 +92,9 @@ export async function POST(req: Request) {
     const repo = getRepriseDossierRepository();
     // Reporte compteurs + anomalies dans le dossier (le patrimoine devient des etats).
     await appliquerRecap(repo, dossierId, recap);
-    // Persiste le resume compta (dans les compteurs, JSONB) pour rehydrater le bloc compta.
-    if (compta) await enregistrerComptaResume(repo, dossierId, compta);
+    // Persiste le resume compta (dans les compteurs, JSONB) pour rehydrater le bloc compta :
+    // exercice cloture + (si fournis) exercice en cours et verdict du controle croise.
+    if (compta) await enregistrerComptaResume(repo, dossierId, compta, recap.comptaEnCours, recap.raccordement);
     // Persiste (ou efface) l'erreur d'extraction du grand livre UNIQUEMENT si un grand livre
     // etait joint : degradation partielle (couche texte scannee) rehydratee a la reouverture ;
     // effacee des qu'une extraction reussit. Sans grand livre joint, on ne touche a rien.
@@ -107,7 +108,13 @@ export async function POST(req: Request) {
       new Date().toISOString(),
       `Analyse des documents : ${recap.lots.total} lot(s), ${recap.cles.length} cle(s), ${recap.owners.total} coproprietaire(s)` +
         (compta
-          ? ` ; grand livre : ${compta.nbEcritures} ecriture(s), ${compta.nbComptes} compte(s), balance ${compta.equilibre ? "equilibree" : `ecart ${compta.ecart}`}` +
+          ? ` ; grand livre cloture : ${compta.nbEcritures} ecriture(s), ${compta.nbComptes} compte(s), balance ${compta.equilibre ? "equilibree" : `ecart ${compta.ecart}`}` +
+            (recap.comptaEnCours
+              ? ` ; grand livre en cours : ${recap.comptaEnCours.nbEcritures} ecriture(s), ${recap.comptaEnCours.nbComptes} compte(s), balance ${recap.comptaEnCours.equilibre ? "equilibree" : `ecart ${recap.comptaEnCours.ecart}`}`
+              : "") +
+            (recap.raccordement
+              ? ` ; controle croise : ${recap.raccordement.raccorde ? "exercices raccordes au centime" : `${recap.raccordement.ecarts.length} ecart(s) + ${recap.raccordement.comptesSansVisAVis.length} compte(s) sans vis-a-vis`}`
+              : "") +
             (recap.liaison ? `, liaison 450 : ${recap.liaison.lies} lie(s) / ${recap.liaison.aTrancher} a trancher / ${recap.liaison.sansCompte} sans compte` : "")
           : recap.comptaErreur
             ? ` ; grand livre NON exploite : ${recap.comptaErreur}`

@@ -129,4 +129,95 @@ describe("analyserDossierUnifie", () => {
       analyserDossierUnifie(patrimoine, comptaKO, [doc("grand livre.pdf")]),
     ).rejects.toThrow(/scan detecte/);
   });
+
+  it("un seul grand livre : vigilance 'exercice en cours attendu', pas de comptaEnCours/raccordement", async () => {
+    const { patrimoine, compta } = providers();
+    const { recap } = await analyserDossierUnifie(patrimoine, compta, [doc("rcp.pdf"), doc("grand livre.pdf")]);
+    expect(recap.comptaEnCours).toBeUndefined();
+    expect(recap.raccordement).toBeUndefined();
+    expect(recap.notes.some((n) => /EN COURS a fournir/i.test(n))).toBe(true);
+  });
+});
+
+// --- Deux grands livres (cloture + en cours) : classement par dates + controle croise -----------
+// Provider qui renvoie un jeu DIFFERENT selon le nom du document (le service extrait chaque GL
+// isolement). Donnees 100% synthetiques.
+class MockDeuxGL implements ExtractionComptaProvider {
+  constructor(private readonly parNom: Record<string, JeuEcritures>) {}
+  async extraireGrandLivre(docs: DocumentSource[]): Promise<JeuEcritures> {
+    const jeu = this.parNom[docs[0]?.nom ?? ""];
+    if (!jeu) throw new Error(`doc inconnu : ${docs[0]?.nom}`);
+    return jeu;
+  }
+}
+
+// Cloture (2024, post-repartition) : soldes de bilan qui se reportent (copro +300, tresorerie -300).
+const GL_CLOTURE: JeuEcritures = {
+  lignes: [
+    { date: "2024-06-01", compte: "4500001", libelle: "x", sens: "debit", montant: 300, classe: 4 },
+    { date: "2024-06-01", compte: "5120000", libelle: "x", sens: "credit", montant: 300, classe: 5 },
+  ],
+  notes: [],
+  controles: [],
+  // 4500300 present UNIQUEMENT ici via l'en cours (vente recente) -> teste l'union des intitules.
+  intitules: { "4500001": "MARTIN PAUL" },
+};
+
+// En cours (2025) : a-nouveaux = soldes finaux du cloture (copro +300, tresorerie -300) -> raccorde.
+const GL_EN_COURS: JeuEcritures = {
+  lignes: [
+    { date: "2025-02-01", compte: "4500001", libelle: "x", sens: "credit", montant: 50, classe: 4 },
+    { date: "2025-02-01", compte: "5120000", libelle: "x", sens: "debit", montant: 50, classe: 5 },
+  ],
+  notes: [],
+  controles: [
+    { compte: "4500001", reportDebit: 300 },
+    { compte: "5120000", reportCredit: 300 },
+  ],
+  intitules: { "4500001": "MARTIN PAUL", "4500300": "INCONNU ZOE" },
+};
+
+describe("analyserDossierUnifie - deux grands livres", () => {
+  it("classe cloture/en cours par dates, raccorde au centime, expose comptaEnCours + raccordement", async () => {
+    const patrimoine = providers().patrimoine;
+    const compta = new MockDeuxGL({ "grand livre cloture.pdf": GL_CLOTURE, "grand livre en cours.pdf": GL_EN_COURS });
+    const { jeu, recap } = await analyserDossierUnifie(patrimoine, compta, [
+      doc("rcp.pdf"),
+      doc("grand livre cloture.pdf"),
+      doc("grand livre en cours.pdf"),
+    ]);
+
+    // compta = cloture ; comptaEnCours = en cours ; raccordement vert.
+    expect(recap.compta).toMatchObject({ nbEcritures: 2 });
+    expect(recap.comptaEnCours).toMatchObject({ nbEcritures: 2 });
+    expect(recap.raccordement?.raccorde).toBe(true);
+    expect(recap.raccordement?.nbComptesRaccordes).toBe(2);
+    expect(recap.notes.some((n) => /EN COURS a fournir/i.test(n))).toBe(false); // pas la vigilance mono-GL
+
+    // Union des intitules : o3 (INCONNU ZOE) se lie via un compte 450 present SEULEMENT dans l'en cours.
+    const parOwner = new Map(jeu.liaisons450!.map((l) => [l.ownerId, l]));
+    expect(parOwner.get("o1")).toMatchObject({ statut: "lie", compteSource: "4500001" });
+    expect(parOwner.get("o3")).toMatchObject({ statut: "lie", compteSource: "4500300" });
+  });
+
+  it("raccordement KO : ecart remonte dans le verdict ET en note (bloquant import)", async () => {
+    const patrimoine = providers().patrimoine;
+    const glEnCoursFaux: JeuEcritures = {
+      ...GL_EN_COURS,
+      controles: [
+        { compte: "4500001", reportDebit: 250 }, // 250 au lieu de 300 -> ecart +50
+        { compte: "5120000", reportCredit: 300 },
+      ],
+    };
+    const compta = new MockDeuxGL({ "grand livre cloture.pdf": GL_CLOTURE, "grand livre en cours.pdf": glEnCoursFaux });
+    const { recap } = await analyserDossierUnifie(patrimoine, compta, [
+      doc("grand livre cloture.pdf"),
+      doc("grand livre en cours.pdf"),
+    ]);
+    expect(recap.raccordement?.raccorde).toBe(false);
+    expect(recap.raccordement?.ecarts).toEqual([
+      { compte: "4500001", soldeCloture: 300, reportEnCours: 250, ecart: 50 },
+    ]);
+    expect(recap.notes.some((n) => /ne se raccordent pas/i.test(n))).toBe(true);
+  });
 });

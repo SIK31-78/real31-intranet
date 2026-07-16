@@ -4,6 +4,7 @@
 // demain). La logique reste testable avec l'adapter memoire.
 
 import type { ComptaResume, Dossier, StatutEtape } from "@/lib/reprise/domain/dossier";
+import type { VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import { creerDossier, reconcilierEtapes } from "@/lib/reprise/domain/dossier";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import { trancherLiaison } from "@/lib/reprise/domain/liaison-comptes";
@@ -128,14 +129,21 @@ export async function enregistrerJeu(
 /**
  * Persiste le resume de la reprise comptable dans les compteurs du dossier (loge dans le JSONB
  * `compteurs` deja persiste : zero migration). Sert a rehydrater le bloc compta du recap GO/STOP.
+ *
+ * `compta` = exercice CLOTURE (toujours) ; `comptaEnCours` et `raccordement` = exercice en cours +
+ * controle croise (present quand un SECOND grand livre a ete fourni). ADDITIF : passer undefined pour
+ * ces deux derniers EFFACE l'ancienne valeur (un dossier repasse a un seul GL ne garde pas un croise
+ * perime). Retro-compat : un appel a un seul argument (mono-GL) efface proprement en cours/croise.
  */
 export async function enregistrerComptaResume(
   repo: DossierRepository,
   ref: string,
   compta: ComptaResume,
+  comptaEnCours?: ComptaResume,
+  raccordement?: VerdictRaccordement,
 ): Promise<void> {
   const d = await exiger(repo, ref);
-  d.compteurs = { ...d.compteurs, compta };
+  d.compteurs = { ...d.compteurs, compta, comptaEnCours, raccordement };
   await repo.sauver(d);
 }
 
@@ -209,9 +217,12 @@ export async function corrigerJeuDossier(
   });
   await repo.sauver(d);
 
-  // Le resume compta (balance / nb comptes / erreur GL) ne vit pas dans le jeu : on le rehydrate
-  // depuis les compteurs persistes pour que l'UI n'ait pas a re-analyser le grand livre.
+  // Le resume compta (balance / nb comptes / erreur GL / en cours / controle croise) ne vit pas dans
+  // le jeu : on le rehydrate depuis les compteurs persistes pour que l'UI n'ait pas a re-analyser les
+  // grands livres.
   if (d.compteurs.compta) recap.compta = d.compteurs.compta;
+  if (d.compteurs.comptaEnCours) recap.comptaEnCours = d.compteurs.comptaEnCours;
+  if (d.compteurs.raccordement) recap.raccordement = d.compteurs.raccordement;
   if (d.compteurs.comptaErreur) recap.comptaErreur = d.compteurs.comptaErreur;
 
   return { jeu: res.jeu, recap, notes: res.notes };

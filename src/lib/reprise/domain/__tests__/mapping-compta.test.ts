@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   apparierParNom,
+  appliquerRaccordement,
   classifierCompte,
   cible471vers472,
   construirePlan,
@@ -19,6 +20,7 @@ import {
   type ContexteEstale,
   type EntreeMapping,
 } from "../mapping-compta";
+import type { VerdictRaccordement } from "../controle-comptes";
 
 // Referentiel eStale synthetique reutilise par les tests de resolution.
 const FOURNISSEURS: CandidatCompte[] = [
@@ -299,5 +301,30 @@ describe("consommation de la LIAISON (onboarding unifie)", () => {
       { liaisonParCompte: { "4999.9": "4500099" } }, // liaison sur un autre compte
     );
     expect(plan.compteurs.mappe).toBe(1); // apparie par nom a 4500002 (NOVAK ELENA)
+  });
+});
+
+describe("appliquerRaccordement", () => {
+  const planOk = construirePlan([mapperCompte("4010001", "ACME NETTOYAGE", CTX)]);
+
+  it("raccordement OK -> plan inchange (retro-compatible)", () => {
+    const verdict: VerdictRaccordement = { raccorde: true, nbComptesRaccordes: 3, ecarts: [], comptesSansVisAVis: [] };
+    const plan = appliquerRaccordement(planOk, verdict);
+    expect(plan).toEqual(planOk);
+    expect(plan.raccordement).toBeUndefined();
+  });
+
+  it("raccordement KO -> erreur prepend, pretAImporter force a false, verdict attache", () => {
+    const verdict: VerdictRaccordement = {
+      raccorde: false,
+      nbComptesRaccordes: 2,
+      ecarts: [{ compte: "4500009", soldeCloture: 700, reportEnCours: 650, ecart: 50 }],
+      comptesSansVisAVis: [],
+    };
+    const plan = appliquerRaccordement(planOk, verdict);
+    expect(plan.pretAImporter).toBe(false);
+    expect(plan.raccordement).toEqual(verdict);
+    expect(plan.erreurs[0]).toMatch(/ne se raccordent pas/i);
+    expect(plan.erreurs[0]).toContain("4500009");
   });
 });

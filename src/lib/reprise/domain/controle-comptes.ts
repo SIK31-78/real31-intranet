@@ -10,6 +10,7 @@
 
 import { SEUIL_EQUILIBRE, classeDe } from "@/lib/reprise/domain/compta";
 import type { ControleCompte, LigneEcriture } from "@/lib/reprise/domain/ecriture";
+import { plageDatesEcritures } from "@/lib/reprise/domain/ecriture";
 
 /** Verdict de controle d'UN compte (somme des ecritures vs total imprime). */
 export interface EcartCompte {
@@ -264,4 +265,200 @@ export function balanceParCompte(
   }
   balance.sort((a, b) => a.compte.localeCompare(b.compte));
   return balance;
+}
+
+// --- LE CONTROLE CROISE : raccordement des DEUX exercices (le joyau) ---------------
+//
+// Une reprise de copro recoit SYSTEMATIQUEMENT deux grands livres :
+//   1. l'exercice CLOTURE (N-1, apres approbation + repartition) ;
+//   2. l'exercice EN COURS (du 1er jour de l'exercice courant jusqu'a la fin de contrat du
+//      syndic sortant).
+// Regle comptable non negociable : les REPORTS a-nouveau (soldes d'ouverture) du grand livre EN
+// COURS doivent etre EXACTEMENT egaux, compte par compte, aux SOLDES FINAUX du grand livre
+// CLOTURE (report + ecritures, signe debit-credit). S'ils ne se raccordent pas au centime, l'un
+// des deux documents est faux. Filet deterministe que personne ne fait a la main.
+//
+// PII-free : ne manipule QUE des numeros de compte et des montants (jamais de libelle).
+
+/** Un compte dont le solde de cloture et le report en cours ne coincident pas au centime. */
+export interface EcartRaccordement {
+  /** Numero de compte source (PII-free). */
+  compte: string;
+  /** Solde FINAL du grand livre cloture = report + ecritures (signe debit - credit). */
+  soldeCloture: number;
+  /** Report a-nouveau (solde d'ouverture) du grand livre en cours (signe debit - credit). */
+  reportEnCours: number;
+  /** Ecart signe = soldeCloture - reportEnCours (0 si raccorde). */
+  ecart: number;
+}
+
+/** Un compte present d'UN seul cote avec un montant non nul (pas de vis-a-vis pour raccorder). */
+export interface CompteSansVisAVis {
+  /** Numero de compte source (PII-free). */
+  compte: string;
+  /** Cote ou le compte porte un montant non nul mais sans contrepartie sur l'autre grand livre. */
+  cote: "cloture" | "en_cours";
+  /** Montant present du cote concerne (solde de cloture ou report en cours, signe). */
+  montant: number;
+}
+
+/** Verdict du controle croise cloture <-> en cours. */
+export interface VerdictRaccordement {
+  /** true si aucun ecart ET aucun compte sans vis-a-vis (les deux exercices se raccordent). */
+  raccorde: boolean;
+  /** Nombre de comptes confrontes qui se raccordent au centime. */
+  nbComptesRaccordes: number;
+  /** Comptes dont le solde de cloture et le report en cours divergent (tries par numero). */
+  ecarts: EcartRaccordement[];
+  /** Comptes a solde/report non nul presents d'un seul cote (tries par numero). */
+  comptesSansVisAVis: CompteSansVisAVis[];
+}
+
+/** Jeu minimal necessaire au raccordement (ecritures + reports captures). */
+interface GrandLivrePourRaccord {
+  lignes: LigneEcriture[];
+  controles?: ControleCompte[];
+}
+
+/**
+ * LE CONTROLE CROISE. Confronte, compte par compte, le SOLDE FINAL du grand livre CLOTURE (report
+ * + ecritures) au REPORT a-nouveau du grand livre EN COURS. Tolerance = SEUIL_EQUILIBRE.
+ *   - present des deux cotes : ecart = soldeCloture - reportEnCours ; au-dela du seuil -> ecart ;
+ *   - present d'un seul cote avec un montant non nul -> comptesSansVisAVis (un solde qui devait se
+ *     reporter mais n'a pas de contrepartie, ou un report surgi de nulle part) ;
+ *   - present d'un seul cote a montant nul (compte 6/7 soldé par la repartition) -> ignore (raccorde
+ *     trivialement). PUR, deterministe.
+ */
+export function raccorderExercices(
+  cloture: GrandLivrePourRaccord,
+  enCours: GrandLivrePourRaccord,
+): VerdictRaccordement {
+  // Soldes finaux du cloture (report + ecritures) via la balance par compte (report inclus).
+  const soldesCloture = new Map<string, number>();
+  for (const l of balanceParCompte(cloture.lignes, cloture.controles ?? [])) {
+    soldesCloture.set(l.compte, l.solde);
+  }
+  // Reports a-nouveau de l'en cours (solde d'ouverture signe) captures dans les ControleCompte.
+  const reportsEnCours = new Map<string, number>();
+  for (const c of enCours.controles ?? []) {
+    reportsEnCours.set(c.compte, arrondi((c.reportDebit ?? 0) - (c.reportCredit ?? 0)));
+  }
+
+  const comptes = new Set<string>([...soldesCloture.keys(), ...reportsEnCours.keys()]);
+  const ecarts: EcartRaccordement[] = [];
+  const comptesSansVisAVis: CompteSansVisAVis[] = [];
+  let nbComptesRaccordes = 0;
+
+  for (const compte of comptes) {
+    const aCloture = soldesCloture.has(compte);
+    const aEnCours = reportsEnCours.has(compte);
+    const soldeCloture = soldesCloture.get(compte) ?? 0;
+    const reportEnCours = reportsEnCours.get(compte) ?? 0;
+
+    if (aCloture && aEnCours) {
+      const ecart = arrondi(soldeCloture - reportEnCours);
+      if (Math.abs(ecart) >= SEUIL_EQUILIBRE) {
+        ecarts.push({ compte, soldeCloture, reportEnCours, ecart });
+      } else {
+        nbComptesRaccordes++;
+      }
+    } else {
+      // Present d'un seul cote : seul un montant non nul est une anomalie (0 = soldé, raccorde).
+      const montant = aCloture ? soldeCloture : reportEnCours;
+      if (Math.abs(montant) >= SEUIL_EQUILIBRE) {
+        comptesSansVisAVis.push({ compte, cote: aCloture ? "cloture" : "en_cours", montant });
+      } else {
+        nbComptesRaccordes++;
+      }
+    }
+  }
+
+  ecarts.sort((a, b) => a.compte.localeCompare(b.compte));
+  comptesSansVisAVis.sort((a, b) => a.compte.localeCompare(b.compte));
+  return {
+    raccorde: ecarts.length === 0 && comptesSansVisAVis.length === 0,
+    nbComptesRaccordes,
+    ecarts,
+    comptesSansVisAVis,
+  };
+}
+
+/**
+ * Message BLOQUANT (PII-free : numeros + montants) explicitant un raccordement KO. Reutilise par
+ * le plan de mapping (erreur) et par le recap. Le mot "ecart" chiffre garantit un classement en
+ * anomalie/erreur cote systeme de notes.
+ */
+export function messageRaccordement(verdict: VerdictRaccordement): string {
+  if (verdict.raccorde) return "Les deux grands livres se raccordent au centime.";
+  // NB : on ecrit "n°<compte>" (et non "compte <compte>") pour ne pas declencher l'heuristique de
+  // source "liaison" du classement de notes (motif "compte 450...") : un raccordement est une note
+  // de source COMPTA. Le mot "ecart" chiffre garantit le niveau anomalie/erreur.
+  const bouts: string[] = [];
+  for (const e of verdict.ecarts.slice(0, 8)) {
+    bouts.push(`n°${e.compte} : solde cloture ${e.soldeCloture} vs report en cours ${e.reportEnCours} (ecart ${e.ecart})`);
+  }
+  for (const c of verdict.comptesSansVisAVis.slice(0, 8)) {
+    bouts.push(`n°${c.compte} : ${c.montant} cote ${c.cote} sans vis-a-vis (ecart ${c.montant})`);
+  }
+  const reste =
+    verdict.ecarts.length + verdict.comptesSansVisAVis.length - Math.min(verdict.ecarts.length, 8) - Math.min(verdict.comptesSansVisAVis.length, 8);
+  const suffixe = reste > 0 ? ` ; +${reste} autre(s)` : "";
+  return (
+    `Les deux grands livres ne se raccordent pas au centime : ${verdict.ecarts.length} ecart(s) et ` +
+    `${verdict.comptesSansVisAVis.length} compte(s) sans vis-a-vis. Les a-nouveaux de l'exercice EN COURS ` +
+    `doivent egaler les soldes finaux de l'exercice CLOTURE. ${bouts.join(" ; ")}${suffixe}. ` +
+    `L'un des deux grands livres est faux : le raccordement est impossible en l'etat.`
+  );
+}
+
+// --- Classement CLOTURE vs EN COURS par plage de dates -----------------------------
+//
+// Detection ROBUSTE par le CONTENU (pas par le nom de fichier) : le grand livre CLOTURE couvre
+// l'exercice N-1 (dates plus anciennes), l'EN COURS couvre l'exercice courant (dates plus
+// recentes). On classe les deux jeux extraits par leur plage de dates : le plus ancien = cloture,
+// le plus recent = en cours. Un chevauchement des plages est une anomalie de coherence (signalee,
+// non bloquante : on garde le meilleur classement possible). PUR.
+
+/** Deux jeux d'ecritures classes par exercice + drapeau de chevauchement. */
+export interface ClassementExercices<T> {
+  cloture: T;
+  enCours: T;
+  /** true si la plage du cloture deborde sur celle de l'en cours (max cloture > min en cours). */
+  chevauchement: boolean;
+  /** true si aucune date exploitable des deux cotes (classement par ordre d'entree, peu fiable). */
+  datesIndisponibles: boolean;
+}
+
+/**
+ * Classe deux jeux d'ecritures en {cloture, enCours} par leur plage de dates (le plus ancien =
+ * cloture). Compare d'abord la date de fin (max) puis, a defaut, la date de debut (min). Si aucune
+ * date n'est exploitable, conserve l'ordre d'entree (a=cloture) et leve datesIndisponibles. PUR.
+ */
+export function classerParExercice<T extends { lignes: LigneEcriture[] }>(
+  a: T,
+  b: T,
+): ClassementExercices<T> {
+  const pa = plageDatesEcritures(a.lignes);
+  const pb = plageDatesEcritures(b.lignes);
+  const cleA = pa.max ?? pa.min;
+  const cleB = pb.max ?? pb.min;
+  const datesIndisponibles = cleA === undefined && cleB === undefined;
+
+  // Le plus ANCIEN (cle la plus petite) est la cloture. Dates absentes -> pousse en dernier (en
+  // cours par defaut), l'autre devient cloture ; les deux absentes -> ordre d'entree.
+  let clotureEstA: boolean;
+  if (cleA === undefined && cleB === undefined) clotureEstA = true;
+  else if (cleA === undefined) clotureEstA = false;
+  else if (cleB === undefined) clotureEstA = true;
+  else clotureEstA = cleA <= cleB;
+
+  const cloture = clotureEstA ? a : b;
+  const enCours = clotureEstA ? b : a;
+  const plageCloture = clotureEstA ? pa : pb;
+  const plageEnCours = clotureEstA ? pb : pa;
+
+  const chevauchement =
+    plageCloture.max !== undefined && plageEnCours.min !== undefined && plageCloture.max > plageEnCours.min;
+
+  return { cloture, enCours, chevauchement, datesIndisponibles };
 }

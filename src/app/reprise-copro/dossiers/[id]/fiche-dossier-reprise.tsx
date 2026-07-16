@@ -46,6 +46,7 @@ import { ETABLISSEMENTS_REAL31 } from "@/lib/reprise/domain/etablissements";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import type { MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
 import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
+import type { VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import {
   majEtapeAction,
   ajouterNoteAction,
@@ -523,6 +524,97 @@ function AlerteAvantRepartition({
   );
 }
 
+// ANOMALIE (ambre) "reports 6/7 sur le grand livre EN COURS" : des comptes de charges/produits
+// portent un report a-nouveau non nul alors qu'apres cloture ils repartent a zero. A la difference
+// du GL cloture (mauvais document, bloquant), c'est une anomalie a verifier sur l'exercice courant.
+function AlerteReports67EnCours({
+  comptes,
+}: {
+  comptes: { compte: string; reportDebit: number; reportCredit: number }[];
+}) {
+  const euro = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="mt-2 rounded-md border border-warn-500/50 bg-warn-50 px-3 py-2.5 text-[12.5px] text-warn-700">
+      <div className="flex items-start gap-2">
+        <AlertTriangle strokeWidth={1.75} className="w-4 h-4 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-medium">Reports 6/7 non nuls sur l&apos;exercice EN COURS.</p>
+          <p className="mt-1 text-warn-700/90">
+            {comptes.length} compte(s) de classe 6/7 portent un solde anterieur non nul sur le grand livre en
+            cours, alors qu&apos;apres cloture ils doivent repartir a zero. A verifier avec l&apos;ancien syndic.
+          </p>
+          <ul className="mt-1.5 space-y-0.5 font-mono text-[11.5px]">
+            {comptes.map((c) => (
+              <li key={c.compte}>
+                {c.compte} :{c.reportDebit ? ` report D ${euro(c.reportDebit)}` : ""}
+                {c.reportCredit ? ` report C ${euro(c.reportCredit)}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// LE CONTROLE CROISE (le joyau) : verdict du raccordement cloture <-> en cours. Vert = les
+// a-nouveaux de l'en cours egalent les soldes finaux du cloture au centime. Rouge = liste des
+// ecarts + comptes sans vis-a-vis (l'un des deux grands livres est faux). PII-free (numeros +
+// montants). Bloquant pour l'import cote plan de mapping.
+function VerdictRaccordementBloc({ verdict }: { verdict: VerdictRaccordement }) {
+  const euro = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (verdict.raccorde) {
+    return (
+      <div className="mt-3 rounded-md border border-ok-500/50 bg-ok-50 px-3 py-2.5 text-[12.5px] text-ok-700">
+        <div className="flex items-start gap-2">
+          <Check strokeWidth={2} className="w-4 h-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Exercices raccordes au centime.</p>
+            <p className="mt-1 text-ok-700/90">
+              Les a-nouveaux de l&apos;exercice en cours egalent les soldes finaux de l&apos;exercice cloture
+              ({verdict.nbComptesRaccordes} compte(s) confronte(s)). Le controle croise est vert.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-md border border-err-500/50 bg-err-50 px-3 py-2.5 text-[12.5px] text-err-700">
+      <div className="flex items-start gap-2">
+        <AlertTriangle strokeWidth={1.75} className="w-4 h-4 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-medium">Les deux grands livres ne se raccordent pas.</p>
+          <p className="mt-1 text-err-700/90">
+            {verdict.ecarts.length} ecart(s) et {verdict.comptesSansVisAVis.length} compte(s) sans vis-a-vis.
+            Les a-nouveaux de l&apos;exercice en cours doivent egaler les soldes finaux de l&apos;exercice
+            cloture : l&apos;un des deux grands livres est faux. Import bloque tant que ce n&apos;est pas resolu.
+          </p>
+          {verdict.ecarts.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 font-mono text-[11.5px]">
+              {verdict.ecarts.slice(0, 12).map((e) => (
+                <li key={e.compte}>
+                  {e.compte} : solde cloture {euro(e.soldeCloture)} vs report en cours {euro(e.reportEnCours)} (ecart{" "}
+                  {euro(e.ecart)})
+                </li>
+              ))}
+            </ul>
+          )}
+          {verdict.comptesSansVisAVis.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 font-mono text-[11.5px]">
+              {verdict.comptesSansVisAVis.slice(0, 12).map((c) => (
+                <li key={c.compte}>
+                  {c.compte} : {euro(c.montant)} cote {c.cote === "cloture" ? "cloture" : "en cours"} sans vis-a-vis
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Erreur d'extraction du grand livre (couche texte UNIQUEMENT : un PDF scanne n'est pas
 // exploitable). Message actionnable, PII-free : il dit quoi redemander a l'ancien syndic. Le
 // patrimoine, lui, reste analyse (degradation partielle) : ce bloc ne remplace que la compta.
@@ -593,10 +685,10 @@ function ComptaLiaison({
                 {recap.compta.equilibre ? "equilibree" : `ecart ${recap.compta.ecart}`}
               </Badge>
             </div>
-            <div className="text-[11px] text-ink-3 mt-1">Balance grand livre</div>
+            <div className="text-[11px] text-ink-3 mt-1">Balance GL cloture (N-1)</div>
           </div>
-          <Stat label="Comptes" valeur={recap.compta.nbComptes} petit />
-          <Stat label="Ecritures" valeur={recap.compta.nbEcritures} petit />
+          <Stat label="Comptes cloture" valeur={recap.compta.nbComptes} petit />
+          <Stat label="Ecritures cloture" valeur={recap.compta.nbEcritures} petit />
           <div className="rounded-md border border-line bg-surface px-3 py-2">
             <div className="text-[15px] font-semibold text-ink">
               <span className="text-green-700">{lies}</span>
@@ -609,6 +701,31 @@ function ComptaLiaison({
           </div>
         </div>
       )}
+
+      {/* Exercice EN COURS (second grand livre) : balance + comptes + ecritures, avec anomalie si
+          des reports 6/7 subsistent (ils doivent repartir a zero apres cloture). */}
+      {recap.comptaEnCours && (
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-md border border-line bg-surface px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <Badge ton={recap.comptaEnCours.equilibre ? "ok" : "err"} dot>
+                  {recap.comptaEnCours.equilibre ? "equilibree" : `ecart ${recap.comptaEnCours.ecart}`}
+                </Badge>
+              </div>
+              <div className="text-[11px] text-ink-3 mt-1">Balance GL en cours</div>
+            </div>
+            <Stat label="Comptes en cours" valeur={recap.comptaEnCours.nbComptes} petit />
+            <Stat label="Ecritures en cours" valeur={recap.comptaEnCours.nbEcritures} petit />
+          </div>
+          {recap.comptaEnCours.avantRepartition && recap.comptaEnCours.avantRepartition.length > 0 && (
+            <AlerteReports67EnCours comptes={recap.comptaEnCours.avantRepartition} />
+          )}
+        </>
+      )}
+
+      {/* LE CONTROLE CROISE (le joyau) : verdict du raccordement cloture <-> en cours. */}
+      {recap.raccordement && <VerdictRaccordementBloc verdict={recap.raccordement} />}
 
       <p className="mt-2 text-[12px] text-ink-3">
         La liaison rattache chaque coproprietaire a son compte 450 de l&apos;ancien syndic (cle de la reprise

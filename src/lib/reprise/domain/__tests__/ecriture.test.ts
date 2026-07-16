@@ -3,11 +3,26 @@ import {
   balanceDesEcritures,
   grouperEcrituresParCompte,
   grouperEcrituresPourRevue,
+  plageDatesEcritures,
   verifierEquilibreGrandLivre,
   type LigneEcriture,
   type SensEcriture,
 } from "../ecriture";
 import { classeDe } from "../compta";
+
+describe("plageDatesEcritures", () => {
+  const l = (date: string): LigneEcriture => ({ date, compte: "4010000", libelle: "x", sens: "debit", montant: 1, classe: 4 });
+  it("renvoie min et max ISO (comparaison lexicographique)", () => {
+    expect(plageDatesEcritures([l("2025-03-01"), l("2024-12-31"), l("2025-06-15")])).toEqual({
+      min: "2024-12-31",
+      max: "2025-06-15",
+    });
+  });
+  it("ignore les lignes sans date et renvoie {} si aucune date", () => {
+    expect(plageDatesEcritures([{ ...l(""), date: "" }])).toEqual({});
+    expect(plageDatesEcritures([])).toEqual({});
+  });
+});
 
 /** Fabrique une LigneEcriture (classe derivee du compte). */
 function ligne(compte: string, sens: SensEcriture, montant: number): LigneEcriture {

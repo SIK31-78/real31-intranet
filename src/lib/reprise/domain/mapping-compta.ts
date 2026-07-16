@@ -18,7 +18,9 @@
 import { classeDe, type ClasseComptable } from "@/lib/reprise/domain/compta";
 import {
   messageAvantRepartition,
+  messageRaccordement,
   type VerdictAvantRepartition,
+  type VerdictRaccordement,
 } from "@/lib/reprise/domain/controle-comptes";
 
 // --- Constantes de reglage (a arbitrer avec Sekou) --------------------------------
@@ -139,6 +141,14 @@ export interface PlanMapping {
    * aux ControleCompte) via appliquerAvantRepartition ; rejoue par appliquerDecisions.
    */
   avantRepartition?: VerdictAvantRepartition;
+  /**
+   * Verdict du CONTROLE CROISE cloture <-> en cours (les a-nouveaux de l'exercice en cours doivent
+   * egaler les soldes finaux de l'exercice cloture). Present (et bloquant) uniquement quand un
+   * raccordement KO est detecte : tant qu'il est la, pretAImporter reste false (l'un des deux grands
+   * livres est faux). PII-free. Attache par les services via appliquerRaccordement ; rejoue par
+   * appliquerDecisions. Absent pour l'ecran mapping standalone (un seul grand livre a la fois).
+   */
+  raccordement?: VerdictRaccordement;
   /** true si aucune erreur ET aucun warning -> le plan peut etre execute a l'increment 3. */
   pretAImporter: boolean;
 }
@@ -570,6 +580,25 @@ export function appliquerAvantRepartition(
     ...plan,
     avantRepartition: verdict,
     erreurs: [messageAvantRepartition(verdict), ...plan.erreurs],
+    pretAImporter: false,
+  };
+}
+
+/**
+ * Applique le CONTROLE CROISE (raccordement cloture <-> en cours) a un plan : si le verdict n'est
+ * PAS raccorde, attache le verdict, PREPEND l'erreur bloquante et force pretAImporter = false.
+ * Bloquant STRICT : aucun geste humain ne le leve (il faut le bon grand livre). Renvoie le plan
+ * inchange si le raccordement est bon (retro-compatible). Pur : ne mute pas le plan d'entree.
+ */
+export function appliquerRaccordement(
+  plan: PlanMapping,
+  verdict: VerdictRaccordement,
+): PlanMapping {
+  if (verdict.raccorde) return plan;
+  return {
+    ...plan,
+    raccordement: verdict,
+    erreurs: [messageRaccordement(verdict), ...plan.erreurs],
     pretAImporter: false,
   };
 }

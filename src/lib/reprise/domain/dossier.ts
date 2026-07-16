@@ -7,7 +7,7 @@
 // S0XXX du vault Obsidian, pour une continuite directe avec l'existant. Pur, testable.
 
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
-import type { CompteAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
+import type { CompteAvantRepartition, VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 
 /** Grandes phases du flux d'onboarding, dans l'ordre. */
 export const PHASES = [
@@ -49,9 +49,10 @@ export interface ComptaResume {
   /** Nombre d'ecritures extraites. */
   nbEcritures: number;
   /**
-   * Comptes de classe 6/7 avec report a-nouveau non nul (signature "grand livre AVANT
-   * repartition"). Present/non vide seulement si detecte. Persiste dans le JSONB `compteurs`
-   * (ADDITIF, zero migration) pour rehydrater l'alerte rouge du recap. PII-free.
+   * Comptes de classe 6/7 avec report a-nouveau non nul. Present/non vide seulement si detecte.
+   * Sur le GL cloture = signature "avant repartition" (bloquant) ; sur le GL en cours = anomalie
+   * (reports 6/7 doivent repartir a zero). Persiste dans le JSONB `compteurs` (ADDITIF, zero
+   * migration) pour rehydrater l'alerte du recap. PII-free.
    */
   avantRepartition?: CompteAvantRepartition[];
 }
@@ -65,10 +66,23 @@ export interface CompteursDossier {
   nbAnomalies?: number;
   nbFusionsEffectuees?: number;
   /**
-   * Resume de la reprise comptable, renseigne par l'analyse unifiee (grand livre fourni).
-   * Loge dans `compteurs` (JSONB deja persiste) : ADDITIF, zero migration, rehydratation souple.
+   * Resume de la reprise comptable de l'exercice CLOTURE, renseigne par l'analyse unifiee (grand
+   * livre fourni). Loge dans `compteurs` (JSONB deja persiste) : ADDITIF, zero migration,
+   * rehydratation souple. Nom historique `compta` = TOUJOURS l'exercice cloture (retro-compat).
    */
   compta?: ComptaResume;
+  /**
+   * Resume de la reprise comptable de l'exercice EN COURS (present si un second grand livre a ete
+   * fourni et classe). JSONB `compteurs`, ADDITIF, zero migration. Absent pour les dossiers
+   * persites a un seul grand livre -> rehydratation souple. PII-free.
+   */
+  comptaEnCours?: ComptaResume;
+  /**
+   * Verdict du CONTROLE CROISE cloture <-> en cours (les a-nouveaux de l'en cours doivent egaler les
+   * soldes finaux du cloture). Present si les DEUX grands livres ont ete exploites. JSONB
+   * `compteurs`, ADDITIF, zero migration. PII-free (numeros + montants).
+   */
+  raccordement?: VerdictRaccordement;
   /**
    * Erreur d'extraction du grand livre (ex. PDF scanne / couche texte inexploitable) constatee a
    * la derniere analyse. Loge dans `compteurs` (JSONB, ADDITIF, zero migration) pour rehydrater le
@@ -126,6 +140,9 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
   { code: "RB1", phase: "COMPTABILITE", libelle: "Compte bancaire de la copropriete ouvert (compte separe)" },
   { code: "RB2", phase: "COMPTABILITE", libelle: "Compte bancaire synchronise sur eStale (flux bancaires actifs)" },
   { code: "R6", phase: "COMPTABILITE", libelle: "Grand livre APRES repartition recu et analyse (balance 0, alerte avant-repartition levee)" },
+  // RG1 : code hors sequence R* (insere apres coup, demande Sekou 2026-07-16). L'ordre d'affichage
+  // = l'ordre de CE tableau, pas les codes -> RG1 s'affiche juste apres R6, en COMPTABILITE.
+  { code: "RG1", phase: "COMPTABILITE", libelle: "Grand livre de l'exercice EN COURS recu et raccorde a l'exercice clos (controle croise au centime)" },
   { code: "R7", phase: "COMPTABILITE", libelle: "Revue du mapping compta tranchee (warnings, homonymes, partis)" },
   { code: "R8", phase: "COMPTABILITE", libelle: "Comptabilite importee dans eStale (Inc. 3 - a venir)" },
   { code: "R9", phase: "COMPTABILITE", libelle: "Balance eStale verifiee (soldes conformes au grand livre)" },

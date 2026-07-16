@@ -21,7 +21,7 @@ import {
   type PlanMapping,
   type StatutMapping,
 } from "@/lib/reprise/domain/mapping-compta";
-import { messageAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
+import { messageAvantRepartition, messageRaccordement } from "@/lib/reprise/domain/controle-comptes";
 
 /**
  * Geste humain applique a UN compte source lors de la revue.
@@ -272,6 +272,12 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
     erreurs.unshift(messageAvantRepartition(plan.avantRepartition));
   }
 
+  // GARDE-FOU raccordement cloture <-> en cours (bloquant STRICT) : rejoue pour survivre au
+  // recalcul cote client. Prepend apres l'avant-repartition (les deux peuvent coexister).
+  if (plan.raccordement && !plan.raccordement.raccorde) {
+    erreurs.unshift(messageRaccordement(plan.raccordement));
+  }
+
   const pretAImporter = erreurs.length === 0 && warnings.length === 0;
   return {
     entrees,
@@ -280,6 +286,7 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
     warnings,
     notes,
     ...(plan.avantRepartition ? { avantRepartition: plan.avantRepartition } : {}),
+    ...(plan.raccordement ? { raccordement: plan.raccordement } : {}),
     pretAImporter,
     aTraiter: erreurs.length + warnings.length,
     decisionsAppliquees,

@@ -132,6 +132,22 @@ export function verifierEquilibreGrandLivre(lignes: LigneEcriture[]): EquilibreG
   return { equilibre: b.equilibre, ecart: b.ecart, parClasse: b.parClasse };
 }
 
+/**
+ * Plage de dates (min / max ISO) des ecritures d'un grand livre. Sert a CLASSER deux grands livres
+ * par exercice (le plus ancien = cloture, le plus recent = en cours). Les dates ISO (AAAA-MM-JJ) se
+ * comparent lexicographiquement. Renvoie {} si aucune date exploitable. PUR.
+ */
+export function plageDatesEcritures(lignes: LigneEcriture[]): { min?: string; max?: string } {
+  let min: string | undefined;
+  let max: string | undefined;
+  for (const l of lignes) {
+    if (!l.date) continue;
+    if (min === undefined || l.date < min) min = l.date;
+    if (max === undefined || l.date > max) max = l.date;
+  }
+  return { ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
+}
+
 // --- Vue "grand livre par compte" (pour la revue humaine du mapping) ---------------
 //
 // Presente les ecritures d'UN compte source en colonnes debit/credit (au lieu du couple

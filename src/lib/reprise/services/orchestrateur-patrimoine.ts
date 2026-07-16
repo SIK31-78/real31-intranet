@@ -8,7 +8,7 @@
 
 import type { JeuDeDonnees, Usage } from "@/lib/reprise/domain/patrimoine";
 import { USAGES } from "@/lib/reprise/domain/patrimoine";
-import type { CompteAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
+import type { CompteAvantRepartition, VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import { verifierTout, type ResultatChecks } from "@/lib/reprise/domain/auto-checks";
 import { detecterDoublons } from "@/lib/reprise/domain/dedup";
 import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
@@ -52,9 +52,11 @@ export interface RecapCompta {
   /** Nombre d'ecritures extraites. */
   nbEcritures: number;
   /**
-   * Comptes de classe 6/7 avec report a-nouveau non nul = signature "grand livre AVANT
-   * repartition". Present (et non vide) UNIQUEMENT si la signature est detectee -> alerte rouge
-   * dans le recap : demander a l'ancien syndic le grand livre APRES repartition. PII-free.
+   * Comptes de classe 6/7 avec report a-nouveau non nul. Present (et non vide) UNIQUEMENT si detecte.
+   * SEMANTIQUE selon le GL : sur le GL CLOTURE = signature "grand livre AVANT repartition" (bloquant,
+   * mauvais document, redemander apres regule) ; sur le GL EN COURS = ANOMALIE (les reports 6/7 doivent
+   * repartir a zero apres cloture). Meme detection (detecterAvantRepartition), consequence differente
+   * cote UI selon l'exercice. PII-free.
    */
   avantRepartition?: CompteAvantRepartition[];
 }
@@ -79,10 +81,23 @@ export interface RecapPatrimoine {
    */
   liaison?: RecapLiaison;
   /**
-   * Resume de la reprise comptable. Renseigne par l'analyse unifiee (route), PAS par
-   * calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans grand livre.
+   * Resume de la reprise comptable de l'exercice CLOTURE (N-1). Renseigne par l'analyse unifiee
+   * (route), PAS par calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans
+   * grand livre. Historiquement nomme `compta` (retro-compat) = TOUJOURS l'exercice cloture.
    */
   compta?: RecapCompta;
+  /**
+   * Resume de la reprise comptable de l'exercice EN COURS (du 1er jour de l'exercice courant a la fin
+   * de contrat du syndic sortant). Present UNIQUEMENT quand un SECOND grand livre a ete fourni et
+   * classe. Additif : un seul grand livre => absent (comportement d'avant l'ajout). PII-free.
+   */
+  comptaEnCours?: RecapCompta;
+  /**
+   * Verdict du CONTROLE CROISE cloture <-> en cours (le joyau) : les a-nouveaux de l'en cours doivent
+   * egaler les soldes finaux du cloture, compte par compte. Present UNIQUEMENT quand les DEUX grands
+   * livres sont exploites. Un raccordement KO bloque l'import (cote plan de mapping). PII-free.
+   */
+  raccordement?: VerdictRaccordement;
   /**
    * Erreur d'extraction du GRAND LIVRE (ex. couche texte inexploitable / scan). Present quand un
    * grand livre a ete joint mais que son extraction a echoue : le patrimoine reste analyse

@@ -18,13 +18,14 @@ import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
 import type { SoldeCompte } from "@/lib/reprise/domain/compta";
 import {
   appliquerAvantRepartition,
+  appliquerRaccordement,
   racineCompte,
   resoudreComptes,
   type CandidatCompte,
   type ContexteEstale,
   type PlanMapping,
 } from "@/lib/reprise/domain/mapping-compta";
-import { detecterAvantRepartition } from "@/lib/reprise/domain/controle-comptes";
+import { detecterAvantRepartition, type VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import type {
   EstaleComptaLectureProvider,
   RefAccounting,
@@ -76,6 +77,7 @@ export async function construirePlanMapping(
   coproCode: string,
   provider: EstaleComptaLectureProvider = getEstaleComptaLectureProvider(),
   liaisonParCompte?: Record<string, string>,
+  raccordement?: VerdictRaccordement,
 ): Promise<ResultatPlanMapping> {
   try {
     const ref = await provider.resoudreAccounting(coproCode);
@@ -91,7 +93,10 @@ export async function construirePlanMapping(
 
     const planBrut = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
     // Garde-fou "grand livre avant repartition" (classe 6/7 avec report non nul) : bloquant strict.
-    const plan = appliquerAvantRepartition(planBrut, detecterAvantRepartition(jeu.controles ?? []));
+    const planAR = appliquerAvantRepartition(planBrut, detecterAvantRepartition(jeu.controles ?? []));
+    // Controle croise cloture <-> en cours (si fourni) : bloquant strict si les deux GL ne se
+    // raccordent pas au centime. Absent pour l'ecran standalone (un seul grand livre) -> no-op.
+    const plan = raccordement ? appliquerRaccordement(planAR, raccordement) : planAR;
 
     return { ok: true, plan, ref };
   } catch (e) {
@@ -138,6 +143,7 @@ export async function preparerRevueMapping(
   coproCode: string,
   provider: EstaleComptaLectureProvider = getEstaleComptaLectureProvider(),
   liaisonParCompte?: Record<string, string>,
+  raccordement?: VerdictRaccordement,
 ): Promise<ResultatRevueMapping> {
   try {
     const ref = await provider.resoudreAccounting(coproCode);
@@ -153,7 +159,9 @@ export async function preparerRevueMapping(
 
     const planBrut = resoudreComptes(comptesSourceDistincts(jeu), contexte, { liaisonParCompte });
     // Garde-fou "grand livre avant repartition" (classe 6/7 avec report non nul) : bloquant strict.
-    const plan = appliquerAvantRepartition(planBrut, detecterAvantRepartition(jeu.controles ?? []));
+    const planAR = appliquerAvantRepartition(planBrut, detecterAvantRepartition(jeu.controles ?? []));
+    // Controle croise cloture <-> en cours (si fourni) : bloquant strict. No-op pour le standalone.
+    const plan = raccordement ? appliquerRaccordement(planAR, raccordement) : planAR;
 
     // Cibles "coproprietaire parti" : comptes d'attente/regularisation 46x/47x deja dans eStale.
     const partis = comptes
