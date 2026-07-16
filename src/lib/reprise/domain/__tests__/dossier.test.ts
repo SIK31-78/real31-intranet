@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avancement, creerDossier, etapesParDefaut, reconcilierEtapes, PHASES } from "../dossier";
+import { avancement, creerDossier, etapesParDefaut, reconcilierEtapes, ETAPES_REPRISE, PHASES } from "../dossier";
 import type { Etape } from "../dossier";
 
 describe("dossier d'onboarding", () => {
@@ -11,7 +11,7 @@ describe("dossier d'onboarding", () => {
     expect(codes).toContain("R1");
     expect(codes).toContain("R6");
     expect(codes).toContain("R11");
-    expect(d.etapes).toHaveLength(11);
+    expect(d.etapes).toHaveLength(ETAPES_REPRISE.length);
   });
 
   it("toutes les etapes referencent une phase connue", () => {
@@ -42,7 +42,7 @@ describe("reconcilierEtapes (migration douce)", () => {
     const reconc = reconcilierEtapes(anciennes);
     const codes = reconc.map((e) => e.code);
     // La checklist courante est presente en tete.
-    expect(codes.slice(0, 11)).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11"]);
+    expect(codes.slice(0, ETAPES_REPRISE.length)).toEqual(ETAPES_REPRISE.map((e) => e.code));
     // Les anciennes etapes COCHEES sont preservees (aucune perte d'etat) ; les a_faire droppees.
     const legacy = reconc.filter((e) => e.code.startsWith("R") === false);
     expect(legacy.map((e) => e.code).sort()).toEqual(["C4", "P3", "V1"]);
@@ -55,7 +55,7 @@ describe("reconcilierEtapes (migration douce)", () => {
     const canon = etapesParDefaut();
     canon.find((e) => e.code === "R6")!.statut = "fait";
     const reconc = reconcilierEtapes(canon);
-    expect(reconc).toHaveLength(11);
+    expect(reconc).toHaveLength(ETAPES_REPRISE.length);
     expect(reconc.find((e) => e.code === "R6")!.statut).toBe("fait");
   });
 });

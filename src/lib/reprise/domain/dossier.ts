@@ -129,6 +129,7 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
   { code: "R7", phase: "COMPTABILITE", libelle: "Revue du mapping compta tranchee (warnings, homonymes, partis)" },
   { code: "R8", phase: "COMPTABILITE", libelle: "Comptabilite importee dans eStale (Inc. 3 - a venir)" },
   { code: "R9", phase: "COMPTABILITE", libelle: "Balance eStale verifiee (soldes conformes au grand livre)" },
+  { code: "RD1", phase: "MISE_EN_SERVICE", libelle: "Documents de l'ancien syndic verses sur l'extranet eStale" },
   { code: "R10", phase: "MISE_EN_SERVICE", libelle: "Retours fiches traites (emails valides, espaces extranet ouverts)" },
   { code: "R11", phase: "MISE_EN_SERVICE", libelle: "Cloture de la reprise" },
 ];

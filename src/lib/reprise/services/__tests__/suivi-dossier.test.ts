@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { ETAPES_REPRISE } from "@/lib/reprise/domain/dossier";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
 import type { RecapPatrimoine } from "../orchestrateur-patrimoine";
 import {
@@ -61,9 +62,7 @@ describe("suivi-dossier", () => {
     await repo.sauver(ancien);
 
     const lu = await obtenirDossier(repo, "S0400");
-    expect(lu!.etapes.map((e) => e.code).slice(0, 11)).toEqual([
-      "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11",
-    ]);
+    expect(lu!.etapes.map((e) => e.code).slice(0, ETAPES_REPRISE.length)).toEqual(ETAPES_REPRISE.map((e) => e.code));
     // P3 (coche) preserve ; P1 (a_faire, sans info) abandonne.
     expect(lu!.etapes.find((e) => e.code === "P3")!.statut).toBe("fait");
     expect(lu!.etapes.find((e) => e.code === "P1")).toBeUndefined();
