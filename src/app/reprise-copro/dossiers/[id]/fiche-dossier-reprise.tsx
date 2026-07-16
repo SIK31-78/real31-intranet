@@ -57,6 +57,8 @@ import {
 } from "./actions";
 import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
 import { EditeurPatrimoine } from "./editeur-patrimoine";
+import { NotesAnalyse } from "@/components/reprise/notes-analyse";
+import { classerNotes, sourceNote, type NoteStructuree } from "@/lib/reprise/domain/classement-notes";
 
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -752,10 +754,13 @@ function CadrageAVerifier({ points }: { points: PointCadrage[] }) {
 // (b) Patrimoine extrait : compteurs + ecart par cle + anomalies + badge "pret a produire".
 // onCorrigerCle : guidage par l'ecart -> ouvre l'editeur de tantiemes de la cle fautive.
 function PatrimoineExtrait({ recap, onCorrigerCle }: { recap: RecapPatrimoine; onCorrigerCle: (code: string) => void }) {
-  const anomalies = [
-    ...recap.notes.map((m) => ({ ton: "info" as const, message: m })),
-    ...recap.checks.warnings.map((w) => ({ ton: "warn" as const, message: w.message })),
-    ...recap.checks.erreurs.map((e) => ({ ton: "err" as const, message: e.message })),
+  // Tout-venant hierarchise : notes d'extraction/compta/liaison classees par heuristique, +
+  // les checks deja typés (erreurs bloquantes -> erreur, warnings -> anomalie), regroupes par
+  // source. Les alertes dediees (avant-repartition, GL non exploite) restent gerees ailleurs.
+  const notes: NoteStructuree[] = [
+    ...classerNotes(recap.notes),
+    ...recap.checks.warnings.map((w) => ({ niveau: "anomalie" as const, source: sourceNote(w.message), texte: w.message })),
+    ...recap.checks.erreurs.map((e) => ({ niveau: "erreur" as const, source: sourceNote(e.message), texte: e.message })),
   ];
 
   return (
@@ -820,26 +825,9 @@ function PatrimoineExtrait({ recap, onCorrigerCle }: { recap: RecapPatrimoine; o
         </table>
       </div>
 
-      {anomalies.length > 0 && (
+      {notes.length > 0 && (
         <div className="mt-4">
-          <h4 className="text-[11px] font-medium text-ink-3 uppercase tracking-wide">
-            Anomalies et points de vigilance ({anomalies.length})
-          </h4>
-          <ul className="mt-1.5 space-y-1">
-            {anomalies.map((a, i) => (
-              <li
-                key={i}
-                className={cn(
-                  "text-[12.5px]",
-                  a.ton === "err" && "text-err-700",
-                  a.ton === "warn" && "text-warn-700",
-                  a.ton === "info" && "text-ink-2",
-                )}
-              >
-                - {a.message}
-              </li>
-            ))}
-          </ul>
+          <NotesAnalyse notes={notes} />
         </div>
       )}
     </section>
@@ -1198,16 +1186,9 @@ function PatrimoinePersistant({
       </div>
       {anomalies.length > 0 && (
         <div className="mt-3">
-          <h4 className="text-[11px] font-medium text-ink-3 uppercase tracking-wide">
-            Anomalies et points de vigilance ({anomalies.length})
-          </h4>
-          <ul className="mt-1.5 space-y-1">
-            {anomalies.map((a, i) => (
-              <li key={i} className="text-[12.5px] text-ink-2">
-                - {a}
-              </li>
-            ))}
-          </ul>
+          {/* Anomalies deja persistees (recap.notes + warnings des checks agreges) : defaut
+              "anomalie" quand aucune heuristique plus forte ne tranche. */}
+          <NotesAnalyse notes={classerNotes(anomalies, { niveauParDefaut: "anomalie" })} />
         </div>
       )}
       <p className="mt-3 text-[12px] text-ink-3">

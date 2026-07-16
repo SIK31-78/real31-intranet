@@ -50,6 +50,8 @@ import {
   type EntreeMappingResolue,
 } from "@/lib/reprise/domain/decisions-mapping";
 import { enregistrerDecisionAction, oublierDecisionAction } from "./actions";
+import { NotesAnalyse } from "@/components/reprise/notes-analyse";
+import { classerNotes } from "@/lib/reprise/domain/classement-notes";
 
 type ModeIa = "claude" | "claude-cli" | "mistral" | "mock";
 
@@ -486,7 +488,9 @@ function ResultatRevue({
         </section>
       )}
 
-      {resolu.notes.length > 0 && <PointsAttention notes={resolu.notes} />}
+      {resolu.notes.length > 0 && (
+        <NotesAnalyse notes={classerNotes(resolu.notes)} titre="Points d'attention" />
+      )}
 
       {data.balance.length > 0 && <SectionBalance balance={data.balance} />}
 
@@ -1170,23 +1174,6 @@ function EntreeAction({
       )}
       <VueGrandLivreCompte compte={grandLivreCompte} />
     </div>
-  );
-}
-
-// --- Points d'attention (notes : 489, decisions inapplicables...) -----------
-
-function PointsAttention({ notes }: { notes: string[] }) {
-  return (
-    <section>
-      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Points d&apos;attention</h3>
-      <ul className="mt-1.5 space-y-1">
-        {notes.map((n, i) => (
-          <li key={i} className="text-[12.5px] text-ink-2">
-            - {n}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 
