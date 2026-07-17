@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { Glose } from './Glossaire';
 import { ChecklistMesures } from './ChecklistMesures';
 import { ListeCourriersLiens, courriersDuNoeud } from './CourriersLiens';
-import { AlertBox, Button } from './ui';
+import { AlertBox } from './ui';
+import { Button } from '@/components/ui/button';
 import { subsidiariteParIncertitude } from '@/lib/domain/sinistre/engine/wizard';
 import { useActiveLocal, useDossier } from '@/lib/domain/sinistre/state/store';
 import type { EtapeNode } from '@/lib/domain/sinistre/types';
@@ -64,7 +65,7 @@ export function EtapeView({
       </h2>
 
       {node.gestionnaire && (
-        <p className="mt-1 text-sm font-medium text-green-700">
+        <p className="mt-1 text-sm font-medium text-ink-2">
           Assureur gestionnaire désigné : {node.gestionnaire.replace(/_/g, ' ')}
         </p>
       )}
@@ -82,7 +83,7 @@ export function EtapeView({
       <ListeCourriersLiens ids={courriersDuNoeud(local.wizard.current)} />
 
       <div className="no-print mt-6">
-        <Button onClick={onContinue} disabled={disabled}>
+        <Button variant="primary" onClick={onContinue} disabled={disabled}>
           Continuer -
         </Button>
       </div>

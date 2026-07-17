@@ -4,8 +4,12 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Glose } from './Glossaire';
-import { Button, GlosedList, SectionTitle } from './ui';
-import { courriersRecommandes, resultatNode } from '@/lib/domain/sinistre/engine/wizard';
+import { GlosedList, SectionTitle } from './ui';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { resultatNode } from '@/lib/domain/sinistre/engine/wizard';
+import { planifierCourriers } from '@/lib/domain/sinistre/engine/plan-courriers';
 import {
   expliquerGestionnaire,
   type ExplicationGestionnaire,
@@ -14,7 +18,7 @@ import { syntheseDossierSinistre } from '@/lib/domain/sinistre/engine/synthese';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { reporterRdvExpertiseAction, reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
 import { ajouterRdvAgendaAction, genererEtapesSinistreAction } from '@/app/sinistre/actions';
-import { ListeCourriersLiens } from './CourriersLiens';
+import { PlanCourriersVue } from './CourriersLiens';
 import type { ResultatNode } from '@/lib/domain/sinistre/types';
 
 const TRANCHE_LABEL: Record<string, string> = {
@@ -28,69 +32,141 @@ const TRANCHE_LABEL: Record<string, string> = {
  * déterminé l'assureur gestionnaire »). On restitue ce que le moteur SAIT déjà :
  * la règle appliquée (références du nœud) et les réponses du parcours qui y ont
  * mené. Rien n'est reconstruit ni deviné ici : tout vient de `expliquerGestionnaire`.
+ *
+ * REPLIÉ par défaut : c'est du contexte, pas une action. La réponse (« quel
+ * assureur ») reste toujours visible au-dessus ; seul le raisonnement se plie.
  */
 function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGestionnaire }) {
   const { gestionnaire, cas213, references, motifs, tranche, provisoire, role } = explication;
 
   return (
-    <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
-      <p className="text-xs uppercase tracking-wide text-green-700">Assureur gestionnaire</p>
-      <p className="text-lg font-semibold text-green-900">{gestionnaire.replace(/_/g, ' ')}</p>
-
-      <p className="mt-3 text-sm font-medium text-green-900">Pourquoi cet assureur ?</p>
-      <ul className="mt-1 space-y-1 text-sm text-green-900">
-        {motifs.map((m, i) => (
-          <li key={i} className="flex gap-2">
-            <span aria-hidden className="text-green-700">
-              •
-            </span>
-            <span>
-              <span className="text-green-700">{m.question}</span>{' '}
-              <span className="font-medium">{m.reponse}</span>
-            </span>
-          </li>
-        ))}
-        {cas213 !== undefined && (
-          <li className="flex gap-2">
-            <span aria-hidden className="text-green-700">
-              •
-            </span>
-            <span>
-              Ces réponses correspondent au{' '}
-              <span className="font-medium">cas {cas213} du tableau IRSI 2.1.3</span>, qui
-              désigne cet assureur.
-            </span>
-          </li>
+    <Card className="mt-4 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
+          Assureur gestionnaire
+        </span>
+        <span className="text-[15px] font-semibold text-ink">{gestionnaire.replace(/_/g, ' ')}</span>
+        {tranche && <Badge ton="neutral">{TRANCHE_LABEL[tranche] ?? tranche}</Badge>}
+        {provisoire && (
+          <Badge ton="warn" dot>
+            Provisoire
+          </Badge>
         )}
-        {tranche && (
-          <li className="flex gap-2">
-            <span aria-hidden className="text-green-700">
-              •
-            </span>
-            <span className="text-green-700">
-              Contexte (sans effet sur la désignation) : {TRANCHE_LABEL[tranche] ?? tranche}.
-            </span>
-          </li>
-        )}
-      </ul>
-
-      {role && (
-        <p className="mt-3 text-[13px] text-green-800">
-          <span className="font-medium">Son rôle : </span>
-          <Glose>{role}</Glose>
-        </p>
-      )}
-
-      {references.length > 0 && (
-        <p className="mt-2 text-xs text-green-700">Règle appliquée : {references.join(' · ')}</p>
-      )}
+      </div>
 
       {provisoire && (
-        <p className="mt-3 rounded border-l-4 border-warn-500 bg-warn-50 p-2 text-[13px] text-warn-700">
+        <p
+          role="note"
+          className="mt-3 rounded-md border-l-4 border-warn-500 bg-warn-50 p-2 text-[13px] text-warn-700"
+        >
           Désignation <strong>provisoire</strong> : elle repose sur un « Je ne sais pas » et non
           sur un défaut d’assurance constaté. Obtenez l’attestation (courrier C5) puis reprenez la
           question d’assurance.
         </p>
+      )}
+
+      <details className="group mt-3">
+        <summary className="cursor-pointer list-none text-[13px] font-medium text-ink-2 marker:content-none hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+          <span
+            aria-hidden
+            className="mr-1.5 inline-block text-ink-4 transition-transform group-open:rotate-90"
+          >
+            ▸
+          </span>
+          Pourquoi cet assureur ?
+        </summary>
+
+        <ul className="mt-2 space-y-1 text-[13px] text-ink-2">
+          {motifs.map((m, i) => (
+            <li key={i} className="flex gap-2">
+              <span aria-hidden className="text-ink-4">
+                •
+              </span>
+              <span>
+                <span className="text-ink-3">{m.question}</span>{' '}
+                <span className="font-medium text-ink">{m.reponse}</span>
+              </span>
+            </li>
+          ))}
+          {cas213 !== undefined && (
+            <li className="flex gap-2">
+              <span aria-hidden className="text-ink-4">
+                •
+              </span>
+              <span>
+                Ces réponses correspondent au{' '}
+                <span className="font-medium text-ink">cas {cas213} du tableau IRSI 2.1.3</span>,
+                qui désigne cet assureur.
+              </span>
+            </li>
+          )}
+          {tranche && (
+            <li className="flex gap-2">
+              <span aria-hidden className="text-ink-4">
+                •
+              </span>
+              <span className="text-ink-3">
+                Contexte (sans effet sur la désignation) : {TRANCHE_LABEL[tranche] ?? tranche}.
+              </span>
+            </li>
+          )}
+        </ul>
+
+        {role && (
+          <p className="mt-3 text-[13px] text-ink-2">
+            <span className="font-medium">Son rôle : </span>
+            <Glose>{role}</Glose>
+          </p>
+        )}
+
+        {references.length > 0 && (
+          <p className="mt-2 text-xs text-ink-4">Règle appliquée : {references.join(' · ')}</p>
+        )}
+      </details>
+    </Card>
+  );
+}
+
+/**
+ * Une action de report vers le dossier. Toutes ces actions partagent la même
+ * forme (une phrase, un bouton, un accusé) : une seule ligne sobre chacune, au
+ * lieu de quatre bandeaux de couleurs différentes qui écrasaient le résultat.
+ */
+function LigneAction({
+  texte,
+  fait,
+  echec = false,
+  bouton,
+  onClick,
+  pending,
+  children,
+}: {
+  texte: string;
+  fait?: string | null;
+  /** Le retour est un échec : on ne le peint pas en « fait ». */
+  echec?: boolean;
+  bouton: string;
+  onClick: () => void;
+  pending: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      {fait ? (
+        <span
+          role="status"
+          className={`text-[13px] font-medium ${echec ? 'text-warn-700' : 'text-ok-700'}`}
+        >
+          {fait}
+          {children}
+        </span>
+      ) : (
+        <>
+          <span className="text-[13px] text-ink-2">{texte}</span>
+          <Button variant="secondary" onClick={onClick} disabled={pending}>
+            {pending ? 'En cours…' : bouton}
+          </Button>
+        </>
       )}
     </div>
   );
@@ -156,12 +232,14 @@ export function Resultat() {
   );
   const [pendingAgenda, startAgendaTransition] = useTransition();
   const [agendaMessage, setAgendaMessage] = useState<string | null>(null);
+  const [agendaEchec, setAgendaEchec] = useState(false);
   const [agendaWebLink, setAgendaWebLink] = useState<string | null>(null);
 
   const ajouterAgenda = () => {
     if (rdvsAgenda.length === 0) return;
     startAgendaTransition(async () => {
       const res = await ajouterRdvAgendaAction({ rdvs: rdvsAgenda });
+      setAgendaEchec(!res.ok);
       if (!res.ok) {
         setAgendaMessage(res.erreur);
         setAgendaWebLink(null);
@@ -177,11 +255,13 @@ export function Resultat() {
   // la liste d'etapes). Retour minimal (genere N / rien a ajouter / erreur).
   const [pendingEtapes, startEtapesTransition] = useTransition();
   const [etapesMessage, setEtapesMessage] = useState<string | null>(null);
+  const [etapesEchec, setEtapesEchec] = useState(false);
 
   const genererEtapes = () => {
     if (!dossierId) return;
     startEtapesTransition(async () => {
       const res = await genererEtapesSinistreAction(dossierId, state);
+      setEtapesEchec(!res.ok);
       if (!res.ok) setEtapesMessage('Erreur lors de la génération.');
       else if (res.ajoutees === 0) setEtapesMessage('Aucune nouvelle étape à ajouter.');
       else setEtapesMessage(`${res.ajoutees} étape${res.ajoutees > 1 ? 's' : ''} ajoutée${res.ajoutees > 1 ? 's' : ''} au dossier.`);
@@ -191,13 +271,18 @@ export function Resultat() {
   // « On ne sait pas comment est déterminé l'assureur gestionnaire » : le moteur
   // connaît le chemin parcouru, on l'expose (règle appliquée + réponses qui y ont mené).
   const explication = expliquerGestionnaire(wizard);
-  const recommandes = courriersRecommandes(wizard);
+
+  // Le résultat n'est plus un catalogue de modèles : c'est un plan. Le domaine
+  // partitionne (jour J / suites conditionnelles), l'écran ne fait qu'afficher.
+  const plan = planifierCourriers(wizard);
+
+  const actions = dossierId || rdvsAgenda.length > 0;
 
   return (
     <div>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-green-900">Synthèse</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">Synthèse</p>
           <h2 className="text-2xl font-bold text-ink">
             <Glose>{node.titre}</Glose>
           </h2>
@@ -213,117 +298,100 @@ export function Resultat() {
         </div>
       </div>
 
-      {dossierId && (
-        <div className="no-print mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm">
-          {reporte ? (
-            <span className="font-medium text-green-900">Synthèse reportée dans le dossier</span>
-          ) : (
-            <span className="text-green-900">
-              Reporter cette synthèse (résultat, gestionnaire, tranche, courriers) dans le journal du dossier.
-            </span>
-          )}
-          <div className="flex shrink-0 items-center gap-2">
-            {!reporte && (
-              <Button variant="primary" onClick={reporterDansDossier} disabled={pending}>
-                {pending ? 'Report en cours…' : 'Reporter la synthèse dans le dossier'}
-              </Button>
-            )}
-            <Link
-              href={`/dossiers/${dossierId}`}
-              className="text-[13px] font-medium text-green-700 underline hover:text-green-900"
-            >
-              Revenir au dossier
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {dossierId && (
-        <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm">
-          {etapesMessage ? (
-            <span className="font-medium text-sky-900">{etapesMessage}</span>
-          ) : (
-            <span className="text-sky-900">
-              Générer les étapes du dossier (courriers recommandés, jalons) depuis ce parcours. N&apos;écrase aucune étape existante.
-            </span>
-          )}
-          {!etapesMessage && (
-            <Button variant="primary" onClick={genererEtapes} disabled={pendingEtapes}>
-              {pendingEtapes ? 'Génération en cours…' : 'Générer les étapes depuis le parcours'}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {dossierId && rdvsPayload.length > 0 && (
-        <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
-          {rdvReportes ? (
-            <span className="font-medium text-amber-900">
-              {rdvsPayload.length > 1 ? 'Rendez-vous d’expertise reportés' : 'Rendez-vous d’expertise reporté'} dans le dossier
-            </span>
-          ) : (
-            <span className="text-amber-900">
-              Reporter {rdvsPayload.length > 1 ? `les ${rdvsPayload.length} rendez-vous` : 'le rendez-vous'} d&apos;expertise dans le journal du dossier.
-            </span>
-          )}
-          {!rdvReportes && (
-            <Button variant="primary" onClick={reporterRdvDansDossier} disabled={pendingRdv}>
-              {pendingRdv ? 'Report en cours…' : 'Reporter les RDV d’expertise dans le dossier'}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {rdvsAgenda.length > 0 && (
-        <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm">
-          {agendaMessage ? (
-            <span className="font-medium text-indigo-900">
-              {agendaMessage}
-              {agendaWebLink && (
-                <>
-                  {' '}
-                  <a
-                    href={agendaWebLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-indigo-700 underline hover:text-indigo-900"
-                  >
-                    Ouvrir dans Outlook
-                  </a>
-                </>
-              )}
-            </span>
-          ) : (
-            <span className="text-indigo-900">
-              Ajouter {rdvsAgenda.length > 1 ? `les ${rdvsAgenda.length} rendez-vous` : 'le rendez-vous'} d&apos;expertise à votre agenda Outlook.
-            </span>
-          )}
-          {!agendaMessage && (
-            <Button variant="primary" onClick={ajouterAgenda} disabled={pendingAgenda}>
-              {pendingAgenda ? 'Ajout en cours…' : 'Ajouter les RDV à mon agenda Outlook'}
-            </Button>
-          )}
-        </div>
-      )}
-
       {explication && <PourquoiCeGestionnaire explication={explication} />}
 
+      {/* Le cœur de l'écran : ce qui part aujourd'hui, et ce qui attend. */}
+      <PlanCourriersVue plan={plan} />
+
       {node.prise_en_charge && (
-        <div className="mt-4">
+        <div className="mt-6">
           <SectionTitle>Règles de prise en charge</SectionTitle>
-          <GlosedList items={node.prise_en_charge} />
+          <GlosedList items={node.prise_en_charge} className="mt-1" />
         </div>
       )}
 
       {node.recours && (
         <div className="mt-4">
           <SectionTitle>Recours</SectionTitle>
-          <GlosedList items={[node.recours]} />
+          <GlosedList items={[node.recours]} className="mt-1" />
         </div>
       )}
 
-      {/* Bloc « Modèles de mails ou courriers recommandés ». */}
-      <ListeCourriersLiens ids={recommandes} />
+      {/* Reports vers le dossier / l'agenda : utiles, mais ce ne sont pas les
+          gestes du jour J - ils passent SOUS le plan, en lignes sobres. */}
+      {actions && (
+        <div className="no-print mt-6">
+          <SectionTitle>Reporter dans le dossier</SectionTitle>
+          <Card className="mt-2 divide-y divide-line">
+            {dossierId && (
+              <LigneAction
+                texte="Reporter cette synthèse (résultat, gestionnaire, tranche, courriers) dans le journal du dossier."
+                fait={reporte ? 'Synthèse reportée dans le dossier' : null}
+                bouton="Reporter la synthèse"
+                onClick={reporterDansDossier}
+                pending={pending}
+              />
+            )}
+            {dossierId && (
+              <LigneAction
+                texte="Générer les étapes du dossier (courriers recommandés, jalons) depuis ce parcours. N’écrase aucune étape existante."
+                fait={etapesMessage}
+                echec={etapesEchec}
+                bouton="Générer les étapes"
+                onClick={genererEtapes}
+                pending={pendingEtapes}
+              />
+            )}
+            {dossierId && rdvsPayload.length > 0 && (
+              <LigneAction
+                texte={`Reporter ${rdvsPayload.length > 1 ? `les ${rdvsPayload.length} rendez-vous` : 'le rendez-vous'} d'expertise dans le journal du dossier.`}
+                fait={
+                  rdvReportes
+                    ? `${rdvsPayload.length > 1 ? 'Rendez-vous d’expertise reportés' : 'Rendez-vous d’expertise reporté'} dans le dossier`
+                    : null
+                }
+                bouton="Reporter les RDV d’expertise"
+                onClick={reporterRdvDansDossier}
+                pending={pendingRdv}
+              />
+            )}
+            {rdvsAgenda.length > 0 && (
+              <LigneAction
+                texte={`Ajouter ${rdvsAgenda.length > 1 ? `les ${rdvsAgenda.length} rendez-vous` : 'le rendez-vous'} d'expertise à votre agenda Outlook.`}
+                fait={agendaMessage}
+                echec={agendaEchec}
+                bouton="Ajouter à mon agenda Outlook"
+                onClick={ajouterAgenda}
+                pending={pendingAgenda}
+              >
+                {agendaWebLink && (
+                  <>
+                    {' '}
+                    <a
+                      href={agendaWebLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-green-700 underline hover:text-green-600"
+                    >
+                      Ouvrir dans Outlook
+                    </a>
+                  </>
+                )}
+              </LigneAction>
+            )}
+            {dossierId && (
+              <div className="px-4 py-3">
+                <Link
+                  href={`/dossiers/${dossierId}`}
+                  className="text-[13px] font-medium text-green-700 underline hover:text-green-600"
+                >
+                  Revenir au dossier
+                </Link>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

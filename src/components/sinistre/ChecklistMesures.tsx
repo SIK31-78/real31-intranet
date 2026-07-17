@@ -30,7 +30,7 @@ export function MesureRow({ item }: { item: ChecklistItem }) {
         <Glose>{item.libelle}</Glose>
         <span
           className={`ml-2 inline-block rounded-full px-2 py-0.5 text-xs ${
-            tiers ? 'bg-warn-50 text-warn-700' : 'bg-green-50 text-green-900'
+            tiers ? 'bg-warn-50 text-warn-700' : 'bg-surface-2 text-ink-2'
           }`}
         >
           {tiers ? '- à demander : ' : ''}

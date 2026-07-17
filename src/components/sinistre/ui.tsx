@@ -1,28 +1,24 @@
 'use client';
 
-/** Petits composants UI réutilisables (sobres, accessibles AA). */
+/**
+ * Helpers UI SPÉCIFIQUES au module sinistre - tout ce qui est couplé au métier
+ * (glossaire, références conventionnelles, alertes d'étape).
+ *
+ * Les primitives génériques (Card, Button, Badge) vivent dans `@/components/ui`
+ * et sont utilisées directement : ce fichier en hébergeait des copies avec des
+ * signatures divergentes, c'était la dette de l'app d'origine.
+ */
 
 import type { ReactNode } from 'react';
 import { Glose } from './Glossaire';
 
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-md border border-line bg-surface p-5 shadow-1 ${className}`}>
-      {children}
-    </div>
-  );
-}
-
+/** Références conventionnelles portées par un nœud (IRSI, CIDECOP, Code…). */
 export function References({ items }: { items?: string[] }) {
   if (!items?.length) return null;
-  return (
-    <p className="mt-3 text-xs text-ink-4">
-      Références : {items.join(' · ')}
-    </p>
-  );
+  return <p className="mt-3 text-xs text-ink-4">Références : {items.join(' · ')}</p>;
 }
 
-/** Encadré d'alerte visuellement distinct (étapes). */
+/** Encadré d'alerte visuellement distinct (étapes), glosable. */
 export function AlertBox({ children }: { children: ReactNode }) {
   return (
     <div
@@ -48,47 +44,7 @@ export function GlosedList({ items, className = '' }: { items: string[]; classNa
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
-  return <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-ink-3">{children}</h3>;
-}
-
-interface ButtonProps {
-  children: ReactNode;
-  onClick?: () => void;
-  type?: 'button' | 'submit';
-  variant?: 'primary' | 'secondary' | 'ghost';
-  disabled?: boolean;
-  title?: string;
-  className?: string;
-  'aria-label'?: string;
-}
-
-export function Button({
-  children,
-  onClick,
-  type = 'button',
-  variant = 'primary',
-  disabled = false,
-  title,
-  className = '',
-  'aria-label': ariaLabel,
-}: ButtonProps) {
-  const base =
-    'inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-green-700 disabled:cursor-not-allowed disabled:opacity-50';
-  const variants = {
-    primary: 'bg-green-700 text-white hover:bg-green-700',
-    secondary: 'border border-line-2 bg-surface text-ink hover:bg-surface-2',
-    ghost: 'text-green-700 hover:bg-green-50',
-  } as const;
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={ariaLabel}
-      className={`${base} ${variants[variant]} ${className}`}
-    >
-      {children}
-    </button>
+    <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">{children}</h3>
   );
 }

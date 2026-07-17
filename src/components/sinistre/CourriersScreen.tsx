@@ -17,7 +17,8 @@ import {
 import { construireContexte } from '@/lib/domain/sinistre/state/courrierContext';
 import { inverse } from '@/lib/domain/sinistre/engine/mapping';
 import { appliquerEcriture, useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
-import { Button, Card } from './ui';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import type { Courrier } from '@/lib/domain/sinistre/types';
 
 /** Libellés lisibles pour quelques clés de champ techniques (sinon clé brute). */
@@ -37,7 +38,7 @@ function ListeCourriers() {
         Modèles pré-remplis depuis le dossier en cours. Les champs inconnus sont surlignés et à
         compléter.
       </p>
-      <ul className="mt-6 divide-y divide-surface-2 rounded-lg border border-line bg-surface">
+      <ul className="mt-6 divide-y divide-line rounded-md border border-line bg-surface">
         {courriers.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-4">
             <div>
@@ -134,7 +135,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
         {/* Formulaire */}
         <div className="no-print space-y-4">
           {conditionNames.length > 0 && (
-            <Card>
+            <Card className="p-4">
               <h2 className="mb-2 text-sm font-semibold text-ink-2">Blocs conditionnels</h2>
               <div className="space-y-1">
                 {conditionNames.map((c) => (
@@ -153,7 +154,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
             </Card>
           )}
 
-          <Card>
+          <Card className="p-4">
             <h2 className="mb-2 text-sm font-semibold text-ink-2">Champs</h2>
             <div className="space-y-2">
               {fields.map((f) => {
@@ -180,7 +181,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
           </Card>
 
           {courrier.pieces_obligatoires && (
-            <Card>
+            <Card className="p-4">
               <h2 className="mb-1 text-sm font-semibold text-ink-2">Pièces obligatoires</h2>
               <ul className="list-disc pl-5 text-sm text-ink-3">
                 {courrier.pieces_obligatoires.map((p, i) => (
@@ -193,7 +194,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
 
         {/* Aperçu temps réel */}
         <div>
-          <Card className="print-container">
+          <Card className="print-container p-4">
             <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-ink">
               {apercu}
             </pre>
@@ -201,6 +202,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
 
           <div className="no-print mt-3 flex flex-wrap items-center gap-2">
             <Button
+              variant="primary"
               onClick={copier}
               disabled={!exportable}
               title={exportable ? '' : 'Complétez les champs requis surlignés'}
@@ -238,7 +240,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
               {brouillon.erreur ? (
                 <span className="text-warn-700">{brouillon.erreur}</span>
               ) : brouillon.webLink ? (
-                <span className="text-green-700">
+                <span className="text-ok-700">
                   Brouillon créé dans votre boîte.{' '}
                   <a
                     href={brouillon.webLink}
@@ -250,7 +252,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
                   </a>
                 </span>
               ) : (
-                <span className="text-green-700">Brouillon créé dans votre boîte.</span>
+                <span className="text-ok-700">Brouillon créé dans votre boîte.</span>
               )}
             </p>
           )}

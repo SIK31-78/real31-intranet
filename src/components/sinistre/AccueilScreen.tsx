@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDossier, nouveauDossier, purgerBrouillon, useActiveLocal } from '@/lib/domain/sinistre/state/store';
-import { Button } from './ui';
+import { Button } from '@/components/ui/button';
 
 export function AccueilScreen() {
   const { state, dispatch } = useDossier();
@@ -28,9 +28,9 @@ export function AccueilScreen() {
       </div>
 
       {brouillonEnCours && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
+        <div className="rounded-md border border-line bg-surface p-4 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-green-900">
+            <span className="text-ink-2">
               Un dossier est en cours&nbsp;: <strong>{state.referenceInterne}</strong>
               {state.immeuble.nom ? ` - ${state.immeuble.nom}` : ''}.
             </span>
@@ -49,9 +49,9 @@ export function AccueilScreen() {
       <div className="grid gap-6">
         <button
           onClick={demarrer}
-          className="group rounded-lg border border-green-200 bg-surface p-8 text-left shadow-1 transition hover:border-green-600 hover:shadow-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          className="group rounded-md border border-line bg-surface p-8 text-left shadow-1 transition hover:border-green-600 hover:shadow-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
         >
-          <div className="text-xl font-semibold text-green-900">Nouveau sinistre</div>
+          <div className="text-xl font-semibold text-ink">Nouveau sinistre</div>
           <div className="mt-1 font-medium text-ink-2">Parcours guidé</div>
           <p className="mt-3 text-sm text-ink-3">
             Qualification du sinistre, désignation de l&apos;assureur gestionnaire, tranche, recours, puis

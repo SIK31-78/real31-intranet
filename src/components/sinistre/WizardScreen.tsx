@@ -18,7 +18,8 @@ import { LocauxBar } from './LocauxBar';
 import { QuestionView } from './QuestionView';
 import { EtapeView } from './EtapeView';
 import { Resultat } from './Resultat';
-import { Button, Card } from './ui';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 // Enregistrement serveur (incrément 3) : la vérité devient le serveur une fois le
 // dossier enregistré ; le brouillon localStorage reste un filet hors-ligne. Le
@@ -104,7 +105,7 @@ function DossierPanel() {
   };
 
   return (
-    <Card className="no-print mb-4">
+    <Card className="no-print mb-4 p-4">
       <button
         onClick={() => setOuvert((o) => !o)}
         aria-expanded={ouvert}
@@ -134,7 +135,7 @@ function DossierPanel() {
         <p className="mt-2 text-xs">
           <Link
             href={`/dossiers/${state.dossierId}`}
-            className="font-medium text-green-700 underline hover:text-green-900"
+            className="font-medium text-green-700 underline hover:text-green-600"
           >
             Ouvrir le dossier dans « Mes dossiers »
           </Link>
@@ -164,7 +165,7 @@ function DossierPanel() {
               ))}
             </datalist>
             {coproRattachee ? (
-              <span className="mt-1 block text-xs text-green-700">
+              <span className="mt-1 block text-xs text-ok-700">
                 Rattachée : {coproRattachee} — enregistrement débloqué.
               </span>
             ) : (
@@ -234,7 +235,7 @@ function DossierPanel() {
             {retour && (
               <span
                 role="status"
-                className={`text-sm ${retour.ok ? 'text-green-700' : 'text-warn-700'}`}
+                className={`text-sm ${retour.ok ? 'text-ok-700' : 'text-warn-700'}`}
               >
                 {retour.texte}
               </span>
@@ -307,9 +308,9 @@ export function WizardScreen() {
   return (
     <div>
       {dossierId && (
-        <div className="no-print mb-4 flex items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+        <div className="no-print mb-4 flex items-center justify-between gap-3 rounded-md border-l-4 border-info-500 bg-info-50 px-3 py-2 text-sm text-info-700">
           <span>Analyse rattachée à un dossier · la synthèse pourra y être reportée depuis l’écran de résultat.</span>
-          <Link href={`/dossiers/${dossierId}`} className="shrink-0 font-medium underline hover:text-green-700">
+          <Link href={`/dossiers/${dossierId}`} className="shrink-0 font-medium underline">
             Revenir au dossier
           </Link>
         </div>
@@ -356,7 +357,7 @@ export function WizardScreen() {
         </div>
       )}
 
-      <Card>
+      <Card className="p-5">
         {node.type === 'question' && (
           <QuestionView
             node={node}

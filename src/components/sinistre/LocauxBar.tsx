@@ -43,7 +43,7 @@ export function LocauxBar() {
               ? 'Duplique la phase 1 commune pour un nouveau local'
               : 'Disponible une fois la qualification commune terminée'
           }
-          className="rounded-md bg-green-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-40"
+          className="rounded-sm bg-green-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-600 disabled:opacity-40"
         >
           + Ajouter un local sinistré
         </button>
