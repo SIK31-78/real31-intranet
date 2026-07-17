@@ -1,16 +1,17 @@
 "use server";
 
 // Server Actions du suivi des dossiers de reprise. Contrat uniforme {ok,...} : jamais
-// de throw cote client. Validation Zod (bornage des tailles). Cloisonnement : on exige
-// un gestionnaire connecte (getGestionnaireCourant).
+// de throw cote client. Validation Zod (bornage des tailles).
 //
 // NB : une reprise concerne une copro PAS ENCORE dans le perimetre eStale -> PAS de
-// check coproAppartient ici (contrairement aux dossiers "classiques"). On se contente
-// d'exiger un gestionnaire authentifie.
+// check coproAppartient ici (contrairement aux dossiers "classiques").
+//
+// ROLE : la LISTE des dossiers est ouverte a tous (lecture, cf. page.tsx) ; OUVRIR une reprise
+// est un geste d'encadrement -> exigerAdminReprise (directeur / manager / super-admin).
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAdminReprise } from "@/lib/auth/garde-reprise";
 import { getRepriseDossierRepository } from "@/lib/reprise/adapters/router";
 import { creerDossierSuivi } from "@/lib/reprise/services/suivi-dossier";
 
@@ -32,8 +33,8 @@ export async function creerDossierAction(form: {
     return { ok: false, message: "Reference et nom de la copropriete requis (200 caracteres max)." };
   }
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour creer un dossier." };
+  const garde = await exigerAdminReprise("creer un dossier");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   const repo = getRepriseDossierRepository();
   try {

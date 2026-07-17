@@ -1,14 +1,17 @@
 "use server";
 
 // Server Actions de la FICHE-HUB d'un dossier de reprise. Contrat uniforme {ok,...} :
-// jamais de throw cote client. Validation Zod. Cloisonnement : gestionnaire connecte exige
-// (getGestionnaireCourant).
+// jamais de throw cote client. Validation Zod.
 //
 // NB : une reprise concerne une copro PAS ENCORE dans le perimetre eStale -> PAS de check
-// coproAppartient ici. Un gestionnaire authentifie suffit.
+// coproAppartient ici.
 //
-// Deux familles d'actions :
-//   - SUIVI HUMAIN : majEtapeAction / ajouterNoteAction (cyclage de statut + journal).
+// ROLES (regle Sekou, cf. lib/auth/roles.ts) - deux familles d'actions, DEUX GARDES :
+//   - SUIVI HUMAIN : majEtapeAction / ajouterNoteAction (cyclage de statut + journal). OUVERT a
+//     tout gestionnaire connecte - le suivi est visible ET vivable par tous.
+//   - TOUT LE RESTE (corrections, liaison, contacts, production, injection, fiches de
+//     renseignements, archivage/suppression) : ADMIN REPRISE seulement (exigerAdminReprise). Le
+//     grisage cote UI n'est qu'une courtoisie ; c'est ICI que la regle est appliquee.
 //   - PATRIMOINE (pilote IA) : produireAction (xlsx de repli), injecterAction (dry-run ou
 //     REEL selon ESTALE_ECRITURE). L'ANALYSE vit dans la route POST /api/reprise/analyser
 //     (multipart natif, sans les limites body/serialisation des Server Actions).
@@ -20,6 +23,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { exigerAdminReprise } from "@/lib/auth/garde-reprise";
 import {
   getRepriseDossierRepository,
   getEstaleEcritureProvider,
@@ -131,13 +135,13 @@ const schemaArchiver = z.object({
   archive: z.boolean(),
 });
 
-/** Archive ou desarchive un dossier (reversible, flag JSONB). Cloisonnement : gestionnaire connecte. */
+/** Archive ou desarchive un dossier (reversible, flag JSONB). Reserve aux ADMINS REPRISE. */
 export async function archiverDossierAction(dossierId: string, archive: boolean): Promise<ActionResultat> {
   const valid = schemaArchiver.safeParse({ dossierId, archive });
   if (!valid.success) return { ok: false, message: "Parametres invalides." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour archiver ce dossier." };
+  const garde = await exigerAdminReprise("archiver ce dossier");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   try {
     await archiverDossier(getRepriseDossierRepository(), valid.data.dossierId, valid.data.archive, new Date().toISOString());
@@ -152,15 +156,15 @@ export async function archiverDossierAction(dossierId: string, archive: boolean)
 
 /**
  * Supprime DEFINITIVEMENT un dossier de reprise + ses fiches de renseignements liees (hard delete,
- * irreversible). Cloisonnement : gestionnaire connecte. Redirige vers la liste (comme le module
+ * irreversible). Reserve aux ADMINS REPRISE. Redirige vers la liste (comme le module
  * Dossiers generaliste). AUCUNE mutation eStale (une copro deja injectee n'est pas touchee).
  */
 export async function supprimerDossierRepriseAction(dossierId: string): Promise<ActionResultat> {
   const valid = z.string().trim().min(1).max(40).safeParse(dossierId);
   if (!valid.success) return { ok: false, message: "Dossier invalide." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour supprimer ce dossier." };
+  const garde = await exigerAdminReprise("supprimer ce dossier");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   try {
     await supprimerDossierEtFiches(getRepriseDossierRepository(), getFicheRenseignementsRepository(), valid.data);
@@ -187,7 +191,7 @@ export type TrancherLiaisonResultat =
 
 /**
  * Tranche une liaison owner <-> compte 450 ambigue : rattache le compte choisi (ou dissocie si
- * vide). Persiste le jeu. Cloisonnement : gestionnaire connecte exige. Ne bloque jamais
+ * vide). Persiste le jeu. Reserve aux ADMINS REPRISE. Ne bloque jamais
  * l'injection patrimoine (la liaison est un complement compta, pas un pre-requis).
  */
 export async function trancherLiaisonAction(
@@ -198,8 +202,8 @@ export async function trancherLiaisonAction(
   const valid = schemaTrancherLiaison.safeParse({ dossierId, ownerId, compteSource });
   if (!valid.success) return { ok: false, message: "Liaison invalide." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour trancher cette liaison." };
+  const garde = await exigerAdminReprise("trancher cette liaison");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   try {
     const liaisons = await trancherLiaisonDossier(
@@ -230,7 +234,7 @@ export type ContactAnnexeResultat =
 /**
  * VALIDE un contact d'annexe : ecrit son email/telephone sur l'owner choisi (`ownerId` = l'owner
  * apparie OU un owner corrige a la main). Reutilise le mecanisme de corrections (owner.modifier ->
- * transactionnel + journalise + auto-checks). Cloisonnement : gestionnaire connecte. AUCUNE
+ * transactionnel + journalise + auto-checks). Reserve aux ADMINS REPRISE. AUCUNE
  * mutation eStale (jeu local seulement).
  */
 export async function validerContactAnnexeAction(
@@ -241,8 +245,8 @@ export async function validerContactAnnexeAction(
   const valid = schemaValiderContact.safeParse({ dossierId, contactId, ownerId });
   if (!valid.success) return { ok: false, message: "Parametres invalides." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour valider ce contact." };
+  const garde = await exigerAdminReprise("valider ce contact");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   try {
     const r = await validerContactAnnexeDossier(
@@ -264,7 +268,7 @@ const schemaIgnorerContact = z.object({
   contactId: z.string().trim().min(1).max(60),
 });
 
-/** IGNORE un contact d'annexe (proposition ecartee). Cloisonnement : gestionnaire connecte. */
+/** IGNORE un contact d'annexe (proposition ecartee). Reserve aux ADMINS REPRISE. */
 export async function ignorerContactAnnexeAction(
   dossierId: string,
   contactId: string,
@@ -272,8 +276,8 @@ export async function ignorerContactAnnexeAction(
   const valid = schemaIgnorerContact.safeParse({ dossierId, contactId });
   if (!valid.success) return { ok: false, message: "Parametres invalides." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi." };
+  const garde = await exigerAdminReprise("ignorer ce contact");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   try {
     const contacts = await ignorerContactAnnexeDossier(
@@ -379,7 +383,7 @@ export type CorrigerResultat =
 
 /**
  * Applique un lot de corrections manuelles au jeu persiste du dossier (editeur ADR-030).
- * Cloisonnement (gestionnaire connecte) + Zod strict. Renvoie le jeu + recap recalcules pour que
+ * Reserve aux ADMINS REPRISE + Zod strict. Renvoie le jeu + recap recalcules pour que
  * l'UI rafraichisse compteurs/badges/ecarts SANS re-analyser. Le detail vit dans le journal (base) ;
  * le log serveur reste PII-free (compteur de modifications, pas de nom).
  */
@@ -387,8 +391,8 @@ export async function corrigerJeuAction(dossierId: string, corrections: Correcti
   const idOk = z.string().trim().min(1).max(40).safeParse(dossierId);
   if (!idOk.success) return { ok: false, message: "Dossier invalide." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour corriger le jeu." };
+  const garde = await exigerAdminReprise("corriger le jeu");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   const valid = zCorrections.safeParse(corrections);
   if (!valid.success) return { ok: false, message: "Corrections invalides (format inattendu)." };
@@ -424,8 +428,8 @@ export async function produireAction(dossierId: string, jeu: JeuDeDonnees): Prom
   const idOk = z.string().trim().min(1).max(40).safeParse(dossierId);
   if (!idOk.success) return { ok: false, message: "Dossier invalide." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour produire les fichiers." };
+  const garde = await exigerAdminReprise("produire les fichiers");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   const valid = zJeu.safeParse(jeu);
   if (!valid.success) return { ok: false, message: "Jeu de donnees invalide ou absent." };
@@ -498,8 +502,8 @@ export async function injecterAction(
   const idOk = z.string().trim().min(1).max(40).safeParse(dossierId);
   if (!idOk.success) return { ok: false, message: "Dossier invalide." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour lancer l'injection." };
+  const garde = await exigerAdminReprise("lancer l'injection");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   const valid = zJeu.safeParse(jeu);
   if (!valid.success) return { ok: false, message: "Jeu de donnees invalide ou absent." };
@@ -595,8 +599,9 @@ export async function genererCourriersFicheAction(
   const valid = zGenerer.safeParse({ dossierId, ...options });
   if (!valid.success) return { ok: false, message: "Parametres invalides." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour generer les courriers." };
+  const garde = await exigerAdminReprise("generer les courriers");
+  if (!garde.ok) return { ok: false, message: garde.message };
+  const g = garde.gestionnaire;
 
   const dossier = await obtenirDossier(getRepriseDossierRepository(), valid.data.dossierId);
   if (!dossier) return { ok: false, message: "Dossier introuvable." };
@@ -663,8 +668,9 @@ export async function validerFicheAction(dossierId: string, ownerId: string): Pr
   const valid = zValider.safeParse({ dossierId, ownerId });
   if (!valid.success) return { ok: false, message: "Parametres invalides." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour valider." };
+  const garde = await exigerAdminReprise("valider cette fiche");
+  if (!garde.ok) return { ok: false, message: garde.message };
+  const g = garde.gestionnaire;
 
   const dossier = await obtenirDossier(getRepriseDossierRepository(), valid.data.dossierId);
   if (!dossier) return { ok: false, message: "Dossier introuvable." };
@@ -736,8 +742,9 @@ export async function envoyerFicheEmailAction(dossierId: string, ownerId: string
   const valid = zEnvoyerFicheEmail.safeParse({ dossierId, ownerId });
   if (!valid.success) return { ok: false, message: "Parametres invalides." };
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour envoyer la fiche." };
+  const garde = await exigerAdminReprise("envoyer la fiche");
+  if (!garde.ok) return { ok: false, message: garde.message };
+  const g = garde.gestionnaire;
 
   const dossier = await obtenirDossier(getRepriseDossierRepository(), valid.data.dossierId);
   if (!dossier) return { ok: false, message: "Dossier introuvable." };

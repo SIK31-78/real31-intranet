@@ -15,7 +15,7 @@
 // on ne les LOGUE jamais.
 
 import { NextResponse } from "next/server";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAdminReprise } from "@/lib/auth/garde-reprise";
 import {
   getExtractionComptaProvider,
   getMappingDecisionRepository,
@@ -25,7 +25,7 @@ import { extraireEtVerifierGrandLivre } from "@/lib/reprise/services/reprendre-c
 import { preparerRevueMapping } from "@/lib/reprise/services/mapping-compta";
 import { grouperEcrituresPourRevue } from "@/lib/reprise/domain/ecriture";
 import { balanceParCompte } from "@/lib/reprise/domain/controle-comptes";
-import { TAILLE_TOTALE_MAX_OCTETS, TAILLE_TOTALE_MAX_LABEL, enMo } from "@/lib/reprise/domain/limites-upload";
+import { verifierTailleLot } from "@/lib/reprise/domain/limites-upload";
 import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
 
 export const runtime = "nodejs";
@@ -36,15 +36,18 @@ export const dynamic = "force-dynamic";
 // echoue sur un plan plus bas, redescendre a 60. En local : sans effet.
 export const maxDuration = 300;
 
-// Plafond de taille TOTALE des uploads (le PDF est lu entierement en RAM le temps de l'analyse).
-// Cette route reste au plafond RAM (40 Mo) et n'a PAS de plafond IA (audit API 2026-07-16,
+// Plafond de taille TOTALE des uploads (le PDF est lu entierement en RAM le temps de l'analyse) :
+// 40 Mo en local, ~4 Mo en PRODUCTION (mur Vercel : body serverless coupe a ~4,5 Mo, cf.
+// limites-upload.ts). Cette route n'a PAS de plafond IA (audit API 2026-07-16,
 // P1-8) : le grand livre est extrait par la COUCHE TEXTE locale (pdfjs, zero appel IA), les
 // limites de l'API Anthropic/Mistral ne s'appliquent donc pas ici - contrairement a
 // /api/reprise/analyser qui borne a 20 Mo / 100 pages ce qui part chez Claude.
 
 export async function POST(req: Request) {
-  const g = await getGestionnaireCourant();
-  if (!g) return NextResponse.json({ ok: false, message: "Session expiree : reconnecte-toi." }, { status: 401 });
+  // ROLE : la revue du mapping est reservee aux ADMINS REPRISE. Garde serveur (le grisage de
+  // l'ecran cote UI ne protege rien) - cf. lib/auth/garde-reprise.ts.
+  const garde = await exigerAdminReprise("analyser le grand livre");
+  if (!garde.ok) return NextResponse.json({ ok: false, message: garde.message }, { status: garde.statut });
 
   let form: FormData;
   try {
@@ -70,15 +73,8 @@ export async function POST(req: Request) {
   if (files.length > 50) return NextResponse.json({ ok: false, message: "Trop de fichiers (50 maximum)." }, { status: 400 });
 
   const totalOctets = files.reduce((somme, f) => somme + f.size, 0);
-  if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: `Documents trop volumineux : ${enMo(totalOctets)} Mo au total, plafond ${TAILLE_TOTALE_MAX_LABEL}. Retire des fichiers ou analyse en plusieurs fois.`,
-      },
-      { status: 400 },
-    );
-  }
+  const tropGros = verifierTailleLot(totalOctets, process.env.NODE_ENV === "production");
+  if (tropGros) return NextResponse.json({ ok: false, message: tropGros }, { status: 400 });
 
   // Lecture SEQUENTIELLE (pas de Promise.all) : lisse le pic memoire.
   const docs: DocumentSource[] = [];

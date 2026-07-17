@@ -1,9 +1,13 @@
 // Suivi des dossiers de reprise. Server component (force-dynamic) : lit le repo memoire
 // via le service suivi, projette une vue serialisable, et delegue l'affichage + la
 // creation au composant client. Bandeau discret "non persistant (memoire)".
+//
+// ROLE : la LISTE (le suivi) est ouverte a TOUS les gestionnaires ; seule la CREATION d'un
+// dossier est reservee aux admins reprise -> bouton grise cote client (cf. lib/auth/roles.ts).
 
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { estAdminReprise } from "@/lib/auth/roles";
 import { getRepriseDossierRepository, reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
 import { listerDossiers } from "@/lib/reprise/services/suivi-dossier";
 import { avancement, estArchive } from "@/lib/reprise/domain/dossier";
@@ -46,7 +50,7 @@ export default async function DossiersReprisePage() {
         </p>
       )}
 
-      <DossiersRepriseVue dossiers={resumes} />
+      <DossiersRepriseVue dossiers={resumes} adminReprise={estAdminReprise(g.email)} />
     </div>
   );
 }

@@ -13,6 +13,14 @@
 //      R1..R11, cases cochables. Simple tableau editable cote domaine (ETAPES_REPRISE).
 //   4. JOURNAL : timeline + ajout de note.
 //
+// ROLE (regle Sekou) : la fiche est LISIBLE par tout gestionnaire - en-tete, prochaine etape,
+// compteurs patrimoine, suivi humain (checklist) et journal restent PLEINEMENT actifs. Les zones
+// d'ACTION (upload/analyse, editeur de corrections, liaison 450, contacts d'annexes, injection /
+// production, fiches de renseignements, archivage/suppression) sont reservees aux ADMINS REPRISE
+// (directeur / manager / super-admin) : pour un non-admin elles sont GRISEES avec la raison
+// (ZoneAdminReprise), jamais cachees. Le grisage n'est qu'une courtoisie : chaque Server Action /
+// route refait le controle cote serveur (lib/auth/garde-reprise.ts).
+//
 // L'analyse (server) reporte deja compteurs + anomalies dans le dossier (appliquerRecap).
 // Le jeu de donnees vit cote client (state) le temps d'une session pour injecter/produire :
 // l'etat memoire ne le persiste pas, une re-analyse le regenere.
@@ -51,8 +59,7 @@ import { PHASES } from "@/lib/reprise/domain/dossier";
 import { ETABLISSEMENTS_REAL31 } from "@/lib/reprise/domain/etablissements";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import {
-  TAILLE_TOTALE_MAX_OCTETS,
-  TAILLE_TOTALE_MAX_LABEL,
+  verifierTailleLot,
   TAILLE_IA_MAX_OCTETS,
   TAILLE_IA_MAX_LABEL,
   enMo,
@@ -77,6 +84,7 @@ import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseigneme
 import { DocumentsAnnexesBloc } from "./documents-annexes-bloc";
 import type { AnnexeAnalysee, ContactRapproche } from "@/lib/reprise/domain/rapprochement-contacts";
 import { EditeurPatrimoine } from "./editeur-patrimoine";
+import { ZoneAdminReprise } from "@/components/reprise/zone-admin";
 import { NotesAnalyse } from "@/components/reprise/notes-analyse";
 import { classerNotes, sourceNote, type NoteStructuree } from "@/lib/reprise/domain/classement-notes";
 
@@ -184,6 +192,7 @@ export function FicheDossierReprise({
   fiches,
   aDesOwners,
   mailActif,
+  adminReprise,
 }: {
   dossier: DossierFicheVue;
   analyseInitiale: AnalyseInitiale | null;
@@ -195,6 +204,8 @@ export function FicheDossierReprise({
   fiches: FicheOwnerVue[];
   aDesOwners: boolean;
   mailActif: boolean;
+  /** Directeur / manager / super-admin : lui seul peut AGIR sur le dossier (le suivi reste a tous). */
+  adminReprise: boolean;
 }) {
   const pct = Math.round(dossier.avancement * 100);
 
@@ -279,7 +290,12 @@ export function FicheDossierReprise({
         </div>
 
         {/* Actions dossier : archiver (reversible, discret) + supprimer (2 temps, irreversible). */}
-        <ActionsDossier ref_={dossier.ref} nomUsuel={dossier.nomUsuel} archive={dossier.archive} nbFichesGenerees={nbFichesGenerees} dejaInjecte={dejaInjecte} />
+        <ZoneAdminReprise
+          admin={adminReprise}
+          raison="Archiver ou supprimer une reprise engage le dossier du cabinet."
+        >
+          <ActionsDossier ref_={dossier.ref} nomUsuel={dossier.nomUsuel} archive={dossier.archive} nbFichesGenerees={nbFichesGenerees} dejaInjecte={dejaInjecte} />
+        </ZoneAdminReprise>
       </div>
 
       {/* BANDEAU "prochaine etape" : LA reponse a "on ne sait pas quoi faire". Un dossier archive
@@ -302,6 +318,7 @@ export function FicheDossierReprise({
           modeIa={modeIa}
           ecritureReelle={ecritureReelle}
           dejaInjecte={dejaInjecte}
+          adminReprise={adminReprise}
         />
       </div>
 
@@ -313,6 +330,7 @@ export function FicheDossierReprise({
           fiches={fiches}
           mailActif={mailActif}
           ecritureReelle={ecritureReelle}
+          adminReprise={adminReprise}
         />
       </div>
 
@@ -567,6 +585,7 @@ function ZonePatrimoine({
   modeIa,
   ecritureReelle,
   dejaInjecte,
+  adminReprise,
 }: {
   dossier: DossierFicheVue;
   analyse: Analyse | null;
@@ -574,6 +593,7 @@ function ZonePatrimoine({
   modeIa: "claude" | "claude-cli" | "mistral" | "mock";
   ecritureReelle: boolean;
   dejaInjecte: boolean;
+  adminReprise: boolean;
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [analysePending, startAnalyse] = useTransition();
@@ -585,11 +605,14 @@ function ZonePatrimoine({
     // actionnable immediat plutot qu'un echec API apres l'upload et des minutes d'attente.
     // Le grand livre (couche texte locale) n'est pas soumis au plafond IA. Raisonnement
     // complet : lib/reprise/domain/limites-upload.ts ; la route refait les memes controles.
+    //
+    // En PRODUCTION, le plafond du lot n'est PAS le notre : Vercel coupe le body d'une fonction
+    // serverless a ~4,5 Mo AVANT que la route ne tourne (echec opaque cote navigateur). On le dit
+    // ici, avant l'upload, avec la marche a suivre.
     const totalOctets = files.reduce((s, f) => s + f.size, 0);
-    if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
-      toast.err(
-        `Documents trop volumineux : ${enMo(totalOctets)} Mo au total, plafond ${TAILLE_TOTALE_MAX_LABEL}. Retire des fichiers ou analyse en plusieurs fois.`,
-      );
+    const tropGros = verifierTailleLot(totalOctets, process.env.NODE_ENV === "production");
+    if (tropGros) {
+      toast.err(tropGros);
       return;
     }
     const iaOctets = files.filter((f) => !estNomGrandLivre(f.name)).reduce((s, f) => s + f.size, 0);
@@ -641,7 +664,11 @@ function ZonePatrimoine({
       </CardHeader>
 
       <div className="p-4 flex flex-col gap-4">
-        {/* Upload + analyse : toujours disponible (relancer une analyse actualise). */}
+        {/* Upload + analyse : ADMIN REPRISE seulement (grise, jamais cache, pour les autres). */}
+        <ZoneAdminReprise
+          admin={adminReprise}
+          raison="Deposer les documents du syndic sortant et lancer l'extraction IA fait partie de la production du dossier."
+        >
         <div className="rounded-md border border-line bg-surface-2 p-3.5">
           <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
             <FileUp strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
@@ -707,6 +734,7 @@ function ZonePatrimoine({
             </Button>
           </div>
         </div>
+        </ZoneAdminReprise>
 
         {/* Chargement : l'analyse (CLI / IA) prend 1 a 3 min -> etat clair, pas juste un bouton grise. */}
         {analysePending ? (
@@ -728,6 +756,7 @@ function ZonePatrimoine({
             ecritureReelle={ecritureReelle}
             dejaInjecte={dejaInjecte}
             onAnalyse={onAnalyse}
+            adminReprise={adminReprise}
           />
         ) : dejaAnalyse ? (
           // Cas 2 : deja analyse (compteurs persistes) mais pas dans cette session.
@@ -752,6 +781,7 @@ function ResultatsAnalyse({
   ecritureReelle,
   dejaInjecte,
   onAnalyse,
+  adminReprise,
 }: {
   dossier: DossierFicheVue;
   recap: RecapPatrimoine;
@@ -760,6 +790,7 @@ function ResultatsAnalyse({
   ecritureReelle: boolean;
   dejaInjecte: boolean;
   onAnalyse: (a: Analyse | null) => void;
+  adminReprise: boolean;
 }) {
   // Guidage par l'ecart : cliquer "corriger" sur une cle en ecart ouvre son editeur de tantiemes.
   const [focusCle, setFocusCle] = useState<string | null>(null);
@@ -784,27 +815,42 @@ function ResultatsAnalyse({
       <CadrageAVerifier points={cadrage} />
       <PatrimoineExtrait recap={recap} onCorrigerCle={setFocusCle} />
       {(recap.compta || recap.liaison || recap.comptaErreur) && (
-        <ComptaLiaison dossierRef={dossier.ref} recap={recap} jeu={jeu} />
+        <ComptaLiaison dossierRef={dossier.ref} recap={recap} jeu={jeu} adminReprise={adminReprise} />
       )}
       {annexes && annexes.annexes.length > 0 && (
-        <DocumentsAnnexesBloc
+        <ZoneAdminReprise
+          admin={adminReprise}
+          raison="Valider un contact d'annexe ecrit l'email / le telephone sur le coproprietaire du jeu."
+        >
+          <DocumentsAnnexesBloc
+            dossierRef={dossier.ref}
+            jeu={jeu}
+            annexes={annexes.annexes}
+            contacts={annexes.contacts}
+            onJeuChange={(nouveauJeu) => onAnalyse({ jeu: nouveauJeu, recap, ...(annexes ? { annexes } : {}) })}
+          />
+        </ZoneAdminReprise>
+      )}
+      <ZoneAdminReprise
+        admin={adminReprise}
+        raison="L'editeur corrige le jeu de donnees extrait (lots, cles, tantiemes, coproprietaires)."
+      >
+        <EditeurPatrimoine
           dossierRef={dossier.ref}
           jeu={jeu}
-          annexes={annexes.annexes}
-          contacts={annexes.contacts}
-          onJeuChange={(nouveauJeu) => onAnalyse({ jeu: nouveauJeu, recap, ...(annexes ? { annexes } : {}) })}
+          recap={recap}
+          dejaInjecte={dejaInjecte}
+          expandeeCle={focusCle}
+          onExpandCle={setFocusCle}
+          onApplied={(nouveauJeu, nouveauRecap) => onAnalyse({ jeu: nouveauJeu, recap: nouveauRecap })}
         />
-      )}
-      <EditeurPatrimoine
-        dossierRef={dossier.ref}
-        jeu={jeu}
-        recap={recap}
-        dejaInjecte={dejaInjecte}
-        expandeeCle={focusCle}
-        onExpandCle={setFocusCle}
-        onApplied={(nouveauJeu, nouveauRecap) => onAnalyse({ jeu: nouveauJeu, recap: nouveauRecap })}
-      />
-      <ActionsPatrimoine dossier={dossier} jeu={jeu} pretAProduire={recap.pretAProduire} ecritureReelle={ecritureReelle} />
+      </ZoneAdminReprise>
+      <ZoneAdminReprise
+        admin={adminReprise}
+        raison="Creer la copro dans eStale et produire les fichiers d'import sont des gestes d'onboarding."
+      >
+        <ActionsPatrimoine dossier={dossier} jeu={jeu} pretAProduire={recap.pretAProduire} ecritureReelle={ecritureReelle} />
+      </ZoneAdminReprise>
     </div>
   );
 }
@@ -965,10 +1011,12 @@ function ComptaLiaison({
   dossierRef,
   recap,
   jeu,
+  adminReprise,
 }: {
   dossierRef: string;
   recap: RecapPatrimoine;
   jeu: JeuDeDonnees;
+  adminReprise: boolean;
 }) {
   // Etat local des liaisons (seed depuis le jeu) : mis a jour a chaque tranche pour refleter
   // instantanement les compteurs sans re-analyser.
@@ -1055,17 +1103,23 @@ function ComptaLiaison({
       </p>
 
       {ambigues.length > 0 ? (
-        <ul className="mt-3 divide-y divide-line rounded-md border border-line">
-          {ambigues.map((l) => (
-            <LigneLiaisonAmbigue
-              key={l.ownerId}
-              dossierRef={dossierRef}
-              liaison={l}
-              nom={nomParOwner.get(l.ownerId) ?? l.ownerId}
-              onTranchee={setLiaisons}
-            />
-          ))}
-        </ul>
+        <ZoneAdminReprise
+          admin={adminReprise}
+          raison="Trancher une liaison rattache un coproprietaire a son compte 450 chez l'ancien syndic."
+          className="mt-3"
+        >
+          <ul className="divide-y divide-line rounded-md border border-line">
+            {ambigues.map((l) => (
+              <LigneLiaisonAmbigue
+                key={l.ownerId}
+                dossierRef={dossierRef}
+                liaison={l}
+                nom={nomParOwner.get(l.ownerId) ?? l.ownerId}
+                onTranchee={setLiaisons}
+              />
+            ))}
+          </ul>
+        </ZoneAdminReprise>
       ) : (
         <p className="mt-3 text-[12px] text-ink-3">
           {liaisons.length > 0 ? "Aucune liaison ambigue a trancher." : "Aucune liaison (pas de grand livre exploite)."}

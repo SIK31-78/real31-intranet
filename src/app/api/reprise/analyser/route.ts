@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAdminReprise } from "@/lib/auth/garde-reprise";
 import {
   getRepriseDossierRepository,
   getExtractionProvider,
@@ -19,8 +19,7 @@ import {
 import { appliquerResultatAnalyse } from "@/lib/reprise/services/suivi-dossier";
 import { analyserDossierUnifie, estGrandLivre } from "@/lib/reprise/services/analyser-dossier";
 import {
-  TAILLE_TOTALE_MAX_OCTETS,
-  TAILLE_TOTALE_MAX_LABEL,
+  verifierTailleLot,
   TAILLE_IA_MAX_OCTETS,
   TAILLE_IA_MAX_LABEL,
   PAGES_IA_MAX,
@@ -39,7 +38,8 @@ export const maxDuration = 300;
 
 // Plafonds d'upload (audit API 2026-07-16, P1-8) - le RAISONNEMENT complet est documente dans
 // lib/reprise/domain/limites-upload.ts :
-//   - TAILLE_TOTALE (40 Mo) : plafond RAM, tout le lot est lu en memoire ;
+//   - TAILLE du lot : plafond RAM (40 Mo) en local, mais ~4 Mo en PRODUCTION (le body d'une
+//     fonction serverless Vercel est coupe a ~4,5 Mo AVANT d'arriver ici) -> verifierTailleLot ;
 //   - TAILLE_IA (20 Mo) sur les documents HORS grand livre : l'API Anthropic accepte 32 Mo par
 //     requete et le base64 gonfle de x1,37 -> ~23 Mo de PDF utiles ; on garde une marge. Le
 //     grand livre n'y est pas soumis (pipeline couche texte local, zero appel IA) ;
@@ -48,8 +48,10 @@ export const maxDuration = 300;
 // Objectif : un message actionnable AVANT l'analyse, pas un 413 API apres l'upload et l'attente.
 
 export async function POST(req: Request) {
-  const g = await getGestionnaireCourant();
-  if (!g) return NextResponse.json({ ok: false, message: "Session expiree : reconnecte-toi." }, { status: 401 });
+  // ROLE : l'analyse est reservee aux ADMINS REPRISE (le SUIVI reste ouvert a tous). Garde
+  // serveur : le grisage du bouton cote UI ne protege rien (cf. lib/auth/garde-reprise.ts).
+  const garde = await exigerAdminReprise("lancer l'analyse");
+  if (!garde.ok) return NextResponse.json({ ok: false, message: garde.message }, { status: garde.statut });
 
   let form: FormData;
   try {
@@ -78,15 +80,8 @@ export async function POST(req: Request) {
 
   // Verifie les tailles AVANT toute lecture (f.size vient du multipart, gratuit).
   const totalOctets = files.reduce((somme, f) => somme + f.size, 0);
-  if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: `Documents trop volumineux : ${enMo(totalOctets)} Mo au total, plafond ${TAILLE_TOTALE_MAX_LABEL}. Retire des fichiers ou analyse en plusieurs fois.`,
-      },
-      { status: 400 },
-    );
-  }
+  const tropGros = verifierTailleLot(totalOctets, process.env.NODE_ENV === "production");
+  if (tropGros) return NextResponse.json({ ok: false, message: tropGros }, { status: 400 });
   // Plafond IA : seuls les documents HORS grand livre partent en base64 chez Claude/Mistral
   // (le grand livre est lu localement en couche texte). Cf. commentaire de tete + limites-upload.ts.
   const iaOctets = files.filter((f) => !estGrandLivre(f.name)).reduce((somme, f) => somme + f.size, 0);

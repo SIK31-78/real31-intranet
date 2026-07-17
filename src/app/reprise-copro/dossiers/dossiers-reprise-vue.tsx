@@ -3,10 +3,14 @@
 // Liste des dossiers de reprise + formulaire "nouveau dossier". Style aligne sur la
 // liste dossiers de l'intranet (Card + lignes + Badge statut + progression). Etat en
 // memoire cote serveur (repo memoire) : bandeau "non persistant" affiche par la page.
+//
+// ROLE : la liste est ouverte a TOUS (c'est LE suivi). "Nouveau dossier" = geste d'encadrement
+// -> bouton GRISE (jamais cache) pour un non-admin, avec la raison au survol. La garde reelle
+// est cote serveur (creerDossierAction).
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, FolderOpen, ChevronRight, Archive } from "lucide-react";
+import { Plus, FolderOpen, ChevronRight, Archive, Lock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,7 +52,14 @@ const STATUT_TON: Record<StatutDossier, "neutral" | "info" | "warn" | "ok"> = {
 
 const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink";
 
-export function DossiersRepriseVue({ dossiers }: { dossiers: DossierResume[] }) {
+export function DossiersRepriseVue({
+  dossiers,
+  adminReprise,
+}: {
+  dossiers: DossierResume[];
+  /** Directeur / manager / super-admin : seul lui peut ouvrir une nouvelle reprise. */
+  adminReprise: boolean;
+}) {
   const [formOuvert, setFormOuvert] = useState(false);
   // Les dossiers ARCHIVES sont masques par defaut ; un filtre "Archives (N)" les affiche.
   const [voirArchives, setVoirArchives] = useState(false);
@@ -83,12 +94,25 @@ export function DossiersRepriseVue({ dossiers }: { dossiers: DossierResume[] }) 
           variant="primary"
           onClick={() => setFormOuvert((o) => !o)}
           className="ml-auto"
+          disabled={!adminReprise}
+          title={
+            adminReprise
+              ? undefined
+              : "Reserve aux directeurs et managers : ouvrir une reprise engage le cabinet sur un onboarding."
+          }
         >
-          <Plus strokeWidth={2} /> Nouveau dossier
+          {adminReprise ? <Plus strokeWidth={2} /> : <Lock strokeWidth={1.5} />} Nouveau dossier
         </Button>
       </div>
 
-      {formOuvert && <FormCreation onFait={() => setFormOuvert(false)} />}
+      {!adminReprise && (
+        <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
+          <span className="font-medium text-ink-2">Ouvrir une reprise est reserve aux directeurs et managers.</span>{" "}
+          Tu peux consulter le suivi de chaque dossier ci-dessous (avancement, checklist, journal).
+        </p>
+      )}
+
+      {formOuvert && adminReprise && <FormCreation onFait={() => setFormOuvert(false)} />}
 
       {affiches.length === 0 ? (
         <Card>

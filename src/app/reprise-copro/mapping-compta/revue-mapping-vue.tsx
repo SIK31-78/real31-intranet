@@ -52,7 +52,7 @@ import {
 import { enregistrerDecisionAction, oublierDecisionAction } from "./actions";
 import { NotesAnalyse } from "@/components/reprise/notes-analyse";
 import { classerNotes } from "@/lib/reprise/domain/classement-notes";
-import { TAILLE_TOTALE_MAX_OCTETS, TAILLE_TOTALE_MAX_LABEL, enMo } from "@/lib/reprise/domain/limites-upload";
+import { verifierTailleLot } from "@/lib/reprise/domain/limites-upload";
 
 type ModeIa = "claude" | "claude-cli" | "mistral" | "mock";
 
@@ -162,12 +162,14 @@ export function RevueMappingVue({
     if (!code || files.length === 0) return;
     // Pre-verification du plafond AVANT l'upload (audit API 2026-07-16, P1-8) : message
     // immediat plutot qu'un 400 apres l'upload. Ici pipeline couche texte (pas d'appel IA) :
-    // seul le plafond RAM global s'applique - la route refait le meme controle.
+    // seul le plafond du LOT s'applique - la route refait le meme controle.
+    //
+    // En PRODUCTION ce plafond n'est pas le notre : Vercel coupe le body serverless a ~4,5 Mo
+    // AVANT que la route ne tourne. On le dit avant l'upload (cf. limites-upload.ts).
     const totalOctets = files.reduce((s, f) => s + f.size, 0);
-    if (totalOctets > TAILLE_TOTALE_MAX_OCTETS) {
-      toast.err(
-        `Documents trop volumineux : ${enMo(totalOctets)} Mo au total, plafond ${TAILLE_TOTALE_MAX_LABEL}. Retire des fichiers ou analyse en plusieurs fois.`,
-      );
+    const tropGros = verifierTailleLot(totalOctets, process.env.NODE_ENV === "production");
+    if (tropGros) {
+      toast.err(tropGros);
       return;
     }
     startAnalyse(async () => {

@@ -7,6 +7,11 @@
 //   3. RETOURS A VALIDER : chaque soumission -> compare connu vs saisi -> bouton Valider
 //      (ecrit l'email dans eStale + envoie le mail "espace client pret").
 //
+// ROLE : le SUIVI (tableau des owners : courrier genere / repondu / valide) est LISIBLE par tout
+// gestionnaire ; les GESTES (generer les courriers, relancer, envoyer par email, valider un retour)
+// sont reserves aux ADMINS REPRISE -> grises via ZoneAdminReprise, avec la garde reelle cote
+// serveur (actions.ts). Cf. lib/auth/roles.ts.
+//
 // Aucune PII ne quitte cette page vers un log. Le HTML des courriers (secrets en clair) est
 // ouvert dans un onglet via un Blob et n'est jamais conserve.
 
@@ -20,6 +25,7 @@ import { useConfirm } from "@/components/ui/confirm";
 import { formatDateLongue } from "@/lib/format-date";
 import type { DonneesSoumises, FicheStatut } from "@/lib/reprise/domain/fiche-renseignements";
 import { genererCourriersFicheAction, validerFicheAction, envoyerFicheEmailAction } from "./actions";
+import { ZoneAdminReprise } from "@/components/reprise/zone-admin";
 
 export interface FicheOwnerVue {
   ownerId: string;
@@ -59,12 +65,15 @@ export function FicheRenseignementsBloc({
   fiches,
   mailActif,
   ecritureReelle,
+  adminReprise,
 }: {
   dossierRef: string;
   aDesOwners: boolean;
   fiches: FicheOwnerVue[];
   mailActif: boolean;
   ecritureReelle: boolean;
+  /** Directeur / manager / super-admin : lui seul genere/envoie/valide (le suivi reste a tous). */
+  adminReprise: boolean;
 }) {
   const toast = useToast();
   const [genPending, startGen] = useTransition();
@@ -116,20 +125,25 @@ export function FicheRenseignementsBloc({
             courriers utilisent les noms + adresses extraits.
           </div>
         ) : (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button type="button" variant="primary" onClick={() => generer(false)} disabled={genPending}>
-              <Printer strokeWidth={1.5} /> {genPending ? "Generation..." : "Generer les courriers"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => generer(true)}
-              disabled={genPending || nonRepondants === 0}
-              title={nonRepondants === 0 ? "Aucun non-repondant" : `${nonRepondants} non-repondant(s)`}
-            >
-              <RefreshCw strokeWidth={1.5} /> Relance des non-repondants
-            </Button>
-          </div>
+          <ZoneAdminReprise
+            admin={adminReprise}
+            raison="Generer et relancer les courriers coproprietaires engage un envoi au nom du cabinet."
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button type="button" variant="primary" onClick={() => generer(false)} disabled={genPending}>
+                <Printer strokeWidth={1.5} /> {genPending ? "Generation..." : "Generer les courriers"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => generer(true)}
+                disabled={genPending || nonRepondants === 0}
+                title={nonRepondants === 0 ? "Aucun non-repondant" : `${nonRepondants} non-repondant(s)`}
+              >
+                <RefreshCw strokeWidth={1.5} /> Relance des non-repondants
+              </Button>
+            </div>
+          </ZoneAdminReprise>
         )}
 
         {/* Notes de gate : mail + ecriture eStale. */}
@@ -162,11 +176,17 @@ export function FicheRenseignementsBloc({
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">
               Retours a valider ({aValider.length})
             </h3>
-            <ul className="mt-2 flex flex-col gap-2">
-              {aValider.map((f) => (
-                <LigneAValider key={f.ownerId} dossierRef={dossierRef} fiche={f} />
-              ))}
-            </ul>
+            <ZoneAdminReprise
+              admin={adminReprise}
+              raison="Valider un retour ecrit l'email du coproprietaire dans eStale et lui ouvre son espace client."
+              className="mt-2"
+            >
+              <ul className="flex flex-col gap-2">
+                {aValider.map((f) => (
+                  <LigneAValider key={f.ownerId} dossierRef={dossierRef} fiche={f} />
+                ))}
+              </ul>
+            </ZoneAdminReprise>
           </section>
         )}
 
@@ -219,7 +239,7 @@ export function FicheRenseignementsBloc({
                         )}
                       </td>
                       <td>
-                        <EnvoiFiche dossierRef={dossierRef} fiche={f} />
+                        <EnvoiFiche dossierRef={dossierRef} fiche={f} adminReprise={adminReprise} />
                       </td>
                     </tr>
                   ))}
@@ -236,7 +256,15 @@ export function FicheRenseignementsBloc({
 // BONUS EMAIL : bouton "Envoyer par email" par coproprietaire. Ne s'affiche que si un email est
 // connu dans le jeu ET que la fiche n'a pas encore ete repondue (aucune / courrier genere). Les
 // owners sans email restent au courrier postal (mention discrete). Le gate mail est cote serveur.
-function EnvoiFiche({ dossierRef, fiche }: { dossierRef: string; fiche: FicheOwnerVue }) {
+function EnvoiFiche({
+  dossierRef,
+  fiche,
+  adminReprise,
+}: {
+  dossierRef: string;
+  fiche: FicheOwnerVue;
+  adminReprise: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [envoye, setEnvoye] = useState(Boolean(fiche.envoiEmailAt));
   const toast = useToast();
@@ -259,7 +287,13 @@ function EnvoiFiche({ dossierRef, fiche }: { dossierRef: string; fiche: FicheOwn
   };
 
   return (
-    <Button type="button" variant="secondary" onClick={envoyer} disabled={pending}>
+    <Button
+      type="button"
+      variant="secondary"
+      onClick={envoyer}
+      disabled={pending || !adminReprise}
+      title={adminReprise ? undefined : "Reserve aux directeurs et managers."}
+    >
       <Send strokeWidth={1.5} /> {pending ? "..." : envoye ? "Renvoyer" : "Par email"}
     </Button>
   );

@@ -2,9 +2,15 @@
 // memoire via le service suivi, projette une vue serialisable (en-tete + compteurs
 // patrimoine deja reportes + etapes de suivi humain + journal), delegue l'affichage +
 // le pilotage IA au composant client. 404 propre si le dossier n'existe pas.
+//
+// ROLE : la fiche est LISIBLE par tout gestionnaire (statut, avancement, checklist, journal,
+// prochaine etape) ; les zones d'ACTION (analyse, corrections, injection, fiches, archivage) sont
+// grisees pour un non-admin -> `adminReprise` descend dans le composant client, et chaque Server
+// Action refait le controle cote serveur (cf. lib/auth/garde-reprise.ts).
 
 import { notFound, redirect } from "next/navigation";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { estAdminReprise } from "@/lib/auth/roles";
 import {
   getRepriseDossierRepository,
   getFicheRenseignementsRepository,
@@ -99,6 +105,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   const persistant = reprisePersistanceSupabase();
   const ecritureReelle = ecritureEstaleReelle();
   const mailActif = mailModuleActifPour(g.email);
+  const adminReprise = estAdminReprise(g.email);
 
   // "Deja injecte" = trace d'une injection REELLE dans le journal (seul marqueur fiable : les
   // injections reelles reussies journalisent "Injection eStale REELLE ...", jamais les dry-runs).
@@ -175,6 +182,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
         fiches={fichesVue}
         aDesOwners={owners.length > 0}
         mailActif={mailActif}
+        adminReprise={adminReprise}
       />
 
       <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">

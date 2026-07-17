@@ -1,8 +1,10 @@
 "use server";
 
 // Server Actions de la REVUE du mapping comptable. Contrat uniforme {ok,...} : jamais de throw
-// cote client. Validation Zod (bornage + union stricte des decisions). Cloisonnement : un
-// gestionnaire connecte est exige (getGestionnaireCourant) - PAS de check coproAppartient (une
+// cote client. Validation Zod (bornage + union stricte des decisions).
+//
+// ROLE : la revue du mapping est un ecran d'ADMIN REPRISE (directeur / manager / super-admin) ->
+// exigerAdminReprise sur chaque geste (cf. lib/auth/roles.ts). PAS de check coproAppartient (une
 // reprise concerne une copro PAS ENCORE dans le perimetre eStale).
 //
 // Ces actions ne transportent que du JSON leger (une decision) : elles persistent le geste
@@ -12,7 +14,7 @@
 // PII : le motif d'un "ignorer" est stocke (base interne) mais JAMAIS logue.
 
 import { z } from "zod";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAdminReprise } from "@/lib/auth/garde-reprise";
 import { getMappingDecisionRepository } from "@/lib/reprise/adapters/router";
 import type { DecisionMapping } from "@/lib/reprise/domain/decisions-mapping";
 
@@ -43,8 +45,9 @@ export async function enregistrerDecisionAction(
     return { ok: false, message: "Decision invalide." };
   }
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour trancher ce compte." };
+  const garde = await exigerAdminReprise("trancher ce compte");
+  if (!garde.ok) return { ok: false, message: garde.message };
+  const g = garde.gestionnaire;
 
   try {
     await getMappingDecisionRepository().enregistrer(codeOk.data, {
@@ -70,8 +73,8 @@ export async function oublierDecisionAction(
     return { ok: false, message: "Compte invalide." };
   }
 
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expiree : reconnecte-toi pour annuler cette decision." };
+  const garde = await exigerAdminReprise("annuler cette decision");
+  if (!garde.ok) return { ok: false, message: garde.message };
 
   try {
     await getMappingDecisionRepository().supprimer(codeOk.data, compteOk.data);
