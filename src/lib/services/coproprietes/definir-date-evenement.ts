@@ -10,6 +10,10 @@ import {
   deprojeterEvenementOutlook,
   projeterEvenementOutlook,
 } from "@/lib/services/coproprietes/projeter-evenement-outlook";
+import {
+  deprojeterCreneauxAg,
+  projeterCreneauxAg,
+} from "@/lib/services/coproprietes/projeter-creneaux-ag";
 
 export async function definirDateEvenement(
   coproCode: string,
@@ -65,9 +69,15 @@ export async function definirDateEvenement(
       // (replanification). On passe le `debut` COMPLET (date + heure eventuelle).
       // Degrade propre : n'empeche jamais la pose de la date.
       await projeterEvenementOutlook(coproCode, typeConfirmation, dateISO, "a_confirmer", boite);
+      // Creneaux de travail derives (regle AG : un CS n'en a pas) : "Mise sous pli"
+      // (J-31) et "RELANCE DATE AG" (J-7). Deplacer l'AG les DEPLACE (memes evenements),
+      // leurs cibles se recalculent. Degrade propre : jamais bloquant pour la date.
+      if (type === "ag") await projeterCreneauxAg(coproCode, dateISO, boite);
     } else {
       // Effacer la date : l'evenement Outlook projete n'a plus lieu d'etre.
       await deprojeterEvenementOutlook(coproCode, typeConfirmation);
+      // ... et les creneaux derives non plus (AG uniquement).
+      if (type === "ag") await deprojeterCreneauxAg(coproCode);
     }
   }
 }

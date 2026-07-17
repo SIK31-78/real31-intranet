@@ -59,7 +59,8 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     .filter(Boolean)
     .join(", ");
 
-  // Mise sous pli = jalon CONVOC (J-30 cabinet). Limite d'ajout de points = J-40.
+  // Mise sous pli = jalon CONVOC (J-31 cabinet). Limite d'ajout de points = J-41
+  // (glissement mecanique : AJOUT_ODJ_AVANT_CONVOC_JOURS se compte depuis la cible).
   const convocISO = dateAg
     ? calculerJalons(dateAg).find((j) => j.code === "CONVOC")?.cibleDate
     : undefined;

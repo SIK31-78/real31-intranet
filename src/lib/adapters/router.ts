@@ -64,6 +64,9 @@ import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-mai
 import type { ConfirmationEvenementRepository } from "@/lib/ports/confirmation-evenement-repository";
 import { SupabaseConfirmationEvenementRepository } from "@/lib/adapters/supabase/supabase-confirmation-evenement-repository";
 import { MockConfirmationEvenementRepository } from "@/lib/adapters/mock/mock-confirmation-evenement-repository";
+import type { ProjectionsOutlookRepository } from "@/lib/ports/projections-outlook-repository";
+import { SupabaseProjectionsOutlookRepository } from "@/lib/adapters/supabase/supabase-projections-outlook-repository";
+import { MockProjectionsOutlookRepository } from "@/lib/adapters/mock/mock-projections-outlook-repository";
 import type { DossierRepository } from "@/lib/ports/dossier-repository";
 import { SupabaseDossierRepository } from "@/lib/adapters/supabase/supabase-dossier-repository";
 import { MockDossierRepository } from "@/lib/adapters/mock/mock-dossier-repository";
@@ -141,6 +144,14 @@ export function getPriseEnMainRepository(): PriseEnMainRepository {
 export function getConfirmationEvenementRepository(): ConfirmationEvenementRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseConfirmationEvenementRepository();
   return new MockConfirmationEvenementRepository();
+}
+
+// Creneaux Outlook derives d'une date d'AG (table native intranet_projections_outlook) :
+// "Mise sous pli" (J-31) et "RELANCE DATE AG" (J-7). Meme bascule que les autres tables
+// natives. Cle (copro, role) sans la date -> deplacer l'AG deplace le meme evenement.
+export function getProjectionsOutlookRepository(): ProjectionsOutlookRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseProjectionsOutlookRepository();
+  return new MockProjectionsOutlookRepository();
 }
 
 // Module Dossiers (table native intranet_dossiers).
