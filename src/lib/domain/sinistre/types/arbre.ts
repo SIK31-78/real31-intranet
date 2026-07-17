@@ -49,11 +49,24 @@ export interface ChecklistItem {
   phase: PhaseMesure;
 }
 
+/**
+ * Liste explicite adossée à une question, affichée dans le repli d'aide.
+ * Sert à EXPLICITER ce qu'une question suppose connu (ex. la liste limitative des
+ * causes exclues de l'IRSI, art. 1.1.1.a) : le contenu reste dans la donnée, jamais
+ * dans le code, et n'est jamais déduit ni complété par l'outil.
+ */
+export interface AideListe {
+  titre: string;
+  items: string[];
+}
+
 /** Nœud interrogeant l'utilisateur ; branche selon l'option choisie. */
 export interface QuestionNode extends NodeCommon {
   type: 'question';
   question: string;
   aide?: string;
+  /** Liste limitative / énumération que la question suppose connue (repli d'aide). */
+  aide_liste?: AideListe;
   /** Index (0-based) de l'option présélectionnée visuellement (focus), sans réponse implicite (H-1). */
   option_par_defaut?: number;
   /** Encart « Où trouver l'information » pour les questions factuelles (C-6). */

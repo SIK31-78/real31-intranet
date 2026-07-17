@@ -20,9 +20,21 @@ export function ListeCourriersLiens({ ids }: { ids: CourrierId[] }) {
                 <span className="font-medium text-ink">
                   {c.id} - {c.titre}
                 </span>
-                <div className="text-xs text-ink-3">
-                  {c.destinataire} · {c.mode_envoi} · {c.delai}
+                {/* « On ne sait pas à quel moment envoyer les courriers » : le délai
+                    est porté par la donnée (courriers-types-dde.json) - on le sort du
+                    gris et on le nomme explicitement. */}
+                <div className="mt-0.5 text-[13px] text-ink-2">
+                  <span className="font-medium">Quand : </span>
+                  {c.delai}
                 </div>
+                <div className="text-xs text-ink-3">
+                  À : {c.destinataire} · Par : {c.mode_envoi}
+                </div>
+                {c.declencheurs_conditions?.length ? (
+                  <div className="text-xs text-ink-4">
+                    Si : {c.declencheurs_conditions.join(' · ')}
+                  </div>
+                ) : null}
               </div>
               <Link href={`/sinistre/courriers/${c.id}`}>
                 <Button variant="secondary">Générer -</Button>

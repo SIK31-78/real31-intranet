@@ -15,12 +15,25 @@ import {
 } from "@/lib/adapters/router";
 import { SinistrePersistanceIndisponible } from "@/lib/ports/sinistre-repository";
 import { projeterEtapesDepuisParcours } from "@/lib/domain/sinistre/engine/etapes";
+import { MODELES_ETAPES, type EtapeDossier, type EtapeModele } from "@/lib/domain/dossier";
 import type { DossierState } from "@/lib/domain/sinistre/types";
+
+/** Etape de dossier depuis un modele (meme fabrique que creerDossierAction). */
+function nouvelleEtapeDossier(m: EtapeModele): EtapeDossier {
+  return {
+    id: Math.random().toString(36).slice(2, 10),
+    label: m.label,
+    fait: false,
+    ...(m.assigneA ? { assigneA: m.assigneA } : {}),
+  };
+}
 
 // Contexte immeuble/copro + signataire pre-rempli depuis un dossier de type sinistre.
 // Sert a tuer la double-saisie : ouvrir le wizard avec ?dossier=<id> importe l'identite
 // immeuble (nom, adresse), la copro et le gestionnaire courant.
 export interface ContexteDossierSinistre {
+  /** Dossier d'origine : repose sur l'etat pour ne pas en recreer un a l'enregistrement. */
+  dossierId: string;
   /** Code referentiel de la copro (public.Copropriete), sert de coproprieteId au store. */
   coproCode: string;
   coproNom: string;
@@ -73,6 +86,7 @@ export async function chargerContexteDossierAction(
   if (!copro) return null;
 
   return {
+    dossierId,
     coproCode: copro.code,
     coproNom: copro.nom,
     immeubleAdresse: adresseUneLigne(copro.adresse),
@@ -142,6 +156,7 @@ const zChamp = z.string().trim().max(400);
 const zDossierState = z
   .object({
     id: z.string().trim().max(120).optional(),
+    dossierId: z.string().trim().max(120).optional(),
     referenceInterne: z.string().trim().max(60),
     date: z.string().trim().max(40),
     descriptif: z.string().max(5000).optional(),
@@ -157,8 +172,24 @@ const zDossierState = z
   .passthrough();
 
 export type EnregistrerSinistreResultat =
-  | { ok: true; id: string; referenceInterne: string }
+  | { ok: true; id: string; referenceInterne: string; dossierId?: string }
   | { ok: false; erreur: string };
+
+// --- Ancrage du sinistre dans « Mes dossiers » ---------------------------------
+// Un sinistre persiste dans `intranet_sinistres` n'apparait NULLE PART : /dossiers
+// liste des `Dossier` (module Dossiers), pas des sinistres. Sans dossier rattache,
+// le gestionnaire enregistre son sinistre et ne le retrouve jamais. On cree donc le
+// Dossier manquant au PREMIER enregistrement, quand le wizard n'a pas ete ouvert
+// depuis un dossier existant (`?dossier=<id>` -> etat.dossierId deja pose).
+
+/** Titre lisible du dossier cree : descriptif saisi, sinon date, sinon generique. */
+function titreDossierSinistre(etat: DossierState): string {
+  const descriptif = etat.descriptif?.trim();
+  if (descriptif) return `Dégât des eaux - ${descriptif}`.slice(0, 300);
+  const local = etat.locaux.find((l) => l.libelle.trim())?.libelle.trim();
+  const suffixe = [etat.date ? `du ${etat.date}` : "", local ?? ""].filter(Boolean).join(" - ");
+  return suffixe ? `Dégât des eaux ${suffixe}`.slice(0, 300) : "Dégât des eaux";
+}
 
 // Enregistre le dossier sinistre cote serveur (cloisonne). Le client n'appelle JAMAIS
 // Supabase : il passe par cette action. ANTI-IDOR : le coproCode vient du client
@@ -196,7 +227,39 @@ export async function enregistrerSinistreAction(
   try {
     if (!etat.id) {
       const { id, referenceInterne } = await repo.creer({ etat, managerId: g.id });
-      return { ok: true, id, referenceInterne };
+
+      // ANCRAGE : sans dossier, le sinistre n'apparait pas dans « Mes dossiers ».
+      // Deja rattache (wizard ouvert via ?dossier=<id>) -> on ne recree rien.
+      if (etat.dossierId) return { ok: true, id, referenceInterne, dossierId: etat.dossierId };
+
+      // Best effort : si la creation du dossier echoue, le sinistre reste enregistre
+      // (on ne perd pas la saisie). L'UI affichera simplement l'absence de lien.
+      try {
+        const dossierId = await getDossierRepository().creer({
+          coproCode: etat.coproprieteId ?? "",
+          type: "sinistre",
+          portee: "copropriete",
+          titre: titreDossierSinistre({ ...etat, referenceInterne }),
+          origine: `Assistant sinistre (DDE) - ${referenceInterne}`,
+          etapes: MODELES_ETAPES.sinistre.map(nouvelleEtapeDossier),
+          journal: [
+            {
+              le: new Date().toISOString(),
+              par: g.initiales,
+              texte: `Dossier ouvert depuis l'assistant sinistre (${referenceInterne})`,
+              kind: "statut" as const,
+            },
+          ],
+          ouvertPar: g.initiales,
+        });
+        // Le lien vit des DEUX cotes : le sinistre porte son dossier (evite un second
+        // dossier au prochain enregistrement), le dossier porte le sinistre via l'origine.
+        await repo.patch(id, { ...etat, id, referenceInterne, dossierId }, g.id);
+        revalidatePath("/dossiers");
+        return { ok: true, id, referenceInterne, dossierId };
+      } catch {
+        return { ok: true, id, referenceInterne };
+      }
     }
     // Patch : ANTI-IDOR sur l'ENREGISTREMENT EXISTANT. Le `etat.id` vient du client ;
     // on ne lui fait pas confiance. On relit la ligne persistee et on verifie que SA
@@ -211,7 +274,12 @@ export async function enregistrerSinistreAction(
       }
     }
     await repo.patch(etat.id, etat, g.id);
-    return { ok: true, id: etat.id, referenceInterne: etat.referenceInterne };
+    return {
+      ok: true,
+      id: etat.id,
+      referenceInterne: etat.referenceInterne,
+      ...(etat.dossierId ? { dossierId: etat.dossierId } : {}),
+    };
   } catch (e) {
     if (e instanceof SinistrePersistanceIndisponible) {
       return { ok: false, erreur: "Persistance indisponible (table absente)." };

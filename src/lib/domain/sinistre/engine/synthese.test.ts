@@ -46,9 +46,9 @@ function wizardTranche1Cas1(): WizardState {
   return parcours([
     'Oui, dégât des eaux', // q_nature
     'Non', // q_cause_exclue
-    'Oui', // q_origine
-    'Oui, au moins deux assureurs', // q_deux_assureurs
-    'Local privatif', // q_local_type
+    // q_configuration : fusionne l'ex-trio q_origine / q_deux_assureurs / q_local_type
+    // (deux assureurs de locaux + local sinistré privatif, en un seul choix concret).
+    'Deux parties privatives : le lot sinistré et un autre lot',
     'Oui, occupé', // q_occupation
     'Le (co)propriétaire lui-même', // q_qualite_occupant
     'Oui', // q_co_assure -> r_gest_co (cas_213 = 1)

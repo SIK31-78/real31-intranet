@@ -59,7 +59,22 @@
       "phase": "1 — Qualification",
       "question": "La cause relève-t-elle d'une exclusion IRSI ?",
       "option_par_defaut": 1,
-      "aide": "Liste limitative (art. 1.1.1.a) : infiltrations par façades, murs enterrés, menuiseries extérieures ; pénétrations par gaines de ventilation, conduits de cheminée, absence/destruction partielle de toiture, toiture bâchée ; condensation/humidité sans lien avec un DDE conventionnel ; eaux de ruissellement, débordements de cours d'eau, remontées de nappe, refoulements d'égouts, inondations, mouille par destruction de toiture (tempête, grêle, neige) et tout phénomène naturel hors gel (avec ou sans arrêté cat-nat) ; canalisations enterrées au-delà de l'aplomb des murs ; liquides autres que l'eau ; sinistres provoquant champignons lignivores ou insectes xylophages.",
+      "aide": "La liste des exclusions est LIMITATIVE (art. 1.1.1.a) : si la cause n'y figure pas, ce n'est pas une exclusion. Une seule cause exclue, même parmi plusieurs causes, fait sortir le sinistre de la convention.",
+      "aide_liste": {
+        "titre": "Causes exclues de l'IRSI — liste limitative (art. 1.1.1.a)",
+        "items": [
+          "Infiltrations par les façades, les murs enterrés ou les menuiseries extérieures",
+          "Pénétrations par les gaines de ventilation ou les conduits de cheminée",
+          "Absence ou destruction partielle de toiture ; toiture bâchée",
+          "Condensation ou humidité sans lien avec un dégât des eaux conventionnel",
+          "Eaux de ruissellement, débordements de cours d'eau, remontées de nappe, refoulements d'égouts, inondations",
+          "Mouille par destruction de toiture (tempête, grêle, neige) et tout phénomène naturel hors gel — avec ou sans arrêté catastrophe naturelle",
+          "Canalisations enterrées au-delà de l'aplomb des murs",
+          "Liquides autres que l'eau",
+          "Sinistres provoquant des champignons lignivores ou des insectes xylophages"
+        ]
+      },
+      "aide_trancher": "Cause : constat sur place, déclaration de l'occupant, rapport de recherche de fuite le cas échéant.",
       "regles": [
         "Pluralité de causes dont une exclue → hors convention",
         "Cause indéterminée → la Convention reste applicable"
@@ -67,47 +82,24 @@
       "references": ["IRSI art. 1.1.1", "IRSI art. 1.1.1.a"],
       "options": [
         { "label": "Oui, cause exclue (ou pluralité avec une cause exclue)", "suivant": "r_hors_irsi_cause" },
-        { "label": "Non", "suivant": "q_origine" },
-        { "label": "Je ne sais pas / cause indéterminée", "suivant": "q_origine", "note": "Convention applicable malgré l'indétermination" }
+        { "label": "Non", "suivant": "q_configuration" },
+        { "label": "Je ne sais pas / cause indéterminée", "suivant": "q_configuration", "note": "Convention applicable malgré l'indétermination" }
       ]
     },
 
-    "q_origine": {
-      "type": "question",
-      "phase": "1 — Qualification",
-      "question": "L'origine du sinistre se situe-t-elle dans l'immeuble, ou dans un immeuble mitoyen ou voisin ?",
-      "option_par_defaut": 0,
-      "aide_trancher": "Origine : constat, recherche de fuite si nécessaire (étape suivante).",
-      "references": ["IRSI art. 1.1"],
-      "options": [
-        { "label": "Oui", "suivant": "q_deux_assureurs" },
-        { "label": "Non", "suivant": "r_droit_commun" }
-      ]
-    },
-
-    "q_deux_assureurs": {
-      "type": "question",
-      "phase": "1 — Qualification",
-      "question": "Au moins deux assureurs sont-ils concernés par ce dégât des eaux ?",
-      "aide": "Condition d'application de la convention : il faut au moins deux assureurs concernés, chacun adhérent à la convention IRSI et pouvant couvrir ce dégât des eaux au titre des dommages aux biens et/ou de la responsabilité. Un seul assureur concerné : gestion contractuelle directe, hors convention. Réputé garanti (art. 1.1.4) : tout contrat de local est réputé couvrir la RDF, les dommages matériels (contenu ; embellissements et PIP en valeur à neuf) et les frais afférents — franchises, plafonds et règles proportionnelles inopposables sur ces postes. Le contrat d'un (co)propriétaire non occupant couvrant uniquement la RC est réputé couvrir aussi en assurance de choses (art. 1.1.4.d). Non-assurance limitativement opposable : absence, résiliation, suspension, nullité du contrat — appréciées au jour du sinistre (art. 1.1.5).",
-      "references": ["IRSI art. 1.1", "IRSI art. 1.1.4", "IRSI art. 1.1.5"],
-      "options": [
-        { "label": "Oui, au moins deux assureurs", "suivant": "q_local_type" },
-        { "label": "Non, un seul assureur concerné", "suivant": "r_assureur_unique" }
-      ]
-    },
-
-    "q_local_type": {
+    "q_configuration": {
       "type": "question",
       "phase": "2 — Assureur gestionnaire",
-      "question": "Pour ce local sinistré : s'agit-il d'un local privatif ou des parties communes ?",
-      "aide": "Répéter les phases 2 à 7 pour CHAQUE local sinistré : chacun a son propre assureur gestionnaire et sa propre tranche.",
-      "aide_trancher": "Privatif ou commun : règlement de copropriété (lots et parties communes).",
-      "references": ["IRSI art. 2.1"],
+      "question": "Quels locaux sont concernés par ce dégât des eaux ?",
+      "aide": "Cette question tranche d'un coup deux points. 1) La condition d'application de la convention : il faut au moins DEUX assureurs concernés, chacun adhérent à l'IRSI et pouvant couvrir ce dégât des eaux au titre des dommages aux biens et/ou de la responsabilité — un seul assureur concerné = gestion contractuelle directe, hors convention. 2) La nature du local sinistré traité ici (privatif ou parties communes), qui détermine l'assureur gestionnaire (art. 2.1). Répéter les phases 2 à 7 pour CHAQUE local sinistré : chacun a son propre assureur gestionnaire et sa propre tranche. Réputé garanti (art. 1.1.4) : tout contrat de local est réputé couvrir la RDF, les dommages matériels (contenu ; embellissements et PIP en valeur à neuf) et les frais afférents — franchises, plafonds et règles proportionnelles inopposables sur ces postes. Le contrat d'un (co)propriétaire non occupant couvrant uniquement la RC est réputé couvrir aussi en assurance de choses (art. 1.1.4.d). Non-assurance limitativement opposable : absence, résiliation, suspension, nullité du contrat — appréciées au jour du sinistre (art. 1.1.5).",
+      "aide_trancher": "Privatif ou commun : règlement de copropriété (lots et parties communes). Origine : constat, recherche de fuite si nécessaire (étape suivante).",
+      "references": ["IRSI art. 1.1", "IRSI art. 1.1.4", "IRSI art. 1.1.5", "IRSI art. 2.1"],
       "options": [
-        { "label": "Local privatif", "suivant": "q_occupation" },
-        { "label": "Parties communes / local commun", "suivant": "r_gest_immeuble_communs" },
-        { "label": "Les deux (privatif et parties communes)", "suivant": "q_occupation", "mixte": true, "note": "Sinistre mixte : traiter la part privative via ce parcours ; pour la part commune, l'assureur de l'immeuble est gestionnaire (art. 2.1). Pensez à ajouter un local 'Parties communes' si la gestion doit être suivie séparément." }
+        { "label": "Deux parties privatives : le lot sinistré et un autre lot", "suivant": "q_occupation", "note": "Deux assureurs de locaux concernés — la convention s'applique. Le parcours traite ici le lot sinistré." },
+        { "label": "Une partie privative et les parties communes", "suivant": "q_occupation", "mixte": true, "note": "Sinistre mixte : traiter la part privative via ce parcours ; pour la part commune, l'assureur de l'immeuble est gestionnaire (art. 2.1). Pensez à ajouter un local 'Parties communes' si la gestion doit être suivie séparément." },
+        { "label": "Les parties communes seules", "suivant": "r_gest_immeuble_communs" },
+        { "label": "Un seul assureur est concerné", "suivant": "r_assureur_unique", "note": "Condition des deux assureurs non remplie : gestion contractuelle directe, hors convention." },
+        { "label": "L'origine est dans un immeuble mitoyen ou voisin", "suivant": "r_droit_commun", "note": "L'IRSI suppose une origine dans l'immeuble (art. 1.1)." }
       ]
     },
 

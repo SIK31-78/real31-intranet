@@ -5,18 +5,96 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Glose } from './Glossaire';
 import { Button, GlosedList, SectionTitle } from './ui';
+import { courriersRecommandes, resultatNode } from '@/lib/domain/sinistre/engine/wizard';
 import {
-  cas213,
-  courriersRecommandes,
-  gestionnaireNode,
-  resultatNode,
-} from '@/lib/domain/sinistre/engine/wizard';
+  expliquerGestionnaire,
+  type ExplicationGestionnaire,
+} from '@/lib/domain/sinistre/engine/explication';
 import { syntheseDossierSinistre } from '@/lib/domain/sinistre/engine/synthese';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { reporterRdvExpertiseAction, reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
 import { ajouterRdvAgendaAction, genererEtapesSinistreAction } from '@/app/sinistre/actions';
 import { ListeCourriersLiens } from './CourriersLiens';
 import type { ResultatNode } from '@/lib/domain/sinistre/types';
+
+const TRANCHE_LABEL: Record<string, string> = {
+  tranche_1: 'tranche 1',
+  tranche_2: 'tranche 2',
+  hors_irsi: 'hors IRSI (> plafond convention)',
+};
+
+/**
+ * Transparence de la désignation (retour Sekou : « on ne sait pas comment est
+ * déterminé l'assureur gestionnaire »). On restitue ce que le moteur SAIT déjà :
+ * la règle appliquée (références du nœud) et les réponses du parcours qui y ont
+ * mené. Rien n'est reconstruit ni deviné ici : tout vient de `expliquerGestionnaire`.
+ */
+function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGestionnaire }) {
+  const { gestionnaire, cas213, references, motifs, tranche, provisoire, role } = explication;
+
+  return (
+    <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
+      <p className="text-xs uppercase tracking-wide text-green-700">Assureur gestionnaire</p>
+      <p className="text-lg font-semibold text-green-900">{gestionnaire.replace(/_/g, ' ')}</p>
+
+      <p className="mt-3 text-sm font-medium text-green-900">Pourquoi cet assureur ?</p>
+      <ul className="mt-1 space-y-1 text-sm text-green-900">
+        {motifs.map((m, i) => (
+          <li key={i} className="flex gap-2">
+            <span aria-hidden className="text-green-700">
+              •
+            </span>
+            <span>
+              <span className="text-green-700">{m.question}</span>{' '}
+              <span className="font-medium">{m.reponse}</span>
+            </span>
+          </li>
+        ))}
+        {cas213 !== undefined && (
+          <li className="flex gap-2">
+            <span aria-hidden className="text-green-700">
+              •
+            </span>
+            <span>
+              Ces réponses correspondent au{' '}
+              <span className="font-medium">cas {cas213} du tableau IRSI 2.1.3</span>, qui
+              désigne cet assureur.
+            </span>
+          </li>
+        )}
+        {tranche && (
+          <li className="flex gap-2">
+            <span aria-hidden className="text-green-700">
+              •
+            </span>
+            <span className="text-green-700">
+              Contexte (sans effet sur la désignation) : {TRANCHE_LABEL[tranche] ?? tranche}.
+            </span>
+          </li>
+        )}
+      </ul>
+
+      {role && (
+        <p className="mt-3 text-[13px] text-green-800">
+          <span className="font-medium">Son rôle : </span>
+          <Glose>{role}</Glose>
+        </p>
+      )}
+
+      {references.length > 0 && (
+        <p className="mt-2 text-xs text-green-700">Règle appliquée : {references.join(' · ')}</p>
+      )}
+
+      {provisoire && (
+        <p className="mt-3 rounded border-l-4 border-warn-500 bg-warn-50 p-2 text-[13px] text-warn-700">
+          Désignation <strong>provisoire</strong> : elle repose sur un « Je ne sais pas » et non
+          sur un défaut d’assurance constaté. Obtenez l’attestation (courrier C5) puis reprenez la
+          question d’assurance.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function Resultat() {
   const { state } = useDossier();
@@ -110,8 +188,9 @@ export function Resultat() {
     });
   };
 
-  const gest = gestionnaireNode(wizard);
-  const cas = cas213(wizard);
+  // « On ne sait pas comment est déterminé l'assureur gestionnaire » : le moteur
+  // connaît le chemin parcouru, on l'expose (règle appliquée + réponses qui y ont mené).
+  const explication = expliquerGestionnaire(wizard);
   const recommandes = courriersRecommandes(wizard);
 
   return (
@@ -227,15 +306,7 @@ export function Resultat() {
         </div>
       )}
 
-      {gest && (
-        <div className="mt-4 rounded-md border border-green-100 bg-green-50 p-3 text-sm">
-          <span className="font-semibold text-green-900">Assureur gestionnaire : </span>
-          <span className="text-green-900">{gest.gestionnaire?.replace(/_/g, ' ')}</span>
-          {cas !== undefined && (
-            <span className="text-green-700"> - cas {cas} du tableau IRSI 2.1.3</span>
-          )}
-        </div>
-      )}
+      {explication && <PourquoiCeGestionnaire explication={explication} />}
 
       {node.prise_en_charge && (
         <div className="mt-4">

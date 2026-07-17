@@ -25,7 +25,10 @@ import { Button, Card } from './ui';
 // parcours n'est jamais bloqué si la persistance échoue (mode dégradé).
 function DossierPanel() {
   const { state, dispatch } = useDossier();
-  const [ouvert, setOuvert] = useState(true);
+  // Replié par défaut : « on prend trop de temps à lire ». Le parcours n'a pas besoin
+  // de ce formulaire pour avancer (seuls le nom du local et une date non future
+  // bloquent) - on l'ouvre quand on veut enregistrer, pas avant.
+  const [ouvert, setOuvert] = useState(false);
   const [enregistrement, demarrerEnregistrement] = useTransition();
   const [retour, setRetour] = useState<{ ok: boolean; texte: string } | null>(null);
 
@@ -82,8 +85,18 @@ function DossierPanel() {
     demarrerEnregistrement(async () => {
       const res = await enregistrerSinistreAction(state);
       if (res.ok) {
-        dispatch({ type: 'PERSISTE_OK', id: res.id, referenceInterne: res.referenceInterne });
-        setRetour({ ok: true, texte: `Enregistré (${res.referenceInterne})` });
+        dispatch({
+          type: 'PERSISTE_OK',
+          id: res.id,
+          referenceInterne: res.referenceInterne,
+          ...(res.dossierId ? { dossierId: res.dossierId } : {}),
+        });
+        setRetour({
+          ok: true,
+          texte: res.dossierId
+            ? `Enregistré (${res.referenceInterne}) - visible dans Mes dossiers`
+            : `Enregistré (${res.referenceInterne}) - dossier non créé, sinistre conservé`,
+        });
       } else {
         setRetour({ ok: false, texte: res.erreur });
       }
@@ -94,14 +107,39 @@ function DossierPanel() {
     <Card className="no-print mb-4">
       <button
         onClick={() => setOuvert((o) => !o)}
-        className="flex w-full items-center justify-between text-left"
+        aria-expanded={ouvert}
+        className="flex w-full items-center justify-between gap-3 text-left"
       >
-        <span className="font-semibold text-ink-2">
-          Dossier {state.referenceInterne}
-          {state.immeuble.nom ? ` - ${state.immeuble.nom}` : ''}
+        <span>
+          <span className="font-semibold text-ink-2">
+            Dossier {state.referenceInterne}
+            {state.immeuble.nom ? ` - ${state.immeuble.nom}` : ''}
+          </span>
+          {/* Replié : on dit en une ligne ce qu'il reste à faire pour enregistrer. */}
+          <span className="mt-0.5 block text-xs font-normal text-ink-4">
+            {state.id
+              ? 'Enregistré - ouvrir pour modifier'
+              : state.coproprieteId
+                ? 'Ouvrir pour compléter et enregistrer'
+                : 'Copropriété à rattacher avant d’enregistrer'}
+          </span>
         </span>
-        <span className="text-ink-4">{ouvert ? '▲' : '▼'}</span>
+        <span aria-hidden className="text-ink-4">
+          {ouvert ? '▲' : '▼'}
+        </span>
       </button>
+
+      {/* Le sinistre enregistré vit desormais comme un DOSSIER : on donne le lien. */}
+      {state.dossierId && (
+        <p className="mt-2 text-xs">
+          <Link
+            href={`/dossiers/${state.dossierId}`}
+            className="font-medium text-green-700 underline hover:text-green-900"
+          >
+            Ouvrir le dossier dans « Mes dossiers »
+          </Link>
+        </p>
+      )}
 
       {ouvert && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -249,6 +287,8 @@ export function WizardScreen() {
         assureurNom: '',
         assureurPolice: '',
         gestionnaire: ctx.gestionnaire,
+        // Déjà rattaché : l'enregistrement ne doit pas créer un second dossier.
+        dossierId: ctx.dossierId,
       });
     });
   }, [dossierId, state.referenceInterne, immeubleVide, dispatch]);
@@ -274,7 +314,8 @@ export function WizardScreen() {
           </Link>
         </div>
       )}
-      <DossierPanel />
+      {/* Ordre : progression -> local -> LA QUESTION. Le formulaire de dossier passe en
+          bas (replié) : il ne conditionne pas le parcours, seulement l'enregistrement. */}
       <Breadcrumb node={node} />
       <LocauxBar />
 
@@ -341,6 +382,10 @@ export function WizardScreen() {
           </Button>
         </div>
       )}
+
+      <div className="mt-6">
+        <DossierPanel />
+      </div>
     </div>
   );
 }

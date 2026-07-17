@@ -23,6 +23,15 @@ import type {
 export interface DossierState {
   /** Id Supabase du sinistre (uuid). Absent tant que le dossier n'a jamais ete persiste. */
   id?: string;
+  /**
+   * Id du DOSSIER de l'intranet (module Dossiers) auquel ce sinistre est rattache.
+   * C'est ce qui rend le sinistre visible dans « Mes dossiers » : sans lui, le sinistre
+   * n'existe que dans `intranet_sinistres` et n'apparait nulle part.
+   * Pose soit par `?dossier=<id>` (wizard ouvert DEPUIS un dossier existant), soit par
+   * le premier enregistrement (qui cree alors le dossier). Presence = deja rattache :
+   * on ne cree jamais un second dossier pour le meme sinistre.
+   */
+  dossierId?: string;
   referenceInterne: string;
   date: string;
   immeuble: ImmeubleInfo;
@@ -74,7 +83,13 @@ export type Action =
   | { type: 'AJOUTER_RDV' }
   | { type: 'MAJ_RDV'; id: string; patch: Partial<RendezVousExpertise> }
   | { type: 'SUPPRIMER_RDV'; id: string }
-  | { type: 'PERSISTE_OK'; id: string; referenceInterne: string }
+  | {
+      type: 'PERSISTE_OK';
+      id: string;
+      referenceInterne: string;
+      /** Dossier cree (ou deja rattache) par l'enregistrement serveur. */
+      dossierId?: string;
+    }
   | {
       type: 'SELECTIONNER_COPROPRIETE';
       coproprieteId: string;
@@ -85,4 +100,6 @@ export type Action =
       assureurPolice: string;
       /** Signataire courant (alimente la fusion des courriers). Facultatif. */
       gestionnaire?: { nom: string; email: string; initiales: string };
+      /** Dossier d'origine quand le wizard est ouvert via `?dossier=<id>`. */
+      dossierId?: string;
     };

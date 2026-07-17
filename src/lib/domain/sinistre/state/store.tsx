@@ -238,7 +238,14 @@ function reducer(state: DossierState, action: Action): DossierState {
       }));
     case 'PERSISTE_OK':
       // Id + référence assignés par le serveur après enregistrement (mode supabase).
-      return { ...state, id: action.id, referenceInterne: action.referenceInterne };
+      // `dossierId` : rattachement au module Dossiers (créé au 1er enregistrement).
+      // Non destructif : on ne l'efface jamais si le serveur ne le renvoie pas.
+      return {
+        ...state,
+        id: action.id,
+        referenceInterne: action.referenceInterne,
+        ...(action.dossierId ? { dossierId: action.dossierId } : {}),
+      };
     case 'SELECTIONNER_COPROPRIETE': {
       // Sélecteur d'immeuble (mode supabase) : copropriété + agence dérivée + signataire +
       // nom/adresse/assurance (nom/police LUS de la copro, D5 ; numeroSinistre conservé).
@@ -256,6 +263,9 @@ function reducer(state: DossierState, action: Action): DossierState {
         coproprieteId: action.coproprieteId,
         agenceId: action.agenceId,
         ...(action.gestionnaire ? { gestionnaire: action.gestionnaire } : {}),
+        // Rattachement au dossier d'origine (?dossier=<id>) : empêche l'enregistrement
+        // de créer un SECOND dossier pour un sinistre déjà rattaché.
+        ...(action.dossierId ? { dossierId: action.dossierId } : {}),
         immeuble: { nom: action.nom, adresse: action.adresse },
         assureurImmeuble,
       };
