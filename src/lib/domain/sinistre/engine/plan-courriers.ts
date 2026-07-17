@@ -16,7 +16,7 @@
 
 import { courriers } from '../data';
 import { courriersRecommandes, gestionnaireNode } from './wizard';
-import type { Courrier, CourrierId, WizardState } from '../types';
+import type { Courrier, CourrierId, NodeId, WizardState } from '../types';
 
 export type MomentCourrier = 'maintenant' | 'plus_tard';
 
@@ -149,6 +149,76 @@ export function planifierCourriers(wizard: WizardState): PlanCourriers {
       declencheur: declencheurDe(courrier),
     });
   }
+
+  return { maintenant, plusTard };
+}
+
+// --- Écrans d'étape --------------------------------------------------------
+
+/**
+ * PERTINENCE ≠ MOMENT. `declencheurs_noeuds` dit qu'un courrier CONCERNE un
+ * parcours passant par ce nœud - il ne dit pas qu'il part depuis cet écran.
+ * Sur `etape_rdf`, C9 (ordre de mission) part bien à cet instant : on vient de
+ * décider la recherche de fuite. Sur `etape_urgence`, C3 (mise en demeure LRAR)
+ * est pertinent mais son moment est J+15, et au jour 0 on ne sait même pas
+ * encore qui est responsable. Les proposer côte à côte avec le même bouton
+ * « Générer », c'est proposer une mise en demeure le jour de l'ouverture.
+ *
+ * Le JSON ne porte AUCUN champ de moment, et `delai` ne permet pas de le dériver
+ * sans deviner (« dès réception du rapport » et « dès décision d'organiser la
+ * RDF » commencent tous deux par « dès » et sont deux moments opposés). D'où
+ * cette table EXPLICITE, au même titre que `A_L_OUVERTURE` : pour un écran
+ * d'étape, les courriers qui partent DEPUIS cet écran. Tout le reste est une
+ * suite (replié).
+ *
+ * Défaut volontairement PRUDENT : un nœud absent de cette table n'a aucun
+ * courrier « du moment » - on ne pousse jamais un [Générer] par accident ; le
+ * courrier reste atteignable dans la liste repliée.
+ */
+const DU_MOMENT_PAR_ETAPE: Readonly<Record<NodeId, ReadonlyArray<CourrierId>>> = {
+  // Ouverture du dossier : on invite à déclarer et à établir le constat. C3
+  // (mise en demeure) est déclenché ici mais ne part qu'à J+15 -> suite.
+  etape_urgence: ['C2'],
+  // Décision d'organiser la recherche de fuite : l'ordre de mission part
+  // maintenant. C4 attend le rapport + la facture, C3 attend J+15 -> suites.
+  etape_rdf: ['C9'],
+};
+
+/** Courriers dont les déclencheurs incluent un nœud donné (ordre du JSON). */
+export function courriersDuNoeud(nodeId: NodeId): CourrierId[] {
+  return courriers.filter((c) => c.declencheurs_noeuds.includes(nodeId)).map((c) => c.id);
+}
+
+/**
+ * Même partition que `planifierCourriers`, mais pour un écran d'ÉTAPE : ce qui
+ * part depuis cet écran / ce qui est une suite. Aucun courrier déclenché par le
+ * nœud n'est perdu : il ressort dans exactement une des deux listes.
+ */
+export function planifierCourriersEtape(nodeId: NodeId): PlanCourriers {
+  const declenches = courriersDuNoeud(nodeId);
+  const parId = new Map(courriers.map((c) => [c.id, c]));
+  const duMoment = DU_MOMENT_PAR_ETAPE[nodeId] ?? [];
+
+  const maintenant: CourrierPlanifie[] = [];
+  const plusTard: CourrierPlanifie[] = [];
+
+  for (const id of declenches) {
+    const courrier = parId.get(id);
+    if (!courrier) continue;
+    if (duMoment.includes(id)) {
+      maintenant.push({ courrier, moment: 'maintenant', quand: quandDe(courrier) });
+    } else {
+      plusTard.push({
+        courrier,
+        moment: 'plus_tard',
+        quand: quandDe(courrier),
+        declencheur: declencheurDe(courrier),
+      });
+    }
+  }
+
+  // Ordre d'affichage des « maintenant » : celui de la table, pas celui du JSON.
+  maintenant.sort((a, b) => duMoment.indexOf(a.courrier.id) - duMoment.indexOf(b.courrier.id));
 
   return { maintenant, plusTard };
 }

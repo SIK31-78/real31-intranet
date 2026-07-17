@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { Glose } from './Glossaire';
 import { ChecklistMesures } from './ChecklistMesures';
-import { ListeCourriersLiens, courriersDuNoeud } from './CourriersLiens';
+import { PlanCourriersVue } from './CourriersLiens';
 import { AlertBox } from './ui';
 import { Button } from '@/components/ui/button';
+import { planifierCourriersEtape } from '@/lib/domain/sinistre/engine/plan-courriers';
 import { subsidiariteParIncertitude } from '@/lib/domain/sinistre/engine/wizard';
 import { useActiveLocal, useDossier } from '@/lib/domain/sinistre/state/store';
 import type { EtapeNode } from '@/lib/domain/sinistre/types';
@@ -79,8 +80,11 @@ export function EtapeView({
 
       {node.alerte && <AlertBox>{node.alerte}</AlertBox>}
 
-      {/* Modèles déclenchés par cet écran (ex. C9 sur la recherche de fuite) - H-2. */}
-      <ListeCourriersLiens ids={courriersDuNoeud(local.wizard.current)} />
+      {/* H-2 : les courriers de cet écran, partitionnés par le domaine. Ce qui part
+          MAINTENANT (l'invitation à déclarer, l'ordre de mission RDF) est en carte ;
+          ce qui attend une condition ou un délai (la mise en demeure à J+15, la
+          facture de RDF à réception) est replié - pertinence n'est pas moment. */}
+      <PlanCourriersVue plan={planifierCourriersEtape(local.wizard.current)} />
 
       <div className="no-print mt-6">
         <Button variant="primary" onClick={onContinue} disabled={disabled}>

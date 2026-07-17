@@ -8,7 +8,12 @@ import {
   initialState,
   settleForward,
 } from './wizard';
-import { planifierCourriers } from './plan-courriers';
+import {
+  courriersDuNoeud,
+  planifierCourriers,
+  planifierCourriersEtape,
+} from './plan-courriers';
+import { nodes } from '../data';
 import type { WizardState } from '../types';
 
 // --- Navigation data-driven (meme utilitaire que explication.test.ts) ---
@@ -156,5 +161,53 @@ describe('planifierCourriers', () => {
 
     expect(tous).not.toContain('C4'); // RDF non organisée
     expect(tous).not.toContain('C6'); // aucune convocation d'expertise
+  });
+});
+
+describe('planifierCourriersEtape', () => {
+  it('etape_urgence : on invite à déclarer (C2), on ne met pas en demeure au jour 0 (C3)', () => {
+    const plan = planifierCourriersEtape('etape_urgence');
+    // Le bug corrigé : C3 (mise en demeure LRAR, moment réel J+15) était proposée
+    // avec le même bouton « Générer » que C2, sur le tout premier écran.
+    expect(ids(plan.maintenant)).toEqual(['C2']);
+    expect(ids(plan.plusTard)).toEqual(['C3']);
+  });
+
+  it('etape_rdf : l’ordre de mission part maintenant (C9), les suites attendent', () => {
+    const plan = planifierCourriersEtape('etape_rdf');
+    expect(ids(plan.maintenant)).toEqual(['C9']);
+    // C3 attend J+15, C4 attend le rapport et la facture.
+    expect(ids(plan.plusTard).sort()).toEqual(['C3', 'C4']);
+  });
+
+  it('« maintenant » n’a pas de déclencheur, « plus tard » en a toujours un', () => {
+    for (const nodeId of ['etape_urgence', 'etape_rdf']) {
+      const plan = planifierCourriersEtape(nodeId);
+      for (const p of plan.maintenant) {
+        expect(p.moment).toBe('maintenant');
+        expect(p.declencheur).toBeUndefined();
+      }
+      for (const p of plan.plusTard) {
+        expect(p.moment).toBe('plus_tard');
+        expect(p.declencheur?.trim(), `déclencheur manquant sur ${p.courrier.id}`).toBeTruthy();
+      }
+    }
+  });
+
+  it('nœud d’étape hors table : rien n’est poussé en « Générer », rien n’est perdu', () => {
+    // Défaut prudent : aucun courrier « du moment » sur un nœud non déclaré.
+    const plan = planifierCourriersEtape('q_tranche');
+    expect(plan.maintenant).toEqual([]);
+    expect(ids(plan.plusTard)).toEqual(courriersDuNoeud('q_tranche'));
+  });
+
+  it('tout courrier déclenché par un nœud est dans exactement une des deux listes', () => {
+    for (const nodeId of Object.keys(nodes)) {
+      const attendus = courriersDuNoeud(nodeId);
+      const plan = planifierCourriersEtape(nodeId);
+      const obtenus = [...ids(plan.maintenant), ...ids(plan.plusTard)];
+      expect([...obtenus].sort(), `nœud ${nodeId}`).toEqual([...attendus].sort());
+      expect(new Set(obtenus).size, `doublon sur ${nodeId}`).toBe(obtenus.length);
+    }
   });
 });

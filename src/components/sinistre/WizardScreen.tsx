@@ -10,10 +10,11 @@ import {
   type ImmeubleOption,
 } from '@/app/sinistre/actions';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
+import type { WizardState } from '@/lib/domain/sinistre/types';
 import { currentNode, isTransparent, cheminMixte, pathOf } from '@/lib/domain/sinistre/engine/wizard';
+import { progression } from '@/lib/domain/sinistre/engine/progression';
 import { aujourdhuiISO, dateEstFuture } from '@/lib/domain/sinistre/util/date';
 import { nomLocalValide } from '@/lib/domain/sinistre/util/local';
-import { Breadcrumb } from './Breadcrumb';
 import { LocauxBar } from './LocauxBar';
 import { QuestionView } from './QuestionView';
 import { EtapeView } from './EtapeView';
@@ -247,6 +248,48 @@ function DossierPanel() {
   );
 }
 
+/**
+ * Progression du parcours - remplace le fil des 7 phases (« Urgence › Qualification
+ * › Tranche › CIDECOP »), qui était le vocabulaire du MOTEUR, pas celui du
+ * gestionnaire : l'écran expliquait l'algorithme au lieu de faire avancer.
+ *
+ * Le total vient du domaine (`progression`), qui parcourt le graphe et refuse de
+ * répondre quand aucun chiffre honnête n'est calculable. On affiche donc, selon
+ * ce qui est vrai : « Question 3 sur 6 », « Question 3 sur ~6 », ou « Question 3 »
+ * tout court. Jamais de total en dur.
+ */
+function ProgressionParcours({ wizard }: { wizard: WizardState }) {
+  const { numero, total, approximatif } = progression(wizard);
+  if (numero === undefined) return null;
+
+  const texte =
+    total === undefined
+      ? `Question ${numero}`
+      : `Question ${numero} sur ${approximatif ? '~' : ''}${total}`;
+  // Le « ~ » ne se lit pas : on double d'un libellé explicite pour les lecteurs d'écran.
+  const texteLu =
+    total === undefined
+      ? `Question ${numero}. Le nombre total dépend de vos réponses.`
+      : `Question ${numero} sur ${approximatif ? 'environ ' : ''}${total}`;
+
+  return (
+    <div className="no-print mb-4">
+      <p className="text-xs font-medium text-ink-3">
+        <span aria-hidden>{texte}</span>
+        <span className="sr-only">{texteLu}</span>
+      </p>
+      {total !== undefined && (
+        <div aria-hidden className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2">
+          <div
+            className="h-full rounded-full bg-green-700 transition-all"
+            style={{ width: `${Math.round((numero / total) * 100)}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Messages bloquant la progression du parcours (G-2, G-4). */
 function blocagesProgression(date: string, nomLocal: string): string[] {
   const msgs: string[] = [];
@@ -297,6 +340,28 @@ export function WizardScreen() {
   const blocages = blocagesProgression(state.date, local.libelle);
   const bloque = blocages.length > 0;
 
+  // L'erreur se montre quand on TENTE d'avancer, jamais à l'atterrissage : on
+  // n'accueille pas le collaborateur en lui reprochant un local qu'il n'a pas
+  // encore nommé. La validation, elle, ne bouge pas : `bloque` interdit toujours
+  // de franchir l'étape. Une fois le blocage corrigé, l'alerte disparaît d'elle-même
+  // (elle est conditionnée à `bloque`).
+  const [tentative, setTentative] = useState(false);
+  const refNomLocal = useRef<HTMLInputElement>(null);
+  const afficherBlocages = tentative && bloque && node.type !== 'resultat';
+
+  /**
+   * Garde de progression. Retourne vrai si le geste peut passer ; sinon révèle
+   * l'alerte et renvoie le focus sur le champ fautif - une erreur qu'on ne peut
+   * pas réparer d'un geste n'est qu'une punition (et l'AA exige que l'alerte soit
+   * annoncée au moment où elle survient).
+   */
+  const autoriseProgression = (): boolean => {
+    if (!bloque) return true;
+    setTentative(true);
+    if (!nomLocalValide(local.libelle)) refNomLocal.current?.focus();
+    return false;
+  };
+
   // Filet de sécurité (G-3) : si l'on atterrit sur une étape transparente
   // (ex. brouillon réhydraté), la franchir sans l'afficher.
   const transparent = isTransparent(node);
@@ -305,20 +370,65 @@ export function WizardScreen() {
   }, [transparent, dispatch]);
   if (transparent) return null;
 
+  // AU-DESSUS DE LA QUESTION, le strict nécessaire : où j'en suis, sur quel local
+  // je réponds (seulement s'il y en a plusieurs), et ce qui m'empêche d'avancer.
+  // Tout le reste (contexte, bandeaux, formulaire de dossier) passe SOUS la
+  // question : rien n'est supprimé, tout descend d'un cran.
+  const multiLocaux = state.locaux.length > 1;
+
   return (
     <div>
-      {dossierId && (
-        <div className="no-print mb-4 flex items-center justify-between gap-3 rounded-md border-l-4 border-info-500 bg-info-50 px-3 py-2 text-sm text-info-700">
-          <span>Analyse rattachée à un dossier · la synthèse pourra y être reportée depuis l’écran de résultat.</span>
-          <Link href={`/dossiers/${dossierId}`} className="shrink-0 font-medium underline">
-            Revenir au dossier
-          </Link>
+      {node.type !== 'resultat' && <ProgressionParcours wizard={local.wizard} />}
+
+      {multiLocaux && <LocauxBar refNomActif={refNomLocal} nomEnErreur={afficherBlocages} />}
+
+      {afficherBlocages && (
+        <div
+          role="alert"
+          className="no-print mb-4 rounded-md border-l-4 border-warn-500 bg-warn-50 p-3 text-sm text-warn-700"
+        >
+          <p className="font-medium">Corrigez avant de continuer :</p>
+          <ul className="list-disc pl-5">
+            {blocages.map((m, i) => (
+              <li key={i}>{m}</li>
+            ))}
+          </ul>
         </div>
       )}
-      {/* Ordre : progression -> local -> LA QUESTION. Le formulaire de dossier passe en
-          bas (replié) : il ne conditionne pas le parcours, seulement l'enregistrement. */}
-      <Breadcrumb node={node} />
-      <LocauxBar />
+
+      <Card className="p-5">
+        {node.type === 'question' && (
+          <QuestionView
+            node={node}
+            nodeId={local.wizard.current}
+            onAnswer={(i) => {
+              if (autoriseProgression()) dispatch({ type: 'ANSWER', optionIndex: i });
+            }}
+          />
+        )}
+        {node.type === 'etape' && (
+          <EtapeView
+            node={node}
+            onContinue={() => {
+              if (autoriseProgression()) dispatch({ type: 'ADVANCE' });
+            }}
+          />
+        )}
+        {node.type === 'resultat' && <Resultat />}
+      </Card>
+
+      {peutReculer && (
+        <div className="no-print mt-4">
+          <Button variant="ghost" onClick={() => dispatch({ type: 'BACK' })}>
+            - Précédent
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-8 border-t border-line pt-6">
+      {/* Un seul local : la ligne de nommage vit ici, sous la question (la barre
+          d'onglets ne sert à rien tant qu'il n'y a pas de 2e local à choisir). */}
+      {!multiLocaux && <LocauxBar refNomActif={refNomLocal} nomEnErreur={afficherBlocages} />}
 
       {/* G-5 : sinistre mixte - rappeler la part commune et proposer le raccourci. */}
       {cheminMixte(local.wizard) && node.type !== 'resultat' && (
@@ -343,49 +453,16 @@ export function WizardScreen() {
         </div>
       )}
 
-      {bloque && node.type !== 'resultat' && (
-        <div
-          role="alert"
-          className="no-print mb-4 rounded-md border-l-4 border-warn-500 bg-warn-50 p-3 text-sm text-warn-700"
-        >
-          <p className="font-medium">Corrigez avant de continuer :</p>
-          <ul className="list-disc pl-5">
-            {blocages.map((m, i) => (
-              <li key={i}>{m}</li>
-            ))}
-          </ul>
+      {dossierId && (
+        <div className="no-print mb-4 flex items-center justify-between gap-3 rounded-md border-l-4 border-info-500 bg-info-50 px-3 py-2 text-sm text-info-700">
+          <span>Analyse rattachée à un dossier · la synthèse pourra y être reportée depuis l’écran de résultat.</span>
+          <Link href={`/dossiers/${dossierId}`} className="shrink-0 font-medium underline">
+            Revenir au dossier
+          </Link>
         </div>
       )}
 
-      <Card className="p-5">
-        {node.type === 'question' && (
-          <QuestionView
-            node={node}
-            nodeId={local.wizard.current}
-            onAnswer={(i) => dispatch({ type: 'ANSWER', optionIndex: i })}
-            disabled={bloque}
-          />
-        )}
-        {node.type === 'etape' && (
-          <EtapeView
-            node={node}
-            onContinue={() => dispatch({ type: 'ADVANCE' })}
-            disabled={bloque}
-          />
-        )}
-        {node.type === 'resultat' && <Resultat />}
-      </Card>
-
-      {peutReculer && (
-        <div className="no-print mt-4">
-          <Button variant="ghost" onClick={() => dispatch({ type: 'BACK' })}>
-            - Précédent
-          </Button>
-        </div>
-      )}
-
-      <div className="mt-6">
-        <DossierPanel />
+      <DossierPanel />
       </div>
     </div>
   );

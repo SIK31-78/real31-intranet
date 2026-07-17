@@ -1,14 +1,23 @@
 /**
- * Courriers : plan d'action séquencé (résultat) et liste compacte (étapes).
+ * Courriers : le plan d'action séquencé, UNE seule façon de les présenter.
  *
- * Le plan ne décide de rien : il affiche `planifierCourriers` (domaine). Ce qui
- * part le jour J est en cartes, actionnable ; les suites conditionnelles sont
- * repliées et listées en une ligne chacune. Le courrier ne se génère toujours
- * qu'au clic sur son bouton.
+ * Le composant ne décide de rien : il affiche un `PlanCourriers` calculé par le
+ * domaine (`planifierCourriers` au résultat, `planifierCourriersEtape` sur un
+ * écran d'étape). Ce qui part maintenant est en cartes, actionnable ; les suites
+ * conditionnelles sont repliées, une ligne chacune. Le courrier ne se génère
+ * toujours qu'au clic sur son bouton.
+ *
+ * RÈGLE À NE PAS REPERDRE : pertinence ≠ moment. Une version précédente listait
+ * à plat, sur les écrans d'étape, tous les courriers dont les `declencheurs_noeuds`
+ * citaient le nœud - « on est déjà DANS le moment du courrier ». C'est faux :
+ * `declencheurs_noeuds` dit qu'un courrier CONCERNE ce parcours, pas qu'il part
+ * depuis cet écran. Résultat : le premier écran du parcours proposait de générer
+ * une mise en demeure LRAR (C3, moment réel J+15) au jour 0, à égalité avec
+ * l'invitation à déclarer. La partition maintenant / plus tard vit dans le
+ * domaine ; ici on ne fait que la rendre.
  */
 
 import Link from 'next/link';
-import { courriers } from '@/lib/domain/sinistre/data';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -114,44 +123,3 @@ export function PlanCourriersVue({ plan }: { plan: PlanCourriers }) {
   );
 }
 
-/**
- * Liste des modèles déclenchés par un écran d'étape (ex. C9 sur la recherche de
- * fuite). Pas de plan ici : on est déjà DANS le moment du courrier.
- */
-export function ListeCourriersLiens({ ids }: { ids: CourrierId[] }) {
-  if (ids.length === 0) return null;
-  return (
-    <div className="mt-6 rounded-md border border-line bg-surface p-4">
-      <SectionTitle>Modèles de mails ou courriers recommandés</SectionTitle>
-      <ul className="mt-1 divide-y divide-line">
-        {ids.map((id) => {
-          const c = courriers.find((x) => x.id === id);
-          if (!c) return null;
-          return (
-            <li key={id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge ton="outline">{c.id}</Badge>
-                  <span className="text-[13px] font-medium text-ink">{c.titre}</span>
-                </div>
-                {/* Le délai est porté par la donnée (courriers-types-dde.json) :
-                    on le nomme explicitement plutôt que de le noyer en gris. */}
-                <div className="mt-0.5 text-[12px] text-ink-2">
-                  <span className="font-medium">Quand : </span>
-                  {c.delai}
-                </div>
-                <MetaCourrier courrier={c} />
-              </div>
-              <BoutonGenerer id={c.id} variant="secondary" />
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-/** Courriers dont les déclencheurs incluent un nœud donné (ordre du JSON). */
-export function courriersDuNoeud(nodeId: string): CourrierId[] {
-  return courriers.filter((c) => c.declencheurs_noeuds.includes(nodeId)).map((c) => c.id);
-}
