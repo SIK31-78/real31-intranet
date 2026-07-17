@@ -52,3 +52,26 @@ describe("etatCycleAg", () => {
     expect(r.etat).toBe("tenue");
   });
 });
+
+describe("AG deja tenue pour l'exercice courant (bug Sekou 2026-07-17)", () => {
+  // Exercice clos au 31/12 ; AG tenue le 16/04/2026 puis CONCLUE (prochaine date videe).
+  // Avant le fix : la copro retombait dans "A planifier" alors qu'il n'y a rien a planifier
+  // avant la cloture du 31/12/2026 (Remi voyait des AG deja tenues dans sa colonne).
+  const conclue = { derniereAgDate: "2026-04-16", exercice: { debut: "01/01", fin: "31/12" } };
+
+  it("n'est PAS a planifier : l'AG de l'exercice a eu lieu -> suivi post-AG", () => {
+    const r = etatCycleAg(copro(conclue), false, "2026-07-17");
+    expect(r.etat).toBe("tenue");
+    expect(r.enRetard).toBe(false);
+  });
+
+  it("redevient a planifier une fois l'exercice suivant clos", () => {
+    // En 2027 la cloture la plus recente est le 31/12/2026, POSTERIEURE a l'AG d'avril 2026.
+    expect(etatCycleAg(copro(conclue), false, "2027-02-01").etat).toBe("a_planifier");
+  });
+
+  it("reste a planifier si l'AG de l'exercice n'a pas encore eu lieu", () => {
+    const pasEncore = { ...conclue, derniereAgDate: "2025-04-16" };
+    expect(etatCycleAg(copro(pasEncore), false, "2026-07-17").etat).toBe("a_planifier");
+  });
+});

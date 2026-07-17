@@ -9,7 +9,7 @@
 //   tenue         : la date d'AG est passee, suivi post-AG en cours
 
 import type { Copropriete } from "@/lib/domain/copropriete";
-import { agDueDeadline } from "@/lib/domain/parcours-ag";
+import { agDueDeadline, agTenuePourExerciceCourant } from "@/lib/domain/parcours-ag";
 
 export type EtatCycle = "a_planifier" | "a_venir" | "en_preparation" | "convoquee" | "tenue";
 
@@ -54,6 +54,12 @@ function joursEntre(aISO: string, bISO: string): number {
 export function etatCycleAg(c: Copropriete, convocAccompli: boolean, today: string): EtatCycleInfo {
   const agDate = c.prochaineAg?.date;
   if (!agDate) {
+    // Pas de prochaine date : deux cas TRES differents (bug Sekou 2026-07-17 - des AG deja
+    // tenues cette annee tombaient dans "A planifier"). Si l'AG de l'exercice courant a
+    // DEJA eu lieu (conclue -> prochaine date videe), il n'y a rien a planifier avant la
+    // cloture suivante : la copro est en suivi post-AG ("tenue"), pas en attente d'action.
+    // Au prochain exercice clos, agTenuePourExerciceCourant repasse false -> "a planifier".
+    if (agTenuePourExerciceCourant(c, today)) return { etat: "tenue", enRetard: false };
     const deadline = agDueDeadline(c, today);
     return { etat: "a_planifier", enRetard: deadline !== null && deadline < today };
   }

@@ -54,6 +54,26 @@ function csTraite(c: Copropriete, agDate: string): boolean {
 }
 
 /**
+ * L'AG de l'exercice COURANT a-t-elle deja ete tenue ? (derniere AG posterieure a la
+ * cloture du dernier exercice clos). Sert a distinguer les deux cas d'une copro SANS
+ * prochaine AG datee :
+ *   - AG de l'exercice PAS encore tenue -> il y a vraiment quelque chose a planifier ;
+ *   - AG deja tenue (ex. conclue en avril, exercice clos au 31/12) -> RIEN a planifier
+ *     avant la cloture suivante (bug remonte par Sekou : des AG deja tenues cette annee
+ *     apparaissaient dans "A planifier" de Remi).
+ * Repli conservateur : sans exercice exploitable, on ne conclut RIEN (false) - c'est
+ * agDueDeadline qui gere alors le cycle approximatif "derniere AG + 12 mois".
+ */
+export function agTenuePourExerciceCourant(c: Copropriete, today: string): boolean {
+  if (!/^\d{2}\/\d{2}$/.test(c.exercice.fin) || !c.derniereAgDate) return false;
+  const [dd, mm] = c.exercice.fin.split("/");
+  const annee = Number(today.slice(0, 4));
+  let cloture = `${annee}-${mm}-${dd}`;
+  if (cloture > today) cloture = `${annee - 1}-${mm}-${dd}`; // cloture la plus recente <= today
+  return c.derniereAgDate > cloture;
+}
+
+/**
  * Echeance legale de l'AG a tenir = cloture du dernier exercice clos + 6 mois (delai
  * d'approbation des comptes). Renvoie cette date si l'AG n'est pas planifiee et qu'on
  * entre dans la fenetre de preparation (ou qu'on est en retard) ; null sinon. Regle
