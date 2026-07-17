@@ -299,6 +299,18 @@ export function appliquerEcriture(dispatch: Dispatch<Action>, e: Ecriture): void
   }
 }
 
+/**
+ * Un brouillon est « entamé » dès qu'on y a saisi quelque chose : une réponse au
+ * parcours, un local nommé, un 2e local, ou un champ d'en-tête rempli. Sert à ne
+ * demander confirmation d'écrasement (« Nouveau sinistre ») que s'il y a vraiment
+ * à perdre - un parcours vierge se remplace sans friction.
+ */
+export function brouillonEntame(state: DossierState): boolean {
+  if (state.locaux.length > 1) return true;
+  if (state.date || state.descriptif || state.immeuble.nom || state.immeuble.adresse) return true;
+  return state.locaux.some((l) => l.libelle.trim() !== '' || l.wizard.steps.length > 0);
+}
+
 /** Vérifie qu'un brouillon chargé reste cohérent avec les données actuelles. */
 function draftValide(state: DossierState): boolean {
   if (!state.locaux?.length || !state.activeLocalId) return false;

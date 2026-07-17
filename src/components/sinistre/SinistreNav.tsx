@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useDossier, nouveauDossier, purgerBrouillon } from '@/lib/domain/sinistre/state/store';
+import { useDossier, nouveauDossier, purgerBrouillon, brouillonEntame } from '@/lib/domain/sinistre/state/store';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 
@@ -18,12 +18,21 @@ const NAV = [
 ];
 
 export function SinistreNav() {
-  const { dispatch } = useDossier();
+  const { state, dispatch } = useDossier();
   const router = useRouter();
   const pathname = usePathname();
 
+  // « + Nouveau sinistre » n'est l'action PRINCIPALE que sur l'Accueil (par quoi
+  // commencer). Ailleurs - et surtout dans le parcours - c'est une sortie
+  // destructrice qui ne doit pas dominer « Continuer » : contour.
+  const surAccueil = pathname === '/sinistre';
+
   function nouveau() {
-    if (!window.confirm('Démarrer un nouveau sinistre ? Le brouillon en cours sera effacé.')) {
+    // Confirmation seulement s'il y a quelque chose à perdre : un clic accidentel
+    // sur ce bouton (le plus voyant de l'écran) ne doit pas jeter une saisie en
+    // cours. Un parcours vierge se remplace sans friction.
+    if (brouillonEntame(state) &&
+        !window.confirm('Démarrer un nouveau sinistre ? Le brouillon en cours sera effacé.')) {
       return;
     }
     purgerBrouillon();
@@ -56,7 +65,12 @@ export function SinistreNav() {
           );
         })}
       </nav>
-      <Button variant="primary" size="sm" onClick={nouveau} className="mb-1.5 shrink-0">
+      <Button
+        variant={surAccueil ? 'primary' : 'secondary'}
+        size="sm"
+        onClick={nouveau}
+        className="mb-1.5 shrink-0"
+      >
         + Nouveau sinistre
       </Button>
     </div>
