@@ -6,6 +6,7 @@
  */
 
 import { courriers } from '../data';
+import { libelleGestionnaire } from '../util/gestionnaire';
 import {
   cas213,
   courriersRecommandes,
@@ -37,7 +38,7 @@ function syntheseLocal(local: LocalSinistre): string {
   if (gest?.gestionnaire) {
     const cas = cas213(w);
     lignes.push(
-      ` Assureur gestionnaire : ${gest.gestionnaire.replace(/_/g, ' ')}` +
+      ` Assureur gestionnaire : ${libelleGestionnaire(gest.gestionnaire)}` +
         (cas !== undefined ? ` (cas ${cas} du tableau IRSI 2.1.3)` : ''),
     );
   }

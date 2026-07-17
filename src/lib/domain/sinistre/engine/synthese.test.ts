@@ -121,8 +121,10 @@ describe('syntheseDossierSinistre', () => {
 
     // Résultat dérivé : titre du noeud terminal réel.
     expect(texte).toContain(res.titre);
-    // Gestionnaire désigné (souligné lisible : underscores remplacés par espaces).
-    expect(texte).toContain('assureur coproprietaire occupant');
+    // Gestionnaire désigné, en FRANÇAIS (`libelleGestionnaire`) : la synthèse va
+    // dans le journal d'un dossier, elle ne peut pas y déposer le token du moteur
+    // (« assureur coproprietaire occupant » = l'enum avec des espaces).
+    expect(texte).toContain("l'assureur du (co)propriétaire occupant");
     // Cas du tableau IRSI 2.1.3.
     expect(texte).toContain('cas 1 du tableau IRSI 2.1.3');
     // Tranche.

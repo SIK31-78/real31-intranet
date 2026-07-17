@@ -15,6 +15,7 @@ import {
   type ExplicationGestionnaire,
 } from '@/lib/domain/sinistre/engine/explication';
 import { syntheseDossierSinistre } from '@/lib/domain/sinistre/engine/synthese';
+import { libelleGestionnaire } from '@/lib/domain/sinistre/util/gestionnaire';
 import { useDossier, useActiveLocal } from '@/lib/domain/sinistre/state/store';
 import { reporterRdvExpertiseAction, reporterSyntheseSinistreAction } from '@/app/dossiers/actions';
 import { ajouterRdvAgendaAction, genererEtapesSinistreAction } from '@/app/sinistre/actions';
@@ -45,7 +46,9 @@ function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGesti
         <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
           Assureur gestionnaire
         </span>
-        <span className="text-[15px] font-semibold text-ink">{gestionnaire.replace(/_/g, ' ')}</span>
+        <span className="text-[15px] font-semibold text-ink">
+          {libelleGestionnaire(gestionnaire)}
+        </span>
         {tranche && <Badge ton="neutral">{TRANCHE_LABEL[tranche] ?? tranche}</Badge>}
         {provisoire && (
           <Badge ton="warn" dot>
@@ -300,8 +303,10 @@ export function Resultat() {
 
       {explication && <PourquoiCeGestionnaire explication={explication} />}
 
-      {/* Le cœur de l'écran : ce qui part aujourd'hui, et ce qui attend. */}
-      <PlanCourriersVue plan={plan} />
+      {/* Le cœur de l'écran : ce qui part aujourd'hui, et ce qui attend. Plus rien
+          à continuer ici -> c'est le plan qui garde le bouton plein (voir la règle
+          en tête de CourriersLiens). */}
+      <PlanCourriersVue plan={plan} contexte="resultat" />
 
       {node.prise_en_charge && (
         <div className="mt-6">

@@ -420,7 +420,7 @@ export function WizardScreen() {
       {peutReculer && (
         <div className="no-print mt-4">
           <Button variant="ghost" onClick={() => dispatch({ type: 'BACK' })}>
-            - Précédent
+            ← Précédent
           </Button>
         </div>
       )}

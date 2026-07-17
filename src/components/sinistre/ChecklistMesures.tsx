@@ -33,7 +33,7 @@ export function MesureRow({ item }: { item: ChecklistItem }) {
             tiers ? 'bg-warn-50 text-warn-700' : 'bg-surface-2 text-ink-2'
           }`}
         >
-          {tiers ? '- à demander : ' : ''}
+          {tiers ? '→ à demander : ' : ''}
           {labelResponsable(item.responsable)}
         </span>
       </span>

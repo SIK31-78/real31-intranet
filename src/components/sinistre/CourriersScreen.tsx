@@ -50,7 +50,7 @@ function ListeCourriers() {
               </div>
             </div>
             <Link href={`/sinistre/courriers/${c.id}`}>
-              <Button variant="secondary">Générer -</Button>
+              <Button variant="secondary">Générer →</Button>
             </Link>
           </li>
         ))}
