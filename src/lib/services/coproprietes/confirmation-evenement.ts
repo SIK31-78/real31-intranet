@@ -4,6 +4,7 @@
 import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
 import { getConfirmationEvenementRepository, getCoproRepository } from "@/lib/adapters/router";
 import { projeterEvenementOutlook } from "@/lib/services/coproprietes/projeter-evenement-outlook";
+import { projeterCreneauxAg } from "@/lib/services/coproprietes/projeter-creneaux-ag";
 
 /** Confirmations (AG et CS) d'une copro - pour la fiche. */
 export async function getConfirmations(coproCode: string): Promise<ConfirmationEvenement[]> {
@@ -45,5 +46,9 @@ export async function confirmerEvenement(
   // Renomme l'evenement projete ("a confirmer" -> "confirmee"). Degrade propre :
   // n'empeche jamais la confirmation intranet.
   await projeterEvenementOutlook(coproCode, type, debut, "confirme", boite);
+  // Creneaux derives (AG uniquement) : la date relue est la vraie -> on re-projette, ce
+  // qui DEPLACE les memes evenements (idempotent) et rattrape une pose ou Graph avait
+  // echoue. Le sujet des creneaux ne depend pas du statut de confirmation.
+  if (type === "AG") await projeterCreneauxAg(coproCode, date, boite);
   return date;
 }

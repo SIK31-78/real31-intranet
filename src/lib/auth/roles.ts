@@ -1,0 +1,146 @@
+// =============================================================================
+// MODELE DE ROLES DE L'INTRANET - LA reference (point de verite unique).
+// =============================================================================
+//
+// Module PUR (aucune dependance next-auth, aucune I/O) -> testable offline et importable
+// partout : session, AppShell, pages server, Server Actions, routes API.
+//
+// LES ROLES
+//   - gestionnaire : le DEFAUT. Tout collaborateur authentifie l'est, sans aucune allowlist.
+//                    Il voit son portefeuille (cloisonnement par managerId) et le SUIVI des
+//                    modules transverses.
+//   - comptable    : le pole comptable du cabinet. Transverse : PAS de portefeuille, il voit
+//                    TOUTES les copros via /comptabilite.
+//   - manager      : encadrement de proximite. Pilote les chantiers d'onboarding (reprise).
+//   - directeur    : direction du cabinet. Memes droits que manager (+ tout ce qui viendra).
+//   - super_admin  : Sekou / l'admin technique. IMPLIQUE TOUS LES AUTRES ROLES (il doit pouvoir
+//                    tester n'importe quel ecran sans se rajouter dans 4 allowlists).
+//
+// LE CUMUL est la regle : un email peut porter plusieurs roles (un directeur peut aussi etre
+// dans COMPTABLES). `rolesDe` renvoie l'ENSEMBLE des roles portes, jamais "le" role.
+//
+// LES SOURCES = des allowlists d'emails dans l'env (CSV, meme pattern que l'existant). AUCUN
+// email n'est ecrit en dur ici. Deux graphies sont acceptees par role - le PLURIEL est la forme
+// RECOMMANDEE (coherente avec SUPER_ADMINS / COMPTABLES deja en place), le singulier est tolere
+// pour ne pas pieger celui qui pose la variable :
+//
+//   DIRECTEURS=... (ou DIRECTEUR=)      -> role directeur
+//   MANAGERS=...   (ou MANAGER=)        -> role manager
+//   COMPTABLES=... (ou COMPTABLE=)      -> role comptable
+//   SUPER_ADMINS=...(ou SUPER_ADMIN=)   -> role super_admin
+//
+// Format : emails separes par des virgules, casse et espaces indifferents.
+//   DIRECTEURS=jean.dupont@real31.fr, marie.martin@real31.fr
+// Les deux graphies sont CUMULEES (l'union), jamais l'une a la place de l'autre.
+//
+// LA REGLE D'USAGE : l'UI et les gardes serveur testent une INTENTION METIER
+// (`estAdminReprise`, `peutVoirComptabilite`), JAMAIS un role brut. Quand le decoupage bouge,
+// on change le helper ici, pas 30 ecrans.
+//
+// Les variables se posent en local (.env.local) ET sur Vercel (Settings > Environment
+// Variables, scope Production). Une variable absente = personne n'a le role (jamais une
+// ouverture par defaut) - sauf `gestionnaire`, qui n'a pas d'allowlist par construction.
+
+/** Les roles connus de l'intranet. `gestionnaire` est le defaut (aucune allowlist). */
+export const ROLES = ["gestionnaire", "comptable", "manager", "directeur", "super_admin"] as const;
+export type Role = (typeof ROLES)[number];
+
+/** Roles portes par une allowlist d'env (tous sauf le defaut `gestionnaire`). */
+const ROLES_ALLOWLISTES = ["comptable", "manager", "directeur", "super_admin"] as const;
+type RoleAllowliste = (typeof ROLES_ALLOWLISTES)[number];
+
+/** Variables d'env par role : [forme recommandee (pluriel), forme toleree (singulier)]. */
+const SOURCES_ENV: Record<RoleAllowliste, readonly [string, string]> = {
+  comptable: ["COMPTABLES", "COMPTABLE"],
+  manager: ["MANAGERS", "MANAGER"],
+  directeur: ["DIRECTEURS", "DIRECTEUR"],
+  super_admin: ["SUPER_ADMINS", "SUPER_ADMIN"],
+};
+
+/** Emails d'une allowlist CSV, normalises (trim + minuscules). */
+function allowlist(csv: string | undefined): string[] {
+  return (csv ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * L'email est-il dans l'allowlist du role ? Union des deux graphies (pluriel + singulier).
+ * Lu a CHAQUE appel (pas au chargement du module) : une variable posee apres coup est prise en
+ * compte, et les tests peuvent stubber l'env.
+ */
+function dansAllowlist(email: string | null | undefined, role: RoleAllowliste): boolean {
+  const e = email?.trim().toLowerCase();
+  if (!e) return false;
+  const [pluriel, singulier] = SOURCES_ENV[role];
+  return allowlist(process.env[pluriel]).includes(e) || allowlist(process.env[singulier]).includes(e);
+}
+
+/**
+ * TOUS les roles portes par cet email. Contient TOUJOURS `gestionnaire` (le defaut : l'appelant
+ * ne pose la question que pour une session authentifiee). `super_admin` implique tous les autres.
+ */
+export function rolesDe(email: string | null | undefined): Set<Role> {
+  const roles = new Set<Role>(["gestionnaire"]);
+  for (const role of ROLES_ALLOWLISTES) {
+    if (dansAllowlist(email, role)) roles.add(role);
+  }
+  // Le super-admin porte tout : il doit pouvoir ouvrir n'importe quel ecran pour le tester.
+  if (roles.has("super_admin")) for (const r of ROLES) roles.add(r);
+  return roles;
+}
+
+/** Cet email porte-t-il ce role ? (implication super_admin incluse) */
+export function aRole(email: string | null | undefined, role: Role): boolean {
+  return rolesDe(email).has(role);
+}
+
+// --- ROLES BRUTS (a n'utiliser que pour composer une intention metier) --------
+
+/** Membre du pole comptable (COMPTABLES) - ou super-admin, qui porte tous les roles. */
+export function estComptable(email: string | null | undefined): boolean {
+  return aRole(email, "comptable");
+}
+
+/** Manager (MANAGERS) - ou super-admin. */
+export function estManager(email: string | null | undefined): boolean {
+  return aRole(email, "manager");
+}
+
+/** Directeur (DIRECTEURS) - ou super-admin. */
+export function estDirecteur(email: string | null | undefined): boolean {
+  return aRole(email, "directeur");
+}
+
+/** Super-admin (SUPER_ADMINS) : admin technique, porte tous les roles. */
+export function estSuperAdmin(email: string | null | undefined): boolean {
+  return dansAllowlist(email, "super_admin");
+}
+
+// --- INTENTIONS METIER (ce que l'UI et les gardes serveur doivent appeler) ----
+
+/**
+ * Acces au dashboard comptable (/comptabilite) : le pole compta et les super-admins (pour
+ * tester). Un gestionnaire normal n'y a pas acces.
+ */
+export function peutVoirComptabilite(email: string | null | undefined): boolean {
+  return estComptable(email);
+}
+
+/**
+ * ADMIN du module REPRISE de copro : directeur, manager ou super-admin.
+ *
+ * Regle metier (Sekou, 2026-07-17) : le SUIVI d'une reprise est ouvert a TOUS les gestionnaires
+ * (voir ou en est la reprise de sa copro) ; TOUT LE RESTE - creer un dossier, uploader/analyser
+ * les documents, corriger le jeu, injecter dans eStale, piloter les fiches de renseignements,
+ * la revue du mapping comptable, archiver/supprimer - est reserve a l'encadrement. Un
+ * gestionnaire voit ces actions GRISEES (elles existent, il sait a qui s'adresser).
+ */
+export function estAdminReprise(email: string | null | undefined): boolean {
+  return estDirecteur(email) || estManager(email);
+}
+
+/** Message affiche a un non-admin sur une action reservee (UI + refus serveur : meme phrase). */
+export const MESSAGE_RESERVE_ADMIN_REPRISE =
+  "Action reservee aux directeurs et managers. Tu peux consulter le suivi de ce dossier ; pour agir dessus, rapproche-toi de ton manager.";

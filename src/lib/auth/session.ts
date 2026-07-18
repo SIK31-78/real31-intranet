@@ -9,21 +9,18 @@ import { cookies } from "next/headers";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireRepository } from "@/lib/adapters/router";
 import { auth, ssoConfigure } from "@/auth";
+import { estSuperAdmin } from "./roles";
 
 export const COOKIE_GESTIONNAIRE = "gid";
 
 // Impersonation : se mettre dans la peau de n'importe quel gestionnaire via le cookie
 // gid (selecteur /dev-login). Quand le SSO est actif, l'auth Microsoft passe TOUJOURS
-// en premier ; seul un SUPER-ADMIN (email allowliste) peut ensuite changer de gestionnaire.
-// Sans SSO (dev pur) : selecteur libre. Un gestionnaire normal reste cloisonne a son compte.
-const SUPER_ADMINS = (process.env.SUPER_ADMINS ?? "")
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
-
-export function estSuperAdmin(email: string | null | undefined): boolean {
-  return Boolean(email && SUPER_ADMINS.includes(email.toLowerCase()));
-}
+// en premier ; seul un SUPER-ADMIN (email allowliste SUPER_ADMINS) peut ensuite changer de
+// gestionnaire. Sans SSO (dev pur) : selecteur libre. Un gestionnaire normal reste cloisonne.
+//
+// Le role vit desormais dans lib/auth/roles.ts (LE point de verite des roles) ; on le
+// re-exporte ici pour les appelants historiques (import depuis @/lib/auth/session).
+export { estSuperAdmin };
 
 // "Mes evenements" (boite mail Graph) n'apparait QUE si la vraie boite est branchee
 // (MAIL_SOURCE=graph). En prod, tant que le module n'est pas pret, MAIL_SOURCE n'est
@@ -86,7 +83,10 @@ export const getGestionnaireCourant = cache(async (): Promise<Gestionnaire | nul
     return g ? { ...g, email } : null;
   }
 
-  // Fallback dev sans SSO : premier gestionnaire.
+  // Fallback dev sans SSO : premier gestionnaire. JAMAIS en production : un deploiement
+  // sans SSO configure servirait sinon toutes les routes a des ANONYMES sous l'identite
+  // d'un gestionnaire reel. En prod on retourne null (l'appelant renvoie 401 / redirige).
+  if (process.env.NODE_ENV === "production") return null;
   const tous = await repo.list();
   return tous[0] ?? null;
 });

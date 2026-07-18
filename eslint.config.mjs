@@ -97,7 +97,15 @@ const eslintConfig = defineConfig([
 
           // Audit, auth : helpers transverses qui parlent au domaine via ports
           { from: "audit",              allow: ["domain", "ports"] },
-          { from: "auth",               allow: ["domain", "ports", "audit"] },
+          // auth -> router : session.ts resout le repository gestionnaire courant via
+          // getGestionnaireRepository (@/lib/adapters/router). Arete ajoutee pour documenter
+          // cette dependance reelle. NOTE (audit pre-prod juillet 2026) : le pattern de "router"
+          // ci-dessus (src/lib/adapters/router*.ts, mode "folder" implicite) ne matche jamais un
+          // fichier unique - il faudrait "mode: 'file'" pour que le type "router" soit reconnu.
+          // Consequence actuelle : la regle ne voit JAMAIS router.ts comme element type "router"
+          // (isUnknown: true en debug), donc CETTE arete est un no-op tant que le bug n'est pas
+          // corrige - toute dependance vers router.ts passe silencieusement, pas seulement celle-ci.
+          { from: "auth",               allow: ["domain", "ports", "audit", "router"] },
 
           // Services : orchestrent via ports + router, jamais directement un adapter
           { from: "services",           allow: ["domain", "ports", "router", "audit"] },

@@ -33,8 +33,9 @@ function estChomme(d: Date, feries: Set<string>): boolean {
 }
 
 /** Recule une date au jour ouvre precedent si elle tombe un week-end / ferie
- *  (envoyer/mettre sous pli plus tot reste valide). */
-function reculerJourOuvre(iso: string): string {
+ *  (envoyer/mettre sous pli plus tot reste valide). Exporte : les creneaux
+ *  Outlook derives de l'AG (cf. ./creneaux) doivent tomber un jour travaille. */
+export function reculerJourOuvre(iso: string): string {
   const d = parseISO(iso);
   let feries = joursFeries(d.getUTCFullYear());
   while (estChomme(d, feries)) {
@@ -54,8 +55,10 @@ function dateConvocationLegale(agISO: string): string {
 const LIBELLES: Record<JalonCode, string> = {
   ODJ_CS: "ODJ validé avec le Conseil Syndical",
   DEVIS: "Devis et documents techniques rassemblés",
-  CONVOC: "Convocations envoyées",
-  RELANCE_POUVOIRS: "Relance des pouvoirs / VPC",
+  // "Mise sous pli" EST l'envoi des convocations (meme acte, mot du cabinet) : le
+  // marqueur legal n'est pas perdu, cocher ce jalon vaut "convocations parties".
+  CONVOC: "Mise sous pli",
+  RELANCE_POUVOIRS: "Relance date AG",
   POUVOIRS: "Pouvoirs et votes par correspondance reçus",
   TENUE: "Tenue de l'AG",
   SCAN_CONTRAT: "Scan du contrat + événement Crypto",

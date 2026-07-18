@@ -7,8 +7,15 @@ import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
 import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
 import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
+import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { Button } from "@/components/ui/button";
-import { definirDateAg, definirDateCs, verifierDispoSalleAction } from "./dates-actions";
+import {
+  definirDateAg,
+  definirDateCs,
+  verifierDispoSalleAction,
+  verifierDispoAgendaAction,
+  listerCollaborateursAction,
+} from "./dates-actions";
 
 // La ZOE : seul vehicule reservable (case "Reserver la voiture ZOE"). Email pris dans
 // la liste fermee du domaine (jamais code en dur ici).
@@ -26,6 +33,36 @@ const MODE_LABEL: Record<ModeReunion, string> = {
   presentiel: "Présentiel",
   hybride: "Hybride",
 };
+
+/** Un collaborateur (collegue) associable a une reunion : email + nom lisible. */
+type Collaborateur = { email: string; nom: string };
+
+/** Deux listes d'emails designent-elles le MEME ensemble (ordre / casse ignores) ? */
+function memeEnsemble(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = new Set(a.map((e) => e.toLowerCase()));
+  return b.every((e) => sa.has(e.toLowerCase()));
+}
+
+/**
+ * Valeur DEBOUNCEE (audit API 2026-07-16, P1-6) : ne se propage qu'apres `delaiMs` sans
+ * changement. Les verifications de dispo (getSchedule Graph) ne partent plus a CHAQUE frappe
+ * dans les champs date/heure (6-10 appels Graph en quelques secondes en reglant une heure au
+ * clavier) mais une fois la saisie stabilisee. Les appels obsoletes restent neutralises par
+ * la cle de creneau (le resultat n'est affiche que s'il correspond a la saisie COURANTE) +
+ * le flag `annule` du cleanup de chaque effet.
+ */
+function useValeurDebouncee<T>(valeur: T, delaiMs: number): T {
+  const [debouncee, setDebouncee] = useState(valeur);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncee(valeur), delaiMs);
+    return () => clearTimeout(t);
+  }, [valeur, delaiMs]);
+  return debouncee;
+}
+
+/** Delai de stabilisation de la saisie avant de verifier les dispos (400-600 ms recommande). */
+const DELAI_DISPO_MS = 500;
 
 // Edition inline d'une date d'AG / CS. `quand` = prochaine (planifiee) ou derniere
 // (tenue, correction du referentiel App A). Clic sur la date -> selecteur inline.
@@ -53,6 +90,7 @@ export function EditeurDate({
   salleEmail,
   vehiculeEmail,
   modeReunion,
+  collaborateurs,
 }: {
   coproCode: string;
   type: "ag" | "cs";
@@ -66,6 +104,9 @@ export function EditeurDate({
   vehiculeEmail?: string;
   /** Mode de tenue deja choisi (visio / presentiel / hybride) pour la prochaine reunion. */
   modeReunion?: ModeReunion;
+  /** Collaborateurs (collegues) deja associes a la prochaine reunion (email + nom) :
+   *  badge hors edition + pre-selection du selecteur. */
+  collaborateurs?: Collaborateur[];
 }) {
   const [edition, setEdition] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -75,6 +116,11 @@ export function EditeurDate({
   const [zoeVal, setZoeVal] = useState(false);
   // Mode de reunion : "" = non precise (aucun mode). Cf. MODES / zMode cote action.
   const [modeVal, setModeVal] = useState<ModeReunion | "">("");
+  // Collaborateurs selectionnes (emails) + annuaire des collegues associables (charge a
+  // l'ouverture via l'action). L'annuaire porte les noms lisibles ; la selection ne
+  // stocke que les emails (transmis a l'action, revalides serveur).
+  const [collaborateursVal, setCollaborateursVal] = useState<string[]>([]);
+  const [collabList, setCollabList] = useState<Collaborateur[]>([]);
   // Resultat de dispo indexe par le creneau interroge (date|heure|salle) : on n'affiche
   // que s'il correspond a la saisie courante -> pas de reset synchrone dans l'effet
   // (evite les rendus en cascade) ni d'indicateur perime apres un changement de salle.
@@ -87,6 +133,16 @@ export function EditeurDate({
     cle: string;
     valeur: "libre" | "occupee" | "inconnu";
   } | null>(null);
+  // Dispo de MON agenda (le gestionnaire connecte) sur le creneau, meme mecanique.
+  const [dispoAgenda, setDispoAgenda] = useState<{
+    cle: string;
+    valeur: "libre" | "occupee" | "inconnu";
+  } | null>(null);
+  // Dispo de chaque collegue selectionne, indexee par `${email}|${cleAgenda}` : on ne
+  // lit que la valeur qui correspond au creneau courant (pas d'indicateur perime).
+  const [dispoCollab, setDispoCollab] = useState<
+    Record<string, "libre" | "occupee" | "inconnu">
+  >({});
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmeEffacer, setConfirmeEffacer] = useState(false);
 
@@ -95,6 +151,7 @@ export function EditeurDate({
   const avecHeure = quand === "prochaine";
   const action = type === "ag" ? definirDateAg : definirDateCs;
   const labelVide = quand === "derniere" ? "Non renseignée" : "Non planifiée";
+  const typeApi = type === "ag" ? "AG" : "CS";
 
   // Aujourd'hui en date LOCALE 'YYYY-MM-DD' (pour l'avertissement passe/futur, du point
   // de vue de l'utilisateur). Comparaison de chaines cote domaine : aucun decalage de jour.
@@ -116,8 +173,12 @@ export function EditeurDate({
   const salleEnregistree = avecHeure ? (salleEmail ?? "") : "";
   const zoeEnregistree = avecHeure ? Boolean(vehiculeEmail) : false;
   const modeEnregistre = avecHeure ? (modeReunion ?? "") : "";
+  const collaborateursEnregistres = avecHeure ? (collaborateurs?.map((c) => c.email) ?? []) : [];
   const ressourceInchangee =
-    salleVal === salleEnregistree && zoeVal === zoeEnregistree && modeVal === modeEnregistre;
+    salleVal === salleEnregistree &&
+    zoeVal === zoeEnregistree &&
+    modeVal === modeEnregistre &&
+    memeEnsemble(collaborateursVal, collaborateursEnregistres);
   const inchange = valeurSaisie === valeurEnregistree && ressourceInchangee;
 
   const avertissement = dateVal ? avertissementDateReunion(quand, dateVal, todayISO) : null;
@@ -133,39 +194,160 @@ export function EditeurDate({
   const dispoZoeCreneau = avecHeure && zoeVal && dateVal && heureVal;
   const dispoZoeValeur = dispoZoe && dispoZoe.cle === cleZoe ? dispoZoe.valeur : null;
 
+  // Creneau des AGENDAS (mon agenda + collegues) : des que date + heure sont saisies.
+  const cleAgenda = `${dateVal}|${heureVal}`;
+  const agendaCreneau = avecHeure && dateVal && heureVal;
+  const dispoAgendaValeur = dispoAgenda && dispoAgenda.cle === cleAgenda ? dispoAgenda.valeur : null;
+
+  // Cles DEBOUNCEES (audit API 2026-07-16, P1-6) : les verifications getSchedule partent sur
+  // la saisie STABILISEE, plus a chaque frappe/toggle. Le "|" est un separateur sur : ni les
+  // dates, ni les heures, ni les emails de salle n'en contiennent -> on re-derive date/heure/
+  // salle de la cle debouncee, ce qui garantit que la reponse est rangee sous LA cle qui a
+  // servi a la requete (un resultat perime n'est jamais affiche : l'UI ne lit que la cle
+  // correspondant a la saisie courante).
+  const cleDispoDebouncee = useValeurDebouncee(cleDispo, DELAI_DISPO_MS);
+  const cleZoeDebouncee = useValeurDebouncee(cleZoe, DELAI_DISPO_MS);
+  const cleAgendaDebouncee = useValeurDebouncee(cleAgenda, DELAI_DISPO_MS);
+
   // Verifie la dispo de la salle des qu'une salle est choisie ET la date+heure valides.
   // Degrade "inconnu" (Graph indisponible / 403 Access Policy) : jamais bloquant. Aucun
   // setState synchrone dans le corps de l'effet (uniquement dans les callbacks async).
   useEffect(() => {
-    if (!edition || !dispoCreneau) return;
+    if (!edition || !avecHeure) return;
+    const [date, heure, salle] = cleDispoDebouncee.split("|");
+    if (!date || !heure || !salle) return;
     let annule = false;
-    verifierDispoSalleAction(coproCode, type === "ag" ? "AG" : "CS", dateVal, heureVal, salleVal)
+    verifierDispoSalleAction(coproCode, typeApi, date, heure, salle)
       .then((r) => {
-        if (!annule) setDispo({ cle: cleDispo, valeur: r.dispo });
+        if (!annule) setDispo({ cle: cleDispoDebouncee, valeur: r.dispo });
       })
       .catch(() => {
-        if (!annule) setDispo({ cle: cleDispo, valeur: "inconnu" });
+        if (!annule) setDispo({ cle: cleDispoDebouncee, valeur: "inconnu" });
       });
     return () => {
-      annule = true;
+      annule = true; // garde anti-appel-obsolete : la reponse d'un creneau abandonne est jetee
     };
-  }, [edition, dispoCreneau, cleDispo, coproCode, type, dateVal, heureVal, salleVal]);
+  }, [edition, avecHeure, cleDispoDebouncee, coproCode, typeApi]);
 
   // Verifie la dispo de la ZOE quand la case est cochee (getSchedule marche sur sa boite).
+  // Le toggle de la case reste immediat (geste deliberee) ; seule la saisie date/heure debounce.
   useEffect(() => {
-    if (!edition || !dispoZoeCreneau) return;
+    if (!edition || !avecHeure || !zoeVal) return;
+    const [date, heure] = cleZoeDebouncee.split("|");
+    if (!date || !heure) return;
     let annule = false;
-    verifierDispoSalleAction(coproCode, type === "ag" ? "AG" : "CS", dateVal, heureVal, ZOE_EMAIL)
+    verifierDispoSalleAction(coproCode, typeApi, date, heure, ZOE_EMAIL)
       .then((r) => {
-        if (!annule) setDispoZoe({ cle: cleZoe, valeur: r.dispo });
+        if (!annule) setDispoZoe({ cle: cleZoeDebouncee, valeur: r.dispo });
       })
       .catch(() => {
-        if (!annule) setDispoZoe({ cle: cleZoe, valeur: "inconnu" });
+        if (!annule) setDispoZoe({ cle: cleZoeDebouncee, valeur: "inconnu" });
       });
     return () => {
       annule = true;
     };
-  }, [edition, dispoZoeCreneau, cleZoe, coproCode, type, dateVal, heureVal]);
+  }, [edition, avecHeure, zoeVal, cleZoeDebouncee, coproCode, typeApi]);
+
+  // Verifie MON agenda (le gestionnaire connecte) des que date + heure sont saisies :
+  // email absent cote action -> l'agenda de session. Meme degrade "inconnu".
+  useEffect(() => {
+    if (!edition || !avecHeure) return;
+    const [date, heure] = cleAgendaDebouncee.split("|");
+    if (!date || !heure) return;
+    let annule = false;
+    verifierDispoAgendaAction(coproCode, typeApi, date, heure)
+      .then((r) => {
+        if (!annule) setDispoAgenda({ cle: cleAgendaDebouncee, valeur: r.dispo });
+      })
+      .catch(() => {
+        if (!annule) setDispoAgenda({ cle: cleAgendaDebouncee, valeur: "inconnu" });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [edition, avecHeure, cleAgendaDebouncee, coproCode, typeApi]);
+
+  // Verifie la dispo de CHAQUE collegue selectionne sur le creneau. Une seule passe (pas
+  // un hook par collegue) : on interroge tous les selectionnes en parallele et on range
+  // les reponses par `${email}|${cleAgenda}`. Degrade "inconnu" par collegue.
+  useEffect(() => {
+    if (!edition || !avecHeure || collaborateursVal.length === 0) return;
+    const [date, heure] = cleAgendaDebouncee.split("|");
+    if (!date || !heure) return;
+    let annule = false;
+    for (const email of collaborateursVal) {
+      const k = `${email}|${cleAgendaDebouncee}`;
+      verifierDispoAgendaAction(coproCode, typeApi, date, heure, email)
+        .then((r) => {
+          if (!annule) setDispoCollab((prev) => ({ ...prev, [k]: r.dispo }));
+        })
+        .catch(() => {
+          if (!annule) setDispoCollab((prev) => ({ ...prev, [k]: "inconnu" }));
+        });
+    }
+    return () => {
+      annule = true;
+    };
+    // collaborateursVal (ref) ne change qu'a une (de)selection reelle ; la cle debouncee au
+    // changement de creneau STABILISE -> l'effet ne se rejoue que sur un vrai changement.
+  }, [edition, avecHeure, cleAgendaDebouncee, collaborateursVal, coproCode, typeApi]);
+
+  // Charge l'annuaire des collegues associables a l'ouverture (prochaine reunion seule).
+  useEffect(() => {
+    if (!edition || !avecHeure) return;
+    let annule = false;
+    listerCollaborateursAction()
+      .then((l) => {
+        if (!annule) setCollabList(l);
+      })
+      .catch(() => {
+        if (!annule) setCollabList([]);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [edition, avecHeure]);
+
+  // Dispo d'un collegue pour le creneau courant (undefined = pas encore de reponse).
+  const dispoCollabValeur = (email: string) => dispoCollab[`${email}|${cleAgenda}`];
+
+  // OCCUPE = BLOQUANT (decision Sekou 2026-07). On ne PEUT PAS fixer la date si la salle,
+  // mon agenda OU un collegue invite est OCCUPE sur le creneau. Le plan (domaine pur, meme
+  // regle que le serveur) EXCLUT les cibles dont un "occupe" viendrait de NOTRE propre
+  // evenement deja projete (replanification creneau inchange) : re-sauver une reunion
+  // inchangee (ex. ajouter un collegue) n'est jamais bloque par notre propre reservation.
+  // "inconnu" (Graph off / 403) ne bloque JAMAIS. La ZOE (vehicule) reste non bloquante.
+  const plan =
+    avecHeure && dateVal && heureVal
+      ? planifierControlesDispo(
+          {
+            date: dateISO ?? "",
+            heure: heure ?? "",
+            salle: salleEmail ?? "",
+            collaborateurs: collaborateurs?.map((c) => c.email) ?? [],
+          },
+          { date: dateVal, heure: heureVal, salle: salleVal, collaborateurs: collaborateursVal },
+        )
+      : null;
+  const blocages: string[] = [];
+  if (plan) {
+    if (plan.verifierAgenda && dispoAgendaValeur === "occupee")
+      blocages.push("Ton agenda est occupé sur ce créneau.");
+    if (plan.salleAverifier && dispoValeur === "occupee")
+      blocages.push(
+        `La salle ${ressourceParEmail(salleVal)?.nom ?? "sélectionnée"} est occupée sur ce créneau.`,
+      );
+    for (const c of collabList) {
+      if (
+        collaborateursVal.includes(c.email) &&
+        plan.collaborateursAverifier.includes(c.email) &&
+        dispoCollabValeur(c.email) === "occupee"
+      )
+        blocages.push(`L'agenda de ${c.nom.split(" ")[0]} est occupé sur ce créneau.`);
+    }
+  }
+  // Un creneau occupe grise "Valider" et affiche la liste de ce qui bloque.
+  const bloque = blocages.length > 0;
 
   const ouvrir = () => {
     // Re-lecture des props courantes a chaque ouverture (corrige l'etat fige).
@@ -174,12 +356,15 @@ export function EditeurDate({
     // veut une heure sur les evenements). Rien n'est sauve tant que "Valider" n'est
     // pas clique, donc ce defaut ne peut plus etre pose par accident.
     setHeureVal(avecHeure ? (heure ?? HEURE_DEFAUT_REUNION) : "");
-    // Pre-remplissage salle / ZOE / mode depuis la reservation existante.
+    // Pre-remplissage salle / ZOE / mode / collegues depuis la reservation existante.
     setSalleVal(avecHeure ? (salleEmail ?? "") : "");
     setZoeVal(avecHeure ? Boolean(vehiculeEmail) : false);
     setModeVal(avecHeure ? (modeReunion ?? "") : "");
+    setCollaborateursVal(avecHeure ? (collaborateurs?.map((c) => c.email) ?? []) : []);
     setDispo(null);
     setDispoZoe(null);
+    setDispoAgenda(null);
+    setDispoCollab({});
     setErreur(null);
     setConfirmeEffacer(false);
     setEdition(true);
@@ -191,12 +376,21 @@ export function EditeurDate({
     setConfirmeEffacer(false);
   };
 
+  // (De)selectionne un collegue.
+  const toggleCollaborateur = (email: string) => {
+    setCollaborateursVal((prev) =>
+      prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email],
+    );
+  };
+
   const enregistrer = (valeur: string) => {
     setErreur(null);
-    // Ressources / mode transmis seulement pour une prochaine date reelle (pas a l'effacement).
+    // Ressources / mode / collegues transmis seulement pour une prochaine date reelle
+    // (pas a l'effacement).
     const salle = avecHeure && valeur ? salleVal : "";
     const vehicule = avecHeure && valeur && zoeVal ? ZOE_EMAIL : "";
     const mode = avecHeure && valeur ? modeVal : "";
+    const collabs = avecHeure && valeur ? collaborateursVal : [];
     startTransition(async () => {
       const r = await action(
         coproCode,
@@ -205,17 +399,26 @@ export function EditeurDate({
         salle || undefined,
         vehicule || undefined,
         mode || undefined,
+        collabs,
       );
       if (!r.ok) setErreur(r.erreur); // on garde l'edition ouverte pour reessayer
       else fermer();
     });
   };
 
+  // Clic sur "Valider" : refuse tant qu'un creneau occupe bloque (le bouton est deja grise,
+  // c'est une double securite). "inconnu" ne bloque jamais.
+  const tenterEnregistrer = () => {
+    if (bloque) return;
+    enregistrer(valeurSaisie);
+  };
+
   if (!edition) {
-    // Salle / vehicule / mode reserves (hors edition) : affiches discretement.
+    // Salle / vehicule / mode / collegues reserves (hors edition) : affiches discretement.
     const salleNom = avecHeure ? ressourceParEmail(salleEmail)?.nom : undefined;
     const zoeReservee = avecHeure && Boolean(vehiculeEmail);
     const modeNom = avecHeure ? modeReunion : undefined;
+    const collabs = avecHeure ? (collaborateurs ?? []) : [];
     return (
       <span className="inline-flex flex-col gap-0.5">
         <span className="inline-flex items-center gap-2 flex-wrap">
@@ -248,6 +451,10 @@ export function EditeurDate({
             {salleNom && zoeReservee && <> · </>}
             {zoeReservee && <>voiture ZOE</>}
           </span>
+        )}
+        {/* Collegues associes : prenoms/noms discrets a cote de la date. */}
+        {dateISO && collabs.length > 0 && (
+          <span className="text-[12px] text-ink-3">avec {collabs.map((c) => c.nom).join(", ")}</span>
         )}
       </span>
     );
@@ -284,9 +491,9 @@ export function EditeurDate({
           type="button"
           size="sm"
           variant="primary"
-          disabled={pending || !dateVal || inchange}
-          onClick={() => enregistrer(valeurSaisie)}
-          title="Enregistrer la date"
+          disabled={pending || !dateVal || inchange || bloque}
+          onClick={tenterEnregistrer}
+          title={bloque ? "Créneau occupé : change de date, de salle ou de collaborateur" : "Enregistrer la date"}
         >
           <Check strokeWidth={2} />
           {pending ? "Enregistrement..." : "Valider"}
@@ -307,6 +514,31 @@ export function EditeurDate({
           </Button>
         )}
       </span>
+
+      {/* Mon agenda (le gestionnaire connecte) : meme code couleur que la ZOE / la salle.
+          Apparait des que date + heure sont saisies. "Occupe" n'empeche pas de valider,
+          mais demande une confirmation ; "inconnu" (Graph off / 403) ne bloque rien. */}
+      {avecHeure && agendaCreneau && (
+        <span
+          className={
+            "inline-flex items-center gap-1 text-[12px] " +
+            (dispoAgendaValeur === "libre"
+              ? "text-ok-700"
+              : dispoAgendaValeur === "occupee"
+                ? "text-warn-700"
+                : "text-ink-3")
+          }
+          aria-live="polite"
+        >
+          {dispoAgendaValeur === null
+            ? "Ton agenda : vérification..."
+            : dispoAgendaValeur === "libre"
+              ? "Ton agenda : libre"
+              : dispoAgendaValeur === "occupee"
+                ? "Ton agenda : occupé"
+                : "Ton agenda : dispo inconnue"}
+        </span>
+      )}
 
       {/* Mode de tenue (prochaine reunion seulement) : visio / presentiel / hybride,
           ou "non precise". Note : pas de lien Teams genere pour l'instant (limitation),
@@ -409,6 +641,59 @@ export function EditeurDate({
         </span>
       )}
 
+      {/* Collaborateurs associes (prochaine reunion seulement) : multi-selection des
+          collegues du cabinet. Chaque collegue coche est invite a l'evenement Outlook
+          (il apparait dans son agenda) et sa dispo est verifiee sur le creneau. */}
+      {avecHeure && collabList.length > 0 && (
+        <span className="inline-flex flex-col gap-1">
+          <span className="text-[11px] uppercase tracking-[0.5px] text-ink-3">
+            Collaborateurs associés
+          </span>
+          <span className="inline-flex flex-col gap-0.5">
+            {collabList.map((c) => {
+              const coche = collaborateursVal.includes(c.email);
+              const d = coche && agendaCreneau ? dispoCollabValeur(c.email) : undefined;
+              return (
+                <label
+                  key={c.email}
+                  className="inline-flex items-center gap-1.5 text-[13px] text-ink-2"
+                >
+                  <input
+                    type="checkbox"
+                    checked={coche}
+                    disabled={pending}
+                    onChange={() => toggleCollaborateur(c.email)}
+                    className="h-3.5 w-3.5"
+                  />
+                  {c.nom}
+                  {coche && agendaCreneau && (
+                    <span
+                      className={
+                        "text-[12px] " +
+                        (d === "libre"
+                          ? "text-ok-700"
+                          : d === "occupee"
+                            ? "text-warn-700"
+                            : "text-ink-3")
+                      }
+                      aria-live="polite"
+                    >
+                      {d === undefined
+                        ? "· vérification..."
+                        : d === "libre"
+                          ? "· libre"
+                          : d === "occupee"
+                            ? "· occupé"
+                            : "· dispo inconnue"}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </span>
+        </span>
+      )}
+
       {/* Confirmation legere de l'effacement (geste destructif : ca deplanifie). */}
       {confirmeEffacer && (
         <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
@@ -431,6 +716,22 @@ export function EditeurDate({
           >
             Non
           </Button>
+        </span>
+      )}
+
+      {/* Creneau occupe : BLOQUANT (le bouton Valider est grise). On liste precisement QUI
+          / QUOI bloque et on invite a changer de creneau / salle / collaborateurs. */}
+      {bloque && (
+        <span
+          className="inline-flex flex-col gap-0.5 text-[12px] text-err-700"
+          role="alert"
+          aria-live="polite"
+        >
+          <span className="font-medium">Impossible de fixer cette date sur ce créneau :</span>
+          {blocages.map((b) => (
+            <span key={b}>· {b}</span>
+          ))}
+          <span className="text-ink-3">Change de créneau, de salle ou de collaborateurs.</span>
         </span>
       )}
 

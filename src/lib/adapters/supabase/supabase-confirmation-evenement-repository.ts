@@ -13,11 +13,13 @@ const TABLE = "intranet_confirmations_evenement";
 // vague precedente si une colonne manque (cf. lireEnCascade / colonneAbsente) :
 //   BASE        : colonnes historiques (toujours presentes) ;
 //   RESSOURCES  : + salle_email, vehicule_email (increment 4) ;
-//   COLONNES    : + mode_reunion (increment 2, volet mode de reunion).
+//   MODE        : + mode_reunion (increment 2, volet mode de reunion) ;
+//   COLONNES    : + collaborateurs_emails (increment 4c, multi-collaborateurs).
 const COLONNES_BASE =
   "copro_code, type, date_evenement, statut, confirme_le, confirme_par, outlook_event_id, outlook_boite";
 const COLONNES_RESSOURCES = `${COLONNES_BASE}, salle_email, vehicule_email`;
-const COLONNES = `${COLONNES_RESSOURCES}, mode_reunion`;
+const COLONNES_MODE = `${COLONNES_RESSOURCES}, mode_reunion`;
+const COLONNES = `${COLONNES_MODE}, collaborateurs_emails`;
 
 type Row = {
   copro_code: string;
@@ -33,6 +35,9 @@ type Row = {
   vehicule_email?: string | null;
   // Absente tant que l'ALTER intranet_confirmations_evenement_mode n'est pas lance.
   mode_reunion?: string | null;
+  // Absente tant que l'ALTER intranet_confirmations_evenement_collaborateurs n'est pas
+  // lance. jsonb -> tableau JS (PostgREST) ; on tolere aussi une chaine JSON (defensif).
+  collaborateurs_emails?: string[] | string | null;
 };
 
 // Colonne absente (ALTER pas encore lance) : code Postgres 42703, ou message explicite
@@ -49,8 +54,28 @@ function versMode(v: string | null | undefined): ModeReunion | undefined {
   return v === "visio" || v === "presentiel" || v === "hybride" ? v : undefined;
 }
 
+/**
+ * Normalise la colonne collaborateurs_emails en tableau d'emails. jsonb -> tableau JS
+ * direct ; une chaine JSON (cas defensif) est parsee. Ne garde que des chaines non
+ * vides. Tableau vide / illisible -> undefined (aucun collaborateur).
+ */
+function versCollaborateurs(v: string[] | string | null | undefined): string[] | undefined {
+  let brut: unknown = v;
+  if (typeof v === "string") {
+    try {
+      brut = JSON.parse(v);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!Array.isArray(brut)) return undefined;
+  const emails = brut.filter((e): e is string => typeof e === "string" && e.trim().length > 0);
+  return emails.length > 0 ? emails : undefined;
+}
+
 function versDomaine(r: Row): ConfirmationEvenement {
   const mode = versMode(r.mode_reunion);
+  const collaborateurs = versCollaborateurs(r.collaborateurs_emails);
   return {
     coproCode: r.copro_code,
     type: r.type,
@@ -63,6 +88,7 @@ function versDomaine(r: Row): ConfirmationEvenement {
     ...(r.salle_email ? { salleEmail: r.salle_email } : {}),
     ...(r.vehicule_email ? { vehiculeEmail: r.vehicule_email } : {}),
     ...(mode ? { modeReunion: mode } : {}),
+    ...(collaborateurs ? { collaborateursEmails: collaborateurs } : {}),
   };
 }
 
@@ -79,7 +105,7 @@ type Reponse = { data: unknown; error: { code?: string; message?: string } | nul
 async function lireEnCascade(
   select: (colonnes: string) => PromiseLike<Reponse>,
 ): Promise<ConfirmationEvenement[]> {
-  for (const colonnes of [COLONNES, COLONNES_RESSOURCES, COLONNES_BASE]) {
+  for (const colonnes of [COLONNES, COLONNES_MODE, COLONNES_RESSOURCES, COLONNES_BASE]) {
     const { data, error } = await select(colonnes);
     if (!error) return (data as Row[]).map(versDomaine);
     if (!colonneAbsente(error)) return []; // table absente / autre erreur -> inerte
@@ -199,6 +225,24 @@ export class SupabaseConfirmationEvenementRepository implements ConfirmationEven
     const { error } = await supabase
       .from(TABLE)
       .update({ mode_reunion: mode, updated_at: new Date().toISOString() })
+      .eq("copro_code", coproCode)
+      .eq("type", type);
+    if (error && colonneAbsente(error)) return; // colonne absente -> no-op (degrade propre)
+  }
+
+  async enregistrerCollaborateurs(
+    coproCode: string,
+    type: "AG" | "CS",
+    emails: string[],
+  ): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    // UPDATE cible SEPARE (comme enregistrerModeReunion) : si la colonne
+    // collaborateurs_emails n'est pas encore deployee, seule cette ecriture degrade
+    // (no-op) - la salle / le mode restent persistes par leurs propres UPDATE. [] est
+    // stocke tel quel (aucun collaborateur), jamais null : la liste vide EST l'etat cible.
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ collaborateurs_emails: emails, updated_at: new Date().toISOString() })
       .eq("copro_code", coproCode)
       .eq("type", type);
     if (error && colonneAbsente(error)) return; // colonne absente -> no-op (degrade propre)

@@ -4,9 +4,24 @@
 // Best-effort : si aucun dossier ne correspond, on ne deplace rien.
 
 import type { DossierBoite, MailboxProvider, PieceJointeRef } from "@/lib/ports/mailbox-provider";
-import { GRAPH, jetonGraph, resoudreMessageId } from "./graph-auth";
+import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
+
+// Cache module des dossiers sous inbox, PAR boite (TTL 10 min). L'arborescence copro
+// bouge rarement, et son enumeration coute plusieurs pages Graph (100 dossiers/page,
+// 2 niveaux) a CHAQUE classement de mail. Le picker de dossiers (listerDossiers), lui,
+// reste live : un dossier cree dans Outlook doit y apparaitre tout de suite.
+const CACHE_DOSSIERS_TTL_MS = 10 * 60 * 1000;
+const cacheDossiersInbox = new Map<string, { dossiers: Folder[]; expire: number }>();
+
+async function dossiersSousInboxCache(tk: string, boite: string): Promise<Folder[]> {
+  const hit = cacheDossiersInbox.get(boite);
+  if (hit && Date.now() < hit.expire) return hit.dossiers;
+  const dossiers = await dossiersSousInbox(tk, boite);
+  cacheDossiersInbox.set(boite, { dossiers, expire: Date.now() + CACHE_DOSSIERS_TTL_MS });
+  return dossiers;
+}
 
 // Dossiers racine de la boite (Boite de reception, Archive, et tout dossier cree a
 // la racine : "Communication agence", "Spam", "Perso"...). Q1 du handoff resolue en
@@ -16,7 +31,7 @@ async function rootFolders(tk: string, boite: string): Promise<Folder[]> {
   let url: string =
     `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders` + `?$top=100&$select=id,displayName`;
   while (url) {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
     if (!r.ok) throw new Error(`Graph dossiers racine ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as { value?: Folder[]; "@odata.nextLink"?: string };
     out.push(...(j.value ?? []));
@@ -31,7 +46,7 @@ async function childFolders(tk: string, boite: string, folderId: string): Promis
     `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/${folderId}/childFolders` +
     `?$top=100&$select=id,displayName`;
   while (url) {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
     if (!r.ok) throw new Error(`Graph dossiers ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as { value?: Folder[]; "@odata.nextLink"?: string };
     out.push(...(j.value ?? []));
@@ -81,7 +96,7 @@ export class GraphMailboxProvider implements MailboxProvider {
     if (!p.boite) throw new Error("Classement : boite manquante.");
     if (!p.coproCode && !p.coproNom) return { deplace: false };
     const tk = await jetonGraph();
-    const dossiers = await dossiersSousInbox(tk, p.boite);
+    const dossiers = await dossiersSousInboxCache(tk, p.boite);
     const cible = trouverDossier(dossiers, p.coproCode, p.coproNom);
     if (!cible) {
       // Pas de PII en log (ni boite, ni noms de dossiers copro) : juste le nombre.
@@ -89,7 +104,7 @@ export class GraphMailboxProvider implements MailboxProvider {
       return { deplace: false };
     }
     const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
-    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/move`, {
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/move`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
       body: JSON.stringify({ destinationId: cible.id }),
@@ -129,7 +144,7 @@ export class GraphMailboxProvider implements MailboxProvider {
     if (!p.folderId) return { deplace: false };
     const tk = await jetonGraph();
     const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
-    const r = await fetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/move`, {
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/move`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
       body: JSON.stringify({ destinationId: p.folderId }),
@@ -145,7 +160,7 @@ export class GraphMailboxProvider implements MailboxProvider {
     const url =
       `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments` +
       `?$select=id,name,size,contentType,isInline`;
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
     if (!r.ok) throw new Error(`Graph attachments ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as {
       value?: { id: string; name: string; size: number; contentType: string; isInline?: boolean }[];
@@ -164,7 +179,8 @@ export class GraphMailboxProvider implements MailboxProvider {
     const tk = await jetonGraph();
     const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
     const url = `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments/${p.attachmentId}`;
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    // Timeout double : une PJ de plusieurs Mo (contentBytes base64) peut depasser 30 s.
+    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } }, 60_000);
     if (!r.ok) throw new Error(`Graph piece jointe ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const a = (await r.json()) as { name: string; contentType: string; contentBytes?: string };
     return { nom: a.name, type: a.contentType, base64: a.contentBytes ?? "" };

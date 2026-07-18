@@ -1,0 +1,14 @@
+/* Styles d'impression de la section Sinistre. Les couleurs viennent désormais
+   du design system hôte (tokens @theme de globals.css) ; il ne reste ici que les
+   utilitaires d'impression (.no-print / .print-container) utilisés par les
+   composants portés. Le fond/typo de la zone suivent l'AppShell (canvas/ink). */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-container {
+    max-width: 100%;
+    padding: 0;
+  }
+}

@@ -76,6 +76,32 @@ export function attendeesRessource(emails: string[]): AttendeeRessource[] {
     .map((address) => ({ type: "resource", emailAddress: { address } }));
 }
 
+/** Un attendee Graph de type "required" (collegue invite a la reunion). */
+export interface AttendeeParticipant {
+  type: "required";
+  emailAddress: { address: string };
+}
+
+/**
+ * Construit les attendees "required" pour une liste d'emails de collegues
+ * (gestionnaires). Ignore les entrees vides / blanches et dedoublonne (insensible a
+ * la casse). Ces attendees, ajoutes a un evenement Outlook, le font apparaitre dans
+ * l'agenda de chaque collegue. Transformation PURE : aucun appel reseau ici.
+ */
+export function attendeesParticipant(emails: string[]): AttendeeParticipant[] {
+  const vus = new Set<string>();
+  const out: AttendeeParticipant[] = [];
+  for (const brut of emails) {
+    const address = brut.trim();
+    if (!address) continue;
+    const cle = address.toLowerCase();
+    if (vus.has(cle)) continue;
+    vus.add(cle);
+    out.push({ type: "required", emailAddress: { address } });
+  }
+  return out;
+}
+
 /**
  * Interprete l'`availabilityView` de Graph getSchedule (chaine de chiffres, un par
  * tranche de `availabilityViewInterval` : "0"=libre, "1"=tentative, "2"=occupe,

@@ -47,7 +47,17 @@ const STATUT_AG_LABEL: Record<ProchaineAg["statut"], string> = {
   convoquee: "Convoquée",
 };
 
-export function FicheVueEnsemble({ fiche, mailActif = false }: { fiche: FicheCopro; mailActif?: boolean }) {
+export function FicheVueEnsemble({
+  fiche,
+  mailActif = false,
+  estComptable = false,
+}: {
+  fiche: FicheCopro;
+  mailActif?: boolean;
+  /** Visiteur du pole comptable : le bloc compta passe en role "comptable" (dialogue prevu
+   *  pour eux) ; sinon "gestionnaire" (le gestionnaire de la copro repond a la comptable). */
+  estComptable?: boolean;
+}) {
   const indispo = Boolean(fiche.estaleIndisponible);
   return (
     <div className="flex flex-col gap-5">
@@ -72,6 +82,8 @@ export function FicheVueEnsemble({ fiche, mailActif = false }: { fiche: FicheCop
             vehiculeCsEmail={fiche.vehiculeCsEmail}
             modeAgReunion={fiche.modeAgReunion}
             modeCsReunion={fiche.modeCsReunion}
+            collaborateursAg={fiche.collaborateursAg}
+            collaborateursCs={fiche.collaborateursCs}
             mailActif={mailActif}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
@@ -82,6 +94,7 @@ export function FicheVueEnsemble({ fiche, mailActif = false }: { fiche: FicheCop
               coproCode={fiche.copro.code}
               agDate={fiche.copro.prochaineAg.date}
               compta={fiche.compta}
+              estComptable={estComptable}
             />
           )}
           <HistoriqueAg historique={fiche.historique} />
@@ -147,10 +160,12 @@ function BlocCompta({
   coproCode,
   agDate,
   compta,
+  estComptable,
 }: {
   coproCode: string;
   agDate: string;
   compta: EtatCompta;
+  estComptable: boolean;
 }) {
   const ouvertes = compta.notes.filter((n) => !n.resolu).length;
   return (
@@ -171,11 +186,17 @@ function BlocCompta({
       <div className="px-4 py-3">
         {ouvertes > 0 && (
           <p className="text-[12px] text-warn-700 mb-2">
-            {ouvertes} note{ouvertes > 1 ? "s" : ""} de la comptable à traiter - réponds ici pour
-            ne rien oublier.
+            {ouvertes} note{ouvertes > 1 ? "s" : ""} {estComptable ? "ouverte" : "de la comptable"}
+            {ouvertes > 1 ? "s" : ""} à traiter - {estComptable ? "échange" : "réponds"} ici pour ne
+            rien oublier.
           </p>
         )}
-        <ComptaPanel coproCode={coproCode} agDateISO={agDate} etat={compta} role="gestionnaire" />
+        <ComptaPanel
+          coproCode={coproCode}
+          agDateISO={agDate}
+          etat={compta}
+          role={estComptable ? "comptable" : "gestionnaire"}
+        />
       </div>
     </Card>
   );
@@ -215,6 +236,8 @@ function BlocAg({
   vehiculeCsEmail,
   modeAgReunion,
   modeCsReunion,
+  collaborateursAg,
+  collaborateursCs,
   mailActif,
 }: {
   coproCode: string;
@@ -233,6 +256,8 @@ function BlocAg({
   vehiculeCsEmail?: string;
   modeAgReunion?: ModeReunion;
   modeCsReunion?: ModeReunion;
+  collaborateursAg?: { email: string; nom: string }[];
+  collaborateursCs?: { email: string; nom: string }[];
   mailActif: boolean;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
@@ -303,6 +328,7 @@ function BlocAg({
               salleEmail={salleAgEmail}
               vehiculeEmail={vehiculeAgEmail}
               modeReunion={modeAgReunion}
+              collaborateurs={collaborateursAg}
             />
             {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
                 (le service ne pose un statut que dans ce cas). */}
@@ -355,6 +381,7 @@ function BlocAg({
                 salleEmail={salleCsEmail}
                 vehiculeEmail={vehiculeCsEmail}
                 modeReunion={modeCsReunion}
+                collaborateurs={collaborateursCs}
               />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />

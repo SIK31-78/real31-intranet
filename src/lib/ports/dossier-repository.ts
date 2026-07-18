@@ -21,7 +21,7 @@ export interface CreationDossier {
 }
 
 export type PatchDossier = Partial<
-  Pick<Dossier, "etapes" | "journal" | "statut" | "titre" | "cible">
+  Pick<Dossier, "etapes" | "journal" | "statut" | "titre" | "cible" | "type" | "portee">
 > & {
   /** Rattachement AG (C5). null = effacer le rattachement. */
   agDate?: string | null;
@@ -34,4 +34,6 @@ export interface DossierRepository {
   get(id: string): Promise<Dossier | null>;
   creer(input: CreationDossier): Promise<string>;
   patch(id: string, fields: PatchDossier): Promise<void>;
+  /** Supprime definitivement un dossier (destructif, irreversible). */
+  supprimer(id: string): Promise<void>;
 }

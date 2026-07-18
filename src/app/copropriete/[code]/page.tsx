@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { peutVoirComptabilite } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
 
@@ -22,7 +23,12 @@ export default async function CoproprietePage({
     process.env.COPRO_SOURCE === "supabase"
       ? new Date().toISOString().slice(0, 10)
       : "2026-05-27";
-  const fiche = await getFicheCopro(code, g.id, aujourdhuiISO);
+  // Le pole comptable (COMPTABLES) et les super-admins ouvrent la fiche de N'IMPORTE
+  // quelle copro (lecture transverse) : ils ne sont pas cloisonnes par managerId. Un
+  // gestionnaire normal reste cloisonne a son portefeuille (transverse = false -> 404
+  // hors perimetre). Ce role sert aussi a activer le POLE COMPTA de la fiche pour eux.
+  const transverse = peutVoirComptabilite(g.email);
+  const fiche = await getFicheCopro(code, g.id, aujourdhuiISO, { transverse });
   if (!fiche) notFound();
   const dossiers = await getDossiersCopro(code, g.id);
   // Gating mail : double gate (MAIL_SOURCE=graph + allowlist pilotes) applique au bouton
@@ -36,7 +42,12 @@ export default async function CoproprietePage({
       breadcrumb={`Copropriétés · ${fiche.copro.code}`}
     >
       <div className="mx-auto max-w-[1100px] px-8 py-8">
-        <FicheCoproVue fiche={fiche} dossiers={dossiers} mailActif={mailActif} />
+        <FicheCoproVue
+          fiche={fiche}
+          dossiers={dossiers}
+          mailActif={mailActif}
+          estComptable={transverse}
+        />
       </div>
     </AppShell>
   );

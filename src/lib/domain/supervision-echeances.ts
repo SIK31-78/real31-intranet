@@ -9,8 +9,8 @@ import type { JalonCode } from "./jalons-ag/types";
 // Quels items de la checklist de supervision portent un jalon reglementaire.
 // (Seuls ceux qui ont une echeance datee claire ; les autres n'affichent rien.)
 export const ITEM_ECHEANCE: Record<string, JalonCode> = {
-  "conv.date": "CONVOC", // convocation = 21 jours francs (legal) / J-30 (cabinet)
-  "conv.rappel-pouvoirs": "RELANCE_POUVOIRS", // relance pouvoirs J-8
+  "conv.date": "CONVOC", // mise sous pli / convocation = 21 jours francs (legal) / J-31 (cabinet)
+  "conv.rappel-pouvoirs": "RELANCE_POUVOIRS", // relance date AG J-7
   "apag.scan-contrat": "SCAN_CONTRAT", // scan contrat J+2
   "apag.notif-pv-date": "NOTIF_PV", // notification du PV J+30
 };

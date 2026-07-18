@@ -33,7 +33,19 @@ export function proxy(req: NextRequest) {
   });
 }
 
-// Tout est protege sauf les assets statiques de Next.
+// Tout est protege sauf :
+//   - les assets statiques de Next ;
+//   - les routes d'upload/analyse reprise (patrimoine + mapping comptable) : elles recoivent des
+//     PDF volumineux (multipart, >4 Mo) que le middleware Edge tronque (-> "Failed to parse body
+//     as FormData"). Elles font deja leur propre auth (getGestionnaireCourant) ;
+//   - la fiche de renseignements PUBLIQUE (/fiche/** + /api/fiche/**) : premiere page NON
+//     authentifiee de l'app (le coproprietaire n'a pas de compte). En deploiement sans SSO, le
+//     gate ci-dessus est un mot de passe partage Basic : il fermerait cette page au public. On
+//     l'exclut donc explicitement. La securite de la fiche est portee EN PROPRE (token + code,
+//     anti-enumeration, rate-limit) et non par ce gate. En SSO (prod) le middleware laisse deja
+//     tout passer (l'auth se fait par page) ; l'exclusion garde le comportement identique.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/reprise/analyser|api/reprise/mapping-analyser|fiche|api/fiche).*)",
+  ],
 };

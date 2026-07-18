@@ -48,12 +48,12 @@ import { SupabaseAnalyseCacheStore } from "@/lib/adapters/supabase/supabase-anal
 import type { MailOutboundProvider } from "@/lib/ports/mail-outbound-provider";
 import { GraphMailOutboundProvider } from "@/lib/adapters/mail/graph-mail-outbound";
 import { NoopMailOutboundProvider } from "@/lib/adapters/mail/noop-mail-outbound";
-import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
-import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
-import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
 import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
 import { GraphCalendrierOutboundProvider } from "@/lib/adapters/calendrier/graph-calendrier-outbound";
 import { NoopCalendrierOutboundProvider } from "@/lib/adapters/calendrier/noop-calendrier-outbound";
+import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
+import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
+import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -64,9 +64,15 @@ import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-mai
 import type { ConfirmationEvenementRepository } from "@/lib/ports/confirmation-evenement-repository";
 import { SupabaseConfirmationEvenementRepository } from "@/lib/adapters/supabase/supabase-confirmation-evenement-repository";
 import { MockConfirmationEvenementRepository } from "@/lib/adapters/mock/mock-confirmation-evenement-repository";
+import type { ProjectionsOutlookRepository } from "@/lib/ports/projections-outlook-repository";
+import { SupabaseProjectionsOutlookRepository } from "@/lib/adapters/supabase/supabase-projections-outlook-repository";
+import { MockProjectionsOutlookRepository } from "@/lib/adapters/mock/mock-projections-outlook-repository";
 import type { DossierRepository } from "@/lib/ports/dossier-repository";
 import { SupabaseDossierRepository } from "@/lib/adapters/supabase/supabase-dossier-repository";
 import { MockDossierRepository } from "@/lib/adapters/mock/mock-dossier-repository";
+import type { SinistreRepository } from "@/lib/ports/sinistre-repository";
+import { SupabaseSinistreRepository } from "@/lib/adapters/supabase/supabase-sinistre-repository";
+import { MockSinistreRepository } from "@/lib/adapters/mock/mock-sinistre-repository";
 import { SupabaseSupervisionAgRepository } from "@/lib/adapters/supabase/supabase-supervision-ag-repository";
 import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
 import { SupabaseGestionnaireRepository } from "@/lib/adapters/supabase/supabase-gestionnaire-repository";
@@ -140,10 +146,25 @@ export function getConfirmationEvenementRepository(): ConfirmationEvenementRepos
   return new MockConfirmationEvenementRepository();
 }
 
+// Creneaux Outlook derives d'une date d'AG (table native intranet_projections_outlook) :
+// "Mise sous pli" (J-31) et "RELANCE DATE AG" (J-7). Meme bascule que les autres tables
+// natives. Cle (copro, role) sans la date -> deplacer l'AG deplace le meme evenement.
+export function getProjectionsOutlookRepository(): ProjectionsOutlookRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseProjectionsOutlookRepository();
+  return new MockProjectionsOutlookRepository();
+}
+
 // Module Dossiers (table native intranet_dossiers).
 export function getDossierRepository(): DossierRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseDossierRepository();
   return new MockDossierRepository();
+}
+
+// Module Sinistre (table native intranet_sinistres). Persistance serveur cloisonnee
+// du dossier sinistre (agregat jsonb). Meme bascule mock/supabase que le reste.
+export function getSinistreRepository(): SinistreRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseSinistreRepository();
+  return new MockSinistreRepository();
 }
 
 // Donnees copro sourcees Estale (CS, historique AG). Branche en reel (Phase B,
@@ -239,8 +260,8 @@ export function getMailboxProvider(): MailboxProvider {
   return new NoopMailboxProvider();
 }
 
-// Calendrier sortant (projection des dates CS/AG dans l'agenda Outlook du
-// gestionnaire, meme infra Graph que le mail). Graph en reel (MAIL_SOURCE=graph),
+// Calendrier sortant (projection des dates CS/AG + RDV d'expertise sinistre dans
+// l'agenda Outlook, meme infra Graph que le mail). Graph en reel (MAIL_SOURCE=graph),
 // sinon no-op : la projection est sautee, la donnee intranet reste la source.
 export function getCalendrierOutboundProvider(): CalendrierOutboundProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphCalendrierOutboundProvider();

@@ -7,8 +7,8 @@ export class MockAssembleeEstaleProvider implements AssembleeEstaleProvider {
   async getAssemblee(): Promise<AssembleeAg | null> {
     return null;
   }
-  async appliquerOdj(): Promise<{ supprimees: number; ajoutees: number }> {
-    return { supprimees: 0, ajoutees: 0 };
+  async appliquerOdj(): Promise<{ supprimees: number; ajoutees: number; dejaPresentes: number }> {
+    return { supprimees: 0, ajoutees: 0, dejaPresentes: 0 };
   }
   // appliquerOdj ignore ses arguments en mock (signature complete cote port).
   async creerAssemblee(): Promise<string> {

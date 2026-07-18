@@ -87,6 +87,81 @@ export async function creerDossierAction(form: {
   redirect(`/dossiers/${id}`);
 }
 
+// Reporte la synthèse de l'assistant sinistre dans le JOURNAL du dossier (incrément 2,
+// ancrage option C). NON DESTRUCTIF : ajoute une note, ne touche ni aux étapes ni au
+// reste. Réservé aux dossiers de type "sinistre". Cloisonné au périmètre.
+export async function reporterSyntheseSinistreAction(dossierId: string, texte: string): Promise<void> {
+  const valeur = texte.trim();
+  if (!valeur) return;
+  const d = await getDossierRepository().get(dossierId);
+  if (!d || d.type !== "sinistre") return;
+  const g = await autorise(d.coproCode);
+  if (!g) return;
+  const journal = [
+    ...d.journal,
+    { le: new Date().toISOString(), par: g.initiales, texte: valeur, kind: "note" as const },
+  ];
+  await getDossierRepository().patch(dossierId, { journal });
+  revalidatePath(`/dossiers/${dossierId}`);
+}
+
+// Reporte les RENDEZ-VOUS d'expertise capturés dans l'assistant sinistre (H-3,
+// piégés jusqu'ici dans le localStorage du wizard) vers le JOURNAL du dossier.
+// Même garde que reporterSyntheseSinistreAction : type "sinistre" + périmètre +
+// anti-IDOR (coproCode relu du dossier serveur). NON DESTRUCTIF : append d'une
+// note par RDV. Choix de kind : "note" avec préfixe texte clair "RDV expertise :"
+// (on n'ouvre pas l'union KindEvenement pour éviter de toucher le rendu timeline).
+const CONVOQUE_PAR_LABEL: Record<string, string> = {
+  assureur_partie: "assureur de la partie",
+  assureur_immeuble: "assureur de l'immeuble",
+  autre: "autre",
+};
+
+const zRdvExpertise = z
+  .array(
+    z.object({
+      date: z.string().max(40),
+      lieu: z.string().max(300).optional(),
+      convoquePar: z.enum(["assureur_partie", "assureur_immeuble", "autre"]),
+      precisionConvocant: z.string().max(300).optional(),
+      local: z.string().max(300).optional(),
+    }),
+  )
+  .min(1)
+  .max(50);
+
+type RdvExpertiseEntree = z.infer<typeof zRdvExpertise>[number];
+
+function texteRdvExpertise(r: RdvExpertiseEntree): string {
+  const parts: string[] = [];
+  parts.push(`RDV expertise : ${r.date.trim() || "date à préciser"}`);
+  if (r.lieu?.trim()) parts.push(`lieu ${r.lieu.trim()}`);
+  const convocant = r.precisionConvocant?.trim() || CONVOQUE_PAR_LABEL[r.convoquePar];
+  parts.push(`convoqué par ${convocant}`);
+  if (r.local?.trim()) parts.push(`local ${r.local.trim()}`);
+  return parts.join(" - ");
+}
+
+export async function reporterRdvExpertiseAction(
+  dossierId: string,
+  rdvs: RdvExpertiseEntree[],
+): Promise<void> {
+  if (!z.object({ dossierId: zId, rdvs: zRdvExpertise }).safeParse({ dossierId, rdvs }).success) return;
+  const d = await getDossierRepository().get(dossierId);
+  if (!d || d.type !== "sinistre") return;
+  const g = await autorise(d.coproCode); // coproCode RELU du dossier serveur (anti-IDOR)
+  if (!g) return;
+  const le = new Date().toISOString();
+  const ajouts = rdvs.map((r) => ({
+    le,
+    par: g.initiales,
+    texte: texteRdvExpertise(r),
+    kind: "note" as const,
+  }));
+  await getDossierRepository().patch(dossierId, { journal: [...d.journal, ...ajouts] });
+  revalidatePath(`/dossiers/${dossierId}`);
+}
+
 export async function majEtapesAction(id: string, etapes: EtapeDossier[]): Promise<void> {
   if (!z.object({ id: zId, etapes: zEtapes }).safeParse({ id, etapes }).success) return;
   const d = await getDossierRepository().get(id);
@@ -148,6 +223,68 @@ export async function rattacherAgAction(
     numeroResolution: numeroResolution.trim() || null,
   });
   revalidatePath(`/dossiers/${id}`);
+}
+
+// Edite les METADONNEES du dossier (titre, type, portee, cible). NON DESTRUCTIF
+// sur les etapes/journal existants (on ne touche que ces 4 champs). Journalise une
+// note "Metadonnees modifiees". Cloisonne au perimetre + anti-IDOR (coproCode RELU
+// du dossier serveur, jamais du client).
+const TYPES_DOSSIER = [
+  "travaux",
+  "sinistre",
+  "impaye",
+  "procedure",
+  "recouvrement",
+  "question_diverse",
+  "autre",
+] as const;
+const PORTEES_DOSSIER = ["copropriete", "coproprietaire", "lot"] as const;
+
+export async function modifierDossierAction(
+  id: string,
+  champs: { titre: string; type: TypeDossier; portee: PorteeDossier; cible?: string },
+): Promise<void> {
+  const valid = z
+    .object({
+      id: zId,
+      titre: z.string().trim().min(1).max(300),
+      type: z.enum(TYPES_DOSSIER),
+      portee: z.enum(PORTEES_DOSSIER),
+      cible: zCourt.optional(),
+    })
+    .safeParse({ id, ...champs });
+  if (!valid.success) return;
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode); // coproCode RELU du dossier serveur (anti-IDOR)
+  if (!g) return;
+  const cible = valid.data.cible?.trim();
+  const journal = [
+    ...d.journal,
+    { le: new Date().toISOString(), par: g.initiales, texte: "Métadonnées du dossier modifiées", kind: "statut" as const },
+  ];
+  await getDossierRepository().patch(id, {
+    titre: valid.data.titre,
+    type: valid.data.type,
+    portee: valid.data.portee,
+    cible: cible || undefined,
+    journal,
+  });
+  revalidatePath(`/dossiers/${id}`);
+  revalidatePath("/dossiers");
+}
+
+// Supprime DEFINITIVEMENT le dossier (destructif, irreversible). Cloisonne au
+// perimetre + anti-IDOR (coproCode RELU du dossier serveur). Redirige vers la liste.
+export async function supprimerDossierAction(id: string): Promise<void> {
+  if (!z.object({ id: zId }).safeParse({ id }).success) return;
+  const d = await getDossierRepository().get(id);
+  if (!d) return;
+  const g = await autorise(d.coproCode); // coproCode RELU du dossier serveur (anti-IDOR)
+  if (!g) return;
+  await getDossierRepository().supprimer(id);
+  revalidatePath("/dossiers");
+  redirect("/dossiers");
 }
 
 export async function changerStatutAction(id: string, statut: StatutDossier): Promise<void> {

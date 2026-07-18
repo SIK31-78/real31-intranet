@@ -28,6 +28,22 @@ export interface MailOutboundProvider {
   }): Promise<void>;
 
   /**
+   * Cree un brouillon mail NEUF dans la boite (pas une reponse : aucun message
+   * d'origine, aucun fil). Sert aux courriers sortants a froid (module sinistre :
+   * declaration assureur, recours...). `corps` = texte (l'adapter le met en HTML
+   * Aptos 11). Statut Draft : on N'ENVOIE PAS. Pas de signature injectee (Signitic
+   * s'applique a l'ouverture cote Outlook, comme creerBrouillon). Renvoie le
+   * webLink Outlook du brouillon cree si Graph le fournit.
+   */
+  creerBrouillonNeuf(p: {
+    boite: string;
+    sujet: string;
+    corps: string;
+    a?: string[];
+    cc?: string[];
+  }): Promise<{ webLink?: string }>;
+
+  /**
    * ENVOIE un mail NEUF (pas une reponse : aucun fil d'origine) depuis la boite, avec
    * destinataires CHOISIS (A / Cc / Cci), objet et corps. Le corps est du TEXTE brut,
    * rendu en HTML (Aptos 11pt) par l'adapter ; la signature est ajoutee dessous.

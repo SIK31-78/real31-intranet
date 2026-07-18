@@ -89,6 +89,11 @@ export class MockCoproRepository implements CoproRepository {
     return Object.values(COPROS);
   }
 
+  // Vue transverse : toutes les copros actives, equipe deja presente dans le mock.
+  async listerToutes(): Promise<Copropriete[]> {
+    return Object.values(COPROS).filter((c) => c.statut === "active");
+  }
+
   async findByCode(code: string): Promise<Copropriete | null> {
     return COPROS[code] ?? null;
   }

@@ -1322,6 +1322,190 @@ Au moment de brancher le pilote, le DSI était prêt à accorder l'accès et pro
 
 ---
 
+## ADR-028 - Courriers sinistre : composer un brouillon mail NEUF via le module Mail (extension du port)
+
+**Date** : 2026-06-29 - **Statut** : accepté (validé par Sekou le 2026-06-29, Vague 4 lancée)
+
+### Contexte
+
+Le module sinistre genere 9 courriers-types (demande d'attestation, declaration assureur, recours...). Aujourd'hui leur sortie est `mailto:` + copier + imprimer (`CourriersScreen.tsx`) : corps en texte brut, mise en forme perdue, limite de longueur d'URL sur les gros courriers, aucune tracabilite (pas de fil, pas de brouillon archive). On veut les envoyer via le module Mail (Graph), comme pour Mes emails.
+
+Probleme d'architecture : le port `MailOutboundProvider` (partage avec Mes emails) est **reponse-seulement**. Ses deux methodes (`creerBrouillon`, `envoyer`) exigent un `internetMessageId` (elles font `createReply` sur un mail existant : fil + citation conserves). Or un courrier sinistre est un mail **neuf**, sortant a froid vers un assureur ou un tiers : il n'y a pas de message d'origine auquel repondre. **Aucune methode de composition fraiche n'existe.**
+
+### Décision proposée
+
+Etendre `MailOutboundProvider` avec une methode additive de composition neuve, sans casser l'existant :
+
+```
+creerBrouillonNeuf(p: {
+  boite: string;          // la boite du gestionnaire (resolue de la session, JAMAIS du client)
+  sujet: string;
+  corps: string;          // HTML (meme rendu Aptos 11 que envoyer())
+  a?: string[];           // destinataires optionnels (souvent a completer a la main par le gestionnaire)
+  cc?: string[];
+  pjIds?: never;          // pas de PJ a re-joindre ici (mail neuf, pas une reponse)
+}): Promise<{ webLink?: string }>;  // lien Outlook du brouillon cree, si dispo
+```
+
+Adapter Graph : `POST /users/{boite}/messages` (cree un brouillon dans la boite, statut Draft). Mock : no-op tracable.
+
+**Par defaut : brouillon SEULEMENT, pas d'envoi automatique.** Un courrier sinistre part vers un tiers externe (assureur) : on ne l'envoie pas en app-only sans relecture humaine. Le gestionnaire ouvre le brouillon dans Outlook, complete/verifie le destinataire, et envoie lui-meme (l'add-in Signitic s'applique alors a l'ouverture cote client -> on n'injecte PAS la signature dans le brouillon, coherent avec la decision design de `creerBrouillon`). Un envoi direct (`Mail.Send`, deja accorde) reste possible plus tard, mais hors scope de cet ADR.
+
+### Alternatives ecartees
+
+- **A - Statu quo `mailto:`** : zero cout mais perd la mise en forme, bute sur la longueur d'URL, aucune tracabilite. Insuffisant pour un courrier officiel.
+- **B - Generer un PDF/docx telechargeable** : complement utile (archivage, courrier papier) mais ne donne ni le fil mail ni la tracabilite Outlook ; et la generation PDF est deja reportee post-MVP (ADR-012). A traiter separement, pas un substitut.
+- **C - Reutiliser `envoyer()` avec un faux `internetMessageId`** : impossible proprement (la methode fait `createReply`, il faut un vrai message). Detournement fragile, rejete.
+
+### Conséquences
+
+- Une methode additive sur un port PARTAGE : Mes emails n'est pas impacte (signature inchangee de `creerBrouillon`/`envoyer`). Adapter Graph + mock a etendre, plus le routeur si besoin.
+- Cote sinistre : `CourriersScreen` remplace `mailto:` par un bouton "Creer le brouillon dans ma boite" qui appelle une Server Action -> `creerBrouillonNeuf`. **Cloisonnement** : la `boite` vient de `getGestionnaireCourant` (la sienne), jamais d'un parametre client ; bornes zod sur sujet/corps/destinataires.
+- **Permissions Graph** : la creation de brouillon est couverte par `Mail.ReadWrite` (deja accorde), **aucune nouvelle permission DSI requise** tant qu'on reste en brouillon. Un futur envoi direct utiliserait `Mail.Send` (deja accorde), borne par l'Application Access Policy (ADR-027).
+- Le destinataire reste souvent a completer a la main (l'assureur exact depend du dossier) : viser d'abord "brouillon pre-rempli sujet+corps, destinataire optionnel", pas un envoi force.
+
+### Liens
+
+- **ADR-001** (ports & adapters), **ADR-027** (mail app-only + Access Policy), **ADR-012** (PDF reporte). Module Mail : `MailOutboundProvider`, `graph-mail-outbound.ts`. Branche : `increment/05-sinistres`. Declencheur : Vague 4 du chantier sinistre (automatisation des courriers).
+
+---
+
+## ADR-029 - reprise-copro devient un module natif de l'intranet (domaine copié, voie B1)
+
+**Date** : 2026-07-06 - **Statut** : accepté (Sekou, 2026-07-08)
+
+### Contexte
+
+`reprise-copro` est un outil d'onboarding de copropriété (offre -> reprise immeuble -> intégration eStale -> mise en service), développé comme repo externe séparé mais **volontairement construit sur la même stack que l'intranet** (Next 16, TS strict, Tailwind 4, Supabase, hexagonal) en vue d'une réintégration. Deux pages fonctionnelles mais hors design system (Tailwind brut, pas de vocabulaire ni de navigation partagés avec l'intranet), 51 tests verts sur le cœur métier (domaine + xlsx + orchestrateur GO/STOP). L'analyse complète est dans `docs/reprise-copro-integration-proposition.md` (option A "rester un site séparé, juste restylé" vs option B "ré-intégrer comme module natif"). Cette décision a déjà été mise en œuvre en code (branche `integration/reprise-copro`, Inc. 1 livré le 2026-07-01) mais n'avait jamais été formalisée en ADR - relevé par l'audit pré-prod.
+
+### Décision
+
+**Option B retenue : module natif `/reprise-copro`** dans l'intranet (route + entrée sidebar + `AppShell`), pas un site séparé restylé (option A écartée : duplication du design system, double auth/nav, deux apps à maintenir). Le domaine prouvé de reprise-copro (domaine, auto-checks, dedup, règles, normaliseur, génération xlsx, orchestrateur, suivi, templates) est **copié** (voie B1) et namespacé sous `src/lib/reprise/`, imports réécrits `@/lib/` -> `@/lib/reprise/`. Le repo `reprise-copro` d'origine est **gelé** (copie unidirectionnelle, pas de synchronisation retour). Le module consomme exclusivement `@/components/ui/*` (pas de doublon de primitives - contre-exemple à ne pas reproduire : le module sinistre a dupliqué `sinistre/ui.tsx`). Respecte ADR-001 (hexagonal + `eslint-plugin-boundaries`) et s'inscrit dans la plateforme unifiée d'ADR-021.
+
+**Sous-décision (axe 2, parcours) - révisée le 2026-07-01** : le parcours n'utilise **pas** le moteur de wizard du module sinistre (arbre de décision) : la reprise est une procédure **linéaire**, pilotée par l'IA. Le parcours retenu est une **fiche-hub** (`/reprise-copro/dossiers/[id]`) : créer la copro (nom, référence S0XXX, adresse) -> l'IA extrait cadrage + patrimoine des documents -> l'humain vérifie (coche) -> injection eStale -> checklist humaine pour ce que l'IA ne fait pas (vérifications V1-V4, finalisation P5, comptabilité C1-C6, clôture). Le suivi reste porté par le `dossier.ts` propre à reprise-copro (agrégat jumeau, voie B-β) plutôt que par le `Dossier` générique de l'intranet ; l'unification (B-α) est différée à un ADR ultérieur, quand le modèle de suivi partagé sera stabilisé.
+
+### B1 vs B2 - tranché (2026-07-08)
+
+- **B1 - copie : retenue DURABLEMENT.** La version sous `src/lib/reprise/` est la seule vivante ; le repo externe `reprise-copro` reste gelé et sera archivé. Pas de synchronisation retour.
+- **B2 - package partagé (monorepo)** : écarté - il ne se justifierait que si les deux bases devaient cohabiter durablement, ce qui n'est pas le cas.
+
+### Conséquences
+
+**Positives**
+
+- Un seul produit, une seule auth/nav, design system et vocabulaire partagés par construction.
+- Supabase déjà mutualisé (même projet, tables préfixées `reprise_`) - ré-intégration data peu coûteuse.
+- Cohérent avec l'absorption de l'app A (ADR-021) : le pattern d'ajout de module est déjà rôdé.
+
+**Négatives**
+
+- Deux copies du domaine coexistent tant que `reprise-copro` (repo externe) n'est pas officiellement abandonné.
+- Le choix B-β (agrégat jumeau plutôt que `Dossier` unifié) est une dette de modélisation assumée, à revisiter.
+
+### Liens
+
+- **ADR-001** (ports & adapters, boundaries), **ADR-021** (plateforme unifiée). Doc source : `docs/reprise-copro-integration-proposition.md` (section 0bis, décisions validées 2026-07-01). Branche : `integration/reprise-copro`.
+
+---
+
+## ADR-030 - Port d'écriture eStale + injection full-granular par ID capturé
+
+**Date** : 2026-07-06 - **Statut** : accepté avec ajustements (Sekou, 2026-07-08)
+
+### Contexte
+
+Historiquement (ROADMAP de reprise-copro), la sortie du module patrimoine était 5 fichiers xlsx importés à la main dans eStale. L'introspection du schéma eStale (`docs/estale-schema.json`) a révélé que l'API expose l'écriture complète du patrimoine, sous deux formes : import en masse (`importLots/Owners/Links/Entries`, prend un fichier, retourne `Condo` sans les lignes créées) et création granulaire (`createLot/createDK/createOwner`, retourne l'entité créée avec sa `reference`/son `code`). La voie granulaire résout le problème historique des codes 4-caractères qui forçait un workflow "links" en 2 phases (import owners -> export des codes -> réimport des links) : en capturant les IDs eStale renvoyés par chaque création, on câble lots/clés/owners/liens sans jamais dépendre de la référence 4-caractères ni d'un ré-import.
+
+Cette voie (**la plus automatisée**, option 3 du doc `docs/reprise-copro-integration-proposition.md` section 4) écrit réellement en production eStale - c'est la décision la plus sensible du module, et celle qui n'avait pas d'ADR alors qu'elle **écrit dans un système tiers de production**. Une première injection réelle complète a eu lieu le 2026-07-06 (jalon, cf. `ROADMAP.md`) : copro test **S0305 Gaultier 4** (Courbevoie, établissement LGC) créée avec 81 lots, 6 clés, 297 tantièmes, 28 owners, 81 liens = 493 opérations, succès complet.
+
+### Décision
+
+**Port `EstaleEcritureProvider`** (`src/lib/reprise/ports/estale-ecriture-provider.ts`) : une méthode par mutation eStale - `creerCopro`, `creerLot`, `creerCle`, `mettreAJourCle`, `poserTantieme`, `creerOwner`, `relierOwnerAuLot`. Chaque création retourne l'ID (et la référence/le code) capturé, pour câbler l'étape suivante. Le port ne dépend pas du schéma eStale généré (types re-déclarés côté reprise) : le service qui l'appelle ignore s'il parle à un dry-run ou à un vrai client GraphQL.
+
+**Ordre d'import imposé par eStale, strictement respecté** : lots -> clés -> tantièmes -> owners -> links. Implémenté dans `src/lib/reprise/services/injecter-patrimoine.ts` (`injecterPatrimoine`), qui capture les IDs dans des `Map` (`lotParNum`, `cleParCode`, `ownerParId`) au fil de l'eau pour câbler chaque étape suivante par ID interne, sans jamais dépendre des codes 4-caractères.
+
+**DRY-RUN par défaut, gate explicite pour le réel** : `src/lib/reprise/adapters/router.ts` (`getEstaleEcritureProvider`) renvoie par défaut `DryRunEstaleEcritureProvider` (aucun réseau). Il ne bascule sur `ReelEstaleEcritureProvider` (`src/lib/reprise/adapters/estale-ecriture/reel-provider.ts`, qui écrit réellement via `estaleGql`) que si **deux conditions cumulatives** sont réunies (`ecritureEstaleReelle()`) : la variable d'env `ESTALE_ECRITURE=reel` **et** des identifiants eStale présents (`estaleConfigure()`). En complément, l'UI (`fiche-dossier-reprise.tsx`) affiche le mode actif et exige une **confirmation GO/STOP humaine** (modale `useConfirm`, rouge/"danger" en mode réel avec le texte "Ecriture REELLE dans eStale (PRODUCTION)... Confirmer ?", verte/légère en dry-run) avant tout déclenchement, quel que soit le mode.
+
+**Throttle sous le rate limit eStale** : `ReelEstaleEcritureProvider` sérialise tous les appels derrière un espacement minimal de **25 ms** (`ESPACEMENT_MIN_MS`), soit <= 40 req/s, sous le plafond eStale de 50 req/s (ADR-022) avec une marge de sécurité - nécessaire car tantièmes et liens sont des appels granulaires (un par (clé, lot) et par lot), donc potentiellement des centaines d'appels sur une grosse copro.
+
+**Règles eStale découvertes en conditions réelles** (chacune fixée après un échec de prod, avec test vitest de non-régression) :
+
+- **Clé "Charges générales" auto-créée** par `createCondo` (retourne `mainDKID`) : elle est **réutilisée**, jamais recréée via `createDK` (sinon conflit côté eStale) - repli sur le code "001" si le flag `defaut` est absent du jeu. Elle porte un tantième placeholder (souvent 1) : `mettreAJourCle`/`updateDK.update` la met à jour avec le vrai total EDD.
+- **Nom de clé <= 80 caractères** (`LIMITE_NOM_CLE` dans `services/mapping-estale.ts`) : au-delà, l'API renvoie une erreur générique non actionnable. Troncature automatique + report du reste en commentaire (<= 500 car), avec avertissement.
+- **Représentant légal obligatoire pour une personne morale** : `OwnerInput.firstname` sert de représentant légal et est refusé vide côté eStale pour une société. Repli **"SERVICE SYNDIC"** par défaut (`REPRESENTANT_DEFAUT`) quand aucun gérant n'est identifié - **décision cabinet**, avec avertissement à valider/compléter par un humain.
+- **Numéro de voie <= 5 caractères** (`LIMITE_NUM_ADRESSE`) : un numéro brut type "176 BIS" est découpé en numéro pur ("176") + suffixe alphabétique reporté en tête de la voie ("BIS ..."). Un numéro **composé** ("64-66", plage d'adresse chiffre-tiret-chiffre) reste **entier** dans le numéro, jamais scindé (incident réel constaté : couper sur le tiret faisait dépasser la voie de sa propre limite).
+
+**Rollback préparé mais non auto-exécuté** : `RapportInjection.rollback` liste, dans l'ordre inverse de création, chaque entité créée (`EntiteCreee { type, id, cibleDomaine }`). eStale expose un `.delete()` par objet-mutation (`updateLot(id).delete()`, `updateOwner(id).delete()`, `updateDK(id).delete()`, `updateCondo(id).delete()`) qui permettrait de défaire une injection partielle, mais **le service ne l'appelle jamais automatiquement** en cas d'échec - il s'arrête et renvoie le plan de rollback prêt à l'emploi, laissant le geste de défaire (ou de reprendre) à un humain. Aujourd'hui, une injection interrompue en cours de route laisse une copro partielle à nettoyer à la main côté eStale (constaté sur plusieurs runs d'essai).
+
+**Règle d'exploitation TRANSITOIRE : jamais `ESTALE_ECRITURE=reel` sur Vercel (aujourd'hui).** Une injection réelle est pour l'instant un **geste de poste local** : Sekou pose la variable et les identifiants dans son environnement de dev, jamais dans les variables d'environnement du déploiement Vercel. Ça évite qu'un déploiement prod expose, même accidentellement, la possibilité d'écrire en production eStale depuis une requête HTTP publique. **Ajustement 2026-07-08 (Sekou) : ce n'est PAS une règle permanente - la cible produit est de pouvoir injecter DEPUIS LE SITE.** Prérequis avant de lever la règle : (a) SSO obligatoire sur le chemin (pas de fallback), (b) exécution longue maîtrisée sur Vercel (maxDuration/jobs - cf. murs plateforme relevés par l'audit pré-prod), (c) le GO/STOP humain conservé tel quel, (d) **pouvoir CORRIGER les données extraites dans l'UI avant d'injecter** (voir "Manque produit" ci-dessous).
+
+**Manque produit identifié (Sekou, 2026-07-08) : pas d'édition du jeu extrait.** Quand l'analyse remonte des erreurs bloquantes (lot orphelin, nom vide, adresse incomplète...), l'utilisateur n'a AUCUN moyen de corriger dans l'app : le jeu est en lecture seule, la seule issue est de re-analyser en espérant mieux, ou d'abandonner. C'est une impasse d'usage réel (constatée sur S0305 : la correction de la ville de l'owner o9 a dû être faite par script directement en base). **Chantier prioritaire : un éditeur de corrections du jeu persisté** (éditer lots/clés/tantièmes/owners/attributions, re-passer les auto-checks, persister) - c'est aussi le prérequis (d) de l'injection depuis le site.
+
+**Ligne rouge (inchangée) : pas d'injection via API/MCP.** Le GO/STOP humain (la modale de confirmation dans l'UI) est **le seul verrou** avant une écriture réelle. Aucun chemin d'automatisation (script, API exposée, MCP, cron) ne doit pouvoir déclencher `ecritureEstaleReelle()` sans ce geste humain explicite - y compris le jour où l'injection se fera depuis le site.
+
+### Conséquences
+
+**Positives**
+
+- Résout le problème historique des codes 4-caractères et de la phase B links (plus besoin de ré-import).
+- Idempotence par capture d'ID : chaque étape sait sur quoi elle s'appuie, feedback ligne par ligne (quelle opération a échoué).
+- Premier run réel validé en grandeur nature (S0305, 493 opérations, succès complet, 2026-07-06).
+
+**Négatives**
+
+- Rollback non automatique : une injection interrompue laisse une copro partielle, nettoyage manuel aujourd'hui.
+- Les règles eStale découvertes en réel (clé par défaut, longueurs de champs, représentant légal) sont des contraintes d'une API tierce non documentée formellement : risque de dérive si eStale change son comportement (cf. ADR-022, ré-introspection périodique).
+- Le mapping domaine -> eStale (`services/mapping-estale.ts`) applique plusieurs replis silencieux mais **signalés** (avertissements) qui restent à valider par un humain avant une injection définitive (adresse incomplète, résident dérivé, quote-part égale par défaut, division FREEHOLD par défaut).
+
+### Liens
+
+- **ADR-001** (ports & adapters), **ADR-002** / **ADR-022** (rate limit eStale 50 req/s, positionnement défensif eStale), **ADR-029** (module natif reprise-copro). Doc source : `docs/reprise-copro-integration-proposition.md` (section 4, carte d'écriture vérifiée). Jalon : `ROADMAP.md`, entrée 2026-07-06.
+
+---
+
+## ADR-031 - Extraction des documents par IA avec routeur de providers
+
+**Date** : 2026-07-06 - **Statut** : accepté (Sekou, 2026-07-08 - le mode CLI reste un outil de test local assumé ; la prod visera une clé API dédiée)
+
+### Contexte
+
+L'extraction du patrimoine (lots, clés, tantièmes) et des propriétaires (owners, attributions) à partir des PDF du syndic sortant (RCP, EDD, modificatifs, annexes comptables/RGDD, feuille de présence, PV) est confiée à un moteur IA. Plusieurs moteurs sont utilisables selon le contexte (dev sans clé API, test en session Claude Max, production) : il faut pouvoir switcher sans toucher au domaine ni aux prompts. Le choix du moteur par défaut et la place de la CLI Claude Code (mode test) n'avaient jamais été formalisés en ADR, alors que le mode CLI touche à une zone grise de CGU (ToS Anthropic) et n'est pas déployable.
+
+### Décision
+
+**Port `ExtractionProvider`** (`src/lib/reprise/ports/extraction-provider.ts`) : deux méthodes, `extrairePatrimoine` (Agent 1 - RCP/EDD/modificatifs -> lots/clés/tantièmes) et `extraireProprietaires` (Agent 2 - feuille de présence/PV -> owners/attributions), fidèles au protocole à 2 sous-agents documenté côté vault. Un 3e "agent" (construction + auto-checks) n'est **pas** un appel IA : c'est du code déterministe (`domain/auto-checks.ts`).
+
+**Routeur de sélection** (`src/lib/reprise/adapters/router.ts`, `modeExtraction()`/`getExtractionProvider()`) : `EXTRACTION_PROVIDER=claude-cli|claude|mistral|mock`, ou détection automatique par variable présente (`ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` -> claude, sinon `MISTRAL_API_KEY` -> mistral, sinon mock). Quatre adapters : `adapters/claude/claude-extraction-provider.ts` (SDK `@anthropic-ai/sdk`, défaut prod visé), `adapters/mistral/mistral-extraction-provider.ts` (fallback souverain EU), `adapters/claude-cli/claude-cli-extraction-provider.ts` (voir ci-dessous), `adapters/extraction/mock-extraction-provider.ts` (démonstration, copro canonique sans IA). En production, si le mode résolu est `mock`, le routeur **refuse explicitement** (throw) plutôt que de renvoyer silencieusement une fausse extraction sur un vrai PDF.
+
+**Prompts partagés, engine-agnostiques** : `adapters/shared/prompts-extraction.ts` (`SYSTEME_PATRIMOINE`, `SYSTEME_PROPRIETAIRES`) encode les règles cabinet une seule fois, consommées par tous les adapters IA (Claude, Claude CLI, Mistral) - un seul endroit où faire évoluer les règles, quel que soit le moteur. Un **normaliseur** partagé (`adapters/shared/normaliser.ts`) met en forme la sortie JSON brute du modèle vers les types domaine (`ResultatPatrimoine`/`ResultatProprietaires`), quel que soit l'adapter.
+
+**Auto-checks déterministes en filet** : `domain/auto-checks.ts` (`verifierTout`) revérifie systématiquement le jeu de données produit par l'IA (5 blocs de vérifications, `ok = 0 erreur`), **indépendamment du moteur utilisé**. La production des xlsx et l'injection eStale (ADR-030) refusent de s'exécuter si des erreurs bloquantes subsistent (`refuserSiErreurs` dans `services/orchestrateur-patrimoine.ts`) - le filet s'applique même si l'extraction IA a mal fonctionné.
+
+**Aiguillage des documents par agent** : `services/orchestrateur-patrimoine.ts` route chaque document vers le bon agent par un filtre sur le nom de fichier (`pourStructure` : RCP/EDD/RGDD/annexes/budget -> Agent 1 ; `pourProprietaires` : feuille de présence/PV -> Agent 2), avec repli "aux deux agents" si le nom ne matche aucun filtre. Réduit le volume par requête (limite Claude de 100 pages/requête) et cible chaque agent sur les documents pertinents.
+
+**Les annexes comptables (RGDD) font foi pour les clés réelles** : le prompt `SYSTEME_PATRIMOINE` impose qu'en présence d'annexes comptables/RGDD/états de répartition, ce sont eux qui priment sur le RCP pour les clés effectivement utilisées en comptabilité (une charge regroupée en une colonne au RCP peut être éclatée en plusieurs clés réelles, ex. eau froide vs eau chaude/chauffage). Sans document comptable, on se base sur le RCP et on signale l'ambiguïté en note plutôt que de trancher silencieusement.
+
+**Mode CLI Claude Code - réservé au test, jamais à la prod.** `adapters/claude-cli/claude-cli-extraction-provider.ts` invoque le binaire `claude -p` en sous-processus (session utilisateur, ex. plan Max), écrit les PDF en fichiers temporaires et laisse la CLI les lire (outil `Read`, vision native pour les scans), sans passer par le SDK ni par une clé API. Retire explicitement `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` de l'environnement du sous-processus pour forcer la session Max plutôt que l'API métrée. **Limite assumée** : utiliser une session interactive personnelle pour un traitement programmatique en batch est une **zone grise vis-à-vis des CGU Anthropic**, et le mode n'est utilisable que sur un poste local avec une session ouverte (non déployable sur Vercel, pas fait pour le scale). La voie de production visée reste une **clé API dédiée** (adapter Claude SDK ou Mistral), le mode CLI servant uniquement à valider la qualité d'extraction sur de vrais documents sans engager de coût API pendant la phase de mise au point.
+
+### Conséquences
+
+**Positives**
+
+- Un seul jeu de prompts et de règles cabinet, indépendant du moteur - changer de moteur ne change pas le comportement métier.
+- Le filet d'auto-checks déterministes absorbe les variations de qualité entre moteurs (Claude API/CLI, Mistral, mock).
+- Le mode CLI a permis de valider l'extraction sur un vrai cas (S0305) sans dépendre d'une clé API payante pendant la mise au point.
+
+**Négatives**
+
+- Le mode CLI est une dette explicite : zone grise ToS, poste local uniquement, à ne jamais activer en production (le binaire `claude` n'existe de toute façon pas sur Vercel, donc échec net plutôt que silencieux, mais reste un garde-fou à surveiller).
+- Le RGPD (PII des copropriétaires transitant par un tiers IA externe) reste **hors périmètre à ce stade** (décision Sekou du 2026-07-01) : sujet à rouvrir plus tard, notamment si le moteur de production change de zone d'inférence.
+
+### Liens
+
+- **ADR-030** (l'extraction alimente le jeu injecté), **ADR-029** (module natif). Doc source : `docs/reprise-copro-integration-proposition.md` (section 1.1, section 7 point 5).
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :

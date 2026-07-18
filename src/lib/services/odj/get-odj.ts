@@ -6,11 +6,8 @@
 import type { ChampOdj, Odj, SectionOdj, SourceDonnee } from "@/lib/domain/odj";
 import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 import { pointsLegaux, ecartBudget, parseMontant, formatEuros } from "@/lib/domain/odj";
-import {
-  getCoproRepository,
-  getCondoEstaleProvider,
-  getOdjRepository,
-} from "@/lib/adapters/router";
+import { getCoproRepository, getOdjRepository } from "@/lib/adapters/router";
+import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { ODJ_SANS_DATE, PREFIXE_POINT } from "@/lib/ports/odj-repository";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import { DELAIS_CABINET } from "@/lib/domain/jalons-ag/cabinet/real31-defaults";
@@ -62,7 +59,8 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     .filter(Boolean)
     .join(", ");
 
-  // Mise sous pli = jalon CONVOC (J-30 cabinet). Limite d'ajout de points = J-40.
+  // Mise sous pli = jalon CONVOC (J-31 cabinet). Limite d'ajout de points = J-41
+  // (glissement mecanique : AJOUT_ODJ_AVANT_CONVOC_JOURS se compte depuis la cible).
   const convocISO = dateAg
     ? calculerJalons(dateAg).find((j) => j.code === "CONVOC")?.cibleDate
     : undefined;
@@ -77,7 +75,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   // le squelette + la saisie du gestionnaire s'affichent normalement.
   let estale: DonneesEstaleCopro | null = null;
   try {
-    estale = await getCondoEstaleProvider().getDonneesCopro(code);
+    estale = await donneesCoproEstale(code); // read-through (ADR-002), au lieu d'appeler Estale en direct
   } catch (err) {
     console.warn(`[odj] Estale indisponible pour ${code} :`, (err as Error).message);
   }

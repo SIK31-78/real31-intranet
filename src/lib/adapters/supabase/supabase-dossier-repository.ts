@@ -121,4 +121,13 @@ export class SupabaseDossierRepository implements DossierRepository {
     const { error } = await sb.from(TABLE).update(update).eq("id", id);
     if (error) throw new Error(`maj dossier : ${error.message}`);
   }
+
+  async supprimer(id: string): Promise<void> {
+    const sb = createSupabasePublicClient();
+    const { error } = await sb.from(TABLE).delete().eq("id", id);
+    if (error) {
+      if (tableAbsente(error)) return; // table absente -> rien a supprimer (degrade)
+      throw new Error(`supprimer dossier : ${error.message}`);
+    }
+  }
 }

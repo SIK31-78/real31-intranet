@@ -15,6 +15,8 @@ export interface CalendrierOutboundProvider {
    * deplacer, supprimer) et son webLink Outlook si Graph les fournit.
    * `ressources` : emails de salles / vehicules (room mailboxes) ajoutes comme
    * attendees de type "resource" -> la salle auto-accepte si le creneau est libre.
+   * `participants` : emails de collegues (gestionnaires) ajoutes comme attendees de
+   * type "required" -> l'evenement apparait dans LEUR agenda (distinct de `ressources`).
    */
   creerEvenement(p: {
     boite: string;
@@ -25,6 +27,7 @@ export interface CalendrierOutboundProvider {
     lieu?: string;
     description?: string;
     ressources?: string[];
+    participants?: string[];
   }): Promise<{ id?: string; webLink?: string }>;
 
   /**
@@ -34,13 +37,24 @@ export interface CalendrierOutboundProvider {
    * `fin - debut` (fin par defaut = debut + duree reunion). Champs absents = inchanges.
    * `ressources` (si fourni) REMPLACE la liste des attendees de type "resource"
    * (salles / vehicules) - `[]` retire toute ressource, absent = inchange.
+   * `participants` (si fourni) REMPLACE la liste des attendees de type "required"
+   * (collegues) - `[]` retire tout collegue, absent = inchange.
    * `lieu` (si fourni) remplace le libelle de lieu (location) - reflete le mode de
    * tenue ("Visio" en visio, sinon la salle) ; absent = inchange.
+   * NB Graph : le PATCH `attendees` ecrase TOUTE la liste ; l'adapter recompose donc
+   * ressources + participants ensemble quand l'un ou l'autre est fourni.
    */
   mettreAJourEvenement(
     boite: string,
     eventId: string,
-    patch: { titre?: string; debut?: string; fin?: string; ressources?: string[]; lieu?: string },
+    patch: {
+      titre?: string;
+      debut?: string;
+      fin?: string;
+      ressources?: string[];
+      participants?: string[];
+      lieu?: string;
+    },
   ): Promise<void>;
 
   /**

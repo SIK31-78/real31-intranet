@@ -46,8 +46,8 @@ describe("calculerJalons", () => {
         expect(joursEntre(jalon(j, "POUVOIRS").cibleDate, ag)).toBe(2);
       });
 
-      it("RELANCE_POUVOIRS a J-8", () => {
-        expect(joursEntre(jalon(j, "RELANCE_POUVOIRS").cibleDate, ag)).toBe(8);
+      it("RELANCE_POUVOIRS (relance date AG) a J-7", () => {
+        expect(joursEntre(jalon(j, "RELANCE_POUVOIRS").cibleDate, ag)).toBe(7);
       });
 
       it("post-AG : scan contrat J+2, notif PV J+30, archivage J+180", () => {
@@ -56,10 +56,23 @@ describe("calculerJalons", () => {
         expect(joursEntre(ag, jalon(j, "ARCHIVAGE").cibleDate)).toBe(180);
       });
 
-      it("CONVOC : cible cabinet J-30 (mise sous pli 1 mois avant l'AG)", () => {
+      it("CONVOC : cible cabinet J-31 (mise sous pli = envoi des convocations)", () => {
         const c = jalon(j, "CONVOC");
-        expect(joursEntre(c.cibleDate, ag)).toBeGreaterThanOrEqual(30);
+        expect(joursEntre(c.cibleDate, ag)).toBeGreaterThanOrEqual(31);
         expect(c.source).toBe("cabinet");
+      });
+
+      it("CONVOC : le plancher legal des 21 jours francs est tenu (cabinet plus strict)", () => {
+        // Le point le plus important du lot : passer la regle cabinet de J-30 a J-31 ne
+        // doit JAMAIS relacher le delai legal de convocation (21 jours francs, art. 9
+        // decret 67-223) - un envoi trop tardif fait annuler l'AG.
+        // La cible retenue = la plus contraignante = la plus TOT. J-31 (cabinet) est
+        // avant J-22 (legal), donc le cabinet gagne et la convocation part PLUS TOT que
+        // le minimum legal : le plancher est tenu avec 9 jours de marge.
+        const c = jalon(j, "CONVOC");
+        expect(c.cibleDate <= c.dateLegale!).toBe(true); // jamais apres la limite legale
+        expect(joursEntre(c.cibleDate, ag)).toBeGreaterThanOrEqual(22); // >= 21 jours francs
+        expect(c.source).toBe("cabinet"); // c'est bien la regle cabinet qui prime
       });
 
       it("CONVOC : la cible (mise sous pli) tombe toujours un jour ouvre", () => {
