@@ -96,11 +96,37 @@ export function aRole(email: string | null | undefined, role: Role): boolean {
   return rolesDe(email).has(role);
 }
 
+// --- ROLE PILOTE PAR LA TABLE (public."User".role, enum App A) -----------------
+//
+// PERIMETRE (decision Sekou, 2026-07-20) : SEUL le role comptable est pilote par la
+// table `public."User".role`. On ajoute une ligne role=COMPTABLE dans la base (celle
+// qui sert deja d'annuaire a l'intranet) et l'acces comptable s'ouvre SANS
+// redeploiement. directeur/manager/super_admin restent sur les allowlists d'env
+// ci-dessus. Le module reste PUR : le role brut est PASSE en argument (resolu a la
+// session via getGestionnaireCourant), jamais lu ici par une requete DB.
+
+/**
+ * Le role brut de public."User".role (enum App A) designe-t-il un comptable ?
+ * Seule la valeur COMPTABLE est mappee (comparaison insensible casse/espaces : l'enum
+ * App A est en MAJUSCULES). Les autres valeurs (ADMIN, DIRECTEUR_SYNDIC...) ne sont
+ * VOLONTAIREMENT pas mappees ici - elles restent hors du perimetre table.
+ */
+export function estComptableTable(roleTable: string | null | undefined): boolean {
+  return (roleTable ?? "").trim().toUpperCase() === "COMPTABLE";
+}
+
 // --- ROLES BRUTS (a n'utiliser que pour composer une intention metier) --------
 
-/** Membre du pole comptable (COMPTABLES) - ou super-admin, qui porte tous les roles. */
-export function estComptable(email: string | null | undefined): boolean {
-  return aRole(email, "comptable");
+/**
+ * Membre du pole comptable - ou super-admin (qui porte tous les roles). DEUX sources
+ * cumulees : l'allowlist d'env COMPTABLES (secours, retro-compat) ET le role de la
+ * table `public."User".role === COMPTABLE` passe via `roleTable`.
+ */
+export function estComptable(
+  email: string | null | undefined,
+  roleTable?: string | null,
+): boolean {
+  return aRole(email, "comptable") || estComptableTable(roleTable);
 }
 
 /** Manager (MANAGERS) - ou super-admin. */
@@ -124,8 +150,11 @@ export function estSuperAdmin(email: string | null | undefined): boolean {
  * Acces au dashboard comptable (/comptabilite) : le pole compta et les super-admins (pour
  * tester). Un gestionnaire normal n'y a pas acces.
  */
-export function peutVoirComptabilite(email: string | null | undefined): boolean {
-  return estComptable(email);
+export function peutVoirComptabilite(
+  email: string | null | undefined,
+  roleTable?: string | null,
+): boolean {
+  return estComptable(email, roleTable);
 }
 
 /**

@@ -28,7 +28,7 @@ export default async function CoproprietePage({
   // quelle copro (lecture transverse) : ils ne sont pas cloisonnes par managerId. Un
   // gestionnaire normal reste cloisonne a son portefeuille (transverse = false -> 404
   // hors perimetre). Ce role sert aussi a activer le POLE COMPTA de la fiche pour eux.
-  const transverse = peutVoirComptabilite(g.email);
+  const transverse = peutVoirComptabilite(g.email, g.role);
   const fiche = await getFicheCopro(code, g.id, aujourdhuiISO, { transverse });
   if (!fiche) notFound();
   const dossiers = await getDossiersCopro(code, g.id);

@@ -20,7 +20,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const emailsOuvert = mailModuleActifPour(g?.email);
   // Entree "Comptabilite" (dashboard transverse) visible seulement au pole compta
   // (COMPTABLES) et aux super-admins ; absente pour un gestionnaire normal.
-  const comptaOuvert = peutVoirComptabilite(g?.email);
+  const comptaOuvert = peutVoirComptabilite(g?.email, g?.role);
   return (
     <div className="flex flex-col min-h-screen">
       <Topbar user={user} breadcrumb={breadcrumb} peutImpersonner={peutImpersonner} emailsOuvert={emailsOuvert} />

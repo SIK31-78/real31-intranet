@@ -122,7 +122,7 @@ export default async function ComptabilitePage({
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
   // Role transverse : seuls le pole compta (COMPTABLES) et les super-admins accedent.
-  if (!peutVoirComptabilite(g.email)) redirect("/dashboard");
+  if (!peutVoirComptabilite(g.email, g.role)) redirect("/dashboard");
 
   const sp = await searchParams;
   const gestionnaire =

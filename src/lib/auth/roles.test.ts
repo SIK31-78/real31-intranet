@@ -3,6 +3,7 @@ import {
   rolesDe,
   aRole,
   estComptable,
+  estComptableTable,
   estManager,
   estDirecteur,
   estSuperAdmin,
@@ -145,6 +146,38 @@ describe("peutVoirComptabilite", () => {
   it("un directeur n'accede PAS a la compta s'il n'est pas dans COMPTABLES (pas d'implication)", () => {
     vi.stubEnv("DIRECTEURS", "jean@real31.fr");
     expect(peutVoirComptabilite("jean@real31.fr")).toBe(false);
+  });
+
+  it("le role TABLE 'COMPTABLE' ouvre la compta, meme absent de COMPTABLES (pilotage par la table)", () => {
+    // env vide : rien dans COMPTABLES. Seul le role de public."User" doit ouvrir.
+    expect(peutVoirComptabilite("romain@real31.fr", "COMPTABLE")).toBe(true);
+  });
+
+  it("un role table autre que COMPTABLE n'ouvre pas", () => {
+    expect(peutVoirComptabilite("romain@real31.fr", "GESTIONNAIRE")).toBe(false);
+    expect(peutVoirComptabilite("romain@real31.fr", null)).toBe(false);
+    expect(peutVoirComptabilite("romain@real31.fr")).toBe(false);
+  });
+
+  it("env COMPTABLES reste un secours quand le role table est absent (retro-compat)", () => {
+    vi.stubEnv("COMPTABLES", "elsa@real31.fr");
+    expect(peutVoirComptabilite("elsa@real31.fr", null)).toBe(true);
+  });
+});
+
+describe("estComptableTable (mapping public.User.role -> comptable)", () => {
+  it("COMPTABLE (enum App A) est comptable, insensible a la casse et aux espaces", () => {
+    expect(estComptableTable("COMPTABLE")).toBe(true);
+    expect(estComptableTable("comptable")).toBe(true);
+    expect(estComptableTable("  Comptable  ")).toBe(true);
+  });
+
+  it("les autres valeurs de l'enum App A ne sont PAS mappees", () => {
+    for (const r of ["GESTIONNAIRE", "ASSISTANT", "ADMIN", "DIRECTEUR_SYNDIC", ""]) {
+      expect(estComptableTable(r)).toBe(false);
+    }
+    expect(estComptableTable(null)).toBe(false);
+    expect(estComptableTable(undefined)).toBe(false);
   });
 });
 

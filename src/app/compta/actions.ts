@@ -45,7 +45,7 @@ export async function ajouterNoteAction(
   // Autorisation : le pole comptable (COMPTABLES) / super-admin ecrit sur toute copro (le
   // dialogue compta est prevu pour eux) ; sinon garde d'appartenance (anti-IDOR) : la copro
   // doit relever du gestionnaire courant.
-  const transverse = peutVoirComptabilite(g.email);
+  const transverse = peutVoirComptabilite(g.email, g.role);
   if (!transverse && !(await getCoproCompta(coproCode, g.id)))
     return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
@@ -69,7 +69,7 @@ export async function marquerNoteAction(
   if (!g) return { ok: false, erreur: "Session expirée." };
   // Autorisation : pole comptable / super-admin sur toute copro, sinon garde d'appartenance
   // (anti-IDOR) avant tout UPDATE. L'UPDATE est ensuite borne a copro/AG.
-  const transverse = peutVoirComptabilite(g.email);
+  const transverse = peutVoirComptabilite(g.email, g.role);
   if (!transverse && !(await getCoproCompta(coproCode, g.id)))
     return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
@@ -93,7 +93,7 @@ export async function setFlagAction(
   if (!g) return { ok: false, erreur: "Session expirée." };
   // Autorisation : pole comptable / super-admin sur toute copro, sinon garde d'appartenance
   // (anti-IDOR) : la copro doit relever du gestionnaire courant.
-  const transverse = peutVoirComptabilite(g.email);
+  const transverse = peutVoirComptabilite(g.email, g.role);
   if (!transverse && !(await getCoproCompta(coproCode, g.id)))
     return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
