@@ -1298,7 +1298,7 @@ Le module "Mes emails" doit lire la boîte entrante d'un gestionnaire pour la tr
 - **Délégué** : l'app lit la boîte de l'utilisateur connecté avec son jeton SSO (`Mail.Read` Delegated + `offline_access`). Moindre privilège intrinsèque, **zéro PowerShell**, mais **interactif** (synchro déclenchée quand l'utilisateur est connecté) et nécessite de capter l'access token dans Auth.js.
 - **Application (app-only)** : l'app lit via son propre identifiant (client credentials), **en tâche de fond**, sans utilisateur. `Mail.Read` Application donne accès à TOUTES les boîtes -> on borne par une **Application Access Policy** (PowerShell Exchange) à un groupe de boîtes autorisées.
 
-Au moment de brancher le pilote, le DSI était prêt à accorder l'accès et proposait précisément la **restriction par boîte en PowerShell** — qui EST le mécanisme Application Access Policy. Et le besoin exprimé (Sekou) = synchroniser **toute l'inbox** du pilote, y compris en tâche de fond. Le choix initial "délégué" est donc révisé.
+Au moment de brancher le pilote, le DSI était prêt à accorder l'accès et proposait précisément la **restriction par boîte en PowerShell** - qui EST le mécanisme Application Access Policy. Et le besoin exprimé (Sekou) = synchroniser **toute l'inbox** du pilote, y compris en tâche de fond. Le choix initial "délégué" est donc révisé.
 
 ### Décision validé par Sekou
 
@@ -1503,6 +1503,62 @@ L'extraction du patrimoine (lots, clés, tantièmes) et des propriétaires (owne
 ### Liens
 
 - **ADR-030** (l'extraction alimente le jeu injecté), **ADR-029** (module natif). Doc source : `docs/reprise-copro-integration-proposition.md` (section 1.1, section 7 point 5).
+
+---
+
+## ADR-032 - Module Facturation des honoraires syndic : tables `intranet_*`, recalcul serveur, brouillons Pennylane
+
+**Date** : 2026-07-20 - **Statut** : accepté (Sekou, 2026-07-20 - validé par un test de bout en bout réel : brouillon créé puis supprimé dans Pennylane de production)
+
+### Contexte
+
+Le module de facturation des honoraires syndic de la solution PowerApps `MYTHEC_REAL31_Automation` (5 prestations ponctuelles : dépassement CS, suivi de travaux, suivi de sinistre, pré-état daté, état daté) devait être réimplémenté dans l'intranet. L'audit (dépôt `mythec-refactor`, `powerapps/MIGRATION_PLAN.md`) a mis au jour plusieurs défauts du legacy qu'il fallait décider de reproduire ou de corriger, et plusieurs pièges de données qui auraient produit des montants faux.
+
+### Décision
+
+**Tables natives `public.intranet_*`, pas de schéma dédié.** `intranet_tarifs`, `intranet_suivi_contrats`, `intranet_factures`, `intranet_facture_lignes` (+ `intranet_recap_ag`, `intranet_recap_ag_travaux` pour la suite). Le dossier `supabase/migrations/` (schéma `real31_intranet`) n'a jamais été déployé sur la base cible `suivi-contrats-copros` et est abandonné depuis la décision du 2026-06-10 : les tables natives vivent dans `public` avec préfixe `intranet_`, référence **logique** vers `public."Copropriete"` (aucune FK, pour ne rien imposer à Prisma), RLS off, exécution manuelle des `.sql` dans le SQL editor.
+
+**Le montant n'est jamais saisi ni transmis par le client : il est recalculé serveur depuis le barème.** Le legacy (`REALFacturationSyndic`) reprenait tel quel le montant calculé côté PowerApps. Ici, le calcul vit dans `lib/domain/facturation/` (fonctions pures, testées), les services résolvent le barème puis appellent le domaine. L'aperçu de confirmation et la création partagent **le même appel** (`apercuXxx` / `creerFactureXxx`), ils ne peuvent pas diverger.
+
+**Un tarif absent du barème lève une erreur explicite.** Côté PowerApps, un `LookUp` infructueux remontait `blank`, traité comme 0 par la somme : une prestation sans tarif était facturée 0 € sans alerte. `exigerTarifTtc` (`services/facturation/bareme.ts`) refuse et nomme l'année manquante.
+
+**Une facture sans ligne est refusée.** Le cas « suivi de sinistre sans aucune diligence retenue » aurait produit une facture Pennylane à 0 ligne. Le domaine lève (`calculerHonorairesSinistre`), l'écran de validation l'explique avant.
+
+**`draft: true` non négociable.** Aucune facture n'est jamais finalisée automatiquement : la validation reste un geste humain côté comptabilité. Le jeton Pennylane vient de `PENNYLANE_API_KEY` (environnement), **jamais** d'une table applicative - le legacy le stockait en clair dans la liste SharePoint « Paramètres ».
+
+**Résolution du client Pennylane en deux temps.** `Copropriete.pennylaneId` est un UUID, c'est une `external_reference`, pas l'`id` interne Pennylane. L'adapter fait `GET /customers?filter=[{external_reference eq ...}]` puis utilise l'`id` retourné comme `customer_id`, exactement comme le flow legacy. Vérifié en réel sur 5 copropriétés.
+
+**Écran de validation systématique avant tout envoi.** Les 5 prestations passent par un récapitulatif commun (`ApercuFacturation`) : critères retenus, ce qui est couvert par le contrat, ce qui est en dépassement, montant HT/TTC. Confirmation = création **et** émission enchaînées. L'historique (`intranet_factures`) remplace la file d'attente, avec réémission possible d'un échec.
+
+### Pièges de données relevés (et neutralisés)
+
+- **`Copropriete.csDurationMinutes` contient des HEURES**, malgré son nom. Relevé sur 265 copropriétés : valeurs 0/1/2/3, dont 217 à la valeur 1. Diviser par 60 aurait ramené la franchise de 1 h à 1 minute et fait facturer **presque toute réunion de CS en totalité**.
+- **`Copropriete.realPostalFees` est un booléen**, pas un montant : le forfait postaux n'est pas récupérable là.
+- La convention monétaire est **TTC en base** (`intranet_tarifs.montant_ttc`), le HT facturé valant TTC / 1,2. Corroboré à l'import : plusieurs tarifs donnent un HT rond (AGE -> 34,00 / CSSupp -> 190,00 / PreEtatDate -> 245,00).
+- Le champ `description` d'une ligne Pennylane est **ce qui s'affiche sur le PDF** : il porte le détail horaire complet (début, fin, durée retenue, inclus au contrat, facturable), sans quoi la facture est injustifiable devant un conseil syndical.
+- Le schéma « Draft Customer Invoice » exige `deadline`, `currency` et `language` : sans eux, Pennylane rejette en `400 NotAnyOf`.
+
+### Conséquences
+
+**Positives**
+
+- Les montants ne peuvent plus être faussés par une saisie, un tarif manquant ou une divergence entre l'aperçu et la facture.
+- Les échecs d'émission sont tracés (`statut`, `pennylane_error`) et rejouables : le legacy n'avait aucune gestion d'erreur sur ce flux.
+- Le calcul métier est isolé et testé hors de toute infrastructure (domaine pur, sans Zod ni `Date`).
+
+**Négatives**
+
+- `intranet_suivi_contrats` est reconstitué par déduction depuis `Copropriete.syndicContractEndDate` (contrat courant = fin - 1 an + 1 jour), faute de reprise de la liste SharePoint « Suivi des contrats copro ». Les montants d'honoraires y sont donc NULL, ce qui **bloque la facturation de gestion courante**.
+- La grille tarifaire **2024** est incomplète : 11 copropriétés lèveront une erreur sur les prestations autres que le dépassement horaire.
+- Les **Produits** Pennylane (`product_id`, `ledger_account_id`) ne sont pas repris : les lignes partent sans rattachement au plan comptable.
+- PostgREST ne permet pas de transaction multi-tables : si l'insertion des lignes échoue après la facture, celle-ci reste sans ligne (erreur remontée, jamais de facture partiellement facturée). À durcir via une fonction SQL si le besoin devient réel.
+
+### Liens
+
+- Audit source : `mythec-refactor/powerapps/INVENTORY.md` et `MIGRATION_PLAN.md`.
+- **ADR-012** (génération de documents, bloque le contrat de syndic), **ADR-011** (RLS), **ADR-001** (ports & adapters).
+- SQL : `supabase/sql/intranet_facturation.sql`, `intranet_recap_ag.sql`, `intranet_tarifs_seed.sql`, `intranet_suivi_contrats_seed.sql`.
+- Smoke de bout en bout : `src/lib/services/facturation/facturation-e2e.smoke.ts` (écritures réelles, lancement manuel).
 
 ---
 
