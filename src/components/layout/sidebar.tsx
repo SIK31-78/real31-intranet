@@ -41,7 +41,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
       { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
-      { key: "reprise", label: "Reprise de copro", href: "/reprise-copro", icon: PackagePlus },
+      { key: "reprise", label: "Reprise de copro", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
       { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
     ],
   },
