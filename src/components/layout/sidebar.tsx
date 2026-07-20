@@ -41,7 +41,8 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
       { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
-      { key: "reprise", label: "Reprise de copro", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
+      { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
+      { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
       { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
     ],
   },
@@ -67,7 +68,6 @@ type LienApp = { label: string; href: string; icon: ComponentType<{ className?: 
 // Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
 const APPS_EXTERNES: LienApp[] = [
   { label: "Registre des mandats", href: "https://mandats.real31.app/", icon: FileSignature },
-  { label: "Sinistres", href: "https://sinistres.real31.app/", icon: ShieldAlert },
   {
     label: "Reality",
     href: "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/1b4ec6f7-8172-4ccd-a63b-1fca272acb1d?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686",
