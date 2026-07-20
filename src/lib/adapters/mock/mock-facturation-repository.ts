@@ -5,7 +5,9 @@ import type {
   ContratCopro,
   FactureAEmettre,
   FacturationRepository,
+  FactureHistorique,
   NouvelleFacture,
+  ParametresCopro,
 } from "@/lib/ports/facturation-repository";
 
 /** Bareme d'exemple (montants TTC), suffisant pour faire tourner les ecrans. */
@@ -43,6 +45,12 @@ export class MockFacturationRepository implements FacturationRepository {
 
   async getTarifTtc(identifiantPrestation: string, annee: number): Promise<number | null> {
     return TARIFS[identifiantPrestation]?.[annee] ?? null;
+  }
+
+  async getParametresCopro(coproCode: string): Promise<ParametresCopro | null> {
+    if (!CONTRATS.some((c) => c.coproCode === coproCode)) return null;
+    // Valeurs representatives du parc reel (franchise CS 1 h, AG 2 h, plage 10 h-20 h).
+    return { franchiseCsHeures: 1, dureeAgHeures: 2, debutMinAgHeure: 10, finMaxAgHeure: 20 };
   }
 
   async getDernierContrat(coproCode: string): Promise<ContratCopro | null> {
@@ -86,6 +94,27 @@ export class MockFacturationRepository implements FacturationRepository {
       facture.statut = "facturee";
       facture.factureExterneId = factureExterneId;
     }
+  }
+
+  async listerFacturesRecentes(limite = 50): Promise<FactureHistorique[]> {
+    return [...this.factures].reverse().slice(0, limite).map((f) => ({
+      id: f.id,
+      coproCode: f.coproCode,
+      typePrestation: f.typePrestation,
+      libelle: f.libelle,
+      dateFacture: f.dateFacture,
+      statut: f.statut,
+      montantHt: f.lignes.reduce((t, l) => t + l.quantite * l.prixUnitaireHt, 0),
+      ...(f.factureExterneId ? { factureExterneId: f.factureExterneId } : {}),
+      ...(f.erreur ? { erreur: f.erreur } : {}),
+      ...(f.par ? { par: f.par } : {}),
+      creeLe: new Date().toISOString(),
+    }));
+  }
+
+  async remettreEnAttente(factureId: string): Promise<void> {
+    const f = this.factures.find((x) => x.id === factureId);
+    if (f && f.statut === "erreur") f.statut = "a_facturer";
   }
 
   async marquerErreur(factureId: string, message: string): Promise<void> {

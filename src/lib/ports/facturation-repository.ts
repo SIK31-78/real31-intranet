@@ -51,6 +51,48 @@ export interface NouvelleFacture {
   lignes: LigneFactureInput[];
 }
 
+/**
+ * Parametres contractuels d'une copropriete, lus sur public."Copropriete"
+ * (App A). Servent d'entree aux calculs de depassement.
+ */
+export interface ParametresCopro {
+  /**
+   * Duree de reunion CS incluse au contrat, en HEURES.
+   *
+   * ATTENTION : la colonne source s'appelle `csDurationMinutes` mais contient
+   * bien des HEURES. Constate sur les 265 copropriétés : valeurs 0/1/2/3
+   * (217 a la valeur 1) : des reunions de 1 a 3 MINUTES n'auraient aucun sens,
+   * et `agDurationHours` vaut 2 en parallele. Le nom de colonne est trompeur.
+   */
+  franchiseCsHeures: number;
+  /** Duree d'AG incluse au contrat, en heures (agDurationHours). */
+  dureeAgHeures: number;
+  /** Heure de debut de la plage contractuelle d'AG (agStartMin). */
+  debutMinAgHeure: number;
+  /** Heure de fin de la plage contractuelle d'AG (agEndMax). */
+  finMaxAgHeure: number;
+}
+
+/** Ligne d'historique de facturation (vue utilisateur). */
+export interface FactureHistorique {
+  id: string;
+  coproCode: string;
+  typePrestation: TypePrestation;
+  libelle: string;
+  dateFacture: string;
+  statut: StatutFacture;
+  /** Total HT = somme des lignes. */
+  montantHt: number;
+  /** Identifiant du brouillon chez le fournisseur, si emis. */
+  factureExterneId?: string;
+  /** Message du dernier echec d'emission, si en erreur. */
+  erreur?: string;
+  /** Initiales de l'auteur. */
+  par?: string;
+  /** Horodatage ISO de creation. */
+  creeLe: string;
+}
+
 /** Facture en attente d'emission, avec ses lignes. */
 export interface FactureAEmettre {
   id: string;
@@ -65,6 +107,8 @@ export interface FacturationRepository {
   getTarifTtc(identifiantPrestation: string, annee: number): Promise<number | null>;
   /** Contrat de gestion le plus recent d'une copro. Null si aucun. */
   getDernierContrat(coproCode: string): Promise<ContratCopro | null>;
+  /** Parametres contractuels de la copro (franchises, plage d'AG). Null si copro inconnue. */
+  getParametresCopro(coproCode: string): Promise<ParametresCopro | null>;
   /** Cree une facture et ses lignes. Renvoie l'id de la facture creee. */
   creerFacture(input: NouvelleFacture): Promise<string>;
 
@@ -78,4 +122,8 @@ export interface FacturationRepository {
   marquerFacturee(factureId: string, factureExterneId: string): Promise<void>;
   /** Marque la facture en erreur et memorise le message (diagnostic). */
   marquerErreur(factureId: string, message: string): Promise<void>;
+  /** Historique des facturations, les plus recentes d'abord. */
+  listerFacturesRecentes(limite?: number): Promise<FactureHistorique[]>;
+  /** Repasse une facture en erreur au statut 'a_facturer' pour la rejouer. */
+  remettreEnAttente(factureId: string): Promise<void>;
 }

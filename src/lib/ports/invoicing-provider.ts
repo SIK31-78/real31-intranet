@@ -12,7 +12,10 @@ export interface LigneAEmettre {
 }
 
 export interface DemandeEmission {
-  /** Identifiant du client chez le fournisseur (Copropriete.pennylaneId). */
+  /**
+   * Reference EXTERNE du client chez le fournisseur (Copropriete.pennylaneId,
+   * un UUID). L'adapter la resout en identifiant interne avant d'emettre.
+   */
   clientRef: string;
   /** Libelle general de la facture. */
   libelle: string;

@@ -14,6 +14,8 @@ import {
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
+import { formatEuros, formatJour } from "./format";
+import type { ApercuFacturation } from "./apercu";
 
 export interface DemandeFactureSinistre {
   /** Code copro (referenceCrypto). */
@@ -31,6 +33,66 @@ export interface DemandeFactureSinistre {
 export interface ResultatFactureSinistre {
   montantHt: number;
   factureId: string;
+}
+
+export async function apercuSuiviSinistre(
+  demande: DemandeFactureSinistre,
+  managerId: string,
+): Promise<ApercuFacturation> {
+  await exigerPerimetre(demande.coproCode, managerId);
+  const repo = getFacturationRepository();
+  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
+
+  const cellesRetenues = DILIGENCES_SINISTRE.filter((d) => demande.diligences[d.cle] === true);
+  const retenues: DiligenceTarifee[] = await Promise.all(
+    cellesRetenues.map(async (d) => ({
+      cle: d.cle,
+      tarifTtc: await exigerTarifTtc(repo, d.identifiantPrestation, anneeBareme),
+    })),
+  );
+
+  // Aucune diligence : on ne leve pas ici, l'ecran doit pouvoir l'expliquer.
+  if (retenues.length === 0) {
+    return {
+      typePrestation: "suivi_sinistre",
+      titre: "Honoraires de suivi de sinistre",
+      coproCode: demande.coproCode,
+      details: [{ libelle: "Sinistre", valeur: demande.libelleSinistre }],
+      lignes: [],
+      montantHt: 0,
+      montantTtc: 0,
+      rienAFacturer: true,
+      motifRienAFacturer: "Aucune diligence retenue : il n'y a rien a facturer.",
+    };
+  }
+
+  const calcul = calculerHonorairesSinistre(retenues);
+
+  return {
+    typePrestation: "suivi_sinistre",
+    titre: "Honoraires de suivi de sinistre",
+    coproCode: demande.coproCode,
+    details: [
+      { libelle: "Sinistre", valeur: demande.libelleSinistre },
+      ...(demande.dateSinistre
+        ? [{ libelle: "Survenu le", valeur: formatJour(demande.dateSinistre) }]
+        : []),
+      { libelle: `Bareme applique`, valeur: String(anneeBareme) },
+      {
+        libelle: "Diligences retenues",
+        valeur: `${calcul.lignes.length} sur ${DILIGENCES_SINISTRE.length}`,
+        accent: "fort" as const,
+      },
+      ...calcul.lignes.map((l) => ({
+        libelle: `  ${l.libelle}`,
+        valeur: `${formatEuros(l.montantHt)} HT`,
+      })),
+    ],
+    lignes: calcul.lignes.map((l) => ({ description: l.libelle, montantHt: l.montantHt })),
+    montantHt: calcul.montantHt,
+    montantTtc: calcul.montantHt * 1.2,
+    rienAFacturer: false,
+  };
 }
 
 export async function creerFactureSuiviSinistre(

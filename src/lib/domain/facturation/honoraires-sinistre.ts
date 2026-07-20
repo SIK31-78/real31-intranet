@@ -4,7 +4,7 @@
 //
 // Durcissement volontaire vs legacy (cf. MIGRATION_PLAN.md #6) : si aucune
 // diligence n'est retenue, on leve une erreur au lieu d'emettre une facture
-// vide — le flow d'origine aurait cree une facture Pennylane a 0 ligne.
+// vide : le flow d'origine aurait cree une facture Pennylane a 0 ligne.
 
 import { htDepuisTtc } from "./commun";
 

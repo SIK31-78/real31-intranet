@@ -3,7 +3,7 @@
 //
 // Les deux prestations partagent exactement la meme mecanique : un tarif unique
 // lu au bareme de l'annee du contrat actif, converti TTC -> HT. Seuls changent
-// l'identifiant de prestation et le libelle — d'ou la factorisation.
+// l'identifiant de prestation et le libelle, d'ou la factorisation.
 //
 // Durcissement vs legacy : le montant est toujours recalcule depuis le bareme.
 // Cote PowerApps il etait pre-rempli mais modifiable a la main, et les deux
@@ -15,6 +15,8 @@ import type { TypePrestation } from "@/lib/ports/facturation-repository";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
+import { formatEuros, formatJour } from "./format";
+import type { ApercuFacturation } from "./apercu";
 
 export interface DemandeFactureForfaitaire {
   /** Code copro (referenceCrypto). */
@@ -30,6 +32,43 @@ export interface DemandeFactureForfaitaire {
 export interface ResultatFactureForfaitaire {
   montantHt: number;
   factureId: string;
+}
+
+const PRESTATIONS = {
+  pre_etat_date: { identifiantPrestation: "PreEtatDate", libelle: "Honoraires pre-etat date" },
+  etat_date: { identifiantPrestation: "EtatDate", libelle: "Honoraires etat date (questionnaire notaire)" },
+} as const;
+
+/** Apercu commun aux deux prestations a tarif forfaitaire annuel. */
+export async function apercuPrestationForfaitaire(
+  demande: DemandeFactureForfaitaire,
+  managerId: string,
+  variante: "pre_etat_date" | "etat_date",
+): Promise<ApercuFacturation> {
+  await exigerPerimetre(demande.coproCode, managerId);
+  const repo = getFacturationRepository();
+  const prestation = PRESTATIONS[variante];
+
+  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
+  const tarifTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
+  const montantHt = htDepuisTtc(tarifTtc);
+
+  return {
+    typePrestation: variante,
+    titre: prestation.libelle,
+    coproCode: demande.coproCode,
+    details: [
+      ...(demande.nomClient ? [{ libelle: "Client", valeur: demande.nomClient }] : []),
+      ...(demande.dateEtablissement
+        ? [{ libelle: "Etabli le", valeur: formatJour(demande.dateEtablissement) }]
+        : []),
+      { libelle: `Tarif du bareme ${anneeBareme}`, valeur: `${formatEuros(tarifTtc)} TTC`, accent: "fort" as const },
+    ],
+    lignes: [{ description: prestation.libelle, montantHt }],
+    montantHt,
+    montantTtc: tarifTtc,
+    rienAFacturer: false,
+  };
 }
 
 async function creerFactureForfaitaire(

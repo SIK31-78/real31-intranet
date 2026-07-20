@@ -6,7 +6,9 @@ import type {
   ContratCopro,
   FactureAEmettre,
   FacturationRepository,
+  FactureHistorique,
   NouvelleFacture,
+  ParametresCopro,
 } from "@/lib/ports/facturation-repository";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -67,7 +69,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
    *
    * Limite connue : PostgREST ne permet pas de transaction multi-tables. Si
    * l'insertion des lignes echoue, la facture reste sans ligne (statut
-   * 'a_facturer', total nul) plutot que d'etre partiellement facturee — on
+   * 'a_facturer', total nul) plutot que d'etre partiellement facturee ; on
    * remonte l'erreur pour que l'appelant la traite. A durcir via une fonction
    * SQL (RPC) si le besoin d'atomicite devient reel.
    */
@@ -141,7 +143,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       intranet_facture_lignes: LigneRow[] | null;
     };
 
-    return ((data as FactureRow[] | null) ?? []).map((f) => ({
+    return ((data as unknown as FactureRow[] | null) ?? []).map((f) => ({
       id: f.id,
       coproCode: f.copropriete_id,
       libelle: f.libelle,
@@ -155,6 +157,31 @@ export class SupabaseFacturationRepository implements FacturationRepository {
           tauxTva: Number(l.taux_tva),
         })),
     }));
+  }
+
+  async getParametresCopro(coproCode: string): Promise<ParametresCopro | null> {
+    const supabase = createSupabasePublicClient();
+    // csDurationMinutes contient des HEURES malgre son nom (cf. ParametresCopro).
+    const colonnes = "csDurationMinutes, agDurationHours, agStartMin, agEndMax";
+    const requete = (colonne: string) =>
+      supabase.from("Copropriete").select(colonnes).eq(colonne, coproCode).maybeSingle();
+
+    let { data } = await requete("referenceCrypto");
+    if (!data) ({ data } = await requete("referenceEstale"));
+    if (!data) return null;
+
+    const r = data as unknown as {
+      csDurationMinutes: number | null;
+      agDurationHours: number | null;
+      agStartMin: number | null;
+      agEndMax: number | null;
+    };
+    return {
+      franchiseCsHeures: Number(r.csDurationMinutes ?? 0),
+      dureeAgHeures: Number(r.agDurationHours ?? 0),
+      debutMinAgHeure: Number(r.agStartMin ?? 0),
+      finMaxAgHeure: Number(r.agEndMax ?? 24),
+    };
   }
 
   async getClientFacturationRef(coproCode: string): Promise<string | null> {
@@ -183,6 +210,62 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       })
       .eq("id", factureId);
     if (error) throw new Error(`Marquage facture ${factureId} emise : ${error.message}`);
+  }
+
+  async listerFacturesRecentes(limite = 50): Promise<FactureHistorique[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_factures")
+      .select(
+        "id, copropriete_id, type_prestation, libelle, date_facture, statut, " +
+          "pennylane_invoice_id, pennylane_error, cree_par, created_at, " +
+          "intranet_facture_lignes (quantite, prix_unitaire_ht)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(limite);
+
+    if (error) throw new Error(`Lecture historique facturation : ${error.message}`);
+
+    type Row = {
+      id: string;
+      copropriete_id: string;
+      type_prestation: string;
+      libelle: string;
+      date_facture: string;
+      statut: string;
+      pennylane_invoice_id: string | null;
+      pennylane_error: string | null;
+      cree_par: string | null;
+      created_at: string;
+      intranet_facture_lignes: Array<{ quantite: number; prix_unitaire_ht: number }> | null;
+    };
+
+    return ((data as unknown as Row[] | null) ?? []).map((f) => ({
+      id: f.id,
+      coproCode: f.copropriete_id,
+      typePrestation: f.type_prestation as FactureHistorique["typePrestation"],
+      libelle: f.libelle,
+      dateFacture: f.date_facture,
+      statut: f.statut as FactureHistorique["statut"],
+      montantHt: (f.intranet_facture_lignes ?? []).reduce(
+        (total, l) => total + Number(l.quantite) * Number(l.prix_unitaire_ht),
+        0,
+      ),
+      ...(f.pennylane_invoice_id ? { factureExterneId: f.pennylane_invoice_id } : {}),
+      ...(f.pennylane_error ? { erreur: f.pennylane_error } : {}),
+      ...(f.cree_par ? { par: f.cree_par } : {}),
+      creeLe: f.created_at,
+    }));
+  }
+
+  async remettreEnAttente(factureId: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase
+      .from("intranet_factures")
+      .update({ statut: "a_facturer", updated_at: new Date().toISOString() })
+      .eq("id", factureId)
+      .eq("statut", "erreur"); // garde-fou : on ne rejoue jamais une facture deja emise
+    if (error) throw new Error(`Remise en attente de ${factureId} : ${error.message}`);
   }
 
   async marquerErreur(factureId: string, message: string): Promise<void> {
