@@ -167,7 +167,7 @@ function DossierPanel() {
             </datalist>
             {coproRattachee ? (
               <span className="mt-1 block text-xs text-ok-700">
-                Rattachée : {coproRattachee} — enregistrement débloqué.
+                Rattachée : {coproRattachee} - enregistrement débloqué.
               </span>
             ) : (
               <span className="mt-1 block text-xs text-ink-4">

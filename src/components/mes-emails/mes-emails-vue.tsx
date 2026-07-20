@@ -167,7 +167,7 @@ export function MesEmailsVue({
       .catch(() => setDossiers([]));
   }, []);
 
-  const resumeMail = (m: MailEntrant): string => `${m.objet} — de ${m.de}`;
+  const resumeMail = (m: MailEntrant): string => `${m.objet} - de ${m.de}`;
 
   const statutDe = (id: string): Statut =>
     classes.has(id) ? "classe" : repondus.has(id) ? "repondu" : "nouveau";
@@ -1055,7 +1055,7 @@ function AnalysePane({
                   className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
                 >
                   {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
-                  <option value="">{coproCode ? "— Retirer la copropriété" : "Rattacher à une copropriété…"}</option>
+                  <option value="">{coproCode ? "- Retirer la copropriété" : "Rattacher à une copropriété…"}</option>
                   {coprosDispo.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.nom} ({c.code})
@@ -1305,7 +1305,7 @@ function AnalysePane({
         {changer && !coproCode && (
           <div className="rounded-md border border-dashed border-line px-3 py-2 text-[12px] text-ink-3">
             Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété. Pour simplement
-            <strong> ranger</strong> ce mail, utilise «&nbsp;Classer dans…&nbsp;» en haut — aucune copropriété requise.
+            <strong> ranger</strong> ce mail, utilise «&nbsp;Classer dans…&nbsp;» en haut - aucune copropriété requise.
           </div>
         )}
 

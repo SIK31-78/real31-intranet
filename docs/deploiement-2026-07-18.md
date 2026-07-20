@@ -1,4 +1,4 @@
-# Runbook de déploiement — 2026-07-18
+# Runbook de déploiement - 2026-07-18
 
 Merge `integration/reprise-copro` (156 commits) → tronc `increment/02-supabase` → prod (Vercel de la collègue).
 
@@ -15,7 +15,7 @@ Merge `integration/reprise-copro` (156 commits) → tronc `increment/02-supabase
 
 ## L'ordre compte : SQL + env AVANT le push
 
-Le build prod servira le code dès qu'il est poussé. Avec les vannes en dry et la dégradation propre, l'ordre n'est pas catastrophique — mais le plus sûr reste **1 → 2 → 3**.
+Le build prod servira le code dès qu'il est poussé. Avec les vannes en dry et la dégradation propre, l'ordre n'est pas catastrophique - mais le plus sûr reste **1 → 2 → 3**.
 
 ### 1. SQL à passer sur la base patron (Sekou, à la main)
 
@@ -34,11 +34,11 @@ Les autres SQL du dossier ont déjà été exécutés lors des sessions précéd
 
 ### 2. Variables d'env sur Vercel (Sekou, dashboard → Settings → Environment Variables, Production)
 
-**Les deux interrupteurs — en dry pour commencer :**
+**Les deux interrupteurs - en dry pour commencer :**
 
 | Variable | Valeur de départ | Effet |
 |---|---|---|
-| `ESTALE_ECRITURE` | `dry` (ou absente) | aucune écriture eStale — tout est simulé |
+| `ESTALE_ECRITURE` | `dry` (ou absente) | aucune écriture eStale - tout est simulé |
 | `MAIL_SOURCE` | **absente** | aucun mail réel envoyé |
 
 **Variables de ce cycle à vérifier présentes** (sinon la feature est inerte ou grisée) :
@@ -79,7 +79,7 @@ Le tronc distant avant merge = `c33deef` (mémorisé). Si la prod casse :
 git push deploy c33deef:increment/02-supabase --force-with-lease
 ```
 
-Vercel rebuild la version d'avant. (Alternative plus propre : `git revert -m 1 <sha du merge>` puis push — garde l'historique.)
+Vercel rebuild la version d'avant. (Alternative plus propre : `git revert -m 1 <sha du merge>` puis push - garde l'historique.)
 
 ## Après validation : ouvrir les vannes, une par une
 

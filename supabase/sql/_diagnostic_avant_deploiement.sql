@@ -1,5 +1,5 @@
 -- ============================================================================
--- DIAGNOSTIC READ-ONLY — état de la base patron AVANT le déploiement 2026-07-18
+-- DIAGNOSTIC READ-ONLY - état de la base patron AVANT le déploiement 2026-07-18
 -- À coller dans le SQL editor de Supabase (base patron). Ne MODIFIE rien.
 -- Lit information_schema, renvoie une ligne par objet attendu avec son verdict.
 -- Les ">>> ABSENT" remontent en haut : ce sont eux qu'il faut créer avant le push.
@@ -36,12 +36,12 @@ select
       case when exists (
              select 1 from information_schema.tables t
              where t.table_schema = 'public' and t.table_name = a.objet
-           ) then 'OK présent' else '>>> ABSENT — à créer' end
+           ) then 'OK présent' else '>>> ABSENT - à créer' end
     else
       case when exists (
              select 1 from information_schema.columns c
              where c.table_schema = 'public' and c.table_name = a.parent and c.column_name = a.objet
-           ) then 'OK présent' else '>>> ABSENT — à créer' end
+           ) then 'OK présent' else '>>> ABSENT - à créer' end
   end                                                                   as verdict
 from attendu a
 order by verdict asc, a.categorie, objet;  -- '>>> ABSENT' remonte avant 'OK'

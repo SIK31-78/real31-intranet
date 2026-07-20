@@ -43,7 +43,7 @@ Le reste du document (SharePoint, mail, Application Access Policy) reste valable
 
 **Besoin** : l'intranet **lit** la boîte du **pilote** pour trier ses emails (classement + réponse proposée), et **envoie** la réponse validée (avec la signature Signitic). Le brouillon est préparé dans le cockpit.
 
-**1. Permissions à ajouter** (Microsoft Graph, type **Application**) — module complet (lire, préparer, envoyer) :
+**1. Permissions à ajouter** (Microsoft Graph, type **Application**) - module complet (lire, préparer, envoyer) :
 
 | Permission | Type | Usage | Admin consent |
 |---|---|---|---|
@@ -56,7 +56,7 @@ Les deux sont **bornées aux boîtes autorisées** par l'Access Policy ci-dessou
 
 Étapes Entra ID : `REAL31 Intranet` -> *API permissions* -> *Add a permission* -> *Microsoft Graph* -> *Application permissions* -> cocher `Mail.Read` **et** `Mail.Send` -> *Add* -> **Grant admin consent for [tenant]**.
 
-**2. Application Access Policy (PowerShell Exchange Online)** — borne l'app à la seule boîte du pilote :
+**2. Application Access Policy (PowerShell Exchange Online)** - borne l'app à la seule boîte du pilote :
 
 ```powershell
 # Module Exchange Online (une seule fois sur le poste)

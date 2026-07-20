@@ -19,7 +19,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SOURCE_LABEL: Record<SourceDestinataires, string> = {
   estale: "destinataires depuis eStale (conseil syndical)",
   crypto: "destinataires depuis la liste de diffusion Crypto",
-  aucune: "aucune adresse trouvée — saisissez-les ci-dessous",
+  aucune: "aucune adresse trouvée - saisissez-les ci-dessous",
 };
 
 export function MailReunionBouton({

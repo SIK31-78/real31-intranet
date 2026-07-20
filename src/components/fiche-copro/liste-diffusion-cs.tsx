@@ -69,7 +69,7 @@ export function ListeDiffusionCS({
     <div className="border-t border-line px-4 py-3">
       <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-2 flex items-center gap-1.5">
         <Users strokeWidth={1.5} className="w-3.5 h-3.5" />
-        Liste de diffusion — Conseil syndical (secours)
+        Liste de diffusion - Conseil syndical (secours)
       </p>
 
       {/* Indicateur de SOURCE ACTIVE, derive de la vraie cascade. */}
@@ -84,7 +84,7 @@ export function ListeDiffusionCS({
         <p className="text-[11.5px] leading-relaxed">
           {estaleFournitEmails ? (
             <>
-              Les destinataires du mail viennent d&apos;<b>eStale</b> pour cette copropriété — la
+              Les destinataires du mail viennent d&apos;<b>eStale</b> pour cette copropriété - la
               liste ci-dessous ne sert que de <b>secours</b> si eStale n&apos;a plus d&apos;email de
               conseil. La modifier ne changera pas le mail tant qu&apos;eStale fournit des adresses.
             </>

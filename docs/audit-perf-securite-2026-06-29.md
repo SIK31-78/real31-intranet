@@ -1,4 +1,4 @@
-# Audit performance & sécurité — REAL31 Intranet (2026-06-29)
+# Audit performance & sécurité - REAL31 Intranet (2026-06-29)
 
 Synthèse de 4 audits multi-agents (sécurité, performance app, base de données, architecture) sur la branche `increment/02-supabase`. Lecture seule. Les chemins sont relatifs à la racine du repo.
 
@@ -15,48 +15,48 @@ L'architecture hexagonale est **saine et disciplinée**, mais elle repose sur **
 
 ---
 
-# PARTIE 1 — SÉCURITÉ
+# PARTIE 1 - SÉCURITÉ
 
-### 🔴 C1 (CRITIQUE) — App Entra sur-privilégiée : un secret qui fuite = compromission du tenant
+### 🔴 C1 (CRITIQUE) - App Entra sur-privilégiée : un secret qui fuite = compromission du tenant
 `src/lib/adapters/mail/graph-auth.ts` (usage du secret).
-Le token applicatif porte, en plus de `Mail.Read/ReadWrite/Send`, **`Application.ReadWrite.All`** + **`AppRoleAssignment.ReadWrite.All`** — **inutilisés dans le code**. Si `AUTH_MICROSOFT_ENTRA_ID_SECRET` fuit (logs, dump env, poste volé, compromission Vercel), l'attaquant peut s'auto-octroyer **toutes** les permissions Graph et prendre le contrôle du **tenant M365 entier** (toutes les boîtes, SharePoint, Entra). On passe de "lecture des mails" à "prise de contrôle".
-**Correctif** : 🔑 DSI — retirer ces 2 rôles (Azure → App → API permissions → Remove + admin consent). Ne garder que Mail.*. **Effort S, impact maximal.**
+Le token applicatif porte, en plus de `Mail.Read/ReadWrite/Send`, **`Application.ReadWrite.All`** + **`AppRoleAssignment.ReadWrite.All`** - **inutilisés dans le code**. Si `AUTH_MICROSOFT_ENTRA_ID_SECRET` fuit (logs, dump env, poste volé, compromission Vercel), l'attaquant peut s'auto-octroyer **toutes** les permissions Graph et prendre le contrôle du **tenant M365 entier** (toutes les boîtes, SharePoint, Entra). On passe de "lecture des mails" à "prise de contrôle".
+**Correctif** : 🔑 DSI - retirer ces 2 rôles (Azure → App → API permissions → Remove + admin consent). Ne garder que Mail.*. **Effort S, impact maximal.**
 
-### 🔴 C2 (CRITIQUE) — Sans Application Access Policy, le token lit/envoie depuis TOUTE boîte du tenant
+### 🔴 C2 (CRITIQUE) - Sans Application Access Policy, le token lit/envoie depuis TOUTE boîte du tenant
 `src/app/mes-emails/actions.ts` (envoyerReponseAction), `graph-mail-outbound.ts`, `graph-mailbox.ts`.
 Le cloisonnement de boîte repose uniquement sur `g.email` passé en paramètre + une Application Access Policy Exchange **dont l'existence n'est pas garantie par le repo**. Si la policy manque/mal scopée, `Mail.Send`/`Mail.ReadWrite` peut envoyer et lire **n'importe quelle boîte**.
 **Correctif** : 🔑 confirmer/documenter `New-ApplicationAccessPolicy` (groupe des 40 boîtes) + test : lire une boîte hors groupe doit renvoyer 403. **Effort S.**
 
-### 🟠 E1 (ÉLEVÉ) — Cloisonnement des writes seulement dans les Server Actions, pas dans les adapters
-`supabase-supervision-ag-repository.ts` (setStatutItem/setCommentaireItem/conclureAg), `supabase-jalon-repository.ts` (`marquer` — **aucun filtre**).
+### 🟠 E1 (ÉLEVÉ) - Cloisonnement des writes seulement dans les Server Actions, pas dans les adapters
+`supabase-supervision-ag-repository.ts` (setStatutItem/setCommentaireItem/conclureAg), `supabase-jalon-repository.ts` (`marquer` - **aucun filtre**).
 Les écritures upsert par `(code, ag_date, item_id)` **sans re-vérifier le périmètre** : la seule barrière est `coproAppartient()` dans la Server Action appelante. Un futur appel (cron, nouvelle action) qui oublie la garde écrit cross-portefeuille. Le ROADMAP recense déjà 3 fuites compta corrigées le 2026-06-19 → classe de bugs récurrente.
 **Correctif** : déplacer le check de périmètre **dans l'adapter/service** (passer `managerId`, filtrer le upsert) + un wrapper unique `withGestionnaire(action)`. **Effort M.**
 
-### 🟠 E2 (ÉLEVÉ) — Envoi de mail : destinataires non validés, pas de plafond → relais de spam possible
+### 🟠 E2 (ÉLEVÉ) - Envoi de mail : destinataires non validés, pas de plafond → relais de spam possible
 `src/app/mes-emails/actions.ts` (envoyerReponseAction), `graph-mail-outbound.ts`.
 Seule validation : `x.includes("@")` (accepte `a@b@c`, `<x>@y`, ` @ `). Aucune limite de nombre de destinataires, aucune journalisation. Un compte compromis (ou un gestionnaire malveillant) peut utiliser l'app comme **relais d'envoi de masse depuis `@real31.fr`** (réputation du domaine engagée).
 **Correctif** : vraie validation d'email (regex/zod), **plafond** (~50 destinataires), **journaliser** chaque envoi (qui/quand/combien). **Effort M.** → *quick win partiel implémenté ce soir (validation + plafond).*
 
-### 🟠 E3 (ÉLEVÉ) — Aucune validation de schéma sur les Server Actions
+### 🟠 E3 (ÉLEVÉ) - Aucune validation de schéma sur les Server Actions
 Transverse (`mes-emails/actions.ts`, `supervision-ag/[id]/actions.ts`, `coffre/actions.ts`).
 Les Server Actions sont des **endpoints POST publics**. Aucun `zod`. `coproNom`/`dossierLabel`/`folderNom` écrits **sans longueur max** (pollution base) ; `type` (TypeDossier) **non validé au runtime** → `MODELES_ETAPES[type]` crash possible sur enum hors-bornes.
 **Correctif** : `zod` (ou validation manuelle) en tête de chaque action (format, longueurs, enums). **Effort M.**
 
-### 🟡 M1 (MOYEN) — Fragilité du double `.or()` PostgREST (cloisonnement)
+### 🟡 M1 (MOYEN) - Fragilité du double `.or()` PostgREST (cloisonnement)
 `supabase-copro-repository.ts` (findByCode, setDateEvenement).
 Le AND de deux `.or()` est **exact mais dépendant de la lib** : une régression `supabase-js` ou un refactor peut transformer le AND en OR → **cloisonnement silencieusement cassé** (chacun voit toutes les copros).
 **Correctif** : test d'intégration verrouillant le comportement + cible RLS. **Effort M.**
 
-### 🟡 M2 (MOYEN) — `echapperHtml` incomplet + citation HTML ré-émise sans assainissement
+### 🟡 M2 (MOYEN) - `echapperHtml` incomplet + citation HTML ré-émise sans assainissement
 `graph-mail-outbound.ts`. Risque XSS **faible dans l'app** (pas de `dangerouslySetInnerHTML`, vérifié). La citation du mail d'origine (HTML tiers) est ré-émise telle quelle (risque réputationnel/spam, pas compromission).
 **Correctif** : ajouter `"` et `'` à `echapperHtml`. **Effort S.** → *implémenté ce soir.*
 
-### 🟡 M3 (MOYEN) — PII dans les logs serveur
+### 🟡 M3 (MOYEN) - PII dans les logs serveur
 `get-mes-emails.ts`, `synchroniser.ts`, `graph-mailbox.ts`, **`noop-mail-outbound.ts` (logge les adresses destinataires)**.
 Codes copro, ids mail et surtout **adresses email** partent dans les logs Vercel (rétention, accès élargi) → RGPD.
 **Correctif** : ne logger que des compteurs/ids techniques, retirer `p.a.join(", ")`. **Effort S.** → *implémenté ce soir.*
 
-### 🟡 M4 (MOYEN) — Impersonation sans journalisation + auth pas "fail-closed"
+### 🟡 M4 (MOYEN) - Impersonation sans journalisation + auth pas "fail-closed"
 `src/lib/auth/session.ts`, `dev-login/actions.ts`.
 (a) Un super-admin peut agir "en tant que" n'importe qui (envoyer des mails, modifier) **sans aucune trace**. (b) Si `ssoConfigure` passe à `false` en prod (var Entra absente/mal déployée), `impersonationAutorisee()` renvoie `true` pour **tout le monde** → un mauvais déploiement **ouvre l'app**.
 **Correctif** : journaliser l'impersonation + garde-fou : en `production`, si `!ssoConfigure` → **refuser** (fail-closed). **Effort M.**
@@ -64,37 +64,37 @@ Codes copro, ids mail et surtout **adresses email** partent dans les logs Vercel
 ### 🟢 FAIBLE
 - **F1** : confirmer `git ls-files data/ .env*` = vide (un fichier PII commité **avant** la règle `.gitignore` resterait tracké). → *vérifié ce soir.*
 - **F2** : `emailId` client non re-validé contre le triage (borné à `g.email`, donc pas de fuite cross-user ; dépend de C2).
-- **F3** : coffre `azureOid = g.id` (managerId) au lieu du vrai OID Entra — couplage trompeur.
+- **F3** : coffre `azureOid = g.id` (managerId) au lieu du vrai OID Entra - couplage trompeur.
 
 ### ✅ Points sains à conserver
 `service_role` jamais en `NEXT_PUBLIC_` · `.gitignore` PII complet · `coproAppartient`/`filtrePerimetre` cohérents sur la majorité des écritures · coffre zero-knowledge correctement gardé · pas de `dangerouslySetInnerHTML` · identité d'impersonation résolue serveur · ESLint `boundaries` actif en `error`.
 
 ---
 
-# PARTIE 2 — PERFORMANCE
+# PARTIE 2 - PERFORMANCE
 
 ## Cause racine : zéro cache + appels répétés/séquentiels
 
-### 🔵 P-A1 (FORT) — `getGestionnaireCourant()` + `auth()` appelés plusieurs fois par requête
+### 🔵 P-A1 (FORT) - `getGestionnaireCourant()` + `auth()` appelés plusieurs fois par requête
 `src/lib/auth/session.ts`, `src/components/layout/app-shell.tsx`.
 Chaque page lit la session (page + `AppShell.impersonationAutorisee()`) → `auth()` ≥2× + 1 requête DB `User` par requête HTTP.
 **Correctif** : mémoïser `getGestionnaireCourant` et `emailSso` avec `React.cache()` (2 lignes). **Effort S.** → *implémenté ce soir.*
 
-### 🔵 P-A2 (FORT) — Token Graph re-négocié à chaque Server Action mail
+### 🔵 P-A2 (FORT) - Token Graph re-négocié à chaque Server Action mail
 `src/lib/adapters/mail/graph-auth.ts`. POST OAuth2 à Microsoft (400-600 ms) à **chaque** appel mail ; le token vit 3600 s mais n'est pas caché (contrairement au cookie eStale).
-**Correctif** : cache module-level (TTL = `expires_in` − 60 s). **Effort S.** → *implémenté ce soir.*
+**Correctif** : cache module-level (TTL = `expires_in` - 60 s). **Effort S.** → *implémenté ce soir.*
 
-### 🔵 P-A3 (FORT) — Waterfalls séquentiels (dashboard, fiche copro)
+### 🔵 P-A3 (FORT) - Waterfalls séquentiels (dashboard, fiche copro)
 `get-dashboard.ts` : `getEtats`/`getProblemes`/`getActionsDossiers` indépendants mais **en série** → `Promise.all` (gain ~200-400 ms).
 `get-fiche-copro.ts` : eStale + événements + jalons + compta en série.
 **Correctif** : `Promise.all` sur les appels indépendants. **Effort S-M.** → *dashboard implémenté ce soir.*
 
-### 🔵 P-A4 (FORT) — eStale : 5-6 queries GraphQL séquentielles par copro + pas de read-through cache
+### 🔵 P-A4 (FORT) - eStale : 5-6 queries GraphQL séquentielles par copro + pas de read-through cache
 `estale-condo-provider.ts` (getDonneesCopro), `get-mes-emails.ts` (enrichirContextes : N copros).
 Une fiche froide = plusieurs secondes ; N mails rattachés = N×4-6 appels eStale. Le cache module-10min sur la *liste* des condos ne survit pas aux cold starts Vercel.
 **Correctif** : (court) `Promise.all` des appels internes ; (fond) implémenter le **read-through cache eStale d'ADR-002** (table `mirror_*` Supabase TTL court, robuste en serverless). **Effort M → L.**
 
-### 🔵 P-A5 (FORT) — `force-dynamic` sur les 12-17 pages, aucun cache de rendu
+### 🔵 P-A5 (FORT) - `force-dynamic` sur les 12-17 pages, aucun cache de rendu
 Pages référentiel-only (calendrier, liste copros, ODJ passé, résolutions) refont tout à chaque visite.
 **Correctif** : passer ces pages en `revalidate` court (60-300 s, ISR) ; garder `force-dynamic` seulement sur dashboard/supervision (+ `unstable_cache` sur les lectures lourdes). **Effort S-M.**
 
@@ -135,7 +135,7 @@ Client Supabase **singleton** · cookie eStale caché avec re-login paresseux ·
 
 # FEUILLE DE ROUTE PRIORISÉE (3 vagues)
 
-## Vague 1 — Quick wins (code, faible risque, gros gain) — *en partie faits ce soir*
+## Vague 1 - Quick wins (code, faible risque, gros gain) - *en partie faits ce soir*
 | # | Type | Action | Fichier | Effort |
 |---|---|---|---|---|
 | 1 | Perf | `React.cache()` sur `getGestionnaireCourant`/`emailSso` | session.ts | S ✅ |
@@ -151,14 +151,14 @@ Client Supabase **singleton** · cookie eStale caché avec re-login paresseux ·
 | 11 | 🔑 Sécu | Confirmer Application Access Policy (C2) | Exchange | S |
 | 12 | 🔑 Perf | Créer les index P1-P3 (valider patron) | base | S |
 
-## Vague 2 — Structurant (semaines)
+## Vague 2 - Structurant (semaines)
 - **Sécu** : wrapper `withGestionnaire` + checks de périmètre **dans les adapters** (E1/M1) + `zod` sur les Server Actions (E3).
-- **Sécu** : durcissement RLS — tables natives `intranet_*` dans `real31_intranet` + pont identité Auth.js→JWT (ADR-011 enfin effectif).
-- **Perf** : read-through cache eStale d'ADR-002 (table `mirror_*` / `revalidateTag` par copro) — **plus gros gain perf + résilience pannes**.
+- **Sécu** : durcissement RLS - tables natives `intranet_*` dans `real31_intranet` + pont identité Auth.js→JWT (ADR-011 enfin effectif).
+- **Perf** : read-through cache eStale d'ADR-002 (table `mirror_*` / `revalidateTag` par copro) - **plus gros gain perf + résilience pannes**.
 - **Sécu/conformité** : implémenter `audit_log`/`activity_log` (ADR-007) + journaliser impersonation & envois mail (M4/E2) + fail-closed auth.
 - **Perf** : `withTiming` structuré (eStale + requêtes chaudes) pour **enfin mesurer** la latence.
 
-## Vague 3 — Fond (trimestre, dépend d'externes)
+## Vague 3 - Fond (trimestre, dépend d'externes)
 - Sortir les écritures de `public` (App A) au profit d'eStale source primaire (ADR-022) + test de contrat de schéma.
 - Découpage des gros composants client (`next/dynamic`).
 - Table mirror / pagination du triage `mes_emails` JSONB (P-D8).
@@ -166,8 +166,8 @@ Client Supabase **singleton** · cookie eStale caché avec re-login paresseux ·
 ---
 
 ## TOP 5 absolu (à faire en premier)
-1. 🔑 **Retirer les permissions Entra excessives** (C1) — DSI, S, catastrophique si fuite.
-2. 🔑 **Confirmer l'Application Access Policy** (C2) — sans elle tout le cloisonnement mail tombe.
-3. **`React.cache` session + cache token Graph + `Promise.all` dashboard** (P-A1/A2/A3) — gros gain latence, déjà fait ce soir.
-4. 🔑 **Index P1-P2** (User.email lower, Copropriete managerId/assistantId) — supprime des seqscans sur le chemin critique de toutes les pages.
-5. **Défense en profondeur cloisonnement** (E1) + validation/plafond envoi (E2) — la seule barrière en service_role.
+1. 🔑 **Retirer les permissions Entra excessives** (C1) - DSI, S, catastrophique si fuite.
+2. 🔑 **Confirmer l'Application Access Policy** (C2) - sans elle tout le cloisonnement mail tombe.
+3. **`React.cache` session + cache token Graph + `Promise.all` dashboard** (P-A1/A2/A3) - gros gain latence, déjà fait ce soir.
+4. 🔑 **Index P1-P2** (User.email lower, Copropriete managerId/assistantId) - supprime des seqscans sur le chemin critique de toutes les pages.
+5. **Défense en profondeur cloisonnement** (E1) + validation/plafond envoi (E2) - la seule barrière en service_role.

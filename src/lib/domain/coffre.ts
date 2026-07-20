@@ -204,7 +204,7 @@ export function evaluerForceMotDePasse(mdp: string): ForceMotDePasse {
     return {
       niveau: "faible",
       ok: false,
-      raison: "Ajoute des majuscules, chiffres et symboles — ou allonge-le (16 caractères et plus).",
+      raison: "Ajoute des majuscules, chiffres et symboles - ou allonge-le (16 caractères et plus).",
     };
   }
   const fort = m.length >= 16 || c >= 4 || (m.length >= 14 && c >= 3);
