@@ -14,8 +14,9 @@ import { DossiersCoproApercu } from "@/components/dossiers/dossiers-copro-apercu
 type Onglet = "ensemble" | "evenements" | "dossiers";
 
 // Onglets verrouilles : modules a venir. Grises, non cliquables (post-MVP). Sinistres
-// est un onglet-lien vers l'app externe ; Documents a ete retire (decision Sekou).
-const VERROUILLES = ["Contrats", "Comptabilité"];
+// et Contrats sont des onglets-liens vers leurs apps externes ; Documents a ete retire
+// (decision Sekou).
+const VERROUILLES = ["Comptabilité"];
 
 export function FicheCoproVue({
   fiche,
@@ -82,6 +83,18 @@ export function FicheCoproVue({
           className="inline-flex items-center gap-1 px-3 py-2 text-[13px] -mb-px border-b-2 border-transparent text-ink-2 hover:text-ink transition-colors whitespace-nowrap"
         >
           Sinistres
+          <ExternalLink strokeWidth={1.5} className="w-3 h-3 text-ink-4" aria-hidden="true" />
+        </a>
+        {/* Contrats : onglet-lien vers l'app externe (nouvel onglet). */}
+        <a
+          href="https://contratscopro.real31.app/"
+          target="_blank"
+          rel="noreferrer"
+          role="tab"
+          title="Ouvrir l'application Contrats (nouvel onglet)"
+          className="inline-flex items-center gap-1 px-3 py-2 text-[13px] -mb-px border-b-2 border-transparent text-ink-2 hover:text-ink transition-colors whitespace-nowrap"
+        >
+          Contrats
           <ExternalLink strokeWidth={1.5} className="w-3 h-3 text-ink-4" aria-hidden="true" />
         </a>
         {VERROUILLES.map((label) => (
