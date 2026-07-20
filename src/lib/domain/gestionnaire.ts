@@ -15,4 +15,12 @@ export interface Gestionnaire {
    * source, mappee par `estComptableTable`.
    */
   role?: string;
+  /**
+   * Id technique de l'agence de rattachement (public."User".agencyId, FK vers
+   * public."Agency".id). Sert au CLOISONNEMENT PAR AGENCE cote UI (filtrer les
+   * collaborateurs proposes a l'agence de la copro). C'est l'ID technique, PAS le
+   * code (ML/LGC/HLS/ASN) : la resolution en code passe par le lecteur Agency.
+   * Absent si la colonne n'est pas renseignee.
+   */
+  agencyId?: string;
 }

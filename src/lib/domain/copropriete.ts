@@ -242,6 +242,11 @@ export interface FicheCopro {
    *  de l'editeur. */
   collaborateursAg?: { email: string; nom: string }[];
   collaborateursCs?: { email: string; nom: string }[];
+  /** Code de l'agence de la copro (ML/LGC/HLS/ASN), resolu depuis `copro.agenceId` via
+   *  le referentiel Agency. Sert au cloisonnement par agence de l'editeur de date (filtre
+   *  les salles proposees). Absent si la copro n'a pas d'agence / la table est indisponible
+   *  -> pas de filtre (on montre tout). */
+  agenceCode?: string;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

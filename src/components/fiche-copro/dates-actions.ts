@@ -269,14 +269,39 @@ export async function verifierDispoAgendaAction(
   return { dispo };
 }
 
+/** Collaborateur associable a une reunion : email + nom + agence (pour le filtrage UI). */
+export type CollaborateurAssociable = { email: string; nom: string; agencyId?: string };
+
 // Liste les collegues (gestionnaires du cabinet AVEC email) associables a une reunion,
 // SOI-MEME exclu (l'organisateur n'est pas un invite). Sert au selecteur "Collaborateurs
 // associes" de l'editeur de date. Auth requise (pas de fuite d'annuaire aux anonymes).
-export async function listerCollaborateursAction(): Promise<{ email: string; nom: string }[]> {
+//
+// CLOISONNEMENT PAR AGENCE (confort d'affichage, PAS une barriere) : on resout l'agence de
+// la copro et on renvoie chaque collegue AVEC son agencyId. L'UI filtre par defaut sur
+// l'agence de la copro et deplie le reste via "Voir les autres agences". On NE restreint
+// PAS la liste ici (le debordement doit pouvoir tout montrer) : on renvoie TOUT LE MONDE +
+// l'agence de la copro, l'UI se charge du tri. L'anti-injection (validerCollaborateurs sur
+// la liste fermee) reste inchangee et seule garante de ce qui peut etre invite.
+export async function listerCollaborateursAction(
+  coproCode?: string,
+): Promise<{ agenceCopro: string | null; collaborateurs: CollaborateurAssociable[] }> {
   const g = await getGestionnaireCourant();
-  if (!g) return [];
+  if (!g) return { agenceCopro: null, collaborateurs: [] };
+  // Agence de la copro : lue cote serveur (jamais du client). Sans cloisonnement de scope
+  // ici (lecture d'un seul attribut d'affichage) ; le code trim/borne suffit.
+  let agenceCopro: string | null = null;
+  const parse = coproCode ? zCode.safeParse(coproCode) : null;
+  if (parse?.success) {
+    const copro = await getCoproRepository().findByCode(parse.data);
+    agenceCopro = copro?.agenceId ?? null;
+  }
   const tous = await getGestionnaireRepository().list();
-  return tous
+  const collaborateurs = tous
     .filter((x) => x.email && x.id !== g.id)
-    .map((x) => ({ email: x.email as string, nom: x.nomComplet }));
+    .map((x) => ({
+      email: x.email as string,
+      nom: x.nomComplet,
+      ...(x.agencyId ? { agencyId: x.agencyId } : {}),
+    }));
+  return { agenceCopro, collaborateurs };
 }

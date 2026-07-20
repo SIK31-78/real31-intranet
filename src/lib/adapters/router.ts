@@ -58,6 +58,12 @@ import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
+import type { FacturationRepository } from "@/lib/ports/facturation-repository";
+import { SupabaseFacturationRepository } from "@/lib/adapters/supabase/supabase-facturation-repository";
+import { MockFacturationRepository } from "@/lib/adapters/mock/mock-facturation-repository";
+import type { InvoicingProvider } from "@/lib/ports/invoicing-provider";
+import { PennylaneInvoicingProvider } from "@/lib/adapters/pennylane/pennylane-invoicing-provider";
+import { NoopInvoicingProvider } from "@/lib/adapters/mock/noop-invoicing-provider";
 import type { PriseEnMainRepository } from "@/lib/ports/prise-en-main-repository";
 import { SupabasePriseEnMainRepository } from "@/lib/adapters/supabase/supabase-prise-en-main-repository";
 import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-main-repository";
@@ -80,6 +86,9 @@ import { MockGestionnaireRepository } from "@/lib/adapters/mock/mock-gestionnair
 import type { OdjRepository } from "@/lib/ports/odj-repository";
 import { SupabaseOdjRepository } from "@/lib/adapters/supabase/supabase-odj-repository";
 import { MockOdjRepository } from "@/lib/adapters/mock/mock-odj-repository";
+import type { AgenceRepository } from "@/lib/ports/agence-repository";
+import { SupabaseAgenceRepository } from "@/lib/adapters/supabase/supabase-agence-repository";
+import { MockAgenceRepository } from "@/lib/adapters/mock/mock-agence-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 import { EstaleCondoProvider } from "@/lib/adapters/estale/estale-condo-provider";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
@@ -125,6 +134,20 @@ export function getSupervisionAgProvider(): SupervisionAgProvider {
 export function getCoproRepository(): CoproRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoproRepository();
   return new MockCoproRepository();
+}
+
+// Facturation des honoraires syndic (tables natives intranet_tarifs /
+// intranet_suivi_contrats / intranet_factures). Meme bascule que le referentiel.
+export function getFacturationRepository(): FacturationRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseFacturationRepository();
+  return new MockFacturationRepository();
+}
+
+// Emission des factures. Pennylane en reel des que PENNYLANE_API_KEY est
+// configure, sinon no-op (le parcours reste deroulable sans jeton, comme le mail).
+export function getInvoicingProvider(): InvoicingProvider {
+  if (process.env.PENNYLANE_API_KEY) return new PennylaneInvoicingProvider();
+  return new NoopInvoicingProvider();
 }
 
 // Etat des jalons (table native intranet_jalons). Meme bascule que le referentiel.
@@ -286,6 +309,14 @@ export function getOdjRepository(): OdjRepository {
 export function getGestionnaireRepository(): GestionnaireRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseGestionnaireRepository();
   return new MockGestionnaireRepository();
+}
+
+// Referentiel des agences (public."Agency" : id -> code ML/LGC/HLS/ASN). Sert au
+// cloisonnement par agence cote UI. Meme bascule que le referentiel copro ; degrade
+// en [] (pas de filtre) si la table est absente.
+export function getAgenceRepository(): AgenceRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseAgenceRepository();
+  return new MockAgenceRepository();
 }
 
 // Bibliotheque de resolutions (motion bank Estale, ADR-024). En reel : lit la bank

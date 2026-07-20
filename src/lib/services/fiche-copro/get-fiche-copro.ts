@@ -7,6 +7,7 @@ import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { statutPourDate } from "@/lib/domain/confirmation-evenement";
 import { construireLigne } from "@/lib/domain/parcours-ag";
 import { getCoproRepository, getJalonRepository, getGestionnaireRepository } from "@/lib/adapters/router";
+import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
@@ -154,6 +155,11 @@ export async function getFicheCopro(
   const collaborateursAg = resoudreCollab(confAg?.collaborateursEmails);
   const collaborateursCs = resoudreCollab(confCs?.collaborateursEmails);
 
+  // Code d'agence de la copro (ML/LGC/HLS/ASN) resolu depuis son id technique, pour le
+  // cloisonnement par agence de l'editeur de date. undefined si pas d'agence / table
+  // indisponible -> l'editeur ne filtre pas (montre toutes les salles).
+  const agenceCode = await codeAgence(copro.agenceId);
+
   return {
     copro,
     estale,
@@ -175,5 +181,6 @@ export async function getFicheCopro(
     ...(modeCsReunion ? { modeCsReunion } : {}),
     ...(collaborateursAg.length > 0 ? { collaborateursAg } : {}),
     ...(collaborateursCs.length > 0 ? { collaborateursCs } : {}),
+    ...(agenceCode ? { agenceCode } : {}),
   };
 }

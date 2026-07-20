@@ -4,7 +4,11 @@
 // mailboxes auto-acceptent si le creneau est libre. Aucun email n'est jamais invente :
 // tout email de ressource passe par cette liste (valide contre RESSOURCES_REAL31).
 
-export type AgenceReunion = "LGC" | "JF" | "HLS" | "ML";
+// Codes d'agence alignes sur la table public."Agency" (name) : ML / LGC / HLS / ASN.
+// La salle "JF" n'est pas une agence a part : c'est une annexe de LGC (cf. RESSOURCES_REAL31),
+// donc pas de code "JF" ici. ASN n'a pas de salle propre (ses copros passent par le
+// debordement "Voir les autres agences").
+export type AgenceReunion = "ML" | "LGC" | "HLS" | "ASN";
 
 export interface RessourceReunion {
   /** Adresse SMTP de la boite Exchange (room mailbox / equipment mailbox). */
@@ -30,7 +34,9 @@ export const RESSOURCES_REAL31: readonly RessourceReunion[] = [
     agence: "LGC",
     debordement: true,
   },
-  { email: "real31JF@real31.fr", nom: "JF - Salle de reunions", type: "salle", agence: "JF" },
+  // Annexe du quartier JF : elle appartient a l'agence LGC (decision Sekou). On garde
+  // son email et son nom d'affichage ; seul le TAG d'agence change (JF -> LGC).
+  { email: "real31JF@real31.fr", nom: "JF - Salle de reunions", type: "salle", agence: "LGC" },
   { email: "REAL.31.HLS@real31.fr", nom: "HLS - Salles de reunions", type: "salle", agence: "HLS" },
   { email: "REAL31ML@real31.fr", nom: "ML - Salle de reunions", type: "salle", agence: "ML" },
   { email: "zoe@real31.fr", nom: "Voiture ZOE", type: "vehicule" },

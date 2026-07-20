@@ -46,6 +46,16 @@ describe("registre RESSOURCES_REAL31", () => {
     expect(cuisine?.agence).toBe("LGC");
   });
 
+  it("la salle JF est une annexe de LGC (retag JF -> LGC, email et nom inchanges)", () => {
+    const jf = ressourceParEmail("real31JF@real31.fr");
+    expect(jf?.nom).toBe("JF - Salle de reunions"); // nom d'affichage conserve
+    expect(jf?.agence).toBe("LGC"); // seul le tag agence change
+  });
+
+  it("aucune salle n'est taguee ASN (ses copros passent par le debordement)", () => {
+    expect(sallesReunion().some((s) => s.agence === "ASN")).toBe(false);
+  });
+
   it("ressourceParEmail est insensible a la casse et rejette les emails hors liste", () => {
     expect(ressourceParEmail("REAL31LGC@REAL31.FR")?.email).toBe("real31lgc@real31.fr");
     expect(ressourceParEmail("  real31JF@real31.fr ")?.type).toBe("salle");

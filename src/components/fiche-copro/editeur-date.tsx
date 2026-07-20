@@ -8,6 +8,7 @@ import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
 import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
 import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
+import { partitionnerParAgence } from "@/lib/domain/cloisonnement-agence";
 import { Button } from "@/components/ui/button";
 import {
   definirDateAg,
@@ -15,6 +16,7 @@ import {
   verifierDispoSalleAction,
   verifierDispoAgendaAction,
   listerCollaborateursAction,
+  type CollaborateurAssociable,
 } from "./dates-actions";
 
 // La ZOE : seul vehicule reservable (case "Reserver la voiture ZOE"). Email pris dans
@@ -91,6 +93,7 @@ export function EditeurDate({
   vehiculeEmail,
   modeReunion,
   collaborateurs,
+  agenceCode,
 }: {
   coproCode: string;
   type: "ag" | "cs";
@@ -107,6 +110,9 @@ export function EditeurDate({
   /** Collaborateurs (collegues) deja associes a la prochaine reunion (email + nom) :
    *  badge hors edition + pre-selection du selecteur. */
   collaborateurs?: Collaborateur[];
+  /** Code d'agence de la copro (ML/LGC/HLS/ASN) : filtre par defaut les salles proposees
+   *  a cette agence (debordement "Voir les autres agences"). Absent -> pas de filtre. */
+  agenceCode?: string;
 }) {
   const [edition, setEdition] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -120,7 +126,15 @@ export function EditeurDate({
   // l'ouverture via l'action). L'annuaire porte les noms lisibles ; la selection ne
   // stocke que les emails (transmis a l'action, revalides serveur).
   const [collaborateursVal, setCollaborateursVal] = useState<string[]>([]);
-  const [collabList, setCollabList] = useState<Collaborateur[]>([]);
+  const [collabList, setCollabList] = useState<CollaborateurAssociable[]>([]);
+  // Agence (id technique) de la copro, resolue cote serveur avec l'annuaire : sert a
+  // filtrer les collegues proposes par defaut sur l'agence de la copro (debordement).
+  const [agenceCopro, setAgenceCopro] = useState<string | null>(null);
+  // Debordement "Voir les autres agences" : replie par defaut (filtrage strict), deplie
+  // pour montrer salles / collegues des autres agences. Le filtre est du CONFORT
+  // d'affichage, pas une barriere (la validation serveur reste sur les listes fermees).
+  const [voirAutresSalles, setVoirAutresSalles] = useState(false);
+  const [voirAutresCollab, setVoirAutresCollab] = useState(false);
   // Resultat de dispo indexe par le creneau interroge (date|heure|salle) : on n'affiche
   // que s'il correspond a la saisie courante -> pas de reset synchrone dans l'effet
   // (evite les rendus en cascade) ni d'indicateur perime apres un changement de salle.
@@ -292,21 +306,27 @@ export function EditeurDate({
     // changement de creneau STABILISE -> l'effet ne se rejoue que sur un vrai changement.
   }, [edition, avecHeure, cleAgendaDebouncee, collaborateursVal, coproCode, typeApi]);
 
-  // Charge l'annuaire des collegues associables a l'ouverture (prochaine reunion seule).
+  // Charge l'annuaire des collegues associables a l'ouverture (prochaine reunion seule) +
+  // l'agence de la copro (pour le filtrage par agence). Un seul aller-retour serveur.
   useEffect(() => {
     if (!edition || !avecHeure) return;
     let annule = false;
-    listerCollaborateursAction()
-      .then((l) => {
-        if (!annule) setCollabList(l);
+    listerCollaborateursAction(coproCode)
+      .then((r) => {
+        if (annule) return;
+        setCollabList(r.collaborateurs);
+        setAgenceCopro(r.agenceCopro);
       })
       .catch(() => {
-        if (!annule) setCollabList([]);
+        if (!annule) {
+          setCollabList([]);
+          setAgenceCopro(null);
+        }
       });
     return () => {
       annule = true;
     };
-  }, [edition, avecHeure]);
+  }, [edition, avecHeure, coproCode]);
 
   // Dispo d'un collegue pour le creneau courant (undefined = pas encore de reponse).
   const dispoCollabValeur = (email: string) => dispoCollab[`${email}|${cleAgenda}`];
@@ -349,6 +369,39 @@ export function EditeurDate({
   // Un creneau occupe grise "Valider" et affiche la liste de ce qui bloque.
   const bloque = blocages.length > 0;
 
+  // CLOISONNEMENT PAR AGENCE (confort d'affichage, partition PURE cote domaine). Salles de
+  // l'agence de la copro par defaut, le reste au debordement "Voir les autres agences".
+  // Sans agenceCode (copro sans agence) -> partition sans filtre (tout en "meme agence").
+  // La ZOE (vehicule) n'est pas concernee : elle a sa propre case, hors de ce selecteur.
+  const { memeAgence: sallesAgence, autres: sallesAutres } = partitionnerParAgence(
+    sallesReunion(),
+    (s) => s.agence,
+    agenceCode,
+  );
+  const sallesVisibles = voirAutresSalles ? [...sallesAgence, ...sallesAutres] : sallesAgence;
+  // La salle deja reservee reste TOUJOURS affichee/selectionnable, meme repliee et meme si
+  // elle appartient a une autre agence (sinon le <select> perdrait sa valeur courante).
+  const sallesAffichees =
+    salleVal && !sallesVisibles.some((s) => s.email === salleVal)
+      ? [...sallesVisibles, ...sallesReunion().filter((s) => s.email === salleVal)]
+      : sallesVisibles;
+
+  // Idem pour les collegues : ceux de l'agence de la copro par defaut, le reste au
+  // debordement. Un collegue sans agence tombe dans "autres" (jamais par defaut).
+  const { memeAgence: collabAgence, autres: collabAutres } = partitionnerParAgence(
+    collabList,
+    (c) => c.agencyId,
+    agenceCopro,
+  );
+  const collabVisibles = voirAutresCollab ? [...collabAgence, ...collabAutres] : collabAgence;
+  // Les collegues deja associes restent TOUJOURS visibles/decochables meme replies.
+  const collabAffiches = [
+    ...collabVisibles,
+    ...collabAutres.filter(
+      (c) => collaborateursVal.includes(c.email) && !collabVisibles.some((v) => v.email === c.email),
+    ),
+  ];
+
   const ouvrir = () => {
     // Re-lecture des props courantes a chaque ouverture (corrige l'etat fige).
     setDateVal(dateISO ?? "");
@@ -365,6 +418,9 @@ export function EditeurDate({
     setDispoZoe(null);
     setDispoAgenda(null);
     setDispoCollab({});
+    // Debordement replie a chaque ouverture (filtrage strict par defaut).
+    setVoirAutresSalles(false);
+    setVoirAutresCollab(false);
     setErreur(null);
     setConfirmeEffacer(false);
     setEdition(true);
@@ -574,12 +630,26 @@ export function EditeurDate({
             className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
           >
             <option value="">Aucune salle</option>
-            {sallesReunion().map((s) => (
+            {sallesAffichees.map((s) => (
               <option key={s.email} value={s.email}>
                 {s.nom}
               </option>
             ))}
           </select>
+
+          {/* Debordement : revele les salles des autres agences (n'apparait que s'il y en a
+              et qu'un filtre est actif). Vrai bouton accessible (aria-expanded). */}
+          {sallesAutres.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setVoirAutresSalles((v) => !v)}
+              aria-expanded={voirAutresSalles}
+              disabled={pending}
+              className="text-[12px] text-info-700 hover:underline disabled:opacity-50"
+            >
+              {voirAutresSalles ? "Masquer les autres agences" : "Voir les autres agences"}
+            </button>
+          )}
 
           <label className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
             <input
@@ -650,7 +720,7 @@ export function EditeurDate({
             Collaborateurs associés
           </span>
           <span className="inline-flex flex-col gap-0.5">
-            {collabList.map((c) => {
+            {collabAffiches.map((c) => {
               const coche = collaborateursVal.includes(c.email);
               const d = coche && agendaCreneau ? dispoCollabValeur(c.email) : undefined;
               return (
@@ -691,6 +761,19 @@ export function EditeurDate({
               );
             })}
           </span>
+          {/* Debordement : revele les collegues des autres agences (n'apparait que s'il y
+              en a et qu'un filtre est actif). Vrai bouton accessible (aria-expanded). */}
+          {collabAutres.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setVoirAutresCollab((v) => !v)}
+              aria-expanded={voirAutresCollab}
+              disabled={pending}
+              className="self-start text-[12px] text-info-700 hover:underline disabled:opacity-50"
+            >
+              {voirAutresCollab ? "Masquer les autres agences" : "Voir les autres agences"}
+            </button>
+          )}
         </span>
       )}
 

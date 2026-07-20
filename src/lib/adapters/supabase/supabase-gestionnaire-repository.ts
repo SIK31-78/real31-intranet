@@ -11,7 +11,12 @@ type UserRow = {
   initials: string | null;
   email: string | null;
   role: string | null;
+  agencyId: string | null;
 };
+
+// Colonnes lues pour tous les acces gestionnaire (aligne les 4 SELECT ci-dessous).
+// agencyId : cloisonnement par agence cote UI (cf. domain/gestionnaire).
+const USER_COLS = "id, name, initials, email, role, agencyId";
 
 function toGestionnaire(u: UserRow): Gestionnaire {
   return {
@@ -22,6 +27,8 @@ function toGestionnaire(u: UserRow): Gestionnaire {
     // role brut public."User".role (enum App A) : lu pour deriver le role comptable
     // intranet (cf. lib/auth/roles). Le mapping vit dans le domaine, pas ici.
     ...(u.role ? { role: u.role } : {}),
+    // Agence de la personne (id technique) : sert au filtrage par agence cote UI.
+    ...(u.agencyId ? { agencyId: u.agencyId } : {}),
   };
 }
 
@@ -44,7 +51,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
     if (ids.length === 0) return [];
     const { data: users } = await supabase
       .from("User")
-      .select("id, name, initials, email, role")
+      .select(USER_COLS)
       .in("id", ids);
     return ((users as UserRow[] | null) ?? [])
       .map(toGestionnaire)
@@ -61,7 +68,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       this.list(),
       supabase
         .from("User")
-        .select("id, name, initials, email, role")
+        .select(USER_COLS)
         .eq("role", "COMPTABLE"),
     ]);
     const comptables = ((comptablesRes.data as UserRow[] | null) ?? []).map(toGestionnaire);
@@ -76,7 +83,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
     const supabase = createSupabasePublicClient();
     const { data } = await supabase
       .from("User")
-      .select("id, name, initials, email, role")
+      .select(USER_COLS)
       .eq("id", id)
       .maybeSingle();
     return data ? toGestionnaire(data as UserRow) : null;
@@ -87,7 +94,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
     // ilike sans joker = egalite insensible a la casse (l'email Entra peut differer).
     const { data } = await supabase
       .from("User")
-      .select("id, name, initials, email, role")
+      .select(USER_COLS)
       .ilike("email", email)
       .maybeSingle();
     return data ? toGestionnaire(data as UserRow) : null;

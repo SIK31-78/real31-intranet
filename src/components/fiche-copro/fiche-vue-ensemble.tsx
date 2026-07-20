@@ -89,6 +89,7 @@ export function FicheVueEnsemble({
             modeCsReunion={fiche.modeCsReunion}
             collaborateursAg={fiche.collaborateursAg}
             collaborateursCs={fiche.collaborateursCs}
+            agenceCode={fiche.agenceCode}
             mailActif={mailActif}
             listeSecoursCS={listeSecoursCS}
           />
@@ -244,6 +245,7 @@ function BlocAg({
   modeCsReunion,
   collaborateursAg,
   collaborateursCs,
+  agenceCode,
   mailActif,
   listeSecoursCS,
 }: {
@@ -265,6 +267,8 @@ function BlocAg({
   modeCsReunion?: ModeReunion;
   collaborateursAg?: { email: string; nom: string }[];
   collaborateursCs?: { email: string; nom: string }[];
+  /** Code d'agence de la copro : filtre les salles/collegues proposes dans l'editeur. */
+  agenceCode?: string;
   mailActif: boolean;
   listeSecoursCS?: EtatListeSecoursCS;
 }) {
@@ -337,6 +341,7 @@ function BlocAg({
               vehiculeEmail={vehiculeAgEmail}
               modeReunion={modeAgReunion}
               collaborateurs={collaborateursAg}
+              agenceCode={agenceCode}
             />
             {/* Confirmation par le CS : badge + bouton, seulement si la date est a venir
                 (le service ne pose un statut que dans ce cas). */}
@@ -390,6 +395,7 @@ function BlocAg({
                 vehiculeEmail={vehiculeCsEmail}
                 modeReunion={modeCsReunion}
                 collaborateurs={collaborateursCs}
+                agenceCode={agenceCode}
               />
               {prochaineCs && confirmationCs && (
                 <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
