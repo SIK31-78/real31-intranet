@@ -5,6 +5,7 @@ import { Lock, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { FicheCopro } from "@/lib/domain/copropriete";
 import type { Dossier } from "@/lib/domain/dossier";
+import type { EtatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
 import { CoproHeader } from "./copro-header";
 import { FicheVueEnsemble } from "./fiche-vue-ensemble";
 import { FicheEvenements } from "./fiche-evenements";
@@ -21,6 +22,7 @@ export function FicheCoproVue({
   dossiers,
   mailActif = false,
   estComptable = false,
+  listeSecoursCS,
 }: {
   fiche: FicheCopro;
   dossiers: Dossier[];
@@ -28,6 +30,8 @@ export function FicheCoproVue({
   /** Le visiteur est du pole comptable (lecture transverse) : le pole compta de la fiche
    *  s'ouvre a lui (role "comptable"), le reste de la fiche reste en lecture. */
   estComptable?: boolean;
+  /** Etat de la liste de diffusion CS (secours) : source active du mail + adresses editables. */
+  listeSecoursCS?: EtatListeSecoursCS;
 }) {
   const [onglet, setOnglet] = useState<Onglet>("ensemble");
   const panelId = useId();
@@ -102,7 +106,12 @@ export function FicheCoproVue({
 
       {onglet === "ensemble" && (
         <div role="tabpanel" id={`${panelId}-ensemble`} aria-labelledby="tab-ensemble" tabIndex={0}>
-          <FicheVueEnsemble fiche={fiche} mailActif={mailActif} estComptable={estComptable} />
+          <FicheVueEnsemble
+            fiche={fiche}
+            mailActif={mailActif}
+            estComptable={estComptable}
+            listeSecoursCS={listeSecoursCS}
+          />
         </div>
       )}
       {onglet === "evenements" && (

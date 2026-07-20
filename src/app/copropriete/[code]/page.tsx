@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
+import { etatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import { peutVoirComptabilite } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
@@ -34,6 +35,14 @@ export default async function CoproprietePage({
   // Gating mail : double gate (MAIL_SOURCE=graph + allowlist pilotes) applique au bouton
   // "Preparer le mail au CS/AG" -> grise pour les non-pilotes (comme Mes emails).
   const mailActif = mailModuleActifPour(g.email);
+  // Etat de la liste de diffusion CS (secours) : source active du mail (eStale vs secours)
+  // + adresses de secours editables. L'appel eStale est un hit de cache (deja lu par la
+  // fiche). On degrade en secours vide si la lecture echoue (l'ecran ne casse pas).
+  const listeSecoursCS = await etatListeSecoursCS(code).catch(() => ({
+    sourceActive: "aucune" as const,
+    estaleFournitEmails: false,
+    emailsSecours: [] as string[],
+  }));
 
   return (
     <AppShell
@@ -47,6 +56,7 @@ export default async function CoproprietePage({
           dossiers={dossiers}
           mailActif={mailActif}
           estComptable={transverse}
+          listeSecoursCS={listeSecoursCS}
         />
       </div>
     </AppShell>

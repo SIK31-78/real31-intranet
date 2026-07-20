@@ -99,15 +99,46 @@ console.log(`${rows.length} listes lues.`);
 console.log(`  classification : ${cs} conseil_syndical, ${proprio} proprietaires, ${autre} autre.`);
 console.log(`  rapprochement copro : ${matchees} avec reference S###, ${nonMatchees} sans.`);
 
+// --- garde anti-ecrasement des editions manuelles -----------------------------------
+// Une ligne editee depuis l'intranet porte edite_le IS NOT NULL (cf.
+// supabase/sql/intranet_listes_diffusion_edite.sql). Un rejeu d'import ne doit PAS ecraser
+// ses emails. supabase-js .upsert() ne sait pas exprimer un "ON CONFLICT ... WHERE
+// edite_le IS NULL" ; on obtient le meme resultat en EXCLUANT du lot les idref deja edites
+// (equivalent semantique : la ligne editee reste intacte). Deterministe, sans fonction SQL.
+let idrefsEdites = new Set();
+{
+  const { data, error } = await sb
+    .from("intranet_listes_diffusion")
+    .select("idref")
+    .not("edite_le", "is", null);
+  if (error) {
+    // Colonne edite_le absente (SQL pas encore lance) : pas encore de protection possible
+    // -> on continue SANS garde (comportement d'avant la fonctionnalite). Lancer
+    // intranet_listes_diffusion_edite.sql active la protection aux prochains rejeux.
+    console.warn(
+      "  ! garde edite_le indisponible (" +
+        error.message +
+        ") - import SANS protection des editions. Lance supabase/sql/intranet_listes_diffusion_edite.sql.",
+    );
+  } else {
+    idrefsEdites = new Set((data ?? []).map((r) => r.idref));
+    if (idrefsEdites.size > 0) {
+      console.log(`  ${idrefsEdites.size} liste(s) editee(s) dans l'intranet : preservee(s) du rejeu.`);
+    }
+  }
+}
+const aImporter = rows.filter((r) => !idrefsEdites.has(r.idref));
+const preservees = rows.length - aImporter.length;
+
 // --- upsert par lots (idref = cle primaire) ---
 const TAILLE = 500;
-for (let i = 0; i < rows.length; i += TAILLE) {
-  const lot = rows.slice(i, i + TAILLE);
+for (let i = 0; i < aImporter.length; i += TAILLE) {
+  const lot = aImporter.slice(i, i + TAILLE);
   const { error } = await sb.from("intranet_listes_diffusion").upsert(lot, { onConflict: "idref" });
   if (error) {
     console.error("Upsert lot", i, ":", error.message);
     process.exit(1);
   }
-  console.log(`  ${Math.min(i + TAILLE, rows.length)}/${rows.length}`);
+  console.log(`  ${Math.min(i + TAILLE, aImporter.length)}/${aImporter.length}`);
 }
-console.log("Import termine.");
+console.log(`Import termine (${aImporter.length} ecrites, ${preservees} preservees).`);

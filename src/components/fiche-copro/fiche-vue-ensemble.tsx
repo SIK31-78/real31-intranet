@@ -32,6 +32,8 @@ import { formatDateLongue } from "@/lib/format-date";
 import { EditeurDate } from "./editeur-date";
 import { ConfirmationEvenement } from "./confirmation-evenement";
 import { MailReunionBouton } from "./mail-reunion-bouton";
+import { ListeDiffusionCS } from "./liste-diffusion-cs";
+import type { EtatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
 
 const ROLE_LABEL: Record<RoleEquipe, string> = {
   gestionnaire: "Gestionnaire",
@@ -51,12 +53,15 @@ export function FicheVueEnsemble({
   fiche,
   mailActif = false,
   estComptable = false,
+  listeSecoursCS,
 }: {
   fiche: FicheCopro;
   mailActif?: boolean;
   /** Visiteur du pole comptable : le bloc compta passe en role "comptable" (dialogue prevu
    *  pour eux) ; sinon "gestionnaire" (le gestionnaire de la copro repond a la comptable). */
   estComptable?: boolean;
+  /** Etat de la liste de diffusion CS (secours) : source active + adresses editables. */
+  listeSecoursCS?: EtatListeSecoursCS;
 }) {
   const indispo = Boolean(fiche.estaleIndisponible);
   return (
@@ -85,6 +90,7 @@ export function FicheVueEnsemble({
             collaborateursAg={fiche.collaborateursAg}
             collaborateursCs={fiche.collaborateursCs}
             mailActif={mailActif}
+            listeSecoursCS={listeSecoursCS}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
@@ -239,6 +245,7 @@ function BlocAg({
   collaborateursAg,
   collaborateursCs,
   mailActif,
+  listeSecoursCS,
 }: {
   coproCode: string;
   derniere?: AgPassee;
@@ -259,6 +266,7 @@ function BlocAg({
   collaborateursAg?: { email: string; nom: string }[];
   collaborateursCs?: { email: string; nom: string }[];
   mailActif: boolean;
+  listeSecoursCS?: EtatListeSecoursCS;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
   // Le mail au CS propose les dates a venir (CS + AG en un seul mail). Visible des
@@ -399,6 +407,17 @@ function BlocAg({
           </div>
         )}
       </div>
+
+      {/* Liste de diffusion CS (secours) editable : rend modifiable la couche Crypto/intranet
+          des destinataires. eStale reste prioritaire -> l'indicateur de source (dans le
+          composant) dit si l'edition affectera le mail. */}
+      {listeSecoursCS && (
+        <ListeDiffusionCS
+          coproCode={coproCode}
+          estaleFournitEmails={listeSecoursCS.estaleFournitEmails}
+          emailsSecours={listeSecoursCS.emailsSecours}
+        />
+      )}
     </Card>
   );
 }
