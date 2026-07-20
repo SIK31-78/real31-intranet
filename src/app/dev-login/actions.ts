@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { COOKIE_GESTIONNAIRE, impersonationAutorisee } from "@/lib/auth/session";
 import { signIn, signOut, ssoConfigure } from "@/auth";
 
-/** Selectionne le gestionnaire courant (session dev) et redirige vers le dashboard. */
+/**
+ * Selectionne le gestionnaire courant (session dev) et redirige vers la RACINE : le
+ * routage par role est centralise dans app/page.tsx (une comptable -> /comptabilite,
+ * les autres -> /dashboard). Le cookie est pose AVANT le redirect, donc la racine
+ * resout deja le bon role.
+ */
 export async function choisirGestionnaire(id: string): Promise<void> {
   // Garde cote action : une Server Action est un endpoint POST appelable directement,
   // on ne se fie pas au rendu de la page. Seul un super-admin (SSO actif) ou le mode dev
@@ -19,12 +24,12 @@ export async function choisirGestionnaire(id: string): Promise<void> {
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 30,
   });
-  redirect("/dashboard");
+  redirect("/");
 }
 
-/** Lance le login SSO Microsoft Entra ID. */
+/** Lance le login SSO Microsoft Entra ID (routage par role a la racine). */
 export async function connecterMicrosoft(): Promise<void> {
-  await signIn("microsoft-entra-id", { redirectTo: "/dashboard" });
+  await signIn("microsoft-entra-id", { redirectTo: "/" });
 }
 
 /** Deconnexion : efface l'impersonation (cookie gid) puis ferme la session SSO. */

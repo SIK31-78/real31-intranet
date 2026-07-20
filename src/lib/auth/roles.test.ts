@@ -8,6 +8,8 @@ import {
   estDirecteur,
   estSuperAdmin,
   peutVoirComptabilite,
+  estVueComptable,
+  pageAccueilPour,
   estAdminReprise,
 } from "./roles";
 
@@ -162,6 +164,65 @@ describe("peutVoirComptabilite", () => {
   it("env COMPTABLES reste un secours quand le role table est absent (retro-compat)", () => {
     vi.stubEnv("COMPTABLES", "elsa@real31.fr");
     expect(peutVoirComptabilite("elsa@real31.fr", null)).toBe(true);
+  });
+});
+
+describe("estVueComptable (vue epuree = comptable PUR)", () => {
+  it("un comptable pur (role table) voit la vue epuree", () => {
+    expect(estVueComptable("elsa@real31.fr", "COMPTABLE")).toBe(true);
+  });
+
+  it("un comptable pur (env COMPTABLES) voit la vue epuree", () => {
+    vi.stubEnv("COMPTABLES", "elsa@real31.fr");
+    expect(estVueComptable("elsa@real31.fr")).toBe(true);
+  });
+
+  it("un super-admin garde la vue COMPLETE (il pilote tout) -> false", () => {
+    vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
+    // super-admin porte aussi le role comptable, mais ne doit PAS etre en vue epuree.
+    expect(estVueComptable("sekou@real31.fr", "COMPTABLE")).toBe(false);
+    expect(estVueComptable("sekou@real31.fr")).toBe(false);
+  });
+
+  it("un manager (meme comptable) garde la vue complete -> false", () => {
+    vi.stubEnv("MANAGERS", "marie@real31.fr");
+    expect(estVueComptable("marie@real31.fr", "COMPTABLE")).toBe(false);
+  });
+
+  it("un directeur (meme comptable) garde la vue complete -> false", () => {
+    vi.stubEnv("DIRECTEURS", "jean@real31.fr");
+    expect(estVueComptable("jean@real31.fr", "COMPTABLE")).toBe(false);
+  });
+
+  it("un gestionnaire simple (pas comptable) -> false", () => {
+    expect(estVueComptable("gestionnaire@real31.fr")).toBe(false);
+    expect(estVueComptable("gestionnaire@real31.fr", "GESTIONNAIRE")).toBe(false);
+  });
+});
+
+describe("pageAccueilPour", () => {
+  it("un comptable pur atterrit sur /comptabilite", () => {
+    expect(pageAccueilPour("elsa@real31.fr", "COMPTABLE")).toBe("/comptabilite");
+    vi.stubEnv("COMPTABLES", "elsa@real31.fr");
+    expect(pageAccueilPour("elsa@real31.fr")).toBe("/comptabilite");
+  });
+
+  it("un gestionnaire simple atterrit sur /dashboard", () => {
+    expect(pageAccueilPour("gestionnaire@real31.fr")).toBe("/dashboard");
+  });
+
+  it("un super-admin/manager/directeur atterrit sur /dashboard (vue complete)", () => {
+    vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
+    vi.stubEnv("MANAGERS", "marie@real31.fr");
+    vi.stubEnv("DIRECTEURS", "jean@real31.fr");
+    expect(pageAccueilPour("sekou@real31.fr", "COMPTABLE")).toBe("/dashboard");
+    expect(pageAccueilPour("marie@real31.fr", "COMPTABLE")).toBe("/dashboard");
+    expect(pageAccueilPour("jean@real31.fr", "COMPTABLE")).toBe("/dashboard");
+  });
+
+  it("pas de session (email absent) -> /dashboard (comportement par defaut)", () => {
+    expect(pageAccueilPour(null)).toBe("/dashboard");
+    expect(pageAccueilPour(undefined)).toBe("/dashboard");
   });
 });
 

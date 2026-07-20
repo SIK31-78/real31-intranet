@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getGestionnaireRepository } from "@/lib/adapters/router";
 import { impersonationAutorisee } from "@/lib/auth/session";
+import { estComptableTable } from "@/lib/auth/roles";
 import { choisirGestionnaire, connecterMicrosoft } from "./actions";
 
 export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
@@ -33,8 +34,9 @@ export default async function DevLoginPage() {
     );
   }
 
-  // Mode dev : selecteur de gestionnaire (sera remplace par le SSO en prod).
-  const gestionnaires = await getGestionnaireRepository().list();
+  // Mode dev : selecteur de profil incarnable (sera remplace par le SSO en prod).
+  // listImpersonables = gestionnaires/assistants de copros + les comptables (transverses).
+  const gestionnaires = await getGestionnaireRepository().listImpersonables();
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
       <div className="w-full max-w-md bg-surface border border-line rounded-md p-6">
@@ -55,6 +57,11 @@ export default async function DevLoginPage() {
                     {g.initiales}
                   </span>
                   <span className="text-[14px] text-ink">{g.nomComplet}</span>
+                  {estComptableTable(g.role) && (
+                    <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-ink-3 border border-line rounded px-1.5 py-px">
+                      comptable
+                    </span>
+                  )}
                 </button>
               </form>
             </li>

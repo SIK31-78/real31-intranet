@@ -158,6 +158,31 @@ export function peutVoirComptabilite(
 }
 
 /**
+ * Doit voir la VUE COMPTABLE epuree (home = dashboard comptable, sidebar reduite) ?
+ * = comptable, mais PAS un profil qui pilote le reste : super_admin / manager / directeur
+ * gardent la vue complete (ils testent/pilotent tout). Un comptable "pur" (Elsa) -> true.
+ */
+export function estVueComptable(
+  email: string | null | undefined,
+  roleTable?: string | null,
+): boolean {
+  return (
+    estComptable(email, roleTable) &&
+    !estSuperAdmin(email) &&
+    !estManager(email) &&
+    !estDirecteur(email)
+  );
+}
+
+/** Page d'accueil selon le role : le comptable pur va sur son dashboard, les autres sur /dashboard. */
+export function pageAccueilPour(
+  email: string | null | undefined,
+  roleTable?: string | null,
+): string {
+  return estVueComptable(email, roleTable) ? "/comptabilite" : "/dashboard";
+}
+
+/**
  * ADMIN du module REPRISE de copro : directeur, manager ou super-admin.
  *
  * Regle metier (Sekou, 2026-07-17) : le SUIVI d'une reprise est ouvert a TOUS les gestionnaires

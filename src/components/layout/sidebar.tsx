@@ -63,6 +63,15 @@ const GROUPES: { titre: string; items: Item[] }[] = [
   },
 ];
 
+// Vue COMPTABLE epuree : la nav principale (3 groupes) est REMPLACEE par ces 3 entrees.
+// Le "Dashboard" pointe sur /comptabilite (c'est SON dashboard) et porte la key "compta"
+// pour etre surligne quand on est sur /comptabilite (active="compta").
+const NAV_COMPTABLE: Item[] = [
+  { key: "compta", label: "Dashboard", href: "/comptabilite", icon: LayoutDashboard },
+  { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
+  { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+];
+
 type LienApp = { label: string; href: string; icon: ComponentType<{ className?: string; strokeWidth?: number }> };
 
 // Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
@@ -163,27 +172,39 @@ export function Sidebar({
   active,
   emailsOuvert = true,
   comptaOuvert = false,
+  vueComptable = false,
 }: {
   active: NavKey;
   emailsOuvert?: boolean;
   comptaOuvert?: boolean;
+  /** Vue comptable epuree : remplace la nav principale par NAV_COMPTABLE (dashboard compta + copros + coffre). */
+  vueComptable?: boolean;
 }) {
   return (
     <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto">
       <nav className="px-3 py-3 flex flex-col gap-4">
-        {GROUPES.map((groupe) => (
-          <div key={groupe.titre}>
-            <SectionTitre>{groupe.titre}</SectionTitre>
-            {groupe.items.map((item) => {
-              // "Comptabilite" (dashboard transverse) : lien ABSENT hors role comptable /
-              // super-admin (le pole compta est transverse, pas un gestionnaire).
-              if (item.key === "compta" && !comptaOuvert) return null;
-              // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
-              const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
-              return <NavItem key={it.key} item={it} active={it.key === active} />;
-            })}
+        {vueComptable ? (
+          // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
+          <div>
+            {NAV_COMPTABLE.map((item) => (
+              <NavItem key={item.key} item={item} active={item.key === active} />
+            ))}
           </div>
-        ))}
+        ) : (
+          GROUPES.map((groupe) => (
+            <div key={groupe.titre}>
+              <SectionTitre>{groupe.titre}</SectionTitre>
+              {groupe.items.map((item) => {
+                // "Comptabilite" (dashboard transverse) : lien ABSENT hors role comptable /
+                // super-admin (le pole compta est transverse, pas un gestionnaire).
+                if (item.key === "compta" && !comptaOuvert) return null;
+                // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
+                const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
+                return <NavItem key={it.key} item={it} active={it.key === active} />;
+              })}
+            </div>
+          ))
+        )}
 
         <div className="pt-3 border-t border-line">
           <SectionTitre>Nos applications</SectionTitre>

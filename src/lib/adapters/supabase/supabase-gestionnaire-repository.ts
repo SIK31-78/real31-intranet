@@ -51,6 +51,27 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       .sort((a, b) => a.nomComplet.localeCompare(b.nomComplet));
   }
 
+  async listImpersonables(): Promise<Gestionnaire[]> {
+    // Impersonation dev-login = gestionnaires/assistants de copros (list) UNION les
+    // comptables (role=COMPTABLE), qui n'ont pas de portefeuille et sont donc absents
+    // de list(). On NE touche PAS list() : ajouter des comptables la-bas casserait le
+    // selecteur de collaborateurs des AG et les filtres portefeuille.
+    const supabase = createSupabasePublicClient();
+    const [aPortefeuille, comptablesRes] = await Promise.all([
+      this.list(),
+      supabase
+        .from("User")
+        .select("id, name, initials, email, role")
+        .eq("role", "COMPTABLE"),
+    ]);
+    const comptables = ((comptablesRes.data as UserRow[] | null) ?? []).map(toGestionnaire);
+    const parId = new Map<string, Gestionnaire>();
+    for (const g of [...aPortefeuille, ...comptables]) {
+      if (!parId.has(g.id)) parId.set(g.id, g);
+    }
+    return [...parId.values()].sort((a, b) => a.nomComplet.localeCompare(b.nomComplet));
+  }
+
   async findById(id: string): Promise<Gestionnaire | null> {
     const supabase = createSupabasePublicClient();
     const { data } = await supabase

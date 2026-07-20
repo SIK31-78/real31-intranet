@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ClipboardCheck, ArrowRight } from "lucide-react";
 import { getDashboard } from "@/lib/services/dashboard/get-dashboard";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { estVueComptable } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
@@ -20,6 +21,10 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
+  // Le comptable pur ne reste jamais sur le dashboard gestionnaire : sa vue est le
+  // dashboard comptable. Garantit aussi que tout redirect("/dashboard") ailleurs (gates)
+  // la renvoie bien vers /comptabilite.
+  if (estVueComptable(g.email, g.role)) redirect("/comptabilite");
   const data = await getDashboard(g);
 
   return (
