@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REAL31 — Toutes les copropriétés · maquette refonte UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   REAL31 · Refonte UI — SYSTÈME (base des futurs tokens Tailwind)
+   ---------------------------------------------------------------------
+   Papier chaud + rail sapin sombre. Le vert sapin = MARQUE (chrome,
+   action primaire) — jamais un statut. Les statuts ont leurs tons.
+   ===================================================================== */
+:root{
+  /* -- Surfaces (papier éditorial chaud) ------------------------------ */
+  --paper:#F5F3EC;            /* fond général */
+  --surface:#FFFFFF;          /* cartes */
+  --surface-2:#EFECE3;        /* inserts, hover doux */
+  --hairline:rgba(32,37,31,.10);
+  --hairline-2:rgba(32,37,31,.18);
+
+  /* -- Encre ---------------------------------------------------------- */
+  --ink:#20251F;              /* texte principal */
+  --ink-2:#4C5347;            /* texte secondaire */
+  --ink-3:#5C6355;            /* légendes (AA sur papier) */
+  --ink-4:#8A9184;            /* décoratif / désactivé uniquement */
+
+  /* -- Marque : vert sapin (chrome & actions, JAMAIS un statut) ------- */
+  --sapin:#1C4736;
+  --sapin-bright:#27614A;     /* hover */
+  --sapin-ink:#F4F7F2;        /* texte sur sapin */
+  --rail-bg:#152A20;          /* rail de navigation */
+  --rail-ink:#EAF0E8;
+  --rail-muted:#A9BBAD;
+  --rail-hairline:rgba(234,240,232,.12);
+  --focus:#2F6C52;
+
+  /* -- Statuts (tons propres, indépendants de la marque) -------------- */
+  --st-neutral-bg:#ECE9DF; --st-neutral-tx:#565D50; --st-neutral-dot:#8A9184;
+  --st-ok-bg:#E3F1E7;      --st-ok-tx:#1F6B47;      --st-ok-dot:#3FA372;
+  --st-warn-bg:#F7EFD9;    --st-warn-tx:#7A5200;    --st-warn-dot:#C98F1B;
+  --st-info-bg:#E7EEF5;    --st-info-tx:#33597B;    --st-info-dot:#5A85AB;
+  --st-err-bg:#F8E9E3;     --st-err-tx:#A23B24;     --st-err-dot:#C25A3C;
+
+  /* -- Typographie ---------------------------------------------------- */
+  --f-ui:"Plus Jakarta Sans",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --f-display:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-mono:"Spline Sans Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+
+  /* -- Rythme, rayons, ombres, motion --------------------------------- */
+  --r-card:16px; --r-inner:10px;
+  --shadow-card:0 1px 2px rgba(32,37,31,.04),0 14px 34px -20px rgba(32,37,31,.16);
+  --shadow-pop:0 2px 6px rgba(32,37,31,.06),0 24px 48px -24px rgba(32,37,31,.24);
+  --ease:cubic-bezier(.32,.72,0,1);
+  --rail-w:250px;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--f-ui);font-size:13.5px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.rail :focus-visible,.mobilebar :focus-visible{outline-color:#A7D3B8}
+.skip{position:absolute;left:-9999px;top:0;background:var(--surface);padding:10px 16px;border-radius:0 0 10px 0;z-index:100;font-weight:600}
+.skip:focus{left:0}
+
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.reveal{animation:rise .7s var(--ease) both;animation-delay:var(--d,0s)}
+@media (prefers-reduced-motion:reduce){
+  .reveal{animation:none}
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+
+.app{min-height:100dvh}
+main{margin-left:var(--rail-w);padding:40px 44px 72px;max-width:1180px}
+
+/* --------------------------------------------------------------------
+   RAIL DE NAVIGATION (identique sur les 3 vues)
+-------------------------------------------------------------------- */
+.rail{
+  position:fixed;inset:0 auto 0 0;width:var(--rail-w);z-index:50;
+  background:var(--rail-bg);color:var(--rail-ink);
+  display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;
+  padding:20px 14px 14px;
+}
+.rail-brand{display:flex;align-items:center;gap:11px;padding:2px 8px 16px}
+.brand-mark{
+  font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.01em;
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(160deg,#2A5A44,#173626);color:#EAF3EA;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);flex:none;
+}
+.rail-brand b{display:block;font-size:13.5px;letter-spacing:.02em;font-weight:700}
+.rail-brand span{display:block;font-size:11px;color:var(--rail-muted)}
+.rail-search{
+  display:flex;align-items:center;gap:9px;width:100%;
+  background:rgba(255,255,255,.06);border:1px solid var(--rail-hairline);
+  color:var(--rail-muted);border-radius:999px;padding:8px 10px 8px 13px;
+  font:inherit;font-size:12.5px;cursor:pointer;
+  transition:background .4s var(--ease),border-color .4s var(--ease);
+}
+.rail-search:hover{background:rgba(255,255,255,.1);border-color:rgba(234,240,232,.24)}
+.rail-search kbd{
+  margin-left:auto;font-family:var(--f-mono);font-size:10px;color:var(--rail-muted);
+  border:1px solid var(--rail-hairline);border-radius:6px;padding:2px 6px;background:rgba(0,0,0,.2);
+}
+.rail nav{display:flex;flex-direction:column;gap:18px;margin-top:20px;flex:1}
+.nglabel{
+  margin:0 0 5px;padding:0 10px;font-size:10px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--rail-muted);
+}
+.navi{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;
+  font-size:12.8px;font-weight:500;color:var(--rail-ink);
+  transition:background .35s var(--ease),color .35s var(--ease),transform .35s var(--ease);
+}
+.navi:hover{background:rgba(255,255,255,.07)}
+.navi:active{transform:scale(.985)}
+.navi.is-active{background:#F0EDE3;color:#17301F;font-weight:700;box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+.navi .ncount{
+  margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--rail-muted);
+  border:1px solid var(--rail-hairline);border-radius:999px;padding:1px 7px;
+}
+.navi.is-active .ncount{color:#3E5A48;border-color:rgba(23,48,31,.22)}
+.navi .ncount.hot{background:#E9C46A;color:#3D2E00;border-color:transparent;font-weight:600}
+.navi.is-soon{color:var(--rail-muted);cursor:not-allowed}
+.navi.is-soon i{
+  margin-left:auto;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;border:1px solid var(--rail-hairline);border-radius:999px;padding:2px 7px;
+}
+.ngroup details{border-top:1px solid var(--rail-hairline);padding-top:10px}
+.ngroup summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;padding:2px 10px 7px;
+  font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--rail-muted);
+}
+.ngroup summary::-webkit-details-marker{display:none}
+.ngroup summary::after{
+  content:"";margin-left:auto;width:7px;height:7px;flex:none;
+  border-right:1.5px solid var(--rail-muted);border-bottom:1.5px solid var(--rail-muted);
+  transform:rotate(45deg);transition:transform .4s var(--ease);
+}
+.ngroup details[open] summary::after{transform:rotate(-135deg)}
+.navi .ext{margin-left:auto;opacity:.55}
+.rail-user{
+  margin-top:14px;border-top:1px solid var(--rail-hairline);padding-top:12px;
+  display:flex;align-items:center;gap:10px;padding-left:6px;padding-right:4px;
+}
+.avatar{
+  width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:#E9C46A;color:#3D2E00;font-size:11px;font-weight:700;letter-spacing:.03em;
+}
+.rail-user b{display:block;font-size:12.3px;font-weight:600;line-height:1.25}
+.rail-user span{display:block;font-size:10.5px;color:var(--rail-muted)}
+.bellbtn{
+  margin-left:auto;position:relative;width:30px;height:30px;border-radius:9px;flex:none;
+  display:grid;place-items:center;color:var(--rail-muted);background:transparent;border:0;cursor:pointer;
+  transition:background .35s var(--ease),color .35s var(--ease);
+}
+.bellbtn:hover{background:rgba(255,255,255,.08);color:var(--rail-ink)}
+.bellbtn .pip{position:absolute;top:6px;right:7px;width:6px;height:6px;border-radius:50%;background:#E9C46A;box-shadow:0 0 0 2px var(--rail-bg)}
+
+.nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.mobilebar{display:none}
+.backdrop{display:none}
+@media (max-width:1023px){
+  main{margin-left:0;padding:22px 16px 64px}
+  .mobilebar{
+    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:60;
+    background:rgba(21,42,32,.93);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    color:var(--rail-ink);padding:10px 14px;
+  }
+  .mobilebar .brand-mark{width:32px;height:32px;border-radius:10px;font-size:13px}
+  .mobilebar b{font-size:13.5px;letter-spacing:.02em}
+  .mb-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .mb-icon{
+    width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+    color:var(--rail-ink);background:rgba(255,255,255,.07);border:1px solid var(--rail-hairline);
+  }
+  .burger{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;cursor:pointer;
+    background:rgba(255,255,255,.07);border:1px solid var(--rail-hairline);position:relative;
+  }
+  .burger i{
+    position:absolute;width:16px;height:1.6px;background:var(--rail-ink);border-radius:2px;
+    transition:transform .5s var(--ease),opacity .3s var(--ease);
+  }
+  .burger i:nth-child(1){transform:translateY(-4px)}
+  .burger i:nth-child(2){transform:translateY(4px)}
+  .nav-toggle:checked ~ .app .burger i:nth-child(1){transform:rotate(45deg)}
+  .nav-toggle:checked ~ .app .burger i:nth-child(2){transform:rotate(-45deg)}
+  .rail{
+    top:0;bottom:0;width:min(320px,88vw);transform:translateX(-103%);
+    transition:transform .55s var(--ease);box-shadow:var(--shadow-pop);z-index:70;
+  }
+  .nav-toggle:checked ~ .app .rail{transform:none}
+  .rail nav>*,.rail-user,.rail-search{opacity:0;transform:translateY(10px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .nav-toggle:checked ~ .app .rail nav>*,
+  .nav-toggle:checked ~ .app .rail .rail-user,
+  .nav-toggle:checked ~ .app .rail .rail-search{opacity:1;transform:none}
+  .nav-toggle:checked ~ .app .rail .rail-search{transition-delay:.08s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(1){transition-delay:.12s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(2){transition-delay:.17s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(3){transition-delay:.22s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(4){transition-delay:.27s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(5){transition-delay:.32s}
+  .nav-toggle:checked ~ .app .rail .rail-user{transition-delay:.36s}
+  .backdrop{
+    display:block;position:fixed;inset:0;z-index:65;background:rgba(21,32,25,.45);
+    opacity:0;pointer-events:none;transition:opacity .5s var(--ease);
+  }
+  .nav-toggle:checked ~ .app .backdrop{opacity:1;pointer-events:auto}
+}
+@media (min-width:1024px){.rail nav>*,.rail-user,.rail-search{opacity:1;transform:none}}
+
+/* --------------------------------------------------------------------
+   Composants partagés
+-------------------------------------------------------------------- */
+.eyebrow{
+  margin:0;font-size:10.5px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-3);
+}
+.page-h h1{
+  margin:6px 0 8px;font-family:var(--f-display);font-weight:500;
+  font-size:clamp(26px,3.4vw,34px);letter-spacing:-.01em;line-height:1.12;
+}
+.page-h .sub{margin:0;color:var(--ink-3);font-size:13px}
+
+.card{
+  background:var(--surface);border:1px solid var(--hairline);
+  border-radius:var(--r-card);box-shadow:var(--shadow-card);overflow:hidden;
+}
+.card-h{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:14px 18px;border-bottom:1px solid var(--hairline);
+}
+.card-t{margin:0;font-size:13.5px;font-weight:700;letter-spacing:-.005em}
+.card-meta{font-size:12px;color:var(--ink-3)}
+.card-h .spacer{flex:1}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font-size:11px;font-weight:600;letter-spacing:.02em;
+  padding:3px 10px;border-radius:999px;
+}
+.chip .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.chip-neutral{background:var(--st-neutral-bg);color:var(--st-neutral-tx)}.chip-neutral .dot{background:var(--st-neutral-dot)}
+.chip-ok{background:var(--st-ok-bg);color:var(--st-ok-tx)}.chip-ok .dot{background:var(--st-ok-dot)}
+.chip-warn{background:var(--st-warn-bg);color:var(--st-warn-tx)}.chip-warn .dot{background:var(--st-warn-dot)}
+.chip-info{background:var(--st-info-bg);color:var(--st-info-tx)}.chip-info .dot{background:var(--st-info-dot)}
+.chip-err{background:var(--st-err-bg);color:var(--st-err-tx)}.chip-err .dot{background:var(--st-err-dot)}
+.chip-outline{background:transparent;color:var(--ink-2);border:1px solid var(--hairline-2)}
+
+.mono{font-family:var(--f-mono);font-size:11.8px;letter-spacing:.01em}
+.code{font-family:var(--f-mono);font-size:11.8px;color:var(--ink-2);letter-spacing:.02em}
+
+.btn-primary{
+  display:inline-flex;align-items:center;gap:10px;border:0;cursor:pointer;
+  background:var(--sapin);color:var(--sapin-ink);border-radius:999px;
+  padding:8px 8px 8px 18px;font:inherit;font-size:13px;font-weight:600;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 10px 22px -12px rgba(28,71,54,.55);
+  transition:background .45s var(--ease),transform .45s var(--ease);
+}
+.btn-primary:hover{background:var(--sapin-bright)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary .orb{
+  width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:rgba(255,255,255,.16);transition:transform .45s var(--ease);
+}
+.btn-primary:hover .orb{transform:translate(2px,-1px) scale(1.06)}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--hairline-2);
+  border-radius:999px;padding:7px 14px;font:inherit;font-size:12.5px;font-weight:600;
+  transition:border-color .4s var(--ease),color .4s var(--ease),transform .4s var(--ease);
+}
+.btn-ghost:hover{border-color:var(--ink-4);color:var(--ink)}
+.btn-ghost:active{transform:scale(.98)}
+.linklike{
+  display:inline-flex;align-items:center;gap:6px;color:var(--sapin);
+  font-size:12.5px;font-weight:600;
+}
+.linklike:hover{color:var(--sapin-bright)}
+.icon{width:14px;height:14px;flex:none;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* =====================================================================
+   PAGE — TOUTES LES COPROPRIÉTÉS
+   ===================================================================== */
+.page-h{margin-bottom:24px}
+
+/* Bac « à prendre en main » */
+.prise .card-h{background:linear-gradient(120deg,#FBF6E8,#F7EFD9)}
+.prise .hint{padding:10px 18px;border-bottom:1px solid var(--hairline);font-size:12.3px;color:var(--ink-3);margin:0}
+.prise-row{
+  display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--hairline);
+}
+.prise-row:last-child{border-bottom:0}
+.prise-row .nm{font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prise-row .dates{font-family:var(--f-mono);font-size:11.3px;color:var(--ink-3);flex:none}
+@media (max-width:760px){
+  .prise-row{flex-wrap:wrap;row-gap:6px}
+  .prise-row .dates{flex-basis:100%;order:3}
+}
+
+/* Barre d'outils */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:26px 0 10px}
+.searchbox{
+  position:relative;flex:1;min-width:220px;
+}
+.searchbox .icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--ink-4)}
+.searchbox input{
+  width:100%;font:inherit;font-size:13px;color:var(--ink);
+  background:var(--surface);border:1px solid var(--hairline-2);border-radius:999px;
+  padding:9px 16px 9px 36px;
+  transition:border-color .4s var(--ease),box-shadow .4s var(--ease);
+}
+.searchbox input::placeholder{color:var(--ink-3)}
+.searchbox input:focus{outline:none;border-color:var(--sapin);box-shadow:0 0 0 3px rgba(28,71,54,.12)}
+.toolbar select{
+  font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;
+  background:var(--surface);border:1px solid var(--hairline-2);border-radius:999px;
+  padding:8px 14px;appearance:auto;
+  transition:border-color .4s var(--ease);
+}
+.toolbar select:hover{border-color:var(--ink-4)}
+.viewtoggle{
+  display:inline-flex;gap:3px;background:var(--surface-2);border-radius:999px;padding:3px;
+}
+.viewtoggle button{
+  font:inherit;font-size:12.3px;font-weight:600;color:var(--ink-3);cursor:pointer;
+  background:none;border:0;border-radius:999px;padding:6px 14px;
+  transition:background .4s var(--ease),color .4s var(--ease),box-shadow .4s var(--ease);
+}
+.viewtoggle button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(32,37,31,.12)}
+.resultline{font-size:12px;color:var(--ink-3);margin:0 0 12px}
+
+/* Liste : lignes en grille -> cartes empilées en mobile */
+.lhead,.lrow{
+  display:grid;grid-template-columns:64px minmax(0,1.6fr) 120px 148px 92px 84px 18px;
+  gap:14px;align-items:center;padding:0 18px;
+}
+.lhead{
+  padding-top:11px;padding-bottom:11px;border-bottom:1px solid var(--hairline);
+  font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  background:#FBFAF5;
+}
+.lrow{
+  padding-top:10px;padding-bottom:10px;border-bottom:1px solid var(--hairline);
+  transition:background .3s var(--ease);
+}
+.lrow:last-of-type{border-bottom:0}
+.lrow:hover{background:#FBFAF5}
+.lrow .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .vi{font-size:12.3px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .chip{justify-self:start}
+.lrow .due{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2);text-align:right}
+.lrow .due.late{color:var(--st-err-tx);font-weight:500}
+.lrow .chev{color:var(--ink-4)}
+.list-foot{
+  padding:12px 18px;border-top:1px solid var(--hairline);background:#FBFAF5;
+  font-size:12px;color:var(--ink-3);text-align:center;
+}
+@media (max-width:980px){
+  .lhead{display:none}
+  .lrow{
+    grid-template-columns:auto 1fr auto;
+    grid-template-areas:
+      "code chip chev"
+      "nm nm nm"
+      "vi due due";
+    gap:4px 10px;padding-top:12px;padding-bottom:12px;
+  }
+  .lrow .code{grid-area:code}
+  .lrow .chip{grid-area:chip;justify-self:end}
+  .lrow .chev{grid-area:chev}
+  .lrow .nm{grid-area:nm;white-space:normal}
+  .lrow .vi{grid-area:vi}
+  .lrow .due{grid-area:due}
+  .lrow .src{display:none}
+}
+
+/* Vue pipeline (kanban) : colonnes défilantes en horizontal sur mobile */
+.board{display:none}
+.board.is-open{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;animation:rise .5s var(--ease) both}
+@media (max-width:1100px){
+  .board.is-open{display:flex;overflow-x:auto;padding-bottom:14px;scroll-snap-type:x proximity}
+  .bcol{flex:0 0 250px;scroll-snap-align:start}
+}
+.bcol-h{display:flex;align-items:baseline;gap:8px;padding:0 4px 8px}
+.bcol-h b{font-size:12.3px;font-weight:700}
+.bcol-h .n{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);margin-left:auto}
+.bcard{
+  display:block;background:var(--surface);border:1px solid var(--hairline);
+  border-radius:var(--r-inner);padding:11px 13px;margin-bottom:9px;
+  box-shadow:0 1px 2px rgba(32,37,31,.03);
+  transition:border-color .35s var(--ease),transform .35s var(--ease),box-shadow .35s var(--ease);
+}
+.bcard:hover{border-color:var(--hairline-2);transform:translateY(-1px);box-shadow:var(--shadow-card)}
+.bcard .top{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.bcard b{font-size:12.6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bcard .bot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bcard .due{font-family:var(--f-mono);font-size:11px;color:var(--ink-3)}
+.bcard .due.late{color:var(--st-err-tx);font-weight:500}
+.bmore{
+  display:block;text-align:center;font-size:11.5px;color:var(--ink-3);
+  border:1px dashed var(--hairline-2);border-radius:var(--r-inner);padding:9px;
+}
+.bempty{font-size:11.5px;color:var(--ink-4);padding:8px 4px}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true">
+<div class="app">
+
+  <header class="mobilebar">
+    <label class="burger" for="nav-toggle" aria-label="Ouvrir la navigation"><i></i><i></i></label>
+    <span class="brand-mark">R.31</span><b>REAL31</b>
+    <div class="mb-actions">
+      <a class="mb-icon" href="#" aria-label="Rechercher">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      </a>
+      <span class="avatar" style="width:34px;height:34px">CL</span>
+    </div>
+  </header>
+
+  <!-- ============ RAIL DE NAVIGATION (identique sur les 3 vues) ============ -->
+  <aside class="rail" aria-label="Navigation principale">
+    <div class="rail-brand">
+      <span class="brand-mark">R.31</span>
+      <div><b>REAL31</b><span>Intranet syndic</span></div>
+    </div>
+    <button class="rail-search" type="button">
+      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      Rechercher…
+      <kbd>Ctrl K</kbd>
+    </button>
+    <nav>
+      <div class="ngroup">
+        <p class="nglabel">Pilotage</p>
+        <a class="navi" href="01-dashboard.html">Dashboard</a>
+        <a class="navi is-active" href="03-toutes-les-copros.html" aria-current="page">Toutes les copropriétés <span class="ncount">142</span></a>
+        <a class="navi" href="#">Dossiers <span class="ncount">18</span></a>
+        <a class="navi" href="#">Sinistres</a>
+        <span class="navi is-soon" title="Bientôt disponible">Reprise de copropriété <i>à venir</i></span>
+        <a class="navi" href="#">Calendrier AG/CS</a>
+      </div>
+      <div class="ngroup">
+        <p class="nglabel">À traiter</p>
+        <a class="navi" href="#">Actions <span class="ncount hot">7</span></a>
+        <a class="navi" href="#">Mes événements</a>
+      </div>
+      <div class="ngroup">
+        <p class="nglabel">Ressources</p>
+        <span class="navi is-soon" title="Bientôt disponible">Résolutions <i>à venir</i></span>
+        <a class="navi" href="#">Coffre-fort</a>
+      </div>
+      <div class="ngroup">
+        <details>
+          <summary>Nos applications</summary>
+          <a class="navi" href="#">Registre des mandats <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Reality <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Gestion des clés <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+        </details>
+      </div>
+      <div class="ngroup">
+        <details>
+          <summary>Outils externes</summary>
+          <a class="navi" href="#">Estale <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">OneSpan Sign <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Extranet Crypto <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">AG Connect <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+        </details>
+      </div>
+    </nav>
+    <div class="rail-user">
+      <span class="avatar">CL</span>
+      <div><b>Charlotte LECOMTE</b><span>Gestionnaire · Agence ML</span></div>
+      <button class="bellbtn" type="button" aria-label="Actions à traiter (nouvelles)">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2a4 4 0 0 0-4 4v2.5L2.8 11h10.4L12 8.5V6a4 4 0 0 0-4-4ZM6.5 13a1.5 1.5 0 0 0 3 0"/></svg>
+        <span class="pip" aria-hidden="true"></span>
+      </button>
+    </div>
+  </aside>
+  <label class="backdrop" for="nav-toggle" aria-label="Fermer la navigation"></label>
+
+  <!-- ============ CONTENU ============ -->
+  <main id="contenu">
+
+    <header class="page-h reveal">
+      <p class="eyebrow">Portefeuille · Agence ML</p>
+      <h1>Toutes les copropriétés</h1>
+      <p class="sub">142 copropriétés · 3 à prendre en main · exercice 2026</p>
+    </header>
+
+    <!-- Bac d'onboarding -->
+    <section class="card prise reveal" style="--d:.05s" aria-label="Copropriétés à prendre en main">
+      <div class="card-h">
+        <h2 class="card-t">À prendre en main</h2>
+        <span class="card-meta">3 copropriétés</span>
+        <span class="spacer"></span>
+        <!-- Le SEUL bouton primaire de l'écran -->
+        <button class="btn-primary" type="button">
+          Tout prendre en main
+          <span class="orb"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></span>
+        </button>
+      </div>
+      <p class="hint">Vérifie les dates héritées (souvent fausses à la première migration) puis confirme. Tant qu'une copro n'est pas prise en main, elle ne déclenche aucune alarme.</p>
+      <div class="prise-row">
+        <span class="code">S217</span>
+        <span class="nm">LE PASTEL</span>
+        <span class="dates">Dern. AG 12/05/2025 — Proch. AG 12/05/2026</span>
+        <a class="linklike" href="02-fiche-copro.html">Vérifier</a>
+        <button class="btn-ghost" type="button">Prendre en main</button>
+      </div>
+      <div class="prise-row">
+        <span class="code">S224</span>
+        <span class="nm">LE JEAN-JAURÈS</span>
+        <span class="dates">Dern. AG 03/11/2025 — Proch. AG 19/11/2026</span>
+        <a class="linklike" href="02-fiche-copro.html">Vérifier</a>
+        <button class="btn-ghost" type="button">Prendre en main</button>
+      </div>
+      <div class="prise-row">
+        <span class="code">S231</span>
+        <span class="nm">COURS DILLON 9</span>
+        <span class="dates">Dern. AG — — Proch. AG —</span>
+        <a class="linklike" href="02-fiche-copro.html">Vérifier</a>
+        <button class="btn-ghost" type="button">Prendre en main</button>
+      </div>
+    </section>
+
+    <!-- Barre d'outils -->
+    <div class="toolbar reveal" style="--d:.08s">
+      <div class="searchbox">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <input id="filtre" type="search" placeholder="Rechercher (code, nom, ville)…" aria-label="Rechercher une copropriété">
+      </div>
+      <select aria-label="Filtrer par source">
+        <option>Toutes les sources</option>
+        <option>Estale</option>
+        <option>Crypto</option>
+      </select>
+      <select aria-label="Filtrer par état">
+        <option>Tous les états</option>
+        <option>À planifier</option>
+        <option>À venir</option>
+        <option>En préparation</option>
+        <option>Convoquée</option>
+        <option>Tenue</option>
+      </select>
+      <select aria-label="Filtrer par exercice">
+        <option>Tout exercice</option>
+        <option>Clôt. 31/12</option>
+        <option>Clôt. 30/06</option>
+        <option>Clôt. 30/09</option>
+      </select>
+      <div class="viewtoggle" role="group" aria-label="Choix de la vue">
+        <button type="button" id="v-liste" aria-pressed="true">Liste</button>
+        <button type="button" id="v-pipeline" aria-pressed="false">Pipeline</button>
+      </div>
+    </div>
+
+    <p class="resultline reveal" style="--d:.1s" id="resultline">26 affichées sur 142 — affine la recherche pour le reste.</p>
+
+    <!-- ============ VUE LISTE ============ -->
+    <section class="card reveal" style="--d:.12s" id="vue-liste" aria-label="Liste des copropriétés">
+      <div class="lhead" aria-hidden="true">
+        <span>Code</span><span>Copropriété</span><span>Ville</span><span>État du cycle</span><span style="text-align:right">Échéance</span><span>Source</span><span></span>
+      </div>
+
+      <a class="lrow" href="02-fiche-copro.html" data-s="s012 le métropole toulouse">
+        <span class="code">S012</span><span class="nm">LE MÉTROPOLE</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s019 villa riquet toulouse">
+        <span class="code">S019</span><span class="nm">VILLA RIQUET</span><span class="vi">Toulouse</span>
+        <span class="chip chip-err"><span class="dot"></span>À planifier</span>
+        <span class="due late">en retard</span>
+        <span class="src chip chip-neutral">Crypto</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s023 carré saint-aubin toulouse">
+        <span class="code">S023</span><span class="nm">CARRÉ SAINT-AUBIN</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s031 le foch toulouse">
+        <span class="code">S031</span><span class="nm">LE FOCH</span><span class="vi">Toulouse</span>
+        <span class="chip chip-warn"><span class="dot"></span>En préparation</span>
+        <span class="due">AG 10/09</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s038 les jardins de compans toulouse">
+        <span class="code">S038</span><span class="nm">LES JARDINS DE COMPANS</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s045 clos des tilleuls tournefeuille">
+        <span class="code">S045</span><span class="nm">CLOS DES TILLEULS</span><span class="vi">Tournefeuille</span>
+        <span class="chip chip-warn"><span class="dot"></span>En préparation</span>
+        <span class="due">AG 08/09</span>
+        <span class="src chip chip-neutral">Crypto</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s052 résidence ozenne toulouse">
+        <span class="code">S052</span><span class="nm">RÉSIDENCE OZENNE</span><span class="vi">Toulouse</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À venir</span>
+        <span class="due">AG 12/11</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s061 patte d'oie 12 toulouse">
+        <span class="code">S061</span><span class="nm">PATTE D'OIE 12</span><span class="vi">Toulouse</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À planifier</span>
+        <span class="due">à planifier</span>
+        <span class="src chip chip-neutral">Crypto</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s067 hameau de lespinet ramonville">
+        <span class="code">S067</span><span class="nm">HAMEAU DE LESPINET</span><span class="vi">Ramonville</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s078 terrasses de la garonne toulouse">
+        <span class="code">S078</span><span class="nm">TERRASSES DE LA GARONNE</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s084 le cristal blagnac">
+        <span class="code">S084</span><span class="nm">LE CRISTAL</span><span class="vi">Blagnac</span>
+        <span class="chip chip-err"><span class="dot"></span>À planifier</span>
+        <span class="due late">en retard</span>
+        <span class="src chip chip-neutral">Crypto</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s091 cour saint-étienne toulouse">
+        <span class="code">S091</span><span class="nm">COUR SAINT-ÉTIENNE</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s103 domaine de candie tournefeuille">
+        <span class="code">S103</span><span class="nm">DOMAINE DE CANDIE</span><span class="vi">Tournefeuille</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À venir</span>
+        <span class="due">AG 26/11</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s109 le saint-georges toulouse">
+        <span class="code">S109</span><span class="nm">LE SAINT-GEORGES</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s117 aufan47 toulouse">
+        <span class="code">S117</span><span class="nm">AUFAN47</span><span class="vi">Toulouse</span>
+        <span class="chip chip-warn"><span class="dot"></span>En préparation</span>
+        <span class="due">AG 24/09</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s122 37 bis saint germain toulouse">
+        <span class="code">S122</span><span class="nm">37 bis Saint Germain</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s131 résidence guilhemery toulouse">
+        <span class="code">S131</span><span class="nm">RÉSIDENCE GUILHEMERY</span><span class="vi">Toulouse</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À planifier</span>
+        <span class="due">à planifier</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s140 le belvédère balma">
+        <span class="code">S140</span><span class="nm">LE BELVÉDÈRE</span><span class="vi">Balma</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À venir</span>
+        <span class="due">AG 03/12</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s158 îlot saint-cyprien toulouse">
+        <span class="code">S158</span><span class="nm">ÎLOT SAINT-CYPRIEN</span><span class="vi">Toulouse</span>
+        <span class="chip chip-warn"><span class="dot"></span>En préparation</span>
+        <span class="due">AG 17/09</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s164 les arènes romaines toulouse">
+        <span class="code">S164</span><span class="nm">LES ARÈNES ROMAINES</span><span class="vi">Toulouse</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-neutral">Crypto</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s171 villa des chalets toulouse">
+        <span class="code">S171</span><span class="nm">VILLA DES CHALETS</span><span class="vi">Toulouse</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À planifier</span>
+        <span class="due">à planifier</span>
+        <span class="src chip chip-neutral">Crypto</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s186 marceau57 toulouse">
+        <span class="code">S186</span><span class="nm">MARCEAU57</span><span class="vi">Toulouse</span>
+        <span class="chip chip-warn"><span class="dot"></span>En préparation</span>
+        <span class="due late">AG 05/08</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s201 grand selve l'union">
+        <span class="code">S201</span><span class="nm">GRAND SELVE</span><span class="vi">L'Union</span>
+        <span class="chip chip-ok"><span class="dot"></span>Tenue</span>
+        <span class="due">suivi post-AG</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s224 le jean-jaurès toulouse">
+        <span class="code">S224</span><span class="nm">LE JEAN-JAURÈS</span><span class="vi">Toulouse</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À venir</span>
+        <span class="due">AG 19/11</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s247 le busca parc toulouse">
+        <span class="code">S247</span><span class="nm">LE BUSCA PARC</span><span class="vi">Toulouse</span>
+        <span class="chip chip-neutral"><span class="dot"></span>À planifier</span>
+        <span class="due">à planifier</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+      <a class="lrow" href="02-fiche-copro.html" data-s="s303 le busca toulouse">
+        <span class="code">S303</span><span class="nm">LE BUSCA</span><span class="vi">Toulouse</span>
+        <span class="chip chip-warn"><span class="dot"></span>En préparation</span>
+        <span class="due">AG 29/09</span>
+        <span class="src chip chip-info">Estale</span>
+        <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+      </a>
+
+      <div class="list-foot">26 lignes affichées — 116 autres copropriétés, affine avec la recherche ou les filtres.</div>
+    </section>
+
+    <!-- ============ VUE PIPELINE ============ -->
+    <section class="board" id="vue-pipeline" aria-label="Pipeline des copropriétés par état">
+      <div class="bcol">
+        <div class="bcol-h"><b>À planifier</b><span class="n">44</span></div>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S019</span><b>VILLA RIQUET</b></span>
+          <span class="bot"><span class="due late">en retard</span><span class="chip chip-neutral">Crypto</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S084</span><b>LE CRISTAL</b></span>
+          <span class="bot"><span class="due late">en retard</span><span class="chip chip-neutral">Crypto</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S131</span><b>RÉSIDENCE GUILHEMERY</b></span>
+          <span class="bot"><span class="due">à planifier</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <span class="bmore">+ 41 autres</span>
+      </div>
+      <div class="bcol">
+        <div class="bcol-h"><b>À venir</b><span class="n">6</span></div>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S052</span><b>RÉSIDENCE OZENNE</b></span>
+          <span class="bot"><span class="due">AG 12/11</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S140</span><b>LE BELVÉDÈRE</b></span>
+          <span class="bot"><span class="due">AG 03/12</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S103</span><b>DOMAINE DE CANDIE</b></span>
+          <span class="bot"><span class="due">AG 26/11</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <span class="bmore">+ 3 autres</span>
+      </div>
+      <div class="bcol">
+        <div class="bcol-h"><b>En préparation</b><span class="n">13</span></div>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S186</span><b>MARCEAU57</b></span>
+          <span class="bot"><span class="due late">AG 05/08</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S045</span><b>CLOS DES TILLEULS</b></span>
+          <span class="bot"><span class="due">AG 08/09</span><span class="chip chip-neutral">Crypto</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S117</span><b>AUFAN47</b></span>
+          <span class="bot"><span class="due">AG 24/09</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <span class="bmore">+ 10 autres</span>
+      </div>
+      <div class="bcol">
+        <div class="bcol-h"><b>Convoquée</b><span class="n">0</span></div>
+        <span class="bempty">Aucune copro.</span>
+      </div>
+      <div class="bcol">
+        <div class="bcol-h"><b>Tenue</b><span class="n">79</span></div>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S122</span><b>37 bis Saint Germain</b></span>
+          <span class="bot"><span class="due">suivi post-AG</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S078</span><b>TERRASSES DE LA GARONNE</b></span>
+          <span class="bot"><span class="due">suivi post-AG</span><span class="chip chip-info">Estale</span></span>
+        </a>
+        <a class="bcard" href="02-fiche-copro.html">
+          <span class="top"><span class="code">S164</span><b>LES ARÈNES ROMAINES</b></span>
+          <span class="bot"><span class="due">suivi post-AG</span><span class="chip chip-neutral">Crypto</span></span>
+        </a>
+        <span class="bmore">+ 76 autres</span>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script>
+(function(){
+  // Bascule Liste / Pipeline
+  var bListe=document.getElementById('v-liste'),bPipe=document.getElementById('v-pipeline');
+  var vListe=document.getElementById('vue-liste'),vPipe=document.getElementById('vue-pipeline');
+  var line=document.getElementById('resultline');
+  function setView(pipeline){
+    bListe.setAttribute('aria-pressed',String(!pipeline));
+    bPipe.setAttribute('aria-pressed',String(pipeline));
+    vListe.style.display=pipeline?'none':'';
+    vPipe.classList.toggle('is-open',pipeline);
+    line.style.visibility=pipeline?'hidden':'';
+  }
+  bListe.addEventListener('click',function(){setView(false)});
+  bPipe.addEventListener('click',function(){setView(true)});
+
+  // Filtre de recherche instantané (démo)
+  var input=document.getElementById('filtre');
+  var rows=[].slice.call(document.querySelectorAll('.lrow'));
+  input.addEventListener('input',function(){
+    var q=input.value.trim().toLowerCase(),n=0;
+    rows.forEach(function(r){
+      var hit=!q||r.getAttribute('data-s').indexOf(q)>-1;
+      r.style.display=hit?'':'none';
+      if(hit)n++;
+    });
+    line.textContent=q
+      ? n+' résultat'+(n>1?'s':'')+' pour « '+input.value.trim()+' » (sur les 26 lignes de la maquette)'
+      : '26 affichées sur 142 — affine la recherche pour le reste.';
+  });
+
+  // Fermer le panneau mobile après navigation
+  document.querySelectorAll('.rail a').forEach(function(a){
+    a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+  });
+})();
+</script>
+</body>
+</html>
