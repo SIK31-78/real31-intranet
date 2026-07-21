@@ -7,6 +7,13 @@ export function coproCodeDeAgId(agId: string): string {
   return i < 0 ? agId : agId.slice(0, i);
 }
 
+/** Date d'AG portee par un id de supervision "CODE__YYYY-MM-DD" ; null si l'id n'en a pas. */
+export function agDateDeAgId(agId: string): string | null {
+  const i = agId.indexOf("__");
+  const date = i < 0 ? "" : agId.slice(i + 2);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+}
+
 export type StatutItem = "non_verifie" | "ok" | "probleme" | "non_applicable";
 
 export type StatutAg = "en_preparation" | "conclue_archivee";

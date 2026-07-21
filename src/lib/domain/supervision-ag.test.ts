@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
   phaseTerminee,
+  agDateDeAgId,
+  coproCodeDeAgId,
   type ItemChecklist,
   type SectionChecklist,
 } from "./supervision-ag";
+
+describe("agId : copro + date (transition prochaine -> derniere AG a la conclusion)", () => {
+  it("extrait copro ET date d'un agId 'CODE__YYYY-MM-DD'", () => {
+    expect(coproCodeDeAgId("S122__2026-07-07")).toBe("S122");
+    expect(agDateDeAgId("S122__2026-07-07")).toBe("2026-07-07");
+  });
+
+  it("agDateDeAgId renvoie null sans date valide (id simple ou format inattendu)", () => {
+    expect(agDateDeAgId("S122")).toBeNull();
+    expect(agDateDeAgId("e1")).toBeNull();
+    expect(agDateDeAgId("S122__pas-une-date")).toBeNull();
+  });
+});
 
 function section(items: Partial<ItemChecklist>[]): SectionChecklist {
   return {
