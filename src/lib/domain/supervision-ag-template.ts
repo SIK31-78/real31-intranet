@@ -6,19 +6,23 @@
 
 export type TypeItem = "check" | "date";
 
+/** Module interne de l'intranet ouvert en modale par l'item (2e porte d'entree). */
+export type ModuleItem = "recap" | "depassement_cs";
+
 export interface ItemTemplate {
   id: string;
   libelle: string;
   /** "check" (case a cocher, defaut) ou "date" (vrai champ date renseigne). */
   type?: TypeItem;
-  /** Lien externe vers l'app metier concernee (Registre des mandats, Reality...). */
+  /** Lien externe vers l'app metier concernee (Registre des mandats...). */
   lien?: string;
+  /** Ouvre un module interne EN MODALE (recap AG / depassement CS), pre-scope a la
+   *  copro courante, au lieu d'un lien externe. Remplace l'ancien renvoi vers Reality. */
+  module?: ModuleItem;
 }
 
 // Apps externes REAL31 referencees par les items.
 const URL_MANDATS = "https://mandats.real31.app/";
-const URL_REALITY =
-  "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/1b4ec6f7-8172-4ccd-a63b-1fca272acb1d?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686";
 export interface SectionTemplate {
   id: string;
   titre: string;
@@ -39,7 +43,7 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
     id: "apres-cs",
     titre: "Après CS",
     items: [
-      { id: "apcs.honos", libelle: "Honoraires CS (horaire dépassé ?)", lien: URL_REALITY },
+      { id: "apcs.honos", libelle: "Honoraires CS (horaire dépassé ?)", module: "depassement_cs" },
       { id: "apcs.cr-cs-extranet", libelle: "Compte rendu CS diffusé sur l'extranet" },
       { id: "apcs.suppr-fichiers-n1", libelle: "Suppression des anciens fichiers inutiles AG N-1" },
     ],
@@ -71,7 +75,7 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
     id: "apres-ag",
     titre: "Après AG",
     items: [
-      { id: "apag.recap-reality", libelle: "Récap AG sur Reality", lien: URL_REALITY },
+      { id: "apag.recap-reality", libelle: "Récap AG", module: "recap" },
       { id: "apag.lre", libelle: "Copros LRE cochés (mail correspondant / Extranet client)" },
       { id: "apag.scan-pv", libelle: "Scan PV + évènement Crypto" },
       { id: "apag.scan-contrat", libelle: "Scan contrat + évènement Crypto (J+2 max)" },

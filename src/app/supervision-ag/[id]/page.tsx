@@ -46,6 +46,7 @@ export default async function SupervisionAgPage({
           supervision={supervision}
           role={role}
           aujourdhuiISO={aujourdhuiISO}
+          pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
           onCocher={cocherItemAction.bind(null, id)}
           onCommenter={commenterItemAction.bind(null, id)}
           onConclure={conclureAgAction.bind(null, id)}

@@ -16,10 +16,10 @@ import { htDepuisTtc, type Creneau } from "@/lib/domain/facturation/commun";
 import {
   getFacturationRepository,
   getRecapAgRepository,
-  getJalonRepository,
   getComptaRepository,
 } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
+import { marquerRecapFait } from "@/lib/services/supervision-ag/auto-cochage";
 import type { TravauxVotes } from "@/lib/ports/recap-ag-repository";
 import { aujourdhuiISO, exigerTarifTtc } from "./bareme";
 import { formatEuros, formatHeure, formatHeures, formatJour } from "./format";
@@ -235,26 +235,19 @@ export async function creerRecapAg(
     ...(demande.par ? { par: demande.par } : {}),
   });
 
-  // Branchements avec le reste de l'intranet, MEME CLE (copro, agDate) que les jalons
-  // et les notes compta. BEST-EFFORT : un echec ici ne doit JAMAIS faire echouer
-  // l'enregistrement du recap (le recap reste la source, ces liens sont des retombees).
-  //  - jalon TENUE marque "accompli" : l'AG a eu lieu (evite une re-saisie cote supervision) ;
-  //  - la synthese comptable devient une note auto dans le fil compta, substitut au mail
-  //    NotifComptable bloque par la DSI (notif_comptable_at reste null : ce n'est PAS le mail).
-  await getJalonRepository()
-    .marquer({
-      coproCode: demande.coproCode,
-      agDate,
-      type: "TENUE",
-      statut: "accompli",
-      ...(demande.par ? { par: demande.par } : {}),
-    })
-    .catch((e) => console.warn("[recap-ag] jalon TENUE non marque :", (e as Error).message));
+  // Le recap reste un PUR compte-rendu : les DATES et le jalon TENUE sont poses par
+  // conclureAg (l'AG est finie), pas ici. Seule retombee cote recap : la synthese comptable
+  // devient une note auto dans le fil compta - substitut au mail NotifComptable bloque DSI
+  // (notif_comptable_at reste null : ce n'est PAS le mail). Best-effort (jamais bloquant).
   if (demande.infoComptable) {
     await getComptaRepository()
       .ajouterNote(demande.coproCode, agDate, "gestionnaire", demande.infoComptable, demande.par ?? "")
       .catch((e) => console.warn("[recap-ag] note compta non ajoutee :", (e as Error).message));
   }
+
+  // Un recap existe = l'item "Récap AG" de la supervision de cette AG est fait.
+  // Branchement best-effort (jamais bloquant pour le recap qui vient d'etre cree).
+  await marquerRecapFait(demande.coproCode, agDate, demande.par ?? "");
 
   if (!aFacturer) {
     return { recapId, depassementHeures: 0, montantTtc: 0, factureId: null };

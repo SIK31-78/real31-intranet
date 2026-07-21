@@ -19,6 +19,7 @@ export default async function RecapAgPage() {
     getCoproprietes(g.id),
     getRecapAgRepository().listerRecapsRecents(50),
   ]);
+  const today = new Date().toISOString().slice(0, 10);
 
   const recaps: RecapAffiche[] = historique.map((r) => ({
     id: r.id,
@@ -50,7 +51,13 @@ export default async function RecapAgPage() {
 
         <FormulaireRecapAg
           copros={copros
-    .map((c) => ({ code: c.code, nom: c.nom }))
+    .map((c) => {
+      // Date suggeree du recap = l'AG qui vient d'avoir lieu : la prochaine AG si sa date
+      // est deja passee (ou du jour), sinon la derniere AG tenue. Modifiable dans le form.
+      const suggeree =
+        c.prochaineAg?.date && c.prochaineAg.date <= today ? c.prochaineAg.date : c.derniereAgDate;
+      return { code: c.code, nom: c.nom, ...(suggeree ? { agDateSuggeree: suggeree } : {}) };
+    })
     .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
           pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
         />

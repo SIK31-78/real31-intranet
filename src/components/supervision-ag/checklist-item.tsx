@@ -57,6 +57,8 @@ type ChecklistItemProps = {
   lectureSeule?: boolean;
   onCocher: (itemId: string, statut: StatutItem) => Promise<void>;
   onCommenter: (itemId: string, commentaire: string) => Promise<void>;
+  /** Item lie a un module interne (item.module) : ouvre une modale au lieu d'un lien. */
+  onOuvrirModule?: (item: ItemChecklist) => void;
 };
 
 export function ChecklistItem({
@@ -66,6 +68,7 @@ export function ChecklistItem({
   lectureSeule = false,
   onCocher,
   onCommenter,
+  onOuvrirModule,
 }: ChecklistItemProps) {
   const echeance = echeanceItem(item.id, agDateISO, aujourdhuiISO);
   const [isPending, startTransition] = useTransition();
@@ -116,16 +119,27 @@ export function ChecklistItem({
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0 text-[13px] text-ink leading-snug pt-1">
           {item.libelle}
-          {item.lien && (
-            <a
-              href={item.lien}
-              target="_blank"
-              rel="noreferrer"
-              title="Ouvrir l'application"
-              className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[11.5px] text-info-700 hover:underline"
+          {item.module && onOuvrirModule ? (
+            <button
+              type="button"
+              onClick={() => onOuvrirModule(item)}
+              title="Ouvrir le module dans une fenêtre"
+              className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[11.5px] text-info-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded"
             >
               <ExternalLink strokeWidth={1.5} className="w-3 h-3" /> ouvrir
-            </a>
+            </button>
+          ) : (
+            item.lien && (
+              <a
+                href={item.lien}
+                target="_blank"
+                rel="noreferrer"
+                title="Ouvrir l'application"
+                className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[11.5px] text-info-700 hover:underline"
+              >
+                <ExternalLink strokeWidth={1.5} className="w-3 h-3" /> ouvrir
+              </a>
+            )
           )}
         </div>
         {echeance && (

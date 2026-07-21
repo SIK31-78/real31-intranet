@@ -54,15 +54,24 @@ const label = "block text-[12px] font-medium text-ink-2 mb-1";
 export function FormulaireFacturation({
   copros,
   pennylaneActif,
+  coproFixe,
+  depassementCsSeul = false,
+  onSucces,
 }: {
   copros: { code: string; nom: string }[];
   pennylaneActif: boolean;
+  /** Si fourni, la copro est verrouillee (select masque) : usage modale pre-scopee. */
+  coproFixe?: string;
+  /** Si vrai, seul le flux "Dépassement CS" est présenté (barre d'onglets masquée). */
+  depassementCsSeul?: boolean;
+  /** Appele apres une facturation reussie (ferme la modale quand le form est monte dedans). */
+  onSucces?: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, demarrer] = useTransition();
   const [onglet, setOnglet] = useState<Onglet>("depassement_cs");
-  const [coproCode, setCoproCode] = useState(copros[0]?.code ?? "");
+  const [coproCode, setCoproCode] = useState(coproFixe ?? copros[0]?.code ?? "");
   // Apercu en attente de confirmation (depassement CS uniquement).
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
 
@@ -119,6 +128,7 @@ export function FormulaireFacturation({
       );
     }
     router.refresh();
+    onSucces?.();
   }
 
   // Recharge le tarif du bareme (et pre-remplit le champ) des que la copro ou la
@@ -243,43 +253,52 @@ export function FormulaireFacturation({
 
   return (
     <Card>
-      <div className="px-4 pt-4">
-        <div className="flex flex-wrap gap-1 border-b border-line">
-          {ONGLETS.map((o) => (
-            <button
-              key={o.cle}
-              type="button"
-              onClick={() => setOnglet(o.cle)}
-              className={`px-3 py-2 text-[13px] border-b-2 -mb-px transition-colors ${
-                onglet === o.cle
-                  ? "border-green-700 text-green-800 font-medium"
-                  : "border-transparent text-ink-3 hover:text-ink"
-              }`}
-            >
-              {o.libelle}
-            </button>
-          ))}
+      {!depassementCsSeul && (
+        <div className="px-4 pt-4">
+          <div className="flex flex-wrap gap-1 border-b border-line">
+            {ONGLETS.map((o) => (
+              <button
+                key={o.cle}
+                type="button"
+                onClick={() => setOnglet(o.cle)}
+                className={`px-3 py-2 text-[13px] border-b-2 -mb-px transition-colors ${
+                  onglet === o.cle
+                    ? "border-green-700 text-green-800 font-medium"
+                    : "border-transparent text-ink-3 hover:text-ink"
+                }`}
+              >
+                {o.libelle}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="px-4 py-4 flex flex-col gap-4">
-        <div>
-          <label className={label} htmlFor="copro">
-            Copropriété
-          </label>
-          <select
-            id="copro"
-            className={champ}
-            value={coproCode}
-            onChange={(e) => setCoproCode(e.target.value)}
-          >
-            {copros.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} - {c.nom}
-              </option>
-            ))}
-          </select>
-        </div>
+        {coproFixe ? (
+          // Copro verrouillee (modale pre-scopee) : on l'affiche en clair, non modifiable.
+          <p className="text-[13px] text-ink-2">
+            Copropriété : <span className="font-medium text-ink">{copros.find((c) => c.code === coproFixe)?.nom ?? coproFixe}</span>
+          </p>
+        ) : (
+          <div>
+            <label className={label} htmlFor="copro">
+              Copropriété
+            </label>
+            <select
+              id="copro"
+              className={champ}
+              value={coproCode}
+              onChange={(e) => setCoproCode(e.target.value)}
+            >
+              {copros.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} - {c.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {onglet === "depassement_cs" && (
           <div className="grid grid-cols-2 gap-3">

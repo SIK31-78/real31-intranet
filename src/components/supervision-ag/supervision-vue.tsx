@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   phaseTerminee,
+  type ItemChecklist,
   type Role,
   type StatutItem,
   type SupervisionAg,
@@ -11,11 +12,14 @@ import { SupervisionHeader } from "./supervision-header";
 import { BandeauConclue } from "./bandeau-conclue";
 import { ProgressionGlobale } from "./progression-globale";
 import { ChecklistSection } from "./checklist-section";
+import { ModuleModal, type ModuleSupervision } from "./module-modal";
 
 type SupervisionVueProps = {
   supervision: SupervisionAg;
   role: Role;
   aujourdhuiISO: string;
+  /** Pennylane branche cote serveur (transmis aux modules ouverts en modale). */
+  pennylaneActif: boolean;
   onCocher: (itemId: string, statut: StatutItem) => Promise<void>;
   onCommenter: (itemId: string, commentaire: string) => Promise<void>;
   onConclure: () => Promise<void>;
@@ -25,6 +29,7 @@ export function SupervisionVue({
   supervision,
   role,
   aujourdhuiISO,
+  pennylaneActif,
   onCocher,
   onCommenter,
   onConclure,
@@ -61,6 +66,14 @@ export function SupervisionVue({
   const deverrouiller = (id: string) =>
     setForcees((prev) => new Set(prev).add(id));
 
+  // Module interne ouvert en modale (recap / depassement CS), pre-scope a la copro.
+  // Jamais en lecture seule (AG conclue / role lecture) : ces modales ecrivent.
+  const [moduleOuvert, setModuleOuvert] = useState<ModuleSupervision | null>(null);
+  const ouvrirModule = (item: ItemChecklist) => {
+    if (lectureSeule || !item.module) return;
+    setModuleOuvert(item.module);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <SupervisionHeader supervision={supervision} role={role} onConclure={onConclure} />
@@ -77,6 +90,7 @@ export function SupervisionVue({
             epingle
             onCocher={onCocher}
             onCommenter={onCommenter}
+            onOuvrirModule={ouvrirModule}
           />
         )}
         {phasesAG.map((section, i) => (
@@ -91,9 +105,19 @@ export function SupervisionVue({
             onDeverrouiller={() => deverrouiller(section.id)}
             onCocher={onCocher}
             onCommenter={onCommenter}
+            onOuvrirModule={ouvrirModule}
           />
         ))}
       </div>
+      {moduleOuvert && (
+        <ModuleModal
+          module={moduleOuvert}
+          copro={supervision.copro}
+          agDateISO={agDateISO}
+          pennylaneActif={pennylaneActif}
+          onFermer={() => setModuleOuvert(null)}
+        />
+      )}
     </div>
   );
 }

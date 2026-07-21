@@ -5,6 +5,7 @@ import { ChevronDown, Lock, Calculator } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   progressionSection,
+  type ItemChecklist,
   type SectionChecklist,
   type StatutItem,
 } from "@/lib/domain/supervision-ag";
@@ -25,6 +26,8 @@ type ChecklistSectionProps = {
   onDeverrouiller?: () => void;
   onCocher: (itemId: string, statut: StatutItem) => Promise<void>;
   onCommenter: (itemId: string, commentaire: string) => Promise<void>;
+  /** Ouvre le module interne d'un item (recap / depassement CS) en modale. */
+  onOuvrirModule?: (item: ItemChecklist) => void;
 };
 
 export function ChecklistSection({
@@ -38,6 +41,7 @@ export function ChecklistSection({
   onDeverrouiller,
   onCocher,
   onCommenter,
+  onOuvrirModule,
 }: ChecklistSectionProps) {
   const prog = progressionSection(section);
   const [ouvert, setOuvert] = useState(ouvertParDefaut);
@@ -111,6 +115,7 @@ export function ChecklistSection({
               lectureSeule={lectureSeule}
               onCocher={onCocher}
               onCommenter={onCommenter}
+              {...(onOuvrirModule ? { onOuvrirModule } : {})}
             />
           ))}
         </div>

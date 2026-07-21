@@ -57,9 +57,12 @@ function OuiNon({
 export function FormulaireRecapAg({
   copros,
   pennylaneActif,
+  onSucces,
 }: {
-  copros: { code: string; nom: string }[];
+  copros: { code: string; nom: string; agDateSuggeree?: string }[];
   pennylaneActif: boolean;
+  /** Appele apres un enregistrement reussi (ferme la modale quand le form est monte dedans). */
+  onSucces?: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -67,7 +70,10 @@ export function FormulaireRecapAg({
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
 
   const [coproCode, setCoproCode] = useState(copros[0]?.code ?? "");
-  const [jour, setJour] = useState("");
+  // Un recap est le compte-rendu de l'AG qui vient d'avoir lieu : la page suggere sa date
+  // (la prochaine AG si elle est deja passee, sinon la derniere tenue). Modifiable au besoin,
+  // aucune ecriture - simple defaut.
+  const [jour, setJour] = useState(copros[0]?.agDateSuggeree ?? "");
   // Creneau d'AG le plus frequent chez REAL31.
   const [debut, setDebut] = useState("18:00");
   const [fin, setFin] = useState("20:00");
@@ -180,6 +186,7 @@ export function FormulaireRecapAg({
           : "Récap enregistré (aucun dépassement à facturer).",
       );
       router.refresh();
+      onSucces?.();
     });
   }
 
@@ -191,7 +198,7 @@ export function FormulaireRecapAg({
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className={label} htmlFor="copro">Copropriété</label>
-              <select id="copro" className={champ} value={coproCode} onChange={(e) => setCoproCode(e.target.value)}>
+              <select id="copro" className={champ} value={coproCode} onChange={(e) => { const v = e.target.value; setCoproCode(v); setJour(copros.find((c) => c.code === v)?.agDateSuggeree ?? ""); }}>
                 {copros.map((c) => (
                   <option key={c.code} value={c.code}>{c.code} - {c.nom}</option>
                 ))}

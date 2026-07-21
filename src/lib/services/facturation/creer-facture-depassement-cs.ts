@@ -13,6 +13,7 @@ import { calculerDepassementCs } from "@/lib/domain/facturation/depassement-cs";
 import { htDepuisTtc, type Creneau } from "@/lib/domain/facturation/commun";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
+import { marquerHonorairesCsTraite } from "@/lib/services/supervision-ag/auto-cochage";
 import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
 import { formatEuros, formatHeure, formatHeures, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
@@ -126,8 +127,10 @@ export async function creerFactureDepassementCs(
   });
 
   // Reunion dans la franchise : rien a facturer, pas de facture creee
-  // (comportement de l'ecran d'origine).
+  // (comportement de l'ecran d'origine). La question "honoraires CS (dépassé ?)"
+  // est neanmoins tranchee : on coche l'item de supervision (best-effort).
   if (calcul.heuresFacturables === 0) {
+    await marquerHonorairesCsTraite(demande.coproCode, managerId, demande.par ?? "");
     return {
       heuresFacturables: 0,
       montantHt: 0,
@@ -167,6 +170,9 @@ export async function creerFactureDepassementCs(
       },
     ],
   });
+
+  // Depassement facture : l'item "Honoraires CS" de l'AG en preparation est fait.
+  await marquerHonorairesCsTraite(demande.coproCode, managerId, demande.par ?? "");
 
   return {
     heuresFacturables: calcul.heuresFacturables,
