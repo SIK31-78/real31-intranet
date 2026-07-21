@@ -158,6 +158,25 @@ export function peutVoirComptabilite(
 }
 
 /**
+ * Voir TOUTES les copros (vue transverse, non cloisonnee) plutot que son seul portefeuille :
+ * l'ENCADREMENT (directeur, manager), le POLE COMPTA, et le super-admin. Un gestionnaire
+ * normal reste cloisonne a ses copros (managerId). Sert a "Toutes les coproprietes" et a la
+ * recherche : sans ca, meme un admin ne voyait que son portefeuille (les copros eStale
+ * gerees par d'autres, et S297 sans gestionnaire, restaient invisibles).
+ */
+export function peutVoirToutesLesCopros(
+  email: string | null | undefined,
+  roleTable?: string | null,
+): boolean {
+  return (
+    estSuperAdmin(email) ||
+    estDirecteur(email) ||
+    estManager(email) ||
+    estComptable(email, roleTable)
+  );
+}
+
+/**
  * Doit voir la VUE COMPTABLE epuree (home = dashboard comptable, sidebar reduite) ?
  * = comptable, mais PAS un profil qui pilote le reste : super_admin / manager / directeur
  * gardent la vue complete (ils testent/pilotent tout). Un comptable "pur" (Elsa) -> true.

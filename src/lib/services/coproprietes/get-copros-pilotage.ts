@@ -27,7 +27,9 @@ function aujourdhuiISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export async function getCoprosPilotage(managerId: string): Promise<CoproPilotage[]> {
+// managerId absent = vue TRANSVERSE (toutes les copros) - reserve a l'encadrement/compta/
+// super-admin par l'appelant (cf. peutVoirToutesLesCopros). Un gestionnaire passe son id.
+export async function getCoprosPilotage(managerId?: string): Promise<CoproPilotage[]> {
   const copros = await getCoproRepository().list(managerId);
   const today = aujourdhuiISO();
 
