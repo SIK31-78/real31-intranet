@@ -66,6 +66,9 @@ import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
 import type { FacturationRepository } from "@/lib/ports/facturation-repository";
 import { SupabaseFacturationRepository } from "@/lib/adapters/supabase/supabase-facturation-repository";
 import { MockFacturationRepository } from "@/lib/adapters/mock/mock-facturation-repository";
+import type { RecapAgRepository } from "@/lib/ports/recap-ag-repository";
+import { SupabaseRecapAgRepository } from "@/lib/adapters/supabase/supabase-recap-ag-repository";
+import { MockRecapAgRepository } from "@/lib/adapters/mock/mock-recap-ag-repository";
 import type { InvoicingProvider } from "@/lib/ports/invoicing-provider";
 import { PennylaneInvoicingProvider } from "@/lib/adapters/pennylane/pennylane-invoicing-provider";
 import { NoopInvoicingProvider } from "@/lib/adapters/mock/noop-invoicing-provider";
@@ -175,6 +178,12 @@ export function getCoproDatesRepository(): CoproDatesRepository {
 export function getFacturationRepository(): FacturationRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseFacturationRepository();
   return new MockFacturationRepository();
+}
+
+// Recap AG (tables natives intranet_recap_ag). Meme bascule que le referentiel.
+export function getRecapAgRepository(): RecapAgRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseRecapAgRepository();
+  return new MockRecapAgRepository();
 }
 
 // Emission des factures. Pennylane en reel des que PENNYLANE_API_KEY est
