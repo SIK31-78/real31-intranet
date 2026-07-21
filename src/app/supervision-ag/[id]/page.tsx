@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
+import { getCycleAgDeSupervision } from "@/lib/services/supervision-ag/get-cycle-ag";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { SupervisionVue } from "@/components/supervision-ag/supervision-vue";
@@ -32,6 +33,11 @@ export default async function SupervisionAgPage({
   const supervision = await getSupervisionAg(id, g.id);
   if (!supervision) notFound();
 
+  // Frise du fil d'AG (S1 refonte) : cycle AG courant de la copro, calcule par LA
+  // source unique (domain/cycle-ag). null (copro introuvable) = pas de frise, le
+  // reste de l'ecran garde son comportement actuel.
+  const cycle = await getCycleAgDeSupervision(id, aujourdhuiISO, g.id);
+
   // MVP : EL est gestionnaire de la copro courante. Permissions UI-only.
   const role = "gestionnaire" as const;
 
@@ -44,6 +50,7 @@ export default async function SupervisionAgPage({
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <SupervisionVue
           supervision={supervision}
+          cycle={cycle}
           role={role}
           aujourdhuiISO={aujourdhuiISO}
           pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}

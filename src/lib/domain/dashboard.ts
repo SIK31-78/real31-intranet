@@ -4,7 +4,7 @@
 // Primitives partagees (Severite, Ton, Jalon) deplacees dans domain/commun.ts.
 import type { Severite, Ton, Jalon } from "@/lib/domain/commun";
 import type { JalonCode } from "@/lib/domain/jalons-ag/types";
-import type { EtatCycle } from "@/lib/domain/etat-cycle-ag";
+import type { EtatCycle, LigneParcours } from "@/lib/domain/cycle-ag";
 import type { ProblemesCopro } from "@/lib/domain/supervision-ag";
 import type { ActionsDossierCopro } from "@/lib/domain/dossier";
 
@@ -82,44 +82,11 @@ export interface ItemActivite {
 }
 
 // --- Parcours AG (sequence guidee : Dates -> ODJ -> Convoc -> Tenue -> PV) --
+// Les types du parcours vivent desormais dans le module unique du cycle AG
+// (domain/cycle-ag, S1 refonte 2026-07-21) ; re-exportes ici pour la retro-compat
+// des imports existants.
 
-/** Les cinq etapes du cycle de preparation d'une AG, dans l'ordre. */
-export type CodeEtape = "dates" | "odj" | "convoc" | "tenue" | "pv";
-
-/** Etat d'une etape pour une copro donnee : faite, en cours (etape actuelle), a venir. */
-export type StatutEtape = "fait" | "encours" | "avenir";
-
-export interface EtapeParcours {
-  code: CodeEtape;
-  /** Libelle court affiche sous le jalon, ex "ODJ". */
-  label: string;
-  statut: StatutEtape;
-}
-
-/**
- * Une ligne du parcours : une copro en cycle AG, sa progression sur les 5 etapes,
- * et sa prochaine action concrete. Pensee pour qu'un junior voie "j'en suis ou,
- * je fais quoi ensuite" sans connaitre le process par coeur.
- */
-export interface LigneParcours {
-  id: string;
-  coproCode: string;
-  coproNom: string;
-  /** Toujours 5 etapes, dans l'ordre. */
-  etapes: EtapeParcours[];
-  /** Phrase d'action, ex "preparer l'ODJ". */
-  prochaineAction: string;
-  /** Texte du bouton, ex "ODJ", "Fixer", "Supervision". */
-  actionLabel: string;
-  /** Cible du bouton. */
-  lien: string;
-  /** Echeance courte de l'etape courante, ex "J-30", "à dater". */
-  echeance?: string;
-  /** Vrai si l'echeance de l'etape courante est depassee. */
-  enRetard?: boolean;
-  /** Cloture de l'exercice comptable "JJ/MM" (sert au filtre du dashboard). */
-  exerciceCloture?: string;
-}
+export type { CodeEtape, EtapeParcours, LigneParcours, StatutEtape } from "@/lib/domain/cycle-ag";
 
 /** Agregat complet rendu par le dashboard pour un gestionnaire donne. */
 export interface DashboardData {

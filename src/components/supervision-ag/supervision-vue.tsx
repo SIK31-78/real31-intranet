@@ -8,7 +8,9 @@ import {
   type StatutItem,
   type SupervisionAg,
 } from "@/lib/domain/supervision-ag";
+import type { CycleAg } from "@/lib/domain/cycle-ag";
 import { SupervisionHeader } from "./supervision-header";
+import { FriseCycleAg } from "./frise-cycle-ag";
 import { BandeauConclue } from "./bandeau-conclue";
 import { ProgressionGlobale } from "./progression-globale";
 import { ChecklistSection } from "./checklist-section";
@@ -16,6 +18,8 @@ import { ModuleModal, type ModuleSupervision } from "./module-modal";
 
 type SupervisionVueProps = {
   supervision: SupervisionAg;
+  /** Cycle AG courant de la copro (frise + action du moment) ; null si copro introuvable. */
+  cycle: CycleAg | null;
   role: Role;
   aujourdhuiISO: string;
   /** Pennylane branche cote serveur (transmis aux modules ouverts en modale). */
@@ -27,6 +31,7 @@ type SupervisionVueProps = {
 
 export function SupervisionVue({
   supervision,
+  cycle,
   role,
   aujourdhuiISO,
   pennylaneActif,
@@ -77,6 +82,7 @@ export function SupervisionVue({
   return (
     <div className="flex flex-col gap-4">
       <SupervisionHeader supervision={supervision} role={role} onConclure={onConclure} />
+      {cycle && <FriseCycleAg cycle={cycle} />}
       <BandeauConclue supervision={supervision} />
       <ProgressionGlobale supervision={supervision} />
       <div className="flex flex-col gap-3">
