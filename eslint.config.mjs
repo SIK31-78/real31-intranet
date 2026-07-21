@@ -56,6 +56,7 @@ const eslintConfig = defineConfig([
         { type: "adapter-sharepoint",  pattern: "src/lib/adapters/sharepoint/**" },
         { type: "adapter-estale",      pattern: "src/lib/adapters/estale/**" },
         { type: "adapter-supabase",    pattern: "src/lib/adapters/supabase/**" },
+        { type: "adapter-composite",   pattern: "src/lib/adapters/composite/**" },
         { type: "adapter-mock",        pattern: "src/lib/adapters/mock/**" },
         { type: "adapter-fichier",     pattern: "src/lib/adapters/fichier/**" },
         { type: "adapter-mistral",     pattern: "src/lib/adapters/mistral/**" },
@@ -86,6 +87,10 @@ const eslintConfig = defineConfig([
           { from: "adapter-sharepoint", allow: ["domain", "ports"] },
           { from: "adapter-estale",     allow: ["domain", "ports"] },
           { from: "adapter-supabase",   allow: ["domain", "ports"] },
+          // Composite : implemente un port en composant d'AUTRES adapters, mais ne les
+          // importe PAS - il les recoit par injection (constructeur) sous forme de ports.
+          // Il ne connait donc que domain + ports, comme les autres adapters.
+          { from: "adapter-composite",  allow: ["domain", "ports"] },
           { from: "adapter-mock",       allow: ["domain", "ports"] },
           { from: "adapter-fichier",    allow: ["domain", "ports"] },
           { from: "adapter-mistral",    allow: ["domain", "ports"] },
@@ -93,7 +98,7 @@ const eslintConfig = defineConfig([
           { from: "adapter-signitic",   allow: ["domain", "ports"] },
 
           // Router : seul endroit qui connaît tous les adapters
-          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic"] },
+          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-composite", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic"] },
 
           // Audit, auth : helpers transverses qui parlent au domaine via ports
           { from: "audit",              allow: ["domain", "ports"] },
@@ -125,7 +130,7 @@ const eslintConfig = defineConfig([
         rules: [
           // Microsoft Graph (SharePoint, Mail) : uniquement dans adapter-sharepoint
           {
-            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-estale", "adapter-supabase", "adapter-mock"],
+            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-estale", "adapter-supabase", "adapter-composite", "adapter-mock"],
             disallow: [
               "@microsoft/microsoft-graph-client",
               "@microsoft/microsoft-graph-types",
@@ -134,7 +139,7 @@ const eslintConfig = defineConfig([
           },
           // Supabase : uniquement dans adapter-supabase
           {
-            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-estale", "adapter-sharepoint", "adapter-mock"],
+            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-estale", "adapter-sharepoint", "adapter-composite", "adapter-mock"],
             disallow: [
               "@supabase/supabase-js",
               "@supabase/ssr",
@@ -142,7 +147,7 @@ const eslintConfig = defineConfig([
           },
           // Clients GraphQL : uniquement dans adapter-estale
           {
-            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-sharepoint", "adapter-supabase", "adapter-mock"],
+            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-sharepoint", "adapter-supabase", "adapter-composite", "adapter-mock"],
             disallow: [
               "@apollo/client",
               "graphql-request",

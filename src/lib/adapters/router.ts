@@ -55,6 +55,11 @@ import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
 import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
 import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
+import { CompositeCoproRepository } from "@/lib/adapters/composite/composite-copro-repository";
+import { EstaleCoproProvider } from "@/lib/adapters/estale/estale-copro-provider";
+import type { CoproDatesRepository } from "@/lib/ports/copro-dates-repository";
+import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
+import { MockCoproDatesRepository } from "@/lib/adapters/mock/mock-copro-dates-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
@@ -128,12 +133,41 @@ export function getSupervisionAgProvider(): SupervisionAgProvider {
   return new MockSupervisionAgProvider();
 }
 
+// Interrupteur de secours de l'eStale-live des copros. Objectif : pouvoir couper la lecture
+// directe eStale SANS redeployer si ca deraille en prod (on retombe alors sur le pur miroir).
+// DEFAUT (variable absente) = ACTIF : la fusion eStale est en marche en dev. On la desactive
+// en posant COPRO_ESTALE_LIVE=off (ou false/0/no).
+function estaleLiveActif(): boolean {
+  const v = (process.env.COPRO_ESTALE_LIVE ?? "").trim().toLowerCase();
+  return v !== "off" && v !== "false" && v !== "0" && v !== "no";
+}
+
 // Referentiel copro. Bascule par env COPRO_SOURCE :
-//   - "supabase" -> lit la vraie data public.Copropriete (App A) en lecture seule ;
+//   - "supabase" -> lit la vraie data public.Copropriete (App A) en lecture seule. Si eStale
+//     est configure ET l'interrupteur actif, on renvoie le COMPOSITE : miroir Crypto + copros
+//     eStale lues en direct (les 7 copros REAL31, dont 3 absentes du miroir). Degradation
+//     propre : eStale KO -> le composite retombe sur le miroir seul (jamais de page blanche).
 //   - sinon       -> donnees mockees (defaut).
 export function getCoproRepository(): CoproRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoproRepository();
+  if (process.env.COPRO_SOURCE === "supabase") {
+    const miroir = new SupabaseCoproRepository();
+    if (estaleConfigure() && estaleLiveActif()) {
+      const provider = new EstaleCoproProvider(
+        new SupabaseGestionnaireRepository(),
+        new SupabaseAgenceRepository(),
+      );
+      return new CompositeCoproRepository(miroir, provider, new SupabaseCoproDatesRepository());
+    }
+    return miroir;
+  }
   return new MockCoproRepository();
+}
+
+// Dates AG/CS des copros eStale (table native intranet_copro_dates). eStale ne porte pas les
+// dates planifiees ; le composite les lit/ecrit ici. Meme bascule que le referentiel copro.
+export function getCoproDatesRepository(): CoproDatesRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoproDatesRepository();
+  return new MockCoproDatesRepository();
 }
 
 // Facturation des honoraires syndic (tables natives intranet_tarifs /

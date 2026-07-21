@@ -105,6 +105,17 @@ export interface Copropriete {
   sharepointUrl?: string;
   /** Id de l'agence gestionnaire. */
   agenceId?: string;
+
+  // --- Ids techniques de CLOISONNEMENT EN CODE (copros eStale live uniquement).
+  //     Les copros Crypto (miroir Supabase) sont cloisonnees au niveau REQUETE SQL
+  //     (`.or(filtrePerimetre)`) et ne portent donc PAS ces ids. Les copros lues en
+  //     direct sur eStale n'ont pas de requete SQL a filtrer : le composite applique
+  //     le cloisonnement en memoire, d'ou ces ids resolus depuis les collaborateurs
+  //     eStale (public."User".id). Absents si aucun gestionnaire/assistant resolu.
+  /** Id technique (public."User".id) du gestionnaire de la copro (cloisonnement eStale). */
+  managerId?: string;
+  /** Id technique (public."User".id) de l'assistant de la copro (cloisonnement eStale). */
+  assistantId?: string;
 }
 
 // --- Donnees sourcees Estale (branchees en J4) ----------------------------
