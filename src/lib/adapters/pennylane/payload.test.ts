@@ -3,11 +3,13 @@ import { construirePayloadFacture, tauxTvaPennylane } from "./payload";
 
 const demandeType = {
   clientRef: "12345",
+  codeEntite: "S006",
   libelle: "Depassement CS du 2026-05-12",
   dateFacture: "2026-05-13",
   lignes: [
     {
-      description: "Depassement horaire Conseil Syndical (1 h)",
+      libelle: "Honoraires de depassement - Conseil Syndical",
+      detail: "Depassement CS du 12/05/2026, commence a 18:00 et termine a 21:00.",
       quantite: 1,
       prixUnitaireHt: 80,
       tauxTva: 0.2,
@@ -31,6 +33,12 @@ describe("tauxTvaPennylane", () => {
 });
 
 describe("construirePayloadFacture", () => {
+  it("met le titre court en label et le detail en description (structure legacy)", () => {
+    const p = construirePayloadFacture(demandeType);
+    expect(p.invoice_lines[0]!.label).toBe("Honoraires de depassement - Conseil Syndical");
+    expect(p.invoice_lines[0]!.description).toContain("termine a 21:00");
+  });
+
   it("cree toujours un BROUILLON (jamais de facture finalisee automatiquement)", () => {
     expect(construirePayloadFacture(demandeType).draft).toBe(true);
   });
@@ -48,6 +56,10 @@ describe("construirePayloadFacture", () => {
     expect(p.language).toBe("fr_FR");
   });
 
+  it("imprime le code entite (SXXX) sur le PDF, comme les 3 flows legacy", () => {
+    expect(construirePayloadFacture(demandeType).pdf_invoice_free_text).toBe("S006");
+  });
+
   it("serialise les montants en chaine a 2 decimales", () => {
     const p = construirePayloadFacture({
       ...demandeType,
@@ -60,14 +72,14 @@ describe("construirePayloadFacture", () => {
     const p = construirePayloadFacture({
       ...demandeType,
       lignes: [
-        { description: "Diligence A", quantite: 1, prixUnitaireHt: 125, tauxTva: 0.2 },
-        { description: "Diligence B", quantite: 2, prixUnitaireHt: 100, tauxTva: 0.2 },
+        { libelle: "Diligence A", quantite: 1, prixUnitaireHt: 125, tauxTva: 0.2 },
+        { libelle: "Diligence B", detail: "Detail B", quantite: 2, prixUnitaireHt: 100, tauxTva: 0.2 },
       ],
     });
     expect(p.invoice_lines).toHaveLength(2);
     expect(p.invoice_lines[1]).toEqual({
       label: "Diligence B",
-      description: demandeType.libelle,
+      description: "Detail B",
       quantity: 2,
       unit: "piece",
       raw_currency_unit_price: "100.00",

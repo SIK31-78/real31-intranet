@@ -4,7 +4,7 @@
 // prestation (les 5 ecrans PowerApps d'origine, regroupes ici en un seul écran).
 // Le montant n'est JAMAIS saisi : il est recalculé côté serveur depuis le barème.
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Receipt } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "./confirmation-facturation";
 import {
   apercuFactureCsAction,
+  tarifForfaitaireAction,
   apercuFactureEtatDateAction,
   apercuFactureSinistreAction,
   apercuFactureTravauxAction,
@@ -90,6 +91,11 @@ export function FormulaireFacturation({
   // Pré-état daté / état daté
   const [nomClient, setNomClient] = useState("");
   const [dateEtablissement, setDateEtablissement] = useState("");
+  // Montant du pre-etat date / etat date : pre-rempli au tarif du bareme, mais
+  // MODIFIABLE (ces prestations se negocient avec le coproprietaire).
+  const [montantForfaitaire, setMontantForfaitaire] = useState("");
+  const [tarifBareme, setTarifBareme] = useState<{ anneeBareme: number; tarifTtc: number } | null>(null);
+  const [chargeTarif, setChargeTarif] = useState(false);
 
   function annoncer(
     res:
@@ -114,6 +120,38 @@ export function FormulaireFacturation({
     }
     router.refresh();
   }
+
+  // Recharge le tarif du bareme (et pre-remplit le champ) des que la copro ou la
+  // prestation change. Le gestionnaire voit le montant de reference d'emblee.
+  useEffect(() => {
+    if (onglet !== "pre_etat_date" && onglet !== "etat_date") return;
+    if (!coproCode) return;
+    let annule = false;
+    // Le drapeau de chargement est pose DANS la promesse, pas dans le corps de
+    // l'effet : un setState synchrone y declencherait des rendus en cascade.
+    void Promise.resolve().then(() => {
+      if (!annule) setChargeTarif(true);
+    });
+    tarifForfaitaireAction(coproCode, onglet).then((res) => {
+      if (annule) return;
+      setChargeTarif(false);
+      if (!res.ok) {
+        setTarifBareme(null);
+        setMontantForfaitaire("");
+        toast.err(res.erreur);
+        return;
+      }
+      if (res.donnees) {
+        setTarifBareme(res.donnees);
+        setMontantForfaitaire(res.donnees.tarifTtc.toFixed(2));
+      }
+    });
+    return () => {
+      annule = true;
+    };
+    // toast est stable (contexte), pas besoin de le suivre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coproCode, onglet]);
 
   function creneauCs() {
     const [hd, md] = debutCs.split(":").map(Number);
@@ -158,6 +196,7 @@ export function FormulaireFacturation({
                   onglet === "pre_etat_date" ? "pre_etat_date" : "etat_date",
                   nomClient.trim() || undefined,
                   dateEtablissement || undefined,
+                  montantForfaitaire.trim() ? Number(montantForfaitaire) : undefined,
                 );
       setApercu(null);
       annoncer(res);
@@ -194,6 +233,7 @@ export function FormulaireFacturation({
           onglet === "pre_etat_date" ? "pre_etat_date" : "etat_date",
           nomClient.trim() || undefined,
           dateEtablissement || undefined,
+          montantForfaitaire.trim() ? Number(montantForfaitaire) : undefined,
         );
       }
       if (!res.ok) return toast.err(res.erreur);
@@ -340,10 +380,26 @@ export function FormulaireFacturation({
               <label className={label} htmlFor="date-etab">Date d&apos;établissement</label>
               <input id="date-etab" type="date" className={champ} value={dateEtablissement} onChange={(e) => setDateEtablissement(e.target.value)} />
             </div>
-            <p className="col-span-2 text-[12px] text-ink-3">
-              Le montant est repris du barème de l&apos;année du contrat en cours : il n&apos;est pas
-              saisissable.
-            </p>
+            <div className="col-span-2">
+              <label className={label} htmlFor="montant-forfait">
+                Montant TTC
+                {chargeTarif && <span className="ml-2 font-normal text-ink-3">(chargement du tarif…)</span>}
+              </label>
+              <input
+                id="montant-forfait"
+                type="number"
+                step="0.01"
+                min="0"
+                className={champ}
+                value={montantForfaitaire}
+                onChange={(e) => setMontantForfaitaire(e.target.value)}
+              />
+              <p className="mt-1 text-[12px] text-ink-3">
+                {tarifBareme
+                  ? `Pré-rempli au tarif du barème ${tarifBareme.anneeBareme} (${tarifBareme.tarifTtc.toFixed(2).replace(".", ",")} € TTC). Modifiable : cette prestation se négocie. Toute différence sera signalée à la validation et tracée sur la facture.`
+                  : "Le tarif du barème se charge à la sélection de la copropriété."}
+              </p>
+            </div>
           </div>
         )}
 

@@ -5,10 +5,14 @@
 // lu au bareme de l'annee du contrat actif, converti TTC -> HT. Seuls changent
 // l'identifiant de prestation et le libelle, d'ou la factorisation.
 //
-// Durcissement vs legacy : le montant est toujours recalcule depuis le bareme.
-// Cote PowerApps il etait pre-rempli mais modifiable a la main, et les deux
-// ecrans ne validaient meme pas la saisie de la meme facon (l'un bloquait sur un
-// montant vide, l'autre non). Cf. MIGRATION_PLAN.md §2.1.
+// MONTANT NEGOCIABLE (demande Sekou, 2026-07-20) : contrairement aux autres
+// prestations, le pre-etat date et l'etat date se NEGOCIENT avec le
+// coproprietaire. Le tarif du bareme sert donc de valeur par defaut, mais reste
+// modifiable. Le montant du bareme est conserve a cote du montant retenu dans
+// `details` : une negociation doit rester visible, jamais silencieuse.
+// (Cote PowerApps c'etait editable aussi, mais sans aucune trace du tarif de
+// reference, et les deux ecrans ne validaient meme pas la saisie de la meme
+// facon : l'un bloquait sur un montant vide, l'autre non.)
 
 import { htDepuisTtc } from "@/lib/domain/facturation/commun";
 import type { TypePrestation } from "@/lib/ports/facturation-repository";
@@ -25,6 +29,11 @@ export interface DemandeFactureForfaitaire {
   nomClient?: string;
   /** Date d'etablissement du document, ISO "YYYY-MM-DD". */
   dateEtablissement?: string;
+  /**
+   * Montant TTC retenu, s'il a ete negocie. Absent = tarif du bareme applique.
+   * Le tarif de reference reste trace dans `details`.
+   */
+  montantTtcNegocie?: number;
   /** Initiales de l'auteur (tant qu'il n'y a pas d'auth). */
   par?: string;
 }
@@ -50,8 +59,9 @@ export async function apercuPrestationForfaitaire(
   const prestation = PRESTATIONS[variante];
 
   const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
-  const tarifTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
-  const montantHt = htDepuisTtc(tarifTtc);
+  const tarifBaremeTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
+  const montantTtc = demande.montantTtcNegocie ?? tarifBaremeTtc;
+  const negocie = montantTtc !== tarifBaremeTtc;
 
   return {
     typePrestation: variante,
@@ -62,13 +72,43 @@ export async function apercuPrestationForfaitaire(
       ...(demande.dateEtablissement
         ? [{ libelle: "Etabli le", valeur: formatJour(demande.dateEtablissement) }]
         : []),
-      { libelle: `Tarif du bareme ${anneeBareme}`, valeur: `${formatEuros(tarifTtc)} TTC`, accent: "fort" as const },
+      {
+        libelle: `Tarif du bareme ${anneeBareme}`,
+        valeur: `${formatEuros(tarifBaremeTtc)} TTC`,
+        ...(negocie ? {} : { accent: "fort" as const }),
+      },
+      // Une negociation doit sauter aux yeux sur l'ecran de validation.
+      ...(negocie
+        ? [
+            {
+              libelle: "Montant negocie",
+              valeur: `${formatEuros(montantTtc)} TTC`,
+              accent: "fort" as const,
+            },
+          ]
+        : []),
     ],
-    lignes: [{ description: prestation.libelle, montantHt }],
-    montantHt,
-    montantTtc: tarifTtc,
-    rienAFacturer: false,
+    lignes: [{ description: prestation.libelle, montantHt: htDepuisTtc(montantTtc) }],
+    montantHt: htDepuisTtc(montantTtc),
+    montantTtc,
+    rienAFacturer: montantTtc === 0,
+    ...(montantTtc === 0
+      ? { motifRienAFacturer: "Le montant retenu est nul : aucune facture ne sera creee." }
+      : {}),
   };
+}
+
+/** Tarif du bareme pour cette prestation : sert a pre-remplir le champ montant. */
+export async function tarifForfaitaireBareme(
+  coproCode: string,
+  managerId: string,
+  variante: "pre_etat_date" | "etat_date",
+): Promise<{ anneeBareme: number; tarifTtc: number }> {
+  await exigerPerimetre(coproCode, managerId);
+  const repo = getFacturationRepository();
+  const anneeBareme = await resoudreAnneeBareme(repo, coproCode);
+  const tarifTtc = await exigerTarifTtc(repo, PRESTATIONS[variante].identifiantPrestation, anneeBareme);
+  return { anneeBareme, tarifTtc };
 }
 
 async function creerFactureForfaitaire(
@@ -80,8 +120,9 @@ async function creerFactureForfaitaire(
   const repo = getFacturationRepository();
 
   const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
-  const tarifTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
-  const montantHt = htDepuisTtc(tarifTtc);
+  const tarifBaremeTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
+  const montantTtc = demande.montantTtcNegocie ?? tarifBaremeTtc;
+  const montantHt = htDepuisTtc(montantTtc);
 
   const libelle = demande.nomClient
     ? `${prestation.libelle} - ${demande.nomClient}`
@@ -96,11 +137,24 @@ async function creerFactureForfaitaire(
     details: {
       anneeBareme,
       identifiantPrestation: prestation.identifiantPrestation,
-      tarifTtc,
+      // Les DEUX montants sont conserves : une negociation reste auditable.
+      tarifBaremeTtc,
+      montantTtcApplique: montantTtc,
+      negocie: montantTtc !== tarifBaremeTtc,
       ...(demande.nomClient ? { nomClient: demande.nomClient } : {}),
     },
     ...(demande.par ? { par: demande.par } : {}),
-    lignes: [{ description: libelle, quantite: 1, prixUnitaireHt: montantHt }],
+    lignes: [
+      {
+        // Volontairement SANS mention de negociation (decision Sekou,
+        // 2026-07-21) : une remise ne se justifie pas aupres du client sur le
+        // document lui-meme. La trace reste interne, dans `details` ci-dessus
+        // et sur l'ecran de validation.
+        description: libelle,
+        quantite: 1,
+        prixUnitaireHt: montantHt,
+      },
+    ],
   });
 
   return { montantHt, factureId };

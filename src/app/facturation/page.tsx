@@ -34,6 +34,7 @@ export default async function FacturationPage() {
     ...(f.factureExterneId ? { factureExterneId: f.factureExterneId } : {}),
     ...(f.erreur ? { erreur: f.erreur } : {}),
     ...(f.par ? { par: f.par } : {}),
+    creeLe: f.creeLe,
   }));
 
   return (
@@ -52,7 +53,9 @@ export default async function FacturationPage() {
         </div>
 
         <FormulaireFacturation
-          copros={copros.map((c) => ({ code: c.code, nom: c.nom }))}
+          copros={copros
+    .map((c) => ({ code: c.code, nom: c.nom }))
+    .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
           pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
         />
 

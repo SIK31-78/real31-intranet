@@ -4,7 +4,10 @@
 
 /** Ligne a emettre. Montants HT ; la TVA est portee par son taux. */
 export interface LigneAEmettre {
-  description: string;
+  /** Libelle COURT de la prestation : titre de la ligne sur le PDF. */
+  libelle: string;
+  /** Detail affiche sous le titre (dates, heures, decompte des heures). */
+  detail?: string;
   quantite: number;
   prixUnitaireHt: number;
   /** Ex : 0.20 pour 20 %. */
@@ -17,6 +20,12 @@ export interface DemandeEmission {
    * un UUID). L'adapter la resout en identifiant interne avant d'emettre.
    */
   clientRef: string;
+  /**
+   * Code entite de la copropriete (SXXX). Repris tel quel sur le PDF de la
+   * facture : c'est ce qui permet a la copropriete d'identifier a quel immeuble
+   * se rapporte la facture.
+   */
+  codeEntite: string;
   /** Libelle general de la facture. */
   libelle: string;
   /** Date de facture, ISO "YYYY-MM-DD". */

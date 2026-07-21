@@ -5,7 +5,7 @@
 // et le montant qui partira. C'est le dernier point de controle humain avant
 // qu'une facture parte chez le client.
 
-import { Loader2, Send, X } from "lucide-react";
+import { Loader2, Send, TriangleAlert, X } from "lucide-react";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 
 function euros(n: number): string {
@@ -83,6 +83,17 @@ export function ConfirmationFacturation({
               </div>
             )}
           </dl>
+
+          {/* Alertes non bloquantes : visibles, mais la validation reste possible. */}
+          {(apercu.avertissements ?? []).map((a, i) => (
+            <p
+              key={i}
+              className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900"
+            >
+              <TriangleAlert className="mt-px h-4 w-4 shrink-0" strokeWidth={1.5} />
+              <span>{a}</span>
+            </p>
+          ))}
 
           {rienAFacturer ? (
             <p className="rounded bg-black/[0.03] px-3 py-2 text-[12px] text-ink-3">

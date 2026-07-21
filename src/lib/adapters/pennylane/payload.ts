@@ -20,6 +20,7 @@ export interface PennylaneInvoicePayload {
   customer_id: string;
   date: string;
   deadline: string;
+  pdf_invoice_free_text: string;
   currency: string;
   language: string;
   invoice_lines: PennylaneLigne[];
@@ -66,11 +67,18 @@ export function construirePayloadFacture(demande: DemandeEmission): PennylaneInv
     // Champs exiges par le schema « Draft Customer Invoice » de l'API v2 :
     // sans deadline / currency / language, Pennylane rejette en 400 NotAnyOf.
     deadline: plusJoursISO(demande.dateFacture, DELAI_PAIEMENT_JOURS),
+    // Code entite (SXXX) imprime sur le PDF : sans lui, la copropriete ne sait
+    // pas a quel immeuble se rattache la facture. Present dans les 3 flows
+    // legacy, omis par erreur au premier portage.
+    pdf_invoice_free_text: demande.codeEntite,
     currency: "EUR",
     language: "fr_FR",
+    // label = titre court de la ligne, description = detail dessous. C'est la
+    // structure du legacy (label venait du produit, description portait les
+    // dates et heures) : l'inverse afficherait un pave de texte en titre.
     invoice_lines: demande.lignes.map((ligne) => ({
-      label: ligne.description,
-      description: demande.libelle,
+      label: ligne.libelle,
+      description: ligne.detail ?? "",
       quantity: ligne.quantite,
       unit: "piece",
       // Montants transmis en chaine a 2 decimales : evite les surprises de

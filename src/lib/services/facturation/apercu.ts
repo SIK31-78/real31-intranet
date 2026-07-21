@@ -26,6 +26,11 @@ export interface ApercuFacturation {
   lignes: Array<{ description: string; montantHt: number }>;
   montantHt: number;
   montantTtc: number;
+  /**
+   * Alertes non bloquantes affichees sur l'ecran de validation (ex. fonds
+   * travaux sous le minimum legal). L'utilisateur peut confirmer malgre tout.
+   */
+  avertissements?: string[];
   /** Vrai si rien n'est facturable : aucune facture ne sera creee. */
   rienAFacturer: boolean;
   /** Message explicatif quand il n'y a rien a facturer. */

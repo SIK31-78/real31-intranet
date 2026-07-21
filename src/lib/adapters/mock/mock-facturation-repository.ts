@@ -47,6 +47,28 @@ export class MockFacturationRepository implements FacturationRepository {
     return TARIFS[identifiantPrestation]?.[annee] ?? null;
   }
 
+  async creerContrat(input: {
+    coproCode: string;
+    debutContrat: string;
+    honorairesGestionTtc?: number;
+    fraisPostauxReels?: boolean;
+    forfaitPostauxTtc?: number;
+  }): Promise<string> {
+    const id = `contrat-mock-${CONTRATS.length + 1}`;
+    CONTRATS.push({
+      id,
+      coproCode: input.coproCode,
+      debutContrat: input.debutContrat,
+      ...(input.honorairesGestionTtc !== undefined
+        ? { honorairesGestionTtc: input.honorairesGestionTtc }
+        : {}),
+      ...(input.forfaitPostauxTtc !== undefined
+        ? { forfaitPostauxTtc: input.forfaitPostauxTtc }
+        : {}),
+    });
+    return id;
+  }
+
   async getParametresCopro(coproCode: string): Promise<ParametresCopro | null> {
     if (!CONTRATS.some((c) => c.coproCode === coproCode)) return null;
     // Valeurs representatives du parc reel (franchise CS 1 h, AG 2 h, plage 10 h-20 h).
@@ -73,6 +95,7 @@ export class MockFacturationRepository implements FacturationRepository {
       .map((f) => ({
         id: f.id,
         coproCode: f.coproCode,
+        typePrestation: f.typePrestation,
         libelle: f.libelle,
         dateFacture: f.dateFacture,
         lignes: f.lignes.map((l) => ({

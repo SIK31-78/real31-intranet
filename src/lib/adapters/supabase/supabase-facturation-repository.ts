@@ -119,7 +119,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     const { data, error } = await supabase
       .from("intranet_factures")
       .select(
-        "id, copropriete_id, libelle, date_facture, " +
+        "id, copropriete_id, type_prestation, libelle, date_facture, " +
           "intranet_facture_lignes (description, quantite, prix_unitaire_ht, taux_tva, ordre)",
       )
       .eq("statut", "a_facturer")
@@ -138,6 +138,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     type FactureRow = {
       id: string;
       copropriete_id: string;
+      type_prestation: string;
       libelle: string;
       date_facture: string;
       intranet_facture_lignes: LigneRow[] | null;
@@ -146,6 +147,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     return ((data as unknown as FactureRow[] | null) ?? []).map((f) => ({
       id: f.id,
       coproCode: f.copropriete_id,
+      typePrestation: f.type_prestation as FactureAEmettre["typePrestation"],
       libelle: f.libelle,
       dateFacture: f.date_facture,
       lignes: [...(f.intranet_facture_lignes ?? [])]
@@ -157,6 +159,31 @@ export class SupabaseFacturationRepository implements FacturationRepository {
           tauxTva: Number(l.taux_tva),
         })),
     }));
+  }
+
+  async creerContrat(input: {
+    coproCode: string;
+    debutContrat: string;
+    honorairesGestionTtc?: number;
+    fraisPostauxReels?: boolean;
+    forfaitPostauxTtc?: number;
+  }): Promise<string> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_suivi_contrats")
+      .insert({
+        copropriete_id: input.coproCode,
+        debut_contrat: input.debutContrat,
+        honoraires_gestion_ttc: input.honorairesGestionTtc ?? null,
+        frais_postaux_reels: input.fraisPostauxReels ?? null,
+        forfait_postaux_ttc: input.forfaitPostauxTtc ?? null,
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      throw new Error(`Creation contrat ${input.coproCode} : ${error?.message ?? "aucun id"}`);
+    }
+    return (data as { id: string }).id;
   }
 
   async getParametresCopro(coproCode: string): Promise<ParametresCopro | null> {

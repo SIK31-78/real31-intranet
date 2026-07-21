@@ -27,6 +27,7 @@ import {
   apercuPrestationForfaitaire,
   creerFactureEtatDate,
   creerFacturePreEtatDate,
+  tarifForfaitaireBareme,
 } from "@/lib/services/facturation/creer-facture-prestation-forfaitaire";
 import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-factures-en-attente";
 import { getFacturationRepository } from "@/lib/adapters/router";
@@ -120,11 +121,26 @@ export async function apercuFactureSinistreAction(
   );
 }
 
+/**
+ * Tarif du barème pour un pré-état daté / état daté : sert à PRÉ-REMPLIR le champ
+ * montant, qui reste modifiable (ces prestations se négocient avec le
+ * copropriétaire). Aucune écriture.
+ */
+export async function tarifForfaitaireAction(
+  coproCode: string,
+  variante: "pre_etat_date" | "etat_date",
+): Promise<Res<{ anneeBareme: number; tarifTtc: number }>> {
+  if (!z.object({ coproCode: zCode, variante: z.enum(["pre_etat_date", "etat_date"]) }).safeParse({ coproCode, variante }).success)
+    return { ok: false, erreur: "Données invalides." };
+  return executer((managerId) => tarifForfaitaireBareme(coproCode, managerId, variante));
+}
+
 export async function apercuFactureEtatDateAction(
   coproCode: string,
   variante: "pre_etat_date" | "etat_date",
   nomClient?: string,
   dateEtablissement?: string,
+  montantTtcNegocie?: number,
 ): Promise<Res<ApercuFacturation>> {
   if (!z.object({ coproCode: zCode, variante: z.enum(["pre_etat_date", "etat_date"]) }).safeParse({ coproCode, variante }).success)
     return { ok: false, erreur: "Données invalides." };
@@ -134,6 +150,7 @@ export async function apercuFactureEtatDateAction(
         coproCode,
         ...(nomClient ? { nomClient } : {}),
         ...(dateEtablissement ? { dateEtablissement } : {}),
+        ...(montantTtcNegocie !== undefined ? { montantTtcNegocie } : {}),
       },
       managerId,
       variante,
@@ -249,6 +266,7 @@ export async function creerFactureEtatDateAction(
   variante: "pre_etat_date" | "etat_date",
   nomClient?: string,
   dateEtablissement?: string,
+  montantTtcNegocie?: number,
 ): Promise<Res<{ montantHt: number; factureId: string }>> {
   const saisie = z
     .object({
@@ -264,6 +282,7 @@ export async function creerFactureEtatDateAction(
     coproCode,
     ...(nomClient ? { nomClient } : {}),
     ...(dateEtablissement ? { dateEtablissement } : {}),
+    ...(montantTtcNegocie !== undefined ? { montantTtcNegocie } : {}),
   };
 
   return executer(async (managerId, initiales) => {

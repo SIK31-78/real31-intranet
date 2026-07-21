@@ -97,6 +97,7 @@ export interface FactureHistorique {
 export interface FactureAEmettre {
   id: string;
   coproCode: string;
+  typePrestation: TypePrestation;
   libelle: string;
   dateFacture: string;
   lignes: Array<{ description: string; quantite: number; prixUnitaireHt: number; tauxTva: number }>;
@@ -109,6 +110,15 @@ export interface FacturationRepository {
   getDernierContrat(coproCode: string): Promise<ContratCopro | null>;
   /** Parametres contractuels de la copro (franchises, plage d'AG). Null si copro inconnue. */
   getParametresCopro(coproCode: string): Promise<ParametresCopro | null>;
+  /** Ouvre un cycle de contrat (une AG en ouvre un). Renvoie son id. */
+  creerContrat(input: {
+    coproCode: string;
+    debutContrat: string;
+    honorairesGestionTtc?: number;
+    /** true = frais reels refactures, false = forfait annuel. */
+    fraisPostauxReels?: boolean;
+    forfaitPostauxTtc?: number;
+  }): Promise<string>;
   /** Cree une facture et ses lignes. Renvoie l'id de la facture creee. */
   creerFacture(input: NouvelleFacture): Promise<string>;
 

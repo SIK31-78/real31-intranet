@@ -22,6 +22,8 @@ export interface FactureAffichee {
   factureExterneId?: string;
   erreur?: string;
   par?: string;
+  /** Horodatage ISO de creation (affiche date + heure). */
+  creeLe: string;
 }
 
 const LIBELLE_TYPE: Record<string, string> = {
@@ -36,9 +38,11 @@ const LIBELLE_TYPE: Record<string, string> = {
 function euros(n: number): string {
   return `${n.toFixed(2).replace(".", ",")} €`;
 }
-function jour(iso: string): string {
-  const [a, m, j] = iso.slice(0, 10).split("-");
-  return `${j}/${m}/${a}`;
+/** Date + heure locale de creation, ex "20/07/2026 a 16:35". */
+function quand(iso: string): string {
+  const d = new Date(iso);
+  const deuxChiffres = (n: number) => String(n).padStart(2, "0");
+  return `${deuxChiffres(d.getDate())}/${deuxChiffres(d.getMonth() + 1)}/${d.getFullYear()} à ${deuxChiffres(d.getHours())}:${deuxChiffres(d.getMinutes())}`;
 }
 
 function Statut({ statut }: { statut: FactureAffichee["statut"] }) {
@@ -107,7 +111,7 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
                     {LIBELLE_TYPE[f.typePrestation] ?? f.typePrestation}
                   </p>
                   <p className="truncate text-[12px] text-ink-3">
-                    {jour(f.dateFacture)}
+                    {quand(f.creeLe)}
                     {f.par ? ` · ${f.par}` : ""}
                     {f.factureExterneId ? ` · Pennylane ${f.factureExterneId}` : ""}
                   </p>

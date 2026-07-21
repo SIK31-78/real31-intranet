@@ -13,6 +13,18 @@
 // (pas de double facturation si le job est relance).
 
 import { getFacturationRepository, getInvoicingProvider } from "@/lib/adapters/router";
+import type { TypePrestation } from "@/lib/ports/facturation-repository";
+
+/** Titre court de la ligne sur le PDF. Le legacy le tirait de la liste Produits ;
+ *  faute de reprise de cette liste, on le derive du type de prestation. */
+const LIBELLE_PRESTATION: Record<TypePrestation, string> = {
+  depassement_cs: "Honoraires de depassement - Conseil Syndical",
+  depassement_ag: "Honoraires de depassement - Assemblee Generale",
+  suivi_travaux: "Honoraires de suivi de travaux",
+  suivi_sinistre: "Honoraires de suivi de sinistre",
+  pre_etat_date: "Honoraires de pre-etat date",
+  etat_date: "Honoraires d'etat date",
+};
 
 export interface ResultatEmissionLot {
   emises: number;
@@ -42,9 +54,16 @@ export async function emettreFacturesEnAttente(limite = 50): Promise<ResultatEmi
 
       const { factureExterneId } = await provider.creerFactureBrouillon({
         clientRef,
+        codeEntite: facture.coproCode,
         libelle: facture.libelle,
         dateFacture: facture.dateFacture,
-        lignes: facture.lignes,
+        lignes: facture.lignes.map((l) => ({
+          libelle: LIBELLE_PRESTATION[facture.typePrestation],
+          ...(l.description ? { detail: l.description } : {}),
+          quantite: l.quantite,
+          prixUnitaireHt: l.prixUnitaireHt,
+          tauxTva: l.tauxTva,
+        })),
       });
 
       await repo.marquerFacturee(facture.id, factureExterneId);
