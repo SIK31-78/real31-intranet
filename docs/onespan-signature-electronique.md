@@ -42,6 +42,16 @@ Le maillon « pousser un fichier dans eStale » (jamais fait dans l'intranet) **
 - **Flux AG** : récupérer PV+feuille (eStale) → `POST /packages` (bureau+présents, `CAPTURE`, in-person, SENT) → cérémonie via token sender sur tablette → webhook `PACKAGE_COMPLETE` (filet: polling) → `GET pdf` + `evidence` → stockage → **réinjection eStale** (`setBody`/`createTranscriptDigitalSignature`) + registre PV.
 - **Stockage** (eStale-first) : réinjection **eStale Drive** primaire (⚠️ upload multipart GraphQL `Upload` **jamais fait dans l'intranet** → à défricher) + **Supabase Storage** pour preuve/audit horodatée. **Éviter SharePoint** (transitoire).
 
+## 4bis. POC OneSpan VALIDÉ sur du réel (2026-07-22) — ⚠️ sur le tenant PROD « Real 31 »
+Séquence testée end-to-end (package in-person créé, URL de cérémonie obtenue) :
+1. **Token** : `POST https://apps.esignlive.eu/oauth2/token` — creds en **header `Authorization: Basic base64(client_id:client_secret)`** + body `grant_type=client_credentials`. (Creds dans le body → 401 ; `apitoken/clientApp/accessToken` → 404 ; **seul le Basic header marche**.) → Bearer.
+2. **Account** : `GET /api/account` → `{name}` (savoir où on est).
+3. **Create package** : `POST /api/packages` **multipart** (part `payload` JSON + part `file` PDF). Payload : `{name, type:"PACKAGE", status:"SENT", settings:{ceremony:{inPerson:true}}, roles:[…], documents:[{id,name,approvals:[{role,fields:[{type:"SIGNATURE",subtype:"CAPTURE",page,left,top,width,height}]}]}]}`. **Flag in-person = `settings.ceremony.inPerson:true`** (pas de flag racine ni par-signataire). E-mail signataire **obligatoire au format** (TLD `.invalid` refusé) même si aucun mail ne part en in-person → mettre l'e-mail réel de l'owner ou un placeholder d'un domaine valide.
+4. **Ouvrir la cérémonie** : `GET /api/packages/{id}/roles/{roleId}/signingUrl` → `{url}` **auto-login** (pas de mot de passe). Pas de « sender token » dédié (`/authenticationTokens/sender` → 404). Un rôle SENDER `Owner` idx 0 est auto-créé en plus.
+5. **Supprimer** : `DELETE /api/packages/{id}`.
+Mapping adapter : `creerDossierSignature` = 1+3 ; `lancerCeremonieInPerson` = 4. Le « passage de main » entre signataires sur le même appareil = à constater sur une vraie tablette (Inc 0).
+**⚠️ Ces identifiants n'ouvrent QUE la prod EU (« Real 31 »)** — pas de sandbox. Pour dev/tester sans polluer la prod : **obtenir des identifiants sandbox distincts** (compte community OneSpan) avant d'automatiser.
+
 ## 5. Incréments (le plus petit d'abord)
 - **Inc 0 (SANS CODE) — LE geste qui lève le doute** : AG test eStale + POC manuel sur **sandbox OneSpan** sur une **vraie tablette** — créer un package in-person, signer au stylet, télécharger PDF+preuve. À faire AVANT toute ligne de code (lève les zones grises).
 - **Inc 1** : port + mock + adapter OneSpan « création package (feuille de présence, bureau seul) + download », écran read-only.
