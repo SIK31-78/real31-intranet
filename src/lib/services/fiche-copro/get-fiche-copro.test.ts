@@ -59,7 +59,7 @@ vi.mock("@/lib/services/calendrier/get-calendrier", () => ({
   getEvenements: async () => [],
 }));
 vi.mock("@/lib/services/compta/get-compta", () => ({
-  getEtatCompta: async () => ({ comptesVerifies: false, envoyerAvant: false, notes: [] }),
+  getEtatCompta: async () => ({ comptesVerifies: false, envoyerAvant: false, checks: {}, notes: [] }),
 }));
 
 import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";

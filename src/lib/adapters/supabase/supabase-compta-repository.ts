@@ -3,8 +3,14 @@
 //  - Flags : public.intranet_odj_champs (cle/valeur), champ_id "compta.*".
 
 import type { ComptaRepository, FlagCompta } from "@/lib/ports/compta-repository";
-import type { AuteurNote, EtatCompta, NoteCompta } from "@/lib/domain/compta";
-import { FLAG_COMPTES_VERIFIES, FLAG_ENVOYER_AVANT } from "@/lib/domain/compta";
+import type { AuteurNote, EtatCompta, NoteCompta, StatutPoste } from "@/lib/domain/compta";
+import {
+  FLAG_COMPTES_VERIFIES,
+  FLAG_ENVOYER_AVANT,
+  champIdPoste,
+  estStatutPoste,
+  posteDepuisChampId,
+} from "@/lib/domain/compta";
 import { createSupabasePublicClient } from "./public-client";
 
 type NoteRow = {
@@ -21,6 +27,17 @@ type ChampRow = { copropriete_id: string; ag_date: string; champ_id: string; val
 
 function champFlag(flag: FlagCompta): string {
   return flag === "verifies" ? FLAG_COMPTES_VERIFIES : FLAG_ENVOYER_AVANT;
+}
+/** Range une ligne champ dans l'etat cible : flag connu ou poste de checklist valide. */
+function appliquerChamp(e: EtatCompta, champId: string, valeur: string | null): void {
+  if (champId === FLAG_COMPTES_VERIFIES) {
+    e.comptesVerifies = Boolean(valeur);
+  } else if (champId === FLAG_ENVOYER_AVANT) {
+    e.envoyerAvant = Boolean(valeur);
+  } else {
+    const slug = posteDepuisChampId(champId);
+    if (slug && estStatutPoste(valeur)) e.checks[slug] = valeur;
+  }
 }
 function toNote(r: NoteRow): NoteCompta {
   return {
@@ -46,18 +63,24 @@ export class SupabaseComptaRepository implements ComptaRepository {
       supabase
         .from("intranet_odj_champs")
         .select("champ_id, valeur")
+        // Namespace "compta.*" : les 2 flags ET les postes de checklist (compta.check.*),
+        // sans ramener les champs ODJ (lieu, point.*...) de la meme table.
         .eq("copropriete_id", coproCode)
         .eq("ag_date", agDateISO)
-        .in("champ_id", [FLAG_COMPTES_VERIFIES, FLAG_ENVOYER_AVANT]),
+        .like("champ_id", "compta.%"),
     ]);
     if (notesRes.error) throw new Error(`Lecture intranet_compta_notes : ${notesRes.error.message}`);
     if (champsRes.error) throw new Error(`Lecture flags compta : ${champsRes.error.message}`);
-    const flags = new Map((champsRes.data as ChampRow[] | null)?.map((c) => [c.champ_id, c.valeur]) ?? []);
-    return {
-      comptesVerifies: Boolean(flags.get(FLAG_COMPTES_VERIFIES)),
-      envoyerAvant: Boolean(flags.get(FLAG_ENVOYER_AVANT)),
+    const etat: EtatCompta = {
+      comptesVerifies: false,
+      envoyerAvant: false,
+      checks: {},
       notes: ((notesRes.data as NoteRow[] | null) ?? []).map(toNote),
     };
+    for (const c of (champsRes.data as ChampRow[] | null) ?? []) {
+      appliquerChamp(etat, c.champ_id, c.valeur);
+    }
+    return etat;
   }
 
   async ajouterNote(
@@ -130,6 +153,40 @@ export class SupabaseComptaRepository implements ComptaRepository {
     if (error) throw new Error(`Pose flag compta : ${error.message}`);
   }
 
+  async setCheck(
+    coproCode: string,
+    agDateISO: string,
+    slug: string,
+    statut: StatutPoste,
+    par: string,
+  ): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const champId = champIdPoste(slug);
+    // "a_verifier" = defaut : on efface l'entree (comme le retrait d'un flag).
+    if (statut === "a_verifier") {
+      const { error } = await supabase
+        .from("intranet_odj_champs")
+        .delete()
+        .eq("copropriete_id", coproCode)
+        .eq("ag_date", agDateISO)
+        .eq("champ_id", champId);
+      if (error) throw new Error(`Retrait poste compta : ${error.message}`);
+      return;
+    }
+    const { error } = await supabase.from("intranet_odj_champs").upsert(
+      {
+        copropriete_id: coproCode,
+        ag_date: agDateISO,
+        champ_id: champId,
+        valeur: statut,
+        marque_par: par,
+        marque_at: new Date().toISOString(),
+      },
+      { onConflict: "copropriete_id,ag_date,champ_id" },
+    );
+    if (error) throw new Error(`Pose poste compta : ${error.message}`);
+  }
+
   async getEtats(
     cles: { coproCode: string; agDateISO: string }[],
   ): Promise<Map<string, EtatCompta>> {
@@ -149,13 +206,13 @@ export class SupabaseComptaRepository implements ComptaRepository {
         .select("copropriete_id, ag_date, champ_id, valeur")
         .in("copropriete_id", codes)
         .in("ag_date", dates)
-        .in("champ_id", [FLAG_COMPTES_VERIFIES, FLAG_ENVOYER_AVANT]),
+        .like("champ_id", "compta.%"),
     ]);
     if (notesRes.error) throw new Error(`Lecture notes compta : ${notesRes.error.message}`);
     if (champsRes.error) throw new Error(`Lecture flags compta : ${champsRes.error.message}`);
 
     for (const { coproCode, agDateISO } of cles) {
-      resultat.set(`${coproCode}|${agDateISO}`, { comptesVerifies: false, envoyerAvant: false, notes: [] });
+      resultat.set(`${coproCode}|${agDateISO}`, { comptesVerifies: false, envoyerAvant: false, checks: {}, notes: [] });
     }
     for (const r of (notesRes.data as NoteRow[] | null) ?? []) {
       const k = `${r.copropriete_id}|${r.ag_date}`;
@@ -163,9 +220,7 @@ export class SupabaseComptaRepository implements ComptaRepository {
     }
     for (const c of (champsRes.data as ChampRow[] | null) ?? []) {
       const e = resultat.get(`${c.copropriete_id}|${c.ag_date}`);
-      if (!e || !c.valeur) continue;
-      if (c.champ_id === FLAG_COMPTES_VERIFIES) e.comptesVerifies = true;
-      if (c.champ_id === FLAG_ENVOYER_AVANT) e.envoyerAvant = true;
+      if (e) appliquerChamp(e, c.champ_id, c.valeur);
     }
     for (const e of resultat.values()) {
       e.notes.sort((a, b) => a.createdAt.localeCompare(b.createdAt));

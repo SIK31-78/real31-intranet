@@ -63,9 +63,20 @@ vi.mock("@/lib/services/compta/get-compta", () => ({
   ) => {
     etat.appels.push({ fn: "setFlag", options });
   },
+  setCheckCompta: async (
+    _c: string,
+    _d: string,
+    _s: string,
+    _st: string,
+    _p: string,
+    _m: string,
+    options?: { transverse?: boolean },
+  ) => {
+    etat.appels.push({ fn: "setCheck", options });
+  },
 }));
 
-import { ajouterNoteAction, marquerNoteAction, setFlagAction } from "@/app/compta/actions";
+import { ajouterNoteAction, marquerNoteAction, setCheckAction, setFlagAction } from "@/app/compta/actions";
 
 beforeEach(() => {
   etat.reset();
@@ -98,6 +109,18 @@ describe("actions compta ouvertes au role comptable (toute copro)", () => {
     const r = await setFlagAction("S024", "2026-09-15", "verifies", true);
     expect(r).toEqual({ ok: true });
     expect(etat.appels).toEqual([{ fn: "setFlag", options: { transverse: true } }]);
+  });
+
+  it("setCheckAction : la comptable pose le statut d'un poste connu", async () => {
+    const r = await setCheckAction("S024", "2026-09-15", "rappro-bancaire", "ok");
+    expect(r).toEqual({ ok: true });
+    expect(etat.appels).toEqual([{ fn: "setCheck", options: { transverse: true } }]);
+  });
+
+  it("setCheckAction : un slug de poste inconnu est refuse (aucune ecriture)", async () => {
+    const r = await setCheckAction("S024", "2026-09-15", "poste-bidon", "ok");
+    expect(r).toEqual({ ok: false, erreur: "Données invalides." });
+    expect(etat.appels).toHaveLength(0);
   });
 
   it("un super-admin (test) passe aussi en transverse", async () => {

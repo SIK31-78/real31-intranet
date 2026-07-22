@@ -26,7 +26,7 @@ import {
   getCoproRepository,
 } from "@/lib/adapters/router";
 
-const ETAT_VIDE: EtatCompta = { comptesVerifies: false, envoyerAvant: false, notes: [] };
+const ETAT_VIDE: EtatCompta = { comptesVerifies: false, envoyerAvant: false, checks: {}, notes: [] };
 
 /** Toutes les lignes comptables : une par AG A VENIR (date >= today) de TOUTES les copros. */
 export async function listerLignesComptables(today: string): Promise<LigneComptable[]> {

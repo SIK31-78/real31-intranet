@@ -22,6 +22,7 @@ import { AffairesEnCours } from "@/components/affaires/affaires-en-cours";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
 import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
+import { EchangesComptablesPanel } from "@/components/dashboard/echanges-comptables-panel";
 
 export const metadata: Metadata = { title: "Accueil - REAL31 Intranet" };
 
@@ -101,6 +102,23 @@ export default async function AccueilPage() {
           </div>
           <AffairesEnCours affaires={affaires} />
         </section>
+
+        {/* Echanges comptables : notes de la comptable NON RESOLUES sur les copros du
+            gestionnaire - il doit repondre. Remontee active (le fil existait, mais rien ne
+            l'alertait). Conditionnel : rien si aucun echange ouvert. */}
+        {complement.echangesComptables.length > 0 && (
+          <section aria-labelledby="accueil-compta">
+            <div className="mb-3">
+              <h2 id="accueil-compta" className="text-[15px] font-semibold tracking-tight text-ink">
+                Échanges comptables
+              </h2>
+              <p className="mt-0.5 text-[12.5px] text-ink-3">
+                La comptable attend une réponse sur ces copropriétés - ouvre la fiche pour répondre.
+              </p>
+            </div>
+            <EchangesComptablesPanel echanges={complement.echangesComptables} />
+          </section>
+        )}
 
         {/* ZONE 3 - Points signales : problemes coches en supervision AG, actionnables.
             Ex-dashboard (demantele). Conditionnel : rien (pas de titre orphelin) si vide. */}

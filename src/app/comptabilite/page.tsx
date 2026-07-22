@@ -10,7 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { peutVoirComptabilite } from "@/lib/auth/roles";
+import { estVueComptable, peutVoirComptabilite } from "@/lib/auth/roles";
 import { getDashboardComptable } from "@/lib/services/compta/dashboard-comptable";
 import type { LigneComptable } from "@/lib/domain/comptabilite";
 import { AppShell } from "@/components/layout/app-shell";
@@ -32,11 +32,17 @@ function libelleMois(ym: string): string {
   return `${MOIS_FR[Number(m) - 1]} ${y}`;
 }
 
-function LigneRow({ l }: { l: LigneComptable }) {
+function LigneRow({ l, vueComptable }: { l: LigneComptable; vueComptable: boolean }) {
+  // Aiguillage : le comptable PUR atterrit sur SON espace de preparation (/compta/[id]),
+  // pas la fiche gestionnaire. Les autres profils (encadrement, super-admin) gardent la
+  // fiche complete. L'id compta = CODE__DATE (meme convention que la supervision).
+  const href = vueComptable
+    ? `/compta/${l.coproCode}__${l.agDate}`
+    : `/copropriete/${l.coproCode}`;
   return (
     <li>
       <Link
-        href={`/copropriete/${l.coproCode}`}
+        href={href}
         className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors"
       >
         <span className="font-mono text-[12px] text-ink-2 w-[44px] shrink-0">{l.coproCode}</span>
@@ -80,12 +86,14 @@ function Section({
   icone,
   lignes,
   vide,
+  vueComptable,
 }: {
   titre: string;
   aide: string;
   icone: React.ReactNode;
   lignes: LigneComptable[];
   vide: string;
+  vueComptable: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -105,7 +113,7 @@ function Section({
         <Card>
           <ul className="divide-y divide-line">
             {lignes.map((l) => (
-              <LigneRow key={`${l.coproCode}-${l.agDate}`} l={l} />
+              <LigneRow key={`${l.coproCode}-${l.agDate}`} l={l} vueComptable={vueComptable} />
             ))}
           </ul>
         </Card>
@@ -123,6 +131,9 @@ export default async function ComptabilitePage({
   if (!g) redirect("/dev-login");
   // Role transverse : seuls le pole compta (COMPTABLES) et les super-admins accedent.
   if (!peutVoirComptabilite(g.email, g.role)) redirect("/accueil");
+  // Comptable PUR -> chaque ligne pointe vers SON espace de preparation (/compta/[id]) ;
+  // l'encadrement / super-admin garde la fiche gestionnaire complete.
+  const vueComptable = estVueComptable(g.email, g.role);
 
   const sp = await searchParams;
   const gestionnaire =
@@ -213,6 +224,7 @@ export default async function ComptabilitePage({
           icone={<CalendarCheck strokeWidth={1.5} className="w-4 h-4 text-ok-600" />}
           lignes={dashboard.confirmees}
           vide="Aucune AG confirmée à venir."
+          vueComptable={vueComptable}
         />
 
         <Section
@@ -221,6 +233,7 @@ export default async function ComptabilitePage({
           icone={<Clock strokeWidth={1.5} className="w-4 h-4 text-warn-600" />}
           lignes={dashboard.aConfirmer}
           vide="Aucune AG en attente de confirmation."
+          vueComptable={vueComptable}
         />
 
         {avecNotes.length > 0 && (
@@ -230,6 +243,7 @@ export default async function ComptabilitePage({
             icone={<MessageSquare strokeWidth={1.5} className="w-4 h-4 text-ink-3" />}
             lignes={avecNotes}
             vide="Aucune note en attente."
+            vueComptable={vueComptable}
           />
         )}
       </div>

@@ -188,6 +188,9 @@ function BlocCompta({
   estComptable: boolean;
 }) {
   const ouvertes = compta.notes.filter((n) => !n.resolu).length;
+  // Notes ECRITES PAR LA COMPTABLE non traitees : le signal qui doit sauter aux yeux du
+  // gestionnaire (une note l'attend). Badge warn saillant dans l'en-tete.
+  const notesComptable = compta.notes.filter((n) => n.auteur === "comptable" && !n.resolu).length;
   return (
     <Card>
       <CardHeader>
@@ -195,13 +198,20 @@ function BlocCompta({
           <Calculator strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
           Préparation comptable
         </CardTitle>
-        {compta.comptesVerifies ? (
-          <Badge ton="ok" dot>
-            Comptes vérifiés
-          </Badge>
-        ) : (
-          <Badge ton="outline">comptes à vérifier</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {notesComptable > 0 && (
+            <Badge ton="warn" dot>
+              {notesComptable} note{notesComptable > 1 ? "s" : ""} comptable{notesComptable > 1 ? "s" : ""} à traiter
+            </Badge>
+          )}
+          {compta.comptesVerifies ? (
+            <Badge ton="ok" dot>
+              Comptes vérifiés
+            </Badge>
+          ) : (
+            <Badge ton="outline">comptes à vérifier</Badge>
+          )}
+        </div>
       </CardHeader>
       <div className="px-4 py-3">
         {ouvertes > 0 && (

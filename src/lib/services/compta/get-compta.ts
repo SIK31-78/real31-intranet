@@ -2,12 +2,12 @@
 // table intranet_compta_notes n'existe pas encore (avant le CREATE TABLE) ou si la
 // base tombe : etat vide / file vide, pas d'exception qui crashe la page.
 
-import type { AgAPreparer, AuteurNote, EtatCompta } from "@/lib/domain/compta";
+import type { AgAPreparer, AuteurNote, EtatCompta, StatutPoste } from "@/lib/domain/compta";
 import type { FlagCompta } from "@/lib/ports/compta-repository";
 import { getComptaRepository, getCoproRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 
-const ETAT_VIDE: EtatCompta = { comptesVerifies: false, envoyerAvant: false, notes: [] };
+const ETAT_VIDE: EtatCompta = { comptesVerifies: false, envoyerAvant: false, checks: {}, notes: [] };
 
 export async function getEtatCompta(coproCode: string, agDateISO: string): Promise<EtatCompta> {
   try {
@@ -18,9 +18,18 @@ export async function getEtatCompta(coproCode: string, agDateISO: string): Promi
   }
 }
 
-/** Copro de la fiche compta, cloisonnee au gestionnaire (null si hors scope). */
-export async function getCoproCompta(coproCode: string, gestionnaireId: string) {
-  return getCoproRepository().findByCode(coproCode, gestionnaireId);
+/** Copro de la fiche compta. Cloisonnee au gestionnaire par defaut (null si hors scope) ;
+ *  `transverse` (pole compta / super-admin) leve le cloisonnement (resolution non bornee au
+ *  portefeuille), meme logique que la fiche copro. Sans option -> comportement historique,
+ *  qui sert aussi de garde d'appartenance (anti-IDOR) dans les actions. */
+export async function getCoproCompta(
+  coproCode: string,
+  gestionnaireId: string,
+  options?: { transverse?: boolean },
+) {
+  return options?.transverse
+    ? getCoproRepository().findByCode(coproCode)
+    : getCoproRepository().findByCode(coproCode, gestionnaireId);
 }
 
 /** File comptable : les copros (cloisonnees au gestionnaire) avec une AG datee + leur
@@ -94,4 +103,17 @@ export async function setFlagCompta(
 ): Promise<void> {
   if (!options?.transverse) await exigerPerimetre(coproCode, managerId);
   return getComptaRepository().setFlag(coproCode, agDateISO, flag, valeur, par);
+}
+
+export async function setCheckCompta(
+  coproCode: string,
+  agDateISO: string,
+  slug: string,
+  statut: StatutPoste,
+  par: string,
+  managerId: string,
+  options?: { transverse?: boolean },
+): Promise<void> {
+  if (!options?.transverse) await exigerPerimetre(coproCode, managerId);
+  return getComptaRepository().setCheck(coproCode, agDateISO, slug, statut, par);
 }

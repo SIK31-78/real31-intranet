@@ -1,7 +1,7 @@
 // Adapter mock du pole compta : store module-level en memoire (dev hors supabase).
 
 import type { ComptaRepository, FlagCompta } from "@/lib/ports/compta-repository";
-import type { AuteurNote, EtatCompta, NoteCompta } from "@/lib/domain/compta";
+import type { AuteurNote, EtatCompta, NoteCompta, StatutPoste } from "@/lib/domain/compta";
 
 const ETATS = new Map<string, EtatCompta>();
 let seq = 0;
@@ -10,7 +10,7 @@ function cle(coproCode: string, agDateISO: string): string {
   return `${coproCode}|${agDateISO}`;
 }
 function etat(k: string): EtatCompta {
-  return ETATS.get(k) ?? { comptesVerifies: false, envoyerAvant: false, notes: [] };
+  return ETATS.get(k) ?? { comptesVerifies: false, envoyerAvant: false, checks: {}, notes: [] };
 }
 
 export class MockComptaRepository implements ComptaRepository {
@@ -67,12 +67,27 @@ export class MockComptaRepository implements ComptaRepository {
       ...(flag === "verifies" ? { comptesVerifies: valeur } : { envoyerAvant: valeur }),
     });
   }
+  async setCheck(
+    coproCode: string,
+    agDateISO: string,
+    slug: string,
+    statut: StatutPoste,
+  ): Promise<void> {
+    const k = cle(coproCode, agDateISO);
+    const e = etat(k);
+    const checks = { ...e.checks };
+    // "a_verifier" = defaut : on efface l'entree (coherent avec l'absence en base).
+    if (statut === "a_verifier") delete checks[slug];
+    else checks[slug] = statut;
+    ETATS.set(k, { ...e, checks });
+  }
   async getEtats(
     cles: { coproCode: string; agDateISO: string }[],
   ): Promise<Map<string, EtatCompta>> {
     const m = new Map<string, EtatCompta>();
     for (const { coproCode, agDateISO } of cles) {
-      m.set(cle(coproCode, agDateISO), etat(cle(coproCode, agDateISO)));
+      const k = cle(coproCode, agDateISO);
+      m.set(k, etat(k));
     }
     return m;
   }
