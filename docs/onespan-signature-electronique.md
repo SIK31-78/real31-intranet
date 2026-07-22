@@ -29,6 +29,13 @@ Code réel : `C:\Users\SekouKOMA\Projects\RegistreMandats-main\...\lib\onespan\`
 - **Où remonter la feuille de présence signée par TOUS** (via OneSpan) : **pas de slot dédié**. Solution = **`meeting.createFile(fileCategory: TRANSCRIPT_ATTENDANCE_SHEET, file)`** (pièce jointe catégorisée, relisible via `meeting.documents`, supprimable via `deleteFile`). eStale ne la tracera que comme *pièce*, pas comme preuve → **preuve = coffre + OneSpan**, `createFile` en doublon de rattachement.
 - **Donc** : OneSpan = moteur de cérémonie in-person (bureau + présents) + preuve eIDAS ; réinjection eStale = `setBody`(PV signé, comme le scan) + `createFile`(feuille signée) + option `createTranscriptDigitalSignature`(bureau). **eStale reste la source, la réinjection = simple (c'est déjà leur pattern setBody).**
 
+### ✅ Upload de fichier dans eStale — PROUVÉ (2026-07-22, POC réversible sur AG future `9ba932a3`)
+Le maillon « pousser un fichier dans eStale » (jamais fait dans l'intranet) **marche** — round-trip `createFile` → vérif → `deleteFile` → AG revenue à son état initial. Mécanisme à coder dans l'adapter :
+- **Mutation nichée** : `Mutation.updateMeeting(id) → MeetingMutation.createFile(fileCategory: MeetingFileCategory!, file: Upload!): Meeting!` (retourne le **Meeting entier**, pas le fichier → récupérer le `fileID` en **diffant** `documents` avant/après). Suppression : `updateMeeting(id).deleteFile(fileID)`.
+- **Multipart** (spec graphql-multipart-request), 3 parts : `operations` (`{query, variables:{file:null,...}}`), `map` (`{"0":["variables.file"]}`), `0` (Blob PDF). **Cookie de session seul, PAS de content-type** (fetch pose le boundary). Aucun header anti-CSRF requis.
+- **Contraintes** : `application/pdf` accepté ; eStale **re-traite** le fichier (ne pas espérer l'octet-pour-octet) ; ⚠️ **la catégorie est gatée par l'état du meeting** — sur une AG **future**, seule `TRANSCRIPT` a été acceptée, `TRANSCRIPT_ATTENDANCE_SHEET` (notre cible feuille signée) **refusée** → à re-tester sur une AG **tenue/en cours de signature** avant de coder le flux ; erreurs resolver masquées en message générique.
+- Script de référence : `scripts/estale-upload-poc.mjs` (réversible, catégorie en argv).
+
 ## 4. Plan d'intégration hexagonal (intranet)
 - **Port** `SignatureElectroniqueProvider` : `creerDossierSignature(docs, signataires[], {inPerson})` → packageId ; `lancerCeremonieInPerson(packageId)` → `{url, token}` ; `recupererPdfSigne` ; `recupererPreuve` ; `statut` + handler webhook `PACKAGE_COMPLETE`.
 - **Adapters** : `adapters/onespan/*` (porter auth+client d'App A, ajouter création package + fields `CAPTURE` + in-person) + `adapters/mock/*` (tests 100% offline, convention repo).
