@@ -30,6 +30,7 @@ const zEtapes = z
       label: z.string().max(500),
       fait: z.boolean(),
       assigneA: z.string().max(120).optional(),
+      note: z.string().max(2_000).optional(),
     }),
   )
   .max(200);
@@ -168,6 +169,28 @@ export async function majEtapesAction(id: string, etapes: EtapeDossier[]): Promi
   if (!d || !(await autorise(d.coproCode))) return;
   await getDossierRepository().patch(id, { etapes });
   revalidatePath(`/dossiers/${id}`);
+}
+
+// Met a jour la NOTE d'une etape (#6 : detailler une etape sans entasser dans le titre).
+// NON DESTRUCTIF : on relit les etapes du dossier serveur et on ne touche QUE la note de
+// l'etape ciblee (les autres champs et les autres etapes sont preserves). Note vide =
+// efface la note. Cloisonne au perimetre + anti-IDOR (coproCode RELU du dossier serveur).
+const zNoteEtape = z.string().max(2_000);
+
+export async function majNoteEtapeAction(dossierId: string, etapeId: string, note: string): Promise<void> {
+  if (!z.object({ dossierId: zId, etapeId: z.string().trim().min(1).max(40), note: zNoteEtape }).safeParse({ dossierId, etapeId, note }).success)
+    return;
+  const d = await getDossierRepository().get(dossierId);
+  if (!d) return;
+  const g = await autorise(d.coproCode); // coproCode RELU du dossier serveur (anti-IDOR)
+  if (!g) return;
+  if (!d.etapes.some((e) => e.id === etapeId)) return; // etape inconnue -> no-op
+  const valeur = note.trim();
+  const etapes = d.etapes.map((e) =>
+    e.id === etapeId ? { ...e, note: valeur || undefined } : e,
+  );
+  await getDossierRepository().patch(dossierId, { etapes });
+  revalidatePath(`/dossiers/${dossierId}`);
 }
 
 export async function ajouterNoteAction(id: string, texte: string): Promise<void> {

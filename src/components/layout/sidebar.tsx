@@ -3,7 +3,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, ListChecks, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
   FolderOpen, FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
-  PackagePlus, Receipt, ClipboardList,
+  PackagePlus, Receipt, ClipboardList, Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -18,6 +18,7 @@ export type NavKey =
   | "resolutions"
   | "compta"
   | "facturation"
+  | "gestion-courante"
   | "recap-ag"
   | "coffre"
   | "equipe"
@@ -46,7 +47,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     items: [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
-      { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
+      { key: "dossiers", label: "Dossiers", href: "/mes-dossiers", icon: FolderOpen },
       { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
       { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
       { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
@@ -66,6 +67,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "compta", label: "Comptabilité", href: "/comptabilite", icon: Calculator },
       { key: "recap-ag", label: "Récap AG", href: "/recap-ag", icon: ClipboardList },
       { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
+      { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
     ],
   },
@@ -77,6 +79,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
 const NAV_COMPTABLE: Item[] = [
   { key: "compta", label: "Dashboard", href: "/comptabilite", icon: LayoutDashboard },
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
+  { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
 ];
 

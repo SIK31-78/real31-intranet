@@ -27,6 +27,9 @@ export interface EtapeDossier {
   faitPar?: string;
   /** Tache assignee au gestionnaire ou a l'assistant (optionnel). */
   assigneA?: AssigneRole;
+  /** Note libre de l'etape (#6) : detail/contexte propre a l'etape, pour ne plus
+   *  entasser dans le titre. Optionnel, edite via majNoteEtapeAction. */
+  note?: string;
 }
 
 // Timeline du dossier : un fil d'evenements TYPES. Brique 1 produit note/etape/statut ;
@@ -156,6 +159,42 @@ export function prochaineEtape(d: Dossier): EtapeDossier | undefined {
   return d.etapes.find((e) => !e.fait);
 }
 
+/** Index de l'etape EN COURS = premiere etape non faite (deduit, cf. "colonne de vie").
+ *  -1 si toutes les etapes sont faites ou s'il n'y en a aucune. Pur. */
+export function indexEtapeEnCours(d: Pick<Dossier, "etapes">): number {
+  return d.etapes.findIndex((e) => !e.fait);
+}
+
+/** Action attachee a une etape, deduite de son libelle (heuristique sure : on ne
+ *  fabrique rien, on ne lit que ce qui est dans le libelle). Pur, sans JSX/React :
+ *  l'UI decide du rendu (lien/bouton). undefined = etape non actionnable.
+ *
+ *  Aujourd'hui un seul cas : un dossier "sinistre" dont l'etape parle de "courrier"
+ *  -> ecran generateur de courriers. Si le libelle contient un code courrier-type
+ *  reconnu (C1..C9, cf. donnees DDE), on cible ce courrier ; sinon l'index (selecteur).
+ *  Le parametre ?dossier=<id> est TOUJOURS passe (l'ecran courrier le consomme). */
+export interface ActionEtape {
+  kind: "courrier";
+  href: string;
+  label: string;
+}
+
+// Code courrier-type isole en token (ex "C5" dans "Envoyer le courrier C5"), borne
+// a C1..C9 (jeu de donnees actuel). \b evite de matcher "C50" ou "ABC5".
+const RE_CODE_COURRIER = /\bC[1-9]\b/i;
+
+export function actionEtape(d: Pick<Dossier, "id" | "type">, etape: EtapeDossier): ActionEtape | undefined {
+  if (d.type !== "sinistre") return undefined;
+  if (!/courrier/i.test(etape.label)) return undefined;
+  const code = etape.label.match(RE_CODE_COURRIER)?.[0]?.toUpperCase();
+  const base = code ? `/sinistre/courriers/${code}` : "/sinistre/courriers";
+  return {
+    kind: "courrier",
+    href: `${base}?dossier=${encodeURIComponent(d.id)}`,
+    label: code ? `Rédiger le courrier ${code}` : "Rédiger le courrier",
+  };
+}
+
 // --- Actions de dossiers remontees au dashboard (C3) : la prochaine etape de chaque
 //     dossier ouvert, groupee par copropriete. ---
 
@@ -179,4 +218,38 @@ export function progressionDossier(d: Dossier): { faites: number; total: number;
   const total = d.etapes.length;
   const faites = d.etapes.filter((e) => e.fait).length;
   return { faites, total, pct: total === 0 ? 0 : Math.round((faites / total) * 100) };
+}
+
+// --- Segment d'une affaire pour l'accueil "Mes affaires en cours" (variante C) ----
+//
+// Orientation ACTION (valide Sekou), 3 colonnes : A traiter / En cours / A clore.
+// Heuristique v1 (a affiner) - on combine le STATUT du domaine et la PROGRESSION des
+// etapes, en restant prudent (on n'invente aucune donnee de "probleme") :
+//   - a_clore   : tout est fait (progression 100%, au moins une etape) ET pas deja clos.
+//                 -> il ne reste qu'a basculer le statut sur "Clos". Le signal le plus sur.
+//   - a_traiter : rien n'a encore demarre = aucune etape faite (0/N, N>=1), OU statut
+//                 "ouvert" (pris en main mais pas commence). Une action t'attend.
+//   - en_cours  : tout le reste (au moins une etape faite, mais pas tout) + les dossiers
+//                 sans etape du tout (rien a derouler -> ni "a traiter" ni "a clore").
+// Un dossier "clos" n'apparait pas dans l'accueil (filtre en amont) ; par surete, s'il
+// arrive ici il tombe en "en_cours" (jamais "a clore", deja traite).
+export type SegmentAffaire = "a_traiter" | "en_cours" | "a_clore";
+
+export const SEGMENT_AFFAIRE_LABEL: Record<SegmentAffaire, string> = {
+  a_traiter: "À traiter",
+  en_cours: "En cours",
+  a_clore: "À clore",
+};
+
+export const SEGMENT_AFFAIRE_ORDRE: SegmentAffaire[] = ["a_traiter", "en_cours", "a_clore"];
+
+export function segmentAffaire(d: Pick<Dossier, "statut" | "etapes">): SegmentAffaire {
+  const total = d.etapes.length;
+  const faites = d.etapes.filter((e) => e.fait).length;
+
+  if (d.statut === "clos") return "en_cours"; // deja traite : jamais propose "a clore"
+  if (total > 0 && faites === total) return "a_clore"; // tout fait, reste a clore
+  if (faites === 0 && total > 0) return "a_traiter"; // pas commence
+  if (d.statut === "ouvert") return "a_traiter"; // pris en main, rien de demarre
+  return "en_cours";
 }
