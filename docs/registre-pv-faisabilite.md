@@ -2,6 +2,13 @@
 
 > Recherche (2026-07-22). **Rien codé.** Les points juridiques sont à faire **valider par un juriste / le patron** avant toute mise en œuvre.
 
+## ⭐ CAP (recadrage Sekou 2026-07-22) — eStale-first, tout signer électroniquement
+
+- **On construit pour eStale, on bricole pour Crypto.** Crypto/scan = transitoire (bascule eStale ~fin 2026). Le registre PV se conçoit **autour d'eStale**, PAS autour du scan Crypto (qui n'est qu'une rustine actuelle). ⇒ l'« Option C » adossée au scan Crypto n'est PAS la cible ; au mieux un dépannage court terme.
+- **Objectif** : **tout signer électroniquement** via **tablette / pad de signature**, en AG.
+- **Doute d'usage eStale à lever (Sekou)** : il semble que dans eStale **seul le bureau** (président/secrétaire/scrutateurs) signe **au stylet** (signature manuscrite sur tablette) ; **les copropriétaires présents** obligeraient à **imprimer la feuille de présence**, la faire signer papier, la scanner, puis faire signer le bureau électroniquement = **flux hybride papier+électronique, pas idéal**. → à **vérifier sur une AG test** (Sekou peut en créer une).
+- **OneSpan Sign** = la brique pressentie pour tout régler (signer TOUS électroniquement, y compris les présents), déjà en prod App A — mais **implémentation brique par brique inconnue**, à cadrer.
+
 ## Verdict eStale (la question « récupérer depuis eStale ? »)
 
 **Partiellement : le modèle existe, les données non.**
