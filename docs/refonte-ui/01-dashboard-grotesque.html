@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REAL31 — Dashboard · maquette refonte UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   REAL31 · Refonte UI — SYSTÈME (base des futurs tokens Tailwind)
+   ---------------------------------------------------------------------
+   Papier chaud + rail sapin sombre. Le vert sapin = MARQUE (chrome,
+   action primaire) — jamais un statut. Les statuts ont leurs tons.
+   ===================================================================== */
+:root{
+  /* -- Surfaces (papier éditorial chaud) ------------------------------ */
+  --paper:#F5F3EC;            /* fond général */
+  --surface:#FFFFFF;          /* cartes */
+  --surface-2:#EFECE3;        /* inserts, hover doux */
+  --hairline:rgba(32,37,31,.10);
+  --hairline-2:rgba(32,37,31,.18);
+
+  /* -- Encre ---------------------------------------------------------- */
+  --ink:#20251F;              /* texte principal */
+  --ink-2:#4C5347;            /* texte secondaire */
+  --ink-3:#5C6355;            /* légendes (AA sur papier) */
+  --ink-4:#8A9184;            /* décoratif / désactivé uniquement */
+
+  /* -- Marque : vert sapin (chrome & actions, JAMAIS un statut) ------- */
+  --sapin:#1C4736;
+  --sapin-bright:#27614A;     /* hover */
+  --sapin-ink:#F4F7F2;        /* texte sur sapin */
+  --rail-bg:#152A20;          /* rail de navigation */
+  --rail-ink:#EAF0E8;
+  --rail-muted:#A9BBAD;
+  --rail-hairline:rgba(234,240,232,.12);
+  --focus:#2F6C52;
+
+  /* -- Statuts (tons propres, indépendants de la marque) -------------- */
+  --st-neutral-bg:#ECE9DF; --st-neutral-tx:#565D50; --st-neutral-dot:#8A9184;
+  --st-ok-bg:#E3F1E7;      --st-ok-tx:#1F6B47;      --st-ok-dot:#3FA372;
+  --st-warn-bg:#F7EFD9;    --st-warn-tx:#7A5200;    --st-warn-dot:#C98F1B;
+  --st-info-bg:#E7EEF5;    --st-info-tx:#33597B;    --st-info-dot:#5A85AB;
+  --st-err-bg:#F8E9E3;     --st-err-tx:#A23B24;     --st-err-dot:#C25A3C;
+
+  /* -- Typographie ---------------------------------------------------- */
+  --f-ui:"Plus Jakarta Sans",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --f-display:"Schibsted Grotesk",system-ui,"Segoe UI",sans-serif;
+  --f-mono:"Spline Sans Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+
+  /* -- Rythme, rayons, ombres, motion --------------------------------- */
+  --r-card:16px; --r-inner:10px;
+  --shadow-card:0 1px 2px rgba(32,37,31,.04),0 14px 34px -20px rgba(32,37,31,.16);
+  --shadow-pop:0 2px 6px rgba(32,37,31,.06),0 24px 48px -24px rgba(32,37,31,.24);
+  --ease:cubic-bezier(.32,.72,0,1);
+  --rail-w:250px;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--f-ui);font-size:13.5px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.rail :focus-visible,.mobilebar :focus-visible{outline-color:#A7D3B8}
+.skip{position:absolute;left:-9999px;top:0;background:var(--surface);padding:10px 16px;border-radius:0 0 10px 0;z-index:100;font-weight:600}
+.skip:focus{left:0}
+
+/* ---------------------------------------------------------------------
+   Révélation à l'arrivée (transform/opacity uniquement)
+--------------------------------------------------------------------- */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.reveal{animation:rise .7s var(--ease) both;animation-delay:var(--d,0s)}
+@media (prefers-reduced-motion:reduce){
+  .reveal{animation:none}
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+
+/* ---------------------------------------------------------------------
+   Coquille : rail fixe + contenu
+--------------------------------------------------------------------- */
+.app{min-height:100dvh}
+main{margin-left:var(--rail-w);padding:40px 44px 72px;max-width:1180px}
+
+/* ---------------------------------------------------------------------
+   RAIL DE NAVIGATION (la navbar réinventée — identique sur les 3 vues)
+--------------------------------------------------------------------- */
+.rail{
+  position:fixed;inset:0 auto 0 0;width:var(--rail-w);z-index:50;
+  background:var(--rail-bg);color:var(--rail-ink);
+  display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;
+  padding:20px 14px 14px;
+}
+.rail-brand{display:flex;align-items:center;gap:11px;padding:2px 8px 16px}
+.brand-mark{
+  font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.01em;
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(160deg,#2A5A44,#173626);color:#EAF3EA;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);flex:none;
+}
+.rail-brand b{display:block;font-size:13.5px;letter-spacing:.02em;font-weight:700}
+.rail-brand span{display:block;font-size:11px;color:var(--rail-muted)}
+.rail-search{
+  display:flex;align-items:center;gap:9px;width:100%;
+  background:rgba(255,255,255,.06);border:1px solid var(--rail-hairline);
+  color:var(--rail-muted);border-radius:999px;padding:8px 10px 8px 13px;
+  font:inherit;font-size:12.5px;cursor:pointer;
+  transition:background .4s var(--ease),border-color .4s var(--ease);
+}
+.rail-search:hover{background:rgba(255,255,255,.1);border-color:rgba(234,240,232,.24)}
+.rail-search kbd{
+  margin-left:auto;font-family:var(--f-mono);font-size:10px;color:var(--rail-muted);
+  border:1px solid var(--rail-hairline);border-radius:6px;padding:2px 6px;background:rgba(0,0,0,.2);
+}
+.rail nav{display:flex;flex-direction:column;gap:18px;margin-top:20px;flex:1}
+.nglabel{
+  margin:0 0 5px;padding:0 10px;font-size:10px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--rail-muted);
+}
+.navi{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;
+  font-size:12.8px;font-weight:500;color:var(--rail-ink);
+  transition:background .35s var(--ease),color .35s var(--ease),transform .35s var(--ease);
+}
+.navi:hover{background:rgba(255,255,255,.07)}
+.navi:active{transform:scale(.985)}
+.navi.is-active{background:#F0EDE3;color:#17301F;font-weight:700;box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+.navi .ncount{
+  margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--rail-muted);
+  border:1px solid var(--rail-hairline);border-radius:999px;padding:1px 7px;
+}
+.navi.is-active .ncount{color:#3E5A48;border-color:rgba(23,48,31,.22)}
+.navi .ncount.hot{background:#E9C46A;color:#3D2E00;border-color:transparent;font-weight:600}
+.navi.is-soon{color:var(--rail-muted);cursor:not-allowed}
+.navi.is-soon i{
+  margin-left:auto;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;border:1px solid var(--rail-hairline);border-radius:999px;padding:2px 7px;
+}
+.ngroup details{border-top:1px solid var(--rail-hairline);padding-top:10px}
+.ngroup summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;padding:2px 10px 7px;
+  font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--rail-muted);
+}
+.ngroup summary::-webkit-details-marker{display:none}
+.ngroup summary::after{
+  content:"";margin-left:auto;width:7px;height:7px;flex:none;
+  border-right:1.5px solid var(--rail-muted);border-bottom:1.5px solid var(--rail-muted);
+  transform:rotate(45deg);transition:transform .4s var(--ease);
+}
+.ngroup details[open] summary::after{transform:rotate(-135deg)}
+.navi .ext{margin-left:auto;opacity:.55}
+.rail-user{
+  margin-top:14px;border-top:1px solid var(--rail-hairline);padding-top:12px;
+  display:flex;align-items:center;gap:10px;padding-left:6px;padding-right:4px;
+}
+.avatar{
+  width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:#E9C46A;color:#3D2E00;font-size:11px;font-weight:700;letter-spacing:.03em;
+}
+.rail-user b{display:block;font-size:12.3px;font-weight:600;line-height:1.25}
+.rail-user span{display:block;font-size:10.5px;color:var(--rail-muted)}
+.bellbtn{
+  margin-left:auto;position:relative;width:30px;height:30px;border-radius:9px;flex:none;
+  display:grid;place-items:center;color:var(--rail-muted);background:transparent;border:0;cursor:pointer;
+  transition:background .35s var(--ease),color .35s var(--ease);
+}
+.bellbtn:hover{background:rgba(255,255,255,.08);color:var(--rail-ink)}
+.bellbtn .pip{position:absolute;top:6px;right:7px;width:6px;height:6px;border-radius:50%;background:#E9C46A;box-shadow:0 0 0 2px var(--rail-bg)}
+
+/* ---------------------------------------------------------------------
+   Barre mobile + panneau plein écran (checkbox : fonctionne sans JS)
+--------------------------------------------------------------------- */
+.nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.mobilebar{display:none}
+.backdrop{display:none}
+@media (max-width:1023px){
+  main{margin-left:0;padding:22px 16px 64px}
+  .mobilebar{
+    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:60;
+    background:rgba(21,42,32,.93);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    color:var(--rail-ink);padding:10px 14px;
+  }
+  .mobilebar .brand-mark{width:32px;height:32px;border-radius:10px;font-size:13px}
+  .mobilebar b{font-size:13.5px;letter-spacing:.02em}
+  .mb-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .mb-icon{
+    width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+    color:var(--rail-ink);background:rgba(255,255,255,.07);border:1px solid var(--rail-hairline);
+  }
+  .burger{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;cursor:pointer;
+    background:rgba(255,255,255,.07);border:1px solid var(--rail-hairline);position:relative;
+  }
+  .burger i{
+    position:absolute;width:16px;height:1.6px;background:var(--rail-ink);border-radius:2px;
+    transition:transform .5s var(--ease),opacity .3s var(--ease);
+  }
+  .burger i:nth-child(1){transform:translateY(-4px)}
+  .burger i:nth-child(2){transform:translateY(4px)}
+  .nav-toggle:checked ~ .app .burger i:nth-child(1){transform:rotate(45deg)}
+  .nav-toggle:checked ~ .app .burger i:nth-child(2){transform:rotate(-45deg)}
+  .rail{
+    top:0;bottom:0;width:min(320px,88vw);transform:translateX(-103%);
+    transition:transform .55s var(--ease);box-shadow:var(--shadow-pop);z-index:70;
+  }
+  .nav-toggle:checked ~ .app .rail{transform:none}
+  /* révélation en cascade des groupes du panneau */
+  .rail nav>*,.rail-user,.rail-search{opacity:0;transform:translateY(10px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .nav-toggle:checked ~ .app .rail nav>*,
+  .nav-toggle:checked ~ .app .rail .rail-user,
+  .nav-toggle:checked ~ .app .rail .rail-search{opacity:1;transform:none}
+  .nav-toggle:checked ~ .app .rail .rail-search{transition-delay:.08s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(1){transition-delay:.12s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(2){transition-delay:.17s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(3){transition-delay:.22s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(4){transition-delay:.27s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(5){transition-delay:.32s}
+  .nav-toggle:checked ~ .app .rail .rail-user{transition-delay:.36s}
+  .backdrop{
+    display:block;position:fixed;inset:0;z-index:65;background:rgba(21,32,25,.45);
+    opacity:0;pointer-events:none;transition:opacity .5s var(--ease);
+  }
+  .nav-toggle:checked ~ .app .backdrop{opacity:1;pointer-events:auto}
+}
+@media (min-width:1024px){.rail nav>*,.rail-user,.rail-search{opacity:1;transform:none}}
+
+/* ---------------------------------------------------------------------
+   Composants partagés
+--------------------------------------------------------------------- */
+.eyebrow{
+  margin:0;font-size:10.5px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-3);
+}
+.page-h h1{
+  margin:6px 0 8px;font-family:var(--f-display);font-weight:500;
+  font-size:clamp(26px,3.4vw,34px);letter-spacing:-.01em;line-height:1.12;
+}
+.page-h .sub{margin:0;color:var(--ink-3);font-size:13px}
+
+.card{
+  background:var(--surface);border:1px solid var(--hairline);
+  border-radius:var(--r-card);box-shadow:var(--shadow-card);overflow:hidden;
+}
+.card-h{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:14px 18px;border-bottom:1px solid var(--hairline);
+}
+.card-t{margin:0;font-size:13.5px;font-weight:700;letter-spacing:-.005em}
+.card-meta{font-size:12px;color:var(--ink-3)}
+.card-h .spacer{flex:1}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font-size:11px;font-weight:600;letter-spacing:.02em;
+  padding:3px 10px;border-radius:999px;
+}
+.chip .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.chip-neutral{background:var(--st-neutral-bg);color:var(--st-neutral-tx)}.chip-neutral .dot{background:var(--st-neutral-dot)}
+.chip-ok{background:var(--st-ok-bg);color:var(--st-ok-tx)}.chip-ok .dot{background:var(--st-ok-dot)}
+.chip-warn{background:var(--st-warn-bg);color:var(--st-warn-tx)}.chip-warn .dot{background:var(--st-warn-dot)}
+.chip-info{background:var(--st-info-bg);color:var(--st-info-tx)}.chip-info .dot{background:var(--st-info-dot)}
+.chip-err{background:var(--st-err-bg);color:var(--st-err-tx)}.chip-err .dot{background:var(--st-err-dot)}
+.chip-outline{background:transparent;color:var(--ink-2);border:1px solid var(--hairline-2)}
+
+.mono{font-family:var(--f-mono);font-size:11.8px;letter-spacing:.01em}
+.code{font-family:var(--f-mono);font-size:11.8px;color:var(--ink-2);letter-spacing:.02em}
+
+/* Boutons — UN SEUL primaire par écran */
+.btn-primary{
+  display:inline-flex;align-items:center;gap:10px;border:0;cursor:pointer;
+  background:var(--sapin);color:var(--sapin-ink);border-radius:999px;
+  padding:8px 8px 8px 18px;font:inherit;font-size:13px;font-weight:600;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 10px 22px -12px rgba(28,71,54,.55);
+  transition:background .45s var(--ease),transform .45s var(--ease);
+}
+.btn-primary:hover{background:var(--sapin-bright)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary .orb{
+  width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:rgba(255,255,255,.16);transition:transform .45s var(--ease);
+}
+.btn-primary:hover .orb{transform:translate(2px,-1px) scale(1.06)}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--hairline-2);
+  border-radius:999px;padding:7px 14px;font:inherit;font-size:12.5px;font-weight:600;
+  transition:border-color .4s var(--ease),color .4s var(--ease),transform .4s var(--ease);
+}
+.btn-ghost:hover{border-color:var(--ink-4);color:var(--ink)}
+.btn-ghost:active{transform:scale(.98)}
+.linklike{
+  display:inline-flex;align-items:center;gap:6px;color:var(--sapin);
+  font-size:12.5px;font-weight:600;
+}
+.linklike:hover{color:var(--sapin-bright)}
+.icon{width:14px;height:14px;flex:none;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* =====================================================================
+   PAGE — DASHBOARD
+   ===================================================================== */
+.page-h{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:26px}
+
+.annonce{
+  display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;
+  border:1px solid var(--hairline);border-radius:var(--r-inner);
+  background:linear-gradient(120deg,#FBFAF5,#F3F0E6);
+  padding:12px 16px;margin-bottom:14px;
+}
+.annonce .eyebrow{color:var(--sapin);letter-spacing:.14em}
+.annonce p{margin:0;font-size:13px;color:var(--ink-2);flex:1;min-width:240px}
+.annonce time{font-family:var(--f-mono);font-size:11px;color:var(--ink-3)}
+
+.alerte{
+  display:flex;align-items:center;gap:11px;margin-bottom:26px;
+  border:1px solid rgba(201,143,27,.4);background:var(--st-warn-bg);
+  border-radius:var(--r-inner);padding:11px 15px;color:var(--st-warn-tx);font-size:13px;
+  transition:border-color .4s var(--ease),transform .4s var(--ease);
+}
+.alerte:hover{border-color:rgba(201,143,27,.7)}
+.alerte .icon{width:16px;height:16px}
+.alerte .go{margin-left:auto;flex:none}
+
+/* Pipeline des AG */
+.pipe-grid{display:grid;grid-template-columns:repeat(5,1fr)}
+.pipe-cell{
+  padding:18px 18px 16px;border-right:1px solid var(--hairline);position:relative;
+  transition:background .4s var(--ease);
+}
+.pipe-cell:last-child{border-right:0}
+.pipe-cell:hover{background:#FBFAF5}
+.pipe-cell .lbl{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.pipe-cell .n{
+  display:block;font-family:var(--f-display);font-weight:500;font-size:38px;
+  line-height:1;margin-top:9px;letter-spacing:-.01em;
+}
+.pipe-cell .n.zero{color:var(--ink-4)}
+.pipe-cell .note{display:block;margin-top:8px;font-size:11.5px;color:var(--ink-3)}
+.pipe-cell .note.err{color:var(--st-err-tx);font-weight:600}
+@media (max-width:860px){
+  .pipe-grid{grid-template-columns:repeat(2,1fr)}
+  .pipe-cell{border-bottom:1px solid var(--hairline)}
+  .pipe-cell:nth-child(2n){border-right:0}
+  .pipe-cell:last-child{grid-column:1/-1;border-bottom:0}
+}
+
+.cols{display:grid;grid-template-columns:1.6fr 1fr;gap:22px;margin-top:22px;align-items:start}
+@media (max-width:1140px){.cols{grid-template-columns:1fr}}
+
+/* À faire maintenant */
+.task{
+  display:flex;align-items:center;gap:12px;padding:12px 18px;
+  border-bottom:1px solid var(--hairline);transition:background .35s var(--ease);
+}
+.task:last-of-type{border-bottom:0}
+.task:hover{background:#FBFAF5}
+.task .chip{flex:none;width:96px;justify-content:center}
+.task .t{flex:1;min-width:0;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task .due{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);flex:none}
+.task .chev{color:var(--ink-4);flex:none}
+.card-foot{
+  display:flex;justify-content:center;padding:11px;border-top:1px solid var(--hairline);
+  background:#FBFAF5;
+}
+@media (max-width:640px){
+  .task{flex-wrap:wrap;row-gap:6px}
+  .task .t{flex-basis:100%;white-space:normal;order:3}
+  .task .due{margin-left:auto}
+}
+
+/* Problèmes */
+.pb-group{padding:12px 18px;border-bottom:1px solid var(--hairline)}
+.pb-group:last-child{border-bottom:0}
+.pb-copro{display:flex;align-items:baseline;gap:8px;margin-bottom:7px}
+.pb-copro b{font-size:12.8px;font-weight:700}
+.pb-item{
+  display:flex;gap:9px;align-items:flex-start;padding:5px 8px;margin:0 -8px;border-radius:8px;
+  font-size:12.8px;color:var(--ink-2);transition:background .35s var(--ease);
+}
+.pb-item:hover{background:var(--surface-2)}
+.pb-item .icon{width:13px;height:13px;margin-top:3px;color:var(--st-err-dot)}
+.pb-item i{font-style:normal;color:var(--ink-3)}
+
+/* Dossiers à suivre */
+.doss{
+  display:grid;grid-template-columns:72px 1.1fr 1.6fr auto;gap:6px 16px;align-items:center;
+  padding:12px 18px;border-bottom:1px solid var(--hairline);transition:background .35s var(--ease);
+}
+.doss:last-of-type{border-bottom:0}
+.doss:hover{background:#FBFAF5}
+.doss b{font-size:13px;font-weight:600}
+.doss .note{font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doss .due{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);text-align:right}
+@media (max-width:820px){
+  .doss{grid-template-columns:72px 1fr auto}
+  .doss .note{grid-column:1/-1;white-space:normal}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true">
+<div class="app">
+
+  <!-- Barre mobile -->
+  <header class="mobilebar">
+    <label class="burger" for="nav-toggle" aria-label="Ouvrir la navigation"><i></i><i></i></label>
+    <span class="brand-mark">R.31</span><b>REAL31</b>
+    <div class="mb-actions">
+      <a class="mb-icon" href="#" aria-label="Rechercher">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      </a>
+      <span class="avatar" style="width:34px;height:34px">CL</span>
+    </div>
+  </header>
+
+  <!-- ============ RAIL DE NAVIGATION (identique sur les 3 vues) ============ -->
+  <aside class="rail" aria-label="Navigation principale">
+    <div class="rail-brand">
+      <span class="brand-mark">R.31</span>
+      <div><b>REAL31</b><span>Intranet syndic</span></div>
+    </div>
+    <button class="rail-search" type="button">
+      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      Rechercher…
+      <kbd>Ctrl K</kbd>
+    </button>
+    <nav>
+      <div class="ngroup">
+        <p class="nglabel">Pilotage</p>
+        <a class="navi is-active" href="01-dashboard.html" aria-current="page">Dashboard</a>
+        <a class="navi" href="03-toutes-les-copros.html">Toutes les copropriétés <span class="ncount">142</span></a>
+        <a class="navi" href="#">Dossiers <span class="ncount">18</span></a>
+        <a class="navi" href="#">Sinistres</a>
+        <span class="navi is-soon" title="Bientôt disponible">Reprise de copropriété <i>à venir</i></span>
+        <a class="navi" href="#">Calendrier AG/CS</a>
+      </div>
+      <div class="ngroup">
+        <p class="nglabel">À traiter</p>
+        <a class="navi" href="#">Actions <span class="ncount hot">7</span></a>
+        <a class="navi" href="#">Mes événements</a>
+      </div>
+      <div class="ngroup">
+        <p class="nglabel">Ressources</p>
+        <span class="navi is-soon" title="Bientôt disponible">Résolutions <i>à venir</i></span>
+        <a class="navi" href="#">Coffre-fort</a>
+      </div>
+      <div class="ngroup">
+        <details>
+          <summary>Nos applications</summary>
+          <a class="navi" href="#">Registre des mandats <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Reality <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Gestion des clés <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+        </details>
+      </div>
+      <div class="ngroup">
+        <details>
+          <summary>Outils externes</summary>
+          <a class="navi" href="#">Estale <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">OneSpan Sign <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Extranet Crypto <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">AG Connect <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+        </details>
+      </div>
+    </nav>
+    <div class="rail-user">
+      <span class="avatar">CL</span>
+      <div><b>Charlotte LECOMTE</b><span>Gestionnaire · Agence ML</span></div>
+      <button class="bellbtn" type="button" aria-label="Actions à traiter (nouvelles)">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2a4 4 0 0 0-4 4v2.5L2.8 11h10.4L12 8.5V6a4 4 0 0 0-4-4ZM6.5 13a1.5 1.5 0 0 0 3 0"/></svg>
+        <span class="pip" aria-hidden="true"></span>
+      </button>
+    </div>
+  </aside>
+  <label class="backdrop" for="nav-toggle" aria-label="Fermer la navigation"></label>
+
+  <!-- ============ CONTENU ============ -->
+  <main id="contenu">
+
+    <header class="page-h reveal">
+      <div>
+        <p class="eyebrow">Vendredi 17 juillet 2026</p>
+        <h1>Bonjour Charlotte.</h1>
+        <p class="sub">Agence ML · 64 copropriétés en portefeuille · 7 tâches à traiter · 3 problèmes signalés</p>
+      </div>
+      <!-- Le SEUL bouton primaire de l'écran : l'action qui fait avancer -->
+      <a class="btn-primary" href="#">
+        Ouvrir mes tâches
+        <span class="orb"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg></span>
+      </a>
+    </header>
+
+    <section class="annonce reveal" style="--d:.05s" aria-label="Annonce de la direction">
+      <p class="eyebrow">Annonce · Direction</p>
+      <p>Fermeture estivale : du 3 au 14 août, l'accueil de l'agence LGC bascule sur ML. Les permanences AG restent assurées.</p>
+      <time datetime="2026-07-14">publiée le 14/07</time>
+    </section>
+
+    <a class="alerte reveal" style="--d:.08s" href="03-toutes-les-copros.html">
+      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 5.5v3.6M8 11.4v.1M7 2.2 1.8 12a1.2 1.2 0 0 0 1 1.8h10.4a1.2 1.2 0 0 0 1-1.8L9 2.2a1.2 1.2 0 0 0-2 0Z"/></svg>
+      <span><strong>3 copropriétés à prendre en main</strong> — vérifie les dates héritées avant qu'elles n'entrent dans ton cockpit.</span>
+      <svg class="icon go" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+    </a>
+
+    <!-- Pipeline des AG -->
+    <section class="card reveal" style="--d:.11s" aria-label="Pipeline des AG">
+      <div class="card-h">
+        <h2 class="card-t">Pipeline des AG</h2>
+        <span class="card-meta">142 copropriétés</span>
+        <span class="spacer"></span>
+        <a class="linklike" href="03-toutes-les-copros.html">Vue pipeline complète
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+        </a>
+      </div>
+      <div class="pipe-grid">
+        <a class="pipe-cell" href="03-toutes-les-copros.html">
+          <span class="lbl">À planifier</span>
+          <span class="n">44</span>
+          <span class="note err">12 en retard</span>
+        </a>
+        <a class="pipe-cell" href="03-toutes-les-copros.html">
+          <span class="lbl">À venir</span>
+          <span class="n">6</span>
+          <span class="note">dans les 90 jours</span>
+        </a>
+        <a class="pipe-cell" href="03-toutes-les-copros.html">
+          <span class="lbl">En préparation</span>
+          <span class="n">13</span>
+          <span class="note">3 convocations cette semaine</span>
+        </a>
+        <a class="pipe-cell" href="03-toutes-les-copros.html">
+          <span class="lbl">Convoquée</span>
+          <span class="n zero">0</span>
+          <span class="note">—</span>
+        </a>
+        <a class="pipe-cell" href="03-toutes-les-copros.html">
+          <span class="lbl">Tenue</span>
+          <span class="n">79</span>
+          <span class="note">5 PV à diffuser</span>
+        </a>
+      </div>
+    </section>
+
+    <div class="cols">
+      <!-- À faire maintenant -->
+      <section class="card reveal" style="--d:.14s" aria-label="À faire maintenant">
+        <div class="card-h">
+          <h2 class="card-t">À faire maintenant</h2>
+          <span class="card-meta">top 3 des urgences</span>
+        </div>
+        <a class="task" href="02-fiche-copro.html">
+          <span class="chip chip-err"><span class="dot"></span>En retard</span>
+          <span class="code">S186</span>
+          <span class="t">Convocation à envoyer — AG MARCEAU57 du 05/08</span>
+          <span class="due">15/07 dépassé</span>
+          <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+        </a>
+        <a class="task" href="02-fiche-copro.html">
+          <span class="chip chip-warn"><span class="dot"></span>J-7</span>
+          <span class="code">S045</span>
+          <span class="t">Valider l'ODJ avec le président du CS — CLOS DES TILLEULS</span>
+          <span class="due">24/07</span>
+          <svg class="icon chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+        </a>
+        <div class="task">
+          <span class="chip chip-neutral"><span class="dot"></span>À confirmer</span>
+          <span class="code">S303</span>
+          <span class="t">CS préparatoire du 15/07 — confirmer la tenue — LE BUSCA</span>
+          <button class="btn-ghost" type="button">Confirmer</button>
+        </div>
+        <div class="card-foot">
+          <a class="linklike" href="#">Voir toutes mes tâches (7)
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+        </div>
+      </section>
+
+      <!-- Problèmes -->
+      <section class="card reveal" style="--d:.17s" aria-label="Problèmes signalés">
+        <div class="card-h">
+          <h2 class="card-t">Problèmes</h2>
+          <span class="card-meta">3 signalés</span>
+        </div>
+        <div class="pb-group">
+          <div class="pb-copro"><span class="code">S122</span><b>37 bis Saint Germain</b></div>
+          <a class="pb-item" href="#">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 5.5v3.6M8 11.4v.1M7 2.2 1.8 12a1.2 1.2 0 0 0 1 1.8h10.4a1.2 1.2 0 0 0 1-1.8L9 2.2a1.2 1.2 0 0 0-2 0Z"/></svg>
+            <span>Feuille de présence incomplète <i>— 2 signatures manquantes</i></span>
+          </a>
+          <a class="pb-item" href="#">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 5.5v3.6M8 11.4v.1M7 2.2 1.8 12a1.2 1.2 0 0 0 1 1.8h10.4a1.2 1.2 0 0 0 1-1.8L9 2.2a1.2 1.2 0 0 0-2 0Z"/></svg>
+            <span>PV non déposé sur AG Connect <i>— AG du 25/06</i></span>
+          </a>
+        </div>
+        <div class="pb-group">
+          <div class="pb-copro"><span class="code">S045</span><b>CLOS DES TILLEULS</b></div>
+          <a class="pb-item" href="#">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 5.5v3.6M8 11.4v.1M7 2.2 1.8 12a1.2 1.2 0 0 0 1 1.8h10.4a1.2 1.2 0 0 0 1-1.8L9 2.2a1.2 1.2 0 0 0-2 0Z"/></svg>
+            <span>Salle indisponible à la date votée <i>— repositionner avec le CS</i></span>
+          </a>
+        </div>
+      </section>
+    </div>
+
+    <!-- Dossiers à suivre -->
+    <section class="card reveal" style="--d:.2s;margin-top:22px" aria-label="Dossiers à suivre">
+      <div class="card-h">
+        <h2 class="card-t">Dossiers à suivre</h2>
+        <span class="card-meta">3 avec échéance proche</span>
+      </div>
+      <a class="doss" href="02-fiche-copro.html">
+        <span class="code">S117</span>
+        <b>Ravalement façade rue</b>
+        <span class="note">Devis reçus 2/3 — relancer SUD BÂTI OCCITANIE</span>
+        <span class="due">avant le 24/07</span>
+      </a>
+      <a class="doss" href="#">
+        <span class="code">S186</span>
+        <b>Impayés lot 14</b>
+        <span class="note">Mise en demeure envoyée le 02/07 — J+15 sans réponse</span>
+        <span class="due">relance 20/07</span>
+      </a>
+      <a class="doss" href="#">
+        <span class="code">S078</span>
+        <b>Fuite toiture bât. B</b>
+        <span class="note">Attente rapport d'expertise (AXA) — réception prévue 28/07</span>
+        <span class="due">28/07</span>
+      </a>
+    </section>
+
+  </main>
+</div>
+<script>
+// Micro-interaction : fermer le panneau mobile quand on clique un lien du rail.
+document.querySelectorAll('.rail a').forEach(function(a){
+  a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+});
+</script>
+</body>
+</html>

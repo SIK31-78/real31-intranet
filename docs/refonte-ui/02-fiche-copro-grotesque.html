@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REAL31 — Fiche copropriété S117 AUFAN47 · maquette refonte UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   REAL31 · Refonte UI — SYSTÈME (base des futurs tokens Tailwind)
+   ---------------------------------------------------------------------
+   Papier chaud + rail sapin sombre. Le vert sapin = MARQUE (chrome,
+   action primaire) — jamais un statut. Les statuts ont leurs tons.
+   ===================================================================== */
+:root{
+  /* -- Surfaces (papier éditorial chaud) ------------------------------ */
+  --paper:#F5F3EC;            /* fond général */
+  --surface:#FFFFFF;          /* cartes */
+  --surface-2:#EFECE3;        /* inserts, hover doux */
+  --hairline:rgba(32,37,31,.10);
+  --hairline-2:rgba(32,37,31,.18);
+
+  /* -- Encre ---------------------------------------------------------- */
+  --ink:#20251F;              /* texte principal */
+  --ink-2:#4C5347;            /* texte secondaire */
+  --ink-3:#5C6355;            /* légendes (AA sur papier) */
+  --ink-4:#8A9184;            /* décoratif / désactivé uniquement */
+
+  /* -- Marque : vert sapin (chrome & actions, JAMAIS un statut) ------- */
+  --sapin:#1C4736;
+  --sapin-bright:#27614A;     /* hover */
+  --sapin-ink:#F4F7F2;        /* texte sur sapin */
+  --rail-bg:#152A20;          /* rail de navigation */
+  --rail-ink:#EAF0E8;
+  --rail-muted:#A9BBAD;
+  --rail-hairline:rgba(234,240,232,.12);
+  --focus:#2F6C52;
+
+  /* -- Statuts (tons propres, indépendants de la marque) -------------- */
+  --st-neutral-bg:#ECE9DF; --st-neutral-tx:#565D50; --st-neutral-dot:#8A9184;
+  --st-ok-bg:#E3F1E7;      --st-ok-tx:#1F6B47;      --st-ok-dot:#3FA372;
+  --st-warn-bg:#F7EFD9;    --st-warn-tx:#7A5200;    --st-warn-dot:#C98F1B;
+  --st-info-bg:#E7EEF5;    --st-info-tx:#33597B;    --st-info-dot:#5A85AB;
+  --st-err-bg:#F8E9E3;     --st-err-tx:#A23B24;     --st-err-dot:#C25A3C;
+
+  /* -- Typographie ---------------------------------------------------- */
+  --f-ui:"Plus Jakarta Sans",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --f-display:"Schibsted Grotesk",system-ui,"Segoe UI",sans-serif;
+  --f-mono:"Spline Sans Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+
+  /* -- Rythme, rayons, ombres, motion --------------------------------- */
+  --r-card:16px; --r-inner:10px;
+  --shadow-card:0 1px 2px rgba(32,37,31,.04),0 14px 34px -20px rgba(32,37,31,.16);
+  --shadow-pop:0 2px 6px rgba(32,37,31,.06),0 24px 48px -24px rgba(32,37,31,.24);
+  --ease:cubic-bezier(.32,.72,0,1);
+  --rail-w:250px;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--f-ui);font-size:13.5px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.rail :focus-visible,.mobilebar :focus-visible{outline-color:#A7D3B8}
+.skip{position:absolute;left:-9999px;top:0;background:var(--surface);padding:10px 16px;border-radius:0 0 10px 0;z-index:100;font-weight:600}
+.skip:focus{left:0}
+
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.reveal{animation:rise .7s var(--ease) both;animation-delay:var(--d,0s)}
+@media (prefers-reduced-motion:reduce){
+  .reveal{animation:none}
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+
+.app{min-height:100dvh}
+main{margin-left:var(--rail-w);padding:32px 44px 72px;max-width:1180px}
+
+/* --------------------------------------------------------------------
+   RAIL DE NAVIGATION (identique sur les 3 vues)
+-------------------------------------------------------------------- */
+.rail{
+  position:fixed;inset:0 auto 0 0;width:var(--rail-w);z-index:50;
+  background:var(--rail-bg);color:var(--rail-ink);
+  display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;
+  padding:20px 14px 14px;
+}
+.rail-brand{display:flex;align-items:center;gap:11px;padding:2px 8px 16px}
+.brand-mark{
+  font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.01em;
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(160deg,#2A5A44,#173626);color:#EAF3EA;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);flex:none;
+}
+.rail-brand b{display:block;font-size:13.5px;letter-spacing:.02em;font-weight:700}
+.rail-brand span{display:block;font-size:11px;color:var(--rail-muted)}
+.rail-search{
+  display:flex;align-items:center;gap:9px;width:100%;
+  background:rgba(255,255,255,.06);border:1px solid var(--rail-hairline);
+  color:var(--rail-muted);border-radius:999px;padding:8px 10px 8px 13px;
+  font:inherit;font-size:12.5px;cursor:pointer;
+  transition:background .4s var(--ease),border-color .4s var(--ease);
+}
+.rail-search:hover{background:rgba(255,255,255,.1);border-color:rgba(234,240,232,.24)}
+.rail-search kbd{
+  margin-left:auto;font-family:var(--f-mono);font-size:10px;color:var(--rail-muted);
+  border:1px solid var(--rail-hairline);border-radius:6px;padding:2px 6px;background:rgba(0,0,0,.2);
+}
+.rail nav{display:flex;flex-direction:column;gap:18px;margin-top:20px;flex:1}
+.nglabel{
+  margin:0 0 5px;padding:0 10px;font-size:10px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--rail-muted);
+}
+.navi{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;
+  font-size:12.8px;font-weight:500;color:var(--rail-ink);
+  transition:background .35s var(--ease),color .35s var(--ease),transform .35s var(--ease);
+}
+.navi:hover{background:rgba(255,255,255,.07)}
+.navi:active{transform:scale(.985)}
+.navi.is-active{background:#F0EDE3;color:#17301F;font-weight:700;box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+.navi .ncount{
+  margin-left:auto;font-family:var(--f-mono);font-size:10.5px;color:var(--rail-muted);
+  border:1px solid var(--rail-hairline);border-radius:999px;padding:1px 7px;
+}
+.navi.is-active .ncount{color:#3E5A48;border-color:rgba(23,48,31,.22)}
+.navi .ncount.hot{background:#E9C46A;color:#3D2E00;border-color:transparent;font-weight:600}
+.navi.is-soon{color:var(--rail-muted);cursor:not-allowed}
+.navi.is-soon i{
+  margin-left:auto;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;border:1px solid var(--rail-hairline);border-radius:999px;padding:2px 7px;
+}
+.ngroup details{border-top:1px solid var(--rail-hairline);padding-top:10px}
+.ngroup summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;padding:2px 10px 7px;
+  font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--rail-muted);
+}
+.ngroup summary::-webkit-details-marker{display:none}
+.ngroup summary::after{
+  content:"";margin-left:auto;width:7px;height:7px;flex:none;
+  border-right:1.5px solid var(--rail-muted);border-bottom:1.5px solid var(--rail-muted);
+  transform:rotate(45deg);transition:transform .4s var(--ease);
+}
+.ngroup details[open] summary::after{transform:rotate(-135deg)}
+.navi .ext{margin-left:auto;opacity:.55}
+.rail-user{
+  margin-top:14px;border-top:1px solid var(--rail-hairline);padding-top:12px;
+  display:flex;align-items:center;gap:10px;padding-left:6px;padding-right:4px;
+}
+.avatar{
+  width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:#E9C46A;color:#3D2E00;font-size:11px;font-weight:700;letter-spacing:.03em;
+}
+.rail-user b{display:block;font-size:12.3px;font-weight:600;line-height:1.25}
+.rail-user span{display:block;font-size:10.5px;color:var(--rail-muted)}
+.bellbtn{
+  margin-left:auto;position:relative;width:30px;height:30px;border-radius:9px;flex:none;
+  display:grid;place-items:center;color:var(--rail-muted);background:transparent;border:0;cursor:pointer;
+  transition:background .35s var(--ease),color .35s var(--ease);
+}
+.bellbtn:hover{background:rgba(255,255,255,.08);color:var(--rail-ink)}
+.bellbtn .pip{position:absolute;top:6px;right:7px;width:6px;height:6px;border-radius:50%;background:#E9C46A;box-shadow:0 0 0 2px var(--rail-bg)}
+
+.nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.mobilebar{display:none}
+.backdrop{display:none}
+@media (max-width:1023px){
+  main{margin-left:0;padding:22px 16px 64px}
+  .mobilebar{
+    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:60;
+    background:rgba(21,42,32,.93);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    color:var(--rail-ink);padding:10px 14px;
+  }
+  .mobilebar .brand-mark{width:32px;height:32px;border-radius:10px;font-size:13px}
+  .mobilebar b{font-size:13.5px;letter-spacing:.02em}
+  .mb-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .mb-icon{
+    width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+    color:var(--rail-ink);background:rgba(255,255,255,.07);border:1px solid var(--rail-hairline);
+  }
+  .burger{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;cursor:pointer;
+    background:rgba(255,255,255,.07);border:1px solid var(--rail-hairline);position:relative;
+  }
+  .burger i{
+    position:absolute;width:16px;height:1.6px;background:var(--rail-ink);border-radius:2px;
+    transition:transform .5s var(--ease),opacity .3s var(--ease);
+  }
+  .burger i:nth-child(1){transform:translateY(-4px)}
+  .burger i:nth-child(2){transform:translateY(4px)}
+  .nav-toggle:checked ~ .app .burger i:nth-child(1){transform:rotate(45deg)}
+  .nav-toggle:checked ~ .app .burger i:nth-child(2){transform:rotate(-45deg)}
+  .rail{
+    top:0;bottom:0;width:min(320px,88vw);transform:translateX(-103%);
+    transition:transform .55s var(--ease);box-shadow:var(--shadow-pop);z-index:70;
+  }
+  .nav-toggle:checked ~ .app .rail{transform:none}
+  .rail nav>*,.rail-user,.rail-search{opacity:0;transform:translateY(10px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .nav-toggle:checked ~ .app .rail nav>*,
+  .nav-toggle:checked ~ .app .rail .rail-user,
+  .nav-toggle:checked ~ .app .rail .rail-search{opacity:1;transform:none}
+  .nav-toggle:checked ~ .app .rail .rail-search{transition-delay:.08s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(1){transition-delay:.12s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(2){transition-delay:.17s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(3){transition-delay:.22s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(4){transition-delay:.27s}
+  .nav-toggle:checked ~ .app .rail nav>*:nth-child(5){transition-delay:.32s}
+  .nav-toggle:checked ~ .app .rail .rail-user{transition-delay:.36s}
+  .backdrop{
+    display:block;position:fixed;inset:0;z-index:65;background:rgba(21,32,25,.45);
+    opacity:0;pointer-events:none;transition:opacity .5s var(--ease);
+  }
+  .nav-toggle:checked ~ .app .backdrop{opacity:1;pointer-events:auto}
+}
+@media (min-width:1024px){.rail nav>*,.rail-user,.rail-search{opacity:1;transform:none}}
+
+/* --------------------------------------------------------------------
+   Composants partagés
+-------------------------------------------------------------------- */
+.eyebrow{
+  margin:0;font-size:10.5px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-3);
+}
+.card{
+  background:var(--surface);border:1px solid var(--hairline);
+  border-radius:var(--r-card);box-shadow:var(--shadow-card);overflow:hidden;
+}
+.card-h{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:14px 18px;border-bottom:1px solid var(--hairline);
+}
+.card-t{margin:0;font-size:13.5px;font-weight:700;letter-spacing:-.005em}
+.card-meta{font-size:12px;color:var(--ink-3)}
+.card-h .spacer{flex:1}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font-size:11px;font-weight:600;letter-spacing:.02em;
+  padding:3px 10px;border-radius:999px;
+}
+.chip .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.chip-neutral{background:var(--st-neutral-bg);color:var(--st-neutral-tx)}.chip-neutral .dot{background:var(--st-neutral-dot)}
+.chip-ok{background:var(--st-ok-bg);color:var(--st-ok-tx)}.chip-ok .dot{background:var(--st-ok-dot)}
+.chip-warn{background:var(--st-warn-bg);color:var(--st-warn-tx)}.chip-warn .dot{background:var(--st-warn-dot)}
+.chip-info{background:var(--st-info-bg);color:var(--st-info-tx)}.chip-info .dot{background:var(--st-info-dot)}
+.chip-err{background:var(--st-err-bg);color:var(--st-err-tx)}.chip-err .dot{background:var(--st-err-dot)}
+.chip-outline{background:transparent;color:var(--ink-2);border:1px solid var(--hairline-2)}
+
+.mono{font-family:var(--f-mono);font-size:11.8px;letter-spacing:.01em}
+.code{font-family:var(--f-mono);font-size:11.8px;color:var(--ink-2);letter-spacing:.02em}
+
+.btn-primary{
+  display:inline-flex;align-items:center;gap:10px;border:0;cursor:pointer;
+  background:var(--sapin);color:var(--sapin-ink);border-radius:999px;
+  padding:8px 8px 8px 18px;font:inherit;font-size:13px;font-weight:600;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 10px 22px -12px rgba(28,71,54,.55);
+  transition:background .45s var(--ease),transform .45s var(--ease);
+}
+.btn-primary:hover{background:var(--sapin-bright)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary .orb{
+  width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:rgba(255,255,255,.16);transition:transform .45s var(--ease);
+}
+.btn-primary:hover .orb{transform:translate(2px,-1px) scale(1.06)}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--hairline-2);
+  border-radius:999px;padding:7px 14px;font:inherit;font-size:12.5px;font-weight:600;
+  transition:border-color .4s var(--ease),color .4s var(--ease),transform .4s var(--ease);
+}
+.btn-ghost:hover{border-color:var(--ink-4);color:var(--ink)}
+.btn-ghost:active{transform:scale(.98)}
+.linklike{
+  display:inline-flex;align-items:center;gap:6px;color:var(--sapin);
+  font-size:12.5px;font-weight:600;
+}
+.linklike:hover{color:var(--sapin-bright)}
+.icon{width:14px;height:14px;flex:none;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* =====================================================================
+   PAGE — FICHE COPROPRIÉTÉ
+   ===================================================================== */
+.crumb{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3);margin-bottom:18px}
+.crumb a:hover{color:var(--ink)}
+.crumb .sep{color:var(--ink-4)}
+
+.copro-head{
+  display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:22px;
+}
+.copro-mark{
+  width:58px;height:58px;border-radius:16px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(160deg,#FFFFFF,#EDEAE0);border:1px solid var(--hairline);
+  box-shadow:var(--shadow-card);
+  font-family:var(--f-mono);font-size:13px;font-weight:500;color:var(--ink-2);
+}
+.copro-head .idblock{flex:1;min-width:240px}
+.copro-head .chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.copro-head h1{
+  margin:0;font-family:var(--f-display);font-weight:500;
+  font-size:clamp(24px,3vw,31px);letter-spacing:-.01em;line-height:1.1;
+}
+.copro-head .addr{margin:7px 0 0;font-size:12.8px;color:var(--ink-3)}
+.copro-head .actions{display:flex;align-items:center;gap:10px;flex:none;padding-top:6px}
+
+/* Onglets */
+.tabs{
+  display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--hairline-2);
+  margin-bottom:22px;overflow-x:auto;scrollbar-width:none;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  position:relative;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  padding:9px 14px;font:inherit;font-size:13px;font-weight:500;color:var(--ink-3);
+  background:none;border:0;cursor:pointer;border-radius:8px 8px 0 0;
+  transition:color .35s var(--ease),background .35s var(--ease);
+}
+.tab:hover{color:var(--ink);background:rgba(32,37,31,.04)}
+.tab::after{
+  content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;
+  background:var(--sapin);transform:scaleX(0);transform-origin:center;
+  transition:transform .45s var(--ease);
+}
+.tab[aria-selected="true"]{color:var(--ink);font-weight:700}
+.tab[aria-selected="true"]::after{transform:scaleX(1)}
+.tab .tcount{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-4)}
+.tab.is-ext .icon,.tab.is-locked .icon{width:12px;height:12px}
+.tab.is-locked{color:var(--ink-4);cursor:not-allowed}
+
+/* Panneaux : sans JS tout est empilé et lisible ; JS active le mode onglets */
+.js .tabpanel{display:none}
+.js .tabpanel.is-open{display:block;animation:rise .5s var(--ease) both}
+.tabpanel>h2.blocklabel{margin:34px 0 12px}
+.js .tabpanel>h2.blocklabel{display:none}
+.blocklabel{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+
+/* Grille fiche */
+.fiche-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start}
+@media (max-width:1120px){.fiche-grid{grid-template-columns:1fr}}
+.colmain{display:flex;flex-direction:column;gap:22px;min-width:0}
+.colside{display:flex;flex-direction:column;gap:14px}
+
+/* Frise « Où en est cette AG » */
+.frise-wrap{padding:16px 18px 18px}
+.frise{display:flex;align-items:center;margin:0;padding:0;list-style:none}
+.frise li{display:flex;align-items:center;gap:7px;flex:none}
+.frise .lien{flex:1;height:1px;margin:0 10px;min-width:14px;background:var(--hairline-2)}
+.frise .lien.done{background:rgba(28,71,54,.45)}
+.step{
+  width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:10.5px;font-weight:700;
+}
+.step.done{background:var(--sapin);color:var(--sapin-ink)}
+.step.now{background:var(--surface);border:2px solid var(--sapin);color:var(--sapin)}
+.step.later{background:var(--surface-2);border:1px solid var(--hairline-2);color:var(--ink-4)}
+.frise .slbl{font-size:11.5px;color:var(--ink-2)}
+.frise .slbl.now{color:var(--sapin);font-weight:700}
+.frise .slbl.later{color:var(--ink-4)}
+.frise-next{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin-top:16px;padding-top:14px;border-top:1px dashed var(--hairline-2);
+}
+.frise-next p{margin:0;font-size:12.5px;color:var(--ink-3)}
+.frise-next p b{color:var(--ink);font-weight:600}
+@media (max-width:720px){
+  .frise{flex-direction:column;align-items:stretch;gap:0}
+  .frise li{gap:10px;padding:4px 0}
+  .frise .lien{flex:none;width:1px;height:14px;margin:0 0 0 10.5px;min-width:0}
+}
+
+/* Bloc AG : deux volets */
+.ag-duo{display:grid;grid-template-columns:1fr 1fr}
+.ag-duo>div{padding:16px 18px}
+.ag-duo>div:first-child{border-right:1px solid var(--hairline)}
+@media (max-width:720px){
+  .ag-duo{grid-template-columns:1fr}
+  .ag-duo>div:first-child{border-right:0;border-bottom:1px solid var(--hairline)}
+}
+.ag-lbl{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px}
+.ag-date{
+  font-family:var(--f-display);font-size:21px;font-weight:500;letter-spacing:-.01em;line-height:1.15;
+}
+.ag-date .edit{
+  display:inline-grid;place-items:center;width:24px;height:24px;border-radius:8px;margin-left:6px;
+  color:var(--ink-4);vertical-align:2px;border:0;background:none;cursor:pointer;
+  transition:background .35s var(--ease),color .35s var(--ease);
+}
+.ag-date .edit:hover{background:var(--surface-2);color:var(--ink)}
+.ag-sub{margin:7px 0 0;font-size:12.3px;color:var(--ink-3)}
+.ag-flags{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* Conseil syndical / dates CS */
+.cs-strip{border-top:1px solid var(--hairline);padding:14px 18px}
+.cs-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 22px;margin-top:10px}
+@media (max-width:720px){.cs-grid{grid-template-columns:1fr}}
+.cs-cell .k{font-size:11.5px;color:var(--ink-3);margin:0 0 3px}
+.cs-cell .v{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cs-actions{display:flex;justify-content:flex-end;margin-top:14px}
+
+/* Liste de diffusion (chips) */
+.diff-strip{border-top:1px solid var(--hairline);padding:14px 18px;background:#FBFAF5}
+.diff-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.diff-head .k{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.mailchips{display:flex;flex-wrap:wrap;gap:7px}
+.mailchip{
+  display:inline-flex;align-items:center;gap:7px;font-family:var(--f-mono);font-size:11.3px;
+  color:var(--ink-2);background:var(--surface);border:1px solid var(--hairline-2);
+  border-radius:999px;padding:4px 11px;transition:border-color .35s var(--ease);
+}
+.mailchip:hover{border-color:var(--ink-4)}
+.mailchip .x{color:var(--ink-4);font-size:12px;line-height:1;border:0;background:none;cursor:pointer;padding:0}
+.mailchip .x:hover{color:var(--st-err-tx)}
+.mailchip.add{color:var(--sapin);border-style:dashed;cursor:pointer;font-family:var(--f-ui);font-weight:600}
+
+/* Notes compta */
+.note-row{
+  display:flex;gap:11px;align-items:flex-start;padding:11px 18px;border-bottom:1px solid var(--hairline);
+}
+.note-row:last-child{border-bottom:0}
+.note-row .who{
+  width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--surface-2);font-size:10px;font-weight:700;color:var(--ink-2);
+}
+.note-row p{margin:0;font-size:12.8px;color:var(--ink-2)}
+.note-row .meta{font-size:11px;color:var(--ink-3);margin-top:2px}
+.note-row .btn-ghost{margin-left:auto;flex:none}
+
+/* Historique */
+.hist-row{
+  display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--hairline);
+  font-size:13px;transition:background .3s var(--ease);
+}
+.hist-row:hover{background:#FBFAF5}
+.hist-row:last-child{border-bottom:0}
+.hist-row b{font-weight:600;flex:none}
+.hist-row .d{color:var(--ink-3);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:640px){
+  .hist-row{flex-wrap:wrap;row-gap:2px}
+  .hist-row .d{flex-basis:100%;white-space:normal}
+}
+
+/* Boîtes latérales */
+.sidebox{
+  background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-inner);
+  padding:14px 16px;box-shadow:0 1px 2px rgba(32,37,31,.03);
+}
+.sidebox h3{
+  margin:0 0 10px;font-size:10.5px;font-weight:700;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--ink-3);
+}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:3.5px 0;font-size:12.6px}
+.kv .k{color:var(--ink-3)}
+.kv .v{font-weight:600;text-align:right}
+.member{display:flex;align-items:center;gap:9px;padding:4px 0}
+.member .mv{width:27px;height:27px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--surface-2);font-size:10px;font-weight:700;color:var(--ink-2)}
+.member b{display:block;font-size:12.6px;font-weight:600;line-height:1.3}
+.member span{display:block;font-size:11px;color:var(--ink-3)}
+.conf-item{display:flex;align-items:center;gap:8px;padding:3.5px 0;font-size:12.6px}
+.conf-item .icon{width:13.5px;height:13.5px}
+.conf-item.ok .icon{color:var(--st-ok-dot)}
+.conf-item.warn{color:var(--st-warn-tx)}.conf-item.warn .icon{color:var(--st-warn-dot)}
+
+/* Événements / dossiers (onglets secondaires) */
+.evt-row{
+  display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--hairline);
+  transition:background .3s var(--ease);
+}
+.evt-row:hover{background:#FBFAF5}
+.evt-row:last-child{border-bottom:0}
+.evt-row .when{font-family:var(--f-mono);font-size:11.8px;color:var(--ink-2);width:118px;flex:none}
+.evt-row .what{flex:1;min-width:0;font-size:13px;font-weight:500}
+@media (max-width:640px){
+  .evt-row{flex-wrap:wrap;row-gap:4px}
+  .evt-row .what{flex-basis:100%;order:3}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true">
+<div class="app">
+
+  <header class="mobilebar">
+    <label class="burger" for="nav-toggle" aria-label="Ouvrir la navigation"><i></i><i></i></label>
+    <span class="brand-mark">R.31</span><b>REAL31</b>
+    <div class="mb-actions">
+      <a class="mb-icon" href="#" aria-label="Rechercher">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      </a>
+      <span class="avatar" style="width:34px;height:34px">CL</span>
+    </div>
+  </header>
+
+  <!-- ============ RAIL DE NAVIGATION (identique sur les 3 vues) ============ -->
+  <aside class="rail" aria-label="Navigation principale">
+    <div class="rail-brand">
+      <span class="brand-mark">R.31</span>
+      <div><b>REAL31</b><span>Intranet syndic</span></div>
+    </div>
+    <button class="rail-search" type="button">
+      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      Rechercher…
+      <kbd>Ctrl K</kbd>
+    </button>
+    <nav>
+      <div class="ngroup">
+        <p class="nglabel">Pilotage</p>
+        <a class="navi" href="01-dashboard.html">Dashboard</a>
+        <a class="navi is-active" href="03-toutes-les-copros.html" aria-current="page">Toutes les copropriétés <span class="ncount">142</span></a>
+        <a class="navi" href="#">Dossiers <span class="ncount">18</span></a>
+        <a class="navi" href="#">Sinistres</a>
+        <span class="navi is-soon" title="Bientôt disponible">Reprise de copropriété <i>à venir</i></span>
+        <a class="navi" href="#">Calendrier AG/CS</a>
+      </div>
+      <div class="ngroup">
+        <p class="nglabel">À traiter</p>
+        <a class="navi" href="#">Actions <span class="ncount hot">7</span></a>
+        <a class="navi" href="#">Mes événements</a>
+      </div>
+      <div class="ngroup">
+        <p class="nglabel">Ressources</p>
+        <span class="navi is-soon" title="Bientôt disponible">Résolutions <i>à venir</i></span>
+        <a class="navi" href="#">Coffre-fort</a>
+      </div>
+      <div class="ngroup">
+        <details>
+          <summary>Nos applications</summary>
+          <a class="navi" href="#">Registre des mandats <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Reality <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Gestion des clés <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+        </details>
+      </div>
+      <div class="ngroup">
+        <details>
+          <summary>Outils externes</summary>
+          <a class="navi" href="#">Estale <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">OneSpan Sign <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">Extranet Crypto <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+          <a class="navi" href="#">AG Connect <svg class="icon ext" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg></a>
+        </details>
+      </div>
+    </nav>
+    <div class="rail-user">
+      <span class="avatar">CL</span>
+      <div><b>Charlotte LECOMTE</b><span>Gestionnaire · Agence ML</span></div>
+      <button class="bellbtn" type="button" aria-label="Actions à traiter (nouvelles)">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2a4 4 0 0 0-4 4v2.5L2.8 11h10.4L12 8.5V6a4 4 0 0 0-4-4ZM6.5 13a1.5 1.5 0 0 0 3 0"/></svg>
+        <span class="pip" aria-hidden="true"></span>
+      </button>
+    </div>
+  </aside>
+  <label class="backdrop" for="nav-toggle" aria-label="Fermer la navigation"></label>
+
+  <!-- ============ CONTENU ============ -->
+  <main id="contenu">
+
+    <nav class="crumb reveal" aria-label="Fil d'Ariane">
+      <a href="03-toutes-les-copros.html">Toutes les copropriétés</a>
+      <span class="sep">/</span>
+      <span class="code">S117</span>
+    </nav>
+
+    <header class="copro-head reveal" style="--d:.04s">
+      <span class="copro-mark" aria-hidden="true">S117</span>
+      <div class="idblock">
+        <div class="chips">
+          <span class="chip chip-info"><span class="dot"></span>Source : Estale</span>
+          <span class="chip chip-warn"><span class="dot"></span>En préparation</span>
+        </div>
+        <h1>AUFAN47</h1>
+        <p class="addr">47 rue d'Aufréry · 31500 Toulouse — 68 lots principaux</p>
+      </div>
+      <div class="actions">
+        <a class="btn-ghost" href="#">
+          Ouvrir dans Estale
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg>
+        </a>
+      </div>
+    </header>
+
+    <!-- Onglets (progressifs : tout reste lisible sans JS) -->
+    <div class="tabs reveal" style="--d:.07s" role="tablist" aria-label="Sections de la fiche">
+      <button class="tab" role="tab" id="tab-ensemble" aria-controls="panel-ensemble" aria-selected="true" type="button">Vue d'ensemble</button>
+      <button class="tab" role="tab" id="tab-evenements" aria-controls="panel-evenements" aria-selected="false" type="button">Événements <span class="tcount">4</span></button>
+      <button class="tab" role="tab" id="tab-dossiers" aria-controls="panel-dossiers" aria-selected="false" type="button">Dossiers <span class="tcount">6</span></button>
+      <a class="tab is-ext" href="#" role="tab" title="Ouvrir l'application Sinistres (nouvel onglet)">Sinistres
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg>
+      </a>
+      <a class="tab is-ext" href="#" role="tab" title="Ouvrir l'application Contrats (nouvel onglet)">Contrats
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10M9.5 2H14v4.5M14 2 7.5 8.5"/></svg>
+      </a>
+      <button class="tab is-locked" role="tab" disabled aria-disabled="true" aria-selected="false" title="Disponible dans un prochain module" type="button">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>
+        Comptabilité
+      </button>
+    </div>
+
+    <!-- ===================== VUE D'ENSEMBLE ===================== -->
+    <div class="tabpanel is-open" id="panel-ensemble" role="tabpanel" aria-labelledby="tab-ensemble" tabindex="0">
+      <h2 class="blocklabel">Vue d'ensemble</h2>
+      <div class="fiche-grid">
+        <div class="colmain">
+
+          <!-- Où en est cette AG -->
+          <section class="card reveal" style="--d:.1s" aria-label="Où en est cette AG">
+            <div class="card-h">
+              <h2 class="card-t">Où en est cette AG</h2>
+              <span class="spacer"></span>
+              <span class="chip chip-outline mono">J-47</span>
+            </div>
+            <div class="frise-wrap">
+              <ol class="frise">
+                <li><span class="step done" aria-label="étape faite"><svg class="icon" style="width:11px;height:11px" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></span><span class="slbl">Dates</span></li>
+                <span class="lien done" aria-hidden="true"></span>
+                <li><span class="step done" aria-label="étape faite"><svg class="icon" style="width:11px;height:11px" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></span><span class="slbl">ODJ</span></li>
+                <span class="lien done" aria-hidden="true"></span>
+                <li><span class="step now" aria-label="étape en cours">3</span><span class="slbl now">Convocation</span></li>
+                <span class="lien" aria-hidden="true"></span>
+                <li><span class="step later" aria-label="étape à venir">4</span><span class="slbl later">Tenue</span></li>
+                <span class="lien" aria-hidden="true"></span>
+                <li><span class="step later" aria-label="étape à venir">5</span><span class="slbl later">PV</span></li>
+              </ol>
+              <div class="frise-next">
+                <p>Prochaine action : <b>envoyer la convocation avant le 02/09</b> (AG du 24/09, délai légal 21 jours).</p>
+                <!-- Le SEUL bouton primaire de l'écran -->
+                <a class="btn-primary" href="#">
+                  Envoyer la convocation
+                  <span class="orb"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg></span>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- Assemblées générales -->
+          <section class="card reveal" style="--d:.13s" aria-label="Assemblées générales">
+            <div class="card-h">
+              <h2 class="card-t">Assemblées générales</h2>
+              <span class="spacer"></span>
+              <a class="btn-ghost" href="#">ODJ</a>
+              <a class="btn-ghost" href="#">Supervision AG
+                <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+              </a>
+            </div>
+            <div class="ag-duo">
+              <div>
+                <p class="ag-lbl">Dernière AG tenue</p>
+                <p class="ag-date" style="margin:0">jeudi 25 sept. 2025
+                  <button class="edit" type="button" aria-label="Modifier la date">
+                    <svg class="icon" style="width:12px;height:12px" viewBox="0 0 16 16" aria-hidden="true"><path d="m10.5 3 2.5 2.5L6 12.5l-3 .5.5-3L10.5 3Z"/></svg>
+                  </button>
+                </p>
+                <p class="ag-sub">AG ordinaire · 41 présents/représentés sur 68</p>
+                <div class="ag-flags"><span class="chip chip-outline">PV disponible</span></div>
+              </div>
+              <div>
+                <p class="ag-lbl">Prochaine AG</p>
+                <p class="ag-date" style="margin:0">jeudi 24 sept. 2026 · 18h00
+                  <button class="edit" type="button" aria-label="Modifier la date">
+                    <svg class="icon" style="width:12px;height:12px" viewBox="0 0 16 16" aria-hidden="true"><path d="m10.5 3 2.5 2.5L6 12.5l-3 .5.5-3L10.5 3Z"/></svg>
+                  </button>
+                </p>
+                <p class="ag-sub">En préparation · Agence ML — salle Garonne</p>
+                <div class="ag-flags">
+                  <span class="chip chip-ok"><span class="dot"></span>Confirmée par le CS</span>
+                  <a class="linklike" href="#">Ouvrir la supervision AG
+                    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div class="cs-strip">
+              <p class="ag-lbl" style="margin-bottom:2px">Conseil syndical — réunions</p>
+              <div class="cs-grid">
+                <div class="cs-cell">
+                  <p class="k">Dernier CS</p>
+                  <p class="v" style="margin:0">vendredi 12 juin 2026</p>
+                </div>
+                <div class="cs-cell">
+                  <p class="k">Prochain CS</p>
+                  <p class="v" style="margin:0">jeudi 27 août 2026 · 18h30
+                    <span class="chip chip-warn"><span class="dot"></span>En attente du CS</span>
+                  </p>
+                </div>
+              </div>
+              <div class="cs-actions">
+                <button class="btn-ghost" type="button">
+                  <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Zm.5.5L8 9l5.5-4"/></svg>
+                  Proposer les dates au CS par mail
+                </button>
+              </div>
+            </div>
+
+            <div class="diff-strip">
+              <div class="diff-head">
+                <span class="k">Liste de diffusion CS</span>
+                <span class="chip chip-info"><span class="dot"></span>Adresses fournies par Estale</span>
+              </div>
+              <div class="mailchips">
+                <span class="mailchip">m.pons@orange.fr <button class="x" type="button" aria-label="Retirer cette adresse">×</button></span>
+                <span class="mailchip">anne.castaing@gmail.com <button class="x" type="button" aria-label="Retirer cette adresse">×</button></span>
+                <span class="mailchip">j.fabre31@free.fr <button class="x" type="button" aria-label="Retirer cette adresse">×</button></span>
+                <span class="mailchip">n.belkacem@outlook.fr <button class="x" type="button" aria-label="Retirer cette adresse">×</button></span>
+                <button class="mailchip add" type="button">+ Ajouter une adresse</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Préparation comptable -->
+          <section class="card reveal" style="--d:.16s" aria-label="Préparation comptable">
+            <div class="card-h">
+              <h2 class="card-t">Préparation comptable</h2>
+              <span class="card-meta">AG du 24/09/2026</span>
+              <span class="spacer"></span>
+              <span class="chip chip-outline">Comptes à vérifier</span>
+            </div>
+            <div class="note-row">
+              <span class="who" aria-hidden="true">SV</span>
+              <div style="flex:1;min-width:0">
+                <p><b>Sandrine VALERO</b> — Régularisation eau froide 2025 à passer avant l'arrêté des comptes.</p>
+                <p class="meta">note ouverte · 09/07/2026</p>
+              </div>
+              <button class="btn-ghost" type="button">Répondre</button>
+            </div>
+            <div class="note-row">
+              <span class="who" aria-hidden="true">SV</span>
+              <div style="flex:1;min-width:0">
+                <p><b>Sandrine VALERO</b> — Facture OTIS en double sur le 615 — à pointer avec le relevé.</p>
+                <p class="meta">note ouverte · 11/07/2026</p>
+              </div>
+              <button class="btn-ghost" type="button">Répondre</button>
+            </div>
+          </section>
+
+          <!-- Historique des AG -->
+          <section class="card reveal" style="--d:.19s" aria-label="Historique des AG">
+            <div class="card-h">
+              <h2 class="card-t">Historique des AG</h2>
+            </div>
+            <div class="hist-row"><b>25 septembre 2025</b><span class="d">AG ordinaire · 41/68 présents ou représentés</span><span class="chip chip-outline">PV</span></div>
+            <div class="hist-row"><b>26 septembre 2024</b><span class="d">AG ordinaire · 39/68</span><span class="chip chip-outline">PV</span></div>
+            <div class="hist-row"><b>14 mars 2024</b><span class="d">AGE · Ravalement façade rue · 52/68</span><span class="chip chip-outline">PV</span></div>
+            <div class="hist-row"><b>21 septembre 2023</b><span class="d">AG ordinaire · 37/68</span><span class="chip chip-outline">PV</span></div>
+          </section>
+        </div>
+
+        <!-- Colonne latérale -->
+        <aside class="colside">
+          <div class="sidebox reveal" style="--d:.12s">
+            <h3>Identité</h3>
+            <div class="kv"><span class="k">Code</span><span class="v code">S117</span></div>
+            <div class="kv"><span class="k">Statut</span><span class="v">Active</span></div>
+            <div class="kv"><span class="k">Lots principaux</span><span class="v">68</span></div>
+            <div class="kv"><span class="k">Autres lots</span><span class="v">24</span></div>
+            <div class="kv"><span class="k">Exercice</span><span class="v mono">01/01 → 31/12</span></div>
+            <div class="kv"><span class="k">Prise en gestion</span><span class="v mono">01/03/2019</span></div>
+          </div>
+
+          <div class="sidebox reveal" style="--d:.15s">
+            <h3>Équipe</h3>
+            <div class="member"><span class="mv">CL</span><div><b>Charlotte LECOMTE</b><span>Gestionnaire</span></div></div>
+            <div class="member"><span class="mv">MD</span><div><b>Marie DUPRAT</b><span>Assistante</span></div></div>
+            <div class="member"><span class="mv">SV</span><div><b>Sandrine VALERO</b><span>Comptable</span></div></div>
+          </div>
+
+          <div class="sidebox reveal" style="--d:.18s">
+            <h3>Conseil syndical</h3>
+            <div class="member"><span class="mv">MP</span><div><b>Michel PONS</b><span>Président</span></div></div>
+            <div class="member"><span class="mv">AC</span><div><b>Anne CASTAING</b><span>Membre</span></div></div>
+            <div class="member"><span class="mv">JF</span><div><b>Julien FABRE</b><span>Membre</span></div></div>
+            <div class="member"><span class="mv">NB</span><div><b>Nadia BELKACEM</b><span>Membre</span></div></div>
+            <p style="margin:8px 0 0;font-size:11px;color:var(--ink-3)">Mandats jusqu'à l'AG 2026</p>
+          </div>
+
+          <div class="sidebox reveal" style="--d:.21s">
+            <h3>Conformité</h3>
+            <div class="conf-item ok"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="m5.5 8.2 1.8 1.8 3.4-4"/></svg>Fiche synthétique à jour</div>
+            <div class="conf-item ok"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="m5.5 8.2 1.8 1.8 3.4-4"/></svg>Immatriculation registre</div>
+            <div class="conf-item warn"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.8v3.6M8 10.8v.1"/></svg>AG annuelle : à convoquer</div>
+            <div class="conf-item ok"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="m5.5 8.2 1.8 1.8 3.4-4"/></svg>DTG : non requis</div>
+            <div class="conf-item warn"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.8v3.6M8 10.8v.1"/></svg>Contrat syndic : échéance 24/09/2026</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ===================== ÉVÉNEMENTS ===================== -->
+    <div class="tabpanel" id="panel-evenements" role="tabpanel" aria-labelledby="tab-evenements" tabindex="0">
+      <h2 class="blocklabel">Événements</h2>
+      <section class="card" aria-label="Événements à venir">
+        <div class="card-h"><h2 class="card-t">Événements à venir</h2><span class="card-meta">4 planifiés</span></div>
+        <div class="evt-row"><span class="when">27/08 · 18h30</span><span class="what">Conseil syndical préparatoire — salle Garonne (ML)</span><span class="chip chip-warn"><span class="dot"></span>En attente du CS</span></div>
+        <div class="evt-row"><span class="when">02/09</span><span class="what">Date limite d'envoi de la convocation (J-21)</span><span class="chip chip-outline mono">jalon</span></div>
+        <div class="evt-row"><span class="when">24/09 · 18h00</span><span class="what">Assemblée générale ordinaire — salle Garonne (ML)</span><span class="chip chip-ok"><span class="dot"></span>Confirmée</span></div>
+        <div class="evt-row"><span class="when">01/10</span><span class="what">Diffusion du PV (objectif interne J+7)</span><span class="chip chip-outline mono">jalon</span></div>
+      </section>
+    </div>
+
+    <!-- ===================== DOSSIERS ===================== -->
+    <div class="tabpanel" id="panel-dossiers" role="tabpanel" aria-labelledby="tab-dossiers" tabindex="0">
+      <h2 class="blocklabel">Dossiers</h2>
+      <section class="card" aria-label="Dossiers de la copropriété">
+        <div class="card-h"><h2 class="card-t">Dossiers en cours</h2><span class="card-meta">6 dossiers · 2 avec échéance proche</span></div>
+        <div class="evt-row"><span class="when">avant 24/07</span><span class="what">Ravalement façade rue — devis reçus 2/3, relancer SUD BÂTI OCCITANIE</span><span class="chip chip-warn"><span class="dot"></span>Échéance proche</span></div>
+        <div class="evt-row"><span class="when">28/07</span><span class="what">Fuite parking N-1 — passage de l'entreprise d'étanchéité</span><span class="chip chip-neutral"><span class="dot"></span>Suivi</span></div>
+        <div class="evt-row"><span class="when">sept. 2026</span><span class="what">Mise en concurrence contrat ascenseur (OTIS) — résolution à l'ODJ</span><span class="chip chip-neutral"><span class="dot"></span>Suivi</span></div>
+        <div class="evt-row"><span class="when">—</span><span class="what">Impayés lot 22 — échéancier respecté, contrôle mensuel</span><span class="chip chip-neutral"><span class="dot"></span>Suivi</span></div>
+        <div class="evt-row"><span class="when">—</span><span class="what">Végétalisation cour intérieure — étude de faisabilité CS</span><span class="chip chip-neutral"><span class="dot"></span>Suivi</span></div>
+        <div class="evt-row"><span class="when">clos 06/26</span><span class="what">Dégât des eaux lot 8 — indemnisation versée</span><span class="chip chip-ok"><span class="dot"></span>Clos</span></div>
+      </section>
+    </div>
+
+  </main>
+</div>
+<script>
+// Onglets progressifs : sans JS, tout est empilé et lisible.
+(function(){
+  document.documentElement.classList.add('js');
+  var tabs=[].slice.call(document.querySelectorAll('.tab[aria-controls]'));
+  tabs.forEach(function(tab){
+    tab.addEventListener('click',function(){
+      tabs.forEach(function(t){
+        t.setAttribute('aria-selected','false');
+        document.getElementById(t.getAttribute('aria-controls')).classList.remove('is-open');
+      });
+      tab.setAttribute('aria-selected','true');
+      document.getElementById(tab.getAttribute('aria-controls')).classList.add('is-open');
+    });
+  });
+  document.querySelectorAll('.rail a').forEach(function(a){
+    a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+  });
+})();
+</script>
+</body>
+</html>
