@@ -8,7 +8,7 @@ import { signIn, signOut, ssoConfigure } from "@/auth";
 /**
  * Selectionne le gestionnaire courant (session dev) et redirige vers la RACINE : le
  * routage par role est centralise dans app/page.tsx (une comptable -> /comptabilite,
- * les autres -> /dashboard). Le cookie est pose AVANT le redirect, donc la racine
+ * les autres -> /accueil). Le cookie est pose AVANT le redirect, donc la racine
  * resout deja le bon role.
  */
 export async function choisirGestionnaire(id: string): Promise<void> {

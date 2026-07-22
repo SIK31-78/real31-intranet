@@ -2,9 +2,10 @@
 // (cockpit). Passe par le routeur (ADR-001). "Convoquee" = jalon CONVOC accompli.
 
 import { getCoproRepository, getJalonRepository } from "@/lib/adapters/router";
-import { etatCycleAg, type EtatCycle } from "@/lib/domain/etat-cycle-ag";
+import { etatCycleAg, ETAT_CYCLE_ORDRE, type EtatCycle } from "@/lib/domain/etat-cycle-ag";
 import { getPrisesEnMain } from "@/lib/services/coproprietes/prise-en-main";
 import type { SourceCopro } from "@/lib/domain/copropriete";
+import type { PipelineEtat } from "@/lib/domain/dashboard";
 
 export interface CoproPilotage {
   code: string;
@@ -62,4 +63,23 @@ export async function getCoprosPilotage(managerId?: string): Promise<CoproPilota
       ...(/^\d{2}\/\d{2}$/.test(c.exercice.fin) ? { exerciceCloture: c.exercice.fin } : {}),
     };
   });
+}
+
+/**
+ * Pipeline des AG (compteurs par etat du cycle) DERIVE de la liste deja chargee - aucun
+ * second fetch. Depuis le demantelement du dashboard (Sekou 2026-07-22), ce resume vit en
+ * tete de "Toutes les coproprietes" : chaque compteur renvoie vers la liste filtree (?etat=).
+ * Ne compte QUE les copros prises en main (les "a prendre en main" sont hors cockpit, dans
+ * leur propre bac) - meme semantique que l'ancien pipeline du dashboard.
+ */
+export function pipelineDepuisCopros(copros: CoproPilotage[]): PipelineEtat[] {
+  const pipeline: PipelineEtat[] = ETAT_CYCLE_ORDRE.map((etat) => ({ etat, count: 0, enRetard: 0 }));
+  const parEtat = new Map(pipeline.map((p) => [p.etat, p]));
+  for (const c of copros) {
+    if (!c.prise) continue;
+    const p = parEtat.get(c.etat)!;
+    p.count++;
+    if (c.enRetard) p.enRetard++;
+  }
+  return pipeline;
 }

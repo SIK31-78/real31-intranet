@@ -17,7 +17,7 @@ export default async function MesEmailsPage() {
   if (!g) redirect("/dev-login");
   // Module grise en prod tant que la vraie boite n'est pas branchee (MAIL_SOURCE=graph),
   // et reserve aux pilotes si MAIL_PILOTES est pose (deploiement pilote).
-  if (!mailModuleActifPour(g.email)) redirect("/dashboard");
+  if (!mailModuleActifPour(g.email)) redirect("/accueil");
   const data = await getMesEmails(g);
   const signatureHtml = await getSignatureGestionnaire(g);
 

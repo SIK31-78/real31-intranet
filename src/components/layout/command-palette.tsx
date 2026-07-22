@@ -11,7 +11,6 @@ import { chargerCoprosRecherche, type CoproRecherche } from "@/app/recherche/act
 
 const NAV: { label: string; href: string }[] = [
   { label: "Accueil", href: "/accueil" },
-  { label: "Dashboard", href: "/dashboard" },
   { label: "Mes e-mails", href: "/mes-emails" },
   { label: "Calendrier AG/CS", href: "/calendrier" },
   { label: "Toutes les copropriétés", href: "/copropriete" },

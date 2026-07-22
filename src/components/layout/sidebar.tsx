@@ -9,7 +9,6 @@ import { cn } from "@/lib/cn";
 
 export type NavKey =
   | "accueil"
-  | "dashboard"
   | "evenements"
   | "emails"
   | "calendrier"
@@ -46,9 +45,9 @@ const GROUPES: { titre: string; items: Item[] }[] = [
   {
     titre: "Vue d'ensemble",
     items: [
-      // Accueil = LA home (AG + dossiers en cours). En tete, avant la vue portefeuille.
+      // Accueil = LA home (AG + dossiers en cours + en-tete, annonces, points signales).
+      // Le "Dashboard" a ete demantele (Sekou 2026-07-22) : plus d'entree, /dashboard redirige.
       { key: "accueil", label: "Accueil", href: "/accueil", icon: Home },
-      { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
       { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
       { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },

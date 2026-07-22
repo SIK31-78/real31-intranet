@@ -3,8 +3,8 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { pageAccueilPour } from "@/lib/auth/roles";
 
 // Routage d'accueil CENTRALISE : le comptable pur atterrit sur son dashboard
-// (/comptabilite), les autres sur /dashboard. Sans session, on renvoie vers /dashboard
-// (qui gere l'auth et redirige vers /dev-login si besoin).
+// (/comptabilite), les autres sur /accueil (la home unifiee AG + dossiers). Sans session,
+// pageAccueilPour renvoie /accueil, qui gere l'auth et redirige vers /dev-login si besoin.
 export const dynamic = "force-dynamic";
 
 export default async function Home() {

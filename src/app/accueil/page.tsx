@@ -10,13 +10,18 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ClipboardCheck } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getAgSemaine } from "@/lib/services/affaires/get-ag-semaine";
 import { getAffairesEnCours } from "@/lib/services/affaires/get-affaires-en-cours";
+import { getAccueilComplement } from "@/lib/services/accueil/get-accueil-complement";
+import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { AgSemaineBloc } from "@/components/affaires/ag-semaine-bloc";
 import { AffairesEnCours } from "@/components/affaires/affaires-en-cours";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
+import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
 
 export const metadata: Metadata = { title: "Accueil - REAL31 Intranet" };
 
@@ -27,12 +32,39 @@ export default async function AccueilPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
-  // Independants -> en parallele (gain de latence). Tous deux cloisonnes sur g.id.
-  const [agSemaine, affaires] = await Promise.all([getAgSemaine(g.id), getAffairesEnCours(g.id)]);
+  const today = new Date().toISOString().slice(0, 10);
+  // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id.
+  const [agSemaine, affaires, complement] = await Promise.all([
+    getAgSemaine(g.id),
+    getAffairesEnCours(g.id),
+    getAccueilComplement(g),
+  ]);
 
   return (
     <AppShell user={g} active="accueil" breadcrumb="Accueil">
       <div className="mx-auto max-w-[1100px] px-8 py-8 flex flex-col gap-8">
+        {/* EN-TETE : "Bonjour X" + date. Ex-dashboard (demantele, Sekou 2026-07-22). */}
+        <DashboardHeader gestionnaire={g} dateCourante={formatDateLongue(today)} />
+
+        {/* Bandeau d'onboarding : copros aux dates heritees a verifier avant qu'elles
+            n'entrent dans le cockpit. Conditionnel (rien si aucune). */}
+        {complement.aPrendreEnMain > 0 && (
+          <Link
+            href="/copropriete"
+            className="flex items-center gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-4 py-2.5 text-[13px] text-warn-700 hover:border-warn-500/50 transition-colors"
+          >
+            <ClipboardCheck strokeWidth={1.5} className="w-4 h-4 shrink-0" />
+            <span className="flex-1">
+              <strong>{complement.aPrendreEnMain}</strong> copropriété{complement.aPrendreEnMain > 1 ? "s" : ""} à
+              prendre en main - vérifie les dates héritées avant qu&apos;elles n&apos;entrent dans ton cockpit.
+            </span>
+            <ArrowRight strokeWidth={1.5} className="w-4 h-4 shrink-0" />
+          </Link>
+        )}
+
+        {/* Annonces du reseau (direction). Carte autonome avec son propre etat vide. */}
+        <AnnoncesPanel />
+
         {/* ZONE 1 - Assemblees generales : la colonne vertebrale, PAS un dossier. Masquee
             quand rien ne presse (comme avant), le libelle n'apparait donc que s'il y a de
             l'AG a montrer - la ou l'etiquetage est justement necessaire. */}
@@ -69,6 +101,22 @@ export default async function AccueilPage() {
           </div>
           <AffairesEnCours affaires={affaires} />
         </section>
+
+        {/* ZONE 3 - Points signales : problemes coches en supervision AG, actionnables.
+            Ex-dashboard (demantele). Conditionnel : rien (pas de titre orphelin) si vide. */}
+        {complement.problemes.length > 0 && (
+          <section aria-labelledby="accueil-problemes">
+            <div className="mb-3">
+              <h2 id="accueil-problemes" className="text-[15px] font-semibold tracking-tight text-ink">
+                Points signalés
+              </h2>
+              <p className="mt-0.5 text-[12.5px] text-ink-3">
+                Problèmes remontés depuis la supervision AG - à traiter.
+              </p>
+            </div>
+            <ProblemesPanel problemes={complement.problemes} />
+          </section>
+        )}
       </div>
     </AppShell>
   );
