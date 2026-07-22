@@ -26,7 +26,7 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
   const onToggle = togglePointAction.bind(null, id);
 
   return (
-    <AppShell user={g} active="calendrier" breadcrumb={`ODJ - ${odj.copro.nom}`}>
+    <AppShell user={g} active="aucun" breadcrumb={`ODJ - ${odj.copro.nom}`}>
       <div className="mx-auto max-w-[1380px] px-8 py-8 flex items-start gap-6">
         <div className="flex-1 min-w-0 max-w-[900px] flex flex-col gap-5">
         <div>

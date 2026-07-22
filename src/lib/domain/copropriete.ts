@@ -8,7 +8,7 @@
 
 import type { Evenement } from "@/lib/domain/calendrier";
 import type { JalonAvecEtat } from "@/lib/domain/jalons-ag/types";
-import type { LigneParcours } from "@/lib/domain/dashboard";
+import type { CycleAg } from "@/lib/domain/cycle-ag";
 import type { EtatCompta } from "@/lib/domain/compta";
 import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 
@@ -227,9 +227,10 @@ export interface FicheCopro {
   /** Vrai si Estale a echoue (panne / timeout) : les blocs Estale sont vides mais la
    *  copro EST sur Estale -> l'UI distingue "indisponible" de "non disponible". */
   estaleIndisponible?: boolean;
-  /** Parcours AG de la copro (etape courante + prochaine action) ; absent si le cycle
-   *  est complet ou hors fenetre. Meme calcul que le dashboard (domain/parcours-ag). */
-  parcours?: LigneParcours;
+  /** Cycle AG de la copro (etat + etape courante + action du moment), LA source unique
+   *  (domain/cycle-ag). Absent quand il n'y a rien a montrer (cycle complet hors tenue).
+   *  Le stepper "Ou en est cette AG" n'affiche QUE l'action du moment (refonte S2.A). */
+  cycle?: CycleAg;
   /** Etat compta de la prochaine AG (flags + fil de notes) ; absent si pas d'AG datee. */
   compta?: EtatCompta;
   /** Confirmation par le conseil syndical de la prochaine AG / du prochain CS (date

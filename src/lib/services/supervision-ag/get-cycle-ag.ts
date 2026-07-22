@@ -3,7 +3,7 @@
 // fait que resoudre la copro depuis l'agId et lire l'etat des jalons.
 
 import { calculerCycleAg, type CycleAg } from "@/lib/domain/cycle-ag";
-import { agDateDeAgId, coproCodeDeAgId } from "@/lib/domain/supervision-ag";
+import { agDateDeAgId, coproCodeDeAgId, type StatutAg } from "@/lib/domain/supervision-ag";
 import { getCoproRepository, getJalonRepository } from "@/lib/adapters/router";
 
 /**
@@ -20,6 +20,9 @@ export async function getCycleAgDeSupervision(
   agId: string,
   aujourdhuiISO: string,
   managerId?: string,
+  /** Statut de la supervision courante (deja charge par la page) : pilote la
+   *  priorisation post-tenue (S2.D). Passe par l'appelant pour eviter un 2e fetch. */
+  statutSupervision?: StatutAg,
 ): Promise<CycleAg | null> {
   const code = coproCodeDeAgId(agId);
   const repo = getCoproRepository();
@@ -34,5 +37,5 @@ export async function getCycleAgDeSupervision(
   const accompli = new Set(
     jalons.filter((j) => j.statut === "accompli").map((j) => j.code as string),
   );
-  return calculerCycleAg(copro, accompli, aujourdhuiISO);
+  return calculerCycleAg(copro, accompli, aujourdhuiISO, statutSupervision);
 }

@@ -147,6 +147,58 @@ describe("calculerCycleAg - action du moment par etat", () => {
   });
 });
 
+describe("calculerCycleAg - priorisation post-tenue (S2.D, param statutSupervision)", () => {
+  // AG datee dans le passe (tenue) mais CS jamais saisi : SANS statut, l'heritage du
+  // calcul fiche propose "fixer la date du CS" a contre-temps (le bug vise par S2.D).
+  const AG_TENUE_CS_MANQUANT = {
+    prochaineAg: { date: "2026-06-10", statut: "planifiee" as const },
+  };
+
+  it("defaut (statut absent) : comportement inchange - l'heritage 'fixer la date du CS' est preserve", () => {
+    const { actionDuMoment } = calculerCycleAg(copro(AG_TENUE_CS_MANQUANT), new Set(), TODAY);
+    expect(actionDuMoment?.action).toBe("fixer la date du CS");
+  });
+
+  it("tenue NON conclue (en_preparation) -> action 'Conclure l'AG' vers le fil d'AG date", () => {
+    const { actionDuMoment } = calculerCycleAg(
+      copro(AG_TENUE_CS_MANQUANT),
+      new Set(),
+      TODAY,
+      "en_preparation",
+    );
+    expect(actionDuMoment?.label).toBe("Conclure");
+    expect(actionDuMoment?.action).toBe("conclure l'AG");
+    expect(actionDuMoment?.href).toBe("/supervision-ag/S001__2026-06-10");
+  });
+
+  it("tenue avec PV a notifier, NON conclue -> 'Conclure l'AG' (jamais 'notifier le PV' a contre-temps)", () => {
+    const { actionDuMoment } = calculerCycleAg(
+      copro({ ...AG_PROCHE, prochaineAg: { date: "2026-06-10", statut: "planifiee" } }),
+      new Set(["ODJ_CS", "CONVOC", "TENUE"]),
+      TODAY,
+      "en_preparation",
+    );
+    expect(actionDuMoment?.label).toBe("Conclure");
+    expect(actionDuMoment?.href).toBe("/supervision-ag/S001__2026-06-10");
+  });
+
+  it("tenue CONCLUE (conclue_archivee) meme avec une date encore posee -> aucune action", () => {
+    const { actionDuMoment, etapeCourante } = calculerCycleAg(
+      copro(AG_TENUE_CS_MANQUANT),
+      new Set(),
+      TODAY,
+      "conclue_archivee",
+    );
+    expect(actionDuMoment).toBeNull();
+    expect(etapeCourante).toBeNull();
+  });
+
+  it("statut sans effet hors 'tenue' : en_preparation sur une AG a venir garde son action normale", () => {
+    const { actionDuMoment } = calculerCycleAg(copro(AG_PROCHE), new Set(), TODAY, "en_preparation");
+    expect(actionDuMoment?.label).toBe("ODJ"); // etat en_preparation, pas tenue -> pas d'ecrasement
+  });
+});
+
 describe("calculerCycleAg - jamais d'action 'supervision' sans date d'AG", () => {
   it("sans date, meme avec des jalons marques (donnees adverses), l'action reste 'Fixer'", () => {
     const { actionDuMoment } = calculerCycleAg(

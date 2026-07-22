@@ -5,7 +5,9 @@
 import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { statutPourDate } from "@/lib/domain/confirmation-evenement";
-import { construireLigne } from "@/lib/domain/parcours-ag";
+import { calculerCycleAg } from "@/lib/domain/cycle-ag";
+import type { StatutAg } from "@/lib/domain/supervision-ag";
+import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
 import { getCoproRepository, getJalonRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
@@ -105,10 +107,26 @@ export async function getFicheCopro(
   }
   const conformite = [...conformiteReferentiel, ...estale.conformite];
 
-  // Parcours AG de la copro (meme logique que le dashboard) : l'etat "accompli" se
-  // deduit des jalons deja charges (Promise.all ci-dessus) -> pas de requete supplementaire.
+  // Cycle AG de la copro (LA source unique domain/cycle-ag) : l'etat "accompli" se deduit
+  // des jalons deja charges (Promise.all ci-dessus) -> pas de requete supplementaire.
   const accompli = new Set(jalons.filter((j) => j.statut === "accompli").map((j) => j.code));
-  const parcours = construireLigne(copro, accompli, aujourdhuiISO)?.ligne;
+  // Statut de la supervision : utile SEULEMENT pour une AG DATEE deja passee (tenue non
+  // conclue) -> priorisation post-tenue (S2.D). On evite l'appel hors de ce cas etroit ;
+  // ailleurs, statut absent = comportement inchange. La supervision d'une AG conclue vide
+  // sa date, donc ce cas retombe sur l'heritage (aucune action) sans appel.
+  let statutSupervision: StatutAg | undefined;
+  if (copro.prochaineAg?.date && copro.prochaineAg.date < aujourdhuiISO) {
+    const sup = await getSupervisionAg(
+      `${copro.code}__${copro.prochaineAg.date}`,
+      options?.transverse ? undefined : gestionnaireId,
+    );
+    statutSupervision = sup?.statut;
+  }
+  const cycle = calculerCycleAg(copro, accompli, aujourdhuiISO, statutSupervision);
+  // On n'affiche le stepper que s'il y a une action a mener OU un suivi post-tenue en
+  // cours (etat "tenue" : "Conclure l'AG" ou "cycle termine"). Cycle complet hors tenue
+  // = rien a montrer (meme visibilite qu'avant : parcours null -> stepper masque).
+  const afficherCycle = cycle.actionDuMoment !== null || cycle.etat === "tenue";
 
   // (Etat compta de la prochaine AG : charge en parallele dans le Promise.all ci-dessus.)
 
@@ -169,7 +187,7 @@ export async function getFicheCopro(
     conformite,
     jalons,
     ...(estaleIndisponible ? { estaleIndisponible } : {}),
-    ...(parcours ? { parcours } : {}),
+    ...(afficherCycle ? { cycle } : {}),
     ...(compta ? { compta } : {}),
     ...(confirmationAg ? { confirmationAg } : {}),
     ...(confirmationCs ? { confirmationCs } : {}),

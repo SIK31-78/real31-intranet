@@ -36,7 +36,7 @@ export default async function SupervisionAgPage({
   // Frise du fil d'AG (S1 refonte) : cycle AG courant de la copro, calcule par LA
   // source unique (domain/cycle-ag). null (copro introuvable) = pas de frise, le
   // reste de l'ecran garde son comportement actuel.
-  const cycle = await getCycleAgDeSupervision(id, aujourdhuiISO, g.id);
+  const cycle = await getCycleAgDeSupervision(id, aujourdhuiISO, g.id, supervision.statut);
 
   // MVP : EL est gestionnaire de la copro courante. Permissions UI-only.
   const role = "gestionnaire" as const;
@@ -44,7 +44,7 @@ export default async function SupervisionAgPage({
   return (
     <AppShell
       user={g}
-      active="calendrier"
+      active="aucun"
       breadcrumb={`Supervision AG · ${supervision.copro.nomCourt}`}
     >
       <div className="mx-auto max-w-[1100px] px-8 py-8">

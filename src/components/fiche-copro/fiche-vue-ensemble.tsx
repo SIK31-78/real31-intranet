@@ -21,7 +21,7 @@ import type {
   ProchaineAg,
   RoleEquipe,
 } from "@/lib/domain/copropriete";
-import type { LigneParcours } from "@/lib/domain/dashboard";
+import type { CycleAg } from "@/lib/domain/cycle-ag";
 import type { EtatCompta } from "@/lib/domain/compta";
 import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 import { ComptaPanel } from "@/components/compta/compta-panel";
@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { formatDateLongue } from "@/lib/format-date";
 import { EditeurDate } from "./editeur-date";
+import { ActionCycleFiche } from "./action-cycle-fiche";
 import { ConfirmationEvenement } from "./confirmation-evenement";
 import { MailReunionBouton } from "./mail-reunion-bouton";
 import { ListeDiffusionCS } from "./liste-diffusion-cs";
@@ -64,10 +65,16 @@ export function FicheVueEnsemble({
   listeSecoursCS?: EtatListeSecoursCS;
 }) {
   const indispo = Boolean(fiche.estaleIndisponible);
+  // Une action = UN lieu (S2.A.3). Quand l'action du moment du stepper renvoie DEJA vers
+  // la supervision (convoc / tenue / conclure), on masque le lien "Ouvrir la supervision
+  // AG" de la colonne Prochaine AG pour ne pas doubler l'entree. Sinon (ODJ, dates...),
+  // ce lien reste la seule porte permanente vers la supervision.
+  const stepperVersSupervision =
+    fiche.cycle?.actionDuMoment?.href.startsWith("/supervision-ag/") ?? false;
   return (
     <div className="flex flex-col gap-5">
       {indispo && <BanniereEstaleIndispo />}
-      {fiche.parcours && <BlocParcours ligne={fiche.parcours} />}
+      {fiche.cycle && <BlocParcours cycle={fiche.cycle} coproCode={fiche.copro.code} />}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
         <div className="flex flex-col gap-5">
           <BlocAg
@@ -92,6 +99,7 @@ export function FicheVueEnsemble({
             agenceCode={fiche.agenceCode}
             mailActif={mailActif}
             listeSecoursCS={listeSecoursCS}
+            masquerLienSupervision={stepperVersSupervision}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
@@ -122,9 +130,12 @@ export function FicheVueEnsemble({
   );
 }
 
-// --- Parcours AG (ou en est cette copro + prochaine action) ---------------
+// --- Cycle AG (ou en est cette copro + action DU MOMENT) -------------------
+// Stepper migre sur LA source unique (domain/cycle-ag, refonte S2.A) : il n'affiche
+// QUE l'action du moment, pilotee par l'etat. Plus de bouton a contre-temps.
 
-function BlocParcours({ ligne }: { ligne: LigneParcours }) {
+function BlocParcours({ cycle, coproCode }: { cycle: CycleAg; coproCode: string }) {
+  const action = cycle.actionDuMoment;
   return (
     <Card>
       <CardHeader>
@@ -132,29 +143,31 @@ function BlocParcours({ ligne }: { ligne: LigneParcours }) {
           <Route strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
           Où en est cette AG
         </CardTitle>
-        {ligne.echeance && (
+        {cycle.echeance && (
           <Badge
-            ton={ligne.enRetard ? "err" : ligne.echeance.startsWith("J-") ? "outline" : "warn"}
+            ton={cycle.enRetard ? "err" : cycle.echeance.startsWith("J-") ? "outline" : "warn"}
             className="font-mono"
-            dot={Boolean(ligne.enRetard)}
+            dot={Boolean(cycle.enRetard)}
           >
-            {ligne.echeance}
+            {cycle.echeance}
           </Badge>
         )}
       </CardHeader>
       <div className="px-4 py-3.5">
-        <FriseEtapes etapes={ligne.etapes} />
+        <FriseEtapes etapes={cycle.etapes} />
         <div className="mt-3 flex items-center justify-between gap-3">
-          <p className="text-[12px] text-ink-3">
-            Prochaine action : <span className="text-ink-2">{ligne.prochaineAction}</span>
-          </p>
-          <Link
-            href={ligne.lien}
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors shrink-0"
-          >
-            {ligne.actionLabel}
-            <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-          </Link>
+          {action ? (
+            <>
+              <p className="text-[12px] text-ink-3">
+                Action du moment : <span className="text-ink-2">{action.action}</span>
+              </p>
+              <ActionCycleFiche action={action} coproCode={coproCode} />
+            </>
+          ) : (
+            <p className="text-[12px] text-ink-3">
+              Cycle terminé pour cet exercice — rien à faire avant la prochaine clôture.
+            </p>
+          )}
         </div>
       </div>
     </Card>
@@ -248,6 +261,7 @@ function BlocAg({
   agenceCode,
   mailActif,
   listeSecoursCS,
+  masquerLienSupervision,
 }: {
   coproCode: string;
   derniere?: AgPassee;
@@ -271,6 +285,9 @@ function BlocAg({
   agenceCode?: string;
   mailActif: boolean;
   listeSecoursCS?: EtatListeSecoursCS;
+  /** Le stepper "Ou en est cette AG" renvoie DEJA vers la supervision (action du moment)
+   *  -> on masque ici le lien "Ouvrir la supervision AG" pour ne pas doubler l'entree. */
+  masquerLienSupervision?: boolean;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
   // Le mail au CS propose les dates a venir (CS + AG en un seul mail). Visible des
@@ -284,25 +301,11 @@ function BlocAg({
           <Flag strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
           Assemblées générales
         </CardTitle>
+        {/* En-tete SANS bouton de cycle (refonte S2.A.1) : les CTA ODJ / Supervision qui
+            s'affichaient quand il n'y avait PAS de date (le pire moment) sont supprimes.
+            L'action legitime est pilotee par l'etat dans le stepper "Ou en est cette AG". */}
         <div className="flex items-center gap-2">
           {agAJour?.etat === "ok" && <Badge ton="ok" dot>À jour</Badge>}
-          {!prochaine && (
-            <>
-              <Link
-                href={`/odj/${coproCode}`}
-                className="inline-flex items-center h-7 px-2.5 rounded-sm border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors"
-              >
-                ODJ
-              </Link>
-              <Link
-                href={`/supervision-ag/${coproCode}`}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors"
-              >
-                Supervision AG
-                <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-              </Link>
-            </>
-          )}
         </div>
       </CardHeader>
 
@@ -329,7 +332,9 @@ function BlocAg({
           )}
         </div>
 
-        <div className="p-4">
+        {/* Ancre #dates-ag : cible du scroll + focus clavier du bouton "Fixer" du stepper
+            (S2.A.4). Fixer les dates se joue ICI (les crayons), pas via un lien circulaire. */}
+        <div id="dates-ag" className="p-4">
           <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochaine AG</p>
           <div className="flex items-center gap-2 flex-wrap">
             <EditeurDate
@@ -358,7 +363,9 @@ function BlocAg({
                   {prochaine.alerte}
                 </p>
               )}
-              {prochaine.supervisionId && (
+              {/* Lien canonique unique vers la supervision (libelle "Ouvrir la supervision
+                  AG"). Masque quand le stepper renvoie DEJA la (pas de doublon, S2.A.3). */}
+              {prochaine.supervisionId && !masquerLienSupervision && (
                 <Link
                   href={`/supervision-ag/${prochaine.supervisionId}`}
                   className="mt-2 inline-flex items-center gap-1 text-[12px] text-info-700 hover:underline"

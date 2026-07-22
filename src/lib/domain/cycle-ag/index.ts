@@ -16,6 +16,7 @@
 // ============================================================================
 
 import type { Copropriete } from "@/lib/domain/copropriete";
+import type { StatutAg } from "@/lib/domain/supervision-ag";
 import { etatCycleAg, type EtatCycle } from "./etat";
 import {
   construireLigne,
@@ -81,23 +82,37 @@ export interface CycleAg {
  * accomplis pour la copro + son AG courante (dont "CONVOC", qui pilote l'etat
  * "convoquee" - coche explicite, decision Sekou).
  *
+ * `statutSupervision` (optionnel) = statut de la supervision de l'AG courante, resolu
+ * par les services qui l'ont (la fiche, la supervision). Il pilote la PRIORISATION
+ * POST-TENUE (S2.D) : une AG tenue mais NON conclue (`en_preparation`) a pour unique
+ * action "Conclure l'AG" dans son fil, jamais l'heritage du calcul fiche ("fixer la
+ * date du CS", "notifier le PV"...) a contre-temps. ABSENT = comportement inchange
+ * (les shims / consommateurs non migres, comme le dashboard, ne bougent pas).
+ *
  * Reutilise les regles EXISTANTES (etatCycleAg + construireLigne) : fusion, pas
- * reecriture. Seul ajout : une AG deja tenue et conclue (prochaine date videe)
- * n'a PLUS d'action - construireLigne seul proposerait "Fixer les dates" a
+ * reecriture. Seul ajout historique : une AG deja tenue et conclue (prochaine date
+ * videe) n'a PLUS d'action - construireLigne seul proposerait "Fixer les dates" a
  * contre-temps alors qu'il n'y a rien a planifier avant la prochaine cloture.
  */
 export function calculerCycleAg(
   c: Copropriete,
   accompli: Set<string>,
   today: string,
+  statutSupervision?: StatutAg,
 ): CycleAg {
   const { etat, enRetard } = etatCycleAg(c, accompli.has("CONVOC"), today);
 
-  // AG de l'exercice deja tenue et conclue (prochaine date videe) : cycle termine
-  // pour cet exercice. Aucune action avant la prochaine cloture ; le suivi fin du
-  // PV d'une AG conclue reste porte par sa supervision archivee, pas par le cycle.
-  if (etat === "tenue" && !c.prochaineAg?.date) {
-    return { etat, enRetard, etapes: etapesCompletes(), etapeCourante: null, actionDuMoment: null };
+  // --- AG tenue : cycle termine pour l'exercice si elle est CONCLUE ---------------
+  // Conclue = statut connu "conclue_archivee" ; OU (heritage S1, quand le statut n'est
+  // pas fourni) prochaine date videe. Aucune action avant la prochaine cloture ; le
+  // suivi fin du PV reste porte par sa supervision archivee, pas par le cycle.
+  if (etat === "tenue") {
+    const conclue =
+      statutSupervision === "conclue_archivee" ||
+      (statutSupervision === undefined && !c.prochaineAg?.date);
+    if (conclue) {
+      return { etat, enRetard, etapes: etapesCompletes(), etapeCourante: null, actionDuMoment: null };
+    }
   }
 
   const r = construireLigne(c, accompli, today);
@@ -108,6 +123,24 @@ export function calculerCycleAg(
 
   const { ligne } = r;
   const courante = ligne.etapes.find((e) => e.statut === "encours");
+
+  // --- Priorisation post-tenue (S2.D) --------------------------------------------
+  // AG tenue et NON conclue (statut connu "en_preparation") : l'unique action est de la
+  // conclure dans son fil d'AG. On ecrase l'heritage du calcul fiche pour ne jamais
+  // afficher "fixer la date du CS" / "notifier le PV" a contre-temps une fois l'AG tenue.
+  if (etat === "tenue" && statutSupervision === "en_preparation") {
+    const agDate = c.prochaineAg?.date;
+    const href = agDate ? `/supervision-ag/${c.code}__${agDate}` : `/supervision-ag/${c.code}`;
+    return {
+      etat,
+      enRetard,
+      etapes: ligne.etapes,
+      etapeCourante: courante?.code ?? null,
+      actionDuMoment: { action: "conclure l'AG", label: "Conclure", href },
+      ...(ligne.echeance ? { echeance: ligne.echeance } : {}),
+    };
+  }
+
   return {
     etat,
     enRetard,

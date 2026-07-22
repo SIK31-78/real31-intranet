@@ -22,7 +22,11 @@ export type NavKey =
   | "coffre"
   | "equipe"
   | "toutes-copros"
-  | "sinistres";
+  | "sinistres"
+  // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
+  // surligne AUCUNE entree (avant, ils empruntaient "calendrier" a tort). Pas de
+  // nouvelle entree sidebar - juste une valeur qui ne matche aucun item.
+  | "aucun";
 
 type Item = {
   key: NavKey;
@@ -52,7 +56,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     titre: "À traiter",
     items: [
       { key: "evenements", label: "Actions", href: "/mes-evenements", icon: ListChecks },
-      { key: "emails", label: "Mes événements", href: "/mes-emails", icon: Inbox },
+      { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
     ],
   },
   {
