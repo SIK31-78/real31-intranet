@@ -207,22 +207,22 @@ describe("pageAccueilPour", () => {
     expect(pageAccueilPour("elsa@real31.fr")).toBe("/comptabilite");
   });
 
-  it("un gestionnaire simple atterrit sur /dashboard", () => {
-    expect(pageAccueilPour("gestionnaire@real31.fr")).toBe("/dashboard");
+  it("un gestionnaire simple atterrit sur /accueil (la home unifiee AG + dossiers)", () => {
+    expect(pageAccueilPour("gestionnaire@real31.fr")).toBe("/accueil");
   });
 
-  it("un super-admin/manager/directeur atterrit sur /dashboard (vue complete)", () => {
+  it("un super-admin/manager/directeur atterrit sur /accueil (pas de home par role)", () => {
     vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
     vi.stubEnv("MANAGERS", "marie@real31.fr");
     vi.stubEnv("DIRECTEURS", "jean@real31.fr");
-    expect(pageAccueilPour("sekou@real31.fr", "COMPTABLE")).toBe("/dashboard");
-    expect(pageAccueilPour("marie@real31.fr", "COMPTABLE")).toBe("/dashboard");
-    expect(pageAccueilPour("jean@real31.fr", "COMPTABLE")).toBe("/dashboard");
+    expect(pageAccueilPour("sekou@real31.fr", "COMPTABLE")).toBe("/accueil");
+    expect(pageAccueilPour("marie@real31.fr", "COMPTABLE")).toBe("/accueil");
+    expect(pageAccueilPour("jean@real31.fr", "COMPTABLE")).toBe("/accueil");
   });
 
-  it("pas de session (email absent) -> /dashboard (comportement par defaut)", () => {
-    expect(pageAccueilPour(null)).toBe("/dashboard");
-    expect(pageAccueilPour(undefined)).toBe("/dashboard");
+  it("pas de session (email absent) -> /accueil (comportement par defaut)", () => {
+    expect(pageAccueilPour(null)).toBe("/accueil");
+    expect(pageAccueilPour(undefined)).toBe("/accueil");
   });
 });
 

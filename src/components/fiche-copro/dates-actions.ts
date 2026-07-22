@@ -140,11 +140,11 @@ async function definir(
       await reporterOdjSansDate(coproCode, dateISO, g.id);
     }
     // Changer une date recalcule les jalons : revalider TOUTES les vues qui les affichent
-    // (sinon le calendrier / dashboard / Actions restent sur l'ancien calcul).
+    // (sinon le calendrier / dashboard / accueil restent sur l'ancien calcul).
     revalidatePath(`/copropriete/${coproCode}`);
     revalidatePath("/calendrier");
     revalidatePath("/dashboard");
-    revalidatePath("/mes-evenements");
+    revalidatePath("/accueil");
     return { ok: true };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message || "Enregistrement impossible." };

@@ -10,8 +10,8 @@ import { Search, Building2, CornerDownLeft } from "lucide-react";
 import { chargerCoprosRecherche, type CoproRecherche } from "@/app/recherche/actions";
 
 const NAV: { label: string; href: string }[] = [
+  { label: "Accueil", href: "/accueil" },
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Actions", href: "/mes-evenements" },
   { label: "Mes e-mails", href: "/mes-emails" },
   { label: "Calendrier AG/CS", href: "/calendrier" },
   { label: "Toutes les copropriétés", href: "/copropriete" },

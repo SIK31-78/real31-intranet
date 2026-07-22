@@ -6,8 +6,9 @@ import { JalonPill } from "@/components/ui/jalon-pill";
 import { BoutonConfirmerJalon } from "@/components/dashboard/bouton-confirmer-jalon";
 import type { ItemAttention } from "@/lib/domain/dashboard";
 
-// Resume des priorites sur le dashboard (pilotage) : top 3 urgences + renvoi vers
-// la worklist complete (Mes evenements). La liste filtrable exhaustive vit la-bas.
+// Resume des priorites (pilotage) : top 3 urgences + renvoi vers l'accueil (bandeau AG
+// + dossiers). Composant DORMANT depuis la bascule S3.B (retire du dashboard), conserve
+// pour resservir ; ses liens pointent vers /accueil, plus vers l'ex-page Actions.
 
 export function ResumeAttention({ items }: { items: ItemAttention[] }) {
   const top = items.slice(0, 3);
@@ -67,7 +68,7 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
             })}
           </div>
           <Link
-            href="/mes-evenements"
+            href="/accueil"
             className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] text-green-700 hover:bg-green-50 border-t border-line"
           >
             Voir toutes mes tâches à traiter

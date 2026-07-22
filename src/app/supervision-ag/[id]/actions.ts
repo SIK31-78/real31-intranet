@@ -90,7 +90,7 @@ export async function conclureAgAction(agId: string): Promise<void> {
     revalidatePath(`/copropriete/${code}`);
     revalidatePath("/calendrier");
     revalidatePath("/dashboard");
-    revalidatePath("/mes-evenements");
+    revalidatePath("/accueil");
   }
 
   revalidatePath(`/supervision-ag/${agId}`);

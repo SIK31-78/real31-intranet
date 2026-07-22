@@ -193,12 +193,17 @@ export function estVueComptable(
   );
 }
 
-/** Page d'accueil selon le role : le comptable pur va sur son dashboard, les autres sur /dashboard. */
+/**
+ * Page d'accueil selon le role : le comptable PUR va sur son dashboard comptable
+ * (/comptabilite), TOUT LE MONDE d'autre (gestionnaire, manager, directeur, super-admin)
+ * atterrit sur /accueil - la home unifiee AG + dossiers. Volontairement independant du
+ * role au-dela de la garde comptable (decision Sekou : pas de "directeur -> dashboard").
+ */
 export function pageAccueilPour(
   email: string | null | undefined,
   roleTable?: string | null,
 ): string {
-  return estVueComptable(email, roleTable) ? "/comptabilite" : "/dashboard";
+  return estVueComptable(email, roleTable) ? "/comptabilite" : "/accueil";
 }
 
 /**

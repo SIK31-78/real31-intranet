@@ -9,9 +9,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
 import { PipelineAg } from "@/components/dashboard/pipeline-ag";
-import { ResumeAttention } from "@/components/dashboard/resume-attention";
 import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
-import { ActionsDossiersPanel } from "@/components/dashboard/actions-dossiers-panel";
 
 export const metadata: Metadata = { title: "Dashboard - REAL31 Intranet" };
 
@@ -56,16 +54,12 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div className="grid gap-6 mt-6 grid-cols-1 lg:grid-cols-[1.6fr_1fr]">
-          <ResumeAttention items={data.attention} />
+        {/* Vue PORTEFEUILLE : "A faire maintenant" (worklist) et "Actions dossiers" ont
+            migre vers l'accueil (bandeau AG + dossiers). Le dashboard garde le pilotage
+            agrege (pipeline) + les problemes signales, ici en pleine largeur. */}
+        <div className="mt-6">
           <ProblemesPanel problemes={data.problemes ?? []} />
         </div>
-
-        {data.actionsDossiers && data.actionsDossiers.length > 0 && (
-          <div className="mt-6">
-            <ActionsDossiersPanel actions={data.actionsDossiers} />
-          </div>
-        )}
       </div>
     </AppShell>
   );

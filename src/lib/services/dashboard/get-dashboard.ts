@@ -183,7 +183,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       unite: "convocations",
       detail: "sous 7 jours",
       icone: "send",
-      lien: "/mes-evenements",
+      lien: "/accueil",
     },
     {
       id: "sans-ag",
@@ -192,7 +192,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       unite: "AG",
       detail: "copros sans AG planifiée",
       icone: "calendar-clock",
-      lien: "/mes-evenements",
+      lien: "/accueil",
     },
     {
       id: "a-confirmer",
@@ -201,7 +201,7 @@ async function composerDepuisVraieData(g: Gestionnaire): Promise<DashboardData> 
       unite: "AG",
       detail: "échéances passées, statut géré dans Estale",
       icone: "circle-help",
-      lien: "/mes-evenements",
+      lien: "/accueil",
     },
   ];
 

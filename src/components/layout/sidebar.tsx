@@ -1,13 +1,14 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, ListChecks, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
-  FolderOpen, FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
+  LayoutDashboard, Home, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
+  FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus, Receipt, ClipboardList, Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export type NavKey =
+  | "accueil"
   | "dashboard"
   | "evenements"
   | "emails"
@@ -45,9 +46,10 @@ const GROUPES: { titre: string; items: Item[] }[] = [
   {
     titre: "Vue d'ensemble",
     items: [
+      // Accueil = LA home (AG + dossiers en cours). En tete, avant la vue portefeuille.
+      { key: "accueil", label: "Accueil", href: "/accueil", icon: Home },
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
-      { key: "dossiers", label: "Dossiers", href: "/mes-dossiers", icon: FolderOpen },
       { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
       { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
       { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
@@ -56,7 +58,6 @@ const GROUPES: { titre: string; items: Item[] }[] = [
   {
     titre: "À traiter",
     items: [
-      { key: "evenements", label: "Actions", href: "/mes-evenements", icon: ListChecks },
       { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
     ],
   },
