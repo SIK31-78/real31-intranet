@@ -6,7 +6,7 @@
 // domaine ; écarter exige une raison). Les gardes reelles sont serveur (actions).
 
 import { useMemo, useState, useTransition } from "react";
-import { Bug, Lightbulb, ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { Bug, Lightbulb, ChevronDown, ChevronRight, Plus, Archive, ArchiveRestore } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +22,12 @@ import {
   type StatutFeedback,
   type TypeFeedback,
 } from "@/lib/domain/feedback";
-import { changerStatutAction, creerEntreeAction, editerFeedbackAction } from "@/app/admin/feedback/actions";
+import {
+  archiverFeedbackAction,
+  changerStatutAction,
+  creerEntreeAction,
+  editerFeedbackAction,
+} from "@/app/admin/feedback/actions";
 
 const LABEL_STATUT: Record<StatutFeedback, string> = {
   nouveau: "Nouveau",
@@ -75,10 +80,12 @@ function LigneFeedback({ f }: { f: Feedback }) {
   const [enCours, startTransition] = useTransition();
   const [ouvert, setOuvert] = useState(false);
   const [titre, setTitre] = useState(f.titre);
+  const [description, setDescription] = useState(f.description);
   const [priorite, setPriorite] = useState(f.priorite != null ? String(f.priorite) : "");
   const [note, setNote] = useState(f.noteInterne ?? "");
   const [raison, setRaison] = useState("");
   const [ecartArme, setEcartArme] = useState(false);
+  const archivee = Boolean(f.archiveAt);
 
   function editer(patch: Record<string, unknown>, libelle: string) {
     startTransition(async () => {
@@ -92,6 +99,24 @@ function LigneFeedback({ f }: { f: Feedback }) {
     const t = titre.trim();
     if (!t || t === f.titre) return;
     editer({ titre: t }, "Titre mis à jour");
+  }
+
+  function enregistrerDescription() {
+    if (description === f.description) return;
+    editer({ description }, "Description mise à jour");
+  }
+
+  function changerType(type: TypeFeedback) {
+    if (type === f.type) return;
+    editer({ type }, "Type mis à jour");
+  }
+
+  function basculerArchive() {
+    startTransition(async () => {
+      const r = await archiverFeedbackAction({ id: f.id, archive: !archivee });
+      if (r.ok) ok(archivee ? "Entrée réaffichée" : "Entrée archivée");
+      else err(r.message ?? "Action impossible.");
+    });
   }
 
   function enregistrerPriorite() {
@@ -136,7 +161,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
 
   return (
     <>
-      <tr className="border-b border-line align-top">
+      <tr className={cn("border-b border-line align-top", archivee && "opacity-55")}>
         <td className="px-3 py-2.5">
           <div className="flex items-start gap-2">
             <button
@@ -149,16 +174,23 @@ function LigneFeedback({ f }: { f: Feedback }) {
             </button>
             <TypeIcone type={f.type} />
             <div className="min-w-0 flex-1">
-              <input
-                value={titre}
-                onChange={(e) => setTitre(e.target.value)}
-                onBlur={enregistrerTitre}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
-                }}
-                maxLength={120}
-                className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-              />
+              <div className="flex items-center gap-1.5">
+                <input
+                  value={titre}
+                  onChange={(e) => setTitre(e.target.value)}
+                  onBlur={enregistrerTitre}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  maxLength={120}
+                  className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                />
+                {archivee && (
+                  <span className="shrink-0" title="Archivée : masquée de /nouveautes et de la worklist">
+                    <Badge ton="neutral">Archivée</Badge>
+                  </span>
+                )}
+              </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-[11.5px] text-ink-3">
                 {f.page && <code className="font-mono">{f.page}</code>}
                 <span>{f.auteurInitiales ?? f.auteurEmail ?? "anonyme"}</span>
@@ -195,11 +227,11 @@ function LigneFeedback({ f }: { f: Feedback }) {
           />
         </td>
         <td className="px-3 py-2.5">
-          {cibles.length === 0 ? (
-            <span className="text-[12px] text-ink-4">Terminé</span>
-          ) : (
-            <div className="flex flex-wrap justify-end gap-1.5">
-              {cibles.map((c) => (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {cibles.length === 0 ? (
+              <span className="text-[12px] text-ink-4">Terminé</span>
+            ) : (
+              cibles.map((c) => (
                 <Button
                   key={c}
                   size="sm"
@@ -209,21 +241,51 @@ function LigneFeedback({ f }: { f: Feedback }) {
                 >
                   {c === "ecarte" && ecartArme ? "Confirmer ?" : LABEL_STATUT[c]}
                 </Button>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+            <button
+              type="button"
+              onClick={basculerArchive}
+              disabled={enCours}
+              aria-label={archivee ? "Réafficher" : "Archiver"}
+              title={archivee ? "Réafficher (désarchiver)" : "Archiver (masquer de la vitrine)"}
+              className="rounded-md p-1.5 text-ink-4 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
+            >
+              {archivee ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+            </button>
+          </div>
         </td>
       </tr>
       {ouvert && (
         <tr className="border-b border-line bg-surface-2/40">
           <td colSpan={5} className="px-3 py-3">
             <div className="flex flex-col gap-3 pl-7">
-              <div>
-                <div className="mb-1 text-[11.5px] font-medium uppercase tracking-wide text-ink-3">
-                  Description (interne)
-                </div>
-                <p className="whitespace-pre-wrap text-[13px] text-ink-2">{f.description}</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+                  Type
+                  <select
+                    value={f.type}
+                    onChange={(e) => changerType(e.target.value as TypeFeedback)}
+                    disabled={enCours}
+                    className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                  >
+                    <option value="idee">Idée / nouveauté</option>
+                    <option value="bug">Bug</option>
+                  </select>
+                </label>
               </div>
+              <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+                Description (interne — jamais publique)
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={enregistrerDescription}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Le texte de l'entrée…"
+                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                />
+              </label>
 
               {ecartArme && (
                 <div className="rounded-md border border-err-500/30 bg-err-50 px-3 py-2.5">
@@ -413,17 +475,22 @@ export function FeedbackAdminVue({
   const [fStatut, setFStatut] = useState<StatutFeedback | "">("");
   const [fType, setFType] = useState<TypeFeedback | "">("");
   const [fSeverite, setFSeverite] = useState<SeveriteFeedback | "">("");
+  const [fArchive, setFArchive] = useState<"actives" | "archivees" | "toutes">("actives");
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
 
   const filtres = useMemo(
     () =>
-      feedbacks.filter(
-        (f) =>
+      feedbacks.filter((f) => {
+        const arch = Boolean(f.archiveAt);
+        if (fArchive === "actives" && arch) return false;
+        if (fArchive === "archivees" && !arch) return false;
+        return (
           (!fStatut || f.statut === fStatut) &&
           (!fType || f.type === fType) &&
-          (!fSeverite || f.severite === fSeverite),
-      ),
-    [feedbacks, fStatut, fType, fSeverite],
+          (!fSeverite || f.severite === fSeverite)
+        );
+      }),
+    [feedbacks, fStatut, fType, fSeverite, fArchive],
   );
 
   const selectCls =
@@ -465,7 +532,16 @@ export function FeedbackAdminVue({
             </option>
           ))}
         </select>
-        {(fStatut || fType || fSeverite) && (
+        <select
+          value={fArchive}
+          onChange={(e) => setFArchive(e.target.value as "actives" | "archivees" | "toutes")}
+          className={selectCls}
+        >
+          <option value="actives">Actives</option>
+          <option value="archivees">Archivées</option>
+          <option value="toutes">Toutes (+ archivées)</option>
+        </select>
+        {(fStatut || fType || fSeverite || fArchive !== "actives") && (
           <Button
             size="sm"
             variant="ghost"
@@ -473,6 +549,7 @@ export function FeedbackAdminVue({
               setFStatut("");
               setFType("");
               setFSeverite("");
+              setFArchive("actives");
             }}
           >
             Réinitialiser
