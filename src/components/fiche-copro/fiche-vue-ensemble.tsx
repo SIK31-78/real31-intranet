@@ -448,7 +448,9 @@ function BlocAg({
       {listeSecoursCS && (
         <ListeDiffusionCS
           coproCode={coproCode}
+          sourceActive={listeSecoursCS.sourceActive}
           estaleFournitEmails={listeSecoursCS.estaleFournitEmails}
+          emailsActifs={listeSecoursCS.emailsActifs}
           emailsSecours={listeSecoursCS.emailsSecours}
         />
       )}

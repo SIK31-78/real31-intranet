@@ -45,6 +45,7 @@ export default async function CoproprietePage({
     etatListeSecoursCS(code).catch(() => ({
       sourceActive: "aucune" as const,
       estaleFournitEmails: false,
+      emailsActifs: [] as string[],
       emailsSecours: [] as string[],
     })),
   ]);

@@ -17,16 +17,21 @@ export interface EtatListeSecoursCS {
   /** eStale fournit-il deja les emails du conseil ? Si oui, la liste de secours est inactive
    *  (l'edition ci-dessous ne changera pas le mail tant qu'eStale a des adresses). */
   estaleFournitEmails: boolean;
+  /** Adresses qui RECOIVENT REELLEMENT le mail aujourd'hui (eStale ou secours selon la source).
+   *  A afficher en lecture pour que le gestionnaire VOIE les destinataires (ex. emails eStale
+   *  du conseil), sans avoir a ouvrir le mail. */
+  emailsActifs: string[];
   /** Adresses de secours actuellement enregistrees (Crypto ou editees dans l'intranet). */
   emailsSecours: string[];
 }
 
 export async function etatListeSecoursCS(coproCode: string): Promise<EtatListeSecoursCS> {
-  const { source } = await destinatairesConseilSyndical(coproCode);
+  const { source, emails } = await destinatairesConseilSyndical(coproCode);
   const liste = await getListesDiffusionProvider().listeCSPourCopro(coproCode);
   return {
     sourceActive: source,
     estaleFournitEmails: source === "estale",
+    emailsActifs: emails,
     emailsSecours: liste?.emails ?? [],
   };
 }
