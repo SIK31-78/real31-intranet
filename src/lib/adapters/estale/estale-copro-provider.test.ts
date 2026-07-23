@@ -123,6 +123,23 @@ describe("EstaleCoproProvider.listerCoprosEstale", () => {
     expect(findByEmailCount).toBe(apres1); // pas de re-resolution d'equipe
   });
 
+  it("cache negatif : un echec est memorise -> le 2e appel rejette SANS refetch eStale", async () => {
+    gql.mockReset();
+    gql.mockRejectedValueOnce(new Error("eStale KO"));
+    const p = new EstaleCoproProvider(fakeGestionnaires, fakeAgences);
+    await expect(p.listerCoprosEstale()).rejects.toThrow("eStale KO");
+    // 2e appel immediat : rejette encore, mais SANS rappeler eStale (fenetre negative chaude).
+    await expect(p.listerCoprosEstale()).rejects.toThrow("eStale KO");
+    expect(gql).toHaveBeenCalledTimes(1);
+  });
+
+  it("dedup in-flight : 2 appels concurrents = 1 seule requete eStale", async () => {
+    const p = new EstaleCoproProvider(fakeGestionnaires, fakeAgences);
+    const [a, b] = await Promise.all([p.listerCoprosEstale(), p.listerCoprosEstale()]);
+    expect(gql).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b); // promesse partagee -> meme resultat
+  });
+
   it("getCoproEstale resout par reference normalisee", async () => {
     const p = new EstaleCoproProvider(fakeGestionnaires, fakeAgences);
     expect((await p.getCoproEstale("S0300"))?.code).toBe("S300");

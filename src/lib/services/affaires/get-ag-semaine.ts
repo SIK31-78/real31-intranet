@@ -27,9 +27,8 @@ import {
   estEnParcours,
   type CycleAg,
 } from "@/lib/domain/cycle-ag";
-import type { StatutAg } from "@/lib/domain/supervision-ag";
-import { getCoproRepository, getJalonRepository } from "@/lib/adapters/router";
-import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
+import { getJalonRepository, getSupervisionAgProvider } from "@/lib/adapters/router";
+import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 
 // Fenetre "les plus urgentes" : on remonte une AG imminente jusqu'a J-21 (3 semaines)
 // pour ne pas rater la prepa qui demarre, + tout ce qui est en retard, + le suivi
@@ -108,7 +107,7 @@ function versLigne(c: Copropriete, cycle: CycleAg): AgSemaineLigne | null {
  */
 export async function getAgSemaine(managerId: string): Promise<AgSemaineLigne[]> {
   const today = aujourdhuiISO();
-  const copros = await getCoproRepository().list(managerId);
+  const copros = await listerCoprosParRequete(managerId);
 
   // Etat des jalons lu UNE fois (lecture groupee), pour les copros datees en cycle.
   const dateesEnCycle = copros.filter((c) => estDateeEnCycle(c, today));
@@ -122,17 +121,22 @@ export async function getAgSemaine(managerId: string): Promise<AgSemaineLigne[]>
 
   const candidates = copros.filter((c) => estEnParcours(c, today));
 
+  // Statut de supervision : SEULEMENT pour une AG DATEE deja passee (tenue non conclue).
+  // Il distingue "Conclure l'AG" (en_preparation) de "cycle termine" (conclue_archivee),
+  // exactement comme la fiche copro (get-fiche-copro). UNE lecture groupee au lieu d'un appel
+  // par copro (perimetre deja valide en amont : les copros viennent de la liste scopee).
+  const clesPassees = candidates
+    .filter((c) => c.prochaineAg?.date && c.prochaineAg.date < today)
+    .map((c) => `${c.code}__${c.prochaineAg!.date}`);
+  const statutParCle = await getSupervisionAgProvider().getStatuts(clesPassees);
+
   const lignes: { ligne: AgSemaineLigne; cycle: CycleAg }[] = [];
   for (const c of candidates) {
     const accompli = accompliPar.get(`${c.code}|${c.prochaineAg?.date}`) ?? new Set<string>();
-    // Statut de supervision : SEULEMENT pour une AG DATEE deja passee (tenue non conclue).
-    // Il distingue "Conclure l'AG" (en_preparation) de "cycle termine" (conclue_archivee),
-    // exactement comme la fiche copro (get-fiche-copro). Aucun appel hors de ce cas etroit.
-    let statut: StatutAg | undefined;
-    if (c.prochaineAg?.date && c.prochaineAg.date < today) {
-      const sup = await getSupervisionAg(`${c.code}__${c.prochaineAg.date}`, managerId);
-      statut = sup?.statut;
-    }
+    const statut =
+      c.prochaineAg?.date && c.prochaineAg.date < today
+        ? statutParCle.get(`${c.code}__${c.prochaineAg.date}`)
+        : undefined;
     const cycle = calculerCycleAg(c, accompli, today, statut);
     if (!estImminent(cycle)) continue;
     const ligne = versLigne(c, cycle);

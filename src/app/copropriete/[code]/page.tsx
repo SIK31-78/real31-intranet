@@ -31,18 +31,23 @@ export default async function CoproprietePage({
   const transverse = peutVoirComptabilite(g.email, g.role);
   const fiche = await getFicheCopro(code, g.id, aujourdhuiISO, { transverse });
   if (!fiche) notFound();
-  const dossiers = await getDossiersCopro(code, g.id);
   // Gating mail : double gate (MAIL_SOURCE=graph + allowlist pilotes) applique au bouton
   // "Preparer le mail au CS/AG" -> grise pour les non-pilotes (comme Mes emails).
   const mailActif = mailModuleActifPour(g.email);
-  // Etat de la liste de diffusion CS (secours) : source active du mail (eStale vs secours)
-  // + adresses de secours editables. L'appel eStale est un hit de cache (deja lu par la
-  // fiche). On degrade en secours vide si la lecture echoue (l'ecran ne casse pas).
-  const listeSecoursCS = await etatListeSecoursCS(code).catch(() => ({
-    sourceActive: "aucune" as const,
-    estaleFournitEmails: false,
-    emailsSecours: [] as string[],
-  }));
+  // Le perimetre est DEJA valide par getFicheCopro (sinon notFound plus haut) : les deux
+  // lectures ci-dessous sont independantes -> en parallele.
+  //  - dossiers de la copro ;
+  //  - etat de la liste de diffusion CS (secours) : source active (eStale vs secours) +
+  //    adresses de secours. L'appel eStale est un hit de cache (deja lu par la fiche). On
+  //    degrade en secours vide si la lecture echoue (l'ecran ne casse pas).
+  const [dossiers, listeSecoursCS] = await Promise.all([
+    getDossiersCopro(code, g.id),
+    etatListeSecoursCS(code).catch(() => ({
+      sourceActive: "aucune" as const,
+      estaleFournitEmails: false,
+      emailsSecours: [] as string[],
+    })),
+  ]);
 
   return (
     <AppShell

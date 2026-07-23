@@ -137,6 +137,10 @@ export function MesEmailsVue({
   const [recherche, setRecherche] = useState("");
   const [copie, setCopie] = useState<string | null>(null);
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
+  // Verrou anti double-envoi : le bouton "Envoyer la réponse" declenche un envoi REEL
+  // (irreversible). Tant qu'un envoi est en cours, on ignore les nouveaux clics et on grise
+  // le bouton -> jamais deux mails envoyes pour un double-clic ou un clic pendant l'attente.
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [coprosChoisies, setCoprosChoisies] = useState<Map<string, { code: string; nom: string }>>(
     new Map(),
   );
@@ -328,6 +332,7 @@ export function MesEmailsVue({
   // ENVOYER la reponse, INDEPENDAMMENT du classement (on peut repondre maintenant et
   // classer/agir plus tard). Pas besoin de choisir un dossier. Irreversible -> confirmation.
   async function envoyerSeul(m: MailEntrant) {
+    if (envoiEnCours) return; // un envoi est deja en cours -> on ignore le double clic
     const corps = brouillonDe(m).trim();
     if (!corps) {
       setMsgBrouillon("Le message est vide.");
@@ -340,23 +345,28 @@ export function MesEmailsVue({
     }
     const recap = `Envoyer la réponse à ${dst.to.join(", ")}${dst.cc.length ? `\n(cc : ${dst.cc.join(", ")})` : ""}${dst.cci.length ? `\n(cci : ${dst.cci.join(", ")})` : ""} ?`;
     if (!window.confirm(recap)) return;
+    setEnvoiEnCours(true);
     setMsgBrouillon("Envoi en cours…");
-    const r = await envoyerReponseAction(
-      m.id,
-      coproDe(m).code,
-      brouillonDe(m),
-      sujetDe(m),
-      dst.to,
-      dst.cc,
-      dst.cci,
-      [...pjJointesDe(m)],
-    );
-    if (!r.ok) {
-      setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
-      return;
+    try {
+      const r = await envoyerReponseAction(
+        m.id,
+        coproDe(m).code,
+        brouillonDe(m),
+        sujetDe(m),
+        dst.to,
+        dst.cc,
+        dst.cci,
+        [...pjJointesDe(m)],
+      );
+      if (!r.ok) {
+        setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
+        return;
+      }
+      setRepondus((p) => add(p, m.id));
+      setMsgBrouillon("Réponse envoyée ✓");
+    } finally {
+      setEnvoiEnCours(false);
     }
-    setRepondus((p) => add(p, m.id));
-    setMsgBrouillon("Réponse envoyée ✓");
   }
 
   // Classer = deplacer dans le dossier Outlook choisi (independant de l'envoi).
@@ -526,6 +536,7 @@ export function MesEmailsVue({
               sujet={sujetDe(selection)}
               onMajSujet={(v) => majSujet(selection, v)}
               onEnvoyer={() => void envoyerSeul(selection)}
+              envoiEnCours={envoiEnCours}
               msgBrouillon={msgBrouillon}
               changer={changer}
               ouverts={ouverts}
@@ -952,6 +963,7 @@ function AnalysePane({
   sujet,
   onMajSujet,
   onEnvoyer,
+  envoiEnCours,
   msgBrouillon,
   onToggleChanger,
   onRattacherDossier,
@@ -997,6 +1009,7 @@ function AnalysePane({
   sujet: string;
   onMajSujet: (v: string) => void;
   onEnvoyer: () => void;
+  envoiEnCours: boolean;
   msgBrouillon: string | null;
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
@@ -1208,10 +1221,11 @@ function AnalysePane({
                 <button
                   type="button"
                   onClick={onEnvoyer}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90"
+                  disabled={envoiEnCours}
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Send strokeWidth={2} className="w-4 h-4" />
-                  Envoyer la réponse
+                  {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
                 </button>
                 {msgBrouillon ? <span className="text-[11.5px] text-ink-3">{msgBrouillon}</span> : null}
               </div>

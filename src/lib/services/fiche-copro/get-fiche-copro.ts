@@ -12,7 +12,7 @@ import { getCoproRepository, getJalonRepository, getGestionnaireRepository } fro
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
-import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
+import { evenementsDeCopro } from "@/lib/services/calendrier/get-calendrier";
 import { getEtatCompta } from "@/lib/services/compta/get-compta";
 
 const DONNEES_ESTALE_VIDES: DonneesEstaleCopro = {
@@ -42,6 +42,20 @@ async function chargerEstale(
   }
 }
 
+/** Statut de la supervision : utile SEULEMENT pour une AG DATEE deja passee (tenue non
+ *  conclue) -> priorisation post-tenue (S2.D). undefined hors de ce cas etroit (comportement
+ *  inchange). Isole pour etre parallelise avec le reste (evite un await serie).
+ *  `scope` : managerId de cloisonnement (undefined en lecture transverse). */
+async function chargerStatutSupervision(
+  copro: { code: string; prochaineAg?: { date: string } },
+  aujourdhuiISO: string,
+  scope: string | undefined,
+): Promise<StatutAg | undefined> {
+  if (!(copro.prochaineAg?.date && copro.prochaineAg.date < aujourdhuiISO)) return undefined;
+  const sup = await getSupervisionAg(`${copro.code}__${copro.prochaineAg.date}`, scope);
+  return sup?.statut;
+}
+
 export async function getFicheCopro(
   code: string,
   gestionnaireId: string,
@@ -60,17 +74,31 @@ export async function getFicheCopro(
   // Donnees Estale : null si la copro n'est pas encore sur Estale -> bloc vide assume.
   // Si Estale tombe (5xx / timeout), on NE crashe PAS la fiche : on degrade sur le
   // referentiel et on signale l'indisponibilite (robustesse, source secondaire).
-  // Les 4 appels ci-dessous ne dependent que de copro/gestionnaireId (pas les uns des
-  // autres) -> parallelises. La tolerance aux pannes d'Estale (chargerEstale) est
-  // inchangee : elle ne rejette jamais, donc ne fait pas echouer le Promise.all.
-  const [{ estale, estaleIndisponible }, tous, jalons, compta] = await Promise.all([
-    chargerEstale(code),
-    getEvenements(gestionnaireId),
-    copro.prochaineAg ? getJalonRepository().getJalons(copro.code, copro.prochaineAg.date) : Promise.resolve([]),
-    copro.prochaineAg ? getEtatCompta(copro.code, copro.prochaineAg.date) : Promise.resolve(undefined),
-  ]);
+  //
+  // TOUT ce qui ne depend que de copro/gestionnaireId est charge EN UN SEUL lot parallele
+  // (avant : cascade serielle statut -> confirmations -> annuaire -> agence). chargerEstale
+  // et chargerStatutSupervision ne rejettent pas de facon a casser la fiche : chargerEstale
+  // degrade, chargerStatutSupervision ne s'execute que sur un cas etroit.
+  const scopeSupervision = options?.transverse ? undefined : gestionnaireId;
+  const [{ estale, estaleIndisponible }, jalons, compta, confirmations, statutSupervision, agenceCode] =
+    await Promise.all([
+      chargerEstale(code),
+      copro.prochaineAg ? getJalonRepository().getJalons(copro.code, copro.prochaineAg.date) : Promise.resolve([]),
+      copro.prochaineAg ? getEtatCompta(copro.code, copro.prochaineAg.date) : Promise.resolve(undefined),
+      getConfirmations(copro.code),
+      chargerStatutSupervision(copro, aujourdhuiISO, scopeSupervision),
+      // Code d'agence (ML/LGC/HLS/ASN) resolu depuis l'id technique ; undefined si pas
+      // d'agence / table indisponible -> l'editeur ne filtre pas (montre toutes les salles).
+      codeAgence(copro.agenceId),
+    ]);
+
+  // Confirmations AG/CS par le conseil syndical : lues UNE fois (avant : getEvenements les
+  // relisait pour TOUT le portefeuille juste pour en garder une copro). Servent aux chips de
+  // dates ET a la derivation LOCALE des prochains evenements (O1 : pure, plus de fetch large).
+  const confAg = confirmations.find((c) => c.type === "AG") ?? null;
+  const confCs = confirmations.find((c) => c.type === "CS") ?? null;
   const prochains = prochainsEvenements(
-    tous.filter((e) => e.coproCode === code),
+    evenementsDeCopro(copro, confAg, confCs, aujourdhuiISO),
     aujourdhuiISO,
     5,
   );
@@ -110,18 +138,7 @@ export async function getFicheCopro(
   // Cycle AG de la copro (LA source unique domain/cycle-ag) : l'etat "accompli" se deduit
   // des jalons deja charges (Promise.all ci-dessus) -> pas de requete supplementaire.
   const accompli = new Set(jalons.filter((j) => j.statut === "accompli").map((j) => j.code));
-  // Statut de la supervision : utile SEULEMENT pour une AG DATEE deja passee (tenue non
-  // conclue) -> priorisation post-tenue (S2.D). On evite l'appel hors de ce cas etroit ;
-  // ailleurs, statut absent = comportement inchange. La supervision d'une AG conclue vide
-  // sa date, donc ce cas retombe sur l'heritage (aucune action) sans appel.
-  let statutSupervision: StatutAg | undefined;
-  if (copro.prochaineAg?.date && copro.prochaineAg.date < aujourdhuiISO) {
-    const sup = await getSupervisionAg(
-      `${copro.code}__${copro.prochaineAg.date}`,
-      options?.transverse ? undefined : gestionnaireId,
-    );
-    statutSupervision = sup?.statut;
-  }
+  // statutSupervision : deja charge (en parallele) ci-dessus via chargerStatutSupervision.
   const cycle = calculerCycleAg(copro, accompli, aujourdhuiISO, statutSupervision);
   // On n'affiche le stepper que s'il y a une action a mener OU un suivi post-tenue en
   // cours (etat "tenue" : "Conclure l'AG" ou "cycle termine"). Cycle complet hors tenue
@@ -132,10 +149,8 @@ export async function getFicheCopro(
 
   // Confirmation des prochaines dates AG/CS par le conseil syndical (demande patron :
   // une date posee est provisoire tant que le CS n'a pas valide). Seules les dates A
-  // VENIR portent un statut : confirmer une date passee n'a pas de sens.
-  const confirmations = await getConfirmations(copro.code);
-  const confAg = confirmations.find((c) => c.type === "AG") ?? null;
-  const confCs = confirmations.find((c) => c.type === "CS") ?? null;
+  // VENIR portent un statut : confirmer une date passee n'a pas de sens. (confAg / confCs
+  // deja derives des confirmations chargees dans le Promise.all ci-dessus.)
   const confirmationAg =
     copro.prochaineAg && copro.prochaineAg.date >= aujourdhuiISO
       ? statutPourDate(confAg, copro.prochaineAg.date)
@@ -172,11 +187,7 @@ export async function getFicheCopro(
     (emails ?? []).map((email) => ({ email, nom: nomParEmail.get(email.toLowerCase()) ?? email }));
   const collaborateursAg = resoudreCollab(confAg?.collaborateursEmails);
   const collaborateursCs = resoudreCollab(confCs?.collaborateursEmails);
-
-  // Code d'agence de la copro (ML/LGC/HLS/ASN) resolu depuis son id technique, pour le
-  // cloisonnement par agence de l'editeur de date. undefined si pas d'agence / table
-  // indisponible -> l'editeur ne filtre pas (montre toutes les salles).
-  const agenceCode = await codeAgence(copro.agenceId);
+  // (agenceCode : deja resolu en parallele dans le Promise.all ci-dessus.)
 
   return {
     copro,

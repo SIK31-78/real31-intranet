@@ -36,15 +36,17 @@ export async function getCoprosPilotage(managerId?: string): Promise<CoproPilota
 
   const codes = copros.map((c) => c.code);
 
+  // Deux lectures independantes -> en parallele : etats de jalons (CONVOC) et prise en main.
+  const [etats, prises] = await Promise.all([
+    getJalonRepository().getEtats(codes),
+    getPrisesEnMain(codes), // null = feature inerte -> tout considere pris en main
+  ]);
+
   // CONVOC marquee accomplie par copro+AG (etat "convoquee").
-  const etats = await getJalonRepository().getEtats(codes);
   const convocOk = new Set<string>();
   for (const e of etats) {
     if (e.type === "CONVOC" && e.statut === "accompli") convocOk.add(`${e.coproCode}|${e.agDate}`);
   }
-
-  // Prise en main (onboarding). null = feature inerte -> tout considere pris en main.
-  const prises = await getPrisesEnMain(codes);
 
   return copros.map((c) => {
     const ag = c.prochaineAg?.date;

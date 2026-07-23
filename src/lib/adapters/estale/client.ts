@@ -72,22 +72,31 @@ function expurgerVariables(
   return expurge;
 }
 
-/** Execute une query GraphQL Estale. Re-login automatique (une fois) sur 401/403. */
+/**
+ * Execute une query GraphQL Estale. Re-login automatique (une fois) sur 401/403.
+ * `options.timeoutMs` : timeout d'abort DEDIE a CET appel (sinon defaut inchange :
+ * TIMEOUT_MUTATION_MS pour une mutation, TIMEOUT_MS sinon). Sert au chemin critique
+ * (liste des copros lue a chaque page) pour degrader vite sans toucher le comportement
+ * general du client.
+ */
 export async function estaleGql<T>(
   query: string,
   variables?: Record<string, unknown>,
+  options?: { timeoutMs?: number },
 ): Promise<T> {
   cookieSession ??= await login();
 
   // Une mutation n'est PAS idempotente : timeout plus long, et jamais de retry sur 5xx.
   const estMutation = query.trimStart().startsWith("mutation");
+  // Timeout par defaut (inchange) sauf override explicite par appel.
+  const timeoutMs = options?.timeoutMs ?? (estMutation ? TIMEOUT_MUTATION_MS : TIMEOUT_MS);
 
   const appel = async (): Promise<Response> =>
     fetch(`${BASE}/graphql/intranet`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie: cookieSession! },
       body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
-      signal: AbortSignal.timeout(estMutation ? TIMEOUT_MUTATION_MS : TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
   let res = await appel();

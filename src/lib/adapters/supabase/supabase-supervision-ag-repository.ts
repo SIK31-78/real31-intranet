@@ -64,6 +64,39 @@ export class SupabaseSupervisionAgRepository implements SupervisionAgProvider {
     return construire(agId, ref, c.name, etat, csDate);
   }
 
+  async getStatuts(agIds: string[]): Promise<Map<string, StatutAg>> {
+    const out = new Map<string, StatutAg>();
+    // Cles valides parsees ; defaut "en_preparation" (comme une copro sans ligne conclusion).
+    const refs = agIds
+      .map((id) => ({ id, ref: parse(id) }))
+      .filter((x): x is { id: string; ref: Ref } => x.ref !== null);
+    for (const { id } of refs) out.set(id, "en_preparation");
+    if (refs.length === 0) return out;
+
+    const codes = [...new Set(refs.map((x) => x.ref.code))];
+    const supabase = createSupabasePublicClient();
+    // UNE lecture : les seules lignes de CONCLUSION de ces copros. Une paire (code, date)
+    // presente = AG conclue. Degrade proprement (tout "en_preparation") si la requete echoue.
+    const { data, error } = await supabase
+      .from("intranet_supervision_items")
+      .select("copropriete_id, ag_date")
+      .eq("item_id", ITEM_CONCLUSION)
+      .in("copropriete_id", codes);
+    if (error) {
+      console.warn("[supervision] getStatuts indisponible :", error.message);
+      return out;
+    }
+    const conclues = new Set(
+      ((data as { copropriete_id: string; ag_date: string }[] | null) ?? []).map(
+        (r) => `${r.copropriete_id}__${r.ag_date}`,
+      ),
+    );
+    for (const { id, ref } of refs) {
+      if (conclues.has(`${ref.code}__${ref.agDate}`)) out.set(id, "conclue_archivee");
+    }
+    return out;
+  }
+
   async setStatutItem(
     agId: string,
     itemId: string,

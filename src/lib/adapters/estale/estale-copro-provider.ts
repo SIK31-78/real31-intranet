@@ -48,9 +48,28 @@ type CondoNode = {
 let cache: { copros: Copropriete[]; expire: number } | null = null;
 const TTL_MS = (Number(process.env.ESTALE_CACHE_TTL_S) || 10 * 60) * 1000;
 
-/** Reset du cache (tests). */
+// Cache NEGATIF : un echec eStale (panne / lenteur) est memorise BRIEVEMENT. Cette liste est
+// dans le chemin critique de CHAQUE page (le composite l'appelle avant tout) : sans ce cache,
+// un eStale KO ferait re-tenter (et re-payer le timeout) a chaque rendu. Ici on re-jette tout
+// de suite pendant la fenetre -> le composite degrade sur le miroir en ~0 ms. Fenetre courte
+// pour re-tenter vite une fois l'incident passe.
+let echecNeg: { expire: number; message: string } | null = null;
+const TTL_ECHEC_MS = (Number(process.env.ESTALE_CACHE_ECHEC_S) || 60) * 1000;
+
+// Dedup IN-FLIGHT : N rendus concurrents d'une meme requete liste partagent 1 seul appel
+// eStale (au lieu d'en lancer autant). Libere en `finally` (succes comme echec).
+let enVol: Promise<Copropriete[]> | null = null;
+
+// Timeout DEDIE a la requete liste : bien plus court que le timeout general du client eStale
+// (10 s), car cette requete est dans le chemin critique de toutes les pages -> on degrade vite
+// sur le miroir plutot que de faire patienter le gestionnaire. Surchargeable par env.
+const TIMEOUT_LISTE_MS = Number(process.env.ESTALE_TIMEOUT_LISTE_MS) || 3_000;
+
+/** Reset du cache (tests) : positif, negatif ET in-flight. */
 export function _resetCacheCoprosEstale(): void {
   cache = null;
+  echecNeg = null;
+  enVol = null;
 }
 
 /** "REAL 31 - HLS" -> "HLS" : le code d'agence est le suffixe apres "REAL 31 - ". */
@@ -93,8 +112,36 @@ export class EstaleCoproProvider implements CoproEstaleProvider {
 
   async listerCoprosEstale(): Promise<Copropriete[]> {
     if (cache && Date.now() < cache.expire) return cache.copros;
+    // Echec recent encore chaud : on re-jette immediatement (le composite retombe sur le
+    // miroir en ~0 ms au lieu de re-payer un timeout eStale).
+    if (echecNeg && Date.now() < echecNeg.expire) throw new Error(echecNeg.message);
+    // Un appel identique est deja en vol : on s'y greffe (1 fetch pour N appelants concurrents).
+    if (enVol) return enVol;
 
-    const data = await estaleGql<{ me: { agency: { condos: CondoNode[] } | null } }>(QUERY_CONDOS);
+    enVol = this.chargerEtMapper()
+      .then((copros) => {
+        cache = { copros, expire: Date.now() + TTL_MS };
+        echecNeg = null; // succes : purge un eventuel cache negatif
+        return copros;
+      })
+      .catch((err) => {
+        // Memorise l'echec brievement, puis re-jette (comportement inchange pour l'appelant).
+        echecNeg = { expire: Date.now() + TTL_ECHEC_MS, message: (err as Error).message };
+        throw err;
+      })
+      .finally(() => {
+        enVol = null; // libere le verrou in-flight
+      });
+    return enVol;
+  }
+
+  /** Charge (timeout dedie court) et mappe les copros eStale. Isole pour la dedup in-flight. */
+  private async chargerEtMapper(): Promise<Copropriete[]> {
+    const data = await estaleGql<{ me: { agency: { condos: CondoNode[] } | null } }>(
+      QUERY_CONDOS,
+      undefined,
+      { timeoutMs: TIMEOUT_LISTE_MS },
+    );
     const condos = data.me.agency?.condos ?? [];
 
     // Agence : code (HLS/LGC/ML/ASN) -> id technique (pour renseigner copro.agenceId, comme
@@ -157,7 +204,7 @@ export class EstaleCoproProvider implements CoproEstaleProvider {
       };
     });
 
-    cache = { copros, expire: Date.now() + TTL_MS };
+    // Le cache POSITIF est pose par l'appelant (listerCoprosEstale) apres succes.
     return copros;
   }
 

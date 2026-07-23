@@ -1,5 +1,6 @@
 import type {
   ItemProbleme,
+  StatutAg,
   StatutItem,
   SupervisionAg,
   VisaFinal,
@@ -12,6 +13,11 @@ export interface Auditeur {
 export interface SupervisionAgProvider {
   /** managerId : si fourni, ne renvoie la supervision que si la copro appartient au gestionnaire. */
   getSupervision(agId: string, managerId?: string): Promise<SupervisionAg | undefined>;
+  /** Statut (conclue ou non) d'un lot d'AG datees, en UNE lecture groupee (evite N appels
+   *  getSupervision quand seul le statut compte, ex accueil). Cle = agId "CODE__DATE".
+   *  Cloisonnement suppose fait en AMONT (les cles viennent de copros deja scopees).
+   *  Toute cle valide demandee est presente dans le resultat (defaut "en_preparation"). */
+  getStatuts(agIds: string[]): Promise<Map<string, StatutAg>>;
   setStatutItem(
     agId: string,
     itemId: string,

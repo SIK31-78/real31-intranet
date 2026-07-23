@@ -54,14 +54,18 @@ vi.mock("@/lib/adapters/router", () => ({
       return [...acc("CONVOC10", "2026-07-25"), ...acc("CONVOC40", "2026-08-24")];
     },
   }),
-}));
-
-vi.mock("@/lib/services/supervision-ag/get-supervision-ag", () => ({
-  async getSupervisionAg(agId: string) {
-    if (agId === "TENUE__2026-07-10") return { statut: "en_preparation" };
-    if (agId === "CONCLU__2026-07-08") return { statut: "conclue_archivee" };
-    return undefined;
-  },
+  getSupervisionAgProvider: () => ({
+    // Batch : statut par cle "CODE__DATE". TENUE non conclue -> "Conclure l'AG" ;
+    // CONCLU conclue -> plus d'action (exclue). Toute autre cle = "en_preparation" par defaut.
+    async getStatuts(agIds: string[]) {
+      const out = new Map<string, string>();
+      for (const id of agIds) {
+        if (id === "CONCLU__2026-07-08") out.set(id, "conclue_archivee");
+        else out.set(id, "en_preparation");
+      }
+      return out;
+    },
+  }),
 }));
 
 // Fige la date du jour (le service lit new Date()).

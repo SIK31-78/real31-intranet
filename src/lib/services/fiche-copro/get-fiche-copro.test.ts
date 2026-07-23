@@ -56,7 +56,9 @@ vi.mock("@/lib/services/coproprietes/confirmation-evenement", () => ({
   getConfirmations: async () => [],
 }));
 vi.mock("@/lib/services/calendrier/get-calendrier", () => ({
-  getEvenements: async () => [],
+  // La fiche derive desormais les prochains evenements localement (pure) au lieu de recharger
+  // tout le portefeuille : la copro de test n'a pas de dates -> aucun evenement.
+  evenementsDeCopro: () => [],
 }));
 vi.mock("@/lib/services/compta/get-compta", () => ({
   getEtatCompta: async () => ({ comptesVerifies: false, envoyerAvant: false, checks: {}, notes: [] }),

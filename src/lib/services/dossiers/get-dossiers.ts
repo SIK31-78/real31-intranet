@@ -2,6 +2,7 @@
 // ses copros. Passe par le routeur (ADR-001).
 
 import { getCoproRepository, getDossierRepository } from "@/lib/adapters/router";
+import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import type { Dossier } from "@/lib/domain/dossier";
 
 /** Membre assignable (gestionnaire / assistant) pour l'assignation des taches. */
@@ -17,7 +18,7 @@ export interface DossierVue {
 
 /** Tous les dossiers du gestionnaire (de ses copros), enrichis du nom de copro. */
 export async function getDossiers(managerId: string): Promise<Dossier[]> {
-  const copros = await getCoproRepository().list(managerId);
+  const copros = await listerCoprosParRequete(managerId);
   const noms = new Map(copros.map((c) => [c.code, c.nom]));
   const dossiers = await getDossierRepository().listPourCopros([...noms.keys()]);
   return dossiers.map((d) => ({ ...d, coproNom: noms.get(d.coproCode) }));

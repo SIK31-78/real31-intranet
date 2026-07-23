@@ -9,6 +9,7 @@ import type {
 import type {
   ItemChecklist,
   ItemProbleme,
+  StatutAg,
   StatutItem,
   SupervisionAg,
   VisaFinal,
@@ -206,6 +207,18 @@ function mutItem(
 export class MockSupervisionAgProvider implements SupervisionAgProvider {
   async getSupervision(agId: string): Promise<SupervisionAg | undefined> {
     return STORE.get(agId);
+  }
+
+  // Batch : statut des AG connues du store (les cles composites "CODE__DATE" de l'accueil
+  // ne correspondent pas au seed "e1"/"e2", donc en mock la map ressort vide - comportement
+  // inchange par rapport aux appels getSupervision unitaires qui renvoyaient undefined).
+  async getStatuts(agIds: string[]): Promise<Map<string, StatutAg>> {
+    const out = new Map<string, StatutAg>();
+    for (const id of agIds) {
+      const ag = STORE.get(id);
+      if (ag) out.set(id, ag.statut);
+    }
+    return out;
   }
 
   async setStatutItem(

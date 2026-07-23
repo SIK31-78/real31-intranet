@@ -5,7 +5,8 @@
 // sans dupliquer le lourd getDashboard (qui calculait aussi parcours/jalons/attention,
 // inutiles ici). Passe par le routeur + services existants (ADR-001).
 
-import { getComptaRepository, getCoproRepository } from "@/lib/adapters/router";
+import { getComptaRepository } from "@/lib/adapters/router";
+import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import { getPrisesEnMain } from "@/lib/services/coproprietes/prise-en-main";
 import { getProblemes } from "@/lib/services/problemes/get-problemes";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
@@ -31,7 +32,7 @@ export interface AccueilComplement {
 }
 
 export async function getAccueilComplement(g: Gestionnaire): Promise<AccueilComplement> {
-  const tous = await getCoproRepository().list(g.id);
+  const tous = await listerCoprosParRequete(g.id);
   const coprosMin = tous.map((c) => ({ code: c.code, nom: c.nom }));
 
   // Copros avec une AG datee : cle pour lire l'etat compta (notes de la comptable).
