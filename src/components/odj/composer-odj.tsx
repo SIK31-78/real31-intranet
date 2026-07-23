@@ -92,6 +92,26 @@ export function ComposerOdj({
 
   const dejaAjoute = useMemo(() => new Set(draft.map((r) => r.id)), [draft]);
 
+  // Resolutions de la bibliotheque DEJA presentes dans l'AG Estale (match par titre
+  // normalise, hors motions marquees pour retrait). Le picker ne voyait jusqu'ici que le
+  // brouillon : on evite d'ajouter un doublon d'une resolution deja dans l'AG.
+  const dejaDansAg = useMemo(() => {
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+    const titresAg = new Set(
+      (assemblee?.motions ?? []).filter((m) => !aSupprimer.has(m.id)).map((m) => norm(m.titre)),
+    );
+    return new Set(data.resolutions.filter((r) => titresAg.has(norm(r.titre))).map((r) => r.id));
+  }, [assemblee, aSupprimer, data.resolutions]);
+
+  // L'AG Estale ciblee porte-t-elle une date differente de celle visee par l'intranet ?
+  // (Ex. date d'AG intranet posee, mais le Meeting Estale a une autre date.) On avertit :
+  // l'ODJ compose s'applique a CETTE AG Estale, pas a la date intranet.
+  const datesDivergent = useMemo(() => {
+    const iso = assemblee?.dateISO;
+    if (!dateAg || !iso) return false;
+    return canonDate(dateAg) !== canonDate(iso);
+  }, [dateAg, assemblee]);
+
   // Picker conscient des groupes : on liste les resolutions de TETE (les sous-resolutions
   // s'affichent sous leur groupe). Un groupe matche s'il matche lui-meme ou un de ses enfants.
   const visibles = useMemo(() => {
@@ -110,7 +130,7 @@ export function ComposerOdj({
   }, [data.resolutions, q, filtre]);
 
   function ajouter(r: Resolution) {
-    if (dejaAjoute.has(r.id)) return;
+    if (dejaAjoute.has(r.id) || dejaDansAg.has(r.id)) return;
     const enfants = r.estGroupe
       ? data.resolutions.filter((c) => rangParent(c.rank) === r.rank)
       : [];
@@ -231,6 +251,18 @@ export function ComposerOdj({
         <AlerteEtatAg etat={etatAg} onCreer={creerAg} creation={creation} />
       )}
 
+      {datesDivergent && assemblee?.dateISO && (
+        <div className="flex items-start gap-3 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
+          <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
+          <p className="text-[12.5px] text-warn-700">
+            <span className="font-medium">Dates divergentes.</span> L&apos;intranet vise l&apos;AG
+            du {dateAg}, mais l&apos;AG Estale ciblée est datée du {assemblee.dateISO}. L&apos;ODJ
+            que tu composes s&apos;applique à <span className="font-medium">cette AG Estale</span> -
+            vérifie que c&apos;est la bonne avant d&apos;enregistrer.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         <BibliothequePicker
           data={data}
@@ -240,6 +272,7 @@ export function ComposerOdj({
           filtre={filtre}
           setFiltre={setFiltre}
           dejaAjoute={dejaAjoute}
+          dejaDansAg={dejaDansAg}
           onAjouter={ajouter}
           editable={etatAg === "ouverte"}
         />
@@ -269,6 +302,7 @@ export function ComposerOdj({
             enregistrement={enregistrement}
             onEnregistrer={enregistrer}
             message={message}
+            nbModifs={nbModifs}
           />
         </div>
       </div>
@@ -317,6 +351,15 @@ function numeroter(
       dernierTop: !m.estEnfant && n === nbTops,
     };
   });
+}
+
+/** Canonicalise une date "yyyy-mm-dd" ou "dd/mm/yyyy" en "yyyymmdd" pour comparaison robuste. */
+function canonDate(s: string): string {
+  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}${iso[2]}${iso[3]}`;
+  const fr = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (fr) return `${fr[3]}${fr[2]}${fr[1]}`;
+  return s.replace(/\D/g, "");
 }
 
 function AssembleeExistante({
@@ -496,6 +539,7 @@ function BibliothequePicker({
   filtre,
   setFiltre,
   dejaAjoute,
+  dejaDansAg,
   onAjouter,
   editable,
 }: {
@@ -506,6 +550,7 @@ function BibliothequePicker({
   filtre: MajoriteResolution | "all";
   setFiltre: (v: MajoriteResolution | "all") => void;
   dejaAjoute: Set<string>;
+  dejaDansAg: Set<string>;
   onAjouter: (r: Resolution) => void;
   editable: boolean;
 }) {
@@ -557,6 +602,7 @@ function BibliothequePicker({
           <div className="flex flex-col gap-2 max-h-[60vh] overflow-auto pr-1">
             {visibles.map((r) => {
               const ajoute = dejaAjoute.has(r.id);
+              const enAg = !ajoute && dejaDansAg.has(r.id);
               const enfants = r.estGroupe
                 ? data.resolutions.filter((c) => rangParent(c.rank) === r.rank)
                 : [];
@@ -592,16 +638,23 @@ function BibliothequePicker({
                     <button
                       type="button"
                       onClick={() => onAjouter(r)}
-                      disabled={ajoute || !editable}
-                      className={`inline-flex items-center gap-1 h-7 px-2 rounded-sm text-[12px] font-medium shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      disabled={ajoute || enAg || !editable}
+                      title={enAg ? "Déjà présente dans l'AG Estale (pas de doublon)" : undefined}
+                      className={`inline-flex items-center gap-1 h-7 px-2 rounded-sm text-[12px] font-medium shrink-0 transition-colors disabled:cursor-not-allowed ${
                         ajoute
                           ? "text-ok-700 cursor-default"
-                          : "bg-green-700 text-surface hover:bg-green-600"
+                          : enAg
+                            ? "text-ink-3 cursor-default"
+                            : "bg-green-700 text-surface hover:bg-green-600 disabled:opacity-40"
                       }`}
                     >
                       {ajoute ? (
                         <>
                           <Check strokeWidth={2} className="w-3.5 h-3.5" /> Ajouté
+                        </>
+                      ) : enAg ? (
+                        <>
+                          <ListChecks strokeWidth={2} className="w-3.5 h-3.5" /> Déjà dans l&apos;AG
                         </>
                       ) : (
                         <>
@@ -641,6 +694,7 @@ function OdjEnConstruction({
   enregistrement,
   onEnregistrer,
   message,
+  nbModifs,
 }: {
   draft: Resolution[];
   onRetirer: (id: string) => void;
@@ -657,6 +711,7 @@ function OdjEnConstruction({
   enregistrement: boolean;
   onEnregistrer: () => void;
   message: { ton: "ok" | "err"; texte: string } | null;
+  nbModifs: number;
 }) {
   // Numerote les resolutions de tete du brouillon (enfants de groupe : sans numero).
   const lignes = numeroterDraft(draft);
@@ -770,6 +825,13 @@ function OdjEnConstruction({
         >
           <Plus strokeWidth={1.5} className="w-4 h-4" /> Ajouter une résolution libre
         </button>
+      )}
+
+      {etatAg === "ouverte" && nbModifs > 0 && !enregistrement && (
+        <p className="text-[12px] text-ink-3">
+          {nbModifs} modification{nbModifs > 1 ? "s" : ""} en attente - rien n&apos;est écrit dans
+          l&apos;AG Estale tant que tu n&apos;as pas cliqué « Enregistrer ».
+        </p>
       )}
 
       <button
