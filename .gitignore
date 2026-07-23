@@ -61,9 +61,13 @@ data/**/*.csv
 data/**/*.pdf
 data/**/*.doc
 data/**/*.docx
+data/**/*.sql
+data/**/*.md
 data/*.json
 data/*.txt
 data/*.csv
+data/*.sql
+data/*.md
 
 # Exports PowerApps : binaires lourds / re-exportables (on garde les flux JSON + le guide)
 docs/powerapps/*.zip

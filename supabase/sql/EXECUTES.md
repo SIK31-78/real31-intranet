@@ -22,14 +22,14 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_listes_diffusion.sql` | ❔ | Listes de diffusion CS (base). |
 | `intranet_listes_diffusion_edite.sql` | ✅ | Exécuté par Sekou le **2026-07-20** (colonne `edite_le`, save validé à l'écran). |
 | `intranet_copro_dates.sql` | ✅ | Exécuté par Sekou le **2026-07-21**. |
-| `intranet_facturation.sql` | ❔ | Facturation. |
-| `intranet_recap_ag.sql` | ❔ | Récap AG. |
-| `intranet_recap_ag_complements.sql` | ❔ | Compléments récap AG. |
-| `intranet_tarifs_seed.sql` | ❔ | Seed tarifs. |
-| `intranet_suivi_contrats_seed.sql` | ❔ | Seed suivi contrats (jeu). |
-| `intranet_suivi_contrats_seed_reel.sql` | ❔ | Seed suivi contrats (réel). |
-| `intranet_produits.sql` | ❔ | Catalogue produits (gestion courante). |
-| `intranet_gestion_courante.sql` | ❔ | Gestion courante. |
+| `intranet_facturation.sql` | ✅ | Facturation (module bâti + validé sur un vrai brouillon Pennylane, ADR-032). |
+| `intranet_recap_ag.sql` | ✅ | Récap AG. |
+| `intranet_recap_ag_complements.sql` | ✅ | Compléments récap AG. |
+| `intranet_tarifs_seed.sql` | ✅ | Seed tarifs (barème cabinet, 3 millésimes en base). |
+| `intranet_suivi_contrats_seed.sql` | ✅ | Seed suivi contrats (jeu stopgap, montants NULL — remplacé par le réel). |
+| `intranet_suivi_contrats_seed_reel.sql` | ✅ | Seed réel (honoraires par copro) — **chargé en base** (audit 2026-07-23 : 0 montant NULL). ⚠️ **fichier sorti du repo → `data/seeds/` (git-ignoré, données commerciales)**. |
+| `intranet_produits.sql` | ✅ | Catalogue produits (product_id + comptes comptables Pennylane, gestion courante). |
+| `intranet_gestion_courante.sql` | ✅ | Gestion courante. |
 | `intranet_dossiers.sql` | 🔲 | **En attente** (créé 2026-07-22). |
 | `intranet_compta_notes.sql` | 🔲 | **En attente** (notes compta). |
 | `intranet_api_keys.sql` | 🔲 | **En attente** — clés machine API v1 ; tant que non passé, l'API répond 503 `api_non_configuree`. |
