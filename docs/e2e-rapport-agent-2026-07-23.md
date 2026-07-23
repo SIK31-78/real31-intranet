@@ -59,10 +59,21 @@ gestionnaires composent de vrais ODJ) **et 6 conforts**.
   `/comptabilite` (sa home) via `pageAccueilPour`, plus sur `/accueil` vide. Vérifié écran.
 - **#9 corrigé** (commit `16e65d1`) : badge « comptable » en double retiré au dev-login (le
   libellé de rôle « Comptable » suffit). Vérifié écran.
-- **Conforts #5/#6/#7/#10 : non traités** (fond de backlog, faible priorité).
+- **#5 corrigé** (commit `a761cb7`) : tooltip « Échéance de l'étape en cours » sur le badge
+  J-x (frise supervision + fiche). Vérifié écran.
+- **#6 corrigé** (commit `a761cb7`) : « Connue via eStale : <date> » affiché quand la date
+  d'AG intranet est vide mais qu'eStale connaît une AG → « PV disponible » n'est plus
+  orphelin. Vérifié écran (SE999 : « Connue via eStale : 22 juillet 2026 »).
+- **#7 NON traité = by design** : le mail au CS est un outil de PROPOSITION de dates
+  (verbatim cabinet, reformulation interdite) ; mon constat venait de l'ordre inversé du
+  test (dates confirmées avant d'ouvrir le mail).
+- **#10 corrigé** (commit `a761cb7`) : badge « super-admin » (vert) au dev-login quand
+  l'email est dans `SUPER_ADMINS`. Vérifié écran (Sekou).
 
-Tous les correctifs ci-dessus **re-vérifiés au navigateur** le 2026-07-23 (titre e-mails,
-« Déjà dans l'AG » + bandeau dates sur SE999, redirection comptable, badges dev-login).
+**TOUT est soldé** : 10 anomalies → 9 corrigées + re-vérifiées au navigateur, 1 requalifiée
+(#3 faux positif). Seul #7 volontairement laissé (by design). **0 reste.**
+
+Tous les correctifs **re-vérifiés au navigateur** le 2026-07-23.
 
 ## Anomalies
 
