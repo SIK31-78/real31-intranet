@@ -115,6 +115,9 @@ import { MockComptaRepository } from "@/lib/adapters/mock/mock-compta-repository
 import type { ClesApiRepository } from "@/lib/ports/cles-api-repository";
 import { SupabaseClesApiRepository } from "@/lib/adapters/supabase/supabase-cles-api-repository";
 import { MockClesApiRepository } from "@/lib/adapters/mock/mock-cles-api-repository";
+import type { FeedbackRepository } from "@/lib/ports/feedback-repository";
+import { SupabaseFeedbackRepository } from "@/lib/adapters/supabase/supabase-feedback-repository";
+import { MockFeedbackRepository } from "@/lib/adapters/mock/mock-feedback-repository";
 import type { CoffreRepository } from "@/lib/ports/coffre-repository";
 import type { CoffreIdentiteRepository } from "@/lib/ports/coffre-identite-repository";
 import { MockCoffreRepository } from "@/lib/adapters/mock/mock-coffre-repository";
@@ -425,6 +428,13 @@ export function getCoffreIdentiteRepository(): CoffreIdentiteRepository {
 export function getClesApiRepository(): ClesApiRepository {
   if (coproSourceEstSupabase()) return new SupabaseClesApiRepository();
   return new MockClesApiRepository();
+}
+
+// Remontees collaborateurs (table native intranet_feedback) : bouton "Signaler",
+// panneau /admin/feedback, vitrine /nouveautes. Meme bascule mock/supabase que le reste.
+export function getFeedbackRepository(): FeedbackRepository {
+  if (coproSourceEstSupabase()) return new SupabaseFeedbackRepository();
+  return new MockFeedbackRepository();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
