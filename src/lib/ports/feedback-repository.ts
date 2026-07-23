@@ -62,12 +62,18 @@ export interface ChangementStatut {
   livreAt?: string;
 }
 
-/** Edition admin d'une remontee (titre / priorite / note interne). */
+/** Edition admin d'une remontee. Tout champ absent = ne pas toucher. */
 export interface PatchFeedback {
   titre?: string;
+  /** Texte de l'entree (interne ; corps d'une entree « maison »). */
+  description?: string;
+  /** Nature (bug / idee). */
+  type?: TypeFeedback;
   /** null efface la priorite ; undefined = ne pas toucher. */
   priorite?: number | null;
   noteInterne?: string;
+  /** Masquage REVERSIBLE : true archive (pose archive_at), false desarchive (null). */
+  archive?: boolean;
 }
 
 export interface FeedbackRepository {
@@ -84,6 +90,7 @@ export interface FeedbackRepository {
   changerStatut(id: string, statut: StatutFeedback, opts: ChangementStatut): Promise<Feedback | null>;
   /** Edite titre / priorite / note interne. Touche updated_at. null = introuvable. */
   patch(id: string, patch: PatchFeedback): Promise<Feedback | null>;
-  /** Uniquement les statuts VISIBLES du public (prevu / en_cours / livre), pour /nouveautes. */
+  /** Uniquement les entrees VISIBLES du public (statut prevu/en_cours/livre ET non
+   *  archivees), pour /nouveautes. */
   listerPublic(): Promise<Feedback[]>;
 }

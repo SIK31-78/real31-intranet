@@ -63,6 +63,11 @@ export interface Feedback {
   updatedAt?: string;
   /** ISO ; pose quand statut -> `livre`. Sert de date du changelog. */
   livreAt?: string;
+  /** ISO ; pose quand l'admin ARCHIVE l'entree (masquage REVERSIBLE). Une entree
+   *  archivee sort de /nouveautes ET de la worklist par defaut, mais reste en base
+   *  (rien n'est perdu) : desarchiver la remet a null. Orthogonal au statut : on peut
+   *  archiver une entree `livre` (= depublier une nouveaute du changelog). */
+  archiveAt?: string;
 }
 
 /** Ce que le public voit d'une remontee. AUCUN champ interne (ni auteur, ni description, ni note). */
@@ -176,6 +181,19 @@ export function versEntreePublique(f: Feedback): EntreePublique {
 /** Ce statut est-il VISIBLE du public (prevu / en_cours / livre) ? */
 export function estStatutPublic(statut: StatutFeedback): statut is StatutPublic {
   return (STATUTS_PUBLICS as readonly string[]).includes(statut);
+}
+
+/** L'entree est-elle archivee (masquee) ? Archivee = jamais sur /nouveautes. */
+export function estArchivee(f: Pick<Feedback, "archiveAt">): boolean {
+  return Boolean(f.archiveAt);
+}
+
+/**
+ * Une entree est-elle VISIBLE du public ? Elle doit etre a un statut public ET
+ * ne pas etre archivee. C'est LE garde-fou de la vitrine, cote domaine.
+ */
+export function estVisiblePublic(f: Pick<Feedback, "statut" | "archiveAt">): boolean {
+  return estStatutPublic(f.statut) && !estArchivee(f);
 }
 
 // --- HELPERS DE SAISIE ---------------------------------------------------------

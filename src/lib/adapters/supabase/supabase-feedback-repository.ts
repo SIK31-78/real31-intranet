@@ -18,7 +18,7 @@ import { createSupabasePublicClient } from "./public-client";
 
 const TABLE = "intranet_feedback";
 const COLS =
-  "id, type, titre, description, page, auteur_email, auteur_initiales, severite, statut, priorite, note_interne, raison_ecart, created_at, updated_at, livre_at";
+  "id, type, titre, description, page, auteur_email, auteur_initiales, severite, statut, priorite, note_interne, raison_ecart, created_at, updated_at, livre_at, archive_at";
 
 type Row = {
   id: string;
@@ -36,6 +36,7 @@ type Row = {
   created_at: string;
   updated_at: string | null;
   livre_at: string | null;
+  archive_at: string | null;
 };
 
 function tableAbsente(error: { code?: string; message: string }): boolean {
@@ -63,6 +64,7 @@ function map(r: Row): Feedback {
     ...(r.raison_ecart ? { raisonEcart: r.raison_ecart } : {}),
     ...(r.updated_at ? { updatedAt: r.updated_at } : {}),
     ...(r.livre_at ? { livreAt: r.livre_at } : {}),
+    ...(r.archive_at ? { archiveAt: r.archive_at } : {}),
   };
 }
 
@@ -159,8 +161,12 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
     const sb = createSupabasePublicClient();
     const maj: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (patch.titre !== undefined) maj.titre = patch.titre;
+    if (patch.description !== undefined) maj.description = patch.description;
+    if (patch.type !== undefined) maj.type = patch.type;
     if (patch.noteInterne !== undefined) maj.note_interne = patch.noteInterne;
     if (patch.priorite !== undefined) maj.priorite = patch.priorite; // null efface
+    // Masquage reversible : archive_at = maintenant (archive) ou null (desarchive).
+    if (patch.archive !== undefined) maj.archive_at = patch.archive ? new Date().toISOString() : null;
     const { data, error } = await sb.from(TABLE).update(maj).eq("id", id).select(COLS).maybeSingle();
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
@@ -175,6 +181,7 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
       .from(TABLE)
       .select(COLS)
       .in("statut", STATUTS_PUBLICS as unknown as string[])
+      .is("archive_at", null) // les entrees archivees ne sont JAMAIS servies au public
       .order("created_at", { ascending: false });
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();

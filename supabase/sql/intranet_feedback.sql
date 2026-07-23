@@ -18,11 +18,11 @@
 -- src/lib/adapters/supabase/supabase-feedback-repository.ts :
 --   SELECT id, type, titre, description, page, auteur_email, auteur_initiales,
 --          severite, statut, priorite, note_interne, raison_ecart, created_at,
---          updated_at, livre_at
+--          updated_at, livre_at, archive_at
 --   INSERT type, titre, description, page, auteur_email, auteur_initiales, severite  (bouton collaborateur)
 --   INSERT type, titre, description, statut, severite, priorite, auteur_*, livre_at   (entree « maison » admin)
---   UPDATE statut, raison_ecart, livre_at, updated_at        (changement de statut)
---   UPDATE titre, priorite, note_interne, updated_at         (edition admin)
+--   UPDATE statut, raison_ecart, livre_at, updated_at                 (changement de statut)
+--   UPDATE titre, description, type, priorite, note_interne, archive_at, updated_at  (edition / archivage admin)
 --
 -- Pas de FK vers public."User" : reference logique par auteur_email, comme les autres
 -- tables intranet_* (minimise le drift Prisma cote App A).
@@ -46,7 +46,8 @@ create table if not exists public.intranet_feedback (
   raison_ecart      text,                                      -- obligatoire (regle domaine) quand statut = 'ecarte'
   created_at        timestamptz not null default now(),
   updated_at        timestamptz,                               -- touche a chaque changement de statut / edition admin
-  livre_at          timestamptz                                -- renseigne quand statut -> 'livre' : sert de date du changelog
+  livre_at          timestamptz,                               -- renseigne quand statut -> 'livre' : sert de date du changelog
+  archive_at        timestamptz                                -- masquage REVERSIBLE : entree sortie de /nouveautes + worklist, jamais effacee
 );
 
 -- Triage admin : filtre par statut (worklist par etat).
@@ -61,3 +62,8 @@ create index if not exists intranet_feedback_created_idx
 -- creation d'entrees « maison »), on releve la contrainte. Une nouveaute / entree de
 -- roadmap n'a pas de severite ressentie (notion de triage collaborateur uniquement).
 alter table public.intranet_feedback alter column severite drop not null;
+
+-- Idempotent : masquage reversible des entrees (archiver / desarchiver depuis /admin/feedback).
+-- Une entree archivee (archive_at non null) sort de /nouveautes ET de la worklist par defaut,
+-- sans etre effacee (desarchiver = remettre a null).
+alter table public.intranet_feedback add column if not exists archive_at timestamptz;

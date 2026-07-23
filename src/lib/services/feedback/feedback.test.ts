@@ -10,6 +10,8 @@ import { creerFeedback } from "./creer-feedback";
 import { creerEntreeAdmin } from "./creer-entree-admin";
 import { getNouveautes } from "./get-nouveautes";
 import { changerStatutFeedback } from "./changer-statut";
+import { getFeedbackRepository } from "@/lib/adapters/router";
+import { estArchivee, estVisiblePublic } from "@/lib/domain/feedback";
 
 describe("creerFeedback (auteur deduit de la session)", () => {
   it("porte l'auteur passe en 2e argument, jamais un auteur venu de la saisie", async () => {
@@ -116,6 +118,47 @@ describe("getNouveautes (filtre public)", () => {
       expect(e).not.toHaveProperty("description");
       expect(e).not.toHaveProperty("noteInterne");
     }
+  });
+});
+
+describe("archivage (masquage REVERSIBLE)", () => {
+  it("estArchivee / estVisiblePublic : une entree livre archivee n'est plus visible du public", () => {
+    expect(estArchivee({ archiveAt: "2026-07-23T10:00:00Z" })).toBe(true);
+    expect(estArchivee({})).toBe(false);
+    expect(estVisiblePublic({ statut: "livre" })).toBe(true);
+    expect(estVisiblePublic({ statut: "livre", archiveAt: "2026-07-23T10:00:00Z" })).toBe(false);
+    // archivee mais statut non public : de toute facon invisible.
+    expect(estVisiblePublic({ statut: "nouveau" })).toBe(false);
+  });
+
+  it("archiver une entree livree la retire de /nouveautes ; desarchiver la remet", async () => {
+    const f = await creerEntreeAdmin(
+      { type: "idee", titre: "Entrée à masquer un jour", statut: "livre" },
+      { initiales: "SK" },
+    );
+    const repo = getFeedbackRepository();
+
+    // Presente au depart.
+    expect((await getNouveautes()).livre.some((e) => e.titre === f.titre)).toBe(true);
+
+    // Archivee -> disparue de la vitrine, mais toujours en base (get la retrouve, archiveAt pose).
+    const arch = await repo.patch(f.id, { archive: true });
+    expect(arch?.archiveAt).toBeTruthy();
+    expect((await getNouveautes()).livre.some((e) => e.titre === f.titre)).toBe(false);
+    expect(await repo.get(f.id)).not.toBeNull();
+
+    // Desarchivee -> reapparait.
+    const rest = await repo.patch(f.id, { archive: false });
+    expect(rest?.archiveAt).toBeUndefined();
+    expect((await getNouveautes()).livre.some((e) => e.titre === f.titre)).toBe(true);
+  });
+
+  it("editer la description et le type d'une entree existante", async () => {
+    const f = await creerEntreeAdmin({ type: "idee", titre: "Entrée éditable", statut: "prevu" }, { initiales: "SK" });
+    const repo = getFeedbackRepository();
+    const maj = await repo.patch(f.id, { description: "Texte ajouté après coup", type: "bug" });
+    expect(maj?.description).toBe("Texte ajouté après coup");
+    expect(maj?.type).toBe("bug");
   });
 });
 

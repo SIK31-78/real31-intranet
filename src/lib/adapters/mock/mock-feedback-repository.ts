@@ -3,7 +3,7 @@
 // tests offline (les services testes passent par le routeur -> ce mock).
 
 import type { Feedback, StatutFeedback } from "@/lib/domain/feedback";
-import { estStatutPublic } from "@/lib/domain/feedback";
+import { estVisiblePublic } from "@/lib/domain/feedback";
 import type {
   ChangementStatut,
   EntreeAdmin,
@@ -97,10 +97,16 @@ export class MockFeedbackRepository implements FeedbackRepository {
     if (!f) return null;
     const maj: Feedback = { ...f, updatedAt: new Date().toISOString() };
     if (patch.titre !== undefined) maj.titre = patch.titre;
+    if (patch.description !== undefined) maj.description = patch.description;
+    if (patch.type !== undefined) maj.type = patch.type;
     if (patch.noteInterne !== undefined) maj.noteInterne = patch.noteInterne;
     if (patch.priorite !== undefined) {
       if (patch.priorite === null) delete maj.priorite;
       else maj.priorite = patch.priorite;
+    }
+    if (patch.archive !== undefined) {
+      if (patch.archive) maj.archiveAt = new Date().toISOString();
+      else delete maj.archiveAt;
     }
     STORE.set(id, maj);
     return { ...maj };
@@ -108,7 +114,7 @@ export class MockFeedbackRepository implements FeedbackRepository {
 
   async listerPublic(): Promise<Feedback[]> {
     return [...STORE.values()]
-      .filter((f) => estStatutPublic(f.statut))
+      .filter((f) => estVisiblePublic(f))
       .sort(parDateDesc)
       .map((f) => ({ ...f }));
   }

@@ -73,13 +73,21 @@ const zEdition = z
   .object({
     id: z.string().trim().min(1).max(120),
     titre: z.string().trim().min(1).max(120).optional(),
+    description: z.string().trim().max(2000).optional(),
+    type: z.enum(TYPES_FEEDBACK as unknown as [TypeFeedback, ...TypeFeedback[]]).optional(),
     // null efface la priorite ; absent = ne pas toucher.
     priorite: z.number().int().min(0).max(9999).nullable().optional(),
     noteInterne: z.string().trim().max(2000).optional(),
   })
-  .refine((v) => v.titre !== undefined || v.priorite !== undefined || v.noteInterne !== undefined, {
-    message: "Rien à modifier.",
-  });
+  .refine(
+    (v) =>
+      v.titre !== undefined ||
+      v.description !== undefined ||
+      v.type !== undefined ||
+      v.priorite !== undefined ||
+      v.noteInterne !== undefined,
+    { message: "Rien à modifier." },
+  );
 
 export async function editerFeedbackAction(input: unknown): Promise<{ ok: boolean; message?: string }> {
   const garde = await exigerSuperAdmin();
@@ -87,13 +95,36 @@ export async function editerFeedbackAction(input: unknown): Promise<{ ok: boolea
 
   const parse = zEdition.safeParse(input);
   if (!parse.success) return { ok: false, message: parse.error.issues[0]?.message ?? "Saisie invalide." };
-  const { id, titre, priorite, noteInterne } = parse.data;
+  const { id, titre, description, type, priorite, noteInterne } = parse.data;
 
   const maj = await getFeedbackRepository().patch(id, {
     ...(titre !== undefined ? { titre } : {}),
+    ...(description !== undefined ? { description } : {}),
+    ...(type !== undefined ? { type } : {}),
     ...(priorite !== undefined ? { priorite } : {}),
     ...(noteInterne !== undefined ? { noteInterne } : {}),
   });
+  if (!maj) return { ok: false, message: "Remontée introuvable." };
+  revalidatePath("/admin/feedback");
+  revalidatePath("/nouveautes");
+  return { ok: true };
+}
+
+const zArchive = z.object({
+  id: z.string().trim().min(1).max(120),
+  archive: z.boolean(),
+});
+
+/** Archive (masque) ou desarchive une entree. Masquage REVERSIBLE, super-admin only. */
+export async function archiverFeedbackAction(input: unknown): Promise<{ ok: boolean; message?: string }> {
+  const garde = await exigerSuperAdmin();
+  if (!garde.ok) return { ok: false, message: garde.message };
+
+  const parse = zArchive.safeParse(input);
+  if (!parse.success) return { ok: false, message: "Saisie invalide." };
+  const { id, archive } = parse.data;
+
+  const maj = await getFeedbackRepository().patch(id, { archive });
   if (!maj) return { ok: false, message: "Remontée introuvable." };
   revalidatePath("/admin/feedback");
   revalidatePath("/nouveautes");
