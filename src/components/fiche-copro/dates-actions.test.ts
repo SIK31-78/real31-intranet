@@ -18,8 +18,8 @@ const etat = vi.hoisted(() => {
     } | null,
     // Cloisonnement : la copro appartient-elle au gestionnaire courant ?
     appartient: true,
-    // Reponse du controle de dispo serveur (null = passage) + plan capture.
-    refusDispo: null as string | null,
+    // Reponse du controle de dispo serveur (salle = dur, agenda = forcable) + plan capture.
+    controle: { salle: null as string | null, agenda: null as string | null },
     planCapture: null as PlanControlesDispo | null,
     controlerAppels: 0,
     // Referentiel : copro renvoyee par findByCode (ancien creneau).
@@ -31,7 +31,7 @@ const etat = vi.hoisted(() => {
     reset() {
       ref.session = { id: "g1", email: "remi@real31.fr", initiales: "RL", nomComplet: "Rémi" };
       ref.appartient = true;
-      ref.refusDispo = null;
+      ref.controle = { salle: null, agenda: null };
       ref.planCapture = null;
       ref.controlerAppels = 0;
       ref.copro = { code: "S024" };
@@ -68,7 +68,7 @@ vi.mock("@/lib/services/coproprietes/controler-dispo-reunion", () => ({
   ) => {
     etat.controlerAppels += 1;
     etat.planCapture = plan;
-    return etat.refusDispo;
+    return etat.controle;
   },
 }));
 vi.mock("@/lib/services/supervision-ag/reporter-sans-date", () => ({
@@ -111,16 +111,63 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("definirDateAg - refus serveur si occupe (defense en profondeur)", () => {
-  it("controle de dispo en refus -> {ok:false} avec le message, AUCUNE ecriture", async () => {
-    etat.refusDispo = "Impossible de fixer cette date : ton agenda est occupé sur ce créneau.";
+describe("definirDateAg - controle serveur : salle = DUR, agenda/collegue = FORCABLE", () => {
+  it("SALLE occupee -> {ok:false} NON forcable, AUCUNE ecriture (blocage dur)", async () => {
+    etat.controle = { salle: "La salle LGC est occupée sur ce créneau", agenda: null };
     const r = await definirDateAg("S024", "2026-09-15T18:00:00", "prochaine", SALLE);
-    expect(r).toEqual({ ok: false, erreur: etat.refusDispo });
-    expect(etat.definirAppels).toHaveLength(0); // rien n'a ete ecrit
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.erreur).toContain("La salle LGC est occupée");
+      expect(r.forcable).toBeFalsy(); // une salle occupee ne se force jamais
+    }
+    expect(etat.definirAppels).toHaveLength(0);
   });
 
-  it("controle en passage (libre / inconnu / panne Graph -> null) -> {ok:true}, ecriture faite", async () => {
-    etat.refusDispo = null;
+  it("AGENDA occupe SANS forcer -> {ok:false, forcable:true}, AUCUNE ecriture", async () => {
+    etat.controle = { salle: null, agenda: "ton agenda est occupé sur ce créneau" };
+    const r = await definirDateAg("S024", "2026-09-15T18:00:00", "prochaine", SALLE);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.forcable).toBe(true);
+      expect(r.erreur).toContain("agenda est occupé");
+    }
+    expect(etat.definirAppels).toHaveLength(0);
+  });
+
+  it("AGENDA occupe AVEC forcer=true -> {ok:true}, ecriture faite (on passe outre)", async () => {
+    etat.controle = { salle: null, agenda: "ton agenda est occupé sur ce créneau" };
+    const r = await definirDateAg(
+      "S024",
+      "2026-09-15T18:00:00",
+      "prochaine",
+      SALLE,
+      undefined,
+      undefined,
+      [],
+      true, // forcer
+    );
+    expect(r).toEqual({ ok: true });
+    expect(etat.definirAppels).toHaveLength(1);
+  });
+
+  it("SALLE occupee AVEC forcer=true -> {ok:false} quand meme (dur, jamais forcable)", async () => {
+    etat.controle = { salle: "La salle LGC est occupée sur ce créneau", agenda: null };
+    const r = await definirDateAg(
+      "S024",
+      "2026-09-15T18:00:00",
+      "prochaine",
+      SALLE,
+      undefined,
+      undefined,
+      [],
+      true, // forcer NE contourne PAS la salle
+    );
+    expect(r.ok).toBe(false);
+    expect(etat.definirAppels).toHaveLength(0);
+  });
+
+  it("controle en passage (tout null : libre / inconnu / panne) -> {ok:true}, ecriture faite", async () => {
+    etat.controle = { salle: null, agenda: null };
     const r = await definirDateAg("S024", "2026-09-15T18:00:00", "prochaine", SALLE);
     expect(r).toEqual({ ok: true });
     expect(etat.controlerAppels).toBe(1);

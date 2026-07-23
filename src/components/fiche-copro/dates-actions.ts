@@ -45,8 +45,16 @@ async function validerCollaborateurs(
   return "invalide" in r ? "invalide" : r.emails;
 }
 
-/** Resultat explicite d'une action de date : succes, ou echec avec message a afficher. */
-type ResultatAction = { ok: true } | { ok: false; erreur: string };
+/** Majuscule initiale d'un message (les phrases du controle arrivent en minuscule). */
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Resultat explicite d'une action de date : succes, ou echec avec message a afficher.
+ *  `forcable: true` = echec SOFT (agenda / collegue occupe) qu'on peut passer outre en
+ *  relancant avec `forcer: true` (l'UI propose "Fixer quand meme"). Une salle occupee, elle,
+ *  n'est JAMAIS forcable (blocage dur). */
+type ResultatAction = { ok: true } | { ok: false; erreur: string; forcable?: boolean };
 
 // Valide un email de salle / vehicule contre la liste FERMEE RESSOURCES_REAL31 : jamais
 // d'email invente. Vide -> null (aucune ressource). Email hors liste, ou mauvais type
@@ -77,6 +85,8 @@ async function definir(
   vehiculeEmail?: string,
   modeReunion?: string,
   collaborateursEmails?: string[],
+  /** true = passe outre un agenda/collegue occupe (JAMAIS une salle : blocage dur). */
+  forcer?: boolean,
 ): Promise<ResultatAction> {
   const parseBase = z
     .object({ coproCode: zCode, dateISO: zDate, mode: zMode, collaborateurs: zCollaborateurs })
@@ -98,11 +108,11 @@ async function definir(
   if (collaborateurs === "invalide")
     return { ok: false, erreur: "Collaborateur inconnu." };
 
-  // OCCUPE = BLOQUANT (defense en profondeur) : avant d'ecrire, on re-verifie cote serveur
-  // que le creneau est libre (salle / mon agenda / collegues). "occupee" -> refus ;
-  // "inconnu" / erreur Graph -> laisse passer (jamais bloquant). On EXCLUT les cibles dont
-  // un "occupe" viendrait de notre PROPRE evenement deja projete (cas replanification
-  // creneau inchange), via le plan pur. Ne concerne qu'une PROCHAINE date AVEC heure.
+  // Controle serveur des dispos (defense en profondeur). SALLE occupee = blocage DUR
+  // (on ne double-reserve pas une salle) ; MON agenda / un COLLEGUE occupe = avertissement
+  // FORCABLE (apres accord, on fixe quand meme via `forcer`). "inconnu" / erreur Graph ->
+  // laisse passer. On EXCLUT les cibles dont un "occupe" viendrait de notre PROPRE evenement
+  // deja projete (replanification creneau inchange), via le plan pur. PROCHAINE date + heure.
   const typeApi = type === "ag" ? "AG" : "CS";
   const heure = heureDe(dateISO);
   if (quand === "prochaine" && dateISO && g.email && heure) {
@@ -121,8 +131,18 @@ async function definir(
       },
       { date: dateISO.slice(0, 10), heure, salle: salle ?? "", collaborateurs },
     );
-    const refus = await controlerDisposReunion(coproCode, typeApi, dateISO, g.email, plan);
-    if (refus) return { ok: false, erreur: refus };
+    const controle = await controlerDisposReunion(coproCode, typeApi, dateISO, g.email, plan);
+    // Salle occupee : blocage DUR, meme avec forcer (impossible de double-reserver une salle).
+    if (controle.salle)
+      return { ok: false, erreur: `${controle.salle}. Choisis une autre salle ou un autre créneau.` };
+    // Agenda / collegue occupe : FORCABLE. Sans forcer -> on refuse mais on signale forcable
+    // (l'UI propose "Fixer quand meme") ; avec forcer -> on laisse passer.
+    if (controle.agenda && !forcer)
+      return {
+        ok: false,
+        forcable: true,
+        erreur: `${cap(controle.agenda)}. Après accord avec le(s) collègue(s), tu peux fixer quand même.`,
+      };
   }
   try {
     // La boite de projection Outlook = email de SESSION (jamais un parametre client),
@@ -158,8 +178,9 @@ export async function definirDateAg(
   vehiculeEmail?: string,
   modeReunion?: string,
   collaborateursEmails?: string[],
+  forcer?: boolean,
 ): Promise<ResultatAction> {
-  return definir(coproCode, "ag", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails);
+  return definir(coproCode, "ag", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails, forcer);
 }
 export async function definirDateCs(
   coproCode: string,
@@ -169,8 +190,9 @@ export async function definirDateCs(
   vehiculeEmail?: string,
   modeReunion?: string,
   collaborateursEmails?: string[],
+  forcer?: boolean,
 ): Promise<ResultatAction> {
-  return definir(coproCode, "cs", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails);
+  return definir(coproCode, "cs", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails, forcer);
 }
 
 // Confirme la prochaine date AG/CS : le conseil syndical a valide par retour de mail.

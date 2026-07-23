@@ -158,6 +158,9 @@ export function EditeurDate({
     Record<string, "libre" | "occupee" | "inconnu">
   >({});
   const [erreur, setErreur] = useState<string | null>(null);
+  // Le dernier echec est-il FORCABLE (agenda/collegue occupe cote serveur) ? -> propose
+  // "Fixer quand meme". Une salle occupee n'est jamais forcable.
+  const [forcable, setForcable] = useState(false);
   const [confirmeEffacer, setConfirmeEffacer] = useState(false);
 
   // L'heure et la reservation de salle ne concernent que la PROCHAINE reunion :
@@ -349,25 +352,26 @@ export function EditeurDate({
           { date: dateVal, heure: heureVal, salle: salleVal, collaborateurs: collaborateursVal },
         )
       : null;
-  const blocages: string[] = [];
+  // SALLE occupee = blocage DUR (Valider grise : on ne double-reserve pas une salle).
+  // MON agenda / un COLLEGUE occupe = avertissement FORCABLE ("Fixer quand meme" apres accord).
+  let blocageSalle: string | null = null;
+  const avertissements: string[] = [];
   if (plan) {
     if (plan.verifierAgenda && dispoAgendaValeur === "occupee")
-      blocages.push("Ton agenda est occupé sur ce créneau.");
+      avertissements.push("Ton agenda est occupé sur ce créneau.");
     if (plan.salleAverifier && dispoValeur === "occupee")
-      blocages.push(
-        `La salle ${ressourceParEmail(salleVal)?.nom ?? "sélectionnée"} est occupée sur ce créneau.`,
-      );
+      blocageSalle = `La salle ${ressourceParEmail(salleVal)?.nom ?? "sélectionnée"} est occupée sur ce créneau.`;
     for (const c of collabList) {
       if (
         collaborateursVal.includes(c.email) &&
         plan.collaborateursAverifier.includes(c.email) &&
         dispoCollabValeur(c.email) === "occupee"
       )
-        blocages.push(`L'agenda de ${c.nom.split(" ")[0]} est occupé sur ce créneau.`);
+        avertissements.push(`L'agenda de ${c.nom.split(" ")[0]} est occupé sur ce créneau.`);
     }
   }
-  // Un creneau occupe grise "Valider" et affiche la liste de ce qui bloque.
-  const bloque = blocages.length > 0;
+  const bloque = blocageSalle !== null; // dur (salle) -> grise Valider
+  const aAvertir = avertissements.length > 0; // forcable (agenda/collegue) -> "Fixer quand meme"
 
   // CLOISONNEMENT PAR AGENCE (confort d'affichage, partition PURE cote domaine). Salles de
   // l'agence de la copro par defaut, le reste au debordement "Voir les autres agences".
@@ -422,6 +426,7 @@ export function EditeurDate({
     setVoirAutresSalles(false);
     setVoirAutresCollab(false);
     setErreur(null);
+    setForcable(false);
     setConfirmeEffacer(false);
     setEdition(true);
   };
@@ -429,6 +434,7 @@ export function EditeurDate({
   const fermer = () => {
     setEdition(false);
     setErreur(null);
+    setForcable(false);
     setConfirmeEffacer(false);
   };
 
@@ -439,8 +445,9 @@ export function EditeurDate({
     );
   };
 
-  const enregistrer = (valeur: string) => {
+  const enregistrer = (valeur: string, forcer = false) => {
     setErreur(null);
+    setForcable(false);
     // Ressources / mode / collegues transmis seulement pour une prochaine date reelle
     // (pas a l'effacement).
     const salle = avecHeure && valeur ? salleVal : "";
@@ -456,17 +463,20 @@ export function EditeurDate({
         vehicule || undefined,
         mode || undefined,
         collabs,
+        forcer,
       );
-      if (!r.ok) setErreur(r.erreur); // on garde l'edition ouverte pour reessayer
-      else fermer();
+      if (!r.ok) {
+        setErreur(r.erreur); // on garde l'edition ouverte pour reessayer
+        setForcable(Boolean(r.forcable)); // agenda/collegue occupe -> propose "Fixer quand meme"
+      } else fermer();
     });
   };
 
-  // Clic sur "Valider" : refuse tant qu'un creneau occupe bloque (le bouton est deja grise,
-  // c'est une double securite). "inconnu" ne bloque jamais.
+  // Clic sur "Valider" : la salle occupee bloque (bouton deja grise, double securite).
+  // Un agenda/collegue occupe (aAvertir) ne bloque pas : on transmet `forcer` pour passer outre.
   const tenterEnregistrer = () => {
     if (bloque) return;
-    enregistrer(valeurSaisie);
+    enregistrer(valeurSaisie, aAvertir);
   };
 
   if (!edition) {
@@ -549,10 +559,16 @@ export function EditeurDate({
           variant="primary"
           disabled={pending || !dateVal || inchange || bloque}
           onClick={tenterEnregistrer}
-          title={bloque ? "Créneau occupé : change de date, de salle ou de collaborateur" : "Enregistrer la date"}
+          title={
+            bloque
+              ? "Salle occupée : choisis une autre salle ou un autre créneau"
+              : aAvertir
+                ? "Agenda occupé : tu peux fixer quand même (après accord)"
+                : "Enregistrer la date"
+          }
         >
           <Check strokeWidth={2} />
-          {pending ? "Enregistrement..." : "Valider"}
+          {pending ? "Enregistrement..." : aAvertir && !bloque ? "Fixer quand même" : "Valider"}
         </Button>
         <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={fermer}>
           Annuler
@@ -802,19 +818,28 @@ export function EditeurDate({
         </span>
       )}
 
-      {/* Creneau occupe : BLOQUANT (le bouton Valider est grise). On liste precisement QUI
-          / QUOI bloque et on invite a changer de creneau / salle / collaborateurs. */}
-      {bloque && (
+      {/* SALLE occupee : BLOQUANT DUR (Valider grise) - on ne double-reserve pas une salle. */}
+      {blocageSalle && (
         <span
           className="inline-flex flex-col gap-0.5 text-[12px] text-err-700"
           role="alert"
           aria-live="polite"
         >
-          <span className="font-medium">Impossible de fixer cette date sur ce créneau :</span>
-          {blocages.map((b) => (
-            <span key={b}>· {b}</span>
+          <span className="font-medium">Salle indisponible :</span>
+          <span>· {blocageSalle}</span>
+          <span className="text-ink-3">Choisis une autre salle ou un autre créneau.</span>
+        </span>
+      )}
+      {/* AGENDA / COLLEGUE occupe : AVERTISSEMENT (ambre), NON bloquant. "Valider" devient
+          "Fixer quand meme" : apres accord avec le(s) collegue(s), on fixe la date. */}
+      {!blocageSalle && aAvertir && (
+        <span className="inline-flex flex-col gap-0.5 text-[12px] text-warn-700" aria-live="polite">
+          {avertissements.map((a) => (
+            <span key={a}>· {a}</span>
           ))}
-          <span className="text-ink-3">Change de créneau, de salle ou de collaborateurs.</span>
+          <span className="text-ink-3">
+            Après accord avec le(s) collègue(s), tu peux fixer quand même (« Fixer quand même »).
+          </span>
         </span>
       )}
 
@@ -822,8 +847,24 @@ export function EditeurDate({
       {avertissement && !erreur && (
         <span className="text-[11px] text-warn-700">{avertissement}</span>
       )}
-      {/* Erreur d'enregistrement : fini l'echec silencieux. */}
-      {erreur && <span className="text-[11px] text-err-700">{erreur}</span>}
+      {/* Erreur d'enregistrement : fini l'echec silencieux. Si l'echec est FORCABLE (agenda /
+          collegue occupe cote serveur), on propose "Fixer quand meme" (relance avec forcer). */}
+      {erreur && (
+        <span className="inline-flex flex-wrap items-center gap-2 text-[11px] text-err-700" role="alert">
+          <span>{erreur}</span>
+          {forcable && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={pending}
+              onClick={() => enregistrer(valeurSaisie, true)}
+            >
+              Fixer quand même
+            </Button>
+          )}
+        </span>
+      )}
     </span>
   );
 }

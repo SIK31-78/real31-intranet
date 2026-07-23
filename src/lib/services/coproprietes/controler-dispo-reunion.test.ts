@@ -48,65 +48,79 @@ beforeEach(() => {
   etat.reset();
 });
 
-describe("controlerDisposReunion - refus si occupe", () => {
-  it("mon agenda occupe -> refus qui nomme l'agenda et invite a changer de creneau", async () => {
+describe("controlerDisposReunion - salle = DUR, agenda/collegue = FORCABLE", () => {
+  it("mon agenda occupe -> avertissement 'agenda' (forcable), pas de blocage salle", async () => {
     etat.dispos.set(BOITE, "occupee");
-    const refus = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet);
-    expect(refus).toContain("ton agenda est occupé");
-    expect(refus).toContain("Change de créneau");
+    const c = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet);
+    expect(c.agenda).toContain("ton agenda est occupé");
+    expect(c.salle).toBeNull();
   });
 
-  it("salle occupee -> refus qui nomme la salle (libelle, pas l'email)", async () => {
+  it("salle occupee -> blocage DUR 'salle' (libelle, pas l'email), pas d'avertissement agenda", async () => {
     etat.dispos.set(SALLE, "occupee");
-    const refus = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet);
-    expect(refus).toContain("LGC - Salle de reunions");
-    expect(refus).not.toContain(SALLE); // pas d'email brut dans le message
+    const c = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet);
+    expect(c.salle).toContain("LGC - Salle de reunions");
+    expect(c.salle).not.toContain(SALLE); // pas d'email brut dans le message
+    expect(c.agenda).toBeNull();
   });
 
-  it("collegue occupe -> refus 'un collegue' (pas d'email en clair, pas de PII)", async () => {
+  it("collegue occupe -> avertissement 'un collegue' (forcable, pas de PII), pas de blocage salle", async () => {
     etat.dispos.set(COLLEGUE, "occupee");
-    const refus = await controlerDisposReunion("S024", "CS", DEBUT, BOITE, planComplet);
-    expect(refus).toContain("collègue");
-    expect(refus).not.toContain(COLLEGUE);
+    const c = await controlerDisposReunion("S024", "CS", DEBUT, BOITE, planComplet);
+    expect(c.agenda).toContain("collègue");
+    expect(c.agenda).not.toContain(COLLEGUE);
+    expect(c.salle).toBeNull();
   });
 
-  it("plusieurs cibles occupees -> le refus liste chaque blocage", async () => {
+  it("salle ET agenda occupes -> les deux remontent (salle dur + agenda forcable)", async () => {
     etat.dispos.set(BOITE, "occupee");
     etat.dispos.set(SALLE, "occupee");
-    const refus = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet);
-    expect(refus).toContain("ton agenda est occupé");
-    expect(refus).toContain("LGC - Salle de reunions");
+    const c = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet);
+    expect(c.agenda).toContain("ton agenda est occupé");
+    expect(c.salle).toContain("LGC - Salle de reunions");
   });
 });
 
 describe("controlerDisposReunion - passage si libre / inconnu / panne", () => {
-  it("tout libre -> null (on peut fixer la date)", async () => {
+  it("tout libre -> aucun blocage/avertissement", async () => {
     etat.dispos.set(BOITE, "libre");
     etat.dispos.set(SALLE, "libre");
     etat.dispos.set(COLLEGUE, "libre");
-    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet)).toBeNull();
+    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet)).toEqual({
+      salle: null,
+      agenda: null,
+    });
     expect(etat.appels).toHaveLength(3); // agenda + salle + collegue interroges
   });
 
   it("'inconnu' (Graph off / 403 Access Policy) ne bloque JAMAIS", async () => {
     // dispos non renseignees -> le mock repond "inconnu" partout.
-    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet)).toBeNull();
+    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet)).toEqual({
+      salle: null,
+      agenda: null,
+    });
   });
 
   it("Graph en panne (throw) -> degrade en 'inconnu', jamais bloquant", async () => {
     etat.enPanne = true;
-    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet)).toBeNull();
+    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, planComplet)).toEqual({
+      salle: null,
+      agenda: null,
+    });
   });
 
-  it("date sans heure (journee entiere) : pas de creneau cadrable -> null, aucun appel", async () => {
+  it("date sans heure (journee entiere) : pas de creneau cadrable -> rien, aucun appel", async () => {
     etat.dispos.set(BOITE, "occupee");
-    expect(await controlerDisposReunion("S024", "AG", "2026-09-15", BOITE, planComplet)).toBeNull();
+    expect(await controlerDisposReunion("S024", "AG", "2026-09-15", BOITE, planComplet)).toEqual({
+      salle: null,
+      agenda: null,
+    });
     expect(etat.appels).toHaveLength(0);
   });
 });
 
 describe("controlerDisposReunion - replanification creneau inchange (faux positif)", () => {
-  it("plan vide (rien a controler) -> null et AUCUN appel Graph, meme tout 'occupe'", async () => {
+  it("plan vide (rien a controler) -> rien et AUCUN appel Graph, meme tout 'occupe'", async () => {
     // Tout est marque occupe (ce serait notre propre evenement projete) ...
     etat.dispos.set(BOITE, "occupee");
     etat.dispos.set(SALLE, "occupee");
@@ -116,11 +130,14 @@ describe("controlerDisposReunion - replanification creneau inchange (faux positi
       { date: "2026-09-15", heure: "18:00", salle: SALLE, collaborateurs: [COLLEGUE] },
       { date: "2026-09-15", heure: "18:00", salle: SALLE, collaborateurs: [COLLEGUE] },
     );
-    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, plan)).toBeNull();
+    expect(await controlerDisposReunion("S024", "AG", DEBUT, BOITE, plan)).toEqual({
+      salle: null,
+      agenda: null,
+    });
     expect(etat.appels).toHaveLength(0);
   });
 
-  it("creneau inchange + NOUVEAU collegue occupe -> seul lui est controle, et il bloque", async () => {
+  it("creneau inchange + NOUVEAU collegue occupe -> seul lui est controle (avertissement)", async () => {
     const nouveau = "dimitri@real31.fr";
     etat.dispos.set(BOITE, "occupee"); // notre propre evenement : ignore par le plan
     etat.dispos.set(nouveau, "occupee"); // vrai conflit du nouvel invite
@@ -128,8 +145,9 @@ describe("controlerDisposReunion - replanification creneau inchange (faux positi
       { date: "2026-09-15", heure: "18:00", salle: SALLE, collaborateurs: [COLLEGUE] },
       { date: "2026-09-15", heure: "18:00", salle: SALLE, collaborateurs: [COLLEGUE, nouveau] },
     );
-    const refus = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, plan);
-    expect(refus).toContain("collègue");
+    const c = await controlerDisposReunion("S024", "AG", DEBUT, BOITE, plan);
+    expect(c.agenda).toContain("collègue");
+    expect(c.salle).toBeNull();
     expect(etat.appels.map((a) => a.cible)).toEqual([nouveau]); // ni agenda ni salle ni collegue deja invite
   });
 });

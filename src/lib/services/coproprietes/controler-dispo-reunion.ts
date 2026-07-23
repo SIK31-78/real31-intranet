@@ -1,14 +1,17 @@
 // Service : controle serveur des disponibilites avant de FIXER une date d'AG / CS
-// (defense en profondeur, decision Sekou 2026-07 "OCCUPE = BLOQUANT"). Ne fait JAMAIS
-// confiance au client : l'action re-verifie ici la salle, l'agenda du gestionnaire et
-// les collegues invites au moment de valider, et REFUSE si une cible est "occupee".
+// (defense en profondeur). Ne fait JAMAIS confiance au client : l'action re-verifie ici
+// la salle, l'agenda du gestionnaire et les collegues invites au moment de valider.
 //
-// Regles :
-//   - "occupee" -> blocage (message a afficher) ;
-//   - "libre" / "inconnu" -> laisse passer ;
+// DEUX niveaux (decision Sekou 2026-07-23) :
+//   - SALLE occupee = blocage DUR : on ne peut pas double-reserver une salle -> refus ferme.
+//   - MON agenda / un COLLEGUE occupe = avertissement FORCABLE : apres echange avec le
+//     collegue, il faut quand meme pouvoir fixer -> l'action laisse passer si `forcer`.
+//
+// Regles de dispo (inchangees) :
+//   - "libre" / "inconnu" -> pas de blocage ;
 //   - erreur Graph (403 Access Policy, timeout...) -> "inconnu" -> laisse passer (jamais
-//     bloquant : l'app doit rester utilisable en local et tant que le DSI n'a pas ouvert
-//     les salles / boites) ;
+//     bloquant : l'app reste utilisable en local et tant que le DSI n'a pas ouvert les
+//     salles / boites) ;
 //   - le PLAN (planifierControlesDispo, domaine pur) exclut deja les cibles dont un
 //     "occupe" viendrait de notre propre evenement projete (cas replanification).
 //
@@ -19,6 +22,14 @@ import type { PlanControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { heureDe } from "@/lib/domain/reunion";
 import { ressourceParEmail } from "@/lib/domain/salles-reunion";
 import { verifierDispoSalle } from "@/lib/services/coproprietes/verifier-dispo-salle";
+
+/** Resultat du controle : blocage DUR (salle) et/ou avertissement FORCABLE (agenda/collegue). */
+export interface ControleDispo {
+  /** Message si une SALLE est occupee (blocage dur, non forcable). null sinon. */
+  salle: string | null;
+  /** Message si mon agenda / un collegue est occupe (avertissement forcable). null sinon. */
+  agenda: string | null;
+}
 
 /** Dispo d'une cible, en degradant toute erreur Graph en "inconnu" (jamais bloquant). */
 async function dispoOuInconnu(
@@ -38,8 +49,8 @@ async function dispoOuInconnu(
 
 /**
  * Controle les cibles du `plan` sur le creneau `debut` (datetime "YYYY-MM-DDTHH:mm[:ss]"),
- * depuis la `boite` du gestionnaire. Renvoie un message de refus si au moins une cible est
- * occupee, sinon null (on peut fixer la date). Sans heure exploitable -> null (on ne peut
+ * depuis la `boite` du gestionnaire. Renvoie SEPAREMENT le blocage salle (dur) et
+ * l'avertissement agenda/collegue (forcable). Sans heure exploitable -> rien (on ne peut
  * pas cadrer un creneau, comme l'indicateur temps reel).
  */
 export async function controlerDisposReunion(
@@ -48,39 +59,41 @@ export async function controlerDisposReunion(
   debut: string,
   boite: string,
   plan: PlanControlesDispo,
-): Promise<string | null> {
+): Promise<ControleDispo> {
   const dateJour = debut.slice(0, 10);
   const heure = heureDe(debut);
-  if (!heure || !boite) return null; // pas de creneau cadrable / pas d'agenda interrogeant
+  if (!heure || !boite) return { salle: null, agenda: null }; // pas de creneau cadrable
 
-  const blocages: string[] = [];
+  let salle: string | null = null;
+  const avertissements: string[] = [];
 
-  // Agenda du gestionnaire (mon agenda) : getSchedule sur ma propre boite.
+  // Agenda du gestionnaire (mon agenda) : getSchedule sur ma propre boite. FORCABLE.
   if (plan.verifierAgenda) {
     const d = await dispoOuInconnu(coproCode, type, dateJour, heure, boite, boite);
-    if (d === "occupee") blocages.push("ton agenda est occupé sur ce créneau");
+    if (d === "occupee") avertissements.push("ton agenda est occupé sur ce créneau");
   }
 
-  // Salle reservee.
+  // Salle reservee : blocage DUR (on ne peut pas double-reserver une salle).
   if (plan.salleAverifier) {
     const d = await dispoOuInconnu(coproCode, type, dateJour, heure, plan.salleAverifier, boite);
     if (d === "occupee") {
       const nom = ressourceParEmail(plan.salleAverifier)?.nom ?? "sélectionnée";
-      blocages.push(`la salle ${nom} est occupée sur ce créneau`);
+      salle = `la salle ${nom} est occupée sur ce créneau`;
     }
   }
 
   // Collegues invites (une seule mention "un collègue" suffit : on ne divulgue pas de PII
-  // dans le message d'erreur ; le detail par personne est cote UI, qui connait les noms).
+  // dans le message ; le detail par personne est cote UI, qui connait les noms). FORCABLE.
   for (const email of plan.collaborateursAverifier) {
     const d = await dispoOuInconnu(coproCode, type, dateJour, heure, email, boite);
     if (d === "occupee") {
-      blocages.push("l'agenda d'un collègue associé est occupé sur ce créneau");
+      avertissements.push("l'agenda d'un collègue associé est occupé sur ce créneau");
       break;
     }
   }
 
-  if (blocages.length === 0) return null;
-  const liste = blocages.join(" ; ");
-  return `Impossible de fixer cette date : ${liste}. Change de créneau, de salle ou de collaborateur.`;
+  return {
+    salle: salle ? `Impossible de fixer cette date : ${salle}` : null,
+    agenda: avertissements.length > 0 ? avertissements.join(" ; ") : null,
+  };
 }
