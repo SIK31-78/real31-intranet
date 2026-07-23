@@ -33,7 +33,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_dossiers.sql` | 🔲 | **En attente** (créé 2026-07-22). |
 | `intranet_compta_notes.sql` | 🔲 | **En attente** (notes compta). |
 | `intranet_api_keys.sql` | 🔲 | **En attente** — clés machine API v1 ; tant que non passé, l'API répond 503 `api_non_configuree`. |
-| `intranet_feedback.sql` | 🔲 | **En attente** — système de remontée bug/idée + page Nouveautés ; tant que non passé : bouton et pages dégradent proprement (vitrine vide, bandeau admin). |
+| `intranet_feedback.sql` | ⚠️ | Table passée par Sekou ; **un ALTER de plus à rejouer** (2026-07-23) : `alter table public.intranet_feedback alter column severite drop not null;` (une nouveauté « maison » n'a pas de sévérité). Idempotent → repasser tout le fichier est sans risque. Requis avant le seed du changelog. |
 | `reprise_dossier.sql` | ❔ | Reprise copro — dossier. |
 | `reprise_dossier_jeu.sql` | ❔ | Reprise copro — jeu de test. |
 | `reprise_fiche_renseignements.sql` | ❔ | Reprise copro — fiche renseignements. |
