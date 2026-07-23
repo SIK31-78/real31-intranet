@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Sidebar, type NavKey } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, estVueComptable } from "@/lib/auth/roles";
+import { peutVoirComptabilite, estVueComptable, estSuperAdmin } from "@/lib/auth/roles";
 
 type AppShellProps = {
   user: { initiales: string; nomComplet: string };
@@ -25,11 +25,14 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // sidebar reduite (son dashboard + copros + coffre). Les profils qui pilotent tout
   // gardent la nav complete.
   const vueComptable = estVueComptable(g?.email, g?.role);
+  // Groupe "Administration" (cles API machine) : SUPER-ADMIN seulement. La page
+  // /admin/cles-api porte sa propre garde serveur - l'entree sidebar n'est qu'un acces.
+  const adminOuvert = estSuperAdmin(g?.email);
   return (
     <div className="flex flex-col min-h-screen">
       <Topbar user={user} breadcrumb={breadcrumb} peutImpersonner={peutImpersonner} emailsOuvert={emailsOuvert} />
       <div className="flex flex-1 min-h-0">
-        <Sidebar active={active} emailsOuvert={emailsOuvert} comptaOuvert={comptaOuvert} vueComptable={vueComptable} />
+        <Sidebar active={active} emailsOuvert={emailsOuvert} comptaOuvert={comptaOuvert} vueComptable={vueComptable} adminOuvert={adminOuvert} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>

@@ -24,6 +24,7 @@ export type NavKey =
   | "equipe"
   | "toutes-copros"
   | "sinistres"
+  | "cles-api"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
   // surligne AUCUNE entree (avant, ils empruntaient "calendrier" a tort). Pas de
   // nouvelle entree sidebar - juste une valeur qui ne matche aucun item.
@@ -82,6 +83,13 @@ const NAV_COMPTABLE: Item[] = [
   { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
 ];
+
+// Administration (visible SUPER-ADMIN seulement, cf. AppShell adminOuvert) : le panneau
+// des cles API machine (auth de /api/v1 + MCP). Groupe separe pour ne pas noyer la nav.
+const GROUPE_ADMIN: { titre: string; items: Item[] } = {
+  titre: "Administration",
+  items: [{ key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key }],
+};
 
 type LienApp = { label: string; href: string; icon: ComponentType<{ className?: string; strokeWidth?: number }> };
 
@@ -184,12 +192,15 @@ export function Sidebar({
   emailsOuvert = true,
   comptaOuvert = false,
   vueComptable = false,
+  adminOuvert = false,
 }: {
   active: NavKey;
   emailsOuvert?: boolean;
   comptaOuvert?: boolean;
   /** Vue comptable epuree : remplace la nav principale par NAV_COMPTABLE (dashboard compta + copros + coffre). */
   vueComptable?: boolean;
+  /** Groupe "Administration" (cles API) : visible SUPER-ADMIN seulement. */
+  adminOuvert?: boolean;
 }) {
   return (
     <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto">
@@ -215,6 +226,15 @@ export function Sidebar({
               })}
             </div>
           ))
+        )}
+
+        {adminOuvert && (
+          <div>
+            <SectionTitre>{GROUPE_ADMIN.titre}</SectionTitre>
+            {GROUPE_ADMIN.items.map((item) => (
+              <NavItem key={item.key} item={item} active={item.key === active} />
+            ))}
+          </div>
         )}
 
         <div className="pt-3 border-t border-line">

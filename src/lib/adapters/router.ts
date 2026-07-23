@@ -112,6 +112,9 @@ import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-
 import type { ComptaRepository } from "@/lib/ports/compta-repository";
 import { SupabaseComptaRepository } from "@/lib/adapters/supabase/supabase-compta-repository";
 import { MockComptaRepository } from "@/lib/adapters/mock/mock-compta-repository";
+import type { ClesApiRepository } from "@/lib/ports/cles-api-repository";
+import { SupabaseClesApiRepository } from "@/lib/adapters/supabase/supabase-cles-api-repository";
+import { MockClesApiRepository } from "@/lib/adapters/mock/mock-cles-api-repository";
 import type { CoffreRepository } from "@/lib/ports/coffre-repository";
 import type { CoffreIdentiteRepository } from "@/lib/ports/coffre-identite-repository";
 import { MockCoffreRepository } from "@/lib/adapters/mock/mock-coffre-repository";
@@ -398,6 +401,13 @@ export function getCoffreRepository(): CoffreRepository {
 export function getCoffreIdentiteRepository(): CoffreIdentiteRepository {
   if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoffreIdentiteRepository();
   return new MockCoffreIdentiteRepository();
+}
+
+// Cles API machine (table native intranet_api_keys) : auth de /api/v1 + panneau
+// /admin/cles-api. Meme bascule mock/supabase que les autres tables natives.
+export function getClesApiRepository(): ClesApiRepository {
+  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseClesApiRepository();
+  return new MockClesApiRepository();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).

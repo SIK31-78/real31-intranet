@@ -1562,6 +1562,39 @@ Le module de facturation des honoraires syndic de la solution PowerApps `MYTHEC_
 
 ---
 
+## ADR-033 - Intranet apisable : API machine `/api/v1` + clés hashées + MCP « real31 » — et la LIGNE ROUGE des écritures
+
+**Date** : 2026-07-23 - **Statut** : accepté (Sekou, 2026-07-23 - blueprint validé : audit pré-prod §6)
+
+### Contexte
+
+L'hexagone rendait l'app apisable à ~80 % (services purs, cloisonnement en paramètre explicite). Il manquait une auth **machine** (tout passait par la session SSO), une surface HTTP versionnée et un client MCP pour piloter l'intranet depuis un agent (Claude Desktop…). Décisions Sekou : surface **large en lecture**, écritures internes **sûres** pilotées par scopes, panneau d'admin des clés dans l'intranet, MCP mince par-dessus l'API.
+
+### Décision
+
+- **Clés machine hashées** (table `public.intranet_api_keys`, même pattern que les tables sœurs : réf. logiques, RLS off, SQL manuel). Le clair (`real31_` + 32 octets base64url) n'est montré qu'**une fois** à la création (`/admin/cles-api`, super-admin) ; seul le **sha256** est stocké, vérification **timing-safe** (`lib/auth/cle-api.ts`). Expiration + révocation logique + compteur d'usage journalier (visibilité, pas de rate limit à cette échelle).
+- **Auth DANS les handlers** (wrapper `avecCleApi(scope, handler)`), jamais dans le proxy Edge — `/api/v1` est exclu du matcher de `src/proxy.ts`.
+- **Cloisonnement machine** : clé liée à un gestionnaire (`manager_id`) = son portefeuille ; clé cabinet (`manager_id` NULL) = lecture transverse ; **toute écriture exige un `manager_id`** (règle du domaine `lib/domain/cle-api.ts`), et le périmètre est re-vérifié par les services existants (`exigerPerimetre`, anti-IDOR).
+- **Surface v1** : lecture large (copros + cycle, fiche, échéances de jalons, ag-urgentes, supervisions, problèmes, dossiers, compta) + **deux** écritures (`setStatutItem` supervision, `ajouterNoteCompta`) ; handlers minces sur les services existants, zod partout, pagination cursor (limit max 100), erreurs `{ok:false, code, message}`, spec OpenAPI 3.1 à la main (`/api/v1/openapi.json`). **Aucune PII copropriétaire** dans les réponses (pas de conseil syndical nominatif, pas de débiteurs, pas de `cible` de dossier).
+- **MCP « real31 » mince** (`mcp/real31-mcp.mjs`, stdio, `@modelcontextprotocol/sdk`) : chaque tool = un fetch de l'API v1 avec la clé — **jamais** de `service_role` sur un poste. Tools d'écriture avec `confirmation: true` obligatoire et description « agit immédiatement ».
+
+### >>> LIGNE ROUGE (non négociable) <<<
+
+**AUCUNE écriture eStale réelle, AUCUN envoi de mail, AUCUNE suppression, AUCUN `conclureAg` ni injection reprise via l'API ou le MCP** — quels que soient les scopes présents ou futurs. Ces gestes restent derrière le **GO/STOP humain dans l'UI**. Si un besoin machine émerge : l'API prépare un plan, un humain valide dans l'UI. La règle est répétée en tête de `lib/auth/cle-api.ts`, de `lib/domain/cle-api.ts`, du serveur MCP et de `docs/api-v1.md`.
+
+### Conséquences
+
+- Idempotence des écritures : rejouer un statut = même état final ; header `Idempotency-Key` optionnel sur la note compta (mémoire de process **best-effort**, limite documentée).
+- Table absente → `503 api_non_configuree` (dégradation propre) ; le panneau admin l'affiche et pointe le SQL à passer.
+- Le MCP requiert `node_modules` du repo (SDK) ; la clé se configure par env (`REAL31_API_URL`, `REAL31_API_KEY`).
+
+### Liens
+
+- Blueprint : `docs/audit-preprod-2026-07-06.md` §6 - Guide : `docs/api-v1.md` - SQL : `supabase/sql/intranet_api_keys.sql`.
+- **ADR-001** (ports & adapters), **ADR-023** (cloisonnement en code), **ADR-030** (écriture eStale = GO/STOP humain).
+
+---
+
 ## Décisions futures à formaliser (placeholders)
 
 Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
