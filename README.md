@@ -5,15 +5,15 @@ Surcouche de coordination par-dessus eStale (et Crypto pendant la transition de 
 > **Si tu arrives sur ce projet, lis dans cet ordre :**
 > 1. [`DECISIONS.md`](./DECISIONS.md) - les ADR qui posent l'architecture
 > 2. [`ROADMAP.md`](./ROADMAP.md) - l'état d'avancement et les jalons à venir
-> 3. [`real31-mockup.html`](./real31-mockup.html) - la référence UX (5 écrans)
+> 3. La référence UX = l'application elle-même + les maquettes de la refonte dans [`docs/refonte-ui/`](./docs/refonte-ui/) (`real31-mockup.html` reste comme mockup historique)
 > 4. Les `README.md` à l'intérieur de `src/lib/*/` - rappel du rôle de chaque dossier
 
 ## Stack
 
 - **Next.js 16** (App Router) + **TypeScript strict**
-- **Tailwind 4** + shadcn/ui (à venir)
+- **Tailwind 4** + composants maison (`src/components/ui`)
 - **Supabase** (région EU) pour la BDD, l'auth contextuelle (RLS) et le storage
-- **Microsoft Entra ID** pour le SSO M365 (à brancher en J1b, dépendance DSI)
+- **Microsoft Entra ID** pour le SSO M365 (actif en production)
 - **Microsoft Graph API** pour les emails sortants et la lecture SharePoint
 - **Vercel** pour l'hébergement (serverless, stateless)
 - **pnpm** comme gestionnaire de paquets
@@ -65,7 +65,7 @@ src/
     ├── services/           # Cas d'usage métier, orchestration
     ├── jobs/               # Sync, alertes, automatisations (cron)
     ├── audit/              # audit_log RGPD + activity_log produit
-    └── auth/               # Session, mock-provider (J1a) -> Entra ID (J1b)
+    └── auth/               # Session (mock-provider en dev -> Entra ID en prod)
 ```
 
 **Règle d'isolation** : aucun import direct des SDKs externes (`@microsoft/microsoft-graph-client`, `@supabase/supabase-js`, `graphql-request`, etc.) en dehors de leur adapter respectif. C'est appliqué par `eslint-plugin-boundaries` - cf. [`eslint.config.mjs`](./eslint.config.mjs).
@@ -81,16 +81,8 @@ rm src/lib/services/test-violation.ts
 
 ## Variables d'environnement
 
-À documenter dans `.env.example` au fur et à mesure que les briques sont câblées (Increment 2+). Pour J1a, aucune n'est encore nécessaire.
+Voir [`.env.local.example`](./.env.local.example) pour la liste des variables et leur rôle (Supabase, eStale, Entra ID, Graph…). Copier en `.env.local` et renseigner les valeurs.
 
-## Statut MVP
+## Statut
 
-- ✅ J1a - Fondations techniques (mock auth, scaffolding)
-- ⏸️ J1b - Branchement Entra ID (dépend du DSI, cf. `docs/entra-app-registration.md`)
-- 🔲 J2 - Écrans + MockProvider
-- 🔲 J3 - Branchement SharePoint
-- 🔲 J4 - Branchement eStale
-- 🔲 J5 - Alertes + mails
-- 🔲 J6 - Pré-prod + go-live
-
-Détail dans [`ROADMAP.md`](./ROADMAP.md).
+Application **déployée en production** (Vercel) : SSO Microsoft Entra ID actif, données réelles branchées sur Supabase (base patron) et eStale en source composite, 1000+ tests. L'avancement détaillé, les incréments en cours et les bloqueurs vivent dans [`ROADMAP.md`](./ROADMAP.md) - c'est la source de vérité de « où on en est ». Les décisions d'architecture sont dans [`DECISIONS.md`](./DECISIONS.md).

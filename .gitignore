@@ -72,3 +72,22 @@ docs/powerapps/**/*.msapp
 # Classeurs Excel de travail (sources, pas versionnes ; ~$ = lock Office)
 *.xlsx
 ~$*.xlsx
+
+# Outillage local / agents (regenere par machine, jamais commit)
+.claude/
+.agents/
+skills-lock.json
+
+# Schema eStale complet (13 Mo, dump volumineux) : garde le .graphql + le -summary.md
+# lisibles, mais pas le JSON brut. A retirer de l'index : git rm --cached docs/estale-schema.json
+docs/estale-schema.json
+
+# Gabarits / assets metier binaires deposes dans docs/ (sources non versionnees ->
+# ranges dans data/gabarits et data/assets). On garde les .md, .html (mockups refonte-ui),
+# .graphql lisibles ; on ignore les binaires bureautiques et images.
+docs/**/*.doc
+docs/**/*.docx
+docs/**/*.dotx
+docs/**/*.pdf
+docs/**/*.png
+docs/**/*.jpg
