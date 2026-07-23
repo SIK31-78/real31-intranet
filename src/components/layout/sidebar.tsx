@@ -41,7 +41,8 @@ type Item = {
 };
 
 // Navigation groupee par usage : Vue d'ensemble (pilotage) / A traiter (worklists) /
-// Ressources (outils transverses). Resolutions et Comptabilite sont "a venir".
+// Ressources (outils transverses). "Resolutions" et "Reprise" sont grisees "a venir" ;
+// "Comptabilite" et "Gestion courante" ne s'affichent que pour le pole comptable.
 const GROUPES: { titre: string; items: Item[] }[] = [
   {
     titre: "Vue d'ensemble",
@@ -217,9 +218,11 @@ export function Sidebar({
             <div key={groupe.titre}>
               <SectionTitre>{groupe.titre}</SectionTitre>
               {groupe.items.map((item) => {
-                // "Comptabilite" (dashboard transverse) : lien ABSENT hors role comptable /
-                // super-admin (le pole compta est transverse, pas un gestionnaire).
-                if (item.key === "compta" && !comptaOuvert) return null;
+                // "Comptabilite" (dashboard transverse) et "Gestion courante" (page
+                // reservee au pole compta) : liens ABSENTS hors role comptable / super-admin
+                // (le pole compta est transverse, pas un gestionnaire).
+                if ((item.key === "compta" || item.key === "gestion-courante") && !comptaOuvert)
+                  return null;
                 // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
                 const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
                 return <NavItem key={it.key} item={it} active={it.key === active} />;

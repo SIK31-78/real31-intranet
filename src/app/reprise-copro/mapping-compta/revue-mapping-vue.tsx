@@ -271,13 +271,9 @@ function ZoneUpload({
         <CardTitle>Grand livre N-1</CardTitle>
         <Badge ton={modeIa === "mock" ? "warn" : "ok"} className="gap-1.5">
           <Sparkles strokeWidth={1.5} className="w-3 h-3" />
-          {modeIa === "mock"
-            ? "pilote IA - mode demonstration"
-            : modeIa === "claude"
-              ? "pilote IA - Claude"
-              : modeIa === "claude-cli"
-                ? "pilote IA - Claude (CLI)"
-                : "pilote IA - Mistral"}
+          {/* Libelle neutre : on n'expose pas le nom du moteur cote UI (decision Sekou).
+              On garde la distinction "mode demonstration" (jeu de donnees mock). */}
+          {modeIa === "mock" ? "extraction automatique - démonstration" : "extraction automatique"}
         </Badge>
       </CardHeader>
 

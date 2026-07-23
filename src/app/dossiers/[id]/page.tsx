@@ -16,8 +16,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   const vue = await getDossier(id, g.id);
   if (!vue) notFound();
 
+  // Les dossiers vivent sur l'accueil : pas d'entree sidebar propre -> on surligne "Accueil".
   return (
-    <AppShell user={g} active="dossiers" breadcrumb={`Dossier - ${vue.dossier.titre}`}>
+    <AppShell user={g} active="accueil" breadcrumb={`Dossier - ${vue.dossier.titre}`}>
       <div className="mx-auto max-w-[900px] px-8 py-8">
         <DossierFiche
           dossier={vue.dossier}

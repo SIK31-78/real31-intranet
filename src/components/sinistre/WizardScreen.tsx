@@ -96,7 +96,7 @@ function DossierPanel() {
         setRetour({
           ok: true,
           texte: res.dossierId
-            ? `Enregistré (${res.referenceInterne}) - visible dans Mes dossiers`
+            ? `Enregistré (${res.referenceInterne}) - visible dans tes dossiers`
             : `Enregistré (${res.referenceInterne}) - dossier non créé, sinistre conservé`,
         });
       } else {
@@ -138,7 +138,7 @@ function DossierPanel() {
             href={`/dossiers/${state.dossierId}`}
             className="font-medium text-green-700 underline hover:text-green-600"
           >
-            Ouvrir le dossier dans « Mes dossiers »
+            Ouvrir le dossier dans « Dossiers »
           </Link>
         </p>
       )}

@@ -143,7 +143,6 @@ async function definir(
     // (sinon le calendrier / dashboard / accueil restent sur l'ancien calcul).
     revalidatePath(`/copropriete/${coproCode}`);
     revalidatePath("/calendrier");
-    revalidatePath("/dashboard");
     revalidatePath("/accueil");
     return { ok: true };
   } catch (e) {
@@ -193,7 +192,7 @@ export async function confirmerEvenementAction(
     if (!date) return { ok: false, erreur: "Aucune date à confirmer." };
     revalidatePath(`/copropriete/${coproCode}`);
     revalidatePath("/calendrier");
-    revalidatePath("/dashboard");
+    revalidatePath("/accueil");
     return { ok: true };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message };

@@ -89,7 +89,6 @@ export async function conclureAgAction(agId: string): Promise<void> {
     await definirDateEvenement(code, "ag", "prochaine", null, g.id);
     revalidatePath(`/copropriete/${code}`);
     revalidatePath("/calendrier");
-    revalidatePath("/dashboard");
     revalidatePath("/accueil");
   }
 

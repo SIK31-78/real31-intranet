@@ -16,8 +16,9 @@ export default async function DossiersPage() {
   const [dossiers, copros] = await Promise.all([getDossiers(g.id), getCoproprietes(g.id)]);
   const listeCopros = copros.map((c) => ({ code: c.code, nom: c.nom }));
 
+  // Les dossiers vivent sur l'accueil : pas d'entree sidebar propre -> on surligne "Accueil".
   return (
-    <AppShell user={g} active="dossiers" breadcrumb="Dossiers">
+    <AppShell user={g} active="accueil" breadcrumb="Dossiers">
       <div className="mx-auto max-w-[1100px] px-8 py-8">
         <h1 className="text-[20px] font-medium tracking-tight text-ink mb-4">Dossiers</h1>
         <DossiersVue dossiers={dossiers} copros={listeCopros} />

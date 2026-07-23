@@ -17,11 +17,11 @@ async function confirmer(coproCode: string): Promise<void> {
 export async function prendreEnMainAction(coproCode: string): Promise<void> {
   await confirmer(coproCode);
   revalidatePath("/copropriete");
-  revalidatePath("/dashboard");
+  revalidatePath("/accueil");
 }
 
 export async function prendreEnMainLotAction(coproCodes: string[]): Promise<void> {
   for (const code of coproCodes) await confirmer(code);
   revalidatePath("/copropriete");
-  revalidatePath("/dashboard");
+  revalidatePath("/accueil");
 }
