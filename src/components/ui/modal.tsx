@@ -26,6 +26,14 @@ export function Modal({
   children: ReactNode;
 }) {
   const panneauRef = useRef<HTMLDivElement>(null);
+  // `onFermer` peut etre recree a chaque render par l'appelant (fonction inline).
+  // On le lit via une ref pour ne PAS le mettre dans les deps du useEffect : sinon
+  // l'effet (donc le focus initial) se re-declenche a chaque frappe et le focus
+  // repart sur le premier element focusable (la croix). Bug corrige 2026-07-23.
+  const onFermerRef = useRef(onFermer);
+  useEffect(() => {
+    onFermerRef.current = onFermer;
+  }, [onFermer]);
 
   const focusables = useCallback((): HTMLElement[] => {
     const el = panneauRef.current;
@@ -36,14 +44,14 @@ export function Modal({
   }, []);
 
   useEffect(() => {
-    // Pose le focus dans la modale a l'ouverture (premier element, sinon le panneau).
+    // Pose le focus dans la modale a l'ouverture SEULEMENT (deps stables = montage).
     const cibles = focusables();
     (cibles[0] ?? panneauRef.current)?.focus();
 
     function onKey(e: globalThis.KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onFermer();
+        onFermerRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -72,7 +80,9 @@ export function Modal({
       document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = overflow;
     };
-  }, [focusables, onFermer]);
+    // Volontairement PAS `onFermer` ici (lu via onFermerRef) : l'effet ne doit tourner
+    // qu'au montage/demontage, jamais a chaque frappe.
+  }, [focusables]);
 
   return (
     <div
