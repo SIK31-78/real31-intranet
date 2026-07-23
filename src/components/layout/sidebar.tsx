@@ -3,7 +3,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
   FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
-  PackagePlus, Receipt, ClipboardList, Landmark,
+  PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -24,7 +24,9 @@ export type NavKey =
   | "equipe"
   | "toutes-copros"
   | "sinistres"
+  | "nouveautes"
   | "cles-api"
+  | "feedback"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
   // surligne AUCUNE entree (avant, ils empruntaient "calendrier" a tort). Pas de
   // nouvelle entree sidebar - juste une valeur qui ne matche aucun item.
@@ -71,6 +73,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
       { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+      { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
     ],
   },
 ];
@@ -83,13 +86,17 @@ const NAV_COMPTABLE: Item[] = [
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
   { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+  { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
 
 // Administration (visible SUPER-ADMIN seulement, cf. AppShell adminOuvert) : le panneau
 // des cles API machine (auth de /api/v1 + MCP). Groupe separe pour ne pas noyer la nav.
 const GROUPE_ADMIN: { titre: string; items: Item[] } = {
   titre: "Administration",
-  items: [{ key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key }],
+  items: [
+    { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
+    { key: "feedback", label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
+  ],
 };
 
 type LienApp = { label: string; href: string; icon: ComponentType<{ className?: string; strokeWidth?: number }> };

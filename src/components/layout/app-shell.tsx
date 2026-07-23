@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Sidebar, type NavKey } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
 import { peutVoirComptabilite, estVueComptable, estSuperAdmin } from "@/lib/auth/roles";
 
@@ -35,6 +36,9 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
         <Sidebar active={active} emailsOuvert={emailsOuvert} comptaOuvert={comptaOuvert} vueComptable={vueComptable} adminOuvert={adminOuvert} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      {/* Bouton flottant "Signaler un bug / une idée", present sur toutes les pages
+          authentifiees. L'auteur et la page courante sont capturees automatiquement. */}
+      <FeedbackTrigger />
     </div>
   );
 }
