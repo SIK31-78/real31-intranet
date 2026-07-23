@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { creerFeedback } from "./creer-feedback";
+import { creerEntreeAdmin } from "./creer-entree-admin";
 import { getNouveautes } from "./get-nouveautes";
 import { changerStatutFeedback } from "./changer-statut";
 
@@ -36,6 +37,44 @@ describe("creerFeedback (auteur deduit de la session)", () => {
       { initiales: "EL" },
     );
     expect(f.titre).toBe("Ajouter un export CSV");
+  });
+});
+
+describe("creerEntreeAdmin (entree « maison » : nouveaute / roadmap)", () => {
+  it("cree directement au statut choisi, avec le titre FOURNI (jamais derive)", async () => {
+    const f = await creerEntreeAdmin(
+      { type: "idee", titre: "Nouvel accueil", statut: "prevu", description: "Une longue description qui NE doit PAS devenir le titre." },
+      { email: "sekou.koma@real31.fr", initiales: "SK" },
+    );
+    expect(f.statut).toBe("prevu");
+    // Titre fourni tel quel, pas derive de la description.
+    expect(f.titre).toBe("Nouvel accueil");
+    expect(f.livreAt).toBeUndefined();
+    // Pas de severite sur une entree « maison ».
+    expect(f.severite).toBeUndefined();
+    expect(f.auteurInitiales).toBe("SK");
+  });
+
+  it("pose livreAt quand l'entree naît directement en `livre` (date du changelog)", async () => {
+    const f = await creerEntreeAdmin(
+      { type: "idee", titre: "Facturation de la gestion courante", statut: "livre" },
+      { initiales: "SK" },
+    );
+    expect(f.statut).toBe("livre");
+    expect(f.livreAt).toBeTruthy();
+  });
+
+  it("apparaît dans la vitrine /nouveautes quand creee en `livre`, sans champ interne", async () => {
+    const f = await creerEntreeAdmin(
+      { type: "idee", titre: "Espace comptable dédié", statut: "livre", description: "Note interne éventuelle" },
+      { email: "prive-admin@real31.fr", initiales: "SK" },
+    );
+    const { livre } = await getNouveautes();
+    const cible = livre.find((e) => e.titre === f.titre);
+    expect(cible).toBeDefined();
+    expect(JSON.stringify(livre)).not.toContain("prive-admin@real31.fr");
+    expect(cible).not.toHaveProperty("description");
+    expect(cible).not.toHaveProperty("auteurEmail");
   });
 });
 

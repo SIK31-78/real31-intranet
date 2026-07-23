@@ -19,7 +19,8 @@
 --   SELECT id, type, titre, description, page, auteur_email, auteur_initiales,
 --          severite, statut, priorite, note_interne, raison_ecart, created_at,
 --          updated_at, livre_at
---   INSERT type, titre, description, page, auteur_email, auteur_initiales, severite
+--   INSERT type, titre, description, page, auteur_email, auteur_initiales, severite  (bouton collaborateur)
+--   INSERT type, titre, description, statut, severite, priorite, auteur_*, livre_at   (entree « maison » admin)
 --   UPDATE statut, raison_ecart, livre_at, updated_at        (changement de statut)
 --   UPDATE titre, priorite, note_interne, updated_at         (edition admin)
 --
@@ -37,7 +38,7 @@ create table if not exists public.intranet_feedback (
   page              text,                                      -- pathname capture automatiquement au moment du signalement
   auteur_email      text,                                      -- ref logique = public."User".email ; JAMAIS expose sur /nouveautes
   auteur_initiales  text,                                      -- ex 'SK' (affichage admin uniquement)
-  severite          text not null check (severite in ('bloquant','genant','confort')),
+  severite          text check (severite in ('bloquant','genant','confort')), -- NULL = entree « maison » (nouveaute/roadmap creee par l'admin) : pas de triage
   statut            text not null default 'nouveau'
                     check (statut in ('nouveau','prevu','en_cours','livre','ecarte')),
   priorite          int,                                       -- NULL = non priorise ; ordre dans la roadmap "a venir"
@@ -55,3 +56,8 @@ create index if not exists intranet_feedback_statut_idx
 -- Liste antechronologique (dernieres remontees en premier).
 create index if not exists intranet_feedback_created_idx
   on public.intranet_feedback (created_at desc);
+
+-- Idempotent : si la table existait DEJA avec severite NOT NULL (version anterieure a la
+-- creation d'entrees « maison »), on releve la contrainte. Une nouveaute / entree de
+-- roadmap n'a pas de severite ressentie (notion de triage collaborateur uniquement).
+alter table public.intranet_feedback alter column severite drop not null;

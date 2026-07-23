@@ -46,7 +46,10 @@ export interface Feedback {
   /** INTERNE : jamais expose sur /nouveautes. */
   auteurEmail?: string;
   auteurInitiales?: string;
-  severite: SeveriteFeedback;
+  /** Gravite ressentie par le collaborateur. ABSENTE sur une entree « maison »
+   *  (nouveaute / roadmap creee par l'admin) : la severite est une notion de triage,
+   *  elle n'a pas de sens pour une entree redigee directement au changelog. */
+  severite?: SeveriteFeedback;
   statut: StatutFeedback;
   /** Ordre dans la roadmap "a venir" (plus petit = plus haut). Absent = non priorise. */
   priorite?: number;
@@ -109,17 +112,47 @@ export function transitionsPossibles(de: StatutFeedback): readonly StatutFeedbac
   return TRANSITIONS[de];
 }
 
+// --- CREATION DIRECTE PAR L'ADMIN (entree « maison » : nouveaute / roadmap) --------
+//
+// L'admin peut CREER une entree directement a un statut donne. Ce n'est PAS une
+// transition (pas de `de -> vers`) : c'est un point d'entree parallele au bouton
+// collaborateur (qui, lui, ne cree qu'a `nouveau`). Cas d'usage : alimenter la vitrine
+// /nouveautes (statut `livre`) ou annoncer la roadmap (`prevu` / `en_cours`).
+//
+// `ecarte` est EXCLU : on ne cree pas une entree deja ecartee (et cela exigerait une
+// raison d'ecart, hors de propos ici).
+
+/** Statuts auxquels l'admin peut creer une entree « maison » directement. */
+export const STATUTS_CREATION_ADMIN = ["nouveau", "prevu", "en_cours", "livre"] as const;
+export type StatutCreationAdmin = (typeof STATUTS_CREATION_ADMIN)[number];
+
+export function estStatutCreationAdmin(v: string): v is StatutCreationAdmin {
+  return (STATUTS_CREATION_ADMIN as readonly string[]).includes(v);
+}
+
+/**
+ * `livre_at` a poser pour une creation admin : l'instant present si l'entree naît
+ * directement `livre` (elle doit dater le changelog), absent sinon.
+ */
+export function livreAtCreation(statut: StatutFeedback, maintenant: Date = new Date()): string | undefined {
+  return statut === "livre" ? maintenant.toISOString() : undefined;
+}
+
 // --- TRI DE TRIAGE -------------------------------------------------------------
 
-/** Rang de gravite : bloquant avant genant avant confort. */
+/** Rang de gravite : bloquant avant genant avant confort. Severite absente
+ *  (entree « maison ») = repoussee apres tout ce qui porte une gravite. */
 const RANG_SEVERITE: Record<SeveriteFeedback, number> = { bloquant: 0, genant: 1, confort: 2 };
+function rangSeverite(s?: SeveriteFeedback): number {
+  return s ? RANG_SEVERITE[s] : 3;
+}
 
 /**
  * Comparateur de triage admin : le plus grave d'abord, puis le plus recent d'abord.
  * (a utiliser avec Array.prototype.sort sur une COPIE.)
  */
 export function trierTriage(a: Feedback, b: Feedback): number {
-  const parGravite = RANG_SEVERITE[a.severite] - RANG_SEVERITE[b.severite];
+  const parGravite = rangSeverite(a.severite) - rangSeverite(b.severite);
   if (parGravite !== 0) return parGravite;
   return b.createdAt.localeCompare(a.createdAt);
 }

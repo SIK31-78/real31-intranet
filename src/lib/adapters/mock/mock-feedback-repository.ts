@@ -6,6 +6,7 @@ import type { Feedback, StatutFeedback } from "@/lib/domain/feedback";
 import { estStatutPublic } from "@/lib/domain/feedback";
 import type {
   ChangementStatut,
+  EntreeAdmin,
   FeedbackRepository,
   FiltreFeedback,
   PatchFeedback,
@@ -41,6 +42,25 @@ export class MockFeedbackRepository implements FeedbackRepository {
       ...(remontee.page ? { page: remontee.page } : {}),
       ...(remontee.auteurEmail ? { auteurEmail: remontee.auteurEmail } : {}),
       ...(remontee.auteurInitiales ? { auteurInitiales: remontee.auteurInitiales } : {}),
+    };
+    STORE.set(f.id, f);
+    return { ...f };
+  }
+
+  async creerEntree(entree: EntreeAdmin): Promise<Feedback> {
+    seq += 1;
+    const f: Feedback = {
+      id: `fb-${seq}`,
+      type: entree.type,
+      titre: entree.titre,
+      description: entree.description ?? "",
+      statut: entree.statut,
+      createdAt: new Date().toISOString(),
+      ...(entree.severite ? { severite: entree.severite } : {}),
+      ...(entree.priorite != null ? { priorite: entree.priorite } : {}),
+      ...(entree.auteurEmail ? { auteurEmail: entree.auteurEmail } : {}),
+      ...(entree.auteurInitiales ? { auteurInitiales: entree.auteurInitiales } : {}),
+      ...(entree.livreAt ? { livreAt: entree.livreAt } : {}),
     };
     STORE.set(f.id, f);
     return { ...f };

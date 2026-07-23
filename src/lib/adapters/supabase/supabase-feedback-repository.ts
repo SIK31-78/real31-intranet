@@ -8,6 +8,7 @@ import { FeedbackNonConfigureError } from "@/lib/domain/feedback";
 import { STATUTS_PUBLICS } from "@/lib/domain/feedback";
 import type {
   ChangementStatut,
+  EntreeAdmin,
   FeedbackRepository,
   FiltreFeedback,
   PatchFeedback,
@@ -27,7 +28,7 @@ type Row = {
   page: string | null;
   auteur_email: string | null;
   auteur_initiales: string | null;
-  severite: string;
+  severite: string | null;
   statut: string;
   priorite: number | null;
   note_interne: string | null;
@@ -51,9 +52,9 @@ function map(r: Row): Feedback {
     type: r.type as Feedback["type"],
     titre: r.titre,
     description: r.description,
-    severite: r.severite as Feedback["severite"],
     statut: r.statut as StatutFeedback,
     createdAt: r.created_at,
+    ...(r.severite ? { severite: r.severite as Feedback["severite"] } : {}),
     ...(r.page ? { page: r.page } : {}),
     ...(r.auteur_email ? { auteurEmail: r.auteur_email } : {}),
     ...(r.auteur_initiales ? { auteurInitiales: r.auteur_initiales } : {}),
@@ -84,6 +85,31 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`creer feedback : ${error.message}`);
+    }
+    return map(data as Row);
+  }
+
+  async creerEntree(entree: EntreeAdmin): Promise<Feedback> {
+    const sb = createSupabasePublicClient();
+    const { data, error } = await sb
+      .from(TABLE)
+      .insert({
+        type: entree.type,
+        titre: entree.titre,
+        // description NOT NULL en base : une entree « maison » sans texte -> chaine vide.
+        description: entree.description ?? "",
+        statut: entree.statut,
+        severite: entree.severite ?? null,
+        priorite: entree.priorite ?? null,
+        auteur_email: entree.auteurEmail ?? null,
+        auteur_initiales: entree.auteurInitiales ?? null,
+        livre_at: entree.livreAt ?? null,
+      })
+      .select(COLS)
+      .single();
+    if (error) {
+      if (tableAbsente(error)) throw new FeedbackNonConfigureError();
+      throw new Error(`creer entrée feedback : ${error.message}`);
     }
     return map(data as Row);
   }

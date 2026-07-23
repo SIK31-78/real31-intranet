@@ -22,6 +22,29 @@ export interface RemonteeFeedback {
   auteurInitiales?: string;
 }
 
+/**
+ * Ce qu'on ecrit pour une entree « maison » creee par l'admin (nouveaute / roadmap).
+ * Difference avec {@link RemonteeFeedback} : le STATUT est choisi (pas force a `nouveau`),
+ * le TITRE est fourni (pas derive), la severite/description/priorite sont optionnelles.
+ * L'auteur vient de la SESSION (super-admin courant), jamais du client.
+ */
+export interface EntreeAdmin {
+  type: TypeFeedback;
+  /** Titre fourni tel quel (pas derive de la description). */
+  titre: string;
+  /** Statut de naissance (valide en amont : STATUTS_CREATION_ADMIN, jamais `ecarte`). */
+  statut: StatutFeedback;
+  /** Interne, facultative (une nouveaute n'a pas forcement de description). */
+  description?: string;
+  /** Absente pour une entree « maison » : la severite est une notion de triage. */
+  severite?: SeveriteFeedback;
+  priorite?: number;
+  auteurEmail?: string;
+  auteurInitiales?: string;
+  /** ISO ; pose quand l'entree naît directement `livre` (date du changelog). */
+  livreAt?: string;
+}
+
 /** Filtre du triage admin (facultatif, cumulable). */
 export interface FiltreFeedback {
   statut?: StatutFeedback;
@@ -50,6 +73,8 @@ export interface PatchFeedback {
 export interface FeedbackRepository {
   /** Cree la remontee (statut initial `nouveau`) et renvoie l'enregistrement. */
   creer(remontee: RemonteeFeedback): Promise<Feedback>;
+  /** Cree une entree « maison » (nouveaute / roadmap) directement au statut choisi. */
+  creerEntree(entree: EntreeAdmin): Promise<Feedback>;
   /** Toutes les remontees (tous statuts), plus recente en premier. Filtre optionnel. */
   lister(filtre?: FiltreFeedback): Promise<Feedback[]>;
   /** Une remontee par id. null = inconnue. */

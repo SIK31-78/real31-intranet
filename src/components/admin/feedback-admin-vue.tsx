@@ -6,20 +6,23 @@
 // domaine ; écarter exige une raison). Les gardes reelles sont serveur (actions).
 
 import { useMemo, useState, useTransition } from "react";
-import { Bug, Lightbulb, ChevronDown, ChevronRight } from "lucide-react";
+import { Bug, Lightbulb, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import {
+  STATUTS_CREATION_ADMIN,
   transitionsPossibles,
   type Feedback,
   type SeveriteFeedback,
+  type StatutCreationAdmin,
   type StatutFeedback,
   type TypeFeedback,
 } from "@/lib/domain/feedback";
-import { changerStatutAction, editerFeedbackAction } from "@/app/admin/feedback/actions";
+import { changerStatutAction, creerEntreeAction, editerFeedbackAction } from "@/app/admin/feedback/actions";
 
 const LABEL_STATUT: Record<StatutFeedback, string> = {
   nouveau: "Nouveau",
@@ -165,7 +168,13 @@ function LigneFeedback({ f }: { f: Feedback }) {
           </div>
         </td>
         <td className="px-3 py-2.5">
-          <Badge ton={TON_SEVERITE[f.severite]}>{LABEL_SEVERITE[f.severite]}</Badge>
+          {f.severite ? (
+            <Badge ton={TON_SEVERITE[f.severite]}>{LABEL_SEVERITE[f.severite]}</Badge>
+          ) : (
+            <span className="text-[12px] text-ink-4" title="Entrée « maison » (sans sévérité)">
+              —
+            </span>
+          )}
         </td>
         <td className="px-3 py-2.5">
           <Badge ton={TON_STATUT[f.statut]} dot>
@@ -273,6 +282,127 @@ function LigneFeedback({ f }: { f: Feedback }) {
   );
 }
 
+// Formulaire de creation d'une entree « maison » (nouveaute / roadmap) : le pendant admin
+// du bouton collaborateur. Titre fourni, statut choisi (defaut `livre` = alimente le
+// changelog), description interne + priorite optionnelles. Garde super-admin cote action.
+function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
+  const { ok, err } = useToast();
+  const [enCours, startTransition] = useTransition();
+  const [type, setType] = useState<TypeFeedback>("idee");
+  const [titre, setTitre] = useState("");
+  const [description, setDescription] = useState("");
+  const [statut, setStatut] = useState<StatutCreationAdmin>("livre");
+  const [priorite, setPriorite] = useState("");
+
+  const champCls =
+    "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+
+  function soumettre() {
+    const t = titre.trim();
+    if (!t) {
+      err("Le titre est obligatoire.");
+      return;
+    }
+    const brut = priorite.trim();
+    const prio = brut === "" ? undefined : Number(brut);
+    if (prio !== undefined && (!Number.isInteger(prio) || prio < 0)) {
+      err("Priorité : un entier positif (ou vide).");
+      return;
+    }
+    startTransition(async () => {
+      const r = await creerEntreeAction({
+        type,
+        titre: t,
+        statut,
+        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(prio !== undefined ? { priorite: prio } : {}),
+      });
+      if (r.ok) {
+        ok("Entrée ajoutée");
+        onFermer();
+      } else {
+        err(r.message ?? "Création impossible.");
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3.5 px-4 py-4">
+      <p className="text-[12.5px] text-ink-3">
+        Une entrée créée ici alimente directement la page <span className="font-medium">Nouveautés</span> : en «
+        Livré » pour le changelog, en « Prévu » ou « En cours » pour la roadmap.
+      </p>
+
+      <div className="flex flex-wrap gap-3">
+        <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+          Type
+          <select value={type} onChange={(e) => setType(e.target.value as TypeFeedback)} className={champCls}>
+            <option value="idee">Idée / nouveauté</option>
+            <option value="bug">Bug</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+          Statut
+          <select
+            value={statut}
+            onChange={(e) => setStatut(e.target.value as StatutCreationAdmin)}
+            className={champCls}
+          >
+            {STATUTS_CREATION_ADMIN.map((s) => (
+              <option key={s} value={s}>
+                {LABEL_STATUT[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+          Priorité (facultatif)
+          <input
+            value={priorite}
+            onChange={(e) => setPriorite(e.target.value)}
+            inputMode="numeric"
+            placeholder="—"
+            className={cn(champCls, "w-24 tabular-nums")}
+          />
+        </label>
+      </div>
+
+      <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+        Titre (obligatoire)
+        <input
+          value={titre}
+          onChange={(e) => setTitre(e.target.value)}
+          maxLength={120}
+          autoFocus
+          placeholder="Ex. Nouvel accueil"
+          className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+        Description publique / interne (facultatif)
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="Le texte qui accompagne l'entrée…"
+          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        />
+      </label>
+
+      <div className="mt-1 flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onFermer} disabled={enCours}>
+          Annuler
+        </Button>
+        <Button size="sm" variant="primary" onClick={soumettre} disabled={enCours || !titre.trim()}>
+          Ajouter l&apos;entrée
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function FeedbackAdminVue({
   feedbacks,
   feedbackNonConfigure,
@@ -283,6 +413,7 @@ export function FeedbackAdminVue({
   const [fStatut, setFStatut] = useState<StatutFeedback | "">("");
   const [fType, setFType] = useState<TypeFeedback | "">("");
   const [fSeverite, setFSeverite] = useState<SeveriteFeedback | "">("");
+  const [ajoutOuvert, setAjoutOuvert] = useState(false);
 
   const filtres = useMemo(
     () =>
@@ -347,7 +478,19 @@ export function FeedbackAdminVue({
             Réinitialiser
           </Button>
         )}
+        <div className="ml-auto">
+          <Button size="sm" variant="primary" onClick={() => setAjoutOuvert(true)} disabled={feedbackNonConfigure}>
+            <Plus strokeWidth={1.5} className="h-3.5 w-3.5" />
+            Ajouter une entrée
+          </Button>
+        </div>
       </div>
+
+      {ajoutOuvert && (
+        <Modal titre="Ajouter une entrée" onFermer={() => setAjoutOuvert(false)}>
+          <FormulaireEntreeMaison onFermer={() => setAjoutOuvert(false)} />
+        </Modal>
+      )}
 
       <Card>
         <CardHeader>
