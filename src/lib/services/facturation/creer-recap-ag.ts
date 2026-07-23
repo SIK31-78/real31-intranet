@@ -24,6 +24,7 @@ import type { TravauxVotes } from "@/lib/ports/recap-ag-repository";
 import { aujourdhuiISO, exigerTarifTtc } from "./bareme";
 import { formatEuros, formatHeure, formatHeures, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
+import { CATEGORIE_HONORAIRES_COMPLEMENTAIRES } from "@/lib/domain/facturation/produits";
 
 export interface DemandeRecapAg {
   /** Code copro (referenceCrypto). */
@@ -86,6 +87,22 @@ async function calculer(demande: DemandeRecapAg) {
   const parametres = await repo.getParametresCopro(demande.coproCode);
   if (!parametres) throw new Error(`Copropriete ${demande.coproCode} introuvable.`);
 
+  // NULL = parametre ABSENT de la fiche (inconnu), distinct d'un 0 explicite. On
+  // refuse de calculer un depassement d'AG sur une duree ou une plage inconnue :
+  // une duree d'AG absente ferait basculer toute l'assemblee en depassement, une
+  // plage absente rendrait tout "hors plage". On leve plutot que de sur-facturer.
+  // (Un 0 explicite reste valide : 0 h incluse = assemblee facturee normalement.)
+  if (
+    parametres.dureeAgHeures === null ||
+    parametres.debutMinAgHeure === null ||
+    parametres.finMaxAgHeure === null
+  ) {
+    throw new Error(
+      `Paramètres d'AG non renseignés pour la copropriété ${demande.coproCode} ` +
+        `(durée d'AG et plage horaire) — à compléter sur la fiche avant de facturer le dépassement.`,
+    );
+  }
+
   const anneeBareme = anneeExerciceApprouve(demande.assemblee.jourDebut);
   const tarifHoraireTtc = await exigerTarifTtc(repo, "TauxHoraire", anneeBareme);
 
@@ -97,7 +114,14 @@ async function calculer(demande: DemandeRecapAg) {
     tarifHoraireTtc,
   });
 
-  return { parametres, anneeBareme, tarifHoraireTtc, calcul };
+  return {
+    dureeAgHeures: parametres.dureeAgHeures,
+    debutMinAgHeure: parametres.debutMinAgHeure,
+    finMaxAgHeure: parametres.finMaxAgHeure,
+    anneeBareme,
+    tarifHoraireTtc,
+    calcul,
+  };
 }
 
 export async function apercuRecapAg(
@@ -105,7 +129,8 @@ export async function apercuRecapAg(
   managerId: string,
 ): Promise<ApercuFacturation> {
   await exigerPerimetre(demande.coproCode, managerId);
-  const { parametres, anneeBareme, tarifHoraireTtc, calcul } = await calculer(demande);
+  const { dureeAgHeures, debutMinAgHeure, finMaxAgHeure, anneeBareme, tarifHoraireTtc, calcul } =
+    await calculer(demande);
   const alertes = avertissements(demande);
 
   const rienAFacturer = calcul.totalDepassementHeures === 0;
@@ -123,7 +148,7 @@ export async function apercuRecapAg(
       { libelle: "Duree totale", valeur: formatHeures(calcul.dureeTotaleHeures) },
       {
         libelle: "Inclus au contrat",
-        valeur: `${formatHeures(parametres.dureeAgHeures)} entre ${parametres.debutMinAgHeure} h et ${parametres.finMaxAgHeure} h`,
+        valeur: `${formatHeures(dureeAgHeures)} entre ${debutMinAgHeure} h et ${finMaxAgHeure} h`,
         accent: "contrat",
       },
       {
@@ -279,6 +304,7 @@ export async function creerRecapAg(
           `Duree totale : ${formatHeures(calcul.dureeTotaleHeures)}. ` +
           `Depassement dans la plage : ${formatHeures(calcul.depassementDansPlageHeures)}. ` +
           `Hors plage : ${formatHeures(calcul.depassementHorsPlageHeures)}.`,
+        categorieProduit: CATEGORIE_HONORAIRES_COMPLEMENTAIRES,
         quantite: calcul.totalDepassementHeures,
         prixUnitaireHt: htDepuisTtc(tarifHoraireTtc),
       },

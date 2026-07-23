@@ -117,7 +117,7 @@ describe("smoke facturation E2E (ecritures reelles)", () => {
 
       // --- 2. Emission vers Pennylane ---
       console.log("\n=== 2. EMISSION PENNYLANE ===");
-      const emission = await emettreFacturesEnAttente(10);
+      const emission = await emettreFacturesEnAttente([resultat.factureId]);
       console.log("emises   :", emission.emises);
       console.log("en erreur:", emission.enErreur);
       for (const e of emission.erreurs) console.log("  ERREUR", e.factureId, ":", e.message);

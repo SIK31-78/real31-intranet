@@ -21,6 +21,10 @@ import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
 import { formatEuros, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
+import {
+  CATEGORIE_PRE_ETAT_DATE,
+  CATEGORIE_QUESTIONNAIRE_NOTAIRE,
+} from "@/lib/domain/facturation/produits";
 
 export interface DemandeFactureForfaitaire {
   /** Code copro (referenceCrypto). */
@@ -40,7 +44,8 @@ export interface DemandeFactureForfaitaire {
 
 export interface ResultatFactureForfaitaire {
   montantHt: number;
-  factureId: string;
+  /** Null si le montant retenu est nul : aucune facture n'est creee. */
+  factureId: string | null;
 }
 
 const PRESTATIONS = {
@@ -114,7 +119,7 @@ export async function tarifForfaitaireBareme(
 async function creerFactureForfaitaire(
   demande: DemandeFactureForfaitaire,
   managerId: string,
-  prestation: { type: TypePrestation; identifiantPrestation: string; libelle: string },
+  prestation: { type: TypePrestation; identifiantPrestation: string; libelle: string; categorieProduit: string },
 ): Promise<ResultatFactureForfaitaire> {
   await exigerPerimetre(demande.coproCode, managerId);
   const repo = getFacturationRepository();
@@ -123,6 +128,14 @@ async function creerFactureForfaitaire(
   const tarifBaremeTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
   const montantTtc = demande.montantTtcNegocie ?? tarifBaremeTtc;
   const montantHt = htDepuisTtc(montantTtc);
+
+  // Montant negocie a 0 : pas de facture (comme l'apercu le signale via
+  // rienAFacturer). Le payload Pennylane ne refuse qu'une facture SANS ligne,
+  // pas une ligne a 0 EUR : on garde-fou ici, au chemin de creation, pour ne
+  // jamais creer de brouillon a 0 EUR. Symetrique du depassement CS et du sinistre.
+  if (montantTtc === 0) {
+    return { montantHt: 0, factureId: null };
+  }
 
   const libelle = demande.nomClient
     ? `${prestation.libelle} - ${demande.nomClient}`
@@ -151,6 +164,7 @@ async function creerFactureForfaitaire(
         // document lui-meme. La trace reste interne, dans `details` ci-dessus
         // et sur l'ecran de validation.
         description: libelle,
+        categorieProduit: prestation.categorieProduit,
         quantite: 1,
         prixUnitaireHt: montantHt,
       },
@@ -169,6 +183,7 @@ export function creerFacturePreEtatDate(
     type: "pre_etat_date",
     identifiantPrestation: "PreEtatDate",
     libelle: "Honoraires pre-etat date",
+    categorieProduit: CATEGORIE_PRE_ETAT_DATE,
   });
 }
 
@@ -181,5 +196,6 @@ export function creerFactureEtatDate(
     type: "etat_date",
     identifiantPrestation: "EtatDate",
     libelle: "Honoraires etat date (questionnaire notaire)",
+    categorieProduit: CATEGORIE_QUESTIONNAIRE_NOTAIRE,
   });
 }

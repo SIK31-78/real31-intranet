@@ -16,6 +16,7 @@ import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
 import { formatEuros, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
+import { CATEGORIE_SUIVI_SINISTRE } from "@/lib/domain/facturation/produits";
 
 export interface DemandeFactureSinistre {
   /** Code copro (referenceCrypto). */
@@ -131,6 +132,7 @@ export async function creerFactureSuiviSinistre(
     ...(demande.par ? { par: demande.par } : {}),
     lignes: calcul.lignes.map((ligne) => ({
       description: ligne.libelle,
+      categorieProduit: CATEGORIE_SUIVI_SINISTRE,
       quantite: 1,
       prixUnitaireHt: ligne.montantHt,
     })),

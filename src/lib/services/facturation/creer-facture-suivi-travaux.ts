@@ -14,6 +14,7 @@ import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { aujourdhuiISO } from "./bareme";
 import { formatEuros } from "./format";
 import type { ApercuFacturation } from "./apercu";
+import { CATEGORIE_SUIVI_TRAVAUX } from "@/lib/domain/facturation/produits";
 
 export interface DemandeFactureTravaux {
   /** Code copro (referenceCrypto). */
@@ -28,7 +29,8 @@ export interface DemandeFactureTravaux {
 
 export interface ResultatFactureTravaux {
   montantHt: number;
-  factureId: string;
+  /** Null si le montant calcule est nul : aucune facture n'est creee. */
+  factureId: string | null;
 }
 
 export async function apercuSuiviTravaux(
@@ -85,6 +87,13 @@ export async function creerFactureSuiviTravaux(
 
   const { montantHt } = calculerHonorairesTravaux(demande.honoraires);
 
+  // Montant calcule a 0 (0 % ou forfait a 0) : pas de facture. Le payload
+  // Pennylane ne refuse qu'une facture SANS ligne, pas une ligne a 0 EUR : on
+  // garde-fou ici, au chemin de creation, comme le depassement CS et le sinistre.
+  if (montantHt === 0) {
+    return { montantHt: 0, factureId: null };
+  }
+
   const factureId = await repo.creerFacture({
     coproCode: demande.coproCode,
     typePrestation: "suivi_travaux",
@@ -95,6 +104,7 @@ export async function creerFactureSuiviTravaux(
     lignes: [
       {
         description: `Honoraires de suivi de travaux - ${demande.libelleTravaux}`,
+        categorieProduit: CATEGORIE_SUIVI_TRAVAUX,
         quantite: 1,
         prixUnitaireHt: montantHt,
       },

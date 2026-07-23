@@ -24,6 +24,19 @@ const LIBELLE_PRESTATION: Record<TypePrestation, string> = {
   suivi_sinistre: "Honoraires de suivi de sinistre",
   pre_etat_date: "Honoraires de pre-etat date",
   etat_date: "Honoraires d'etat date",
+  gestion_courante: "Honoraires de gestion courante",
+};
+
+/** Objet de la facture (titre de section sur le PDF), par prestation. Repris des
+ *  pdf_invoice_subject des flows legacy. */
+const SUJET_PRESTATION: Record<TypePrestation, string> = {
+  depassement_cs: "Honoraires complémentaires",
+  depassement_ag: "Honoraires complémentaires",
+  suivi_travaux: "Honoraires suivi travaux",
+  suivi_sinistre: "Honoraires suivi sinistre",
+  pre_etat_date: "Honoraires pré état daté",
+  etat_date: "Honoraires état daté",
+  gestion_courante: "Honoraires du trimestre en cours",
 };
 
 export interface ResultatEmissionLot {
@@ -33,12 +46,17 @@ export interface ResultatEmissionLot {
   erreurs: Array<{ factureId: string; message: string }>;
 }
 
-export async function emettreFacturesEnAttente(limite = 50): Promise<ResultatEmissionLot> {
+export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatEmissionLot> {
   const repo = getFacturationRepository();
   const provider = getInvoicingProvider();
 
-  const factures = await repo.listerFacturesAEmettre(limite);
+  const factures = await repo.listerFacturesAEmettre(ids);
   const resultat: ResultatEmissionLot = { emises: 0, enErreur: 0, erreurs: [] };
+
+  // Catalogue produits charge une fois : resout libelle + product_id + compte
+  // comptable par (categorie, agence de la copro).
+  const produits = await repo.chargerProduits();
+  const produitParCle = new Map(produits.map((pr) => [`${pr.categorie}|${pr.agence}`, pr]));
 
   for (const facture of factures) {
     try {
@@ -52,18 +70,33 @@ export async function emettreFacturesEnAttente(limite = 50): Promise<ResultatEmi
         throw new Error("Facture sans ligne : emission refusee.");
       }
 
+      const agence = await repo.getAgenceCopro(facture.coproCode);
+
       const { factureExterneId } = await provider.creerFactureBrouillon({
         clientRef,
         codeEntite: facture.coproCode,
         libelle: facture.libelle,
+        sujet: SUJET_PRESTATION[facture.typePrestation],
         dateFacture: facture.dateFacture,
-        lignes: facture.lignes.map((l) => ({
-          libelle: LIBELLE_PRESTATION[facture.typePrestation],
-          ...(l.description ? { detail: l.description } : {}),
-          quantite: l.quantite,
-          prixUnitaireHt: l.prixUnitaireHt,
-          tauxTva: l.tauxTva,
-        })),
+        lignes: facture.lignes.map((l) => {
+          // Le produit (liste Produits) donne le libelle exact avec agence, le
+          // product_id et le compte comptable. Repli sur le libelle par type si
+          // la categorie n'est pas resolue (ne bloque pas l'emission).
+          const produit =
+            l.categorieProduit && agence
+              ? produitParCle.get(`${l.categorieProduit}|${agence}`)
+              : undefined;
+          return {
+            libelle: produit?.titre ?? LIBELLE_PRESTATION[facture.typePrestation],
+            ...(l.description ? { detail: l.description } : {}),
+            quantite: l.quantite,
+            prixUnitaireHt: l.prixUnitaireHt,
+            tauxTva: l.tauxTva,
+            ...(produit
+              ? { productId: produit.pennylaneProductId, ledgerAccountId: produit.ledgerAccountId }
+              : {}),
+          };
+        }),
       });
 
       await repo.marquerFacturee(facture.id, factureExterneId);

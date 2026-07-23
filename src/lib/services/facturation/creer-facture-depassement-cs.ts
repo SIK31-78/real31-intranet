@@ -17,6 +17,23 @@ import { marquerHonorairesCsTraite } from "@/lib/services/supervision-ag/auto-co
 import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
 import { formatEuros, formatHeure, formatHeures, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
+import type { ParametresCopro } from "@/lib/ports/facturation-repository";
+import { CATEGORIE_HONORAIRES_COMPLEMENTAIRES } from "@/lib/domain/facturation/produits";
+
+/**
+ * Franchise CS a appliquer, lue sur la fiche copro. `null` = franchise NON
+ * renseignee (inconnu) : on refuse de facturer plutot que de facturer toute la
+ * reunion (une franchise absente ferait tout basculer en depassement). Un `0`
+ * explicite reste valide (franchise nulle assumee = reunion facturee normalement).
+ */
+function exigerFranchiseCs(parametres: ParametresCopro, coproCode: string): number {
+  if (parametres.franchiseCsHeures === null) {
+    throw new Error(
+      `Franchise CS non renseignée pour la copropriété ${coproCode} — à compléter sur la fiche avant de facturer.`,
+    );
+  }
+  return parametres.franchiseCsHeures;
+}
 
 export interface DemandeDepassementCs {
   /** Code copro (referenceCrypto). */
@@ -49,13 +66,14 @@ export async function apercuDepassementCs(
 
   const parametres = await repo.getParametresCopro(demande.coproCode);
   if (!parametres) throw new Error(`Copropriete ${demande.coproCode} introuvable.`);
+  const franchiseHeures = exigerFranchiseCs(parametres, demande.coproCode);
 
   const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
   const tarifHoraireTtc = await exigerTarifTtc(repo, "TauxHoraire", anneeBareme);
 
   const calcul = calculerDepassementCs({
     reunion: demande.reunion,
-    franchiseHeures: parametres.franchiseCsHeures,
+    franchiseHeures,
     tarifHoraireTtc,
   });
 
@@ -76,7 +94,7 @@ export async function apercuDepassementCs(
       },
       {
         libelle: "Inclus au contrat",
-        valeur: formatHeures(parametres.franchiseCsHeures),
+        valeur: formatHeures(franchiseHeures),
         accent: "contrat",
       },
       {
@@ -114,6 +132,7 @@ export async function creerFactureDepassementCs(
   if (!parametres) {
     throw new Error(`Copropriete ${demande.coproCode} introuvable.`);
   }
+  const franchiseHeures = exigerFranchiseCs(parametres, demande.coproCode);
 
   // Depassement CS : bareme de l'annee du contrat actif (a la difference du
   // depassement d'AG, qui utilise l'annee de l'exercice approuve, N-1).
@@ -122,7 +141,7 @@ export async function creerFactureDepassementCs(
 
   const calcul = calculerDepassementCs({
     reunion: demande.reunion,
-    franchiseHeures: parametres.franchiseCsHeures,
+    franchiseHeures,
     tarifHoraireTtc,
   });
 
@@ -134,7 +153,7 @@ export async function creerFactureDepassementCs(
     return {
       heuresFacturables: 0,
       montantHt: 0,
-      franchiseHeures: parametres.franchiseCsHeures,
+      franchiseHeures,
       factureId: null,
     };
   }
@@ -147,7 +166,7 @@ export async function creerFactureDepassementCs(
     datePrestation: demande.reunion.jourDebut,
     details: {
       reunion: demande.reunion,
-      franchiseHeures: parametres.franchiseCsHeures,
+      franchiseHeures,
       anneeBareme,
       tarifHoraireTtc,
       heuresArrondies: calcul.heuresArrondies,
@@ -163,8 +182,9 @@ export async function creerFactureDepassementCs(
           `commencé à ${formatHeure(demande.reunion.heureDebut, demande.reunion.minuteDebut)} ` +
           `et terminé à ${formatHeure(demande.reunion.heureFin, demande.reunion.minuteFin)} ` +
           `Durée retenue : ${calcul.heuresArrondies} h. ` +
-          `Inclus au contrat : ${parametres.franchiseCsHeures} h. ` +
+          `Inclus au contrat : ${franchiseHeures} h. ` +
           `Facturable : ${calcul.heuresFacturables} h.`,
+        categorieProduit: CATEGORIE_HONORAIRES_COMPLEMENTAIRES,
         quantite: calcul.heuresFacturables,
         prixUnitaireHt: htDepuisTtc(tarifHoraireTtc),
       },
@@ -177,7 +197,7 @@ export async function creerFactureDepassementCs(
   return {
     heuresFacturables: calcul.heuresFacturables,
     montantHt: calcul.montantHt,
-    franchiseHeures: parametres.franchiseCsHeures,
+    franchiseHeures,
     factureId,
   };
 }
