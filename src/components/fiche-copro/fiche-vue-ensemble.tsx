@@ -144,13 +144,18 @@ function BlocParcours({ cycle, coproCode }: { cycle: CycleAg; coproCode: string 
           Où en est cette AG
         </CardTitle>
         {cycle.echeance && (
-          <Badge
-            ton={cycle.enRetard ? "err" : cycle.echeance.startsWith("J-") ? "outline" : "warn"}
-            className="font-mono"
-            dot={Boolean(cycle.enRetard)}
+          <span
+            className="inline-flex items-center"
+            title={`Échéance de l'étape en cours${cycle.enRetard ? " (en retard)" : ""}`}
           >
-            {cycle.echeance}
-          </Badge>
+            <Badge
+              ton={cycle.enRetard ? "err" : cycle.echeance.startsWith("J-") ? "outline" : "warn"}
+              className="font-mono"
+              dot={Boolean(cycle.enRetard)}
+            >
+              {cycle.echeance}
+            </Badge>
+          </span>
         )}
       </CardHeader>
       <div className="px-4 py-3.5">
@@ -328,6 +333,12 @@ function BlocAg({
           {derniere && (
             <>
               <p className="mt-1.5 text-[12px] text-ink-3">
+                {/* Date intranet absente mais eStale connait une AG (ex. PV signe hors cycle
+                    intranet) : on montre la date eStale pour ne pas laisser "PV disponible"
+                    orphelin sous "Non renseignée". */}
+                {!derniereAgDate && derniere.date && (
+                  <span className="text-ink-2">Connue via eStale : {formatDateLongue(derniere.date)} · </span>
+                )}
                 {derniere.type === "AGE" ? "AGE" : "AG ordinaire"}
                 {derniere.presents != null
                   ? ` · ${derniere.presents} présents/représentés sur ${derniere.total}`

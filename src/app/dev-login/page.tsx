@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getGestionnaireRepository, getAgenceRepository } from "@/lib/adapters/router";
 import { impersonationAutorisee } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { choisirGestionnaire, connecterMicrosoft } from "./actions";
 
 export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
@@ -88,11 +89,17 @@ export default async function DevLoginPage() {
                       {g.initiales}
                     </span>
                     <span className="text-[14px] text-ink">{g.nomComplet}</span>
-                    {/* Badges DISPLAY : role (libelle FR) + agence (code). Le libelle de role
-                        couvre deja "Comptable" (pas de marqueur comptable separe = doublon). */}
+                    {/* Badges DISPLAY : role (libelle FR) + agence (code) + super-admin
+                        (statut env SUPER_ADMINS, pas dans la table -> sinon invisible). Le
+                        libelle de role couvre deja "Comptable" (pas de marqueur separe). */}
                     <span className="ml-auto flex items-center gap-1.5 shrink-0">
                       {roleLisible && <span className={BADGE_CLASS}>{roleLisible}</span>}
                       {agenceCode && <span className={BADGE_CLASS}>{agenceCode}</span>}
+                      {estSuperAdmin(g.email) && (
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-green-700 border border-green-700/40 rounded px-1.5 py-px">
+                          super-admin
+                        </span>
+                      )}
                     </span>
                   </button>
                 </form>

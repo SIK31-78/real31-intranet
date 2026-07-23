@@ -31,13 +31,18 @@ export function FriseCycleAg({ cycle }: { cycle: CycleAg }) {
             {ETAT_CYCLE_LABEL[cycle.etat]}
           </Badge>
           {cycle.echeance && (
-            <Badge
-              ton={cycle.enRetard ? "err" : cycle.echeance.startsWith("J-") ? "outline" : "warn"}
-              className="font-mono"
-              dot={cycle.enRetard}
+            <span
+              className="inline-flex items-center"
+              title={`Échéance de l'étape en cours${cycle.enRetard ? " (en retard)" : ""}`}
             >
-              {cycle.echeance}
-            </Badge>
+              <Badge
+                ton={cycle.enRetard ? "err" : cycle.echeance.startsWith("J-") ? "outline" : "warn"}
+                className="font-mono"
+                dot={cycle.enRetard}
+              >
+                {cycle.echeance}
+              </Badge>
+            </span>
           )}
         </div>
       </CardHeader>
