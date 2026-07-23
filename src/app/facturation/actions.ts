@@ -184,10 +184,10 @@ export async function creerFactureCsAction(
       { coproCode, reunion, par: initiales },
       managerId,
     );
-    // Confirmation = « envoi en facturation » : on enchaine l'emission dans la
-    // foulee, l'utilisateur n'a plus de second geste a faire. La file d'attente
-    // reste disponible pour rejouer ce qui aurait echoue.
-    if (resultat.factureId) await emettreFacturesEnAttente();
+    // Confirmation = « envoi en facturation » : on emet UNIQUEMENT la facture
+    // qu'on vient de creer, jamais toute la file (une facture laissee en attente
+    // ne doit pas partir par ricochet).
+    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
     return resultat;
   });
 }
@@ -198,7 +198,7 @@ export async function creerFactureTravauxAction(
   honoraires:
     | { mode: "pourcentage"; montantTravauxHt: number; pourcentage: number }
     | { mode: "forfait"; forfaitTtc: number },
-): Promise<Res<{ montantHt: number; factureId: string }>> {
+): Promise<Res<{ montantHt: number; factureId: string | null }>> {
   const zHonoraires = z.discriminatedUnion("mode", [
     z.object({ mode: z.literal("pourcentage"), montantTravauxHt: zMontant, pourcentage: z.number().min(0).max(100) }),
     z.object({ mode: z.literal("forfait"), forfaitTtc: zMontant }),
@@ -213,7 +213,8 @@ export async function creerFactureTravauxAction(
       { coproCode, libelleTravaux, honoraires, par: initiales },
       managerId,
     );
-    await emettreFacturesEnAttente();
+    // Rien a facturer (montant a 0) : aucune facture creee, rien a emettre.
+    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
     return resultat;
   });
 }
@@ -256,7 +257,7 @@ export async function creerFactureSinistreAction(
       },
       managerId,
     );
-    await emettreFacturesEnAttente();
+    await emettreFacturesEnAttente([resultat.factureId]);
     return resultat;
   });
 }
@@ -267,7 +268,7 @@ export async function creerFactureEtatDateAction(
   nomClient?: string,
   dateEtablissement?: string,
   montantTtcNegocie?: number,
-): Promise<Res<{ montantHt: number; factureId: string }>> {
+): Promise<Res<{ montantHt: number; factureId: string | null }>> {
   const saisie = z
     .object({
       coproCode: zCode,
@@ -290,7 +291,8 @@ export async function creerFactureEtatDateAction(
       variante === "pre_etat_date"
         ? await creerFacturePreEtatDate({ ...demande, par: initiales }, managerId)
         : await creerFactureEtatDate({ ...demande, par: initiales }, managerId);
-    await emettreFacturesEnAttente();
+    // Montant negocie a 0 : aucune facture creee, rien a emettre.
+    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
     return resultat;
   });
 }
@@ -310,16 +312,6 @@ export async function rejouerFactureAction(
 
   return executer(async () => {
     await getFacturationRepository().remettreEnAttente(factureId);
-    return emettreFacturesEnAttente();
+    return emettreFacturesEnAttente([factureId]);
   });
-}
-
-/**
- * Emet vers Pennylane toutes les factures en attente. Sans PENNYLANE_API_KEY,
- * l'adapter no-op prend le relais : le parcours se deroule sans rien envoyer.
- */
-export async function emettreFacturesAction(): Promise<
-  Res<{ emises: number; enErreur: number; erreurs: Array<{ factureId: string; message: string }> }>
-> {
-  return executer(() => emettreFacturesEnAttente());
 }

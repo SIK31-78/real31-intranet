@@ -95,7 +95,7 @@ export async function creerRecapAgAction(
 
   return executer(async (managerId, initiales) => {
     const resultat = await creerRecapAg({ ...demande, par: initiales }, managerId);
-    if (resultat.factureId) await emettreFacturesEnAttente();
+    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
     return {
       recapId: resultat.recapId,
       depassementHeures: resultat.depassementHeures,
