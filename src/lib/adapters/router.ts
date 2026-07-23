@@ -118,6 +118,9 @@ import { MockClesApiRepository } from "@/lib/adapters/mock/mock-cles-api-reposit
 import type { FeedbackRepository } from "@/lib/ports/feedback-repository";
 import { SupabaseFeedbackRepository } from "@/lib/adapters/supabase/supabase-feedback-repository";
 import { MockFeedbackRepository } from "@/lib/adapters/mock/mock-feedback-repository";
+import type { AnnonceRepository } from "@/lib/ports/annonce-repository";
+import { SupabaseAnnonceRepository } from "@/lib/adapters/supabase/supabase-annonce-repository";
+import { MockAnnonceRepository } from "@/lib/adapters/mock/mock-annonce-repository";
 import type { CoffreRepository } from "@/lib/ports/coffre-repository";
 import type { CoffreIdentiteRepository } from "@/lib/ports/coffre-identite-repository";
 import { MockCoffreRepository } from "@/lib/adapters/mock/mock-coffre-repository";
@@ -435,6 +438,13 @@ export function getClesApiRepository(): ClesApiRepository {
 export function getFeedbackRepository(): FeedbackRepository {
   if (coproSourceEstSupabase()) return new SupabaseFeedbackRepository();
   return new MockFeedbackRepository();
+}
+
+// Annonces reseau (table native intranet_annonces) : affichees sur l'accueil,
+// pilotees depuis /admin/annonces. Meme bascule mock/supabase que le reste.
+export function getAnnonceRepository(): AnnonceRepository {
+  if (coproSourceEstSupabase()) return new SupabaseAnnonceRepository();
+  return new MockAnnonceRepository();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).

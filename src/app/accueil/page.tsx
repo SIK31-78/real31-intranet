@@ -15,6 +15,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getAgSemaine } from "@/lib/services/affaires/get-ag-semaine";
 import { getAffairesEnCours } from "@/lib/services/affaires/get-affaires-en-cours";
 import { getAccueilComplement } from "@/lib/services/accueil/get-accueil-complement";
+import { getAnnoncesActives } from "@/lib/services/annonces/get-annonces-actives";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { AgSemaineBloc } from "@/components/affaires/ag-semaine-bloc";
@@ -35,10 +36,11 @@ export default async function AccueilPage() {
 
   const today = new Date().toISOString().slice(0, 10);
   // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id.
-  const [agSemaine, affaires, complement] = await Promise.all([
+  const [agSemaine, affaires, complement, annonces] = await Promise.all([
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
     getAccueilComplement(g),
+    getAnnoncesActives(),
   ]);
 
   return (
@@ -63,8 +65,8 @@ export default async function AccueilPage() {
           </Link>
         )}
 
-        {/* Annonces du reseau (direction). Carte autonome avec son propre etat vide. */}
-        <AnnoncesPanel />
+        {/* Annonces du reseau (direction), pilotees depuis /admin/annonces. Etat vide propre. */}
+        <AnnoncesPanel annonces={annonces} />
 
         {/* ZONE 1 - Assemblees generales : la colonne vertebrale, PAS un dossier. Masquee
             quand rien ne presse (comme avant), le libelle n'apparait donc que s'il y a de

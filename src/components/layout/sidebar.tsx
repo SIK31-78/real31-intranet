@@ -3,7 +3,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
-  PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare,
+  PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -27,6 +27,7 @@ export type NavKey =
   | "nouveautes"
   | "cles-api"
   | "feedback"
+  | "annonces"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
   // surligne AUCUNE entree (avant, ils empruntaient "calendrier" a tort). Pas de
   // nouvelle entree sidebar - juste une valeur qui ne matche aucun item.
@@ -99,8 +100,9 @@ const NAV_COMPTABLE: Item[] = [
 const GROUPE_ADMIN: { titre: string; items: Item[] } = {
   titre: "Administration",
   items: [
-    { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
+    { key: "annonces", label: "Annonces", href: "/admin/annonces", icon: Megaphone },
     { key: "feedback", label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
+    { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
   ],
 };
 
