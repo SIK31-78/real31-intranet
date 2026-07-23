@@ -33,6 +33,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_dossiers.sql` | 🔲 | **En attente** (créé 2026-07-22). |
 | `intranet_compta_notes.sql` | 🔲 | **En attente** (notes compta). |
 | `intranet_api_keys.sql` | 🔲 | **En attente** — clés machine API v1 ; tant que non passé, l'API répond 503 `api_non_configuree`. |
+| `intranet_feedback.sql` | 🔲 | **En attente** — système de remontée bug/idée + page Nouveautés ; tant que non passé : bouton et pages dégradent proprement (vitrine vide, bandeau admin). |
 | `reprise_dossier.sql` | ❔ | Reprise copro — dossier. |
 | `reprise_dossier_jeu.sql` | ❔ | Reprise copro — jeu de test. |
 | `reprise_fiche_renseignements.sql` | ❔ | Reprise copro — fiche renseignements. |
