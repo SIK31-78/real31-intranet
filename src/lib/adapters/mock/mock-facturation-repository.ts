@@ -168,8 +168,13 @@ export class MockFacturationRepository implements FacturationRepository {
     }
   }
 
-  async listerFacturesRecentes(limite = 50): Promise<FactureHistorique[]> {
-    return [...this.factures].reverse().slice(0, limite).map((f) => ({
+  async listerFacturesRecentes(limite = 50, coproCodes?: string[]): Promise<FactureHistorique[]> {
+    const codes = coproCodes ? new Set(coproCodes) : null;
+    return [...this.factures]
+      .reverse()
+      .filter((f) => !codes || codes.has(f.coproCode))
+      .slice(0, limite)
+      .map((f) => ({
       id: f.id,
       coproCode: f.coproCode,
       typePrestation: f.typePrestation,

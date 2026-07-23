@@ -106,6 +106,18 @@ export function FormulaireFacturation({
   const [tarifBareme, setTarifBareme] = useState<{ anneeBareme: number; tarifTtc: number } | null>(null);
   const [chargeTarif, setChargeTarif] = useState(false);
 
+  // Date d'établissement pré-remplie à AUJOURD'HUI (date locale, posée au montage côté client
+  // pour éviter tout écart d'hydratation SSR). Le pré-état daté / état daté s'établit à la date
+  // du jour par défaut (demande Sekou) ; l'utilisateur peut la changer.
+  useEffect(() => {
+    const d = new Date();
+    const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    // set-state-in-effect assume : init client-only au montage (date du jour) = LE pattern qui
+    // evite un mismatch d'hydratation (date serveur UTC vs date locale du client).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDateEtablissement(jour);
+  }, []);
+
   function annoncer(
     res:
       | { ok: true; donnees?: { montantHt?: number; factureId?: string | null; franchiseHeures?: number } }

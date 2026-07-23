@@ -18,10 +18,13 @@ export default async function FacturationPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
-  const [copros, historique] = await Promise.all([
-    getCoproprietes(g.id),
-    getFacturationRepository().listerFacturesRecentes(50),
-  ]);
+  // Copros du portefeuille d'abord : l'historique est BORNE a ces copros ("nos facturations",
+  // pas celles de tout le monde). Le cloisonnement suit ce que le gestionnaire voit deja.
+  const copros = await getCoproprietes(g.id);
+  const historique = await getFacturationRepository().listerFacturesRecentes(
+    50,
+    copros.map((c) => c.code),
+  );
 
   const factures: FactureAffichee[] = historique.map((f) => ({
     id: f.id,

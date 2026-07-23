@@ -366,17 +366,20 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     if (error) throw new Error(`Marquage facture ${factureId} emise : ${error.message}`);
   }
 
-  async listerFacturesRecentes(limite = 50): Promise<FactureHistorique[]> {
+  async listerFacturesRecentes(limite = 50, coproCodes?: string[]): Promise<FactureHistorique[]> {
+    // Cloisonnement portefeuille : borne aux copros fournies (filtre AVANT la limite, sinon
+    // les 50 plus recentes globales masqueraient les notres). Liste vide = aucune facture.
+    if (coproCodes && coproCodes.length === 0) return [];
     const supabase = createSupabasePublicClient();
-    const { data, error } = await supabase
+    let q = supabase
       .from("intranet_factures")
       .select(
         "id, copropriete_id, type_prestation, libelle, date_facture, statut, " +
           "pennylane_invoice_id, pennylane_error, cree_par, created_at, " +
           "intranet_facture_lignes (quantite, prix_unitaire_ht)",
-      )
-      .order("created_at", { ascending: false })
-      .limit(limite);
+      );
+    if (coproCodes) q = q.in("copropriete_id", coproCodes);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(limite);
 
     if (error) throw new Error(`Lecture historique facturation : ${error.message}`);
 

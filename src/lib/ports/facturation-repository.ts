@@ -185,8 +185,10 @@ export interface FacturationRepository {
   marquerFacturee(factureId: string, factureExterneId: string): Promise<void>;
   /** Marque la facture en erreur et memorise le message (diagnostic). */
   marquerErreur(factureId: string, message: string): Promise<void>;
-  /** Historique des facturations, les plus recentes d'abord. */
-  listerFacturesRecentes(limite?: number): Promise<FactureHistorique[]>;
+  /** Historique des facturations, les plus recentes d'abord. Si `coproCodes` est fourni,
+   *  BORNE aux factures de ces copros (le filtre est applique dans la requete, AVANT la
+   *  limite : cloisonnement portefeuille = "nos facturations"). Omis = toutes. */
+  listerFacturesRecentes(limite?: number, coproCodes?: string[]): Promise<FactureHistorique[]>;
   /** Repasse une facture en erreur au statut 'a_facturer' pour la rejouer. */
   remettreEnAttente(factureId: string): Promise<void>;
 }
