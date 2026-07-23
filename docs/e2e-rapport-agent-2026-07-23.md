@@ -45,6 +45,18 @@ gestionnaires composent de vrais ODJ) **et 6 conforts**.
 - 1re passe (même jour) : boucle feedback + fix focus, archivage réversible, `/nouveautes`
   étanche, 404 FR, cloisonnement listes (27 copros pour Rémi).
 
+## Corrections appliquées (2026-07-23, commits `4eec05d` / `8190e8c`)
+
+- **#1 corrigé** : H1 `/mes-emails` = « Mes e-mails ».
+- **#2 corrigé** : le picker du composer désactive « Ajouter » et affiche « Déjà dans l'AG »
+  pour toute résolution déjà présente dans l'AG Estale (match par titre) → plus de doublon.
+- **#4 corrigé** : bandeau d'alerte quand la date d'AG intranet diffère de la date du Meeting
+  Estale ciblé.
+- **#3 requalifié (faux positif)** : le retrait « staged » était déjà correct (icône
+  d'annulation `RotateCcw`, pas un spinner). Ajout d'un compteur « N modifications en
+  attente - rien n'est écrit tant que pas Enregistrer » pour lever l'ambiguïté visuelle.
+- **Conforts #5-#10 : non traités** (voir ci-dessous, à trier).
+
 ## Anomalies
 
 ### Gênant
