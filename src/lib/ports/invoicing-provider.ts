@@ -12,6 +12,10 @@ export interface LigneAEmettre {
   prixUnitaireHt: number;
   /** Ex : 0.20 pour 20 %. */
   tauxTva: number;
+  /** Identifiant produit Pennylane (rattachement catalogue). Optionnel. */
+  productId?: string;
+  /** Compte comptable de produits (rattachement compta). Optionnel. */
+  ledgerAccountId?: string;
 }
 
 export interface DemandeEmission {
@@ -28,6 +32,8 @@ export interface DemandeEmission {
   codeEntite: string;
   /** Libelle general de la facture. */
   libelle: string;
+  /** Objet de la facture (pdf_invoice_subject), ex "Honoraires du trimestre en cours". */
+  sujet?: string;
   /** Date de facture, ISO "YYYY-MM-DD". */
   dateFacture: string;
   lignes: LigneAEmettre[];

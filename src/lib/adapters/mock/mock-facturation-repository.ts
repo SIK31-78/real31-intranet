@@ -5,9 +5,11 @@ import type {
   ContratCopro,
   FactureAEmettre,
   FacturationRepository,
+  LigneGestionCourante,
   FactureHistorique,
   NouvelleFacture,
   ParametresCopro,
+  Produit,
 } from "@/lib/ports/facturation-repository";
 
 /** Bareme d'exemple (montants TTC), suffisant pour faire tourner les ecrans. */
@@ -82,16 +84,62 @@ export class MockFacturationRepository implements FacturationRepository {
     return candidats[0] ?? null;
   }
 
+  async chargerProduits(): Promise<Produit[]> {
+    // Un produit mock par categorie (agence LGC), suffisant pour le dev.
+    const cats = [
+      "Honoraires complémentaires",
+      "Honoraires gestion courante",
+      "Forfait frais postaux",
+      "Honoraires suivi travaux",
+      "Honoraires suivi sinistre",
+      "Honoraires pré état daté",
+      "Questionnaire notaire",
+    ];
+    return cats.map((c, i) => ({
+      categorie: c,
+      agence: "LGC",
+      titre: `${c} LGC`,
+      pennylaneProductId: `mock-prod-${i + 1}`,
+      ledgerAccountId: `70000${i + 1}`,
+    }));
+  }
+
+  async getAgenceCopro(): Promise<string | null> {
+    return "LGC";
+  }
+
+  async chargerGestionCourante(periode: string): Promise<LigneGestionCourante[]> {
+    // Base mockee : les contrats connus, aucun deja-facture (session vierge).
+    const dejaCodes = new Set(
+      this.factures
+        .filter((f) => f.typePrestation === "gestion_courante" && f.periode === periode)
+        .map((f) => f.coproCode),
+    );
+    const parCopro = new Map<string, ContratCopro>();
+    for (const c of CONTRATS) {
+      const prec = parCopro.get(c.coproCode);
+      if (!prec || c.debutContrat > prec.debutContrat) parCopro.set(c.coproCode, c);
+    }
+    return [...parCopro.values()].map((c) => ({
+      coproCode: c.coproCode,
+      honorairesAnnuelsTtc: c.honorairesGestionTtc ?? 0,
+      forfaitPostauxAnnuel: c.forfaitPostauxTtc ?? 0,
+      // Mock : forfait postaux applique (les contrats d'exemple ne sont pas en frais reels).
+      fraisPostauxReels: false,
+      dejaFacture: dejaCodes.has(c.coproCode),
+    }));
+  }
+
   async creerFacture(input: NouvelleFacture): Promise<string> {
     const id = `facture-mock-${this.factures.length + 1}`;
     this.factures.push({ ...input, id, statut: "a_facturer" });
     return id;
   }
 
-  async listerFacturesAEmettre(limite = 50): Promise<FactureAEmettre[]> {
+  async listerFacturesAEmettre(ids: string[]): Promise<FactureAEmettre[]> {
+    const cibles = new Set(ids);
     return this.factures
-      .filter((f) => f.statut === "a_facturer")
-      .slice(0, limite)
+      .filter((f) => f.statut === "a_facturer" && cibles.has(f.id))
       .map((f) => ({
         id: f.id,
         coproCode: f.coproCode,
@@ -100,6 +148,7 @@ export class MockFacturationRepository implements FacturationRepository {
         dateFacture: f.dateFacture,
         lignes: f.lignes.map((l) => ({
           description: l.description,
+          categorieProduit: l.categorieProduit ?? null,
           quantite: l.quantite,
           prixUnitaireHt: l.prixUnitaireHt,
           tauxTva: l.tauxTva ?? 0.2,

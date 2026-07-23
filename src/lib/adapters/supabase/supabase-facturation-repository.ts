@@ -6,9 +6,11 @@ import type {
   ContratCopro,
   FactureAEmettre,
   FacturationRepository,
+  LigneGestionCourante,
   FactureHistorique,
   NouvelleFacture,
   ParametresCopro,
+  Produit,
 } from "@/lib/ports/facturation-repository";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -39,10 +41,16 @@ export class SupabaseFacturationRepository implements FacturationRepository {
 
   async getDernierContrat(coproCode: string): Promise<ContratCopro | null> {
     const supabase = createSupabasePublicClient();
+    // Contrat EN VIGUEUR = le debut le plus recent qui a deja commence. La liste
+    // reprise contient des contrats dates dans le futur (renouvellements saisis
+    // en avance) : sans le filtre <= aujourd'hui, on resoudrait le barème sur un
+    // contrat pas encore actif.
+    const aujourdhui = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from("intranet_suivi_contrats")
       .select("id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc")
       .eq("copropriete_id", coproCode)
+      .lte("debut_contrat", aujourdhui)
       .order("debut_contrat", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -64,14 +72,116 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     };
   }
 
+  async chargerProduits(): Promise<Produit[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_produits")
+      .select("categorie, agence, titre, pennylane_product_id, ledger_account_id");
+    if (error) throw new Error(`Lecture produits : ${error.message}`);
+    type Row = {
+      categorie: string;
+      agence: string;
+      titre: string;
+      pennylane_product_id: string;
+      ledger_account_id: string;
+    };
+    return ((data as Row[] | null) ?? []).map((r) => ({
+      categorie: r.categorie,
+      agence: r.agence,
+      titre: r.titre,
+      pennylaneProductId: r.pennylane_product_id,
+      ledgerAccountId: r.ledger_account_id,
+    }));
+  }
+
+  async getAgenceCopro(coproCode: string): Promise<string | null> {
+    const supabase = createSupabasePublicClient();
+    // Copropriete.agencyId -> Agency.name (ML/LGC/HLS/ASN).
+    const requete = (colonne: string) =>
+      supabase
+        .from("Copropriete")
+        .select('"agencyId", Agency:agencyId (name)')
+        .eq(colonne, coproCode)
+        .maybeSingle();
+    let { data } = await requete("referenceCrypto");
+    if (!data) ({ data } = await requete("referenceEstale"));
+    const agence = (data as { Agency: { name: string } | null } | null)?.Agency?.name;
+    return agence ?? null;
+  }
+
+  async chargerGestionCourante(periode: string): Promise<LigneGestionCourante[]> {
+    const supabase = createSupabasePublicClient();
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+
+    // Contrats deja commences, avec honoraires : on garde le plus recent par copro.
+    // frais_postaux_reels : drapeau de la copro. Vrai = frais refactures au reel
+    // ailleurs, on ne facture PAS le forfait de timbres trimestriel (cf. plus bas).
+    const { data: contrats, error: e1 } = await supabase
+      .from("intranet_suivi_contrats")
+      .select(
+        "copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, frais_postaux_reels",
+      )
+      .lte("debut_contrat", aujourdhui)
+      .not("honoraires_gestion_ttc", "is", null);
+    if (e1) throw new Error(`Lecture contrats gestion courante : ${e1.message}`);
+
+    type CRow = {
+      copropriete_id: string;
+      debut_contrat: string;
+      honoraires_gestion_ttc: number;
+      forfait_postaux_ttc: number | null;
+      frais_postaux_reels: boolean | null;
+    };
+    const enVigueur = new Map<string, CRow>();
+    for (const c of (contrats as CRow[] | null) ?? []) {
+      const prec = enVigueur.get(c.copropriete_id);
+      if (!prec || c.debut_contrat > prec.debut_contrat) enVigueur.set(c.copropriete_id, c);
+    }
+
+    // Copros actives.
+    const { data: actives, error: e2 } = await supabase
+      .from("Copropriete")
+      .select("referenceCrypto")
+      .eq("status", "ACTIVE");
+    if (e2) throw new Error(`Lecture copros actives : ${e2.message}`);
+    const codesActifs = ((actives as { referenceCrypto: string | null }[] | null) ?? [])
+      .map((c) => c.referenceCrypto)
+      .filter((c): c is string => Boolean(c));
+
+    // Copros deja facturees pour ce trimestre.
+    const { data: dejaF, error: e3 } = await supabase
+      .from("intranet_factures")
+      .select("copropriete_id")
+      .eq("type_prestation", "gestion_courante")
+      .eq("periode", periode);
+    if (e3) throw new Error(`Lecture factures gestion courante : ${e3.message}`);
+    const deja = new Set(
+      ((dejaF as { copropriete_id: string }[] | null) ?? []).map((f) => f.copropriete_id),
+    );
+
+    const lignes: LigneGestionCourante[] = [];
+    for (const code of codesActifs) {
+      const c = enVigueur.get(code);
+      if (!c) continue; // pas de contrat en vigueur : hors base facturable
+      lignes.push({
+        coproCode: code,
+        honorairesAnnuelsTtc: Number(c.honoraires_gestion_ttc),
+        forfaitPostauxAnnuel: Number(c.forfait_postaux_ttc ?? 0),
+        // Drapeau absent (null) = forfait applique (comportement par defaut du legacy).
+        fraisPostauxReels: c.frais_postaux_reels === true,
+        dejaFacture: deja.has(code),
+      });
+    }
+    return lignes.sort((a, b) => a.coproCode.localeCompare(b.coproCode, "fr", { numeric: true }));
+  }
+
   /**
    * Cree la facture puis ses lignes.
    *
    * Limite connue : PostgREST ne permet pas de transaction multi-tables. Si
    * l'insertion des lignes echoue, la facture reste sans ligne (statut
    * 'a_facturer', total nul) plutot que d'etre partiellement facturee ; on
-   * remonte l'erreur pour que l'appelant la traite. A durcir via une fonction
-   * SQL (RPC) si le besoin d'atomicite devient reel.
+   * remonte l'erreur pour que l'appelant la traite.
    */
   async creerFacture(input: NouvelleFacture): Promise<string> {
     const supabase = createSupabasePublicClient();
@@ -84,6 +194,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         libelle: input.libelle,
         date_facture: input.dateFacture,
         date_prestation: input.datePrestation ?? null,
+        periode: input.periode ?? null,
         details: input.details ?? null,
         cree_par: input.par ?? null,
       })
@@ -101,9 +212,15 @@ export class SupabaseFacturationRepository implements FacturationRepository {
           facture_id: factureId,
           ordre: index + 1,
           description: ligne.description,
+          categorie_produit: ligne.categorieProduit ?? null,
           quantite: ligne.quantite,
           prix_unitaire_ht: ligne.prixUnitaireHt,
-          ...(ligne.tauxTva !== undefined ? { taux_tva: ligne.tauxTva } : {}),
+          // TOUJOURS renseigne (defaut 0,20 si absent) : dans un insert groupe,
+          // PostgREST aligne les colonnes sur l'union des cles, donc une ligne
+          // sans taux_tva recevrait NULL (et non le defaut de la colonne) des
+          // qu'une autre ligne du lot en porte un. Cf. gestion courante (timbres
+          // a 0 % + honoraires sans taux).
+          taux_tva: ligne.tauxTva ?? 0.2,
         })),
       );
       if (erreurLignes) {
@@ -114,22 +231,24 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     return factureId;
   }
 
-  async listerFacturesAEmettre(limite = 50): Promise<FactureAEmettre[]> {
+  async listerFacturesAEmettre(ids: string[]): Promise<FactureAEmettre[]> {
+    if (ids.length === 0) return [];
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("intranet_factures")
       .select(
         "id, copropriete_id, type_prestation, libelle, date_facture, " +
-          "intranet_facture_lignes (description, quantite, prix_unitaire_ht, taux_tva, ordre)",
+          "intranet_facture_lignes (description, categorie_produit, quantite, prix_unitaire_ht, taux_tva, ordre)",
       )
+      .in("id", ids)
       .eq("statut", "a_facturer")
-      .order("created_at", { ascending: true })
-      .limit(limite);
+      .order("created_at", { ascending: true });
 
     if (error) throw new Error(`Lecture factures a emettre : ${error.message}`);
 
     type LigneRow = {
       description: string;
+      categorie_produit: string | null;
       quantite: number;
       prix_unitaire_ht: number;
       taux_tva: number;
@@ -154,6 +273,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         .sort((a, b) => a.ordre - b.ordre)
         .map((l) => ({
           description: l.description,
+          categorieProduit: l.categorie_produit,
           quantite: Number(l.quantite),
           prixUnitaireHt: Number(l.prix_unitaire_ht),
           tauxTva: Number(l.taux_tva),
@@ -203,11 +323,18 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       agStartMin: number | null;
       agEndMax: number | null;
     };
+    // NULL = parametre ABSENT de la fiche (inconnu) : on le laisse a null, on NE
+    // met PAS de defaut permissif. Un defaut penche toujours vers la SUR-facturation
+    // (franchise CS absente = toute la reunion facturee ; duree d'AG absente = toute
+    // l'assemblee facturee). Le service de la prestation concernee levera une erreur
+    // actionnable au moment du calcul plutot que de facturer sur une base inconnue.
+    // Un 0 EXPLICITE en base reste une valeur valide (0 franchise assumee).
+    const nombreOuNull = (v: number | null): number | null => (v === null ? null : Number(v));
     return {
-      franchiseCsHeures: Number(r.csDurationMinutes ?? 0),
-      dureeAgHeures: Number(r.agDurationHours ?? 0),
-      debutMinAgHeure: Number(r.agStartMin ?? 0),
-      finMaxAgHeure: Number(r.agEndMax ?? 24),
+      franchiseCsHeures: nombreOuNull(r.csDurationMinutes),
+      dureeAgHeures: nombreOuNull(r.agDurationHours),
+      debutMinAgHeure: nombreOuNull(r.agStartMin),
+      finMaxAgHeure: nombreOuNull(r.agEndMax),
     };
   }
 

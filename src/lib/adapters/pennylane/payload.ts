@@ -13,6 +13,8 @@ export interface PennylaneLigne {
   unit: string;
   raw_currency_unit_price: string;
   vat_rate: string;
+  product_id?: string;
+  ledger_account_id?: string;
 }
 
 export interface PennylaneInvoicePayload {
@@ -21,6 +23,7 @@ export interface PennylaneInvoicePayload {
   date: string;
   deadline: string;
   pdf_invoice_free_text: string;
+  pdf_invoice_subject: string;
   currency: string;
   language: string;
   invoice_lines: PennylaneLigne[];
@@ -67,6 +70,9 @@ export function construirePayloadFacture(demande: DemandeEmission): PennylaneInv
     // Champs exiges par le schema « Draft Customer Invoice » de l'API v2 :
     // sans deadline / currency / language, Pennylane rejette en 400 NotAnyOf.
     deadline: plusJoursISO(demande.dateFacture, DELAI_PAIEMENT_JOURS),
+    // Objet de la facture (titre de section sur le PDF), ex "Honoraires du
+    // trimestre en cours". Repris du pdf_invoice_subject du flow legacy.
+    pdf_invoice_subject: demande.sujet ?? "",
     // Code entite (SXXX) imprime sur le PDF : sans lui, la copropriete ne sait
     // pas a quel immeuble se rattache la facture. Present dans les 3 flows
     // legacy, omis par erreur au premier portage.
@@ -85,6 +91,8 @@ export function construirePayloadFacture(demande: DemandeEmission): PennylaneInv
       // serialisation flottante sur des valeurs monetaires.
       raw_currency_unit_price: ligne.prixUnitaireHt.toFixed(2),
       vat_rate: tauxTvaPennylane(ligne.tauxTva),
+      ...(ligne.productId ? { product_id: ligne.productId } : {}),
+      ...(ligne.ledgerAccountId ? { ledger_account_id: ligne.ledgerAccountId } : {}),
     })),
   };
 }

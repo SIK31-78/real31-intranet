@@ -4,6 +4,7 @@ import { construirePayloadFacture, tauxTvaPennylane } from "./payload";
 const demandeType = {
   clientRef: "12345",
   codeEntite: "S006",
+  sujet: "Honoraires du trimestre en cours",
   libelle: "Depassement CS du 2026-05-12",
   dateFacture: "2026-05-13",
   lignes: [
@@ -54,6 +55,12 @@ describe("construirePayloadFacture", () => {
     expect(p.deadline).toBe("2026-07-12"); // 2026-05-13 + 60 j
     expect(p.currency).toBe("EUR");
     expect(p.language).toBe("fr_FR");
+  });
+
+  it("reporte l'objet de la facture (pdf_invoice_subject)", () => {
+    expect(construirePayloadFacture(demandeType).pdf_invoice_subject).toBe(
+      "Honoraires du trimestre en cours",
+    );
   });
 
   it("imprime le code entite (SXXX) sur le PDF, comme les 3 flows legacy", () => {
