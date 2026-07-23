@@ -54,10 +54,33 @@ const emailSso = cache(async (): Promise<string | null> => {
   return session?.user?.email ?? null;
 });
 
+/**
+ * Decision PURE de l'impersonation (env passe en arguments explicites -> testable offline).
+ *
+ *  - SSO actif  : seul un super-admin CONNECTE peut incarner un autre gestionnaire.
+ *  - Sans SSO   : selecteur libre... mais UNIQUEMENT en dev. Un deploiement de PRODUCTION
+ *    sans SSO configure n'a AUCUNE identite verifiee (le seul mur est le mot de passe Basic
+ *    partage du proxy) ; y ouvrir l'impersonation reviendrait a laisser n'importe qui se
+ *    mettre dans la peau de n'importe quel gestionnaire (fail-open). En prod sans SSO on
+ *    REFUSE donc (fail-closed) - le deploiement doit passer par le SSO Entra ID.
+ */
+export function impersonationAutoriseePure(params: {
+  ssoConfigure: boolean;
+  nodeEnv: string | undefined;
+  estSuperAdmin: boolean;
+}): boolean {
+  const { ssoConfigure: sso, nodeEnv, estSuperAdmin: superAdmin } = params;
+  if (!sso) return nodeEnv !== "production";
+  return superAdmin;
+}
+
 /** Le user courant peut-il incarner un autre gestionnaire (selecteur /dev-login) ? */
 export async function impersonationAutorisee(): Promise<boolean> {
-  if (!ssoConfigure) return true; // mode dev sans SSO : selecteur libre
-  return estSuperAdmin(await emailSso()); // SSO actif : seulement super-admin (apres login)
+  return impersonationAutoriseePure({
+    ssoConfigure,
+    nodeEnv: process.env.NODE_ENV,
+    estSuperAdmin: estSuperAdmin(await emailSso()),
+  });
 }
 
 // Memoise par requete (React.cache) : appele dans la page ET dans AppShell -> une seule

@@ -2,15 +2,22 @@
 // vraie data du cabinet, elle ne doit pas etre publique : un mot de passe partage
 // suffit pour limiter l'acces au personnel REAL31.
 //
-// Mot de passe : variable d'env SITE_PASSWORD (defaut "real31"). A definir sur Vercel
-// pour le changer sans redeployer le code. Le nom d'utilisateur est ignore.
+// Mot de passe : variable d'env SITE_PASSWORD. A definir sur Vercel pour le changer sans
+// redeployer le code. Le nom d'utilisateur est ignore. Le defaut de confort "real31" ne
+// survit QU'EN DEV : en production, un SITE_PASSWORD absent NE doit PAS ouvrir l'app derriere
+// un mot de passe public connu -> 401 systematique tant que rien n'est pose (fail-closed).
 //
 // Convention Next 16 : fichier "proxy" (ex-"middleware").
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const MOT_DE_PASSE = process.env.SITE_PASSWORD ?? "real31";
+// En prod : PAS de defaut (null = aucun mot de passe n'ouvre tant que SITE_PASSWORD est absent).
+// En dev/local : defaut partage "real31" pour ne pas bloquer le travail. NB : sur Vercel les
+// preview builds tournent en NODE_ENV=production ; une preview sans SITE_PASSWORD ni SSO exigera
+// donc un mot de passe (comportement voulu : elle sert la vraie data du cabinet).
+const MOT_DE_PASSE: string | null =
+  process.env.SITE_PASSWORD ?? (process.env.NODE_ENV === "production" ? null : "real31");
 // SSO Microsoft actif (identifiants Azure presents) : c'est lui qui controle
 // l'acces (login Entra ID), le mot de passe partage n'a plus lieu d'etre.
 const SSO_ACTIF = Boolean(
@@ -21,11 +28,14 @@ const SSO_ACTIF = Boolean(
 
 export function proxy(req: NextRequest) {
   if (SSO_ACTIF) return NextResponse.next();
-  const header = req.headers.get("authorization");
-  if (header?.startsWith("Basic ")) {
-    const decode = atob(header.slice(6));
-    const motDePasse = decode.slice(decode.indexOf(":") + 1);
-    if (motDePasse === MOT_DE_PASSE) return NextResponse.next();
+  // Aucun mot de passe configure en prod : on refuse tout (le defaut "real31" ne joue qu'en dev).
+  if (MOT_DE_PASSE !== null) {
+    const header = req.headers.get("authorization");
+    if (header?.startsWith("Basic ")) {
+      const decode = atob(header.slice(6));
+      const motDePasse = decode.slice(decode.indexOf(":") + 1);
+      if (motDePasse === MOT_DE_PASSE) return NextResponse.next();
+    }
   }
   return new NextResponse("Acces restreint REAL31.", {
     status: 401,

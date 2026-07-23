@@ -124,6 +124,23 @@ import { SupabaseCoffreIdentiteRepository } from "@/lib/adapters/supabase/supaba
 
 export type { DbHealth };
 
+// Garde de production, symetrique du refus de mock cote reprise (cf. reprise/adapters/router.ts).
+// En PRODUCTION, oublier COPRO_SOURCE=supabase ferait servir SILENCIEUSEMENT les mock a tout le
+// cabinet (fausses copros, faux etats) comme si c'etait la vraie data. On prefere un refus
+// explicite au premier acces plutot qu'un intranet plausible-mais-faux. En dev/preview,
+// l'absence de COPRO_SOURCE reste le mode mock legitime (rien ne change).
+// Point de verite UNIQUE de la bascule mock/supabase : chaque getter passe par ici, donc la
+// garde s'applique au PREMIER acces quel qu'il soit. Retourne true si on sert Supabase (la vraie
+// data), false si on sert les mock - mais en prod, servir les mock est un refus (throw ci-dessus).
+function coproSourceEstSupabase(): boolean {
+  if (process.env.NODE_ENV === "production" && process.env.COPRO_SOURCE !== "supabase") {
+    throw new Error(
+      "COPRO_SOURCE manquant en production - refus de servir les mock. Poser COPRO_SOURCE=supabase (sinon l'intranet servirait des donnees de demonstration comme si elles etaient reelles).",
+    );
+  }
+  return process.env.COPRO_SOURCE === "supabase";
+}
+
 export function getDashboardProvider(): DashboardProvider {
   return new MockDashboardProvider();
 }
@@ -135,7 +152,7 @@ export function getCalendrierProvider(): CalendrierProvider {
 // Supervision AG. En reel : etat persiste dans intranet_supervision_items (id
 // composite CODE__DATE). En mock : STORE module-level dans l'adapter.
 export function getSupervisionAgProvider(): SupervisionAgProvider {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseSupervisionAgRepository();
+  if (coproSourceEstSupabase()) return new SupabaseSupervisionAgRepository();
   return new MockSupervisionAgProvider();
 }
 
@@ -155,7 +172,7 @@ function estaleLiveActif(): boolean {
 //     propre : eStale KO -> le composite retombe sur le miroir seul (jamais de page blanche).
 //   - sinon       -> donnees mockees (defaut).
 export function getCoproRepository(): CoproRepository {
-  if (process.env.COPRO_SOURCE === "supabase") {
+  if (coproSourceEstSupabase()) {
     const miroir = new SupabaseCoproRepository();
     if (estaleConfigure() && estaleLiveActif()) {
       const provider = new EstaleCoproProvider(
@@ -172,20 +189,20 @@ export function getCoproRepository(): CoproRepository {
 // Dates AG/CS des copros eStale (table native intranet_copro_dates). eStale ne porte pas les
 // dates planifiees ; le composite les lit/ecrit ici. Meme bascule que le referentiel copro.
 export function getCoproDatesRepository(): CoproDatesRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoproDatesRepository();
+  if (coproSourceEstSupabase()) return new SupabaseCoproDatesRepository();
   return new MockCoproDatesRepository();
 }
 
 // Facturation des honoraires syndic (tables natives intranet_tarifs /
 // intranet_suivi_contrats / intranet_factures). Meme bascule que le referentiel.
 export function getFacturationRepository(): FacturationRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseFacturationRepository();
+  if (coproSourceEstSupabase()) return new SupabaseFacturationRepository();
   return new MockFacturationRepository();
 }
 
 // Recap AG (tables natives intranet_recap_ag). Meme bascule que le referentiel.
 export function getRecapAgRepository(): RecapAgRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseRecapAgRepository();
+  if (coproSourceEstSupabase()) return new SupabaseRecapAgRepository();
   return new MockRecapAgRepository();
 }
 
@@ -198,20 +215,20 @@ export function getInvoicingProvider(): InvoicingProvider {
 
 // Etat des jalons (table native intranet_jalons). Meme bascule que le referentiel.
 export function getJalonRepository(): JalonRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseJalonRepository();
+  if (coproSourceEstSupabase()) return new SupabaseJalonRepository();
   return new MockJalonRepository();
 }
 
 // Prise en main des copros (onboarding, table native intranet_copro_prise_en_main).
 export function getPriseEnMainRepository(): PriseEnMainRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabasePriseEnMainRepository();
+  if (coproSourceEstSupabase()) return new SupabasePriseEnMainRepository();
   return new MockPriseEnMainRepository();
 }
 
 // Confirmation des dates AG/CS par le conseil syndical (table native
 // intranet_confirmations_evenement). Meme bascule que les autres tables natives.
 export function getConfirmationEvenementRepository(): ConfirmationEvenementRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseConfirmationEvenementRepository();
+  if (coproSourceEstSupabase()) return new SupabaseConfirmationEvenementRepository();
   return new MockConfirmationEvenementRepository();
 }
 
@@ -219,27 +236,27 @@ export function getConfirmationEvenementRepository(): ConfirmationEvenementRepos
 // "Mise sous pli" (J-31) et "RELANCE DATE AG" (J-7). Meme bascule que les autres tables
 // natives. Cle (copro, role) sans la date -> deplacer l'AG deplace le meme evenement.
 export function getProjectionsOutlookRepository(): ProjectionsOutlookRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseProjectionsOutlookRepository();
+  if (coproSourceEstSupabase()) return new SupabaseProjectionsOutlookRepository();
   return new MockProjectionsOutlookRepository();
 }
 
 // Module Dossiers (table native intranet_dossiers).
 export function getDossierRepository(): DossierRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseDossierRepository();
+  if (coproSourceEstSupabase()) return new SupabaseDossierRepository();
   return new MockDossierRepository();
 }
 
 // Module Sinistre (table native intranet_sinistres). Persistance serveur cloisonnee
 // du dossier sinistre (agregat jsonb). Meme bascule mock/supabase que le reste.
 export function getSinistreRepository(): SinistreRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseSinistreRepository();
+  if (coproSourceEstSupabase()) return new SupabaseSinistreRepository();
   return new MockSinistreRepository();
 }
 
 // Donnees copro sourcees Estale (CS, historique AG). Branche en reel (Phase B,
 // ADR-022) quand les identifiants Estale sont presents ; sinon mock.
 export function getCondoEstaleProvider(): CondoEstaleProvider {
-  if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
+  if (coproSourceEstSupabase() && estaleConfigure()) {
     return new EstaleCondoProvider();
   }
   return new MockCondoEstaleProvider();
@@ -247,7 +264,7 @@ export function getCondoEstaleProvider(): CondoEstaleProvider {
 
 // Cache read-through des donnees eStale (ADR-002) : table native si Supabase, sinon no-op.
 export function getEstaleCacheStore(): EstaleCacheStore {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseEstaleCacheStore();
+  if (coproSourceEstSupabase()) return new SupabaseEstaleCacheStore();
   return new MockEstaleCacheStore();
 }
 
@@ -269,7 +286,7 @@ export function getMesEmailsProvider(): MesEmailsProvider {
 // Ce que le gestionnaire fait sur un mail (statut, etapes, brouillon, rattachement),
 // cloisonne par gestionnaire. Meme bascule mock/supabase que les autres tables natives.
 export function getMesEmailsEtatRepository(): MesEmailsEtatRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseMesEmailsEtatRepository();
+  if (coproSourceEstSupabase()) return new SupabaseMesEmailsEtatRepository();
   return new MockMesEmailsEtatRepository();
 }
 
@@ -283,28 +300,28 @@ export function getAnalyseMailProvider(): AnalyseMailProvider {
 // Cache d'analyse par mail (table native intranet_mes_emails_analyse) : memoisation
 // LLM, un mail deja analyse n'est jamais renvoye au modele. Meme bascule mock/supabase.
 export function getAnalyseCacheStore(): AnalyseCacheStore {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseAnalyseCacheStore();
+  if (coproSourceEstSupabase()) return new SupabaseAnalyseCacheStore();
   return new MockAnalyseCacheStore();
 }
 
 // Cache du triage Mes emails (table native intranet_mes_emails_triage). Ecrit par
 // la synchro, lu par le cockpit. Meme bascule mock/supabase.
 export function getMesEmailsTriageStore(): MesEmailsTriageStore {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseMesEmailsTriageStore();
+  if (coproSourceEstSupabase()) return new SupabaseMesEmailsTriageStore();
   return new MockMesEmailsTriageStore();
 }
 
 // Annuaire de contacts Crypto (table native intranet_crypto_contacts) : email -> copro,
 // pour attribuer un mail par l'expediteur. Vide tant que le JSON Crypto n'est pas importe.
 export function getCryptoContactsProvider(): CryptoContactsProvider {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCryptoContactsRepository();
+  if (coproSourceEstSupabase()) return new SupabaseCryptoContactsRepository();
   return new MockCryptoContactsRepository();
 }
 
 // Listes de diffusion Crypto (fallback destinataires du conseil syndical, table native
 // intranet_listes_diffusion). Vide tant que le CSV Crypto n'est pas importe.
 export function getListesDiffusionProvider(): ListesDiffusionProvider {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseListesDiffusionRepository();
+  if (coproSourceEstSupabase()) return new SupabaseListesDiffusionRepository();
   return new MockListesDiffusionRepository();
 }
 
@@ -347,13 +364,13 @@ export function getSignatureProvider(): SignatureProvider {
 // Etat de l'ODJ (saisies du gestionnaire + points legaux retires). En reel :
 // table native intranet_odj_champs.
 export function getOdjRepository(): OdjRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseOdjRepository();
+  if (coproSourceEstSupabase()) return new SupabaseOdjRepository();
   return new MockOdjRepository();
 }
 
 // Gestionnaires (cloisonnement). Source cible : public."User" via les managerId.
 export function getGestionnaireRepository(): GestionnaireRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseGestionnaireRepository();
+  if (coproSourceEstSupabase()) return new SupabaseGestionnaireRepository();
   return new MockGestionnaireRepository();
 }
 
@@ -361,14 +378,14 @@ export function getGestionnaireRepository(): GestionnaireRepository {
 // cloisonnement par agence cote UI. Meme bascule que le referentiel copro ; degrade
 // en [] (pas de filtre) si la table est absente.
 export function getAgenceRepository(): AgenceRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseAgenceRepository();
+  if (coproSourceEstSupabase()) return new SupabaseAgenceRepository();
   return new MockAgenceRepository();
 }
 
 // Bibliotheque de resolutions (motion bank Estale, ADR-024). En reel : lit la bank
 // du cabinet via Estale ; sinon mock. LECTURE SEULE pour l'instant.
 export function getBibliothequeResolutions(): BibliothequeResolutionsProvider {
-  if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
+  if (coproSourceEstSupabase() && estaleConfigure()) {
     return new EstaleBibliothequeResolutions();
   }
   return new MockBibliothequeResolutions();
@@ -377,7 +394,7 @@ export function getBibliothequeResolutions(): BibliothequeResolutionsProvider {
 // AG Estale (Meeting + motions, ADR-024). En reel : lit l'AG de la copro via Estale ;
 // sinon mock (null). LECTURE pour le palier 1.
 export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
-  if (process.env.COPRO_SOURCE === "supabase" && estaleConfigure()) {
+  if (coproSourceEstSupabase() && estaleConfigure()) {
     return new EstaleAssembleeProvider();
   }
   return new MockAssembleeEstaleProvider();
@@ -386,7 +403,7 @@ export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
 // Pole compta (notes gestionnaire <-> comptable + flags). Table native
 // intranet_compta_notes ; flags dans intranet_odj_champs. Meme bascule que le reste.
 export function getComptaRepository(): ComptaRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseComptaRepository();
+  if (coproSourceEstSupabase()) return new SupabaseComptaRepository();
   return new MockComptaRepository();
 }
 
@@ -394,19 +411,19 @@ export function getComptaRepository(): ComptaRepository {
 // (service_role) quand COPRO_SOURCE=supabase, sinon mock en memoire. Le serveur
 // ne voit que des blobs chiffres dans les deux cas (zero-knowledge).
 export function getCoffreRepository(): CoffreRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoffreRepository();
+  if (coproSourceEstSupabase()) return new SupabaseCoffreRepository();
   return new MockCoffreRepository();
 }
 
 export function getCoffreIdentiteRepository(): CoffreIdentiteRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseCoffreIdentiteRepository();
+  if (coproSourceEstSupabase()) return new SupabaseCoffreIdentiteRepository();
   return new MockCoffreIdentiteRepository();
 }
 
 // Cles API machine (table native intranet_api_keys) : auth de /api/v1 + panneau
 // /admin/cles-api. Meme bascule mock/supabase que les autres tables natives.
 export function getClesApiRepository(): ClesApiRepository {
-  if (process.env.COPRO_SOURCE === "supabase") return new SupabaseClesApiRepository();
+  if (coproSourceEstSupabase()) return new SupabaseClesApiRepository();
   return new MockClesApiRepository();
 }
 
