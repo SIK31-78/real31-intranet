@@ -55,7 +55,14 @@ gestionnaires composent de vrais ODJ) **et 6 conforts**.
 - **#3 requalifié (faux positif)** : le retrait « staged » était déjà correct (icône
   d'annulation `RotateCcw`, pas un spinner). Ajout d'un compteur « N modifications en
   attente - rien n'est écrit tant que pas Enregistrer » pour lever l'ambiguïté visuelle.
-- **Conforts #5-#10 : non traités** (voir ci-dessous, à trier).
+- **#8 corrigé** (commit `16e65d1`) : un comptable refusé sur `/admin/*` atterrit sur
+  `/comptabilite` (sa home) via `pageAccueilPour`, plus sur `/accueil` vide. Vérifié écran.
+- **#9 corrigé** (commit `16e65d1`) : badge « comptable » en double retiré au dev-login (le
+  libellé de rôle « Comptable » suffit). Vérifié écran.
+- **Conforts #5/#6/#7/#10 : non traités** (fond de backlog, faible priorité).
+
+Tous les correctifs ci-dessus **re-vérifiés au navigateur** le 2026-07-23 (titre e-mails,
+« Déjà dans l'AG » + bandeau dates sur SE999, redirection comptable, badges dev-login).
 
 ## Anomalies
 
