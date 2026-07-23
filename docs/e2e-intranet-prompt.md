@@ -1,116 +1,101 @@
-# Prompt — Test E2E global de l'intranet REAL31
+# Prompt — Test E2E exhaustif de l'intranet REAL31 (navigateur)
 
-> Prompt réutilisable : à coller tel quel dans une session Claude Code (idéalement Fable
-> pour l'exploration, avec navigation navigateur). Remplacer les `[À REMPLIR]` avant de
-> lancer. Écrit le 2026-07-23, à faire évoluer avec l'app.
+> **Comment le lancer** : à coller dans une **NOUVELLE session Claude Code** (Fable ou Opus)
+> sur ce dépôt, avec **Chrome + l'addon Claude-in-Chrome connecté**. ⚠️ Doit être exécuté par
+> l'**agent principal de la session** (qui seul tient les outils navigateur) — un sous-agent
+> `Agent()` n'hérite PAS du Chrome MCP (constaté 2026-07-23 : le sous-agent QA n'a reçu que
+> Read/Write/Bash…, aucun outil navigateur). Serveur dev déjà lancé par Sekou sur `:3000`.
 
 ---
 
 ## Le prompt
 
-Tu vas tester l'intranet REAL31 de bout en bout, comme le ferait un collaborateur exigeant
-la veille de la mise à disposition générale (40 personnes). Objectif : détecter ce qui
-casse, ce qui trompe, ce qui frustre — PAS re-auditer le code (déjà fait). Tu testes en
-CLIQUANT, pas en lisant les sources ; le code ne sert qu'à comprendre un comportement
-bizarre une fois constaté.
+Tu es le QA en chef d'un test E2E EXHAUSTIF de l'intranet REAL31, la veille de sa mise à
+disposition à 40 collaborateurs. Détecte TOUT défaut, même infime : erreur/warning console,
+lien mort, libellé faux, focus qui saute, état vide moche, latence > 3 s, faille de garde de
+rôle, 404 sale, régression visuelle, débordement, incohérence de parcours. Tu testes en
+CLIQUANT dans le navigateur (Chrome), pas en lisant le code. Tu ne corriges RIEN : tu
+constates, tu documentes, Sekou priorise.
 
-### Contexte minimal
+### Démarrage — vérifier l'accès navigateur
+Charge les outils Chrome (`ToolSearch` sur `mcp__claude-in-chrome__*` si déférés), appelle
+`tabs_context_mcp`, crée un onglet, navigue vers http://localhost:3000/ . Si tu ne peux PAS
+piloter Chrome, arrête-toi et dis-le (ne simule rien). Ne touche jamais à `.next` (casse le
+serveur dev de Sekou).
 
-- App : surcouche de coordination syndic (Next.js 16 / Supabase / archi hexagonale), par-
-  dessus eStale. Lis `ROADMAP.md` puis `DECISIONS.md` pour le paysage — en diagonale, tu
-  n'audites pas, tu testes.
-- Prod : `real31.app` (Vercel). Dev local : `pnpm dev` sur :3000 — serveur lancé par
-  Sekou ; s'il ne tourne pas, DEMANDE-LUI (ne le lance pas toi-même, ne touche jamais à
-  `.next` pendant qu'il tourne).
-- 1092 tests unitaires verts + smokes : le socle logique est couvert. Toi tu couvres ce
-  que les tests ne voient pas : les parcours réels, les enchaînements, les états vides,
-  les rôles, les erreurs à l'écran.
+### Contexte (lis en diagonale pour t'orienter)
+`docs/e2e-rapport-2026-07-23.md` (première passe partielle — va bien plus loin), `ROADMAP.md`
+(carte des routes, section « État actuel »), `CLAUDE.md`, `DECISIONS.md`. Next.js 16, archi
+hexagonale, surcouche syndic sur eStale. 1092 tests unitaires verts → toi tu couvres le reste
+(parcours, rendu, rôles, erreurs écran).
 
-### ⚠️ LIGNES ROUGES — données réelles
+### ⚠️ LIGNES ROUGES — écriture réelle, pas de staging
+Config dev : `ESTALE_ECRITURE=reel`, `MAIL_SOURCE=graph`, `COPRO_SOURCE=supabase`. Donc :
+1. **Écritures UNIQUEMENT sur `SE999`** (copro eStale = environnement de test de A à Z, assumé
+   par Sekou : dates AG/CS, ODJ, conclure, supervision, dossiers → OK). URL :
+   http://localhost:3000/copropriete/SE999
+2. **Toute autre copro = LECTURE SEULE stricte** (elles sont réelles, source « Crypto »). Les
+   voir en liste / tester le cloisonnement : OK. Cliquer un bouton qui écrit dessus : NON.
+3. **MAIL — ne clique JAMAIS l'envoi final** (convocation, « mail au CS », notifications) :
+   `MAIL_SOURCE=graph` enverrait un vrai mail depuis real31.fr. Va jusqu'à l'écran de
+   composition/aperçu, décris-le, arrête-toi (« atteint, non envoyé — GO humain requis »).
+   *(Si Sekou a mis `MAIL_PILOTES=sekou` + redémarré, alors les envois atterrissent chez lui
+   seul → il peut t'autoriser à cliquer envoyer sur SE999. À confirmer dans le prompt.)*
+4. **FACTURATION / Pennylane / gestion courante / récap AG = HORS PÉRIMÈTRE** : SE999 n'a pas
+   les données de base pour facturer. Ouvre les écrans pour vérifier qu'ils ne crashent pas
+   (état vide / refus propre attendu), mais **ne crée AUCUN brouillon Pennylane**.
+5. **Signature/OneSpan, reprise de copro (grisée), Résolutions (grisée)** : hors périmètre.
+6. Doute sur un clic irréversible → ne clique pas, note la question.
 
-Il n'y a PAS de base de staging : dev local et prod écrivent dans la MÊME base Supabase
-(264 vraies copropriétés, vrais collaborateurs). Donc :
+### Rôles — bascule via http://localhost:3000/dev-login
+Teste au moins : **gestionnaire** (Charlotte LECOMTE ML / Rémi BARD LGC → portefeuille
+cloisonné, pas d'Administration), **comptable pur** (Elsa PEIXOTO / Isabelle ANGLADE / Romain
+GOBERT → atterrit sur `/comptabilite`, sidebar épurée, clic copro → `/compta/[code__agDate]`),
+**super-admin** (Sekou KOMA → tout + Administration), **directeur** (Dimitri MYAUX / Sandy
+CARRIER), **assistant** (Julie BOIRON), **admin** (Emmanuel LOPES).
+**TEST DE SÉCURITÉ (crucial)** : en gestionnaire ou comptable, tape en dur `/admin/feedback`
+et `/admin/cles-api` → tu DOIS être refusé (garde serveur). Si ça s'ouvre = **BLOQUANT**. De
+même un gestionnaire ne doit pas voir/écrire le portefeuille d'un autre.
 
-1. **Écritures uniquement sur la copropriété de test : `[À REMPLIR — code copro test]`.**
-   Jamais de saisie/modif/coche sur une autre copro, même « pour voir ». Si un parcours ne
-   peut pas se tester sans écrire ailleurs, note-le et passe.
-2. **Interdits absolus** : émission de facture Pennylane (la création de BROUILLON sur la
-   copro test est OK, `draft:true` — le signaler dans le rapport pour suppression) ;
-   envoi de mail réel ; écriture eStale (`ESTALE_ECRITURE` doit être `dry` — vérifie et
-   STOPPE si ce n'est pas le cas) ; OneSpan (tenant = prod) ; suppression de données ;
-   scripts de seed ; toute écriture directe en base (SQL) — tu passes par l'UI, point.
-3. Le feedback (bouton « un bug / une idée ? ») écrit en vraie table : fais UN test de
-   signalement, préfixe le texte par `[TEST E2E]`, et note-le pour archivage.
-4. En cas de doute sur la portée d'un clic (bouton irréversible, action massive) :
-   ne clique pas, note la question dans le rapport.
+### Parcours à couvrir (nominal + cas limite : état vide, double-clic, retour arrière, ~1024 px)
+Pour CHAQUE page : `read_console_messages` (onlyErrors + pattern), note tout warning/exception,
+lien mort, libellé douteux, latence.
+1. **Accueil `/accueil`** (plusieurs rôles) : Bonjour X, annonces, à-prendre-en-main, bandeau
+   AG (action du moment cohérente), dossiers, Points signalés, Échanges comptables, filtres.
+2. **`/copropriete`** : pipeline AG, recherche, filtres source/état/exercice, bascule
+   Liste/Pipeline, cloisonnement selon rôle.
+3. **Fiche SE999** : onglets (Vue d'ensemble, Événements, Dossiers, Sinistres, Contrats,
+   Comptabilité), stepper « Où en est cette AG » (UNE action du moment), identité/équipe
+   eStale, bandeau source liste CS. Écritures OK ici : fixer/confirmer dates AG+CS, ODJ.
+4. **Cycle AG sur SE999** via `/supervision-ag/[agId]` : frise, action du moment, checklist,
+   items cochables, conclure. Convocation = jusqu'à l'écran d'envoi, PAS d'envoi.
+5. **Espace comptable** (comptable) : `/comptabilite`, `/compta/[code__agDate]`, checklist 9
+   postes, notes ; la note doit remonter côté gestionnaire (accueil + fiche).
+6. **Sinistre `/sinistre`** : wizard (questions, choix assureur, plan d'action) sans envoi de
+   courrier ; **Dossier** créé sur SE999 → apparition sur l'accueil.
+7. **Feedback + Nouveautés** : bouton flottant → taper une PHRASE ENTIÈRE (le focus ne doit
+   PAS sauter vers la croix — bug corrigé, re-vérifie), préfixe `[TEST E2E]`, envoie. Puis
+   `/nouveautes` (titre + date SEULEMENT, aucun auteur/description). Puis `/admin/feedback`
+   (super-admin) : triage, statuts, création d'entrée « maison », **archiver/désarchiver**
+   (archivée = hors worklist ET hors `/nouveautes`), filtres Actives/Archivées/Toutes, édition
+   inline (titre/description/type/priorité/note).
+8. **`/admin/cles-api`** (super-admin) : créer une clé test (clair affiché une fois), la
+   **révoquer à la fin**. API v1 : `curl http://localhost:3000/api/v1/copros` sans clé → 401
+   propre ; avec clé (cf. `docs/api-v1.md`) → lecture OK ; **zéro PII copropriétaire** dans les
+   réponses.
+9. **Reste de la sidebar** : Calendrier AG/CS, Mes e-mails, Récap AG (sans facturer),
+   Coffre-fort, liens « Nos applications » / « Outils externes » (ouvrent bien, sans tester les
+   apps externes).
+10. **Transverses** : 404 (URL bidon → « Page introuvable » FR), arrière/avant, largeur ~1024,
+    cohérence visuelle (débordements, chevauchements, contrastes).
 
-### Environnement et rôles
+### Nettoyage — liste EXHAUSTIVE dans le rapport
+Tout artefact créé doit être traçable et purgeable : entrées feedback `[TEST E2E]` (préfixe
+obligatoire), dossiers/dates/ODJ/supervision sur SE999, clé API test (révoquée). Où le trouver.
 
-- Teste en **dev local** (l'impersonation est fail-closed en prod). Au dev-login, incarne
-  successivement : un **gestionnaire** (ex. Charlotte), un **comptable pur** (Elsa,
-  Isabelle ou Romain — doit atterrir sur `/comptabilite` avec sidebar épurée), un
-  **super-admin** (Sekou). Vérifie à chaque rôle que la sidebar ET les gardes serveur
-  correspondent (un comptable qui tape l'URL `/admin/feedback` doit être refusé).
-- Fais ensuite une passe COURTE sur `real31.app` en lecture seule (pages qui chargent,
-  temps de réponse, 404 propres) — sans impersonation, sans écriture.
-
-### Parcours à tester (dans cet ordre)
-
-Pour chaque parcours : le chemin nominal, PUIS un cas limite (état vide, donnée manquante,
-double-clic, retour arrière). Note le temps de chargement ressenti quand il dépasse ~3 s.
-
-1. **Accueil `/accueil`** — Bonjour X, annonces, à-prendre-en-main, bandeau AG (actions du
-   moment cohérentes avec l'état réel), dossiers en cours, Points signalés, Échanges
-   comptables. Filtres Moi/Tout/type.
-2. **Cycle AG complet sur la copro test** — fixer une date (crayon → `#dates-ag`), ODJ,
-   supervision `/supervision-ag/[agId]` (frise, action du moment, checklist, items
-   cochables), conclure l'AG. Vérifier qu'à chaque étape le stepper de la fiche pointe
-   au bon endroit et qu'il n'y a qu'UNE action proposée à la fois.
-3. **Fiche copro** — identité, équipe, dates, listes de diffusion CS (bandeau source
-   eStale vs secours), onglets, badges de source.
-4. **Toutes les copropriétés** — pipeline AG en tête, recherche, clic vers fiche ;
-   vue transverse pour l'encadrement, cloisonnée pour un gestionnaire.
-5. **Espace comptable** (en comptable pur) — `/comptabilite`, clic copro →
-   `/compta/[code__agDate]`, checklist 9 postes, notes d'échange ; côté gestionnaire, la
-   note doit remonter (accueil + fiche).
-6. **Facturation gestion courante** (en comptable/super-admin) — sur la copro test
-   UNIQUEMENT : parcours jusqu'à l'aperçu ; création de brouillon Pennylane permise UNE
-   fois (noter l'ID pour suppression). Vérifier le refus 0 €, les montants affichés vs
-   attendus, le comportement si paramètre manquant (doit échouer BRUYAMMENT, pas
-   facturer un défaut).
-7. **Récap AG + dépassement CS** — depuis la supervision (modales pré-scopées),
-   auto-cochage des items après création.
-8. **Dossiers** (sinistres/travaux/impayés) — création sur la copro test, étapes,
-   apparition sur l'accueil.
-9. **Sinistre `/sinistre`** — wizard : questions, choix assureur (transparence), plan
-   d'action. Sans envoi de courrier.
-10. **Feedback + Nouveautés** — bouton flottant (taper une phrase ENTIÈRE dans le champ :
-    le focus ne doit pas sauter), `[TEST E2E]` en préfixe ; `/nouveautes` (vitrine : ni
-    auteur ni description visibles) ; `/admin/feedback` en super-admin : triage, statuts,
-    création d'entrée maison, archiver/désarchiver (l'entrée archivée disparaît de
-    `/nouveautes`), filtres.
-11. **Admin clés API + API v1** — créer une clé de test (la révoquer à la fin) ; `curl`
-    sans clé = 401 propre ; avec clé = lecture OK ; vérifier qu'AUCUNE réponse API ne
-    contient de PII copropriétaire (noms/emails).
-12. **Transverses** — page 404 (URL bidon), navigation arrière/avant, un écran en largeur
-    réduite (~1280 et ~1024), erreurs console navigateur sur chaque page visitée.
-
-### Ce que tu ne testes PAS
-
-Signature électronique (chantier en pause), reprise de copropriété (grisée), Mes e-mails
-(pilote), écritures eStale, envoi de mails, module Résolutions (grisée).
-
-### Livrable
-
-Un rapport `docs/e2e-rapport-[date].md` :
-- **Verdict global** en 3 lignes (prêt / prêt avec réserves / pas prêt).
-- **Anomalies classées** bloquant / gênant / confort (la grille du triage feedback), avec
-  pour chacune : parcours, étapes de repro, attendu vs constaté, rôle utilisé.
-- **Reste à nettoyer** : la liste EXHAUSTIVE de ce que tes tests ont créé (entrées
-  feedback `[TEST E2E]`, brouillon Pennylane, dossiers/dates sur la copro test, clé API)
-  pour que Sekou ou une session suivante purge.
-- Les questions de jugement (« ce bouton devrait-il… ») séparées des bugs.
-
-Ne corrige RIEN toi-même : tu constates, Sekou priorise (c'est le principe du système
-feedback). Si tu es bloqué plus de 2-3 essais sur un même écran, note et passe au
-parcours suivant.
+### Livrable — `docs/e2e-rapport-agent-<date>.md`
+- **Verdict** (prêt / prêt avec réserves / pas prêt), 3 lignes.
+- **Anomalies bloquant / gênant / confort** : parcours, repro précise, attendu vs constaté,
+  rôle, capture si utile. Impitoyable (un warning console compte).
+- **Validé** (tableau). **À nettoyer** (exhaustif). **Non couvert / bloqué** (+ pourquoi).
+Ne corrige rien. Si tu bloques 2-3 fois sur un écran, note et passe.
