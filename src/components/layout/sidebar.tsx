@@ -1,8 +1,8 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, Home, Inbox, Calendar, Building2, Library, Calculator, KeyRound,
-  FileSignature, ShieldAlert, AppWindow, Key, Signature, Globe, Vote, Database, ExternalLink,
+  LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
+  FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -42,9 +42,10 @@ type Item = {
   aVenir?: boolean;
 };
 
-// Navigation groupee par usage : Vue d'ensemble (pilotage) / A traiter (worklists) /
-// Ressources (outils transverses). "Resolutions" et "Reprise" sont grisees "a venir" ;
-// "Comptabilite" et "Gestion courante" ne s'affichent que pour le pole comptable.
+// Navigation groupee par usage (reorg 2026-07-23, demande Sekou "manque de logique") :
+//   Vue d'ensemble = pilotage (ou j'en suis) · A traiter = worklists/modules a actionner ·
+//   Facturation = produire documents/argent · Ressources = outils transverses.
+// "Reprise" grisee "a venir" ; "Comptabilite" et "Gestion courante" visibles pole compta only.
 const GROUPES: { titre: string; items: Item[] }[] = [
   {
     titre: "Vue d'ensemble",
@@ -53,8 +54,6 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       // Le "Dashboard" a ete demantele (Sekou 2026-07-22) : plus d'entree, /dashboard redirige.
       { key: "accueil", label: "Accueil", href: "/accueil", icon: Home },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
-      { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
-      { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
       { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
     ],
   },
@@ -62,16 +61,22 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     titre: "À traiter",
     items: [
       { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
+      { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
+      { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
+    ],
+  },
+  {
+    titre: "Facturation",
+    items: [
+      { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
+      { key: "recap-ag", label: "Récap AG", href: "/recap-ag", icon: ClipboardList },
+      { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
+      { key: "compta", label: "Comptabilité", href: "/comptabilite", icon: Calculator },
     ],
   },
   {
     titre: "Ressources",
     items: [
-      { key: "resolutions", label: "Résolutions", href: "/resolutions", icon: Library, aVenir: true },
-      { key: "compta", label: "Comptabilité", href: "/comptabilite", icon: Calculator },
-      { key: "recap-ag", label: "Récap AG", href: "/recap-ag", icon: ClipboardList },
-      { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
-      { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
       { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
     ],
@@ -104,11 +109,6 @@ type LienApp = { label: string; href: string; icon: ComponentType<{ className?: 
 // Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
 const APPS_EXTERNES: LienApp[] = [
   { label: "Registre des mandats", href: "https://mandats.real31.app/", icon: FileSignature },
-  {
-    label: "Reality",
-    href: "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/1b4ec6f7-8172-4ccd-a63b-1fca272acb1d?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686",
-    icon: AppWindow,
-  },
   {
     label: "Gestion des clés",
     href: "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/87a42a4c-89cb-4e40-a579-5ce9b51d5a89?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686",

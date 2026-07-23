@@ -77,7 +77,7 @@ export function AgSemaineBloc({ lignes }: { lignes: AgSemaineLigne[] }) {
             + {reste} autre{reste > 1 ? "s" : ""} échéance{reste > 1 ? "s" : ""} AG non affichée{reste > 1 ? "s" : ""}
           </span>
           <Link
-            href="/calendrier"
+            href="/copropriete"
             className="inline-flex items-center gap-1 text-[12px] font-medium text-ink-2 hover:text-green-700"
           >
             Toutes les AG
