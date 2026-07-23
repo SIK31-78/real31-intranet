@@ -33,7 +33,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_dossiers.sql` | 🔲 | **En attente** (créé 2026-07-22). |
 | `intranet_compta_notes.sql` | 🔲 | **En attente** (notes compta). |
 | `intranet_api_keys.sql` | 🔲 | **En attente** — clés machine API v1 ; tant que non passé, l'API répond 503 `api_non_configuree`. |
-| `intranet_feedback.sql` | ⚠️ | Table passée par Sekou ; **un ALTER de plus à rejouer** (2026-07-23) : `alter table public.intranet_feedback alter column severite drop not null;` (une nouveauté « maison » n'a pas de sévérité). Idempotent → repasser tout le fichier est sans risque. Requis avant le seed du changelog. |
+| `intranet_feedback.sql` | ⚠️ | Table passée (+ ALTER `severite drop not null` du 2026-07-23). **Un 2e ALTER à rejouer** (2026-07-23, masquage réversible) : `alter table public.intranet_feedback add column if not exists archive_at timestamptz;`. Idempotent → repasser tout le fichier est sans risque. Sans lui, archiver/désarchiver lèvera une erreur colonne inconnue (le reste marche). |
 | `reprise_dossier.sql` | ❔ | Reprise copro — dossier. |
 | `reprise_dossier_jeu.sql` | ❔ | Reprise copro — jeu de test. |
 | `reprise_fiche_renseignements.sql` | ❔ | Reprise copro — fiche renseignements. |
