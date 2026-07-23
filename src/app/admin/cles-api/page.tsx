@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ClesApiVue } from "@/components/admin/cles-api-vue";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
+import { estSuperAdmin, pageAccueilPour } from "@/lib/auth/roles";
 import { listerClesApi } from "@/lib/auth/cle-api";
 import { ApiNonConfigureeError, type CleApi } from "@/lib/domain/cle-api";
 import { getGestionnaireRepository } from "@/lib/adapters/router";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function ClesApiPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  if (!estSuperAdmin(g.email)) redirect("/accueil");
+  if (!estSuperAdmin(g.email)) redirect(pageAccueilPour(g.email, g.role));
 
   let cles: CleApi[] = [];
   let apiNonConfiguree = false;

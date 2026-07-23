@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getGestionnaireRepository, getAgenceRepository } from "@/lib/adapters/router";
 import { impersonationAutorisee } from "@/lib/auth/session";
-import { estComptableTable } from "@/lib/auth/roles";
 import { choisirGestionnaire, connecterMicrosoft } from "./actions";
 
 export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
@@ -89,12 +88,11 @@ export default async function DevLoginPage() {
                       {g.initiales}
                     </span>
                     <span className="text-[14px] text-ink">{g.nomComplet}</span>
-                    {/* Badges DISPLAY : role (libelle FR), agence (code), et le marqueur
-                        comptable existant (table-driven). Groupes a droite. */}
+                    {/* Badges DISPLAY : role (libelle FR) + agence (code). Le libelle de role
+                        couvre deja "Comptable" (pas de marqueur comptable separe = doublon). */}
                     <span className="ml-auto flex items-center gap-1.5 shrink-0">
                       {roleLisible && <span className={BADGE_CLASS}>{roleLisible}</span>}
                       {agenceCode && <span className={BADGE_CLASS}>{agenceCode}</span>}
-                      {estComptableTable(g.role) && <span className={BADGE_CLASS}>comptable</span>}
                     </span>
                   </button>
                 </form>

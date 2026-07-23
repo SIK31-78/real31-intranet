@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { FeedbackAdminVue } from "@/components/admin/feedback-admin-vue";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
+import { estSuperAdmin, pageAccueilPour } from "@/lib/auth/roles";
 import { getFeedbackAdmin } from "@/lib/services/feedback/get-feedback-admin";
 import { FeedbackNonConfigureError, type Feedback } from "@/lib/domain/feedback";
 
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function FeedbackAdminPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  if (!estSuperAdmin(g.email)) redirect("/accueil");
+  if (!estSuperAdmin(g.email)) redirect(pageAccueilPour(g.email, g.role));
 
   let feedbacks: Feedback[] = [];
   let feedbackNonConfigure = false;
