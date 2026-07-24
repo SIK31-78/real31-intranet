@@ -219,6 +219,11 @@ function confirmation(code: string, type: string): ConfirmationEvenement | undef
 
 beforeEach(() => {
   etat.reset();
+  // Gates mail : le service est desormais gate par mailModuleActifPour(boite). On pose
+  // MAIL_SOURCE=graph + MAIL_PILOTES vide (tous emails autorises) pour tester la logique
+  // metier de projection sans dependre du rollout pilote.
+  process.env.MAIL_SOURCE = "graph";
+  process.env.MAIL_PILOTES = "";
 });
 
 describe("titreProjectionOutlook", () => {

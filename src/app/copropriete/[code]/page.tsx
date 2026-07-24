@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { etatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
-import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { peutVoirComptabilite } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
@@ -31,9 +31,12 @@ export default async function CoproprietePage({
   const transverse = peutVoirComptabilite(g.email, g.role);
   const fiche = await getFicheCopro(code, g.id, aujourdhuiISO, { transverse });
   if (!fiche) notFound();
-  // Gating mail : double gate (MAIL_SOURCE=graph + allowlist pilotes) applique au bouton
-  // "Preparer le mail au CS/AG" -> grise pour les non-pilotes (comme Mes emails).
-  const mailActif = mailModuleActifPour(g.email);
+  // Gating mail au CS : seul le gate GLOBAL (MAIL_SOURCE=graph) s'applique -- le bouton
+  // "Preparer le mail au CS/AG" est ouvert a TOUS les gestionnaires des que le provider
+  // Graph est actif. L'allowlist MAIL_PILOTES reste reservee au module "Mes e-mails"
+  // (decouplage decide 2026-07-23 : rollout du mail CS pour tous, module Mes e-mails
+  // encore restreint aux pilotes).
+  const mailActif = mailModuleActif();
   // Le perimetre est DEJA valide par getFicheCopro (sinon notFound plus haut) : les deux
   // lectures ci-dessous sont independantes -> en parallele.
   //  - dossiers de la copro ;

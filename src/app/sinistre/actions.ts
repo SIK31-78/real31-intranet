@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
@@ -427,9 +427,11 @@ export async function creerBrouillonCourrierAction(p: {
   const parsed = zBrouillonCourrier.safeParse(p);
   if (!parsed.success) return { ok: false, erreur: "Courrier invalide (sujet ou corps)." };
 
-  // Mail non actif (provider = noop) : pas de Graph, on le dit clairement plutot
-  // que de faire croire a un succes (le noop renverrait {} sans webLink).
-  if (process.env.MAIL_SOURCE !== "graph") {
+  // Mail non actif POUR CE GESTIONNAIRE (double gate MAIL_SOURCE=graph + MAIL_PILOTES) :
+  // les envois sinistre (brouillon expertise) restent noop tant que le compte n'est pas
+  // dans les pilotes. Decouple du mail au CS (celui-ci ouvert des MAIL_SOURCE=graph, cf.
+  // mail-reunion-actions.ts) -- ici c'est un envoi metier plus large, pilote separement.
+  if (!mailModuleActifPour(g.email)) {
     return { ok: false, erreur: "Module mail non actif (brouillon indisponible)." };
   }
 
@@ -492,8 +494,10 @@ export async function ajouterRdvAgendaAction(p: {
   const parsed = zRdvAgenda.safeParse(p.rdvs);
   if (!parsed.success) return { ok: false, erreur: "Rendez-vous invalides." };
 
-  // Agenda non actif (provider = noop) : pas de Graph, on le dit clairement.
-  if (process.env.MAIL_SOURCE !== "graph") {
+  // Agenda non actif POUR CE GESTIONNAIRE (double gate MAIL_SOURCE=graph + MAIL_PILOTES) :
+  // idem brouillon courrier -- l'ajout des RDV expertise a l'agenda reste noop tant que le
+  // compte n'est pas pilote. Cadenasse le rollout sinistre pendant qu'on ouvre le mail CS.
+  if (!mailModuleActifPour(g.email)) {
     return { ok: false, erreur: "Agenda Outlook non actif." };
   }
 

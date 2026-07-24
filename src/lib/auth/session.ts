@@ -22,29 +22,11 @@ export const COOKIE_GESTIONNAIRE = "gid";
 // re-exporte ici pour les appelants historiques (import depuis @/lib/auth/session).
 export { estSuperAdmin };
 
-// "Mes evenements" (boite mail Graph) n'apparait QUE si la vraie boite est branchee
-// (MAIL_SOURCE=graph). En prod, tant que le module n'est pas pret, MAIL_SOURCE n'est
-// pas defini -> l'entree est grisee (et l'acces direct redirige). Tout le dev mail se
-// fait en local (ou MAIL_SOURCE=graph) jusqu'a ce que ce soit OK pour la prod.
-export function mailModuleActif(): boolean {
-  return process.env.MAIL_SOURCE === "graph";
-}
-
-// PILOTES du module mail : MAIL_SOURCE=graph est un interrupteur GLOBAL (il ouvre le
-// module a tous les gestionnaires). Pour un deploiement pilote (ex. Remi seul), on borne
-// en plus par MAIL_PILOTES = emails autorises, separes par des virgules. Absent/vide =
-// pas de restriction (dev local inchange).
-const MAIL_PILOTES = (process.env.MAIL_PILOTES ?? "")
-  .split(",")
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
-
-/** Le module mail est-il actif POUR ce gestionnaire (gate global + allowlist pilotes) ? */
-export function mailModuleActifPour(email: string | null | undefined): boolean {
-  if (!mailModuleActif()) return false;
-  if (MAIL_PILOTES.length === 0) return true;
-  return Boolean(email && MAIL_PILOTES.includes(email.toLowerCase()));
-}
+// Gates du module mail : extraits dans lib/domain/mail-gate.ts (PUR, aucune dep next-auth
+// ni auth -- regle metier de rollout) pour etre importables depuis les services sans casser
+// les tests ni la regle ESLint boundaries. On les re-exporte ici pour la retro-compat de
+// tous les appelants historiques (import "@/lib/auth/session").
+export { mailModuleActif, mailModuleActifPour } from "@/lib/domain/mail-gate";
 
 /** Email de la session SSO (null si SSO inactif ou non connecte). Memoise par requete
  *  (React.cache) -> auth() n'est lu qu'une fois par rendu, pas a chaque appel. */

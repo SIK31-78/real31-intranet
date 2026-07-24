@@ -9,11 +9,15 @@
 //
 // Chaque action : (1) VALIDE ses entrees (zod : endpoint POST public) ; (2) resout le
 // gestionnaire + verifie le cloisonnement copro (coproAppartient, anti-IDOR) ; (3) applique
-// le DOUBLE GATE mail (MAIL_SOURCE=graph + allowlist MAIL_PILOTES) via mailModuleActifPour.
+// le GATE GLOBAL mail (MAIL_SOURCE=graph) via mailModuleActif. NOTA : PAS de filtre pilotes
+// ici -- l'envoi au CS est un utilitaire d'action ponctuel (bouton unique, geste humain +
+// signature du gestionnaire connecte), sans lien avec le module "Mes e-mails" (qui reste
+// derriere MAIL_PILOTES pour son propre rollout). Decision 2026-07-23 : ouvrir le mail au CS
+// pour tous des que le provider Graph est actif, sans attendre l'ouverture du module.
 // La boite d'envoi = email de SESSION (jamais un parametre client).
 
 import { z } from "zod";
-import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getCoproRepository } from "@/lib/adapters/router";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
@@ -45,14 +49,15 @@ type PreparerResult =
 
 type EnvoiResult = { ok: true } | { ok: false; message: string };
 
-/** Auth + cloisonnement + double gate mail. Renvoie le gestionnaire (avec sa boite) si OK. */
+/** Auth + cloisonnement + gate global mail (MAIL_SOURCE=graph). Renvoie le gestionnaire (avec sa boite) si OK.
+ *  NOTA : PAS de filtre MAIL_PILOTES ici -- l'envoi au CS est ouvert a tous des que le provider Graph est actif. */
 async function garde(
   coproCode: string,
 ): Promise<{ ok: true; g: { id: string; email: string } } | { ok: false; message: string }> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, message: "Session expirée, reconnectez-vous." };
-  if (!mailModuleActifPour(g.email)) {
-    return { ok: false, message: "L'envoi de mail n'est pas encore activé pour votre compte." };
+  if (!mailModuleActif()) {
+    return { ok: false, message: "L'envoi de mail n'est pas encore activé (module non branché)." };
   }
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id))) {
     return { ok: false, message: "Copropriété hors de votre périmètre." };
