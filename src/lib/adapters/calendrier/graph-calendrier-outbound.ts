@@ -223,8 +223,17 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
   ): Promise<"libre" | "occupee" | "inconnu"> {
     // Degrade "inconnu" a la moindre anomalie : ce controle est un CONFORT (la
     // reservation, elle, s'appuie sur l'auto-acceptation de la room mailbox). Jamais
-    // bloquant, jamais throw vers l'UI.
+    // bloquant, jamais throw vers l'UI. On loggue en revanche le status HTTP + le type
+    // de cible (agenda-perso / salle / collegue-ou-ressource, deduit du domaine) pour
+    // ne PAS etre aveugle : un 403 persistant en prod = Application Access Policy /
+    // permission Calendars.ReadWrite a verifier (cf. runbook DSI). Aucune PII loggee
+    // (les emails sont tronques a leur type generique).
     if (!boite || !salleEmail) return "inconnu";
+    const cible = boite.toLowerCase() === salleEmail.toLowerCase()
+      ? "agenda-perso"
+      : salleEmail.toLowerCase().startsWith("salle-") || salleEmail.toLowerCase().startsWith("zoe")
+        ? "ressource"
+        : "collegue";
     try {
       const tk = await jetonGraph();
       // Timeout court (8 s) : ce controle alimente un indicateur temps reel dans
@@ -239,13 +248,21 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
           availabilityViewInterval: 30,
         }),
       }, 8_000);
-      // 403 = Application Access Policy pas encore ouverte pour les salles (cote DSI).
-      if (!r.ok) return "inconnu";
-      const j = (await r.json()) as { value?: Array<{ availabilityView?: string }> };
+      // 403 = Application Access Policy pas encore ouverte / permission Calendars.ReadWrite
+      // manquante ; 401 = token ; 404 = boite inconnue. Log discret sans PII pour diagnostic.
+      if (!r.ok) {
+        console.warn(`[getSchedule] ${r.status} sur cible=${cible} (dispo -> inconnu)`);
+        return "inconnu";
+      }
+      const j = (await r.json()) as { value?: Array<{ availabilityView?: string; error?: { responseCode?: string } }> };
+      const err = j.value?.[0]?.error?.responseCode;
+      if (err) console.warn(`[getSchedule] partial-error=${err} sur cible=${cible} (dispo -> inconnu)`);
       const vue = j.value?.[0]?.availabilityView;
       if (typeof vue !== "string") return "inconnu";
       return interpreterAvailabilityView(vue);
-    } catch {
+    } catch (e) {
+      const msg = (e as Error).message || "erreur inconnue";
+      console.warn(`[getSchedule] exception sur cible=${cible} : ${msg.slice(0, 120)} (dispo -> inconnu)`);
       return "inconnu";
     }
   }
