@@ -21,7 +21,7 @@ import {
   getCalendrierOutboundProvider,
   getConfirmationEvenementRepository,
 } from "@/lib/adapters/router";
-import { mailModuleActifPour } from "@/lib/domain/mail-gate";
+import { mailModuleActif } from "@/lib/domain/mail-gate";
 
 // Un `debut` datetime ('YYYY-MM-DDTHH:mm:00') porte une heure de reunion -> on fixe
 // une fin explicite (debut + duree reunion). Un jour seul ('YYYY-MM-DD') n'en a pas
@@ -58,11 +58,11 @@ export async function projeterEvenementOutlook(
   statut: StatutConfirmation,
   boite?: string,
 ): Promise<void> {
-  // Double gate (MAIL_SOURCE=graph + MAIL_PILOTES) : la projection Outlook AG/CS reste
-  // noop tant que le compte n'est pas pilote, meme si Graph est actif globalement. Cadenasse
-  // le rollout : ouvrir le mail au CS ne doit PAS poser des evenements dans les calendriers
-  // des collegues/salles pour tous les gestionnaires d'un coup.
-  if (!mailModuleActifPour(boite)) return;
+  // Gate GLOBAL (MAIL_SOURCE=graph) : la projection Outlook AG/CS s'active pour tous les
+  // gestionnaires des que le provider Graph est actif -- pas de filtre pilotes (decision
+  // Sekou 2026-07-23 : ouverture Outlook pour tout le monde, comme le mail au CS ; seuls le
+  // module Mes e-mails et les envois sinistre restent bornes a MAIL_PILOTES).
+  if (!mailModuleActif()) return;
   try {
     const repo = getConfirmationEvenementRepository();
     const provider = getCalendrierOutboundProvider();
