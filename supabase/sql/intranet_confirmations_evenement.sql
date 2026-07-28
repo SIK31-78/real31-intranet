@@ -35,6 +35,31 @@ create table if not exists public.intranet_confirmations_evenement (
   primary key (copro_code, type)
 );
 
+-- RATTRAPAGE DES COLONNES SUR UNE TABLE DEJA CREEE (indispensable, cf. bug du 2026-07-28).
+--
+-- `create table if not exists` ne fait RIEN si la table existe deja : rejouer ce fichier
+-- n'ajoute JAMAIS une colonne apparue plus tard dans le CREATE. C'est exactement ce qui
+-- s'est produit : la table a ete creee AVANT l'ajout de outlook_event_id / outlook_boite,
+-- et ces deux colonnes n'ont jamais existe en base malgre un fichier qui les declare.
+--
+-- Consequence observee, spectaculaire parce que TOTALEMENT SILENCIEUSE : la lecture
+-- retombait en cascade sur un jeu de colonnes reduit (lireEnCascade) donc l'app croyait
+-- qu'aucune projection n'existait -> elle CREAIT l'evenement Outlook -> puis
+-- enregistrerProjection echouait (colonne absente) -> et le filet anti-orphelin
+-- SUPPRIMAIT dans la foulee l'evenement qu'elle venait de creer. Une date d'AG posee
+-- n'apparaissait donc jamais dans aucun agenda, sans la moindre erreur a l'ecran.
+--
+-- REGLE A RETENIR pour tout fichier de ce dossier : toute colonne ajoutee apres coup doit
+-- AUSSI figurer en `alter table ... add column if not exists` ici, sinon le fichier n'est
+-- idempotent que pour une base vierge. Les deux formes sont sans risque a rejouer.
+alter table public.intranet_confirmations_evenement
+  add column if not exists outlook_event_id      text,
+  add column if not exists outlook_boite         text,
+  add column if not exists salle_email           text,
+  add column if not exists vehicule_email        text,
+  add column if not exists mode_reunion          text,
+  add column if not exists collaborateurs_emails jsonb;
+
 -- RLS activee sans policy : acces via service_role uniquement (comme les autres
 -- tables intranet). Le cloisonnement gestionnaire est applique en code (managerId).
 alter table public.intranet_confirmations_evenement enable row level security;

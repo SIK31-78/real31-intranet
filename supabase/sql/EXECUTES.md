@@ -4,6 +4,8 @@
 
 Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 
+> ⚠️ **`create table if not exists` ne rattrape JAMAIS une colonne ajoutée après coup.** Si la table existe déjà, rejouer le fichier ne fait rien — la colonne reste absente alors que le fichier la déclare. C'est le bug du 2026-07-28 sur `intranet_confirmations_evenement` (projection Outlook morte en silence). **Toute colonne ajoutée après la création initiale doit AUSSI apparaître en `alter table ... add column if not exists`** dans le même fichier.
+>
 > ⚠️ **Un ✅ ici n'est PAS une preuve.** Le 2026-07-28, `intranet_copro_dates` était marquée ✅ depuis le 21/07 alors qu'elle était ABSENTE de la base — conséquence : toutes les dates AG/CS des copros eStale étaient silencieusement perdues. **Quand un symptôme sent le « rien ne se passe », interroger la base** (un `select` sur la table : `200` = existe, `404 PGRST205` = absente), pas ce tableau.
 
 | Fichier | Statut | Notes |
@@ -12,7 +14,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_jalons_types_postag.sql` | ❔ | Extension des types de jalons post-AG. |
 | `intranet_supervision_items.sql` | ❔ | Items de supervision. |
 | `intranet_odj_champs.sql` | ❔ | Champs ODJ. |
-| `intranet_confirmations_evenement.sql` | ❔ | Confirmations d'événement. |
+| `intranet_confirmations_evenement.sql` | 🔲 | **À REJOUER (2026-07-28)** — table présente, mais **`outlook_event_id` et `outlook_boite` ABSENTES en base** (vérifié : `42703` / `PGRST204`). Cause : la table a été créée avant l'ajout de ces colonnes au fichier, et `create table if not exists` ne rattrape rien. Effet : toute date d'AG/CS posée était créée dans Outlook **puis supprimée dans la seconde** par le filet anti-orphelin, sans aucune erreur à l'écran. Le fichier porte désormais des `alter table ... add column if not exists` : le rejouer en entier est sans risque et corrige. |
 | `intranet_confirmations_evenement_ressources.sql` | ❔ | Ressources. |
 | `intranet_confirmations_evenement_mode.sql` | ❔ | Mode de confirmation. |
 | `intranet_confirmations_evenement_collaborateurs.sql` | ❔ | Colonne `collaborateurs_emails` (invités Outlook). |
