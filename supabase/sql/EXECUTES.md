@@ -21,7 +21,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_projections_outlook.sql` | ❔ | Projections Outlook. |
 | `intranet_listes_diffusion.sql` | ❔ | Listes de diffusion CS (base). |
 | `intranet_listes_diffusion_edite.sql` | ✅ | Exécuté par Sekou le **2026-07-20** (colonne `edite_le`, save validé à l'écran). |
-| `intranet_copro_dates.sql` | ⛔ | **ABSENTE de la base (vérifié 2026-07-28 : PGRST205 sur 3 essais)** alors que ce registre la disait passée le 2026-07-21 — soit le SQL n'a pas abouti, soit il a été joué sur une autre base. **Conséquence** : toute pose/effacement de date AG-CS sur une copro **eStale** est perdue (l'adapter dégradait en silence) et la lecture replie sur le miroir → l'ancienne date « revient ». **À REPASSER.** |
+| `intranet_copro_dates.sql` | ✅ | **Repassé par Sekou le 2026-07-28** après constat qu'elle était ABSENTE (PGRST205) malgré un statut ✅ daté du 21/07 — le SQL n'avait pas abouti (ou visait une autre base). Sans elle, toute pose/effacement de date AG-CS sur une copro **eStale** était silencieusement perdue. Cycle pose/effacement vérifié à l'écran le 28/07. |
 | `intranet_facturation.sql` | ✅ | Facturation (module bâti + validé sur un vrai brouillon Pennylane, ADR-032). |
 | `intranet_recap_ag.sql` | ✅ | Récap AG. |
 | `intranet_recap_ag_complements.sql` | ✅ | Compléments récap AG. |
