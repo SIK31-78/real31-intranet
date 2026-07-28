@@ -132,54 +132,53 @@ de la date sur la fiche, hors édition, quand le niveau est `court` ou `critique
 
 ---
 
-## 3. Date d'AG posée → rien dans l'agenda (ni le mien, ni celui de la salle)
+## 3. ✅ RÉSOLU — Date d'AG posée → rien dans l'agenda (ni le mien, ni celui de la salle)
 
-**Gravité** : bloquant côté usage (fausse réservation de salle) — mais **la cause immédiate est
-une variable d'environnement, pas le code**.
-**Signalé par Sekou** le 28/07 sur prod : « j'ai fixé date d'AG mais celle-ci n'apparaît pas
-dans mon agenda ni celui de la salle ».
+**Signalé par Sekou** le 28/07 sur prod. **Corrigé le jour même** (commit `2999750` + SQL
+rejoué par Sekou, projection vérifiée fonctionnelle à l'écran).
 
-> **Mise à jour du 28/07 (Sekou)** : `MAIL_SOURCE=graph` **est déjà posé** sur Vercel.
-> Le diagnostic ci-dessous, qui concluait à une variable absente, est donc **faux dans sa
-> conclusion** — mais la mécanique décrite (verrou global, gate unique partagé) reste exacte
-> et utile. Voir « Reprise du diagnostic » plus bas.
+### La cause réelle : deux colonnes absentes de la base
 
-### Cause immédiate (HYPOTHÈSE INITIALE, INVALIDÉE) — `MAIL_SOURCE` pas à `graph`
+`intranet_confirmations_evenement` existait **sans** `outlook_event_id` ni `outlook_boite`
+(vérifié : `42703` sur le SELECT de l'adapter, `PGRST204` sur l'UPDATE). La table avait été
+créée AVANT que ces colonnes n'entrent dans le fichier SQL, et **`create table if not exists`
+ne rattrape jamais une colonne ajoutée après coup** : rejouer le fichier ne faisait rien.
 
-`projeterEvenementOutlook` (`src/lib/services/coproprietes/projeter-evenement-outlook.ts:65`)
-sort à la première ligne sur `if (!mailModuleActif()) return;`, et `mailModuleActif()` n'est
-vrai que si `process.env.MAIL_SOURCE === "graph"` (`src/lib/domain/mail-gate.ts:14`).
+L'enchaînement est le plus vicieux possible — **deux filets corrects se combinent en une
+fonctionnalité qui ne peut jamais marcher, en silence total** :
 
-Confirmation croisée à l'écran : dans la sidebar, **« Mes e-mails » porte le badge
-« À VENIR »**, ce qui n'arrive que si `emailsOuvert === false`, donc
-`mailModuleActifPour(sekou) === false`. Si `MAIL_SOURCE` était à `graph` et que seul
-`MAIL_PILOTES` excluait Sekou, la projection fonctionnerait quand même (elle utilise le gate
-GLOBAL `mailModuleActif()`, sans allowlist). Les deux symptômes ne se recoupent que sur une
-seule explication : **le verrou global est fermé**.
+1. `lireEnCascade` retombe sur un jeu de colonnes réduit (conçu pour qu'un ALTER partiel ne
+   fasse pas disparaître les dates) → la lecture **réussit** mais perd `outlookEventId` ;
+2. l'app croit donc qu'aucune projection n'existe → elle **crée** l'événement Outlook ;
+3. `enregistrerProjection` échoue (colonne absente) → `memorise = false` ;
+4. le filet anti-orphelin (« jamais de doublon ») **supprime l'événement tout juste créé**.
 
-### Reprise du diagnostic (28/07, après retour de Sekou)
+Rien n'est logué : ni l'échec de lecture (rattrapé), ni la suppression (nominale).
 
-`MAIL_SOURCE=graph` est posé sur Vercel. Vérifié au passage : le **provider calendrier est
-gardé par la MÊME variable** (`router.ts:359` — `MAIL_SOURCE === "graph"` → `GraphCalendrier
-OutboundProvider`, sinon `Noop`). Il n'y a donc pas de second verrou d'environnement caché.
+**Correctif appliqué** : le fichier SQL porte désormais des `alter table ... add column if
+not exists` sur les 6 colonnes ajoutées après coup. Règle consignée en tête d'`EXECUTES.md`
+— ce piège a pu frapper d'autres tables.
 
-Deux pistes restent, dans cet ordre de probabilité :
+### Hypothèses écartées en chemin (à ne pas ressortir)
 
-1. **Le déploiement en ligne est antérieur à la pose de la variable.** Une variable
-   d'environnement ajoutée dans Vercel n'est PAS injectée dans un déploiement déjà construit :
-   il faut redéployer. Dans ce cas `process.env.MAIL_SOURCE` vaut `undefined` à l'exécution et
-   les DEUX symptômes retombent sur cette cause unique (« Mes e-mails » grisé + aucune
-   projection). **Un push a été fait le 28/07 → un déploiement neuf a été déclenché** :
-   retester la pose d'une date d'AG sur SE999 après qu'il soit en ligne.
-2. **`MAIL_PILOTES` est posé et ne contient pas l'adresse de Sekou.** C'est cohérent avec
-   « Mes e-mails » grisé (qui utilise `mailModuleActifPour`, avec allowlist), mais PAS avec
-   l'absence de projection (qui utilise `mailModuleActif`, sans allowlist). Si ce cas se
-   confirme, l'absence dans l'agenda vient d'ailleurs : le plus probable est un **403 Exchange
-   Application Access Policy** (envoi app-only depuis la boîte de chacun, la policy DSI doit
-   couvrir la boîte visée) — dépendance déjà tracée au ROADMAP.
+- **`MAIL_SOURCE` absent de Vercel** : FAUX. Il est bien posé — le bouton « mail au CS »
+  s'affiche (il dépend du verrou global `mailModuleActif`) et « Ton agenda : libre » répond.
+- **403 Exchange Application Access Policy** : FAUX. Testé en direct avec le jeton app-only :
+  rôles accordés = `Calendars.ReadWrite` (+ Mail.*), lecture des calendriers **200** sur la
+  boîte perso comme sur les salles, `getSchedule` **200**. Graph n'a jamais été en cause.
+- **« Mes e-mails » grisé** : n'est PAS un symptôme du même problème. Il dépend de
+  `mailModuleActifPour` (verrou global **+** allowlist) → `MAIL_PILOTES` est posé et ne
+  contient pas l'adresse de Sekou. C'est cohérent et voulu ; ça n'affecte pas la projection.
 
-**Comment trancher** : chercher `[projection-outlook]` dans les logs runtime Vercel.
-⚠️ Mais voir le trou de traçabilité ci-dessous : **ne rien voir ne prouve rien**.
+> **Leçon** : deux symptômes qui « se recoupent » sur une seule cause peuvent parfaitement
+> dépendre de deux gates différents. Vérifier QUEL gate chaque symptôme utilise avant de
+> conclure à une cause unique — j'ai perdu du temps sur cette fausse corrélation.
+
+### Reste à faire sur ce sujet (non couvert par le correctif)
+
+Note utile pour la suite : le **provider calendrier est gardé par la MÊME variable**
+(`router.ts:359` — `MAIL_SOURCE === "graph"` → `GraphCalendrierOutboundProvider`, sinon
+`Noop`). Il n'y a pas de second verrou d'environnement caché.
 
 ### Trou de traçabilité : deux échecs sur trois sont totalement muets
 
@@ -346,3 +345,77 @@ régime permanent qui s'installe.
 > reconstitution par relecture du code et de la base — solide pour les 6 copros nommées,
 > **muette sur les 5 autres échecs**. Leçon : avant toute purge, extraire et conserver les
 > colonnes de diagnostic.
+
+---
+
+## 7. Une copro d'une agence sans salle affiche « Aucune salle » sans rien expliquer
+
+**Gravité** : confort (mais coûte un signalement de bug — c'est arrivé le 28/07).
+**Où** : `src/components/fiche-copro/editeur-date.tsx` (~lignes 392-407),
+`src/lib/domain/salles-reunion.ts`, `src/lib/domain/cloisonnement-agence.ts`.
+
+Sekou : « je ne peux pas réserver de salle ». Ce n'était **pas un bug**. SE999 est rattachée
+à une agence qui n'a **aucune salle propre** (ASN, cf. le commentaire de `salles-reunion.ts`
+— « ASN n'a pas de salle propre, ses copros passent par le débordement »). Le sélecteur
+affiche donc « Aucune salle » et **toutes** les salles sont repliées derrière le lien
+« Voir les autres agences ».
+
+Le comportement est conforme au design (cloisonnement par agence = confort d'affichage), mais
+**rien à l'écran ne dit que ton agence est vide** : le gestionnaire conclut que la
+réservation est cassée.
+
+**À faire** : quand la partition `memeAgence` est vide alors qu'une agence de référence
+existe, remplacer le silence par une phrase — ex. « Cette agence n'a pas de salle : voir les
+autres agences » — ou déplier d'office le débordement dans ce cas précis (les salles des
+autres agences deviennent le choix par défaut, puisqu'il n'y en a pas d'autre).
+Ne PAS supprimer le cloisonnement : il est utile pour les agences qui ont des salles.
+
+---
+
+## 8. Clôturer l'ODJ en « réunion terminée » → PDF sur l'extranet → supervision AG
+
+**Gravité** : manque fonctionnel (demande Sekou, 28/07).
+**Décision Sekou : on part sur l'option 1** — brique 1 seule d'abord, vérification de
+l'hypothèse extranet en parallèle, choix du PDF ensuite.
+
+**La demande** : « dans odj réunion on n'a pas la possibilité de clôturer l'ordre du jour en
+mode "réunion terminée" pour que le pdf aille sur l'extranet de la copropriété et qu'on
+puisse passer à la supervision AG ».
+
+### État des trois briques
+
+| Brique | État |
+|---|---|
+| **1. Clôturer l'ODJ + avancer le cycle** | N'existe pas. Partie simple. La checklist de supervision porte **déjà** l'item `apcs.cr-cs-extranet` « Compte rendu CS diffusé sur l'extranet » (`supervision-ag-template.ts:47`), coché à la main aujourd'hui. |
+| **2. Produire le PDF côté serveur** | **N'existe pas.** Le « PDF » de l'ODJ est aujourd'hui le rendu navigateur de `/odj/[id]/imprimer` (`BoutonImprimer`). Aucun octet de PDF côté serveur. `pdfjs-dist` est un **lecteur** (extraction), pas un générateur. |
+| **3. Pousser le fichier dans eStale** | **Prouvé mais pas construit.** `updateMeeting(id).createFile(fileCategory, file:Upload)` en multipart graphql — démontré pendant le chantier signature (cf. `docs/CHANTIER-signature-electronique-AG.md`), mais uniquement dans des scripts jetables : ni port, ni adapter. Chantier en pause. |
+
+### ⚠️ L'hypothèse à vérifier AVANT de choisir la voie du PDF
+
+**Un fichier attaché au Meeting eStale apparaît-il réellement sur l'extranet de la
+copropriété ?** Rien ne le prouve. Les notes du chantier signalent que les catégories sont
+restrictives (`TRANSCRIPT_ATTENDANCE_SHEET` / `FORM` / `POWERS` refusent l'upload ; seule une
+catégorie libre passe). Visible côté syndic ≠ visible côté copropriétaires.
+
+→ **À tester sur SE999** avec les scripts existants du chantier (`estale-upload-poc.mjs`,
+`estale-e2e-signature.mjs`). C'est une vérification, pas un développement.
+**Si le test est négatif** : on s'arrête à la brique 1, le dépôt reste manuel, et on n'a pas
+payé le prix d'un générateur de PDF pour rien.
+
+### Le choix du PDF, à trancher APRÈS le test (ne pas décider seul)
+
+- **Rendu headless** (Chromium sur Vercel) — réutilise *exactement* la page d'impression
+  existante, donc **zéro divergence** entre l'aperçu écran et le fichier envoyé. Mais lourd :
+  ~50 Mo de binaire, fonction lente, coût d'exécution.
+- **Génération serveur** avec une lib PDF — léger et rapide, mais impose de **réécrire la mise
+  en page** du document, qui divergera de `DocumentOdj` au premier changement de maquette.
+
+### Périmètre de la brique 1 (ce qui est lancé)
+
+- Un état « réunion terminée » sur l'ODJ (persisté ; l'ODJ est déjà porté par
+  `intranet_odj_champs` via `getEtat` / `ODJ_SANS_DATE`).
+- La clôture **avance le cycle** vers la supervision AG et **coche automatiquement**
+  `apcs.cr-cs-extranet`.
+- **Réversible** : on doit pouvoir rouvrir un ODJ clôturé par erreur (aucune écriture
+  externe n'est engagée à ce stade).
+- **Ne PAS** générer de PDF ni pousser quoi que ce soit dans eStale dans cette brique.
