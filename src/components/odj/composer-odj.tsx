@@ -228,7 +228,12 @@ export function ComposerOdj({
     });
   }
 
-  const retour = `/odj/${dateAg ? `${copro.code}__${dateAg}` : copro.code}`;
+  // `dateAg` arrive AFFICHEE ("07/09/2026") : l'injecter telle quelle dans l'URL cassait
+  // le lien (les slashes -> segments -> 404). L'id de la route ODJ attend l'ISO.
+  const dateAgURL = dateAg && /^\d{2}\/\d{2}\/\d{4}$/.test(dateAg)
+    ? dateAg.split("/").reverse().join("-")
+    : dateAg;
+  const retour = `/odj/${dateAgURL ? `${copro.code}__${dateAgURL}` : copro.code}`;
 
   return (
     <div className="flex flex-col gap-4">
