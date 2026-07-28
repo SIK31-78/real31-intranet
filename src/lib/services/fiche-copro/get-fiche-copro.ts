@@ -2,7 +2,13 @@
 // (CS / historique / conformite) + les prochains evenements (calendrier). Passe par
 // le routeur, jamais un adapter en direct (ADR-001).
 
-import type { Copropriete, DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
+import type {
+  Copropriete,
+  DonneesEstaleCopro,
+  FicheCopro,
+  ItemConformite,
+  MembreEquipe,
+} from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { statutPourDate } from "@/lib/domain/confirmation-evenement";
 import { itemConformitePpt } from "@/lib/domain/conformite-ppt";
@@ -194,6 +200,15 @@ export async function getFicheCopro(
   const collaborateursCs = resoudreCollab(confCs?.collaborateursEmails);
   // (agenceCode : deja resolu en parallele dans le Promise.all ci-dessus.)
 
+  /** Union des deux equipes, dedupliquee par nom (casse/accents ignores). L'entree du
+   *  REFERENTIEL gagne quand les deux connaissent la personne (initiales App A). */
+  const fusionnerEquipes = (ref: MembreEquipe[], est: MembreEquipe[]): MembreEquipe[] => {
+    const cle = (m: MembreEquipe) =>
+      m.nomComplet.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const vus = new Set(ref.map(cle));
+    return [...ref, ...est.filter((m) => !vus.has(cle(m)))];
+  };
+
   /** Le referentiel a-t-il une VRAIE valeur ? ("" / "-" / absent = non renseigne). */
   const estValeur = (v: string | undefined | null): boolean =>
     Boolean(v && v.trim() && v.trim() !== "-");
@@ -221,8 +236,10 @@ export async function getFicheCopro(
     ...(!copro.mandatSyndicFin && estale.mandatSyndicFin
       ? { mandatSyndicFin: estale.mandatSyndicFin }
       : {}),
-    // Equipe : eStale fait foi quand le referentiel n'en a pas (copros eStale-only).
-    ...(copro.equipe.length === 0 && estale.equipe?.length ? { equipe: estale.equipe } : {}),
+    // Equipe : FUSION referentiel + eStale (dedup par nom). Un "remplacement si vide"
+    // ne suffisait pas : la liste peut ne connaitre que le gestionnaire alors qu'eStale
+    // connait aussi le comptable / l'assistant (cas S305 : Oceane sans Elsa).
+    ...(estale.equipe?.length ? { equipe: fusionnerEquipes(copro.equipe, estale.equipe) } : {}),
     // DERNIERE AG TENUE : pour une copro eStale, la date vient d'eStale (source primaire),
     // plus du miroir Supabase - decision Sekou 2026-07-28 ("on build pour eStale").
     ...(!copro.derniereAgDate && historique[0]?.date ? { derniereAgDate: historique[0].date } : {}),
