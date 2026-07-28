@@ -22,7 +22,7 @@ export default async function CalendrierPage() {
 
   return (
     <AppShell user={g} active="calendrier" breadcrumb="Calendrier AG/CS">
-      <div className="mx-auto max-w-[1400px] px-8 py-8">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <div className="mb-5">
           <h1 className="text-[20px] font-medium tracking-tight text-ink">
             Calendrier AG/CS

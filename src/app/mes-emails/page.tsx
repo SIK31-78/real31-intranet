@@ -24,7 +24,7 @@ export default async function MesEmailsPage() {
 
   return (
     <AppShell user={g} active="emails" breadcrumb="Mes e-mails">
-      <div className="mx-auto max-w-[1100px] px-8 py-8">
+      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <form action={synchroniserAction} className="mb-4 flex items-center justify-end gap-3">
           {data.dateCourante ? (
             <span className="text-[12px] text-ink-3">{data.dateCourante}</span>

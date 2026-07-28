@@ -47,7 +47,7 @@ export default async function SupervisionAgPage({
       active="aucun"
       breadcrumb={`Supervision AG · ${supervision.copro.nomCourt}`}
     >
-      <div className="mx-auto max-w-[1100px] px-8 py-8">
+      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <SupervisionVue
           supervision={supervision}
           cycle={cycle}

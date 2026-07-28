@@ -19,7 +19,7 @@ export default async function ComptaPage() {
 
   return (
     <AppShell user={g} active="compta" breadcrumb="Pôle compta">
-      <div className="mx-auto max-w-[1000px] px-8 py-8 flex flex-col gap-5">
+      <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
         <div>
           <h1 className="text-[20px] font-semibold text-ink flex items-center gap-2">
             <Calculator strokeWidth={1.5} className="w-5 h-5 text-green-700" />

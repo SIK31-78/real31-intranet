@@ -45,7 +45,7 @@ export default async function AnnoncesAdminPage() {
 
   return (
     <AppShell user={g} active="annonces" breadcrumb="Administration / Annonces">
-      <div className="mx-auto max-w-[900px] px-8 py-8">
+      <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <h1 className="text-[20px] font-medium tracking-tight text-ink mb-1">Annonces</h1>
         <p className="text-[13px] text-ink-3 mb-4">
           Les messages du réseau affichés sur l&apos;<span className="font-medium">accueil</span> de tous les

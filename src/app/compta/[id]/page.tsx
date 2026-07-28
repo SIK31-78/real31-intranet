@@ -35,7 +35,7 @@ export default async function ComptaDetailPage({ params }: { params: Promise<{ i
 
   return (
     <AppShell user={g} active="compta" breadcrumb={`Pôle compta · ${code}`}>
-      <div className="mx-auto max-w-[820px] px-8 py-8 flex flex-col gap-5">
+      <div className="mx-auto max-w-[820px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
         <div>
           <Link href="/comptabilite" className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700">
             <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Comptabilité

@@ -46,7 +46,7 @@ export default async function AccueilPage() {
 
   return (
     <AppShell user={g} active="accueil" breadcrumb="Accueil">
-      <div className="mx-auto max-w-[1100px] px-8 py-8 flex flex-col gap-8">
+      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-8">
         {/* EN-TETE : "Bonjour X" + date. Ex-dashboard (demantele, Sekou 2026-07-22). */}
         <DashboardHeader gestionnaire={g} dateCourante={formatDateLongue(today)} />
 

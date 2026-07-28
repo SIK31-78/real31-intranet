@@ -20,7 +20,7 @@ export default async function SinistreLayout({ children }: { children: React.Rea
 
   return (
     <AppShell user={g} active="sinistres" breadcrumb="Sinistre">
-      <div className="sinistre-root mx-auto max-w-[1100px] px-8 py-8 print-container">
+      <div className="sinistre-root mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8 print-container">
         <SinistreProviders>{children}</SinistreProviders>
       </div>
     </AppShell>

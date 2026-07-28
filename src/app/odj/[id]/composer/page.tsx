@@ -22,7 +22,7 @@ export default async function ComposerPage({ params }: { params: Promise<{ id: s
 
   return (
     <AppShell user={g} active="resolutions" breadcrumb={`Mode CS - ${odj.copro.nom}`}>
-      <div className="mx-auto max-w-[1280px] px-8 py-8">
+      <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <ComposerOdj copro={odj.copro} dateAg={odj.dateAg} data={data} assemblee={assemblee} />
       </div>
     </AppShell>

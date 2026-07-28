@@ -31,7 +31,7 @@ export default async function FeedbackAdminPage() {
 
   return (
     <AppShell user={g} active="feedback" breadcrumb="Administration / Feedback">
-      <div className="mx-auto max-w-[1100px] px-8 py-8">
+      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <h1 className="text-[20px] font-medium tracking-tight text-ink mb-1">Feedback</h1>
         <p className="text-[13px] text-ink-3 mb-4">
           Les remontées des collaborateurs (bugs et idées). Trie, priorise, fais avancer le statut —

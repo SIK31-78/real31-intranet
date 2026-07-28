@@ -71,7 +71,7 @@ export default async function NouveautesPage() {
 
   return (
     <AppShell user={g} active="nouveautes" breadcrumb="Nouveautés">
-      <div className="mx-auto max-w-[820px] px-8 py-8 flex flex-col gap-8">
+      <div className="mx-auto max-w-[820px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-8">
         <header className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-700">
             <Sparkles strokeWidth={1.5} className="h-5 w-5" />

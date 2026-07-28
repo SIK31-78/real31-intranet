@@ -27,7 +27,7 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
 
   return (
     <AppShell user={g} active="aucun" breadcrumb={`ODJ - ${odj.copro.nom}`}>
-      <div className="mx-auto max-w-[1380px] px-8 py-8 flex items-start gap-6">
+      <div className="mx-auto max-w-[1380px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex items-start gap-6">
         <div className="flex-1 min-w-0 max-w-[900px] flex flex-col gap-5">
         <div>
           <div className="flex items-start justify-between gap-4">

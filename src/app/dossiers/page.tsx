@@ -19,7 +19,7 @@ export default async function DossiersPage() {
   // Les dossiers vivent sur l'accueil : pas d'entree sidebar propre -> on surligne "Accueil".
   return (
     <AppShell user={g} active="accueil" breadcrumb="Dossiers">
-      <div className="mx-auto max-w-[1100px] px-8 py-8">
+      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <h1 className="text-[20px] font-medium tracking-tight text-ink mb-4">Dossiers</h1>
         <DossiersVue dossiers={dossiers} copros={listeCopros} />
       </div>

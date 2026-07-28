@@ -36,7 +36,7 @@ export default async function RecapAgPage() {
 
   return (
     <AppShell user={g} active="recap-ag" breadcrumb="Récap AG">
-      <div className="mx-auto flex max-w-[1000px] flex-col gap-5 px-8 py-8">
+      <div className="mx-auto flex max-w-[1000px] flex-col gap-5 px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <div>
           <h1 className="flex items-center gap-2 text-[20px] font-semibold text-ink">
             <ClipboardList strokeWidth={1.5} className="h-5 w-5 text-green-700" />
