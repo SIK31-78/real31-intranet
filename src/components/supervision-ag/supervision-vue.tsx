@@ -66,10 +66,15 @@ export function SupervisionVue({
 
   // Anti-blocage : phases deverrouillees a la main malgre le palier (l'utilisateur
   // assume). Etat de session (la phase se deverrouille de toute facon quand la
-  // precedente est terminee).
+  // precedente est terminee). `derniereForcee` = la phase a DEPLOYER : au
+  // deverrouillage, elle s'ouvre et les autres se REPLIENT (gain de clics, Sekou
+  // 2026-07-28) - applique par remontage (cle epoch = forcees.size).
   const [forcees, setForcees] = useState<Set<string>>(new Set());
-  const deverrouiller = (id: string) =>
+  const [derniereForcee, setDerniereForcee] = useState<string | null>(null);
+  const deverrouiller = (id: string) => {
     setForcees((prev) => new Set(prev).add(id));
+    setDerniereForcee(id);
+  };
 
   // Module interne ouvert en modale (recap / depassement CS), pre-scope a la copro.
   // Jamais en lecture seule (AG conclue / role lecture) : ces modales ecrivent.
@@ -101,15 +106,16 @@ export function SupervisionVue({
         )}
         {phasesAG.map((section, i) => (
           <ChecklistSection
-            // Cle changee au deverrouillage force : remonte le composant avec
-            // ouvertParDefaut=true -> la section se DEPLOIE dans le meme clic
-            // (avant : deverrouillee mais repliee, un clic de plus pour l'ouvrir).
-            key={forcees.has(section.id) ? `${section.id}-deverrouillee` : section.id}
+            // Cle "epoch" (nb de deverrouillages) : chaque Deverrouiller remonte les
+            // sections avec leurs nouveaux defauts -> la phase forcee se DEPLOIE et
+            // les autres (dont la precedente) se REPLIENT, le tout dans le meme clic.
+            // Sans deverrouillage force (vie normale) : cle stable, courante ouverte.
+            key={`${section.id}-${forcees.size}`}
             section={section}
             agDateISO={agDateISO}
             aujourdhuiISO={aujourdhuiISO}
             lectureSeule={lectureSeule}
-            ouvertParDefaut={i === indexCourante || forcees.has(section.id)}
+            ouvertParDefaut={derniereForcee ? section.id === derniereForcee : i === indexCourante}
             verrouille={i > indexCourante && !forcees.has(section.id)}
             onDeverrouiller={() => deverrouiller(section.id)}
             onCocher={onCocher}
