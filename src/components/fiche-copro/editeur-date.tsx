@@ -6,6 +6,7 @@ import { formatDateLongue, formatHeure } from "@/lib/format-date";
 import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
 import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
+import { alerteDelaiAg } from "@/lib/domain/jalons-ag/alerte-delai";
 import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
 import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { partitionnerParAgence } from "@/lib/domain/cloisonnement-agence";
@@ -35,6 +36,13 @@ const MODE_LABEL: Record<ModeReunion, string> = {
   presentiel: "Présentiel",
   hybride: "Hybride",
 };
+
+/** "dans 6 semaines" / "dans 9 jours" : on bascule en jours sous 2 semaines, ou "6 sem."
+ *  serait plus flou qu'utile a l'approche de l'echeance. */
+function echeanceLisible(joursAvant: number, semainesAvant: number): string {
+  if (semainesAvant >= 2) return `dans ${semainesAvant} semaines`;
+  return `dans ${joursAvant} jour${joursAvant > 1 ? "s" : ""}`;
+}
 
 /** Un collaborateur (collegue) associable a une reunion : email + nom lisible. */
 type Collaborateur = { email: string; nom: string };
@@ -199,6 +207,14 @@ export function EditeurDate({
   const inchange = valeurSaisie === valeurEnregistree && ressourceInchangee;
 
   const avertissement = dateVal ? avertissementDateReunion(quand, dateVal, todayISO) : null;
+
+  // Retroplanning AG (Sekou 2026-07-28) : une date d'AG traine deux jalons derriere elle
+  // (CS de validation de l'ODJ a J-45, mise sous pli a J-31). Plutot qu'une alerte seche
+  // "c'est court", on affiche ces deux echeances : le gestionnaire voit ses vraies dates
+  // butoir au lieu de subir un avertissement. Calcule sur la SAISIE EN COURS (`dateVal`)
+  // et pas sur la valeur enregistree : l'impact se voit AVANT de valider. Jamais bloquant.
+  const delaiAg =
+    type === "ag" && quand === "prochaine" && dateVal ? alerteDelaiAg(dateVal, todayISO) : null;
 
   // Creneau interroge et resultat correspondant a la saisie courante (null tant qu'on
   // n'a pas de reponse pour CE creneau -> affichage "Vérification...").
@@ -846,6 +862,35 @@ export function EditeurDate({
       {/* Avertissement non bloquant (date passee/future incoherente). */}
       {avertissement && !erreur && (
         <span className="text-[11px] text-warn-700">{avertissement}</span>
+      )}
+      {/* Retroplanning AG : delai trop court pour tenir le CS puis la mise sous pli.
+          NON bloquant - une AG serree reste parfois la seule option, c'est le gestionnaire
+          qui tranche. Ambre quand seul le CS serre, rouge quand la convocation ne peut
+          plus partir dans les temps. */}
+      {delaiAg && !erreur && (
+        <span
+          className={
+            "inline-flex flex-col gap-0.5 text-[11px] " +
+            (delaiAg.niveau === "critique" ? "text-err-700" : "text-warn-700")
+          }
+          aria-live="polite"
+        >
+          <span className="font-medium">
+            AG {echeanceLisible(delaiAg.joursAvant, delaiAg.semainesAvant)} —{" "}
+            {delaiAg.niveau === "critique"
+              ? "la convocation ne peut plus partir dans les temps."
+              : "délai court pour tenir le CS puis convoquer."}
+          </span>
+          <span className={delaiAg.odjCsDepasse ? undefined : "text-ink-3"}>
+            · ODJ à valider en CS avant le {formatDateLongue(delaiAg.odjCsISO)}
+            {delaiAg.odjCsDepasse && " — échéance dépassée"}
+          </span>
+          <span className={delaiAg.convocDepassee ? undefined : "text-ink-3"}>
+            · Mise sous pli avant le {formatDateLongue(delaiAg.convocISO)}
+            {delaiAg.convocDepassee && " — échéance dépassée"}
+          </span>
+          <span className="text-ink-3">Tu peux fixer cette date quand même.</span>
+        </span>
       )}
       {/* Erreur d'enregistrement : fini l'echec silencieux. Si l'echec est FORCABLE (agenda /
           collegue occupe cote serveur), on propose "Fixer quand meme" (relance avec forcer). */}
