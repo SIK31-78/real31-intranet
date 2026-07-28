@@ -42,6 +42,8 @@ import { GraphMailIngestionProvider } from "@/lib/adapters/mail/graph-mail-inges
 import type { SignatureProvider } from "@/lib/ports/signature-provider";
 import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
+import { SansSignatureProvider } from "@/lib/adapters/mock/sans-signature-provider";
+import { mailModuleActif } from "@/lib/domain/mail-gate";
 import type { AnalyseCacheStore } from "@/lib/ports/analyse-cache-store";
 import { MockAnalyseCacheStore } from "@/lib/adapters/mock/mock-analyse-cache-store";
 import { SupabaseAnalyseCacheStore } from "@/lib/adapters/supabase/supabase-analyse-cache-store";
@@ -361,10 +363,19 @@ export function getCalendrierOutboundProvider(): CalendrierOutboundProvider {
 }
 
 // Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie
-// signature ; sinon mock (rendu de demo). Sert a "reprendre la signature" a l'envoi.
+// signature. Sert a "reprendre la signature" a l'envoi.
+//
+// SANS cle, le repli depend de ce qu'on est en train d'envoyer -- et c'est TOUT le sujet
+// (incident Sekou 2026-07-28) :
+//   - envoi REEL (MAIL_SOURCE=graph) -> AUCUNE signature. Un mail au conseil syndical est
+//     parti avec la signature de demonstration ("REAL31 - Gestionnaire de copropriete")
+//     vers de vrais destinataires, parce que le mock ne sait pas dans quel contexte il
+//     sert. Une signature manquante se voit et se corrige ; une fausse engage le cabinet.
+//   - envoi MOCK (dev, aucun mail ne part) -> signature de demo, pour travailler le rendu
+//     du cockpit sans cle Signitic. C'est son seul usage legitime.
 export function getSignatureProvider(): SignatureProvider {
   if (process.env.SIGNITIC_API_KEY) return new SigniticSignatureProvider();
-  return new MockSignatureProvider();
+  return mailModuleActif() ? new SansSignatureProvider() : new MockSignatureProvider();
 }
 
 // Etat de l'ODJ (saisies du gestionnaire + points legaux retires). En reel :
