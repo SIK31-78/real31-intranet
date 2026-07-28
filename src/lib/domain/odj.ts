@@ -22,6 +22,45 @@ export interface ChampOdj {
   alerte?: string;
   /** Saisissable par le gestionnaire (la saisie prime sur la valeur auto). */
   editable?: boolean;
+  /** La valeur vient d'une SAISIE du gestionnaire (intranet_odj_champs), pas de l'auto.
+   *  Pose par la superposition de l'etat dans get-odj. Sans ce marqueur, impossible de
+   *  distinguer "Estale a rempli le champ" de "le gestionnaire l'a tape a la main". */
+  saisi?: boolean;
+}
+
+/** Ce qu'on AFFICHE comme provenance d'un champ (badge de la ligne d'ODJ). */
+export type ProvenanceChamp = "saisi" | "auto" | "auto-jalon" | "calcul" | "a-venir" | "a-saisir";
+
+/**
+ * Provenance REELLE d'un champ (bug remonte par Sekou 2026-07-28 : "beaucoup de boutons
+ * qui sont deja auto mais sont comme 'a venir'").
+ *
+ * Le badge ne peut PAS se deduire de la seule `source` declaree : 15 champs sont declares
+ * `estale` parce que c'est de la qu'ils viendront, mais une bonne partie est DEJA
+ * alimentee (budget, depenses, eau, fonds travaux, debiteurs, contrats...). Les afficher
+ * "a venir" alors qu'ils portent une valeur fait mentir l'ecran et fait douter le
+ * gestionnaire d'une donnee pourtant juste.
+ *
+ * On tranche donc sur la PRESENCE d'une valeur, pas sur l'intention. Effet de bord
+ * heureux : le badge se corrige tout seul au fur et a mesure que la couverture Estale
+ * s'etend, sans avoir a rereferencer les champs un par un.
+ */
+export function provenanceChamp(champ: ChampOdj): ProvenanceChamp {
+  // La saisie du gestionnaire prime sur tout : c'est LUI la source.
+  if (champ.saisi) return "saisi";
+  switch (champ.source) {
+    case "jalon":
+      return "auto-jalon";
+    case "calcul":
+      return "calcul";
+    case "manuel":
+      return "a-saisir";
+    case "supabase":
+      // Referentiel : une valeur = auto ; rien = le referentiel ne l'a pas -> a saisir.
+      return champ.valeur ? "auto" : "a-saisir";
+    case "estale":
+      return champ.valeur ? "auto" : "a-venir";
+  }
 }
 
 export interface SectionOdj {

@@ -2,15 +2,18 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { Pencil, AlertTriangle } from "lucide-react";
-import type { ChampOdj, SourceDonnee } from "@/lib/domain/odj";
-import { formatChampValeur } from "@/lib/domain/odj";
+import type { ChampOdj, ProvenanceChamp } from "@/lib/domain/odj";
+import { formatChampValeur, provenanceChamp } from "@/lib/domain/odj";
 
-const SOURCE_LABEL: Record<SourceDonnee, { texte: string; cls: string }> = {
-  supabase: { texte: "auto", cls: "bg-ok-50 text-ok-700" },
-  jalon: { texte: "auto (jalon)", cls: "bg-ok-50 text-ok-700" },
+// Le badge suit la provenance REELLE du champ (cf. provenanceChamp), pas la source
+// declaree : un champ Estale deja alimente affiche "auto", pas "a venir".
+const PROVENANCE_LABEL: Record<ProvenanceChamp, { texte: string; cls: string }> = {
+  auto: { texte: "auto", cls: "bg-ok-50 text-ok-700" },
+  "auto-jalon": { texte: "auto (jalon)", cls: "bg-ok-50 text-ok-700" },
   calcul: { texte: "calculé", cls: "bg-ok-50 text-ok-700" },
-  estale: { texte: "à venir (Estale)", cls: "bg-info-50 text-info-700" },
-  manuel: { texte: "à saisir", cls: "bg-surface-2 text-ink-3" },
+  saisi: { texte: "saisi", cls: "bg-ok-50 text-ok-700" },
+  "a-venir": { texte: "à venir (Estale)", cls: "bg-info-50 text-info-700" },
+  "a-saisir": { texte: "à saisir", cls: "bg-surface-2 text-ink-3" },
 };
 
 export function LigneChamp({
@@ -23,7 +26,7 @@ export function LigneChamp({
   const [edition, setEdition] = useState(false);
   const [draft, setDraft] = useState("");
   const [pending, startTransition] = useTransition();
-  const src = SOURCE_LABEL[champ.source];
+  const src = PROVENANCE_LABEL[provenanceChamp(champ)];
   const affiche = formatChampValeur(champ);
 
   const enregistrer = (e: FormEvent) => {

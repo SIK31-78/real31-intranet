@@ -11,6 +11,8 @@ import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { ODJ_SANS_DATE, PREFIXE_POINT } from "@/lib/ports/odj-repository";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import { DELAIS_CABINET } from "@/lib/domain/jalons-ag/cabinet/real31-defaults";
+import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
+import { adresseRessource } from "@/lib/domain/salles-reunion";
 
 function parse(id: string): { code: string; agDate?: string } {
   const i = id.indexOf("__");
@@ -134,6 +136,14 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     : undefined;
   // AG en visio : pre-rempli depuis Estale (meetingVideo) ; le gestionnaire ajuste.
   const visioInitial = estale?.agVisioAcceptee != null ? (estale.agVisioAcceptee ? "oui" : "non") : undefined;
+  // Lieu de l'AG : pre-rempli depuis la SALLE reservee pour l'AG (fiche copro / editeur de
+  // date), rendue en ADRESSE POSTALE seule -- le convoque a besoin de savoir ou aller, pas
+  // du nom interne de la salle (demande Sekou 2026-07-28). Le gestionnaire garde la main :
+  // le champ reste editable et sa saisie prime (AG hors les murs, salle municipale...).
+  // Degrade proprement : aucune salle reservee, ou salle sans adresse -> champ vide a saisir.
+  const confirmationAg = (await getConfirmations(code)).find((c) => c.type === "AG");
+  const lieuSalle = adresseRessource(confirmationAg?.salleEmail);
+
   const RAPPORT_CS =
     "Le syndic rappelle au CS qu'un rapport / compte rendu de son activité sur l'année devra nous être adressé afin d'être joint à la convocation.";
 
@@ -146,7 +156,10 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
         ? undefined
         : "Date de CS non renseignee : a planifier (fiche copro ou supervision).",
     }),
-    champ("lieu", "Lieu de l'AG", "manuel", { editable: true }),
+    champ("lieu", "Lieu de l'AG", lieuSalle ? "supabase" : "manuel", {
+      editable: true,
+      ...(lieuSalle ? { valeur: lieuSalle } : {}),
+    }),
     champ("visio", "AG en visio (hybride)", visioInitial != null ? "estale" : "manuel", {
       editable: true,
       type: "booleen",
@@ -232,7 +245,9 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   const appliquer = (c: ChampOdj): ChampOdj => {
     const v = saisies.get(c.id);
     if (!v) return c;
-    const corrige = { ...c, valeur: v };
+    // `saisi` marque l'origine : sans lui, le badge ne saurait pas distinguer une valeur
+    // remplie par Estale d'une valeur tapee par le gestionnaire (cf. provenanceChamp).
+    const corrige = { ...c, valeur: v, saisi: true };
     delete corrige.alerte; // la saisie leve l'alerte
     return corrige;
   };

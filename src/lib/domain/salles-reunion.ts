@@ -21,24 +21,38 @@ export interface RessourceReunion {
   agence?: AgenceReunion;
   /** Salle de debordement (ex. cuisine) : d'appoint, distinguee dans l'UI. */
   debordement?: boolean;
+  /** Adresse POSTALE du lieu (salles seulement). Sert a pre-remplir "Lieu de l'AG" sur
+   *  l'ODJ : le convoque a besoin d'une adresse, pas d'un nom de salle interne
+   *  (demande Sekou 2026-07-28 : "pas besoin de mettre les noms des salles").
+   *  Plusieurs salles partagent la meme adresse (les 3 salles LGC sont au meme endroit). */
+  adresse?: string;
 }
+
+// Adresses des sites REAL31 (Sekou, 2026-07-28). Definies une fois et partagees par les
+// salles d'un meme site : ajouter une salle a LGC ne demande pas de retaper l'adresse.
+// JF est une annexe de l'agence LGC mais a sa PROPRE adresse (meme commune).
+const ADRESSE_LGC = "13 rond-point du Souvenir Français, 92250 La Garenne-Colombes";
+const ADRESSE_JF = "38 rue Jules Ferry, 92250 La Garenne-Colombes";
+const ADRESSE_ML = "31 rue du Prieuré, 78600 Maisons-Laffitte";
+const ADRESSE_HLS = "3 place Michelet, 78800 Houilles";
 
 // Liste FERMEE des ressources REAL31. Toute reservation cible une de ces boites.
 export const RESSOURCES_REAL31: readonly RessourceReunion[] = [
-  { email: "real31lgc@real31.fr", nom: "LGC - Salle de reunions", type: "salle", agence: "LGC" },
-  { email: "real31lgc2eme@real31.fr", nom: "LGC - 2eme etage", type: "salle", agence: "LGC" },
+  { email: "real31lgc@real31.fr", nom: "LGC - Salle de reunions", type: "salle", agence: "LGC", adresse: ADRESSE_LGC },
+  { email: "real31lgc2eme@real31.fr", nom: "LGC - 2eme etage", type: "salle", agence: "LGC", adresse: ADRESSE_LGC },
   {
     email: "real31lgccuisine@real31.fr",
     nom: "LGC - Cuisine (debordement)",
     type: "salle",
     agence: "LGC",
     debordement: true,
+    adresse: ADRESSE_LGC,
   },
   // Annexe du quartier JF : elle appartient a l'agence LGC (decision Sekou). On garde
   // son email et son nom d'affichage ; seul le TAG d'agence change (JF -> LGC).
-  { email: "real31JF@real31.fr", nom: "JF - Salle de reunions", type: "salle", agence: "LGC" },
-  { email: "REAL.31.HLS@real31.fr", nom: "HLS - Salles de reunions", type: "salle", agence: "HLS" },
-  { email: "REAL31ML@real31.fr", nom: "ML - Salle de reunions", type: "salle", agence: "ML" },
+  { email: "real31JF@real31.fr", nom: "JF - Salle de reunions", type: "salle", agence: "LGC", adresse: ADRESSE_JF },
+  { email: "REAL.31.HLS@real31.fr", nom: "HLS - Salles de reunions", type: "salle", agence: "HLS", adresse: ADRESSE_HLS },
+  { email: "REAL31ML@real31.fr", nom: "ML - Salle de reunions", type: "salle", agence: "ML", adresse: ADRESSE_ML },
   { email: "zoe@real31.fr", nom: "Voiture ZOE", type: "vehicule" },
 ];
 
@@ -61,6 +75,15 @@ export function ressourceParEmail(email: string | null | undefined): RessourceRe
   if (!email) return undefined;
   const cible = email.trim().toLowerCase();
   return RESSOURCES_REAL31.find((r) => r.email.toLowerCase() === cible);
+}
+
+/**
+ * Adresse POSTALE de la ressource reservee, ou undefined (email inconnu, vehicule, ou
+ * salle sans adresse renseignee). Sert a pre-remplir "Lieu de l'AG" sur l'ODJ : on rend
+ * l'ADRESSE seule, jamais le nom interne de la salle - le convoque doit savoir OU aller.
+ */
+export function adresseRessource(email: string | null | undefined): string | undefined {
+  return ressourceParEmail(email)?.adresse;
 }
 
 /** Un attendee Graph de type "resource" (salle / vehicule ajoute a un evenement). */
