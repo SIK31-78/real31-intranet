@@ -417,9 +417,9 @@ export function MesEmailsVue({
         nbClasses={nbClasses}
       />
 
-      <div className="flex gap-5 items-start">
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
         {/* Volet gauche : la boite */}
-        <aside className="w-[300px] shrink-0 flex flex-col gap-2.5">
+        <aside className="w-full lg:w-[300px] shrink-0 flex flex-col gap-2.5">
           {/* Dossiers (vues) : Reçus / Traités / Tous */}
           <div className="flex items-center gap-1">
             {DOSSIERS.map((d) => (
