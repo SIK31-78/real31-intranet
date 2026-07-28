@@ -7,6 +7,7 @@ import type { AssembleeAg, MotionAg, OrdreMotion, ResolutionLibre } from "@/lib/
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 import { rangParent } from "@/lib/domain/resolution";
 import { estaleGql } from "./client";
+import { resoudreCondoId } from "./condos-accessibles";
 
 // createMotion attend un `type` (chaine Estale) : "generic" = resolution normale,
 // "group" = en-tete de groupe. La majorite est l'enum MeetingMotionMajority.
@@ -31,32 +32,16 @@ type BankFull = {
   comment: string | null;
 };
 
-function normaliserRef(ref: string): string {
-  const m = ref.trim().toUpperCase().match(/^([A-Z]+)0*(\d+)$/);
-  return m ? `${m[1]}${m[2]}` : ref.trim().toUpperCase();
-}
-
-// --- Resolution reference -> condo id (cache module, TTL court) --------------
+// --- Resolution reference -> condo id (helper partage) ----------------------
 // Meme approche que EstaleCondoProvider : la liste complete des condos accessibles
 // etait refetchee a CHAQUE appel (getAssemblee, creerAssemblee, appliquerOdj en
 // refaisaient chacun une) alors qu'elle ne bouge pas a l'echelle de la minute.
-type CondoRef = { id: string; reference: string };
-let cacheCondos: { liste: CondoRef[]; expire: number } | null = null;
-const TTL_CONDOS_MS = 10 * 60 * 1000;
-
-async function condosAccessibles(): Promise<CondoRef[]> {
-  if (!cacheCondos || Date.now() > cacheCondos.expire) {
-    const data = await estaleGql<{ me: { collaborator: { condos: CondoRef[] } } }>(
-      `{ me { collaborator { condos(archived: false) { id reference } } } }`,
-    );
-    cacheCondos = { liste: data.me.collaborator.condos, expire: Date.now() + TTL_CONDOS_MS };
-  }
-  return cacheCondos.liste;
-}
-
+// Resolution deleguee au helper PARTAGE (union collaborator + agency + accesses,
+// cf. condos-accessibles.ts) : `me.collaborator.condos` seul ne resolvait que les
+// copros dont le compte de service est gestionnaire attitre (2 sur 8 le 2026-07-28)
+// -> l'ODJ / le composer d'une AG d'une AUTRE copro eStale ne trouvait aucune AG.
 async function resoudreCondoIdCache(coproCode: string): Promise<string | null> {
-  const cible = normaliserRef(coproCode);
-  return (await condosAccessibles()).find((c) => normaliserRef(c.reference) === cible)?.id ?? null;
+  return resoudreCondoId(coproCode);
 }
 
 const MAJORITES = new Set<MajoriteResolution>([

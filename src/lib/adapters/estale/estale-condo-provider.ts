@@ -14,29 +14,14 @@ import type {
   MembreConseilSyndical,
 } from "@/lib/domain/copropriete";
 import { estaleGql } from "./client";
+import { resoudreCondoId } from "./condos-accessibles";
 
-// --- Resolution reference -> condo id (cache module, TTL court) -------------
-
-type CondoRef = { id: string; reference: string };
-let cacheCondos: { liste: CondoRef[]; expire: number } | null = null;
-const TTL_MS = 10 * 60 * 1000;
-
-/** "S0299" / "s299 " -> "S299" : prefixe lettre + numero sans zeros de tete. */
-function normaliserRef(ref: string): string {
-  const m = ref.trim().toUpperCase().match(/^([A-Z]+)0*(\d+)$/);
-  return m ? `${m[1]}${m[2]}` : ref.trim().toUpperCase();
-}
-
-async function resoudreCondoId(code: string): Promise<string | null> {
-  if (!cacheCondos || Date.now() > cacheCondos.expire) {
-    const data = await estaleGql<{ me: { collaborator: { condos: CondoRef[] } } }>(
-      `{ me { collaborator { condos(archived: false) { id reference } } } }`,
-    );
-    cacheCondos = { liste: data.me.collaborator.condos, expire: Date.now() + TTL_MS };
-  }
-  const cible = normaliserRef(code);
-  return cacheCondos.liste.find((c) => normaliserRef(c.reference) === cible)?.id ?? null;
-}
+// --- Resolution reference -> condo id ---------------------------------------
+// Passe par le helper PARTAGE (union collaborator + agency + accesses) : cf.
+// condos-accessibles.ts. Avant, `me.collaborator.condos` seul ne resolvait que les
+// copros dont le compte de service est gestionnaire attitre (2 sur 8 mesurees le
+// 2026-07-28) -> les 6 autres s'affichaient dans la liste (via agency) mais leur
+// fiche n'avait AUCUNE donnee eStale.
 
 // --- Donnees condo -----------------------------------------------------------
 
