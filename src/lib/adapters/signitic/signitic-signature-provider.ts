@@ -26,12 +26,25 @@ export class SigniticSignatureProvider implements SignatureProvider {
         headers: { "x-api-key": key },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      if (!r.ok) return null;
+      // Trace DISCRETE et sans PII (statut HTTP seul, jamais l'email) : la degradation
+      // est volontaire (le mail part sans signature, c'est un confort), mais elle etait
+      // TOTALEMENT muette -- "la signature n'est pas passee" (Sekou, 2026-07-28) ne
+      // laissait aucun moyen de distinguer une cle invalide (401/403) d'une signature
+      // inexistante (404) sans rejouer l'appel a la main.
+      if (!r.ok) {
+        console.warn(`[signitic] signature non recuperee : HTTP ${r.status} (mail envoye sans signature)`);
+        return null;
+      }
       const html = (await r.text()).trim();
-      if (!html) return null;
+      if (!html) {
+        console.warn("[signitic] signature vide renvoyee par l'API (mail envoye sans signature)");
+        return null;
+      }
       cacheSignatures.set(email, { html, expire: Date.now() + TTL_MS });
       return html;
-    } catch {
+    } catch (e) {
+      // Timeout / reseau. Le nom de l'erreur suffit a distinguer un AbortError d'un DNS.
+      console.warn(`[signitic] signature injoignable (${(e as Error).name}) : mail envoye sans signature`);
       return null;
     }
   }

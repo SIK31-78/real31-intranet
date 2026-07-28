@@ -419,3 +419,49 @@ payé le prix d'un générateur de PDF pour rien.
 - **Réversible** : on doit pouvoir rouvrir un ODJ clôturé par erreur (aucune écriture
   externe n'est engagée à ce stade).
 - **Ne PAS** générer de PDF ni pousser quoi que ce soit dans eStale dans cette brique.
+
+---
+
+## 9. Signature Signitic absente du mail au CS — et le mock peut partir en VRAI mail
+
+**Gravité** : gênant pour le symptôme, **risqué** pour ce qu'il révèle.
+**Signalé par Sekou** le 28/07 : « dans l'envoi de mail au CS la signature n'est pas passée ».
+
+### Ce qui est vérifié et hors de cause
+
+- **L'API Signitic répond** : `GET /signatures/sekou.koma@real31.fr/html` → **HTTP 200**,
+  12 529 octets, en **~250 ms** (4 appels mesurés). Insensible à la casse de l'email.
+- **Pas un timeout** : `SIGNITIC_TIMEOUT_MS` vaut 10 s par défaut, on est 40× en dessous.
+- **La chaîne de code est correcte** : `envoyerMailReunionAction` récupère la signature
+  (`getSignatureGestionnaire`) et la passe à `envoyerMailReunion` ; l'adapter Graph
+  concatène bien `monTexte + signature` dans `envoyerNeuf`.
+
+### Le discriminant (à faire confirmer par Sekou)
+
+Les deux causes restantes donnent des symptômes **opposés** — la réponse tranche seule :
+
+| Ce que Sekou a vu | Cause |
+|---|---|
+| **Aucune signature du tout** | `SIGNITIC_API_KEY` **présente mais invalide/expirée** sur Vercel → le vrai adapter part, reçoit un 401/403, et retourne `null`. |
+| **Une signature générique qui n'est pas la sienne** (« REAL31 - Gestionnaire de copropriété », barre verte) | `SIGNITIC_API_KEY` **absente** sur Vercel → `getSignatureProvider()` (`router.ts:366`) bascule sur `MockSignatureProvider`. |
+
+**Trace ajoutée** (commit du 28/07) : l'adapter loguait `null` en silence sur les trois
+chemins d'échec. Il émet désormais un `console.warn` discret et **sans PII** (statut HTTP
+seul, jamais l'email) — visible dans les logs Vercel, il donnera la réponse directement.
+
+### ⚠️ Le vrai risque : le mock n'a aucune conscience du contexte
+
+`getSignatureProvider()` bascule sur le mock dès que `SIGNITIC_API_KEY` est absente —
+**sans regarder si le mail qui part est réel**. Or `MAIL_SOURCE=graph` est actif en prod.
+Conséquence : **un vrai mail au conseil syndical peut partir avec une fausse signature**
+(« REAL31 - Gestionnaire de copropriété », adresse `www.real31.fr`), envoyée à de vrais
+copropriétaires depuis la boîte d'un vrai gestionnaire. Le mock a été écrit « pour tester
+le rendu dans le cockpit sans clé Signitic » — un usage de dev qui n'a rien à faire dans un
+envoi réel.
+
+**À faire** : quand le provider de mail est RÉEL (`mailModuleActif()`), ne jamais servir la
+signature mock — mieux vaut **aucune** signature qu'une fausse. Deux façons :
+- borner le choix dans `router.ts` (`getSignatureProvider` renvoie un provider « vide »
+  plutôt que le mock quand `MAIL_SOURCE=graph`) ;
+- ou faire porter au mock un marqueur explicite que l'envoi réel refuse.
+À arbitrer avec Sekou — la première est plus simple, la seconde plus explicite.
