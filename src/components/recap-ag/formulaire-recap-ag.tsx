@@ -195,8 +195,8 @@ export function FormulaireRecapAg({
       <div className="flex flex-col gap-6 px-4 py-4">
         <div>
           <h2 className={section}>Assemblée</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
               <label className={label} htmlFor="copro">Copropriété</label>
               <select id="copro" className={champ} value={coproCode} onChange={(e) => { const v = e.target.value; setCoproCode(v); setJour(copros.find((c) => c.code === v)?.agDateSuggeree ?? ""); }}>
                 {copros.map((c) => (
@@ -218,7 +218,7 @@ export function FormulaireRecapAg({
                 <input id="fin" type="time" className={champ} value={fin} onChange={(e) => setFin(e.target.value)} />
               </div>
             </div>
-            <p className="col-span-2 text-[12px] text-ink-3">
+            <p className="sm:col-span-2 text-[12px] text-ink-3">
               La durée incluse au contrat et la plage horaire sont lues sur la fiche de la
               copropriété. Le dépassement est calculé automatiquement, il n&apos;est pas saisi.
             </p>
@@ -227,7 +227,7 @@ export function FormulaireRecapAg({
 
         <div>
           <h2 className={section}>Décisions votées</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <span className={label}>Comptes approuvés</span>
               <OuiNon id="comptes" valeur={comptesApprouves} onChange={setComptesApprouves} />
@@ -250,7 +250,7 @@ export function FormulaireRecapAg({
             ) : (
               <div />
             )}
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={label} htmlFor="info">Info comptable</label>
               <input id="info" className={champ} value={infoComptable} onChange={(e) => setInfoComptable(e.target.value)} />
             </div>
@@ -259,7 +259,7 @@ export function FormulaireRecapAg({
 
         <div>
           <h2 className={section}>Fonds travaux</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <span className={label}>Un PPT a-t-il été voté à cette AG ?</span>
               <OuiNon id="ppt" valeur={pptVote} onChange={setPptVote} />
@@ -295,7 +295,7 @@ export function FormulaireRecapAg({
               />
             </div>
             {pptVote !== true && (
-              <p className="col-span-2 text-[12px] text-ink-3">
+              <p className="sm:col-span-2 text-[12px] text-ink-3">
                 Sans PPT voté, le fonds travaux est un pourcentage du budget prévisionnel. Le
                 minimum légal est de {POURCENTAGE_FONDS_TRAVAUX_MINIMUM} % : en dessous, un
                 avertissement s&apos;affichera à la validation, sans empêcher d&apos;enregistrer.
@@ -318,9 +318,9 @@ export function FormulaireRecapAg({
           {travaux.length === 0 ? (
             <p className="text-[12px] text-ink-3">Aucun travaux voté.</p>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-2 overflow-x-auto">
               {travaux.map((t, i) => (
-                <li key={i} className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_auto] items-end gap-2">
+                <li key={i} className="grid min-w-[640px] grid-cols-[auto_2fr_1fr_1fr_1fr_auto] items-end gap-2">
                   <div className="w-[80px]">
                     {i === 0 && <label className={label}>Résolution</label>}
                     <input className={champ} value={t.numeroResolution} placeholder="n°" onChange={(e) => setTravaux(travaux.map((x, j) => (j === i ? { ...x, numeroResolution: e.target.value } : x)))} />
@@ -352,7 +352,7 @@ export function FormulaireRecapAg({
 
         <div>
           <h2 className={section}>Nouveau contrat de gestion</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className={label} htmlFor="dcontrat">Début du contrat</label>
               <input id="dcontrat" type="date" className={champ} value={debutContrat} onChange={(e) => setDebutContrat(e.target.value)} />

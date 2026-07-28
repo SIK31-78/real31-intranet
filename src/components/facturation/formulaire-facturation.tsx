@@ -313,7 +313,7 @@ export function FormulaireFacturation({
         )}
 
         {onglet === "depassement_cs" && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={label} htmlFor="jour-cs">Date de la réunion</label>
               <input id="jour-cs" type="date" className={champ} value={jourCs} onChange={(e) => setJourCs(e.target.value)} />
@@ -326,7 +326,7 @@ export function FormulaireFacturation({
               <label className={label} htmlFor="fin-cs">Heure de fin</label>
               <input id="fin-cs" type="time" className={champ} value={finCs} onChange={(e) => setFinCs(e.target.value)} />
             </div>
-            <p className="col-span-2 text-[12px] text-ink-3">
+            <p className="sm:col-span-2 text-[12px] text-ink-3">
               La durée incluse au contrat est lue sur la fiche de la copropriété : elle n&apos;est
               pas saisissable. Le dépassement est arrondi à la demi-heure supérieure, puis cette
               durée est déduite. Si la réunion ne la dépasse pas, aucune facture n&apos;est créée.
@@ -349,7 +349,7 @@ export function FormulaireFacturation({
               ))}
             </div>
             {modeTravaux === "pourcentage" ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className={label} htmlFor="mht">Montant des travaux HT (€)</label>
                   <input id="mht" type="number" step="0.01" min="0" className={champ} value={montantTravauxHt} onChange={(e) => setMontantTravauxHt(e.target.value)} />
@@ -370,7 +370,7 @@ export function FormulaireFacturation({
 
         {onglet === "suivi_sinistre" && (
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className={label} htmlFor="lib-sinistre">Libellé du sinistre</label>
                 <input id="lib-sinistre" className={champ} value={libelleSinistre} onChange={(e) => setLibelleSinistre(e.target.value)} placeholder="Dégât des eaux 3e étage" />
@@ -402,7 +402,7 @@ export function FormulaireFacturation({
         )}
 
         {(onglet === "pre_etat_date" || onglet === "etat_date") && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={label} htmlFor="client">Nom du client</label>
               <input id="client" className={champ} value={nomClient} onChange={(e) => setNomClient(e.target.value)} placeholder="Étude notariale…" />
@@ -411,7 +411,7 @@ export function FormulaireFacturation({
               <label className={label} htmlFor="date-etab">Date d&apos;établissement</label>
               <input id="date-etab" type="date" className={champ} value={dateEtablissement} onChange={(e) => setDateEtablissement(e.target.value)} />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={label} htmlFor="montant-forfait">
                 Montant TTC
                 {chargeTarif && <span className="ml-2 font-normal text-ink-3">(chargement du tarif…)</span>}
