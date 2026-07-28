@@ -80,12 +80,47 @@ export interface PointLegal {
   condition?: string;
 }
 
+/** Cloture de l'ODJ : le CS preparatoire s'est tenu, le document est fige. */
+export interface ClotureOdj {
+  /** Horodatage ISO de la cloture. */
+  le: string;
+  /** Initiales du gestionnaire qui a cloture. */
+  par: string;
+}
+
 export interface Odj {
   copro: { code: string; nom: string; adresse: string };
+  /** Date d'AG LISIBLE (jj/mm/aaaa), pour l'affichage. */
   dateAg?: string;
+  /** La MEME date en ISO 'YYYY-MM-DD'. Necessaire pour reconstruire les ids techniques
+   *  (supervision "CODE__DATE") : l'URL de l'ODJ ne porte pas toujours la date. */
+  dateAgISO?: string;
   enTete: ChampOdj[];
   sections: SectionOdj[];
   pointsLegaux: PointLegal[];
+  /** Presente = ODJ cloture ("reunion terminee") : plus rien n'est modifiable. */
+  cloture?: ClotureOdj;
+}
+
+// --- Cloture ----------------------------------------------------------------
+// Serialisee dans la table d'etat existante (une seule colonne `valeur`), donc en
+// UNE chaine "<ISO>|<initiales>". Format volontairement trivial et testé : pas de JSON
+// a parser defensivement pour deux champs.
+
+/** "2026-07-28T14:05:00.000Z" + "SK" -> "2026-07-28T14:05:00.000Z|SK". */
+export function formatCloture(le: string, par: string): string {
+  return `${le}|${par}`;
+}
+
+/** Inverse de formatCloture. undefined si la valeur est vide ou illisible (on prefere
+ *  un ODJ ouvert a un ODJ fige par une donnee corrompue). */
+export function parseCloture(valeur: string | null | undefined): ClotureOdj | undefined {
+  if (!valeur) return undefined;
+  const i = valeur.indexOf("|");
+  const le = i < 0 ? valeur.trim() : valeur.slice(0, i).trim();
+  const par = i < 0 ? "" : valeur.slice(i + 1).trim();
+  if (!le) return undefined;
+  return { le, par };
 }
 
 // --- Montants ---------------------------------------------------------------

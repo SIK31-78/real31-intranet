@@ -5,8 +5,9 @@
 
 import type { ChampOdj, Odj, SectionOdj, SourceDonnee } from "@/lib/domain/odj";
 import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
-import { pointsLegaux, ecartBudget, parseMontant, formatEuros } from "@/lib/domain/odj";
+import { pointsLegaux, ecartBudget, parseMontant, formatEuros, parseCloture } from "@/lib/domain/odj";
 import { getCoproRepository, getOdjRepository } from "@/lib/adapters/router";
+import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { ODJ_SANS_DATE, PREFIXE_POINT } from "@/lib/ports/odj-repository";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
@@ -242,6 +243,10 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   // ("retire") ou restaures ("inclus"), sinon le defaut du catalogue.
   const etat = await getOdjRepository().getEtat(code, dateAg ?? ODJ_SANS_DATE);
   const saisies = new Map(etat.map((s) => [s.champId, s.valeur]));
+  // Cloture ("reunion terminee") : portee par une cle RESERVEE de la meme table d'etat.
+  // On la retire des saisies pour qu'elle ne soit jamais confondue avec la valeur d'un champ.
+  const cloture = parseCloture(saisies.get(CLE_CLOTURE_ODJ));
+  saisies.delete(CLE_CLOTURE_ODJ);
   const appliquer = (c: ChampOdj): ChampOdj => {
     const v = saisies.get(c.id);
     if (!v) return c;
@@ -296,11 +301,24 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     return p;
   });
 
+  // ODJ cloture = document FIGE : on retire `editable` de TOUS les champs ici, en un seul
+  // endroit, plutot que de faire descendre un booleen "verrouille" dans chaque composant.
+  // Le verrou reste double : l'action serveur refuse aussi la saisie sur un ODJ clos.
+  const figer = (c: ChampOdj): ChampOdj => {
+    if (!c.editable) return c;
+    const copie = { ...c };
+    delete copie.editable;
+    return copie;
+  };
+
   return {
     copro: { code: copro.code, nom: copro.nom, adresse },
-    ...(dateAg ? { dateAg: dateCourte(dateAg) } : {}),
-    enTete: enTeteFinal,
-    sections: sectionsFinales,
+    ...(dateAg ? { dateAg: dateCourte(dateAg), dateAgISO: dateAg.slice(0, 10) } : {}),
+    enTete: cloture ? enTeteFinal.map(figer) : enTeteFinal,
+    sections: cloture
+      ? sectionsFinales.map((s) => ({ ...s, champs: s.champs.map(figer) }))
+      : sectionsFinales,
     pointsLegaux: points,
+    ...(cloture ? { cloture } : {}),
   };
 }

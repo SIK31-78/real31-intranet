@@ -27,3 +27,11 @@ export const ODJ_SANS_DATE = "0001-01-01";
 
 /** Prefixe des cles de points legaux retires. */
 export const PREFIXE_POINT = "point.";
+
+/** Cle RESERVEE portant la cloture de l'ODJ ("reunion terminee", demande Sekou 2026-07-28).
+ *  Le double underscore la sort de l'espace des ids de champs (tous en kebab/point : "lieu",
+ *  "comptes.budget") : aucune collision possible avec une saisie. On reutilise la table
+ *  d'etat existante plutot que d'ajouter une table -- meme parti que PREFIXE_POINT, et
+ *  surtout : zero SQL a passer a la main (le SQL non execute nous a deja coute assez cher
+ *  cette semaine). */
+export const CLE_CLOTURE_ODJ = "__cloture";

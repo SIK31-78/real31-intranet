@@ -10,7 +10,8 @@ import { LigneChamp } from "@/components/odj/ligne-champ";
 import { PointLegalRow } from "@/components/odj/point-legal-row";
 import { PanneauApercu } from "@/components/odj/panneau-apercu";
 import { DocumentOdj } from "@/components/odj/document-odj";
-import { saisirChampAction, togglePointAction } from "./actions";
+import { ClotureOdjBloc } from "@/components/odj/cloture-odj";
+import { saisirChampAction, togglePointAction, cloturerOdjAction } from "./actions";
 
 export const metadata: Metadata = { title: "ODJ - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -24,6 +25,11 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
 
   const onSaisir = saisirChampAction.bind(null, id);
   const onToggle = togglePointAction.bind(null, id);
+  const onCloturer = cloturerOdjAction.bind(null, id);
+  // Id de supervision "CODE__YYYY-MM-DD" : meme convention que partout ailleurs. On le
+  // reconstruit depuis la date ISO de l'ODJ (l'URL, elle, ne la porte pas toujours :
+  // /odj/SE999 vise la prochaine AG sans la nommer). Sans AG datee, pas de cible.
+  const supervisionId = odj.dateAgISO ? `${odj.copro.code}__${odj.dateAgISO}` : undefined;
 
   return (
     <AppShell user={g} active="aucun" breadcrumb={`ODJ - ${odj.copro.nom}`}>
@@ -69,6 +75,16 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
             </div>
           )}
         </div>
+
+        {/* Cloture "reunion terminee" : fige l'ODJ et ouvre la supervision AG. Place en
+            TETE parce que c'est l'action de sortie de cet ecran - et parce qu'une fois
+            clos, le bandeau explique pourquoi plus rien n'est modifiable en dessous. */}
+        <ClotureOdjBloc
+          id={id}
+          {...(odj.cloture ? { cloture: odj.cloture } : {})}
+          {...(supervisionId ? { supervisionId } : {})}
+          onCloturer={onCloturer}
+        />
 
         <Card>
           <CardHeader>

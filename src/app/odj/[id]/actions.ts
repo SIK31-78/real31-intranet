@@ -6,9 +6,12 @@ import {
   saisirChampOdj,
   retirerPointOdj,
 } from "@/lib/services/odj/saisir-champ-odj";
+import { cloturerOdj } from "@/lib/services/odj/cloturer-odj";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
+import { getOdjRepository } from "@/lib/adapters/router";
+import { parseCloture } from "@/lib/domain/odj";
+import { CLE_CLOTURE_ODJ, ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 
 const zId = z.string().trim().min(1).max(160);
@@ -28,11 +31,22 @@ async function autorise(code: string): Promise<Gestionnaire | null> {
   return (await coproAppartient(code, g.id)) ? g : null;
 }
 
+/** L'ODJ est-il cloture ? Verrou SERVEUR : retirer `editable` a l'affichage ne protege
+ *  de rien (un client peut rejouer l'action). Un ODJ clos n'accepte plus aucune ecriture,
+ *  hormis sa propre reouverture. */
+async function estCloture(code: string, agDate: string): Promise<boolean> {
+  const etat = await getOdjRepository().getEtat(code, agDate);
+  return Boolean(parseCloture(etat.find((e) => e.champId === CLE_CLOTURE_ODJ)?.valeur));
+}
+
 export async function saisirChampAction(id: string, champId: string, valeur: string): Promise<void> {
   if (!z.object({ id: zId, champId: zChampId, valeur: zValeur }).safeParse({ id, champId, valeur }).success) return;
+  // La cle de cloture n'est PAS un champ : elle ne passe que par cloturerOdjAction.
+  if (champId === CLE_CLOTURE_ODJ) return;
   const { code, agDate } = parse(id);
   const g = await autorise(code);
   if (!g) return;
+  if (await estCloture(code, agDate)) return;
   await saisirChampOdj(code, agDate, champId, valeur, g.initiales, g.id);
   revalidatePath(`/odj/${id}`);
 }
@@ -42,6 +56,25 @@ export async function togglePointAction(id: string, pointId: string, retire: boo
   const { code, agDate } = parse(id);
   const g = await autorise(code);
   if (!g) return;
+  if (await estCloture(code, agDate)) return;
   await retirerPointOdj(code, agDate, pointId, retire, g.initiales, g.id);
+  revalidatePath(`/odj/${id}`);
+}
+
+/** Clot ("reunion terminee") ou rouvre l'ODJ. Reversible : aucune ecriture externe n'est
+ *  engagee par la cloture (ni PDF, ni depot eStale) - cf. cloturer-odj.ts. */
+export async function cloturerOdjAction(id: string, clore: boolean): Promise<void> {
+  if (!z.object({ id: zId, clore: z.boolean() }).safeParse({ id, clore }).success) return;
+  const { code, agDate } = parse(id);
+  const g = await autorise(code);
+  if (!g) return;
+  await cloturerOdj({
+    coproCode: code,
+    agDateISO: agDate,
+    clore,
+    initiales: g.initiales,
+    managerId: g.id,
+    maintenantISO: new Date().toISOString(),
+  });
   revalidatePath(`/odj/${id}`);
 }
