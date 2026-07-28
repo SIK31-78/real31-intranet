@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { NIVEAUX_ANNONCE, type Annonce, type NiveauAnnonce } from "@/lib/domain/annonce";
+import { NIVEAUX_ANNONCE, libelleCible, type Annonce, type NiveauAnnonce } from "@/lib/domain/annonce";
 import {
   creerAnnonceAction,
   patchAnnonceAction,
@@ -81,6 +81,9 @@ function LigneAnnonce({ a }: { a: Annonce }) {
             ))}
           </select>
           {a.actif ? <Badge ton="ok" dot>Active</Badge> : <Badge ton="neutral">Masquée</Badge>}
+          <span title="Qui voit cette annonce (cible choisie à la création)">
+            <Badge ton="outline">{libelleCible(a)}</Badge>
+          </span>
         </div>
         <textarea
           value={corps}
@@ -116,18 +119,48 @@ function LigneAnnonce({ a }: { a: Annonce }) {
   );
 }
 
-function FormulaireAnnonce({ onFermer }: { onFermer: () => void }) {
+type Collaborateur = { email: string; nom: string };
+type CibleMode = "tous" | "agences" | "collaborateurs";
+
+function FormulaireAnnonce({
+  onFermer,
+  agences,
+  collaborateurs,
+}: {
+  onFermer: () => void;
+  agences: string[];
+  collaborateurs: Collaborateur[];
+}) {
   const { ok, err } = useToast();
   const [enCours, start] = useTransition();
   const [titre, setTitre] = useState("");
   const [corps, setCorps] = useState("");
   const [niveau, setNiveau] = useState<NiveauAnnonce>("info");
   const [actif, setActif] = useState(true);
+  // Cible (Sekou 2026-07-28) : tout le groupe (defaut) / par agence(s) / collaborateur(s).
+  const [cibleMode, setCibleMode] = useState<CibleMode>("tous");
+  const [agencesSel, setAgencesSel] = useState<Set<string>>(new Set());
+  const [emailsSel, setEmailsSel] = useState<Set<string>>(new Set());
+
+  const toggle = (set: Set<string>, poser: (s: Set<string>) => void, v: string) => {
+    const n = new Set(set);
+    if (n.has(v)) n.delete(v);
+    else n.add(v);
+    poser(n);
+  };
 
   function soumettre() {
     const t = titre.trim();
     if (!t) {
       err("Le titre est obligatoire.");
+      return;
+    }
+    if (cibleMode === "agences" && agencesSel.size === 0) {
+      err("Choisis au moins une agence (ou repasse sur « Tout le groupe »).");
+      return;
+    }
+    if (cibleMode === "collaborateurs" && emailsSel.size === 0) {
+      err("Choisis au moins un collaborateur (ou repasse sur « Tout le groupe »).");
       return;
     }
     start(async () => {
@@ -136,6 +169,8 @@ function FormulaireAnnonce({ onFermer }: { onFermer: () => void }) {
         niveau,
         actif,
         ...(corps.trim() ? { corps: corps.trim() } : {}),
+        ...(cibleMode === "agences" ? { agences: [...agencesSel] } : {}),
+        ...(cibleMode === "collaborateurs" ? { emails: [...emailsSel] } : {}),
       });
       if (r.ok) {
         ok("Annonce publiée");
@@ -190,6 +225,71 @@ function FormulaireAnnonce({ onFermer }: { onFermer: () => void }) {
           Afficher tout de suite sur l&apos;accueil
         </label>
       </div>
+
+      {/* CIBLE : qui voit l'annonce sur son accueil. Tout le groupe par defaut ;
+          par agence(s) ou collaborateur(s) precis sinon (validee cote serveur). */}
+      <fieldset className="flex flex-col gap-2 rounded-md border border-line px-3 py-2.5">
+        <legend className="px-1 text-[12px] text-ink-2">Qui doit voir cette annonce ?</legend>
+        <div className="flex flex-wrap gap-4">
+          {(
+            [
+              ["tous", "Tout le groupe"],
+              ["agences", "Par agence"],
+              ["collaborateurs", "Collaborateurs précis"],
+            ] as [CibleMode, string][]
+          ).map(([mode, label]) => (
+            <label key={mode} className="flex items-center gap-1.5 text-[13px] text-ink-2">
+              <input
+                type="radio"
+                name="cible-annonce"
+                checked={cibleMode === mode}
+                onChange={() => setCibleMode(mode)}
+                className="h-3.5 w-3.5"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        {cibleMode === "agences" && (
+          <div className="flex flex-wrap gap-3 pl-1">
+            {agences.length === 0 ? (
+              <span className="text-[12px] text-ink-4">Aucune agence disponible.</span>
+            ) : (
+              agences.map((code) => (
+                <label key={code} className="flex items-center gap-1.5 text-[13px] text-ink-2">
+                  <input
+                    type="checkbox"
+                    checked={agencesSel.has(code)}
+                    onChange={() => toggle(agencesSel, setAgencesSel, code)}
+                    className="h-3.5 w-3.5"
+                  />
+                  {code}
+                </label>
+              ))
+            )}
+          </div>
+        )}
+        {cibleMode === "collaborateurs" && (
+          <div className="flex max-h-44 flex-col gap-1 overflow-y-auto pl-1">
+            {collaborateurs.length === 0 ? (
+              <span className="text-[12px] text-ink-4">Annuaire indisponible.</span>
+            ) : (
+              collaborateurs.map((c) => (
+                <label key={c.email} className="flex items-center gap-1.5 text-[13px] text-ink-2">
+                  <input
+                    type="checkbox"
+                    checked={emailsSel.has(c.email)}
+                    onChange={() => toggle(emailsSel, setEmailsSel, c.email)}
+                    className="h-3.5 w-3.5"
+                  />
+                  {c.nom}
+                </label>
+              ))
+            )}
+          </div>
+        )}
+      </fieldset>
+
       <div className="mt-1 flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={onFermer} disabled={enCours}>
           Annuler
@@ -205,9 +305,15 @@ function FormulaireAnnonce({ onFermer }: { onFermer: () => void }) {
 export function AnnoncesAdminVue({
   annonces,
   nonConfigure,
+  agences,
+  collaborateurs,
 }: {
   annonces: Annonce[];
   nonConfigure: boolean;
+  /** Codes d'agence proposables au ciblage (liste fermee serveur). */
+  agences: string[];
+  /** Annuaire (email + nom) proposable au ciblage collaborateur. */
+  collaborateurs: Collaborateur[];
 }) {
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
 
@@ -234,7 +340,11 @@ export function AnnoncesAdminVue({
 
       {ajoutOuvert && (
         <Modal titre="Nouvelle annonce" onFermer={() => setAjoutOuvert(false)}>
-          <FormulaireAnnonce onFermer={() => setAjoutOuvert(false)} />
+          <FormulaireAnnonce
+            onFermer={() => setAjoutOuvert(false)}
+            agences={agences}
+            collaborateurs={collaborateurs}
+          />
         </Modal>
       )}
 

@@ -8,7 +8,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { AnnoncesAdminVue } from "@/components/admin/annonces-admin-vue";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estSuperAdmin, pageAccueilPour } from "@/lib/auth/roles";
-import { getAnnonceRepository } from "@/lib/adapters/router";
+import { getAnnonceRepository, getAgenceRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { AnnoncesNonConfigureError, type Annonce } from "@/lib/domain/annonce";
 
 export const metadata: Metadata = { title: "Annonces - REAL31 Intranet" };
@@ -29,6 +29,20 @@ export default async function AnnoncesAdminPage() {
     else throw e;
   }
 
+  // Listes fermees pour le CIBLAGE (agences + annuaire des collaborateurs avec email).
+  // Degrade en listes vides si tables absentes -> le selecteur ne propose que "tout le groupe".
+  const [agences, collaborateurs] = await Promise.all([
+    getAgenceRepository().listerAgences().catch(() => []),
+    getGestionnaireRepository()
+      .list()
+      .then((tous) =>
+        tous
+          .filter((x) => x.email)
+          .map((x) => ({ email: x.email as string, nom: x.nomComplet })),
+      )
+      .catch(() => []),
+  ]);
+
   return (
     <AppShell user={g} active="annonces" breadcrumb="Administration / Annonces">
       <div className="mx-auto max-w-[900px] px-8 py-8">
@@ -38,7 +52,12 @@ export default async function AnnoncesAdminPage() {
           collaborateurs. Une annonce active apparaît en haut de leur accueil ; désactive-la pour la retirer
           sans la supprimer.
         </p>
-        <AnnoncesAdminVue annonces={annonces} nonConfigure={nonConfigure} />
+        <AnnoncesAdminVue
+          annonces={annonces}
+          nonConfigure={nonConfigure}
+          agences={agences.map((a) => a.code)}
+          collaborateurs={collaborateurs}
+        />
       </div>
     </AppShell>
   );

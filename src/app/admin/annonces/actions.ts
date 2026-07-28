@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
-import { getAnnonceRepository } from "@/lib/adapters/router";
+import { getAnnonceRepository, getAgenceRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import {
   AnnoncesNonConfigureError,
   NIVEAUX_ANNONCE,
@@ -35,6 +35,10 @@ const zCreation = z.object({
   corps: z.string().trim().max(2000).optional(),
   niveau: zNiveau,
   actif: z.boolean(),
+  // Cible : codes d'agence + emails de collaborateurs. Formes bornees ici, puis
+  // RE-VALIDEES contre les listes fermees serveur (anti-injection). Vides = tous.
+  agences: z.array(z.string().trim().min(1).max(10)).max(10).optional(),
+  emails: z.array(z.string().trim().min(3).max(120)).max(60).optional(),
 });
 
 export async function creerAnnonceAction(input: unknown): Promise<{ ok: boolean; message?: string }> {
@@ -45,12 +49,39 @@ export async function creerAnnonceAction(input: unknown): Promise<{ ok: boolean;
   if (!parse.success) return { ok: false, message: parse.error.issues[0]?.message ?? "Saisie invalide." };
   const { titre, corps, niveau, actif } = parse.data;
 
+  // CIBLE relue contre les listes fermees SERVEUR (jamais confiance au client) :
+  // agences -> codes de la table Agency ; emails -> annuaire des gestionnaires connus.
+  let agences: string[] = [];
+  if (parse.data.agences && parse.data.agences.length > 0) {
+    const connues = new Set((await getAgenceRepository().listerAgences()).map((a) => a.code.toUpperCase()));
+    agences = [...new Set(parse.data.agences.map((a) => a.toUpperCase()))];
+    if (agences.some((a) => !connues.has(a))) return { ok: false, message: "Agence inconnue." };
+  }
+  let emails: string[] = [];
+  if (parse.data.emails && parse.data.emails.length > 0) {
+    const connus = new Map(
+      (await getGestionnaireRepository().list())
+        .map((x) => x.email)
+        .filter((e): e is string => Boolean(e))
+        .map((e) => [e.toLowerCase(), e] as const),
+    );
+    const canoniques: string[] = [];
+    for (const e of new Set(parse.data.emails.map((x) => x.toLowerCase()))) {
+      const canon = connus.get(e);
+      if (!canon) return { ok: false, message: "Collaborateur inconnu." };
+      canoniques.push(canon);
+    }
+    emails = canoniques;
+  }
+
   try {
     await getAnnonceRepository().creer({
       titre,
       niveau,
       actif,
       ...(corps ? { corps } : {}),
+      ...(agences.length > 0 ? { agences } : {}),
+      ...(emails.length > 0 ? { emails } : {}),
       ...(garde.email ? { auteurEmail: garde.email } : {}),
       auteurInitiales: garde.initiales,
     });

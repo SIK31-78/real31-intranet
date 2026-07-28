@@ -4,12 +4,15 @@
 
 import type { Annonce, NiveauAnnonce } from "@/lib/domain/annonce";
 
-/** Ce qu'on ecrit a la creation. L'auteur vient de la SESSION (jamais du client). */
+/** Ce qu'on ecrit a la creation. L'auteur vient de la SESSION (jamais du client).
+ *  agences/emails = cible (validee cote action contre les listes fermees) ; vides = tous. */
 export interface SaisieAnnonce {
   titre: string;
   corps?: string;
   niveau: NiveauAnnonce;
   actif: boolean;
+  agences?: string[];
+  emails?: string[];
   auteurEmail?: string;
   auteurInitiales?: string;
 }

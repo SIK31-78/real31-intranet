@@ -29,6 +29,8 @@ export class MockAnnonceRepository implements AnnonceRepository {
       actif: saisie.actif,
       createdAt: new Date().toISOString(),
       ...(saisie.corps ? { corps: saisie.corps } : {}),
+      ...(saisie.agences && saisie.agences.length > 0 ? { agences: [...saisie.agences] } : {}),
+      ...(saisie.emails && saisie.emails.length > 0 ? { emails: [...saisie.emails] } : {}),
       ...(saisie.auteurEmail ? { auteurEmail: saisie.auteurEmail } : {}),
       ...(saisie.auteurInitiales ? { auteurInitiales: saisie.auteurInitiales } : {}),
     };

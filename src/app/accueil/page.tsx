@@ -40,7 +40,8 @@ export default async function AccueilPage() {
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
     getAccueilComplement(g),
-    getAnnoncesActives(),
+    // Annonces CIBLEES : filtrees pour CE collaborateur (groupe / son agence / son email).
+    getAnnoncesActives({ email: g.email, agencyId: g.agencyId }),
   ]);
 
   return (

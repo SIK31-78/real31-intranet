@@ -9,7 +9,7 @@ import { createSupabasePublicClient } from "./public-client";
 
 const TABLE = "intranet_annonces";
 const COLS =
-  "id, titre, corps, niveau, actif, auteur_email, auteur_initiales, created_at, updated_at";
+  "id, titre, corps, niveau, actif, agences, emails, auteur_email, auteur_initiales, created_at, updated_at";
 
 type Row = {
   id: string;
@@ -17,6 +17,8 @@ type Row = {
   corps: string | null;
   niveau: string;
   actif: boolean;
+  agences: string[] | null;
+  emails: string[] | null;
   auteur_email: string | null;
   auteur_initiales: string | null;
   created_at: string;
@@ -39,6 +41,8 @@ function map(r: Row): Annonce {
     actif: r.actif,
     createdAt: r.created_at,
     ...(r.corps ? { corps: r.corps } : {}),
+    ...(r.agences && r.agences.length > 0 ? { agences: r.agences } : {}),
+    ...(r.emails && r.emails.length > 0 ? { emails: r.emails } : {}),
     ...(r.auteur_email ? { auteurEmail: r.auteur_email } : {}),
     ...(r.auteur_initiales ? { auteurInitiales: r.auteur_initiales } : {}),
     ...(r.updated_at ? { updatedAt: r.updated_at } : {}),
@@ -79,6 +83,8 @@ export class SupabaseAnnonceRepository implements AnnonceRepository {
         corps: saisie.corps ?? null,
         niveau: saisie.niveau,
         actif: saisie.actif,
+        agences: saisie.agences && saisie.agences.length > 0 ? saisie.agences : null,
+        emails: saisie.emails && saisie.emails.length > 0 ? saisie.emails : null,
         auteur_email: saisie.auteurEmail ?? null,
         auteur_initiales: saisie.auteurInitiales ?? null,
       })
