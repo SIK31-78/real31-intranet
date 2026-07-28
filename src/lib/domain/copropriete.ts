@@ -186,6 +186,10 @@ export interface DonneesEstaleCopro {
   priseEnChargeSyndic?: string;
   /** Fin du mandat de syndic, ISO (`serviceBook.mandate.end`). */
   mandatSyndicFin?: string;
+  /** Equipe du cabinet TELLE QU'eSTALE la connait (`condo.collaborators` + le
+   *  gestionnaire designe par `serviceBook.mandate.managerID`). Sert quand le
+   *  referentiel App A n'a pas d'equipe (copros eStale-only). */
+  equipe?: MembreEquipe[];
   /** Contrats fournisseurs (gaz, electricite...) pour la gestion courante. */
   contrats?: ContratEstale[];
   /** Nombre de procedures / litiges en cours. */

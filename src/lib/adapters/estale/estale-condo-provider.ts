@@ -12,6 +12,8 @@ import type {
   DebiteurEstale,
   DonneesEstaleCopro,
   MembreConseilSyndical,
+  MembreEquipe,
+  RoleEquipe,
 } from "@/lib/domain/copropriete";
 import { estaleGql } from "./client";
 import { resoudreCondoId } from "./condos-accessibles";
@@ -46,9 +48,52 @@ type CondoData = {
       exercices: { id: string; period: [string, string]; budgetOrdinary: { amount: number } | null }[];
     };
     lots: { use: string | null }[] | null;
-    serviceBook: { mandate: { signed: string | null; end: string | null } | null } | null;
+    collaborators: { id: string; fullname: string; role: string | null }[] | null;
+    serviceBook: {
+      mandate: { signed: string | null; end: string | null; managerID: string | null } | null;
+    } | null;
   };
 };
+
+/** Initiales d'un nom complet ("Elsa PEIXOTO" -> "EP"). */
+function initialesDe(nomComplet: string): string {
+  return nomComplet
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((m) => m[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/**
+ * Equipe telle qu'eStale la connait. Le GESTIONNAIRE est celui designe par le mandat
+ * (`serviceBook.mandate.managerID`) - c'est ce qu'affiche l'UI eStale ; les autres roles
+ * sont deduits de l'intitule libre du collaborateur ("Comptable", "Assistante..."). Les
+ * intitules hors des 3 roles metier (Dirigeant, Responsable innovation...) sont ecartes :
+ * la fiche montre l'equipe OPERATIONNELLE de la copro, pas tout le cabinet.
+ */
+function equipeDepuisEstale(
+  collaborateurs: { id: string; fullname: string; role: string | null }[],
+  managerId: string | null,
+): MembreEquipe[] {
+  const membres: MembreEquipe[] = [];
+  for (const c of collaborateurs) {
+    const intitule = (c.role ?? "").toLowerCase();
+    const role: RoleEquipe | null =
+      managerId && c.id === managerId
+        ? "gestionnaire"
+        : /comptab/.test(intitule)
+          ? "comptable"
+          : /assistant/.test(intitule)
+            ? "assistant"
+            : null;
+    if (!role) continue;
+    membres.push({ initiales: initialesDe(c.fullname), nomComplet: c.fullname, role });
+  }
+  // Gestionnaire d'abord, puis comptable, puis assistant (ordre de lecture de la fiche).
+  const rang: Partial<Record<RoleEquipe, number>> = { gestionnaire: 0, comptable: 1, assistant: 2 };
+  return membres.sort((a, b) => (rang[a.role] ?? 9) - (rang[b.role] ?? 9));
+}
 
 // Usages eStale comptant comme lots PRINCIPAUX (par opposition aux annexes :
 // PARKING, OTHER = caves, jardins, remises...). Verifie sur donnees reelles le
@@ -65,7 +110,8 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
     litigation { count }
     accountingV2 { periodCurrent exercices { id period budgetOrdinary { amount } } }
     lots { use }
-    serviceBook { mandate { signed end } }
+    collaborators { id fullname role }
+    serviceBook { mandate { signed end managerID } }
   }
 }`;
 
@@ -277,6 +323,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
     // "Date de prise en charge du syndic" de l'UI eStale = serviceBook.mandate.signed
     // (verifie a l'ecran sur SE999 le 2026-07-28 : 15/07/2004).
     const mandat = condo.serviceBook?.mandate ?? null;
+    const equipe = equipeDepuisEstale(condo.collaborators ?? [], mandat?.managerID ?? null);
 
     return {
       conseilSyndical,
@@ -305,6 +352,7 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
         : {}),
       ...(mandat?.signed ? { priseEnChargeSyndic: mandat.signed } : {}),
       ...(mandat?.end ? { mandatSyndicFin: mandat.end } : {}),
+      ...(equipe.length > 0 ? { equipe } : {}),
     };
   }
 }

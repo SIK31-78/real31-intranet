@@ -25,13 +25,13 @@ export function ListeDiffusionCS({
   coproCode,
   sourceActive,
   estaleFournitEmails,
-  emailsActifs,
+  destinatairesActifs,
   emailsSecours,
 }: {
   coproCode: string;
   sourceActive: SourceDestinataires;
   estaleFournitEmails: boolean;
-  emailsActifs: string[];
+  destinatairesActifs: { email: string; nom?: string }[];
   emailsSecours: string[];
 }) {
   const toast = useToast();
@@ -106,14 +106,18 @@ export function ListeDiffusionCS({
                 ? "Liste de secours (Crypto/intranet) - utilisée pour le mail au conseil."
                 : "Aucune adresse connue pour le conseil - à saisir en secours."}
           </p>
-          {emailsActifs.length > 0 ? (
+          {destinatairesActifs.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1">
-              {emailsActifs.map((e) => (
+              {/* NOM du membre du conseil quand on le connait, adresse en second (Sekou :
+                  "je ne sais pas qui est testcs2@real31.fr"). Sans nom : l'adresse seule. */}
+              {destinatairesActifs.map((d) => (
                 <span
-                  key={e}
-                  className="inline-flex items-center h-6 px-2 rounded-full bg-surface-3 text-ink-2 text-[11.5px]"
+                  key={d.email}
+                  title={d.email}
+                  className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-surface-3 text-ink-2 text-[11.5px]"
                 >
-                  <span className="truncate max-w-[240px]">{e}</span>
+                  {d.nom && <span className="font-medium text-ink">{d.nom}</span>}
+                  <span className="truncate max-w-[240px] text-ink-3">{d.email}</span>
                 </span>
               ))}
             </div>

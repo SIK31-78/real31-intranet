@@ -22,15 +22,11 @@ export function FicheCoproVue({
   fiche,
   dossiers,
   mailActif = false,
-  estComptable = false,
   listeSecoursCS,
 }: {
   fiche: FicheCopro;
   dossiers: Dossier[];
   mailActif?: boolean;
-  /** Le visiteur est du pole comptable (lecture transverse) : le pole compta de la fiche
-   *  s'ouvre a lui (role "comptable"), le reste de la fiche reste en lecture. */
-  estComptable?: boolean;
   /** Etat de la liste de diffusion CS (secours) : source active du mail + adresses editables. */
   listeSecoursCS?: EtatListeSecoursCS;
 }) {
@@ -122,7 +118,6 @@ export function FicheCoproVue({
           <FicheVueEnsemble
             fiche={fiche}
             mailActif={mailActif}
-            estComptable={estComptable}
             listeSecoursCS={listeSecoursCS}
           />
         </div>

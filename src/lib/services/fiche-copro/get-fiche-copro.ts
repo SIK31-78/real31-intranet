@@ -221,6 +221,11 @@ export async function getFicheCopro(
     ...(!copro.mandatSyndicFin && estale.mandatSyndicFin
       ? { mandatSyndicFin: estale.mandatSyndicFin }
       : {}),
+    // Equipe : eStale fait foi quand le referentiel n'en a pas (copros eStale-only).
+    ...(copro.equipe.length === 0 && estale.equipe?.length ? { equipe: estale.equipe } : {}),
+    // DERNIERE AG TENUE : pour une copro eStale, la date vient d'eStale (source primaire),
+    // plus du miroir Supabase - decision Sekou 2026-07-28 ("on build pour eStale").
+    ...(!copro.derniereAgDate && historique[0]?.date ? { derniereAgDate: historique[0].date } : {}),
   };
 
   return {

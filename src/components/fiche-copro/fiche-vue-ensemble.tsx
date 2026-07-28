@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Route,
   Users,
-  Calculator,
 } from "lucide-react";
 import type {
   AgPassee,
@@ -22,9 +21,7 @@ import type {
   RoleEquipe,
 } from "@/lib/domain/copropriete";
 import type { CycleAg } from "@/lib/domain/cycle-ag";
-import type { EtatCompta } from "@/lib/domain/compta";
 import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
-import { ComptaPanel } from "@/components/compta/compta-panel";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FriseEtapes } from "@/components/parcours/frise-etapes";
@@ -53,14 +50,10 @@ const STATUT_AG_LABEL: Record<ProchaineAg["statut"], string> = {
 export function FicheVueEnsemble({
   fiche,
   mailActif = false,
-  estComptable = false,
   listeSecoursCS,
 }: {
   fiche: FicheCopro;
   mailActif?: boolean;
-  /** Visiteur du pole comptable : le bloc compta passe en role "comptable" (dialogue prevu
-   *  pour eux) ; sinon "gestionnaire" (le gestionnaire de la copro repond a la comptable). */
-  estComptable?: boolean;
   /** Etat de la liste de diffusion CS (secours) : source active + adresses editables. */
   listeSecoursCS?: EtatListeSecoursCS;
 }) {
@@ -104,25 +97,16 @@ export function FicheVueEnsemble({
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
               jalons (intranet_jalons + alarme dashboard) reste inchangee. */}
-          {fiche.compta && fiche.copro.prochaineAg && (
-            <BlocCompta
-              coproCode={fiche.copro.code}
-              agDate={fiche.copro.prochaineAg.date}
-              compta={fiche.compta}
-              estComptable={estComptable}
-            />
-          )}
+          {/* Bloc "Preparation comptable" RETIRE de la fiche (Sekou 2026-07-28) : la
+              checklist + les notes vivent dans l'espace comptable dedie
+              (/compta/[code__agDate]), la fiche n'a pas a le dupliquer. */}
           <HistoriqueAg historique={fiche.historique} />
         </div>
 
         <div className="flex flex-col gap-3">
           <SideIdentite copro={fiche.copro} />
           <SideEquipe equipe={fiche.copro.equipe} />
-          <SideConseil
-            membres={fiche.estale.conseilSyndical}
-            mandatJusqua={fiche.estale.mandatJusqua}
-            indisponible={indispo}
-          />
+          <SideConseil membres={fiche.estale.conseilSyndical} indisponible={indispo} />
           <SideConformite items={fiche.conformite} indisponible={indispo} />
         </div>
       </div>
@@ -174,64 +158,6 @@ function BlocParcours({ cycle, coproCode }: { cycle: CycleAg; coproCode: string 
             </p>
           )}
         </div>
-      </div>
-    </Card>
-  );
-}
-
-// --- Preparation comptable (flags + fil de notes, cote gestionnaire) -------
-
-function BlocCompta({
-  coproCode,
-  agDate,
-  compta,
-  estComptable,
-}: {
-  coproCode: string;
-  agDate: string;
-  compta: EtatCompta;
-  estComptable: boolean;
-}) {
-  const ouvertes = compta.notes.filter((n) => !n.resolu).length;
-  // Notes ECRITES PAR LA COMPTABLE non traitees : le signal qui doit sauter aux yeux du
-  // gestionnaire (une note l'attend). Badge warn saillant dans l'en-tete.
-  const notesComptable = compta.notes.filter((n) => n.auteur === "comptable" && !n.resolu).length;
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <Calculator strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
-          Préparation comptable
-        </CardTitle>
-        <div className="flex items-center gap-2">
-          {notesComptable > 0 && (
-            <Badge ton="warn" dot>
-              {notesComptable} note{notesComptable > 1 ? "s" : ""} comptable{notesComptable > 1 ? "s" : ""} à traiter
-            </Badge>
-          )}
-          {compta.comptesVerifies ? (
-            <Badge ton="ok" dot>
-              Comptes vérifiés
-            </Badge>
-          ) : (
-            <Badge ton="outline">comptes à vérifier</Badge>
-          )}
-        </div>
-      </CardHeader>
-      <div className="px-4 py-3">
-        {ouvertes > 0 && (
-          <p className="text-[12px] text-warn-700 mb-2">
-            {ouvertes} note{ouvertes > 1 ? "s" : ""} {estComptable ? "ouverte" : "de la comptable"}
-            {ouvertes > 1 ? "s" : ""} à traiter - {estComptable ? "échange" : "réponds"} ici pour ne
-            rien oublier.
-          </p>
-        )}
-        <ComptaPanel
-          coproCode={coproCode}
-          agDateISO={agDate}
-          etat={compta}
-          role={estComptable ? "comptable" : "gestionnaire"}
-        />
       </div>
     </Card>
   );
@@ -450,7 +376,7 @@ function BlocAg({
           coproCode={coproCode}
           sourceActive={listeSecoursCS.sourceActive}
           estaleFournitEmails={listeSecoursCS.estaleFournitEmails}
-          emailsActifs={listeSecoursCS.emailsActifs}
+          destinatairesActifs={listeSecoursCS.destinatairesActifs}
           emailsSecours={listeSecoursCS.emailsSecours}
         />
       )}
@@ -550,11 +476,9 @@ function SideEquipe({ equipe }: { equipe: MembreEquipe[] }) {
 
 function SideConseil({
   membres,
-  mandatJusqua,
   indisponible,
 }: {
   membres: MembreConseilSyndical[];
-  mandatJusqua?: string;
   indisponible?: boolean;
 }) {
   return (
@@ -571,9 +495,8 @@ function SideConseil({
               {m.role === "president" && <span className="text-ink-3"> (président·e)</span>}
             </div>
           ))}
-          {mandatJusqua && (
-            <p className="mt-1.5 text-[11px] text-ink-3">Mandats jusqu&apos;à l&apos;{mandatJusqua}</p>
-          )}
+          {/* Echeance des mandats CS retiree (Sekou 2026-07-28) : la duree d'election du
+              conseil n'interesse pas le gestionnaire sur la fiche. */}
         </div>
       )}
     </SideBox>

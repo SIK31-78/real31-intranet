@@ -49,6 +49,7 @@ export default async function CoproprietePage({
       sourceActive: "aucune" as const,
       estaleFournitEmails: false,
       emailsActifs: [] as string[],
+      destinatairesActifs: [] as { email: string; nom?: string }[],
       emailsSecours: [] as string[],
     })),
   ]);
@@ -64,7 +65,6 @@ export default async function CoproprietePage({
           fiche={fiche}
           dossiers={dossiers}
           mailActif={mailActif}
-          estComptable={transverse}
           listeSecoursCS={listeSecoursCS}
         />
       </div>
