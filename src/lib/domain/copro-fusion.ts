@@ -74,15 +74,25 @@ export function datesDuMiroir(copro: Copropriete | null | undefined): CoproDates
 
 /** Fusionne dates intranet (PRIORITAIRES) et dates miroir (REPLI). La prochaine AG /
  *  CS bascule en bloc (jour + heure ensemble) : si intranet porte le jour, on prend
- *  aussi son heure ; sinon le miroir. Les "dernieres" (tenues) sont independantes. */
+ *  aussi son heure ; sinon le miroir. Les "dernieres" (tenues) sont independantes.
+ *
+ *  EFFACEMENT (bug Sekou 2026-07-28 : "j'efface la date de CS et AG, ca ne se supprime
+ *  pas") : `intranet` NON NULL signifie que la ligne native EXISTE, donc que l'intranet
+ *  gere deja les dates de cette copro -> elle fait AUTORITE sur les PROCHAINES dates,
+ *  meme vides. Sans ca, effacer remettait la colonne a null puis la lecture repliait sur
+ *  le miroir Crypto, qui reaffichait l'ancienne date : effacement impossible.
+ *  Les DERNIERES (tenues) gardent leur repli par champ : elles ne s'effacent pas dans ce
+ *  geste et le miroir reste une source utile tant que Crypto vit. */
 export function fusionnerDates(
   intranet: CoproDates | null | undefined,
   miroir: CoproDates | null | undefined,
 ): CoproDates {
   const i = intranet ?? {};
   const m = miroir ?? {};
-  const ag = i.prochaineAgDate ? i : m;
-  const cs = i.prochaineCsDate ? i : m;
+  // Ligne native existante -> pas de repli miroir sur les prochaines dates.
+  const gereParIntranet = Boolean(intranet);
+  const ag = gereParIntranet || i.prochaineAgDate ? i : m;
+  const cs = gereParIntranet || i.prochaineCsDate ? i : m;
   const derniereAg = i.derniereAgDate ?? m.derniereAgDate;
   const derniereCs = i.derniereCsDate ?? m.derniereCsDate;
   return {

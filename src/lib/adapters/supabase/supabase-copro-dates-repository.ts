@@ -71,9 +71,18 @@ export class SupabaseCoproDatesRepository implements CoproDatesRepository {
         { onConflict: "copro_code" },
       );
     if (error) {
-      // Table absente -> ecriture inerte (comme les projections Outlook non memorisees).
+      // Table absente : on NE degrade PLUS en silence (bug Sekou 2026-07-28 : "j'efface la
+      // date de CS et AG, ca ne se supprime pas"). C'est une ECRITURE DEMANDEE par
+      // l'utilisateur : un no-op silencieux lui affiche un succes alors que rien n'est
+      // enregistre, et la lecture replie sur le miroir -> l'ancienne date "revient".
+      // On remonte donc une erreur EXPLICITE et actionnable (l'UI l'affiche en rouge).
+      if (tableAbsente(error)) {
+        throw new Error(
+          `Dates des copropriétés eStale non configurées : la table ${TABLE} n'existe pas. ` +
+            `Passe supabase/sql/${TABLE}.sql dans le SQL editor Supabase.`,
+        );
+      }
       // COLONNE absente (PGRST204) ou autre -> on remonte : schema a corriger.
-      if (tableAbsente(error)) return;
       throw new Error(`MAJ ${TABLE} (${colonne}) : ${error.message}`);
     }
   }

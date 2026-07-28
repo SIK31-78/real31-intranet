@@ -62,10 +62,34 @@ describe("fusionnerDates (intranet prioritaire, repli miroir)", () => {
     expect(d.derniereAgDate).toBe("2026-04-02"); // absent d'intranet -> repli miroir
   });
 
-  it("repli complet sur le miroir quand intranet est vide", () => {
+  it("repli complet sur le miroir quand AUCUNE ligne intranet (null)", () => {
     const miroir = { prochaineAgDate: "2027-06-30", derniereAgDate: "2026-04-02" };
     expect(fusionnerDates(null, miroir)).toEqual(miroir);
     expect(fusionnerDates({}, {})).toEqual({});
+  });
+
+  // Bug Sekou 2026-07-28 : effacer une date la faisait REAPPARAITRE (repli miroir).
+  it("EFFACEMENT : ligne intranet existante (meme vide) -> plus de repli sur les PROCHAINES dates", () => {
+    const miroir = {
+      prochaineAgDate: "2027-06-30",
+      prochaineCsDate: "2027-05-05",
+      derniereAgDate: "2026-04-02",
+    };
+    // Ligne native existante mais vidée (l'utilisateur a efface AG et CS).
+    const d = fusionnerDates({}, miroir);
+    expect(d.prochaineAgDate).toBeUndefined();
+    expect(d.prochaineCsDate).toBeUndefined();
+    // La derniere AG tenue garde son repli miroir (elle ne s'efface pas dans ce geste).
+    expect(d.derniereAgDate).toBe("2026-04-02");
+  });
+
+  it("EFFACEMENT partiel : AG posee dans l'intranet, CS effacee -> la CS miroir ne revient pas", () => {
+    const d = fusionnerDates(
+      { prochaineAgDate: "2026-12-01" },
+      { prochaineAgDate: "2027-06-30", prochaineCsDate: "2027-05-05" },
+    );
+    expect(d.prochaineAgDate).toBe("2026-12-01");
+    expect(d.prochaineCsDate).toBeUndefined();
   });
 });
 
