@@ -101,12 +101,15 @@ export function SupervisionVue({
         )}
         {phasesAG.map((section, i) => (
           <ChecklistSection
-            key={section.id}
+            // Cle changee au deverrouillage force : remonte le composant avec
+            // ouvertParDefaut=true -> la section se DEPLOIE dans le meme clic
+            // (avant : deverrouillee mais repliee, un clic de plus pour l'ouvrir).
+            key={forcees.has(section.id) ? `${section.id}-deverrouillee` : section.id}
             section={section}
             agDateISO={agDateISO}
             aujourdhuiISO={aujourdhuiISO}
             lectureSeule={lectureSeule}
-            ouvertParDefaut={i === indexCourante}
+            ouvertParDefaut={i === indexCourante || forcees.has(section.id)}
             verrouille={i > indexCourante && !forcees.has(section.id)}
             onDeverrouiller={() => deverrouiller(section.id)}
             onCocher={onCocher}
