@@ -21,6 +21,8 @@ create table if not exists public.intranet_annonces (
   niveau            text not null default 'info'
                     check (niveau in ('info','important')),
   actif             boolean not null default true,              -- visible sur l'accueil ? false = brouillon/retiree
+  agences           text[],                                     -- CIBLE agences (codes ML/LGC/HLS/ASN) ; null = pas de filtre agence
+  emails            text[],                                     -- CIBLE collaborateurs (emails) ; null = pas de filtre email
   auteur_email      text,                                       -- ref logique = public."User".email
   auteur_initiales  text,                                       -- ex 'SK' (affichage admin)
   created_at        timestamptz not null default now(),
@@ -30,3 +32,9 @@ create table if not exists public.intranet_annonces (
 -- Accueil : les annonces actives, plus recentes d'abord.
 create index if not exists intranet_annonces_actif_idx
   on public.intranet_annonces (actif, created_at desc);
+
+-- Idempotent : CIBLAGE des annonces (2026-07-28, demande Sekou) - par agence(s), par
+-- collaborateur(s), ou tout le groupe (les deux colonnes null/vides). Le filtre est
+-- applique EN CODE (domaine annonceVisiblePour), la table ne porte que la cible.
+alter table public.intranet_annonces add column if not exists agences text[];
+alter table public.intranet_annonces add column if not exists emails text[];

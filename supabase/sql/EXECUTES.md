@@ -33,7 +33,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_dossiers.sql` | 🔲 | **En attente** (créé 2026-07-22). |
 | `intranet_compta_notes.sql` | 🔲 | **En attente** (notes compta). |
 | `intranet_api_keys.sql` | 🔲 | **En attente** — clés machine API v1 ; tant que non passé, l'API répond 503 `api_non_configuree`. |
-| `intranet_annonces.sql` | 🔲 | **En attente** — annonces réseau affichées sur l'accueil + panneau `/admin/annonces` ; tant que non passé : accueil sans annonce (état vide propre), panneau admin affiche un bandeau. |
+| `intranet_annonces.sql` | ⚠️ | Table passée par Sekou (2026-07-27). **2 ALTER à rejouer** (2026-07-28, ciblage) : `alter table public.intranet_annonces add column if not exists agences text[]; alter table public.intranet_annonces add column if not exists emails text[];`. Idempotent → repasser tout le fichier sans risque. Sans eux : création d'annonce ciblée échouera (colonne inconnue) ; annonces « tout le groupe » OK. |
 | `intranet_feedback.sql` | ⚠️ | Table passée (+ ALTER `severite drop not null` du 2026-07-23). **Un 2e ALTER à rejouer** (2026-07-23, masquage réversible) : `alter table public.intranet_feedback add column if not exists archive_at timestamptz;`. Idempotent → repasser tout le fichier est sans risque. Sans lui, archiver/désarchiver lèvera une erreur colonne inconnue (le reste marche). |
 | `reprise_dossier.sql` | ❔ | Reprise copro — dossier. |
 | `reprise_dossier_jeu.sql` | ❔ | Reprise copro — jeu de test. |
