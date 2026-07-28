@@ -5,6 +5,7 @@
 import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { statutPourDate } from "@/lib/domain/confirmation-evenement";
+import { itemConformitePpt } from "@/lib/domain/conformite-ppt";
 import { calculerCycleAg } from "@/lib/domain/cycle-ag";
 import type { StatutAg } from "@/lib/domain/supervision-ag";
 import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
@@ -115,12 +116,16 @@ export async function getFicheCopro(
   // Conformite : items du referentiel App A (PPT, assurance, mandat de syndic -
   // exploitables SANS Estale) + items Estale.
   const conformiteReferentiel: ItemConformite[] = [];
-  if (copro.pptVote !== undefined) {
-    conformiteReferentiel.push({
-      libelle: copro.pptVote ? "PPT voté" : "PPT à programmer",
-      etat: copro.pptVote ? "ok" : "attention",
-    });
-  }
+  // PPT conditionnel (regle Sekou 2026-07-28) : pas d'alerte pour un immeuble recent
+  // (moins de 13 ans = echeance 15 ans a plus de 2 ans), orange "à prévoir en XXXX"
+  // dans la fenetre de 2 ans, rouge une fois l'echeance depassee. L'annee de
+  // construction vient d'eStale (constructionDate, en cours de completion).
+  const itemPpt = itemConformitePpt(
+    copro.pptVote,
+    estale.anneeConstruction,
+    Number(aujourdhuiISO.slice(0, 4)),
+  );
+  if (itemPpt) conformiteReferentiel.push(itemPpt);
   if (copro.assuranceEcheance) {
     conformiteReferentiel.push({
       libelle: `Assurance jusqu'au ${jjmmaaaa(copro.assuranceEcheance)}`,
