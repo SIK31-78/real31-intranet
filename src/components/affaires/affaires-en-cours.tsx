@@ -42,10 +42,17 @@ export interface AffaireVue {
   segment: SegmentAffaire;
 }
 
-// "Moi" / "Tout" v1-light (faute de table d'attribution dediee #1) : on s'appuie sur
+// "Moi" / "Mon equipe" v1-light (faute de table d'attribution dediee #1) : on s'appuie sur
 // l'assignation de l'ETAPE EN COURS. "Moi" = affaires dont l'etape courante est assignee
-// au gestionnaire OU non assignee (par defaut a moi) ; "Tout" = tout le perimetre. Quand
-// le canva d'attribution (#1) existera, ce filtre se branchera sur la vraie identite.
+// au gestionnaire OU non assignee (par defaut a moi) ; "Mon equipe" = + celles en main de
+// l'assistant.
+//
+// ATTENTION au libelle (corrige le 2026-07-28) : ce toggle filtre COTE CLIENT un jeu DEJA
+// cloisonne par le serveur (getAffairesEnCours(managerId) -> getDossiers -> copros du
+// gestionnaire). Il ne peut donc que RETRECIR, jamais elargir : ce n'est PAS "tout le
+// cabinet". Il s'appelait "Tout", ce qui laissait croire a une vue transverse et faisait
+// passer un portefeuille vide pour un bouton mort. Quand le canva d'attribution (#1)
+// existera, ce filtre se branchera sur la vraie identite.
 function etapeCouranteAssignee(d: Dossier): "gestionnaire" | "assistant" | undefined {
   const i = indexEtapeEnCours(d);
   return i === -1 ? undefined : d.etapes[i]?.assigneA;
@@ -99,7 +106,7 @@ export function AffairesEnCours({ affaires }: { affaires: AffaireVue[] }) {
                 (portee === p ? "bg-green-700 text-white" : "bg-surface text-ink-2 hover:bg-surface-2")
               }
             >
-              {p === "moi" ? "Moi" : "Tout"}
+              {p === "moi" ? "Moi" : "Mon équipe"}
             </button>
           ))}
         </div>
