@@ -55,6 +55,7 @@ export function FormulaireFacturation({
   copros,
   pennylaneActif,
   coproFixe,
+  creneauCsSuggere,
   depassementCsSeul = false,
   onSucces,
 }: {
@@ -62,6 +63,10 @@ export function FormulaireFacturation({
   pennylaneActif: boolean;
   /** Si fourni, la copro est verrouillee (select masque) : usage modale pre-scopee. */
   coproFixe?: string;
+  /** Creneau REEL du CS confirme (jour + debut + fin), pour pre-remplir la facturation
+   *  du depassement d'honoraires. Vient de la confirmation du CS : sans lui, le
+   *  gestionnaire doit retrouver l'horaire de memoire des semaines plus tard. */
+  creneauCsSuggere?: { jour: string; debut: string; fin?: string };
   /** Si vrai, seul le flux "Dépassement CS" est présenté (barre d'onglets masquée). */
   depassementCsSeul?: boolean;
   /** Appele apres une facturation reussie (ferme la modale quand le form est monte dedans). */
@@ -76,9 +81,9 @@ export function FormulaireFacturation({
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
 
   // Dépassement CS
-  const [jourCs, setJourCs] = useState("");
-  const [debutCs, setDebutCs] = useState("18:00");
-  const [finCs, setFinCs] = useState("20:00");
+  const [jourCs, setJourCs] = useState(creneauCsSuggere?.jour ?? "");
+  const [debutCs, setDebutCs] = useState(creneauCsSuggere?.debut || "18:00");
+  const [finCs, setFinCs] = useState(creneauCsSuggere?.fin || "20:00");
 
   // Suivi de travaux
   const [libelleTravaux, setLibelleTravaux] = useState("");

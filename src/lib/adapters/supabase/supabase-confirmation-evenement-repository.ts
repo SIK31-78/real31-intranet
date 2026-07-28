@@ -14,12 +14,14 @@ const TABLE = "intranet_confirmations_evenement";
 //   BASE        : colonnes historiques (toujours presentes) ;
 //   RESSOURCES  : + salle_email, vehicule_email (increment 4) ;
 //   MODE        : + mode_reunion (increment 2, volet mode de reunion) ;
-//   COLONNES    : + collaborateurs_emails (increment 4c, multi-collaborateurs).
+//   COLLABS     : + collaborateurs_emails (increment 4c, multi-collaborateurs) ;
+//   COLONNES    : + heure_fin (heure de fin REELLE du CS, saisie a la confirmation).
 const COLONNES_BASE =
   "copro_code, type, date_evenement, statut, confirme_le, confirme_par, outlook_event_id, outlook_boite";
 const COLONNES_RESSOURCES = `${COLONNES_BASE}, salle_email, vehicule_email`;
 const COLONNES_MODE = `${COLONNES_RESSOURCES}, mode_reunion`;
-const COLONNES = `${COLONNES_MODE}, collaborateurs_emails`;
+const COLONNES_COLLABS = `${COLONNES_MODE}, collaborateurs_emails`;
+const COLONNES = `${COLONNES_COLLABS}, heure_fin`;
 
 type Row = {
   copro_code: string;
@@ -38,6 +40,10 @@ type Row = {
   // Absente tant que l'ALTER intranet_confirmations_evenement_collaborateurs n'est pas
   // lance. jsonb -> tableau JS (PostgREST) ; on tolere aussi une chaine JSON (defensif).
   collaborateurs_emails?: string[] | string | null;
+  // Absente tant que l'ALTER heure_fin n'est pas lance. Heure de FIN reelle du CS
+  // ("HH:mm"), saisie au moment de la confirmation -> alimente la facturation du
+  // depassement d'honoraires CS.
+  heure_fin?: string | null;
 };
 
 // Colonne absente (ALTER pas encore lance) : code Postgres 42703, ou message explicite
@@ -89,6 +95,7 @@ function versDomaine(r: Row): ConfirmationEvenement {
     ...(r.vehicule_email ? { vehiculeEmail: r.vehicule_email } : {}),
     ...(mode ? { modeReunion: mode } : {}),
     ...(collaborateurs ? { collaborateursEmails: collaborateurs } : {}),
+    ...(r.heure_fin ? { heureFin: r.heure_fin } : {}),
   };
 }
 
@@ -105,7 +112,7 @@ type Reponse = { data: unknown; error: { code?: string; message?: string } | nul
 async function lireEnCascade(
   select: (colonnes: string) => PromiseLike<Reponse>,
 ): Promise<ConfirmationEvenement[]> {
-  for (const colonnes of [COLONNES, COLONNES_MODE, COLONNES_RESSOURCES, COLONNES_BASE]) {
+  for (const colonnes of [COLONNES, COLONNES_COLLABS, COLONNES_MODE, COLONNES_RESSOURCES, COLONNES_BASE]) {
     const { data, error } = await select(colonnes);
     if (!error) return (data as Row[]).map(versDomaine);
     if (!colonneAbsente(error)) return []; // table absente / autre erreur -> inerte
@@ -163,6 +170,22 @@ export class SupabaseConfirmationEvenementRepository implements ConfirmationEven
       },
       { onConflict: "copro_code,type" },
     );
+  }
+
+  async enregistrerHeureFin(
+    coproCode: string,
+    type: "AG" | "CS",
+    heureFin: string | null,
+  ): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    // UPDATE cible SEPARE (meme parti que enregistrerModeReunion) : si la colonne
+    // heure_fin n'est pas encore deployee, la confirmation elle-meme ne doit PAS echouer.
+    // Erreur avalee -> degradation propre, la facturation demandera juste l'heure a la main.
+    await supabase
+      .from(TABLE)
+      .update({ heure_fin: heureFin, updated_at: new Date().toISOString() })
+      .eq("copro_code", coproCode)
+      .eq("type", type);
   }
 
   async enregistrerProjection(

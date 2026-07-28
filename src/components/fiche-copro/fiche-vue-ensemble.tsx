@@ -352,7 +352,12 @@ function BlocAg({
                 agenceCode={agenceCode}
               />
               {prochaineCs && confirmationCs && (
-                <ConfirmationEvenement coproCode={coproCode} type="CS" statut={confirmationCs} />
+                <ConfirmationEvenement
+                  coproCode={coproCode}
+                  type="CS"
+                  statut={confirmationCs}
+                  {...(prochaineCsHeure ? { heureDebut: prochaineCsHeure } : {})}
+                />
               )}
             </span>
           </div>

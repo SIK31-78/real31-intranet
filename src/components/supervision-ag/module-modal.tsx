@@ -15,11 +15,14 @@ export function ModuleModal({
   module,
   copro,
   agDateISO,
+  creneauCsSuggere,
   pennylaneActif,
   onFermer,
 }: {
   module: ModuleSupervision;
   copro: { code: string; nomCourt: string };
+  /** Creneau reel du CS (issu de sa confirmation) -> pre-remplit les honoraires CS. */
+  creneauCsSuggere?: { jour: string; debut: string; fin?: string };
   /** Date ISO de l'AG courante (pre-remplit la date du recap) ; null si AG sans date. */
   agDateISO: string | null;
   pennylaneActif: boolean;
@@ -49,6 +52,7 @@ export function ModuleModal({
         copros={[{ code: copro.code, nom: copro.nomCourt }]}
         pennylaneActif={pennylaneActif}
         coproFixe={copro.code}
+        {...(creneauCsSuggere ? { creneauCsSuggere } : {})}
         depassementCsSeul
         onSucces={onFermer}
       />

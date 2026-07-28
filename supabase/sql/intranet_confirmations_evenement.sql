@@ -58,7 +58,11 @@ alter table public.intranet_confirmations_evenement
   add column if not exists salle_email           text,
   add column if not exists vehicule_email        text,
   add column if not exists mode_reunion          text,
-  add column if not exists collaborateurs_emails jsonb;
+  add column if not exists collaborateurs_emails jsonb,
+  -- Heure de FIN reelle de la reunion ("HH:mm"), saisie a la confirmation du CS
+  -- (Sekou 2026-07-28). Le CS est facture a l'heure au-dela d'une franchise : sans
+  -- elle, le gestionnaire doit retrouver l'horaire de memoire au moment de facturer.
+  add column if not exists heure_fin             text;
 
 -- RLS activee sans policy : acces via service_role uniquement (comme les autres
 -- tables intranet). Le cloisonnement gestionnaire est applique en code (managerId).

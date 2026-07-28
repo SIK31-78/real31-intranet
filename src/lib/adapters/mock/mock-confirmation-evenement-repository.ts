@@ -77,6 +77,18 @@ export class MockConfirmationEvenementRepository implements ConfirmationEvenemen
     STORE.set(cle(coproCode, type), maj);
   }
 
+  async enregistrerHeureFin(
+    coproCode: string,
+    type: "AG" | "CS",
+    heureFin: string | null,
+  ): Promise<void> {
+    const existante = STORE.get(cle(coproCode, type));
+    if (!existante) return; // pas de ligne de confirmation -> rien a annoter (comme le SQL)
+    const maj = { ...existante };
+    delete maj.heureFin;
+    STORE.set(cle(coproCode, type), heureFin ? { ...maj, heureFin } : maj);
+  }
+
   async enregistrerModeReunion(
     coproCode: string,
     type: "AG" | "CS",

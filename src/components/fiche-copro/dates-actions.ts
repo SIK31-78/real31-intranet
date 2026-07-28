@@ -201,8 +201,15 @@ export async function definirDateCs(
 export async function confirmerEvenementAction(
   coproCode: string,
   type: "AG" | "CS",
+  heureFin?: string,
 ): Promise<{ ok: true } | { ok: false; erreur: string }> {
-  if (!z.object({ coproCode: zCode, type: zTypeEvenement }).safeParse({ coproCode, type }).success)
+  // heureFin : "HH:mm" ou vide. Bornee ici (jamais de chaine libre en base).
+  const zHeureFin = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional();
+  if (
+    !z
+      .object({ coproCode: zCode, type: zTypeEvenement, heureFin: zHeureFin })
+      .safeParse({ coproCode, type, ...(heureFin ? { heureFin } : {}) }).success
+  )
     return { ok: false, erreur: "Données invalides." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
@@ -210,7 +217,15 @@ export async function confirmerEvenementAction(
     return { ok: false, erreur: "Copropriété hors de votre périmètre." };
   try {
     // Boite de projection Outlook = email de session (cf. definir ci-dessus).
-    const date = await confirmerEvenement(coproCode, type, g.initiales, g.id, g.email);
+    const date = await confirmerEvenement(
+      coproCode,
+      type,
+      g.initiales,
+      g.id,
+      g.email,
+      // Seul le CS est facture au temps passe : on ne stocke pas d'heure de fin pour une AG.
+      type === "CS" ? heureFin : undefined,
+    );
     if (!date) return { ok: false, erreur: "Aucune date à confirmer." };
     revalidatePath(`/copropriete/${coproCode}`);
     revalidatePath("/calendrier");

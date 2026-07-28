@@ -12,6 +12,17 @@ export interface ConfirmationEvenementRepository {
   get(coproCode: string): Promise<ConfirmationEvenement[]>;
   /** Upsert statut confirme : le conseil syndical a valide la date. */
   confirmer(coproCode: string, type: "AG" | "CS", date: string, par: string): Promise<void>;
+  /**
+   * Pose (ou efface avec null) l'heure de FIN reelle de la reunion ("HH:mm") : UPDATE
+   * cible SEPARE (comme enregistrerModeReunion), pour que l'absence de la colonne
+   * heure_fin ne fasse pas echouer la confirmation elle-meme. Alimente la facturation
+   * du depassement d'honoraires CS.
+   */
+  enregistrerHeureFin(
+    coproCode: string,
+    type: "AG" | "CS",
+    heureFin: string | null,
+  ): Promise<void>;
   /** Upsert statut a_confirmer - appele quand une prochaine date est posee / changee. */
   proposer(coproCode: string, type: "AG" | "CS", date: string): Promise<void>;
   /**

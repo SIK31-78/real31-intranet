@@ -36,6 +36,11 @@ export interface ConfirmationEvenement {
    *  invites en attendees "required" de l'evenement Outlook (il apparait dans leur
    *  agenda). Absent / vide = aucun collegue associe. */
   collaborateursEmails?: string[];
+  /** Heure de FIN reelle de la reunion ("HH:mm"), saisie au moment de la confirmation.
+   *  Le CS est facture a l'heure au-dela d'une franchise : sans heure de fin, le
+   *  gestionnaire doit la retrouver de memoire au moment de facturer. Seul le CS la
+   *  renseigne aujourd'hui (une AG n'est pas facturee au temps passe). */
+  heureFin?: string;
 }
 
 /**

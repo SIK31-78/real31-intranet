@@ -24,6 +24,10 @@ type SupervisionVueProps = {
   aujourdhuiISO: string;
   /** Pennylane branche cote serveur (transmis aux modules ouverts en modale). */
   pennylaneActif: boolean;
+  /** Creneau REEL du CS preparatoire (jour + debut + fin), issu de sa confirmation sur la
+   *  fiche copro. Pre-remplit la facturation des honoraires CS ouverte depuis la
+   *  checklist : le gestionnaire n'a plus a retrouver l'horaire de memoire. */
+  creneauCsSuggere?: { jour: string; debut: string; fin?: string };
   onCocher: (itemId: string, statut: StatutItem) => Promise<void>;
   onCommenter: (itemId: string, commentaire: string) => Promise<void>;
   onConclure: () => Promise<void>;
@@ -35,6 +39,7 @@ export function SupervisionVue({
   role,
   aujourdhuiISO,
   pennylaneActif,
+  creneauCsSuggere,
   onCocher,
   onCommenter,
   onConclure,
@@ -129,6 +134,7 @@ export function SupervisionVue({
           module={moduleOuvert}
           copro={supervision.copro}
           agDateISO={agDateISO}
+          {...(creneauCsSuggere ? { creneauCsSuggere } : {})}
           pennylaneActif={pennylaneActif}
           onFermer={() => setModuleOuvert(null)}
         />

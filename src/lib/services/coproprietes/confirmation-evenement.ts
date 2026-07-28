@@ -32,6 +32,7 @@ export async function confirmerEvenement(
   par: string,
   managerId: string,
   boite?: string,
+  heureFin?: string,
 ): Promise<string | null> {
   const copro = await getCoproRepository().findByCode(coproCode, managerId);
   if (!copro) return null;
@@ -39,6 +40,11 @@ export async function confirmerEvenement(
   if (!date) return null;
   // La confirmation porte sur le JOUR : on stocke / renvoie la date pure (inchange).
   await getConfirmationEvenementRepository().confirmer(coproCode, type, date, par);
+  // Heure de FIN reelle (CS uniquement, saisie au moment de la confirmation) : elle
+  // alimentera la facturation du depassement d'honoraires depuis la supervision.
+  // UPDATE separe et degrade propre : si la colonne n'est pas deployee, la confirmation
+  // reste acquise, seul le pre-remplissage de la facturation manquera.
+  if (heureFin) await getConfirmationEvenementRepository().enregistrerHeureFin(coproCode, type, heureFin);
   // Projection Outlook : recompose date + heure eventuelle pour garder l'evenement
   // timed (l'heure vit dans le referentiel, pas dans la table confirmation).
   const heure = type === "AG" ? copro.prochaineAg?.heure : copro.prochaineCsHeure;
