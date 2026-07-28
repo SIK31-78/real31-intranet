@@ -30,7 +30,7 @@ export default async function DbHealthPage() {
               <span className="w-1.5 h-1.5 rounded-full bg-ok-500" />
               OK · {result.rows.length} ligne{result.rows.length > 1 ? "s" : ""}
             </div>
-            <div className="border border-line rounded-sm overflow-hidden">
+            <div className="border border-line rounded-sm overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead className="bg-surface-2/40">
                   <tr className="text-left text-ink-3">
