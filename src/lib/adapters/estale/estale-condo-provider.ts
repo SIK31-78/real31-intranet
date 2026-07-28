@@ -45,8 +45,15 @@ type CondoData = {
       periodCurrent: [string, string] | null;
       exercices: { id: string; period: [string, string]; budgetOrdinary: { amount: number } | null }[];
     };
+    lots: { use: string | null }[] | null;
+    serviceBook: { mandate: { signed: string | null; end: string | null } | null } | null;
   };
 };
+
+// Usages eStale comptant comme lots PRINCIPAUX (par opposition aux annexes :
+// PARKING, OTHER = caves, jardins, remises...). Verifie sur donnees reelles le
+// 2026-07-28 : S0300 = 6 principaux / 12 annexes ; S0302 = 55 / 123.
+const USAGES_PRINCIPAUX = new Set(["RESIDENTIAL", "COMMERCIAL", "OFFICE", "MIXED"]);
 
 const QUERY_CONDO = `query DonneesCopro($id: ID!) {
   condo(id: $id) {
@@ -57,6 +64,8 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
     contracts { label category period }
     litigation { count }
     accountingV2 { periodCurrent exercices { id period budgetOrdinary { amount } } }
+    lots { use }
+    serviceBook { mandate { signed end } }
   }
 }`;
 
@@ -260,6 +269,15 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       : ([{ eauIds: [], travauxVotes: [] }, []] as [Comptes, DebiteurEstale[]]);
     const eau = await consommationEau(condoId, comptes.eauIds);
 
+    // Lots : eStale ne distingue pas "principaux/annexes" mais porte l'usage de chaque
+    // lot -> on derive le compte (habitation/commerce/bureau/mixte = principaux).
+    const lots = condo.lots ?? [];
+    const lotsPrincipaux = lots.filter((l) => USAGES_PRINCIPAUX.has((l.use ?? "").toUpperCase())).length;
+    const lotsAutres = lots.length - lotsPrincipaux;
+    // "Date de prise en charge du syndic" de l'UI eStale = serviceBook.mandate.signed
+    // (verifie a l'ecran sur SE999 le 2026-07-28 : 15/07/2004).
+    const mandat = condo.serviceBook?.mandate ?? null;
+
     return {
       conseilSyndical,
       ...(expiry > 0 ? { mandatJusqua: `AG ${expiry}` } : {}),
@@ -275,6 +293,18 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(comptes.fonds != null ? { fondsTravaux: comptes.fonds } : {}),
       ...(debiteurs.length > 0 ? { debiteurs } : {}),
       ...(eau ? { eau } : {}),
+      // Identite complementaire (absente du referentiel pour les copros eStale-only).
+      ...(lots.length > 0 ? { lotsPrincipaux, lotsAutres } : {}),
+      ...(condo.accountingV2?.periodCurrent
+        ? {
+            exercice: {
+              debut: condo.accountingV2.periodCurrent[0],
+              fin: condo.accountingV2.periodCurrent[1],
+            },
+          }
+        : {}),
+      ...(mandat?.signed ? { priseEnChargeSyndic: mandat.signed } : {}),
+      ...(mandat?.end ? { mandatSyndicFin: mandat.end } : {}),
     };
   }
 }

@@ -2,7 +2,7 @@
 // (CS / historique / conformite) + les prochains evenements (calendrier). Passe par
 // le routeur, jamais un adapter en direct (ADR-001).
 
-import type { DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
+import type { Copropriete, DonneesEstaleCopro, FicheCopro, ItemConformite } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { statutPourDate } from "@/lib/domain/confirmation-evenement";
 import { itemConformitePpt } from "@/lib/domain/conformite-ppt";
@@ -194,8 +194,37 @@ export async function getFicheCopro(
   const collaborateursCs = resoudreCollab(confCs?.collaborateursEmails);
   // (agenceCode : deja resolu en parallele dans le Promise.all ci-dessus.)
 
+  /** Le referentiel a-t-il une VRAIE valeur ? ("" / "-" / absent = non renseigne). */
+  const estValeur = (v: string | undefined | null): boolean =>
+    Boolean(v && v.trim() && v.trim() !== "-");
+
+  // IDENTITE COMPLETEE PAR eSTALE (2026-07-28) : lots principaux / exercice / prise en
+  // gestion vivent dans le referentiel App A, ABSENTS pour les copros eStale-only (la
+  // fiche affichait "0 lot", "- -> -", "-"). eStale les porte : on complete SANS jamais
+  // ecraser une valeur du referentiel (il reste prioritaire quand il est renseigne).
+  const coproComplete: Copropriete = {
+    ...copro,
+    ...(copro.lotsPrincipaux === 0 && copro.lotsAutres === 0 && estale.lotsPrincipaux !== undefined
+      ? { lotsPrincipaux: estale.lotsPrincipaux, lotsAutres: estale.lotsAutres ?? 0 }
+      : {}),
+    // "Vide" cote referentiel = absent OU le placeholder "-" (c'est ce qu'affichait la
+    // fiche : "- -> -"), d'ou le test sur les deux formes.
+    ...(estale.exercice && !estValeur(copro.exercice?.debut)
+      ? {
+          // Formate en FR comme le reste de la fiche (eStale renvoie de l'ISO).
+          exercice: { debut: jjmmaaaa(estale.exercice.debut), fin: jjmmaaaa(estale.exercice.fin) },
+        }
+      : {}),
+    ...(estale.priseEnChargeSyndic && !estValeur(copro.priseEnGestion)
+      ? { priseEnGestion: jjmmaaaa(estale.priseEnChargeSyndic) }
+      : {}),
+    ...(!copro.mandatSyndicFin && estale.mandatSyndicFin
+      ? { mandatSyndicFin: estale.mandatSyndicFin }
+      : {}),
+  };
+
   return {
-    copro,
+    copro: coproComplete,
     estale,
     prochains,
     derniereAg: historique[0],

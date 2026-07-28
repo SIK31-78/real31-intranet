@@ -171,6 +171,21 @@ export interface DonneesEstaleCopro {
   conformite: ItemConformite[];
   /** Annee de construction (Estale `constructionDate`) -> applicabilite PPT/DPE. */
   anneeConstruction?: number;
+  // --- Identite complementaire (2026-07-28) : ces 3 champs vivent normalement dans le
+  //     referentiel App A, ABSENTS pour les copros eStale-only -> la fiche affichait
+  //     "0 lot", "- -> -", "-". eStale les porte, on les remonte ICI (requete fiche,
+  //     pas la requete liste qui est dans le chemin critique de chaque page).
+  /** Lots PRINCIPAUX (usage residentiel + commercial), depuis `condo.lots`. */
+  lotsPrincipaux?: number;
+  /** Lots ANNEXES (parking, caves, jardins... = usage parking/other). */
+  lotsAutres?: number;
+  /** Exercice comptable courant (`accountingV2.periodCurrent`). */
+  exercice?: Exercice;
+  /** Date de PRISE EN CHARGE par le syndic, ISO (`serviceBook.mandate.signed` -
+   *  c'est le libelle exact de l'UI eStale, verifie a l'ecran le 2026-07-28). */
+  priseEnChargeSyndic?: string;
+  /** Fin du mandat de syndic, ISO (`serviceBook.mandate.end`). */
+  mandatSyndicFin?: string;
   /** Contrats fournisseurs (gaz, electricite...) pour la gestion courante. */
   contrats?: ContratEstale[];
   /** Nombre de procedures / litiges en cours. */
