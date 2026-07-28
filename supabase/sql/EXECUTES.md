@@ -4,6 +4,8 @@
 
 Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 
+> ⚠️ **Un ✅ ici n'est PAS une preuve.** Le 2026-07-28, `intranet_copro_dates` était marquée ✅ depuis le 21/07 alors qu'elle était ABSENTE de la base — conséquence : toutes les dates AG/CS des copros eStale étaient silencieusement perdues. **Quand un symptôme sent le « rien ne se passe », interroger la base** (un `select` sur la table : `200` = existe, `404 PGRST205` = absente), pas ce tableau.
+
 | Fichier | Statut | Notes |
 |---|---|---|
 | `intranet_jalons.sql` | ❔ | Socle jalons (RLS off assumée). |
@@ -30,10 +32,10 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_suivi_contrats_seed_reel.sql` | ✅ | Seed réel (honoraires par copro) — **chargé en base** (audit 2026-07-23 : 0 montant NULL). ⚠️ **fichier sorti du repo → `data/seeds/` (git-ignoré, données commerciales)**. |
 | `intranet_produits.sql` | ✅ | Catalogue produits (product_id + comptes comptables Pennylane, gestion courante). |
 | `intranet_gestion_courante.sql` | ✅ | Gestion courante. |
-| `intranet_dossiers.sql` | 🔲 | **En attente** (créé 2026-07-22). |
-| `intranet_compta_notes.sql` | 🔲 | **En attente** (notes compta). |
-| `intranet_api_keys.sql` | 🔲 | **En attente** — clés machine API v1 ; tant que non passé, l'API répond 503 `api_non_configuree`. |
-| `intranet_annonces.sql` | ⚠️ | Table passée par Sekou (2026-07-27). **2 ALTER à rejouer** (2026-07-28, ciblage) : `alter table public.intranet_annonces add column if not exists agences text[]; alter table public.intranet_annonces add column if not exists emails text[];`. Idempotent → repasser tout le fichier sans risque. Sans eux : création d'annonce ciblée échouera (colonne inconnue) ; annonces « tout le groupe » OK. |
+| `intranet_dossiers.sql` | ✅ | Passé par Sekou ; **vérifié en base le 2026-07-28** (14 lignes). |
+| `intranet_compta_notes.sql` | ✅ | Passé par Sekou ; **vérifié en base le 2026-07-28** (4 lignes). |
+| `intranet_api_keys.sql` | ✅ | Passé par Sekou ; **vérifié en base le 2026-07-28** (2 clés). L'API v1 répond bien 401 (et non 503). |
+| `intranet_annonces.sql` | ✅ | Table + **colonnes de ciblage `agences[]` / `emails[]`** passées ; **vérifié en base le 2026-07-28** (colonnes présentes) → annonces par agence / par collaborateur opérationnelles. |
 | `intranet_feedback.sql` | ⚠️ | Table passée (+ ALTER `severite drop not null` du 2026-07-23). **Un 2e ALTER à rejouer** (2026-07-23, masquage réversible) : `alter table public.intranet_feedback add column if not exists archive_at timestamptz;`. Idempotent → repasser tout le fichier est sans risque. Sans lui, archiver/désarchiver lèvera une erreur colonne inconnue (le reste marche). |
 | `reprise_dossier.sql` | ❔ | Reprise copro — dossier. |
 | `reprise_dossier_jeu.sql` | ❔ | Reprise copro — jeu de test. |
