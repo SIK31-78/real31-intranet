@@ -24,6 +24,7 @@ const QUERY_CONDOS = `{
     address { housenumber street addressL2 addressL3 postcode city }
     establishment { name }
     collaborators { id fullname email }
+    serviceBook { mandate { managerID } }
   } } }
 }`;
 
@@ -41,6 +42,8 @@ type CondoNode = {
   } | null;
   establishment: { name: string | null } | null;
   collaborators: { id: string; fullname: string; email: string | null }[];
+  /** Gestionnaire DESIGNE par le mandat eStale (c'est ce qu'affiche l'UI eStale). */
+  serviceBook: { mandate: { managerID: string | null } | null } | null;
 };
 
 // Cache module (persiste entre requetes, partage entre instances de l'adapter, perdu au
@@ -166,9 +169,27 @@ export class EstaleCoproProvider implements CoproEstaleProvider {
       const equipe: MembreEquipe[] = [];
       let managerId: string | undefined;
       let assistantId: string | undefined;
+      // LE GESTIONNAIRE D'UNE COPRO eSTALE EST CELUI QU'eSTALE DESIGNE (mandat), pas une
+      // deduction du role RH de public."User" (bug 2026-07-28 : SE999 n'appartenait a
+      // PERSONNE car son gestionnaire eStale, Sekou, a le role RH "ADMIN" -> ODJ /
+      // supervision en 404 pour tout le monde sauf en lecture transverse).
+      const idDesigne = c.serviceBook?.mandate?.managerID ?? null;
+      const emailDesigne = idDesigne
+        ? (c.collaborators.find((co) => co.id === idDesigne)?.email ?? null)
+        : null;
+      const userDesigne = emailDesigne ? userParEmail.get(emailDesigne.toLowerCase()) : null;
+      if (userDesigne) {
+        managerId = userDesigne.id;
+        equipe.push({
+          initiales: userDesigne.initiales,
+          nomComplet: userDesigne.nomComplet,
+          role: "gestionnaire",
+        });
+      }
       for (const co of c.collaborators) {
         const user = co.email ? userParEmail.get(co.email.toLowerCase()) : null;
         if (!user) continue;
+        if (userDesigne && user.id === userDesigne.id) continue; // deja ajoute comme gestionnaire
         const role = roleEquipeDe(user.role);
         if (!role) continue;
         equipe.push({
@@ -176,7 +197,7 @@ export class EstaleCoproProvider implements CoproEstaleProvider {
           nomComplet: user.nomComplet,
           role,
         });
-        // managerId = PREMIER gestionnaire trouve (ordre eStale) ; idem assistant.
+        // Repli quand eStale ne designe personne : PREMIER gestionnaire RH trouve.
         if (role === "gestionnaire" && !managerId) managerId = user.id;
         if (role === "assistant" && !assistantId) assistantId = user.id;
       }
