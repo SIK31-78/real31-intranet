@@ -15,7 +15,7 @@ export function VueListe({ evenements }: { evenements: Evenement[] }) {
     <div className="bg-surface border border-line rounded-md divide-y divide-line">
       {jours.map((j) => (
         <div key={j.date} className="flex gap-4 px-4 py-3">
-          <div className="w-[180px] shrink-0 pt-1">
+          <div className="w-[100px] sm:w-[180px] shrink-0 pt-1">
             <div className="text-[13px] font-medium text-ink">
               {libelleJourLong(j.date)}
             </div>

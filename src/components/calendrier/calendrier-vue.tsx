@@ -134,7 +134,7 @@ export function CalendrierVue({
           ))}
         </div>
       </div>
-      <div className="flex gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 min-w-0">
           {vue !== "liste" && evenementsFiltres.length === 0 && (
             <div className="mb-3 rounded-md border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-3 text-center">

@@ -13,7 +13,7 @@ export function AgendaProchains({
 }) {
   const prochains = prochainsEvenements(evenements, aujourdhuiISO, N);
   return (
-    <aside className="bg-surface border border-line rounded-md p-4 w-[300px] shrink-0 self-start">
+    <aside className="bg-surface border border-line rounded-md p-4 w-full lg:w-[300px] shrink-0 self-start">
       <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3 mb-3">
         Prochains événements
       </div>
