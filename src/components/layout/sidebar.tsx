@@ -213,7 +213,7 @@ export function Sidebar({
   adminOuvert?: boolean;
 }) {
   return (
-    <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto">
+    <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto shadow-xl md:shadow-none">
       <nav className="px-3 py-3 flex flex-col gap-4">
         {vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
