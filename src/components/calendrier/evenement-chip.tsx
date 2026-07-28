@@ -37,9 +37,9 @@ export function EvenementChip({ evenement, taille = "md", className }: Evenement
           ? "confirmé"
           : "confirmée"
         : undefined;
-  // Seules les AG/AGE ont une fiche de supervision. Un CS n'a pas (encore) de cible :
-  // on le rend NON cliquable plutot qu'un lien mort vers "#".
-  const cliquable = type === "AG" || type === "AGE";
+  // TOUTE vignette est cliquable (demande Sekou 2026-07-28) : AG/AGE -> la supervision
+  // (fil d'AG) ; CS -> la fiche copro, ancre #dates-ag (le lieu ou vivent les dates CS).
+  const href = type === "CS" ? `/copropriete/${coproCode}#dates-ag` : `/supervision-ag/${id}`;
   const classes = cn(
     "flex items-center gap-1 rounded-sm border transition-colors duration-75",
     small ? "h-[18px] px-1 text-[11px]" : "h-6 px-1.5 text-[12px] gap-1.5",
@@ -47,7 +47,7 @@ export function EvenementChip({ evenement, taille = "md", className }: Evenement
     STATUT_STYLE[statut],
     // Date pas encore confirmee par le CS : bordure pointillee, sobre.
     confirmation === "a_confirmer" && "border-dashed",
-    cliquable ? "cursor-pointer hover:brightness-[0.97]" : "cursor-default",
+    "cursor-pointer hover:brightness-[0.97]",
     className,
   );
   const titre = `${type}${mentionConf ? ` ${mentionConf}` : ""} · ${coproNomCourt} · ${coproCode}${heure ? ` · ${heure}` : ""}`;
@@ -75,16 +75,9 @@ export function EvenementChip({ evenement, taille = "md", className }: Evenement
     </>
   );
 
-  if (cliquable) {
-    return (
-      <Link href={`/supervision-ag/${id}`} title={titre} className={classes}>
-        {contenu}
-      </Link>
-    );
-  }
   return (
-    <div title={titre} className={classes}>
+    <Link href={href} title={titre} className={classes}>
       {contenu}
-    </div>
+    </Link>
   );
 }
