@@ -410,7 +410,7 @@ export function FormulaireFacturation({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={label} htmlFor="client">Nom du client</label>
-              <input id="client" className={champ} value={nomClient} onChange={(e) => setNomClient(e.target.value)} placeholder="Étude notariale…" />
+              <input id="client" className={champ} value={nomClient} onChange={(e) => setNomClient(e.target.value)} placeholder="M. Dupont" />
             </div>
             <div>
               <label className={label} htmlFor="date-etab">Date d&apos;établissement</label>

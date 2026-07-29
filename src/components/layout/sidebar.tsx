@@ -90,6 +90,10 @@ const GROUPES: { titre: string; items: Item[] }[] = [
 const NAV_COMPTABLE: Item[] = [
   { key: "compta", label: "Dashboard", href: "/comptabilite", icon: LayoutDashboard },
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
+  // Facturation : ajoutee le 2026-07-29. Un comptable facture sur les agences qu'il tient
+  // (cf. domain/perimetre-comptable) -- la page marchait deja pour lui, mais aucun lien n'y
+  // menait depuis sa nav reduite : il devait taper l'URL a la main.
+  { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
   { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
