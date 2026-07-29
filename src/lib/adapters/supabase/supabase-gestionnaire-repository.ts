@@ -58,30 +58,17 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       .sort((a, b) => a.nomComplet.localeCompare(b.nomComplet));
   }
 
-  async listImpersonables(emailsComptables: readonly string[] = []): Promise<Gestionnaire[]> {
+  async listImpersonables(): Promise<Gestionnaire[]> {
     // Impersonation dev-login = gestionnaires/assistants de copros (list) UNION les
     // comptables (role=COMPTABLE), qui n'ont pas de portefeuille et sont donc absents
     // de list(). On NE touche PAS list() : ajouter des comptables la-bas casserait le
     // selecteur de collaborateurs des AG et les filtres portefeuille.
     const supabase = createSupabasePublicClient();
-    // DEUX sources pour les comptables, comme `estComptable` (roles.ts) :
-    //  - le role table COMPTABLE (propre, mais ABSENT du cabinet : verifie en base le
-    //    2026-07-29, les comptables y sont en role "AUTRE") ;
-    //  - l'allowlist d'env COMPTABLES, passee par l'appelant.
-    // Sans la seconde, le selecteur dev-login n'affichait plus AUCUN comptable et on ne
-    // pouvait plus incarner Elsa / Isabelle / Romain.
-    const emails = emailsComptables.map((e) => e.trim().toLowerCase()).filter(Boolean);
-    const [aPortefeuille, comptablesRes, parEmailRes] = await Promise.all([
+    const [aPortefeuille, comptablesRes] = await Promise.all([
       this.list(),
       supabase.from("User").select(USER_COLS).eq("role", "COMPTABLE"),
-      emails.length > 0
-        ? supabase.from("User").select(USER_COLS).in("email", emails)
-        : Promise.resolve({ data: [] as UserRow[] }),
     ]);
-    const comptables = [
-      ...((comptablesRes.data as UserRow[] | null) ?? []),
-      ...((parEmailRes.data as UserRow[] | null) ?? []),
-    ].map(toGestionnaire);
+    const comptables = ((comptablesRes.data as UserRow[] | null) ?? []).map(toGestionnaire);
     const parId = new Map<string, Gestionnaire>();
     for (const g of [...aPortefeuille, ...comptables]) {
       if (!parId.has(g.id)) parId.set(g.id, g);

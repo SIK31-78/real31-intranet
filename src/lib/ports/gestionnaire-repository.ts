@@ -13,13 +13,8 @@ export interface GestionnaireRepository {
    * l'impersonation : `list()` reste la liste des collaborateurs a portefeuille (AG,
    * filtres) et ne doit pas contenir les comptables.
    */
-  /**
-   * Profils incarnables au dev-login : les gestionnaires/assistants de copros, PLUS les
-   * comptables. `emailsComptables` est fourni par l'appelant (allowlist d'env) : le role
-   * COMPTABLE n'existe pas dans la table `User` du cabinet, les comptables y sont en
-   * `AUTRE` -> sans cette liste ils disparaissent du selecteur.
-   */
-  listImpersonables(emailsComptables?: readonly string[]): Promise<Gestionnaire[]>;
+  /** Profils incarnables au dev-login : gestionnaires/assistants de copros + comptables. */
+  listImpersonables(): Promise<Gestionnaire[]>;
   findById(id: string): Promise<Gestionnaire | null>;
   /** Resout un gestionnaire par email (SSO Entra ID -> public."User"). */
   findByEmail(email: string): Promise<Gestionnaire | null>;

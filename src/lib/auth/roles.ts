@@ -129,20 +129,6 @@ export function estComptable(
   return aRole(email, "comptable") || estComptableTable(roleTable);
 }
 
-/**
- * Emails de l'allowlist COMPTABLES (union des deux graphies). Expose parce que le selecteur
- * dev-login doit pouvoir proposer les comptables : ils n'ont PAS de portefeuille, donc ils
- * sont absents de `list()`, et le role `COMPTABLE` n'existe PAS dans la table `User` (les
- * comptables y sont en `AUTRE`, verifie en base le 2026-07-29). Sans cette liste, le
- * selecteur ne les affichait plus du tout - on ne pouvait plus incarner un comptable.
- * Partout ailleurs, `estComptable` unionne deja allowlist ET role table : c'est
- * `listImpersonables` qui etait la seule incoherence.
- */
-export function emailsComptables(): string[] {
-  const [pluriel, singulier] = SOURCES_ENV.comptable;
-  return [...new Set([...allowlist(process.env[pluriel]), ...allowlist(process.env[singulier])])];
-}
-
 /** Manager (MANAGERS) - ou super-admin. */
 export function estManager(email: string | null | undefined): boolean {
   return aRole(email, "manager");
