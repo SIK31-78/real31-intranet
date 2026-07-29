@@ -19,6 +19,10 @@ interface ToastApi {
   info: (message: string) => void;
 }
 
+/** Duree d'affichage des toasts NON bloquants (ok / info). Les erreurs, elles, restent
+ *  jusqu'a fermeture explicite : cf. `ajouter`. */
+const DUREE_SUCCES_MS = 5000;
+
 const ToastCtx = createContext<ToastApi | null>(null);
 
 export function useToast(): ToastApi {
@@ -40,7 +44,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (ton: Ton, message: string) => {
       const id = ++compteur;
       setToasts((liste) => [...liste, { id, message, ton }]);
-      setTimeout(() => retirer(id), 4000);
+      // Une ERREUR ne s'efface pas toute seule (retour d'une collegue de Sekou,
+      // 2026-07-29 : "c'est chiant que les messages d'erreur restent juste 5 secondes").
+      // Nos messages d'erreur sont ACTIONNABLES et souvent longs ("Parametres d'AG non
+      // renseignes pour la copropriete X - a completer sur la fiche avant de facturer le
+      // depassement") : disparaitre avant d'avoir ete lus les rend inutiles, et
+      // l'utilisateur ne peut meme pas les recopier pour demander de l'aide.
+      // Un succes, lui, n'appelle aucune action -> il s'efface. La croix ferme les deux.
+      if (ton !== "err") setTimeout(() => retirer(id), DUREE_SUCCES_MS);
     },
     [retirer],
   );
