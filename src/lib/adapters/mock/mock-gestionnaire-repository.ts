@@ -21,6 +21,8 @@ export class MockGestionnaireRepository implements GestionnaireRepository {
     return GESTIONNAIRES;
   }
 
+  // Le mock porte deja ses comptables en dur : l'allowlist de l'appelant ne lui sert pas.
+  // Signature conservee pour respecter le port (cf. adapter Supabase, qui s'en sert).
   async listImpersonables(): Promise<Gestionnaire[]> {
     return [...GESTIONNAIRES, ...COMPTABLES].sort((a, b) =>
       a.nomComplet.localeCompare(b.nomComplet),

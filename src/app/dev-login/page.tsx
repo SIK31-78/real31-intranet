@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getGestionnaireRepository, getAgenceRepository } from "@/lib/adapters/router";
 import { impersonationAutorisee } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
+import { emailsComptables, estSuperAdmin } from "@/lib/auth/roles";
 import { choisirGestionnaire, connecterMicrosoft } from "./actions";
 
 export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
@@ -61,7 +61,10 @@ export default async function DevLoginPage() {
 
   // Mode dev : selecteur de profil incarnable (sera remplace par le SSO en prod).
   // listImpersonables = gestionnaires/assistants de copros + les comptables (transverses).
-  const gestionnaires = await getGestionnaireRepository().listImpersonables();
+  // On passe l'allowlist COMPTABLES : le role COMPTABLE n'existe pas dans la table du
+  // cabinet (comptables en "AUTRE"), donc sans elle Elsa / Isabelle / Romain disparaissent
+  // du selecteur - c'est ce qui empechait de se connecter en comptable (Sekou 2026-07-29).
+  const gestionnaires = await getGestionnaireRepository().listImpersonables(emailsComptables());
   // Resolution agence (id -> code ML/LGC/HLS/ASN) : une seule lecture de la table Agency
   // (4 lignes), degrade en Map vide si la table est absente -> pas de badge agence.
   const agences = await getAgenceRepository().listerAgences();

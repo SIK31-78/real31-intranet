@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Receipt } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
+import { getCoprosFacturables } from "@/lib/services/coproprietes/copros-facturables";
+import { estComptable } from "@/lib/auth/roles";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
 import { FormulaireFacturation } from "@/components/facturation/formulaire-facturation";
@@ -18,9 +19,15 @@ export default async function FacturationPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
-  // Copros du portefeuille d'abord : l'historique est BORNE a ces copros ("nos facturations",
-  // pas celles de tout le monde). Le cloisonnement suit ce que le gestionnaire voit deja.
-  const copros = await getCoproprietes(g.id);
+  // Perimetre de facturation : le portefeuille pour un gestionnaire, les AGENCES tenues
+  // pour un comptable (qui n'a aucun portefeuille -> l'ecran lui etait vide, alors que
+  // facturer est son metier). L'historique reste BORNE a ces copros ("nos facturations",
+  // pas celles de tout le monde).
+  const copros = await getCoprosFacturables({
+    managerId: g.id,
+    email: g.email,
+    estComptable: estComptable(g.email, g.role),
+  });
   const historique = await getFacturationRepository().listerFacturesRecentes(
     50,
     copros.map((c) => c.code),
