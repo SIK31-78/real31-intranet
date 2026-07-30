@@ -15,9 +15,17 @@
 // lance la mesure : il devient une ASSERTION du harnais. Une page dont la lecture est
 // invraisemblable est REFUSÉE, avec l'orientation comme première hypothèse.
 //
-// Note d'ampleur : `/Rotate 180` est le cas NORMAL des scans notariés, pas une curiosité.
-// Dans le lot S0306, `RCP 2.pdf` l'a partout, `RCP.pdf` n'a aucun `/Rotate`, la feuille de
-// présence a `/Rotate 0` — d'où la règle : on LIT la métadonnée, on ne la suppose jamais.
+// LA MÉTADONNÉE SE LIT PAR PAGE, JAMAIS PAR DOCUMENT. Mesuré sur le lot S0306 :
+//
+//   RCP.pdf            aucun /Rotate      (28 pages)
+//   RCP 2.pdf          180 partout        (36 pages)
+//   Feuille de présence  0 partout        (5 pages)
+//   CONVOCATION        absent x36, 0 x43, 90 x8   <-- TROIS valeurs dans UN SEUL fichier
+//   rgd.pdf              0 partout        (6 pages)
+//
+// La convocation interdit tout raccourci « rotation du document » : huit de ses pages sont à
+// **90°**. Il faut donc couvrir 90 et 270 autant que 180 — d'où une formulation des messages
+// qui parle de page MAL ORIENTÉE, et non « à l'envers », qui ne vaudrait que pour 180.
 
 /** Un token rendu par l'OCR, réduit à ce qui sert à juger la vraisemblance. */
 export interface TokenOcr {
@@ -51,6 +59,13 @@ export const SEUIL_CONFIANCE_PAGE = 75;
 
 /** En dessous de ce nombre de tokens, la page est trop pauvre pour qu'on juge quoi que ce soit. */
 const MIN_TOKENS_POUR_JUGER = 10;
+
+/**
+ * Longueur moyenne de token en dessous de laquelle la page est lue en FRAGMENTS — symptôme
+ * d'une rotation de 90 ou 270°, où le texte devient vertical. Un texte français normal tourne
+ * autour de 5 caractères par token ; une page verticale tombe à 1-2.
+ */
+const SEUIL_LONGUEUR_TOKEN = 2.2;
 
 function plier(s: string): string {
   return s
@@ -108,9 +123,9 @@ export function verifierOrientationPage(params: {
       verdict: "suspecte",
       raison:
         `Aucun des mots attendus (${ancresAttendues.join(", ")}) n'a été lu sur cette page. ` +
-        `Première hypothèse : la page est à l'envers — vérifier que le rendu honore la ` +
-        `métadonnée /Rotate du PDF (elle vaut 180 sur la totalité des pages de certains ` +
-        `scans notariés).`,
+        `Première hypothèse : la page est MAL ORIENTÉE — vérifier que le rendu honore la ` +
+        `métadonnée /Rotate de CETTE page (elle varie au sein d'un même document : sur le lot ` +
+        `S0306, une convocation porte trois valeurs différentes dont huit pages à 90°).`,
     };
   }
 
@@ -120,8 +135,24 @@ export function verifierOrientationPage(params: {
       verdict: "suspecte",
       raison:
         `Aucune valeur numérique lue sur une page censée porter un tableau de tantièmes. ` +
-        `Première hypothèse : la page est à l'envers (les chiffres retournés se lisent comme ` +
-        `des lettres — « 56 » devient « 9S »).`,
+        `Première hypothèse : la page est MAL ORIENTÉE — à 180° les chiffres se lisent comme ` +
+        `des lettres (« 56 » devient « 9S ») ; à 90° ou 270° les colonnes deviennent des ` +
+        `lignes et l'OCR ne rend plus que des fragments d'un ou deux caractères.`,
+    };
+  }
+
+  // Signal propre au 90/270 : le texte devient vertical, l'OCR ne rend plus que des
+  // fragments. Une page normale a une longueur moyenne de token nettement supérieure.
+  const longueurMoyenne =
+    utiles.reduce((s, t) => s + t.texte.trim().length, 0) / Math.max(1, utiles.length);
+  if (longueurMoyenne < SEUIL_LONGUEUR_TOKEN) {
+    return {
+      ...base,
+      verdict: "suspecte",
+      raison:
+        `Longueur moyenne des tokens de ${Math.round(longueurMoyenne * 10) / 10} caractère(s) : ` +
+        `la page est lue en fragments. Première hypothèse : une rotation de 90° ou 270° ` +
+        `(le texte devient vertical, les colonnes deviennent des lignes).`,
     };
   }
 
@@ -131,7 +162,7 @@ export function verifierOrientationPage(params: {
       verdict: "suspecte",
       raison:
         `Confiance moyenne de ${base.confianceMoyenne} sur 100, sous le seuil de ` +
-        `${SEUIL_CONFIANCE_PAGE}. Vérifier l'orientation de la page avant d'incriminer le ` +
+        `${SEUIL_CONFIANCE_PAGE}. Vérifier l'orientation de CETTE page avant d'incriminer le ` +
         `moteur : une image renversée fait tomber la confiance de ~93 à ~58.`,
     };
   }

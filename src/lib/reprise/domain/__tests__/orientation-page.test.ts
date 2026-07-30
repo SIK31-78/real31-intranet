@@ -47,8 +47,10 @@ describe("verifierOrientationPage", () => {
     });
     expect(r.verdict).toBe("suspecte");
     expect(r.ancresTrouvees).toEqual([]);
-    expect(r.raison).toContain("à l'envers");
+    expect(r.raison).toContain("MAL ORIENTÉE");
     expect(r.raison).toContain("/Rotate");
+    // Le message ne doit PAS supposer 180 : la convocation de S0306 a des pages a 90.
+    expect(r.raison).toContain("90");
   });
 
   it("attrape l'envers par l'ABSENCE de numerique, meme sans ancre fournie", () => {
@@ -92,6 +94,34 @@ describe("verifierOrientationPage", () => {
         ...["TABLEAU", "DE", "REPARTITION", "DES", "CHARGES"].map((m) => tok(m, 80)),
         ...Array.from({ length: 20 }, () => tok("56", 80)),
       ],
+      ancresAttendues: ["TABLEAU"],
+      tableauAttendu: true,
+    });
+    expect(r.verdict).toBe("vraisemblable");
+  });
+
+  it("attrape une page a 90 degres : lue en FRAGMENTS (cas reel de la convocation)", () => {
+    // CONVOCATION_AG de S0306 porte TROIS valeurs de /Rotate, dont 8 pages a 90. A 90, le
+    // texte devient vertical : l'OCR ne rend plus que des fragments d'un ou deux caracteres,
+    // avec une confiance qui peut rester correcte -- ni l'ancre ni la confiance ne suffisent.
+    const fragments: TokenOcr[] = [
+      ..."TABLEAUDEREPARTITIONDESCHARGES".split("").map((c) => tok(c, 82)),
+      ...Array.from({ length: 20 }, () => tok("5", 82)),
+    ];
+    const r = verifierOrientationPage({ tokens: fragments, tableauAttendu: true });
+    expect(r.verdict).toBe("suspecte");
+    // Ce n'est PAS le signal numerique (il y a des chiffres) ni la confiance (82 > seuil).
+    expect(r.nbNumeriques).toBeGreaterThan(0);
+    expect(r.confianceMoyenne).toBeGreaterThan(SEUIL_CONFIANCE_PAGE);
+    expect(r.raison).toContain("fragments");
+    expect(r.raison).toContain("90");
+  });
+
+  it("ne prend pas un tableau de nombres courts pour une page a 90 degres", () => {
+    // Faux positif a eviter : une colonne de "56" est legitimement faite de tokens courts.
+    // C'est la presence de MOTS qui distingue une page saine d'une page verticale.
+    const r = verifierOrientationPage({
+      tokens: PAGE_REDRESSEE,
       ancresAttendues: ["TABLEAU"],
       tableauAttendu: true,
     });
