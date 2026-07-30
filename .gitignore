@@ -102,3 +102,8 @@ docs/**/*.dotx
 docs/**/*.pdf
 docs/**/*.png
 docs/**/*.jpg
+
+# Modeles de langue telecharges par tesseract.js au premier appel (chemin de cache par
+# defaut = cwd). ~1 a 5 Mo par langue, regenerables : ils n'ont rien a faire dans le repo.
+*.traineddata
+*.traineddata.gz
