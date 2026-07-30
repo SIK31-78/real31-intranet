@@ -76,6 +76,64 @@ function damerau(a: string, b: string): number {
   return d[a.length]![b.length]!;
 }
 
+type OracleCle200 = {
+  cle: { code: string; total_annonce: number };
+  nb_lots: number;
+  tantiemes: { numero_lot: number; tantieme: number }[];
+  lots_exclus: { parkings_exterieurs: number[]; rdc: number[]; total_exclus: number };
+  reserves: { numero_lot: number; tantieme: number; statut: string; consigne_harnais: string }[];
+  attendu_sur_le_pdf_extrait: {
+    oracle: string;
+    motif: string;
+    somme_couverte: number;
+    plages_manquantes: [number, number][];
+  };
+};
+const oracle = lire<OracleCle200>("oracle-cle-200.json");
+
+describe("oracle de la cle 200 - la verite du benchmark OCR", () => {
+  it("boucle EXACTEMENT a 10 000 sur 96 lots", () => {
+    expect(oracle.tantiemes).toHaveLength(96);
+    expect(oracle.nb_lots).toBe(96);
+    expect(oracle.tantiemes.reduce((s, t) => s + t.tantieme, 0)).toBe(10_000);
+    expect(oracle.cle.total_annonce).toBe(10_000);
+    expect(new Set(oracle.tantiemes.map((t) => t.numero_lot)).size).toBe(96); // pas de doublon
+  });
+
+  it("exclut a bon droit les 22 lots non desservis (96 + 22 = 118)", () => {
+    const exclus = [...oracle.lots_exclus.parkings_exterieurs, ...oracle.lots_exclus.rdc];
+    expect(exclus).toHaveLength(oracle.lots_exclus.total_exclus);
+    expect(oracle.nb_lots + exclus.length).toBe(118);
+    // Aucun lot exclu ne figure dans les tantiemes : les deux ensembles sont disjoints.
+    const avecTantieme = new Set(oracle.tantiemes.map((t) => t.numero_lot));
+    for (const e of exclus) expect(avecTantieme.has(e)).toBe(false);
+  });
+
+  it("garde tracable la valeur DEDUITE du lot 305 et sa consigne d'arbitrage", () => {
+    // Une valeur deduite ne peut pas servir a condamner une lecture OCR : si un moteur rend
+    // 194 avec une confiance haute, c'est un ARBITRAGE HUMAIN, pas un faux positif du moteur.
+    const r = oracle.reserves.find((x) => x.numero_lot === 305)!;
+    expect(r.tantieme).toBe(195);
+    expect(r.statut).toContain("DEDUIT");
+    expect(r.consigne_harnais).toContain("ARBITRAGE HUMAIN");
+    // La deduction se verifie DEUX fois : le bouclage, et le +1 des paires de l'escalier B.
+    const val = (lot: number) => oracle.tantiemes.find((t) => t.numero_lot === lot)!.tantieme;
+    for (const [a, b] of [[301, 306], [302, 307], [303, 308], [304, 305]]) {
+      expect(val(b!) - val(a!)).toBe(1);
+    }
+  });
+
+  it("attend un REFUS sur le PDF extrait : la page 2 n'existe dans aucun document", () => {
+    const a = oracle.attendu_sur_le_pdf_extrait;
+    expect(a.oracle).toBe("REFUS");
+    expect(a.motif).toBe("tableau_incomplet");
+    expect(a.somme_couverte).toBe(2_800);
+    // 50 lots a 56 = 2 800 : l'arithmetique du refus est verifiable.
+    expect(50 * 56).toBe(a.somme_couverte);
+    expect(a.plages_manquantes[0]).toEqual([51, 66]);
+  });
+});
+
 describe("fixture S0306 - jeu prouve, anonymise", () => {
   it("les invariants prouves par la reprise manuelle tiennent", () => {
     expect(lots).toHaveLength(118);

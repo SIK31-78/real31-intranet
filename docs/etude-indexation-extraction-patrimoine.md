@@ -157,14 +157,65 @@ Deux exigences non négociables, faute de quoi rien ne distingue « lu » d'« i
 
 | Voie | Structure tableau | Confiance/cellule | Bbox | Ordre de prix | Verdict |
 |---|---|---|---|---|---|
-| Couche texte (pdfjs, en place) | par positions (nous) | n/a (exact) | ✅ | 0 € | **toujours en premier** |
-| Rendu image + LLM vision | non garanti | ❌ | ❌ | tokens | ❌ recopie non refusable — le mode qui a produit la clé 300 |
-| Mistral OCR (en place, markdown) | partielle | ❌ (pas par cellule) | ❌ en tableau | ~1 €/1000 p. | ⚠️ corruption prouvée sur tableaux denses (S0302) |
-| Google Document AI | ✅ | ✅ | ✅ | ~1,5-30 €/1000 p. selon processeur | candidat |
-| Azure Document Intelligence (layout) | ✅ | ✅ | ✅ | ~10 €/1000 p. | candidat |
-| AWS Textract (tables) | ✅ | ✅ | ✅ | ~15 €/1000 p. | candidat |
+| Couche texte (pdfjs, en place) | par positions (nous) | n/a (exact) | oui | 0 EUR | **toujours en premier** |
+| **Tesseract 5 (local)** | **inutile - on a le parseur** | oui, par token | oui | **0 EUR, aucun DPA** | **RETENU** (mesure ci-dessous) |
+| Rendu image + LLM vision | non garanti | non | non | tokens | ecarte : recopie non refusable - le mode qui a produit la cle 300 |
+| Mistral OCR (en place, markdown) | partielle | non (pas par cellule) | non en tableau | ~1 EUR/1000 p. | corruption prouvee sur tableaux denses (S0302) |
+| Google Document AI | oui | oui | oui | ~1,5-30 EUR/1000 p. | plan B documente |
+| Azure Document Intelligence (layout) | oui | oui | oui | ~10 EUR/1000 p. | plan B documente |
+| AWS Textract (tables) | oui | oui | oui | ~15 EUR/1000 p. | plan B documente |
 
-Reco : **benchmark des trois candidats sur les scans réels de S0306** (RCP 1974, tableau
+### Tesseract : le candidat qui manquait, et il suffit (mesure du 30/07)
+
+Le tableau initial oubliait Tesseract, et cet oubli changeait la conclusion. Il est libre,
+tourne **en local** (donc **aucune sous-traitance, aucun DPA**) et rend **confiance et bbox
+par token** - exactement le critere de refusabilite.
+
+**Mesures reproduites sur le scan dur de S0306** (tableau ascenseur de 1975, `--psm 6`,
+sortie `tsv`, Tesseract 5.4.0) :
+
+| Pretraitement | cellules « 56 » lues | confiance moyenne |
+|---|---|---|
+| image native | 20 / 50 | 95,7 |
+| **echelle x2 (Lanczos)** | **28 / 50** | 95,0 |
+| echelle x3 | 22 / 50 | 94,2 |
+| `--psm 4`, echelle x2 | 24 / 50 | - |
+
+Colonne des valeurs **nette en x** (1682-1704 sur 1888 px de large) : le parseur par
+positions a de quoi reconstruire.
+
+**Constat de methode plus important que les chiffres eux-memes** : le rendement varie de
+**20 a 28 cellules selon le seul pretraitement**, et une mesure independante sur le meme
+scan en a releve 40. Autrement dit **le harnais pese plus que le moteur**. Consequence pour
+le protocole §5 : la chaine de pretraitement (rotation, echelle, `psm`, binarisation) doit
+etre **figee et versionnee**, sinon « Tesseract obtient X » ne veut rien dire, et deux
+personnes qui comparent deux moteurs comparent en realite deux pretraitements.
+
+Piege rencontre en reproduisant la mesure, a graver dans le harnais : les scans du RCP sont
+stockes **tournes a 180 degres** dans le PDF (CCITTFaxDecode). Sans rotation prealable,
+Tesseract lit `9S` au lieu de `56` et le rendement tombe a **zero** - un harnais qui ne
+verifie pas ce qu'il lit conclurait « Tesseract est inutilisable ». Toujours faire dumper le
+texte brut avant de compter.
+
+**Quatre raisons de ne pas prendre un industriel** :
+
+1. l'oracle rend le moteur secondaire - 28 x 56 = 1 568 != 2 800 -> **refus**, comportement
+   voulu, obtenu sans cle ni contrat ;
+2. **on paierait la brique deja ecrite** : Document AI, Azure DI et Textract vendent la
+   reconstruction de structure de tableau, or `parseur-grand-livre-positions` et
+   `parseur-tantiemes-positions` la font. Ce qu'on veut d'un OCR, c'est du brut avec
+   geometrie et confiance ;
+3. **le vrai levier est en amont** : la FDP est l'impression d'une sortie logicielle - la
+   donnee etait numerique trente secondes avant d'etre scannee. Le message de refus doit
+   d'abord reclamer l'**export natif**. Un export obtenu, c'est zero OCR ;
+4. le cout reel n'est pas le prix mais un DPA, un fournisseur de plus, une cle a faire
+   tourner et une dependance externe sur un chemin critique - pour deux pages par reprise.
+
+**Installation** : Tesseract 5.4.0 est present sur le poste (`C:\Program Files\Tesseract-OCR`),
+pack `eng` seul - suffisant pour des chiffres. Sur le serveur, prevoir **`tesseract-ocr-fra`**
+pour les libelles de lots et les patronymes.
+
+Reco initiale (revue et remplacee, cf. ci-dessus) : benchmark des trois industriels sur les scans reels de S0306 (RCP 1974, tableau
 ascenseur à colonne coupée) avec un harnais unique : le moteur rend cellules + bbox +
 confiance, NOTRE code reconstruit, applique le seuil de confiance, et l'oracle tranche.
 Le choix final est un résultat de mesure, pas une opinion.
@@ -271,8 +322,32 @@ d'un 3e syndic dès qu'une reprise en fournit un.
 | exactitude des noms | mesurée contre le jeu prouvé — **seule métrique sans garde-fou automatique** |
 | coût / latence par configuration | tableau comparatif par run |
 
-Un tableau par configuration (couche texte seule · + OCR candidat A/B/C · avec/sans
-petit modèle d'indexation). C'est ce protocole qui rend le choix OCR décidable.
+Un tableau par configuration (couche texte seule, + Tesseract, avec/sans petit modele
+d'indexation). C'est ce protocole qui rend le choix OCR decidable.
+
+**Deux exigences ajoutees le 30/07, sans lesquelles le protocole ne mesure rien :**
+
+1. **Figer la chaine de pretraitement** (rotation, echelle, `psm`, binarisation) et la
+   versionner avec les resultats. Le rendement varie de 20 a 28 cellules sur le meme scan
+   selon la seule echelle - le harnais pese plus que le moteur, donc un chiffre sans sa
+   chaine n'est pas comparable.
+2. **L'oracle du PDF de benchmark est un REFUS, pas un bouclage.**
+   `data/S0306/benchmark-ocr/RCP2_p30-31_tableau_ascenseur.pdf` ne porte que la **premiere
+   page** du tableau - la page 2 n'existe dans **aucun** document du lot. Attendu : motif
+   `tableau_incomplet`, lots 1-50 couverts, somme = 2 800 / 10 000, plages manquantes 51-66,
+   201-208, 301-308, 401-408, 501-506. **Ne jamais attendre 10 000 depuis cette entree** :
+   payer un moteur pour mieux lire une page qui ne peut pas fermer, c'est acheter de la
+   precision inutile.
+
+L'oracle complet (les 96 lots qui bouclent a 10 000) est commite, PII-free, dans
+`data/samples/S0306/oracle-cle-200.json` - numeros de lots et valeurs seulement. Il porte une
+**reserve explicite** : le lot 305 = 195 est **deduit, non lu** (le scan est illisible sur
+cette ligne). Deux justifications independantes - c'est la seule valeur qui fait boucler le
+bloc 301-308 a 1 556, et elle suit le +1 systematique des paires de l'escalier B, verifie sur
+(301,306), (302,307), (303,308) et (304,305). **Consequence pour le harnais** : si un moteur
+rend 194 avec une confiance haute, ce n'est pas forcement lui qui a tort - la cellule part en
+**arbitrage humain**, jamais en faux positif du moteur. Une valeur deduite ne peut pas servir
+a condamner une lecture.
 
 ---
 
@@ -342,7 +417,8 @@ pas, n'a qu'une source, ET partage son total sans lots discriminants ; un tablea
 le total imprimé est lui-même illisible (refus, donc intervention humaine — c'est voulu) ; et
 l'équivalence inter-syndics tant qu'on n'a que deux lots de fixtures.
 
-**Ce qui bloque encore le benchmark OCR** — et ce n'est pas le DPA (cf. §3) : aucune clé
-d'API cloud n'est configurée sur le poste, et les 14 PDF de S0306 ne sont pas dans `data/`
-(l'étage 1 de la fixture n'a jamais été déposé). Deux actions matérielles, à lever avant de
-mesurer quoi que ce soit.
+**Les blocages du benchmark sont leves (30/07)** : les 14 PDF sont deposes dans
+`data/S0306/` (27 Mo, gitignores) avec l'extrait PII-free des pages de tableau, et la cle
+cloud s'avere **inutile** - Tesseract tourne en local et satisfait le critere de
+refusabilite (cf. §3). La ligne « OCR cloud » devient un **plan B documente qu'on n'active
+jamais** ; l'etape 6 est debloquee sans attendre le juridique.
