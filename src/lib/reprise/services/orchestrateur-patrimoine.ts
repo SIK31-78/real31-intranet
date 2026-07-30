@@ -15,6 +15,16 @@ import {
   appliquerGardeExtraction,
   type RefusActionnable,
 } from "@/lib/reprise/domain/garde-extraction";
+import { indexerLot } from "@/lib/reprise/domain/indexation-documents";
+import {
+  documentsPour,
+  messageApportManquant,
+  verifierCouverture,
+  type Apport,
+  type Couverture,
+  type IndexDocument,
+} from "@/lib/reprise/domain/apports";
+import type { LecteurTexteProvider } from "@/lib/reprise/ports/lecteur-texte-provider";
 import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
 import {
   genererPhaseA,
@@ -120,6 +130,13 @@ export interface AnalysePatrimoine {
    * l'ancien syndic. Vide dans le cas nominal.
    */
   refusExtraction: RefusActionnable[];
+  /**
+   * Ce que chaque document APPORTE (etude §1). Present seulement si un lecteur de texte a
+   * ete fourni : sans lui on retombe sur le routage par nom (comportement historique).
+   */
+  index?: IndexDocument[];
+  /** Controle miroir (§1.5) : chaque donnee requise a-t-elle au moins une source ? */
+  couverture?: Couverture;
 }
 
 /**
@@ -205,12 +222,66 @@ export function estDocPatrimoine(nom: string): boolean {
   return pourStructure(nom) || pourProprietaires(nom);
 }
 
+/** Apports qui alimentent l'agent 1 (structure) et l'agent 2 (proprietaires). */
+const APPORTS_STRUCTURE: readonly Apport[] = ["lots_descriptif", "tantiemes_par_lot", "perimetre_cles"];
+const APPORTS_PROPRIETAIRES: readonly Apport[] = [
+  "owners_adresses",
+  "attributions",
+  "totaux_tantiemes_par_owner",
+  "votants_avec_tantiemes",
+];
+
+/**
+ * Repartit les documents par APPORT (etude §1) : un meme document peut alimenter LES DEUX
+ * agents (la feuille de presence de S0306 porte lots, cles, owners, attributions et
+ * contre-preuves), et un document sans apport utile n'est envoye a AUCUN agent -- c'est le
+ * droit de ne rien analyser, une economie directe.
+ */
+function repartirParApports(
+  docs: readonly DocumentSource[],
+  index: readonly IndexDocument[],
+): { structure: DocumentSource[]; proprietaires: DocumentSource[] } {
+  const nomsPour = (apports: readonly Apport[]): Set<string> =>
+    new Set(apports.flatMap((a) => documentsPour(index, a)).map((d) => d.nom));
+  const structure = nomsPour(APPORTS_STRUCTURE);
+  const proprietaires = nomsPour(APPORTS_PROPRIETAIRES);
+  return {
+    structure: docs.filter((d) => structure.has(d.nom)),
+    proprietaires: docs.filter((d) => proprietaires.has(d.nom)),
+  };
+}
+
 export async function analyserPatrimoine(
   provider: ExtractionProvider,
   docs: DocumentSource[],
+  /**
+   * Lecteur de couche texte. FOURNI -> l'aiguillage se fait sur les APPORTS reellement
+   * detectes dans le contenu (etude §1.2). ABSENT -> repli sur le routage par nom de
+   * fichier, conserve pour ne rien casser mais connu pour etre faux (6/14 sur S0306).
+   */
+  lecteur?: LecteurTexteProvider,
 ): Promise<AnalysePatrimoine> {
-  const docsStructure = docs.filter((d) => pourStructure(d.nom) || !pourProprietaires(d.nom));
-  const docsProprietaires = docs.filter((d) => pourProprietaires(d.nom) || !pourStructure(d.nom));
+  let index: IndexDocument[] | undefined;
+  let couverture: Couverture | undefined;
+  let docsStructure: DocumentSource[];
+  let docsProprietaires: DocumentSource[];
+
+  if (lecteur) {
+    const textes = await Promise.all(
+      docs.map(async (d) => ({ nom: d.nom, texte: await lecteur.lireTexte(d.contenu) })),
+    );
+    index = indexerLot(textes);
+    couverture = verifierCouverture(index, "patrimoine");
+    const reparti = repartirParApports(docs, index);
+    // Filet : si l'indexation ne trouve rien pour un agent, on lui donne tout plutot que
+    // de le laisser a vide (une detection ratee ne doit pas valoir une extraction vide).
+    docsStructure = reparti.structure.length ? reparti.structure : docs;
+    docsProprietaires = reparti.proprietaires.length ? reparti.proprietaires : docs;
+  } else {
+    docsStructure = docs.filter((d) => pourStructure(d.nom) || !pourProprietaires(d.nom));
+    docsProprietaires = docs.filter((d) => pourProprietaires(d.nom) || !pourStructure(d.nom));
+  }
+
   const [patrimoine, proprietaires] = await Promise.all([
     provider.extrairePatrimoine(docsStructure.length ? docsStructure : docs),
     provider.extraireProprietaires(docsProprietaires.length ? docsProprietaires : docs),
@@ -237,9 +308,21 @@ export async function analyserPatrimoine(
   };
 
   const recap = calculerRecap(jeu);
-  // Les notes de refus viennent EN TETE : ce sont des actions a mener, pas des remarques.
-  recap.notes = [...garde.notes, ...patrimoine.notes, ...proprietaires.notes];
-  return { jeu, recap, refusExtraction: garde.refus };
+  // Les notes viennent EN TETE dans l'ordre de l'ACTION a mener : d'abord les donnees
+  // requises introuvables (rien ne peut avancer), puis les refus de cles, puis le reste.
+  recap.notes = [
+    ...(couverture?.requisManquants ?? []).map(messageApportManquant),
+    ...garde.notes,
+    ...patrimoine.notes,
+    ...proprietaires.notes,
+  ];
+  return {
+    jeu,
+    recap,
+    refusExtraction: garde.refus,
+    ...(index ? { index } : {}),
+    ...(couverture ? { couverture } : {}),
+  };
 }
 
 /**
