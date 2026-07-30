@@ -4,7 +4,8 @@
 > Commande : **une étude, pas de code**. Elle propose le modèle d'indexation des documents,
 > la décomposition de l'extraction en tâches, la comparaison OCR sur le bon critère, une
 > architecture cible, un protocole de mesure, et une recommandation chiffrée — avec ce
-> qu'on ne saura PAS prouver. Rédigée le 2026-07-30.
+> qu'on ne saura PAS prouver. Rédigée le 2026-07-30, révisée le même jour après revue
+> croisée (7 remarques, toutes intégrées — les corrections sont marquées « revue 30/07 »).
 
 ## 0. Constat vérifié en code (pas de procès d'intention)
 
@@ -74,14 +75,24 @@ c'est indécidable par le nom et trivial par le contenu.
 Table de domaine pur — même geste que `DELAIS_CABINET` : des constantes lisibles,
 ajustables sans relire la logique.
 
-| Donnée | Source primaire | Contrôle / repli |
-|---|---|---|
-| tantièmes charges générales | FDP (totaux imprimés) | tableau EDD ; écart → note |
-| périmètre d'une clé | RCP + modificatifs (actes) | RGD (colonnes réellement utilisées) |
-| clés utilisées en compta | RGD | RCP (signaler la divergence) |
-| nb de lots / bâtiments | EDD (source) | fiche synthèse (contrôle) |
-| owners + adresses | FDP | registre national / annexes |
-| appariement owners↔450 | état de répartition 450 | appariement par nom (repli, warnings) |
+⚠️ **Correction de revue (30/07)** : la première version posait la FDP en « source
+primaire » des tantièmes. C'était généraliser une circonstance de S0306 (la FDP y était
+la seule source exploitable) en règle — et institutionnaliser les erreurs de saisie du
+logiciel du syndic sortant en reléguant l'**acte** au rang de contrôle. La hiérarchie
+distingue donc DEUX axes : la **source de droit** (ce qui fait foi) et la **source la
+plus exploitable** (ce qu'on sait lire de façon fiable). Quand les deux divergent, c'est
+une **note bloquante**, jamais un arbitrage silencieux. Cas concret S0306 : le RCP
+annonce 39 caves, la FDP 38 — cet écart doit remonter à l'écran, pas disparaître dans
+une préférence implicite.
+
+| Donnée | Source de droit | Source la plus exploitable | Divergence |
+|---|---|---|---|
+| tantièmes charges générales | EDD/RCP (acte) | FDP (totaux imprimés) | **note bloquante** |
+| périmètre d'une clé | RCP + modificatifs (actes) | RGD (colonnes utilisées) | **note bloquante** |
+| clés utilisées en compta | — (réalité comptable) | RGD | RCP divergent → note |
+| nb de lots / bâtiments | EDD | fiche synthèse | **note bloquante** (cf. 39/38 caves) |
+| owners + adresses | — | FDP | registre national = contrôle manuel |
+| appariement owners↔450 | — | état de répartition 450 | appariement par nom = repli, warnings |
 
 ### 1.4 Redondance = contre-preuve, doublons de forme = choix de la couche texte
 
@@ -90,6 +101,21 @@ ajustables sans relire la logique.
 - Même document sous deux formes (`rgd.pdf` scanné vs `Releve-general-depenses-date.pdf`
   texte) → détection par similarité de contenu (totaux, période, nb de pages utiles) et
   **préférence systématique à la couche texte** : gratuit en fiabilité comme en coût.
+
+### 1.5 Le contrôle miroir : couverture des apports REQUIS (revue 30/07)
+
+Le vocabulaire fermé + le repli `aucun` ont un angle mort : un format de syndic inconnu
+perdrait ses données avec une simple note. Le contrôle final porte donc sur la **donnée**,
+pas sur le document : en fin d'indexation, chaque apport REQUIS doit être fourni par au
+moins un document — sinon **bloquant**, quel que soit le nombre de documents bien indexés.
+
+- **Requis patrimoine** : `tantiemes_par_lot`, `lots_descriptif`, `owners_adresses`.
+- **Requis compta** : `ecritures_comptables`.
+- **Souhaités** (absence = note, pas un blocage) : `totaux_tantiemes_par_owner`,
+  `votants_avec_tantiemes`, `quotes_parts_450`, `nb_lots_batiments`.
+
+Symétrique du refus actionnable (§3bis) et aussi bon marché : c'est une différence
+d'ensembles, zéro token.
 
 ---
 
@@ -102,7 +128,12 @@ ajustables sans relire la logique.
 | 3 | Spec de format d'un tableau | gros modèle, 1 appel sur 2-3 pages échantillon | 3-6 tableaux | ~0,10-0,50 € |
 | 4 | **Transcrire les cellules** | **code, jamais un modèle** | ~30-60 p. utiles | 0 € |
 | 5 | Lire un tableau **sans couche texte** | OCR outillé (cf. §3) | 5-15 p. scannées | ~0,05-0,50 € selon moteur |
-| 6 | Qualifier/normaliser (civilité, couples, dédup) | règles pures testées d'abord ; modèle sur cas résiduels | qq dizaines de lignes | ~0-0,10 € |
+| 6 | Qualifier/normaliser (civilité, couples, dédup) | règles pures testées ; le modèle **propose**, ne fusionne **jamais** | qq dizaines de lignes | ~0-0,10 € |
+
+Tâche 6, règle explicite (revue 30/07) : « modèle sur cas résiduels » était la porte par
+laquelle REDISSI est passée. Le modèle peut *proposer* un rapprochement ; la **fusion est
+un geste humain** dans l'éditeur de corrections, sans exception — même règle que la revue
+de mapping compta (`appliquerDecisions`).
 
 Lecture honnête : le coût API d'une reprise reste **inférieur à 1-2 €** dans toutes les
 configurations raisonnables — **le coût n'est pas le critère de choix**, la *refusabilité*
@@ -138,6 +169,13 @@ ascenseur à colonne coupée) avec un harnais unique : le moteur rend cellules +
 confiance, NOTRE code reconstruit, applique le seuil de confiance, et l'oracle tranche.
 Le choix final est un résultat de mesure, pas une opinion.
 
+**Préalable au benchmark — sous-traitance PII (revue 30/07)** : envoyer les noms et
+adresses de 44 copropriétaires réels à GCP, Azure ou AWS est une **sous-traitance RGPD**
+— DPA à vérifier AVANT toute mesure. Le projet a déjà posé ce standard en traitant
+`data/` comme de la PII gitignorée ; il vaut aussi pour les API. Un candidat sans DPA
+acceptable est **disqualifié indépendamment de toute mesure** — à découvrir avant de
+mesurer, pas après. À lever en parallèle : ça ne bloque rien d'autre que le benchmark.
+
 **L'oracle scan** : Σ(tantièmes) = total annoncé, sinon **refus** (clé émise avec 0
 tantième + note bloquante « tableau illisible, fournir la page N ou un export », cas dédié
 dans `prochaine-etape`). N'importe quel OCR devient utilisable dès lors que le code refuse
@@ -147,6 +185,25 @@ ce qui ne boucle pas — la question se déplace de « quelle IA » vers « quel
 toujours un grand livre natif) ; le patrimoine DOIT avoir un chemin scan (RCP 1974), donc
 un chemin plus lent et plus cher par nature. Le gain compta (6 min → 2 s) **ne se
 transposera pas mécaniquement** — écrit ici pour qu'on ne le promette à personne.
+
+### 3bis. Le refus actionnable : « demander la pièce manquante » est CALCULABLE (revue 30/07)
+
+La raison n°1 du succès de la reprise manuelle — la boucle « constater le trou, demander
+la pièce, boucler » — ne peut pas rester une note vague. L'écart est calculable : comparer
+les **plages de lots couvertes** par un tableau de tantièmes à la liste des lots connus
+donne littéralement « il manque les lots 51-66 et 201-506 » — donc « il manque la page 2
+du tableau ascenseur ». C'est CE message qui a permis de boucler la clé à 10 000.
+
+Conception :
+
+- l'objet de refus porte les **plages manquantes** (lots absents, total partiel constaté
+  vs total annoncé) et la **source ciblée** (document, pages) — pas un booléen ;
+- `prochaine-etape` gagne un cas dédié dont le message **est la demande à l'ancien
+  syndic** (« fournir la page N du tableau X, ou un export »), copiable tel quel dans un
+  mail ;
+- même mécanique pour un total illisible : « total attendu illisible, page N » ;
+- un refus actionnable vaut dix refus vagues : c'est le critère d'acceptation de tout
+  chemin de refus ajouté par ce chantier.
 
 ---
 
@@ -176,13 +233,30 @@ remplace pas).
 
 ## 5. Protocole de mesure (fixtures S0306 + S0302, multi-syndics obligatoire)
 
-Étape 0 du chantier : figer les fixtures. S0306 (REACT) = jeu prouvé — 118 lots, clés
-bouclant à 100 000 et 10 000, 44 owners, 118 attributions, 0 orphelin. S0302 = référence
-compta déjà bouclée (écart 0,00). Un lot d'un 3e syndic dès qu'une reprise en fournit un.
+Étape 0 du chantier : figer les fixtures — en **deux étages** (revue 30/07), parce qu'une
+fixture dont les entrées sont gitignorées n'est pas un test de régression : `.gitignore`
+exclut `data/**/*.pdf` à raison (le lot S0306 pèse 28 Mo et porte les noms et adresses de
+44 personnes réelles), donc pas de CI, pas de reproductibilité, et dans six mois plus
+personne n'a les PDF.
+
+- **Étage PDF** (`data/`, gitignoré) : les sources brutes, réservées au **benchmark OCR**
+  — lui seul a besoin des pixels. Pas de CI possible sur cet étage, et c'est assumé.
+- **Étage JSON anonymisé, COMMITÉ** : le jeu intermédiaire post-transcription, test de
+  régression de tout l'aval (indexation, clés, dédup, attributions, contre-preuves). Les
+  pseudonymes **conservent les propriétés qui font le test** : deux homonymes stricts à
+  la même adresse, deux homonymes à adresses différentes (le cas GOUGE), un prénom
+  composé (le cas BARDON), trois personnes morales sans gérant, et une paire à distance
+  d'édition 2 (le filet noms).
+
+S0306 (REACT) = jeu prouvé — 118 lots, clés bouclant à 100 000 et 10 000, 44 owners,
+118 attributions, 0 orphelin. S0302 = référence compta déjà bouclée (écart 0,00). Un lot
+d'un 3e syndic dès qu'une reprise en fournit un.
 
 | Métrique | S0306 attendu |
 |---|---|
-| documents correctement indexés (apports) | 14/14, RGD → compta, fiche synthèse → contrôle |
+| documents correctement indexés (apports) | 14/14 ; RGD → `tva_deductible_par_facture` (compta) **ET** `cles_utilisees_en_compta` (patrimoine) — deux consommateurs, cf. §1 ; fiche synthèse → contrôle |
+| couverture des apports requis (§1.5) | 100 % — aucun requis absent sans blocage |
+| refus actionnables (§3bis) | plages manquantes exactes (« lots 51-66, 201-506 ») |
 | doublons de forme détectés | `rgd.pdf` ≡ `Releve-general-depenses-date 2025.pdf`, texte préféré |
 | clés extraites / bouclées | 2/2 à 100 000 et 10 000 (plus jamais 6 dont 4 fausses) |
 | exactitude numéros de lots | 118 attributions, 0 orphelin (plus de lot « 204 » fantôme) |
@@ -227,11 +301,14 @@ il est bon marché parce qu'il recycle l'existant.
 
 ## 7. Recommandation et limites
 
-Ordre confirmé : **0** fixtures → **1** garde-fou arithmétique dans l'extraction →
-**2** indexation par apports (remplace le routage par nom) → **3** prompt clés →
-**4** contre-preuve Σ tantièmes/owner → **5** dedup + R6 (seul le prompt récupère
-REDISSI) → **6** couche texte + chemin scan patrimoine (benchmark OCR par le protocole §5)
-→ **7** filet noms (FDP × PV).
+Ordre confirmé (révisé après revue) : **0** fixtures deux étages (PDF gitignorés pour le
+benchmark, JSON anonymisé commité pour la régression) → **1** garde-fou arithmétique +
+refus actionnable (§3bis) → **2** indexation par apports + contrôle de couverture (§1.5)
+→ **3** prompt clés → **4** contre-preuve Σ tantièmes/owner → **5** dedup + R6 (le modèle
+propose, l'humain fusionne ; seul le prompt récupère REDISSI) → **6** couche texte +
+chemin scan patrimoine (benchmark OCR, après levée du préalable DPA) → **7** filet noms
+(FDP × PV). **En parallèle, ne bloque que le benchmark** : vérification DPA des candidats
+OCR (§3).
 
 **Ce qu'on ne saura pas prouver, même après tout ça** : l'exactitude d'un nom qui ne vote
 pas et n'a qu'une source ; un tableau scanné dont le total imprimé est lui-même illisible
