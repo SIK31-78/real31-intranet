@@ -25,8 +25,8 @@ create table if not exists public.intranet_dossiers (
   id                 uuid primary key default gen_random_uuid(),
   copropriete_id     text not null,                          -- ref logique = code copro (referenceCrypto)
   type               text not null
-                     check (type in ('travaux','sinistre','impaye','procedure',
-                                     'recouvrement','question_diverse','autre')),
+                     check (type in ('gestion_courante','travaux','sinistre','impaye',
+                                     'procedure','recouvrement','question_diverse','autre')),
   portee             text not null
                      check (portee in ('copropriete','coproprietaire','lot')),
   cible              text,                                   -- nom du coproprietaire / ref du lot si portee != copro
@@ -47,3 +47,20 @@ create table if not exists public.intranet_dossiers (
 -- par ouvert_at desc.
 create index if not exists intranet_dossiers_copro_idx
   on public.intranet_dossiers (copropriete_id, ouvert_at desc);
+
+-- RATTRAPAGE DE LA CONTRAINTE SUR UNE TABLE DEJA CREEE (meme piege que les colonnes, cf.
+-- intranet_confirmations_evenement du 2026-07-28) : `create table if not exists` ne touche
+-- PAS une contrainte CHECK existante. Ajouter une valeur au CREATE ci-dessus ne suffit donc
+-- PAS -- sans ce bloc, creer un dossier du nouveau type echoue avec une violation de
+-- contrainte, cote serveur, alors que l'option s'affiche bien dans le menu deroulant.
+--
+-- Ajout du 2026-07-30 : type 'gestion_courante' (demande Sekou).
+-- Idempotent : on retire la contrainte si elle existe, puis on la repose COMPLETE. Le nom
+-- 'intranet_dossiers_type_check' est celui que Postgres genere par defaut pour un CHECK de
+-- colonne (<table>_<colonne>_check) ; le `if exists` couvre le cas ou il differerait.
+alter table public.intranet_dossiers
+  drop constraint if exists intranet_dossiers_type_check;
+alter table public.intranet_dossiers
+  add constraint intranet_dossiers_type_check
+  check (type in ('gestion_courante','travaux','sinistre','impaye',
+                  'procedure','recouvrement','question_diverse','autre'));

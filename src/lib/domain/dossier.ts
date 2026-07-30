@@ -4,6 +4,7 @@
 // n'est PAS fige - decision Sekou 2026-06-23) et un journal. Types purs (ADR-001).
 
 export type TypeDossier =
+  | "gestion_courante"
   | "travaux"
   | "sinistre"
   | "impaye"
@@ -68,6 +69,7 @@ export interface Dossier {
 }
 
 export const TYPE_DOSSIER_LABEL: Record<TypeDossier, string> = {
+  gestion_courante: "Gestion courante",
   travaux: "Travaux",
   sinistre: "Sinistre",
   impaye: "Impayé",
@@ -77,6 +79,11 @@ export const TYPE_DOSSIER_LABEL: Record<TypeDossier, string> = {
   autre: "Autres",
 };
 export const TYPE_DOSSIER_ORDRE: TypeDossier[] = [
+  // "Gestion courante" en tete : c'est le type le plus frequent au quotidien (demande d'un
+  // coproprietaire, intervention ponctuelle, suivi d'un prestataire). La valeur par DEFAUT du
+  // formulaire de creation reste "travaux" (posee en dur cote composant) : cet ordre ne change
+  // donc aucun comportement, seulement la lisibilite de la liste.
+  "gestion_courante",
   "travaux",
   "sinistre",
   "impaye",
@@ -109,6 +116,16 @@ export interface EtapeModele {
 /** Modeles de DEPART (suggestions) par type : pre-remplissent les etapes a la creation,
  *  puis sont entierement editables. Rien de fige. */
 export const MODELES_ETAPES: Record<TypeDossier, EtapeModele[]> = {
+  // Gestion courante : volontairement COURT et generique. Ce type couvre le tout-venant
+  // (demande d'un coproprietaire, petite intervention, relance d'un prestataire) : un modele
+  // detaille serait faux 9 fois sur 10. Les etapes restent editables dossier par dossier
+  // (le workflow n'est PAS fige, decision Sekou 2026-06-23).
+  gestion_courante: [
+    { label: "Demande qualifiée", assigneA: "assistant" },
+    { label: "Action engagée", assigneA: "gestionnaire" },
+    { label: "Retour au demandeur", assigneA: "assistant" },
+    { label: "Clôture", assigneA: "assistant" },
+  ],
   travaux: [
     { label: "Devis demandés", assigneA: "assistant" },
     { label: "Devis validés en AG", assigneA: "gestionnaire" },

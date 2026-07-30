@@ -21,6 +21,7 @@ import {
 import { creerDossierAction } from "@/app/dossiers/actions";
 
 const TYPE_TON: Record<TypeDossier, "info" | "warn" | "err" | "neutral"> = {
+  gestion_courante: "neutral",
   travaux: "info",
   sinistre: "warn",
   impaye: "err",
