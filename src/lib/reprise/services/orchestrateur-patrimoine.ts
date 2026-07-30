@@ -311,6 +311,17 @@ export async function analyserPatrimoine(
   // Les notes viennent EN TETE dans l'ordre de l'ACTION a mener : d'abord les donnees
   // requises introuvables (rien ne peut avancer), puis les refus de cles, puis le reste.
   recap.notes = [
+    // REPLI VISIBLE, jamais silencieux (revue 30/07). Un parametre optionnel qui preserve un
+    // comportement casse est une dette qui ne se rappelle jamais a toi : le jour ou l'appelant
+    // reel oublie le lecteur, l'indexation est inerte et PERSONNE ne le voit. C'est la regle
+    // qu'on s'est donnee sur le chemin OCR ("rendre le fallback visible") -- elle vaut ici.
+    ...(lecteur
+      ? []
+      : [
+          "Indexation non fournie : routage par nom de fichier (comportement historique). " +
+            "Sur le lot de reference S0306, ce routage classe correctement 6 documents sur 14 " +
+            "-- les trois RGD et la fiche de synthese partent en annexe.",
+        ]),
     ...(couverture?.requisManquants ?? []).map(messageApportManquant),
     ...garde.notes,
     ...patrimoine.notes,

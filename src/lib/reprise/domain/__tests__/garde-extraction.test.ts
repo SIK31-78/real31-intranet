@@ -181,6 +181,44 @@ describe("appliquerGardeExtraction", () => {
     expect(r.tantiemes).toEqual([t("001", 1, 10)]);
   });
 
+  it("distingue un FACTEUR D'ECHELLE d'une valeur fausse (revue 30/07)", () => {
+    // Σ = 100 000 pour 10 000 attendus : on a lu la base des charges GENERALES a la place de
+    // celle de l'ascenseur. La piece est la, c'est la colonne qui est mauvaise -> on ne
+    // demande AUCUNE page (une demande inutile brule du credit aupres de l'ancien syndic).
+    const tantiemes = Array.from({ length: 10 }, (_, i) => t("200", i + 1, 10_000));
+    const r = appliquerGardeExtraction({
+      lots: LOTS_S0306,
+      cles: [cle("200", 10_000, "Charges ascenseur")],
+      tantiemes,
+    });
+    expect(r.refus[0]!.motif).toBe("facteur_echelle");
+    expect(r.refus[0]!.message).toContain("10 fois trop grande");
+    expect(r.refus[0]!.message).toContain("MAUVAISE COLONNE");
+    expect(r.refus[0]!.message).not.toContain("page suivante");
+    expect(r.refus[0]!.message).toContain("colonne voisine");
+  });
+
+  it("le facteur d'echelle marche aussi dans l'autre sens (colonne trop petite)", () => {
+    const r = appliquerGardeExtraction({
+      lots: [lot(1), lot(2)],
+      cles: [cle("001", 100_000)],
+      tantiemes: [t("001", 1, 5_000), t("001", 2, 5_000)], // 10 000 pour 100 000
+    });
+    expect(r.refus[0]!.motif).toBe("facteur_echelle");
+    expect(r.refus[0]!.message).toContain("10 fois trop petite");
+  });
+
+  it("un ecart qui n'est PAS un facteur d'echelle reste un exces ordinaire (cle 300 : 38 000/10 000)", () => {
+    // 3,8x n'est pas un facteur d'echelle : c'est bien une fabrication de valeurs.
+    const tantiemes = Array.from({ length: 38 }, (_, i) => t("300", i + 1, 1000));
+    const r = appliquerGardeExtraction({
+      lots: LOTS_S0306,
+      cles: [cle("300", 10_000, "Charges Ascenseur")],
+      tantiemes,
+    });
+    expect(r.refus[0]!.motif).toBe("somme_excedentaire");
+  });
+
   it("les notes ne portent que des codes et des nombres, jamais de PII", () => {
     const r = appliquerGardeExtraction({
       lots: [lot(1)],

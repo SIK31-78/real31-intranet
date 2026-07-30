@@ -39,7 +39,16 @@ export type MotifRefus =
   /** Somme < total mais tous les lots sont couverts : une ou des valeurs sont fausses. */
   | "somme_insuffisante"
   /** Somme > total : sur-comptage (valeurs fabriquées, lignes dupliquées). */
-  | "somme_excedentaire";
+  | "somme_excedentaire"
+  /**
+   * Somme / total tombe sur un FACTEUR D'ÉCHELLE net (x10, x100, ou l'inverse). Ce n'est pas
+   * une valeur fausse : c'est la MAUVAISE COLONNE qui a été lue -- typiquement la base des
+   * charges générales (100 000) à la place de celle de l'ascenseur (10 000). Le message à
+   * l'humain n'est donc pas le même : on ne demande pas une page, on fait revérifier la
+   * colonne. (Ajouté le 2026-07-30 en revue : envoyer l'ancien syndic chercher une page qui
+   * n'existe pas brûle du crédit auprès de quelqu'un déjà réticent.)
+   */
+  | "facteur_echelle";
 
 /**
  * Un refus d'émettre, ACTIONNABLE : il porte de quoi rédiger la demande à l'ancien syndic.
@@ -91,6 +100,25 @@ function nombreFr(n: number): string {
   return (n < 0 ? "-" : "") + groupes;
 }
 
+/** Facteurs d'échelle reconnus : lire une base 100 000 au lieu de 10 000, etc. */
+const FACTEURS_ECHELLE = [10, 100, 1000] as const;
+
+/**
+ * Le rapport somme/total tombe-t-il sur un facteur d'échelle net ? Renvoie le facteur signé
+ * (10 = on a lu 10 fois trop grand, 0.1 = 10 fois trop petit), sinon null.
+ *
+ * Tolérance de 0,5 % : un tableau lu à 99 980 pour une base 10 000 reste un facteur 10 mal
+ * transcrit, pas un mystère. En dessous, c'est une vraie erreur de valeur.
+ */
+function facteurEchelle(somme: number, total: number): number | null {
+  if (total <= 0 || somme <= 0) return null;
+  for (const f of FACTEURS_ECHELLE) {
+    if (Math.abs(somme / total - f) / f <= 0.005) return f;
+    if (Math.abs(total / somme - f) / f <= 0.005) return 1 / f;
+  }
+  return null;
+}
+
 /** Compacte des numéros en plages contiguës : [1,2,3,7,8] -> [1-3, 7-8]. */
 export function compacterPlages(numeros: readonly number[]): PlageLots[] {
   const tries = [...new Set(numeros)].sort((a, b) => a - b);
@@ -124,6 +152,11 @@ function constat(r: Omit<RefusActionnable, "message">): string {
       return `${tete} : tous les lots sont couverts mais la somme des tantièmes est de ${nombreFr(r.sommeCouverte)} au lieu de ${nombreFr(r.totalAttendu)} — une ou plusieurs valeurs sont donc fausses.`;
     case "somme_excedentaire":
       return `${tete} : la somme des tantièmes lus est de ${nombreFr(r.sommeCouverte)} pour un total annoncé de ${nombreFr(r.totalAttendu)} — les valeurs lues ne sont pas fiables.`;
+    case "facteur_echelle": {
+      const f = facteurEchelle(r.sommeCouverte, r.totalAttendu);
+      const sens = f && f > 1 ? `${f} fois trop grande` : `${f ? Math.round(1 / f) : "?"} fois trop petite`;
+      return `${tete} : la somme lue (${nombreFr(r.sommeCouverte)}) est exactement ${sens} par rapport au total annoncé (${nombreFr(r.totalAttendu)}) — ce n'est pas une valeur fausse, c'est vraisemblablement la MAUVAISE COLONNE du tableau qui a été lue (une autre clé a souvent une base différente).`;
+    }
   }
 }
 
@@ -140,6 +173,10 @@ function demande(r: Omit<RefusActionnable, "message">): string {
     case "somme_insuffisante":
     case "somme_excedentaire":
       return `Demander à l'ancien syndic un export ${objet}, la lecture du document fourni n'étant pas fiable.`;
+    case "facteur_echelle":
+      // On ne demande PAS de page : la pièce est là, c'est la lecture qui a pris la mauvaise
+      // colonne. Une demande inutile brûle du crédit auprès de l'ancien syndic.
+      return `Vérifier quelle colonne du tableau correspond bien à la clé ${r.cleCode} avant de redemander quoi que ce soit : le document fourni contient probablement la bonne donnée dans une colonne voisine.`;
   }
 }
 
@@ -183,6 +220,9 @@ export function appliquerGardeExtraction(params: {
       if (!Number.isFinite(cle.totalAttendu) || cle.totalAttendu <= 0) return "total_invalide";
       if (lignes.length === 0) return "aucun_tantieme";
       if (somme === cle.totalAttendu && lotsInconnus.length === 0) return null; // la clé boucle
+      // Le facteur d'échelle passe AVANT excédent/insuffisance : c'est un diagnostic plus
+      // précis du MEME symptôme, et il change la demande faite à l'humain.
+      if (facteurEchelle(somme, cle.totalAttendu) !== null) return "facteur_echelle";
       if (somme > cle.totalAttendu) return "somme_excedentaire";
       if (manquants.length > 0) return "tableau_incomplet";
       return "somme_insuffisante";

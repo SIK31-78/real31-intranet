@@ -4,8 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  couvertureFilet,
   detecterCoquilles,
   distanceDamerau,
+  distanceMaxPour,
   DISTANCE_MAX_COQUILLE,
 } from "@/lib/reprise/domain/filet-noms";
 
@@ -108,5 +110,95 @@ describe("detecterCoquilles", () => {
       confrontee: [{ nom: "BERNARD", tantiemes: 777 }],
     });
     expect(c).toHaveLength(0);
+  });
+});
+
+describe("seuil echelonne sur la longueur (revue 30/07)", () => {
+  it("resserre a 1 sous 6 caracteres : sur un nom court, 2 serait un joker", () => {
+    expect(distanceMaxPour("IZARD")).toBe(1);
+    expect(distanceMaxPour("VENDRAMELLI")).toBe(2);
+  });
+
+  it("IZARD -> IZARI (distance 1) est retenu, IZARD -> AZART (distance 2) est ECARTE", () => {
+    const avec = (nomConfronte: string) =>
+      detecterCoquilles({
+        reference: [{ nom: "IZARD", tantiemes: 900 }],
+        confrontee: [{ nom: nomConfronte, tantiemes: 900 }],
+      });
+    expect(avec("IZARI")).toHaveLength(1);
+    // IZART, ISARD, AZARD sont a distance 1 : retenus (c'est le compromis assume).
+    // AZART est a distance 2 -> hors seuil sur un nom de 5 lettres : ce sont peut-etre
+    // deux personnes reelles, on ne tranche pas.
+    expect(avec("AZART")).toHaveLength(0);
+  });
+
+  it("un nom long garde le seuil de 2 (les paires de la fixture passent)", () => {
+    const c = detecterCoquilles({
+      reference: [{ nom: "BESSIERE", tantiemes: 400 }],
+      confrontee: [{ nom: "BESISERI", tantiemes: 400 }],
+    });
+    expect(c).toHaveLength(1);
+    expect(c[0]!.distance).toBe(DISTANCE_MAX_COQUILLE);
+  });
+});
+
+describe("les LOTS comme deuxieme cle d'appariement (revue 30/07)", () => {
+  it("departage la ou le total echoue : 6 owners a 153 tantiemes, 1 parking chacun", () => {
+    const c = detecterCoquilles({
+      reference: [
+        { nom: "VENDRAMELLI", tantiemes: 153, lots: [101] },
+        { nom: "MAUSSION", tantiemes: 153, lots: [102] },
+      ],
+      confrontee: [
+        { nom: "VENDRAMBILI", tantiemes: 153, lots: [101] },
+        { nom: "MAUSSION", tantiemes: 153, lots: [102] },
+      ],
+    });
+    expect(c).toHaveLength(1);
+    expect(c[0]!.nomDivergent).toBe("VENDRAMBILI");
+    expect(c[0]!.message).toContain("mêmes lots détenus (101)");
+  });
+
+  it("n'apparie PAS quand ni le total ni les lots ne sont discriminants", () => {
+    const c = detecterCoquilles({
+      reference: [
+        { nom: "DUPONT", tantiemes: 153 },
+        { nom: "DURAND", tantiemes: 153 },
+      ],
+      confrontee: [{ nom: "DUPOND", tantiemes: 153 }],
+    });
+    expect(c).toHaveLength(0);
+  });
+});
+
+describe("couvertureFilet : un taux, pas une formule vague", () => {
+  it("chiffre les owners atteignables et nomme les totaux partages", () => {
+    // Reproduit la structure de S0306 en miniature : 2 totaux uniques + un total partage x3.
+    const c = couvertureFilet([
+      { nom: "A", tantiemes: 2459 },
+      { nom: "B", tantiemes: 1998 },
+      { nom: "C", tantiemes: 153, lots: [101] },
+      { nom: "D", tantiemes: 153, lots: [102] },
+      { nom: "E", tantiemes: 153, lots: [103] },
+    ]);
+    expect(c.couverts).toBe(2);
+    expect(c.horsFilet).toBe(3);
+    expect(c.tauxPourcent).toBe(40);
+    expect(c.totauxPartages).toEqual([{ tantiemes: 153, nbOwners: 3 }]);
+    // Les 3 owners a 153 ont des lots DISJOINTS -> rattrapables par les lots.
+    expect(c.rattrapablesParLots).toBe(3);
+  });
+
+  it("ne compte pas comme rattrapable un groupe dont les lots sont inconnus", () => {
+    const c = couvertureFilet([
+      { nom: "A", tantiemes: 153 },
+      { nom: "B", tantiemes: 153 },
+    ]);
+    expect(c.horsFilet).toBe(2);
+    expect(c.rattrapablesParLots).toBe(0);
+  });
+
+  it("rend 100 % quand tous les totaux sont uniques", () => {
+    expect(couvertureFilet([{ nom: "A", tantiemes: 1 }, { nom: "B", tantiemes: 2 }]).tauxPourcent).toBe(100);
   });
 });

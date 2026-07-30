@@ -169,12 +169,19 @@ ascenseur à colonne coupée) avec un harnais unique : le moteur rend cellules +
 confiance, NOTRE code reconstruit, applique le seuil de confiance, et l'oracle tranche.
 Le choix final est un résultat de mesure, pas une opinion.
 
-**Préalable au benchmark — sous-traitance PII (revue 30/07)** : envoyer les noms et
-adresses de 44 copropriétaires réels à GCP, Azure ou AWS est une **sous-traitance RGPD**
-— DPA à vérifier AVANT toute mesure. Le projet a déjà posé ce standard en traitant
-`data/` comme de la PII gitignorée ; il vaut aussi pour les API. Un candidat sans DPA
-acceptable est **disqualifié indépendamment de toute mesure** — à découvrir avant de
-mesurer, pas après. À lever en parallèle : ça ne bloque rien d'autre que le benchmark.
+**Sous-traitance PII — le DPA bloque la PRODUCTION, pas la MESURE (précisé le 30/07)**.
+Première formulation trop large : elle faisait du DPA un préalable au benchmark, et retardait
+la décision OCR pour rien. Ce que le benchmark mesure, c'est la lecture d'un **tableau de
+tantièmes** — soit `n° de lot | valeur`, **aucune donnée personnelle**.
+
+- **Benchmark : PII-free par nature.** Pages de test idéales sur S0306 : `RCP 2.pdf` p. 30-31,
+  le tableau de répartition ascenseur (colonnes Niveau / Bâtiment / Nature du lot /
+  Quote-part). Zéro nom, et c'est justement le cas difficile — scan de 1975, colonne coupée au
+  bord de page. **Seul soin à prendre : extraire les pages, ne jamais envoyer le PDF entier**
+  (le corps du RCP contient les noms des parties de 1974).
+- **Production : DPA requis.** Le passage en réel touche la FDP, qui porte les noms et les
+  adresses. Là, un candidat sans DPA acceptable est **disqualifié indépendamment de toute
+  mesure**. À lever en parallèle du benchmark, pas avant.
 
 **L'oracle scan** : Σ(tantièmes) = total annoncé, sinon **refus** (clé émise avec 0
 tantième + note bloquante « tableau illisible, fournir la page N ou un export », cas dédié
@@ -287,17 +294,37 @@ Dans les trois cas : « BARDON Jean & Michel » → un prénom composé sans « 
 entre deux personnes reste UN prénom (« Jean Michel »), jamais un couple. La fonction
 pure encode ça, le prompt et le skill en dérivent.
 
-### Le trou des noms (risque résiduel, chiffré)
+### Le trou des noms : un TAUX, plus un « risque résiduel » (mesuré le 30/07)
 
-Aucun des fixes ne détecte `VENDRAMBILI` pour VENDRAMELLI. Piste (celle exécutée à la
-main) : confronter FDP (`totaux_tantiemes_par_owner`) × PV (`votants_avec_tantiemes`) —
-quand les tantièmes concordent et que le patronyme diffère d'une distance d'édition ≤ 2,
-coquille détectée sans meilleur OCR. Coût : **2-3 jours** (extraction des votes du PV =
-un apport de plus dans l'indexeur ; l'appariement par score existe déjà dans
-`mapping-compta`/`liaison-comptes`, à réutiliser tel quel). Le registre national reste un
-contrôle manuel (pas d'API exploitable proprement). Reco : **oui, mais après** le
-garde-fou arithmétique et l'indexation — c'est le seul filet possible sur les noms, et
-il est bon marché parce qu'il recycle l'existant.
+Aucun contrôle arithmétique ne détecte `VENDRAMBILI` pour VENDRAMELLI — une coquille ne
+change aucun chiffre. La seule défense sans meilleur OCR est une **deuxième source** : FDP
+(`totaux_tantiemes_par_owner`) × PV (`votants_avec_tantiemes`), avec appariement **non ambigu
+des deux côtés**. Cette exigence transforme la formule vague en mesure :
+
+| Sur le lot de référence S0306 | |
+|---|---|
+| owners à total **unique** → couverts par le filet | **31 / 44 (70 %)** |
+| owners à total **partagé** → hors du critère « tantièmes » seul | **13** |
+
+Totaux partagés : **153** (6 owners — un parking standard), **1503** (3), **1404** (2),
+**2532** (2). Les deux homonymes de la fixture, eux, sont à 2 459 et 1 998 : appariement
+licite.
+
+**Deux conséquences, à la place de « risque résiduel »** :
+
+1. le taux se **recalcule par copro** (`couvertureFilet`, deux lignes) et doit être
+   **affiché dans le récap** : il dit honnêtement jusqu'où va la garantie ;
+2. les owners à total partagé ne seront **jamais** couverts par cette route. Pour eux, une
+   **deuxième clé d'appariement** : les **lots détenus**. Les 6 owners à 153 tantièmes
+   détiennent chacun un parking différent — le numéro de lot les départage là où le total
+   échoue. Même geste que la liaison 450, et la donnée est déjà là. *(Implémenté à l'étape 7.)*
+
+Précaution de seuil : la distance est **échelonnée sur la longueur** du patronyme (≤1 sous
+6 caractères, ≤2 au-delà). Sur un nom de 5 lettres, un seuil de 2 est presque un joker —
+IZARD est à distance 1 de IZARI, mais aussi de IZART, ISARD et AZARD, qui peuvent être trois
+personnes réelles.
+
+Le registre national reste un contrôle **manuel** (pas d'API exploitable proprement).
 
 ## 7. Recommandation et limites
 
@@ -311,6 +338,11 @@ chemin scan patrimoine (benchmark OCR, après levée du préalable DPA) → **7*
 OCR (§3).
 
 **Ce qu'on ne saura pas prouver, même après tout ça** : l'exactitude d'un nom qui ne vote
-pas et n'a qu'une source ; un tableau scanné dont le total imprimé est lui-même illisible
-(refus, donc intervention humaine — c'est voulu) ; et l'équivalence inter-syndics tant
-qu'on n'a que deux lots de fixtures.
+pas, n'a qu'une source, ET partage son total sans lots discriminants ; un tableau scanné dont
+le total imprimé est lui-même illisible (refus, donc intervention humaine — c'est voulu) ; et
+l'équivalence inter-syndics tant qu'on n'a que deux lots de fixtures.
+
+**Ce qui bloque encore le benchmark OCR** — et ce n'est pas le DPA (cf. §3) : aucune clé
+d'API cloud n'est configurée sur le poste, et les 14 PDF de S0306 ne sont pas dans `data/`
+(l'étage 1 de la fixture n'a jamais été déposé). Deux actions matérielles, à lever avant de
+mesurer quoi que ce soit.
