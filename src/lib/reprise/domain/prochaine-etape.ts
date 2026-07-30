@@ -44,6 +44,13 @@ export interface ContexteProchaineEtape {
   pretAProduire: boolean;
   /** Grand livre joint mais non exploitable (scan / couche texte inexploitable) ? */
   comptaErreur: boolean;
+  /**
+   * PREMIER refus d'extraction actionnable, s'il y en a un (garde-fou arithmetique,
+   * etude §3bis). Le message EST la demande a envoyer a l'ancien syndic, plages de lots
+   * manquantes calculees comprises. Prioritaire sur le renvoi generique vers l'editeur :
+   * un tableau tronque ne se corrige pas a la main, il se REDEMANDE.
+   */
+  refusExtraction?: { cleCode: string; message: string };
   /** Grand livre CLOTURE detecte "avant repartition" (reports 6/7 non nuls) = mauvais document. */
   avantRepartitionBloquant: boolean;
   /** Controle croise cloture <-> en cours en echec (les deux GL ne se raccordent pas). */
@@ -98,7 +105,21 @@ export function prochaineEtape(ctx: ContexteProchaineEtape): ProchaineEtape {
     };
   }
 
-  // 2. Erreurs bloquantes sur le patrimoine : rien n'avance tant qu'elles subsistent.
+  // 2a. REFUS D'EXTRACTION (etude §3bis) : le garde-fou a refuse d'emettre les tantiemes
+  // d'une cle. Ce cas passe AVANT le renvoi generique vers l'editeur de corrections, parce
+  // que la reponse n'est pas "corrige a la main" mais "redemande la piece" -- et le message
+  // porte deja la demande exacte (c'est ce qui a fait boucler S0306 a 10 000).
+  if (!ctx.pretAProduire && ctx.refusExtraction) {
+    return {
+      titre: `Piece manquante a demander (cle ${ctx.refusExtraction.cleCode})`,
+      description: ctx.refusExtraction.message,
+      action: "zone:patrimoine",
+      actionLibelle: "Voir le detail",
+      tonalite: "attention",
+    };
+  }
+
+  // 2b. Autres erreurs bloquantes sur le patrimoine : rien n'avance tant qu'elles subsistent.
   if (!ctx.pretAProduire) {
     return {
       titre: "Corrige les erreurs bloquantes",

@@ -11,6 +11,10 @@ import { USAGES } from "@/lib/reprise/domain/patrimoine";
 import type { CompteAvantRepartition, VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import { verifierTout, type ResultatChecks } from "@/lib/reprise/domain/auto-checks";
 import { detecterDoublons } from "@/lib/reprise/domain/dedup";
+import {
+  appliquerGardeExtraction,
+  type RefusActionnable,
+} from "@/lib/reprise/domain/garde-extraction";
 import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
 import {
   genererPhaseA,
@@ -110,6 +114,12 @@ export interface RecapPatrimoine {
 export interface AnalysePatrimoine {
   jeu: JeuDeDonnees;
   recap: RecapPatrimoine;
+  /**
+   * Cles dont les tantiemes ont ete REFUSES a l'extraction (garde-fou arithmetique,
+   * etude §3bis). Chaque refus porte son message actionnable : la demande a envoyer a
+   * l'ancien syndic. Vide dans le cas nominal.
+   */
+  refusExtraction: RefusActionnable[];
 }
 
 /**
@@ -206,17 +216,30 @@ export async function analyserPatrimoine(
     provider.extraireProprietaires(docsProprietaires.length ? docsProprietaires : docs),
   ]);
 
-  const jeu: JeuDeDonnees = {
+  // GARDE-FOU ARITHMETIQUE, AVANT assemblage du jeu (etape 1 du chantier extraction).
+  // Une cle dont les tantiemes ne bouclent pas sur son total annonce n'ENTRE PAS dans le
+  // jeu : ses tantiemes sont retires et un refus ACTIONNABLE est emis (la demande a
+  // l'ancien syndic, avec les plages de lots manquantes calculees). Sur S0306 c'est ce
+  // qui empeche la cle 300 fabriquee (38 000 pour 10 000 annonces) de contaminer la suite.
+  // Les auto-checks en aval sont conserves : on refuse en amont ET on verifie en aval.
+  const garde = appliquerGardeExtraction({
     lots: patrimoine.lots,
     cles: patrimoine.cles,
     tantiemes: patrimoine.tantiemes,
+  });
+
+  const jeu: JeuDeDonnees = {
+    lots: patrimoine.lots,
+    cles: garde.cles,
+    tantiemes: garde.tantiemes,
     owners: proprietaires.owners,
     attributions: proprietaires.attributions,
   };
 
   const recap = calculerRecap(jeu);
-  recap.notes = [...patrimoine.notes, ...proprietaires.notes];
-  return { jeu, recap };
+  // Les notes de refus viennent EN TETE : ce sont des actions a mener, pas des remarques.
+  recap.notes = [...garde.notes, ...patrimoine.notes, ...proprietaires.notes];
+  return { jeu, recap, refusExtraction: garde.refus };
 }
 
 /**
