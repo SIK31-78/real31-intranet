@@ -1,0 +1,198 @@
+{
+  "_doc": "Vérité attendue de l'INDEXATION PAR APPORTS sur le lot réel S0306 (14 documents, syndic REACT GESTION). Étage 2 de la fixture : aucune PII (noms de fichiers + apports + plages de pages seulement). Sert de test à l'indexeur (§1 de l'étude) et de démonstration que le routage par nom de fichier échoue.",
+  "ref_dossier": "S0306",
+  "syndic_sortant": "REACT GESTION",
+  "nb_documents": 14,
+  "taille_lot_mo": 28,
+  "documents": [
+    {
+      "nom": "RCP.pdf",
+      "pages": 28,
+      "forme": "scan",
+      "apports": ["perimetre_cles"],
+      "commentaire": "RCP notarié du 20/08/1974, dactylographié. Porte la composition de l'immeuble et la définition des charges, PAS de tableau de tantièmes exploitable.",
+      "routage_par_nom_actuel": "patrimoine/structure",
+      "routage_actuel_correct": true
+    },
+    {
+      "nom": "RCP 2.pdf",
+      "pages": 36,
+      "forme": "scan",
+      "apports": ["perimetre_cles", "tantiemes_par_lot"],
+      "plages_pages": { "tantiemes_par_lot": [30, 31] },
+      "commentaire": "Même RCP + le modificatif ascenseurs du 06/03/1975 et son tableau de répartition. Le tableau est INCOMPLET dans ce scan : la colonne des n° de lots est coupée au bord de page et la 2e page manque. C'est le cas de test du refus actionnable (§3bis).",
+      "routage_par_nom_actuel": "patrimoine/structure",
+      "routage_actuel_correct": true
+    },
+    {
+      "nom": "Feuille de présence - 2026.pdf",
+      "pages": 5,
+      "forme": "scan",
+      "apports": [
+        "owners_adresses",
+        "tantiemes_par_lot",
+        "totaux_tantiemes_par_owner",
+        "attributions",
+        "lots_descriptif"
+      ],
+      "commentaire": "SOURCE LA PLUS EXPLOITABLE du patrimoine : donne d'un coup les 118 lots, leurs tantièmes de charges générales, les 44 copropriétaires avec adresses, et les attributions. Le pied de page « 44 copropriétaires » est le contrôle de comptage. Rappel §1.3 : source la plus exploitable, PAS source de droit — l'acte reste l'EDD/RCP.",
+      "routage_par_nom_actuel": "patrimoine/proprietaires",
+      "routage_actuel_correct": true
+    },
+    {
+      "nom": "PV signé - 2026.pdf",
+      "pages": 17,
+      "forme": "texte",
+      "apports": ["votants_avec_tantiemes", "date_effet_contrat"],
+      "commentaire": "Résolution 8 : désignation du syndic entrant, contrat à effet du 24/06/2026 — fixe la date de coupure comptable. Les votes nominatifs avec tantièmes sont la contre-preuve du filet noms et ce qui prouve que les deux homonymes stricts sont deux personnes.",
+      "routage_par_nom_actuel": "patrimoine/proprietaires",
+      "routage_actuel_correct": true
+    },
+    {
+      "nom": "007571231_FICHE_SYNTHESE_AB3414208_05092025_154707.pdf",
+      "pages": 2,
+      "forme": "texte",
+      "apports": ["nb_lots_batiments"],
+      "commentaire": "Registre national : 118 lots, 2 bâtiments, 2 ascenseurs. Apport de CONTRÔLE, jamais source. Le RCP décrit 1 bâtiment à 2 escaliers → divergence à signaler (le registre est probablement erroné).",
+      "routage_par_nom_actuel": "ANNEXE",
+      "routage_actuel_correct": false,
+      "consequence_du_mauvais_routage": "Le contrôle du nombre de lots et de bâtiments n'atteint jamais l'agent structure. Le pipeline a annoncé « 3 bâtiments » sans qu'aucun croisement ne soit possible."
+    },
+    {
+      "nom": "CONVOCATION_AG_654464_139.pdf",
+      "pages": 87,
+      "forme": "texte",
+      "apports": [
+        "quotes_parts_450",
+        "tva_deductible_par_facture",
+        "cles_utilisees_en_compta",
+        "debiteurs_crediteurs"
+      ],
+      "plages_pages": {
+        "quotes_parts_450": [75, 76],
+        "tva_deductible_par_facture": [23, 28],
+        "debiteurs_crediteurs": [22]
+      },
+      "commentaire": "LE cas qui invalide la taxonomie par type. 87 pages contenant l'ODJ, les annexes 1 à 6, le RGD complet, des devis — ET, en pages 75-76, l'état de répartition d'un devis de travaux par compte 450 avec les tantièmes. C'est CE tableau qui a permis d'apparier les 44 copropriétaires à leurs comptes de façon déterministe. Aucune classification par type ne prédit qu'un devis porte la clé d'appariement des comptes.",
+      "routage_par_nom_actuel": "patrimoine/structure",
+      "routage_actuel_correct": false,
+      "consequence_du_mauvais_routage": "Routé vers le bon agent par chance (« convocation » est dans la regex structure), mais ses apports comptables et l'état de répartition 450 ne sont jamais exploités."
+    },
+    {
+      "nom": "Releve-general-depenses-date 2025.pdf",
+      "pages": 6,
+      "forme": "texte",
+      "apports": ["tva_deductible_par_facture", "cles_utilisees_en_compta"],
+      "commentaire": "RGD de l'exercice clos. Seul document portant la TVA et la part récupérable — indispensable au bloc B.",
+      "routage_par_nom_actuel": "ANNEXE",
+      "routage_actuel_correct": false,
+      "consequence_du_mauvais_routage": "Part au provider annexe qui cherche des CONTACTS. Le bloc B n'a jamais sa source de TVA, et les clés réellement utilisées en comptabilité ne sont jamais lues."
+    },
+    {
+      "nom": "Releve-general-depenses-date 2026.pdf",
+      "pages": 3,
+      "forme": "texte",
+      "apports": ["tva_deductible_par_facture", "cles_utilisees_en_compta"],
+      "commentaire": "RGD de l'exercice en cours. Total des dépenses 51 653,47 € — recoupe exactement la classe 6 du grand livre 2026.",
+      "routage_par_nom_actuel": "ANNEXE",
+      "routage_actuel_correct": false,
+      "consequence_du_mauvais_routage": "Idem. C'est ce document qui aurait dit que seules 2 clés existent réellement (Charges Générales et Charges Ascenseur), au lieu des 6 extraites dont 4 fausses."
+    },
+    {
+      "nom": "rgd.pdf",
+      "pages": 6,
+      "forme": "scan",
+      "apports": ["tva_deductible_par_facture", "cles_utilisees_en_compta"],
+      "doublon_de": "Releve-general-depenses-date 2025.pdf",
+      "commentaire": "DOUBLON DE FORME : même RGD 2025, version scannée. Le test de détection de doublon doit l'identifier et PRÉFÉRER la version à couche texte. Gratuit en fiabilité comme en coût.",
+      "routage_par_nom_actuel": "ANNEXE",
+      "routage_actuel_correct": false,
+      "consequence_du_mauvais_routage": "Le sigle métier est RGD ; la regex `pourStructure` contient `rgdd` avec deux d. Un caractère."
+    },
+    {
+      "nom": "Grand-Livre-Date 2025.pdf",
+      "pages": 52,
+      "forme": "texte",
+      "apports": ["ecritures_comptables"],
+      "exercice": "clos",
+      "commentaire": "2 147 écritures, 158 comptes. Après répartition : classes 60/61/62/66 ET 70 soldées à 0,00 → filet n°1 passé.",
+      "routage_par_nom_actuel": "GRAND LIVRE",
+      "routage_actuel_correct": true
+    },
+    {
+      "nom": "Grand-Livre-Date 2026.pdf",
+      "pages": 30,
+      "forme": "texte",
+      "apports": ["ecritures_comptables"],
+      "exercice": "en_cours",
+      "commentaire": "984 écritures, 146 comptes, s'arrête au 23/06/2026 — veille de la date d'effet du contrat. Raccord au clos : 141/141 comptes au centime → filet n°2 passé.",
+      "routage_par_nom_actuel": "GRAND LIVRE",
+      "routage_actuel_correct": true
+    },
+    {
+      "nom": "Annexes 2025.pdf",
+      "pages": 7,
+      "forme": "texte",
+      "apports": ["cles_utilisees_en_compta", "budgets"],
+      "commentaire": "Annexes comptables de la convocation (état financier, comptes de gestion, état des travaux votés).",
+      "routage_par_nom_actuel": "patrimoine/structure",
+      "routage_actuel_correct": false,
+      "consequence_du_mauvais_routage": "Routé vers l'agent structure parce que « annexe » est dans sa regex — alors que ses apports sont comptables. Le mot est surchargé : « annexe comptable » vs « document annexe »."
+    },
+    {
+      "nom": "Annexes 2026.pdf",
+      "pages": 7,
+      "forme": "texte",
+      "apports": ["cles_utilisees_en_compta", "budgets"],
+      "commentaire": "Idem, exercice en cours.",
+      "routage_par_nom_actuel": "patrimoine/structure",
+      "routage_actuel_correct": false
+    },
+    {
+      "nom": "owners-list (1).pdf",
+      "pages": 3,
+      "forme": "texte",
+      "apports": ["codes_estale"],
+      "commentaire": "Export Estale POST-import (44 copropriétaires avec leurs codes 4 caractères, hexadécimaux au-delà de 9). N'est pas une source de reprise amont : il n'arrive qu'en phase 2, pour construire links.xlsx. Ne doit PAS être envoyé aux agents d'extraction.",
+      "routage_par_nom_actuel": "ANNEXE",
+      "routage_actuel_correct": false,
+      "consequence_du_mauvais_routage": "Consomme un appel IA « recherche de contacts » pour rien."
+    }
+  ],
+  "attendu_indexation": {
+    "documents_correctement_indexes": 14,
+    "routage_par_nom_actuel_correct": 6,
+    "routage_par_nom_actuel_faux": 8,
+    "doublons_de_forme_detectes": 1,
+    "documents_a_ne_pas_analyser": ["owners-list (1).pdf"],
+    "apports_multi_consommateurs": {
+      "Releve-general-depenses-date 2026.pdf": ["compta bloc B", "perimetre des cles patrimoine"],
+      "rgd.pdf": ["compta bloc B", "perimetre des cles patrimoine"],
+      "CONVOCATION_AG_654464_139.pdf": ["liaison owners-450", "compta bloc B", "perimetre des cles"],
+      "Feuille de présence - 2026.pdf": ["lots", "cles", "owners", "attributions", "contre-preuve"]
+    }
+  },
+  "couverture_apports_requis": {
+    "_doc": "Contrôle miroir (§1.5) : chaque donnée requise a-t-elle au moins une source ? Différence d'ensembles, zéro token.",
+    "patrimoine_requis": ["lots_descriptif", "tantiemes_par_lot", "owners_adresses", "attributions"],
+    "patrimoine_souhaites": ["nb_lots_batiments", "totaux_tantiemes_par_owner", "votants_avec_tantiemes"],
+    "compta_requis": ["ecritures_comptables"],
+    "compta_souhaites": ["tva_deductible_par_facture", "cles_utilisees_en_compta", "quotes_parts_450", "appels_de_fonds_par_cle"],
+    "manquants_sur_ce_lot": ["appels_de_fonds_par_cle"],
+    "consequence": "Sans appels_de_fonds_par_cle, le bloc C (éclatement du 701 clé par clé) reste manuel. À réclamer à l'ancien syndic — c'est un cas de refus actionnable, pas une extraction ratée."
+  },
+  "refus_actionnables_attendus": [
+    {
+      "source": "RCP 2.pdf",
+      "apport": "tantiemes_par_lot",
+      "cle": "200",
+      "motif": "tableau de répartition ascenseur incomplet dans le scan",
+      "plages_couvertes": [[1, 50]],
+      "plages_manquantes": [[51, 66], [201, 208], [301, 308], [401, 408], [501, 506]],
+      "total_annonce": 10000,
+      "somme_couverte": 2800,
+      "message_attendu": "Clé 200 (Charges ascenseur) : le tableau de répartition ne couvre que les lots 1 à 50 (2 800 / 10 000). Manquent les lots 51-66, 201-208, 301-308, 401-408 et 501-506. Demander à l'ancien syndic la page suivante du tableau de répartition des charges d'ascenseur, ou un export des tantièmes par lot.",
+      "commentaire": "C'est CE message qui a permis de boucler à 10 000 lors de la reprise manuelle : la page manquante a été fournie sur demande. Critère d'acceptation du chemin de refus (§3bis)."
+    }
+  ]
+}

@@ -68,6 +68,13 @@ data/*.txt
 data/*.csv
 data/*.sql
 data/*.md
+# RE-AUTORISATION EXPLICITE (annoncee plus haut) : data/samples/ = fixtures ANONYMISEES,
+# l'etage COMMITE du test de regression (etape 0 extraction, cf.
+# docs/etude-indexation-extraction-patrimoine.md §5). PSEUDONYMES VERIFIES avant commit
+# (2026-07-30 : purge d'une table de re-identification via owner_ref_temp). Les PDF et
+# tout le reste de data/ restent exclus - on ne re-autorise QUE json et md, jamais *.
+!data/samples/**/*.json
+!data/samples/**/*.md
 
 # Exports PowerApps : binaires lourds / re-exportables (on garde les flux JSON + le guide)
 docs/powerapps/*.zip
