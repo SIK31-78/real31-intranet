@@ -158,12 +158,13 @@ Deux exigences non négociables, faute de quoi rien ne distingue « lu » d'« i
 | Voie | Structure tableau | Confiance/cellule | Bbox | Ordre de prix | Verdict |
 |---|---|---|---|---|---|
 | Couche texte (pdfjs, en place) | par positions (nous) | n/a (exact) | oui | 0 EUR | **toujours en premier** |
-| **Tesseract 5 (local)** | **inutile - on a le parseur** | oui, par token | oui | **0 EUR, aucun DPA** | **RETENU** (mesure ci-dessous) |
+| **tesseract.js 7 (WASM, npm)** | **inutile - on a le parseur** | oui, par token | oui | **0 EUR, aucun DPA** | **RETENU** (mesure ci-dessous) |
+| Tesseract 5 (binaire systeme) | idem | oui | oui | 0 EUR | ecarte : non reproductible entre postes |
 | Rendu image + LLM vision | non garanti | non | non | tokens | ecarte : recopie non refusable - le mode qui a produit la cle 300 |
 | Mistral OCR (en place, markdown) | partielle | non (pas par cellule) | non en tableau | ~1 EUR/1000 p. | corruption prouvee sur tableaux denses (S0302) |
-| Google Document AI | oui | oui | oui | ~1,5-30 EUR/1000 p. | plan B documente |
-| Azure Document Intelligence (layout) | oui | oui | oui | ~10 EUR/1000 p. | plan B documente |
-| AWS Textract (tables) | oui | oui | oui | ~15 EUR/1000 p. | plan B documente |
+| Google Document AI | oui | oui | oui | ~1,5-30 EUR/1000 p. | **hors perimetre** (module local, cf. decision 30/07) |
+| Azure Document Intelligence (layout) | oui | oui | oui | ~10 EUR/1000 p. | **hors perimetre** |
+| AWS Textract (tables) | oui | oui | oui | ~15 EUR/1000 p. | **hors perimetre** |
 
 ### Tesseract : le candidat qui manquait, et il suffit (mesures du 30/07)
 
@@ -239,29 +240,98 @@ refuser a tort ferait redemander des pieces sans raison.
 4. le cout reel n'est pas le prix mais un DPA, un fournisseur de plus, une cle a faire
    tourner et une dependance externe sur un chemin critique - pour deux pages par reprise.
 
-#### Rasteriseur : pdfjs + @napi-rs/canvas, et pas poppler
+#### DECISION : le module reprise est LOCAL PAR CONCEPTION (30/07)
 
-- `pdfjs-dist` est **deja dans la stack** pour la couche texte, et son piege Next.js est deja
-  regle (`serverExternalPackages`) : on ne reintroduit rien.
-- Poppler est plus rapide mais c'est un **binaire systeme** : impossible de le garantir
-  identique en local, en CI et en production. La rastérisation n'est de toute facon pas le
-  goulot, l'OCR l'est.
-- Pour le canvas : **`@napi-rs/canvas`** plutot que `node-canvas` - binaires precompiles, pas
-  de compilation cairo a reproduire sur trois environnements.
-- **Obligation de contrat** (portee par `ports/ocr-provider.ts`) :
-  `page.getViewport({ scale, rotation: page.rotate })`. Le port expose
-  `rotationAppliquee` pour que la correction de la chaine soit PROUVABLE, et son test
-  d'acceptation tient en une ligne - OCRiser RCP 2.pdf p. 30 et verifier que le premier mot
-  lu est « TABLEAU », pas son miroir.
+Le module reprise **ne se deploie pas sur Vercel**. Chaque poste fait tourner l'app ; l'etat
+partage reste dans Supabase (`COPRO_SOURCE=supabase`, deja en place).
+
+« Full local » signifie **calcul local, base cloud** : le traitement et les PDF restent au
+cabinet, la base Supabase ne bouge pas. Deux gestionnaires = deux instances locales sur une
+base commune -- il n'y a donc pas de seuil de volume au-dela duquel il faudrait « passer a
+autre chose ». Le declencheur « deuxieme personne », valable pour un deploiement Vercel, n'a
+plus d'objet et est retire.
+
+**Ce que la decision debloque** :
+
+- **le DPA disparait entierement du sujet**, plus seulement pour le benchmark : les identites
+  ne quittent jamais le cabinet. Les trois industriels (Document AI, Azure DI, Textract) ne
+  sont plus un « plan B », ils **sortent du perimetre** ;
+- le **mur Vercel a 4,5 Mo de body ne s'applique plus** au module : le plafond redevient la
+  RAM (40 Mo) ;
+- un batch OCR long **n'a plus de timeout** a craindre.
+
+**Ce qu'elle coute, et qu'il faut assumer par ecrit** :
+
+- les PDF de travail vivent sur un poste, donc **hors sauvegarde centrale**. Seul le resultat
+  (le jeu JSON) part dans Supabase : c'est LUI la donnee durable, les PDF sont du materiau de
+  passage ;
+- une mise a jour de l'app doit etre **deployee sur N postes**.
+
+#### La chaine complete : tout-npm, et c'est MESURE
+
+L'argument pour pdfjs change de raison : en local, le probleme n'est plus le serverless mais
+la **reproductibilite entre postes Windows** -- et il s'etend a Tesseract, lui aussi binaire
+systeme. On arbitre donc la chaine entiere, pas le seul rasteriseur.
+
+| Option | Contenu | Verdict |
+|---|---|---|
+| tout-systeme | poppler + `tesseract-ocr-fra` par poste | procedure d'installation a maintenir et reproduire sur N postes |
+| **tout-npm** | `pdfjs-dist` + `@napi-rs/canvas` + `tesseract.js` (WASM) | **RETENU** : la chaine voyage avec l'app |
+
+**Le point bloquant a lever etait `tesseract.js`. Mesure faite le 30/07, version 7.0.0 :**
+
+| Verification | Resultat |
+|---|---|
+| pack `fra` | **OK**, charge en 401 ms |
+| OSD (`PSM.OSD_ONLY`, pack `osd`) | **OK** -- `detect()` rend `orientation_degrees: 180` sur la page renversee, avec sa confiance |
+| sortie `tsv` avec bbox + confiance par token | **OK** (`left/top/width/height` + `conf`) |
+| lecture du scan dur (tableau ascenseur 1975) | **42 / 50** cellules, confiance 88,8 |
+| duree par page (worker reutilise, `fra`) | **457 ms** |
+
+**Il n'est donc pas disqualifie -- et il est meilleur que prevu sur les deux axes redoutes.**
+
+*Vitesse* : l'estimation « 2 a 5x plus lent » ne se verifie pas. Avec le worker cree UNE fois
+et reutilise -- le mode reel d'un batch -- on mesure **457 ms** contre **397 ms** pour le
+binaire systeme sur la meme image : **1,15x**, pas 2 a 5x. A 8 reprises par mois, le sujet
+n'existe pas.
+
+*Qualite* : sur la meme image, tesseract.js lit **42** cellules la ou le binaire systeme en
+lit **20**. Ecart NON attribuable au DPI (teste : identique avec et sans
+`user_defined_dpi=300`) ni a l'OEM (teste : 1 et 3 donnent tous deux 20).
+
+L'explication partielle, et elle est decisive pour l'arbitrage : **les deux installations
+n'utilisent pas les memes modeles de langue.**
+
+| `.traineddata` | binaire systeme | tesseract.js |
+|---|---|---|
+| `eng` | 4 113 088 o | 5 199 098 o |
+| `fra` | 14 213 351 o | 1 248 107 o |
+
+Variantes `tessdata` / `tessdata_best` / `tessdata_fast` melangees, et differentes d'un cote
+et de l'autre. **« Tesseract » n'est donc pas un moteur, c'est une famille** : deux mesures
+etiquetees « Tesseract 5, psm 6, 300 dpi » restent incomparables tant qu'on ne dit pas quel
+modele a servi. C'est l'argument tout-npm dans sa forme la plus forte -- la chaine npm
+**embarque ses propres modeles et son propre moteur**, donc elle est reproductible ; la chaine
+systeme depend de ce qu'un installeur a depose sur chaque poste.
+
+Consequence portee dans le code : `ProvenanceOcr.tailleModeleOctets` s'ajoute au moteur, a la
+langue, au rasteriseur, a la segmentation et au pretraitement.
+
+#### Bonus imprevu : l'OSD est un SECOND filet, independant de `/Rotate`
+
+`detect()` rend l'orientation **par l'image**, sans lire aucune metadonnee. Ca compte plus
+qu'un confort, parce que `/Rotate` peut etre ABSENT sur une page physiquement tournee :
+`RCP.pdf` du lot S0306 n'a **aucun `/Rotate` sur ses 28 pages**. Une page sans metadonnee
+n'est pas une page droite -- c'est une page dont on ne sait rien. L'OSD est le seul filet dans
+ce cas, et il se combine a l'assertion de vraisemblance (`domain/orientation-page.ts`) :
+la metadonnee d'abord, l'OSD ensuite, l'assertion en dernier recours.
 
 #### A trancher AVANT de coder, dans cet ordre
 
-1. **Ou tourne ce chemin ?** Le mur Vercel (~4,5 Mo de body, duree des functions) est deja
-   documente. Rasteriser 28 pages en 300 dpi puis les OCRiser, c'est de la memoire et du temps
-   que le serverless ne donnera pas. Decider **d'abord** worker local ou tache de fond,
-   **ensuite** le rasteriseur - sinon on choisit pdfjs pour de bonnes raisons et on decouvre
-   qu'il ne tourne pas la ou on l'a mis.
-2. **Le viewport honore `/Rotate`**, verifie par un test, pas par une relecture de code.
+1. ~~Ou tourne ce chemin ?~~ **TRANCHE (30/07)** : local par conception, cf. ci-dessus.
+2. **Le viewport honore `/Rotate` PAR PAGE**, verifie par un test, pas par une relecture de
+   code. Et quand `/Rotate` est absent, l'OSD prend le relais -- une page sans metadonnee
+   n'est pas une page droite.
 
 **Installation** : Tesseract 5.4.0 est present sur le poste (`C:\Program Files\Tesseract-OCR`),
 pack `eng` seul - suffisant pour des chiffres. Sur le serveur, prevoir **`tesseract-ocr-fra`**

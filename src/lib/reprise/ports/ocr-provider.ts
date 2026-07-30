@@ -48,6 +48,17 @@ export interface ProvenanceOcr {
   moteur: string;
   /** Pack de langue utilisé (ex. "eng", "fra"). Les libellés et patronymes exigent `fra`. */
   langue: string;
+  /**
+   * Empreinte du modèle de langue : taille en octets du `.traineddata` utilisé.
+   *
+   * MESURÉ le 30/07 et non supposé : « Tesseract » n'est pas un moteur, c'est une famille.
+   * Sur ce poste, le binaire système et tesseract.js n'utilisent PAS les mêmes modèles —
+   * `eng` fait 4 113 088 o d'un côté et 5 199 098 o de l'autre, `fra` 14 213 351 o contre
+   * 1 248 107 o (variantes `tessdata` / `tessdata_best` / `tessdata_fast`). Sur la même
+   * image, la même version majeure et le même `--psm`, l'un lit 20 cellules et l'autre 42.
+   * Sans cette empreinte, deux mesures « Tesseract 5, psm 6, 300 dpi » restent incomparables.
+   */
+  tailleModeleOctets?: number;
   /** Version du rasteriseur (ex. "pdfjs-dist 4.10.38"). */
   rasteriseur: string;
   /** Mode de segmentation du moteur (ex. "--psm 6"). */
