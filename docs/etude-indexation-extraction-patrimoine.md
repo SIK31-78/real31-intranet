@@ -165,41 +165,69 @@ Deux exigences non négociables, faute de quoi rien ne distingue « lu » d'« i
 | Azure Document Intelligence (layout) | oui | oui | oui | ~10 EUR/1000 p. | plan B documente |
 | AWS Textract (tables) | oui | oui | oui | ~15 EUR/1000 p. | plan B documente |
 
-### Tesseract : le candidat qui manquait, et il suffit (mesure du 30/07)
+### Tesseract : le candidat qui manquait, et il suffit (mesures du 30/07)
 
 Le tableau initial oubliait Tesseract, et cet oubli changeait la conclusion. Il est libre,
 tourne **en local** (donc **aucune sous-traitance, aucun DPA**) et rend **confiance et bbox
 par token** - exactement le critere de refusabilite.
 
-**Mesures reproduites sur le scan dur de S0306** (tableau ascenseur de 1975, `--psm 6`,
-sortie `tsv`, Tesseract 5.4.0) :
+**Mesures de reference, page redressee** (RCP 2.pdf p. 30, tableau ascenseur de 1975,
+`--psm 6`, sortie `tsv`, Tesseract 5.4.0) :
 
-| Pretraitement | cellules « 56 » lues | confiance moyenne |
+| Rendu | cellules « 56 » lues | confiance moy. |
 |---|---|---|
-| image native | 20 / 50 | 95,7 |
-| **echelle x2 (Lanczos)** | **28 / 50** | 95,0 |
-| echelle x3 | 22 / 50 | 94,2 |
-| `--psm 4`, echelle x2 | 24 / 50 | - |
+| 150 dpi, redressee | 37 / 50 | 89,3 |
+| 200 dpi, redressee | 39 / 50 | 91,0 |
+| **300 dpi, redressee** | **40 / 50** | **93,2** |
+| 400 dpi, redressee | 41 / 50 | 91,5 |
+| 300 dpi, **a l'envers** | **0 / 50** | 58,0 |
 
-Colonne des valeurs **nette en x** (1682-1704 sur 1888 px de large) : le parseur par
-positions a de quoi reconstruire.
+**300 dpi est le point de fonctionnement** : la courbe est plate entre 200 et 400, monter ne
+gagne rien. Et **aucun upscaling** - le « pic » a x2 Lanczos releve dans une premiere mesure
+etait du bruit sur une image renversee, pas un optimum. Le Lanczos ne fait pas partie de la
+chaine.
 
-**Constat de methode plus important que les chiffres eux-memes** : le rendement varie de
-**20 a 28 cellules selon le seul pretraitement**, et une mesure independante sur le meme
-scan en a releve 40. Autrement dit **le harnais pese plus que le moteur**. Consequence pour
-le protocole §5 : la chaine de pretraitement (rotation, echelle, `psm`, binarisation) doit
-etre **figee et versionnee**, sinon « Tesseract obtient X » ne veut rien dire, et deux
-personnes qui comparent deux moteurs comparent en realite deux pretraitements.
+Colonne des valeurs nette en x : le parseur par positions a de quoi reconstruire.
 
-Piege rencontre en reproduisant la mesure, a graver dans le harnais : les scans du RCP sont
-stockes **tournes a 180 degres** dans le PDF (CCITTFaxDecode). Sans rotation prealable,
-Tesseract lit `9S` au lieu de `56` et le rendement tombe a **zero** - un harnais qui ne
-verifie pas ce qu'il lit conclurait « Tesseract est inutilisable ». Toujours faire dumper le
-texte brut avant de compter.
+#### La lecon, et elle est plus dure que « figer la chaine »
+
+Une premiere serie de mesures a rendu 20, 28 puis 22 cellules selon l'echelle. Ces trois
+chiffres ne mesuraient RIEN : l'extraction avait perdu la metadonnee `/Rotate 180` du PDF, et
+les images partaient **a l'envers** chez Tesseract. Ils ne mesuraient donc que la capacite du
+moteur a survivre a une image renversee.
+
+> **Un harnais qui perd une metadonnee de page produit un chiffre qui ne mesure rien.**
+> La chaine doit d'abord etre CORRECTE, et sa correction doit etre PROUVEE - pas seulement
+> figee.
+
+Sans ce redressement, la conclusion aurait ete « Tesseract est inutilisable sur ce scan » et
+on serait parti acheter un industriel pour resoudre un bug de trois lignes.
+
+**Ampleur du phenomene** : `/Rotate 180` est sur **36 des 36 pages** de `RCP 2.pdf`. Ce n'est
+pas une curiosite, c'est le cas normal des scans notaries. Et il se LIT, il ne se suppose
+jamais : dans le meme lot, `RCP.pdf` n'a **aucun** `/Rotate` et la feuille de presence porte
+`/Rotate 0`.
+
+#### Le reflexe devient une assertion, pas une bonne pratique
+
+Ce qui a sauve le diagnostic, c'est d'avoir vide le TEXTE BRUT au lieu de se fier au compteur
+(« TIALYAV.L dd LibaVdda » lu a l'envers donne « TABLEAU DE REPARTITION »). Ce reflexe ne peut
+pas dependre de la vigilance de celui qui lance la mesure : il est desormais code dans
+`domain/orientation-page.ts` (8 tests), avec trois signaux du plus fiable au plus faible :
+
+1. **les ancres** - un mot qu'on SAIT devoir figurer sur la page. Aucune ancre trouvee est le
+   signal le plus sur, et il prime meme sur une confiance elevee (un moteur peut etre confiant
+   sur du miroir) ;
+2. **l'absence totale de numerique** sur une page censee porter un tableau de valeurs - le
+   symptome exact observe (0 cellule sur 50) ;
+3. **la confiance moyenne**, qui s'effondre de 93 a 58 quand l'image est renversee.
+
+Garde-fou du garde-fou : une page trop pauvre (verso blanc, page de garde) ne conclut RIEN -
+refuser a tort ferait redemander des pieces sans raison.
 
 **Quatre raisons de ne pas prendre un industriel** :
 
-1. l'oracle rend le moteur secondaire - 28 x 56 = 1 568 != 2 800 -> **refus**, comportement
+1. l'oracle rend le moteur secondaire - 40 x 56 = 2 240 != 2 800 -> **refus**, comportement
    voulu, obtenu sans cle ni contrat ;
 2. **on paierait la brique deja ecrite** : Document AI, Azure DI et Textract vendent la
    reconstruction de structure de tableau, or `parseur-grand-livre-positions` et
@@ -210,6 +238,30 @@ texte brut avant de compter.
    d'abord reclamer l'**export natif**. Un export obtenu, c'est zero OCR ;
 4. le cout reel n'est pas le prix mais un DPA, un fournisseur de plus, une cle a faire
    tourner et une dependance externe sur un chemin critique - pour deux pages par reprise.
+
+#### Rasteriseur : pdfjs + @napi-rs/canvas, et pas poppler
+
+- `pdfjs-dist` est **deja dans la stack** pour la couche texte, et son piege Next.js est deja
+  regle (`serverExternalPackages`) : on ne reintroduit rien.
+- Poppler est plus rapide mais c'est un **binaire systeme** : impossible de le garantir
+  identique en local, en CI et en production. La rastérisation n'est de toute facon pas le
+  goulot, l'OCR l'est.
+- Pour le canvas : **`@napi-rs/canvas`** plutot que `node-canvas` - binaires precompiles, pas
+  de compilation cairo a reproduire sur trois environnements.
+- **Obligation de contrat** (portee par `ports/ocr-provider.ts`) :
+  `page.getViewport({ scale, rotation: page.rotate })`. Le port expose
+  `rotationAppliquee` pour que la correction de la chaine soit PROUVABLE, et son test
+  d'acceptation tient en une ligne - OCRiser RCP 2.pdf p. 30 et verifier que le premier mot
+  lu est « TABLEAU », pas son miroir.
+
+#### A trancher AVANT de coder, dans cet ordre
+
+1. **Ou tourne ce chemin ?** Le mur Vercel (~4,5 Mo de body, duree des functions) est deja
+   documente. Rasteriser 28 pages en 300 dpi puis les OCRiser, c'est de la memoire et du temps
+   que le serverless ne donnera pas. Decider **d'abord** worker local ou tache de fond,
+   **ensuite** le rasteriseur - sinon on choisit pdfjs pour de bonnes raisons et on decouvre
+   qu'il ne tourne pas la ou on l'a mis.
+2. **Le viewport honore `/Rotate`**, verifie par un test, pas par une relecture de code.
 
 **Installation** : Tesseract 5.4.0 est present sur le poste (`C:\Program Files\Tesseract-OCR`),
 pack `eng` seul - suffisant pour des chiffres. Sur le serveur, prevoir **`tesseract-ocr-fra`**
@@ -327,10 +379,14 @@ d'indexation). C'est ce protocole qui rend le choix OCR decidable.
 
 **Deux exigences ajoutees le 30/07, sans lesquelles le protocole ne mesure rien :**
 
-1. **Figer la chaine de pretraitement** (rotation, echelle, `psm`, binarisation) et la
-   versionner avec les resultats. Le rendement varie de 20 a 28 cellules sur le meme scan
-   selon la seule echelle - le harnais pese plus que le moteur, donc un chiffre sans sa
-   chaine n'est pas comparable.
+1. **La chaine doit etre CORRECTE avant d'etre figee, et sa correction doit etre PROUVEE.**
+   Un harnais qui perd une metadonnee de page produit un chiffre qui ne mesure rien : une
+   premiere serie a rendu 20/28/22 cellules avant qu'on decouvre que les images partaient a
+   l'envers (`/Rotate 180` perdu). Donc (a) l'assertion d'orientation
+   (`domain/orientation-page.ts`) tourne sur CHAQUE page mesuree et un verdict « suspecte »
+   INVALIDE la mesure ; (b) le port expose `rotationAppliquee`, qu'on releve dans le tableau
+   de resultats ; (c) alors seulement on fige et versionne la chaine (300 dpi, `--psm 6`,
+   aucun upscaling).
 2. **L'oracle du PDF de benchmark est un REFUS, pas un bouclage.**
    `data/S0306/benchmark-ocr/RCP2_p30-31_tableau_ascenseur.pdf` ne porte que la **premiere
    page** du tableau - la page 2 n'existe dans **aucun** document du lot. Attendu : motif
