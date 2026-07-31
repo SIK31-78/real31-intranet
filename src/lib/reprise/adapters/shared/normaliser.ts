@@ -77,9 +77,26 @@ const AttributionBrute = z.object({
   lot: z.coerce.number(),
 });
 
+/** Total de tantiemes IMPRIME par la source, recopie tel quel (contre-preuve, etape 4). */
+const TotalImprimeBrut = z.object({
+  ownerId: z.coerce.string(),
+  total: z.coerce.number().int().nonnegative(),
+});
+
+/** Votant du PV avec ses voix (deuxieme source des patronymes, etape 7). */
+const VotantBrut = z.object({
+  nom: z.coerce.string(),
+  prenom: z.coerce.string().optional(),
+  tantiemes: z.coerce.number().int().nonnegative(),
+});
+
 const ProprietairesBrut = z.object({
   owners: z.array(OwnerBrut).default([]),
   attributions: z.array(AttributionBrute).default([]),
+  // Les deux contre-preuves sont FACULTATIVES : leur absence signifie "non controle", jamais
+  // une erreur. Un lot sans PV n'a pas de votants ; une FDP sans totaux imprimes n'en a pas.
+  totauxImprimes: z.array(TotalImprimeBrut).default([]),
+  votants: z.array(VotantBrut).default([]),
   notes: z.array(z.coerce.string()).default([]),
 });
 
@@ -136,5 +153,22 @@ export function normaliserProprietaires(brut: unknown): ResultatProprietaires {
     commentaire: o.notes,
   }));
   const attributions: Attribution[] = p.attributions.map((a) => ({ ownerId: a.ownerId.trim(), lot: a.lot }));
-  return { owners, attributions, notes: p.notes };
+  // Un total imprime dont l'ownerId ne correspond a personne est ECARTE : il ne prouverait
+  // rien et ferait planter la confrontation. Meme principe que les tantiemes orphelins.
+  const idsConnus = new Set(owners.map((o) => o.id));
+  const totauxImprimes = p.totauxImprimes
+    .map((t) => ({ ownerId: t.ownerId.trim(), total: t.total }))
+    .filter((t) => idsConnus.has(t.ownerId));
+  const votants = p.votants.map((v) => ({
+    nom: toNomMajuscules(v.nom),
+    ...(v.prenom ? { prenom: toTitleCase(v.prenom) } : {}),
+    tantiemes: v.tantiemes,
+  }));
+  return {
+    owners,
+    attributions,
+    ...(totauxImprimes.length > 0 ? { totauxImprimes } : {}),
+    ...(votants.length > 0 ? { votants } : {}),
+    notes: p.notes,
+  };
 }

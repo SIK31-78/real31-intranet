@@ -29,10 +29,35 @@ export interface ResultatPatrimoine {
   notes: string[];
 }
 
+/** Total de tantiemes IMPRIME par la source pour un owner (contre-preuve, etape 4). */
+export interface TotalImprimeExtrait {
+  ownerId: string;
+  total: number;
+}
+
+/** Un votant du PV avec ses voix (filet noms, etape 7). */
+export interface VotantExtrait {
+  nom: string;
+  prenom?: string;
+  tantiemes: number;
+}
+
 /** Sortie de l'Agent 2 : copropriétaires + attributions (owners deja dedupliques au mieux). */
 export interface ResultatProprietaires {
   owners: Owner[];
   attributions: Attribution[];
+  /**
+   * « Nombre de tantiemes : X » imprime par la FDP en face de chaque coproprietaire. C'est la
+   * CONTRE-PREUVE des attributions (etape 4) : elle localise l'erreur par personne, la ou les
+   * auto-checks ne constatent que des orphelins en fin de course. Absent = non controle,
+   * jamais une erreur.
+   */
+  totauxImprimes?: TotalImprimeExtrait[];
+  /**
+   * Votants du PV avec leurs voix. DEUXIEME SOURCE des patronymes (etape 7) : c'est le seul
+   * moyen de detecter une coquille de transcription, qu'aucun controle arithmetique ne voit.
+   */
+  votants?: VotantExtrait[];
   /** Points de vigilance (SCI sans K-bis, scrutateur != EDD, fusions proposees...). */
   notes: string[];
 }

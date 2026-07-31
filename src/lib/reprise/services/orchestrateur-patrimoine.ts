@@ -25,6 +25,14 @@ import {
   type IndexDocument,
 } from "@/lib/reprise/domain/apports";
 import type { LecteurTexteProvider } from "@/lib/reprise/ports/lecteur-texte-provider";
+import { LecteurTextePdfjs } from "@/lib/reprise/adapters/shared/lecteur-texte-pdfjs";
+import {
+  anomaliesAttributions,
+  messageEcartOwner,
+  verifierTotauxParOwner,
+  type TotalImprimeOwner,
+} from "@/lib/reprise/domain/contre-preuve-owners";
+import { couvertureFilet, detecterCoquilles, type NomSource } from "@/lib/reprise/domain/filet-noms";
 import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
 import {
   genererPhaseA,
@@ -163,7 +171,16 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
     };
   });
 
-  const groupes = detecterDoublons(jeu.owners);
+  // Les LOTS comme element distinctif (etape 5) : deux homonymes aux lots disjoints sont deux
+  // personnes. Sans cette carte, `donneesCompatibles` proposait la fusion de deux owners
+  // pourtant distincts (le cas des deux GOUGE Isabelle de S0306).
+  const lotsParOwnerDedup = new Map<string, Set<number>>();
+  for (const a of jeu.attributions) {
+    const s = lotsParOwnerDedup.get(a.ownerId) ?? new Set<number>();
+    s.add(a.lot);
+    lotsParOwnerDedup.set(a.ownerId, s);
+  }
+  const groupes = detecterDoublons(jeu.owners, lotsParOwnerDedup);
   const checks = verifierTout(jeu);
 
   // Bloc liaison (owners <-> comptes 450) : present seulement si le jeu porte des liaisons
@@ -255,11 +272,13 @@ export async function analyserPatrimoine(
   provider: ExtractionProvider,
   docs: DocumentSource[],
   /**
-   * Lecteur de couche texte. FOURNI -> l'aiguillage se fait sur les APPORTS reellement
-   * detectes dans le contenu (etude §1.2). ABSENT -> repli sur le routage par nom de
-   * fichier, conserve pour ne rien casser mais connu pour etre faux (6/14 sur S0306).
+   * Lecteur de couche texte. PAR DEFAUT l'adapter pdfjs : l'aiguillage se fait donc sur les
+   * APPORTS reellement detectes dans le contenu (etude §1.2). Passer `null` force le repli
+   * sur le routage par NOM DE FICHIER -- conserve pour les tests et les appelants sans PDF,
+   * mais connu pour etre faux (6 documents correctement classes sur 14 dans S0306), et il
+   * emet alors une note de vigilance visible dans le recap.
    */
-  lecteur?: LecteurTexteProvider,
+  lecteur: LecteurTexteProvider | null = new LecteurTextePdfjs(),
 ): Promise<AnalysePatrimoine> {
   let index: IndexDocument[] | undefined;
   let couverture: Couverture | undefined;
@@ -307,6 +326,87 @@ export async function analyserPatrimoine(
     attributions: proprietaires.attributions,
   };
 
+  // --- CONTRE-PREUVES (etapes 4, 5 et 7 branchees ici : elles operent sur le jeu ASSEMBLE) ---
+  //
+  // Elles ne remplacent pas les auto-checks : elles LOCALISENT ce que ceux-ci constatent en
+  // bloc. Toutes degradent proprement -- une contre-preuve sans source reste silencieuse
+  // plutot que de bloquer (un owner sans total imprime est NON CONTROLE, pas en erreur).
+  const notesContrePreuve: string[] = [];
+
+  // 4. Sigma des tantiemes de la cle generale par owner vs total imprime sur la FDP.
+  const cleGenerale = jeu.cles.find((c) => c.defaut)?.code ?? jeu.cles[0]?.code;
+  const totauxImprimes: TotalImprimeOwner[] = (proprietaires.totauxImprimes ?? []).map((t) => ({
+    ownerId: t.ownerId,
+    total: t.total,
+  }));
+  if (cleGenerale && totauxImprimes.length > 0) {
+    const cp = verifierTotauxParOwner({
+      owners: jeu.owners,
+      attributions: jeu.attributions,
+      tantiemes: jeu.tantiemes,
+      cleGeneraleCode: cleGenerale,
+      totauxImprimes,
+    });
+    notesContrePreuve.push(...cp.ecarts.map(messageEcartOwner));
+    if (cp.ecarts.length === 0 && cp.nbControles > 0) {
+      notesContrePreuve.push(
+        `Contre-preuve par coproprietaire : ${cp.nbControles} controles, 0 ecart` +
+          (cp.nbNonControles > 0 ? ` (${cp.nbNonControles} sans total imprime, non controles).` : "."),
+      );
+    }
+  }
+
+  // Orphelins ET doublons lus ENSEMBLE : separement, un total qui "tombe juste" les masque.
+  const anomalies = anomaliesAttributions({ lots: jeu.lots, attributions: jeu.attributions });
+  if (anomalies.multiAttribues.length > 0) {
+    notesContrePreuve.push(
+      `Lots attribues plusieurs fois : ${anomalies.multiAttribues
+        .map((m) => `${m.lot} (x${m.nb})`)
+        .join(", ")} -- a lire avec les lots orphelins, ils vont par paires.`,
+    );
+  }
+  if (anomalies.inconnus.length > 0) {
+    notesContrePreuve.push(
+      `Attributions sur des lots inexistants dans l'EDD : ${anomalies.inconnus.join(", ")} ` +
+        `(numeros vraisemblablement mal transcrits).`,
+    );
+  }
+
+  // 7. Filet noms : FDP x votants du PV. Ne tourne que si le PV a fourni ses votants.
+  if ((proprietaires.votants ?? []).length > 0 && cleGenerale) {
+    const parLot = new Map(
+      jeu.tantiemes.filter((t) => t.cleCode === cleGenerale).map((t) => [t.lot, t.valeur]),
+    );
+    const lotsParOwner = new Map<string, number[]>();
+    for (const a of jeu.attributions) {
+      lotsParOwner.set(a.ownerId, [...(lotsParOwner.get(a.ownerId) ?? []), a.lot]);
+    }
+    const reference: NomSource[] = jeu.owners.map((o) => {
+      const lots = lotsParOwner.get(o.id) ?? [];
+      return {
+        nom: o.nom,
+        ...(o.prenom ? { prenom: o.prenom } : {}),
+        tantiemes: lots.reduce((s, l) => s + (parLot.get(l) ?? 0), 0),
+        lots,
+      };
+    });
+    const coquilles = detecterCoquilles({
+      reference,
+      confrontee: (proprietaires.votants ?? []).map((v) => ({
+        nom: v.nom,
+        ...(v.prenom ? { prenom: v.prenom } : {}),
+        tantiemes: v.tantiemes,
+      })),
+    });
+    notesContrePreuve.push(...coquilles.map((c) => c.message));
+    const couv = couvertureFilet(reference);
+    notesContrePreuve.push(
+      `Filet noms : ${couv.couverts}/${reference.length} coproprietaires couverts ` +
+        `(${couv.tauxPourcent} %) -- les ${couv.horsFilet} autres partagent leur total de ` +
+        `tantiemes, dont ${couv.rattrapablesParLots} rattrapables par leurs lots.`,
+    );
+  }
+
   const recap = calculerRecap(jeu);
   // Les notes viennent EN TETE dans l'ordre de l'ACTION a mener : d'abord les donnees
   // requises introuvables (rien ne peut avancer), puis les refus de cles, puis le reste.
@@ -324,6 +424,7 @@ export async function analyserPatrimoine(
         ]),
     ...(couverture?.requisManquants ?? []).map(messageApportManquant),
     ...garde.notes,
+    ...notesContrePreuve,
     ...patrimoine.notes,
     ...proprietaires.notes,
   ];
