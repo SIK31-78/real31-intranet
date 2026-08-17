@@ -8,10 +8,12 @@ import {
   AlertTriangle,
   MessageSquare,
   ChevronRight,
+  Inbox,
 } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estVueComptable, peutVoirComptabilite } from "@/lib/auth/roles";
+import { estComptable, estVueComptable, peutVoirComptabilite } from "@/lib/auth/roles";
 import { getDashboardComptable } from "@/lib/services/compta/dashboard-comptable";
+import { listerRecapsRecus } from "@/lib/services/compta/recaps-recus";
 import type { LigneComptable } from "@/lib/domain/comptabilite";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
@@ -154,6 +156,15 @@ export default async function ComptabilitePage({
     { gestionnaire, mois },
   );
 
+  // File des recaps post-AG. Elle ne peut PAS vivre dans le tableau ci-dessous : celui-ci
+  // ne liste que les AG A VENIR (et `conclureAg` vide la prochaine AG des qu'elle est
+  // tenue), donc une copro disparait de cet ecran au moment meme ou son recap arrive.
+  const recaps = await listerRecapsRecus({
+    managerId: g.id,
+    email: g.email,
+    estComptable: estComptable(g.email, g.role),
+  });
+
   // Notes non traitees : derivees des lignes deja chargees (aucune requete de plus).
   const avecNotes = [...dashboard.confirmees, ...dashboard.aConfirmer]
     .filter((l) => l.notesOuvertes > 0)
@@ -172,6 +183,30 @@ export default async function ComptabilitePage({
             confirmée par le conseil syndical, il faut préparer les comptes.
           </p>
         </div>
+
+        {/* APRES l'AG : la file des recaps recus. Point d'entree unique - sans ce bloc,
+            l'espace comptable ne regarderait que vers l'avant. */}
+        <Card>
+          <Link
+            href="/comptabilite/recaps"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-surface-2"
+          >
+            <Inbox strokeWidth={1.5} className="h-4 w-4 shrink-0 text-green-700" />
+            <div className="min-w-0 flex-1 basis-[220px]">
+              <p className="text-[13px] font-medium text-ink">Récaps d&apos;AG reçus</p>
+              <p className="text-[12px] text-ink-3">
+                Ce que le gestionnaire a noté après l&apos;assemblée : budget voté, fonds
+                travaux, travaux à appeler, nouveau contrat.
+              </p>
+            </div>
+            {recaps.aTraiter.length > 0 ? (
+              <Badge ton="warn" dot>{recaps.aTraiter.length} à traiter</Badge>
+            ) : (
+              <Badge ton="ok">à jour</Badge>
+            )}
+            <ChevronRight strokeWidth={1.5} className="h-4 w-4 shrink-0 text-ink-4" />
+          </Link>
+        </Card>
 
         {/* Filtres (GET, sans JS) : par gestionnaire et par mois d'AG. */}
         <form method="get" className="flex flex-wrap items-end gap-3">

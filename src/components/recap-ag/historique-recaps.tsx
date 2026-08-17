@@ -1,10 +1,13 @@
 "use client";
 
 // Historique des recaps AG : ce qui a ete enregistre, avec le depassement
-// facture le cas echeant.
+// facture le cas echeant. Chaque ligne ouvre le recap en LECTURE (la meme vue que
+// celle du comptable, cloisonnee au portefeuille cote serveur) : sans ce lien, un
+// gestionnaire ne pouvait plus jamais relire ce qu'il avait saisi.
 
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { CheckCircle2, Receipt, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ChevronRight, Receipt, TriangleAlert } from "lucide-react";
 
 export interface RecapAffiche {
   id: string;
@@ -73,28 +76,34 @@ export function HistoriqueRecaps({ recaps }: { recaps: RecapAffiche[] }) {
       ) : (
         <ul className="divide-y divide-line">
           {recaps.map((r) => (
-            <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <div className="min-w-0">
-                <p className="text-[13px] text-ink">
-                  <span className="font-medium">{r.coproCode}</span>
-                  <span className="text-ink-3"> · AG du {jour(r.agDate)}</span>
-                </p>
-                <p className="text-[12px] text-ink-3">
-                  Saisi le {quand(r.creeLe)}
-                  {r.par ? ` · ${r.par}` : ""}
-                  {r.nbTravaux > 0 ? ` · ${r.nbTravaux} travaux votés` : ""}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                {r.depassementHeures > 0 ? (
-                  <span className="text-[13px] text-ink">
-                    {r.depassementHeures} h · {euros(r.depassementTtc)} TTC
-                  </span>
-                ) : (
-                  <span className="text-[12px] text-ink-3">Pas de dépassement</span>
-                )}
-                <Statut statut={r.statut} />
-              </div>
+            <li key={r.id}>
+              <Link
+                href={`/comptabilite/recaps/${r.id}`}
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] text-ink">
+                    <span className="font-medium">{r.coproCode}</span>
+                    <span className="text-ink-3"> · AG du {jour(r.agDate)}</span>
+                  </p>
+                  <p className="text-[12px] text-ink-3">
+                    Saisi le {quand(r.creeLe)}
+                    {r.par ? ` · ${r.par}` : ""}
+                    {r.nbTravaux > 0 ? ` · ${r.nbTravaux} travaux votés` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  {r.depassementHeures > 0 ? (
+                    <span className="text-[13px] text-ink">
+                      {r.depassementHeures} h · {euros(r.depassementTtc)} TTC
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-ink-3">Pas de dépassement</span>
+                  )}
+                  <Statut statut={r.statut} />
+                  <ChevronRight strokeWidth={1.5} className="h-4 w-4 shrink-0 text-ink-4" />
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
