@@ -9,16 +9,13 @@ import { pointsLegaux, ecartBudget, parseMontant, formatEuros, parseCloture } fr
 import { getCoproRepository, getOdjRepository } from "@/lib/adapters/router";
 import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
-import { ODJ_SANS_DATE, PREFIXE_POINT } from "@/lib/ports/odj-repository";
+import { PREFIXE_POINT } from "@/lib/ports/odj-repository";
+import { cleOdj, decouperIdOdj } from "@/lib/services/odj/resoudre-cle-odj";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import { DELAIS_CABINET } from "@/lib/domain/jalons-ag/cabinet/real31-defaults";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import { adresseRessource } from "@/lib/domain/salles-reunion";
 
-function parse(id: string): { code: string; agDate?: string } {
-  const i = id.indexOf("__");
-  return i < 0 ? { code: id } : { code: id.slice(0, i), agDate: id.slice(i + 2) };
-}
 function dateCourte(iso?: string): string | undefined {
   if (!iso) return undefined;
   const [y, m, d] = iso.slice(0, 10).split("-");
@@ -53,11 +50,13 @@ function champ(
 }
 
 export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | null> {
-  const { code, agDate: agParam } = parse(id);
+  const { code } = decouperIdOdj(id);
   const copro = await getCoproRepository().findByCode(code, gestionnaireId);
   if (!copro) return null;
 
-  const dateAg = agParam ?? copro.prochaineAg?.date;
+  // Meme resolution que les actions d'ecriture (resoudre-cle-odj) : `dateAg` sert a
+  // l'affichage et aux jalons, `agDate` est la cle de la table d'etat.
+  const { dateAg, agDate } = cleOdj(id, copro.prochaineAg?.date);
   const adresse = [copro.adresse.ligne1, `${copro.adresse.codePostal} ${copro.adresse.ville}`.trim()]
     .filter(Boolean)
     .join(", ");
@@ -241,7 +240,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
 
   // Superposition de l'etat saisi : la saisie prime sur l'auto ; points retires
   // ("retire") ou restaures ("inclus"), sinon le defaut du catalogue.
-  const etat = await getOdjRepository().getEtat(code, dateAg ?? ODJ_SANS_DATE);
+  const etat = await getOdjRepository().getEtat(code, agDate);
   const saisies = new Map(etat.map((s) => [s.champId, s.valeur]));
   // Cloture ("reunion terminee") : portee par une cle RESERVEE de la meme table d'etat.
   // On la retire des saisies pour qu'elle ne soit jamais confondue avec la valeur d'un champ.
