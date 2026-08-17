@@ -64,6 +64,39 @@ export interface RecapAgHistorique {
   creeLe: string;
 }
 
+/**
+ * Marqueur "le comptable a traite ce recap". Deux colonnes sur intranet_recap_ag
+ * (`traite_compta_at` / `traite_compta_par`, cf. supabase/sql/intranet_recap_ag_traitement.sql).
+ *
+ * A NE PAS confondre avec `notif_comptable_at`, qui trace un ENVOI DE MAIL (flow
+ * NotifComptable jamais branche, et qu'on ne branchera pas : la file EST le canal).
+ */
+export interface TraitementComptable {
+  /** Horodatage ISO du marquage ; absent = pas encore traite. */
+  traiteLe?: string;
+  /** Initiales de celui qui a marque traite. */
+  traitePar?: string;
+}
+
+/**
+ * Recap AG COMPLET : tout ce que le gestionnaire a saisi apres l'AG. C'est la note de
+ * travail a partir de laquelle le comptable saisit le budget vote, le pourcentage de
+ * fonds travaux et les appels de fonds des travaux votes.
+ *
+ * Herite de NouveauRecapAg pour que TOUT champ ajoute a la saisie ressorte
+ * automatiquement en lecture : un champ saisi mais jamais relu est un piege silencieux.
+ */
+export interface RecapAgDetail extends NouveauRecapAg, TraitementComptable {
+  id: string;
+  /** Facture de depassement rattachee, si le depassement a ete facture. */
+  factureId?: string;
+  /** Horodatage ISO de creation du recap. */
+  creeLe: string;
+}
+
+/** Ligne de la file "Recaps d'AG recus" (espace comptable). */
+export interface RecapAgFileLigne extends RecapAgHistorique, TraitementComptable {}
+
 export interface RecapAgRepository {
   /** Cree le recap et ses travaux. Renvoie l'id du recap. */
   creerRecapAg(input: NouveauRecapAg): Promise<string>;
@@ -73,4 +106,31 @@ export interface RecapAgRepository {
   existeRecap(coproCode: string, agDate: string): Promise<boolean>;
   /** Historique des recaps, les plus recents d'abord. */
   listerRecapsRecents(limite?: number): Promise<RecapAgHistorique[]>;
+
+  // --- File comptable (le recap comme note de travail) -----------------------
+
+  /**
+   * Un recap COMPLET, travaux compris. Null si l'id est inconnu.
+   *
+   * Lecture PAR ID et non par (copro + date) : la cle metier existe (unique), mais l'id
+   * est ce que porte deja chaque ligne de file, il tient dans une URL sans reencoder une
+   * cle composite (l'intranet a deja la convention `CODE__DATE` de la supervision, et
+   * melanger les deux conventions est exactement le flou de parcours qu'on retire), et
+   * il reste stable si la date d'AG etait fausse et se corrige.
+   */
+  getRecapAg(recapId: string): Promise<RecapAgDetail | null>;
+
+  /**
+   * Recaps pour la file comptable, les plus recents d'abord, avec l'etat "traite".
+   * Le cloisonnement (portefeuille / agences) est applique par le SERVICE : le port
+   * ne connait ni les roles ni le perimetre.
+   */
+  listerRecapsPourFile(limite?: number): Promise<RecapAgFileLigne[]>;
+
+  /**
+   * Marque le recap traite (ou le remet a traiter). `par` = initiales de l'auteur.
+   * Leve une erreur ACTIONNABLE tant que les colonnes de traitement n'existent pas :
+   * une ecriture demandee par l'utilisateur ne doit jamais reussir a vide.
+   */
+  marquerTraite(recapId: string, traite: boolean, par: string): Promise<void>;
 }
