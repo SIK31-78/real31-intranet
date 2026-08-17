@@ -18,21 +18,10 @@ import type { LigneComptable } from "@/lib/domain/comptabilite";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDateLongue, formatHeure } from "@/lib/format-date";
+import { formatDateLongue, formatHeure, formatMois } from "@/lib/format-date";
 
 export const metadata: Metadata = { title: "Comptabilité - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
-
-const MOIS_FR = [
-  "janvier", "février", "mars", "avril", "mai", "juin",
-  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
-];
-
-/** "2026-05" -> "mai 2026" (libelle d'option du filtre mois). */
-function libelleMois(ym: string): string {
-  const [y, m] = ym.split("-");
-  return `${MOIS_FR[Number(m) - 1]} ${y}`;
-}
 
 function LigneRow({ l, vueComptable }: { l: LigneComptable; vueComptable: boolean }) {
   // Aiguillage : le comptable PUR atterrit sur SON espace de preparation (/compta/[id]),
@@ -232,7 +221,7 @@ export default async function ComptabilitePage({
             >
               <option value="">Tous</option>
               {moisDispo.map((ym) => (
-                <option key={ym} value={ym}>{libelleMois(ym)}</option>
+                <option key={ym} value={ym}>{formatMois(ym)}</option>
               ))}
             </select>
           </label>

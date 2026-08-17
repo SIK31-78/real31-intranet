@@ -10,7 +10,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDateLongue } from "@/lib/format-date";
+import { formatDateLongue, formatMois } from "@/lib/format-date";
 
 export const metadata: Metadata = { title: "Récaps d'AG reçus - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -61,6 +61,64 @@ function LigneRecap({ r, comptable }: { r: RecapRecu; comptable: boolean }) {
   );
 }
 
+/**
+ * Regroupe par MOIS d'AG, le plus recent d'abord.
+ *
+ * POURQUOI : la reprise de l'historique PowerApps a verse 304 recaps d'un coup, tous
+ * « a traiter » (la colonne de traitement n'existait pas avant). Une file de 300 lignes
+ * a plat est inexploitable - et decider d'office lesquels sont « deja traites » serait
+ * trancher a la place du pole comptable. On range donc l'AFFICHAGE sans toucher a une
+ * seule donnee : le mois en cours est ouvert, les precedents se deplient a la demande.
+ *
+ * Le mois est un decoupage NATUREL (une AG appartient a sa saison), pas un seuil arbitraire
+ * qu'il faudrait justifier et re-justifier quand le volume change.
+ */
+function parMois(lignes: RecapRecu[]): { mois: string; lignes: RecapRecu[] }[] {
+  const groupes = new Map<string, RecapRecu[]>();
+  for (const r of lignes) {
+    const mois = r.agDate.slice(0, 7);
+    const deja = groupes.get(mois);
+    if (deja) deja.push(r);
+    else groupes.set(mois, [r]);
+  }
+  return [...groupes.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([mois, lignes]) => ({ mois, lignes }));
+}
+
+/** Un mois de la file. `<details>` natif : le repli marche sans JavaScript client. */
+function GroupeMois({
+  mois,
+  lignes,
+  ouvert,
+  comptable,
+}: {
+  mois: string;
+  lignes: RecapRecu[];
+  ouvert: boolean;
+  comptable: boolean;
+}) {
+  return (
+    <details open={ouvert} className="group">
+      <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-[13px] text-ink-2 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          strokeWidth={1.5}
+          className="h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform group-open:rotate-90"
+        />
+        <span className="font-medium capitalize">{formatMois(mois)}</span>
+        <span className="text-[12px] text-ink-3">
+          {lignes.length} récap{lignes.length > 1 ? "s" : ""}
+        </span>
+      </summary>
+      <ul className="divide-y divide-line border-t border-line">
+        {lignes.map((r) => (
+          <LigneRecap key={r.id} r={r} comptable={comptable} />
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function Section({
   titre,
   aide,
@@ -76,6 +134,7 @@ function Section({
   vide: string;
   comptable: boolean;
 }) {
+  const groupes = parMois(lignes);
   return (
     <div className="flex flex-col gap-2">
       <div>
@@ -90,11 +149,19 @@ function Section({
         {lignes.length === 0 ? (
           <p className="px-4 py-6 text-center text-[13px] text-ink-3">{vide}</p>
         ) : (
-          <ul className="divide-y divide-line">
-            {lignes.map((r) => (
-              <LigneRecap key={r.id} r={r} comptable={comptable} />
+          <div className="divide-y divide-line">
+            {groupes.map((g, i) => (
+              // Seul le mois le plus recent est ouvert : c'est le travail courant. Les
+              // precedents sont a portee d'un clic, jamais masques.
+              <GroupeMois
+                key={g.mois}
+                mois={g.mois}
+                lignes={g.lignes}
+                ouvert={i === 0}
+                comptable={comptable}
+              />
             ))}
-          </ul>
+          </div>
         )}
       </Card>
     </div>

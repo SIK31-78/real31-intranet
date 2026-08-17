@@ -14,6 +14,12 @@ export function formatDateLongue(iso: string): string {
   return `${d.getUTCDate()} ${MOIS_FR[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
+/** "2026-06" -> "juin 2026". Sert aux regroupements par mois (files, historiques). */
+export function formatMois(annéeMois: string): string {
+  const [y, m] = annéeMois.split("-");
+  return `${MOIS_FR[Number(m) - 1] ?? annéeMois} ${y}`;
+}
+
 /** "18:00" -> "18h00" (heure de reunion lisible a cote d'une date). */
 export function formatHeure(hhmm: string): string {
   return hhmm.replace(":", "h");
