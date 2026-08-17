@@ -11,7 +11,7 @@ export function DashboardHeader({ gestionnaire, dateCourante }: Props) {
       <div>
         <div className="text-[12.5px] text-ink-3">{dateCourante}</div>
         <h1 className="mt-1 text-[26px] font-medium tracking-tight" style={{ letterSpacing: "-0.02em" }}>
-          Bonjour {prenom}
+          Bonjour {prenom},
         </h1>
       </div>
       <Link

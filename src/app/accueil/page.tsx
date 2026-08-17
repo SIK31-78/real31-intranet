@@ -1,8 +1,4 @@
 // LA HOME de l'intranet (bascule Sequence 3.B, valide Sekou) : deux zones bien
-// SEPAREES et ETIQUETEES pour lever toute ambiguite AG vs dossier -
-//   1. "Vos assemblees generales" = la colonne vertebrale (calcul get-ag-semaine).
-//      Ce N'EST PAS un dossier : section a part, jamais melangee aux sinistres/travaux.
-//   2. "Vos dossiers en cours" = sinistres, travaux, impayes... (get-affaires-en-cours).
 // Route servie a tout le monde sauf le comptable pur (pageAccueilPour -> /comptabilite).
 // Donnees via services cloisonnes (getGestionnaireCourant -> managerId), jamais d'acces
 // adapter/Supabase direct (ADR-001).
@@ -59,8 +55,8 @@ export default async function AccueilPage() {
           >
             <ClipboardCheck strokeWidth={1.5} className="w-4 h-4 shrink-0" />
             <span className="flex-1">
-              <strong>{complement.aPrendreEnMain}</strong> copropriété{complement.aPrendreEnMain > 1 ? "s" : ""} à
-              prendre en main - vérifie les dates héritées avant qu&apos;elles n&apos;entrent dans ton cockpit.
+              <strong>{complement.aPrendreEnMain}</strong> copropriété{complement.aPrendreEnMain > 1 ? "s" : ""}{" "}
+               à prendre en main - vérifie les dates héritées avant qu&apos;elles n&apos;entrent dans ton dashboard.
             </span>
             <ArrowRight strokeWidth={1.5} className="w-4 h-4 shrink-0" />
           </Link>
@@ -79,7 +75,7 @@ export default async function AccueilPage() {
                 Vos assemblées générales
               </h2>
               <p className="mt-0.5 text-[12.5px] text-ink-3">
-                Votre colonne vertébrale : préparation, convocation, tenue.
+                Votre planification : préparation, convocation, tenue.
               </p>
             </div>
             <AgSemaineBloc lignes={agSemaine} />
