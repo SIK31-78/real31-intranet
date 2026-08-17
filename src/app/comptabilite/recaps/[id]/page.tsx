@@ -123,7 +123,7 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
   const peutMarquer = peutVoirComptabilite(g.email, g.role);
 
   return (
-    <AppShell user={g} active="compta" breadcrumb={`Récap d'AG · ${recap.coproCode}`}>
+    <AppShell user={g} active="recaps-recus" breadcrumb={`Récap d'AG · ${recap.coproCode}`}>
       <div className="mx-auto flex max-w-[880px] flex-col gap-5 px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <div>
           <Link

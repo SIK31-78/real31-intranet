@@ -21,6 +21,10 @@ export type NavKey =
   | "facturation"
   | "gestion-courante"
   | "recap-ag"
+  // File des recaps RECUS (espace comptable, /comptabilite/recaps). Distincte de
+  // "recap-ag" qui est l'ecran de SAISIE du gestionnaire (/recap-ag) : meme sujet,
+  // deux metiers et deux destinations.
+  | "recaps-recus"
   | "coffre"
   | "equipe"
   | "toutes-copros"
@@ -95,6 +99,10 @@ const GROUPES: { titre: string; items: Item[] }[] = [
 const NAV_COMPTABLE: Item[] = [
   { key: "compta", label: "Dashboard", href: "/comptabilite", icon: LayoutDashboard },
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
+  // Recap AG : la file des recaps RECUS (2026-08-17). Le comptable y lit la note de
+  // travail du gestionnaire -- budget vote, fonds travaux, appels de fonds, nouveau
+  // contrat. Elle existait sans lien de menu : il fallait taper l'URL.
+  { key: "recaps-recus", label: "Récap AG", href: "/comptabilite/recaps", icon: ClipboardList },
   // Facturation : ajoutee le 2026-07-29. Un comptable facture sur les agences qu'il tient
   // (cf. domain/perimetre-comptable) -- la page marchait deja pour lui, mais aucun lien n'y
   // menait depuis sa nav reduite : il devait taper l'URL a la main.

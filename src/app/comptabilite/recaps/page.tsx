@@ -111,7 +111,7 @@ export default async function RecapsRecusPage() {
   });
 
   return (
-    <AppShell user={g} active="compta" breadcrumb="Récaps d'AG reçus">
+    <AppShell user={g} active="recaps-recus" breadcrumb="Récaps d'AG reçus">
       <div className="mx-auto flex max-w-[1000px] flex-col gap-6 px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <div>
           {comptable && (
