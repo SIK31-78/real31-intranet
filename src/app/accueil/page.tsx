@@ -12,6 +12,7 @@ import { getAgSemaine } from "@/lib/services/affaires/get-ag-semaine";
 import { getAffairesEnCours } from "@/lib/services/affaires/get-affaires-en-cours";
 import { getAccueilComplement } from "@/lib/services/accueil/get-accueil-complement";
 import { getAnnoncesActives } from "@/lib/services/annonces/get-annonces-actives";
+import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { AgSemaineBloc } from "@/components/affaires/ag-semaine-bloc";
@@ -20,6 +21,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
 import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
 import { EchangesComptablesPanel } from "@/components/dashboard/echanges-comptables-panel";
+import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 
 export const metadata: Metadata = { title: "Accueil - REAL31 Intranet" };
 
@@ -32,12 +34,16 @@ export default async function AccueilPage() {
 
   const today = new Date().toISOString().slice(0, 10);
   // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id.
-  const [agSemaine, affaires, complement, annonces] = await Promise.all([
+  const [agSemaine, affaires, complement, annonces, recapsEnRetard] = await Promise.all([
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
     getAccueilComplement(g),
     // Annonces CIBLEES : filtrees pour CE collaborateur (groupe / son agence / son email).
     getAnnoncesActives({ email: g.email, agencyId: g.agencyId }),
+    // Recaps d'AG jamais rentres. `estComptable: false` : cette page n'est PAS servie au
+    // comptable pur (pageAccueilPour le renvoie sur /comptabilite), le cadrage est donc
+    // toujours le portefeuille. Degrade en liste vide, jamais bloquant pour l'accueil.
+    listerRecapsEnRetard({ managerId: g.id, email: g.email, estComptable: false }, today),
   ]);
 
   return (
@@ -61,6 +67,12 @@ export default async function AccueilPage() {
             <ArrowRight strokeWidth={1.5} className="w-4 h-4 shrink-0" />
           </Link>
         )}
+
+        {/* Recaps d'AG en retard. HAUT de page et avant les annonces : c'est la seule zone
+            rouge de l'accueil, elle signale un engagement non tenu (le delai de recap) que
+            la comptabilite attend pour travailler. Le composant ne rend RIEN quand la liste
+            est vide - pas de bandeau vert de felicitations, pas de titre orphelin. */}
+        <AlerteRecapsEnRetard lignes={recapsEnRetard} variante="gestionnaire" />
 
         {/* Annonces du reseau (direction), pilotees depuis /admin/annonces. Etat vide propre. */}
         <AnnoncesPanel annonces={annonces} />
