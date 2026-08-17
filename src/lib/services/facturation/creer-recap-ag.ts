@@ -188,6 +188,10 @@ export async function apercuRecapAg(
       ? {
           motifRienAFacturer:
             "L'assemblee n'a pas depasse la duree ni la plage prevues au contrat : le recap sera enregistre, sans facture.",
+          // Le recap est le livrable, la facture une retombee : sans depassement il
+          // reste a ENREGISTRER. Sans ce libelle, la fenetre ne proposait que
+          // "Fermer" et le compte-rendu etait perdu.
+          actionSansFacture: "Enregistrer le récap",
         }
       : {}),
   };

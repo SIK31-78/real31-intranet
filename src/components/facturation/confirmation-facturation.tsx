@@ -5,7 +5,7 @@
 // et le montant qui partira. C'est le dernier point de controle humain avant
 // qu'une facture parte chez le client.
 
-import { Loader2, Send, TriangleAlert, X } from "lucide-react";
+import { ClipboardCheck, Loader2, Send, TriangleAlert, X } from "lucide-react";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 
 function euros(n: number): string {
@@ -25,7 +25,11 @@ export function ConfirmationFacturation({
   onConfirmer: () => void;
   onAnnuler: () => void;
 }) {
-  const { rienAFacturer } = apercu;
+  const { rienAFacturer, actionSansFacture } = apercu;
+  // Rien a facturer n'est pas rien a faire : une prestation peut n'avoir aucune
+  // facture a emettre et rester a enregistrer (le recap AG). Dans ce cas seul le
+  // libelle du bouton change, l'action de confirmation reste la meme.
+  const aConfirmer = !rienAFacturer || Boolean(actionSansFacture);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -33,7 +37,11 @@ export function ConfirmationFacturation({
         <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-line bg-white px-4 py-3">
           <div>
             <h2 className="text-[15px] font-semibold text-ink">
-              {rienAFacturer ? "Rien à facturer" : "Confirmer l'envoi en facturation"}
+              {!rienAFacturer
+                ? "Confirmer l'envoi en facturation"
+                : actionSansFacture
+                  ? "Enregistrer sans facturer"
+                  : "Rien à facturer"}
             </h2>
             <p className="text-[12px] text-ink-3">
               {apercu.titre} · {apercu.coproCode}
@@ -115,9 +123,9 @@ export function ConfirmationFacturation({
             disabled={pending}
             className="rounded border border-line px-3 py-2 text-[13px] text-ink hover:bg-black/[0.03] disabled:opacity-50"
           >
-            {rienAFacturer ? "Fermer" : "Annuler"}
+            {aConfirmer ? "Annuler" : "Fermer"}
           </button>
-          {!rienAFacturer && (
+          {aConfirmer && (
             <button
               type="button"
               onClick={onConfirmer}
@@ -126,10 +134,12 @@ export function ConfirmationFacturation({
             >
               {pending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
+              ) : rienAFacturer ? (
+                <ClipboardCheck className="w-4 h-4" strokeWidth={1.5} />
               ) : (
                 <Send className="w-4 h-4" strokeWidth={1.5} />
               )}
-              Confirmer et envoyer
+              {rienAFacturer ? actionSansFacture : "Confirmer et envoyer"}
             </button>
           )}
         </div>
