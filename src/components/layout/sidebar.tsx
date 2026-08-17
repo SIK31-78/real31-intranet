@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -61,6 +62,10 @@ const GROUPES: { titre: string; items: Item[] }[] = [
   {
     titre: "À traiter",
     items: [
+      // Les dossiers etaient atteignables SEULEMENT depuis l'accueil : la page /dossiers
+      // existait (avec sa vue detaillee) mais aucun lien de menu n'y menait, et la NavKey
+      // "dossiers" etait declaree sans etre utilisee par aucune entree.
+      { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
       { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
       { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
       { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
