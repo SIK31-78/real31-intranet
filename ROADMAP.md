@@ -6,6 +6,15 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
+## 📍 État actuel - 2026-08-17 — LE RÉCAP D'AG REDEVIENT UN LIVRABLE (branche `compta/recap-ag`)
+
+- **✅ FILE « Récaps d'AG reçus » dans l'espace comptable (1154 tests, tsc 0, eslint 0 — non poussé).** Le récap post-AG était écrit en base et **personne ne le lisait**, alors que c'est la note de travail à partir de laquelle la compta saisit le budget voté, le pourcentage de fonds travaux, les appels de fonds des travaux votés et ouvre le nouveau cycle de contrat. Livré : **`/comptabilite/recaps`** (sections « à traiter » / « traités », compteur sur le tableau de bord comptable) + **`/comptabilite/recaps/[id]`** = vue LECTURE SEULE organisée autour de ce que le comptable doit FAIRE (« Info comptable » du gestionnaire en tête, travaux votés en tableau avec n° de résolution / clé / appel de fonds), sur sa **propre route** (pas `/compta/[code__agDate]`, qui est le dossier de préparation d'AVANT l'AG) + bouton **« marquer traité »** (auteur + date).
+  - **Pourquoi une file à part** : tout l'espace comptable regarde en AVANT (`listerLignesComptables` et `listerAgAPreparer` filtrent sur `prochaineAg`, et `conclureAg` VIDE `prochaine`) → la copro disparaît des deux écrans à la seconde où l'AG est tenue. La file part des **récaps**, jamais de `prochaineAg`.
+  - **Cloisonnement** : même cadrage que la facturation — portefeuille pour un gestionnaire (il relit ses propres récaps depuis l'historique de `/recap-ag`), **agences tenues** pour un comptable. Jamais tout le cabinet ; garde anti-IDOR identique sur la vue de détail. La résolution sort dans `services/coproprietes/copros-du-perimetre.ts` (`copros-facturables` délègue).
+  - **Décision Sekou : PAS de mail au comptable** — la file EST le canal. `notif_comptable_at` reste inutilisée (le blocage Graph est levé depuis fin juillet, ne pas envoyer est un choix, plus une contrainte).
+  - ⚠️ **SQL À PASSER par Sekou** : `supabase/sql/intranet_recap_ag_traitement.sql` (colonnes `traite_compta_at` / `traite_compta_par`, **vérifiées absentes en base**). **Sans lui l'app tourne** : la file s'affiche, tout apparaît « à traiter », et le bouton de marquage remonte une erreur nommant le fichier (pas de succès mensonger).
+  - **Prochaine action** : passer le SQL, puis contrôle écran (comptable Elsa/Isabelle/Romain → file de ses agences ; gestionnaire → ses propres récaps).
+
 ## 📍 État actuel - 2026-07-28 — LA BASCULE eSTALE (session de découvertes)
 
 > **Ce qu'il faut retenir de cette session** : les copros eStale « ne remontaient rien » non pas à cause d'eStale, mais de **trois hypothèses fausses côté intranet**, chacune invisible parce qu'elle échouait en silence. Le principe qui en sort, acté par Sekou : **eStale fait foi ; le référentiel Crypto ne comble que les vides (7 mois à vivre)**.
