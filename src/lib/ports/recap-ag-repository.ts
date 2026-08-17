@@ -128,6 +128,16 @@ export interface RecapAgRepository {
   listerRecapsPourFile(limite?: number): Promise<RecapAgFileLigne[]>;
 
   /**
+   * Dates d'AG des recaps deja saisis, groupees par code copro (cle = coproCode).
+   * Une copro sans recap est simplement absente de la Map.
+   *
+   * Lecture BATCH imposee : l'alerte « recap en retard » balaie tout un perimetre (jusqu'a
+   * ~265 copros). Un `existeRecap` par copro serait un N+1 dans le chemin critique de deux
+   * pages - d'ou cette methode plutot que la reutilisation de l'existant.
+   */
+  listerDatesAgParCopro(coproCodes: readonly string[]): Promise<Map<string, string[]>>;
+
+  /**
    * Marque le recap traite (ou le remet a traiter). `par` = initiales de l'auteur.
    * Leve une erreur ACTIONNABLE tant que les colonnes de traitement n'existent pas :
    * une ecriture demandee par l'utilisateur ne doit jamais reussir a vide.

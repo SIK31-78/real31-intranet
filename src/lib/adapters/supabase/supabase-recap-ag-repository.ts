@@ -206,6 +206,33 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
     }));
   }
 
+  async listerDatesAgParCopro(coproCodes: readonly string[]): Promise<Map<string, string[]>> {
+    const parCopro = new Map<string, string[]>();
+    if (coproCodes.length === 0) return parCopro;
+
+    const supabase = createSupabasePublicClient();
+    // Decoupe en paquets : le filtre `in` part dans l'URL, et un perimetre cabinet fait
+    // deja ~265 codes. On borne la longueur d'URL plutot que de la decouvrir en prod.
+    for (let i = 0; i < coproCodes.length; i += TAILLE_PAQUET_CODES) {
+      const paquet = coproCodes.slice(i, i + TAILLE_PAQUET_CODES);
+      const { data, error } = await supabase
+        .from("intranet_recap_ag")
+        .select("copropriete_id, ag_date")
+        .in("copropriete_id", paquet as string[]);
+      if (error) throw new Error(`Lecture des dates de recap AG : ${error.message}`);
+
+      for (const r of (data as unknown as LigneDateAg[] | null) ?? []) {
+        const dates = parCopro.get(r.copropriete_id);
+        // `ag_date` est une colonne date, mais PostgREST peut renvoyer un timestamp
+        // complet selon le type retenu : on ne garde que le jour.
+        const jour = r.ag_date.slice(0, 10);
+        if (dates) dates.push(jour);
+        else parCopro.set(r.copropriete_id, [jour]);
+      }
+    }
+    return parCopro;
+  }
+
   async marquerTraite(recapId: string, traite: boolean, par: string): Promise<void> {
     const supabase = createSupabasePublicClient();
     const { error } = await supabase
@@ -232,6 +259,11 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
 // --- Mapping des lignes (snake_case -> domaine) ------------------------------
 
 const COLS_TRAITEMENT = "traite_compta_at, traite_compta_par";
+
+/** Nombre de codes copro envoyes par requete dans le filtre `in` (longueur d'URL). */
+const TAILLE_PAQUET_CODES = 150;
+
+type LigneDateAg = { copropriete_id: string; ag_date: string };
 
 const COLS_FILE =
   "id, copropriete_id, ag_date, statut, depassement_heures, depassement_ttc, " +

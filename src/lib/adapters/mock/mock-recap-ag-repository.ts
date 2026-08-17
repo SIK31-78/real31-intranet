@@ -70,6 +70,18 @@ export class MockRecapAgRepository implements RecapAgRepository {
       }));
   }
 
+  async listerDatesAgParCopro(coproCodes: readonly string[]): Promise<Map<string, string[]>> {
+    const voulus = new Set(coproCodes);
+    const parCopro = new Map<string, string[]>();
+    for (const r of RECAPS) {
+      if (!voulus.has(r.coproCode)) continue;
+      const dates = parCopro.get(r.coproCode);
+      if (dates) dates.push(r.agDate);
+      else parCopro.set(r.coproCode, [r.agDate]);
+    }
+    return parCopro;
+  }
+
   async marquerTraite(recapId: string, traite: boolean, par: string): Promise<void> {
     const r = RECAPS.find((x) => x.id === recapId);
     if (!r) throw new Error(`Recap ${recapId} introuvable.`);
