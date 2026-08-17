@@ -3,23 +3,38 @@ import { redirect } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
+import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
 import { getRecapAgRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
+import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { FormulaireRecapAg } from "@/components/recap-ag/formulaire-recap-ag";
 import { HistoriqueRecaps, type RecapAffiche } from "@/components/recap-ag/historique-recaps";
 
 export const metadata: Metadata = { title: "Récap AG - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
-export default async function RecapAgPage() {
+export default async function RecapAgPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ copro?: string }>;
+}) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
-  const [copros, historique] = await Promise.all([
+  const sp = await searchParams;
+  // `?copro=S104` : pose par l'alerte des recaps en retard pour ouvrir la saisie sur la
+  // bonne copro. Simple defaut d'UI, borne au portefeuille par le select lui-meme.
+  const coproInitial =
+    typeof sp.copro === "string" && /^[A-Za-z0-9_-]{1,20}$/.test(sp.copro) ? sp.copro : undefined;
+
+  const today = new Date().toISOString().slice(0, 10);
+  // Perimetre PORTEFEUILLE, meme cadrage que le select ci-dessous : on n'alerte que sur
+  // ce que le gestionnaire peut corriger ICI (un comptable a sa propre vue, /comptabilite/recaps).
+  const [copros, historique, enRetard] = await Promise.all([
     getCoproprietes(g.id),
     getRecapAgRepository().listerRecapsRecents(50),
+    listerRecapsEnRetard({ managerId: g.id, email: g.email, estComptable: false }, today),
   ]);
-  const today = new Date().toISOString().slice(0, 10);
 
   const recaps: RecapAffiche[] = historique.map((r) => ({
     id: r.id,
@@ -49,18 +64,26 @@ export default async function RecapAgPage() {
           </p>
         </div>
 
-        <FormulaireRecapAg
-          copros={copros
-    .map((c) => {
-      // Date suggeree du recap = l'AG qui vient d'avoir lieu : la prochaine AG si sa date
-      // est deja passee (ou du jour), sinon la derniere AG tenue. Modifiable dans le form.
-      const suggeree =
-        c.prochaineAg?.date && c.prochaineAg.date <= today ? c.prochaineAg.date : c.derniereAgDate;
-      return { code: c.code, nom: c.nom, ...(suggeree ? { agDateSuggeree: suggeree } : {}) };
-    })
-    .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
-          pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
-        />
+        {/* En tete : c'est ici que le gestionnaire corrige, donc c'est ici qu'on l'avertit. */}
+        <AlerteRecapsEnRetard lignes={enRetard} variante="gestionnaire" />
+
+        <div id="saisie-recap" className="scroll-mt-4">
+          <FormulaireRecapAg
+            copros={copros
+              .map((c) => {
+                // Date suggeree du recap = l'AG qui vient d'avoir lieu : la prochaine AG si sa
+                // date est deja passee (ou du jour), sinon la derniere AG tenue. Modifiable dans le form.
+                const suggeree =
+                  c.prochaineAg?.date && c.prochaineAg.date <= today
+                    ? c.prochaineAg.date
+                    : c.derniereAgDate;
+                return { code: c.code, nom: c.nom, ...(suggeree ? { agDateSuggeree: suggeree } : {}) };
+              })
+              .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
+            pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
+            {...(coproInitial ? { coproInitial } : {})}
+          />
+        </div>
 
         <HistoriqueRecaps recaps={recaps} />
       </div>

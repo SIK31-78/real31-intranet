@@ -57,10 +57,14 @@ function OuiNon({
 export function FormulaireRecapAg({
   copros,
   pennylaneActif,
+  coproInitial,
   onSucces,
 }: {
   copros: { code: string; nom: string; agDateSuggeree?: string }[];
   pennylaneActif: boolean;
+  /** Copro pre-selectionnee a l'ouverture (alerte des recaps en retard). Ignoree si elle
+   *  n'est pas dans la liste : la selection ne sort jamais du portefeuille. */
+  coproInitial?: string;
   /** Appele apres un enregistrement reussi (ferme la modale quand le form est monte dedans). */
   onSucces?: () => void;
 }) {
@@ -69,11 +73,12 @@ export function FormulaireRecapAg({
   const [pending, demarrer] = useTransition();
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
 
-  const [coproCode, setCoproCode] = useState(copros[0]?.code ?? "");
+  const depart = copros.find((c) => c.code === coproInitial) ?? copros[0];
+  const [coproCode, setCoproCode] = useState(depart?.code ?? "");
   // Un recap est le compte-rendu de l'AG qui vient d'avoir lieu : la page suggere sa date
   // (la prochaine AG si elle est deja passee, sinon la derniere tenue). Modifiable au besoin,
   // aucune ecriture - simple defaut.
-  const [jour, setJour] = useState(copros[0]?.agDateSuggeree ?? "");
+  const [jour, setJour] = useState(depart?.agDateSuggeree ?? "");
   // Creneau d'AG le plus frequent chez REAL31.
   const [debut, setDebut] = useState("18:00");
   const [fin, setFin] = useState("20:00");

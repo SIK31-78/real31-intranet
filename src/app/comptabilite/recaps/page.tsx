@@ -5,7 +5,9 @@ import { ArrowLeft, ChevronRight, ClipboardCheck, Inbox } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estComptable } from "@/lib/auth/roles";
 import { listerRecapsRecus, type RecapRecu } from "@/lib/services/compta/recaps-recus";
+import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
 import { AppShell } from "@/components/layout/app-shell";
+import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
@@ -104,11 +106,19 @@ export default async function RecapsRecusPage() {
   if (!g) redirect("/dev-login");
 
   const comptable = estComptable(g.email, g.role);
-  const { aTraiter, traites } = await listerRecapsRecus({
-    managerId: g.id,
-    email: g.email,
-    estComptable: comptable,
-  });
+  const perimetre = { managerId: g.id, email: g.email, estComptable: comptable };
+
+  // Vraie data : aujourd'hui reel ; mock : ancre calee sur les donnees mockees, comme
+  // partout ailleurs (cf. /comptabilite) - sinon le mock vieillit et tout passe en retard.
+  const today =
+    process.env.COPRO_SOURCE === "supabase"
+      ? new Date().toISOString().slice(0, 10)
+      : "2026-05-27";
+
+  const [{ aTraiter, traites }, enRetard] = await Promise.all([
+    listerRecapsRecus(perimetre),
+    listerRecapsEnRetard(perimetre, today),
+  ]);
 
   return (
     <AppShell user={g} active="recaps-recus" breadcrumb="Récaps d'AG reçus">
@@ -132,6 +142,13 @@ export default async function RecapsRecusPage() {
             partir de laquelle la comptabilité saisit.
           </p>
         </div>
+
+        {/* Les recaps ABSENTS d'abord, et hors des deux sections : ce ne sont pas des
+            recaps a lire, c'est un trou a combler par le gestionnaire. */}
+        <AlerteRecapsEnRetard
+          lignes={enRetard}
+          variante={comptable ? "comptable" : "gestionnaire"}
+        />
 
         <Section
           titre="À traiter"
