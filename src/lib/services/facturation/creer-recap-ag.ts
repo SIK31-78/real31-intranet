@@ -201,9 +201,11 @@ export async function apercuRecapAg(
  * Enregistre le recap AG, ouvre le nouveau cycle de contrat, et facture le
  * depassement s'il y en a un.
  *
- * Le mail au comptable (flow NotifComptable) n'est PAS envoye : il depend de
- * l'integration Entra ID / Graph, bloquee DSI. Le champ notif_comptable_at
- * reste null, il tracera l'envoi le jour ou la vanne s'ouvre.
+ * Le mail au comptable (flow NotifComptable) n'est PAS envoye - et ne le sera pas.
+ * Ce n'etait plus un blocage technique (la vanne Graph est ouverte depuis fin juillet),
+ * c'est une DECISION (Sekou, 2026-08-17) : le comptable travaille depuis la file
+ * « Recaps d'AG recus » de son espace, pas depuis sa boite mail. Le champ
+ * notif_comptable_at reste donc null, et personne ne doit le detourner.
  */
 export async function creerRecapAg(
   demande: DemandeRecapAg,
@@ -266,8 +268,9 @@ export async function creerRecapAg(
 
   // Le recap reste un PUR compte-rendu : les DATES et le jalon TENUE sont poses par
   // conclureAg (l'AG est finie), pas ici. Seule retombee cote recap : la synthese comptable
-  // devient une note auto dans le fil compta - substitut au mail NotifComptable bloque DSI
-  // (notif_comptable_at reste null : ce n'est PAS le mail). Best-effort (jamais bloquant).
+  // devient une note auto dans le fil compta (le recap lui-meme arrive au comptable par la
+  // file « Recaps d'AG recus », aucun mail - notif_comptable_at reste null).
+  // Best-effort (jamais bloquant).
   if (demande.infoComptable) {
     await getComptaRepository()
       .ajouterNote(demande.coproCode, agDate, "gestionnaire", demande.infoComptable, demande.par ?? "")

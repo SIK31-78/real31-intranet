@@ -12,40 +12,22 @@
 // vide, jamais la liste complete. Un ecran vide se voit et se signale ; une liste trop
 // large fait facturer des copros qui ne sont pas les siennes.
 //
-// Passe par le routeur (ADR-001).
+// La resolution elle-meme vit dans copros-du-perimetre.ts : la file des recaps d'AG recus
+// a besoin EXACTEMENT du meme cadrage, et deux copies de cette regle finiraient par
+// diverger. Ce module reste le point d'entree nomme par l'INTENTION (facturer).
 
-import { getAgenceRepository } from "@/lib/adapters/router";
-import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
-import {
-  aUnPerimetreComptable,
-  filtrerSurPerimetreComptable,
-} from "@/lib/domain/perimetre-comptable";
 import type { Copropriete } from "@/lib/domain/copropriete";
+import {
+  getCoprosDuPerimetre,
+  type PerimetreUtilisateur,
+} from "@/lib/services/coproprietes/copros-du-perimetre";
 
 /**
  * Copros facturables par cet utilisateur. `estComptable` est resolu par l'appelant (couche
  * app : le domaine des roles vit dans lib/auth, que les services ne peuvent pas importer).
  */
-export async function getCoprosFacturables(params: {
-  managerId: string;
-  email?: string | null;
-  estComptable: boolean;
-}): Promise<Copropriete[]> {
-  const { managerId, email, estComptable } = params;
-  // Comptable SANS perimetre declare : on retombe sur son portefeuille (vide en pratique)
-  // plutot que d'ouvrir le cabinet. Comportement identique a avant pour lui.
-  if (!estComptable || !aUnPerimetreComptable(email)) return getCoproprietes(managerId);
-
-  // Perimetre agence : on lit TOUTES les copros puis on filtre sur les agences du comptable.
-  // La copro porte un `agenceId` technique -> resolution id -> code via la table Agency
-  // (4 lignes). Table absente / agence non resolue -> la copro est EXCLUE (jamais incluse
-  // par defaut).
-  const [toutes, agences] = await Promise.all([
-    getCoproprietes(),
-    getAgenceRepository().listerAgences(),
-  ]);
-  const codeParId = new Map(agences.map((a) => [a.id, a.code]));
-  return filtrerSurPerimetreComptable(toutes, email, (c) =>
-    c.agenceId ? codeParId.get(c.agenceId) : undefined,
-  );
+export async function getCoprosFacturables(
+  params: PerimetreUtilisateur,
+): Promise<Copropriete[]> {
+  return getCoprosDuPerimetre(params);
 }
