@@ -29,6 +29,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_facturation.sql` | ✅ | Facturation (module bâti + validé sur un vrai brouillon Pennylane, ADR-032). |
 | `intranet_recap_ag.sql` | ✅ | Récap AG. |
 | `intranet_recap_ag_complements.sql` | ✅ | Compléments récap AG. |
+| `intranet_recap_ag_traitement.sql` | 🔲 | **À PASSER** — colonnes `traite_compta_at` / `traite_compta_par` sur `intranet_recap_ag` (marqueur « traité » de la file « Récaps d'AG reçus » de l'espace comptable). **Vérifié absentes en base le 2026-08-17** (`select=traite_compta_at` → `400 / 42703`). ⚠️ `create table if not exists` ne les rattrape pas : ce fichier est un `alter table ... add column if not exists`, idempotent. **Sans lui l'app tourne** : la file s'affiche, tout apparaît « à traiter », et le bouton « marquer traité » remonte une erreur explicite nommant ce fichier (pas de succès mensonger). ⚠️ Ne PAS détourner `notif_comptable_at` (elle trace un envoi de mail, jamais branché). |
 | `intranet_tarifs_seed.sql` | ✅ | Seed tarifs (barème cabinet, 3 millésimes en base). |
 | `intranet_suivi_contrats_seed.sql` | ✅ | Seed suivi contrats (jeu stopgap, montants NULL — remplacé par le réel). |
 | `intranet_suivi_contrats_seed_reel.sql` | ✅ | Seed réel (honoraires par copro) — **chargé en base** (audit 2026-07-23 : 0 montant NULL). ⚠️ **fichier sorti du repo → `data/seeds/` (git-ignoré, données commerciales)**. |
