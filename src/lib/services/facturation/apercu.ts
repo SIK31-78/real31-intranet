@@ -35,4 +35,18 @@ export interface ApercuFacturation {
   rienAFacturer: boolean;
   /** Message explicatif quand il n'y a rien a facturer. */
   motifRienAFacturer?: string;
+  /**
+   * Libelle du bouton de confirmation quand `rienAFacturer` est vrai mais qu'il
+   * reste quelque chose a ENREGISTRER.
+   *
+   * `rienAFacturer` dit qu'aucune facture ne partira -- PAS qu'il n'y a rien a
+   * faire. Pour les 5 prestations de facturation les deux se confondent (pas de
+   * depassement = rien a garder), mais pas pour le recap AG : le compte-rendu
+   * est le livrable, la facture n'en est qu'une retombee. Sans ce champ, la
+   * fenetre ne proposait que "Fermer" et un recap d'AG tenue dans les horaires
+   * du contrat ne pouvait JAMAIS etre enregistre.
+   *
+   * Absent = comportement d'origine (rien a facturer -> rien a faire -> Fermer).
+   */
+  actionSansFacture?: string;
 }

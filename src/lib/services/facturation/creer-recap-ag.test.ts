@@ -66,3 +66,32 @@ describe("recap AG - parametres d'AG non renseignes (Fix A)", () => {
     expect(apercu.typePrestation).toBe("depassement_ag");
   });
 });
+
+// Sans depassement, l'apercu doit quand meme proposer une ACTION : le recap est le
+// livrable, la facture n'en est qu'une retombee. La fenetre de validation cache son
+// bouton quand rienAFacturer est vrai -- sans actionSansFacture, une AG tenue dans
+// les horaires du contrat ne pouvait pas etre enregistree du tout.
+describe("recap AG - AG dans les horaires du contrat", () => {
+  // 2 h entre 10 h et 20 h, pour une duree contractuelle de 2 h : aucun depassement.
+  const dansLesClous = {
+    jourDebut: "2026-06-10",
+    heureDebut: 18,
+    minuteDebut: 0,
+    jourFin: "2026-06-10",
+    heureFin: 20,
+    minuteFin: 0,
+  };
+
+  it("rien a facturer, mais le recap reste a enregistrer", async () => {
+    const apercu = await apercuRecapAg({ coproCode: "S002", assemblee: dansLesClous }, "m1");
+    expect(apercu.rienAFacturer).toBe(true);
+    expect(apercu.montantTtc).toBe(0);
+    expect(apercu.actionSansFacture).toBe("Enregistrer le récap");
+  });
+
+  it("avec depassement, pas d'action de repli : le bouton d'envoi normal suffit", async () => {
+    const apercu = await apercuRecapAg({ coproCode: "S002", assemblee }, "m1");
+    expect(apercu.rienAFacturer).toBe(false);
+    expect(apercu.actionSansFacture).toBeUndefined();
+  });
+});
