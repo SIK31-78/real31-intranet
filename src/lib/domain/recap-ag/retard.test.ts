@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   agSurveillee,
   evaluerRecapAg,
+  ANCIENNETE_MAX_JOURS,
   DEBUT_HISTORIQUE_RECAPS,
   DELAI_RECAP_JOURS,
   TOLERANCE_RAPPROCHEMENT_JOURS,
@@ -115,11 +116,31 @@ describe("evaluerRecapAg", () => {
     expect(evaluerRecapAg("2025-03-30", [], AUJ)).toEqual({ statut: "rien_a_signaler" });
   });
 
-  it("signale une AG au jour pile du debut de l'historique", () => {
+  // Le seuil d'historique ne se DECLENCHE plus depuis l'ajout de la borne d'anciennete :
+  // 2025-03-31 est desormais toujours au-dela d'un an. Il reste en place comme filet si
+  // ANCIENNETE_MAX_JOURS remontait un jour -- ce test verrouille cette subsomption, pour
+  // qu'on ne croie pas le seuil actif alors qu'il ne l'est plus.
+  it("une AG au jour pile du debut de l'historique est desormais tue par la borne d'anciennete", () => {
     expect(evaluerRecapAg(DEBUT_HISTORIQUE_RECAPS, [], AUJ)).toEqual({
-      statut: "en_retard",
-      joursDeRetard: 483,
+      statut: "rien_a_signaler",
     });
+  });
+
+  // --- La borne d'anciennete (decision Sekou : passe un an, la compta a fait le job) ---
+
+  it("signale encore une AG a 365 jours pile", () => {
+    expect(evaluerRecapAg("2025-07-27", [], AUJ)).toEqual({
+      statut: "en_retard",
+      joursDeRetard: 365,
+    });
+  });
+
+  it("ne dit plus rien a 366 jours", () => {
+    expect(evaluerRecapAg("2025-07-26", [], AUJ)).toEqual({ statut: "rien_a_signaler" });
+  });
+
+  it("un recap couvrant l'AG prime meme au-dela d'un an (c'est un FAIT, pas un silence)", () => {
+    expect(evaluerRecapAg("2024-06-10", ["2024-06-12"], AUJ)).toEqual({ statut: "a_jour" });
   });
 
   it("dit quand meme 'a jour' avant le seuil si un recap couvre l'AG", () => {
@@ -132,5 +153,6 @@ describe("constantes de la regle", () => {
     expect(DELAI_RECAP_JOURS).toBe(7);
     expect(TOLERANCE_RAPPROCHEMENT_JOURS).toBe(15);
     expect(DEBUT_HISTORIQUE_RECAPS).toBe("2025-03-31");
+    expect(ANCIENNETE_MAX_JOURS).toBe(365);
   });
 });

@@ -34,6 +34,20 @@ export const TOLERANCE_RAPPROCHEMENT_JOURS = 15;
 export const DEBUT_HISTORIQUE_RECAPS = "2025-03-31";
 
 /**
+ * Au-dela de cette anciennete, on ne signale plus l'absence de recap.
+ *
+ * POURQUOI (decision Sekou 2026-08-17) : passe un an, l'exercice comptable de l'AG est
+ * clos et la compta a fait le travail par ses propres moyens. Le recap manquant n'a plus
+ * d'objet - et surtout il est IRRATTRAPABLE : personne ne reconstitue de memoire le budget
+ * vote d'une AG d'il y a 18 mois. Les laisser rouges pour toujours abimerait l'alerte
+ * entiere : une liste ou 7 lignes sur 30 ne partiront jamais finit par ne plus etre lue.
+ *
+ * Ce n'est PAS un masquage de donnee fausse (cf. les dates previsionnelles, qu'on affiche
+ * justement parce qu'elles sont corrigeables) : ici il n'y a rien a corriger.
+ */
+export const ANCIENNETE_MAX_JOURS = 365;
+
+/**
  * D'ou vient la date d'AG surveillee :
  *  - `prochaine` : la date PREVISIONNELLE du referentiel, deja passee et jamais conclue.
  *    C'est aussi le cas ou la date elle-meme est suspecte (dates de remplissage type
@@ -109,5 +123,7 @@ export function evaluerRecapAg(
 
   const joursDeRetard = joursEntre(agDate, aujourdhui);
   if (joursDeRetard <= DELAI_RECAP_JOURS) return RIEN;
+  // Trop ancien : l'exercice est clos, la compta a fait le travail autrement.
+  if (joursDeRetard > ANCIENNETE_MAX_JOURS) return RIEN;
   return { statut: "en_retard", joursDeRetard };
 }
