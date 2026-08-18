@@ -25,7 +25,12 @@ import {
   type ContexteEstale,
   type PlanMapping,
 } from "@/lib/reprise/domain/mapping-compta";
-import { detecterAvantRepartition, type VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
+import {
+  confronterBalanceBascule,
+  detecterAvantRepartition,
+  verifierBalancePostRepartition,
+  type VerdictRaccordement,
+} from "@/lib/reprise/domain/controle-comptes";
 import type {
   EstaleComptaLectureProvider,
   OwnerEstale,
@@ -37,6 +42,19 @@ import { getEstaleComptaLectureProvider } from "@/lib/reprise/adapters/router";
 export type ResultatPlanMapping =
   | { ok: true; plan: PlanMapping; ref: RefAccounting }
   | { ok: false; message: string };
+
+/**
+ * Preuve de bascule fournie par l'appelant (regle Sekou 2026-08-18) : la BALANCE
+ * independante extraite (parseur-balance) + le total general du RGD si disponible (recoupe
+ * que la balance est bien POST-repartition). Elle DEGRADE le blocage avant-repartition en
+ * avertissement si l'extraction du grand livre la reproduit au centime - arithmetique,
+ * jamais un libelle.
+ */
+export interface PreuveBascule {
+  soldes: SoldeCompte[];
+  dateBascule?: string;
+  totalGeneralRgd?: number;
+}
 
 /** Liaison AUTO compte source 450 -> compte 450 eStale, construite contre les owners. */
 export interface LiaisonAuto {
@@ -160,6 +178,7 @@ async function resoudrePlanCommun(
   provider: EstaleComptaLectureProvider,
   liaisonParCompte?: Record<string, string>,
   raccordement?: VerdictRaccordement,
+  preuveBascule?: PreuveBascule,
 ): Promise<
   | { ok: true; plan: PlanMapping; ref: RefAccounting; comptes: SoldeCompte[] }
   | { ok: false; message: string }
@@ -213,16 +232,50 @@ async function resoudrePlanCommun(
   const planBrut = resoudreComptes(comptesSourceDistincts(jeu), contexte, {
     ...(liaison ? { liaisonParCompte: liaison } : {}),
   });
-  // Garde-fou "grand livre avant repartition" (classe 6/7 avec report non nul) : bloquant strict.
-  const planAR = appliquerAvantRepartition(planBrut, detecterAvantRepartition(jeu.controles ?? []));
+  // Garde-fou "grand livre avant repartition" (classe 6/7 avec report non nul) : bloquant,
+  // SAUF preuve ARITHMETIQUE (regle Sekou 2026-08-18) - une balance independante fournie ET
+  // reproduite au centime par l'extraction degrade le blocage en avertissement. Preuve NON
+  // reproduite -> blocage maintenu, ecarts VISIBLES en notes.
+  const verdictAR = detecterAvantRepartition(jeu.controles ?? []);
+  const notesPreuve: string[] = [];
+  if (verdictAR.avantRepartition && preuveBascule) {
+    const confrontation = confronterBalanceBascule(
+      jeu.lignes,
+      jeu.controles ?? [],
+      preuveBascule.soldes,
+      preuveBascule.dateBascule,
+    );
+    if (preuveBascule.totalGeneralRgd !== undefined) {
+      const postRep = verifierBalancePostRepartition(preuveBascule.soldes, preuveBascule.totalGeneralRgd);
+      confrontation.postRepartitionVerifiee = postRep.coherent;
+      notesPreuve.push(
+        `Recoupement post-repartition : classe 6 de la balance ${postRep.classe6.toFixed(2)} vs total RGD ` +
+          `${preuveBascule.totalGeneralRgd.toFixed(2)} (ecart ${postRep.ecart.toFixed(2)}) -> ${postRep.coherent ? "coherent" : "INCOHERENT"}.`,
+      );
+    }
+    if (confrontation.reproduite) {
+      verdictAR.degradeParPreuve = confrontation;
+      notesPreuve.push(
+        `Preuve de bascule : balance${confrontation.dateBascule ? ` du ${confrontation.dateBascule}` : ""} ` +
+          `reproduite au centime (${confrontation.confrontes} comptes confrontes, 0 ecart).`,
+      );
+    } else {
+      notesPreuve.push(
+        `Preuve de bascule fournie mais NON reproduite : ${confrontation.ecarts.length} ecart(s) ` +
+          `(${confrontation.ecarts.slice(0, 5).map((e) => `${e.compte} attendu ${e.attendu} obtenu ${e.obtenu}`).join(" ; ")}` +
+          `${confrontation.ecarts.length > 5 ? " ; ..." : ""}) -> blocage avant-repartition MAINTENU.`,
+      );
+    }
+  }
+  const planAR = appliquerAvantRepartition(planBrut, verdictAR);
   // Controle croise cloture <-> en cours (si fourni) : bloquant strict si les deux GL ne se
   // raccordent pas au centime. Absent pour l'ecran standalone (un seul grand livre) -> no-op.
   const planRac = raccordement ? appliquerRaccordement(planAR, raccordement) : planAR;
   const plan =
-    notesLiaison.length > 0 || warningsLiaison.length > 0
+    notesLiaison.length > 0 || warningsLiaison.length > 0 || notesPreuve.length > 0
       ? {
           ...planRac,
-          notes: [...planRac.notes, ...notesLiaison],
+          notes: [...planRac.notes, ...notesLiaison, ...notesPreuve],
           warnings: [...planRac.warnings, ...warningsLiaison],
         }
       : planRac;
@@ -244,9 +297,10 @@ export async function construirePlanMapping(
   provider: EstaleComptaLectureProvider = getEstaleComptaLectureProvider(),
   liaisonParCompte?: Record<string, string>,
   raccordement?: VerdictRaccordement,
+  preuveBascule?: PreuveBascule,
 ): Promise<ResultatPlanMapping> {
   try {
-    const commun = await resoudrePlanCommun(jeu, coproCode, provider, liaisonParCompte, raccordement);
+    const commun = await resoudrePlanCommun(jeu, coproCode, provider, liaisonParCompte, raccordement, preuveBascule);
     if (!commun.ok) return commun;
     return { ok: true, plan: commun.plan, ref: commun.ref };
   } catch (e) {
@@ -294,9 +348,10 @@ export async function preparerRevueMapping(
   provider: EstaleComptaLectureProvider = getEstaleComptaLectureProvider(),
   liaisonParCompte?: Record<string, string>,
   raccordement?: VerdictRaccordement,
+  preuveBascule?: PreuveBascule,
 ): Promise<ResultatRevueMapping> {
   try {
-    const commun = await resoudrePlanCommun(jeu, coproCode, provider, liaisonParCompte, raccordement);
+    const commun = await resoudrePlanCommun(jeu, coproCode, provider, liaisonParCompte, raccordement, preuveBascule);
     if (!commun.ok) return commun;
     const { plan, ref, comptes } = commun;
     const contexte = construireContexteEstale(comptes);

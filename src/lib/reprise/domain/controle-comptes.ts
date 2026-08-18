@@ -89,6 +89,13 @@ export interface VerdictAvantRepartition {
   avantRepartition: boolean;
   /** Comptes concernes (tries par numero), vide si le grand livre est bien post-repartition. */
   comptes: CompteAvantRepartition[];
+  /**
+   * Preuve ARITHMETIQUE qui degrade le blocage en avertissement (regle Sekou 2026-08-18) :
+   * l'extraction reproduit au centime une balance independante a la date de bascule.
+   * Posee par le service quand la preuve est fournie ET reproduite ; portee PAR le verdict
+   * pour survivre au rejeu cote client (appliquerDecisions). Absente = blocage strict.
+   */
+  degradeParPreuve?: VerdictPreuveBascule;
 }
 
 /**
@@ -461,4 +468,147 @@ export function classerParExercice<T extends { lignes: LigneEcriture[] }>(
     plageCloture.max !== undefined && plageEnCours.min !== undefined && plageCloture.max > plageEnCours.min;
 
   return { cloture, enCours, chevauchement, datesIndisponibles };
+}
+
+// --- Preuve par la balance de bascule (degradation ARITHMETIQUE du garde-fou) --------------
+//
+// Regle Sekou 2026-08-18 : reports 6/7 non nuls -> BLOCAGE, SAUF si une balance INDEPENDANTE
+// a la date de bascule est fournie ET que l'extraction la reproduit au centime. Dans ce cas :
+// avertissement, jamais silence, avec mention explicite de ce sur quoi la degradation
+// s'appuie. Le declencheur est ARITHMETIQUE, jamais un libelle ("Cloture 2025" est du texte
+// libre propre a un syndic - le type de motif fragile banni partout ailleurs). Ce que le
+// garde-fou cherche vraiment a savoir n'est pas "la cloture a-t-elle ete passee" mais "les
+// soldes 450 sont-ils fiables" - et de ca, la balance reproduite est une preuve.
+//
+// Garde supplementaire : la balance servant de preuve doit elle-meme etre POST-repartition,
+// sinon on prouve la coherence avec un document faux. Recoupement : classe 6 de la balance
+// == total general du RGD de l'exercice (au centime). Optionnel (RGD non fourni -> non
+// verifie, DIT explicitement).
+
+import type { SoldeCompte } from "@/lib/reprise/domain/compta";
+
+/** Un ecart de confrontation extraction <-> balance (PII-free : numeros et montants). */
+export interface EcartBascule {
+  compte: string;
+  /** Solde de la balance (debit - credit). */
+  attendu: number;
+  /** Solde reconstitue de l'extraction (reports + mouvements). */
+  obtenu: number;
+}
+
+export interface VerdictPreuveBascule {
+  /** true si TOUS les comptes confrontables se reproduisent au centime (et au moins un). */
+  reproduite: boolean;
+  /** Nombre de comptes confrontes au centime. */
+  confrontes: number;
+  ecarts: EcartBascule[];
+  /** Comptes de la balance introuvables dans l'extraction avec un solde NON nul (info). */
+  nonConfrontables: string[];
+  /** Date de bascule imprimee sur la balance, si capturee (JJ/MM/AAAA). */
+  dateBascule?: string;
+  /** true = classe 6 de la balance == total RGD au centime ; absent = non verifie (dit). */
+  postRepartitionVerifiee?: boolean;
+}
+
+/**
+ * Confronte l'extraction du grand livre (mouvements + reports captures) aux SOLDES d'une
+ * balance independante a la date de bascule. Par compte feuille de la balance :
+ *   solde extrait = (reportDebit - reportCredit) + somme(mouvements debit - credit)
+ * doit egaler solde balance = debit - credit, au centime. Un compte de la balance ABSENT de
+ * l'extraction n'est confrontable que si son solde est nul (sinon il part en ecart : il
+ * manque des donnees a l'extraction). Un compte extrait absent de la balance avec un solde
+ * non nul part aussi en ecart. Pur.
+ */
+export function confronterBalanceBascule(
+  lignes: readonly { compte: string; sens: "debit" | "credit"; montant: number }[],
+  controles: readonly ControleCompte[],
+  soldesBalance: readonly SoldeCompte[],
+  dateBascule?: string,
+): VerdictPreuveBascule {
+  const soldeExtrait = new Map<string, number>();
+  const vusExtraction = new Set<string>();
+  for (const c of controles) {
+    const cle = c.compte.trim();
+    vusExtraction.add(cle);
+    soldeExtrait.set(cle, arrondi((soldeExtrait.get(cle) ?? 0) + (c.reportDebit ?? 0) - (c.reportCredit ?? 0)));
+  }
+  for (const l of lignes) {
+    const cle = l.compte.trim();
+    vusExtraction.add(cle);
+    const delta = l.sens === "debit" ? l.montant : -l.montant;
+    soldeExtrait.set(cle, arrondi((soldeExtrait.get(cle) ?? 0) + delta));
+  }
+
+  const ecarts: EcartBascule[] = [];
+  const nonConfrontables: string[] = [];
+  let confrontes = 0;
+  const vusBalance = new Set<string>();
+
+  for (const s of soldesBalance) {
+    const compte = s.nomenclature.trim();
+    vusBalance.add(compte);
+    const attendu = arrondi(s.debit - s.credit);
+    if (!vusExtraction.has(compte)) {
+      // Absent de l'extraction : un solde nul peut legitimement ne pas apparaitre au GL ;
+      // un solde non nul signifie qu'il MANQUE des donnees -> ecart.
+      if (Math.abs(attendu) >= SEUIL_EQUILIBRE) {
+        ecarts.push({ compte, attendu, obtenu: 0 });
+        nonConfrontables.push(compte);
+      }
+      continue;
+    }
+    const obtenu = soldeExtrait.get(compte) ?? 0;
+    if (Math.abs(attendu - obtenu) >= SEUIL_EQUILIBRE) ecarts.push({ compte, attendu, obtenu });
+    else confrontes += 1;
+  }
+
+  // Comptes extraits ABSENTS de la balance avec un solde non nul : la balance est censee
+  // etre exhaustive a sa date -> ecart (l'extraction porte quelque chose que la balance nie).
+  for (const [compte, solde] of soldeExtrait) {
+    if (vusBalance.has(compte)) continue;
+    if (Math.abs(solde) >= SEUIL_EQUILIBRE) ecarts.push({ compte, attendu: 0, obtenu: solde });
+  }
+
+  ecarts.sort((a, b) => a.compte.localeCompare(b.compte));
+  return {
+    reproduite: confrontes > 0 && ecarts.length === 0,
+    confrontes,
+    ecarts,
+    nonConfrontables,
+    ...(dateBascule ? { dateBascule } : {}),
+  };
+}
+
+/**
+ * La balance de preuve est-elle POST-repartition ? Recoupement : la somme des soldes de
+ * classe 6 de la balance doit egaler le total general du RGD de l'exercice, au centime.
+ */
+export function verifierBalancePostRepartition(
+  soldesBalance: readonly SoldeCompte[],
+  totalGeneralRgd: number,
+): { coherent: boolean; classe6: number; ecart: number } {
+  let classe6 = 0;
+  for (const s of soldesBalance) if (s.classe === 6) classe6 += s.debit - s.credit;
+  classe6 = arrondi(classe6);
+  const ecart = arrondi(classe6 - totalGeneralRgd);
+  return { coherent: Math.abs(ecart) < SEUIL_EQUILIBRE, classe6, ecart };
+}
+
+/** Message d'AVERTISSEMENT quand le blocage avant-repartition est degrade par la preuve. */
+export function messageDegradationBascule(
+  verdict: VerdictAvantRepartition,
+  preuve: VerdictPreuveBascule,
+): string {
+  const recoupement =
+    preuve.postRepartitionVerifiee === true
+      ? "classe 6 recoupee par le total du RGD au centime"
+      : preuve.postRepartitionVerifiee === false
+        ? "ATTENTION : classe 6 NON recoupee par le RGD"
+        : "recoupement RGD non effectue (RGD non fourni)";
+  return (
+    `Reports 6/7 non nuls (${verdict.comptes.length} compte(s)) : blocage DEGRADE en avertissement. ` +
+    `Appui : balance de bascule${preuve.dateBascule ? ` du ${preuve.dateBascule}` : ""} reproduite au ` +
+    `centime par l'extraction (${preuve.confrontes} comptes confrontes, 0 ecart) ; ${recoupement}. ` +
+    `Les soldes importes reproduiront exactement cette balance.`
+  );
 }

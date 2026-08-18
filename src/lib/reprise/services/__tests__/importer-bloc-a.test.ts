@@ -26,7 +26,7 @@ import type {
   FournisseurCreationEstale,
   SousCompteCreationEstale,
 } from "@/lib/reprise/ports/estale-compta-ecriture-provider";
-import { annulerImport, importerBlocA, JOURNAL_DEFAUT } from "../importer-bloc-a";
+import { annulerImport, importerBlocA } from "../importer-bloc-a";
 
 // --- Fixtures ---------------------------------------------------------------------
 

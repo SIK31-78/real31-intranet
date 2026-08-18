@@ -18,6 +18,7 @@
 import { classeDe, type ClasseComptable } from "@/lib/reprise/domain/compta";
 import {
   messageAvantRepartition,
+  messageDegradationBascule,
   messageRaccordement,
   type VerdictAvantRepartition,
   type VerdictRaccordement,
@@ -604,6 +605,15 @@ export function appliquerAvantRepartition(
   verdict: VerdictAvantRepartition,
 ): PlanMapping {
   if (!verdict.avantRepartition) return plan;
+  // Degradation ARITHMETIQUE (regle Sekou 2026-08-18) : la preuve par la balance de bascule
+  // (reproduite au centime) transforme le blocage en AVERTISSEMENT - jamais en silence.
+  if (verdict.degradeParPreuve?.reproduite) {
+    return {
+      ...plan,
+      avantRepartition: verdict,
+      warnings: [messageDegradationBascule(verdict, verdict.degradeParPreuve), ...plan.warnings],
+    };
+  }
   return {
     ...plan,
     avantRepartition: verdict,

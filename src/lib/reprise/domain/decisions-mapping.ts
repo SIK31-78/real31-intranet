@@ -21,7 +21,7 @@ import {
   type PlanMapping,
   type StatutMapping,
 } from "@/lib/reprise/domain/mapping-compta";
-import { messageAvantRepartition, messageRaccordement } from "@/lib/reprise/domain/controle-comptes";
+import { messageAvantRepartition, messageRaccordement, messageDegradationBascule } from "@/lib/reprise/domain/controle-comptes";
 
 /**
  * Geste humain applique a UN compte source lors de la revue.
@@ -269,7 +269,15 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
   // l'erreur et on force pretAImporter = false. Aucun geste humain ne le leve (il faut le bon
   // grand livre). Rejoue ici pour survivre au recalcul cote client (appliquerDecisions).
   if (plan.avantRepartition?.avantRepartition) {
-    erreurs.unshift(messageAvantRepartition(plan.avantRepartition));
+    // Le verdict porte lui-meme sa degradation eventuelle (preuve balance de bascule) :
+    // le rejeu cote client reproduit EXACTEMENT le comportement du service.
+    if (plan.avantRepartition.degradeParPreuve?.reproduite) {
+      warnings.unshift(
+        messageDegradationBascule(plan.avantRepartition, plan.avantRepartition.degradeParPreuve),
+      );
+    } else {
+      erreurs.unshift(messageAvantRepartition(plan.avantRepartition));
+    }
   }
 
   // GARDE-FOU raccordement cloture <-> en cours (bloquant STRICT) : rejoue pour survivre au
