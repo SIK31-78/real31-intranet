@@ -38,7 +38,7 @@ const COPROS: CandidatCompte[] = [
 const CTX: ContexteEstale = {
   fournisseurs: FOURNISSEURS,
   coproprietaires: COPROS,
-  nomenclature471999: "4719990",
+  nomenclature471999: "4719999",
   nomenclature471998: undefined,
 };
 
@@ -187,7 +187,7 @@ describe("mapperCompte - regles par categorie", () => {
   });
 
   it("512 banque -> mappe sur 471999 si present, sinon action creer_sous_compte", () => {
-    expect(mapperCompte("5120.0", undefined, CTX).cible?.nomenclature).toBe("4719990");
+    expect(mapperCompte("5120.0", undefined, CTX).cible?.nomenclature).toBe("4719999");
     const sans = mapperCompte("5120.0", undefined, { ...CTX, nomenclature471999: undefined });
     expect(sans.statut).toBe("action_requise");
     expect(sans.action).toEqual({

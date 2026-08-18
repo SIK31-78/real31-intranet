@@ -268,12 +268,16 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
   // GARDE-FOU avant-repartition (bloquant STRICT) : si le plan porte le verdict, on prepend
   // l'erreur et on force pretAImporter = false. Aucun geste humain ne le leve (il faut le bon
   // grand livre). Rejoue ici pour survivre au recalcul cote client (appliquerDecisions).
+  // Le verdict porte lui-meme sa degradation eventuelle (preuve balance de bascule) : le
+  // rejeu cote client reproduit EXACTEMENT le comportement du service. L'avertissement de
+  // degradation INFORME mais ne BLOQUE pas (regle Sekou : avertissement, jamais silence) ->
+  // il est ajoute APRES le calcul de pretAImporter, pour ne pas compter comme bloquant.
+  let warningDegradation: string | null = null;
   if (plan.avantRepartition?.avantRepartition) {
-    // Le verdict porte lui-meme sa degradation eventuelle (preuve balance de bascule) :
-    // le rejeu cote client reproduit EXACTEMENT le comportement du service.
     if (plan.avantRepartition.degradeParPreuve?.reproduite) {
-      warnings.unshift(
-        messageDegradationBascule(plan.avantRepartition, plan.avantRepartition.degradeParPreuve),
+      warningDegradation = messageDegradationBascule(
+        plan.avantRepartition,
+        plan.avantRepartition.degradeParPreuve,
       );
     } else {
       erreurs.unshift(messageAvantRepartition(plan.avantRepartition));
@@ -287,6 +291,7 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
   }
 
   const pretAImporter = erreurs.length === 0 && warnings.length === 0;
+  if (warningDegradation) warnings.unshift(warningDegradation);
   return {
     entrees,
     compteurs,

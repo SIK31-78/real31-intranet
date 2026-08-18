@@ -165,8 +165,15 @@ export function construireContexteEstale(comptes: SoldeCompte[]): ContexteEstale
   const coproprietaires = comptes
     .filter((c) => racineCompte(c.nomenclature).startsWith("450"))
     .map(enCandidat);
-  const c471999 = comptes.find((c) => racineCompte(c.nomenclature).startsWith("471999"));
-  const c471998 = comptes.find((c) => racineCompte(c.nomenclature).startsWith("471998"));
+  // Racines EXPLICITES, jamais un prefixe : le plan eStale reel nomme ces comptes 4719998
+  // (Livret Ancien Syndic) et 4719999 (Banque Ancien Syndic) - 7 chiffres. Avec un
+  // startsWith("471999"), LES DEUX matchaient et le find prenait le premier de la liste :
+  // le 512 partait sur le LIVRET (mesure S0303, attrape par le protocole des cinq cibles
+  // avant toute ecriture). Et "471998" ne matchait rien -> creation d'un doublon du livret.
+  const RACINES_BANQUE_AS = new Set(["471999", "4719999"]);
+  const RACINES_LIVRET_AS = new Set(["471998", "4719998"]);
+  const c471999 = comptes.find((c) => RACINES_BANQUE_AS.has(racineCompte(c.nomenclature)));
+  const c471998 = comptes.find((c) => RACINES_LIVRET_AS.has(racineCompte(c.nomenclature)));
   return {
     fournisseurs,
     coproprietaires,
