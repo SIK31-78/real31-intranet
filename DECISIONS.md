@@ -1610,3 +1610,33 @@ Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
 À traiter au moment où la décision devient bloquante.
 
 > Note de numérotation : ADR-021 (plateforme unifiée) a été formalisé en premier, hors de cette liste, le 2026-05-27. Les numéros 014 à 020 restent réservés aux sujets ci-dessus pour ne pas casser les renvois existants (notamment ADR-015 ORM, référencé par ADR-021).
+
+## ADR-034 - Garde-fou « avant répartition » : dégradation sur preuve ARITHMÉTIQUE, jamais sur libellé
+
+**Statut** : Accepted · 2026-08-18 · Décision Sekou
+
+**Contexte.** Le garde-fou bloque tout import quand des comptes 6/7 portent un report à-nouveau non nul (signature d'un grand livre avant répartition → soldes 450 faux si importés). Sur S0303, la répartition ÉTAIT faite mais comptabilisée en mouvements 2026 (pratique Matera) : le document restait bloqué à tort. Première idée écartée : reconnaître « des écritures de clôture présentes » par leur libellé (« Clôture 2025 ») — du texte libre propre à un syndic, le motif fragile banni partout ailleurs.
+
+**Décision.** Reports 6/7 non nuls → BLOCAGE, **sauf** si une balance indépendante à la date de bascule est **fournie** ET que l'extraction du grand livre la **reproduit au centime** (chaque solde = reports + mouvements, comptes absents non soldés = écart). Dans ce cas : **avertissement, jamais silence**, nommant explicitement l'appui (date, nombre de comptes confrontés, écarts). Garde supplémentaire : la balance de preuve doit être elle-même post-répartition, recoupée par **classe 6 de la balance == total général du RGD au centime** ; RGD absent = dit explicitement. Le verdict porte sa dégradation (`degradeParPreuve`) pour que le rejeu client reproduise le comportement du service. L'avertissement **informe sans bloquer** (`pretAImporter` calculé avant son ajout).
+
+**Conséquences.** Ce que le garde-fou vérifie vraiment — « les soldes 450 sont-ils fiables » — a désormais une réponse mesurable et agnostique au syndic. La preuve est EXTRAITE (parseur de balance), pas déclarée. Fichiers : `domain/controle-comptes.ts` (confronterBalanceBascule, verifierBalancePostRepartition), `adapters/shared/parseur-balance.ts`, `services/mapping-compta.ts` (PreuveBascule).
+
+## ADR-035 - Journal (ledger) des écritures reprises : la nature dérivée de la contrepartie, repli visible
+
+**Statut** : Accepted · 2026-08-18 · Décision Sekou
+
+**Contexte.** L'exercice repris n'est PAS un exercice de reprise : REAL 31 le clôturera et le présentera à l'AG. Tout marquer `carryforward` donnerait des journaux où l'exercice semble commencer à la bascule. Le GL du syndic sortant n'imprime pas de colonne journal, mais imprime la CONTREPARTIE. Sonde SE999 : `createEntryExpert` accepte BANK/PURCHASE/SALE/FUNDRAISING (prouvé, écritures 0,01 créées puis supprimées).
+
+**Décision.** Les **à-nouveaux** partent en `carryforward` (lignes d'ouverture générées depuis les reports capturés, option `aNouveauxDate`). Les **mouvements** dérivent leur journal de la contrepartie (domaine pur `journal-reprise.ts`) — seuls les cas qui TRANCHENT dérivent : trésorerie d'un côté → `bank` ; 401/408 contre classe 6 → `purchase` ; 450 contre 70x/105 → `fundraising`. Tout le reste → **repli `carryforward`, compté et VISIBLE** dans le rapport (même discipline que le fallback OCR). « Dégradé mais jamais faux. » Mesure S0303 : 149/162 lignes dérivées (92 %), 13 replis tous explicables.
+
+**Conséquences.** Les états eStale (journaux, rapprochements) restent exploitables après reprise. Si la dérivation s'avérait fragile sur un autre syndic : bascule en carryforward intégral sans état d'âme.
+
+## ADR-036 - Interdiction de `startsWith` / `includes` sur un numéro de compte, un code ou un en-tête
+
+**Statut** : Accepted · 2026-08-18 · Décision Sekou
+
+**Contexte.** Trois bugs de la même forme en deux jours, tous attrapés en réel : (1) l'ancre Crédit du parseur volée par « **Creditor** Name » des libellés SEPA (`includes("credit")`) → 16 763,73 € de règlements perdus silencieusement ; (2) la date parasite d'un libellé (« Estimation du 11/07/24 ») battant la vraie date de l'écriture parce que le format primait sur la **position** ; (3) `startsWith("471999")` matchant À LA FOIS `4719998` (Livret) et `4719999` (Banque) → le 512 partait sur le Livret Ancien Syndic et le total 47x restait juste — invisible de tout filet.
+
+**Décision.** Sur un numéro de compte, un code ou un mot d'en-tête : **racine explicite** (ensemble fermé de valeurs connues, ex. `{471999, 4719999}`) ou **token exact** (`tokensFold`, « creditor » ≠ « credit »), jamais une sous-chaîne ni un préfixe ambigu. Pour les dates extraites d'une ligne : la **position** départage, jamais le format. Un préfixe reste admissible uniquement quand la sémantique est par construction préfixale (classes comptables : `4x`, `45x`) ET qu'aucune valeur plus longue ne peut le capturer à tort.
+
+**Conséquences.** S'applique à tout nouveau parseur/classifieur (les blocs B et C y sont déjà conformes). En revue de code, un `startsWith`/`includes` sur ces objets est un défaut, pas un style.

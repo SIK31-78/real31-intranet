@@ -6,6 +6,58 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
+## ⏸️ PAUSE PROPRE - 2026-08-18 soir — REPRISE COMPTA eSTALE (état exact, sans optimisme)
+
+**Décision Sekou : pause à tête reposée, pas un abandon.** `ESTALE_ECRITURE` repassé à `dry` (aucun import réel n'a jamais été lancé ; un rejeu accidentel du runner ne peut plus rien écrire). Tout est poussé (origin + deploy), arbre propre.
+
+### ⚠️ L'ASYMÉTRIE ENTRE LES BLOCS — à lire en premier, c'est ce qui trompe
+
+| Bloc | Extraction | Chemin d'écriture |
+|---|---|---|
+| **A** (classes 4/5) | ✅ écart 0,00, 54 contrôles verts | ✅ **complet** : service d'import (`importer-bloc-a`, refus en bloc, ids capturés), runner (dry-replay → réel → relecture 5 cibles → rollback auto), `annulerImport` démontré |
+| **B** (classe 6, RGD) | ✅ 7 886,79 au centime, 12 contrôles verts | ❌ **RIEN** — tout le service d'import reste à construire (TVA/récupérable/déductible par `createEntryExpert`, mêmes garde-fous que A) |
+| **C** (classes 1/7, appels) | ✅ 9 050,00, 280 lignes, 0 écart | ❌ **RIEN** — et il dépend de `createEntryDispatch` dont la **sémantique n'est toujours PAS prouvée** (hors port volontairement) ; fallback documenté = module Éclatement de l'UI eStale |
+
+La balance ne tombera à zéro qu'après A + B + C. Le bloc A seul est déséquilibré **par construction** (les reports 6/7 partent avec B et C) — ce n'est pas une erreur.
+
+### Les SIX décisions en attente (écran de revue `/reprise-copro/mapping-compta`, S0303)
+
+1. `401011` Véolia → **4010004** « Veolia - ML » (existant, valider le candidat)
+2. `401002` MySendingBox → **4010008** « LIFEBOT - MySendingBox » (existant, valider le candidat)
+3. `502002` « Compte Courant - SG » → **4719999** Banque Ancien Syndic (choisir_cible)
+4. `502003` « Livret A - SG » → **4719998** Livret Ancien Syndic (choisir_cible)
+5. `401010` **Bellman** → à trancher (fournisseur absent du plan eStale ; cf. constat métier ci-dessous : solde dormant à apurer/provisionner, PAS d'investigation)
+6. `473` **Rompus** → **créer le compte 473 dans l'UI eStale d'abord** (la hiérarchie s'arrête à 471/472 ; création UI recommandée = zéro code non éprouvé sur le chemin critique), puis choisir_cible
+
+### Les CINQ soldes cibles du bloc A (balance de bascule 06/05/2026, posés par Sekou — codés en assertions du runner)
+
+`45x = 10 671,63 D` · `40x = 5 405,34 C` · `4719998 = 1 133,10 D` · `4719999 = 6 159,24 D` · `473 = 0,09 C`
+Une seule manque à la relecture eStale → **rollback automatique** (`annulerImport`, ordre inverse). Critère = compte par compte, JAMAIS l'équilibre global.
+
+### Ce qui bloque
+
+- **Bloc A : RIEN côté outil.** Les 6 décisions + la création UI du 473 sont les seuls prérequis. Le runner est prêt (`smoke-runner-bloc-a-s0303`, triple verrou : `RUNNER_S0303=reel` + décisions PERSISTÉES jamais simulées + dry vert).
+- **Blocs B et C : tout le chemin d'écriture.** Et pour C, prouver `createEntryDispatch` sur copro test avant toute chose.
+
+### Constats métier à ne pas perdre
+
+- **Matera comptabilise la répartition de l'exercice clos en MOUVEMENTS de l'exercice suivant, à la date de l'AG.** Leur GL de l'exercice clos ne porte jamais sa propre répartition. Vaut pour toute reprise Matera et toute lecture de leurs comptes.
+- **Le prérequis d'exercice ne se rattrape pas** : la date de début de compta se pose à la CRÉATION de la copro, aucune mutation ne crée un exercice (sonde SE999). À propager côté skill de migration (action Sekou, hors repo).
+- **S0302 : 25 comptes à report seul étaient invisibles du plan d'origine**, dont 5 comptes 450 avec de vrais soldes (~1 597 € créditeurs / 62,85 D — copropriétaires partis probables). Correctif en place, **le plan S0302 doit être REJOUÉ avant tout usage** (`smoke-rejeu-s0302`).
+- **Bellman 401010 : les 144,72 D ne viennent pas de Matera.** GL 2024 : « Solde antérieur au 31/12/2024 (date de reprise par Matera) » — hérité de D.A.A.S Immo, zéro mouvement depuis. **Solde dormant sans pièce : à apurer ou provisionner, aucune investigation à mener.**
+
+### ▶️ PREMIÈRE ACTION DE LA PROCHAINE SESSION (exécutable sans relire le fil)
+
+1. Créer le compte **473 « Rompus »** dans l'UI eStale de S0303 (sous 47).
+2. Faire les **6 décisions** dans `/reprise-copro/mapping-compta` (liste exacte ci-dessus) → `pretAImporter` doit passer au vert sur décisions PERSISTÉES.
+3. Poser `ESTALE_ECRITURE=reel` dans `.env.local`, puis lancer :
+   `RUNNER_S0303=reel npx vitest run --config vitest.smoke.config.mts src/lib/reprise/services/__tests__/smoke-runner-bloc-a-s0303.smoke.ts`
+   Le runner fait dry-replay → 5 cibles → émission réelle → relecture → rollback auto si écart. Rapport dans le scratchpad (`runner-bloc-a.txt`).
+4. Repasser `ESTALE_ECRITURE=dry` après.
+**C'est le seul geste qui apporte une information qu'aucun test ne donne.**
+
+Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradation arithmétique du garde-fou avant-répartition, journal des écritures reprises, interdiction des préfixes/sous-chaînes sur codes et en-têtes.
+
 ## 📍 État actuel - 2026-08-18 — REPRISE COMPTA DÉCOUPLÉE DU PATRIMOINE (branche `compta/recap-ag`)
 
 - **✅ COUPE (a) LIVRÉE — la compta se reprend avec « code copro + PDF » seuls (`e8b6ba1`, 1196 tests).** Une copro DÉJÀ créée dans eStale (S0303 : 24 lots, 2 clés, 10 owners) n'a plus besoin du pipeline patrimoine : l'état de référence est **LU depuis eStale** (`lireOwners` ajouté au port de lecture), la liaison 450 est construite **AUTO** contre les owners eStale par LE MÊME domaine pur que le flux unifié (seuils 0.9/0.5, marge 0.08, homonymes jamais auto — inchangés). **Découverte qui a changé le design (mesure S0303)** : eStale crée LUI-MÊME les comptes 450 suffixés par la référence owner (0003 → 4500003) → le compte CIBLE se dérive de la référence, l'appariement de nom ne sert plus qu'au côté SOURCE. La surface d'erreur n°1 tombe de deux appariements à un. Tronc commun des deux entrées du service factorisé (`resoudrePlanCommun`) — le motif « deux copies qui divergent » est celui du bug ODJ de la veille.
