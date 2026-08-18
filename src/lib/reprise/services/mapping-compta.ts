@@ -138,11 +138,20 @@ export function liaisonDepuisOwnersEstale(
   return { liaisonParCompte, notes, warnings: liaison.warnings };
 }
 
-/** Comptes source distincts du jeu extrait, avec leur intitule (si capture). */
+/**
+ * Comptes source distincts du jeu extrait, avec leur intitule (si capture). Les comptes a
+ * REPORT SEUL (un a-nouveau, aucun mouvement - captures dans jeu.controles) comptent AUSSI :
+ * sans eux, le Livret A Matera (502003, 1 133,10 en report, zero ecriture 2026) n'apparaissait
+ * pas au plan et son a-nouveau n'avait aucune destination tranchee a l'import.
+ */
 function comptesSourceDistincts(jeu: JeuEcritures): { compte: string; intitule?: string }[] {
   const vus = new Map<string, string | undefined>();
   for (const l of jeu.lignes) {
     if (!vus.has(l.compte)) vus.set(l.compte, jeu.intitules?.[l.compte]);
+  }
+  for (const c of jeu.controles ?? []) {
+    const report = Math.abs(c.reportDebit ?? 0) + Math.abs(c.reportCredit ?? 0);
+    if (report >= 0.005 && !vus.has(c.compte)) vus.set(c.compte, jeu.intitules?.[c.compte]);
   }
   return [...vus.entries()].map(([compte, intitule]) => ({ compte, intitule }));
 }

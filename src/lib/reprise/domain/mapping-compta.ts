@@ -79,7 +79,8 @@ export type CategorieCompte =
   | "regularisation_489" // 489
   | "banque" // 512 -> compte d'attente 471999
   | "livret" // 501 -> compte d'attente 471998
-  | "autre_bloc_a" // autre classe 4/5
+  | "tresorerie_autre" // autre classe 5 (50x hors 501, 53x...) -> DECISION HUMAINE
+  | "autre_bloc_a" // autre classe 4
   | "charge_bloc_b" // classe 6
   | "hors_bloc_a"; // classe 1/2/3/7
 
@@ -183,7 +184,10 @@ export function classifierCompte(compteSource: string): CategorieCompte {
   if (r.startsWith("512")) return "banque";
   if (r.startsWith("501")) return "livret";
   const classe = r ? Number(r[0]) : NaN;
-  if (classe === 4 || classe === 5) return "autre_bloc_a";
+  // Tresorerie NON identifiee (classe 5 hors 512/501, ex. Livret A Matera sous 502003) :
+  // jamais de derivation automatique, decision humaine (cf. mapperCompte).
+  if (classe === 5) return "tresorerie_autre";
+  if (classe === 4) return "autre_bloc_a";
   if (classe === 6) return "charge_bloc_b";
   return "hors_bloc_a"; // classes 1/2/3/7 (bloc C ou hors perimetre reprise A/B)
 }
@@ -521,12 +525,28 @@ export function mapperCompte(
         note: "compte 489 : souvent NON repris si le grand livre s'equilibre sans lui - a confirmer",
       };
 
+    // Tresorerie NON identifiee (Matera loge le Livret A sous 502003, pas 501 ; 502002 est un
+    // compte bancaire annexe). Decision Sekou 2026-08-18 : DECISION HUMAINE, pas de derivation
+    // automatique - une regle sur le libelle ("livret") rouvrirait le pattern-matching qu'on
+    // vient de fermer, et un mapping tel quel confondrait le fonds ALUR place chez l'ancien
+    // syndic avec la tresorerie courante de REAL 31. Le total 47x resterait juste : AUCUN
+    // filet arithmetique ne verrait la confusion. Cibles typiques : 471999 (banque ancien
+    // syndic) ou 471998 (livret ancien syndic), a trancher a la revue.
+    case "tresorerie_autre":
+      return {
+        ...base,
+        statut: "warning_appariement",
+        note:
+          "tresorerie non identifiee (ni 512 banque, ni 501 livret) : destination a trancher a la " +
+          "revue - 471999 (banque ancien syndic), 471998 (livret ancien syndic), ou reprise telle quelle.",
+      };
+
     case "autre_bloc_a":
       return {
         ...base,
         statut: "mappe",
         cible: cible(racineCompte(compteSource)),
-        note: "compte de tiers/tresorerie (bloc A) repris tel quel - verifier la nomenclature eStale",
+        note: "compte de tiers (bloc A) repris tel quel - verifier la nomenclature eStale",
       };
 
     case "charge_bloc_b":

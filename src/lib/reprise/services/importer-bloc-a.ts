@@ -129,6 +129,14 @@ export interface OptionsImportBlocA {
   ecriture?: EstaleComptaEcritureProvider;
   /** Relire la balance apres l'emission (utile en reel ; en dry elle lit le mock). */
   relireBalance?: boolean;
+  /**
+   * Date ISO des lignes d'A-NOUVEAU (1er jour de l'exercice, ex. "2026-01-01"). Quand elle
+   * est fournie, les reports captures par le parseur (jeu.controles) deviennent des lignes
+   * d'ouverture du bloc A, emises en carryforward (aucune contrepartie -> repli du plan).
+   * Sans elle : mouvements seuls (les cibles par compte de la balance de bascule ne seront
+   * PAS atteintes - les soldes incluent les reports).
+   */
+  aNouveauxDate?: string;
 }
 
 /** Entree de plan, eventuellement enrichie d'une decision humaine (flag `ignore`). */
@@ -179,7 +187,35 @@ export async function importerBlocA(
     );
   }
 
-  const lignesBlocA = jeu.lignes.filter((l) => CLASSES_BLOC_A.includes(l.classe));
+  // Lignes d'OUVERTURE synthetisees depuis les reports a-nouveau captures (option) : un
+  // report debit ET un report credit donnent chacun leur ligne. Pas de contrepartie -> le
+  // journal repliera sur celui du plan (carryforward), exactement la nature d'un a-nouveau.
+  const lignesOuverture: LigneEcriture[] = [];
+  if (options.aNouveauxDate) {
+    for (const c of jeu.controles ?? []) {
+      const classe = Number(c.compte.replace(/[^0-9]/g, "")[0] ?? "0") as LigneEcriture["classe"];
+      if (!CLASSES_BLOC_A.includes(classe)) continue;
+      for (const [sens, montant] of [
+        ["debit", c.reportDebit ?? 0],
+        ["credit", c.reportCredit ?? 0],
+      ] as const) {
+        if (Math.abs(montant) < 0.005) continue;
+        lignesOuverture.push({
+          date: options.aNouveauxDate,
+          compte: c.compte,
+          libelle: `A-nouveau au ${options.aNouveauxDate} (reprise)`,
+          sens,
+          montant: Math.abs(montant),
+          classe,
+        });
+      }
+    }
+  }
+
+  const lignesBlocA = [
+    ...lignesOuverture,
+    ...jeu.lignes.filter((l) => CLASSES_BLOC_A.includes(l.classe)),
+  ];
   if (lignesBlocA.length === 0) {
     return refus(
       "Aucune ecriture de classe 4 ou 5 dans le jeu : le bloc A (tiers et tresorerie) est vide, " +
@@ -426,6 +462,12 @@ export async function importerBlocA(
   }
 
   const notes: string[] = [
+    ...(lignesOuverture.length > 0
+      ? [
+          `${lignesOuverture.length} ligne(s) d'a-nouveau generee(s) depuis les reports captures ` +
+            `(date ${options.aNouveauxDate}) et emise(s) en carryforward.`,
+        ]
+      : []),
     `Journaux emis (derives de la contrepartie, decision Sekou 2026-08-18) : ${
       journaux.map((j) => `${j} (${parJournal[j]})`).join(", ") || "(aucune ecriture)"
     }${replisJournal > 0 ? ` - dont ${replisJournal} repli(s) sur le journal du plan` : ""}.`,

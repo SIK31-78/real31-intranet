@@ -119,6 +119,7 @@ const CATEGORIE_LABEL: Record<CategorieCompte, string> = {
   attente_ancien: "Compte d'attente (471)",
   attente_472: "Compte d'attente (472)",
   regularisation_489: "Regularisation (489)",
+  tresorerie_autre: "Trésorerie à trancher",
   banque: "Banque (512)",
   livret: "Livret (501)",
   autre_bloc_a: "Autre tiers / tresorerie (bloc A)",

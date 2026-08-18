@@ -250,3 +250,20 @@ describe("construirePlanMapping - liaison auto owners eStale", () => {
     expect(e?.statut).toBe("mappe");
   });
 });
+
+// Un compte a REPORT SEUL (a-nouveau sans aucun mouvement, ex. Livret A Matera 502003 a
+// 1 133,10) doit APPARAITRE au plan : sans entree, son a-nouveau n'a aucune destination
+// tranchee a l'import et il disparait de la revue humaine.
+describe("construirePlanMapping - comptes a report seul", () => {
+  it("un compte present uniquement dans les controles entre au plan", async () => {
+    const jeu = jeuSynthetique();
+    jeu.controles = [{ compte: "502003", reportDebit: 1133.1 }];
+    jeu.intitules = { ...jeu.intitules, "502003": "LIVRET TEST" };
+    const r = await construirePlanMapping(jeu, "S0TEST", new MockProvider());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const e = r.plan.entrees.find((x) => x.compteSource === "502003");
+    expect(e).toBeDefined();
+    expect(e?.statut).toBe("warning_appariement"); // tresorerie_autre -> decision humaine
+  });
+});

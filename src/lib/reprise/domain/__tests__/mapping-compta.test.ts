@@ -58,6 +58,12 @@ describe("racineCompte / classifierCompte", () => {
     expect(classifierCompte("4890000")).toBe("regularisation_489");
     expect(classifierCompte("5120.000000000")).toBe("banque");
     expect(classifierCompte("5010000")).toBe("livret");
+    // Tresorerie NON identifiee (Livret A Matera sous 502003, compte courant annexe 502002,
+    // caisse 53x) : DECISION HUMAINE, jamais de derivation automatique (decision Sekou
+    // 2026-08-18 - une regle sur libelle rouvrirait le pattern-matching, et un mapping tel
+    // quel confondrait le fonds ALUR place chez l'ancien syndic avec la tresorerie courante).
+    expect(classifierCompte("502003")).toBe("tresorerie_autre");
+    expect(classifierCompte("5300000")).toBe("tresorerie_autre");
     expect(classifierCompte("4600000")).toBe("autre_bloc_a"); // autre classe 4
     expect(classifierCompte("6211.000000000")).toBe("charge_bloc_b");
     expect(classifierCompte("1200000")).toBe("hors_bloc_a"); // classe 1
@@ -167,6 +173,13 @@ describe("mapperCompte - regles par categorie", () => {
 
     const introuvable = mapperCompte("4501.3", "PERSONNE ABSENTE", CTX);
     expect(introuvable.statut).toBe("non_mappe");
+  });
+
+  it("tresorerie non identifiee (502x) -> warning SANS cible : l'humain tranche", () => {
+    const e = mapperCompte("502003", "Livret A - BANQUE TEST", CTX);
+    expect(e.statut).toBe("warning_appariement");
+    expect(e.cible).toBeUndefined();
+    expect(e.note).toMatch(/471999.*471998|471998.*471999/);
   });
 
   it("450 sans intitule -> non_mappe (appariement impossible)", () => {
