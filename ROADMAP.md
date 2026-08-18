@@ -58,6 +58,51 @@ Une seule manque à la relecture eStale → **rollback automatique** (`annulerIm
 
 Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradation arithmétique du garde-fou avant-répartition, journal des écritures reprises, interdiction des préfixes/sous-chaînes sur codes et en-têtes.
 
+---
+
+## 🔲 CHANTIER MAIL UNIFIÉ — cadrage 2026-08-18 (aucun code écrit)
+
+**Le problème** : les mails des boîtes partagées `syndicN@real31.fr` (une par agence, 150+/jour sur syndic2) remontent dans Crypto toutes les 15 min puis sont **distribués à la main** (2 h/jour d'une personne), y compris les mails anonymes à identifier. eStale ne récupère pas les mails ; son parcours OS (kanban puis OS) est trop lourd pour les petits OS urgents. Des mails sont parfois **supprimés d'Exchange pour libérer le serveur** → l'historique se troue.
+
+**La cible** : l'intranet reprend le rôle de l'UI mail de Crypto — remontée, tri automatique, distribution, historique — dans le module « Mes e-mails » EXISTANT. Pas une révolution d'habitude : personne ne lit syndic2 dans Outlook aujourd'hui, tout le monde la lit déjà dans une UI applicative.
+
+**Artefacts** (données fictives) : cadrage <https://claude.ai/code/artifact/730134d7-4824-415c-9686-cf3fb036102c> · maquette UI interactive <https://claude.ai/code/artifact/2afe1e6b-fbf5-4e03-adaf-6687ee253998>
+
+### Décisions actées (Sekou, 2026-08-18)
+
+1. L'intranet **remplace la remontée mail de Crypto à terme** (parité puis bascule).
+2. **Copie complète** de chaque mail côté intranet (corps + PJ) — l'historique doit survivre aux purges Exchange. Rétention RGPD à cadrer.
+3. Pilote : **syndic2 seule, en observation** (lecture seule, Crypto continue de tourner, on mesure le taux de tri avant de rien changer au flux réel).
+4. Superviseur du résiduel = **rôle tournant** (configurable jour par jour), pas une personne.
+5. **Deux boîtes distinctes** par gestionnaire (perso + part de syndic2), jamais fusionnées.
+6. Réponse **depuis syndic2 par défaut**, boîte perso au choix (règle d'équipe actuelle reproduite).
+7. **eStale = backend de traçabilité** — forme exacte du rattachement tranchée APRÈS sondage de l'API (commentaire / document / mail sur kanban ?).
+8. Conception **multi-boîtes dès le départ** (syndic1 à 4 = configuration, pas chantier).
+
+**Retour maquette (Sekou)** : garder l'**architecture actuelle** du module, ne pas empiler les features — quick wins d'abord, le reste attend.
+
+### ▶️ QUICK WINS (dans l'ordre)
+
+1. **QW0 — Demande DSI (zéro code, conditionne tout)** : étendre l'Application Access Policy Exchange à `syndic2` en **lecture**. Même vanne que le mail CS. Question jumelle à poser en même temps : possibilité d'arrêter les purges (archivage en ligne / quota) une fois l'archive intranet en place.
+2. **QW1 — Observation à blanc du tri (lecture seule)** : moteur d'identification niveau 1 (expéditeur ↔ owners eStale + fournisseurs des 264 copros → copro → gestionnaire), branché sur syndic2 sans RIEN déplacer ni écrire. Livrable = un rapport : X % identifiés par expéditeur, Y % identifiables par contenu, Z % résiduel. **C'est le chiffre qui valide (ou pas) la promesse** — même philosophie que la reprise : mesurer avant de construire. Jamais d'auto sous le seuil, homonymes jamais tranchés seuls (mécanique de scoring éprouvée sur la reprise).
+3. **QW2 — Sélecteur de boîtes dans le module existant** : « Ma boîte » (inchangée) / « syndic2 — ma part » (les mails identifiés pour le gestionnaire par QW1). Architecture et UI actuelles conservées, la boîte devient un paramètre. Lecture seule, Crypto reste le flux officiel.
+4. **QW3 — Réponse « De : syndic2 »** : choix de la boîte d'envoi dans l'éditeur de réponse existant, défaut syndic2 (le fil reste unifié sur la boîte partagée).
+
+### La suite (plus tard, ordre indicatif — RIEN de tout ça maintenant)
+
+- File « à trier » + superviseur du jour (rôle tournant) + mémorisation des corrections (cet expéditeur → cette copro).
+- Tri par contenu (niveau 2 de la cascade : adresse d'immeuble, référence contrat, signature ↔ owners).
+- Archive complète + politique de rétention (prérequis à toute bascule réelle — cf. décision 2).
+- Sondage API eStale (que rattacher à un kanban ?) puis trace eStale des mails traités.
+- OS express : formulaire copro + fournisseur (suppliers eStale) → envoi depuis syndic2 + trace eStale auto, sans kanban à la main.
+- Webhooks Graph (change notifications) — le polling suffit au pilote malgré les 150+/jour.
+- Généralisation syndic1/3/4, puis bascule : décommissionnement du module mail Crypto.
+
+### Ce qui bloque
+
+- **QW0 (DSI)** : sans l'Access Policy étendue à syndic2, aucune lecture possible — c'est le seul vrai bloqueur des quick wins.
+- Questions métier ouvertes : source de référence des fournisseurs pour l'OS express (suppliers eStale ?), rétention RGPD des copies complètes.
+
 ## 📍 État actuel - 2026-08-18 — REPRISE COMPTA DÉCOUPLÉE DU PATRIMOINE (branche `compta/recap-ag`)
 
 - **✅ COUPE (a) LIVRÉE — la compta se reprend avec « code copro + PDF » seuls (`e8b6ba1`, 1196 tests).** Une copro DÉJÀ créée dans eStale (S0303 : 24 lots, 2 clés, 10 owners) n'a plus besoin du pipeline patrimoine : l'état de référence est **LU depuis eStale** (`lireOwners` ajouté au port de lecture), la liaison 450 est construite **AUTO** contre les owners eStale par LE MÊME domaine pur que le flux unifié (seuils 0.9/0.5, marge 0.08, homonymes jamais auto — inchangés). **Découverte qui a changé le design (mesure S0303)** : eStale crée LUI-MÊME les comptes 450 suffixés par la référence owner (0003 → 4500003) → le compte CIBLE se dérive de la référence, l'appariement de nom ne sert plus qu'au côté SOURCE. La surface d'erreur n°1 tombe de deux appariements à un. Tronc commun des deux entrées du service factorisé (`resoudrePlanCommun`) — le motif « deux copies qui divergent » est celui du bug ODJ de la veille.
