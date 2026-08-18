@@ -15,6 +15,20 @@ export type ClasseComptable = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export interface SoldeCompte {
   /** Nomenclature eStale (ex. "5120001", "450...", "701..."). */
   nomenclature: string;
+  /**
+   * ID eStale du compte (AccountingAccount.id). OPTIONNEL : les producteurs PURS de
+   * SoldeCompte (agregation d'ecritures dans ecriture.ts) n'en ont aucun. Renseigne par la
+   * LECTURE eStale, ou il est indispensable a l'ECRITURE : createEntryExpert exige un
+   * accountID, pas une nomenclature -> sans lui, l'import du bloc A ne peut pas resoudre sa
+   * cible (et doit refuser AVANT d'ecrire quoi que ce soit).
+   */
+  id?: string;
+  /**
+   * Cle de repartition PORTEE PAR LE COMPTE (AccountingAccount.dkID). OPTIONNEL, meme raison.
+   * C'est la cle a reprendre telle quelle sur une ecriture visant ce compte : le code de cle
+   * du plan de mapping ("001") est une convention cabinet, pas un ID eStale.
+   */
+  dkID?: string;
   /** Libelle du compte (facultatif : eStale le fournit, mais pas indispensable au calcul). */
   libelle?: string;
   /** Classe deduite du 1er chiffre de la nomenclature. */

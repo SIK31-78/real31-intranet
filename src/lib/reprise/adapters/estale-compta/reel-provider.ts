@@ -96,10 +96,16 @@ const Q_BALANCE_GLOBALE = `query($c: ID!, $a: ID!) {
   condo(id: $c) { accounting(id: $a) { balance } }
 }`;
 
+// id + dkID : indispensables a l'ECRITURE (createEntryExpert prend un accountID et une cle de
+// repartition, jamais une nomenclature). Les lire ICI evite un 2e aller-retour a l'import du
+// bloc A - et permet de REFUSER l'import avant la 1re mutation si une cible n'a pas d'id.
+// Champs verifies sur AccountingAccount (docs/estale-schema.graphql : id ID!, dkID ID!).
 const Q_COMPTES = `query($c: ID!, $a: ID!) {
   condo(id: $c) {
     accounting(id: $a) {
       accounts(archived: false) {
+        id
+        dkID
         nomenclature
         name
         debit(accountingID: $a)
@@ -149,7 +155,14 @@ type BalanceData = { condo: { accounting: { balance: number } | null } | null };
 type ComptesData = {
   condo: {
     accounting: {
-      accounts: { nomenclature: string; name: string; debit: number; credit: number }[];
+      accounts: {
+        id: string;
+        dkID: string;
+        nomenclature: string;
+        name: string;
+        debit: number;
+        credit: number;
+      }[];
     } | null;
   } | null;
 };
@@ -197,6 +210,8 @@ export class ReelEstaleComptaLectureProvider implements EstaleComptaLectureProvi
     const data = await estaleGql<ComptesData>(Q_COMPTES, { c: ref.condoID, a: ref.accountingID });
     const accounts = data.condo?.accounting?.accounts ?? [];
     return accounts.map((a) => ({
+      id: a.id,
+      dkID: a.dkID,
       nomenclature: a.nomenclature,
       libelle: a.name,
       classe: classeDe(a.nomenclature),

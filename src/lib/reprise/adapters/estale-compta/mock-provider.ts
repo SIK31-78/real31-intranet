@@ -24,18 +24,49 @@ export const CODE_COPRO_MOCK = "S0MOCK";
 
 const REF_MOCK: RefAccounting = { condoID: "condo-mock", accountingID: "acc-mock" };
 
-/** Comptes fictifs (nomenclature, libelle, debit, credit). Solde/classe derives ci-dessous. */
-const COMPTES_BRUTS: { nomenclature: string; libelle: string; debit: number; credit: number }[] = [
-  { nomenclature: "4010000", libelle: "Fournisseurs", debit: 0, credit: 5000 },
-  { nomenclature: "4500001", libelle: "Coproprietaire DUPONT", debit: 3000, credit: 0 },
-  { nomenclature: "5120000", libelle: "Banque", debit: 8000, credit: 0 },
-  { nomenclature: "6060000", libelle: "Charges - electricite", debit: 4000, credit: 0 },
-  { nomenclature: "7010000", libelle: "Provisions sur budget", debit: 0, credit: 10000 },
+/**
+ * Comptes fictifs (nomenclature, libelle, debit, credit). Solde/classe derives ci-dessous.
+ * `id` / `dkID` imitent ce que rend la lecture reelle (AccountingAccount.id / .dkID) : sans
+ * eux, un import d'ecritures ne peut pas resoudre sa cible (createEntryExpert prend un
+ * accountID). Prefixes "mock-" pour qu'aucun aval ne les confonde avec de vrais ID eStale.
+ */
+const COMPTES_BRUTS: {
+  nomenclature: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  dkID: string;
+}[] = [
+  { nomenclature: "4010000", libelle: "Fournisseurs", debit: 0, credit: 5000, dkID: "mock-dk-001" },
+  {
+    nomenclature: "4500001",
+    libelle: "Coproprietaire DUPONT",
+    debit: 3000,
+    credit: 0,
+    dkID: "mock-dk-001",
+  },
+  { nomenclature: "5120000", libelle: "Banque", debit: 8000, credit: 0, dkID: "mock-dk-001" },
+  {
+    nomenclature: "6060000",
+    libelle: "Charges - electricite",
+    debit: 4000,
+    credit: 0,
+    dkID: "mock-dk-001",
+  },
+  {
+    nomenclature: "7010000",
+    libelle: "Provisions sur budget",
+    debit: 0,
+    credit: 10000,
+    dkID: "mock-dk-001",
+  },
 ];
 
 /** Les comptes du mock, exposes en SoldeCompte (utile aux tests du domaine). */
 export function comptesMock(): SoldeCompte[] {
   return COMPTES_BRUTS.map((c) => ({
+    id: `mock-compte-${c.nomenclature}`,
+    dkID: c.dkID,
     nomenclature: c.nomenclature,
     libelle: c.libelle,
     classe: classeDe(c.nomenclature),
