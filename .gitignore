@@ -82,6 +82,9 @@ docs/powerapps/**/*.msapp
 .agents/
 skills-lock.json
 
+# Scratch d'investigation Hermes (sondes, rapports intermediaires) : jamais commit
+_hermes/
+
 # Schema eStale complet (13 Mo, dump volumineux) : garde le .graphql + le -summary.md
 # lisibles, mais pas le JSON brut. A retirer de l'index : git rm --cached docs/estale-schema.json
 docs/estale-schema.json

@@ -81,9 +81,15 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 
 **Retour maquette (Sekou)** : garder l'**architecture actuelle** du module, ne pas empiler les features — quick wins d'abord, le reste attend.
 
+### Cartographie réelle des boîtes — vérifiée le 2026-08-18 (sondes Graph app-only, lecture seule)
+
+- **3 boîtes PHYSIQUES seulement** : `syndic1` ; `syndic2` = agence **La Garenne-Colombes (LGC)**, qui a **absorbé** l'ancienne boîte syndic3 après fusion ; `syndic4` = agence **Houilles / Maisons-Laffitte** (gestionnaire Mahaut Carton).
+- **`syndic3@real31.fr` est un simple ALIAS de syndic2** (mêmes identifiants Exchange internes, prouvé) — vestige **volontaire** de la fusion, PAS une erreur à corriger. Le pilote et l'ingestion ne doivent **PAS** traiter syndic3 séparément : ce seraient des doublons exacts de syndic2.
+- Conséquence sur le pilote « syndic2 en observation » (décision 3) : **toujours valide, et même plus simple** — syndic2 couvre une agence entière.
+
 ### ▶️ QUICK WINS (dans l'ordre)
 
-1. **QW0 — Demande DSI (zéro code, conditionne tout)** : étendre l'Application Access Policy Exchange à `syndic2` en **lecture**. Même vanne que le mail CS. Question jumelle à poser en même temps : possibilité d'arrêter les purges (archivage en ligne / quota) une fois l'archive intranet en place.
+1. ✅ **QW0 — Demande DSI : VÉRIFIÉE INUTILE le 2026-08-18.** Sonde Graph app-only (lecture seule, métadonnées uniquement) : l'Application Access Policy est **déjà ouverte** sur toutes les boîtes syndic (200 OK sur syndic1/2/3/4, prouvé) — l'accès applicatif existe, rien à demander pour lire. Reste de QW0 uniquement la question jumelle à poser à la DSI : possibilité d'arrêter les purges (archivage en ligne / quota) une fois l'archive intranet en place.
 2. **QW1 — Observation à blanc du tri (lecture seule)** : moteur d'identification niveau 1 (expéditeur ↔ owners eStale + fournisseurs des 264 copros → copro → gestionnaire), branché sur syndic2 sans RIEN déplacer ni écrire. Livrable = un rapport : X % identifiés par expéditeur, Y % identifiables par contenu, Z % résiduel. **C'est le chiffre qui valide (ou pas) la promesse** — même philosophie que la reprise : mesurer avant de construire. Jamais d'auto sous le seuil, homonymes jamais tranchés seuls (mécanique de scoring éprouvée sur la reprise).
 3. **QW2 — Sélecteur de boîtes dans le module existant** : « Ma boîte » (inchangée) / « syndic2 — ma part » (les mails identifiés pour le gestionnaire par QW1). Architecture et UI actuelles conservées, la boîte devient un paramètre. Lecture seule, Crypto reste le flux officiel.
 4. **QW3 — Réponse « De : syndic2 »** : choix de la boîte d'envoi dans l'éditeur de réponse existant, défaut syndic2 (le fil reste unifié sur la boîte partagée).
@@ -96,11 +102,11 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 - Sondage API eStale (que rattacher à un kanban ?) puis trace eStale des mails traités.
 - OS express : formulaire copro + fournisseur (suppliers eStale) → envoi depuis syndic2 + trace eStale auto, sans kanban à la main.
 - Webhooks Graph (change notifications) — le polling suffit au pilote malgré les 150+/jour.
-- Généralisation syndic1/3/4, puis bascule : décommissionnement du module mail Crypto.
+- Généralisation syndic1/syndic4 (syndic3 = alias de syndic2, rien à ingérer — cf. cartographie ci-dessus), puis bascule : décommissionnement du module mail Crypto.
 
 ### Ce qui bloque
 
-- **QW0 (DSI)** : sans l'Access Policy étendue à syndic2, aucune lecture possible — c'est le seul vrai bloqueur des quick wins.
+- ~~QW0 (DSI)~~ **PLUS un bloqueur** (vérifié le 2026-08-18, sondes Graph app-only en lecture seule) : l'accès app-only est DÉJÀ ouvert sur toutes les boîtes syndic (200 OK sur syndic1/2/3/4, prouvé). Les quick wins peuvent démarrer sans attendre la DSI — seule la question des purges (archivage en ligne / quota) reste à lui poser, sans rien conditionner.
 - Questions métier ouvertes : source de référence des fournisseurs pour l'OS express (suppliers eStale ?), rétention RGPD des copies complètes.
 
 ## 📍 État actuel - 2026-08-18 — REPRISE COMPTA DÉCOUPLÉE DU PATRIMOINE (branche `compta/recap-ag`)
