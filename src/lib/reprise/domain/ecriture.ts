@@ -42,6 +42,8 @@ export interface LigneEcriture {
   classe: ClasseComptable;
   /** Numero de piece / justificatif, si la source le fournit. */
   piece?: string;
+  /** Compte de contrepartie imprime (derive le journal eStale ; absent si non imprime). */
+  contrepartie?: string;
 }
 
 /**

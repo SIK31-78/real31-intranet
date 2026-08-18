@@ -25,6 +25,7 @@
 // compteurs et montants agreges y figurent.
 
 import type { JeuEcritures, LigneEcriture } from "@/lib/reprise/domain/ecriture";
+import { deriverJournal } from "@/lib/reprise/domain/journal-reprise";
 import type { ClasseComptable, SoldeCompte } from "@/lib/reprise/domain/compta";
 import type { EntreeMapping, PlanMapping } from "@/lib/reprise/domain/mapping-compta";
 import type { EntreeMappingResolue } from "@/lib/reprise/domain/decisions-mapping";
@@ -354,15 +355,21 @@ export async function importerBlocA(
   let erreur: RapportImportBlocA["erreur"];
   let seq = 0;
 
+  let replisJournal = 0;
   for (const { ligne, cible } of aEmettre) {
     seq += 1;
+    // Journal derive de la CONTREPARTIE imprimee (decision Sekou 2026-08-18 : les mouvements
+    // gardent leur nature - bank/purchase/fundraising). Contrepartie absente ou qui ne
+    // tranche pas -> repli sur le journal du plan (carryforward), COMPTE et VISIBLE en note.
+    const journalDerive = deriverJournal(ligne.compte, ligne.contrepartie);
+    if (journalDerive === null) replisJournal += 1;
     const input: EcritureExpertEstale = {
       condoID: ref.condoID,
       date: ligne.date,
       libelle: ligne.libelle,
       montant: ligne.montant,
       mouvement: ligne.sens,
-      journal: cible.journal,
+      journal: journalDerive ?? cible.journal,
       accountID: cible.accountID,
       ...(cible.dkID ? { dkID: cible.dkID } : {}),
       ...(ligne.piece ? { piece: ligne.piece } : {}),
@@ -378,7 +385,7 @@ export async function importerBlocA(
         classe: ligne.classe,
       });
       if (ligne.classe === 4 || ligne.classe === 5) parClasse[ligne.classe] += 1;
-      parJournal[cible.journal] = (parJournal[cible.journal] ?? 0) + 1;
+      parJournal[input.journal] = (parJournal[input.journal] ?? 0) + 1;
       if (ligne.sens === "debit") debit += ligne.montant;
       else credit += ligne.montant;
     } catch (e) {
@@ -398,16 +405,17 @@ export async function importerBlocA(
   // --- 6. Rapport -----------------------------------------------------------------
 
   const journaux = Object.keys(parJournal);
-  const aValider: string[] = [
-    `JOURNAL (ledger) des ecritures reprises : ${
-      journaux.length > 0
-        ? journaux.map((j) => `${j} (${parJournal[j]})`).join(", ")
-        : "(aucune ecriture emise)"
-    }. ` +
-      `Valeur prise dans le plan de mapping (cible.journal), repli "${JOURNAL_DEFAUT}" si absente. ` +
-      `A VALIDER : tout le bloc A doit-il partir en "carryforward" (a-nouveaux), ou seulement les ` +
-      `reports d'ouverture, le mouvement de l'exercice allant en general/bank/purchase ?`,
-  ];
+  const aValider: string[] = [];
+  // Question du journal TRANCHEE (Sekou 2026-08-18) : les mouvements gardent leur nature,
+  // derivee de la contrepartie ; repli carryforward quand elle ne tranche pas - jamais
+  // silencieux, le compte des replis est ci-dessous.
+  if (replisJournal > 0) {
+    aValider.push(
+      `${replisJournal} ligne(s) sans journal derivable (contrepartie absente ou ambigue) -> ` +
+        `repli sur le journal du plan. ` +
+        `Journaux emis : ${journaux.map((j) => `${j} (${parJournal[j]})`).join(", ") || "(aucun)"}.`,
+    );
+  }
   if (sansDk.length > 0) {
     aValider.push(
       `${sansDk.length} compte(s) cible sans cle de repartition (dkID) cote eStale : les ecritures ` +
@@ -418,6 +426,9 @@ export async function importerBlocA(
   }
 
   const notes: string[] = [
+    `Journaux emis (derives de la contrepartie, decision Sekou 2026-08-18) : ${
+      journaux.map((j) => `${j} (${parJournal[j]})`).join(", ") || "(aucune ecriture)"
+    }${replisJournal > 0 ? ` - dont ${replisJournal} repli(s) sur le journal du plan` : ""}.`,
     `Cle de repartition : reprise du dkID PORTE PAR LE COMPTE eStale cible (le code de cle du plan, ` +
       `convention cabinet, n'est pas un ID eStale).`,
   ];

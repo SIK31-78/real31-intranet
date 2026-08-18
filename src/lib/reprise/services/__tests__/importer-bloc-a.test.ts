@@ -391,29 +391,34 @@ describe("importerBlocA - emission", () => {
     expect(ecriture.journal).toHaveLength(2);
   });
 
-  it("le JOURNAL est celui du plan, avec repli documente, et remonte dans aValider", async () => {
+  it("le JOURNAL se DERIVE de la contrepartie (decision Sekou 2026-08-18), repli plan sinon", async () => {
     const ecriture = new DryRunEstaleComptaEcritureProvider();
-    const sansJournal = planType([
-      // Plan persiste sans journal (cible fabriquee a la main) -> repli JOURNAL_DEFAUT.
-      {
-        ...entree("4010.100", "4010001"),
-        cible: { nomenclature: "4010001", cle: "001" } as EntreeMapping["cible"],
-      },
+    const plan = planType([
+      entree("4010.100", "4010001"),
       entree("4501.900", "4500003"),
       entree("5120.000", "471999"),
     ]);
-    const r = await importerBlocA(jeuType(), sansJournal, "S0TEST", {
-      lecture: lecture(),
-      ecriture,
-    });
+    // Contreparties imprimees : 512 -> bank (reglement), 701 -> fundraising (appel) ;
+    // les lignes SANS contrepartie replient sur le journal du plan (carryforward).
+    const jeu = jeuType();
+    jeu.lignes[0]!.contrepartie = "512"; // 4010.100 debit contre banque -> bank
+    jeu.lignes[2]!.contrepartie = "701"; // 4501.900 contre appel -> fundraising
+    const r = await importerBlocA(jeu, plan, "S0TEST", { lecture: lecture(), ecriture });
 
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.rapport.parJournal).toEqual({ [JOURNAL_DEFAUT]: 2, carryforward: 2 });
-    // La question metier est REMONTEE, pas tranchee en douce.
-    expect(r.rapport.aValider[0]).toMatch(/JOURNAL/);
-    expect(r.rapport.aValider.join(" ")).toMatch(/carryforward/);
-    expect(r.rapport.aValider.join(" ")).toMatch(/sans cle de repartition/i);
+    // 4 lignes bloc A : bank (derive), carryforward (repli), fundraising (derive),
+    // carryforward (5120 sans contrepartie -> repli).
+    expect(r.rapport.parJournal).toEqual({ bank: 1, fundraising: 1, carryforward: 2 });
+    // Les replis sont VISIBLES : compte exact dans aValider + note recapitulative.
+    expect(r.rapport.aValider.join(" ")).toMatch(/2 ligne\(s\) sans journal derivable/);
+    expect(r.rapport.notes.join(" ")).toMatch(/Journaux emis/);
+    // Le dry-run a recu les journaux derives.
+    const journaux = ecriture.journal
+      .filter((j) => j.type === "creerEcriture")
+      .map((j) => (j.type === "creerEcriture" ? j.input.journal : ""));
+    expect(journaux).toContain("bank");
+    expect(journaux).toContain("fundraising");
   });
 
   it("relireBalance compose verifierBalanceCompta", async () => {

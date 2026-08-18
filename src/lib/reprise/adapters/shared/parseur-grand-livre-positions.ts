@@ -300,12 +300,21 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
         montant = credit;
       }
 
+      // CONTREPARTIE (colonne Matera, 2e item de la zone texte apres la date) : un numero
+      // de compte nu ("450001", "512"). Elle DERIVE le journal eStale a l'import (decision
+      // Sekou 2026-08-18 : les mouvements gardent leur nature). "Aucune" = pas de
+      // contrepartie (les reports l'impriment ainsi) ; les formats sans cette colonne
+      // (S0302) n'en capturent simplement pas.
+      const deuxieme = (itemsTexte[1]?.chaine ?? "").trim();
+      const contrepartie = RE_COMPTE.test(deuxieme) ? deuxieme : undefined;
+
       lignes.push({
         date: extraireDate(texte),
         compte: compteCourant,
         libelle: texte,
         sens,
         montant,
+        ...(contrepartie ? { contrepartie } : {}),
       });
     }
   }

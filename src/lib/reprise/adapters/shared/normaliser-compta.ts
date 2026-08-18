@@ -18,6 +18,8 @@ const LigneBrute = z.object({
   sens: z.coerce.string().default(""),
   montant: z.coerce.number().default(0),
   piece: optStr,
+  // Contrepartie imprimee (colonne Matera) : derive le journal eStale a l'import.
+  contrepartie: optStr,
 });
 
 const GrandLivreBrut = z.object({
@@ -97,6 +99,7 @@ export function normaliserGrandLivre(brut: unknown): JeuEcritures {
       montant,
       classe,
       piece: l.piece && l.piece.trim() ? l.piece.trim() : undefined,
+      contrepartie: l.contrepartie && l.contrepartie.trim() ? l.contrepartie.trim() : undefined,
     });
   }
 

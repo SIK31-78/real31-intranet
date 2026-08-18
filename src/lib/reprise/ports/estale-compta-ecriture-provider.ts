@@ -19,16 +19,10 @@
 // n'est pas prouvee (etude de faisabilite) ; il entrera au port quand elle l'aura ete sur
 // copro test, sinon le fallback documente est le module Eclatement de l'UI eStale.
 
-/** Journaux eStale (EntryLedger), en minuscules cote domaine. */
-export type JournalEcriture =
-  | "general"
-  | "carryforward"
-  | "purchase"
-  | "bank"
-  | "sale"
-  | "fundraising"
-  | "closing"
-  | "distribution";
+// Le type JournalEcriture vit dans le DOMAINE (journal-reprise.ts, avec la regle de
+// derivation) ; le port le re-exporte pour ses signatures - une seule definition.
+import type { JournalEcriture } from "@/lib/reprise/domain/journal-reprise";
+export type { JournalEcriture };
 
 /** Une ecriture granulaire (createEntryExpert). Montant POSITIF, le sens est porte a part. */
 export interface EcritureExpertEstale {

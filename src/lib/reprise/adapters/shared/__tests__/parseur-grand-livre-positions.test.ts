@@ -238,6 +238,8 @@ describe("parserGrandLivrePositions - mise en page Matera", () => {
     const r = parserGrandLivrePositions([pageMatera()]);
     expect(r.lignes).toHaveLength(1);
     expect(r.lignes[0]).toMatchObject({ compte: "105001", sens: "credit", montant: 22.85 });
+    // La CONTREPARTIE imprimee (2e colonne Matera) est capturee : elle derive le journal.
+    expect(r.lignes[0]!.contrepartie).toBe("450001");
     expect(r.intitules?.["105001"]).toBe("Fonds travaux - VENDOME PAULINE");
     // La date en toutes lettres est NORMALISEE en JJ/MM/AAAA.
     expect(r.lignes[0]!.date).toBe("01/01/2026");

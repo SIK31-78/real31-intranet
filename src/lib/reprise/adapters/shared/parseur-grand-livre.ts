@@ -18,6 +18,9 @@ export interface LigneEcritureBrute {
   sens: "debit" | "credit";
   montant: number;
   piece?: string;
+  /** Compte de CONTREPARTIE imprime par le syndic (colonne Matera). Sert a deriver le
+   *  journal eStale de l'ecriture (domain/journal-reprise) ; absent si non imprime. */
+  contrepartie?: string;
 }
 
 /** Sortie du parseur : ecritures brutes + totaux de controle captures + notes agregees. */
