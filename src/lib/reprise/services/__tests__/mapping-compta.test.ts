@@ -9,6 +9,7 @@ import type { SoldeCompte } from "@/lib/reprise/domain/compta";
 import { classeDe } from "@/lib/reprise/domain/compta";
 import type {
   EstaleComptaLectureProvider,
+  OwnerEstale,
   RefAccounting,
 } from "@/lib/reprise/ports/estale-compta-lecture-provider";
 
@@ -31,7 +32,12 @@ function comptesEstale(): SoldeCompte[] {
 }
 
 class MockProvider implements EstaleComptaLectureProvider {
-  constructor(private readonly comptes: SoldeCompte[] = comptesEstale()) {}
+  constructor(
+    private readonly comptes: SoldeCompte[] = comptesEstale(),
+    // [] par defaut : les tests historiques verifient le comportement SANS owners (liaison
+    // auto sans objet -> appariement par nom seul, exactement comme avant le decouplage).
+    private readonly owners: OwnerEstale[] = [],
+  ) {}
   async resoudreAccounting(code: string): Promise<RefAccounting | null> {
     return code.toUpperCase() === "S0TEST" ? { condoID: "c", accountingID: "a" } : null;
   }
@@ -40,6 +46,9 @@ class MockProvider implements EstaleComptaLectureProvider {
   }
   async lireComptes(): Promise<SoldeCompte[]> {
     return this.comptes;
+  }
+  async lireOwners(): Promise<OwnerEstale[]> {
+    return this.owners;
   }
 }
 
@@ -126,6 +135,9 @@ describe("construirePlanMapping - plan complet (mock)", () => {
       async lireBalanceGlobale(): Promise<number> {
         return 0;
       },
+      async lireOwners(): Promise<OwnerEstale[]> {
+        return [];
+      },
     };
     const r = await construirePlanMapping(jeuSynthetique(), "S0TEST", enPanne);
     expect(r.ok).toBe(false);
@@ -154,5 +166,81 @@ describe("preparerRevueMapping - referentiel partis + garde-fou", () => {
     if (!r.ok) return;
     expect(r.plan.avantRepartition?.avantRepartition).toBe(true);
     expect(r.plan.pretAImporter).toBe(false);
+  });
+});
+
+// --- Liaison AUTO contre les owners eStale (reprise compta DECOUPLEE du patrimoine) -----
+// Decision Sekou 2026-08-18 : une copro DEJA creee dans eStale se reprend avec "code copro
+// + PDF" seuls. Les owners viennent d'eStale ; le compte cible se derive de leur REFERENCE
+// ("450" + ref, convention mesuree sur S0303). Noms 100 % synthetiques.
+describe("construirePlanMapping - liaison auto owners eStale", () => {
+  const OWNERS: OwnerEstale[] = [
+    { id: "uuid-1", reference: "0001", nom: "MARTIN PAUL" },
+    { id: "uuid-2", reference: "0002", nom: "NOVAK ELENA" },
+  ];
+
+  it("un owner apparie au 450 source -> mappe DIRECT vers 450+reference, sans decision humaine", async () => {
+    const r = await construirePlanMapping(jeuSynthetique(), "S0TEST", new MockProvider(comptesEstale(), OWNERS));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const e = r.plan.entrees.find((x) => x.compteSource === "4501.100"); // intitule "PAUL MARTIN" (inverse)
+    expect(e?.statut).toBe("mappe");
+    expect(e?.cible?.nomenclature).toBe("4500001"); // derive de la reference 0001, pas d'un appariement de nom cote cible
+    // La synthese de liaison est visible dans le plan, sans aucun nom.
+    expect(r.plan.notes.some((n) => /Liaison auto.*1\/2 owner/i.test(n))).toBe(true);
+  });
+
+  it("un 450 du grand livre sans owner eStale reste NON mappe (circuit 'parti', decision humaine)", async () => {
+    const r = await construirePlanMapping(jeuSynthetique(), "S0TEST", new MockProvider(comptesEstale(), OWNERS));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const e = r.plan.entrees.find((x) => x.compteSource === "4501.200"); // intitule "COPRO ABSENT"
+    expect(e?.statut).toBe("non_mappe");
+    expect(r.plan.pretAImporter).toBe(false);
+  });
+
+  it("owner sans compte 450 derivable de sa reference -> exclu de la liaison, note visible", async () => {
+    // Le plan eStale ne porte PAS 4500099 : l'owner 0099 ne peut pas etre cible.
+    const owners: OwnerEstale[] = [{ id: "uuid-9", reference: "0099", nom: "MARTIN PAUL" }];
+    const r = await construirePlanMapping(jeuSynthetique(), "S0TEST", new MockProvider(comptesEstale(), owners));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.notes.some((n) => /0099.*aucun compte 450/i.test(n))).toBe(true);
+    // Sans cible derivable, PAS de liaison : le compte source repasse par l'appariement de nom.
+    const e = r.plan.entrees.find((x) => x.compteSource === "4501.100");
+    expect(e?.cible?.nomenclature).not.toBe("4500099");
+  });
+
+  it("liaison fournie par l'appelant (flux unifie) -> les owners eStale ne sont PAS lus", async () => {
+    class ProviderSentinelle extends MockProvider {
+      override async lireOwners(): Promise<OwnerEstale[]> {
+        throw new Error("lireOwners ne doit pas etre appele quand la liaison est fournie");
+      }
+    }
+    const r = await construirePlanMapping(
+      jeuSynthetique(),
+      "S0TEST",
+      new ProviderSentinelle(),
+      { "4501.100": "4500002" }, // liaison du flux unifie : elle PRIME
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const e = r.plan.entrees.find((x) => x.compteSource === "4501.100");
+    expect(e?.cible?.nomenclature).toBe("4500002");
+  });
+
+  it("lecture des owners en panne -> degrade en appariement par nom, note VISIBLE, jamais silencieux", async () => {
+    class ProviderOwnersKO extends MockProvider {
+      override async lireOwners(): Promise<OwnerEstale[]> {
+        throw new Error("HTTP 503");
+      }
+    }
+    const r = await construirePlanMapping(jeuSynthetique(), "S0TEST", new ProviderOwnersKO());
+    expect(r.ok).toBe(true); // la panne de la LIAISON ne fait pas tomber le plan
+    if (!r.ok) return;
+    expect(r.plan.notes.some((n) => /Liaison owners eStale indisponible/i.test(n))).toBe(true);
+    // L'appariement par nom continue de fonctionner (MARTIN PAUL matche cote eStale).
+    const e = r.plan.entrees.find((x) => x.compteSource === "4501.100");
+    expect(e?.statut).toBe("mappe");
   });
 });

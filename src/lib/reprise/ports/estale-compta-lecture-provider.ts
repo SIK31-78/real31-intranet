@@ -23,10 +23,30 @@ export interface RefAccounting {
 }
 
 /**
- * Contrat de lecture comptable. Trois operations, toutes en lecture :
+ * Un coproprietaire tel qu'eStale le connait, reduit a ce que la reprise consomme.
+ *
+ * DECOUVERTE (mesure S0303, 2026-08-18) : eStale cree lui-meme les comptes 450 de chaque
+ * owner, SUFFIXES par sa reference (owner 0003 -> compte 4500003). La reference est donc
+ * la cle qui derive le compte CIBLE sans aucun appariement de nom cote eStale - le nom ne
+ * sert plus qu'a identifier quel owner correspond a quel compte 450 du grand livre SOURCE.
+ */
+export interface OwnerEstale {
+  /** ID eStale (stable, PII-free). */
+  id: string;
+  /** Reference eStale (ex. "0003") : suffixe du compte 450 cible. */
+  reference: string;
+  /** Nom complet (fullname). PII : sert a l'appariement, jamais logue ni recopie en note. */
+  nom: string;
+}
+
+/**
+ * Contrat de lecture comptable. Quatre operations, toutes en lecture :
  *   - resoudreAccounting : CODE copro (S0XXX) -> exercice comptable courant ;
  *   - lireBalanceGlobale : la Accounting.balance d'eStale (garde-fou "balance a 0") ;
- *   - lireComptes        : les comptes de l'exercice avec debit/credit/solde.
+ *   - lireComptes        : les comptes de l'exercice avec debit/credit/solde ;
+ *   - lireOwners         : les coproprietaires du condo (id, reference, nom) - fondation
+ *     de la reprise compta DECOUPLEE du patrimoine (l'etat de reference est LU depuis
+ *     eStale, jamais reconstruit depuis une extraction).
  *
  * Toute indisponibilite (eStale non configure, copro introuvable, panne reseau) se traduit
  * soit par null (resoudreAccounting : copro absente), soit par une erreur remontee a
@@ -44,4 +64,7 @@ export interface EstaleComptaLectureProvider {
 
   /** Lit les comptes de l'exercice (AccountingAccount) : nomenclature, libelle, debit, credit, solde. */
   lireComptes(ref: RefAccounting): Promise<SoldeCompte[]>;
+
+  /** Lit les coproprietaires (non archives) du condo. */
+  lireOwners(ref: RefAccounting): Promise<OwnerEstale[]>;
 }

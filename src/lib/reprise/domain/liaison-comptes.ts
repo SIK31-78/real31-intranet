@@ -16,7 +16,7 @@
 // PII : ce module lit des noms (owner + intitule 450) UNIQUEMENT pour le calcul de score ; il ne
 // les recopie JAMAIS dans les warnings/notes (seuls ownerId, numeros de compte et scores y sont).
 
-import type { LiaisonOwnerCompte, Owner, StatutLiaison } from "@/lib/reprise/domain/patrimoine";
+import type { LiaisonOwnerCompte, StatutLiaison } from "@/lib/reprise/domain/patrimoine";
 import {
   classifierCompte,
   normaliserNom,
@@ -25,6 +25,21 @@ import {
   SEUIL_APPARIEMENT_FORT,
   SEUIL_APPARIEMENT_MINI,
 } from "@/lib/reprise/domain/mapping-compta";
+
+/**
+ * Ce que la liaison exige d'un owner : un identifiant stable et un nom. C'est le
+ * SOUS-ENSEMBLE structurel de `patrimoine.Owner` reellement consomme par l'appariement
+ * (via nomOwner) - l'elargir a ce minimum permet de lier aussi des owners LUS depuis
+ * eStale (id + fullname), pas seulement extraits d'une feuille de presence. Un
+ * `patrimoine.Owner` complet reste assignable tel quel : le flux unifie ne change pas.
+ */
+export interface OwnerPourLiaison {
+  /** Identifiant stable (Owner.id d'extraction, ou id eStale). PII-free. */
+  id: string;
+  /** MAJUSCULES ou fullname eStale (PII : sert au score, jamais recopie en note). */
+  nom: string;
+  prenom?: string;
+}
 
 /** Un compte 450 du grand livre avec son intitule (nom du coproprietaire imprime). */
 export interface Compte450 {
@@ -45,7 +60,7 @@ export interface ResultatLiaison {
 }
 
 /** Nom complet d'un owner pour l'appariement (nom + prenom ; casse/accents geres par le score). */
-export function nomOwner(o: Owner): string {
+export function nomOwner(o: OwnerPourLiaison): string {
   return [o.nom, o.prenom].filter((s) => s && s.trim().length > 0).join(" ");
 }
 
@@ -111,7 +126,7 @@ function candidatsDe(nom: string, comptes: Compte450[]): { compteSource: string;
  *   - sinon -> "non_trouve".
  *   - collision : si deux owners "lie" visent le MEME compte, les deux repassent en "ambigu".
  */
-export function lierOwnersComptes(owners: Owner[], comptes450: Compte450[]): ResultatLiaison {
+export function lierOwnersComptes(owners: OwnerPourLiaison[], comptes450: Compte450[]): ResultatLiaison {
   const homonymes = comptesHomonymes(comptes450);
   const warnings: string[] = [];
 

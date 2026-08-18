@@ -17,6 +17,7 @@ import { estaleGql, estaleConfigure } from "@/lib/adapters/estale/client";
 import { classeDe, type SoldeCompte } from "@/lib/reprise/domain/compta";
 import type {
   EstaleComptaLectureProvider,
+  OwnerEstale,
   RefAccounting,
 } from "@/lib/reprise/ports/estale-compta-lecture-provider";
 
@@ -108,6 +109,23 @@ const Q_COMPTES = `query($c: ID!, $a: ID!) {
   }
 }`;
 
+// Owners du condo : la REFERENCE est la cle qui derive le compte 450 cible (mesure S0303 :
+// eStale cree 4500001..450000A, suffixe = reference). fullname sert a l'appariement avec
+// les intitules 450 du grand livre SOURCE ; il n'est jamais logue.
+const Q_OWNERS = `query($c: ID!) {
+  condo(id: $c) {
+    owners(archived: false) {
+      id
+      reference
+      fullname
+    }
+  }
+}`;
+
+type OwnersData = {
+  condo: { owners: { id: string; reference: string; fullname: string }[] } | null;
+};
+
 type ExerciceData = { condo: { accountingV2: { exercice: { id: string } | null } } | null };
 type BalanceData = { condo: { accounting: { balance: number } | null } | null };
 type ComptesData = {
@@ -167,6 +185,16 @@ export class ReelEstaleComptaLectureProvider implements EstaleComptaLectureProvi
       debit: arrondi(a.debit),
       credit: arrondi(a.credit),
       solde: arrondi(a.debit - a.credit),
+    }));
+  }
+
+  async lireOwners(ref: RefAccounting): Promise<OwnerEstale[]> {
+    this.assertConfigure();
+    const data = await estaleGql<OwnersData>(Q_OWNERS, { c: ref.condoID });
+    return (data.condo?.owners ?? []).map((o) => ({
+      id: o.id,
+      reference: o.reference,
+      nom: o.fullname,
     }));
   }
 }

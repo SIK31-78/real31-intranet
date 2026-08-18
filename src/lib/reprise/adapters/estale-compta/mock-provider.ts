@@ -15,6 +15,7 @@
 import { classeDe, type SoldeCompte } from "@/lib/reprise/domain/compta";
 import type {
   EstaleComptaLectureProvider,
+  OwnerEstale,
   RefAccounting,
 } from "@/lib/reprise/ports/estale-compta-lecture-provider";
 
@@ -58,5 +59,12 @@ export class MockEstaleComptaLectureProvider implements EstaleComptaLectureProvi
 
   async lireComptes(): Promise<SoldeCompte[]> {
     return comptesMock();
+  }
+
+  async lireOwners(): Promise<OwnerEstale[]> {
+    // Aligne sur les comptes du mock : DUPONT ref "0001" -> compte 4500001 (meme convention
+    // de suffixe que le reel, mesuree sur S0303). Permet de tester la liaison auto de bout
+    // en bout sans eStale.
+    return [{ id: "owner-mock-1", reference: "0001", nom: "DUPONT" }];
   }
 }
