@@ -12,7 +12,7 @@
 // Total debit  = 3000 (450) + 8000 (512) + 4000 (606)           = 15000
 // Total credit = 5000 (401) + 10000 (701)                       = 15000  -> equilibre.
 
-import { classeDe, type SoldeCompte } from "@/lib/reprise/domain/compta";
+import { classeDe, type EtatExercice, type SoldeCompte } from "@/lib/reprise/domain/compta";
 import type {
   EstaleComptaLectureProvider,
   OwnerEstale,
@@ -59,6 +59,13 @@ export class MockEstaleComptaLectureProvider implements EstaleComptaLectureProvi
 
   async lireComptes(): Promise<SoldeCompte[]> {
     return comptesMock();
+  }
+
+  async lireExercices(): Promise<EtatExercice[]> {
+    // Un exercice courant ouvert et deverrouille : le cas nominal du mode demonstration.
+    return [
+      { accountingID: "acc-mock", debut: "2026-01-01", fin: "2026-12-31", verrouille: false, clos: false },
+    ];
   }
 
   async lireOwners(): Promise<OwnerEstale[]> {

@@ -177,20 +177,29 @@ function classerMontants(items: ItemTexte[], col: ColonnesMontant): { debit: num
 }
 
 /**
- * Extrait une date de la portion texte d'une ligne (la premiere rencontree), en JJ/MM/AAAA.
- * Deux formes rencontrees en reel : numerique ("24/10/2025", S0302) et en toutes lettres
- * ("01 janvier 2026", Matera S0303). La forme en lettres est NORMALISEE en JJ/MM/AAAA pour
- * que l'aval (normaliseur, import date) n'ait qu'un seul format a connaitre.
+ * Extrait une date de la portion texte d'une ligne, en JJ/MM/AAAA. Deux formes rencontrees
+ * en reel : numerique ("24/10/2025", S0302) et en toutes lettres ("01 janvier 2026", Matera
+ * S0303 - normalisee en JJ/MM/AAAA pour que l'aval n'ait qu'un format a connaitre).
+ *
+ * C'est la POSITION qui departage, jamais le format : la date de l'ecriture ouvre la ligne
+ * (1re colonne), alors qu'un LIBELLE peut contenir une date parasite ("Estimation du
+ * 11/07/24" - mesure sur la ligne Veolia du GL S0303, qui ressortait datee 2024 et faisait
+ * echouer le prerequis d'exercices). Prendre "le numerique d'abord" laissait le libelle
+ * battre la vraie date en toutes lettres.
  */
 function extraireDate(texte: string): string {
-  const m = texte.match(/(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/);
-  if (m) return m[0];
-  const lettres = plier(texte).match(/(\d{1,2})(?:er)?\s+([a-z]+)\s+(\d{4})/);
-  if (lettres) {
-    const mois = MOIS_FR[lettres[2]!];
-    if (mois) return `${lettres[1]!.padStart(2, "0")}/${mois}/${lettres[3]}`;
+  const fold = plier(texte);
+  const num = fold.match(/(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/);
+  const lettres = fold.match(/(\d{1,2})(?:er)?\s+([a-z]+)\s+(\d{4})/);
+  const moisLettres = lettres ? MOIS_FR[lettres[2]!] : undefined;
+
+  const posNum = num?.index ?? Number.POSITIVE_INFINITY;
+  const posLettres = lettres && moisLettres ? lettres.index! : Number.POSITIVE_INFINITY;
+
+  if (posLettres < posNum) {
+    return `${lettres![1]!.padStart(2, "0")}/${moisLettres}/${lettres![3]}`;
   }
-  return "";
+  return num ? num[0] : "";
 }
 
 /**

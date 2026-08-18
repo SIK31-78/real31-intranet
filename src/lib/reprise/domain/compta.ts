@@ -112,3 +112,74 @@ export function construireBalance(comptes: SoldeCompte[]): BalanceReprise {
     ecart,
   };
 }
+
+// --- Exercices comptables eStale : etat et prerequis d'import ---------------------
+//
+// SONDE SE999 (2026-08-18) : une ecriture datee HORS de tout exercice existant est REFUSEE
+// par eStale, AUCUNE mutation ne cree un exercice (updateAccounting n'offre que
+// lock/unlock/close/unclose), et un exercice VERROUILLE (lockedAt) refuse tout avec la meme
+// erreur opaque "Oupss" qu'un autre probleme. Consequence : la regle "toutes les ecritures
+// N-1" est un PREREQUIS DE CREATION de la copro (poser le debut de compta au debut de
+// l'historique a reprendre), et l'import doit VERIFIER l'etat des exercices AVANT d'ecrire
+// - jamais decouvrir le refus en plein milieu de 300 mutations.
+
+/** Un exercice comptable eStale, reduit a ce que la reprise controle. */
+export interface EtatExercice {
+  /** ID de l'Accounting eStale. */
+  accountingID: string;
+  /** Bornes ISO "AAAA-MM-JJ" (Daterange eStale). */
+  debut: string;
+  fin: string;
+  /** lockedAt non nul : TOUTE ecriture est refusee tant qu'il n'est pas deverrouille. */
+  verrouille: boolean;
+  /** closedAt non nul : exercice clos. */
+  clos: boolean;
+}
+
+export interface VerdictExercices {
+  /** true : chaque date a un exercice existant, ni verrouille ni clos. */
+  ok: boolean;
+  /** Motifs bloquants, PII-free (dates et bornes d'exercices seulement). */
+  motifs: string[];
+}
+
+/**
+ * Verifie que CHAQUE date d'ecriture tombe dans un exercice existant, deverrouille et non
+ * clos. Pur : meme entree => meme sortie. Les dates sont ISO (LigneEcriture.date). Les dates
+ * illisibles (vides) sont ignorees ici - le normaliseur les signale deja par ailleurs.
+ */
+export function verifierExercicesPourDates(
+  exercices: EtatExercice[],
+  datesISO: readonly string[],
+): VerdictExercices {
+  const motifs: string[] = [];
+  const bornes = exercices.map((e) => `[${e.debut} ; ${e.fin}]`).join(", ") || "(aucun exercice)";
+
+  const horsExercice = new Set<string>();
+  const exercicesBloques = new Map<string, EtatExercice>();
+  for (const date of new Set(datesISO)) {
+    if (!date) continue;
+    const couvrant = exercices.find((e) => date >= e.debut && date <= e.fin);
+    if (!couvrant) {
+      horsExercice.add(date);
+    } else if (couvrant.verrouille || couvrant.clos) {
+      exercicesBloques.set(couvrant.accountingID, couvrant);
+    }
+  }
+
+  if (horsExercice.size > 0) {
+    const echantillon = [...horsExercice].sort().slice(0, 5).join(", ");
+    motifs.push(
+      `${horsExercice.size} date(s) d'ecriture hors de tout exercice eStale existant (ex. ${echantillon} ; exercices : ${bornes}). ` +
+        `Aucune mutation ne cree un exercice : le debut de compta de la copro doit couvrir l'historique a reprendre (prerequis de creation).`,
+    );
+  }
+  for (const e of exercicesBloques.values()) {
+    motifs.push(
+      `L'exercice [${e.debut} ; ${e.fin}] est ${e.clos ? "CLOS" : "VERROUILLE (lockedAt)"} : toute ecriture serait refusee. ` +
+        `${e.clos ? "Le rouvrir (unclose)" : "Le deverrouiller (unlock)"} avant l'import.`,
+    );
+  }
+
+  return { ok: motifs.length === 0, motifs };
+}

@@ -38,6 +38,7 @@ describe("smoke S0303 - reprise compta decouplee (reel, lecture seule)", () => {
         "@/lib/reprise/adapters/estale-compta/reel-provider"
       );
       const { construirePlanMapping } = await import("../mapping-compta");
+      const { verifierPrerequisImport } = await import("../prerequis-import");
 
       const doc = { nom: "grand-livre-2026.pdf", contenu: new Uint8Array(readFileSync(GL_2026)) };
       const sortie: string[] = [];
@@ -85,6 +86,16 @@ describe("smoke S0303 - reprise compta decouplee (reel, lecture seule)", () => {
         log(`notes (${r.plan.notes.length}) :`);
         for (const n of r.plan.notes) log(`  - ${n}`);
       }
+      log("");
+      log("=== prerequis d'import (exercices eStale : couverture + verrou) ===");
+      const pre = await verifierPrerequisImport(jeu, "S0303", new ReelEstaleComptaLectureProvider());
+      if (!pre.ok) {
+        log(`KO : ${pre.message}`);
+      } else {
+        log(`verdict.ok = ${pre.verdict.ok}`);
+        for (const m of pre.verdict.motifs) log(`  motif : ${m}`);
+      }
+
       writeFileSync(SORTIE, sortie.join("\n"), "utf8");
     },
     600_000,

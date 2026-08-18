@@ -12,7 +12,7 @@
 // exercice : d'ou le handle RefAccounting { condoID, accountingID } transporte de bout en
 // bout (au lieu du seul accountingID).
 
-import type { SoldeCompte } from "@/lib/reprise/domain/compta";
+import type { EtatExercice, SoldeCompte } from "@/lib/reprise/domain/compta";
 
 /** Handle d'un exercice comptable eStale : le couple (condo, accounting) requis pour lire. */
 export interface RefAccounting {
@@ -67,4 +67,11 @@ export interface EstaleComptaLectureProvider {
 
   /** Lit les coproprietaires (non archives) du condo. */
   lireOwners(ref: RefAccounting): Promise<OwnerEstale[]>;
+
+  /**
+   * Lit TOUS les exercices du condo (bornes + verrou + cloture). Par condoID et non par
+   * RefAccounting : le prerequis d'import se verifie sur l'ENSEMBLE des exercices (une
+   * ecriture N-1 vise un exercice anterieur au courant), avant meme de choisir lequel.
+   */
+  lireExercices(condoID: string): Promise<EtatExercice[]>;
 }

@@ -14,7 +14,7 @@
 //         l'accounting lu (on passe l'accountingID en variable) ; solde recalcule = debit-credit.
 
 import { estaleGql, estaleConfigure } from "@/lib/adapters/estale/client";
-import { classeDe, type SoldeCompte } from "@/lib/reprise/domain/compta";
+import { classeDe, type EtatExercice, type SoldeCompte } from "@/lib/reprise/domain/compta";
 import type {
   EstaleComptaLectureProvider,
   OwnerEstale,
@@ -122,6 +122,24 @@ const Q_OWNERS = `query($c: ID!) {
   }
 }`;
 
+// Exercices du condo : bornes (period = Daterange [debut, fin]), verrou, cloture. C'est la
+// lecture du PREREQUIS d'import (sonde SE999 : hors exercice = refus, verrouille = refus).
+const Q_EXERCICES = `query($c: ID!) {
+  condo(id: $c) {
+    accountingV2 {
+      exercices { id period lockedAt closedAt }
+    }
+  }
+}`;
+
+type ExercicesData = {
+  condo: {
+    accountingV2: {
+      exercices: { id: string; period: [string, string]; lockedAt: string | null; closedAt: string | null }[];
+    };
+  } | null;
+};
+
 type OwnersData = {
   condo: { owners: { id: string; reference: string; fullname: string }[] } | null;
 };
@@ -185,6 +203,18 @@ export class ReelEstaleComptaLectureProvider implements EstaleComptaLectureProvi
       debit: arrondi(a.debit),
       credit: arrondi(a.credit),
       solde: arrondi(a.debit - a.credit),
+    }));
+  }
+
+  async lireExercices(condoID: string): Promise<EtatExercice[]> {
+    this.assertConfigure();
+    const data = await estaleGql<ExercicesData>(Q_EXERCICES, { c: condoID });
+    return (data.condo?.accountingV2.exercices ?? []).map((e) => ({
+      accountingID: e.id,
+      debut: e.period[0],
+      fin: e.period[1],
+      verrouille: e.lockedAt != null,
+      clos: e.closedAt != null,
     }));
   }
 

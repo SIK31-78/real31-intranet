@@ -258,6 +258,23 @@ describe("parserGrandLivrePositions - mise en page Matera", () => {
     expect(verdict.enEcart).toHaveLength(0);
   });
 
+  it("une date PARASITE dans le libelle ne bat pas la date en toutes lettres qui ouvre la ligne", () => {
+    const p = page([
+      ...double(30, 560, 180, "401011 - Fournisseur d'eau"),
+      ...enteteMatera(540),
+      // Cas reel (Veolia) : le libelle porte "Estimation du 11/07/24" -> la ligne ressortait
+      // datee 2024 et faisait echouer le prerequis d'exercices.
+      t(33, 520, 48, "26 février 2026"),
+      t(111, 520, 24, "512"),
+      t(174, 520, 200, "Règlement - Estimation du 11/07/24 - 200M3"),
+      t(664, 520, 24, "642,63 €"),
+      t(785, 520, 30, "1 733,45 €"),
+    ]);
+    const r = parserGrandLivrePositions([p]);
+    expect(r.lignes).toHaveLength(1);
+    expect(r.lignes[0]!.date).toBe("26/02/2026");
+  });
+
   it("'Creditor Name' dans un libelle SEPA ne vole pas l'ancre Credit", () => {
     const p = page([
       ...double(30, 560, 180, "512001 - Banque du syndicat"),

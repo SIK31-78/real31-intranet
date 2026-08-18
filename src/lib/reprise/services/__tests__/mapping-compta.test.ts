@@ -50,6 +50,9 @@ class MockProvider implements EstaleComptaLectureProvider {
   async lireOwners(): Promise<OwnerEstale[]> {
     return this.owners;
   }
+  async lireExercices() {
+    return [{ accountingID: "a", debut: "2025-01-01", fin: "2026-12-31", verrouille: false, clos: false }];
+  }
 }
 
 // --- Jeu d'ecritures source synthetique (grand livre N-1 fictif) -------------------
@@ -136,6 +139,9 @@ describe("construirePlanMapping - plan complet (mock)", () => {
         return 0;
       },
       async lireOwners(): Promise<OwnerEstale[]> {
+        return [];
+      },
+      async lireExercices() {
         return [];
       },
     };

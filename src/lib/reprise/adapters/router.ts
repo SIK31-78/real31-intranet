@@ -28,6 +28,9 @@ import { MappingDecisionRepositoryMemoire } from "@/lib/reprise/adapters/memoire
 import { MappingDecisionRepositorySupabase } from "@/lib/reprise/adapters/supabase/mapping-decision-repository-supabase";
 import type { EstaleEcritureProvider } from "@/lib/reprise/ports/estale-ecriture-provider";
 import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
+import type { EstaleComptaEcritureProvider } from "@/lib/reprise/ports/estale-compta-ecriture-provider";
+import { DryRunEstaleComptaEcritureProvider } from "@/lib/reprise/adapters/estale-compta/dry-run-ecriture-provider";
+import { ReelEstaleComptaEcritureProvider } from "@/lib/reprise/adapters/estale-compta/reel-ecriture-provider";
 import { ReelEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/reel-provider";
 import type { EstaleComptaLectureProvider } from "@/lib/reprise/ports/estale-compta-lecture-provider";
 import { ReelEstaleComptaLectureProvider } from "@/lib/reprise/adapters/estale-compta/reel-provider";
@@ -156,6 +159,20 @@ export function ecritureEstaleReelle(): boolean {
 export function getEstaleEcritureProvider(): EstaleEcritureProvider {
   if (ecritureEstaleReelle()) return new ReelEstaleEcritureProvider();
   return new DryRunEstaleEcritureProvider();
+}
+
+/**
+ * Provider d'ECRITURE COMPTABLE eStale (reprise, increment 3). MEME gate que l'ecriture
+ * patrimoine (ecritureEstaleReelle) : dry-run par defaut, reel UNIQUEMENT si
+ * ESTALE_ECRITURE=reel + identifiants presents. Instance neuve a chaque appel.
+ *
+ * DANGER : l'adapter reel ecrit dans la comptabilite de PRODUCTION. Le prerequis d'etat
+ * (exercices couvrants, ni verrouilles ni clos - lecons de la sonde SE999) se verifie AVANT
+ * via lireExercices + verifierExercicesPourDates ; l'UI exige un GO/STOP humain.
+ */
+export function getEstaleComptaEcritureProvider(): EstaleComptaEcritureProvider {
+  if (ecritureEstaleReelle()) return new ReelEstaleComptaEcritureProvider();
+  return new DryRunEstaleComptaEcritureProvider();
 }
 
 /**

@@ -54,6 +54,9 @@ describe("verifierBalanceCompta - degradation propre", () => {
       async lireOwners() {
         return [];
       },
+      async lireExercices() {
+        return [];
+      },
     };
     const r = await verifierBalanceCompta("S0302", providerEnPanne);
     expect(r.ok).toBe(false);
@@ -75,6 +78,9 @@ describe("verifierBalanceCompta - degradation propre", () => {
         return 0; // ...alors qu'eStale annonce 0 (equilibre) -> incoherence
       },
       async lireOwners() {
+        return [];
+      },
+      async lireExercices() {
         return [];
       },
     };
