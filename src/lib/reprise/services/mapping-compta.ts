@@ -82,9 +82,12 @@ export function liaisonDepuisOwnersEstale(
   const notes: string[] = [];
   const cibleParReference = new Map<string, string>();
   for (const o of owners) {
+    // Nomenclature BRUTE, pas racineCompte : les references eStale peuvent etre
+    // alphanumeriques ("000A" -> compte "450000A") et racineCompte mange les lettres
+    // (bug constate sur S0303 : l'owner 000A ressortait "sans compte 450").
     const cible = comptes.find((c) => {
-      const r = racineCompte(c.nomenclature);
-      return r.startsWith("450") && r.slice(3) === o.reference;
+      const n = c.nomenclature.trim();
+      return n.startsWith("450") && n.slice(3) === o.reference;
     });
     if (cible) cibleParReference.set(o.reference, cible.nomenclature);
     else
@@ -161,6 +164,20 @@ async function resoudrePlanCommun(
   | { ok: true; plan: PlanMapping; ref: RefAccounting; comptes: SoldeCompte[] }
   | { ok: false; message: string }
 > {
+  // Un jeu VIDE ne doit jamais produire un plan "pret a importer" : zero compte source =
+  // zero erreur = pretAImporter true, c'est-a-dire un SUCCES MENSONGER sur un grand livre
+  // que l'extraction n'a pas su lire (constate sur S0303 : 339 lignes parsees, 0 en-tete de
+  // compte reconnu -> jeu vide -> plan "pret"). On refuse tout net, avec le pointeur vers
+  // les notes d'extraction qui portent le diagnostic (format, pages, lignes ecartees).
+  if (jeu.lignes.length === 0) {
+    return {
+      ok: false,
+      message:
+        "Aucune ecriture dans le jeu extrait : le grand livre n'a pas ete lu " +
+        "(format non reconnu ou document vide). Consulter les notes d'extraction avant d'aller plus loin.",
+    };
+  }
+
   const ref = await provider.resoudreAccounting(coproCode);
   if (!ref) {
     return {

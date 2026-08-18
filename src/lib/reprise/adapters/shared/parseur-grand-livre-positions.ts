@@ -35,6 +35,30 @@ const MC_TOTAL_COMPTE = ["total compte"];
 const MC_A_NOUVEAU = ["solde anterieur", "a nouveau", "a-nouveau", "report a nouveau"];
 const MC_REPORT = ["total mois", "sous total", "sous-total", "total general", "total classe", "total class"];
 
+/**
+ * En-tete de compte "sur sa propre ligne" : "1031001 - Avances de tresorerie" (format Matera,
+ * mesure sur S0303). Le numero et l'intitule sont dans le MEME item, separes par " - ". L'ancre
+ * ^ empeche une ligne d'ecriture d'y matcher (elle commence par une date ou un code journal).
+ * NB : une tete de SECTION ("103 - Avances") matche aussi -> compte transitoire aussitot
+ * remplace par le vrai compte feuille de la ligne suivante ; sans ecriture entre les deux,
+ * c'est sans effet.
+ */
+const RE_ENTETE_NUMERO_LIBELLE = /^([1-7]\d{2,}(?:\.\d+)?)\s*-\s*(.+)$/;
+
+/**
+ * Total de SECTION ("Total 103 - Avances", "Total 450 - Coproprietaires") : a EXCLURE, et il
+ * CLOT le bloc courant. Sans cette cloture, la ligne "Total" qui suit le recapitulatif de
+ * section serait attribuee au dernier compte feuille et ECRASERAIT son total de controle
+ * (le total de section = la somme de la section, pas celui du compte).
+ */
+const RE_TOTAL_SECTION = /^total\s+[1-7]\d/;
+
+/** Mois francais -> numero (extraction des dates en toutes lettres, ex. "01 janvier 2026"). */
+const MOIS_FR: Record<string, string> = {
+  janvier: "01", fevrier: "02", mars: "03", avril: "04", mai: "05", juin: "06",
+  juillet: "07", aout: "08", septembre: "09", octobre: "10", novembre: "11", decembre: "12",
+};
+
 /** Colonnes de montant detectees sur une page : ancres x des mouvements + zones a exclure. */
 export interface ColonnesMontant {
   /** Centre x de la colonne Debit (mouvement). */
@@ -55,6 +79,19 @@ function plier(texte: string): string {
     .replace(/[̀-ͯ]/g, "");
 }
 
+/**
+ * Tokens plies d'un texte (mots alphanumeriques). Le matching des EN-TETES de colonnes se
+ * fait sur des TOKENS EXACTS, jamais par sous-chaine : les libelles de virement SEPA
+ * impriment "Creditor Name" et `includes("credit")` faisait voler l'ancre Credit par un
+ * libelle de la fenetre (mesure page 14 du GL Matera S0303 : creditX detecte a x=329, en
+ * pleine colonne Libelle -> tous les credits reels ecartes comme "solde").
+ */
+function tokensFold(texte: string): string[] {
+  return plier(texte)
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 0);
+}
+
 function contient(texteFold: string, motsCles: string[]): boolean {
   return motsCles.some((m) => texteFold.includes(m));
 }
@@ -70,8 +107,10 @@ export function detecterColonnes(page: PageTexte): ColonnesMontant | null {
   const lignes = page.lignes;
   let idxEntete = -1;
   for (let i = 0; i < lignes.length; i++) {
-    const t = plier(lignes[i]!.items.map((it) => it.chaine).join(" "));
-    if (t.includes("debit") && t.includes("credit")) {
+    // Tokens EXACTS : une ligne d'ecriture contenant "Creditor Name" (mention SEPA) ne doit
+    // pas etre prise pour la ligne d'en-tete.
+    const tokens = new Set(tokensFold(lignes[i]!.items.map((it) => it.chaine).join(" ")));
+    if (tokens.has("debit") && tokens.has("credit")) {
       idxEntete = i;
       break;
     }
@@ -87,15 +126,15 @@ export function detecterColonnes(page: PageTexte): ColonnesMontant | null {
   let creditX: number | null = null;
   const exclusionsX: number[] = [];
   for (const it of fenetre) {
-    const mot = plier(it.chaine.trim());
+    const tokens = new Set(tokensFold(it.chaine));
     const centre = it.x + it.largeur / 2;
-    // On teste les EXCLUSIONS d'abord : "debiteur" contient "debit", "crediteur" contient
-    // "credit" -> sinon un en-tete de solde volerait la colonne de mouvement.
-    if (mot.includes("debiteur") || mot.includes("crediteur") || mot.includes("solde") || mot.includes("cumul") || mot.includes("progressif")) {
+    // On teste les EXCLUSIONS d'abord ("Solde debiteur" porte le token "debiteur") ; tokens
+    // exacts partout, sinon "Creditor" (libelles SEPA) ou "debite" voleraient une ancre.
+    if (tokens.has("debiteur") || tokens.has("crediteur") || tokens.has("solde") || tokens.has("cumul") || tokens.has("progressif")) {
       exclusionsX.push(centre);
-    } else if (mot.includes("debit")) {
+    } else if (tokens.has("debit")) {
       debitX = centre;
-    } else if (mot.includes("credit")) {
+    } else if (tokens.has("credit")) {
       creditX = centre;
     }
   }
@@ -137,10 +176,39 @@ function classerMontants(items: ItemTexte[], col: ColonnesMontant): { debit: num
   return { debit, credit };
 }
 
-/** Extrait une date JJ/MM/AAAA de la portion texte d'une ligne (la premiere rencontree). */
+/**
+ * Extrait une date de la portion texte d'une ligne (la premiere rencontree), en JJ/MM/AAAA.
+ * Deux formes rencontrees en reel : numerique ("24/10/2025", S0302) et en toutes lettres
+ * ("01 janvier 2026", Matera S0303). La forme en lettres est NORMALISEE en JJ/MM/AAAA pour
+ * que l'aval (normaliseur, import date) n'ait qu'un seul format a connaitre.
+ */
 function extraireDate(texte: string): string {
   const m = texte.match(/(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/);
-  return m ? m[0] : "";
+  if (m) return m[0];
+  const lettres = plier(texte).match(/(\d{1,2})(?:er)?\s+([a-z]+)\s+(\d{4})/);
+  if (lettres) {
+    const mois = MOIS_FR[lettres[2]!];
+    if (mois) return `${lettres[1]!.padStart(2, "0")}/${mois}/${lettres[3]}`;
+  }
+  return "";
+}
+
+/**
+ * Retire les items DESSINES DEUX FOIS (faux gras : la meme chaine tracee deux fois au meme
+ * endroit - mesure sur les titres Matera, "1031001 - Avances..." present en double). Sans ce
+ * dedoublonnage, l'intitule capture serait duplique et un MONTANT double serait ADDITIONNE
+ * par classerMontants. On n'ecarte que le double STRICT (meme chaine, quasi meme x) : deux
+ * montants egaux dans deux colonnes distinctes ont des x eloignes et sont conserves.
+ */
+function dedoublonnerItems(items: ItemTexte[]): { items: ItemTexte[]; retires: number } {
+  const gardes: ItemTexte[] = [];
+  let retires = 0;
+  for (const it of items) {
+    const double = gardes.some((g) => g.chaine === it.chaine && Math.abs(g.x - it.x) < 1);
+    if (double) retires++;
+    else gardes.push(it);
+  }
+  return { items: gardes, retires };
 }
 
 /**
@@ -165,6 +233,7 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
   let nbReportsExclus = 0;
   let nbAmbigus = 0;
   let nbPagesSansColonnes = 0;
+  let nbDoublesRetires = 0;
 
   for (const page of pages) {
     const detecte = detecterColonnes(page);
@@ -177,7 +246,13 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
     if (detecte) colPrec = detecte;
 
     for (const ligne of page.lignes) {
-      const itemsTexte = ligne.items.filter((it) => it.x + it.largeur / 2 < col.montantMinX);
+      // Faux gras (meme chaine dessinee deux fois au meme endroit) : dedoublonne AVANT tout,
+      // sinon intitules dupliques et montants ADDITIONNES en double.
+      const dedouble = dedoublonnerItems(ligne.items);
+      nbDoublesRetires += dedouble.retires;
+      const itemsLigne = dedouble.items;
+
+      const itemsTexte = itemsLigne.filter((it) => it.x + it.largeur / 2 < col.montantMinX);
       const texte = itemsTexte.map((it) => it.chaine).join(" ").replace(/\s+/g, " ").trim();
       const texteFold = plier(texte);
       const premierToken = (itemsTexte[0]?.chaine ?? "").trim();
@@ -201,12 +276,36 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
         continue;
       }
 
-      const { debit, credit } = classerMontants(ligne.items, col);
+      // En-tete de compte "numero - libelle" dans un SEUL item (format Matera). Meme semantique
+      // que ci-dessus, autre mise en page. Une tete de section ("103 - Avances") matche aussi :
+      // compte transitoire sans effet (aucune ecriture avant le compte feuille qui suit).
+      const enTeteLibelle = texte.match(RE_ENTETE_NUMERO_LIBELLE);
+      if (enTeteLibelle) {
+        compteCourant = enTeteLibelle[1]!;
+        nbEntetes++;
+        const intitule = enTeteLibelle[2]!.replace(/\s+/g, " ").trim();
+        if (intitule && !intitulesParCompte.has(compteCourant)) {
+          intitulesParCompte.set(compteCourant, intitule);
+        }
+        continue;
+      }
+
+      const { debit, credit } = classerMontants(itemsLigne, col);
       const dNZ = debit >= EPS;
       const cNZ = credit >= EPS;
 
+      // Total de SECTION ("Total 103 - Avances") : exclu, et il CLOT le bloc courant - la ligne
+      // "Total" du recapitulatif de section ne doit pas ecraser le total du dernier compte.
+      if (RE_TOTAL_SECTION.test(texteFold)) {
+        nbReportsExclus++;
+        compteCourant = "";
+        continue;
+      }
+
       // Ligne de TOTAL d'un compte : exclue des ecritures, mais ses totaux imprimes sont captures.
-      if (contient(texteFold, MC_TOTAL_COMPTE)) {
+      // Deux formes reelles : "Total compte XXX" (S0302) et "Total" seul en fin de bloc (Matera).
+      const totalSeul = texteFold === "total";
+      if (contient(texteFold, MC_TOTAL_COMPTE) || totalSeul) {
         if (compteCourant) {
           const prec = controlesParCompte.get(compteCourant) ?? { compte: compteCourant };
           prec.totalDebit = debit;
@@ -214,6 +313,9 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
           controlesParCompte.set(compteCourant, prec);
           nbTotaux++;
         }
+        // "Total" seul TERMINE le bloc (mise en page Matera) : ce qui suit (recap de section)
+        // n'appartient plus a ce compte.
+        if (totalSeul) compteCourant = "";
         continue;
       }
 
@@ -273,6 +375,7 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
   if (nbTotaux) notes.push(`Parseur positions : ${nbTotaux} total(aux) de compte capture(s) pour controle.`);
   if (nbAmbigus) notes.push(`Parseur positions : ${nbAmbigus} ligne(s) debit ET credit (net retenu).`);
   if (nbPagesSansColonnes) notes.push(`Parseur positions : ${nbPagesSansColonnes} page(s) sans en-tete Debit/Credit exploitable.`);
+  if (nbDoublesRetires) notes.push(`Parseur positions : ${nbDoublesRetires} item(s) dessine(s) en double retire(s) (faux gras).`);
 
   return {
     lignes,

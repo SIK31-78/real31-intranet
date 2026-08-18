@@ -177,3 +177,109 @@ describe("parserGrandLivrePositions - nombres francais et colonnes larges", () =
     expect(res.lignes[0]!.compte).toBe("5120.000000000");
   });
 });
+
+// --- Mise en page MATERA (mesuree sur le GL 2026 de S0303, donnees 100 % synthetiques) -----
+// Specificites reelles reproduites ici : titres dessines DEUX FOIS (faux gras), en-tete de
+// compte "NNN - Libelle" dans un seul item, dates en toutes lettres, ligne "Total" seule en
+// fin de bloc, recapitulatif de section ("Total 103 - ..."), et libelles de virement SEPA
+// contenant "Creditor Name" (le voleur d'ancre Credit).
+describe("parserGrandLivrePositions - mise en page Matera", () => {
+  // Colonnes Matera : Debit ~614, Credit ~674, Solde debiteur ~723, Solde crediteur ~784.
+  function enteteMatera(y: number): ItemTexte[] {
+    return [
+      t(32, y, 16, "Date"),
+      t(110, y, 43, "Contrepartie"),
+      t(173, y, 23, "Libellé"),
+      t(605, y, 18, "Débit"),
+      t(664, y, 21, "Crédit"),
+      t(698, y, 50, "Solde débiteur"),
+      t(758, y, 52, "Solde créditeur"),
+    ];
+  }
+  /** Item dessine deux fois au meme endroit (faux gras des titres Matera). */
+  function double(x: number, y: number, largeur: number, chaine: string): ItemTexte[] {
+    return [t(x, y, largeur, chaine), t(x, y, largeur, chaine)];
+  }
+
+  function pageMatera(): PageTexte {
+    return page([
+      // Tete de section (doublee) puis tete de compte (doublee) : "numero - libelle" en UN item.
+      ...double(30, 560, 120, "105 - Fonds de travaux"),
+      ...double(30, 540, 200, "105001 - Fonds travaux - VENDOME PAULINE"),
+      ...enteteMatera(520),
+      // Ecriture en toutes lettres, credit (appel de fonds) + solde crediteur (exclu).
+      t(33, 500, 49, "01 janvier 2026"),
+      t(111, 500, 24, "450001"),
+      t(174, 500, 90, "Appel de fonds pour Fonds travaux"),
+      t(660, 500, 24, "22,85 €"),
+      t(785, 500, 24, "22,85 €"),
+      // A-nouveau : report capture, pas une ecriture.
+      t(33, 480, 49, "01 janvier 2026"),
+      t(111, 480, 24, "Aucune"),
+      t(174, 480, 85, "Report à nouveau fin 2025"),
+      t(660, 480, 24, "114,45 €"),
+      t(785, 480, 26, "137,30 €"),
+      // Ligne "Total" seule : total du compte capture, bloc CLOS.
+      t(33, 460, 20, "Total"),
+      t(600, 460, 24, "0,00 €"),
+      t(660, 460, 26, "137,30 €"),
+      t(785, 460, 26, "137,30 €"),
+      // Recapitulatif de section : en-tete de colonnes repete + "Total 105 - ..." + Total.
+      ...double(30, 440, 130, "Total 105 - Fonds de travaux"),
+      ...enteteMatera(420),
+      t(33, 400, 20, "Total"),
+      t(600, 400, 24, "0,00 €"),
+      t(660, 400, 26, "137,30 €"),
+      t(785, 400, 26, "137,30 €"),
+    ]);
+  }
+
+  it("lit l'en-tete 'numero - libelle', dedoublonne le faux gras et capture l'intitule", () => {
+    const r = parserGrandLivrePositions([pageMatera()]);
+    expect(r.lignes).toHaveLength(1);
+    expect(r.lignes[0]).toMatchObject({ compte: "105001", sens: "credit", montant: 22.85 });
+    expect(r.intitules?.["105001"]).toBe("Fonds travaux - VENDOME PAULINE");
+    // La date en toutes lettres est NORMALISEE en JJ/MM/AAAA.
+    expect(r.lignes[0]!.date).toBe("01/01/2026");
+  });
+
+  it("capture report et total du bloc, et le recap de section n'ECRASE pas le total du compte", () => {
+    const r = parserGrandLivrePositions([pageMatera()]);
+    const ctrl = r.controles?.find((c) => c.compte === "105001");
+    expect(ctrl).toMatchObject({ reportCredit: 114.45, totalCredit: 137.3 });
+    // Le "Total" du recapitulatif de section (apres "Total 105 - ...") ne cree AUCUN controle
+    // fantome : le bloc a ete clos par le "Total" seul puis par le total de section.
+    expect(r.controles?.filter((c) => c.compte === "105001")).toHaveLength(1);
+    expect(r.controles?.some((c) => c.compte === "105")).toBe(false);
+    // Reconciliation exacte : report + ecritures == total imprime (via le normaliseur,
+    // comme dans le pipeline reel).
+    const jeu = normaliserGrandLivre({ lignes: r.lignes, notes: [] });
+    const verdict = verifierTotauxParCompte(jeu.lignes, r.controles ?? []);
+    expect(verdict.enEcart).toHaveLength(0);
+  });
+
+  it("'Creditor Name' dans un libelle SEPA ne vole pas l'ancre Credit", () => {
+    const p = page([
+      ...double(30, 560, 180, "512001 - Banque du syndicat"),
+      ...enteteMatera(540),
+      // Ligne 1 : virement entrant, libelle SEPA avec "Creditor Name" DANS la fenetre de
+      // detection (les 2 lignes sous l'en-tete) - le piege reel de la page 14.
+      t(33, 520, 49, "09 février 2026"),
+      t(111, 520, 24, "450003"),
+      t(174, 520, 310, "Virement - CLIENT TEST - Creditor Name SEPA : COPRO TEST"),
+      t(593, 520, 28, "404,92 €"),
+      t(712, 520, 34, "1 972,99 €"),
+      // Ligne 2 : reglement sortant -> CREDIT (c'est lui qui etait perdu).
+      t(33, 500, 49, "16 février 2026"),
+      t(111, 500, 24, "401009"),
+      t(174, 500, 100, "Règlement - EDF - EDF -"),
+      t(664, 500, 22, "200,16 €"),
+      t(712, 500, 34, "1 772,83 €"),
+    ]);
+    const r = parserGrandLivrePositions([p]);
+    expect(r.lignes).toHaveLength(2);
+    expect(r.lignes[0]).toMatchObject({ sens: "debit", montant: 404.92 });
+    // Sans le matching par tokens exacts, cette ligne etait ECARTEE (credit vole a x~330).
+    expect(r.lignes[1]).toMatchObject({ sens: "credit", montant: 200.16 });
+  });
+});
