@@ -225,6 +225,13 @@ const MOTS_IGNORES = new Set([
   "gie",
   "sc",
   "scm",
+  // roles imprimes en prefixe d'intitule (Matera : "Coproprietaire - Alexandra X" sur les
+  // 10 comptes 450 de S0303) : presents PARTOUT, ils diluent mecaniquement tous les scores
+  // sans jamais distinguer deux personnes. Meme statut que les civilites.
+  "coproprietaire",
+  "coproprietaires",
+  "et",
+  "ou",
 ]);
 
 /** Minuscule, sans accents, sans ponctuation, espaces normalises. */
@@ -246,11 +253,30 @@ export function tokensNom(nom: string): string[] {
 }
 
 /**
+ * Score d'un SOUS-ENSEMBLE STRICT (>= 2 tokens distinctifs entierement couverts par l'autre
+ * cote). Au-dessus du seuil fort (0.9) mais SOUS l'egalite parfaite (1.0) : quand une egalite
+ * exacte ET un sous-ensemble coexistent, l'egalite garde la tete - et l'ecart (0.05) reste
+ * sous MARGE_AMBIGUITE, donc le cas part en revue humaine plutot qu'en choix silencieux.
+ */
+export const SCORE_SOUS_ENSEMBLE = 0.95;
+
+/**
  * Score d'appariement 0..1, INDEPENDANT DE L'ORDRE (gere l'inversion nom<->prenom via ensembles).
- * score = |tokens communs| / max(|A|,|B|). Egalite d'ensembles -> 1 ; sous-ensemble strict (nom
- * seul contre nom+prenom) -> < 1 (tombe dans la bande WARNING). Un token different (typo) baisse
- * le score : on ne fait AUCUN rapprochement flou (edit-distance) -> direction conservatrice, un
- * doute part en warning/erreur plutot qu'en faux positif.
+ * score = |tokens communs| / max(|A|,|B|).
+ *
+ * SOUS-ENSEMBLE STRICT (decision Sekou 2026-08-18, mesure S0303) : quand TOUS les tokens d'un
+ * cote (>= 2) sont couverts par l'autre, c'est une SIGNATURE FORTE, pas un appariement faible.
+ * Cas reel : le compte source nomme UNE personne ("Alexandra BERTHO"), eStale porte l'entite
+ * complete ("Bertho Taube Arthur & Alexandra") -> {alexandra, bertho} est un sous-ensemble
+ * strict, deux personnes DIFFERENTES ne peuvent pas produire ca (leurs tokens distinctifs
+ * divergeraient). Le traiter ainsi est PLUS sur que d'abaisser le seuil global : un plancher a
+ * 0.75 lierait des paires reellement differentes, un sous-ensemble strict jamais.
+ * GARDE : un seul token commun (nom de famille seul, "MARTIN" ~ "MARTIN PAUL") ne suffit PAS -
+ * deux MARTIN distincts se ressemblent exactement comme ca ; il reste sous le seuil.
+ *
+ * Un token DIFFERENT (typo) baisse le score : on ne fait AUCUN rapprochement flou
+ * (edit-distance) -> direction conservatrice, un doute part en warning/erreur plutot qu'en
+ * faux positif.
  */
 export function scoreAppariement(a: string, b: string): number {
   const ta = new Set(tokensNom(a));
@@ -258,7 +284,9 @@ export function scoreAppariement(a: string, b: string): number {
   if (ta.size === 0 || tb.size === 0) return 0;
   let inter = 0;
   for (const t of ta) if (tb.has(t)) inter++;
-  return inter / Math.max(ta.size, tb.size);
+  const brut = inter / Math.max(ta.size, tb.size);
+  const sousEnsemble = inter >= 2 && (inter === ta.size || inter === tb.size);
+  return sousEnsemble ? Math.max(brut, SCORE_SOUS_ENSEMBLE) : brut;
 }
 
 /** Un compte tiers candidat cote eStale (nomenclature + intitule/nom). */

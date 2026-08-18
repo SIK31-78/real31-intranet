@@ -3,6 +3,9 @@
 // garde-fou bloquant. Tous les noms sont SYNTHETIQUES (inventes) - aucune donnee reelle.
 import { describe, expect, it } from "vitest";
 import {
+  MARGE_AMBIGUITE,
+  SCORE_SOUS_ENSEMBLE,
+  SEUIL_APPARIEMENT_FORT,
   apparierParNom,
   appliquerRaccordement,
   classifierCompte,
@@ -82,6 +85,39 @@ describe("normalisation et scoring de noms", () => {
   it("score partiel pour sous-ensemble (nom seul) et 0 pour tokens differents", () => {
     expect(scoreAppariement("MARTIN", "MARTIN PAUL")).toBeCloseTo(0.5, 5);
     expect(scoreAppariement("MARTIN PAUL", "DURAND SOPHIE")).toBe(0);
+  });
+
+  // Regles Sekou 2026-08-18, calibrees sur les intitules REELS de S0303 (noms synthetiques
+  // ici, motifs identiques) : prefixe de role Matera + entites-couples eStale.
+  describe("prefixe de role et sous-ensemble strict (motifs Matera <-> eStale)", () => {
+    it("'Coproprietaire' est un token NON distinctif, comme les civilites", () => {
+      expect(tokensNom("Copropriétaire - Jean-Michel FABRELLI")).toEqual([
+        "jean", "michel", "fabrelli",
+      ]);
+      // Present sur TOUS les comptes 450 Matera, il diluait tous les scores : 3 tokens
+      // communs sur 4 -> 0.75, sous le seuil fort. Retire -> egalite pleine.
+      expect(scoreAppariement("Copropriétaire - Jean-Michel FABRELLI", "Fabrelli Jean-Michel")).toBe(1);
+    });
+
+    it("sous-ensemble STRICT (>= 2 tokens couverts) = signature forte, pas un appariement faible", () => {
+      // Matera nomme UNE personne du foyer, eStale porte l'entite complete.
+      expect(
+        scoreAppariement("Copropriétaire - Alexandra VERDONI", "Verdoni Tabet Arthur & Alexandra"),
+      ).toBeGreaterThanOrEqual(SEUIL_APPARIEMENT_FORT);
+      // Idem avec l'ordre inverse et un couple a deux noms.
+      expect(
+        scoreAppariement("Copropriétaire - Morel - Sabatier", "Sabatier Morel Paul & Morgane"),
+      ).toBeGreaterThanOrEqual(SEUIL_APPARIEMENT_FORT);
+      // Mais SOUS l'egalite parfaite : quand une egalite exacte coexiste, elle garde la tete,
+      // et l'ecart reste sous la marge d'ambiguite -> revue humaine, jamais un choix silencieux.
+      expect(SCORE_SOUS_ENSEMBLE).toBeLessThan(1);
+      expect(1 - SCORE_SOUS_ENSEMBLE).toBeLessThan(MARGE_AMBIGUITE);
+    });
+
+    it("GARDE : un seul token commun ne fait PAS un sous-ensemble fort (deux MARTIN distincts)", () => {
+      expect(scoreAppariement("MARTIN", "MARTIN PAUL")).toBeLessThan(SEUIL_APPARIEMENT_FORT);
+      expect(scoreAppariement("EDF", "EDF SA")).toBe(1); // "sa" ignore -> egalite, pas sous-ensemble
+    });
   });
 });
 
