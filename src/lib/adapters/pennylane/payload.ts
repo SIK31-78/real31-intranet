@@ -76,7 +76,11 @@ export function construirePayloadFacture(demande: DemandeEmission): PennylaneInv
     // Code entite (SXXX) imprime sur le PDF : sans lui, la copropriete ne sait
     // pas a quel immeuble se rattache la facture. Present dans les 3 flows
     // legacy, omis par erreur au premier portage.
-    pdf_invoice_free_text: demande.codeEntite,
+    // La mention libre s'imprime a sa suite ("S072 - S072DODUPINDDE") : c'est
+    // ce qui permet a la compta de codifier une facture de suivi de sinistre.
+    pdf_invoice_free_text: demande.mentionLibre
+      ? `${demande.codeEntite} - ${demande.mentionLibre}`
+      : demande.codeEntite,
     currency: "EUR",
     language: "fr_FR",
     // label = titre court de la ligne, description = detail dessous. C'est la

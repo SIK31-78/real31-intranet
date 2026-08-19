@@ -146,6 +146,7 @@ export class MockFacturationRepository implements FacturationRepository {
         typePrestation: f.typePrestation,
         libelle: f.libelle,
         dateFacture: f.dateFacture,
+        details: f.details ?? null,
         lignes: f.lignes.map((l) => ({
           description: l.description,
           categorieProduit: l.categorieProduit ?? null,

@@ -237,7 +237,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     const { data, error } = await supabase
       .from("intranet_factures")
       .select(
-        "id, copropriete_id, type_prestation, libelle, date_facture, " +
+        "id, copropriete_id, type_prestation, libelle, date_facture, details, " +
           "intranet_facture_lignes (description, categorie_produit, quantite, prix_unitaire_ht, taux_tva, ordre)",
       )
       .in("id", ids)
@@ -260,6 +260,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       type_prestation: string;
       libelle: string;
       date_facture: string;
+      details: Record<string, unknown> | null;
       intranet_facture_lignes: LigneRow[] | null;
     };
 
@@ -269,6 +270,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       typePrestation: f.type_prestation as FactureAEmettre["typePrestation"],
       libelle: f.libelle,
       dateFacture: f.date_facture,
+      details: f.details,
       lignes: [...(f.intranet_facture_lignes ?? [])]
         .sort((a, b) => a.ordre - b.ordre)
         .map((l) => ({
