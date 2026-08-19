@@ -124,6 +124,10 @@ export interface FactureAEmettre {
   typePrestation: TypePrestation;
   libelle: string;
   dateFacture: string;
+  /** Champs specifiques au type de prestation, tels qu'ils ont ete stockes a la
+   *  creation (cf. NouvelleFacture.details). Necessaires a l'emission : le suivi
+   *  de sinistre y porte la reference que la compta doit retrouver sur le PDF. */
+  details?: Record<string, unknown> | null;
   lignes: Array<{
     description: string;
     categorieProduit: string | null;

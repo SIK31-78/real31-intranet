@@ -67,6 +67,11 @@ describe("construirePayloadFacture", () => {
     expect(construirePayloadFacture(demandeType).pdf_invoice_free_text).toBe("S006");
   });
 
+  it("imprime la mention libre a la suite du code entite (reference du sinistre)", () => {
+    const p = construirePayloadFacture({ ...demandeType, mentionLibre: "S072DODUPINDDE" });
+    expect(p.pdf_invoice_free_text).toBe("S006 - S072DODUPINDDE");
+  });
+
   it("serialise les montants en chaine a 2 decimales", () => {
     const p = construirePayloadFacture({
       ...demandeType,

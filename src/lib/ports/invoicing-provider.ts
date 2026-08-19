@@ -30,6 +30,12 @@ export interface DemandeEmission {
    * se rapporte la facture.
    */
   codeEntite: string;
+  /**
+   * Mention libre imprimee sur le PDF a cote du code entite, quand la
+   * prestation en porte une (aujourd'hui la reference du sinistre saisie par la
+   * compta). Absente = seul le code entite est imprime.
+   */
+  mentionLibre?: string;
   /** Libelle general de la facture. */
   libelle: string;
   /** Objet de la facture (pdf_invoice_subject), ex "Honoraires du trimestre en cours". */

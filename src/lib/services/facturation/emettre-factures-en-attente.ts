@@ -13,7 +13,7 @@
 // (pas de double facturation si le job est relance).
 
 import { getFacturationRepository, getInvoicingProvider } from "@/lib/adapters/router";
-import type { TypePrestation } from "@/lib/ports/facturation-repository";
+import type { FactureAEmettre, TypePrestation } from "@/lib/ports/facturation-repository";
 
 /** Titre court de la ligne sur le PDF. Le legacy le tirait de la liste Produits ;
  *  faute de reprise de cette liste, on le derive du type de prestation. */
@@ -38,6 +38,24 @@ const SUJET_PRESTATION: Record<TypePrestation, string> = {
   etat_date: "Honoraires état daté",
   gestion_courante: "Honoraires du trimestre en cours",
 };
+
+/**
+ * Mention libre a imprimer a cote du code entite sur le PDF.
+ *
+ * Seul le suivi de sinistre en porte une : le comptable tape la reference du
+ * sinistre (ex "S072DODUPINDDE") dans le champ "Libelle du sinistre", et c'est
+ * elle qui lui permet de codifier la facture. Elle etait imprimee par le module
+ * PowerApps ; elle etait bien saisie et stockee depuis le portage, mais plus
+ * transmise a Pennylane (signale par Emmanuel LOPES). Les autres prestations
+ * gardent le code entite seul.
+ */
+function mentionLibre(facture: FactureAEmettre): string | undefined {
+  if (facture.typePrestation !== "suivi_sinistre") return undefined;
+  const reference = facture.details?.["libelleSinistre"];
+  if (typeof reference !== "string") return undefined;
+  const nettoyee = reference.trim();
+  return nettoyee.length > 0 ? nettoyee : undefined;
+}
 
 export interface ResultatEmissionLot {
   emises: number;
@@ -71,10 +89,12 @@ export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatE
       }
 
       const agence = await repo.getAgenceCopro(facture.coproCode);
+      const mention = mentionLibre(facture);
 
       const { factureExterneId } = await provider.creerFactureBrouillon({
         clientRef,
         codeEntite: facture.coproCode,
+        ...(mention ? { mentionLibre: mention } : {}),
         libelle: facture.libelle,
         sujet: SUJET_PRESTATION[facture.typePrestation],
         dateFacture: facture.dateFacture,
