@@ -48,7 +48,8 @@ export function SidebarDrawer({ children }: { children: ReactNode }) {
         className={cn(
           "fixed left-0 top-12 bottom-0 z-40 flex w-[216px] transform transition-transform duration-200 ease-in-out",
           ouvert ? "translate-x-0" : "-translate-x-full",
-          "md:static md:z-auto md:translate-x-0 md:transition-none",
+          // Des md: la largeur est celle de la Sidebar elle-meme (elle varie avec le repli).
+          "md:static md:z-auto md:w-auto md:translate-x-0 md:transition-none",
         )}
       >
         {children}

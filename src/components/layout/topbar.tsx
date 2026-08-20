@@ -1,6 +1,7 @@
 import { CommandPalette } from "@/components/layout/command-palette";
 import { UserMenu } from "@/components/layout/user-menu";
 import { SidebarMenuButton } from "@/components/layout/sidebar-menu-button";
+import { LanceurApps } from "@/components/layout/lanceur-apps";
 
 type TopbarProps = {
   user: { initiales: string; nomComplet: string };
@@ -27,6 +28,8 @@ export function Topbar({ user, breadcrumb, peutImpersonner = false, emailsOuvert
 
       <div className="flex items-center gap-2 shrink-0">
         <CommandPalette emailsOuvert={emailsOuvert} />
+        {/* Lanceur : nos applications + outils tiers, sortis de la sidebar. */}
+        <LanceurApps />
         <UserMenu user={user} peutImpersonner={peutImpersonner} />
       </div>
     </header>

@@ -1,12 +1,17 @@
+"use client";
+
+// Client component depuis le repli (2026-08-20) : la sidebar lit l'etat replie/deplie
+// du contexte. Elle ne recoit que des props serialisables (cf. AppShell).
+
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
-  FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
-  PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
-  FolderOpen,
+  ShieldAlert, Key, PackagePlus, Receipt, ClipboardList, Landmark, Sparkles,
+  MessageSquare, Megaphone, FolderOpen, ChevronsLeft, ChevronsRight,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useNavRepli } from "@/components/layout/nav-repli-context";
 
 export type NavKey =
   | "accueil"
@@ -123,38 +128,30 @@ const GROUPE_ADMIN: { titre: string; items: Item[] } = {
   ],
 };
 
-type LienApp = { label: string; href: string; icon: ComponentType<{ className?: string; strokeWidth?: number }> };
+// Repli : le libelle disparait A PARTIR DE md: seulement. Sous md: la sidebar est un
+// tiroir (SidebarDrawer) ou replier n'a aucun sens - elle y reste toujours depliee.
+const CACHE_SI_REPLI = "md:hidden";
 
-// Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
-const APPS_EXTERNES: LienApp[] = [
-  { label: "Registre des mandats", href: "https://mandats.real31.app/", icon: FileSignature },
-  {
-    label: "Gestion des clés",
-    href: "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/87a42a4c-89cb-4e40-a579-5ce9b51d5a89?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686",
-    icon: Key,
-  },
-];
-
-// Outils externes (tiers) qu'on utilise mais qui ne sont pas a nous.
-const OUTILS_EXTERNES: LienApp[] = [
-  { label: "Estale", href: "https://estale.app/auth/signin", icon: Database },
-  { label: "OneSpan Sign", href: "https://apps.esignlive.eu/login", icon: Signature },
-  { label: "Extranet Crypto", href: "https://real31.crypto-extranet.com/syndic", icon: Globe },
-  { label: "AG Connect", href: "https://ag-connect.fr/fr/participants/sign_in", icon: Vote },
-];
-
-function NavItem({ item, active }: { item: Item; active: boolean }) {
+function NavItem({ item, active, repli }: { item: Item; active: boolean; repli: boolean }) {
   const Icon = item.icon;
 
   if (item.aVenir) {
     return (
       <div
-        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-ink-4 cursor-not-allowed select-none"
-        title="Bientôt disponible"
+        className={cn(
+          "flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-ink-4 cursor-not-allowed select-none",
+          repli && "md:justify-center md:px-0",
+        )}
+        title={repli ? `${item.label} - bientôt disponible` : "Bientôt disponible"}
       >
         <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-4" />
-        <span className="truncate">{item.label}</span>
-        <span className="ml-auto text-[9.5px] font-medium uppercase tracking-wide text-ink-4 border border-line rounded px-1 py-px">
+        <span className={cn("truncate", repli && CACHE_SI_REPLI)}>{item.label}</span>
+        <span
+          className={cn(
+            "ml-auto text-[9.5px] font-medium uppercase tracking-wide text-ink-4 border border-line rounded px-1 py-px",
+            repli && CACHE_SI_REPLI,
+          )}
+        >
           à venir
         </span>
       </div>
@@ -165,16 +162,25 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
+      // Replie, l'icone seule doit rester identifiable : le libelle passe en infobulle.
+      title={repli ? item.label : undefined}
       className={cn(
         "flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors duration-75",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
         active ? "bg-green-50 text-green-700 font-medium" : "text-ink hover:bg-surface-2",
+        repli && "md:justify-center md:px-0",
       )}
     >
       <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-ink-3")} />
-      <span className="truncate">{item.label}</span>
+      <span className={cn("truncate", repli && CACHE_SI_REPLI)}>{item.label}</span>
       {item.count !== undefined && (
-        <span className={cn("ml-auto font-mono text-[11px]", active ? "text-green-700" : "text-ink-3")}>
+        <span
+          className={cn(
+            "ml-auto font-mono text-[11px]",
+            active ? "text-green-700" : "text-ink-3",
+            repli && CACHE_SI_REPLI,
+          )}
+        >
           {item.count}
         </span>
       )}
@@ -182,35 +188,43 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
   );
 }
 
-function LienExterne({
-  label,
-  href,
-  icon: Icon,
-}: {
-  label: string;
-  href: string;
-  icon: ComponentType<{ className?: string; strokeWidth?: number }>;
-}) {
+function SectionTitre({ repli, children }: { repli: boolean; children: React.ReactNode }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
+    <div
       className={cn(
-        "group flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-ink hover:bg-surface-2 transition-colors duration-75",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
+        "px-2 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3",
+        repli && CACHE_SI_REPLI,
       )}
     >
-      <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-3" />
-      <span className="truncate">{label}</span>
-      <ExternalLink strokeWidth={1.5} className="ml-auto w-3 h-3 shrink-0 text-ink-4 group-hover:text-ink-3" />
-    </a>
+      {children}
+    </div>
   );
 }
 
-function SectionTitre({ children }: { children: React.ReactNode }) {
+// Replie, les titres de groupe disparaissent : un filet les remplace pour que les
+// groupes restent lisibles a l'icone.
+function Groupe({ repli, premier, children }: { repli: boolean; premier: boolean; children: React.ReactNode }) {
+  return <div className={cn(repli && !premier && "md:border-t md:border-line md:pt-2")}>{children}</div>;
+}
+
+function BoutonRepli({ repli, onBasculer }: { repli: boolean; onBasculer: () => void }) {
+  const Icone = repli ? ChevronsRight : ChevronsLeft;
   return (
-    <div className="px-2 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">{children}</div>
+    <button
+      type="button"
+      onClick={onBasculer}
+      aria-label={repli ? "Déplier la navigation" : "Replier la navigation"}
+      title={repli ? "Déplier la navigation" : "Replier la navigation"}
+      className={cn(
+        // Sous md: la sidebar est un tiroir : replier n'y a pas de sens.
+        "hidden md:flex items-center justify-center h-7 w-7 rounded-md text-ink-3",
+        "hover:bg-surface-2 hover:text-ink-2 transition-colors duration-75",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
+        repli ? "md:mx-auto" : "md:ml-auto",
+      )}
+    >
+      <Icone strokeWidth={1.5} className="w-4 h-4" />
+    </button>
   );
 }
 
@@ -229,20 +243,30 @@ export function Sidebar({
   /** Groupe "Administration" (cles API) : visible SUPER-ADMIN seulement. */
   adminOuvert?: boolean;
 }) {
+  const { repli, basculer } = useNavRepli();
+
   return (
-    <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto shadow-xl md:shadow-none">
-      <nav className="px-3 py-3 flex flex-col gap-4">
+    <aside
+      className={cn(
+        // Toujours 216px sous md: (tiroir) ; des md: la largeur suit le repli.
+        "shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto shadow-xl md:shadow-none",
+        repli ? "md:w-14" : "md:w-[216px]",
+      )}
+    >
+      <nav className={cn("py-3 flex flex-col gap-4", repli ? "px-2 md:px-1.5" : "px-3")}>
+        <BoutonRepli repli={repli} onBasculer={basculer} />
+
         {vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
           <div>
             {NAV_COMPTABLE.map((item) => (
-              <NavItem key={item.key} item={item} active={item.key === active} />
+              <NavItem key={item.key} item={item} active={item.key === active} repli={repli} />
             ))}
           </div>
         ) : (
-          GROUPES.map((groupe) => (
-            <div key={groupe.titre}>
-              <SectionTitre>{groupe.titre}</SectionTitre>
+          GROUPES.map((groupe, i) => (
+            <Groupe key={groupe.titre} repli={repli} premier={i === 0}>
+              <SectionTitre repli={repli}>{groupe.titre}</SectionTitre>
               {groupe.items.map((item) => {
                 // "Comptabilite" (dashboard transverse) et "Gestion courante" (page
                 // reservee au pole compta) : liens ABSENTS hors role comptable / super-admin
@@ -251,34 +275,23 @@ export function Sidebar({
                   return null;
                 // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
                 const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
-                return <NavItem key={it.key} item={it} active={it.key === active} />;
+                return <NavItem key={it.key} item={it} active={it.key === active} repli={repli} />;
               })}
-            </div>
+            </Groupe>
           ))
         )}
 
         {adminOuvert && (
-          <div>
-            <SectionTitre>{GROUPE_ADMIN.titre}</SectionTitre>
+          <Groupe repli={repli} premier={false}>
+            <SectionTitre repli={repli}>{GROUPE_ADMIN.titre}</SectionTitre>
             {GROUPE_ADMIN.items.map((item) => (
-              <NavItem key={item.key} item={item} active={item.key === active} />
+              <NavItem key={item.key} item={item} active={item.key === active} repli={repli} />
             ))}
-          </div>
+          </Groupe>
         )}
 
-        <div className="pt-3 border-t border-line">
-          <SectionTitre>Nos applications</SectionTitre>
-          {APPS_EXTERNES.map((app) => (
-            <LienExterne key={app.label} {...app} />
-          ))}
-        </div>
-
-        <div className="pt-3 border-t border-line">
-          <SectionTitre>Outils externes</SectionTitre>
-          {OUTILS_EXTERNES.map((app) => (
-            <LienExterne key={app.label} {...app} />
-          ))}
-        </div>
+        {/* "Nos applications" et "Outils externes" ont quitte la sidebar (2026-08-20) :
+            ils sont dans le lanceur en damier de la topbar (cf. lanceur-apps.tsx). */}
       </nav>
     </aside>
   );
