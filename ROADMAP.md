@@ -64,9 +64,9 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 
 **Le problème** : les mails des boîtes partagées `syndicN@real31.fr` (une par agence, 150+/jour sur syndic2) remontent dans Crypto toutes les 15 min puis sont **distribués à la main** (2 h/jour d'une personne), y compris les mails anonymes à identifier. eStale ne récupère pas les mails ; son parcours OS (kanban puis OS) est trop lourd pour les petits OS urgents. Des mails sont parfois **supprimés d'Exchange pour libérer le serveur** → l'historique se troue.
 
-**La cible** : l'intranet reprend le rôle de l'UI mail de Crypto — remontée, tri automatique, distribution, historique — dans le module « Mes e-mails » EXISTANT. Pas une révolution d'habitude : personne ne lit syndic2 dans Outlook aujourd'hui, tout le monde la lit déjà dans une UI applicative.
+**La cible (à terme)** : l'intranet reprend le rôle de l'UI mail de Crypto — remontée, tri automatique, distribution, historique — dans le module « Mes e-mails » EXISTANT. Pas une révolution d'habitude : personne ne lit syndic2 dans Outlook aujourd'hui, tout le monde la lit déjà dans une UI applicative. **Mais on n'y va pas d'un bloc : la V1.2 s'arrête à « les deux boîtes + l'envoi ».**
 
-**Artefacts** (données fictives) : cadrage <https://claude.ai/code/artifact/730134d7-4824-415c-9686-cf3fb036102c> · maquette UI interactive <https://claude.ai/code/artifact/2afe1e6b-fbf5-4e03-adaf-6687ee253998>
+**Artefacts** (données fictives) : cadrage <https://claude.ai/code/artifact/730134d7-4824-415c-9686-cf3fb036102c> · maquette V1.2 dans le chrome real31.app <https://claude.ai/code/artifact/2afe1e6b-fbf5-4e03-adaf-6687ee253998> (l'artefact porte les 3 versions successives ; seule la dernière fait foi)
 
 ### Décisions actées (Sekou, 2026-08-18)
 
@@ -79,7 +79,12 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 7. **eStale = backend de traçabilité** — forme exacte du rattachement tranchée APRÈS sondage de l'API (commentaire / document / mail sur kanban ?).
 8. Conception **multi-boîtes dès le départ** (syndic1 à 4 = configuration, pas chantier).
 
-**Retour maquette (Sekou)** : garder l'**architecture actuelle** du module, ne pas empiler les features — quick wins d'abord, le reste attend.
+**Retours maquette (Sekou, 3 tours)** — le périmètre s'est RESSERRÉ à chaque tour, c'est la contrainte à respecter :
+1. Garder l'**architecture actuelle** du module, ne pas empiler les features — quick wins d'abord.
+2. Ses collègues veulent la **grammaire d'Outlook** (3 volets, rail de dossiers, barre Répondre/Transférer/Classer, réponse inline) pour zéro friction — mais **la peau reste le DS REAL31** : un clone Fluent bleu créerait des attentes Outlook qu'on n'aura pas (règles, catégories, calendrier) et ferait un îlot étranger dans l'app. Structure d'Outlook, pas sa peinture.
+3. **La maquette doit vivre dans le chrome réel de real31.app** (topbar + sidebar), sinon « on n'a pas l'impression que ça sort de real31.app ».
+4. **V1.2 = ce qui FONCTIONNE, zéro automatisme** : les deux boîtes en lecture + l'envoi. Retirés explicitement de la V1.2 : compteur de tri auto, bandeau de provenance, étiquettes/catégories sur les mails, file « à trier », rôle superviseur, brouillon IA, OS express.
+5. **syndic2 s'affiche comme la boîte perso** : une simple *Boîte de réception* (+ Éléments envoyés), PAS de « ma part » triée par gestionnaire en V1.2.
 
 ### Cartographie réelle des boîtes — vérifiée le 2026-08-18 (sondes Graph app-only, lecture seule)
 
@@ -90,16 +95,19 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 ### ▶️ QUICK WINS (dans l'ordre)
 
 1. ✅ **QW0 — Demande DSI : VÉRIFIÉE INUTILE le 2026-08-18.** Sonde Graph app-only (lecture seule, métadonnées uniquement) : l'Application Access Policy est **déjà ouverte** sur toutes les boîtes syndic (200 OK sur syndic1/2/3/4, prouvé) — l'accès applicatif existe, rien à demander pour lire. Reste de QW0 uniquement la question jumelle à poser à la DSI : possibilité d'arrêter les purges (archivage en ligne / quota) une fois l'archive intranet en place.
-2. **QW1 — Observation à blanc du tri (lecture seule)** : moteur d'identification niveau 1 (expéditeur ↔ owners eStale + fournisseurs des 264 copros → copro → gestionnaire), branché sur syndic2 sans RIEN déplacer ni écrire. Livrable = un rapport : X % identifiés par expéditeur, Y % identifiables par contenu, Z % résiduel. **C'est le chiffre qui valide (ou pas) la promesse** — même philosophie que la reprise : mesurer avant de construire. Jamais d'auto sous le seuil, homonymes jamais tranchés seuls (mécanique de scoring éprouvée sur la reprise).
-3. **QW2 — Sélecteur de boîtes dans le module existant** : « Ma boîte » (inchangée) / « syndic2 — ma part » (les mails identifiés pour le gestionnaire par QW1). Architecture et UI actuelles conservées, la boîte devient un paramètre. Lecture seule, Crypto reste le flux officiel.
-4. **QW3 — Réponse « De : syndic2 »** : choix de la boîte d'envoi dans l'éditeur de réponse existant, défaut syndic2 (le fil reste unifié sur la boîte partagée).
+2. **QW1 — La boîte syndic2 dans le module existant (lecture)** : rail à deux boîtes — « Ma boîte » (inchangée) et « syndic2 » = **boîte de réception complète, non triée**. La boîte devient un paramètre du module ; la boîte perso ne change pas d'un pixel. Grammaire Outlook légère (liste + volet de lecture + barre de commandes), UI et architecture actuelles conservées. Lecture seule : Crypto reste le flux officiel en parallèle, rien n'est déplacé côté Exchange.
+3. **QW2 — L'envoi** : réponse inline avec choix de la boîte d'expédition (champ « De : »), défaut **syndic2** sur un mail syndic2 (le fil reste unifié sur la boîte partagée), défaut perso sur la boîte perso. Réutilise l'envoi existant et ses verrous (confirmation récapitulative, anti double-clic `envoiEnCours`). ⚠️ **Le droit `Mail.Send` app-only sur syndic2 n'a PAS été vérifié** — la sonde du 2026-08-18 portait sur la LECTURE. À prouver avant de coder QW2.
+
+**Ce que la V1.2 ne fait pas** (et ne doit pas faire) : aucun tri automatique, aucune distribution par gestionnaire, aucune archive, aucune trace eStale, aucun brouillon IA. Le gain V1.2 est **d'ouvrir syndic2 dans l'intranet et de pouvoir y répondre** — pas d'automatiser.
 
 ### La suite (plus tard, ordre indicatif — RIEN de tout ça maintenant)
 
-- File « à trier » + superviseur du jour (rôle tournant) + mémorisation des corrections (cet expéditeur → cette copro).
+- **Observation à blanc du tri** (le PREMIER automatisme, lecture seule) : moteur d'identification niveau 1 (expéditeur ↔ owners eStale + fournisseurs des 264 copros → copro → gestionnaire) branché sur syndic2 sans rien déplacer. Livrable = un rapport : X % par expéditeur, Y % par contenu, Z % résiduel. **C'est le chiffre qui valide (ou pas) la promesse** — mesurer avant de construire, comme la reprise. Jamais d'auto sous le seuil, homonymes jamais tranchés seuls (scoring éprouvé sur la reprise).
+- « Ma part » triée par gestionnaire, file « à trier » + superviseur du jour (rôle tournant), mémorisation des corrections (cet expéditeur → cette copro), provenance du tri visible et défaisable.
 - Tri par contenu (niveau 2 de la cascade : adresse d'immeuble, référence contrat, signature ↔ owners).
 - Archive complète + politique de rétention (prérequis à toute bascule réelle — cf. décision 2).
 - Sondage API eStale (que rattacher à un kanban ?) puis trace eStale des mails traités.
+- Brouillon IA sur les mails syndic2 (le module perso l'a déjà — non repris en V1.2).
 - OS express : formulaire copro + fournisseur (suppliers eStale) → envoi depuis syndic2 + trace eStale auto, sans kanban à la main.
 - Webhooks Graph (change notifications) — le polling suffit au pilote malgré les 150+/jour.
 - Généralisation syndic1/syndic4 (syndic3 = alias de syndic2, rien à ingérer — cf. cartographie ci-dessus), puis bascule : décommissionnement du module mail Crypto.
@@ -107,6 +115,7 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 ### Ce qui bloque
 
 - ~~QW0 (DSI)~~ **PLUS un bloqueur** (vérifié le 2026-08-18, sondes Graph app-only en lecture seule) : l'accès app-only est DÉJÀ ouvert sur toutes les boîtes syndic (200 OK sur syndic1/2/3/4, prouvé). Les quick wins peuvent démarrer sans attendre la DSI — seule la question des purges (archivage en ligne / quota) reste à lui poser, sans rien conditionner.
+- **`Mail.Send` app-only sur syndic2 : NON vérifié** (la sonde du 2026-08-18 ne portait que sur la lecture). C'est le seul inconnu technique de la V1.2 — à prouver avant de coder QW2, sur un envoi de test vers une adresse interne.
 - Questions métier ouvertes : source de référence des fournisseurs pour l'OS express (suppliers eStale ?), rétention RGPD des copies complètes.
 
 ## 📍 État actuel - 2026-08-18 — REPRISE COMPTA DÉCOUPLÉE DU PATRIMOINE (branche `compta/recap-ag`)
