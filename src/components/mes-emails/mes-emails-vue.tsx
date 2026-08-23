@@ -47,6 +47,7 @@ import {
   typeDossierSuggere,
 } from "@/lib/domain/mes-emails";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
+import { boiteReponseParDefaut } from "@/lib/domain/boites-mail";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -167,8 +168,12 @@ export function MesEmailsVue({
   const [coprosChoisies, setCoprosChoisies] = useState<Map<string, { code: string; nom: string }>>(
     new Map(),
   );
-  // Vrais dossiers Outlook de la boite (charges en lazy) + dossier choisi par mail.
-  const [dossiers, setDossiers] = useState<DossierBoite[] | null>(null);
+  // Vrais dossiers Outlook, PAR BOITE (chaque boite a son arborescence). Charges en
+  // lazy et memorises : rebasculer sur une boite deja vue n'attend pas. `null` = pas
+  // encore charge, ce que l'UI affiche comme "Chargement des dossiers...".
+  const [dossiersParBoite, setDossiersParBoite] = useState<Map<string, DossierBoite[]>>(
+    new Map(),
+  );
   const [dossiersChoisis, setDossiersChoisis] = useState<Map<string, string>>(new Map());
   const [msgClasser, setMsgClasser] = useState<string | null>(null);
   // Dossiers REELS (module Dossiers) de la copro, charges en lazy a l'ouverture du picker.
@@ -183,16 +188,24 @@ export function MesEmailsVue({
   const [composeParMail, setComposeParMail] = useState<Set<string>>(new Set());
   // Sujet editable de la reponse, par mail.
   const [sujetParMail, setSujetParMail] = useState<Map<string, string>>(new Map());
+  // Boite d'EXPEDITION choisie ("De :"), par mail. Defaut = la boite qui a recu le mail
+  // (le fil reste unifie sur la boite partagee, decision Sekou 6).
+  const [expediteurParMail, setExpediteurParMail] = useState<Map<string, string>>(new Map());
   // PJ reçues a RE-JOINDRE a la reponse (ids d'attachment selectionnes), par mail.
   const [pjJointesParMail, setPjJointesParMail] = useState<Map<string, Set<string>>>(new Map());
   // Visionneuse de piece jointe (PDF/image) : blob courant ouvert dans la modale.
   const [apercu, setApercu] = useState<{ nom: string; type: string; url: string } | null>(null);
 
+  const dossiers = dossiersParBoite.get(boiteActive) ?? null;
+
   useEffect(() => {
-    void chargerDossiersAction()
-      .then(setDossiers)
-      .catch(() => setDossiers([]));
-  }, []);
+    if (dossiersParBoite.has(boiteActive)) return;
+    const memoriser = (d: DossierBoite[]) =>
+      setDossiersParBoite((p) => new Map(p).set(boiteActive, d));
+    void chargerDossiersAction(boiteActive)
+      .then(memoriser)
+      .catch(() => memoriser([]));
+  }, [boiteActive, dossiersParBoite]);
 
   const resumeMail = (m: MailEntrant): string => `${m.objet} - de ${m.de}`;
 
@@ -207,6 +220,12 @@ export function MesEmailsVue({
   const majDest = (m: MailEntrant, champ: keyof Destinataires, valeurs: string[]) =>
     setDestParMail((p) => new Map(p).set(m.id, { ...destinatairesDe(m), [champ]: valeurs }));
   const sujetDe = (m: MailEntrant): string => sujetParMail.get(m.id) ?? defautSujet(m);
+  /** Boite qui DETIENT le mail (repli sur la boite active : les fixtures sans `boite`). */
+  const boiteDuMail = (m: MailEntrant): string => m.boite ?? boiteActive;
+  const expediteurDe = (m: MailEntrant): string =>
+    expediteurParMail.get(m.id) ?? boiteReponseParDefaut(data.boites, boiteDuMail(m));
+  const majExpediteur = (m: MailEntrant, v: string) =>
+    setExpediteurParMail((p) => new Map(p).set(m.id, v));
   const majSujet = (m: MailEntrant, v: string) => setSujetParMail((p) => new Map(p).set(m.id, v));
   const pjJointesDe = (m: MailEntrant): Set<string> => pjJointesParMail.get(m.id) ?? new Set();
   const togglePjJointe = (m: MailEntrant, id: string) =>
@@ -242,7 +261,7 @@ export function MesEmailsVue({
 
   async function creerBrouillon(m: MailEntrant) {
     setMsgBrouillon("Création du brouillon dans Outlook...");
-    const r = await creerBrouillonAction(m.id, m.coproCode, brouillonDe(m));
+    const r = await creerBrouillonAction(m.id, m.coproCode, brouillonDe(m), boiteDuMail(m));
     setMsgBrouillon(r.ok ? "Brouillon créé dans Outlook." : `Échec : ${r.message ?? ""}`);
   }
 
@@ -254,7 +273,7 @@ export function MesEmailsVue({
     m: MailEntrant,
     pj: PieceJointeRef,
   ): Promise<{ nom: string; type: string; url: string } | null> {
-    const r = await telechargerPieceJointeAction(m.id, coproDe(m).code, pj.id);
+    const r = await telechargerPieceJointeAction(m.id, coproDe(m).code, pj.id, boiteDuMail(m));
     if (!r.ok || !r.base64) return null;
     const bin = atob(r.base64);
     const bytes = new Uint8Array(bin.length);
@@ -353,7 +372,7 @@ export function MesEmailsVue({
       // Charge les vraies pieces jointes a la demande (une seule fois par mail).
       if (m.attachments.length > 0 && !pjParMail.has(id)) {
         setPjParMail((p) => new Map(p).set(id, null));
-        void chargerPiecesJointesAction(id, coproDe(m).code).then((pjs) =>
+        void chargerPiecesJointesAction(id, coproDe(m).code, boiteDuMail(m)).then((pjs) =>
           setPjParMail((prev) => new Map(prev).set(id, pjs)),
         );
       }
@@ -380,8 +399,26 @@ export function MesEmailsVue({
       setMsgBrouillon("Ajoute au moins un destinataire en « À ».");
       return;
     }
-    const recap = `Envoyer la réponse à ${dst.to.join(", ")}${dst.cc.length ? `\n(cc : ${dst.cc.join(", ")})` : ""}${dst.cci.length ? `\n(cci : ${dst.cci.join(", ")})` : ""} ?`;
-    if (!window.confirm(recap)) return;
+    const expediteur = expediteurDe(m);
+    const memeBoite = expediteur === boiteDuMail(m);
+    // Depuis une AUTRE boite que celle du mail, Graph ne peut pas repondre dans le fil
+    // (createReply s'execute dans la boite du message) : c'est un mail NEUF. On le dit
+    // AVANT l'envoi, pas apres.
+    const recap = [
+      `Envoyer depuis ${expediteur}`,
+      `À : ${dst.to.join(", ")}`,
+      ...(dst.cc.length ? [`Cc : ${dst.cc.join(", ")}`] : []),
+      ...(dst.cci.length ? [`Cci : ${dst.cci.join(", ")}`] : []),
+      ...(memeBoite
+        ? []
+        : [
+            "",
+            "Attention : boîte différente de celle du mail — le fil d'origine et les pièces jointes ne suivront pas.",
+          ]),
+      "",
+      "Envoyer ?",
+    ];
+    if (!window.confirm(recap.join("\n"))) return;
     setEnvoiEnCours(true);
     setMsgBrouillon("Envoi en cours…");
     try {
@@ -394,13 +431,19 @@ export function MesEmailsVue({
         dst.cc,
         dst.cci,
         [...pjJointesDe(m)],
+        boiteDuMail(m),
+        expediteur,
       );
       if (!r.ok) {
         setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
         return;
       }
       setRepondus((p) => add(p, m.id));
-      setMsgBrouillon("Réponse envoyée ✓");
+      setMsgBrouillon(
+        r.filConserve === false
+          ? `Envoyé depuis ${expediteur} ✓ (mail neuf, hors du fil d'origine)`
+          : "Réponse envoyée ✓",
+      );
     } finally {
       setEnvoiEnCours(false);
     }
@@ -416,7 +459,15 @@ export function MesEmailsVue({
     setMsgClasser(null);
     setClasses((p) => add(p, m.id));
     const folderNom = (dossiers ?? []).find((f) => f.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
-    void classerDansDossierAction(m.id, coproDe(m).code, folderId, folderNom, [], brouillonDe(m)).then((r) => {
+    void classerDansDossierAction(
+      m.id,
+      coproDe(m).code,
+      folderId,
+      folderNom,
+      [],
+      brouillonDe(m),
+      boiteDuMail(m),
+    ).then((r) => {
       if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
     });
     // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
@@ -589,6 +640,10 @@ export function MesEmailsVue({
               onTogglePjJointe={(id) => togglePjJointe(selection, id)}
               destinataires={destinatairesDe(selection)}
               onMajDestinataires={(champ, v) => majDest(selection, champ, v)}
+              boites={data.boites}
+              boiteDuMail={boiteDuMail(selection)}
+              expediteur={expediteurDe(selection)}
+              onMajExpediteur={(v) => majExpediteur(selection, v)}
               sujet={sujetDe(selection)}
               onMajSujet={(v) => majSujet(selection, v)}
               onEnvoyer={() => void envoyerSeul(selection)}
@@ -902,6 +957,56 @@ function recommandation(m: MailEntrant, ratt: Rattachement): string {
     : `Traiter et classer dans ${dossier}.`;
 }
 
+/**
+ * Choix de la boite d'EXPEDITION ("De :"). Par defaut celle qui a recu le mail, pour que
+ * le fil reste unifie sur la boite partagee (decision Sekou 6). Choisir une autre boite
+ * est possible mais Graph ne sait alors plus repondre DANS le fil : on l'ecrit sous le
+ * champ, avant l'envoi, plutot que de laisser la surprise arriver apres.
+ * Masque s'il n'y a qu'une boite : il n'y a rien a choisir.
+ */
+function ChampDe({
+  boites,
+  boiteDuMail,
+  valeur,
+  onChange,
+}: {
+  boites: BoiteMail[];
+  boiteDuMail: string;
+  valeur: string;
+  onChange: (v: string) => void;
+}) {
+  if (boites.length < 2) return null;
+  const horsFil = valeur !== boiteDuMail;
+  return (
+    <div className="mb-2 rounded-md border border-line bg-surface px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <label htmlFor="champ-de" className="w-7 shrink-0 text-[11px] font-medium text-ink-3">
+          De
+        </label>
+        <select
+          id="champ-de"
+          value={valeur}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 min-w-0 h-7 rounded border border-line bg-surface px-1.5 text-[12px] text-ink"
+        >
+          {boites.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.adresse}
+              {b.id === boiteDuMail ? " — boîte du mail" : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+      {horsFil && (
+        <p className="mt-1.5 pl-9 text-[11px] text-warn-700">
+          Envoi hors du fil : le mail partira comme un message neuf, sans la citation ni
+          les pièces jointes d’origine.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Editeur de destinataires de la reponse : A / Cc / Cci, chips + ajout/retrait.
 function ChampsDestinataires({
   valeur,
@@ -1059,6 +1164,10 @@ function AnalysePane({
   onTogglePjJointe,
   destinataires,
   onMajDestinataires,
+  boites,
+  boiteDuMail,
+  expediteur,
+  onMajExpediteur,
   sujet,
   onMajSujet,
   onEnvoyer,
@@ -1105,6 +1214,11 @@ function AnalysePane({
   onTogglePjJointe: (id: string) => void;
   destinataires: Destinataires;
   onMajDestinataires: (champ: keyof Destinataires, v: string[]) => void;
+  boites: BoiteMail[];
+  /** Boite qui detient le mail : sert de reference au "De :" par defaut. */
+  boiteDuMail: string;
+  expediteur: string;
+  onMajExpediteur: (v: string) => void;
   sujet: string;
   onMajSujet: (v: string) => void;
   onEnvoyer: () => void;
@@ -1266,6 +1380,12 @@ function AnalysePane({
                   </button>
                 </div>
               </div>
+              <ChampDe
+                boites={boites}
+                boiteDuMail={boiteDuMail}
+                valeur={expediteur}
+                onChange={onMajExpediteur}
+              />
               <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
               <input
                 value={sujet}

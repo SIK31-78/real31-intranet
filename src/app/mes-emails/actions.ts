@@ -21,6 +21,7 @@ import {
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
 import type { Rattachement } from "@/lib/domain/mes-emails";
+import { boiteAutorisee, construireBoites } from "@/lib/domain/boites-mail";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
@@ -32,6 +33,21 @@ import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
 import type { DossierBoite } from "@/lib/domain/mes-emails";
 import { TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
+
+// --- Boites ------------------------------------------------------------------
+// L'adresse de boite arrive du CLIENT (le mail affiche, le "De :" choisi). Elle n'est
+// JAMAIS crue sur parole : seule une boite de la configuration visible est acceptee.
+// Absente => boite personnelle, c'est-a-dire le comportement d'avant le multi-boites.
+
+const zBoite = z.string().max(320).optional();
+
+function boiteCible(g: { email?: string }, demandee: string | undefined): string | null {
+  const boites = construireBoites(g.email, process.env.MAIL_BOITES_PARTAGEES);
+  const cible =
+    (demandee ?? "").trim().toLowerCase() || boites.find((b) => b.personnelle)?.id || "";
+  if (!cible) return null;
+  return boiteAutorisee(boites, cible) ? cible : null;
+}
 
 // --- Cloisonnement -----------------------------------------------------------
 // En mode boite REELLE (MAIL_SOURCE=graph), le cockpit lit la PROPRE boite du gestionnaire :
@@ -207,17 +223,21 @@ export async function rafraichirAction(): Promise<void> {
   revalidatePath("/mes-emails");
 }
 
-// --- Pieces jointes (boite propre du connecte) -------------------------------
+// --- Pieces jointes (dans la boite qui DETIENT le mail) ----------------------
 
 export async function chargerPiecesJointesAction(
   emailId: string,
   coproCode: string,
+  boite?: string,
 ): Promise<PieceJointeRef[]> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return [];
+  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success)
+    return [];
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok || !auth.g.email) return [];
+  const cible = boiteCible(auth.g, boite);
+  if (!cible) return [];
   try {
-    return await listerPiecesJointesMail(auth.g.email, emailId);
+    return await listerPiecesJointesMail(cible, emailId);
   } catch (e) {
     console.warn("[mes-emails] pieces jointes indisponibles :", (e as Error).message);
     return [];
@@ -228,14 +248,17 @@ export async function telechargerPieceJointeAction(
   emailId: string,
   coproCode: string,
   attachmentId: string,
+  boite?: string,
 ): Promise<{ ok: boolean; nom?: string; type?: string; base64?: string; message?: string }> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, attachmentId: zId }).safeParse({ emailId, coproCode, attachmentId }).success)
+  if (!z.object({ emailId: zId, coproCode: zCopro, attachmentId: zId, boite: zBoite }).safeParse({ emailId, coproCode, attachmentId, boite }).success)
     return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
   if (!auth.g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
+  const cible = boiteCible(auth.g, boite);
+  if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
-    const pj = await lirePieceJointeMail(auth.g.email, emailId, attachmentId);
+    const pj = await lirePieceJointeMail(cible, emailId, attachmentId);
     return { ok: true, ...pj };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
@@ -275,7 +298,9 @@ export async function envoyerReponseAction(
   cc: string[],
   cci: string[],
   pjIds: string[],
-): Promise<{ ok: boolean; message?: string }> {
+  boiteMessage?: string,
+  boiteEnvoi?: string,
+): Promise<{ ok: boolean; message?: string; filConserve?: boolean }> {
   const v = z
     .object({
       emailId: zId,
@@ -288,11 +313,17 @@ export async function envoyerReponseAction(
       pjIds: zIds,
     })
     .safeParse({ emailId, coproCode, corps, sujet, a, cc, cci, pjIds });
-  if (!v.success) return { ok: false, message: "Données invalides." };
+  if (!v.success || !zBoite.safeParse(boiteMessage).success || !zBoite.safeParse(boiteEnvoi).success)
+    return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
   const g = auth.g;
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
+  // Les DEUX boites sont validees contre la configuration : celle qui detient le mail
+  // et celle qui expedie. Un "De :" fabrique cote client est refuse ici.
+  const cibleMessage = boiteCible(g, boiteMessage);
+  const cibleEnvoi = boiteCible(g, boiteEnvoi);
+  if (!cibleMessage || !cibleEnvoi) return { ok: false, message: "Boîte non autorisée." };
   if (!corps.trim()) return { ok: false, message: "Le message est vide." };
   // Destinataires : adresses bien formees, au moins une en "A", plafond global (anti-spam).
   const tous = [...a, ...cc, ...cci].map((x) => x.trim()).filter(Boolean);
@@ -306,9 +337,20 @@ export async function envoyerReponseAction(
     // Signature recuperee cote serveur (Signitic) et injectee : un envoi app-only ne passe
     // pas par l'add-in Outlook qui l'ajoute d'habitude.
     const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
-    await envoyerReponseMail({ boite: g.email, internetMessageId: emailId, corps, sujet, a, cc, cci, signatureHtml, pjIds });
+    const { filConserve } = await envoyerReponseMail({
+      boiteMessage: cibleMessage,
+      boiteEnvoi: cibleEnvoi,
+      internetMessageId: emailId,
+      corps,
+      sujet,
+      a,
+      cc,
+      cci,
+      ...(signatureHtml !== undefined ? { signatureHtml } : {}),
+      pjIds,
+    });
     revalidatePath("/mes-emails");
-    return { ok: true };
+    return { ok: true, filConserve };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
@@ -334,13 +376,16 @@ export async function rattacherCoproAction(
   }
 }
 
-// --- Dossiers Outlook + classement (boite propre) ----------------------------
+// --- Dossiers Outlook + classement (dans la boite du mail) -------------------
 
-export async function chargerDossiersAction(): Promise<DossierBoite[]> {
+export async function chargerDossiersAction(boite?: string): Promise<DossierBoite[]> {
   const g = await getGestionnaireCourant();
   if (!g?.email) return [];
+  if (!zBoite.safeParse(boite).success) return [];
+  const cible = boiteCible(g, boite);
+  if (!cible) return [];
   try {
-    return await listerDossiersBoite(g.email);
+    return await listerDossiersBoite(cible);
   } catch (e) {
     console.warn("[mes-emails] liste dossiers Outlook KO :", (e as Error).message);
     return [];
@@ -354,18 +399,21 @@ export async function classerDansDossierAction(
   folderNom: string,
   etapes: number[],
   brouillon: string,
+  boite?: string,
 ): Promise<{ ok: boolean; message?: string }> {
   const v = z
     .object({ emailId: zId, coproCode: zCopro, folderId: zId, folderNom: zCourt, etapes: zEtapes, brouillon: zCorps })
     .safeParse({ emailId, coproCode, folderId, folderNom, etapes, brouillon });
-  if (!v.success) return { ok: false, message: "Données invalides." };
+  if (!v.success || !zBoite.safeParse(boite).success) return { ok: false, message: "Données invalides." };
   if (!folderId) return { ok: false, message: "Choisis un dossier de destination." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
   const g = auth.g;
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
+  const cible = boiteCible(g, boite);
+  if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
-    const res = await classerDansDossier(g.email, emailId, folderId);
+    const res = await classerDansDossier(cible, emailId, folderId);
     const c = cibleDe(g, emailId, coproCode);
     await enregistrerStatut(c, "classe", etapes, brouillon);
     await enregistrerDossier(c, folderId, folderNom);
@@ -380,13 +428,17 @@ export async function creerBrouillonAction(
   emailId: string,
   coproCode: string,
   corps: string,
+  boite?: string,
 ): Promise<{ ok: boolean; message?: string }> {
   if (!z.object({ emailId: zId, coproCode: zCopro, corps: zCorps }).safeParse({ emailId, coproCode, corps }).success)
     return { ok: false, message: "Données invalides." };
+  if (!zBoite.safeParse(boite).success) return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
+  const cible = boiteCible(auth.g, boite);
+  if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
-    await creerBrouillonOutlook(auth.g, emailId, corps);
+    await creerBrouillonOutlook(cible, emailId, corps);
     return { ok: true };
   } catch (e) {
     return { ok: false, message: (e as Error).message };

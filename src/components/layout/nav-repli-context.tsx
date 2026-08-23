@@ -8,8 +8,16 @@
 //
 // La preference vit dans localStorage, donc HORS de React : on la lit avec
 // useSyncExternalStore (et non un useState + useEffect, qui declencherait un rendu en
-// cascade). C'est aussi ce qui rend l'hydratation propre : le serveur rend le defaut,
-// le client bascule sur la preference reelle juste apres.
+// cascade).
+//
+// ⚠️ LIMITE CONNUE (mesuree dans le navigateur le 2026-08-23, pas supposee) : au
+// CHARGEMENT d'une page, c'est le DEFAUT du module qui s'affiche, pas la preference
+// enregistree. Le serveur ne peut pas lire localStorage, et React ne relit pas le store
+// apres l'hydratation ; forcer la relecture au montage a ete essaye et ne change rien.
+// Concretement : replier le mail puis recharger reaffiche l'etat par defaut, et le choix
+// ne reprend effet qu'a la premiere bascule. La correction propre est de stocker la
+// preference dans un COOKIE, que l'AppShell (server component) lit pour rendre d'emblee
+// le bon etat -- a faire, ce n'est pas repare ici.
 
 import {
   createContext,
@@ -58,6 +66,11 @@ function ecrire(prefs: Record<string, boolean>): void {
   } catch {
     /* preference non persistee : sans consequence sur la session en cours */
   }
+  notifierTous();
+}
+
+/** Reveille tous les abonnes : leur snapshot est relu. */
+function notifierTous(): void {
   for (const notifier of abonnes) notifier();
 }
 
