@@ -26,6 +26,7 @@ import {
   Download,
   X,
   Send,
+  Inbox,
 } from "lucide-react";
 import type {
   ContexteCopro,
@@ -37,7 +38,15 @@ import type {
   PieceJointeRef,
   Rattachement,
 } from "@/lib/domain/mes-emails";
-import { LIBELLE_TYPE, trierMails, trouverContexte, trouverDossier, typeDossierSuggere } from "@/lib/domain/mes-emails";
+import {
+  LIBELLE_TYPE,
+  mailsDeLaBoite,
+  trierMails,
+  trouverContexte,
+  trouverDossier,
+  typeDossierSuggere,
+} from "@/lib/domain/mes-emails";
+import type { BoiteMail } from "@/lib/domain/boites-mail";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -106,12 +115,26 @@ export function MesEmailsVue({
   data: MesEmails;
   signatureHtml?: string | null;
 }) {
-  const mailsTries = useMemo(() => trierMails(data.mails), [data.mails]);
+  // Boite affichee. Les deux boites ne sont JAMAIS fusionnees (decision Sekou 5) :
+  // on en regarde une a la fois, la perso par defaut.
+  const boiteParDefaut =
+    data.boites.find((b) => b.personnelle)?.id ?? data.boites[0]?.id ?? "";
+  const [boiteActive, setBoiteActive] = useState<string>(boiteParDefaut);
+
+  // Tout l'ecran (liste, compteurs, dossiers copro) ne parle que de la boite active.
+  const mailsBoite = useMemo(
+    () =>
+      data.boites.length > 0
+        ? mailsDeLaBoite(data.mails, boiteActive, data.boites)
+        : data.mails,
+    [data.mails, data.boites, boiteActive],
+  );
+  const mailsTries = useMemo(() => trierMails(mailsBoite), [mailsBoite]);
   const copros = useMemo(() => {
     const vus = new Map<string, string>();
-    for (const m of data.mails) if (!vus.has(m.coproCode)) vus.set(m.coproCode, m.coproNom);
+    for (const m of mailsBoite) if (!vus.has(m.coproCode)) vus.set(m.coproCode, m.coproNom);
     return [...vus.entries()].map(([code, nom]) => ({ code, nom }));
-  }, [data.mails]);
+  }, [mailsBoite]);
 
   const [selId, setSelId] = useState<string>(mailsTries[0]?.id ?? "");
   const [lus, setLus] = useState<Set<string>>(
@@ -274,9 +297,9 @@ export function MesEmailsVue({
   const matchVue = (m: MailEntrant): boolean =>
     vue === "tous" || (vue === "traites" ? classes.has(m.id) : !classes.has(m.id));
   const countCopro = (code: string | null): number =>
-    data.mails.filter((m) => matchVue(m) && (code === null || m.coproCode === code)).length;
+    mailsBoite.filter((m) => matchVue(m) && (code === null || m.coproCode === code)).length;
   const countCoproNonLus = (code: string | null): number =>
-    data.mails.filter(
+    mailsBoite.filter(
       (m) => matchVue(m) && !lus.has(m.id) && (code === null || m.coproCode === code),
     ).length;
   const visibles = mailsTries.filter(
@@ -303,6 +326,20 @@ export function MesEmailsVue({
       n.delete(code);
       return n;
     });
+
+  // Changer de boite : la selection, le filtre copro et la recherche de l'ancienne
+  // boite n'ont plus de sens ici -> on repart d'un ecran propre.
+  function choisirBoite(id: string) {
+    if (id === boiteActive) return;
+    setBoiteActive(id);
+    setFiltreCopro("toutes");
+    setRecherche("");
+    setSelId("");
+    setChanger(false);
+    setOuverts(new Set());
+    setMsgBrouillon(null);
+    setMsgClasser(null);
+  }
 
   function ouvrir(id: string) {
     setSelId(id);
@@ -399,13 +436,13 @@ export function MesEmailsVue({
   const toggleSection = (cle: string) =>
     setOuverts((p) => (p.has(cle) ? del(p, cle) : add(p, cle)));
 
-  const nbNonLus = data.mails.filter((m) => !lus.has(m.id)).length;
-  const nbClasses = classes.size;
-  const nbRecus = data.mails.length - nbClasses;
+  const nbNonLus = mailsBoite.filter((m) => !lus.has(m.id)).length;
+  const nbClasses = mailsBoite.filter((m) => classes.has(m.id)).length;
+  const nbRecus = mailsBoite.length - nbClasses;
   const DOSSIERS = [
     { cle: "recus", label: "Reçus", n: nbRecus },
     { cle: "traites", label: "Traités", n: nbClasses },
-    { cle: "tous", label: "Tous", n: data.mails.length },
+    { cle: "tous", label: "Tous", n: mailsBoite.length },
   ] as const;
 
   return (
@@ -413,13 +450,32 @@ export function MesEmailsVue({
       <EnTete
         data={data}
         nbNonLus={nbNonLus}
-        nbATraiter={data.mails.length - nbClasses}
+        nbATraiter={nbRecus}
         nbClasses={nbClasses}
+        nomBoite={data.boites.find((b) => b.id === boiteActive)?.libelle}
       />
 
       <div className="flex flex-col lg:flex-row gap-5 items-start">
         {/* Volet gauche : la boite */}
         <aside className="w-full lg:w-[300px] shrink-0 flex flex-col gap-2.5">
+          {/* Boites : perso + partagees. Masque s'il n'y en a qu'une (rien a choisir). */}
+          {data.boites.length > 1 && (
+            <div className="flex flex-col gap-0.5">
+              <p className="px-2 pt-1 pb-0.5 text-[10.5px] font-medium uppercase tracking-[0.07em] text-ink-4">
+                Boîtes
+              </p>
+              {data.boites.map((b) => (
+                <BoiteItem
+                  key={b.id}
+                  boite={b}
+                  actif={b.id === boiteActive}
+                  nonLus={data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id)).length}
+                  onClick={() => choisirBoite(b.id)}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Dossiers (vues) : Reçus / Traités / Tous */}
           <div className="flex items-center gap-1">
             {DOSSIERS.map((d) => (
@@ -481,7 +537,7 @@ export function MesEmailsVue({
           <Card className="overflow-hidden">
             <ul className="divide-y divide-line max-h-[calc(100vh-300px)] overflow-auto">
               {visibles.map((m) => (
-                <BoiteItem
+                <LigneMail
                   key={m.id}
                   m={m}
                   actif={m.id === selection?.id}
@@ -670,6 +726,45 @@ function StatutBadge({ statut }: { statut: Statut }) {
   return null;
 }
 
+/** Une boite dans le rail : libelle + adresse + compteur de non-lus. */
+function BoiteItem({
+  boite,
+  actif,
+  nonLus,
+  onClick,
+}: {
+  boite: BoiteMail;
+  actif: boolean;
+  nonLus: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={actif ? "true" : undefined}
+      className={
+        "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors " +
+        (actif ? "bg-green-50 text-green-700" : "text-ink-2 hover:bg-surface-2")
+      }
+    >
+      <Inbox
+        strokeWidth={1.5}
+        className={"w-3.5 h-3.5 shrink-0 " + (actif ? "text-green-700" : "text-ink-3")}
+      />
+      <span className="min-w-0 flex-1">
+        <span className={"block truncate text-[12px] " + (actif ? "font-medium" : "")}>
+          {boite.libelle}
+        </span>
+        <span className="block truncate text-[10.5px] text-ink-4">{boite.adresse}</span>
+      </span>
+      {nonLus > 0 ? (
+        <span className="text-info-700 font-semibold text-[11px]">{nonLus}</span>
+      ) : null}
+    </button>
+  );
+}
+
 function CoproFolder({
   actif,
   label,
@@ -711,11 +806,14 @@ function EnTete({
   nbNonLus,
   nbATraiter,
   nbClasses,
+  nomBoite,
 }: {
   data: MesEmails;
   nbNonLus: number;
   nbATraiter: number;
   nbClasses: number;
+  /** Boite affichee : les compteurs ne parlent QUE d'elle. */
+  nomBoite?: string;
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -728,17 +826,18 @@ function EnTete({
           Mes e-mails
         </h1>
         <p className="text-[13px] text-ink-3 mt-0.5">
+          {nomBoite ? <span className="text-ink-2">{nomBoite} · </span> : null}
           {nbNonLus} non lus · {nbATraiter} à traiter · {nbClasses} classés
         </p>
         <p className="text-[11px] text-ink-4 mt-0.5">
-          Tri automatique de la boîte de réception · rattachement aux copropriétés
+          Lecture en direct · rattachement aux copropriétés
         </p>
       </div>
     </div>
   );
 }
 
-function BoiteItem({
+function LigneMail({
   m,
   actif,
   lu,

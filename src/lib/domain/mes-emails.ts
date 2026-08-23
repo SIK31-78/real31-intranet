@@ -8,6 +8,7 @@
 
 import type { Severite } from "@/lib/domain/commun";
 import type { TypeDossier } from "@/lib/domain/dossier";
+import type { BoiteMail } from "@/lib/domain/boites-mail";
 
 /** Ton du badge de priorite : rouge (urgent), ambre (a traiter), neutre (info). */
 export type UrgenceTon = "err" | "warn" | "neutral";
@@ -123,6 +124,11 @@ export interface MailEntrant {
   /** Copropriete d'origine (la boite agrege plusieurs copros). */
   coproCode: string;
   coproNom: string;
+  /** Adresse de la boite QUI A RECU ce mail (cf. BoiteMail.id), en minuscules.
+   *  Optionnel pour ne pas casser les fixtures anterieures au multi-boites : absent
+   *  = boite personnelle du gestionnaire. Le service de lecture live le remplit
+   *  TOUJOURS. Sert au filtrage du rail et au "De :" par defaut de la reponse. */
+  boite?: string;
   /** Lu / non lu (feeling boite mail ; passe a true a l'ouverture). */
   lu: boolean;
   /** Corps complet du mail (deja nettoye). */
@@ -189,6 +195,9 @@ export interface ContexteCopro {
 
 export interface MesEmails {
   gestionnaire: { nomComplet: string; initiales: string };
+  /** Boites visibles par le gestionnaire (perso + partagees). Jamais fusionnees :
+   *  le rail en affiche une par une (decision Sekou 5, 2026-08-18). */
+  boites: BoiteMail[];
   /** Nombre de mails du backtest passes au tri. */
   nbMailsAnalyses: number;
   /** Date du jour deja formatee, ex "12 juin 2026". */
@@ -207,6 +216,17 @@ export interface MesEmails {
 // Sekou 2026-06-26). Cle = horodatage complet `recuLe` (repli sur `date` au jour pres).
 export function trierMails(mails: MailEntrant[]): MailEntrant[] {
   return [...mails].sort((a, b) => (b.recuLe ?? b.date).localeCompare(a.recuLe ?? a.date));
+}
+
+/** Les mails d'UNE boite. Un mail sans `boite` (fixture ancienne) est rattache a la
+ *  boite personnelle : c'est le seul comportement qui ne fait disparaitre aucun mail. */
+export function mailsDeLaBoite(
+  mails: MailEntrant[],
+  boiteId: string,
+  boites: BoiteMail[],
+): MailEntrant[] {
+  const perso = boites.find((b) => b.personnelle)?.id;
+  return mails.filter((m) => (m.boite ?? perso) === boiteId);
 }
 
 export function trouverDossier(dossiers: Dossier[], id: string): Dossier | undefined {

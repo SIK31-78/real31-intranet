@@ -21,7 +21,6 @@ import {
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
 import type { Rattachement } from "@/lib/domain/mes-emails";
-import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
@@ -192,15 +191,19 @@ export async function creerDossierDepuisMailAction(
   return { ok: true, dossierId: id };
 }
 
-// --- Synchro -----------------------------------------------------------------
+// --- Rafraichir --------------------------------------------------------------
 
-export async function synchroniserAction(): Promise<void> {
+/**
+ * Relit les boites MAINTENANT. Depuis le passage en lecture live (2026-08-23) il n'y a
+ * plus rien a synchroniser : la page lit deja Graph a chaque rendu. Ce bouton ne fait
+ * qu'invalider le rendu -- il existe pour le geste ("je veux voir ce qui vient
+ * d'arriver"), pas pour un traitement.
+ */
+export async function rafraichirAction(): Promise<void> {
   const g = await getGestionnaireCourant();
   if (!g) return;
-  // Grise en prod tant que la boite n'est pas branchee, et reserve aux pilotes
-  // (MAIL_PILOTES) : un POST direct d'un non-pilote est refuse ici aussi.
+  // Reserve aux pilotes (MAIL_PILOTES) : un POST direct d'un non-pilote est refuse ici aussi.
   if (!mailModuleActifPour(g.email)) return;
-  await synchroniserMesEmails(g);
   revalidatePath("/mes-emails");
 }
 
@@ -251,7 +254,7 @@ export async function genererBrouillonAction(
   if (!auth.ok) return auth;
   const g = auth.g;
   try {
-    const reponse = await genererBrouillonMail(g.id, emailId);
+    const reponse = await genererBrouillonMail(g, emailId);
     if (reponse === null) return { ok: false, message: "Mail introuvable." };
     if (reponse) await enregistrerBrouillon(cibleDe(g, emailId, coproCode), reponse);
     revalidatePath("/mes-emails");

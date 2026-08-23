@@ -1,37 +1,44 @@
-// Service de synchro "Mes emails" : ingere la boite du gestionnaire -> pipeline
-// (prefiltre, nettoyage, regroupement) -> analyse Mistral MEMOISEE par mail -> ecrit
-// le triage dans le cache (table intranet_mes_emails_triage). Un mail deja analyse
-// (cle internetMessageId) n'est JAMAIS renvoye au LLM. Passe par le routeur (ADR-001).
+// Lecture LIVE des boites du gestionnaire (decision Sekou 2026-08-23 : plus de
+// bouton "Synchroniser", plus d'instantane en base). A chaque affichage : ingestion
+// Graph des boites visibles -> pipeline DETERMINISTE (prefiltre, nettoyage,
+// rattachement copro, regroupement par fil) -> cartes.
+//
+// Ce qui a disparu par rapport a la synchro : l'appel au modele au chargement. Le
+// pipeline de rattachement copro, lui, RESTE : il ne coute rien (recherche de texte,
+// annuaire Crypto, heritage par fil), il n'a jamais ete de l'IA. Les classifications
+// deja calculees par le passe sont relues du cache EN LOT, sans jamais rappeler le
+// modele ; un mail jamais analyse sort simplement sans type ("autre"), et le
+// brouillon IA reste declenche a la demande. Passe par le routeur (ADR-001).
 
 import type { BadgeUrgence, Dossier, MailEntrant, TypeMail, UrgenceTon } from "@/lib/domain/mes-emails";
 import type { Severite } from "@/lib/domain/commun";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+import type { BoiteMail } from "@/lib/domain/boites-mail";
 import type { Copropriete } from "@/lib/domain/copropriete";
 import type { AnalyseCachee } from "@/lib/ports/analyse-cache-store";
+import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import { cleanBody, significantAttachments } from "@/lib/domain/tri-mail/clean";
-import { prefilter } from "@/lib/domain/tri-mail/prefilter";
 import { groupAffaires } from "@/lib/domain/tri-mail/group";
 import { resoudreExpediteur } from "@/lib/domain/tri-mail/sender";
 import {
   getAnalyseCacheStore,
-  getAnalyseMailProvider,
-  getCoproRepository,
   getCryptoContactsProvider,
   getMailIngestionProvider,
-  getMesEmailsTriageStore,
 } from "@/lib/adapters/router";
 
+// Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
+// chasser les mails de la boite personnelle de l'affichage.
 const MAX_INGEST = 80;
 // Bumpe cette version si tu changes les prompts/modele -> le cache se reanalyse tout seul.
 // v3 : invalide les sorties MOCK mises en cache quand MISTRAL_API_KEY etait absent
 // (le routeur servait le mock) ; force la reanalyse via le vrai modele.
 const VERSION_ANALYSE = "v3";
 
-export interface ResultatSync {
-  nbMails: number;
-  nbAffaires: number;
-  /** Appels LLM reellement faits (le reste = reutilise depuis le cache). */
-  nbAnalyses: number;
+export interface TriageLive {
+  mails: MailEntrant[];
+  dossiers: Dossier[];
+  /** Nombre de mails bruts remontes, toutes boites confondues. */
+  nbMailsAnalyses: number;
 }
 
 function priorite(type: TypeMail, ticketable: boolean): Severite {
@@ -74,34 +81,70 @@ function attribuerCopro(subject: string, body: string, copros: Copropriete[]): s
   return parAdresse.length === 1 ? parAdresse[0]!.code : "";
 }
 
-export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSync> {
-  const copros = await getCoproRepository().list(g.id);
+/**
+ * Ingere UNE boite. Une boite en echec (droits Exchange, panne Graph) ne doit pas
+ * faire tomber tout l'ecran : on journalise et on rend une liste vide -> les autres
+ * boites s'affichent quand meme. Le silence serait pire, d'ou le console.warn.
+ */
+async function ingererBoite(boite: BoiteMail): Promise<{ boite: BoiteMail; bruts: RawMail[] }> {
+  try {
+    const bruts = await getMailIngestionProvider().lireRecents({
+      email: boite.adresse,
+      max: MAX_INGEST,
+    });
+    return { boite, bruts };
+  } catch (err) {
+    console.warn(`[mes-emails] boite ${boite.adresse} illisible :`, (err as Error).message);
+    return { boite, bruts: [] };
+  }
+}
+
+/**
+ * Lit en direct toutes les boites visibles et construit les cartes.
+ * AUCUNE ecriture : ni cache de triage, ni appel au modele.
+ */
+export async function lireBoitesLive(
+  g: Gestionnaire,
+  boites: BoiteMail[],
+  copros: Copropriete[],
+): Promise<TriageLive> {
+  if (boites.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0 };
+
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
   const coproNomDe = (code: string) => nomDe.get(code) ?? (code || "Non rattaché");
 
-  const bruts = await getMailIngestionProvider().lireRecents({ email: g.email, max: MAX_INGEST });
+  // Les boites sont lues EN PARALLELE : leur latence ne s'additionne pas.
+  const parBoite = await Promise.all(boites.map(ingererBoite));
+  const boiteDe = new Map<string, string>();
+  const bruts: RawMail[] = [];
+  for (const { boite, bruts: lot } of parBoite) {
+    for (const b of lot) {
+      boiteDe.set(b.id, boite.id);
+      bruts.push(b);
+    }
+  }
+  if (bruts.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0 };
+
   for (const b of bruts) b.copro = attribuerCopro(b.subject, b.bodyText, copros);
 
   // Les affaires servent de CONTEXTE (le fil auquel un mail appartient) : on ne plie
-  // PLUS la liste. Un mail = une carte (decision Sekou 2026-06-25) -> on ne perd aucun
-  // contenu. Les affaires alimentent le rattachement (dossier) et l'historique du fil.
+  // PAS la liste. Un mail = une carte (decision Sekou 2026-06-25).
   const affaires = groupAffaires(bruts).sort((a, b) => b.last.localeCompare(a.last));
 
   // Resolveur Crypto : pour les mails encore non-rattaches, on cherche la copro par
   // l'email de l'EXPEDITEUR (annuaire Crypto importe). Attribution SEULEMENT si une
-  // seule copro (anti-ambiguite). Vide tant que le JSON Crypto n'est pas importe.
+  // seule copro (anti-ambiguite).
   const sansCopro = bruts.filter((b) => !b.copro);
   if (sansCopro.length > 0) {
     const parEmail = await getCryptoContactsProvider().coprosPourEmails(sansCopro.map((b) => b.from));
     for (const b of sansCopro) {
-      const copros = parEmail.get((b.from || "").toLowerCase().trim());
-      if (copros && new Set(copros).size === 1) b.copro = copros[0]!;
+      const trouvees = parEmail.get((b.from || "").toLowerCase().trim());
+      if (trouvees && new Set(trouvees).size === 1) b.copro = trouvees[0]!;
     }
   }
 
-  // Heritage par fil : un mail sans copro herite de la copro d'un autre mail du meme
-  // fil (les reponses ne re-citent pas toujours la copro). Met a jour les RawMail (donc
-  // les cartes) ET l'affaire (donc le dossier/contexte).
+  // Heritage par fil : un mail sans copro herite de celle d'un autre mail du meme fil
+  // (les reponses ne re-citent pas toujours la copro).
   for (const aff of affaires) {
     const coproDuFil = aff.mails.find((m) => m.copro)?.copro;
     if (!coproDuFil) continue;
@@ -114,87 +157,34 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
     for (const m of aff.mails) idxAffaireDe.set(m.id, i);
   });
 
-  // Un mail = une carte, les plus recents d'abord (plafond = tout l'ingere).
-  const tous = [...bruts]
-    .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
-    .slice(0, MAX_INGEST);
+  // Un mail = une carte, les plus recents d'abord.
+  const tous = [...bruts].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
 
-  // Cache d'analyse lu en LOT pour TOUS les mails -> zero appel LLM sur le deja-vu.
-  const cacheStore = getAnalyseCacheStore();
-  const cache = await cacheStore.lirePar(
+  // Classifications DEJA calculees, relues en LOT. Aucun appel au modele ici : un mail
+  // jamais analyse sort en "autre" / non ticketable, ce qui est honnete (on ne sait pas)
+  // et n'empeche rien -- le brouillon IA reste declenchable a la demande.
+  const cache = await getAnalyseCacheStore().lirePar(
     g.id,
     tous.map((m) => m.internetMessageId).filter(Boolean),
   );
+  const analyseDe = (imid: string): AnalyseCachee => {
+    const an = cache.get(imid);
+    if (an && an.promptVersion === VERSION_ANALYSE) return an;
+    return {
+      internetMessageId: imid,
+      type: "autre",
+      ticketable: false,
+      estNouveauTicket: true,
+      confidence: 0,
+      rationale: "non analysé (lecture live)",
+      brouillon: "",
+      etapes: [],
+      promptVersion: "absent",
+    } satisfies AnalyseCachee;
+  };
 
-  const analyse = getAnalyseMailProvider();
-  const anDe = new Map<string, AnalyseCachee>();
-  let nbAnalyses = 0;
-
-  for (const m of tous) {
-    const imid = m.internetMessageId;
-    const corps = cleanBody(m);
-
-    // Reutilise l'analyse memoisee si presente et si les prompts n'ont pas change.
-    let an = cache.get(imid);
-    if (!an || an.promptVersion !== VERSION_ANALYSE) {
-      try {
-        const pf = prefilter(m);
-        let type: TypeMail = "non_ticketable";
-        let ticketable = false;
-        let estNouveau = false;
-        let confidence = 0.8;
-        let rationale: string = pf.decision;
-        // Brouillon (et etapes) NON generes au sync : produits A LA DEMANDE quand le
-        // gestionnaire ouvre le mail (genererBrouillonAction). On ne depense de l'IA que
-        // sur les mails qu'on traite vraiment -> moins de cout, surtout en prod. (Sekou)
-        const brouillon = "";
-        const etapes: string[] = [];
-
-        if (pf.decision === "pass") {
-          const cls = await analyse.classifier({ de: m.from, objet: m.subject, corps });
-          type = cls.type;
-          ticketable = cls.ticketable;
-          estNouveau = cls.est_nouveau_ticket;
-          confidence = cls.confidence;
-          rationale = cls.rationale;
-        }
-
-        an = {
-          internetMessageId: imid,
-          type,
-          ticketable,
-          estNouveauTicket: estNouveau,
-          confidence,
-          rationale,
-          brouillon,
-          etapes,
-          promptVersion: VERSION_ANALYSE,
-        } satisfies AnalyseCachee;
-        nbAnalyses++;
-        if (imid) await cacheStore.ecrire(g.id, an);
-      } catch (err) {
-        // Analyse indisponible (ex. limite API Mistral) : on NE casse PAS la synchro.
-        // Fallback NON mis en cache -> reessaye au prochain sync (la limite se libere).
-        console.warn(`[mes-emails] analyse indisponible pour ${m.id} :`, (err as Error).message);
-        an = {
-          internetMessageId: imid,
-          type: "autre",
-          ticketable: false,
-          estNouveauTicket: true,
-          confidence: 0,
-          rationale: "analyse en attente (limite API, reessayer)",
-          brouillon: "",
-          etapes: [],
-          promptVersion: "pending",
-        } satisfies AnalyseCachee;
-      }
-    }
-    anDe.set(m.id, an);
-  }
-
-  // Une carte par mail.
   const mails: MailEntrant[] = tous.map((m) => {
-    const an = anDe.get(m.id)!;
+    const an = analyseDe(m.internetMessageId);
     const idx = idxAffaireDe.get(m.id);
     const aff = idx !== undefined ? affaires[idx] : undefined;
     const filMultiple = (aff?.mails.length ?? 1) > 1;
@@ -203,6 +193,7 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
     const corps = cleanBody(m);
     return {
       id: m.internetMessageId || m.id,
+      boite: boiteDe.get(m.id) ?? boites[0]!.id,
       de: nomCourt(m.from),
       expediteurEmail: exp.type === "interne" ? "(interne real31)" : m.from,
       destinataires: m.to,
@@ -239,7 +230,7 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
       label: aff.label,
       coproCode: aff.copro,
       coproNom: coproNomDe(aff.copro),
-      type: anDe.get(tete.id)?.type ?? "autre",
+      type: analyseDe(tete.internetMessageId).type,
       historique: parDate.slice(0, 8).map((m) => ({
         date: m.receivedAt.slice(0, 10),
         acteur: nomCourt(m.from),
@@ -249,6 +240,5 @@ export async function synchroniserMesEmails(g: Gestionnaire): Promise<ResultatSy
     };
   });
 
-  await getMesEmailsTriageStore().remplacer(g.id, { mails, dossiers, nbMailsAnalyses: bruts.length });
-  return { nbMails: mails.length, nbAffaires: affaires.length, nbAnalyses };
+  return { mails, dossiers, nbMailsAnalyses: bruts.length };
 }

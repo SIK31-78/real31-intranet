@@ -21,6 +21,9 @@ const COMPTA = "compta@real31.fr";
 
 const DATA: MesEmails = {
   gestionnaire: { nomComplet: "Élise Lambert", initiales: "EL" },
+  // Fixture anterieure au multi-boites : aucune boite declaree -> le rail ne s'affiche
+  // pas et les mails (sans champ `boite`) sont traites comme la boite personnelle.
+  boites: [],
   nbMailsAnalyses: 4317,
   dateCourante: "12 juin 2026",
   contextes: [], // rempli par le service (enrichissement eStale)

@@ -5,8 +5,8 @@ import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session"
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
-import { synchroniserAction } from "./actions";
-import { BoutonSynchro } from "./bouton-synchro";
+import { rafraichirAction } from "./actions";
+import { BoutonRafraichir } from "./bouton-rafraichir";
 
 export const metadata: Metadata = { title: "Mes e-mails - REAL31 Intranet" };
 
@@ -25,11 +25,9 @@ export default async function MesEmailsPage() {
   return (
     <AppShell user={g} active="emails" breadcrumb="Mes e-mails">
       <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <form action={synchroniserAction} className="mb-4 flex items-center justify-end gap-3">
-          {data.dateCourante ? (
-            <span className="text-[12px] text-ink-3">{data.dateCourante}</span>
-          ) : null}
-          <BoutonSynchro />
+        <form action={rafraichirAction} className="mb-4 flex items-center justify-end gap-3">
+          <span className="text-[12px] text-ink-3">Lecture en direct des boîtes</span>
+          <BoutonRafraichir />
         </form>
         <MesEmailsVue data={data} signatureHtml={signatureHtml} />
       </div>
