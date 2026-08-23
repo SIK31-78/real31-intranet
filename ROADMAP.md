@@ -96,9 +96,29 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 
 1. ✅ **QW0 — Demande DSI : VÉRIFIÉE INUTILE le 2026-08-18.** Sonde Graph app-only (lecture seule, métadonnées uniquement) : l'Application Access Policy est **déjà ouverte** sur toutes les boîtes syndic (200 OK sur syndic1/2/3/4, prouvé) — l'accès applicatif existe, rien à demander pour lire. Reste de QW0 uniquement la question jumelle à poser à la DSI : possibilité d'arrêter les purges (archivage en ligne / quota) une fois l'archive intranet en place.
 2. **QW1 — La boîte syndic2 dans le module existant (lecture)** : rail à deux boîtes — « Ma boîte » (inchangée) et « syndic2 » = **boîte de réception complète, non triée**. La boîte devient un paramètre du module ; la boîte perso ne change pas d'un pixel. Grammaire Outlook légère (liste + volet de lecture + barre de commandes), UI et architecture actuelles conservées. Lecture seule : Crypto reste le flux officiel en parallèle, rien n'est déplacé côté Exchange.
-3. **QW2 — L'envoi** : réponse inline avec choix de la boîte d'expédition (champ « De : »), défaut **syndic2** sur un mail syndic2 (le fil reste unifié sur la boîte partagée), défaut perso sur la boîte perso. Réutilise l'envoi existant et ses verrous (confirmation récapitulative, anti double-clic `envoiEnCours`). ⚠️ **Le droit `Mail.Send` app-only sur syndic2 n'a PAS été vérifié** — la sonde du 2026-08-18 portait sur la LECTURE. À prouver avant de coder QW2.
+3. ✅ **QW2 — L'envoi : DÉBLOQUÉ, prouvé le 2026-08-23.** `scripts/sonde-mail-send-syndic2.mjs` : le jeton applicatif porte `Mail.Send` (+ `Mail.Read`, `Mail.ReadWrite`, `Calendars.ReadWrite`) ET Graph a **accepté un envoi réel depuis `syndic2@real31.fr`** (202, mail de test reçu). L'Application Access Policy borne les BOÎTES, pas les permissions une par une : la lecture marchant sur syndic2, l'envoi suit. Reste à coder : champ « De : » dans la réponse inline, défaut **syndic2** sur un mail syndic2 (le fil reste unifié sur la boîte partagée), défaut perso sur la boîte perso ; l'action serveur doit VALIDER que la boîte demandée est autorisée pour ce gestionnaire. Les ports sont déjà génériques (`MailOutboundProvider.envoyer({ boite })`), rien à changer côté adaptateur. Verrous existants à conserver (confirmation récapitulative, anti double-clic `envoiEnCours`).
 
 **Ce que la V1.2 ne fait pas** (et ne doit pas faire) : aucun tri automatique, aucune distribution par gestionnaire, aucune archive, aucune trace eStale, aucun brouillon IA. Le gain V1.2 est **d'ouvrir syndic2 dans l'intranet et de pouvoir y répondre** — pas d'automatiser.
+
+### 🔄 DÉCISION 2026-08-23 — LE LIVE REMPLACE LA SYNCHRO (Sekou)
+
+**Plus de bouton « Synchroniser ma boîte », plus d'instantané en base : les deux boîtes se lisent EN DIRECT chez Graph à chaque affichage.** La preuve par l'absurde était à l'écran : le module affichait « synchronisé le 2026-06-26 », soit deux mois de retard. Un cache d'affichage périmé ne rend pas service.
+
+Ce que ça implique, et qu'il faut assumer :
+- `intranet_mes_emails_triage` (l'instantané) **n'est plus la source de lecture**. Ne PAS supprimer la table tant que la bascule n'est pas éprouvée.
+- **La suggestion automatique de copropriété disparaît** : elle était produite par le triage. Le rattachement se fait à la main avec le sélecteur existant. Cohérent avec « zéro automatisme » en V1.2.
+- `intranet_mes_emails_etat` **RESTE et devient le seul stockage du module** : rattachement copro/dossier, classé, répondu — cette information n'existe nulle part dans Exchange. Modèle = lire Graph en direct, **superposer** cet état.
+- Le cache d'analyse IA (`intranet_mes_emails_analyse`) devient sans objet au chargement : le brouillon IA est déclenché par un bouton, pas au chargement.
+- **Quand on généralisera** (20 gestionnaires), la réponse aux quotas Graph ne sera PAS de revenir à un instantané mais d'utiliser les **delta queries** de Graph. À faire seulement si le besoin se mesure.
+- ⚠️ Ne pas confondre ce cache d'affichage avec l'**archive** anti-purges (décision 2 du 2026-08-18) : c'est de la conservation, pas de l'affichage. Elle reste hors V1.2.
+
+### État des lieux du code (audit lecture seule, 2026-08-23) — le chantier est plus petit que prévu
+
+- **Les ports sont DÉJÀ génériques** : `MailIngestionProvider.lireRecents({ email })` et `MailOutboundProvider.envoyer({ boite })` prennent la boîte en paramètre, les adaptateurs Graph appellent `/users/{boite}/...`. **Rien à changer côté ports ni adaptateurs.**
+- La boîte est dérivée de `g.email` (SSO) à **exactement DEUX endroits** : `src/lib/services/mes-emails/synchroniser.ts:82` (lecture) et `src/app/mes-emails/actions.ts:306` (envoi).
+- Ce qui présuppose une boîte unique : le domaine (`MailEntrant` n'a pas de notion de boîte source), l'état React de `mes-emails-vue.tsx`, et les clés des tables (`intranet_mes_emails_triage` : PK `gestionnaire_id` seul ; `intranet_mes_emails_analyse` : PK `(gestionnaire_id, internet_message_id)`). **Le passage au live rend ces deux dernières sans objet** — c'est ce qui fait tomber le poste le plus cher du chiffrage.
+- **⚠️ Angle mort à trancher avant la généralisation** : rien ne restreint l'accès à une boîte partagée **par agence**. `MAIL_PILOTES` est une allowlist GLOBALE du module, pas par boîte ; `Gestionnaire.agencyId` existe mais n'est pas utilisé par le module mail. Sans garde, un pilote d'une autre agence verrait syndic2. Sans conséquence sur un pilote à 1-2 personnes, bloquant pour syndic1/syndic4.
+- **⚠️ ZÉRO test** sur toute la chaîne (`synchroniser`, `get-mes-emails`, `envoyer-reponse`, adaptateurs Graph, server actions, `mes-emails-vue`). Ajouter un paramètre de boîte ne cassera donc rien — mais aucun filet n'existe : les tests s'écrivent EN MÊME TEMPS que le code, on ne peut pas se reposer sur une CI.
 
 ### La suite (plus tard, ordre indicatif — RIEN de tout ça maintenant)
 
@@ -115,7 +135,7 @@ Décisions structurelles figées en ADR-034/035/036 (DECISIONS.md) : dégradatio
 ### Ce qui bloque
 
 - ~~QW0 (DSI)~~ **PLUS un bloqueur** (vérifié le 2026-08-18, sondes Graph app-only en lecture seule) : l'accès app-only est DÉJÀ ouvert sur toutes les boîtes syndic (200 OK sur syndic1/2/3/4, prouvé). Les quick wins peuvent démarrer sans attendre la DSI — seule la question des purges (archivage en ligne / quota) reste à lui poser, sans rien conditionner.
-- **`Mail.Send` app-only sur syndic2 : NON vérifié** (la sonde du 2026-08-18 ne portait que sur la lecture). C'est le seul inconnu technique de la V1.2 — à prouver avant de coder QW2, sur un envoi de test vers une adresse interne.
+- ~~`Mail.Send` app-only sur syndic2~~ **PROUVÉ le 2026-08-23** (202 sur un envoi réel, cf. QW1/QW2 ci-dessus). **Plus AUCUN bloqueur technique sur la V1.2.**
 - Questions métier ouvertes : source de référence des fournisseurs pour l'OS express (suppliers eStale ?), rétention RGPD des copies complètes.
 
 ## 📍 État actuel - 2026-08-18 — REPRISE COMPTA DÉCOUPLÉE DU PATRIMOINE (branche `compta/recap-ag`)
