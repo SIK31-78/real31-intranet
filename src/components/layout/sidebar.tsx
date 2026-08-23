@@ -8,7 +8,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
   ShieldAlert, Key, PackagePlus, Receipt, ClipboardList, Landmark, Sparkles,
-  MessageSquare, Megaphone, FolderOpen, ChevronsLeft, ChevronsRight,
+  MessageSquare, Megaphone, FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useNavRepli } from "@/components/layout/nav-repli-context";
@@ -207,27 +207,6 @@ function Groupe({ repli, premier, children }: { repli: boolean; premier: boolean
   return <div className={cn(repli && !premier && "md:border-t md:border-line md:pt-2")}>{children}</div>;
 }
 
-function BoutonRepli({ repli, onBasculer }: { repli: boolean; onBasculer: () => void }) {
-  const Icone = repli ? ChevronsRight : ChevronsLeft;
-  return (
-    <button
-      type="button"
-      onClick={onBasculer}
-      aria-label={repli ? "Déplier la navigation" : "Replier la navigation"}
-      title={repli ? "Déplier la navigation" : "Replier la navigation"}
-      className={cn(
-        // Sous md: la sidebar est un tiroir : replier n'y a pas de sens.
-        "hidden md:flex items-center justify-center h-7 w-7 rounded-md text-ink-3",
-        "hover:bg-surface-2 hover:text-ink-2 transition-colors duration-75",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
-        repli ? "md:mx-auto" : "md:ml-auto",
-      )}
-    >
-      <Icone strokeWidth={1.5} className="w-4 h-4" />
-    </button>
-  );
-}
-
 export function Sidebar({
   active,
   emailsOuvert = true,
@@ -243,7 +222,7 @@ export function Sidebar({
   /** Groupe "Administration" (cles API) : visible SUPER-ADMIN seulement. */
   adminOuvert?: boolean;
 }) {
-  const { repli, basculer } = useNavRepli();
+  const { repli } = useNavRepli();
 
   return (
     <aside
@@ -254,8 +233,6 @@ export function Sidebar({
       )}
     >
       <nav className={cn("py-3 flex flex-col gap-4", repli ? "px-2 md:px-1.5" : "px-3")}>
-        <BoutonRepli repli={repli} onBasculer={basculer} />
-
         {vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
           <div>
