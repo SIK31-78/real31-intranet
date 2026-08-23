@@ -4,6 +4,8 @@ import { Topbar } from "@/components/layout/topbar";
 import { SidebarDrawer } from "@/components/layout/sidebar-drawer";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
 import { NavRepliProvider } from "@/components/layout/nav-repli-context";
+import { cookies } from "next/headers";
+import { COOKIE_NAV_REPLI, repliInitial } from "@/lib/domain/nav-repli";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
 import { peutVoirComptabilite, estVueComptable, estSuperAdmin } from "@/lib/auth/roles";
@@ -32,11 +34,17 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // Groupe "Administration" (cles API machine) : SUPER-ADMIN seulement. La page
   // /admin/cles-api porte sa propre garde serveur - l'entree sidebar n'est qu'un acces.
   const adminOuvert = estSuperAdmin(g?.email);
+  // Repli de la sidebar : lu COTE SERVEUR depuis le cookie, pour que le premier rendu
+  // soit deja le bon (avec localStorage, la page s'affichait dans l'etat par defaut puis
+  // sautait sur la preference -- mesure dans le navigateur le 2026-08-23).
+  const replie = repliInitial((await cookies()).get(COOKIE_NAV_REPLI)?.value, active);
   return (
     <MobileSidebarProvider>
       {/* Repli de la sidebar memorise PAR MODULE (`active`) : replier pour le mail ne
           doit pas priver les autres pages de leurs libelles. Cf. nav-repli-context. */}
-      <NavRepliProvider module={active}>
+      {/* key={active} : changer de module remonte le provider, donc l'etat initial
+          calcule par le serveur pour CE module est bien applique. */}
+      <NavRepliProvider key={active} module={active} repliInitial={replie}>
         <div className="flex flex-col min-h-screen">
           <Topbar user={user} breadcrumb={breadcrumb} peutImpersonner={peutImpersonner} emailsOuvert={emailsOuvert} />
           <div className="flex flex-1 min-h-0">

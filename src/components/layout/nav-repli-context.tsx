@@ -1,108 +1,57 @@
 "use client";
 
-// Etat "sidebar repliee" MEMORISE PAR MODULE (option C, decision Sekou 2026-08-20).
-// Pourquoi par module et pas global : replier pour donner de l'air a la page mail ne
-// doit pas priver les autres pages de leurs libelles (14 entrees a deviner a l'icone).
-// Regle : le mail s'ouvre replie la premiere fois, tout le reste s'ouvre deplie ; ensuite
-// le choix de l'utilisateur gagne, et ne vaut que pour le module ou il l'a fait.
+// Etat "sidebar repliee" du module courant. La preference vit dans un COOKIE
+// (cf. lib/domain/nav-repli), ce qui change tout par rapport a la version localStorage
+// du 2026-08-20 : le SERVEUR la lit et rend d'emblee le bon etat. Ici, plus de store
+// externe ni de lecture au montage -- juste un etat local initialise par le serveur, et
+// une ecriture de cookie quand l'utilisateur bascule.
 //
-// La preference vit dans localStorage, donc HORS de React : on la lit avec
-// useSyncExternalStore (et non un useState + useEffect, qui declencherait un rendu en
-// cascade).
-//
-// ⚠️ LIMITE CONNUE (mesuree dans le navigateur le 2026-08-23, pas supposee) : au
-// CHARGEMENT d'une page, c'est le DEFAUT du module qui s'affiche, pas la preference
-// enregistree. Le serveur ne peut pas lire localStorage, et React ne relit pas le store
-// apres l'hydratation ; forcer la relecture au montage a ete essaye et ne change rien.
-// Concretement : replier le mail puis recharger reaffiche l'etat par defaut, et le choix
-// ne reprend effet qu'a la premiere bascule. La correction propre est de stocker la
-// preference dans un COOKIE, que l'AppShell (server component) lit pour rendre d'emblee
-// le bon etat -- a faire, ce n'est pas repare ici.
+// Le provider est monte avec `key={module}` (cf. AppShell) : changer de module remonte
+// le composant, donc l'etat initial du nouveau module est bien pris en compte.
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
-
-const CLE = "real31.nav.repli";
-
-/** Modules qui s'ouvrent replies par defaut (tant que l'utilisateur n'a rien choisi). */
-const REPLI_PAR_DEFAUT = new Set<string>(["emails"]);
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { COOKIE_NAV_REPLI, MAX_AGE_NAV_REPLI, fusionnerRepli } from "@/lib/domain/nav-repli";
 
 type NavRepliState = {
-  /** Repli effectif du module courant (n'a d'effet visuel qu'a partir de md:). */
+  /** Repli du module courant (n'a d'effet visuel qu'a partir de md:). */
   repli: boolean;
   basculer: () => void;
 };
 
 const NavRepliContext = createContext<NavRepliState | null>(null);
 
-// --- Petit store externe autour de localStorage -----------------------------------
-
-const abonnes = new Set<() => void>();
-let cache: Record<string, boolean> | null = null;
-
-function lire(): Record<string, boolean> {
-  if (cache) return cache;
-  try {
-    const brut = window.localStorage.getItem(CLE);
-    const val: unknown = brut ? JSON.parse(brut) : null;
-    cache = val && typeof val === "object" ? (val as Record<string, boolean>) : {};
-  } catch {
-    // localStorage indisponible (navigation privee, quota) : on degrade sur le defaut.
-    cache = {};
-  }
-  return cache;
+function ecrireCookie(module: string, repli: boolean): void {
+  const brut = document.cookie
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${COOKIE_NAV_REPLI}=`));
+  const existant = brut ? decodeURIComponent(brut.slice(COOKIE_NAV_REPLI.length + 1)) : "";
+  // La FUSION (ne pas effacer la preference des autres modules) est la partie qui peut
+  // se tromper : elle vit dans le domaine, ou elle est testee.
+  const valeur = encodeURIComponent(fusionnerRepli(existant, module, repli));
+  document.cookie = `${COOKIE_NAV_REPLI}=${valeur}; path=/; max-age=${MAX_AGE_NAV_REPLI}; samesite=lax`;
 }
 
-function ecrire(prefs: Record<string, boolean>): void {
-  cache = prefs;
-  try {
-    window.localStorage.setItem(CLE, JSON.stringify(prefs));
-  } catch {
-    /* preference non persistee : sans consequence sur la session en cours */
-  }
-  notifierTous();
-}
+export function NavRepliProvider({
+  module,
+  repliInitial,
+  children,
+}: {
+  module: string;
+  /** Calcule par le serveur depuis le cookie : le premier rendu est deja le bon. */
+  repliInitial: boolean;
+  children: ReactNode;
+}) {
+  const [repli, setRepli] = useState(repliInitial);
 
-/** Reveille tous les abonnes : leur snapshot est relu. */
-function notifierTous(): void {
-  for (const notifier of abonnes) notifier();
-}
-
-function souscrire(notifier: () => void): () => void {
-  abonnes.add(notifier);
-  // `storage` = la preference a change dans un AUTRE onglet : on invalide et on suit.
-  const surStorage = (e: StorageEvent) => {
-    if (e.key !== null && e.key !== CLE) return;
-    cache = null;
-    notifier();
-  };
-  window.addEventListener("storage", surStorage);
-  return () => {
-    abonnes.delete(notifier);
-    window.removeEventListener("storage", surStorage);
-  };
-}
-
-// ---------------------------------------------------------------------------------
-
-export function NavRepliProvider({ module, children }: { module: string; children: ReactNode }) {
-  const defaut = REPLI_PAR_DEFAUT.has(module);
-
-  const snapshot = useCallback(() => lire()[module] ?? defaut, [module, defaut]);
-  // Rendu serveur (et premiere passe d'hydratation) : le defaut, jamais localStorage.
-  const snapshotServeur = useCallback(() => defaut, [defaut]);
-  const repli = useSyncExternalStore(souscrire, snapshot, snapshotServeur);
-
+  // L'ecriture du cookie est un EFFET DE BORD : elle ne doit pas vivre dans le
+  // calculateur passe a setRepli (React peut l'appeler plusieurs fois, et le rendre
+  // impur casse la mise a jour). On calcule d'abord, on pose l'etat, puis on ecrit.
   const basculer = useCallback(() => {
-    const prefs = lire();
-    ecrire({ ...prefs, [module]: !(prefs[module] ?? defaut) });
-  }, [module, defaut]);
+    const suivant = !repli;
+    setRepli(suivant);
+    ecrireCookie(module, suivant);
+  }, [module, repli]);
 
   const valeur = useMemo(() => ({ repli, basculer }), [repli, basculer]);
 
