@@ -1,5 +1,12 @@
 # État du chantier extraction — arrêt du 2026-07-31
 
+> **⚰️ CHANTIER CLOS PAR LA REFONTE DU 2026-08-24 (branche `chantier/reprise-v2`).**
+> L'extraction IA du patrimoine a été SUPPRIMÉE du repo : le gestionnaire verse désormais les
+> fichiers Excel produits par le skill `estale-migration`, le module les parse et les valide
+> (déterministe). Les briques listées ici (indexation/apports, garde-extraction, orientation,
+> OCR, contre-preuves, filet noms) ont été retirées avec elle — git garde l'historique si le
+> sujet rouvre un jour. Ce document reste comme mémoire des impasses et des mesures.
+
 > **Ce document porte l'ÉTAT. Le raisonnement et les choix sont dans
 > [`etat de l'art → docs/etude-indexation-extraction-patrimoine.md`](./etude-indexation-extraction-patrimoine.md).**
 > Une seule source par sujet : ici le « où on en est », là-bas le « pourquoi ». Si les deux se
