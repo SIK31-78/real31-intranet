@@ -65,3 +65,19 @@ export const HEADERS_OWNERS = [
 
 /** Phase B : col A = reference eStale 4 caracteres. Phase A (DRAFT) : col A = NOM en clair. */
 export const HEADERS_LINKS = ["N° Copropriétaire", "N° Lot"] as const;
+
+/** Feuille « Écritures » du template entries.xlsx (12 colonnes data, releve 2026-08). */
+export const HEADERS_ENTRIES = [
+  "Date",
+  "Libellé",
+  "Pièce",
+  "Journal",
+  "Compte",
+  "Clé",
+  "Type",
+  "Montant TTC",
+  "TVA",
+  "Déductible",
+  "Récupérable",
+  "Commentaire",
+] as const;
