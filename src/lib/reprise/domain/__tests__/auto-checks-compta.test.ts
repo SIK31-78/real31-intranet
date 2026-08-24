@@ -206,7 +206,8 @@ describe("chaque check sait echouer", () => {
     const b = await batterieNominale((d) => {
       d.entriesRelues = d.entriesRelues.map((x) => {
         if (!x.compte.startsWith("6")) return x;
-        const { cle: _cle, ...sans } = x;
+        const sans = { ...x };
+        delete sans.cle;
         return sans;
       });
     });

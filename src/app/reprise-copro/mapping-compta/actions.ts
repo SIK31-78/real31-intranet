@@ -17,6 +17,10 @@ import { z } from "zod";
 import { exigerAdminReprise } from "@/lib/auth/garde-reprise";
 import { getMappingDecisionRepository } from "@/lib/reprise/adapters/router";
 import type { DecisionMapping } from "@/lib/reprise/domain/decisions-mapping";
+import {
+  verifierSoldesApresImport,
+  type ResultatVerificationImport,
+} from "@/lib/reprise/services/verifier-import-compta";
 
 export type ActionResultat = { ok: true } | { ok: false; message: string };
 
@@ -82,4 +86,33 @@ export async function oublierDecisionAction(
     return { ok: false, message: e instanceof Error ? e.message : "Annulation impossible." };
   }
   return { ok: true };
+}
+
+
+// --- VERIFICATION POST-IMPORT (lecture seule) --------------------------------------
+
+const zCibles = z.record(z.string().trim().min(1).max(40), z.number().finite()).refine(
+  (c) => Object.keys(c).length > 0 && Object.keys(c).length <= 2000,
+  "cibles vides ou trop nombreuses",
+);
+
+export type VerifierImportResultat = ResultatVerificationImport;
+
+/**
+ * Confronte les CIBLES DE CALAGE (produites avec entries.xlsx) aux soldes relus dans eStale
+ * apres que le gestionnaire a fait l'import dans l'UI. LECTURE SEULE (aucune mutation, aucun
+ * gate ESTALE_ECRITURE necessaire). Reserve aux ADMINS REPRISE.
+ */
+export async function verifierImportComptaAction(
+  coproCode: string,
+  cibles: Record<string, number>,
+): Promise<VerifierImportResultat> {
+  const codeOk = zCoproCode.safeParse(coproCode);
+  const ciblesOk = zCibles.safeParse(cibles);
+  if (!codeOk.success || !ciblesOk.success) return { ok: false, message: "Parametres invalides." };
+
+  const garde = await exigerAdminReprise("verifier les soldes post-import");
+  if (!garde.ok) return { ok: false, message: garde.message };
+
+  return verifierSoldesApresImport(codeOk.data, ciblesOk.data);
 }
