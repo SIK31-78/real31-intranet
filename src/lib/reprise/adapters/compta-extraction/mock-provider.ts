@@ -11,7 +11,7 @@
 //   - paiement fournisseur : fournisseur (4) au debit / banque (5) au credit.
 // Total debit == total credit -> le grand livre complet "tombe a 0" (auto-check fort valide).
 
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
 import { normaliserGrandLivre } from "@/lib/reprise/adapters/shared/normaliser-compta";

@@ -4,7 +4,7 @@
 // On peut l'instancier avec un resultat personnalise (tests) ; sinon il renvoie un resultat
 // FICTIF deterministe (aucune donnee reelle) qui exerce les trois statuts de rapprochement.
 
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 import type { AnnexeExtraite, ExtractionAnnexeProvider } from "@/lib/reprise/ports/extraction-annexe-provider";
 
 const ANNEXE_DEMO: AnnexeExtraite = {

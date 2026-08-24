@@ -54,7 +54,6 @@ import { NotesAnalyse } from "@/components/reprise/notes-analyse";
 import { classerNotes } from "@/lib/reprise/domain/classement-notes";
 import { verifierTailleLot } from "@/lib/reprise/domain/limites-upload";
 
-type ModeIa = "claude" | "claude-cli" | "mistral" | "mock";
 
 interface Candidats {
   fournisseurs: CandidatCompte[];
@@ -103,7 +102,6 @@ interface DonneesRevue {
   /** Balance complete par compte (verification comptable). */
   balance: LigneBalance[];
   equilibre: Equilibre;
-  mode: ModeIa;
 }
 
 /** Formate un montant en euros (fr-FR) ; masque le 0 pour alleger les colonnes debit/credit. */
@@ -141,11 +139,9 @@ function versTableau(decisions: Record<string, DecisionMapping>): DecisionEntree
 }
 
 export function RevueMappingVue({
-  modeIa,
   persistant,
   refInitiale = "",
 }: {
-  modeIa: ModeIa;
   persistant: boolean;
   /** Code copro pre-rempli depuis le bandeau "prochaine etape" (?ref=S0xxx). Reste editable. */
   refInitiale?: string;
@@ -187,7 +183,6 @@ export function RevueMappingVue({
             grandLivre: r.grandLivre ?? {},
             balance: r.balance ?? [],
             equilibre: r.equilibre,
-            mode: r.mode,
           });
           const carte: Record<string, DecisionMapping> = {};
           for (const d of r.decisions as DecisionEntree[]) carte[d.compteSource] = d.decision;
@@ -219,7 +214,6 @@ export function RevueMappingVue({
         pending={pending}
         onAnalyse={lancerAnalyse}
         dejaAnalyse={data !== null}
-        modeIa={modeIa}
       />
 
       {pending ? (
@@ -254,7 +248,6 @@ function ZoneUpload({
   pending,
   onAnalyse,
   dejaAnalyse,
-  modeIa,
 }: {
   coproCode: string;
   onCoproCode: (v: string) => void;
@@ -263,17 +256,15 @@ function ZoneUpload({
   pending: boolean;
   onAnalyse: () => void;
   dejaAnalyse: boolean;
-  modeIa: ModeIa;
 }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Grand livre N-1</CardTitle>
-        <Badge ton={modeIa === "mock" ? "warn" : "ok"} className="gap-1.5">
+        <Badge ton="ok" className="gap-1.5">
           <Sparkles strokeWidth={1.5} className="w-3 h-3" />
-          {/* Libelle neutre : on n'expose pas le nom du moteur cote UI (decision Sekou).
-              On garde la distinction "mode demonstration" (jeu de donnees mock). */}
-          {modeIa === "mock" ? "extraction automatique - démonstration" : "extraction automatique"}
+          {/* Couche texte locale : deterministe, zero IA, zero reseau. */}
+          lecture couche texte - deterministe
         </Badge>
       </CardHeader>
 
@@ -284,8 +275,8 @@ function ZoneUpload({
             Grand livre du syndic sortant (PDF)
           </div>
           <p className="mt-1 text-[12px] text-ink-3">
-            L&apos;IA extrait toutes les ecritures (balance verifiee), puis chaque compte source est
-            mappe vers eStale. Le format du grand livre importe peu (agnostique au syndic).
+            La couche texte du PDF natif est lue localement : toutes les ecritures (balance
+            verifiee), puis chaque compte source est mappe vers eStale. PDF NATIF exige (pas un scan).
           </p>
 
           <label className="mt-3 flex flex-col gap-1 max-w-[260px]">

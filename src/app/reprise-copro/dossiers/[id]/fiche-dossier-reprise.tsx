@@ -58,13 +58,7 @@ import type { Phase, StatutEtape, StatutDossier } from "@/lib/reprise/domain/dos
 import { PHASES } from "@/lib/reprise/domain/dossier";
 import { ETABLISSEMENTS_REAL31 } from "@/lib/reprise/domain/etablissements";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
-import {
-  verifierTailleLot,
-  TAILLE_IA_MAX_OCTETS,
-  TAILLE_IA_MAX_LABEL,
-  enMo,
-  estNomGrandLivre,
-} from "@/lib/reprise/domain/limites-upload";
+import { verifierTailleLot } from "@/lib/reprise/domain/limites-upload";
 import type { MetadonneesCopro } from "@/lib/reprise/services/onboarder-copro";
 import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
 import type { VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
@@ -186,7 +180,6 @@ export function FicheDossierReprise({
   analyseInitiale,
   etapeSuivante,
   nbFichesGenerees,
-  modeIa,
   ecritureReelle,
   dejaInjecte,
   fiches,
@@ -198,7 +191,6 @@ export function FicheDossierReprise({
   analyseInitiale: AnalyseInitiale | null;
   etapeSuivante: ProchaineEtape;
   nbFichesGenerees: number;
-  modeIa: "claude" | "claude-cli" | "mistral" | "mock";
   ecritureReelle: boolean;
   dejaInjecte: boolean;
   fiches: FicheOwnerVue[];
@@ -315,7 +307,6 @@ export function FicheDossierReprise({
           dossier={dossier}
           analyse={analyse}
           onAnalyse={setAnalyse}
-          modeIa={modeIa}
           ecritureReelle={ecritureReelle}
           dejaInjecte={dejaInjecte}
           adminReprise={adminReprise}
@@ -576,13 +567,12 @@ function ActionsDossier({
   );
 }
 
-// --- ZONE 2 : PATRIMOINE (pilote IA) ---------------------------------------
+// --- ZONE 2 : PATRIMOINE (fichiers Excel verses, parsing deterministe) ------
 
 function ZonePatrimoine({
   dossier,
   analyse,
   onAnalyse,
-  modeIa,
   ecritureReelle,
   dejaInjecte,
   adminReprise,
@@ -590,7 +580,6 @@ function ZonePatrimoine({
   dossier: DossierFicheVue;
   analyse: Analyse | null;
   onAnalyse: (a: Analyse | null) => void;
-  modeIa: "claude" | "claude-cli" | "mistral" | "mock";
   ecritureReelle: boolean;
   dejaInjecte: boolean;
   adminReprise: boolean;
@@ -613,13 +602,6 @@ function ZonePatrimoine({
     const tropGros = verifierTailleLot(totalOctets, process.env.NODE_ENV === "production");
     if (tropGros) {
       toast.err(tropGros);
-      return;
-    }
-    const iaOctets = files.filter((f) => !estNomGrandLivre(f.name)).reduce((s, f) => s + f.size, 0);
-    if (iaOctets > TAILLE_IA_MAX_OCTETS) {
-      toast.err(
-        `Documents patrimoine trop volumineux pour l'analyse IA : ${enMo(iaOctets)} Mo (hors grand livre), plafond ${TAILLE_IA_MAX_LABEL} (limite de l'API d'extraction). Scinde les PDF ou analyse en plusieurs fois.`,
-      );
       return;
     }
     startAnalyse(async () => {
@@ -651,11 +633,10 @@ function ZonePatrimoine({
     <Card>
       <CardHeader>
         <CardTitle>Patrimoine</CardTitle>
-        <Badge ton={modeIa === "mock" ? "warn" : "ok"} className="gap-1.5">
+        <Badge ton="ok" className="gap-1.5">
           <Sparkles strokeWidth={1.5} className="w-3 h-3" />
-          {/* Libelle neutre : on n'expose pas le nom du moteur cote UI (decision Sekou).
-              On garde la distinction "mode demonstration" (jeu de donnees mock). */}
-          {modeIa === "mock" ? "extraction automatique - démonstration" : "extraction automatique"}
+          {/* Parsing local des fichiers Excel : deterministe, zero IA, zero reseau. */}
+          fichiers Excel - lecture deterministe
         </Badge>
       </CardHeader>
 
@@ -663,33 +644,33 @@ function ZonePatrimoine({
         {/* Upload + analyse : ADMIN REPRISE seulement (grise, jamais cache, pour les autres). */}
         <ZoneAdminReprise
           admin={adminReprise}
-          raison="Deposer les documents du syndic sortant et lancer l'extraction IA fait partie de la production du dossier."
+          raison="Verser les fichiers Excel du patrimoine et lancer l'analyse fait partie de la production du dossier."
         >
         <div className="rounded-md border border-line bg-surface-2 p-3.5">
           <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
             <FileUp strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
-            Documents du syndic sortant (PDF)
+            Fichiers Excel du patrimoine (+ grand livre PDF)
           </div>
           <p className="mt-1 text-[12px] text-ink-3">
-            L&apos;IA extrait le cadrage ET le patrimoine. Vous ne faites que verifier ce qu&apos;elle
-            a sorti.
+            Verse les fichiers produits par le travail de preparation (skill estale-migration) :
+            le module les relit, les verifie (auto-checks) et prepare l&apos;injection.
           </p>
           <div className="mt-2.5 rounded-md border border-line bg-surface px-3 py-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Documents attendus</p>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Fichiers attendus</p>
             <ul className="mt-1 text-[12px] text-ink-2 space-y-0.5">
-              <li>PV d&apos;AG de nomination + feuille de presence <span className="text-ink-4">- coproprietaires, mandat</span></li>
-              <li>RGDD / annexes comptables de la convocation <span className="text-ink-4">- cles reelles (eau froide/chaude, chauffage, ascenseur...)</span></li>
-              <li>EDD (etat descriptif de division) + RCP et modificatifs <span className="text-ink-4">- lots, cles, tantiemes</span></li>
-              <li>Fiche synthese, registre national <span className="text-ink-4">- controle : nb lots, batiments</span></li>
+              <li>lots.xlsx <span className="text-ink-4">- feuille &laquo; Lots &raquo; au format template eStale</span></li>
+              <li>tantiemes_&lt;code&gt;_&lt;libelle&gt;.xlsx <span className="text-ink-4">- un fichier par cle (ex. tantiemes_001_charges-generales.xlsx)</span></li>
+              <li>owners.xlsx <span className="text-ink-4">- feuille &laquo; Copropriétaires &raquo;, 22 colonnes</span></li>
+              <li>links_DRAFT.xlsx <span className="text-ink-4">- attributions en NOMS (l&apos;injection API n&apos;a pas besoin des codes 4 caracteres)</span></li>
               <li>
-                Grand livre N-1 <span className="text-ink-4">- compta : ecritures, comptes 450 lies aux coproprietaires</span>
+                Grand livre N-1 et N (PDF natif) <span className="text-ink-4">- compta : ecritures, liaison des comptes 450</span>
                 <span className="ml-1 inline-block rounded bg-surface-2 px-1 text-[10px] text-ink-3">nom de fichier avec &laquo; grand livre &raquo; ou &laquo; GL &raquo;</span>
               </li>
             </ul>
           </div>
           <input
             type="file"
-            accept="application/pdf"
+            accept=".xlsx,application/pdf"
             multiple
             onChange={(e) => {
               const ajoutes = Array.from(e.target.files ?? []);

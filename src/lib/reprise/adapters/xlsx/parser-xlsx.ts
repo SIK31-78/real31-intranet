@@ -122,8 +122,9 @@ async function ouvrirFeuille(
 ): Promise<{ ok: true; feuille: FeuilleOuverte } | { ok: false; erreurs: string[] }> {
   const wb = new ExcelJS.Workbook();
   try {
-    // ExcelJS accepte un Buffer node ; on copie le Uint8Array (jamais de cast silencieux).
-    await wb.xlsx.load(Buffer.from(fichier.contenu));
+    // Le type attendu par exceljs est son propre `Buffer extends ArrayBuffer` : on passe
+    // donc l'ArrayBuffer d'une COPIE du Uint8Array (slice = buffer a la bonne taille).
+    await wb.xlsx.load(fichier.contenu.slice().buffer as ArrayBuffer);
   } catch {
     return { ok: false, erreurs: [`${fichier.nom} : fichier illisible (xlsx corrompu ou autre format).`] };
   }

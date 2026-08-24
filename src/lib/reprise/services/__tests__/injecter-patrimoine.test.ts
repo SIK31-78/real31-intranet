@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
-import { MockExtractionProvider } from "@/lib/reprise/adapters/extraction/mock-extraction-provider";
-import { analyserPatrimoine } from "../orchestrateur-patrimoine";
+import { jeuCanonique } from "./fixtures/jeu-canonique";
 import { injecterPatrimoine, type OperationInjection } from "../injecter-patrimoine";
 import { DryRunEstaleEcritureProvider } from "@/lib/reprise/adapters/estale-ecriture/dry-run-provider";
 
 const CONDO = "condo-test-42";
 
 async function jeuMock(): Promise<JeuDeDonnees> {
-  const { jeu } = await analyserPatrimoine(new MockExtractionProvider(), []);
-  return jeu;
+  return jeuCanonique();
 }
 
 /** Index du premier op d'une mutation donnee (Infinity si absente) pour comparer l'ordre. */

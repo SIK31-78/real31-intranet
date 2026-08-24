@@ -15,7 +15,7 @@ import Link from "next/link";
 import { Lock } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estAdminReprise } from "@/lib/auth/roles";
-import { modeExtraction, reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
+import { reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
 import { RevueMappingVue } from "./revue-mapping-vue";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ export default async function MappingComptaPage({
         </p>
       </div>
 
-      <RevueMappingVue modeIa={modeExtraction()} persistant={reprisePersistanceSupabase()} refInitiale={refInitiale} />
+      <RevueMappingVue persistant={reprisePersistanceSupabase()} refInitiale={refInitiale} />
     </div>
   );
 }

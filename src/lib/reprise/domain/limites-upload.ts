@@ -1,21 +1,10 @@
-// Limites d'upload du module reprise, ALIGNEES sur les limites reelles des API d'extraction
-// (audit API 2026-07-16, P1-8). Domaine PUR (aucune I/O) : importable par les routes ET par les
-// composants client (pre-verification AVANT l'upload, message actionnable au lieu d'un 413 API
-// apres des minutes d'attente).
+// Limites d'upload du module reprise. Domaine PUR (aucune I/O) : importable par les routes ET
+// par les composants client (pre-verification AVANT l'upload, message actionnable au lieu d'un
+// 413 API apres l'attente).
 //
-// Raisonnement des plafonds :
-//   - API Anthropic : 32 Mo par requete, et un PDF part en base64 (gonfle x1,37), prompt et
-//     enveloppe JSON en plus -> au-dela d'~23 Mo de PDF envoyes a une mission, l'appel echoue
-//     (413) APRES l'upload complet et l'attente. On borne a 20 Mo (marge sous ~23 Mo) pour
-//     echouer AVANT, avec un message clair.
-//   - claude-haiku-4-5 (mission proprietaires, contexte 200K) : 100 pages de PDF max par
-//     requete cote API. Les PDF d'une analyse partent ENTIERS dans chaque mission -> plafond
-//     100 pages sur le lot envoye a l'IA (verifie cote route quand le moteur est Claude).
-//   - Mistral (data-url) : plafonds du meme ordre de grandeur ; la borne 20 Mo couvre aussi.
-//
-// Le GRAND LIVRE n'est PAS concerne par ces bornes IA : il part au pipeline COUCHE TEXTE
-// (pdfjs local, zero appel reseau). Sa seule contrainte est la RAM du process -> plafond
-// global distinct (le lot complet est lu en memoire le temps de l'analyse).
+// Depuis la refonte "entree par fichiers Excel" (2026-08), plus AUCUN plafond IA : le
+// patrimoine est parse localement (xlsx) et le grand livre est lu par la couche texte (pdfjs
+// local). La seule contrainte est la RAM du process (le lot est lu en memoire) + le mur Vercel.
 
 // LE MUR VERCEL (production) - honnetete, pas de contournement :
 //   Vercel plafonne le BODY d'une requete serverless a ~4,5 Mo, AVANT que notre code ne tourne
@@ -33,13 +22,6 @@ export const TAILLE_UPLOAD_MAX_PROD_LABEL = "4 Mo";
 /** Plafond RAM : taille TOTALE du lot (tous documents), lu entierement en memoire. */
 export const TAILLE_TOTALE_MAX_OCTETS = 40 * 1024 * 1024;
 export const TAILLE_TOTALE_MAX_LABEL = "40 Mo";
-
-/** Plafond API IA : taille cumulee des documents envoyes a Claude/Mistral (hors grand livre). */
-export const TAILLE_IA_MAX_OCTETS = 20 * 1024 * 1024;
-export const TAILLE_IA_MAX_LABEL = "20 Mo";
-
-/** Plafond API Anthropic : pages de PDF max par requete sur un modele 200K (haiku-4-5). */
-export const PAGES_IA_MAX = 100;
 
 /** Octets -> Mo arrondis a l'entier superieur (pour les messages utilisateur). */
 export function enMo(octets: number): number {

@@ -1,39 +1,21 @@
-// Orchestrateur de la reprise PATRIMOINE (les "3 sous-agents") :
-//   1. extraction : Agent 1 (patrimoine) ET Agent 2 (proprietaires) en PARALLELE ;
-//   2. assemblage du JeuDeDonnees + auto-checks deterministes (Agent 3) ;
-//   3. mini-recap GO/STOP (R3) -> l'humain valide AVANT generation des .xlsx.
+// Orchestrateur de la reprise PATRIMOINE - entree par FICHIERS EXCEL (refonte 2026-08).
 //
-// La generation des fichiers est une etape SEPAREE (produirePhaseA), volontairement
-// non lancee par analyserPatrimoine : on ne produit jamais les xlsx sans GO explicite.
+// AVANT : PDF du sortant -> extraction IA (Claude/Mistral) -> jeu -> auto-checks -> GO/STOP.
+// APRES : le gestionnaire VERSE les 4 xlsx produits hors module (skill estale-migration :
+//   lots.xlsx, tantiemes_<code>_*.xlsx, owners.xlsx, links en noms) -> le module les PARSE
+//   (adapters/xlsx/parser-xlsx, miroir de la generation) et les VALIDE (auto-checks
+//   deterministes) -> mini-recap GO/STOP -> injection eStale par API (ADR-030, inchangee).
+//
+// La generation des fichiers reste une etape SEPAREE (produirePhaseA, xlsx de repli pour
+// un import manuel dans l'UI eStale) : on ne produit jamais sans GO explicite.
 
 import type { JeuDeDonnees, Usage } from "@/lib/reprise/domain/patrimoine";
 import { USAGES } from "@/lib/reprise/domain/patrimoine";
 import type { CompteAvantRepartition, VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import { verifierTout, type ResultatChecks } from "@/lib/reprise/domain/auto-checks";
 import { detecterDoublons } from "@/lib/reprise/domain/dedup";
-import {
-  appliquerGardeExtraction,
-  type RefusActionnable,
-} from "@/lib/reprise/domain/garde-extraction";
-import { indexerLot } from "@/lib/reprise/domain/indexation-documents";
-import {
-  documentsPour,
-  messageApportManquant,
-  verifierCouverture,
-  type Apport,
-  type Couverture,
-  type IndexDocument,
-} from "@/lib/reprise/domain/apports";
-import type { LecteurTexteProvider } from "@/lib/reprise/ports/lecteur-texte-provider";
-import { LecteurTextePdfjs } from "@/lib/reprise/adapters/shared/lecteur-texte-pdfjs";
-import {
-  anomaliesAttributions,
-  messageEcartOwner,
-  verifierTotauxParOwner,
-  type TotalImprimeOwner,
-} from "@/lib/reprise/domain/contre-preuve-owners";
-import { couvertureFilet, detecterCoquilles, type NomSource } from "@/lib/reprise/domain/filet-noms";
-import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
+import { parserJeuDepuisXlsx } from "@/lib/reprise/adapters/xlsx/parser-xlsx";
 import {
   genererPhaseA,
   genererPhaseABuffers,
@@ -74,16 +56,16 @@ export interface RecapCompta {
   /** Nombre d'ecritures extraites. */
   nbEcritures: number;
   /**
-   * Comptes de classe 6/7 avec report a-nouveau non nul. Present (et non vide) UNIQUEMENT si detecte.
-   * SEMANTIQUE selon le GL : sur le GL CLOTURE = signature "grand livre AVANT repartition" (bloquant,
-   * mauvais document, redemander apres regule) ; sur le GL EN COURS = ANOMALIE (les reports 6/7 doivent
-   * repartir a zero apres cloture). Meme detection (detecterAvantRepartition), consequence differente
-   * cote UI selon l'exercice. PII-free.
+   * Comptes de classe 6/7 avec report a-nouveau non nul. Present (et non vide) UNIQUEMENT si
+   * detecte. SEMANTIQUE selon le GL : sur le GL CLOTURE = signature "grand livre AVANT
+   * repartition" (bloquant : mauvais document... SAUF repartition comptabilisee en N+1 par le
+   * sortant, remede = omission des paires, cf. domain/omission-paires) ; sur le GL EN COURS =
+   * ANOMALIE (les reports 6/7 doivent repartir a zero apres cloture). PII-free.
    */
   avantRepartition?: CompteAvantRepartition[];
 }
 
-/** Mini-recap presente a l'humain pour decision GO/STOP (cf. ETAPE 2 du protocole). */
+/** Mini-recap presente a l'humain pour decision GO/STOP (R3 : recap APRES analyse, AVANT production). */
 export interface RecapPatrimoine {
   lots: { total: number; parUsage: Record<Usage, number> };
   cles: RecapCle[];
@@ -91,7 +73,7 @@ export interface RecapPatrimoine {
   attributions: { total: number; lotsOrphelins: number };
   fusionsProposees: number;
   doublonsNonTranchables: number;
-  /** Notes de vigilance remontees par l'extraction (Agent 1 + Agent 2). */
+  /** Notes de vigilance (parsing xlsx, liaison 450, grands livres). */
   notes: string[];
   checks: ResultatChecks;
   /** true si aucune ERREUR bloquante (le GO final reste humain). */
@@ -103,28 +85,27 @@ export interface RecapPatrimoine {
    */
   liaison?: RecapLiaison;
   /**
-   * Resume de la reprise comptable de l'exercice CLOTURE (N-1). Renseigne par l'analyse unifiee
-   * (route), PAS par calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans
-   * grand livre. Historiquement nomme `compta` (retro-compat) = TOUJOURS l'exercice cloture.
+   * Resume de la reprise comptable de l'exercice CLOTURE (N-1). Renseigne par l'analyse unifiee,
+   * PAS par calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans grand
+   * livre. Historiquement nomme `compta` (retro-compat) = TOUJOURS l'exercice cloture.
    */
   compta?: RecapCompta;
   /**
-   * Resume de la reprise comptable de l'exercice EN COURS (du 1er jour de l'exercice courant a la fin
-   * de contrat du syndic sortant). Present UNIQUEMENT quand un SECOND grand livre a ete fourni et
-   * classe. Additif : un seul grand livre => absent (comportement d'avant l'ajout). PII-free.
+   * Resume de la reprise comptable de l'exercice EN COURS. Present UNIQUEMENT quand un SECOND
+   * grand livre a ete fourni et classe. Additif : un seul grand livre => absent. PII-free.
    */
   comptaEnCours?: RecapCompta;
   /**
-   * Verdict du CONTROLE CROISE cloture <-> en cours (le joyau) : les a-nouveaux de l'en cours doivent
-   * egaler les soldes finaux du cloture, compte par compte. Present UNIQUEMENT quand les DEUX grands
-   * livres sont exploites. Un raccordement KO bloque l'import (cote plan de mapping). PII-free.
+   * Verdict du CONTROLE CROISE cloture <-> en cours : les a-nouveaux de l'en cours doivent
+   * egaler les soldes finaux du cloture, compte par compte. Present UNIQUEMENT quand les DEUX
+   * grands livres sont exploites. Un raccordement KO bloque l'import (cote plan de mapping).
    */
   raccordement?: VerdictRaccordement;
   /**
    * Erreur d'extraction du GRAND LIVRE (ex. couche texte inexploitable / scan). Present quand un
    * grand livre a ete joint mais que son extraction a echoue : le patrimoine reste analyse
-   * (degradation PARTIELLE), le bloc compta affiche cette erreur au lieu de faire echouer tout le
-   * dossier. PII-free (message technique). Renseigne par l'analyse unifiee, jamais par calculerRecap.
+   * (degradation PARTIELLE), le bloc compta affiche cette erreur au lieu de faire echouer tout
+   * le dossier. PII-free (message technique).
    */
   comptaErreur?: string;
 }
@@ -133,24 +114,17 @@ export interface AnalysePatrimoine {
   jeu: JeuDeDonnees;
   recap: RecapPatrimoine;
   /**
-   * Cles dont les tantiemes ont ete REFUSES a l'extraction (garde-fou arithmetique,
-   * etude §3bis). Chaque refus porte son message actionnable : la demande a envoyer a
-   * l'ancien syndic. Vide dans le cas nominal.
+   * Erreurs STRUCTURELLES du parsing xlsx (colonnes manquantes, noms introuvables dans links,
+   * fichier illisible...). Chacune est actionnable : elle dit quel fichier corriger et comment.
+   * Vide dans le cas nominal. Distinctes des erreurs METIER (recap.checks.erreurs).
    */
-  refusExtraction: RefusActionnable[];
-  /**
-   * Ce que chaque document APPORTE (etude §1). Present seulement si un lecteur de texte a
-   * ete fourni : sans lui on retombe sur le routage par nom (comportement historique).
-   */
-  index?: IndexDocument[];
-  /** Controle miroir (§1.5) : chaque donnee requise a-t-elle au moins une source ? */
-  couverture?: Couverture;
+  erreursParsing: string[];
 }
 
 /**
  * Derive le mini-recap GO/STOP depuis un jeu de donnees (compteurs, ecarts par cle,
  * auto-checks). `notes` reste vide : c'est a l'appelant de les re-injecter s'il les a
- * (l'extraction les fournit ; une rehydratation depuis le jeu persiste ne les a plus).
+ * (le parseur les fournit ; une rehydratation depuis le jeu persiste ne les a plus).
  * Utilise a l'analyse ET a la rehydratation d'un dossier deja analyse (jeu persiste).
  */
 export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
@@ -171,9 +145,9 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
     };
   });
 
-  // Les LOTS comme element distinctif (etape 5) : deux homonymes aux lots disjoints sont deux
-  // personnes. Sans cette carte, `donneesCompatibles` proposait la fusion de deux owners
-  // pourtant distincts (le cas des deux GOUGE Isabelle de S0306).
+  // Les LOTS comme element distinctif : deux homonymes aux lots disjoints sont deux personnes
+  // (cas des deux GOUGE Isabelle de S0306). Sans cette carte, detecterDoublons proposerait la
+  // fusion de deux owners pourtant distincts.
   const lotsParOwnerDedup = new Map<string, Set<number>>();
   for (const a of jeu.attributions) {
     const s = lotsParOwnerDedup.get(a.ownerId) ?? new Set<number>();
@@ -216,230 +190,28 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
 }
 
 /**
- * ETAPE 1 + 2 : extraction parallele puis recap GO/STOP. NE PRODUIT PAS les .xlsx.
+ * ETAPE 1 + 2 du volet patrimoine : PARSE les xlsx verses puis calcule le recap GO/STOP.
+ * NE PRODUIT PAS les fichiers, N'INJECTE RIEN. Deterministe (zero IA, zero reseau).
+ *
+ * Les erreurs de PARSING (structure des fichiers) sont remontees a part ET en tete des notes
+ * (visibles dans le recap) ; les erreurs METIER (auto-checks) vivent dans recap.checks. Un
+ * parsing en erreur laisse quand meme passer ce qui a pu etre lu : le gestionnaire voit ce
+ * qui manque au lieu d'un ecran vide - mais pretAProduire est verrouille a false.
  */
-// Aiguillage des documents par nom de fichier vers le bon agent : reduit le nombre de pages
-// par requete (Claude limite a 100 pages/requete) ET cible chaque agent. Agent 1 (structure)
-// = RCP / EDD / modificatifs ; Agent 2 (owners) = feuille de presence / PV. Un document non
-// reconnu (ex. fiche synthese) part aux DEUX (securite). Si un filtre est vide -> tous les docs.
-function pourStructure(nom: string): boolean {
-  return /rcp|edd|rgdd|reglement|règlement|modificatif|descriptif|division|repartition|répartition|annexe|comptable|budget|convocation/i.test(nom);
-}
-function pourProprietaires(nom: string): boolean {
-  return /presence|présence|\bpv\b|proces|procès|assemblee|assemblée|feuille/i.test(nom);
+export async function analyserPatrimoineDepuisXlsx(fichiers: DocumentSource[]): Promise<AnalysePatrimoine> {
+  const parse = await parserJeuDepuisXlsx(fichiers.map((f) => ({ nom: f.nom, contenu: f.contenu })));
+  const recap = calculerRecap(parse.jeu);
+  recap.notes = [...parse.erreurs.map((e) => `Fichier verse : ${e}`), ...parse.notes];
+  // Un parsing en erreur bloque la production/injection meme si les checks metier passent
+  // (un links illisible peut laisser un jeu partiellement coherent : le verrou est ici).
+  if (!parse.ok) recap.pretAProduire = false;
+  return { jeu: parse.jeu, recap, erreursParsing: parse.erreurs };
 }
 
 /**
- * Un document est-il RECONNU comme document patrimoine (structure OU proprietaires) par son nom ?
- * Sert a l'aiguillage a TROIS voies (grand livre / patrimoine / ANNEXE) dans analyser-dossier :
- * un document ni grand livre ni patrimoine est une ANNEXE (courrier, liste, avis de mutation...).
- * Expose ici car les predicats d'aiguillage patrimoine vivent dans cet orchestrateur.
- */
-export function estDocPatrimoine(nom: string): boolean {
-  return pourStructure(nom) || pourProprietaires(nom);
-}
-
-/** Apports qui alimentent l'agent 1 (structure) et l'agent 2 (proprietaires). */
-const APPORTS_STRUCTURE: readonly Apport[] = ["lots_descriptif", "tantiemes_par_lot", "perimetre_cles"];
-const APPORTS_PROPRIETAIRES: readonly Apport[] = [
-  "owners_adresses",
-  "attributions",
-  "totaux_tantiemes_par_owner",
-  "votants_avec_tantiemes",
-];
-
-/**
- * Repartit les documents par APPORT (etude §1) : un meme document peut alimenter LES DEUX
- * agents (la feuille de presence de S0306 porte lots, cles, owners, attributions et
- * contre-preuves), et un document sans apport utile n'est envoye a AUCUN agent -- c'est le
- * droit de ne rien analyser, une economie directe.
- */
-function repartirParApports(
-  docs: readonly DocumentSource[],
-  index: readonly IndexDocument[],
-): { structure: DocumentSource[]; proprietaires: DocumentSource[] } {
-  const nomsPour = (apports: readonly Apport[]): Set<string> =>
-    new Set(apports.flatMap((a) => documentsPour(index, a)).map((d) => d.nom));
-  const structure = nomsPour(APPORTS_STRUCTURE);
-  const proprietaires = nomsPour(APPORTS_PROPRIETAIRES);
-  return {
-    structure: docs.filter((d) => structure.has(d.nom)),
-    proprietaires: docs.filter((d) => proprietaires.has(d.nom)),
-  };
-}
-
-export async function analyserPatrimoine(
-  provider: ExtractionProvider,
-  docs: DocumentSource[],
-  /**
-   * Lecteur de couche texte. PAR DEFAUT l'adapter pdfjs : l'aiguillage se fait donc sur les
-   * APPORTS reellement detectes dans le contenu (etude §1.2). Passer `null` force le repli
-   * sur le routage par NOM DE FICHIER -- conserve pour les tests et les appelants sans PDF,
-   * mais connu pour etre faux (6 documents correctement classes sur 14 dans S0306), et il
-   * emet alors une note de vigilance visible dans le recap.
-   */
-  lecteur: LecteurTexteProvider | null = new LecteurTextePdfjs(),
-): Promise<AnalysePatrimoine> {
-  let index: IndexDocument[] | undefined;
-  let couverture: Couverture | undefined;
-  let docsStructure: DocumentSource[];
-  let docsProprietaires: DocumentSource[];
-
-  if (lecteur) {
-    const textes = await Promise.all(
-      docs.map(async (d) => ({ nom: d.nom, texte: await lecteur.lireTexte(d.contenu) })),
-    );
-    index = indexerLot(textes);
-    couverture = verifierCouverture(index, "patrimoine");
-    const reparti = repartirParApports(docs, index);
-    // Filet : si l'indexation ne trouve rien pour un agent, on lui donne tout plutot que
-    // de le laisser a vide (une detection ratee ne doit pas valoir une extraction vide).
-    docsStructure = reparti.structure.length ? reparti.structure : docs;
-    docsProprietaires = reparti.proprietaires.length ? reparti.proprietaires : docs;
-  } else {
-    docsStructure = docs.filter((d) => pourStructure(d.nom) || !pourProprietaires(d.nom));
-    docsProprietaires = docs.filter((d) => pourProprietaires(d.nom) || !pourStructure(d.nom));
-  }
-
-  const [patrimoine, proprietaires] = await Promise.all([
-    provider.extrairePatrimoine(docsStructure.length ? docsStructure : docs),
-    provider.extraireProprietaires(docsProprietaires.length ? docsProprietaires : docs),
-  ]);
-
-  // GARDE-FOU ARITHMETIQUE, AVANT assemblage du jeu (etape 1 du chantier extraction).
-  // Une cle dont les tantiemes ne bouclent pas sur son total annonce n'ENTRE PAS dans le
-  // jeu : ses tantiemes sont retires et un refus ACTIONNABLE est emis (la demande a
-  // l'ancien syndic, avec les plages de lots manquantes calculees). Sur S0306 c'est ce
-  // qui empeche la cle 300 fabriquee (38 000 pour 10 000 annonces) de contaminer la suite.
-  // Les auto-checks en aval sont conserves : on refuse en amont ET on verifie en aval.
-  const garde = appliquerGardeExtraction({
-    lots: patrimoine.lots,
-    cles: patrimoine.cles,
-    tantiemes: patrimoine.tantiemes,
-  });
-
-  const jeu: JeuDeDonnees = {
-    lots: patrimoine.lots,
-    cles: garde.cles,
-    tantiemes: garde.tantiemes,
-    owners: proprietaires.owners,
-    attributions: proprietaires.attributions,
-  };
-
-  // --- CONTRE-PREUVES (etapes 4, 5 et 7 branchees ici : elles operent sur le jeu ASSEMBLE) ---
-  //
-  // Elles ne remplacent pas les auto-checks : elles LOCALISENT ce que ceux-ci constatent en
-  // bloc. Toutes degradent proprement -- une contre-preuve sans source reste silencieuse
-  // plutot que de bloquer (un owner sans total imprime est NON CONTROLE, pas en erreur).
-  const notesContrePreuve: string[] = [];
-
-  // 4. Sigma des tantiemes de la cle generale par owner vs total imprime sur la FDP.
-  const cleGenerale = jeu.cles.find((c) => c.defaut)?.code ?? jeu.cles[0]?.code;
-  const totauxImprimes: TotalImprimeOwner[] = (proprietaires.totauxImprimes ?? []).map((t) => ({
-    ownerId: t.ownerId,
-    total: t.total,
-  }));
-  if (cleGenerale && totauxImprimes.length > 0) {
-    const cp = verifierTotauxParOwner({
-      owners: jeu.owners,
-      attributions: jeu.attributions,
-      tantiemes: jeu.tantiemes,
-      cleGeneraleCode: cleGenerale,
-      totauxImprimes,
-    });
-    notesContrePreuve.push(...cp.ecarts.map(messageEcartOwner));
-    if (cp.ecarts.length === 0 && cp.nbControles > 0) {
-      notesContrePreuve.push(
-        `Contre-preuve par coproprietaire : ${cp.nbControles} controles, 0 ecart` +
-          (cp.nbNonControles > 0 ? ` (${cp.nbNonControles} sans total imprime, non controles).` : "."),
-      );
-    }
-  }
-
-  // Orphelins ET doublons lus ENSEMBLE : separement, un total qui "tombe juste" les masque.
-  const anomalies = anomaliesAttributions({ lots: jeu.lots, attributions: jeu.attributions });
-  if (anomalies.multiAttribues.length > 0) {
-    notesContrePreuve.push(
-      `Lots attribues plusieurs fois : ${anomalies.multiAttribues
-        .map((m) => `${m.lot} (x${m.nb})`)
-        .join(", ")} -- a lire avec les lots orphelins, ils vont par paires.`,
-    );
-  }
-  if (anomalies.inconnus.length > 0) {
-    notesContrePreuve.push(
-      `Attributions sur des lots inexistants dans l'EDD : ${anomalies.inconnus.join(", ")} ` +
-        `(numeros vraisemblablement mal transcrits).`,
-    );
-  }
-
-  // 7. Filet noms : FDP x votants du PV. Ne tourne que si le PV a fourni ses votants.
-  if ((proprietaires.votants ?? []).length > 0 && cleGenerale) {
-    const parLot = new Map(
-      jeu.tantiemes.filter((t) => t.cleCode === cleGenerale).map((t) => [t.lot, t.valeur]),
-    );
-    const lotsParOwner = new Map<string, number[]>();
-    for (const a of jeu.attributions) {
-      lotsParOwner.set(a.ownerId, [...(lotsParOwner.get(a.ownerId) ?? []), a.lot]);
-    }
-    const reference: NomSource[] = jeu.owners.map((o) => {
-      const lots = lotsParOwner.get(o.id) ?? [];
-      return {
-        nom: o.nom,
-        ...(o.prenom ? { prenom: o.prenom } : {}),
-        tantiemes: lots.reduce((s, l) => s + (parLot.get(l) ?? 0), 0),
-        lots,
-      };
-    });
-    const coquilles = detecterCoquilles({
-      reference,
-      confrontee: (proprietaires.votants ?? []).map((v) => ({
-        nom: v.nom,
-        ...(v.prenom ? { prenom: v.prenom } : {}),
-        tantiemes: v.tantiemes,
-      })),
-    });
-    notesContrePreuve.push(...coquilles.map((c) => c.message));
-    const couv = couvertureFilet(reference);
-    notesContrePreuve.push(
-      `Filet noms : ${couv.couverts}/${reference.length} coproprietaires couverts ` +
-        `(${couv.tauxPourcent} %) -- les ${couv.horsFilet} autres partagent leur total de ` +
-        `tantiemes, dont ${couv.rattrapablesParLots} rattrapables par leurs lots.`,
-    );
-  }
-
-  const recap = calculerRecap(jeu);
-  // Les notes viennent EN TETE dans l'ordre de l'ACTION a mener : d'abord les donnees
-  // requises introuvables (rien ne peut avancer), puis les refus de cles, puis le reste.
-  recap.notes = [
-    // REPLI VISIBLE, jamais silencieux (revue 30/07). Un parametre optionnel qui preserve un
-    // comportement casse est une dette qui ne se rappelle jamais a toi : le jour ou l'appelant
-    // reel oublie le lecteur, l'indexation est inerte et PERSONNE ne le voit. C'est la regle
-    // qu'on s'est donnee sur le chemin OCR ("rendre le fallback visible") -- elle vaut ici.
-    ...(lecteur
-      ? []
-      : [
-          "Indexation non fournie : routage par nom de fichier (comportement historique). " +
-            "Sur le lot de reference S0306, ce routage classe correctement 6 documents sur 14 " +
-            "-- les trois RGD et la fiche de synthese partent en annexe.",
-        ]),
-    ...(couverture?.requisManquants ?? []).map(messageApportManquant),
-    ...garde.notes,
-    ...notesContrePreuve,
-    ...patrimoine.notes,
-    ...proprietaires.notes,
-  ];
-  return {
-    jeu,
-    recap,
-    refusExtraction: garde.refus,
-    ...(index ? { index } : {}),
-    ...(couverture ? { couverture } : {}),
-  };
-}
-
-/**
- * ETAPE 3 : production des .xlsx (phase A). A n'appeler qu'apres GO humain.
- * Re-verifie les auto-checks et refuse de produire si une erreur bloquante subsiste.
+ * ETAPE 3 : production des .xlsx (phase A, repli pour import manuel dans l'UI eStale).
+ * A n'appeler qu'apres GO humain. Re-verifie les auto-checks et refuse de produire si une
+ * erreur bloquante subsiste.
  */
 function refuserSiErreurs(jeu: JeuDeDonnees): void {
   const checks = verifierTout(jeu);

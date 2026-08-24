@@ -13,7 +13,7 @@
 // Les notes de vigilance (lignes exclues par le normaliseur, comptes hors 1-7, desequilibre)
 // sont consolidees pour l'humain qui decidera GO/STOP plus tard.
 
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import {
   balanceDesEcritures,

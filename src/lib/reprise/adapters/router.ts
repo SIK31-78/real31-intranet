@@ -2,24 +2,20 @@
 // un adapter concret (cf. ADR-001, hexagonal). Les pages et Server Actions passent par
 // les services + ce routeur, jamais par un adapter en dur.
 //
-// Selection par environnement :
-//   - extraction : Claude / Mistral si credentials presents, sinon MockExtractionProvider
-//     (mode demonstration, copro canonique sans IA) - cf. modeExtraction() ;
-//   - ecriture eStale : adapter DRY-RUN (aucun reseau) ; le GraphQL reel se branchera ICI ;
-//   - dossiers : DossierRepositoryMemoire (RAM, non persistant) ; un adapter Supabase
-//     le doublera pour la vraie persistance, sans toucher aux services ni aux composants.
+// REFONTE 2026-08 : l'extraction IA du patrimoine (Claude / Claude CLI / Mistral) est
+// SUPPRIMEE du repo (git garde l'historique). Le patrimoine entre par FICHIERS EXCEL
+// (adapters/xlsx/parser-xlsx), deterministe : plus de variable EXTRACTION_PROVIDER, plus
+// de cle API, plus de mode "demonstration". Ce qui reste selectionne ici :
+//   - extraction compta : COUCHE TEXTE uniquement (deterministe, zero reseau) ;
+//   - annexes : aucun provider (l'analyse IA des annexes est debranchee) -> null ;
+//   - ecriture eStale : adapter DRY-RUN par defaut, REEL derriere le double verrou
+//     ESTALE_ECRITURE=reel + identifiants (ADR-030, GO/STOP humain dans l'UI) ;
+//   - lecture compta eStale : REEL des que configure (lecture seule, sans danger) ;
+//   - dossiers / decisions / fiches : Supabase si COPRO_SOURCE=supabase, sinon memoire.
 
-import type { ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
-import { MockExtractionProvider } from "@/lib/reprise/adapters/extraction/mock-extraction-provider";
-import { ClaudeExtractionProvider } from "@/lib/reprise/adapters/claude/claude-extraction-provider";
-import { MistralExtractionProvider } from "@/lib/reprise/adapters/mistral/mistral-extraction-provider";
-import { ClaudeCliExtractionProvider } from "@/lib/reprise/adapters/claude-cli/claude-cli-extraction-provider";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
-import { MockComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/mock-provider";
 import { CoucheTexteComptaExtractionProvider } from "@/lib/reprise/adapters/compta-extraction/couche-texte-provider";
 import type { ExtractionAnnexeProvider } from "@/lib/reprise/ports/extraction-annexe-provider";
-import { MockAnnexeExtractionProvider } from "@/lib/reprise/adapters/annexe-extraction/mock-provider";
-import { MistralAnnexeExtractionProvider } from "@/lib/reprise/adapters/annexe-extraction/mistral-provider";
 import type { DossierRepository } from "@/lib/reprise/ports/dossier-repository";
 import { DossierRepositoryMemoire } from "@/lib/reprise/adapters/memoire/dossier-repository-memoire";
 import { DossierRepositorySupabase } from "@/lib/reprise/adapters/supabase/dossier-repository-supabase";
@@ -40,94 +36,25 @@ import { DryRunEstaleFicheContactProvider } from "@/lib/reprise/adapters/estale-
 import { ReelEstaleFicheContactProvider } from "@/lib/reprise/adapters/estale-fiche-contact/reel-provider";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
 
-export type ModeExtraction = "claude" | "claude-cli" | "mistral" | "mock";
-
 /**
- * Mode d'extraction selon l'environnement. Claude si credentials (ANTHROPIC_API_KEY /
- * ANTHROPIC_AUTH_TOKEN, ou EXTRACTION_PROVIDER=claude pour un profil OAuth sur disque) ;
- * sinon Mistral si MISTRAL_API_KEY (ou EXTRACTION_PROVIDER=mistral) ; sinon mock (mode
- * demonstration). EXTRACTION_PROVIDER=claude-cli force la CLI Claude Code (mode TEST : session
- * locale, sans cle API). Les auto-checks deterministes rattrapent les erreurs quel que soit le moteur.
- */
-export function modeExtraction(): ModeExtraction {
-  const choix = (process.env.EXTRACTION_PROVIDER || "auto").toLowerCase();
-  if (choix === "claude-cli") return "claude-cli";
-  if (choix === "claude") return "claude";
-  if (choix === "mistral") return "mistral";
-  if (choix === "mock") return "mock";
-  if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return "claude";
-  if (process.env.MISTRAL_API_KEY) return "mistral";
-  return "mock";
-}
-
-/** Provider d'extraction du patrimoine, choisi selon l'environnement (cf. modeExtraction). */
-export function getExtractionProvider(): ExtractionProvider {
-  const mode = modeExtraction();
-  // En production, le mock ne doit JAMAIS repondre a de vrais PDF : il renverrait la
-  // copro de demonstration comme si c'etait le resultat de l'analyse (donnees fausses,
-  // silencieusement). On prefere une erreur explicite ; modeExtraction() continue de
-  // retourner "mock" pour que les badges UI affichent l'etat reel de la config.
-  if (mode === "mock" && process.env.NODE_ENV === "production") {
-    throw new Error(
-      "Extraction IA non configuree en production : poser EXTRACTION_PROVIDER + la cle correspondante (ANTHROPIC_API_KEY ou MISTRAL_API_KEY).",
-    );
-  }
-  switch (mode) {
-    case "claude-cli":
-      return new ClaudeCliExtractionProvider();
-    case "claude":
-      return new ClaudeExtractionProvider();
-    case "mistral":
-      return new MistralExtractionProvider();
-    default:
-      return new MockExtractionProvider();
-  }
-}
-
-/**
- * Provider d'extraction du GRAND LIVRE comptable pour le flux de reprise COMPTA.
+ * Provider d'extraction du GRAND LIVRE comptable (flux de reprise COMPTA).
  *
- * COUCHE TEXTE UNIQUEMENT (decision Sekou : « enlever la partie IA sur le grand livre, garder
- * texte, sinon trop lourd »). Des qu'un moteur reel est configure (EXTRACTION_PROVIDER = claude
- * / claude-cli / mistral, ou credentials presents), on renvoie l'adapter COUCHE TEXTE : il lit le
- * PDF NATIF de facon deterministe (zero IA), et renvoie une ERREUR EXPLICITE si le PDF est un scan
- * plutot que de basculer sur un OCR/IA lourd. Les adapters IA (claude/mistral OCR) restent dans le
- * repo pour un usage futur explicite mais ne sont PLUS le fallback du flux compta.
- *
- * Le MOCK (grand livre fictif equilibre) reste le mode DEMONSTRATION quand aucun moteur n'est
- * configure ; comme pour le patrimoine il ne doit JAMAIS repondre a de vrais PDF en production
- * (il renverrait le jeu de demo comme s'il etait le resultat de l'analyse) -> erreur explicite.
+ * COUCHE TEXTE UNIQUEMENT (deterministe, zero IA, zero reseau) : pdfjs rend le texte deja
+ * positionne, parserGrandLivrePositions reconstruit les colonnes. Si le PDF est un scan,
+ * l'adapter renvoie une ERREUR EXPLICITE et actionnable (redemander le PDF natif) plutot
+ * que de basculer sur un pipeline OCR/IA lourd et imprevisible.
  */
 export function getExtractionComptaProvider(): ExtractionComptaProvider {
-  const mode = modeExtraction();
-  if (mode === "mock") {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "Extraction non configuree en production : poser EXTRACTION_PROVIDER + la cle correspondante (ANTHROPIC_API_KEY ou MISTRAL_API_KEY).",
-      );
-    }
-    return new MockComptaExtractionProvider();
-  }
   return new CoucheTexteComptaExtractionProvider();
 }
 
 /**
- * Provider d'extraction des DOCUMENTS ANNEXES (contacts + precisions). Null quand le moteur ne
- * sait pas analyser d'annexe : dans ce cas les annexes RESTENT dans le lot patrimoine (retro-compat
- * stricte, comportement d'avant). Choix :
- *   - mode mock (dev) : MockAnnexeExtractionProvider (mode demonstration, aucune donnee reelle) ;
- *   - MISTRAL_API_KEY presente : MistralAnnexeExtractionProvider (OCR si scan -> chat json_object) ;
- *   - moteur Claude sans cle Mistral : null (annexes non analysees, on ne casse rien).
- * Le mock ne repond jamais a de vrais PDF en production -> null (jamais atteint : l'extraction
- * patrimoine leve deja en prod-mock, cf. getExtractionProvider).
+ * Provider d'extraction des DOCUMENTS ANNEXES (contacts + precisions) : DEBRANCHE depuis la
+ * suppression des adapters IA (le seul adapter reel etait Mistral). Renvoie null : les annexes
+ * versees ne sont plus analysees automatiquement (le service le note, jamais un silence). Le
+ * port et son mock (tests) restent en place pour rebrancher un provider un jour, explicitement.
  */
 export function getExtractionAnnexeProvider(): ExtractionAnnexeProvider | null {
-  const mode = modeExtraction();
-  if (mode === "mock") {
-    if (process.env.NODE_ENV === "production") return null;
-    return new MockAnnexeExtractionProvider();
-  }
-  if (process.env.MISTRAL_API_KEY) return new MistralAnnexeExtractionProvider();
   return null;
 }
 
@@ -159,9 +86,9 @@ export function getEstaleEcritureProvider(): EstaleEcritureProvider {
 }
 
 /**
- * Provider de LECTURE comptable eStale (reprise, increment 0). Contrairement a l'ecriture,
- * aucun gate ESTALE_ECRITURE : la lecture est sans danger (aucune mutation). On choisit donc
- * l'adapter REEL des que eStale est configure (identifiants presents), sinon le MOCK (mode
+ * Provider de LECTURE comptable eStale (reprise). Contrairement a l'ecriture, aucun gate
+ * ESTALE_ECRITURE : la lecture est sans danger (aucune mutation). On choisit donc l'adapter
+ * REEL des que eStale est configure (identifiants presents), sinon le MOCK (mode
  * demonstration, copro fictive equilibree). Instance neuve a chaque appel.
  */
 export function getEstaleComptaLectureProvider(): EstaleComptaLectureProvider {

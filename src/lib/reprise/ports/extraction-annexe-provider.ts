@@ -7,7 +7,8 @@
 //
 // Une SEULE mission par annexe : lire le document (mise en page libre) et en sortir ce qui est
 // EXPLOITABLE pour la reprise : des contacts nominatifs (email/telephone) et une synthese courte
-// des precisions importantes a connaitre. Abstrait le moteur (Mistral / mock) comme les autres
+// des precisions importantes a connaitre. Abstrait le moteur (mock aujourd'hui : l'adapter
+// IA reel a ete supprime a la refonte 2026-08, le port reste pour rebrancher explicitement) comme les autres
 // ports d'extraction : le service d'orchestration ne connait que ce contrat.
 //
 // On reutilise DocumentSource du port d'extraction patrimoine (meme notion de PDF source).
@@ -15,7 +16,7 @@
 // PII : les CONTACTS sont des donnees (nom/email/telephone). Ils circulent dans la structure et
 // sont persistes, mais ne doivent JAMAIS partir dans un log (comme le reste de la reprise).
 
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 
 /** Un contact nominatif extrait d'une annexe (PII : jamais logue). */
 export interface ContactAnnexe {

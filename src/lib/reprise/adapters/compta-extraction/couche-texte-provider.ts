@@ -8,10 +8,10 @@
 // exploitable (PDF scanne, pdfjs KO, 0 ecriture), on renvoie une ERREUR EXPLICITE et actionnable
 // plutot que de basculer sur un pipeline OCR/IA lourd, lent et imprevisible.
 //
-// Les adapters IA (claude-provider, mistral-provider avec son etage OCR) restent dans le repo
-// pour un usage futur EXPLICITE, mais ne sont plus le fallback par defaut du flux compta.
+// Les anciens adapters IA du flux compta ont ete SUPPRIMES du repo lors de la refonte
+// "entree par fichiers Excel" (git garde l'historique) : la couche texte est le seul chemin.
 
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
 import { verifierEquilibreGrandLivre } from "@/lib/reprise/domain/ecriture";

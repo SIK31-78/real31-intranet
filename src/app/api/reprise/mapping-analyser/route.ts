@@ -1,5 +1,5 @@
 // Route handler de la revue du mapping comptable : recoit le grand livre (multipart PDF) +
-// le code copro, lance l'extraction du grand livre (IA agnostique au format syndic) puis
+// le code copro, lance l'extraction du grand livre (couche texte DETERMINISTE, zero IA) puis
 // construit le PLAN de mapping et expose le referentiel eStale (comptes 401/450) pour l'ecran
 // de revue. Renvoie aussi les decisions humaines deja persistees pour cette copro.
 //
@@ -19,14 +19,13 @@ import { exigerAdminReprise } from "@/lib/auth/garde-reprise";
 import {
   getExtractionComptaProvider,
   getMappingDecisionRepository,
-  modeExtraction,
 } from "@/lib/reprise/adapters/router";
 import { extraireEtVerifierGrandLivre } from "@/lib/reprise/services/reprendre-compta";
 import { preparerRevueMapping } from "@/lib/reprise/services/mapping-compta";
 import { grouperEcrituresPourRevue } from "@/lib/reprise/domain/ecriture";
 import { balanceParCompte } from "@/lib/reprise/domain/controle-comptes";
 import { verifierTailleLot } from "@/lib/reprise/domain/limites-upload";
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -116,7 +115,6 @@ export async function POST(req: Request) {
       grandLivre,
       balance,
       equilibre: equilibreGlobal,
-      mode: modeExtraction(),
     });
   } catch (e) {
     return NextResponse.json(

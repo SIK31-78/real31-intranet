@@ -1,22 +1,24 @@
 // Service d'analyse UNIFIEE d'un dossier de reprise : patrimoine ET comptabilite en un seul
-// geste. L'insight de Sekou : integrer la compta EN MEME TEMPS que le patrimoine permet de lier
-// chaque coproprietaire a son NUMERO DE COMPTE 450 de l'ancien syndic DES l'analyse -> l'attribution
-// de la compta devient deterministe (le numero de compte est la cle, plus d'appariement par nom
-// apres coup, les homonymes se distinguent par leur compte).
+// geste. L'insight (conserve de l'onboarding unifie) : traiter la compta EN MEME TEMPS que le
+// patrimoine permet de lier chaque coproprietaire a son NUMERO DE COMPTE 450 de l'ancien syndic
+// DES l'analyse -> l'attribution de la compta devient deterministe (le numero de compte est la
+// cle, plus d'appariement par nom apres coup, les homonymes se distinguent par leur compte).
 //
-// Aiguillage des documents par NOM DE FICHIER : un fichier "grand livre" / "GL" / "grand_livre"
-// part au pipeline compta (extraction couche texte, agnostique au format syndic) ; les autres aux
-// agents patrimoine (comme aujourd'hui). Un dossier peut etre analyse AVEC ou SANS grand livre :
-// sans lui, tout marche comme avant (aucune liaison, aucun bloc compta) - degradation stricte.
+// REFONTE 2026-08 - entree par FICHIERS EXCEL : le patrimoine n'est plus extrait des PDF par
+// IA, il est PARSE depuis les xlsx verses (lots / tantiemes / owners / links, produits par le
+// skill estale-migration). Aiguillage d'un lot de fichiers :
+//   - .xlsx patrimoine (typeFichierEntree) -> parseur xlsx (deterministe) ;
+//   - "grand livre" / "GL" (estGrandLivre) -> pipeline compta couche texte (deterministe) ;
+//   - le reste -> ANNEXES (contacts / precisions) si un provider annexe est fourni, sinon note.
 //
-// DRY-RUN strict : AUCUNE ecriture eStale, aucune mutation. Pur au sens hexagonal : ne parle qu'aux
-// ports d'extraction injectes (le routeur choisit les adapters concrets).
+// DRY-RUN strict : AUCUNE ecriture eStale, aucune mutation. Hexagonal : ne parle qu'aux ports
+// injectes (le routeur choisit les adapters concrets).
 //
-// PII : la liaison lit des noms (owners + intitules 450) mais ne renvoie QUE des ownerId, numeros
-// de compte et scores dans ses warnings ; jamais de nom dans les notes/warnings.
+// PII : la liaison lit des noms (owners + intitules 450) mais ne renvoie QUE des ownerId,
+// numeros de compte et scores dans ses warnings ; jamais de nom dans les notes/warnings.
 
 import { estNomGrandLivre as estGrandLivre } from "@/lib/reprise/domain/limites-upload";
-import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type {
   AnnexeExtraite,
@@ -32,16 +34,17 @@ import {
   type ContactRapproche,
 } from "@/lib/reprise/domain/rapprochement-contacts";
 import {
-  classerParExercice,
   detecterAvantRepartition,
-  messageRaccordement,
   raccorderExercices,
+  classerParExercice,
+  messageRaccordement,
   type VerdictRaccordement,
 } from "@/lib/reprise/domain/controle-comptes";
+import { typeFichierEntree } from "@/lib/reprise/adapters/xlsx/parser-xlsx";
 import {
-  analyserPatrimoine,
+  analyserPatrimoineDepuisXlsx,
   calculerRecap,
-  estDocPatrimoine,
+  type AnalysePatrimoine,
   type RecapCompta,
   type RecapPatrimoine,
 } from "@/lib/reprise/services/orchestrateur-patrimoine";
@@ -71,28 +74,30 @@ export interface AnalyseDossier {
 
 /**
  * Un document est-il un GRAND LIVRE ? Aiguillage par nom de fichier (conservateur).
- * La logique vit desormais dans le domaine (limites-upload.ts) pour que les composants client
+ * La logique vit dans le domaine (limites-upload.ts) pour que les composants client
  * puissent pre-verifier les plafonds d'upload ; re-exportee ici pour les appelants existants.
  */
 export { estGrandLivre };
 
-/**
- * Un document est-il une ANNEXE ? Troisieme voie de l'aiguillage : ni grand livre, ni patrimoine
- * reconnu (structure / proprietaires). Ce sont les documents qui partaient jusqu'ici "aux deux
- * agents patrimoine par securite" (bruit + cout) : liste coproprietaires, courrier, avis de
- * mutation... Un grand livre n'est JAMAIS une annexe (estGrandLivre prime).
- */
-export function estAnnexe(nom: string): boolean {
-  return !estGrandLivre(nom) && !estDocPatrimoine(nom);
+/** Un fichier verse est-il un XLSX PATRIMOINE (lots / tantiemes / owners / links) ? */
+export function estXlsxPatrimoine(nom: string): boolean {
+  return !estGrandLivre(nom) && typeFichierEntree(nom) !== "inconnu";
 }
 
 /**
- * Extrait les documents ANNEXES : UN appel IA par annexe (jamais en masse). Tolerant : toute
- * erreur sur une annexe est capturee et remontee en note de vigilance PII-free (nom de fichier +
- * message technique), sans jamais faire echouer le reste de l'analyse. Renvoie les metadonnees
- * des annexes exploitees, la liste PLATE des contacts bruts (a rapprocher ensuite avec les owners)
- * et les notes de vigilance (precisions importantes + echecs). Ne rapproche PAS ici (les owners ne
- * sont connus qu'apres l'extraction patrimoine).
+ * Un document est-il une ANNEXE ? Troisieme voie de l'aiguillage : ni grand livre, ni xlsx
+ * patrimoine (courrier, liste, avis de mutation, RCP en PDF...). Un grand livre n'est JAMAIS
+ * une annexe (estGrandLivre prime).
+ */
+export function estAnnexe(nom: string): boolean {
+  return !estGrandLivre(nom) && !estXlsxPatrimoine(nom);
+}
+
+/**
+ * Extrait les documents ANNEXES : UN appel provider par annexe (jamais en masse). Tolerant :
+ * toute erreur sur une annexe est capturee et remontee en note de vigilance PII-free (nom de
+ * fichier + message technique), sans jamais faire echouer le reste de l'analyse. Ne rapproche
+ * PAS ici (les owners ne sont connus qu'apres le parsing patrimoine).
  */
 async function extraireAnnexes(
   provider: ExtractionAnnexeProvider,
@@ -131,8 +136,8 @@ async function extraireAnnexes(
 
 /**
  * Finalise le bloc annexes : rapproche les contacts bruts des OWNERS du jeu (domaine pur) et
- * PREPEND les notes annexes (precisions/echecs) aux notes du recap (classees "vigilance"). Mute
- * recap.notes en place. Renvoie l'objet AnalyseAnnexes a persister (ou undefined si rien).
+ * ajoute les notes annexes (precisions/echecs) aux notes du recap. Mute recap.notes en place.
+ * Renvoie l'objet AnalyseAnnexes a persister (ou undefined si rien).
  */
 function finaliserAnnexes(
   owners: Owner[],
@@ -270,14 +275,15 @@ async function analyserGrandsLivres(
 }
 
 /**
- * Analyse un lot de documents : aiguille grand livre vs patrimoine, lance les deux pipelines EN
- * PARALLELE, puis calcule la LIAISON owners <-> comptes 450 quand un grand livre est present.
+ * Analyse un lot de fichiers verses : aiguille xlsx patrimoine / grand livre / annexes, lance
+ * les pipelines EN PARALLELE, puis calcule la LIAISON owners <-> comptes 450 quand un grand
+ * livre est present.
  *
  * `extractionCompta` peut etre null : dans ce cas (ou en l'absence de grand livre), seul le
- * patrimoine est analyse (degradation stricte, comportement identique a l'existant).
+ * patrimoine est parse (degradation stricte). `extractionAnnexe` null = annexes non analysees
+ * (note de vigilance, jamais un silence).
  */
 export async function analyserDossierUnifie(
-  extraction: ExtractionProvider,
   extractionCompta: ExtractionComptaProvider | null,
   docs: DocumentSource[],
   extractionAnnexe: ExtractionAnnexeProvider | null = null,
@@ -285,35 +291,23 @@ export async function analyserDossierUnifie(
   const glDocs = docs.filter((d) => estGrandLivre(d.nom));
   const avecGrandLivre = glDocs.length > 0 && extractionCompta !== null;
 
-  // AIGUILLAGE A TROIS VOIES : grand livre / patrimoine / ANNEXE (tout le reste). Les annexes ne
-  // sont deroutees du lot patrimoine QUE si un provider annexe existe : sans lui, elles restent au
-  // patrimoine (comportement d'avant, retro-compat STRICTE). Un dossier SANS annexe -> patriDocs et
-  // le pipeline sont identiques a l'existant.
+  const patriDocs = docs.filter((d) => estXlsxPatrimoine(d.nom));
   const annexeDocs = docs.filter((d) => estAnnexe(d.nom));
   const avecAnnexe = annexeDocs.length > 0 && extractionAnnexe !== null;
 
-  // Sans provider compta, le grand livre RESTE dans le lot patrimoine (comportement d'avant
-  // l'unification) ; avec provider, il est aiguille vers le pipeline compta.
-  const patriDocsAll = avecGrandLivre ? docs.filter((d) => !estGrandLivre(d.nom)) : docs;
-  // Les annexes sortent du lot patrimoine uniquement quand elles seront analysees par leur pipeline
-  // dedie (sinon on ne casse rien : elles restent aux agents patrimoine comme aujourd'hui).
-  const patriDocs = avecAnnexe ? patriDocsAll.filter((d) => !estAnnexe(d.nom)) : patriDocsAll;
-
-  // Les agents patrimoine gardent leur propre aiguillage interne (structure vs proprietaires) ;
-  // on leur passe les documents NON grand-livre. Sans grand livre, patriDocs == tous les docs
-  // -> comportement identique a l'existant (degradation stricte).
-  // GRAND LIVRE SEUL (constate par Sekou : 4 min au lieu de 2 s) : sans document patrimoine,
-  // on N'APPELLE PAS l'extraction IA patrimoine (minutes d'IA pour zero document) - l'analyse
-  // reste la compta couche texte, quasi instantanee.
-  //
-  // L'extraction du grand livre est ISOLEE dans un try/catch : la couche-texte-only leve une
-  // erreur explicite sur un PDF scanne. Cette erreur NE DOIT PAS faire echouer le patrimoine
-  // (degradation PARTIELLE) -> on la capture et on l'expose via recap.comptaErreur.
   const [patrimoine, grandLivresRes, annexesBrut] = await Promise.all([
-    patriDocs.length > 0 ? analyserPatrimoine(extraction, patriDocs) : Promise.resolve(null),
+    patriDocs.length > 0 ? analyserPatrimoineDepuisXlsx(patriDocs) : Promise.resolve<AnalysePatrimoine | null>(null),
     avecGrandLivre ? analyserGrandsLivres(extractionCompta!, glDocs) : Promise.resolve(null),
     avecAnnexe ? extraireAnnexes(extractionAnnexe!, annexeDocs) : Promise.resolve(null),
   ]);
+
+  // Annexes versees sans provider : on le DIT (jamais un silence).
+  const notesAnnexesSansProvider =
+    annexeDocs.length > 0 && extractionAnnexe === null
+      ? [
+          `${annexeDocs.length} document(s) annexe(s) verse(s) mais non analyse(s) : l'analyse des annexes (contacts/precisions) n'est pas configuree - a traiter a la main si besoin.`,
+        ]
+      : [];
 
   const grandLivre = grandLivresRes?.cloture ?? null;
   const grandLivreEnCours = grandLivresRes?.enCours ?? null;
@@ -322,18 +316,20 @@ export async function analyserDossierUnifie(
   const notesGrandsLivres = grandLivresRes?.notes ?? [];
 
   if (!patrimoine && !grandLivre) {
-    // Ni patrimoine, ni grand livre. ANNEXES SEULES (aucun patrimoine, aucun GL) : on ne throw
-    // plus si des annexes ont ete exploitees (contacts/precisions) -> jeu patrimoine vide + bloc
-    // annexes (meme esprit que le pattern GL-seul). Sinon, rien d'exploitable -> erreur explicite.
+    // Ni patrimoine, ni grand livre. ANNEXES SEULES : on ne throw pas si des annexes ont ete
+    // exploitees (contacts/precisions) -> jeu patrimoine vide + bloc annexes. Sinon, rien
+    // d'exploitable -> erreur explicite (avec l'erreur GL si un GL etait joint mais a echoue).
     const jeuVide: JeuDeDonnees = { lots: [], cles: [], tantiemes: [], owners: [], attributions: [] };
     const recap = calculerRecap(jeuVide);
     recap.notes = [
-      "Aucun document patrimoine ni grand livre : seuls des documents annexes ont ete analyses (contacts / precisions).",
+      "Aucun fichier patrimoine (xlsx) ni grand livre exploitable : seuls des documents annexes ont ete analyses (contacts / precisions).",
     ];
     const annexes = finaliserAnnexes(jeuVide.owners, recap, annexesBrut);
     if (annexes) return { jeu: jeuVide, recap, ...(annexes ? { annexes } : {}) };
-    // Si un grand livre etait joint mais a echoue (ex. scan), on remonte SON erreur explicite.
-    throw new Error(comptaErreur ?? "Aucun document exploitable (ni patrimoine ni grand livre).");
+    throw new Error(
+      comptaErreur ??
+        "Aucun fichier exploitable : verse les xlsx patrimoine (lots / tantiemes / owners / links) et/ou le grand livre PDF.",
+    );
   }
 
   // Pas de grand livre exploitable mais patrimoine OK : degradation PARTIELLE. On renvoie le
@@ -342,11 +338,12 @@ export async function analyserDossierUnifie(
   if (!grandLivre) {
     const recap = patrimoine!.recap;
     if (comptaErreur) recap.comptaErreur = comptaErreur;
+    recap.notes = [...recap.notes, ...notesAnnexesSansProvider];
     const annexes = finaliserAnnexes(patrimoine!.jeu.owners, recap, annexesBrut);
     return { jeu: patrimoine!.jeu, recap, ...(annexes ? { annexes } : {}) };
   }
 
-  // Grand livre SEUL : jeu patrimoine vide (aucune extraction IA lancee), la compta porte tout.
+  // Grand livre SEUL : jeu patrimoine vide, la compta porte tout (parcours compta d'abord).
   const jeuPatrimoine: JeuDeDonnees = patrimoine?.jeu ?? {
     lots: [],
     cles: [],
@@ -355,14 +352,14 @@ export async function analyserDossierUnifie(
     attributions: [],
   };
   const notesPatrimoine = patrimoine?.recap.notes ?? [
-    "Aucun document patrimoine fourni : analyse comptable seule (patrimoine a analyser separement).",
+    "Aucun fichier patrimoine (xlsx) fourni : analyse comptable seule (verser lots/tantiemes/owners/links pour le patrimoine).",
   ];
 
   // Liaison owners <-> comptes 450 (reutilise le scoring conservateur de mapping-compta). Les
   // intitules 450 sont l'UNION des deux grands livres : l'exercice en cours peut porter des
-  // coproprietaires nouveaux (ventes recentes) absents de l'exercice cloture. On ne fusionne PAS les
-  // ecritures (elles restent separees pour l'import Inc. 3) : seuls les intitules (nom -> compte) sont
-  // unis pour l'appariement. L'en cours (plus recent) prime en cas de meme compte.
+  // coproprietaires nouveaux (ventes recentes) absents de l'exercice cloture. On ne fusionne PAS
+  // les ecritures (elles restent separees pour l'import) : seuls les intitules (nom -> compte)
+  // sont unis pour l'appariement. L'en cours (plus recent) prime en cas de meme compte.
   const intitulesUnion: Record<string, string> = {
     ...(grandLivre.jeu.intitules ?? {}),
     ...(grandLivreEnCours?.jeu.intitules ?? {}),
@@ -372,20 +369,23 @@ export async function analyserDossierUnifie(
 
   const jeu: JeuDeDonnees = { ...jeuPatrimoine, liaisons450: liaison.liaisons };
 
-  // Recalcule le recap depuis le jeu ENRICHI (bloc liaison) puis re-injecte les notes
-  // d'extraction (patrimoine + proprietaires) + les warnings de liaison (PII-free) + une note
-  // de vigilance si les intitules 450 n'ont pas ete captures (extraction non couche-texte).
+  // Recalcule le recap depuis le jeu ENRICHI (bloc liaison) puis re-injecte les notes du
+  // parsing patrimoine + les warnings de liaison (PII-free) + une note de vigilance si les
+  // intitules 450 n'ont pas ete captures.
   const recap = calculerRecap(jeu);
+  // Le verrou parsing (fichiers xlsx casses) survit au recalcul du recap.
+  if (patrimoine && patrimoine.erreursParsing.length > 0) recap.pretAProduire = false;
   const notesLiaison = [...liaison.warnings];
   if (comptes450.length === 0 && jeuPatrimoine.owners.length > 0) {
     notesLiaison.push(
       "Liaison 450 impossible : intitules des comptes 450 non captures par l'extraction du grand livre (pipeline couche texte requis).",
     );
   }
-  recap.notes = [...notesPatrimoine, ...notesLiaison, ...notesGrandsLivres];
+  recap.notes = [...notesPatrimoine, ...notesLiaison, ...notesGrandsLivres, ...notesAnnexesSansProvider];
 
   // Garde-fou "grand livre AVANT repartition" (classe 6/7 avec report non nul) : alerte rouge
-  // dans le recap unifie (il faut redemander le grand livre APRES repartition). PII-free.
+  // dans le recap unifie (redemander le grand livre APRES repartition, ou traiter l'omission
+  // des paires si le sortant comptabilise la repartition en N+1). PII-free.
   const avantRep = detecterAvantRepartition(grandLivre.jeu.controles ?? []);
 
   const compta: RecapCompta = {
@@ -397,10 +397,9 @@ export async function analyserDossierUnifie(
   };
   recap.compta = compta;
 
-  // Exercice EN COURS (second grand livre) : resume compta + ANOMALIE si des comptes 6/7 portent un
-  // report non nul (apres cloture ils repartent a zero -> report 6/7 non nul = anomalie). Meme
-  // detection que l'avant-repartition, mais ici c'est une anomalie de l'en cours (pas "mauvais
-  // document"). Le bloc compta l'affiche distinctement.
+  // Exercice EN COURS (second grand livre) : resume compta + ANOMALIE si des comptes 6/7 portent
+  // un report non nul (apres cloture ils repartent a zero). Meme detection que l'avant-
+  // repartition, mais ici c'est une anomalie de l'en cours (pas "mauvais document").
   if (grandLivreEnCours) {
     const reports67 = detecterAvantRepartition(grandLivreEnCours.jeu.controles ?? []);
     recap.comptaEnCours = {
@@ -412,14 +411,14 @@ export async function analyserDossierUnifie(
     };
   }
 
-  // CONTROLE CROISE (le joyau) : si KO, on le remonte aussi en note (classee anomalie/erreur par le
+  // CONTROLE CROISE : si KO, on le remonte aussi en note (classee anomalie/erreur par le
   // systeme de notes) en plus du verdict structure (affiche en rouge par le bloc compta).
   if (raccordement) {
     recap.raccordement = raccordement;
     if (!raccordement.raccorde) recap.notes.push(messageRaccordement(raccordement));
   }
 
-  // Bloc ANNEXES : contacts rapproches aux owners du jeu (patrimoine ou empty) + notes vigilance.
+  // Bloc ANNEXES : contacts rapproches aux owners du jeu (patrimoine ou vide) + notes vigilance.
   const annexes = finaliserAnnexes(jeu.owners, recap, annexesBrut);
 
   return { jeu, recap, compta, ...(annexes ? { annexes } : {}) };
