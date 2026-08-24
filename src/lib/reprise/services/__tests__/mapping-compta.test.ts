@@ -17,7 +17,7 @@ const COMPTES_ESTALE_BRUTS: { nomenclature: string; libelle: string }[] = [
   { nomenclature: "4010001", libelle: "ACME NETTOYAGE" },
   { nomenclature: "4500001", libelle: "MARTIN PAUL" },
   { nomenclature: "4500002", libelle: "NOVAK ELENA" },
-  { nomenclature: "4719990", libelle: "Banque Ancien Syndic" },
+  { nomenclature: "4719999", libelle: "Banque Ancien Syndic" },
 ];
 function comptesEstale(): SoldeCompte[] {
   return COMPTES_ESTALE_BRUTS.map((c) => ({
@@ -62,17 +62,17 @@ function jeuSynthetique(): JeuEcritures {
     "4010.222": "FOURNISSEUR NOUVEAU", // aucun candidat -> creation
     "4501.100": "PAUL MARTIN", // inverse -> mappe
     "4501.200": "COPRO ABSENT", // introuvable -> erreur bloquante
-    // 5120.000 : banque -> 471999 present ; 6211.000 : bloc B
+    // 5120.000 : banque -> 4719999 present ; 6211.000 : bloc B
   };
   return jeu;
 }
 
 describe("construireContexteEstale", () => {
-  it("separe fournisseurs 401, coproprietaires 450 et detecte 471999", () => {
+  it("separe fournisseurs 401, coproprietaires 450 et detecte le 4719999 (7 caracteres)", () => {
     const ctx = construireContexteEstale(comptesEstale());
     expect(ctx.fournisseurs.map((f) => f.nomenclature)).toEqual(["4010001"]);
     expect(ctx.coproprietaires).toHaveLength(2);
-    expect(ctx.nomenclature471999).toBe("4719990");
+    expect(ctx.nomenclature471999).toBe("4719999");
     expect(ctx.nomenclature471998).toBeUndefined();
   });
 });
@@ -140,8 +140,8 @@ describe("preparerRevueMapping - referentiel partis + garde-fou", () => {
     const r = await preparerRevueMapping(jeuSynthetique(), "S0TEST", new MockProvider());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    // 4719990 (racine 471) est propose comme cible pour un coproprietaire parti.
-    expect(r.candidats.partis.map((c) => c.nomenclature)).toContain("4719990");
+    // 4719999 (racine 471) est propose comme cible pour un coproprietaire parti.
+    expect(r.candidats.partis.map((c) => c.nomenclature)).toContain("4719999");
     // Sans compte de classe 6/7 avec report : aucun blocage avant-repartition.
     expect(r.plan.avantRepartition).toBeUndefined();
   });

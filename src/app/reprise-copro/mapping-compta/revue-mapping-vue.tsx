@@ -116,8 +116,9 @@ const CATEGORIE_LABEL: Record<CategorieCompte, string> = {
   coproprietaire: "Coproprietaire (450)",
   attente_ancien: "Compte d'attente (471)",
   attente_472: "Compte d'attente (472)",
+  rompus_473: "Rompus (473 -> 488)",
   regularisation_489: "Regularisation (489)",
-  banque: "Banque (512)",
+  banque: "Banque (512/502)",
   livret: "Livret (501)",
   autre_bloc_a: "Autre tiers / tresorerie (bloc A)",
   charge_bloc_b: "Charge (classe 6, bloc B)",
@@ -130,6 +131,7 @@ const STATUT_LABEL: Record<StatutMapping, string> = {
   warning_appariement: "A valider",
   reporte_bloc_b: "Reporte (bloc B)",
   reporte_bloc_c: "Reporte (bloc C)",
+  exclu: "Exclu (jamais repris)",
   non_mappe: "Non mappe",
 };
 

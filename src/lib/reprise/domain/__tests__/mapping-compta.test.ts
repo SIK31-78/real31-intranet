@@ -6,7 +6,6 @@ import {
   apparierParNom,
   appliquerRaccordement,
   classifierCompte,
-  cible471vers472,
   construirePlan,
   detecterGroupesHomonymes,
   mapperCompte,
@@ -54,17 +53,15 @@ describe("racineCompte / classifierCompte", () => {
     expect(classifierCompte("4720000")).toBe("attente_472");
     expect(classifierCompte("4890000")).toBe("regularisation_489");
     expect(classifierCompte("5120.000000000")).toBe("banque");
+    expect(classifierCompte("5020001")).toBe("banque"); // 502 = compte courant du sortant
     expect(classifierCompte("5010000")).toBe("livret");
+    expect(classifierCompte("4730000")).toBe("rompus_473");
     expect(classifierCompte("4600000")).toBe("autre_bloc_a"); // autre classe 4
     expect(classifierCompte("6211.000000000")).toBe("charge_bloc_b");
     expect(classifierCompte("1200000")).toBe("hors_bloc_a"); // classe 1
     expect(classifierCompte("7010000")).toBe("hors_bloc_a"); // classe 7
   });
 
-  it("471 -> 472 conserve le suffixe chiffre", () => {
-    expect(cible471vers472("4710000")).toBe("4720000");
-    expect(cible471vers472("471.123")).toBe("472");
-  });
 });
 
 describe("normalisation et scoring de noms", () => {
@@ -137,32 +134,51 @@ describe("mapperCompte - regles par categorie", () => {
     expect(mapperCompte("4501.4", undefined, CTX).statut).toBe("non_mappe");
   });
 
-  it("512 banque -> mappe sur 471999 si present, sinon action creer_sous_compte", () => {
+  it("512/502 banque -> AGREGES sur le 4719999 (7 caracteres), nomenclature du plan si presente", () => {
+    // Le plan eStale porte deja un compte d'attente banque -> sa nomenclature exacte est reprise.
     expect(mapperCompte("5120.0", undefined, CTX).cible?.nomenclature).toBe("4719990");
+    // Sans compte releve dans le plan : la nomenclature OFFICIELLE 7 caracteres (jamais 471999).
     const sans = mapperCompte("5120.0", undefined, { ...CTX, nomenclature471999: undefined });
-    expect(sans.statut).toBe("action_requise");
-    expect(sans.action).toEqual({
-      type: "creer_sous_compte",
-      parent: "471",
-      suffix: "999",
-      nom: "Banque Ancien Syndic",
-    });
+    expect(sans.statut).toBe("mappe");
+    expect(sans.cible?.nomenclature).toBe("4719999");
+    // 502 (compte courant du sortant) va au MEME compte d'attente : agregation normale.
+    expect(mapperCompte("5020001", undefined, CTX).cible?.nomenclature).toBe("4719990");
   });
 
-  it("501 livret -> action creer_sous_compte 471998 quand absent", () => {
+  it("501 livret -> 4719998 Livret Ancien Syndic", () => {
     const e = mapperCompte("5010.0", undefined, CTX);
-    expect(e.statut).toBe("action_requise");
-    expect(e.action).toMatchObject({ suffix: "998", parent: "471" });
+    expect(e.statut).toBe("mappe");
+    expect(e.cible?.nomenclature).toBe("4719998");
   });
 
-  it("471 -> 472 mappe ; 408 tel quel ; 489 mappe avec note ; classe 6 -> bloc B ; classe 1/7 -> bloc C", () => {
-    expect(mapperCompte("4710000", undefined, CTX)).toMatchObject({ statut: "mappe" });
-    expect(mapperCompte("4710000", undefined, CTX).cible?.nomenclature).toBe("4720000");
+  it("471 -> 4710000 ; 473 -> 488 ; 408 tel quel ; 489 EXCLU ; classe 6 -> bloc B ; classe 1/7 -> bloc C", () => {
+    // 471 d'imputation : le 4710000 eStale existe deja, on ne cree rien (regle S0303).
+    expect(mapperCompte("4710002", undefined, CTX)).toMatchObject({ statut: "mappe" });
+    expect(mapperCompte("4710002", undefined, CTX).cible?.nomenclature).toBe("4710000");
+    // 473 rompus : le compte de rompus eStale est 488 (le 473 n'existe pas chez eStale).
+    const rompus = mapperCompte("4730000", undefined, CTX);
+    expect(rompus.statut).toBe("mappe");
+    expect(rompus.cible?.nomenclature).toBe("488");
     expect(mapperCompte("4080000", undefined, CTX).statut).toBe("mappe");
-    expect(mapperCompte("4890000", undefined, CTX).statut).toBe("mappe");
+    // 489 : JAMAIS mappe (eStale l'alimente seul a la cloture) -> exclu, ni erreur ni warning.
+    const c489 = mapperCompte("4890000", undefined, CTX);
+    expect(c489.statut).toBe("exclu");
+    expect(c489.cible).toBeUndefined();
     expect(mapperCompte("6211.0", undefined, CTX).statut).toBe("reporte_bloc_b");
     expect(mapperCompte("1200000", undefined, CTX).statut).toBe("reporte_bloc_c");
     expect(mapperCompte("7010000", undefined, CTX).statut).toBe("reporte_bloc_c");
+  });
+
+  it("la CLE du compte cible fait foi : reprise dans la CibleMapping quand le plan la donne", () => {
+    const ctxCle: ContexteEstale = {
+      ...CTX,
+      coproprietaires: [{ nomenclature: "4500001", intitule: "MARTIN PAUL", cle: "100" }],
+    };
+    const e = mapperCompte("4501.1", "MARTIN PAUL", ctxCle);
+    expect(e.statut).toBe("mappe");
+    expect(e.cible?.cle).toBe("100");
+    // Sans cle connue : 001 par defaut.
+    expect(mapperCompte("4501.1", "MARTIN PAUL", CTX).cible?.cle).toBe("001");
   });
 });
 

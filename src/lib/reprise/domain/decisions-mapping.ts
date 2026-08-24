@@ -199,6 +199,7 @@ function compteursVides(): Record<StatutMapping, number> {
     warning_appariement: 0,
     reporte_bloc_b: 0,
     reporte_bloc_c: 0,
+    exclu: 0,
     non_mappe: 0,
   };
 }
@@ -260,7 +261,9 @@ export function appliquerDecisions(plan: PlanMapping, decisions: DecisionEntree[
         }` + (e.note ? ` [${e.note}]` : ""),
       );
     } else if (e.categorie === "regularisation_489") {
-      notes.push(`compte ${e.compteSource} : 489 present -> decider s'il est repris (cf. equilibre).`);
+      notes.push(
+        `compte ${e.compteSource} : 489 EXCLU du fichier (eStale l'alimente seul a la cloture - le reprendre doublerait le resultat).`,
+      );
     }
   }
   notes.push(...notesSupplementaires);

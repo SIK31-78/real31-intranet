@@ -12,6 +12,19 @@
 //      -> on est CONSERVATEUR : appariement fort ET non ambigu pour mapper automatiquement, sinon
 //      WARNING a valider par un humain (jamais silencieux), sinon action de creation ou erreur.
 //
+// R13 (mesure sur S0303, 2026-08) : LE SUFFIXE DU SORTANT ET LA REFERENCE ESTALE SONT DEUX
+// NUMEROTATIONS SANS RAPPORT. L'appariement d'un 450/401 se fait sur le NOM, JAMAIS sur le
+// numero : le motif "meme numero" routait 8 comptes sur 10 vers le mauvais coproprietaire
+// (450003 GOUDET pointant sur le compte de BOUNOURE), et l'erreur est SILENCIEUSE (toutes les
+// balances globales restent justes). Le seul filet qui l'attrape est la balance par compte
+// CIBLE (auto-check n.6, domain/auto-checks-compta.ts).
+//
+// Nomenclature des comptes d'attente (officielle eStale, 7 CARACTERES - "471999" n'existe pas
+// et l'import echoue en silence sur un compte inconnu) : 512/502 -> 4719999 "Banque Ancien
+// Syndic" ; 501 -> 4719998 "Livret Ancien Syndic" ; 471 d'imputation -> 4710000 (existe deja).
+// Compte de rompus : le "473" du sortant n'existe pas chez eStale -> 488 "Rompus de repartition".
+// 489 : JAMAIS mappe depuis le sortant (eStale l'alimente seul a la cloture).
+//
 // PII : ce module manipule des noms (intitules) UNIQUEMENT pour le calcul de score ; il ne les
 // recopie JAMAIS dans les messages/notes du plan (seuls numeros de compte, scores et compteurs).
 
@@ -29,6 +42,13 @@ import {
 export const CLE_DEFAUT = "001";
 /** Journal eStale de la reprise : les a-nouveaux / soldes de reprise vont en carryforward. */
 export const JOURNAL_REPRISE = "carryforward" as const;
+
+// Nomenclature officielle eStale des comptes d'attente (7 caracteres, cf. en-tete).
+export const COMPTE_ATTENTE_BANQUE = "4719999";
+export const COMPTE_ATTENTE_LIVRET = "4719998";
+export const COMPTE_ATTENTE_IMPUTATION = "4710000";
+/** Compte de rompus eStale (sous 48, hors branche 47) : le 473 du sortant n'existe pas. */
+export const COMPTE_ROMPUS = "488";
 
 /** Score >= ce seuil ET non ambigu => appariement automatique (mappe). */
 export const SEUIL_APPARIEMENT_FORT = 0.9;
@@ -65,7 +85,8 @@ export type StatutMapping =
   | "action_requise" // non mappe MAIS action planifiee (creation fournisseur / sous-compte)
   | "warning_appariement" // candidat trouve mais faible/ambigu -> validation humaine
   | "reporte_bloc_b" // classe 6 : importe a l'increment 4 (RGD/TVA)
-  | "reporte_bloc_c" // classe 1/7 (et 2/3) : eclatement a l'increment 5
+  | "reporte_bloc_c" // classe 1/7 (et 2/3) : module Eclatement (jamais entries.xlsx)
+  | "exclu" // JAMAIS repris (489 : eStale l'alimente seul a la cloture) - ni erreur ni warning
   | "non_mappe"; // bloc A non resolu et sans action -> ERREUR bloquante
 
 /** Categorie deduite du prefixe de nomenclature (regle metier appliquee). */
@@ -75,9 +96,10 @@ export type CategorieCompte =
   | "coproprietaire" // 450
   | "attente_ancien" // 471 (ancien syndic) -> 472
   | "attente_472" // 472
-  | "regularisation_489" // 489
-  | "banque" // 512 -> compte d'attente 471999
-  | "livret" // 501 -> compte d'attente 471998
+  | "rompus_473" // 473 rompus du sortant -> 488 (le 473 n'existe pas chez eStale)
+  | "regularisation_489" // 489 -> EXCLU (jamais repris)
+  | "banque" // 512 et 502 -> compte d'attente 4719999
+  | "livret" // 501 -> compte d'attente 4719998
   | "autre_bloc_a" // autre classe 4/5
   | "charge_bloc_b" // classe 6
   | "hors_bloc_a"; // classe 1/2/3/7
@@ -178,19 +200,14 @@ export function classifierCompte(compteSource: string): CategorieCompte {
   if (r.startsWith("450")) return "coproprietaire";
   if (r.startsWith("471")) return "attente_ancien";
   if (r.startsWith("472")) return "attente_472";
+  if (r.startsWith("473")) return "rompus_473";
   if (r.startsWith("489")) return "regularisation_489";
-  if (r.startsWith("512")) return "banque";
+  if (r.startsWith("512") || r.startsWith("502")) return "banque";
   if (r.startsWith("501")) return "livret";
   const classe = r ? Number(r[0]) : NaN;
   if (classe === 4 || classe === 5) return "autre_bloc_a";
   if (classe === 6) return "charge_bloc_b";
   return "hors_bloc_a"; // classes 1/2/3/7 (bloc C ou hors perimetre reprise A/B)
-}
-
-/** Transforme un compte d'attente ancien syndic 471... en sa cible 472... (meme suffixe). */
-export function cible471vers472(compteSource: string): string {
-  const r = racineCompte(compteSource);
-  return "472" + r.slice(3);
 }
 
 // --- Appariement par nom (le coeur conservateur) ----------------------------------
@@ -261,15 +278,19 @@ export function scoreAppariement(a: string, b: string): number {
   return inter / Math.max(ta.size, tb.size);
 }
 
-/** Un compte tiers candidat cote eStale (nomenclature + intitule/nom). */
+/** Un compte tiers candidat cote eStale (nomenclature + intitule/nom + cle du compte). */
 export interface CandidatCompte {
   nomenclature: string;
   intitule: string;
+  /** Code de la cle de repartition portee par le compte eStale (la cle du COMPTE fait foi). */
+  cle?: string;
 }
 
 /** Resultat d'un appariement : meilleur candidat + score + drapeau d'ambiguite. */
 export interface Appariement {
   cible?: string;
+  /** Cle du compte cible apparie (si connue) : reprise dans la CibleMapping. */
+  cle?: string;
   confiance: number;
   ambigu: boolean;
 }
@@ -279,12 +300,14 @@ export function apparierParNom(intituleSource: string, candidats: CandidatCompte
   let meilleur = -1;
   let second = -1;
   let cible: string | undefined;
+  let cle: string | undefined;
   for (const c of candidats) {
     const s = scoreAppariement(intituleSource, c.intitule);
     if (s > meilleur) {
       second = meilleur;
       meilleur = s;
       cible = c.nomenclature;
+      cle = c.cle;
     } else if (s > second) {
       second = s;
     }
@@ -292,27 +315,32 @@ export function apparierParNom(intituleSource: string, candidats: CandidatCompte
   if (meilleur < 0) return { confiance: 0, ambigu: false };
   const ambigu =
     second >= SEUIL_APPARIEMENT_MINI && meilleur - second < MARGE_AMBIGUITE;
-  return { cible, confiance: meilleur, ambigu };
+  return { cible, ...(cle ? { cle } : {}), confiance: meilleur, ambigu };
 }
 
 // --- Contexte eStale (referentiel des comptes existants de la copro cible) ---------
 
 /** Ce que le resolveur a besoin de connaitre du plan comptable eStale de la copro. */
 export interface ContexteEstale {
-  /** Comptes 401 fournisseurs existants (nomenclature + nom). */
+  /** Comptes 401 fournisseurs existants (nomenclature + nom + cle). */
   fournisseurs: CandidatCompte[];
-  /** Comptes 450 coproprietaires existants (nomenclature + nom, issus de l'injection patrimoine). */
+  /** Comptes 450 coproprietaires existants (nomenclature + nom + cle, issus de l'injection patrimoine). */
   coproprietaires: CandidatCompte[];
-  /** Nomenclature eStale du compte d'attente banque 471999 s'il existe. */
+  /** Nomenclature eStale du compte d'attente banque 4719999 s'il existe deja dans le plan. */
   nomenclature471999?: string;
-  /** Nomenclature eStale du compte d'attente livret 471998 s'il existe. */
+  /** Nomenclature eStale du compte d'attente livret 4719998 s'il existe deja dans le plan. */
   nomenclature471998?: string;
+  /** Nomenclature eStale du 471 d'imputation 4710000 s'il existe deja (il existe normalement). */
+  nomenclature4710000?: string;
+  /** Nomenclature eStale du compte de rompus 488 s'il existe deja dans le plan. */
+  nomenclature488?: string;
 }
 
 // --- Resolution d'un compte -------------------------------------------------------
 
-function cible(nomenclature: string): CibleMapping {
-  return { nomenclature, cle: CLE_DEFAUT, journal: JOURNAL_REPRISE };
+function cible(nomenclature: string, cle?: string): CibleMapping {
+  // La cle du COMPTE eStale fait foi quand elle est connue ; 001 par defaut sinon.
+  return { nomenclature, cle: cle && cle.trim() ? cle : CLE_DEFAUT, journal: JOURNAL_REPRISE };
 }
 
 /** Options de resolution d'un compte (reglages qui dependent du reste du jeu, pas du compte seul). */
@@ -360,14 +388,14 @@ export function mapperCompte(
       }
       const ap = apparierParNom(intitule, contexte.fournisseurs);
       if (ap.cible && ap.confiance >= SEUIL_APPARIEMENT_FORT && !ap.ambigu) {
-        return { ...base, statut: "mappe", confiance: ap.confiance, cible: cible(ap.cible) };
+        return { ...base, statut: "mappe", confiance: ap.confiance, cible: cible(ap.cible, ap.cle) };
       }
       if (ap.cible && ap.confiance >= SEUIL_APPARIEMENT_MINI) {
         return {
           ...base,
           statut: "warning_appariement",
           confiance: ap.confiance,
-          cible: cible(ap.cible),
+          cible: cible(ap.cible, ap.cle),
           note: ap.ambigu ? "appariement fournisseur ambigu" : "appariement fournisseur faible",
         };
       }
@@ -408,7 +436,7 @@ export function mapperCompte(
             ...base,
             statut: "warning_appariement",
             confiance: ap.confiance,
-            cible: cible(ap.cible),
+            cible: cible(ap.cible, ap.cle),
             note: "groupe homonyme : appariement automatique desactive, revue humaine requise",
           };
         }
@@ -420,14 +448,14 @@ export function mapperCompte(
         };
       }
       if (ap.cible && ap.confiance >= SEUIL_APPARIEMENT_FORT && !ap.ambigu) {
-        return { ...base, statut: "mappe", confiance: ap.confiance, cible: cible(ap.cible) };
+        return { ...base, statut: "mappe", confiance: ap.confiance, cible: cible(ap.cible, ap.cle) };
       }
       if (ap.cible && ap.confiance >= SEUIL_APPARIEMENT_MINI) {
         return {
           ...base,
           statut: "warning_appariement",
           confiance: ap.confiance,
-          cible: cible(ap.cible),
+          cible: cible(ap.cible, ap.cle),
           note: ap.ambigu
             ? "appariement coproprietaire ambigu"
             : "appariement coproprietaire faible",
@@ -444,37 +472,48 @@ export function mapperCompte(
     }
 
     case "banque": {
-      if (contexte.nomenclature471999) {
-        return { ...base, statut: "mappe", cible: cible(contexte.nomenclature471999) };
-      }
+      // 512 ET 502 : tous les comptes bancaires tenus par le sortant sont soldes a la date de
+      // reprise -> AGREGES sur 4719999 "Banque Ancien Syndic" (7 caracteres, jamais 471999).
+      // Le compte d'origine est trace en colonne Commentaire de chaque ligne a la production.
       return {
         ...base,
-        statut: "action_requise",
-        action: { type: "creer_sous_compte", parent: "471", suffix: "999", nom: "Banque Ancien Syndic" },
+        statut: "mappe",
+        cible: cible(contexte.nomenclature471999 ?? COMPTE_ATTENTE_BANQUE),
+        note: "banque du sortant agregee sur le compte d'attente 4719999 (compte source trace en commentaire)",
       };
     }
 
     case "livret": {
-      if (contexte.nomenclature471998) {
-        return { ...base, statut: "mappe", cible: cible(contexte.nomenclature471998) };
-      }
       return {
         ...base,
-        statut: "action_requise",
-        action: { type: "creer_sous_compte", parent: "471", suffix: "998", nom: "Livret Ancien Syndic" },
+        statut: "mappe",
+        cible: cible(contexte.nomenclature471998 ?? COMPTE_ATTENTE_LIVRET),
+        note: "livret du sortant repris sur le compte d'attente 4719998 (compte source trace en commentaire)",
       };
     }
 
     case "attente_ancien":
+      // Le 471 d'imputation du sortant va sur le 4710000 eStale (il existe deja dans le plan
+      // pre-provisionne : ne rien creer). Ancienne regle "471 -> 472" abandonnee (S0303).
       return {
         ...base,
         statut: "mappe",
-        cible: cible(cible471vers472(compteSource)),
-        note: "compte d'attente ancien syndic (471) repris en 472",
+        cible: cible(contexte.nomenclature4710000 ?? COMPTE_ATTENTE_IMPUTATION),
+        note: "compte d'attente du sortant (471) repris sur le 4710000 eStale (existe deja)",
       };
 
     case "attente_472":
       return { ...base, statut: "mappe", cible: cible(racineCompte(compteSource)) };
+
+    case "rompus_473":
+      // Le "473" du sortant n'existe pas chez eStale : le compte de rompus est 488
+      // "Rompus de repartition" (sous 48, hors branche 47). Chercher par libelle, pas numero.
+      return {
+        ...base,
+        statut: "mappe",
+        cible: cible(contexte.nomenclature488 ?? COMPTE_ROMPUS),
+        note: "rompus du sortant (473) repris sur le 488 eStale (le 473 n'existe pas chez eStale)",
+      };
 
     case "fnp_408":
       return {
@@ -485,11 +524,13 @@ export function mapperCompte(
       };
 
     case "regularisation_489":
+      // JAMAIS mappe depuis le sortant : c'est eStale qui alimente le 489 a la cloture (il
+      // recoit le resultat ventile par coproprietaire puis se deverse sur les 450 a l'ouverture
+      // N+1). Y poser des ecritures de reprise produirait un DOUBLE COMPTAGE.
       return {
         ...base,
-        statut: "mappe",
-        cible: cible(racineCompte(compteSource)),
-        note: "compte 489 : souvent NON repris si le grand livre s'equilibre sans lui - a confirmer",
+        statut: "exclu",
+        note: "compte 489 : JAMAIS repris (eStale l'alimente seul a la cloture) - exclu du fichier d'import",
       };
 
     case "autre_bloc_a":
@@ -528,6 +569,7 @@ function compteursVides(): Record<StatutMapping, number> {
     warning_appariement: 0,
     reporte_bloc_b: 0,
     reporte_bloc_c: 0,
+    exclu: 0,
     non_mappe: 0,
   };
 }
@@ -557,7 +599,9 @@ export function construirePlan(entrees: EntreeMapping[]): PlanMapping {
         }` + (e.note ? ` [${e.note}]` : ""),
       );
     } else if (e.categorie === "regularisation_489") {
-      notes.push(`compte ${e.compteSource} : 489 present -> decider s'il est repris (cf. equilibre).`);
+      notes.push(
+        `compte ${e.compteSource} : 489 EXCLU du fichier (eStale l'alimente seul a la cloture - le reprendre doublerait le resultat).`,
+      );
     }
   }
 
