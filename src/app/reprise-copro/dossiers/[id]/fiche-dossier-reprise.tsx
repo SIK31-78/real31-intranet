@@ -98,7 +98,7 @@ export function FicheDossierReprise({
 
   // Checklist de SUIVI HUMAIN = TOUTES les etapes reelles du pipeline de reprise (R1..R11 +
   // eventuelles anciennes etapes preservees par la migration), groupees par phase dans l'ordre
-  // canonique. Le patrimoine reste pilote par l'IA en zone 2 ; ici on suit l'avancement humain.
+  // canonique. Le patrimoine se pilote en zone 2 (fichiers verses) ; ici on suit l'avancement humain.
   const groupesSuivi = PHASES.map((phase) => ({
     phase,
     etapes: dossier.etapes.filter((e) => e.phase === phase),
@@ -172,7 +172,7 @@ export function FicheDossierReprise({
         <BandeauProchaineEtape etape={etapeSuivante} dossierRef={dossier.ref} onAller={allerAZone} />
       )}
 
-      {/* ZONE 2 - Patrimoine (pilote IA) */}
+      {/* ZONE 2 - Patrimoine (fichiers Excel verses, parsing deterministe) */}
       <div id="zone-patrimoine" className="scroll-mt-4">
         <ZonePatrimoine
           dossier={dossier}
