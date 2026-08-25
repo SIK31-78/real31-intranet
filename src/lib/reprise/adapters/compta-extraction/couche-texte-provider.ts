@@ -19,6 +19,10 @@ import { verifierTotauxParCompte } from "@/lib/reprise/domain/controle-comptes";
 import { normaliserGrandLivre } from "@/lib/reprise/adapters/shared/normaliser-compta";
 import { extraireTextePages, estPdfNatif, type PageTexte } from "@/lib/reprise/adapters/shared/pdf-texte";
 import { parserGrandLivrePositions } from "@/lib/reprise/adapters/shared/parseur-grand-livre-positions";
+import {
+  detecterFormatColonnesDroite,
+  parserGrandLivreColonnesDroite,
+} from "@/lib/reprise/adapters/shared/parseur-grand-livre-colonnes-droite";
 
 /**
  * Message d'erreur unique quand la couche texte n'est pas exploitable. Actionnable : dit
@@ -45,7 +49,13 @@ export class CoucheTexteComptaExtractionProvider implements ExtractionComptaProv
     }
     if (pages.length === 0) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
 
-    const parse = parserGrandLivrePositions(pages);
+    // Deux mises en page connues, choisies par les EN-TETES IMPRIMES du document :
+    //   - "colonnes a droite" (C.J | Date de valeur | ... | Solde "AGE") : montants identifies
+    //     par le x1 de leur dernier token, avec journal d'anomalies (format S0304) ;
+    //   - sinon le parseur positions (centres des en-tetes Debit/Credit, format Matera).
+    const parse = detecterFormatColonnesDroite(pages)
+      ? parserGrandLivreColonnesDroite(pages)
+      : parserGrandLivrePositions(pages);
     // 0 ecriture parsee = couche texte presente mais illisible par le parseur (mise en page
     // non reconnue) : sans fallback IA, on prefere l'erreur explicite au silence.
     if (parse.lignes.length === 0) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
@@ -55,6 +65,11 @@ export class CoucheTexteComptaExtractionProvider implements ExtractionComptaProv
     // Intitules d'en-tete de compte (noms) captures par le parseur positionne -> exposes pour
     // l'appariement par nom du mapping (reprise). PII : jamais logue, reste dans la structure.
     if (parse.intitules) jeu.intitules = parse.intitules;
+    // Journal d'anomalies du parseur colonnes a droite (lignes A MONTANT non reconnues) :
+    // compte pour l'auto-check n.1 ("lignes non reconnues = 0, sur chaque source").
+    if ("anomalies" in parse && Array.isArray(parse.anomalies) && parse.anomalies.length > 0) {
+      jeu.nonReconnues = (jeu.nonReconnues ?? 0) + parse.anomalies.length;
+    }
 
     // Filets de verification DETERMINISTES (aucun reseau) : equilibre global + totaux par compte.
     // Un desequilibre n'est PAS une erreur bloquante ici (la comptable valide la balance par
