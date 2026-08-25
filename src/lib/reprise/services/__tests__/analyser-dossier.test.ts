@@ -108,6 +108,9 @@ describe("analyserDossierUnifie", () => {
     async extraireGrandLivre() {
       throw new Error("scan detecte : couche texte inexploitable");
     },
+    async extraireRgd() {
+      throw new Error("scan detecte : couche texte inexploitable");
+    },
   };
 
   it("grand livre scanne + patrimoine : degradation partielle (patrimoine OK, erreur compta exposee)", async () => {
@@ -154,6 +157,9 @@ class MockDeuxGL implements ExtractionComptaProvider {
     const jeu = this.parNom[docs[0]?.nom ?? ""];
     if (!jeu) throw new Error(`doc inconnu : ${docs[0]?.nom}`);
     return jeu;
+  }
+  async extraireRgd(): Promise<never> {
+    throw new Error("pas de RGD dans ce scenario de test");
   }
 }
 

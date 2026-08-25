@@ -14,6 +14,7 @@
 import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
+import type { JeuRgd } from "@/lib/reprise/domain/rgd";
 import { verifierEquilibreGrandLivre } from "@/lib/reprise/domain/ecriture";
 import { verifierTotauxParCompte } from "@/lib/reprise/domain/controle-comptes";
 import { normaliserGrandLivre } from "@/lib/reprise/adapters/shared/normaliser-compta";
@@ -23,6 +24,7 @@ import {
   detecterFormatColonnesDroite,
   parserGrandLivreColonnesDroite,
 } from "@/lib/reprise/adapters/shared/parseur-grand-livre-colonnes-droite";
+import { parserRgd } from "@/lib/reprise/adapters/shared/parseur-rgd";
 
 /**
  * Message d'erreur unique quand la couche texte n'est pas exploitable. Actionnable : dit
@@ -32,22 +34,28 @@ import {
 export const MESSAGE_ERREUR_COUCHE_TEXTE =
   "Ce PDF ne porte pas de couche texte exploitable (scan ?). La reprise compta exige le grand livre PDF NATIF exporte par l'ancien syndic - redemande le fichier d'origine, pas un scan.";
 
+/** Lit la couche texte de tous les documents, ou leve l'erreur actionnable commune. */
+async function lireCoucheTexte(docs: DocumentSource[]): Promise<PageTexte[]> {
+  const pages: PageTexte[] = [];
+  for (const d of docs) {
+    let p: PageTexte[];
+    try {
+      p = await extraireTextePages(d.contenu);
+    } catch {
+      // pdfjs KO (PDF corrompu / illisible) : aucun fallback, erreur explicite.
+      throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+    }
+    // Un scan (page = image) n'a quasiment aucun item de texte -> couche texte inexploitable.
+    if (!estPdfNatif(p)) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+    pages.push(...p);
+  }
+  if (pages.length === 0) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+  return pages;
+}
+
 export class CoucheTexteComptaExtractionProvider implements ExtractionComptaProvider {
   async extraireGrandLivre(docs: DocumentSource[]): Promise<JeuEcritures> {
-    const pages: PageTexte[] = [];
-    for (const d of docs) {
-      let p: PageTexte[];
-      try {
-        p = await extraireTextePages(d.contenu);
-      } catch {
-        // pdfjs KO (PDF corrompu / illisible) : aucun fallback, erreur explicite.
-        throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
-      }
-      // Un scan (page = image) n'a quasiment aucun item de texte -> couche texte inexploitable.
-      if (!estPdfNatif(p)) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
-      pages.push(...p);
-    }
-    if (pages.length === 0) throw new Error(MESSAGE_ERREUR_COUCHE_TEXTE);
+    const pages = await lireCoucheTexte(docs);
 
     // Deux mises en page connues, choisies par les EN-TETES IMPRIMES du document :
     //   - "colonnes a droite" (C.J | Date de valeur | ... | Solde "AGE") : montants identifies
@@ -83,5 +91,25 @@ export class CoucheTexteComptaExtractionProvider implements ExtractionComptaProv
       `Pipeline COUCHE TEXTE (PDF natif, positions) : ${jeu.lignes.length} ecriture(s), equilibre global ecart ${equ.ecart}.`,
     );
     return jeu;
+  }
+
+  async extraireRgd(docs: DocumentSource[]): Promise<JeuRgd> {
+    const pages = await lireCoucheTexte(docs);
+    // parserRgd choisit le format (Matera / Foncia) d'apres les en-tetes imprimes et leve
+    // une erreur explicite si aucun n'est reconnu - jamais un jeu vide silencieux.
+    const parse = parserRgd(pages);
+    if (parse.lignes.length === 0) {
+      throw new Error(
+        "RGD reconnu mais aucune ligne de depense extraite : document vide ou mise en page inattendue - a diagnostiquer avant de continuer (jeu vide = echec, jamais succes).",
+      );
+    }
+    const notes = [...parse.notes];
+    const enEcart = parse.controles.filter((c) => Math.abs(c.ecart) >= 0.005);
+    for (const c of enEcart) {
+      notes.push(
+        `RGD : total imprime ${c.niveau} ${c.code} en ecart de ${c.ecart.toFixed(2)} (imprime ${c.ttcImprime.toFixed(2)} / calcule ${c.ttcCalcule.toFixed(2)}).`,
+      );
+    }
+    return { lignes: parse.lignes, notes, nonReconnues: parse.anomalies.length };
   }
 }

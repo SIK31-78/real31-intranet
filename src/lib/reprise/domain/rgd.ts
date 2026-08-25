@@ -82,3 +82,14 @@ export function apparierRgdGl(lignesGl: LigneEcriture[], rgd: LigneRgd[]): Appar
 
   return { parIndexGl, residusGl, residusRgd };
 }
+
+/**
+ * Sortie de l'EXTRACTION d'un RGD (pendant RGD du JeuEcritures du grand livre) : les lignes
+ * pretes pour l'appariement + les notes de vigilance + le compteur de lignes non reconnues
+ * (journal d'anomalies du parseur, entre dans l'auto-check n.1 : 0 attendu sur chaque source).
+ */
+export interface JeuRgd {
+  lignes: LigneRgd[];
+  notes: string[];
+  nonReconnues: number;
+}
