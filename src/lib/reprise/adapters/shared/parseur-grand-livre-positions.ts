@@ -19,6 +19,7 @@ import type {
 } from "@/lib/reprise/adapters/shared/parseur-grand-livre";
 import type { ControleCompte } from "@/lib/reprise/domain/ecriture";
 import type { ItemTexte, PageTexte } from "@/lib/reprise/adapters/shared/pdf-texte";
+import { dedupliquerItems } from "@/lib/reprise/adapters/shared/parseur-rgd";
 
 /** Sous ce montant (EUR), une cellule est consideree vide / bruit d'arrondi. */
 const EPS = 0.005;
@@ -89,13 +90,24 @@ export function detecterColonnes(page: PageTexte): ColonnesMontant | null {
   for (const it of fenetre) {
     const mot = plier(it.chaine.trim());
     const centre = it.x + it.largeur / 2;
+    // Tokens EXACTS, jamais includes() (regle du skill) : un libelle SEPA "Creditor Name"
+    // present dans la fenetre CAPTE l'ancre credit et vole la colonne - mesure sur S0302
+    // (ecart 16 763,73 avec disparition d'une page de reglements) ET sur le GL Matera S0304
+    // (ancre credit volee a x=356, 123 342,27 de credits perdus).
     // On teste les EXCLUSIONS d'abord : "debiteur" contient "debit", "crediteur" contient
     // "credit" -> sinon un en-tete de solde volerait la colonne de mouvement.
-    if (mot.includes("debiteur") || mot.includes("crediteur") || mot.includes("solde") || mot.includes("cumul") || mot.includes("progressif")) {
+    if (
+      mot === "debiteur" ||
+      mot === "crediteur" ||
+      mot === "solde" ||
+      mot.startsWith("solde ") ||
+      mot === "cumul" ||
+      mot === "progressif"
+    ) {
       exclusionsX.push(centre);
-    } else if (mot.includes("debit")) {
+    } else if (mot === "debit") {
       debitX = centre;
-    } else if (mot.includes("credit")) {
+    } else if (mot === "credit") {
       creditX = centre;
     }
   }
@@ -137,8 +149,25 @@ function classerMontants(items: ItemTexte[], col: ColonnesMontant): { debit: num
   return { debit, credit };
 }
 
-/** Extrait une date JJ/MM/AAAA de la portion texte d'une ligne (la premiere rencontree). */
+const MOIS_FR: Record<string, string> = {
+  janvier: "01", fevrier: "02", mars: "03", avril: "04", mai: "05", juin: "06",
+  juillet: "07", aout: "08", septembre: "09", octobre: "10", novembre: "11", decembre: "12",
+};
+
+/**
+ * Extrait la date d'une ligne : d'abord une date EN TOUTES LETTRES en tete de ligne ("01 avril
+ * 2025", format Matera - prioritaire car le libelle peut porter une date numerique parasite,
+ * ex. "Appel de fonds 01/04/2025"), sinon la premiere date numerique JJ/MM/AAAA rencontree.
+ */
 function extraireDate(texte: string): string {
+  const fr = plier(texte).match(/^(\d{1,2}|1er)\s+([a-z]+)\s+(\d{4})\b/);
+  if (fr) {
+    const mois = MOIS_FR[fr[2]!];
+    if (mois) {
+      const jour = fr[1] === "1er" ? "01" : fr[1]!.padStart(2, "0");
+      return `${jour}/${mois}/${fr[3]}`;
+    }
+  }
   const m = texte.match(/(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/);
   return m ? m[0] : "";
 }
@@ -177,10 +206,17 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
     if (detecte) colPrec = detecte;
 
     for (const ligne of page.lignes) {
-      const itemsTexte = ligne.items.filter((it) => it.x + it.largeur / 2 < col.montantMinX);
+      // Faux gras rendu par pdfjs = le meme item imprime DEUX fois au meme endroit (mesure sur
+      // le GL Matera S0304, titres de comptes et de sections) : dedoublonne avant tout.
+      const itemsLigne = dedupliquerItems(ligne.items);
+      const itemsTexte = itemsLigne.filter((it) => it.x + it.largeur / 2 < col.montantMinX);
       const texte = itemsTexte.map((it) => it.chaine).join(" ").replace(/\s+/g, " ").trim();
       const texteFold = plier(texte);
       const premierToken = (itemsTexte[0]?.chaine ?? "").trim();
+
+      const { debit, credit } = classerMontants(itemsLigne, col);
+      const dNZ = debit >= EPS;
+      const cNZ = credit >= EPS;
 
       // En-tete de compte : le 1er token de la zone texte est un numero de compte (les ecritures
       // commencent, elles, par un code journal alphabetique). Met a jour le compte courant.
@@ -201,12 +237,38 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
         continue;
       }
 
-      const { debit, credit } = classerMontants(ligne.items, col);
-      const dNZ = debit >= EPS;
-      const cNZ = credit >= EPS;
+      // En-tete de compte rendu en UN SEUL item ("1031001 - Avances de tresorerie", frequent
+      // avec pdfjs sur les GL Matera). Une ligne SANS montant seulement : les ecritures, elles,
+      // commencent par une date. Gardes : jamais un "Total ...", jamais un MILLESIME (un libelle
+      // SEPA replie "2026 - Creditor Name" imitant un en-tete a detourne 112 ecritures, S0304).
+      // Une section ("103 - Avances") puis sa feuille ("1031001 - ...") : la feuille, imprimee
+      // juste apres, devient naturellement le compte courant - c'est elle qui recoit les lignes.
+      const mEnteteItem = !dNZ && !cNZ ? /^(\d{3,7})\s*-\s*(.+)$/.exec(texte) : null;
+      if (mEnteteItem && !texteFold.startsWith("total") && !/^(19|20)\d{2}$/.test(mEnteteItem[1]!)) {
+        compteCourant = mEnteteItem[1]!;
+        nbEntetes++;
+        const intitule = mEnteteItem[2]!.replace(/\s+/g, " ").trim();
+        if (intitule && !intitulesParCompte.has(compteCourant)) {
+          intitulesParCompte.set(compteCourant, intitule);
+        }
+        continue;
+      }
+
+      // Total de SECTION ("Total 103 - Avances") : il clot un BLOC de comptes, pas un compte -
+      // le confondre avec un total de compte ecrase le total de la derniere feuille (piege
+      // mesure, skill : "tester la STRUCTURE, jamais la chaine" - Total + code + tiret).
+      // Il CLOT aussi le compte courant : le format repete ensuite un bloc recapitulatif avec
+      // un "Total" NU portant le total de la SECTION - sans cette cloture, ce total ecraserait
+      // celui de la derniere feuille (mesure sur le GL Matera S0304 : 18 comptes corrompus).
+      if (/^total\s+\d{3,7}\s*-/.test(texteFold)) {
+        compteCourant = "";
+        nbReportsExclus++;
+        continue;
+      }
 
       // Ligne de TOTAL d'un compte : exclue des ecritures, mais ses totaux imprimes sont captures.
-      if (contient(texteFold, MC_TOTAL_COMPTE)) {
+      // Deux formes : "Total Compte <code>" (mot-cle) ou un "Total" NU en fin de compte (Matera).
+      if (contient(texteFold, MC_TOTAL_COMPTE) || texteFold === "total") {
         if (compteCourant) {
           const prec = controlesParCompte.get(compteCourant) ?? { compte: compteCourant };
           prec.totalDebit = debit;
@@ -230,8 +292,10 @@ export function parserGrandLivrePositions(pages: PageTexte[]): ResultatParsage {
         continue;
       }
 
-      // Sous-total periodique / total mois / total general / total classe : simplement exclu.
-      if (contient(texteFold, MC_REPORT)) {
+      // Sous-total periodique / total mois / total general / total classe - et par extension
+      // TOUTE ligne commencant par "Total" non capturee ci-dessus : jamais une ecriture (une
+      // ecriture commence par une date ou un code journal), simplement exclue.
+      if (contient(texteFold, MC_REPORT) || texteFold.startsWith("total")) {
         nbReportsExclus++;
         continue;
       }
