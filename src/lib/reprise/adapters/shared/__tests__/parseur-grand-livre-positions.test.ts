@@ -177,3 +177,94 @@ describe("parserGrandLivrePositions - nombres francais et colonnes larges", () =
     expect(res.lignes[0]!.compte).toBe("5120.000000000");
   });
 });
+
+// --- Pieges du GL Matera S0304 (mesures en reel, rejoues ici en synthetique) --------------
+// Geometrie de ce format : Date | Contrepartie | Libelle | Debit(~614) | Credit(~675) |
+// Solde debiteur(~723) | Solde crediteur(~784). Montants suffixes " EUR" ("818,23 EUR"
+// devient ici "818,23 €" - meme forme que le reel).
+function enteteMatera(y: number): ItemTexte[] {
+  return [
+    t(32, y, 16, "Date"),
+    t(110, y, 43, "Contrepartie"),
+    t(173, y, 22, "Libellé"),
+    t(605, y, 18, "Débit"),
+    t(664, y, 21, "Crédit"),
+    t(698, y, 50, "Solde débiteur"),
+    t(758, y, 52, "Solde créditeur"),
+  ];
+}
+
+describe("parserGrandLivrePositions - pieges du GL Matera S0304", () => {
+  it("un libelle 'Creditor Name SEPA' pres des en-tetes ne VOLE PAS l'ancre credit", () => {
+    // Le piege du skill : detecte par tokens EXACTS, jamais includes(). Ici le libelle SEPA
+    // est sur la ligne JUSTE SOUS les en-tetes (dans la fenetre de detection).
+    const items: ItemTexte[] = [
+      ...enteteMatera(500),
+      t(174, 491, 200, "Virement - Creditor Name SEPA : MATERA"),
+      t(33, 482, 40, "09 juin 2025"),
+      t(111, 482, 24, "450025"),
+      t(593, 482, 28, "705,77 €"),
+      t(712, 482, 34, "9 911,49 €"),
+    ];
+    const col = detecterColonnes(page(items));
+    expect(col).not.toBeNull();
+    expect(col!.creditX).toBeCloseTo(674.5, 0); // l'en-tete imprime, pas le libelle SEPA
+    // Sans la garde, 705,77 (centre ~607) partirait vers l'ancre volee : ici il reste au debit.
+    const l = parserGrandLivrePositions([
+      page([t(28, 509, 90, "450025 - COPRO TEST"), ...items]),
+    ]).lignes;
+    expect(l).toHaveLength(1);
+    expect(l[0]).toMatchObject({ sens: "debit", montant: 705.77 });
+  });
+
+  it("reconnait l'en-tete de compte en UN item, refuse le millesime, et suit section puis feuille", () => {
+    const items: ItemTexte[] = [
+      ...enteteMatera(500),
+      t(28, 491, 91, "103 - Avances"), // section
+      t(28, 482, 141, "1031001 - Avances de trésorerie"), // feuille (recoit les lignes)
+      // Faux gras pdfjs : le meme en-tete imprime deux fois, quasi superpose.
+      t(28.5, 482, 141, "1031001 - Avances de trésorerie"),
+      // Libelle SEPA replie imitant un en-tete : millesime refuse (garde S0304).
+      t(28, 473, 160, "2026 - Creditor Name SEPA : RESIDENCE TEST"),
+      t(33, 464, 44, "01 avril 2025"),
+      t(111, 464, 24, "450001"),
+      t(174, 464, 112, "Appel de fonds pour Fonds travaux"),
+      t(660, 464, 24, "40,52 €"),
+      t(781, 464, 28, "255,69 €"),
+    ];
+    const res = parserGrandLivrePositions([page(items)]);
+    expect(res.lignes).toHaveLength(1);
+    expect(res.lignes[0]!.compte).toBe("1031001"); // la feuille, jamais "2026"
+    expect(res.lignes[0]!.date).toBe("01/04/2025"); // date en toutes lettres convertie
+    expect(res.intitules).toMatchObject({ "1031001": "Avances de trésorerie" });
+  });
+
+  it("capture le 'Total' NU du compte et ecarte le bloc recapitulatif de section", () => {
+    const items: ItemTexte[] = [
+      ...enteteMatera(500),
+      t(28, 491, 141, "1031001 - Avances de trésorerie"),
+      t(33, 482, 44, "01 avril 2025"),
+      t(174, 482, 60, "Intérêts"),
+      t(602, 482, 20, "1,31 €"),
+      t(709, 482, 38, "52 548,24 €"),
+      // Total NU du compte : capture (debit 1,31).
+      t(33, 473, 17, "Total"),
+      t(602, 473, 20, "1,31 €"),
+      t(709, 473, 38, "52 548,24 €"),
+      // Total de SECTION (Total + code + tiret) : exclu, et il CLOT le compte.
+      t(28, 464, 120, "Total 103 - Avances"),
+      // Bloc recapitulatif de la section : en-tetes repetes + Total NU portant le total de
+      // SECTION - sans la cloture, il ecraserait le total de la feuille.
+      ...enteteMatera(455),
+      t(33, 446, 17, "Total"),
+      t(584, 446, 38, "99 999,99 €"),
+      t(646, 446, 38, "88 888,88 €"),
+    ];
+    const res = parserGrandLivrePositions([page(items)]);
+    expect(res.lignes).toHaveLength(1);
+    expect(res.controles).toHaveLength(1);
+    // Le total du compte est celui de SA ligne "Total", jamais celui du recapitulatif.
+    expect(res.controles[0]).toMatchObject({ compte: "1031001", totalDebit: 1.31 });
+    expect(res.controles[0]!.totalDebit).not.toBeCloseTo(99999.99, 2);
+  });
+});
