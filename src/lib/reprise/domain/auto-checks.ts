@@ -9,7 +9,7 @@ import type { JeuDeDonnees } from "./patrimoine";
 import { estCiviliteValide, estCivilliteProValide, estCodeCleValide, estMajuscules, estTitleCase, estUsageValide } from "./regles";
 import { detecterDoublons } from "./dedup";
 
-export type Niveau = "erreur" | "warning";
+export type Niveau = "erreur" | "warning" | "info";
 
 export interface Probleme {
   /** Code court stable (ex. "LOT_NUMERO_DOUBLON") pour filtrage/metriques. */
@@ -22,6 +22,8 @@ export interface ResultatChecks {
   ok: boolean; // true si aucune erreur (les warnings n'empechent pas la livraison)
   erreurs: Probleme[];
   warnings: Probleme[];
+  /** Etat d'avancement, pas anomalie : ex. links pas encore verses en phase A. */
+  infos: Probleme[];
 }
 
 const CODE_CLE_GENERALE = "001";
@@ -97,9 +99,18 @@ export function verifierCoherenceLotsCles(d: JeuDeDonnees): Probleme[] {
     return p;
   }
   const lotsGenerale = new Set(d.tantiemes.filter((t) => t.cleCode === CODE_CLE_GENERALE).map((t) => t.lot));
+  const lotsAvecTantieme = new Set(d.tantiemes.map((t) => t.lot));
   for (const lot of d.lots) {
-    if (!lotsGenerale.has(lot.numero)) {
-      p.push({ code: "LOT_ABSENT_CLE_GENERALE", niveau: "erreur", message: `Lot ${lot.numero} absent de la cle generale ${CODE_CLE_GENERALE}` });
+    if (lotsGenerale.has(lot.numero)) continue;
+    // Un lot appartenant au SYNDICAT (loge du gardien, salle commune, parking issu des parties
+    // communes) porte des tantiemes de propriete mais AUCUNE charge generale : le syndicat ne se
+    // facture pas a lui-meme. Cas reel S0304 (lots 43, 62, 85, 194 : le RCP inscrit "Gardien" a la
+    // place du tantieme). Ce n'est donc une ERREUR que si le lot n'apparait sur aucune cle ;
+    // sinon c'est un WARNING a confirmer par le gestionnaire.
+    if (lotsAvecTantieme.has(lot.numero)) {
+      p.push({ code: "LOT_ABSENT_CLE_GENERALE", niveau: "warning", message: `Lot ${lot.numero} absent de la cle generale ${CODE_CLE_GENERALE} : lot du syndicat (partie commune, loge) ? a confirmer` });
+    } else {
+      p.push({ code: "LOT_SANS_AUCUN_TANTIEME", niveau: "erreur", message: `Lot ${lot.numero} absent de TOUTES les cles de repartition` });
     }
   }
   return p;
@@ -118,7 +129,10 @@ export function verifierOwners(d: JeuDeDonnees): Probleme[] {
     if (o.nom.length > 38) {
       p.push({ code: "OWNER_NOM_TROP_LONG", niveau: "erreur", message: `Nom > 38 caracteres : "${o.nom}"` });
     }
-    if (o.prenom && o.prenom.trim() && !estTitleCase(o.prenom)) {
+    // Personne morale : le champ Prenom porte le representant legal, et la convention du cabinet
+    // impose "SERVICE SYNDIC" quand aucun gerant n'est identifie (references/conventions-cabinet.md).
+    // La regle Title Case ne s'applique donc qu'aux personnes physiques.
+    if (!o.pro && o.prenom && o.prenom.trim() && !estTitleCase(o.prenom)) {
       p.push({ code: "OWNER_PRENOM_NON_TITLECASE", niveau: "erreur", message: `${o.nom} : prenom pas en Title Case ("${o.prenom}")` });
     }
     if (o.pro) {
@@ -147,6 +161,15 @@ export function verifierOwners(d: JeuDeDonnees): Probleme[] {
 /** LINKS : 0 lot orphelin ; tout owner a >= 1 lot ; tout N° present dans lots ; phase B = codes 4 car valides. */
 export function verifierLinks(d: JeuDeDonnees): Probleme[] {
   const p: Probleme[] = [];
+  // Phase A : les attributions ne sont produites qu'APRES releve des codes Estale (regle R2 du
+  // skill estale-migration). Tant que links n'est pas verse, aucun lot n'est "orphelin" : c'est
+  // l'etape qui n'est pas atteinte. Un seul message d'information, pas un par lot.
+  if (d.attributions.length === 0) {
+    if (d.lots.length > 0) {
+      p.push({ code: "LINKS_NON_FOURNIS", niveau: "info", message: `Attributions non fournies (${d.lots.length} lots) : etape links a realiser apres le releve des codes Estale` });
+    }
+    return p;
+  }
   const numerosLots = new Set(d.lots.map((l) => l.numero));
   const ownerIds = new Set(d.owners.map((o) => o.id));
   const lotsAttribues = new Set<number>();
@@ -190,5 +213,6 @@ export function verifierTout(d: JeuDeDonnees): ResultatChecks {
   ];
   const erreurs = tous.filter((x) => x.niveau === "erreur");
   const warnings = tous.filter((x) => x.niveau === "warning");
-  return { ok: erreurs.length === 0, erreurs, warnings };
+  const infos = tous.filter((x) => x.niveau === "info");
+  return { ok: erreurs.length === 0, erreurs, warnings, infos };
 }
