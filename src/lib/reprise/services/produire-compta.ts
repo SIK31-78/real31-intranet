@@ -30,6 +30,11 @@ import {
   executerBatterieCompta,
   type BatterieCompta,
 } from "@/lib/reprise/domain/auto-checks-compta";
+import {
+  assemblerExerciceMultiSyndics,
+  type RapportAssemblage,
+  type SourceGlAssemblage,
+} from "@/lib/reprise/domain/assemblage-gl";
 import type { LigneRgd } from "@/lib/reprise/domain/rgd";
 import { genererEntriesBuffer, parserEntries } from "@/lib/reprise/adapters/xlsx/entries-xlsx";
 
@@ -163,5 +168,33 @@ export async function produireCompta(
     exclusions: construction.exclusions,
     omission,
     cibles,
+  };
+}
+
+/** Resultat de la production multi-sources : la production + le rapport d'assemblage. */
+export interface ResultatProductionMultiSources extends ResultatProductionCompta {
+  /** Ce que l'assemblage a omis (reports des successeurs) et ce que dit le raccord par classe. */
+  assemblage: RapportAssemblage;
+}
+
+/**
+ * Produit le volet compta d'UN exercice couvert par PLUSIEURS syndics (sources ordonnees,
+ * predecesseur d'abord). L'assemblage omet les reports d'ouverture des successeurs (ils
+ * resument la periode dont on reprend le detail - sinon double comptage, Partie 12 du
+ * skill), confronte chaque jonction PAR CLASSE, puis delegue a produireCompta. Le rapport
+ * d'assemblage accompagne le resultat et ses notes rejoignent les warnings : l'omission
+ * n'est JAMAIS silencieuse.
+ */
+export async function produireComptaMultiSources(
+  sources: SourceGlAssemblage[],
+  plan: PlanMapping,
+  options: OptionsProductionCompta = {},
+): Promise<ResultatProductionMultiSources> {
+  const { jeu, rapport } = assemblerExerciceMultiSyndics(sources);
+  const resultat = await produireCompta(jeu, plan, options);
+  return {
+    ...resultat,
+    warnings: [...resultat.warnings, ...rapport.notes],
+    assemblage: rapport,
   };
 }
