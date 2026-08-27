@@ -1,0 +1,878 @@
+{
+ "cles": [
+  {
+   "code": "001",
+   "libelle": "Charges generales",
+   "libelle_court": "charges-generales",
+   "total_annonce": 100000,
+   "total_calcule": 100000,
+   "tantiemes": [
+    {
+     "numero_lot": 1,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 2,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 3,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 4,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 5,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 6,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 7,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 8,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 9,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 10,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 11,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 12,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 13,
+     "tantieme": 129
+    },
+    {
+     "numero_lot": 14,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 15,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 16,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 17,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 18,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 19,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 20,
+     "tantieme": 153
+    },
+    {
+     "numero_lot": 21,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 22,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 23,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 24,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 25,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 26,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 27,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 28,
+     "tantieme": 156
+    },
+    {
+     "numero_lot": 29,
+     "tantieme": 33
+    },
+    {
+     "numero_lot": 30,
+     "tantieme": 33
+    },
+    {
+     "numero_lot": 31,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 32,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 33,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 34,
+     "tantieme": 34
+    },
+    {
+     "numero_lot": 35,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 36,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 37,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 38,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 39,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 40,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 41,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 42,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 43,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 44,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 45,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 46,
+     "tantieme": 34
+    },
+    {
+     "numero_lot": 47,
+     "tantieme": 34
+    },
+    {
+     "numero_lot": 48,
+     "tantieme": 33
+    },
+    {
+     "numero_lot": 49,
+     "tantieme": 33
+    },
+    {
+     "numero_lot": 50,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 51,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 52,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 53,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 54,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 55,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 56,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 57,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 58,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 59,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 60,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 61,
+     "tantieme": 41
+    },
+    {
+     "numero_lot": 62,
+     "tantieme": 39
+    },
+    {
+     "numero_lot": 63,
+     "tantieme": 39
+    },
+    {
+     "numero_lot": 64,
+     "tantieme": 42
+    },
+    {
+     "numero_lot": 65,
+     "tantieme": 35
+    },
+    {
+     "numero_lot": 66,
+     "tantieme": 32
+    },
+    {
+     "numero_lot": 101,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 102,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 103,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 104,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 105,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 106,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 107,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 108,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 109,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 110,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 111,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 112,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 113,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 114,
+     "tantieme": 102
+    },
+    {
+     "numero_lot": 115,
+     "tantieme": 1671
+    },
+    {
+     "numero_lot": 116,
+     "tantieme": 1787
+    },
+    {
+     "numero_lot": 117,
+     "tantieme": 2367
+    },
+    {
+     "numero_lot": 118,
+     "tantieme": 2832
+    },
+    {
+     "numero_lot": 119,
+     "tantieme": 1439
+    },
+    {
+     "numero_lot": 120,
+     "tantieme": 1810
+    },
+    {
+     "numero_lot": 121,
+     "tantieme": 1020
+    },
+    {
+     "numero_lot": 122,
+     "tantieme": 2322
+    },
+    {
+     "numero_lot": 201,
+     "tantieme": 1369
+    },
+    {
+     "numero_lot": 202,
+     "tantieme": 3458
+    },
+    {
+     "numero_lot": 203,
+     "tantieme": 2344
+    },
+    {
+     "numero_lot": 204,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 205,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 206,
+     "tantieme": 1369
+    },
+    {
+     "numero_lot": 207,
+     "tantieme": 3644
+    },
+    {
+     "numero_lot": 208,
+     "tantieme": 2344
+    },
+    {
+     "numero_lot": 301,
+     "tantieme": 1369
+    },
+    {
+     "numero_lot": 302,
+     "tantieme": 3458
+    },
+    {
+     "numero_lot": 303,
+     "tantieme": 2344
+    },
+    {
+     "numero_lot": 304,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 305,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 306,
+     "tantieme": 1369
+    },
+    {
+     "numero_lot": 307,
+     "tantieme": 3644
+    },
+    {
+     "numero_lot": 308,
+     "tantieme": 2344
+    },
+    {
+     "numero_lot": 401,
+     "tantieme": 1369
+    },
+    {
+     "numero_lot": 402,
+     "tantieme": 3458
+    },
+    {
+     "numero_lot": 403,
+     "tantieme": 2344
+    },
+    {
+     "numero_lot": 404,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 405,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 406,
+     "tantieme": 1369
+    },
+    {
+     "numero_lot": 407,
+     "tantieme": 3644
+    },
+    {
+     "numero_lot": 408,
+     "tantieme": 2344
+    },
+    {
+     "numero_lot": 501,
+     "tantieme": 1369
+    },
+    {
+     "numero_lot": 502,
+     "tantieme": 3458
+    },
+    {
+     "numero_lot": 503,
+     "tantieme": 2344
+    },
+    {
+     "numero_lot": 504,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 505,
+     "tantieme": 2530
+    },
+    {
+     "numero_lot": 506,
+     "tantieme": 6750
+    }
+   ]
+  },
+  {
+   "code": "200",
+   "libelle": "Charges ascenseur",
+   "libelle_court": "charges-ascenseur",
+   "total_annonce": 10000,
+   "total_calcule": 10000,
+   "tantiemes": [
+    {
+     "numero_lot": 1,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 2,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 3,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 4,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 5,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 6,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 7,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 8,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 9,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 10,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 11,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 12,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 13,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 14,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 15,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 16,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 17,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 18,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 19,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 20,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 21,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 22,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 23,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 24,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 25,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 26,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 27,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 28,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 29,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 30,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 31,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 32,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 33,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 34,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 35,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 36,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 37,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 38,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 39,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 40,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 41,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 42,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 43,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 44,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 45,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 46,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 47,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 48,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 49,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 50,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 51,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 52,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 53,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 54,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 55,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 56,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 57,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 58,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 59,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 60,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 61,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 62,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 63,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 64,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 65,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 66,
+     "tantieme": 56
+    },
+    {
+     "numero_lot": 201,
+     "tantieme": 112
+    },
+    {
+     "numero_lot": 202,
+     "tantieme": 225
+    },
+    {
+     "numero_lot": 203,
+     "tantieme": 169
+    },
+    {
+     "numero_lot": 204,
+     "tantieme": 169
+    },
+    {
+     "numero_lot": 205,
+     "tantieme": 169
+    },
+    {
+     "numero_lot": 206,
+     "tantieme": 112
+    },
+    {
+     "numero_lot": 207,
+     "tantieme": 225
+    },
+    {
+     "numero_lot": 208,
+     "tantieme": 169
+    },
+    {
+     "numero_lot": 301,
+     "tantieme": 129
+    },
+    {
+     "numero_lot": 302,
+     "tantieme": 259
+    },
+    {
+     "numero_lot": 303,
+     "tantieme": 194
+    },
+    {
+     "numero_lot": 304,
+     "tantieme": 194
+    },
+    {
+     "numero_lot": 305,
+     "tantieme": 195
+    },
+    {
+     "numero_lot": 306,
+     "tantieme": 130
+    },
+    {
+     "numero_lot": 307,
+     "tantieme": 260
+    },
+    {
+     "numero_lot": 308,
+     "tantieme": 195
+    },
+    {
+     "numero_lot": 401,
+     "tantieme": 147
+    },
+    {
+     "numero_lot": 402,
+     "tantieme": 293
+    },
+    {
+     "numero_lot": 403,
+     "tantieme": 220
+    },
+    {
+     "numero_lot": 404,
+     "tantieme": 220
+    },
+    {
+     "numero_lot": 405,
+     "tantieme": 220
+    },
+    {
+     "numero_lot": 406,
+     "tantieme": 147
+    },
+    {
+     "numero_lot": 407,
+     "tantieme": 293
+    },
+    {
+     "numero_lot": 408,
+     "tantieme": 220
+    },
+    {
+     "numero_lot": 501,
+     "tantieme": 164
+    },
+    {
+     "numero_lot": 502,
+     "tantieme": 327
+    },
+    {
+     "numero_lot": 503,
+     "tantieme": 246
+    },
+    {
+     "numero_lot": 504,
+     "tantieme": 246
+    },
+    {
+     "numero_lot": 505,
+     "tantieme": 246
+    },
+    {
+     "numero_lot": 506,
+     "tantieme": 409
+    }
+   ]
+  }
+ ]
+}

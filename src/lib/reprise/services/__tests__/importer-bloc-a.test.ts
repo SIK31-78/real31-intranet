@@ -126,6 +126,7 @@ function planType(entrees?: EntreeMapping[]): PlanMapping {
       warning_appariement: 0,
       reporte_bloc_b: 1,
       reporte_bloc_c: 0,
+      exclu: 0,
       non_mappe: 0,
     },
     erreurs: [],

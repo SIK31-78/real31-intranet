@@ -23,8 +23,8 @@ export default async function RepriseAccueil() {
         <h1 className="text-[20px] font-medium tracking-tight text-ink">Reprise de copropriété</h1>
         <p className="mt-1 text-[13px] text-ink-3 max-w-[640px]">
           Onboarding d&apos;une nouvelle copropriété : de la reprise du patrimoine (lots, clés,
-          tantièmes, copropriétaires) jusqu&apos;à l&apos;intégration dans eStale. Extraction assistée,
-          contrôles automatiques, récapitulatif avant toute production.
+          tantièmes, copropriétaires) jusqu&apos;à l&apos;intégration dans eStale. Fichiers Excel
+          versés, contrôles automatiques, récapitulatif avant toute production.
         </p>
       </div>
 
@@ -33,7 +33,7 @@ export default async function RepriseAccueil() {
           href="/reprise-copro/dossiers"
           icon={FolderInput}
           titre="Nouvelle reprise"
-          desc="Créer la copropriété (nom, référence, adresse), puis analyser les documents depuis sa fiche : l'IA extrait le patrimoine, vous vérifiez."
+          desc="Créer la copropriété (nom, référence, adresse), puis verser les fichiers Excel du patrimoine depuis sa fiche : le module les relit et les vérifie."
           reserve={!admin}
         />
         <LienCard
@@ -46,7 +46,7 @@ export default async function RepriseAccueil() {
           href="/reprise-copro/mapping-compta"
           icon={Calculator}
           titre="Reprise comptable (mapping)"
-          desc="Analyser le grand livre N-1, mapper chaque compte source vers eStale, trancher les alertes d'appariement avant l'import."
+          desc="Analyser les grands livres, mapper chaque compte source vers eStale, trancher les alertes, produire entries.xlsx et vérifier les soldes après import."
           reserve={!admin}
         />
       </div>

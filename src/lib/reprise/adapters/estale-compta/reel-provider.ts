@@ -108,6 +108,7 @@ const Q_COMPTES = `query($c: ID!, $a: ID!) {
         dkID
         nomenclature
         name
+        dk { code }
         debit(accountingID: $a)
         credit(accountingID: $a)
       }
@@ -160,6 +161,7 @@ type ComptesData = {
         dkID: string;
         nomenclature: string;
         name: string;
+        dk: { code: string } | null;
         debit: number;
         credit: number;
       }[];
@@ -214,6 +216,8 @@ export class ReelEstaleComptaLectureProvider implements EstaleComptaLectureProvi
       dkID: a.dkID,
       nomenclature: a.nomenclature,
       libelle: a.name,
+      // La cle du COMPTE (dk.code) fait foi pour les ecritures de reprise (S0303).
+      ...(a.dk?.code ? { cle: a.dk.code } : {}),
       classe: classeDe(a.nomenclature),
       debit: arrondi(a.debit),
       credit: arrondi(a.credit),

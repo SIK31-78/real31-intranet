@@ -66,11 +66,43 @@ describe("verifierTout - detections d'erreurs", () => {
     expect(verifierTout(d).erreurs.some((e) => e.code === "TANT_CODE_CLE_INVALIDE")).toBe(true);
   });
 
-  it("lot absent de la cle generale", () => {
+  it("lot absent de TOUTES les cles : erreur", () => {
     const d = jeuValide();
     d.tantiemes = d.tantiemes.filter((t) => t.lot !== 2);
     d.cles[0]!.totalAttendu = 600; // pour isoler l'erreur d'absence
-    expect(verifierTout(d).erreurs.some((e) => e.code === "LOT_ABSENT_CLE_GENERALE")).toBe(true);
+    expect(verifierTout(d).erreurs.some((e) => e.code === "LOT_SANS_AUCUN_TANTIEME")).toBe(true);
+  });
+
+  it("lot du syndicat : absent de la cle generale mais present ailleurs -> warning, pas erreur", () => {
+    // Cas reel S0304 : la loge du gardien et la salle de reunions portent des tantiemes de
+    // propriete mais AUCUNE charge generale (le syndicat ne se facture pas a lui-meme).
+    const d = jeuValide();
+    d.cles.push({ code: "002", libelle: "Parties communes generales", totalAttendu: 100 });
+    d.tantiemes = d.tantiemes.filter((t) => t.lot !== 2);
+    d.tantiemes.push({ lot: 2, cleCode: "002", valeur: 100 });
+    d.cles[0]!.totalAttendu = 600; // pour isoler le cas
+    const r = verifierTout(d);
+    expect(r.erreurs.some((e) => e.code === "LOT_ABSENT_CLE_GENERALE")).toBe(false);
+    expect(r.erreurs.some((e) => e.code === "LOT_SANS_AUCUN_TANTIEME")).toBe(false);
+    expect(r.warnings.some((w) => w.code === "LOT_ABSENT_CLE_GENERALE")).toBe(true);
+  });
+
+  it("links non fournis : un seul message d'info, aucun lot orphelin", () => {
+    const d = jeuValide();
+    d.attributions = [];
+    const r = verifierTout(d);
+    expect(r.erreurs.some((e) => e.code === "LINK_LOT_ORPHELIN")).toBe(false);
+    expect(JSON.stringify(r).includes("LINKS_NON_FOURNIS")).toBe(true);
+  });
+
+  it("personne morale : \"SERVICE SYNDIC\" en prenom ne declenche pas Title Case", () => {
+    // Convention cabinet : representant legal inconnu -> "SERVICE SYNDIC" (majuscules voulues).
+    const d = jeuValide();
+    d.owners[0]!.pro = true;
+    d.owners[0]!.raisonSociale = "ELDIVIE SCI";
+    d.owners[0]!.civilite = "m";
+    d.owners[0]!.prenom = "SERVICE SYNDIC";
+    expect(verifierTout(d).erreurs.some((e) => e.code === "OWNER_PRENOM_NON_TITLECASE")).toBe(false);
   });
 
   it("nom non en majuscules", () => {

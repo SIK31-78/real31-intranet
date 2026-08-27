@@ -1,17 +1,21 @@
-// Orchestrateur de la reprise PATRIMOINE (les "3 sous-agents") :
-//   1. extraction : Agent 1 (patrimoine) ET Agent 2 (proprietaires) en PARALLELE ;
-//   2. assemblage du JeuDeDonnees + auto-checks deterministes (Agent 3) ;
-//   3. mini-recap GO/STOP (R3) -> l'humain valide AVANT generation des .xlsx.
+// Orchestrateur de la reprise PATRIMOINE - entree par FICHIERS EXCEL (refonte 2026-08).
 //
-// La generation des fichiers est une etape SEPAREE (produirePhaseA), volontairement
-// non lancee par analyserPatrimoine : on ne produit jamais les xlsx sans GO explicite.
+// AVANT : PDF du sortant -> extraction IA (Claude/Mistral) -> jeu -> auto-checks -> GO/STOP.
+// APRES : le gestionnaire VERSE les 4 xlsx produits hors module (skill estale-migration :
+//   lots.xlsx, tantiemes_<code>_*.xlsx, owners.xlsx, links en noms) -> le module les PARSE
+//   (adapters/xlsx/parser-xlsx, miroir de la generation) et les VALIDE (auto-checks
+//   deterministes) -> mini-recap GO/STOP -> injection eStale par API (ADR-030, inchangee).
+//
+// La generation des fichiers reste une etape SEPAREE (produirePhaseA, xlsx de repli pour
+// un import manuel dans l'UI eStale) : on ne produit jamais sans GO explicite.
 
 import type { JeuDeDonnees, Usage } from "@/lib/reprise/domain/patrimoine";
 import { USAGES } from "@/lib/reprise/domain/patrimoine";
 import type { CompteAvantRepartition, VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import { verifierTout, type ResultatChecks } from "@/lib/reprise/domain/auto-checks";
 import { detecterDoublons } from "@/lib/reprise/domain/dedup";
-import type { DocumentSource, ExtractionProvider } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
+import { parserJeuDepuisXlsx } from "@/lib/reprise/adapters/xlsx/parser-xlsx";
 import {
   genererPhaseA,
   genererPhaseABuffers,
@@ -52,16 +56,16 @@ export interface RecapCompta {
   /** Nombre d'ecritures extraites. */
   nbEcritures: number;
   /**
-   * Comptes de classe 6/7 avec report a-nouveau non nul. Present (et non vide) UNIQUEMENT si detecte.
-   * SEMANTIQUE selon le GL : sur le GL CLOTURE = signature "grand livre AVANT repartition" (bloquant,
-   * mauvais document, redemander apres regule) ; sur le GL EN COURS = ANOMALIE (les reports 6/7 doivent
-   * repartir a zero apres cloture). Meme detection (detecterAvantRepartition), consequence differente
-   * cote UI selon l'exercice. PII-free.
+   * Comptes de classe 6/7 avec report a-nouveau non nul. Present (et non vide) UNIQUEMENT si
+   * detecte. SEMANTIQUE selon le GL : sur le GL CLOTURE = signature "grand livre AVANT
+   * repartition" (bloquant : mauvais document... SAUF repartition comptabilisee en N+1 par le
+   * sortant, remede = omission des paires, cf. domain/omission-paires) ; sur le GL EN COURS =
+   * ANOMALIE (les reports 6/7 doivent repartir a zero apres cloture). PII-free.
    */
   avantRepartition?: CompteAvantRepartition[];
 }
 
-/** Mini-recap presente a l'humain pour decision GO/STOP (cf. ETAPE 2 du protocole). */
+/** Mini-recap presente a l'humain pour decision GO/STOP (R3 : recap APRES analyse, AVANT production). */
 export interface RecapPatrimoine {
   lots: { total: number; parUsage: Record<Usage, number> };
   cles: RecapCle[];
@@ -69,7 +73,7 @@ export interface RecapPatrimoine {
   attributions: { total: number; lotsOrphelins: number };
   fusionsProposees: number;
   doublonsNonTranchables: number;
-  /** Notes de vigilance remontees par l'extraction (Agent 1 + Agent 2). */
+  /** Notes de vigilance (parsing xlsx, liaison 450, grands livres). */
   notes: string[];
   checks: ResultatChecks;
   /** true si aucune ERREUR bloquante (le GO final reste humain). */
@@ -81,28 +85,27 @@ export interface RecapPatrimoine {
    */
   liaison?: RecapLiaison;
   /**
-   * Resume de la reprise comptable de l'exercice CLOTURE (N-1). Renseigne par l'analyse unifiee
-   * (route), PAS par calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans
-   * grand livre. Historiquement nomme `compta` (retro-compat) = TOUJOURS l'exercice cloture.
+   * Resume de la reprise comptable de l'exercice CLOTURE (N-1). Renseigne par l'analyse unifiee,
+   * PAS par calculerRecap (le grand livre ne vit pas dans le jeu patrimoine). Absent sans grand
+   * livre. Historiquement nomme `compta` (retro-compat) = TOUJOURS l'exercice cloture.
    */
   compta?: RecapCompta;
   /**
-   * Resume de la reprise comptable de l'exercice EN COURS (du 1er jour de l'exercice courant a la fin
-   * de contrat du syndic sortant). Present UNIQUEMENT quand un SECOND grand livre a ete fourni et
-   * classe. Additif : un seul grand livre => absent (comportement d'avant l'ajout). PII-free.
+   * Resume de la reprise comptable de l'exercice EN COURS. Present UNIQUEMENT quand un SECOND
+   * grand livre a ete fourni et classe. Additif : un seul grand livre => absent. PII-free.
    */
   comptaEnCours?: RecapCompta;
   /**
-   * Verdict du CONTROLE CROISE cloture <-> en cours (le joyau) : les a-nouveaux de l'en cours doivent
-   * egaler les soldes finaux du cloture, compte par compte. Present UNIQUEMENT quand les DEUX grands
-   * livres sont exploites. Un raccordement KO bloque l'import (cote plan de mapping). PII-free.
+   * Verdict du CONTROLE CROISE cloture <-> en cours : les a-nouveaux de l'en cours doivent
+   * egaler les soldes finaux du cloture, compte par compte. Present UNIQUEMENT quand les DEUX
+   * grands livres sont exploites. Un raccordement KO bloque l'import (cote plan de mapping).
    */
   raccordement?: VerdictRaccordement;
   /**
    * Erreur d'extraction du GRAND LIVRE (ex. couche texte inexploitable / scan). Present quand un
    * grand livre a ete joint mais que son extraction a echoue : le patrimoine reste analyse
-   * (degradation PARTIELLE), le bloc compta affiche cette erreur au lieu de faire echouer tout le
-   * dossier. PII-free (message technique). Renseigne par l'analyse unifiee, jamais par calculerRecap.
+   * (degradation PARTIELLE), le bloc compta affiche cette erreur au lieu de faire echouer tout
+   * le dossier. PII-free (message technique).
    */
   comptaErreur?: string;
 }
@@ -110,12 +113,18 @@ export interface RecapPatrimoine {
 export interface AnalysePatrimoine {
   jeu: JeuDeDonnees;
   recap: RecapPatrimoine;
+  /**
+   * Erreurs STRUCTURELLES du parsing xlsx (colonnes manquantes, noms introuvables dans links,
+   * fichier illisible...). Chacune est actionnable : elle dit quel fichier corriger et comment.
+   * Vide dans le cas nominal. Distinctes des erreurs METIER (recap.checks.erreurs).
+   */
+  erreursParsing: string[];
 }
 
 /**
  * Derive le mini-recap GO/STOP depuis un jeu de donnees (compteurs, ecarts par cle,
  * auto-checks). `notes` reste vide : c'est a l'appelant de les re-injecter s'il les a
- * (l'extraction les fournit ; une rehydratation depuis le jeu persiste ne les a plus).
+ * (le parseur les fournit ; une rehydratation depuis le jeu persiste ne les a plus).
  * Utilise a l'analyse ET a la rehydratation d'un dossier deja analyse (jeu persiste).
  */
 export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
@@ -136,7 +145,16 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
     };
   });
 
-  const groupes = detecterDoublons(jeu.owners);
+  // Les LOTS comme element distinctif : deux homonymes aux lots disjoints sont deux personnes
+  // (cas des deux GOUGE Isabelle de S0306). Sans cette carte, detecterDoublons proposerait la
+  // fusion de deux owners pourtant distincts.
+  const lotsParOwnerDedup = new Map<string, Set<number>>();
+  for (const a of jeu.attributions) {
+    const s = lotsParOwnerDedup.get(a.ownerId) ?? new Set<number>();
+    s.add(a.lot);
+    lotsParOwnerDedup.set(a.ownerId, s);
+  }
+  const groupes = detecterDoublons(jeu.owners, lotsParOwnerDedup);
   const checks = verifierTout(jeu);
 
   // Bloc liaison (owners <-> comptes 450) : present seulement si le jeu porte des liaisons
@@ -172,56 +190,28 @@ export function calculerRecap(jeu: JeuDeDonnees): RecapPatrimoine {
 }
 
 /**
- * ETAPE 1 + 2 : extraction parallele puis recap GO/STOP. NE PRODUIT PAS les .xlsx.
+ * ETAPE 1 + 2 du volet patrimoine : PARSE les xlsx verses puis calcule le recap GO/STOP.
+ * NE PRODUIT PAS les fichiers, N'INJECTE RIEN. Deterministe (zero IA, zero reseau).
+ *
+ * Les erreurs de PARSING (structure des fichiers) sont remontees a part ET en tete des notes
+ * (visibles dans le recap) ; les erreurs METIER (auto-checks) vivent dans recap.checks. Un
+ * parsing en erreur laisse quand meme passer ce qui a pu etre lu : le gestionnaire voit ce
+ * qui manque au lieu d'un ecran vide - mais pretAProduire est verrouille a false.
  */
-// Aiguillage des documents par nom de fichier vers le bon agent : reduit le nombre de pages
-// par requete (Claude limite a 100 pages/requete) ET cible chaque agent. Agent 1 (structure)
-// = RCP / EDD / modificatifs ; Agent 2 (owners) = feuille de presence / PV. Un document non
-// reconnu (ex. fiche synthese) part aux DEUX (securite). Si un filtre est vide -> tous les docs.
-function pourStructure(nom: string): boolean {
-  return /rcp|edd|rgdd|reglement|règlement|modificatif|descriptif|division|repartition|répartition|annexe|comptable|budget|convocation/i.test(nom);
-}
-function pourProprietaires(nom: string): boolean {
-  return /presence|présence|\bpv\b|proces|procès|assemblee|assemblée|feuille/i.test(nom);
+export async function analyserPatrimoineDepuisXlsx(fichiers: DocumentSource[]): Promise<AnalysePatrimoine> {
+  const parse = await parserJeuDepuisXlsx(fichiers.map((f) => ({ nom: f.nom, contenu: f.contenu })));
+  const recap = calculerRecap(parse.jeu);
+  recap.notes = [...parse.erreurs.map((e) => `Fichier verse : ${e}`), ...parse.notes];
+  // Un parsing en erreur bloque la production/injection meme si les checks metier passent
+  // (un links illisible peut laisser un jeu partiellement coherent : le verrou est ici).
+  if (!parse.ok) recap.pretAProduire = false;
+  return { jeu: parse.jeu, recap, erreursParsing: parse.erreurs };
 }
 
 /**
- * Un document est-il RECONNU comme document patrimoine (structure OU proprietaires) par son nom ?
- * Sert a l'aiguillage a TROIS voies (grand livre / patrimoine / ANNEXE) dans analyser-dossier :
- * un document ni grand livre ni patrimoine est une ANNEXE (courrier, liste, avis de mutation...).
- * Expose ici car les predicats d'aiguillage patrimoine vivent dans cet orchestrateur.
- */
-export function estDocPatrimoine(nom: string): boolean {
-  return pourStructure(nom) || pourProprietaires(nom);
-}
-
-export async function analyserPatrimoine(
-  provider: ExtractionProvider,
-  docs: DocumentSource[],
-): Promise<AnalysePatrimoine> {
-  const docsStructure = docs.filter((d) => pourStructure(d.nom) || !pourProprietaires(d.nom));
-  const docsProprietaires = docs.filter((d) => pourProprietaires(d.nom) || !pourStructure(d.nom));
-  const [patrimoine, proprietaires] = await Promise.all([
-    provider.extrairePatrimoine(docsStructure.length ? docsStructure : docs),
-    provider.extraireProprietaires(docsProprietaires.length ? docsProprietaires : docs),
-  ]);
-
-  const jeu: JeuDeDonnees = {
-    lots: patrimoine.lots,
-    cles: patrimoine.cles,
-    tantiemes: patrimoine.tantiemes,
-    owners: proprietaires.owners,
-    attributions: proprietaires.attributions,
-  };
-
-  const recap = calculerRecap(jeu);
-  recap.notes = [...patrimoine.notes, ...proprietaires.notes];
-  return { jeu, recap };
-}
-
-/**
- * ETAPE 3 : production des .xlsx (phase A). A n'appeler qu'apres GO humain.
- * Re-verifie les auto-checks et refuse de produire si une erreur bloquante subsiste.
+ * ETAPE 3 : production des .xlsx (phase A, repli pour import manuel dans l'UI eStale).
+ * A n'appeler qu'apres GO humain. Re-verifie les auto-checks et refuse de produire si une
+ * erreur bloquante subsiste.
  */
 function refuserSiErreurs(jeu: JeuDeDonnees): void {
   const checks = verifierTout(jeu);

@@ -54,12 +54,15 @@ export function toNomMajuscules(s: string): string {
 const TITLE_CASE_OK = /^[\p{Lu}][\p{Ll}']*(?:[-'][\p{Lu}][\p{Ll}']*)*$/u;
 
 /** Un prenom est-il en Title Case valide ? (par mot, separe par espace ou " & "). */
+/** Mots de liaison admis en minuscules dans un prenom compose ou un couple : "Nicolas et Laura". */
+const LIAISONS_PRENOM = new Set(["et", "ou", "de", "du", "des", "la", "le", "van", "von"]);
+
 export function estTitleCase(s: string): boolean {
   if (!s.trim()) return false;
   return s
     .split(/\s*&\s*|\s+/)
     .filter(Boolean)
-    .every((mot) => TITLE_CASE_OK.test(mot));
+    .every((mot) => LIAISONS_PRENOM.has(mot.toLowerCase()) || TITLE_CASE_OK.test(mot));
 }
 
 /** Un nom est-il bien tout en MAJUSCULES (lettres) ? */

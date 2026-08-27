@@ -1,114 +1,95 @@
-// Domaine PUR du RGD (Releve General des Depenses) - bloc B de la reprise comptable.
+// Domaine PUR du RGD (Releve General des Depenses) - aucune I/O.
 //
-// Le RGD est le SEUL document qui porte TVA et parts recuperable/deductible : le grand
-// livre ne les a pas, et l'import classe 6 (createEntryExpert) en a besoin (champs vat /
-// recoverable / deductible natifs). Il porte aussi la CLE de repartition de chaque depense
-// (les sections du document : "Charges generales", "Tantiemes CHARGES BATIMENT - A"...),
-// introuvable ailleurs.
+// Le RGD est le SEUL document du sortant qui porte la TVA, la part deductible et la part
+// recuperable de chaque depense : le grand livre ne les a pas. La classe 6 du fichier
+// d'import se construit donc "via le RGD, jamais le grand livre seul" : les ecritures
+// viennent du GL (dates, sens, montants - la source qui boucle), les colonnes TVA /
+// Deductible / Recuperable viennent de la ligne RGD APPARIEE.
 //
-// Filet de verification (meme discipline que le grand livre) : chaque compte imprime son
-// total, chaque section aussi, et le Total general doit egaler la classe 6 de la balance
-// (mesure S0303 : 7 886,79 EUR au centime). La reconciliation locale dit OU chercher.
+// Regle d'appariement (mesuree sur S0303) : ligne a ligne sur (compte, date, |montant TTC|)
+// avec CONSOMMATION UNIQUE de chaque ligne RGD - sinon deux montants identiques le meme jour
+// se volent leur TVA. Residus LEGITIMES : GL sans RGD = travaux (art. 14-2, hors RGD) ;
+// RGD sans GL classe 6 = compte 716. Tout autre residu est une anomalie a montrer.
 
-/** Une depense du RGD (une ligne du document). Montant SIGNE : un avoir est negatif. */
-export interface DepenseRgd {
-  /** Date normalisee JJ/MM/AAAA (extraireDate) ; "" si illisible - la reconciliation le verra. */
+import type { LigneEcriture } from "@/lib/reprise/domain/ecriture";
+
+/** Une ligne du RGD du sortant. Montants SIGNES (une extourne est negative dans le RGD). */
+export interface LigneRgd {
+  /** Date ISO (AAAA-MM-JJ), normalisee comme les ecritures. */
   date: string;
-  /** Compte de classe 6 tel qu'imprime (ex. "602001", "622"). */
+  /** Compte de charge tel que la source le nomme (nomenclature du sortant). */
   compte: string;
-  /** Intitule du compte imprime dans son en-tete (PII possible : jamais recopie en note). */
-  intituleCompte?: string;
-  /** Libelle de la SECTION du document = la cle de repartition ("Charges generales"...). */
-  cle: string;
-  /** Libelle de la ligne (fournisseur, periode...). */
-  libelle: string;
-  montant: number;
-  /** TVA incluse / part recuperable / part deductible, si la colonne est renseignee. */
+  libelle?: string;
+  /** Montant TTC SIGNE (les extournes / avoirs sont negatifs). */
+  ttc: number;
+  /** TVA signee. */
   tva?: number;
-  recuperable?: number;
+  /** Part deductible signee. */
   deductible?: number;
-}
-
-/** Totaux imprimes captures (par compte, par section, general) - le filet de controle. */
-export interface TotalImprimeRgd {
-  /** "compte:602001", "section:Charges generales", "general". */
-  portee: string;
-  montant: number;
-  tva?: number;
+  /** Part recuperable (locataires) signee. */
   recuperable?: number;
-  deductible?: number;
+  /** Cle de repartition portee par la section du RGD (les titres de section = les cles du sortant). */
+  cle?: string;
 }
 
-export interface ResultatParsageRgd {
-  depenses: DepenseRgd[];
-  totaux: TotalImprimeRgd[];
-  /** Notes de diagnostic PII-free (compteurs, pages, exclusions). */
-  notes: string[];
-}
-
-/** Un ecart de reconciliation : la somme des lignes ne retombe pas sur le total imprime. */
-export interface EcartRgd {
-  portee: string;
-  champ: "montant" | "tva" | "recuperable" | "deductible";
-  attendu: number;
-  obtenu: number;
-}
-
-const TOL = 0.005;
-
+/** Arrondi au centime (bruit flottant). */
 function arrondi(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function sommes(depenses: readonly DepenseRgd[]) {
-  let montant = 0;
-  let tva = 0;
-  let recuperable = 0;
-  let deductible = 0;
-  for (const d of depenses) {
-    montant += d.montant;
-    tva += d.tva ?? 0;
-    recuperable += d.recuperable ?? 0;
-    deductible += d.deductible ?? 0;
-  }
-  return { montant: arrondi(montant), tva: arrondi(tva), recuperable: arrondi(recuperable), deductible: arrondi(deductible) };
+/** Cle d'appariement (compte, date, |ttc| au centime). */
+function cleAppariement(compte: string, date: string, montant: number): string {
+  return `${compte}|${date}|${arrondi(Math.abs(montant)).toFixed(2)}`;
+}
+
+/** Resultat de l'appariement RGD <-> GL (classe 6). */
+export interface AppariementRgdGl {
+  /** index de la ligne GL (dans le tableau passe) -> ligne RGD consommee. */
+  parIndexGl: Map<number, LigneRgd>;
+  /** Lignes GL classe 6 restees sans vis-a-vis RGD (legitime : travaux). */
+  residusGl: { index: number; ligne: LigneEcriture }[];
+  /** Lignes RGD restees sans vis-a-vis GL (legitime : 716). */
+  residusRgd: LigneRgd[];
 }
 
 /**
- * Confronte les depenses parsees aux totaux IMPRIMES (compte, section, general), champ par
- * champ. Un total imprime sans le champ (TVA absente) n'est pas controle sur ce champ.
- * Pur : meme entree => meme sortie. C'est le meme principe que verifierTotauxParCompte du
- * grand livre : l'ecart est LOCALISE, on sait ou chercher.
+ * Apparie chaque ligne GL de CLASSE 6 a sa ligne RGD sur (compte, date, |ttc|), avec
+ * consommation unique. Pur : meme entree => meme sortie (ordre d'apparition stable).
  */
-export function verifierTotauxRgd(
-  depenses: readonly DepenseRgd[],
-  totaux: readonly TotalImprimeRgd[],
-): { controles: number; enEcart: EcartRgd[] } {
-  const enEcart: EcartRgd[] = [];
-  let controles = 0;
-
-  for (const t of totaux) {
-    let cibles: DepenseRgd[];
-    if (t.portee === "general") cibles = [...depenses];
-    else if (t.portee.startsWith("compte:")) {
-      const compte = t.portee.slice("compte:".length);
-      cibles = depenses.filter((d) => d.compte === compte);
-    } else {
-      const cle = t.portee.slice("section:".length);
-      cibles = depenses.filter((d) => d.cle === cle);
-    }
-    const s = sommes(cibles);
-    controles += 1;
-
-    const verifier = (champ: EcartRgd["champ"], attendu: number | undefined, obtenu: number) => {
-      if (attendu === undefined) return;
-      if (Math.abs(attendu - obtenu) > TOL) enEcart.push({ portee: t.portee, champ, attendu, obtenu });
-    };
-    verifier("montant", t.montant, s.montant);
-    verifier("tva", t.tva, s.tva);
-    verifier("recuperable", t.recuperable, s.recuperable);
-    verifier("deductible", t.deductible, s.deductible);
+export function apparierRgdGl(lignesGl: LigneEcriture[], rgd: LigneRgd[]): AppariementRgdGl {
+  // File FIFO par cle : deux montants identiques le meme jour consomment deux lignes RGD.
+  const dispo = new Map<string, LigneRgd[]>();
+  for (const r of rgd) {
+    const k = cleAppariement(r.compte, r.date, r.ttc);
+    const file = dispo.get(k) ?? [];
+    file.push(r);
+    dispo.set(k, file);
   }
 
-  return { controles, enEcart };
+  const parIndexGl = new Map<number, LigneRgd>();
+  const residusGl: { index: number; ligne: LigneEcriture }[] = [];
+  lignesGl.forEach((l, index) => {
+    if (l.classe !== 6) return;
+    const k = cleAppariement(l.compte, l.date, l.montant);
+    const file = dispo.get(k);
+    const r = file?.shift();
+    if (r) parIndexGl.set(index, r);
+    else residusGl.push({ index, ligne: l });
+  });
+
+  const residusRgd: LigneRgd[] = [];
+  for (const file of dispo.values()) residusRgd.push(...file);
+
+  return { parIndexGl, residusGl, residusRgd };
+}
+
+/**
+ * Sortie de l'EXTRACTION d'un RGD (pendant RGD du JeuEcritures du grand livre) : les lignes
+ * pretes pour l'appariement + les notes de vigilance + le compteur de lignes non reconnues
+ * (journal d'anomalies du parseur, entre dans l'auto-check n.1 : 0 attendu sur chaque source).
+ */
+export interface JeuRgd {
+  lignes: LigneRgd[];
+  notes: string[];
+  nonReconnues: number;
 }

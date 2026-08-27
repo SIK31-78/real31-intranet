@@ -31,7 +31,7 @@ describe("normaliserGrandLivre - invariants du domaine", () => {
     expect(jeu.lignes[0].sens).toBe("credit");
   });
 
-  it("ecarte les lignes a compte vide ou montant nul (+ note)", () => {
+  it("ecarte compte vide / montant nul, et COMPTE les pertes d'information (auto-check n.1)", () => {
     const jeu = normaliserGrandLivre({
       lignes: [
         { date: "01/10/2025", compte: "", libelle: "sans compte", sens: "debit", montant: 100 },
@@ -41,7 +41,10 @@ describe("normaliserGrandLivre - invariants du domaine", () => {
     });
     expect(jeu.lignes).toHaveLength(1);
     expect(jeu.lignes[0].libelle).toBe("ok");
-    expect(jeu.notes.some((n) => /compte vide ou montant nul/.test(n))).toBe(true);
+    // Un MONTANT sans compte = NON RECONNUE (perte) ; un montant nul = benin (non compte).
+    expect(jeu.nonReconnues).toBe(1);
+    expect(jeu.notes.some((n) => /compte vide avec un montant/.test(n))).toBe(true);
+    expect(jeu.notes.some((n) => /montant nul/.test(n))).toBe(true);
   });
 
   it("ecarte les lignes au sens indetermine (+ note)", () => {

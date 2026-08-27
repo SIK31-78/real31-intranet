@@ -79,7 +79,7 @@ describe("runner import bloc A S0303", () => {
       copyFileSync(globSync(`${DOSSIER}/Comptabilité/Reprise/Relev*2026.pdf`)[0]!, `${SCRATCH}/rgd-2026.pdf`);
       const balance = parserBalance(await extraireTextePages(new Uint8Array(readFileSync(`${SCRATCH}/balance-0605.pdf`))));
       const rgd = parserRgd(await extraireTextePages(new Uint8Array(readFileSync(`${SCRATCH}/rgd-2026.pdf`))));
-      const totalRgd = rgd.totaux.find((t) => t.portee === "general")?.montant;
+      const totalRgd = rgd.controles.find((c) => c.niveau === "general")?.ttcImprime;
 
       const revue = await preparerRevueMapping(jeu, "S0303", lecture, undefined, undefined, {
         soldes: balance.soldes,

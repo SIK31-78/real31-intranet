@@ -31,6 +31,12 @@ export interface SoldeCompte {
   dkID?: string;
   /** Libelle du compte (facultatif : eStale le fournit, mais pas indispensable au calcul). */
   libelle?: string;
+  /**
+   * Code de la cle de repartition portee par le compte eStale (dk.code, ex. "001"). Facultatif :
+   * seul l'adapter reel le remplit. LA CLE DU COMPTE FAIT FOI pour les ecritures de reprise
+   * (certains comptes portent une autre cle que la 001 par defaut - mesure sur S0303).
+   */
+  cle?: string;
   /** Classe deduite du 1er chiffre de la nomenclature. */
   classe: ClasseComptable;
   /** Cumul des debits du compte sur l'exercice. */

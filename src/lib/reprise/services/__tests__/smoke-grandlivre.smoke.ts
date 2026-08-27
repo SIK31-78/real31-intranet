@@ -1,5 +1,4 @@
-// SMOKE test manuel (non committe) : extraction REELLE du grand livre S0302 (couche texte
-// native, fallback OCR Mistral). Aucune ecriture eStale. Ne loggue QUE des agregats (nb
+// SMOKE test manuel : extraction REELLE du grand livre S0302 (couche texte native, zero IA). Aucune ecriture eStale. Ne loggue QUE des agregats (nb
 // lignes, balance par classe, controles) - JAMAIS de libelle/nom (PII).
 import { readFileSync } from "node:fs";
 import { describe, it, beforeAll } from "vitest";
@@ -19,13 +18,12 @@ describe("smoke grand livre (reel, aucune ecriture)", () => {
   it(
     "extrait le grand livre S0302 et calcule balance + controles",
     async () => {
-      const { getExtractionComptaProvider, modeExtraction } = await import("@/lib/reprise/adapters/router");
+      const { getExtractionComptaProvider } = await import("@/lib/reprise/adapters/router");
       const { extraireEtVerifierGrandLivre } = await import("../reprendre-compta");
       const { verifierTotauxParCompte } = await import("@/lib/reprise/domain/controle-comptes");
 
       const chemin = "C:/Users/SekouKOMA/projects/real31-intranet/data/GRAND_LIVRE_20251001-20260930.pdf";
       const doc = { nom: "grand-livre.pdf", contenu: new Uint8Array(readFileSync(chemin)) };
-      console.log("=== mode extraction :", modeExtraction(), "===");
 
       const t0 = Date.now();
       const r = await extraireEtVerifierGrandLivre(getExtractionComptaProvider(), [doc]);

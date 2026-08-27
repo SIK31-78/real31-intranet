@@ -74,13 +74,13 @@ function jeuSynthetique(): JeuEcritures {
     "4010.222": "FOURNISSEUR NOUVEAU", // aucun candidat -> creation
     "4501.100": "PAUL MARTIN", // inverse -> mappe
     "4501.200": "COPRO ABSENT", // introuvable -> erreur bloquante
-    // 5120.000 : banque -> 471999 present ; 6211.000 : bloc B
+    // 5120.000 : banque -> 4719999 present ; 6211.000 : bloc B
   };
   return jeu;
 }
 
 describe("construireContexteEstale", () => {
-  it("separe fournisseurs 401, coproprietaires 450 et detecte 471999", () => {
+  it("separe fournisseurs 401, coproprietaires 450 et detecte le 4719999 (7 caracteres)", () => {
     const ctx = construireContexteEstale(comptesEstale());
     expect(ctx.fournisseurs.map((f) => f.nomenclature)).toEqual(["4010001"]);
     expect(ctx.coproprietaires).toHaveLength(2);
@@ -257,12 +257,14 @@ describe("construirePlanMapping - liaison auto owners eStale", () => {
 describe("construirePlanMapping - comptes a report seul", () => {
   it("un compte present uniquement dans les controles entre au plan", async () => {
     const jeu = jeuSynthetique();
-    jeu.controles = [{ compte: "502003", reportDebit: 1133.1 }];
-    jeu.intitules = { ...jeu.intitules, "502003": "LIVRET TEST" };
+    // 53x : la classe 5 residuelle reste une decision humaine (le 502 rejoint la banque
+    // 4719999 depuis S0304 - il serait "mappe", ce qui ne testerait plus la revue).
+    jeu.controles = [{ compte: "5300000", reportDebit: 1133.1 }];
+    jeu.intitules = { ...jeu.intitules, "5300000": "CAISSE TEST" };
     const r = await construirePlanMapping(jeu, "S0TEST", new MockProvider());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    const e = r.plan.entrees.find((x) => x.compteSource === "502003");
+    const e = r.plan.entrees.find((x) => x.compteSource === "5300000");
     expect(e).toBeDefined();
     expect(e?.statut).toBe("warning_appariement"); // tresorerie_autre -> decision humaine
   });

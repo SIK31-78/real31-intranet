@@ -2,7 +2,7 @@
 
 // EDITEUR DE CORRECTIONS du jeu patrimoine (ADR-030, chantier prioritaire).
 //
-// Quand l'extraction IA lit mal un RCP scanne, le jeu porte des erreurs (un tantieme faux, un lot
+// Quand un fichier verse porte une erreur (un tantieme faux, un lot
 // manque, un doublon d'owner) et bloque l'injection. Cet editeur transforme l'impasse en gestes :
 // on edite lots / cles+tantiemes / owners / attributions section par section, les auto-checks
 // repassent, le dossier redevient injectable. AUCUNE mutation eStale : ca ne touche QUE le jeu

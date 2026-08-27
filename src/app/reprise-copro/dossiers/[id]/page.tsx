@@ -14,7 +14,6 @@ import { estAdminReprise } from "@/lib/auth/roles";
 import {
   getRepriseDossierRepository,
   getFicheRenseignementsRepository,
-  modeExtraction,
   reprisePersistanceSupabase,
   ecritureEstaleReelle,
 } from "@/lib/reprise/adapters/router";
@@ -101,7 +100,6 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     };
   }
 
-  const modeIa = modeExtraction();
   const persistant = reprisePersistanceSupabase();
   const ecritureReelle = ecritureEstaleReelle();
   const mailActif = mailModuleActifPour(g.email);
@@ -176,7 +174,6 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
         analyseInitiale={analyseInitiale}
         etapeSuivante={etapeSuivante}
         nbFichesGenerees={fichesBrutes.length}
-        modeIa={modeIa}
         ecritureReelle={ecritureReelle}
         dejaInjecte={dejaInjecte}
         fiches={fichesVue}

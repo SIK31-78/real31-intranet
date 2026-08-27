@@ -11,9 +11,10 @@
 //   - paiement fournisseur : fournisseur (4) au debit / banque (5) au credit.
 // Total debit == total credit -> le grand livre complet "tombe a 0" (auto-check fort valide).
 
-import type { DocumentSource } from "@/lib/reprise/ports/extraction-provider";
+import type { DocumentSource } from "@/lib/reprise/ports/document-source";
 import type { ExtractionComptaProvider } from "@/lib/reprise/ports/extraction-compta-provider";
 import type { JeuEcritures } from "@/lib/reprise/domain/ecriture";
+import type { JeuRgd } from "@/lib/reprise/domain/rgd";
 import { normaliserGrandLivre } from "@/lib/reprise/adapters/shared/normaliser-compta";
 
 // On passe par le normaliseur (comme un vrai adapter) : dates ISO, montants positifs, classe
@@ -34,11 +35,38 @@ const GRAND_LIVRE_DEMO_BRUT = {
 
 const JEU_DEFAUT: JeuEcritures = normaliserGrandLivre(GRAND_LIVRE_DEMO_BRUT);
 
+// RGD fictif assorti au grand livre de demonstration : la facture d'entretien de classe 6
+// (6220000, 01/10/2025, 1 200) avec sa TVA - aucune donnee reelle.
+const RGD_DEMO: JeuRgd = {
+  lignes: [
+    {
+      date: "2025-10-01",
+      compte: "6220000",
+      libelle: "Facture entretien parties communes",
+      ttc: 1200,
+      tva: 200,
+      recuperable: 0,
+      deductible: 1200,
+      cle: "001",
+    },
+  ],
+  notes: ["Jeu de demonstration (mock) : RGD fictif apparie au grand livre de demo - aucune donnee reelle."],
+  nonReconnues: 0,
+};
+
 export class MockComptaExtractionProvider implements ExtractionComptaProvider {
-  constructor(private readonly jeu: JeuEcritures = JEU_DEFAUT) {}
+  constructor(
+    private readonly jeu: JeuEcritures = JEU_DEFAUT,
+    private readonly rgd: JeuRgd = RGD_DEMO,
+  ) {}
 
   async extraireGrandLivre(_docs: DocumentSource[]): Promise<JeuEcritures> {
     void _docs;
     return this.jeu;
+  }
+
+  async extraireRgd(_docs: DocumentSource[]): Promise<JeuRgd> {
+    void _docs;
+    return this.rgd;
   }
 }

@@ -156,9 +156,18 @@ function comptesSourceDistincts(jeu: JeuEcritures): { compte: string; intitule?:
   return [...vus.entries()].map(([compte, intitule]) => ({ compte, intitule }));
 }
 
-/** Construit le referentiel eStale (fournisseurs 401, coproprietaires 450, comptes d'attente). */
+/**
+ * Construit le referentiel eStale (fournisseurs 401, coproprietaires 450, comptes d'attente).
+ * Les comptes d'attente font 7 CARACTERES (4719999 / 4719998 / 4710000 - "471999" n'existe pas
+ * chez eStale, cf. domain/mapping-compta). La cle (dk.code) de chaque compte est transportee :
+ * la cle du COMPTE fait foi pour les ecritures de reprise.
+ */
 export function construireContexteEstale(comptes: SoldeCompte[]): ContexteEstale {
-  const enCandidat = (c: SoldeCompte) => ({ nomenclature: c.nomenclature, intitule: c.libelle ?? "" });
+  const enCandidat = (c: SoldeCompte) => ({
+    nomenclature: c.nomenclature,
+    intitule: c.libelle ?? "",
+    ...(c.cle ? { cle: c.cle } : {}),
+  });
   const fournisseurs = comptes
     .filter((c) => racineCompte(c.nomenclature).startsWith("401"))
     .map(enCandidat);
@@ -172,13 +181,17 @@ export function construireContexteEstale(comptes: SoldeCompte[]): ContexteEstale
   // avant toute ecriture). Et "471998" ne matchait rien -> creation d'un doublon du livret.
   const RACINES_BANQUE_AS = new Set(["471999", "4719999"]);
   const RACINES_LIVRET_AS = new Set(["471998", "4719998"]);
-  const c471999 = comptes.find((c) => RACINES_BANQUE_AS.has(racineCompte(c.nomenclature)));
-  const c471998 = comptes.find((c) => RACINES_LIVRET_AS.has(racineCompte(c.nomenclature)));
+  const c4719999 = comptes.find((c) => RACINES_BANQUE_AS.has(racineCompte(c.nomenclature)));
+  const c4719998 = comptes.find((c) => RACINES_LIVRET_AS.has(racineCompte(c.nomenclature)));
+  const c4710000 = comptes.find((c) => racineCompte(c.nomenclature).startsWith("4710000"));
+  const c488 = comptes.find((c) => racineCompte(c.nomenclature) === "488");
   return {
     fournisseurs,
     coproprietaires,
-    nomenclature471999: c471999?.nomenclature,
-    nomenclature471998: c471998?.nomenclature,
+    nomenclature471999: c4719999?.nomenclature,
+    nomenclature471998: c4719998?.nomenclature,
+    nomenclature4710000: c4710000?.nomenclature,
+    nomenclature488: c488?.nomenclature,
   };
 }
 

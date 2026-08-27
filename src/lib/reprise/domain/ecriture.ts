@@ -75,6 +75,14 @@ export interface JeuEcritures {
   /** Points de vigilance (lignes exclues, comptes hors 1-7, formats douteux...). */
   notes: string[];
   /**
+   * Nombre de lignes PORTEUSES D'INFORMATION ecartees a l'extraction (compte vide avec un
+   * montant, sens indetermine, compte hors classes 1-7). C'est l'entree de l'auto-check
+   * comptable n.1 : "lignes non reconnues = 0, sur chaque source". Champ ADDITIF optionnel :
+   * absent = source qui ne compte pas (adapters de test), le service le traite comme 0 avec
+   * une note. Une ligne a montant NUL ecartee n'est PAS comptee (elle ne porte rien).
+   */
+  nonReconnues?: number;
+  /**
    * Totaux imprimes par compte captures a l'extraction (optionnel : seul le pipeline hybride
    * les fournit ; les adapters full-LLM ne les remplissent pas). Champ ADDITIF : ne casse
    * aucun adapter existant, ne modifie pas le port ExtractionComptaProvider.

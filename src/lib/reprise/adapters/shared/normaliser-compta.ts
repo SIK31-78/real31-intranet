@@ -68,15 +68,20 @@ export function normaliserGrandLivre(brut: unknown): JeuEcritures {
   const lignes: LigneEcriture[] = [];
   const notes = [...gl.notes];
 
-  let nbVideOuNul = 0;
+  let nbMontantNul = 0;
+  let nbCompteVide = 0;
   let nbSensIndetermine = 0;
   let nbHorsClasse = 0;
 
   for (const l of gl.lignes) {
     const compte = l.compte.trim();
     const montant = arrondi(Math.abs(l.montant)); // invariant domaine : montant > 0
-    if (!compte || montant === 0) {
-      nbVideOuNul++;
+    if (montant === 0) {
+      nbMontantNul++; // une ligne sans montant ne porte rien : ecartee benigne
+      continue;
+    }
+    if (!compte) {
+      nbCompteVide++; // un MONTANT sans compte est une PERTE d'information -> non reconnue
       continue;
     }
     const sens = normaliserSens(l.sens);
@@ -103,9 +108,12 @@ export function normaliserGrandLivre(brut: unknown): JeuEcritures {
     });
   }
 
-  if (nbVideOuNul) notes.push(`${nbVideOuNul} ligne(s) ecartee(s) : compte vide ou montant nul.`);
-  if (nbSensIndetermine) notes.push(`${nbSensIndetermine} ligne(s) ecartee(s) : sens debit/credit indetermine.`);
-  if (nbHorsClasse) notes.push(`${nbHorsClasse} ligne(s) ecartee(s) : compte hors classes comptables 1-7.`);
+  if (nbMontantNul) notes.push(`${nbMontantNul} ligne(s) ecartee(s) : montant nul (benin).`);
+  if (nbCompteVide) notes.push(`${nbCompteVide} ligne(s) ecartee(s) : compte vide avec un montant (NON RECONNUE).`);
+  if (nbSensIndetermine) notes.push(`${nbSensIndetermine} ligne(s) ecartee(s) : sens debit/credit indetermine (NON RECONNUE).`);
+  if (nbHorsClasse) notes.push(`${nbHorsClasse} ligne(s) ecartee(s) : compte hors classes comptables 1-7 (NON RECONNUE).`);
 
-  return { lignes, notes };
+  // Compteur de l'auto-check n.1 : toute ligne porteuse d'information ecartee. Doit finir a 0.
+  const nonReconnues = nbCompteVide + nbSensIndetermine + nbHorsClasse;
+  return { lignes, notes, ...(nonReconnues > 0 ? { nonReconnues } : { nonReconnues: 0 }) };
 }

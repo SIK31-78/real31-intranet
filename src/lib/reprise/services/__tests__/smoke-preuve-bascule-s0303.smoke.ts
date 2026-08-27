@@ -47,7 +47,7 @@ describe("smoke S0303 - preuve de bascule (reel, lecture seule)", () => {
       ]);
       const balance = parserBalance(await extraireTextePages(new Uint8Array(readFileSync(`${SCRATCH}/balance-0605.pdf`))));
       const rgd = parserRgd(await extraireTextePages(new Uint8Array(readFileSync(`${SCRATCH}/rgd-2026.pdf`))));
-      const totalRgd = rgd.totaux.find((t) => t.portee === "general")?.montant;
+      const totalRgd = rgd.controles.find((c) => c.niveau === "general")?.ttcImprime;
 
       const r = await preparerRevueMapping(
         jeu,

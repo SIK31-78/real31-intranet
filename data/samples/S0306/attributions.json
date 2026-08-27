@@ -1,0 +1,476 @@
+{
+ "attributions": [
+  {
+   "owner_ref_temp": "ABADIE_Jean_Michel",
+   "numero_lot": 8
+  },
+  {
+   "owner_ref_temp": "ABADIE_Jean_Michel",
+   "numero_lot": 61
+  },
+  {
+   "owner_ref_temp": "ABADIE_Jean_Michel",
+   "numero_lot": 62
+  },
+  {
+   "owner_ref_temp": "ABADIE_Jean_Michel",
+   "numero_lot": 114
+  },
+  {
+   "owner_ref_temp": "ABADIE_Jean_Michel",
+   "numero_lot": 505
+  },
+  {
+   "owner_ref_temp": "ABADIE_Jean_Michel",
+   "numero_lot": 506
+  },
+  {
+   "owner_ref_temp": "BONNEFOY_Bastien",
+   "numero_lot": 24
+  },
+  {
+   "owner_ref_temp": "BONNEFOY_Bastien",
+   "numero_lot": 44
+  },
+  {
+   "owner_ref_temp": "BONNEFOY_Bastien",
+   "numero_lot": 45
+  },
+  {
+   "owner_ref_temp": "BONNEFOY_Bastien",
+   "numero_lot": 103
+  },
+  {
+   "owner_ref_temp": "BONNEFOY_Bastien",
+   "numero_lot": 503
+  },
+  {
+   "owner_ref_temp": "BONNEFOY_Bastien",
+   "numero_lot": 504
+  },
+  {
+   "owner_ref_temp": "CASTAGNE_Coralie",
+   "numero_lot": 59
+  },
+  {
+   "owner_ref_temp": "CASTAGNE_Coralie",
+   "numero_lot": 109
+  },
+  {
+   "owner_ref_temp": "CASTAGNE_Coralie",
+   "numero_lot": 408
+  },
+  {
+   "owner_ref_temp": "DELORME_Damien",
+   "numero_lot": 13
+  },
+  {
+   "owner_ref_temp": "ESCANDE_FABRE_Etienne_Helene",
+   "numero_lot": 111
+  },
+  {
+   "owner_ref_temp": "GARRIGUE_Florent",
+   "numero_lot": 60
+  },
+  {
+   "owner_ref_temp": "GARRIGUE_Florent",
+   "numero_lot": 121
+  },
+  {
+   "owner_ref_temp": "HAUTIER_Gaelle",
+   "numero_lot": 16
+  },
+  {
+   "owner_ref_temp": "IZARD_Hugo",
+   "numero_lot": 22
+  },
+  {
+   "owner_ref_temp": "IZARD_Hugo",
+   "numero_lot": 43
+  },
+  {
+   "owner_ref_temp": "IZARD_Hugo",
+   "numero_lot": 303
+  },
+  {
+   "owner_ref_temp": "JOUBERT_Ines",
+   "numero_lot": 40
+  },
+  {
+   "owner_ref_temp": "JOUBERT_Ines",
+   "numero_lot": 107
+  },
+  {
+   "owner_ref_temp": "JOUBERT_Ines",
+   "numero_lot": 201
+  },
+  {
+   "owner_ref_temp": "LACOSTE",
+   "numero_lot": 57
+  },
+  {
+   "owner_ref_temp": "LACOSTE",
+   "numero_lot": 206
+  },
+  {
+   "owner_ref_temp": "MAZERAN_Loic",
+   "numero_lot": 58
+  },
+  {
+   "owner_ref_temp": "MAZERAN_Loic",
+   "numero_lot": 306
+  },
+  {
+   "owner_ref_temp": "NOGARO_Mathis",
+   "numero_lot": 35
+  },
+  {
+   "owner_ref_temp": "NOGARO_Mathis",
+   "numero_lot": 108
+  },
+  {
+   "owner_ref_temp": "NOGARO_Mathis",
+   "numero_lot": 116
+  },
+  {
+   "owner_ref_temp": "OLIVIER",
+   "numero_lot": 56
+  },
+  {
+   "owner_ref_temp": "OLIVIER",
+   "numero_lot": 119
+  },
+  {
+   "owner_ref_temp": "PEYRE_QUINTARD_Oscar_Amandine",
+   "numero_lot": 21
+  },
+  {
+   "owner_ref_temp": "PEYRE_QUINTARD_Oscar_Amandine",
+   "numero_lot": 402
+  },
+  {
+   "owner_ref_temp": "ROUMEGOUS_Pierrick",
+   "numero_lot": 20
+  },
+  {
+   "owner_ref_temp": "ROUMEGOUS_Pierrick",
+   "numero_lot": 46
+  },
+  {
+   "owner_ref_temp": "ROUMEGOUS_Pierrick",
+   "numero_lot": 302
+  },
+  {
+   "owner_ref_temp": "SABATIER_Roxane",
+   "numero_lot": 5
+  },
+  {
+   "owner_ref_temp": "TEISSEIRE_Amandine",
+   "numero_lot": 23
+  },
+  {
+   "owner_ref_temp": "TEISSEIRE_Amandine",
+   "numero_lot": 34
+  },
+  {
+   "owner_ref_temp": "TEISSEIRE_Amandine",
+   "numero_lot": 501
+  },
+  {
+   "owner_ref_temp": "VAYSSE_Blandine",
+   "numero_lot": 48
+  },
+  {
+   "owner_ref_temp": "VAYSSE_Blandine",
+   "numero_lot": 106
+  },
+  {
+   "owner_ref_temp": "VAYSSE_Blandine",
+   "numero_lot": 115
+  },
+  {
+   "owner_ref_temp": "AURIOL",
+   "numero_lot": 47
+  },
+  {
+   "owner_ref_temp": "BESSIERE_Delphine",
+   "numero_lot": 19
+  },
+  {
+   "owner_ref_temp": "BESSIERE_Delphine",
+   "numero_lot": 49
+  },
+  {
+   "owner_ref_temp": "BESSIERE_Delphine",
+   "numero_lot": 202
+  },
+  {
+   "owner_ref_temp": "CAZALS_Eglantine_Toulouse",
+   "numero_lot": 7
+  },
+  {
+   "owner_ref_temp": "CAZALS_Eglantine_Colomiers",
+   "numero_lot": 1
+  },
+  {
+   "owner_ref_temp": "CAZALS_Eglantine_Colomiers",
+   "numero_lot": 52
+  },
+  {
+   "owner_ref_temp": "CAZALS_Eglantine_Colomiers",
+   "numero_lot": 207
+  },
+  {
+   "owner_ref_temp": "DAURAT_Gaspard",
+   "numero_lot": 2
+  },
+  {
+   "owner_ref_temp": "DAURAT_Gaspard",
+   "numero_lot": 53
+  },
+  {
+   "owner_ref_temp": "DAURAT_Gaspard",
+   "numero_lot": 54
+  },
+  {
+   "owner_ref_temp": "DAURAT_Gaspard",
+   "numero_lot": 305
+  },
+  {
+   "owner_ref_temp": "DAURAT_Gaspard",
+   "numero_lot": 406
+  },
+  {
+   "owner_ref_temp": "ESTIVAL",
+   "numero_lot": 42
+  },
+  {
+   "owner_ref_temp": "ESTIVAL",
+   "numero_lot": 105
+  },
+  {
+   "owner_ref_temp": "ESTIVAL",
+   "numero_lot": 401
+  },
+  {
+   "owner_ref_temp": "FOURCADE_GALIBERT_Ivan_Maelys",
+   "numero_lot": 25
+  },
+  {
+   "owner_ref_temp": "FOURCADE_GALIBERT_Ivan_Maelys",
+   "numero_lot": 37
+  },
+  {
+   "owner_ref_temp": "FOURCADE_GALIBERT_Ivan_Maelys",
+   "numero_lot": 104
+  },
+  {
+   "owner_ref_temp": "FOURCADE_GALIBERT_Ivan_Maelys",
+   "numero_lot": 304
+  },
+  {
+   "owner_ref_temp": "HOURCADE_Joelle",
+   "numero_lot": 27
+  },
+  {
+   "owner_ref_temp": "HOURCADE_Joelle",
+   "numero_lot": 39
+  },
+  {
+   "owner_ref_temp": "HOURCADE_Joelle",
+   "numero_lot": 403
+  },
+  {
+   "owner_ref_temp": "IMBERT_Loic",
+   "numero_lot": 64
+  },
+  {
+   "owner_ref_temp": "IMBERT_Loic",
+   "numero_lot": 205
+  },
+  {
+   "owner_ref_temp": "JAMMES_Maelys",
+   "numero_lot": 15
+  },
+  {
+   "owner_ref_temp": "JAMMES_Maelys",
+   "numero_lot": 30
+  },
+  {
+   "owner_ref_temp": "JAMMES_Maelys",
+   "numero_lot": 117
+  },
+  {
+   "owner_ref_temp": "LAFON_Nolan",
+   "numero_lot": 18
+  },
+  {
+   "owner_ref_temp": "LAFON_Nolan",
+   "numero_lot": 32
+  },
+  {
+   "owner_ref_temp": "LAFON_Nolan",
+   "numero_lot": 203
+  },
+  {
+   "owner_ref_temp": "MONTELS_Oscar",
+   "numero_lot": 6
+  },
+  {
+   "owner_ref_temp": "NAUDIN_Perrine",
+   "numero_lot": 26
+  },
+  {
+   "owner_ref_temp": "ORIOL_Quentin",
+   "numero_lot": 63
+  },
+  {
+   "owner_ref_temp": "ORIOL_Quentin",
+   "numero_lot": 307
+  },
+  {
+   "owner_ref_temp": "PRADAL_Amandine",
+   "numero_lot": 29
+  },
+  {
+   "owner_ref_temp": "PRADAL_Amandine",
+   "numero_lot": 118
+  },
+  {
+   "owner_ref_temp": "RASPAUD_Blandine",
+   "numero_lot": 28
+  },
+  {
+   "owner_ref_temp": "RASPAUD_Blandine",
+   "numero_lot": 36
+  },
+  {
+   "owner_ref_temp": "RASPAUD_Blandine",
+   "numero_lot": 204
+  },
+  {
+   "owner_ref_temp": "SEGUIER_Clement",
+   "numero_lot": 4
+  },
+  {
+   "owner_ref_temp": "SEGUIER_Clement",
+   "numero_lot": 31
+  },
+  {
+   "owner_ref_temp": "SEGUIER_Clement",
+   "numero_lot": 502
+  },
+  {
+   "owner_ref_temp": "TOURNIER_Delphine_2459",
+   "numero_lot": 50
+  },
+  {
+   "owner_ref_temp": "TOURNIER_Delphine_2459",
+   "numero_lot": 112
+  },
+  {
+   "owner_ref_temp": "TOURNIER_Delphine_2459",
+   "numero_lot": 122
+  },
+  {
+   "owner_ref_temp": "TOURNIER_Delphine_1998",
+   "numero_lot": 3
+  },
+  {
+   "owner_ref_temp": "TOURNIER_Delphine_1998",
+   "numero_lot": 55
+  },
+  {
+   "owner_ref_temp": "TOURNIER_Delphine_1998",
+   "numero_lot": 120
+  },
+  {
+   "owner_ref_temp": "VIGUIER",
+   "numero_lot": 14
+  },
+  {
+   "owner_ref_temp": "ALDEBERT_Gaspard",
+   "numero_lot": 9
+  },
+  {
+   "owner_ref_temp": "ALDEBERT_Gaspard",
+   "numero_lot": 113
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 10
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 11
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 12
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 51
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 65
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 66
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 308
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 405
+  },
+  {
+   "owner_ref_temp": "BOUYSSOU_Helene",
+   "numero_lot": 407
+  },
+  {
+   "owner_ref_temp": "CAUSSE_Ivan",
+   "numero_lot": 41
+  },
+  {
+   "owner_ref_temp": "CAUSSE_Ivan",
+   "numero_lot": 110
+  },
+  {
+   "owner_ref_temp": "CAUSSE_Ivan",
+   "numero_lot": 208
+  },
+  {
+   "owner_ref_temp": "DUFFAUT_Joelle",
+   "numero_lot": 38
+  },
+  {
+   "owner_ref_temp": "DUFFAUT_Joelle",
+   "numero_lot": 101
+  },
+  {
+   "owner_ref_temp": "DUFFAUT_Joelle",
+   "numero_lot": 404
+  },
+  {
+   "owner_ref_temp": "ENJALBERT_Laure",
+   "numero_lot": 33
+  },
+  {
+   "owner_ref_temp": "ENJALBERT_Laure",
+   "numero_lot": 102
+  },
+  {
+   "owner_ref_temp": "ENJALBERT_Laure",
+   "numero_lot": 301
+  },
+  {
+   "owner_ref_temp": "ABADIE_Mathis",
+   "numero_lot": 17
+  }
+ ]
+}

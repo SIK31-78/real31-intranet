@@ -1,0 +1,80 @@
+{
+ "totaux_tantiemes_par_owner": {
+  "ABADIE_Jean_Michel": 9615,
+  "BONNEFOY_Bastien": 5196,
+  "CASTAGNE_Coralie": 2481,
+  "DELORME_Damien": 129,
+  "ESCANDE_FABRE_Etienne_Helene": 102,
+  "GARRIGUE_Florent": 1055,
+  "HAUTIER_Gaelle": 153,
+  "IZARD_Hugo": 2532,
+  "JOUBERT_Ines": 1503,
+  "MAZERAN_Loic": 1404,
+  "NOGARO_Mathis": 1921,
+  "PEYRE_QUINTARD_Oscar_Amandine": 3614,
+  "ROUMEGOUS_Pierrick": 3645,
+  "SABATIER_Roxane": 153,
+  "TEISSEIRE_Amandine": 1559,
+  "VAYSSE_Blandine": 1806,
+  "BESSIERE_Delphine": 3644,
+  "CAZALS_Eglantine_Toulouse": 153,
+  "CAZALS_Eglantine_Colomiers": 3832,
+  "DAURAT_Gaspard": 4122,
+  "ESTIVAL": 1503,
+  "FOURCADE_GALIBERT_Ivan_Maelys": 2820,
+  "HOURCADE_Joelle": 2532,
+  "IMBERT_Loic": 2572,
+  "LAFON_Nolan": 2529,
+  "JAMMES_Maelys": 2553,
+  "MONTELS_Oscar": 153,
+  "NAUDIN_Perrine": 156,
+  "ORIOL_Quentin": 3683,
+  "PRADAL_Amandine": 2865,
+  "RASPAUD_Blandine": 2718,
+  "SEGUIER_Clement": 3643,
+  "TOURNIER_Delphine_1998": 1998,
+  "TOURNIER_Delphine_2459": 2459,
+  "VIGUIER": 153,
+  "LACOSTE": 1404,
+  "OLIVIER": 1474,
+  "AURIOL": 34,
+  "ALDEBERT_Gaspard": 255,
+  "BOUYSSOU_Helene": 9079,
+  "CAUSSE_Ivan": 2478,
+  "DUFFAUT_Joelle": 2664,
+  "ENJALBERT_Laure": 1503,
+  "ABADIE_Mathis": 153
+ },
+ "corruptions_attendues_detectables": [
+  {
+   "owner_ref_temp": "ABADIE_Jean_Michel",
+   "nom_vrai": "ABADIE",
+   "nom_corrompu": "ABAIDI",
+   "detectable_par": "totaux_tantiemes_par_owner concordants + distance edition <= 2"
+  },
+  {
+   "owner_ref_temp": "TOURNIER_Delphine_2459",
+   "nom_vrai": "TOURNIER",
+   "nom_corrompu": "TOUNRIEI",
+   "detectable_par": "totaux_tantiemes_par_owner concordants + distance edition <= 2"
+  },
+  {
+   "owner_ref_temp": "LACOSTE",
+   "nom_vrai": "LACOSTE",
+   "nom_corrompu": "LACSOTI",
+   "detectable_par": "totaux_tantiemes_par_owner concordants + distance edition <= 2"
+  },
+  {
+   "owner_ref_temp": "IZARD_Hugo",
+   "nom_vrai": "IZARD",
+   "nom_corrompu": "IZARI",
+   "detectable_par": "totaux_tantiemes_par_owner concordants + distance edition <= 2"
+  },
+  {
+   "owner_ref_temp": "BESSIERE_Delphine",
+   "nom_vrai": "BESSIERE",
+   "nom_corrompu": "BESISERI",
+   "detectable_par": "totaux_tantiemes_par_owner concordants + distance edition <= 2"
+  }
+ ]
+}

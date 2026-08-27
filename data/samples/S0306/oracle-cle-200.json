@@ -1,0 +1,496 @@
+{
+ "_doc": "ORACLE de la cle 200 (charges d'ascenseur) de S0306. PII-FREE par nature : numeros de lots et valeurs uniquement, aucun nom, aucune adresse. C'est la verite attendue du benchmark OCR et du parseur par positions (etude §5).",
+ "cle": {
+  "code": "200",
+  "libelle": "Charges ascenseur",
+  "total_annonce": 10000
+ },
+ "nb_lots": 96,
+ "lots_exclus": {
+  "_doc": "Exclus a bon droit : ils ne sont pas desservis par l'ascenseur.",
+  "parkings_exterieurs": [
+   101,
+   102,
+   103,
+   104,
+   105,
+   106,
+   107,
+   108,
+   109,
+   110,
+   111,
+   112,
+   113,
+   114
+  ],
+  "rdc": [
+   115,
+   116,
+   117,
+   118,
+   119,
+   120,
+   121,
+   122
+  ],
+  "total_exclus": 22
+ },
+ "blocs": [
+  {
+   "plage": "1-66",
+   "nb_lots": 66,
+   "somme": 3696
+  },
+  {
+   "plage": "201-208",
+   "nb_lots": 8,
+   "somme": 1350
+  },
+  {
+   "plage": "301-308",
+   "nb_lots": 8,
+   "somme": 1556
+  },
+  {
+   "plage": "401-408",
+   "nb_lots": 8,
+   "somme": 1760
+  },
+  {
+   "plage": "501-506",
+   "nb_lots": 6,
+   "somme": 1638
+  }
+ ],
+ "tantiemes": [
+  {
+   "numero_lot": 1,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 2,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 3,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 4,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 5,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 6,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 7,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 8,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 9,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 10,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 11,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 12,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 13,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 14,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 15,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 16,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 17,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 18,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 19,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 20,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 21,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 22,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 23,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 24,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 25,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 26,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 27,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 28,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 29,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 30,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 31,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 32,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 33,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 34,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 35,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 36,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 37,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 38,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 39,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 40,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 41,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 42,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 43,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 44,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 45,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 46,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 47,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 48,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 49,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 50,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 51,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 52,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 53,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 54,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 55,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 56,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 57,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 58,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 59,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 60,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 61,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 62,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 63,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 64,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 65,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 66,
+   "tantieme": 56
+  },
+  {
+   "numero_lot": 201,
+   "tantieme": 112
+  },
+  {
+   "numero_lot": 202,
+   "tantieme": 225
+  },
+  {
+   "numero_lot": 203,
+   "tantieme": 169
+  },
+  {
+   "numero_lot": 204,
+   "tantieme": 169
+  },
+  {
+   "numero_lot": 205,
+   "tantieme": 169
+  },
+  {
+   "numero_lot": 206,
+   "tantieme": 112
+  },
+  {
+   "numero_lot": 207,
+   "tantieme": 225
+  },
+  {
+   "numero_lot": 208,
+   "tantieme": 169
+  },
+  {
+   "numero_lot": 301,
+   "tantieme": 129
+  },
+  {
+   "numero_lot": 302,
+   "tantieme": 259
+  },
+  {
+   "numero_lot": 303,
+   "tantieme": 194
+  },
+  {
+   "numero_lot": 304,
+   "tantieme": 194
+  },
+  {
+   "numero_lot": 305,
+   "tantieme": 195
+  },
+  {
+   "numero_lot": 306,
+   "tantieme": 130
+  },
+  {
+   "numero_lot": 307,
+   "tantieme": 260
+  },
+  {
+   "numero_lot": 308,
+   "tantieme": 195
+  },
+  {
+   "numero_lot": 401,
+   "tantieme": 147
+  },
+  {
+   "numero_lot": 402,
+   "tantieme": 293
+  },
+  {
+   "numero_lot": 403,
+   "tantieme": 220
+  },
+  {
+   "numero_lot": 404,
+   "tantieme": 220
+  },
+  {
+   "numero_lot": 405,
+   "tantieme": 220
+  },
+  {
+   "numero_lot": 406,
+   "tantieme": 147
+  },
+  {
+   "numero_lot": 407,
+   "tantieme": 293
+  },
+  {
+   "numero_lot": 408,
+   "tantieme": 220
+  },
+  {
+   "numero_lot": 501,
+   "tantieme": 164
+  },
+  {
+   "numero_lot": 502,
+   "tantieme": 327
+  },
+  {
+   "numero_lot": 503,
+   "tantieme": 246
+  },
+  {
+   "numero_lot": 504,
+   "tantieme": 246
+  },
+  {
+   "numero_lot": 505,
+   "tantieme": 246
+  },
+  {
+   "numero_lot": 506,
+   "tantieme": 409
+  }
+ ],
+ "reserves": [
+  {
+   "numero_lot": 305,
+   "tantieme": 195,
+   "statut": "DEDUIT, non lu",
+   "justification": "Le scan est illisible sur cette ligne. 195 est (a) la seule valeur qui fait boucler le bloc 301-308 a 1 556, et (b) coherente avec le +1 systematique des paires de l'escalier B : (301,306)=(129,130), (302,307)=(259,260), (303,308)=(194,195), donc (304,305)=(194,195).",
+   "consigne_harnais": "Si un moteur OCR rend 194 avec une confiance haute, ce n'est PAS forcement lui qui a tort : classer la cellule en ARBITRAGE HUMAIN, jamais en faux positif du moteur. Une valeur deduite ne peut pas servir a condamner une lecture."
+  }
+ ],
+ "attendu_sur_le_pdf_extrait": {
+  "_doc": "data/S0306/benchmark-ocr/RCP2_p30-31_tableau_ascenseur.pdf ne contient que la PREMIERE page du tableau : la page 2 n'existe dans AUCUN document du lot.",
+  "oracle": "REFUS",
+  "motif": "tableau_incomplet",
+  "plages_couvertes": [
+   [
+    1,
+    50
+   ]
+  ],
+  "somme_couverte": 2800,
+  "plages_manquantes": [
+   [
+    51,
+    66
+   ],
+   [
+    201,
+    208
+   ],
+   [
+    301,
+    308
+   ],
+   [
+    401,
+    408
+   ],
+   [
+    501,
+    506
+   ]
+  ],
+  "avertissement": "N'attendre JAMAIS 10 000 depuis cette entree. Payer un OCR industriel pour mieux lire une page qui ne peut pas fermer, c'est acheter de la precision inutile."
+ }
+}
