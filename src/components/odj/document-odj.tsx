@@ -1,31 +1,45 @@
 // Rendu "document" de l'ODJ (calque sur le modele REAL31), mise en forme soignee
-// pour impression PDF. Partage entre la vue imprimable et l'apercu live de la page
-// d'edition. Composant pur (props only). Accents verts = marque REAL31 (green-700).
+// pour impression PDF. Composant pur (props only). Accents verts = marque REAL31
+// (green-700).
+//
+// Le rendu des VALEURS est injectable (prop `rendu`) : sans rien, le document est
+// statique (version imprimable) ; la page d'edition injecte des valeurs cliquables
+// (document-odj-editable). UNE seule mise en page pour les deux - le motif "deux
+// copies qui divergent" est exactement celui du bug ODJ lecture/ecriture du 2026-08-17.
 
-import type { ChampOdj, Odj } from "@/lib/domain/odj";
+import type { ReactNode } from "react";
+import type { ChampOdj, Odj, PointLegal } from "@/lib/domain/odj";
 import { formatChampValeur } from "@/lib/domain/odj";
+
+/** Points d'injection de la page d'edition. Tous optionnels : defaut = statique. */
+export interface RenduDocumentOdj {
+  /** Rendu de la valeur d'un champ (l'edition inline se branche ici). */
+  valeur?: (champ: ChampOdj) => ReactNode;
+  /** Rendu de la ligne "Modalite" (le booleen visio, libelles specifiques). */
+  modalite?: (champVisio: ChampOdj | undefined) => ReactNode;
+  /** Rendu d'un point reglementaire APPLICABLE (titre + texte + controles). */
+  point?: (point: PointLegal) => ReactNode;
+  /** Bloc ajoute apres la liste des points (ex. reintegration des points retires). */
+  finPoints?: ReactNode;
+}
 
 function champDe(champs: ChampOdj[], id: string): ChampOdj | undefined {
   return champs.find((c) => c.id === id);
 }
-function valeurDe(champs: ChampOdj[], id: string): string | undefined {
-  const c = champDe(champs, id);
-  return c ? formatChampValeur(c) : undefined;
-}
 
 /** Valeur renseignee, ou un trait pointille a completer a la main. */
-function Valeur({ v }: { v?: string }) {
+export function ValeurStatique({ v }: { v?: string }) {
   if (v) return <span className="font-medium text-neutral-900">{v}</span>;
   return (
     <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400" />
   );
 }
 
-function Ligne({ libelle, valeur }: { libelle: string; valeur?: string }) {
+function Ligne({ libelle, champ, rendu }: { libelle: string; champ?: ChampOdj; rendu?: RenduDocumentOdj }) {
   return (
     <p className="text-[12px] leading-[1.55] text-neutral-700">
       <span className="text-neutral-500">{libelle} : </span>
-      <Valeur v={valeur} />
+      {rendu?.valeur && champ ? rendu.valeur(champ) : <ValeurStatique v={champ ? formatChampValeur(champ) : undefined} />}
     </p>
   );
 }
@@ -39,9 +53,11 @@ function TitreSection({ n, titre }: { n: number; titre: string }) {
   );
 }
 
-export function DocumentOdj({ odj }: { odj: Odj }) {
+export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj }) {
   const points = odj.pointsLegaux.filter((p) => p.applicable);
-  const visio = champDe(odj.enTete, "visio")?.valeur === "oui";
+  const champVisio = champDe(odj.enTete, "visio");
+  const visio = champVisio?.valeur === "oui";
+  const enTete = (id: string) => champDe(odj.enTete, id);
 
   return (
     <div className="text-neutral-900 [font-feature-settings:'tnum'] [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
@@ -65,20 +81,24 @@ export function DocumentOdj({ odj }: { odj: Odj }) {
 
       {/* Reunion : presents + dates */}
       <section className="mb-6 rounded-md bg-neutral-50 border border-neutral-200 px-4 py-3 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
-        <Ligne libelle="Conseil syndical du" valeur={valeurDe(odj.enTete, "date-cs")} />
-        <Ligne libelle="Pour le syndic" valeur={valeurDe(odj.enTete, "presents-syndic")} />
-        <Ligne libelle="Pour le conseil syndical" valeur={valeurDe(odj.enTete, "presents-cs")} />
+        <Ligne libelle="Conseil syndical du" champ={enTete("date-cs")} rendu={rendu} />
+        <Ligne libelle="Pour le syndic" champ={enTete("presents-syndic")} rendu={rendu} />
+        <Ligne libelle="Pour le conseil syndical" champ={enTete("presents-cs")} rendu={rendu} />
         <div className="grid grid-cols-2 gap-x-8 mt-1.5 pt-1.5 border-t border-neutral-200">
-          <Ligne libelle="Assemblée générale fixée au" valeur={valeurDe(odj.enTete, "date-ag")} />
-          <Ligne libelle="Lieu" valeur={valeurDe(odj.enTete, "lieu")} />
+          <Ligne libelle="Assemblée générale fixée au" champ={enTete("date-ag")} rendu={rendu} />
+          <Ligne libelle="Lieu" champ={enTete("lieu")} rendu={rendu} />
           <p className="text-[12px] leading-[1.55] text-neutral-700">
             <span className="text-neutral-500">Modalité : </span>
-            <span className="font-medium text-neutral-900">
-              {visio ? "Présentiel et visio (hybride)" : "Présentiel"}
-            </span>
+            {rendu?.modalite ? (
+              rendu.modalite(champVisio)
+            ) : (
+              <span className="font-medium text-neutral-900">
+                {visio ? "Présentiel et visio (hybride)" : "Présentiel"}
+              </span>
+            )}
           </p>
-          <Ligne libelle="Limite d'ajout de points à l'ODJ" valeur={valeurDe(odj.enTete, "limite-odj")} />
-          <Ligne libelle="Mise sous pli de la convocation" valeur={valeurDe(odj.enTete, "mise-sous-pli")} />
+          <Ligne libelle="Limite d'ajout de points à l'ODJ" champ={enTete("limite-odj")} rendu={rendu} />
+          <Ligne libelle="Mise sous pli de la convocation" champ={enTete("mise-sous-pli")} rendu={rendu} />
         </div>
       </section>
 
@@ -88,7 +108,7 @@ export function DocumentOdj({ odj }: { odj: Odj }) {
           <TitreSection n={i + 1} titre={s.titre} />
           <div className="space-y-0.5">
             {s.champs.map((c) => (
-              <Ligne key={c.id} libelle={c.libelle} valeur={formatChampValeur(c)} />
+              <Ligne key={c.id} libelle={c.libelle} champ={c} rendu={rendu} />
             ))}
           </div>
         </section>
@@ -98,13 +118,18 @@ export function DocumentOdj({ odj }: { odj: Odj }) {
       <section className="mb-5">
         <TitreSection n={odj.sections.length + 1} titre="Points réglementaires à l'ordre du jour" />
         <div className="space-y-2.5">
-          {points.map((p) => (
-            <div key={p.id} className="break-inside-avoid-page">
-              <p className="text-[12px] font-semibold text-neutral-800">{p.titre}</p>
-              <p className="text-[11.5px] text-neutral-600 leading-[1.5]">{p.texte}</p>
-            </div>
-          ))}
+          {points.map((p) =>
+            rendu?.point ? (
+              <div key={p.id} className="break-inside-avoid-page">{rendu.point(p)}</div>
+            ) : (
+              <div key={p.id} className="break-inside-avoid-page">
+                <p className="text-[12px] font-semibold text-neutral-800">{p.titre}</p>
+                <p className="text-[11.5px] text-neutral-600 leading-[1.5]">{p.texte}</p>
+              </div>
+            ),
+          )}
         </div>
+        {rendu?.finPoints}
       </section>
 
       {/* Pied : signatures + mention */}
