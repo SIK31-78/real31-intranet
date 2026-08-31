@@ -11,6 +11,7 @@ import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { PREFIXE_POINT } from "@/lib/ports/odj-repository";
 import { cleOdj, decouperIdOdj } from "@/lib/services/odj/resoudre-cle-odj";
+import { blocsLibres, champsLibresDeSection } from "@/lib/domain/odj-libre";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import { DELAIS_CABINET } from "@/lib/domain/jalons-ag/cabinet/real31-defaults";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
@@ -257,7 +258,13 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   };
 
   const enTeteFinal = enTete.map(appliquer);
-  const sectionsFinales = sections.map((s) => ({ ...s, champs: s.champs.map(appliquer) }));
+  // Champs libres : ajoutes par le gestionnaire, ils VIVENT dans l'etat (pas dans le
+  // squelette) et rejoignent leur section a la lecture. Blocs libres : fin de document.
+  const sectionsFinales = sections.map((s) => ({
+    ...s,
+    champs: [...s.champs.map(appliquer), ...champsLibresDeSection(etat, s.id)],
+  }));
+  const blocs = blocsLibres(etat);
 
   // Champs calcules (apres superposition, pour partir des valeurs effectives).
   const valeurDe = (id: string): string | undefined =>
@@ -318,6 +325,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       ? sectionsFinales.map((s) => ({ ...s, champs: s.champs.map(figer) }))
       : sectionsFinales,
     pointsLegaux: points,
+    ...(blocs.length ? { blocsLibres: blocs } : {}),
     ...(cloture ? { cloture } : {}),
   };
 }

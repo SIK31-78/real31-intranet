@@ -15,12 +15,20 @@ import { formatChampValeur } from "@/lib/domain/odj";
 export interface RenduDocumentOdj {
   /** Rendu de la valeur d'un champ (l'edition inline se branche ici). */
   valeur?: (champ: ChampOdj) => ReactNode;
+  /** Rendu COMPLET d'une ligne de champ LIBRE (libelle editable + valeur + suppression). */
+  ligneLibre?: (champ: ChampOdj) => ReactNode;
   /** Rendu de la ligne "Modalite" (le booleen visio, libelles specifiques). */
   modalite?: (champVisio: ChampOdj | undefined) => ReactNode;
   /** Rendu d'un point reglementaire APPLICABLE (titre + texte + controles). */
   point?: (point: PointLegal) => ReactNode;
   /** Bloc ajoute apres la liste des points (ex. reintegration des points retires). */
   finPoints?: ReactNode;
+  /** Ajout en pied de section (ex. bouton "+ champ libre"). */
+  finSection?: (sectionId: string) => ReactNode;
+  /** Rendu d'un paragraphe libre (edition + suppression). */
+  bloc?: (bloc: { id: string; texte: string }) => ReactNode;
+  /** Ajout apres les paragraphes libres (ex. bouton "+ paragraphe"). */
+  finDocument?: ReactNode;
 }
 
 function champDe(champs: ChampOdj[], id: string): ChampOdj | undefined {
@@ -36,12 +44,27 @@ export function ValeurStatique({ v }: { v?: string }) {
 }
 
 function Ligne({ libelle, champ, rendu }: { libelle: string; champ?: ChampOdj; rendu?: RenduDocumentOdj }) {
+  // Champ LIBRE : la ligne entiere est rendue par la page d'edition (libelle editable).
+  if (champ?.libre && rendu?.ligneLibre) return <>{rendu.ligneLibre(champ)}</>;
   return (
     <p className="text-[12px] leading-[1.55] text-neutral-700">
       <span className="text-neutral-500">{libelle} : </span>
       {rendu?.valeur && champ ? rendu.valeur(champ) : <ValeurStatique v={champ ? formatChampValeur(champ) : undefined} />}
     </p>
   );
+}
+
+/** Heure de cloture du CS, fuseau cabinet (Europe/Paris) EXPLICITE : le meme rendu
+ *  cote serveur (UTC Vercel) et cote client, sinon mismatch d'hydratation. */
+function formatFinReunion(iso: string): string | undefined {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const f = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+  return f.replace(":", "h");
 }
 
 function TitreSection({ n, titre }: { n: number; titre: string }) {
@@ -111,6 +134,7 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
               <Ligne key={c.id} libelle={c.libelle} champ={c} rendu={rendu} />
             ))}
           </div>
+          {rendu?.finSection?.(s.id)}
         </section>
       ))}
 
@@ -132,18 +156,34 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
         {rendu?.finPoints}
       </section>
 
-      {/* Pied : signatures + mention */}
+      {/* Paragraphes libres (ajoutes par le gestionnaire) */}
+      {(odj.blocsLibres?.length || rendu?.finDocument) ? (
+        <section className="mb-5">
+          <div className="space-y-2">
+            {(odj.blocsLibres ?? []).map((b) =>
+              rendu?.bloc ? (
+                <div key={b.id} className="break-inside-avoid-page">{rendu.bloc(b)}</div>
+              ) : (
+                <p key={b.id} className="text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
+                  {b.texte}
+                </p>
+              ),
+            )}
+          </div>
+          {rendu?.finDocument}
+        </section>
+      ) : null}
+
+      {/* Pied : fin de reunion = l'heure de CLOTURE du CS (posee par "Marquer la
+          reunion terminee"), pas une ligne a remplir a la main. */}
       <footer className="mt-8 pt-3 border-t border-neutral-200">
-        <div className="flex justify-between gap-8 text-[12px] text-neutral-700">
-          <div>
-            Fin de réunion : <span className="inline-block min-w-[90px] border-b border-dotted border-neutral-400" />
-          </div>
-          <div>
-            Visa du gestionnaire : <span className="inline-block min-w-[120px] border-b border-dotted border-neutral-400" />
-          </div>
-        </div>
-        <p className="mt-5 text-[9px] text-neutral-400 text-center">
-          REAL 31 - Fiche 450 « Couverture AG » - document de préparation d&apos;assemblée générale
+        <p className="text-[12px] text-neutral-700">
+          Fin de réunion :{" "}
+          {odj.cloture ? (
+            <span className="font-medium text-neutral-900">{formatFinReunion(odj.cloture.le)}</span>
+          ) : (
+            <span className="inline-block min-w-[90px] border-b border-dotted border-neutral-400" />
+          )}
         </p>
       </footer>
     </div>

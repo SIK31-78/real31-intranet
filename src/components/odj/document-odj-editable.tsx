@@ -3,14 +3,28 @@
 // L'ODJ en MODULE EDITABLE : le document lui-meme s'edite sur place (cliquer une
 // valeur -> taper -> auto-save), comme un traitement de texte - fin de la double
 // vue formulaire / apercu. La mise en page reste DocumentOdj (une seule source),
-// ce composant n'injecte que le rendu des valeurs et des points.
+// ce composant n'injecte que le rendu des valeurs, des points et des ajouts libres.
 //
 // Sauvegarde : auto-save debounce (900 ms apres la derniere frappe) + bouton
 // Enregistrer qui force l'envoi immediat. L'etat des brouillons est le domaine
-// pur odj-brouillon (teste) ; ici on ne fait qu'orchestrer timers et actions.
+// pur odj-brouillon (teste) ; l'historique Ctrl+Z / Ctrl+Y est le domaine pur
+// odj-historique (teste) - annuler RESAISIT l'ancienne valeur par le meme chemin
+// d'auto-save, jamais un contournement.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, CloudUpload, Eye, EyeOff, Loader2, Pencil } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CloudUpload,
+  Eye,
+  EyeOff,
+  Loader2,
+  Pencil,
+  Plus,
+  Redo2,
+  Undo2,
+  X,
+} from "lucide-react";
 import type { ChampOdj, Odj, PointLegal, ProvenanceChamp } from "@/lib/domain/odj";
 import { formatChampValeur, provenanceChamp } from "@/lib/domain/odj";
 import {
@@ -24,11 +38,27 @@ import {
   type Brouillons,
   type StatutSauvegarde,
 } from "@/lib/domain/odj-brouillon";
+import {
+  HISTORIQUE_VIDE,
+  annuler,
+  pousserGeste,
+  refaire,
+  type HistoriqueOdj,
+} from "@/lib/domain/odj-historique";
+import {
+  estAjoutLibre,
+  estBlocLibre,
+  idBlocLibre,
+  idChampLibre,
+  parseChampLibre,
+  sectionDuChampLibre,
+  serialiserChampLibre,
+} from "@/lib/domain/odj-libre";
 import { DocumentOdj, ValeurStatique } from "@/components/odj/document-odj";
 
 const DELAI_AUTOSAVE_MS = 900;
 
-// Meme vocabulaire que l'ancien formulaire (ligne-champ) : la provenance REELLE.
+// Meme vocabulaire que l'ancien formulaire : la provenance REELLE du champ.
 const PROVENANCE_TITRE: Record<ProvenanceChamp, string> = {
   auto: "Rempli automatiquement",
   "auto-jalon": "Calculé depuis la date d'AG (jalon)",
@@ -40,19 +70,29 @@ const PROVENANCE_TITRE: Record<ProvenanceChamp, string> = {
 
 interface MoteurAutosave {
   brouillons: Brouillons;
-  /** Pose un brouillon et (re)arme le debounce. */
-  saisir: (champId: string, valeur: string) => void;
-  /** Pose et envoie IMMEDIATEMENT (toggles : pas de raison d'attendre). */
-  saisirImmediat: (champId: string, valeur: string) => void;
+  historique: HistoriqueOdj;
+  /** Ids d'ajouts libres supprimes LOCALEMENT. Le brouillon "" est consomme des que le
+   *  serveur repond, mais le HTML revalide arrive APRES : sans ce registre, le champ
+   *  supprime se reaffiche entre les deux (doublon fantome mesure le 2026-08-31).
+   *  Purge par une nouvelle valeur non vide sur le meme id (Ctrl+Y). */
+  supprimes: ReadonlySet<string>;
+  /** Commit d'un geste d'edition : entre dans l'HISTORIQUE puis part a l'auto-save
+   *  (debounce, ou immediat pour les bascules/ajouts/suppressions). */
+  commettre: (champId: string, avant: string, apres: string, immediat?: boolean) => void;
   /** Envoie tout ce qui est en attente (bouton Enregistrer, re-essai apres echec). */
   envoyer: () => void;
+  annulerGeste: () => void;
+  refaireGeste: () => void;
 }
 
 function useAutosaveOdj(onSaisir: (champId: string, valeur: string) => Promise<void>): MoteurAutosave {
   const [brouillons, setBrouillons] = useState<Brouillons>(BROUILLONS_VIDES);
+  const [historique, setHistorique] = useState<HistoriqueOdj>(HISTORIQUE_VIDE);
+  const [supprimes, setSupprimes] = useState<ReadonlySet<string>>(new Set());
   // La verite vit dans la ref (mise a jour SYNCHRONE) ; le state ne sert qu'au rendu.
   // Evite les lectures perimees quand blur + clic Enregistrer tombent dans la meme frame.
   const etatRef = useRef<Brouillons>(BROUILLONS_VIDES);
+  const histRef = useRef<HistoriqueOdj>(HISTORIQUE_VIDE);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const maj = useCallback((fn: (b: Brouillons) => Brouillons) => {
@@ -75,21 +115,71 @@ function useAutosaveOdj(onSaisir: (champId: string, valeur: string) => Promise<v
   }, [onSaisir, maj]);
 
   const saisir = useCallback(
-    (champId: string, valeur: string) => {
+    (champId: string, valeur: string, immediat?: boolean) => {
+      // Registre des suppressions d'ajouts libres (cf. `supprimes`).
+      if (estAjoutLibre(champId)) {
+        setSupprimes((s) => {
+          const vide = valeur.trim() === "";
+          if (vide === s.has(champId)) return s;
+          const n = new Set(s);
+          if (vide) n.add(champId);
+          else n.delete(champId);
+          return n;
+        });
+      }
       maj((b) => poserBrouillon(b, champId, valeur));
+      if (immediat) {
+        envoyer();
+        return;
+      }
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(envoyer, DELAI_AUTOSAVE_MS);
     },
     [maj, envoyer],
   );
 
-  const saisirImmediat = useCallback(
-    (champId: string, valeur: string) => {
-      maj((b) => poserBrouillon(b, champId, valeur));
-      envoyer();
+  const commettre = useCallback(
+    (champId: string, avant: string, apres: string, immediat?: boolean) => {
+      histRef.current = pousserGeste(histRef.current, { champId, avant, apres });
+      setHistorique(histRef.current);
+      saisir(champId, apres, immediat);
     },
-    [maj, envoyer],
+    [saisir],
   );
+
+  const annulerGeste = useCallback(() => {
+    const { historique: h, geste } = annuler(histRef.current);
+    histRef.current = h;
+    setHistorique(h);
+    if (geste) saisir(geste.champId, geste.avant, true);
+  }, [saisir]);
+
+  const refaireGeste = useCallback(() => {
+    const { historique: h, geste } = refaire(histRef.current);
+    histRef.current = h;
+    setHistorique(h);
+    if (geste) saisir(geste.champId, geste.apres, true);
+  }, [saisir]);
+
+  // Ctrl+Z / Ctrl+Y (et Ctrl+Shift+Z) au niveau du document - mais JAMAIS quand un
+  // input est actif : la, c'est l'annulation native du champ en cours qui doit jouer.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const cible = e.target as HTMLElement | null;
+      if (cible && (cible.tagName === "INPUT" || cible.tagName === "TEXTAREA" || cible.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        annulerGeste();
+      } else if (k === "y" || (k === "z" && e.shiftKey)) {
+        e.preventDefault();
+        refaireGeste();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [annulerGeste, refaireGeste]);
 
   // Garde-fou fermeture d'onglet : des brouillons non confirmes = avertir.
   useEffect(() => {
@@ -100,7 +190,7 @@ function useAutosaveOdj(onSaisir: (champId: string, valeur: string) => Promise<v
     return () => window.removeEventListener("beforeunload", garde);
   }, []);
 
-  return { brouillons, saisir, saisirImmediat, envoyer };
+  return { brouillons, historique, supprimes, commettre, envoyer, annulerGeste, refaireGeste };
 }
 
 /** Champ du document avec le brouillon local superpose (l'affichage suit la frappe
@@ -114,11 +204,56 @@ function champAvecBrouillon(champ: ChampOdj, brouillons: Brouillons): ChampOdj {
   return local.trim() === "" ? { ...reste, saisi: false } : { ...reste, valeur: local, saisi: true };
 }
 
+/** Petit input inline partage (valeur de champ, libelle libre) : commit au blur /
+ *  Entree, abandon a Echap. */
+function InputInline({
+  initial,
+  onCommit,
+  onAbandon,
+  placeholder,
+  classe,
+}: {
+  initial: string;
+  onCommit: (v: string) => void;
+  onAbandon: () => void;
+  placeholder?: string;
+  classe?: string;
+}) {
+  const [v, setV] = useState(initial);
+  const commitRef = useRef(false);
+  const commettre = () => {
+    if (commitRef.current) return; // Entree PUIS blur : un seul commit
+    commitRef.current = true;
+    onCommit(v);
+  };
+  return (
+    <input
+      // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient de cliquer ce champ precis
+      autoFocus
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commettre}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commettre();
+        if (e.key === "Escape") {
+          commitRef.current = true;
+          onAbandon();
+        }
+      }}
+      placeholder={placeholder}
+      className={
+        classe ??
+        "inline-block align-baseline min-w-[160px] max-w-full px-1 -mx-1 rounded-sm bg-green-700/5 font-medium text-neutral-900 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+      }
+    />
+  );
+}
+
 function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAutosave }) {
   const [edition, setEdition] = useState(false);
-  const [saisieLocale, setSaisieLocale] = useState("");
   const affiche = champAvecBrouillon(champ, moteur.brouillons);
   const titreProvenance = PROVENANCE_TITRE[provenanceChamp(affiche)];
+  const actuel = valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur ?? "";
 
   if (!champ.editable) {
     return (
@@ -129,26 +264,16 @@ function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAuto
   }
 
   if (edition) {
-    const valider = () => {
-      setEdition(false);
-      const brut = saisieLocale.trim();
-      const actuel = valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur ?? "";
-      if (brut === actuel.trim()) return; // rien n'a change : pas d'ecriture inutile
-      moteur.saisir(champ.id, brut);
-    };
     return (
-      <input
-        // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient de cliquer ce champ precis
-        autoFocus
-        value={saisieLocale}
-        onChange={(e) => setSaisieLocale(e.target.value)}
-        onBlur={valider}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") valider();
-          if (e.key === "Escape") setEdition(false);
-        }}
+      <InputInline
+        initial={actuel}
         placeholder={champ.type === "montant" ? "Montant en €" : undefined}
-        className="inline-block align-baseline min-w-[160px] max-w-full px-1 -mx-1 rounded-sm bg-green-700/5 font-medium text-neutral-900 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+        onAbandon={() => setEdition(false)}
+        onCommit={(v) => {
+          setEdition(false);
+          const brut = v.trim();
+          if (brut !== actuel.trim()) moteur.commettre(champ.id, actuel, brut);
+        }}
       />
     );
   }
@@ -158,11 +283,7 @@ function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAuto
     <button
       type="button"
       title={`${titreProvenance} - cliquer pour modifier${champ.alerte ? ` (${champ.alerte})` : ""}`}
-      onClick={() => {
-        // Prefill avec la valeur BRUTE (pas le format d'affichage "4 500,00 EUR").
-        setSaisieLocale(valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur ?? "");
-        setEdition(true);
-      }}
+      onClick={() => setEdition(true)}
       className="group inline-flex items-baseline gap-1 max-w-full text-left align-baseline rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {v ? (
@@ -185,12 +306,18 @@ function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAuto
 /** Modalite (visio) : bascule directe Presentiel <-> hybride, envoi immediat. */
 function ModaliteEditable({ champ, moteur }: { champ: ChampOdj | undefined; moteur: MoteurAutosave }) {
   if (!champ) return <span className="font-medium text-neutral-900">Présentiel</span>;
-  const actif = champAvecBrouillon(champ, moteur.brouillons).valeur === "oui";
+  const actuel = valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur ?? "non";
+  const actif = actuel === "oui";
+  if (!champ.editable) {
+    return (
+      <span className="font-medium text-neutral-900">{actif ? "Présentiel et visio (hybride)" : "Présentiel"}</span>
+    );
+  }
   return (
     <button
       type="button"
       title="Cliquer pour basculer présentiel / hybride"
-      onClick={() => moteur.saisirImmediat(champ.id, actif ? "non" : "oui")}
+      onClick={() => moteur.commettre(champ.id, actuel, actif ? "non" : "oui", true)}
       className="font-medium text-neutral-900 border-b border-dotted border-green-700/40 rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {actif ? "Présentiel et visio (hybride)" : "Présentiel"}
@@ -198,7 +325,173 @@ function ModaliteEditable({ champ, moteur }: { champ: ChampOdj | undefined; mote
   );
 }
 
-/** Un point reglementaire applicable, retirable au survol. */
+/** Ligne d'un champ LIBRE : libelle ET valeur editables, croix de suppression.
+ *  Tout commit reecrit la valeur ENCODEE complete (libelle|texte) sur le meme id. */
+function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAutosave }) {
+  const [editionLibelle, setEditionLibelle] = useState(false);
+  // La verite locale prime : un brouillon en vol porte deja "libelle|texte".
+  const local = valeurLocale(moteur.brouillons, champ.id);
+  const encodeActuel = local ?? serialiserChampLibre(champ.libelle, champ.valeur ?? "");
+  const { libelle, texte } = parseChampLibre(encodeActuel);
+  // Supprime : masque jusqu'a ce que le serveur cesse de le rendre (cf. `supprimes`).
+  if (moteur.supprimes.has(champ.id)) return null;
+
+  const champTexte: ChampOdj = {
+    id: champ.id,
+    libelle,
+    source: "manuel",
+    editable: true,
+    saisi: Boolean(texte),
+    ...(texte ? { valeur: texte } : {}),
+  };
+
+  return (
+    <p className="group/libre text-[12px] leading-[1.55] text-neutral-700 flex items-baseline gap-1">
+      {editionLibelle ? (
+        <InputInline
+          initial={libelle}
+          placeholder="Libellé"
+          onAbandon={() => setEditionLibelle(false)}
+          onCommit={(v) => {
+            setEditionLibelle(false);
+            const nouveau = serialiserChampLibre(v.trim() || "Nouveau champ", texte);
+            if (nouveau !== encodeActuel) moteur.commettre(champ.id, encodeActuel, nouveau);
+          }}
+          classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 text-neutral-500 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+        />
+      ) : (
+        <button
+          type="button"
+          title="Champ ajouté - cliquer pour renommer"
+          onClick={() => setEditionLibelle(true)}
+          className="text-neutral-500 border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+        >
+          {libelle}
+        </button>
+      )}
+      <span className="text-neutral-500">: </span>
+      {/* La valeur passe par le moteur en reecrivant l'encode complet. */}
+      <ValeurLibre champ={champTexte} libelle={libelle} encodeActuel={encodeActuel} moteur={moteur} />
+      <button
+        type="button"
+        title="Supprimer ce champ"
+        onClick={() => moteur.commettre(champ.id, encodeActuel, "", true)}
+        className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+      >
+        <X strokeWidth={1.5} className="w-3 h-3" />
+      </button>
+    </p>
+  );
+}
+
+/** Valeur d'un champ libre : meme UX que ValeurEditable, mais le commit encode
+ *  libelle|texte (la valeur seule n'existe pas en persistance). */
+function ValeurLibre({
+  champ,
+  libelle,
+  encodeActuel,
+  moteur,
+}: {
+  champ: ChampOdj;
+  libelle: string;
+  encodeActuel: string;
+  moteur: MoteurAutosave;
+}) {
+  const [edition, setEdition] = useState(false);
+  if (edition) {
+    return (
+      <InputInline
+        initial={champ.valeur ?? ""}
+        onAbandon={() => setEdition(false)}
+        onCommit={(v) => {
+          setEdition(false);
+          const nouveau = serialiserChampLibre(libelle, v.trim());
+          if (nouveau !== encodeActuel) moteur.commettre(champ.id, encodeActuel, nouveau);
+        }}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      title="Saisi par le gestionnaire - cliquer pour modifier"
+      onClick={() => setEdition(true)}
+      className="group inline-flex items-baseline gap-1 max-w-full text-left align-baseline rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+    >
+      {champ.valeur ? (
+        <span className="font-medium text-neutral-900 border-b border-dotted border-green-700/40">{champ.valeur}</span>
+      ) : (
+        <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400 group-hover:border-green-700/60" />
+      )}
+    </button>
+  );
+}
+
+/** Paragraphe libre : texte multiligne editable au clic, croix de suppression. */
+function BlocLibreEditable({
+  id,
+  texteServeur,
+  moteur,
+}: {
+  id: string;
+  texteServeur: string;
+  moteur: MoteurAutosave;
+}) {
+  const [edition, setEdition] = useState(false);
+  const local = valeurLocale(moteur.brouillons, id);
+  const texte = local ?? texteServeur;
+  const [brouillon, setBrouillon] = useState("");
+  if (moteur.supprimes.has(id)) return null; // cf. `supprimes`
+
+  if (edition) {
+    const commettre = () => {
+      setEdition(false);
+      const v = brouillon.trim();
+      if (v !== texte.trim()) moteur.commettre(id, texte, v || texte, false);
+    };
+    return (
+      <textarea
+        // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient de cliquer ce paragraphe
+        autoFocus
+        value={brouillon}
+        onChange={(e) => setBrouillon(e.target.value)}
+        onBlur={commettre}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setEdition(false);
+        }}
+        rows={Math.max(2, brouillon.split("\n").length)}
+        className="w-full px-2 py-1 rounded-sm bg-green-700/5 text-[11.5px] leading-[1.55] text-neutral-900 outline-none ring-1 ring-green-700/40 focus:ring-green-700 resize-y"
+      />
+    );
+  }
+
+  return (
+    <div className="group/bloc relative pr-7">
+      <button
+        type="button"
+        title="Paragraphe ajouté - cliquer pour modifier"
+        onClick={() => {
+          setBrouillon(texte);
+          setEdition(true);
+        }}
+        className="block w-full text-left text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap rounded-sm px-1 -mx-1 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+      >
+        {texte}
+      </button>
+      <button
+        type="button"
+        title="Supprimer ce paragraphe"
+        onClick={() => moteur.commettre(id, texte, "", true)}
+        className="absolute right-0 top-0.5 p-1 rounded text-neutral-300 opacity-0 group-hover/bloc:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+      >
+        <X strokeWidth={1.5} className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/** Un point reglementaire applicable, retirable (bouton VISIBLE, pas seulement au
+ *  survol : "on peut pas les enlever" - retour Sekou 2026-08-31). */
 function PointEditable({
   point,
   onToggle,
@@ -219,7 +512,7 @@ function PointEditable({
           setEnCours(true);
           void onToggle(point.id, true).finally(() => setEnCours(false));
         }}
-        className="absolute right-0 top-0.5 p-1 rounded text-neutral-300 opacity-0 group-hover/point:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
+        className="absolute right-0 top-0.5 p-1 rounded text-neutral-300 hover:text-warn-700 hover:bg-warn-50 group-hover/point:text-neutral-400 transition-colors"
       >
         <EyeOff strokeWidth={1.5} className="w-3.5 h-3.5" />
       </button>
@@ -227,8 +520,7 @@ function PointEditable({
   );
 }
 
-/** Les points retires, reintegrables d'un clic. Discret : hors document a l'impression
- *  (cette page ne s'imprime pas - la version imprimable reste /imprimer). */
+/** Les points retires, reintegrables d'un clic. */
 function PointsRetires({
   points,
   onToggle,
@@ -240,9 +532,7 @@ function PointsRetires({
   if (points.length === 0) return null;
   return (
     <div className="mt-4 pt-3 border-t border-dashed border-neutral-200">
-      <p className="text-[11px] text-neutral-400 mb-1.5">
-        Points retirés de ce document ({points.length}) :
-      </p>
+      <p className="text-[11px] text-neutral-400 mb-1.5">Points retirés de ce document ({points.length}) :</p>
       <ul className="space-y-1">
         {points.map((p) => (
           <li key={p.id} className="flex items-center gap-2">
@@ -266,8 +556,23 @@ function PointsRetires({
   );
 }
 
-/** Barre de sauvegarde : statut + bouton Enregistrer. Sticky au-dessus du document. */
-function BarreSauvegarde({ statut, onEnregistrer }: { statut: StatutSauvegarde; onEnregistrer: () => void }) {
+/** Bouton d'ajout discret ("+ Ajouter un champ" / "+ Ajouter un paragraphe"). */
+function BoutonAjout({ libelle, onClick }: { libelle: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-1 inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-green-700 transition-colors"
+    >
+      <Plus strokeWidth={1.5} className="w-3 h-3" />
+      {libelle}
+    </button>
+  );
+}
+
+/** Barre de sauvegarde : annuler / refaire + statut + bouton Enregistrer. */
+function BarreSauvegarde({ moteur }: { moteur: MoteurAutosave }) {
+  const statut = statutGlobal(moteur.brouillons);
   const rendu: Record<StatutSauvegarde, ReactNode> = {
     repos: <span className="text-ink-4">Les modifications s&apos;enregistrent automatiquement</span>,
     "en-attente": <span className="text-ink-3">Modifications en attente…</span>,
@@ -291,19 +596,56 @@ function BarreSauvegarde({ statut, onEnregistrer }: { statut: StatutSauvegarde; 
     ),
   };
   return (
-    <div className="sticky top-2 z-10 flex items-center justify-end gap-3 rounded-md border border-line bg-surface/95 backdrop-blur px-3 py-1.5 shadow-sm">
-      <span className="text-[12px]">{rendu[statut]}</span>
-      <button
-        type="button"
-        onClick={onEnregistrer}
-        disabled={statut === "enregistrement"}
-        className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-green-700 text-surface text-[12.5px] font-medium hover:bg-green-600 transition-colors disabled:opacity-50"
-      >
-        <CloudUpload strokeWidth={1.5} className="w-3.5 h-3.5" />
-        Enregistrer
-      </button>
+    <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-md border border-line bg-surface/95 backdrop-blur px-3 py-1.5 shadow-sm">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          title="Annuler (Ctrl+Z)"
+          onClick={moteur.annulerGeste}
+          disabled={moteur.historique.annulables.length === 0}
+          className="p-1.5 rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <Undo2 strokeWidth={1.5} className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          title="Rétablir (Ctrl+Y)"
+          onClick={moteur.refaireGeste}
+          disabled={moteur.historique.refaisables.length === 0}
+          className="p-1.5 rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <Redo2 strokeWidth={1.5} className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-[12px]">{rendu[statut]}</span>
+        <button
+          type="button"
+          onClick={moteur.envoyer}
+          disabled={statut === "enregistrement"}
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-green-700 text-surface text-[12.5px] font-medium hover:bg-green-600 transition-colors disabled:opacity-50"
+        >
+          <CloudUpload strokeWidth={1.5} className="w-3.5 h-3.5" />
+          Enregistrer
+        </button>
+      </div>
     </div>
   );
+}
+
+/** Champ construit depuis un brouillon local "libre.*" pas encore revenu du serveur
+ *  (creation optimiste : le champ apparait des le clic, sans attendre le refresh). */
+function champDepuisBrouillon(champId: string, encode: string): ChampOdj {
+  const { libelle, texte } = parseChampLibre(encode);
+  return {
+    id: champId,
+    libelle: libelle || "Nouveau champ",
+    source: "manuel",
+    editable: true,
+    saisi: true,
+    libre: true,
+    ...(texte ? { valeur: texte } : {}),
+  };
 }
 
 export function DocumentOdjEditable({
@@ -318,18 +660,62 @@ export function DocumentOdjEditable({
   const moteur = useAutosaveOdj(onSaisir);
   const retires = odj.pointsLegaux.filter((p) => !p.applicable);
 
+  // Ajouts optimistes : les brouillons libre.*/bloc.* que le serveur ne rend pas encore.
+  const idsServeur = new Set([
+    ...odj.sections.flatMap((s) => s.champs.map((c) => c.id)),
+    ...(odj.blocsLibres ?? []).map((b) => b.id),
+  ]);
+  const brouillonsLocaux = { ...moteur.brouillons.enVol, ...moteur.brouillons.attente };
+  const visibleLocalement = (id: string, v: string) =>
+    v.trim() !== "" && !idsServeur.has(id) && !moteur.supprimes.has(id);
+  const champsLocauxDe = (sectionId: string): ChampOdj[] =>
+    Object.entries(brouillonsLocaux)
+      .filter(([id, v]) => visibleLocalement(id, v) && sectionDuChampLibre(id) === sectionId)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, v]) => champDepuisBrouillon(id, v));
+  const blocsLocaux = Object.entries(brouillonsLocaux)
+    .filter(([id, v]) => visibleLocalement(id, v) && estBlocLibre(id))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, v]) => ({ id, texte: v }));
+
   return (
     <div className="flex flex-col gap-3">
-      <BarreSauvegarde statut={statutGlobal(moteur.brouillons)} onEnregistrer={moteur.envoyer} />
+      <BarreSauvegarde moteur={moteur} />
       {/* La "feuille" : fond papier, la mise en page EXACTE du document imprimable. */}
       <div className="rounded-lg border border-line bg-white shadow-sm px-8 py-8 sm:px-10 sm:py-9">
         <DocumentOdj
           odj={odj}
           rendu={{
             valeur: (champ) => <ValeurEditable champ={champ} moteur={moteur} />,
+            ligneLibre: (champ) => <ChampLibreEditable champ={champ} moteur={moteur} />,
             modalite: (champVisio) => <ModaliteEditable champ={champVisio} moteur={moteur} />,
             point: (p) => <PointEditable point={p} onToggle={onTogglePoint} />,
             finPoints: <PointsRetires points={retires} onToggle={onTogglePoint} />,
+            finSection: (sectionId) => (
+              <>
+                {champsLocauxDe(sectionId).map((c) => (
+                  <ChampLibreEditable key={c.id} champ={c} moteur={moteur} />
+                ))}
+                <BoutonAjout
+                  libelle="Ajouter un champ"
+                  onClick={() =>
+                    moteur.commettre(idChampLibre(sectionId, Date.now()), "", serialiserChampLibre("Nouveau champ", ""), true)
+                  }
+                />
+              </>
+            ),
+            bloc: (b) => <BlocLibreEditable id={b.id} texteServeur={b.texte} moteur={moteur} />,
+            finDocument: (
+              <>
+                {blocsLocaux.map((b) => (
+                  <BlocLibreEditable key={b.id} id={b.id} texteServeur={b.texte} moteur={moteur} />
+                ))}
+                <BoutonAjout
+                  libelle="Ajouter un paragraphe"
+                  onClick={() => moteur.commettre(idBlocLibre(Date.now()), "", "Nouveau paragraphe - cliquer pour rédiger.", true)}
+                />
+              </>
+            ),
           }}
         />
       </div>

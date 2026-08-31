@@ -26,6 +26,8 @@ export interface ChampOdj {
    *  Pose par la superposition de l'etat dans get-odj. Sans ce marqueur, impossible de
    *  distinguer "Estale a rempli le champ" de "le gestionnaire l'a tape a la main". */
   saisi?: boolean;
+  /** Champ AJOUTE par le gestionnaire (libelle editable, supprimable) - cf. odj-libre. */
+  libre?: boolean;
 }
 
 /** Ce qu'on AFFICHE comme provenance d'un champ (badge de la ligne d'ODJ). */
@@ -98,6 +100,9 @@ export interface Odj {
   enTete: ChampOdj[];
   sections: SectionOdj[];
   pointsLegaux: PointLegal[];
+  /** Paragraphes AJOUTES par le gestionnaire en fin de document (cf. odj-libre).
+   *  Type inline (pas d'import odj-libre : il importe deja ChampOdj d'ici). */
+  blocsLibres?: { id: string; texte: string }[];
   /** Presente = ODJ cloture ("reunion terminee") : plus rien n'est modifiable. */
   cloture?: ClotureOdj;
 }
