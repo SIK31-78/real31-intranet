@@ -105,3 +105,29 @@ describe("odj-libre - blocs par section, masques, libelles reecrits", () => {
     expect(titresSectionsReecrits(etat).get("verif-comptes")).toBe("Les comptes");
   });
 });
+
+describe("odj-libre - notes ancrees sous une ligne", () => {
+  const etat = [
+    { champId: "note.comptes.ecart-budget.2", valeur: "Seconde note" },
+    { champId: "note.comptes.ecart-budget.1", valeur: "Le trop-percu s'explique par..." },
+    { champId: "note.libre.verif-comptes.5.9", valeur: "Note sur un champ LIBRE" },
+    { champId: "note.comptes.budget.3", valeur: null }, // supprimee : ignoree
+    { champId: "comptes.ecart-budget", valeur: "100" }, // pas une note
+  ];
+
+  it("ancreDeNote retrouve la ligne malgre les points dans son id", () => {
+    const { ancreDeNote, idNote } = modules;
+    expect(ancreDeNote(idNote("comptes.ecart-budget", 1725))).toBe("comptes.ecart-budget");
+    expect(ancreDeNote("note.libre.verif-comptes.5.9")).toBe("libre.verif-comptes.5");
+    expect(ancreDeNote("comptes.budget")).toBeUndefined();
+  });
+
+  it("notesDeLigne rend les notes de LA ligne, triees par creation", () => {
+    const { notesDeLigne } = modules;
+    expect(notesDeLigne(etat, "comptes.ecart-budget").map((n) => n.texte)).toEqual([
+      "Le trop-percu s'explique par...",
+      "Seconde note",
+    ]);
+    expect(notesDeLigne(etat, "comptes.budget")).toEqual([]);
+  });
+});

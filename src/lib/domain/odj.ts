@@ -34,6 +34,8 @@ export interface ChampOdj {
   /** Le libelle affiche vient d'une REECRITURE du gestionnaire ("libelle.<id>").
    *  Necessaire a l'annulation : effacer la reecriture != effacer le catalogue. */
   libelleReecrit?: boolean;
+  /** Paragraphes ANCRES sous cette ligne ("note.<id>.<ts>") - ils la suivent partout. */
+  notes?: { id: string; texte: string }[];
 }
 
 /** Ce qu'on AFFICHE comme provenance d'un champ (badge de la ligne d'ODJ). */

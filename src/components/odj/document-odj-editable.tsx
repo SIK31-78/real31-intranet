@@ -49,11 +49,12 @@ import {
   PREFIXE_LIBELLE,
   PREFIXE_MASQUE,
   PREFIXE_TITRE_SECTION,
+  ancreDeNote,
   estAjoutLibre,
   estBlocLibre,
-  idBlocDeSection,
   idBlocLibre,
   idChampLibre,
+  idNote,
   parseChampLibre,
   sectionDuBloc,
   sectionDuChampLibre,
@@ -434,14 +435,26 @@ function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur: Moteur
         paragraphe={estParagraphe(champTexte, texte)}
         valeur={<ValeurLibre champ={champTexte} libelle={libelle} encodeActuel={encodeActuel} moteur={moteur} />}
         apres={
-          <button
-            type="button"
-            title="Supprimer ce champ"
-            onClick={() => moteur.commettre(champ.id, encodeActuel, "", true)}
-            className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
-          >
-            <X strokeWidth={1.5} className="w-3 h-3" />
-          </button>
+          <>
+            <button
+              type="button"
+              title="Ajouter un paragraphe SOUS cette ligne"
+              onClick={() =>
+                moteur.commettre(idNote(champ.id, Date.now()), "", "Nouveau paragraphe - cliquer pour rédiger.", true)
+              }
+              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-green-700 hover:bg-green-700/5 transition-opacity"
+            >
+              <Plus strokeWidth={1.5} className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              title="Supprimer ce champ"
+              onClick={() => moteur.commettre(champ.id, encodeActuel, "", true)}
+              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+            >
+              <X strokeWidth={1.5} className="w-3 h-3" />
+            </button>
+          </>
         }
       />
     </div>
@@ -754,14 +767,26 @@ function LigneStandardEditable({
         paragraphe={estParagraphe(champ, valeurAffichee)}
         valeur={<ValeurEditable champ={champ} moteur={moteur} sobre />}
         apres={
-          <button
-            type="button"
-            title="Retirer cette ligne du document"
-            onClick={() => moteur.commettre(cleMasque, "", "1", true)}
-            className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
-          >
-            <EyeOff strokeWidth={1.5} className="w-3 h-3" />
-          </button>
+          <>
+            <button
+              type="button"
+              title="Ajouter un paragraphe SOUS cette ligne (ex. expliquer ce montant)"
+              onClick={() =>
+                moteur.commettre(idNote(champ.id, Date.now()), "", "Nouveau paragraphe - cliquer pour rédiger.", true)
+              }
+              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-green-700 hover:bg-green-700/5 transition-opacity"
+            >
+              <Plus strokeWidth={1.5} className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              title="Retirer cette ligne du document"
+              onClick={() => moteur.commettre(cleMasque, "", "1", true)}
+              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
+            >
+              <EyeOff strokeWidth={1.5} className="w-3 h-3" />
+            </button>
+          </>
         }
       />
     </div>
@@ -865,6 +890,7 @@ export function DocumentOdjEditable({
   // Ajouts optimistes : les brouillons libre.*/bloc.* que le serveur ne rend pas encore.
   const idsServeur = new Set([
     ...odj.sections.flatMap((s) => s.champs.map((c) => c.id)),
+    ...odj.sections.flatMap((s) => s.champs.flatMap((c) => (c.notes ?? []).map((n) => n.id))),
     ...(odj.blocsLibres ?? []).map((b) => b.id),
   ]);
   const brouillonsLocaux = { ...moteur.brouillons.enVol, ...moteur.brouillons.attente };
@@ -876,6 +902,11 @@ export function DocumentOdjEditable({
       .filter(([id, v]) => visibleLocalement(id, v) && sectionDuChampLibre(id) === sectionId)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([id, v]) => champDepuisBrouillon(id, v));
+  const notesLocalesDe = (champAncre: string) =>
+    Object.entries(brouillonsLocaux)
+      .filter(([id, v]) => visibleLocalement(id, v) && ancreDeNote(id) === champAncre)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, v]) => ({ id, texte: v }));
   const blocsLocauxDe = (sectionId: string) =>
     Object.entries(brouillonsLocaux)
       .filter(([id, v]) => visibleLocalement(id, v) && sectionDuBloc(id) === sectionId)
@@ -908,28 +939,31 @@ export function DocumentOdjEditable({
             modalite: (champVisio) => <ModaliteEditable champ={champVisio} moteur={moteur} />,
             point: (p) => <PointEditable point={p} onToggle={onTogglePoint} />,
             finPoints: <PointsRetires points={retires} onToggle={onTogglePoint} />,
+            note: (n) => <BlocLibreEditable id={n.id} texteServeur={n.texte} moteur={moteur} />,
+            apresLigne: (c) => (
+              <>
+                {notesLocalesDe(c.id).map((n) => (
+                  <BlocLibreEditable key={n.id} id={n.id} texteServeur={n.texte} moteur={moteur} />
+                ))}
+              </>
+            ),
             finSection: (sectionId) => (
               <>
                 {champsLocauxDe(sectionId).map((c) => (
                   <ChampLibreEditable key={c.id} champ={c} moteur={moteur} />
                 ))}
+                {/* Les paragraphes s'ajoutent desormais SOUS leur ligne (bouton + de la
+                    ligne) : un ajout de fin de section "va tout en bas donc ne sert a
+                    rien" (retour 2026-09-01). Reste l'ajout de champ. */}
                 {blocsLocauxDe(sectionId).map((b) => (
                   <BlocLibreEditable key={b.id} id={b.id} texteServeur={b.texte} moteur={moteur} />
                 ))}
-                <div className="flex items-center gap-4">
-                  <BoutonAjout
-                    libelle="Ajouter un champ"
-                    onClick={() =>
-                      moteur.commettre(idChampLibre(sectionId, Date.now()), "", serialiserChampLibre("Nouveau champ", ""), true)
-                    }
-                  />
-                  <BoutonAjout
-                    libelle="Ajouter un paragraphe"
-                    onClick={() =>
-                      moteur.commettre(idBlocDeSection(sectionId, Date.now()), "", "Nouveau paragraphe - cliquer pour rédiger.", true)
-                    }
-                  />
-                </div>
+                <BoutonAjout
+                  libelle="Ajouter un champ"
+                  onClick={() =>
+                    moteur.commettre(idChampLibre(sectionId, Date.now()), "", serialiserChampLibre("Nouveau champ", ""), true)
+                  }
+                />
                 <ChampsMasques
                   section={odj.sections.find((s) => s.id === sectionId) ?? { id: sectionId, titre: "", champs: [] }}
                   moteur={moteur}

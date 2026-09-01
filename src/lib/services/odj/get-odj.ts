@@ -17,6 +17,7 @@ import {
   champsLibresDeSection,
   champsMasques,
   libellesReecrits,
+  notesDeLigne,
   titresSectionsReecrits,
 } from "@/lib/domain/odj-libre";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
@@ -270,11 +271,15 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   const masques = champsMasques(etat);
   const libelles = libellesReecrits(etat);
   const titres = titresSectionsReecrits(etat);
-  const personnaliser = (c: ChampOdj): ChampOdj => ({
-    ...c,
-    ...(libelles.get(c.id) ? { libelle: libelles.get(c.id) as string, libelleReecrit: true } : {}),
-    ...(masques.has(c.id) ? { masque: true } : {}),
-  });
+  const personnaliser = (c: ChampOdj): ChampOdj => {
+    const notes = notesDeLigne(etat, c.id);
+    return {
+      ...c,
+      ...(libelles.get(c.id) ? { libelle: libelles.get(c.id) as string, libelleReecrit: true } : {}),
+      ...(masques.has(c.id) ? { masque: true } : {}),
+      ...(notes.length ? { notes } : {}),
+    };
+  };
 
   const enTeteFinal = enTete.map(appliquer).map(personnaliser);
   // Champs libres : ajoutes par le gestionnaire, ils VIVENT dans l'etat (pas dans le
@@ -285,7 +290,7 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     return {
       ...s,
       ...(titres.get(s.id) ? { titre: titres.get(s.id) as string, titreReecrit: true } : {}),
-      champs: [...s.champs.map(appliquer).map(personnaliser), ...champsLibresDeSection(etat, s.id)],
+      champs: [...s.champs.map(appliquer).map(personnaliser), ...champsLibresDeSection(etat, s.id).map(personnaliser)],
       ...(blocsSection.length ? { blocs: blocsSection } : {}),
     };
   });

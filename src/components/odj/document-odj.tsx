@@ -7,7 +7,7 @@
 // (document-odj-editable). UNE seule mise en page pour les deux - le motif "deux
 // copies qui divergent" est exactement celui du bug ODJ lecture/ecriture du 2026-08-17.
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { ChampOdj, Odj, PointLegal, SectionOdj } from "@/lib/domain/odj";
 import { formatChampValeur } from "@/lib/domain/odj";
 
@@ -31,6 +31,10 @@ export interface RenduDocumentOdj {
   finSection?: (sectionId: string) => ReactNode;
   /** Rendu d'un paragraphe libre (edition + suppression). */
   bloc?: (bloc: { id: string; texte: string }) => ReactNode;
+  /** Rendu d'une NOTE ancree sous une ligne (edition + suppression). */
+  note?: (note: { id: string; texte: string }) => ReactNode;
+  /** Ajouts locaux (optimistes) sous une ligne : notes creees pas encore revenues. */
+  apresLigne?: (champ: ChampOdj) => ReactNode;
   /** Ajout apres les paragraphes libres (ex. bouton "+ paragraphe"). */
   finDocument?: ReactNode;
 }
@@ -215,7 +219,20 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
           {rendu?.titreSection ? rendu.titreSection(s, i + 1) : <TitreSection n={i + 1} titre={s.titre} />}
           <div className="space-y-0.5">
             {s.champs.map((c) => (
-              <Ligne key={c.id} libelle={c.libelle} champ={c} rendu={rendu} standard={!c.libre} />
+              <Fragment key={c.id}>
+                <Ligne libelle={c.libelle} champ={c} rendu={rendu} standard={!c.libre} />
+                {/* Notes ANCREES : elles suivent leur ligne (meme masquee, la note reste). */}
+                {(c.notes ?? []).map((n) =>
+                  rendu?.note ? (
+                    <div key={n.id} className="break-inside-avoid-page">{rendu.note(n)}</div>
+                  ) : (
+                    <p key={n.id} className="text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
+                      {n.texte}
+                    </p>
+                  ),
+                )}
+                {rendu?.apresLigne?.(c)}
+              </Fragment>
             ))}
           </div>
           {/* Paragraphes libres de la section */}

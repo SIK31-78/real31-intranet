@@ -27,6 +27,10 @@ export const PREFIXE_MASQUE = "masque.";
 export const PREFIXE_LIBELLE = "libelle.";
 /** "titre-section.<sectionId>" : titre de section reecrit. */
 export const PREFIXE_TITRE_SECTION = "titre-section.";
+/** "note.<champId>.<horodatage>" : paragraphe ANCRE sous une ligne precise (le besoin
+ *  reel du gestionnaire : expliquer le trop-percu JUSTE sous sa ligne - un paragraphe
+ *  de fin de section "va tout en bas donc ne sert a rien", retour 2026-09-01). */
+export const PREFIXE_NOTE = "note.";
 
 export interface BlocLibre {
   /** champId complet ("bloc.<horodatage>"), cle de persistance. */
@@ -45,7 +49,7 @@ export function estBlocLibre(champId: string): boolean {
 /** Champ libre OU paragraphe : ce qui a ete AJOUTE (donc supprimable) par opposition
  *  aux champs du squelette, qui se vident mais ne disparaissent jamais. */
 export function estAjoutLibre(champId: string): boolean {
-  return estChampLibre(champId) || estBlocLibre(champId);
+  return estChampLibre(champId) || estBlocLibre(champId) || estNote(champId);
 }
 
 /** "<libelle>|<texte>" -> { libelle, texte }. Sans "|", tout est libelle (saisie partielle). */
@@ -131,6 +135,31 @@ export function blocsLibres(etat: LigneEtat[], sectionsConnues?: ReadonlySet<str
       const s = sectionDuBloc(e.champId);
       return s === undefined || !(sectionsConnues?.has(s) ?? false);
     })
+    .sort((a, b) => a.champId.localeCompare(b.champId))
+    .map((e) => ({ id: e.champId, texte: e.valeur ?? "" }));
+}
+
+export function estNote(champId: string): boolean {
+  return champId.startsWith(PREFIXE_NOTE);
+}
+
+export function idNote(champAncre: string, maintenantMs: number): string {
+  return `${PREFIXE_NOTE}${champAncre}.${maintenantMs}`;
+}
+
+/** Ligne d'ancrage d'une note ("note.comptes.ecart-budget.1725..." -> "comptes.ecart-budget").
+ *  L'horodatage est TOUJOURS le dernier segment ; l'ancre peut elle-meme porter des points. */
+export function ancreDeNote(champId: string): string | undefined {
+  if (!estNote(champId)) return undefined;
+  const reste = champId.slice(PREFIXE_NOTE.length);
+  const i = reste.lastIndexOf(".");
+  return i > 0 ? reste.slice(0, i) : undefined;
+}
+
+/** Les notes ancrees sous UNE ligne, triees par ordre de creation. */
+export function notesDeLigne(etat: LigneEtat[], champAncre: string): BlocLibre[] {
+  return etat
+    .filter((e) => e.valeur && ancreDeNote(e.champId) === champAncre)
     .sort((a, b) => a.champId.localeCompare(b.champId))
     .map((e) => ({ id: e.champId, texte: e.valeur ?? "" }));
 }
