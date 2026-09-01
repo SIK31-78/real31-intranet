@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as modules from "./odj-libre";
 import {
   blocsLibres,
   champsLibresDeSection,
@@ -69,5 +70,38 @@ describe("odj-libre - lecture de l'etat", () => {
       { id: "bloc.5", texte: "Paragraphe libre." },
     ]);
     expect(idBlocLibre(7)).toBe("bloc.7");
+  });
+});
+
+describe("odj-libre - blocs par section, masques, libelles reecrits", () => {
+  const etat = [
+    { champId: "bloc.gestion-courante.2", valeur: "Para de section" },
+    { champId: "bloc.1", valeur: "Para fin de doc (historique sans section)" },
+    { champId: "bloc.zone-inconnue.3", valeur: "Section disparue -> fin de doc" },
+    { champId: "masque.comptes.compteurs-eau", valeur: "1" },
+    { champId: "masque.autre", valeur: null }, // demasque (efface) : ignore
+    { champId: "libelle.comptes.budget", valeur: "Budget de l'exercice" },
+    { champId: "titre-section.verif-comptes", valeur: "Les comptes" },
+  ];
+  const sections = new Set(["verif-comptes", "gestion-courante"]);
+
+  it("blocsLibresDeSection ne rend que les blocs de LA section", () => {
+    const { blocsLibresDeSection } = modules;
+    expect(blocsLibresDeSection(etat, "gestion-courante")).toEqual([
+      { id: "bloc.gestion-courante.2", texte: "Para de section" },
+    ]);
+    expect(blocsLibresDeSection(etat, "verif-comptes")).toEqual([]);
+  });
+
+  it("blocsLibres (fin de doc) = sans section OU section inconnue (bloc historique protege)", () => {
+    const { blocsLibres } = modules;
+    expect(blocsLibres(etat, sections).map((b) => b.id)).toEqual(["bloc.1", "bloc.zone-inconnue.3"]);
+  });
+
+  it("champsMasques / libellesReecrits / titresSectionsReecrits lisent leurs prefixes", () => {
+    const { champsMasques, libellesReecrits, titresSectionsReecrits } = modules;
+    expect(champsMasques(etat)).toEqual(new Set(["comptes.compteurs-eau"]));
+    expect(libellesReecrits(etat).get("comptes.budget")).toBe("Budget de l'exercice");
+    expect(titresSectionsReecrits(etat).get("verif-comptes")).toBe("Les comptes");
   });
 });

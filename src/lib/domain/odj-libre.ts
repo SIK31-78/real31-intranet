@@ -20,6 +20,13 @@ interface LigneEtat {
 
 export const PREFIXE_LIBRE = "libre.";
 export const PREFIXE_BLOC = "bloc.";
+/** "masque.<champId>" = "1" : le gestionnaire a RETIRE ce champ standard du document
+ *  (le squelette le refera toujours naitre ; seul cet etat le masque). */
+export const PREFIXE_MASQUE = "masque.";
+/** "libelle.<champId>" : libelle REECRIT par le gestionnaire (prime sur le catalogue). */
+export const PREFIXE_LIBELLE = "libelle.";
+/** "titre-section.<sectionId>" : titre de section reecrit. */
+export const PREFIXE_TITRE_SECTION = "titre-section.";
 
 export interface BlocLibre {
   /** champId complet ("bloc.<horodatage>"), cle de persistance. */
@@ -92,10 +99,65 @@ export function champsLibresDeSection(etat: LigneEtat[], sectionId: string): Cha
     });
 }
 
-/** Les paragraphes libres du document, tries par ordre de creation. */
-export function blocsLibres(etat: LigneEtat[]): BlocLibre[] {
+/** Section d'un bloc ("bloc.gestion-courante.1725..." -> "gestion-courante").
+ *  Les blocs historiques "bloc.<ts>" (sans section) n'en ont pas -> fin de document. */
+export function sectionDuBloc(champId: string): string | undefined {
+  if (!estBlocLibre(champId)) return undefined;
+  const reste = champId.slice(PREFIXE_BLOC.length);
+  const i = reste.lastIndexOf(".");
+  return i > 0 ? reste.slice(0, i) : undefined;
+}
+
+export function idBlocDeSection(sectionId: string, maintenantMs: number): string {
+  return `${PREFIXE_BLOC}${sectionId}.${maintenantMs}`;
+}
+
+/** Les paragraphes libres D'UNE SECTION, tries par ordre de creation. */
+export function blocsLibresDeSection(etat: LigneEtat[], sectionId: string): BlocLibre[] {
   return etat
-    .filter((e) => e.valeur && estBlocLibre(e.champId))
+    .filter((e) => e.valeur && sectionDuBloc(e.champId) === sectionId)
     .sort((a, b) => a.champId.localeCompare(b.champId))
     .map((e) => ({ id: e.champId, texte: e.valeur ?? "" }));
+}
+
+/** Les paragraphes libres de FIN DE DOCUMENT (blocs sans section, tries par creation).
+ *  `sectionsConnues` protege les blocs historiques : un id "bloc.<ts>" n'a pas de
+ *  section, mais "bloc.xyz.<ts>" dont xyz n'est PAS une section connue ne doit pas
+ *  disparaitre pour autant - il retombe en fin de document. */
+export function blocsLibres(etat: LigneEtat[], sectionsConnues?: ReadonlySet<string>): BlocLibre[] {
+  return etat
+    .filter((e) => {
+      if (!e.valeur || !estBlocLibre(e.champId)) return false;
+      const s = sectionDuBloc(e.champId);
+      return s === undefined || !(sectionsConnues?.has(s) ?? false);
+    })
+    .sort((a, b) => a.champId.localeCompare(b.champId))
+    .map((e) => ({ id: e.champId, texte: e.valeur ?? "" }));
+}
+
+/** Champs standards MASQUES par le gestionnaire (ids des champs, sans le prefixe). */
+export function champsMasques(etat: LigneEtat[]): Set<string> {
+  return new Set(
+    etat
+      .filter((e) => e.valeur && e.champId.startsWith(PREFIXE_MASQUE))
+      .map((e) => e.champId.slice(PREFIXE_MASQUE.length)),
+  );
+}
+
+/** Libelles reecrits par le gestionnaire : champId -> nouveau libelle. */
+export function libellesReecrits(etat: LigneEtat[]): Map<string, string> {
+  return new Map(
+    etat
+      .filter((e) => e.valeur && e.champId.startsWith(PREFIXE_LIBELLE))
+      .map((e) => [e.champId.slice(PREFIXE_LIBELLE.length), (e.valeur ?? "").trim()]),
+  );
+}
+
+/** Titres de section reecrits : sectionId -> nouveau titre. */
+export function titresSectionsReecrits(etat: LigneEtat[]): Map<string, string> {
+  return new Map(
+    etat
+      .filter((e) => e.valeur && e.champId.startsWith(PREFIXE_TITRE_SECTION))
+      .map((e) => [e.champId.slice(PREFIXE_TITRE_SECTION.length), (e.valeur ?? "").trim()]),
+  );
 }

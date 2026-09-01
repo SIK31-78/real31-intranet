@@ -25,7 +25,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import type { ChampOdj, Odj, PointLegal, ProvenanceChamp } from "@/lib/domain/odj";
+import type { ChampOdj, Odj, PointLegal, ProvenanceChamp, SectionOdj } from "@/lib/domain/odj";
 import { formatChampValeur, provenanceChamp } from "@/lib/domain/odj";
 import {
   BROUILLONS_VIDES,
@@ -46,11 +46,16 @@ import {
   type HistoriqueOdj,
 } from "@/lib/domain/odj-historique";
 import {
+  PREFIXE_LIBELLE,
+  PREFIXE_MASQUE,
+  PREFIXE_TITRE_SECTION,
   estAjoutLibre,
   estBlocLibre,
+  idBlocDeSection,
   idBlocLibre,
   idChampLibre,
   parseChampLibre,
+  sectionDuBloc,
   sectionDuChampLibre,
   serialiserChampLibre,
 } from "@/lib/domain/odj-libre";
@@ -249,11 +254,50 @@ function InputInline({
   );
 }
 
+/** Textarea multi-lignes pour les valeurs TEXTE : leur vrai ODJ CS est redige en
+ *  paragraphes (retour collegue 2026-09-01, "le saut de ligne ne fonctionne pas").
+ *  Entree = saut de ligne ; commit au blur ; abandon a Echap. */
+function TextareaInline({
+  initial,
+  onCommit,
+  onAbandon,
+}: {
+  initial: string;
+  onCommit: (v: string) => void;
+  onAbandon: () => void;
+}) {
+  const [v, setV] = useState(initial);
+  const commitRef = useRef(false);
+  return (
+    <textarea
+      // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient de cliquer ce champ precis
+      autoFocus
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => {
+        if (commitRef.current) return;
+        commitRef.current = true;
+        onCommit(v);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          commitRef.current = true;
+          onAbandon();
+        }
+      }}
+      rows={Math.max(2, v.split("\n").length)}
+      className="block w-full mt-0.5 px-2 py-1 rounded-sm bg-green-700/5 text-[12px] leading-[1.55] text-neutral-900 outline-none ring-1 ring-green-700/40 focus:ring-green-700 resize-y"
+    />
+  );
+}
+
 function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAutosave }) {
   const [edition, setEdition] = useState(false);
   const affiche = champAvecBrouillon(champ, moteur.brouillons);
   const titreProvenance = PROVENANCE_TITRE[provenanceChamp(affiche)];
   const actuel = valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur ?? "";
+  // Montants / pourcentages : une ligne. Tout le reste : PARAGRAPHE possible.
+  const multiligne = !champ.type || champ.type === "texte";
 
   if (!champ.editable) {
     return (
@@ -264,16 +308,18 @@ function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAuto
   }
 
   if (edition) {
+    const commit = (v: string) => {
+      setEdition(false);
+      const brut = v.trim();
+      if (brut !== actuel.trim()) moteur.commettre(champ.id, actuel, brut);
+    };
+    if (multiligne) return <TextareaInline initial={actuel} onAbandon={() => setEdition(false)} onCommit={commit} />;
     return (
       <InputInline
         initial={actuel}
         placeholder={champ.type === "montant" ? "Montant en €" : undefined}
         onAbandon={() => setEdition(false)}
-        onCommit={(v) => {
-          setEdition(false);
-          const brut = v.trim();
-          if (brut !== actuel.trim()) moteur.commettre(champ.id, actuel, brut);
-        }}
+        onCommit={commit}
       />
     );
   }
@@ -287,7 +333,7 @@ function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAuto
       className="group inline-flex items-baseline gap-1 max-w-full text-left align-baseline rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {v ? (
-        <span className="font-medium text-neutral-900 border-b border-dotted border-green-700/40">{v}</span>
+        <span className="font-medium text-neutral-900 whitespace-pre-wrap border-b border-dotted border-green-700/40">{v}</span>
       ) : (
         <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400 group-hover:border-green-700/60" />
       )}
@@ -633,6 +679,137 @@ function BarreSauvegarde({ moteur }: { moteur: MoteurAutosave }) {
   );
 }
 
+/** Ligne STANDARD de section : libelle renommable ("libelle.<id>"), valeur editable,
+ *  croix de masquage ("masque.<id>"). Le catalogue n'est jamais modifie - tout vit
+ *  dans l'etat, donc annulable (Ctrl+Z) et effacable (retour au catalogue). */
+function LigneStandardEditable({
+  champ,
+  libelle,
+  moteur,
+}: {
+  champ: ChampOdj;
+  libelle: string;
+  moteur: MoteurAutosave;
+}) {
+  const [editionLibelle, setEditionLibelle] = useState(false);
+  const cleMasque = `${PREFIXE_MASQUE}${champ.id}`;
+  const cleLibelle = `${PREFIXE_LIBELLE}${champ.id}`;
+  // Masquage OPTIMISTE : le brouillon local prime sur l'etat serveur.
+  const masqueLocal = valeurLocale(moteur.brouillons, cleMasque);
+  if (masqueLocal !== undefined ? masqueLocal.trim() !== "" : Boolean(champ.masque)) return null;
+  const libelleLocal = valeurLocale(moteur.brouillons, cleLibelle);
+  const libelleAffiche =
+    libelleLocal !== undefined ? (libelleLocal.trim() || libelle) : libelle;
+
+  return (
+    <p className="group/std text-[12px] leading-[1.55] text-neutral-700 flex items-baseline gap-1">
+      {editionLibelle ? (
+        <InputInline
+          initial={libelleAffiche}
+          placeholder="Libellé"
+          onAbandon={() => setEditionLibelle(false)}
+          onCommit={(v) => {
+            setEditionLibelle(false);
+            const nouveau = v.trim();
+            const avant = libelleLocal ?? (champ.libelleReecrit ? libelle : "");
+            // Vide = retour au libelle du catalogue (efface la reecriture).
+            if (nouveau !== libelleAffiche || nouveau === "") moteur.commettre(cleLibelle, avant, nouveau);
+          }}
+          classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 text-neutral-500 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+        />
+      ) : (
+        <button
+          type="button"
+          title="Cliquer pour renommer ce libellé (le vider rétablit l'original)"
+          onClick={() => setEditionLibelle(true)}
+          className="text-neutral-500 text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+        >
+          {libelleAffiche}
+        </button>
+      )}
+      <span className="text-neutral-500">: </span>
+      <span className="min-w-0 flex-1">
+        <ValeurEditable champ={champ} moteur={moteur} />
+      </span>
+      <button
+        type="button"
+        title="Retirer cette ligne du document"
+        onClick={() => moteur.commettre(cleMasque, "", "1", true)}
+        className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
+      >
+        <EyeOff strokeWidth={1.5} className="w-3 h-3" />
+      </button>
+    </p>
+  );
+}
+
+/** Titre de section renommable ("titre-section.<id>", vider = retour au catalogue). */
+function TitreSectionEditable({ section, n, moteur }: { section: SectionOdj; n: number; moteur: MoteurAutosave }) {
+  const [edition, setEdition] = useState(false);
+  const cle = `${PREFIXE_TITRE_SECTION}${section.id}`;
+  const local = valeurLocale(moteur.brouillons, cle);
+  const titre = local !== undefined ? (local.trim() || section.titre) : section.titre;
+  return (
+    <h2 className="flex items-baseline gap-2 mb-2 pb-1 border-b border-green-700/40 break-after-avoid">
+      <span className="text-green-700 font-bold text-[12.5px] tabular-nums">{n}.</span>
+      {edition ? (
+        <InputInline
+          initial={titre}
+          placeholder="Titre de la section"
+          onAbandon={() => setEdition(false)}
+          onCommit={(v) => {
+            setEdition(false);
+            const nouveau = v.trim();
+            const avant = local ?? (section.titreReecrit ? section.titre : "");
+            if (nouveau !== titre || nouveau === "") moteur.commettre(cle, avant, nouveau);
+          }}
+          classe="min-w-[220px] px-1 -mx-1 rounded-sm bg-green-700/5 text-[13px] font-semibold uppercase tracking-[0.04em] text-green-700 outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+        />
+      ) : (
+        <button
+          type="button"
+          title="Cliquer pour renommer cette section (la vider rétablit le titre d'origine)"
+          onClick={() => setEdition(true)}
+          className="text-[13px] font-semibold uppercase tracking-[0.04em] text-green-700 text-left rounded-sm hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+        >
+          {titre}
+        </button>
+      )}
+    </h2>
+  );
+}
+
+/** Lignes standard MASQUEES d'une section, reintegrables d'un clic (meme motif que
+ *  les points retires). L'etat local prime pour l'affichage optimiste. */
+function ChampsMasques({ section, moteur }: { section: SectionOdj; moteur: MoteurAutosave }) {
+  const masques = section.champs.filter((c) => {
+    if (c.libre) return false;
+    const local = valeurLocale(moteur.brouillons, `${PREFIXE_MASQUE}${c.id}`);
+    return local !== undefined ? local.trim() !== "" : Boolean(c.masque);
+  });
+  if (masques.length === 0) return null;
+  return (
+    <div className="mt-2 pt-1.5 border-t border-dashed border-neutral-200">
+      <p className="text-[11px] text-neutral-400 mb-1">Lignes retirées de cette section ({masques.length}) :</p>
+      <ul className="space-y-0.5">
+        {masques.map((c) => (
+          <li key={c.id}>
+            <button
+              type="button"
+              title="Réintégrer cette ligne"
+              onClick={() => moteur.commettre(`${PREFIXE_MASQUE}${c.id}`, "1", "", true)}
+              className="inline-flex items-center gap-1.5 text-[11.5px] text-neutral-500 hover:text-green-700"
+            >
+              <Eye strokeWidth={1.5} className="w-3 h-3 shrink-0" />
+              <span className="line-through decoration-neutral-300">{c.libelle}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Champ construit depuis un brouillon local "libre.*" pas encore revenu du serveur
  *  (creation optimiste : le champ apparait des le clic, sans attendre le refresh). */
 function champDepuisBrouillon(champId: string, encode: string): ChampOdj {
@@ -668,13 +845,24 @@ export function DocumentOdjEditable({
   const brouillonsLocaux = { ...moteur.brouillons.enVol, ...moteur.brouillons.attente };
   const visibleLocalement = (id: string, v: string) =>
     v.trim() !== "" && !idsServeur.has(id) && !moteur.supprimes.has(id);
+  const sectionsConnues = new Set(odj.sections.map((s) => s.id));
   const champsLocauxDe = (sectionId: string): ChampOdj[] =>
     Object.entries(brouillonsLocaux)
       .filter(([id, v]) => visibleLocalement(id, v) && sectionDuChampLibre(id) === sectionId)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([id, v]) => champDepuisBrouillon(id, v));
+  const blocsLocauxDe = (sectionId: string) =>
+    Object.entries(brouillonsLocaux)
+      .filter(([id, v]) => visibleLocalement(id, v) && sectionDuBloc(id) === sectionId)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, v]) => ({ id, texte: v }));
+  // Fin de document = blocs SANS section connue (les historiques "bloc.<ts>" inclus).
   const blocsLocaux = Object.entries(brouillonsLocaux)
-    .filter(([id, v]) => visibleLocalement(id, v) && estBlocLibre(id))
+    .filter(([id, v]) => {
+      if (!visibleLocalement(id, v) || !estBlocLibre(id)) return false;
+      const s = sectionDuBloc(id);
+      return s === undefined || !sectionsConnues.has(s);
+    })
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([id, v]) => ({ id, texte: v }));
 
@@ -688,6 +876,10 @@ export function DocumentOdjEditable({
           rendu={{
             valeur: (champ) => <ValeurEditable champ={champ} moteur={moteur} />,
             ligneLibre: (champ) => <ChampLibreEditable champ={champ} moteur={moteur} />,
+            ligneStandard: (champ, libelle) => (
+              <LigneStandardEditable champ={champ} libelle={libelle} moteur={moteur} />
+            ),
+            titreSection: (section, n) => <TitreSectionEditable section={section} n={n} moteur={moteur} />,
             modalite: (champVisio) => <ModaliteEditable champ={champVisio} moteur={moteur} />,
             point: (p) => <PointEditable point={p} onToggle={onTogglePoint} />,
             finPoints: <PointsRetires points={retires} onToggle={onTogglePoint} />,
@@ -696,11 +888,26 @@ export function DocumentOdjEditable({
                 {champsLocauxDe(sectionId).map((c) => (
                   <ChampLibreEditable key={c.id} champ={c} moteur={moteur} />
                 ))}
-                <BoutonAjout
-                  libelle="Ajouter un champ"
-                  onClick={() =>
-                    moteur.commettre(idChampLibre(sectionId, Date.now()), "", serialiserChampLibre("Nouveau champ", ""), true)
-                  }
+                {blocsLocauxDe(sectionId).map((b) => (
+                  <BlocLibreEditable key={b.id} id={b.id} texteServeur={b.texte} moteur={moteur} />
+                ))}
+                <div className="flex items-center gap-4">
+                  <BoutonAjout
+                    libelle="Ajouter un champ"
+                    onClick={() =>
+                      moteur.commettre(idChampLibre(sectionId, Date.now()), "", serialiserChampLibre("Nouveau champ", ""), true)
+                    }
+                  />
+                  <BoutonAjout
+                    libelle="Ajouter un paragraphe"
+                    onClick={() =>
+                      moteur.commettre(idBlocDeSection(sectionId, Date.now()), "", "Nouveau paragraphe - cliquer pour rédiger.", true)
+                    }
+                  />
+                </div>
+                <ChampsMasques
+                  section={odj.sections.find((s) => s.id === sectionId) ?? { id: sectionId, titre: "", champs: [] }}
+                  moteur={moteur}
                 />
               </>
             ),

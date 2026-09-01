@@ -8,7 +8,7 @@
 // copies qui divergent" est exactement celui du bug ODJ lecture/ecriture du 2026-08-17.
 
 import type { ReactNode } from "react";
-import type { ChampOdj, Odj, PointLegal } from "@/lib/domain/odj";
+import type { ChampOdj, Odj, PointLegal, SectionOdj } from "@/lib/domain/odj";
 import { formatChampValeur } from "@/lib/domain/odj";
 
 /** Points d'injection de la page d'edition. Tous optionnels : defaut = statique. */
@@ -17,6 +17,10 @@ export interface RenduDocumentOdj {
   valeur?: (champ: ChampOdj) => ReactNode;
   /** Rendu COMPLET d'une ligne de champ LIBRE (libelle editable + valeur + suppression). */
   ligneLibre?: (champ: ChampOdj) => ReactNode;
+  /** Rendu COMPLET d'une ligne STANDARD de section (libelle renommable + valeur + masquage). */
+  ligneStandard?: (champ: ChampOdj, libelle: string) => ReactNode;
+  /** Rendu du TITRE d'une section (renommable en edition). */
+  titreSection?: (section: SectionOdj, n: number) => ReactNode;
   /** Rendu de la ligne "Modalite" (le booleen visio, libelles specifiques). */
   modalite?: (champVisio: ChampOdj | undefined) => ReactNode;
   /** Rendu d'un point reglementaire APPLICABLE (titre + texte + controles). */
@@ -35,17 +39,34 @@ function champDe(champs: ChampOdj[], id: string): ChampOdj | undefined {
   return champs.find((c) => c.id === id);
 }
 
-/** Valeur renseignee, ou un trait pointille a completer a la main. */
+/** Valeur renseignee, ou un trait pointille a completer a la main. Les SAUTS DE
+ *  LIGNE sont rendus (leur vrai ODJ CS est redige en paragraphes, pas en champs). */
 export function ValeurStatique({ v }: { v?: string }) {
-  if (v) return <span className="font-medium text-neutral-900">{v}</span>;
+  if (v) return <span className="font-medium text-neutral-900 whitespace-pre-wrap">{v}</span>;
   return (
     <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400" />
   );
 }
 
-function Ligne({ libelle, champ, rendu }: { libelle: string; champ?: ChampOdj; rendu?: RenduDocumentOdj }) {
+function Ligne({
+  libelle,
+  champ,
+  rendu,
+  standard,
+}: {
+  libelle: string;
+  champ?: ChampOdj;
+  rendu?: RenduDocumentOdj;
+  /** Ligne de SECTION (renommable/masquable) - jamais les fondamentaux de l'en-tete. */
+  standard?: boolean;
+}) {
+  // Champ MASQUE par le gestionnaire : absent du document. La page d'edition le
+  // propose a la reintegration via finSection, jamais ici.
+  if (champ?.masque) return null;
   // Champ LIBRE : la ligne entiere est rendue par la page d'edition (libelle editable).
   if (champ?.libre && rendu?.ligneLibre) return <>{rendu.ligneLibre(champ)}</>;
+  // Ligne STANDARD en edition : rendue entiere par la page (libelle renommable + croix).
+  if (champ && standard && rendu?.ligneStandard) return <>{rendu.ligneStandard(champ, libelle)}</>;
   return (
     <p className="text-[12px] leading-[1.55] text-neutral-700">
       <span className="text-neutral-500">{libelle} : </span>
@@ -67,7 +88,7 @@ function formatFinReunion(iso: string): string | undefined {
   return f.replace(":", "h");
 }
 
-function TitreSection({ n, titre }: { n: number; titre: string }) {
+export function TitreSection({ n, titre }: { n: number; titre: string }) {
   return (
     <h2 className="flex items-baseline gap-2 mb-2 pb-1 border-b border-green-700/40 break-after-avoid">
       <span className="text-green-700 font-bold text-[12.5px] tabular-nums">{n}.</span>
@@ -128,12 +149,26 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
       {/* Sections numerotees */}
       {odj.sections.map((s, i) => (
         <section key={s.id} className="mb-5 break-inside-avoid-page">
-          <TitreSection n={i + 1} titre={s.titre} />
+          {rendu?.titreSection ? rendu.titreSection(s, i + 1) : <TitreSection n={i + 1} titre={s.titre} />}
           <div className="space-y-0.5">
             {s.champs.map((c) => (
-              <Ligne key={c.id} libelle={c.libelle} champ={c} rendu={rendu} />
+              <Ligne key={c.id} libelle={c.libelle} champ={c} rendu={rendu} standard={!c.libre} />
             ))}
           </div>
+          {/* Paragraphes libres de la section */}
+          {(s.blocs ?? []).length > 0 && (
+            <div className="mt-1.5 space-y-2">
+              {(s.blocs ?? []).map((b) =>
+                rendu?.bloc ? (
+                  <div key={b.id} className="break-inside-avoid-page">{rendu.bloc(b)}</div>
+                ) : (
+                  <p key={b.id} className="text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
+                    {b.texte}
+                  </p>
+                ),
+              )}
+            </div>
+          )}
           {rendu?.finSection?.(s.id)}
         </section>
       ))}

@@ -11,7 +11,14 @@ import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { PREFIXE_POINT } from "@/lib/ports/odj-repository";
 import { cleOdj, decouperIdOdj } from "@/lib/services/odj/resoudre-cle-odj";
-import { blocsLibres, champsLibresDeSection } from "@/lib/domain/odj-libre";
+import {
+  blocsLibres,
+  blocsLibresDeSection,
+  champsLibresDeSection,
+  champsMasques,
+  libellesReecrits,
+  titresSectionsReecrits,
+} from "@/lib/domain/odj-libre";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import { DELAIS_CABINET } from "@/lib/domain/jalons-ag/cabinet/real31-defaults";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
@@ -257,14 +264,32 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     return corrige;
   };
 
-  const enTeteFinal = enTete.map(appliquer);
+  // Liberte d'edition du gestionnaire (retour collegue 2026-09-01, calque sur leur
+  // vrai ODJ CS) : libelles et titres de section REECRITS, champs standards MASQUES,
+  // champs et paragraphes libres par section. Tout vit dans la meme table d'etat.
+  const masques = champsMasques(etat);
+  const libelles = libellesReecrits(etat);
+  const titres = titresSectionsReecrits(etat);
+  const personnaliser = (c: ChampOdj): ChampOdj => ({
+    ...c,
+    ...(libelles.get(c.id) ? { libelle: libelles.get(c.id) as string, libelleReecrit: true } : {}),
+    ...(masques.has(c.id) ? { masque: true } : {}),
+  });
+
+  const enTeteFinal = enTete.map(appliquer).map(personnaliser);
   // Champs libres : ajoutes par le gestionnaire, ils VIVENT dans l'etat (pas dans le
-  // squelette) et rejoignent leur section a la lecture. Blocs libres : fin de document.
-  const sectionsFinales = sections.map((s) => ({
-    ...s,
-    champs: [...s.champs.map(appliquer), ...champsLibresDeSection(etat, s.id)],
-  }));
-  const blocs = blocsLibres(etat);
+  // squelette) et rejoignent leur section a la lecture. Blocs libres : par section,
+  // le reliquat (sans section connue) en fin de document.
+  const sectionsFinales = sections.map((s) => {
+    const blocsSection = blocsLibresDeSection(etat, s.id);
+    return {
+      ...s,
+      ...(titres.get(s.id) ? { titre: titres.get(s.id) as string, titreReecrit: true } : {}),
+      champs: [...s.champs.map(appliquer).map(personnaliser), ...champsLibresDeSection(etat, s.id)],
+      ...(blocsSection.length ? { blocs: blocsSection } : {}),
+    };
+  });
+  const blocs = blocsLibres(etat, new Set(sections.map((s) => s.id)));
 
   // Champs calcules (apres superposition, pour partir des valeurs effectives).
   const valeurDe = (id: string): string | undefined =>

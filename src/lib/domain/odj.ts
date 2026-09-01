@@ -28,6 +28,12 @@ export interface ChampOdj {
   saisi?: boolean;
   /** Champ AJOUTE par le gestionnaire (libelle editable, supprimable) - cf. odj-libre. */
   libre?: boolean;
+  /** Champ standard RETIRE du document par le gestionnaire ("masque.<id>" dans l'etat).
+   *  Il reste dans la section (pour la reintegration) mais ne se rend plus. */
+  masque?: boolean;
+  /** Le libelle affiche vient d'une REECRITURE du gestionnaire ("libelle.<id>").
+   *  Necessaire a l'annulation : effacer la reecriture != effacer le catalogue. */
+  libelleReecrit?: boolean;
 }
 
 /** Ce qu'on AFFICHE comme provenance d'un champ (badge de la ligne d'ODJ). */
@@ -69,6 +75,10 @@ export interface SectionOdj {
   id: string;
   titre: string;
   champs: ChampOdj[];
+  /** Paragraphes libres de la section (type inline, meme raison que Odj.blocsLibres). */
+  blocs?: { id: string; texte: string }[];
+  /** Le titre affiche vient d'une reecriture du gestionnaire ("titre-section.<id>"). */
+  titreReecrit?: boolean;
 }
 
 export interface PointLegal {
