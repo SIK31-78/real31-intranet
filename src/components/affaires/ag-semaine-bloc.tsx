@@ -60,6 +60,15 @@ export function AgSemaineBloc({ lignes }: { lignes: AgSemaineLigne[] }) {
                   {ligne.echeance}
                 </Badge>
               )}
+              {ligne.actionSecondaire && (
+                <Link
+                  href={ligne.actionSecondaire.lien}
+                  title="La préparation n'attend pas la date : l'ODJ sera rattaché à l'AG quand sa date sera fixée"
+                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors shrink-0"
+                >
+                  {ligne.actionSecondaire.label}
+                </Link>
+              )}
               <Link
                 href={ligne.lien}
                 className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors shrink-0"

@@ -20,21 +20,39 @@ export function ActionCycleFiche({
   const classe =
     "inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1";
 
+  // Action secondaire legitime au meme moment (ex. preparer l'ODJ pendant la phase
+  // Dates - la preparation n'attend pas la date, retour collegue 2026-09-01).
+  const secondaire = action.secondaire && (
+    <Link
+      href={action.secondaire.href}
+      title="La préparation n'attend pas la date : l'ODJ sera rattaché à l'AG quand sa date sera fixée"
+      className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors shrink-0"
+    >
+      {action.secondaire.label}
+    </Link>
+  );
+
   // Action circulaire (elle se joue sur cette page) : scroll + focus vers les dates.
   if (action.href === `/copropriete/${coproCode}`) {
     return (
-      <button type="button" onClick={focusDates} className={classe}>
-        {action.label}
-        <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-      </button>
+      <span className="inline-flex items-center gap-2">
+        {secondaire}
+        <button type="button" onClick={focusDates} className={classe}>
+          {action.label}
+          <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
+        </button>
+      </span>
     );
   }
 
   return (
-    <Link href={action.href} className={classe}>
-      {action.label}
-      <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-    </Link>
+    <span className="inline-flex items-center gap-2">
+      {secondaire}
+      <Link href={action.href} className={classe}>
+        {action.label}
+        <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
+      </Link>
+    </span>
   );
 }
 

@@ -56,6 +56,9 @@ export interface ActionDuMoment {
   label: string;
   /** Cible du bouton. */
   href: string;
+  /** Action secondaire legitime au meme moment (ex. preparer l'ODJ pendant la phase
+   *  Dates : le brouillon sans date est rattache a l'AG des que sa date est fixee). */
+  secondaire?: { label: string; href: string };
 }
 
 /**
@@ -150,6 +153,9 @@ export function calculerCycleAg(
       action: ligne.prochaineAction,
       label: ligne.actionLabel,
       href: ligne.lien,
+      ...(ligne.actionSecondaire
+        ? { secondaire: { label: ligne.actionSecondaire.label, href: ligne.actionSecondaire.lien } }
+        : {}),
     },
     ...(ligne.echeance ? { echeance: ligne.echeance } : {}),
   };

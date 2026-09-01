@@ -47,6 +47,9 @@ export interface LigneParcours {
   echeance?: string;
   /** Vrai si l'echeance de l'etape courante est depassee. */
   enRetard?: boolean;
+  /** Action SECONDAIRE de l'etape (ex. en phase Dates : preparer l'ODJ sans attendre -
+   *  le brouillon sans date est rattache a l'AG des que sa date est fixee). */
+  actionSecondaire?: { label: string; lien: string };
   /** Cloture de l'exercice comptable "JJ/MM" (sert au filtre du dashboard). */
   exerciceCloture?: string;
 }
@@ -174,7 +177,7 @@ function actionEtape(
   code: CodeEtape,
   c: Copropriete,
   agDate: string | undefined,
-): { prochaineAction: string; actionLabel: string; lien: string } {
+): { prochaineAction: string; actionLabel: string; lien: string; actionSecondaire?: { label: string; lien: string } } {
   const sup = agDate ? `/supervision-ag/${c.code}__${agDate}` : `/supervision-ag/${c.code}`;
   switch (code) {
     case "dates":
@@ -183,6 +186,10 @@ function actionEtape(
         prochaineAction: agDate ? "fixer la date du CS" : "fixer les dates CS + AG",
         actionLabel: "Fixer",
         lien: `/copropriete/${c.code}`,
+        // La preparation n'attend PAS la date (retour collegue 2026-09-01) : l'ODJ
+        // s'edite sans date et son etat est rattache a l'AG quand elle est fixee
+        // (reporterOdjSansDate, branche sur la saisie de date de la fiche).
+        actionSecondaire: { label: "Préparer l'ODJ", lien: `/odj/${c.code}` },
       };
     case "odj":
       return { prochaineAction: "préparer l'ODJ", actionLabel: "ODJ", lien: `/odj/${c.code}` };

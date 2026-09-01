@@ -270,3 +270,16 @@ describe("calculerCycleAg = les DEUX anciennes projections, a l'identique", () =
     expect(cycle.actionDuMoment?.href).toBe(ligne?.lien);
   });
 });
+
+describe("phase dates - action secondaire ODJ (preparation sans attendre la date)", () => {
+  it("en phase Dates, l'action secondaire pointe vers l'ODJ de la copro", () => {
+    const { actionDuMoment } = calculerCycleAg(copro({}), new Set(), TODAY);
+    expect(actionDuMoment?.label).toBe("Fixer");
+    expect(actionDuMoment?.secondaire).toEqual({ label: "Préparer l'ODJ", href: "/odj/S001" });
+  });
+
+  it("hors phase Dates (ODJ deja l'action principale), pas d'action secondaire", () => {
+    const { actionDuMoment } = calculerCycleAg(copro(AG_PROCHE), new Set(), TODAY);
+    expect(actionDuMoment?.secondaire).toBeUndefined();
+  });
+});

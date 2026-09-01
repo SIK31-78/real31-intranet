@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Printer, ListChecks, AlertTriangle } from "lucide-react";
+import { Printer, ListChecks, Info } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { getOdj } from "@/lib/services/odj/get-odj";
 import { getGestionnaireCourant } from "@/lib/auth/session";
@@ -63,12 +63,17 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
             s&apos;enregistre automatiquement (la vider rétablit la valeur automatique).
           </p>
           {!odj.dateAg && (
-            <div className="mt-3 flex items-start gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
-              <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
-              <p className="text-[12.5px] text-warn-700">
-                Aucune date d&apos;AG definie : les echeances (mise sous pli, convocation) ne sont pas calculees.{" "}
+            // PAS un avertissement bloquant : la preparation n'attend pas la date
+            // (retour collegue 2026-09-01). Le brouillon sans date est rattache a
+            // l'AG des que sa date est fixee (reporterOdjSansDate).
+            <div className="mt-3 flex items-start gap-2.5 rounded-md border border-info-500/30 bg-info-50 px-3.5 py-2.5">
+              <Info strokeWidth={1.5} className="w-4 h-4 text-info-700 shrink-0 mt-px" />
+              <p className="text-[12.5px] text-info-700">
+                Pas encore de date d&apos;AG : vous pouvez préparer dès maintenant, tout sera
+                automatiquement rattaché à l&apos;AG quand sa date sera fixée. Seules les échéances
+                (mise sous pli, limite d&apos;ajout de points) restent à calculer -{" "}
                 <Link href={`/copropriete/${odj.copro.code}`} className="font-medium underline">
-                  Definir la date sur la fiche copro
+                  fixer la date sur la fiche copro
                 </Link>
                 .
               </p>

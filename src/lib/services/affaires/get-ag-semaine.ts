@@ -52,6 +52,9 @@ export interface AgSemaineLigne {
   echeance?: string;
   /** Defaut de planification legale depasse (cycle.enRetard). */
   enRetard: boolean;
+  /** Action secondaire du moment (cycle.actionDuMoment.secondaire), ex preparer
+   *  l'ODJ pendant la phase Dates. */
+  actionSecondaire?: { label: string; lien: string };
 }
 
 function aujourdhuiISO(): string {
@@ -96,6 +99,7 @@ function versLigne(c: Copropriete, cycle: CycleAg): AgSemaineLigne | null {
     actionLabel: action.label,
     lien: action.href,
     enRetard: cycle.enRetard,
+    ...(action.secondaire ? { actionSecondaire: { label: action.secondaire.label, lien: action.secondaire.href } } : {}),
     ...(cycle.echeance ? { echeance: cycle.echeance } : {}),
   };
 }
