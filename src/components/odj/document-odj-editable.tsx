@@ -431,7 +431,7 @@ function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur: Moteur
     <div className="group/libre">
       <CorpsLigneSection
         libelle={renduLibelle}
-        paragraphe={estParagraphe(texte)}
+        paragraphe={estParagraphe(champTexte, texte)}
         valeur={<ValeurLibre champ={champTexte} libelle={libelle} encodeActuel={encodeActuel} moteur={moteur} />}
         apres={
           <button
@@ -751,7 +751,7 @@ function LigneStandardEditable({
     <div className="group/std">
       <CorpsLigneSection
         libelle={renduLibelle}
-        paragraphe={estParagraphe(valeurAffichee)}
+        paragraphe={estParagraphe(champ, valeurAffichee)}
         valeur={<ValeurEditable champ={champ} moteur={moteur} sobre />}
         apres={
           <button

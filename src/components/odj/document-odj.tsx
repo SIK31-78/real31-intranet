@@ -55,9 +55,12 @@ export function ValeurStatique({ v, gras = true }: { v?: string; gras?: boolean 
 }
 
 /** Une valeur de section se rend-elle en PARAGRAPHE sous son titre (plutot qu'inline) ?
- *  Regle : des qu'elle porte un saut de ligne ou depasse la largeur d'une ligne. */
-export function estParagraphe(v?: string): boolean {
-  return Boolean(v && (v.includes("\n") || v.length > 90));
+ *  Regle (retour collegue 2026-09-01, "des lignes qui ne sont pas d'office en saut de
+ *  ligne") : TOUT texte renseigne passe sous le titre, comme leur ODJ Word. Seuls les
+ *  montants/pourcentages (courts par nature) et les champs vides restent inline. */
+export function estParagraphe(champ: { type?: string; valeur?: string } | undefined, v?: string): boolean {
+  if (!v) return false;
+  return !champ?.type || champ.type === "texte";
 }
 
 /** Mise en page d'une ligne de SECTION, calquee sur leur ODJ CS Word : sous-titre en
@@ -122,7 +125,7 @@ function Ligne({
     return (
       <CorpsLigneSection
         libelle={libelle}
-        paragraphe={estParagraphe(v)}
+        paragraphe={estParagraphe(champ, v)}
         valeur={rendu?.valeur && champ ? rendu.valeur(champ) : <ValeurStatique v={v} gras={false} />}
       />
     );
