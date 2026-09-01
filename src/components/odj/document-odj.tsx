@@ -40,11 +40,60 @@ function champDe(champs: ChampOdj[], id: string): ChampOdj | undefined {
 }
 
 /** Valeur renseignee, ou un trait pointille a completer a la main. Les SAUTS DE
- *  LIGNE sont rendus (leur vrai ODJ CS est redige en paragraphes, pas en champs). */
-export function ValeurStatique({ v }: { v?: string }) {
-  if (v) return <span className="font-medium text-neutral-900 whitespace-pre-wrap">{v}</span>;
+ *  LIGNE sont rendus (leur vrai ODJ CS est redige en paragraphes, pas en champs).
+ *  `gras` : l'en-tete reunion garde la valeur en gras ; dans les SECTIONS c'est le
+ *  LIBELLE qui porte le gras (hierarchie de leur document Word), la valeur est sobre. */
+export function ValeurStatique({ v, gras = true }: { v?: string; gras?: boolean }) {
+  if (v) {
+    return (
+      <span className={`whitespace-pre-wrap ${gras ? "font-medium text-neutral-900" : "text-neutral-700"}`}>{v}</span>
+    );
+  }
   return (
     <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400" />
+  );
+}
+
+/** Une valeur de section se rend-elle en PARAGRAPHE sous son titre (plutot qu'inline) ?
+ *  Regle : des qu'elle porte un saut de ligne ou depasse la largeur d'une ligne. */
+export function estParagraphe(v?: string): boolean {
+  return Boolean(v && (v.includes("\n") || v.length > 90));
+}
+
+/** Mise en page d'une ligne de SECTION, calquee sur leur ODJ CS Word : sous-titre en
+ *  GRAS, et le texte long passe EN DESSOUS en paragraphe. Partagee entre le rendu
+ *  statique (imprimable) et l'edition - une seule structure, jamais deux copies. */
+export function CorpsLigneSection({
+  libelle,
+  valeur,
+  paragraphe,
+  apres,
+}: {
+  libelle: ReactNode;
+  valeur: ReactNode;
+  paragraphe: boolean;
+  /** Controles de fin de ligne (croix de masquage/suppression), edition seulement. */
+  apres?: ReactNode;
+}) {
+  if (paragraphe) {
+    return (
+      <div className="text-[12px] leading-[1.55] break-inside-avoid-page">
+        <p className="flex items-baseline gap-1">
+          <span className="font-semibold text-neutral-800">{libelle}</span>
+          <span className="font-semibold text-neutral-800">:</span>
+          {apres}
+        </p>
+        <div className="text-neutral-700">{valeur}</div>
+      </div>
+    );
+  }
+  return (
+    <p className="text-[12px] leading-[1.55] text-neutral-700 flex items-baseline gap-1">
+      <span className="font-semibold text-neutral-800 shrink-0">{libelle}</span>
+      <span className="font-semibold text-neutral-800">:</span>
+      <span className="min-w-0 flex-1">{valeur}</span>
+      {apres}
+    </p>
   );
 }
 
@@ -67,6 +116,17 @@ function Ligne({
   if (champ?.libre && rendu?.ligneLibre) return <>{rendu.ligneLibre(champ)}</>;
   // Ligne STANDARD en edition : rendue entiere par la page (libelle renommable + croix).
   if (champ && standard && rendu?.ligneStandard) return <>{rendu.ligneStandard(champ, libelle)}</>;
+  // Ligne de SECTION statique : sous-titre gras + paragraphe (mise en page Word).
+  if (standard) {
+    const v = champ ? formatChampValeur(champ) : undefined;
+    return (
+      <CorpsLigneSection
+        libelle={libelle}
+        paragraphe={estParagraphe(v)}
+        valeur={rendu?.valeur && champ ? rendu.valeur(champ) : <ValeurStatique v={v} gras={false} />}
+      />
+    );
+  }
   return (
     <p className="text-[12px] leading-[1.55] text-neutral-700">
       <span className="text-neutral-500">{libelle} : </span>

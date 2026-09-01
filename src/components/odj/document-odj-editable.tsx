@@ -59,7 +59,7 @@ import {
   sectionDuChampLibre,
   serialiserChampLibre,
 } from "@/lib/domain/odj-libre";
-import { DocumentOdj, ValeurStatique } from "@/components/odj/document-odj";
+import { CorpsLigneSection, DocumentOdj, ValeurStatique, estParagraphe } from "@/components/odj/document-odj";
 
 const DELAI_AUTOSAVE_MS = 900;
 
@@ -291,7 +291,16 @@ function TextareaInline({
   );
 }
 
-function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAutosave }) {
+function ValeurEditable({
+  champ,
+  moteur,
+  sobre = false,
+}: {
+  champ: ChampOdj;
+  moteur: MoteurAutosave;
+  /** Lignes de SECTION : le gras est au libelle, la valeur reste sobre (mise en page Word). */
+  sobre?: boolean;
+}) {
   const [edition, setEdition] = useState(false);
   const affiche = champAvecBrouillon(champ, moteur.brouillons);
   const titreProvenance = PROVENANCE_TITRE[provenanceChamp(affiche)];
@@ -302,7 +311,7 @@ function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAuto
   if (!champ.editable) {
     return (
       <span title={titreProvenance}>
-        <ValeurStatique v={formatChampValeur(affiche)} />
+        <ValeurStatique v={formatChampValeur(affiche)} gras={!sobre} />
       </span>
     );
   }
@@ -333,7 +342,11 @@ function ValeurEditable({ champ, moteur }: { champ: ChampOdj; moteur: MoteurAuto
       className="group inline-flex items-baseline gap-1 max-w-full text-left align-baseline rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {v ? (
-        <span className="font-medium text-neutral-900 whitespace-pre-wrap border-b border-dotted border-green-700/40">{v}</span>
+        <span
+          className={`whitespace-pre-wrap border-b border-dotted border-green-700/40 ${sobre ? "text-neutral-700" : "font-medium text-neutral-900"}`}
+        >
+          {v}
+        </span>
       ) : (
         <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400 group-hover:border-green-700/60" />
       )}
@@ -391,42 +404,47 @@ function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur: Moteur
     ...(texte ? { valeur: texte } : {}),
   };
 
+  const renduLibelle = editionLibelle ? (
+    <InputInline
+      initial={libelle}
+      placeholder="Libellé"
+      onAbandon={() => setEditionLibelle(false)}
+      onCommit={(v) => {
+        setEditionLibelle(false);
+        const nouveau = serialiserChampLibre(v.trim() || "Nouveau champ", texte);
+        if (nouveau !== encodeActuel) moteur.commettre(champ.id, encodeActuel, nouveau);
+      }}
+      classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 font-semibold text-neutral-800 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+    />
+  ) : (
+    <button
+      type="button"
+      title="Champ ajouté - cliquer pour renommer"
+      onClick={() => setEditionLibelle(true)}
+      className="font-semibold text-neutral-800 text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+    >
+      {libelle}
+    </button>
+  );
+
   return (
-    <p className="group/libre text-[12px] leading-[1.55] text-neutral-700 flex items-baseline gap-1">
-      {editionLibelle ? (
-        <InputInline
-          initial={libelle}
-          placeholder="Libellé"
-          onAbandon={() => setEditionLibelle(false)}
-          onCommit={(v) => {
-            setEditionLibelle(false);
-            const nouveau = serialiserChampLibre(v.trim() || "Nouveau champ", texte);
-            if (nouveau !== encodeActuel) moteur.commettre(champ.id, encodeActuel, nouveau);
-          }}
-          classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 text-neutral-500 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
-        />
-      ) : (
-        <button
-          type="button"
-          title="Champ ajouté - cliquer pour renommer"
-          onClick={() => setEditionLibelle(true)}
-          className="text-neutral-500 border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
-        >
-          {libelle}
-        </button>
-      )}
-      <span className="text-neutral-500">: </span>
-      {/* La valeur passe par le moteur en reecrivant l'encode complet. */}
-      <ValeurLibre champ={champTexte} libelle={libelle} encodeActuel={encodeActuel} moteur={moteur} />
-      <button
-        type="button"
-        title="Supprimer ce champ"
-        onClick={() => moteur.commettre(champ.id, encodeActuel, "", true)}
-        className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
-      >
-        <X strokeWidth={1.5} className="w-3 h-3" />
-      </button>
-    </p>
+    <div className="group/libre">
+      <CorpsLigneSection
+        libelle={renduLibelle}
+        paragraphe={estParagraphe(texte)}
+        valeur={<ValeurLibre champ={champTexte} libelle={libelle} encodeActuel={encodeActuel} moteur={moteur} />}
+        apres={
+          <button
+            type="button"
+            title="Supprimer ce champ"
+            onClick={() => moteur.commettre(champ.id, encodeActuel, "", true)}
+            className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+          >
+            <X strokeWidth={1.5} className="w-3 h-3" />
+          </button>
+        }
+      />
+    </div>
   );
 }
 
@@ -445,8 +463,10 @@ function ValeurLibre({
 }) {
   const [edition, setEdition] = useState(false);
   if (edition) {
+    // TEXTAREA : Entree = saut de ligne, comme dans leur Word ("l'enter ne
+    // fonctionne pas" - retour du 2026-09-01 : la valeur libre passait par l'input).
     return (
-      <InputInline
+      <TextareaInline
         initial={champ.valeur ?? ""}
         onAbandon={() => setEdition(false)}
         onCommit={(v) => {
@@ -465,7 +485,7 @@ function ValeurLibre({
       className="group inline-flex items-baseline gap-1 max-w-full text-left align-baseline rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {champ.valeur ? (
-        <span className="font-medium text-neutral-900 border-b border-dotted border-green-700/40">{champ.valeur}</span>
+        <span className="text-neutral-700 whitespace-pre-wrap border-b border-dotted border-green-700/40">{champ.valeur}</span>
       ) : (
         <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400 group-hover:border-green-700/60" />
       )}
@@ -701,45 +721,50 @@ function LigneStandardEditable({
   const libelleAffiche =
     libelleLocal !== undefined ? (libelleLocal.trim() || libelle) : libelle;
 
+  const valeurAffichee = valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur;
+  const renduLibelle = editionLibelle ? (
+    <InputInline
+      initial={libelleAffiche}
+      placeholder="Libellé"
+      onAbandon={() => setEditionLibelle(false)}
+      onCommit={(v) => {
+        setEditionLibelle(false);
+        const nouveau = v.trim();
+        const avant = libelleLocal ?? (champ.libelleReecrit ? libelle : "");
+        // Vide = retour au libelle du catalogue (efface la reecriture).
+        if (nouveau !== libelleAffiche || nouveau === "") moteur.commettre(cleLibelle, avant, nouveau);
+      }}
+      classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 font-semibold text-neutral-800 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+    />
+  ) : (
+    <button
+      type="button"
+      title="Cliquer pour renommer ce libellé (le vider rétablit l'original)"
+      onClick={() => setEditionLibelle(true)}
+      className="font-semibold text-neutral-800 text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+    >
+      {libelleAffiche}
+    </button>
+  );
+
   return (
-    <p className="group/std text-[12px] leading-[1.55] text-neutral-700 flex items-baseline gap-1">
-      {editionLibelle ? (
-        <InputInline
-          initial={libelleAffiche}
-          placeholder="Libellé"
-          onAbandon={() => setEditionLibelle(false)}
-          onCommit={(v) => {
-            setEditionLibelle(false);
-            const nouveau = v.trim();
-            const avant = libelleLocal ?? (champ.libelleReecrit ? libelle : "");
-            // Vide = retour au libelle du catalogue (efface la reecriture).
-            if (nouveau !== libelleAffiche || nouveau === "") moteur.commettre(cleLibelle, avant, nouveau);
-          }}
-          classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 text-neutral-500 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
-        />
-      ) : (
-        <button
-          type="button"
-          title="Cliquer pour renommer ce libellé (le vider rétablit l'original)"
-          onClick={() => setEditionLibelle(true)}
-          className="text-neutral-500 text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
-        >
-          {libelleAffiche}
-        </button>
-      )}
-      <span className="text-neutral-500">: </span>
-      <span className="min-w-0 flex-1">
-        <ValeurEditable champ={champ} moteur={moteur} />
-      </span>
-      <button
-        type="button"
-        title="Retirer cette ligne du document"
-        onClick={() => moteur.commettre(cleMasque, "", "1", true)}
-        className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
-      >
-        <EyeOff strokeWidth={1.5} className="w-3 h-3" />
-      </button>
-    </p>
+    <div className="group/std">
+      <CorpsLigneSection
+        libelle={renduLibelle}
+        paragraphe={estParagraphe(valeurAffichee)}
+        valeur={<ValeurEditable champ={champ} moteur={moteur} sobre />}
+        apres={
+          <button
+            type="button"
+            title="Retirer cette ligne du document"
+            onClick={() => moteur.commettre(cleMasque, "", "1", true)}
+            className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
+          >
+            <EyeOff strokeWidth={1.5} className="w-3 h-3" />
+          </button>
+        }
+      />
+    </div>
   );
 }
 
