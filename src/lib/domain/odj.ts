@@ -229,14 +229,14 @@ export function pointsLegaux(
       applicable: false,
       condition: "Retiré d'office (proposition non obligatoire) : restaurer si le CS souhaite modifier le montant.",
       texte:
-        "Depuis le 1er janvier 2017, conformement a la loi ALUR, un fonds travaux est appele. Il sera propose a la prochaine AG d'en modifier eventuellement le montant (aujourd'hui = 5% du budget annuel).",
+        "Depuis le 1er janvier 2017, conformément à la loi ALUR, un fonds travaux est appelé. Il sera proposé à la prochaine AG d'en modifier éventuellement le montant (aujourd'hui = 5 % du budget annuel).",
     },
     {
       id: "contrat-syndic-lre",
-      titre: "Contrat de syndic - avoirs frais postaux",
+      titre: "Contrat de syndic - avoirs sur frais postaux",
       applicable: true,
       texte:
-        "Pour toute personne adherant au service de recommande electronique, un avoir annuel sur les frais postaux est consenti par REAL 31 : 10 EUR de moins pour la convocation en LRE (mail recommande), 3 EUR de moins pour l'envoi des appels de fonds par mail.",
+        "Pour toute personne adhérant au service de recommandé électronique, un avoir annuel sur les frais postaux est consenti par REAL 31 : 10 € de moins pour la convocation en LRE (mail recommandé), 3 € de moins pour l'envoi des appels de fonds par mail.",
     },
     {
       id: "ppt",
@@ -244,55 +244,56 @@ export function pointsLegaux(
       applicable: pptApplicable,
       condition: annee
         ? `Immeuble de ${annee} (${pptApplicable ? "plus" : "moins"} de 15 ans).`
-        : "Copropriete de plus de 15 ans.",
+        : "Copropriété de plus de 15 ans.",
       texte:
-        `Les coproprietes de plus de 15 ans doivent elaborer un plan pluriannuel de travaux (PPT). Pour cette copropriete (selon le nombre de lots), l'obligation s'applique a compter du ${datePpt(lots)} (art. 171 loi n0 2021-1104). Une fois realise, le PPT est presente a chaque AG ordinaire.`,
+        `Les copropriétés de plus de 15 ans doivent élaborer un plan pluriannuel de travaux (PPT). Pour cette copropriété (selon le nombre de lots), l'obligation s'applique à compter du ${datePpt(lots)} (art. 171 de la loi n° 2021-1104). Une fois réalisé, le PPT est présenté à chaque AG ordinaire.`,
     },
     {
       id: "dpe-collectif",
       titre: "DPE collectif",
       applicable: dpeApplicable,
-      condition: "Immeuble d'habitation, permis de construire anterieur au 1er juillet 2013.",
+      condition: "Immeuble d'habitation, permis de construire antérieur au 1er juillet 2013.",
       texte:
-        `Le DPE collectif (loi Climat et Resilience, art. 158) est obligatoire pour cette copropriete a compter du ${dateDpe(lots)} (selon le nombre de lots principaux).`,
+        `Le DPE collectif (loi Climat et Résilience, art. 158) est obligatoire pour cette copropriété à compter du ${dateDpe(lots)} (selon le nombre de lots principaux).`,
     },
     {
       id: "irve",
-      titre: "IRVE - bornes de recharge vehicules electriques",
+      titre: "IRVE - bornes de recharge pour véhicules électriques",
       applicable: true,
-      condition: "Uniquement si la copro a des emplacements de stationnement a usage privatif avec acces securise.",
+      condition:
+        "Uniquement si la copropriété a des emplacements de stationnement à usage privatif avec accès sécurisé.",
       texte:
-        "Le syndic inscrit a l'ordre du jour la question de la realisation d'une etude portant sur l'adequation des installations electriques existantes aux equipements de recharge et, le cas echeant, les travaux a realiser (art. L.111-3-9 et s.).",
+        "Le syndic inscrit à l'ordre du jour la question de la réalisation d'une étude portant sur l'adéquation des installations électriques existantes aux équipements de recharge et, le cas échéant, les travaux à réaliser (art. L. 111-3-9 et suivants).",
     },
     {
       id: "local-velo",
-      titre: "Local velo - stationnement securise",
+      titre: "Local vélo - stationnement sécurisé",
       applicable: true,
-      condition: "Uniquement si emplacements de stationnement a acces securise et pas de local velo securise.",
+      condition: "Uniquement si emplacements de stationnement à accès sécurisé et pas de local vélo sécurisé.",
       texte:
-        "Selon l'art. 24-5 de la loi du 10 juillet 1965 : lorsque l'immeuble possede des emplacements de stationnement d'acces securise a usage privatif et n'est pas equipe de stationnements securises pour les velos, le syndic inscrit a l'ordre du jour la question des travaux permettant le stationnement securise des velos, ainsi que la presentation des devis elabores a cet effet.",
+        "Selon l'art. 24-5 de la loi du 10 juillet 1965 : lorsque l'immeuble possède des emplacements de stationnement d'accès sécurisé à usage privatif et n'est pas équipé de stationnements sécurisés pour les vélos, le syndic inscrit à l'ordre du jour la question des travaux permettant le stationnement sécurisé des vélos, ainsi que la présentation des devis élaborés à cet effet.",
     },
     {
       id: "ag-hybride",
-      titre: "AG hybride (visio + presentiel, AG Connect)",
+      titre: "AG hybride (visio + présentiel, AG Connect)",
       applicable: true,
-      condition: "Decision du CS sur la tenue des AG en visio.",
+      condition: "Décision du CS sur la tenue des AG en visio.",
       texte:
-        "Service AG CONNECT : 60 EUR TTC / an (abonnement), + par AG realisee 34,80 EUR TTC (copros de moins de 10 coproprietaires) ou 106,80 EUR TTC (plus de 10). Application de ces tarifs a compter du 1er janvier 2027. Ce service doit-il etre presente au vote ?",
+        "Service AG CONNECT : 60 € TTC / an (abonnement), plus, par AG réalisée, 34,80 € TTC (copropriétés de moins de 10 copropriétaires) ou 106,80 € TTC (plus de 10). Application de ces tarifs à compter du 1er janvier 2027. Ce service doit-il être présenté au vote ?",
     },
     {
       id: "location-touristique",
-      titre: "Location de courte duree (loi Le Meur)",
+      titre: "Location de courte durée (loi Le Meur)",
       applicable: true,
       texte:
-        "Au-dela de la declaration en mairie, toute location de courte duree (type Airbnb) doit etre declaree au syndic. Art. 9-2 (loi n0 2024-1039 du 19 novembre 2024) : un point d'information du syndic sur l'activite de location de meubles touristiques est inscrit a l'ordre du jour de la prochaine AG.",
+        "Au-delà de la déclaration en mairie, toute location de courte durée (type Airbnb) doit être déclarée au syndic. Art. 9-2 (loi n° 2024-1039 du 19 novembre 2024) : un point d'information du syndic sur l'activité de location de meublés de tourisme est inscrit à l'ordre du jour de la prochaine AG.",
     },
     {
       id: "qualite-eau",
-      titre: "Point d'information - qualite de l'eau",
+      titre: "Point d'information - qualité de l'eau",
       applicable: true,
       texte:
-        "Une ordonnance du 22 decembre 2022 (transposition de la directive UE 2020/2184 dite eau potable) prevoit la remise d'une facture d'eau a chaque coproprietaire et l'obligation d'informer sur la qualite de l'eau consommee. Un point d'information est mis a l'ordre du jour.",
+        "Une ordonnance du 22 décembre 2022 (transposition de la directive UE 2020/2184 dite « eau potable ») prévoit la remise d'une facture d'eau à chaque copropriétaire et l'obligation d'informer sur la qualité de l'eau consommée. Un point d'information est mis à l'ordre du jour.",
     },
   ];
 }
