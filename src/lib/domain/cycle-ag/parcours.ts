@@ -84,9 +84,54 @@ function ajouterJours(iso: string, n: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d) + n * 86_400_000).toISOString().slice(0, 10);
 }
+
+/** Nombre de jours du mois `mois` (1-12) de `annee`. */
+function dernierJourDuMois(annee: number, mois: number): number {
+  return new Date(Date.UTC(annee, mois, 0)).getUTCDate();
+}
+
+/**
+ * Date ISO composee, le JOUR BORNE au dernier jour du mois. Le 31 fevrier n'existe pas :
+ * on retient le 28 (ou 29), jamais un debordement sur le mois suivant. C'est la regle
+ * "de quantieme a quantieme" du droit francais, et c'est tout l'enjeu du bornage ici.
+ */
+function dateISO(annee: number, mois: number, jour: number): string {
+  const j = Math.min(jour, dernierJourDuMois(annee, mois));
+  return `${annee}-${String(mois).padStart(2, "0")}-${String(j).padStart(2, "0")}`;
+}
+
+/**
+ * Ajoute `n` mois a une date ISO, avec BORNAGE en fin de mois.
+ *
+ * L'implementation naive (`new Date(Date.UTC(y, m - 1 + n, d))`) DEBORDE : 31/12 + 6 mois
+ * y donnait le 1er juillet (et 31/08 + 6 mois le 3 mars !) au lieu du 30 juin. Toutes les
+ * copros dont l'exercice se clot un 31 - c'est-a-dire la quasi-totalite, 31/12 en tete -
+ * voyaient donc leur delai legal d'approbation decale de 1 a 3 jours, et n'etaient
+ * signalees en retard qu'apres coup. Bug de bornage remonte par les collegues.
+ */
 function ajouterMois(iso: string, n: number): string {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1 + n, d)).toISOString().slice(0, 10);
+  const totalMois = m - 1 + n;
+  const annee = y + Math.floor(totalMois / 12);
+  const mois = (((totalMois % 12) + 12) % 12) + 1;
+  return dateISO(annee, mois, d);
+}
+
+/**
+ * Cloture d'exercice la PLUS RECENTE deja passee (<= `today`), depuis la fin d'exercice
+ * notee "JJ/MM" du referentiel. null si la fin d'exercice n'est pas exploitable ("-",
+ * format eStale "JJ/MM/AAAA"...) : l'appelant se rabat alors sur un autre repere.
+ *
+ * Un exercice DECALE (30/06, 30/09...) marche exactement pareil : c'est le meme
+ * quantieme, seule l'annee bascule. Le jour est borne (cf. dateISO) : une fin
+ * d'exercice au 29/02 lue sur une annee bissextile devient le 28/02 les autres annees.
+ */
+export function clotureLaPlusRecente(exerciceFin: string, today: string): string | null {
+  if (!/^\d{2}\/\d{2}$/.test(exerciceFin)) return null;
+  const [dd, mm] = exerciceFin.split("/").map(Number);
+  const annee = Number(today.slice(0, 4));
+  const cloture = dateISO(annee, mm, dd);
+  return cloture <= today ? cloture : dateISO(annee - 1, mm, dd);
 }
 
 // --- Regles metier ---------------------------------------------------------
@@ -113,11 +158,9 @@ function csTraite(c: Copropriete, agDate: string): boolean {
  * agDueDeadline qui gere alors le cycle approximatif "derniere AG + 12 mois".
  */
 export function agTenuePourExerciceCourant(c: Copropriete, today: string): boolean {
-  if (!/^\d{2}\/\d{2}$/.test(c.exercice.fin) || !c.derniereAgDate) return false;
-  const [dd, mm] = c.exercice.fin.split("/");
-  const annee = Number(today.slice(0, 4));
-  let cloture = `${annee}-${mm}-${dd}`;
-  if (cloture > today) cloture = `${annee - 1}-${mm}-${dd}`; // cloture la plus recente <= today
+  if (!c.derniereAgDate) return false;
+  const cloture = clotureLaPlusRecente(c.exercice.fin, today);
+  if (!cloture) return false;
   return c.derniereAgDate > cloture;
 }
 
@@ -132,14 +175,9 @@ export function agDueDeadline(c: Copropriete, today: string): string | null {
   if (c.prochaineAg) return null; // deja planifiee
 
   let deadline: string;
-  let clotureISO: string | null = null;
-  if (/^\d{2}\/\d{2}$/.test(c.exercice.fin)) {
-    const [dd, mm] = c.exercice.fin.split("/");
-    const annee = Number(today.slice(0, 4));
-    let cloture = `${annee}-${mm}-${dd}`;
-    if (cloture > today) cloture = `${annee - 1}-${mm}-${dd}`; // cloture la plus recente <= today
-    clotureISO = cloture;
-    deadline = ajouterMois(cloture, DELAI_APPROBATION_MOIS);
+  const clotureISO = clotureLaPlusRecente(c.exercice.fin, today);
+  if (clotureISO) {
+    deadline = ajouterMois(clotureISO, DELAI_APPROBATION_MOIS);
   } else if (c.derniereAgDate) {
     deadline = ajouterJours(c.derniereAgDate, 365); // repli : cycle annuel approximatif
   } else {
