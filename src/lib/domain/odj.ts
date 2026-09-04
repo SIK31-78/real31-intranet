@@ -217,10 +217,17 @@ export function pointsLegaux(
 ): PointLegal[] {
   const annee = opts?.anneeConstruction;
   const courante = opts?.anneeCourante;
+  // Age de l'immeuble, quand les deux annees sont connues.
+  const age = annee && courante ? courante - annee : undefined;
+  // Immeuble NEUF (moins de 10 ans) : encore couvert par la garantie decennale, le PPT
+  // n'a aucun sens a lui porter -- demande des collegues, qui le retiraient a la main a
+  // chaque fois. Retire d'OFFICE, avec la raison affichee ; le mecanisme retire/inclus
+  // laisse toujours le gestionnaire le reintegrer d'un clic.
+  const sousGarantieDecennale = age !== undefined && age < 10;
   // PPT : copros de plus de 15 ans. DPE collectif : permis < 1er juillet 2013
   // (on approxime via l'annee de construction). Si l'annee est inconnue -> on
   // garde le point (defaut prudent), le gestionnaire ajuste.
-  const pptApplicable = annee && courante ? courante - annee > 15 : true;
+  const pptApplicable = (age !== undefined ? age > 15 : true) && !sousGarantieDecennale;
   const dpeApplicable = annee ? annee <= 2013 : true;
   return [
     {
@@ -242,9 +249,11 @@ export function pointsLegaux(
       id: "ppt",
       titre: "Plan Pluriannuel de Travaux (PPT)",
       applicable: pptApplicable,
-      condition: annee
-        ? `Immeuble de ${annee} (${pptApplicable ? "plus" : "moins"} de 15 ans).`
-        : "Copropriété de plus de 15 ans.",
+      condition: sousGarantieDecennale
+        ? `Retiré d'office : immeuble de ${annee}, moins de 10 ans - encore sous garantie décennale, le PPT n'est pas exigible. Réintégrer si le CS le demande.`
+        : annee
+          ? `Immeuble de ${annee} (${pptApplicable ? "plus" : "moins"} de 15 ans).`
+          : "Copropriété de plus de 15 ans.",
       texte:
         `Les copropriétés de plus de 15 ans doivent élaborer un plan pluriannuel de travaux (PPT). Pour cette copropriété (selon le nombre de lots), l'obligation s'applique à compter du ${datePpt(lots)} (art. 171 de la loi n° 2021-1104). Une fois réalisé, le PPT est présenté à chaque AG ordinaire.`,
     },
