@@ -13,7 +13,7 @@
 // et rend le clic imprevisible - la ligne est donc un conteneur flex, le lien prend
 // la place utile, le bouton reste a cote.
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -28,9 +28,15 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { estEffectue } from "@/lib/domain/recap-ag/suivi";
+import { filtrerParPortee, type PorteeRecaps } from "@/lib/domain/recap-ag/mes-recaps";
 import { marquerRecapEffectueAction } from "@/app/recap-ag/actions";
 
+/** Au-dela, on replie : une liste cabinet peut faire plusieurs centaines de lignes. */
+const CAP_AFFICHAGE = 50;
+
 export interface RecapAffiche {
+  /** Ce recap releve-t-il de l'utilisateur ? (calcule cote serveur, cf. domain/recap-ag/mes-recaps) */
+  mien: boolean;
   id: string;
   coproCode: string;
   agDate: string;
@@ -188,24 +194,66 @@ function LigneRecap({ r }: { r: RecapAffiche }) {
 }
 
 export function HistoriqueRecaps({ recaps }: { recaps: RecapAffiche[] }) {
+  // Defaut « moi » : l'ecran montrait les derniers recaps DU CABINET, donc chacun
+  // cherchait les siens au milieu de ceux de 40 collegues.
+  const [portee, setPortee] = useState<PorteeRecaps>("moi");
+  const [deplie, setDeplie] = useState(false);
+
+  const visibles = useMemo(() => filtrerParPortee(recaps, portee), [recaps, portee]);
+  const affiches = deplie ? visibles : visibles.slice(0, CAP_AFFICHAGE);
+  const reste = visibles.length - affiches.length;
+
   return (
     <Card>
-      <div className="border-b border-line px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <h2 className="text-[14px] font-semibold text-ink">
-          Récaps enregistrés <span className="font-normal text-ink-3">({recaps.length})</span>
+          Récaps enregistrés <span className="font-normal text-ink-3">({visibles.length})</span>
         </h2>
+        <div className="inline-flex overflow-hidden rounded-md border border-line">
+          {(["moi", "tous"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => {
+                setPortee(p);
+                setDeplie(false);
+              }}
+              className={
+                "h-7 px-3 text-[12px] font-medium transition-colors " +
+                (portee === p
+                  ? "bg-green-700 text-white"
+                  : "bg-surface text-ink-2 hover:bg-surface-2")
+              }
+            >
+              {p === "moi" ? "Mes récaps" : "Tous"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {recaps.length === 0 ? (
+      {visibles.length === 0 ? (
         <p className="px-4 py-8 text-center text-[13px] text-ink-3">
-          Aucun récap AG pour l&apos;instant.
+          {portee === "moi"
+            ? "Aucun récap AG sur vos copropriétés. « Tous » affiche ceux du cabinet."
+            : "Aucun récap AG pour l'instant."}
         </p>
       ) : (
-        <ul className="divide-y divide-line">
-          {recaps.map((r) => (
-            <LigneRecap key={r.id} r={r} />
-          ))}
-        </ul>
+        <>
+          <ul className="divide-y divide-line">
+            {affiches.map((r) => (
+              <LigneRecap key={r.id} r={r} />
+            ))}
+          </ul>
+          {reste > 0 && (
+            <button
+              type="button"
+              onClick={() => setDeplie(true)}
+              className="w-full border-t border-line px-4 py-2.5 text-left text-[12px] font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-green-700"
+            >
+              Afficher les {reste} de plus
+            </button>
+          )}
+        </>
       )}
     </Card>
   );

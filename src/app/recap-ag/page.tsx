@@ -10,9 +10,20 @@ import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-ret
 import { FormulaireRecapAg } from "@/components/recap-ag/formulaire-recap-ag";
 import { HistoriqueRecaps, type RecapAffiche } from "@/components/recap-ag/historique-recaps";
 import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
+import { appartenanceRecaps, estMonRecap } from "@/lib/domain/recap-ag/mes-recaps";
 
 export const metadata: Metadata = { title: "Récap AG - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
+
+/**
+ * Combien de recaps on remonte du cabinet avant de filtrer sur « les miens ».
+ *
+ * 50 suffisait quand la liste montrait tout le cabinet a plat. Des lors qu'on filtre,
+ * 50 lignes cabinet peuvent ne contenir que 2 recaps du gestionnaire - sa liste
+ * paraitrait vide alors qu'elle ne l'est pas. On elargit la fenetre de lecture, et
+ * c'est l'AFFICHAGE qui se plafonne (depliable), pas la donnee.
+ */
+const LIMITE_HISTORIQUE = 300;
 
 export default async function RecapAgPage({
   searchParams,
@@ -33,11 +44,20 @@ export default async function RecapAgPage({
   // ce que le gestionnaire peut corriger ICI (un comptable a sa propre vue, /comptabilite/recaps).
   const [copros, historique, enRetard] = await Promise.all([
     getCoproprietes(g.id),
-    getRecapAgRepository().listerRecapsRecents(50),
+    getRecapAgRepository().listerRecapsRecents(LIMITE_HISTORIQUE),
     listerRecapsEnRetard({ managerId: g.id, email: g.email, estComptable: false }, today),
   ]);
 
+  // « Les miens » = mes copros OU ma saisie. Calcule ICI et non dans le composant :
+  // un Set ne traverse pas la frontiere serveur -> client, et le portefeuille est
+  // deja charge pour le select de saisie.
+  const aMoi = appartenanceRecaps(
+    copros.map((c) => c.code),
+    g.initiales,
+  );
+
   const recaps: RecapAffiche[] = historique.map((r) => ({
+    mien: estMonRecap(r, aMoi),
     id: r.id,
     coproCode: r.coproCode,
     agDate: r.agDate,
