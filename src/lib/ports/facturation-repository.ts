@@ -140,8 +140,10 @@ export interface FactureAEmettre {
 /** Une copropriete facturable en gestion courante pour un trimestre. */
 export interface LigneGestionCourante {
   coproCode: string;
-  /** Honoraires annuels TTC du contrat en vigueur. */
-  honorairesAnnuelsTtc: number;
+  /** Honoraires annuels TTC du contrat en vigueur. `null` = AUCUN contrat en
+   *  vigueur (la copro est quand meme remontee, pour etre signalee « contrat non
+   *  renseigne » plutot que de disparaitre sans bruit du trimestre). */
+  honorairesAnnuelsTtc: number | null;
   /** Forfait postaux annuel du contrat en vigueur. */
   forfaitPostauxAnnuel: number;
   /** Vrai = frais postaux refactures au reel (ailleurs) : pas de ligne de timbres
@@ -149,6 +151,13 @@ export interface LigneGestionCourante {
   fraisPostauxReels: boolean;
   /** Vrai si une facture de gestion courante existe deja pour ce trimestre. */
   dejaFacture: boolean;
+  /** Date de la facture de gestion courante deja emise sur ce trimestre, ISO
+   *  "YYYY-MM-DD". Sert au message « deja facturee le JJ/MM ». */
+  dejaFactureLe?: string | null;
+  /** Date de prise en gestion (Copropriete.syndicInitialDate), ISO ou timestamp
+   *  ISO. Une copro prise en gestion EN COURS de trimestre est due au prorata
+   *  des jours couverts. `null` si la date est inconnue -> trimestre plein. */
+  priseEnGestion?: string | null;
 }
 
 export interface FacturationRepository {

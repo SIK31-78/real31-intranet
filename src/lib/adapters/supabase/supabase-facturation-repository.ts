@@ -116,19 +116,23 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     // Contrats deja commences, avec honoraires : on garde le plus recent par copro.
     // frais_postaux_reels : drapeau de la copro. Vrai = frais refactures au reel
     // ailleurs, on ne facture PAS le forfait de timbres trimestriel (cf. plus bas).
+    //
+    // Les honoraires NULS ou a 0 ne sont PLUS filtres ici : une copro sans montant
+    // de contrat doit remonter pour etre signalee « contrat non renseigne » par le
+    // filet de securite (regle 7). La filtrer la faisait disparaitre du trimestre
+    // sans que personne ne le voie.
     const { data: contrats, error: e1 } = await supabase
       .from("intranet_suivi_contrats")
       .select(
         "copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, frais_postaux_reels",
       )
-      .lte("debut_contrat", aujourdhui)
-      .not("honoraires_gestion_ttc", "is", null);
+      .lte("debut_contrat", aujourdhui);
     if (e1) throw new Error(`Lecture contrats gestion courante : ${e1.message}`);
 
     type CRow = {
       copropriete_id: string;
       debut_contrat: string;
-      honoraires_gestion_ttc: number;
+      honoraires_gestion_ttc: number | null;
       forfait_postaux_ttc: number | null;
       frais_postaux_reels: boolean | null;
     };
@@ -138,38 +142,54 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       if (!prec || c.debut_contrat > prec.debut_contrat) enVigueur.set(c.copropriete_id, c);
     }
 
-    // Copros actives.
+    // Copros actives. `syndicInitialDate` = date de prise en gestion : elle sert
+    // au prorata du trimestre pour une copro reprise en cours de route.
     const { data: actives, error: e2 } = await supabase
       .from("Copropriete")
-      .select("referenceCrypto")
+      .select("referenceCrypto, syndicInitialDate")
       .eq("status", "ACTIVE");
     if (e2) throw new Error(`Lecture copros actives : ${e2.message}`);
-    const codesActifs = ((actives as { referenceCrypto: string | null }[] | null) ?? [])
-      .map((c) => c.referenceCrypto)
-      .filter((c): c is string => Boolean(c));
+    type ARow = { referenceCrypto: string | null; syndicInitialDate: string | null };
+    const codesActifs = ((actives as ARow[] | null) ?? []).filter((c) =>
+      Boolean(c.referenceCrypto),
+    );
 
-    // Copros deja facturees pour ce trimestre.
+    // Copros deja facturees pour ce trimestre, avec la date de la facture (le
+    // message d'anti-doublon dit QUAND, pas seulement que).
     const { data: dejaF, error: e3 } = await supabase
       .from("intranet_factures")
-      .select("copropriete_id")
+      .select("copropriete_id, date_facture")
       .eq("type_prestation", "gestion_courante")
       .eq("periode", periode);
     if (e3) throw new Error(`Lecture factures gestion courante : ${e3.message}`);
-    const deja = new Set(
-      ((dejaF as { copropriete_id: string }[] | null) ?? []).map((f) => f.copropriete_id),
-    );
+    const deja = new Map<string, string | null>();
+    for (const f of (dejaF as { copropriete_id: string; date_facture: string | null }[] | null) ??
+      []) {
+      // Plusieurs factures pour un meme trimestre ne devraient pas exister ; si
+      // c'est le cas, on garde la plus ancienne (celle qui a fait le doublon).
+      const prec = deja.get(f.copropriete_id);
+      if (prec === undefined || (f.date_facture && prec && f.date_facture < prec)) {
+        deja.set(f.copropriete_id, f.date_facture);
+      }
+    }
 
     const lignes: LigneGestionCourante[] = [];
-    for (const code of codesActifs) {
+    for (const active of codesActifs) {
+      const code = active.referenceCrypto as string;
       const c = enVigueur.get(code);
-      if (!c) continue; // pas de contrat en vigueur : hors base facturable
+      const honoraires = c?.honoraires_gestion_ttc;
       lignes.push({
         coproCode: code,
-        honorairesAnnuelsTtc: Number(c.honoraires_gestion_ttc),
-        forfaitPostauxAnnuel: Number(c.forfait_postaux_ttc ?? 0),
+        // Pas de contrat en vigueur OU montant absent -> null : le filet signale
+        // « contrat non renseigne » au lieu de laisser la copro passer a la trappe.
+        honorairesAnnuelsTtc:
+          honoraires === null || honoraires === undefined ? null : Number(honoraires),
+        forfaitPostauxAnnuel: Number(c?.forfait_postaux_ttc ?? 0),
         // Drapeau absent (null) = forfait applique (comportement par defaut du legacy).
-        fraisPostauxReels: c.frais_postaux_reels === true,
+        fraisPostauxReels: c?.frais_postaux_reels === true,
         dejaFacture: deja.has(code),
+        dejaFactureLe: deja.get(code) ?? null,
+        priseEnGestion: active.syndicInitialDate,
       });
     }
     return lignes.sort((a, b) => a.coproCode.localeCompare(b.coproCode, "fr", { numeric: true }));

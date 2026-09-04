@@ -50,12 +50,20 @@ describe("smoke gestion courante PDF (cree, telecharge, supprime)", () => {
       const okPenny = new Set(
         ((avecPenny as { referenceCrypto: string }[] | null) ?? []).map((c) => c.referenceCrypto),
       );
+      // `honorairesAnnuelsTtc` peut etre null depuis que les copros sans contrat
+      // remontent aussi (pour etre signalees) : on ne garde que celles qui en ont un.
       const ligne = base.find(
-        (l) => l.forfaitPostauxAnnuel > 0 && l.honorairesAnnuelsTtc > 0 && okPenny.has(l.coproCode),
+        (l) =>
+          l.forfaitPostauxAnnuel > 0 &&
+          (l.honorairesAnnuelsTtc ?? 0) > 0 &&
+          okPenny.has(l.coproCode),
       );
       if (!ligne) throw new Error("Aucune copro testable (contrat + timbres + pennylaneId).");
 
-      const t = calculerTrimestreGestionCourante(ligne.honorairesAnnuelsTtc, ligne.forfaitPostauxAnnuel);
+      const t = calculerTrimestreGestionCourante(
+        ligne.honorairesAnnuelsTtc ?? 0,
+        ligne.forfaitPostauxAnnuel,
+      );
       console.log("=== COPRO DE TEST ===");
       console.log("code             :", ligne.coproCode);
       console.log("contrat annuel   :", ligne.honorairesAnnuelsTtc, "TTC | timbres", ligne.forfaitPostauxAnnuel);

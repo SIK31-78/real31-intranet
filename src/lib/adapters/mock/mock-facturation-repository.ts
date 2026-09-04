@@ -122,11 +122,14 @@ export class MockFacturationRepository implements FacturationRepository {
     }
     return [...parCopro.values()].map((c) => ({
       coproCode: c.coproCode,
-      honorairesAnnuelsTtc: c.honorairesGestionTtc ?? 0,
+      honorairesAnnuelsTtc: c.honorairesGestionTtc ?? null,
       forfaitPostauxAnnuel: c.forfaitPostauxTtc ?? 0,
       // Mock : forfait postaux applique (les contrats d'exemple ne sont pas en frais reels).
       fraisPostauxReels: false,
       dejaFacture: dejaCodes.has(c.coproCode),
+      dejaFactureLe: null,
+      // Mock : copros en gestion de longue date, aucun prorata de reprise.
+      priseEnGestion: null,
     }));
   }
 
