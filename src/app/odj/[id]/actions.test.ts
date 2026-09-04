@@ -76,6 +76,11 @@ vi.mock("@/lib/adapters/router", () => ({
       };
     },
   }),
+  // La cloture marque aussi le jalon ODJ_CS (cf. cloturer-odj) : hors sujet ici, on
+  // se contente d'un repo inerte pour ne pas casser l'appel.
+  getJalonRepository: () => ({
+    async marquer() {},
+  }),
   getOdjRepository: () => ({
     async getEtat(code: string, agDate: string) {
       return etat.lignes.get(etat.cle(code, agDate)) ?? [];

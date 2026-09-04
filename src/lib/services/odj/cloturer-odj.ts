@@ -12,13 +12,16 @@
 // Quand le depot automatique existera, c'est ICI que le cochage viendra se brancher, sur
 // le modele de auto-cochage.ts -- et il sera alors VRAI.
 //
+// Elle fait EN REVANCHE avancer le cycle AG en marquant le jalon ODJ_CS (cf. plus bas) :
+// ce n'est pas une diffusion, c'est l'enregistrement d'un fait interne deja acquis.
+//
 // Reversible : rouvrir un ODJ clos par erreur ne coute rien, puisque aucune ecriture
 // externe n'a ete engagee.
 //
 // Passe par le routeur (ADR-001).
 
-import { getOdjRepository } from "@/lib/adapters/router";
-import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
+import { getJalonRepository, getOdjRepository } from "@/lib/adapters/router";
+import { CLE_CLOTURE_ODJ, ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
 import { formatCloture } from "@/lib/domain/odj";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 
@@ -44,4 +47,26 @@ export async function cloturerOdj(params: {
     clore ? formatCloture(maintenantISO, initiales) : null,
     initiales,
   );
+
+  // "Reunion terminee" = le CS de validation de l'ODJ s'est tenu : c'est EXACTEMENT le
+  // jalon ODJ_CS ("ODJ valide avec le Conseil Syndical"). Sans ce marquage, l'etape ODJ du
+  // cycle (etapeFaite -> accompli.has("ODJ_CS")) ne passait JAMAIS : la frise restait bloquee
+  // sur "ODJ" / "a confirmer" et la phase convocation ne se debloquait pas (bug remonte deux
+  // fois par les collegues). Meme mecanique que conclureAg, qui marque TENUE.
+  // Reouvrir l'ODJ remet le jalon "a faire" : la cloture reste reversible de bout en bout.
+  // Sans date d'AG (ODJ prepare en avance, cle sentinelle), il n'y a pas de jalon a marquer.
+  // BEST-EFFORT : un echec ici ne doit pas defaire la cloture (l'acte primaire).
+  if (agDateISO !== ODJ_SANS_DATE) {
+    await getJalonRepository()
+      .marquer({
+        coproCode,
+        agDate: agDateISO,
+        type: "ODJ_CS",
+        statut: clore ? "accompli" : "a_faire",
+        par: initiales,
+      })
+      .catch((e) =>
+        console.warn(`[cloturer-odj] jalon ODJ_CS non marque (${coproCode}) :`, (e as Error).message),
+      );
+  }
 }
