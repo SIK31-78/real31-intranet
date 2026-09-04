@@ -116,9 +116,12 @@ export function corpsMailDatesReunion(infos: InfosMailDatesReunion): string {
   if (infos.cs) lignes.push(`- pour la tenue du CS préparatoire ${fragmentDate(infos.cs)}`);
   if (infos.ag) lignes.push(`- pour l'assemblée ${fragmentDate(infos.ag)}`);
 
+  // Accord singulier/pluriel : le mail propose souvent CS ET AG - "nous confirmerons la
+  // date" au singulier faisait tiquer les collegues (retour Sekou 2026-09-04).
+  const deuxDates = Boolean(infos.cs && infos.ag);
   lignes.push(
     "",
-    `Sauf avis contraire nous confirmerons la date le ${dateNumerique(infos.dateConfirmationISO)}. En cas d'indisponibilité du Conseil Syndical, nous vous remercions de revenir vers nous avec deux dates afin que nous puissions la fixer.`,
+    `Sauf avis contraire nous confirmerons ${deuxDates ? "ces dates" : "cette date"} le ${dateNumerique(infos.dateConfirmationISO)}. En cas d'indisponibilité du Conseil Syndical, nous vous remercions de revenir vers nous avec deux dates afin que nous puissions ${deuxDates ? "les" : "la"} fixer.`,
     "",
     "Vous pouvez également dès à présent me faire part des éventuels sujets à mettre à l'ordre du jour.",
     "",

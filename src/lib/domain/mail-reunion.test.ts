@@ -46,7 +46,9 @@ describe("corpsMailDatesReunion", () => {
     expect(c).toContain("fixer dès à présent les dates de CS et d'AG.");
     expect(c).toContain("- pour la tenue du CS préparatoire le 08/09/2026 à 18h00");
     expect(c).toContain("- pour l'assemblée le 15/09/2026 à 18h30");
-    expect(c).toContain("Sauf avis contraire nous confirmerons la date le 22/07/2026.");
+    // CS + AG proposes ensemble -> accord PLURIEL (retour Sekou 2026-09-04).
+    expect(c).toContain("Sauf avis contraire nous confirmerons ces dates le 22/07/2026.");
+    expect(c).toContain("afin que nous puissions les fixer");
     expect(c).toContain("me faire part des éventuels sujets à mettre à l'ordre du jour");
     expect(c).toContain("Cordialement,");
   });
