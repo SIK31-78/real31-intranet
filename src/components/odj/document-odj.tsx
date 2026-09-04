@@ -10,6 +10,7 @@
 import { Fragment, type ReactNode } from "react";
 import type { ChampOdj, Odj, PointLegal, SectionOdj } from "@/lib/domain/odj";
 import { formatChampValeur } from "@/lib/domain/odj";
+import { lignesMentions, mentionsAgence } from "@/lib/domain/mentions-agences";
 
 /** Points d'injection de la page d'edition. Tous optionnels : defaut = statique. */
 export interface RenduDocumentOdj {
@@ -155,6 +156,19 @@ function formatFinReunion(iso: string): string | undefined {
   return f.replace(":", "h");
 }
 
+/** Mentions legales du cabinet, en pied de document (papier a en-tete). Elles DIFFERENT
+ *  d'une agence a l'autre : le texte vient du domaine (mentions-agences), jamais d'ici. */
+function MentionsLegales({ agence }: { agence?: string }) {
+  const lignes = lignesMentions(mentionsAgence(agence));
+  return (
+    <div className="mt-4 pt-2 border-t border-neutral-200 text-center text-[7.5px] leading-[1.45] text-neutral-500 break-inside-avoid-page">
+      {lignes.map((l) => (
+        <p key={l}>{l}</p>
+      ))}
+    </div>
+  );
+}
+
 export function TitreSection({ n, titre }: { n: number; titre: string }) {
   return (
     <h2 className="flex items-baseline gap-2 mb-2 pb-1 border-b border-green-700/40 break-after-avoid">
@@ -290,7 +304,8 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
       ) : null}
 
       {/* Pied : fin de reunion = l'heure de CLOTURE du CS (posee par "Marquer la
-          reunion terminee"), pas une ligne a remplir a la main. */}
+          reunion terminee"), pas une ligne a remplir a la main. Puis les mentions
+          legales de l'AGENCE, en petit, comme sur leur papier a en-tete. */}
       <footer className="mt-8 pt-3 border-t border-neutral-200">
         <p className="text-[12px] text-neutral-700">
           Fin de réunion :{" "}
@@ -300,6 +315,7 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
             <span className="inline-block min-w-[90px] border-b border-dotted border-neutral-400" />
           )}
         </p>
+        <MentionsLegales agence={odj.agence} />
       </footer>
     </div>
   );

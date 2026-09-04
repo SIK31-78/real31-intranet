@@ -104,6 +104,10 @@ export interface ClotureOdj {
 
 export interface Odj {
   copro: { code: string; nom: string; adresse: string };
+  /** Code de l'agence qui gere la copro (ML / LGC / HLS / ASN) : choisit les mentions
+   *  legales du pied de page (cf. domain/mentions-agences). Absent = agence inconnue
+   *  -> mentions de reference. */
+  agence?: string;
   /** Date d'AG LISIBLE (jj/mm/aaaa), pour l'affichage. */
   dateAg?: string;
   /** La MEME date en ISO 'YYYY-MM-DD'. Necessaire pour reconstruire les ids techniques
