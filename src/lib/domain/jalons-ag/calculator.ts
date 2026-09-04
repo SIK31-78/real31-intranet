@@ -58,7 +58,6 @@ const LIBELLES: Record<JalonCode, string> = {
   // "Mise sous pli" EST l'envoi des convocations (meme acte, mot du cabinet) : le
   // marqueur legal n'est pas perdu, cocher ce jalon vaut "convocations parties".
   CONVOC: "Mise sous pli",
-  RELANCE_POUVOIRS: "Relance date AG",
   POUVOIRS: "Pouvoirs et votes par correspondance reçus",
   TENUE: "Tenue de l'AG",
   SCAN_CONTRAT: "Scan du contrat + événement Crypto",
@@ -66,8 +65,10 @@ const LIBELLES: Record<JalonCode, string> = {
   ARCHIVAGE: "Archivage du dossier AG",
 };
 
-/** Calcule les 9 jalons d'une AG a partir de sa date (ISO "YYYY-MM-DD") :
- *  6 avant la tenue (ODJ -> tenue) + 3 apres (scan contrat, notif PV, archivage). */
+/** Calcule les 8 jalons d'une AG a partir de sa date (ISO "YYYY-MM-DD") :
+ *  5 avant la tenue (ODJ -> tenue) + 3 apres (scan contrat, notif PV, archivage).
+ *  La relance J-7 ("Relance date AG") a ete retiree le 2026-09-04 a la demande des
+ *  gestionnaires : elle ne fait plus partie du parcours. */
 export function calculerJalons(agISO: string): JalonCalcule[] {
   const convocLegale = dateConvocationLegale(agISO);
   const convocCabinet = moinsJours(agISO, DELAIS_CABINET.CONVOC_JOURS);
@@ -86,7 +87,6 @@ export function calculerJalons(agISO: string): JalonCalcule[] {
       dateCabinet: convocCabinet,
       source: convocCible === convocLegale ? "legal" : "cabinet",
     },
-    { code: "RELANCE_POUVOIRS", libelle: LIBELLES.RELANCE_POUVOIRS, cibleDate: moinsJours(agISO, DELAIS_CABINET.RELANCE_POUVOIRS_JOURS), source: "cabinet" },
     { code: "POUVOIRS", libelle: LIBELLES.POUVOIRS, cibleDate: moinsJours(agISO, DELAIS_CABINET.POUVOIRS_JOURS), source: "cabinet" },
     { code: "TENUE", libelle: LIBELLES.TENUE, cibleDate: agISO, source: "legal" },
     { code: "SCAN_CONTRAT", libelle: LIBELLES.SCAN_CONTRAT, cibleDate: plusJours(agISO, DELAIS_CABINET.SCAN_CONTRAT_JOURS), source: "cabinet" },

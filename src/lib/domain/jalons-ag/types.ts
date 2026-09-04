@@ -4,7 +4,10 @@ export type JalonCode =
   | "ODJ_CS"
   | "DEVIS"
   | "CONVOC"
-  | "RELANCE_POUVOIRS"
+  // RELANCE_POUVOIRS ("Relance date AG", J-7) a ete RETIRE le 2026-09-04 : les
+  // gestionnaires ne veulent plus de cette relance. Le code n'est plus emis ni
+  // calcule ; d'anciennes lignes intranet_jalons peuvent encore le porter, elles
+  // sont simplement ignorees a la lecture (aucun jalon calcule ne les rejoint).
   | "POUVOIRS"
   | "TENUE"
   | "SCAN_CONTRAT"

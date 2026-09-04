@@ -102,7 +102,7 @@ const SPEC = {
         type: "object",
         required: ["code", "libelle", "cibleDate", "source", "statut"],
         properties: {
-          code: { type: "string", enum: ["ODJ_CS", "DEVIS", "CONVOC", "RELANCE_POUVOIRS", "POUVOIRS", "TENUE", "SCAN_CONTRAT", "NOTIF_PV", "ARCHIVAGE"] },
+          code: { type: "string", enum: ["ODJ_CS", "DEVIS", "CONVOC", "POUVOIRS", "TENUE", "SCAN_CONTRAT", "NOTIF_PV", "ARCHIVAGE"] },
           libelle: { type: "string" },
           cibleDate: { type: "string", format: "date" },
           source: { type: "string", enum: ["legal", "cabinet"] },

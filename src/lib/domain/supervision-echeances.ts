@@ -10,7 +10,9 @@ import type { JalonCode } from "./jalons-ag/types";
 // (Seuls ceux qui ont une echeance datee claire ; les autres n'affichent rien.)
 export const ITEM_ECHEANCE: Record<string, JalonCode> = {
   "conv.date": "CONVOC", // mise sous pli / convocation = 21 jours francs (legal) / J-31 (cabinet)
-  "conv.rappel-pouvoirs": "RELANCE_POUVOIRS", // relance date AG J-7
+  // "conv.rappel-pouvoirs" ne porte PLUS d'echeance : la relance J-7 (jalon
+  // RELANCE_POUVOIRS) a ete retiree le 2026-09-04. L'item reste dans la checklist de
+  // supervision, simplement sans compte a rebours - comme les autres items non dates.
   "apag.scan-contrat": "SCAN_CONTRAT", // scan contrat J+2
   "apag.notif-pv-date": "NOTIF_PV", // notification du PV J+30
 };

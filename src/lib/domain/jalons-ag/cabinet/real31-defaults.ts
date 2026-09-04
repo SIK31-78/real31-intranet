@@ -17,8 +17,8 @@ export const DELAIS_CABINET = {
    *  (soit J-41 depuis que la mise sous pli est passee a J-31 - glissement
    *  mecanique, aucune date en dur ailleurs). */
   AJOUT_ODJ_AVANT_CONVOC_JOURS: 10,
-  /** Relance date AG (relance des pouvoirs / VPC, fiche 450) : 7 jours avant l'AG. */
-  RELANCE_POUVOIRS_JOURS: 7,
+  // RELANCE_POUVOIRS_JOURS (relance date AG a J-7, fiche 450) : RETIRE le 2026-09-04.
+  // Les gestionnaires ne veulent plus de cette relance - ni jalon, ni creneau Outlook.
   /** Pouvoirs et votes par correspondance recus (butoir). */
   POUVOIRS_JOURS: 2,
   // --- Post-AG (jours APRES la tenue) ---

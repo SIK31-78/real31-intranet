@@ -21,12 +21,20 @@ function jalon(jalons: ReturnType<typeof calculerJalons>, code: JalonCode) {
 const AG_DATES = ["2026-06-15", "2026-08-20", "2024-03-15", "2027-01-04", "2026-12-28"];
 
 describe("calculerJalons", () => {
-  it("renvoie les 9 jalons attendus (pre + post-AG, ordre chronologique)", () => {
+  it("renvoie les 8 jalons attendus (pre + post-AG, ordre chronologique)", () => {
     const codes = calculerJalons("2026-06-15").map((j) => j.code);
     expect(codes).toEqual([
-      "ODJ_CS", "DEVIS", "CONVOC", "RELANCE_POUVOIRS", "POUVOIRS", "TENUE",
+      "ODJ_CS", "DEVIS", "CONVOC", "POUVOIRS", "TENUE",
       "SCAN_CONTRAT", "NOTIF_PV", "ARCHIVAGE",
     ]);
+  });
+
+  it("la relance J-7 n'est plus calculee (retiree le 2026-09-04)", () => {
+    // Retrait demande par les gestionnaires. Le test verrouille l'ABSENCE : aucun jalon
+    // ne doit retomber a J-7, ni sous l'ancien code ni sous un autre nom.
+    const jalons = calculerJalons("2026-06-15");
+    expect(jalons.map((j) => j.code as string)).not.toContain("RELANCE_POUVOIRS");
+    expect(jalons.some((j) => joursEntre(j.cibleDate, "2026-06-15") === 7)).toBe(false);
   });
 
   for (const ag of AG_DATES) {
@@ -44,10 +52,6 @@ describe("calculerJalons", () => {
 
       it("POUVOIRS a J-2", () => {
         expect(joursEntre(jalon(j, "POUVOIRS").cibleDate, ag)).toBe(2);
-      });
-
-      it("RELANCE_POUVOIRS (relance date AG) a J-7", () => {
-        expect(joursEntre(jalon(j, "RELANCE_POUVOIRS").cibleDate, ag)).toBe(7);
       });
 
       it("post-AG : scan contrat J+2, notif PV J+30, archivage J+180", () => {

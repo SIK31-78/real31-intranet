@@ -155,10 +155,10 @@ import { creneauxAg } from "@/lib/domain/jalons-ag/creneaux";
 
 const BOITE = "remi@real31.fr";
 // AG le mardi 15 septembre 2026. J-31 = 15 aout 2026 (SAMEDI, et le 15 aout est ferie)
-// -> recule au vendredi 14 aout. J-7 = mardi 8 septembre 2026 (jour ouvre, inchange).
+// -> recule au vendredi 14 aout.
+// (La relance J-7 a ete retiree le 2026-09-04 : il ne reste QU'UN creneau derive.)
 const AG = "2026-09-15";
 const MISE_SOUS_PLI = "2026-08-14";
-const RELANCE = "2026-09-08";
 
 // Poser une date d'AG projette AUSSI l'evenement de l'AG lui-meme (chaine existante,
 // meme faux provider). On ne compte donc QUE les creneaux derives : leur sujet porte un
@@ -181,21 +181,25 @@ beforeEach(() => {
 });
 
 describe("creneauxAg (domaine pur)", () => {
-  it("derive les 2 creneaux des jalons CONVOC et RELANCE_POUVOIRS", () => {
+  it("derive le seul creneau restant, du jalon CONVOC", () => {
     const c = creneauxAg("S024", AG);
-    expect(c.map((x) => x.role)).toEqual(["MISE_SOUS_PLI", "RELANCE_DATE_AG"]);
+    expect(c.map((x) => x.role)).toEqual(["MISE_SOUS_PLI"]);
   });
 
-  it("sujets exactement comme demande (tiret, RELANCE DATE AG en capitales)", () => {
+  it("plus AUCUN creneau de relance J-7 (retire le 2026-09-04)", () => {
+    const c = creneauxAg("S024", AG);
+    expect(c.map((x) => x.role)).not.toContain("RELANCE_DATE_AG");
+    expect(c.some((x) => x.sujet.includes("RELANCE"))).toBe(false);
+  });
+
+  it("sujet exactement comme demande (tiret, pas de deux-points)", () => {
     const c = creneauxAg("S024", AG);
     expect(c[0]?.sujet).toBe("S024 - Mise sous pli");
-    expect(c[1]?.sujet).toBe("S024 - RELANCE DATE AG");
   });
 
-  it("horaires : mise sous pli 10h-12h, relance 10h-10h30", () => {
+  it("horaires : mise sous pli 10h-12h", () => {
     const c = creneauxAg("S024", AG);
     expect(c[0]).toMatchObject({ debut: `${MISE_SOUS_PLI}T10:00:00`, fin: `${MISE_SOUS_PLI}T12:00:00` });
-    expect(c[1]).toMatchObject({ debut: `${RELANCE}T10:00:00`, fin: `${RELANCE}T10:30:00` });
   });
 
   it("les cibles sont reculees au jour ouvre (J-31 tombait un samedi ferie du 15 aout)", () => {
@@ -216,29 +220,27 @@ describe("creneauxAg (domaine pur)", () => {
 });
 
 describe("pose d'une date d'AG", () => {
-  it("cree les 2 creneaux et memorise les 2 (eventId + boite) par role", async () => {
+  it("cree le creneau de mise sous pli et le memorise (eventId + boite) par role", async () => {
     await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
 
-    expect(creerCreneaux()).toHaveLength(2);
-    expect(sujets()).toEqual(["S024 - Mise sous pli", "S024 - RELANCE DATE AG"]);
+    expect(creerCreneaux()).toHaveLength(1);
+    expect(sujets()).toEqual(["S024 - Mise sous pli"]);
     expect(creerCreneaux()[0]).toMatchObject({
       boite: BOITE,
       debut: `${MISE_SOUS_PLI}T10:00:00`,
       fin: `${MISE_SOUS_PLI}T12:00:00`,
     });
-    expect(creerCreneaux()[1]).toMatchObject({
-      boite: BOITE,
-      debut: `${RELANCE}T10:00:00`,
-      fin: `${RELANCE}T10:30:00`,
-    });
     expect(etat.projections.get(etat.cle("S024", "MISE_SOUS_PLI"))).toMatchObject({
       outlookEventId: idDe("S024 - Mise sous pli"),
       outlookBoite: BOITE,
     });
-    expect(etat.projections.get(etat.cle("S024", "RELANCE_DATE_AG"))).toMatchObject({
-      outlookEventId: idDe("S024 - RELANCE DATE AG"),
-      outlookBoite: BOITE,
-    });
+  });
+
+  it("ne pose PLUS le creneau de relance J-7", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
+
+    expect(sujets().some((s) => s?.includes("RELANCE"))).toBe(false);
+    expect(etat.projections.get(etat.cle("S024", "RELANCE_DATE_AG"))).toBeUndefined();
   });
 
   it("aucune salle ni vehicule : ce ne sont pas des reunions", async () => {
@@ -254,7 +256,7 @@ describe("pose d'une date d'AG", () => {
   it("la disponibilite ne bloque pas : aucun controle de dispo n'est declenche", async () => {
     await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
     expect(etat.appels.dispo).toHaveLength(0);
-    expect(creerCreneaux()).toHaveLength(2); // poses malgre tout
+    expect(creerCreneaux()).toHaveLength(1); // pose malgre tout
   });
 
   it("invite les collegues deja invites a l'AG (participants)", async () => {
@@ -262,7 +264,6 @@ describe("pose d'une date d'AG", () => {
       collaborateursEmails: ["emmanuel@real31.fr"],
     });
     expect(creerCreneaux()[0]?.participants).toEqual(["emmanuel@real31.fr"]);
-    expect(creerCreneaux()[1]?.participants).toEqual(["emmanuel@real31.fr"]);
   });
 
   it("sans collegue : aucun participant transmis (l'agenda du gestionnaire suffit)", async () => {
@@ -301,18 +302,15 @@ describe("CS : aucun creneau derive (c'est une regle AG)", () => {
 });
 
 describe("deplacement de la date d'AG (LE test anti-doublon)", () => {
-  it("re-poser DEPLACE les 2 MEMES evenements (PATCH), jamais de 2e POST", async () => {
+  it("re-poser DEPLACE le MEME evenement (PATCH), jamais de 2e POST", async () => {
     await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
     // AG deplacee du 15 au 22 septembre : la cle (copro, role) n'a pas de date, donc on
-    // retrouve les memes evenements. Avec une cle datee, evt-1/evt-2 seraient orphelins.
+    // retrouve le meme evenement. Avec une cle datee, evt-1 serait orphelin.
     await definirDateEvenement("S024", "ag", "prochaine", "2026-09-22", "g1", BOITE);
 
-    expect(creerCreneaux()).toHaveLength(2); // 2 POST au total, jamais 4
-    expect(patchCreneaux()).toHaveLength(2);
-    expect(patchCreneaux().map((p) => p.eventId)).toEqual([
-      idDe("S024 - Mise sous pli"),
-      idDe("S024 - RELANCE DATE AG"),
-    ]);
+    expect(creerCreneaux()).toHaveLength(1); // 1 POST au total, jamais 2
+    expect(patchCreneaux()).toHaveLength(1);
+    expect(patchCreneaux().map((p) => p.eventId)).toEqual([idDe("S024 - Mise sous pli")]);
     expect(etat.appels.suppr).toHaveLength(0); // rien d'abandonne derriere
   });
 
@@ -320,48 +318,51 @@ describe("deplacement de la date d'AG (LE test anti-doublon)", () => {
     await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
     await definirDateEvenement("S024", "ag", "prochaine", "2026-09-22", "g1", BOITE);
 
-    // AG 2026-09-22 : J-31 = 2026-08-22 (samedi) -> vendredi 21 ; J-7 = 2026-09-15 (mardi).
+    // AG 2026-09-22 : J-31 = 2026-08-22 (samedi) -> vendredi 21.
     expect(patchCreneaux()[0]).toMatchObject({
       titre: "S024 - Mise sous pli",
       debut: "2026-08-21T10:00:00",
       fin: "2026-08-21T12:00:00",
     });
-    expect(patchCreneaux()[1]).toMatchObject({
-      titre: "S024 - RELANCE DATE AG",
-      debut: "2026-09-15T10:00:00",
-      fin: "2026-09-15T10:30:00",
-    });
   });
 
-  it("confirmer l'AG re-projette les memes creneaux (PATCH, aucun doublon)", async () => {
+  it("confirmer l'AG re-projette le meme creneau (PATCH, aucun doublon)", async () => {
     etat.datesCopro.ag = AG;
     await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
     await confirmerEvenement("S024", "AG", "EL", "g1", BOITE);
 
-    expect(creerCreneaux()).toHaveLength(2);
-    expect(patchCreneaux()).toHaveLength(2);
-    expect(patchCreneaux().map((p) => p.eventId)).toEqual([
-      idDe("S024 - Mise sous pli"),
-      idDe("S024 - RELANCE DATE AG"),
-    ]);
+    expect(creerCreneaux()).toHaveLength(1);
+    expect(patchCreneaux()).toHaveLength(1);
+    expect(patchCreneaux().map((p) => p.eventId)).toEqual([idDe("S024 - Mise sous pli")]);
   });
 });
 
 describe("effacement de la date d'AG / AG annulee", () => {
-  it("supprime les 2 creneaux et efface la memoire", async () => {
+  it("supprime le creneau et efface la memoire", async () => {
     await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
     await definirDateEvenement("S024", "ag", "prochaine", "", "g1", BOITE);
 
-    // 2 creneaux supprimes (+ l'evenement de l'AG lui-meme, chaine existante).
+    // Creneau supprime (+ l'evenement de l'AG lui-meme, chaine existante).
     expect(etat.appels.suppr).toContainEqual({
       boite: BOITE,
       eventId: idDe("S024 - Mise sous pli"),
     });
-    expect(etat.appels.suppr).toContainEqual({
-      boite: BOITE,
-      eventId: idDe("S024 - RELANCE DATE AG"),
-    });
     expect(etat.projections.get(etat.cle("S024", "MISE_SOUS_PLI"))?.outlookEventId).toBeUndefined();
+  });
+
+  it("une relance J-7 HERITEE (posee avant le retrait) est quand meme supprimee", async () => {
+    // Le role RELANCE_DATE_AG n'est plus PRODUIT, mais il reste reconnu : les creneaux
+    // deja dans les agendas doivent pouvoir partir, sinon ils y resteraient a vie.
+    etat.projections.set(etat.cle("S024", "RELANCE_DATE_AG"), {
+      coproCode: "S024",
+      role: "RELANCE_DATE_AG",
+      outlookEventId: "vieille-relance",
+      outlookBoite: BOITE,
+    });
+
+    await deprojeterCreneauxAg("S024");
+
+    expect(etat.appels.suppr).toContainEqual({ boite: BOITE, eventId: "vieille-relance" });
     expect(etat.projections.get(etat.cle("S024", "RELANCE_DATE_AG"))?.outlookEventId).toBeUndefined();
   });
 
@@ -375,20 +376,19 @@ describe("effacement de la date d'AG / AG annulee", () => {
     await definirDateEvenement("S024", "ag", "prochaine", "", "g1", BOITE);
     await definirDateEvenement("S024", "ag", "prochaine", AG, "g1", BOITE);
 
-    expect(creerCreneaux()).toHaveLength(4); // 2 + 2 recrees
+    expect(creerCreneaux()).toHaveLength(2); // 1 + 1 recree
     expect(patchCreneaux()).toHaveLength(0); // aucun PATCH sur des evenements supprimes
   });
 });
 
 describe("anti-doublon : jamais d'evenement orphelin", () => {
-  it("memorisation en echec (table absente) : les 2 evenements crees sont SUPPRIMES", async () => {
+  it("memorisation en echec (table absente) : l'evenement cree est SUPPRIME", async () => {
     etat.memoireEnPanne = true;
     await projeterCreneauxAg("S024", AG, BOITE);
 
-    expect(etat.appels.creer).toHaveLength(2);
-    expect(etat.appels.suppr).toHaveLength(2); // au pire zero evenement, jamais deux
+    expect(etat.appels.creer).toHaveLength(1);
+    expect(etat.appels.suppr).toHaveLength(1); // au pire zero evenement, jamais deux
     expect(etat.appels.suppr).toContainEqual({ boite: BOITE, eventId: "evt-1" });
-    expect(etat.appels.suppr).toContainEqual({ boite: BOITE, eventId: "evt-2" });
   });
 
   it("deux gestes avec memoire en panne : chaque evenement est nettoye (aucune accumulation)", async () => {
@@ -396,8 +396,8 @@ describe("anti-doublon : jamais d'evenement orphelin", () => {
     await projeterCreneauxAg("S024", AG, BOITE);
     await projeterCreneauxAg("S024", "2026-09-22", BOITE);
 
-    expect(etat.appels.creer).toHaveLength(4);
-    expect(etat.appels.suppr).toHaveLength(4);
+    expect(etat.appels.creer).toHaveLength(2);
+    expect(etat.appels.suppr).toHaveLength(2);
   });
 
   it("id connu mais boite perdue (etat incoherent) : on supprime l'ancien AVANT de recreer", async () => {
@@ -410,8 +410,8 @@ describe("anti-doublon : jamais d'evenement orphelin", () => {
     await projeterCreneauxAg("S050", AG, BOITE);
 
     expect(etat.appels.suppr).toContainEqual({ boite: BOITE, eventId: "vieux-evt" });
-    expect(etat.appels.creer).toHaveLength(2); // le remplacant + la relance, jamais deux MSP
-    expect(sujets()).toEqual(["S050 - Mise sous pli", "S050 - RELANCE DATE AG"]);
+    expect(etat.appels.creer).toHaveLength(1); // le remplacant, jamais deux MSP
+    expect(sujets()).toEqual(["S050 - Mise sous pli"]);
   });
 });
 
