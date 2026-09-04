@@ -91,7 +91,7 @@ export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatE
       const agence = await repo.getAgenceCopro(facture.coproCode);
       const mention = mentionLibre(facture);
 
-      const { factureExterneId } = await provider.creerFactureBrouillon({
+      const { factureExterneId } = await provider.emettreFacture({
         clientRef,
         codeEntite: facture.coproCode,
         ...(mention ? { mentionLibre: mention } : {}),

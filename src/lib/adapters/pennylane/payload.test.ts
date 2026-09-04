@@ -40,7 +40,7 @@ describe("construirePayloadFacture", () => {
     expect(p.invoice_lines[0]!.description).toContain("termine a 21:00");
   });
 
-  it("cree toujours un BROUILLON (jamais de facture finalisee automatiquement)", () => {
+  it("cree toujours un BROUILLON (la validation est un second appel, pas un drapeau ici)", () => {
     expect(construirePayloadFacture(demandeType).draft).toBe(true);
   });
 

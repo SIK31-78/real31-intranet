@@ -12,12 +12,13 @@ export class NoopInvoicingProvider implements InvoicingProvider {
   /** Emissions simulees pendant la session (inspectables en test). */
   readonly emissions: DemandeEmission[] = [];
 
-  async creerFactureBrouillon(demande: DemandeEmission): Promise<ResultatEmission> {
+  async emettreFacture(demande: DemandeEmission): Promise<ResultatEmission> {
     this.emissions.push(demande);
     // Pas de donnee client en log : seulement le volume.
     console.log(
       `[invoicing:noop] brouillon simule (${demande.lignes.length} ligne(s), ${demande.dateFacture})`,
     );
-    return { factureExterneId: `noop-${this.emissions.length}` };
+    // Toujours `validee: false` : le no-op ne simule jamais un engagement comptable.
+    return { factureExterneId: `noop-${this.emissions.length}`, validee: false };
   }
 }

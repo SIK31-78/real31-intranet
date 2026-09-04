@@ -55,8 +55,9 @@ export function tauxTvaPennylane(taux: number): string {
 /**
  * Construit le corps de la requete de creation de facture brouillon.
  *
- * `draft: true` est non negociable : on ne finalise jamais une facture
- * automatiquement, la validation reste un geste humain cote comptabilite.
+ * `draft: true` reste vrai ICI, toujours : la CREATION passe par le schema
+ * « Draft Customer Invoice ». La validation eventuelle est un SECOND appel
+ * (PUT .../finalize) fait par l'adapter, pas un drapeau de ce payload.
  */
 export function construirePayloadFacture(demande: DemandeEmission): PennylaneInvoicePayload {
   if (demande.lignes.length === 0) {

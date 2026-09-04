@@ -7,6 +7,7 @@ import { estComptable } from "@/lib/auth/roles";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
 import { FormulaireFacturation } from "@/components/facturation/formulaire-facturation";
+import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import {
   HistoriqueFacturations,
   type FactureAffichee,
@@ -66,7 +67,7 @@ export default async function FacturationPage() {
           copros={copros
     .map((c) => ({ code: c.code, nom: c.nom }))
     .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
-          pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
+          pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
         />
 
         <HistoriqueFacturations factures={factures} />

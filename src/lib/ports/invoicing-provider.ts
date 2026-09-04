@@ -48,12 +48,22 @@ export interface DemandeEmission {
 export interface ResultatEmission {
   /** Identifiant de la facture creee chez le fournisseur. */
   factureExterneId: string;
+  /**
+   * La facture a-t-elle ete VALIDEE (finalisee) chez le fournisseur, ou reste-t-elle
+   * un brouillon a valider a la main ? Absent = brouillon.
+   */
+  validee?: boolean;
 }
 
 export interface InvoicingProvider {
   /**
-   * Cree une facture au statut BROUILLON chez le fournisseur. Jamais de facture
-   * finalisee automatiquement : la validation reste un geste humain cote compta.
+   * Emet la facture chez le fournisseur et renvoie son identifiant.
+   *
+   * Par DEFAUT la facture est creee au statut BROUILLON : la validation reste un
+   * geste humain cote comptabilite. L'adapter peut enchainer la validation quand
+   * l'exploitation le demande explicitement (Pennylane : `PENNYLANE_FACTURE_VALIDEE`),
+   * et le dit alors dans `validee` - jamais en silence, jamais par defaut : une
+   * facture validee est comptablement engagee et ne se defait pas.
    */
-  creerFactureBrouillon(demande: DemandeEmission): Promise<ResultatEmission>;
+  emettreFacture(demande: DemandeEmission): Promise<ResultatEmission>;
 }

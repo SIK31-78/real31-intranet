@@ -6,6 +6,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { SupervisionVue } from "@/components/supervision-ag/supervision-vue";
 import { creneauCsDeLaCopro } from "@/lib/services/coproprietes/creneau-cs";
+import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import {
   cocherItemAction,
   commenterItemAction,
@@ -60,7 +61,7 @@ export default async function SupervisionAgPage({
           cycle={cycle}
           role={role}
           aujourdhuiISO={aujourdhuiISO}
-          pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
+          pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
           {...(creneauCsSuggere ? { creneauCsSuggere } : {})}
           onCocher={cocherItemAction.bind(null, id)}
           onCommenter={commenterItemAction.bind(null, id)}

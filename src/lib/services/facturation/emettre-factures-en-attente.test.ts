@@ -46,7 +46,7 @@ vi.mock("@/lib/adapters/router", () => ({
     },
   }),
   getInvoicingProvider: () => ({
-    async creerFactureBrouillon(demande: DemandeEmission) {
+    async emettreFacture(demande: DemandeEmission) {
       etat.demandes.push(demande);
       return { factureExterneId: `ext-${etat.demandes.length}` };
     },

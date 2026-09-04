@@ -8,6 +8,7 @@
 import { Modal } from "@/components/ui/modal";
 import { FormulaireRecapAg } from "@/components/recap-ag/formulaire-recap-ag";
 import { FormulaireFacturation } from "@/components/facturation/formulaire-facturation";
+import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 
 export type ModuleSupervision = "recap" | "depassement_cs";
 
@@ -16,7 +17,7 @@ export function ModuleModal({
   copro,
   agDateISO,
   creneauCsSuggere,
-  pennylaneActif,
+  pennylaneMode,
   onFermer,
 }: {
   module: ModuleSupervision;
@@ -25,7 +26,7 @@ export function ModuleModal({
   creneauCsSuggere?: { jour: string; debut: string; fin?: string };
   /** Date ISO de l'AG courante (pre-remplit la date du recap) ; null si AG sans date. */
   agDateISO: string | null;
-  pennylaneActif: boolean;
+  pennylaneMode: ModeEmissionFacture;
   onFermer: () => void;
 }) {
   if (module === "recap") {
@@ -39,7 +40,7 @@ export function ModuleModal({
               ...(agDateISO ? { agDateSuggeree: agDateISO } : {}),
             },
           ]}
-          pennylaneActif={pennylaneActif}
+          pennylaneMode={pennylaneMode}
           onSucces={onFermer}
         />
       </Modal>
@@ -50,7 +51,7 @@ export function ModuleModal({
     <Modal titre={`Honoraires CS · ${copro.nomCourt}`} onFermer={onFermer}>
       <FormulaireFacturation
         copros={[{ code: copro.code, nom: copro.nomCourt }]}
-        pennylaneActif={pennylaneActif}
+        pennylaneMode={pennylaneMode}
         coproFixe={copro.code}
         {...(creneauCsSuggere ? { creneauCsSuggere } : {})}
         depassementCsSeul

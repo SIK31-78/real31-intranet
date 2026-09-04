@@ -9,6 +9,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { FormulaireRecapAg } from "@/components/recap-ag/formulaire-recap-ag";
 import { HistoriqueRecaps, type RecapAffiche } from "@/components/recap-ag/historique-recaps";
+import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 
 export const metadata: Metadata = { title: "Récap AG - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -80,7 +81,7 @@ export default async function RecapAgPage({
                 return { code: c.code, nom: c.nom, ...(suggeree ? { agDateSuggeree: suggeree } : {}) };
               })
               .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
-            pennylaneActif={Boolean(process.env.PENNYLANE_API_KEY)}
+            pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
             {...(coproInitial ? { coproInitial } : {})}
           />
         </div>

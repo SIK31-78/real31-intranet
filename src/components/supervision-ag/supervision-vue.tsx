@@ -15,6 +15,7 @@ import { BandeauConclue } from "./bandeau-conclue";
 import { ProgressionGlobale } from "./progression-globale";
 import { ChecklistSection } from "./checklist-section";
 import { ModuleModal, type ModuleSupervision } from "./module-modal";
+import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 
 type SupervisionVueProps = {
   supervision: SupervisionAg;
@@ -23,7 +24,7 @@ type SupervisionVueProps = {
   role: Role;
   aujourdhuiISO: string;
   /** Pennylane branche cote serveur (transmis aux modules ouverts en modale). */
-  pennylaneActif: boolean;
+  pennylaneMode: ModeEmissionFacture;
   /** Creneau REEL du CS preparatoire (jour + debut + fin), issu de sa confirmation sur la
    *  fiche copro. Pre-remplit la facturation des honoraires CS ouverte depuis la
    *  checklist : le gestionnaire n'a plus a retrouver l'horaire de memoire. */
@@ -38,7 +39,7 @@ export function SupervisionVue({
   cycle,
   role,
   aujourdhuiISO,
-  pennylaneActif,
+  pennylaneMode,
   creneauCsSuggere,
   onCocher,
   onCommenter,
@@ -135,7 +136,7 @@ export function SupervisionVue({
           copro={supervision.copro}
           agDateISO={agDateISO}
           {...(creneauCsSuggere ? { creneauCsSuggere } : {})}
-          pennylaneActif={pennylaneActif}
+          pennylaneMode={pennylaneMode}
           onFermer={() => setModuleOuvert(null)}
         />
       )}

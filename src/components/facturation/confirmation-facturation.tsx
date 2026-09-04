@@ -7,6 +7,10 @@
 
 import { ClipboardCheck, Loader2, Send, TriangleAlert, X } from "lucide-react";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
+import {
+  messageEmissionFacture,
+  type ModeEmissionFacture,
+} from "@/lib/domain/facturation/mode-emission";
 
 function euros(n: number): string {
   return `${n.toFixed(2).replace(".", ",")} €`;
@@ -14,13 +18,14 @@ function euros(n: number): string {
 
 export function ConfirmationFacturation({
   apercu,
-  pennylaneActif,
+  pennylaneMode,
   pending,
   onConfirmer,
   onAnnuler,
 }: {
   apercu: ApercuFacturation;
-  pennylaneActif: boolean;
+  /** Etat dans lequel la facture partira : c'est ce qu'on annonce avant d'engager. */
+  pennylaneMode: ModeEmissionFacture;
   pending: boolean;
   onConfirmer: () => void;
   onAnnuler: () => void;
@@ -109,9 +114,7 @@ export function ConfirmationFacturation({
             </p>
           ) : (
             <p className="rounded bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-              {pennylaneActif
-                ? "En confirmant, un brouillon de facture est créé dans Pennylane. Il restera à valider par la comptabilité."
-                : "Mode simulation : PENNYLANE_API_KEY absente, aucun brouillon ne partira réellement."}
+              {messageEmissionFacture(pennylaneMode)}
             </p>
           )}
         </div>

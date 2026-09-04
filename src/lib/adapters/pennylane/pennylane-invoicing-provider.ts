@@ -1,6 +1,13 @@
-// Adapter Pennylane : cree des factures BROUILLON via l'API externe v2.
+// Adapter Pennylane : emet les factures via l'API externe v2.
 // Actif uniquement si PENNYLANE_API_KEY est configure (cf. routeur) ; sinon le
 // NoopInvoicingProvider prend le relais.
+//
+// DEUX TEMPS, jamais un seul : POST /customer_invoices cree TOUJOURS un brouillon,
+// puis PUT /customer_invoices/{id}/finalize le valide - et seulement si
+// PENNYLANE_FACTURE_VALIDEE l'autorise (defaut : on s'arrete au brouillon).
+// C'est le chemin documente par Pennylane, et il a un avantage decisif ici : notre
+// identifiant de facture externe existe AVANT la validation, donc un echec de
+// validation laisse une trace exploitable plutot qu'un trou.
 //
 // Le jeton vient de l'environnement, JAMAIS d'une table applicative : le legacy
 // le stockait en clair dans la liste SharePoint « Parametres ».
@@ -11,12 +18,19 @@ import type {
   InvoicingProvider,
   ResultatEmission,
 } from "@/lib/ports/invoicing-provider";
+import { factureValideeActive } from "@/lib/domain/facturation/mode-emission";
 import { construirePayloadFacture } from "./payload";
 
 const BASE_URL = "https://app.pennylane.com/api/external/v2";
 
 export class PennylaneInvoicingProvider implements InvoicingProvider {
-  constructor(private readonly apiKey = process.env.PENNYLANE_API_KEY ?? "") {}
+  constructor(
+    private readonly apiKey = process.env.PENNYLANE_API_KEY ?? "",
+    /** Valider la facture juste apres sa creation (opt-in, cf. domain/facturation/mode-emission). */
+    private readonly validerApresCreation = factureValideeActive(
+      process.env.PENNYLANE_FACTURE_VALIDEE,
+    ),
+  ) {}
 
   private entetes(): Record<string, string> {
     return {
@@ -58,7 +72,31 @@ export class PennylaneInvoicingProvider implements InvoicingProvider {
     return String(id);
   }
 
-  async creerFactureBrouillon(demande: DemandeEmission): Promise<ResultatEmission> {
+  /**
+   * Valide (finalise) un brouillon : PUT /customer_invoices/{id}/finalize.
+   *
+   * IRREVERSIBLE cote Pennylane : la facture prend un numero et ne peut plus etre
+   * modifiee ni supprimee. On ne l'appelle donc que sur opt-in explicite.
+   */
+  private async validerFacture(factureId: string): Promise<void> {
+    const reponse = await fetch(
+      `${BASE_URL}/customer_invoices/${encodeURIComponent(factureId)}/finalize`,
+      { method: "PUT", headers: this.entetes() },
+    );
+    if (reponse.ok) return;
+
+    const detail = await reponse.text().catch(() => "");
+    // Le message NOMME le brouillon deja cree : sans lui, rejouer l'emission
+    // creerait un second brouillon chez Pennylane sans que personne ne le voie.
+    throw new Error(
+      `Validation Pennylane de la facture ${factureId} : HTTP ${reponse.status} ${reponse.statusText}` +
+        `${detail ? ` - ${detail.slice(0, 500)}` : ""}. ` +
+        `Le BROUILLON ${factureId} EXISTE chez Pennylane : le valider ou le supprimer a la main ` +
+        `avant de rejouer l'emission, sinon un doublon partira.`,
+    );
+  }
+
+  async emettreFacture(demande: DemandeEmission): Promise<ResultatEmission> {
     if (!this.apiKey) {
       throw new Error("Emission Pennylane : PENNYLANE_API_KEY absent de l'environnement.");
     }
@@ -85,7 +123,11 @@ export class PennylaneInvoicingProvider implements InvoicingProvider {
     if (corps.id === undefined || corps.id === null) {
       throw new Error("Emission Pennylane : reponse sans identifiant de facture.");
     }
+    const factureExterneId = String(corps.id);
 
-    return { factureExterneId: String(corps.id) };
+    if (!this.validerApresCreation) return { factureExterneId, validee: false };
+
+    await this.validerFacture(factureExterneId);
+    return { factureExterneId, validee: true };
   }
 }

@@ -14,6 +14,7 @@ import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "@/components/facturation/confirmation-facturation";
 import { apercuRecapAgAction, creerRecapAgAction } from "@/app/recap-ag/actions";
 import { POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "@/lib/domain/recap-ag/fonds-travaux";
+import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 
 interface TravauxSaisis {
   numeroResolution: string;
@@ -56,12 +57,12 @@ function OuiNon({
 
 export function FormulaireRecapAg({
   copros,
-  pennylaneActif,
+  pennylaneMode,
   coproInitial,
   onSucces,
 }: {
   copros: { code: string; nom: string; agDateSuggeree?: string }[];
-  pennylaneActif: boolean;
+  pennylaneMode: ModeEmissionFacture;
   /** Copro pre-selectionnee a l'ouverture (alerte des recaps en retard). Ignoree si elle
    *  n'est pas dans la liste : la selection ne sort jamais du portefeuille. */
   coproInitial?: string;
@@ -415,7 +416,7 @@ export function FormulaireRecapAg({
       {apercu && (
         <ConfirmationFacturation
           apercu={apercu}
-          pennylaneActif={pennylaneActif}
+          pennylaneMode={pennylaneMode}
           pending={pending}
           onConfirmer={confirmer}
           onAnnuler={() => setApercu(null)}

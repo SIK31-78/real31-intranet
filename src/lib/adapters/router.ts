@@ -216,6 +216,8 @@ export function getRecapAgRepository(): RecapAgRepository {
 
 // Emission des factures. Pennylane en reel des que PENNYLANE_API_KEY est
 // configure, sinon no-op (le parcours reste deroulable sans jeton, comme le mail).
+// Brouillon par defaut ; PENNYLANE_FACTURE_VALIDEE=oui enchaine la validation
+// (irreversible) - lu par l'adapter, cf. adapters/pennylane/options.ts.
 export function getInvoicingProvider(): InvoicingProvider {
   if (process.env.PENNYLANE_API_KEY) return new PennylaneInvoicingProvider();
   return new NoopInvoicingProvider();

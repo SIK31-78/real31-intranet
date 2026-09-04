@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "./confirmation-facturation";
+import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import {
   apercuFactureCsAction,
   tarifForfaitaireAction,
@@ -53,14 +54,14 @@ const label = "block text-[12px] font-medium text-ink-2 mb-1";
 
 export function FormulaireFacturation({
   copros,
-  pennylaneActif,
+  pennylaneMode,
   coproFixe,
   creneauCsSuggere,
   depassementCsSeul = false,
   onSucces,
 }: {
   copros: { code: string; nom: string }[];
-  pennylaneActif: boolean;
+  pennylaneMode: ModeEmissionFacture;
   /** Si fourni, la copro est verrouillee (select masque) : usage modale pre-scopee. */
   coproFixe?: string;
   /** Creneau REEL du CS confirme (jour + debut + fin), pour pre-remplir la facturation
@@ -455,7 +456,7 @@ export function FormulaireFacturation({
       {apercu && (
         <ConfirmationFacturation
           apercu={apercu}
-          pennylaneActif={pennylaneActif}
+          pennylaneMode={pennylaneMode}
           pending={pending}
           onConfirmer={confirmer}
           onAnnuler={() => setApercu(null)}
