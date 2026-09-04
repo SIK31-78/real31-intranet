@@ -1,13 +1,19 @@
 "use client";
 
-// Palette de commande (Cmd+K) : recherche dans les copros du gestionnaire +
-// navigation rapide. Remplace la fausse barre de recherche du topbar. Les copros
-// sont chargees a l'ouverture (lazy, scopees gestionnaire). Dialog accessible.
+// Palette de commande (Cmd+K) : recherche de copro + navigation rapide. Remplace la
+// fausse barre de recherche du topbar. Les copros sont chargees a l'ouverture (lazy,
+// une fois). Dialog accessible.
+//
+// PERIMETRE : TOUT LE CABINET, plus le seul portefeuille (cf. recherche/actions et
+// services/coproprietes/perimetre-lecture). Un resultat qui n'est pas une copro de
+// l'utilisateur porte le nom de son gestionnaire : on doit savoir chez qui on regarde.
+// Le filtre lui-meme vit dans le domaine (filtrerRecherche), teste offline.
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Building2, CornerDownLeft } from "lucide-react";
-import { chargerCoprosRecherche, type CoproRecherche } from "@/app/recherche/actions";
+import { chargerCoprosRecherche } from "@/app/recherche/actions";
+import { filtrerRecherche, type CoproRecherche } from "@/lib/domain/recherche-copro";
 
 const NAV: { label: string; href: string }[] = [
   { label: "Accueil", href: "/accueil" },
@@ -21,6 +27,8 @@ interface Item {
   cle: string;
   titre: string;
   sous?: string;
+  /** Gestionnaire de la copro, quand ce n'est pas une copro de l'utilisateur. */
+  gestionnaire?: string;
   href: string;
   copro: boolean;
 }
@@ -59,14 +67,14 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
       const nav = emailsOuvert ? NAV : NAV.filter((n) => n.href !== "/mes-emails");
       return nav.map((n) => ({ cle: n.href, titre: n.label, href: n.href, copro: false }));
     }
-    const termes = q.split(/\s+/).filter(Boolean);
-    return (copros ?? [])
-      .filter((c) => {
-        const foin = `${c.code} ${c.nom} ${c.ville}`.toLowerCase();
-        return termes.every((t) => foin.includes(t));
-      })
-      .slice(0, 8)
-      .map((c) => ({ cle: c.code, titre: `${c.code} - ${c.nom}`, sous: c.ville, href: `/copropriete/${c.code}`, copro: true }));
+    return filtrerRecherche(copros ?? [], q).map((c) => ({
+      cle: c.code,
+      titre: `${c.code} - ${c.nom}`,
+      sous: c.ville,
+      ...(c.gestionnaire ? { gestionnaire: c.gestionnaire } : {}),
+      href: `/copropriete/${c.code}`,
+      copro: true,
+    }));
   }, [query, copros, emailsOuvert]);
 
   function fermer() {
@@ -138,7 +146,7 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
                   setActif(0);
                 }}
                 onKeyDown={onKeyDown}
-                placeholder="Rechercher une copropriete, naviguer..."
+                placeholder="Rechercher une copropriété du cabinet, naviguer..."
                 aria-label="Rechercher"
                 className="flex-1 bg-transparent outline-none text-[14px] text-ink placeholder:text-ink-4"
               />
@@ -163,6 +171,13 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
                       <Building2 strokeWidth={1.5} className={`w-3.5 h-3.5 shrink-0 ${it.copro ? "text-ink-3" : "text-ink-4"}`} />
                       <span className="flex-1 truncate">{it.titre}</span>
                       {it.sous && <span className="text-[11.5px] text-ink-4 truncate">{it.sous}</span>}
+                      {/* Copro d'un(e) collegue : on dit chez qui on va regarder. Discret
+                          (meme gris que la ville), mais toujours visible. */}
+                      {it.gestionnaire && (
+                        <span className="text-[11.5px] text-ink-4 truncate shrink-0" title={`Gérée par ${it.gestionnaire}`}>
+                          · {it.gestionnaire}
+                        </span>
+                      )}
                       {i === actif && <CornerDownLeft strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />}
                     </button>
                   </li>

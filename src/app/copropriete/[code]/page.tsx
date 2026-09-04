@@ -4,7 +4,6 @@ import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { etatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
 import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
-import { peutVoirComptabilite } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
 
@@ -24,12 +23,14 @@ export default async function CoproprietePage({
     process.env.COPRO_SOURCE === "supabase"
       ? new Date().toISOString().slice(0, 10)
       : "2026-05-27";
-  // Le pole comptable (COMPTABLES) et les super-admins ouvrent la fiche de N'IMPORTE
-  // quelle copro (lecture transverse) : ils ne sont pas cloisonnes par managerId. Un
-  // gestionnaire normal reste cloisonne a son portefeuille (transverse = false -> 404
-  // hors perimetre). Ce role sert aussi a activer le POLE COMPTA de la fiche pour eux.
-  const transverse = peutVoirComptabilite(g.email, g.role);
-  const fiche = await getFicheCopro(code, g.id, aujourdhuiISO, { transverse });
+  // LECTURE ELARGIE A L'EQUIPE (Sekou, 2026-09-04). Avant, seuls le pole comptable et les
+  // super-admins ouvraient la fiche d'une copro qui n'etait pas la leur ; un gestionnaire
+  // tombait sur un 404 - y compris depuis un resultat de recherche, qui montre desormais
+  // TOUT le cabinet. La lecture passe donc au perimetre de lecture (transverse : cf.
+  // services/coproprietes/perimetre-lecture), pour tout collaborateur authentifie.
+  // L'ECRITURE, elle, ne bouge pas d'un pouce : chaque action de la fiche (dates, liste de
+  // diffusion, mail au CS, compta...) re-verifie coproAppartient / exigerPerimetre.
+  const fiche = await getFicheCopro(code, g.id, aujourdhuiISO, { transverse: true });
   if (!fiche) notFound();
   // Gating mail au CS : seul le gate GLOBAL (MAIL_SOURCE=graph) s'applique -- le bouton
   // "Preparer le mail au CS/AG" est ouvert a TOUS les gestionnaires des que le provider
