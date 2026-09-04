@@ -14,7 +14,13 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { envoyerFeedback } from "@/app/feedback/actions";
-import type { SeveriteFeedback, TypeFeedback } from "@/lib/domain/feedback";
+import {
+  APPLICATIONS_FEEDBACK,
+  LIBELLES_APPLICATION,
+  type ApplicationFeedback,
+  type SeveriteFeedback,
+  type TypeFeedback,
+} from "@/lib/domain/feedback";
 
 const SEVERITES: { valeur: SeveriteFeedback; label: string; aide: string }[] = [
   { valeur: "bloquant", label: "Bloquant", aide: "M'empêche de travailler." },
@@ -26,6 +32,8 @@ export function FeedbackTrigger() {
   const pathname = usePathname();
   const [ouvert, setOuvert] = useState(false);
   const [type, setType] = useState<TypeFeedback>("bug");
+  const [application, setApplication] = useState<ApplicationFeedback>("real31");
+  const [lien, setLien] = useState("");
   const [description, setDescription] = useState("");
   const [severite, setSeverite] = useState<SeveriteFeedback>("genant");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -34,6 +42,8 @@ export function FeedbackTrigger() {
 
   function reset() {
     setType("bug");
+    setApplication("real31");
+    setLien("");
     setDescription("");
     setSeverite("genant");
     setErreur(null);
@@ -49,7 +59,15 @@ export function FeedbackTrigger() {
   function soumettre() {
     setErreur(null);
     startTransition(async () => {
-      const r = await envoyerFeedback({ type, description, severite, page: pathname });
+      // real31 : le pathname est capture automatiquement ; autre application : le lien
+      // colle par le collaborateur (facultatif).
+      const r = await envoyerFeedback({
+        type,
+        description,
+        severite,
+        application,
+        page: application === "real31" ? pathname : lien.trim() || undefined,
+      });
       if (!r.ok) {
         setErreur(r.message ?? "Envoi impossible.");
         return;
@@ -94,6 +112,34 @@ export function FeedbackTrigger() {
             </div>
           ) : (
             <div className="px-4 py-4 flex flex-col gap-4">
+              {/* Application concernee : les collegues remontent aussi les bugs des
+                  autres outils du cabinet (demande Sekou 2026-09-04). */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12px] text-ink-2">Quelle application ?</span>
+                <div className="flex flex-wrap gap-2">
+                  {APPLICATIONS_FEEDBACK.map((a) => {
+                    const actif = application === a;
+                    return (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => setApplication(a)}
+                        aria-pressed={actif}
+                        className={cn(
+                          "rounded-md border px-3 py-1.5 text-[13px] transition-colors",
+                          "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
+                          actif
+                            ? "border-green-600/40 bg-green-50 text-green-700 font-medium"
+                            : "border-line bg-surface text-ink-2 hover:bg-surface-2",
+                        )}
+                      >
+                        {LIBELLES_APPLICATION[a]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Type : bug / idée */}
               <div className="flex flex-col gap-1.5">
                 <span className="text-[12px] text-ink-2">De quoi s&apos;agit-il ?</span>
@@ -177,10 +223,25 @@ export function FeedbackTrigger() {
                 </div>
               </fieldset>
 
-              {/* Page capturee (info, non editable) */}
-              <p className="text-[11.5px] text-ink-4">
-                Page concernée : <code className="font-mono text-ink-3">{pathname}</code> (jointe automatiquement).
-              </p>
+              {/* Page concernee : capturee automatiquement sur real31, lien libre
+                  (facultatif) pour les autres applications. */}
+              {application === "real31" ? (
+                <p className="text-[11.5px] text-ink-4">
+                  Page concernée : <code className="font-mono text-ink-3">{pathname}</code> (jointe automatiquement).
+                </p>
+              ) : (
+                <label className="flex flex-col gap-1.5 text-[12px] text-ink-2">
+                  La page concernée (facultatif)
+                  <input
+                    type="text"
+                    value={lien}
+                    onChange={(e) => setLien(e.target.value)}
+                    maxLength={280}
+                    placeholder="Colle un lien si tu en as un…"
+                    className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                  />
+                </label>
+              )}
 
               {erreur && <div className="text-[12.5px] text-err-700">{erreur}</div>}
 

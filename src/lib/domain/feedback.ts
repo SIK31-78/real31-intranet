@@ -234,3 +234,42 @@ export class FeedbackNonConfigureError extends Error {
     this.name = "FeedbackNonConfigureError";
   }
 }
+
+// --- APPLICATION CONCERNEE (demande Sekou 2026-09-04) --------------------------
+// Les collaborateurs remontent aussi les bugs des AUTRES outils du cabinet.
+// L'application s'encode dans le champ `page` existant sous "app:lien" - zero SQL,
+// meme parti que la cloture de l'ODJ ("ISO|initiales"). Une page sans prefixe est
+// une page real31.app (tout l'historique reste juste).
+
+export const APPLICATIONS_FEEDBACK = ["real31", "estale", "registre-contrats", "autre"] as const;
+export type ApplicationFeedback = (typeof APPLICATIONS_FEEDBACK)[number];
+
+export const LIBELLES_APPLICATION: Record<ApplicationFeedback, string> = {
+  real31: "Real31.app",
+  estale: "eStale",
+  "registre-contrats": "Registre Contrats Copro",
+  autre: "Autre",
+};
+
+const PREFIXES_APPLICATION = new Set<string>(APPLICATIONS_FEEDBACK);
+
+/** Compose le champ `page` : pathname tel quel pour real31 (retro-compatible),
+ *  "app:lien" sinon (le lien est FACULTATIF : "estale:" seul est valide). */
+export function encoderPageFeedback(application: ApplicationFeedback, lien?: string): string | undefined {
+  const l = lien?.trim() ?? "";
+  if (application === "real31") return l || undefined;
+  return `${application}:${l}`;
+}
+
+/** Inverse : application + lien depuis le champ `page` stocke. Sans prefixe connu,
+ *  c'est une page real31 (tout l'existant). */
+export function decoderPageFeedback(page?: string): { application: ApplicationFeedback; lien?: string } {
+  if (!page) return { application: "real31" };
+  const i = page.indexOf(":");
+  const prefixe = i > 0 ? page.slice(0, i) : "";
+  if (PREFIXES_APPLICATION.has(prefixe) && prefixe !== "real31") {
+    const lien = page.slice(i + 1).trim();
+    return { application: prefixe as ApplicationFeedback, ...(lien ? { lien } : {}) };
+  }
+  return { application: "real31", lien: page };
+}

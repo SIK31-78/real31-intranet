@@ -13,6 +13,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { LIBELLES_APPLICATION, decoderPageFeedback } from "@/lib/domain/feedback";
 import {
   STATUTS_CREATION_ADMIN,
   transitionsPossibles,
@@ -192,7 +193,17 @@ function LigneFeedback({ f }: { f: Feedback }) {
                 )}
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-[11.5px] text-ink-3">
-                {f.page && <code className="font-mono">{f.page}</code>}
+                {/* Application concernee : decodee du champ page ("app:lien", cf. domaine).
+                    Le badge n'apparait que hors real31 - inutile de tamponner la norme. */}
+                {(() => {
+                  const { application, lien } = decoderPageFeedback(f.page);
+                  return (
+                    <>
+                      {application !== "real31" && <Badge ton="info">{LIBELLES_APPLICATION[application]}</Badge>}
+                      {lien && <code className="font-mono">{lien}</code>}
+                    </>
+                  );
+                })()}
                 <span>{f.auteurInitiales ?? f.auteurEmail ?? "anonyme"}</span>
                 <span>{jjmmaaaa(f.createdAt)}</span>
               </div>

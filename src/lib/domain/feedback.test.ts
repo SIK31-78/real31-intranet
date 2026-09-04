@@ -1,6 +1,7 @@
 // Tests du domaine feedback : transitions (valides / invalides), ecart exige une raison,
 // tri de triage, et surtout la PROJECTION PUBLIQUE (n'expose aucun champ interne). Offline.
 
+import * as fns from "./feedback";
 import { describe, expect, it } from "vitest";
 import {
   titreParDefaut,
@@ -117,5 +118,33 @@ describe("titre par defaut", () => {
     const titre = titreParDefaut(long);
     expect(titre.length).toBeLessThanOrEqual(80);
     expect(titre.endsWith("…")).toBe(true);
+  });
+});
+
+describe("application concernee (multi-outils)", () => {
+  it("real31 : le pathname passe tel quel (retro-compatible avec tout l'historique)", () => {
+    const { encoderPageFeedback, decoderPageFeedback } = fns;
+    expect(encoderPageFeedback("real31", "/copropriete/S104")).toBe("/copropriete/S104");
+    expect(decoderPageFeedback("/copropriete/S104")).toEqual({ application: "real31", lien: "/copropriete/S104" });
+    expect(decoderPageFeedback(undefined)).toEqual({ application: "real31" });
+  });
+
+  it("autre application : prefixe 'app:lien', lien facultatif", () => {
+    const { encoderPageFeedback, decoderPageFeedback } = fns;
+    expect(encoderPageFeedback("estale", "https://app.estale.fr/x")).toBe("estale:https://app.estale.fr/x");
+    expect(decoderPageFeedback("estale:https://app.estale.fr/x")).toEqual({
+      application: "estale",
+      lien: "https://app.estale.fr/x",
+    });
+    expect(decoderPageFeedback("registre-contrats:")).toEqual({ application: "registre-contrats" });
+    expect(encoderPageFeedback("autre")).toBe("autre:");
+  });
+
+  it("un pathname real31 contenant un ':' ne se fait pas voler par le decodeur", () => {
+    const { decoderPageFeedback } = fns;
+    expect(decoderPageFeedback("/odj/S273__2026-10-14")).toEqual({
+      application: "real31",
+      lien: "/odj/S273__2026-10-14",
+    });
   });
 });
