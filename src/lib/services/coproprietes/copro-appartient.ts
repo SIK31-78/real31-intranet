@@ -43,3 +43,23 @@ export const coproAppartient = cache(async (code: string, managerId: string): Pr
   // portefeuille a deja dit non (donc jamais sur le chemin nominal d'un gestionnaire).
   return dansPerimetreComptable(code, managerId);
 });
+
+/**
+ * Ce collaborateur peut-il ECRIRE sur cette copro ? Meme regle que `exigerPerimetre`,
+ * rendue en booleen pour que l'UI puisse DECIDER (afficher un document fige plutot que
+ * des champs qui refuseront de s'enregistrer) au lieu de laisser l'utilisateur decouvrir
+ * le refus apres coup.
+ *
+ * Depuis que la LECTURE s'ouvre a l'equipe (perimetre-lecture), un ecran peut s'afficher
+ * pour quelqu'un qui n'a pas le droit d'y toucher : cette question se pose donc pour de
+ * bon, et elle doit se poser AU MEME ENDROIT que la garde d'ecriture. Le no-op en mock
+ * (COPRO_SOURCE != supabase) est celui des actions et d'exigerPerimetre : sans lui, le dev
+ * et les mocks passeraient tout l'ODJ en lecture seule.
+ *
+ * Ce n'est PAS la garde : la garde reste `exigerPerimetre` / le refus des actions cote
+ * serveur. Ce booleen ne fait que leur donner la meme reponse a l'avance, pour l'affichage.
+ */
+export async function peutEcrireSurCopro(code: string, managerId: string): Promise<boolean> {
+  if (process.env.COPRO_SOURCE !== "supabase") return true;
+  return coproAppartient(code, managerId);
+}

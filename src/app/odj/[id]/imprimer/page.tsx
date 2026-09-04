@@ -12,12 +12,16 @@ export const dynamic = "force-dynamic";
 
 // Vue document de l'ODJ : mise en page sobre pensee pour l'impression (PDF via le
 // navigateur). Rendu partage avec l'apercu live (DocumentOdj).
+//
+// Ecran STRICTEMENT en lecture (aucune action), donc au perimetre de LECTURE comme
+// /odj/[id] : un collegue qui consulte l'ODJ doit pouvoir l'imprimer. Sans ca, le bouton
+// "Version imprimable" de l'ecran precedent l'envoyait sur un 404.
 
 export default async function OdjImprimerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const odj = await getOdj(id, g.id);
+  const odj = await getOdj(id, g.id, { transverse: true });
   if (!odj) notFound();
 
   return (

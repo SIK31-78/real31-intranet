@@ -48,6 +48,9 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("@/lib/services/coproprietes/copro-appartient", () => ({
   coproAppartient: async () => etat.appartient,
+  // Perimetre d'ECRITURE (ce que les actions consultent). Volontairement distinct du
+  // perimetre de LECTURE simule par findByCode ci-dessous : c'est tout l'enjeu.
+  peutEcrireSurCopro: async () => etat.appartient,
 }));
 // Estale et les confirmations d'evenement ne jouent aucun role dans la cle : neutralises.
 vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({
@@ -58,7 +61,11 @@ vi.mock("@/lib/services/coproprietes/confirmation-evenement", () => ({
 }));
 vi.mock("@/lib/adapters/router", () => ({
   getCoproRepository: () => ({
-    async findByCode(code: string) {
+    async findByCode(code: string, managerId?: string) {
+      // Cloisonnement simule tel que le fait la base : une requete SCOPEE (avec managerId)
+      // ne rend rien hors du portefeuille -> c'est exactement ce qui produisait le 404 de
+      // l'ODJ. Une requete NON scopee (lecture d'equipe) rend la copro.
+      if (managerId && !etat.appartient) return null;
       return {
         code,
         source: "supabase",
@@ -185,5 +192,39 @@ describe("cle d'ecriture de l'ODJ (id d'URL sans date)", () => {
     await cloturerOdjAction("S273", true);
 
     expect(etat.ecritures).toHaveLength(0);
+  });
+});
+
+// La LECTURE s'elargit a l'equipe, l'ECRITURE reste cloisonnee (Sekou, 2026-09-04). Ces
+// deux mouvements sont contradictoires en apparence : les verrouiller ensemble est le seul
+// moyen de garantir qu'en ouvrant l'un on n'a pas ouvert l'autre.
+describe("consultation d'un ODJ hors portefeuille", () => {
+  beforeEach(() => {
+    etat.appartient = false; // la copro est celle d'une collegue
+  });
+
+  it("la lecture SCOPEE ne rend rien - c'est le 404 qu'on repare", async () => {
+    expect(await getOdj("S273", "g1")).toBeNull();
+  });
+
+  it("la lecture d'EQUIPE (transverse) rend bien le document", async () => {
+    const odj = await getOdj("S273", "g1", { transverse: true });
+
+    expect(odj).not.toBeNull();
+    expect(odj?.copro.code).toBe("S273");
+  });
+
+  it("consulter n'ouvre AUCUNE ecriture (le verrou tient sur les 3 actions)", async () => {
+    // On lit d'abord, comme le fait l'ecran, puis on rejoue chaque action serveur : un
+    // client peut les appeler meme quand l'UI ne montre aucun champ editable.
+    await getOdj("S273", "g1", { transverse: true });
+
+    await saisirChampAction("S273", "lieu", "Salle des fêtes");
+    await saisirChampAction("S273__2026-10-14", "presents-syndic", "MARTIN Paul");
+    await togglePointAction("S273", "irve", true);
+    await cloturerOdjAction("S273", true);
+
+    expect(etat.ecritures).toHaveLength(0);
+    expect((await getOdj("S273", "g1", { transverse: true }))?.cloture).toBeFalsy();
   });
 });

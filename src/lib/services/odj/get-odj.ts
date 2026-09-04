@@ -68,9 +68,23 @@ function champ(
   };
 }
 
-export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | null> {
+/**
+ * `transverse` : LECTURE au perimetre d'equipe (services/coproprietes/perimetre-lecture),
+ * sans le scope managerId. Un collegue qui consulte l'ODJ prepare par le gestionnaire de
+ * la copro tombait sinon sur un 404. C'est une ouverture de LECTURE seulement : l'ecriture
+ * reste cloisonnee dans les actions (autorise / peutEcrireSurCopro) et dans les services
+ * (exigerPerimetre) - la lire ici plus large ne donne aucun droit d'ecrire.
+ * Meme convention que getFicheCopro.
+ */
+export async function getOdj(
+  id: string,
+  gestionnaireId: string,
+  options?: { transverse?: boolean },
+): Promise<Odj | null> {
   const { code } = decouperIdOdj(id);
-  const copro = await getCoproRepository().findByCode(code, gestionnaireId);
+  const copro = options?.transverse
+    ? await getCoproRepository().findByCode(code)
+    : await getCoproRepository().findByCode(code, gestionnaireId);
   if (!copro) return null;
 
   // Meme resolution que les actions d'ecriture (resoudre-cle-odj) : `dateAg` sert a

@@ -7,7 +7,7 @@ import {
   retirerPointOdj,
 } from "@/lib/services/odj/saisir-champ-odj";
 import { cloturerOdj } from "@/lib/services/odj/cloturer-odj";
-import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
+import { peutEcrireSurCopro } from "@/lib/services/coproprietes/copro-appartient";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getOdjRepository } from "@/lib/adapters/router";
 import { parseCloture } from "@/lib/domain/odj";
@@ -24,12 +24,20 @@ const zValeur = z.string().max(20_000);
 // -> tout ce qui etait saisi depuis /odj/S273 partait sur une ligne jamais relue.
 // Une seule resolution pour les deux cotes : resoudre-cle-odj.
 
-/** Gestionnaire courant s'il est autorise sur cette copro, sinon null (cloisonnement). */
+/**
+ * Gestionnaire courant s'il est autorise a ECRIRE sur cette copro, sinon null.
+ *
+ * CE VERROU NE BOUGE PAS. Depuis 2026-09-04 la LECTURE de l'ODJ est ouverte a l'equipe
+ * (un collegue consulte le CR de CS prepare par le gestionnaire, cf. page.tsx) : l'ecran
+ * s'affiche donc pour des gens qui n'ont pas le droit d'y toucher, et c'est ici - cote
+ * serveur - que ca se refuse. Retirer les champs editables a l'affichage ne protege de
+ * rien : un client peut rejouer l'action. La regle est partagee avec l'affichage
+ * (peutEcrireSurCopro) pour que les deux ne puissent pas diverger.
+ */
 async function autorise(code: string): Promise<Gestionnaire | null> {
   const g = await getGestionnaireCourant();
   if (!g) return null;
-  if (process.env.COPRO_SOURCE !== "supabase") return g;
-  return (await coproAppartient(code, g.id)) ? g : null;
+  return (await peutEcrireSurCopro(code, g.id)) ? g : null;
 }
 
 /** L'ODJ est-il cloture ? Verrou SERVEUR : retirer `editable` a l'affichage ne protege
