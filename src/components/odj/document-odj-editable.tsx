@@ -317,6 +317,21 @@ function ValeurEditable({
     );
   }
 
+  // Booleen : jamais un champ de saisie (on ne tape pas "oui"), une BASCULE d'un clic --
+  // meme geste que la modalite visio, avec les libelles generiques Oui / Non.
+  if (champ.type === "booleen") {
+    return (
+      <BasculeBooleen
+        champ={champ}
+        moteur={moteur}
+        oui="Oui"
+        non="Non"
+        titre="Cliquer pour basculer Oui / Non"
+        sobre={sobre}
+      />
+    );
+  }
+
   if (edition) {
     const commit = (v: string) => {
       setEdition(false);
@@ -363,25 +378,52 @@ function ValeurEditable({
   );
 }
 
-/** Modalite (visio) : bascule directe Presentiel <-> hybride, envoi immediat. */
-function ModaliteEditable({ champ, moteur }: { champ: ChampOdj | undefined; moteur: MoteurAutosave }) {
-  if (!champ) return <span className="font-medium text-neutral-900">Présentiel</span>;
+/** Bascule d'un champ BOOLEEN : un clic fait oui <-> non, envoi immediat (pas d'attente
+ *  de debounce sur un geste binaire). Les libelles sont fournis par l'appelant : la
+ *  modalite dit "Présentiel / hybride", les autres booleens disent "Oui / Non". */
+function BasculeBooleen({
+  champ,
+  moteur,
+  oui,
+  non,
+  titre,
+  sobre = false,
+}: {
+  champ: ChampOdj;
+  moteur: MoteurAutosave;
+  oui: string;
+  non: string;
+  titre: string;
+  /** Ligne de SECTION : le gras est au libelle, la valeur reste sobre. */
+  sobre?: boolean;
+}) {
   const actuel = valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur ?? "non";
   const actif = actuel === "oui";
-  if (!champ.editable) {
-    return (
-      <span className="font-medium text-neutral-900">{actif ? "Présentiel et visio (hybride)" : "Présentiel"}</span>
-    );
-  }
+  const style = sobre ? "text-neutral-700" : "font-medium text-neutral-900";
+  if (!champ.editable) return <span className={style}>{actif ? oui : non}</span>;
   return (
     <button
       type="button"
-      title="Cliquer pour basculer présentiel / hybride"
+      title={titre}
       onClick={() => moteur.commettre(champ.id, actuel, actif ? "non" : "oui", true)}
-      className="font-medium text-neutral-900 border-b border-dotted border-green-700/40 rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+      className={`${style} border-b border-dotted border-green-700/40 rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50`}
     >
-      {actif ? "Présentiel et visio (hybride)" : "Présentiel"}
+      {actif ? oui : non}
     </button>
+  );
+}
+
+/** Modalite (visio) : bascule directe Presentiel <-> hybride, envoi immediat. */
+function ModaliteEditable({ champ, moteur }: { champ: ChampOdj | undefined; moteur: MoteurAutosave }) {
+  if (!champ) return <span className="font-medium text-neutral-900">Présentiel</span>;
+  return (
+    <BasculeBooleen
+      champ={champ}
+      moteur={moteur}
+      oui="Présentiel et visio (hybride)"
+      non="Présentiel"
+      titre="Cliquer pour basculer présentiel / hybride"
+    />
   );
 }
 

@@ -172,19 +172,60 @@ export function formatChampValeur(champ: ChampOdj): string | undefined {
   return champ.valeur;
 }
 
-/** Ecart budgetaire : budget - depenses. Positif = trop-percu (rendu aux copros),
+/** Un ecart calcule : le LIBELLE adapte au signe + le montant, toujours positif. */
+export interface EcartCalcule {
+  libelle: string;
+  valeur: string;
+}
+
+/** Ecart montant : budget - depenses. Positif = trop-percu (rendu aux copros),
  *  negatif = depassement (cf. modele ODJ / exemple 31 Foch). Renvoie le libelle
- *  ADAPTE + le montant, pour eviter le doublon "Trop-percu / depassement : Depassement de X". */
-export function ecartBudget(
+ *  ADAPTE + le montant, pour eviter le doublon "Trop-percu / depassement : Depassement de X".
+ *  `objet` precise de quoi on parle quand la ligne en a besoin (" budget courant") ;
+ *  vide, le libelle est le "Depassement" / "Trop-percu" nu du modele Word des travaux. */
+export function ecartMontants(
   budgetBrut?: string,
   depensesBrut?: string,
-): { libelle: string; valeur: string } | undefined {
+  objet = "",
+): EcartCalcule | undefined {
   const budget = parseMontant(budgetBrut);
   const depenses = parseMontant(depensesBrut);
   if (budget === null || depenses === null) return undefined;
   const ecart = budget - depenses;
-  if (ecart >= 0) return { libelle: "Trop-perçu budget courant", valeur: formatEuros(ecart) };
-  return { libelle: "Dépassement budget courant", valeur: formatEuros(-ecart) };
+  if (ecart >= 0) return { libelle: `Trop-perçu${objet}`, valeur: formatEuros(ecart) };
+  return { libelle: `Dépassement${objet}`, valeur: formatEuros(-ecart) };
+}
+
+/** Ecart du budget COURANT (ligne "Vérification des comptes"). */
+export function ecartBudget(budgetBrut?: string, depensesBrut?: string): EcartCalcule | undefined {
+  return ecartMontants(budgetBrut, depensesBrut, " budget courant");
+}
+
+// --- Travaux votes ----------------------------------------------------------
+
+/** Un chantier vote, tel qu'Estale le remonte. Structure DECRITE ici plutot
+ *  qu'importee : le domaine de l'ODJ n'a besoin que de ces trois valeurs. */
+export interface ChantierVote {
+  libelle: string;
+  budgetVote: number;
+  depenses: number;
+}
+
+/** Pre-remplissage des champs "Travaux" (intitule / budget vote / depenses).
+ *  Estale peut remonter PLUSIEURS chantiers sur l'exercice alors que le modele du CS
+ *  n'a qu'un bloc travaux : on joint les intitules et on SOMME les montants, de sorte
+ *  que l'ecart calcule (budget - depenses) reste juste. Le gestionnaire garde la main
+ *  sur les trois champs. undefined si aucun chantier -> tout reste a saisir. */
+export function travauxAuto(
+  chantiers?: readonly ChantierVote[],
+): { intitule: string; budgetVote: string; depenses: string } | undefined {
+  if (!chantiers || chantiers.length === 0) return undefined;
+  const somme = (lire: (c: ChantierVote) => number) => chantiers.reduce((total, c) => total + lire(c), 0);
+  return {
+    intitule: chantiers.map((c) => c.libelle).join(" ; "),
+    budgetVote: String(somme((c) => c.budgetVote)),
+    depenses: String(somme((c) => c.depenses)),
+  };
 }
 
 // --- Points legaux ----------------------------------------------------------

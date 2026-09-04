@@ -5,7 +5,16 @@
 
 import type { ChampOdj, Odj, SectionOdj, SourceDonnee } from "@/lib/domain/odj";
 import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
-import { pointsLegaux, ecartBudget, parseMontant, formatEuros, parseCloture } from "@/lib/domain/odj";
+import type { EcartCalcule } from "@/lib/domain/odj";
+import {
+  pointsLegaux,
+  ecartBudget,
+  ecartMontants,
+  travauxAuto,
+  parseMontant,
+  formatEuros,
+  parseCloture,
+} from "@/lib/domain/odj";
 import { getCoproRepository, getOdjRepository } from "@/lib/adapters/router";
 import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
@@ -122,12 +131,9 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
   // Comptabilite (Estale) : budget previsionnel + depenses (-> ecart auto) + travaux + fonds + debiteurs.
   const valeurBudget = estale?.budgetPrevisionnel != null ? String(estale.budgetPrevisionnel) : undefined;
   const valeurDepenses = estale?.depensesCourantes != null ? String(estale.depensesCourantes) : undefined;
-  const valeurTravaux =
-    estale?.travauxVotes && estale.travauxVotes.length > 0
-      ? estale.travauxVotes
-          .map((t) => `${t.libelle} : voté ${formatEuros(t.budgetVote)}, dépensé ${formatEuros(t.depenses)}`)
-          .join(" ; ")
-      : undefined;
+  // Travaux : le CS les veut DETAILLES (intitule / budget vote / depenses / ecart / nota /
+  // cloture pour repartition), comme leur ODJ Word - une ligne fourre-tout ne se relisait pas.
+  const travaux = travauxAuto(estale?.travauxVotes);
   const valeurFonds = estale?.fondsTravaux != null ? String(estale.fondsTravaux) : undefined;
   // Debiteurs a ce jour : "NOM Prenom montant (>5% budget)" pour ceux qui depassent le seuil.
   const valeurDebiteurs =
@@ -204,9 +210,20 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
       champs: [
         champ("comptes.depenses-courantes", "Total des dépenses courantes", "estale", { editable: true, type: "montant", valeur: valeurDepenses }),
         champ("comptes.budget", "Budget prévisionnel", "estale", { editable: true, type: "montant", valeur: valeurBudget }),
-        champ("comptes.ecart-budget", "Trop-perçu / dépassement budget courant", "calcul"),
+        champ("comptes.ecart-budget", "Trop-perçu / dépassement budget courant", "calcul", { type: "montant" }),
         champ("comptes.eau", "Consommation d'eau (volume + prix au m³)", "estale", { editable: true, valeur: valeurEau }),
-        champ("comptes.travaux-votes", "Travaux votés (budget appelé)", "estale", { editable: true, valeur: valeurTravaux }),
+        // Bloc TRAVAUX (modele Word du CS) : l'intitule et les deux montants viennent
+        // d'Estale quand un chantier est ouvert, l'ecart se calcule, le nota et la
+        // cloture pour repartition sont la decision du CS.
+        champ("travaux.intitule", "Travaux", "estale", { editable: true, valeur: travaux?.intitule }),
+        champ("travaux.budget-vote", "Budget voté", "estale", { editable: true, type: "montant", valeur: travaux?.budgetVote }),
+        champ("travaux.depenses", "Dépenses constatées", "estale", { editable: true, type: "montant", valeur: travaux?.depenses }),
+        champ("travaux.ecart", "Dépassement / trop-perçu sur les travaux", "calcul", { type: "montant" }),
+        champ("travaux.nota", "Nota", "manuel", e),
+        champ("travaux.cloture-repartition", "Clôture des travaux pour répartition", "manuel", {
+          editable: true,
+          type: "booleen",
+        }),
         champ("comptes.debiteurs", "Copropriétaire(s) débiteur(s)", "estale", { editable: true, valeur: valeurDebiteurs }),
         champ("comptes.compteurs-eau", "Compteurs d'eau collectés", "supabase", e),
         champ("comptes.repartiteurs", "Répartiteurs de frais de chauffage collectés", "supabase", e),
@@ -306,17 +323,19 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     }
   };
 
-  // Ecart budget : libelle adapte selon le signe (trop-percu / depassement).
-  const ecart = ecartBudget(valeurDe("comptes.budget"), valeurDe("comptes.depenses-courantes"));
-  if (ecart) {
+  // Ecarts (budget courant, travaux) : le LIBELLE s'adapte au signe (trop-percu /
+  // depassement) -- sauf si le gestionnaire a reecrit le sien, qui prime toujours.
+  const poserEcart = (id: string, ecart: EcartCalcule | undefined) => {
+    if (!ecart) return;
     for (const s of sectionsFinales) {
-      const c = s.champs.find((x) => x.id === "comptes.ecart-budget");
-      if (c) {
-        c.libelle = ecart.libelle;
-        c.valeur = ecart.valeur;
-      }
+      const c = s.champs.find((x) => x.id === id);
+      if (!c) continue;
+      if (!c.libelleReecrit) c.libelle = ecart.libelle;
+      c.valeur = ecart.valeur;
     }
-  }
+  };
+  poserEcart("comptes.ecart-budget", ecartBudget(valeurDe("comptes.budget"), valeurDe("comptes.depenses-courantes")));
+  poserEcart("travaux.ecart", ecartMontants(valeurDe("travaux.budget-vote"), valeurDe("travaux.depenses")));
 
   const actuel = parseMontant(valeurDe("points.contrat-syndic-actuel"));
   const pct = parseMontant(valeurDe("points.contrat-syndic-augmentation"));
