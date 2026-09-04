@@ -85,7 +85,10 @@ docs/powerapps/**/*.msapp
 ~$*.xlsx
 
 # Outillage local / agents (regenere par machine, jamais commit)
-.claude/
+# .claude : local (settings.local.json = par machine), SAUF les skills projet
+# qui se synchronisent entre les postes via le repo.
+.claude/*
+!.claude/skills/
 .agents/
 skills-lock.json
 

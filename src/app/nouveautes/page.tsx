@@ -6,7 +6,7 @@
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Bug, Lightbulb, Sparkles, Rocket, CircleDot } from "lucide-react";
+import { Bug, Lightbulb, Sparkles, Rocket, CircleDot, ChevronDown } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getNouveautes } from "@/lib/services/feedback/get-nouveautes";
 import { formatDateLongue } from "@/lib/format-date";
@@ -32,33 +32,67 @@ function TypePastille({ type }: { type: EntreePublique["type"] }) {
   );
 }
 
+/** Ligne depliable quand un RESUME PUBLIC existe (redige au triage hebdo - jamais la
+ *  description interne). <details> natif : la page reste 100 % serveur. */
+function Ligne({ entree, droite }: { entree: EntreePublique; droite: React.ReactNode }) {
+  if (!entree.resume) {
+    return (
+      <li className="flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3">
+        <TypePastille type={entree.type} />
+        <span className="min-w-0 flex-1 text-[13.5px] text-ink">{entree.titre}</span>
+        {droite}
+      </li>
+    );
+  }
+  return (
+    <li className="rounded-md border border-line bg-surface">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <TypePastille type={entree.type} />
+          <span className="min-w-0 flex-1 text-[13.5px] text-ink">{entree.titre}</span>
+          {droite}
+          <ChevronDown
+            strokeWidth={1.5}
+            className="h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform group-open:rotate-180"
+          />
+        </summary>
+        <p className="border-t border-line px-4 py-3 pl-11 text-[13px] leading-relaxed text-ink-2 whitespace-pre-wrap">
+          {entree.resume}
+        </p>
+      </details>
+    </li>
+  );
+}
+
 function LigneAVenir({ entree }: { entree: EntreePublique }) {
   return (
-    <li className="flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3">
-      <TypePastille type={entree.type} />
-      <span className="min-w-0 flex-1 text-[13.5px] text-ink">{entree.titre}</span>
-      {entree.statut === "en_cours" ? (
-        <Badge ton="warn" dot>
-          En cours
-        </Badge>
-      ) : (
-        <Badge ton="info" dot>
-          Prévu
-        </Badge>
-      )}
-    </li>
+    <Ligne
+      entree={entree}
+      droite={
+        entree.statut === "en_cours" ? (
+          <Badge ton="warn" dot>
+            En cours
+          </Badge>
+        ) : (
+          <Badge ton="info" dot>
+            Prévu
+          </Badge>
+        )
+      }
+    />
   );
 }
 
 function LigneLivre({ entree }: { entree: EntreePublique }) {
   return (
-    <li className="flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3">
-      <TypePastille type={entree.type} />
-      <span className="min-w-0 flex-1 text-[13.5px] text-ink">{entree.titre}</span>
-      {entree.livreAt && (
-        <span className="shrink-0 text-[12px] text-ink-3">{formatDateLongue(entree.livreAt.slice(0, 10))}</span>
-      )}
-    </li>
+    <Ligne
+      entree={entree}
+      droite={
+        entree.livreAt ? (
+          <span className="shrink-0 text-[12px] text-ink-3">{formatDateLongue(entree.livreAt.slice(0, 10))}</span>
+        ) : null
+      }
+    />
   );
 }
 

@@ -47,3 +47,4 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `reprise_fiche_renseignements.sql` | ❔ | Reprise copro — fiche renseignements. |
 | `reprise_mapping_decision.sql` | ❔ | Reprise compta — décisions de mapping. |
 | `_diagnostic_avant_deploiement.sql` | — | Script de diagnostic (lecture seule, pas une migration). |
+- 🔲 `intranet_feedback_resume_public.sql` — resume public des remontees (vitrine /nouveautes depliable)

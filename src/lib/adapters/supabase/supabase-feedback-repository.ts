@@ -19,6 +19,19 @@ import { createSupabasePublicClient } from "./public-client";
 const TABLE = "intranet_feedback";
 const COLS =
   "id, type, titre, description, page, auteur_email, auteur_initiales, severite, statut, priorite, note_interne, raison_ecart, created_at, updated_at, livre_at, archive_at";
+// Colonne AJOUTEE apres coup (resume public du triage hebdo). Tant que le SQL
+// supabase/sql/intranet_feedback_resume_public.sql n'est pas passe, la LECTURE se
+// degrade (resume absent partout) et l'ECRITURE du resume leve une erreur qui nomme
+// le fichier - meme filet que le traitement des recaps.
+const SQL_RESUME = "supabase/sql/intranet_feedback_resume_public.sql";
+let colonneResumeConnue: boolean | undefined;
+async function colsEffectives(sb: ReturnType<typeof createSupabasePublicClient>): Promise<string> {
+  if (colonneResumeConnue === undefined) {
+    const sonde = await sb.from(TABLE).select("resume_public").limit(1);
+    colonneResumeConnue = !sonde.error;
+  }
+  return colonneResumeConnue ? `${COLS}, resume_public` : COLS;
+}
 
 type Row = {
   id: string;
@@ -33,6 +46,7 @@ type Row = {
   priorite: number | null;
   note_interne: string | null;
   raison_ecart: string | null;
+  resume_public?: string | null;
   created_at: string;
   updated_at: string | null;
   livre_at: string | null;
@@ -62,6 +76,7 @@ function map(r: Row): Feedback {
     ...(r.priorite !== null ? { priorite: r.priorite } : {}),
     ...(r.note_interne ? { noteInterne: r.note_interne } : {}),
     ...(r.raison_ecart ? { raisonEcart: r.raison_ecart } : {}),
+    ...(r.resume_public ? { resumePublic: r.resume_public } : {}),
     ...(r.updated_at ? { updatedAt: r.updated_at } : {}),
     ...(r.livre_at ? { livreAt: r.livre_at } : {}),
     ...(r.archive_at ? { archiveAt: r.archive_at } : {}),
@@ -82,13 +97,13 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
         auteur_email: remontee.auteurEmail ?? null,
         auteur_initiales: remontee.auteurInitiales ?? null,
       })
-      .select(COLS)
+      .select(await colsEffectives(sb))
       .single();
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`creer feedback : ${error.message}`);
     }
-    return map(data as Row);
+    return map(data as unknown as Row);
   }
 
   async creerEntree(entree: EntreeAdmin): Promise<Feedback> {
@@ -107,18 +122,18 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
         auteur_initiales: entree.auteurInitiales ?? null,
         livre_at: entree.livreAt ?? null,
       })
-      .select(COLS)
+      .select(await colsEffectives(sb))
       .single();
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`creer entrée feedback : ${error.message}`);
     }
-    return map(data as Row);
+    return map(data as unknown as Row);
   }
 
   async lister(filtre?: FiltreFeedback): Promise<Feedback[]> {
     const sb = createSupabasePublicClient();
-    let q = sb.from(TABLE).select(COLS).order("created_at", { ascending: false });
+    let q = sb.from(TABLE).select(await colsEffectives(sb)).order("created_at", { ascending: false });
     if (filtre?.statut) q = q.eq("statut", filtre.statut);
     if (filtre?.type) q = q.eq("type", filtre.type);
     if (filtre?.severite) q = q.eq("severite", filtre.severite);
@@ -127,17 +142,17 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`lister feedback : ${error.message}`);
     }
-    return (data as Row[]).map(map);
+    return (data as unknown as Row[]).map(map);
   }
 
   async get(id: string): Promise<Feedback | null> {
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb.from(TABLE).select(COLS).eq("id", id).maybeSingle();
+    const { data, error } = await sb.from(TABLE).select(await colsEffectives(sb)).eq("id", id).maybeSingle();
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`get feedback : ${error.message}`);
     }
-    return data ? map(data as Row) : null;
+    return data ? map(data as unknown as Row) : null;
   }
 
   async changerStatut(id: string, statut: StatutFeedback, opts: ChangementStatut): Promise<Feedback | null> {
@@ -149,12 +164,12 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
     // raison_ecart : posee si fournie, effacee si on quitte l'etat ecarte.
     patch.raison_ecart = statut === "ecarte" ? (opts.raisonEcart ?? null) : null;
     if (opts.livreAt) patch.livre_at = opts.livreAt;
-    const { data, error } = await sb.from(TABLE).update(patch).eq("id", id).select(COLS).maybeSingle();
+    const { data, error } = await sb.from(TABLE).update(patch).eq("id", id).select(await colsEffectives(sb)).maybeSingle();
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`changer statut feedback : ${error.message}`);
     }
-    return data ? map(data as Row) : null;
+    return data ? map(data as unknown as Row) : null;
   }
 
   async patch(id: string, patch: PatchFeedback): Promise<Feedback | null> {
@@ -164,22 +179,29 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
     if (patch.description !== undefined) maj.description = patch.description;
     if (patch.type !== undefined) maj.type = patch.type;
     if (patch.noteInterne !== undefined) maj.note_interne = patch.noteInterne;
+    if (patch.resumePublic !== undefined) {
+      const cols = await colsEffectives(sb);
+      if (!cols.includes("resume_public")) {
+        throw new Error(`Resume public : colonne absente - SQL a passer : ${SQL_RESUME}`);
+      }
+      maj.resume_public = patch.resumePublic; // null efface
+    }
     if (patch.priorite !== undefined) maj.priorite = patch.priorite; // null efface
     // Masquage reversible : archive_at = maintenant (archive) ou null (desarchive).
     if (patch.archive !== undefined) maj.archive_at = patch.archive ? new Date().toISOString() : null;
-    const { data, error } = await sb.from(TABLE).update(maj).eq("id", id).select(COLS).maybeSingle();
+    const { data, error } = await sb.from(TABLE).update(maj).eq("id", id).select(await colsEffectives(sb)).maybeSingle();
     if (error) {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`editer feedback : ${error.message}`);
     }
-    return data ? map(data as Row) : null;
+    return data ? map(data as unknown as Row) : null;
   }
 
   async listerPublic(): Promise<Feedback[]> {
     const sb = createSupabasePublicClient();
     const { data, error } = await sb
       .from(TABLE)
-      .select(COLS)
+      .select(await colsEffectives(sb))
       .in("statut", STATUTS_PUBLICS as unknown as string[])
       .is("archive_at", null) // les entrees archivees ne sont JAMAIS servies au public
       .order("created_at", { ascending: false });
@@ -187,6 +209,6 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
       if (tableAbsente(error)) throw new FeedbackNonConfigureError();
       throw new Error(`lister feedback public : ${error.message}`);
     }
-    return (data as Row[]).map(map);
+    return (data as unknown as Row[]).map(map);
   }
 }

@@ -55,6 +55,10 @@ export interface Feedback {
   priorite?: number;
   /** Note de travail admin. INTERNE : jamais exposee au public. */
   noteInterne?: string;
+  /** Resume REDIGE POUR le public au triage hebdo (skill corrections) : court, langage
+   *  non technique. C'est le SEUL texte long qui sorte sur /nouveautes - la description
+   *  brute du collaborateur reste interne (elle peut nommer des personnes/dossiers). */
+  resumePublic?: string;
   /** Renseignee quand statut = `ecarte` (regle : ecarter exige une raison). */
   raisonEcart?: string;
   /** ISO. */
@@ -75,6 +79,9 @@ export interface EntreePublique {
   type: TypeFeedback;
   titre: string;
   statut: StatutFeedback;
+  /** Resume ECRIT POUR le public (redige au triage hebdo, langage non technique).
+   *  Absent = la ligne ne se deplie pas. JAMAIS la description interne. */
+  resume?: string;
   /** ISO ; present pour les entrees livrees (date du changelog). */
   livreAt?: string;
 }
@@ -174,6 +181,8 @@ export function versEntreePublique(f: Feedback): EntreePublique {
     type: f.type,
     titre: f.titre,
     statut: f.statut,
+    // Seul le resume PUBLIC passe (redige au triage) - la description interne, jamais.
+    ...(f.resumePublic ? { resume: f.resumePublic } : {}),
     ...(f.livreAt ? { livreAt: f.livreAt } : {}),
   };
 }

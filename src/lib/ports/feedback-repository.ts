@@ -72,6 +72,8 @@ export interface PatchFeedback {
   /** null efface la priorite ; undefined = ne pas toucher. */
   priorite?: number | null;
   noteInterne?: string;
+  /** Resume PUBLIC (triage hebdo) ; null efface. */
+  resumePublic?: string | null;
   /** Masquage REVERSIBLE : true archive (pose archive_at), false desarchive (null). */
   archive?: boolean;
 }
