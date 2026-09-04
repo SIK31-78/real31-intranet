@@ -4,6 +4,7 @@ import { Landmark } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutVoirComptabilite } from "@/lib/auth/roles";
 import { trimestreCourant } from "@/lib/services/facturation/gestion-courante";
+import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { PanneauGestionCourante } from "@/components/gestion-courante/panneau-gestion-courante";
@@ -26,13 +27,21 @@ export default async function GestionCourantePage() {
             Facturation de gestion courante
           </h1>
           <p className="mt-1 text-[13px] text-ink-3">
-            Chaque trimestre, lance la facturation des honoraires de gestion courante de toutes les
-            copropriétés, en une fois. Un récapitulatif s&apos;affiche avant tout envoi.
+            Chaque trimestre, lance la facturation des honoraires de gestion courante des
+            copropriétés. Chaque ligne est comparée à son contrat : tu choisis ce qui part.
           </p>
         </div>
 
         {habilite ? (
-          <PanneauGestionCourante trimestreParDefaut={trimestreCourant()} />
+          <PanneauGestionCourante
+            trimestreParDefaut={trimestreCourant()}
+            // L'ecran doit DIRE la verite avant d'engager : brouillon ou facture
+            // deja validee chez Pennylane (donc irreversible).
+            pennylaneMode={modeEmissionFacture(
+              process.env.PENNYLANE_API_KEY,
+              process.env.PENNYLANE_FACTURE_VALIDEE,
+            )}
+          />
         ) : (
           <Card>
             <p className="px-4 py-8 text-center text-[13px] text-ink-3">
