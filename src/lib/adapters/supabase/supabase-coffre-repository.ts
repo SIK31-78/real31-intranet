@@ -91,6 +91,17 @@ export class SupabaseCoffreRepository implements CoffreRepository {
       .filter((x): x is CoffreAccessible => x !== null);
   }
 
+  async listerCoffresPersonnels(userId: string): Promise<Coffre[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_pm_vault")
+      .select("id, scope, name, sensitivity, agency_id, service_id, owner_user_id")
+      .eq("scope", "personal")
+      .eq("owner_user_id", userId);
+    if (error) throw new Error(`Lecture coffres persos : ${error.message}`);
+    return ((data as VaultRow[] | null) ?? []).map(toCoffre);
+  }
+
   async creerCoffre(nouveau: NouveauCoffre, premierMembre: PremierMembre): Promise<string> {
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
@@ -117,6 +128,14 @@ export class SupabaseCoffreRepository implements CoffreRepository {
     });
     if (mErr) throw new Error(`Creation membership admin : ${mErr.message}`);
     return coffreId;
+  }
+
+  // Les FK secrets / memberships / audit sont en ON DELETE CASCADE : supprimer
+  // le coffre emporte son contenu (cf. supabase/sql/intranet_pm_coffre.sql).
+  async supprimerCoffre(coffreId: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase.from("intranet_pm_vault").delete().eq("id", coffreId);
+    if (error) throw new Error(`Suppression pm_vault : ${error.message}`);
   }
 
   async listerMemberships(coffreId: string): Promise<Membership[]> {

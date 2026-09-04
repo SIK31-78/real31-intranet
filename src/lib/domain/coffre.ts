@@ -210,3 +210,56 @@ export function evaluerForceMotDePasse(mdp: string): ForceMotDePasse {
   const fort = m.length >= 16 || c >= 4 || (m.length >= 14 && c >= 3);
   return { niveau: fort ? "fort" : "moyen", ok: true };
 }
+
+// --- Changement / reinitialisation du mot de passe maitre ------------------
+// Deux gestes DIFFERENTS, a ne jamais confondre :
+//   - CHANGER : on connait l'ancien mot de passe. La cle privee ne bouge pas,
+//     on la re-enrobe simplement avec la cle derivee du nouveau. Zero perte.
+//   - REINITIALISER : on a oublie l'ancien. La cle privee est irrecuperable
+//     (personne, serveur compris, ne peut la deballer) -> on repart d'une
+//     identite NEUVE et le contenu des coffres persos est perdu. C'est le prix
+//     du zero-knowledge : le contourner reviendrait a poser une porte derobee.
+
+export interface VerificationNouveauMdp {
+  ok: boolean;
+  raison?: string;
+}
+
+/** Regles communes aux deux gestes : force suffisante, confirmation identique,
+ *  et (si `ancien` est connu) un mot de passe reellement different. */
+export function validerNouveauMotDePasseMaitre(
+  nouveau: string,
+  confirmation: string,
+  ancien?: string,
+): VerificationNouveauMdp {
+  const force = evaluerForceMotDePasse(nouveau);
+  if (!force.ok) return { ok: false, raison: force.raison ?? "Mot de passe trop faible." };
+  if (nouveau !== confirmation) return { ok: false, raison: "Les deux mots de passe ne correspondent pas." };
+  if (ancien !== undefined && ancien.length > 0 && nouveau === ancien) {
+    return { ok: false, raison: "Choisis un mot de passe différent de l'actuel." };
+  }
+  return { ok: true };
+}
+
+/** Ce qu'une reinitialisation va coûter, coffre par coffre. Sert a ecrire un
+ *  avertissement HONNETE avant de demander confirmation (rien n'est recuperable
+ *  apres coup). */
+export interface ImpactReinitialisation {
+  /** Coffres persos : leur contenu est DEFINITIVEMENT perdu (personne n'a la cle). */
+  perdus: { id: string; nom: string }[];
+  /** Coffres partages : l'acces est coupe ; un admin pourra le redonner ensuite. */
+  aReoctroyer: { id: string; nom: string }[];
+  /** Y a-t-il au moins un coffre perso a perdre ? */
+  perteDefinitive: boolean;
+}
+
+/** Trie les coffres de l'utilisateur entre perte definitive (perso) et acces a
+ *  redonner (partages). Pur : ne lit rien, ne chiffre rien. */
+export function impactReinitialisation(coffres: readonly Coffre[]): ImpactReinitialisation {
+  const perdus: { id: string; nom: string }[] = [];
+  const aReoctroyer: { id: string; nom: string }[] = [];
+  for (const c of coffres) {
+    (c.scope === "personal" ? perdus : aReoctroyer).push({ id: c.id, nom: c.nom });
+  }
+  return { perdus, aReoctroyer, perteDefinitive: perdus.length > 0 };
+}

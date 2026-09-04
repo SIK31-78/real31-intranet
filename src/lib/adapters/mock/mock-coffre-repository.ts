@@ -50,6 +50,17 @@ export class MockCoffreRepository implements CoffreRepository {
     return coffre.id;
   }
 
+  async listerCoffresPersonnels(userId: string): Promise<Coffre[]> {
+    return [...coffres.values()].filter((c) => c.scope === "personal" && c.ownerId === userId);
+  }
+
+  async supprimerCoffre(coffreId: string): Promise<void> {
+    coffres.delete(coffreId);
+    memberships = memberships.filter((m) => m.coffreId !== coffreId);
+    for (const [id, s] of secrets) if (s.coffreId === coffreId) secrets.delete(id);
+    for (let i = audit.length - 1; i >= 0; i--) if (audit[i].coffreId === coffreId) audit.splice(i, 1);
+  }
+
   async listerMemberships(coffreId: string): Promise<Membership[]> {
     return memberships.filter((m) => m.coffreId === coffreId);
   }

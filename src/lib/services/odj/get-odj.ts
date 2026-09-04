@@ -32,6 +32,7 @@ import {
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 import { DELAIS_CABINET } from "@/lib/domain/jalons-ag/cabinet/real31-defaults";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
+import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { adresseRessource } from "@/lib/domain/salles-reunion";
 
 function dateCourte(iso?: string): string | undefined {
@@ -366,8 +367,14 @@ export async function getOdj(id: string, gestionnaireId: string): Promise<Odj | 
     return copie;
   };
 
+  // Agence de la copro (ML/LGC/HLS/ASN) : elle choisit les MENTIONS LEGALES du pied de
+  // page (elles different d'une agence a l'autre). Resolution locale du referentiel
+  // Agency (4 lignes, memoisee par requete) - aucun appel supplementaire a Estale.
+  const agence = await codeAgence(copro.agenceId);
+
   return {
     copro: { code: copro.code, nom: copro.nom, adresse },
+    ...(agence ? { agence } : {}),
     ...(dateAg ? { dateAg: dateCourte(dateAg), dateAgISO: dateAg.slice(0, 10) } : {}),
     enTete: cloture ? enTeteFinal.map(figer) : enTeteFinal,
     sections: cloture

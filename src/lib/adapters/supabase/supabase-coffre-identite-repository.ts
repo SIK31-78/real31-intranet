@@ -138,6 +138,12 @@ export class SupabaseCoffreIdentiteRepository implements CoffreIdentiteRepositor
     if (error) throw new Error(`Maj is_admin pm_user : ${error.message}`);
   }
 
+  async remplacerClePublique(userId: string, publicKey: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase.from("intranet_pm_user").update({ public_key: publicKey }).eq("id", userId);
+    if (error) throw new Error(`Maj public_key pm_user : ${error.message}`);
+  }
+
   async listerServices(): Promise<ServiceOrg[]> {
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase.from("intranet_pm_service").select("id, name").order("name");
@@ -177,6 +183,40 @@ export class SupabaseCoffreIdentiteRepository implements CoffreIdentiteRepositor
       params,
     });
     if (error) throw new Error(`Ajout pm_user_unlock : ${error.message}`);
+  }
+
+  // Changement de mot de passe maitre : on remplace la ligne de la methode par
+  // la nouvelle (meme cle privee, re-enrobee cote client). On supprime d'abord :
+  // laisser deux lignes "master_password" rendrait l'ancien mot de passe encore
+  // valide, donc le changement inoperant.
+  async remplacerDeverrouillage(
+    userId: string,
+    method: MethodeDeverrouillage,
+    wrappedPrivateKey: BlobChiffreStocke,
+    params: Record<string, unknown>,
+    label?: string,
+  ): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error: delErr } = await supabase
+      .from("intranet_pm_user_unlock")
+      .delete()
+      .eq("user_id", userId)
+      .eq("method", method);
+    if (delErr) throw new Error(`Remplacement pm_user_unlock (purge) : ${delErr.message}`);
+    const { error } = await supabase.from("intranet_pm_user_unlock").insert({
+      user_id: userId,
+      method,
+      label: label ?? null,
+      wrapped_private_key: wrappedPrivateKey,
+      params,
+    });
+    if (error) throw new Error(`Remplacement pm_user_unlock : ${error.message}`);
+  }
+
+  async supprimerDeverrouillages(userId: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase.from("intranet_pm_user_unlock").delete().eq("user_id", userId);
+    if (error) throw new Error(`Purge pm_user_unlock : ${error.message}`);
   }
 
   async supprimerDeverrouillage(deverrouillageId: string): Promise<void> {

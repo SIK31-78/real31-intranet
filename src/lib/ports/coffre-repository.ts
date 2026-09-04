@@ -3,6 +3,7 @@
 // client. Depend du domaine.
 
 import type {
+  Coffre,
   CoffreAccessible,
   Membership,
   SecretChiffre,
@@ -33,8 +34,14 @@ export interface PremierMembre {
 export interface CoffreRepository {
   /** Coffres dont l'utilisateur est membre, avec SA cle de coffre enrobee. */
   listerCoffresAccessibles(userId: string): Promise<CoffreAccessible[]>;
+  /** Coffres PERSOS dont l'utilisateur est proprietaire (par owner, pas par
+   *  appartenance) : une reinitialisation doit pouvoir les retrouver meme si
+   *  l'appartenance a deja saute. */
+  listerCoffresPersonnels(userId: string): Promise<Coffre[]>;
   /** Cree le coffre + l'appartenance admin du createur. Renvoie l'id du coffre. */
   creerCoffre(nouveau: NouveauCoffre, premierMembre: PremierMembre): Promise<string>;
+  /** Supprime un coffre et tout ce qui en depend (secrets, appartenances, audit). */
+  supprimerCoffre(coffreId: string): Promise<void>;
 
   /** Appartenances d'un coffre (octroi / retrait = partage). */
   listerMemberships(coffreId: string): Promise<Membership[]>;

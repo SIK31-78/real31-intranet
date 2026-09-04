@@ -81,6 +81,10 @@ export class MockCoffreIdentiteRepository implements CoffreIdentiteRepository {
     if (c) collaborateurs.set(userId, { ...c, estAdmin });
   }
 
+  async remplacerClePublique(userId: string, publicKey: string): Promise<void> {
+    if (collaborateurs.has(userId)) clesPubliques.set(userId, publicKey);
+  }
+
   async listerServices(): Promise<ServiceOrg[]> {
     return SERVICES;
   }
@@ -99,6 +103,22 @@ export class MockCoffreIdentiteRepository implements CoffreIdentiteRepository {
     const liste = deverrouillages.get(userId) ?? [];
     liste.push({ id: globalThis.crypto.randomUUID(), method, label, wrappedPrivateKey, params });
     deverrouillages.set(userId, liste);
+  }
+
+  async remplacerDeverrouillage(
+    userId: string,
+    method: MethodeDeverrouillage,
+    wrappedPrivateKey: BlobChiffreStocke,
+    params: Record<string, unknown>,
+    label?: string,
+  ): Promise<void> {
+    const liste = (deverrouillages.get(userId) ?? []).filter((d) => d.method !== method);
+    liste.push({ id: globalThis.crypto.randomUUID(), method, label, wrappedPrivateKey, params });
+    deverrouillages.set(userId, liste);
+  }
+
+  async supprimerDeverrouillages(userId: string): Promise<void> {
+    deverrouillages.delete(userId);
   }
 
   async supprimerDeverrouillage(deverrouillageId: string): Promise<void> {

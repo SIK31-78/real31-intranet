@@ -108,3 +108,70 @@ describe("flux coffre phase 1 (bout en bout, mock + crypto reelle)", () => {
     expect(await decryptJson<SecretClair>(cleBob, deBlob(secretStocke.blob))).toEqual(secret);
   });
 });
+
+describe("changement de mot de passe maitre (re-enrobage, zero perte)", () => {
+  it("l'ancien mot de passe ne marche plus, le nouveau ouvre le meme coffre", async () => {
+    const identites = new MockCoffreIdentiteRepository();
+    const coffres = new MockCoffreRepository();
+
+    // Enrolement avec l'ancien mot de passe + un secret dans le coffre perso.
+    const keys = await generateIdentityKeypair();
+    const carole = await identites.creer({
+      azureOid: "oid-carole",
+      email: "carole@real31.fr",
+      publicKey: toBase64(await exportPublicKey(keys.publicKey)),
+    });
+    const sel1 = randomSalt();
+    await identites.ajouterDeverrouillage(
+      carole.id,
+      "master_password",
+      enBlob(await wrapPrivateKey(await deriveUnlockKeyFromPassword("Ancien!MotDePasse31", sel1, 10_000), keys.privateKey)),
+      { salt: toBase64(sel1), iterations: 10_000 },
+    );
+    const vaultKey = await generateVaultKey();
+    const coffreId = await coffres.creerCoffre(
+      { scope: "personal", nom: "Coffre de Carole", ownerId: carole.id },
+      { userId: carole.id, wrappedVaultKey: enMembre(await wrapKeyForRecipient(keys.publicKey, await exportRawKey(vaultKey))) },
+    );
+    const secret: SecretClair = { titre: "EDF", login: "carole", motDePasse: "s3cr3t-edf!" };
+    await coffres.ajouterSecret(coffreId, enBlob(await encryptJson(vaultKey, secret)), 1, carole.id);
+
+    // Changement : on deballe avec l'ancien, on re-enrobe la MEME cle privee
+    // avec le nouveau (sel neuf), et on remplace la ligne "master_password".
+    const devAvant = (await identites.listerDeverrouillages(carole.id))[0];
+    const priveVerifiee = await unwrapPrivateKey(
+      await deriveUnlockKeyFromPassword("Ancien!MotDePasse31", fromBase64(devAvant.params.salt as string), 10_000),
+      deBlob(devAvant.wrappedPrivateKey),
+    );
+    const sel2 = randomSalt();
+    await identites.remplacerDeverrouillage(
+      carole.id,
+      "master_password",
+      enBlob(await wrapPrivateKey(await deriveUnlockKeyFromPassword("Nouveau!MotDePasse31", sel2, 10_000), priveVerifiee)),
+      { salt: toBase64(sel2), iterations: 10_000 },
+    );
+
+    // Une SEULE methode mot de passe : sinon l'ancienne serrure resterait ouverte.
+    const apres = await identites.listerDeverrouillages(carole.id);
+    expect(apres.filter((d) => d.method === "master_password")).toHaveLength(1);
+    const dev = apres[0];
+
+    // L'ancien mot de passe ne deballe plus rien (echec du tag GCM).
+    await expect(
+      unwrapPrivateKey(
+        await deriveUnlockKeyFromPassword("Ancien!MotDePasse31", fromBase64(dev.params.salt as string), 10_000),
+        deBlob(dev.wrappedPrivateKey),
+      ),
+    ).rejects.toThrow();
+
+    // Le nouveau ouvre le coffre et rend le secret intact : rien n'a ete rechiffre.
+    const prive = await unwrapPrivateKey(
+      await deriveUnlockKeyFromPassword("Nouveau!MotDePasse31", fromBase64(dev.params.salt as string), 10_000),
+      deBlob(dev.wrappedPrivateKey),
+    );
+    const monCoffre = (await coffres.listerCoffresAccessibles(carole.id)).find((c) => c.id === coffreId)!;
+    const cle = await importVaultKey(await unwrapKeyFromSender(prive, deMembre(monCoffre.wrappedVaultKey)));
+    const [stocke] = await coffres.listerSecrets(coffreId);
+    expect(await decryptJson<SecretClair>(cle, deBlob(stocke.blob))).toEqual(secret);
+  });
+});

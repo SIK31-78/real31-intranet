@@ -71,6 +71,65 @@ export async function enrolerCollaborateur(d: DemandeEnrolement): Promise<{ user
   return { userId: collaborateur.id, coffreId };
 }
 
+// --- Changement / reinitialisation du mot de passe maitre -------------------
+
+/** CHANGEMENT (l'ancien mot de passe est connu) : la cle privee ne bouge pas,
+ *  le client l'a juste re-enrobee avec la cle derivee du nouveau mot de passe.
+ *  Aucune perte, et le serveur ne voit toujours qu'un blob opaque. */
+export async function changerMotDePasseMaitre(
+  userId: string,
+  wrappedPrivateKey: BlobChiffreStocke,
+  params: Record<string, unknown>,
+): Promise<void> {
+  await getCoffreIdentiteRepository().remplacerDeverrouillage(userId, "master_password", wrappedPrivateKey, params);
+}
+
+export interface DemandeReinitialisation {
+  userId: string;
+  publicKey: string;
+  wrappedPrivateKey: BlobChiffreStocke;
+  params: Record<string, unknown>;
+  coffrePerso: { nom: string; wrappedVaultKey: CleEnrobeeMembre };
+}
+
+/** REINITIALISATION (mot de passe maitre oublie) : l'ancienne cle privee est
+ *  IRRECUPERABLE - personne, serveur compris, ne peut la deballer. On ne
+ *  "recupere" donc rien : on remplace l'identite crypto par une neuve et on
+ *  assume les pertes, que l'UI a annoncees avant confirmation.
+ *
+ *  Ce qui saute, et pourquoi :
+ *   - les appartenances : chaque cle de coffre y est enrobee vers l'ANCIENNE
+ *     cle publique, donc indechiffrable avec la nouvelle identite ;
+ *   - les coffres persos : plus personne n'a leur cle, les garder n'exposerait
+ *     que du chiffre mort qui ferait planter l'ouverture ;
+ *   - toutes les methodes de deverrouillage (passkey comprise : elle enrobe
+ *     elle aussi l'ancienne cle privee).
+ *  Les coffres PARTAGES survivent : leurs autres membres les lisent toujours,
+ *  un admin pourra redonner l'acces.
+ *
+ *  Pas de transaction multi-tables ici : l'ordre est choisi pour qu'un echec en
+ *  cours de route laisse une reinitialisation simplement REJOUABLE (les etapes
+ *  de purge sont idempotentes et se retrouvent par owner, pas par appartenance). */
+export async function reinitialiserIdentiteCoffre(d: DemandeReinitialisation): Promise<{ coffreId: string }> {
+  const identite = getCoffreIdentiteRepository();
+  const coffres = getCoffreRepository();
+
+  for (const c of await coffres.listerCoffresAccessibles(d.userId)) {
+    await coffres.retirerMembership(c.id, d.userId);
+  }
+  for (const c of await coffres.listerCoffresPersonnels(d.userId)) {
+    await coffres.supprimerCoffre(c.id);
+  }
+  await identite.remplacerClePublique(d.userId, d.publicKey);
+  await identite.supprimerDeverrouillages(d.userId);
+  await identite.ajouterDeverrouillage(d.userId, "master_password", d.wrappedPrivateKey, d.params);
+  const coffreId = await coffres.creerCoffre(
+    { scope: "personal", nom: d.coffrePerso.nom, ownerId: d.userId },
+    { userId: d.userId, wrappedVaultKey: d.coffrePerso.wrappedVaultKey },
+  );
+  return { coffreId };
+}
+
 // L'audit ne doit jamais casser l'operation metier : best-effort, on degrade en
 // warning si l'ecriture echoue (ex : table d'audit pas encore creee).
 async function journaliser(

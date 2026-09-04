@@ -43,6 +43,9 @@ export interface CoffreIdentiteRepository {
   /** Services de l'organisation (pour cibler un coffre de service). */
   listerServices(): Promise<ServiceOrg[]>;
 
+  /** Remplace la cle publique (reinitialisation : identite crypto neuve). */
+  remplacerClePublique(userId: string, publicKey: string): Promise<void>;
+
   /** Methodes de deverrouillage (cle privee wrappee, une par methode). */
   listerDeverrouillages(userId: string): Promise<Deverrouillage[]>;
   ajouterDeverrouillage(
@@ -52,5 +55,17 @@ export interface CoffreIdentiteRepository {
     params: Record<string, unknown>,
     label?: string,
   ): Promise<void>;
+  /** Remplace TOUTES les entrees d'une methode par une seule (changement de mot
+   *  de passe maitre : la meme cle privee, re-enrobee autrement). */
+  remplacerDeverrouillage(
+    userId: string,
+    method: MethodeDeverrouillage,
+    wrappedPrivateKey: BlobChiffreStocke,
+    params: Record<string, unknown>,
+    label?: string,
+  ): Promise<void>;
   supprimerDeverrouillage(deverrouillageId: string): Promise<void>;
+  /** Supprime toutes les methodes d'un utilisateur (reinitialisation : elles
+   *  enrobent l'ANCIENNE cle privee, devenue inutile). */
+  supprimerDeverrouillages(userId: string): Promise<void>;
 }

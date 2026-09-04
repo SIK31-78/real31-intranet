@@ -72,6 +72,30 @@ export async function deverrouillerMotDePasse(motDePasse: string, dev: Deverroui
   return cc.unwrapPrivateKey(unlock, deBlob(dev.wrappedPrivateKey));
 }
 
+/** Donnees a persister apres un CHANGEMENT de mot de passe maitre. Meme forme
+ *  qu'a l'enrolement, sans la cle publique : elle ne change pas. */
+export interface DonneesMotDePasse {
+  wrappedPrivateKey: BlobChiffreStocke;
+  params: { salt: string; iterations: number };
+}
+
+/** Change le mot de passe maitre SANS toucher a l'identite : on re-enrobe la
+ *  MEME cle privee avec la cle derivee du nouveau mot de passe, sur un sel neuf.
+ *  Rien n'est dechiffre ni rechiffre cote secrets - la cle des coffres est
+ *  inchangee, donc aucune perte. */
+export async function rewrapperMotDePasse(
+  privateKey: CryptoKey,
+  nouveauMotDePasse: string,
+): Promise<DonneesMotDePasse> {
+  const salt = cc.randomSalt();
+  const unlock = await cc.deriveUnlockKeyFromPassword(nouveauMotDePasse, salt);
+  const wrapped = await cc.wrapPrivateKey(unlock, privateKey);
+  return {
+    wrappedPrivateKey: enBlob(wrapped),
+    params: { salt: cc.toBase64(salt), iterations: cc.PBKDF2_ITERATIONS },
+  };
+}
+
 // --- Deverrouillage par passkey (PRF) --------------------------------------
 
 /** Donnees a persister pour une nouvelle methode passkey (cle privee re-wrappee). */

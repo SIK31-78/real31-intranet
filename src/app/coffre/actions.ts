@@ -22,6 +22,8 @@ import {
   supprimerSecretCoffre,
   listerAuditCoffre,
   definirAdminCollaborateur,
+  changerMotDePasseMaitre,
+  reinitialiserIdentiteCoffre,
 } from "@/lib/services/coffre/coffre-service";
 import type { BlobChiffreStocke, CleEnrobeeMembre, SecretChiffre, ActionAudit } from "@/lib/domain/coffre";
 
@@ -103,6 +105,56 @@ export async function enrolerAction(payload: PayloadEnrolement): Promise<{ userI
     azureOid: g.id,
     email: "",
     nomComplet: g.nomComplet,
+    publicKey: payload.publicKey,
+    wrappedPrivateKey: payload.wrappedPrivateKey,
+    params: payload.params,
+    coffrePerso: payload.coffrePerso,
+  });
+}
+
+/** CHANGEMENT du mot de passe maitre. Le client a deverrouille (il a la cle
+ *  privee), l'a re-enrobee avec le nouveau mot de passe, et n'envoie que le blob :
+ *  le serveur ne voit ni l'ancien ni le nouveau mot de passe, et ne peut pas plus
+ *  lire le coffre apres qu'avant. Il remplace la ligne "master_password" de
+ *  l'appelant, jamais celle d'un autre (l'id vient de la session). */
+export async function changerMotDePasseMaitreAction(
+  wrappedPrivateKey: BlobChiffreStocke,
+  params: { salt: string; iterations: number },
+): Promise<void> {
+  valide(
+    z.object({
+      wrappedPrivateKey: zBlob,
+      params: z.object({ salt: z.string().min(1).max(4_000), iterations: z.number().int().min(1).max(10_000_000) }),
+    }),
+    { wrappedPrivateKey, params },
+  );
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.collaborateur) throw new Error("Coffre non initialise");
+  await changerMotDePasseMaitre(apercu.collaborateur.id, wrappedPrivateKey, params);
+}
+
+/** REINITIALISATION (mot de passe maitre oublie). Ne deverrouille RIEN : le
+ *  client a genere une identite crypto neuve, le serveur remplace l'ancienne et
+ *  purge ce qui ne sera plus jamais dechiffrable. Geste destructif et assume,
+ *  confirme cote UI ; il ne donne acces a aucun secret existant. */
+export async function reinitialiserCoffreAction(payload: PayloadEnrolement): Promise<{ coffreId: string }> {
+  valide(
+    z.object({
+      publicKey: zCle,
+      wrappedPrivateKey: zBlob,
+      params: z.object({ salt: z.string().min(1).max(4_000), iterations: z.number().int().min(1).max(10_000_000) }),
+      coffrePerso: z.object({ nom: zNom, wrappedVaultKey: zCleEnrobee }),
+    }),
+    payload,
+  );
+  const g = await getGestionnaireCourant();
+  if (!g) throw new Error("Non authentifie");
+  const apercu = await getApercuCoffre(g.id);
+  if (!apercu.collaborateur) throw new Error("Coffre non initialise");
+  return reinitialiserIdentiteCoffre({
+    userId: apercu.collaborateur.id,
     publicKey: payload.publicKey,
     wrappedPrivateKey: payload.wrappedPrivateKey,
     params: payload.params,
