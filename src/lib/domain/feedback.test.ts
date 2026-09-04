@@ -136,7 +136,7 @@ describe("application concernee (multi-outils)", () => {
       application: "estale",
       lien: "https://app.estale.fr/x",
     });
-    expect(decoderPageFeedback("registre-contrats:")).toEqual({ application: "registre-contrats" });
+    expect(decoderPageFeedback("registre-mandats:")).toEqual({ application: "registre-mandats" });
     expect(encoderPageFeedback("autre")).toBe("autre:");
   });
 

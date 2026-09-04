@@ -123,7 +123,7 @@ export function CoprosVue({
         </div>
         <select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className={SELECT}>
           <option value="all">Toutes les sources</option>
-          <option value="estale">Estale</option>
+          <option value="estale">ESTALE</option>
           <option value="crypto">Crypto</option>
         </select>
         <select value={etat} onChange={(e) => setEtat(e.target.value as typeof etat)} className={SELECT}>

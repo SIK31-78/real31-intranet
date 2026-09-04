@@ -70,7 +70,7 @@ const PROVENANCE_TITRE: Record<ProvenanceChamp, string> = {
   "auto-jalon": "Calculé depuis la date d'AG (jalon)",
   calcul: "Calculé depuis d'autres champs",
   saisi: "Saisi par le gestionnaire",
-  "a-venir": "Sera rempli par eStale (à venir)",
+  "a-venir": "Sera rempli par ESTALE (à venir)",
   "a-saisir": "À saisir",
 };
 

@@ -241,13 +241,21 @@ export class FeedbackNonConfigureError extends Error {
 // meme parti que la cloture de l'ODJ ("ISO|initiales"). Une page sans prefixe est
 // une page real31.app (tout l'historique reste juste).
 
-export const APPLICATIONS_FEEDBACK = ["real31", "estale", "registre-contrats", "autre"] as const;
+export const APPLICATIONS_FEEDBACK = [
+  "real31",
+  "estale",
+  "registre-mandats",
+  "suivi-contrats",
+  "autre",
+] as const;
 export type ApplicationFeedback = (typeof APPLICATIONS_FEEDBACK)[number];
 
+// ESTALE s'ecrit en CAPITALES (rappel Sekou 2026-09-04, deja signale avant).
 export const LIBELLES_APPLICATION: Record<ApplicationFeedback, string> = {
   real31: "Real31.app",
-  estale: "eStale",
-  "registre-contrats": "Registre Contrats Copro",
+  estale: "ESTALE",
+  "registre-mandats": "Registre des Mandats",
+  "suivi-contrats": "Suivi Contrats Copros",
   autre: "Autre",
 };
 

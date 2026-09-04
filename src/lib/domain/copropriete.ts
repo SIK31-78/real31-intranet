@@ -282,5 +282,5 @@ export interface FicheCopro {
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */
 export function libelleSource(source: SourceCopro): string {
-  return source === "estale" ? "Estale" : "Crypto";
+  return source === "estale" ? "ESTALE" : "Crypto";
 }
