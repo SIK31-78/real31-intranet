@@ -6,6 +6,20 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
+## 📍 État actuel - 2026-09-04 (soir) — CHANTIER DE CORRECTIONS COLLÈGUES : 13 commits EN PROD (5 agents délégués)
+
+> **Première vague de retours terrain traitée en une journée**, déléguée à 5 agents parallèles (lots par zone de code pour éviter les collisions — 3 collisions git quand même, toutes réparées ; leçon : donner des worktrees séparés la prochaine fois). Tout vérifié : tsc 0, 1 529 tests, E2E navigateur sur les points critiques, poussé origin + deploy.
+
+- **✅ LE bug bloquant du cycle AG** : la progression restait en ODJ pour tout le monde — RIEN ne marquait jamais le jalon `ODJ_CS` (le seul bouton vivait dans le dashboard démantelé en juillet, code mort). « Marquer la réunion terminée » fait désormais avancer l'étape (vérifié en réel sur SE999 : Dates ✓ → ODJ ✓ → Convoc). Aussi : relance J-7 supprimée (jalon + créneau Outlook + échéance supervision) ; bornage fin d'exercice corrigé (clôture+6 mois débordait le mois : 31/12 → 01/07 au lieu du 30/06).
+- **✅ ODJ contenu** : accents partout (squelette + textes légaux) ; bloc TRAVAUX structuré (budget voté / dépenses / trop-perçu-dépassement conditionnel / nota / clôture répartition Oui-Non) ; mentions légales par agence en pied de document (⚠️ données Maisons-Laffitte/Houilles à fournir — repli LGC en attendant, `domain/mentions-agences.ts`) ; PPT retiré d'office sous décennale (<10 ans).
+- **✅ Lecture d'équipe** : recherche Ctrl+K élargie au cabinet (gestionnaire affiché) ; l'ODJ s'ouvre en CONSULTATION SEULE aux collègues (bandeau « ODJ de X »), l'écriture reste au gestionnaire (prouvé par tests) — fini le 404 d'Emmanuel.
+- **✅ Facturation/Récaps** : Pennylane peut émettre en « facture VALIDÉE » derrière `PENNYLANE_FACTURE_VALIDEE=oui` (⚠️ à activer par Sekou après essai réel ; défaut = brouillon) ; récaps AG marquables « effectué » (⚠️ SQL à passer : `supabase/sql/intranet_recap_ag_effectue.sql`) ; « Récaps enregistrés » filtrés sur les siens (segment Mes/Tous).
+- **✅ Coffre-fort** : changer son mot de passe maître (zéro perte) + réinitialisation « mot de passe oublié » DESTRUCTIVE assumée (zero-knowledge : rien n'est récupérable, l'impact est affiché coffre par coffre avant confirmation). Aucun SQL.
+- **✅ Mail dates CS/AG** : accord pluriel (« nous confirmerons ces dates / les fixer » quand CS+AG).
+- **🔄 EN COURS (agent délégué)** : filet de sécurité de la facturation gestion courante — référence = CONTRAT (jamais T-1, à cause des proratas de reprise), sous-facturation alertée, +10 % validable, +20 % = taper « facturer », anti-doublon de trimestre, récap de fournée.
+- **⏸️ Arbitrages en attente (Sekou)** : fiche copro en lecture seule visuelle pour les collègues ? reset admin du coffre d'un collaborateur ? ligne « Relancer pouvoirs/VPC » de la checklist ? 4 ambiguïtés de bornage documentées (rapport agent B — l'alignement pipeline/liste d'actions est peut-être le fond du retour collègues).
+- **⏭️ Prochaine action** : passer le SQL récap, fournir les mentions légales ML/Houilles, tester une facture Pennylane réelle avant d'activer l'option ; livrer le filet gestion courante.
+
 ## 📍 État actuel - 2026-09-04 — L'ODJ DEVIENT UN MODULE ÉDITABLE (en prod, itéré avec les collègues)
 
 > **La page `/odj/[id]` n'est plus un formulaire + aperçu : le document REAL31 EST l'écran**, et il s'édite sur place comme leur Word (demande Sekou du 31/08, calée ensuite sur leur vrai ODJ CS « 4 rue des Bleuets »). Mise en page UNIQUE partagée avec la version imprimable (`DocumentOdj` + rendu injectable — jamais deux copies). Chaque retour collègue a été livré en prod dans la journée.
