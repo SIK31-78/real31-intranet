@@ -20,6 +20,8 @@ type RecapMock = NouveauRecapAg & {
   creeLe: string;
   traiteLe?: string;
   traitePar?: string;
+  effectueLe?: string;
+  effectuePar?: string;
 };
 
 const RECAPS: RecapMock[] = [];
@@ -93,6 +95,18 @@ export class MockRecapAgRepository implements RecapAgRepository {
       delete r.traitePar;
     }
   }
+
+  async marquerEffectue(recapId: string, effectue: boolean, par: string): Promise<void> {
+    const r = RECAPS.find((x) => x.id === recapId);
+    if (!r) throw new Error(`Recap ${recapId} introuvable.`);
+    if (effectue) {
+      r.effectueLe = new Date().toISOString();
+      r.effectuePar = par;
+    } else {
+      delete r.effectueLe;
+      delete r.effectuePar;
+    }
+  }
 }
 
 function ligne(r: RecapMock): RecapAgHistorique {
@@ -107,5 +121,7 @@ function ligne(r: RecapMock): RecapAgHistorique {
     ...(r.factureId ? { factureId: r.factureId } : {}),
     ...(r.par ? { par: r.par } : {}),
     creeLe: r.creeLe,
+    ...(r.effectueLe ? { effectueLe: r.effectueLe } : {}),
+    ...(r.effectuePar ? { effectuePar: r.effectuePar } : {}),
   };
 }

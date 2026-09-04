@@ -21,6 +21,7 @@ import type {
 import { createSupabasePublicClient } from "./public-client";
 
 const SQL_TRAITEMENT = "supabase/sql/intranet_recap_ag_traitement.sql";
+const SQL_EFFECTUE = "supabase/sql/intranet_recap_ag_effectue.sql";
 
 /** Colonne absente : l'ALTER n'a pas encore ete passe (42703 en lecture, PGRST204 en ecriture). */
 function colonneAbsente(error: { code?: string; message?: string }): boolean {
@@ -120,32 +121,20 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
   }
 
   async listerRecapsRecents(limite = 50): Promise<RecapAgHistorique[]> {
-    const supabase = createSupabasePublicClient();
-    const { data, error } = await supabase
-      .from("intranet_recap_ag")
-      .select(
-        "id, copropriete_id, ag_date, statut, depassement_heures, depassement_ttc, " +
-          "facture_id, cree_par, created_at, intranet_recap_ag_travaux (id)",
-      )
-      .order("created_at", { ascending: false })
-      .limit(limite);
+    const lire = async (avecEffectue: boolean) =>
+      createSupabasePublicClient()
+        .from("intranet_recap_ag")
+        .select(avecEffectue ? `${COLS_FILE}, ${COLS_EFFECTUE}` : COLS_FILE)
+        .order("created_at", { ascending: false })
+        .limit(limite);
 
+    let { data, error } = await lire(true);
+    // Colonnes « effectue » pas encore posees : on relit sans elles plutot que de priver
+    // le gestionnaire de tout son historique pour un marqueur manquant.
+    if (error && colonneAbsente(error)) ({ data, error } = await lire(false));
     if (error) throw new Error(`Lecture historique recap AG : ${error.message}`);
 
-    type Row = {
-      id: string;
-      copropriete_id: string;
-      ag_date: string;
-      statut: string;
-      depassement_heures: number | null;
-      depassement_ttc: number | null;
-      facture_id: string | null;
-      cree_par: string | null;
-      created_at: string;
-      intranet_recap_ag_travaux: Array<{ id: string }> | null;
-    };
-
-    return ((data as unknown as Row[] | null) ?? []).map((r) => ({
+    return ((data as unknown as LigneFile[] | null) ?? []).map((r) => ({
       id: r.id,
       coproCode: r.copropriete_id,
       agDate: r.ag_date,
@@ -156,6 +145,7 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
       ...(r.facture_id ? { factureId: r.facture_id } : {}),
       ...(r.cree_par ? { par: r.cree_par } : {}),
       creeLe: r.created_at,
+      ...effectueDepuisLigne(r),
     }));
   }
 
@@ -254,11 +244,34 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
       throw new Error(`Marquage du recap ${recapId} : ${error.message}`);
     }
   }
+
+  async marquerEffectue(recapId: string, effectue: boolean, par: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase
+      .from("intranet_recap_ag")
+      .update({
+        effectue_at: effectue ? new Date().toISOString() : null,
+        effectue_par: effectue ? par : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", recapId);
+
+    if (error) {
+      if (colonneAbsente(error)) {
+        throw new Error(
+          "Marquage « effectué » non configuré : les colonnes effectue_at / effectue_par " +
+            `n'existent pas encore. Passe ${SQL_EFFECTUE} dans le SQL editor Supabase.`,
+        );
+      }
+      throw new Error(`Marquage « effectué » du recap ${recapId} : ${error.message}`);
+    }
+  }
 }
 
 // --- Mapping des lignes (snake_case -> domaine) ------------------------------
 
 const COLS_TRAITEMENT = "traite_compta_at, traite_compta_par";
+const COLS_EFFECTUE = "effectue_at, effectue_par";
 
 /** Nombre de codes copro envoyes par requete dans le filtre `in` (longueur d'URL). */
 const TAILLE_PAQUET_CODES = 150;
@@ -282,7 +295,13 @@ type LigneTraitement = {
   traite_compta_par?: string | null;
 };
 
-type LigneFile = LigneTraitement & {
+/** Colonnes « effectue » : absentes de la ligne tant que le SQL n'est pas passe. */
+type LigneEffectue = {
+  effectue_at?: string | null;
+  effectue_par?: string | null;
+};
+
+type LigneFile = LigneTraitement & LigneEffectue & {
   id: string;
   copropriete_id: string;
   ag_date: string;
@@ -329,6 +348,13 @@ type LigneDetail = LigneTraitement & {
   created_at: string;
   intranet_recap_ag_travaux: LigneTravaux[] | null;
 };
+
+function effectueDepuisLigne(r: LigneEffectue) {
+  return {
+    ...(r.effectue_at ? { effectueLe: r.effectue_at } : {}),
+    ...(r.effectue_par ? { effectuePar: r.effectue_par } : {}),
+  };
+}
 
 function traitementDepuisLigne(r: LigneTraitement) {
   return {
