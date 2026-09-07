@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
-import { getFeedbackRepository } from "@/lib/adapters/router";
+import { getFeedbackRepository, getPointsEstaleRepository } from "@/lib/adapters/router";
 import { changerStatutFeedback } from "@/lib/services/feedback/changer-statut";
 import { creerEntreeAdmin } from "@/lib/services/feedback/creer-entree-admin";
 import {
@@ -170,4 +170,35 @@ export async function creerEntreeAction(input: unknown): Promise<{ ok: boolean; 
   revalidatePath("/admin/feedback");
   revalidatePath("/nouveautes");
   return { ok: true };
+}
+
+/** Convertit une remontee en POINT ESTALE (demande Sekou 2026-09-07) : le probleme
+ *  releve du logiciel ESTALE, pas de l'intranet - il part dans le carnet /admin/estale
+ *  (titre + description en detail, bloquant si severite bloquante). La remontee recoit
+ *  une note et passe en `ecarte` avec une raison qui pointe le carnet : son suivi
+ *  continue la-bas, pas dans la roadmap intranet. */
+export async function convertirEnPointEstaleAction(input: unknown): Promise<{ ok: boolean; message?: string }> {
+  const garde = await exigerSuperAdmin();
+  if (!garde.ok) return { ok: false, message: garde.message };
+  const parse = z.object({ id: z.string().trim().min(1).max(80) }).safeParse(input);
+  if (!parse.success) return { ok: false, message: "Saisie invalide." };
+  try {
+    const f = await getFeedbackRepository().get(parse.data.id);
+    if (!f) return { ok: false, message: "Remontée introuvable." };
+    await getPointsEstaleRepository().creer({
+      titre: f.titre,
+      detail: `${f.description}${f.page ? `\n\n(page : ${f.page})` : ""}\n(converti depuis une remontée ${f.type} de ${f.auteurInitiales ?? "?"} du ${f.createdAt.slice(0, 10)})`,
+      bloquant: f.severite === "bloquant",
+    });
+    const r = await changerStatutFeedback(f.id, "ecarte", {
+      par: garde.par,
+      raisonEcart: "Concerne le logiciel ESTALE : transmis au carnet des points ESTALE, suivi là-bas.",
+    });
+    if (!r.ok) return { ok: false, message: "Point ESTALE créé, mais la remontée n'a pas pu être écartée." };
+    revalidatePath("/admin/feedback");
+    revalidatePath("/admin/estale");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Conversion impossible." };
+  }
 }

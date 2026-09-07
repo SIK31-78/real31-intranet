@@ -31,6 +31,7 @@ export type NavKey =
   | "sinistres"
   | "nouveautes"
   | "cles-api"
+  | "points-estale"
   | "feedback"
   | "annonces"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
@@ -119,6 +120,7 @@ const GROUPE_ADMIN: { titre: string; items: Item[] } = {
   items: [
     { key: "annonces", label: "Annonces", href: "/admin/annonces", icon: Megaphone },
     { key: "feedback", label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
+    { key: "points-estale", label: "Points ESTALE", href: "/admin/estale", icon: Database },
     { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
   ],
 };

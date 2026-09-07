@@ -6,7 +6,7 @@
 // domaine ; écarter exige une raison). Les gardes reelles sont serveur (actions).
 
 import { useMemo, useState, useTransition } from "react";
-import { Bug, Lightbulb, ChevronDown, ChevronRight, Plus, Archive, ArchiveRestore } from "lucide-react";
+import { Bug, Lightbulb, ChevronDown, ChevronRight, Plus, Archive, ArchiveRestore, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import {
 import {
   archiverFeedbackAction,
   changerStatutAction,
+  convertirEnPointEstaleAction,
   creerEntreeAction,
   editerFeedbackAction,
 } from "@/app/admin/feedback/actions";
@@ -254,6 +255,22 @@ function LigneFeedback({ f }: { f: Feedback }) {
                 </Button>
               ))
             )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirm("Transmettre ce point au carnet ESTALE ? La remontée sera écartée ici et suivie dans /admin/estale.")) return;
+                startTransition(async () => {
+                  const r = await convertirEnPointEstaleAction({ id: f.id });
+                  if (r.ok) ok("Transmis au carnet ESTALE");
+                  else err(r.message ?? "Conversion impossible.");
+                });
+              }}
+              disabled={enCours}
+              title="Convertir en point ESTALE (le problème relève du logiciel ESTALE)"
+              className="rounded-md p-1.5 text-ink-4 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
+            >
+              <Database strokeWidth={1.5} className="h-3.5 w-3.5" />
+            </button>
             <button
               type="button"
               onClick={basculerArchive}

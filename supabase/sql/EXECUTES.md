@@ -48,3 +48,4 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `reprise_mapping_decision.sql` | ❔ | Reprise compta — décisions de mapping. |
 | `_diagnostic_avant_deploiement.sql` | — | Script de diagnostic (lecture seule, pas une migration). |
 - 🔲 `intranet_feedback_resume_public.sql` — resume public des remontees (vitrine /nouveautes depliable)
+- 🔲 `intranet_points_estale.sql` — points a porter a ESTALE (outil admin /admin/estale)
