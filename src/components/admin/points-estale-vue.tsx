@@ -4,7 +4,7 @@
 // avancement), edition inline (titre / detail / reponse), changement de statut par
 // menu. Outil personnel d'admin : tout est corrigeable, rien n'est verrouille.
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,7 @@ function LignePoint({ p }: { p: PointEstale }) {
           />
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-[11.5px] text-ink-3">
             <Badge ton="neutral">{LIBELLES_CATEGORIE_POINT[p.categorie]}</Badge>
+            {p.demandeur && <span title="Demandeur">{p.demandeur}</span>}
             <span>{jjmmaaaa(p.createdAt)}</span>
             {p.resoluAt && <span>clos le {jjmmaaaa(p.resoluAt)}</span>}
             {p.reponse && !ouvert && <Badge ton="ok">réponse reçue</Badge>}
@@ -115,6 +116,19 @@ function LignePoint({ p }: { p: PointEstale }) {
       </div>
       {ouvert && (
         <div className="flex flex-col gap-3 border-t border-line px-4 py-3">
+          <label className="flex w-40 flex-col gap-1 text-[12px] text-ink-2">
+            Demandeur (initiales)
+            <input
+              defaultValue={p.demandeur ?? ""}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (p.demandeur ?? "")) editer({ demandeur: v || null }, "Demandeur mis à jour");
+              }}
+              maxLength={20}
+              placeholder="CHB, FS…"
+              className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+            />
+          </label>
           <label className="flex flex-col gap-1 text-[12px] text-ink-2">
             Détail (interne)
             <textarea
@@ -172,6 +186,23 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
     });
   }
 
+  const [filtreCategorie, setFiltreCategorie] = useState<CategoriePointEstale | "toutes">("toutes");
+  const [filtreDemandeur, setFiltreDemandeur] = useState<string>("tous");
+  const [tri, setTri] = useState<"priorite" | "recents" | "anciens">("priorite");
+
+  const demandeurs = useMemo(
+    () => [...new Set(points.map((p) => p.demandeur).filter((d): d is string => Boolean(d)))].sort(),
+    [points],
+  );
+  const visibles = useMemo(() => {
+    let l = points;
+    if (filtreCategorie !== "toutes") l = l.filter((p) => p.categorie === filtreCategorie);
+    if (filtreDemandeur !== "tous") l = l.filter((p) => p.demandeur === filtreDemandeur);
+    if (tri === "recents") l = [...l].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    if (tri === "anciens") l = [...l].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return l; // "priorite" = l'ordre du serveur (bloquants puis avancement)
+  }, [points, filtreCategorie, filtreDemandeur, tri]);
+
   const actifs = points.filter((p) => p.statut !== "resolu" && p.statut !== "abandonne");
   const bloquants = actifs.filter((p) => p.bloquant).length;
 
@@ -224,20 +255,66 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          {(["toutes", ...CATEGORIES_POINT_ESTALE] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setFiltreCategorie(c)}
+              aria-pressed={filtreCategorie === c}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                filtreCategorie === c
+                  ? "border-green-600/40 bg-green-50 font-medium text-green-700"
+                  : "border-line bg-surface text-ink-2 hover:bg-surface-2",
+              )}
+            >
+              {c === "toutes" ? "Toutes" : LIBELLES_CATEGORIE_POINT[c]}
+            </button>
+          ))}
+        </div>
+        {demandeurs.length > 0 && (
+          <select
+            value={filtreDemandeur}
+            onChange={(e) => setFiltreDemandeur(e.target.value)}
+            title="Filtrer par demandeur"
+            className="rounded-md border border-line bg-surface px-1.5 py-1 text-[12px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          >
+            <option value="tous">Tous les demandeurs</option>
+            {demandeurs.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        )}
+        <select
+          value={tri}
+          onChange={(e) => setTri(e.target.value as typeof tri)}
+          title="Trier l'affichage"
+          className="ml-auto rounded-md border border-line bg-surface px-1.5 py-1 text-[12px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        >
+          <option value="priorite">Tri : bloquants d&apos;abord</option>
+          <option value="recents">Tri : plus récents</option>
+          <option value="anciens">Tri : plus anciens</option>
+        </select>
+      </div>
+
       <p className="text-[12px] text-ink-3">
-        {actifs.length} point{actifs.length > 1 ? "s" : ""} actif{actifs.length > 1 ? "s" : ""}
+        {visibles.length} affiché{visibles.length > 1 ? "s" : ""} sur {actifs.length} actif{actifs.length > 1 ? "s" : ""}
         {bloquants > 0 && (
           <span className="text-err-700">, dont {bloquants} bloquant{bloquants > 1 ? "s" : ""}</span>
         )}
       </p>
 
       <ul className="flex flex-col gap-2">
-        {points.map((p) => (
+        {visibles.map((p) => (
           <LignePoint key={p.id} p={p} />
         ))}
-        {points.length === 0 && (
+        {visibles.length === 0 && (
           <li className="rounded-md border border-dashed border-line px-4 py-8 text-center text-[13px] text-ink-3">
-            Aucun point pour l&apos;instant.
+            Aucun point ne correspond à ces filtres.
           </li>
         )}
       </ul>

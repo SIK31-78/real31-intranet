@@ -48,6 +48,8 @@ export interface PointEstale {
   detail?: string;
   bloquant: boolean;
   categorie: CategoriePointEstale;
+  /** Initiales du collaborateur a l'origine du point (facultatif). */
+  demandeur?: string;
   statut: StatutPointEstale;
   /** Reponse d'ESTALE (collee depuis le mail), affichee sous le point. */
   reponse?: string;

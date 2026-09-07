@@ -189,6 +189,7 @@ export async function convertirEnPointEstaleAction(input: unknown): Promise<{ ok
       titre: f.titre,
       detail: `${f.description}${f.page ? `\n\n(page : ${f.page})` : ""}\n(converti depuis une remontée ${f.type} de ${f.auteurInitiales ?? "?"} du ${f.createdAt.slice(0, 10)})`,
       bloquant: f.severite === "bloquant",
+      ...(f.auteurInitiales ? { demandeur: f.auteurInitiales } : {}),
     });
     const r = await changerStatutFeedback(f.id, "ecarte", {
       par: garde.par,

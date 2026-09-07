@@ -9,7 +9,7 @@ import {
 import { createSupabasePublicClient } from "./public-client";
 
 const TABLE = "intranet_points_estale";
-const COLS = "id, titre, detail, bloquant, categorie, statut, reponse, created_at, updated_at, resolu_at";
+const COLS = "id, titre, detail, bloquant, categorie, demandeur, statut, reponse, created_at, updated_at, resolu_at";
 
 type Row = {
   id: string;
@@ -17,6 +17,7 @@ type Row = {
   detail: string | null;
   bloquant: boolean;
   categorie: string;
+  demandeur: string | null;
   statut: string;
   reponse: string | null;
   created_at: string;
@@ -37,6 +38,7 @@ function map(r: Row): PointEstale {
     statut: r.statut as StatutPointEstale,
     createdAt: r.created_at,
     ...(r.detail ? { detail: r.detail } : {}),
+    ...(r.demandeur ? { demandeur: r.demandeur } : {}),
     ...(r.reponse ? { reponse: r.reponse } : {}),
     ...(r.updated_at ? { updatedAt: r.updated_at } : {}),
     ...(r.resolu_at ? { resoluAt: r.resolu_at } : {}),
@@ -54,11 +56,23 @@ export class SupabasePointsEstaleRepository implements PointsEstaleRepository {
     return (data as Row[]).map(map);
   }
 
-  async creer(point: { titre: string; detail?: string; bloquant: boolean; categorie?: CategoriePointEstale }): Promise<PointEstale> {
+  async creer(point: {
+    titre: string;
+    detail?: string;
+    bloquant: boolean;
+    categorie?: CategoriePointEstale;
+    demandeur?: string;
+  }): Promise<PointEstale> {
     const sb = createSupabasePublicClient();
     const { data, error } = await sb
       .from(TABLE)
-      .insert({ titre: point.titre, detail: point.detail ?? null, bloquant: point.bloquant, categorie: point.categorie ?? "produit" })
+      .insert({
+        titre: point.titre,
+        detail: point.detail ?? null,
+        bloquant: point.bloquant,
+        categorie: point.categorie ?? "produit",
+        demandeur: point.demandeur ?? null,
+      })
       .select(COLS)
       .single();
     if (error) {
@@ -75,6 +89,7 @@ export class SupabasePointsEstaleRepository implements PointsEstaleRepository {
     if (patch.detail !== undefined) maj.detail = patch.detail;
     if (patch.bloquant !== undefined) maj.bloquant = patch.bloquant;
     if (patch.categorie !== undefined) maj.categorie = patch.categorie;
+    if (patch.demandeur !== undefined) maj.demandeur = patch.demandeur;
     if (patch.reponse !== undefined) maj.reponse = patch.reponse;
     if (patch.statut !== undefined) {
       maj.statut = patch.statut;

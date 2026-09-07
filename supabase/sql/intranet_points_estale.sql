@@ -28,3 +28,8 @@ begin
 exception
   when duplicate_object then null;
 end $$;
+
+-- Rattrapage 2 (07/09) : demandeur (initiales du collaborateur a l'origine du point,
+-- rempli notamment par la conversion depuis une remontee feedback). Rejouable.
+alter table public.intranet_points_estale
+  add column if not exists demandeur text;

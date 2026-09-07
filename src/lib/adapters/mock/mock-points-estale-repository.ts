@@ -10,7 +10,7 @@ export class MockPointsEstaleRepository implements PointsEstaleRepository {
     return [...points];
   }
 
-  async creer(point: { titre: string; detail?: string; bloquant: boolean; categorie?: import("@/lib/domain/points-estale").CategoriePointEstale }): Promise<PointEstale> {
+  async creer(point: { titre: string; detail?: string; bloquant: boolean; categorie?: import("@/lib/domain/points-estale").CategoriePointEstale; demandeur?: string }): Promise<PointEstale> {
     const p: PointEstale = {
       id: `mock-${Date.now()}-${points.length}`,
       titre: point.titre,
@@ -19,6 +19,7 @@ export class MockPointsEstaleRepository implements PointsEstaleRepository {
       statut: "a_trancher",
       createdAt: new Date().toISOString(),
       ...(point.detail ? { detail: point.detail } : {}),
+      ...(point.demandeur ? { demandeur: point.demandeur } : {}),
     };
     points.unshift(p);
     return p;
@@ -34,6 +35,10 @@ export class MockPointsEstaleRepository implements PointsEstaleRepository {
     }
     if (patch.bloquant !== undefined) p.bloquant = patch.bloquant;
     if (patch.categorie !== undefined) p.categorie = patch.categorie;
+    if (patch.demandeur !== undefined) {
+      if (patch.demandeur) p.demandeur = patch.demandeur;
+      else delete p.demandeur;
+    }
     if (patch.reponse !== undefined) {
       if (patch.reponse) p.reponse = patch.reponse;
       else delete p.reponse;

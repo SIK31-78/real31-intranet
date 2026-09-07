@@ -15,12 +15,19 @@ export interface PatchPointEstale {
   detail?: string | null;
   bloquant?: boolean;
   categorie?: CategoriePointEstale;
+  demandeur?: string | null;
   statut?: StatutPointEstale;
   reponse?: string | null;
 }
 
 export interface PointsEstaleRepository {
   lister(): Promise<PointEstale[]>;
-  creer(point: { titre: string; detail?: string; bloquant: boolean; categorie?: CategoriePointEstale }): Promise<PointEstale>;
+  creer(point: {
+    titre: string;
+    detail?: string;
+    bloquant: boolean;
+    categorie?: CategoriePointEstale;
+    demandeur?: string;
+  }): Promise<PointEstale>;
   patch(id: string, patch: PatchPointEstale): Promise<PointEstale | null>;
 }

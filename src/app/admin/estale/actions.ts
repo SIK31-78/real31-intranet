@@ -36,6 +36,7 @@ const zCreation = z.object({
   categorie: z
     .enum(CATEGORIES_POINT_ESTALE as unknown as [CategoriePointEstale, ...CategoriePointEstale[]])
     .default("produit"),
+  demandeur: z.string().trim().max(20).optional(),
 });
 
 export async function creerPointAction(input: unknown): Promise<Resultat> {
@@ -44,8 +45,14 @@ export async function creerPointAction(input: unknown): Promise<Resultat> {
   const parse = zCreation.safeParse(input);
   if (!parse.success) return { ok: false, message: "Titre requis." };
   try {
-    const { titre, detail, bloquant, categorie } = parse.data;
-    await getPointsEstaleRepository().creer({ titre, ...(detail ? { detail } : {}), bloquant, categorie });
+    const { titre, detail, bloquant, categorie, demandeur } = parse.data;
+    await getPointsEstaleRepository().creer({
+      titre,
+      ...(detail ? { detail } : {}),
+      bloquant,
+      categorie,
+      ...(demandeur ? { demandeur } : {}),
+    });
     revalidatePath("/admin/estale");
     return { ok: true };
   } catch (e) {
@@ -61,6 +68,7 @@ const zPatch = z.object({
   categorie: z
     .enum(CATEGORIES_POINT_ESTALE as unknown as [CategoriePointEstale, ...CategoriePointEstale[]])
     .optional(),
+  demandeur: z.string().trim().max(20).nullable().optional(),
   statut: z.enum(STATUTS_POINT_ESTALE as unknown as [StatutPointEstale, ...StatutPointEstale[]]).optional(),
   reponse: z.string().trim().max(8000).nullable().optional(),
 });
