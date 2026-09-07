@@ -558,7 +558,9 @@ export function FeedbackAdminVue({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2 rounded-md border border-line bg-surface px-3 py-2.5">
+        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+          Statut
         <select value={fStatut} onChange={(e) => setFStatut(e.target.value as StatutFeedback | "")} className={selectCls}>
           <option value="">Tous les statuts</option>
           {(Object.keys(LABEL_STATUT) as StatutFeedback[]).map((s) => (
@@ -567,11 +569,17 @@ export function FeedbackAdminVue({
             </option>
           ))}
         </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+          Type
         <select value={fType} onChange={(e) => setFType(e.target.value as TypeFeedback | "")} className={selectCls}>
           <option value="">Bugs + idées</option>
           <option value="bug">Bugs</option>
           <option value="idee">Idées</option>
         </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+          Sévérité
         <select
           value={fSeverite}
           onChange={(e) => setFSeverite(e.target.value as SeveriteFeedback | "")}
@@ -584,6 +592,9 @@ export function FeedbackAdminVue({
             </option>
           ))}
         </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+          Collaborateur
         <select value={fAuteur} onChange={(e) => setFAuteur(e.target.value)} className={selectCls}>
           <option value="">Tous les collaborateurs</option>
           {auteurs.map((a) => (
@@ -592,6 +603,9 @@ export function FeedbackAdminVue({
             </option>
           ))}
         </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+          Application
         <select
           value={fApplication}
           onChange={(e) => setFApplication(e.target.value as ApplicationFeedback | "")}
@@ -604,11 +618,17 @@ export function FeedbackAdminVue({
             </option>
           ))}
         </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+          Tri
         <select value={tri} onChange={(e) => setTri(e.target.value as typeof tri)} className={selectCls}>
           <option value="recents">Tri : plus récents</option>
           <option value="anciens">Tri : plus anciens</option>
           <option value="priorite">Tri : priorité</option>
         </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+          Archives
         <select
           value={fArchive}
           onChange={(e) => setFArchive(e.target.value as "actives" | "archivees" | "toutes")}
@@ -618,7 +638,8 @@ export function FeedbackAdminVue({
           <option value="archivees">Archivées</option>
           <option value="toutes">Toutes (+ archivées)</option>
         </select>
-        {(fStatut || fType || fSeverite || fArchive !== "actives") && (
+        </label>
+        {(fStatut || fType || fSeverite || fAuteur || fApplication || fArchive !== "actives") && (
           <Button
             size="sm"
             variant="ghost"
@@ -627,6 +648,9 @@ export function FeedbackAdminVue({
               setFType("");
               setFSeverite("");
               setFArchive("actives");
+              setFAuteur("");
+              setFApplication("");
+              setTri("recents");
             }}
           >
             Réinitialiser
