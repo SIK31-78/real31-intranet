@@ -13,7 +13,12 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { LIBELLES_APPLICATION, decoderPageFeedback } from "@/lib/domain/feedback";
+import {
+  APPLICATIONS_FEEDBACK,
+  LIBELLES_APPLICATION,
+  decoderPageFeedback,
+  type ApplicationFeedback,
+} from "@/lib/domain/feedback";
 import {
   STATUTS_CREATION_ADMIN,
   transitionsPossibles,
@@ -504,7 +509,15 @@ export function FeedbackAdminVue({
   const [fType, setFType] = useState<TypeFeedback | "">("");
   const [fSeverite, setFSeverite] = useState<SeveriteFeedback | "">("");
   const [fArchive, setFArchive] = useState<"actives" | "archivees" | "toutes">("actives");
+  const [fAuteur, setFAuteur] = useState<string>("");
+  const [fApplication, setFApplication] = useState<ApplicationFeedback | "">("");
+  const [tri, setTri] = useState<"recents" | "anciens" | "priorite">("recents");
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
+
+  const auteurs = useMemo(
+    () => [...new Set(feedbacks.map((f) => f.auteurInitiales).filter((a): a is string => Boolean(a)))].sort(),
+    [feedbacks],
+  );
 
   const filtres = useMemo(
     () =>
@@ -515,10 +528,21 @@ export function FeedbackAdminVue({
         return (
           (!fStatut || f.statut === fStatut) &&
           (!fType || f.type === fType) &&
-          (!fSeverite || f.severite === fSeverite)
+          (!fSeverite || f.severite === fSeverite) &&
+          (!fAuteur || f.auteurInitiales === fAuteur) &&
+          (!fApplication || decoderPageFeedback(f.page).application === fApplication)
         );
+      }).sort((a, b) => {
+        if (tri === "anciens") return a.createdAt.localeCompare(b.createdAt);
+        if (tri === "priorite") {
+          // Priorite posee d'abord (plus petit = plus haut), puis les plus recents.
+          const pa = a.priorite ?? Number.MAX_SAFE_INTEGER;
+          const pb = b.priorite ?? Number.MAX_SAFE_INTEGER;
+          if (pa !== pb) return pa - pb;
+        }
+        return b.createdAt.localeCompare(a.createdAt);
       }),
-    [feedbacks, fStatut, fType, fSeverite, fArchive],
+    [feedbacks, fStatut, fType, fSeverite, fArchive, fAuteur, fApplication, tri],
   );
 
   const selectCls =
@@ -559,6 +583,31 @@ export function FeedbackAdminVue({
               {LABEL_SEVERITE[s]}
             </option>
           ))}
+        </select>
+        <select value={fAuteur} onChange={(e) => setFAuteur(e.target.value)} className={selectCls}>
+          <option value="">Tous les collaborateurs</option>
+          {auteurs.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+        <select
+          value={fApplication}
+          onChange={(e) => setFApplication(e.target.value as ApplicationFeedback | "")}
+          className={selectCls}
+        >
+          <option value="">Toutes les applications</option>
+          {APPLICATIONS_FEEDBACK.map((a) => (
+            <option key={a} value={a}>
+              {LIBELLES_APPLICATION[a]}
+            </option>
+          ))}
+        </select>
+        <select value={tri} onChange={(e) => setTri(e.target.value as typeof tri)} className={selectCls}>
+          <option value="recents">Tri : plus récents</option>
+          <option value="anciens">Tri : plus anciens</option>
+          <option value="priorite">Tri : priorité</option>
         </select>
         <select
           value={fArchive}
