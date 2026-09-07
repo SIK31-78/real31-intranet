@@ -15,3 +15,16 @@ create table if not exists public.intranet_points_estale (
   updated_at timestamptz,
   resolu_at timestamptz
 );
+
+-- Rattrapage (si la table a ete creee avant l'ajout des categories le 07/09) :
+-- rejouable sans risque.
+alter table public.intranet_points_estale
+  add column if not exists categorie text not null default 'produit';
+do $$
+begin
+  alter table public.intranet_points_estale
+    add constraint intranet_points_estale_categorie_check
+    check (categorie in ('produit', 'migration', 'usage'));
+exception
+  when duplicate_object then null;
+end $$;
