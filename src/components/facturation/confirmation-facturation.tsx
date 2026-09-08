@@ -63,7 +63,7 @@ export function ConfirmationFacturation({
 
         <div className="flex flex-col gap-4 px-4 py-4">
           <dl className="text-[13px]">
-            {apercu.details.map((d, i) => (
+            {apercu.details.filter((d) => d.accent !== "note").map((d, i) => (
               <div key={i} className="flex justify-between gap-4 border-b border-line py-1.5">
                 <dt
                   className={
@@ -100,6 +100,16 @@ export function ConfirmationFacturation({
               </div>
             )}
           </dl>
+
+          {/* Details secondaires (tarif de reference...) : hors du tableau, discrets. */}
+          {apercu.details.some((d) => d.accent === "note") && (
+            <p className="text-[11px] italic text-ink-3">
+              {apercu.details
+                .filter((d) => d.accent === "note")
+                .map((d) => `${d.libelle} : ${d.valeur}`)
+                .join(" · ")}
+            </p>
+          )}
 
           {/* Alertes non bloquantes : visibles, mais la validation reste possible. */}
           {(apercu.avertissements ?? []).map((a, i) => (

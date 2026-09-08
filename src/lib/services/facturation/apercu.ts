@@ -11,8 +11,10 @@ import type { TypePrestation } from "@/lib/ports/facturation-repository";
 export interface LigneApercu {
   libelle: string;
   valeur: string;
-  /** `contrat` = ce qui est deja couvert, `fort` = le montant a facturer. */
-  accent?: "contrat" | "fort";
+  /** `contrat` = ce qui est deja couvert, `fort` = le montant a facturer,
+   *  `note` = detail secondaire (ex. tarif de reference) rendu en petit italique
+   *  SOUS le tableau, pas dans la liste des criteres (demande Sekou 2026-09-08). */
+  accent?: "contrat" | "fort" | "note";
 }
 
 export interface ApercuFacturation {

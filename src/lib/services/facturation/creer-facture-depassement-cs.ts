@@ -105,6 +105,7 @@ export async function apercuDepassementCs(
       {
         libelle: `Tarif horaire (barème ${anneeBareme})`,
         valeur: `${formatEuros(tarifHoraireTtc)} TTC`,
+        accent: "note",
       },
     ],
     lignes: rienAFacturer

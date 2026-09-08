@@ -174,6 +174,7 @@ export async function apercuRecapAg(
       {
         libelle: `Tarif horaire (exercice ${anneeBareme})`,
         valeur: `${formatEuros(tarifHoraireTtc)} TTC`,
+        accent: "note",
       },
       ...(demande.travaux && demande.travaux.length > 0
         ? [{ libelle: "Travaux votés", valeur: `${demande.travaux.length} poste(s)` }]
