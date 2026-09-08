@@ -67,7 +67,13 @@ export function FicheVueEnsemble({
   return (
     <div className="flex flex-col gap-5">
       {indispo && <BanniereEstaleIndispo />}
-      {fiche.cycle && <BlocParcours cycle={fiche.cycle} coproCode={fiche.copro.code} />}
+      {fiche.cycle && (
+        <BlocParcours
+          cycle={fiche.cycle}
+          coproCode={fiche.copro.code}
+          derniereAgDate={fiche.copro.derniereAgDate}
+        />
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
         <div className="flex flex-col gap-5">
           <BlocAg
@@ -118,7 +124,16 @@ export function FicheVueEnsemble({
 // Stepper migre sur LA source unique (domain/cycle-ag, refonte S2.A) : il n'affiche
 // QUE l'action du moment, pilotee par l'etat. Plus de bouton a contre-temps.
 
-function BlocParcours({ cycle, coproCode }: { cycle: CycleAg; coproCode: string }) {
+function BlocParcours({
+  cycle,
+  coproCode,
+  derniereAgDate,
+}: {
+  cycle: CycleAg;
+  coproCode: string;
+  /** Date de la derniere AG tenue : porte vers sa supervision archivee quand le cycle est clos. */
+  derniereAgDate?: string;
+}) {
   const action = cycle.actionDuMoment;
   return (
     <Card>
@@ -153,9 +168,22 @@ function BlocParcours({ cycle, coproCode }: { cycle: CycleAg; coproCode: string 
               <ActionCycleFiche action={action} coproCode={coproCode} />
             </>
           ) : (
-            <p className="text-[12px] text-ink-3">
-              Cycle terminé pour cet exercice — rien à faire avant la prochaine clôture.
-            </p>
+            <>
+              <p className="text-[12px] text-ink-3">
+                Cycle terminé pour cet exercice — rien à faire avant la prochaine clôture.
+              </p>
+              {/* Le cycle clos ne doit pas etre une impasse : la supervision de l'AG
+                  conclue reste consultable (checklist, commentaires, visa). */}
+              {derniereAgDate && (
+                <Link
+                  href={`/supervision-ag/${coproCode}__${derniereAgDate.slice(0, 10)}`}
+                  className="inline-flex items-center gap-1 text-[12px] text-info-700 hover:underline shrink-0"
+                >
+                  Revoir la supervision de cette AG
+                  <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
+                </Link>
+              )}
+            </>
           )}
         </div>
       </div>
