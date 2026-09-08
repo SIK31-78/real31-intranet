@@ -10,8 +10,12 @@ const etat = vi.hoisted(() => {
   const complet = { franchiseCsHeures: 1, dureeAgHeures: 2, debutMinAgHeure: 10, finMaxAgHeure: 20 };
   const ref = {
     parametres: { ...complet } as ParametresCopro,
+    facturesCreees: [] as unknown[],
+    recapsCrees: [] as { statut?: string; depassementHeures?: number }[],
     reset() {
       ref.parametres = { ...complet };
+      ref.facturesCreees = [];
+      ref.recapsCrees = [];
     },
   };
   return ref;
@@ -25,10 +29,31 @@ vi.mock("@/lib/adapters/router", () => ({
     async getTarifTtc() {
       return 120;
     },
+    async creerFacture(f: unknown) {
+      etat.facturesCreees.push(f);
+      return "fac-1";
+    },
+  }),
+  getRecapAgRepository: () => ({
+    async existeRecap() {
+      return false;
+    },
+    async creerRecapAg(r: { statut?: string; depassementHeures?: number }) {
+      etat.recapsCrees.push(r);
+      return "recap-1";
+    },
+    async rattacherFacture() {},
+  }),
+  getComptaRepository: () => ({
+    async ajouterNote() {},
+  }),
+  // marquerRecapFait est best-effort : un provider qui jette est avale (warn).
+  getSupervisionAgProvider: () => ({
+    async setStatutItem() {},
   }),
 }));
 
-import { apercuRecapAg } from "@/lib/services/facturation/creer-recap-ag";
+import { apercuRecapAg, creerRecapAg } from "@/lib/services/facturation/creer-recap-ag";
 
 // AG de 3 h dans la plage 10 h-20 h (depassement attendu quand les params existent).
 const assemblee = {
@@ -93,5 +118,37 @@ describe("recap AG - AG dans les horaires du contrat", () => {
     const apercu = await apercuRecapAg({ coproCode: "S002", assemblee }, "m1");
     expect(apercu.rienAFacturer).toBe(false);
     expect(apercu.actionSansFacture).toBeUndefined();
+  });
+});
+
+// Renoncement a la facture (demande Sekou 2026-09-08) : le gestionnaire peut
+// enregistrer le recap avec le VRAI creneau (depassement calcule et trace) sans
+// qu'aucune facture ne parte - geste commercial, jamais une falsification d'heure.
+describe("recap AG - 'Ne pas facturer' le depassement", () => {
+  it("l'apercu avec depassement propose le bouton secondaire", async () => {
+    const apercu = await apercuRecapAg({ coproCode: "S002", assemblee }, "m1");
+    expect(apercu.actionNePasFacturer).toBe("Ne pas facturer");
+  });
+
+  it("l'apercu sans depassement ne le propose pas (rien a renoncer)", async () => {
+    const dansLesClous = { ...assemblee, heureDebut: 18, heureFin: 20, minuteFin: 0 };
+    const apercu = await apercuRecapAg({ coproCode: "S002", assemblee: dansLesClous }, "m1");
+    expect(apercu.actionNePasFacturer).toBeUndefined();
+  });
+
+  it("sansFacture : recap enregistre 'termine' avec le depassement trace, AUCUNE facture", async () => {
+    const res = await creerRecapAg({ coproCode: "S002", assemblee, sansFacture: true }, "m1");
+    expect(res.factureId).toBeNull();
+    expect(res.depassementHeures).toBe(1); // 3 h - 2 h incluses : la verite reste rendue
+    expect(res.montantTtc).toBe(0);
+    expect(etat.facturesCreees).toHaveLength(0);
+    expect(etat.recapsCrees[0]).toMatchObject({ statut: "termine", depassementHeures: 1 });
+  });
+
+  it("sans le drapeau, le meme creneau facture bien le depassement", async () => {
+    const res = await creerRecapAg({ coproCode: "S002", assemblee }, "m1");
+    expect(res.factureId).toBe("fac-1");
+    expect(etat.facturesCreees).toHaveLength(1);
+    expect(etat.recapsCrees[0]).toMatchObject({ statut: "a_facturer" });
   });
 });

@@ -49,4 +49,13 @@ export interface ApercuFacturation {
    * Absent = comportement d'origine (rien a facturer -> rien a faire -> Fermer).
    */
   actionSansFacture?: string;
+  /**
+   * Libelle d'un bouton SECONDAIRE propose quand il y a un montant facturable :
+   * enregistrer la prestation en RENONCANT a la facture (geste commercial), sans
+   * fausser les criteres saisis (l'heure de fin d'AG reste la vraie).
+   *
+   * Absent = pas de renoncement possible (les prestations de facturation pures :
+   * soit on facture, soit on annule).
+   */
+  actionNePasFacturer?: string;
 }

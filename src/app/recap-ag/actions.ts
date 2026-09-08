@@ -61,6 +61,7 @@ const zDemande = z.object({
   honorairesGestionTtc: zMontant.optional(),
   fraisPostauxReels: z.boolean().optional(),
   forfaitPostauxTtc: zMontant.optional(),
+  sansFacture: z.boolean().optional(),
 });
 
 async function executer<T>(

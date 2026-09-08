@@ -21,6 +21,7 @@ export function ConfirmationFacturation({
   pennylaneMode,
   pending,
   onConfirmer,
+  onConfirmerSansFacture,
   onAnnuler,
 }: {
   apercu: ApercuFacturation;
@@ -28,9 +29,12 @@ export function ConfirmationFacturation({
   pennylaneMode: ModeEmissionFacture;
   pending: boolean;
   onConfirmer: () => void;
+  /** Enregistre la prestation en RENONCANT a la facture (bouton secondaire, affiche
+   *  seulement si l'apercu propose `actionNePasFacturer`). */
+  onConfirmerSansFacture?: () => void;
   onAnnuler: () => void;
 }) {
-  const { rienAFacturer, actionSansFacture } = apercu;
+  const { rienAFacturer, actionSansFacture, actionNePasFacturer } = apercu;
   // Rien a facturer n'est pas rien a faire : une prestation peut n'avoir aucune
   // facture a emettre et rester a enregistrer (le recap AG). Dans ce cas seul le
   // libelle du bouton change, l'action de confirmation reste la meme.
@@ -128,6 +132,19 @@ export function ConfirmationFacturation({
           >
             {aConfirmer ? "Annuler" : "Fermer"}
           </button>
+          {/* Renoncement a la facture (geste commercial) : enregistre quand meme,
+              avec les criteres saisis tels quels. Jamais le bouton principal. */}
+          {!rienAFacturer && actionNePasFacturer && onConfirmerSansFacture && (
+            <button
+              type="button"
+              onClick={onConfirmerSansFacture}
+              disabled={pending}
+              className="inline-flex items-center gap-2 rounded border border-line px-3 py-2 text-[13px] text-ink hover:bg-black/[0.03] disabled:opacity-50"
+            >
+              <ClipboardCheck className="w-4 h-4" strokeWidth={1.5} />
+              {actionNePasFacturer}
+            </button>
+          )}
           {aConfirmer && (
             <button
               type="button"

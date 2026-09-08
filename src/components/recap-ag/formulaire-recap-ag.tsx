@@ -180,16 +180,21 @@ export function FormulaireRecapAg({
     });
   }
 
-  function confirmer() {
+  function confirmer(sansFacture = false) {
     demarrer(async () => {
-      const res = await creerRecapAgAction(construireDemande());
+      const res = await creerRecapAgAction({
+        ...construireDemande(),
+        ...(sansFacture ? { sansFacture: true } : {}),
+      });
       setApercu(null);
       if (!res.ok) return toast.err(res.erreur);
       const d = res.donnees;
       toast.ok(
         d?.factureId
           ? `Récap enregistré, dépassement de ${d.depassementHeures} h facturé.`
-          : "Récap enregistré (aucun dépassement à facturer).",
+          : sansFacture && d && d.depassementHeures > 0
+            ? `Récap enregistré, dépassement de ${d.depassementHeures} h NON facturé (choix).`
+            : "Récap enregistré (aucun dépassement à facturer).",
       );
       router.refresh();
       onSucces?.();
@@ -418,7 +423,8 @@ export function FormulaireRecapAg({
           apercu={apercu}
           pennylaneMode={pennylaneMode}
           pending={pending}
-          onConfirmer={confirmer}
+          onConfirmer={() => confirmer()}
+          onConfirmerSansFacture={() => confirmer(true)}
           onAnnuler={() => setApercu(null)}
         />
       )}

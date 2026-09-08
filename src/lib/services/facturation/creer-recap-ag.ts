@@ -52,6 +52,13 @@ export interface DemandeRecapAg {
   fraisPostauxReels?: boolean;
   forfaitPostauxTtc?: number;
 
+  /**
+   * true = le gestionnaire RENONCE a facturer le depassement (geste commercial).
+   * Le recap garde le creneau reel et le depassement CALCULE (la verite du
+   * deroule), mais aucune facture n'est creee.
+   */
+  sansFacture?: boolean;
+
   /** Initiales de l'auteur. */
   par?: string;
 }
@@ -193,7 +200,11 @@ export async function apercuRecapAg(
           // "Fermer" et le compte-rendu etait perdu.
           actionSansFacture: "Enregistrer le récap",
         }
-      : {}),
+      : {
+          // Depassement constate mais renoncable (geste commercial, demande Sekou
+          // 2026-09-08) : le recap s'enregistre avec le VRAI creneau, sans facture.
+          actionNePasFacturer: "Ne pas facturer",
+        }),
   };
 }
 
@@ -223,7 +234,9 @@ export async function creerRecapAg(
   }
 
   const { anneeBareme, tarifHoraireTtc, calcul } = await calculer(demande);
-  const aFacturer = calcul.totalDepassementHeures > 0;
+  // sansFacture = renoncement explicite du gestionnaire : le depassement CALCULE
+  // reste enregistre sur le recap (verite du deroule), mais aucune facture ne part.
+  const aFacturer = calcul.totalDepassementHeures > 0 && !demande.sansFacture;
 
   // Une AG ouvre un nouveau cycle de contrat (comportement du flow NotifComptable).
   let suiviContratId: string | undefined;
@@ -282,7 +295,14 @@ export async function creerRecapAg(
   await marquerRecapFait(demande.coproCode, agDate, demande.par ?? "");
 
   if (!aFacturer) {
-    return { recapId, depassementHeures: 0, montantTtc: 0, factureId: null };
+    // Les heures calculees restent rendues (le toast distingue "aucun depassement"
+    // de "depassement non facture") ; seul le montant facture est nul.
+    return {
+      recapId,
+      depassementHeures: calcul.totalDepassementHeures,
+      montantTtc: 0,
+      factureId: null,
+    };
   }
 
   const factureId = await repoFacturation.creerFacture({
