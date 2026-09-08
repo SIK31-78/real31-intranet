@@ -1,6 +1,6 @@
 // Retard de recap d'AG : « une AG s'est tenue, le recap n'est pas rentre ».
 //
-// Demande Sekou : le gestionnaire a 7 jours apres l'AG pour rendre son recap ; passe ce
+// Demande Sekou : le gestionnaire a 48 h apres l'AG pour rendre son recap ; passe ce
 // delai, la copro sort en rouge cote gestionnaire ET cote comptable. Domaine PUR (ADR-001) :
 // aucune I/O, la date du jour est toujours passee en parametre pour rester testable.
 //
@@ -8,10 +8,11 @@
 // du PowerApps) - ne pas les changer sans remesurer, elles ne sont pas arbitraires.
 
 /**
- * Delai laisse au gestionnaire pour rendre le recap apres l'AG. Une AG tenue depuis 8
- * jours ou plus sans recap est EN RETARD ; a 7 jours pile on ne dit encore rien.
+ * Delai laisse au gestionnaire pour rendre le recap apres l'AG : 48 h (decision Sekou
+ * 2026-09-08, remplace les 7 jours initiaux). Une AG tenue depuis 3 jours ou plus sans
+ * recap est EN RETARD ; a 2 jours pile on ne dit encore rien.
  */
-export const DELAI_RECAP_JOURS = 7;
+export const DELAI_RECAP_JOURS = 2;
 
 /**
  * Tolerance pour rapprocher un recap de son AG, en jours (de part et d'autre).

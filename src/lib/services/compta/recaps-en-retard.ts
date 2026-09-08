@@ -4,7 +4,7 @@
 // lire ; ici on liste des recaps ABSENTS. Ce sont deux natures d'objet - les melanger
 // dans une meme file reintroduirait le flou de parcours qu'on retire.
 //
-// La regle (7 jours, tolerance de rapprochement, seuil d'historique) vit ENTIEREMENT dans
+// La regle (48 h, tolerance de rapprochement, seuil d'historique) vit ENTIEREMENT dans
 // le domaine (domain/recap-ag/retard) ; ce service ne fait que la nourrir : perimetre,
 // lecture batch des dates de recap, tri.
 //

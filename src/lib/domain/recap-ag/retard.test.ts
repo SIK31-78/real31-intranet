@@ -53,16 +53,16 @@ describe("evaluerRecapAg", () => {
     expect(evaluerRecapAg("2026-12-15", [], AUJ)).toEqual({ statut: "rien_a_signaler" });
   });
 
-  // --- La borne du delai de 7 jours -----------------------------------------
+  // --- La borne du delai de 48 h --------------------------------------------
 
-  it("ne dit rien a 7 jours pile : le delai court encore", () => {
-    expect(evaluerRecapAg("2026-10-20", [], AUJ)).toEqual({ statut: "rien_a_signaler" });
+  it("ne dit rien a 2 jours pile : le delai court encore", () => {
+    expect(evaluerRecapAg("2026-10-25", [], AUJ)).toEqual({ statut: "rien_a_signaler" });
   });
 
-  it("passe en retard a 8 jours", () => {
-    expect(evaluerRecapAg("2026-10-19", [], AUJ)).toEqual({
+  it("passe en retard a 3 jours", () => {
+    expect(evaluerRecapAg("2026-10-24", [], AUJ)).toEqual({
       statut: "en_retard",
-      joursDeRetard: 8,
+      joursDeRetard: 3,
     });
   });
 
@@ -147,7 +147,7 @@ describe("evaluerRecapAg", () => {
 
 describe("constantes de la regle", () => {
   it("garde les valeurs decidees", () => {
-    expect(DELAI_RECAP_JOURS).toBe(7);
+    expect(DELAI_RECAP_JOURS).toBe(2);
     expect(TOLERANCE_RAPPROCHEMENT_JOURS).toBe(15);
     expect(DEBUT_HISTORIQUE_RECAPS).toBe("2026-09-01");
     expect(ANCIENNETE_MAX_JOURS).toBe(365);
