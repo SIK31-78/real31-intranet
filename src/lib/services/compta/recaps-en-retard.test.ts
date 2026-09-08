@@ -6,7 +6,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Copropriete } from "@/lib/domain/copropriete";
 
-const AUJ = "2026-07-27";
+// Posterieur au debut du suivi (01/09/2026) : les AG surveillees ici doivent etre
+// apres ce seuil pour ressortir.
+const AUJ = "2026-10-27";
 
 function copro(
   code: string,
@@ -34,21 +36,21 @@ function copro(
 }
 
 const COPROS = [
-  // AG prevue le 30/06, jamais conclue, aucun recap -> en retard, date previsionnelle.
+  // AG prevue le 30/09, jamais conclue, aucun recap -> en retard, date previsionnelle.
   copro("S104", "Les Marronniers", "ag-ml", "m1", {
-    prochaineAg: "2026-06-30",
-    derniereAg: "2025-04-09",
+    prochaineAg: "2026-09-30",
+    derniereAg: "2026-04-09",
   }),
-  // Derniere AG tenue il y a longtemps, aucun recap -> en retard, date fiable.
-  copro("S088", "Résidence Foch", "ag-hls", "m2", { derniereAg: "2026-02-09" }),
+  // Derniere AG tenue il y a un mois et demi, aucun recap -> en retard, date fiable.
+  copro("S088", "Résidence Foch", "ag-hls", "m2", { derniereAg: "2026-09-11" }),
   // Agence inconnue du referentiel Agency : EXCLUE du perimetre comptable.
-  copro("S045", "Rue Sartoris", "ag-fantome", "m1", { derniereAg: "2026-03-11" }),
+  copro("S045", "Rue Sartoris", "ag-fantome", "m1", { derniereAg: "2026-09-05" }),
   // Recap rentre a 3 jours de la date du referentiel : couvert par la tolerance.
-  copro("S192", "Les Bruyères", "ag-ml", "m1", { derniereAg: "2026-05-18" }),
-  // AG a venir : rien a signaler.
+  copro("S192", "Les Bruyères", "ag-ml", "m1", { derniereAg: "2026-09-18" }),
+  // AG a venir : rien a signaler (la derniere tenue est couverte par son recap).
   copro("S222", "Le Château", "ag-ml", "m1", {
-    prochaineAg: "2026-09-15",
-    derniereAg: "2026-06-20",
+    prochaineAg: "2026-12-15",
+    derniereAg: "2026-09-20",
   }),
 ];
 
@@ -76,8 +78,8 @@ vi.mock("@/lib/adapters/router", () => ({
       if (etat.jette) throw new Error('relation "intranet_recap_ag" does not exist');
       etat.appels.push(codes);
       const tout = new Map<string, string[]>([
-        ["S192", ["2026-05-21"]], // 3 jours d'ecart : couvre l'AG du 18/05
-        ["S222", ["2026-06-20"]],
+        ["S192", ["2026-09-21"]], // 3 jours d'ecart : couvre l'AG du 18/09
+        ["S222", ["2026-09-20"]],
       ]);
       return new Map([...tout].filter(([code]) => codes.includes(code)));
     },
@@ -103,12 +105,12 @@ beforeEach(() => {
 describe("listerRecapsEnRetard", () => {
   it("gestionnaire : les copros de SON portefeuille en retard, la plus ancienne d'abord", async () => {
     const lignes = await listerRecapsEnRetard(GESTIONNAIRE_M1, AUJ);
-    // S045 (138 j) avant S104 (27 j) ; S192 est couvert, S222 a son AG devant.
+    // S045 (52 j) avant S104 (27 j) ; S192 est couvert, S222 a son AG devant.
     expect(lignes.map((l) => l.coproCode)).toEqual(["S045", "S104"]);
-    expect(lignes[0]?.joursDeRetard).toBe(138);
+    expect(lignes[0]?.joursDeRetard).toBe(52);
     expect(lignes[1]).toMatchObject({
       coproNom: "Les Marronniers",
-      agDate: "2026-06-30",
+      agDate: "2026-09-30",
       joursDeRetard: 27,
       datePrevisionnelle: true,
     });

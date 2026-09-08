@@ -25,13 +25,16 @@ export const DELAI_RECAP_JOURS = 7;
 export const TOLERANCE_RAPPROCHEMENT_JOURS = 15;
 
 /**
- * Debut de l'historique connu des recaps = date du plus ancien recap importe du PowerApps.
+ * Debut du SUIVI des recaps : seules les AG tenues a partir de cette date sont
+ * surveillees.
  *
- * POURQUOI : avant cette date on n'a AUCUNE donnee. Signaler ces AG dirait « recap
- * manquant » la ou la verite est « on ne sait pas ». Mesure : sans ce seuil, 42 copros
- * en retard dont 18 de plus d'un an (du bruit d'archive) ; avec, 34.
+ * POURQUOI (decision Sekou 2026-09-08) : le module recap est reellement en service
+ * depuis le 01/09/2026. Avant, les recaps arrivaient par d'autres canaux (PowerApps,
+ * mails) et l'antériorite non saisie est du bruit d'archive irrattrapable : la
+ * signaler noierait l'alerte. Le premier calibrage (2025-03-31 = plus ancien recap
+ * importe du PowerApps) est remplace par cette date de mise en service.
  */
-export const DEBUT_HISTORIQUE_RECAPS = "2025-03-31";
+export const DEBUT_HISTORIQUE_RECAPS = "2026-09-01";
 
 /**
  * Au-dela de cette anciennete, on ne signale plus l'absence de recap.
@@ -41,6 +44,9 @@ export const DEBUT_HISTORIQUE_RECAPS = "2025-03-31";
  * d'objet - et surtout il est IRRATTRAPABLE : personne ne reconstitue de memoire le budget
  * vote d'une AG d'il y a 18 mois. Les laisser rouges pour toujours abimerait l'alerte
  * entiere : une liste ou 7 lignes sur 30 ne partiront jamais finit par ne plus etre lue.
+ *
+ * Subsumee par DEBUT_HISTORIQUE_RECAPS jusqu'au 01/09/2027 (toute AG de plus d'un an est
+ * alors forcement avant le seuil) ; elle redeviendra la borne active ensuite.
  *
  * Ce n'est PAS un masquage de donnee fausse (cf. les dates previsionnelles, qu'on affiche
  * justement parce qu'elles sont corrigeables) : ici il n'y a rien a corriger.
