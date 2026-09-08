@@ -68,8 +68,6 @@ export default async function RecapAgPage({
     ...(r.factureId ? { factureId: r.factureId } : {}),
     ...(r.par ? { par: r.par } : {}),
     creeLe: r.creeLe,
-    ...(r.effectueLe ? { effectueLe: r.effectueLe } : {}),
-    ...(r.effectuePar ? { effectuePar: r.effectuePar } : {}),
   }));
 
   return (

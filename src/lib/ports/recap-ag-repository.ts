@@ -50,25 +50,11 @@ export interface NouveauRecapAg {
   par?: string;
 }
 
-/**
- * Marqueur « le gestionnaire a fait le suivi post-AG de ce recap ». Deux colonnes sur
- * intranet_recap_ag (`effectue_at` / `effectue_par`, cf. supabase/sql/intranet_recap_ag_effectue.sql).
- *
- * A NE PAS confondre avec `TraitementComptable` : ce sont deux boucles differentes, sur
- * deux metiers. « Traite » = la comptabilite a saisi le budget vote, les appels de fonds,
- * le cycle de contrat. « Effectue » = le gestionnaire a fini CE QU'IL avait a faire apres
- * l'AG. Les fusionner ferait disparaitre la file du comptable des qu'un gestionnaire
- * classe son recap - exactement l'inverse du besoin.
- */
-export interface MarquageEffectue {
-  /** Horodatage ISO du marquage ; absent = reste a faire. */
-  effectueLe?: string;
-  /** Initiales de celui qui a marque effectue. */
-  effectuePar?: string;
-}
+// NB : le marquage « effectué » du gestionnaire (effectue_at / effectue_par) a ete retire
+// de l'app (decision Sekou 2026-09-08). Les colonnes restent en base, inertes.
 
 /** Ligne d'historique des recaps AG. */
-export interface RecapAgHistorique extends MarquageEffectue {
+export interface RecapAgHistorique {
   id: string;
   coproCode: string;
   agDate: string;
@@ -160,11 +146,4 @@ export interface RecapAgRepository {
    * une ecriture demandee par l'utilisateur ne doit jamais reussir a vide.
    */
   marquerTraite(recapId: string, traite: boolean, par: string): Promise<void>;
-
-  /**
-   * Marque le recap effectue cote GESTIONNAIRE (ou le remet a faire). `par` = initiales.
-   * Meme contrat que `marquerTraite` : erreur ACTIONNABLE tant que les colonnes n'existent
-   * pas, jamais une ecriture qui reussit a vide.
-   */
-  marquerEffectue(recapId: string, effectue: boolean, par: string): Promise<void>;
 }

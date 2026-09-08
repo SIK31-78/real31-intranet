@@ -7,8 +7,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estComptable } from "@/lib/auth/roles";
-import { marquerRecapEffectue } from "@/lib/services/recap-ag/marquer-effectue";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import {
   apercuRecapAg,
@@ -107,34 +105,5 @@ export async function creerRecapAgAction(
   });
 }
 
-/**
- * Marque le récap « effectué » (ou le remet à faire).
- *
- * PAS de garde de rôle ici, contrairement à `marquerRecapTraiteAction` : c'est la boucle
- * du gestionnaire sur son propre suivi, pas un geste du pôle comptable. Le cloisonnement
- * se fait sur le PÉRIMÈTRE, revalidé côté serveur dans le service - l'UI n'est jamais le mur.
- */
-export async function marquerRecapEffectueAction(
-  recapId: string,
-  effectue: boolean,
-): Promise<Res> {
-  const saisie = z
-    .object({ recapId: z.string().trim().min(1).max(120), effectue: z.boolean() })
-    .safeParse({ recapId, effectue });
-  if (!saisie.success) return { ok: false, erreur: "Données invalides." };
-
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, erreur: "Session expirée." };
-
-  try {
-    await marquerRecapEffectue(recapId, effectue, g.initiales, {
-      managerId: g.id,
-      email: g.email,
-      estComptable: estComptable(g.email, g.role),
-    });
-    revalidatePath("/recap-ag", "layout");
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
-  }
-}
+// La bascule « effectué » du gestionnaire a ete retiree (decision Sekou 2026-09-08) :
+// la seule boucle de suivi d'un recap est le « traité » du pole comptable.
