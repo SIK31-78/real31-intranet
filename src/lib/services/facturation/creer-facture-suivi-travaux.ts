@@ -73,7 +73,7 @@ export async function apercuSuiviTravaux(
     montantTtc: montantHt * 1.2,
     rienAFacturer: montantHt === 0,
     ...(montantHt === 0
-      ? { motifRienAFacturer: "Le montant calcule est nul : aucune facture ne sera creee." }
+      ? { motifRienAFacturer: "Le montant calculé est nul : aucune facture ne sera créée." }
       : {}),
   };
 }

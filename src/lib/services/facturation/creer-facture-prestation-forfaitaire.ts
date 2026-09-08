@@ -49,8 +49,8 @@ export interface ResultatFactureForfaitaire {
 }
 
 const PRESTATIONS = {
-  pre_etat_date: { identifiantPrestation: "PreEtatDate", libelle: "Honoraires pre-etat date" },
-  etat_date: { identifiantPrestation: "EtatDate", libelle: "Honoraires etat date (questionnaire notaire)" },
+  pre_etat_date: { identifiantPrestation: "PreEtatDate", libelle: "Honoraires pré-état daté" },
+  etat_date: { identifiantPrestation: "EtatDate", libelle: "Honoraires état daté (questionnaire notaire)" },
 } as const;
 
 /** Apercu commun aux deux prestations a tarif forfaitaire annuel. */
@@ -75,7 +75,7 @@ export async function apercuPrestationForfaitaire(
     details: [
       ...(demande.nomClient ? [{ libelle: "Client", valeur: demande.nomClient }] : []),
       ...(demande.dateEtablissement
-        ? [{ libelle: "Etabli le", valeur: formatJour(demande.dateEtablissement) }]
+        ? [{ libelle: "Établi le", valeur: formatJour(demande.dateEtablissement) }]
         : []),
       {
         libelle: `Tarif du bareme ${anneeBareme}`,
@@ -86,7 +86,7 @@ export async function apercuPrestationForfaitaire(
       ...(negocie
         ? [
             {
-              libelle: "Montant negocie",
+              libelle: "Montant négocié",
               valeur: `${formatEuros(montantTtc)} TTC`,
               accent: "fort" as const,
             },
@@ -98,7 +98,7 @@ export async function apercuPrestationForfaitaire(
     montantTtc,
     rienAFacturer: montantTtc === 0,
     ...(montantTtc === 0
-      ? { motifRienAFacturer: "Le montant retenu est nul : aucune facture ne sera creee." }
+      ? { motifRienAFacturer: "Le montant retenu est nul : aucune facture ne sera créée." }
       : {}),
   };
 }
@@ -182,7 +182,7 @@ export function creerFacturePreEtatDate(
   return creerFactureForfaitaire(demande, managerId, {
     type: "pre_etat_date",
     identifiantPrestation: "PreEtatDate",
-    libelle: "Honoraires pre-etat date",
+    libelle: "Honoraires pré-état daté",
     categorieProduit: CATEGORIE_PRE_ETAT_DATE,
   });
 }
@@ -195,7 +195,7 @@ export function creerFactureEtatDate(
   return creerFactureForfaitaire(demande, managerId, {
     type: "etat_date",
     identifiantPrestation: "EtatDate",
-    libelle: "Honoraires etat date (questionnaire notaire)",
+    libelle: "Honoraires état daté (questionnaire notaire)",
     categorieProduit: CATEGORIE_QUESTIONNAIRE_NOTAIRE,
   });
 }

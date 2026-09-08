@@ -49,9 +49,8 @@ describe("messageEmissionFacture", () => {
     expect(m).toMatch(/plus être modifiée ni supprimée/);
   });
 
-  it("annonce le brouillon a valider par la comptabilite", () => {
-    expect(messageEmissionFacture("brouillon")).toMatch(/brouillon/i);
-    expect(messageEmissionFacture("brouillon")).toMatch(/comptabilité/);
+  it("ne dit RIEN en mode brouillon : c'est le fonctionnement nominal (Sekou 2026-09-08)", () => {
+    expect(messageEmissionFacture("brouillon")).toBeNull();
   });
 
   it("annonce la simulation quand aucun jeton n'est configure", () => {

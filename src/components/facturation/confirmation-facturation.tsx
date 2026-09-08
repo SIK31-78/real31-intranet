@@ -117,9 +117,12 @@ export function ConfirmationFacturation({
               {apercu.motifRienAFacturer ?? "Aucune facture ne sera créée."}
             </p>
           ) : (
-            <p className="rounded bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-              {messageEmissionFacture(pennylaneMode)}
-            </p>
+            // null en mode brouillon (nominal) : rien a annoncer.
+            messageEmissionFacture(pennylaneMode) && (
+              <p className="rounded bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+                {messageEmissionFacture(pennylaneMode)}
+              </p>
+            )
           )}
         </div>
 

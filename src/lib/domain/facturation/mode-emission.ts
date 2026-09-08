@@ -46,8 +46,14 @@ export function modeEmissionFacture(
   return factureValideeActive(factureValidee) ? "validee" : "brouillon";
 }
 
-/** Ce que la fenetre de confirmation annonce a l'utilisateur avant d'engager. */
-export function messageEmissionFacture(mode: ModeEmissionFacture): string {
+/**
+ * Ce que la fenetre de confirmation annonce a l'utilisateur avant d'engager.
+ * `null` = rien a annoncer : le mode brouillon est le fonctionnement NOMINAL
+ * (reversible, valide ensuite par la comptabilite), le bandeau etait du bruit
+ * (retire a la demande de Sekou, 2026-09-08). Seuls l'irreversible (validee)
+ * et la simulation (inactif) meritent d'etre dits.
+ */
+export function messageEmissionFacture(mode: ModeEmissionFacture): string | null {
   if (mode === "inactif") {
     return "Mode simulation : PENNYLANE_API_KEY absente, aucune facture ne partira réellement.";
   }
@@ -57,8 +63,5 @@ export function messageEmissionFacture(mode: ModeEmissionFacture): string {
       "Elle porte un numéro et ne pourra plus être modifiée ni supprimée."
     );
   }
-  return (
-    "En confirmant, un brouillon de facture est créé dans Pennylane. " +
-    "Il restera à valider par la comptabilité."
-  );
+  return null;
 }

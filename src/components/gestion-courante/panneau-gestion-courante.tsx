@@ -412,9 +412,12 @@ export function PanneauGestionCourante({
                     écart {euros(recap.total - recap.attendu)}
                   </span>
                 </div>
-                <p className="mt-2 text-[12.5px] text-ink-3">
-                  {messageEmissionFacture(pennylaneMode)}
-                </p>
+                {/* null en mode brouillon (nominal) : rien a annoncer. */}
+                {messageEmissionFacture(pennylaneMode) && (
+                  <p className="mt-2 text-[12.5px] text-ink-3">
+                    {messageEmissionFacture(pennylaneMode)}
+                  </p>
+                )}
                 <div className="mt-3">
                   <button
                     type="button"

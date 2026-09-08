@@ -63,7 +63,7 @@ export async function apercuSuiviSinistre(
       montantHt: 0,
       montantTtc: 0,
       rienAFacturer: true,
-      motifRienAFacturer: "Aucune diligence retenue : il n'y a rien a facturer.",
+      motifRienAFacturer: "Aucune diligence retenue : il n'y a rien à facturer.",
     };
   }
 

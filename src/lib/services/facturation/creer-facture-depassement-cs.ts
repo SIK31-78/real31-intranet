@@ -81,16 +81,16 @@ export async function apercuDepassementCs(
 
   return {
     typePrestation: "depassement_cs",
-    titre: "Depassement de reunion du Conseil Syndical",
+    titre: "Dépassement de réunion du Conseil Syndical",
     coproCode: demande.coproCode,
     details: [
       {
-        libelle: "Reunion du",
-        valeur: `${formatJour(demande.reunion.jourDebut)}, de ${formatHeure(demande.reunion.heureDebut, demande.reunion.minuteDebut)} a ${formatHeure(demande.reunion.heureFin, demande.reunion.minuteFin)}`,
+        libelle: "Réunion du",
+        valeur: `${formatJour(demande.reunion.jourDebut)}, de ${formatHeure(demande.reunion.heureDebut, demande.reunion.minuteDebut)} à ${formatHeure(demande.reunion.heureFin, demande.reunion.minuteFin)}`,
       },
       {
-        libelle: "Duree retenue",
-        valeur: `${formatHeures(calcul.heuresArrondies)} (arrondie a la demi-heure superieure)`,
+        libelle: "Durée retenue",
+        valeur: `${formatHeures(calcul.heuresArrondies)} (arrondie à la demi-heure supérieure)`,
       },
       {
         libelle: "Inclus au contrat",
@@ -98,23 +98,23 @@ export async function apercuDepassementCs(
         accent: "contrat",
       },
       {
-        libelle: "En depassement",
+        libelle: "En dépassement",
         valeur: formatHeures(calcul.heuresFacturables),
         accent: "fort",
       },
       {
-        libelle: `Tarif horaire (bareme ${anneeBareme})`,
+        libelle: `Tarif horaire (barème ${anneeBareme})`,
         valeur: `${formatEuros(tarifHoraireTtc)} TTC`,
       },
     ],
     lignes: rienAFacturer
       ? []
-      : [{ description: `Depassement horaire (${formatHeures(calcul.heuresFacturables)})`, montantHt: calcul.montantHt }],
+      : [{ description: `Dépassement horaire (${formatHeures(calcul.heuresFacturables)})`, montantHt: calcul.montantHt }],
     montantHt: calcul.montantHt,
     montantTtc: calcul.montantTtc,
     rienAFacturer,
     ...(rienAFacturer
-      ? { motifRienAFacturer: "La reunion ne depasse pas la duree incluse au contrat." }
+      ? { motifRienAFacturer: "La réunion ne dépasse pas la durée incluse au contrat." }
       : {}),
   };
 }
@@ -161,7 +161,7 @@ export async function creerFactureDepassementCs(
   const factureId = await repo.creerFacture({
     coproCode: demande.coproCode,
     typePrestation: "depassement_cs",
-    libelle: `Depassement CS du ${demande.reunion.jourDebut}`,
+    libelle: `Dépassement CS du ${demande.reunion.jourDebut}`,
     dateFacture: aujourdhuiISO(),
     datePrestation: demande.reunion.jourDebut,
     details: {

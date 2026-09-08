@@ -145,25 +145,25 @@ export async function apercuRecapAg(
 
   return {
     typePrestation: "depassement_ag",
-    titre: "Recap AG et depassement horaire",
+    titre: "Récap AG et dépassement horaire",
     coproCode: demande.coproCode,
     details: [
       {
-        libelle: "Assemblee du",
-        valeur: `${formatJour(assemblee.jourDebut)}, de ${formatHeure(assemblee.heureDebut, assemblee.minuteDebut)} a ${formatHeure(assemblee.heureFin, assemblee.minuteFin)}`,
+        libelle: "Assemblée du",
+        valeur: `${formatJour(assemblee.jourDebut)}, de ${formatHeure(assemblee.heureDebut, assemblee.minuteDebut)} à ${formatHeure(assemblee.heureFin, assemblee.minuteFin)}`,
       },
-      { libelle: "Duree totale", valeur: formatHeures(calcul.dureeTotaleHeures) },
+      { libelle: "Durée totale", valeur: formatHeures(calcul.dureeTotaleHeures) },
       {
         libelle: "Inclus au contrat",
         valeur: `${formatHeures(dureeAgHeures)} entre ${debutMinAgHeure} h et ${finMaxAgHeure} h`,
         accent: "contrat",
       },
       {
-        libelle: "Depassement dans la plage",
+        libelle: "Dépassement dans la plage",
         valeur: formatHeures(calcul.depassementDansPlageHeures),
       },
       {
-        libelle: "Depassement hors plage",
+        libelle: "Dépassement hors plage",
         valeur: formatHeures(calcul.depassementHorsPlageHeures),
       },
       {
@@ -176,14 +176,14 @@ export async function apercuRecapAg(
         valeur: `${formatEuros(tarifHoraireTtc)} TTC`,
       },
       ...(demande.travaux && demande.travaux.length > 0
-        ? [{ libelle: "Travaux votes", valeur: `${demande.travaux.length} poste(s)` }]
+        ? [{ libelle: "Travaux votés", valeur: `${demande.travaux.length} poste(s)` }]
         : []),
     ],
     lignes: rienAFacturer
       ? []
       : [
           {
-            description: `Depassement AG (${formatHeures(calcul.totalDepassementHeures)})`,
+            description: `Dépassement AG (${formatHeures(calcul.totalDepassementHeures)})`,
             montantHt: htDepuisTtc(calcul.montantTtc),
           },
         ],
@@ -194,7 +194,7 @@ export async function apercuRecapAg(
     ...(rienAFacturer
       ? {
           motifRienAFacturer:
-            "L'assemblee n'a pas depasse la duree ni la plage prevues au contrat : le recap sera enregistre, sans facture.",
+            "L'assemblée n'a pas dépassé la durée ni la plage prévues au contrat : le récap sera enregistré, sans facture.",
           // Le recap est le livrable, la facture une retombee : sans depassement il
           // reste a ENREGISTRER. Sans ce libelle, la fenetre ne proposait que
           // "Fermer" et le compte-rendu etait perdu.
@@ -308,7 +308,7 @@ export async function creerRecapAg(
   const factureId = await repoFacturation.creerFacture({
     coproCode: demande.coproCode,
     typePrestation: "depassement_ag",
-    libelle: `Depassement AG du ${formatJour(agDate)}`,
+    libelle: `Dépassement AG du ${formatJour(agDate)}`,
     dateFacture: aujourdhuiISO(),
     datePrestation: agDate,
     details: {
@@ -325,11 +325,11 @@ export async function creerRecapAg(
         // Detail affiche sur le PDF : sans le decoupage plage / hors plage, un
         // depassement d'AG est indefendable devant le conseil syndical.
         description:
-          `Depassement AG du ${formatJour(agDate)}, ` +
+          `Dépassement AG du ${formatJour(agDate)}, ` +
           `de ${formatHeure(demande.assemblee.heureDebut, demande.assemblee.minuteDebut)} ` +
-          `a ${formatHeure(demande.assemblee.heureFin, demande.assemblee.minuteFin)}. ` +
-          `Duree totale : ${formatHeures(calcul.dureeTotaleHeures)}. ` +
-          `Depassement dans la plage : ${formatHeures(calcul.depassementDansPlageHeures)}. ` +
+          `à ${formatHeure(demande.assemblee.heureFin, demande.assemblee.minuteFin)}. ` +
+          `Durée totale : ${formatHeures(calcul.dureeTotaleHeures)}. ` +
+          `Dépassement dans la plage : ${formatHeures(calcul.depassementDansPlageHeures)}. ` +
           `Hors plage : ${formatHeures(calcul.depassementHorsPlageHeures)}.`,
         categorieProduit: CATEGORIE_HONORAIRES_COMPLEMENTAIRES,
         quantite: calcul.totalDepassementHeures,
