@@ -278,7 +278,7 @@ en OD à la date de clôture » (tout l'historique, jamais les soldes — C3).
 ## La checklist du module intranet
 
 Les 89 lignes ci-dessus mêlent gestes humains et contrôles automatisés. **Le module `/reprise-copro`
-n'en porte que les gestes humains : 47 étapes en 8 phases** (`ETAPES_REPRISE`,
+n'en porte que les gestes humains : 44 étapes en 8 phases** (`ETAPES_REPRISE`,
 `src/lib/reprise/domain/dossier.ts`), chacune avec un rôle par défaut (référent · gestionnaire ·
 assistant · comptable), assignable à une personne, avec un statut « bloqué » motivé, et des étapes
 ad hoc par dossier. Les contrôles chiffrés (E1–E10, I4–I6, N3…) restent au skill, qui les exécute.

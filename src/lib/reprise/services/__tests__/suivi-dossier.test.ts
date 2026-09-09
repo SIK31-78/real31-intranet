@@ -574,10 +574,10 @@ describe("suivi d'equipe : definirEquipe / definirCadrage", () => {
     const d = await definirEquipe(repo, "S0302", { gestionnaire: marie, comptable: paul }, ctx);
     expect(d.equipe).toEqual({ gestionnaire: marie, comptable: paul });
     expect(d.etapes.find((e) => e.code === "CA1")!.assigneA).toEqual(sekou);
-    expect(d.etapes.find((e) => e.code === "CA2")).toMatchObject({ assigneA: marie, majPar: "Sekou" });
+    expect(d.etapes.find((e) => e.code === "CA5")).toMatchObject({ assigneA: marie, majPar: "Sekou" });
     expect(d.etapes.find((e) => e.code === "BA7")!.assigneA).toEqual(paul);
-    expect(d.etapes.find((e) => e.code === "CA6")!.assigneA).toBeUndefined(); // referent absent
-    expect(d.journal.at(-1)!.texte).toBe("Équipe définie — Gestionnaire : Marie, Comptable : Paul");
+    expect(d.etapes.find((e) => e.code === "PA1")!.assigneA).toBeUndefined(); // referent absent
+    expect(d.journal.at(-1)!.texte).toBe("Équipe définie : Gestionnaire : Marie, Comptable : Paul");
     // Persiste.
     expect((await obtenirDossier(repo, "S0302"))!.equipe).toEqual({ gestionnaire: marie, comptable: paul });
   });

@@ -358,7 +358,7 @@ export async function definirEquipe(
     if (e.assigneA?.id !== avant[i]?.assigneA?.id) tamponner(e, ctx);
   });
   const membres = (Object.keys(propre) as RoleReprise[]).map((r) => `${ROLE_LABEL[r]} : ${propre[r]!.nom}`);
-  journaliser(d, ctx, membres.length > 0 ? `Équipe définie — ${membres.join(", ")}` : "Équipe effacée");
+  journaliser(d, ctx, membres.length > 0 ? `Équipe définie : ${membres.join(", ")}` : "Équipe effacée");
   await repo.sauver(d);
   return d;
 }

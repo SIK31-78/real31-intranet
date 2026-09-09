@@ -22,7 +22,7 @@ import { formatAuditeRelatif } from "@/lib/format-date";
 import { PHASE_LABEL, ROLES_REPRISE, ROLE_LABEL, type RoleReprise } from "@/lib/reprise/domain/dossier";
 import type { DossierResume } from "@/lib/reprise/services/resume-dossier";
 import type { CollaborateurVue } from "@/app/reprise-copro/collaborateurs";
-import { initialesDe, formatDateCourte, STATUT_ETAPE_LABEL } from "./[id]/vues";
+import { initialesDe, formatDateCourte } from "./[id]/vues";
 import { creerDossierAction } from "./actions";
 
 /** Ligne du tableau = résumé du dossier + ce qui revient à l'utilisateur courant. */
@@ -143,7 +143,6 @@ export function DossiersRepriseVue({
                   <th className="px-3 py-2 font-medium">Bascule</th>
                   <th className="px-3 py-2 font-medium">Avancement</th>
                   <th className="px-3 py-2 font-medium">Phase</th>
-                  <th className="px-3 py-2 font-medium">Étape courante</th>
                   <th className="px-3 py-2 font-medium">Assigné à</th>
                   <th className="px-4 py-2 font-medium">Activité</th>
                 </tr>
@@ -235,7 +234,7 @@ function LigneDossier({ l, aujourdHui }: { l: LigneDossierVue; aujourdHui: strin
           </Badge>
         )}
       </td>
-      <td className="px-3 py-2.5 whitespace-nowrap text-ink-2">{l.dateBascule ? formatDateCourte(l.dateBascule) : <span className="text-ink-4">—</span>}</td>
+      <td className="px-3 py-2.5 whitespace-nowrap text-ink-2">{l.dateBascule ? formatDateCourte(l.dateBascule) : <span className="text-ink-4">-</span>}</td>
       <td className="px-3 py-2.5 min-w-[140px]">
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-[80px] rounded-full bg-surface-2 overflow-hidden">
@@ -247,32 +246,19 @@ function LigneDossier({ l, aujourdHui }: { l: LigneDossierVue; aujourdHui: strin
         </div>
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap">
-        {l.phase ? <Badge ton="outline">{PHASE_LABEL[l.phase]}</Badge> : termine ? <Badge ton="ok">Terminée</Badge> : <span className="text-ink-4">—</span>}
-      </td>
-      <td className="px-3 py-2.5 min-w-[260px] max-w-[380px]">
-        {etape ? (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-mono text-[11px] text-ink-4">{etape.code}</span>
-              {bloquee && <Badge ton="err" dot>Bloqué</Badge>}
-              {enRetard && (
-                <Badge ton="warn" className="gap-1">
-                  <Clock strokeWidth={1.5} className="w-3 h-3" /> En retard
-                </Badge>
-              )}
-              {!bloquee && !enRetard && etape.statut === "en_cours" && <Badge ton="info">{STATUT_ETAPE_LABEL.en_cours}</Badge>}
-            </div>
-            <span className="text-ink line-clamp-2">{etape.libelle}</span>
-            {bloquee && etape.note && <span className="text-[12px] text-err-700">{etape.note}</span>}
-            {etape.echeance && !bloquee && (
-              <span className={cn("text-[11.5px]", enRetard ? "text-warn-700" : "text-ink-4")}>
-                Échéance {formatDateCourte(etape.echeance)}
-              </span>
-            )}
-          </div>
-        ) : (
-          <span className="text-ink-4">{termine ? "Toutes les étapes sont faites." : "—"}</span>
-        )}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {l.phase ? <Badge ton="outline">{PHASE_LABEL[l.phase]}</Badge> : termine ? <Badge ton="ok">Terminée</Badge> : <span className="text-ink-4">-</span>}
+          {l.nbBloquees > 0 && (
+            <Badge ton="err" dot title={bloquee && etape?.note ? etape.note : undefined}>
+              {l.nbBloquees} bloquée{l.nbBloquees > 1 ? "s" : ""}
+            </Badge>
+          )}
+          {enRetard && (
+            <Badge ton="warn" className="gap-1">
+              <Clock strokeWidth={1.5} className="w-3 h-3" /> En retard
+            </Badge>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap">
         {etape?.assigne ? (
@@ -285,7 +271,7 @@ function LigneDossier({ l, aujourdHui }: { l: LigneDossierVue; aujourdHui: strin
         )}
       </td>
       <td className="px-4 py-2.5 whitespace-nowrap text-[12px] text-ink-3">
-        {l.derniereActivite ? formatAuditeRelatif(l.derniereActivite, aujourdHui) : "—"}
+        {l.derniereActivite ? formatAuditeRelatif(l.derniereActivite, aujourdHui) : "-"}
       </td>
     </tr>
   );
@@ -377,7 +363,7 @@ function FormCreation({
               <label key={role} className="flex flex-col gap-1 text-[12px] text-ink-3">
                 {ROLE_LABEL[role]}
                 <select value={equipe[role]} onChange={(e) => setEquipe((q) => ({ ...q, [role]: e.target.value }))} className={SELECT}>
-                  <option value="">— Personne —</option>
+                  <option value="">Personne</option>
                   {collaborateurs.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.nom}

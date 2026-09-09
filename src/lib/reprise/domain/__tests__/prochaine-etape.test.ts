@@ -46,10 +46,10 @@ describe("prochaineEtape (tableau de suivi)", () => {
   });
 
   it("3. sinon la premiere a_faire : « Prochaine étape : … », normal", () => {
-    const etapes = avec({ CA1: { statut: "fait" }, CA2: { statut: "ignore" } });
+    const etapes = avec({ CA1: { statut: "fait" }, CA4: { statut: "ignore" } });
     const p = prochaineEtape(etapes, "2026-09-09");
     expect(p.tonalite).toBe("normal");
-    expect(p.code).toBe("CA3");
+    expect(p.code).toBe("CA5");
     expect(p.titre).toMatch(/^Prochaine étape : Équipe nommée/);
   });
 

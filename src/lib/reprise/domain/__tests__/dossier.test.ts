@@ -27,8 +27,8 @@ function statut(etapes: Etape[], code: string) {
 }
 
 describe("checklist canonique v3", () => {
-  it("compte 47 etapes, codes uniques, phases connues, un role par etape", () => {
-    expect(ETAPES_REPRISE).toHaveLength(47);
+  it("compte 44 etapes, codes uniques, phases connues, un role par etape", () => {
+    expect(ETAPES_REPRISE).toHaveLength(44);
     const codes = ETAPES_REPRISE.map((e) => e.code);
     expect(new Set(codes).size).toBe(codes.length);
     for (const e of ETAPES_REPRISE) {
@@ -49,7 +49,7 @@ describe("checklist canonique v3", () => {
 
   it("etapesParDefaut : assignees d'apres l'equipe (role -> personne), les roles absents restent libres", () => {
     const etapes = etapesParDefaut(equipe);
-    expect(etapes.find((e) => e.code === "CA6")!.assigneA).toEqual(sekou); // referent
+    expect(etapes.find((e) => e.code === "PA1")!.assigneA).toEqual(sekou); // referent
     expect(etapes.find((e) => e.code === "CA1")!.assigneA).toEqual(marie); // gestionnaire
     expect(etapes.find((e) => e.code === "BA7")!.assigneA).toEqual(paul); // comptable
     expect(etapes.find((e) => e.code === "BA2")!.assigneA).toBeUndefined(); // assistant non nomme
@@ -152,7 +152,7 @@ describe("reconcilierEtapes (migration douce)", () => {
     expect(r[i1 - 1]!.code).toBe("BA7");
     expect(r[i1 + 1]!.code).toBe("CO1");
     const i2 = r.findIndex((e) => e.code === "X-2");
-    expect(r[i2 - 1]!.code).toBe("CA6");
+    expect(r[i2 - 1]!.code).toBe("CA5");
     expect(r[i2 + 1]!.code).toBe("DO1");
   });
 
@@ -199,7 +199,7 @@ describe("etapeCourante / phaseCourante", () => {
     const etapes = etapesParDefaut();
     expect(etapeCourante(etapes)!.code).toBe("CA1"); // premiere a_faire
     etapes.find((e) => e.code === "CA1")!.statut = "fait";
-    expect(etapeCourante(etapes)!.code).toBe("CA2");
+    expect(etapeCourante(etapes)!.code).toBe("CA4");
     etapes.find((e) => e.code === "EX3")!.statut = "en_cours";
     expect(etapeCourante(etapes)!.code).toBe("EX3"); // en_cours prime sur a_faire plus tot
     etapes.find((e) => e.code === "CL2")!.statut = "bloque";
@@ -239,11 +239,11 @@ describe("assignerParRole", () => {
     etapes.find((e) => e.code === "CA1")!.assigneA = sekou; // gestionnaire mais deja pris par Sekou
     const r = assignerParRole(etapes, equipe);
     expect(r.find((e) => e.code === "CA1")!.assigneA).toEqual(sekou); // conserve
-    expect(r.find((e) => e.code === "CA2")!.assigneA).toEqual(marie); // gestionnaire
-    expect(r.find((e) => e.code === "CA6")!.assigneA).toEqual(sekou); // referent
+    expect(r.find((e) => e.code === "CA5")!.assigneA).toEqual(marie); // gestionnaire
+    expect(r.find((e) => e.code === "PA1")!.assigneA).toEqual(sekou); // referent
     expect(r.find((e) => e.code === "BA2")!.assigneA).toBeUndefined(); // assistant absent de l'equipe
     // Pas de mutation de l'entree.
-    expect(etapes.find((e) => e.code === "CA2")!.assigneA).toBeUndefined();
+    expect(etapes.find((e) => e.code === "CA5")!.assigneA).toBeUndefined();
   });
 
   it("avec forcer : ecrase les assignations explicites des roles renseignes", () => {

@@ -31,7 +31,7 @@ describe("resumerDossier", () => {
     d.compteurs.archive = true;
     const par = (code: string) => d.etapes.find((e) => e.code === code)!;
     par("CA1").statut = "fait";
-    par("CA2").statut = "ignore";
+    par("CA5").statut = "ignore";
     par("CA4").statut = "bloque";
     par("CA4").note = "Banque muette";
     par("CA4").echeance = "2026-09-01"; // depassee -> en retard
@@ -84,13 +84,13 @@ describe("etapesAssigneesA", () => {
     const d = creerDossier("S0305", "Test", undefined, { equipe });
     const par = (code: string) => d.etapes.find((e) => e.code === code)!;
     par("CA1").statut = "fait"; // gestionnaire, close -> exclue
-    par("CA2").statut = "ignore"; // exclue
-    par("CA3").statut = "en_cours"; // incluse
+    par("CA5").statut = "ignore"; // exclue
+    par("DO1").statut = "en_cours"; // incluse
     par("CA4").assigneA = marie; // assistant reassigne a Marie -> incluse
     const codes = etapesAssigneesA(d, marie.id).map((e) => e.code);
-    expect(codes.slice(0, 3)).toEqual(["CA3", "CA4", "CA5"]);
+    expect(codes.slice(0, 3)).toEqual(["CA4", "DO1", "DO2"]);
     expect(codes).not.toContain("CA1");
-    expect(codes).not.toContain("CA6"); // referent
+    expect(codes).not.toContain("PA1"); // referent
     expect(etapesAssigneesA(d, "inconnu")).toEqual([]);
   });
 });

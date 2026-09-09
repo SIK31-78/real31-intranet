@@ -309,7 +309,6 @@ function EquipeDossier({
         <CardTitle className="flex items-center gap-1.5">
           <Users strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4" /> Équipe
         </CardTitle>
-        <span className="text-[11px] text-ink-4">Un rôle = l&apos;assigné par défaut de ses étapes</span>
       </CardHeader>
       <div className="p-4 flex flex-col gap-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -327,7 +326,7 @@ function EquipeDossier({
                   disabled={pending}
                   className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink w-full disabled:opacity-50"
                 >
-                  <option value="">— Personne —</option>
+                  <option value="">Personne</option>
                   {collaborateurs.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.nom}

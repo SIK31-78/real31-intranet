@@ -75,7 +75,6 @@ export function ChecklistDossier({
     <Card>
       <CardHeader>
         <CardTitle>Checklist de la reprise</CardTitle>
-        <span className="text-[11px] text-ink-4">Une case cochée = fait ET vérifié</span>
       </CardHeader>
       <div className="flex flex-col">
         {groupes.map((g) => (
@@ -295,7 +294,7 @@ function LigneEtape({
                 aria-label={`Assigner l'étape ${etape.code}`}
                 className={SELECT_COMPACT}
               >
-                <option value="">—</option>
+                <option value="">-</option>
                 {collaborateurs.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nom}
@@ -627,7 +626,7 @@ function FormAjoutAdHoc({
       <div className="flex items-center gap-2 flex-wrap text-[12px] text-ink-3">
         <Champ libelle="Assigné à">
           <select value={assigneA} onChange={(e) => setAssigneA(e.target.value)} className={SELECT_COMPACT}>
-            <option value="">—</option>
+            <option value="">-</option>
             {collaborateurs.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nom}
@@ -674,6 +673,8 @@ function Champ({ libelle, children }: { libelle: string; children: ReactNode }) 
 // --- JOURNAL -----------------------------------------------------------------------
 
 export function JournalDossier({ dossierRef, journal }: { dossierRef: string; journal: EntreeJournalVue[] }) {
+  // Replie par defaut : le journal s'allonge a chaque geste, la page ne doit pas s'etirer avec lui.
+  const [ouvert, setOuvert] = useState(false);
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
   const toast = useToast();
@@ -695,11 +696,24 @@ export function JournalDossier({ dossierRef, journal }: { dossierRef: string; jo
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Journal du dossier</CardTitle>
+        <button
+          type="button"
+          onClick={() => setOuvert((o) => !o)}
+          aria-expanded={ouvert}
+          className="flex items-center gap-2 text-left"
+        >
+          <ChevronDown
+            strokeWidth={1.5}
+            className={`w-4 h-4 text-ink-4 transition-transform ${ouvert ? "" : "-rotate-90"}`}
+          />
+          <CardTitle>Journal du dossier</CardTitle>
+        </button>
         <span className="text-[11px] text-ink-4">
           {journal.length} entrée{journal.length > 1 ? "s" : ""}
         </span>
       </CardHeader>
+      {ouvert && (
+      <>
       <div className="px-4 py-3 border-b border-line flex items-center gap-2">
         <input
           value={note}
@@ -735,6 +749,8 @@ export function JournalDossier({ dossierRef, journal }: { dossierRef: string; jo
             </li>
           ))}
         </ul>
+      )}
+      </>
       )}
     </Card>
   );
