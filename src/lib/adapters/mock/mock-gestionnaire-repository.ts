@@ -28,6 +28,9 @@ export class MockGestionnaireRepository implements GestionnaireRepository {
       a.nomComplet.localeCompare(b.nomComplet),
     );
   }
+  async listTous(): Promise<Gestionnaire[]> {
+    return this.listImpersonables();
+  }
   async findById(id: string): Promise<Gestionnaire | null> {
     // Cherche aussi parmi les comptables : le cookie gid peut incarner Elsa (listImpersonables).
     return [...GESTIONNAIRES, ...COMPTABLES].find((g) => g.id === id) ?? null;

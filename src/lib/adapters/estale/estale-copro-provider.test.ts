@@ -33,6 +33,7 @@ let findByEmailCount = 0;
 const fakeGestionnaires: GestionnaireRepository = {
   async list() { return []; },
   async listImpersonables() { return []; },
+  async listTous() { return []; },
   async findById() { return null; },
   async findByEmail(email: string) {
     findByEmailCount += 1;

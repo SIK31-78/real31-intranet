@@ -15,6 +15,12 @@ export interface GestionnaireRepository {
    */
   /** Profils incarnables au dev-login : gestionnaires/assistants de copros + comptables. */
   listImpersonables(): Promise<Gestionnaire[]>;
+  /**
+   * TOUS les collaborateurs du cabinet (public."User"), quel que soit le role ou le
+   * portefeuille : sert a ASSIGNER une tache (reprise de copro) a n'importe qui —
+   * une assistante sans copro, un admin, un directeur. Trie par nom.
+   */
+  listTous(): Promise<Gestionnaire[]>;
   findById(id: string): Promise<Gestionnaire | null>;
   /** Resout un gestionnaire par email (SSO Entra ID -> public."User"). */
   findByEmail(email: string): Promise<Gestionnaire | null>;

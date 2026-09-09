@@ -76,6 +76,14 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
     return [...parId.values()].sort((a, b) => a.nomComplet.localeCompare(b.nomComplet));
   }
 
+  async listTous(): Promise<Gestionnaire[]> {
+    const supabase = createSupabasePublicClient();
+    const { data } = await supabase.from("User").select(USER_COLS).order("name");
+    return ((data as UserRow[] | null) ?? [])
+      .map(toGestionnaire)
+      .sort((a, b) => a.nomComplet.localeCompare(b.nomComplet, "fr"));
+  }
+
   async findById(id: string): Promise<Gestionnaire | null> {
     const supabase = createSupabasePublicClient();
     const { data } = await supabase

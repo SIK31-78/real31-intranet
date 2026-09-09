@@ -1,5 +1,7 @@
-// Personnes ASSIGNABLES sur une reprise = gestionnaires + comptables du cabinet
-// (getGestionnaireRepository().listImpersonables(), comme le sélecteur /dev-login).
+// Personnes ASSIGNABLES sur une reprise = TOUS les collaborateurs du cabinet
+// (getGestionnaireRepository().listTous()) : une tache de reprise peut revenir a une
+// assistante sans portefeuille ou a un admin (ex. l'ouverture du compte bancaire),
+// absents de list()/listImpersonables().
 //
 // Deux usages, côté serveur uniquement :
 //   - listerCollaborateurs : alimente les selects (tableau d'équipe, fiche dossier) ;
@@ -16,7 +18,7 @@ export interface CollaborateurVue extends Personne {
 }
 
 export async function listerCollaborateurs(): Promise<CollaborateurVue[]> {
-  const tous = await getGestionnaireRepository().listImpersonables();
+  const tous = await getGestionnaireRepository().listTous();
   return tous
     .map((g) => ({ id: g.id, nom: g.nomComplet, initiales: g.initiales }))
     .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
