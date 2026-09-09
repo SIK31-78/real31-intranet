@@ -1,103 +1,85 @@
-// Types de VUE + libelles partages de la fiche-hub d'un dossier de reprise. Extraits de
-// fiche-dossier-reprise.tsx lors de la refonte 2026-08 (decoupage : la fiche depassait
-// 1 900 lignes) : les zones (patrimoine, suivi, journal) et la page serveur consomment
-// ces contrats sans dependre du composant racine.
+// Types de VUE + libellés partagés de la fiche d'un dossier de reprise (tableau de suivi
+// d'équipe, ADR-037). La page serveur projette un Dossier vers DossierFicheVue (sérialisable),
+// les zones client (en-tête, checklist, journal) consomment ces contrats.
 
-import type { Phase, StatutEtape, StatutDossier } from "@/lib/reprise/domain/dossier";
-import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
-import type { RecapPatrimoine } from "@/lib/reprise/services/orchestrateur-patrimoine";
-import type { AnnexeAnalysee, ContactRapproche } from "@/lib/reprise/domain/rapprochement-contacts";
+import type { EquipeReprise, Etape, StatutEtape } from "@/lib/reprise/domain/dossier";
 
-export const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+/** Une étape telle que persistée : le domaine est déjà sérialisable, on le réutilise tel quel. */
+export type EtapeVue = Etape;
 
-// Vue serialisable d'une etape (ce que la page server projette).
-export interface EtapeVue {
-  code: string;
-  phase: Phase;
-  libelle: string;
-  statut: StatutEtape;
+export interface EntreeJournalVue {
+  date: string;
+  texte: string;
+  auteur?: string;
 }
 
-export interface PatrimoineVue {
-  analyseFaite: boolean;
-  nbLots: number;
-  nbCles: number;
-  nbCoproprietaires: number;
-  nbAttributions: number;
-  nbAnomalies: number;
-}
-
-// Vue serialisable d'un dossier pour la fiche-hub.
+/** Vue sérialisable d'un dossier pour la fiche. */
 export interface DossierFicheVue {
   ref: string;
   nomUsuel: string;
   adresse?: string;
-  statut: StatutDossier;
+  sortant?: string;
+  /** ISO date (AAAA-MM-JJ). */
+  dateBascule?: string;
   archive: boolean;
   avancement: number; // 0..1
   etapesFaites: number;
   etapesTotal: number;
   etapes: EtapeVue[];
-  anomalies: string[];
-  patrimoine: PatrimoineVue;
-  journal: { date: string; texte: string }[];
+  equipe: EquipeReprise;
+  journal: EntreeJournalVue[];
 }
 
-export const STATUT_DOSSIER_LABEL: Record<StatutDossier, string> = {
-  offre: "Offre",
-  production: "Production",
-  verification: "Verification",
-  comptabilite: "Comptabilite",
-  finalisation: "Finalisation",
-  termine: "Termine",
-};
-
-export const STATUT_DOSSIER_TON: Record<StatutDossier, "neutral" | "info" | "warn" | "ok"> = {
-  offre: "neutral",
-  production: "info",
-  verification: "warn",
-  comptabilite: "warn",
-  finalisation: "info",
-  termine: "ok",
-};
-
-export const PHASE_LABEL: Record<Phase, string> = {
-  OFFRE: "Offre",
-  PATRIMOINE: "Patrimoine",
-  VERIFICATION: "Verification",
-  COMPTABILITE: "Comptabilite",
-  MISE_EN_SERVICE: "Mise en service",
-};
-
-// Cycle de statut au clic : a_faire -> en_cours -> fait -> ignore -> a_faire.
-export const STATUT_SUIVANT: Record<StatutEtape, StatutEtape> = {
-  a_faire: "en_cours",
-  en_cours: "fait",
-  fait: "ignore",
-  ignore: "a_faire",
-};
+/** Ordre des statuts dans le menu de la pastille. */
+export const STATUTS_ETAPE: readonly StatutEtape[] = ["a_faire", "en_cours", "bloque", "fait", "ignore"];
 
 export const STATUT_ETAPE_LABEL: Record<StatutEtape, string> = {
-  a_faire: "A faire",
+  a_faire: "À faire",
   en_cours: "En cours",
+  bloque: "Bloqué",
   fait: "Fait",
-  ignore: "Ignore",
+  ignore: "Ignoré",
 };
 
-/** Bloc annexes (contacts + metadonnees) porte par l'analyse cote client. Serialisable. */
-export interface AnnexesVue {
-  annexes: AnnexeAnalysee[];
-  contacts: ContactRapproche[];
+export const STATUT_ETAPE_TON: Record<StatutEtape, "neutral" | "info" | "err" | "ok"> = {
+  a_faire: "neutral",
+  en_cours: "info",
+  bloque: "err",
+  fait: "ok",
+  ignore: "neutral",
+};
+
+/** Une étape « close » (fait ou ignoré) ne compte plus dans le reste à faire. */
+export function etapeClose(statut: StatutEtape): boolean {
+  return statut === "fait" || statut === "ignore";
 }
 
-export interface Analyse {
-  recap: RecapPatrimoine;
-  jeu: JeuDeDonnees;
-  /** Documents annexes analyses + contacts rapproches (present si des annexes ont ete fournies). */
-  annexes?: AnnexesVue;
+/** Échéance dépassée = date strictement avant aujourd'hui, sur une étape encore ouverte. */
+export function echeanceDepassee(etape: { statut: StatutEtape; echeance?: string }, aujourdHuiIso: string): boolean {
+  return Boolean(etape.echeance) && !etapeClose(etape.statut) && etape.echeance! < aujourdHuiIso.slice(0, 10);
 }
 
-// Analyse rehydratee cote serveur depuis le jeu persiste (dossier.jeu). Meme forme que
-// l'analyse de session : recap recalcule + jeu complet, pour injecter/produire directement.
-export type AnalyseInitiale = Analyse;
+/** Initiales d'un nom complet (« Sekou Koma » -> « SK ») pour l'avatar d'une personne assignée. */
+export function initialesDe(nom: string): string {
+  const parts = nom.trim().split(/[\s-]+/).filter(Boolean);
+  const ini = parts.map((p) => p[0]?.toUpperCase() ?? "").join("");
+  return ini.slice(0, 2) || "?";
+}
 
+/** « 9 sept. 2026 à 14:32 » à partir d'un ISO complet ; déterministe (UTC) pour éviter les hydration mismatches. */
+export function formatDateHeure(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const jj = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${jj}/${mm}/${d.getUTCFullYear()} ${hh}:${mi}`;
+}
+
+/** « 12/04/2026 » à partir d'une ISO date (ou d'un ISO complet). */
+export function formatDateCourte(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}

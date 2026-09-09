@@ -45,9 +45,6 @@ export function proxy(req: NextRequest) {
 
 // Tout est protege sauf :
 //   - les assets statiques de Next ;
-//   - les routes d'upload/analyse reprise (patrimoine + mapping comptable) : elles recoivent des
-//     PDF volumineux (multipart, >4 Mo) que le middleware Edge tronque (-> "Failed to parse body
-//     as FormData"). Elles font deja leur propre auth (getGestionnaireCourant) ;
 //   - l'API MACHINE /api/v1/** : elle porte sa PROPRE auth (cle Bearer verifiee DANS les
 //     handlers, cf. lib/auth/cle-api.ts). Le gate Basic la fermerait aux machines (un client
 //     API envoie "Authorization: Bearer ...", pas le Basic partage) ; en SSO le proxy laisse
@@ -60,6 +57,6 @@ export function proxy(req: NextRequest) {
 //     tout passer (l'auth se fait par page) ; l'exclusion garde le comportement identique.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/reprise/analyser|api/reprise/mapping-analyser|api/v1|fiche|api/fiche).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/v1|fiche|api/fiche).*)",
   ],
 };

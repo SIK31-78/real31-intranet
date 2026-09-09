@@ -1,18 +1,18 @@
 "use client";
 
-// Fiche-HUB d'un dossier de reprise (refonte 2026-08 : decoupee en zones, la fiche depassait
-// 1 900 lignes). Ce fichier ne garde que la COMPOSITION :
-//   1. EN-TETE : ref (S0XXX) + nom + adresse + statut + avancement + archiver/supprimer ;
-//   2. BANDEAU "prochaine etape" : LA reponse a "on ne sait pas quoi faire" ;
-//   3. les zones : PATRIMOINE (./zone-patrimoine : versement xlsx -> recap -> GO/STOP ->
-//      injection), FICHES DE RENSEIGNEMENTS (./fiche-renseignements-bloc), SUIVI HUMAIN et
-//      JOURNAL (./zone-suivi, repliables).
+// FICHE d'un dossier de reprise (tableau de suivi d'équipe, ADR-037). Ce fichier garde la
+// COMPOSITION et l'EN-TÊTE :
+//   1. EN-TÊTE : réf + nom + adresse + sortant + date de bascule (cadrage éditable), avancement,
+//      archiver / supprimer (admin) ;
+//   2. ÉQUIPE : qui tient chaque rôle (select) -> assignation en masse des étapes du rôle ;
+//   3. BANDEAU « prochaine étape » : LA réponse à « on ne sait pas quoi faire » ;
+//   4. CHECKLIST par phase + JOURNAL (./zone-suivi) ;
+//   5. FICHES DE RENSEIGNEMENTS (./fiche-renseignements-bloc) : vraie étape de fin de reprise.
 //
-// ROLE (regle Sekou) : la fiche est LISIBLE par tout gestionnaire ; les zones d'ACTION sont
-// reservees aux ADMINS REPRISE (grisees avec la raison, jamais cachees - ZoneAdminReprise).
-// Le grisage n'est qu'une courtoisie : chaque Server Action / route refait le controle serveur.
+// RÔLE : tout gestionnaire vit le suivi (statuts, assignations, notes, équipe, cadrage) ; archiver,
+// supprimer et les gestes des fiches sont réservés aux admins reprise (grisés, jamais cachés).
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -20,171 +20,95 @@ import {
   Archive,
   ArchiveRestore,
   Trash2,
-  ChevronDown,
   ArrowRight,
-  ExternalLink,
+  Pencil,
+  Building2,
+  CalendarDays,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/toast";
-import { PHASES } from "@/lib/reprise/domain/dossier";
-import { archiverDossierAction, supprimerDossierRepriseAction } from "./actions";
-import type { ProchaineEtape, ActionCible } from "@/lib/reprise/domain/prochaine-etape";
-import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
+import { useConfirm } from "@/components/ui/confirm";
 import { ZoneAdminReprise } from "@/components/reprise/zone-admin";
-import { ZonePatrimoine } from "./zone-patrimoine";
-import { FrisePhases, GroupePhase, JournalDossier } from "./zone-suivi";
-import {
-  STATUT_DOSSIER_LABEL,
-  STATUT_DOSSIER_TON,
-  type Analyse,
-  type AnalyseInitiale,
-  type DossierFicheVue,
-} from "./vues";
+import { PHASE_LABEL, ROLES_REPRISE, ROLE_LABEL, type EquipeReprise, type RoleReprise } from "@/lib/reprise/domain/dossier";
+import type { ProchaineEtape } from "@/lib/reprise/domain/prochaine-etape";
+import type { CollaborateurVue } from "@/app/reprise-copro/collaborateurs";
+import { archiverDossierAction, supprimerDossierRepriseAction, definirCadrageAction, definirEquipeAction } from "./actions";
+import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
+import { ChecklistDossier, JournalDossier } from "./zone-suivi";
+import { formatDateCourte, initialesDe, type DossierFicheVue } from "./vues";
 
-// Re-exports : la page serveur et les anciens importeurs gardent leur point d'entree.
-export type { AnalyseInitiale, AnnexesVue, DossierFicheVue, EtapeVue, PatrimoineVue } from "./vues";
+export type { DossierFicheVue } from "./vues";
+
+const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink w-full";
 
 export function FicheDossierReprise({
   dossier,
-  analyseInitiale,
   etapeSuivante,
+  collaborateurs,
+  aujourdHui,
   nbFichesGenerees,
   ecritureReelle,
-  dejaInjecte,
   fiches,
   aDesOwners,
   mailActif,
   adminReprise,
 }: {
   dossier: DossierFicheVue;
-  analyseInitiale: AnalyseInitiale | null;
   etapeSuivante: ProchaineEtape;
+  collaborateurs: CollaborateurVue[];
+  /** ISO date du jour (échéances dépassées, déterministe). */
+  aujourdHui: string;
   nbFichesGenerees: number;
   ecritureReelle: boolean;
-  dejaInjecte: boolean;
   fiches: FicheOwnerVue[];
   aDesOwners: boolean;
   mailActif: boolean;
-  /** Directeur / manager / super-admin : lui seul peut AGIR sur le dossier (le suivi reste a tous). */
+  /** Directeur / manager / super-admin : archiver, supprimer, gestes des fiches. */
   adminReprise: boolean;
 }) {
   const pct = Math.round(dossier.avancement * 100);
 
-  // Etat d'ouverture centralise des sections repliables (suivi / journal, secondaires). La zone
-  // "concernee" par la prochaine etape s'ouvre par defaut ; les autres restent repliees (moins de
-  // densite) SANS jamais etre cachees (tout se deplie). Le bandeau force l'ouverture + scroll.
-  const [ouvertes, setOuvertes] = useState<Record<string, boolean>>(() => ({
-    "zone-suivi": etapeSuivante.action === "zone:suivi",
-    "zone-journal": false,
-  }));
-  const basculer = (id: string) => setOuvertes((o) => ({ ...o, [id]: !o[id] }));
-
-  // "Aller a" une zone depuis le bandeau : ouvre la section cible (si repliable) puis scrolle.
-  const allerAZone = (action: ActionCible) => {
-    if (action === "nav:mapping") return; // gere par un <Link> (navigation), pas un scroll
-    const id = action.replace("zone:", "zone-");
-    setOuvertes((o) => ({ ...o, [id]: true }));
-    // rAF : laisse React deplier la section avant de scroller vers l'ancre.
-    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  // « Aller à l'étape » depuis le bandeau : scrolle vers la ligne (ancre etape-<code>).
+  const allerAEtape = (code: string) => {
+    document.getElementById(`etape-${code}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
-
-  // Le recap + jeu vivent cote client apres une analyse. Initialise avec le jeu PERSISTE
-  // (analyseInitiale) s'il existe : la vue ResultatsAnalyse s'affiche des l'ouverture et
-  // injection/production marchent SANS re-analyser. Sinon null (jamais analyse dans un
-  // adapter qui persiste le jeu).
-  const [analyse, setAnalyse] = useState<Analyse | null>(analyseInitiale);
-
-  // Checklist de SUIVI HUMAIN = TOUTES les etapes reelles du pipeline de reprise (R1..R11 +
-  // eventuelles anciennes etapes preservees par la migration), groupees par phase dans l'ordre
-  // canonique. Le patrimoine se pilote en zone 2 (fichiers verses) ; ici on suit l'avancement humain.
-  const groupesSuivi = PHASES.map((phase) => ({
-    phase,
-    etapes: dossier.etapes.filter((e) => e.phase === phase),
-  })).filter((gr) => gr.etapes.length > 0);
 
   return (
     <div className="flex flex-col gap-5">
-      <Link
-        href="/reprise-copro/dossiers"
-        className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700 w-fit"
-      >
-        <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Tous les dossiers
+      <Link href="/reprise-copro/dossiers" className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700 w-fit">
+        <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Toutes les reprises
       </Link>
 
-      {/* ZONE 1 - En-tete (+ actions archiver / supprimer) */}
+      {/* 1. EN-TÊTE + cadrage */}
       <div className="bg-surface border border-line rounded-md p-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="font-mono text-[12px] text-ink-2">{dossier.ref}</span>
-              <Badge ton={STATUT_DOSSIER_TON[dossier.statut]} dot>
-                {STATUT_DOSSIER_LABEL[dossier.statut]}
-              </Badge>
-              {dossier.archive && (
-                <Badge ton="neutral" className="gap-1">
-                  <Archive strokeWidth={1.5} className="w-3 h-3" /> Archive
-                </Badge>
-              )}
-            </div>
-            <h1 className="text-[20px] font-medium tracking-tight text-ink">{dossier.nomUsuel}</h1>
-            {dossier.adresse && (
-              <p className="mt-1 flex items-center gap-1.5 text-[12.5px] text-ink-3">
-                <MapPin strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
-                {dossier.adresse}
-              </p>
-            )}
-          </div>
-          <div className="text-right shrink-0">
-            <div className="text-[22px] font-semibold text-green-700 leading-none">{pct}%</div>
-            <div className="mt-1 text-[11px] text-ink-3 font-mono">
-              {dossier.etapesFaites}/{dossier.etapesTotal} etapes
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-            <div
-              className="h-full bg-green-700 transition-[width] duration-200"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Actions dossier : archiver (reversible, discret) + supprimer (2 temps, irreversible). */}
-        <ZoneAdminReprise
-          admin={adminReprise}
-          raison="Archiver ou supprimer une reprise engage le dossier du cabinet."
-        >
-          <ActionsDossier ref_={dossier.ref} nomUsuel={dossier.nomUsuel} archive={dossier.archive} nbFichesGenerees={nbFichesGenerees} dejaInjecte={dejaInjecte} />
+        <EnTete dossier={dossier} pct={pct} />
+        <ZoneAdminReprise admin={adminReprise} raison="Archiver ou supprimer une reprise engage le dossier du cabinet.">
+          <ActionsDossier ref_={dossier.ref} nomUsuel={dossier.nomUsuel} archive={dossier.archive} nbFichesGenerees={nbFichesGenerees} />
         </ZoneAdminReprise>
       </div>
 
-      {/* BANDEAU "prochaine etape" : LA reponse a "on ne sait pas quoi faire". Un dossier archive
-          sort du pipeline actif -> on affiche un rappel d'archive a la place. */}
+      {/* 3. BANDEAU « prochaine étape » */}
       {dossier.archive ? (
         <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-3 flex items-center gap-2">
           <Archive strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
-          Dossier archive - consultable en lecture. Desarchive-le (en-tete) pour reprendre le suivi.
+          Dossier archivé : consultable en lecture. Désarchive-le (en-tête) pour reprendre le suivi.
         </div>
       ) : (
-        <BandeauProchaineEtape etape={etapeSuivante} dossierRef={dossier.ref} onAller={allerAZone} />
+        <BandeauProchaineEtape etape={etapeSuivante} onAller={allerAEtape} />
       )}
 
-      {/* ZONE 2 - Patrimoine (fichiers Excel verses, parsing deterministe) */}
-      <div id="zone-patrimoine" className="scroll-mt-4">
-        <ZonePatrimoine
-          dossier={dossier}
-          analyse={analyse}
-          onAnalyse={setAnalyse}
-          ecritureReelle={ecritureReelle}
-          dejaInjecte={dejaInjecte}
-          adminReprise={adminReprise}
-        />
-      </div>
+      {/* 2. ÉQUIPE */}
+      <EquipeDossier dossierRef={dossier.ref} equipe={dossier.equipe} collaborateurs={collaborateurs} />
 
-      {/* ZONE 3 - Fiches de renseignements (ancre pour le bandeau ; garde son propre en-tete) */}
+      {/* 4. CHECKLIST par phase */}
+      <ChecklistDossier dossierRef={dossier.ref} etapes={dossier.etapes} collaborateurs={collaborateurs} aujourdHui={aujourdHui} />
+
+      {/* 5. FICHES DE RENSEIGNEMENTS (étape EX4 / EX6) */}
       <div id="zone-fiches" className="scroll-mt-4">
         <FicheRenseignementsBloc
           dossierRef={dossier.ref}
@@ -196,245 +120,378 @@ export function FicheDossierReprise({
         />
       </div>
 
-      {/* ZONE 4 - Suivi humain (repliable) */}
-      <SectionRepliable
-        id="zone-suivi"
-        titre="Suivi humain"
-        soustitre="Etapes reelles de la reprise - cliquer pour avancer"
-        ouverte={ouvertes["zone-suivi"] ?? false}
-        onBasculer={() => basculer("zone-suivi")}
-      >
-        <Card>
-          <FrisePhases etapes={dossier.etapes} />
-          <div className="flex flex-col">
-            {groupesSuivi.map((gr) => (
-              <GroupePhase key={gr.phase} dossierRef={dossier.ref} phase={gr.phase} etapes={gr.etapes} />
-            ))}
-          </div>
-        </Card>
-      </SectionRepliable>
-
-      {/* ZONE 5 - Journal (repliable) */}
-      <SectionRepliable
-        id="zone-journal"
-        titre="Journal du dossier"
-        ouverte={ouvertes["zone-journal"] ?? false}
-        onBasculer={() => basculer("zone-journal")}
-      >
-        <JournalDossier dossierRef={dossier.ref} journal={dossier.journal} />
-      </SectionRepliable>
+      {/* 4bis. JOURNAL */}
+      <JournalDossier dossierRef={dossier.ref} journal={dossier.journal} />
     </div>
   );
 }
 
-// --- BANDEAU "prochaine etape" ----------------------------------------------
-// Rend l'action a mettre en avant, coloree selon la tonalite (vert discret / ambre / rouge), avec
-// LE bouton de l'action directement dedans (scroll vers la zone, ou lien vers l'ecran de mapping
-// avec la ref pre-remplie). C'est le premier reflexe de lecture de la fiche.
-const TON_BANDEAU: Record<ProchaineEtape["tonalite"], { conteneur: string; titre: string; bouton: string }> = {
+// --- EN-TÊTE : identité + cadrage éditable -----------------------------------
+// Le cadrage (nom, adresse, sortant, bascule) s'édite en place : un crayon ouvre 4 champs,
+// « Enregistrer » appelle definirCadrageAction. Ouvert à tout gestionnaire.
+function EnTete({ dossier, pct }: { dossier: DossierFicheVue; pct: number }) {
+  const [edition, setEdition] = useState(false);
+  const [nomUsuel, setNomUsuel] = useState(dossier.nomUsuel);
+  const [adresse, setAdresse] = useState(dossier.adresse ?? "");
+  const [sortant, setSortant] = useState(dossier.sortant ?? "");
+  const [dateBascule, setDateBascule] = useState(dossier.dateBascule ?? "");
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
+
+  const enregistrer = () => {
+    if (!nomUsuel.trim()) return;
+    startTransition(async () => {
+      const r = await definirCadrageAction(dossier.ref, {
+        nomUsuel: nomUsuel.trim(),
+        adresse: adresse.trim(),
+        sortant: sortant.trim(),
+        dateBascule,
+      });
+      if (r.ok) {
+        toast.ok("Cadrage enregistré.");
+        setEdition(false);
+      } else {
+        toast.err(r.message);
+      }
+    });
+  };
+
+  const annuler = () => {
+    setNomUsuel(dossier.nomUsuel);
+    setAdresse(dossier.adresse ?? "");
+    setSortant(dossier.sortant ?? "");
+    setDateBascule(dossier.dateBascule ?? "");
+    setEdition(false);
+  };
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="font-mono text-[12px] text-ink-2">{dossier.ref}</span>
+            {dossier.archive && (
+              <Badge ton="neutral" className="gap-1">
+                <Archive strokeWidth={1.5} className="w-3 h-3" /> Archivé
+              </Badge>
+            )}
+          </div>
+
+          {!edition ? (
+            <>
+              <div className="flex items-center gap-2">
+                <h1 className="text-[20px] font-medium tracking-tight text-ink">{dossier.nomUsuel}</h1>
+                <button
+                  type="button"
+                  onClick={() => setEdition(true)}
+                  aria-label="Modifier le cadrage"
+                  title="Modifier nom, adresse, sortant, date de bascule"
+                  className="p-1 rounded-md text-ink-4 hover:text-ink hover:bg-surface-2"
+                >
+                  <Pencil strokeWidth={1.5} className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-ink-3">
+                <p className="flex items-center gap-1.5">
+                  <MapPin strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
+                  {dossier.adresse ?? <span className="text-ink-4">Adresse non renseignée</span>}
+                </p>
+                <p className="flex items-center gap-1.5">
+                  <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
+                  {dossier.sortant ? `Sortant : ${dossier.sortant}` : <span className="text-ink-4">Syndic sortant non renseigné</span>}
+                </p>
+                <p className="flex items-center gap-1.5">
+                  <CalendarDays strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
+                  {dossier.dateBascule ? `Bascule le ${formatDateCourte(dossier.dateBascule)}` : <span className="text-ink-4">Date de bascule non renseignée</span>}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+              <label className="flex flex-col gap-1 text-[12px] text-ink-3 sm:col-span-2">
+                Nom de la copropriété
+                <input value={nomUsuel} onChange={(e) => setNomUsuel(e.target.value)} className={INPUT} autoFocus />
+              </label>
+              <label className="flex flex-col gap-1 text-[12px] text-ink-3 sm:col-span-2">
+                Adresse
+                <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={INPUT} />
+              </label>
+              <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+                Syndic sortant
+                <input value={sortant} onChange={(e) => setSortant(e.target.value)} className={INPUT} />
+              </label>
+              <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+                Date de bascule
+                <input type="date" value={dateBascule} onChange={(e) => setDateBascule(e.target.value)} className={INPUT} />
+              </label>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <Button type="button" variant="primary" size="sm" onClick={enregistrer} disabled={pending || !nomUsuel.trim()}>
+                  {pending ? "Enregistrement…" : "Enregistrer"}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={annuler} disabled={pending}>
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="text-right shrink-0">
+          <div className="text-[22px] font-semibold text-green-700 leading-none">{pct}%</div>
+          <div className="mt-1 text-[11px] text-ink-3 font-mono">
+            {dossier.etapesFaites}/{dossier.etapesTotal} étapes
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
+        <div className="h-full bg-green-700 transition-[width] duration-200" style={{ width: `${pct}%` }} />
+      </div>
+    </>
+  );
+}
+
+// --- ÉQUIPE : qui tient chaque rôle ------------------------------------------
+// Changer un select enregistre l'équipe et assigne les étapes du rôle qui n'ont PAS encore
+// d'assigné (forcer = false). Le bouton « Réassigner d'après l'équipe » rejoue l'assignation
+// pour tous les rôles ; la case « écraser » force aussi les assignations faites à la main.
+function EquipeDossier({
+  dossierRef,
+  equipe,
+  collaborateurs,
+}: {
+  dossierRef: string;
+  equipe: EquipeReprise;
+  collaborateurs: CollaborateurVue[];
+}) {
+  const [ids, setIds] = useState<Record<RoleReprise, string>>(() => ({
+    referent: equipe.referent?.id ?? "",
+    gestionnaire: equipe.gestionnaire?.id ?? "",
+    assistant: equipe.assistant?.id ?? "",
+    comptable: equipe.comptable?.id ?? "",
+  }));
+  const [ecraser, setEcraser] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
+
+  const envoyer = (prochains: Record<RoleReprise, string>, forcer: boolean, messageOk: string) => {
+    const precedents = ids;
+    setIds(prochains); // optimiste
+    startTransition(async () => {
+      const r = await definirEquipeAction(
+        dossierRef,
+        {
+          referent: prochains.referent || null,
+          gestionnaire: prochains.gestionnaire || null,
+          assistant: prochains.assistant || null,
+          comptable: prochains.comptable || null,
+        },
+        forcer,
+      );
+      if (r.ok) toast.ok(messageOk);
+      else {
+        setIds(precedents); // rollback
+        toast.err(r.message);
+      }
+    });
+  };
+
+  const changer = (role: RoleReprise, id: string) => {
+    envoyer({ ...ids, [role]: id }, false, `${ROLE_LABEL[role]} enregistré(e), étapes du rôle assignées.`);
+  };
+
+  const reassigner = () => {
+    envoyer(ids, ecraser, ecraser ? "Toutes les étapes réassignées d'après l'équipe." : "Étapes sans assigné assignées d'après l'équipe.");
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Users strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4" /> Équipe
+        </CardTitle>
+        <span className="text-[11px] text-ink-4">Un rôle = l&apos;assigné par défaut de ses étapes</span>
+      </CardHeader>
+      <div className="p-4 flex flex-col gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {ROLES_REPRISE.map((role) => {
+            const nom = collaborateurs.find((c) => c.id === ids[role])?.nom;
+            return (
+              <label key={role} className="flex flex-col gap-1 text-[12px] text-ink-3">
+                <span className="flex items-center gap-1.5">
+                  {nom && <Avatar initiales={initialesDe(nom)} title={nom} />}
+                  {ROLE_LABEL[role]}
+                </span>
+                <select
+                  value={ids[role]}
+                  onChange={(e) => changer(role, e.target.value)}
+                  disabled={pending}
+                  className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink w-full disabled:opacity-50"
+                >
+                  <option value="">— Personne —</option>
+                  {collaborateurs.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-line">
+          <Button type="button" variant="secondary" size="sm" onClick={reassigner} disabled={pending}>
+            Réassigner les étapes d&apos;après l&apos;équipe
+          </Button>
+          <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-3 cursor-pointer">
+            <input type="checkbox" checked={ecraser} onChange={(e) => setEcraser(e.target.checked)} className="accent-green-700" />
+            Écraser les assignations existantes
+          </label>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// --- BANDEAU « prochaine étape » ---------------------------------------------
+const TON_BANDEAU: Record<ProchaineEtape["tonalite"], { conteneur: string; titre: string; bouton: string; etiquette: string }> = {
   normal: {
-    conteneur: "border-green-600/40 bg-green-50",
-    titre: "text-green-800",
-    bouton: "bg-green-700 hover:bg-green-800 text-white",
+    conteneur: "border-info-500/40 bg-info-50",
+    titre: "text-info-700",
+    bouton: "bg-info-700 hover:bg-info-500 text-white",
+    etiquette: "Prochaine étape",
   },
   attention: {
     conteneur: "border-warn-500/50 bg-warn-50",
     titre: "text-warn-700",
     bouton: "bg-warn-500 hover:bg-warn-700 text-white",
+    etiquette: "À traiter",
   },
   bloque: {
     conteneur: "border-err-500/50 bg-err-50",
     titre: "text-err-700",
     bouton: "bg-err-500 hover:bg-err-700 text-white",
+    etiquette: "Bloqué",
+  },
+  termine: {
+    conteneur: "border-green-600/40 bg-green-50",
+    titre: "text-green-800",
+    bouton: "bg-green-700 hover:bg-green-800 text-white",
+    etiquette: "Reprise terminée",
   },
 };
 
-function BandeauProchaineEtape({
-  etape,
-  dossierRef,
-  onAller,
-}: {
-  etape: ProchaineEtape;
-  dossierRef: string;
-  onAller: (action: ActionCible) => void;
-}) {
+function BandeauProchaineEtape({ etape, onAller }: { etape: ProchaineEtape; onAller: (code: string) => void }) {
   const ton = TON_BANDEAU[etape.tonalite];
   return (
     <div className={cn("rounded-md border px-4 py-3.5", ton.conteneur)}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-4">Prochaine etape</p>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-4">
+            {ton.etiquette}
+            {etape.phase && <span className="ml-1.5 normal-case tracking-normal">· {PHASE_LABEL[etape.phase]}</span>}
+            {etape.code && <span className="ml-1.5 font-mono normal-case tracking-normal">{etape.code}</span>}
+          </p>
           <p className={cn("mt-0.5 text-[15px] font-semibold", ton.titre)}>{etape.titre}</p>
           <p className="mt-1 text-[12.5px] text-ink-2">{etape.description}</p>
-        </div>
-        {etape.action && etape.actionLibelle && (
-          <div className="shrink-0">
-            {etape.action === "nav:mapping" ? (
-              <Link
-                href={`/reprise-copro/mapping-compta?ref=${encodeURIComponent(dossierRef)}`}
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-[13px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
-                  ton.bouton,
-                )}
-              >
-                {etape.actionLibelle}
-                <ExternalLink strokeWidth={1.75} className="w-3.5 h-3.5" />
-              </Link>
+          {etape.note && <p className={cn("mt-1 text-[12.5px]", etape.tonalite === "bloque" ? "text-err-700" : "text-ink-3")}>{etape.note}</p>}
+          <div className="mt-1.5 flex items-center gap-3 flex-wrap text-[12px] text-ink-3">
+            {etape.assigne ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Avatar initiales={initialesDe(etape.assigne.nom)} title={etape.assigne.nom} />
+                {etape.assigne.nom}
+              </span>
             ) : (
-              <button
-                type="button"
-                onClick={() => onAller(etape.action!)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-[13px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
-                  ton.bouton,
-                )}
-              >
-                {etape.actionLibelle}
-                <ArrowRight strokeWidth={1.75} className="w-3.5 h-3.5" />
-              </button>
+              etape.code && <span className="text-ink-4">Personne n&apos;est assigné</span>
             )}
+            {etape.echeance && <span>Échéance {formatDateCourte(etape.echeance)}</span>}
           </div>
+        </div>
+        {etape.code && (
+          <button
+            type="button"
+            onClick={() => onAller(etape.code!)}
+            className={cn(
+              "shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-[13px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+              ton.bouton,
+            )}
+          >
+            Voir l&apos;étape
+            <ArrowRight strokeWidth={1.75} className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-// --- SECTION REPLIABLE ------------------------------------------------------
-// En-tete cliquable (titre + chevron) qui replie/deplie son contenu. Repliee = moins de densite
-// visuelle ; jamais cachee (tout se deplie). Recoit un id (ancre de scroll depuis le bandeau).
-function SectionRepliable({
-  id,
-  titre,
-  soustitre,
-  ouverte,
-  onBasculer,
-  children,
-}: {
-  id: string;
-  titre: string;
-  soustitre?: string;
-  ouverte: boolean;
-  onBasculer: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <section id={id} className="scroll-mt-4">
-      <button
-        type="button"
-        onClick={onBasculer}
-        aria-expanded={ouverte}
-        className="w-full flex items-center gap-2 px-1 py-1.5 text-left group"
-      >
-        <ChevronDown
-          strokeWidth={2}
-          className={cn("w-4 h-4 text-ink-4 transition-transform", ouverte ? "" : "-rotate-90")}
-        />
-        <span className="text-[13px] font-semibold text-ink">{titre}</span>
-        {soustitre && <span className="text-[11px] text-ink-4 truncate">- {soustitre}</span>}
-      </button>
-      {ouverte && <div className="mt-1">{children}</div>}
-    </section>
-  );
-}
-
 // --- ACTIONS DOSSIER (archiver / supprimer) ---------------------------------
-// Archiver = reversible (bouton discret). Supprimer = irreversible, confirmation EN DEUX TEMPS
-// (rappel ref + nom + "irreversible" + ce qui part avec), calquee sur le module Dossiers.
 function ActionsDossier({
   ref_,
   nomUsuel,
   archive,
   nbFichesGenerees,
-  dejaInjecte,
 }: {
   ref_: string;
   nomUsuel: string;
   archive: boolean;
   nbFichesGenerees: number;
-  dejaInjecte: boolean;
 }) {
-  const [confirmeSuppr, setConfirmeSuppr] = useState(false);
   const [archivePending, startArchive] = useTransition();
   const [supprPending, startSuppr] = useTransition();
   const toast = useToast();
+  const confirmer = useConfirm();
 
   const basculerArchive = () => {
     startArchive(async () => {
       const r = await archiverDossierAction(ref_, !archive);
-      if (r.ok) toast.ok(archive ? "Dossier desarchive." : "Dossier archive.");
+      if (r.ok) toast.ok(archive ? "Dossier désarchivé." : "Dossier archivé.");
       else toast.err(r.message);
     });
   };
 
-  const supprimer = () => {
+  const supprimer = async () => {
+    const ok = await confirmer({
+      titre: `Supprimer définitivement ${ref_} – « ${nomUsuel} » ?`,
+      message: `Action irréversible. Partent avec le dossier : le suivi (étapes, équipe, journal)${
+        nbFichesGenerees > 0 ? ` et ${nbFichesGenerees} fiche(s) de renseignements` : ""
+      }. La copropriété dans ESTALE n'est pas touchée.`,
+      confirmer: "Supprimer définitivement",
+      danger: true,
+    });
+    if (!ok) return;
     startSuppr(async () => {
       const r = await supprimerDossierRepriseAction(ref_);
-      // En cas de succes, l'action redirige (pas de retour). On ne gere ici que l'echec.
+      // En cas de succès, l'action redirige (pas de retour). On ne gère ici que l'échec.
       if (!r.ok) toast.err(r.message);
     });
   };
 
   return (
-    <div className="mt-4 pt-3 border-t border-line">
-      {!confirmeSuppr ? (
-        <div className="flex items-center gap-4 flex-wrap">
-          <button
-            type="button"
-            onClick={basculerArchive}
-            disabled={archivePending}
-            className="inline-flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-ink transition-colors disabled:opacity-50"
-          >
-            {archive ? (
-              <>
-                <ArchiveRestore strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> Desarchiver
-              </>
-            ) : (
-              <>
-                <Archive strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> Archiver ce dossier
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmeSuppr(true)}
-            className="inline-flex items-center gap-1.5 text-[12px] text-ink-4 hover:text-err-700 transition-colors ml-auto"
-          >
-            <Trash2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> Supprimer definitivement
-          </button>
-        </div>
-      ) : (
-        <div className="rounded-md border border-err-700/40 bg-err-50 px-3 py-2.5">
-          <p className="text-[12.5px] font-medium text-err-700">
-            Supprimer definitivement le dossier {ref_} - « {nomUsuel} » ?
-          </p>
-          <p className="mt-1 text-[12px] text-ink-2">
-            Action <span className="font-medium">irreversible</span>. Partent avec le dossier : le suivi (etapes,
-            journal), le jeu de donnees analyse
-            {nbFichesGenerees > 0 ? ` et ${nbFichesGenerees} fiche(s) de renseignements` : ""}.
-            {dejaInjecte && " La copro deja injectee dans eStale n'est PAS supprimee (seul le suivi de reprise part)."}
-          </p>
-          <div className="mt-2.5 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={supprimer}
-              disabled={supprPending}
-              className="h-8 px-3 rounded-md bg-err-700 text-white text-[12px] font-medium hover:bg-err-500 disabled:opacity-50"
-            >
-              {supprPending ? "Suppression..." : "Supprimer definitivement"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmeSuppr(false)}
-              disabled={supprPending}
-              className="h-8 px-3 rounded-md border border-line text-[12px] text-ink-2 hover:border-line-2"
-            >
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="mt-4 pt-3 border-t border-line flex items-center gap-4 flex-wrap">
+      <button
+        type="button"
+        onClick={basculerArchive}
+        disabled={archivePending}
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-ink transition-colors disabled:opacity-50"
+      >
+        {archive ? (
+          <>
+            <ArchiveRestore strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> Désarchiver
+          </>
+        ) : (
+          <>
+            <Archive strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> Archiver ce dossier
+          </>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={supprimer}
+        disabled={supprPending}
+        className="inline-flex items-center gap-1.5 text-[12px] text-ink-4 hover:text-err-700 transition-colors ml-auto disabled:opacity-50"
+      >
+        <Trash2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> {supprPending ? "Suppression…" : "Supprimer définitivement"}
+      </button>
     </div>
   );
 }
-

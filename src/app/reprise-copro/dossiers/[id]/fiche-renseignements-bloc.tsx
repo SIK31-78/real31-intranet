@@ -47,10 +47,10 @@ export interface FicheOwnerVue {
 }
 
 const STATUT_LABEL: Record<FicheStatut | "aucune", string> = {
-  aucune: "Courrier a generer",
-  courrier_genere: "Courrier genere",
-  soumis: "Repondu - a valider",
-  valide: "Valide",
+  aucune: "Courrier à générer",
+  courrier_genere: "Courrier généré",
+  soumis: "Répondu - à valider",
+  valide: "Validé",
 };
 const STATUT_TON: Record<FicheStatut | "aucune", "neutral" | "info" | "warn" | "ok"> = {
   aucune: "neutral",
@@ -94,7 +94,7 @@ export function FicheRenseignementsBloc({
       if (r.ok) {
         ouvrirDocument(r.html);
         toast.ok(
-          `${r.nbCourriers} courrier(s) genere(s)${r.ignores > 0 ? ` (${r.ignores} deja repondu ignore(s))` : ""}. Onglet d'impression ouvert.`,
+          `${r.nbCourriers} courrier(s) généré(s)${r.ignores > 0 ? ` (${r.ignores} déjà répondu ignoré(s))` : ""}. Onglet d'impression ouvert.`,
         );
       } else {
         toast.err(r.message);
@@ -109,38 +109,38 @@ export function FicheRenseignementsBloc({
     <Card>
       <CardHeader>
         <CardTitle>Fiches de renseignements</CardTitle>
-        <span className="text-[11px] text-ink-4">Courriers coproprietaires -&gt; formulaire en ligne -&gt; validation</span>
+        <span className="text-[11px] text-ink-4">Courriers copropriétaires -&gt; formulaire en ligne -&gt; validation</span>
       </CardHeader>
 
       <div className="p-4 flex flex-col gap-4">
         <p className="text-[12.5px] text-ink-3">
-          Genere un courrier pre-rempli par coproprietaire (adresse postale connue), avec un lien et un code personnel
-          vers le formulaire en ligne. A la reponse, valide pour ecrire l&apos;email dans eStale et envoyer le mail
-          &laquo; espace client pret &raquo;.
+          Génère un courrier pré-rempli par copropriétaire (adresse postale connue), avec un lien et un code personnel
+          vers le formulaire en ligne. À la réponse, valide pour écrire l&apos;e-mail dans ESTALE et envoyer le mail
+          &laquo; espace client prêt &raquo;.
         </p>
 
         {!aDesOwners ? (
           <div className="rounded-md border border-line bg-surface-2 px-3 py-2 text-[12.5px] text-ink-3">
-            Aucun coproprietaire dans le jeu. Lance d&apos;abord l&apos;analyse des documents (zone Patrimoine) : les
-            courriers utilisent les noms + adresses extraits.
+            Aucun copropriétaire connu pour ce dossier : les courriers partent des noms et adresses du jeu de
+            données du patrimoine, produit au terminal lors de la reprise.
           </div>
         ) : (
           <ZoneAdminReprise
             admin={adminReprise}
-            raison="Generer et relancer les courriers coproprietaires engage un envoi au nom du cabinet."
+            raison="Générer et relancer les courriers copropriétaires engage un envoi au nom du cabinet."
           >
             <div className="flex items-center gap-2 flex-wrap">
               <Button type="button" variant="primary" onClick={() => generer(false)} disabled={genPending}>
-                <Printer strokeWidth={1.5} /> {genPending ? "Generation..." : "Generer les courriers"}
+                <Printer strokeWidth={1.5} /> {genPending ? "Génération..." : "Générer les courriers"}
               </Button>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => generer(true)}
                 disabled={genPending || nonRepondants === 0}
-                title={nonRepondants === 0 ? "Aucun non-repondant" : `${nonRepondants} non-repondant(s)`}
+                title={nonRepondants === 0 ? "Aucun non-répondant" : `${nonRepondants} non-répondant(s)`}
               >
-                <RefreshCw strokeWidth={1.5} /> Relance des non-repondants
+                <RefreshCw strokeWidth={1.5} /> Relance des non-répondants
               </Button>
             </div>
           </ZoneAdminReprise>
@@ -155,8 +155,8 @@ export function FicheRenseignementsBloc({
             }
           >
             {mailActif
-              ? "Mail actif : la validation enverra le mail « espace client pret »."
-              : "Mail inactif (MAIL_SOURCE / MAIL_PILOTES) : la validation n'enverra PAS de mail (statut le refletera)."}
+              ? "Mail actif : la validation enverra le mail « espace client prêt »."
+              : "Mail inactif (MAIL_SOURCE / MAIL_PILOTES) : la validation n'enverra PAS de mail (statut le reflétera)."}
           </div>
           <div
             className={
@@ -165,8 +165,8 @@ export function FicheRenseignementsBloc({
             }
           >
             {ecritureReelle
-              ? "Ecriture eStale REELLE (ESTALE_ECRITURE=reel) : la validation ECRIT l'email en PRODUCTION."
-              : "Ecriture eStale en DRY-RUN : la validation ne modifie pas eStale (note seulement)."}
+              ? "Écriture ESTALE RÉELLE (ESTALE_ECRITURE=reel) : la validation ÉCRIT l'e-mail en PRODUCTION."
+              : "Écriture ESTALE en DRY-RUN : la validation ne modifie pas ESTALE (note seulement)."}
           </div>
         </div>
 
@@ -174,11 +174,11 @@ export function FicheRenseignementsBloc({
         {aValider.length > 0 && (
           <section>
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">
-              Retours a valider ({aValider.length})
+              Retours à valider ({aValider.length})
             </h3>
             <ZoneAdminReprise
               admin={adminReprise}
-              raison="Valider un retour ecrit l'email du coproprietaire dans eStale et lui ouvre son espace client."
+              raison="Valider un retour écrit l'e-mail du copropriétaire dans ESTALE et lui ouvre son espace client."
               className="mt-2"
             >
               <ul className="flex flex-col gap-2">
@@ -198,11 +198,11 @@ export function FicheRenseignementsBloc({
               <table className="w-full text-[12.5px]">
                 <thead className="text-left text-[11px] uppercase text-ink-4">
                   <tr>
-                    <th className="py-1 font-medium">Coproprietaire</th>
+                    <th className="py-1 font-medium">Copropriétaire</th>
                     <th className="font-medium">Statut</th>
                     <th className="font-medium">Courrier</th>
-                    <th className="font-medium">Repondu</th>
-                    <th className="font-medium">Valide</th>
+                    <th className="font-medium">Répondu</th>
+                    <th className="font-medium">Validé</th>
                     <th className="font-medium">Mail</th>
                     <th className="font-medium">Envoi fiche</th>
                   </tr>
@@ -219,7 +219,7 @@ export function FicheRenseignementsBloc({
                       <td className="text-ink-3">
                         {f.canal === "email" ? (
                           <span className="inline-flex items-center gap-1 text-ink-2">
-                            <Send strokeWidth={1.5} className="w-3 h-3" /> email
+                            <Send strokeWidth={1.5} className="w-3 h-3" /> e-mail
                           </span>
                         ) : f.courrierGenereAt ? (
                           formatDateLongue(f.courrierGenereAt.slice(0, 10))
@@ -232,7 +232,7 @@ export function FicheRenseignementsBloc({
                       <td className="text-ink-3">
                         {f.mailEnvoyeAt ? (
                           <span className="inline-flex items-center gap-1 text-ok-700">
-                            <Mail strokeWidth={1.5} className="w-3 h-3" /> envoye
+                            <Mail strokeWidth={1.5} className="w-3 h-3" /> envoyé
                           </span>
                         ) : (
                           "-"
@@ -279,7 +279,7 @@ function EnvoiFiche({
       const r = await envoyerFicheEmailAction(dossierRef, fiche.ownerId);
       if (r.ok) {
         setEnvoye(true);
-        toast.ok(r.envoye ? "Fiche envoyee par email." : `${r.message}${r.note ? ` ${r.note}` : ""}`);
+        toast.ok(r.envoye ? "Fiche envoyée par e-mail." : `${r.message}${r.note ? ` ${r.note}` : ""}`);
       } else {
         toast.err(r.message);
       }
@@ -292,9 +292,9 @@ function EnvoiFiche({
       variant="secondary"
       onClick={envoyer}
       disabled={pending || !adminReprise}
-      title={adminReprise ? undefined : "Reserve aux directeurs et managers."}
+      title={adminReprise ? undefined : "Réservé aux directeurs et managers."}
     >
-      <Send strokeWidth={1.5} /> {pending ? "..." : envoye ? "Renvoyer" : "Par email"}
+      <Send strokeWidth={1.5} /> {pending ? "..." : envoye ? "Renvoyer" : "Par e-mail"}
     </Button>
   );
 }
@@ -309,7 +309,7 @@ function LigneAValider({ dossierRef, fiche }: { dossierRef: string; fiche: Fiche
   const valider = async () => {
     const ok = await confirmer({
       titre: "Valider cette fiche",
-      message: `Ecrire l'email de "${fiche.nom}" dans eStale et envoyer le mail d'activation de l'extranet. Confirmer ?`,
+      message: `Écrire l'e-mail de "${fiche.nom}" dans ESTALE et envoyer le mail d'activation de l'extranet. Confirmer ?`,
       confirmer: "Valider",
       annuler: "Annuler",
     });
@@ -319,7 +319,7 @@ function LigneAValider({ dossierRef, fiche }: { dossierRef: string; fiche: Fiche
       if (r.ok) {
         setValide(true);
         toast.ok(
-          `${r.message}${r.mailEnvoye ? " Mail envoye." : r.mailNote ? ` ${r.mailNote}` : ""}`,
+          `${r.message}${r.mailEnvoye ? " Mail envoyé." : r.mailNote ? ` ${r.mailNote}` : ""}`,
         );
       } else {
         toast.err(r.message);
@@ -335,25 +335,25 @@ function LigneAValider({ dossierRef, fiche }: { dossierRef: string; fiche: Fiche
             <FileText strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4" /> {fiche.nom}
           </p>
           <div className="mt-1.5 grid gap-x-4 gap-y-0.5 text-[12px] sm:grid-cols-2">
-            <Comparaison label="Email" connu={fiche.emailConnu} saisi={s?.email} />
-            <Comparaison label="Tel. portable" connu={fiche.connues?.telPortable} saisi={s?.telPortable} />
-            <Comparaison label="Tel. fixe" connu={fiche.connues?.telFixe} saisi={s?.telFixe} />
+            <Comparaison label="E-mail" connu={fiche.emailConnu} saisi={s?.email} />
+            <Comparaison label="Tél. portable" connu={fiche.connues?.telPortable} saisi={s?.telPortable} />
+            <Comparaison label="Tél. fixe" connu={fiche.connues?.telFixe} saisi={s?.telFixe} />
             <Comparaison
               label="Occupation"
               saisi={
                 s?.occupation === "principale"
-                  ? "Residence principale"
+                  ? "Résidence principale"
                   : s?.occupation === "secondaire"
-                    ? "Residence secondaire"
+                    ? "Résidence secondaire"
                     : s?.occupation === "loue"
-                      ? "Loue / occupe"
+                      ? "Loué / occupé"
                       : undefined
               }
             />
           </div>
         </div>
         <Button type="button" variant="primary" onClick={valider} disabled={pending || valide}>
-          <CheckCircle2 strokeWidth={1.5} /> {valide ? "Validee" : pending ? "..." : "Valider"}
+          <CheckCircle2 strokeWidth={1.5} /> {valide ? "Validée" : pending ? "..." : "Valider"}
         </Button>
       </div>
     </li>
@@ -368,7 +368,7 @@ function Comparaison({ label, connu, saisi }: { label: string; connu?: string; s
       {saisi ? (
         <span className={change ? "text-green-700 font-medium" : "text-ink-2"}>
           {saisi}
-          {change && connu ? <span className="text-ink-4"> (etait : {connu})</span> : null}
+          {change && connu ? <span className="text-ink-4"> (était : {connu})</span> : null}
         </span>
       ) : (
         <span className="text-ink-4">{connu ?? "-"}</span>

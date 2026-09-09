@@ -73,7 +73,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
       { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
       { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
-      { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus, aVenir: true },
+      { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus },
     ],
   },
   {
