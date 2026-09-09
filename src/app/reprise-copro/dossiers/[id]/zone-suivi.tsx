@@ -53,22 +53,30 @@ export function ChecklistDossier({
   etapes,
   collaborateurs,
   aujourdHui,
+  moiId,
 }: {
   dossierRef: string;
   etapes: EtapeVue[];
   collaborateurs: CollaborateurVue[];
   aujourdHui: string;
+  moiId: string;
 }) {
-  // « Restantes » : on masque les étapes faites/ignorées et les phases terminées, pour ne voir
-  // que ce qu'il reste à faire. Les compteurs restent ceux de la phase complète.
+  // Deux filtres cumulables : « restantes » masque les étapes faites/ignorées, « mes étapes »
+  // ne garde que celles assignées à l'utilisateur courant. Les compteurs restent ceux de la
+  // phase complète ; une phase sans étape visible disparaît.
   const [restantesSeulement, setRestantesSeulement] = useState(false);
+  const [mesEtapesSeulement, setMesEtapesSeulement] = useState(false);
+  const garder = (e: EtapeVue) =>
+    (!restantesSeulement || !etapeClose(e.statut)) && (!mesEtapesSeulement || e.assigneA?.id === moiId);
   const nbRestantes = etapes.filter((e) => !etapeClose(e.statut)).length;
+  const nbMiennes = etapes.filter((e) => e.assigneA?.id === moiId && !etapeClose(e.statut)).length;
+  const filtre = restantesSeulement || mesEtapesSeulement;
   const groupes = PHASES.map((phase) => {
     const liste = etapes.filter((e) => e.phase === phase);
     const faites = liste.filter((e) => etapeClose(e.statut)).length;
-    const visibles = restantesSeulement ? liste.filter((e) => !etapeClose(e.statut)) : liste;
+    const visibles = filtre ? liste.filter(garder) : liste;
     return { phase, etapes: visibles, faites, total: liste.length };
-  }).filter((g) => g.total > 0 && (!restantesSeulement || g.etapes.length > 0));
+  }).filter((g) => g.total > 0 && (!filtre || g.etapes.length > 0));
 
   // Une phase à 100 % est repliée par défaut (moins de densité) ; tout se déplie au clic.
   const [ouvertes, setOuvertes] = useState<Record<string, boolean>>(() =>
@@ -80,19 +88,32 @@ export function ChecklistDossier({
     <Card>
       <CardHeader>
         <CardTitle>Checklist de la reprise</CardTitle>
-        <label className="flex items-center gap-1.5 text-[12px] text-ink-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={restantesSeulement}
-            onChange={(e) => setRestantesSeulement(e.target.checked)}
-            className="h-3.5 w-3.5 accent-brand"
-          />
-          Seulement les étapes restantes ({nbRestantes})
-        </label>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-[12px] text-ink-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={mesEtapesSeulement}
+              onChange={(e) => setMesEtapesSeulement(e.target.checked)}
+              className="h-3.5 w-3.5 accent-brand"
+            />
+            Seulement mes étapes ({nbMiennes})
+          </label>
+          <label className="flex items-center gap-1.5 text-[12px] text-ink-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={restantesSeulement}
+              onChange={(e) => setRestantesSeulement(e.target.checked)}
+              className="h-3.5 w-3.5 accent-brand"
+            />
+            Seulement les étapes restantes ({nbRestantes})
+          </label>
+        </div>
       </CardHeader>
       <div className="flex flex-col">
         {groupes.length === 0 && (
-          <p className="px-4 py-6 text-[13px] text-ink-3 text-center">Toutes les étapes sont faites.</p>
+          <p className="px-4 py-6 text-[13px] text-ink-3 text-center">
+            {mesEtapesSeulement ? "Aucune étape ne vous est assignée ici." : "Toutes les étapes sont faites."}
+          </p>
         )}
         {groupes.map((g) => (
           <GroupePhase

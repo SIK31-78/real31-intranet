@@ -51,6 +51,7 @@ export function FicheDossierReprise({
   etapeSuivante,
   collaborateurs,
   aujourdHui,
+  moiId,
   nbFichesGenerees,
   ecritureReelle,
   fiches,
@@ -63,6 +64,8 @@ export function FicheDossierReprise({
   collaborateurs: CollaborateurVue[];
   /** ISO date du jour (échéances dépassées, déterministe). */
   aujourdHui: string;
+  /** Id de l'utilisateur courant (filtre « Seulement mes étapes »). */
+  moiId: string;
   nbFichesGenerees: number;
   ecritureReelle: boolean;
   fiches: FicheOwnerVue[];
@@ -106,7 +109,7 @@ export function FicheDossierReprise({
       <EquipeDossier dossierRef={dossier.ref} equipe={dossier.equipe} collaborateurs={collaborateurs} />
 
       {/* 4. CHECKLIST par phase */}
-      <ChecklistDossier dossierRef={dossier.ref} etapes={dossier.etapes} collaborateurs={collaborateurs} aujourdHui={aujourdHui} />
+      <ChecklistDossier dossierRef={dossier.ref} etapes={dossier.etapes} collaborateurs={collaborateurs} aujourdHui={aujourdHui} moiId={moiId} />
 
       {/* 5. FICHES DE RENSEIGNEMENTS (étape EX4 / EX6) */}
       <div id="zone-fiches" className="scroll-mt-4">

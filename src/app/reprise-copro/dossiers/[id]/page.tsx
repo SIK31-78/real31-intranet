@@ -100,6 +100,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
         etapeSuivante={etapeSuivante}
         collaborateurs={collaborateurs}
         aujourdHui={aujourdHui}
+        moiId={g.id}
         nbFichesGenerees={fichesBrutes.length}
         ecritureReelle={ecritureReelle}
         fiches={fichesVue}
