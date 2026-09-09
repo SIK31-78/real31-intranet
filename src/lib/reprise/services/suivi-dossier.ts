@@ -1,11 +1,36 @@
-// Service de suivi d'un dossier d'onboarding : cree, liste, met a jour les etapes,
-// les anomalies, le journal, et reporte les compteurs d'un recap d'analyse. Passe par
-// le port DossierRepository (persistance interchangeable : memoire aujourd'hui, Supabase
-// demain). La logique reste testable avec l'adapter memoire.
+// Service de suivi d'un dossier de reprise (ADR-037) : cree, liste, et fait vivre le TABLEAU DE
+// SUIVI D'EQUIPE (statut / assignation / note / echeance de chaque etape, etapes ad hoc, equipe,
+// cadrage, journal). Passe par le port DossierRepository (memoire en test, Supabase en prod).
+//
+// Les fonctions HISTORIQUES de l'import (appliquerRecap, enregistrerJeu, corrigerJeuDossier,
+// contacts d'annexes...) restent : l'UI ne les appelle plus, mais elles forment une bibliotheque
+// appelable du terminal (skill estale-migration). Elles gardent leur contrat (exceptions).
+//
+// Les fonctions du SUIVI D'EQUIPE (changerStatutEtape, assignerEtape, noterEtape, fixerEcheance,
+// ajouterEtapeAdHocAuDossier, supprimerEtapeAdHoc) ne levent JAMAIS pour un cas metier : elles
+// renvoient `{ erreur }` (dossier introuvable, code inconnu, valeur invalide). Chacune : lecture ->
+// mutation pure -> repo.sauver, et pose majLe/majPar sur l'etape touchee.
 
-import type { ComptaResume, Dossier, StatutEtape } from "@/lib/reprise/domain/dossier";
+import type {
+  ComptaResume,
+  Dossier,
+  EquipeReprise,
+  Etape,
+  Personne,
+  Phase,
+  RoleReprise,
+  StatutEtape,
+} from "@/lib/reprise/domain/dossier";
 import type { VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
-import { creerDossier, reconcilierEtapes } from "@/lib/reprise/domain/dossier";
+import {
+  PHASES,
+  ROLES_REPRISE,
+  ROLE_LABEL,
+  ajouterEtapeAdHoc,
+  assignerParRole,
+  creerDossier,
+  reconcilierEtapes,
+} from "@/lib/reprise/domain/dossier";
 import type { JeuDeDonnees, LiaisonOwnerCompte } from "@/lib/reprise/domain/patrimoine";
 import { trancherLiaison } from "@/lib/reprise/domain/liaison-comptes";
 import {
@@ -40,9 +65,13 @@ export async function creerDossierSuivi(
   ref: string,
   nomUsuel: string,
   adresse?: string,
+  options?: { sortant?: string; dateBascule?: string; equipe?: EquipeReprise },
 ): Promise<Dossier> {
   if (await repo.obtenir(ref)) throw new Error(`Dossier deja existant : ${ref}`);
-  const d = creerDossier(ref, nomUsuel, adresse);
+  if (options?.dateBascule !== undefined && !dateIsoValide(options.dateBascule)) {
+    throw new Error(`Date de bascule invalide : ${options.dateBascule} (attendu AAAA-MM-JJ)`);
+  }
+  const d = creerDossier(ref, nomUsuel, adresse, options);
   await repo.sauver(d);
   return d;
 }
@@ -57,17 +86,321 @@ export async function obtenirDossier(repo: DossierRepository, ref: string): Prom
   return d ? migrer(d) : null;
 }
 
-/** Met a jour le statut d'une etape (par code, ex. "P3"). */
+/**
+ * Met a jour le statut d'une etape (par code, ex. "BA2"). Contrat HISTORIQUE (leve sur dossier ou
+ * etape inconnus, pas de journal) conserve pour le terminal ; `ctx` optionnel pose majLe/majPar.
+ * Le tableau d'equipe passe par `changerStatutEtape` (motif de blocage + journal + { erreur }).
+ */
 export async function majEtape(
   repo: DossierRepository,
   ref: string,
   codeEtape: string,
   statut: StatutEtape,
+  ctx?: ContexteMaj,
 ): Promise<Dossier> {
   const d = await exiger(repo, ref);
   const etape = d.etapes.find((e) => e.code === codeEtape);
   if (!etape) throw new Error(`Etape inconnue : ${codeEtape} (dossier ${ref})`);
   etape.statut = statut;
+  if (ctx) tamponner(etape, ctx);
+  await repo.sauver(d);
+  return d;
+}
+
+// ---------------------------------------------------------------------------------------------
+// SUIVI D'EQUIPE (ADR-037)
+// ---------------------------------------------------------------------------------------------
+
+/** Contexte d'une mutation : qui (nom affichable) et quand (ISO), fournis par l'appelant. */
+export interface ContexteMaj {
+  auteur: string;
+  dateIso: string;
+}
+
+/** Libelle FEMININ du statut (accorde a « étape »), pour le journal. */
+const STATUT_JOURNAL: Record<StatutEtape, string> = {
+  a_faire: "à faire",
+  en_cours: "en cours",
+  bloque: "bloquée",
+  fait: "faite",
+  ignore: "ignorée",
+};
+
+/** Date ISO AAAA-MM-JJ valide (format ET calendrier : pas de 2026-02-30). */
+export function dateIsoValide(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+function personneValide(p: unknown): p is Personne {
+  return (
+    typeof p === "object" &&
+    p !== null &&
+    typeof (p as Personne).id === "string" &&
+    (p as Personne).id.trim().length > 0 &&
+    typeof (p as Personne).nom === "string" &&
+    (p as Personne).nom.trim().length > 0
+  );
+}
+
+function tamponner(etape: Etape, ctx: ContexteMaj): void {
+  etape.majLe = ctx.dateIso;
+  etape.majPar = ctx.auteur;
+}
+
+function journaliser(d: Dossier, ctx: ContexteMaj, texte: string): void {
+  d.journal.push({ date: ctx.dateIso, texte, auteur: ctx.auteur });
+}
+
+/** Lecture tolerante : { erreur } plutot qu'une exception quand le dossier n'existe pas. */
+async function charger(repo: DossierRepository, ref: string): Promise<Dossier | { erreur: string }> {
+  const d = await repo.obtenir(ref);
+  if (!d) return { erreur: `Dossier introuvable : ${ref}` };
+  return migrer(d);
+}
+
+function estErreur(x: unknown): x is { erreur: string } {
+  return typeof x === "object" && x !== null && "erreur" in x;
+}
+
+/** Charge le dossier ET l'etape ; { erreur } si l'un des deux manque. */
+async function chargerEtape(
+  repo: DossierRepository,
+  ref: string,
+  code: string,
+): Promise<{ d: Dossier; etape: Etape } | { erreur: string }> {
+  const d = await charger(repo, ref);
+  if (estErreur(d)) return d;
+  const etape = d.etapes.find((e) => e.code === code);
+  if (!etape) return { erreur: `Étape inconnue : ${code} (dossier ${ref})` };
+  return { d, etape };
+}
+
+/**
+ * Change le statut d'une etape. `bloque` EXIGE un motif non vide (il va dans `note`, visible sur le
+ * tableau d'equipe). Un motif fourni avec un autre statut est aussi pose en note (commentaire).
+ * Journal automatique : « BA2 → faite », « CA4 → bloquée : <motif> ».
+ */
+export async function changerStatutEtape(
+  repo: DossierRepository,
+  ref: string,
+  code: string,
+  statut: StatutEtape,
+  ctx: ContexteMaj,
+  motif?: string,
+): Promise<Dossier | { erreur: string }> {
+  if (!(statut in STATUT_JOURNAL)) return { erreur: `Statut inconnu : ${String(statut)}` };
+  const motifNet = motif?.trim() ?? "";
+  if (statut === "bloque" && motifNet.length === 0) {
+    return { erreur: "Un motif est obligatoire pour bloquer une étape." };
+  }
+  const r = await chargerEtape(repo, ref, code);
+  if (estErreur(r)) return r;
+  const { d, etape } = r;
+  etape.statut = statut;
+  if (motifNet.length > 0) etape.note = motifNet;
+  tamponner(etape, ctx);
+  journaliser(d, ctx, `${code} → ${STATUT_JOURNAL[statut]}${motifNet ? ` : ${motifNet}` : ""}`);
+  await repo.sauver(d);
+  return d;
+}
+
+/** Assigne (ou desassigne avec null) une etape. Journal : « BA2 assignée à <nom> ». */
+export async function assignerEtape(
+  repo: DossierRepository,
+  ref: string,
+  code: string,
+  personne: Personne | null,
+  ctx: ContexteMaj,
+): Promise<Dossier | { erreur: string }> {
+  if (personne !== null && !personneValide(personne)) {
+    return { erreur: "Personne invalide : id et nom sont obligatoires." };
+  }
+  const r = await chargerEtape(repo, ref, code);
+  if (estErreur(r)) return r;
+  const { d, etape } = r;
+  if (personne) {
+    etape.assigneA = { id: personne.id, nom: personne.nom.trim() };
+    journaliser(d, ctx, `${code} assignée à ${etape.assigneA.nom}`);
+  } else {
+    delete etape.assigneA;
+    journaliser(d, ctx, `${code} désassignée`);
+  }
+  tamponner(etape, ctx);
+  await repo.sauver(d);
+  return d;
+}
+
+/** Pose une note libre sur une etape (vide = efface). Pas de journal : la note EST la trace. */
+export async function noterEtape(
+  repo: DossierRepository,
+  ref: string,
+  code: string,
+  note: string,
+  ctx: ContexteMaj,
+): Promise<Dossier | { erreur: string }> {
+  if (typeof note !== "string") return { erreur: "Note invalide." };
+  const r = await chargerEtape(repo, ref, code);
+  if (estErreur(r)) return r;
+  const { d, etape } = r;
+  const nette = note.trim();
+  if (nette.length > 0) etape.note = nette;
+  else delete etape.note;
+  tamponner(etape, ctx);
+  await repo.sauver(d);
+  return d;
+}
+
+/** Fixe (ISO AAAA-MM-JJ) ou efface (null) l'echeance d'une etape. */
+export async function fixerEcheance(
+  repo: DossierRepository,
+  ref: string,
+  code: string,
+  echeance: string | null,
+  ctx: ContexteMaj,
+): Promise<Dossier | { erreur: string }> {
+  if (echeance !== null && !dateIsoValide(echeance)) {
+    return { erreur: `Échéance invalide : ${String(echeance)} (attendu AAAA-MM-JJ)` };
+  }
+  const r = await chargerEtape(repo, ref, code);
+  if (estErreur(r)) return r;
+  const { d, etape } = r;
+  if (echeance) etape.echeance = echeance;
+  else delete etape.echeance;
+  tamponner(etape, ctx);
+  await repo.sauver(d);
+  return d;
+}
+
+/**
+ * Ajoute une etape AD HOC au dossier (libelle 3..200 caracteres, phase connue, `apresCode` = une
+ * etape existante du dossier). Le code X-<n> est genere par le domaine, jamais reutilise.
+ */
+export async function ajouterEtapeAdHocAuDossier(
+  repo: DossierRepository,
+  ref: string,
+  saisie: { phase: Phase; libelle: string; apresCode?: string; assigneA?: Personne; echeance?: string },
+  ctx: ContexteMaj,
+): Promise<Dossier | { erreur: string }> {
+  const libelle = (saisie.libelle ?? "").trim();
+  if (libelle.length < 3 || libelle.length > 200) {
+    return { erreur: "Le libellé d'une étape doit faire entre 3 et 200 caractères." };
+  }
+  if (!(PHASES as readonly string[]).includes(saisie.phase)) {
+    return { erreur: `Phase inconnue : ${String(saisie.phase)}` };
+  }
+  if (saisie.assigneA !== undefined && !personneValide(saisie.assigneA)) {
+    return { erreur: "Personne invalide : id et nom sont obligatoires." };
+  }
+  if (saisie.echeance !== undefined && !dateIsoValide(saisie.echeance)) {
+    return { erreur: `Échéance invalide : ${saisie.echeance} (attendu AAAA-MM-JJ)` };
+  }
+  const d = await charger(repo, ref);
+  if (estErreur(d)) return d;
+  if (saisie.apresCode !== undefined && !d.etapes.some((e) => e.code === saisie.apresCode)) {
+    return { erreur: `Étape inconnue : ${saisie.apresCode} (dossier ${ref})` };
+  }
+
+  const avant = new Set(d.etapes.map((e) => e.code));
+  d.etapes = ajouterEtapeAdHoc(d.etapes, { ...saisie, libelle });
+  const nouvelle = d.etapes.find((e) => !avant.has(e.code));
+  if (!nouvelle) return { erreur: "L'étape n'a pas pu être ajoutée." }; // impossible par construction
+  tamponner(nouvelle, ctx);
+  journaliser(d, ctx, `Étape ajoutée ${nouvelle.code} : « ${libelle} »`);
+  await repo.sauver(d);
+  return d;
+}
+
+/** Supprime une etape AD HOC. Refuse une etape canonique (elle se coche « ignorée », elle ne se supprime pas). */
+export async function supprimerEtapeAdHoc(
+  repo: DossierRepository,
+  ref: string,
+  code: string,
+  ctx: ContexteMaj,
+): Promise<Dossier | { erreur: string }> {
+  const r = await chargerEtape(repo, ref, code);
+  if (estErreur(r)) return r;
+  const { d, etape } = r;
+  if (!etape.adHoc) {
+    return { erreur: `L'étape ${code} est canonique : elle ne peut pas être supprimée (passe-la en « ignorée »).` };
+  }
+  d.etapes = d.etapes.filter((e) => e.code !== code);
+  journaliser(d, ctx, `Étape supprimée ${code} : « ${etape.libelle} »`);
+  await repo.sauver(d);
+  return d;
+}
+
+/**
+ * Pose l'equipe du dossier (REMPLACE l'equipe precedente) et assigne les etapes par role :
+ * seulement celles sans assignee explicite, ou toutes si `forcer`. Leve si le dossier n'existe pas
+ * ou si une personne est invalide.
+ */
+export async function definirEquipe(
+  repo: DossierRepository,
+  ref: string,
+  equipe: EquipeReprise,
+  ctx: ContexteMaj,
+  opts?: { forcer?: boolean },
+): Promise<Dossier> {
+  const d = await exiger(repo, ref);
+  const propre: EquipeReprise = {};
+  for (const role of ROLES_REPRISE) {
+    const p = equipe[role];
+    if (p === undefined) continue;
+    if (!personneValide(p)) throw new Error(`Personne invalide pour le rôle ${ROLE_LABEL[role]} : id et nom sont obligatoires.`);
+    propre[role] = { id: p.id, nom: p.nom.trim() };
+  }
+  d.equipe = propre;
+  const avant = d.etapes;
+  d.etapes = assignerParRole(d.etapes, propre, opts?.forcer === true);
+  d.etapes.forEach((e, i) => {
+    if (e.assigneA?.id !== avant[i]?.assigneA?.id) tamponner(e, ctx);
+  });
+  const membres = (Object.keys(propre) as RoleReprise[]).map((r) => `${ROLE_LABEL[r]} : ${propre[r]!.nom}`);
+  journaliser(d, ctx, membres.length > 0 ? `Équipe définie — ${membres.join(", ")}` : "Équipe effacée");
+  await repo.sauver(d);
+  return d;
+}
+
+/**
+ * Met a jour le cadrage du dossier. Un champ `undefined` n'est pas touche ; une chaine vide EFFACE
+ * (sortant, dateBascule, adresse) ; un nomUsuel vide est ignore (jamais de dossier sans nom).
+ * Leve si le dossier n'existe pas ou si la date de bascule est invalide.
+ */
+export async function definirCadrage(
+  repo: DossierRepository,
+  ref: string,
+  cadrage: { sortant?: string; dateBascule?: string; adresse?: string; nomUsuel?: string },
+  ctx: ContexteMaj,
+): Promise<Dossier> {
+  if (cadrage.dateBascule !== undefined && cadrage.dateBascule !== "" && !dateIsoValide(cadrage.dateBascule)) {
+    throw new Error(`Date de bascule invalide : ${cadrage.dateBascule} (attendu AAAA-MM-JJ)`);
+  }
+  const d = await exiger(repo, ref);
+  const touches: string[] = [];
+  if (cadrage.sortant !== undefined) {
+    const v = cadrage.sortant.trim();
+    if (v) d.sortant = v;
+    else delete d.sortant;
+    touches.push("syndic sortant");
+  }
+  if (cadrage.dateBascule !== undefined) {
+    if (cadrage.dateBascule) d.dateBascule = cadrage.dateBascule;
+    else delete d.dateBascule;
+    touches.push("date de bascule");
+  }
+  if (cadrage.adresse !== undefined) {
+    const v = cadrage.adresse.trim();
+    if (v) d.adresse = v;
+    else delete d.adresse;
+    touches.push("adresse");
+  }
+  if (cadrage.nomUsuel !== undefined && cadrage.nomUsuel.trim()) {
+    d.nomUsuel = cadrage.nomUsuel.trim();
+    touches.push("nom usuel");
+  }
+  if (touches.length > 0) journaliser(d, ctx, `Cadrage mis à jour : ${touches.join(", ")}`);
   await repo.sauver(d);
   return d;
 }
@@ -113,14 +446,19 @@ export async function ajouterAnomalie(repo: DossierRepository, ref: string, text
   return d;
 }
 
+/**
+ * Ajoute une entree libre au journal. ATTENTION ordre des parametres (refonte ADR-037) :
+ * (texte, dateIso, auteur?) — l'ancienne signature etait (date, texte).
+ */
 export async function ajouterJournal(
   repo: DossierRepository,
   ref: string,
-  date: string,
   texte: string,
+  dateIso: string,
+  auteur?: string,
 ): Promise<Dossier> {
   const d = await exiger(repo, ref);
-  d.journal.push({ date, texte });
+  d.journal.push({ date: dateIso, texte, ...(auteur ? { auteur } : {}) });
   await repo.sauver(d);
   return d;
 }

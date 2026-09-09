@@ -1,232 +1,99 @@
-// GUIDAGE "prochaine etape" : le domaine PUR qui repond a la question de Sekou "quand on fait
-// l'import on ne sait pas quoi faire". A partir de l'ETAT REEL du dossier (jeu present ? erreurs
-// bloquantes ? grand livre exploitable ? deja injecte ? fiches generees ?...), on derive UNE
-// prochaine action a mettre en avant, dans l'ordre du pipeline de reprise.
+// GUIDAGE "prochaine etape" du tableau de suivi d'equipe (ADR-037).
 //
-// Fonction pure et testable (aucune I/O, aucune horloge) : l'appelant (la page server) assemble le
-// contexte depuis les etats deja persistes/derivables et rend le bandeau. L'ordre des regles = le
-// PREMIER match gagne (pipeline lineaire). PII-free (aucun nom, aucun montant).
+// Refonte 2026-09-09 : l'ancienne cascade etait cablee sur l'import UI (jeu present ? deja injecte ?
+// fiches generees ?...). Le module n'importe plus rien : la prochaine etape se derive UNIQUEMENT de
+// la checklist du dossier (statuts, echeances, assignations). Fonction pure, aucune I/O, aucune
+// horloge (la date du jour est fournie par l'appelant). PII-free hors le nom de l'assigne.
+
+import type { Etape, Personne, Phase } from "@/lib/reprise/domain/dossier";
+import { etapeCourante } from "@/lib/reprise/domain/dossier";
 
 /** Tonalite d'affichage du bandeau (couleur). */
-export type TonaliteEtape = "normal" | "attention" | "bloque";
-
-/**
- * Identifiant d'ACTION cible : soit une zone de la fiche vers laquelle scroller (`zone:*`), soit une
- * navigation externe (`nav:mapping` = ecran de revue du mapping compta). L'UI mappe cet identifiant
- * a un comportement concret (scroll ancre / lien). Absent = pas de bouton (etape informative).
- */
-export type ActionCible =
-  | "zone:patrimoine"
-  | "zone:compta"
-  | "zone:fiches"
-  | "zone:suivi"
-  | "nav:mapping";
+export type TonaliteEtape = "normal" | "attention" | "bloque" | "termine";
 
 export interface ProchaineEtape {
+  /** Code de l'etape mise en avant (absent quand la reprise est terminee). */
+  code?: string;
+  phase?: Phase;
   titre: string;
-  /** Description courte (une phrase), sans PII. */
+  /** Description courte (motif de blocage, assigne, echeance). */
   description: string;
-  /** Action/bouton cible (scroll ou navigation). Absent = pas de bouton. */
-  action?: ActionCible;
-  /** Libelle du bouton d'action (present ssi `action` l'est). */
-  actionLibelle?: string;
   tonalite: TonaliteEtape;
+  assigne?: Personne;
+  note?: string;
+  echeance?: string;
 }
 
 /**
- * Etat REEL du dossier, projete par la page. Chaque booleen est derive d'une donnee deja
- * persistee/derivable (jeu, compteurs JSONB, journal, fiches, checklist) - jamais d'un etat invente.
+ * Derive LA prochaine etape a mettre en avant (premier match gagne) :
+ *   1. premiere `bloque`   -> tonalite "bloque", titre « Bloqué : … », description = motif + assigne ;
+ *   2. premiere `en_cours` -> "normal", titre « En cours : … » ;
+ *   3. premiere `a_faire`  -> "normal", titre « Prochaine étape : … » ; "attention" si son echeance
+ *                             est depassee (echeance < aujourd'hui) ;
+ *   4. aucune              -> "termine", titre « Reprise terminée ».
+ * L'ordre bloque > en_cours > a_faire est celui de `etapeCourante` (domaine dossier).
  */
-export interface ContexteProchaineEtape {
-  /** Un jeu de donnees a-t-il ete extrait (analyse lancee au moins une fois) ? */
-  jeuPresent: boolean;
-  /** Le patrimoine est-il pret a produire (recap.checks.ok, aucune erreur bloquante) ? */
-  pretAProduire: boolean;
-  /** Grand livre joint mais non exploitable (scan / couche texte inexploitable) ? */
-  comptaErreur: boolean;
-  /**
-   * PREMIER refus d'extraction actionnable, s'il y en a un (garde-fou arithmetique,
-   * etude §3bis). Le message EST la demande a envoyer a l'ancien syndic, plages de lots
-   * manquantes calculees comprises. Prioritaire sur le renvoi generique vers l'editeur :
-   * un tableau tronque ne se corrige pas a la main, il se REDEMANDE.
-   */
-  refusExtraction?: { cleCode: string; message: string };
-  /** Grand livre CLOTURE detecte "avant repartition" (reports 6/7 non nuls) = mauvais document. */
-  avantRepartitionBloquant: boolean;
-  /** Controle croise cloture <-> en cours en echec (les deux GL ne se raccordent pas). */
-  raccordementKO: boolean;
-  /** Une injection eStale REELLE a-t-elle eu lieu (trace au journal) ? */
-  dejaInjecte: boolean;
-  /** Au moins une fiche de renseignements a-t-elle ete generee ? */
-  auMoinsUneFicheGeneree: boolean;
-  /** Le grand livre de l'exercice EN COURS a-t-il ete fourni (present dans les compteurs) ? */
-  comptaEnCoursPresente: boolean;
-  /** La revue du mapping compta est-elle tranchee (etape R7 fait/ignore) ? */
-  revueMappingFaite: boolean;
-  /** La compta est-elle importee dans eStale (etape R8 fait/ignore) ? */
-  importComptaFait: boolean;
-  /** La reprise est-elle cloturee (etape R11 fait/ignore) ? */
-  clotureFaite: boolean;
-}
-
-/** Documents attendus de l'ancien syndic (repris de la zone d'upload) - affiche a l'etape 1. */
-export const DOCUMENTS_REQUIS: readonly string[] = [
-  "PV d'AG de nomination + feuille de presence",
-  "RGDD / annexes comptables de la convocation",
-  "EDD + RCP et modificatifs",
-  "Fiche synthese / registre national",
-  "Grand livre N-1 (nom de fichier avec « grand livre » ou « GL »)",
-];
-
-/**
- * Derive LA prochaine etape a mettre en avant, dans l'ordre du pipeline (premier match gagne).
- *
- * Ordre (cf. mission) :
- *   1. pas de jeu -> deposer les documents + lancer l'analyse
- *   2. erreurs bloquantes -> corriger via l'editeur (attention)
- *   3. grand livre non exploitable -> redemander un PDF natif (attention)
- *   4. grand livre AVANT repartition -> redemander le GL apres repartition (bloque)
- *   5. raccordement KO -> les deux GL ne se raccordent pas (bloque)
- *   6. pret + pas injecte -> injecter le patrimoine (GO/STOP) - l'action phare
- *   7. injecte + fiches non generees -> generer les fiches de renseignements
- *   8. GL en cours manquant -> fournir le grand livre de l'exercice en cours
- *   9. revue mapping non tranchee -> passer a la revue du mapping / import compta a venir
- *   10. tout fait -> cloturer la reprise
- */
-export function prochaineEtape(ctx: ContexteProchaineEtape): ProchaineEtape {
-  // 1. Aucune analyse : le point de depart absolu.
-  if (!ctx.jeuPresent) {
+export function prochaineEtape(etapes: Etape[], aujourdHuiIso?: string): ProchaineEtape {
+  const e = etapeCourante(etapes);
+  if (!e) {
     return {
-      titre: "Depose les documents de l'ancien syndic, puis lance l'analyse",
-      description: `Documents attendus : ${DOCUMENTS_REQUIS.join(" ; ")}.`,
-      action: "zone:patrimoine",
-      actionLibelle: "Deposer les documents",
-      tonalite: "normal",
+      titre: "Reprise terminée",
+      description: "Toutes les étapes de la reprise sont faites ou ignorées. Le dossier peut être archivé.",
+      tonalite: "termine",
     };
   }
 
-  // 2a. REFUS D'EXTRACTION (etude §3bis) : le garde-fou a refuse d'emettre les tantiemes
-  // d'une cle. Ce cas passe AVANT le renvoi generique vers l'editeur de corrections, parce
-  // que la reponse n'est pas "corrige a la main" mais "redemande la piece" -- et le message
-  // porte deja la demande exacte (c'est ce qui a fait boucler S0306 a 10 000).
-  if (!ctx.pretAProduire && ctx.refusExtraction) {
-    return {
-      titre: `Piece manquante a demander (cle ${ctx.refusExtraction.cleCode})`,
-      description: ctx.refusExtraction.message,
-      action: "zone:patrimoine",
-      actionLibelle: "Voir le detail",
-      tonalite: "attention",
-    };
-  }
-
-  // 2b. Autres erreurs bloquantes sur le patrimoine : rien n'avance tant qu'elles subsistent.
-  if (!ctx.pretAProduire) {
-    return {
-      titre: "Corrige les erreurs bloquantes",
-      description: "Le patrimoine extrait comporte des erreurs (ecart de cle, lot orphelin...). Ouvre l'editeur de corrections pour les lever.",
-      action: "zone:patrimoine",
-      actionLibelle: "Ouvrir l'editeur de corrections",
-      tonalite: "attention",
-    };
-  }
-
-  // 3. Grand livre joint mais illisible (scan) : redemander un PDF natif.
-  if (ctx.comptaErreur) {
-    return {
-      titre: "Redemande le grand livre en PDF natif",
-      description: "Le grand livre transmis n'est pas exploitable (scan / couche texte inexploitable). Redemande un PDF natif a l'ancien syndic, puis relance l'analyse.",
-      action: "zone:compta",
-      actionLibelle: "Voir le bloc comptabilite",
-      tonalite: "attention",
-    };
-  }
-
-  // 4. Grand livre CLOTURE "avant repartition" = mauvais document (bloquant metier).
-  if (ctx.avantRepartitionBloquant) {
-    return {
-      titre: "Demande le grand livre APRES repartition",
-      description: "Le grand livre cloture semble etre la version AVANT repartition (des comptes 6/7 portent encore un solde). Demande a l'ancien syndic la version apres repartition/regule.",
-      action: "zone:compta",
-      actionLibelle: "Voir le bloc comptabilite",
-      tonalite: "bloque",
-    };
-  }
-
-  // 5. Controle croise cloture <-> en cours en echec : l'un des deux GL est faux.
-  if (ctx.raccordementKO) {
-    return {
-      titre: "Les deux grands livres ne se raccordent pas",
-      description: "Les a-nouveaux de l'exercice en cours ne collent pas aux soldes finaux du cloture : l'un des deux grands livres est faux. Verifie les documents avec l'ancien syndic.",
-      action: "zone:compta",
-      actionLibelle: "Voir le controle croise",
-      tonalite: "bloque",
-    };
-  }
-
-  // 6. Tout est pret cote patrimoine mais rien n'est injecte : L'ACTION PHARE.
-  if (!ctx.dejaInjecte) {
-    return {
-      titre: "Injecte le patrimoine dans eStale (GO/STOP)",
-      description: "Le patrimoine est pret a produire. Verifie une derniere fois le cadrage, puis cree la copro et injecte les lots/cles/tantiemes/coproprietaires dans eStale.",
-      action: "zone:patrimoine",
-      actionLibelle: "Aller a l'injection",
-      tonalite: "normal",
-    };
-  }
-
-  // 7. Injecte mais aucune fiche de renseignements generee : le geste suivant du pipeline.
-  if (!ctx.auMoinsUneFicheGeneree) {
-    return {
-      titre: "Genere les fiches de renseignements",
-      description: "Le patrimoine est dans eStale. Genere les courriers « fiche de renseignements » pour recolter les coordonnees des coproprietaires.",
-      action: "zone:fiches",
-      actionLibelle: "Aller aux fiches de renseignements",
-      tonalite: "normal",
-    };
-  }
-
-  // 8. Manque le grand livre de l'exercice EN COURS (necessaire au controle croise / a la compta).
-  if (!ctx.comptaEnCoursPresente) {
-    return {
-      titre: "Fournis le grand livre de l'exercice en cours",
-      description: "Depose le grand livre de l'exercice EN COURS (du 1er jour de l'exercice a la fin de mandat du syndic sortant) pour raccorder la comptabilite au centime.",
-      action: "zone:compta",
-      actionLibelle: "Voir le bloc comptabilite",
-      tonalite: "normal",
-    };
-  }
-
-  // 9. Revue du mapping compta : lien vers l'ecran dedie (ref pre-remplie), sinon import a venir.
-  if (!ctx.revueMappingFaite) {
-    return {
-      titre: "Passe a la revue du mapping compta",
-      description: "Les grands livres se raccordent. Tranche le mapping de chaque compte source vers eStale (warnings, homonymes, coproprietaires partis) dans l'ecran dedie.",
-      action: "nav:mapping",
-      actionLibelle: "Ouvrir la revue du mapping",
-      tonalite: "normal",
-    };
-  }
-  if (!ctx.importComptaFait) {
-    return {
-      titre: "Import compta : increment a venir",
-      description: "La revue du mapping est tranchee. L'import reel de la comptabilite dans eStale (Inc. 3) arrive dans un prochain increment.",
-      tonalite: "normal",
-    };
-  }
-
-  // 10. Tout est fait : reste a cloturer (ou deja cloture).
-  if (ctx.clotureFaite) {
-    return {
-      titre: "Reprise cloturee",
-      description: "Toutes les etapes de la reprise sont faites. Le dossier peut etre archive.",
-      tonalite: "normal",
-    };
-  }
-  return {
-    titre: "Cloture la reprise",
-    description: "Toutes les etapes operationnelles sont faites. Verifie les dernieres cases du suivi humain, puis coche la cloture de la reprise.",
-    action: "zone:suivi",
-    actionLibelle: "Aller au suivi humain",
-    tonalite: "normal",
+  const commun = {
+    code: e.code,
+    phase: e.phase,
+    ...(e.assigneA ? { assigne: e.assigneA } : {}),
+    ...(e.note ? { note: e.note } : {}),
+    ...(e.echeance ? { echeance: e.echeance } : {}),
   };
+
+  if (e.statut === "bloque") {
+    return {
+      ...commun,
+      titre: `Bloqué : ${e.libelle}`,
+      description: joindre([e.note ?? "Motif non renseigné.", assigneTexte(e), echeanceTexte(e)]),
+      tonalite: "bloque",
+    };
+  }
+
+  if (e.statut === "en_cours") {
+    return {
+      ...commun,
+      titre: `En cours : ${e.libelle}`,
+      description: joindre([assigneTexte(e), echeanceTexte(e), e.note]) || "Étape en cours.",
+      tonalite: "normal",
+    };
+  }
+
+  const enRetard = !!aujourdHuiIso && !!e.echeance && e.echeance < aujourdHuiIso.slice(0, 10);
+  return {
+    ...commun,
+    titre: `Prochaine étape : ${e.libelle}`,
+    description:
+      joindre([enRetard ? `Échéance dépassée (${formaterDate(e.echeance!)}).` : echeanceTexte(e), assigneTexte(e), e.note]) ||
+      "Étape à faire.",
+    tonalite: enRetard ? "attention" : "normal",
+  };
+}
+
+function assigneTexte(e: Etape): string | undefined {
+  return e.assigneA ? `Assignée à ${e.assigneA.nom}.` : undefined;
+}
+
+function echeanceTexte(e: Etape): string | undefined {
+  return e.echeance ? `Échéance le ${formaterDate(e.echeance)}.` : undefined;
+}
+
+function joindre(parties: (string | undefined)[]): string {
+  return parties.filter((p): p is string => !!p && p.trim().length > 0).join(" ");
+}
+
+/** AAAA-MM-JJ -> JJ/MM/AAAA (affichage francais) ; laisse tel quel si le format est inattendu. */
+function formaterDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }

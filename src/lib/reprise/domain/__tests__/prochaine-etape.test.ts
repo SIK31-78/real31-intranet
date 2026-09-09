@@ -1,111 +1,83 @@
 import { describe, expect, it } from "vitest";
-import {
-  prochaineEtape,
-  DOCUMENTS_REQUIS,
-  type ContexteProchaineEtape,
-} from "../prochaine-etape";
+import { etapesParDefaut } from "../dossier";
+import type { Etape } from "../dossier";
+import { prochaineEtape } from "../prochaine-etape";
 
-// Contexte "tout est fait sauf la cloture" : point de depart des tests, qu'on degrade regle par
-// regle en remontant le pipeline pour verifier que le PREMIER match gagne.
-function ctxToutFait(): ContexteProchaineEtape {
-  return {
-    jeuPresent: true,
-    pretAProduire: true,
-    comptaErreur: false,
-    avantRepartitionBloquant: false,
-    raccordementKO: false,
-    dejaInjecte: true,
-    auMoinsUneFicheGeneree: true,
-    comptaEnCoursPresente: true,
-    revueMappingFaite: true,
-    importComptaFait: true,
-    clotureFaite: false,
-  };
+const marie = { id: "u-marie", nom: "Marie" };
+
+function avec(mods: Record<string, Partial<Etape>>): Etape[] {
+  return etapesParDefaut().map((e) => (mods[e.code] ? { ...e, ...mods[e.code] } : e));
 }
 
-describe("prochaineEtape (guidage, ordre du pipeline)", () => {
-  it("1. pas de jeu -> deposer les documents + lancer l'analyse (avec la liste des docs)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), jeuPresent: false });
-    expect(e.titre).toMatch(/Depose les documents/i);
-    expect(e.description).toContain(DOCUMENTS_REQUIS[0]!);
-    expect(e.action).toBe("zone:patrimoine");
-    expect(e.tonalite).toBe("normal");
+describe("prochaineEtape (tableau de suivi)", () => {
+  it("1. la premiere etape bloquee gagne : tonalite bloque, titre « Bloqué : … », motif + assigne", () => {
+    const etapes = avec({
+      CA1: { statut: "fait" },
+      BA2: { statut: "en_cours" },
+      CA4: { statut: "bloque", note: "La banque n'a pas confirmé", assigneA: marie, echeance: "2026-09-15" },
+      EX3: { statut: "bloque", note: "Autre" },
+    });
+    const p = prochaineEtape(etapes, "2026-09-09");
+    expect(p.tonalite).toBe("bloque");
+    expect(p.code).toBe("CA4");
+    expect(p.phase).toBe("CADRAGE");
+    expect(p.titre).toMatch(/^Bloqué : Compte bancaire/);
+    expect(p.description).toContain("La banque n'a pas confirmé");
+    expect(p.description).toContain("Marie");
+    expect(p.assigne).toEqual(marie);
+    expect(p.note).toBe("La banque n'a pas confirmé");
+    expect(p.echeance).toBe("2026-09-15");
   });
 
-  it("2. erreurs bloquantes -> editeur de corrections (attention)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), pretAProduire: false });
-    expect(e.titre).toMatch(/Corrige les erreurs/i);
-    expect(e.action).toBe("zone:patrimoine");
-    expect(e.tonalite).toBe("attention");
+  it("1bis. bloquee sans motif : description de repli", () => {
+    const p = prochaineEtape(avec({ CA4: { statut: "bloque" } }));
+    expect(p.description).toMatch(/Motif non renseigné/);
   });
 
-  it("3. grand livre non exploitable -> redemander un PDF natif (attention)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), comptaErreur: true });
-    expect(e.titre).toMatch(/PDF natif/i);
-    expect(e.action).toBe("zone:compta");
-    expect(e.tonalite).toBe("attention");
+  it("2. sinon la premiere en_cours : tonalite normal, titre « En cours : … »", () => {
+    const etapes = avec({ CA1: { statut: "fait" }, DO3: { statut: "en_cours", assigneA: marie }, CA5: { statut: "en_cours" } });
+    const p = prochaineEtape(etapes, "2026-09-09");
+    expect(p.tonalite).toBe("normal");
+    expect(p.code).toBe("CA5"); // premiere dans l'ordre de la checklist
+    expect(p.titre).toMatch(/^En cours : /);
+    const p2 = prochaineEtape(avec({ DO3: { statut: "en_cours", assigneA: marie } }));
+    expect(p2.code).toBe("DO3");
+    expect(p2.description).toContain("Marie");
   });
 
-  it("4. grand livre avant repartition -> redemander apres repartition (bloque)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), avantRepartitionBloquant: true });
-    expect(e.titre).toMatch(/APRES repartition/i);
-    expect(e.action).toBe("zone:compta");
-    expect(e.tonalite).toBe("bloque");
+  it("3. sinon la premiere a_faire : « Prochaine étape : … », normal", () => {
+    const etapes = avec({ CA1: { statut: "fait" }, CA2: { statut: "ignore" } });
+    const p = prochaineEtape(etapes, "2026-09-09");
+    expect(p.tonalite).toBe("normal");
+    expect(p.code).toBe("CA3");
+    expect(p.titre).toMatch(/^Prochaine étape : Équipe nommée/);
   });
 
-  it("5. raccordement KO -> les deux GL ne se raccordent pas (bloque)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), raccordementKO: true });
-    expect(e.titre).toMatch(/ne se raccordent pas/i);
-    expect(e.action).toBe("zone:compta");
-    expect(e.tonalite).toBe("bloque");
+  it("3bis. a_faire avec echeance depassee : tonalite attention", () => {
+    const etapes = avec({ CA1: { statut: "a_faire", echeance: "2026-09-01" } });
+    const p = prochaineEtape(etapes, "2026-09-09T08:00:00.000Z");
+    expect(p.tonalite).toBe("attention");
+    expect(p.description).toContain("Échéance dépassée (01/09/2026)");
+    // Echeance a venir ou egale au jour : normal.
+    expect(prochaineEtape(avec({ CA1: { echeance: "2026-09-09" } }), "2026-09-09").tonalite).toBe("normal");
+    expect(prochaineEtape(avec({ CA1: { echeance: "2026-09-10" } }), "2026-09-09").tonalite).toBe("normal");
+    // Sans date du jour : jamais d'alerte de retard.
+    expect(prochaineEtape(avec({ CA1: { echeance: "2020-01-01" } })).tonalite).toBe("normal");
   });
 
-  it("6. pret + pas injecte -> injecter le patrimoine (action phare)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), dejaInjecte: false });
-    expect(e.titre).toMatch(/Injecte le patrimoine/i);
-    expect(e.action).toBe("zone:patrimoine");
-    expect(e.tonalite).toBe("normal");
+  it("4. aucune etape ouverte : « Reprise terminée », tonalite termine, sans code", () => {
+    const etapes = etapesParDefaut().map((e, i) => ({ ...e, statut: i % 3 ? ("fait" as const) : ("ignore" as const) }));
+    const p = prochaineEtape(etapes, "2026-09-09");
+    expect(p.tonalite).toBe("termine");
+    expect(p.titre).toBe("Reprise terminée");
+    expect(p.code).toBeUndefined();
+    expect(p.phase).toBeUndefined();
   });
 
-  it("7. injecte + fiches non generees -> generer les fiches", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), auMoinsUneFicheGeneree: false });
-    expect(e.titre).toMatch(/fiches de renseignements/i);
-    expect(e.action).toBe("zone:fiches");
-  });
-
-  it("8. GL en cours manquant -> fournir le grand livre de l'exercice en cours", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), comptaEnCoursPresente: false });
-    expect(e.titre).toMatch(/exercice en cours/i);
-    expect(e.action).toBe("zone:compta");
-  });
-
-  it("9a. revue mapping non tranchee -> lien vers l'ecran de mapping", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), revueMappingFaite: false });
-    expect(e.titre).toMatch(/revue du mapping/i);
-    expect(e.action).toBe("nav:mapping");
-  });
-
-  it("9b. revue faite mais import non fait -> increment a venir (informatif, sans bouton)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), importComptaFait: false });
-    expect(e.titre).toMatch(/increment a venir/i);
-    expect(e.action).toBeUndefined();
-  });
-
-  it("10. tout fait sauf cloture -> cloturer la reprise (lien vers le suivi)", () => {
-    const e = prochaineEtape(ctxToutFait());
-    expect(e.titre).toMatch(/Cloture la reprise/i);
-    expect(e.action).toBe("zone:suivi");
-  });
-
-  it("10bis. tout fait y compris cloture -> reprise cloturee (sans bouton)", () => {
-    const e = prochaineEtape({ ...ctxToutFait(), clotureFaite: true });
-    expect(e.titre).toMatch(/cloturee/i);
-    expect(e.action).toBeUndefined();
-  });
-
-  it("le premier match gagne : erreurs bloquantes priment sur l'injection", () => {
-    // pretAProduire=false ET dejaInjecte=false : la regle 2 doit gagner, pas la 6.
-    const e = prochaineEtape({ ...ctxToutFait(), pretAProduire: false, dejaInjecte: false });
-    expect(e.titre).toMatch(/Corrige les erreurs/i);
+  it("le premier match gagne : bloque prime sur en_cours qui prime sur a_faire", () => {
+    const etapes = avec({ CA1: { statut: "a_faire" }, CP1: { statut: "en_cours" }, CL3: { statut: "bloque", note: "x" } });
+    expect(prochaineEtape(etapes).code).toBe("CL3");
+    const sansBloque = avec({ CA1: { statut: "a_faire" }, CP1: { statut: "en_cours" } });
+    expect(prochaineEtape(sansBloque).code).toBe("CP1");
   });
 });
