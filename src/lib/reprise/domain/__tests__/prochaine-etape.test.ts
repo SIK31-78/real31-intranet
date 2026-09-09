@@ -50,7 +50,7 @@ describe("prochaineEtape (tableau de suivi)", () => {
     const p = prochaineEtape(etapes, "2026-09-09");
     expect(p.tonalite).toBe("normal");
     expect(p.code).toBe("CA5");
-    expect(p.titre).toMatch(/^Prochaine étape : Équipe nommée/);
+    expect(p.titre).toMatch(/^Prochaine étape : Âge de l.immeuble/);
   });
 
   it("3bis. a_faire avec echeance depassee : tonalite attention", () => {
