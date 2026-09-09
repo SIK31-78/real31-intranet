@@ -1465,7 +1465,7 @@ Cette voie (**la plus automatisée**, option 3 du doc `docs/reprise-copro-integr
 
 ## ADR-031 - Extraction des documents par IA avec routeur de providers
 
-**Date** : 2026-07-06 - **Statut** : accepté (Sekou, 2026-07-08 - le mode CLI reste un outil de test local assumé ; la prod visera une clé API dédiée)
+**Date** : 2026-07-06 - **Statut** : accepté (Sekou, 2026-07-08 - le mode CLI reste un outil de test local assumé ; la prod visera une clé API dédiée) — **SUPERSEDED par ADR-037 (2026-09-09)** : adapters IA supprimés en août 2026, UI d'import retirée en septembre ; l'extraction est faite par le skill `estale-migration` au terminal.
 
 ### Contexte
 
@@ -1642,3 +1642,32 @@ Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
 **Décision.** Sur un numéro de compte, un code ou un mot d'en-tête : **racine explicite** (ensemble fermé de valeurs connues, ex. `{471999, 4719999}`) ou **token exact** (`tokensFold`, « creditor » ≠ « credit »), jamais une sous-chaîne ni un préfixe ambigu. Pour les dates extraites d'une ligne : la **position** départage, jamais le format. Un préfixe reste admissible uniquement quand la sémantique est par construction préfixale (classes comptables : `4x`, `45x`) ET qu'aucune valeur plus longue ne peut le capturer à tort.
 
 **Conséquences.** S'applique à tout nouveau parseur/classifieur (les blocs B et C y sont déjà conformes). En revue de code, un `startsWith`/`includes` sur ces objets est un défaut, pas un style.
+
+---
+
+## ADR-037 - Le module reprise devient un TABLEAU DE SUIVI D'ÉQUIPE ; l'import se fait au terminal par le skill
+
+**Date** : 2026-09-09 - **Statut** : accepté (Sekou, 2026-09-09 — « Je n'utiliserai plus l'import via l'UI. Toutes les reprises se feront en utilisant le skill directement depuis mon terminal »)
+
+### Contexte
+
+Six reprises menées entre le 23/08 et le 09/09/2026 (S0303, S0304, S0297, S0306, S0305, S0299) l'ont toutes été **au terminal**, avec le skill `estale-migration` (extraction déterministe, mapping, fichiers d'import, contrôles, écritures d'exploitation par API). L'UI d'import du module (`zone-patrimoine`, éditeur de corrections, revue du mapping, routes `/api/reprise/*`, ~4 800 lignes) n'a jamais servi en réel : le skill va plus vite, s'améliore à chaque reprise, et son savoir (30 annexes) ne tient pas dans un écran. Pendant ce temps, ce qui manque à l'équipe n'est pas un importeur mais **un suivi partagé** : où en est chaque reprise, à quelle étape ça bloque, qui doit faire quoi. La fiche `/reprise-copro/dossiers/S0305` porte une checklist de 15 étapes de juillet, périmée (« Inc. 3 – à venir », « compte bancaire ouvert » alors que le compte est conservé) ; les quatre procédures internes du cabinet (`docs/reprise/*.docx`, `*.pdf`, 2013-2024) décrivent des étapes que ni le skill ni le module ne portaient (courriers de changement de syndic, fournisseurs, banque, registre, première AG).
+
+### Décision
+
+1. **Le module ne fait plus d'import.** Les pages et routes d'import sont **supprimées** (`zone-patrimoine`, `editeur-patrimoine`, `documents-annexes-bloc`, `mapping-compta/*`, `api/reprise/*`, `notes-analyse`). Le **code de domaine/services/adapters d'extraction, de production et d'injection est conservé** sous `src/lib/reprise/` comme bibliothèque testée (646 tests), appelable du terminal ; il n'a plus d'écran. Sa suppression éventuelle fera l'objet d'un ADR quand le skill l'aura rendu inutile point par point.
+2. **Le dossier devient un tableau de suivi d'équipe** : checklist canonique de **47 étapes en 8 phases** (`ETAPES_REPRISE`, `domain/dossier.ts`) consolidée depuis le skill (`docs/reprise/CHECKLIST-REPRISE.md`, 89 lignes dont les contrôles automatisés restent au skill) et les quatre procédures internes ; chaque étape porte un **rôle par défaut** (référent · gestionnaire · assistant · comptable) et une **personne assignée** (`Personne = { id: User.id, nom }`, validée contre `listImpersonables()` à l'écriture) ; statut **`bloque`** avec motif obligatoire ; **étapes ad hoc** (`adHoc: true`, code `X-n`, jamais abandonnées à la réconciliation) ; journal avec auteur ; équipe et date de bascule sur le dossier.
+3. **Persistance additive, aucune migration lourde** : les étapes restent dans le JSONB `etapes` ; trois colonnes `add column if not exists` (`sortant`, `date_bascule`, `equipe`) avec dégradation propre si le SQL n'est pas passé (`supabase/sql/reprise_dossier_suivi_equipe.sql`, à exécuter à la main). Les 8 dossiers persistés sont **reconduits sans perte** : les anciens codes `R*` reportent leur statut sur leur correspondant (`CORRESPONDANCE_ANCIENS_CODES`), les anciens codes P/V/C du vault restent visibles s'ils portent un état.
+4. **Droits** : lecture et mutation des étapes ouvertes à tout gestionnaire connecté (c'est un outil d'équipe, pas de cloisonnement `managerId`) ; création, archivage, suppression de dossier réservés à l'admin reprise (inchangé).
+5. **Dossiers de travail** : pendant la reprise dans `<Copro>/Reprise/travail/` (SharePoint) ; **à la fin, déplacés dans `reprise/<REF>/` à la racine du dépôt**, hors git (`scripts/reprise-archiver.mjs`). Les livrables de la gestionnaire restent chez la copro.
+6. **Ce que ça révise** : **ADR-031** (extraction par IA) passe **superseded** — ses adapters ont été supprimés en août, et l'UI qui les portait aujourd'hui. **ADR-033** (ligne rouge : « aucune injection reprise via l'API ou le MCP, le GO/STOP reste dans l'UI ») est **précisée, pas contredite** : la ligne rouge visait les clés machine et le MCP ouverts à des tiers ; l'écriture eStale par le skill est faite **par le référent, avec ses propres identifiants, script par script, simulation avant réel, relecture après** — c'est le GO/STOP humain, déplacé dans le terminal. **ADR-029** : l'unification avec le `Dossier` générique de l'intranet reste différée ; le modèle de suivi partagé est maintenant stabilisé, la question peut se rouvrir.
+
+### Conséquences
+
+**Positives** : l'équipe voit enfin l'état des reprises et qui bloque ; la checklist est celle des six reprises réelles et des procédures maison, pas une liste théorique ; ~4 800 lignes d'UI sans usage retirées ; le skill reste l'unique chemin d'import, donc un seul endroit où capitaliser.
+
+**Négatives / dettes** : les capacités « fiches de renseignements » (génération, envoi, retours, route publique `/fiche/[token]`) restent dans le module et en dépendent — conservées telles quelles ; le code d'import conservé sans écran est du poids mort tant qu'il n'est pas appelé du terminal ; `User.id` stocké comme assigné est une clé logique vers la base de l'app A, sans contrainte (id orphelin toléré à la lecture).
+
+### Liens
+
+ADR-001, ADR-029, ADR-030, ADR-031 (superseded), ADR-033. Docs : `docs/reprise/CHECKLIST-REPRISE.md`, skill `~/.claude/skills/estale-migration/`. Branche : `chantier/reprise-suivi`.
