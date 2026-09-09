@@ -110,3 +110,7 @@ docs/**/*.jpg
 # defaut = cwd). ~1 a 5 Mo par langue, regenerables : ils n'ont rien a faire dans le repo.
 *.traineddata
 *.traineddata.gz
+
+# Dossiers de travail des reprises de copropriete (scripts, JSON, extractions) — hors depot
+/reprise/*
+!/reprise/README.md
