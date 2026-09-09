@@ -20,16 +20,19 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 - **⚠️ Non fait** : revue à l'écran (aucun navigateur lancé) ; les codes ad hoc `X-n` peuvent être réutilisés après suppression de la dernière (compteur non persisté, documenté par test) ; `.next/dev/types` référence encore les routes supprimées jusqu'au redémarrage de `pnpm dev`.
 - **⏭️ Prochaine action** : Sekou passe le SQL, relance `pnpm dev`, ouvre `/reprise-copro/dossiers` et la fiche S0305 ; corrections d'écran ; merge de `chantier/reprise-suivi` au tronc.
 
-## 📍 État actuel - 2026-09-08 — JOURNÉE FACTURATION + DÉCISION « FACTURES REAL31 DANS ESTALE »
+## ⏸️ EN PAUSE - 2026-09-08 — FACTURES REAL31 DANS ESTALE : décision prise, code NON commencé
 
-> Branche `increment/02-supabase` (tronc). Tout ce qui suit est **en prod** sauf le dernier commit (retrait de la bascule « effectué »), en attente de push.
+> **Mis de côté le 2026-09-09 à la demande de Sekou.** La décision est tranchée et documentée, le référentiel est relevé, le spike est prouvé : il ne reste qu'à coder, quand le sujet redeviendra prioritaire. Reprendre par `docs/facturation-estale-spike.md`, tout y est.
+>
+> Branche `increment/02-supabase` (tronc). Le reste de la journée du 08/09 est **en prod**.
 
 - **✅ Décision tranchée : comment les factures REAL31 arrivent dans ESTALE.** Demande du patron, spike mené en réel sur SE999. Verdict : **API, mais en déposant une facture À VALIDER** (`createInvoicePrediction`), jamais l'écriture comptable directe (`createInvoiceCondo`). Raison : une facture créée par écriture directe **ne peut plus être ni modifiée ni supprimée** (ni par API ni par l'interface, toutes voies essayées) **alors qu'elle peut être payée** — objection du patron, fondée. La voie « à valider » est réversible, prouvée deux fois de bout en bout (dépôt + suppression). Tout est consigné dans **`docs/facturation-estale-spike.md`** : comparatif des 3 voies, table prestation → compte (6211/6213/6221/6222), référentiel SE999, points d'attention (exercice verrouillé, anti-doublon, messages d'erreur opaques). ⚠️ Périmètre : **pas seulement le trimestre**, toutes les prestations → branchement sur l'entonnoir commun `emettre-factures-en-attente`.
 - **✅ Récap AG** : bouton « Ne pas facturer » le dépassement (geste commercial : le récap garde le vrai créneau et le dépassement calculé, aucune facture n'est créée) ; délai de rendu du récap **7 jours → 48 h** ; suivi des retards démarré au **01/09/2026** (avant, des AG d'archive ressortaient en retard) ; bascule « effectué » **retirée** (une coche sur un récap qu'on vient de saisir n'avait pas de sens ; la vraie boucle de suivi est le « traité » de la comptable).
 - **✅ Facturation, écrans de validation** : bandeau « un brouillon part dans Pennylane » supprimé (fonctionnement nominal, il n'apprenait rien) ; **accents rétablis partout** dans les libellés et les lignes de facture (relevé par Sekou : « il manque des accents et c'est fréquent ») ; le tarif horaire sort du tableau et passe en note italique.
 - **✅ Fiche copro** : « Cycle terminé pour cet exercice » n'est plus une impasse, un lien « Revoir la supervision de cette AG » y mène.
 - **⏸️ En attente** : validation du patron sur le fait que **la comptable devra valider chaque facture** dans ESTALE (prix du garde-fou) ; une facture de test à 1,23 EUR reste **bloquée sur SE999**, seul le support ESTALE peut la retirer (anomalie produit à leur signaler).
-- **⏭️ Prochaine action** : accord patron/comptable, puis coder le dépôt ESTALE derrière l'émission Pennylane (aperçu de fournée + anti-doublon + contrôle de l'exercice verrouillé, sur le modèle du filet gestion courante).
+- **⏭️ Pour reprendre** : (1) accord du patron sur le fait que la comptable valide chaque facture ; (2) confirmer que le **contrat fournisseur avec ventilation** préremplit bien la contrepartie (`createSupplierContract` + `upsertTemplate` vers 6211, testé sur SE999 le 08/09, vérification visuelle non faite) ; (3) coder le dépôt derrière l'émission Pennylane (aperçu de fournée + anti-doublon + contrôle de l'exercice verrouillé, sur le modèle du filet gestion courante).
+- **🧹 À nettoyer sur SE999 quand on y retouchera** : 2 factures à valider de démonstration (`DEMO-2026-T3-001` et `-002`) et le contrat de test « Honoraires de gestion REAL 31 (TEST intranet) » — tous supprimables par API.
 
 ## 📍 État actuel - 2026-09-04 (soir) — CHANTIER DE CORRECTIONS COLLÈGUES : 13 commits EN PROD (5 agents délégués)
 
