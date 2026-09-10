@@ -44,9 +44,12 @@ export function SidebarDrawer({ children }: { children: ReactNode }) {
       <div
         id="sidebar-mobile"
         className={cn(
-          "fixed left-0 top-12 bottom-0 z-40 flex w-72 max-w-[88vw] transform transition-transform duration-240 ease-out-quart",
+          "fixed left-0 top-12 bottom-0 z-40 flex w-72 max-w-[88vw] transition-transform duration-240 ease-out-quart",
           ouvert ? "translate-x-0" : "-translate-x-full",
-          "md:static md:z-auto md:translate-x-0 md:transition-none md:w-auto md:max-w-none",
+          // md:translate-none + transform-none (et non translate-x-0) : un translate, meme nul, ferait du tiroir
+          // le bloc conteneur des enfants `fixed` (palette Ctrl+K, menu utilisateur) qui se
+          // retrouveraient coinces dans les 240 px du rail.
+          "md:static md:z-auto md:translate-none md:transform-none md:transition-none md:w-auto md:max-w-none",
         )}
       >
         {children}
