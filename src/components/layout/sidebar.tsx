@@ -256,9 +256,8 @@ export function Sidebar({
       <div className="hidden md:flex items-center gap-2.5 px-4 pt-5 pb-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon.png" alt="" className="w-8 h-8 rounded-md object-contain shrink-0" />
-        <div className="min-w-0">
-          <div className="text-body font-semibold leading-tight">REAL31</div>
-          <div className="text-meta text-rail-muted">Intranet syndic</div>
+        <div className="min-w-0 text-body font-semibold leading-tight truncate">
+          REAL31 <span className="text-rail-muted font-medium">· Intranet</span>
         </div>
       </div>
       <div className="hidden md:block px-3 pt-3">
@@ -282,6 +281,9 @@ export function Sidebar({
                 // (le pole compta est transverse, pas un gestionnaire).
                 if ((item.key === "compta" || item.key === "gestion-courante") && !comptaOuvert)
                   return null;
+                // "Mes e-mails" et "Reprise de copropriete" : fonctionnalites A VENIR pour les
+                // collegues (Sekou 2026-09-10) -> visibles des SUPER-ADMINS seulement.
+                if ((item.key === "emails" || item.key === "reprise") && !adminOuvert) return null;
                 // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
                 const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
                 return <NavItem key={it.key} item={it} active={it.key === active} />;

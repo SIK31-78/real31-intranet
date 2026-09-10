@@ -9,7 +9,9 @@ export function BarreMobile({ emailsOuvert = true }: { emailsOuvert?: boolean })
       <SidebarMenuButton />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/icon.png" alt="" className="w-6 h-6 rounded-md object-contain shrink-0" />
-      <span className="text-body font-semibold flex-1 truncate">REAL31</span>
+      <span className="text-body font-semibold flex-1 truncate">
+        REAL31 <span className="text-rail-muted font-medium">· Intranet</span>
+      </span>
       <CommandPalette emailsOuvert={emailsOuvert} variante="rail-icone" />
     </header>
   );
