@@ -105,6 +105,15 @@
   @keyframes slide-up { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
 }
 
+/* Rail de navigation : il defile (molette, doigt) mais sans barre de defilement
+   visible - un gros ascenseur gris sur du sapin, c'est ce que Sekou a vu en premier. */
+.defilement-discret {
+  scrollbar-width: none;
+}
+.defilement-discret::-webkit-scrollbar {
+  display: none;
+}
+
 /* Accessibilite : qui demande moins de mouvement n'en a aucun. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

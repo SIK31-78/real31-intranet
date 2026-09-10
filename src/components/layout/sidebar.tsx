@@ -251,7 +251,7 @@ export function Sidebar({
   adminOuvert?: boolean;
 }) {
   return (
-    <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto flex flex-col shadow-2 md:shadow-none">
+    <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto defilement-discret flex flex-col shadow-2 md:shadow-none">
       {/* Marque + recherche (ex-topbar), en tete du rail. */}
       <div className="hidden md:flex items-center gap-2.5 px-4 pt-5 pb-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
