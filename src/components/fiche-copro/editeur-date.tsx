@@ -11,6 +11,8 @@ import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles
 import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { partitionnerParAgence } from "@/lib/domain/cloisonnement-agence";
 import { Button } from "@/components/ui/button";
+import { Input, Select, Choix } from "@/components/ui/field";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import {
   definirDateAg,
   definirDateCs,
@@ -507,28 +509,28 @@ export function EditeurDate({
           <button
             type="button"
             onClick={ouvrir}
-            className="inline-flex items-center gap-1.5 text-[16px] font-medium text-ink hover:text-green-700 transition-colors"
+            className="inline-flex items-center gap-1.5 text-title font-medium text-ink hover:text-green-700 transition-colors duration-120 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             title="Modifier la date"
           >
             {dateISO ? (
               <span>
                 {formatDateLongue(dateISO)}
-                {avecHeure && heure && <span className="text-ink-3"> à {formatHeure(heure)}</span>}
+                {avecHeure && heure && <span className="text-ink-2"> à {formatHeure(heure)}</span>}
               </span>
             ) : (
-              <span className="text-ink-3">{labelVide}</span>
+              <span className="text-ink-3 font-normal">{labelVide}</span>
             )}
-            <Pencil strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" />
+            <Pencil strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-2" aria-hidden />
           </button>
           {/* Mode de tenue : badge discret a cote de la date. */}
           {dateISO && modeNom && (
-            <span className="inline-flex items-center h-5 px-1.5 rounded-full bg-surface-3 text-ink-2 text-[11px] font-medium">
+            <span className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-2 border border-line text-ink-2 text-meta font-medium">
               {MODE_LABEL[modeNom]}
             </span>
           )}
         </span>
         {dateISO && (salleNom || zoeReservee) && (
-          <span className="text-[12px] text-ink-3">
+          <span className="text-body text-ink-2">
             {salleNom && <>salle {salleNom}</>}
             {salleNom && zoeReservee && <> · </>}
             {zoeReservee && <>voiture ZOE</>}
@@ -536,7 +538,7 @@ export function EditeurDate({
         )}
         {/* Collegues associes : prenoms/noms discrets a cote de la date. */}
         {dateISO && collabs.length > 0 && (
-          <span className="text-[12px] text-ink-3">avec {collabs.map((c) => c.nom).join(", ")}</span>
+          <span className="text-body text-ink-2">avec {collabs.map((c) => c.nom).join(", ")}</span>
         )}
       </span>
     );
@@ -550,23 +552,23 @@ export function EditeurDate({
       }}
     >
       <span className="inline-flex items-center gap-1.5 flex-wrap">
-        <input
+        <Input
           type="date"
+          largeur="auto"
           value={dateVal}
           autoFocus
           disabled={pending}
           aria-label={`Date ${quand === "derniere" ? "de la dernière" : "de la prochaine"} ${type === "ag" ? "AG" : "réunion de CS"}`}
           onChange={(e) => setDateVal(e.target.value)}
-          className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
         />
         {avecHeure && (
-          <input
+          <Input
             type="time"
+            largeur="auto"
             value={heureVal}
             disabled={pending || !dateVal}
             aria-label={`Heure de la prochaine ${type === "ag" ? "AG" : "réunion de CS"}`}
             onChange={(e) => setHeureVal(e.target.value)}
-            className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
           />
         )}
         <Button
@@ -609,12 +611,12 @@ export function EditeurDate({
       {avecHeure && agendaCreneau && (
         <span
           className={
-            "inline-flex items-center gap-1 text-[12px] " +
+            "inline-flex items-center gap-1 text-body " +
             (dispoAgendaValeur === "libre"
               ? "text-ok-700"
               : dispoAgendaValeur === "occupee"
                 ? "text-warn-700"
-                : "text-ink-3")
+                : "text-ink-2")
           }
           aria-live="polite"
         >
@@ -633,12 +635,12 @@ export function EditeurDate({
           la salle reste optionnelle meme en visio / hybride. */}
       {avecHeure && (
         <span className="inline-flex items-center gap-2 flex-wrap">
-          <select
+          <Select
+            largeur="auto"
             value={modeVal}
             disabled={pending}
             aria-label="Mode de tenue de la réunion"
             onChange={(e) => setModeVal(e.target.value as ModeReunion | "")}
-            className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
           >
             <option value="">Mode non précisé</option>
             {MODES.map((m) => (
@@ -646,7 +648,7 @@ export function EditeurDate({
                 {m.label}
               </option>
             ))}
-          </select>
+          </Select>
         </span>
       )}
 
@@ -654,12 +656,12 @@ export function EditeurDate({
           agence + case ZOE. La room mailbox auto-accepte si le creneau est libre. */}
       {avecHeure && (
         <span className="inline-flex items-center gap-2 flex-wrap">
-          <select
+          <Select
+            largeur="auto"
             value={salleVal}
             disabled={pending}
             aria-label="Salle de réunion à réserver"
             onChange={(e) => setSalleVal(e.target.value)}
-            className="h-8 px-2 rounded-sm border border-line bg-surface text-[13px] disabled:opacity-50"
           >
             <option value="">Aucune salle</option>
             {sallesAffichees.map((s) => (
@@ -667,43 +669,40 @@ export function EditeurDate({
                 {s.nom}
               </option>
             ))}
-          </select>
+          </Select>
 
           {/* Debordement : revele les salles des autres agences (n'apparait que s'il y en a
               et qu'un filtre est actif). Vrai bouton accessible (aria-expanded). */}
           {sallesAutres.length > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setVoirAutresSalles((v) => !v)}
               aria-expanded={voirAutresSalles}
               disabled={pending}
-              className="text-[12px] text-info-700 hover:underline disabled:opacity-50"
             >
               {voirAutresSalles ? "Masquer les autres agences" : "Voir les autres agences"}
-            </button>
+            </Button>
           )}
 
-          <label className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
-            <input
-              type="checkbox"
-              checked={zoeVal}
-              disabled={pending}
-              onChange={(e) => setZoeVal(e.target.checked)}
-              className="h-3.5 w-3.5"
-            />
-            Réserver la voiture ZOE
-          </label>
+          <Choix
+            type="checkbox"
+            label="Réserver la voiture ZOE"
+            checked={zoeVal}
+            disabled={pending}
+            onChange={(e) => setZoeVal(e.target.checked)}
+          />
 
           {/* Dispo de la ZOE (meme code couleur), a cote de la case. */}
           {dispoZoeCreneau && (
             <span
               className={
-                "inline-flex items-center gap-1 text-[12px] " +
+                "inline-flex items-center gap-1 text-body " +
                 (dispoZoeValeur === "libre"
                   ? "text-ok-700"
                   : dispoZoeValeur === "occupee"
                     ? "text-warn-700"
-                    : "text-ink-3")
+                    : "text-ink-2")
               }
               aria-live="polite"
             >
@@ -722,12 +721,12 @@ export function EditeurDate({
           {dispoCreneau && (
             <span
               className={
-                "inline-flex items-center gap-1 text-[12px] " +
+                "inline-flex items-center gap-1 text-body " +
                 (dispoValeur === "libre"
                   ? "text-ok-700"
                   : dispoValeur === "occupee"
                     ? "text-warn-700"
-                    : "text-ink-3")
+                    : "text-ink-2")
               }
               aria-live="polite"
             >
@@ -748,9 +747,7 @@ export function EditeurDate({
           (il apparait dans son agenda) et sa dispo est verifiee sur le creneau. */}
       {avecHeure && collabList.length > 0 && (
         <span className="inline-flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.5px] text-ink-3">
-            Collaborateurs associés
-          </span>
+          <Eyebrow as="span">Collaborateurs associés</Eyebrow>
           <span className="inline-flex flex-col gap-0.5">
             {collabAffiches.map((c) => {
               const coche = collaborateursVal.includes(c.email);
@@ -758,25 +755,25 @@ export function EditeurDate({
               return (
                 <label
                   key={c.email}
-                  className="inline-flex items-center gap-1.5 text-[13px] text-ink-2"
+                  className="inline-flex items-center gap-1.5 text-body text-ink cursor-pointer"
                 >
                   <input
                     type="checkbox"
                     checked={coche}
                     disabled={pending}
                     onChange={() => toggleCollaborateur(c.email)}
-                    className="h-3.5 w-3.5"
+                    className="accent-green-700 w-3.5 h-3.5"
                   />
                   {c.nom}
                   {coche && agendaCreneau && (
                     <span
                       className={
-                        "text-[12px] " +
+                        "text-body " +
                         (d === "libre"
                           ? "text-ok-700"
                           : d === "occupee"
                             ? "text-warn-700"
-                            : "text-ink-3")
+                            : "text-ink-2")
                       }
                       aria-live="polite"
                     >
@@ -796,22 +793,23 @@ export function EditeurDate({
           {/* Debordement : revele les collegues des autres agences (n'apparait que s'il y
               en a et qu'un filtre est actif). Vrai bouton accessible (aria-expanded). */}
           {collabAutres.length > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start"
               onClick={() => setVoirAutresCollab((v) => !v)}
               aria-expanded={voirAutresCollab}
               disabled={pending}
-              className="self-start text-[12px] text-info-700 hover:underline disabled:opacity-50"
             >
               {voirAutresCollab ? "Masquer les autres agences" : "Voir les autres agences"}
-            </button>
+            </Button>
           )}
         </span>
       )}
 
       {/* Confirmation legere de l'effacement (geste destructif : ca deplanifie). */}
       {confirmeEffacer && (
-        <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
+        <span className="inline-flex items-center gap-1.5 text-body text-ink-2">
           Déplanifier cette date ?
           <Button
             type="button"
@@ -837,23 +835,23 @@ export function EditeurDate({
       {/* SALLE occupee : BLOQUANT DUR (Valider grise) - on ne double-reserve pas une salle. */}
       {blocageSalle && (
         <span
-          className="inline-flex flex-col gap-0.5 text-[12px] text-err-700"
+          className="inline-flex flex-col gap-0.5 text-body text-err-700"
           role="alert"
           aria-live="polite"
         >
           <span className="font-medium">Salle indisponible :</span>
           <span>· {blocageSalle}</span>
-          <span className="text-ink-3">Choisis une autre salle ou un autre créneau.</span>
+          <span className="text-ink-2">Choisis une autre salle ou un autre créneau.</span>
         </span>
       )}
       {/* AGENDA / COLLEGUE occupe : AVERTISSEMENT (ambre), NON bloquant. "Valider" devient
           "Fixer quand meme" : apres accord avec le(s) collegue(s), on fixe la date. */}
       {!blocageSalle && aAvertir && (
-        <span className="inline-flex flex-col gap-0.5 text-[12px] text-warn-700" aria-live="polite">
+        <span className="inline-flex flex-col gap-0.5 text-body text-warn-700" aria-live="polite">
           {avertissements.map((a) => (
             <span key={a}>· {a}</span>
           ))}
-          <span className="text-ink-3">
+          <span className="text-ink-2">
             Après accord avec le(s) collègue(s), tu peux fixer quand même (« Fixer quand même »).
           </span>
         </span>
@@ -861,7 +859,7 @@ export function EditeurDate({
 
       {/* Avertissement non bloquant (date passee/future incoherente). */}
       {avertissement && !erreur && (
-        <span className="text-[11px] text-warn-700">{avertissement}</span>
+        <span className="text-meta text-warn-700">{avertissement}</span>
       )}
       {/* Retroplanning AG : delai trop court pour tenir le CS puis la mise sous pli.
           NON bloquant - une AG serree reste parfois la seule option, c'est le gestionnaire
@@ -870,7 +868,7 @@ export function EditeurDate({
       {delaiAg && !erreur && (
         <span
           className={
-            "inline-flex flex-col gap-0.5 text-[11px] " +
+            "inline-flex flex-col gap-0.5 text-meta " +
             (delaiAg.niveau === "critique" ? "text-err-700" : "text-warn-700")
           }
           aria-live="polite"
@@ -881,21 +879,21 @@ export function EditeurDate({
               ? "la convocation ne peut plus partir dans les temps."
               : "délai court pour tenir le CS puis convoquer."}
           </span>
-          <span className={delaiAg.odjCsDepasse ? undefined : "text-ink-3"}>
+          <span className={delaiAg.odjCsDepasse ? undefined : "text-ink-2"}>
             · ODJ à valider en CS avant le {formatDateLongue(delaiAg.odjCsISO)}
             {delaiAg.odjCsDepasse && " — échéance dépassée"}
           </span>
-          <span className={delaiAg.convocDepassee ? undefined : "text-ink-3"}>
+          <span className={delaiAg.convocDepassee ? undefined : "text-ink-2"}>
             · Mise sous pli avant le {formatDateLongue(delaiAg.convocISO)}
             {delaiAg.convocDepassee && " — échéance dépassée"}
           </span>
-          <span className="text-ink-3">Tu peux fixer cette date quand même.</span>
+          <span className="text-ink-2">Tu peux fixer cette date quand même.</span>
         </span>
       )}
       {/* Erreur d'enregistrement : fini l'echec silencieux. Si l'echec est FORCABLE (agenda /
           collegue occupe cote serveur), on propose "Fixer quand meme" (relance avec forcer). */}
       {erreur && (
-        <span className="inline-flex flex-wrap items-center gap-2 text-[11px] text-err-700" role="alert">
+        <span className="inline-flex flex-wrap items-center gap-2 text-meta text-err-700" role="alert">
           <span>{erreur}</span>
           {forcable && (
             <Button

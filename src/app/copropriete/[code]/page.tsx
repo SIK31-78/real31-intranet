@@ -6,6 +6,7 @@ import { etatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secou
 import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
+import { Page } from "@/components/ui/page";
 
 export const metadata: Metadata = {
   title: "Fiche copropriété - REAL31 Intranet",
@@ -61,14 +62,14 @@ export default async function CoproprietePage({
       active="copros"
       breadcrumb={`Copropriétés · ${fiche.copro.code}`}
     >
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
+      <Page largeur="travail">
         <FicheCoproVue
           fiche={fiche}
           dossiers={dossiers}
           mailActif={mailActif}
           listeSecoursCS={listeSecoursCS}
         />
-      </div>
+      </Page>
     </AppShell>
   );
 }

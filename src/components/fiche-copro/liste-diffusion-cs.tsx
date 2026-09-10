@@ -12,14 +12,23 @@
 //    (le serveur re-valide et deduplique de toute facon : defense en profondeur).
 
 import { useState } from "react";
-import { X, Save, Users, Info, Pencil } from "lucide-react";
+import { X, Save, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CardBody } from "@/components/ui/card";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
 import type { SourceDestinataires } from "@/lib/services/coproprietes/destinataires-conseil";
 import { enregistrerListeSecoursCSAction } from "./liste-diffusion-actions";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const estInterne = (e: string) => e.trim().toLowerCase().endsWith("@real31.fr");
+
+const SOURCE_LABEL: Record<SourceDestinataires, string> = {
+  estale: "Destinataires fournis par ESTALE (source prioritaire)",
+  crypto: "Liste de secours (Crypto/intranet), utilisée pour le mail au conseil",
+  aucune: "Aucune adresse connue pour le conseil",
+};
 
 export function ListeDiffusionCS({
   coproCode,
@@ -78,34 +87,24 @@ export function ListeDiffusionCS({
   }
 
   return (
-    <div className="border-t border-line px-4 py-3">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 flex items-center gap-1.5">
-          <Users strokeWidth={1.5} className="w-3.5 h-3.5" />
-          Liste de diffusion - Conseil syndical
-        </p>
+    <CardBody padding="sm" className="border-t border-line flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <Eyebrow className="flex items-center gap-1.5">
+          <Users strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden />
+          Liste de diffusion — Conseil syndical
+        </Eyebrow>
         {!edit && (
-          <button
-            type="button"
-            onClick={() => setEdit(true)}
-            className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700"
-          >
-            <Pencil strokeWidth={1.5} className="w-3.5 h-3.5" />
+          <Button variant="ghost" size="sm" onClick={() => setEdit(true)}>
+            <Pencil strokeWidth={1.5} />
             Modifier la liste de secours
-          </button>
+          </Button>
         )}
       </div>
 
       {!edit ? (
         // --- LECTURE : les destinataires reels du mail ------------------------------
-        <div>
-          <p className="text-[11.5px] text-ink-3 mb-1.5">
-            {sourceActive === "estale"
-              ? "Destinataires fournis par eStale (source prioritaire)."
-              : sourceActive === "crypto"
-                ? "Liste de secours (Crypto/intranet) - utilisée pour le mail au conseil."
-                : "Aucune adresse connue pour le conseil - à saisir en secours."}
-          </p>
+        <div className="flex flex-col gap-1.5 text-body">
+          <p className="text-ink-2">{SOURCE_LABEL[sourceActive]}</p>
           {destinatairesActifs.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1">
               {/* NOM du membre du conseil quand on le connait, adresse en second (Sekou :
@@ -114,47 +113,26 @@ export function ListeDiffusionCS({
                 <span
                   key={d.email}
                   title={d.email}
-                  className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-surface-3 text-ink-2 text-[11.5px]"
+                  className="inline-flex items-center gap-1.5 h-6 px-2 rounded-sm bg-surface-2 border border-line text-meta"
                 >
                   {d.nom && <span className="font-medium text-ink">{d.nom}</span>}
-                  <span className="truncate max-w-[240px] text-ink-3">{d.email}</span>
+                  <span className="truncate max-w-60 text-ink-2">{d.email}</span>
                 </span>
               ))}
             </div>
           ) : (
-            <p className="text-[12px] text-ink-4">
-              Le mail au conseil n&apos;a pas encore de destinataire. Clique « Modifier la liste de
-              secours » pour en saisir.
-            </p>
+            <p className="text-ink-2">Aucun destinataire : à saisir dans la liste de secours.</p>
           )}
         </div>
       ) : (
         // --- EDITION : la couche de secours (Crypto/intranet) -----------------------
-        <div>
+        <div className="flex flex-col gap-2.5">
           {/* Indicateur de SOURCE ACTIVE, derive de la vraie cascade. */}
-          <div
-            className={`flex items-start gap-2 rounded-md border px-2.5 py-2 mb-2.5 ${
-              estaleFournitEmails
-                ? "border-info-500/30 bg-info-50 text-info-700"
-                : "border-ok-500/30 bg-ok-50 text-ok-700"
-            }`}
-          >
-            <Info strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 mt-px" />
-            <p className="text-[11.5px] leading-relaxed">
-              {estaleFournitEmails ? (
-                <>
-                  Les destinataires du mail viennent d&apos;<b>eStale</b> pour cette copropriété - la
-                  liste ci-dessous ne sert que de <b>secours</b> si eStale n&apos;a plus d&apos;email de
-                  conseil. La modifier ne changera pas le mail tant qu&apos;eStale fournit des adresses.
-                </>
-              ) : (
-                <>
-                  Cette copropriété utilise <b>cette liste de secours</b> pour le mail au conseil (aucun
-                  email de conseil dans eStale). Vos modifications seront <b>utilisées</b> pour le mail.
-                </>
-              )}
-            </p>
-          </div>
+          <Callout ton={estaleFournitEmails ? "info" : "ok"}>
+            {estaleFournitEmails
+              ? "ESTALE fournit les destinataires : cette liste ne sert qu'en secours, la modifier ne change pas le mail."
+              : "Aucun email de conseil dans ESTALE : cette liste de secours est utilisée pour le mail."}
+          </Callout>
 
           {/* Chips editables. */}
           <div className="rounded-md border border-line bg-surface px-2.5 py-2">
@@ -164,17 +142,17 @@ export function ListeDiffusionCS({
                 return (
                   <span
                     key={e}
-                    className={`inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full text-[11.5px] ${
-                      ok ? "bg-surface-3 text-ink-2" : "bg-err-50 text-err-700"
+                    className={`inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-sm border text-meta ${
+                      ok ? "bg-surface-2 border-line text-ink-2" : "bg-err-50 border-err-500/30 text-err-700"
                     }`}
                     title={ok ? undefined : estInterne(e) ? "Adresse interne REAL31 (exclue)" : "Adresse invalide"}
                   >
-                    <span className="truncate max-w-[220px]">{e}</span>
+                    <span className="truncate max-w-56">{e}</span>
                     <button
                       type="button"
                       onClick={() => setEmails(emails.filter((x) => x !== e))}
                       aria-label={`Retirer ${e}`}
-                      className="text-ink-4 hover:text-err-700"
+                      className="text-ink-3 hover:text-err-700 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                     >
                       <X strokeWidth={2} className="w-3 h-3" />
                     </button>
@@ -194,28 +172,27 @@ export function ListeDiffusionCS({
                 placeholder="ajouter une adresse…"
                 aria-label="Ajouter une adresse à la liste de secours"
                 autoFocus
-                className="flex-1 min-w-[140px] h-6 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-4"
+                className="flex-1 min-w-36 h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
               />
             </div>
           </div>
 
-          <div className="mt-2.5 flex items-center justify-between gap-3">
-            <p className="text-[11px] text-ink-4">
-              {emails.length} adresse{emails.length > 1 ? "s" : ""} de secours. Les adresses internes
-              @real31.fr sont exclues.
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-meta text-ink-2 tabular-nums">
+              {emails.length} adresse{emails.length > 1 ? "s" : ""} de secours · les adresses @real31.fr sont exclues
             </p>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="ghost" onClick={annuler} disabled={enregistre}>
                 Annuler
               </Button>
-              <Button size="sm" variant="secondary" onClick={enregistrer} disabled={enregistre}>
+              <Button size="sm" variant="secondary" onClick={enregistrer} loading={enregistre}>
                 <Save strokeWidth={1.5} />
-                {enregistre ? "Enregistrement…" : "Enregistrer"}
+                Enregistrer
               </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </CardBody>
   );
 }

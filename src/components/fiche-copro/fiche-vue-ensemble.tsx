@@ -1,14 +1,4 @@
-import Link from "next/link";
-import {
-  Flag,
-  History,
-  CircleCheck,
-  AlertCircle,
-  AlertTriangle,
-  ArrowRight,
-  Route,
-  Users,
-} from "lucide-react";
+import { ArrowRight, CircleCheck, AlertCircle, Flag, History, Route, Users } from "lucide-react";
 import type {
   AgPassee,
   Copropriete,
@@ -22,9 +12,16 @@ import type {
 } from "@/lib/domain/copropriete";
 import type { CycleAg } from "@/lib/domain/cycle-ag";
 import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { Callout } from "@/components/ui/callout";
+import { ButtonLink } from "@/components/ui/button";
+import { DataList, DataRow } from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { FriseEtapes } from "@/components/parcours/frise-etapes";
+import { actionPrincipaleEcran } from "@/components/parcours/action-principale";
 import { formatDateLongue } from "@/lib/format-date";
 import { EditeurDate } from "./editeur-date";
 import { ActionCycleFiche } from "./action-cycle-fiche";
@@ -66,7 +63,12 @@ export function FicheVueEnsemble({
     fiche.cycle?.actionDuMoment?.href.startsWith("/supervision-ag/") ?? false;
   return (
     <div className="flex flex-col gap-5">
-      {indispo && <BanniereEstaleIndispo />}
+      {indispo && (
+        <Callout ton="warn" titre="Données ESTALE temporairement indisponibles">
+          le référentiel reste affiché ; rechargez la page dans un instant pour retrouver le conseil
+          syndical, l&apos;historique et la conformité.
+        </Callout>
+      )}
       {fiche.cycle && (
         <BlocParcours
           cycle={fiche.cycle}
@@ -74,8 +76,8 @@ export function FicheVueEnsemble({
           derniereAgDate={fiche.copro.derniereAgDate}
         />
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
-        <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5 items-start">
+        <div className="flex flex-col gap-5 min-w-0">
           <BlocAg
             coproCode={fiche.copro.code}
             derniere={fiche.derniereAg}
@@ -109,20 +111,23 @@ export function FicheVueEnsemble({
           <HistoriqueAg historique={fiche.historique} />
         </div>
 
-        <div className="flex flex-col gap-3">
-          <SideIdentite copro={fiche.copro} />
-          <SideEquipe equipe={fiche.copro.equipe} />
-          <SideConseil membres={fiche.estale.conseilSyndical} indisponible={indispo} />
-          <SideConformite items={fiche.conformite} indisponible={indispo} />
-        </div>
+        {/* Colonne laterale : UNE carte, quatre blocs separes par une hairline. */}
+        <Card>
+          <div className="divide-y divide-line">
+            <SideIdentite copro={fiche.copro} />
+            <SideEquipe equipe={fiche.copro.equipe} />
+            <SideConseil membres={fiche.estale.conseilSyndical} indisponible={indispo} />
+            <SideConformite items={fiche.conformite} indisponible={indispo} />
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
 
 // --- Cycle AG (ou en est cette copro + action DU MOMENT) -------------------
-// Stepper migre sur LA source unique (domain/cycle-ag, refonte S2.A) : il n'affiche
-// QUE l'action du moment, pilotee par l'etat. Plus de bouton a contre-temps.
+// LE bloc dominant de la fiche : la frise et le SEUL bouton primaire de la page. Migre
+// sur LA source unique (domain/cycle-ag, refonte S2.A) via actionPrincipaleEcran.
 
 function BlocParcours({
   cycle,
@@ -134,75 +139,50 @@ function BlocParcours({
   /** Date de la derniere AG tenue : porte vers sa supervision archivee quand le cycle est clos. */
   derniereAgDate?: string;
 }) {
-  const action = cycle.actionDuMoment;
+  const action = actionPrincipaleEcran(cycle, "fiche", { coproCode });
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <Route strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+        <CardTitle>
+          <Route strokeWidth={1.5} />
           Où en est cette AG
         </CardTitle>
         {cycle.echeance && (
-          <span
-            className="inline-flex items-center"
+          <Badge
+            ton={cycle.enRetard ? "err" : cycle.echeance.startsWith("J-") ? "outline" : "warn"}
+            dot={Boolean(cycle.enRetard)}
             title={`Échéance de l'étape en cours${cycle.enRetard ? " (en retard)" : ""}`}
           >
-            <Badge
-              ton={cycle.enRetard ? "err" : cycle.echeance.startsWith("J-") ? "outline" : "warn"}
-              className="font-mono"
-              dot={Boolean(cycle.enRetard)}
-            >
-              {cycle.echeance}
-            </Badge>
-          </span>
+            {cycle.echeance}
+          </Badge>
         )}
       </CardHeader>
-      <div className="px-4 py-3.5">
+      <CardBody className="flex flex-col gap-3">
         <FriseEtapes etapes={cycle.etapes} />
-        <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           {action ? (
             <>
-              <p className="text-[12px] text-ink-3">
-                Action du moment : <span className="text-ink-2">{action.action}</span>
+              <p className="text-body text-ink-2">
+                Action du moment : <span className="text-ink font-medium">{cycle.actionDuMoment?.action}</span>
               </p>
               <ActionCycleFiche action={action} coproCode={coproCode} />
             </>
           ) : (
             <>
-              <p className="text-[12px] text-ink-3">
-                Cycle terminé pour cet exercice — rien à faire avant la prochaine clôture.
-              </p>
+              <p className="text-body text-ink-2">Cycle terminé pour cet exercice — rien à faire avant la prochaine clôture.</p>
               {/* Le cycle clos ne doit pas etre une impasse : la supervision de l'AG
                   conclue reste consultable (checklist, commentaires, visa). */}
               {derniereAgDate && (
-                <Link
-                  href={`/supervision-ag/${coproCode}__${derniereAgDate.slice(0, 10)}`}
-                  className="inline-flex items-center gap-1 text-[12px] text-info-700 hover:underline shrink-0"
-                >
+                <ButtonLink href={`/supervision-ag/${coproCode}__${derniereAgDate.slice(0, 10)}`} variant="ghost" size="sm">
                   Revoir la supervision de cette AG
-                  <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-                </Link>
+                  <ArrowRight strokeWidth={1.5} />
+                </ButtonLink>
               )}
             </>
           )}
         </div>
-      </div>
+      </CardBody>
     </Card>
-  );
-}
-
-// --- Banniere Estale indisponible (panne passagere) -----------------------
-
-function BanniereEstaleIndispo() {
-  return (
-    <div className="flex items-start gap-2.5 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
-      <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
-      <p className="text-[12.5px] text-warn-700">
-        Données Estale temporairement indisponibles (panne passagère du service). Le
-        référentiel reste affiché ; rechargez la page dans un instant pour retrouver le
-        conseil syndical, l&apos;historique et la conformité.
-      </p>
-    </div>
   );
 }
 
@@ -266,51 +246,41 @@ function BlocAg({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <Flag strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+        <CardTitle>
+          <Flag strokeWidth={1.5} />
           Assemblées générales
         </CardTitle>
         {/* En-tete SANS bouton de cycle (refonte S2.A.1) : les CTA ODJ / Supervision qui
             s'affichaient quand il n'y avait PAS de date (le pire moment) sont supprimes.
             L'action legitime est pilotee par l'etat dans le stepper "Ou en est cette AG". */}
-        <div className="flex items-center gap-2">
-          {agAJour?.etat === "ok" && <Badge ton="ok" dot>À jour</Badge>}
-        </div>
+        {agAJour?.etat === "ok" && <Badge ton="ok" dot>À jour</Badge>}
       </CardHeader>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
-        <div className="p-4">
-          <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">
-            Dernière AG tenue
-          </p>
+        <CardBody padding="sm" className="flex flex-col gap-1.5">
+          <Eyebrow>Dernière AG tenue</Eyebrow>
           <EditeurDate coproCode={coproCode} type="ag" quand="derniere" dateISO={derniereAgDate} />
           {derniere && (
-            <>
-              <p className="mt-1.5 text-[12px] text-ink-3">
-                {/* Date intranet absente mais eStale connait une AG (ex. PV signe hors cycle
-                    intranet) : on montre la date eStale pour ne pas laisser "PV disponible"
-                    orphelin sous "Non renseignée". */}
-                {!derniereAgDate && derniere.date && (
-                  <span className="text-ink-2">Connue via eStale : {formatDateLongue(derniere.date)} · </span>
-                )}
-                {derniere.type === "AGE" ? "AGE" : "AG ordinaire"}
-                {derniere.presents != null
-                  ? ` · ${derniere.presents} présents/représentés sur ${derniere.total}`
-                  : ""}
-              </p>
-              {derniere.pvDispo && (
-                <div className="mt-2">
-                  <Badge ton="outline">PV disponible</Badge>
-                </div>
+            <p className="text-body text-ink-2 flex items-center gap-2 flex-wrap">
+              {/* Date intranet absente mais eStale connait une AG (ex. PV signe hors cycle
+                  intranet) : on montre la date eStale pour ne pas laisser "PV disponible"
+                  orphelin sous "Non renseignee". */}
+              {!derniereAgDate && derniere.date && (
+                <span>Connue via ESTALE : {formatDateLongue(derniere.date)} ·</span>
               )}
-            </>
+              <span>
+                {derniere.type === "AGE" ? "AGE" : "AG ordinaire"}
+                {derniere.presents != null ? ` · ${derniere.presents} présents/représentés sur ${derniere.total}` : ""}
+              </span>
+              {derniere.pvDispo && <Badge ton="outline">PV disponible</Badge>}
+            </p>
           )}
-        </div>
+        </CardBody>
 
         {/* Ancre #dates-ag : cible du scroll + focus clavier du bouton "Fixer" du stepper
             (S2.A.4). Fixer les dates se joue ICI (les crayons), pas via un lien circulaire. */}
-        <div id="dates-ag" className="p-4">
-          <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-1">Prochaine AG</p>
+        <CardBody padding="sm" id="dates-ag" className="flex flex-col gap-1.5">
+          <Eyebrow>Prochaine AG</Eyebrow>
           <div className="flex items-center gap-2 flex-wrap">
             <EditeurDate
               coproCode={coproCode}
@@ -330,43 +300,40 @@ function BlocAg({
             )}
           </div>
           {prochaine && (
-            <>
-              <p className="mt-1.5 text-[12px] text-ink-3">{STATUT_AG_LABEL[prochaine.statut]}</p>
+            <div className="flex items-center gap-2 flex-wrap text-body text-ink-2">
+              <Badge ton="neutral">{STATUT_AG_LABEL[prochaine.statut]}</Badge>
               {prochaine.alerte && (
-                <p className="mt-1 text-[12px] text-warn-700 flex items-center gap-1">
-                  <AlertCircle strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+                <span className="inline-flex items-center gap-1 text-warn-700">
+                  <AlertCircle strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
                   {prochaine.alerte}
-                </p>
+                </span>
               )}
               {/* Lien canonique unique vers la supervision (libelle "Ouvrir la supervision
                   AG"). Masque quand le stepper renvoie DEJA la (pas de doublon, S2.A.3). */}
               {prochaine.supervisionId && !masquerLienSupervision && (
-                <Link
-                  href={`/supervision-ag/${prochaine.supervisionId}`}
-                  className="mt-2 inline-flex items-center gap-1 text-[12px] text-info-700 hover:underline"
-                >
+                <ButtonLink href={`/supervision-ag/${prochaine.supervisionId}`} variant="ghost" size="sm">
                   Ouvrir la supervision AG
-                  <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-                </Link>
+                  <ArrowRight strokeWidth={1.5} />
+                </ButtonLink>
               )}
-            </>
+            </div>
           )}
-        </div>
+        </CardBody>
       </div>
 
       {/* Conseil syndical : prepare l'AG -> rattache au meme bloc (compact). */}
-      <div className="border-t border-line px-4 py-3">
-        <p className="text-[11px] uppercase tracking-[0.5px] text-ink-3 mb-2 flex items-center gap-1.5">
-          <Users strokeWidth={1.5} className="w-3.5 h-3.5" />
+      <CardBody padding="sm" className="border-t border-line flex flex-col gap-2">
+        <Eyebrow className="flex items-center gap-1.5">
+          <Users strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden />
           Conseil syndical
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        </Eyebrow>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-body">
           <div className="flex items-baseline gap-2">
-            <span className="text-[12px] text-ink-3 shrink-0">Dernier CS :</span>
+            <span className="text-ink-2 shrink-0">Dernier CS :</span>
             <EditeurDate coproCode={coproCode} type="cs" quand="derniere" dateISO={derniereCs} />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-[12px] text-ink-3 shrink-0">Prochain CS :</span>
+            <span className="text-ink-2 shrink-0">Prochain CS :</span>
             <span className="inline-flex items-center gap-2 flex-wrap">
               <EditeurDate
                 coproCode={coproCode}
@@ -395,11 +362,11 @@ function BlocAg({
             verbatim cabinet). Pre-rempli -> relu -> envoye sur clic. Grise tant que le
             mail n'est pas active pour ce compte. */}
         {auMoinsUneDate && (
-          <div className="mt-3 flex justify-end">
+          <div className="flex justify-end">
             <MailReunionBouton coproCode={coproCode} actif={mailActif} />
           </div>
         )}
-      </div>
+      </CardBody>
 
       {/* Liste de diffusion CS (secours) editable : rend modifiable la couche Crypto/intranet
           des destinataires. eStale reste prioritaire -> l'indicateur de source (dans le
@@ -423,87 +390,88 @@ function HistoriqueAg({ historique }: { historique: AgPassee[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <History strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
+        <CardTitle>
+          <History strokeWidth={1.5} />
           Historique des AG
         </CardTitle>
+        <span className="text-body text-ink-2 tabular-nums">{historique.length}</span>
       </CardHeader>
-
       {historique.length === 0 ? (
-        <p className="px-4 py-6 text-[13px] text-ink-3">
-          Aucune AG enregistrée.
-        </p>
+        <CardBody padding="sm">
+          <EmptyState compact icone={History}>Aucune AG</EmptyState>
+        </CardBody>
       ) : (
-        <ul className="divide-y divide-line">
-          {historique.map((ag) => (
-            <li key={ag.date} className="flex items-center gap-3 px-4 py-2.5 text-[13px]">
-              <span className="font-medium text-ink shrink-0">{formatDateLongue(ag.date)}</span>
-              <span className="text-ink-3 flex-1 truncate">
-                {ag.type === "AGE" ? "AGE" : "AG ordinaire"}
-                {ag.libelle ? ` · ${ag.libelle}` : ""}
-                {ag.presents != null ? ` · ${ag.presents}/${ag.total}` : ""}
-              </span>
-              {ag.pvDispo && <Badge ton="outline" className="shrink-0">PV</Badge>}
-            </li>
-          ))}
-        </ul>
+        <Table encadre={false}>
+          <Thead>
+            <tr>
+              <Th>Date</Th>
+              <Th>Type</Th>
+              <Th numeric>Présents</Th>
+              <Th numeric>PV</Th>
+            </tr>
+          </Thead>
+          <Tbody>
+            {historique.map((ag) => (
+              <Tr key={ag.date}>
+                <Td principal>{formatDateLongue(ag.date)}</Td>
+                <Td secondaire>
+                  {ag.type === "AGE" ? "AGE" : "AG ordinaire"}
+                  {ag.libelle ? ` · ${ag.libelle}` : ""}
+                </Td>
+                <Td numeric secondaire>{ag.presents != null ? `${ag.presents}/${ag.total}` : "—"}</Td>
+                <Td numeric>{ag.pvDispo && <Badge ton="outline">PV</Badge>}</Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
       )}
     </Card>
   );
 }
 
-// --- Sidebar --------------------------------------------------------------
+// --- Colonne laterale -----------------------------------------------------
 
-function SideBox({ titre, children }: { titre: string; children: React.ReactNode }) {
+function SideBloc({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
-    <div className="bg-surface border border-line rounded-md p-3.5">
-      <h4 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 mb-2.5">
-        {titre}
-      </h4>
+    <CardBody padding="sm" className="flex flex-col gap-1.5">
+      <Eyebrow as="h4">{titre}</Eyebrow>
       {children}
-    </div>
-  );
-}
-
-function SideRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2 py-1 text-[12.5px]">
-      <span className="text-ink-3">{label}</span>
-      <span className="text-ink font-medium text-right">{value}</span>
-    </div>
+    </CardBody>
   );
 }
 
 function SideIdentite({ copro }: { copro: Copropriete }) {
   return (
-    <SideBox titre="Identité">
-      <SideRow label="Code" value={copro.code} />
-      <SideRow label="Statut" value={copro.statut === "active" ? "Active" : "Inactive"} />
-      <SideRow label="Lots principaux" value={String(copro.lotsPrincipaux)} />
-      {copro.lotsAutres > 0 && <SideRow label="Autres lots" value={String(copro.lotsAutres)} />}
-      <SideRow label="Exercice" value={`${copro.exercice.debut} -> ${copro.exercice.fin}`} />
-      <SideRow label="Prise en gestion" value={copro.priseEnGestion} />
-    </SideBox>
+    <SideBloc titre="Identité">
+      <DataList>
+        <DataRow label="Code"><span className="font-mono">{copro.code}</span></DataRow>
+        <DataRow label="Statut">{copro.statut === "active" ? "Active" : "Inactive"}</DataRow>
+        <DataRow label="Lots principaux">{copro.lotsPrincipaux}</DataRow>
+        {copro.lotsAutres > 0 && <DataRow label="Autres lots">{copro.lotsAutres}</DataRow>}
+        <DataRow label="Exercice">
+          <span className="tabular-nums">{copro.exercice.debut} → {copro.exercice.fin}</span>
+        </DataRow>
+        <DataRow label="Prise en gestion"><span className="tabular-nums">{copro.priseEnGestion}</span></DataRow>
+      </DataList>
+    </SideBloc>
   );
 }
 
 function SideEquipe({ equipe }: { equipe: MembreEquipe[] }) {
   return (
-    <SideBox titre="Équipe">
-      <div className="flex flex-col gap-2">
+    <SideBloc titre="Équipe">
+      <ul className="flex flex-col">
         {equipe.map((m, i) => (
-          <div key={`${m.initiales}-${i}`} className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-surface-2 text-ink-2 text-[11px] font-medium flex items-center justify-center shrink-0">
+          <li key={`${m.initiales}-${i}`} className="flex items-center gap-2 min-h-8 text-body">
+            <span className="w-6 h-6 rounded-full bg-surface-2 text-ink-2 text-meta font-medium flex items-center justify-center shrink-0">
               {m.initiales}
             </span>
-            <div className="min-w-0">
-              <p className="text-[13px] font-medium text-ink truncate">{m.nomComplet}</p>
-              <p className="text-[11px] text-ink-3">{ROLE_LABEL[m.role]}</p>
-            </div>
-          </div>
+            <span className="font-medium text-ink truncate">{m.nomComplet}</span>
+            <span className="text-ink-2 ml-auto shrink-0">{ROLE_LABEL[m.role]}</span>
+          </li>
         ))}
-      </div>
-    </SideBox>
+      </ul>
+    </SideBloc>
   );
 }
 
@@ -515,31 +483,29 @@ function SideConseil({
   indisponible?: boolean;
 }) {
   return (
-    <SideBox titre="Conseil Syndical">
+    <SideBloc titre="Conseil syndical">
       {membres.length === 0 ? (
-        <p className="text-[12px] text-ink-3">
-          {indisponible ? "Estale temporairement indisponible." : "Donnée Estale - non disponible."}
-        </p>
+        <EmptyState compact>{indisponible ? "ESTALE temporairement indisponible" : "Donnée ESTALE non disponible"}</EmptyState>
       ) : (
-        <div className="text-[12.5px]">
+        <ul className="flex flex-col text-body">
           {membres.map((m) => (
-            <div key={m.nomComplet} className="py-0.5">
+            <li key={m.nomComplet} className="min-h-7 flex items-center gap-1.5">
               <span className="font-medium text-ink">{m.nomComplet}</span>
-              {m.role === "president" && <span className="text-ink-3"> (président·e)</span>}
-            </div>
+              {m.role === "president" && <span className="text-ink-2">(président·e)</span>}
+            </li>
           ))}
           {/* Echeance des mandats CS retiree (Sekou 2026-07-28) : la duree d'election du
               conseil n'interesse pas le gestionnaire sur la fiche. */}
-        </div>
+        </ul>
       )}
-    </SideBox>
+    </SideBloc>
   );
 }
 
-const CONFORMITE_STYLE: Record<EtatConformite, { className: string }> = {
-  ok: { className: "text-ok-700" },
-  attention: { className: "text-warn-700" },
-  ko: { className: "text-err-700" },
+const CONFORMITE_STYLE: Record<EtatConformite, string> = {
+  ok: "text-ok-700",
+  attention: "text-warn-700",
+  ko: "text-err-700",
 };
 
 function SideConformite({
@@ -550,29 +516,22 @@ function SideConformite({
   indisponible?: boolean;
 }) {
   return (
-    <SideBox titre="Conformité">
+    <SideBloc titre="Conformité">
       {items.length === 0 ? (
-        <p className="text-[12px] text-ink-3">
-          {indisponible ? "Estale temporairement indisponible." : "Donnée Estale - non disponible."}
-        </p>
+        <EmptyState compact>{indisponible ? "ESTALE temporairement indisponible" : "Donnée ESTALE non disponible"}</EmptyState>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <ul className="flex flex-col text-body">
           {items.map((item) => {
             const Icone = item.etat === "ok" ? CircleCheck : AlertCircle;
             return (
-              <div key={item.libelle} className="flex items-center gap-2 text-[12.5px]">
-                <Icone
-                  strokeWidth={1.5}
-                  className={`w-4 h-4 shrink-0 ${CONFORMITE_STYLE[item.etat].className}`}
-                />
-                <span className={item.etat === "ok" ? "text-ink" : CONFORMITE_STYLE[item.etat].className}>
-                  {item.libelle}
-                </span>
-              </div>
+              <li key={item.libelle} className="flex items-center gap-2 min-h-7">
+                <Icone strokeWidth={1.5} className={`w-4 h-4 shrink-0 ${CONFORMITE_STYLE[item.etat]}`} aria-hidden />
+                <span className={item.etat === "ok" ? "text-ink" : CONFORMITE_STYLE[item.etat]}>{item.libelle}</span>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
-    </SideBox>
+    </SideBloc>
   );
 }

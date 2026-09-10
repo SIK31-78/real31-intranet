@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
 import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 import { confirmerEvenementAction } from "./dates-actions";
 
@@ -56,22 +57,22 @@ export function ConfirmationEvenement({
       <Badge ton="warn">À confirmer</Badge>
       {/* CS uniquement : l'heure de fin reelle. Une AG n'est pas facturee au temps passe. */}
       {type === "CS" && (
-        <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-3">
+        <label className="inline-flex items-center gap-1.5 text-body text-ink-2">
           fin
-          <input
+          <Input
             type="time"
+            largeur="auto"
             value={heureFin}
             disabled={pending}
             aria-label="Heure de fin réelle du conseil syndical"
             onChange={(e) => setHeureFin(e.target.value)}
-            className="h-7 px-1.5 rounded-sm border border-line bg-surface text-[12px] text-ink disabled:opacity-50"
             title="Heure de fin réelle : pré-remplira la facturation des honoraires CS"
           />
         </label>
       )}
       <Button
         size="sm"
-        disabled={pending}
+        loading={pending}
         title="Le conseil syndical a validé la date (retour de mail)"
         onClick={() => {
           setErreur(null);
@@ -88,7 +89,7 @@ export function ConfirmationEvenement({
       >
         Confirmer
       </Button>
-      {erreur && <span className="text-[11px] text-err-700">{erreur}</span>}
+      {erreur && <span className="text-meta text-err-700" role="alert">{erreur}</span>}
     </span>
   );
 }

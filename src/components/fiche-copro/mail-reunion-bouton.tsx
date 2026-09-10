@@ -6,9 +6,11 @@
 // d'envoi automatique. Les primitives du design system sont reutilisees (Button, toasts,
 // confirmation). Grise ("à venir") tant que le mail n'est pas active pour ce compte.
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Mail, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
+import { Field, Input, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { preparerMailReunionAction, envoyerMailReunionAction } from "./mail-reunion-actions";
@@ -91,7 +93,8 @@ export function MailReunionBouton({
       <Button
         size="sm"
         variant="secondary"
-        disabled={!actif || prep}
+        disabled={!actif}
+        loading={prep}
         title={
           actif
             ? "Composer un mail d'information au conseil syndical (relecture avant envoi)"
@@ -100,7 +103,7 @@ export function MailReunionBouton({
         onClick={ouvrir}
       >
         <Mail strokeWidth={1.5} />
-        {prep ? "Préparation…" : "Préparer le mail au CS (dates CS/AG)"}
+        Préparer le mail au CS (dates CS/AG)
       </Button>
 
       {ouvert && (
@@ -150,43 +153,16 @@ function ModaleComposition({
   onFermer: () => void;
   onEnvoyer: () => void;
 }) {
-  const titreId = useId();
-  useEffect(() => {
-    function onKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape" && !envoiEnCours) onFermer();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [envoiEnCours, onFermer]);
-
+  // Pas de fermeture (Escape, fond, croix) pendant l'envoi.
+  const fermer = () => {
+    if (!envoiEnCours) onFermer();
+  };
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-6"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titreId}
-    >
-      <div className="absolute inset-0 bg-black/30" onClick={() => !envoiEnCours && onFermer()} />
-      <div className="relative w-full max-w-[560px] max-h-full overflow-y-auto rounded-lg border border-line bg-surface shadow-xl">
-        <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <h2 id={titreId} className="text-[14px] font-medium text-ink flex items-center gap-1.5">
-            <Mail strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
-            Mail au conseil syndical
-          </h2>
-          <button
-            type="button"
-            onClick={onFermer}
-            disabled={envoiEnCours}
-            aria-label="Fermer"
-            className="text-ink-4 hover:text-ink disabled:opacity-50"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-4 py-3 flex flex-col gap-3">
+    <Modal titre="Mail au conseil syndical" onFermer={fermer} size="md">
+      <ModalBody>
+        <div className="flex flex-col gap-3">
           {source && (
-            <p className="text-[11.5px] text-ink-3">
+            <p className="text-body text-ink-2">
               {SOURCE_LABEL[source]}. Relisez et modifiez avant d&apos;envoyer.
             </p>
           )}
@@ -196,40 +172,31 @@ function ModaleComposition({
             <LigneDest label="Cc" valeurs={cc} onChange={onCc} />
           </div>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-medium text-ink-3">Objet</span>
-            <input
-              value={sujet}
-              onChange={(e) => onSujet(e.target.value)}
-              className="h-8 rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-            />
-          </label>
+          <Field label="Objet" htmlFor="mail-cs-objet">
+            <Input id="mail-cs-objet" value={sujet} onChange={(e) => onSujet(e.target.value)} />
+          </Field>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-medium text-ink-3">Message</span>
-            <textarea
+          <Field label="Message" htmlFor="mail-cs-corps" hint="La signature est ajoutée automatiquement à l'envoi.">
+            <Textarea
+              id="mail-cs-corps"
               value={corps}
               onChange={(e) => onCorps(e.target.value)}
               rows={11}
-              className="rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] leading-relaxed text-ink outline-none resize-y focus-visible:ring-2 focus-visible:ring-green-600"
+              className="resize-y"
             />
-          </label>
-          <p className="text-[11px] text-ink-4">
-            La signature est ajoutée automatiquement à l&apos;envoi.
-          </p>
+          </Field>
         </div>
-
-        <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-          <Button variant="ghost" size="sm" onClick={onFermer} disabled={envoiEnCours}>
-            Annuler
-          </Button>
-          <Button variant="primary" size="sm" onClick={onEnvoyer} disabled={envoiEnCours}>
-            <Send strokeWidth={1.5} />
-            {envoiEnCours ? "Envoi…" : "Envoyer"}
-          </Button>
-        </div>
-      </div>
-    </div>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="ghost" onClick={onFermer} disabled={envoiEnCours}>
+          Annuler
+        </Button>
+        <Button variant="primary" onClick={onEnvoyer} loading={envoiEnCours}>
+          <Send strokeWidth={1.5} />
+          Envoyer
+        </Button>
+      </ModalFooter>
+    </Modal>
   );
 }
 
@@ -250,25 +217,25 @@ function LigneDest({
     setSaisie("");
   };
   return (
-    <div className="flex items-start gap-2 min-h-[24px]">
-      <span className="w-7 shrink-0 pt-1 text-[11px] font-medium text-ink-3">{label}</span>
+    <div className="flex items-start gap-2 min-h-6">
+      <span className="w-7 shrink-0 pt-1 text-meta font-medium text-ink-2">{label}</span>
       <div className="flex-1 flex flex-wrap items-center gap-1">
         {valeurs.map((e) => {
           const valide = EMAIL_RE.test(e);
           return (
             <span
               key={e}
-              className={`inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full text-[11.5px] ${
-                valide ? "bg-surface-3 text-ink-2" : "bg-err-50 text-err-700"
+              className={`inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-sm border text-meta ${
+                valide ? "bg-surface-2 border-line text-ink-2" : "bg-err-50 border-err-500/30 text-err-700"
               }`}
               title={valide ? undefined : "Adresse invalide"}
             >
-              <span className="truncate max-w-[220px]">{e}</span>
+              <span className="truncate max-w-56">{e}</span>
               <button
                 type="button"
                 onClick={() => onChange(valeurs.filter((x) => x !== e))}
                 aria-label={`Retirer ${e}`}
-                className="text-ink-4 hover:text-err-700"
+                className="text-ink-3 hover:text-err-700 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
               >
                 <X strokeWidth={2} className="w-3 h-3" />
               </button>
@@ -286,7 +253,7 @@ function LigneDest({
           }}
           onBlur={ajouter}
           placeholder="ajouter une adresse…"
-          className="flex-1 min-w-[120px] h-6 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-4"
+          className="flex-1 min-w-32 h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
         />
       </div>
     </div>
