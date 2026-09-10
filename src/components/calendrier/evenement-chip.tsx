@@ -3,12 +3,20 @@ import { cn } from "@/lib/cn";
 import { Badge, tonDeSeverite } from "@/components/ui/badge";
 import type { Evenement, TypeEvenement, StatutEvenement } from "@/lib/domain/calendrier";
 
-// Couleur portee par le type d'evenement (brand pour AG, ambre pour AGE, bleu pour CS).
+// La couleur porte la CONFIRMATION par le conseil syndical, pas le type (Sekou
+// 2026-09-10) : une date proposee est OCRE tant que le conseil ne l'a pas validee,
+// elle passe au vert une fois confirmee. Une date sans statut de confirmation (AG
+// passee, evenement non soumis au conseil) garde une couleur neutre par type.
 const TYPE_STYLE: Record<TypeEvenement, string> = {
-  AG: "bg-green-50 text-green-700 border-green-200",
-  AGE: "bg-warn-50 text-warn-700 border-warn-500/30",
+  AG: "bg-surface-2 text-ink-2 border-line",
+  AGE: "bg-surface-2 text-ink-2 border-line",
   CS: "bg-info-50 text-info-700 border-info-500/30",
 };
+
+const CONFIRMATION_STYLE = {
+  a_confirmer: "bg-warn-50 text-warn-700 border-warn-500/40",
+  confirme: "bg-ok-50 text-ok-700 border-ok-500/40",
+} as const;
 
 const STATUT_STYLE: Record<StatutEvenement, string> = {
   planifiee: "",
@@ -43,9 +51,12 @@ export function EvenementChip({ evenement, taille = "md", className }: Evenement
   const classes = cn(
     "flex items-center gap-1 rounded-sm border transition-colors duration-120",
     small ? "h-5 px-1 text-meta" : "h-6 px-1.5 text-body gap-1.5",
-    TYPE_STYLE[type],
+    // La confirmation prime sur le type : ocre a confirmer, vert confirme.
+    confirmation === "a_confirmer" || confirmation === "confirme"
+      ? CONFIRMATION_STYLE[confirmation]
+      : TYPE_STYLE[type],
     STATUT_STYLE[statut],
-    // Date pas encore confirmee par le CS : bordure pointillee, sobre.
+    // Date pas encore confirmee par le CS : bordure pointillee en plus de l'ocre.
     confirmation === "a_confirmer" && "border-dashed",
     "cursor-pointer hover:brightness-[0.97]",
     className,

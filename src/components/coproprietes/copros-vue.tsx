@@ -1,7 +1,9 @@
 "use client";
 
 // Pilotage du portefeuille : bascule Liste / Pipeline (kanban par etat du cycle AG).
-// Filtres source / etat / exercice. Decision Sekou 2026-06-22 (cockpit).
+// Filtres etat / exercice. Decision Sekou 2026-06-22 (cockpit) ; le filtre SOURCE
+// (Crypto / ESTALE) a ete retire le 2026-09-10 : la source est une affaire de
+// plomberie interne, pas un critere de travail du gestionnaire.
 //
 // Refonte 2026-09 : la liste est un tableau dense (36 px), le kanban des lignes
 // compactes sans badge de source repete 249 fois, la bascule de vue et les filtres
@@ -22,7 +24,6 @@ import { Rows, Row } from "@/components/ui/list-rows";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Aide } from "@/components/ui/aide";
 import { useToast } from "@/components/ui/toast";
-import { libelleSource } from "@/lib/domain/copropriete";
 import { ETAT_CYCLE_LABEL, ETAT_CYCLE_ORDRE, type EtatCycle } from "@/lib/domain/etat-cycle-ag";
 import type { CoproPilotage } from "@/lib/services/coproprietes/get-copros-pilotage";
 import { prendreEnMainAction, prendreEnMainLotAction } from "@/app/copropriete/actions";
@@ -58,7 +59,6 @@ export function CoprosVue({
 }) {
   const [vue, setVue] = useState<Vue>(etatInitial ? "liste" : "pipeline");
   const [q, setQ] = useState("");
-  const [source, setSource] = useState<"all" | "crypto" | "estale">("all");
   const [etat, setEtat] = useState<"all" | EtatCycle>(etatInitial ?? "all");
   const [cloture, setCloture] = useState("");
   const [pending, startTransition] = useTransition();
@@ -86,7 +86,6 @@ export function CoprosVue({
   const filtrees = useMemo(() => {
     const terme = q.trim().toLowerCase();
     return actives.filter((c) => {
-      if (source !== "all" && c.source !== source) return false;
       if (etat !== "all" && c.etat !== etat) return false;
       if (cloture && c.exerciceCloture !== cloture) return false;
       if (
@@ -100,7 +99,7 @@ export function CoprosVue({
         return false;
       return true;
     });
-  }, [actives, q, source, etat, cloture]);
+  }, [actives, q, etat, cloture]);
 
   const parEtat = useMemo(() => {
     const m: Record<EtatCycle, CoproPilotage[]> = {
@@ -114,7 +113,7 @@ export function CoprosVue({
     return m;
   }, [filtrees]);
 
-  const filtre = source !== "all" || etat !== "all" || Boolean(cloture) || q.trim() !== "";
+  const filtre = etat !== "all" || Boolean(cloture) || q.trim() !== "";
 
   return (
     <div className="flex flex-col gap-4">
@@ -134,11 +133,6 @@ export function CoprosVue({
             className="pl-8"
           />
         </div>
-        <Select largeur="auto" aria-label="Source" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
-          <option value="all">Toutes les sources</option>
-          <option value="estale">ESTALE</option>
-          <option value="crypto">Crypto</option>
-        </Select>
         <Select largeur="auto" aria-label="État du cycle" value={etat} onChange={(e) => setEtat(e.target.value as typeof etat)}>
           <option value="all">Tous les états</option>
           {ETAT_CYCLE_ORDRE.map((e) => (
@@ -195,7 +189,6 @@ function VueListe({ copros }: { copros: CoproPilotage[] }) {
           <Th className="hidden md:table-cell">Ville</Th>
           <Th>État</Th>
           <Th numeric>Échéance</Th>
-          <Th numeric className="hidden lg:table-cell">Source</Th>
         </tr>
       </Thead>
       <Tbody>
@@ -214,7 +207,6 @@ function VueListe({ copros }: { copros: CoproPilotage[] }) {
             <Td numeric secondaire={!(c.etat === "a_planifier" && c.enRetard)} className={cn(c.etat === "a_planifier" && c.enRetard && "text-err-700 font-medium")}>
               {echeance(c)}
             </Td>
-            <Td numeric secondaire className="hidden lg:table-cell">{libelleSource(c.source)}</Td>
           </Tr>
         ))}
       </Tbody>

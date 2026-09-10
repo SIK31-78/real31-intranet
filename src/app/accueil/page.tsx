@@ -54,37 +54,20 @@ export default async function AccueilPage() {
   ]);
 
   const prenom = g.nomComplet.split(" ")[0];
-  // L'AG la plus urgente (le service trie deja par urgence) donne LE primaire de la page.
-  const urgente = agSemaine[0];
 
   return (
     <AppShell user={g} active="accueil" breadcrumb="Accueil">
       <Page largeur="travail">
+        {/* En-tete SANS rappel de l'action urgente (Sekou 2026-09-10) : la meme AG est
+            juste en dessous, en tete de "Vos assemblees generales", avec son bouton.
+            Le repeter en haut faisait deux fois la meme chose sur le meme ecran. */}
         <PageHeader
           eyebrow={formatDateLongue(today)}
           titre={`Bonjour ${prenom}`}
-          meta={
-            urgente ? (
-              <>
-                À faire maintenant : {urgente.prochaineAction} —{" "}
-                <span className="text-ink font-medium">{urgente.coproNom}</span>
-              </>
-            ) : (
-              "Aucune AG ne presse."
-            )
-          }
           actions={
-            <>
-              <ButtonLink href="/calendrier" variant="secondary">
-                <Calendar strokeWidth={1.5} /> Calendrier AG/CS
-              </ButtonLink>
-              {urgente && (
-                <ButtonLink href={urgente.lien} variant="primary">
-                  {urgente.actionLabel}
-                  <ArrowRight strokeWidth={1.5} />
-                </ButtonLink>
-              )}
-            </>
+            <ButtonLink href="/calendrier" variant="secondary">
+              <Calendar strokeWidth={1.5} /> Calendrier AG/CS
+            </ButtonLink>
           }
         />
 
