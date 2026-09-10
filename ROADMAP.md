@@ -6,6 +6,26 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
+## 🔲 À FAIRE - AGE (assemblée générale extraordinaire) : rien n'existe en préparation
+
+> **Constat du 2026-09-10** : une collègue devait prévoir une AGE (sujet : climatisation) et l'app n'a rien pour ça. Analysé, chiffré, **non commencé** — Sekou verra plus tard.
+
+**Ce qui existe déjà** : l'AGE est reconnue en LECTURE (elle vient d'ESTALE via `typeAg`, s'affiche dans l'historique de la fiche « AGE » vs « AG ordinaire ») et le calendrier sait **déjà** l'afficher (type `AGE` dans `domain/calendrier.ts`, filtre présent dans `filtres-bar.tsx`, chips prêtes).
+
+**Ce qui manque** : de quoi en CRÉER une. En mode réel, `getEvenements` dérive les événements des **4 seules dates** de la copro (prochaine/dernière AG, prochain/dernier CS) — aucune source d'événement ponctuel, donc le type `AGE` n'est jamais produit hors mock. Et toute la préparation (cycle AG calé sur clôture + 6 mois, squelette d'ODJ « approbation des comptes / budget / quitus / ALUR », checklist Avant CS → Après AG) suppose une AG **ordinaire**.
+
+**Besoin réel exprimé (minimal)** : fixer la date d'une AGE et la voir au calendrier, **sans toucher** à la date d'AG ordinaire. L'AGE s'AJOUTE, elle ne remplace pas.
+
+**Plan proposé (~1 h, non validé)** :
+1. Table `intranet_age` (copro, date, heure, objet, créé par ; plusieurs AGE possibles par copro) → **SQL à passer par Sekou**.
+2. Saisie sur la fiche copro, dans le bloc Dates, sous AG et CS.
+3. Injection dans `evenementsDeCopro` → la chip sort au calendrier, le filtre existant la trouve.
+4. **Hors périmètre assumé** : pas d'ODJ, pas de checklist de supervision, aucun impact sur le cycle AG ni sur l'échéance légale de l'AG ordinaire.
+
+**⏸️ Arbitrages en attente (Sekou)** : (a) afficher le compte à rebours de convocation J-21 sur la chip AGE (les 21 jours francs valent aussi pour une AGE, la mécanique existe) ou rester décoratif ? (b) visibilité : cloisonnée au portefeuille comme le reste du calendrier, ou autre chose ?
+
+**⚠️ Piège de modèle si le sujet grossit** : une copro n'a aujourd'hui qu'UNE `prochaineAg` (date unique, sans type). Faire cohabiter une AGE et l'AG ordinaire dans le CYCLE (et pas seulement au calendrier) est un chantier bien plus lourd qu'un champ « type ».
+
 ## 📍 État actuel - 2026-09-09 — LE MODULE REPRISE DEVIENT UN TABLEAU DE SUIVI D'ÉQUIPE (branche `chantier/reprise-suivi`)
 
 > Décision Sekou : **plus d'import depuis l'UI**, toutes les reprises se font au terminal avec le skill `estale-migration` (six faites : S0303, S0304, S0297, S0306, S0305, S0299). Le module devient ce qui manquait à l'équipe : **où en est chaque reprise, à quelle étape ça bloque, qui doit faire quoi.** ADR-037. Chantier délégué à 3 agents (cartographie + dépouillement des 4 procédures internes, puis domaine/services/tests et UI en parallèle) ; `tsc` 0 erreur dans `src/`, `vitest src/lib/reprise` 641 tests verts.
