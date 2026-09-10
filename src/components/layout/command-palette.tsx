@@ -11,10 +11,9 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Building2, CornerDownLeft } from "lucide-react";
+import { Search, Building2, CornerDownLeft, ArrowRight } from "lucide-react";
 import { chargerCoprosRecherche } from "@/app/recherche/actions";
 import { filtrerRecherche, type CoproRecherche } from "@/lib/domain/recherche-copro";
-import { Input } from "@/components/ui/field";
 
 const NAV: { label: string; href: string }[] = [
   { label: "Accueil", href: "/accueil" },
@@ -44,6 +43,9 @@ export function CommandPalette({
   /** rail = pilule de recherche dans le rail ; rail-icone = icone seule (barre mobile). */
   variante?: Variante;
 }) {
+  // Une seule instance ecoute Ctrl+K : celle du rail. La barre mobile (display:none
+  // des md) a la sienne, qui ne repond qu'au clic - sinon deux dialogues s'ouvraient.
+  const ecouteRaccourci = variante === "rail";
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [query, setQuery] = useState("");
@@ -53,6 +55,7 @@ export function CommandPalette({
 
   // Ouverture / fermeture par Cmd+K (ou Ctrl+K).
   useEffect(() => {
+    if (!ecouteRaccourci) return;
     function onKey(e: globalThis.KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -61,7 +64,7 @@ export function CommandPalette({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [ecouteRaccourci]);
 
   // A l'ouverture : focus + chargement lazy des copros (une seule fois).
   useEffect(() => {
@@ -148,9 +151,9 @@ export function CommandPalette({
         >
           <div className="absolute inset-0 bg-rail/50 animate-fade-in" onClick={fermer} />
           <div className="relative w-full max-w-[560px] rounded-xl border border-line bg-surface shadow-2 overflow-hidden animate-scale-in">
-            <div className="flex items-center gap-2 px-3 h-11 border-b border-line">
+            <div className="flex items-center gap-2 px-3 h-12 border-b border-line">
               <Search strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
-              <Input
+              <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => {
@@ -158,16 +161,16 @@ export function CommandPalette({
                   setActif(0);
                 }}
                 onKeyDown={onKeyDown}
-                placeholder="Rechercher une copropriété du cabinet, naviguer..."
+                placeholder="Rechercher une copropriété du cabinet, naviguer…"
                 aria-label="Rechercher"
-                className="flex-1"
+                className="flex-1 h-full bg-transparent text-body text-ink placeholder:text-ink-3 outline-none"
               />
               <kbd className="font-mono text-meta px-1 py-0.5 rounded-sm text-ink-3 bg-surface-3">Esc</kbd>
             </div>
             <ul role="listbox" aria-label="Resultats" className="max-h-[320px] overflow-auto py-1">
               {items.length === 0 ? (
                 <li className="px-3 py-6 text-body text-ink-3 text-center">
-                  {query && copros === null ? "Chargement..." : "Aucun resultat."}
+                  {query && copros === null ? "Chargement…" : "Aucun résultat"}
                 </li>
               ) : (
                 items.map((it, i) => (
@@ -180,7 +183,11 @@ export function CommandPalette({
  i === actif ? "bg-green-50 text-green-700" : "text-ink hover:bg-surface-2"
                       }`}
                     >
-                      <Building2 strokeWidth={1.5} className={`w-3.5 h-3.5 shrink-0 ${it.copro ? "text-ink-3" : "text-ink-3"}`} />
+                      {it.copro ? (
+                        <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-3" aria-hidden />
+                      ) : (
+                        <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-3" aria-hidden />
+                      )}
                       <span className="flex-1 truncate">{it.titre}</span>
                       {it.sous && <span className="text-meta text-ink-3 truncate">{it.sous}</span>}
                       {/* Copro d'un(e) collegue : on dit chez qui on va regarder. Discret

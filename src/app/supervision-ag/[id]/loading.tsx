@@ -1,12 +1,7 @@
-// Squelette pendant le chargement de la supervision d'une AG (checklist).
-
-import { SkeletonListe, Skeleton } from "@/components/ui/skeleton";
+// Squelette de chargement : garde le cadre du shell (rail + papier) pour que la
+// navigation ne clignote pas. Voir components/layout/squelette-page.
+import { SquelettePage } from "@/components/layout/squelette-page";
 
 export default function Loading() {
-  return (
-    <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-      <Skeleton className="h-5 w-64 mb-4" />
-      <SkeletonListe lignes={10} />
-    </div>
-  );
+  return <SquelettePage largeur="travail" listes={[10]} />;
 }
