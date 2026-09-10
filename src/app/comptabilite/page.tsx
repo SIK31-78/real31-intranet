@@ -226,10 +226,7 @@ export default async function ComptabilitePage({
               ))}
             </Select>
           </label>
-          <Button
-            type="submit"
-            variant="primary"
-          >
+          <Button type="submit" variant="secondary">
             Filtrer
           </Button>
           {(gestionnaire || mois) && (

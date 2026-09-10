@@ -36,7 +36,8 @@ const REGLES = {
   px: /\btext-\[\d+(?:\.\d+)?px\]/g,
   tw: /\btext-(?:xs|sm|base|lg|xl|2xl|3xl|4xl)\b/g,
   "ink-4": /\btext-ink-4\b/g,
-  vert: /\bbg-green-700\b/g,
+  // un fond vert PLEIN ; les teintes (bg-green-700/5 = affordances d'edition) ne comptent pas
+  vert: /\bbg-green-700\b(?!\/)/g,
   btn: /<button\b/g,
   hex: /(?:border|bg|text)-\[#[0-9a-fA-F]{3,8}\]/g,
   ombre: /\bshadow-(?:sm|md|lg|xl|2xl)\b/g,
