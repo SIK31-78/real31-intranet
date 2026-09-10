@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/icon";
+import { SegmentedControl } from "@/components/ui/segmented";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   libelleMois,
   libelleSemaine,
@@ -17,6 +18,7 @@ import { VueSemaine } from "./vue-semaine";
 import { VueListe } from "./vue-liste";
 import { FiltresBar } from "./filtres-bar";
 import { AgendaProchains } from "./agenda-prochains";
+import { Button } from "@/components/ui/button";
 
 type VueType = "mois" | "semaine" | "liste";
 
@@ -88,60 +90,39 @@ export function CalendrierVue({
         <div className="flex items-center gap-3">
           {vue !== "liste" && (
             <div className="flex items-center gap-0.5">
-              <button
-                type="button"
+              <Button
                 onClick={navigatePrev}
-                className="h-7 w-7 inline-flex items-center justify-center rounded-sm border border-line bg-surface hover:border-line-2"
+                variant="secondary" size="sm" iconOnly className="w-7"
                 aria-label="Période précédente"
               >
                 <Icon name="chevron-left" className="w-4 h-4 text-ink-2" />
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
                 onClick={navigateToday}
-                className="h-7 px-2.5 rounded-sm border border-line bg-surface text-body font-medium text-ink-2 hover:border-line-2"
+                variant="secondary" size="sm"
               >
                 Aujourd&apos;hui
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
                 onClick={navigateNext}
-                className="h-7 w-7 inline-flex items-center justify-center rounded-sm border border-line bg-surface hover:border-line-2"
+                variant="secondary" size="sm" iconOnly className="w-7"
                 aria-label="Période suivante"
               >
                 <Icon name="chevron-right" className="w-4 h-4 text-ink-2" />
-              </button>
+              </Button>
             </div>
           )}
           <div className="text-title font-medium text-ink">{libellePeriode}</div>
         </div>
         <FiltresBar typesActifs={typesActifs} onToggleType={toggleType} />
-        <div className="flex items-center gap-0.5 bg-surface-2 rounded-md p-0.5">
-          {VUES.map((v) => (
-            <button
-              key={v.value}
-              type="button"
-              onClick={() => setVue(v.value)}
-              className={cn(
-                "h-7 px-3 rounded-[5px] text-body font-medium transition-colors duration-120",
-                vue === v.value
-                  ? "bg-surface text-ink shadow-1"
-                  : "text-ink-3 hover:text-ink-2",
-              )}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<VueType> label="Vue" value={vue} onChange={(v) => setVue(v ?? "mois")} options={VUES} />
       </div>
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 min-w-0">
           {vue !== "liste" && evenementsFiltres.length === 0 && (
-            <div className="mb-3 rounded-md border border-line bg-surface-2 px-4 py-3 text-body text-ink-3 text-center">
-              {typesActifs.length === 0
-                ? "Aucun type sélectionné - réactivez un filtre ci-dessus."
-                : "Aucun événement à afficher pour le moment."}
-            </div>
+            <EmptyState compact>
+              {typesActifs.length === 0 ? "Aucun type sélectionné" : "Aucun événement"}
+            </EmptyState>
           )}
           {vue === "mois" && (
             <VueMois grille={grilleMois} evenements={evenementsFiltres} />

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Plus, FolderOpen, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   TYPE_DOSSIER_LABEL,
   TYPE_DOSSIER_ORDRE,
@@ -19,6 +20,8 @@ import {
   type StatutDossier,
 } from "@/lib/domain/dossier";
 import { creerDossierAction } from "@/app/dossiers/actions";
+import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/field";
 
 const TYPE_TON: Record<TypeDossier, "info" | "warn" | "err" | "neutral"> = {
   gestion_courante: "neutral",
@@ -36,7 +39,6 @@ const STATUT_TON: Record<StatutDossier, "warn" | "info" | "ok"> = {
   clos: "ok",
 };
 const PORTEES: PorteeDossier[] = ["copropriete", "coproprietaire", "lot"];
-const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink";
 
 export function DossiersVue({
   dossiers,
@@ -87,49 +89,43 @@ export function DossiersVue({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 flex-wrap">
-        <select value={filtreType} onChange={(e) => setFiltreType(e.target.value as typeof filtreType)} className={SELECT}>
+        <Select value={filtreType} onChange={(e) => setFiltreType(e.target.value as typeof filtreType)} largeur="auto">
           <option value="all">Tous les types</option>
           {TYPE_DOSSIER_ORDRE.map((t) => (
             <option key={t} value={t}>{TYPE_DOSSIER_LABEL[t]}</option>
           ))}
-        </select>
-        <select value={filtreStatut} onChange={(e) => setFiltreStatut(e.target.value as typeof filtreStatut)} className={SELECT}>
+        </Select>
+        <Select value={filtreStatut} onChange={(e) => setFiltreStatut(e.target.value as typeof filtreStatut)} largeur="auto">
           <option value="all">Tous les statuts</option>
           {(["ouvert", "en_cours", "clos"] as StatutDossier[]).map((s) => (
             <option key={s} value={s}>{STATUT_DOSSIER_LABEL[s]}</option>
           ))}
-        </select>
+        </Select>
         {coprosAvecDossier.length > 0 && (
-          <select value={filtreCopro} onChange={(e) => setFiltreCopro(e.target.value)} className={SELECT}>
+          <Select value={filtreCopro} onChange={(e) => setFiltreCopro(e.target.value)} largeur="auto">
             <option value="all">Toutes les copros</option>
             {coprosAvecDossier.map((c) => (
               <option key={c.code} value={c.code}>{c.code} - {c.nom}</option>
             ))}
-          </select>
+          </Select>
         )}
-        <select value={tri} onChange={(e) => setTri(e.target.value as typeof tri)} className={SELECT} title="Trier">
+        <Select value={tri} onChange={(e) => setTri(e.target.value as typeof tri)} largeur="auto" title="Trier">
           <option value="recent">Tri : récents</option>
           <option value="copro">Tri : par copropriété</option>
-        </select>
-        <span className="text-body text-ink-3">{visibles.length} dossier{visibles.length > 1 ? "s" : ""}</span>
-        <button
-          type="button"
+        </Select>
+        <span className="text-body text-ink-2 tabular-nums">{visibles.length} dossier{visibles.length > 1 ? "s" : ""}</span>
+        <Button
           onClick={() => setFormOuvert((o) => !o)}
-          className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 transition-colors"
+          variant="secondary" className="ml-auto"
         >
           <Plus strokeWidth={2} className="w-3.5 h-3.5" /> Nouveau dossier
-        </button>
+        </Button>
       </div>
 
       {formOuvert && <FormCreation copros={copros} onFait={() => setFormOuvert(false)} />}
 
       {visibles.length === 0 ? (
-        <Card>
-          <div className="px-4 py-10 text-center">
-            <FolderOpen strokeWidth={1.5} className="w-6 h-6 text-ink-3 mx-auto mb-2" />
-            <p className="text-body text-ink-3">Aucun dossier. Crée le premier avec « Nouveau dossier ».</p>
-          </div>
-        </Card>
+        <EmptyState icone={FolderOpen}>Aucun dossier</EmptyState>
       ) : groupes ? (
         <div className="flex flex-col gap-4">
           {groupes.map((g) => (
@@ -224,49 +220,49 @@ function FormCreation({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Copropriété
-            <select value={coproCode} onChange={(e) => setCoproCode(e.target.value)} className={SELECT}>
+            <Select value={coproCode} onChange={(e) => setCoproCode(e.target.value)} largeur="auto">
               {copros.map((c) => (
                 <option key={c.code} value={c.code}>{c.code} - {c.nom}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Type
-            <select value={type} onChange={(e) => setType(e.target.value as TypeDossier)} className={SELECT}>
+            <Select value={type} onChange={(e) => setType(e.target.value as TypeDossier)} largeur="auto">
               {TYPE_DOSSIER_ORDRE.map((t) => (
                 <option key={t} value={t}>{TYPE_DOSSIER_LABEL[t]}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Portée
-            <select value={portee} onChange={(e) => setPortee(e.target.value as PorteeDossier)} className={SELECT}>
+            <Select value={portee} onChange={(e) => setPortee(e.target.value as PorteeDossier)} largeur="auto">
               {PORTEES.map((p) => (
                 <option key={p} value={p}>{PORTEE_LABEL[p]}</option>
               ))}
-            </select>
+            </Select>
           </label>
           {portee !== "copropriete" && (
             <label className="flex flex-col gap-1 text-body text-ink-3">
               {portee === "lot" ? "Lot (réf.)" : "Copropriétaire"}
-              <input
+              <Input
                 value={cible}
                 onChange={(e) => setCible(e.target.value)}
                 placeholder={portee === "lot" ? "ex. Lot 12" : "Nom du copropriétaire"}
-                className="h-8 rounded-md border border-line bg-surface px-2 text-body"
+                largeur="auto"
               />
             </label>
           )}
         </div>
         <label className="flex flex-col gap-1 text-body text-ink-3">
           Intitulé du dossier
-          <input
+          <Input
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submit()}
             placeholder="ex. Ravalement façade, Dégât des eaux 3e étage..."
             autoFocus
-            className="h-8 rounded-md border border-line bg-surface px-2 text-body"
+            largeur="auto"
           />
         </label>
         <label className="flex items-center gap-2 text-body text-ink-2">
@@ -274,21 +270,19 @@ function FormCreation({
           Pré-remplir avec les étapes types (modifiables ensuite)
         </label>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
             onClick={submit}
             disabled={pending || !titre.trim()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
+            variant="primary"
           >
             Créer le dossier
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
             onClick={onFait}
-            className="h-8 px-3 rounded-md border border-line text-body text-ink-2 hover:border-line-2"
+            variant="secondary"
           >
             Annuler
-          </button>
+          </Button>
         </div>
       </div>
     </Card>

@@ -5,6 +5,7 @@ import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { DossiersVue } from "@/components/dossiers/dossiers-vue";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Dossiers - REAL31 Intranet" };
 
@@ -18,10 +19,10 @@ export default async function DossiersPage() {
 
   return (
     <AppShell user={g} active="dossiers" breadcrumb="Dossiers">
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-page font-medium tracking-tight text-ink mb-4">Dossiers</h1>
+      <Page largeur="travail">
+        <PageHeader titre="Dossiers" meta={`${dossiers.length} dossier${dossiers.length > 1 ? "s" : ""}`} />
         <DossiersVue dossiers={dossiers} copros={listeCopros} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

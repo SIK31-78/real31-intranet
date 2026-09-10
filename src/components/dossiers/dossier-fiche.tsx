@@ -37,6 +37,9 @@ import {
   modifierDossierAction,
   supprimerDossierAction,
 } from "@/app/dossiers/actions";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Input, Select } from "@/components/ui/field";
 
 const PORTEE_ORDRE: PorteeDossier[] = ["copropriete", "coproprietaire", "lot"];
 
@@ -134,15 +137,14 @@ export function DossierFiche({
                 </div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-page font-medium tracking-tight text-ink">{dossier.titre}</h1>
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => setEditMeta(true)}
                     aria-label="Modifier le dossier"
                     title="Modifier le dossier"
-                    className="p-1 text-ink-3 hover:text-green-700 shrink-0"
+                    variant="ghost" iconOnly className="shrink-0"
                   >
                     <Pencil strokeWidth={1.5} className="w-3.5 h-3.5" />
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
@@ -160,34 +162,29 @@ export function DossierFiche({
             </div>
             {dossier.type === "sinistre" && (
               <div className="mt-3">
-                <Link
-                  href={`/sinistre/wizard?dossier=${dossier.id}`}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 w-fit"
-                >
-                  <ClipboardList strokeWidth={1.5} className="w-3.5 h-3.5" /> Ouvrir l’assistant sinistre
-                </Link>
+                <ButtonLink href={`/sinistre/wizard?dossier=${dossier.id}`} variant="primary">
+                  <ClipboardList strokeWidth={1.5} /> Ouvrir l’assistant sinistre
+                </ButtonLink>
               </div>
             )}
           </div>
           <label className="flex flex-col gap-1 text-meta text-ink-3 shrink-0">
             Statut
-            <select
+            <Select
               value={dossier.statut}
               onChange={(e) => changerStatut(e.target.value as StatutDossier)}
               disabled={pending}
-              className="h-8 rounded-md border border-line bg-surface px-2 text-body"
+              largeur="auto"
             >
               {(["ouvert", "en_cours", "clos"] as StatutDossier[]).map((s) => (
                 <option key={s} value={s}>{STATUT_DOSSIER_LABEL[s]}</option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
         <div className="mt-3 flex items-center gap-3">
-          <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-            <div className="h-full bg-green-700 transition-[width] duration-200" style={{ width: `${p.pct}%` }} />
-          </div>
-          <span className="text-meta text-ink-3 font-mono">{p.faites}/{p.total}</span>
+          <Progress valeur={p.pct} label={`${p.faites} étapes sur ${p.total}`} className="flex-1" />
+          <span className="text-meta text-ink-2 tabular-nums">{p.faites}/{p.total}</span>
         </div>
       </div>
 
@@ -211,7 +208,7 @@ export function DossierFiche({
                     aria-label={e.fait ? "Décocher" : "Cocher"}
                     className={cn(
                       "w-5 h-5 rounded-sm border flex items-center justify-center shrink-0 transition-colors",
-                      e.fait ? "bg-green-700 border-green-700 text-white" : "border-line hover:border-line-2",
+                      e.fait ? "bg-ok-500 border-ok-500 text-white" : "border-line-2 hover:border-ink-3",
                     )}
                   >
                     {e.fait && <Check strokeWidth={3} className="w-3 h-3" />}
@@ -225,40 +222,40 @@ export function DossierFiche({
                       e.fait ? "line-through text-ink-3" : "text-ink",
                     )}
                   />
-                  <select
+                  <Select
                     value={e.assigneA ?? ""}
                     onChange={(ev) => assigner(e.id, ev.target.value as AssigneRole | "")}
                     title="Assigner la tâche"
-                    className="h-6 rounded-sm border border-line bg-surface text-meta text-ink-2 px-1 shrink-0 max-w-[120px]"
+                    largeur="auto" className="shrink-0 max-w-[120px]"
                   >
                     <option value="">- assigner</option>
                     {gestionnaire && <option value="gestionnaire">Gest. {gestionnaire.initiales}</option>}
                     {assistant && <option value="assistant">Assist. {assistant.initiales}</option>}
-                  </select>
+                  </Select>
                   <div className="flex items-center gap-0.5 shrink-0">
-                    <button type="button" onClick={() => deplacer(i, -1)} disabled={i === 0} aria-label="Monter" className="p-1 text-ink-3 hover:text-ink-2 disabled:opacity-30">
+                    <Button onClick={() => deplacer(i, -1)} disabled={i === 0} aria-label="Monter" variant="ghost" iconOnly>
                       <ChevronUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button type="button" onClick={() => deplacer(i, 1)} disabled={i === etapes.length - 1} aria-label="Descendre" className="p-1 text-ink-3 hover:text-ink-2 disabled:opacity-30">
+                    </Button>
+                    <Button onClick={() => deplacer(i, 1)} disabled={i === etapes.length - 1} aria-label="Descendre" variant="ghost" iconOnly>
                       <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                    <button type="button" onClick={() => supprimer(e.id)} aria-label="Supprimer" className="p-1 text-ink-3 hover:text-err-700">
+                    </Button>
+                    <Button onClick={() => supprimer(e.id)} aria-label="Supprimer" variant="danger" iconOnly>
                       <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
               <div className="flex items-center gap-2 px-4 py-2">
                 <Plus strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
-                <input
+                <Input
                   value={nouvelle}
                   onChange={(e) => setNouvelle(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && ajouter()}
                   placeholder="Ajouter une étape..."
-                  className="flex-1 bg-transparent text-body focus:outline-none placeholder:text-ink-3"
+                  className="flex-1"
                 />
                 {nouvelle.trim() && (
-                  <button type="button" onClick={ajouter} className="text-body text-green-700 font-medium shrink-0">Ajouter</button>
+                  <Button onClick={ajouter} variant="ghost" className="shrink-0">Ajouter</Button>
                 )}
               </div>
             </div>
@@ -274,21 +271,20 @@ export function DossierFiche({
           <Card>
             <CardHeader><CardTitle>Journal du dossier</CardTitle></CardHeader>
             <div className="px-4 py-3 border-b border-line flex items-center gap-2">
-              <input
+              <Input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && envoyerNote()}
                 placeholder="Ajouter une note..."
-                className="flex-1 h-8 px-2.5 rounded-md border border-line bg-surface text-body"
+                className="flex-1"
               />
-              <button
-                type="button"
+              <Button
                 onClick={envoyerNote}
                 disabled={!note.trim() || pending}
-                className="h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50 shrink-0"
+                variant="secondary" className="shrink-0"
               >
                 Noter
-              </button>
+              </Button>
             </div>
             {dossier.journal.length === 0 ? (
               <p className="px-4 py-6 text-body text-ink-3 text-center">Aucune entrée pour le moment.</p>
@@ -305,16 +301,15 @@ export function DossierFiche({
                         <p className="text-meta text-ink-3 mt-0.5">{ev.par} · {formatDateLongue(ev.le.slice(0, 10))}</p>
                       </div>
                       {maNote && (
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => supprimerNote(ev.le)}
                           disabled={pending}
                           aria-label="Supprimer ma note"
                           title="Supprimer ma note"
-                          className="p-1 text-ink-3 hover:text-err-700 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-30"
+                          variant="danger" iconOnly className="shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </Button>
                       )}
                     </li>
                   );
@@ -367,63 +362,61 @@ function EditionMetadonnees({ dossier, onFerme }: { dossier: Dossier; onFerme: (
 
   return (
     <div className="flex flex-col gap-2">
-      <input
+      <Input
         value={titre}
         onChange={(e) => setTitre(e.target.value)}
         placeholder="Titre du dossier"
-        className="h-9 w-full rounded-md border border-line bg-surface px-2.5 text-title font-medium"
+       
       />
       <div className="flex items-center gap-2 flex-wrap">
         <label className="flex flex-col gap-0.5 text-meta text-ink-3">
           Type
-          <select
+          <Select
             value={type}
             onChange={(e) => setType(e.target.value as TypeDossier)}
-            className="h-8 rounded-md border border-line bg-surface px-2 text-body"
+            largeur="auto"
           >
             {TYPE_DOSSIER_ORDRE.map((t) => (
               <option key={t} value={t}>{TYPE_DOSSIER_LABEL[t]}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-0.5 text-meta text-ink-3">
           Portée
-          <select
+          <Select
             value={portee}
             onChange={(e) => setPortee(e.target.value as PorteeDossier)}
-            className="h-8 rounded-md border border-line bg-surface px-2 text-body"
+            largeur="auto"
           >
             {PORTEE_ORDRE.map((pp) => (
               <option key={pp} value={pp}>{PORTEE_LABEL[pp]}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-0.5 text-meta text-ink-3 flex-1 min-w-[140px]">
           Cible (optionnel)
-          <input
+          <Input
             value={cible}
             onChange={(e) => setCible(e.target.value)}
             placeholder="Copropriétaire / lot concerné"
-            className="h-8 rounded-md border border-line bg-surface px-2 text-body"
+            largeur="auto"
           />
         </label>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
+        <Button
           onClick={enregistrer}
           disabled={pending || !titre.trim()}
-          className="h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50"
+          variant="secondary"
         >
           Enregistrer
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           onClick={onFerme}
-          className="h-8 px-3 rounded-md border border-line text-body text-ink-2 hover:border-line-2"
+          variant="secondary"
         >
           Annuler
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -441,14 +434,13 @@ function ZoneSuppression({ dossierId, dossierTitre }: { dossierId: string; dossi
   if (!confirme) {
     return (
       <div className="pt-2">
-        <button
-          type="button"
+        <Button
           onClick={() => setConfirme(true)}
-          className="inline-flex items-center gap-1.5 text-body text-ink-3 hover:text-err-700 transition-colors"
+          variant="danger"
         >
           <Trash2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
           Supprimer définitivement le dossier
-        </button>
+        </Button>
       </div>
     );
   }
@@ -459,22 +451,20 @@ function ZoneSuppression({ dossierId, dossierTitre }: { dossierId: string; dossi
         Supprimer définitivement « {dossierTitre} » ? Cette action est irréversible.
       </p>
       <div className="flex items-center gap-2 ml-auto">
-        <button
-          type="button"
+        <Button
           onClick={supprimer}
           disabled={pending}
-          className="h-8 px-3 rounded-md bg-err-700 text-white text-body font-medium hover:bg-err-500 disabled:opacity-50 shrink-0"
+          variant="destructive" className="shrink-0"
         >
           Supprimer définitivement
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           onClick={() => setConfirme(false)}
           disabled={pending}
-          className="h-8 px-3 rounded-md border border-line text-body text-ink-2 hover:border-line-2 shrink-0"
+          variant="secondary" className="shrink-0"
         >
           Annuler
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -510,10 +500,9 @@ function RattachementAg({
   if (!edit) {
     const vide = !agDate && !numeroResolution;
     return (
-      <button
-        type="button"
+      <Button
         onClick={() => setEdit(true)}
-        className="inline-flex items-center gap-1.5 text-body text-ink-3 hover:text-green-700 transition-colors"
+        variant="ghost"
       >
         <Gavel strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
         {vide ? (
@@ -525,7 +514,7 @@ function RattachementAg({
           </span>
         )}
         <Pencil strokeWidth={1.5} className="w-3 h-3 text-ink-3 shrink-0" />
-      </button>
+      </Button>
     );
   }
 
@@ -533,37 +522,35 @@ function RattachementAg({
     <div className="flex items-center gap-2 flex-wrap">
       <label className="flex items-center gap-1 text-meta text-ink-3">
         AG du
-        <input
+        <Input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="h-7 rounded-sm border border-line bg-surface px-1.5 text-body"
+          largeur="auto"
         />
       </label>
       <label className="flex items-center gap-1 text-meta text-ink-3">
         résolution n°
-        <input
+        <Input
           value={reso}
           onChange={(e) => setReso(e.target.value)}
           placeholder="ex. 7"
-          className="h-7 w-20 rounded-sm border border-line bg-surface px-1.5 text-body"
+          largeur="auto" className="w-20"
         />
       </label>
-      <button
-        type="button"
+      <Button
         onClick={enregistrer}
         disabled={pending}
-        className="h-7 px-2.5 rounded-sm bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50"
+        variant="secondary" size="sm"
       >
         OK
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
         onClick={() => setEdit(false)}
-        className="h-7 px-2 rounded-sm border border-line text-body text-ink-2 hover:border-line-2"
+        variant="secondary" size="sm"
       >
         Annuler
-      </button>
+      </Button>
     </div>
   );
 }

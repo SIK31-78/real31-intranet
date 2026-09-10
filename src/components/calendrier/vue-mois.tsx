@@ -47,7 +47,7 @@ export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements
                           j.horsMois && "text-ink-3",
                           !j.horsMois && !j.estAujourdhui && "text-ink-2",
                           j.estAujourdhui &&
-                            "bg-green-700 text-surface rounded-full font-medium",
+                            "bg-ink text-white rounded-full font-medium",
                         )}
                       >
                         {j.numero}

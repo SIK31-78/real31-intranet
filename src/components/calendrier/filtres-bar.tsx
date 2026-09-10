@@ -17,7 +17,7 @@ type FiltresBarProps = {
 export function FiltresBar({ typesActifs, onToggleType }: FiltresBarProps) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-meta uppercase tracking-[0.06em] text-ink-3 mr-0.5">
+      <span className="text-meta font-medium uppercase tracking-[0.06em] text-ink-2 mr-0.5">
         Type
       </span>
       {TYPES.map((t) => {
@@ -31,8 +31,8 @@ export function FiltresBar({ typesActifs, onToggleType }: FiltresBarProps) {
             className={cn(
               "h-7 px-2.5 rounded-sm border text-body font-medium transition-colors duration-120",
               actif
-                ? "bg-green-700 text-surface border-green-700"
-                : "bg-surface text-ink-2 border-line hover:border-line-2",
+                ? "bg-ink text-white border-ink"
+                : "bg-surface text-ink-2 border-line hover:border-line-2 hover:text-ink",
             )}
           >
             {t.label}

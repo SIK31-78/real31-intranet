@@ -1,14 +1,13 @@
 import { grouperParJour, type Evenement } from "@/lib/domain/calendrier";
 import { libelleJourLong } from "@/lib/domain/calendrier-grille";
 import { EvenementChip } from "./evenement-chip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export function VueListe({ evenements }: { evenements: Evenement[] }) {
   const jours = grouperParJour(evenements);
   if (jours.length === 0) {
     return (
-      <div className="bg-surface border border-line rounded-md p-8 text-center text-body text-ink-3">
-        Aucun événement sur la période.
-      </div>
+      <EmptyState>Aucun événement sur la période</EmptyState>
     );
   }
   return (
@@ -19,7 +18,7 @@ export function VueListe({ evenements }: { evenements: Evenement[] }) {
             <div className="text-body font-medium text-ink">
               {libelleJourLong(j.date)}
             </div>
-            <div className="text-meta text-ink-3">{j.date.split("-").reverse().join("/")}</div>
+            <div className="text-meta text-ink-2 tabular-nums">{j.date.split("-").reverse().join("/")}</div>
           </div>
           <div className="flex-1 flex flex-col gap-1.5 min-w-0">
             {j.evenements.map((e) => (

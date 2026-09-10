@@ -4,6 +4,7 @@ import { getEvenements } from "@/lib/services/calendrier/get-calendrier";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { CalendrierVue } from "@/components/calendrier/calendrier-vue";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Calendrier AG/CS - REAL31 Intranet" };
 
@@ -22,17 +23,10 @@ export default async function CalendrierPage() {
 
   return (
     <AppShell user={g} active="calendrier" breadcrumb="Calendrier AG/CS">
-      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <div className="mb-5">
-          <h1 className="text-page font-medium tracking-tight text-ink">
-            Calendrier AG/CS
-          </h1>
-          <p className="text-body text-ink-3 mt-0.5">
-            Vue d&apos;ensemble de vos assemblees et conseils syndicaux.
-          </p>
-        </div>
+      <Page largeur="travail">
+        <PageHeader titre="Calendrier AG/CS" />
         <CalendrierVue evenements={evenements} aujourdhuiISO={aujourdhuiISO} />
-      </div>
+      </Page>
     </AppShell>
   );
 }
