@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Aide } from "./aide";
 import { Eyebrow } from "./eyebrow";
+import { FilAriane } from "@/components/ui/fil-ariane";
 
 // Conteneur de page + en-tete. DEUX largeurs seulement :
 //   lecture = 900 px  (documents, formulaires : ODJ, recap)
@@ -16,13 +17,18 @@ const LARGEURS = {
 
 export function Page({
   largeur = "travail",
+  filAriane = true,
   children,
 }: {
   largeur?: keyof typeof LARGEURS;
+  /** Fil d'Ariane ("REAL31 / Coproprietes - SE999") en tete de page. Depuis la fusion
+   *  de la topbar dans le rail, c'est ici qu'il vit. */
+  filAriane?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className={cn("mx-auto w-full px-4 py-5 sm:px-6 md:px-8 md:py-6 flex flex-col gap-5", LARGEURS[largeur])}>
+      {filAriane && <FilAriane />}
       {children}
     </div>
   );

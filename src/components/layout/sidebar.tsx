@@ -4,10 +4,11 @@ import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
-  FolderOpen,
+  FolderOpen, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { CommandPalette } from "@/components/layout/command-palette";
+import { UserMenu } from "@/components/layout/user-menu";
 
 export type NavKey =
   | "accueil"
@@ -152,12 +153,12 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
   if (item.aVenir) {
     return (
       <div
-        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-body text-ink-3 cursor-not-allowed select-none"
+        className="flex items-center gap-2 px-2.5 h-8 rounded-md text-body text-rail-muted cursor-not-allowed select-none"
         title="Bientôt disponible"
       >
-        <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+        <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate">{item.label}</span>
-        <span className="ml-auto text-meta font-medium uppercase tracking-[0.06em] text-ink-3 border border-line rounded-sm px-1">
+        <span className="ml-auto text-meta font-medium uppercase tracking-[0.06em] border border-rail-line rounded-full px-1.5">
           à venir
         </span>
       </div>
@@ -169,15 +170,15 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2 px-2 py-1.5 rounded-md text-body transition-colors duration-120",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
-        active ? "bg-green-50 text-green-700 font-medium" : "text-ink hover:bg-surface-2",
+        "flex items-center gap-2 px-2.5 h-8 rounded-md text-body font-medium transition-colors duration-120",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300",
+        active ? "bg-surface-2 text-green-900 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,.55)]" : "text-rail-ink hover:bg-rail-2",
       )}
     >
-      <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-ink-2")} />
+      <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-rail-muted")} />
       <span className="truncate">{item.label}</span>
       {item.count !== undefined && (
-        <span className={cn("ml-auto text-meta tabular-nums", active ? "text-green-700" : "text-ink-2")}>
+        <span className={cn("ml-auto text-meta tabular-nums rounded-full border px-1.5", active ? "text-green-700 border-green-200" : "text-rail-muted border-rail-line")}>
           {item.count}
         </span>
       )}
@@ -200,29 +201,48 @@ function LienExterne({
       target="_blank"
       rel="noreferrer"
       className={cn(
-        "group flex items-center gap-2 px-2 py-1.5 rounded-md text-body text-ink hover:bg-surface-2 transition-colors duration-120",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
+        "group flex items-center gap-2 px-2.5 h-8 rounded-md text-body text-rail-ink hover:bg-rail-2 transition-colors duration-120",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300",
       )}
     >
-      <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-2" />
+      <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-rail-muted" />
       <span className="truncate">{label}</span>
-      <ExternalLink strokeWidth={1.5} className="ml-auto w-3 h-3 shrink-0 text-ink-3 group-hover:text-ink-2" />
+      <ExternalLink strokeWidth={1.5} className="ml-auto w-3 h-3 shrink-0 text-rail-muted opacity-60 group-hover:opacity-100" />
     </a>
   );
 }
 
 function SectionTitre({ children }: { children: React.ReactNode }) {
-  return <Eyebrow className="px-2 mb-1.5">{children}</Eyebrow>;
+  return (
+    <div className="px-2.5 mb-1.5 text-meta font-semibold uppercase tracking-[0.12em] text-rail-muted">{children}</div>
+  );
+}
+
+/** Groupe repliable du pied de rail (nos applications, outils externes). */
+function GroupeReplie({ titre, children }: { titre: string; children: React.ReactNode }) {
+  return (
+    <details open className="group pt-3 border-t border-rail-line">
+      <summary className="flex items-center px-2.5 mb-1.5 cursor-pointer select-none list-none text-meta font-semibold uppercase tracking-[0.12em] text-rail-muted [&::-webkit-details-marker]:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 rounded-sm">
+        {titre}
+        <ChevronDown strokeWidth={1.5} className="ml-auto w-3.5 h-3.5 transition-transform duration-180 ease-out-quart group-open:rotate-180" aria-hidden />
+      </summary>
+      {children}
+    </details>
+  );
 }
 
 export function Sidebar({
   active,
+  user,
+  peutImpersonner = false,
   emailsOuvert = true,
   comptaOuvert = false,
   vueComptable = false,
   adminOuvert = false,
 }: {
   active: NavKey;
+  user: { initiales: string; nomComplet: string };
+  peutImpersonner?: boolean;
   emailsOuvert?: boolean;
   comptaOuvert?: boolean;
   /** Vue comptable epuree : remplace la nav principale par NAV_COMPTABLE (dashboard compta + copros + coffre). */
@@ -231,8 +251,20 @@ export function Sidebar({
   adminOuvert?: boolean;
 }) {
   return (
-    <aside className="shrink-0 w-[216px] border-r border-line bg-surface overflow-y-auto shadow-2 md:shadow-none">
-      <nav className="px-3 py-3 flex flex-col gap-4">
+    <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto flex flex-col shadow-2 md:shadow-none">
+      {/* Marque + recherche (ex-topbar), en tete du rail. */}
+      <div className="hidden md:flex items-center gap-2.5 px-4 pt-5 pb-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icon.png" alt="" className="w-8 h-8 rounded-md object-contain shrink-0" />
+        <div className="min-w-0">
+          <div className="text-body font-semibold leading-tight">REAL31</div>
+          <div className="text-meta text-rail-muted">Intranet syndic</div>
+        </div>
+      </div>
+      <div className="hidden md:block px-3 pt-3">
+        <CommandPalette emailsOuvert={emailsOuvert} />
+      </div>
+      <nav className="px-3 py-4 flex flex-col gap-4 flex-1">
         {vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
           <div>
@@ -267,20 +299,22 @@ export function Sidebar({
           </div>
         )}
 
-        <div className="pt-3 border-t border-line">
-          <SectionTitre>Nos applications</SectionTitre>
+        <GroupeReplie titre="Nos applications">
           {APPS_EXTERNES.map((app) => (
             <LienExterne key={app.label} {...app} />
           ))}
-        </div>
+        </GroupeReplie>
 
-        <div className="pt-3 border-t border-line">
-          <SectionTitre>Outils externes</SectionTitre>
+        <GroupeReplie titre="Outils externes">
           {OUTILS_EXTERNES.map((app) => (
             <LienExterne key={app.label} {...app} />
           ))}
-        </div>
+        </GroupeReplie>
       </nav>
+      {/* Utilisateur en pied (ex-topbar). */}
+      <div className="px-3 pb-3 pt-2 border-t border-rail-line">
+        <UserMenu user={user} peutImpersonner={peutImpersonner} />
+      </div>
     </aside>
   );
 }

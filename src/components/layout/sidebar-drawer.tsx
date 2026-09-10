@@ -1,10 +1,8 @@
 "use client";
 
-// Enveloppe la Sidebar (server component, recue en children) pour la rendre
-// utilisable sous md: en tiroir plutot qu'en colonne fixe de 216px qui rendait
-// l'app inutilisable en mobile. Des md: le comportement est celui d'origine
-// (colonne statique toujours visible) : seules les classes de positionnement
-// mobile sont neutralisees par les variantes md:.
+// Enveloppe le rail (server component, recu en children) pour le rendre utilisable
+// sous md: en tiroir plutot qu'en colonne fixe qui rendait l'app inutilisable en
+// mobile. Des md: colonne statique, pleine hauteur, toujours visible.
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
@@ -40,15 +38,15 @@ export function SidebarDrawer({ children }: { children: ReactNode }) {
           aria-hidden
           tabIndex={-1}
           onClick={fermer}
-          className="fixed inset-x-0 top-12 bottom-0 z-30 bg-black/30 md:hidden"
+          className="fixed inset-x-0 top-12 bottom-0 z-30 bg-rail/60 md:hidden animate-fade-in"
         />
       )}
       <div
         id="sidebar-mobile"
         className={cn(
-          "fixed left-0 top-12 bottom-0 z-40 flex w-[216px] transform transition-transform duration-200 ease-in-out",
+          "fixed left-0 top-12 bottom-0 z-40 flex w-72 max-w-[88vw] transform transition-transform duration-240 ease-out-quart",
           ouvert ? "translate-x-0" : "-translate-x-full",
-          "md:static md:z-auto md:translate-x-0 md:transition-none",
+          "md:static md:z-auto md:translate-x-0 md:transition-none md:w-auto md:max-w-none",
         )}
       >
         {children}

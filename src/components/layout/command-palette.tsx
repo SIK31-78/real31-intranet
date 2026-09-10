@@ -14,7 +14,6 @@ import { useRouter } from "next/navigation";
 import { Search, Building2, CornerDownLeft } from "lucide-react";
 import { chargerCoprosRecherche } from "@/app/recherche/actions";
 import { filtrerRecherche, type CoproRecherche } from "@/lib/domain/recherche-copro";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 
 const NAV: { label: string; href: string }[] = [
@@ -35,7 +34,16 @@ interface Item {
   copro: boolean;
 }
 
-export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean }) {
+type Variante = "rail" | "rail-icone";
+
+export function CommandPalette({
+  emailsOuvert = true,
+  variante = "rail",
+}: {
+  emailsOuvert?: boolean;
+  /** rail = pilule de recherche dans le rail ; rail-icone = icone seule (barre mobile). */
+  variante?: Variante;
+}) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [query, setQuery] = useState("");
@@ -107,25 +115,29 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
 
   return (
     <>
-      {/* Desktop : barre de recherche complete. */}
-      <Button
-        onClick={() => setOuvert(true)}
-        aria-label="Rechercher (Ctrl+K)"
-        variant="secondary" size="sm" className="hidden md:flex"
-      >
-        <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-        <span className="flex-1 text-left text-body text-ink-3 truncate">Rechercher une copro...</span>
-        <span className="font-mono text-meta px-1 py-0.5 rounded-sm text-ink-3 bg-surface-3">Ctrl K</span>
-      </Button>
-
-      {/* Mobile / une main : icone tactile (le raccourci clavier n'est pas atteignable). */}
-      <Button
-        onClick={() => setOuvert(true)}
-        aria-label="Rechercher"
-        variant="secondary" size="sm" iconOnly className="md:hidden w-7"
-      >
-        <Search strokeWidth={1.5} className="w-3.5 h-3.5" />
-      </Button>
+      {variante === "rail" ? (
+        // Rail : pilule de recherche (comme la maquette), Ctrl+K rappele.
+        <button
+          type="button"
+          onClick={() => setOuvert(true)}
+          aria-label="Rechercher (Ctrl+K)"
+          className="w-full flex items-center gap-2 h-9 pl-3 pr-2 rounded-full border border-rail-line bg-rail-2 text-rail-muted hover:bg-white/10 hover:border-rail-muted/40 transition-colors duration-120 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300"
+        >
+          <Search strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          <span className="flex-1 text-left text-body truncate">Rechercher une copro…</span>
+          <kbd className="font-mono text-meta px-1.5 py-0.5 rounded-sm border border-rail-line bg-black/20 text-rail-muted">Ctrl K</kbd>
+        </button>
+      ) : (
+        // Barre mobile : icone seule (le raccourci clavier n'est pas atteignable).
+        <button
+          type="button"
+          onClick={() => setOuvert(true)}
+          aria-label="Rechercher"
+          className="flex items-center justify-center w-8 h-8 rounded-md text-rail-ink hover:bg-rail-2 transition-colors duration-120 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300"
+        >
+          <Search strokeWidth={1.5} className="w-4 h-4" aria-hidden />
+        </button>
+      )}
 
       {ouvert && (
         <div
@@ -134,8 +146,8 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
           aria-modal="true"
           aria-label="Recherche et navigation"
         >
-          <div className="absolute inset-0 bg-black/30" onClick={fermer} />
-          <div className="relative w-full max-w-[560px] rounded-xl border border-line bg-surface shadow-2 overflow-hidden">
+          <div className="absolute inset-0 bg-rail/50 animate-fade-in" onClick={fermer} />
+          <div className="relative w-full max-w-[560px] rounded-xl border border-line bg-surface shadow-2 overflow-hidden animate-scale-in">
             <div className="flex items-center gap-2 px-3 h-11 border-b border-line">
               <Search strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
               <Input

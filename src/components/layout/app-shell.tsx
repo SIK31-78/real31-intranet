@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Sidebar, type NavKey } from "@/components/layout/sidebar";
-import { Topbar } from "@/components/layout/topbar";
+import { BarreMobile } from "@/components/layout/barre-mobile";
 import { SidebarDrawer } from "@/components/layout/sidebar-drawer";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
+import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
 import { peutVoirComptabilite, estVueComptable, estSuperAdmin } from "@/lib/auth/roles";
@@ -14,6 +15,11 @@ type AppShellProps = {
   children: ReactNode;
 };
 
+// Le shell (refonte, etape 3 - la peau, 2026-09-10) : UN rail de navigation sombre a
+// gauche (marque, recherche Ctrl+K, nav, utilisateur), le contenu sur le papier a
+// droite. La topbar blanche a disparu : le fil d'Ariane (`breadcrumb`, toujours passe
+// par les 35 pages) est publie dans un contexte et rendu par <Page> en eyebrow.
+// Sous md, une barre mobile minimale ouvre le rail en tiroir.
 export async function AppShell({ user, active, breadcrumb, children }: AppShellProps) {
   const peutImpersonner = await impersonationAutorisee();
   // "Mes evenements" visible seulement si la vraie boite est branchee (MAIL_SOURCE=graph)
@@ -33,21 +39,28 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const adminOuvert = estSuperAdmin(g?.email);
   return (
     <MobileSidebarProvider>
-      <div className="flex flex-col min-h-screen">
-        <Topbar user={user} breadcrumb={breadcrumb} peutImpersonner={peutImpersonner} emailsOuvert={emailsOuvert} />
-        <div className="flex flex-1 min-h-0">
-          {/* Sous md: la sidebar est un tiroir masque par defaut (SidebarDrawer),
-              ouvert par le bouton hamburger de la Topbar. Des md: comportement
-              d'origine inchange (colonne statique toujours visible). */}
+      <FilArianeProvider valeur={breadcrumb ?? null}>
+        <div className="flex flex-col min-h-screen md:flex-row">
+          <BarreMobile emailsOuvert={emailsOuvert} />
+          {/* Sous md: le rail est un tiroir masque par defaut (SidebarDrawer), ouvert par
+              la barre mobile. Des md: colonne statique, pleine hauteur, toujours visible. */}
           <SidebarDrawer>
-            <Sidebar active={active} emailsOuvert={emailsOuvert} comptaOuvert={comptaOuvert} vueComptable={vueComptable} adminOuvert={adminOuvert} />
+            <Sidebar
+              active={active}
+              user={user}
+              peutImpersonner={peutImpersonner}
+              emailsOuvert={emailsOuvert}
+              comptaOuvert={comptaOuvert}
+              vueComptable={vueComptable}
+              adminOuvert={adminOuvert}
+            />
           </SidebarDrawer>
-          <main className="flex-1 overflow-auto min-w-0">{children}</main>
+          <main className="flex-1 min-w-0 min-h-0">{children}</main>
+          {/* Bouton flottant "Signaler un bug / une idee", present sur toutes les pages
+              authentifiees. L'auteur et la page courante sont capturees automatiquement. */}
+          <FeedbackTrigger />
         </div>
-        {/* Bouton flottant "Signaler un bug / une idée", present sur toutes les pages
-            authentifiees. L'auteur et la page courante sont capturees automatiquement. */}
-        <FeedbackTrigger />
-      </div>
+      </FilArianeProvider>
     </MobileSidebarProvider>
   );
 }

@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Users, LogOut } from "lucide-react";
+import { Users, LogOut, ChevronsUpDown } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { deconnecter } from "@/app/dev-login/actions";
 import { Button } from "@/components/ui/button";
 
-// Menu utilisateur (avatar topbar) : changer de gestionnaire (super-admin / dev) +
-// deconnexion. Le bouton "Changer de gestionnaire" n'apparait que si autorise.
+// Menu utilisateur, en pied du rail : avatar + nom, menu qui s'ouvre vers le haut
+// (changer de gestionnaire si autorise, deconnexion).
 export function UserMenu({
   user,
   peutImpersonner,
@@ -20,15 +20,21 @@ export function UserMenu({
 
   return (
     <div className="relative">
-      <Button
+      <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
         title={user.nomComplet}
-        variant="ghost"
+        className="w-full flex items-center gap-2.5 px-2 h-11 rounded-md text-left text-rail-ink hover:bg-rail-2 transition-colors duration-120 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300"
       >
-        <Avatar initiales={user.initiales} title={user.nomComplet} />
-      </Button>
+        <Avatar initiales={user.initiales} size="lg" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-body font-medium truncate">{user.nomComplet}</span>
+          <span className="block text-meta text-rail-muted">Connecté</span>
+        </span>
+        <ChevronsUpDown strokeWidth={1.5} className="w-3.5 h-3.5 text-rail-muted shrink-0" aria-hidden />
+      </button>
 
       {open && (
         <>
@@ -36,29 +42,21 @@ export function UserMenu({
           <button type="button" aria-hidden className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} />
           <div
             role="menu"
-            className="absolute right-0 mt-2 w-56 z-20 rounded-lg border border-line bg-surface shadow-1 shadow-1 py-1"
+            className="absolute left-0 right-0 bottom-full mb-2 z-20 rounded-lg border border-line bg-surface shadow-2 py-1 animate-scale-in"
           >
-            <div className="px-3 py-2 border-b border-line">
-              <p className="text-body font-medium text-ink truncate">{user.nomComplet}</p>
-              <p className="text-meta text-ink-3">Connecté</p>
-            </div>
             {peutImpersonner && (
               <Link
                 href="/dev-login"
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-body text-ink hover:bg-surface-2"
+                className="flex items-center gap-2 px-3 h-9 text-body text-ink hover:bg-surface-2"
               >
-                <Users strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" /> Changer de gestionnaire
+                <Users strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-2" /> Changer de gestionnaire
               </Link>
             )}
-            <form action={deconnecter}>
-              <Button
-                type="submit"
-                role="menuitem"
-                variant="danger" size="lg" className="w-full"
-              >
-                <LogOut strokeWidth={1.5} className="w-3.5 h-3.5" /> Déconnexion
+            <form action={deconnecter} className="px-1 pt-1">
+              <Button type="submit" role="menuitem" variant="danger" className="w-full">
+                <LogOut strokeWidth={1.5} /> Déconnexion
               </Button>
             </form>
           </div>
