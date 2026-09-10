@@ -20,9 +20,14 @@
 //
 // Passe par le routeur (ADR-001).
 
-import { getJalonRepository, getOdjRepository } from "@/lib/adapters/router";
-import { CLE_CLOTURE_ODJ, ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
+import { getCoproRepository, getJalonRepository, getOdjRepository } from "@/lib/adapters/router";
+import { CLE_CLOTURE_ODJ, CLE_CS_GLISSE, ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
 import { formatCloture } from "@/lib/domain/odj";
+import {
+  doitGlisserCs,
+  formatGlissementCs,
+  parseGlissementCs,
+} from "@/lib/domain/odj-glissement-cs";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 
 /**
@@ -48,6 +53,16 @@ export async function cloturerOdj(params: {
     initiales,
   );
 
+  // La reunion du CS s'est tenue : sa date n'est plus "a venir". On la fait GLISSER de
+  // "prochain CS" vers "dernier CS" (demande Sekou 2026-09-10 : la fiche du 4 Bleuets
+  // annoncait un CS au 3 septembre alors qu'on etait le 10). Reversible comme le reste :
+  // rouvrir l'ODJ remet les deux dates telles qu'elles etaient.
+  // BEST-EFFORT, comme le jalon : le referentiel Copropriete est partage avec l'App A, un
+  // refus de scope ne doit pas defaire la cloture (l'acte primaire).
+  await glisserDateCs({ coproCode, agDateISO, clore, initiales, managerId, maintenantISO }).catch((e) =>
+    console.warn(`[cloturer-odj] date de CS non glissee (${coproCode}) :`, (e as Error).message),
+  );
+
   // "Reunion terminee" = le CS de validation de l'ODJ s'est tenu : c'est EXACTEMENT le
   // jalon ODJ_CS ("ODJ valide avec le Conseil Syndical"). Sans ce marquage, l'etape ODJ du
   // cycle (etapeFaite -> accompli.has("ODJ_CS")) ne passait JAMAIS : la frise restait bloquee
@@ -69,4 +84,56 @@ export async function cloturerOdj(params: {
         console.warn(`[cloturer-odj] jalon ODJ_CS non marque (${coproCode}) :`, (e as Error).message),
       );
   }
+}
+
+/**
+ * Deplace la date de CS au rythme de la cloture. Le marqueur est ecrit AVANT les dates :
+ * si une ecriture de date echoue ensuite, la reouverture restaure des valeurs qui sont
+ * deja en place (no-op) au lieu de laisser un glissement irreversible.
+ */
+async function glisserDateCs(params: {
+  coproCode: string;
+  agDateISO: string;
+  clore: boolean;
+  initiales: string;
+  managerId: string;
+  maintenantISO: string;
+}): Promise<void> {
+  const { coproCode, agDateISO, clore, initiales, managerId, maintenantISO } = params;
+  const copros = getCoproRepository();
+  const odj = getOdjRepository();
+
+  if (clore) {
+    const copro = await copros.findByCode(coproCode, managerId);
+    if (!doitGlisserCs(copro?.prochaineCsDate, maintenantISO)) return;
+    const glissee = (copro?.prochaineCsDate ?? "").slice(0, 10);
+    await odj.setChamp(
+      coproCode,
+      agDateISO,
+      CLE_CS_GLISSE,
+      formatGlissementCs(glissee, copro?.derniereCsDate),
+      initiales,
+    );
+    await copros.setDateEvenement(coproCode, "cs", "derniere", glissee, managerId);
+    // On efface la prochaine date SANS passer par definirDateEvenement : celui-ci
+    // deprojetterait l'evenement Outlook, or cette reunion a EU LIEU - elle doit rester
+    // dans les agendas.
+    await copros.setDateEvenement(coproCode, "cs", "prochaine", null, managerId);
+    return;
+  }
+
+  // Reouverture : on annule le glissement, et RIEN d'autre. Sans marqueur (ODJ clos
+  // avant cette regle, ou cloture qui n'avait rien fait glisser), on ne touche a rien.
+  const etat = await odj.getEtat(coproCode, agDateISO);
+  const glissement = parseGlissementCs(etat.find((e) => e.champId === CLE_CS_GLISSE)?.valeur);
+  if (!glissement) return;
+  await copros.setDateEvenement(coproCode, "cs", "prochaine", glissement.glissee, managerId);
+  await copros.setDateEvenement(
+    coproCode,
+    "cs",
+    "derniere",
+    glissement.ancienneDerniere || null,
+    managerId,
+  );
+  await odj.setChamp(coproCode, agDateISO, CLE_CS_GLISSE, null, initiales);
 }

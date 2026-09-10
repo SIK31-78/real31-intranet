@@ -11,7 +11,7 @@ import { peutEcrireSurCopro } from "@/lib/services/coproprietes/copro-appartient
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getOdjRepository } from "@/lib/adapters/router";
 import { parseCloture } from "@/lib/domain/odj";
-import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
+import { CLE_CLOTURE_ODJ, CLE_CS_GLISSE } from "@/lib/ports/odj-repository";
 import { decouperIdOdj, resoudreCleOdj } from "@/lib/services/odj/resoudre-cle-odj";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 
@@ -52,8 +52,8 @@ async function estCloture(code: string, agDate: string): Promise<boolean> {
 
 export async function saisirChampAction(id: string, champId: string, valeur: string): Promise<void> {
   if (!z.object({ id: zId, champId: zChampId, valeur: zValeur }).safeParse({ id, champId, valeur }).success) return;
-  // La cle de cloture n'est PAS un champ : elle ne passe que par cloturerOdjAction.
-  if (champId === CLE_CLOTURE_ODJ) return;
+  // Les cles reservees ne sont PAS des champs : elles ne passent que par cloturerOdjAction.
+  if (champId === CLE_CLOTURE_ODJ || champId === CLE_CS_GLISSE) return;
   const { code } = decouperIdOdj(id);
   const g = await autorise(code);
   if (!g) return;
@@ -91,4 +91,10 @@ export async function cloturerOdjAction(id: string, clore: boolean): Promise<voi
     maintenantISO: new Date().toISOString(),
   });
   revalidatePath(`/odj/${id}`);
+  // La cloture fait glisser la date de CS (prochaine -> derniere) : toutes les vues qui
+  // affichent des dates doivent se recalculer, sinon la fiche continue d'annoncer un CS
+  // deja tenu (c'etait exactement le bug remonte le 2026-09-10).
+  revalidatePath(`/copropriete/${code}`);
+  revalidatePath("/calendrier");
+  revalidatePath("/accueil");
 }

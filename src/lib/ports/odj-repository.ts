@@ -35,3 +35,10 @@ export const PREFIXE_POINT = "point.";
  *  surtout : zero SQL a passer a la main (le SQL non execute nous a deja coute assez cher
  *  cette semaine). */
 export const CLE_CLOTURE_ODJ = "__cloture";
+
+/** Cle RESERVEE portant le GLISSEMENT de la date de conseil syndical opere par la cloture
+ *  ("le CS s'est tenu" -> la prochaine date devient la derniere). Meme espace de noms
+ *  reserve que CLE_CLOTURE_ODJ (double underscore, jamais un id de champ), meme table
+ *  d'etat, donc zero SQL. Elle memorise l'ancienne "derniere" date pour que rouvrir
+ *  l'ODJ remette le referentiel exactement dans son etat d'avant. Cf. domain/odj-glissement-cs. */
+export const CLE_CS_GLISSE = "__cs-glisse";

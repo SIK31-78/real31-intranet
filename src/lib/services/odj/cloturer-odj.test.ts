@@ -18,6 +18,9 @@ const etat = vi.hoisted(() => ({
   champs: [] as { champId: string; valeur: string | null }[],
   marquages: [] as MarquageJalon[],
   echouerMarquage: false,
+  /** Referentiel Copropriete simule : les deux dates de CS que la cloture fait glisser. */
+  derniereCsDate: undefined as string | undefined,
+  prochaineCsDate: undefined as string | undefined,
 }));
 
 vi.mock("@/lib/services/coproprietes/exiger-perimetre", () => ({
@@ -27,6 +30,30 @@ vi.mock("@/lib/adapters/router", () => ({
   getOdjRepository: () => ({
     async setChamp(_c: string, _a: string, champId: string, valeur: string | null) {
       etat.champs.push({ champId, valeur });
+    },
+    // getEtat rejoue les setChamp : la derniere valeur ecrite pour une cle gagne, comme
+    // la vraie table (upsert). Sert a la RELECTURE du marqueur de glissement.
+    async getEtat() {
+      const parCle = new Map(etat.champs.map((c) => [c.champId, c.valeur]));
+      return [...parCle].map(([champId, valeur]) => ({ champId, valeur }));
+    },
+  }),
+  getCoproRepository: () => ({
+    async findByCode() {
+      return {
+        code: "S001",
+        derniereCsDate: etat.derniereCsDate,
+        prochaineCsDate: etat.prochaineCsDate,
+      };
+    },
+    async setDateEvenement(
+      _c: string,
+      _type: "ag" | "cs",
+      quand: "prochaine" | "derniere",
+      dateISO: string | null,
+    ) {
+      if (quand === "prochaine") etat.prochaineCsDate = dateISO ?? undefined;
+      else etat.derniereCsDate = dateISO ?? undefined;
     },
   }),
   getJalonRepository: () => ({
@@ -45,16 +72,19 @@ import type { Copropriete } from "@/lib/domain/copropriete";
 const AG = "2026-07-10";
 const TODAY = "2026-06-22";
 
-function clore(clore: boolean, agDateISO = AG) {
+function clore(clore: boolean, agDateISO = AG, maintenantISO = "2026-06-22T09:00:00.000Z") {
   return cloturerOdj({
     coproCode: "S001",
     agDateISO,
     clore,
     initiales: "RL",
     managerId: "g1",
-    maintenantISO: "2026-06-22T09:00:00.000Z",
+    maintenantISO,
   });
 }
+
+/** Le jour ou Sekou a remonte le bug : le CS du 3 septembre etait deja passe. */
+const LE_10_SEPTEMBRE = "2026-09-10T09:00:00.000Z";
 
 /** Copro dont l'etape "Dates" est faite (AG proche + CS de prep pose). */
 function copro(): Copropriete {
@@ -84,6 +114,8 @@ beforeEach(() => {
   etat.champs = [];
   etat.marquages = [];
   etat.echouerMarquage = false;
+  etat.derniereCsDate = undefined;
+  etat.prochaineCsDate = undefined;
 });
 
 describe("cloturerOdj - la cloture fait avancer le cycle AG", () => {
@@ -138,5 +170,65 @@ describe("cloturerOdj - le bug remonte par les collegues (frise bloquee sur ODJ)
     await clore(false);
 
     expect(calculerCycleAg(copro(), accompliDepuisMarquages(), TODAY).etapeCourante).toBe("odj");
+  });
+});
+
+// Le CS annonce comme "a venir" alors qu'il s'est tenu : bug remonte par Sekou le
+// 2026-09-10 sur BLEUETS4 (dernier CS au 5 sept. 2025, prochain CS au 3 sept. 2026, alors
+// qu'on etait le 10). "Marquer la reunion terminee" est le declencheur qu'il a choisi.
+describe("cloturerOdj - la date de CS glisse quand la reunion est terminee", () => {
+  it("passe la prochaine date de CS en derniere date et libere la prochaine", async () => {
+    etat.derniereCsDate = "2025-09-05";
+    etat.prochaineCsDate = "2026-09-03";
+
+    await clore(true, AG, LE_10_SEPTEMBRE);
+
+    expect(etat.derniereCsDate).toBe("2026-09-03");
+    expect(etat.prochaineCsDate).toBeUndefined();
+  });
+
+  it("memorise l'ancienne derniere date pour pouvoir revenir en arriere", async () => {
+    etat.derniereCsDate = "2025-09-05";
+    etat.prochaineCsDate = "2026-09-03";
+
+    await clore(true, AG, LE_10_SEPTEMBRE);
+
+    expect(etat.champs.find((c) => c.champId === "__cs-glisse")?.valeur).toBe(
+      "2026-09-03|2025-09-05",
+    );
+  });
+
+  it("rouvrir l'ODJ remet les deux dates exactement comme avant", async () => {
+    etat.derniereCsDate = "2025-09-05";
+    etat.prochaineCsDate = "2026-09-03";
+
+    await clore(true, AG, LE_10_SEPTEMBRE);
+    await clore(false, AG, LE_10_SEPTEMBRE);
+
+    expect(etat.derniereCsDate).toBe("2025-09-05");
+    expect(etat.prochaineCsDate).toBe("2026-09-03");
+    expect(etat.champs.at(-1)).toEqual({ champId: "__cs-glisse", valeur: null });
+  });
+
+  it("ne deplace RIEN quand le CS est encore a venir (ODJ cloture en avance)", async () => {
+    etat.derniereCsDate = "2025-09-05";
+    etat.prochaineCsDate = "2026-06-25"; // maintenantISO = 2026-06-22
+
+    await clore(true);
+
+    expect(etat.derniereCsDate).toBe("2025-09-05");
+    expect(etat.prochaineCsDate).toBe("2026-06-25");
+    expect(etat.champs.some((c) => c.champId === "__cs-glisse")).toBe(false);
+  });
+
+  it("rouvrir un ODJ qui n'avait rien fait glisser ne touche pas au referentiel", async () => {
+    etat.derniereCsDate = "2025-09-05";
+    etat.prochaineCsDate = "2026-06-25";
+
+    await clore(true);
+    await clore(false);
+
+    expect(etat.derniereCsDate).toBe("2025-09-05");
+    expect(etat.prochaineCsDate).toBe("2026-06-25");
   });
 });
