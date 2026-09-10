@@ -30,6 +30,8 @@ const SRC = join(RACINE, "src");
 const MIGRES = [
   "src/app/accueil",
   "src/app/odj",
+  "src/app/recap-ag",
+  "src/components/recap-ag",
   "src/app/supervision-ag",
   "src/components/supervision-ag",
   "src/components/affaires",

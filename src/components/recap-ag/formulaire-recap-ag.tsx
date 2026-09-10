@@ -4,11 +4,16 @@
 // etalait sur deux : deroule de l'AG, decisions votees, travaux, nouveau contrat.
 // Le depassement horaire n'est pas saisi : il est calcule serveur a partir du
 // creneau et de la plage contractuelle de la copropriete.
+//
+// Refonte 2026-09 : cinq sections a la hairline (pas de carte englobante), champs sur
+// les primitives Field / Input / Select / Choix, une aide d'UNE ligne par section, et
+// UN primaire : "Calculer et verifier".
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, ClipboardCheck } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Plus, Trash2, ClipboardCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Field, Input, Select, Choix, GroupeChoix } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "@/components/facturation/confirmation-facturation";
@@ -24,34 +29,47 @@ interface TravauxSaisis {
   modalitesAppelFonds: string;
 }
 
-const champ =
-  "w-full rounded border border-line px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-green-700";
-const label = "block text-[12px] font-medium text-ink-2 mb-1";
-const section = "text-[13px] font-semibold text-ink border-b border-line pb-1.5 mb-3";
+/** Une section du formulaire : titre a la hairline, aide d'une ligne, grille de champs. */
+function SectionForm({
+  titre,
+  hint,
+  actions,
+  children,
+}: {
+  titre: string;
+  hint?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3 border-b border-line pb-1.5">
+        <h2 className="text-title font-semibold tracking-tight text-ink">{titre}</h2>
+        {actions}
+      </div>
+      {children}
+      {hint && <p className="text-meta text-ink-2">{hint}</p>}
+    </section>
+  );
+}
 
 function OuiNon({
+  label,
   valeur,
   onChange,
   id,
 }: {
+  label: string;
   valeur: boolean | null;
   onChange: (v: boolean) => void;
   id: string;
 }) {
   return (
-    <div className="flex gap-4 text-[13px]">
+    <GroupeChoix label={label}>
       {[true, false].map((v) => (
-        <label key={String(v)} className="flex cursor-pointer items-center gap-1.5">
-          <input
-            type="radio"
-            name={id}
-            checked={valeur === v}
-            onChange={() => onChange(v)}
-          />
-          {v ? "Oui" : "Non"}
-        </label>
+        <Choix key={String(v)} type="radio" name={id} label={v ? "Oui" : "Non"} checked={valeur === v} onChange={() => onChange(v)} />
       ))}
-    </div>
+    </GroupeChoix>
   );
 }
 
@@ -201,221 +219,167 @@ export function FormulaireRecapAg({
     });
   }
 
+  const majTravaux = (i: number, patch: Partial<TravauxSaisis>) =>
+    setTravaux(travaux.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+
   return (
-    <Card>
-      <div className="flex flex-col gap-6 px-4 py-4">
-        <div>
-          <h2 className={section}>Assemblée</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className={label} htmlFor="copro">Copropriété</label>
-              <select id="copro" className={champ} value={coproCode} onChange={(e) => { const v = e.target.value; setCoproCode(v); setJour(copros.find((c) => c.code === v)?.agDateSuggeree ?? ""); }}>
-                {copros.map((c) => (
-                  <option key={c.code} value={c.code}>{c.code} - {c.nom}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={label} htmlFor="jour">Date de l&apos;AG</label>
-              <input id="jour" type="date" className={champ} value={jour} onChange={(e) => setJour(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className={label} htmlFor="debut">Début</label>
-                <input id="debut" type="time" className={champ} value={debut} onChange={(e) => setDebut(e.target.value)} />
-              </div>
-              <div>
-                <label className={label} htmlFor="fin">Fin</label>
-                <input id="fin" type="time" className={champ} value={fin} onChange={(e) => setFin(e.target.value)} />
-              </div>
-            </div>
-            <p className="sm:col-span-2 text-[12px] text-ink-3">
-              La durée incluse au contrat et la plage horaire sont lues sur la fiche de la
-              copropriété. Le dépassement est calculé automatiquement, il n&apos;est pas saisi.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <h2 className={section}>Décisions votées</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <span className={label}>Comptes approuvés</span>
-              <OuiNon id="comptes" valeur={comptesApprouves} onChange={setComptesApprouves} />
-            </div>
-            <div>
-              <label className={label} htmlFor="reserves">Réserves</label>
-              <input id="reserves" className={champ} value={reserves} onChange={(e) => setReserves(e.target.value)} placeholder="Observations éventuelles" />
-            </div>
-            <div>
-              <span className={label}>Le budget présenté a-t-il été modifié en AG ?</span>
-              <OuiNon id="budget" valeur={budgetModifie} onChange={setBudgetModifie} />
-            </div>
-            {/* Le nouveau montant n'a de sens que si le budget a ete modifie
-                (le legacy ne l'exigeait aussi que dans ce cas). */}
-            {budgetModifie === true ? (
-              <div>
-                <label className={label} htmlFor="mbudget">Nouveau montant du budget (€)</label>
-                <input id="mbudget" type="number" step="0.01" min="0" className={champ} value={montantBudget} onChange={(e) => setMontantBudget(e.target.value)} />
-              </div>
-            ) : (
-              <div />
-            )}
-            <div className="sm:col-span-2">
-              <label className={label} htmlFor="info">Info comptable</label>
-              <input id="info" className={champ} value={infoComptable} onChange={(e) => setInfoComptable(e.target.value)} />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h2 className={section}>Fonds travaux</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <span className={label}>Un PPT a-t-il été voté à cette AG ?</span>
-              <OuiNon id="ppt" valeur={pptVote} onChange={setPptVote} />
-            </div>
-            <div>
-              <span className={label}>Fonds travaux</span>
-              <OuiNon id="fonds" valeur={fondsTravaux} onChange={setFondsTravaux} />
-            </div>
-            {/* PPT voté : le fonds travaux suit le plan. Sinon, il est un
-                pourcentage du budget, plancher au minimum légal. */}
-            {pptVote === true && (
-              <>
-                <div>
-                  <label className={label} htmlFor="pppt">Pourcentage PPT (%)</label>
-                  <input id="pppt" type="number" step="0.1" min="0" className={champ} value={pourcentagePpt} onChange={(e) => setPourcentagePpt(e.target.value)} />
-                </div>
-                <div>
-                  <label className={label} htmlFor="mppt">Montant PPT voté sur 10 ans (€)</label>
-                  <input id="mppt" type="number" step="0.01" min="0" className={champ} value={montantPpt} onChange={(e) => setMontantPpt(e.target.value)} />
-                </div>
-              </>
-            )}
-            <div>
-              <label className={label} htmlFor="pbudget">Pourcentage budget (%)</label>
-              <input
-                id="pbudget"
-                type="number"
-                step="0.1"
-                min={0}
-                className={champ}
-                value={pourcentageBudget}
-                onChange={(e) => setPourcentageBudget(e.target.value)}
-              />
-            </div>
-            {pptVote !== true && (
-              <p className="sm:col-span-2 text-[12px] text-ink-3">
-                Sans PPT voté, le fonds travaux est un pourcentage du budget prévisionnel. Le
-                minimum légal est de {POURCENTAGE_FONDS_TRAVAUX_MINIMUM} % : en dessous, un
-                avertissement s&apos;affichera à la validation, sans empêcher d&apos;enregistrer.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between border-b border-line pb-1.5 mb-3">
-            <h2 className="text-[13px] font-semibold text-ink">Travaux votés</h2>
-            <button
-              type="button"
-              onClick={() => setTravaux([...travaux, { numeroResolution: "", libelle: "", budget: "", cleRepartition: "", modalitesAppelFonds: "" }])}
-              className="inline-flex items-center gap-1 rounded border border-line px-2 py-1 text-[12px] text-ink hover:bg-black/[0.03]"
+    <div className="flex flex-col gap-6">
+      <SectionForm
+        titre="Assemblée"
+        hint="Le dépassement est calculé depuis la durée incluse au contrat, lue sur la fiche : il n'est pas saisi."
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <Field label="Copropriété" htmlFor="copro" className="sm:col-span-4">
+            <Select
+              id="copro"
+              value={coproCode}
+              onChange={(e) => {
+                const v = e.target.value;
+                setCoproCode(v);
+                setJour(copros.find((c) => c.code === v)?.agDateSuggeree ?? "");
+              }}
             >
-              <Plus className="w-3.5 h-3.5" strokeWidth={1.5} /> Ajouter
-            </button>
-          </div>
-          {travaux.length === 0 ? (
-            <p className="text-[12px] text-ink-3">Aucun travaux voté.</p>
-          ) : (
-            <ul className="flex flex-col gap-2 overflow-x-auto">
-              {travaux.map((t, i) => (
-                <li key={i} className="grid min-w-[640px] grid-cols-[auto_2fr_1fr_1fr_1fr_auto] items-end gap-2">
-                  <div className="w-[80px]">
-                    {i === 0 && <label className={label}>Résolution</label>}
-                    <input className={champ} value={t.numeroResolution} placeholder="n°" onChange={(e) => setTravaux(travaux.map((x, j) => (j === i ? { ...x, numeroResolution: e.target.value } : x)))} />
-                  </div>
-                  <div>
-                    {i === 0 && <label className={label}>Libellé</label>}
-                    <input className={champ} value={t.libelle} onChange={(e) => setTravaux(travaux.map((x, j) => (j === i ? { ...x, libelle: e.target.value } : x)))} />
-                  </div>
-                  <div>
-                    {i === 0 && <label className={label}>Budget</label>}
-                    <input type="number" step="0.01" min="0" className={champ} value={t.budget} onChange={(e) => setTravaux(travaux.map((x, j) => (j === i ? { ...x, budget: e.target.value } : x)))} />
-                  </div>
-                  <div>
-                    {i === 0 && <label className={label}>Clé de répartition</label>}
-                    <input className={champ} value={t.cleRepartition} onChange={(e) => setTravaux(travaux.map((x, j) => (j === i ? { ...x, cleRepartition: e.target.value } : x)))} />
-                  </div>
-                  <div>
-                    {i === 0 && <label className={label}>Appel de fonds</label>}
-                    <input className={champ} value={t.modalitesAppelFonds} onChange={(e) => setTravaux(travaux.map((x, j) => (j === i ? { ...x, modalitesAppelFonds: e.target.value } : x)))} />
-                  </div>
-                  <button type="button" onClick={() => setTravaux(travaux.filter((_, j) => j !== i))} aria-label="Retirer" className="mb-1.5 text-ink-3 hover:text-red-700">
-                    <Trash2 className="w-4 h-4" strokeWidth={1.5} />
-                  </button>
-                </li>
+              {copros.map((c) => (
+                <option key={c.code} value={c.code}>{c.code} - {c.nom}</option>
               ))}
-            </ul>
+            </Select>
+          </Field>
+          <Field label="Date de l'AG" htmlFor="jour" className="sm:col-span-2">
+            <Input id="jour" type="date" value={jour} onChange={(e) => setJour(e.target.value)} />
+          </Field>
+          <Field label="Début" htmlFor="debut">
+            <Input id="debut" type="time" value={debut} onChange={(e) => setDebut(e.target.value)} />
+          </Field>
+          <Field label="Fin" htmlFor="fin">
+            <Input id="fin" type="time" value={fin} onChange={(e) => setFin(e.target.value)} />
+          </Field>
+        </div>
+      </SectionForm>
+
+      <SectionForm titre="Décisions votées">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <OuiNon id="comptes" label="Comptes approuvés" valeur={comptesApprouves} onChange={setComptesApprouves} />
+          <Field label="Réserves" htmlFor="reserves">
+            <Input id="reserves" value={reserves} onChange={(e) => setReserves(e.target.value)} placeholder="Observations éventuelles" />
+          </Field>
+          <OuiNon id="budget" label="Budget présenté modifié en AG" valeur={budgetModifie} onChange={setBudgetModifie} />
+          {/* Le nouveau montant n'a de sens que si le budget a ete modifie
+              (le legacy ne l'exigeait aussi que dans ce cas). */}
+          {budgetModifie === true ? (
+            <Field label="Nouveau montant du budget (€)" htmlFor="mbudget">
+              <Input id="mbudget" type="number" step="0.01" min="0" value={montantBudget} onChange={(e) => setMontantBudget(e.target.value)} />
+            </Field>
+          ) : (
+            <div />
+          )}
+          <Field label="Info comptable" htmlFor="info" className="sm:col-span-2">
+            <Input id="info" value={infoComptable} onChange={(e) => setInfoComptable(e.target.value)} />
+          </Field>
+        </div>
+      </SectionForm>
+
+      <SectionForm
+        titre="Fonds travaux"
+        hint={
+          pptVote !== true
+            ? `Sans PPT voté, le fonds travaux est un pourcentage du budget prévisionnel ; minimum légal ${POURCENTAGE_FONDS_TRAVAUX_MINIMUM} % (en dessous : avertissement, pas de blocage).`
+            : undefined
+        }
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <OuiNon id="ppt" label="PPT voté à cette AG" valeur={pptVote} onChange={setPptVote} />
+          <OuiNon id="fonds" label="Fonds travaux" valeur={fondsTravaux} onChange={setFondsTravaux} />
+          {/* PPT vote : le fonds travaux suit le plan. Sinon, il est un
+              pourcentage du budget, plancher au minimum legal. */}
+          {pptVote === true && (
+            <>
+              <Field label="Pourcentage PPT (%)" htmlFor="pppt">
+                <Input id="pppt" type="number" step="0.1" min="0" value={pourcentagePpt} onChange={(e) => setPourcentagePpt(e.target.value)} />
+              </Field>
+              <Field label="Montant PPT voté sur 10 ans (€)" htmlFor="mppt">
+                <Input id="mppt" type="number" step="0.01" min="0" value={montantPpt} onChange={(e) => setMontantPpt(e.target.value)} />
+              </Field>
+            </>
+          )}
+          <Field label="Pourcentage budget (%)" htmlFor="pbudget">
+            <Input id="pbudget" type="number" step="0.1" min={0} value={pourcentageBudget} onChange={(e) => setPourcentageBudget(e.target.value)} />
+          </Field>
+        </div>
+      </SectionForm>
+
+      <SectionForm
+        titre="Travaux votés"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setTravaux([...travaux, { numeroResolution: "", libelle: "", budget: "", cleRepartition: "", modalitesAppelFonds: "" }])
+            }
+          >
+            <Plus strokeWidth={1.5} /> Ajouter
+          </Button>
+        }
+      >
+        {travaux.length === 0 ? (
+          <p className="text-body text-ink-2">Aucun travaux voté</p>
+        ) : (
+          <ul className="flex flex-col gap-2 overflow-x-auto">
+            {travaux.map((t, i) => (
+              <li key={i} className="grid min-w-160 grid-cols-[5rem_2fr_1fr_1fr_1fr_auto] items-end gap-2">
+                <Field label={i === 0 ? "Résolution" : ""}>
+                  <Input value={t.numeroResolution} placeholder="n°" aria-label="Numéro de résolution" onChange={(e) => majTravaux(i, { numeroResolution: e.target.value })} />
+                </Field>
+                <Field label={i === 0 ? "Libellé" : ""}>
+                  <Input value={t.libelle} aria-label="Libellé des travaux" onChange={(e) => majTravaux(i, { libelle: e.target.value })} />
+                </Field>
+                <Field label={i === 0 ? "Budget" : ""}>
+                  <Input type="number" step="0.01" min="0" value={t.budget} aria-label="Budget" onChange={(e) => majTravaux(i, { budget: e.target.value })} />
+                </Field>
+                <Field label={i === 0 ? "Clé de répartition" : ""}>
+                  <Input value={t.cleRepartition} aria-label="Clé de répartition" onChange={(e) => majTravaux(i, { cleRepartition: e.target.value })} />
+                </Field>
+                <Field label={i === 0 ? "Appel de fonds" : ""}>
+                  <Input value={t.modalitesAppelFonds} aria-label="Modalités d'appel de fonds" onChange={(e) => majTravaux(i, { modalitesAppelFonds: e.target.value })} />
+                </Field>
+                <Button variant="ghost" size="md" iconOnly aria-label="Retirer" onClick={() => setTravaux(travaux.filter((_, j) => j !== i))}>
+                  <Trash2 strokeWidth={1.5} />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionForm>
+
+      <SectionForm
+        titre="Nouveau contrat de gestion"
+        hint="Renseigner ces champs ouvre un nouveau cycle de contrat : ces montants alimentent la facturation de gestion courante."
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Field label="Début du contrat" htmlFor="dcontrat">
+            <Input id="dcontrat" type="date" value={debutContrat} onChange={(e) => setDebutContrat(e.target.value)} />
+          </Field>
+          <Field label="Honoraires annuels TTC" htmlFor="hono">
+            <Input id="hono" type="number" step="0.01" min="0" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} />
+          </Field>
+          <GroupeChoix label="Frais postaux">
+            <Choix type="radio" name="frais-postaux" label="Frais réels" checked={fraisPostauxReels === true} onChange={() => setFraisPostauxReels(true)} />
+            <Choix type="radio" name="frais-postaux" label="Forfait" checked={fraisPostauxReels === false} onChange={() => setFraisPostauxReels(false)} />
+          </GroupeChoix>
+          {/* Le montant n'est demande que si le contrat prevoit un forfait. */}
+          {fraisPostauxReels === false && (
+            <Field label="Forfait frais postaux TTC (€)" htmlFor="postaux">
+              <Input id="postaux" type="number" step="0.01" min="0" value={forfaitPostaux} onChange={(e) => setForfaitPostaux(e.target.value)} />
+            </Field>
           )}
         </div>
+      </SectionForm>
 
-        <div>
-          <h2 className={section}>Nouveau contrat de gestion</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div>
-              <label className={label} htmlFor="dcontrat">Début du contrat</label>
-              <input id="dcontrat" type="date" className={champ} value={debutContrat} onChange={(e) => setDebutContrat(e.target.value)} />
-            </div>
-            <div>
-              <label className={label} htmlFor="hono">Honoraires annuels TTC</label>
-              <input id="hono" type="number" step="0.01" min="0" className={champ} value={honoraires} onChange={(e) => setHonoraires(e.target.value)} />
-            </div>
-            <div>
-              <span className={label}>Frais postaux</span>
-              <div className="flex gap-4 text-[13px]">
-                {[
-                  { v: true, l: "Frais réels" },
-                  { v: false, l: "Forfait" },
-                ].map((o) => (
-                  <label key={String(o.v)} className="flex cursor-pointer items-center gap-1.5">
-                    <input
-                      type="radio"
-                      name="frais-postaux"
-                      checked={fraisPostauxReels === o.v}
-                      onChange={() => setFraisPostauxReels(o.v)}
-                    />
-                    {o.l}
-                  </label>
-                ))}
-              </div>
-            </div>
-            {/* Le montant n'est demande que si le contrat prevoit un forfait. */}
-            {fraisPostauxReels === false && (
-              <div>
-                <label className={label} htmlFor="postaux">Forfait frais postaux TTC (€)</label>
-                <input id="postaux" type="number" step="0.01" min="0" className={champ} value={forfaitPostaux} onChange={(e) => setForfaitPostaux(e.target.value)} />
-              </div>
-            )}
-            <p className="col-span-3 text-[12px] text-ink-3">
-              Renseigner ces champs ouvre un nouveau cycle de contrat pour la copropriété. Ces
-              montants alimenteront la facturation de gestion courante.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <button
-            type="button"
-            onClick={verifier}
-            disabled={pending}
-            className="inline-flex items-center gap-2 rounded bg-green-700 px-3 py-2 text-[13px] font-medium text-white hover:bg-green-800 disabled:opacity-60"
-          >
-            {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardCheck className="w-4 h-4" strokeWidth={1.5} />}
-            Calculer et vérifier
-          </button>
-        </div>
+      <div className="flex justify-end border-t border-line pt-4">
+        <Button variant="primary" size="lg" onClick={verifier} loading={pending}>
+          <ClipboardCheck strokeWidth={1.5} />
+          Calculer et vérifier
+        </Button>
       </div>
 
       {apercu && (
@@ -428,6 +392,6 @@ export function FormulaireRecapAg({
           onAnnuler={() => setApercu(null)}
         />
       )}
-    </Card>
+    </div>
   );
 }

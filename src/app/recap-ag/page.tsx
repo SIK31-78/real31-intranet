@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { ClipboardList } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
 import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
 import { getRecapAgRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
+import { Page, PageHeader } from "@/components/ui/page";
 import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { FormulaireRecapAg } from "@/components/recap-ag/formulaire-recap-ag";
 import { HistoriqueRecaps, type RecapAffiche } from "@/components/recap-ag/historique-recaps";
@@ -72,18 +72,18 @@ export default async function RecapAgPage({
 
   return (
     <AppShell user={g} active="recap-ag" breadcrumb="Récap AG">
-      <div className="mx-auto flex max-w-[1000px] flex-col gap-5 px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <div>
-          <h1 className="flex items-center gap-2 text-[20px] font-semibold text-ink">
-            <ClipboardList strokeWidth={1.5} className="h-5 w-5 text-green-700" />
-            Récap d&apos;assemblée générale
-          </h1>
-          <p className="mt-1 text-[13px] text-ink-3">
-            Le compte-rendu de l&apos;AG une fois tenue : décisions votées, travaux, nouveau
-            contrat. Le dépassement horaire est calculé automatiquement et facturé s&apos;il y a
-            lieu, au tarif de l&apos;exercice approuvé.
-          </p>
-        </div>
+      <Page largeur="lecture">
+        <PageHeader
+          titre="Récap d'assemblée générale"
+          aide={
+            <p>
+              Le compte-rendu de l&apos;AG une fois tenue : décisions votées, travaux, nouveau contrat. La durée
+              incluse au contrat et la plage horaire sont lues sur la fiche de la copropriété ; le dépassement
+              horaire est calculé automatiquement et facturé s&apos;il y a lieu, au tarif de l&apos;exercice
+              approuvé.
+            </p>
+          }
+        />
 
         {/* En tete : c'est ici que le gestionnaire corrige, donc c'est ici qu'on l'avertit. */}
         <AlerteRecapsEnRetard lignes={enRetard} variante="gestionnaire" />
@@ -107,7 +107,7 @@ export default async function RecapAgPage({
         </div>
 
         <HistoriqueRecaps recaps={recaps} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

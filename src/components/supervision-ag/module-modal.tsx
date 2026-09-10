@@ -5,7 +5,7 @@
 // Facturation restent autonomes (leurs pages continuent de marcher a l'identique),
 // cette modale ne fait que les rappeler ici sans quitter la supervision.
 
-import { Modal } from "@/components/ui/modal";
+import { Modal, ModalBody } from "@/components/ui/modal";
 import { FormulaireRecapAg } from "@/components/recap-ag/formulaire-recap-ag";
 import { FormulaireFacturation } from "@/components/facturation/formulaire-facturation";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
@@ -32,6 +32,7 @@ export function ModuleModal({
   if (module === "recap") {
     return (
       <Modal titre={`Récap AG · ${copro.nomCourt}`} onFermer={onFermer} size="lg">
+        <ModalBody>
         <FormulaireRecapAg
           copros={[
             {
@@ -43,6 +44,7 @@ export function ModuleModal({
           pennylaneMode={pennylaneMode}
           onSucces={onFermer}
         />
+        </ModalBody>
       </Modal>
     );
   }
