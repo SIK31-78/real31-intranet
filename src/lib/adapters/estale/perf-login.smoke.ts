@@ -48,4 +48,31 @@ describe("cout du login eStale", () => {
     }
     expect(res.status).toBeLessThan(500);
   }, 120_000);
+
+  it("le VRAI client ne fait qu'un login pour trois lectures concurrentes", async () => {
+    if (!process.env.ESTALE_BASE_URL) return console.log("ESTALE_BASE_URL absent");
+    const { estaleGql } = await import("./client");
+
+    const t0 = Date.now();
+    await Promise.all([
+      estaleGql("{ __typename }"),
+      estaleGql("{ __typename }"),
+      estaleGql("{ __typename }"),
+    ]);
+    const froid = Date.now() - t0;
+
+    const t1 = Date.now();
+    await Promise.all([
+      estaleGql("{ __typename }"),
+      estaleGql("{ __typename }"),
+      estaleGql("{ __typename }"),
+    ]);
+    const chaud = Date.now() - t1;
+
+    console.log(`3 lectures, instance FRAICHE  ${String(froid).padStart(6)} ms (login compris)`);
+    console.log(`3 lectures, session CHAUDE    ${String(chaud).padStart(6)} ms`);
+    // Un seul login paye : le lot froid doit rester sous DEUX logins (~1,5 s).
+    expect(froid).toBeLessThan(2_000);
+    expect(chaud).toBeLessThan(500);
+  }, 120_000);
 });

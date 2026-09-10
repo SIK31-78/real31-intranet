@@ -23,6 +23,8 @@ const TIMEOUT_MUTATION_MS = Number(process.env.ESTALE_TIMEOUT_MUTATION_MS) || 30
 
 // Cookie de session en cache module (re-login automatique sur 401/403).
 let cookieSession: string | null = null;
+// Login EN VOL, partage par tous les appels concurrents (cf. sessionEstale).
+let loginEnCours: Promise<string> | null = null;
 
 class EstaleError extends Error {
   constructor(message: string, readonly statut?: number) {
@@ -47,6 +49,46 @@ async function login(): Promise<string> {
   const cookies = res.headers.getSetCookie();
   if (cookies.length === 0) throw new EstaleError("Login Estale : aucun cookie de session recu");
   return cookies.map((c) => c.split(";")[0]).join("; ");
+}
+
+/**
+ * La session eStale, avec UN SEUL login a la fois.
+ *
+ * POURQUOI (mesure du 2026-09-10) : le login coute 750 ms - un cout CONSTANT, c'est le
+ * hash du mot de passe cote eStale, pas un demarrage a froid - contre 9 a 16 ms pour une
+ * requete GraphQL a session chaude. Or `cookieSession ??= await login()` ne dedoublonnait
+ * rien : l'accueil lance plusieurs lectures eStale EN PARALLELE (AG de la semaine,
+ * affaires en cours, complement) et, sur une instance serverless fraiche, les trois
+ * voyaient le cookie vide au meme instant. Trois logins a 750 ms au lieu d'un, et deux
+ * cookies jetes. On memorise donc la PROMESSE : le login en vol sert tout le monde.
+ *
+ * L'echec ne se memorise PAS (`finally`) : garder une promesse rejetee condamnerait
+ * l'instance a ne plus jamais joindre eStale. Chaque nouvel appel a le droit de retenter.
+ */
+function sessionEstale(): Promise<string> {
+  if (cookieSession) return Promise.resolve(cookieSession);
+  loginEnCours ??= login()
+    .then((c) => {
+      cookieSession = c;
+      return c;
+    })
+    .finally(() => {
+      loginEnCours = null;
+    });
+  return loginEnCours;
+}
+
+/**
+ * Renouvelle la session apres un 401/403, SANS jeter un cookie deja renouvele.
+ * Sans cette garde, N requetes parties avec l'ancien cookie et rentrees en 401 apres le
+ * re-login invalidaient chacune le cookie tout neuf : une tempete de logins qui
+ * s'entretient elle-meme, exactement au pire moment (session expiree = tout le monde
+ * rejoue en meme temps).
+ */
+function renouvelerSession(cookieUtilise: string): Promise<string> {
+  if (cookieSession && cookieSession !== cookieUtilise) return Promise.resolve(cookieSession);
+  cookieSession = null;
+  return sessionEstale();
 }
 
 type GqlReponse<T> = { data?: T; errors?: { message: string; extensions?: unknown; path?: unknown }[] };
@@ -84,7 +126,7 @@ export async function estaleGql<T>(
   variables?: Record<string, unknown>,
   options?: { timeoutMs?: number },
 ): Promise<T> {
-  cookieSession ??= await login();
+  let cookie = await sessionEstale();
 
   // Une mutation n'est PAS idempotente : timeout plus long, et jamais de retry sur 5xx.
   const estMutation = query.trimStart().startsWith("mutation");
@@ -94,14 +136,14 @@ export async function estaleGql<T>(
   const appel = async (): Promise<Response> =>
     fetch(`${BASE}/graphql/intranet`, {
       method: "POST",
-      headers: { "content-type": "application/json", cookie: cookieSession! },
+      headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
       signal: AbortSignal.timeout(timeoutMs),
     });
 
   let res = await appel();
   if (res.status === 401 || res.status === 403) {
-    cookieSession = await login(); // session expiree : refresh paresseux (ADR-005)
+    cookie = await renouvelerSession(cookie); // session expiree : refresh paresseux (ADR-005)
     res = await appel();
   }
   // Estale a des 5xx passagers (502/503/504) : un retry court avant d'abandonner.
