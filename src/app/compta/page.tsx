@@ -22,7 +22,7 @@ export default async function ComptaPage() {
     <AppShell user={g} active="compta" breadcrumb="Pôle compta">
       <Page largeur="lecture">
         <PageHeader
-          titre="Pôle compta · AG à préparer"
+          titre="Pôle compta : AG à préparer"
           aide={
             <p>
               Les AG dont la date est posée. Vérifiez les comptes, échangez vos notes avec le gestionnaire, et

@@ -1,4 +1,4 @@
-import { ArrowRight, Route } from "lucide-react";
+import { ArrowRight, FileText, Route } from "lucide-react";
 import {
   peutConclure,
   estVerifie,
@@ -128,17 +128,26 @@ export function SupervisionHeader({ supervision, cycle, role, onConclure }: Supe
         {cycle && (
           <div className="flex flex-col gap-2 border-t border-line pt-3">
             <FriseEtapes etapes={cycle.etapes} />
-            <p className="text-body text-ink-2 flex items-center gap-1.5">
-              <Route strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
-              {cycle.actionDuMoment ? (
-                <>
-                  Action du moment : <span className="text-ink font-medium">{cycle.actionDuMoment.action}</span>
-                  {conclureEstPrimaire && !dejaConclue && <span>(elle se joue ici, dans la checklist)</span>}
-                </>
-              ) : (
-                "Cycle terminé pour cet exercice : rien à faire avant la prochaine clôture."
-              )}
-            </p>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-body text-ink-2 flex items-center gap-1.5">
+                <Route strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                {cycle.actionDuMoment ? (
+                  <>
+                    Action du moment : <span className="text-ink font-medium">{cycle.actionDuMoment.action}</span>
+                    {conclureEstPrimaire && !dejaConclue && <span>(elle se joue ici, dans la checklist)</span>}
+                  </>
+                ) : (
+                  "Cycle terminé pour cet exercice : rien à faire avant la prochaine clôture."
+                )}
+              </p>
+              {/* L'ordre du jour est l'etape juste avant : il reste consultable d'ici, meme
+                  cloture (Sekou 2026-09-10 : une fois l'etape franchie, le document
+                  n'etait plus atteignable nulle part). */}
+              <ButtonLink href={`/odj/${supervision.id}`} variant="ghost" size="sm">
+                <FileText strokeWidth={1.5} />
+                Voir l&apos;ordre du jour
+              </ButtonLink>
+            </div>
           </div>
         )}
 

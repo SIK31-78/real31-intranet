@@ -17,7 +17,7 @@ describe("mentionsAgence", () => {
   it("rend les mentions exactes de La Garenne-Colombes", () => {
     const m = mentionsAgence("LGC");
     expect(m.code).toBe("LGC");
-    expect(m.activites).toBe("VENTE – LOCATION – GESTION LOCATIVE – SYNDIC DE COPROPRIÉTÉ");
+    expect(m.activites).toBe("VENTE · LOCATION · GESTION LOCATIVE · SYNDIC DE COPROPRIÉTÉ");
     expect(m.societe).toBe("SAS au capital de 90 000 € - SIREN 479 696 767 RCS VERSAILLES");
     expect(m.cartePro).toContain("CPI 7801 2016 000 014 479");
     expect(m.cartePro).toContain("CCI Paris Île-de-France");

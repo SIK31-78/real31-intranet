@@ -1,4 +1,4 @@
-import { ArrowRight, CircleCheck, AlertCircle, Flag, History, Route, Users } from "lucide-react";
+import { ArrowRight, CircleCheck, AlertCircle, FileText, Flag, History, Route, Users } from "lucide-react";
 import type {
   AgPassee,
   Copropriete,
@@ -61,6 +61,11 @@ export function FicheVueEnsemble({
   // ce lien reste la seule porte permanente vers la supervision.
   const stepperVersSupervision =
     fiche.cycle?.actionDuMoment?.href.startsWith("/supervision-ag/") ?? false;
+  // Idem pour l'ODJ : le stepper y renvoie deja pendant la phase ODJ (action du moment
+  // ou action secondaire "Preparer l'ODJ"), inutile de doubler l'entree.
+  const stepperVersOdj =
+    (fiche.cycle?.actionDuMoment?.href.startsWith("/odj/") ?? false) ||
+    (fiche.cycle?.actionDuMoment?.secondaire?.href.startsWith("/odj/") ?? false);
   return (
     <div className="flex flex-col gap-5">
       {indispo && (
@@ -101,6 +106,7 @@ export function FicheVueEnsemble({
             mailActif={mailActif}
             listeSecoursCS={listeSecoursCS}
             masquerLienSupervision={stepperVersSupervision}
+            masquerLienOdj={stepperVersOdj}
           />
           {/* Bloc Jalons retire : les echeances reglementaires sont desormais en
               colonne dans la Supervision AG (fusion B4, 2026-06-24). La machinerie
@@ -211,6 +217,7 @@ function BlocAg({
   mailActif,
   listeSecoursCS,
   masquerLienSupervision,
+  masquerLienOdj,
 }: {
   coproCode: string;
   derniere?: AgPassee;
@@ -237,6 +244,8 @@ function BlocAg({
   /** Le stepper "Ou en est cette AG" renvoie DEJA vers la supervision (action du moment)
    *  -> on masque ici le lien "Ouvrir la supervision AG" pour ne pas doubler l'entree. */
   masquerLienSupervision?: boolean;
+  /** Idem pour l'ordre du jour pendant la phase ODJ. */
+  masquerLienOdj?: boolean;
 }) {
   const agAJour = conformite.find((c) => c.libelle.toLowerCase().includes("ag annuelle"));
   // Le mail au CS propose les dates a venir (CS + AG en un seul mail). Visible des
@@ -307,6 +316,17 @@ function BlocAg({
                   <AlertCircle strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
                   {prochaine.alerte}
                 </span>
+              )}
+              {/* PORTE PERMANENTE vers l'ordre du jour (Sekou 2026-09-10 : "je ne peux
+                  pas revenir sur un ordre du jour une fois celui-ci termine"). L'ODJ
+                  n'etait atteignable que par l'action du moment, qui disparait des que
+                  l'etape est franchie : le document devenait introuvable. Il reste
+                  consultable ici tant qu'une AG est datee. */}
+              {!masquerLienOdj && (
+                <ButtonLink href={`/odj/${prochaine.supervisionId ?? coproCode}`} variant="ghost" size="sm">
+                  <FileText strokeWidth={1.5} />
+                  Voir l&apos;ordre du jour
+                </ButtonLink>
               )}
               {/* Lien canonique unique vers la supervision (libelle "Ouvrir la supervision
                   AG"). Masque quand le stepper renvoie DEJA la (pas de doublon, S2.A.3). */}

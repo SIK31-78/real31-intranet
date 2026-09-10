@@ -247,7 +247,7 @@ export function ComposerOdj({
               <ArrowLeft strokeWidth={1.5} className="w-3 h-3" /> Retour à l&apos;ODJ
             </Link>
           }
-          titre="Mode CS · composer l'ordre du jour"
+          titre="Mode CS : composer l'ordre du jour"
           code={copro.code}
           meta={`${copro.nom}${dateAg ? ` · AG du ${dateAg}` : " · date d'AG non définie"}`}
           aide={

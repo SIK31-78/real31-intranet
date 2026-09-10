@@ -29,11 +29,11 @@ export interface MentionsAgence {
  *  communique le texte exact (2026-09-04). Sert aussi de repli. */
 const LGC: MentionsAgence = {
   code: "LGC",
-  activites: "VENTE – LOCATION – GESTION LOCATIVE – SYNDIC DE COPROPRIÉTÉ",
+  activites: "VENTE · LOCATION · GESTION LOCATIVE · SYNDIC DE COPROPRIÉTÉ",
   societe: "SAS au capital de 90 000 € - SIREN 479 696 767 RCS VERSAILLES",
   cartePro:
     "Titulaire de la carte professionnelle n° CPI 7801 2016 000 014 479, permettant l'exercice de l'activité de : transaction sur immeubles et fonds de commerces * gestion immobilière * Syndic de copropriété, délivrée par la CCI Paris Île-de-France.",
-  garantie: "Garanti par GALIAN-SMABTP, 89 rue la Boétie – 75008 Paris sous la référence 110891J.",
+  garantie: "Garanti par GALIAN-SMABTP, 89 rue la Boétie, 75008 Paris sous la référence 110891J.",
 };
 
 /**
