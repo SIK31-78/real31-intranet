@@ -5,14 +5,17 @@
 // Le depassement horaire n'est pas saisi : il est calcule serveur a partir du
 // creneau et de la plage contractuelle de la copropriete.
 //
-// Refonte 2026-09 : cinq sections a la hairline (pas de carte englobante), champs sur
-// les primitives Field / Input / Select / Choix, une aide d'UNE ligne par section, et
-// UN primaire : "Calculer et verifier".
+// Refonte 2026-09 : cinq sections a la hairline, champs sur les primitives Field /
+// Input / Select / Choix, une aide d'UNE ligne par section, et UN primaire :
+// "Calculer et verifier". Le tout dans une CARTE blanche, comme le formulaire de
+// facturation : depuis que le fond de page est du papier chaud, un formulaire pose a
+// meme le papier detonne (retour Sekou 2026-09-10, "herite du fond ocre").
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Select, Choix, GroupeChoix } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
@@ -223,7 +226,8 @@ export function FormulaireRecapAg({
     setTravaux(travaux.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   return (
-    <div className="flex flex-col gap-6">
+    <Card>
+      <CardBody className="flex flex-col gap-6">
       <SectionForm
         titre="Assemblée"
         hint="Le dépassement est calculé depuis la durée incluse au contrat, lue sur la fiche : il n'est pas saisi."
@@ -382,16 +386,17 @@ export function FormulaireRecapAg({
         </Button>
       </div>
 
-      {apercu && (
-        <ConfirmationFacturation
-          apercu={apercu}
-          pennylaneMode={pennylaneMode}
-          pending={pending}
-          onConfirmer={() => confirmer()}
-          onConfirmerSansFacture={() => confirmer(true)}
-          onAnnuler={() => setApercu(null)}
-        />
-      )}
-    </div>
+        {apercu && (
+          <ConfirmationFacturation
+            apercu={apercu}
+            pennylaneMode={pennylaneMode}
+            pending={pending}
+            onConfirmer={() => confirmer()}
+            onConfirmerSansFacture={() => confirmer(true)}
+            onAnnuler={() => setApercu(null)}
+          />
+        )}
+      </CardBody>
+    </Card>
   );
 }

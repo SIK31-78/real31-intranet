@@ -48,7 +48,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
       <div>
         <h1 className="text-page font-semibold tracking-tight text-ink">Bibliothèque de résolutions</h1>
         <p className="mt-1 text-body text-ink-2">
-          Modèles de résolutions du cabinet, depuis ESTALE. Lecture seule pour l&apos;instant —
+          Modèles de résolutions du cabinet, depuis ESTALE. Lecture seule pour l&apos;instant, elles
           serviront à composer l&apos;ordre du jour des AG.
         </p>
       </div>

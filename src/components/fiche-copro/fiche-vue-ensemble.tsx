@@ -169,7 +169,7 @@ function BlocParcours({
             </>
           ) : (
             <>
-              <p className="text-body text-ink-2">Cycle terminé pour cet exercice — rien à faire avant la prochaine clôture.</p>
+              <p className="text-body text-ink-2">Cycle terminé pour cet exercice : rien à faire avant la prochaine clôture.</p>
               {/* Le cycle clos ne doit pas etre une impasse : la supervision de l'AG
                   conclue reste consultable (checklist, commentaires, visa). */}
               {derniereAgDate && (
@@ -418,7 +418,7 @@ function HistoriqueAg({ historique }: { historique: AgPassee[] }) {
                   {ag.type === "AGE" ? "AGE" : "AG ordinaire"}
                   {ag.libelle ? ` · ${ag.libelle}` : ""}
                 </Td>
-                <Td numeric secondaire>{ag.presents != null ? `${ag.presents}/${ag.total}` : "—"}</Td>
+                <Td numeric secondaire>{ag.presents != null ? `${ag.presents}/${ag.total}` : "-"}</Td>
                 <Td numeric>{ag.pvDispo && <Badge ton="outline">PV</Badge>}</Td>
               </Tr>
             ))}

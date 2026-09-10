@@ -40,7 +40,7 @@ function euros(n: number): string {
 }
 
 function pourcent(pct: number | null): string {
-  if (pct === null) return "—";
+  if (pct === null) return "-";
   const signe = pct > 0 ? "+" : "";
   return `${signe}${(pct * 100).toFixed(1).replace(".", ",")} %`;
 }
@@ -230,7 +230,7 @@ export function PanneauGestionCourante({
             >
               {trimestresRecents(trimestreParDefaut).map((t) => (
                 <option key={t} value={t}>
-                  {t.replace("-T", " — Trimestre ")}
+                  {t.replace("-T", " · Trimestre ")}
                 </option>
               ))}
             </Select>

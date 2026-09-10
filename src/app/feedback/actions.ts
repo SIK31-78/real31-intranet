@@ -34,7 +34,7 @@ const zSaisie = z.object({
 
 export async function envoyerFeedback(input: unknown): Promise<{ ok: boolean; message?: string }> {
   const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, message: "Session expirée — reconnecte-toi et réessaie." };
+  if (!g) return { ok: false, message: "Session expirée : reconnecte-toi et réessaie." };
 
   const parse = zSaisie.safeParse(input);
   if (!parse.success) return { ok: false, message: "Ajoute une description avant d'envoyer." };
@@ -50,7 +50,7 @@ export async function envoyerFeedback(input: unknown): Promise<{ ok: boolean; me
     return { ok: true };
   } catch (e) {
     if (e instanceof FeedbackNonConfigureError) {
-      return { ok: false, message: "Le module de remontées n'est pas encore activé côté base — préviens Sekou." };
+      return { ok: false, message: "Le module de remontées n'est pas encore activé côté base. Préviens Sekou." };
     }
     return { ok: false, message: e instanceof Error ? e.message : "Envoi impossible." };
   }

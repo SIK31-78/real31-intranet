@@ -3,99 +3,22 @@
 // livré" (le changelog). Ne montre QUE la projection publique (get-nouveautes ->
 // versEntreePublique) : type, titre, date - JAMAIS l'auteur, la description interne ni la
 // note. Aucun acces adapter direct (ADR-001).
+//
+// Le rendu des listes (et leur depliage « Afficher plus ») vit dans le composant client
+// components/nouveautes/liste-nouveautes : la page, elle, reste un Server Component.
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Bug, Lightbulb, Rocket, CircleDot, ChevronDown } from "lucide-react";
+import { Rocket, CircleDot } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getNouveautes } from "@/lib/services/feedback/get-nouveautes";
-import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
-import { Badge } from "@/components/ui/badge";
-import type { EntreePublique } from "@/lib/domain/feedback";
+import { ListeNouveautes } from "@/components/nouveautes/liste-nouveautes";
 import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Nouveautés - REAL31 Intranet" };
 
 export const dynamic = "force-dynamic";
-
-function TypePastille({ type }: { type: EntreePublique["type"] }) {
-  const bug = type === "bug";
-  const Icon = bug ? Bug : Lightbulb;
-  return (
-    <span
-      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
- bug ? "bg-info-50 text-info-700" : "bg-green-50 text-green-700"
-      }`}
-    >
-      <Icon strokeWidth={1.5} className="h-4 w-4" />
-    </span>
-  );
-}
-
-/** Ligne depliable quand un RESUME PUBLIC existe (redige au triage hebdo - jamais la
- *  description interne). <details> natif : la page reste 100 % serveur. */
-function Ligne({ entree, droite }: { entree: EntreePublique; droite: React.ReactNode }) {
-  if (!entree.resume) {
-    return (
-      <li className="flex items-center gap-3 rounded-lg border border-line bg-surface shadow-1 px-4 py-3">
-        <TypePastille type={entree.type} />
-        <span className="min-w-0 flex-1 text-body text-ink">{entree.titre}</span>
-        {droite}
-      </li>
-    );
-  }
-  return (
-    <li className="rounded-lg border border-line bg-surface shadow-1">
-      <details className="group">
-        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-          <TypePastille type={entree.type} />
-          <span className="min-w-0 flex-1 text-body text-ink">{entree.titre}</span>
-          {droite}
-          <ChevronDown
-            strokeWidth={1.5}
-            className="h-3.5 w-3.5 shrink-0 text-ink-3 transition-transform group-open:rotate-180"
-          />
-        </summary>
-        <p className="border-t border-line px-4 py-3 pl-11 text-body leading-relaxed text-ink-2 whitespace-pre-wrap">
-          {entree.resume}
-        </p>
-      </details>
-    </li>
-  );
-}
-
-function LigneAVenir({ entree }: { entree: EntreePublique }) {
-  return (
-    <Ligne
-      entree={entree}
-      droite={
-        entree.statut === "en_cours" ? (
-          <Badge ton="warn" dot>
-            En cours
-          </Badge>
-        ) : (
-          <Badge ton="info" dot>
-            Prévu
-          </Badge>
-        )
-      }
-    />
-  );
-}
-
-function LigneLivre({ entree }: { entree: EntreePublique }) {
-  return (
-    <Ligne
-      entree={entree}
-      droite={
-        entree.livreAt ? (
-          <span className="shrink-0 text-body text-ink-3">{formatDateLongue(entree.livreAt.slice(0, 10))}</span>
-        ) : null
-      }
-    />
-  );
-}
 
 export default async function NouveautesPage() {
   const g = await getGestionnaireCourant();
@@ -130,11 +53,7 @@ export default async function NouveautesPage() {
                     À venir / en cours
                   </h2>
                 </div>
-                <ul className="flex flex-col gap-2">
-                  {aVenir.map((e, i) => (
-                    <LigneAVenir key={`av-${i}`} entree={e} />
-                  ))}
-                </ul>
+                <ListeNouveautes entrees={aVenir} variante="a_venir" />
               </section>
             )}
 
@@ -146,11 +65,7 @@ export default async function NouveautesPage() {
                     Récemment livré
                   </h2>
                 </div>
-                <ul className="flex flex-col gap-2">
-                  {livre.map((e, i) => (
-                    <LigneLivre key={`li-${i}`} entree={e} />
-                  ))}
-                </ul>
+                <ListeNouveautes entrees={livre} variante="livre" />
               </section>
             )}
           </>

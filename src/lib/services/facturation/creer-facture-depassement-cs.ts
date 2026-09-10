@@ -29,7 +29,7 @@ import { CATEGORIE_HONORAIRES_COMPLEMENTAIRES } from "@/lib/domain/facturation/p
 function exigerFranchiseCs(parametres: ParametresCopro, coproCode: string): number {
   if (parametres.franchiseCsHeures === null) {
     throw new Error(
-      `Franchise CS non renseignée pour la copropriété ${coproCode} — à compléter sur la fiche avant de facturer.`,
+      `Franchise CS non renseignée pour la copropriété ${coproCode} : à compléter sur la fiche avant de facturer.`,
     );
   }
   return parametres.franchiseCsHeures;

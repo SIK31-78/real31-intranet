@@ -423,7 +423,7 @@ function MenuStatut({
         aria-haspopup="menu"
         aria-expanded={ouvert}
         aria-label={`Statut : ${STATUT_ETAPE_LABEL[statut]} (cliquer pour changer)`}
-        title={`${STATUT_ETAPE_LABEL[statut]} – cliquer pour changer`}
+        title={`${STATUT_ETAPE_LABEL[statut]} (cliquer pour changer)`}
         variant="ghost"
       >
         <PastilleEtape statut={statut} />
@@ -677,7 +677,7 @@ function FormAjoutAdHoc({
             <option value="">En fin de phase</option>
             {etapesPhase.map((e) => (
               <option key={e.code} value={e.code}>
-                Après {e.code} – {e.libelle.slice(0, 40)}
+                Après {e.code} · {e.libelle.slice(0, 40)}
                 {e.libelle.length > 40 ? "…" : ""}
               </option>
             ))}

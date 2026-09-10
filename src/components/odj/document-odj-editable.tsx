@@ -713,7 +713,7 @@ function BarreSauvegarde({ moteur }: { moteur: MoteurAutosave }) {
     erreur: (
       <span className="inline-flex items-center gap-1.5 text-err-700">
         <AlertTriangle strokeWidth={1.5} className="w-3.5 h-3.5" />
-        Échec d&apos;enregistrement — réessayez
+        Échec d&apos;enregistrement, réessayez
       </span>
     ),
   };

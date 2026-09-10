@@ -99,7 +99,7 @@ function LigneAnnonce({ a }: { a: Annonce }) {
         />
         <div className="flex items-center justify-between gap-3">
           <span className="text-meta text-ink-3">
-            {a.auteurInitiales ?? "—"} · {jjmmaaaa(a.createdAt)}
+            {a.auteurInitiales ?? "-"} · {jjmmaaaa(a.createdAt)}
           </span>
           <div className="flex items-center gap-1.5">
             <Button

@@ -27,7 +27,7 @@ export function ProblemesPanel({ problemes }: { problemes: ProblemesCopro[] }) {
                   <AlertTriangle className="w-3.5 h-3.5 text-err-500 mt-0.5 shrink-0" strokeWidth={1.5} aria-hidden />
                   <span className="min-w-0">
                     <span className="text-ink">{it.itemLibelle}</span>
-                    {it.commentaire && <span className="text-ink-2"> — {it.commentaire}</span>}
+                    {it.commentaire && <span className="text-ink-2"> · {it.commentaire}</span>}
                   </span>
                 </Link>
               </li>

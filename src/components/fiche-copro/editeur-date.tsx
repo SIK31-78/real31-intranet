@@ -874,18 +874,18 @@ export function EditeurDate({
           aria-live="polite"
         >
           <span className="font-medium">
-            AG {echeanceLisible(delaiAg.joursAvant, delaiAg.semainesAvant)} —{" "}
+            AG {echeanceLisible(delaiAg.joursAvant, delaiAg.semainesAvant)} :{" "}
             {delaiAg.niveau === "critique"
               ? "la convocation ne peut plus partir dans les temps."
               : "délai court pour tenir le CS puis convoquer."}
           </span>
           <span className={delaiAg.odjCsDepasse ? undefined : "text-ink-2"}>
             · ODJ à valider en CS avant le {formatDateLongue(delaiAg.odjCsISO)}
-            {delaiAg.odjCsDepasse && " — échéance dépassée"}
+            {delaiAg.odjCsDepasse && " (échéance dépassée)"}
           </span>
           <span className={delaiAg.convocDepassee ? undefined : "text-ink-2"}>
             · Mise sous pli avant le {formatDateLongue(delaiAg.convocISO)}
-            {delaiAg.convocDepassee && " — échéance dépassée"}
+            {delaiAg.convocDepassee && " (échéance dépassée)"}
           </span>
           <span className="text-ink-2">Tu peux fixer cette date quand même.</span>
         </span>

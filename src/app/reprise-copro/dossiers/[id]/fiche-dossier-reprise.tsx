@@ -451,7 +451,7 @@ function ActionsDossier({
 
   const supprimer = async () => {
     const ok = await confirmer({
-      titre: `Supprimer définitivement ${ref_} – « ${nomUsuel} » ?`,
+      titre: `Supprimer définitivement ${ref_} « ${nomUsuel} » ?`,
       message: `Action irréversible. Partent avec le dossier : le suivi (étapes, équipe, journal)${
         nbFichesGenerees > 0 ? ` et ${nbFichesGenerees} fiche(s) de renseignements` : ""
       }. La copropriété dans ESTALE n'est pas touchée.`,

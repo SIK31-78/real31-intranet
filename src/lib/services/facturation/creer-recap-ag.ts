@@ -106,7 +106,7 @@ async function calculer(demande: DemandeRecapAg) {
   ) {
     throw new Error(
       `Paramètres d'AG non renseignés pour la copropriété ${demande.coproCode} ` +
-        `(durée d'AG et plage horaire) — à compléter sur la fiche avant de facturer le dépassement.`,
+        `(durée d'AG et plage horaire) : à compléter sur la fiche avant de facturer le dépassement.`,
     );
   }
 

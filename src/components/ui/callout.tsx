@@ -38,7 +38,7 @@ export function Callout({
       <Icone strokeWidth={1.5} className="w-4 h-4 shrink-0" aria-hidden="true" />
       <div className="flex-1 min-w-0 [&_a]:underline [&_a]:underline-offset-2 [&_a]:font-medium">
         {titre && <strong className="font-medium">{titre}</strong>}
-        {titre && children ? " — " : null}
+        {titre && children ? " : " : null}
         {children}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}

@@ -16,12 +16,12 @@ import { Input, Select } from "@/components/ui/field";
 
 const SCOPES: { valeur: string; label: string; aide: string }[] = [
   { valeur: "lecture", label: "Lecture", aide: "Toute la surface GET de /api/v1 (copros, échéances, supervisions, dossiers, compta)." },
-  { valeur: "ecriture:supervision", label: "Écriture — supervision", aide: "Cocher un item de supervision AG. Exige une clé liée à un gestionnaire." },
-  { valeur: "ecriture:compta", label: "Écriture — note compta", aide: "Poser une note dans le fil compta d'une AG. Exige une clé liée à un gestionnaire." },
+  { valeur: "ecriture:supervision", label: "Écriture : supervision", aide: "Cocher un item de supervision AG. Exige une clé liée à un gestionnaire." },
+  { valeur: "ecriture:compta", label: "Écriture : note compta", aide: "Poser une note dans le fil compta d'une AG. Exige une clé liée à un gestionnaire." },
 ];
 
 function jjmmaaaa(iso?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 }
@@ -116,7 +116,7 @@ export function ClesApiVue({
       {cleneuve && (
         <div className="border border-green-600/40 bg-green-50 rounded-md px-4 py-3">
           <div className="text-body font-medium text-green-700 mb-1">
-            Clé « {cleneuve.nom} » créée — copie-la MAINTENANT, elle ne sera plus jamais affichée.
+            Clé « {cleneuve.nom} » créée : copie-la MAINTENANT, elle ne sera plus jamais affichée.
           </div>
           <div className="flex items-center gap-2">
             <code className="font-mono text-body bg-surface border border-line rounded-sm px-2 py-1 break-all select-all">
@@ -156,7 +156,7 @@ export function ClesApiVue({
                 onChange={(e) => setManagerId(e.target.value)}
                 largeur="auto"
               >
-                <option value="">— Clé cabinet (lecture transverse) —</option>
+                <option value="">Clé cabinet (lecture transverse)</option>
                 {gestionnaires.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.nom}

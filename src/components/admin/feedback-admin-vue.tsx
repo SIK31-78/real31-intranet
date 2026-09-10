@@ -63,7 +63,7 @@ const TON_SEVERITE: Record<SeveriteFeedback, "err" | "warn" | "neutral"> = {
 };
 
 function jjmmaaaa(iso?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 }
@@ -221,7 +221,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
             <Badge ton={TON_SEVERITE[f.severite]}>{LABEL_SEVERITE[f.severite]}</Badge>
           ) : (
             <span className="text-body text-ink-3" title="Entrée « maison » (sans sévérité)">
-              —
+              -
             </span>
           )}
         </td>
@@ -239,7 +239,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
             inputMode="numeric"
-            placeholder="—"
+            placeholder="-"
             largeur="auto" className="w-14"
           />
         </td>
@@ -306,7 +306,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
                 </label>
               </div>
               <label className="flex flex-col gap-1 text-body text-ink-2">
-                Description (interne — jamais publique)
+                Description (interne, jamais publique)
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -454,7 +454,7 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
             value={priorite}
             onChange={(e) => setPriorite(e.target.value)}
             inputMode="numeric"
-            placeholder="—"
+            placeholder="-"
             className={cn(champCls, "w-24 tabular-nums")}
           />
         </label>

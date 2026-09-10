@@ -133,10 +133,10 @@ export function SupervisionHeader({ supervision, cycle, role, onConclure }: Supe
               {cycle.actionDuMoment ? (
                 <>
                   Action du moment : <span className="text-ink font-medium">{cycle.actionDuMoment.action}</span>
-                  {conclureEstPrimaire && !dejaConclue && <span>— elle se joue ici, dans la checklist.</span>}
+                  {conclureEstPrimaire && !dejaConclue && <span>(elle se joue ici, dans la checklist)</span>}
                 </>
               ) : (
-                "Cycle terminé pour cet exercice — rien à faire avant la prochaine clôture."
+                "Cycle terminé pour cet exercice : rien à faire avant la prochaine clôture."
               )}
             </p>
           </div>

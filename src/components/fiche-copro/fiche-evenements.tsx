@@ -38,7 +38,7 @@ export function FicheEvenements({ evenements }: { evenements: Evenement[] }) {
           jour.evenements.map((e, i) => (
             <Tr key={e.id}>
               <Td principal>{i === 0 ? formatDateLongue(jour.date) : ""}</Td>
-              <Td secondaire className="tabular-nums">{e.heure ?? "—"}</Td>
+              <Td secondaire className="tabular-nums">{e.heure ?? "-"}</Td>
               <Td>
                 <Badge ton="outline">{e.type}</Badge>
               </Td>

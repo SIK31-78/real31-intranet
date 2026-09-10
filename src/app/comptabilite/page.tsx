@@ -165,7 +165,7 @@ export default async function ComptabilitePage({
     <AppShell user={g} active="compta" breadcrumb="Comptabilité">
       <Page largeur="lecture">
         <PageHeader
-          titre="Comptabilité — AG à venir"
+          titre="Comptabilité · AG à venir"
           aide={
             <p>
               Les AG dont la date est posée, sur toutes les copropriétés. Quand la date est confirmée par le

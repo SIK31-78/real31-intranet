@@ -40,7 +40,7 @@ function echeance(c: CoproPilotage): string {
   if (c.etat === "a_planifier") return c.enRetard ? "en retard" : "à planifier";
   if (c.etat === "tenue") return "suivi post-AG";
   if (c.agDate) return `AG ${c.agDate.slice(8, 10)}/${c.agDate.slice(5, 7)}`;
-  return "—";
+  return "-";
 }
 
 function rangCloture(c: string): number {
@@ -255,7 +255,7 @@ function VuePipeline({ parEtat }: { parEtat: Record<EtatCycle, CoproPilotage[]> 
 }
 
 function fmtDate(iso?: string): string {
-  return iso ? iso.split("-").reverse().join("/") : "—";
+  return iso ? iso.split("-").reverse().join("/") : "-";
 }
 
 // Bac d'onboarding : copros aux dates heritees non encore validees. Calme, sans alarme.

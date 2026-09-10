@@ -24,7 +24,7 @@ import { creerPointAction, editerPointAction } from "@/app/admin/estale/actions"
 import { Input, Textarea } from "@/components/ui/field";
 
 function jjmmaaaa(iso?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 }

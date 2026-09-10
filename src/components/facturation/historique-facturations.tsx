@@ -7,10 +7,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RotateCcw, CheckCircle2, TriangleAlert, Clock } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Card, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { rejouerFactureAction } from "@/app/facturation/actions";
 import { Button } from "@/components/ui/button";
+
+/** Ce qu'on vient d'emettre tient en quelques lignes : on montre les 5 dernieres, le
+ *  reste se deplie a la demande. Au-dela, l'historique noyait le formulaire. */
+const CAP_AFFICHAGE = 5;
 
 export interface FactureAffichee {
   id: string;
@@ -73,6 +77,10 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
   const toast = useToast();
   const [pending, demarrer] = useTransition();
   const [enCours, setEnCours] = useState<string | null>(null);
+  const [deplie, setDeplie] = useState(false);
+
+  const affichees = deplie ? factures : factures.slice(0, CAP_AFFICHAGE);
+  const reste = factures.length - affichees.length;
 
   function rejouer(id: string) {
     setEnCours(id);
@@ -101,50 +109,59 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
           Aucune facturation pour l&apos;instant.
         </p>
       ) : (
-        <ul className="divide-y divide-line">
-          {factures.map((f) => (
-            <li key={f.id} className="px-4 py-2.5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-body text-ink">
-                    <span className="font-medium">{f.coproCode}</span>
-                    <span className="text-ink-3"> · </span>
-                    {LIBELLE_TYPE[f.typePrestation] ?? f.typePrestation}
-                  </p>
-                  <p className="truncate text-body text-ink-3">
-                    {quand(f.creeLe)}
-                    {f.par ? ` · ${f.par}` : ""}
-                    {f.factureExterneId ? ` · Pennylane ${f.factureExterneId}` : ""}
-                  </p>
+        <>
+          <ul className="divide-y divide-line">
+            {affichees.map((f) => (
+              <li key={f.id} className="px-4 py-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-body text-ink">
+                      <span className="font-medium">{f.coproCode}</span>
+                      <span className="text-ink-3"> · </span>
+                      {LIBELLE_TYPE[f.typePrestation] ?? f.typePrestation}
+                    </p>
+                    <p className="truncate text-body text-ink-3">
+                      {quand(f.creeLe)}
+                      {f.par ? ` · ${f.par}` : ""}
+                      {f.factureExterneId ? ` · Pennylane ${f.factureExterneId}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-body font-medium text-ink">{euros(f.montantHt)} HT</span>
+                    <Statut statut={f.statut} />
+                    {f.statut === "erreur" && (
+                      <Button
+                        onClick={() => rejouer(f.id)}
+                        disabled={pending}
+                        title="Renvoyer vers Pennylane"
+                        variant="secondary"
+                      >
+                        {pending && enCours === f.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        )}
+                        Réessayer
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="text-body font-medium text-ink">{euros(f.montantHt)} HT</span>
-                  <Statut statut={f.statut} />
-                  {f.statut === "erreur" && (
-                    <Button
-                      onClick={() => rejouer(f.id)}
-                      disabled={pending}
-                      title="Renvoyer vers Pennylane"
-                      variant="secondary"
-                    >
-                      {pending && enCours === f.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
-                      )}
-                      Réessayer
-                    </Button>
-                  )}
-                </div>
-              </div>
-              {f.statut === "erreur" && f.erreur && (
-                <p className="mt-1 rounded-sm bg-err-50 px-2 py-1 text-meta leading-snug text-err-700">
-                  {f.erreur.slice(0, 300)}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
+                {f.statut === "erreur" && f.erreur && (
+                  <p className="mt-1 rounded-sm bg-err-50 px-2 py-1 text-meta leading-snug text-err-700">
+                    {f.erreur.slice(0, 300)}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+          {reste > 0 && (
+            <CardFooter>
+              <Button variant="ghost" size="sm" onClick={() => setDeplie(true)}>
+                Afficher plus
+              </Button>
+            </CardFooter>
+          )}
+        </>
       )}
     </Card>
   );

@@ -46,7 +46,7 @@ export default async function ClesApiPage() {
           aide={
             <p>
               Accès machine à l&apos;intranet (API /api/v1 et serveur MCP). La clé n&apos;est affichée qu&apos;une seule
-              fois, à la création — seule son empreinte (hash) est conservée.
+              fois, à la création. Seule son empreinte (hash) est conservée.
             </p>
           }
         />

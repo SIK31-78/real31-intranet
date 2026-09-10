@@ -91,7 +91,7 @@ export function ListeDiffusionCS({
       <div className="flex items-center justify-between gap-2">
         <Eyebrow className="flex items-center gap-1.5">
           <Users strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden />
-          Liste de diffusion — Conseil syndical
+          Liste de diffusion · Conseil syndical
         </Eyebrow>
         {!edit && (
           <Button variant="ghost" size="sm" onClick={() => setEdit(true)}>

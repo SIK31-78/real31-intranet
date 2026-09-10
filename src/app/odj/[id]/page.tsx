@@ -74,7 +74,7 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
     <AppShell user={g} active="aucun" breadcrumb={`ODJ - ${odj.copro.nom}`}>
       <Page largeur="lecture">
         <PageHeader
-          titre="Ordre du jour — préparation AG"
+          titre="Ordre du jour · préparation AG"
           code={odj.copro.code}
           meta={`${odj.copro.nom}${odj.dateAg ? ` · AG du ${odj.dateAg}` : " · AG non datée"}`}
           actions={
@@ -114,7 +114,7 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
         {!peutModifier && (
           <Callout ton="neutral" titre="Consultation seule">
             {gestionnaire ? `ODJ de ${gestionnaire}` : "ODJ d'une copropriété d'un collègue"}
-            {odj.cloture ? ", réunion terminée" : ""} — seul le gestionnaire de la copropriété peut le modifier.
+            {odj.cloture ? ", réunion terminée" : ""}. Seul le gestionnaire de la copropriété peut le modifier.
           </Callout>
         )}
 

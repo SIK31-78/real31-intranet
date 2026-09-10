@@ -17,8 +17,9 @@ import { SegmentedControl } from "@/components/ui/segmented";
 import { EmptyState } from "@/components/ui/empty-state";
 import { filtrerParPortee, type PorteeRecaps } from "@/lib/domain/recap-ag/mes-recaps";
 
-/** Au-dela, on replie : une liste cabinet peut faire plusieurs centaines de lignes. */
-const CAP_AFFICHAGE = 50;
+/** Au-dela, on replie : ce qu'on vient de saisir tient en quelques lignes, et une liste
+ *  cabinet peut faire plusieurs centaines de lignes. */
+const CAP_AFFICHAGE = 5;
 
 export interface RecapAffiche {
   /** Ce recap releve-t-il de l'utilisateur ? (calcule cote serveur, cf. domain/recap-ag/mes-recaps) */
@@ -117,9 +118,9 @@ export function HistoriqueRecaps({ recaps }: { recaps: RecapAffiche[] }) {
                     {r.par ? ` · ${r.par}` : ""}
                   </Td>
                   <Td numeric secondaire={r.depassementHeures === 0}>
-                    {r.depassementHeures > 0 ? `${r.depassementHeures} h · ${euros(r.depassementTtc)} TTC` : "—"}
+                    {r.depassementHeures > 0 ? `${r.depassementHeures} h · ${euros(r.depassementTtc)} TTC` : "-"}
                   </Td>
-                  <Td numeric secondaire={r.nbTravaux === 0}>{r.nbTravaux > 0 ? r.nbTravaux : "—"}</Td>
+                  <Td numeric secondaire={r.nbTravaux === 0}>{r.nbTravaux > 0 ? r.nbTravaux : "-"}</Td>
                   <Td numeric>
                     <Badge ton={STATUT[r.statut].ton}>{STATUT[r.statut].label}</Badge>
                   </Td>
@@ -130,7 +131,7 @@ export function HistoriqueRecaps({ recaps }: { recaps: RecapAffiche[] }) {
           {reste > 0 && (
             <div>
               <Button variant="ghost" size="sm" onClick={() => setDeplie(true)}>
-                Afficher les {reste} de plus
+                Afficher plus
               </Button>
             </div>
           )}

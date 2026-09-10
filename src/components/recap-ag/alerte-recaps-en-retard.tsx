@@ -60,7 +60,7 @@ export function AlerteRecapsEnRetard({
                     // On ne masque pas ces lignes : le referentiel porte des dates de
                     // remplissage (une meme date posee en masse) qui ne correspondent a
                     // aucune AG reelle. Seul le gestionnaire peut trancher.
-                    <span className="text-ink-2"> · date prévisionnelle jamais conclue — saisir le récap ou corriger la date sur la fiche</span>
+                    <span className="text-ink-2"> · date prévisionnelle jamais conclue : saisir le récap ou corriger la date sur la fiche</span>
                   )}
                 </>
               }
