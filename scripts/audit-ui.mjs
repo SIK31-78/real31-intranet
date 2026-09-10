@@ -19,6 +19,7 @@
 //   ombre    shadow-sm|md|lg|xl               -> aucune sur une carte ; shadow-2 sur modale/toast
 //   mono     font-mono                        -> code copro seulement (info)
 //   ink-3    text-ink-3                       -> tertiaire seulement (info)
+//   carte    rounded-md border border-line bg-surface -> Card / Rows / Table (rayon 12 + relief)
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -30,7 +31,7 @@ const SRC = join(RACINE, "src");
 // (2026-09-10), TOUT src/ est migre : la liste est le depot entier.
 const MIGRES = ["src"];
 
-const BLOQUANTS = ["px", "tw", "ink-4", "vert", "hex", "ombre"];
+const BLOQUANTS = ["px", "tw", "ink-4", "vert", "hex", "ombre", "carte"];
 
 const REGLES = {
   px: /\btext-\[\d+(?:\.\d+)?px\]/g,
@@ -43,6 +44,8 @@ const REGLES = {
   ombre: /\bshadow-(?:sm|md|lg|xl|2xl)\b/g,
   mono: /\bfont-mono\b/g,
   "ink-3": /\btext-ink-3\b/g,
+  // conteneur de carte fait main (rayon 6 sans relief) : passer par <Card> / <Rows> / <Table>
+  carte: /\brounded-md border border-line bg-surface\b(?!-)|\bborder border-line rounded-md bg-surface\b(?!-)|\bbg-surface border border-line rounded-md\b/g,
 };
 
 // Le vert et les <button> bruts sont LEGITIMES dans les primitives, la sidebar (nav
@@ -59,6 +62,7 @@ const EXEMPTS = {
     "src/components/sinistre/WizardScreen.tsx",
   ],
   btn: ["src/components/ui"],
+  carte: ["src/components/ui"],
 };
 
 function* fichiers(dir) {

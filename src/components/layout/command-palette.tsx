@@ -135,7 +135,7 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
           aria-label="Recherche et navigation"
         >
           <div className="absolute inset-0 bg-black/30" onClick={fermer} />
-          <div className="relative w-full max-w-[560px] rounded-lg border border-line bg-surface shadow-2 overflow-hidden">
+          <div className="relative w-full max-w-[560px] rounded-xl border border-line bg-surface shadow-2 overflow-hidden">
             <div className="flex items-center gap-2 px-3 h-11 border-b border-line">
               <Search strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
               <Input

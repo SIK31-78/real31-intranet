@@ -106,7 +106,7 @@ export function Modal({
         ref={panneauRef}
         tabIndex={-1}
         className={cn(
-          "relative my-auto w-full rounded-lg border border-line bg-surface shadow-2 focus:outline-none animate-scale-in",
+          "relative my-auto w-full rounded-xl border border-line bg-surface shadow-2 focus:outline-none animate-scale-in",
           TAILLES[size],
         )}
       >

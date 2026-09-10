@@ -33,7 +33,7 @@ export function Callout({
   return (
     <div
       role={ton === "err" ? "alert" : "status"}
-      className={cn("flex items-center gap-2.5 rounded-md border px-3.5 py-2 text-body", cadre, className)}
+      className={cn("flex items-center gap-2.5 rounded-lg border px-3.5 py-2 text-body", cadre, className)}
     >
       <Icone strokeWidth={1.5} className="w-4 h-4 shrink-0" aria-hidden="true" />
       <div className="flex-1 min-w-0 [&_a]:underline [&_a]:underline-offset-2 [&_a]:font-medium">

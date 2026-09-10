@@ -74,7 +74,7 @@ function ConfirmDialog({ options, onRepondre }: { options: ConfirmOptions; onRep
       aria-label={options.titre}
     >
       <div className="absolute inset-0 bg-black/30 animate-fade-in" onClick={() => onRepondre(false)} />
-      <div className="relative w-full max-w-[420px] rounded-lg border border-line bg-surface shadow-2 p-4 animate-scale-in">
+      <div className="relative w-full max-w-[420px] rounded-xl border border-line bg-surface shadow-2 p-4 animate-scale-in">
         <h2 className="text-title font-semibold text-ink">{options.titre}</h2>
         {options.message && <p className="text-body text-ink-2 mt-1">{options.message}</p>}
         <div className="flex justify-end gap-2 mt-4">

@@ -27,7 +27,7 @@ function jjmmaaaa(iso: string): string {
 }
 
 const champCls =
-  "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+  "h-8 rounded-lg border border-line bg-surface shadow-1 px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
 function LigneAnnonce({ a }: { a: Annonce }) {
   const { ok, err } = useToast();

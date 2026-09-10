@@ -718,7 +718,7 @@ function BarreSauvegarde({ moteur }: { moteur: MoteurAutosave }) {
     ),
   };
   return (
-    <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-md border border-line bg-surface/95 backdrop-blur px-2 h-10 shadow-2">
+    <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface shadow-1/95 backdrop-blur px-2 h-10 shadow-2">
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"

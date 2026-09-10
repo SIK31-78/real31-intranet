@@ -14,7 +14,7 @@ export default async function DbHealthPage() {
 
   return (
     <div className="min-h-screen bg-canvas p-8">
-      <div className="mx-auto max-w-[720px] bg-surface border border-line rounded-md p-6">
+      <div className="mx-auto max-w-[720px] bg-surface border border-line rounded-lg shadow-1 p-6">
         <h1 className="text-title font-medium text-ink mb-1">DB health check</h1>
         <p className="text-body text-ink-3 mb-4">
           Lecture de{" "}

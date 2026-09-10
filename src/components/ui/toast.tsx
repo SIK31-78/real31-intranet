@@ -103,7 +103,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
     <div
       role={toast.ton === "err" ? "alert" : "status"}
       className={cn(
-        "flex items-start gap-2.5 rounded-md border px-3 py-2.5 shadow-2 text-body",
+        "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 shadow-2 text-body",
         cadre,
         toast.sortie ? "animate-fade-out" : "animate-slide-up",
       )}

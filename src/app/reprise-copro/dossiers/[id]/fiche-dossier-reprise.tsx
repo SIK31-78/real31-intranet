@@ -89,7 +89,7 @@ export function FicheDossierReprise({
       </Link>
 
       {/* 1. EN-TÊTE + cadrage */}
-      <div className="bg-surface border border-line rounded-md p-5">
+      <div className="bg-surface border border-line rounded-lg shadow-1 p-5">
         <EnTete dossier={dossier} pct={pct} />
         <ZoneAdminReprise admin={adminReprise} raison="Archiver ou supprimer une reprise engage le dossier du cabinet.">
           <ActionsDossier ref_={dossier.ref} nomUsuel={dossier.nomUsuel} archive={dossier.archive} nbFichesGenerees={nbFichesGenerees} />

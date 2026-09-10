@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 
 const champClasse =
-  "h-8 px-2 rounded-md border border-line bg-surface text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600";
+  "h-8 px-2 rounded-lg border border-line bg-surface shadow-1 text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600";
 
 export function ImportPanel({
   coffreId,

@@ -8,7 +8,7 @@ const MAX_VISIBLES = 3;
 export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements: Evenement[] }) {
   const index = indexerParDate(evenements);
   return (
-    <div className="bg-surface border border-line rounded-md overflow-hidden">
+    <div className="bg-surface border border-line rounded-lg shadow-1 overflow-hidden">
       {/* 7 colonnes de jours : ca n'a pas de sens en 1 colonne sur mobile, on garde
           la grille et on la rend scrollable horizontalement plutot que de l'ecraser. */}
       <div className="overflow-x-auto">

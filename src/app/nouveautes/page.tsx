@@ -38,7 +38,7 @@ function TypePastille({ type }: { type: EntreePublique["type"] }) {
 function Ligne({ entree, droite }: { entree: EntreePublique; droite: React.ReactNode }) {
   if (!entree.resume) {
     return (
-      <li className="flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3">
+      <li className="flex items-center gap-3 rounded-lg border border-line bg-surface shadow-1 px-4 py-3">
         <TypePastille type={entree.type} />
         <span className="min-w-0 flex-1 text-body text-ink">{entree.titre}</span>
         {droite}
@@ -46,7 +46,7 @@ function Ligne({ entree, droite }: { entree: EntreePublique; droite: React.React
     );
   }
   return (
-    <li className="rounded-md border border-line bg-surface">
+    <li className="rounded-lg border border-line bg-surface shadow-1">
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
           <TypePastille type={entree.type} />

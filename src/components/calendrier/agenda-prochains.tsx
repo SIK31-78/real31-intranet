@@ -15,7 +15,7 @@ export function AgendaProchains({
 }) {
   const prochains = prochainsEvenements(evenements, aujourdhuiISO, N);
   return (
-    <aside className="bg-surface border border-line rounded-md p-4 w-full lg:w-[300px] shrink-0 self-start">
+    <aside className="bg-surface border border-line rounded-lg shadow-1 p-4 w-full lg:w-[300px] shrink-0 self-start">
       <Eyebrow className="mb-3">Prochains événements</Eyebrow>
       {prochains.length === 0 ? (
         <EmptyState compact>Aucun événement à venir</EmptyState>

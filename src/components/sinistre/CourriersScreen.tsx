@@ -38,7 +38,7 @@ function ListeCourriers() {
         Modèles pré-remplis depuis le dossier en cours. Les champs inconnus sont surlignés et à
         compléter.
       </p>
-      <ul className="mt-6 divide-y divide-line rounded-md border border-line bg-surface">
+      <ul className="mt-6 divide-y divide-line rounded-lg border border-line bg-surface shadow-1">
         {courriers.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-4">
             <div>

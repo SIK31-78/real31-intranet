@@ -808,7 +808,7 @@ function ChampsDestinataires({
   onChange: (champ: keyof Destinataires, v: string[]) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1 mb-2 rounded-md border border-line bg-surface px-2.5 py-2">
+    <div className="flex flex-col gap-1 mb-2 border border-line bg-surface rounded-md px-2.5 py-2">
       <LigneDest label="À" champ="to" valeurs={valeur.to} onChange={onChange} />
       <LigneDest label="Cc" champ="cc" valeurs={valeur.cc} onChange={onChange} />
       <LigneDest label="Cci" champ="cci" valeurs={valeur.cci} onChange={onChange} />

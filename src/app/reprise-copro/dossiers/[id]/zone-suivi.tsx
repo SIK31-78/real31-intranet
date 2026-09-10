@@ -44,8 +44,8 @@ import {
 } from "./vues";
 import { Input, Select, Textarea } from "@/components/ui/field";
 
-const SELECT_COMPACT = "h-7 max-w-[160px] rounded-md border border-line bg-surface px-1.5 text-body text-ink disabled:opacity-50";
-const INPUT_COMPACT = "h-7 rounded-md border border-line bg-surface px-1.5 text-body text-ink disabled:opacity-50";
+const SELECT_COMPACT = "h-7 max-w-[160px] rounded-lg border border-line bg-surface shadow-1 px-1.5 text-body text-ink disabled:opacity-50";
+const INPUT_COMPACT = "h-7 rounded-lg border border-line bg-surface shadow-1 px-1.5 text-body text-ink disabled:opacity-50";
 
 // --- CHECKLIST ---------------------------------------------------------------
 
@@ -434,7 +434,7 @@ function MenuStatut({
           <div className="fixed inset-0 z-30" onClick={fermer} aria-hidden />
           <div
             role="menu"
-            className="absolute z-40 left-0 top-7 w-[240px] rounded-md border border-line bg-surface shadow-2 p-1"
+            className="absolute z-40 left-0 top-7 w-[240px] rounded-lg border border-line bg-surface shadow-1 shadow-2 p-1"
             onKeyDown={(e) => e.key === "Escape" && fermer()}
           >
             {!saisieMotif ? (

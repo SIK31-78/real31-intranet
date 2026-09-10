@@ -2,8 +2,8 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
 
 // Une Card GROUPE des choses liees ; elle n'est PAS un fond. Un titre de page, un
-// tableau seul, un etat vide, une liste de sections n'en ont pas besoin. Hairline
-// seule, jamais d'ombre. Le padding est porte par CardHeader / CardBody / CardFooter,
+// tableau seul, un etat vide, une liste de sections n'en ont pas besoin. Blanche,
+// rayon 12, en relief doux (shadow-1) sur le papier. Le padding est porte par CardHeader / CardBody / CardFooter,
 // pas par l'appelant.
 
 type CardProps = ComponentProps<"div"> & {
@@ -15,7 +15,7 @@ export function Card({ className, interactive = false, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "bg-surface border border-line rounded-md",
+        "bg-surface border border-line rounded-lg shadow-1",
         interactive && "transition-colors duration-120 hover:border-line-2",
         className,
       )}

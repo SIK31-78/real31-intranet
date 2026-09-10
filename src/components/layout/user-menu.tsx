@@ -36,7 +36,7 @@ export function UserMenu({
           <button type="button" aria-hidden className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} />
           <div
             role="menu"
-            className="absolute right-0 mt-2 w-56 z-20 rounded-md border border-line bg-surface shadow-1 py-1"
+            className="absolute right-0 mt-2 w-56 z-20 rounded-lg border border-line bg-surface shadow-1 shadow-1 py-1"
           >
             <div className="px-3 py-2 border-b border-line">
               <p className="text-body font-medium text-ink truncate">{user.nomComplet}</p>

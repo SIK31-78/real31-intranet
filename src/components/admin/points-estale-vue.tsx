@@ -30,7 +30,7 @@ function jjmmaaaa(iso?: string): string {
 }
 
 const selectCls =
-  "rounded-md border border-line bg-surface px-2 py-1.5 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+  "rounded-lg border border-line bg-surface shadow-1 px-2 py-1.5 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
 function LignePoint({ p }: { p: PointEstale }) {
   const { ok, err } = useToast();
@@ -340,7 +340,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
                
               autoFocus
               placeholder="Nouveau point à porter à ESTALE…"
-              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+              className="w-full border border-line bg-surface rounded-md px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
             <Textarea
               value={detail}

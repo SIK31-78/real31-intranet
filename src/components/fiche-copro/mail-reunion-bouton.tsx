@@ -167,7 +167,7 @@ function ModaleComposition({
             </p>
           )}
 
-          <div className="rounded-md border border-line bg-surface px-2.5 py-2 flex flex-col gap-1">
+          <div className="border border-line bg-surface rounded-md px-2.5 py-2 flex flex-col gap-1">
             <LigneDest label="À" valeurs={a} onChange={onA} />
             <LigneDest label="Cc" valeurs={cc} onChange={onCc} />
           </div>

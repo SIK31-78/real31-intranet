@@ -8,13 +8,23 @@
    ET une variable CSS dans :root (utilisable en var(--color-surface)).
    ============================================================================ */
 @theme {
-  /* Neutres - fonds chauds, jamais de blanc pur sur le canvas. */
-  --color-canvas:    #fafaf9;
-  --color-surface:   #ffffff;
-  --color-surface-2: #f4f4f2;
-  --color-surface-3: #ededea;
-  --color-line:      #e6e5e1;
-  --color-line-2:    #d4d3ce;
+  /* Neutres - papier chaud (la peau, etape 3 de la refonte, 2026-09-10 : valeurs de
+     la maquette docs/refonte-ui/01-dashboard-grotesque.html). Les cartes sont blanches
+     et en relief sur le papier, jamais l'inverse. */
+  --color-canvas:    #F5F3EC;
+  --color-surface:   #FFFFFF;
+  --color-surface-2: #EFECE3;
+  --color-surface-3: #E7E3D8;
+  --color-line:      #E3DFD4;
+  --color-line-2:    #CFC9BB;
+
+  /* Le rail de navigation (sapin profond) - son propre jeu, il n'est pas "du vert
+     d'action", c'est le chrome. rail-muted sur rail = 7,5:1. */
+  --color-rail:       #152A20;
+  --color-rail-2:     rgba(255, 255, 255, 0.07);
+  --color-rail-ink:   #EAF0E8;
+  --color-rail-muted: #A9BBAD;
+  --color-rail-line:  rgba(234, 240, 232, 0.12);
 
   /* Encre (texte) - 3 roles, pas 3 esthetiques (refonte 2026-09) :
        ink   = la donnee, les titres, les libelles de bouton ;
@@ -22,30 +32,30 @@
        ink-3 = le TERTIAIRE (placeholder, desactive, etape "a venir").
      ink-4 (3,6:1 sur blanc, sous le seuil AA) n'existe plus (retire fin de migration,
      2026-09-10). */
-  --color-ink:   #18181b;
-  --color-ink-2: #525258;
-  --color-ink-3: #6b6b70;
+  --color-ink:   #20251F;
+  --color-ink-2: #4C5347;
+  --color-ink-3: #5C6355;
 
   /* Vert sapin REAL31 (oklch, desature) - l'ACTION PRINCIPALE et la navigation
      active uniquement, jamais un statut, jamais un filtre. Echelle complete :
      sans 400/800 declares, `green-800` retombait sur le vert Tailwind sature. */
-  --color-green-50:  oklch(0.97 0.02 155);
-  --color-green-100: oklch(0.93 0.04 155);
-  --color-green-200: oklch(0.85 0.06 155);
-  --color-green-300: oklch(0.72 0.08 155);
-  --color-green-400: oklch(0.60 0.09 155);
-  --color-green-500: oklch(0.48 0.09 155);
-  --color-green-600: oklch(0.40 0.08 155);
-  --color-green-700: oklch(0.32 0.06 155);
-  --color-green-800: oklch(0.26 0.05 155);
-  --color-green-900: oklch(0.20 0.04 155);
+  --color-green-50:  #E3F1E7;
+  --color-green-100: #D2E6D8;
+  --color-green-200: #B9D6C2;
+  --color-green-300: #8FBBA0;
+  --color-green-400: #5F9A7A;
+  --color-green-500: #3E7D5D;
+  --color-green-600: #27614A;
+  --color-green-700: #1C4736;
+  --color-green-800: #173626;
+  --color-green-900: #10261B;
 
-  /* Semantiques - hue volontairement differente du brand, pour ne pas
-     confondre "statut OK" et "bouton". */
-  --color-ok-50:   #ecfdf5;  --color-ok-500:   #059669;  --color-ok-700:   #047857;
-  --color-warn-50: #fffbeb;  --color-warn-500: #d97706;  --color-warn-700: #b45309;
-  --color-err-50:  #fef2f2;  --color-err-500:  #dc2626;  --color-err-700:  #b91c1c;
-  --color-info-50: #eff6ff;  --color-info-500: #2563eb;  --color-info-700: #1d4ed8;
+  /* Semantiques - palette chaude (menthe, ocre, terracotta, ardoise), hue differente du
+     brand pour ne pas confondre "statut OK" et "bouton". Tous les couples 700/50 >= 5,5:1. */
+  --color-ok-50:   #E3F1E7;  --color-ok-500:   #3FA372;  --color-ok-700:   #1F6B47;
+  --color-warn-50: #F7EFD9;  --color-warn-500: #C98F1B;  --color-warn-700: #7A5200;
+  --color-err-50:  #F8E9E3;  --color-err-500:  #C25A3C;  --color-err-700:  #A23B24;
+  --color-info-50: #E7EEF5;  --color-info-500: #5A85AB;  --color-info-700: #33597B;
 
   /* Typo - Geist (UI) + JetBrains Mono (codes copro S0xx, lots, montants).
      Les variables --font-*-mono/sans sont posees par next/font dans layout.tsx. */
@@ -71,10 +81,15 @@
   --text-page:   1.25rem;    --text-page--line-height:   1.75rem;
   --text-figure: 1.75rem;    --text-figure--line-height: 2rem;
 
-  /* Ombres - tres subtiles, jamais plus de 2 couches. Jamais sur une carte
-     (hairline seule) ; shadow-2 = modale / popover / toast. */
-  --shadow-1: 0 1px 0 rgba(24,24,27,.04), 0 1px 2px rgba(24,24,27,.04);
-  --shadow-2: 0 4px 12px -2px rgba(24,24,27,.06), 0 2px 4px -1px rgba(24,24,27,.04);
+  /* Rayons - 4 (controles, badges) / 6 (inputs, boutons md) / 12 (cartes, tableaux,
+     listes) / 16 (modales, palette). Un controle n'est pas une carte. */
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* Ombres - deux seulement. shadow-1 = le relief doux des cartes sur le papier ;
+     shadow-2 = modale / popover / toast. */
+  --shadow-1: 0 1px 2px rgba(32,37,31,.04), 0 14px 34px -20px rgba(32,37,31,.16);
+  --shadow-2: 0 2px 6px rgba(32,37,31,.06), 0 24px 48px -24px rgba(32,37,31,.24);
 
   /* Mouvement - sobre, CSS seul. 120 ms survol/focus, 180 ms changement d'etat,
      240 ms apparition. Aucune animation de page, aucune boucle decorative. */
@@ -98,9 +113,6 @@
     transition-duration: 0.01ms !important;
   }
 }
-
-/* Radius du DS : 4 / 6 / 8 px == defauts Tailwind rounded-sm / -md / -lg.
-   Donc aucun override necessaire. */
 
 html,
 body {

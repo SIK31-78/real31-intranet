@@ -38,7 +38,7 @@ export default async function DevLoginPage() {
   if (!(await impersonationAutorisee())) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
-        <div className="w-full max-w-sm bg-surface border border-line rounded-md p-7 text-center">
+        <div className="w-full max-w-sm bg-surface border border-line rounded-lg shadow-1 p-7 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-real31.png" alt="REAL 31 Immobilier" className="h-12 w-auto mx-auto mb-5" />
           <h1 className="text-title font-medium text-ink">Intranet REAL 31</h1>
@@ -69,7 +69,7 @@ export default async function DevLoginPage() {
   const codeParAgence = new Map(agences.map((a) => [a.id, a.code]));
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
-      <div className="w-full max-w-md bg-surface border border-line rounded-md p-6">
+      <div className="w-full max-w-md bg-surface border border-line rounded-lg shadow-1 p-6">
         <h1 className="text-title font-medium text-ink">Choisir un gestionnaire</h1>
         <p className="text-body text-ink-3 mt-1 mb-4">
           Session dev (sera remplacée par l&apos;authentification Entra ID). Vous ne verrez

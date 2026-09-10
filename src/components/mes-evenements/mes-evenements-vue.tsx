@@ -148,7 +148,7 @@ function Section({
 
 function LienTraiter({ href, libelle }: { href?: string; libelle: string }) {
   const classes =
-    "shrink-0 inline-flex items-center gap-1 h-8 px-3 rounded-md border border-line bg-surface text-body text-ink hover:bg-surface-2 transition-colors";
+    "shrink-0 inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-line bg-surface shadow-1 text-body text-ink hover:bg-surface-2 transition-colors";
   if (!href) {
     return <span className={`${classes} opacity-50 cursor-not-allowed`}>{libelle}</span>;
   }

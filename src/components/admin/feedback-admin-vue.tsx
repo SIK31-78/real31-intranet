@@ -388,7 +388,7 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
   const [priorite, setPriorite] = useState("");
 
   const champCls =
-    "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+    "h-8 rounded-lg border border-line bg-surface shadow-1 px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
   function soumettre() {
     const t = titre.trim();
@@ -544,7 +544,7 @@ export function FeedbackAdminVue({
   );
 
   const selectCls =
-    "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+    "h-8 rounded-lg border border-line bg-surface shadow-1 px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
   return (
     <div className="flex flex-col gap-4">
@@ -556,7 +556,7 @@ export function FeedbackAdminVue({
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-2 rounded-md border border-line bg-surface px-3 py-2.5">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2 rounded-lg border border-line bg-surface shadow-1 px-3 py-2.5">
         <label className="flex flex-col gap-1 text-meta text-ink-3">
           Statut
         <select value={fStatut} onChange={(e) => setFStatut(e.target.value as StatutFeedback | "")} className={selectCls}>

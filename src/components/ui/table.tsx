@@ -11,7 +11,7 @@ type TableProps = ComponentProps<"table"> & { dense?: boolean; encadre?: boolean
 
 export function Table({ dense = false, encadre = true, className, ...props }: TableProps) {
   return (
-    <div className={cn("overflow-x-auto", encadre && "border border-line rounded-md bg-surface")}>
+    <div className={cn("overflow-x-auto", encadre && "border border-line rounded-lg bg-surface shadow-1")}>
       <table
         data-dense={dense || undefined}
         className={cn("w-full border-collapse text-body text-ink", className)}

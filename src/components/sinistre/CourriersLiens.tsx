@@ -160,14 +160,14 @@ function CorpsPlan({ plan, contexte }: { plan: PlanCourriers; contexte: Contexte
           // clic. La hiérarchie passe par le titre de section.
           <div className={maintenant.length > 0 ? 'mt-4' : ''}>
             <SectionTitle>Plus tard, si ça arrive</SectionTitle>
-            <ul className="mt-2 divide-y divide-line rounded-md border border-line bg-surface">
+            <ul className="mt-2 divide-y divide-line rounded-lg border border-line bg-surface shadow-1">
               {plusTard.map((p) => (
                 <LignePlusTard key={p.courrier.id} plan={p} />
               ))}
             </ul>
           </div>
         ) : (
-          <details className="group mt-4 rounded-md border border-line bg-surface">
+          <details className="group mt-4 rounded-lg border border-line bg-surface shadow-1">
             <summary className={SUMMARY_CLASS}>
               <Chevron />
               Plus tard, si ça arrive ({plusTard.length})
@@ -200,7 +200,7 @@ export function PlanCourriersVue({
 
   if (contexte === 'etape') {
     return (
-      <details className="group mt-3 rounded-md border border-line bg-surface">
+      <details className="group mt-3 rounded-lg border border-line bg-surface shadow-1">
         <summary className={SUMMARY_CLASS}>
           <Chevron />
           {titreRepliEtape(plan)}

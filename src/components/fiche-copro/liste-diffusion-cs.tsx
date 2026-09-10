@@ -135,7 +135,7 @@ export function ListeDiffusionCS({
           </Callout>
 
           {/* Chips editables. */}
-          <div className="rounded-md border border-line bg-surface px-2.5 py-2">
+          <div className="border border-line bg-surface rounded-md px-2.5 py-2">
             <div className="flex flex-wrap items-center gap-1">
               {emails.map((e) => {
                 const ok = EMAIL_RE.test(e) && !estInterne(e);

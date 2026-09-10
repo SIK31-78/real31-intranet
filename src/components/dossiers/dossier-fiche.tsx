@@ -122,7 +122,7 @@ export function DossierFiche({
         <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Tous les dossiers
       </Link>
 
-      <div className="bg-surface border border-line rounded-md p-5">
+      <div className="bg-surface border border-line rounded-lg shadow-1 p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
             {editMeta ? (

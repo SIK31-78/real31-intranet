@@ -25,7 +25,7 @@ export function MesureRow({ item }: { item: ChecklistItem }) {
   }
 
   return (
-    <li className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-line bg-surface p-2">
+    <li className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-line bg-surface shadow-1 p-2">
       <span className="flex-1 text-body text-ink-2">
         <Glose>{item.libelle}</Glose>
         <span

@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 
 export function Rows({ children, encadre = true }: { children: ReactNode; encadre?: boolean }) {
   return (
-    <ul className={cn("divide-y divide-line", encadre && "border border-line rounded-md bg-surface")}>
+    <ul className={cn("divide-y divide-line", encadre && "border border-line rounded-lg bg-surface shadow-1")}>
       {children}
     </ul>
   );

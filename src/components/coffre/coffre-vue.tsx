@@ -89,7 +89,7 @@ interface CoffreOuvert {
 }
 
 const champClasse =
-  "w-full h-9 px-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-green-600";
+  "w-full h-9 px-3 rounded-lg border border-line bg-surface shadow-1 text-body text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-green-600";
 
 const LIBELLE_SCOPE: Record<ScopeCoffre, string> = {
   network: "Reseau",

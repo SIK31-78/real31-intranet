@@ -28,7 +28,7 @@ export function AccueilScreen() {
       </div>
 
       {brouillonEnCours && (
-        <div className="rounded-md border border-line bg-surface p-4 text-body">
+        <div className="rounded-lg border border-line bg-surface shadow-1 p-4 text-body">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-ink-2">
               Un dossier est en cours&nbsp;: <strong>{state.referenceInterne}</strong>
@@ -49,7 +49,7 @@ export function AccueilScreen() {
       <div className="grid gap-6">
         <button
           onClick={demarrer}
-          className="group rounded-md border border-line bg-surface p-8 text-left shadow-1 transition hover:border-green-600 hover:shadow-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          className="group rounded-lg border border-line bg-surface shadow-1 p-8 text-left shadow-1 transition hover:border-green-600 hover:shadow-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
         >
           <div className="text-page font-semibold text-ink">Nouveau sinistre</div>
           <div className="mt-1 font-medium text-ink-2">Parcours guidé</div>

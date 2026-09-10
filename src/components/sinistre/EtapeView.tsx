@@ -62,7 +62,7 @@ function BandeauIncertitude() {
  */
 function RepliCeQuIlFautSavoir({ alerte }: { alerte: string }) {
   return (
-    <details className="no-print group mt-3 rounded-md border border-line bg-surface">
+    <details className="no-print group mt-3 rounded-lg border border-line bg-surface shadow-1">
       <summary className="cursor-pointer list-none px-4 py-3 text-body font-medium text-ink-2 marker:content-none hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
         <span
           aria-hidden

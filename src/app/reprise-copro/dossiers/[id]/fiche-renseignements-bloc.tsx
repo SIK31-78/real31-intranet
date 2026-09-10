@@ -328,7 +328,7 @@ function LigneAValider({ dossierRef, fiche }: { dossierRef: string; fiche: Fiche
   };
 
   return (
-    <li className="rounded-md border border-line bg-surface p-3">
+    <li className="rounded-lg border border-line bg-surface shadow-1 p-3">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <p className="text-body font-medium text-ink flex items-center gap-1.5">
