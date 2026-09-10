@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getOdj } from "@/lib/services/odj/get-odj";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { BoutonImprimer } from "@/components/odj/bouton-imprimer";
 import { DocumentOdj } from "@/components/odj/document-odj";
+import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "ODJ (impression) - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -25,17 +25,14 @@ export default async function OdjImprimerPage({ params }: { params: Promise<{ id
   if (!odj) notFound();
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900">
+    <div className="min-h-screen bg-white text-ink">
       {/* Barre d'actions, masquee a l'impression */}
-      <div className="print:hidden border-b border-neutral-200 bg-neutral-50">
-        <div className="mx-auto max-w-[800px] px-6 py-3 flex items-center justify-between">
-          <Link
-            href={`/odj/${id}`}
-            className="inline-flex items-center gap-1.5 text-[13px] text-neutral-600 hover:text-neutral-900"
-          >
-            <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" />
-            Retour à l&apos;édition
-          </Link>
+      <div className="print:hidden border-b border-line bg-surface-2">
+        <div className="mx-auto max-w-[800px] px-6 h-12 flex items-center justify-between">
+          <ButtonLink href={`/odj/${id}`} variant="ghost">
+            <ArrowLeft strokeWidth={1.5} />
+            Retour à l&apos;ODJ
+          </ButtonLink>
           <BoutonImprimer />
         </div>
       </div>

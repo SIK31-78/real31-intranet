@@ -1,16 +1,14 @@
 "use client";
 
 import { Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
+// Le primaire de la page imprimable : imprimer.
 export function BoutonImprimer() {
   return (
-    <button
-      type="button"
-      onClick={() => window.print()}
-      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-[13px] font-medium hover:bg-green-600 transition-colors print:hidden"
-    >
-      <Printer strokeWidth={1.5} className="w-3.5 h-3.5" />
+    <Button variant="primary" onClick={() => window.print()} className="print:hidden">
+      <Printer strokeWidth={1.5} />
       Imprimer / PDF
-    </button>
+    </Button>
   );
 }

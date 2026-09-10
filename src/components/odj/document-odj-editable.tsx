@@ -61,6 +61,7 @@ import {
   serialiserChampLibre,
 } from "@/lib/domain/odj-libre";
 import { CorpsLigneSection, DocumentOdj, ValeurStatique, estParagraphe } from "@/components/odj/document-odj";
+import { Button } from "@/components/ui/button";
 
 const DELAI_AUTOSAVE_MS = 900;
 
@@ -249,7 +250,7 @@ function InputInline({
       placeholder={placeholder}
       className={
         classe ??
-        "inline-block align-baseline min-w-[160px] max-w-full px-1 -mx-1 rounded-sm bg-green-700/5 font-medium text-neutral-900 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+        "inline-block align-baseline min-w-[160px] max-w-full px-1 -mx-1 rounded-sm bg-green-700/5 font-medium text-ink text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
       }
     />
   );
@@ -287,7 +288,7 @@ function TextareaInline({
         }
       }}
       rows={Math.max(2, v.split("\n").length)}
-      className="block w-full mt-0.5 px-2 py-1 rounded-sm bg-green-700/5 text-[12px] leading-[1.55] text-neutral-900 outline-none ring-1 ring-green-700/40 focus:ring-green-700 resize-y"
+      className="block w-full mt-0.5 px-2 py-1 rounded-sm bg-green-700/5 text-[12px] leading-[1.55] text-ink outline-none ring-1 ring-green-700/40 focus:ring-green-700 resize-y"
     />
   );
 }
@@ -359,19 +360,19 @@ function ValeurEditable({
     >
       {v ? (
         <span
-          className={`whitespace-pre-wrap border-b border-dotted border-green-700/40 ${sobre ? "text-neutral-700" : "font-medium text-neutral-900"}`}
+          className={`whitespace-pre-wrap border-b border-dotted border-green-700/40 ${sobre ? "text-ink" : "font-medium text-ink"}`}
         >
           {v}
         </span>
       ) : (
-        <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400 group-hover:border-green-700/60" />
+        <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-line-2 group-hover:border-green-700/60" />
       )}
       {champ.alerte && !v ? (
         <AlertTriangle strokeWidth={1.5} className="w-3 h-3 self-center text-warn-700" />
       ) : (
         <Pencil
           strokeWidth={1.5}
-          className="w-3 h-3 self-center text-neutral-300 opacity-0 group-hover:opacity-100 group-hover:text-green-700 transition-opacity"
+          className="w-3 h-3 self-center text-ink-3 opacity-0 group-hover:opacity-100 group-hover:text-green-700 transition-opacity"
         />
       )}
     </button>
@@ -399,7 +400,7 @@ function BasculeBooleen({
 }) {
   const actuel = valeurLocale(moteur.brouillons, champ.id) ?? champ.valeur ?? "non";
   const actif = actuel === "oui";
-  const style = sobre ? "text-neutral-700" : "font-medium text-neutral-900";
+  const style = sobre ? "text-ink" : "font-medium text-ink";
   if (!champ.editable) return <span className={style}>{actif ? oui : non}</span>;
   return (
     <button
@@ -415,7 +416,7 @@ function BasculeBooleen({
 
 /** Modalite (visio) : bascule directe Presentiel <-> hybride, envoi immediat. */
 function ModaliteEditable({ champ, moteur }: { champ: ChampOdj | undefined; moteur: MoteurAutosave }) {
-  if (!champ) return <span className="font-medium text-neutral-900">Présentiel</span>;
+  if (!champ) return <span className="font-medium text-ink">Présentiel</span>;
   return (
     <BasculeBooleen
       champ={champ}
@@ -457,14 +458,14 @@ function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur: Moteur
         const nouveau = serialiserChampLibre(v.trim() || "Nouveau champ", texte);
         if (nouveau !== encodeActuel) moteur.commettre(champ.id, encodeActuel, nouveau);
       }}
-      classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 font-semibold text-neutral-800 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+      classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 font-semibold text-ink text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
     />
   ) : (
     <button
       type="button"
       title="Champ ajouté - cliquer pour renommer"
       onClick={() => setEditionLibelle(true)}
-      className="font-semibold text-neutral-800 text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+      className="font-semibold text-ink text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {libelle}
     </button>
@@ -484,7 +485,7 @@ function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur: Moteur
               onClick={() =>
                 moteur.commettre(idNote(champ.id, Date.now()), "", "Nouveau paragraphe - cliquer pour rédiger.", true)
               }
-              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-green-700 hover:bg-green-700/5 transition-opacity"
+              className="self-center p-0.5 rounded text-ink-3 opacity-0 group-hover/libre:opacity-100 hover:text-green-700 hover:bg-green-700/5 transition-opacity"
             >
               <Plus strokeWidth={1.5} className="w-3 h-3" />
             </button>
@@ -492,7 +493,7 @@ function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur: Moteur
               type="button"
               title="Supprimer ce champ"
               onClick={() => moteur.commettre(champ.id, encodeActuel, "", true)}
-              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+              className="self-center p-0.5 rounded text-ink-3 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
             >
               <X strokeWidth={1.5} className="w-3 h-3" />
             </button>
@@ -540,9 +541,9 @@ function ValeurLibre({
       className="group inline-flex items-baseline gap-1 max-w-full text-left align-baseline rounded-sm -mx-0.5 px-0.5 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {champ.valeur ? (
-        <span className="text-neutral-700 whitespace-pre-wrap border-b border-dotted border-green-700/40">{champ.valeur}</span>
+        <span className="text-ink whitespace-pre-wrap border-b border-dotted border-green-700/40">{champ.valeur}</span>
       ) : (
-        <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400 group-hover:border-green-700/60" />
+        <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-line-2 group-hover:border-green-700/60" />
       )}
     </button>
   );
@@ -581,7 +582,7 @@ function BlocLibreEditable({
           if (e.key === "Escape") setEdition(false);
         }}
         rows={Math.max(2, brouillon.split("\n").length)}
-        className="w-full px-2 py-1 rounded-sm bg-green-700/5 text-[11.5px] leading-[1.55] text-neutral-900 outline-none ring-1 ring-green-700/40 focus:ring-green-700 resize-y"
+        className="w-full px-2 py-1 rounded-sm bg-green-700/5 text-[11.5px] leading-[1.55] text-ink outline-none ring-1 ring-green-700/40 focus:ring-green-700 resize-y"
       />
     );
   }
@@ -595,7 +596,7 @@ function BlocLibreEditable({
           setBrouillon(texte);
           setEdition(true);
         }}
-        className="block w-full text-left text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap rounded-sm px-1 -mx-1 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+        className="block w-full text-left text-[11.5px] text-ink leading-[1.55] whitespace-pre-wrap rounded-sm px-1 -mx-1 hover:bg-green-700/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
       >
         {texte}
       </button>
@@ -603,7 +604,7 @@ function BlocLibreEditable({
         type="button"
         title="Supprimer ce paragraphe"
         onClick={() => moteur.commettre(id, texte, "", true)}
-        className="absolute right-0 top-0.5 p-1 rounded text-neutral-300 opacity-0 group-hover/bloc:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+        className="absolute right-0 top-0.5 p-1 rounded text-ink-3 opacity-0 group-hover/bloc:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
       >
         <X strokeWidth={1.5} className="w-3.5 h-3.5" />
       </button>
@@ -623,8 +624,8 @@ function PointEditable({
   const [enCours, setEnCours] = useState(false);
   return (
     <div className={`group/point relative pr-8 ${enCours ? "opacity-50" : ""}`}>
-      <p className="text-[12px] font-semibold text-neutral-800">{point.titre}</p>
-      <p className="text-[11.5px] text-neutral-600 leading-[1.5]">{point.texte}</p>
+      <p className="text-[12px] font-semibold text-ink">{point.titre}</p>
+      <p className="text-[11.5px] text-ink-2 leading-[1.5]">{point.texte}</p>
       <button
         type="button"
         title="Retirer ce point de l'ordre du jour"
@@ -633,7 +634,7 @@ function PointEditable({
           setEnCours(true);
           void onToggle(point.id, true).finally(() => setEnCours(false));
         }}
-        className="absolute right-0 top-0.5 p-1 rounded text-neutral-300 hover:text-warn-700 hover:bg-warn-50 group-hover/point:text-neutral-400 transition-colors"
+        className="absolute right-0 top-0.5 p-1 rounded text-ink-3 hover:text-warn-700 hover:bg-warn-50 group-hover/point:text-ink-3 transition-colors"
       >
         <EyeOff strokeWidth={1.5} className="w-3.5 h-3.5" />
       </button>
@@ -652,8 +653,8 @@ function PointsRetires({
   const [enCours, setEnCours] = useState<string | null>(null);
   if (points.length === 0) return null;
   return (
-    <div className="mt-4 pt-3 border-t border-dashed border-neutral-200">
-      <p className="text-[11px] text-neutral-400 mb-1.5">Points retirés de ce document ({points.length}) :</p>
+    <div className="mt-4 pt-3 border-t border-dashed border-line">
+      <p className="text-[11px] text-ink-3 mb-1.5">Points retirés de ce document ({points.length}) :</p>
       <ul className="space-y-1">
         {points.map((p) => (
           <li key={p.id} className="flex items-center gap-2">
@@ -665,10 +666,10 @@ function PointsRetires({
                 void onToggle(p.id, false).finally(() => setEnCours(null));
               }}
               title={p.condition ? `Réintégrer - ${p.condition}` : "Réintégrer ce point"}
-              className="inline-flex items-center gap-1.5 text-[11.5px] text-neutral-500 hover:text-green-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-2 hover:text-green-700 disabled:opacity-50"
             >
               <Eye strokeWidth={1.5} className="w-3 h-3 shrink-0" />
-              <span className="line-through decoration-neutral-300">{p.titre}</span>
+              <span className="line-through decoration-line-2">{p.titre}</span>
             </button>
           </li>
         ))}
@@ -683,7 +684,7 @@ function BoutonAjout({ libelle, onClick }: { libelle: string; onClick: () => voi
     <button
       type="button"
       onClick={onClick}
-      className="mt-1 inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-green-700 transition-colors"
+      className="mt-1 inline-flex items-center gap-1 text-[11px] text-ink-3 hover:text-green-700 transition-colors"
     >
       <Plus strokeWidth={1.5} className="w-3 h-3" />
       {libelle}
@@ -695,10 +696,10 @@ function BoutonAjout({ libelle, onClick }: { libelle: string; onClick: () => voi
 function BarreSauvegarde({ moteur }: { moteur: MoteurAutosave }) {
   const statut = statutGlobal(moteur.brouillons);
   const rendu: Record<StatutSauvegarde, ReactNode> = {
-    repos: <span className="text-ink-4">Les modifications s&apos;enregistrent automatiquement</span>,
-    "en-attente": <span className="text-ink-3">Modifications en attente…</span>,
+    repos: <span className="text-ink-2">Les modifications s&apos;enregistrent automatiquement</span>,
+    "en-attente": <span className="text-ink-2">Modifications en attente…</span>,
     enregistrement: (
-      <span className="inline-flex items-center gap-1.5 text-ink-3">
+      <span className="inline-flex items-center gap-1.5 text-ink-2">
         <Loader2 strokeWidth={1.5} className="w-3.5 h-3.5 animate-spin" />
         Enregistrement…
       </span>
@@ -717,38 +718,37 @@ function BarreSauvegarde({ moteur }: { moteur: MoteurAutosave }) {
     ),
   };
   return (
-    <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-md border border-line bg-surface/95 backdrop-blur px-3 py-1.5 shadow-sm">
+    <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-md border border-line bg-surface/95 backdrop-blur px-2 h-10 shadow-2">
       <div className="flex items-center gap-1">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
           title="Annuler (Ctrl+Z)"
+          aria-label="Annuler"
           onClick={moteur.annulerGeste}
           disabled={moteur.historique.annulables.length === 0}
-          className="p-1.5 rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
         >
-          <Undo2 strokeWidth={1.5} className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
+          <Undo2 strokeWidth={1.5} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
           title="Rétablir (Ctrl+Y)"
+          aria-label="Rétablir"
           onClick={moteur.refaireGeste}
           disabled={moteur.historique.refaisables.length === 0}
-          className="p-1.5 rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
         >
-          <Redo2 strokeWidth={1.5} className="w-3.5 h-3.5" />
-        </button>
+          <Redo2 strokeWidth={1.5} />
+        </Button>
       </div>
       <div className="flex items-center gap-3">
-        <span className="text-[12px]">{rendu[statut]}</span>
-        <button
-          type="button"
-          onClick={moteur.envoyer}
-          disabled={statut === "enregistrement"}
-          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md bg-green-700 text-surface text-[12.5px] font-medium hover:bg-green-600 transition-colors disabled:opacity-50"
-        >
-          <CloudUpload strokeWidth={1.5} className="w-3.5 h-3.5" />
+        <span className="text-body">{rendu[statut]}</span>
+        <Button variant="secondary" size="sm" onClick={moteur.envoyer} disabled={statut === "enregistrement"}>
+          <CloudUpload strokeWidth={1.5} />
           Enregistrer
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -789,14 +789,14 @@ function LigneStandardEditable({
         // Vide = retour au libelle du catalogue (efface la reecriture).
         if (nouveau !== libelleAffiche || nouveau === "") moteur.commettre(cleLibelle, avant, nouveau);
       }}
-      classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 font-semibold text-neutral-800 text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
+      classe="inline-block align-baseline min-w-[120px] px-1 -mx-1 rounded-sm bg-green-700/5 font-semibold text-ink text-[12px] leading-[1.55] outline-none ring-1 ring-green-700/40 focus:ring-green-700"
     />
   ) : (
     <button
       type="button"
       title="Cliquer pour renommer ce libellé (le vider rétablit l'original)"
       onClick={() => setEditionLibelle(true)}
-      className="font-semibold text-neutral-800 text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
+      className="font-semibold text-ink text-left border-b border-dotted border-transparent hover:border-green-700/40 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-700/50"
     >
       {libelleAffiche}
     </button>
@@ -816,7 +816,7 @@ function LigneStandardEditable({
               onClick={() =>
                 moteur.commettre(idNote(champ.id, Date.now()), "", "Nouveau paragraphe - cliquer pour rédiger.", true)
               }
-              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-green-700 hover:bg-green-700/5 transition-opacity"
+              className="self-center p-0.5 rounded text-ink-3 opacity-0 group-hover/std:opacity-100 hover:text-green-700 hover:bg-green-700/5 transition-opacity"
             >
               <Plus strokeWidth={1.5} className="w-3 h-3" />
             </button>
@@ -824,7 +824,7 @@ function LigneStandardEditable({
               type="button"
               title="Retirer cette ligne du document"
               onClick={() => moteur.commettre(cleMasque, "", "1", true)}
-              className="self-center p-0.5 rounded text-neutral-300 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
+              className="self-center p-0.5 rounded text-ink-3 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
             >
               <EyeOff strokeWidth={1.5} className="w-3 h-3" />
             </button>
@@ -881,8 +881,8 @@ function ChampsMasques({ section, moteur }: { section: SectionOdj; moteur: Moteu
   });
   if (masques.length === 0) return null;
   return (
-    <div className="mt-2 pt-1.5 border-t border-dashed border-neutral-200">
-      <p className="text-[11px] text-neutral-400 mb-1">Lignes retirées de cette section ({masques.length}) :</p>
+    <div className="mt-2 pt-1.5 border-t border-dashed border-line">
+      <p className="text-[11px] text-ink-3 mb-1">Lignes retirées de cette section ({masques.length}) :</p>
       <ul className="space-y-0.5">
         {masques.map((c) => (
           <li key={c.id}>
@@ -890,10 +890,10 @@ function ChampsMasques({ section, moteur }: { section: SectionOdj; moteur: Moteu
               type="button"
               title="Réintégrer cette ligne"
               onClick={() => moteur.commettre(`${PREFIXE_MASQUE}${c.id}`, "1", "", true)}
-              className="inline-flex items-center gap-1.5 text-[11.5px] text-neutral-500 hover:text-green-700"
+              className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-2 hover:text-green-700"
             >
               <Eye strokeWidth={1.5} className="w-3 h-3 shrink-0" />
-              <span className="line-through decoration-neutral-300">{c.libelle}</span>
+              <span className="line-through decoration-line-2">{c.libelle}</span>
             </button>
           </li>
         ))}
@@ -968,7 +968,7 @@ export function DocumentOdjEditable({
     <div className="flex flex-col gap-3">
       <BarreSauvegarde moteur={moteur} />
       {/* La "feuille" : fond papier, la mise en page EXACTE du document imprimable. */}
-      <div className="rounded-lg border border-line bg-white shadow-sm px-8 py-8 sm:px-10 sm:py-9">
+      <div className="rounded-md border border-line bg-white px-8 py-8 sm:px-10 sm:py-9">
         <DocumentOdj
           odj={odj}
           rendu={{

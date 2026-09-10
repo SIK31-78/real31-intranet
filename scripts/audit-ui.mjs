@@ -29,6 +29,7 @@ const SRC = join(RACINE, "src");
 // Dossiers migres : compteurs bloquants a zero, sinon exit 1.
 const MIGRES = [
   "src/app/accueil",
+  "src/app/odj",
   "src/components/affaires",
   "src/components/fiche-copro",
   "src/components/ui",
@@ -52,6 +53,9 @@ const REGLES = {
 // Le vert et les <button> bruts sont LEGITIMES dans les primitives, la sidebar (nav
 // active) et la frise du cycle (indicateur d'avancement, pas un bouton).
 const EXEMPTS = {
+  // Le document ODJ est un DOCUMENT (A4, echelle papier 12 px / 7,5 px en pied), pas une
+  // page d'UI : il garde ses tailles. Ses couleurs, elles, sont sur les tokens.
+  px: ["src/components/odj/document-odj.tsx", "src/components/odj/document-odj-editable.tsx"],
   vert: ["src/components/ui", "src/components/layout/sidebar.tsx", "src/components/parcours/frise-etapes.tsx"],
   btn: ["src/components/ui"],
 };

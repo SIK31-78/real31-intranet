@@ -51,11 +51,11 @@ function champDe(champs: ChampOdj[], id: string): ChampOdj | undefined {
 export function ValeurStatique({ v, gras = true }: { v?: string; gras?: boolean }) {
   if (v) {
     return (
-      <span className={`whitespace-pre-wrap ${gras ? "font-medium text-neutral-900" : "text-neutral-700"}`}>{v}</span>
+      <span className={`whitespace-pre-wrap ${gras ? "font-medium text-ink" : "text-ink"}`}>{v}</span>
     );
   }
   return (
-    <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-neutral-400" />
+    <span className="inline-block align-baseline min-w-[140px] border-b border-dotted border-line-2" />
   );
 }
 
@@ -87,18 +87,18 @@ export function CorpsLigneSection({
     return (
       <div className="text-[12px] leading-[1.55] break-inside-avoid-page">
         <p className="flex items-baseline gap-1">
-          <span className="font-semibold text-neutral-800">{libelle}</span>
-          <span className="font-semibold text-neutral-800">:</span>
+          <span className="font-semibold text-ink">{libelle}</span>
+          <span className="font-semibold text-ink">:</span>
           {apres}
         </p>
-        <div className="text-neutral-700">{valeur}</div>
+        <div className="text-ink">{valeur}</div>
       </div>
     );
   }
   return (
-    <p className="text-[12px] leading-[1.55] text-neutral-700 flex items-baseline gap-1">
-      <span className="font-semibold text-neutral-800 shrink-0">{libelle}</span>
-      <span className="font-semibold text-neutral-800">:</span>
+    <p className="text-[12px] leading-[1.55] text-ink flex items-baseline gap-1">
+      <span className="font-semibold text-ink shrink-0">{libelle}</span>
+      <span className="font-semibold text-ink">:</span>
       <span className="min-w-0 flex-1">{valeur}</span>
       {apres}
     </p>
@@ -136,8 +136,8 @@ function Ligne({
     );
   }
   return (
-    <p className="text-[12px] leading-[1.55] text-neutral-700">
-      <span className="text-neutral-500">{libelle} : </span>
+    <p className="text-[12px] leading-[1.55] text-ink">
+      <span className="text-ink-2">{libelle} : </span>
       {rendu?.valeur && champ ? rendu.valeur(champ) : <ValeurStatique v={champ ? formatChampValeur(champ) : undefined} />}
     </p>
   );
@@ -161,7 +161,7 @@ function formatFinReunion(iso: string): string | undefined {
 function MentionsLegales({ agence }: { agence?: string }) {
   const lignes = lignesMentions(mentionsAgence(agence));
   return (
-    <div className="mt-4 pt-2 border-t border-neutral-200 text-center text-[7.5px] leading-[1.45] text-neutral-500 break-inside-avoid-page">
+    <div className="mt-4 pt-2 border-t border-line text-center text-[7.5px] leading-[1.45] text-ink-2 break-inside-avoid-page">
       {lignes.map((l) => (
         <p key={l}>{l}</p>
       ))}
@@ -185,39 +185,39 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
   const enTete = (id: string) => champDe(odj.enTete, id);
 
   return (
-    <div className="text-neutral-900 [font-feature-settings:'tnum'] [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
+    <div className="text-ink [font-feature-settings:'tnum'] [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
       {/* En-tete de marque */}
       <header className="flex items-end justify-between gap-6 pb-3 mb-5 border-b-2 border-green-700">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo-real31.png" alt="REAL 31 Immobilier" className="h-16 w-auto" />
         <div className="text-right">
-          <div className="text-[14px] font-semibold text-neutral-800">Préparation d&apos;assemblée générale</div>
-          <div className="text-[10px] text-neutral-500">Document issu du conseil syndical</div>
+          <div className="text-[14px] font-semibold text-ink">Préparation d&apos;assemblée générale</div>
+          <div className="text-[10px] text-ink-2">Document issu du conseil syndical</div>
         </div>
       </header>
 
       {/* Copropriete */}
       <div className="mb-5">
         <h1 className="text-[19px] font-bold leading-tight">
-          {odj.copro.nom} <span className="text-neutral-400 font-normal text-[14px]">({odj.copro.code})</span>
+          {odj.copro.nom} <span className="text-ink-3 font-normal text-[14px]">({odj.copro.code})</span>
         </h1>
-        <p className="text-[12px] text-neutral-600">{odj.copro.adresse}</p>
+        <p className="text-[12px] text-ink-2">{odj.copro.adresse}</p>
       </div>
 
       {/* Reunion : presents + dates */}
-      <section className="mb-6 rounded-md bg-neutral-50 border border-neutral-200 px-4 py-3 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
+      <section className="mb-6 rounded-md bg-surface-2 border border-line px-4 py-3 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
         <Ligne libelle="Conseil syndical du" champ={enTete("date-cs")} rendu={rendu} />
         <Ligne libelle="Pour le syndic" champ={enTete("presents-syndic")} rendu={rendu} />
         <Ligne libelle="Pour le conseil syndical" champ={enTete("presents-cs")} rendu={rendu} />
-        <div className="grid grid-cols-2 gap-x-8 mt-1.5 pt-1.5 border-t border-neutral-200">
+        <div className="grid grid-cols-2 gap-x-8 mt-1.5 pt-1.5 border-t border-line">
           <Ligne libelle="Assemblée générale fixée au" champ={enTete("date-ag")} rendu={rendu} />
           <Ligne libelle="Lieu" champ={enTete("lieu")} rendu={rendu} />
-          <p className="text-[12px] leading-[1.55] text-neutral-700">
-            <span className="text-neutral-500">Modalité : </span>
+          <p className="text-[12px] leading-[1.55] text-ink">
+            <span className="text-ink-2">Modalité : </span>
             {rendu?.modalite ? (
               rendu.modalite(champVisio)
             ) : (
-              <span className="font-medium text-neutral-900">
+              <span className="font-medium text-ink">
                 {visio ? "Présentiel et visio (hybride)" : "Présentiel"}
               </span>
             )}
@@ -240,7 +240,7 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
                   rendu?.note ? (
                     <div key={n.id} className="break-inside-avoid-page">{rendu.note(n)}</div>
                   ) : (
-                    <p key={n.id} className="text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
+                    <p key={n.id} className="text-[11.5px] text-ink leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
                       {n.texte}
                     </p>
                   ),
@@ -256,7 +256,7 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
                 rendu?.bloc ? (
                   <div key={b.id} className="break-inside-avoid-page">{rendu.bloc(b)}</div>
                 ) : (
-                  <p key={b.id} className="text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
+                  <p key={b.id} className="text-[11.5px] text-ink leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
                     {b.texte}
                   </p>
                 ),
@@ -276,8 +276,8 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
               <div key={p.id} className="break-inside-avoid-page">{rendu.point(p)}</div>
             ) : (
               <div key={p.id} className="break-inside-avoid-page">
-                <p className="text-[12px] font-semibold text-neutral-800">{p.titre}</p>
-                <p className="text-[11.5px] text-neutral-600 leading-[1.5]">{p.texte}</p>
+                <p className="text-[12px] font-semibold text-ink">{p.titre}</p>
+                <p className="text-[11.5px] text-ink-2 leading-[1.5]">{p.texte}</p>
               </div>
             ),
           )}
@@ -293,7 +293,7 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
               rendu?.bloc ? (
                 <div key={b.id} className="break-inside-avoid-page">{rendu.bloc(b)}</div>
               ) : (
-                <p key={b.id} className="text-[11.5px] text-neutral-700 leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
+                <p key={b.id} className="text-[11.5px] text-ink leading-[1.55] whitespace-pre-wrap break-inside-avoid-page">
                   {b.texte}
                 </p>
               ),
@@ -306,13 +306,13 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
       {/* Pied : fin de reunion = l'heure de CLOTURE du CS (posee par "Marquer la
           reunion terminee"), pas une ligne a remplir a la main. Puis les mentions
           legales de l'AGENCE, en petit, comme sur leur papier a en-tete. */}
-      <footer className="mt-8 pt-3 border-t border-neutral-200">
-        <p className="text-[12px] text-neutral-700">
+      <footer className="mt-8 pt-3 border-t border-line">
+        <p className="text-[12px] text-ink">
           Fin de réunion :{" "}
           {odj.cloture ? (
-            <span className="font-medium text-neutral-900">{formatFinReunion(odj.cloture.le)}</span>
+            <span className="font-medium text-ink">{formatFinReunion(odj.cloture.le)}</span>
           ) : (
-            <span className="inline-block min-w-[90px] border-b border-dotted border-neutral-400" />
+            <span className="inline-block min-w-[90px] border-b border-dotted border-line-2" />
           )}
         </p>
         <MentionsLegales agence={odj.agence} />
