@@ -31,12 +31,12 @@ export default async function PointsEstalePage() {
   return (
     <AppShell user={g} active="aucun" breadcrumb="Points ESTALE">
       <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-[22px] font-medium tracking-tight">Points ESTALE</h1>
-        <p className="mt-1 text-[13px] text-ink-3">
+        <h1 className="text-page font-medium tracking-tight">Points ESTALE</h1>
+        <p className="mt-1 text-body text-ink-3">
           Les bloquants, questions et demandes à porter à ESTALE, du constat interne jusqu&apos;à leur réponse.
         </p>
         {sqlManquant ? (
-          <div className="mt-6 rounded-md border border-warn-500/30 bg-warn-50 px-4 py-3 text-[13px] text-warn-700">
+          <div className="mt-6 rounded-md border border-warn-500/30 bg-warn-50 px-4 py-3 text-body text-warn-700">
             Table absente : SQL à passer : <code className="font-mono">supabase/sql/intranet_points_estale.sql</code>
           </div>
         ) : (

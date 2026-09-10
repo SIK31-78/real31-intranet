@@ -73,7 +73,7 @@ function TypeIcone({ type }: { type: TypeFeedback }) {
     <span
       title={type === "bug" ? "Bug" : "Idée"}
       className={cn(
-        "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded",
+        "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm",
         type === "bug" ? "bg-err-50 text-err-700" : "bg-info-50 text-info-700",
       )}
     >
@@ -175,7 +175,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
               type="button"
               onClick={() => setOuvert((v) => !v)}
               aria-label={ouvert ? "Replier" : "Déplier"}
-              className="mt-0.5 text-ink-4 hover:text-ink"
+              className="mt-0.5 text-ink-3 hover:text-ink"
             >
               {ouvert ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
@@ -190,7 +190,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
                     if (e.key === "Enter") e.currentTarget.blur();
                   }}
                   maxLength={120}
-                  className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                  className="w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-body font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                 />
                 {archivee && (
                   <span className="shrink-0" title="Archivée : masquée de /nouveautes et de la worklist">
@@ -198,7 +198,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-[11.5px] text-ink-3">
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-meta text-ink-3">
                 {/* Application concernee : decodee du champ page ("app:lien", cf. domaine).
                     Le badge n'apparait que hors real31 - inutile de tamponner la norme. */}
                 {(() => {
@@ -220,7 +220,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
           {f.severite ? (
             <Badge ton={TON_SEVERITE[f.severite]}>{LABEL_SEVERITE[f.severite]}</Badge>
           ) : (
-            <span className="text-[12px] text-ink-4" title="Entrée « maison » (sans sévérité)">
+            <span className="text-body text-ink-3" title="Entrée « maison » (sans sévérité)">
               —
             </span>
           )}
@@ -240,13 +240,13 @@ function LigneFeedback({ f }: { f: Feedback }) {
             }}
             inputMode="numeric"
             placeholder="—"
-            className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-center text-[13px] tabular-nums text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+            className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-center text-body tabular-nums text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
           />
         </td>
         <td className="px-3 py-2.5">
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             {cibles.length === 0 ? (
-              <span className="text-[12px] text-ink-4">Terminé</span>
+              <span className="text-body text-ink-3">Terminé</span>
             ) : (
               cibles.map((c) => (
                 <Button
@@ -272,7 +272,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
               }}
               disabled={enCours}
               title="Convertir en point ESTALE (le problème relève du logiciel ESTALE)"
-              className="rounded-md p-1.5 text-ink-4 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
+              className="rounded-md p-1.5 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
             >
               <Database strokeWidth={1.5} className="h-3.5 w-3.5" />
             </button>
@@ -282,7 +282,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
               disabled={enCours}
               aria-label={archivee ? "Réafficher" : "Archiver"}
               title={archivee ? "Réafficher (désarchiver)" : "Archiver (masquer de la vitrine)"}
-              className="rounded-md p-1.5 text-ink-4 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
+              className="rounded-md p-1.5 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
             >
               {archivee ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
             </button>
@@ -294,20 +294,20 @@ function LigneFeedback({ f }: { f: Feedback }) {
           <td colSpan={5} className="px-3 py-3">
             <div className="flex flex-col gap-3 pl-7">
               <div className="flex flex-wrap items-end gap-3">
-                <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+                <label className="flex flex-col gap-1 text-body text-ink-2">
                   Type
                   <select
                     value={f.type}
                     onChange={(e) => changerType(e.target.value as TypeFeedback)}
                     disabled={enCours}
-                    className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                    className="h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                   >
                     <option value="idee">Idée / nouveauté</option>
                     <option value="bug">Bug</option>
                   </select>
                 </label>
               </div>
-              <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+              <label className="flex flex-col gap-1 text-body text-ink-2">
                 Description (interne — jamais publique)
                 <textarea
                   value={description}
@@ -316,13 +316,13 @@ function LigneFeedback({ f }: { f: Feedback }) {
                   rows={3}
                   maxLength={2000}
                   placeholder="Le texte de l'entrée…"
-                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                 />
               </label>
 
               {ecartArme && (
                 <div className="rounded-md border border-err-500/30 bg-err-50 px-3 py-2.5">
-                  <label className="flex flex-col gap-1 text-[12px] text-err-700">
+                  <label className="flex flex-col gap-1 text-body text-err-700">
                     Raison de l&apos;écart (obligatoire)
                     <input
                       value={raison}
@@ -330,7 +330,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
                       maxLength={500}
                       autoFocus
                       placeholder="Ex. Doublon de #… / hors périmètre / déjà couvert par…"
-                      className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                      className="h-8 w-full rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                     />
                   </label>
                   <div className="mt-2 flex gap-2">
@@ -352,12 +352,12 @@ function LigneFeedback({ f }: { f: Feedback }) {
               )}
 
               {f.raisonEcart && !ecartArme && (
-                <div className="text-[12.5px] text-ink-3">
+                <div className="text-body text-ink-3">
                   <span className="font-medium text-ink-2">Raison de l&apos;écart :</span> {f.raisonEcart}
                 </div>
               )}
 
-              <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+              <label className="flex flex-col gap-1 text-body text-ink-2">
                 Note interne (jamais publique)
                 <textarea
                   value={note}
@@ -366,7 +366,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
                   rows={2}
                   maxLength={2000}
                   placeholder="Note de travail, contexte, lien…"
-                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                 />
               </label>
             </div>
@@ -390,7 +390,7 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
   const [priorite, setPriorite] = useState("");
 
   const champCls =
-    "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+    "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
   function soumettre() {
     const t = titre.trim();
@@ -423,20 +423,20 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
 
   return (
     <div className="flex flex-col gap-3.5 px-4 py-4">
-      <p className="text-[12.5px] text-ink-3">
+      <p className="text-body text-ink-3">
         Une entrée créée ici alimente directement la page <span className="font-medium">Nouveautés</span> : en «
         Livré » pour le changelog, en « Prévu » ou « En cours » pour la roadmap.
       </p>
 
       <div className="flex flex-wrap gap-3">
-        <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+        <label className="flex flex-col gap-1 text-body text-ink-2">
           Type
           <select value={type} onChange={(e) => setType(e.target.value as TypeFeedback)} className={champCls}>
             <option value="idee">Idée / nouveauté</option>
             <option value="bug">Bug</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+        <label className="flex flex-col gap-1 text-body text-ink-2">
           Statut
           <select
             value={statut}
@@ -450,7 +450,7 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+        <label className="flex flex-col gap-1 text-body text-ink-2">
           Priorité (facultatif)
           <input
             value={priorite}
@@ -462,7 +462,7 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
         </label>
       </div>
 
-      <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+      <label className="flex flex-col gap-1 text-body text-ink-2">
         Titre (obligatoire)
         <input
           value={titre}
@@ -470,11 +470,11 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
           maxLength={120}
           autoFocus
           placeholder="Ex. Nouvel accueil"
-          className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          className="h-8 w-full rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
         />
       </label>
 
-      <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+      <label className="flex flex-col gap-1 text-body text-ink-2">
         Description publique / interne (facultatif)
         <textarea
           value={description}
@@ -482,7 +482,7 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
           rows={3}
           maxLength={2000}
           placeholder="Le texte qui accompagne l'entrée…"
-          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
         />
       </label>
 
@@ -546,12 +546,12 @@ export function FeedbackAdminVue({
   );
 
   const selectCls =
-    "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+    "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
   return (
     <div className="flex flex-col gap-4">
       {feedbackNonConfigure && (
-        <div className="rounded-md border border-warn-500/40 bg-warn-50 px-4 py-3 text-[13px] text-warn-700">
+        <div className="rounded-md border border-warn-500/40 bg-warn-50 px-4 py-3 text-body text-warn-700">
           La table <code className="font-mono">intranet_feedback</code> n&apos;existe pas encore : passe le script{" "}
           <code className="font-mono">supabase/sql/intranet_feedback.sql</code> dans le SQL editor Supabase. En
           attendant, les remontées ne sont pas enregistrées.
@@ -559,7 +559,7 @@ export function FeedbackAdminVue({
       )}
 
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2 rounded-md border border-line bg-surface px-3 py-2.5">
-        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+        <label className="flex flex-col gap-1 text-meta text-ink-3">
           Statut
         <select value={fStatut} onChange={(e) => setFStatut(e.target.value as StatutFeedback | "")} className={selectCls}>
           <option value="">Tous les statuts</option>
@@ -570,7 +570,7 @@ export function FeedbackAdminVue({
           ))}
         </select>
         </label>
-        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+        <label className="flex flex-col gap-1 text-meta text-ink-3">
           Type
         <select value={fType} onChange={(e) => setFType(e.target.value as TypeFeedback | "")} className={selectCls}>
           <option value="">Bugs + idées</option>
@@ -578,7 +578,7 @@ export function FeedbackAdminVue({
           <option value="idee">Idées</option>
         </select>
         </label>
-        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+        <label className="flex flex-col gap-1 text-meta text-ink-3">
           Sévérité
         <select
           value={fSeverite}
@@ -593,7 +593,7 @@ export function FeedbackAdminVue({
           ))}
         </select>
         </label>
-        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+        <label className="flex flex-col gap-1 text-meta text-ink-3">
           Collaborateur
         <select value={fAuteur} onChange={(e) => setFAuteur(e.target.value)} className={selectCls}>
           <option value="">Tous les collaborateurs</option>
@@ -604,7 +604,7 @@ export function FeedbackAdminVue({
           ))}
         </select>
         </label>
-        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+        <label className="flex flex-col gap-1 text-meta text-ink-3">
           Application
         <select
           value={fApplication}
@@ -619,7 +619,7 @@ export function FeedbackAdminVue({
           ))}
         </select>
         </label>
-        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+        <label className="flex flex-col gap-1 text-meta text-ink-3">
           Tri
         <select value={tri} onChange={(e) => setTri(e.target.value as typeof tri)} className={selectCls}>
           <option value="recents">Tri : plus récents</option>
@@ -627,7 +627,7 @@ export function FeedbackAdminVue({
           <option value="priorite">Tri : priorité</option>
         </select>
         </label>
-        <label className="flex flex-col gap-1 text-[11.5px] text-ink-3">
+        <label className="flex flex-col gap-1 text-meta text-ink-3">
           Archives
         <select
           value={fArchive}
@@ -678,14 +678,14 @@ export function FeedbackAdminVue({
           </CardTitle>
         </CardHeader>
         {filtres.length === 0 ? (
-          <div className="px-4 py-6 text-[13px] text-ink-3">
+          <div className="px-4 py-6 text-body text-ink-3">
             {feedbacks.length === 0 ? "Aucune remontée pour l'instant." : "Aucune remontée ne correspond aux filtres."}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-body">
               <thead>
-                <tr className="border-b border-line text-left text-[11.5px] uppercase tracking-wide text-ink-3">
+                <tr className="border-b border-line text-left text-meta uppercase tracking-wide text-ink-3">
                   <th className="px-3 py-2 font-medium">Remontée</th>
                   <th className="px-3 py-2 font-medium">Sévérité</th>
                   <th className="px-3 py-2 font-medium">Statut</th>

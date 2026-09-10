@@ -110,7 +110,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
       />
 
       {!persistant && (
-        <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
+        <p className="text-body text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
           État non persistant (mémoire) : ce dossier est perdu au redémarrage du serveur. La persistance
           Supabase s&apos;active avec COPRO_SOURCE=supabase, sans changer cet écran.
         </p>

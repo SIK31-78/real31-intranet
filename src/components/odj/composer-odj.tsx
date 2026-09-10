@@ -238,14 +238,14 @@ export function ComposerOdj({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link href={retour} className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700">
+        <Link href={retour} className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700">
           <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Retour à l&apos;ODJ
         </Link>
-        <h1 className="mt-1 text-[20px] font-semibold text-ink">Mode CS - composer l&apos;ordre du jour</h1>
-        <p className="mt-0.5 text-[13px] text-ink-2">
+        <h1 className="mt-1 text-page font-semibold text-ink">Mode CS - composer l&apos;ordre du jour</h1>
+        <p className="mt-0.5 text-body text-ink-2">
           {copro.nom} ({copro.code}){dateAg ? ` - AG du ${dateAg}` : " - date d'AG non définie"}
         </p>
-        <p className="mt-1 text-[12px] text-ink-4">
+        <p className="mt-1 text-body text-ink-3">
           Retire ce que tu ne veux pas dans l&apos;AG, pioche dans la bibliothèque du cabinet (Estale)
           ou ajoute des résolutions libres, puis enregistre : l&apos;AG Estale est mise à jour pour
           correspondre exactement à ta composition.
@@ -259,7 +259,7 @@ export function ComposerOdj({
       {datesDivergent && assemblee?.dateISO && (
         <div className="flex items-start gap-3 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
           <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
-          <p className="text-[12.5px] text-warn-700">
+          <p className="text-body text-warn-700">
             <span className="font-medium">Dates divergentes.</span> L&apos;intranet vise l&apos;AG
             du {dateAg}, mais l&apos;AG Estale ciblée est datée du {assemblee.dateISO}. L&apos;ODJ
             que tu composes s&apos;applique à <span className="font-medium">cette AG Estale</span> -
@@ -387,7 +387,7 @@ function AssembleeExistante({
       <Card>
         <div className="px-4 py-4 flex items-start gap-2.5">
           <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0 mt-px" />
-          <p className="text-[12.5px] text-ink-3">
+          <p className="text-body text-ink-3">
             Aucune AG ordinaire trouvée pour cette copro dans Estale. Elle sera créée à
             l&apos;enregistrement (le socle standard s&apos;ajoutera automatiquement).
           </p>
@@ -397,11 +397,11 @@ function AssembleeExistante({
   }
   return (
     <div className="flex flex-col gap-2.5">
-      <h2 className="text-[13px] font-semibold uppercase tracking-[0.05em] text-ink-3 flex items-center gap-1.5">
+      <h2 className="text-body font-semibold uppercase tracking-[0.06em] text-ink-3 flex items-center gap-1.5">
         <ListChecks strokeWidth={1.5} className="w-3.5 h-3.5" />
         Déjà dans l&apos;AG Estale ({assemblee.motions.length})
       </h2>
-      <p className="text-[11.5px] text-ink-4 -mt-1">
+      <p className="text-meta text-ink-3 -mt-1">
         {assemblee.nom}
         {assemblee.dateISO ? ` - ${assemblee.dateISO}` : ""}
         {assemblee.cloturee
@@ -412,7 +412,7 @@ function AssembleeExistante({
       </p>
       <Card>
         {motionsAffichees.length === 0 ? (
-          <p className="px-4 py-6 text-[13px] text-ink-3 text-center">AG sans résolution.</p>
+          <p className="px-4 py-6 text-body text-ink-3 text-center">AG sans résolution.</p>
         ) : (
           <ol className="divide-y divide-line">
             {numeroter(motionsAffichees).map(({ m, numero, premierTop, dernierTop }) => {
@@ -422,7 +422,7 @@ function AssembleeExistante({
                   key={m.id}
                   className={`flex items-start gap-2 px-3 py-2 ${marque ? "opacity-50" : ""} ${m.estEnfant ? "pl-7" : ""}`}
                 >
-                  <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">
+                  <span className="font-mono text-body text-ink-3 w-5 text-right shrink-0 pt-0.5">
                     {m.estEnfant ? "·" : `${numero}.`}
                   </span>
                   {editable && !m.estEnfant && (
@@ -452,18 +452,18 @@ function AssembleeExistante({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
-                        className={`text-[13px] ${m.estGroupe ? "font-semibold text-ink" : "text-ink"} ${marque ? "line-through" : ""}`}
+                        className={`text-body ${m.estGroupe ? "font-semibold text-ink" : "text-ink"} ${marque ? "line-through" : ""}`}
                       >
                         {m.titre}
                       </span>
                       {m.estGroupe ? (
-                        <span className="text-[10px] uppercase tracking-wide text-ink-4">groupe</span>
+                        <span className="text-meta uppercase tracking-wide text-ink-3">groupe</span>
                       ) : (
                         <MajoriteBadge majorite={m.majorite} />
                       )}
                     </div>
                     {m.cleRepartition && !m.estGroupe && (
-                      <p className="mt-0.5 text-[11px] text-ink-4">{m.cleRepartition}</p>
+                      <p className="mt-0.5 text-meta text-ink-3">{m.cleRepartition}</p>
                     )}
                   </div>
                   {editable && (
@@ -506,7 +506,7 @@ function AlerteEtatAg({
     <div className="flex items-start gap-3 rounded-md border border-warn-500/30 bg-warn-50 px-3.5 py-2.5">
       <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
       <div className="flex-1 min-w-0">
-        <p className="text-[12.5px] text-warn-700">
+        <p className="text-body text-warn-700">
           {etat === "cloturee" ? (
             <>
               <span className="font-medium">AG clôturée</span> - on ne peut plus la modifier. Pour
@@ -525,7 +525,7 @@ function AlerteEtatAg({
         type="button"
         onClick={onCreer}
         disabled={creation}
-        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-warn-700 text-surface text-[12px] font-medium hover:opacity-90 transition-opacity disabled:opacity-60 shrink-0"
+        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-warn-700 text-surface text-body font-medium hover:opacity-90 transition-opacity disabled:opacity-60 shrink-0"
       >
         {creation && <Loader2 strokeWidth={2} className="w-3.5 h-3.5 animate-spin" />}
         Créer une nouvelle AG
@@ -567,7 +567,7 @@ function BibliothequePicker({
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-[13px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+      <h2 className="text-body font-semibold uppercase tracking-[0.06em] text-ink-3">
         Bibliothèque ({data.resolutions.length})
       </h2>
 
@@ -575,7 +575,7 @@ function BibliothequePicker({
         <Card>
           <div className="flex items-start gap-2.5 px-4 py-6">
             <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
-            <p className="text-[13px] text-warn-700">
+            <p className="text-body text-warn-700">
               Bibliothèque Estale temporairement indisponible. Rechargez la page dans un instant.
             </p>
           </div>
@@ -590,7 +590,7 @@ function BibliothequePicker({
               onChange={(e) => setQ(e.target.value)}
               placeholder="Rechercher..."
               aria-label="Rechercher dans la bibliotheque"
-              className="w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
+              className="w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
             />
           </div>
           <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filtrer par majorité">
@@ -616,9 +616,9 @@ function BibliothequePicker({
                   <div className="px-3 py-2.5 flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[13px] font-medium text-ink">{r.titre}</span>
+                        <span className="text-body font-medium text-ink">{r.titre}</span>
                         {r.estGroupe ? (
-                          <span className="text-[10px] uppercase tracking-wide text-ink-4">
+                          <span className="text-meta uppercase tracking-wide text-ink-3">
                             groupe · {enfants.length}
                           </span>
                         ) : (
@@ -626,13 +626,13 @@ function BibliothequePicker({
                         )}
                       </div>
                       {r.corps && !r.estGroupe && (
-                        <p className="mt-1 text-[12px] text-ink-3 line-clamp-2">{r.corps}</p>
+                        <p className="mt-1 text-body text-ink-3 line-clamp-2">{r.corps}</p>
                       )}
                       {r.estGroupe && enfants.length > 0 && (
                         <ul className="mt-1.5 flex flex-col gap-1">
                           {enfants.map((e) => (
-                            <li key={e.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-3">
-                              <span className="text-ink-4">·</span>
+                            <li key={e.id} className="flex items-center gap-1.5 text-meta text-ink-3">
+                              <span className="text-ink-3">·</span>
                               <span className="truncate">{e.titre}</span>
                               <MajoriteBadge majorite={e.majorite} />
                             </li>
@@ -645,12 +645,12 @@ function BibliothequePicker({
                       onClick={() => onAjouter(r)}
                       disabled={ajoute || enAg || !editable}
                       title={enAg ? "Déjà présente dans l'AG Estale (pas de doublon)" : undefined}
-                      className={`inline-flex items-center gap-1 h-7 px-2 rounded-sm text-[12px] font-medium shrink-0 transition-colors disabled:cursor-not-allowed ${
-                        ajoute
+                      className={`inline-flex items-center gap-1 h-7 px-2 rounded-sm text-body font-medium shrink-0 transition-colors disabled:cursor-not-allowed ${
+ ajoute
                           ? "text-ok-700 cursor-default"
                           : enAg
                             ? "text-ink-3 cursor-default"
-                            : "bg-green-700 text-surface hover:bg-green-600 disabled:opacity-40"
+                            : "bg-green-700 text-surface hover:bg-green-800 disabled:opacity-40"
                       }`}
                     >
                       {ajoute ? (
@@ -672,7 +672,7 @@ function BibliothequePicker({
               );
             })}
             {visibles.length === 0 && (
-              <p className="text-[13px] text-ink-3 px-1 py-6 text-center">Aucun résultat.</p>
+              <p className="text-body text-ink-3 px-1 py-6 text-center">Aucun résultat.</p>
             )}
           </div>
         </>
@@ -723,13 +723,13 @@ function OdjEnConstruction({
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-[13px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+      <h2 className="text-body font-semibold uppercase tracking-[0.06em] text-ink-3">
         À ajouter ({draft.length} résolution{draft.length > 1 ? "s" : ""})
       </h2>
 
       <Card>
         {draft.length === 0 ? (
-          <p className="px-4 py-8 text-[13px] text-ink-3 text-center">
+          <p className="px-4 py-8 text-body text-ink-3 text-center">
             Aucune résolution. Ajoute-en depuis la bibliothèque, ou crée une résolution libre.
           </p>
         ) : (
@@ -737,25 +737,25 @@ function OdjEnConstruction({
             {lignes.map(({ r, numero, enfant }) => {
               return (
                 <li key={r.id} className={`flex items-start gap-2.5 px-3 py-2.5 ${enfant ? "pl-7" : ""}`}>
-                  <span className="font-mono text-[12px] text-ink-3 w-5 text-right shrink-0 pt-0.5">
+                  <span className="font-mono text-body text-ink-3 w-5 text-right shrink-0 pt-0.5">
                     {enfant ? "·" : `${numero}.`}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[13px] ${r.estGroupe ? "font-semibold" : "font-medium"} text-ink`}>
+                      <span className={`text-body ${r.estGroupe ? "font-semibold" : "font-medium"} text-ink`}>
                         {r.titre}
                       </span>
                       {r.estGroupe ? (
-                        <span className="text-[10px] uppercase tracking-wide text-ink-4">groupe</span>
+                        <span className="text-meta uppercase tracking-wide text-ink-3">groupe</span>
                       ) : (
                         <MajoriteBadge majorite={r.majorite} />
                       )}
                       {r.id.startsWith("libre-") && (
-                        <span className="text-[10px] text-ink-4 uppercase tracking-wide">libre</span>
+                        <span className="text-meta text-ink-3 uppercase tracking-wide">libre</span>
                       )}
                     </div>
                     {r.corps && !r.estGroupe && (
-                      <p className="mt-1 text-[12px] text-ink-3 line-clamp-2">{r.corps}</p>
+                      <p className="mt-1 text-body text-ink-3 line-clamp-2">{r.corps}</p>
                     )}
                   </div>
                   {!enfant && (
@@ -778,15 +778,15 @@ function OdjEnConstruction({
               onChange={(e) => setLibreTitre(e.target.value)}
               placeholder="Intitulé de la résolution"
               aria-label="Intitule de la resolution libre"
-              className="w-full h-9 px-3 rounded-md border border-line bg-surface text-[13px] focus:outline-none focus:border-green-700"
+              className="w-full h-9 px-3 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700"
             />
             <div className="flex items-center gap-2">
-              <label htmlFor="libre-majorite" className="text-[12px] text-ink-3">Majorité</label>
+              <label htmlFor="libre-majorite" className="text-body text-ink-3">Majorité</label>
               <select
                 id="libre-majorite"
                 value={libreMajorite}
                 onChange={(e) => setLibreMajorite(e.target.value as MajoriteResolution)}
-                className="h-8 px-2 rounded-md border border-line bg-surface text-[12px] focus:outline-none focus:border-green-700"
+                className="h-8 px-2 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700"
               >
                 {MAJORITE_ORDRE.map((m) => (
                   <option key={m} value={m}>
@@ -800,13 +800,13 @@ function OdjEnConstruction({
               onChange={(e) => setLibreCorps(e.target.value)}
               placeholder="Texte de la résolution (optionnel)"
               rows={3}
-              className="w-full px-3 py-2 rounded-md border border-line bg-surface text-[13px] focus:outline-none focus:border-green-700 resize-y"
+              className="w-full px-3 py-2 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700 resize-y"
             />
             <div className="flex items-center gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setFormOuvert(false)}
-                className="h-8 px-3 rounded-md text-[12px] text-ink-2 hover:bg-surface-2"
+                className="h-8 px-3 rounded-md text-body text-ink-2 hover:bg-surface-2"
               >
                 Annuler
               </button>
@@ -814,7 +814,7 @@ function OdjEnConstruction({
                 type="button"
                 onClick={onAjouterLibre}
                 disabled={!libreTitre.trim()}
-                className="h-8 px-3 rounded-md bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 disabled:opacity-50"
+                className="h-8 px-3 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800 disabled:opacity-50"
               >
                 Ajouter à l&apos;ODJ
               </button>
@@ -826,14 +826,14 @@ function OdjEnConstruction({
           type="button"
           onClick={() => setFormOuvert(true)}
           disabled={etatAg !== "ouverte"}
-          className="inline-flex items-center justify-center gap-1.5 h-9 rounded-md border border-dashed border-line-2 text-[13px] text-ink-2 hover:border-green-700 hover:text-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-line-2 disabled:hover:text-ink-2"
+          className="inline-flex items-center justify-center gap-1.5 h-9 rounded-md border border-dashed border-line-2 text-body text-ink-2 hover:border-green-700 hover:text-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-line-2 disabled:hover:text-ink-2"
         >
           <Plus strokeWidth={1.5} className="w-4 h-4" /> Ajouter une résolution libre
         </button>
       )}
 
       {etatAg === "ouverte" && nbModifs > 0 && !enregistrement && (
-        <p className="text-[12px] text-ink-3">
+        <p className="text-body text-ink-3">
           {nbModifs} modification{nbModifs > 1 ? "s" : ""} en attente - rien n&apos;est écrit dans
           l&apos;AG Estale tant que tu n&apos;as pas cliqué « Enregistrer ».
         </p>
@@ -851,7 +851,7 @@ function OdjEnConstruction({
               ? "AG clôturée : non modifiable"
               : "Aucune AG Estale (création à venir, palier 3)"
         }
-        className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 transition-colors disabled:bg-surface-2 disabled:text-ink-3 disabled:cursor-not-allowed"
+        className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800 transition-colors disabled:bg-surface-2 disabled:text-ink-3 disabled:cursor-not-allowed"
       >
         {enregistrement && <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" />}
         {enregistrement
@@ -866,7 +866,7 @@ function OdjEnConstruction({
       {/* Progression : le bouton est verrouille pendant l'application (mutations eStale en
           sequence) - on l'explique pour eviter le re-clic / la fermeture d'onglet. */}
       {enregistrement && (
-        <p role="status" aria-live="polite" className="text-[12px] text-ink-3">
+        <p role="status" aria-live="polite" className="text-body text-ink-3">
           Application de l&apos;ODJ dans eStale... Ne ferme pas la page. En cas d&apos;échec en
           cours de route, relance l&apos;enregistrement : rien ne sera dupliqué.
         </p>
@@ -874,11 +874,11 @@ function OdjEnConstruction({
 
       {message && (
         message.ton === "ok" ? (
-          <p role="status" aria-live="polite" className="text-[12px] text-ok-700">
+          <p role="status" aria-live="polite" className="text-body text-ok-700">
             {message.texte}
           </p>
         ) : (
-          <p role="alert" className="text-[12px] text-err-700">
+          <p role="alert" className="text-body text-err-700">
             {message.texte}
           </p>
         )
@@ -895,8 +895,8 @@ function Chip({ actif, onClick, children }: { actif: boolean; onClick: () => voi
       type="button"
       onClick={onClick}
       aria-pressed={actif}
-      className={`h-7 px-2.5 rounded-full text-[12px] font-medium border transition-colors ${
-        actif ? "bg-green-700 text-surface border-green-700" : "bg-surface text-ink-2 border-line hover:border-line-2"
+      className={`h-7 px-2.5 rounded-full text-body font-medium border transition-colors ${
+ actif ? "bg-green-700 text-surface border-green-700" : "bg-surface text-ink-2 border-line hover:border-line-2"
       }`}
     >
       {children}

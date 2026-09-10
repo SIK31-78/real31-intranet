@@ -46,7 +46,7 @@ export function BoutonRecapTraite({
         onClick={basculer}
         disabled={pending}
         className={
-          "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium transition-colors disabled:opacity-60 " +
+          "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-body font-medium transition-colors disabled:opacity-60 " +
           (traite
             ? "border border-line bg-surface text-ink-2 hover:bg-surface-2"
             : "bg-green-700 text-white hover:bg-green-800")
@@ -60,7 +60,7 @@ export function BoutonRecapTraite({
         {traite ? "Remettre à traiter" : "Marquer traité"}
       </button>
       {erreur && (
-        <p role="alert" className="text-[12px] text-err-700">
+        <p role="alert" className="text-body text-err-700">
           {erreur}
         </p>
       )}

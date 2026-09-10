@@ -33,8 +33,8 @@ function labelChamp(champ: string): string {
 function ListeCourriers() {
   return (
     <div>
-      <h1 className="text-2xl font-bold text-ink">Courriers types</h1>
-      <p className="mt-1 text-sm text-ink-3">
+      <h1 className="text-page font-bold text-ink">Courriers types</h1>
+      <p className="mt-1 text-body text-ink-3">
         Modèles pré-remplis depuis le dossier en cours. Les champs inconnus sont surlignés et à
         compléter.
       </p>
@@ -45,7 +45,7 @@ function ListeCourriers() {
               <span className="font-medium text-ink">
                 {c.id} - {c.titre}
               </span>
-              <div className="text-xs text-ink-3">
+              <div className="text-meta text-ink-3">
                 {c.destinataire} · {c.mode_envoi} · {c.delai}
               </div>
             </div>
@@ -119,15 +119,15 @@ function Generateur({ courrier }: { courrier: Courrier }) {
   return (
     <div>
       <div className="no-print mb-4 flex items-center justify-between">
-        <Link href="/sinistre/courriers" className="text-sm text-green-700 hover:underline">
+        <Link href="/sinistre/courriers" className="text-body text-green-700 hover:underline">
           - Tous les courriers
         </Link>
-        <span className="text-xs text-ink-3">
+        <span className="text-meta text-ink-3">
           {courrier.destinataire} · {courrier.mode_envoi} · {courrier.delai}
         </span>
       </div>
 
-      <h1 className="text-xl font-bold text-ink">
+      <h1 className="text-page font-bold text-ink">
         {courrier.id} - {courrier.titre}
       </h1>
 
@@ -136,10 +136,10 @@ function Generateur({ courrier }: { courrier: Courrier }) {
         <div className="no-print space-y-4">
           {conditionNames.length > 0 && (
             <Card className="p-4">
-              <h2 className="mb-2 text-sm font-semibold text-ink-2">Blocs conditionnels</h2>
+              <h2 className="mb-2 text-body font-semibold text-ink-2">Blocs conditionnels</h2>
               <div className="space-y-1">
                 {conditionNames.map((c) => (
-                  <label key={c} className="flex items-center gap-2 text-sm text-ink-2">
+                  <label key={c} className="flex items-center gap-2 text-body text-ink-2">
                     <input
                       type="checkbox"
                       checked={Boolean(conditions[c])}
@@ -155,7 +155,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
           )}
 
           <Card className="p-4">
-            <h2 className="mb-2 text-sm font-semibold text-ink-2">Champs</h2>
+            <h2 className="mb-2 text-body font-semibold text-ink-2">Champs</h2>
             <div className="space-y-2">
               {fields.map((f) => {
                 const actif = actifs.has(f);
@@ -166,12 +166,12 @@ function Generateur({ courrier }: { courrier: Courrier }) {
                     className={`block ${actif ? '' : 'opacity-40'}`}
                     title={actif ? '' : 'Champ inactif (bloc conditionnel désactivé)'}
                   >
-                    <span className="text-xs text-ink-3">{labelChamp(f)}</span>
+                    <span className="text-meta text-ink-3">{labelChamp(f)}</span>
                     <input
                       value={values[f] ?? ''}
                       onChange={(e) => majChamp(f, e.target.value)}
-                      className={`mt-0.5 w-full rounded border px-2 py-1 text-sm ${
-                        manque ? 'border-warn-500 bg-warn-50' : 'border-line-2'
+                      className={`mt-0.5 w-full rounded-sm border px-2 py-1 text-body ${
+ manque ? 'border-warn-500 bg-warn-50' : 'border-line-2'
                       }`}
                     />
                   </label>
@@ -182,8 +182,8 @@ function Generateur({ courrier }: { courrier: Courrier }) {
 
           {courrier.pieces_obligatoires && (
             <Card className="p-4">
-              <h2 className="mb-1 text-sm font-semibold text-ink-2">Pièces obligatoires</h2>
-              <ul className="list-disc pl-5 text-sm text-ink-3">
+              <h2 className="mb-1 text-body font-semibold text-ink-2">Pièces obligatoires</h2>
+              <ul className="list-disc pl-5 text-body text-ink-3">
                 {courrier.pieces_obligatoires.map((p, i) => (
                   <li key={i}>{p}</li>
                 ))}
@@ -195,7 +195,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
         {/* Aperçu temps réel */}
         <div>
           <Card className="print-container p-4">
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-ink">
+            <pre className="whitespace-pre-wrap font-sans text-body leading-relaxed text-ink">
               {apercu}
             </pre>
           </Card>
@@ -229,14 +229,14 @@ function Generateur({ courrier }: { courrier: Courrier }) {
               <Button variant="ghost">Ouvrir dans la messagerie (mailto)</Button>
             </a>
             {!exportable && (
-              <span className="text-xs text-warn-700">
+              <span className="text-meta text-warn-700">
                 {manquants.size} champ(s) requis à compléter.
               </span>
             )}
           </div>
 
           {brouillon && (
-            <p className="no-print mt-2 text-xs">
+            <p className="no-print mt-2 text-meta">
               {brouillon.erreur ? (
                 <span className="text-warn-700">{brouillon.erreur}</span>
               ) : brouillon.webLink ? (
@@ -258,7 +258,7 @@ function Generateur({ courrier }: { courrier: Courrier }) {
           )}
 
           {courrier.references && (
-            <p className="mt-3 text-xs text-ink-4">Références : {courrier.references.join(' · ')}</p>
+            <p className="mt-3 text-meta text-ink-3">Références : {courrier.references.join(' · ')}</p>
           )}
         </div>
       </div>

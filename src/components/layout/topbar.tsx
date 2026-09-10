@@ -16,11 +16,11 @@ export function Topbar({ user, breadcrumb, peutImpersonner = false, emailsOuvert
         <SidebarMenuButton />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon.png" alt="REAL31" className="w-6 h-6 rounded-[5px] object-contain shrink-0" />
-        <span className="text-[12.5px] font-medium shrink-0">REAL31</span>
+        <span className="text-body font-medium shrink-0">REAL31</span>
         {breadcrumb && (
           <>
-            <span className="text-ink-4 shrink-0">/</span>
-            <span className="text-[12.5px] text-ink-2 truncate min-w-0">{breadcrumb}</span>
+            <span className="text-ink-3 shrink-0">/</span>
+            <span className="text-body text-ink-2 truncate min-w-0">{breadcrumb}</span>
           </>
         )}
       </div>

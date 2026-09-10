@@ -49,8 +49,8 @@ type Diligences = {
 };
 
 const champ =
-  "w-full rounded border border-line px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-green-700";
-const label = "block text-[12px] font-medium text-ink-2 mb-1";
+  "w-full rounded-sm border border-line px-2 py-1.5 text-body focus:outline-none focus:ring-1 focus:ring-green-700";
+const label = "block text-body font-medium text-ink-2 mb-1";
 
 export function FormulaireFacturation({
   copros,
@@ -279,9 +279,9 @@ export function FormulaireFacturation({
                 key={o.cle}
                 type="button"
                 onClick={() => setOnglet(o.cle)}
-                className={`px-3 py-2 text-[13px] border-b-2 -mb-px transition-colors ${
-                  onglet === o.cle
-                    ? "border-green-700 text-green-800 font-medium"
+                className={`px-3 py-2 text-body border-b-2 -mb-px transition-colors ${
+ onglet === o.cle
+                    ? "border-green-700 text-green-700 font-medium"
                     : "border-transparent text-ink-3 hover:text-ink"
                 }`}
               >
@@ -295,7 +295,7 @@ export function FormulaireFacturation({
       <div className="px-4 py-4 flex flex-col gap-4">
         {coproFixe ? (
           // Copro verrouillee (modale pre-scopee) : on l'affiche en clair, non modifiable.
-          <p className="text-[13px] text-ink-2">
+          <p className="text-body text-ink-2">
             Copropriété : <span className="font-medium text-ink">{copros.find((c) => c.code === coproFixe)?.nom ?? coproFixe}</span>
           </p>
         ) : (
@@ -332,7 +332,7 @@ export function FormulaireFacturation({
               <label className={label} htmlFor="fin-cs">Heure de fin</label>
               <input id="fin-cs" type="time" className={champ} value={finCs} onChange={(e) => setFinCs(e.target.value)} />
             </div>
-            <p className="sm:col-span-2 text-[12px] text-ink-3">
+            <p className="sm:col-span-2 text-body text-ink-3">
               La durée incluse au contrat est lue sur la fiche de la copropriété : elle n&apos;est
               pas saisissable. Le dépassement est arrondi à la demi-heure supérieure, puis cette
               durée est déduite. Si la réunion ne la dépasse pas, aucune facture n&apos;est créée.
@@ -346,7 +346,7 @@ export function FormulaireFacturation({
               <label className={label} htmlFor="lib-travaux">Libellé des travaux</label>
               <input id="lib-travaux" className={champ} value={libelleTravaux} onChange={(e) => setLibelleTravaux(e.target.value)} placeholder="Ravalement façade cour" />
             </div>
-            <div className="flex gap-4 text-[13px]">
+            <div className="flex gap-4 text-body">
               {(["pourcentage", "forfait"] as const).map((m) => (
                 <label key={m} className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" checked={modeTravaux === m} onChange={() => setModeTravaux(m)} />
@@ -390,7 +390,7 @@ export function FormulaireFacturation({
               <legend className={label}>Diligences à facturer</legend>
               <div className="flex flex-col gap-1.5">
                 {DILIGENCES.map((d) => (
-                  <label key={d.cle} className="flex items-center gap-2 text-[13px] cursor-pointer">
+                  <label key={d.cle} className="flex items-center gap-2 text-body cursor-pointer">
                     <input
                       type="checkbox"
                       checked={diligences[d.cle]}
@@ -401,7 +401,7 @@ export function FormulaireFacturation({
                 ))}
               </div>
             </fieldset>
-            <p className="text-[12px] text-ink-3">
+            <p className="text-body text-ink-3">
               Chaque diligence est facturée au tarif du barème de l&apos;année du contrat en cours.
             </p>
           </div>
@@ -431,7 +431,7 @@ export function FormulaireFacturation({
                 value={montantForfaitaire}
                 onChange={(e) => setMontantForfaitaire(e.target.value)}
               />
-              <p className="mt-1 text-[12px] text-ink-3">
+              <p className="mt-1 text-body text-ink-3">
                 {tarifBareme
                   ? `Pré-rempli au tarif du barème ${tarifBareme.anneeBareme} (${tarifBareme.tarifTtc.toFixed(2).replace(".", ",")} € TTC). Modifiable : cette prestation se négocie. Toute différence sera signalée à la validation et tracée sur la facture.`
                   : "Le tarif du barème se charge à la sélection de la copropriété."}
@@ -445,7 +445,7 @@ export function FormulaireFacturation({
             type="button"
             onClick={soumettre}
             disabled={pending}
-            className="inline-flex items-center gap-2 rounded bg-green-700 px-3 py-2 text-[13px] font-medium text-white hover:bg-green-800 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-sm bg-green-700 px-3 py-2 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60"
           >
             {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" strokeWidth={1.5} />}
             Calculer et vérifier

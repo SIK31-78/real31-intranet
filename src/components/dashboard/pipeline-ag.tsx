@@ -15,21 +15,21 @@ export function PipelineAg({ pipeline }: { pipeline: PipelineEtat[] }) {
           <Route strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
           Pipeline des AG
         </CardTitle>
-        <span className="text-[12px] text-ink-3">{total} copropriété{total > 1 ? "s" : ""}</span>
+        <span className="text-body text-ink-3">{total} copropriété{total > 1 ? "s" : ""}</span>
       </CardHeader>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-line border-line [&>*]:border-b [&>*]:border-r">
         {pipeline.map((p) => (
           <Link
             key={p.etat}
             href={`/copropriete?etat=${p.etat}`}
-            className="px-4 py-4 hover:bg-surface-2 transition-colors duration-75 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
+            className="px-4 py-4 hover:bg-surface-2 transition-colors duration-120 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
           >
-            <div className="text-[11px] uppercase tracking-[0.5px] text-ink-3">
+            <div className="text-meta uppercase tracking-[0.06em] text-ink-3">
               {ETAT_CYCLE_LABEL[p.etat]}
             </div>
-            <div className="mt-1 text-[26px] font-medium leading-none text-ink">{p.count}</div>
+            <div className="mt-1 text-page font-medium leading-none text-ink">{p.count}</div>
             {p.enRetard > 0 && (
-              <div className="mt-1.5 text-[11px] font-medium text-err-700">{p.enRetard} en retard</div>
+              <div className="mt-1.5 text-meta font-medium text-err-700">{p.enRetard} en retard</div>
             )}
           </Link>
         ))}

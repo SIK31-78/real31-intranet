@@ -26,7 +26,7 @@ function jjmmaaaa(iso: string): string {
 }
 
 const champCls =
-  "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+  "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
 function LigneAnnonce({ a }: { a: Annonce }) {
   const { ok, err } = useToast();
@@ -66,7 +66,7 @@ function LigneAnnonce({ a }: { a: Annonce }) {
               if (t && t !== a.titre) patch({ titre: t }, "Titre mis à jour");
             }}
             maxLength={160}
-            className="flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 text-[13.5px] font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+            className="flex-1 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-body font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
           />
           <select
             value={a.niveau}
@@ -94,10 +94,10 @@ function LigneAnnonce({ a }: { a: Annonce }) {
           rows={2}
           maxLength={2000}
           placeholder="Corps (optionnel)…"
-          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
         />
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] text-ink-4">
+          <span className="text-meta text-ink-3">
             {a.auteurInitiales ?? "—"} · {jjmmaaaa(a.createdAt)}
           </span>
           <div className="flex items-center gap-1.5">
@@ -183,7 +183,7 @@ function FormulaireAnnonce({
 
   return (
     <div className="flex flex-col gap-3.5 px-4 py-4">
-      <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+      <label className="flex flex-col gap-1 text-body text-ink-2">
         Titre (obligatoire)
         <input
           value={titre}
@@ -191,10 +191,10 @@ function FormulaireAnnonce({
           maxLength={160}
           autoFocus
           placeholder="Ex. Fermeture des bureaux le 15/08"
-          className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          className="h-8 w-full rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
         />
       </label>
-      <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+      <label className="flex flex-col gap-1 text-body text-ink-2">
         Corps (facultatif)
         <textarea
           value={corps}
@@ -202,11 +202,11 @@ function FormulaireAnnonce({
           rows={3}
           maxLength={2000}
           placeholder="Le détail de l'annonce…"
-          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
         />
       </label>
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+        <label className="flex flex-col gap-1 text-body text-ink-2">
           Niveau
           <select
             value={niveau}
@@ -220,7 +220,7 @@ function FormulaireAnnonce({
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-2 text-[13px] text-ink-2 mt-4">
+        <label className="flex items-center gap-2 text-body text-ink-2 mt-4">
           <input type="checkbox" checked={actif} onChange={(e) => setActif(e.target.checked)} className="h-4 w-4" />
           Afficher tout de suite sur l&apos;accueil
         </label>
@@ -229,7 +229,7 @@ function FormulaireAnnonce({
       {/* CIBLE : qui voit l'annonce sur son accueil. Tout le groupe par defaut ;
           par agence(s) ou collaborateur(s) precis sinon (validee cote serveur). */}
       <fieldset className="flex flex-col gap-2 rounded-md border border-line px-3 py-2.5">
-        <legend className="px-1 text-[12px] text-ink-2">Qui doit voir cette annonce ?</legend>
+        <legend className="px-1 text-body text-ink-2">Qui doit voir cette annonce ?</legend>
         <div className="flex flex-wrap gap-4">
           {(
             [
@@ -238,7 +238,7 @@ function FormulaireAnnonce({
               ["collaborateurs", "Collaborateurs précis"],
             ] as [CibleMode, string][]
           ).map(([mode, label]) => (
-            <label key={mode} className="flex items-center gap-1.5 text-[13px] text-ink-2">
+            <label key={mode} className="flex items-center gap-1.5 text-body text-ink-2">
               <input
                 type="radio"
                 name="cible-annonce"
@@ -253,10 +253,10 @@ function FormulaireAnnonce({
         {cibleMode === "agences" && (
           <div className="flex flex-wrap gap-3 pl-1">
             {agences.length === 0 ? (
-              <span className="text-[12px] text-ink-4">Aucune agence disponible.</span>
+              <span className="text-body text-ink-3">Aucune agence disponible.</span>
             ) : (
               agences.map((code) => (
-                <label key={code} className="flex items-center gap-1.5 text-[13px] text-ink-2">
+                <label key={code} className="flex items-center gap-1.5 text-body text-ink-2">
                   <input
                     type="checkbox"
                     checked={agencesSel.has(code)}
@@ -272,10 +272,10 @@ function FormulaireAnnonce({
         {cibleMode === "collaborateurs" && (
           <div className="flex max-h-44 flex-col gap-1 overflow-y-auto pl-1">
             {collaborateurs.length === 0 ? (
-              <span className="text-[12px] text-ink-4">Annuaire indisponible.</span>
+              <span className="text-body text-ink-3">Annuaire indisponible.</span>
             ) : (
               collaborateurs.map((c) => (
-                <label key={c.email} className="flex items-center gap-1.5 text-[13px] text-ink-2">
+                <label key={c.email} className="flex items-center gap-1.5 text-body text-ink-2">
                   <input
                     type="checkbox"
                     checked={emailsSel.has(c.email)}
@@ -320,7 +320,7 @@ export function AnnoncesAdminVue({
   return (
     <div className="flex flex-col gap-4">
       {nonConfigure && (
-        <div className="rounded-md border border-warn-500/40 bg-warn-50 px-4 py-3 text-[13px] text-warn-700">
+        <div className="rounded-md border border-warn-500/40 bg-warn-50 px-4 py-3 text-body text-warn-700">
           La table <code className="font-mono">intranet_annonces</code> n&apos;existe pas encore : passe le
           script <code className="font-mono">supabase/sql/intranet_annonces.sql</code> dans le SQL editor
           Supabase. En attendant, les annonces ne sont pas enregistrées.
@@ -328,7 +328,7 @@ export function AnnoncesAdminVue({
       )}
 
       <div className="flex items-center justify-between">
-        <p className="text-[13px] text-ink-3">
+        <p className="text-body text-ink-3">
           {annonces.length} annonce{annonces.length > 1 ? "s" : ""}
           {annonces.length > 0 ? ` · ${annonces.filter((a) => a.actif).length} active(s)` : ""}
         </p>
@@ -351,9 +351,9 @@ export function AnnoncesAdminVue({
       {annonces.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center gap-1.5 px-4 py-10 text-center">
-            <Megaphone strokeWidth={1.5} className="h-5 w-5 text-ink-4" />
-            <p className="text-[13px] text-ink-3">Aucune annonce.</p>
-            <p className="text-[12px] text-ink-4">« Ajouter une annonce » pour en publier une sur l&apos;accueil.</p>
+            <Megaphone strokeWidth={1.5} className="h-5 w-5 text-ink-3" />
+            <p className="text-body text-ink-3">Aucune annonce.</p>
+            <p className="text-body text-ink-3">« Ajouter une annonce » pour en publier une sur l&apos;accueil.</p>
           </div>
         </Card>
       ) : (

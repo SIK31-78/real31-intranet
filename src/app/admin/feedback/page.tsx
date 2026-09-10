@@ -32,8 +32,8 @@ export default async function FeedbackAdminPage() {
   return (
     <AppShell user={g} active="feedback" breadcrumb="Administration / Feedback">
       <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-[20px] font-medium tracking-tight text-ink mb-1">Feedback</h1>
-        <p className="text-[13px] text-ink-3 mb-4">
+        <h1 className="text-page font-medium tracking-tight text-ink mb-1">Feedback</h1>
+        <p className="text-body text-ink-3 mb-4">
           Les remontées des collaborateurs (bugs et idées). Trie, priorise, fais avancer le statut :
           ce qui passe en « prévu », « en cours » ou « livré » apparaît dans la page{" "}
           <span className="font-medium">Nouveautés</span> (sans jamais l&apos;auteur ni le détail interne).

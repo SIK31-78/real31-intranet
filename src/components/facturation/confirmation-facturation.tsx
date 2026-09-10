@@ -42,17 +42,17 @@ export function ConfirmationFacturation({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-[540px] overflow-y-auto rounded-lg bg-white shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-[540px] overflow-y-auto rounded-lg bg-white shadow-2">
         <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-line bg-white px-4 py-3">
           <div>
-            <h2 className="text-[15px] font-semibold text-ink">
+            <h2 className="text-title font-semibold text-ink">
               {!rienAFacturer
                 ? "Confirmer l'envoi en facturation"
                 : actionSansFacture
                   ? "Enregistrer sans facturer"
                   : "Rien à facturer"}
             </h2>
-            <p className="text-[12px] text-ink-3">
+            <p className="text-body text-ink-3">
               {apercu.titre} · {apercu.coproCode}
             </p>
           </div>
@@ -62,7 +62,7 @@ export function ConfirmationFacturation({
         </div>
 
         <div className="flex flex-col gap-4 px-4 py-4">
-          <dl className="text-[13px]">
+          <dl className="text-body">
             {apercu.details.filter((d) => d.accent !== "note").map((d, i) => (
               <div key={i} className="flex justify-between gap-4 border-b border-line py-1.5">
                 <dt
@@ -77,7 +77,7 @@ export function ConfirmationFacturation({
                     d.accent === "fort"
                       ? "text-right font-semibold text-ink"
                       : d.accent === "contrat"
-                        ? "text-right text-green-800"
+                        ? "text-right text-green-700"
                         : "text-right text-ink"
                   }
                 >
@@ -90,10 +90,10 @@ export function ConfirmationFacturation({
               <div className="flex justify-between gap-4 py-2">
                 <dt className="font-semibold text-ink">Montant facturé</dt>
                 <dd className="text-right">
-                  <span className="text-[15px] font-semibold text-ink">
+                  <span className="text-title font-semibold text-ink">
                     {euros(apercu.montantHt)} HT
                   </span>
-                  <span className="block text-[12px] text-ink-3">
+                  <span className="block text-body text-ink-3">
                     {euros(apercu.montantTtc)} TTC
                   </span>
                 </dd>
@@ -103,7 +103,7 @@ export function ConfirmationFacturation({
 
           {/* Details secondaires (tarif de reference...) : hors du tableau, discrets. */}
           {apercu.details.some((d) => d.accent === "note") && (
-            <p className="text-[11px] italic text-ink-3">
+            <p className="text-meta italic text-ink-3">
               {apercu.details
                 .filter((d) => d.accent === "note")
                 .map((d) => `${d.libelle} : ${d.valeur}`)
@@ -115,7 +115,7 @@ export function ConfirmationFacturation({
           {(apercu.avertissements ?? []).map((a, i) => (
             <p
               key={i}
-              className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900"
+              className="flex items-start gap-2 rounded-sm border border-warn-500/30 bg-warn-50 px-3 py-2 text-body text-amber-900"
             >
               <TriangleAlert className="mt-px h-4 w-4 shrink-0" strokeWidth={1.5} />
               <span>{a}</span>
@@ -123,13 +123,13 @@ export function ConfirmationFacturation({
           ))}
 
           {rienAFacturer ? (
-            <p className="rounded bg-black/[0.03] px-3 py-2 text-[12px] text-ink-3">
+            <p className="rounded-sm bg-black/[0.03] px-3 py-2 text-body text-ink-3">
               {apercu.motifRienAFacturer ?? "Aucune facture ne sera créée."}
             </p>
           ) : (
             // null en mode brouillon (nominal) : rien a annoncer.
             messageEmissionFacture(pennylaneMode) && (
-              <p className="rounded bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+              <p className="rounded-sm bg-warn-50 px-3 py-2 text-body text-warn-700">
                 {messageEmissionFacture(pennylaneMode)}
               </p>
             )
@@ -141,7 +141,7 @@ export function ConfirmationFacturation({
             type="button"
             onClick={onAnnuler}
             disabled={pending}
-            className="rounded border border-line px-3 py-2 text-[13px] text-ink hover:bg-black/[0.03] disabled:opacity-50"
+            className="rounded-sm border border-line px-3 py-2 text-body text-ink hover:bg-black/[0.03] disabled:opacity-50"
           >
             {aConfirmer ? "Annuler" : "Fermer"}
           </button>
@@ -152,7 +152,7 @@ export function ConfirmationFacturation({
               type="button"
               onClick={onConfirmerSansFacture}
               disabled={pending}
-              className="inline-flex items-center gap-2 rounded border border-line px-3 py-2 text-[13px] text-ink hover:bg-black/[0.03] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-sm border border-line px-3 py-2 text-body text-ink hover:bg-black/[0.03] disabled:opacity-50"
             >
               <ClipboardCheck className="w-4 h-4" strokeWidth={1.5} />
               {actionNePasFacturer}
@@ -163,7 +163,7 @@ export function ConfirmationFacturation({
               type="button"
               onClick={onConfirmer}
               disabled={pending}
-              className="inline-flex items-center gap-2 rounded bg-green-700 px-3 py-2 text-[13px] font-medium text-white hover:bg-green-800 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-sm bg-green-700 px-3 py-2 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60"
             >
               {pending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

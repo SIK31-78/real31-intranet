@@ -84,7 +84,7 @@ export function FeedbackTrigger() {
         aria-label="Signaler un bug ou une idée"
         title="Signaler un bug ou une idée"
         className={cn(
-          "fixed bottom-4 right-4 z-50 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-[12.5px] font-medium text-ink-2 shadow-md",
+          "fixed bottom-4 right-4 z-50 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-body font-medium text-ink-2 shadow-2",
           "hover:bg-surface-2 hover:text-ink transition-colors",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
         )}
@@ -100,8 +100,8 @@ export function FeedbackTrigger() {
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-green-700">
                 <Check strokeWidth={1.75} className="h-5 w-5" />
               </span>
-              <div className="text-[15px] font-medium text-ink">Merci, c&apos;est remonté</div>
-              <p className="text-[13px] text-ink-3 max-w-[320px]">
+              <div className="text-title font-medium text-ink">Merci, c&apos;est remonté</div>
+              <p className="text-body text-ink-3 max-w-[320px]">
                 On l&apos;a bien reçu. Tu suivras ce qui est prévu et livré dans « Nouveautés ».
               </p>
               <div className="mt-2">
@@ -115,7 +115,7 @@ export function FeedbackTrigger() {
               {/* Application concernee : les collegues remontent aussi les bugs des
                   autres outils du cabinet (demande Sekou 2026-09-04). */}
               <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-ink-2">Quelle application ?</span>
+                <span className="text-body text-ink-2">Quelle application ?</span>
                 <div className="flex flex-wrap gap-2">
                   {APPLICATIONS_FEEDBACK.map((a) => {
                     const actif = application === a;
@@ -126,7 +126,7 @@ export function FeedbackTrigger() {
                         onClick={() => setApplication(a)}
                         aria-pressed={actif}
                         className={cn(
-                          "rounded-md border px-3 py-1.5 text-[13px] transition-colors",
+                          "rounded-md border px-3 py-1.5 text-body transition-colors",
                           "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
                           actif
                             ? "border-green-600/40 bg-green-50 text-green-700 font-medium"
@@ -142,7 +142,7 @@ export function FeedbackTrigger() {
 
               {/* Type : bug / idée */}
               <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-ink-2">De quoi s&apos;agit-il ?</span>
+                <span className="text-body text-ink-2">De quoi s&apos;agit-il ?</span>
                 <div className="flex gap-2">
                   {(
                     [
@@ -159,7 +159,7 @@ export function FeedbackTrigger() {
                         onClick={() => setType(o.valeur)}
                         aria-pressed={actif}
                         className={cn(
-                          "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] transition-colors",
+                          "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-body transition-colors",
                           "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
                           actif
                             ? "border-green-600/40 bg-green-50 text-green-700 font-medium"
@@ -175,7 +175,7 @@ export function FeedbackTrigger() {
               </div>
 
               {/* Description (requis) */}
-              <label className="flex flex-col gap-1.5 text-[12px] text-ink-2">
+              <label className="flex flex-col gap-1.5 text-body text-ink-2">
                 {type === "bug" ? "Que s'est-il passé ?" : "Ton idée en quelques mots"}
                 <textarea
                   value={description}
@@ -187,19 +187,19 @@ export function FeedbackTrigger() {
                       ? "Ex. Le bouton « Convoquer » ne fait rien quand je clique dessus…"
                       : "Ex. Pouvoir exporter la liste des copros en CSV…"
                   }
-                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                 />
               </label>
 
               {/* Sévérité */}
               <fieldset className="flex flex-col gap-1.5">
-                <legend className="text-[12px] text-ink-2 mb-1">Importance</legend>
+                <legend className="text-body text-ink-2 mb-1">Importance</legend>
                 <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-2">
                   {SEVERITES.map((s) => (
                     <label
                       key={s.valeur}
                       className={cn(
-                        "flex-1 cursor-pointer rounded-md border px-2.5 py-2 text-[13px] transition-colors",
+                        "flex-1 cursor-pointer rounded-md border px-2.5 py-2 text-body transition-colors",
                         severite === s.valeur
                           ? "border-green-600/40 bg-green-50"
                           : "border-line bg-surface hover:bg-surface-2",
@@ -217,7 +217,7 @@ export function FeedbackTrigger() {
                           {s.label}
                         </span>
                       </span>
-                      <span className="mt-0.5 block pl-5 text-[11.5px] text-ink-3">{s.aide}</span>
+                      <span className="mt-0.5 block pl-5 text-meta text-ink-3">{s.aide}</span>
                     </label>
                   ))}
                 </div>
@@ -226,11 +226,11 @@ export function FeedbackTrigger() {
               {/* Page concernee : capturee automatiquement sur real31, lien libre
                   (facultatif) pour les autres applications. */}
               {application === "real31" ? (
-                <p className="text-[11.5px] text-ink-4">
+                <p className="text-meta text-ink-3">
                   Page concernée : <code className="font-mono text-ink-3">{pathname}</code> (jointe automatiquement).
                 </p>
               ) : (
-                <label className="flex flex-col gap-1.5 text-[12px] text-ink-2">
+                <label className="flex flex-col gap-1.5 text-body text-ink-2">
                   La page concernée (facultatif)
                   <input
                     type="text"
@@ -238,12 +238,12 @@ export function FeedbackTrigger() {
                     onChange={(e) => setLien(e.target.value)}
                     maxLength={280}
                     placeholder="Colle un lien si tu en as un…"
-                    className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                    className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                   />
                 </label>
               )}
 
-              {erreur && <div className="text-[12.5px] text-err-700">{erreur}</div>}
+              {erreur && <div className="text-body text-err-700">{erreur}</div>}
 
               <div className="flex items-center justify-end gap-2">
                 <Button variant="ghost" onClick={fermer} disabled={enCours}>

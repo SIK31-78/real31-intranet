@@ -97,7 +97,7 @@ function initiales(nom: string): string {
 }
 
 const BTN =
-  "inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] text-ink hover:bg-surface-2 transition-colors";
+  "inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-body text-ink hover:bg-surface-2 transition-colors";
 
 export function MesEmailsVue({
   data,
@@ -428,21 +428,21 @@ export function MesEmailsVue({
                 type="button"
                 onClick={() => setVue(d.cle)}
                 className={
-                  "flex-1 h-8 rounded-md text-[12px] border transition-colors inline-flex items-center justify-center gap-1.5 " +
+                  "flex-1 h-8 rounded-md text-body border transition-colors inline-flex items-center justify-center gap-1.5 " +
                   (vue === d.cle
                     ? "bg-green-50 text-green-700 border-green-500/30 font-medium"
                     : "bg-surface text-ink-2 border-line hover:bg-surface-2")
                 }
               >
                 {d.label}
-                <span className={vue === d.cle ? "text-green-700/70" : "text-ink-4"}>{d.n}</span>
+                <span className={vue === d.cle ? "text-green-700/70" : "text-ink-3"}>{d.n}</span>
               </button>
             ))}
           </div>
 
           {/* Sous-dossiers par copropriété */}
           <div className="flex flex-col gap-0.5">
-            <p className="px-2 pt-1 pb-0.5 text-[10.5px] font-medium uppercase tracking-[0.07em] text-ink-4">
+            <p className="px-2 pt-1 pb-0.5 text-meta font-medium uppercase tracking-[0.06em] text-ink-3">
               Copropriétés
             </p>
             <CoproFolder
@@ -474,7 +474,7 @@ export function MesEmailsVue({
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Rechercher..."
-              className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-[12.5px] text-ink placeholder:text-ink-4"
+              className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3"
             />
           </div>
 
@@ -491,7 +491,7 @@ export function MesEmailsVue({
                 />
               ))}
               {visibles.length === 0 && (
-                <li className="px-4 py-6 text-center text-[12.5px] text-ink-3">Aucun mail.</li>
+                <li className="px-4 py-6 text-center text-body text-ink-3">Aucun mail.</li>
               )}
             </ul>
           </Card>
@@ -597,11 +597,11 @@ export function MesEmailsVue({
             />
           ) : (
             <Card className="px-6 py-16 text-center">
-              <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-4 mx-auto" />
-              <p className="text-[14px] font-medium text-ink mt-3">
+              <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
+              <p className="text-body font-medium text-ink mt-3">
                 {vue === "traites" ? "Aucun mail traité" : vue === "tous" ? "Aucun mail" : "Boîte vide"}
               </p>
-              <p className="text-[12.5px] text-ink-3 mt-1">
+              <p className="text-body text-ink-3 mt-1">
                 {vue === "recus"
                   ? "Tous les mails de ce dossier sont traités."
                   : "Rien à afficher ici."}
@@ -619,14 +619,14 @@ export function MesEmailsVue({
           aria-label={`Aperçu ${apercu.nom}`}
         >
           <div className="absolute inset-0 bg-black/50" onClick={fermerApercu} />
-          <div className="relative flex flex-col w-full max-w-[920px] h-[85vh] rounded-lg border border-line bg-surface shadow-xl overflow-hidden">
+          <div className="relative flex flex-col w-full max-w-[920px] h-[85vh] rounded-lg border border-line bg-surface shadow-2 overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-4 h-11 border-b border-line shrink-0">
-              <span className="text-[13px] font-medium text-ink truncate">{apercu.nom}</span>
+              <span className="text-body font-medium text-ink truncate">{apercu.nom}</span>
               <div className="flex items-center gap-2 shrink-0">
                 <a
                   href={apercu.url}
                   download={apercu.nom}
-                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line text-[12px] text-ink-2 hover:bg-surface-2"
+                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line text-body text-ink-2 hover:bg-surface-2"
                 >
                   <Download strokeWidth={1.5} className="w-3.5 h-3.5" /> Télécharger
                 </a>
@@ -649,7 +649,7 @@ export function MesEmailsVue({
                   <img src={apercu.url} alt={apercu.nom} className="max-w-full max-h-full object-contain" />
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-2 text-[13px] text-ink-3 px-4 text-center">
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-body text-ink-3 px-4 text-center">
                   <p>Aperçu non disponible pour ce type de fichier.</p>
                   <a href={apercu.url} download={apercu.nom} className="text-green-700 hover:underline">
                     Télécharger «&nbsp;{apercu.nom}&nbsp;»
@@ -688,7 +688,7 @@ function CoproFolder({
       type="button"
       onClick={onClick}
       className={
-        "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-left transition-colors " +
+        "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-body text-left transition-colors " +
         (actif ? "bg-green-50 text-green-700 font-medium" : "text-ink-2 hover:bg-surface-2")
       }
     >
@@ -698,9 +698,9 @@ function CoproFolder({
       />
       <span className={"truncate flex-1 " + (nonLus > 0 ? "font-semibold text-ink" : "")}>{label}</span>
       {nonLus > 0 ? (
-        <span className="text-info-700 font-semibold text-[11px]">{nonLus}</span>
+        <span className="text-info-700 font-semibold text-meta">{nonLus}</span>
       ) : (
-        <span className="text-ink-4 text-[11px]">{n}</span>
+        <span className="text-ink-3 text-meta">{n}</span>
       )}
     </button>
   );
@@ -719,18 +719,18 @@ function EnTete({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-11 h-11 rounded-full bg-info-50 text-info-700 text-[14px] font-medium flex items-center justify-center shrink-0">
+      <span className="w-11 h-11 rounded-full bg-info-50 text-info-700 text-body font-medium flex items-center justify-center shrink-0">
         {data.gestionnaire.initiales}
       </span>
       <div>
-        <h1 className="text-[20px] font-medium tracking-tight text-ink flex items-center gap-2">
+        <h1 className="text-page font-medium tracking-tight text-ink flex items-center gap-2">
           <Mail strokeWidth={1.5} className="w-5 h-5 text-ink-3" />
           Mes e-mails
         </h1>
-        <p className="text-[13px] text-ink-3 mt-0.5">
+        <p className="text-body text-ink-3 mt-0.5">
           {nbNonLus} non lus · {nbATraiter} à traiter · {nbClasses} classés
         </p>
-        <p className="text-[11px] text-ink-4 mt-0.5">
+        <p className="text-meta text-ink-3 mt-0.5">
           Tri automatique de la boîte de réception · rattachement aux copropriétés
         </p>
       </div>
@@ -767,7 +767,7 @@ function BoiteItem({
           <span className={`w-2 h-2 rounded-full shrink-0 ${!lu ? "bg-info-500" : "bg-transparent"}`} />
           <span
             className={
-              "text-[12.5px] text-ink truncate flex-1 " +
+              "text-body text-ink truncate flex-1 " +
               (statut === "classe" ? "line-through " : "") +
               (!lu ? "font-semibold" : "font-medium")
             }
@@ -776,14 +776,14 @@ function BoiteItem({
           </span>
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
         </div>
-        <div className="flex items-center gap-1.5 mt-1 pl-4 text-[11px] text-ink-3">
+        <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
           <Building2 strokeWidth={1.5} className="w-3 h-3 shrink-0" />
           <span className="truncate">
             {m.coproNom} · {m.de.replace(/ \(.*\)$/, "")}
           </span>
           <span className="ml-auto shrink-0">{jourMois(m.date)}</span>
         </div>
-        <p className="mt-0.5 pl-4 text-[11px] text-ink-4 truncate">
+        <p className="mt-0.5 pl-4 text-meta text-ink-3 truncate">
           {m.corps.replace(/\s+/g, " ").trim()}
         </p>
       </button>
@@ -839,19 +839,19 @@ function LigneDest({
   };
   return (
     <div className="flex items-start gap-2 min-h-[24px]">
-      <span className="w-7 shrink-0 pt-1 text-[11px] font-medium text-ink-3">{label}</span>
+      <span className="w-7 shrink-0 pt-1 text-meta font-medium text-ink-3">{label}</span>
       <div className="flex-1 flex flex-wrap items-center gap-1">
         {valeurs.map((e) => (
           <span
             key={e}
-            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-[11.5px] text-ink-2"
+            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-meta text-ink-2"
           >
             <span className="truncate max-w-[200px]">{e}</span>
             <button
               type="button"
               onClick={() => onChange(champ, valeurs.filter((x) => x !== e))}
               aria-label={`Retirer ${e}`}
-              className="text-ink-4 hover:text-err-700"
+              className="text-ink-3 hover:text-err-700"
             >
               <X strokeWidth={2} className="w-3 h-3" />
             </button>
@@ -868,7 +868,7 @@ function LigneDest({
           }}
           onBlur={ajouter}
           placeholder="ajouter une adresse…"
-          className="flex-1 min-w-[120px] h-6 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-4"
+          className="flex-1 min-w-[120px] h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
         />
       </div>
     </div>
@@ -890,7 +890,7 @@ function FormCreerDossier({
   const [titre, setTitre] = useState(titreSuggere);
   return (
     <div className="border-t border-line bg-surface-2/40 px-3 py-2 flex flex-col gap-2">
-      <p className="text-[11px] font-medium text-ink-3 flex items-center gap-1">
+      <p className="text-meta font-medium text-ink-3 flex items-center gap-1">
         <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 text-green-700" /> Créer un dossier
       </p>
       <div className="flex items-center gap-2 flex-wrap">
@@ -898,7 +898,7 @@ function FormCreerDossier({
           value={type}
           onChange={(e) => setType(e.target.value as TypeDossier)}
           aria-label="Type de dossier"
-          className="h-7 rounded border border-line bg-surface px-1.5 text-[12px]"
+          className="h-7 rounded-sm border border-line bg-surface px-1.5 text-body"
         >
           {TYPE_DOSSIER_ORDRE.map((t) => (
             <option key={t} value={t}>
@@ -911,13 +911,13 @@ function FormCreerDossier({
           onChange={(e) => setTitre(e.target.value)}
           placeholder="Titre du dossier"
           aria-label="Titre du dossier"
-          className="flex-1 min-w-[140px] h-7 rounded border border-line bg-surface px-2 text-[12px]"
+          className="flex-1 min-w-[140px] h-7 rounded-sm border border-line bg-surface px-2 text-body"
         />
         <button
           type="button"
           disabled={!titre.trim()}
           onClick={() => onCreer(type, titre.trim())}
-          className="h-7 px-2.5 rounded bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 disabled:opacity-50"
+          className="h-7 px-2.5 rounded-sm bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50"
         >
           Créer
         </button>
@@ -1029,7 +1029,7 @@ function AnalysePane({
       <div className="border-b border-line">
         <div className="px-5 pt-4 pb-3">
           <div className="flex items-center justify-between gap-3 mb-2.5">
-            <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3 flex items-center gap-1.5">
+            <span className="text-meta font-medium uppercase tracking-[0.06em] text-ink-3 flex items-center gap-1.5">
               <Mail strokeWidth={1.5} className="w-3.5 h-3.5" />
               Mail reçu
             </span>
@@ -1038,13 +1038,13 @@ function AnalysePane({
             </div>
           </div>
 
-          <h2 className="text-[16px] font-semibold text-ink leading-snug">{m.objet}</h2>
+          <h2 className="text-title font-semibold text-ink leading-snug">{m.objet}</h2>
 
           <div className="mt-2.5 flex items-start gap-2.5">
-            <span className="w-8 h-8 rounded-full bg-surface-3 text-ink-2 text-[11px] font-medium flex items-center justify-center shrink-0">
+            <span className="w-8 h-8 rounded-full bg-surface-3 text-ink-2 text-meta font-medium flex items-center justify-center shrink-0">
               {initiales(m.de)}
             </span>
-            <div className="text-[12px] leading-relaxed min-w-0">
+            <div className="text-body leading-relaxed min-w-0">
               <p className="text-ink">
                 <span className="font-medium">{m.de}</span>{" "}
                 <span className="text-ink-3">&lt;{m.expediteurEmail}&gt;</span>
@@ -1055,7 +1055,7 @@ function AnalysePane({
               </p>
               <p className="text-ink-3">{formatDateLongue(m.date)}</p>
               <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 text-[12px]">
+                <span className="inline-flex items-center gap-1 text-body">
                   <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                   <span className={coproCode ? "font-medium text-ink" : "text-ink-3 italic"}>
                     {coproCode ? `${coproNom} (${coproCode})` : "Sans copropriété"}
@@ -1065,7 +1065,7 @@ function AnalysePane({
                   value={coproCode}
                   onChange={(e) => onRattacherCopro(e.target.value)}
                   aria-label="Copropriété (facultatif)"
-                  className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
+                  className="text-meta rounded-sm border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
                 >
                   {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
                   <option value="">{coproCode ? "- Retirer la copropriété" : "Rattacher à une copropriété…"}</option>
@@ -1075,13 +1075,13 @@ function AnalysePane({
                     </option>
                   ))}
                 </select>
-                <span className="inline-flex items-center gap-1 text-[11.5px]">
+                <span className="inline-flex items-center gap-1 text-meta">
                   <FolderInput strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                   <select
                     value={dossierIdChoisi}
                     onChange={(e) => onChoisirDossier(e.target.value)}
                     aria-label="Dossier Outlook de classement"
-                    className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
+                    className="text-meta rounded-sm border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
                   >
                     <option value="">
                       {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
@@ -1099,24 +1099,24 @@ function AnalysePane({
         </div>
 
         <div className="px-5 pb-4">
-          <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-auto">
+          <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-auto">
             {m.corps}
           </div>
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {piecesJointes === null ? (
-                <span className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-[11.5px] text-ink-3">
+                <span className="inline-flex items-center gap-1 h-6 px-2 rounded-sm border border-line bg-surface text-meta text-ink-3">
                   <Paperclip strokeWidth={1.5} className="w-3 h-3" />
                   Chargement des pièces jointes…
                 </span>
               ) : piecesJointes.length === 0 ? (
-                <span className="text-[11.5px] text-ink-4 italic">Pièces jointes indisponibles</span>
+                <span className="text-meta text-ink-3 italic">Pièces jointes indisponibles</span>
               ) : (
                 piecesJointes.map((pj) => (
                   <span
                     key={pj.id}
                     title={formatTaille(pj.taille)}
-                    className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded border border-line bg-surface text-[11.5px] text-ink-2"
+                    className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-sm border border-line bg-surface text-meta text-ink-2"
                   >
                     <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3 shrink-0" />
                     <button
@@ -1131,7 +1131,7 @@ function AnalysePane({
                       type="button"
                       onClick={() => onTelecharger(pj)}
                       title="Télécharger"
-                      className="text-ink-4 hover:text-ink"
+                      className="text-ink-3 hover:text-ink"
                     >
                       <Download strokeWidth={1.5} className="w-3 h-3" />
                     </button>
@@ -1146,16 +1146,16 @@ function AnalysePane({
       <div className="px-5 py-4 flex flex-col gap-3">
         {/* Recommandation : phrase + reponse EDITABLE */}
         <div className="rounded-lg border border-green-500/25 bg-green-50/60 p-4">
-          <p className="text-[12px] font-semibold text-green-700 flex items-center gap-1.5 mb-1.5">
+          <p className="text-body font-semibold text-green-700 flex items-center gap-1.5 mb-1.5">
             <Sparkles strokeWidth={1.5} className="w-4 h-4" />
             Recommandation de l’assistant
           </p>
-          <p className="text-[13.5px] text-ink leading-snug">{recommandation(m, ratt)}</p>
+          <p className="text-body text-ink leading-snug">{recommandation(m, ratt)}</p>
 
           {brouillon || compose ? (
             <>
               <div className="flex items-center justify-between mt-3 mb-1">
-                <span className="text-[11.5px] text-ink-3">Réponse (modifiable)</span>
+                <span className="text-meta text-ink-3">Réponse (modifiable)</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={onCopier} className={BTN}>
                     <Copy strokeWidth={1.5} className="w-3.5 h-3.5" />
@@ -1173,11 +1173,11 @@ function AnalysePane({
                 onChange={(e) => onMajSujet(e.target.value)}
                 placeholder="Sujet"
                 aria-label="Sujet de la réponse"
-                className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink outline-none focus:ring-1 focus:ring-green-500/40"
+                className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-body text-ink outline-none focus:ring-1 focus:ring-green-500/40"
               />
               {piecesJointes && piecesJointes.length > 0 ? (
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-ink-3">Joindre&nbsp;:</span>
+                  <span className="text-meta text-ink-3">Joindre&nbsp;:</span>
                   {piecesJointes.map((pj) => {
                     const jointe = pjJointes.has(pj.id);
                     return (
@@ -1186,7 +1186,7 @@ function AnalysePane({
                         type="button"
                         onClick={() => onTogglePjJointe(pj.id)}
                         title={jointe ? "Jointe à la réponse" : "Joindre à la réponse"}
-                        className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full border text-[11.5px] transition-colors ${jointe ? "border-green-500/40 bg-green-50 text-green-700" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}
+                        className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full border text-meta transition-colors ${jointe ? "border-green-500/40 bg-green-50 text-green-700" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}
                       >
                         {jointe ? (
                           <Check strokeWidth={2} className="w-3 h-3 shrink-0" />
@@ -1204,11 +1204,11 @@ function AnalysePane({
                 onChange={(e) => onEditBrouillon(e.target.value)}
                 onBlur={onBlurBrouillon}
                 rows={7}
-                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[12.5px] text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
+                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-body text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
               />
               {signatureHtml ? (
                 <div className="mt-2">
-                  <span className="text-[11px] text-ink-3">Signature (ajoutée à l’envoi)</span>
+                  <span className="text-meta text-ink-3">Signature (ajoutée à l’envoi)</span>
                   <iframe
                     title="Signature"
                     sandbox=""
@@ -1222,12 +1222,12 @@ function AnalysePane({
                   type="button"
                   onClick={onEnvoyer}
                   disabled={envoiEnCours}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-body font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Send strokeWidth={2} className="w-4 h-4" />
                   {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
                 </button>
-                {msgBrouillon ? <span className="text-[11.5px] text-ink-3">{msgBrouillon}</span> : null}
+                {msgBrouillon ? <span className="text-meta text-ink-3">{msgBrouillon}</span> : null}
               </div>
             </>
           ) : (
@@ -1237,7 +1237,7 @@ function AnalysePane({
               <button
                 type="button"
                 onClick={onRepondre}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-[12.5px] font-medium text-ink-2 hover:bg-surface-2"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-body font-medium text-ink-2 hover:bg-surface-2"
               >
                 <Mail strokeWidth={1.5} className="w-3.5 h-3.5" />
                 Répondre
@@ -1247,14 +1247,14 @@ function AnalysePane({
                   type="button"
                   onClick={onGenererBrouillon}
                   disabled={genEnCours}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-green-500/30 bg-surface text-[12.5px] font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-green-500/30 bg-surface text-body font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
                   {genEnCours ? "Génération…" : "Générer un brouillon (IA)"}
                 </button>
               ) : null}
               {msgBrouillon ? (
-                <p className="w-full mt-1 text-[11.5px] text-ink-3">{msgBrouillon}</p>
+                <p className="w-full mt-1 text-meta text-ink-3">{msgBrouillon}</p>
               ) : null}
             </div>
           )}
@@ -1268,13 +1268,13 @@ function AnalysePane({
               <button
                 type="button"
                 onClick={onDevalider}
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium border border-line bg-surface text-ink-2 hover:bg-surface-2"
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-body font-medium border border-line bg-surface text-ink-2 hover:bg-surface-2"
               >
                 <RotateCcw strokeWidth={1.5} className="w-4 h-4" />
                 Annuler (classé)
               </button>
               {m.dossierClasseNom ? (
-                <span className="text-[11.5px] text-ink-3">
+                <span className="text-meta text-ink-3">
                   classé dans «&nbsp;{m.dossierClasseNom}&nbsp;»
                 </span>
               ) : null}
@@ -1285,28 +1285,28 @@ function AnalysePane({
               onClick={onValider}
               disabled={!dossierIdChoisi}
               title={!dossierIdChoisi ? "Choisis un dossier de destination" : undefined}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-body font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Check strokeWidth={2} className="w-4 h-4" />
               {labelValider}
             </button>
           )}
-          {msgClasser ? <p className="mt-1.5 text-[11.5px] text-err-700">{msgClasser}</p> : null}
+          {msgClasser ? <p className="mt-1.5 text-meta text-err-700">{msgClasser}</p> : null}
         </div>
 
         {/* Ligne meta discrete : type + rattachement modifiable */}
-        <div className="flex items-center gap-2 flex-wrap text-[12px] text-ink-3">
+        <div className="flex items-center gap-2 flex-wrap text-body text-ink-3">
           <Badge ton="outline">{LIBELLE_TYPE[m.type]}</Badge>
           {ratt.intranet ? (
             <Link
               href={`/dossiers/${ratt.dossierId}`}
-              className="inline-flex items-center gap-1 text-info-700 hover:underline"
+              className="inline-flex items-center gap-1 text-ink-2 hover:text-ink underline-offset-2 hover:underline"
             >
               <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
               {ratt.dossierLabel}
             </Link>
           ) : (
-            <span className="inline-flex items-center gap-1 text-ink-4">
+            <span className="inline-flex items-center gap-1 text-ink-3">
               <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
               non rattaché à un dossier
             </span>
@@ -1317,7 +1317,7 @@ function AnalysePane({
         </div>
 
         {changer && !coproCode && (
-          <div className="rounded-md border border-dashed border-line px-3 py-2 text-[12px] text-ink-3">
+          <div className="rounded-md border border-dashed border-line px-3 py-2 text-body text-ink-3">
             Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété. Pour simplement
             <strong> ranger</strong> ce mail, utilise «&nbsp;Classer dans…&nbsp;» en haut - aucune copropriété requise.
           </div>
@@ -1326,7 +1326,7 @@ function AnalysePane({
         {changer && coproCode && (
           <div className="rounded-md border border-line overflow-hidden">
             {dossiersReels === null ? (
-              <p className="px-3 py-2 text-[12px] text-ink-3">Chargement des dossiers…</p>
+              <p className="px-3 py-2 text-body text-ink-3">Chargement des dossiers…</p>
             ) : (
               <ul className="divide-y divide-line">
                 {dossiersReels.map((d) => (
@@ -1334,7 +1334,7 @@ function AnalysePane({
                     <button
                       type="button"
                       onClick={() => onRattacherDossier(d.id, d.titre)}
-                      className="w-full text-left px-3 py-2 text-[12.5px] text-ink hover:bg-surface-2 flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 text-body text-ink hover:bg-surface-2 flex items-center gap-2"
                     >
                       <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                       <span className="flex-1 min-w-0 truncate">{d.titre}</span>
@@ -1343,7 +1343,7 @@ function AnalysePane({
                   </li>
                 ))}
                 {dossiersReels.length === 0 && (
-                  <li className="px-3 py-2 text-[12px] text-ink-4">Aucun dossier sur cette copropriété.</li>
+                  <li className="px-3 py-2 text-body text-ink-3">Aucun dossier sur cette copropriété.</li>
                 )}
               </ul>
             )}
@@ -1404,7 +1404,7 @@ function SectionRepliable({
       <button
         type="button"
         onClick={() => onToggle(cle)}
-        className="w-full flex items-center gap-1.5 py-2.5 text-left text-[12.5px] font-medium text-ink-2 hover:text-ink"
+        className="w-full flex items-center gap-1.5 py-2.5 text-left text-body font-medium text-ink-2 hover:text-ink"
       >
         <ChevronRight
           strokeWidth={1.5}
@@ -1412,7 +1412,7 @@ function SectionRepliable({
         />
         {icone}
         {titre}
-        {compte && <span className="text-ink-4 font-normal">· {compte}</span>}
+        {compte && <span className="text-ink-3 font-normal">· {compte}</span>}
       </button>
       {open && <div className="pb-3 pl-5">{children}</div>}
     </div>
@@ -1434,8 +1434,8 @@ function Timeline({ dossier }: { dossier: Dossier }) {
           <span className="absolute -left-[22px] top-0.5 w-5 h-5 rounded-full bg-surface border border-line flex items-center justify-center">
             {KIND_ICON[e.kind]}
           </span>
-          <p className="text-[12.5px] text-ink leading-snug">{e.resume}</p>
-          <p className="text-[11px] text-ink-3 mt-0.5">
+          <p className="text-body text-ink leading-snug">{e.resume}</p>
+          <p className="text-meta text-ink-3 mt-0.5">
             {jourMois(e.date)} · {e.acteur}
           </p>
         </li>
@@ -1458,7 +1458,7 @@ function Fait({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2 text-[12.5px]">
+    <div className="flex items-start gap-2 text-body">
       <span className="text-ink-3 mt-0.5 shrink-0">{icone}</span>
       <p className="text-ink-2">
         <span className="text-ink-3">{label} : </span>
@@ -1471,7 +1471,7 @@ function Fait({
 function ContexteCoproContenu({ ctx }: { ctx: ContexteCopro | undefined }) {
   if (!ctx || !ctx.disponible) {
     return (
-      <p className="text-[12.5px] text-ink-3 italic">
+      <p className="text-body text-ink-3 italic">
         Indisponible (copro absente d’eStale, ou eStale non configuré).
       </p>
     );

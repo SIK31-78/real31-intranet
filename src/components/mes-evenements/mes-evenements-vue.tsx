@@ -83,14 +83,14 @@ function EnTete({ data }: { data: MesEvenements }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-center gap-3">
-        <span className="w-11 h-11 rounded-full bg-green-50 text-green-700 text-[14px] font-medium flex items-center justify-center shrink-0">
+        <span className="w-11 h-11 rounded-full bg-green-50 text-green-700 text-body font-medium flex items-center justify-center shrink-0">
           {data.gestionnaire.initiales}
         </span>
         <div>
-          <h1 className="text-[20px] font-medium tracking-tight text-ink">
+          <h1 className="text-page font-medium tracking-tight text-ink">
             Bonjour, {data.gestionnaire.nomComplet.split(" ")[0]}
           </h1>
-          <p className="text-[13px] text-ink-3 mt-0.5">
+          <p className="text-body text-ink-3 mt-0.5">
             {data.nbCopros} copropriétés sous votre gestion · {data.dateCourante}
           </p>
         </div>
@@ -104,10 +104,10 @@ function Compteur({ actionsCeMois }: { actionsCeMois: number }) {
     <Card className="flex items-center gap-4 px-5 py-4">
       <Trophy strokeWidth={1.5} className="w-7 h-7 text-green-700 shrink-0" />
       <div className="flex-1">
-        <p className="text-[14px] font-medium text-ink">Actions traitées ce mois</p>
-        <p className="text-[12px] text-ink-3 mt-0.5">Votre activité de pilotage du mois en cours.</p>
+        <p className="text-body font-medium text-ink">Actions traitées ce mois</p>
+        <p className="text-body text-ink-3 mt-0.5">Votre activité de pilotage du mois en cours.</p>
       </div>
-      <p className="text-[28px] font-medium leading-none text-green-700">{actionsCeMois}</p>
+      <p className="text-figure font-medium leading-none text-green-700">{actionsCeMois}</p>
     </Card>
   );
 }
@@ -129,15 +129,15 @@ function Section({
   return (
     <section>
       <div className="flex items-center justify-between mb-2.5">
-        <h2 className="text-[14px] font-semibold text-ink flex items-center gap-1.5">
+        <h2 className="text-body font-semibold text-ink flex items-center gap-1.5">
           {icone}
           {titre}
         </h2>
-        <span className="text-[12px] text-ink-3">{compte}</span>
+        <span className="text-body text-ink-3">{compte}</span>
       </div>
       <Card className="overflow-hidden">
         {estVide ? (
-          <p className="px-4 py-6 text-[13px] text-ink-3 text-center">{vide}</p>
+          <p className="px-4 py-6 text-body text-ink-3 text-center">{vide}</p>
         ) : (
           <ul className="divide-y divide-line">{children}</ul>
         )}
@@ -148,7 +148,7 @@ function Section({
 
 function LienTraiter({ href, libelle }: { href?: string; libelle: string }) {
   const classes =
-    "shrink-0 inline-flex items-center gap-1 h-8 px-3 rounded-md border border-line bg-surface text-[13px] text-ink hover:bg-surface-2 transition-colors";
+    "shrink-0 inline-flex items-center gap-1 h-8 px-3 rounded-md border border-line bg-surface text-body text-ink hover:bg-surface-2 transition-colors";
   if (!href) {
     return <span className={`${classes} opacity-50 cursor-not-allowed`}>{libelle}</span>;
   }
@@ -166,10 +166,10 @@ function ActionRow({ action }: { action: ActionATraiter }) {
       <span className={`w-2 h-2 rounded-full shrink-0 ${SEVERITE_DOT[action.severite]}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-medium text-ink">{action.titre}</span>
+          <span className="text-body font-medium text-ink">{action.titre}</span>
           <Badge ton={action.badge.ton}>{action.badge.texte}</Badge>
         </div>
-        <p className="text-[12px] text-ink-3 mt-0.5 truncate">{action.contexte}</p>
+        <p className="text-body text-ink-3 mt-0.5 truncate">{action.contexte}</p>
       </div>
       <LienTraiter href={action.lien} libelle="Traiter" />
     </li>
@@ -183,10 +183,10 @@ function AgRow({ ag }: { ag: AgAVenir }) {
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
           <Badge ton="outline" className="font-mono shrink-0">AG</Badge>
-          <span className="text-[14px] font-medium text-ink truncate">
+          <span className="text-body font-medium text-ink truncate">
             {ag.coproCode} · {ag.coproNom}
           </span>
-          <span className="text-[11px] text-ink-3 shrink-0">
+          <span className="text-meta text-ink-3 shrink-0">
             {jourMois(ag.date)}{ag.heure ? ` · ${ag.heure}` : ""}
           </span>
         </div>
@@ -199,12 +199,12 @@ function AgRow({ ag }: { ag: AgAVenir }) {
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="text-[11px] text-ink-3 min-w-[70px] text-right">
+        <span className="text-meta text-ink-3 min-w-[70px] text-right">
           {ag.jalonsFaits} / {ag.jalonsTotal} jalons
         </span>
       </div>
       <p
-        className={`text-[12px] flex items-center gap-1 ${ag.prochainJalonSeverite === "late" ? "text-err-700" : "text-ink-3"}`}
+        className={`text-body flex items-center gap-1 ${ag.prochainJalonSeverite === "late" ? "text-err-700" : "text-ink-3"}`}
       >
         {ag.prochainJalonSeverite === "late" && (
           <AlertCircle strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
@@ -231,11 +231,11 @@ function SansAgRow({ copro }: { copro: CoproSansAg }) {
   return (
     <li className="flex items-center gap-3 px-4 py-3">
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] font-medium text-ink">
+        <p className="text-body font-medium text-ink">
           {copro.coproCode} · {copro.coproNom}
         </p>
         <p
-          className={`text-[12px] mt-0.5 flex items-center gap-1 ${copro.severite === "late" ? "text-err-700" : "text-ink-3"}`}
+          className={`text-body mt-0.5 flex items-center gap-1 ${copro.severite === "late" ? "text-err-700" : "text-ink-3"}`}
         >
           {copro.severite === "late" && (
             <AlertCircle strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />

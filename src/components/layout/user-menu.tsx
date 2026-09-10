@@ -39,15 +39,15 @@ export function UserMenu({
             className="absolute right-0 mt-2 w-56 z-20 rounded-md border border-line bg-surface shadow-1 py-1"
           >
             <div className="px-3 py-2 border-b border-line">
-              <p className="text-[13px] font-medium text-ink truncate">{user.nomComplet}</p>
-              <p className="text-[11px] text-ink-3">Connecté</p>
+              <p className="text-body font-medium text-ink truncate">{user.nomComplet}</p>
+              <p className="text-meta text-ink-3">Connecté</p>
             </div>
             {peutImpersonner && (
               <Link
                 href="/dev-login"
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-[13px] text-ink hover:bg-surface-2"
+                className="flex items-center gap-2 px-3 py-2 text-body text-ink hover:bg-surface-2"
               >
                 <Users strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" /> Changer de gestionnaire
               </Link>
@@ -56,7 +56,7 @@ export function UserMenu({
               <button
                 type="submit"
                 role="menuitem"
-                className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-err-700 hover:bg-surface-2"
+                className="w-full flex items-center gap-2 px-3 py-2 text-body text-err-700 hover:bg-surface-2"
               >
                 <LogOut strokeWidth={1.5} className="w-3.5 h-3.5" /> Déconnexion
               </button>

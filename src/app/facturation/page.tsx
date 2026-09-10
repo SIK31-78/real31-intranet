@@ -52,11 +52,11 @@ export default async function FacturationPage() {
     <AppShell user={g} active="facturation" breadcrumb="Facturation">
       <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
         <div>
-          <h1 className="text-[20px] font-semibold text-ink flex items-center gap-2">
+          <h1 className="text-page font-semibold text-ink flex items-center gap-2">
             <Receipt strokeWidth={1.5} className="w-5 h-5 text-green-700" />
             Facturation des honoraires syndic
           </h1>
-          <p className="mt-1 text-[13px] text-ink-3">
+          <p className="mt-1 text-body text-ink-3">
             Les montants sont calculés depuis le barème de l&apos;année du contrat en cours : ils ne
             sont jamais saisis à la main. Chaque facturation part ensuite en brouillon Pennylane,
             à valider par la compta.

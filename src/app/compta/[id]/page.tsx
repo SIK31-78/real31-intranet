@@ -37,13 +37,13 @@ export default async function ComptaDetailPage({ params }: { params: Promise<{ i
     <AppShell user={g} active="compta" breadcrumb={`Pôle compta · ${code}`}>
       <div className="mx-auto max-w-[820px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
         <div>
-          <Link href="/comptabilite" className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700">
+          <Link href="/comptabilite" className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700">
             <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Comptabilité
           </Link>
-          <h1 className="mt-1 text-[20px] font-semibold text-ink">
-            {copro.nom} <span className="text-[14px] font-normal text-ink-3">({code})</span>
+          <h1 className="mt-1 text-page font-semibold text-ink">
+            {copro.nom} <span className="text-body font-normal text-ink-3">({code})</span>
           </h1>
-          <p className="mt-0.5 text-[13px] text-ink-2">Préparation des comptes · AG du {formatDateLongue(agDate)}</p>
+          <p className="mt-0.5 text-body text-ink-2">Préparation des comptes · AG du {formatDateLongue(agDate)}</p>
         </div>
 
         {/* Checklist des postes : le coeur de la verification. Le feu vert final (flag

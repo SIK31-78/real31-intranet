@@ -24,7 +24,7 @@ import type { EtapeNode } from '@/lib/domain/sinistre/types';
 function BandeauIncertitude() {
   const { dispatch } = useDossier();
   return (
-    <div className="no-print mb-4 rounded-md border-l-4 border-warn-500 bg-warn-50 p-4 text-sm text-warn-700">
+    <div className="no-print mb-4 rounded-md border-l-4 border-warn-500 bg-warn-50 p-4 text-body text-warn-700">
       <p className="font-semibold">Résultat provisoire - situation d’assurance à confirmer</p>
       <p className="mt-1">
         Vous avez indiqué ne pas connaître la situation d’assurance de cette partie. Par prudence,
@@ -63,10 +63,10 @@ function BandeauIncertitude() {
 function RepliCeQuIlFautSavoir({ alerte }: { alerte: string }) {
   return (
     <details className="no-print group mt-3 rounded-md border border-line bg-surface">
-      <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-medium text-ink-2 marker:content-none hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+      <summary className="cursor-pointer list-none px-4 py-3 text-body font-medium text-ink-2 marker:content-none hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
         <span
           aria-hidden
-          className="mr-1.5 inline-block text-ink-4 transition-transform group-open:rotate-90"
+          className="mr-1.5 inline-block text-ink-3 transition-transform group-open:rotate-90"
         >
           ▸
         </span>
@@ -106,12 +106,12 @@ export function EtapeView({
     <div>
       {incertitude && <BandeauIncertitude />}
 
-      <h2 className="text-xl font-semibold text-ink">
+      <h2 className="text-page font-semibold text-ink">
         <Glose>{node.titre}</Glose>
       </h2>
 
       {node.gestionnaire && (
-        <p className="mt-1 text-sm font-medium text-ink-2">
+        <p className="mt-1 text-body font-medium text-ink-2">
           Assureur gestionnaire désigné : {libelleGestionnaire(node.gestionnaire)}
         </p>
       )}

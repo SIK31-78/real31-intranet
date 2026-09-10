@@ -109,18 +109,18 @@ export function FicheRenseignementsBloc({
     <Card>
       <CardHeader>
         <CardTitle>Fiches de renseignements</CardTitle>
-        <span className="text-[11px] text-ink-4">Courriers copropriétaires -&gt; formulaire en ligne -&gt; validation</span>
+        <span className="text-meta text-ink-3">Courriers copropriétaires -&gt; formulaire en ligne -&gt; validation</span>
       </CardHeader>
 
       <div className="p-4 flex flex-col gap-4">
-        <p className="text-[12.5px] text-ink-3">
+        <p className="text-body text-ink-3">
           Génère un courrier pré-rempli par copropriétaire (adresse postale connue), avec un lien et un code personnel
           vers le formulaire en ligne. À la réponse, valide pour écrire l&apos;e-mail dans ESTALE et envoyer le mail
           &laquo; espace client prêt &raquo;.
         </p>
 
         {!aDesOwners ? (
-          <div className="rounded-md border border-line bg-surface-2 px-3 py-2 text-[12.5px] text-ink-3">
+          <div className="rounded-md border border-line bg-surface-2 px-3 py-2 text-body text-ink-3">
             Aucun copropriétaire connu pour ce dossier : les courriers partent des noms et adresses du jeu de
             données du patrimoine, produit au terminal lors de la reprise.
           </div>
@@ -150,7 +150,7 @@ export function FicheRenseignementsBloc({
         <div className="flex flex-col gap-1.5">
           <div
             className={
-              "rounded-md border px-3 py-1.5 text-[11.5px] " +
+              "rounded-md border px-3 py-1.5 text-meta " +
               (mailActif ? "border-line bg-surface-2 text-ink-2" : "border-warn-500/40 bg-warn-50 text-warn-700")
             }
           >
@@ -160,7 +160,7 @@ export function FicheRenseignementsBloc({
           </div>
           <div
             className={
-              "rounded-md border px-3 py-1.5 text-[11.5px] " +
+              "rounded-md border px-3 py-1.5 text-meta " +
               (ecritureReelle ? "border-err-500/40 bg-err-50 text-err-700" : "border-line bg-surface-2 text-ink-2")
             }
           >
@@ -173,7 +173,7 @@ export function FicheRenseignementsBloc({
         {/* RETOURS A VALIDER */}
         {aValider.length > 0 && (
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">
+            <h3 className="text-body font-semibold uppercase tracking-wide text-ink-2">
               Retours à valider ({aValider.length})
             </h3>
             <ZoneAdminReprise
@@ -193,10 +193,10 @@ export function FicheRenseignementsBloc({
         {/* SUIVI : tableau des owners */}
         {fiches.length > 0 && (
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-ink-2">Suivi ({fiches.length})</h3>
+            <h3 className="text-body font-semibold uppercase tracking-wide text-ink-2">Suivi ({fiches.length})</h3>
             <div className="mt-2 overflow-x-auto">
-              <table className="w-full text-[12.5px]">
-                <thead className="text-left text-[11px] uppercase text-ink-4">
+              <table className="w-full text-body">
+                <thead className="text-left text-meta uppercase text-ink-3">
                   <tr>
                     <th className="py-1 font-medium">Copropriétaire</th>
                     <th className="font-medium">Statut</th>
@@ -270,9 +270,9 @@ function EnvoiFiche({
   const toast = useToast();
 
   // Deja repondu -> plus rien a envoyer.
-  if (fiche.statut === "soumis" || fiche.statut === "valide") return <span className="text-ink-4">-</span>;
+  if (fiche.statut === "soumis" || fiche.statut === "valide") return <span className="text-ink-3">-</span>;
   // Pas d'email connu -> courrier postal (le bouton n'a pas de sens).
-  if (!fiche.emailConnu) return <span className="text-[11px] text-ink-4">courrier</span>;
+  if (!fiche.emailConnu) return <span className="text-meta text-ink-3">courrier</span>;
 
   const envoyer = () => {
     startTransition(async () => {
@@ -331,10 +331,10 @@ function LigneAValider({ dossierRef, fiche }: { dossierRef: string; fiche: Fiche
     <li className="rounded-md border border-line bg-surface p-3">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-ink flex items-center gap-1.5">
-            <FileText strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4" /> {fiche.nom}
+          <p className="text-body font-medium text-ink flex items-center gap-1.5">
+            <FileText strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" /> {fiche.nom}
           </p>
-          <div className="mt-1.5 grid gap-x-4 gap-y-0.5 text-[12px] sm:grid-cols-2">
+          <div className="mt-1.5 grid gap-x-4 gap-y-0.5 text-body sm:grid-cols-2">
             <Comparaison label="E-mail" connu={fiche.emailConnu} saisi={s?.email} />
             <Comparaison label="Tél. portable" connu={fiche.connues?.telPortable} saisi={s?.telPortable} />
             <Comparaison label="Tél. fixe" connu={fiche.connues?.telFixe} saisi={s?.telFixe} />
@@ -364,14 +364,14 @@ function Comparaison({ label, connu, saisi }: { label: string; connu?: string; s
   const change = connu !== undefined && saisi !== undefined && connu.trim() !== saisi.trim();
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className="text-ink-4 shrink-0">{label} :</span>
+      <span className="text-ink-3 shrink-0">{label} :</span>
       {saisi ? (
         <span className={change ? "text-green-700 font-medium" : "text-ink-2"}>
           {saisi}
-          {change && connu ? <span className="text-ink-4"> (était : {connu})</span> : null}
+          {change && connu ? <span className="text-ink-3"> (était : {connu})</span> : null}
         </span>
       ) : (
-        <span className="text-ink-4">{connu ?? "-"}</span>
+        <span className="text-ink-3">{connu ?? "-"}</span>
       )}
     </div>
   );

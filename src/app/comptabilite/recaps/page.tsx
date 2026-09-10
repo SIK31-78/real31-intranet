@@ -32,10 +32,10 @@ function LigneRecap({ r, comptable }: { r: RecapRecu; comptable: boolean }) {
         href={`/comptabilite/recaps/${r.id}`}
         className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-surface-2"
       >
-        <span className="w-[44px] shrink-0 font-mono text-[12px] text-ink-2">{r.coproCode}</span>
+        <span className="w-[44px] shrink-0 font-mono text-body text-ink-2">{r.coproCode}</span>
         <div className="min-w-0 flex-1 basis-[200px]">
-          <p className="truncate text-[13px] font-medium text-ink">{r.coproNom}</p>
-          <p className="text-[12px] text-ink-3">
+          <p className="truncate text-body font-medium text-ink">{r.coproNom}</p>
+          <p className="text-body text-ink-3">
             AG du {formatDateLongue(r.agDate)} · reçu le {jour(r.creeLe)}
             {r.par ? ` · ${r.par}` : ""}
           </p>
@@ -55,7 +55,7 @@ function LigneRecap({ r, comptable }: { r: RecapRecu; comptable: boolean }) {
         ) : (
           <Badge ton="warn" dot>{comptable ? "à traiter" : "en attente compta"}</Badge>
         )}
-        <ChevronRight strokeWidth={1.5} className="h-4 w-4 shrink-0 text-ink-4" />
+        <ChevronRight strokeWidth={1.5} className="h-4 w-4 shrink-0 text-ink-3" />
       </Link>
     </li>
   );
@@ -100,13 +100,13 @@ function GroupeMois({
 }) {
   return (
     <details open={ouvert} className="group">
-      <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-[13px] text-ink-2 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-body text-ink-2 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           strokeWidth={1.5}
-          className="h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform group-open:rotate-90"
+          className="h-3.5 w-3.5 shrink-0 text-ink-3 transition-transform group-open:rotate-90"
         />
         <span className="font-medium capitalize">{formatMois(mois)}</span>
-        <span className="text-[12px] text-ink-3">
+        <span className="text-body text-ink-3">
           {lignes.length} récap{lignes.length > 1 ? "s" : ""}
         </span>
       </summary>
@@ -138,16 +138,16 @@ function Section({
   return (
     <div className="flex flex-col gap-2">
       <div>
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+        <h2 className="flex items-center gap-2 text-title font-semibold text-ink">
           {icone}
           {titre}
-          <span className="text-[12px] font-normal text-ink-3">({lignes.length})</span>
+          <span className="text-body font-normal text-ink-3">({lignes.length})</span>
         </h2>
-        <p className="mt-0.5 text-[12px] text-ink-3">{aide}</p>
+        <p className="mt-0.5 text-body text-ink-3">{aide}</p>
       </div>
       <Card>
         {lignes.length === 0 ? (
-          <p className="px-4 py-6 text-center text-[13px] text-ink-3">{vide}</p>
+          <p className="px-4 py-6 text-center text-body text-ink-3">{vide}</p>
         ) : (
           <div className="divide-y divide-line">
             {groupes.map((g, i) => (
@@ -194,16 +194,16 @@ export default async function RecapsRecusPage() {
           {comptable && (
             <Link
               href="/comptabilite"
-              className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700"
+              className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700"
             >
               <ArrowLeft strokeWidth={1.5} className="h-3.5 w-3.5" /> Comptabilité
             </Link>
           )}
-          <h1 className="mt-1 flex items-center gap-2 text-[20px] font-semibold text-ink">
+          <h1 className="mt-1 flex items-center gap-2 text-page font-semibold text-ink">
             <Inbox strokeWidth={1.5} className="h-5 w-5 text-green-700" />
             Récaps d&apos;AG reçus
           </h1>
-          <p className="mt-1 text-[13px] text-ink-3">
+          <p className="mt-1 text-body text-ink-3">
             Le compte-rendu que le gestionnaire remplit après l&apos;assemblée : budget voté,
             fonds travaux, travaux à appeler, nouveau contrat. C&apos;est la note de travail à
             partir de laquelle la comptabilité saisit.
@@ -220,7 +220,7 @@ export default async function RecapsRecusPage() {
         <Section
           titre="À traiter"
           aide="Récaps reçus dont la saisie comptable reste à faire."
-          icone={<Inbox strokeWidth={1.5} className="h-4 w-4 text-warn-600" />}
+          icone={<Inbox strokeWidth={1.5} className="h-4 w-4 text-warn-700" />}
           lignes={aTraiter}
           vide="Aucun récap en attente."
           comptable={comptable}
@@ -229,7 +229,7 @@ export default async function RecapsRecusPage() {
         <Section
           titre="Traités"
           aide="Saisie faite : gardés pour référence."
-          icone={<ClipboardCheck strokeWidth={1.5} className="h-4 w-4 text-ok-600" />}
+          icone={<ClipboardCheck strokeWidth={1.5} className="h-4 w-4 text-ok-700" />}
           lignes={traites}
           vide="Aucun récap traité pour l'instant."
           comptable={comptable}

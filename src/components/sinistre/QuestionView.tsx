@@ -28,11 +28,11 @@ function AideRepliable({ node }: { node: QuestionNode }) {
         type="button"
         onClick={() => setOuvert((o) => !o)}
         aria-expanded={ouvert}
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium text-green-700 hover:bg-green-50 focus:outline focus:outline-2 focus:outline-green-700"
+        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-body font-medium text-green-700 hover:bg-green-50 focus:outline focus:outline-2 focus:outline-green-700"
       >
         <span
           aria-hidden
-          className="flex h-4 w-4 items-center justify-center rounded-full border border-green-700 text-[10px] font-bold leading-none"
+          className="flex h-4 w-4 items-center justify-center rounded-full border border-green-700 text-meta font-bold leading-none"
         >
           ?
         </span>
@@ -40,7 +40,7 @@ function AideRepliable({ node }: { node: QuestionNode }) {
       </button>
 
       {ouvert && (
-        <div className="mt-2 rounded-md border border-line bg-surface-2 p-3 text-sm text-ink-2">
+        <div className="mt-2 rounded-md border border-line bg-surface-2 p-3 text-body text-ink-2">
           {node.aide && (
             <p>
               <Glose>{node.aide}</Glose>
@@ -50,7 +50,7 @@ function AideRepliable({ node }: { node: QuestionNode }) {
           {/* Liste limitative explicitée par la donnée (ex. exclusions IRSI). */}
           {node.aide_liste && (
             <div className="mt-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+              <p className="text-meta font-semibold uppercase tracking-wide text-ink-3">
                 {node.aide_liste.titre}
               </p>
               <ul className="mt-1 list-disc space-y-0.5 pl-5">
@@ -64,14 +64,14 @@ function AideRepliable({ node }: { node: QuestionNode }) {
           )}
 
           {node.aide_trancher && (
-            <p className="mt-3 text-[13px] text-ink-3">
+            <p className="mt-3 text-body text-ink-3">
               <span className="font-medium text-ink-2">Où trouver l’information : </span>
               {node.aide_trancher}
             </p>
           )}
 
           {node.regles?.length ? (
-            <ul className="mt-3 list-disc space-y-0.5 pl-5 text-[13px]">
+            <ul className="mt-3 list-disc space-y-0.5 pl-5 text-body">
               {node.regles.map((r, i) => (
                 <li key={i}>
                   <Glose>{r}</Glose>
@@ -109,7 +109,7 @@ export function QuestionView({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-ink">
+      <h2 className="text-page font-semibold text-ink">
         <Glose>{node.question}</Glose>
       </h2>
 
@@ -125,7 +125,7 @@ export function QuestionView({
             className="rounded-lg border border-line-2 bg-surface px-4 py-3 text-left transition hover:border-green-600 hover:bg-green-50 focus:outline focus:outline-2 focus:outline-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line-2 disabled:hover:bg-surface"
           >
             <span className="font-medium text-ink">{opt.label}</span>
-            {opt.note && <span className="mt-0.5 block text-xs text-ink-3">{opt.note}</span>}
+            {opt.note && <span className="mt-0.5 block text-meta text-ink-3">{opt.note}</span>}
           </button>
         ))}
       </div>

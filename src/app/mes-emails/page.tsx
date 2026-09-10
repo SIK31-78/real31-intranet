@@ -27,7 +27,7 @@ export default async function MesEmailsPage() {
       <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <form action={synchroniserAction} className="mb-4 flex items-center justify-end gap-3">
           {data.dateCourante ? (
-            <span className="text-[12px] text-ink-3">{data.dateCourante}</span>
+            <span className="text-body text-ink-3">{data.dateCourante}</span>
           ) : null}
           <BoutonSynchro />
         </form>

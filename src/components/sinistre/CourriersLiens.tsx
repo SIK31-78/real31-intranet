@@ -42,11 +42,11 @@ export type ContextePlan = 'etape' | 'resultat';
 function MetaCourrier({ courrier }: { courrier: Courrier }) {
   return (
     <>
-      <div className="mt-0.5 text-[12px] text-ink-3">
+      <div className="mt-0.5 text-body text-ink-3">
         À : {courrier.destinataire} · Par : {courrier.mode_envoi}
       </div>
       {courrier.declencheurs_conditions?.length ? (
-        <div className="text-[12px] text-ink-4">
+        <div className="text-body text-ink-3">
           Si : {courrier.declencheurs_conditions.join(' · ')}
         </div>
       ) : null}
@@ -75,7 +75,7 @@ function CarteMaintenant({
     <Card className="flex flex-wrap items-start justify-between gap-3 p-4">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[14px] font-medium text-ink">{courrier.titre}</span>
+          <span className="text-body font-medium text-ink">{courrier.titre}</span>
           <Badge ton="outline">{courrier.id}</Badge>
           <Badge ton="info">{quand}</Badge>
         </div>
@@ -93,9 +93,9 @@ function LignePlusTard({ plan }: { plan: CourrierPlanifie }) {
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge ton="outline">{plan.courrier.id}</Badge>
-          <span className="text-[13px] text-ink">{plan.courrier.titre}</span>
+          <span className="text-body text-ink">{plan.courrier.titre}</span>
         </div>
-        <div className="mt-0.5 text-[12px] text-ink-3">{plan.declencheur}</div>
+        <div className="mt-0.5 text-body text-ink-3">{plan.declencheur}</div>
       </div>
       <BoutonGenerer id={plan.courrier.id} variant="secondary" />
     </li>
@@ -103,13 +103,13 @@ function LignePlusTard({ plan }: { plan: CourrierPlanifie }) {
 }
 
 const SUMMARY_CLASS =
-  'cursor-pointer list-none px-4 py-3 text-[13px] font-medium text-ink-2 marker:content-none hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600';
+  'cursor-pointer list-none px-4 py-3 text-body font-medium text-ink-2 marker:content-none hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600';
 
 function Chevron() {
   return (
     <span
       aria-hidden
-      className="mr-1.5 inline-block text-ink-4 transition-transform group-open:rotate-90"
+      className="mr-1.5 inline-block text-ink-3 transition-transform group-open:rotate-90"
     >
       ▸
     </span>

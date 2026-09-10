@@ -29,7 +29,7 @@ function jjmmaaaa(iso?: string): string {
 }
 
 const selectCls =
-  "rounded-md border border-line bg-surface px-2 py-1.5 text-[13px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+  "rounded-md border border-line bg-surface px-2 py-1.5 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
 
 function LignePoint({ p }: { p: PointEstale }) {
   const { ok, err } = useToast();
@@ -63,26 +63,26 @@ function LignePoint({ p }: { p: PointEstale }) {
         className="flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left hover:bg-surface-2/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
       >
         {ouvert ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-4" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-3" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-4" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-3" />
         )}
         {p.bloquant && (
           <span
             title="Bloquant"
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-err-50 text-err-700"
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-err-50 text-err-700"
           >
             <AlertTriangle strokeWidth={1.5} className="h-3 w-3" />
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink">{p.titre}</span>
+        <span className="min-w-0 flex-1 truncate text-body font-medium text-ink">{p.titre}</span>
         {p.reponse && (
           <span title="Réponse d'ESTALE reçue" className="shrink-0 text-ok-700">
             <MessageSquareText strokeWidth={1.5} className="h-3.5 w-3.5" />
           </span>
         )}
         {p.demandeur && (
-          <span className="hidden shrink-0 text-[11.5px] text-ink-3 sm:inline" title="Demandeur">
+          <span className="hidden shrink-0 text-meta text-ink-3 sm:inline" title="Demandeur">
             {p.demandeur}
           </span>
         )}
@@ -92,14 +92,14 @@ function LignePoint({ p }: { p: PointEstale }) {
         <Badge ton={TONS_STATUT_POINT[p.statut]} className="shrink-0">
           {LIBELLES_STATUT_POINT[p.statut]}
         </Badge>
-        <span className="hidden shrink-0 text-[11.5px] tabular-nums text-ink-4 lg:inline">{jjmmaaaa(p.createdAt)}</span>
+        <span className="hidden shrink-0 text-meta tabular-nums text-ink-3 lg:inline">{jjmmaaaa(p.createdAt)}</span>
       </button>
 
       {ouvert && (
         <div className="flex flex-col gap-3 border-t border-line px-4 py-3.5">
           {/* Rangee de pilotage : statut, categorie, demandeur, bloquant. */}
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+            <label className="flex flex-col gap-1 text-body text-ink-2">
               Statut
               <select
                 value={p.statut}
@@ -118,7 +118,7 @@ function LignePoint({ p }: { p: PointEstale }) {
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+            <label className="flex flex-col gap-1 text-body text-ink-2">
               Catégorie
               <select
                 value={p.categorie}
@@ -132,7 +132,7 @@ function LignePoint({ p }: { p: PointEstale }) {
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+            <label className="flex flex-col gap-1 text-body text-ink-2">
               Demandeur
               <input
                 defaultValue={p.demandeur ?? ""}
@@ -142,11 +142,11 @@ function LignePoint({ p }: { p: PointEstale }) {
                 }}
                 maxLength={20}
                 placeholder="CHB, FS…"
-                className="w-28 rounded-md border border-line bg-surface px-2 py-1.5 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                className="w-28 rounded-md border border-line bg-surface px-2 py-1.5 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
               />
             </label>
             <label
-              className="mb-1.5 flex cursor-pointer items-center gap-1.5 text-[12.5px] text-ink-2"
+              className="mb-1.5 flex cursor-pointer items-center gap-1.5 text-body text-ink-2"
               title="Point bloquant pour le cabinet"
             >
               <input
@@ -159,10 +159,10 @@ function LignePoint({ p }: { p: PointEstale }) {
               />
               Bloquant
             </label>
-            {p.resoluAt && <span className="mb-2 ml-auto text-[11.5px] text-ink-4">clos le {jjmmaaaa(p.resoluAt)}</span>}
+            {p.resoluAt && <span className="mb-2 ml-auto text-meta text-ink-3">clos le {jjmmaaaa(p.resoluAt)}</span>}
           </div>
 
-          <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+          <label className="flex flex-col gap-1 text-body text-ink-2">
             Titre
             <input
               value={titre}
@@ -175,11 +175,11 @@ function LignePoint({ p }: { p: PointEstale }) {
                 if (e.key === "Enter") e.currentTarget.blur();
               }}
               maxLength={200}
-              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] font-medium text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-body font-medium text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+          <label className="flex flex-col gap-1 text-body text-ink-2">
             Détail (interne)
             <textarea
               value={detail}
@@ -190,11 +190,11 @@ function LignePoint({ p }: { p: PointEstale }) {
               rows={detail ? Math.min(10, Math.max(3, detail.split("\n").length + 1)) : 3}
               maxLength={8000}
               placeholder="Contexte, exemples, cas concrets…"
-              className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] leading-relaxed text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+              className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+          <label className="flex flex-col gap-1 text-body text-ink-2">
             <span className={cn(p.reponse && "font-medium text-ok-700")}>Réponse d&apos;ESTALE</span>
             <textarea
               value={reponse}
@@ -206,7 +206,7 @@ function LignePoint({ p }: { p: PointEstale }) {
               maxLength={8000}
               placeholder="Rien reçu pour l'instant : colle la réponse du mail ici."
               className={cn(
-                "w-full resize-y rounded-md border px-2.5 py-2 text-[13px] leading-relaxed text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600",
+                "w-full resize-y rounded-md border px-2.5 py-2 text-body leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600",
                 p.reponse ? "border-ok-500/40 bg-ok-50/40" : "border-line bg-surface",
               )}
             />
@@ -281,14 +281,14 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
               onClick={() => setFiltreCategorie(c)}
               aria-pressed={filtreCategorie === c}
               className={cn(
-                "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                "rounded-full border px-2.5 py-1 text-body transition-colors",
                 filtreCategorie === c
                   ? "border-green-600/40 bg-green-50 font-medium text-green-700"
                   : "border-line bg-surface text-ink-2 hover:bg-surface-2",
               )}
             >
               {c === "toutes" ? "Toutes" : LIBELLES_CATEGORIE_POINT[c]}
-              <span className="ml-1 text-ink-4">{compteCategorie(c)}</span>
+              <span className="ml-1 text-ink-3">{compteCategorie(c)}</span>
             </button>
           ))}
         </div>
@@ -340,7 +340,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
               // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient d'ouvrir le formulaire
               autoFocus
               placeholder="Nouveau point à porter à ESTALE…"
-              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
             <textarea
               value={detail}
@@ -348,7 +348,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
               rows={2}
               maxLength={8000}
               placeholder="Détail (facultatif)…"
-              className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+              className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
             <div className="flex flex-wrap items-center gap-3">
               <select
@@ -362,7 +362,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
                   </option>
                 ))}
               </select>
-              <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-ink-2">
+              <label className="flex cursor-pointer items-center gap-1.5 text-body text-ink-2">
                 <input
                   type="checkbox"
                   checked={bloquant}
@@ -384,7 +384,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
         </div>
       )}
 
-      <p className="text-[12px] text-ink-3">
+      <p className="text-body text-ink-3">
         {actifs.length} point{actifs.length > 1 ? "s" : ""} actif{actifs.length > 1 ? "s" : ""}
         {nbBloquants > 0 && (
           <span className="font-medium text-err-700">
@@ -399,7 +399,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
           <LignePoint key={p.id} p={p} />
         ))}
         {actifs.length === 0 && (
-          <li className="rounded-md border border-dashed border-line px-4 py-8 text-center text-[13px] text-ink-3">
+          <li className="rounded-md border border-dashed border-line px-4 py-8 text-center text-body text-ink-3">
             Aucun point actif ne correspond à ces filtres.
           </li>
         )}
@@ -411,7 +411,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
           <button
             type="button"
             onClick={() => setClosOuverts((v) => !v)}
-            className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 hover:text-ink"
+            className="inline-flex items-center gap-1.5 text-body font-medium text-ink-3 hover:text-ink"
           >
             {closOuverts ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             Points clos ({clos.length})

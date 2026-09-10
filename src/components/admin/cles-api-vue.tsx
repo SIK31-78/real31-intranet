@@ -105,7 +105,7 @@ export function ClesApiVue({
   return (
     <div className="flex flex-col gap-4">
       {apiNonConfiguree && (
-        <div className="border border-warn-500/40 bg-warn-50 text-warn-700 text-[13px] rounded-md px-4 py-3">
+        <div className="border border-warn-500/40 bg-warn-50 text-warn-700 text-body rounded-md px-4 py-3">
           La table <code className="font-mono">intranet_api_keys</code> n&apos;existe pas encore : passe le script{" "}
           <code className="font-mono">supabase/sql/intranet_api_keys.sql</code> dans le SQL editor Supabase.
           En attendant, l&apos;API répond 503 et la création échouera.
@@ -114,11 +114,11 @@ export function ClesApiVue({
 
       {cleneuve && (
         <div className="border border-green-600/40 bg-green-50 rounded-md px-4 py-3">
-          <div className="text-[13px] font-medium text-green-700 mb-1">
+          <div className="text-body font-medium text-green-700 mb-1">
             Clé « {cleneuve.nom} » créée — copie-la MAINTENANT, elle ne sera plus jamais affichée.
           </div>
           <div className="flex items-center gap-2">
-            <code className="font-mono text-[12.5px] bg-surface border border-line rounded px-2 py-1 break-all select-all">
+            <code className="font-mono text-body bg-surface border border-line rounded-sm px-2 py-1 break-all select-all">
               {cleneuve.clair}
             </code>
             <Button size="sm" onClick={() => copier(cleneuve.clair)}>
@@ -138,22 +138,22 @@ export function ClesApiVue({
         </CardHeader>
         <div className="px-4 py-4 flex flex-col gap-3">
           <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+            <label className="flex flex-col gap-1 text-body text-ink-2">
               Nom de la clé
               <input
                 value={nom}
                 onChange={(e) => setNom(e.target.value)}
                 placeholder="ex. MCP poste Sekou"
                 maxLength={120}
-                className="h-8 w-[240px] px-2 text-[13px] text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                className="h-8 w-[240px] px-2 text-body text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
               />
             </label>
-            <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+            <label className="flex flex-col gap-1 text-body text-ink-2">
               Gestionnaire lié (optionnel)
               <select
                 value={managerId}
                 onChange={(e) => setManagerId(e.target.value)}
-                className="h-8 w-[240px] px-2 text-[13px] text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                className="h-8 w-[240px] px-2 text-body text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
               >
                 <option value="">— Clé cabinet (lecture transverse) —</option>
                 {gestionnaires.map((g) => (
@@ -163,21 +163,21 @@ export function ClesApiVue({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-[12px] text-ink-2">
+            <label className="flex flex-col gap-1 text-body text-ink-2">
               Expire le (optionnel)
               <input
                 type="date"
                 value={expireLe}
                 onChange={(e) => setExpireLe(e.target.value)}
-                className="h-8 w-[160px] px-2 text-[13px] text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                className="h-8 w-[160px] px-2 text-body text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
               />
             </label>
           </div>
 
           <fieldset className="flex flex-col gap-1.5">
-            <legend className="text-[12px] text-ink-2 mb-1">Scopes</legend>
+            <legend className="text-body text-ink-2 mb-1">Scopes</legend>
             {SCOPES.map((s) => (
-              <label key={s.valeur} className="flex items-start gap-2 text-[13px] text-ink cursor-pointer">
+              <label key={s.valeur} className="flex items-start gap-2 text-body text-ink cursor-pointer">
                 <input
                   type="checkbox"
                   checked={scopes.includes(s.valeur)}
@@ -186,18 +186,18 @@ export function ClesApiVue({
                 />
                 <span>
                   <span className="font-medium">{s.label}</span>
-                  <span className="block text-[12px] text-ink-3">{s.aide}</span>
+                  <span className="block text-body text-ink-3">{s.aide}</span>
                 </span>
               </label>
             ))}
           </fieldset>
 
           {ecritureSansGestionnaire && (
-            <div className="text-[12.5px] text-warn-700">
+            <div className="text-body text-warn-700">
               Un scope d&apos;écriture exige une clé liée à un gestionnaire : choisis le gestionnaire que la machine incarnera.
             </div>
           )}
-          {erreur && <div className="text-[12.5px] text-err-700">{erreur}</div>}
+          {erreur && <div className="text-body text-err-700">{erreur}</div>}
 
           <div>
             <Button
@@ -216,12 +216,12 @@ export function ClesApiVue({
           <CardTitle>Clés existantes ({cles.length})</CardTitle>
         </CardHeader>
         {cles.length === 0 ? (
-          <div className="px-4 py-6 text-[13px] text-ink-3">Aucune clé pour l&apos;instant.</div>
+          <div className="px-4 py-6 text-body text-ink-3">Aucune clé pour l&apos;instant.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-body">
               <thead>
-                <tr className="text-left text-[11.5px] uppercase tracking-wide text-ink-3 border-b border-line">
+                <tr className="text-left text-meta uppercase tracking-wide text-ink-3 border-b border-line">
                   <th className="px-4 py-2 font-medium">Clé</th>
                   <th className="px-4 py-2 font-medium">Scopes</th>
                   <th className="px-4 py-2 font-medium">Gestionnaire</th>
@@ -239,7 +239,7 @@ export function ClesApiVue({
                     <tr key={c.id} className="border-b border-line last:border-0 align-top">
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-ink">{c.nom}</div>
-                        <div className="font-mono text-[12px] text-ink-3">{c.prefixe}…</div>
+                        <div className="font-mono text-body text-ink-3">{c.prefixe}…</div>
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex flex-wrap gap-1">

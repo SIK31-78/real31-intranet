@@ -32,8 +32,8 @@ export function ZoneAdminReprise({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="flex items-start gap-2 rounded-md border border-line bg-surface-2 px-3 py-2 text-[12px] text-ink-3">
-        <Lock strokeWidth={1.5} className="w-3.5 h-3.5 mt-0.5 shrink-0 text-ink-4" />
+      <div className="flex items-start gap-2 rounded-md border border-line bg-surface-2 px-3 py-2 text-body text-ink-3">
+        <Lock strokeWidth={1.5} className="w-3.5 h-3.5 mt-0.5 shrink-0 text-ink-3" />
         <span>
           <span className="font-medium text-ink-2">Reserve aux directeurs et managers.</span> {raison}
         </span>

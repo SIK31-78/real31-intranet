@@ -21,11 +21,11 @@ export default async function ComptaPage() {
     <AppShell user={g} active="compta" breadcrumb="Pôle compta">
       <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
         <div>
-          <h1 className="text-[20px] font-semibold text-ink flex items-center gap-2">
+          <h1 className="text-page font-semibold text-ink flex items-center gap-2">
             <Calculator strokeWidth={1.5} className="w-5 h-5 text-green-700" />
             Pôle compta - AG à préparer
           </h1>
-          <p className="mt-1 text-[13px] text-ink-3">
+          <p className="mt-1 text-body text-ink-3">
             Les AG dont la date est posée. Vérifie les comptes, échange tes notes avec le
             gestionnaire, et marque « comptes vérifiés » quand c&apos;est prêt.
           </p>
@@ -33,7 +33,7 @@ export default async function ComptaPage() {
 
         {file.length === 0 ? (
           <Card>
-            <p className="px-4 py-8 text-[13px] text-ink-3 text-center">
+            <p className="px-4 py-8 text-body text-ink-3 text-center">
               Aucune AG à préparer (aucune date d&apos;AG posée), ou la table compta n&apos;est pas
               encore créée.
             </p>
@@ -47,10 +47,10 @@ export default async function ComptaPage() {
                     href={`/compta/${a.coproCode}__${a.agDate}`}
                     className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors"
                   >
-                    <span className="font-mono text-[12px] text-ink-2 w-[44px] shrink-0">{a.coproCode}</span>
+                    <span className="font-mono text-body text-ink-2 w-[44px] shrink-0">{a.coproCode}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-medium text-ink truncate">{a.coproNom}</p>
-                      <p className="text-[12px] text-ink-3">AG du {formatDateLongue(a.agDate)}</p>
+                      <p className="text-body font-medium text-ink truncate">{a.coproNom}</p>
+                      <p className="text-body text-ink-3">AG du {formatDateLongue(a.agDate)}</p>
                     </div>
                     {a.envoyerAvant && (
                       <Badge ton="warn" dot>
@@ -69,7 +69,7 @@ export default async function ComptaPage() {
                     ) : (
                       <Badge ton="outline">à vérifier</Badge>
                     )}
-                    <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
+                    <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
                   </Link>
                 </li>
               ))}

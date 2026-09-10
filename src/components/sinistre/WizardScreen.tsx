@@ -118,7 +118,7 @@ function DossierPanel() {
             {state.immeuble.nom ? ` - ${state.immeuble.nom}` : ''}
           </span>
           {/* Replié : on dit en une ligne ce qu'il reste à faire pour enregistrer. */}
-          <span className="mt-0.5 block text-xs font-normal text-ink-4">
+          <span className="mt-0.5 block text-meta font-normal text-ink-3">
             {state.id
               ? 'Enregistré - ouvrir pour modifier'
               : state.coproprieteId
@@ -126,14 +126,14 @@ function DossierPanel() {
                 : 'Copropriété à rattacher avant d’enregistrer'}
           </span>
         </span>
-        <span aria-hidden className="text-ink-4">
+        <span aria-hidden className="text-ink-3">
           {ouvert ? '▲' : '▼'}
         </span>
       </button>
 
       {/* Le sinistre enregistré vit desormais comme un DOSSIER : on donne le lien. */}
       {state.dossierId && (
-        <p className="mt-2 text-xs">
+        <p className="mt-2 text-meta">
           <Link
             href={`/dossiers/${state.dossierId}`}
             className="font-medium text-green-700 underline hover:text-green-600"
@@ -145,7 +145,7 @@ function DossierPanel() {
 
       {ouvert && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm sm:col-span-2">
+          <label className="text-body sm:col-span-2">
             <span className="text-ink-3">Copropriété concernée</span>
             <input
               list="liste-mes-immeubles"
@@ -158,7 +158,7 @@ function DossierPanel() {
                     : 'Aucune copropriété dans votre périmètre'
               }
               onChange={(e) => choisirCopro(e.target.value)}
-              className="mt-1 w-full rounded border border-line-2 px-2 py-1"
+              className="mt-1 w-full rounded-sm border border-line-2 px-2 py-1"
             />
             <datalist id="liste-mes-immeubles">
               {immeubles.map((i) => (
@@ -166,62 +166,62 @@ function DossierPanel() {
               ))}
             </datalist>
             {coproRattachee ? (
-              <span className="mt-1 block text-xs text-ok-700">
+              <span className="mt-1 block text-meta text-ok-700">
                 Rattachée : {coproRattachee} - enregistrement débloqué.
               </span>
             ) : (
-              <span className="mt-1 block text-xs text-ink-4">
+              <span className="mt-1 block text-meta text-ink-3">
                 Choisissez une copropriété pour rattacher ce dossier (nécessaire à
                 l’enregistrement).
               </span>
             )}
           </label>
-          <label className="text-sm">
+          <label className="text-body">
             <span className="text-ink-3">Référence interne</span>
-            <output className="mt-1 block w-full rounded border border-line bg-surface-2 px-2 py-1 text-ink-2">
+            <output className="mt-1 block w-full rounded-sm border border-line bg-surface-2 px-2 py-1 text-ink-2">
               {state.referenceInterne || '(attribuée à l’enregistrement)'}
             </output>
           </label>
-          <label className="text-sm">
+          <label className="text-body">
             <span className="text-ink-3">Date du sinistre</span>
             <input
               type="date"
               value={state.date}
               max={aujourdhuiISO()}
               onChange={(e) => dispatch({ type: 'META', patch: { date: e.target.value } })}
-              className={`mt-1 w-full rounded border px-2 py-1 ${
-                dateEstFuture(state.date) ? 'border-warn-500 bg-warn-50' : 'border-line-2'
+              className={`mt-1 w-full rounded-sm border px-2 py-1 ${
+ dateEstFuture(state.date) ? 'border-warn-500 bg-warn-50' : 'border-line-2'
               }`}
             />
             {dateEstFuture(state.date) && (
-              <span className="text-xs text-warn-700">
+              <span className="text-meta text-warn-700">
                 La date du sinistre ne peut pas être dans le futur
               </span>
             )}
           </label>
-          <label className="text-sm">
+          <label className="text-body">
             <span className="text-ink-3">Immeuble - nom</span>
             <input
               value={state.immeuble.nom}
               onChange={(e) => dispatch({ type: 'IMMEUBLE', patch: { nom: e.target.value } })}
-              className="mt-1 w-full rounded border border-line-2 px-2 py-1"
+              className="mt-1 w-full rounded-sm border border-line-2 px-2 py-1"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-body">
             <span className="text-ink-3">Immeuble - adresse</span>
             <input
               value={state.immeuble.adresse}
               onChange={(e) => dispatch({ type: 'IMMEUBLE', patch: { adresse: e.target.value } })}
-              className="mt-1 w-full rounded border border-line-2 px-2 py-1"
+              className="mt-1 w-full rounded-sm border border-line-2 px-2 py-1"
             />
           </label>
-          <label className="text-sm sm:col-span-2">
+          <label className="text-body sm:col-span-2">
             <span className="text-ink-3">Descriptif</span>
             <textarea
               value={state.descriptif}
               onChange={(e) => dispatch({ type: 'META', patch: { descriptif: e.target.value } })}
               rows={2}
-              className="mt-1 w-full rounded border border-line-2 px-2 py-1"
+              className="mt-1 w-full rounded-sm border border-line-2 px-2 py-1"
             />
           </label>
 
@@ -236,7 +236,7 @@ function DossierPanel() {
             {retour && (
               <span
                 role="status"
-                className={`text-sm ${retour.ok ? 'text-ok-700' : 'text-warn-700'}`}
+                className={`text-body ${retour.ok ? 'text-ok-700' : 'text-warn-700'}`}
               >
                 {retour.texte}
               </span>
@@ -274,7 +274,7 @@ function ProgressionParcours({ wizard }: { wizard: WizardState }) {
 
   return (
     <div className="no-print mb-4">
-      <p className="text-xs font-medium text-ink-3">
+      <p className="text-meta font-medium text-ink-3">
         <span aria-hidden>{texte}</span>
         <span className="sr-only">{texteLu}</span>
       </p>
@@ -385,7 +385,7 @@ export function WizardScreen() {
       {afficherBlocages && (
         <div
           role="alert"
-          className="no-print mb-4 rounded-md border-l-4 border-warn-500 bg-warn-50 p-3 text-sm text-warn-700"
+          className="no-print mb-4 rounded-md border-l-4 border-warn-500 bg-warn-50 p-3 text-body text-warn-700"
         >
           <p className="font-medium">Corrigez avant de continuer :</p>
           <ul className="list-disc pl-5">
@@ -432,14 +432,14 @@ export function WizardScreen() {
 
       {/* G-5 : sinistre mixte - rappeler la part commune et proposer le raccourci. */}
       {cheminMixte(local.wizard) && node.type !== 'resultat' && (
-        <div className="no-print mb-4 rounded-md border-l-4 border-info-500 bg-info-50 p-3 text-sm text-info-700">
+        <div className="no-print mb-4 rounded-md border-l-4 border-info-500 bg-info-50 p-3 text-body text-info-700">
           <p>
             <span className="font-medium">Sinistre mixte. </span>
             La part commune relève de l&apos;assureur de l&apos;immeuble (art. 2.1) ; suivez-la dans un local
             dédié pour une gestion propre.
           </p>
           {state.locaux.some((l) => pathOf(l.wizard).includes('r_gest_immeuble_communs')) ? (
-            <p className="mt-2 text-xs text-info-700">Local « Parties communes » ajouté.</p>
+            <p className="mt-2 text-meta text-info-700">Local « Parties communes » ajouté.</p>
           ) : (
             <div className="mt-2">
               <Button
@@ -454,7 +454,7 @@ export function WizardScreen() {
       )}
 
       {dossierId && (
-        <div className="no-print mb-4 flex items-center justify-between gap-3 rounded-md border-l-4 border-info-500 bg-info-50 px-3 py-2 text-sm text-info-700">
+        <div className="no-print mb-4 flex items-center justify-between gap-3 rounded-md border-l-4 border-info-500 bg-info-50 px-3 py-2 text-body text-info-700">
           <span>Analyse rattachée à un dossier · la synthèse pourra y être reportée depuis l’écran de résultat.</span>
           <Link href={`/dossiers/${dossierId}`} className="shrink-0 font-medium underline">
             Revenir au dossier

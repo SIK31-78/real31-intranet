@@ -35,14 +35,14 @@ export default async function DossiersReprisePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[20px] font-medium tracking-tight text-ink">Reprises de copropriété</h1>
-        <p className="mt-1 text-[13px] text-ink-3 max-w-[640px]">
+        <h1 className="text-page font-medium tracking-tight text-ink">Reprises de copropriété</h1>
+        <p className="mt-1 text-body text-ink-3 max-w-[640px]">
           Où en est chaque reprise, qui tient l&apos;étape en cours, ce qui bloque.
         </p>
       </div>
 
       {!reprisePersistanceSupabase() && (
-        <p className="text-[12px] text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
+        <p className="text-body text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
           État non persistant (mémoire) : les dossiers sont perdus au redémarrage du serveur. La persistance
           Supabase s&apos;active avec COPRO_SOURCE=supabase, sans changer cet écran.
         </p>

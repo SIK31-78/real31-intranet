@@ -84,7 +84,7 @@ export function ComptaPanel({
       {/* Fil de notes */}
       <Card>
         <div className="px-3 py-2 border-b border-line flex items-center justify-between">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+          <span className="text-body font-semibold uppercase tracking-[0.06em] text-ink-3">
             Notes comptes ({etat.notes.length})
           </span>
           {ouvertes > 0 && (
@@ -94,7 +94,7 @@ export function ComptaPanel({
           )}
         </div>
         {etat.notes.length === 0 ? (
-          <p className="px-3 py-5 text-[13px] text-ink-3 text-center">
+          <p className="px-3 py-5 text-body text-ink-3 text-center">
             Aucune note. {role === "comptable" ? "Pose tes questions/remarques sur les comptes." : "La comptable n'a pas encore posté de note."}
           </p>
         ) : (
@@ -120,13 +120,13 @@ export function ComptaPanel({
                     <Badge ton={n.auteur === "comptable" ? "info" : "brand"}>
                       {n.auteur === "comptable" ? "Comptable" : "Gestion"}
                     </Badge>
-                    <span className="text-[11px] text-ink-4">
+                    <span className="text-meta text-ink-3">
                       {n.marquePar ? `${n.marquePar} · ` : ""}
                       {formatQuand(n.createdAt)}
                     </span>
-                    {n.resolu && <span className="text-[11px] text-ok-700">traitée</span>}
+                    {n.resolu && <span className="text-meta text-ok-700">traitée</span>}
                   </div>
-                  <p className={`mt-0.5 text-[13px] text-ink ${n.resolu ? "line-through" : ""}`}>{n.texte}</p>
+                  <p className={`mt-0.5 text-body text-ink ${n.resolu ? "line-through" : ""}`}>{n.texte}</p>
                 </div>
               </li>
             ))}
@@ -141,14 +141,14 @@ export function ComptaPanel({
             placeholder={role === "comptable" ? "Note / question sur les comptes..." : "Réponse à la comptable..."}
             aria-label={role === "comptable" ? "Note ou question sur les comptes" : "Reponse a la comptable"}
             rows={2}
-            className="flex-1 px-2.5 py-1.5 rounded-md border border-line bg-surface text-[13px] focus:outline-none focus:border-green-700 resize-y"
+            className="flex-1 px-2.5 py-1.5 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700 resize-y"
           />
           <button
             type="button"
             onClick={envoyer}
             disabled={pending || !texte.trim()}
             aria-busy={pending}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-green-700 text-surface text-[13px] font-medium hover:bg-green-600 disabled:opacity-50 shrink-0"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800 disabled:opacity-50 shrink-0"
           >
             {pending ? <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" /> : <Send strokeWidth={1.5} className="w-4 h-4" />}
             Envoyer
@@ -157,7 +157,7 @@ export function ComptaPanel({
       </Card>
 
       {erreur && (
-        <p role="alert" className="text-[12px] text-err-700">
+        <p role="alert" className="text-body text-err-700">
           {erreur}
         </p>
       )}
@@ -190,7 +190,7 @@ function FlagBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-[12.5px] font-medium transition-colors disabled:opacity-60 ${couleur}`}
+      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-body font-medium transition-colors disabled:opacity-60 ${couleur}`}
     >
       {actif && <Check strokeWidth={2} className="w-3.5 h-3.5" />}
       {actif ? libelleOn : libelleOff}

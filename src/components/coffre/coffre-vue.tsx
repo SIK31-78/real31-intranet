@@ -87,7 +87,7 @@ interface CoffreOuvert {
 }
 
 const champClasse =
-  "w-full h-9 px-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus:ring-1 focus:ring-green-600";
+  "w-full h-9 px-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-green-600";
 
 const LIBELLE_SCOPE: Record<ScopeCoffre, string> = {
   network: "Reseau",
@@ -290,11 +290,11 @@ export function CoffreVue({
       <Cadre>
         <div className="flex items-center gap-2 mb-1">
           <KeyRound className="w-5 h-5 text-green-700" strokeWidth={1.5} />
-          <h1 className="text-[17px] font-medium text-ink">Coffre-fort</h1>
+          <h1 className="text-title font-medium text-ink">Coffre-fort</h1>
         </div>
         {dejaEnrole ? (
           <>
-            <p className="text-[13px] text-ink-3 mb-4">
+            <p className="text-body text-ink-3 mb-4">
               Bonjour {nomComplet}.{" "}
               {passkeyDev
                 ? "Ouvre ton coffre avec Windows Hello (empreinte ou code PIN), ou avec ton mot de passe maître."
@@ -309,7 +309,7 @@ export function CoffreVue({
                     label="Ouvrir avec Windows Hello"
                     icone={Fingerprint}
                   />
-                  <div className="text-[11px] text-ink-4 text-center my-0.5">ou avec ton mot de passe maître</div>
+                  <div className="text-meta text-ink-3 text-center my-0.5">ou avec ton mot de passe maître</div>
                 </>
               )}
               <input
@@ -327,11 +327,11 @@ export function CoffreVue({
           </>
         ) : (
           <>
-            <p className="text-[13px] text-ink-3 mb-1">
+            <p className="text-body text-ink-3 mb-1">
               Première connexion : choisis un <strong>mot de passe maître</strong>. C&apos;est la clé de ton
               coffre, et il ne quitte jamais ton appareil.
             </p>
-            <p className="text-[12px] text-warn-700 bg-warn-50 border border-warn-500/30 rounded-md px-3 py-2 mb-4 max-w-md">
+            <p className="text-body text-warn-700 bg-warn-50 border border-warn-500/30 rounded-md px-3 py-2 mb-4 max-w-md">
               À retenir : personne ne peut le récupérer à ta place, pas même nous. Si tu l&apos;oublies, le
               contenu de ton coffre est perdu. Note-le dans un endroit sûr.
             </p>
@@ -360,7 +360,7 @@ export function CoffreVue({
               <button
                 type="button"
                 onClick={genererMaitre}
-                className="self-start text-[12px] text-green-700 hover:underline"
+                className="self-start text-body text-green-700 hover:underline"
               >
                 Générer un mot de passe robuste
               </button>
@@ -369,7 +369,7 @@ export function CoffreVue({
             </div>
           </>
         )}
-        {erreur && <p className="text-[12px] text-red-600 mt-3">{erreur}</p>}
+        {erreur && <p className="text-body text-err-500 mt-3">{erreur}</p>}
       </Cadre>
     );
   }
@@ -393,14 +393,14 @@ export function CoffreVue({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <KeyRound className="w-5 h-5 text-green-700" strokeWidth={1.5} />
-          <h1 className="text-[17px] font-medium text-ink">Coffre-fort</h1>
+          <h1 className="text-title font-medium text-ink">Coffre-fort</h1>
         </div>
         <div className="flex items-center gap-1">
           {!passkeyActivee && (
             <button
               onClick={activerPasskeyHandler}
               disabled={busy}
-              className="flex items-center gap-1.5 text-[12px] text-green-700 hover:bg-green-50 px-2 py-1 rounded-md disabled:opacity-60"
+              className="flex items-center gap-1.5 text-body text-green-700 hover:bg-green-50 px-2 py-1 rounded-md disabled:opacity-60"
             >
               <Fingerprint className="w-3.5 h-3.5" strokeWidth={1.5} /> Activer Windows Hello
             </button>
@@ -408,23 +408,23 @@ export function CoffreVue({
           {devMdp && (
             <button
               onClick={() => setChangementOuvert((v) => !v)}
-              className="flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
+              className="flex items-center gap-1.5 text-body text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
             >
               <KeyRound className="w-3.5 h-3.5" strokeWidth={1.5} /> Changer mon mot de passe maître
             </button>
           )}
           <button
             onClick={verrouiller}
-            className="flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
+            className="flex items-center gap-1.5 text-body text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
           >
             <Lock className="w-3.5 h-3.5" strokeWidth={1.5} /> Verrouiller
           </button>
         </div>
       </div>
       {info && (
-        <p className="text-[12px] text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">{info}</p>
+        <p className="text-body text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">{info}</p>
       )}
-      {erreur && <p className="text-[12px] text-red-600">{erreur}</p>}
+      {erreur && <p className="text-body text-err-500">{erreur}</p>}
 
       {changementOuvert && devMdp && (
         <PanneauChangementMdp
@@ -439,20 +439,20 @@ export function CoffreVue({
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-4" strokeWidth={1.5} />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3" strokeWidth={1.5} />
           <input
             type="text"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (entreprise, identifiant, URL...)"
-            className="w-full h-9 pl-8 pr-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-4 focus:outline-none focus:ring-1 focus:ring-green-600"
+            className="w-full h-9 pl-8 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-green-600"
           />
         </div>
         {coprosDispo.length > 0 && (
           <select
             value={filtreCopro}
             onChange={(e) => setFiltreCopro(e.target.value)}
-            className="h-9 px-2 rounded-md border border-line bg-surface text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
+            className="h-9 px-2 rounded-md border border-line bg-surface text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
           >
             <option value="">Toutes les coproprietes</option>
             {coprosDispo.map((v) => (
@@ -466,7 +466,7 @@ export function CoffreVue({
           <select
             value={filtreEntreprise}
             onChange={(e) => setFiltreEntreprise(e.target.value)}
-            className="h-9 px-2 rounded-md border border-line bg-surface text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
+            className="h-9 px-2 rounded-md border border-line bg-surface text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
           >
             <option value="">Toutes les entreprises</option>
             {entreprisesDispo.map((v) => (
@@ -483,7 +483,7 @@ export function CoffreVue({
               setFiltreCopro("");
               setFiltreEntreprise("");
             }}
-            className="h-9 px-3 text-[12px] text-ink-3 hover:text-ink"
+            className="h-9 px-3 text-body text-ink-3 hover:text-ink"
           >
             Reinitialiser
           </button>
@@ -581,12 +581,12 @@ function PanneauChangementMdp({
   return (
     <div className="border border-line rounded-lg bg-surface px-4 py-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-ink">Changer mon mot de passe maître</span>
-        <button onClick={onFermer} className="text-[12px] text-ink-3 hover:text-ink">
+        <span className="text-body font-medium text-ink">Changer mon mot de passe maître</span>
+        <button onClick={onFermer} className="text-body text-ink-3 hover:text-ink">
           Fermer
         </button>
       </div>
-      <p className="text-[12px] text-ink-3">
+      <p className="text-body text-ink-3">
         Tes mots de passe enregistrés ne bougent pas : seule la serrure change. Ta passkey (Windows Hello)
         continue de fonctionner.
       </p>
@@ -620,17 +620,17 @@ function PanneauChangementMdp({
           onChange={(e) => setNouveau2(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !busy && valider()}
         />
-        <button type="button" onClick={generer} className="self-start text-[12px] text-green-700 hover:underline">
+        <button type="button" onClick={generer} className="self-start text-body text-green-700 hover:underline">
           Générer un mot de passe robuste
         </button>
         <BoiteMdpGenere mdp={genere} onCopie={() => toast.ok("Mot de passe copié.")} />
         <Bouton onClick={valider} busy={busy} label="Changer le mot de passe" icone={KeyRound} />
       </div>
-      <p className="text-[11.5px] text-ink-4">
+      <p className="text-meta text-ink-3">
         Tu ne te souviens plus de l&apos;actuel ? Verrouille le coffre : l&apos;écran d&apos;ouverture propose une
         réinitialisation (avec perte du contenu).
       </p>
-      {erreur && <p className="text-[12px] text-red-600">{erreur}</p>}
+      {erreur && <p className="text-body text-err-500">{erreur}</p>}
     </div>
   );
 }
@@ -710,7 +710,7 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
     return (
       <button
         onClick={() => setOuvert(true)}
-        className="self-start mt-4 text-[12px] text-ink-3 hover:text-ink underline underline-offset-2"
+        className="self-start mt-4 text-body text-ink-3 hover:text-ink underline underline-offset-2"
       >
         Mot de passe maître oublié ?
       </button>
@@ -720,20 +720,20 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
   return (
     <div className="mt-4 max-w-md rounded-lg border border-err-500/40 bg-err-50 px-4 py-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-err-700 flex items-center gap-1.5">
+        <span className="text-body font-medium text-err-700 flex items-center gap-1.5">
           <AlertTriangle className="w-4 h-4" strokeWidth={1.5} /> Réinitialiser le coffre
         </span>
-        <button onClick={() => setOuvert(false)} className="text-[12px] text-ink-3 hover:text-ink">
+        <button onClick={() => setOuvert(false)} className="text-body text-ink-3 hover:text-ink">
           Annuler
         </button>
       </div>
-      <p className="text-[12px] text-ink-2">
+      <p className="text-body text-ink-2">
         Ton mot de passe maître est la <strong>seule</strong> clé de ton coffre : il n&apos;en existe aucune
         copie, ici ou ailleurs. Sans lui, ton contenu est illisible pour tout le monde - on ne peut donc pas te
         le rendre, seulement repartir de zéro.
       </p>
       {impact.perdus.length > 0 && (
-        <div className="text-[12px] text-err-700">
+        <div className="text-body text-err-700">
           <div className="font-medium">Définitivement perdu :</div>
           <ul className="list-disc pl-4">
             {impact.perdus.map((c) => (
@@ -743,19 +743,19 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
         </div>
       )}
       {impact.aReoctroyer.length > 0 && (
-        <div className="text-[12px] text-ink-2">
+        <div className="text-body text-ink-2">
           <div className="font-medium">Accès coupé, à te redonner par un administrateur :</div>
           <ul className="list-disc pl-4">
             {impact.aReoctroyer.map((c) => (
               <li key={c.id}>{c.nom}</li>
             ))}
           </ul>
-          <p className="text-[11.5px] text-ink-4 mt-1">
+          <p className="text-meta text-ink-3 mt-1">
             Si tu es le seul membre d&apos;un de ces coffres partagés, son contenu est perdu lui aussi.
           </p>
         </div>
       )}
-      <p className="text-[12px] text-ink-2">Ta passkey (Windows Hello) sera à réactiver ensuite.</p>
+      <p className="text-body text-ink-2">Ta passkey (Windows Hello) sera à réactiver ensuite.</p>
       <div className="flex flex-col gap-2">
         <input
           type="password"
@@ -777,11 +777,11 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
           value={mdp2}
           onChange={(e) => setMdp2(e.target.value)}
         />
-        <button type="button" onClick={generer} className="self-start text-[12px] text-green-700 hover:underline">
+        <button type="button" onClick={generer} className="self-start text-body text-green-700 hover:underline">
           Générer un mot de passe robuste
         </button>
         <BoiteMdpGenere mdp={genere} onCopie={() => toast.ok("Mot de passe copié.")} />
-        <label className="flex items-start gap-2 text-[12px] text-ink-2">
+        <label className="flex items-start gap-2 text-body text-ink-2">
           <input
             type="checkbox"
             checked={compris}
@@ -793,13 +793,13 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
         <button
           onClick={reinitialiser}
           disabled={busy || !compris}
-          className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-err-500 text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50"
+          className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-err-500 text-white text-body font-medium hover:opacity-90 disabled:opacity-50"
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" strokeWidth={2} />}
           Réinitialiser mon coffre
         </button>
       </div>
-      {erreur && <p className="text-[12px] text-red-600">{erreur}</p>}
+      {erreur && <p className="text-body text-err-500">{erreur}</p>}
     </div>
   );
 }
@@ -831,7 +831,7 @@ function CreerPartage({
     return (
       <button
         onClick={() => setOuvert(true)}
-        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] text-green-700 hover:bg-green-50 border border-dashed border-line rounded-lg"
+        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-body text-green-700 hover:bg-green-50 border border-dashed border-line rounded-lg"
       >
         <Network className="w-3.5 h-3.5" strokeWidth={1.5} /> Creer un coffre partage
       </button>
@@ -839,7 +839,7 @@ function CreerPartage({
   }
   return (
     <div className="border border-line rounded-lg bg-surface px-4 py-3 flex flex-col gap-2">
-      <div className="text-[13px] font-medium text-ink">Nouveau coffre partage</div>
+      <div className="text-body font-medium text-ink">Nouveau coffre partage</div>
       <div className="flex gap-2">
         <select className={champClasse} value={cible} onChange={(e) => setCible(e.target.value)}>
           <option value="network">Reseau (tous les collaborateurs)</option>
@@ -853,7 +853,7 @@ function CreerPartage({
       </div>
       <div className="flex gap-2">
         <Bouton onClick={creer} busy={busy} label="Creer" icone={Plus} />
-        <button onClick={() => setOuvert(false)} className="text-[12px] text-ink-3 hover:text-ink px-3">
+        <button onClick={() => setOuvert(false)} className="text-body text-ink-3 hover:text-ink px-3">
           Annuler
         </button>
       </div>
@@ -893,7 +893,7 @@ function AdminPanel({
     return (
       <button
         onClick={() => setOuvert(true)}
-        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] text-ink-3 hover:text-ink border border-dashed border-line rounded-lg"
+        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-body text-ink-3 hover:text-ink border border-dashed border-line rounded-lg"
       >
         <Shield className="w-3.5 h-3.5" strokeWidth={1.5} /> Administration
       </button>
@@ -902,20 +902,20 @@ function AdminPanel({
   return (
     <div className="border border-line rounded-lg bg-surface">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
-        <span className="text-[13px] font-medium text-ink flex items-center gap-1.5">
+        <span className="text-body font-medium text-ink flex items-center gap-1.5">
           <Shield className="w-3.5 h-3.5 text-green-700" strokeWidth={1.5} /> Administration - roles
         </span>
-        <button onClick={() => setOuvert(false)} className="text-[12px] text-ink-3 hover:text-ink">
+        <button onClick={() => setOuvert(false)} className="text-body text-ink-3 hover:text-ink">
           Fermer
         </button>
       </div>
       <ul className="divide-y divide-line">
         {liste.map((a) => (
-          <li key={a.id} className="px-4 py-2 flex items-center justify-between text-[12.5px]">
+          <li key={a.id} className="px-4 py-2 flex items-center justify-between text-body">
             <span className="text-ink">
               {a.nomComplet || a.email}
               {a.estAdmin && (
-                <span className="ml-1.5 text-[10.5px] uppercase tracking-wide text-green-700 bg-green-50 rounded px-1.5 py-0.5">
+                <span className="ml-1.5 text-meta uppercase tracking-wide text-green-700 bg-green-50 rounded-sm px-1.5 py-0.5">
                   admin
                 </span>
               )}
@@ -923,7 +923,7 @@ function AdminPanel({
             <button
               onClick={() => basculer(a)}
               disabled={busy || (a.id === monUserId && a.estAdmin)}
-              className="text-[11.5px] text-ink-3 hover:text-ink disabled:opacity-40"
+              className="text-meta text-ink-3 hover:text-ink disabled:opacity-40"
             >
               {a.estAdmin ? "Retirer admin" : "Promouvoir admin"}
             </button>
@@ -1105,9 +1105,9 @@ function CoffrePanel({
     <div className="border border-line rounded-lg bg-surface">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-medium text-ink">{coffre.nom}</span>
+          <span className="text-body font-medium text-ink">{coffre.nom}</span>
           {partage && (
-            <span className="text-[10.5px] uppercase tracking-wide text-ink-3 bg-surface-2 rounded px-1.5 py-0.5">
+            <span className="text-meta uppercase tracking-wide text-ink-3 bg-surface-2 rounded-sm px-1.5 py-0.5">
               {LIBELLE_SCOPE[coffre.scope]}
             </span>
           )}
@@ -1116,18 +1116,18 @@ function CoffrePanel({
           {partage && suisAdmin && (
             <button
               onClick={() => (gestion ? setGestion(false) : chargerMembres())}
-              className="flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink"
+              className="flex items-center gap-1 text-meta text-ink-3 hover:text-ink"
             >
               <Users className="w-3.5 h-3.5" strokeWidth={1.5} /> Membres
             </button>
           )}
           <button
             onClick={() => (historique ? setHistorique(false) : chargerAudit())}
-            className="flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink"
+            className="flex items-center gap-1 text-meta text-ink-3 hover:text-ink"
           >
             <History className="w-3.5 h-3.5" strokeWidth={1.5} /> Historique
           </button>
-          <span className="text-[11px] text-ink-4 font-mono">
+          <span className="text-meta text-ink-3 font-mono">
             {filtreActif ? `${secretsAffiches.length}/${coffre.secrets.length}` : `${coffre.secrets.length} secret(s)`}
           </span>
         </div>
@@ -1135,18 +1135,18 @@ function CoffrePanel({
 
       {gestion && partage && suisAdmin && (
         <div className="px-4 py-3 border-b border-line bg-surface-2/40 flex flex-col gap-2">
-          <div className="text-[12px] font-medium text-ink-2">Membres</div>
+          <div className="text-body font-medium text-ink-2">Membres</div>
           {membres === null ? (
-            <div className="text-[12px] text-ink-3">Chargement...</div>
+            <div className="text-body text-ink-3">Chargement...</div>
           ) : (
             <ul className="flex flex-col gap-1">
               {membres.map((m) => (
-                <li key={m.userId} className="flex items-center justify-between text-[12.5px]">
+                <li key={m.userId} className="flex items-center justify-between text-body">
                   <span className="text-ink">
-                    {m.nom} {m.role === "admin" && <span className="text-ink-4">(admin)</span>}
+                    {m.nom} {m.role === "admin" && <span className="text-ink-3">(admin)</span>}
                   </span>
                   {m.userId !== monUserId && (
-                    <button onClick={() => retirer(m.userId)} disabled={busy} className="text-red-600 hover:text-red-700 p-0.5" title="Retirer">
+                    <button onClick={() => retirer(m.userId)} disabled={busy} className="text-err-500 hover:text-err-700 p-0.5" title="Retirer">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
@@ -1161,7 +1161,7 @@ function CoffrePanel({
                   key={a.id}
                   onClick={() => octroyer(a)}
                   disabled={busy}
-                  className="flex items-center gap-1 text-[11.5px] text-green-700 border border-green-200 hover:bg-green-50 rounded-full px-2 py-0.5 disabled:opacity-60"
+                  className="flex items-center gap-1 text-meta text-green-700 border border-green-200 hover:bg-green-50 rounded-full px-2 py-0.5 disabled:opacity-60"
                 >
                   <Plus className="w-3 h-3" strokeWidth={2} /> {a.nomComplet || a.email}
                 </button>
@@ -1173,19 +1173,19 @@ function CoffrePanel({
 
       {historique && (
         <div className="px-4 py-3 border-b border-line bg-surface-2/40 flex flex-col gap-1.5">
-          <div className="text-[12px] font-medium text-ink-2">Historique</div>
+          <div className="text-body font-medium text-ink-2">Historique</div>
           {entrees === null ? (
-            <div className="text-[12px] text-ink-3">Chargement...</div>
+            <div className="text-body text-ink-3">Chargement...</div>
           ) : entrees.length === 0 ? (
-            <div className="text-[12px] text-ink-3">Aucune action enregistree.</div>
+            <div className="text-body text-ink-3">Aucune action enregistree.</div>
           ) : (
             <ul className="flex flex-col gap-0.5 max-h-48 overflow-auto">
               {entrees.map((e) => (
-                <li key={e.id} className="text-[12px] text-ink-3 flex gap-2">
+                <li key={e.id} className="text-body text-ink-3 flex gap-2">
                   <span className="text-ink">{LIBELLE_ACTION[e.action] ?? e.action}</span>
                   {e.action === "import" && typeof e.details?.count === "number" && <span>({e.details.count})</span>}
                   <span>par {e.nom}</span>
-                  <span className="text-ink-4 ml-auto whitespace-nowrap">{new Date(e.createdAt).toLocaleString("fr-FR")}</span>
+                  <span className="text-ink-3 ml-auto whitespace-nowrap">{new Date(e.createdAt).toLocaleString("fr-FR")}</span>
                 </li>
               ))}
             </ul>
@@ -1194,18 +1194,18 @@ function CoffrePanel({
       )}
 
       {coffre.secrets.length === 0 && !ajout && (
-        <p className="px-4 py-6 text-[12.5px] text-ink-3 text-center">Aucun mot de passe pour l&apos;instant.</p>
+        <p className="px-4 py-6 text-body text-ink-3 text-center">Aucun mot de passe pour l&apos;instant.</p>
       )}
 
       {filtreActif && secretsAffiches.length === 0 && coffre.secrets.length > 0 && (
-        <p className="px-4 py-4 text-[12.5px] text-ink-4 text-center">Aucun resultat dans ce coffre.</p>
+        <p className="px-4 py-4 text-body text-ink-3 text-center">Aucun resultat dans ce coffre.</p>
       )}
 
       <ul className="divide-y divide-line">
         {secretsAffiches.map((s) => (
           <li key={s.id} className="px-4 py-2.5 flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] text-ink truncate">
+              <div className="text-body text-ink truncate">
                 {s.clair.titre}
                 {[s.clair.copropriete, s.clair.immeuble].some(estRenseigne) && (
                   <span className="text-ink-3 font-normal">
@@ -1214,11 +1214,11 @@ function CoffrePanel({
                   </span>
                 )}
               </div>
-              <div className="text-[11.5px] text-ink-3 truncate">
+              <div className="text-meta text-ink-3 truncate">
                 {[s.clair.login, s.clair.url].filter(estRenseigne).join(" - ")}
               </div>
             </div>
-            <code className="text-[12px] text-ink-2 font-mono">
+            <code className="text-body text-ink-2 font-mono">
               {reveles.has(s.id) ? s.clair.motDePasse : "........"}
             </code>
             <button onClick={() => basculer(s.id)} className="text-ink-3 hover:text-ink p-1" title="Afficher/masquer">
@@ -1234,7 +1234,7 @@ function CoffrePanel({
             <button onClick={() => ouvrirEdition(s)} className="text-ink-3 hover:text-ink p-1" title="Modifier">
               <Pencil className="w-3.5 h-3.5" />
             </button>
-            <button onClick={() => supprimer(s)} disabled={busy} className="text-ink-3 hover:text-red-600 p-1" title="Supprimer">
+            <button onClick={() => supprimer(s)} disabled={busy} className="text-ink-3 hover:text-err-500 p-1" title="Supprimer">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </li>
@@ -1251,7 +1251,7 @@ function CoffrePanel({
         />
       ) : ajout ? (
         <div className="px-4 py-3 border-t border-line flex flex-col gap-2">
-          <div className="text-[12px] font-medium text-ink-2">{editId ? "Modifier le mot de passe" : "Nouveau mot de passe"}</div>
+          <div className="text-body font-medium text-ink-2">{editId ? "Modifier le mot de passe" : "Nouveau mot de passe"}</div>
           <input className={champClasse} placeholder="Titre (ex: EDF)" value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} autoFocus />
           <div className="flex gap-2">
             <input className={champClasse} placeholder="Copropriete" value={form.copropriete ?? ""} onChange={(e) => setForm({ ...form, copropriete: e.target.value })} />
@@ -1269,14 +1269,14 @@ function CoffrePanel({
                 setAjout(false);
                 setEditId(null);
               }}
-              className="text-[12px] text-ink-3 hover:text-ink px-3"
+              className="text-body text-ink-3 hover:text-ink px-3"
             >
               Annuler
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex border-t border-line text-[12.5px]">
+        <div className="flex border-t border-line text-body">
           <button
             onClick={ouvrirAjout}
             className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-green-700 hover:bg-green-50"
@@ -1304,9 +1304,9 @@ function BarreForce({ mdp }: { mdp: string }) {
   const st = FORCE_STYLE[f.niveau];
   return (
     <div>
-      <div className="flex items-center justify-between gap-2 text-[11px] mb-1">
+      <div className="flex items-center justify-between gap-2 text-meta mb-1">
         <span className={st.texte}>Force : {st.libelle}</span>
-        {!f.ok && f.raison && <span className="text-ink-4 text-right">{f.raison}</span>}
+        {!f.ok && f.raison && <span className="text-ink-3 text-right">{f.raison}</span>}
       </div>
       <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
         <div className={`h-full transition-all ${st.barre} ${st.pct}`} />
@@ -1321,9 +1321,9 @@ function BoiteMdpGenere({ mdp, onCopie }: { mdp: string | null; onCopie: () => v
   if (!mdp) return null;
   return (
     <div className="rounded-md border border-ok-500/30 bg-ok-50 px-3 py-2">
-      <div className="text-[12px] font-medium text-ok-700 mb-1">Mot de passe généré - copie-le maintenant</div>
+      <div className="text-body font-medium text-ok-700 mb-1">Mot de passe généré - copie-le maintenant</div>
       <div className="flex items-center gap-2">
-        <code className="flex-1 font-mono text-[13px] text-ink break-all select-all">{mdp}</code>
+        <code className="flex-1 font-mono text-body text-ink break-all select-all">{mdp}</code>
         <button
           type="button"
           onClick={() => {
@@ -1336,7 +1336,7 @@ function BoiteMdpGenere({ mdp, onCopie }: { mdp: string | null; onCopie: () => v
           <Copy className="w-3.5 h-3.5" />
         </button>
       </div>
-      <p className="mt-1 text-[11px] text-ink-4">
+      <p className="mt-1 text-meta text-ink-3">
         Garde-le dans ton gestionnaire (Chrome te proposera de l&apos;enregistrer). Personne ne peut le
         récupérer à ta place.
       </p>
@@ -1363,7 +1363,7 @@ function Bouton({
     <button
       onClick={onClick}
       disabled={busy}
-      className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-green-700 text-white text-[13px] font-medium hover:bg-green-600 disabled:opacity-60"
+      className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-60"
     >
       {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icone className="w-4 h-4" strokeWidth={2} />}
       {label}

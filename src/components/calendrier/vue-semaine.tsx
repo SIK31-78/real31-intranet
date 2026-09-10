@@ -36,7 +36,7 @@ export function VueSemaine({
                 >
                   <span
                     className={cn(
-                      "text-[10.5px] font-medium uppercase tracking-[0.08em]",
+                      "text-meta font-medium uppercase tracking-[0.06em]",
                       j.estAujourdhui ? "text-green-700" : "text-ink-3",
                     )}
                   >
@@ -44,7 +44,7 @@ export function VueSemaine({
                   </span>
                   <span
                     className={cn(
-                      "text-[16px] leading-none",
+                      "text-title leading-none",
                       j.estAujourdhui ? "text-green-700 font-medium" : "text-ink",
                     )}
                   >
@@ -53,7 +53,7 @@ export function VueSemaine({
                 </div>
                 <div className="p-2 flex flex-col gap-1.5 flex-1">
                   {evs.length === 0 && (
-                    <span className="text-[12px] text-ink-4 pl-1 pt-1">-</span>
+                    <span className="text-body text-ink-3 pl-1 pt-1">-</span>
                   )}
                   {evs.map((e) => (
                     <EvenementChip key={e.id} evenement={e} taille="md" />

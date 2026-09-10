@@ -35,7 +35,7 @@ export default async function CoproprietesPage({
   return (
     <AppShell user={g} active="copros" breadcrumb="Copropriétés">
       <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-[20px] font-medium tracking-tight text-ink mb-4">Toutes les copropriétés</h1>
+        <h1 className="text-page font-medium tracking-tight text-ink mb-4">Toutes les copropriétés</h1>
         {totalPipeline > 0 && (
           <div className="mb-6">
             <PipelineAg pipeline={pipeline} />

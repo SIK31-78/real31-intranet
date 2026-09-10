@@ -19,18 +19,18 @@ export function ActionsDossiersPanel({ actions }: { actions: ActionsDossierCopro
         {actions.map((grp) => (
           <div key={grp.coproCode} className="py-2 border-b border-line last:border-b-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-[12px] text-ink-2">{grp.coproCode}</span>
-              <span className="text-[12.5px] font-medium text-ink truncate">{grp.coproNom}</span>
+              <span className="font-mono text-body text-ink-2">{grp.coproCode}</span>
+              <span className="text-body font-medium text-ink truncate">{grp.coproNom}</span>
             </div>
             <ul className="flex flex-col gap-0.5">
               {grp.actions.map((a) => (
                 <li key={a.dossierId}>
                   <Link
                     href={`/dossiers/${a.dossierId}`}
-                    className="flex items-center gap-2 text-[13px] rounded px-1.5 py-1 -mx-1.5 hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
+                    className="flex items-center gap-2 text-body rounded-sm px-1.5 py-1 -mx-1.5 hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
                   >
                     <FolderOpen
-                      className="w-3.5 h-3.5 text-ink-4 shrink-0"
+                      className="w-3.5 h-3.5 text-ink-3 shrink-0"
                       strokeWidth={1.5}
                       aria-hidden={true}
                     />
@@ -43,7 +43,7 @@ export function ActionsDossiersPanel({ actions }: { actions: ActionsDossierCopro
                         {a.assigneA === "gestionnaire" ? "Gest." : "Assist."}
                       </Badge>
                     )}
-                    <ChevronRight className="w-3.5 h-3.5 text-ink-4 shrink-0" strokeWidth={1.5} aria-hidden={true} />
+                    <ChevronRight className="w-3.5 h-3.5 text-ink-3 shrink-0" strokeWidth={1.5} aria-hidden={true} />
                   </Link>
                 </li>
               ))}

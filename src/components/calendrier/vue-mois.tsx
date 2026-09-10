@@ -17,7 +17,7 @@ export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements
             {JOURS_COURT.map((j) => (
               <div
                 key={j}
-                className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3 border-r border-line last:border-r-0"
+                className="px-2 py-1.5 text-meta font-medium uppercase tracking-[0.06em] text-ink-3 border-r border-line last:border-r-0"
               >
                 {j}
               </div>
@@ -43,8 +43,8 @@ export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements
                     <div className="flex items-center justify-end mb-0.5">
                       <span
                         className={cn(
-                          "inline-flex items-center justify-center min-w-5 h-5 px-1 text-[12px]",
-                          j.horsMois && "text-ink-4",
+                          "inline-flex items-center justify-center min-w-5 h-5 px-1 text-body",
+                          j.horsMois && "text-ink-3",
                           !j.horsMois && !j.estAujourdhui && "text-ink-2",
                           j.estAujourdhui &&
                             "bg-green-700 text-surface rounded-full font-medium",
@@ -57,7 +57,7 @@ export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements
                       <EvenementChip key={e.id} evenement={e} taille="sm" />
                     ))}
                     {reste > 0 && (
-                      <span className="text-[10.5px] text-ink-3 pl-1">
+                      <span className="text-meta text-ink-3 pl-1">
                         +{reste} autre{reste > 1 ? "s" : ""}
                       </span>
                     )}

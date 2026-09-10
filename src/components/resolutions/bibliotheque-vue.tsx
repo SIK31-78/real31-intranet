@@ -45,11 +45,11 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-[20px] font-semibold text-ink flex items-center gap-2">
+        <h1 className="text-page font-semibold text-ink flex items-center gap-2">
           <Library strokeWidth={1.5} className="w-5 h-5 text-green-700" />
           Bibliothèque de résolutions
         </h1>
-        <p className="mt-1 text-[13px] text-ink-3">
+        <p className="mt-1 text-body text-ink-3">
           Modèles de résolutions du cabinet, depuis Estale. Lecture seule pour l&apos;instant -
           serviront à composer l&apos;ordre du jour des AG.
         </p>
@@ -59,7 +59,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
         <Card>
           <div className="flex items-start gap-2.5 px-4 py-6">
             <AlertTriangle strokeWidth={1.5} className="w-4 h-4 text-warn-700 shrink-0 mt-px" />
-            <p className="text-[13px] text-warn-700">
+            <p className="text-body text-warn-700">
               Bibliothèque Estale temporairement indisponible (panne passagère). Rechargez la page
               dans un instant.
             </p>
@@ -78,7 +78,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Rechercher une résolution (titre, mot-clé, texte)..."
-                className="w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
+                className="w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
               />
             </div>
 
@@ -94,7 +94,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
             </div>
           </div>
 
-          <p className="text-[12px] text-ink-3">
+          <p className="text-body text-ink-3">
             {visibles.length} résolution{visibles.length > 1 ? "s" : ""}
             {filtre !== "all" || q ? ` sur ${racines.length}` : ""}
           </p>
@@ -104,7 +104,7 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
               <ResolutionCard key={r.id} resolution={r} />
             ))}
             {visibles.length === 0 && (
-              <p className="text-[13px] text-ink-3 px-1 py-6 text-center">
+              <p className="text-body text-ink-3 px-1 py-6 text-center">
                 Aucune résolution ne correspond à la recherche.
               </p>
             )}
@@ -129,8 +129,8 @@ function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={actif}
-      className={`h-7 px-2.5 rounded-full text-[12px] font-medium border transition-colors ${
-        actif
+      className={`h-7 px-2.5 rounded-full text-body font-medium border transition-colors ${
+ actif
           ? "bg-green-700 text-surface border-green-700"
           : "bg-surface text-ink-2 border-line hover:border-line-2"
       }`}
@@ -145,7 +145,7 @@ function ResolutionCard({ resolution }: { resolution: Resolution }) {
     <Card>
       <div className="px-4 py-3">
         <div className="flex items-start gap-2">
-          <span className="flex-1 text-[14px] font-medium text-ink">{resolution.titre}</span>
+          <span className="flex-1 text-body font-medium text-ink">{resolution.titre}</span>
           <MajoriteBadge majorite={resolution.majorite} />
           {resolution.parDefaut && (
             <Badge ton="outline" className="shrink-0">
@@ -154,14 +154,14 @@ function ResolutionCard({ resolution }: { resolution: Resolution }) {
           )}
         </div>
         {resolution.corps && (
-          <p className="mt-1.5 text-[12.5px] text-ink-3 line-clamp-2">{resolution.corps}</p>
+          <p className="mt-1.5 text-body text-ink-3 line-clamp-2">{resolution.corps}</p>
         )}
         {resolution.motsCles.length > 0 && (
           <div className="mt-2 flex items-center gap-1 flex-wrap">
             {resolution.motsCles.map((m) => (
               <span
                 key={m}
-                className="text-[11px] text-ink-3 bg-surface-2 rounded-sm px-1.5 py-0.5"
+                className="text-meta text-ink-3 bg-surface-2 rounded-sm px-1.5 py-0.5"
               >
                 {m}
               </span>

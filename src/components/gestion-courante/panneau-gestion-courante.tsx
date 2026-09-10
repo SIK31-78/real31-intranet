@@ -214,12 +214,12 @@ export function PanneauGestionCourante({
       <div className="flex flex-col gap-4 px-4 py-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-ink-2" htmlFor="periode">
+            <label className="mb-1 block text-body font-medium text-ink-2" htmlFor="periode">
               Trimestre à facturer
             </label>
             <select
               id="periode"
-              className="rounded border border-line px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-green-700"
+              className="rounded-sm border border-line px-2 py-1.5 text-body focus:outline-none focus:ring-1 focus:ring-green-700"
               value={periode}
               onChange={(e) => {
                 setPeriode(e.target.value);
@@ -237,7 +237,7 @@ export function PanneauGestionCourante({
             type="button"
             onClick={calculer}
             disabled={pending}
-            className="inline-flex items-center gap-2 rounded border border-line px-3 py-2 text-[13px] font-medium text-ink hover:bg-black/[0.03] disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-sm border border-line px-3 py-2 text-body font-medium text-ink hover:bg-black/[0.03] disabled:opacity-50"
           >
             {pending && !apercu ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -258,8 +258,8 @@ export function PanneauGestionCourante({
                 { l: "Contrat non renseigné", v: String(apercu.nbContratAbsent) },
               ].map((c) => (
                 <div key={c.l} className="bg-surface px-3 py-2.5">
-                  <div className="text-[11px] uppercase tracking-wide text-ink-3">{c.l}</div>
-                  <div className="mt-0.5 text-[15px] font-semibold text-ink">{c.v}</div>
+                  <div className="text-meta uppercase tracking-wide text-ink-3">{c.l}</div>
+                  <div className="mt-0.5 text-title font-semibold text-ink">{c.v}</div>
                 </div>
               ))}
             </div>
@@ -268,7 +268,7 @@ export function PanneauGestionCourante({
               <button
                 type="button"
                 onClick={selectionnerSansAlerte}
-                className="rounded border border-line px-2.5 py-1.5 text-[12.5px] text-ink hover:bg-black/[0.03]"
+                className="rounded-sm border border-line px-2.5 py-1.5 text-body text-ink hover:bg-black/[0.03]"
               >
                 Tout sélectionner ({nbSansAlerte} sans alerte)
               </button>
@@ -276,7 +276,7 @@ export function PanneauGestionCourante({
                 <button
                   type="button"
                   onClick={ajouterLesAlertes}
-                  className="rounded border border-warn-500/40 bg-warn-50 px-2.5 py-1.5 text-[12.5px] text-warn-700 hover:bg-warn-50/70"
+                  className="rounded-sm border border-warn-500/40 bg-warn-50 px-2.5 py-1.5 text-body text-warn-700 hover:bg-warn-50/70"
                 >
                   Sélectionner aussi les {nbAlertes} alerte{nbAlertes > 1 ? "s" : ""}
                 </button>
@@ -284,12 +284,12 @@ export function PanneauGestionCourante({
               <button
                 type="button"
                 onClick={() => setSelection(new Set())}
-                className="rounded px-2.5 py-1.5 text-[12.5px] text-ink-3 hover:bg-black/[0.03]"
+                className="rounded-sm px-2.5 py-1.5 text-body text-ink-3 hover:bg-black/[0.03]"
               >
                 Tout décocher
               </button>
               {apercu.nbConfirmationEcrite > 0 && (
-                <span className="ml-auto inline-flex items-center gap-1.5 text-[12.5px] text-err-700">
+                <span className="ml-auto inline-flex items-center gap-1.5 text-body text-err-700">
                   <TriangleAlert className="h-3.5 w-3.5" strokeWidth={1.5} />
                   {apercu.nbConfirmationEcrite} ligne{apercu.nbConfirmationEcrite > 1 ? "s" : ""} au-delà
                   de +20 % : confirmation écrite requise
@@ -298,8 +298,8 @@ export function PanneauGestionCourante({
             </div>
 
             <div className="max-h-[420px] overflow-auto border-t border-line">
-              <table className="w-full min-w-[720px] border-collapse text-[13px]">
-                <thead className="sticky top-0 z-10 bg-surface-2 text-[11px] uppercase tracking-wide text-ink-3">
+              <table className="w-full min-w-[720px] border-collapse text-body">
+                <thead className="sticky top-0 z-10 bg-surface-2 text-meta uppercase tracking-wide text-ink-3">
                   <tr>
                     <th scope="col" className="w-9 px-3 py-2" />
                     <th scope="col" className="px-3 py-2 text-left font-medium">
@@ -326,7 +326,7 @@ export function PanneauGestionCourante({
                       <tr
                         key={l.coproCode}
                         className={`border-t border-line ${
-                          l.emissible ? "" : "bg-black/[0.02] text-ink-3"
+ l.emissible ? "" : "bg-black/[0.02] text-ink-3"
                         }`}
                       >
                         <td className="px-3 py-2 align-top">
@@ -341,7 +341,7 @@ export function PanneauGestionCourante({
                         </td>
                         <td className="px-3 py-2 align-top">
                           <div className="font-medium text-ink">{l.coproCode}</div>
-                          <div className="text-[12px] text-ink-3">{l.message}</div>
+                          <div className="text-body text-ink-3">{l.message}</div>
                         </td>
                         <td className="px-3 py-2 text-right align-top tabular-nums">
                           {euros(l.montantHt)}
@@ -351,7 +351,7 @@ export function PanneauGestionCourante({
                         </td>
                         <td
                           className={`px-3 py-2 text-right align-top tabular-nums ${
-                            Math.abs(l.ecartHt) < 0.01
+ Math.abs(l.ecartHt) < 0.01
                               ? "text-ink-3"
                               : l.ecartHt > 0
                                 ? "text-err-700"
@@ -372,7 +372,7 @@ export function PanneauGestionCourante({
                                 <button
                                   type="button"
                                   onClick={() => setAConfirmer(l)}
-                                  className="inline-flex items-center gap-1 rounded border border-err-500/40 px-1.5 py-0.5 text-[11.5px] font-medium text-err-700 hover:bg-err-50"
+                                  className="inline-flex items-center gap-1 rounded-sm border border-err-500/40 px-1.5 py-0.5 text-meta font-medium text-err-700 hover:bg-err-50"
                                 >
                                   <PenLine className="h-3 w-3" strokeWidth={1.5} />
                                   Confirmer
@@ -388,20 +388,20 @@ export function PanneauGestionCourante({
             </div>
 
             {recap.nb === 0 ? (
-              <p className="flex items-start gap-2 border-t border-line bg-black/[0.03] px-4 py-3 text-[13px] text-ink-3">
+              <p className="flex items-start gap-2 border-t border-line bg-black/[0.03] px-4 py-3 text-body text-ink-3">
                 <CheckCircle2 className="mt-px h-4 w-4 shrink-0" strokeWidth={1.5} />
                 Aucune copropriété sélectionnée : rien ne partira.
               </p>
             ) : (
               <div className="border-t border-line px-4 py-3">
                 {/* Recap de fournee : le dernier regard global avant d'engager. */}
-                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-body text-ink-2">
                   <span>
-                    <strong className="text-[15px] text-ink">{recap.nb}</strong> copropriété
+                    <strong className="text-title text-ink">{recap.nb}</strong> copropriété
                     {recap.nb > 1 ? "s" : ""}
                   </span>
                   <span>
-                    total <strong className="text-[15px] text-ink">{euros(recap.total)} HT</strong>
+                    total <strong className="text-title text-ink">{euros(recap.total)} HT</strong>
                   </span>
                   <span className="text-ink-3">attendu au contrat {euros(recap.attendu)}</span>
                   <span
@@ -414,7 +414,7 @@ export function PanneauGestionCourante({
                 </div>
                 {/* null en mode brouillon (nominal) : rien a annoncer. */}
                 {messageEmissionFacture(pennylaneMode) && (
-                  <p className="mt-2 text-[12.5px] text-ink-3">
+                  <p className="mt-2 text-body text-ink-3">
                     {messageEmissionFacture(pennylaneMode)}
                   </p>
                 )}
@@ -423,7 +423,7 @@ export function PanneauGestionCourante({
                     type="button"
                     onClick={lancer}
                     disabled={pending}
-                    className="inline-flex items-center gap-2 rounded bg-green-700 px-3 py-2 text-[13px] font-medium text-white hover:bg-green-800 disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-sm bg-green-700 px-3 py-2 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60"
                   >
                     {pending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -438,7 +438,7 @@ export function PanneauGestionCourante({
           </div>
         )}
 
-        <p className="flex items-start gap-2 text-[12px] text-ink-3">
+        <p className="flex items-start gap-2 text-body text-ink-3">
           <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
           Le montant de chaque copropriété vient de son contrat en vigueur (honoraires annuels ÷ 4),
           au prorata des jours couverts si la copropriété a été prise en gestion en cours de

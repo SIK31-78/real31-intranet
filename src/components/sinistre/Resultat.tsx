@@ -43,10 +43,10 @@ function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGesti
   return (
     <Card className="mt-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
+        <span className="text-meta font-medium uppercase tracking-[0.06em] text-ink-3">
           Assureur gestionnaire
         </span>
-        <span className="text-[15px] font-semibold text-ink">
+        <span className="text-title font-semibold text-ink">
           {libelleGestionnaire(gestionnaire)}
         </span>
         {tranche && <Badge ton="neutral">{TRANCHE_LABEL[tranche] ?? tranche}</Badge>}
@@ -60,7 +60,7 @@ function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGesti
       {provisoire && (
         <p
           role="note"
-          className="mt-3 rounded-md border-l-4 border-warn-500 bg-warn-50 p-2 text-[13px] text-warn-700"
+          className="mt-3 rounded-md border-l-4 border-warn-500 bg-warn-50 p-2 text-body text-warn-700"
         >
           Désignation <strong>provisoire</strong> : elle repose sur un « Je ne sais pas » et non
           sur un défaut d’assurance constaté. Obtenez l’attestation (courrier C5) puis reprenez la
@@ -69,20 +69,20 @@ function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGesti
       )}
 
       <details className="group mt-3">
-        <summary className="cursor-pointer list-none text-[13px] font-medium text-ink-2 marker:content-none hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+        <summary className="cursor-pointer list-none text-body font-medium text-ink-2 marker:content-none hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
           <span
             aria-hidden
-            className="mr-1.5 inline-block text-ink-4 transition-transform group-open:rotate-90"
+            className="mr-1.5 inline-block text-ink-3 transition-transform group-open:rotate-90"
           >
             ▸
           </span>
           Pourquoi cet assureur ?
         </summary>
 
-        <ul className="mt-2 space-y-1 text-[13px] text-ink-2">
+        <ul className="mt-2 space-y-1 text-body text-ink-2">
           {motifs.map((m, i) => (
             <li key={i} className="flex gap-2">
-              <span aria-hidden className="text-ink-4">
+              <span aria-hidden className="text-ink-3">
                 •
               </span>
               <span>
@@ -93,7 +93,7 @@ function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGesti
           ))}
           {cas213 !== undefined && (
             <li className="flex gap-2">
-              <span aria-hidden className="text-ink-4">
+              <span aria-hidden className="text-ink-3">
                 •
               </span>
               <span>
@@ -105,7 +105,7 @@ function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGesti
           )}
           {tranche && (
             <li className="flex gap-2">
-              <span aria-hidden className="text-ink-4">
+              <span aria-hidden className="text-ink-3">
                 •
               </span>
               <span className="text-ink-3">
@@ -116,14 +116,14 @@ function PourquoiCeGestionnaire({ explication }: { explication: ExplicationGesti
         </ul>
 
         {role && (
-          <p className="mt-3 text-[13px] text-ink-2">
+          <p className="mt-3 text-body text-ink-2">
             <span className="font-medium">Son rôle : </span>
             <Glose>{role}</Glose>
           </p>
         )}
 
         {references.length > 0 && (
-          <p className="mt-2 text-xs text-ink-4">Règle appliquée : {references.join(' · ')}</p>
+          <p className="mt-2 text-meta text-ink-3">Règle appliquée : {references.join(' · ')}</p>
         )}
       </details>
     </Card>
@@ -158,14 +158,14 @@ function LigneAction({
       {fait ? (
         <span
           role="status"
-          className={`text-[13px] font-medium ${echec ? 'text-warn-700' : 'text-ok-700'}`}
+          className={`text-body font-medium ${echec ? 'text-warn-700' : 'text-ok-700'}`}
         >
           {fait}
           {children}
         </span>
       ) : (
         <>
-          <span className="text-[13px] text-ink-2">{texte}</span>
+          <span className="text-body text-ink-2">{texte}</span>
           <Button variant="secondary" onClick={onClick} disabled={pending}>
             {pending ? 'En cours…' : bouton}
           </Button>
@@ -285,11 +285,11 @@ export function Resultat() {
     <div>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">Synthèse</p>
-          <h2 className="text-2xl font-bold text-ink">
+          <p className="text-meta font-medium uppercase tracking-[0.06em] text-ink-3">Synthèse</p>
+          <h2 className="text-page font-bold text-ink">
             <Glose>{node.titre}</Glose>
           </h2>
-          <p className="mt-1 text-sm text-ink-3">
+          <p className="mt-1 text-body text-ink-3">
             {state.referenceInterne} · {local.libelle}
             {state.immeuble.nom ? ` · ${state.immeuble.nom}` : ''}
           </p>
@@ -388,7 +388,7 @@ export function Resultat() {
               <div className="px-4 py-3">
                 <Link
                   href={`/dossiers/${dossierId}`}
-                  className="text-[13px] font-medium text-green-700 underline hover:text-green-600"
+                  className="text-body font-medium text-green-700 underline hover:text-green-600"
                 >
                   Revenir au dossier
                 </Link>

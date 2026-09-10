@@ -32,8 +32,8 @@ export interface LigneDossierVue extends DossierResume {
 
 type Filtre = "actifs" | "mes_etapes" | "bloques" | "archives";
 
-const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink w-full";
-const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink w-full";
+const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full";
+const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full";
 
 export function DossiersRepriseVue({
   lignes,
@@ -128,16 +128,16 @@ export function DossiersRepriseVue({
       {visibles.length === 0 ? (
         <Card>
           <div className="px-4 py-10 text-center">
-            <FolderOpen strokeWidth={1.5} className="w-6 h-6 text-ink-4 mx-auto mb-2" />
-            <p className="text-[13px] text-ink-3">{messageVide(filtre)}</p>
+            <FolderOpen strokeWidth={1.5} className="w-6 h-6 text-ink-3 mx-auto mb-2" />
+            <p className="text-body text-ink-3">{messageVide(filtre)}</p>
           </div>
         </Card>
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px] min-w-[960px]">
+            <table className="w-full text-body min-w-[960px]">
               <thead>
-                <tr className="text-left text-[11.5px] uppercase tracking-wide text-ink-3 border-b border-line">
+                <tr className="text-left text-meta uppercase tracking-wide text-ink-3 border-b border-line">
                   <th className="px-4 py-2 font-medium">Réf</th>
                   <th className="px-3 py-2 font-medium">Copropriété</th>
                   <th className="px-3 py-2 font-medium">Bascule</th>
@@ -178,7 +178,7 @@ function Compteur({ valeur, libelle, ton }: { valeur: number; libelle: string; t
     <Card className="px-4 py-3">
       <div
         className={cn(
-          "text-[22px] font-semibold leading-none",
+          "text-page font-semibold leading-none",
           ton === "err" && "text-err-700",
           ton === "info" && "text-info-700",
           !ton && "text-ink",
@@ -186,7 +186,7 @@ function Compteur({ valeur, libelle, ton }: { valeur: number; libelle: string; t
       >
         {valeur}
       </div>
-      <div className="mt-1 text-[11.5px] text-ink-3">{libelle}</div>
+      <div className="mt-1 text-meta text-ink-3">{libelle}</div>
     </Card>
   );
 }
@@ -198,8 +198,8 @@ function FiltreBouton({ actif, onClick, children }: { actif: boolean; onClick: (
       onClick={onClick}
       aria-pressed={actif}
       className={cn(
-        "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12px] transition-colors",
-        actif ? "border-green-600/40 bg-green-50 text-green-800" : "border-line text-ink-3 hover:border-line-2",
+        "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-body transition-colors",
+        actif ? "border-green-600/40 bg-green-50 text-green-700" : "border-line text-ink-3 hover:border-line-2",
       )}
     >
       {children}
@@ -218,7 +218,7 @@ function LigneDossier({ l, aujourdHui }: { l: LigneDossierVue; aujourdHui: strin
   return (
     <tr className={cn("border-b border-line last:border-0 align-top hover:bg-surface-2 transition-colors", bloquee && "bg-err-50/40")}>
       <td className="px-4 py-2.5 whitespace-nowrap">
-        <Link href={href} className="font-mono text-[12px] text-ink-2 hover:text-green-700">
+        <Link href={href} className="font-mono text-body text-ink-2 hover:text-green-700">
           {l.ref}
         </Link>
       </td>
@@ -226,28 +226,28 @@ function LigneDossier({ l, aujourdHui }: { l: LigneDossierVue; aujourdHui: strin
         <Link href={href} className="font-medium text-ink hover:text-green-700 block">
           {l.nomUsuel}
         </Link>
-        {l.adresse && <div className="text-[12px] text-ink-3 truncate max-w-[260px]">{l.adresse}</div>}
-        {l.sortant && <div className="text-[11.5px] text-ink-4">Sortant : {l.sortant}</div>}
+        {l.adresse && <div className="text-body text-ink-3 truncate max-w-[260px]">{l.adresse}</div>}
+        {l.sortant && <div className="text-meta text-ink-3">Sortant : {l.sortant}</div>}
         {l.archive && (
           <Badge ton="neutral" className="mt-1 gap-1">
             <Archive strokeWidth={1.5} className="w-3 h-3" /> Archivé
           </Badge>
         )}
       </td>
-      <td className="px-3 py-2.5 whitespace-nowrap text-ink-2">{l.dateBascule ? formatDateCourte(l.dateBascule) : <span className="text-ink-4">-</span>}</td>
+      <td className="px-3 py-2.5 whitespace-nowrap text-ink-2">{l.dateBascule ? formatDateCourte(l.dateBascule) : <span className="text-ink-3">-</span>}</td>
       <td className="px-3 py-2.5 min-w-[140px]">
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-[80px] rounded-full bg-surface-2 overflow-hidden">
             <div className="h-full rounded-full bg-green-600" style={{ width: `${pct}%` }} />
           </div>
-          <span className="text-[11px] text-ink-3 font-mono whitespace-nowrap">
+          <span className="text-meta text-ink-3 font-mono whitespace-nowrap">
             {l.etapesFaites}/{l.etapesTotal}
           </span>
         </div>
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap">
         <div className="flex items-center gap-1.5 flex-wrap">
-          {l.phase ? <Badge ton="outline">{PHASE_LABEL[l.phase]}</Badge> : termine ? <Badge ton="ok">Terminée</Badge> : <span className="text-ink-4">-</span>}
+          {l.phase ? <Badge ton="outline">{PHASE_LABEL[l.phase]}</Badge> : termine ? <Badge ton="ok">Terminée</Badge> : <span className="text-ink-3">-</span>}
           {l.nbBloquees > 0 && (
             <Badge ton="err" dot title={bloquee && etape?.note ? etape.note : undefined}>
               {l.nbBloquees} bloquée{l.nbBloquees > 1 ? "s" : ""}
@@ -267,10 +267,10 @@ function LigneDossier({ l, aujourdHui }: { l: LigneDossierVue; aujourdHui: strin
             <span className="text-ink-2">{etape.assigne.nom}</span>
           </span>
         ) : (
-          <span className="text-ink-4">Non assignée</span>
+          <span className="text-ink-3">Non assignée</span>
         )}
       </td>
-      <td className="px-4 py-2.5 whitespace-nowrap text-[12px] text-ink-3">
+      <td className="px-4 py-2.5 whitespace-nowrap text-body text-ink-3">
         {l.derniereActivite ? formatAuditeRelatif(l.derniereActivite, aujourdHui) : "-"}
       </td>
     </tr>
@@ -334,33 +334,33 @@ function FormCreation({
     <Card>
       <div className="p-4 flex flex-col gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+          <label className="flex flex-col gap-1 text-body text-ink-3">
             Référence ESTALE
             <input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="ex. S0302" autoFocus className={INPUT} />
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+          <label className="flex flex-col gap-1 text-body text-ink-3">
             Nom de la copropriété
             <input value={nomUsuel} onChange={(e) => setNomUsuel(e.target.value)} placeholder="ex. 31 Foch" className={INPUT} />
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3 sm:col-span-2">
-            Adresse de l&apos;immeuble <span className="text-ink-4">(optionnel)</span>
+          <label className="flex flex-col gap-1 text-body text-ink-3 sm:col-span-2">
+            Adresse de l&apos;immeuble <span className="text-ink-3">(optionnel)</span>
             <input value={adresse} onChange={(e) => setAdresse(e.target.value)} placeholder="ex. 31 avenue Foch, 31000 Toulouse" className={INPUT} />
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
-            Syndic sortant <span className="text-ink-4">(optionnel)</span>
+          <label className="flex flex-col gap-1 text-body text-ink-3">
+            Syndic sortant <span className="text-ink-3">(optionnel)</span>
             <input value={sortant} onChange={(e) => setSortant(e.target.value)} placeholder="ex. Foncia" className={INPUT} />
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
-            Date de bascule <span className="text-ink-4">(optionnel)</span>
+          <label className="flex flex-col gap-1 text-body text-ink-3">
+            Date de bascule <span className="text-ink-3">(optionnel)</span>
             <input type="date" value={dateBascule} onChange={(e) => setDateBascule(e.target.value)} className={INPUT} />
           </label>
         </div>
 
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-3 mb-2">Équipe</div>
+          <div className="text-meta font-semibold uppercase tracking-wide text-ink-3 mb-2">Équipe</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {ROLES_REPRISE.map((role) => (
-              <label key={role} className="flex flex-col gap-1 text-[12px] text-ink-3">
+              <label key={role} className="flex flex-col gap-1 text-body text-ink-3">
                 {ROLE_LABEL[role]}
                 <select value={equipe[role]} onChange={(e) => setEquipe((q) => ({ ...q, [role]: e.target.value }))} className={SELECT}>
                   <option value="">Personne</option>
@@ -373,7 +373,7 @@ function FormCreation({
               </label>
             ))}
           </div>
-          <p className="mt-2 text-[11.5px] text-ink-4">
+          <p className="mt-2 text-meta text-ink-3">
             Chaque étape de la checklist est assignée d&apos;office à la personne qui tient son rôle. Modifiable ensuite étape par étape.
           </p>
         </div>

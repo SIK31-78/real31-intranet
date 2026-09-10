@@ -22,7 +22,7 @@ import {
 import type { SecretClair } from "@/lib/domain/coffre";
 
 const champClasse =
-  "h-8 px-2 rounded-md border border-line bg-surface text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-green-600";
+  "h-8 px-2 rounded-md border border-line bg-surface text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600";
 
 export function ImportPanel({
   coffreId,
@@ -103,28 +103,28 @@ export function ImportPanel({
 
   return (
     <div className="px-4 py-3 border-t border-line flex flex-col gap-3">
-      {resultat && <p className="text-[12px] text-green-700">{resultat}</p>}
+      {resultat && <p className="text-body text-green-700">{resultat}</p>}
 
       {!parse ? (
         <div className="flex flex-col gap-1.5">
-          <label className="flex items-center gap-2 w-fit cursor-pointer text-[12.5px] text-green-700 border border-green-200 hover:bg-green-50 rounded-md px-3 py-1.5">
+          <label className="flex items-center gap-2 w-fit cursor-pointer text-body text-green-700 border border-green-200 hover:bg-green-50 rounded-md px-3 py-1.5">
             <Upload className="w-3.5 h-3.5" strokeWidth={1.5} /> Choisir un fichier CSV
             <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFichier} />
           </label>
-          <p className="text-[11.5px] text-ink-4">
+          <p className="text-meta text-ink-3">
             Depuis Excel : Fichier &gt; Enregistrer sous &gt; CSV UTF-8. Le fichier reste sur ton poste.
           </p>
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2 text-[12px] text-ink-3">
+          <div className="flex items-center gap-2 text-body text-ink-3">
             <FileText className="w-3.5 h-3.5" strokeWidth={1.5} /> {nomFichier} - {parse.lignes.length} ligne(s)
           </div>
 
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-center max-w-md">
             {CHAMPS.map(({ cle, libelle }) => (
               <div key={cle} className="contents">
-                <label className="text-[12px] text-ink-2 text-right">{libelle}</label>
+                <label className="text-body text-ink-2 text-right">{libelle}</label>
                 <select
                   className={champClasse}
                   value={mapping?.[cle] ?? ""}
@@ -141,21 +141,21 @@ export function ImportPanel({
             ))}
           </div>
 
-          <p className="text-[12px] text-ink-3">
+          <p className="text-body text-ink-3">
             <strong className="text-ink">{nouveaux.length}</strong> a importer
             {doublons > 0 && <span> - {doublons} doublon(s) ignore(s)</span>}
           </p>
 
           {nouveaux.length > 0 && (
-            <ul className="text-[11.5px] text-ink-3 border border-line rounded-md divide-y divide-line max-h-40 overflow-auto">
+            <ul className="text-meta text-ink-3 border border-line rounded-md divide-y divide-line max-h-40 overflow-auto">
               {nouveaux.slice(0, 8).map((s, i) => (
                 <li key={i} className="px-2.5 py-1 flex gap-2">
                   <span className="text-ink truncate flex-1">{s.titre}</span>
                   <span className="truncate flex-1">{s.login}</span>
-                  <span className="font-mono text-ink-4">........</span>
+                  <span className="font-mono text-ink-3">........</span>
                 </li>
               ))}
-              {nouveaux.length > 8 && <li className="px-2.5 py-1 text-ink-4">... et {nouveaux.length - 8} autre(s)</li>}
+              {nouveaux.length > 8 && <li className="px-2.5 py-1 text-ink-3">... et {nouveaux.length - 8} autre(s)</li>}
             </ul>
           )}
 
@@ -163,7 +163,7 @@ export function ImportPanel({
             <button
               onClick={importer}
               disabled={busy || nouveaux.length === 0}
-              className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-[12.5px] font-medium hover:bg-green-600 disabled:opacity-60"
+              className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-60"
             >
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" strokeWidth={2} />}
               Importer {nouveaux.length} mot(s) de passe
@@ -173,7 +173,7 @@ export function ImportPanel({
                 setParse(null);
                 setMapping(null);
               }}
-              className="text-[12px] text-ink-3 hover:text-ink px-3"
+              className="text-body text-ink-3 hover:text-ink px-3"
             >
               Annuler
             </button>

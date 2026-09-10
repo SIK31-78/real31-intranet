@@ -36,10 +36,10 @@ function LigneRow({ l, vueComptable }: { l: LigneComptable; vueComptable: boolea
         href={href}
         className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors"
       >
-        <span className="font-mono text-[12px] text-ink-2 w-[44px] shrink-0">{l.coproCode}</span>
+        <span className="font-mono text-body text-ink-2 w-[44px] shrink-0">{l.coproCode}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-ink truncate">{l.coproNom}</p>
-          <p className="text-[12px] text-ink-3">
+          <p className="text-body font-medium text-ink truncate">{l.coproNom}</p>
+          <p className="text-body text-ink-3">
             AG du {formatDateLongue(l.agDate)}
             {l.agHeure ? ` · ${formatHeure(l.agHeure)}` : ""}
             {l.gestionnaireNom ? ` · ${l.gestionnaireNom}` : ""}
@@ -65,7 +65,7 @@ function LigneRow({ l, vueComptable }: { l: LigneComptable; vueComptable: boolea
         ) : (
           <Badge ton="outline">à vérifier</Badge>
         )}
-        <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
+        <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
       </Link>
     </li>
   );
@@ -89,16 +89,16 @@ function Section({
   return (
     <div className="flex flex-col gap-2">
       <div>
-        <h2 className="text-[15px] font-semibold text-ink flex items-center gap-2">
+        <h2 className="text-title font-semibold text-ink flex items-center gap-2">
           {icone}
           {titre}
-          <span className="text-[12px] font-normal text-ink-3">({lignes.length})</span>
+          <span className="text-body font-normal text-ink-3">({lignes.length})</span>
         </h2>
-        <p className="mt-0.5 text-[12px] text-ink-3">{aide}</p>
+        <p className="mt-0.5 text-body text-ink-3">{aide}</p>
       </div>
       {lignes.length === 0 ? (
         <Card>
-          <p className="px-4 py-6 text-[13px] text-ink-3 text-center">{vide}</p>
+          <p className="px-4 py-6 text-body text-ink-3 text-center">{vide}</p>
         </Card>
       ) : (
         <Card>
@@ -163,11 +163,11 @@ export default async function ComptabilitePage({
     <AppShell user={g} active="compta" breadcrumb="Comptabilité">
       <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-6">
         <div>
-          <h1 className="text-[20px] font-semibold text-ink flex items-center gap-2">
+          <h1 className="text-page font-semibold text-ink flex items-center gap-2">
             <Calculator strokeWidth={1.5} className="w-5 h-5 text-green-700" />
             Comptabilité - AG à venir
           </h1>
-          <p className="mt-1 text-[13px] text-ink-3">
+          <p className="mt-1 text-body text-ink-3">
             Les AG dont la date est posée, sur toutes les copropriétés. Quand la date est
             confirmée par le conseil syndical, il faut préparer les comptes.
           </p>
@@ -182,8 +182,8 @@ export default async function ComptabilitePage({
           >
             <Inbox strokeWidth={1.5} className="h-4 w-4 shrink-0 text-green-700" />
             <div className="min-w-0 flex-1 basis-[220px]">
-              <p className="text-[13px] font-medium text-ink">Récaps d&apos;AG reçus</p>
-              <p className="text-[12px] text-ink-3">
+              <p className="text-body font-medium text-ink">Récaps d&apos;AG reçus</p>
+              <p className="text-body text-ink-3">
                 Ce que le gestionnaire a noté après l&apos;assemblée : budget voté, fonds
                 travaux, travaux à appeler, nouveau contrat.
               </p>
@@ -193,18 +193,18 @@ export default async function ComptabilitePage({
             ) : (
               <Badge ton="ok">à jour</Badge>
             )}
-            <ChevronRight strokeWidth={1.5} className="h-4 w-4 shrink-0 text-ink-4" />
+            <ChevronRight strokeWidth={1.5} className="h-4 w-4 shrink-0 text-ink-3" />
           </Link>
         </Card>
 
         {/* Filtres (GET, sans JS) : par gestionnaire et par mois d'AG. */}
         <form method="get" className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+          <label className="flex flex-col gap-1 text-body text-ink-3">
             Gestionnaire
             <select
               name="gestionnaire"
               defaultValue={gestionnaire ?? ""}
-              className="h-8 min-w-[180px] rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+              className="h-8 min-w-[180px] rounded-md border border-line bg-surface px-2 text-body text-ink"
             >
               <option value="">Tous</option>
               {gestionnaires.map((nom) => (
@@ -212,12 +212,12 @@ export default async function ComptabilitePage({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+          <label className="flex flex-col gap-1 text-body text-ink-3">
             Mois
             <select
               name="mois"
               defaultValue={mois ?? ""}
-              className="h-8 min-w-[160px] rounded-md border border-line bg-surface px-2 text-[13px] text-ink"
+              className="h-8 min-w-[160px] rounded-md border border-line bg-surface px-2 text-body text-ink"
             >
               <option value="">Tous</option>
               {moisDispo.map((ym) => (
@@ -227,25 +227,25 @@ export default async function ComptabilitePage({
           </label>
           <button
             type="submit"
-            className="h-8 rounded-md bg-green-700 px-3 text-[13px] font-medium text-white hover:bg-green-800 transition-colors"
+            className="h-8 rounded-md bg-green-700 px-3 text-body font-medium text-white hover:bg-green-800 transition-colors"
           >
             Filtrer
           </button>
           {(gestionnaire || mois) && (
             <Link
               href="/comptabilite"
-              className="h-8 inline-flex items-center rounded-md border border-line px-3 text-[13px] text-ink-2 hover:bg-surface-2 transition-colors"
+              className="h-8 inline-flex items-center rounded-md border border-line px-3 text-body text-ink-2 hover:bg-surface-2 transition-colors"
             >
               Réinitialiser
             </Link>
           )}
-          <span className="ml-auto self-center text-[12px] text-ink-3">{total} AG</span>
+          <span className="ml-auto self-center text-body text-ink-3">{total} AG</span>
         </form>
 
         <Section
           titre="Confirmées"
           aide="Date validée par le conseil syndical : préparer les comptes."
-          icone={<CalendarCheck strokeWidth={1.5} className="w-4 h-4 text-ok-600" />}
+          icone={<CalendarCheck strokeWidth={1.5} className="w-4 h-4 text-ok-700" />}
           lignes={dashboard.confirmees}
           vide="Aucune AG confirmée à venir."
           vueComptable={vueComptable}
@@ -254,7 +254,7 @@ export default async function ComptabilitePage({
         <Section
           titre="À confirmer"
           aide="Date posée mais pas encore validée par le conseil syndical (visibilité anticipée)."
-          icone={<Clock strokeWidth={1.5} className="w-4 h-4 text-warn-600" />}
+          icone={<Clock strokeWidth={1.5} className="w-4 h-4 text-warn-700" />}
           lignes={dashboard.aConfirmer}
           vide="Aucune AG en attente de confirmation."
           vueComptable={vueComptable}

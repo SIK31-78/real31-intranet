@@ -24,10 +24,10 @@ export default async function CalendrierPage() {
     <AppShell user={g} active="calendrier" breadcrumb="Calendrier AG/CS">
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <div className="mb-5">
-          <h1 className="text-[20px] font-medium tracking-tight text-ink">
+          <h1 className="text-page font-medium tracking-tight text-ink">
             Calendrier AG/CS
           </h1>
-          <p className="text-[13px] text-ink-3 mt-0.5">
+          <p className="text-body text-ink-3 mt-0.5">
             Vue d&apos;ensemble de vos assemblees et conseils syndicaux.
           </p>
         </div>

@@ -24,7 +24,7 @@ function TypePastille({ type }: { type: EntreePublique["type"] }) {
   return (
     <span
       className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-        bug ? "bg-info-50 text-info-700" : "bg-green-50 text-green-700"
+ bug ? "bg-info-50 text-info-700" : "bg-green-50 text-green-700"
       }`}
     >
       <Icon strokeWidth={1.5} className="h-4 w-4" />
@@ -39,7 +39,7 @@ function Ligne({ entree, droite }: { entree: EntreePublique; droite: React.React
     return (
       <li className="flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3">
         <TypePastille type={entree.type} />
-        <span className="min-w-0 flex-1 text-[13.5px] text-ink">{entree.titre}</span>
+        <span className="min-w-0 flex-1 text-body text-ink">{entree.titre}</span>
         {droite}
       </li>
     );
@@ -49,14 +49,14 @@ function Ligne({ entree, droite }: { entree: EntreePublique; droite: React.React
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
           <TypePastille type={entree.type} />
-          <span className="min-w-0 flex-1 text-[13.5px] text-ink">{entree.titre}</span>
+          <span className="min-w-0 flex-1 text-body text-ink">{entree.titre}</span>
           {droite}
           <ChevronDown
             strokeWidth={1.5}
-            className="h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform group-open:rotate-180"
+            className="h-3.5 w-3.5 shrink-0 text-ink-3 transition-transform group-open:rotate-180"
           />
         </summary>
-        <p className="border-t border-line px-4 py-3 pl-11 text-[13px] leading-relaxed text-ink-2 whitespace-pre-wrap">
+        <p className="border-t border-line px-4 py-3 pl-11 text-body leading-relaxed text-ink-2 whitespace-pre-wrap">
           {entree.resume}
         </p>
       </details>
@@ -89,7 +89,7 @@ function LigneLivre({ entree }: { entree: EntreePublique }) {
       entree={entree}
       droite={
         entree.livreAt ? (
-          <span className="shrink-0 text-[12px] text-ink-3">{formatDateLongue(entree.livreAt.slice(0, 10))}</span>
+          <span className="shrink-0 text-body text-ink-3">{formatDateLongue(entree.livreAt.slice(0, 10))}</span>
         ) : null
       }
     />
@@ -111,8 +111,8 @@ export default async function NouveautesPage() {
             <Sparkles strokeWidth={1.5} className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-[20px] font-medium tracking-tight text-ink">Nouveautés</h1>
-            <p className="mt-0.5 text-[13px] text-ink-3">
+            <h1 className="text-page font-medium tracking-tight text-ink">Nouveautés</h1>
+            <p className="mt-0.5 text-body text-ink-3">
               Ce qui arrive et ce qui vient d&apos;être livré sur l&apos;intranet. Une idée, un bug ? Le bouton
               « Un bug / une idée ? » est en bas à droite de chaque page.
             </p>
@@ -121,8 +121,8 @@ export default async function NouveautesPage() {
 
         {vide ? (
           <div className="rounded-md border border-dashed border-line bg-surface px-6 py-12 text-center">
-            <p className="text-[14px] font-medium text-ink">Rien pour l&apos;instant, revenez bientôt.</p>
-            <p className="mt-1 text-[13px] text-ink-3">
+            <p className="text-body font-medium text-ink">Rien pour l&apos;instant, revenez bientôt.</p>
+            <p className="mt-1 text-body text-ink-3">
               Les évolutions prévues et livrées apparaîtront ici au fil de l&apos;eau.
             </p>
           </div>
@@ -132,7 +132,7 @@ export default async function NouveautesPage() {
               <section aria-labelledby="nouveautes-avenir">
                 <div className="mb-3 flex items-center gap-2">
                   <CircleDot strokeWidth={1.5} className="h-4 w-4 text-info-700" />
-                  <h2 id="nouveautes-avenir" className="text-[15px] font-semibold tracking-tight text-ink">
+                  <h2 id="nouveautes-avenir" className="text-title font-semibold tracking-tight text-ink">
                     À venir / en cours
                   </h2>
                 </div>
@@ -148,7 +148,7 @@ export default async function NouveautesPage() {
               <section aria-labelledby="nouveautes-livre">
                 <div className="mb-3 flex items-center gap-2">
                   <Rocket strokeWidth={1.5} className="h-4 w-4 text-green-700" />
-                  <h2 id="nouveautes-livre" className="text-[15px] font-semibold tracking-tight text-ink">
+                  <h2 id="nouveautes-livre" className="text-title font-semibold tracking-tight text-ink">
                     Récemment livré
                   </h2>
                 </div>

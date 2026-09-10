@@ -35,7 +35,7 @@ function rangCloture(c: string): number {
   return m * 100 + j;
 }
 
-const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-[12px] text-ink-2 hover:border-line-2";
+const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink-2 hover:border-line-2";
 
 export function CoprosVue({
   copros,
@@ -118,7 +118,7 @@ export function CoprosVue({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Rechercher (code, nom, ville)..."
-            className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
+            className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
           />
         </div>
         <select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className={SELECT}>
@@ -150,7 +150,7 @@ export function CoprosVue({
         </div>
       </div>
 
-      <p className="text-[12px] text-ink-3">
+      <p className="text-body text-ink-3">
         {filtrees.length} copropriété{filtrees.length > 1 ? "s" : ""}
         {filtre ? ` sur ${actives.length}` : ""}
       </p>
@@ -178,7 +178,7 @@ function BoutonVue({
       aria-pressed={actif}
       title={label}
       className={cn(
-        "inline-flex items-center gap-1 h-7 px-2.5 rounded-[5px] text-[12px] font-medium transition-colors duration-75",
+        "inline-flex items-center gap-1 h-7 px-2.5 rounded-[5px] text-body font-medium transition-colors duration-120",
         actif ? "bg-surface text-ink shadow-1" : "text-ink-3 hover:text-ink-2",
       )}
     >
@@ -192,7 +192,7 @@ function VueListe({ copros }: { copros: CoproPilotage[] }) {
   if (copros.length === 0) {
     return (
       <Card>
-        <p className="px-4 py-8 text-[13px] text-ink-3 text-center">Aucune copropriété ne correspond aux filtres.</p>
+        <p className="px-4 py-8 text-body text-ink-3 text-center">Aucune copropriété ne correspond aux filtres.</p>
       </Card>
     );
   }
@@ -206,16 +206,16 @@ function VueListe({ copros }: { copros: CoproPilotage[] }) {
               className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
             >
               <Badge ton="outline" className="font-mono shrink-0">{c.code}</Badge>
-              <span className="text-[13px] font-medium text-ink flex-1 truncate min-w-0">{c.nom}</span>
-              <span className="text-[12px] text-ink-3 hidden md:block w-[110px] truncate">{c.ville}</span>
+              <span className="text-body font-medium text-ink flex-1 truncate min-w-0">{c.nom}</span>
+              <span className="text-body text-ink-3 hidden md:block w-[110px] truncate">{c.ville}</span>
               <Badge ton={c.etat === "a_planifier" && c.enRetard ? "err" : ETAT_TON[c.etat]} dot className="shrink-0 w-[120px] justify-center hidden sm:inline-flex">
                 {ETAT_CYCLE_LABEL[c.etat]}
               </Badge>
-              <span className="text-[12px] text-ink-2 shrink-0 w-[90px] text-right font-mono">{echeance(c)}</span>
+              <span className="text-body text-ink-2 shrink-0 w-[90px] text-right font-mono">{echeance(c)}</span>
               <Badge ton={c.source === "estale" ? "info" : "neutral"} className="shrink-0 hidden lg:inline-flex">
                 {libelleSource(c.source)}
               </Badge>
-              <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
+              <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
             </Link>
           </li>
         ))}
@@ -230,12 +230,12 @@ function VuePipeline({ parEtat }: { parEtat: Record<EtatCycle, CoproPilotage[]> 
       {ETAT_CYCLE_ORDRE.map((etat) => (
         <div key={etat} className="flex flex-col">
           <div className="flex items-center justify-between px-1 mb-2">
-            <span className="text-[12px] font-semibold text-ink">{ETAT_CYCLE_LABEL[etat]}</span>
-            <span className="text-[11px] font-mono text-ink-3">{parEtat[etat].length}</span>
+            <span className="text-body font-semibold text-ink">{ETAT_CYCLE_LABEL[etat]}</span>
+            <span className="text-meta font-mono text-ink-3">{parEtat[etat].length}</span>
           </div>
           <div className="flex flex-col gap-2">
             {parEtat[etat].length === 0 ? (
-              <p className="text-[11.5px] text-ink-4 px-1 py-3">Aucune copro.</p>
+              <p className="text-meta text-ink-3 px-1 py-3">Aucune copro.</p>
             ) : (
               parEtat[etat].map((c) => (
                 <Link
@@ -244,19 +244,19 @@ function VuePipeline({ parEtat }: { parEtat: Record<EtatCycle, CoproPilotage[]> 
                   className="block rounded-md border border-line bg-surface px-3 py-2.5 hover:border-line-2 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-[11px] text-ink-2 shrink-0">{c.code}</span>
-                    <span className="text-[12.5px] font-medium text-ink truncate min-w-0">{c.nom}</span>
+                    <span className="font-mono text-meta text-ink-2 shrink-0">{c.code}</span>
+                    <span className="text-body font-medium text-ink truncate min-w-0">{c.nom}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span
                       className={cn(
-                        "text-[11px] font-mono",
+                        "text-meta font-mono",
                         c.etat === "a_planifier" && c.enRetard ? "text-err-700 font-medium" : "text-ink-3",
                       )}
                     >
                       {echeance(c)}
                     </span>
-                    <Badge ton={c.source === "estale" ? "info" : "neutral"} className="shrink-0 text-[10px]">
+                    <Badge ton={c.source === "estale" ? "info" : "neutral"} className="shrink-0 text-meta">
                       {libelleSource(c.source)}
                     </Badge>
                   </div>
@@ -289,37 +289,37 @@ function PriseEnMainSection({
       <div className="flex items-center justify-between gap-3 px-4 py-3 bg-warn-50/50 border-b border-line">
         <div className="flex items-center gap-2">
           <ClipboardCheck strokeWidth={1.5} className="w-4 h-4 text-warn-700" />
-          <span className="text-[13px] font-medium text-ink">À prendre en main ({copros.length})</span>
+          <span className="text-body font-medium text-ink">À prendre en main ({copros.length})</span>
         </div>
         <button
           type="button"
           disabled={pending}
           onClick={() => onPrendre(copros.map((c) => c.code))}
-          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 disabled:opacity-50"
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-body font-medium text-ink-2 hover:border-line-2 disabled:opacity-50"
         >
           Tout prendre en main
         </button>
       </div>
-      <p className="px-4 py-2 text-[12px] text-ink-3 border-b border-line">
+      <p className="px-4 py-2 text-body text-ink-3 border-b border-line">
         Vérifie les dates héritées (souvent fausses à la première migration) puis confirme. Tant qu’une copro
         n’est pas prise en main, elle ne déclenche aucune alarme.
       </p>
       <ul className="divide-y divide-line">
         {copros.map((c) => (
           <li key={c.code} className="flex items-center gap-3 px-4 py-2.5">
-            <span className="font-mono text-[12px] text-ink-2 shrink-0 w-[42px]">{c.code}</span>
-            <span className="text-[13px] font-medium text-ink flex-1 truncate min-w-0">{c.nom}</span>
-            <span className="text-[11.5px] text-ink-3 hidden md:block shrink-0">
+            <span className="font-mono text-body text-ink-2 shrink-0 w-[42px]">{c.code}</span>
+            <span className="text-body font-medium text-ink flex-1 truncate min-w-0">{c.nom}</span>
+            <span className="text-meta text-ink-3 hidden md:block shrink-0">
               Dern. AG {fmtDate(c.derniereAgDate)} - Proch. AG {fmtDate(c.agDate)}
             </span>
-            <Link href={`/copropriete/${c.code}`} className="text-[12px] text-info-700 hover:underline shrink-0">
+            <Link href={`/copropriete/${c.code}`} className="text-body text-ink-2 hover:text-ink underline-offset-2 hover:underline shrink-0">
               Vérifier
             </Link>
             <button
               type="button"
               disabled={pending}
               onClick={() => onPrendre([c.code])}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 disabled:opacity-50 shrink-0"
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50 shrink-0"
             >
               <Check strokeWidth={2} className="w-3.5 h-3.5" /> Prendre en main
             </button>

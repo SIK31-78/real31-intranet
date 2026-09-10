@@ -113,8 +113,8 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
         className="hidden md:flex items-center gap-2 w-[260px] h-7 px-2.5 rounded-md border border-line bg-surface hover:border-line-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
       >
         <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-        <span className="flex-1 text-left text-[13px] text-ink-4 truncate">Rechercher une copro...</span>
-        <span className="font-mono text-[10px] px-1 py-0.5 rounded text-ink-3 bg-surface-3">Ctrl K</span>
+        <span className="flex-1 text-left text-body text-ink-3 truncate">Rechercher une copro...</span>
+        <span className="font-mono text-meta px-1 py-0.5 rounded-sm text-ink-3 bg-surface-3">Ctrl K</span>
       </button>
 
       {/* Mobile / une main : icone tactile (le raccourci clavier n'est pas atteignable). */}
@@ -122,7 +122,7 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
         type="button"
         onClick={() => setOuvert(true)}
         aria-label="Rechercher"
-        className="flex md:hidden items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2 transition-colors duration-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+        className="flex md:hidden items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2 transition-colors duration-120 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
       >
         <Search strokeWidth={1.5} className="w-3.5 h-3.5" />
       </button>
@@ -135,7 +135,7 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
           aria-label="Recherche et navigation"
         >
           <div className="absolute inset-0 bg-black/30" onClick={fermer} />
-          <div className="relative w-full max-w-[560px] rounded-lg border border-line bg-surface shadow-xl overflow-hidden">
+          <div className="relative w-full max-w-[560px] rounded-lg border border-line bg-surface shadow-2 overflow-hidden">
             <div className="flex items-center gap-2 px-3 h-11 border-b border-line">
               <Search strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
               <input
@@ -148,13 +148,13 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
                 onKeyDown={onKeyDown}
                 placeholder="Rechercher une copropriété du cabinet, naviguer..."
                 aria-label="Rechercher"
-                className="flex-1 bg-transparent outline-none text-[14px] text-ink placeholder:text-ink-4"
+                className="flex-1 bg-transparent outline-none text-body text-ink placeholder:text-ink-3"
               />
-              <kbd className="font-mono text-[10px] px-1 py-0.5 rounded text-ink-4 bg-surface-3">Esc</kbd>
+              <kbd className="font-mono text-meta px-1 py-0.5 rounded-sm text-ink-3 bg-surface-3">Esc</kbd>
             </div>
             <ul role="listbox" aria-label="Resultats" className="max-h-[320px] overflow-auto py-1">
               {items.length === 0 ? (
-                <li className="px-3 py-6 text-[13px] text-ink-3 text-center">
+                <li className="px-3 py-6 text-body text-ink-3 text-center">
                   {query && copros === null ? "Chargement..." : "Aucun resultat."}
                 </li>
               ) : (
@@ -164,21 +164,21 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
                       type="button"
                       onMouseEnter={() => setActif(i)}
                       onClick={() => aller(it.href)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-[13px] ${
-                        i === actif ? "bg-green-50 text-green-800" : "text-ink hover:bg-surface-2"
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-body ${
+ i === actif ? "bg-green-50 text-green-700" : "text-ink hover:bg-surface-2"
                       }`}
                     >
-                      <Building2 strokeWidth={1.5} className={`w-3.5 h-3.5 shrink-0 ${it.copro ? "text-ink-3" : "text-ink-4"}`} />
+                      <Building2 strokeWidth={1.5} className={`w-3.5 h-3.5 shrink-0 ${it.copro ? "text-ink-3" : "text-ink-3"}`} />
                       <span className="flex-1 truncate">{it.titre}</span>
-                      {it.sous && <span className="text-[11.5px] text-ink-4 truncate">{it.sous}</span>}
+                      {it.sous && <span className="text-meta text-ink-3 truncate">{it.sous}</span>}
                       {/* Copro d'un(e) collegue : on dit chez qui on va regarder. Discret
                           (meme gris que la ville), mais toujours visible. */}
                       {it.gestionnaire && (
-                        <span className="text-[11.5px] text-ink-4 truncate shrink-0" title={`Gérée par ${it.gestionnaire}`}>
+                        <span className="text-meta text-ink-3 truncate shrink-0" title={`Gérée par ${it.gestionnaire}`}>
                           · {it.gestionnaire}
                         </span>
                       )}
-                      {i === actif && <CornerDownLeft strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />}
+                      {i === actif && <CornerDownLeft strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />}
                     </button>
                   </li>
                 ))

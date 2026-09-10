@@ -30,7 +30,7 @@ function libelleRole(role: string | null | undefined): string | null {
 
 // Style commun des badges (reprend le pattern du badge "comptable" existant).
 const BADGE_CLASS =
-  "text-[10px] font-medium uppercase tracking-wide text-ink-3 border border-line rounded px-1.5 py-px";
+  "text-meta font-medium uppercase tracking-wide text-ink-3 border border-line rounded-sm px-1.5 py-px";
 
 export default async function DevLoginPage() {
   // Bouton Microsoft 365 si l'utilisateur n'a PAS le droit d'incarner un gestionnaire
@@ -42,14 +42,14 @@ export default async function DevLoginPage() {
         <div className="w-full max-w-sm bg-surface border border-line rounded-md p-7 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-real31.png" alt="REAL 31 Immobilier" className="h-12 w-auto mx-auto mb-5" />
-          <h1 className="text-[18px] font-medium text-ink">Intranet REAL 31</h1>
-          <p className="text-[13px] text-ink-3 mt-1 mb-6">
+          <h1 className="text-title font-medium text-ink">Intranet REAL 31</h1>
+          <p className="text-body text-ink-3 mt-1 mb-6">
             Connectez-vous avec votre compte Microsoft 365.
           </p>
           <form action={connecterMicrosoft}>
             <button
               type="submit"
-              className="w-full h-10 rounded-md bg-green-700 text-white text-[14px] font-medium hover:bg-green-600 transition-colors"
+              className="w-full h-10 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 transition-colors"
             >
               Se connecter avec Microsoft
             </button>
@@ -71,8 +71,8 @@ export default async function DevLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
       <div className="w-full max-w-md bg-surface border border-line rounded-md p-6">
-        <h1 className="text-[18px] font-medium text-ink">Choisir un gestionnaire</h1>
-        <p className="text-[13px] text-ink-3 mt-1 mb-4">
+        <h1 className="text-title font-medium text-ink">Choisir un gestionnaire</h1>
+        <p className="text-body text-ink-3 mt-1 mb-4">
           Session dev (sera remplacée par l&apos;authentification Entra ID). Vous ne verrez
           que les copropriétés du gestionnaire choisi.
         </p>
@@ -87,10 +87,10 @@ export default async function DevLoginPage() {
                     type="submit"
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-md border border-line bg-surface hover:bg-surface-2 text-left transition-colors"
                   >
-                    <span className="w-8 h-8 rounded-full bg-surface-2 text-ink-2 text-[12px] font-medium flex items-center justify-center shrink-0">
+                    <span className="w-8 h-8 rounded-full bg-surface-2 text-ink-2 text-body font-medium flex items-center justify-center shrink-0">
                       {g.initiales}
                     </span>
-                    <span className="text-[14px] text-ink">{g.nomComplet}</span>
+                    <span className="text-body text-ink">{g.nomComplet}</span>
                     {/* Badges DISPLAY : role (libelle FR) + agence (code) + super-admin
                         (statut env SUPER_ADMINS, pas dans la table -> sinon invisible). Le
                         libelle de role couvre deja "Comptable" (pas de marqueur separe). */}
@@ -98,7 +98,7 @@ export default async function DevLoginPage() {
                       {roleLisible && <span className={BADGE_CLASS}>{roleLisible}</span>}
                       {agenceCode && <span className={BADGE_CLASS}>{agenceCode}</span>}
                       {estSuperAdmin(g.email) && (
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-green-700 border border-green-700/40 rounded px-1.5 py-px">
+                        <span className="text-meta font-medium uppercase tracking-wide text-green-700 border border-green-700/40 rounded-sm px-1.5 py-px">
                           super-admin
                         </span>
                       )}

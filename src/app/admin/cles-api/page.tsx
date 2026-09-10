@@ -40,8 +40,8 @@ export default async function ClesApiPage() {
   return (
     <AppShell user={g} active="cles-api" breadcrumb="Administration / Clés API">
       <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-[20px] font-medium tracking-tight text-ink mb-1">Clés API</h1>
-        <p className="text-[13px] text-ink-3 mb-4">
+        <h1 className="text-page font-medium tracking-tight text-ink mb-1">Clés API</h1>
+        <p className="text-body text-ink-3 mb-4">
           Accès machine à l&apos;intranet (API /api/v1 et serveur MCP). La clé n&apos;est affichée
           qu&apos;une seule fois, à la création — seul son empreinte (hash) est conservée.
         </p>

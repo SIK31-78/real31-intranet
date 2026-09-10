@@ -53,7 +53,7 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
           ? 'Duplique la phase 1 commune pour un nouveau local'
           : 'Disponible une fois la qualification commune terminée'
       }
-      className="rounded-sm bg-green-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-600 disabled:opacity-40"
+      className="rounded-sm bg-green-700 px-2.5 py-1 text-meta font-medium text-white hover:bg-green-800 disabled:opacity-40"
     >
       + Ajouter un local sinistré
     </button>
@@ -64,7 +64,7 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
   if (state.locaux.length === 1) {
     return (
       <div className="no-print mb-4 flex flex-wrap items-center gap-2">
-        <label htmlFor="nom-local-actif" className="text-sm text-ink-3">
+        <label htmlFor="nom-local-actif" className="text-body text-ink-3">
           Local sinistré
         </label>
         <input
@@ -76,8 +76,8 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
           }
           aria-invalid={nomEnErreur}
           placeholder="ex. Appt 3e gauche, Cage A…"
-          className={`w-56 rounded border px-2 py-1 text-sm ${
-            nomEnErreur ? 'border-warn-500 bg-warn-50' : 'border-line-2'
+          className={`w-56 rounded-sm border px-2 py-1 text-body ${
+ nomEnErreur ? 'border-warn-500 bg-warn-50' : 'border-line-2'
           }`}
         />
         {boutonAjouter}
@@ -88,7 +88,7 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
   return (
     <div className="no-print mb-4 rounded-lg border border-line bg-surface-2 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+        <span className="text-meta font-semibold uppercase tracking-wide text-ink-3">
           Locaux sinistrés
         </span>
         {boutonAjouter}
@@ -100,8 +100,8 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
             <li key={l.id} className="flex items-center gap-2">
               <button
                 onClick={() => dispatch({ type: 'ACTIVER_LOCAL', id: l.id })}
-                className={`rounded px-2 py-0.5 text-xs ${
-                  isActive ? 'bg-green-700 text-white' : 'bg-surface text-ink-3 hover:bg-surface-2'
+                className={`rounded-sm px-2 py-0.5 text-meta ${
+ isActive ? 'bg-green-700 text-white' : 'bg-surface text-ink-3 hover:bg-surface-2'
                 }`}
               >
                 {isActive ? '●' : '○'}
@@ -114,11 +114,11 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
                 }
                 aria-label="Nom du local sinistré"
                 placeholder="ex. Appt 3e gauche, Cage A…"
-                className={`w-48 rounded border px-2 py-0.5 text-sm ${
-                  nomLocalValide(l.libelle) ? 'border-line-2' : 'border-warn-500 bg-warn-50'
+                className={`w-48 rounded-sm border px-2 py-0.5 text-body ${
+ nomLocalValide(l.libelle) ? 'border-line-2' : 'border-warn-500 bg-warn-50'
                 }`}
               />
-              <span className="flex-1 truncate text-xs text-ink-3">{statutLocal(l)}</span>
+              <span className="flex-1 truncate text-meta text-ink-3">{statutLocal(l)}</span>
               <button
                 onClick={() => supprimer(l)}
                 disabled={!peutSupprimer}
@@ -128,7 +128,7 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
                     ? 'Retirer ce local sinistré'
                     : 'Un sinistre comporte au moins un local.'
                 }
-                className="rounded px-2 py-0.5 text-xs text-err-700 hover:bg-err-50 disabled:cursor-not-allowed disabled:text-line-2 disabled:hover:bg-transparent"
+                className="rounded-sm px-2 py-0.5 text-meta text-err-700 hover:bg-err-50 disabled:cursor-not-allowed disabled:text-line-2 disabled:hover:bg-transparent"
               >
                 Retirer
               </button>

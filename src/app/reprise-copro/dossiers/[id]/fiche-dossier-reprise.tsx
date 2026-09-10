@@ -44,7 +44,7 @@ import { formatDateCourte, initialesDe, type DossierFicheVue } from "./vues";
 
 export type { DossierFicheVue } from "./vues";
 
-const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink w-full";
+const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full";
 
 export function FicheDossierReprise({
   dossier,
@@ -83,7 +83,7 @@ export function FicheDossierReprise({
 
   return (
     <div className="flex flex-col gap-5">
-      <Link href="/reprise-copro/dossiers" className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700 w-fit">
+      <Link href="/reprise-copro/dossiers" className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700 w-fit">
         <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Toutes les reprises
       </Link>
 
@@ -97,8 +97,8 @@ export function FicheDossierReprise({
 
       {/* 3. BANDEAU « prochaine étape » */}
       {dossier.archive ? (
-        <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-3 flex items-center gap-2">
-          <Archive strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
+        <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-body text-ink-3 flex items-center gap-2">
+          <Archive strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
           Dossier archivé : consultable en lecture. Désarchive-le (en-tête) pour reprendre le suivi.
         </div>
       ) : (
@@ -172,7 +172,7 @@ function EnTete({ dossier, pct }: { dossier: DossierFicheVue; pct: number }) {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-mono text-[12px] text-ink-2">{dossier.ref}</span>
+            <span className="font-mono text-body text-ink-2">{dossier.ref}</span>
             {dossier.archive && (
               <Badge ton="neutral" className="gap-1">
                 <Archive strokeWidth={1.5} className="w-3 h-3" /> Archivé
@@ -183,47 +183,47 @@ function EnTete({ dossier, pct }: { dossier: DossierFicheVue; pct: number }) {
           {!edition ? (
             <>
               <div className="flex items-center gap-2">
-                <h1 className="text-[20px] font-medium tracking-tight text-ink">{dossier.nomUsuel}</h1>
+                <h1 className="text-page font-medium tracking-tight text-ink">{dossier.nomUsuel}</h1>
                 <button
                   type="button"
                   onClick={() => setEdition(true)}
                   aria-label="Modifier le cadrage"
                   title="Modifier nom, adresse, sortant, date de bascule"
-                  className="p-1 rounded-md text-ink-4 hover:text-ink hover:bg-surface-2"
+                  className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-surface-2"
                 >
                   <Pencil strokeWidth={1.5} className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-ink-3">
+              <div className="mt-1 flex flex-col gap-0.5 text-body text-ink-3">
                 <p className="flex items-center gap-1.5">
-                  <MapPin strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
-                  {dossier.adresse ?? <span className="text-ink-4">Adresse non renseignée</span>}
+                  <MapPin strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                  {dossier.adresse ?? <span className="text-ink-3">Adresse non renseignée</span>}
                 </p>
                 <p className="flex items-center gap-1.5">
-                  <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
-                  {dossier.sortant ? `Sortant : ${dossier.sortant}` : <span className="text-ink-4">Syndic sortant non renseigné</span>}
+                  <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                  {dossier.sortant ? `Sortant : ${dossier.sortant}` : <span className="text-ink-3">Syndic sortant non renseigné</span>}
                 </p>
                 <p className="flex items-center gap-1.5">
-                  <CalendarDays strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
-                  {dossier.dateBascule ? `Bascule le ${formatDateCourte(dossier.dateBascule)}` : <span className="text-ink-4">Date de bascule non renseignée</span>}
+                  <CalendarDays strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                  {dossier.dateBascule ? `Bascule le ${formatDateCourte(dossier.dateBascule)}` : <span className="text-ink-3">Date de bascule non renseignée</span>}
                 </p>
               </div>
             </>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
-              <label className="flex flex-col gap-1 text-[12px] text-ink-3 sm:col-span-2">
+              <label className="flex flex-col gap-1 text-body text-ink-3 sm:col-span-2">
                 Nom de la copropriété
                 <input value={nomUsuel} onChange={(e) => setNomUsuel(e.target.value)} className={INPUT} autoFocus />
               </label>
-              <label className="flex flex-col gap-1 text-[12px] text-ink-3 sm:col-span-2">
+              <label className="flex flex-col gap-1 text-body text-ink-3 sm:col-span-2">
                 Adresse
                 <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={INPUT} />
               </label>
-              <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+              <label className="flex flex-col gap-1 text-body text-ink-3">
                 Syndic sortant
                 <input value={sortant} onChange={(e) => setSortant(e.target.value)} className={INPUT} />
               </label>
-              <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+              <label className="flex flex-col gap-1 text-body text-ink-3">
                 Date de bascule
                 <input type="date" value={dateBascule} onChange={(e) => setDateBascule(e.target.value)} className={INPUT} />
               </label>
@@ -240,8 +240,8 @@ function EnTete({ dossier, pct }: { dossier: DossierFicheVue; pct: number }) {
         </div>
 
         <div className="text-right shrink-0">
-          <div className="text-[22px] font-semibold text-green-700 leading-none">{pct}%</div>
-          <div className="mt-1 text-[11px] text-ink-3 font-mono">
+          <div className="text-page font-semibold text-green-700 leading-none">{pct}%</div>
+          <div className="mt-1 text-meta text-ink-3 font-mono">
             {dossier.etapesFaites}/{dossier.etapesTotal} étapes
           </div>
         </div>
@@ -310,7 +310,7 @@ function EquipeDossier({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          <Users strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4" /> Équipe
+          <Users strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" /> Équipe
         </CardTitle>
       </CardHeader>
       <div className="p-4 flex flex-col gap-3">
@@ -318,7 +318,7 @@ function EquipeDossier({
           {ROLES_REPRISE.map((role) => {
             const nom = collaborateurs.find((c) => c.id === ids[role])?.nom;
             return (
-              <label key={role} className="flex flex-col gap-1 text-[12px] text-ink-3">
+              <label key={role} className="flex flex-col gap-1 text-body text-ink-3">
                 <span className="flex items-center gap-1.5">
                   {nom && <Avatar initiales={initialesDe(nom)} title={nom} />}
                   {ROLE_LABEL[role]}
@@ -327,7 +327,7 @@ function EquipeDossier({
                   value={ids[role]}
                   onChange={(e) => changer(role, e.target.value)}
                   disabled={pending}
-                  className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink w-full disabled:opacity-50"
+                  className="h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full disabled:opacity-50"
                 >
                   <option value="">Personne</option>
                   {collaborateurs.map((c) => (
@@ -344,7 +344,7 @@ function EquipeDossier({
           <Button type="button" variant="secondary" size="sm" onClick={reassigner} disabled={pending}>
             Réassigner les étapes d&apos;après l&apos;équipe
           </Button>
-          <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-3 cursor-pointer">
+          <label className="inline-flex items-center gap-1.5 text-body text-ink-3 cursor-pointer">
             <input type="checkbox" checked={ecraser} onChange={(e) => setEcraser(e.target.checked)} className="accent-green-700" />
             Écraser les assignations existantes
           </label>
@@ -376,7 +376,7 @@ const TON_BANDEAU: Record<ProchaineEtape["tonalite"], { conteneur: string; titre
   },
   termine: {
     conteneur: "border-green-600/40 bg-green-50",
-    titre: "text-green-800",
+    titre: "text-green-700",
     bouton: "bg-green-700 hover:bg-green-800 text-white",
     etiquette: "Reprise terminée",
   },
@@ -388,22 +388,22 @@ function BandeauProchaineEtape({ etape, onAller }: { etape: ProchaineEtape; onAl
     <div className={cn("rounded-md border px-4 py-3.5", ton.conteneur)}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-4">
+          <p className="text-meta font-medium uppercase tracking-wide text-ink-3">
             {ton.etiquette}
             {etape.phase && <span className="ml-1.5 normal-case tracking-normal">· {PHASE_LABEL[etape.phase]}</span>}
             {etape.code && <span className="ml-1.5 font-mono normal-case tracking-normal">{etape.code}</span>}
           </p>
-          <p className={cn("mt-0.5 text-[15px] font-semibold", ton.titre)}>{etape.titre}</p>
-          <p className="mt-1 text-[12.5px] text-ink-2">{etape.description}</p>
-          {etape.note && <p className={cn("mt-1 text-[12.5px]", etape.tonalite === "bloque" ? "text-err-700" : "text-ink-3")}>{etape.note}</p>}
-          <div className="mt-1.5 flex items-center gap-3 flex-wrap text-[12px] text-ink-3">
+          <p className={cn("mt-0.5 text-title font-semibold", ton.titre)}>{etape.titre}</p>
+          <p className="mt-1 text-body text-ink-2">{etape.description}</p>
+          {etape.note && <p className={cn("mt-1 text-body", etape.tonalite === "bloque" ? "text-err-700" : "text-ink-3")}>{etape.note}</p>}
+          <div className="mt-1.5 flex items-center gap-3 flex-wrap text-body text-ink-3">
             {etape.assigne ? (
               <span className="inline-flex items-center gap-1.5">
                 <Avatar initiales={initialesDe(etape.assigne.nom)} title={etape.assigne.nom} />
                 {etape.assigne.nom}
               </span>
             ) : (
-              etape.code && <span className="text-ink-4">Personne n&apos;est assigné</span>
+              etape.code && <span className="text-ink-3">Personne n&apos;est assigné</span>
             )}
             {etape.echeance && <span>Échéance {formatDateCourte(etape.echeance)}</span>}
           </div>
@@ -413,7 +413,7 @@ function BandeauProchaineEtape({ etape, onAller }: { etape: ProchaineEtape; onAl
             type="button"
             onClick={() => onAller(etape.code!)}
             className={cn(
-              "shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-[13px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+              "shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-body font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
               ton.bouton,
             )}
           >
@@ -474,7 +474,7 @@ function ActionsDossier({
         type="button"
         onClick={basculerArchive}
         disabled={archivePending}
-        className="inline-flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-ink transition-colors disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 text-body text-ink-3 hover:text-ink transition-colors disabled:opacity-50"
       >
         {archive ? (
           <>
@@ -490,7 +490,7 @@ function ActionsDossier({
         type="button"
         onClick={supprimer}
         disabled={supprPending}
-        className="inline-flex items-center gap-1.5 text-[12px] text-ink-4 hover:text-err-700 transition-colors ml-auto disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 text-body text-ink-3 hover:text-err-700 transition-colors ml-auto disabled:opacity-50"
       >
         <Trash2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> {supprPending ? "Suppression…" : "Supprimer définitivement"}
       </button>

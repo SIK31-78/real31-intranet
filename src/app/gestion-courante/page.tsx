@@ -22,11 +22,11 @@ export default async function GestionCourantePage() {
     <AppShell user={g} active="gestion-courante" breadcrumb="Gestion courante">
       <div className="mx-auto flex max-w-[1000px] flex-col gap-5 px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <div>
-          <h1 className="flex items-center gap-2 text-[20px] font-semibold text-ink">
+          <h1 className="flex items-center gap-2 text-page font-semibold text-ink">
             <Landmark strokeWidth={1.5} className="h-5 w-5 text-green-700" />
             Facturation de gestion courante
           </h1>
-          <p className="mt-1 text-[13px] text-ink-3">
+          <p className="mt-1 text-body text-ink-3">
             Chaque trimestre, lance la facturation des honoraires de gestion courante des
             copropriétés. Chaque ligne est comparée à son contrat : tu choisis ce qui part.
           </p>
@@ -44,7 +44,7 @@ export default async function GestionCourantePage() {
           />
         ) : (
           <Card>
-            <p className="px-4 py-8 text-center text-[13px] text-ink-3">
+            <p className="px-4 py-8 text-center text-body text-ink-3">
               Cette page est réservée au pôle comptable.
             </p>
           </Card>

@@ -19,7 +19,7 @@ export default async function DossiersPage() {
   return (
     <AppShell user={g} active="dossiers" breadcrumb="Dossiers">
       <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-[20px] font-medium tracking-tight text-ink mb-4">Dossiers</h1>
+        <h1 className="text-page font-medium tracking-tight text-ink mb-4">Dossiers</h1>
         <DossiersVue dossiers={dossiers} copros={listeCopros} />
       </div>
     </AppShell>

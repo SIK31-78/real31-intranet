@@ -39,8 +39,8 @@ function euros(v: number | undefined): string {
 function Champ({ libelle, valeur, fort }: { libelle: string; valeur: string; fort?: boolean }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[12px] text-ink-3">{libelle}</dt>
-      <dd className={`text-[13px] ${fort ? "font-semibold text-ink" : "text-ink"}`}>{valeur}</dd>
+      <dt className="text-body text-ink-3">{libelle}</dt>
+      <dd className={`text-body ${fort ? "font-semibold text-ink" : "text-ink"}`}>{valeur}</dd>
     </div>
   );
 }
@@ -63,7 +63,7 @@ function Bloc({
           {icone}
           {titre}
         </CardTitle>
-        {aide && <span className="text-[12px] text-ink-3">{aide}</span>}
+        {aide && <span className="text-body text-ink-3">{aide}</span>}
       </CardHeader>
       <div className="px-4 py-3">{children}</div>
     </Card>
@@ -74,9 +74,9 @@ function TableauTravaux({ recap }: { recap: RecapRecuDetail }) {
   return (
     // Tableau large : il scrolle DANS son conteneur, la page ne part jamais en travers.
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[560px] text-left text-[13px]">
+      <table className="w-full min-w-[560px] text-left text-body">
         <thead>
-          <tr className="text-[12px] text-ink-3">
+          <tr className="text-body text-ink-3">
             <th className="py-1.5 pr-3 font-medium">Résolution</th>
             <th className="py-1.5 pr-3 font-medium">Travaux</th>
             <th className="py-1.5 pr-3 font-medium">Budget voté</th>
@@ -87,7 +87,7 @@ function TableauTravaux({ recap }: { recap: RecapRecuDetail }) {
         <tbody className="divide-y divide-line">
           {recap.travaux.map((t, i) => (
             <tr key={`${t.libelle}-${i}`} className="align-top">
-              <td className="py-2 pr-3 font-mono text-[12px] text-ink-2">
+              <td className="py-2 pr-3 font-mono text-body text-ink-2">
                 {t.numeroResolution ?? "-"}
               </td>
               <td className="py-2 pr-3 text-ink">{t.libelle}</td>
@@ -128,15 +128,15 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
         <div>
           <Link
             href="/comptabilite/recaps"
-            className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-green-700"
+            className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700"
           >
             <ArrowLeft strokeWidth={1.5} className="h-3.5 w-3.5" /> Récaps d&apos;AG reçus
           </Link>
-          <h1 className="mt-1 text-[20px] font-semibold text-ink">
+          <h1 className="mt-1 text-page font-semibold text-ink">
             {recap.coproNom}{" "}
-            <span className="text-[14px] font-normal text-ink-3">({recap.coproCode})</span>
+            <span className="text-body font-normal text-ink-3">({recap.coproCode})</span>
           </h1>
-          <p className="mt-0.5 text-[13px] text-ink-2">
+          <p className="mt-0.5 text-body text-ink-2">
             AG tenue le {formatDateLongue(recap.agDate)} · récap reçu le{" "}
             {formatDateLongue(recap.creeLe.slice(0, 10))}
             {recap.par ? ` · ${recap.par}` : ""}
@@ -165,10 +165,10 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
                 className="mt-0.5 h-4 w-4 shrink-0 text-info-700"
               />
               <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-info-700">
+                <p className="text-body font-semibold text-info-700">
                   Message du gestionnaire à la comptabilité
                 </p>
-                <p className="mt-1 whitespace-pre-wrap text-[13px] text-ink">
+                <p className="mt-1 whitespace-pre-wrap text-body text-ink">
                   {recap.infoComptable}
                 </p>
               </div>
@@ -207,7 +207,7 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
           icone={<Hammer strokeWidth={1.5} className="h-4 w-4 text-green-700" />}
         >
           {recap.travaux.length === 0 ? (
-            <p className="text-[13px] text-ink-3">Aucun travaux voté à cette assemblée.</p>
+            <p className="text-body text-ink-3">Aucun travaux voté à cette assemblée.</p>
           ) : (
             <TableauTravaux recap={recap} />
           )}
@@ -217,7 +217,7 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
           titre="Nouveau cycle de contrat"
           icone={<FileText strokeWidth={1.5} className="h-4 w-4 text-green-700" />}
         >
-          <p className="text-[13px] text-ink">
+          <p className="text-body text-ink">
             {recap.suiviContratId
               ? "Un nouveau cycle de contrat a été ouvert à l'enregistrement du récap (honoraires et frais postaux sur le suivi des contrats)."
               : "Aucun cycle de contrat ouvert à la saisie du récap : à ouvrir si l'assemblée a renouvelé le mandat."}

@@ -36,7 +36,7 @@ const STATUT_TON: Record<StatutDossier, "warn" | "info" | "ok"> = {
   clos: "ok",
 };
 const PORTEES: PorteeDossier[] = ["copropriete", "coproprietaire", "lot"];
-const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink";
+const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink";
 
 export function DossiersVue({
   dossiers,
@@ -111,11 +111,11 @@ export function DossiersVue({
           <option value="recent">Tri : récents</option>
           <option value="copro">Tri : par copropriété</option>
         </select>
-        <span className="text-[12px] text-ink-3">{visibles.length} dossier{visibles.length > 1 ? "s" : ""}</span>
+        <span className="text-body text-ink-3">{visibles.length} dossier{visibles.length > 1 ? "s" : ""}</span>
         <button
           type="button"
           onClick={() => setFormOuvert((o) => !o)}
-          className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-[13px] font-medium hover:bg-green-600 transition-colors"
+          className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 transition-colors"
         >
           <Plus strokeWidth={2} className="w-3.5 h-3.5" /> Nouveau dossier
         </button>
@@ -126,8 +126,8 @@ export function DossiersVue({
       {visibles.length === 0 ? (
         <Card>
           <div className="px-4 py-10 text-center">
-            <FolderOpen strokeWidth={1.5} className="w-6 h-6 text-ink-4 mx-auto mb-2" />
-            <p className="text-[13px] text-ink-3">Aucun dossier. Crée le premier avec « Nouveau dossier ».</p>
+            <FolderOpen strokeWidth={1.5} className="w-6 h-6 text-ink-3 mx-auto mb-2" />
+            <p className="text-body text-ink-3">Aucun dossier. Crée le premier avec « Nouveau dossier ».</p>
           </div>
         </Card>
       ) : groupes ? (
@@ -135,9 +135,9 @@ export function DossiersVue({
           {groupes.map((g) => (
             <Card key={g.code} className="overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2 bg-surface-2 border-b border-line">
-                <span className="font-mono text-[12px] text-ink-2">{g.code}</span>
-                <span className="text-[12.5px] font-medium text-ink truncate">{g.nom}</span>
-                <span className="ml-auto text-[11px] text-ink-3">{g.items.length} dossier{g.items.length > 1 ? "s" : ""}</span>
+                <span className="font-mono text-body text-ink-2">{g.code}</span>
+                <span className="text-body font-medium text-ink truncate">{g.nom}</span>
+                <span className="ml-auto text-meta text-ink-3">{g.items.length} dossier{g.items.length > 1 ? "s" : ""}</span>
               </div>
               <ul className="divide-y divide-line">
                 {g.items.map((d) => <LigneDossier key={d.id} d={d} masquerCopro />)}
@@ -168,8 +168,8 @@ function LigneDossier({ d, masquerCopro = false }: { d: Dossier; masquerCopro?: 
       >
         <Badge ton={TYPE_TON[d.type]} className="shrink-0 w-[100px] justify-center">{TYPE_DOSSIER_LABEL[d.type]}</Badge>
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-ink truncate">{d.titre}</div>
-          <div className="text-[12px] text-ink-3 truncate">
+          <div className="text-body font-medium text-ink truncate">{d.titre}</div>
+          <div className="text-body text-ink-3 truncate">
             {masquerCopro ? (
               d.cible ?? ""
             ) : (
@@ -180,9 +180,9 @@ function LigneDossier({ d, masquerCopro = false }: { d: Dossier; masquerCopro?: 
             )}
           </div>
         </div>
-        <span className="text-[11px] text-ink-3 font-mono shrink-0 hidden sm:block">{p.faites}/{p.total}</span>
+        <span className="text-meta text-ink-3 font-mono shrink-0 hidden sm:block">{p.faites}/{p.total}</span>
         <Badge ton={STATUT_TON[d.statut]} dot className="shrink-0">{STATUT_DOSSIER_LABEL[d.statut]}</Badge>
-        <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
+        <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
       </Link>
     </li>
   );
@@ -222,7 +222,7 @@ function FormCreation({
     <Card>
       <div className="p-4 flex flex-col gap-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+          <label className="flex flex-col gap-1 text-body text-ink-3">
             Copropriété
             <select value={coproCode} onChange={(e) => setCoproCode(e.target.value)} className={SELECT}>
               {copros.map((c) => (
@@ -230,7 +230,7 @@ function FormCreation({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+          <label className="flex flex-col gap-1 text-body text-ink-3">
             Type
             <select value={type} onChange={(e) => setType(e.target.value as TypeDossier)} className={SELECT}>
               {TYPE_DOSSIER_ORDRE.map((t) => (
@@ -238,7 +238,7 @@ function FormCreation({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+          <label className="flex flex-col gap-1 text-body text-ink-3">
             Portée
             <select value={portee} onChange={(e) => setPortee(e.target.value as PorteeDossier)} className={SELECT}>
               {PORTEES.map((p) => (
@@ -247,18 +247,18 @@ function FormCreation({
             </select>
           </label>
           {portee !== "copropriete" && (
-            <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+            <label className="flex flex-col gap-1 text-body text-ink-3">
               {portee === "lot" ? "Lot (réf.)" : "Copropriétaire"}
               <input
                 value={cible}
                 onChange={(e) => setCible(e.target.value)}
                 placeholder={portee === "lot" ? "ex. Lot 12" : "Nom du copropriétaire"}
-                className="h-8 rounded-md border border-line bg-surface px-2 text-[13px]"
+                className="h-8 rounded-md border border-line bg-surface px-2 text-body"
               />
             </label>
           )}
         </div>
-        <label className="flex flex-col gap-1 text-[12px] text-ink-3">
+        <label className="flex flex-col gap-1 text-body text-ink-3">
           Intitulé du dossier
           <input
             value={titre}
@@ -266,10 +266,10 @@ function FormCreation({
             onKeyDown={(e) => e.key === "Enter" && submit()}
             placeholder="ex. Ravalement façade, Dégât des eaux 3e étage..."
             autoFocus
-            className="h-8 rounded-md border border-line bg-surface px-2 text-[13px]"
+            className="h-8 rounded-md border border-line bg-surface px-2 text-body"
           />
         </label>
-        <label className="flex items-center gap-2 text-[12.5px] text-ink-2">
+        <label className="flex items-center gap-2 text-body text-ink-2">
           <input type="checkbox" checked={modele} onChange={(e) => setModele(e.target.checked)} className="accent-green-700" />
           Pré-remplir avec les étapes types (modifiables ensuite)
         </label>
@@ -278,14 +278,14 @@ function FormCreation({
             type="button"
             onClick={submit}
             disabled={pending || !titre.trim()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-[13px] font-medium hover:bg-green-600 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
           >
             Créer le dossier
           </button>
           <button
             type="button"
             onClick={onFait}
-            className="h-8 px-3 rounded-md border border-line text-[13px] text-ink-2 hover:border-line-2"
+            className="h-8 px-3 rounded-md border border-line text-body text-ink-2 hover:border-line-2"
           >
             Annuler
           </button>

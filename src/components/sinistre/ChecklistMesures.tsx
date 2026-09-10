@@ -26,18 +26,18 @@ export function MesureRow({ item }: { item: ChecklistItem }) {
 
   return (
     <li className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-line bg-surface p-2">
-      <span className="flex-1 text-sm text-ink-2">
+      <span className="flex-1 text-body text-ink-2">
         <Glose>{item.libelle}</Glose>
         <span
-          className={`ml-2 inline-block rounded-full px-2 py-0.5 text-xs ${
-            tiers ? 'bg-warn-50 text-warn-700' : 'bg-surface-2 text-ink-2'
+          className={`ml-2 inline-block rounded-full px-2 py-0.5 text-meta ${
+ tiers ? 'bg-warn-50 text-warn-700' : 'bg-surface-2 text-ink-2'
           }`}
         >
           {tiers ? '→ à demander : ' : ''}
           {labelResponsable(item.responsable)}
         </span>
       </span>
-      <div className="flex shrink-0 items-center gap-3 text-sm">
+      <div className="flex shrink-0 items-center gap-3 text-body">
         <label className="flex items-center gap-1">
           <input type="checkbox" checked={etat === 'fait'} onChange={() => basculer('fait')} />
           {verbeFait(item.responsable)}
@@ -51,7 +51,7 @@ export function MesureRow({ item }: { item: ChecklistItem }) {
           Sans objet
         </label>
         {etat === undefined && (
-          <span className="rounded-full bg-warn-50 px-2 py-0.5 text-xs font-medium text-warn-700">
+          <span className="rounded-full bg-warn-50 px-2 py-0.5 text-meta font-medium text-warn-700">
             à faire
           </span>
         )}
@@ -63,7 +63,7 @@ export function MesureRow({ item }: { item: ChecklistItem }) {
 export function ChecklistMesures({ items }: { items: ChecklistItem[] }) {
   return (
     <div>
-      <p className="mb-2 text-sm font-medium text-ink-2">
+      <p className="mb-2 text-body font-medium text-ink-2">
         Mesures à réaliser - indiquez où vous en êtes{' '}
         <span className="font-normal text-ink-3">(rien ne bloque la suite)</span>
       </p>

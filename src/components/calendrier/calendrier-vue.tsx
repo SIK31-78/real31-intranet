@@ -99,7 +99,7 @@ export function CalendrierVue({
               <button
                 type="button"
                 onClick={navigateToday}
-                className="h-7 px-2.5 rounded-sm border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2"
+                className="h-7 px-2.5 rounded-sm border border-line bg-surface text-body font-medium text-ink-2 hover:border-line-2"
               >
                 Aujourd&apos;hui
               </button>
@@ -113,7 +113,7 @@ export function CalendrierVue({
               </button>
             </div>
           )}
-          <div className="text-[15px] font-medium text-ink">{libellePeriode}</div>
+          <div className="text-title font-medium text-ink">{libellePeriode}</div>
         </div>
         <FiltresBar typesActifs={typesActifs} onToggleType={toggleType} />
         <div className="flex items-center gap-0.5 bg-surface-2 rounded-md p-0.5">
@@ -123,7 +123,7 @@ export function CalendrierVue({
               type="button"
               onClick={() => setVue(v.value)}
               className={cn(
-                "h-7 px-3 rounded-[5px] text-[12px] font-medium transition-colors duration-75",
+                "h-7 px-3 rounded-[5px] text-body font-medium transition-colors duration-120",
                 vue === v.value
                   ? "bg-surface text-ink shadow-1"
                   : "text-ink-3 hover:text-ink-2",
@@ -137,7 +137,7 @@ export function CalendrierVue({
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 min-w-0">
           {vue !== "liste" && evenementsFiltres.length === 0 && (
-            <div className="mb-3 rounded-md border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-3 text-center">
+            <div className="mb-3 rounded-md border border-line bg-surface-2 px-4 py-3 text-body text-ink-3 text-center">
               {typesActifs.length === 0
                 ? "Aucun type sélectionné - réactivez un filtre ci-dessus."
                 : "Aucun événement à afficher pour le moment."}

@@ -46,7 +46,7 @@ export function SinistreNav() {
 
   return (
     <div className="no-print mb-6 flex items-end justify-between gap-4 border-b border-line">
-      <nav className="flex flex-wrap gap-1 text-[13px]">
+      <nav className="flex flex-wrap gap-1 text-body">
         {NAV.map((n) => {
           const actif = estActif(n.href, n.exact);
           return (

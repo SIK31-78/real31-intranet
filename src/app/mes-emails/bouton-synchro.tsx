@@ -13,7 +13,7 @@ export function BoutonSynchro() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-md bg-green-700 px-3 py-1.5 text-[12.5px] font-medium text-white hover:bg-green-800 disabled:opacity-60 disabled:cursor-not-allowed"
+      className="rounded-md bg-green-700 px-3 py-1.5 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60 disabled:cursor-not-allowed"
     >
       {pending ? "Synchronisation…" : "Synchroniser ma boîte"}
     </button>

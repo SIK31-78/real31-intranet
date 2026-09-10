@@ -44,7 +44,7 @@ export function DialogueConfirmationEcrite({
   return (
     <Modal titre={`Confirmer la facturation de ${coproCode}`} onFermer={onAnnuler}>
       <div className="flex flex-col gap-4 px-4 py-4">
-        <div className="flex items-start gap-2 rounded-md border border-err-500/30 bg-err-50 px-3 py-2.5 text-[13px] text-err-700">
+        <div className="flex items-start gap-2 rounded-md border border-err-500/30 bg-err-50 px-3 py-2.5 text-body text-err-700">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.5} />
           <p>
             Cette copropriété serait facturée <strong>{ecart}</strong> au-dessus de son contrat.
@@ -54,17 +54,17 @@ export function DialogueConfirmationEcrite({
 
         <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-md bg-line">
           <div className="bg-surface px-3 py-2">
-            <dt className="text-[11px] uppercase tracking-wide text-ink-3">Montant facturé</dt>
-            <dd className="mt-0.5 text-[15px] font-semibold text-ink">{montant} HT</dd>
+            <dt className="text-meta uppercase tracking-wide text-ink-3">Montant facturé</dt>
+            <dd className="mt-0.5 text-title font-semibold text-ink">{montant} HT</dd>
           </div>
           <div className="bg-surface px-3 py-2">
-            <dt className="text-[11px] uppercase tracking-wide text-ink-3">Attendu au contrat</dt>
-            <dd className="mt-0.5 text-[15px] font-semibold text-ink">{attendu} HT</dd>
+            <dt className="text-meta uppercase tracking-wide text-ink-3">Attendu au contrat</dt>
+            <dd className="mt-0.5 text-title font-semibold text-ink">{attendu} HT</dd>
           </div>
         </dl>
 
         <div>
-          <label className="mb-1 block text-[13px] text-ink" htmlFor={champId}>
+          <label className="mb-1 block text-body text-ink" htmlFor={champId}>
             Pour émettre cette ligne, tape le mot{" "}
             <strong className="font-semibold">{MOT_DE_CONFIRMATION}</strong>.
           </label>
@@ -80,9 +80,9 @@ export function DialogueConfirmationEcrite({
                 onConfirmer();
               }
             }}
-            className="w-full rounded border border-line px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-green-700"
+            className="w-full rounded-sm border border-line px-2 py-1.5 text-body focus:outline-none focus:ring-1 focus:ring-green-700"
           />
-          <p id={aideId} className="mt-1 text-[12px] text-ink-3">
+          <p id={aideId} className="mt-1 text-body text-ink-3">
             La casse et les espaces n&apos;ont pas d&apos;importance. Échap annule.
           </p>
         </div>
@@ -91,7 +91,7 @@ export function DialogueConfirmationEcrite({
           <button
             type="button"
             onClick={onAnnuler}
-            className="h-9 rounded-md px-3 text-[13px] text-ink-2 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+            className="h-9 rounded-md px-3 text-body text-ink-2 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
           >
             Annuler
           </button>
@@ -99,7 +99,7 @@ export function DialogueConfirmationEcrite({
             type="button"
             onClick={onConfirmer}
             disabled={!valide}
-            className="h-9 rounded-md bg-err-500 px-4 text-[13px] font-medium text-white hover:bg-err-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-err-500 focus-visible:ring-offset-1 disabled:opacity-40"
+            className="h-9 rounded-md bg-err-500 px-4 text-body font-medium text-white hover:bg-err-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-err-500 focus-visible:ring-offset-1 disabled:opacity-40"
           >
             Facturer {coproCode}
           </button>

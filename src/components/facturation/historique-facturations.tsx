@@ -48,20 +48,20 @@ function quand(iso: string): string {
 function Statut({ statut }: { statut: FactureAffichee["statut"] }) {
   if (statut === "facturee") {
     return (
-      <span className="inline-flex items-center gap-1 text-[12px] text-green-800">
+      <span className="inline-flex items-center gap-1 text-body text-green-700">
         <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} /> Envoyée
       </span>
     );
   }
   if (statut === "erreur") {
     return (
-      <span className="inline-flex items-center gap-1 text-[12px] text-red-700">
+      <span className="inline-flex items-center gap-1 text-body text-err-700">
         <TriangleAlert className="w-3.5 h-3.5" strokeWidth={1.5} /> Échec
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[12px] text-ink-3">
+    <span className="inline-flex items-center gap-1 text-body text-ink-3">
       <Clock className="w-3.5 h-3.5" strokeWidth={1.5} /> En attente
     </span>
   );
@@ -89,14 +89,14 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
   return (
     <Card>
       <div className="border-b border-line px-4 py-3">
-        <h2 className="text-[14px] font-semibold text-ink">
+        <h2 className="text-body font-semibold text-ink">
           Historique des facturations{" "}
           <span className="font-normal text-ink-3">({factures.length})</span>
         </h2>
       </div>
 
       {factures.length === 0 ? (
-        <p className="px-4 py-8 text-center text-[13px] text-ink-3">
+        <p className="px-4 py-8 text-center text-body text-ink-3">
           Aucune facturation pour l&apos;instant.
         </p>
       ) : (
@@ -105,19 +105,19 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
             <li key={f.id} className="px-4 py-2.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] text-ink">
+                  <p className="truncate text-body text-ink">
                     <span className="font-medium">{f.coproCode}</span>
                     <span className="text-ink-3"> · </span>
                     {LIBELLE_TYPE[f.typePrestation] ?? f.typePrestation}
                   </p>
-                  <p className="truncate text-[12px] text-ink-3">
+                  <p className="truncate text-body text-ink-3">
                     {quand(f.creeLe)}
                     {f.par ? ` · ${f.par}` : ""}
                     {f.factureExterneId ? ` · Pennylane ${f.factureExterneId}` : ""}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <span className="text-[13px] font-medium text-ink">{euros(f.montantHt)} HT</span>
+                  <span className="text-body font-medium text-ink">{euros(f.montantHt)} HT</span>
                   <Statut statut={f.statut} />
                   {f.statut === "erreur" && (
                     <button
@@ -125,7 +125,7 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
                       onClick={() => rejouer(f.id)}
                       disabled={pending}
                       title="Renvoyer vers Pennylane"
-                      className="inline-flex items-center gap-1 rounded border border-line px-2 py-1 text-[12px] text-ink hover:bg-black/[0.03] disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-sm border border-line px-2 py-1 text-body text-ink hover:bg-black/[0.03] disabled:opacity-50"
                     >
                       {pending && enCours === f.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -138,7 +138,7 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
                 </div>
               </div>
               {f.statut === "erreur" && f.erreur && (
-                <p className="mt-1 rounded bg-red-50 px-2 py-1 text-[11px] leading-snug text-red-800">
+                <p className="mt-1 rounded-sm bg-err-50 px-2 py-1 text-meta leading-snug text-err-700">
                   {f.erreur.slice(0, 300)}
                 </p>
               )}

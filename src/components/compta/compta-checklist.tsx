@@ -62,7 +62,7 @@ export function ComptaChecklist({
   return (
     <Card>
       <div className="px-3 py-2 border-b border-line flex items-center justify-between gap-3">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+        <span className="text-body font-semibold uppercase tracking-[0.06em] text-ink-3">
           Postes à vérifier
         </span>
         <div className="flex items-center gap-2">
@@ -79,7 +79,7 @@ export function ComptaChecklist({
           const actif = statutPoste(checks, poste.slug);
           return (
             <li key={poste.slug} className="px-3 py-2.5 flex items-center justify-between gap-3">
-              <span className={`text-[13px] min-w-0 ${actif === "non_applicable" ? "text-ink-3" : "text-ink"}`}>
+              <span className={`text-body min-w-0 ${actif === "non_applicable" ? "text-ink-3" : "text-ink"}`}>
                 {poste.libelle}
               </span>
               <div className="inline-flex shrink-0 rounded-md border border-line overflow-hidden">
@@ -92,8 +92,8 @@ export function ComptaChecklist({
                       onClick={() => !estActif && poser(poste.slug, s.valeur)}
                       disabled={pending}
                       aria-pressed={estActif}
-                      className={`px-2 py-1 text-[11.5px] font-medium border-l first:border-l-0 border-line transition-colors disabled:opacity-60 ${
-                        estActif ? classeActif(s.valeur) : "bg-surface text-ink-3 hover:bg-surface-2"
+                      className={`px-2 py-1 text-meta font-medium border-l first:border-l-0 border-line transition-colors disabled:opacity-60 ${
+ estActif ? classeActif(s.valeur) : "bg-surface text-ink-3 hover:bg-surface-2"
                       }`}
                     >
                       {s.libelle}
@@ -107,7 +107,7 @@ export function ComptaChecklist({
       </ul>
 
       {erreur && (
-        <p role="alert" className="px-3 py-2 text-[12px] text-err-700">
+        <p role="alert" className="px-3 py-2 text-body text-err-700">
           {erreur}
         </p>
       )}
