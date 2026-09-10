@@ -21,26 +21,26 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
       {top.length === 0 ? (
         <div className="px-4 py-8 text-center">
           <CircleCheck strokeWidth={1.5} className="w-5 h-5 text-ok-500 mx-auto mb-1.5" aria-hidden="true" />
-          <p className="text-[13px] text-ink-3">Rien d&apos;urgent. Tout est à jour.</p>
+          <p className="text-body text-ink-3">Rien d&apos;urgent. Tout est à jour.</p>
         </div>
       ) : (
         <>
           <div>
             {top.map((item) => {
               const rowCls =
-                "flex items-center gap-3 px-4 py-[11px] border-b border-line last:border-b-0 hover:bg-surface-2 transition-colors duration-75";
+                "flex items-center gap-3 px-4 min-h-9 py-1.5 border-b border-line last:border-b-0 hover:bg-surface-2 transition-colors duration-120";
               const infoCls = "flex items-center gap-3 flex-1 min-w-0";
               const info = (
                 <>
                   <Badge ton={tonDeSeverite(item.jalon.severite)}>{item.jalon.label}</Badge>
-                  <span className="font-mono text-[12px] text-ink-2 w-[38px] shrink-0">{item.coproCode}</span>
-                  <span className="flex-1 text-[13px] min-w-0 truncate">{item.titre}</span>
+                  <span className="font-mono text-body text-ink-2 w-[38px] shrink-0">{item.coproCode}</span>
+                  <span className="flex-1 text-body min-w-0 truncate">{item.titre}</span>
                   {item.badge ? (
                     <Badge ton={item.badge.ton} dot>
                       {item.badge.texte}
                     </Badge>
                   ) : item.echeance ? (
-                    <span className="font-mono text-[12px] text-ink-3">{item.echeance}</span>
+                    <span className="font-mono text-body text-ink-3">{item.echeance}</span>
                   ) : null}
                 </>
               );
@@ -61,7 +61,7 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
                       jalonCode={item.jalonCode!}
                     />
                   ) : (
-                    <ChevronRight strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-4 shrink-0" />
+                    <ChevronRight strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                   )}
                 </div>
               );
@@ -69,7 +69,7 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
           </div>
           <Link
             href="/accueil"
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] text-green-700 hover:bg-green-50 border-t border-line"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-body text-green-700 hover:bg-green-50 border-t border-line"
           >
             Voir toutes mes tâches à traiter
             <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />

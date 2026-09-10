@@ -2,20 +2,32 @@
 
 // Pilotage du portefeuille : bascule Liste / Pipeline (kanban par etat du cycle AG).
 // Filtres source / etat / exercice. Decision Sekou 2026-06-22 (cockpit).
+//
+// Refonte 2026-09 : la liste est un tableau dense (36 px), le kanban des lignes
+// compactes sans badge de source repete 249 fois, la bascule de vue et les filtres
+// sont neutres. UN primaire sur la page : "Tout prendre en main" (quand il y a des
+// copros a prendre en main) ; les lignes du bac ont leur bouton en secondaire.
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { List, LayoutGrid, Search, ChevronRight, ClipboardCheck, Check } from "lucide-react";
+import { List, LayoutGrid, Search, ClipboardCheck, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge, type BadgeTon } from "@/components/ui/badge";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/field";
+import { SegmentedControl } from "@/components/ui/segmented";
+import { Table, Thead, Tbody, Th, Tr, Td, LienLigne } from "@/components/ui/table";
+import { Rows, Row } from "@/components/ui/list-rows";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Aide } from "@/components/ui/aide";
 import { useToast } from "@/components/ui/toast";
 import { libelleSource } from "@/lib/domain/copropriete";
 import { ETAT_CYCLE_LABEL, ETAT_CYCLE_ORDRE, type EtatCycle } from "@/lib/domain/etat-cycle-ag";
 import type { CoproPilotage } from "@/lib/services/coproprietes/get-copros-pilotage";
 import { prendreEnMainAction, prendreEnMainLotAction } from "@/app/copropriete/actions";
 
-const ETAT_TON: Record<EtatCycle, "neutral" | "warn" | "info" | "ok"> = {
+const ETAT_TON: Record<EtatCycle, BadgeTon> = {
   a_planifier: "neutral",
   a_venir: "neutral",
   en_preparation: "warn",
@@ -27,7 +39,7 @@ function echeance(c: CoproPilotage): string {
   if (c.etat === "a_planifier") return c.enRetard ? "en retard" : "à planifier";
   if (c.etat === "tenue") return "suivi post-AG";
   if (c.agDate) return `AG ${c.agDate.slice(8, 10)}/${c.agDate.slice(5, 7)}`;
-  return "-";
+  return "—";
 }
 
 function rangCloture(c: string): number {
@@ -35,7 +47,7 @@ function rangCloture(c: string): number {
   return m * 100 + j;
 }
 
-const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink-2 hover:border-line-2";
+type Vue = "liste" | "pipeline";
 
 export function CoprosVue({
   copros,
@@ -44,7 +56,7 @@ export function CoprosVue({
   copros: CoproPilotage[];
   etatInitial?: EtatCycle;
 }) {
-  const [vue, setVue] = useState<"liste" | "pipeline">(etatInitial ? "liste" : "pipeline");
+  const [vue, setVue] = useState<Vue>(etatInitial ? "liste" : "pipeline");
   const [q, setQ] = useState("");
   const [source, setSource] = useState<"all" | "crypto" | "estale">("all");
   const [etat, setEtat] = useState<"all" | EtatCycle>(etatInitial ?? "all");
@@ -111,167 +123,147 @@ export function CoprosVue({
       )}
 
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search strokeWidth={1.5} className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
-          <input
+        <div className="relative flex-1 min-w-52">
+          <Search strokeWidth={1.5} className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" aria-hidden />
+          <Input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher (code, nom, ville)..."
-            className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
+            placeholder="Rechercher (code, nom, ville)…"
+            aria-label="Rechercher une copropriété"
+            className="pl-8"
           />
         </div>
-        <select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className={SELECT}>
+        <Select largeur="auto" aria-label="Source" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
           <option value="all">Toutes les sources</option>
           <option value="estale">ESTALE</option>
           <option value="crypto">Crypto</option>
-        </select>
-        <select value={etat} onChange={(e) => setEtat(e.target.value as typeof etat)} className={SELECT}>
+        </Select>
+        <Select largeur="auto" aria-label="État du cycle" value={etat} onChange={(e) => setEtat(e.target.value as typeof etat)}>
           <option value="all">Tous les états</option>
           {ETAT_CYCLE_ORDRE.map((e) => (
             <option key={e} value={e}>
               {ETAT_CYCLE_LABEL[e]}
             </option>
           ))}
-        </select>
+        </Select>
         {clotures.length > 1 && (
-          <select value={cloture} onChange={(e) => setCloture(e.target.value)} className={SELECT}>
+          <Select largeur="auto" aria-label="Clôture d'exercice" value={cloture} onChange={(e) => setCloture(e.target.value)}>
             <option value="">Tout exercice</option>
             {clotures.map((c) => (
               <option key={c} value={c}>
                 Clôt. {c}
               </option>
             ))}
-          </select>
+          </Select>
         )}
-        <div className="flex items-center gap-0.5 bg-surface-2 rounded-md p-0.5">
-          <BoutonVue actif={vue === "liste"} onClick={() => setVue("liste")} label="Liste" icone={List} />
-          <BoutonVue actif={vue === "pipeline"} onClick={() => setVue("pipeline")} label="Pipeline" icone={LayoutGrid} />
-        </div>
+        <span className="text-body text-ink-2 tabular-nums">
+          {filtrees.length} copropriété{filtrees.length > 1 ? "s" : ""}
+          {filtre ? ` sur ${actives.length}` : ""}
+        </span>
+        <span className="ml-auto flex items-center gap-2">
+          <SegmentedControl<Vue>
+            label="Vue"
+            value={vue}
+            onChange={(v) => setVue(v ?? "liste")}
+            options={[
+              { value: "liste", label: "Liste" },
+              { value: "pipeline", label: "Pipeline" },
+            ]}
+          />
+          <span className="text-ink-3" aria-hidden>
+            {vue === "liste" ? <List strokeWidth={1.5} className="w-4 h-4" /> : <LayoutGrid strokeWidth={1.5} className="w-4 h-4" />}
+          </span>
+        </span>
       </div>
-
-      <p className="text-body text-ink-3">
-        {filtrees.length} copropriété{filtrees.length > 1 ? "s" : ""}
-        {filtre ? ` sur ${actives.length}` : ""}
-      </p>
 
       {vue === "liste" ? <VueListe copros={filtrees} /> : <VuePipeline parEtat={parEtat} />}
     </div>
   );
 }
 
-function BoutonVue({
-  actif,
-  onClick,
-  label,
-  icone: Icone,
-}: {
-  actif: boolean;
-  onClick: () => void;
-  label: string;
-  icone: typeof List;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={actif}
-      title={label}
-      className={cn(
-        "inline-flex items-center gap-1 h-7 px-2.5 rounded-[5px] text-body font-medium transition-colors duration-120",
-        actif ? "bg-surface text-ink shadow-1" : "text-ink-3 hover:text-ink-2",
-      )}
-    >
-      <Icone strokeWidth={1.5} className="w-3.5 h-3.5" />
-      {label}
-    </button>
-  );
-}
-
 function VueListe({ copros }: { copros: CoproPilotage[] }) {
   if (copros.length === 0) {
-    return (
-      <Card>
-        <p className="px-4 py-8 text-body text-ink-3 text-center">Aucune copropriété ne correspond aux filtres.</p>
-      </Card>
-    );
+    return <EmptyState>Aucune copropriété pour ces filtres</EmptyState>;
   }
   return (
-    <Card className="overflow-hidden">
-      <ul className="divide-y divide-line">
+    <Table>
+      <Thead>
+        <tr>
+          <Th>Code</Th>
+          <Th>Copropriété</Th>
+          <Th className="hidden md:table-cell">Ville</Th>
+          <Th>État</Th>
+          <Th numeric>Échéance</Th>
+          <Th numeric className="hidden lg:table-cell">Source</Th>
+        </tr>
+      </Thead>
+      <Tbody>
         {copros.map((c) => (
-          <li key={c.code}>
-            <Link
-              href={`/copropriete/${c.code}`}
-              className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
-            >
-              <Badge ton="outline" className="font-mono shrink-0">{c.code}</Badge>
-              <span className="text-body font-medium text-ink flex-1 truncate min-w-0">{c.nom}</span>
-              <span className="text-body text-ink-3 hidden md:block w-[110px] truncate">{c.ville}</span>
-              <Badge ton={c.etat === "a_planifier" && c.enRetard ? "err" : ETAT_TON[c.etat]} dot className="shrink-0 w-[120px] justify-center hidden sm:inline-flex">
+          <Tr key={c.code} interactive ton={c.etat === "a_planifier" && c.enRetard ? "err" : undefined}>
+            <Td code>{c.code}</Td>
+            <Td principal>
+              <LienLigne href={`/copropriete/${c.code}`}>{c.nom}</LienLigne>
+            </Td>
+            <Td secondaire className="hidden md:table-cell">{c.ville}</Td>
+            <Td>
+              <Badge ton={c.etat === "a_planifier" && c.enRetard ? "err" : ETAT_TON[c.etat]} dot>
                 {ETAT_CYCLE_LABEL[c.etat]}
               </Badge>
-              <span className="text-body text-ink-2 shrink-0 w-[90px] text-right font-mono">{echeance(c)}</span>
-              <Badge ton={c.source === "estale" ? "info" : "neutral"} className="shrink-0 hidden lg:inline-flex">
-                {libelleSource(c.source)}
-              </Badge>
-              <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
-            </Link>
-          </li>
+            </Td>
+            <Td numeric secondaire={!(c.etat === "a_planifier" && c.enRetard)} className={cn(c.etat === "a_planifier" && c.enRetard && "text-err-700 font-medium")}>
+              {echeance(c)}
+            </Td>
+            <Td numeric secondaire className="hidden lg:table-cell">{libelleSource(c.source)}</Td>
+          </Tr>
         ))}
-      </ul>
-    </Card>
+      </Tbody>
+    </Table>
   );
 }
 
 function VuePipeline({ parEtat }: { parEtat: Record<EtatCycle, CoproPilotage[]> }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-start">
       {ETAT_CYCLE_ORDRE.map((etat) => (
-        <div key={etat} className="flex flex-col">
-          <div className="flex items-center justify-between px-1 mb-2">
-            <span className="text-body font-semibold text-ink">{ETAT_CYCLE_LABEL[etat]}</span>
-            <span className="text-meta font-mono text-ink-3">{parEtat[etat].length}</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {parEtat[etat].length === 0 ? (
-              <p className="text-meta text-ink-3 px-1 py-3">Aucune copro.</p>
-            ) : (
-              parEtat[etat].map((c) => (
-                <Link
-                  key={c.code}
-                  href={`/copropriete/${c.code}`}
-                  className="block rounded-md border border-line bg-surface px-3 py-2.5 hover:border-line-2 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-meta text-ink-2 shrink-0">{c.code}</span>
-                    <span className="text-body font-medium text-ink truncate min-w-0">{c.nom}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={cn(
-                        "text-meta font-mono",
-                        c.etat === "a_planifier" && c.enRetard ? "text-err-700 font-medium" : "text-ink-3",
-                      )}
+        <Card key={etat}>
+          <CardHeader>
+            <CardTitle>{ETAT_CYCLE_LABEL[etat]}</CardTitle>
+            <span className="text-body text-ink-2 tabular-nums">{parEtat[etat].length}</span>
+          </CardHeader>
+          {parEtat[etat].length === 0 ? (
+            <CardBody padding="sm">
+              <EmptyState compact>Aucune copro</EmptyState>
+            </CardBody>
+          ) : (
+            <ul className="divide-y divide-line">
+              {parEtat[etat].map((c) => {
+                const retard = c.etat === "a_planifier" && c.enRetard;
+                return (
+                  <li key={c.code}>
+                    <Link
+                      href={`/copropriete/${c.code}`}
+                      className="flex flex-col gap-0.5 px-3 py-1.5 min-h-9 text-body hover:bg-surface-2/60 transition-colors duration-120 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
                     >
-                      {echeance(c)}
-                    </span>
-                    <Badge ton={c.source === "estale" ? "info" : "neutral"} className="shrink-0 text-meta">
-                      {libelleSource(c.source)}
-                    </Badge>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        </div>
+                      <span className="flex items-baseline gap-2 min-w-0">
+                        <span className="font-mono text-ink-2 shrink-0">{c.code}</span>
+                        <span className="font-medium text-ink truncate">{c.nom}</span>
+                      </span>
+                      <span className={cn("text-meta tabular-nums", retard ? "text-err-700 font-medium" : "text-ink-2")}>{echeance(c)}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
       ))}
     </div>
   );
 }
 
 function fmtDate(iso?: string): string {
-  return iso ? iso.split("-").reverse().join("/") : "-";
+  return iso ? iso.split("-").reverse().join("/") : "—";
 }
 
 // Bac d'onboarding : copros aux dates heritees non encore validees. Calme, sans alarme.
@@ -285,47 +277,44 @@ function PriseEnMainSection({
   onPrendre: (codes: string[]) => void;
 }) {
   return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-warn-50/50 border-b border-line">
-        <div className="flex items-center gap-2">
-          <ClipboardCheck strokeWidth={1.5} className="w-4 h-4 text-warn-700" />
-          <span className="text-body font-medium text-ink">À prendre en main ({copros.length})</span>
-        </div>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => onPrendre(copros.map((c) => c.code))}
-          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-body font-medium text-ink-2 hover:border-line-2 disabled:opacity-50"
-        >
-          Tout prendre en main
-        </button>
-      </div>
-      <p className="px-4 py-2 text-body text-ink-3 border-b border-line">
-        Vérifie les dates héritées (souvent fausses à la première migration) puis confirme. Tant qu’une copro
-        n’est pas prise en main, elle ne déclenche aucune alarme.
-      </p>
-      <ul className="divide-y divide-line">
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <ClipboardCheck strokeWidth={1.5} className="text-warn-700" />
+          À prendre en main
+          <span className="font-normal text-ink-2 tabular-nums">{copros.length}</span>
+        </CardTitle>
+        <span className="flex items-center gap-3">
+          <Aide titre="Pourquoi">
+            Ces copropriétés portent des dates héritées de la migration, souvent fausses. Vérifiez-les puis confirmez :
+            tant qu&apos;une copro n&apos;est pas prise en main, elle ne déclenche aucune alarme.
+          </Aide>
+          <Button variant="primary" size="sm" loading={pending} onClick={() => onPrendre(copros.map((c) => c.code))}>
+            <Check strokeWidth={2} />
+            Tout prendre en main
+          </Button>
+        </span>
+      </CardHeader>
+      <Rows encadre={false}>
         {copros.map((c) => (
-          <li key={c.code} className="flex items-center gap-3 px-4 py-2.5">
-            <span className="font-mono text-body text-ink-2 shrink-0 w-[42px]">{c.code}</span>
-            <span className="text-body font-medium text-ink flex-1 truncate min-w-0">{c.nom}</span>
-            <span className="text-meta text-ink-3 hidden md:block shrink-0">
-              Dern. AG {fmtDate(c.derniereAgDate)} - Proch. AG {fmtDate(c.agDate)}
-            </span>
-            <Link href={`/copropriete/${c.code}`} className="text-body text-ink-2 hover:text-ink underline-offset-2 hover:underline shrink-0">
-              Vérifier
-            </Link>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => onPrendre([c.code])}
-              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50 shrink-0"
-            >
-              <Check strokeWidth={2} className="w-3.5 h-3.5" /> Prendre en main
-            </button>
-          </li>
+          <Row
+            key={c.code}
+            avant={c.code}
+            principal={c.nom}
+            secondaire={`Dern. AG ${fmtDate(c.derniereAgDate)} · Proch. AG ${fmtDate(c.agDate)}`}
+            droite={
+              <>
+                <ButtonLink href={`/copropriete/${c.code}`} variant="ghost" size="sm">
+                  Vérifier
+                </ButtonLink>
+                <Button variant="secondary" size="sm" disabled={pending} onClick={() => onPrendre([c.code])}>
+                  <Check strokeWidth={2} /> Prendre en main
+                </Button>
+              </>
+            }
+          />
         ))}
-      </ul>
+      </Rows>
     </Card>
   );
 }

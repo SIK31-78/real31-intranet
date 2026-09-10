@@ -4,6 +4,7 @@ import { getCoprosPilotage, pipelineDepuisCopros } from "@/lib/services/copropri
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutVoirToutesLesCopros } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
+import { Page, PageHeader } from "@/components/ui/page";
 import { CoprosVue } from "@/components/coproprietes/copros-vue";
 import { PipelineAg } from "@/components/dashboard/pipeline-ag";
 import { ETAT_CYCLE_ORDRE, type EtatCycle } from "@/lib/domain/etat-cycle-ag";
@@ -34,15 +35,14 @@ export default async function CoproprietesPage({
 
   return (
     <AppShell user={g} active="copros" breadcrumb="Copropriétés">
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-page font-medium tracking-tight text-ink mb-4">Toutes les copropriétés</h1>
-        {totalPipeline > 0 && (
-          <div className="mb-6">
-            <PipelineAg pipeline={pipeline} />
-          </div>
-        )}
+      <Page largeur="travail">
+        <PageHeader
+          titre="Toutes les copropriétés"
+          meta={`${copros.length} copropriété${copros.length > 1 ? "s" : ""}${managerId ? " dans votre portefeuille" : " au cabinet"}`}
+        />
+        {totalPipeline > 0 && <PipelineAg pipeline={pipeline} />}
         <CoprosVue copros={copros} etatInitial={etatInitial} />
-      </div>
+      </Page>
     </AppShell>
   );
 }
