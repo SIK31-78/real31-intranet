@@ -41,10 +41,11 @@ import { archiverDossierAction, supprimerDossierRepriseAction, definirCadrageAct
 import { FicheRenseignementsBloc, type FicheOwnerVue } from "./fiche-renseignements-bloc";
 import { ChecklistDossier, JournalDossier } from "./zone-suivi";
 import { formatDateCourte, initialesDe, type DossierFicheVue } from "./vues";
+import { Input, Select } from "@/components/ui/field";
+import { Progress } from "@/components/ui/progress";
 
 export type { DossierFicheVue } from "./vues";
 
-const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full";
 
 export function FicheDossierReprise({
   dossier,
@@ -184,15 +185,14 @@ function EnTete({ dossier, pct }: { dossier: DossierFicheVue; pct: number }) {
             <>
               <div className="flex items-center gap-2">
                 <h1 className="text-page font-medium tracking-tight text-ink">{dossier.nomUsuel}</h1>
-                <button
-                  type="button"
+                <Button
                   onClick={() => setEdition(true)}
                   aria-label="Modifier le cadrage"
                   title="Modifier nom, adresse, sortant, date de bascule"
-                  className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-surface-2"
+                  variant="secondary" iconOnly
                 >
                   <Pencil strokeWidth={1.5} className="w-3.5 h-3.5" />
-                </button>
+                </Button>
               </div>
               <div className="mt-1 flex flex-col gap-0.5 text-body text-ink-3">
                 <p className="flex items-center gap-1.5">
@@ -213,19 +213,19 @@ function EnTete({ dossier, pct }: { dossier: DossierFicheVue; pct: number }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
               <label className="flex flex-col gap-1 text-body text-ink-3 sm:col-span-2">
                 Nom de la copropriété
-                <input value={nomUsuel} onChange={(e) => setNomUsuel(e.target.value)} className={INPUT} autoFocus />
+                <Input value={nomUsuel} onChange={(e) => setNomUsuel(e.target.value)} autoFocus />
               </label>
               <label className="flex flex-col gap-1 text-body text-ink-3 sm:col-span-2">
                 Adresse
-                <input value={adresse} onChange={(e) => setAdresse(e.target.value)} className={INPUT} />
+                <Input value={adresse} onChange={(e) => setAdresse(e.target.value)} />
               </label>
               <label className="flex flex-col gap-1 text-body text-ink-3">
                 Syndic sortant
-                <input value={sortant} onChange={(e) => setSortant(e.target.value)} className={INPUT} />
+                <Input value={sortant} onChange={(e) => setSortant(e.target.value)} />
               </label>
               <label className="flex flex-col gap-1 text-body text-ink-3">
                 Date de bascule
-                <input type="date" value={dateBascule} onChange={(e) => setDateBascule(e.target.value)} className={INPUT} />
+                <Input type="date" value={dateBascule} onChange={(e) => setDateBascule(e.target.value)} />
               </label>
               <div className="flex items-center gap-2 sm:col-span-2">
                 <Button type="button" variant="primary" size="sm" onClick={enregistrer} disabled={pending || !nomUsuel.trim()}>
@@ -240,15 +240,13 @@ function EnTete({ dossier, pct }: { dossier: DossierFicheVue; pct: number }) {
         </div>
 
         <div className="text-right shrink-0">
-          <div className="text-page font-semibold text-green-700 leading-none">{pct}%</div>
-          <div className="mt-1 text-meta text-ink-3 font-mono">
+          <div className="text-figure font-medium tracking-tight text-ink leading-none tabular-nums">{pct} %</div>
+          <div className="mt-1 text-meta text-ink-2 tabular-nums">
             {dossier.etapesFaites}/{dossier.etapesTotal} étapes
           </div>
         </div>
       </div>
-      <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-        <div className="h-full bg-green-700 transition-[width] duration-200" style={{ width: `${pct}%` }} />
-      </div>
+      <Progress valeur={pct} label={`${dossier.etapesFaites} étapes sur ${dossier.etapesTotal}`} className="mt-3" />
     </>
   );
 }
@@ -323,11 +321,11 @@ function EquipeDossier({
                   {nom && <Avatar initiales={initialesDe(nom)} title={nom} />}
                   {ROLE_LABEL[role]}
                 </span>
-                <select
+                <Select
                   value={ids[role]}
                   onChange={(e) => changer(role, e.target.value)}
                   disabled={pending}
-                  className="h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full disabled:opacity-50"
+                 
                 >
                   <option value="">Personne</option>
                   {collaborateurs.map((c) => (
@@ -335,7 +333,7 @@ function EquipeDossier({
                       {c.nom}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             );
           })}
@@ -377,7 +375,7 @@ const TON_BANDEAU: Record<ProchaineEtape["tonalite"], { conteneur: string; titre
   termine: {
     conteneur: "border-green-600/40 bg-green-50",
     titre: "text-green-700",
-    bouton: "bg-green-700 hover:bg-green-800 text-white",
+    bouton: "bg-ok-500 hover:bg-ok-700 text-white",
     etiquette: "Reprise terminée",
   },
 };
@@ -470,11 +468,10 @@ function ActionsDossier({
 
   return (
     <div className="mt-4 pt-3 border-t border-line flex items-center gap-4 flex-wrap">
-      <button
-        type="button"
+      <Button
         onClick={basculerArchive}
         disabled={archivePending}
-        className="inline-flex items-center gap-1.5 text-body text-ink-3 hover:text-ink transition-colors disabled:opacity-50"
+        variant="ghost"
       >
         {archive ? (
           <>
@@ -485,15 +482,14 @@ function ActionsDossier({
             <Archive strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> Archiver ce dossier
           </>
         )}
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
         onClick={supprimer}
         disabled={supprPending}
-        className="inline-flex items-center gap-1.5 text-body text-ink-3 hover:text-err-700 transition-colors ml-auto disabled:opacity-50"
+        variant="danger" className="ml-auto"
       >
         <Trash2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" /> {supprPending ? "Suppression…" : "Supprimer définitivement"}
-      </button>
+      </Button>
     </div>
   );
 }

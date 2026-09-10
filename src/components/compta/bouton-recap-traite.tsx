@@ -6,9 +6,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, RotateCcw } from "lucide-react";
+import { Check, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { marquerRecapTraiteAction } from "@/app/comptabilite/recaps/actions";
+import { Button } from "@/components/ui/button";
 
 export function BoutonRecapTraite({
   recapId,
@@ -41,24 +42,10 @@ export function BoutonRecapTraite({
 
   return (
     <div className="flex flex-col items-start gap-1.5">
-      <button
-        type="button"
-        onClick={basculer}
-        disabled={pending}
-        className={
-          "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-body font-medium transition-colors disabled:opacity-60 " +
-          (traite
-            ? "border border-line bg-surface text-ink-2 hover:bg-surface-2"
-            : "bg-green-700 text-white hover:bg-green-800")
-        }
-      >
-        {pending ? (
-          <Loader2 strokeWidth={2} className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Icone strokeWidth={1.5} className="h-3.5 w-3.5" />
-        )}
+      <Button variant={traite ? "secondary" : "primary"} onClick={basculer} loading={pending}>
+        {!pending && <Icone strokeWidth={1.5} />}
         {traite ? "Remettre à traiter" : "Marquer traité"}
-      </button>
+      </Button>
       {erreur && (
         <p role="alert" className="text-body text-err-700">
           {erreur}

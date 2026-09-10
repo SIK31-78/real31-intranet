@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { Search, Building2, CornerDownLeft } from "lucide-react";
 import { chargerCoprosRecherche } from "@/app/recherche/actions";
 import { filtrerRecherche, type CoproRecherche } from "@/lib/domain/recherche-copro";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
 
 const NAV: { label: string; href: string }[] = [
   { label: "Accueil", href: "/accueil" },
@@ -106,26 +108,24 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
   return (
     <>
       {/* Desktop : barre de recherche complete. */}
-      <button
-        type="button"
+      <Button
         onClick={() => setOuvert(true)}
         aria-label="Rechercher (Ctrl+K)"
-        className="hidden md:flex items-center gap-2 w-[260px] h-7 px-2.5 rounded-md border border-line bg-surface hover:border-line-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+        variant="secondary" size="sm" className="hidden md:flex"
       >
         <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
         <span className="flex-1 text-left text-body text-ink-3 truncate">Rechercher une copro...</span>
         <span className="font-mono text-meta px-1 py-0.5 rounded-sm text-ink-3 bg-surface-3">Ctrl K</span>
-      </button>
+      </Button>
 
       {/* Mobile / une main : icone tactile (le raccourci clavier n'est pas atteignable). */}
-      <button
-        type="button"
+      <Button
         onClick={() => setOuvert(true)}
         aria-label="Rechercher"
-        className="flex md:hidden items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2 transition-colors duration-120 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+        variant="secondary" size="sm" iconOnly className="md:hidden w-7"
       >
         <Search strokeWidth={1.5} className="w-3.5 h-3.5" />
-      </button>
+      </Button>
 
       {ouvert && (
         <div
@@ -138,7 +138,7 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
           <div className="relative w-full max-w-[560px] rounded-lg border border-line bg-surface shadow-2 overflow-hidden">
             <div className="flex items-center gap-2 px-3 h-11 border-b border-line">
               <Search strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" />
-              <input
+              <Input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => {
@@ -148,7 +148,7 @@ export function CommandPalette({ emailsOuvert = true }: { emailsOuvert?: boolean
                 onKeyDown={onKeyDown}
                 placeholder="Rechercher une copropriété du cabinet, naviguer..."
                 aria-label="Rechercher"
-                className="flex-1 bg-transparent outline-none text-body text-ink placeholder:text-ink-3"
+                className="flex-1"
               />
               <kbd className="font-mono text-meta px-1 py-0.5 rounded-sm text-ink-3 bg-surface-3">Esc</kbd>
             </div>

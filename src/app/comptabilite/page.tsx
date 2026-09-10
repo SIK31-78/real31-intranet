@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  Calculator,
   CalendarCheck,
   Clock,
   AlertTriangle,
@@ -19,6 +18,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue, formatHeure, formatMois } from "@/lib/format-date";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/field";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Comptabilité - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -161,17 +163,16 @@ export default async function ComptabilitePage({
 
   return (
     <AppShell user={g} active="compta" breadcrumb="Comptabilité">
-      <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-6">
-        <div>
-          <h1 className="text-page font-semibold text-ink flex items-center gap-2">
-            <Calculator strokeWidth={1.5} className="w-5 h-5 text-green-700" />
-            Comptabilité - AG à venir
-          </h1>
-          <p className="mt-1 text-body text-ink-3">
-            Les AG dont la date est posée, sur toutes les copropriétés. Quand la date est
-            confirmée par le conseil syndical, il faut préparer les comptes.
-          </p>
-        </div>
+      <Page largeur="lecture">
+        <PageHeader
+          titre="Comptabilité — AG à venir"
+          aide={
+            <p>
+              Les AG dont la date est posée, sur toutes les copropriétés. Quand la date est confirmée par le
+              conseil syndical, il faut préparer les comptes.
+            </p>
+          }
+        />
 
         {/* APRES l'AG : la file des recaps recus. Point d'entree unique - sans ce bloc,
             l'espace comptable ne regarderait que vers l'avant. */}
@@ -201,36 +202,36 @@ export default async function ComptabilitePage({
         <form method="get" className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Gestionnaire
-            <select
+            <Select
               name="gestionnaire"
               defaultValue={gestionnaire ?? ""}
-              className="h-8 min-w-[180px] rounded-md border border-line bg-surface px-2 text-body text-ink"
+              largeur="auto" className="min-w-[180px]"
             >
               <option value="">Tous</option>
               {gestionnaires.map((nom) => (
                 <option key={nom} value={nom}>{nom}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Mois
-            <select
+            <Select
               name="mois"
               defaultValue={mois ?? ""}
-              className="h-8 min-w-[160px] rounded-md border border-line bg-surface px-2 text-body text-ink"
+              largeur="auto" className="min-w-[160px]"
             >
               <option value="">Tous</option>
               {moisDispo.map((ym) => (
                 <option key={ym} value={ym}>{formatMois(ym)}</option>
               ))}
-            </select>
+            </Select>
           </label>
-          <button
+          <Button
             type="submit"
-            className="h-8 rounded-md bg-green-700 px-3 text-body font-medium text-white hover:bg-green-800 transition-colors"
+            variant="primary"
           >
             Filtrer
-          </button>
+          </Button>
           {(gestionnaire || mois) && (
             <Link
               href="/comptabilite"
@@ -270,7 +271,7 @@ export default async function ComptabilitePage({
             vueComptable={vueComptable}
           />
         )}
-      </div>
+      </Page>
     </AppShell>
   );
 }

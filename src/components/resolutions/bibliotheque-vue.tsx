@@ -4,13 +4,14 @@
 // Recherche par mot-cle + filtre par majorite. C'est le futur "picker" du mode CS.
 
 import { useMemo, useState } from "react";
-import { Search, AlertTriangle, Library } from "lucide-react";
+import { Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
 import { MAJORITE_LABEL, MAJORITE_ORDRE, rangParent } from "@/lib/domain/resolution";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
+import { Input } from "@/components/ui/field";
 
 export function BibliothequeVue({ data }: { data: BibliothequeData }) {
   const [q, setQ] = useState("");
@@ -45,12 +46,9 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-page font-semibold text-ink flex items-center gap-2">
-          <Library strokeWidth={1.5} className="w-5 h-5 text-green-700" />
-          Bibliothèque de résolutions
-        </h1>
-        <p className="mt-1 text-body text-ink-3">
-          Modèles de résolutions du cabinet, depuis Estale. Lecture seule pour l&apos;instant -
+        <h1 className="text-page font-semibold tracking-tight text-ink">Bibliothèque de résolutions</h1>
+        <p className="mt-1 text-body text-ink-2">
+          Modèles de résolutions du cabinet, depuis ESTALE. Lecture seule pour l&apos;instant —
           serviront à composer l&apos;ordre du jour des AG.
         </p>
       </div>
@@ -73,12 +71,12 @@ export function BibliothequeVue({ data }: { data: BibliothequeData }) {
                 strokeWidth={1.5}
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3"
               />
-              <input
+              <Input
                 type="search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Rechercher une résolution (titre, mot-clé, texte)..."
-                className="w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
+               
               />
             </div>
 
@@ -131,8 +129,8 @@ function Chip({
       aria-pressed={actif}
       className={`h-7 px-2.5 rounded-full text-body font-medium border transition-colors ${
  actif
-          ? "bg-green-700 text-surface border-green-700"
-          : "bg-surface text-ink-2 border-line hover:border-line-2"
+          ? "bg-ink text-white border-ink"
+          : "bg-surface text-ink-2 border-line hover:border-line-2 hover:text-ink"
       }`}
     >
       {children}

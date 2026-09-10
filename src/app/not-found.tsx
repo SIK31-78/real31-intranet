@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ButtonLink } from "@/components/ui/button";
 
 // Page 404 personnalisee : l'app fait notFound() quand une copro est hors du
 // portefeuille du gestionnaire -> message rassurant plutot que le 404 brut de Next.
@@ -10,12 +10,9 @@ export default function NotFound() {
         <p className="text-body text-ink-3 mt-2">
           Cette page n&apos;existe pas ou n&apos;est pas dans ton portefeuille.
         </p>
-        <Link
-          href="/accueil"
-          className="inline-block mt-4 h-9 px-4 leading-9 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800"
-        >
+        <ButtonLink href="/accueil" variant="primary" size="lg" className="mt-4">
           Retour à l&apos;accueil
-        </Link>
+        </ButtonLink>
       </div>
     </div>
   );

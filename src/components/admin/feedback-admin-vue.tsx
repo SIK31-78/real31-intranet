@@ -35,6 +35,7 @@ import {
   creerEntreeAction,
   editerFeedbackAction,
 } from "@/app/admin/feedback/actions";
+import { Input, Select, Textarea } from "@/components/ui/field";
 
 const LABEL_STATUT: Record<StatutFeedback, string> = {
   nouveau: "Nouveau",
@@ -171,18 +172,17 @@ function LigneFeedback({ f }: { f: Feedback }) {
       <tr className={cn("border-b border-line align-top", archivee && "opacity-55")}>
         <td className="px-3 py-2.5">
           <div className="flex items-start gap-2">
-            <button
-              type="button"
+            <Button
               onClick={() => setOuvert((v) => !v)}
               aria-label={ouvert ? "Replier" : "Déplier"}
-              className="mt-0.5 text-ink-3 hover:text-ink"
+              variant="ghost" className="mt-0.5"
             >
               {ouvert ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </button>
+            </Button>
             <TypeIcone type={f.type} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <input
+                <Input
                   value={titre}
                   onChange={(e) => setTitre(e.target.value)}
                   onBlur={enregistrerTitre}
@@ -190,7 +190,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
                     if (e.key === "Enter") e.currentTarget.blur();
                   }}
                   maxLength={120}
-                  className="w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-body font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                 
                 />
                 {archivee && (
                   <span className="shrink-0" title="Archivée : masquée de /nouveautes et de la worklist">
@@ -231,7 +231,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
           </Badge>
         </td>
         <td className="px-3 py-2.5">
-          <input
+          <Input
             value={priorite}
             onChange={(e) => setPriorite(e.target.value)}
             onBlur={enregistrerPriorite}
@@ -240,7 +240,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
             }}
             inputMode="numeric"
             placeholder="—"
-            className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-center text-body tabular-nums text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+            largeur="auto" className="w-14"
           />
         </td>
         <td className="px-3 py-2.5">
@@ -260,8 +260,7 @@ function LigneFeedback({ f }: { f: Feedback }) {
                 </Button>
               ))
             )}
-            <button
-              type="button"
+            <Button
               onClick={() => {
                 if (!confirm("Transmettre ce point au carnet ESTALE ? La remontée sera écartée ici et suivie dans /admin/estale.")) return;
                 startTransition(async () => {
@@ -272,20 +271,19 @@ function LigneFeedback({ f }: { f: Feedback }) {
               }}
               disabled={enCours}
               title="Convertir en point ESTALE (le problème relève du logiciel ESTALE)"
-              className="rounded-md p-1.5 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
+              variant="secondary" iconOnly
             >
               <Database strokeWidth={1.5} className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               onClick={basculerArchive}
               disabled={enCours}
               aria-label={archivee ? "Réafficher" : "Archiver"}
               title={archivee ? "Réafficher (désarchiver)" : "Archiver (masquer de la vitrine)"}
-              className="rounded-md p-1.5 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
+              variant="secondary" iconOnly
             >
               {archivee ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-            </button>
+            </Button>
           </div>
         </td>
       </tr>
@@ -296,27 +294,27 @@ function LigneFeedback({ f }: { f: Feedback }) {
               <div className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-body text-ink-2">
                   Type
-                  <select
+                  <Select
                     value={f.type}
                     onChange={(e) => changerType(e.target.value as TypeFeedback)}
                     disabled={enCours}
-                    className="h-8 rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                    largeur="auto"
                   >
                     <option value="idee">Idée / nouveauté</option>
                     <option value="bug">Bug</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
               <label className="flex flex-col gap-1 text-body text-ink-2">
                 Description (interne — jamais publique)
-                <textarea
+                <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   onBlur={enregistrerDescription}
                   rows={3}
                   maxLength={2000}
                   placeholder="Le texte de l'entrée…"
-                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                 
                 />
               </label>
 
@@ -324,13 +322,13 @@ function LigneFeedback({ f }: { f: Feedback }) {
                 <div className="rounded-md border border-err-500/30 bg-err-50 px-3 py-2.5">
                   <label className="flex flex-col gap-1 text-body text-err-700">
                     Raison de l&apos;écart (obligatoire)
-                    <input
+                    <Input
                       value={raison}
                       onChange={(e) => setRaison(e.target.value)}
                       maxLength={500}
                       autoFocus
                       placeholder="Ex. Doublon de #… / hors périmètre / déjà couvert par…"
-                      className="h-8 w-full rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                     
                     />
                   </label>
                   <div className="mt-2 flex gap-2">
@@ -359,14 +357,14 @@ function LigneFeedback({ f }: { f: Feedback }) {
 
               <label className="flex flex-col gap-1 text-body text-ink-2">
                 Note interne (jamais publique)
-                <textarea
+                <Textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   onBlur={enregistrerNote}
                   rows={2}
                   maxLength={2000}
                   placeholder="Note de travail, contexte, lien…"
-                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                 
                 />
               </label>
             </div>
@@ -464,25 +462,25 @@ function FormulaireEntreeMaison({ onFermer }: { onFermer: () => void }) {
 
       <label className="flex flex-col gap-1 text-body text-ink-2">
         Titre (obligatoire)
-        <input
+        <Input
           value={titre}
           onChange={(e) => setTitre(e.target.value)}
           maxLength={120}
           autoFocus
           placeholder="Ex. Nouvel accueil"
-          className="h-8 w-full rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+         
         />
       </label>
 
       <label className="flex flex-col gap-1 text-body text-ink-2">
         Description publique / interne (facultatif)
-        <textarea
+        <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
           maxLength={2000}
           placeholder="Le texte qui accompagne l'entrée…"
-          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+         
         />
       </label>
 
@@ -657,7 +655,7 @@ export function FeedbackAdminVue({
           </Button>
         )}
         <div className="ml-auto">
-          <Button size="sm" variant="primary" onClick={() => setAjoutOuvert(true)} disabled={feedbackNonConfigure}>
+          <Button size="sm" variant="secondary" onClick={() => setAjoutOuvert(true)} disabled={feedbackNonConfigure}>
             <Plus strokeWidth={1.5} className="h-3.5 w-3.5" />
             Ajouter une entrée
           </Button>

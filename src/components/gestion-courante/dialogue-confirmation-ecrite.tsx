@@ -17,6 +17,8 @@ import {
   MOT_DE_CONFIRMATION,
   motConfirmationValide,
 } from "@/lib/domain/facturation/filet-gestion-courante";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
 
 export function DialogueConfirmationEcrite({
   coproCode,
@@ -68,7 +70,7 @@ export function DialogueConfirmationEcrite({
             Pour émettre cette ligne, tape le mot{" "}
             <strong className="font-semibold">{MOT_DE_CONFIRMATION}</strong>.
           </label>
-          <input
+          <Input
             id={champId}
             aria-describedby={aideId}
             autoComplete="off"
@@ -80,7 +82,7 @@ export function DialogueConfirmationEcrite({
                 onConfirmer();
               }
             }}
-            className="w-full rounded-sm border border-line px-2 py-1.5 text-body focus:outline-none focus:ring-1 focus:ring-green-700"
+           
           />
           <p id={aideId} className="mt-1 text-body text-ink-3">
             La casse et les espaces n&apos;ont pas d&apos;importance. Échap annule.
@@ -88,21 +90,19 @@ export function DialogueConfirmationEcrite({
         </div>
 
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
+          <Button
             onClick={onAnnuler}
-            className="h-9 rounded-md px-3 text-body text-ink-2 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+            variant="secondary" size="lg"
           >
             Annuler
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
             onClick={onConfirmer}
             disabled={!valide}
-            className="h-9 rounded-md bg-err-500 px-4 text-body font-medium text-white hover:bg-err-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-err-500 focus-visible:ring-offset-1 disabled:opacity-40"
+            variant="destructive" size="lg"
           >
             Facturer {coproCode}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

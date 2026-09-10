@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Calculator, AlertTriangle, MessageSquare, ChevronRight } from "lucide-react";
+import { AlertTriangle, MessageSquare, ChevronRight } from "lucide-react";
 import { listerAgAPreparer } from "@/lib/services/compta/get-compta";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Pôle compta - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -19,17 +20,16 @@ export default async function ComptaPage() {
 
   return (
     <AppShell user={g} active="compta" breadcrumb="Pôle compta">
-      <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
-        <div>
-          <h1 className="text-page font-semibold text-ink flex items-center gap-2">
-            <Calculator strokeWidth={1.5} className="w-5 h-5 text-green-700" />
-            Pôle compta - AG à préparer
-          </h1>
-          <p className="mt-1 text-body text-ink-3">
-            Les AG dont la date est posée. Vérifie les comptes, échange tes notes avec le
-            gestionnaire, et marque « comptes vérifiés » quand c&apos;est prêt.
-          </p>
-        </div>
+      <Page largeur="lecture">
+        <PageHeader
+          titre="Pôle compta — AG à préparer"
+          aide={
+            <p>
+              Les AG dont la date est posée. Vérifiez les comptes, échangez vos notes avec le gestionnaire, et
+              marquez « comptes vérifiés » quand c&apos;est prêt.
+            </p>
+          }
+        />
 
         {file.length === 0 ? (
           <Card>
@@ -76,7 +76,7 @@ export default async function ComptaPage() {
             </ul>
           </Card>
         )}
-      </div>
+      </Page>
     </AppShell>
   );
 }

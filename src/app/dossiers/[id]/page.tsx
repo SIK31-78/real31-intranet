@@ -4,6 +4,7 @@ import { getDossier } from "@/lib/services/dossiers/get-dossiers";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { DossierFiche } from "@/components/dossiers/dossier-fiche";
+import { Page } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Dossier - REAL31 Intranet" };
 
@@ -19,14 +20,14 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   // Les dossiers vivent sur l'accueil : pas d'entree sidebar propre -> on surligne "Accueil".
   return (
     <AppShell user={g} active="dossiers" breadcrumb={`Dossier - ${vue.dossier.titre}`}>
-      <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
+      <Page largeur="lecture">
         <DossierFiche
           dossier={vue.dossier}
           gestionnaire={vue.gestionnaire}
           assistant={vue.assistant}
           monInitiales={g.initiales}
         />
-      </div>
+      </Page>
     </AppShell>
   );
 }

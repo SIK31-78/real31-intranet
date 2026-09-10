@@ -26,26 +26,9 @@ import { join, relative, sep } from "node:path";
 const RACINE = process.cwd();
 const SRC = join(RACINE, "src");
 
-// Dossiers migres : compteurs bloquants a zero, sinon exit 1.
-const MIGRES = [
-  "src/app/accueil",
-  "src/app/copropriete",
-  "src/components/coproprietes",
-  "src/components/dashboard",
-  "src/components/calendrier",
-  "src/app/calendrier",
-  "src/app/dossiers",
-  "src/components/dossiers",
-  "src/app/odj",
-  "src/app/recap-ag",
-  "src/components/recap-ag",
-  "src/app/supervision-ag",
-  "src/components/supervision-ag",
-  "src/components/affaires",
-  "src/components/fiche-copro",
-  "src/components/ui",
-  "src/components/parcours",
-];
+// Dossiers migres : compteurs bloquants a zero, sinon exit 1. Depuis l'etape 2
+// (2026-09-10), TOUT src/ est migre : la liste est le depot entier.
+const MIGRES = ["src"];
 
 const BLOQUANTS = ["px", "tw", "ink-4", "vert", "hex", "ombre"];
 
@@ -67,7 +50,13 @@ const EXEMPTS = {
   // Le document ODJ est un DOCUMENT (A4, echelle papier 12 px / 7,5 px en pied), pas une
   // page d'UI : il garde ses tailles. Ses couleurs, elles, sont sur les tokens.
   px: ["src/components/odj/document-odj.tsx", "src/components/odj/document-odj-editable.tsx"],
-  vert: ["src/components/ui", "src/components/layout/sidebar.tsx", "src/components/parcours/frise-etapes.tsx"],
+  vert: [
+    "src/components/ui",
+    "src/components/layout/sidebar.tsx",
+    "src/components/parcours/frise-etapes.tsx",
+    // barre de progression du wizard sinistre (= Progress), pas un bouton
+    "src/components/sinistre/WizardScreen.tsx",
+  ],
   btn: ["src/components/ui"],
 };
 

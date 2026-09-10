@@ -235,7 +235,7 @@ function InputInline({
   };
   return (
     <input
-      // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient de cliquer ce champ precis
+       
       autoFocus
       value={v}
       onChange={(e) => setV(e.target.value)}
@@ -272,7 +272,7 @@ function TextareaInline({
   const commitRef = useRef(false);
   return (
     <textarea
-      // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient de cliquer ce champ precis
+       
       autoFocus
       value={v}
       onChange={(e) => setV(e.target.value)}
@@ -573,7 +573,7 @@ function BlocLibreEditable({
     };
     return (
       <textarea
-        // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient de cliquer ce paragraphe
+         
         autoFocus
         value={brouillon}
         onChange={(e) => setBrouillon(e.target.value)}

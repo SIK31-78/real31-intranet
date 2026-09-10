@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import type { JalonCode } from "@/lib/domain/jalons-ag/types";
 import { useToast } from "@/components/ui/toast";
 import { confirmerJalonAction } from "@/app/dashboard/actions";
+import { Button } from "@/components/ui/button";
 
 // Bouton "marquer fait" d'une echeance a confirmer (dashboard). Ecrit l'etat accompli
 // du jalon ; la ligne disparait des "a confirmer" au refresh.
@@ -21,8 +22,7 @@ export function BoutonConfirmerJalon({
   const toast = useToast();
 
   return (
-    <button
-      type="button"
+    <Button
       disabled={pending}
       aria-busy={pending}
       onClick={(e) => {
@@ -33,11 +33,11 @@ export function BoutonConfirmerJalon({
           toast.ok("Échéance confirmée.");
         });
       }}
-      className="inline-flex items-center gap-1 h-7 px-2 rounded-sm border border-line bg-surface text-body font-medium text-ink-2 hover:border-ok-500 hover:text-ok-700 disabled:opacity-50 transition-colors shrink-0"
+      variant="secondary" size="sm" className="shrink-0"
       title="Marquer cette échéance comme faite"
     >
       <Check strokeWidth={2} className="w-3.5 h-3.5" />
       Fait
-    </button>
+    </Button>
   );
 }

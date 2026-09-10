@@ -21,6 +21,7 @@ import {
   type SeveriteFeedback,
   type TypeFeedback,
 } from "@/lib/domain/feedback";
+import { Input, Textarea } from "@/components/ui/field";
 
 const SEVERITES: { valeur: SeveriteFeedback; label: string; aide: string }[] = [
   { valeur: "bloquant", label: "Bloquant", aide: "M'empêche de travailler." },
@@ -105,7 +106,7 @@ export function FeedbackTrigger() {
                 On l&apos;a bien reçu. Tu suivras ce qui est prévu et livré dans « Nouveautés ».
               </p>
               <div className="mt-2">
-                <Button variant="primary" onClick={fermer}>
+                <Button variant="secondary" onClick={fermer}>
                   Fermer
                 </Button>
               </div>
@@ -177,7 +178,7 @@ export function FeedbackTrigger() {
               {/* Description (requis) */}
               <label className="flex flex-col gap-1.5 text-body text-ink-2">
                 {type === "bug" ? "Que s'est-il passé ?" : "Ton idée en quelques mots"}
-                <textarea
+                <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
@@ -187,7 +188,7 @@ export function FeedbackTrigger() {
                       ? "Ex. Le bouton « Convoquer » ne fait rien quand je clique dessus…"
                       : "Ex. Pouvoir exporter la liste des copros en CSV…"
                   }
-                  className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                 
                 />
               </label>
 
@@ -232,13 +233,13 @@ export function FeedbackTrigger() {
               ) : (
                 <label className="flex flex-col gap-1.5 text-body text-ink-2">
                   La page concernée (facultatif)
-                  <input
+                  <Input
                     type="text"
                     value={lien}
                     onChange={(e) => setLien(e.target.value)}
                     maxLength={280}
                     placeholder="Colle un lien si tu en as un…"
-                    className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                   
                   />
                 </label>
               )}

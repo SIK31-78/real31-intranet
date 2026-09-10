@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Users, LogOut } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { deconnecter } from "@/app/dev-login/actions";
+import { Button } from "@/components/ui/button";
 
 // Menu utilisateur (avatar topbar) : changer de gestionnaire (super-admin / dev) +
 // deconnexion. Le bouton "Changer de gestionnaire" n'apparait que si autorise.
@@ -19,16 +20,15 @@ export function UserMenu({
 
   return (
     <div className="relative">
-      <button
-        type="button"
+      <Button
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
         title={user.nomComplet}
-        className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+        variant="ghost"
       >
         <Avatar initiales={user.initiales} title={user.nomComplet} />
-      </button>
+      </Button>
 
       {open && (
         <>
@@ -53,13 +53,13 @@ export function UserMenu({
               </Link>
             )}
             <form action={deconnecter}>
-              <button
+              <Button
                 type="submit"
                 role="menuitem"
-                className="w-full flex items-center gap-2 px-3 py-2 text-body text-err-700 hover:bg-surface-2"
+                variant="danger" size="lg" className="w-full"
               >
                 <LogOut strokeWidth={1.5} className="w-3.5 h-3.5" /> Déconnexion
-              </button>
+              </Button>
             </form>
           </div>
         </>

@@ -12,6 +12,7 @@ import { estSuperAdmin, pageAccueilPour } from "@/lib/auth/roles";
 import { listerClesApi } from "@/lib/auth/cle-api";
 import { ApiNonConfigureeError, type CleApi } from "@/lib/domain/cle-api";
 import { getGestionnaireRepository } from "@/lib/adapters/router";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Clés API - REAL31 Intranet" };
 
@@ -39,14 +40,18 @@ export default async function ClesApiPage() {
 
   return (
     <AppShell user={g} active="cles-api" breadcrumb="Administration / Clés API">
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-page font-medium tracking-tight text-ink mb-1">Clés API</h1>
-        <p className="text-body text-ink-3 mb-4">
-          Accès machine à l&apos;intranet (API /api/v1 et serveur MCP). La clé n&apos;est affichée
-          qu&apos;une seule fois, à la création — seul son empreinte (hash) est conservée.
-        </p>
+      <Page largeur="travail">
+        <PageHeader
+          titre="Clés API"
+          aide={
+            <p>
+              Accès machine à l&apos;intranet (API /api/v1 et serveur MCP). La clé n&apos;est affichée qu&apos;une seule
+              fois, à la création — seule son empreinte (hash) est conservée.
+            </p>
+          }
+        />
         <ClesApiVue cles={cles} gestionnaires={gestionnaires} apiNonConfiguree={apiNonConfiguree} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

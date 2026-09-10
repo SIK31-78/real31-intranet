@@ -20,6 +20,8 @@ import {
   type ChampSecret,
 } from "@/lib/coffre/import-csv";
 import type { SecretClair } from "@/lib/domain/coffre";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
 
 const champClasse =
   "h-8 px-2 rounded-md border border-line bg-surface text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600";
@@ -109,7 +111,7 @@ export function ImportPanel({
         <div className="flex flex-col gap-1.5">
           <label className="flex items-center gap-2 w-fit cursor-pointer text-body text-green-700 border border-green-200 hover:bg-green-50 rounded-md px-3 py-1.5">
             <Upload className="w-3.5 h-3.5" strokeWidth={1.5} /> Choisir un fichier CSV
-            <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFichier} />
+            <Input type="file" accept=".csv,text/csv" largeur="auto" className="hidden" onChange={onFichier} />
           </label>
           <p className="text-meta text-ink-3">
             Depuis Excel : Fichier &gt; Enregistrer sous &gt; CSV UTF-8. Le fichier reste sur ton poste.
@@ -160,23 +162,23 @@ export function ImportPanel({
           )}
 
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={importer}
               disabled={busy || nouveaux.length === 0}
-              className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-60"
+              variant="primary"
             >
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" strokeWidth={2} />}
               Importer {nouveaux.length} mot(s) de passe
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 setParse(null);
                 setMapping(null);
               }}
-              className="text-body text-ink-3 hover:text-ink px-3"
+              variant="ghost"
             >
               Annuler
-            </button>
+            </Button>
           </div>
         </>
       )}

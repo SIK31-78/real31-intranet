@@ -4,6 +4,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getApercuCoffre, listerAnnuaire, listerServicesCoffre } from "@/lib/services/coffre/coffre-service";
 import { AppShell } from "@/components/layout/app-shell";
 import { CoffreVue } from "@/components/coffre/coffre-vue";
+import { Page } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Coffre-fort - REAL31 Intranet" };
 
@@ -21,9 +22,9 @@ export default async function CoffrePage() {
 
   return (
     <AppShell user={g} active="coffre" breadcrumb="Coffre-fort">
-      <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
+      <Page largeur="lecture">
         <CoffreVue nomComplet={g.nomComplet} apercu={apercu} annuaire={annuaire} services={services} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

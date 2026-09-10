@@ -7,6 +7,7 @@ import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { synchroniserAction } from "./actions";
 import { BoutonSynchro } from "./bouton-synchro";
+import { Page } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Mes e-mails - REAL31 Intranet" };
 
@@ -24,15 +25,15 @@ export default async function MesEmailsPage() {
 
   return (
     <AppShell user={g} active="emails" breadcrumb="Mes e-mails">
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <form action={synchroniserAction} className="mb-4 flex items-center justify-end gap-3">
+      <Page largeur="travail">
+        <form action={synchroniserAction} className="flex items-center justify-end gap-3">
           {data.dateCourante ? (
-            <span className="text-body text-ink-3">{data.dateCourante}</span>
+            <span className="text-body text-ink-2">{data.dateCourante}</span>
           ) : null}
           <BoutonSynchro />
         </form>
         <MesEmailsVue data={data} signatureHtml={signatureHtml} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

@@ -59,6 +59,8 @@ import {
   rattacherADossierAction,
   creerDossierDepuisMailAction,
 } from "@/app/mes-emails/actions";
+import { Button } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/field";
 
 type Statut = "nouveau" | "repondu" | "classe";
 
@@ -96,8 +98,6 @@ function initiales(nom: string): string {
   return parts.slice(0, 2).map((p) => (p[0] ?? "").toUpperCase()).join("");
 }
 
-const BTN =
-  "inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-body text-ink hover:bg-surface-2 transition-colors";
 
 export function MesEmailsVue({
   data,
@@ -469,12 +469,12 @@ export function MesEmailsVue({
               strokeWidth={1.5}
               className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-1/2 -translate-y-1/2"
             />
-            <input
+            <Input
               type="text"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Rechercher..."
-              className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3"
+             
             />
           </div>
 
@@ -630,14 +630,13 @@ export function MesEmailsVue({
                 >
                   <Download strokeWidth={1.5} className="w-3.5 h-3.5" /> Télécharger
                 </a>
-                <button
-                  type="button"
+                <Button
                   onClick={fermerApercu}
                   aria-label="Fermer"
-                  className="inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2"
+                  variant="secondary" size="sm" iconOnly className="w-7"
                 >
                   <X strokeWidth={1.5} className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             </div>
             <div className="flex-1 min-h-0 bg-surface-2">
@@ -727,11 +726,8 @@ function EnTete({
           <Mail strokeWidth={1.5} className="w-5 h-5 text-ink-3" />
           Mes e-mails
         </h1>
-        <p className="text-body text-ink-3 mt-0.5">
+        <p className="text-body text-ink-2 mt-0.5 tabular-nums">
           {nbNonLus} non lus · {nbATraiter} à traiter · {nbClasses} classés
-        </p>
-        <p className="text-meta text-ink-3 mt-0.5">
-          Tri automatique de la boîte de réception · rattachement aux copropriétés
         </p>
       </div>
     </div>
@@ -847,17 +843,16 @@ function LigneDest({
             className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-meta text-ink-2"
           >
             <span className="truncate max-w-[200px]">{e}</span>
-            <button
-              type="button"
+            <Button
               onClick={() => onChange(champ, valeurs.filter((x) => x !== e))}
               aria-label={`Retirer ${e}`}
-              className="text-ink-3 hover:text-err-700"
+              variant="danger"
             >
               <X strokeWidth={2} className="w-3 h-3" />
-            </button>
+            </Button>
           </span>
         ))}
-        <input
+        <Input
           value={saisie}
           onChange={(ev) => setSaisie(ev.target.value)}
           onKeyDown={(ev) => {
@@ -868,7 +863,7 @@ function LigneDest({
           }}
           onBlur={ajouter}
           placeholder="ajouter une adresse…"
-          className="flex-1 min-w-[120px] h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
+          className="flex-1 min-w-[120px]"
         />
       </div>
     </div>
@@ -894,33 +889,32 @@ function FormCreerDossier({
         <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 text-green-700" /> Créer un dossier
       </p>
       <div className="flex items-center gap-2 flex-wrap">
-        <select
+        <Select
           value={type}
           onChange={(e) => setType(e.target.value as TypeDossier)}
           aria-label="Type de dossier"
-          className="h-7 rounded-sm border border-line bg-surface px-1.5 text-body"
+          largeur="auto"
         >
           {TYPE_DOSSIER_ORDRE.map((t) => (
             <option key={t} value={t}>
               {TYPE_DOSSIER_LABEL[t]}
             </option>
           ))}
-        </select>
-        <input
+        </Select>
+        <Input
           value={titre}
           onChange={(e) => setTitre(e.target.value)}
           placeholder="Titre du dossier"
           aria-label="Titre du dossier"
-          className="flex-1 min-w-[140px] h-7 rounded-sm border border-line bg-surface px-2 text-body"
+          className="flex-1 min-w-[140px]"
         />
-        <button
-          type="button"
+        <Button
           disabled={!titre.trim()}
           onClick={() => onCreer(type, titre.trim())}
-          className="h-7 px-2.5 rounded-sm bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-50"
+          variant="secondary" size="sm"
         >
           Créer
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1061,11 +1055,11 @@ function AnalysePane({
                     {coproCode ? `${coproNom} (${coproCode})` : "Sans copropriété"}
                   </span>
                 </span>
-                <select
+                <Select
                   value={coproCode}
                   onChange={(e) => onRattacherCopro(e.target.value)}
                   aria-label="Copropriété (facultatif)"
-                  className="text-meta rounded-sm border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
+                  largeur="auto" className="max-w-[220px]"
                 >
                   {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
                   <option value="">{coproCode ? "- Retirer la copropriété" : "Rattacher à une copropriété…"}</option>
@@ -1074,14 +1068,14 @@ function AnalysePane({
                       {c.nom} ({c.code})
                     </option>
                   ))}
-                </select>
+                </Select>
                 <span className="inline-flex items-center gap-1 text-meta">
                   <FolderInput strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                  <select
+                  <Select
                     value={dossierIdChoisi}
                     onChange={(e) => onChoisirDossier(e.target.value)}
                     aria-label="Dossier Outlook de classement"
-                    className="text-meta rounded-sm border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
+                    largeur="auto" className="max-w-[220px]"
                   >
                     <option value="">
                       {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
@@ -1091,7 +1085,7 @@ function AnalysePane({
                         {d.niveau > 0 ? `  ${d.nom}` : d.nom}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </span>
               </div>
             </div>
@@ -1119,22 +1113,20 @@ function AnalysePane({
                     className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-sm border border-line bg-surface text-meta text-ink-2"
                   >
                     <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3 shrink-0" />
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => onApercu(pj)}
                       title="Aperçu"
-                      className="truncate max-w-[200px] hover:underline"
+                      variant="ghost" className="truncate max-w-[200px]"
                     >
                       {pj.nom}
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
                       onClick={() => onTelecharger(pj)}
                       title="Télécharger"
-                      className="text-ink-3 hover:text-ink"
+                      variant="ghost"
                     >
                       <Download strokeWidth={1.5} className="w-3 h-3" />
-                    </button>
+                    </Button>
                   </span>
                 ))
               )}
@@ -1157,23 +1149,23 @@ function AnalysePane({
               <div className="flex items-center justify-between mt-3 mb-1">
                 <span className="text-meta text-ink-3">Réponse (modifiable)</span>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={onCopier} className={BTN}>
+                  <Button onClick={onCopier} variant="secondary" size="sm">
                     <Copy strokeWidth={1.5} className="w-3.5 h-3.5" />
                     {copie ? "Copié" : "Copier"}
-                  </button>
-                  <button type="button" onClick={onCreerBrouillon} className={BTN}>
+                  </Button>
+                  <Button onClick={onCreerBrouillon} variant="secondary" size="sm">
                     <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5" />
                     Brouillon Outlook
-                  </button>
+                  </Button>
                 </div>
               </div>
               <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
-              <input
+              <Input
                 value={sujet}
                 onChange={(e) => onMajSujet(e.target.value)}
                 placeholder="Sujet"
                 aria-label="Sujet de la réponse"
-                className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-body text-ink outline-none focus:ring-1 focus:ring-green-500/40"
+                className="mb-2"
               />
               {piecesJointes && piecesJointes.length > 0 ? (
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -1199,12 +1191,12 @@ function AnalysePane({
                   })}
                 </div>
               ) : null}
-              <textarea
+              <Textarea
                 value={brouillon}
                 onChange={(e) => onEditBrouillon(e.target.value)}
                 onBlur={onBlurBrouillon}
                 rows={7}
-                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-body text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
+               
               />
               {signatureHtml ? (
                 <div className="mt-2">
@@ -1218,15 +1210,14 @@ function AnalysePane({
                 </div>
               ) : null}
               <div className="mt-2.5 flex items-center gap-3">
-                <button
-                  type="button"
+                <Button
                   onClick={onEnvoyer}
                   disabled={envoiEnCours}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-body font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                  variant="secondary" size="lg"
                 >
                   <Send strokeWidth={2} className="w-4 h-4" />
                   {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
-                </button>
+                </Button>
                 {msgBrouillon ? <span className="text-meta text-ink-3">{msgBrouillon}</span> : null}
               </div>
             </>
@@ -1234,24 +1225,22 @@ function AnalysePane({
             // Repondre possible sur N'IMPORTE QUEL mail (meme sans action). Pour les mails
             // a traiter, on propose en plus la generation IA (a la demande = sur clic).
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
+              <Button
                 onClick={onRepondre}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-body font-medium text-ink-2 hover:bg-surface-2"
+                variant="secondary"
               >
                 <Mail strokeWidth={1.5} className="w-3.5 h-3.5" />
                 Répondre
-              </button>
+              </Button>
               {m.ticketable ? (
-                <button
-                  type="button"
+                <Button
                   onClick={onGenererBrouillon}
                   disabled={genEnCours}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-green-500/30 bg-surface text-body font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="secondary"
                 >
                   <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
                   {genEnCours ? "Génération…" : "Générer un brouillon (IA)"}
-                </button>
+                </Button>
               ) : null}
               {msgBrouillon ? (
                 <p className="w-full mt-1 text-meta text-ink-3">{msgBrouillon}</p>
@@ -1265,14 +1254,13 @@ function AnalysePane({
         <div>
           {classe ? (
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
+              <Button
                 onClick={onDevalider}
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-body font-medium border border-line bg-surface text-ink-2 hover:bg-surface-2"
+                variant="secondary" size="lg"
               >
                 <RotateCcw strokeWidth={1.5} className="w-4 h-4" />
                 Annuler (classé)
-              </button>
+              </Button>
               {m.dossierClasseNom ? (
                 <span className="text-meta text-ink-3">
                   classé dans «&nbsp;{m.dossierClasseNom}&nbsp;»
@@ -1280,16 +1268,15 @@ function AnalysePane({
               ) : null}
             </div>
           ) : (
-            <button
-              type="button"
+            <Button
               onClick={onValider}
               disabled={!dossierIdChoisi}
               title={!dossierIdChoisi ? "Choisis un dossier de destination" : undefined}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-body font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="secondary" size="lg"
             >
               <Check strokeWidth={2} className="w-4 h-4" />
               {labelValider}
-            </button>
+            </Button>
           )}
           {msgClasser ? <p className="mt-1.5 text-meta text-err-700">{msgClasser}</p> : null}
         </div>
@@ -1311,9 +1298,9 @@ function AnalysePane({
               non rattaché à un dossier
             </span>
           )}
-          <button type="button" onClick={onToggleChanger} className="text-ink-3 underline hover:text-ink">
+          <Button onClick={onToggleChanger} variant="ghost">
             {changer ? "fermer" : ratt.intranet ? "changer" : "rattacher / créer"}
-          </button>
+          </Button>
         </div>
 
         {changer && !coproCode && (
@@ -1331,15 +1318,14 @@ function AnalysePane({
               <ul className="divide-y divide-line">
                 {dossiersReels.map((d) => (
                   <li key={d.id}>
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => onRattacherDossier(d.id, d.titre)}
-                      className="w-full text-left px-3 py-2 text-body text-ink hover:bg-surface-2 flex items-center gap-2"
+                      variant="secondary" size="lg" className="w-full text-left"
                     >
                       <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                       <span className="flex-1 min-w-0 truncate">{d.titre}</span>
                       <Badge ton="outline">{TYPE_DOSSIER_LABEL[d.type]}</Badge>
-                    </button>
+                    </Button>
                   </li>
                 ))}
                 {dossiersReels.length === 0 && (
@@ -1401,10 +1387,9 @@ function SectionRepliable({
 }) {
   return (
     <div className="border-t border-line">
-      <button
-        type="button"
+      <Button
         onClick={() => onToggle(cle)}
-        className="w-full flex items-center gap-1.5 py-2.5 text-left text-body font-medium text-ink-2 hover:text-ink"
+        variant="ghost" size="lg" className="w-full text-left"
       >
         <ChevronRight
           strokeWidth={1.5}
@@ -1413,7 +1398,7 @@ function SectionRepliable({
         {icone}
         {titre}
         {compte && <span className="text-ink-3 font-normal">· {compte}</span>}
-      </button>
+      </Button>
       {open && <div className="pb-3 pl-5">{children}</div>}
     </div>
   );

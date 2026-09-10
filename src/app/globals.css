@@ -20,12 +20,11 @@
        ink   = la donnee, les titres, les libelles de bouton ;
        ink-2 = le SECONDAIRE (labels de champ, eyebrows, meta, aide, etats vides) ;
        ink-3 = le TERTIAIRE (placeholder, desactive, etape "a venir").
-     ink-4 (3,6:1 sur blanc, sous le seuil AA) est un ALIAS TEMPORAIRE de ink-3 le
-     temps de la migration ; scripts/audit-ui.mjs le compte, il disparaitra ensuite. */
+     ink-4 (3,6:1 sur blanc, sous le seuil AA) n'existe plus (retire fin de migration,
+     2026-09-10). */
   --color-ink:   #18181b;
   --color-ink-2: #525258;
   --color-ink-3: #6b6b70;
-  --color-ink-4: #6b6b70;
 
   /* Vert sapin REAL31 (oklch, desature) - l'ACTION PRINCIPALE et la navigation
      active uniquement, jamais un statut, jamais un filtre. Echelle complete :
@@ -62,7 +61,10 @@
        title  15/22  titres de bloc (h2/h3), valeur mise en avant (date d'AG)
        page   20/28  h1 de page
        figure 28/32  chiffre-cle (pipeline, % de progression)
-     Le contraste se fait par la graisse et la couleur, pas par la taille. */
+     Le contraste se fait par la graisse et la couleur, pas par la taille.
+     Les tailles Tailwind par defaut (xs, sm, base, lg, xl...) sont DESACTIVEES : elles ne
+     compilent plus, l'echelle est la seule source. */
+  --text-*: initial;
   --text-meta:   0.6875rem;  --text-meta--line-height:   1rem;
   --text-body:   0.8125rem;  --text-body--line-height:   1.25rem;
   --text-title:  0.9375rem;  --text-title--line-height:  1.375rem;

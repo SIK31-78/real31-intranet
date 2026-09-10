@@ -32,6 +32,8 @@ import {
   lancerGestionCouranteAction,
 } from "@/app/gestion-courante/actions";
 import { DialogueConfirmationEcrite } from "./dialogue-confirmation-ecrite";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/field";
 
 function euros(n: number): string {
   return `${n.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €`;
@@ -217,9 +219,9 @@ export function PanneauGestionCourante({
             <label className="mb-1 block text-body font-medium text-ink-2" htmlFor="periode">
               Trimestre à facturer
             </label>
-            <select
+            <Select
               id="periode"
-              className="rounded-sm border border-line px-2 py-1.5 text-body focus:outline-none focus:ring-1 focus:ring-green-700"
+              largeur="auto"
               value={periode}
               onChange={(e) => {
                 setPeriode(e.target.value);
@@ -231,13 +233,12 @@ export function PanneauGestionCourante({
                   {t.replace("-T", " — Trimestre ")}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
-          <button
-            type="button"
+          <Button
             onClick={calculer}
             disabled={pending}
-            className="inline-flex items-center gap-2 rounded-sm border border-line px-3 py-2 text-body font-medium text-ink hover:bg-black/[0.03] disabled:opacity-50"
+            variant="secondary" size="lg"
           >
             {pending && !apercu ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -245,7 +246,7 @@ export function PanneauGestionCourante({
               <Search className="h-4 w-4" strokeWidth={1.5} />
             )}
             Calculer le récapitulatif
-          </button>
+          </Button>
         </div>
 
         {apercu && (
@@ -265,29 +266,26 @@ export function PanneauGestionCourante({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2.5">
-              <button
-                type="button"
+              <Button
                 onClick={selectionnerSansAlerte}
-                className="rounded-sm border border-line px-2.5 py-1.5 text-body text-ink hover:bg-black/[0.03]"
+                variant="secondary"
               >
                 Tout sélectionner ({nbSansAlerte} sans alerte)
-              </button>
+              </Button>
               {nbAlertes > 0 && (
-                <button
-                  type="button"
+                <Button
                   onClick={ajouterLesAlertes}
-                  className="rounded-sm border border-warn-500/40 bg-warn-50 px-2.5 py-1.5 text-body text-warn-700 hover:bg-warn-50/70"
+                  variant="ghost"
                 >
                   Sélectionner aussi les {nbAlertes} alerte{nbAlertes > 1 ? "s" : ""}
-                </button>
+                </Button>
               )}
-              <button
-                type="button"
+              <Button
                 onClick={() => setSelection(new Set())}
-                className="rounded-sm px-2.5 py-1.5 text-body text-ink-3 hover:bg-black/[0.03]"
+                variant="ghost"
               >
                 Tout décocher
-              </button>
+              </Button>
               {apercu.nbConfirmationEcrite > 0 && (
                 <span className="ml-auto inline-flex items-center gap-1.5 text-body text-err-700">
                   <TriangleAlert className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -369,14 +367,13 @@ export function PanneauGestionCourante({
                               (confirmees.has(l.coproCode) ? (
                                 <Badge ton="ok">Confirmée par écrit</Badge>
                               ) : (
-                                <button
-                                  type="button"
+                                <Button
                                   onClick={() => setAConfirmer(l)}
-                                  className="inline-flex items-center gap-1 rounded-sm border border-err-500/40 px-1.5 py-0.5 text-meta font-medium text-err-700 hover:bg-err-50"
+                                  variant="danger"
                                 >
                                   <PenLine className="h-3 w-3" strokeWidth={1.5} />
                                   Confirmer
-                                </button>
+                                </Button>
                               ))}
                           </div>
                         </td>
@@ -419,11 +416,10 @@ export function PanneauGestionCourante({
                   </p>
                 )}
                 <div className="mt-3">
-                  <button
-                    type="button"
+                  <Button
                     onClick={lancer}
                     disabled={pending}
-                    className="inline-flex items-center gap-2 rounded-sm bg-green-700 px-3 py-2 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60"
+                    variant="primary" size="lg"
                   >
                     {pending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -431,7 +427,7 @@ export function PanneauGestionCourante({
                       <Play className="h-4 w-4" strokeWidth={1.5} />
                     )}
                     Émettre les {recap.nb} facture{recap.nb > 1 ? "s" : ""}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

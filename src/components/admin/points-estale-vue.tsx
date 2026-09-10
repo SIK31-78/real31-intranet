@@ -21,6 +21,7 @@ import {
   type StatutPointEstale,
 } from "@/lib/domain/points-estale";
 import { creerPointAction, editerPointAction } from "@/app/admin/estale/actions";
+import { Input, Textarea } from "@/components/ui/field";
 
 function jjmmaaaa(iso?: string): string {
   if (!iso) return "—";
@@ -57,10 +58,9 @@ function LignePoint({ p }: { p: PointEstale }) {
       )}
     >
       {/* Ligne compacte : tout se lit d'un regard, aucun controle - ils vivent dans le deplie. */}
-      <button
-        type="button"
+      <Button
         onClick={() => setOuvert((v) => !v)}
-        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left hover:bg-surface-2/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        variant="secondary" size="lg" className="w-full text-left"
       >
         {ouvert ? (
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-3" />
@@ -93,7 +93,7 @@ function LignePoint({ p }: { p: PointEstale }) {
           {LIBELLES_STATUT_POINT[p.statut]}
         </Badge>
         <span className="hidden shrink-0 text-meta tabular-nums text-ink-3 lg:inline">{jjmmaaaa(p.createdAt)}</span>
-      </button>
+      </Button>
 
       {ouvert && (
         <div className="flex flex-col gap-3 border-t border-line px-4 py-3.5">
@@ -134,7 +134,7 @@ function LignePoint({ p }: { p: PointEstale }) {
             </label>
             <label className="flex flex-col gap-1 text-body text-ink-2">
               Demandeur
-              <input
+              <Input
                 defaultValue={p.demandeur ?? ""}
                 onBlur={(e) => {
                   const v = e.target.value.trim();
@@ -142,7 +142,7 @@ function LignePoint({ p }: { p: PointEstale }) {
                 }}
                 maxLength={20}
                 placeholder="CHB, FS…"
-                className="w-28 rounded-md border border-line bg-surface px-2 py-1.5 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                largeur="auto" className="w-28"
               />
             </label>
             <label
@@ -164,7 +164,7 @@ function LignePoint({ p }: { p: PointEstale }) {
 
           <label className="flex flex-col gap-1 text-body text-ink-2">
             Titre
-            <input
+            <Input
               value={titre}
               onChange={(e) => setTitre(e.target.value)}
               onBlur={() => {
@@ -175,13 +175,13 @@ function LignePoint({ p }: { p: PointEstale }) {
                 if (e.key === "Enter") e.currentTarget.blur();
               }}
               maxLength={200}
-              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-body font-medium text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+             
             />
           </label>
 
           <label className="flex flex-col gap-1 text-body text-ink-2">
             Détail (interne)
-            <textarea
+            <Textarea
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
               onBlur={() => {
@@ -190,7 +190,7 @@ function LignePoint({ p }: { p: PointEstale }) {
               rows={detail ? Math.min(10, Math.max(3, detail.split("\n").length + 1)) : 3}
               maxLength={8000}
               placeholder="Contexte, exemples, cas concrets…"
-              className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+             
             />
           </label>
 
@@ -318,7 +318,7 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
             <option value="recents">Plus récents</option>
             <option value="anciens">Plus anciens</option>
           </select>
-          <Button variant="primary" onClick={() => setAjoutOuvert((v) => !v)}>
+          <Button variant="secondary" onClick={() => setAjoutOuvert((v) => !v)}>
             <Plus strokeWidth={1.5} className="h-3.5 w-3.5" />
             Nouveau point
           </Button>
@@ -337,18 +337,18 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
                 if (e.key === "Escape") setAjoutOuvert(false);
               }}
               maxLength={200}
-              // eslint-disable-next-line jsx-a11y/no-autofocus -- on vient d'ouvrir le formulaire
+               
               autoFocus
               placeholder="Nouveau point à porter à ESTALE…"
               className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
-            <textarea
+            <Textarea
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
               rows={2}
               maxLength={8000}
               placeholder="Détail (facultatif)…"
-              className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+             
             />
             <div className="flex flex-wrap items-center gap-3">
               <select
@@ -408,14 +408,13 @@ export function PointsEstaleVue({ points }: { points: PointEstale[] }) {
       {/* Les clos, replies : l'historique ne noie pas l'actif. */}
       {clos.length > 0 && (
         <div>
-          <button
-            type="button"
+          <Button
             onClick={() => setClosOuverts((v) => !v)}
-            className="inline-flex items-center gap-1.5 text-body font-medium text-ink-3 hover:text-ink"
+            variant="ghost"
           >
             {closOuverts ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             Points clos ({clos.length})
-          </button>
+          </Button>
           {closOuverts && (
             <ul className="mt-2 flex flex-col gap-1.5">
               {clos.map((p) => (

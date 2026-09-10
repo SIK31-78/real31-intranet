@@ -6,13 +6,14 @@
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Bug, Lightbulb, Sparkles, Rocket, CircleDot, ChevronDown } from "lucide-react";
+import { Bug, Lightbulb, Rocket, CircleDot, ChevronDown } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getNouveautes } from "@/lib/services/feedback/get-nouveautes";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import type { EntreePublique } from "@/lib/domain/feedback";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Nouveautés - REAL31 Intranet" };
 
@@ -105,19 +106,12 @@ export default async function NouveautesPage() {
 
   return (
     <AppShell user={g} active="nouveautes" breadcrumb="Nouveautés">
-      <div className="mx-auto max-w-[820px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-8">
-        <header className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-700">
-            <Sparkles strokeWidth={1.5} className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-page font-medium tracking-tight text-ink">Nouveautés</h1>
-            <p className="mt-0.5 text-body text-ink-3">
-              Ce qui arrive et ce qui vient d&apos;être livré sur l&apos;intranet. Une idée, un bug ? Le bouton
-              « Un bug / une idée ? » est en bas à droite de chaque page.
-            </p>
-          </div>
-        </header>
+      <Page largeur="lecture">
+        <PageHeader
+          titre="Nouveautés"
+          meta="Ce qui arrive et ce qui vient d'être livré sur l'intranet."
+          aide={<p>Une idée, un bug ? Le bouton « Un bug / une idée ? » est en bas à droite de chaque page.</p>}
+        />
 
         {vide ? (
           <div className="rounded-md border border-dashed border-line bg-surface px-6 py-12 text-center">
@@ -161,7 +155,7 @@ export default async function NouveautesPage() {
             )}
           </>
         )}
-      </div>
+      </Page>
     </AppShell>
   );
 }

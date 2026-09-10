@@ -53,7 +53,7 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
           ? 'Duplique la phase 1 commune pour un nouveau local'
           : 'Disponible une fois la qualification commune terminée'
       }
-      className="rounded-sm bg-green-700 px-2.5 py-1 text-meta font-medium text-white hover:bg-green-800 disabled:opacity-40"
+      className="rounded-sm border border-line bg-surface px-2.5 py-1 text-meta font-medium text-ink hover:bg-surface-2 hover:border-line-2 disabled:opacity-40"
     >
       + Ajouter un local sinistré
     </button>
@@ -101,7 +101,7 @@ export function LocauxBar({ refNomActif, nomEnErreur = false }: LocauxBarProps =
               <button
                 onClick={() => dispatch({ type: 'ACTIVER_LOCAL', id: l.id })}
                 className={`rounded-sm px-2 py-0.5 text-meta ${
- isActive ? 'bg-green-700 text-white' : 'bg-surface text-ink-3 hover:bg-surface-2'
+ isActive ? 'bg-ink text-white' : 'bg-surface text-ink-3 hover:bg-surface-2'
                 }`}
               >
                 {isActive ? '●' : '○'}

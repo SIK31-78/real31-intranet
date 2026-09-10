@@ -352,7 +352,7 @@ function LigneAValider({ dossierRef, fiche }: { dossierRef: string; fiche: Fiche
             />
           </div>
         </div>
-        <Button type="button" variant="primary" onClick={valider} disabled={pending || valide}>
+        <Button type="button" variant="secondary" onClick={valider} disabled={pending || valide}>
           <CheckCircle2 strokeWidth={1.5} /> {valide ? "Validée" : pending ? "..." : "Valider"}
         </Button>
       </div>

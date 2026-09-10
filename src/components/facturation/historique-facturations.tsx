@@ -10,6 +10,7 @@ import { Loader2, RotateCcw, CheckCircle2, TriangleAlert, Clock } from "lucide-r
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { rejouerFactureAction } from "@/app/facturation/actions";
+import { Button } from "@/components/ui/button";
 
 export interface FactureAffichee {
   id: string;
@@ -120,12 +121,11 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
                   <span className="text-body font-medium text-ink">{euros(f.montantHt)} HT</span>
                   <Statut statut={f.statut} />
                   {f.statut === "erreur" && (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => rejouer(f.id)}
                       disabled={pending}
                       title="Renvoyer vers Pennylane"
-                      className="inline-flex items-center gap-1 rounded-sm border border-line px-2 py-1 text-body text-ink hover:bg-black/[0.03] disabled:opacity-50"
+                      variant="secondary"
                     >
                       {pending && enCours === f.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -133,7 +133,7 @@ export function HistoriqueFacturations({ factures }: { factures: FactureAffichee
                         <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
                       )}
                       Réessayer
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

@@ -10,6 +10,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estSuperAdmin, pageAccueilPour } from "@/lib/auth/roles";
 import { getAnnonceRepository, getAgenceRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { AnnoncesNonConfigureError, type Annonce } from "@/lib/domain/annonce";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Annonces - REAL31 Intranet" };
 
@@ -45,20 +46,23 @@ export default async function AnnoncesAdminPage() {
 
   return (
     <AppShell user={g} active="annonces" breadcrumb="Administration / Annonces">
-      <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-page font-medium tracking-tight text-ink mb-1">Annonces</h1>
-        <p className="text-body text-ink-3 mb-4">
-          Les messages du réseau affichés sur l&apos;<span className="font-medium">accueil</span> de tous les
-          collaborateurs. Une annonce active apparaît en haut de leur accueil ; désactive-la pour la retirer
-          sans la supprimer.
-        </p>
+      <Page largeur="lecture">
+        <PageHeader
+          titre="Annonces"
+          aide={
+            <p>
+              Les messages du réseau affichés sur l&apos;accueil de tous les collaborateurs. Une annonce active
+              apparaît en haut de leur accueil ; désactivez-la pour la retirer sans la supprimer.
+            </p>
+          }
+        />
         <AnnoncesAdminVue
           annonces={annonces}
           nonConfigure={nonConfigure}
           agences={agences.map((a) => a.code)}
           collaborateurs={collaborateurs}
         />
-      </div>
+      </Page>
     </AppShell>
   );
 }

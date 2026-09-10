@@ -281,7 +281,7 @@ function ProgressionParcours({ wizard }: { wizard: WizardState }) {
       {total !== undefined && (
         <div aria-hidden className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2">
           <div
-            className="h-full rounded-full bg-green-700 transition-all"
+            className="h-full rounded-full bg-green-700 transition-[width] duration-240 ease-out-quart"
             style={{ width: `${Math.round((numero / total) * 100)}%` }}
           />
         </div>

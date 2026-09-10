@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { BoutonRecapTraite } from "@/components/compta/bouton-recap-traite";
 import { formatEuros, formatHeures } from "@/lib/services/facturation/format";
 import { formatDateLongue } from "@/lib/format-date";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Récap d'AG - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -124,24 +125,17 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
 
   return (
     <AppShell user={g} active="recaps-recus" breadcrumb={`Récap d'AG · ${recap.coproCode}`}>
-      <div className="mx-auto flex max-w-[880px] flex-col gap-5 px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <div>
-          <Link
-            href="/comptabilite/recaps"
-            className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700"
-          >
-            <ArrowLeft strokeWidth={1.5} className="h-3.5 w-3.5" /> Récaps d&apos;AG reçus
-          </Link>
-          <h1 className="mt-1 text-page font-semibold text-ink">
-            {recap.coproNom}{" "}
-            <span className="text-body font-normal text-ink-3">({recap.coproCode})</span>
-          </h1>
-          <p className="mt-0.5 text-body text-ink-2">
-            AG tenue le {formatDateLongue(recap.agDate)} · récap reçu le{" "}
-            {formatDateLongue(recap.creeLe.slice(0, 10))}
-            {recap.par ? ` · ${recap.par}` : ""}
-          </p>
-        </div>
+      <Page largeur="lecture">
+        <PageHeader
+          eyebrow={
+            <Link href="/comptabilite/recaps" className="inline-flex items-center gap-1 hover:text-ink">
+              <ArrowLeft strokeWidth={1.5} className="h-3 w-3" /> Récaps d&apos;AG reçus
+            </Link>
+          }
+          titre={recap.coproNom}
+          code={recap.coproCode}
+          meta={`AG tenue le ${formatDateLongue(recap.agDate)} · récap reçu le ${formatDateLongue(recap.creeLe.slice(0, 10))}${recap.par ? ` · ${recap.par}` : ""}`}
+        />
 
         <div className="flex flex-wrap items-center gap-3">
           {recap.traiteLe ? (
@@ -245,7 +239,7 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
             <Champ libelle="Facture" valeur={recap.factureId ? "émise" : "aucune"} />
           </dl>
         </Bloc>
-      </div>
+      </Page>
     </AppShell>
   );
 }

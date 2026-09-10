@@ -24,6 +24,7 @@ import type { DossierResume } from "@/lib/reprise/services/resume-dossier";
 import type { CollaborateurVue } from "@/app/reprise-copro/collaborateurs";
 import { initialesDe, formatDateCourte } from "./[id]/vues";
 import { creerDossierAction } from "./actions";
+import { Input, Select } from "@/components/ui/field";
 
 /** Ligne du tableau = résumé du dossier + ce qui revient à l'utilisateur courant. */
 export interface LigneDossierVue extends DossierResume {
@@ -32,8 +33,6 @@ export interface LigneDossierVue extends DossierResume {
 
 type Filtre = "actifs" | "mes_etapes" | "bloques" | "archives";
 
-const INPUT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full";
-const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-body text-ink w-full";
 
 export function DossiersRepriseVue({
   lignes,
@@ -109,7 +108,7 @@ export function DossiersRepriseVue({
         </FiltreBouton>
         <Button
           type="button"
-          variant="primary"
+          variant="secondary"
           onClick={() => setFormOuvert((o) => !o)}
           className="ml-auto"
           disabled={!adminReprise}
@@ -336,23 +335,23 @@ function FormCreation({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Référence ESTALE
-            <input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="ex. S0302" autoFocus className={INPUT} />
+            <Input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="ex. S0302" autoFocus />
           </label>
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Nom de la copropriété
-            <input value={nomUsuel} onChange={(e) => setNomUsuel(e.target.value)} placeholder="ex. 31 Foch" className={INPUT} />
+            <Input value={nomUsuel} onChange={(e) => setNomUsuel(e.target.value)} placeholder="ex. 31 Foch" />
           </label>
           <label className="flex flex-col gap-1 text-body text-ink-3 sm:col-span-2">
             Adresse de l&apos;immeuble <span className="text-ink-3">(optionnel)</span>
-            <input value={adresse} onChange={(e) => setAdresse(e.target.value)} placeholder="ex. 31 avenue Foch, 31000 Toulouse" className={INPUT} />
+            <Input value={adresse} onChange={(e) => setAdresse(e.target.value)} placeholder="ex. 31 avenue Foch, 31000 Toulouse" />
           </label>
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Syndic sortant <span className="text-ink-3">(optionnel)</span>
-            <input value={sortant} onChange={(e) => setSortant(e.target.value)} placeholder="ex. Foncia" className={INPUT} />
+            <Input value={sortant} onChange={(e) => setSortant(e.target.value)} placeholder="ex. Foncia" />
           </label>
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Date de bascule <span className="text-ink-3">(optionnel)</span>
-            <input type="date" value={dateBascule} onChange={(e) => setDateBascule(e.target.value)} className={INPUT} />
+            <Input type="date" value={dateBascule} onChange={(e) => setDateBascule(e.target.value)} />
           </label>
         </div>
 
@@ -362,14 +361,14 @@ function FormCreation({
             {ROLES_REPRISE.map((role) => (
               <label key={role} className="flex flex-col gap-1 text-body text-ink-3">
                 {ROLE_LABEL[role]}
-                <select value={equipe[role]} onChange={(e) => setEquipe((q) => ({ ...q, [role]: e.target.value }))} className={SELECT}>
+                <Select value={equipe[role]} onChange={(e) => setEquipe((q) => ({ ...q, [role]: e.target.value }))}>
                   <option value="">Personne</option>
                   {collaborateurs.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.nom}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             ))}
           </div>

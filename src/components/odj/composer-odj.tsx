@@ -16,6 +16,9 @@ import { MAJORITE_LABEL, MAJORITE_ORDRE, rangParent } from "@/lib/domain/resolut
 import type { AssembleeAg, MotionAg } from "@/lib/domain/assemblee";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
 import { enregistrerProjetAction, creerAgAction } from "@/app/odj/[id]/composer/actions";
+import { Button } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/field";
+import { PageHeader } from "@/components/ui/page";
 
 export function ComposerOdj({
   copro,
@@ -238,18 +241,23 @@ export function ComposerOdj({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link href={retour} className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700">
-          <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Retour à l&apos;ODJ
-        </Link>
-        <h1 className="mt-1 text-page font-semibold text-ink">Mode CS - composer l&apos;ordre du jour</h1>
-        <p className="mt-0.5 text-body text-ink-2">
-          {copro.nom} ({copro.code}){dateAg ? ` - AG du ${dateAg}` : " - date d'AG non définie"}
-        </p>
-        <p className="mt-1 text-body text-ink-3">
-          Retire ce que tu ne veux pas dans l&apos;AG, pioche dans la bibliothèque du cabinet (Estale)
-          ou ajoute des résolutions libres, puis enregistre : l&apos;AG Estale est mise à jour pour
-          correspondre exactement à ta composition.
-        </p>
+        <PageHeader
+          eyebrow={
+            <Link href={retour} className="inline-flex items-center gap-1 hover:text-ink">
+              <ArrowLeft strokeWidth={1.5} className="w-3 h-3" /> Retour à l&apos;ODJ
+            </Link>
+          }
+          titre="Mode CS — composer l'ordre du jour"
+          code={copro.code}
+          meta={`${copro.nom}${dateAg ? ` · AG du ${dateAg}` : " · date d'AG non définie"}`}
+          aide={
+            <p>
+              Retirez ce que vous ne voulez pas dans l&apos;AG, piochez dans la bibliothèque du cabinet (ESTALE) ou
+              ajoutez des résolutions libres, puis enregistrez : l&apos;AG ESTALE est mise à jour pour correspondre
+              exactement à votre composition.
+            </p>
+          }
+        />
       </div>
 
       {etatAg !== "ouverte" && (
@@ -427,26 +435,24 @@ function AssembleeExistante({
                   </span>
                   {editable && !m.estEnfant && (
                     <span className="flex flex-col -my-0.5 shrink-0">
-                      <button
-                        type="button"
+                      <Button
                         onClick={() => onDeplacerTop(m.id, -1)}
                         disabled={premierTop}
                         aria-label="Monter"
                         title="Monter"
-                        className="h-4 inline-flex items-center text-ink-3 hover:text-ink disabled:opacity-25"
+                        variant="ghost"
                       >
                         <ArrowUp strokeWidth={1.5} className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
                         onClick={() => onDeplacerTop(m.id, 1)}
                         disabled={dernierTop}
                         aria-label="Descendre"
                         title="Descendre"
-                        className="h-4 inline-flex items-center text-ink-3 hover:text-ink disabled:opacity-25"
+                        variant="ghost"
                       >
                         <ArrowDown strokeWidth={1.5} className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
@@ -467,19 +473,18 @@ function AssembleeExistante({
                     )}
                   </div>
                   {editable && (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => onToggleSupprimer(m.id)}
                       aria-label={marque ? "Annuler le retrait" : "Retirer de l'ODJ"}
                       title={marque ? "Annuler le retrait" : "Retirer de l'ODJ"}
-                      className="w-7 h-7 inline-flex items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink shrink-0"
+                      variant="secondary" size="sm" iconOnly className="w-7 shrink-0"
                     >
                       {marque ? (
                         <RotateCcw strokeWidth={1.5} className="w-3.5 h-3.5" />
                       ) : (
                         <X strokeWidth={1.5} className="w-3.5 h-3.5" />
                       )}
-                    </button>
+                    </Button>
                   )}
                 </li>
               );
@@ -521,15 +526,14 @@ function AlerteEtatAg({
           )}
         </p>
       </div>
-      <button
-        type="button"
+      <Button
         onClick={onCreer}
         disabled={creation}
-        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-warn-700 text-surface text-body font-medium hover:opacity-90 transition-opacity disabled:opacity-60 shrink-0"
+        variant="ghost" className="shrink-0"
       >
         {creation && <Loader2 strokeWidth={2} className="w-3.5 h-3.5 animate-spin" />}
         Créer une nouvelle AG
-      </button>
+      </Button>
     </div>
   );
 }
@@ -584,13 +588,13 @@ function BibliothequePicker({
         <>
           <div className="relative">
             <Search strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
-            <input
+            <Input
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Rechercher..."
               aria-label="Rechercher dans la bibliotheque"
-              className="w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:border-green-700"
+             
             />
           </div>
           <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filtrer par majorité">
@@ -650,7 +654,7 @@ function BibliothequePicker({
                           ? "text-ok-700 cursor-default"
                           : enAg
                             ? "text-ink-3 cursor-default"
-                            : "bg-green-700 text-surface hover:bg-green-800 disabled:opacity-40"
+                            : "bg-surface border border-line text-ink hover:bg-surface-2 hover:border-line-2 disabled:opacity-40"
                       }`}
                     >
                       {ajoute ? (
@@ -773,63 +777,60 @@ function OdjEnConstruction({
       {formOuvert ? (
         <Card>
           <div className="px-3 py-3 flex flex-col gap-2.5">
-            <input
+            <Input
               value={libreTitre}
               onChange={(e) => setLibreTitre(e.target.value)}
               placeholder="Intitulé de la résolution"
               aria-label="Intitule de la resolution libre"
-              className="w-full h-9 px-3 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700"
+             
             />
             <div className="flex items-center gap-2">
               <label htmlFor="libre-majorite" className="text-body text-ink-3">Majorité</label>
-              <select
+              <Select
                 id="libre-majorite"
                 value={libreMajorite}
                 onChange={(e) => setLibreMajorite(e.target.value as MajoriteResolution)}
-                className="h-8 px-2 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700"
+                largeur="auto"
               >
                 {MAJORITE_ORDRE.map((m) => (
                   <option key={m} value={m}>
                     {MAJORITE_LABEL[m]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
-            <textarea
+            <Textarea
               value={libreCorps}
               onChange={(e) => setLibreCorps(e.target.value)}
               placeholder="Texte de la résolution (optionnel)"
               rows={3}
-              className="w-full px-3 py-2 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700 resize-y"
+             
             />
             <div className="flex items-center gap-2 justify-end">
-              <button
-                type="button"
+              <Button
                 onClick={() => setFormOuvert(false)}
-                className="h-8 px-3 rounded-md text-body text-ink-2 hover:bg-surface-2"
+                variant="secondary"
               >
                 Annuler
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
                 onClick={onAjouterLibre}
                 disabled={!libreTitre.trim()}
-                className="h-8 px-3 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800 disabled:opacity-50"
+                variant="secondary"
               >
                 Ajouter à l&apos;ODJ
-              </button>
+              </Button>
             </div>
           </div>
         </Card>
       ) : (
-        <button
-          type="button"
+        <Button
           onClick={() => setFormOuvert(true)}
           disabled={etatAg !== "ouverte"}
-          className="inline-flex items-center justify-center gap-1.5 h-9 rounded-md border border-dashed border-line-2 text-body text-ink-2 hover:border-green-700 hover:text-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-line-2 disabled:hover:text-ink-2"
+          variant="secondary" size="lg"
         >
           <Plus strokeWidth={1.5} className="w-4 h-4" /> Ajouter une résolution libre
-        </button>
+        </Button>
       )}
 
       {etatAg === "ouverte" && nbModifs > 0 && !enregistrement && (
@@ -839,8 +840,7 @@ function OdjEnConstruction({
         </p>
       )}
 
-      <button
-        type="button"
+      <Button
         onClick={onEnregistrer}
         disabled={etatAg !== "ouverte" || enregistrement}
         aria-busy={enregistrement}
@@ -851,7 +851,7 @@ function OdjEnConstruction({
               ? "AG clôturée : non modifiable"
               : "Aucune AG Estale (création à venir, palier 3)"
         }
-        className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800 transition-colors disabled:bg-surface-2 disabled:text-ink-3 disabled:cursor-not-allowed"
+        variant="primary" size="lg"
       >
         {enregistrement && <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" />}
         {enregistrement
@@ -861,7 +861,7 @@ function OdjEnConstruction({
             : etatAg === "cloturee"
               ? "AG clôturée (non modifiable)"
               : "Créer l'AG d'abord (à venir)"}
-      </button>
+      </Button>
 
       {/* Progression : le bouton est verrouille pendant l'application (mutations eStale en
           sequence) - on l'explique pour eviter le re-clic / la fermeture d'onglet. */}
@@ -896,7 +896,7 @@ function Chip({ actif, onClick, children }: { actif: boolean; onClick: () => voi
       onClick={onClick}
       aria-pressed={actif}
       className={`h-7 px-2.5 rounded-full text-body font-medium border transition-colors ${
- actif ? "bg-green-700 text-surface border-green-700" : "bg-surface text-ink-2 border-line hover:border-line-2"
+ actif ? "bg-ink text-white border-ink" : "bg-surface text-ink-2 border-line hover:border-line-2 hover:text-ink"
       }`}
     >
       {children}
@@ -916,15 +916,14 @@ function IconBtn({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
+    <Button
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="w-7 h-7 inline-flex items-center justify-center rounded-sm text-ink-3 hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+      variant="secondary" size="sm" iconOnly className="w-7"
     >
       {children}
-    </button>
+    </Button>
   );
 }

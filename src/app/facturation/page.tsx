@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Receipt } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getCoprosFacturables } from "@/lib/services/coproprietes/copros-facturables";
 import { estComptable } from "@/lib/auth/roles";
@@ -12,6 +11,7 @@ import {
   HistoriqueFacturations,
   type FactureAffichee,
 } from "@/components/facturation/historique-facturations";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Facturation - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -50,18 +50,16 @@ export default async function FacturationPage() {
 
   return (
     <AppShell user={g} active="facturation" breadcrumb="Facturation">
-      <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
-        <div>
-          <h1 className="text-page font-semibold text-ink flex items-center gap-2">
-            <Receipt strokeWidth={1.5} className="w-5 h-5 text-green-700" />
-            Facturation des honoraires syndic
-          </h1>
-          <p className="mt-1 text-body text-ink-3">
-            Les montants sont calculés depuis le barème de l&apos;année du contrat en cours : ils ne
-            sont jamais saisis à la main. Chaque facturation part ensuite en brouillon Pennylane,
-            à valider par la compta.
-          </p>
-        </div>
+      <Page largeur="lecture">
+        <PageHeader
+          titre="Facturation des honoraires syndic"
+          aide={
+            <p>
+              Les montants sont calculés depuis le barème de l&apos;année du contrat en cours : ils ne sont jamais
+              saisis à la main. Chaque facturation part ensuite en brouillon Pennylane, à valider par la compta.
+            </p>
+          }
+        />
 
         <FormulaireFacturation
           copros={copros
@@ -71,7 +69,7 @@ export default async function FacturationPage() {
         />
 
         <HistoriqueFacturations factures={factures} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

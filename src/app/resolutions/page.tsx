@@ -4,6 +4,7 @@ import { getBibliotheque } from "@/lib/services/resolutions/get-bibliotheque";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { BibliothequeVue } from "@/components/resolutions/bibliotheque-vue";
+import { Page } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Résolutions - REAL31 Intranet" };
 
@@ -17,9 +18,9 @@ export default async function ResolutionsPage() {
 
   return (
     <AppShell user={g} active="resolutions" breadcrumb="Résolutions">
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
+      <Page largeur="travail">
         <BibliothequeVue data={data} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

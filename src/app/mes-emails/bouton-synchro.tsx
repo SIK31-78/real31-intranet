@@ -6,16 +6,17 @@
 // donne un retour visuel d'attente). Doit etre rendu DANS le <form action=...> parent.
 
 import { useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/button";
 
 export function BoutonSynchro() {
   const { pending } = useFormStatus();
   return (
-    <button
+    <Button
       type="submit"
       disabled={pending}
-      className="rounded-md bg-green-700 px-3 py-1.5 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60 disabled:cursor-not-allowed"
+      variant="secondary"
     >
       {pending ? "Synchronisation…" : "Synchroniser ma boîte"}
-    </button>
+    </Button>
   );
 }

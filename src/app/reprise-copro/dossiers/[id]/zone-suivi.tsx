@@ -42,6 +42,7 @@ import {
   type EtapeVue,
   type EntreeJournalVue,
 } from "./vues";
+import { Input, Select, Textarea } from "@/components/ui/field";
 
 const SELECT_COMPACT = "h-7 max-w-[160px] rounded-md border border-line bg-surface px-1.5 text-body text-ink disabled:opacity-50";
 const INPUT_COMPACT = "h-7 rounded-md border border-line bg-surface px-1.5 text-body text-ink disabled:opacity-50";
@@ -159,11 +160,10 @@ function GroupePhase({
   const nbBloquees = etapes.filter((e) => e.statut === "bloque").length;
   return (
     <div className="border-b border-line last:border-b-0">
-      <button
-        type="button"
+      <Button
         onClick={onBasculer}
         aria-expanded={ouverte}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-surface-2 transition-colors"
+        variant="secondary" size="lg" className="w-full text-left"
       >
         <ChevronDown strokeWidth={2} className={cn("w-4 h-4 text-ink-3 transition-transform shrink-0", ouverte ? "" : "-rotate-90")} />
         <span className="text-body font-semibold uppercase tracking-wide text-ink-2">{PHASE_LABEL[phase]}</span>
@@ -180,7 +180,7 @@ function GroupePhase({
             Terminée
           </Badge>
         )}
-      </button>
+      </Button>
       {ouverte && (
         <div className="pb-2">
           <ul className="divide-y divide-line/60">
@@ -303,16 +303,15 @@ function LigneEtape({
             {etape.adHoc && (
               <span className="inline-flex items-center gap-1 shrink-0">
                 <Badge ton="outline">ajoutée</Badge>
-                <button
-                  type="button"
+                <Button
                   onClick={supprimer}
                   disabled={pending}
                   aria-label="Supprimer cette étape ajoutée"
                   title="Supprimer cette étape ajoutée"
-                  className="p-0.5 rounded-sm text-ink-3 hover:text-err-700 disabled:opacity-50"
+                  variant="danger"
                 >
                   <Trash2 strokeWidth={1.5} className="w-3.5 h-3.5" />
-                </button>
+                </Button>
               </span>
             )}
           </div>
@@ -325,12 +324,12 @@ function LigneEtape({
               ) : (
                 <span className="w-6 h-6 rounded-full border border-dashed border-line-2 shrink-0" aria-hidden />
               )}
-              <select
+              <Select
                 value={etape.assigneA?.id ?? ""}
                 onChange={(e) => assigner(e.target.value)}
                 disabled={pending}
                 aria-label={`Assigner l'étape ${etape.code}`}
-                className={SELECT_COMPACT}
+                largeur="auto" className="max-w-[160px]"
               >
                 <option value="">-</option>
                 {collaborateurs.map((c) => (
@@ -338,7 +337,7 @@ function LigneEtape({
                     {c.nom}
                   </option>
                 ))}
-              </select>
+              </Select>
             </span>
 
             <span className={cn("inline-flex items-center gap-1", enRetard ? "text-err-700" : "text-ink-3")}>
@@ -418,18 +417,17 @@ function MenuStatut({
 
   return (
     <div className="relative shrink-0 mt-0.5">
-      <button
-        type="button"
+      <Button
         onClick={() => (ouvert ? fermer() : setOuvert(true))}
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={ouvert}
         aria-label={`Statut : ${STATUT_ETAPE_LABEL[statut]} (cliquer pour changer)`}
         title={`${STATUT_ETAPE_LABEL[statut]} – cliquer pour changer`}
-        className="disabled:opacity-50 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        variant="ghost"
       >
         <PastilleEtape statut={statut} />
-      </button>
+      </Button>
       {ouvert && (
         <>
           {/* Voile transparent : un clic hors du menu le ferme. */}
@@ -460,7 +458,7 @@ function MenuStatut({
             ) : (
               <div className="p-1.5 flex flex-col gap-1.5">
                 <label className="text-meta font-medium text-err-700">Motif du blocage</label>
-                <textarea
+                <Textarea
                   value={motif}
                   onChange={(e) => setMotif(e.target.value)}
                   onKeyDown={(e) => {
@@ -473,7 +471,7 @@ function MenuStatut({
                   rows={3}
                   maxLength={500}
                   placeholder="ex. RIB du sortant non reçu, relancé le 3/9"
-                  className="w-full rounded-md border border-line bg-surface px-2 py-1 text-body text-ink resize-none"
+                 
                 />
                 <div className="flex items-center gap-1.5">
                   <Button type="button" variant="danger" size="sm" onClick={bloquer} disabled={!motif.trim()}>
@@ -498,7 +496,7 @@ function PastilleEtape({ statut, petite }: { statut: StatutEtape; petite?: boole
   const ico = petite ? "w-2.5 h-2.5" : "w-3 h-3";
   if (statut === "fait") {
     return (
-      <span className={cn(base, "bg-green-700 text-white")} aria-hidden>
+      <span className={cn(base, "bg-ok-500 text-white")} aria-hidden>
         <Check strokeWidth={3} className={ico} />
       </span>
     );
@@ -639,41 +637,40 @@ function FormAjoutAdHoc({
   if (!ouvert) {
     return (
       <div className="px-4 pt-1.5">
-        <button
-          type="button"
+        <Button
           onClick={() => setOuvert(true)}
-          className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700"
+          variant="ghost"
         >
           <Plus strokeWidth={2} className="w-3.5 h-3.5" /> Ajouter une étape
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="mx-4 mt-2 rounded-md border border-line bg-surface-2 p-3 flex flex-col gap-2">
-      <input
+      <Input
         value={libelle}
         onChange={(e) => setLibelle(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && ajouter()}
         autoFocus
         maxLength={300}
         placeholder={`Nouvelle étape pour la phase ${PHASE_LABEL[phase]}`}
-        className="h-8 w-full rounded-md border border-line bg-surface px-2 text-body text-ink"
+       
       />
       <div className="flex items-center gap-2 flex-wrap text-body text-ink-3">
         <Champ libelle="Assigné à">
-          <select value={assigneA} onChange={(e) => setAssigneA(e.target.value)} className={SELECT_COMPACT}>
+          <Select value={assigneA} onChange={(e) => setAssigneA(e.target.value)} largeur="auto" className="max-w-[160px]">
             <option value="">-</option>
             {collaborateurs.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nom}
               </option>
             ))}
-          </select>
+          </Select>
         </Champ>
         <Champ libelle="Échéance">
-          <input type="date" value={echeance} onChange={(e) => setEcheance(e.target.value)} className={INPUT_COMPACT} />
+          <Input type="date" value={echeance} onChange={(e) => setEcheance(e.target.value)} largeur="auto" />
         </Champ>
         <Champ libelle="Position">
           <select value={apresCode} onChange={(e) => setApresCode(e.target.value)} className={cn(SELECT_COMPACT, "max-w-[220px]")}>
@@ -688,7 +685,7 @@ function FormAjoutAdHoc({
         </Champ>
       </div>
       <div className="flex items-center gap-2">
-        <Button type="button" variant="primary" size="sm" onClick={ajouter} disabled={pending || !libelle.trim()}>
+        <Button type="button" variant="secondary" size="sm" onClick={ajouter} disabled={pending || !libelle.trim()}>
           {pending ? "Ajout…" : "Ajouter"}
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={reinitialiser} disabled={pending}>
@@ -734,18 +731,17 @@ export function JournalDossier({ dossierRef, journal }: { dossierRef: string; jo
   return (
     <Card>
       <CardHeader>
-        <button
-          type="button"
+        <Button
           onClick={() => setOuvert((o) => !o)}
           aria-expanded={ouvert}
-          className="flex items-center gap-2 text-left"
+          variant="ghost" className="text-left"
         >
           <ChevronDown
             strokeWidth={1.5}
             className={`w-4 h-4 text-ink-3 transition-transform ${ouvert ? "" : "-rotate-90"}`}
           />
           <CardTitle>Journal du dossier</CardTitle>
-        </button>
+        </Button>
         <span className="text-meta text-ink-3">
           {journal.length} entrée{journal.length > 1 ? "s" : ""}
         </span>
@@ -753,15 +749,15 @@ export function JournalDossier({ dossierRef, journal }: { dossierRef: string; jo
       {ouvert && (
       <>
       <div className="px-4 py-3 border-b border-line flex items-center gap-2">
-        <input
+        <Input
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && envoyer()}
           maxLength={500}
           placeholder="Ajouter une note…"
-          className="flex-1 h-8 px-2.5 rounded-md border border-line bg-surface text-body text-ink"
+          className="flex-1"
         />
-        <Button type="button" variant="primary" onClick={envoyer} disabled={!note.trim() || pending}>
+        <Button type="button" variant="secondary" onClick={envoyer} disabled={!note.trim() || pending}>
           Noter
         </Button>
       </div>

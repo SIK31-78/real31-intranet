@@ -3,6 +3,7 @@ import { getGestionnaireRepository, getAgenceRepository } from "@/lib/adapters/r
 import { impersonationAutorisee } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
 import { choisirGestionnaire, connecterMicrosoft } from "./actions";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -29,8 +30,6 @@ function libelleRole(role: string | null | undefined): string | null {
 }
 
 // Style commun des badges (reprend le pattern du badge "comptable" existant).
-const BADGE_CLASS =
-  "text-meta font-medium uppercase tracking-wide text-ink-3 border border-line rounded-sm px-1.5 py-px";
 
 export default async function DevLoginPage() {
   // Bouton Microsoft 365 si l'utilisateur n'a PAS le droit d'incarner un gestionnaire
@@ -47,12 +46,12 @@ export default async function DevLoginPage() {
             Connectez-vous avec votre compte Microsoft 365.
           </p>
           <form action={connecterMicrosoft}>
-            <button
+            <Button
               type="submit"
-              className="w-full h-10 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 transition-colors"
+              variant="primary" size="lg" className="w-full"
             >
               Se connecter avec Microsoft
-            </button>
+            </Button>
           </form>
         </div>
       </div>
@@ -83,9 +82,9 @@ export default async function DevLoginPage() {
             return (
               <li key={g.id}>
                 <form action={choisirGestionnaire.bind(null, g.id)}>
-                  <button
+                  <Button
                     type="submit"
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-md border border-line bg-surface hover:bg-surface-2 text-left transition-colors"
+                    variant="secondary" size="lg" className="w-full text-left"
                   >
                     <span className="w-8 h-8 rounded-full bg-surface-2 text-ink-2 text-body font-medium flex items-center justify-center shrink-0">
                       {g.initiales}
@@ -95,15 +94,15 @@ export default async function DevLoginPage() {
                         (statut env SUPER_ADMINS, pas dans la table -> sinon invisible). Le
                         libelle de role couvre deja "Comptable" (pas de marqueur separe). */}
                     <span className="ml-auto flex items-center gap-1.5 shrink-0">
-                      {roleLisible && <span className={BADGE_CLASS}>{roleLisible}</span>}
-                      {agenceCode && <span className={BADGE_CLASS}>{agenceCode}</span>}
+                      {roleLisible && <span className="text-meta font-medium uppercase tracking-wide text-ink-3 border border-line rounded-sm px-1.5 py-px">{roleLisible}</span>}
+                      {agenceCode && <span className="text-meta font-medium uppercase tracking-wide text-ink-3 border border-line rounded-sm px-1.5 py-px">{agenceCode}</span>}
                       {estSuperAdmin(g.email) && (
                         <span className="text-meta font-medium uppercase tracking-wide text-green-700 border border-green-700/40 rounded-sm px-1.5 py-px">
                           super-admin
                         </span>
                       )}
                     </span>
-                  </button>
+                  </Button>
                 </form>
               </li>
             );

@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 // Frontiere d'erreur : evite l'ecran blanc si une page plante (ex. Supabase indispo).
 
 export default function Error({ reset }: { error: Error; reset: () => void }) {
@@ -10,13 +12,12 @@ export default function Error({ reset }: { error: Error; reset: () => void }) {
         <p className="text-body text-ink-3 mt-2">
           Le service est momentanément indisponible. Réessaie dans un instant.
         </p>
-        <button
-          type="button"
+        <Button
           onClick={reset}
-          className="mt-4 h-9 px-4 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800"
+          variant="primary" size="lg" className="mt-4"
         >
           Réessayer
-        </button>
+        </Button>
       </div>
     </div>
   );

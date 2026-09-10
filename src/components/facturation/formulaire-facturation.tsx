@@ -23,6 +23,7 @@ import {
   creerFactureSinistreAction,
   creerFactureTravauxAction,
 } from "@/app/facturation/actions";
+import { Button } from "@/components/ui/button";
 
 type Onglet = "depassement_cs" | "suivi_travaux" | "suivi_sinistre" | "pre_etat_date" | "etat_date";
 
@@ -441,15 +442,14 @@ export function FormulaireFacturation({
         )}
 
         <div>
-          <button
-            type="button"
+          <Button
             onClick={soumettre}
             disabled={pending}
-            className="inline-flex items-center gap-2 rounded-sm bg-green-700 px-3 py-2 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60"
+            variant="primary" size="lg"
           >
             {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" strokeWidth={1.5} />}
             Calculer et vérifier
-          </button>
+          </Button>
         </div>
       </div>
 

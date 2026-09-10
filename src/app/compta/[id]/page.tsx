@@ -9,6 +9,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ComptaChecklist } from "@/components/compta/compta-checklist";
 import { ComptaPanel } from "@/components/compta/compta-panel";
 import { formatDateLongue } from "@/lib/format-date";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Compta AG - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -35,23 +36,24 @@ export default async function ComptaDetailPage({ params }: { params: Promise<{ i
 
   return (
     <AppShell user={g} active="compta" breadcrumb={`Pôle compta · ${code}`}>
-      <div className="mx-auto max-w-[820px] px-4 py-6 sm:px-6 md:px-8 md:py-8 flex flex-col gap-5">
-        <div>
-          <Link href="/comptabilite" className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700">
-            <ArrowLeft strokeWidth={1.5} className="w-3.5 h-3.5" /> Comptabilité
-          </Link>
-          <h1 className="mt-1 text-page font-semibold text-ink">
-            {copro.nom} <span className="text-body font-normal text-ink-3">({code})</span>
-          </h1>
-          <p className="mt-0.5 text-body text-ink-2">Préparation des comptes · AG du {formatDateLongue(agDate)}</p>
-        </div>
+      <Page largeur="lecture">
+        <PageHeader
+          eyebrow={
+            <Link href="/comptabilite" className="inline-flex items-center gap-1 hover:text-ink">
+              <ArrowLeft strokeWidth={1.5} className="w-3 h-3" /> Comptabilité
+            </Link>
+          }
+          titre={copro.nom}
+          code={code}
+          meta={`Préparation des comptes · AG du ${formatDateLongue(agDate)}`}
+        />
 
         {/* Checklist des postes : le coeur de la verification. Le feu vert final (flag
             "comptes verifies") et le fil de notes restent dans le panneau ci-dessous. */}
         <ComptaChecklist coproCode={code} agDateISO={agDate} checks={etat.checks} />
 
         <ComptaPanel coproCode={code} agDateISO={agDate} etat={etat} role={transverse ? "comptable" : "gestionnaire"} />
-      </div>
+      </Page>
     </AppShell>
   );
 }

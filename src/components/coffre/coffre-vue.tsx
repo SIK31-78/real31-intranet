@@ -57,6 +57,8 @@ import type {
   Coffre,
   Deverrouillage,
 } from "@/lib/domain/coffre";
+import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/field";
 
 // Genere un mot de passe maitre robuste (alphabet sans caracteres ambigus : pas de
 // l/I/1/O/0). 20 caracteres tires de crypto.getRandomValues -> 4 classes, "fort".
@@ -357,13 +359,12 @@ export function CoffreVue({
                 onChange={(e) => setMdp2(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !busy && enroler()}
               />
-              <button
-                type="button"
+              <Button
                 onClick={genererMaitre}
-                className="self-start text-body text-green-700 hover:underline"
+                variant="ghost" className="self-start"
               >
                 Générer un mot de passe robuste
-              </button>
+              </Button>
               <BoiteMdpGenere mdp={mdpRevele} onCopie={() => setInfo("Mot de passe copié.")} />
               <Bouton onClick={enroler} busy={busy} label="Creer mon coffre" icone={KeyRound} />
             </div>
@@ -397,28 +398,28 @@ export function CoffreVue({
         </div>
         <div className="flex items-center gap-1">
           {!passkeyActivee && (
-            <button
+            <Button
               onClick={activerPasskeyHandler}
               disabled={busy}
-              className="flex items-center gap-1.5 text-body text-green-700 hover:bg-green-50 px-2 py-1 rounded-md disabled:opacity-60"
+              variant="ghost"
             >
               <Fingerprint className="w-3.5 h-3.5" strokeWidth={1.5} /> Activer Windows Hello
-            </button>
+            </Button>
           )}
           {devMdp && (
-            <button
+            <Button
               onClick={() => setChangementOuvert((v) => !v)}
-              className="flex items-center gap-1.5 text-body text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
+              variant="secondary"
             >
               <KeyRound className="w-3.5 h-3.5" strokeWidth={1.5} /> Changer mon mot de passe maître
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             onClick={verrouiller}
-            className="flex items-center gap-1.5 text-body text-ink-3 hover:text-ink px-2 py-1 rounded-md hover:bg-surface-2"
+            variant="secondary"
           >
             <Lock className="w-3.5 h-3.5" strokeWidth={1.5} /> Verrouiller
-          </button>
+          </Button>
         </div>
       </div>
       {info && (
@@ -440,19 +441,19 @@ export function CoffreVue({
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3" strokeWidth={1.5} />
-          <input
+          <Input
             type="text"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (entreprise, identifiant, URL...)"
-            className="w-full h-9 pl-8 pr-3 rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-green-600"
+           
           />
         </div>
         {coprosDispo.length > 0 && (
-          <select
+          <Select
             value={filtreCopro}
             onChange={(e) => setFiltreCopro(e.target.value)}
-            className="h-9 px-2 rounded-md border border-line bg-surface text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
+            largeur="auto"
           >
             <option value="">Toutes les coproprietes</option>
             {coprosDispo.map((v) => (
@@ -460,13 +461,13 @@ export function CoffreVue({
                 {v}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         {entreprisesDispo.length > 0 && (
-          <select
+          <Select
             value={filtreEntreprise}
             onChange={(e) => setFiltreEntreprise(e.target.value)}
-            className="h-9 px-2 rounded-md border border-line bg-surface text-body text-ink focus:outline-none focus:ring-1 focus:ring-green-600"
+            largeur="auto"
           >
             <option value="">Toutes les entreprises</option>
             {entreprisesDispo.map((v) => (
@@ -474,19 +475,19 @@ export function CoffreVue({
                 {v}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         {filtreActif && (
-          <button
+          <Button
             onClick={() => {
               setRecherche("");
               setFiltreCopro("");
               setFiltreEntreprise("");
             }}
-            className="h-9 px-3 text-body text-ink-3 hover:text-ink"
+            variant="ghost" size="lg"
           >
             Reinitialiser
-          </button>
+          </Button>
         )}
       </div>
 
@@ -582,9 +583,9 @@ function PanneauChangementMdp({
     <div className="border border-line rounded-lg bg-surface px-4 py-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-body font-medium text-ink">Changer mon mot de passe maître</span>
-        <button onClick={onFermer} className="text-body text-ink-3 hover:text-ink">
+        <Button onClick={onFermer} variant="ghost">
           Fermer
-        </button>
+        </Button>
       </div>
       <p className="text-body text-ink-3">
         Tes mots de passe enregistrés ne bougent pas : seule la serrure change. Ta passkey (Windows Hello)
@@ -620,9 +621,9 @@ function PanneauChangementMdp({
           onChange={(e) => setNouveau2(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !busy && valider()}
         />
-        <button type="button" onClick={generer} className="self-start text-body text-green-700 hover:underline">
+        <Button onClick={generer} variant="ghost" className="self-start">
           Générer un mot de passe robuste
-        </button>
+        </Button>
         <BoiteMdpGenere mdp={genere} onCopie={() => toast.ok("Mot de passe copié.")} />
         <Bouton onClick={valider} busy={busy} label="Changer le mot de passe" icone={KeyRound} />
       </div>
@@ -708,12 +709,12 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
 
   if (!ouvert) {
     return (
-      <button
+      <Button
         onClick={() => setOuvert(true)}
-        className="self-start mt-4 text-body text-ink-3 hover:text-ink underline underline-offset-2"
+        variant="ghost" className="self-start mt-4"
       >
         Mot de passe maître oublié ?
-      </button>
+      </Button>
     );
   }
 
@@ -723,9 +724,9 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
         <span className="text-body font-medium text-err-700 flex items-center gap-1.5">
           <AlertTriangle className="w-4 h-4" strokeWidth={1.5} /> Réinitialiser le coffre
         </span>
-        <button onClick={() => setOuvert(false)} className="text-body text-ink-3 hover:text-ink">
+        <Button onClick={() => setOuvert(false)} variant="ghost">
           Annuler
-        </button>
+        </Button>
       </div>
       <p className="text-body text-ink-2">
         Ton mot de passe maître est la <strong>seule</strong> clé de ton coffre : il n&apos;en existe aucune
@@ -777,9 +778,9 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
           value={mdp2}
           onChange={(e) => setMdp2(e.target.value)}
         />
-        <button type="button" onClick={generer} className="self-start text-body text-green-700 hover:underline">
+        <Button onClick={generer} variant="ghost" className="self-start">
           Générer un mot de passe robuste
-        </button>
+        </Button>
         <BoiteMdpGenere mdp={genere} onCopie={() => toast.ok("Mot de passe copié.")} />
         <label className="flex items-start gap-2 text-body text-ink-2">
           <input
@@ -790,14 +791,14 @@ function PanneauReinitialisation({ coffres }: { coffres: readonly Coffre[] }) {
           />
           <span>Je comprends que le contenu actuel de mon coffre sera définitivement perdu.</span>
         </label>
-        <button
+        <Button
           onClick={reinitialiser}
           disabled={busy || !compris}
-          className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-err-500 text-white text-body font-medium hover:opacity-90 disabled:opacity-50"
+          variant="destructive" size="lg"
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" strokeWidth={2} />}
           Réinitialiser mon coffre
-        </button>
+        </Button>
       </div>
       {erreur && <p className="text-body text-err-500">{erreur}</p>}
     </div>
@@ -829,12 +830,12 @@ function CreerPartage({
 
   if (!ouvert) {
     return (
-      <button
+      <Button
         onClick={() => setOuvert(true)}
-        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-body text-green-700 hover:bg-green-50 border border-dashed border-line rounded-lg"
+        variant="secondary" size="lg"
       >
         <Network className="w-3.5 h-3.5" strokeWidth={1.5} /> Creer un coffre partage
-      </button>
+      </Button>
     );
   }
   return (
@@ -853,9 +854,9 @@ function CreerPartage({
       </div>
       <div className="flex gap-2">
         <Bouton onClick={creer} busy={busy} label="Creer" icone={Plus} />
-        <button onClick={() => setOuvert(false)} className="text-body text-ink-3 hover:text-ink px-3">
+        <Button onClick={() => setOuvert(false)} variant="ghost">
           Annuler
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -891,12 +892,12 @@ function AdminPanel({
 
   if (!ouvert) {
     return (
-      <button
+      <Button
         onClick={() => setOuvert(true)}
-        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-body text-ink-3 hover:text-ink border border-dashed border-line rounded-lg"
+        variant="secondary" size="lg"
       >
         <Shield className="w-3.5 h-3.5" strokeWidth={1.5} /> Administration
-      </button>
+      </Button>
     );
   }
   return (
@@ -905,9 +906,9 @@ function AdminPanel({
         <span className="text-body font-medium text-ink flex items-center gap-1.5">
           <Shield className="w-3.5 h-3.5 text-green-700" strokeWidth={1.5} /> Administration - roles
         </span>
-        <button onClick={() => setOuvert(false)} className="text-body text-ink-3 hover:text-ink">
+        <Button onClick={() => setOuvert(false)} variant="ghost">
           Fermer
-        </button>
+        </Button>
       </div>
       <ul className="divide-y divide-line">
         {liste.map((a) => (
@@ -920,13 +921,13 @@ function AdminPanel({
                 </span>
               )}
             </span>
-            <button
+            <Button
               onClick={() => basculer(a)}
               disabled={busy || (a.id === monUserId && a.estAdmin)}
-              className="text-meta text-ink-3 hover:text-ink disabled:opacity-40"
+              variant="ghost"
             >
               {a.estAdmin ? "Retirer admin" : "Promouvoir admin"}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -1114,19 +1115,19 @@ function CoffrePanel({
         </div>
         <div className="flex items-center gap-3">
           {partage && suisAdmin && (
-            <button
+            <Button
               onClick={() => (gestion ? setGestion(false) : chargerMembres())}
-              className="flex items-center gap-1 text-meta text-ink-3 hover:text-ink"
+              variant="ghost"
             >
               <Users className="w-3.5 h-3.5" strokeWidth={1.5} /> Membres
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             onClick={() => (historique ? setHistorique(false) : chargerAudit())}
-            className="flex items-center gap-1 text-meta text-ink-3 hover:text-ink"
+            variant="ghost"
           >
             <History className="w-3.5 h-3.5" strokeWidth={1.5} /> Historique
-          </button>
+          </Button>
           <span className="text-meta text-ink-3 font-mono">
             {filtreActif ? `${secretsAffiches.length}/${coffre.secrets.length}` : `${coffre.secrets.length} secret(s)`}
           </span>
@@ -1146,9 +1147,9 @@ function CoffrePanel({
                     {m.nom} {m.role === "admin" && <span className="text-ink-3">(admin)</span>}
                   </span>
                   {m.userId !== monUserId && (
-                    <button onClick={() => retirer(m.userId)} disabled={busy} className="text-err-500 hover:text-err-700 p-0.5" title="Retirer">
+                    <Button onClick={() => retirer(m.userId)} disabled={busy} variant="danger" title="Retirer">
                       <X className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                   )}
                 </li>
               ))}
@@ -1157,14 +1158,14 @@ function CoffrePanel({
           {candidats.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {candidats.map((a) => (
-                <button
+                <Button
                   key={a.id}
                   onClick={() => octroyer(a)}
                   disabled={busy}
-                  className="flex items-center gap-1 text-meta text-green-700 border border-green-200 hover:bg-green-50 rounded-full px-2 py-0.5 disabled:opacity-60"
+                  variant="ghost"
                 >
                   <Plus className="w-3 h-3" strokeWidth={2} /> {a.nomComplet || a.email}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -1221,22 +1222,22 @@ function CoffrePanel({
             <code className="text-body text-ink-2 font-mono">
               {reveles.has(s.id) ? s.clair.motDePasse : "........"}
             </code>
-            <button onClick={() => basculer(s.id)} className="text-ink-3 hover:text-ink p-1" title="Afficher/masquer">
+            <Button onClick={() => basculer(s.id)} variant="ghost" iconOnly title="Afficher/masquer">
               {reveles.has(s.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => navigator.clipboard?.writeText(s.clair.motDePasse)}
-              className="text-ink-3 hover:text-ink p-1"
+              variant="ghost" iconOnly
               title="Copier"
             >
               <Copy className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={() => ouvrirEdition(s)} className="text-ink-3 hover:text-ink p-1" title="Modifier">
+            </Button>
+            <Button onClick={() => ouvrirEdition(s)} variant="ghost" iconOnly title="Modifier">
               <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={() => supprimer(s)} disabled={busy} className="text-ink-3 hover:text-err-500 p-1" title="Supprimer">
+            </Button>
+            <Button onClick={() => supprimer(s)} disabled={busy} variant="ghost" iconOnly title="Supprimer">
               <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -1264,31 +1265,31 @@ function CoffrePanel({
           <input className={champClasse} placeholder="Mot de passe" value={form.motDePasse} onChange={(e) => setForm({ ...form, motDePasse: e.target.value })} />
           <div className="flex gap-2">
             <Bouton onClick={enregistrer} busy={busy} label="Enregistrer" icone={Plus} />
-            <button
+            <Button
               onClick={() => {
                 setAjout(false);
                 setEditId(null);
               }}
-              className="text-body text-ink-3 hover:text-ink px-3"
+              variant="ghost"
             >
               Annuler
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <div className="flex border-t border-line text-body">
-          <button
+          <Button
             onClick={ouvrirAjout}
-            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-green-700 hover:bg-green-50"
+            variant="ghost" size="lg" className="flex-1"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Ajouter un mot de passe
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setImporter(true)}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-ink-3 hover:text-ink border-l border-line"
+            variant="secondary" size="lg"
           >
             <Upload className="w-3.5 h-3.5" strokeWidth={1.5} /> Importer (CSV)
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -1324,17 +1325,16 @@ function BoiteMdpGenere({ mdp, onCopie }: { mdp: string | null; onCopie: () => v
       <div className="text-body font-medium text-ok-700 mb-1">Mot de passe généré - copie-le maintenant</div>
       <div className="flex items-center gap-2">
         <code className="flex-1 font-mono text-body text-ink break-all select-all">{mdp}</code>
-        <button
-          type="button"
+        <Button
           onClick={() => {
             navigator.clipboard?.writeText(mdp);
             onCopie();
           }}
           aria-label="Copier"
-          className="shrink-0 p-1 text-ink-3 hover:text-ink"
+          variant="ghost" iconOnly className="shrink-0"
         >
           <Copy className="w-3.5 h-3.5" />
-        </button>
+        </Button>
       </div>
       <p className="mt-1 text-meta text-ink-3">
         Garde-le dans ton gestionnaire (Chrome te proposera de l&apos;enregistrer). Personne ne peut le
@@ -1360,13 +1360,13 @@ function Bouton({
   icone: ComponentType<{ className?: string; strokeWidth?: number }>;
 }) {
   return (
-    <button
+    <Button
       onClick={onClick}
       disabled={busy}
-      className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md bg-green-700 text-white text-body font-medium hover:bg-green-800 disabled:opacity-60"
+      variant="primary" size="lg"
     >
       {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icone className="w-4 h-4" strokeWidth={2} />}
       {label}
-    </button>
+    </Button>
   );
 }

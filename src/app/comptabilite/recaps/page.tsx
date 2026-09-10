@@ -11,6 +11,7 @@ import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-ret
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue, formatMois } from "@/lib/format-date";
+import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Récaps d'AG reçus - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -189,26 +190,24 @@ export default async function RecapsRecusPage() {
 
   return (
     <AppShell user={g} active="recaps-recus" breadcrumb="Récaps d'AG reçus">
-      <div className="mx-auto flex max-w-[1000px] flex-col gap-6 px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <div>
-          {comptable && (
-            <Link
-              href="/comptabilite"
-              className="inline-flex items-center gap-1 text-body text-ink-3 hover:text-green-700"
-            >
-              <ArrowLeft strokeWidth={1.5} className="h-3.5 w-3.5" /> Comptabilité
-            </Link>
-          )}
-          <h1 className="mt-1 flex items-center gap-2 text-page font-semibold text-ink">
-            <Inbox strokeWidth={1.5} className="h-5 w-5 text-green-700" />
-            Récaps d&apos;AG reçus
-          </h1>
-          <p className="mt-1 text-body text-ink-3">
-            Le compte-rendu que le gestionnaire remplit après l&apos;assemblée : budget voté,
-            fonds travaux, travaux à appeler, nouveau contrat. C&apos;est la note de travail à
-            partir de laquelle la comptabilité saisit.
-          </p>
-        </div>
+      <Page largeur="lecture">
+        <PageHeader
+          eyebrow={
+            comptable ? (
+              <Link href="/comptabilite" className="inline-flex items-center gap-1 hover:text-ink">
+                <ArrowLeft strokeWidth={1.5} className="h-3 w-3" /> Comptabilité
+              </Link>
+            ) : undefined
+          }
+          titre="Récaps d'AG reçus"
+          aide={
+            <p>
+              Le compte-rendu que le gestionnaire remplit après l&apos;assemblée : budget voté, fonds travaux,
+              travaux à appeler, nouveau contrat. C&apos;est la note de travail à partir de laquelle la
+              comptabilité saisit.
+            </p>
+          }
+        />
 
         {/* Les recaps ABSENTS d'abord, et hors des deux sections : ce ne sont pas des
             recaps a lire, c'est un trou a combler par le gestionnaire. */}
@@ -234,7 +233,7 @@ export default async function RecapsRecusPage() {
           vide="Aucun récap traité pour l'instant."
           comptable={comptable}
         />
-      </div>
+      </Page>
     </AppShell>
   );
 }

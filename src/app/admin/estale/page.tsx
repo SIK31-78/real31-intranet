@@ -7,6 +7,8 @@ import { getPointsEstaleRepository } from "@/lib/adapters/router";
 import { PointsEstaleNonConfigureError } from "@/lib/ports/points-estale-repository";
 import { comparerPoints, type PointEstale } from "@/lib/domain/points-estale";
 import { PointsEstaleVue } from "@/components/admin/points-estale-vue";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Callout } from "@/components/ui/callout";
 
 export const metadata: Metadata = { title: "Points ESTALE - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -30,19 +32,19 @@ export default async function PointsEstalePage() {
 
   return (
     <AppShell user={g} active="aucun" breadcrumb="Points ESTALE">
-      <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-        <h1 className="text-page font-medium tracking-tight">Points ESTALE</h1>
-        <p className="mt-1 text-body text-ink-3">
-          Les bloquants, questions et demandes à porter à ESTALE, du constat interne jusqu&apos;à leur réponse.
-        </p>
+      <Page largeur="lecture">
+        <PageHeader
+          titre="Points ESTALE"
+          aide={<p>Les bloquants, questions et demandes à porter à ESTALE, du constat interne jusqu&apos;à leur réponse.</p>}
+        />
         {sqlManquant ? (
-          <div className="mt-6 rounded-md border border-warn-500/30 bg-warn-50 px-4 py-3 text-body text-warn-700">
-            Table absente : SQL à passer : <code className="font-mono">supabase/sql/intranet_points_estale.sql</code>
-          </div>
+          <Callout ton="warn" titre="Table absente">
+            SQL à passer : <code className="font-mono">supabase/sql/intranet_points_estale.sql</code>
+          </Callout>
         ) : (
           <PointsEstaleVue points={points} />
         )}
-      </div>
+      </Page>
     </AppShell>
   );
 }

@@ -14,6 +14,8 @@ import { listerDossiers } from "@/lib/reprise/services/suivi-dossier";
 import { resumerDossier, etapesAssigneesA } from "@/lib/reprise/services/resume-dossier";
 import { listerCollaborateurs } from "@/app/reprise-copro/collaborateurs";
 import { DossiersRepriseVue, type LigneDossierVue } from "./dossiers-reprise-vue";
+import { PageHeader } from "@/components/ui/page";
+import { Callout } from "@/components/ui/callout";
 
 export const dynamic = "force-dynamic";
 
@@ -34,18 +36,15 @@ export default async function DossiersReprisePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-page font-medium tracking-tight text-ink">Reprises de copropriété</h1>
-        <p className="mt-1 text-body text-ink-3 max-w-[640px]">
-          Où en est chaque reprise, qui tient l&apos;étape en cours, ce qui bloque.
-        </p>
-      </div>
+      <PageHeader
+        titre="Reprises de copropriété"
+        meta="Où en est chaque reprise, qui tient l'étape en cours, ce qui bloque."
+      />
 
       {!reprisePersistanceSupabase() && (
-        <p className="text-body text-ink-3 border border-line rounded-md bg-surface-2 px-3 py-2">
-          État non persistant (mémoire) : les dossiers sont perdus au redémarrage du serveur. La persistance
-          Supabase s&apos;active avec COPRO_SOURCE=supabase, sans changer cet écran.
-        </p>
+        <Callout ton="warn" titre="État non persistant">
+          les dossiers sont perdus au redémarrage du serveur (COPRO_SOURCE=supabase active la persistance).
+        </Callout>
       )}
 
       <DossiersRepriseVue

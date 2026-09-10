@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CleApi } from "@/lib/domain/cle-api";
 import { creerCle, revoquerCle } from "@/app/admin/cles-api/actions";
+import { Input, Select } from "@/components/ui/field";
 
 const SCOPES: { valeur: string; label: string; aide: string }[] = [
   { valeur: "lecture", label: "Lecture", aide: "Toute la surface GET de /api/v1 (copros, échéances, supervisions, dossiers, compta)." },
@@ -140,20 +141,20 @@ export function ClesApiVue({
           <div className="flex flex-wrap gap-3">
             <label className="flex flex-col gap-1 text-body text-ink-2">
               Nom de la clé
-              <input
+              <Input
                 value={nom}
                 onChange={(e) => setNom(e.target.value)}
                 placeholder="ex. MCP poste Sekou"
                 maxLength={120}
-                className="h-8 w-[240px] px-2 text-body text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                largeur="auto"
               />
             </label>
             <label className="flex flex-col gap-1 text-body text-ink-2">
               Gestionnaire lié (optionnel)
-              <select
+              <Select
                 value={managerId}
                 onChange={(e) => setManagerId(e.target.value)}
-                className="h-8 w-[240px] px-2 text-body text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                largeur="auto"
               >
                 <option value="">— Clé cabinet (lecture transverse) —</option>
                 {gestionnaires.map((g) => (
@@ -161,15 +162,15 @@ export function ClesApiVue({
                     {g.nom}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="flex flex-col gap-1 text-body text-ink-2">
               Expire le (optionnel)
-              <input
+              <Input
                 type="date"
                 value={expireLe}
                 onChange={(e) => setExpireLe(e.target.value)}
-                className="h-8 w-[160px] px-2 text-body text-ink bg-surface border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                largeur="auto"
               />
             </label>
           </div>

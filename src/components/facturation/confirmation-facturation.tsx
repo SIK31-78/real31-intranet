@@ -11,6 +11,7 @@ import {
   messageEmissionFacture,
   type ModeEmissionFacture,
 } from "@/lib/domain/facturation/mode-emission";
+import { Button } from "@/components/ui/button";
 
 function euros(n: number): string {
   return `${n.toFixed(2).replace(".", ",")} €`;
@@ -56,9 +57,9 @@ export function ConfirmationFacturation({
               {apercu.titre} · {apercu.coproCode}
             </p>
           </div>
-          <button type="button" onClick={onAnnuler} aria-label="Fermer" className="text-ink-3 hover:text-ink">
+          <Button onClick={onAnnuler} aria-label="Fermer" variant="ghost">
             <X className="w-4 h-4" strokeWidth={1.5} />
-          </button>
+          </Button>
         </div>
 
         <div className="flex flex-col gap-4 px-4 py-4">
@@ -137,33 +138,30 @@ export function ConfirmationFacturation({
         </div>
 
         <div className="sticky bottom-0 flex justify-end gap-2 border-t border-line bg-white px-4 py-3">
-          <button
-            type="button"
+          <Button
             onClick={onAnnuler}
             disabled={pending}
-            className="rounded-sm border border-line px-3 py-2 text-body text-ink hover:bg-black/[0.03] disabled:opacity-50"
+            variant="secondary" size="lg"
           >
             {aConfirmer ? "Annuler" : "Fermer"}
-          </button>
+          </Button>
           {/* Renoncement a la facture (geste commercial) : enregistre quand meme,
               avec les criteres saisis tels quels. Jamais le bouton principal. */}
           {!rienAFacturer && actionNePasFacturer && onConfirmerSansFacture && (
-            <button
-              type="button"
+            <Button
               onClick={onConfirmerSansFacture}
               disabled={pending}
-              className="inline-flex items-center gap-2 rounded-sm border border-line px-3 py-2 text-body text-ink hover:bg-black/[0.03] disabled:opacity-50"
+              variant="secondary" size="lg"
             >
               <ClipboardCheck className="w-4 h-4" strokeWidth={1.5} />
               {actionNePasFacturer}
-            </button>
+            </Button>
           )}
           {aConfirmer && (
-            <button
-              type="button"
+            <Button
               onClick={onConfirmer}
               disabled={pending}
-              className="inline-flex items-center gap-2 rounded-sm bg-green-700 px-3 py-2 text-body font-medium text-white hover:bg-green-800 disabled:opacity-60"
+              variant="primary" size="lg"
             >
               {pending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -173,7 +171,7 @@ export function ConfirmationFacturation({
                 <Send className="w-4 h-4" strokeWidth={1.5} />
               )}
               {rienAFacturer ? actionSansFacture : "Confirmer et envoyer"}
-            </button>
+            </Button>
           )}
         </div>
       </div>

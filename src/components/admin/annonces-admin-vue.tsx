@@ -17,6 +17,7 @@ import {
   patchAnnonceAction,
   supprimerAnnonceAction,
 } from "@/app/admin/annonces/actions";
+import { Input, Textarea } from "@/components/ui/field";
 
 const LABEL_NIVEAU: Record<NiveauAnnonce, string> = { info: "Info", important: "Important" };
 
@@ -58,7 +59,7 @@ function LigneAnnonce({ a }: { a: Annonce }) {
     <Card>
       <div className={`flex flex-col gap-2 px-4 py-3 ${a.actif ? "" : "opacity-60"}`}>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
             onBlur={() => {
@@ -66,7 +67,7 @@ function LigneAnnonce({ a }: { a: Annonce }) {
               if (t && t !== a.titre) patch({ titre: t }, "Titre mis à jour");
             }}
             maxLength={160}
-            className="flex-1 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-body font-medium text-ink hover:border-line focus:border-line focus:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+            className="flex-1"
           />
           <select
             value={a.niveau}
@@ -85,7 +86,7 @@ function LigneAnnonce({ a }: { a: Annonce }) {
             <Badge ton="outline">{libelleCible(a)}</Badge>
           </span>
         </div>
-        <textarea
+        <Textarea
           value={corps}
           onChange={(e) => setCorps(e.target.value)}
           onBlur={() => {
@@ -94,7 +95,7 @@ function LigneAnnonce({ a }: { a: Annonce }) {
           rows={2}
           maxLength={2000}
           placeholder="Corps (optionnel)…"
-          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+         
         />
         <div className="flex items-center justify-between gap-3">
           <span className="text-meta text-ink-3">
@@ -185,24 +186,24 @@ function FormulaireAnnonce({
     <div className="flex flex-col gap-3.5 px-4 py-4">
       <label className="flex flex-col gap-1 text-body text-ink-2">
         Titre (obligatoire)
-        <input
+        <Input
           value={titre}
           onChange={(e) => setTitre(e.target.value)}
           maxLength={160}
           autoFocus
           placeholder="Ex. Fermeture des bureaux le 15/08"
-          className="h-8 w-full rounded-md border border-line bg-surface px-2 text-body text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+         
         />
       </label>
       <label className="flex flex-col gap-1 text-body text-ink-2">
         Corps (facultatif)
-        <textarea
+        <Textarea
           value={corps}
           onChange={(e) => setCorps(e.target.value)}
           rows={3}
           maxLength={2000}
           placeholder="Le détail de l'annonce…"
-          className="w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-body text-ink placeholder:text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+         
         />
       </label>
       <div className="flex flex-wrap items-center gap-4">
@@ -332,7 +333,7 @@ export function AnnoncesAdminVue({
           {annonces.length} annonce{annonces.length > 1 ? "s" : ""}
           {annonces.length > 0 ? ` · ${annonces.filter((a) => a.actif).length} active(s)` : ""}
         </p>
-        <Button size="sm" variant="primary" onClick={() => setAjoutOuvert(true)} disabled={nonConfigure}>
+        <Button size="sm" variant="secondary" onClick={() => setAjoutOuvert(true)} disabled={nonConfigure}>
           <Plus strokeWidth={1.5} className="h-3.5 w-3.5" />
           Ajouter une annonce
         </Button>

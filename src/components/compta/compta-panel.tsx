@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import type { AuteurNote, EtatCompta } from "@/lib/domain/compta";
 import { ajouterNoteAction, marquerNoteAction, setFlagAction } from "@/app/compta/actions";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/field";
 
 function formatQuand(iso: string): string {
   const [d] = iso.split("T");
@@ -101,20 +103,19 @@ export function ComptaPanel({
           <ul className="divide-y divide-line">
             {etat.notes.map((n) => (
               <li key={n.id} className={`px-3 py-2.5 flex items-start gap-2.5 ${n.resolu ? "opacity-55" : ""}`}>
-                <button
-                  type="button"
+                <Button
                   onClick={() => agir(marquerNoteAction(coproCode, agDateISO, n.id, !n.resolu))}
                   disabled={pending}
                   aria-label={n.resolu ? "Marquer non traitée" : "Marquer traitée"}
                   title={n.resolu ? "Marquer non traitée" : "Marquer traitée"}
-                  className="shrink-0 mt-px text-ink-3 hover:text-green-700"
+                  variant="ghost" className="shrink-0 mt-px"
                 >
                   {n.resolu ? (
                     <CircleCheck strokeWidth={1.5} className="w-4 h-4 text-ok-700" />
                   ) : (
                     <Circle strokeWidth={1.5} className="w-4 h-4" />
                   )}
-                </button>
+                </Button>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Badge ton={n.auteur === "comptable" ? "info" : "brand"}>
@@ -135,24 +136,23 @@ export function ComptaPanel({
 
         {/* Ajout */}
         <div className="px-3 py-2.5 border-t border-line flex items-end gap-2">
-          <textarea
+          <Textarea
             value={texte}
             onChange={(e) => setTexte(e.target.value)}
             placeholder={role === "comptable" ? "Note / question sur les comptes..." : "Réponse à la comptable..."}
             aria-label={role === "comptable" ? "Note ou question sur les comptes" : "Reponse a la comptable"}
             rows={2}
-            className="flex-1 px-2.5 py-1.5 rounded-md border border-line bg-surface text-body focus:outline-none focus:border-green-700 resize-y"
+            className="flex-1"
           />
-          <button
-            type="button"
+          <Button
             onClick={envoyer}
             disabled={pending || !texte.trim()}
             aria-busy={pending}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-green-700 text-surface text-body font-medium hover:bg-green-800 disabled:opacity-50 shrink-0"
+            variant="primary" size="lg" className="shrink-0"
           >
             {pending ? <Loader2 strokeWidth={2} className="w-4 h-4 animate-spin" /> : <Send strokeWidth={1.5} className="w-4 h-4" />}
             Envoyer
-          </button>
+          </Button>
         </div>
       </Card>
 
