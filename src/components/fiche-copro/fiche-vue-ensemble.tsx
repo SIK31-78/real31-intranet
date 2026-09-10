@@ -317,17 +317,6 @@ function BlocAg({
                   {prochaine.alerte}
                 </span>
               )}
-              {/* PORTE PERMANENTE vers l'ordre du jour (Sekou 2026-09-10 : "je ne peux
-                  pas revenir sur un ordre du jour une fois celui-ci termine"). L'ODJ
-                  n'etait atteignable que par l'action du moment, qui disparait des que
-                  l'etape est franchie : le document devenait introuvable. Il reste
-                  consultable ici tant qu'une AG est datee. */}
-              {!masquerLienOdj && (
-                <ButtonLink href={`/odj/${prochaine.supervisionId ?? coproCode}`} variant="ghost" size="sm">
-                  <FileText strokeWidth={1.5} />
-                  Voir l&apos;ordre du jour
-                </ButtonLink>
-              )}
               {/* Lien canonique unique vers la supervision (libelle "Ouvrir la supervision
                   AG"). Masque quand le stepper renvoie DEJA la (pas de doublon, S2.A.3). */}
               {prochaine.supervisionId && !masquerLienSupervision && (
@@ -377,6 +366,21 @@ function BlocAg({
             </span>
           </div>
         </div>
+
+        {/* PORTE PERMANENTE vers l'ordre du jour (Sekou 2026-09-10 : "je ne peux pas
+            revenir sur un ordre du jour une fois celui-ci termine"). Sa place est ICI,
+            dans le bloc du conseil syndical : l'ODJ est le document du CS preparatoire,
+            il porte d'ailleurs la mention "Document issu du conseil syndical". Avant, il
+            n'etait atteignable que par l'action du moment, qui disparait des que l'etape
+            est franchie. Masque quand la frise y renvoie deja. */}
+        {!masquerLienOdj && (
+          <div>
+            <ButtonLink href={`/odj/${prochaine?.supervisionId ?? coproCode}`} variant="ghost" size="sm">
+              <FileText strokeWidth={1.5} />
+              Voir l&apos;ordre du jour
+            </ButtonLink>
+          </div>
+        )}
 
         {/* UN seul mail au CS propose les dates a venir (CS preparatoire + AG ensemble,
             verbatim cabinet). Pre-rempli -> relu -> envoye sur clic. Grise tant que le
