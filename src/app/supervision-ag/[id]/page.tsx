@@ -5,6 +5,7 @@ import { getCycleAgDeSupervision } from "@/lib/services/supervision-ag/get-cycle
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { SupervisionVue } from "@/components/supervision-ag/supervision-vue";
+import { Page } from "@/components/ui/page";
 import { creneauCsDeLaCopro } from "@/lib/services/coproprietes/creneau-cs";
 import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import {
@@ -55,7 +56,7 @@ export default async function SupervisionAgPage({
       active="aucun"
       breadcrumb={`Supervision AG · ${supervision.copro.nomCourt}`}
     >
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
+      <Page largeur="travail">
         <SupervisionVue
           supervision={supervision}
           cycle={cycle}
@@ -67,7 +68,7 @@ export default async function SupervisionAgPage({
           onCommenter={commenterItemAction.bind(null, id)}
           onConclure={conclureAgAction.bind(null, id)}
         />
-      </div>
+      </Page>
     </AppShell>
   );
 }

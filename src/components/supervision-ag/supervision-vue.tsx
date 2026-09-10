@@ -9,10 +9,9 @@ import {
   type SupervisionAg,
 } from "@/lib/domain/supervision-ag";
 import type { CycleAg } from "@/lib/domain/cycle-ag";
+import { Card } from "@/components/ui/card";
 import { SupervisionHeader } from "./supervision-header";
-import { FriseCycleAg } from "./frise-cycle-ag";
 import { BandeauConclue } from "./bandeau-conclue";
-import { ProgressionGlobale } from "./progression-globale";
 import { ChecklistSection } from "./checklist-section";
 import { ModuleModal, type ModuleSupervision } from "./module-modal";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
@@ -91,45 +90,46 @@ export function SupervisionVue({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <SupervisionHeader supervision={supervision} role={role} onConclure={onConclure} />
-      {cycle && <FriseCycleAg cycle={cycle} />}
+    <div className="flex flex-col gap-5">
+      <SupervisionHeader supervision={supervision} cycle={cycle} role={role} onConclure={onConclure} />
       <BandeauConclue supervision={supervision} />
-      <ProgressionGlobale supervision={supervision} />
-      <div className="flex flex-col gap-3">
-        {phaseCompta && (
-          <ChecklistSection
-            section={phaseCompta}
-            agDateISO={agDateISO}
-            aujourdhuiISO={aujourdhuiISO}
-            lectureSeule={lectureSeule}
-            ouvertParDefaut={false}
-            epingle
-            onCocher={onCocher}
-            onCommenter={onCommenter}
-            onOuvrirModule={ouvrirModule}
-          />
-        )}
-        {phasesAG.map((section, i) => (
-          <ChecklistSection
-            // Cle "epoch" (nb de deverrouillages) : chaque Deverrouiller remonte les
-            // sections avec leurs nouveaux defauts -> la phase forcee se DEPLOIE et
-            // les autres (dont la precedente) se REPLIENT, le tout dans le meme clic.
-            // Sans deverrouillage force (vie normale) : cle stable, courante ouverte.
-            key={`${section.id}-${forcees.size}`}
-            section={section}
-            agDateISO={agDateISO}
-            aujourdhuiISO={aujourdhuiISO}
-            lectureSeule={lectureSeule}
-            ouvertParDefaut={derniereForcee ? section.id === derniereForcee : i === indexCourante}
-            verrouille={i > indexCourante && !forcees.has(section.id)}
-            onDeverrouiller={() => deverrouiller(section.id)}
-            onCocher={onCocher}
-            onCommenter={onCommenter}
-            onOuvrirModule={ouvrirModule}
-          />
-        ))}
-      </div>
+      {/* Les phases s'empilent a la hairline dans UN cadre. */}
+      <Card>
+        <div className="divide-y divide-line">
+          {phaseCompta && (
+            <ChecklistSection
+              section={phaseCompta}
+              agDateISO={agDateISO}
+              aujourdhuiISO={aujourdhuiISO}
+              lectureSeule={lectureSeule}
+              ouvertParDefaut={false}
+              epingle
+              onCocher={onCocher}
+              onCommenter={onCommenter}
+              onOuvrirModule={ouvrirModule}
+            />
+          )}
+          {phasesAG.map((section, i) => (
+            <ChecklistSection
+              // Cle "epoch" (nb de deverrouillages) : chaque Deverrouiller remonte les
+              // sections avec leurs nouveaux defauts -> la phase forcee se DEPLOIE et
+              // les autres (dont la precedente) se REPLIENT, le tout dans le meme clic.
+              // Sans deverrouillage force (vie normale) : cle stable, courante ouverte.
+              key={`${section.id}-${forcees.size}`}
+              section={section}
+              agDateISO={agDateISO}
+              aujourdhuiISO={aujourdhuiISO}
+              lectureSeule={lectureSeule}
+              ouvertParDefaut={derniereForcee ? section.id === derniereForcee : i === indexCourante}
+              verrouille={i > indexCourante && !forcees.has(section.id)}
+              onDeverrouiller={() => deverrouiller(section.id)}
+              onCocher={onCocher}
+              onCommenter={onCommenter}
+              onOuvrirModule={ouvrirModule}
+            />
+          ))}
+        </div>
+      </Card>
       {moduleOuvert && (
         <ModuleModal
           module={moduleOuvert}

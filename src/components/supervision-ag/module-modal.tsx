@@ -31,7 +31,7 @@ export function ModuleModal({
 }) {
   if (module === "recap") {
     return (
-      <Modal titre={`Récap AG · ${copro.nomCourt}`} onFermer={onFermer}>
+      <Modal titre={`Récap AG · ${copro.nomCourt}`} onFermer={onFermer} size="lg">
         <FormulaireRecapAg
           copros={[
             {
@@ -48,7 +48,7 @@ export function ModuleModal({
   }
 
   return (
-    <Modal titre={`Honoraires CS · ${copro.nomCourt}`} onFermer={onFermer}>
+    <Modal titre={`Honoraires CS · ${copro.nomCourt}`} onFermer={onFermer} size="lg">
       <FormulaireFacturation
         copros={[{ code: copro.code, nom: copro.nomCourt }]}
         pennylaneMode={pennylaneMode}
