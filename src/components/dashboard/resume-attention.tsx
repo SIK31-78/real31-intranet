@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, ArrowRight, CircleCheck } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { JalonPill } from "@/components/ui/jalon-pill";
+import { tonDeSeverite } from "@/components/ui/badge";
 import { BoutonConfirmerJalon } from "@/components/dashboard/bouton-confirmer-jalon";
 import type { ItemAttention } from "@/lib/domain/dashboard";
 
@@ -32,7 +32,7 @@ export function ResumeAttention({ items }: { items: ItemAttention[] }) {
               const infoCls = "flex items-center gap-3 flex-1 min-w-0";
               const info = (
                 <>
-                  <JalonPill label={item.jalon.label} severite={item.jalon.severite} />
+                  <Badge ton={tonDeSeverite(item.jalon.severite)}>{item.jalon.label}</Badge>
                   <span className="font-mono text-[12px] text-ink-2 w-[38px] shrink-0">{item.coproCode}</span>
                   <span className="flex-1 text-[13px] min-w-0 truncate">{item.titre}</span>
                   {item.badge ? (

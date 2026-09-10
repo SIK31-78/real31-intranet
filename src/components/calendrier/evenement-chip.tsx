@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { JalonPill } from "@/components/ui/jalon-pill";
+import { Badge, tonDeSeverite } from "@/components/ui/badge";
 import type { Evenement, TypeEvenement, StatutEvenement } from "@/lib/domain/calendrier";
 
 // Couleur portee par le type d'evenement (brand pour AG, ambre pour AGE, bleu pour CS).
@@ -64,11 +64,7 @@ export function EvenementChip({ evenement, taille = "md", className }: Evenement
         <span className="flex items-center gap-1.5 shrink-0">
           {heure && <span className="font-mono text-[11px] opacity-70">{heure}</span>}
           {jalon && (
-            <JalonPill
-              label={jalon.label}
-              severite={jalon.severite}
-              className="h-[18px] min-w-[34px] text-[10.5px]"
-            />
+            <Badge ton={tonDeSeverite(jalon.severite)}>{jalon.label}</Badge>
           )}
         </span>
       )}

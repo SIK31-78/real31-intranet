@@ -6,6 +6,7 @@
 // Remplace les window.confirm natifs par une modale stylee du design system.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Button } from "./button";
 
 export interface ConfirmOptions {
   titre: string;
@@ -72,30 +73,22 @@ function ConfirmDialog({ options, onRepondre }: { options: ConfirmOptions; onRep
       aria-modal="true"
       aria-label={options.titre}
     >
-      <div className="absolute inset-0 bg-black/30" onClick={() => onRepondre(false)} />
-      <div className="relative w-full max-w-[400px] rounded-lg border border-line bg-surface shadow-xl p-5">
-        <h2 className="text-[15px] font-medium text-ink">{options.titre}</h2>
-        {options.message && <p className="text-[13px] text-ink-3 mt-1.5">{options.message}</p>}
-        <div className="flex justify-end gap-2 mt-5">
-          <button
-            type="button"
-            onClick={() => onRepondre(false)}
-            className="h-9 px-3 rounded-md text-[13px] text-ink-2 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
-          >
+      <div className="absolute inset-0 bg-black/30 animate-fade-in" onClick={() => onRepondre(false)} />
+      <div className="relative w-full max-w-[420px] rounded-lg border border-line bg-surface shadow-2 p-4 animate-scale-in">
+        <h2 className="text-title font-semibold text-ink">{options.titre}</h2>
+        {options.message && <p className="text-body text-ink-2 mt-1">{options.message}</p>}
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="ghost" size="lg" onClick={() => onRepondre(false)}>
             {options.annuler ?? "Annuler"}
-          </button>
-          <button
+          </Button>
+          <Button
             ref={confirmRef}
-            type="button"
+            variant={options.danger ? "destructive" : "primary"}
+            size="lg"
             onClick={() => onRepondre(true)}
-            className={`h-9 px-4 rounded-md text-[13px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
-              options.danger
-                ? "bg-err-500 hover:bg-err-700 focus-visible:ring-err-500"
-                : "bg-green-700 hover:bg-green-800 focus-visible:ring-green-600"
-            }`}
           >
             {options.confirmer ?? "Confirmer"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

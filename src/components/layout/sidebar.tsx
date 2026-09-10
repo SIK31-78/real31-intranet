@@ -7,6 +7,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Eyebrow } from "@/components/ui/eyebrow";
 
 export type NavKey =
   | "accueil"
@@ -151,12 +152,12 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
   if (item.aVenir) {
     return (
       <div
-        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-ink-4 cursor-not-allowed select-none"
+        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-body text-ink-3 cursor-not-allowed select-none"
         title="Bientôt disponible"
       >
-        <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-4" />
+        <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-3" />
         <span className="truncate">{item.label}</span>
-        <span className="ml-auto text-[9.5px] font-medium uppercase tracking-wide text-ink-4 border border-line rounded px-1 py-px">
+        <span className="ml-auto text-meta font-medium uppercase tracking-[0.06em] text-ink-3 border border-line rounded-sm px-1">
           à venir
         </span>
       </div>
@@ -168,15 +169,15 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors duration-75",
+        "flex items-center gap-2 px-2 py-1.5 rounded-md text-body transition-colors duration-120",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
         active ? "bg-green-50 text-green-700 font-medium" : "text-ink hover:bg-surface-2",
       )}
     >
-      <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-ink-3")} />
+      <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-ink-2")} />
       <span className="truncate">{item.label}</span>
       {item.count !== undefined && (
-        <span className={cn("ml-auto font-mono text-[11px]", active ? "text-green-700" : "text-ink-3")}>
+        <span className={cn("ml-auto text-meta tabular-nums", active ? "text-green-700" : "text-ink-2")}>
           {item.count}
         </span>
       )}
@@ -199,21 +200,19 @@ function LienExterne({
       target="_blank"
       rel="noreferrer"
       className={cn(
-        "group flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-ink hover:bg-surface-2 transition-colors duration-75",
+        "group flex items-center gap-2 px-2 py-1.5 rounded-md text-body text-ink hover:bg-surface-2 transition-colors duration-120",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1",
       )}
     >
-      <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+      <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-ink-2" />
       <span className="truncate">{label}</span>
-      <ExternalLink strokeWidth={1.5} className="ml-auto w-3 h-3 shrink-0 text-ink-4 group-hover:text-ink-3" />
+      <ExternalLink strokeWidth={1.5} className="ml-auto w-3 h-3 shrink-0 text-ink-3 group-hover:text-ink-2" />
     </a>
   );
 }
 
 function SectionTitre({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-2 mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">{children}</div>
-  );
+  return <Eyebrow className="px-2 mb-1.5">{children}</Eyebrow>;
 }
 
 export function Sidebar({

@@ -2,8 +2,8 @@
 
 // Modale accessible du design system : dialog vrai (role="dialog", aria-modal),
 // Escape ferme, clic sur le fond ferme, focus pose a l'ouverture et piege dans la
-// fenetre (Tab cycle sans sortir). Contenu long -> corps scrollable. Reprend les
-// tokens et le style de confirm.tsx (surface / line / ink / green).
+// fenetre (Tab cycle sans sortir). Contenu long -> corps scrollable. Trois tailles,
+// un pied optionnel (ModalFooter) pour les boutons. Apparition 180 ms.
 
 import {
   useCallback,
@@ -12,17 +12,27 @@ import {
   type ReactNode,
 } from "react";
 import { X } from "lucide-react";
+import { cn } from "@/lib/cn";
+import { Button } from "./button";
 
 const FOCUSABLES =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+const TAILLES = {
+  sm: "max-w-[440px]",
+  md: "max-w-[640px]",
+  lg: "max-w-[860px]",
+} as const;
+
 export function Modal({
   titre,
   onFermer,
+  size = "md",
   children,
 }: {
   titre: string;
   onFermer: () => void;
+  size?: keyof typeof TAILLES;
   children: ReactNode;
 }) {
   const panneauRef = useRef<HTMLDivElement>(null);
@@ -91,25 +101,33 @@ export function Modal({
       aria-modal="true"
       aria-label={titre}
     >
-      <div className="absolute inset-0 bg-black/30" onClick={onFermer} />
+      <div className="absolute inset-0 bg-black/30 animate-fade-in" onClick={onFermer} />
       <div
         ref={panneauRef}
         tabIndex={-1}
-        className="relative my-auto w-full max-w-[720px] rounded-lg border border-line bg-surface shadow-xl focus:outline-none"
+        className={cn(
+          "relative my-auto w-full rounded-lg border border-line bg-surface shadow-2 focus:outline-none animate-scale-in",
+          TAILLES[size],
+        )}
       >
-        <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <h2 className="text-[15px] font-medium text-ink">{titre}</h2>
-          <button
-            type="button"
-            onClick={onFermer}
-            aria-label="Fermer"
-            className="rounded-md p-1 text-ink-3 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-          >
-            <X strokeWidth={1.5} className="h-4 w-4" />
-          </button>
+        <div className="flex items-center justify-between gap-3 border-b border-line pl-4 pr-2 h-11">
+          <h2 className="text-title font-semibold text-ink truncate">{titre}</h2>
+          <Button variant="ghost" size="sm" iconOnly onClick={onFermer} aria-label="Fermer">
+            <X strokeWidth={1.5} />
+          </Button>
         </div>
         <div className="max-h-[calc(100vh-9rem)] overflow-y-auto">{children}</div>
       </div>
     </div>
   );
+}
+
+/** Corps de modale avec padding standard. */
+export function ModalBody({ children }: { children: ReactNode }) {
+  return <div className="p-4 text-body text-ink">{children}</div>;
+}
+
+/** Pied de modale : les boutons a droite (le `primary` en dernier). */
+export function ModalFooter({ children }: { children: ReactNode }) {
+  return <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">{children}</div>;
 }

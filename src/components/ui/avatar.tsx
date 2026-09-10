@@ -31,7 +31,7 @@ export function Avatar({ initiales, hue, size = "md", title, className }: Avatar
       style={hueStyle(h)}
       className={cn(
         "inline-flex items-center justify-center rounded-full font-semibold border tracking-[0.02em] shrink-0",
-        size === "lg" ? "w-8 h-8 text-[12px]" : "w-6 h-6 text-[11px]",
+        size === "lg" ? "w-8 h-8 text-meta" : "w-6 h-6 text-meta",
         className,
       )}
     >

@@ -16,21 +16,29 @@
   --color-line:      #e6e5e1;
   --color-line-2:    #d4d3ce;
 
-  /* Encre (texte) - 4 niveaux suffisent. */
+  /* Encre (texte) - 3 roles, pas 3 esthetiques (refonte 2026-09) :
+       ink   = la donnee, les titres, les libelles de bouton ;
+       ink-2 = le SECONDAIRE (labels de champ, eyebrows, meta, aide, etats vides) ;
+       ink-3 = le TERTIAIRE (placeholder, desactive, etape "a venir").
+     ink-4 (3,6:1 sur blanc, sous le seuil AA) est un ALIAS TEMPORAIRE de ink-3 le
+     temps de la migration ; scripts/audit-ui.mjs le compte, il disparaitra ensuite. */
   --color-ink:   #18181b;
   --color-ink-2: #525258;
   --color-ink-3: #6b6b70;
-  --color-ink-4: #8a8a90;
+  --color-ink-4: #6b6b70;
 
-  /* Vert sapin REAL31 (oklch, desature) - actions et chrome de marque
-     uniquement, jamais un statut. */
+  /* Vert sapin REAL31 (oklch, desature) - l'ACTION PRINCIPALE et la navigation
+     active uniquement, jamais un statut, jamais un filtre. Echelle complete :
+     sans 400/800 declares, `green-800` retombait sur le vert Tailwind sature. */
   --color-green-50:  oklch(0.97 0.02 155);
   --color-green-100: oklch(0.93 0.04 155);
   --color-green-200: oklch(0.85 0.06 155);
   --color-green-300: oklch(0.72 0.08 155);
+  --color-green-400: oklch(0.60 0.09 155);
   --color-green-500: oklch(0.48 0.09 155);
   --color-green-600: oklch(0.40 0.08 155);
   --color-green-700: oklch(0.32 0.06 155);
+  --color-green-800: oklch(0.26 0.05 155);
   --color-green-900: oklch(0.20 0.04 155);
 
   /* Semantiques - hue volontairement differente du brand, pour ne pas
@@ -47,9 +55,46 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
   --font-mono--font-feature-settings: "zero", "ss01";
 
-  /* Ombres - tres subtiles, jamais plus de 2 couches. */
+  /* Echelle typographique - CINQ crans, nommes par ROLE (refonte 2026-09).
+     Toute taille de l'UI vient d'ici : `text-[Npx]` est interdit (audit-ui.mjs).
+       meta   11/16  eyebrows, meta ("SK - il y a 16 j"), badges, compteurs
+       body   13/20  TOUT le reste : donnees, labels, boutons, inputs, tableaux
+       title  15/22  titres de bloc (h2/h3), valeur mise en avant (date d'AG)
+       page   20/28  h1 de page
+       figure 28/32  chiffre-cle (pipeline, % de progression)
+     Le contraste se fait par la graisse et la couleur, pas par la taille. */
+  --text-meta:   0.6875rem;  --text-meta--line-height:   1rem;
+  --text-body:   0.8125rem;  --text-body--line-height:   1.25rem;
+  --text-title:  0.9375rem;  --text-title--line-height:  1.375rem;
+  --text-page:   1.25rem;    --text-page--line-height:   1.75rem;
+  --text-figure: 1.75rem;    --text-figure--line-height: 2rem;
+
+  /* Ombres - tres subtiles, jamais plus de 2 couches. Jamais sur une carte
+     (hairline seule) ; shadow-2 = modale / popover / toast. */
   --shadow-1: 0 1px 0 rgba(24,24,27,.04), 0 1px 2px rgba(24,24,27,.04);
   --shadow-2: 0 4px 12px -2px rgba(24,24,27,.06), 0 2px 4px -1px rgba(24,24,27,.04);
+
+  /* Mouvement - sobre, CSS seul. 120 ms survol/focus, 180 ms changement d'etat,
+     240 ms apparition. Aucune animation de page, aucune boucle decorative. */
+  --ease-out-quart: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in:  fade-in  180ms var(--ease-out-quart) both;
+  --animate-fade-out: fade-out 180ms var(--ease-out-quart) both;
+  --animate-scale-in: scale-in 180ms var(--ease-out-quart) both;
+  --animate-slide-up: slide-up 240ms var(--ease-out-quart) both;
+
+  @keyframes fade-in  { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes fade-out { from { opacity: 1 } to { opacity: 0 } }
+  @keyframes scale-in { from { opacity: 0; transform: scale(0.98) } to { opacity: 1; transform: scale(1) } }
+  @keyframes slide-up { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+}
+
+/* Accessibilite : qui demande moins de mouvement n'en a aucun. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Radius du DS : 4 / 6 / 8 px == defauts Tailwind rounded-sm / -md / -lg.

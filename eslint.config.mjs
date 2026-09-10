@@ -68,6 +68,12 @@ const eslintConfig = defineConfig([
         { type: "audit",               pattern: "src/lib/audit/**" },
         { type: "auth",                pattern: "src/lib/auth/**" },
         { type: "app",                 pattern: "src/app/**" },
+        // Couche UI (refonte 2026-09). `ui` = les primitives du design system : elles
+        // ne connaissent que le domaine (types) et elles-memes. `components` = le reste
+        // de l'UI : passe par les services / le router (server actions), JAMAIS par un
+        // adapter concret. L'ordre compte : `ui` doit matcher avant `components`.
+        { type: "ui",                  pattern: "src/components/ui/**" },
+        { type: "components",          pattern: "src/components/**" },
       ],
     },
 
@@ -118,8 +124,15 @@ const eslintConfig = defineConfig([
           // Jobs (cron) : peuvent appeler les adapters directement (orchestration de syncs)
           { from: "jobs",               allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic", "router", "audit"] },
 
-          // App : routes Next.js, passent par services / audit / auth
-          { from: "app",                allow: ["domain", "ports", "services", "audit", "auth"] },
+          // App : routes Next.js, passent par services / audit / auth, composent l'UI
+          { from: "app",                allow: ["domain", "ports", "services", "audit", "auth", "ui", "components"] },
+
+          // Primitives UI : le domaine (types) et elles-memes, rien d'autre
+          { from: "ui",                 allow: ["domain", "ui"] },
+          // Composants : comme `app`, + ui. `app` est tolere parce que les server actions
+          // (`src/app/**/actions.ts`) y vivent et sont importees par les composants clients
+          // (26 cas au 2026-09-10) ; un adapter concret, lui, reste interdit.
+          { from: "components",         allow: ["domain", "ports", "services", "audit", "auth", "router", "ui", "components", "app"] },
         ],
       }],
 
