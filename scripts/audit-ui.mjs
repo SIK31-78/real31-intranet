@@ -28,6 +28,8 @@ const SRC = join(RACINE, "src");
 
 // Dossiers migres : compteurs bloquants a zero, sinon exit 1.
 const MIGRES = [
+  "src/app/accueil",
+  "src/components/affaires",
   "src/components/ui",
   "src/components/parcours",
 ];

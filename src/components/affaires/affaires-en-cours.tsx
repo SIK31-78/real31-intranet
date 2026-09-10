@@ -1,16 +1,21 @@
 "use client";
 
-// Bloc 2 de l'accueil dossiers : "Mes dossiers en cours" (variante C).
+// Bloc 2 de l'accueil : "Vos dossiers en cours".
 // Les dossiers (non clos) du gestionnaire, GROUPES en 3 segments orientes action
 // (A traiter / En cours / A clore - cf. domain/dossier.segmentAffaire). Chaque ligne :
-// type + copro + etape en cours + barre de progression + [>] vers le fil /dossiers/<id>.
-// Filtres v1 : copro, type, toggle [Moi]/[Tout].
+// type + copro + etape en cours + progression + lien vers le fil /dossiers/<id>.
+// Filtres v1 : copro, type, toggle [Moi]/[Mon equipe] (un FILTRE, jamais vert).
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { Briefcase, ChevronRight } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Briefcase } from "lucide-react";
+import { Rows, Row } from "@/components/ui/list-rows";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/field";
+import { SegmentedControl } from "@/components/ui/segmented";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Progress } from "@/components/ui/progress";
 import {
   TYPE_DOSSIER_LABEL,
   TYPE_DOSSIER_ORDRE,
@@ -33,7 +38,6 @@ const TYPE_TON: Record<TypeDossier, "info" | "warn" | "err" | "neutral"> = {
   question_diverse: "neutral",
   autre: "neutral",
 };
-const SELECT = "h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink";
 // Par segment, on n'affiche que les N premiers (depliable) pour ne pas noyer le
 // gestionnaire - meme principe que le bandeau AG (retour patron).
 const CAP_SEGMENT = 5;
@@ -59,10 +63,12 @@ function etapeCouranteAssignee(d: Dossier): "gestionnaire" | "assistant" | undef
   return i === -1 ? undefined : d.etapes[i]?.assigneA;
 }
 
+type Portee = "moi" | "tout";
+
 export function AffairesEnCours({ affaires }: { affaires: AffaireVue[] }) {
   const [filtreType, setFiltreType] = useState<"all" | TypeDossier>("all");
   const [filtreCopro, setFiltreCopro] = useState<"all" | string>("all");
-  const [portee, setPortee] = useState<"moi" | "tout">("moi");
+  const [portee, setPortee] = useState<Portee>("moi");
   const [deplies, setDeplies] = useState<Set<SegmentAffaire>>(() => new Set());
 
   // Copros presentes dans les affaires (pour ne proposer que celles-la au filtre).
@@ -96,47 +102,46 @@ export function AffairesEnCours({ affaires }: { affaires: AffaireVue[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="inline-flex rounded-md border border-line overflow-hidden">
-          {(["moi", "tout"] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPortee(p)}
-              className={
-                "h-8 px-3 text-[13px] font-medium transition-colors " +
-                (portee === p ? "bg-green-700 text-white" : "bg-surface text-ink-2 hover:bg-surface-2")
-              }
-            >
-              {p === "moi" ? "Moi" : "Mon équipe"}
-            </button>
-          ))}
-        </div>
-        <select value={filtreType} onChange={(e) => setFiltreType(e.target.value as typeof filtreType)} className={SELECT}>
+        <SegmentedControl<Portee>
+          label="Périmètre des dossiers"
+          value={portee}
+          onChange={(v) => setPortee(v ?? "moi")}
+          options={[
+            { value: "moi", label: "Moi" },
+            { value: "tout", label: "Mon équipe" },
+          ]}
+        />
+        <Select
+          aria-label="Type de dossier"
+          value={filtreType}
+          onChange={(e) => setFiltreType(e.target.value as typeof filtreType)}
+          largeur="auto"
+        >
           <option value="all">Tous les types</option>
           {TYPE_DOSSIER_ORDRE.map((t) => (
             <option key={t} value={t}>{TYPE_DOSSIER_LABEL[t]}</option>
           ))}
-        </select>
+        </Select>
         {copros.length > 0 && (
-          <select value={filtreCopro} onChange={(e) => setFiltreCopro(e.target.value)} className={SELECT}>
+          <Select
+            aria-label="Copropriété"
+            value={filtreCopro}
+            onChange={(e) => setFiltreCopro(e.target.value)}
+            largeur="auto"
+          >
             <option value="all">Toutes les copros</option>
             {copros.map((c) => (
               <option key={c.code} value={c.code}>{c.code} - {c.nom}</option>
             ))}
-          </select>
+          </Select>
         )}
-        <span className="text-[12px] text-ink-3">
+        <span className="text-body text-ink-2 tabular-nums">
           {visibles.length} dossier{visibles.length > 1 ? "s" : ""}
         </span>
       </div>
 
       {visibles.length === 0 ? (
-        <Card>
-          <div className="px-4 py-10 text-center">
-            <Briefcase strokeWidth={1.5} className="w-6 h-6 text-ink-4 mx-auto mb-2" />
-            <p className="text-[13px] text-ink-3">Aucun dossier en cours pour ce filtre.</p>
-          </div>
-        </Card>
+        <EmptyState icone={Briefcase}>Aucun dossier pour ce filtre</EmptyState>
       ) : (
         SEGMENT_AFFAIRE_ORDRE.map((seg) => {
           const items = parSegment.get(seg)!;
@@ -145,19 +150,20 @@ export function AffairesEnCours({ affaires }: { affaires: AffaireVue[] }) {
           const affiches = deplie ? items : items.slice(0, CAP_SEGMENT);
           const reste = items.length - affiches.length;
           return (
-            <section key={seg}>
-              <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3 mb-1.5 px-1">
-                {SEGMENT_AFFAIRE_LABEL[seg]} ({items.length})
-              </h2>
-              <Card className="overflow-hidden">
-                <ul className="divide-y divide-line">
-                  {affiches.map((a) => (
-                    <LigneAffaire key={a.dossier.id} d={a.dossier} />
-                  ))}
-                </ul>
-                {items.length > CAP_SEGMENT && (
-                  <button
-                    type="button"
+            <section key={seg} className="flex flex-col gap-1.5">
+              <Eyebrow as="h3" className="px-1">
+                {SEGMENT_AFFAIRE_LABEL[seg]} <span className="tabular-nums">({items.length})</span>
+              </Eyebrow>
+              <Rows>
+                {affiches.map((a) => (
+                  <LigneAffaire key={a.dossier.id} d={a.dossier} />
+                ))}
+              </Rows>
+              {items.length > CAP_SEGMENT && (
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() =>
                       setDeplies((prev) => {
                         const next = new Set(prev);
@@ -166,12 +172,11 @@ export function AffairesEnCours({ affaires }: { affaires: AffaireVue[] }) {
                         return next;
                       })
                     }
-                    className="w-full border-t border-line px-4 py-2.5 text-left text-[12px] font-medium text-ink-2 hover:text-green-700 hover:bg-surface-2 transition-colors"
                   >
                     {deplie ? "Réduire" : `Afficher les ${reste} de plus`}
-                  </button>
-                )}
-              </Card>
+                  </Button>
+                </div>
+              )}
             </section>
           );
         })
@@ -186,29 +191,28 @@ function LigneAffaire({ d }: { d: Dossier }) {
   const etapeEnCours = i === -1 ? "Tout fait" : d.etapes[i]?.label ?? "";
 
   return (
-    <li>
-      <Link
-        href={`/dossiers/${d.id}`}
-        className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset"
-      >
-        <Badge ton={TYPE_TON[d.type]} className="shrink-0 w-[100px] justify-center">
+    <Row
+      href={`/dossiers/${d.id}`}
+      avant={
+        <Badge ton={TYPE_TON[d.type]} className="w-24 justify-center font-sans">
           {TYPE_DOSSIER_LABEL[d.type]}
         </Badge>
-        <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-ink truncate">{d.titre}</div>
-          <div className="text-[12px] text-ink-3 truncate">
-            <span className="font-mono">{d.coproCode}</span> {d.coproNom ?? ""}
-            {etapeEnCours ? <span className="text-ink-2"> - {etapeEnCours}</span> : null}
-          </div>
-        </div>
-        <div className="hidden sm:flex items-center gap-2 shrink-0 w-[120px]">
-          <div className="h-1.5 flex-1 rounded-full bg-surface-2 overflow-hidden">
-            <div className="h-full rounded-full bg-green-600" style={{ width: `${p.pct}%` }} />
-          </div>
-          <span className="text-[11px] text-ink-3 font-mono">{p.faites}/{p.total}</span>
-        </div>
-        <ChevronRight strokeWidth={1.5} className="w-4 h-4 text-ink-4 shrink-0" />
-      </Link>
-    </li>
+      }
+      principal={d.titre}
+      secondaire={
+        <>
+          {d.coproCode} {d.coproNom ?? ""}
+          {etapeEnCours ? ` · ${etapeEnCours}` : ""}
+        </>
+      }
+      droite={
+        <span className="hidden sm:flex items-center gap-2 w-32">
+          <Progress valeur={p.pct} label={`${p.faites} étapes sur ${p.total}`} />
+          <span className="text-meta text-ink-2 tabular-nums shrink-0">
+            {p.faites}/{p.total}
+          </span>
+        </span>
+      }
+    />
   );
 }

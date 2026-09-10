@@ -1,18 +1,21 @@
-// Bloc 1 de l'accueil dossiers : "AG - les plus urgentes" (la colonne vertebrale).
+// Bloc 1 de l'accueil : "Vos assemblees generales" - la colonne vertebrale.
 // Une ligne par copro dont l'AG presse : prochaine action + echeance + bouton vers
 // l'ACTION precise (ODJ / supervision / fixer dates), jamais la fiche copro.
 // Le calcul (action, lien, echeance) vient du domaine cycle-ag via le service
-// get-ag-semaine : ce composant ne fait que presenter. Vide -> non rendu (bloc discret).
+// get-ag-semaine : ce composant ne fait que presenter. Vide -> non rendu.
+//
+// Refonte UI : le PRIMAIRE de la page est dans l'en-tete (l'AG la plus urgente) ;
+// ici chaque ligne porte son action en secondaire, 36 px, pas de carte, pas de mono
+// sur les echeances.
 
-import Link from "next/link";
-import { CalendarClock, ArrowRight } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { ArrowRight } from "lucide-react";
+import { Rows, Row } from "@/components/ui/list-rows";
+import { Badge, type BadgeTon } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import type { AgSemaineLigne } from "@/lib/services/affaires/get-ag-semaine";
 
-// Ton du badge d'echeance, aligne sur la frise du dashboard : rouge = retard, J-x
-// neutre, "a dater" en alerte.
-function tonEcheance(ligne: AgSemaineLigne): "err" | "outline" | "warn" | "neutral" {
+// Ton du badge d'echeance : rouge = retard, J-x neutre, "a dater" en alerte.
+function tonEcheance(ligne: AgSemaineLigne): BadgeTon {
   if (ligne.enRetard) return "err";
   if (!ligne.echeance) return "neutral";
   if (ligne.echeance === "à confirmer") return "neutral";
@@ -31,69 +34,46 @@ export function AgSemaineBloc({ lignes }: { lignes: AgSemaineLigne[] }) {
   const reste = lignes.length - visibles.length;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <CalendarClock strokeWidth={1.5} className="w-4 h-4 text-ink-3" />
-          AG - les plus urgentes
-        </CardTitle>
-        <span className="text-[12px] text-ink-3">
-          {reste > 0 ? `${visibles.length} affichées sur ${lignes.length}` : `${lignes.length} échéance${lignes.length > 1 ? "s" : ""}`}
-        </span>
-      </CardHeader>
-      <ul className="divide-y divide-line">
+    <div className="flex flex-col gap-1.5">
+      <Rows>
         {visibles.map((ligne) => (
-          <li key={ligne.id}>
-            <div className="flex items-center gap-2.5 px-4 py-3">
-              <Link
-                href={`/copropriete/${ligne.coproCode}`}
-                className="font-mono text-[12px] text-ink-2 hover:text-green-700 shrink-0"
-              >
-                {ligne.coproCode}
-              </Link>
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium text-ink truncate">{ligne.coproNom}</div>
-                <div className="text-[12px] text-ink-3 truncate">{ligne.prochaineAction}</div>
-              </div>
-              {ligne.echeance && (
-                <Badge ton={tonEcheance(ligne)} dot={ligne.enRetard} className="font-mono shrink-0">
-                  {ligne.echeance}
-                </Badge>
-              )}
-              {ligne.actionSecondaire && (
-                <Link
-                  href={ligne.actionSecondaire.lien}
-                  title="La préparation n'attend pas la date : l'ODJ sera rattaché à l'AG quand sa date sera fixée"
-                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm border border-line bg-surface text-[12px] font-medium text-ink-2 hover:border-line-2 hover:text-ink transition-colors shrink-0"
-                >
-                  {ligne.actionSecondaire.label}
-                </Link>
-              )}
-              <Link
-                href={ligne.lien}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-sm bg-green-700 text-surface text-[12px] font-medium hover:bg-green-600 transition-colors shrink-0"
-              >
-                {ligne.actionLabel}
-                <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </li>
+          <Row
+            key={ligne.id}
+            avant={ligne.coproCode}
+            principal={ligne.coproNom}
+            secondaire={ligne.prochaineAction}
+            ton={ligne.enRetard ? "err" : undefined}
+            droite={
+              <>
+                {ligne.echeance && (
+                  <Badge ton={tonEcheance(ligne)} dot={ligne.enRetard}>
+                    {ligne.echeance}
+                  </Badge>
+                )}
+                {ligne.actionSecondaire && (
+                  <ButtonLink
+                    href={ligne.actionSecondaire.lien}
+                    variant="ghost"
+                    size="sm"
+                    title="La préparation n'attend pas la date : l'ODJ sera rattaché à l'AG quand sa date sera fixée"
+                  >
+                    {ligne.actionSecondaire.label}
+                  </ButtonLink>
+                )}
+                <ButtonLink href={ligne.lien} variant="secondary" size="sm">
+                  {ligne.actionLabel}
+                  <ArrowRight strokeWidth={1.5} />
+                </ButtonLink>
+              </>
+            }
+          />
         ))}
-      </ul>
+      </Rows>
       {reste > 0 && (
-        <div className="flex items-center justify-between border-t border-line px-4 py-2.5">
-          <span className="text-[12px] text-ink-3">
-            + {reste} autre{reste > 1 ? "s" : ""} échéance{reste > 1 ? "s" : ""} AG non affichée{reste > 1 ? "s" : ""}
-          </span>
-          <Link
-            href="/copropriete"
-            className="inline-flex items-center gap-1 text-[12px] font-medium text-ink-2 hover:text-green-700"
-          >
-            Toutes les AG
-            <ArrowRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+        <p className="text-meta text-ink-2 px-1">
+          + {reste} autre{reste > 1 ? "s" : ""} échéance{reste > 1 ? "s" : ""} AG non affichée{reste > 1 ? "s" : ""}
+        </p>
       )}
-    </Card>
+    </div>
   );
 }

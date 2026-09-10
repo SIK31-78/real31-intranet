@@ -5,8 +5,12 @@ import { cn } from "@/lib/cn";
 // ligne (`hint`), erreur sous le champ. Rendu serveur (aucun etat ici : le formulaire
 // client garde son etat, ces composants ne font que dessiner).
 
+// Largeur : pleine par defaut (formulaire), `auto` pour un filtre en ligne.
+type Largeur = { largeur?: "pleine" | "auto" };
+const LARGEUR: Record<NonNullable<Largeur["largeur"]>, string> = { pleine: "w-full", auto: "w-auto" };
+
 const CONTROLE =
-  "w-full rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 " +
+  "rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 " +
   "transition-colors duration-120 hover:border-line-2 " +
   "focus:outline-none focus:border-line-2 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1 " +
   "disabled:opacity-60 disabled:cursor-not-allowed aria-[invalid=true]:border-err-500";
@@ -45,16 +49,16 @@ export function Field({
   );
 }
 
-export function Input({ className, ...props }: ComponentProps<"input">) {
-  return <input className={cn(CONTROLE, "h-8 px-2.5", className)} {...props} />;
+export function Input({ largeur = "pleine", className, ...props }: ComponentProps<"input"> & Largeur) {
+  return <input className={cn(CONTROLE, LARGEUR[largeur], "h-8 px-2.5", className)} {...props} />;
 }
 
-export function Select({ className, ...props }: ComponentProps<"select">) {
-  return <select className={cn(CONTROLE, "h-8 pl-2.5 pr-8", className)} {...props} />;
+export function Select({ largeur = "pleine", className, ...props }: ComponentProps<"select"> & Largeur) {
+  return <select className={cn(CONTROLE, LARGEUR[largeur], "h-8 pl-2.5 pr-8", className)} {...props} />;
 }
 
-export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
-  return <textarea className={cn(CONTROLE, "min-h-20 px-2.5 py-1.5 leading-5", className)} {...props} />;
+export function Textarea({ largeur = "pleine", className, ...props }: ComponentProps<"textarea"> & Largeur) {
+  return <textarea className={cn(CONTROLE, LARGEUR[largeur], "min-h-20 px-2.5 py-1.5 leading-5", className)} {...props} />;
 }
 
 /** Une option radio / case a cocher avec son libelle, alignee sur la ligne. */
