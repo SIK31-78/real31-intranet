@@ -42,6 +42,21 @@ describe("cout des services (vraie base)", () => {
     await chrono("coproRepository.listerToutes", () => getCoproRepository().listerToutes());
     await chrono("getFicheCopro(S215)", () => getFicheCopro("S215", managerId, new Date().toISOString().slice(0, 10)));
 
+    console.log("\n--- ce que la FICHE COPRO enchaine (sequentiel dans la page) ---");
+    const { getDossiersCopro } = await import("@/lib/services/dossiers/get-dossiers");
+    const { etatListeSecoursCS } = await import("@/lib/services/coproprietes/etat-liste-secours-cs");
+    await chrono("getFicheCopro(S215, transverse)", () =>
+      getFicheCopro("S215", managerId, today, { transverse: true }),
+    );
+    await chrono("getFicheCopro(S215, transverse) 2e", () =>
+      getFicheCopro("S215", managerId, today, { transverse: true }),
+    );
+    await chrono("getFicheCopro(S215, cloisonne) 2e", () =>
+      getFicheCopro("S215", managerId, today),
+    );
+    await chrono("getDossiersCopro(S215)", () => getDossiersCopro("S215", managerId));
+    await chrono("etatListeSecoursCS(S215)", () => etatListeSecoursCS("S215"));
+
     console.log("\n--- 2e passage (caches chauds) ---");
     await chrono("getAgSemaine", () => getAgSemaine(managerId));
     await chrono("getAffairesEnCours", () => getAffairesEnCours(managerId));
