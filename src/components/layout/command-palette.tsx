@@ -10,6 +10,7 @@
 // Le filtre lui-meme vit dans le domaine (filtrerRecherche), teste offline.
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, Building2, CornerDownLeft, ArrowRight } from "lucide-react";
 import { chargerCoprosRecherche } from "@/app/recherche/actions";
@@ -142,9 +143,12 @@ export function CommandPalette({
         </button>
       )}
 
-      {ouvert && (
+      {/* Le dialogue est PORTE dans <body> : le rail est `sticky`, donc un contexte
+          d'empilement a lui - rendu dedans, le dialogue passait SOUS les champs de la
+          page (la barre de recherche des copros s'affichait par-dessus la palette). */}
+      {ouvert && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[15vh]"
+          className="fixed inset-0 z-[70] flex items-start justify-center px-4 pt-[15vh]"
           role="dialog"
           aria-modal="true"
           aria-label="Recherche et navigation"
@@ -204,7 +208,8 @@ export function CommandPalette({
               )}
             </ul>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
