@@ -1,4 +1,4 @@
-import { ArrowRight, CircleCheck, AlertCircle, FileText, Flag, History, Route, Users } from "lucide-react";
+import { ArrowRight, CircleCheck, AlertCircle, FileSignature, FileText, Flag, History, Route, Users } from "lucide-react";
 import type {
   AgPassee,
   Copropriete,
@@ -390,6 +390,16 @@ function BlocAg({
             <MailReunionBouton coproCode={coproCode} actif={mailActif} />
           </div>
         )}
+
+        {/* PORTE vers le contrat de syndic du cycle a venir (reprise de l'automatisation
+            MYTHEC, 2026-09-11). Sa place est ICI, dans le bloc des assemblees : le contrat
+            part DANS la convocation d'AG, et c'est l'AG qui ouvre un nouveau cycle. */}
+        <div>
+          <ButtonLink href={`/contrat/${coproCode}`} variant="ghost" size="sm">
+            <FileSignature strokeWidth={1.5} />
+            Contrat de syndic
+          </ButtonLink>
+        </div>
       </CardBody>
 
       {/* Liste de diffusion CS (secours) editable : rend modifiable la couche Crypto/intranet

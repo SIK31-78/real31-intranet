@@ -5,6 +5,8 @@ import type {
   ContratCopro,
   FactureAEmettre,
   FacturationRepository,
+  DonneesContratCopro,
+  LigneBareme,
   LigneGestionCourante,
   FactureHistorique,
   NouvelleFacture,
@@ -49,6 +51,17 @@ export class MockFacturationRepository implements FacturationRepository {
     return TARIFS[identifiantPrestation]?.[annee] ?? null;
   }
 
+  async listerBareme(annee: number): Promise<LigneBareme[]> {
+    return Object.entries(TARIFS)
+      .filter(([, parAnnee]) => parAnnee[annee] !== undefined)
+      .map(([identifiantPrestation, parAnnee]) => ({
+        identifiantPrestation,
+        // Pas de libelle en mock : l'identifiant fait office, comme le degrade Supabase.
+        libelle: identifiantPrestation,
+        montantTtc: parAnnee[annee],
+      }));
+  }
+
   async creerContrat(input: {
     coproCode: string;
     debutContrat: string;
@@ -75,6 +88,30 @@ export class MockFacturationRepository implements FacturationRepository {
     if (!CONTRATS.some((c) => c.coproCode === coproCode)) return null;
     // Valeurs representatives du parc reel (franchise CS 1 h, AG 2 h, plage 10 h-20 h).
     return { franchiseCsHeures: 1, dureeAgHeures: 2, debutMinAgHeure: 10, finMaxAgHeure: 20 };
+  }
+
+  async getDonneesContrat(coproCode: string): Promise<DonneesContratCopro | null> {
+    if (!CONTRATS.some((c) => c.coproCode === coproCode)) return null;
+    // Copro representative : adresse sur une ligne, assurance connue, mandat calé sur
+    // le 30 juin (le cas majoritaire du parc, contrats du 01/07 au 30/06).
+    return {
+      code: coproCode,
+      nom: `Copropriete ${coproCode}`,
+      adresse1: "1 rue de la Mairie",
+      adresse2: null,
+      adresse3: null,
+      codePostal: "92250",
+      ville: "LA GARENNE-COLOMBES",
+      immatriculation: "AA0000000",
+      assurance: "AXA",
+      assuranceDateISO: "2020-01-15",
+      agenceId: "agence-mock-lgc",
+      lotsPrincipaux: 20,
+      lotsAutres: 10,
+      nbVisites: 1,
+      nbCs: 1,
+      finMandatISO: "2026-06-30",
+    };
   }
 
   async getDernierContrat(coproCode: string): Promise<ContratCopro | null> {

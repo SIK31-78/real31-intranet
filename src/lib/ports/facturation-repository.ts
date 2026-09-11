@@ -160,13 +160,69 @@ export interface LigneGestionCourante {
   priseEnGestion?: string | null;
 }
 
+/**
+ * Les champs de la copropriete imprimes sur le contrat de syndic. Tout vient de la
+ * table `Copropriete` (App A, lecture seule). Null = absent de la fiche : c'est au
+ * service de decider si le contrat peut sortir sans.
+ */
+export interface DonneesContratCopro {
+  code: string;
+  nom: string;
+  adresse1: string | null;
+  adresse2: string | null;
+  adresse3: string | null;
+  codePostal: string | null;
+  ville: string | null;
+  /** Numero au registre national des coproprietes (`registrationNumber`). */
+  immatriculation: string | null;
+  /** Compagnie d'assurance (`insuranceCompany`). */
+  assurance: string | null;
+  /** Souscription de l'assurance, ISO (`insuranceSubscriptionDate`). */
+  assuranceDateISO: string | null;
+  /** Id technique de l'agence. Le SERVICE le resout en code lisible (ML / LGC / HLS /
+   *  ASN) via services/agences : un adapter n'appelle pas un service (ADR-001). */
+  agenceId: string | null;
+  lotsPrincipaux: number | null;
+  lotsAutres: number | null;
+  /** Visites incluses au contrat (`visitCount`). */
+  nbVisites: number | null;
+  /** Conseils syndicaux inclus (`csCount`). */
+  nbCs: number | null;
+  /** Fin du mandat en cours, ISO (`syndicContractEndDate`) : origine du cycle suivant. */
+  finMandatISO: string | null;
+}
+
+/** Une ligne du bareme annuel. */
+export interface LigneBareme {
+  identifiantPrestation: string;
+  libelle: string;
+  montantTtc: number;
+}
+
 export interface FacturationRepository {
   /** Montant TTC du bareme pour une prestation et une annee. Null si absent. */
   getTarifTtc(identifiantPrestation: string, annee: number): Promise<number | null>;
+  /**
+   * TOUT le bareme d'une annee, en UNE lecture. Le contrat de syndic cite 21
+   * prestations : les chercher une par une ferait 21 allers-retours, ce que le flow
+   * PowerApps faisait deja et que l'audit de migration pointait comme un defaut.
+   * Porte aussi le `libelle`, que le contrat imprime.
+   */
+  listerBareme(annee: number): Promise<LigneBareme[]>;
   /** Contrat de gestion le plus recent d'une copro. Null si aucun. */
   getDernierContrat(coproCode: string): Promise<ContratCopro | null>;
   /** Parametres contractuels de la copro (franchises, plage d'AG). Null si copro inconnue. */
   getParametresCopro(coproCode: string): Promise<ParametresCopro | null>;
+  /**
+   * Champs de la copropriete qui figurent DANS le contrat de syndic (adresse complete
+   * sur trois lignes, immatriculation, assurance, lots, prestations incluses).
+   * Null si la copro est inconnue.
+   *
+   * Methode dediee plutot qu'un elargissement de `Copropriete` : ces champs ne servent
+   * qu'au contrat imprime (adresse ligne 2 et 3, assureur, date de souscription), et le
+   * domaine Copropriete n'a pas a s'alourdir pour un seul document.
+   */
+  getDonneesContrat(coproCode: string): Promise<DonneesContratCopro | null>;
   /** Ouvre un cycle de contrat (une AG en ouvre un). Renvoie son id. */
   creerContrat(input: {
     coproCode: string;

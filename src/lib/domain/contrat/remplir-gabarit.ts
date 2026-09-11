@@ -1,0 +1,87 @@
+// Remplissage du gabarit de contrat de syndic : les placeholders `[Xxx]` -> les valeurs.
+// Portage de la table `replacements` de l'Office Script `ContratReplace` (MYTHEC).
+// Pur, deterministe, sans dependance.
+
+import type { ChampsContrat, PrestationContrat } from "./champs-contrat";
+import { htDepuisTtc, ttcBrut } from "./montants-contrat";
+
+/**
+ * Nom de la prestation DANS LES PLACEHOLDERS, quand il differe de son identifiant en base.
+ * Le gabarit ecrit `[CsSuppHT]` la ou `intranet_tarifs` porte `CSSupp` : un seul ecart,
+ * mais il ferait silencieusement disparaitre deux lignes de tarif du contrat.
+ */
+const NOM_PLACEHOLDER: Partial<Record<PrestationContrat, string>> = {
+  CSSupp: "CsSupp",
+};
+
+/** "2026-07-01" -> "01/07/2026". Le gabarit attend des dates francaises. */
+function jjmmaaaa(iso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return "";
+  const [a, m, j] = iso.slice(0, 10).split("-");
+  return `${j}/${m}/${a}`;
+}
+
+/** Un nombre absent s'imprime "0", jamais "null" ni une case vide sur un contrat. */
+function nombre(v: number | null | undefined): string {
+  return v === null || v === undefined ? "0" : String(v);
+}
+
+/**
+ * Table de remplacement complete : les 65 placeholders du gabarit.
+ * Identique a celle du legacy, y compris le fait que le forfait timbres et les honoraires
+ * TTC sont injectes bruts (sans mise en forme francaise) - c'est ainsi que les contrats
+ * deja signes sont ecrits.
+ */
+export function tableRemplacement(champs: ChampsContrat): Record<string, string> {
+  const { copro } = champs;
+  const table: Record<string, string> = {
+    "[Coproprietes.Adresse1]": copro.adresse1,
+    "[Coproprietes.Adresse2]": copro.adresse2,
+    "[Coproprietes.Adresse3]": copro.adresse3,
+    "[Coproprietes.CP]": copro.codePostal,
+    "[Coproprietes.Ville]": copro.ville,
+    "[Coproprietes.RegistreNumero]": copro.immatriculation,
+    "[Coproprietes.DateAssurance]": jjmmaaaa(copro.assuranceDateISO),
+    "[Coproprietes.Assurance]": copro.assurance,
+    "[Coproprietes.Agence]": copro.agence,
+    "[Coproprietes.NbVisite]": nombre(copro.nbVisites),
+    "[Coproprietes.DureeAG]": nombre(copro.dureeAgHeures),
+    "[Coproprietes.NbCS]": nombre(copro.nbCs),
+    "[Coproprietes.DureeCS]": nombre(copro.dureeCsHeures),
+    "[Coproprietes.NbLot]": nombre(copro.lotsPrincipaux),
+    "[Coproprietes.NbAutreLot]": nombre(copro.lotsAutres),
+    "[Coproprietes.FinMaxAG]": nombre(copro.finMaxAgHeure),
+    "[DateAG]": jjmmaaaa(champs.dateAgISO),
+    "[DebutContrat]": jjmmaaaa(champs.debutISO),
+    "[FinContrat]": jjmmaaaa(champs.finISO),
+    "[DureeContrat]": champs.dureeTexte,
+    "[HonoGestionHT]": champs.honorairesGestionHt,
+    "[FormulaireContratSyndic.HonoGestion]": String(champs.honorairesGestionTtc),
+    "[FormulaireContratSyndic.FraisPostaux]": String(champs.forfaitPostauxTtc),
+  };
+
+  for (const tarif of champs.tarifs) {
+    const nom = NOM_PLACEHOLDER[tarif.identifiant] ?? tarif.identifiant;
+    table[`[${nom}HT]`] = tarif.ht;
+    table[`[Tarifs.Tarif.${nom}]`] = tarif.ttcTexte;
+  }
+  return table;
+}
+
+/**
+ * Remplace les placeholders d'un texte. Un placeholder INCONNU est laisse tel quel,
+ * visible a l'ecran : mieux vaut un `[Xxx]` qui saute aux yeux a la relecture qu'un trou
+ * silencieux dans un document contractuel.
+ */
+export function remplirTexte(texte: string, table: Record<string, string>): string {
+  return texte.replace(/\[[^\]\n]+\]/g, (placeholder) => table[placeholder] ?? placeholder);
+}
+
+/** Les placeholders d'un texte qu'on ne sait PAS remplir. Sert au controle de rendu. */
+export function placeholdersNonResolus(texte: string, table: Record<string, string>): string[] {
+  return [...texte.matchAll(/\[[^\]\n]+\]/g)]
+    .map((m) => m[0])
+    .filter((p) => table[p] === undefined);
+}
+
+export { htDepuisTtc, ttcBrut };

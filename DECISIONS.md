@@ -26,7 +26,7 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 | ADR-009 | Permissions et scopes - gestionnaire cloisonné au MVP, modèle extensible                  | Accepted              | v1      | 2026-05-22 |
 | ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID                   | Accepted              | v1      | 2026-05-22 |
 | ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies                       | Accepted              | v1      | 2026-05-22 |
-| ADR-012 | Génération PDF reportée post-MVP + retrait du deep-link Crypto                            | Accepted              | v1      | 2026-05-22 |
+| ADR-012 | Génération de documents : page imprimable, pas de PDF serveur (+ retrait du deep-link Crypto) | Accepted              | v2      | 2026-09-11 |
 | ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync                              | Deprecated (MVP)      | v3      | 2026-06-09 |
 | ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted              | v1      | 2026-05-27 |
 | ADR-022 | Positionnement intranet vis-à-vis d'eStale et stratégie d'intégration défensive           | Accepted              | v1      | 2026-05-27 |
@@ -851,9 +851,28 @@ Ne PAS désactiver RLS pour le service role et faire toute la logique côté Ser
 
 ---
 
-## ADR-012 - Génération PDF reportée post-MVP + retrait du deep-link Crypto
+## ADR-012 - Génération de documents : page imprimable, pas de PDF serveur
 
-**Date** : 2026-05-22 · **Statut** : Accepted · **Version** : v1
+**Date** : 2026-05-22, révisé le 2026-09-11 · **Statut** : Accepted · **Version** : v2
+
+> **v2 (2026-09-11)** — la v1 reportait toute génération de document « post-MVP » faute de
+> générateur PDF serveur viable. Le code a tranché autrement, et ça marche : l'ODJ
+> imprimable, les courriers de reprise de copropriété et maintenant le contrat de syndic
+> produisent du **HTML imprimé par le navigateur**. Sekou (11/09) : « l'ADR est outdated,
+> cette fonctionnalité est simple ».
+>
+> **La doctrine, désormais** : un document = une page `/…/imprimer`, rendue par un composant
+> serveur, avec le bloc `@media print` de `globals.css` (A4, marges 1,5 cm, couleurs
+> forcées) et le bouton `BoutonImprimer`. Le lecteur imprime en PDF depuis son navigateur.
+>
+> **Ce que ça évite** : Puppeteer en serverless (bundle lourd, démarrages à froid), une
+> dépendance de génération DOCX, et le détour Excel + OneDrive que faisait l'automatisation
+> PowerApps MYTHEC pour le contrat de syndic — avec son attente fixe de 6 minutes.
+>
+> **Ce que ça coûte** : pas de génération sans navigateur, donc pas d'envoi automatique d'un
+> document par courriel. Le jour où ce besoin arrive, il ouvrira son propre ADR.
+>
+> Le reste de la v1 (retrait du deep-link Crypto) est inchangé.
 
 ### Contexte
 

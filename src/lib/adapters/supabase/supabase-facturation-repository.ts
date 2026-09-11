@@ -6,6 +6,8 @@ import type {
   ContratCopro,
   FactureAEmettre,
   FacturationRepository,
+  DonneesContratCopro,
+  LigneBareme,
   LigneGestionCourante,
   FactureHistorique,
   NouvelleFacture,
@@ -37,6 +39,26 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     }
     if (!data) return null;
     return Number((data as { montant_ttc: number }).montant_ttc);
+  }
+
+  async listerBareme(annee: number): Promise<LigneBareme[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_tarifs")
+      .select("identifiant_prestation, libelle, montant_ttc")
+      .eq("annee", annee);
+
+    if (error) throw new Error(`Lecture du bareme ${annee} : ${error.message}`);
+    return (data ?? []).map((r) => {
+      const ligne = r as { identifiant_prestation: string; libelle: string | null; montant_ttc: number };
+      return {
+        identifiantPrestation: ligne.identifiant_prestation,
+        // Libelle absent : on retombe sur l'identifiant plutot que sur une case vide
+        // dans le contrat imprime.
+        libelle: ligne.libelle ?? ligne.identifiant_prestation,
+        montantTtc: Number(ligne.montant_ttc),
+      };
+    });
   }
 
   async getDernierContrat(coproCode: string): Promise<ContratCopro | null> {
@@ -326,6 +348,50 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       throw new Error(`Creation contrat ${input.coproCode} : ${error?.message ?? "aucun id"}`);
     }
     return (data as { id: string }).id;
+  }
+
+  async getDonneesContrat(coproCode: string): Promise<DonneesContratCopro | null> {
+    const supabase = createSupabasePublicClient();
+    const colonnes =
+      "referenceCrypto, name, address1, address2, address3, postalCode, city, " +
+      "registrationNumber, insuranceCompany, insuranceSubscriptionDate, agencyId, " +
+      "mainLotsCount, otherLotsCount, visitCount, csCount, syndicContractEndDate";
+    // Meme cascade que getParametresCopro : le code peut etre une reference Crypto
+    // (S0xxx) ou eStale selon la source de la copro.
+    const requete = (colonne: string) =>
+      supabase.from("Copropriete").select(colonnes).eq(colonne, coproCode).maybeSingle();
+
+    let { data } = await requete("referenceCrypto");
+    if (!data) ({ data } = await requete("referenceEstale"));
+    if (!data) return null;
+
+    const r = data as unknown as Record<string, string | number | null>;
+    const texte = (v: string | number | null): string | null =>
+      v === null || v === "" ? null : String(v);
+    const nombre = (v: string | number | null): number | null => (v === null ? null : Number(v));
+    // Les colonnes de date arrivent en timestamp ("2023-06-27T00:00:00") : on ne garde
+    // que le jour, comme partout ailleurs dans le domaine.
+    const jour = (v: string | number | null): string | null =>
+      v === null ? null : String(v).slice(0, 10);
+
+    return {
+      code: coproCode,
+      nom: texte(r.name) ?? coproCode,
+      adresse1: texte(r.address1),
+      adresse2: texte(r.address2),
+      adresse3: texte(r.address3),
+      codePostal: texte(r.postalCode),
+      ville: texte(r.city),
+      immatriculation: texte(r.registrationNumber),
+      assurance: texte(r.insuranceCompany),
+      assuranceDateISO: jour(r.insuranceSubscriptionDate),
+      agenceId: texte(r.agencyId),
+      lotsPrincipaux: nombre(r.mainLotsCount),
+      lotsAutres: nombre(r.otherLotsCount),
+      nbVisites: nombre(r.visitCount),
+      nbCs: nombre(r.csCount),
+      finMandatISO: jour(r.syndicContractEndDate),
+    };
   }
 
   async getParametresCopro(coproCode: string): Promise<ParametresCopro | null> {
