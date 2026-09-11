@@ -76,4 +76,28 @@ export interface CalendrierOutboundProvider {
    * supprime, ex. efface a la main dans Outlook) : ne throw pas dans ce cas.
    */
   supprimerEvenement(boite: string, eventId: string): Promise<void>;
+
+  /**
+   * Plages OCCUPEES de l'agenda `boite` sur une periode, pour les afficher en fond du
+   * calendrier AG/CS (demande Sekou 2026-09-11, "une petite case afficher Outlook").
+   *
+   * On lit le FREE/BUSY, pas les evenements : ni sujet, ni lieu, ni participants ne
+   * remontent jusqu'a l'UI. C'est le choix de Sekou pour la v1 - on veut savoir QUAND
+   * on est pris pour placer une AG ou un CS, pas etaler son agenda personnel a l'ecran
+   * (l'intranet se partage en reunion). Meme mecanique que disponibiliteSalle.
+   *
+   * `debutISO` / `finISO` : datetime local 'YYYY-MM-DDTHH:mm:ss' (Europe/Paris).
+   * Degrade en [] (jamais d'erreur vers l'UI) : sans Graph, la case ne montre rien.
+   */
+  plagesOccupees(boite: string, debutISO: string, finISO: string): Promise<PlageOccupee[]>;
+}
+
+/** Un creneau pris dans l'agenda. Volontairement SANS sujet ni lieu (cf. plagesOccupees). */
+export interface PlageOccupee {
+  /** Debut local 'YYYY-MM-DDTHH:mm:ss'. */
+  debut: string;
+  /** Fin locale 'YYYY-MM-DDTHH:mm:ss'. */
+  fin: string;
+  /** Journee entiere (conge, deplacement) : s'affiche sans horaire. */
+  journeeEntiere: boolean;
 }

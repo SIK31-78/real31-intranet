@@ -1,11 +1,21 @@
 import { cn } from "@/lib/cn";
 import { JOURS_COURT, type MoisGrille } from "@/lib/domain/calendrier-grille";
 import { indexerParDate, type Evenement } from "@/lib/domain/calendrier";
+import { libelleJourOccupe, type JourOccupe } from "@/lib/domain/agenda-occupe";
 import { EvenementChip } from "./evenement-chip";
 
 const MAX_VISIBLES = 3;
 
-export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements: Evenement[] }) {
+export function VueMois({
+  grille,
+  evenements,
+  occupe,
+}: {
+  grille: MoisGrille;
+  evenements: Evenement[];
+  /** Agenda Outlook du gestionnaire, par jour. Vide = case decochee ou rien a montrer. */
+  occupe?: Map<string, JourOccupe>;
+}) {
   const index = indexerParDate(evenements);
   return (
     <div className="bg-surface border border-line rounded-lg shadow-1 overflow-hidden">
@@ -27,6 +37,7 @@ export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements
             {grille.semaines.flatMap((s, si) =>
               s.jours.map((j, ji) => {
                 const evs = index.get(j.date) ?? [];
+                const pris = occupe?.get(j.date);
                 const visibles = evs.slice(0, MAX_VISIBLES);
                 const reste = evs.length - visibles.length;
                 const dernierLigne = si === grille.semaines.length - 1;
@@ -59,6 +70,22 @@ export function VueMois({ grille, evenements }: { grille: MoisGrille; evenements
                     {reste > 0 && (
                       <span className="text-meta text-ink-3 pl-1">
                         +{reste} autre{reste > 1 ? "s" : ""}
+                      </span>
+                    )}
+                    {/* Agenda Outlook : SOUS les AG/CS et en gris. C'est du contexte pour
+                        savoir ou poser une reunion, pas un evenement du parcours - il ne
+                        doit jamais concurrencer une AG a l'oeil. `mt-auto` le colle en bas
+                        de la case pour que les chips restent alignes d'un jour a l'autre. */}
+                    {pris && (
+                      <span
+                        className="mt-auto pl-1 text-meta text-ink-3 truncate"
+                        title={
+                          pris.journeeEntiere
+                            ? "Journée prise dans votre agenda Outlook"
+                            : `Occupé : ${pris.creneaux.map((c) => `${c.debut}–${c.fin}`).join(", ")}`
+                        }
+                      >
+                        {libelleJourOccupe(pris)}
                       </span>
                     )}
                   </div>

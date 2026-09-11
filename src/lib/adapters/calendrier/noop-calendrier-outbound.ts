@@ -3,7 +3,10 @@
 // simplement sautee, la donnee intranet reste la seule ecrite. Pas d'id renvoye a
 // la creation -> aucun enregistrement de projection cote appelant.
 
-import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
+import type {
+  CalendrierOutboundProvider,
+  PlageOccupee,
+} from "@/lib/ports/calendrier-outbound-provider";
 
 export class NoopCalendrierOutboundProvider implements CalendrierOutboundProvider {
   async creerEvenement(p: {
@@ -33,6 +36,12 @@ export class NoopCalendrierOutboundProvider implements CalendrierOutboundProvide
 
   async supprimerEvenement(): Promise<void> {
     console.log("[calendrier-outbound:noop] suppression simulee");
+  }
+
+  async plagesOccupees(): Promise<PlageOccupee[]> {
+    // Sans Graph reel, aucun agenda a lire : la case "Afficher mon agenda Outlook"
+    // n'affiche simplement rien (elle n'est pas une erreur, juste vide).
+    return [];
   }
 
   async disponibiliteSalle(): Promise<"libre" | "occupee" | "inconnu"> {

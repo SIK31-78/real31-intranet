@@ -7,7 +7,10 @@
 // l'appelant CATCHe et degrade proprement (la donnee intranet reste la source,
 // jamais bloquee par Outlook).
 
-import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
+import type {
+  CalendrierOutboundProvider,
+  PlageOccupee,
+} from "@/lib/ports/calendrier-outbound-provider";
 import { finReunion } from "@/lib/domain/reunion";
 import {
   attendeesParticipant,
@@ -17,6 +20,24 @@ import {
 import { GRAPH, graphFetch, jetonGraph } from "../mail/graph-auth";
 
 const TZ = "Europe/Paris";
+
+// Graph rend un datetime sans fuseau, parfois avec des fractions de seconde
+// ("2026-09-14T09:00:00.0000000"). On le ramene a 'YYYY-MM-DDTHH:mm:ss', le format que
+// tout le reste de l'app manipule. Une valeur illisible -> null (la plage est ignoree,
+// jamais affichee de travers).
+function normaliserDateTimeGraph(v?: string): string | null {
+  if (!v) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/.exec(v.trim());
+  return m ? `${m[1]}T${m[2]}` : null;
+}
+
+// Journee entiere = commence a minuit et dure un multiple de 24 h (conge, deplacement).
+// On l'affiche sans horaire : "9:00-9:00" pour un conge de trois jours n'apprend rien.
+function estJourneeEntiere(debut: string, fin: string): boolean {
+  if (!debut.endsWith("T00:00:00") || !fin.endsWith("T00:00:00")) return false;
+  const ms = Date.parse(`${fin}Z`) - Date.parse(`${debut}Z`);
+  return ms > 0 && ms % 86_400_000 === 0;
+}
 
 // Un `debut` "jour seul" = strictement 'YYYY-MM-DD' (aucune heure). Sinon, on
 // considere qu'une heure est presente (ISO datetime) -> evenement date.
@@ -212,6 +233,90 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
     if (r.status === 404) return;
     if (!r.ok) {
       throw new Error(`Graph supprimer evenement ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    }
+  }
+
+
+  async plagesOccupees(
+    boite: string,
+    debutISO: string,
+    finISO: string,
+  ): Promise<PlageOccupee[]> {
+    // FREE/BUSY, pas les evenements : on interroge getSchedule sur SA PROPRE boite et on
+    // ne lit que `status`, `start` et `end` des scheduleItems. Graph renvoie aussi
+    // `subject` et `location` - on ne les touche pas, ils ne quittent jamais cet adapter
+    // (choix Sekou pour la v1 : savoir QUAND on est pris, pas etaler son agenda a
+    // l'ecran). C'est aussi ce qui rend l'affichage sur-le-champ acceptable en reunion.
+    //
+    // scheduleItems plutot que availabilityView : la vue par tranches de 30 min donnerait
+    // des bornes fausses (un rendez-vous 9h15-9h45 deviendrait 9h-10h) et une chaine de
+    // 1 500 caracteres a decoder pour un mois. Les items portent les vraies bornes.
+    //
+    // Degrade en [] a la moindre anomalie, JAMAIS de throw : la case "Afficher mon agenda
+    // Outlook" est un confort, elle ne doit pas casser le calendrier AG/CS.
+    if (!boite) return [];
+    try {
+      const tk = await jetonGraph();
+      const r = await graphFetch(
+        `${GRAPH}/users/${encodeURIComponent(boite)}/calendar/getSchedule`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tk}`,
+            "Content-Type": "application/json",
+            // INDISPENSABLE : sans cet en-tete, Graph rend les scheduleItems en UTC meme
+            // quand la requete est posee en Europe/Paris. Le calendrier affichait alors
+            // tout decale de deux heures (un conge du 21 au 26 commencait "le 20 a 22h").
+            // Le timeZone du body ne cadre que les BORNES de la question, pas la reponse.
+            Prefer: `outlook.timezone="${TZ}"`,
+          },
+          body: JSON.stringify({
+            schedules: [boite],
+            startTime: { dateTime: debutISO, timeZone: TZ },
+            endTime: { dateTime: finISO, timeZone: TZ },
+            // Le plus grossier accepte : on n'exploite pas availabilityView (cf. plus
+            // haut), autant ne pas faire calculer a Graph une chaine qu'on jette.
+            availabilityViewInterval: 60,
+          }),
+        },
+        10_000,
+      );
+      if (!r.ok) {
+        // 403 = Application Access Policy / permission ; 404 = boite inconnue. Aucun
+        // email en log (PII) : la boite interrogee est celle de la session.
+        console.warn(`[getSchedule/agenda] ${r.status} (plages -> aucune)`);
+        return [];
+      }
+      const j = (await r.json()) as {
+        value?: Array<{
+          error?: { responseCode?: string };
+          scheduleItems?: Array<{
+            status?: string;
+            start?: { dateTime?: string };
+            end?: { dateTime?: string };
+          }>;
+        }>;
+      };
+      const err = j.value?.[0]?.error?.responseCode;
+      if (err) {
+        console.warn(`[getSchedule/agenda] partial-error=${err} (plages -> aucune)`);
+        return [];
+      }
+      const items = j.value?.[0]?.scheduleItems ?? [];
+      return items
+        // "free" et "workingElsewhere" ne bloquent rien ; "unknown" n'affirme rien. On ne
+        // garde que ce qui empeche vraiment de poser une reunion.
+        .filter((it) => it.status === "busy" || it.status === "oof" || it.status === "tentative")
+        .flatMap((it) => {
+          const debut = normaliserDateTimeGraph(it.start?.dateTime);
+          const fin = normaliserDateTimeGraph(it.end?.dateTime);
+          if (!debut || !fin) return [];
+          return [{ debut, fin, journeeEntiere: estJourneeEntiere(debut, fin) }];
+        });
+    } catch (e) {
+      const msg = (e as Error).message || "erreur inconnue";
+      console.warn(`[getSchedule/agenda] exception : ${msg.slice(0, 120)} (plages -> aucune)`);
+      return [];
     }
   }
 
