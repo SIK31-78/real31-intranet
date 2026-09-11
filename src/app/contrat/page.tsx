@@ -14,9 +14,14 @@ import { Table, Thead, Tbody, Th, Tr, Td, LienLigne } from "@/components/ui/tabl
 export const metadata: Metadata = { title: "Contrats de syndic - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
-// Entree du module contrat de syndic : le portefeuille, trie par mandat le plus proche de
-// son terme. Remplace le `NewContractScreen` du canvas PowerApps MYTHEC, qui se contentait
+// Entree du module contrat de syndic : le portefeuille, trie par MISE SOUS PLI de la
+// convocation. Remplace le `NewContractScreen` du canvas PowerApps MYTHEC, qui se contentait
 // de faire choisir une copropriete - ici la liste dit aussi ce qui presse et ce qui bloque.
+//
+// POURQUOI la convocation et pas la fin de mandat (Sekou, 11/09/2026) : le contrat se genere
+// pour etre INSERE dans la convocation d'AG, une fois le montant negocie avec le conseil
+// syndical. Sur le portefeuille reel, la fin du mandat tombe en median 36 jours APRES l'AG :
+// classer par fin de mandat, c'est classer par la date ou il est deja trop tard.
 
 export default async function ContratsPage() {
   const g = await getGestionnaireCourant();
@@ -27,6 +32,7 @@ export default async function ContratsPage() {
       : "2026-05-27";
   const lignes = await listerContratsAPreparer(g.id, aujourdhuiISO);
   const bloquees = lignes.filter((l) => !l.baremeComplet);
+  const aPlanifier = lignes.filter((l) => !l.dateAgISO).length;
   const anneesManquantes = [...new Set(bloquees.map((l) => l.anneeBareme))].sort();
 
   return (
@@ -34,7 +40,7 @@ export default async function ContratsPage() {
       <Page largeur="travail">
         <PageHeader
           titre="Contrats de syndic"
-          eyebrow={`${lignes.length} copropriété${lignes.length > 1 ? "s" : ""} avec un mandat daté`}
+          eyebrow={`${lignes.length} copropriété${lignes.length > 1 ? "s" : ""} · ${aPlanifier} sans date d'AG`}
         />
 
         {/* Le barème manquant est un blocage SILENCIEUX si on ne le dit pas ici : le
@@ -49,7 +55,7 @@ export default async function ContratsPage() {
           </Callout>
         )}
 
-        <Section id="contrats-liste" titre="Prochain cycle" compte={lignes.length}>
+        <Section id="contrats-liste" titre="À préparer pour la convocation" compte={lignes.length}>
           {lignes.length === 0 ? (
             <EmptyState>Aucune copropriété avec une fin de mandat au référentiel</EmptyState>
           ) : (
@@ -58,10 +64,10 @@ export default async function ContratsPage() {
                 <tr>
                   <Th>Copro</Th>
                   <Th>Nom</Th>
-                  <Th>Mandat en cours jusqu&apos;au</Th>
+                  <Th>AG</Th>
                   <Th>Prochain cycle</Th>
                   <Th numeric>Barème</Th>
-                  <Th numeric>Échéance</Th>
+                  <Th numeric>Mise sous pli</Th>
                 </tr>
               </Thead>
               <Tbody>
@@ -73,7 +79,13 @@ export default async function ContratsPage() {
                       </LienLigne>
                     </Td>
                     <Td principal>{l.nom}</Td>
-                    <Td className="tabular-nums">{formatJour(l.finMandatISO)}</Td>
+                    <Td className="tabular-nums">
+                      {l.dateAgISO ? (
+                        formatJour(l.dateAgISO)
+                      ) : (
+                        <span className="text-ink-3">à planifier</span>
+                      )}
+                    </Td>
                     <Td secondaire className="tabular-nums">
                       {formatJour(l.debutISO)} → {formatJour(l.finISO)}
                     </Td>
@@ -84,13 +96,23 @@ export default async function ContratsPage() {
                         <Badge ton="warn">{l.anneeBareme} incomplet</Badge>
                       )}
                     </Td>
+                    {/* Le compte a rebours porte sur la MISE SOUS PLI : c'est la que le
+                        contrat doit exister. Passee, elle est en retard ; sans date d'AG,
+                        il n'y a pas encore d'echeance a afficher. */}
                     <Td numeric>
-                      {l.joursAvant < 0 ? (
+                      {l.joursAvantConvocation === null ? (
+                        <span className="text-ink-3">—</span>
+                      ) : l.joursAvantConvocation < 0 ? (
                         <Badge ton="err" dot>
-                          échu depuis {-l.joursAvant} j
+                          passée de {-l.joursAvantConvocation} j
                         </Badge>
                       ) : (
-                        <span className="text-ink-2 tabular-nums">J-{l.joursAvant}</span>
+                        <span
+                          className="text-ink-2 tabular-nums"
+                          title={`Mise sous pli le ${formatJour(l.dateConvocationISO!)}`}
+                        >
+                          J-{l.joursAvantConvocation}
+                        </span>
                       )}
                     </Td>
                   </Tr>

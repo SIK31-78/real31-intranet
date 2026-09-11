@@ -7,6 +7,12 @@
 // MISE EN PAGE : deux colonnes cote a cote, comme le contrat imprime aujourd'hui
 // (reference : data/5 Contrat de Syndic-S234-*.pdf). Chaque colonne est un flux
 // independant, c'est ainsi que le classeur est construit.
+//
+// LE NUMERO DE MANDAT EST VOLONTAIREMENT VIDE (Sekou, 11/09/2026). Le titre porte
+// « CONTRAT DE SYNDIC "TOUT SAUF" N° » sans valeur : a ce stade le document part dans la
+// CONVOCATION, le mandat n'est pas encore vote donc pas encore numerote. Le numero est
+// appose a l'AG, a l'impression du mandat signe, et vient du registre des mandats (App A,
+// module a fusionner). Ne pas « completer » ce trou : ce n'est pas un oubli.
 
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
 import {

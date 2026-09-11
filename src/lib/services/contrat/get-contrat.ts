@@ -7,7 +7,7 @@
 //
 // Passe par le routeur (ADR-001).
 
-import { getFacturationRepository } from "@/lib/adapters/router";
+import { getCoproRepository, getFacturationRepository } from "@/lib/adapters/router";
 import type { EditionContrat } from "@/lib/ports/facturation-repository";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { cycleSuivant, finContratEnCours } from "@/lib/domain/contrat/cycle-contrat";
@@ -21,7 +21,7 @@ import {
 
 /** Ce que l'appelant peut imposer, sinon tout est deduit du referentiel. */
 export interface OptionsContrat {
-  /** Date de l'AG qui ouvre le cycle, ISO. Defaut : la prochaine AG connue, sinon le debut du cycle. */
+  /** Date de l'AG qui vote le contrat, ISO. Defaut : la prochaine AG planifiee, sinon le debut du cycle. */
   dateAgISO?: string;
   /** Honoraires annuels TTC. Defaut : ceux du contrat en cours. */
   honorairesGestionTtc?: number;
@@ -48,11 +48,16 @@ export async function getContrat(
   options: OptionsContrat = {},
 ): Promise<ChampsContrat> {
   const repo = getFacturationRepository();
-  const [donnees, parametres, contratCourant, editions] = await Promise.all([
+  const [donnees, parametres, contratCourant, editions, coproRef] = await Promise.all([
     repo.getDonneesContrat(coproCode),
     repo.getParametresCopro(coproCode),
     repo.getDernierContrat(coproCode),
     repo.listerEditionsContrat(coproCode),
+    // La date d'AG n'est PAS une donnee du contrat : c'est celle de l'assemblee qui va le
+    // voter, et au moment ou on genere (la convocation) elle est deja fixee - c'est meme
+    // la raison pour laquelle on genere. On la prend donc telle qu'elle est planifiee
+    // dans l'intranet plutot que de retomber sur le debut du cycle.
+    getCoproRepository().findByCode(coproCode),
   ]);
   // La derniere edition REUSSIE fait foi pour les montants : elle porte les honoraires
   // reellement contractualises, augmentation d'AG comprise, la ou `getDernierContrat`
@@ -131,9 +136,9 @@ export async function getContrat(
   return assemblerChampsContrat(
     copro,
     {
-      // Sans date d'AG fournie, on prend le debut du cycle : le contrat reste editable
-      // et le gestionnaire corrigera. Mieux qu'une date inventee.
-      dateAgISO: options.dateAgISO ?? cycle.debut,
+      // L'AG planifiee d'abord ; a defaut le debut du cycle, qui reste editable dans le
+      // formulaire. Mieux qu'une date inventee.
+      dateAgISO: options.dateAgISO ?? coproRef?.prochaineAg?.date ?? cycle.debut,
       debutISO: cycle.debut,
       finISO: cycle.fin,
       honorairesGestionTtc: honoraires,

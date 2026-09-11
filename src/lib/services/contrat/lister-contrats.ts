@@ -10,6 +10,7 @@ import { getFacturationRepository } from "@/lib/adapters/router";
 import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import { cycleSuivant, finContratEnCours } from "@/lib/domain/contrat/cycle-contrat";
 import { PRESTATIONS_CONTRAT } from "@/lib/domain/contrat/champs-contrat";
+import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
 
 /** Une copropriete et le contrat qui vient. */
 export interface LigneContratAPreparer {
@@ -22,6 +23,13 @@ export interface LigneContratAPreparer {
   finISO: string;
   /** Jours restants avant la fin du mandat (negatif = mandat deja echu). */
   joursAvant: number;
+  /** AG qui votera ce contrat, si elle est planifiee dans l'intranet. */
+  dateAgISO: string | null;
+  /** Mise sous pli de la convocation (jalon CONVOC), qui est le MOMENT de generer. */
+  dateConvocationISO: string | null;
+  /** Jours restants avant cette mise sous pli (negatif = elle est passee). null si l'AG
+   *  n'est pas encore planifiee. */
+  joursAvantConvocation: number | null;
   /** Annee du bareme qui s'appliquera (= annee de debut du cycle). */
   anneeBareme: number;
   /**
@@ -67,21 +75,43 @@ export async function listerContratsAPreparer(
   const jours = (deISO: string, aISO: string) =>
     Math.round((Date.parse(`${aISO}T00:00:00Z`) - Date.parse(`${deISO}T00:00:00Z`)) / 86_400_000);
 
-  return avecFin
-    .map(({ copro: c, fin }) => {
-      const cycle = cycleSuivant(fin);
-      const anneeBareme = Number(cycle.debut.slice(0, 4));
-      return {
-        coproCode: c.code,
-        nom: c.nom,
-        finMandatISO: fin,
-        debutISO: cycle.debut,
-        finISO: cycle.fin,
-        joursAvant: jours(aujourdhuiISO, fin),
-        anneeBareme,
-        baremeComplet: completude.get(anneeBareme) ?? false,
-      };
-    })
-    // Le plus urgent d'abord : mandat echu, puis mandat le plus proche de son terme.
-    .sort((a, b) => a.finMandatISO.localeCompare(b.finMandatISO));
+  return (
+    avecFin
+      .map(({ copro: c, fin }) => {
+        const cycle = cycleSuivant(fin);
+        const anneeBareme = Number(cycle.debut.slice(0, 4));
+        const dateAgISO = c.prochaineAg?.date ?? null;
+        const dateConvocationISO = dateAgISO
+          ? (calculerJalons(dateAgISO).find((j) => j.code === "CONVOC")?.cibleDate ?? null)
+          : null;
+        return {
+          coproCode: c.code,
+          nom: c.nom,
+          finMandatISO: fin,
+          debutISO: cycle.debut,
+          finISO: cycle.fin,
+          joursAvant: jours(aujourdhuiISO, fin),
+          dateAgISO,
+          dateConvocationISO,
+          joursAvantConvocation: dateConvocationISO
+            ? jours(aujourdhuiISO, dateConvocationISO)
+            : null,
+          anneeBareme,
+          baremeComplet: completude.get(anneeBareme) ?? false,
+        };
+      })
+      // Ordre = l'ordre de TRAVAIL, pas l'ordre des echeances : le contrat se prepare
+      // au moment de la convocation, pas quand le mandat expire (les deux sont separes
+      // de ~2 mois en median sur le portefeuille). Les copros dont l'AG est planifiee
+      // passent donc devant, triees par mise sous pli ; les autres suivent, triees par
+      // fin de mandat - pour celles-la il faut d'abord poser une date d'AG.
+      .sort((a, b) => {
+        if (a.dateConvocationISO && b.dateConvocationISO) {
+          return a.dateConvocationISO.localeCompare(b.dateConvocationISO);
+        }
+        if (a.dateConvocationISO) return -1;
+        if (b.dateConvocationISO) return 1;
+        return a.finMandatISO.localeCompare(b.finMandatISO);
+      })
+  );
 }
