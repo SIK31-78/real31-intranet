@@ -1,6 +1,9 @@
 // Domaine des jalons reglementaires d'une AG (ADR-006). Types purs.
 
 export type JalonCode =
+  // ODJ_PREP (2026-09-11) : l'ODJ DU CS prepare et envoye au conseil, J-49. A ne pas
+  // confondre avec ODJ_CS, qui est l'ODJ DE L'AG valide avec le conseil, J-35.
+  | "ODJ_PREP"
   | "ODJ_CS"
   | "DEVIS"
   | "CONVOC"

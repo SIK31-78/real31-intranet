@@ -52,8 +52,11 @@ function dateConvocationLegale(agISO: string): string {
   return reculerJourOuvre(moinsJours(agISO, DELAIS_LEGAUX.CONVOCATION_AG_JOURS_FRANCS + 1));
 }
 
+// Les libelles NOMMENT les deux ODJ (choix Sekou 2026-09-11) : ils s'affichent dans la
+// frise, le calendrier et les sujets Outlook, ou la confusion coutait cher.
 const LIBELLES: Record<JalonCode, string> = {
-  ODJ_CS: "ODJ validé avec le Conseil Syndical",
+  ODJ_PREP: "ODJ du CS préparé et envoyé au conseil",
+  ODJ_CS: "ODJ de l'AG validé avec le CS",
   DEVIS: "Devis et documents techniques rassemblés",
   // "Mise sous pli" EST l'envoi des convocations (meme acte, mot du cabinet) : le
   // marqueur legal n'est pas perdu, cocher ce jalon vaut "convocations parties".
@@ -65,8 +68,8 @@ const LIBELLES: Record<JalonCode, string> = {
   ARCHIVAGE: "Archivage du dossier AG",
 };
 
-/** Calcule les 8 jalons d'une AG a partir de sa date (ISO "YYYY-MM-DD") :
- *  5 avant la tenue (ODJ -> tenue) + 3 apres (scan contrat, notif PV, archivage).
+/** Calcule les 9 jalons d'une AG a partir de sa date (ISO "YYYY-MM-DD") :
+ *  6 avant la tenue (ODJ prepare -> tenue) + 3 apres (scan contrat, notif PV, archivage).
  *  La relance J-7 ("Relance date AG") a ete retiree le 2026-09-04 a la demande des
  *  gestionnaires : elle ne fait plus partie du parcours. */
 export function calculerJalons(agISO: string): JalonCalcule[] {
@@ -77,6 +80,7 @@ export function calculerJalons(agISO: string): JalonCalcule[] {
   const convocCible = reculerJourOuvre(convocLegale <= convocCabinet ? convocLegale : convocCabinet);
 
   return [
+    { code: "ODJ_PREP", libelle: LIBELLES.ODJ_PREP, cibleDate: moinsJours(agISO, DELAIS_CABINET.ODJ_PREP_JOURS), source: "cabinet" },
     { code: "ODJ_CS", libelle: LIBELLES.ODJ_CS, cibleDate: moinsJours(agISO, DELAIS_CABINET.ODJ_CS_JOURS), source: "cabinet" },
     { code: "DEVIS", libelle: LIBELLES.DEVIS, cibleDate: moinsJours(agISO, DELAIS_CABINET.DEVIS_JOURS), source: "cabinet" },
     {

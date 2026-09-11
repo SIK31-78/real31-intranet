@@ -4,8 +4,10 @@
 --
 -- Quand une date d'AG est posee, deux creneaux de travail sont projetes dans l'agenda
 -- du gestionnaire :
---   MISE_SOUS_PLI    "S024 - Mise sous pli"     J-31 (jalon CONVOC)           10h-12h
---   RELANCE_DATE_AG  "S024 - RELANCE DATE AG"   J-7  (jalon RELANCE_POUVOIRS) 10h-10h30
+--   PREPARER_ODJ     "S024 - Preparer l'ODJ du CS"  J-49 (jalon ODJ_PREP)        10h-12h
+--   VALIDER_ODJ_AG   "S024 - ODJ de l'AG a valider" J-35 (jalon ODJ_CS)          09h-09h30
+--   MISE_SOUS_PLI    "S024 - Mise sous pli"         J-31 (jalon CONVOC)          10h-12h
+--   RELANCE_DATE_AG  "S024 - RELANCE DATE AG"       J-7  (retire le 2026-09-04)  10h-10h30
 -- Deplacer l'AG DEPLACE ces evenements ; effacer la date les supprime.
 --
 -- POURQUOI la cle est (copro_code, role) et NON (copro_code, ag_date, role) :
@@ -25,7 +27,7 @@
 create table if not exists public.intranet_projections_outlook (
   copro_code       text not null,                       -- code affiche de la copro, ex 'S024'
   role             text not null
-                   check (role in ('MISE_SOUS_PLI','RELANCE_DATE_AG')),
+                   check (role in ('PREPARER_ODJ','VALIDER_ODJ_AG','MISE_SOUS_PLI','RELANCE_DATE_AG')),
   outlook_event_id text,                                -- id Graph de l'evenement projete
   outlook_boite    text,                                -- email de l'agenda ou il vit
   updated_at       timestamptz default now(),

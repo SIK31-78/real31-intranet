@@ -3,7 +3,15 @@
 // Ce n'est PAS une nouvelle echeance : c'est le jalon existant CONVOC, pose comme
 // creneau dans l'agenda.
 //
-//   MISE_SOUS_PLI    "{code} - Mise sous pli"     jalon CONVOC (J-31)            10h-12h
+//   PREPARER_ODJ     "{code} - Preparer l'ODJ du CS"  jalon ODJ_PREP (J-49)      10h-12h
+//   VALIDER_ODJ_AG   "{code} - ODJ de l'AG a valider"  jalon ODJ_CS   (J-35)      09h-09h30
+//   MISE_SOUS_PLI    "{code} - Mise sous pli"          jalon CONVOC   (J-31)      10h-12h
+//
+// Les trois blocs (choix Sekou 2026-09-11, retroplanning revu) : preparer, valider,
+// envoyer. Celui du milieu est court : ce n'est pas un travail de deux heures, c'est le
+// point de controle qui dit "l'ODJ de l'AG doit etre valide maintenant, la mise sous pli
+// est dans quatre jours". Il ne prejuge PAS de la date du conseil syndical, qui est
+// libre et posee par le gestionnaire : c'est une echeance, pas une reunion.
 //
 // RELANCE_DATE_AG ("{code} - RELANCE DATE AG", J-7) N'EST PLUS PROJETE depuis le
 // 2026-09-04 : la relance J-7 a ete retiree a la demande des gestionnaires. Le role
@@ -27,12 +35,16 @@ import type { JalonCode } from "./types";
  *  l'AG doit DEPLACER le meme evenement, pas en creer un second).
  *  "RELANCE_DATE_AG" n'est plus PRODUIT (relance J-7 retiree) mais reste reconnu : les
  *  evenements deja poses doivent pouvoir etre relus et supprimes. */
-export type RoleCreneauAg = "MISE_SOUS_PLI" | "RELANCE_DATE_AG";
+export type RoleCreneauAg =
+  | "PREPARER_ODJ"
+  | "VALIDER_ODJ_AG"
+  | "MISE_SOUS_PLI"
+  | "RELANCE_DATE_AG";
 
 interface DefinitionCreneau {
   role: RoleCreneauAg;
   /** Jalon dont la cible porte le creneau (source unique des dates). */
-  jalon: Extract<JalonCode, "CONVOC">;
+  jalon: Extract<JalonCode, "ODJ_PREP" | "ODJ_CS" | "CONVOC">;
   /** Suffixe du sujet Outlook, ecrit tel que Sekou l'a demande (tiret, capitales). */
   suffixe: string;
   heureDebut: string;
@@ -41,6 +53,20 @@ interface DefinitionCreneau {
 
 /** Les creneaux poses dans l'agenda (la relance J-7 en a ete retiree le 2026-09-04). */
 export const CRENEAUX_AG: readonly DefinitionCreneau[] = [
+  {
+    role: "PREPARER_ODJ",
+    jalon: "ODJ_PREP",
+    suffixe: "Préparer l'ODJ du CS",
+    heureDebut: "10:00",
+    heureFin: "12:00",
+  },
+  {
+    role: "VALIDER_ODJ_AG",
+    jalon: "ODJ_CS",
+    suffixe: "ODJ de l'AG à valider",
+    heureDebut: "09:00",
+    heureFin: "09:30",
+  },
   {
     role: "MISE_SOUS_PLI",
     jalon: "CONVOC",

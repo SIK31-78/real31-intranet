@@ -21,10 +21,10 @@ function jalon(jalons: ReturnType<typeof calculerJalons>, code: JalonCode) {
 const AG_DATES = ["2026-06-15", "2026-08-20", "2024-03-15", "2027-01-04", "2026-12-28"];
 
 describe("calculerJalons", () => {
-  it("renvoie les 8 jalons attendus (pre + post-AG, ordre chronologique)", () => {
+  it("renvoie les 9 jalons attendus (pre + post-AG, ordre chronologique)", () => {
     const codes = calculerJalons("2026-06-15").map((j) => j.code);
     expect(codes).toEqual([
-      "ODJ_CS", "DEVIS", "CONVOC", "POUVOIRS", "TENUE",
+      "ODJ_PREP", "ODJ_CS", "DEVIS", "CONVOC", "POUVOIRS", "TENUE",
       "SCAN_CONTRAT", "NOTIF_PV", "ARCHIVAGE",
     ]);
   });
@@ -45,9 +45,12 @@ describe("calculerJalons", () => {
         expect(jalon(j, "TENUE").cibleDate).toBe(ag);
       });
 
-      it("ODJ_CS et DEVIS a J-45 (gere mois/bissextile)", () => {
-        expect(joursEntre(jalon(j, "ODJ_CS").cibleDate, ag)).toBe(45);
-        expect(joursEntre(jalon(j, "DEVIS").cibleDate, ag)).toBe(45);
+      // Retroplanning revu le 2026-09-11 : preparer l'ODJ du CS et rassembler les devis
+      // a J-49 (7 semaines), valider l'ODJ de l'AG avec le conseil a J-35 (5 semaines).
+      it("ODJ_PREP et DEVIS a J-49, ODJ_CS a J-35 (gere mois/bissextile)", () => {
+        expect(joursEntre(jalon(j, "ODJ_PREP").cibleDate, ag)).toBe(49);
+        expect(joursEntre(jalon(j, "DEVIS").cibleDate, ag)).toBe(49);
+        expect(joursEntre(jalon(j, "ODJ_CS").cibleDate, ag)).toBe(35);
       });
 
       it("POUVOIRS a J-2", () => {
