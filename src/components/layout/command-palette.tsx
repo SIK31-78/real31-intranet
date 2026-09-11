@@ -128,7 +128,11 @@ export function CommandPalette({
           className="w-full flex items-center gap-2 h-9 pl-3 pr-2 rounded-full border border-rail-line bg-rail-2 text-rail-muted hover:bg-white/10 hover:border-rail-muted/40 transition-colors duration-120 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300"
         >
           <Search strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
-          <span className="flex-1 text-left text-body truncate">Rechercher une copro…</span>
+          {/* "Recherche" et rien d'autre (Sekou, 2026-09-11). Le rail fait 240 px : entre
+              l'icone, le raccourci et les marges, il reste ~110 px, et "Rechercher une
+              copro…" y arrivait tronque - donc illisible ET plus long que necessaire. Ce
+              qu'on peut chercher est dit dans le champ, une fois la palette ouverte. */}
+          <span className="flex-1 text-left text-body truncate">Recherche</span>
           <kbd className="font-mono text-meta px-1.5 py-0.5 rounded-sm border border-rail-line bg-black/20 text-rail-muted">Ctrl K</kbd>
         </button>
       ) : (
