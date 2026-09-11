@@ -10,13 +10,20 @@
 @theme {
   /* Neutres - papier chaud (la peau, etape 3 de la refonte, 2026-09-10 : valeurs de
      la maquette docs/refonte-ui/01-dashboard-grotesque.html). Les cartes sont blanches
-     et en relief sur le papier, jamais l'inverse. */
-  --color-canvas:    #F5F3EC;
+     et en relief sur le papier, jamais l'inverse.
+     2026-09-11 : papier descendu d'un cran (Sekou, "un fond legerement plus fonce pour
+     plus de contraste"). La carte blanche se detache maintenant de 15,5 % de luminance
+     au lieu de 10,4 % (+50 %). TOUTE la gamme descend ensemble, pas seulement le canvas :
+     laisser surface-2 a #EFECE3 l'aurait rendu indiscernable du nouveau fond, et les
+     en-tetes de tableau / inserts auraient disparu. Contrastes recalcules, tous AA :
+     ink 13,3:1 - ink-2 6,8:1 - ink-3 5,3:1 - vert 8,9:1 sur le fond, ink-3 4,9:1 sur
+     surface-2. Un cran de plus (#EAE7DB) reste AA aussi si ce n'est pas assez franc. */
+  --color-canvas:    #EFEDE3;
   --color-surface:   #FFFFFF;
-  --color-surface-2: #EFECE3;
-  --color-surface-3: #E7E3D8;
-  --color-line:      #E3DFD4;
-  --color-line-2:    #CFC9BB;
+  --color-surface-2: #E8E4DA;
+  --color-surface-3: #DFDACE;
+  --color-line:      #DBD6C9;
+  --color-line-2:    #C5BEAE;
 
   /* Le rail de navigation (sapin profond) - son propre jeu, il n'est pas "du vert
      d'action", c'est le chrome. rail-muted sur rail = 7,5:1. */
