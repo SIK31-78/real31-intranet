@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Pencil, X, Check } from "lucide-react";
+import { Pencil, X, Check, ChevronRight, ChevronDown, AlertTriangle, UserPlus } from "lucide-react";
 import { formatDateLongue, formatHeure } from "@/lib/format-date";
 import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
 import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
@@ -145,6 +145,14 @@ export function EditeurDate({
   // d'affichage, pas une barriere (la validation serveur reste sur les listes fermees).
   const [voirAutresSalles, setVoirAutresSalles] = useState(false);
   const [voirAutresCollab, setVoirAutresCollab] = useState(false);
+  // LOGISTIQUE REPLIEE (Sekou, 2026-09-11 : "trop de choses affichees one shot"). Le geste
+  // courant est de poser une DATE ; le mode, la salle, la ZOE et les collegues sont de
+  // l'organisation, utile mais secondaire. Ils tiennent derriere une ligne de resume qui
+  // dit deja ce qui est reserve, et se deplient au clic. Voir aussi `resumeLogistique`.
+  const [logistiqueOuverte, setLogistiqueOuverte] = useState(false);
+  // La liste des collegues cochables ne s'affiche qu'a la demande : 12 cases a cocher
+  // permanentes etaient le plus gros bloc de l'editeur pour un reglage rare.
+  const [choixCollabOuvert, setChoixCollabOuvert] = useState(false);
   // Resultat de dispo indexe par le creneau interroge (date|heure|salle) : on n'affiche
   // que s'il correspond a la saisie courante -> pas de reset synchrone dans l'effet
   // (evite les rendus en cascade) ni d'indicateur perime apres un changement de salle.
@@ -544,6 +552,51 @@ export function EditeurDate({
     );
   }
 
+  // --- Resume de la logistique (la ligne qu'on lit quand tout est replie) -------------
+  // Elle doit repondre sans cliquer : sous quelle forme, ou, avec qui. Quand rien n'est
+  // pose, elle le dit aussi - sinon on ne saurait pas qu'il y a quelque chose a ouvrir.
+  const salleNom = salleVal ? (ressourceParEmail(salleVal)?.nom ?? "salle") : null;
+  const partsResume = [
+    modeVal ? MODE_LABEL[modeVal] : null,
+    salleNom,
+    zoeVal ? "voiture ZOE" : null,
+    collaborateursVal.length > 0
+      ? `${collaborateursVal.length} collègue${collaborateursVal.length > 1 ? "s" : ""}`
+      : null,
+  ].filter(Boolean) as string[];
+  const resumeLogistique =
+    partsResume.length > 0 ? partsResume.join(" · ") : "Mode, salle et collègues non précisés";
+
+  // Collegues RETENUS, affiches en pastilles. On passe par `collabList` pour avoir le nom ;
+  // un email retenu que l'annuaire n'a pas encore rendu (chargement) garde son adresse
+  // plutot que de disparaitre de l'ecran - sinon on croirait l'avoir perdu.
+  const collabRetenus: Collaborateur[] = collaborateursVal.map((email) => {
+    const connu = collabList.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    return { email, nom: connu?.nom ?? email };
+  });
+
+  // --- UN SEUL bloc "A verifier" -----------------------------------------------------
+  // Avant : trois zones colorees separees (agenda ambre, salle rouge, delai ambre) plus un
+  // avertissement de date, empilees sous les champs. Quatre couleurs pour un seul message :
+  // "regarde avant de fixer". On les rassemble ici, en gardant la distinction qui COMPTE -
+  // bloquant (on ne peut pas fixer) contre forcable (on peut, apres accord).
+  const pointsAVerifier: { cle: string; texte: string; bloquant?: boolean }[] = [];
+  if (blocageSalle) pointsAVerifier.push({ cle: "salle", texte: blocageSalle, bloquant: true });
+  for (const a of avertissements) pointsAVerifier.push({ cle: a, texte: a });
+  if (avertissement && !erreur) pointsAVerifier.push({ cle: "date", texte: avertissement });
+  if (delaiAg && !erreur)
+    pointsAVerifier.push({
+      cle: "delai",
+      texte: `AG ${echeanceLisible(delaiAg.joursAvant, delaiAg.semainesAvant)} : ${
+        delaiAg.niveau === "critique"
+          ? "la convocation ne peut plus partir dans les temps."
+          : "délai court pour tenir le CS puis convoquer."
+      }`,
+      bloquant: delaiAg.niveau === "critique",
+    });
+  const aVerifier = pointsAVerifier.length > 0;
+  const tonVerif = pointsAVerifier.some((p) => p.bloquant) ? "err" : "warn";
+
   return (
     <span
       className="inline-flex flex-col gap-1.5"
@@ -605,204 +658,212 @@ export function EditeurDate({
         )}
       </span>
 
-      {/* Mon agenda (le gestionnaire connecte) : meme code couleur que la ZOE / la salle.
-          Apparait des que date + heure sont saisies. "Occupe" n'empeche pas de valider,
-          mais demande une confirmation ; "inconnu" (Graph off / 403) ne bloque rien. */}
-      {avecHeure && agendaCreneau && (
-        <span
-          className={
-            "inline-flex items-center gap-1 text-body " +
-            (dispoAgendaValeur === "libre"
-              ? "text-ok-700"
-              : dispoAgendaValeur === "occupee"
-                ? "text-warn-700"
-                : "text-ink-2")
-          }
-          aria-live="polite"
-        >
-          {dispoAgendaValeur === null
-            ? "Ton agenda : vérification..."
-            : dispoAgendaValeur === "libre"
-              ? "Ton agenda : libre"
-              : dispoAgendaValeur === "occupee"
-                ? "Ton agenda : occupé"
-                : "Ton agenda : dispo inconnue"}
-        </span>
-      )}
-
-      {/* Mode de tenue (prochaine reunion seulement) : visio / presentiel / hybride,
-          ou "non precise". Note : pas de lien Teams genere pour l'instant (limitation),
-          la salle reste optionnelle meme en visio / hybride. */}
+      {/* --- LOGISTIQUE, REPLIEE PAR DEFAUT -------------------------------------------
+          Une ligne de resume, depliable. Tout ce qui suit (mode, salle, ZOE, collegues,
+          dispos) etait affiche en permanence : c'etait l'essentiel des 11 blocs que Sekou
+          voyait "one shot" alors qu'il venait juste poser une date. */}
       {avecHeure && (
-        <span className="inline-flex items-center gap-2 flex-wrap">
-          <Select
-            largeur="auto"
-            value={modeVal}
+        <span className="inline-flex flex-col gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="self-start"
+            aria-expanded={logistiqueOuverte}
             disabled={pending}
-            aria-label="Mode de tenue de la réunion"
-            onChange={(e) => setModeVal(e.target.value as ModeReunion | "")}
+            onClick={() => setLogistiqueOuverte((v) => !v)}
           >
-            <option value="">Mode non précisé</option>
-            {MODES.map((m) => (
-              <option key={m.valeur} value={m.valeur}>
-                {m.label}
-              </option>
-            ))}
-          </Select>
-        </span>
-      )}
+            {logistiqueOuverte ? (
+              <ChevronDown strokeWidth={1.5} />
+            ) : (
+              <ChevronRight strokeWidth={1.5} />
+            )}
+            {resumeLogistique}
+          </Button>
 
-      {/* Reservation de salle (prochaine reunion seulement) : selecteur groupe par
-          agence + case ZOE. La room mailbox auto-accepte si le creneau est libre. */}
-      {avecHeure && (
-        <span className="inline-flex items-center gap-2 flex-wrap">
-          <Select
-            largeur="auto"
-            value={salleVal}
-            disabled={pending}
-            aria-label="Salle de réunion à réserver"
-            onChange={(e) => setSalleVal(e.target.value)}
-          >
-            <option value="">Aucune salle</option>
-            {sallesAffichees.map((s) => (
-              <option key={s.email} value={s.email}>
-                {s.nom}
-              </option>
-            ))}
-          </Select>
-
-          {/* Debordement : revele les salles des autres agences (n'apparait que s'il y en a
-              et qu'un filtre est actif). Vrai bouton accessible (aria-expanded). */}
-          {sallesAutres.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setVoirAutresSalles((v) => !v)}
-              aria-expanded={voirAutresSalles}
-              disabled={pending}
-            >
-              {voirAutresSalles ? "Masquer les autres agences" : "Voir les autres agences"}
-            </Button>
-          )}
-
-          <Choix
-            type="checkbox"
-            label="Réserver la voiture ZOE"
-            checked={zoeVal}
-            disabled={pending}
-            onChange={(e) => setZoeVal(e.target.checked)}
-          />
-
-          {/* Dispo de la ZOE (meme code couleur), a cote de la case. */}
-          {dispoZoeCreneau && (
-            <span
-              className={
-                "inline-flex items-center gap-1 text-body " +
-                (dispoZoeValeur === "libre"
-                  ? "text-ok-700"
-                  : dispoZoeValeur === "occupee"
-                    ? "text-warn-700"
-                    : "text-ink-2")
-              }
-              aria-live="polite"
-            >
-              {dispoZoeValeur === null
-                ? "Vérification..."
-                : dispoZoeValeur === "libre"
-                  ? "ZOE libre"
-                  : dispoZoeValeur === "occupee"
-                    ? "ZOE occupée"
-                    : "Dispo inconnue"}
-            </span>
-          )}
-
-          {/* Indicateur de dispo : vert (libre) / ambre (occupee) / gris (inconnue).
-              N'apparait que quand une salle est choisie et la date+heure saisies. */}
-          {dispoCreneau && (
-            <span
-              className={
-                "inline-flex items-center gap-1 text-body " +
-                (dispoValeur === "libre"
-                  ? "text-ok-700"
-                  : dispoValeur === "occupee"
-                    ? "text-warn-700"
-                    : "text-ink-2")
-              }
-              aria-live="polite"
-            >
-              {dispoValeur === null
-                ? "Vérification..."
-                : dispoValeur === "libre"
-                  ? "Salle libre"
-                  : dispoValeur === "occupee"
-                    ? "Salle occupée"
-                    : "Dispo inconnue"}
-            </span>
-          )}
-        </span>
-      )}
-
-      {/* Collaborateurs associes (prochaine reunion seulement) : multi-selection des
-          collegues du cabinet. Chaque collegue coche est invite a l'evenement Outlook
-          (il apparait dans son agenda) et sa dispo est verifiee sur le creneau. */}
-      {avecHeure && collabList.length > 0 && (
-        <span className="inline-flex flex-col gap-1">
-          <Eyebrow as="span">Collaborateurs associés</Eyebrow>
-          <span className="inline-flex flex-col gap-0.5">
-            {collabAffiches.map((c) => {
-              const coche = collaborateursVal.includes(c.email);
-              const d = coche && agendaCreneau ? dispoCollabValeur(c.email) : undefined;
-              return (
-                <label
-                  key={c.email}
-                  className="inline-flex items-center gap-1.5 text-body text-ink cursor-pointer"
+          {logistiqueOuverte && (
+            <span className="inline-flex flex-col gap-2 pl-3 border-l border-line">
+              {/* Mode de tenue : visio / presentiel / hybride, ou "non precise". Pas de
+                  lien Teams genere pour l'instant ; la salle reste optionnelle en visio. */}
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <Select
+                  largeur="auto"
+                  value={modeVal}
+                  disabled={pending}
+                  aria-label="Mode de tenue de la réunion"
+                  onChange={(e) => setModeVal(e.target.value as ModeReunion | "")}
                 >
-                  <input
-                    type="checkbox"
-                    checked={coche}
+                  <option value="">Mode non précisé</option>
+                  {MODES.map((m) => (
+                    <option key={m.valeur} value={m.valeur}>
+                      {m.label}
+                    </option>
+                  ))}
+                </Select>
+              </span>
+
+              {/* Salle + ZOE. La room mailbox auto-accepte si le creneau est libre. */}
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <Select
+                  largeur="auto"
+                  value={salleVal}
+                  disabled={pending}
+                  aria-label="Salle de réunion à réserver"
+                  onChange={(e) => setSalleVal(e.target.value)}
+                >
+                  <option value="">Aucune salle</option>
+                  {sallesAffichees.map((s) => (
+                    <option key={s.email} value={s.email}>
+                      {s.nom}
+                    </option>
+                  ))}
+                </Select>
+
+                {/* Debordement : revele les salles des autres agences. */}
+                {sallesAutres.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setVoirAutresSalles((v) => !v)}
+                    aria-expanded={voirAutresSalles}
                     disabled={pending}
-                    onChange={() => toggleCollaborateur(c.email)}
-                    className="accent-green-700 w-3.5 h-3.5"
-                  />
-                  {c.nom}
-                  {coche && agendaCreneau && (
-                    <span
-                      className={
-                        "text-body " +
-                        (d === "libre"
-                          ? "text-ok-700"
-                          : d === "occupee"
-                            ? "text-warn-700"
-                            : "text-ink-2")
-                      }
-                      aria-live="polite"
-                    >
-                      {d === undefined
-                        ? "· vérification..."
-                        : d === "libre"
-                          ? "· libre"
-                          : d === "occupee"
-                            ? "· occupé"
-                            : "· dispo inconnue"}
+                  >
+                    {voirAutresSalles ? "Masquer les autres agences" : "Voir les autres agences"}
+                  </Button>
+                )}
+
+                <Choix
+                  type="checkbox"
+                  label="Réserver la voiture ZOE"
+                  checked={zoeVal}
+                  disabled={pending}
+                  onChange={(e) => setZoeVal(e.target.checked)}
+                />
+              </span>
+
+              {/* Dispos du creneau. Seul le vert et le gris restent ICI : ce qui est OCCUPE
+                  remonte dans le bloc "A verifier" et n'est plus dit deux fois. */}
+              {(agendaCreneau || dispoCreneau || dispoZoeCreneau) && (
+                <span className="inline-flex items-center gap-3 flex-wrap text-body" aria-live="polite">
+                  {agendaCreneau && dispoAgendaValeur !== "occupee" && (
+                    <span className={dispoAgendaValeur === "libre" ? "text-ok-700" : "text-ink-2"}>
+                      {dispoAgendaValeur === null
+                        ? "Ton agenda : vérification…"
+                        : dispoAgendaValeur === "libre"
+                          ? "Ton agenda : libre"
+                          : "Ton agenda : dispo inconnue"}
                     </span>
                   )}
-                </label>
-              );
-            })}
-          </span>
-          {/* Debordement : revele les collegues des autres agences (n'apparait que s'il y
-              en a et qu'un filtre est actif). Vrai bouton accessible (aria-expanded). */}
-          {collabAutres.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              onClick={() => setVoirAutresCollab((v) => !v)}
-              aria-expanded={voirAutresCollab}
-              disabled={pending}
-            >
-              {voirAutresCollab ? "Masquer les autres agences" : "Voir les autres agences"}
-            </Button>
+                  {dispoCreneau && dispoValeur !== "occupee" && (
+                    <span className={dispoValeur === "libre" ? "text-ok-700" : "text-ink-2"}>
+                      {dispoValeur === null
+                        ? "Salle : vérification…"
+                        : dispoValeur === "libre"
+                          ? "Salle libre"
+                          : "Salle : dispo inconnue"}
+                    </span>
+                  )}
+                  {dispoZoeCreneau && (
+                    <span
+                      className={
+                        dispoZoeValeur === "libre"
+                          ? "text-ok-700"
+                          : dispoZoeValeur === "occupee"
+                            ? "text-warn-700"
+                            : "text-ink-2"
+                      }
+                    >
+                      {dispoZoeValeur === null
+                        ? "ZOE : vérification…"
+                        : dispoZoeValeur === "libre"
+                          ? "ZOE libre"
+                          : dispoZoeValeur === "occupee"
+                            ? "ZOE occupée"
+                            : "ZOE : dispo inconnue"}
+                    </span>
+                  )}
+                </span>
+              )}
+
+              {/* Collegues associes : les RETENUS en pastilles, la liste a la demande.
+                  Douze cases a cocher permanentes etaient le plus gros bloc de l'editeur
+                  pour un reglage rare. Chaque collegue retenu est invite a l'evenement
+                  Outlook et sa dispo est verifiee sur le creneau. */}
+              {collabList.length > 0 && (
+                <span className="inline-flex flex-col gap-1.5">
+                  <Eyebrow as="span">Collègues associés</Eyebrow>
+                  <span className="inline-flex items-center gap-1 flex-wrap">
+                    {collabRetenus.map((c) => {
+                      const d = agendaCreneau ? dispoCollabValeur(c.email) : undefined;
+                      return (
+                        <span
+                          key={c.email}
+                          className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1 rounded-sm bg-surface-2 border border-line text-meta text-ink"
+                        >
+                          {c.nom}
+                          {d === "occupee" && <span className="text-warn-700">occupé</span>}
+                          <button
+                            type="button"
+                            onClick={() => toggleCollaborateur(c.email)}
+                            disabled={pending}
+                            aria-label={`Retirer ${c.nom}`}
+                            className="text-ink-3 hover:text-err-700 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                          >
+                            <X strokeWidth={2} className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-expanded={choixCollabOuvert}
+                      disabled={pending}
+                      onClick={() => setChoixCollabOuvert((v) => !v)}
+                    >
+                      <UserPlus strokeWidth={1.5} />
+                      {choixCollabOuvert ? "Fermer la liste" : "Associer des collègues"}
+                    </Button>
+                  </span>
+
+                  {choixCollabOuvert && (
+                    <span className="inline-flex flex-col gap-0.5">
+                      {collabAffiches.map((c) => (
+                        <label
+                          key={c.email}
+                          className="inline-flex items-center gap-1.5 text-body text-ink cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={collaborateursVal.includes(c.email)}
+                            disabled={pending}
+                            onChange={() => toggleCollaborateur(c.email)}
+                            className="accent-green-700 w-3.5 h-3.5"
+                          />
+                          {c.nom}
+                        </label>
+                      ))}
+                      {/* Debordement : revele les collegues des autres agences. */}
+                      {collabAutres.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="self-start"
+                          onClick={() => setVoirAutresCollab((v) => !v)}
+                          aria-expanded={voirAutresCollab}
+                          disabled={pending}
+                        >
+                          {voirAutresCollab
+                            ? "Masquer les autres agences"
+                            : "Voir les autres agences"}
+                        </Button>
+                      )}
+                    </span>
+                  )}
+                </span>
+              )}
+            </span>
           )}
         </span>
       )}
@@ -832,64 +893,59 @@ export function EditeurDate({
         </span>
       )}
 
-      {/* SALLE occupee : BLOQUANT DUR (Valider grise) - on ne double-reserve pas une salle. */}
-      {blocageSalle && (
+      {/* --- UN SEUL bloc "A verifier" -----------------------------------------------
+          Avant : quatre zones colorees empilees (agenda ambre, salle rouge, date ambre,
+          retroplanning ambre ou rouge sur quatre lignes). Quatre couleurs pour un seul
+          message. On les rassemble, en gardant la seule distinction qui compte : ce qui
+          BLOQUE (salle occupee, convocation hors delai) contre ce qui se force apres
+          accord. Le detail du retroplanning descend dans un repli : on le consulte quand
+          on en a besoin, il n'occupe plus quatre lignes en permanence. */}
+      {aVerifier && !erreur && (
         <span
-          className="inline-flex flex-col gap-0.5 text-body text-err-700"
-          role="alert"
+          className={
+            "inline-flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-body " +
+            (tonVerif === "err"
+              ? "border-err-500/30 bg-err-50 text-err-700"
+              : "border-warn-500/30 bg-warn-50 text-warn-700")
+          }
+          role={tonVerif === "err" ? "alert" : undefined}
           aria-live="polite"
         >
-          <span className="font-medium">Salle indisponible :</span>
-          <span>· {blocageSalle}</span>
-          <span className="text-ink-2">Choisis une autre salle ou un autre créneau.</span>
-        </span>
-      )}
-      {/* AGENDA / COLLEGUE occupe : AVERTISSEMENT (ambre), NON bloquant. "Valider" devient
-          "Fixer quand meme" : apres accord avec le(s) collegue(s), on fixe la date. */}
-      {!blocageSalle && aAvertir && (
-        <span className="inline-flex flex-col gap-0.5 text-body text-warn-700" aria-live="polite">
-          {avertissements.map((a) => (
-            <span key={a}>· {a}</span>
+          <span className="inline-flex items-center gap-1.5 font-medium">
+            <AlertTriangle strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
+            À vérifier avant de fixer
+          </span>
+          {pointsAVerifier.map((pt) => (
+            <span key={pt.cle}>· {pt.texte}</span>
           ))}
-          <span className="text-ink-2">
-            Après accord avec le(s) collègue(s), tu peux fixer quand même (« Fixer quand même »).
+
+          {/* Retroplanning : le detail des deux echeances, replie. */}
+          {delaiAg && (
+            <details className="text-ink-2">
+              <summary className="cursor-pointer text-meta">Voir les échéances</summary>
+              <span className="inline-flex flex-col gap-0.5 pt-1 text-meta">
+                <span className={delaiAg.odjCsDepasse ? "text-warn-700" : undefined}>
+                  · ODJ à valider en CS avant le {formatDateLongue(delaiAg.odjCsISO)}
+                  {delaiAg.odjCsDepasse && " (échéance dépassée)"}
+                </span>
+                <span className={delaiAg.convocDepassee ? "text-warn-700" : undefined}>
+                  · Mise sous pli avant le {formatDateLongue(delaiAg.convocISO)}
+                  {delaiAg.convocDepassee && " (échéance dépassée)"}
+                </span>
+              </span>
+            </details>
+          )}
+
+          <span className="text-ink-2 text-meta">
+            {blocageSalle
+              ? "Choisis une autre salle ou un autre créneau."
+              : aAvertir
+                ? "Après accord avec le(s) collègue(s), tu peux fixer quand même."
+                : "Tu peux fixer cette date quand même."}
           </span>
         </span>
       )}
 
-      {/* Avertissement non bloquant (date passee/future incoherente). */}
-      {avertissement && !erreur && (
-        <span className="text-meta text-warn-700">{avertissement}</span>
-      )}
-      {/* Retroplanning AG : delai trop court pour tenir le CS puis la mise sous pli.
-          NON bloquant - une AG serree reste parfois la seule option, c'est le gestionnaire
-          qui tranche. Ambre quand seul le CS serre, rouge quand la convocation ne peut
-          plus partir dans les temps. */}
-      {delaiAg && !erreur && (
-        <span
-          className={
-            "inline-flex flex-col gap-0.5 text-meta " +
-            (delaiAg.niveau === "critique" ? "text-err-700" : "text-warn-700")
-          }
-          aria-live="polite"
-        >
-          <span className="font-medium">
-            AG {echeanceLisible(delaiAg.joursAvant, delaiAg.semainesAvant)} :{" "}
-            {delaiAg.niveau === "critique"
-              ? "la convocation ne peut plus partir dans les temps."
-              : "délai court pour tenir le CS puis convoquer."}
-          </span>
-          <span className={delaiAg.odjCsDepasse ? undefined : "text-ink-2"}>
-            · ODJ à valider en CS avant le {formatDateLongue(delaiAg.odjCsISO)}
-            {delaiAg.odjCsDepasse && " (échéance dépassée)"}
-          </span>
-          <span className={delaiAg.convocDepassee ? undefined : "text-ink-2"}>
-            · Mise sous pli avant le {formatDateLongue(delaiAg.convocISO)}
-            {delaiAg.convocDepassee && " (échéance dépassée)"}
-          </span>
-          <span className="text-ink-2">Tu peux fixer cette date quand même.</span>
-        </span>
-      )}
       {/* Erreur d'enregistrement : fini l'echec silencieux. Si l'echec est FORCABLE (agenda /
           collegue occupe cote serveur), on propose "Fixer quand meme" (relance avec forcer). */}
       {erreur && (
