@@ -102,28 +102,21 @@ export function ListeDiffusionCS({
       </div>
 
       {!edit ? (
-        // --- LECTURE : les destinataires reels du mail ------------------------------
-        <div className="flex flex-col gap-1.5 text-body">
-          <p className="text-ink-2">{SOURCE_LABEL[sourceActive]}</p>
+        // --- REPLIE : une ligne, pas sept adresses ---------------------------------
+        // Sekou, 2026-09-11 : "la liste de diffusion ne doit apparaitre que si on souhaite
+        // la modifier". La fiche etait mangee par une grappe de chips qu'on ne lit jamais.
+        // On garde ce qui repond a la question posee en passant - COMBIEN de personnes
+        // recoivent le mail, et D'OU viennent les adresses - et le detail s'ouvre au clic.
+        <p className="text-body text-ink-2">
           {destinatairesActifs.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1">
-              {/* NOM du membre du conseil quand on le connait, adresse en second (Sekou :
-                  "je ne sais pas qui est testcs2@real31.fr"). Sans nom : l'adresse seule. */}
-              {destinatairesActifs.map((d) => (
-                <span
-                  key={d.email}
-                  title={d.email}
-                  className="inline-flex items-center gap-1.5 h-6 px-2 rounded-sm bg-surface-2 border border-line text-meta"
-                >
-                  {d.nom && <span className="font-medium text-ink">{d.nom}</span>}
-                  <span className="truncate max-w-60 text-ink-2">{d.email}</span>
-                </span>
-              ))}
-            </div>
+            <>
+              <span className="text-ink font-medium tabular-nums">{destinatairesActifs.length}</span>{" "}
+              destinataire{destinatairesActifs.length > 1 ? "s" : ""} · {SOURCE_LABEL[sourceActive]}
+            </>
           ) : (
-            <p className="text-ink-2">Aucun destinataire : à saisir dans la liste de secours.</p>
+            "Aucun destinataire : à saisir dans la liste de secours."
           )}
-        </div>
+        </p>
       ) : (
         // --- EDITION : la couche de secours (Crypto/intranet) -----------------------
         <div className="flex flex-col gap-2.5">
@@ -133,6 +126,29 @@ export function ListeDiffusionCS({
               ? "ESTALE fournit les destinataires : cette liste ne sert qu'en secours, la modifier ne change pas le mail."
               : "Aucun email de conseil dans ESTALE : cette liste de secours est utilisée pour le mail."}
           </Callout>
+
+          {/* Quand ESTALE fournit les destinataires, ils ne sont PAS ceux qu'on edite en
+              dessous. On les montre donc ici, une fois le panneau ouvert : c'est le seul
+              endroit ou "qui recoit vraiment le mail" reste lisible depuis que la lecture
+              est repliee. NOM du membre quand on le connait, adresse en second (Sekou :
+              "je ne sais pas qui est testcs2@real31.fr"). */}
+          {estaleFournitEmails && destinatairesActifs.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <Eyebrow>Destinataires réels du mail</Eyebrow>
+              <div className="flex flex-wrap items-center gap-1">
+                {destinatairesActifs.map((d) => (
+                  <span
+                    key={d.email}
+                    title={d.email}
+                    className="inline-flex items-center gap-1.5 h-6 px-2 rounded-sm bg-surface-2 border border-line text-meta"
+                  >
+                    {d.nom && <span className="font-medium text-ink">{d.nom}</span>}
+                    <span className="truncate max-w-60 text-ink-2">{d.email}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Chips editables. */}
           <div className="border border-line bg-surface rounded-md px-2.5 py-2">

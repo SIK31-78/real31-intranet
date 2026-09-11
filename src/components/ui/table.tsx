@@ -2,10 +2,15 @@ import type { ComponentProps } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 
-// Tableau dense : en-tete en capitales sur fond surface-2, lignes de 36 px (32 en
-// `dense`), chiffres alignes a droite en tabular-nums. Une ligne cliquable = une
-// cellule qui contient <LienLigne> (la ligne est `relative`, le lien la recouvre).
-// Rendu serveur, aucun JS.
+// Tableau dense : en-tete en capitales, lignes de 36 px (32 en `dense`), chiffres
+// alignes a droite en tabular-nums. Une ligne cliquable = une cellule qui contient
+// <LienLigne> (la ligne est `relative`, le lien la recouvre). Rendu serveur, aucun JS.
+//
+// L'en-tete n'a PAS de fond propre (Sekou, 2026-09-11 sur l'historique des AG : "c'est
+// sur le fond background, il faut plutot passer en blanc"). Il prend donc le blanc de la
+// carte qui le contient. Les capitales, la graisse et la hairline basse suffisent a le
+// distinguer : une bande teintee en plus etait du bruit, d'autant plus visible depuis que
+// le papier est descendu d'un cran.
 
 type TableProps = ComponentProps<"table"> & { dense?: boolean; encadre?: boolean };
 
@@ -37,7 +42,7 @@ export function Th({ numeric = false, className, ...props }: ThProps) {
       scope="col"
       className={cn(
         "h-8 px-3 first:pl-4 last:pr-4 text-left align-middle whitespace-nowrap",
-        "text-meta font-medium uppercase tracking-[0.06em] text-ink-2 bg-surface-2 border-b border-line",
+        "text-meta font-medium uppercase tracking-[0.06em] text-ink-2 border-b border-line",
         numeric && "text-right",
         className,
       )}

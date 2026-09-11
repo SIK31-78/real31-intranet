@@ -106,7 +106,12 @@ export default async function AccueilPage() {
             titre="Vos assemblées générales"
             compte={agSemaine.length}
             actions={
-              <ButtonLink href="/copropriete" variant="ghost" size="sm">
+              // `secondary` et pas `ghost` (Sekou, 2026-09-11 : "pas alignes et pire pas
+              // mis en evidence"). Un bouton fantome n'a pas de bordure : cale a droite,
+              // son texte tombe 10 px en dedans du bord des cartes et du bouton
+              // "Calendrier AG/CS", et l'oeil lit ce retrait comme un desalignement.
+              // La bordure du secondaire le remet d'aplomb ET le rend visible.
+              <ButtonLink href="/copropriete" variant="secondary" size="sm">
                 Toutes les AG
                 <ArrowRight strokeWidth={1.5} />
               </ButtonLink>
@@ -121,7 +126,7 @@ export default async function AccueilPage() {
           id="accueil-dossiers"
           titre="Vos dossiers en cours"
           actions={
-            <ButtonLink href="/dossiers" variant="ghost" size="sm">
+            <ButtonLink href="/dossiers" variant="secondary" size="sm">
               Tous les dossiers
               <ArrowRight strokeWidth={1.5} />
             </ButtonLink>
