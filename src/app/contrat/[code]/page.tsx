@@ -34,7 +34,7 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
     // Mandat sans date de fin, bareme incomplet, honoraires inconnus : toutes des causes
     // que le gestionnaire peut corriger. On les dit, on ne cache pas l'ecran.
     return (
-      <AppShell user={g} active="copros" breadcrumb={`Copropriétés · ${code} · Contrat`}>
+      <AppShell user={g} active="contrat" breadcrumb={`Copropriétés · ${code} · Contrat`}>
         <Page largeur="travail">
           <PageHeader titre="Contrat de syndic" eyebrow={code} />
           <Callout ton="err" titre="Contrat impossible à éditer">
@@ -56,7 +56,7 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
     .join(" ");
 
   return (
-    <AppShell user={g} active="copros" breadcrumb={`Copropriétés · ${code} · Contrat`}>
+    <AppShell user={g} active="contrat" breadcrumb={`Copropriétés · ${code} · Contrat`}>
       <Page largeur="travail">
         <PageHeader
           titre="Contrat de syndic"

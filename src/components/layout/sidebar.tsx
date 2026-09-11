@@ -23,6 +23,7 @@ export type NavKey =
   | "facturation"
   | "gestion-courante"
   | "recap-ag"
+  | "contrat"
   // File des recaps RECUS (espace comptable, /comptabilite/recaps). Distincte de
   // "recap-ag" qui est l'ecran de SAISIE du gestionnaire (/recap-ag) : meme sujet,
   // deux metiers et deux destinations.
@@ -83,6 +84,10 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     items: [
       { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
       { key: "recap-ag", label: "Récap AG", href: "/recap-ag", icon: ClipboardList },
+      // Le contrat de syndic vit ICI et pas dans "Vue d'ensemble" : ce qu'on y regle
+      // (honoraires, forfait timbres, bareme des prestations) est de la facturation,
+      // et c'est l'AG qui ouvre chaque nouveau cycle de contrat.
+      { key: "contrat", label: "Contrats de syndic", href: "/contrat", icon: FileSignature },
       { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
       { key: "compta", label: "Comptabilité", href: "/comptabilite", icon: Calculator },
     ],
