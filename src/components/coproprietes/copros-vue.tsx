@@ -225,7 +225,7 @@ function VuePipeline({ parEtat }: { parEtat: Record<EtatCycle, CoproPilotage[]> 
           </CardHeader>
           {parEtat[etat].length === 0 ? (
             <CardBody padding="sm">
-              <EmptyState compact>Aucune copro</EmptyState>
+              <EmptyState compact>Aucune copropriété</EmptyState>
             </CardBody>
           ) : (
             <ul className="divide-y divide-line">
