@@ -7,6 +7,7 @@ import type {
   FactureAEmettre,
   FacturationRepository,
   DonneesContratCopro,
+  EditionContrat,
   LigneBareme,
   LigneGestionCourante,
   FactureHistorique,
@@ -392,6 +393,45 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       nbCs: nombre(r.csCount),
       finMandatISO: jour(r.syndicContractEndDate),
     };
+  }
+
+  async listerEditionsContrat(coproCode: string): Promise<EditionContrat[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_historique_contrats")
+      .select("titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par")
+      .eq("copropriete_id", coproCode)
+      .order("cree_le", { ascending: false });
+
+    // Table absente (SQL pas encore passe) : l'historique est un confort, on degrade a
+    // vide plutot que d'empecher d'editer un contrat.
+    if (error) {
+      console.warn(`[historique-contrats] lecture impossible (${coproCode}) : ${error.message}`);
+      return [];
+    }
+    return (data ?? []).map((r) => {
+      const e = r as {
+        titre: string | null;
+        date_ag: string | null;
+        honoraires_gestion_ttc: number | null;
+        forfait_postaux_ttc: number | null;
+        statut: string;
+        message_erreur: string | null;
+        cree_le: string;
+        cree_par: string | null;
+      };
+      return {
+        coproCode,
+        titre: e.titre,
+        dateAgISO: e.date_ag ? e.date_ag.slice(0, 10) : null,
+        honorairesGestionTtc: e.honoraires_gestion_ttc === null ? null : Number(e.honoraires_gestion_ttc),
+        forfaitPostauxTtc: e.forfait_postaux_ttc === null ? null : Number(e.forfait_postaux_ttc),
+        statut: e.statut === "erreur" ? ("erreur" as const) : ("termine" as const),
+        messageErreur: e.message_erreur,
+        creeLe: e.cree_le,
+        creePar: e.cree_par,
+      };
+    });
   }
 
   async getParametresCopro(coproCode: string): Promise<ParametresCopro | null> {

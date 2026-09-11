@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { getContrat } from "@/lib/services/contrat/get-contrat";
+import { getContrat, getEditionsContrat } from "@/lib/services/contrat/get-contrat";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { formatEuros, formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
@@ -11,6 +11,7 @@ import { Section } from "@/components/ui/section";
 import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { FormulaireContrat } from "@/components/contrat/formulaire-contrat";
 import { Callout } from "@/components/ui/callout";
+import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Contrat de syndic - REAL31 Intranet" };
@@ -50,6 +51,9 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
     );
   }
 
+  // L'historique est un CONFORT : s'il est vide (table pas encore creee), l'ecran
+  // fonctionne comme avant.
+  const editions = await getEditionsContrat(code);
   const { copro } = champs;
   const adresse = [copro.adresse1, copro.adresse2, copro.adresse3]
     .filter(Boolean)
@@ -141,6 +145,54 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
             </Tbody>
           </Table>
         </Section>
+        {editions.length > 0 && (
+          <Section
+            id="contrat-historique"
+            titre="Contrats déjà édités"
+            compte={editions.length}
+          >
+            <Table dense>
+              <Thead>
+                <tr>
+                  <Th>Édité le</Th>
+                  <Th>Par</Th>
+                  <Th>AG</Th>
+                  <Th numeric>Honoraires</Th>
+                  <Th numeric>Timbres</Th>
+                  <Th numeric>Statut</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {editions.slice(0, 10).map((e) => (
+                  <Tr key={`${e.creeLe}-${e.titre ?? ""}`} ton={e.statut === "erreur" ? "err" : undefined}>
+                    <Td principal className="tabular-nums">
+                      {formatJour(e.creeLe.slice(0, 10))}
+                    </Td>
+                    <Td secondaire>{e.creePar ?? "—"}</Td>
+                    <Td secondaire className="tabular-nums">
+                      {e.dateAgISO ? formatJour(e.dateAgISO) : "—"}
+                    </Td>
+                    <Td numeric className="tabular-nums">
+                      {e.honorairesGestionTtc === null ? "—" : formatEuros(e.honorairesGestionTtc)}
+                    </Td>
+                    <Td numeric className="tabular-nums">
+                      {e.forfaitPostauxTtc === null ? "—" : formatEuros(e.forfaitPostauxTtc)}
+                    </Td>
+                    <Td numeric>
+                      {e.statut === "erreur" ? (
+                        <Badge ton="err" title={e.messageErreur ?? undefined}>
+                          Échec
+                        </Badge>
+                      ) : (
+                        <Badge ton="ok">Édité</Badge>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Section>
+        )}
       </Page>
     </AppShell>
   );

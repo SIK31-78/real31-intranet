@@ -192,6 +192,21 @@ export interface DonneesContratCopro {
   finMandatISO: string | null;
 }
 
+/** Une edition de contrat de syndic deja realisee (historique MYTHEC + editions futures). */
+export interface EditionContrat {
+  coproCode: string;
+  titre: string | null;
+  dateAgISO: string | null;
+  /** Honoraires REELLEMENT portes au contrat : augmentation d'AG comprise. */
+  honorairesGestionTtc: number | null;
+  forfaitPostauxTtc: number | null;
+  statut: "termine" | "erreur";
+  messageErreur: string | null;
+  /** Horodatage de l'edition, ISO. */
+  creeLe: string;
+  creePar: string | null;
+}
+
 /** Une ligne du bareme annuel. */
 export interface LigneBareme {
   identifiantPrestation: string;
@@ -223,6 +238,12 @@ export interface FacturationRepository {
    * domaine Copropriete n'a pas a s'alourdir pour un seul document.
    */
   getDonneesContrat(coproCode: string): Promise<DonneesContratCopro | null>;
+  /**
+   * Les contrats deja edites pour cette copropriete, du plus recent au plus ancien.
+   * [] si la table n'existe pas encore : l'historique est un CONFORT, son absence ne doit
+   * jamais empecher d'editer un contrat.
+   */
+  listerEditionsContrat(coproCode: string): Promise<EditionContrat[]>;
   /** Ouvre un cycle de contrat (une AG en ouvre un). Renvoie son id. */
   creerContrat(input: {
     coproCode: string;

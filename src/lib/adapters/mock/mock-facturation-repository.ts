@@ -6,6 +6,7 @@ import type {
   FactureAEmettre,
   FacturationRepository,
   DonneesContratCopro,
+  EditionContrat,
   LigneBareme,
   LigneGestionCourante,
   FactureHistorique,
@@ -112,6 +113,11 @@ export class MockFacturationRepository implements FacturationRepository {
       nbCs: 1,
       finMandatISO: "2026-06-30",
     };
+  }
+
+  async listerEditionsContrat(): Promise<EditionContrat[]> {
+    // Aucun historique en mock : l'ecran affiche « jamais edite », ce qui est vrai.
+    return [];
   }
 
   async getDernierContrat(coproCode: string): Promise<ContratCopro | null> {

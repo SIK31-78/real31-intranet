@@ -8,6 +8,7 @@
 // Passe par le routeur (ADR-001).
 
 import { getFacturationRepository } from "@/lib/adapters/router";
+import type { EditionContrat } from "@/lib/ports/facturation-repository";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { cycleSuivant } from "@/lib/domain/contrat/cycle-contrat";
 import {
@@ -37,16 +38,29 @@ export interface OptionsContrat {
  * imprimait « 0,00 € » sur une ligne de tarif absente sans rien signaler - sur un
  * document contractuel signe par le syndicat.
  */
+/** Les editions deja realisees pour cette copropriete, du plus recent au plus ancien. */
+export async function getEditionsContrat(coproCode: string): Promise<EditionContrat[]> {
+  return getFacturationRepository().listerEditionsContrat(coproCode);
+}
+
 export async function getContrat(
   coproCode: string,
   options: OptionsContrat = {},
 ): Promise<ChampsContrat> {
   const repo = getFacturationRepository();
-  const [donnees, parametres, contratCourant] = await Promise.all([
+  const [donnees, parametres, contratCourant, editions] = await Promise.all([
     repo.getDonneesContrat(coproCode),
     repo.getParametresCopro(coproCode),
     repo.getDernierContrat(coproCode),
+    repo.listerEditionsContrat(coproCode),
   ]);
+  // La derniere edition REUSSIE fait foi pour les montants : elle porte les honoraires
+  // reellement contractualises, augmentation d'AG comprise, la ou `getDernierContrat`
+  // rend ceux du cycle en cours. Sur les 231 coproprietes de l'historique MYTHEC, 56
+  // divergent pour cette raison exacte (S065 : 15 067,50 en base, 15 369 au contrat).
+  const derniereEdition = editions.find(
+    (e) => e.statut === "termine" && e.honorairesGestionTtc !== null,
+  );
 
   if (!donnees) throw new Error(`Contrat de syndic : copropriete ${coproCode} introuvable.`);
   if (!donnees.finMandatISO) {
@@ -75,7 +89,10 @@ export async function getContrat(
     tarifs[p] = { libelle: l.libelle, ttc: l.montantTtc };
   }
 
-  const honoraires = options.honorairesGestionTtc ?? contratCourant?.honorairesGestionTtc;
+  const honoraires =
+    options.honorairesGestionTtc ??
+    derniereEdition?.honorairesGestionTtc ??
+    contratCourant?.honorairesGestionTtc;
   if (honoraires === undefined) {
     throw new Error(
       `Contrat de syndic : aucun honoraire de gestion connu pour ${coproCode}. ` +
@@ -117,7 +134,11 @@ export async function getContrat(
       debutISO: cycle.debut,
       finISO: cycle.fin,
       honorairesGestionTtc: honoraires,
-      forfaitPostauxTtc: options.forfaitPostauxTtc ?? contratCourant?.forfaitPostauxTtc ?? 0,
+      forfaitPostauxTtc:
+        options.forfaitPostauxTtc ??
+        derniereEdition?.forfaitPostauxTtc ??
+        contratCourant?.forfaitPostauxTtc ??
+        0,
     },
     tarifs,
   );
