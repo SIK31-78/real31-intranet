@@ -1,15 +1,10 @@
-// Service : projection AUTOMATIQUE des CRENEAUX DE TRAVAIL derives d'une date d'AG dans
-// l'agenda Outlook du gestionnaire (demande Sekou 2026-07-17, retroplanning revu le
-// 2026-09-11 : trois creneaux).
-//   - poser une date d'AG  -> creer "S024 - Préparer l'ODJ du CS" (J-49, 10h-12h),
-//                             "S024 - ODJ de l'AG à valider" (J-35, 9h-9h30) et
-//                             "S024 - Mise sous pli" (J-31, 10h-12h) ;
-//   - deplacer la date     -> DEPLACER les MEMES evenements (les cibles se
+// Service : projection AUTOMATIQUE des deux CRENEAUX DE TRAVAIL derives d'une date
+// d'AG dans l'agenda Outlook du gestionnaire (demande Sekou 2026-07-17).
+//   - poser une date d'AG  -> creer "S024 - Mise sous pli" (J-31, 10h-12h) et
+//                             "S024 - RELANCE DATE AG" (J-7, 10h-10h30) ;
+//   - deplacer la date     -> DEPLACER les 2 MEMES evenements (les cibles se
 //                             recalculent, decalage jour ouvre compris) ;
-//   - effacer la date      -> tous les supprimer (cancel + DELETE) et effacer la memoire.
-// Les deux nouveaux roles demandent un SQL (CHECK sur `role`) :
-// supabase/sql/intranet_projections_outlook_roles_retroplanning.sql. Sans lui, ils ne
-// sont simplement pas poses (degradation propre, jamais de doublon).
+//   - effacer la date      -> supprimer les 2 (cancel + DELETE) et effacer la memoire.
 // Regle AG uniquement : un CS n'a pas de creneau derive (l'appelant filtre).
 //
 // Ce ne sont PAS des reunions : aucune salle, aucun vehicule, et AUCUN controle de
@@ -40,7 +35,7 @@ async function collaborateursAg(coproCode: string): Promise<string[]> {
 }
 
 /**
- * Projette (cree ou DEPLACE) les creneaux derives de l'AG du `agDebut` de la copro.
+ * Projette (cree ou DEPLACE) les deux creneaux derives de l'AG du `agDebut` de la copro.
  * `agDebut` : 'YYYY-MM-DD' ou 'YYYY-MM-DDTHH:mm:00' (seul le jour compte). `boite` =
  * email du gestionnaire connecte, agenda cible : sans elle et sans projection existante,
  * il n'y a pas d'agenda ou poser -> on ne fait rien.

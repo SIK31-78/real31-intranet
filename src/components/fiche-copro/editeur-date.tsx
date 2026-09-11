@@ -590,7 +590,7 @@ export function EditeurDate({
       texte: `AG ${echeanceLisible(delaiAg.joursAvant, delaiAg.semainesAvant)} : ${
         delaiAg.niveau === "critique"
           ? "la convocation ne peut plus partir dans les temps."
-          : "délai court pour préparer l'ODJ, le faire valider en CS puis convoquer."
+          : "délai court pour tenir le CS puis convoquer."
       }`,
       bloquant: delaiAg.niveau === "critique",
     });
@@ -924,14 +924,8 @@ export function EditeurDate({
             <details className="text-ink-2">
               <summary className="cursor-pointer text-meta">Voir les échéances</summary>
               <span className="inline-flex flex-col gap-0.5 pt-1 text-meta">
-                {/* Les deux ODJ, nommes : celui DU CS qu'on prepare et envoie au conseil,
-                    puis celui DE L'AG que le conseil valide et qui part dans la convocation. */}
-                <span className={delaiAg.odjPrepDepasse ? "text-warn-700" : undefined}>
-                  · ODJ du CS à envoyer au conseil avant le {formatDateLongue(delaiAg.odjPrepISO)}
-                  {delaiAg.odjPrepDepasse && " (échéance dépassée)"}
-                </span>
                 <span className={delaiAg.odjCsDepasse ? "text-warn-700" : undefined}>
-                  · ODJ de l&apos;AG à valider avec le CS avant le {formatDateLongue(delaiAg.odjCsISO)}
+                  · ODJ à valider en CS avant le {formatDateLongue(delaiAg.odjCsISO)}
                   {delaiAg.odjCsDepasse && " (échéance dépassée)"}
                 </span>
                 <span className={delaiAg.convocDepassee ? "text-warn-700" : undefined}>

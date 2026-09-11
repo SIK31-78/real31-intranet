@@ -3,20 +3,15 @@
 // convocation").
 //
 // Pur, deterministe. AUCUNE constante nouvelle ici : les seuils sont les jalons du
-// cabinet deja definis (ADR-006, cabinet/real31-defaults.ts). Poser des jours en dur a
-// cote aurait cree un second referentiel de delais, qui aurait diverge au premier
-// ajustement du bareme.
+// cabinet deja definis (ADR-006, cabinet/real31-defaults.ts) -- les "6 semaines" de
+// l'intuition metier tombent pile sur ODJ_CS_JOURS = 45 j (validation de l'ODJ avec le
+// Conseil Syndical). Poser un 42 j en dur a cote aurait cree un second referentiel de
+// delais qui aurait diverge au premier ajustement du bareme cabinet.
 //
-// Le seuil de declenchement est le PREMIER acte de la chaine (retroplanning revu le
-// 2026-09-11) : des qu'on ne peut plus preparer l'ODJ du CS dans les temps, il y a
-// quelque chose a dire. Alerter seulement a la validation laissait passer une AG dont
-// la preparation etait deja en retard.
-//
-// Trois jalons portent la contrainte quand on choisit une date d'AG :
-//   - ODJ_PREP (J-49) : l'ODJ du CS doit etre prepare et envoye au conseil.
-//   - ODJ_CS   (J-35) : l'ODJ de l'AG doit etre valide avec le conseil.
-//   - CONVOC   (J-31) : la mise sous pli, avec pour plancher le legal 21 jours FRANCS
-//                       (soit J-22, recule au jour ouvre precedent).
+// Deux jalons portent la contrainte quand on choisit une date d'AG :
+//   - ODJ_CS (J-45)  : le CS de validation de l'ODJ doit s'etre tenu.
+//   - CONVOC (J-31)  : la mise sous pli, avec pour plancher le legal 21 jours FRANCS
+//                      (soit J-22, recule au jour ouvre precedent).
 // On n'invente pas ces dates : on les LIT dans calculerJalons(), donc elles heritent
 // gratuitement du recul en jour ouvre et de la regle "la plus contraignante gagne".
 //
@@ -31,21 +26,18 @@ import { DELAIS_CABINET } from "./cabinet/real31-defaults";
 export type NiveauDelaiAg = "court" | "critique";
 
 export interface AlerteDelaiAg {
-  /** "court" : la chaine de preparation est deja entamee (AG a moins de 49 j).
+  /** "court" : le CS de validation de l'ODJ est deja a echeance (AG a moins de 45 j).
    *  "critique" : la mise sous pli ne peut plus partir dans les temps. */
   niveau: NiveauDelaiAg;
   /** Jours calendaires entre aujourd'hui et l'AG (>= 0). */
   joursAvant: number;
   /** Semaines pleines avant l'AG (arrondi bas), pour un libelle lisible. */
   semainesAvant: number;
-  /** Cible "ODJ du CS prepare et envoye au conseil" (J-49). */
-  odjPrepISO: string;
-  /** Cible "ODJ de l'AG valide avec le CS" (J-35). */
+  /** Cible "ODJ valide avec le Conseil Syndical" (J-45). */
   odjCsISO: string;
   /** Cible "Mise sous pli" (J-31 cabinet ou plancher legal, en jour ouvre). */
   convocISO: string;
   /** Ces cibles sont-elles deja derriere nous ? */
-  odjPrepDepasse: boolean;
   odjCsDepasse: boolean;
   convocDepassee: boolean;
 }
@@ -59,7 +51,7 @@ function joursEntre(aISO: string, bISO: string): number {
 /**
  * Alerte de delai pour une date de PROCHAINE AG, ou `null` s'il n'y a rien a dire :
  * date malformee, date passee (c'est `avertissementDateReunion` qui parle alors, on ne
- * double pas le message), ou delai confortable (AG a 49 jours ou plus).
+ * double pas le message), ou delai confortable (AG a 45 jours ou plus).
  *
  * `agISO` et `aujourdhuiISO` au format 'YYYY-MM-DD'.
  */
@@ -68,25 +60,22 @@ export function alerteDelaiAg(agISO: string, aujourdhuiISO: string): AlerteDelai
   const joursAvant = joursEntre(aujourdhuiISO, agISO);
   // Date passee (ou jour meme) : hors sujet ici.
   if (joursAvant <= 0) return null;
-  // Delai confortable : la preparation de l'ODJ du CS tient encore.
-  if (joursAvant >= DELAIS_CABINET.ODJ_PREP_JOURS) return null;
+  // Delai confortable : le CS de validation de l'ODJ tient encore.
+  if (joursAvant >= DELAIS_CABINET.ODJ_CS_JOURS) return null;
 
   const jalons = calculerJalons(agISO);
-  // calculerJalons renvoie toujours tous les jalons : ces trois-la en font partie.
-  const odjPrepISO = jalons.find((j) => j.code === "ODJ_PREP")!.cibleDate;
+  // calculerJalons renvoie toujours les 9 jalons : ODJ_CS et CONVOC en font partie.
   const odjCsISO = jalons.find((j) => j.code === "ODJ_CS")!.cibleDate;
   const convocISO = jalons.find((j) => j.code === "CONVOC")!.cibleDate;
 
   return {
     // La mise sous pli est le point de non-retour : passe cette date, la convocation
-    // ne part plus dans les temps -> critique. Avant, c'est la preparation qui serre.
+    // ne part plus dans les temps -> critique. Avant, c'est "seulement" le CS qui serre.
     niveau: convocISO <= aujourdhuiISO ? "critique" : "court",
     joursAvant,
     semainesAvant: Math.floor(joursAvant / 7),
-    odjPrepISO,
     odjCsISO,
     convocISO,
-    odjPrepDepasse: odjPrepISO <= aujourdhuiISO,
     odjCsDepasse: odjCsISO <= aujourdhuiISO,
     convocDepassee: convocISO <= aujourdhuiISO,
   };

@@ -2,36 +2,16 @@
 // egales au legal. Surchargeables a terme via la table cabinet_settings (fallback
 // sur ces constantes). Exprimes en jours calendaires avant la tenue de l'AG.
 
-// RETROPLANNING REVU LE 2026-09-11 (Sekou, sur le parcours reel). Deux ODJ distincts,
-// qu'il ne faut jamais confondre :
-//   - l'ODJ DU CS  : le document de travail prepare par le gestionnaire et envoye au
-//     conseil syndical avant sa reunion (c'est celui de /odj/<id>) ;
-//   - l'ODJ DE L'AG : l'ordre du jour legal, valide avec le conseil, qui part DANS la
-//     convocation. "L'ODJ = la convocation" (Sekou) : il n'y a pas d'acte "preparer la
-//     convocation" separe, la convocation EST cet ODJ mis sous pli.
-// La reunion du conseil syndical n'a pas de cible ici : sa date est libre, posee par le
-// gestionnaire. Elle se tient entre les deux jalons ci-dessous.
 export const DELAIS_CABINET = {
-  /** ODJ DU CS prepare et envoye au conseil syndical (7 semaines). Ce jalon n'existait
-   *  pas : "ODJ valide" tombait de nulle part, sans geste qui le precede. */
-  ODJ_PREP_JOURS: 49,
-  /** ODJ DE L'AG valide avec le Conseil Syndical (5 semaines). Etait a 45 j : le
-   *  decoupage en deux temps (preparer a J-49, valider a J-35) colle au parcours reel.
-   *  NB : la limite d'ajout de points tombe a J-41, donc AVANT cette validation - et
-   *  c'est dans le bon ordre, contrairement a avant (valider a J-45 puis fermer les
-   *  ajouts a J-41). */
-  ODJ_CS_JOURS: 35,
-  /** Devis et documents techniques rassembles (7 semaines). Remontes de 45 a 49 j :
-   *  on ne prepare pas un ordre du jour sans les devis qu'il annonce. */
-  DEVIS_JOURS: 49,
+  /** ODJ valide avec le Conseil Syndical. */
+  ODJ_CS_JOURS: 45,
+  /** Devis et documents techniques rassembles. */
+  DEVIS_JOURS: 45,
   /** Mise sous pli = envoi des convocations (c'est le MEME acte : cocher "mise sous
    *  pli faite" vaut "convocations parties"). 31 jours avant l'AG (regle cabinet,
    *  pour ne pas etre tributaire des delais postaux ; le legal 21 jours francs
    *  reste le plancher, cf. dateConvocationLegale -> a J-31 le cabinet est plus
-   *  contraignant, la cible reste J-31 et le plancher legal est tenu).
-   *  MAINTENU A 31 j le 2026-09-11 : "4 semaines" aurait donne J-28 et un
-   *  retroplanning en semaines rondes, mais au prix de 3 jours de marge postale.
-   *  Sekou a tranche pour la marge (la convocation ne doit pas dependre de La Poste). */
+   *  contraignant, la cible reste J-31 et le plancher legal est tenu). */
   CONVOC_JOURS: 31,
   /** Date limite d'ajout de points a l'ODJ : 10 jours avant la mise sous pli
    *  (soit J-41 depuis que la mise sous pli est passee a J-31 - glissement
