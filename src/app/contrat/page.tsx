@@ -83,7 +83,16 @@ export default async function ContratsPage() {
                       {l.dateAgISO ? (
                         formatJour(l.dateAgISO)
                       ) : (
-                        <span className="text-ink-3">à planifier</span>
+                        <span
+                          className="text-ink-3"
+                          title={
+                            l.agDatePerimee
+                              ? `Dernière AG connue le ${formatJour(l.agDatePerimee)}, jamais glissée en « dernière AG »`
+                              : undefined
+                          }
+                        >
+                          à planifier
+                        </span>
                       )}
                     </Td>
                     <Td secondaire className="tabular-nums">

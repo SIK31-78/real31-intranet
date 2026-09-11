@@ -23,8 +23,16 @@ export interface LigneContratAPreparer {
   finISO: string;
   /** Jours restants avant la fin du mandat (negatif = mandat deja echu). */
   joursAvant: number;
-  /** AG qui votera ce contrat, si elle est planifiee dans l'intranet. */
+  /** AG qui votera ce contrat, si elle est planifiee dans l'intranet ET encore a venir. */
   dateAgISO: string | null;
+  /**
+   * La date d'AG du referentiel est DEJA PASSEE : l'assemblee s'est tenue et personne
+   * n'a fait glisser la date en « derniere AG ». Ce n'est donc PAS un retard, c'est une
+   * date perimee - et la prochaine AG reste a planifier. Au 2026-09-11, 64 coproprietes
+   * du cabinet sont dans ce cas ; les compter comme en retard remplissait l'ecran de
+   * rouge pour rien.
+   */
+  agDatePerimee: string | null;
   /** Mise sous pli de la convocation (jalon CONVOC), qui est le MOMENT de generer. */
   dateConvocationISO: string | null;
   /** Jours restants avant cette mise sous pli (negatif = elle est passee). null si l'AG
@@ -80,7 +88,9 @@ export async function listerContratsAPreparer(
       .map(({ copro: c, fin }) => {
         const cycle = cycleSuivant(fin);
         const anneeBareme = Number(cycle.debut.slice(0, 4));
-        const dateAgISO = c.prochaineAg?.date ?? null;
+        const agReferentiel = c.prochaineAg?.date ?? null;
+        const perimee = agReferentiel !== null && agReferentiel < aujourdhuiISO;
+        const dateAgISO = perimee ? null : agReferentiel;
         const dateConvocationISO = dateAgISO
           ? (calculerJalons(dateAgISO).find((j) => j.code === "CONVOC")?.cibleDate ?? null)
           : null;
@@ -92,6 +102,7 @@ export async function listerContratsAPreparer(
           finISO: cycle.fin,
           joursAvant: jours(aujourdhuiISO, fin),
           dateAgISO,
+          agDatePerimee: perimee ? agReferentiel : null,
           dateConvocationISO,
           joursAvantConvocation: dateConvocationISO
             ? jours(aujourdhuiISO, dateConvocationISO)
