@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { FileText } from "lucide-react";
 import { getContrat } from "@/lib/services/contrat/get-contrat";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { formatEuros, formatJour } from "@/lib/services/facturation/format";
@@ -10,6 +9,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { DataList, DataRow } from "@/components/ui/data-list";
 import { Section } from "@/components/ui/section";
 import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
+import { FormulaireContrat } from "@/components/contrat/formulaire-contrat";
 import { Callout } from "@/components/ui/callout";
 import { ButtonLink } from "@/components/ui/button";
 
@@ -61,13 +61,20 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
         <PageHeader
           titre="Contrat de syndic"
           eyebrow={`${copro.nom} · ${code}`}
-          actions={
-            <ButtonLink href={`/contrat/${code}/imprimer`} variant="primary">
-              <FileText strokeWidth={1.5} />
-              Éditer le contrat
-            </ButtonLink>
-          }
         />
+
+        {/* Les trois valeurs ajustables AVANT d'editer : elles changent a chaque
+            renouvellement (augmentation votee en AG), cf. formulaire-contrat.tsx. */}
+        <Card>
+          <CardBody>
+            <FormulaireContrat
+              coproCode={code}
+              dateAgISO={champs.dateAgISO}
+              honorairesTtc={champs.honorairesGestionTtc}
+              forfaitPostauxTtc={champs.forfaitPostauxTtc}
+            />
+          </CardBody>
+        </Card>
 
         <Card>
           <CardBody>
