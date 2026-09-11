@@ -56,3 +56,46 @@ export function cycleSuivant(finPrecedenteISO: string): CycleContrat {
 
   return { debut: toISO(debut), fin: toISO(fin) };
 }
+
+/**
+ * Fin d'un cycle a partir de son DEBUT : debut + 1 an - 1 jour. Exact inverse de
+ * `cycleSuivant`, qui rend `fin = debut + 1 an - 1 jour` lui aussi (verifie par test).
+ * Sert a dater la fin d'un contrat enregistre dans `intranet_suivi_contrats`, qui ne
+ * porte que la date de DEBUT.
+ */
+export function finDeCycle(debutISO: string): string {
+  if (!JOUR_RE.test(debutISO)) {
+    throw new Error(`Cycle de contrat : date de debut illisible ("${debutISO}").`);
+  }
+  const d = parseISO(debutISO);
+  const jourInitial = d.getUTCDate();
+  const moisInitial = d.getUTCMonth();
+  d.setUTCFullYear(d.getUTCFullYear() + 1);
+  if (d.getUTCMonth() !== moisInitial || d.getUTCDate() !== jourInitial) d.setUTCDate(0);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return toISO(d);
+}
+
+/**
+ * Fin du contrat REELLEMENT en cours : la plus tardive entre la date du referentiel App A
+ * (`syndicContractEndDate`) et la fin deduite du dernier cycle enregistre par l'intranet.
+ *
+ * POURQUOI LES DEUX (constat Sekou, 2026-09-11 sur FOCH31 : « il n'est pas echu, nous
+ * avons signe le contrat ») : App A n'est PAS mis a jour quand un contrat est renouvele.
+ * FOCH31 y porte encore une fin au 30/06/2026 alors que l'intranet a enregistre un cycle
+ * demarre le 01/07/2026. Se fier au seul referentiel affichait « echu depuis 73 jours »
+ * des contrats signes - et faisait calculer le cycle suivant un an trop tot.
+ *
+ * `debutDernierCycle` : `intranet_suivi_contrats.debut_contrat` le plus recent, ou null.
+ */
+export function finContratEnCours(
+  finReferentielISO: string | null | undefined,
+  debutDernierCycleISO: string | null | undefined,
+): string | null {
+  const finIntranet = debutDernierCycleISO ? finDeCycle(debutDernierCycleISO) : null;
+  const candidates = [finReferentielISO, finIntranet].filter(
+    (d): d is string => Boolean(d) && JOUR_RE.test(d!),
+  );
+  if (candidates.length === 0) return null;
+  return candidates.sort().at(-1)!;
+}

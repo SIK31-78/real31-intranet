@@ -115,6 +115,16 @@ export class MockFacturationRepository implements FacturationRepository {
     };
   }
 
+  async listerDerniersContrats(coproCodes: string[]): Promise<Map<string, ContratCopro>> {
+    const parCopro = new Map<string, ContratCopro>();
+    for (const c of CONTRATS) {
+      if (!coproCodes.includes(c.coproCode)) continue;
+      const prec = parCopro.get(c.coproCode);
+      if (!prec || c.debutContrat > prec.debutContrat) parCopro.set(c.coproCode, c);
+    }
+    return parCopro;
+  }
+
   async listerEditionsContrat(): Promise<EditionContrat[]> {
     // Aucun historique en mock : l'ecran affiche « jamais edite », ce qui est vrai.
     return [];

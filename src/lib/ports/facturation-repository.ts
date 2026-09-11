@@ -226,6 +226,12 @@ export interface FacturationRepository {
   listerBareme(annee: number): Promise<LigneBareme[]>;
   /** Contrat de gestion le plus recent d'une copro. Null si aucun. */
   getDernierContrat(coproCode: string): Promise<ContratCopro | null>;
+  /**
+   * Le contrat le plus recent de CHAQUE copropriete demandee, en UNE lecture.
+   * L'ecran des contrats de syndic en a besoin pour tout un portefeuille : les chercher
+   * un par un faisait autant d'allers-retours que de coproprietes.
+   */
+  listerDerniersContrats(coproCodes: string[]): Promise<Map<string, ContratCopro>>;
   /** Parametres contractuels de la copro (franchises, plage d'AG). Null si copro inconnue. */
   getParametresCopro(coproCode: string): Promise<ParametresCopro | null>;
   /**

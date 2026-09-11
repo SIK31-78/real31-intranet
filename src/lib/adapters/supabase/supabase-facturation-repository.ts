@@ -395,6 +395,35 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     };
   }
 
+  async listerDerniersContrats(coproCodes: string[]): Promise<Map<string, ContratCopro>> {
+    if (coproCodes.length === 0) return new Map();
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_suivi_contrats")
+      .select("id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc")
+      .in("copropriete_id", coproCodes)
+      .order("debut_contrat", { ascending: false });
+
+    if (error) throw new Error(`Lecture des contrats de gestion : ${error.message}`);
+    // Trie decroissant : la PREMIERE ligne vue pour une copro est la plus recente.
+    const parCopro = new Map<string, ContratCopro>();
+    for (const r of (data ?? []) as ContratRow[]) {
+      if (parCopro.has(r.copropriete_id)) continue;
+      parCopro.set(r.copropriete_id, {
+        id: r.id,
+        coproCode: r.copropriete_id,
+        debutContrat: r.debut_contrat.slice(0, 10),
+        ...(r.honoraires_gestion_ttc !== null
+          ? { honorairesGestionTtc: Number(r.honoraires_gestion_ttc) }
+          : {}),
+        ...(r.forfait_postaux_ttc !== null
+          ? { forfaitPostauxTtc: Number(r.forfait_postaux_ttc) }
+          : {}),
+      });
+    }
+    return parCopro;
+  }
+
   async listerEditionsContrat(coproCode: string): Promise<EditionContrat[]> {
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase

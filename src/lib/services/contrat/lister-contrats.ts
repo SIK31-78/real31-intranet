@@ -8,7 +8,7 @@
 
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
-import { cycleSuivant } from "@/lib/domain/contrat/cycle-contrat";
+import { cycleSuivant, finContratEnCours } from "@/lib/domain/contrat/cycle-contrat";
 import { PRESTATIONS_CONTRAT } from "@/lib/domain/contrat/champs-contrat";
 
 /** Une copropriete et le contrat qui vient. */
@@ -38,14 +38,23 @@ export async function listerContratsAPreparer(
   aujourdhuiISO: string,
 ): Promise<LigneContratAPreparer[]> {
   const copros = await listerCoprosParRequete(managerId);
-  const avecMandat = copros.filter((c) => c.mandatSyndicFin);
+  const repo = getFacturationRepository();
+
+  // La fin du contrat EN COURS croise deux sources : le referentiel App A, qui n'est PAS
+  // mis a jour au renouvellement, et le dernier cycle enregistre par l'intranet, qui l'est
+  // (cf. finContratEnCours). Sans ce croisement, la liste annoncait « echu » des contrats
+  // signes - constat de Sekou sur FOCH31.
+  const contrats = await repo.listerDerniersContrats(copros.map((c) => c.code));
+  const avecFin = copros
+    .map((copro) => {
+      const fin = finContratEnCours(copro.mandatSyndicFin, contrats.get(copro.code)?.debutContrat);
+      return fin ? { copro, fin } : null;
+    })
+    .filter((x): x is { copro: (typeof copros)[number]; fin: string } => x !== null);
 
   // Les cycles ne couvrent que quelques annees : on lit CHAQUE bareme une fois, pas un
   // par copropriete.
-  const annees = new Set(
-    avecMandat.map((c) => Number(cycleSuivant(c.mandatSyndicFin!).debut.slice(0, 4))),
-  );
-  const repo = getFacturationRepository();
+  const annees = new Set(avecFin.map((x) => Number(cycleSuivant(x.fin).debut.slice(0, 4))));
   const completude = new Map<number, boolean>();
   await Promise.all(
     [...annees].map(async (annee) => {
@@ -58,9 +67,8 @@ export async function listerContratsAPreparer(
   const jours = (deISO: string, aISO: string) =>
     Math.round((Date.parse(`${aISO}T00:00:00Z`) - Date.parse(`${deISO}T00:00:00Z`)) / 86_400_000);
 
-  return avecMandat
-    .map((c) => {
-      const fin = c.mandatSyndicFin!;
+  return avecFin
+    .map(({ copro: c, fin }) => {
       const cycle = cycleSuivant(fin);
       const anneeBareme = Number(cycle.debut.slice(0, 4));
       return {

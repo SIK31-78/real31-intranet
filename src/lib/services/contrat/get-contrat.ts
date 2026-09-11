@@ -10,7 +10,7 @@
 import { getFacturationRepository } from "@/lib/adapters/router";
 import type { EditionContrat } from "@/lib/ports/facturation-repository";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
-import { cycleSuivant } from "@/lib/domain/contrat/cycle-contrat";
+import { cycleSuivant, finContratEnCours } from "@/lib/domain/contrat/cycle-contrat";
 import {
   assemblerChampsContrat,
   PRESTATIONS_CONTRAT,
@@ -63,14 +63,17 @@ export async function getContrat(
   );
 
   if (!donnees) throw new Error(`Contrat de syndic : copropriete ${coproCode} introuvable.`);
-  if (!donnees.finMandatISO) {
+  // La fin du contrat EN COURS croise les deux sources : le referentiel App A n'est pas
+  // mis a jour au renouvellement, l'intranet si (cf. finContratEnCours).
+  const finEnCours = finContratEnCours(donnees.finMandatISO, contratCourant?.debutContrat);
+  if (!finEnCours) {
     throw new Error(
-      `Contrat de syndic : la copropriete ${coproCode} n'a pas de fin de mandat au referentiel, ` +
-        `impossible de calculer le cycle suivant.`,
+      `Contrat de syndic : la copropriete ${coproCode} n'a ni fin de mandat au referentiel ` +
+        `ni cycle enregistre, impossible de calculer le cycle suivant.`,
     );
   }
 
-  const cycle = cycleSuivant(donnees.finMandatISO);
+  const cycle = cycleSuivant(finEnCours);
   const anneeBareme = Number(cycle.debut.slice(0, 4));
 
   // Le bareme en UNE lecture, puis on exige les 21 prestations du contrat.
