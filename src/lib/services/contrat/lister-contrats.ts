@@ -111,7 +111,7 @@ export async function listerContratsAPreparer(
           aujourdhuiISO,
           prochaineAgISO: agReferentiel,
           derniereEditionAgISO: reussie?.dateAgISO ?? null,
-          debutDernierCycleISO: contrats.get(c.code)?.debutContrat ?? null,
+          dernierCycleEnregistreLeISO: contrats.get(c.code)?.enregistreLeISO ?? null,
         });
         const dateAgISO = perimee ? null : agReferentiel;
         const dateConvocationISO = dateAgISO

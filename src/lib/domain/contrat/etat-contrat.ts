@@ -9,7 +9,12 @@
 //   - la prochaine AG planifiee (referentiel) ;
 //   - la derniere edition REUSSIE du contrat et la date d'AG qu'elle porte (historique
 //     MYTHEC puis editions intranet) ;
-//   - le debut du dernier cycle enregistre (ce que le recap a ecrit).
+//   - le jour ou le dernier cycle a ete ENREGISTRE (ce que le recap a ecrit).
+//
+// Pourquoi la date d'enregistrement et pas le debut du cycle : le mandat vote en AG
+// demarre souvent AVANT elle (au 1er du mois, retroactif - FOCH44LGC : AG le 07/07,
+// cycle au 01/07). Tester « un cycle qui commence apres l'AG » declarait a tort le
+// recap non fait sur 4 copros du portefeuille test.
 // Fonction pure, deterministe.
 
 export type EtatContrat =
@@ -31,8 +36,8 @@ export interface EntreesEtatContrat {
   prochaineAgISO: string | null;
   /** Date d'AG portee par la derniere edition reussie, ou null si jamais edite. */
   derniereEditionAgISO: string | null;
-  /** Debut du dernier cycle enregistre par le suivi des contrats, ou null. */
-  debutDernierCycleISO: string | null;
+  /** Jour ou le dernier cycle du suivi des contrats a ete enregistre, ou null. */
+  dernierCycleEnregistreLeISO: string | null;
 }
 
 export function etatContrat(e: EntreesEtatContrat): EtatContrat {
@@ -44,14 +49,15 @@ export function etatContrat(e: EntreesEtatContrat): EtatContrat {
     return e.derniereEditionAgISO === e.prochaineAgISO ? "genere" : "a-generer";
   }
 
-  // Pas d'AG a venir. Si un contrat a ete edite pour une AG deja passee et que le suivi
-  // n'a pas ouvert de cycle APRES cette AG, le recap n'a pas ete fait.
+  // Pas d'AG a venir. Si un contrat a ete edite pour une AG deja passee et qu'aucun
+  // cycle n'a ete enregistre DEPUIS cette AG (le jour meme compris), le recap n'a pas
+  // ete fait.
   const agTenue = e.derniereEditionAgISO !== null && e.derniereEditionAgISO <= e.aujourdhuiISO;
-  const cycleOuvertDepuis =
-    e.debutDernierCycleISO !== null &&
+  const cycleEnregistreDepuis =
+    e.dernierCycleEnregistreLeISO !== null &&
     e.derniereEditionAgISO !== null &&
-    e.debutDernierCycleISO > e.derniereEditionAgISO;
-  if (agTenue && !cycleOuvertDepuis) return "recap-a-faire";
+    e.dernierCycleEnregistreLeISO >= e.derniereEditionAgISO;
+  if (agTenue && !cycleEnregistreDepuis) return "recap-a-faire";
 
   return "a-planifier";
 }

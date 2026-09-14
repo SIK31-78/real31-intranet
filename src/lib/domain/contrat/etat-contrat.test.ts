@@ -12,7 +12,7 @@ describe("etatContrat", () => {
         aujourdhuiISO: AUJOURDHUI,
         prochaineAgISO: "2026-09-15",
         derniereEditionAgISO: "2026-09-15",
-        debutDernierCycleISO: "2025-10-01",
+        dernierCycleEnregistreLeISO: "2026-07-22",
       }),
     ).toBe("genere");
   });
@@ -23,7 +23,7 @@ describe("etatContrat", () => {
         aujourdhuiISO: AUJOURDHUI,
         prochaineAgISO: null,
         derniereEditionAgISO: "2026-09-03",
-        debutDernierCycleISO: "2025-10-01",
+        dernierCycleEnregistreLeISO: "2026-07-22",
       }),
     ).toBe("recap-a-faire");
   });
@@ -34,7 +34,7 @@ describe("etatContrat", () => {
         aujourdhuiISO: "2026-09-16",
         prochaineAgISO: "2026-09-15",
         derniereEditionAgISO: "2026-09-15",
-        debutDernierCycleISO: "2025-10-01",
+        dernierCycleEnregistreLeISO: "2026-07-22",
       }),
     ).toBe("recap-a-faire");
   });
@@ -45,7 +45,7 @@ describe("etatContrat", () => {
         aujourdhuiISO: "2026-10-01",
         prochaineAgISO: null,
         derniereEditionAgISO: "2026-09-15",
-        debutDernierCycleISO: "2026-11-01",
+        dernierCycleEnregistreLeISO: "2026-09-16",
       }),
     ).toBe("a-planifier");
   });
@@ -56,7 +56,7 @@ describe("etatContrat", () => {
         aujourdhuiISO: AUJOURDHUI,
         prochaineAgISO: "2026-10-20",
         derniereEditionAgISO: null,
-        debutDernierCycleISO: "2025-10-01",
+        dernierCycleEnregistreLeISO: "2026-07-22",
       }),
     ).toBe("a-generer");
   });
@@ -67,7 +67,7 @@ describe("etatContrat", () => {
         aujourdhuiISO: AUJOURDHUI,
         prochaineAgISO: "2026-10-20",
         derniereEditionAgISO: "2026-10-13",
-        debutDernierCycleISO: "2025-10-01",
+        dernierCycleEnregistreLeISO: "2026-07-22",
       }),
     ).toBe("a-generer");
   });
@@ -78,18 +78,42 @@ describe("etatContrat", () => {
         aujourdhuiISO: AUJOURDHUI,
         prochaineAgISO: "2026-06-11",
         derniereEditionAgISO: null,
-        debutDernierCycleISO: "2025-10-01",
+        dernierCycleEnregistreLeISO: "2026-07-22",
       }),
     ).toBe("a-planifier");
   });
 
-  it("une vieille edition dont le cycle a ete ouvert depuis ne reclame pas de recap", () => {
+  it("S122 FOCH44LGC : AG le 07/07, cycle demarre le 01/07 mais ENREGISTRE le 22/07 -> recap fait", () => {
+    // Le mandat est retroactif au 1er du mois : tester le debut du cycle dirait a tort
+    // que rien n'a ete acte depuis l'AG.
+    expect(
+      etatContrat({
+        aujourdhuiISO: AUJOURDHUI,
+        prochaineAgISO: null,
+        derniereEditionAgISO: "2026-07-07",
+        dernierCycleEnregistreLeISO: "2026-07-22",
+      }),
+    ).toBe("a-planifier");
+  });
+
+  it("un recap fait le jour meme de l'AG compte", () => {
+    expect(
+      etatContrat({
+        aujourdhuiISO: AUJOURDHUI,
+        prochaineAgISO: null,
+        derniereEditionAgISO: "2026-09-03",
+        dernierCycleEnregistreLeISO: "2026-09-03",
+      }),
+    ).toBe("a-planifier");
+  });
+
+  it("une vieille edition dont le cycle a ete enregistre depuis ne reclame pas de recap", () => {
     expect(
       etatContrat({
         aujourdhuiISO: AUJOURDHUI,
         prochaineAgISO: null,
         derniereEditionAgISO: "2025-06-20",
-        debutDernierCycleISO: "2025-10-01",
+        dernierCycleEnregistreLeISO: "2026-07-22",
       }),
     ).toBe("a-planifier");
   });

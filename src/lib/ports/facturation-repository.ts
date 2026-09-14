@@ -25,6 +25,12 @@ export interface ContratCopro {
   debutContrat: string;
   honorairesGestionTtc?: number;
   forfaitPostauxTtc?: number;
+  /**
+   * Jour ou ce cycle a ete ENREGISTRE (created_at), ISO "YYYY-MM-DD". C'est le recap AG
+   * qui l'ecrit : un cycle enregistre apres une AG dit que son recap a ete fait - alors
+   * que sa date de DEBUT, elle, precede souvent l'AG (mandat retroactif au 1er du mois).
+   */
+  enregistreLeISO?: string;
 }
 
 /** Ligne a facturer. Montant HT, aligne sur les invoice_lines Pennylane. */

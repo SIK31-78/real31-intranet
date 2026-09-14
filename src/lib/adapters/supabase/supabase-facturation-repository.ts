@@ -23,6 +23,7 @@ type ContratRow = {
   debut_contrat: string;
   honoraires_gestion_ttc: number | null;
   forfait_postaux_ttc: number | null;
+  created_at?: string;
 };
 
 export class SupabaseFacturationRepository implements FacturationRepository {
@@ -400,7 +401,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("intranet_suivi_contrats")
-      .select("id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc")
+      .select("id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, created_at")
       .in("copropriete_id", coproCodes)
       .order("debut_contrat", { ascending: false });
 
@@ -419,6 +420,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         ...(r.forfait_postaux_ttc !== null
           ? { forfaitPostauxTtc: Number(r.forfait_postaux_ttc) }
           : {}),
+        ...(r.created_at ? { enregistreLeISO: r.created_at.slice(0, 10) } : {}),
       });
     }
     return parCopro;
