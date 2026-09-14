@@ -1626,7 +1626,7 @@ Sujets non tranchés, qui feront l'objet d'ADRs ultérieurs :
 - ~~**ADR-017** : Auth library~~ -> **tranché** (Auth.js v5), cf. section ADR-017 ci-dessus.
 - **ADR-018** : Strategie de devenir des données historiques SharePoint post-migration (cf. ADR-003)
 - **ADR-019** : Stratégie de tests (vitest, Playwright, contract tests sur adapters)
-- **ADR-020** : Observabilité (Sentry, Vercel Analytics, Logflare, ...)
+- **ADR-020** : Observabilité — **tranché le 2026-09-14, voir ci-dessous**
 
 À traiter au moment où la décision devient bloquante.
 
@@ -1690,3 +1690,25 @@ Six reprises menées entre le 23/08 et le 09/09/2026 (S0303, S0304, S0297, S0306
 ### Liens
 
 ADR-001, ADR-029, ADR-030, ADR-031 (superseded), ADR-033. Docs : `docs/reprise/CHECKLIST-REPRISE.md`, skill `~/.claude/skills/estale-migration/`. Branche : `chantier/reprise-suivi`.
+
+
+---
+
+## ADR-020 - Observabilité : Sentry seul, et les erreurs MÉTIER signalées explicitement
+
+**Date** : 2026-09-14 - **Statut** : accepté (Sekou, 2026-09-14 — « branche Sentry »)
+
+### Contexte
+
+Aucune remontée d'erreur : 28 fichiers en `console.error`, un `error.tsx` qui affiche « Réessayer », et le bouton « Un bug / une idée » comme seul canal. Un collègue qui tombe sur un « Oupss » ESTALE ou une facture Pennylane refusée ne nous le dit que s'il y pense. Datadog a été écarté : plateforme d'infra (logs, APM, hôtes) pour un intranet sans infrastructure (Vercel + Supabase gérés, 40 utilisateurs), facturée au volume, une semaine de mise en place.
+
+### Décision
+
+- **Sentry** (`@sentry/nextjs`), gratuit à notre volume. Erreurs serveur (`instrumentation.ts` + `onRequestError`), navigateur (`instrumentation-client.ts`), frontières `error.tsx` et `global-error.tsx`. **Session Replay uniquement sur erreur, texte et saisies masqués** (les écrans sont pleins de noms de copropriétaires et de montants). `tunnelRoute: /monitoring` (exclu du proxy d'auth) pour passer les bloqueurs de pub.
+- **PII** : `sendDefaultPii: false`, cookies et en-têtes retirés, emails masqués dans tout message ; l'utilisateur attaché est le **collaborateur** (id technique + initiales), jamais un tiers. Les variables GraphQL passent par l'expurgation déjà en place dans le client ESTALE.
+- **Les erreurs métier que le code avale proprement se SIGNALENT** (`src/lib/observabilite.ts` : `signaler`, `signalerException`, niveau warning, tags `source`/`copro`). Première prise : chaque erreur GraphQL ESTALE. À étendre à Pennylane et Graph au fil des cas — c'est là qu'est la valeur, pas dans les exceptions.
+- Sans `NEXT_PUBLIC_SENTRY_DSN`, tout est un no-op (dev local silencieux). Source maps : `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT` sur Vercel, optionnels.
+
+### Conséquences
+
+On voit enfin ce que les collègues subissent sans le dire, regroupé et daté, avec le geste qui précède. Coût : ~+2 % de bundle client (replay), et une discipline : tout nouveau `catch` qui rend `{ ok: false }` appelle `signaler`. Vercel Analytics / Speed Insights restent à activer pour la perf (deux lignes, hors de cet ADR).

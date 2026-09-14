@@ -49,6 +49,8 @@ Les autres SQL du dossier ont déjà été exécutés lors des sessions précéd
 | `FICHE_PUBLIC_BASE_URL` | URL publique du formulaire de fiche de renseignements |
 | `SIGNITIC_API_KEY`, `SIGNITIC_BASE_URL` | injection de signature serveur |
 | `DIRECTEURS`, `MANAGERS`, `COMPTABLES`, `COMPTABLES_ENTREPRISE`, `SUPER_ADMINS` | allowlists de rôles (CSV d'emails ; singulier toléré). `COMPTABLES_ENTREPRISE` = la comptabilité du cabinet, seule à voir `/gestion-courante` avec les super-admins |
+| `NEXT_PUBLIC_SENTRY_DSN` | Sentry (ADR-020) : DSN du projet, lu serveur + navigateur. Absent = aucun envoi (dev local). |
+| `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | optionnels, build uniquement : envoi des source maps à Sentry pour des piles lisibles en prod. Sans eux la build passe. |
 | `MAIL_PILOTES` | allowlist pour l'ouverture progressive des mails (étape 2) |
 | `COPRO_SOURCE=supabase` | l'app lit les 264 copros de la base patron |
 

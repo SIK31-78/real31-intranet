@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Reprise compta : pdfjs-dist (lecture couche texte des grands livres) doit rester un
@@ -15,4 +16,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry (ADR-020). Les source maps ne partent chez Sentry que si SENTRY_AUTH_TOKEN /
+// SENTRY_ORG / SENTRY_PROJECT sont poses (Vercel) ; sans eux, la build passe, les piles
+// sont juste minifiees. `tunnelRoute` fait transiter les evenements navigateur par notre
+// domaine (les bloqueurs de pub coupent *.sentry.io) - la route est exclue du proxy d'auth.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  tunnelRoute: "/monitoring",
+  disableLogger: true,
+});

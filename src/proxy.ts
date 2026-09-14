@@ -57,6 +57,6 @@ export function proxy(req: NextRequest) {
 //     tout passer (l'auth se fait par page) ; l'exclusion garde le comportement identique.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/v1|fiche|api/fiche).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/v1|fiche|api/fiche|monitoring).*)",
   ],
 };

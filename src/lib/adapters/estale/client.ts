@@ -170,6 +170,12 @@ export async function estaleGql<T>(
         2,
       ),
     );
+    // Et on le SIGNALE a Sentry : un « Oupss » rendu proprement a l'utilisateur est invisible
+    // sans ca. Import DIFFERE : ce client est charge par 88 tests qui remplacent fetch, et le
+    // SDK Sentry au chargement du module y changeait le comportement du login concurrent.
+    const messages = corps.errors.map((e) => e.message).join(" ; ");
+    const detail = { query: query.slice(0, 200), variables: expurgerVariables(variables), errors: corps.errors };
+    void import("@/lib/observabilite").then((m) => m.signaler("ESTALE GraphQL : " + messages, { source: "estale", detail }));
     throw new EstaleError(`GraphQL Estale : ${corps.errors.map((e) => e.message).join(" ; ")}`);
   }
   if (corps.data === undefined) throw new EstaleError("GraphQL Estale : reponse sans data");

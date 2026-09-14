@@ -7,6 +7,8 @@ import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
 import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante } from "@/lib/auth/roles";
+import { attacherUtilisateur } from "@/lib/observabilite";
+import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
 type AppShellProps = {
   user: { initiales: string; nomComplet: string };
@@ -26,6 +28,8 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // ET que le gestionnaire connecte fait partie des pilotes (MAIL_PILOTES, si pose).
   // getGestionnaireCourant est memoise par requete (React.cache) : appel gratuit ici.
   const g = await getGestionnaireCourant();
+  // Sentry : l'evenement porte le COLLABORATEUR (id + initiales), jamais un tiers.
+  attacherUtilisateur(g ? { id: g.id, initiales: g.initiales } : null);
   const emailsOuvert = mailModuleActifPour(g?.email);
   // Entree "Comptabilite" (dashboard transverse) visible seulement au pole compta
   // (COMPTABLES) et aux super-admins ; absente pour un gestionnaire normal.
@@ -42,6 +46,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const adminOuvert = estSuperAdmin(g?.email);
   return (
     <MobileSidebarProvider>
+      <SentryUtilisateur id={g?.id ?? null} initiales={g?.initiales ?? null} />
       <FilArianeProvider valeur={breadcrumb ?? null}>
         <div className="flex flex-col min-h-screen md:flex-row">
           <BarreMobile emailsOuvert={emailsOuvert} />

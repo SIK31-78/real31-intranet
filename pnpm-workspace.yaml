@@ -1,4 +1,2 @@
 allowBuilds:
-  sharp: true
-  tesseract.js: true
-  unrs-resolver: true
+  '@sentry/cli': set this to true or false

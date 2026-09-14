@@ -685,7 +685,7 @@ Stabilisation, paperasse, lancement.
 - 🔲 Documentation admin (variables d'env, runbooks)
 - 🔲 Page "Mentions légales" + "Politique RGPD" (avec exercice des droits)
 - 🔲 Politique de purge `audit_log` (cron au-delà de la durée de conservation)
-- 🔲 Sentry intégré (erreurs serveur + client)
+- ✅ Sentry intégré (erreurs serveur + client + replay masqué, 2026-09-14, ADR-020) — reste : `SENTRY_AUTH_TOKEN` sur Vercel pour les source maps, et signaler les erreurs métier Pennylane/Graph comme ESTALE l'est déjà
 - 🔲 Vercel Analytics activé
 - 🔲 Domaine custom (`intranet.real31.fr` ou équivalent)
 - 🔲 Sauvegardes Supabase vérifiées (PITR activé)
