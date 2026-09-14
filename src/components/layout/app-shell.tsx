@@ -6,7 +6,7 @@ import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-contex
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, estVueComptable, estSuperAdmin } from "@/lib/auth/roles";
+import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante } from "@/lib/auth/roles";
 
 type AppShellProps = {
   user: { initiales: string; nomComplet: string };
@@ -30,6 +30,9 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // Entree "Comptabilite" (dashboard transverse) visible seulement au pole compta
   // (COMPTABLES) et aux super-admins ; absente pour un gestionnaire normal.
   const comptaOuvert = peutVoirComptabilite(g?.email, g?.role);
+  // Entree "Gestion courante" (facturation des honoraires du cabinet) : comptable
+  // d'ENTREPRISE et super-admins seulement - pas le pole compta des copros.
+  const gestionCouranteOuverte = peutVoirGestionCourante(g?.email);
   // Vue comptable EPUREE : le comptable pur (pas super-admin/manager/directeur) a une
   // sidebar reduite (son dashboard + copros + coffre). Les profils qui pilotent tout
   // gardent la nav complete.
@@ -51,6 +54,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               peutImpersonner={peutImpersonner}
               emailsOuvert={emailsOuvert}
               comptaOuvert={comptaOuvert}
+              gestionCouranteOuverte={gestionCouranteOuverte}
               vueComptable={vueComptable}
               adminOuvert={adminOuvert}
             />

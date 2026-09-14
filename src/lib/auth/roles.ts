@@ -11,6 +11,10 @@
 //                    modules transverses.
 //   - comptable    : le pole comptable du cabinet. Transverse : PAS de portefeuille, il voit
 //                    TOUTES les copros via /comptabilite.
+//   - comptable_entreprise : la comptabilite DU CABINET (pas des copros). Seul role a voir
+//                    /gestion-courante (facturation trimestrielle des honoraires). Decision
+//                    Sekou 2026-09-14 : Clementine Vigneron + super-admins, personne d'autre,
+//                    pas meme le pole compta copros.
 //   - manager      : encadrement de proximite. Pilote les chantiers d'onboarding (reprise).
 //   - directeur    : direction du cabinet. Memes droits que manager (+ tout ce qui viendra).
 //   - super_admin  : Sekou / l'admin technique. IMPLIQUE TOUS LES AUTRES ROLES (il doit pouvoir
@@ -27,6 +31,7 @@
 //   DIRECTEURS=... (ou DIRECTEUR=)      -> role directeur
 //   MANAGERS=...   (ou MANAGER=)        -> role manager
 //   COMPTABLES=... (ou COMPTABLE=)      -> role comptable
+//   COMPTABLES_ENTREPRISE=... (ou COMPTABLE_ENTREPRISE=) -> role comptable_entreprise
 //   SUPER_ADMINS=...(ou SUPER_ADMIN=)   -> role super_admin
 //
 // Format : emails separes par des virgules, casse et espaces indifferents.
@@ -42,16 +47,17 @@
 // ouverture par defaut) - sauf `gestionnaire`, qui n'a pas d'allowlist par construction.
 
 /** Les roles connus de l'intranet. `gestionnaire` est le defaut (aucune allowlist). */
-export const ROLES = ["gestionnaire", "comptable", "manager", "directeur", "super_admin"] as const;
+export const ROLES = ["gestionnaire", "comptable", "comptable_entreprise", "manager", "directeur", "super_admin"] as const;
 export type Role = (typeof ROLES)[number];
 
 /** Roles portes par une allowlist d'env (tous sauf le defaut `gestionnaire`). */
-const ROLES_ALLOWLISTES = ["comptable", "manager", "directeur", "super_admin"] as const;
+const ROLES_ALLOWLISTES = ["comptable", "comptable_entreprise", "manager", "directeur", "super_admin"] as const;
 type RoleAllowliste = (typeof ROLES_ALLOWLISTES)[number];
 
 /** Variables d'env par role : [forme recommandee (pluriel), forme toleree (singulier)]. */
 const SOURCES_ENV: Record<RoleAllowliste, readonly [string, string]> = {
   comptable: ["COMPTABLES", "COMPTABLE"],
+  comptable_entreprise: ["COMPTABLES_ENTREPRISE", "COMPTABLE_ENTREPRISE"],
   manager: ["MANAGERS", "MANAGER"],
   directeur: ["DIRECTEURS", "DIRECTEUR"],
   super_admin: ["SUPER_ADMINS", "SUPER_ADMIN"],
@@ -129,6 +135,11 @@ export function estComptable(
   return aRole(email, "comptable") || estComptableTable(roleTable);
 }
 
+/** Comptable d'entreprise (COMPTABLES_ENTREPRISE) - ou super-admin. */
+export function estComptableEntreprise(email: string | null | undefined): boolean {
+  return aRole(email, "comptable_entreprise");
+}
+
 /** Manager (MANAGERS) - ou super-admin. */
 export function estManager(email: string | null | undefined): boolean {
   return aRole(email, "manager");
@@ -155,6 +166,15 @@ export function peutVoirComptabilite(
   roleTable?: string | null,
 ): boolean {
   return estComptable(email, roleTable);
+}
+
+/**
+ * Acces a la facturation de gestion courante (/gestion-courante) : la comptabilite du
+ * CABINET (comptable_entreprise) et les super-admins. Le pole compta des copros n'y a
+ * PAS acces : facturer les honoraires du cabinet n'est pas tenir les comptes des copros.
+ */
+export function peutVoirGestionCourante(email: string | null | undefined): boolean {
+  return estComptableEntreprise(email);
 }
 
 /**

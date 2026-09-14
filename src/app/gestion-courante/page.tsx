@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { peutVoirComptabilite } from "@/lib/auth/roles";
+import { peutVoirGestionCourante } from "@/lib/auth/roles";
 import { trimestreCourant } from "@/lib/services/facturation/gestion-courante";
 import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import { AppShell } from "@/components/layout/app-shell";
@@ -16,7 +16,7 @@ export default async function GestionCourantePage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
-  const habilite = peutVoirComptabilite(g.email, g.role);
+  const habilite = peutVoirGestionCourante(g.email);
 
   return (
     <AppShell user={g} active="gestion-courante" breadcrumb="Gestion courante">
@@ -44,7 +44,7 @@ export default async function GestionCourantePage() {
         ) : (
           <Card>
             <p className="px-4 py-8 text-center text-body text-ink-3">
-              Cette page est réservée au pôle comptable.
+              Cette page est réservée à la comptabilité du cabinet.
             </p>
           </Card>
         )}

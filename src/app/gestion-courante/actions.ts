@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { peutVoirComptabilite } from "@/lib/auth/roles";
+import { peutVoirGestionCourante } from "@/lib/auth/roles";
 import {
   apercuGestionCourante,
   lancerGestionCourante,
@@ -35,8 +35,8 @@ export async function apercuGestionCouranteAction(
   if (!zPeriode.safeParse(periode).success) return { ok: false, erreur: "Période invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
-  if (!peutVoirComptabilite(g.email, g.role))
-    return { ok: false, erreur: "Réservé au pôle comptable." };
+  if (!peutVoirGestionCourante(g.email))
+    return { ok: false, erreur: "Réservé à la comptabilité du cabinet." };
   try {
     return { ok: true, donnees: await apercuGestionCourante(periode) };
   } catch (e) {
@@ -61,8 +61,8 @@ export async function lancerGestionCouranteAction(
   if (!sel.success) return { ok: false, erreur: "Sélection invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
-  if (!peutVoirComptabilite(g.email, g.role))
-    return { ok: false, erreur: "Réservé au pôle comptable." };
+  if (!peutVoirGestionCourante(g.email))
+    return { ok: false, erreur: "Réservé à la comptabilité du cabinet." };
   try {
     const donnees = await lancerGestionCourante(periode, g.initiales, sel.data);
     revalidatePath("/gestion-courante", "layout");

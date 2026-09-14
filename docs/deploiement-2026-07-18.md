@@ -48,7 +48,7 @@ Les autres SQL du dossier ont déjà été exécutés lors des sessions précéd
 | `EXTRACTION_PROVIDER=mistral` | reprise compta/patrimoine via API Mistral (jamais le forfait Max) |
 | `FICHE_PUBLIC_BASE_URL` | URL publique du formulaire de fiche de renseignements |
 | `SIGNITIC_API_KEY`, `SIGNITIC_BASE_URL` | injection de signature serveur |
-| `DIRECTEURS`, `MANAGERS`, `COMPTABLES`, `SUPER_ADMINS` | allowlists de rôles (CSV d'emails ; singulier toléré) |
+| `DIRECTEURS`, `MANAGERS`, `COMPTABLES`, `COMPTABLES_ENTREPRISE`, `SUPER_ADMINS` | allowlists de rôles (CSV d'emails ; singulier toléré). `COMPTABLES_ENTREPRISE` = la comptabilité du cabinet, seule à voir `/gestion-courante` avec les super-admins |
 | `MAIL_PILOTES` | allowlist pour l'ouverture progressive des mails (étape 2) |
 | `COPRO_SOURCE=supabase` | l'app lit les 264 copros de la base patron |
 

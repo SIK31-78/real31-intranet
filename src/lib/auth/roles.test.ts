@@ -10,8 +10,7 @@ import {
   peutVoirComptabilite,
   estVueComptable,
   pageAccueilPour,
-  estAdminReprise,
-} from "./roles";
+  estAdminReprise, peutVoirGestionCourante } from "./roles";
 
 // Chaque test part d'un env VIDE (les vraies allowlists de .env.local ne doivent pas
 // influencer les assertions), puis stubbe ce dont il a besoin.
@@ -56,7 +55,7 @@ describe("rolesDe", () => {
   it("super_admin IMPLIQUE tous les roles (Sekou doit pouvoir tester chaque ecran)", () => {
     vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
     const roles = rolesDe("sekou@real31.fr");
-    for (const r of ["gestionnaire", "comptable", "manager", "directeur", "super_admin"] as const) {
+    for (const r of ["gestionnaire", "comptable", "comptable_entreprise", "manager", "directeur", "super_admin"] as const) {
       expect(roles.has(r)).toBe(true);
     }
   });
@@ -164,6 +163,35 @@ describe("peutVoirComptabilite", () => {
   it("env COMPTABLES reste un secours quand le role table est absent (retro-compat)", () => {
     vi.stubEnv("COMPTABLES", "elsa@real31.fr");
     expect(peutVoirComptabilite("elsa@real31.fr", null)).toBe(true);
+  });
+});
+
+describe("peutVoirGestionCourante (comptable d'ENTREPRISE + super-admin, personne d'autre)", () => {
+  it("un email dans COMPTABLES_ENTREPRISE accede", () => {
+    vi.stubEnv("COMPTABLES_ENTREPRISE", "clementine@real31.fr");
+    expect(peutVoirGestionCourante("Clementine@real31.fr")).toBe(true);
+  });
+  it("la graphie singuliere COMPTABLE_ENTREPRISE marche aussi", () => {
+    vi.stubEnv("COMPTABLE_ENTREPRISE", "clementine@real31.fr");
+    expect(peutVoirGestionCourante("clementine@real31.fr")).toBe(true);
+  });
+  it("un super-admin accede, meme absent de l'allowlist", () => {
+    vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
+    expect(peutVoirGestionCourante("sekou@real31.fr")).toBe(true);
+  });
+  it("le pole compta des copros (COMPTABLES) n'accede PAS", () => {
+    vi.stubEnv("COMPTABLES", "elsa@real31.fr");
+    expect(peutVoirGestionCourante("elsa@real31.fr")).toBe(false);
+  });
+  it("directeur, manager, gestionnaire n'accedent pas", () => {
+    vi.stubEnv("DIRECTEURS", "d@real31.fr");
+    vi.stubEnv("MANAGERS", "m@real31.fr");
+    expect(peutVoirGestionCourante("d@real31.fr")).toBe(false);
+    expect(peutVoirGestionCourante("m@real31.fr")).toBe(false);
+    expect(peutVoirGestionCourante("g@real31.fr")).toBe(false);
+  });
+  it("allowlist absente -> personne (sauf super-admin)", () => {
+    expect(peutVoirGestionCourante("clementine@real31.fr")).toBe(false);
   });
 });
 

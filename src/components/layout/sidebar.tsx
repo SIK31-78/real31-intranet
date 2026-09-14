@@ -55,7 +55,7 @@ type Item = {
 // Navigation groupee par usage (reorg 2026-07-23, demande Sekou "manque de logique") :
 //   Vue d'ensemble = pilotage (ou j'en suis) · A traiter = worklists/modules a actionner ·
 //   Facturation = produire documents/argent · Ressources = outils transverses.
-// "Reprise" grisee "a venir" ; "Comptabilite" et "Gestion courante" visibles pole compta only.
+// "Comptabilite" visible pole compta only ; "Gestion courante" comptable d'entreprise + super-admin only.
 const GROUPES: { titre: string; items: Item[] }[] = [
   {
     titre: "Vue d'ensemble",
@@ -223,10 +223,13 @@ function SectionTitre({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Groupe repliable du pied de rail (nos applications, outils externes). */
-function GroupeReplie({ titre, children }: { titre: string; children: React.ReactNode }) {
+/**
+ * Groupe repliable du pied de rail. « Nos applications » est deplie a l'ouverture, « Outils
+ * externes » replie (Sekou 2026-09-14 : le rail ne doit pas s'allonger avec des liens tiers).
+ */
+function GroupeReplie({ titre, children, ouvert = true }: { titre: string; children: React.ReactNode; ouvert?: boolean }) {
   return (
-    <details open className="group pt-3 border-t border-rail-line">
+    <details open={ouvert} className="group pt-3 border-t border-rail-line">
       <summary className="flex items-center px-2.5 mb-1.5 cursor-pointer select-none list-none text-meta font-semibold uppercase tracking-[0.12em] text-rail-muted [&::-webkit-details-marker]:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 rounded-sm">
         {titre}
         <ChevronDown strokeWidth={1.5} className="ml-auto w-3.5 h-3.5 transition-transform duration-180 ease-out-quart group-open:rotate-180" aria-hidden />
@@ -242,6 +245,7 @@ export function Sidebar({
   peutImpersonner = false,
   emailsOuvert = true,
   comptaOuvert = false,
+  gestionCouranteOuverte = false,
   vueComptable = false,
   adminOuvert = false,
 }: {
@@ -250,6 +254,8 @@ export function Sidebar({
   peutImpersonner?: boolean;
   emailsOuvert?: boolean;
   comptaOuvert?: boolean;
+  /** Entree "Gestion courante" : comptable d'entreprise + super-admin seulement. */
+  gestionCouranteOuverte?: boolean;
   /** Vue comptable epuree : remplace la nav principale par NAV_COMPTABLE (dashboard compta + copros + coffre). */
   vueComptable?: boolean;
   /** Groupe "Administration" (cles API) : visible SUPER-ADMIN seulement. */
@@ -272,7 +278,7 @@ export function Sidebar({
         {vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
           <div>
-            {NAV_COMPTABLE.map((item) => (
+            {NAV_COMPTABLE.filter((item) => item.key !== "gestion-courante" || gestionCouranteOuverte).map((item) => (
               <NavItem key={item.key} item={item} active={item.key === active} />
             ))}
           </div>
@@ -281,11 +287,11 @@ export function Sidebar({
             <div key={groupe.titre}>
               <SectionTitre>{groupe.titre}</SectionTitre>
               {groupe.items.map((item) => {
-                // "Comptabilite" (dashboard transverse) et "Gestion courante" (page
-                // reservee au pole compta) : liens ABSENTS hors role comptable / super-admin
-                // (le pole compta est transverse, pas un gestionnaire).
-                if ((item.key === "compta" || item.key === "gestion-courante") && !comptaOuvert)
-                  return null;
+                // "Comptabilite" (dashboard transverse) : lien ABSENT hors pole compta / super-admin.
+                if (item.key === "compta" && !comptaOuvert) return null;
+                // "Gestion courante" (facturation des honoraires du cabinet) : comptable
+                // d'ENTREPRISE et super-admin seulement (Sekou 2026-09-14).
+                if (item.key === "gestion-courante" && !gestionCouranteOuverte) return null;
                 // "Mes e-mails" et "Reprise de copropriete" : fonctionnalites A VENIR pour les
                 // collegues (Sekou 2026-09-10) -> visibles des SUPER-ADMINS seulement.
                 if ((item.key === "emails" || item.key === "reprise") && !adminOuvert) return null;
@@ -312,7 +318,7 @@ export function Sidebar({
           ))}
         </GroupeReplie>
 
-        <GroupeReplie titre="Outils externes">
+        <GroupeReplie titre="Outils externes" ouvert={false}>
           {OUTILS_EXTERNES.map((app) => (
             <LienExterne key={app.label} {...app} />
           ))}
