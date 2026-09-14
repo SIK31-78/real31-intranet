@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/callout";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, Thead, Tbody, Th, Tr, Td, LienLigne } from "@/components/ui/table";
+import { Card, CardBody } from "@/components/ui/card";
+import { EditionRapideContrat } from "@/components/contrat/edition-rapide-contrat";
 
 export const metadata: Metadata = { title: "Contrats de syndic - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -66,6 +68,15 @@ export default async function ContratsPage() {
             les débloque tous d&apos;un coup.
           </Callout>
         )}
+
+        {/* Editer sans passer par la fiche : le geste MYTHEC (Sekou, 14/09), en tete. */}
+        <Section id="contrats-editer" titre="Éditer un contrat">
+          <Card>
+            <CardBody>
+              <EditionRapideContrat lignes={lignes} />
+            </CardBody>
+          </Card>
+        </Section>
 
         <Section id="contrats-en-cours" titre="En cours" compte={enCours.length}>
           {enCours.length === 0 ? (

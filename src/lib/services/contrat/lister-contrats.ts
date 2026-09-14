@@ -48,6 +48,13 @@ export interface LigneContratAPreparer {
   etat: EtatContrat;
   /** Derniere edition REUSSIE : quand, par qui, pour quelle AG. null si jamais edite. */
   derniereEdition: { creeLeISO: string; par: string | null; dateAgISO: string | null } | null;
+  /**
+   * Valeurs proposees a l'edition, meme precedence que get-contrat : la derniere edition
+   * reussie (elle porte l'augmentation votee) avant le contrat en cours. null = inconnu,
+   * le gestionnaire saisit.
+   */
+  honorairesTtc: number | null;
+  forfaitPostauxTtc: number | null;
   /** Annee du bareme qui s'appliquera : celle de l'AG (regle MYTHEC). null sans AG. */
   anneeBareme: number | null;
   /**
@@ -144,6 +151,10 @@ export async function listerContratsAPreparer(
           derniereEdition: reussie
             ? { creeLeISO: reussie.creeLe.slice(0, 10), par: reussie.creePar, dateAgISO: reussie.dateAgISO }
             : null,
+          honorairesTtc:
+            reussie?.honorairesGestionTtc ?? contrats.get(c.code)?.honorairesGestionTtc ?? null,
+          forfaitPostauxTtc:
+            reussie?.forfaitPostauxTtc ?? contrats.get(c.code)?.forfaitPostauxTtc ?? null,
           dateConvocationISO,
           joursAvantConvocation: dateConvocationISO
             ? jours(aujourdhuiISO, dateConvocationISO)
