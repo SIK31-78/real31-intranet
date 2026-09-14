@@ -250,6 +250,13 @@ export interface FacturationRepository {
    * jamais empecher d'editer un contrat.
    */
   listerEditionsContrat(coproCode: string): Promise<EditionContrat[]>;
+  /**
+   * Les editions de CHAQUE copropriete demandee, en UNE lecture, du plus recent au plus
+   * ancien. L'ecran des contrats en a besoin pour dire ou en est chaque copro (edite,
+   * recap a faire...) sans faire un aller-retour par ligne.
+   * Map vide si la table n'existe pas encore : meme degradation que listerEditionsContrat.
+   */
+  listerEditionsContrats(coproCodes: string[]): Promise<Map<string, EditionContrat[]>>;
   /** Ouvre un cycle de contrat (une AG en ouvre un). Renvoie son id. */
   creerContrat(input: {
     coproCode: string;

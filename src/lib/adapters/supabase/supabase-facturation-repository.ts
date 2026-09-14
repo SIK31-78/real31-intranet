@@ -425,21 +425,31 @@ export class SupabaseFacturationRepository implements FacturationRepository {
   }
 
   async listerEditionsContrat(coproCode: string): Promise<EditionContrat[]> {
+    const parCopro = await this.listerEditionsContrats([coproCode]);
+    return parCopro.get(coproCode) ?? [];
+  }
+
+  async listerEditionsContrats(coproCodes: string[]): Promise<Map<string, EditionContrat[]>> {
+    const parCopro = new Map<string, EditionContrat[]>();
+    if (coproCodes.length === 0) return parCopro;
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("intranet_historique_contrats")
-      .select("titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par")
-      .eq("copropriete_id", coproCode)
+      .select(
+        "copropriete_id, titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par",
+      )
+      .in("copropriete_id", coproCodes)
       .order("cree_le", { ascending: false });
 
     // Table absente (SQL pas encore passe) : l'historique est un confort, on degrade a
     // vide plutot que d'empecher d'editer un contrat.
     if (error) {
-      console.warn(`[historique-contrats] lecture impossible (${coproCode}) : ${error.message}`);
-      return [];
+      console.warn(`[historique-contrats] lecture impossible : ${error.message}`);
+      return parCopro;
     }
-    return (data ?? []).map((r) => {
+    for (const r of data ?? []) {
       const e = r as {
+        copropriete_id: string;
         titre: string | null;
         date_ag: string | null;
         honoraires_gestion_ttc: number | null;
@@ -449,8 +459,9 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         cree_le: string;
         cree_par: string | null;
       };
-      return {
-        coproCode,
+      const liste = parCopro.get(e.copropriete_id) ?? [];
+      liste.push({
+        coproCode: e.copropriete_id,
         titre: e.titre,
         dateAgISO: e.date_ag ? e.date_ag.slice(0, 10) : null,
         honorairesGestionTtc: e.honoraires_gestion_ttc === null ? null : Number(e.honoraires_gestion_ttc),
@@ -459,8 +470,10 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         messageErreur: e.message_erreur,
         creeLe: e.cree_le,
         creePar: e.cree_par,
-      };
-    });
+      });
+      parCopro.set(e.copropriete_id, liste);
+    }
+    return parCopro;
   }
 
   async getParametresCopro(coproCode: string): Promise<ParametresCopro | null> {

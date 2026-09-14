@@ -11,6 +11,7 @@ import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copro
 import { cycleSuivant, finContratEnCours } from "@/lib/domain/contrat/cycle-contrat";
 import { PRESTATIONS_CONTRAT } from "@/lib/domain/contrat/champs-contrat";
 import { calculerJalons } from "@/lib/domain/jalons-ag/calculator";
+import { etatContrat, type EtatContrat } from "@/lib/domain/contrat/etat-contrat";
 
 /** Une copropriete et le contrat qui vient. */
 export interface LigneContratAPreparer {
@@ -38,6 +39,10 @@ export interface LigneContratAPreparer {
   /** Jours restants avant cette mise sous pli (negatif = elle est passee). null si l'AG
    *  n'est pas encore planifiee. */
   joursAvantConvocation: number | null;
+  /** Ou en est le contrat dans son cycle de vie (cf. domain/contrat/etat-contrat). */
+  etat: EtatContrat;
+  /** Derniere edition REUSSIE : quand, par qui, pour quelle AG. null si jamais edite. */
+  derniereEdition: { creeLeISO: string; par: string | null; dateAgISO: string | null } | null;
   /** Annee du bareme qui s'appliquera (= annee de debut du cycle). */
   anneeBareme: number;
   /**
@@ -48,6 +53,13 @@ export interface LigneContratAPreparer {
    */
   baremeComplet: boolean;
 }
+
+const RANG_ETAT: Record<EtatContrat, number> = {
+  "a-generer": 0,
+  genere: 1,
+  "recap-a-faire": 2,
+  "a-planifier": 3,
+};
 
 export async function listerContratsAPreparer(
   managerId: string,
@@ -60,7 +72,11 @@ export async function listerContratsAPreparer(
   // mis a jour au renouvellement, et le dernier cycle enregistre par l'intranet, qui l'est
   // (cf. finContratEnCours). Sans ce croisement, la liste annoncait « echu » des contrats
   // signes - constat de Sekou sur FOCH31.
-  const contrats = await repo.listerDerniersContrats(copros.map((c) => c.code));
+  const codes = copros.map((c) => c.code);
+  const [contrats, editions] = await Promise.all([
+    repo.listerDerniersContrats(codes),
+    repo.listerEditionsContrats(codes),
+  ]);
   const avecFin = copros
     .map((copro) => {
       const fin = finContratEnCours(copro.mandatSyndicFin, contrats.get(copro.code)?.debutContrat);
@@ -90,6 +106,13 @@ export async function listerContratsAPreparer(
         const anneeBareme = Number(cycle.debut.slice(0, 4));
         const agReferentiel = c.prochaineAg?.date ?? null;
         const perimee = agReferentiel !== null && agReferentiel < aujourdhuiISO;
+        const reussie = (editions.get(c.code) ?? []).find((e) => e.statut === "termine") ?? null;
+        const etat = etatContrat({
+          aujourdhuiISO,
+          prochaineAgISO: agReferentiel,
+          derniereEditionAgISO: reussie?.dateAgISO ?? null,
+          debutDernierCycleISO: contrats.get(c.code)?.debutContrat ?? null,
+        });
         const dateAgISO = perimee ? null : agReferentiel;
         const dateConvocationISO = dateAgISO
           ? (calculerJalons(dateAgISO).find((j) => j.code === "CONVOC")?.cibleDate ?? null)
@@ -103,6 +126,10 @@ export async function listerContratsAPreparer(
           joursAvant: jours(aujourdhuiISO, fin),
           dateAgISO,
           agDatePerimee: perimee ? agReferentiel : null,
+          etat,
+          derniereEdition: reussie
+            ? { creeLeISO: reussie.creeLe.slice(0, 10), par: reussie.creePar, dateAgISO: reussie.dateAgISO }
+            : null,
           dateConvocationISO,
           joursAvantConvocation: dateConvocationISO
             ? jours(aujourdhuiISO, dateConvocationISO)
@@ -113,16 +140,15 @@ export async function listerContratsAPreparer(
       })
       // Ordre = l'ordre de TRAVAIL, pas l'ordre des echeances : le contrat se prepare
       // au moment de la convocation, pas quand le mandat expire (les deux sont separes
-      // de ~2 mois en median sur le portefeuille). Les copros dont l'AG est planifiee
-      // passent donc devant, triees par mise sous pli ; les autres suivent, triees par
-      // fin de mandat - pour celles-la il faut d'abord poser une date d'AG.
+      // de ~2 mois en median sur le portefeuille). D'abord ce qu'il y a a generer, par
+      // mise sous pli ; puis ce qui est genere et attend son AG ; puis les recaps qui
+      // manquent ; enfin les copros sans AG, par fin de mandat.
       .sort((a, b) => {
-        if (a.dateConvocationISO && b.dateConvocationISO) {
-          return a.dateConvocationISO.localeCompare(b.dateConvocationISO);
-        }
-        if (a.dateConvocationISO) return -1;
-        if (b.dateConvocationISO) return 1;
-        return a.finMandatISO.localeCompare(b.finMandatISO);
+        const rang = RANG_ETAT[a.etat] - RANG_ETAT[b.etat];
+        if (rang !== 0) return rang;
+        const ca = a.dateConvocationISO ?? a.dateAgISO ?? a.finMandatISO;
+        const cb = b.dateConvocationISO ?? b.dateAgISO ?? b.finMandatISO;
+        return ca.localeCompare(cb);
       })
   );
 }

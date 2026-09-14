@@ -130,6 +130,10 @@ export class MockFacturationRepository implements FacturationRepository {
     return [];
   }
 
+  async listerEditionsContrats(): Promise<Map<string, EditionContrat[]>> {
+    return new Map();
+  }
+
   async getDernierContrat(coproCode: string): Promise<ContratCopro | null> {
     const candidats = CONTRATS.filter((c) => c.coproCode === coproCode).sort((a, b) =>
       b.debutContrat.localeCompare(a.debutContrat),
