@@ -113,7 +113,7 @@ export interface ChampsContrat {
   honorairesGestionHt: string;
   /** Forfait timbres annuel TTC (pas de HT dans le legacy : il l'injecte brut). */
   forfaitPostauxTtc: number;
-  /** Annee du bareme applique (= annee de debut du cycle). */
+  /** Annee du bareme applique : celle de l'AG, pas du debut du cycle (regle MYTHEC). */
   anneeBareme: number;
   /** Les 21 prestations, dans l'ordre du document. */
   tarifs: TarifContrat[];
@@ -143,7 +143,11 @@ export function assemblerChampsContrat(
     honorairesGestionTtc: cycle.honorairesGestionTtc,
     honorairesGestionHt: htDepuisTtc(cycle.honorairesGestionTtc),
     forfaitPostauxTtc: cycle.forfaitPostauxTtc,
-    anneeBareme: Number(cycle.debutISO.slice(0, 4)),
+    // Le flow MYTHEC lisait les tarifs sur `formatDateTime(date AG, 'yyyy')` : une AG
+    // vote au tarif de SON annee, meme si le mandat demarre en janvier suivant. Porte
+    // d'abord sur le debut du cycle, corrige le 14/09/2026 (Sekou : des contrats
+    // « en attente du bareme 2027 » pour des AG d'octobre 2026).
+    anneeBareme: Number(cycle.dateAgISO.slice(0, 4)),
     tarifs: PRESTATIONS_CONTRAT.map((identifiant) => {
       const { libelle, ttc } = tarifsTtc[identifiant];
       return { identifiant, libelle, ttc, ht: htDepuisTtc(ttc), ttcTexte: ttcBrut(ttc) };

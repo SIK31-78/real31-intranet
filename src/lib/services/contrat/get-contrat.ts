@@ -79,7 +79,15 @@ export async function getContrat(
   }
 
   const cycle = cycleSuivant(finEnCours);
-  const anneeBareme = Number(cycle.debut.slice(0, 4));
+  // L'AG planifiee d'abord ; a defaut le debut du cycle, qui reste editable dans le
+  // formulaire. Mieux qu'une date inventee.
+  const dateAgISO = options.dateAgISO ?? coproRef?.prochaineAg?.date ?? cycle.debut;
+  // Le bareme est celui de l'ANNEE DE L'AG, pas de l'annee ou le mandat demarre : c'est
+  // la regle du flow MYTHEC (`formatDateTime(date AG, 'yyyy')`), relue le 14/09/2026
+  // apres que Sekou a bute sur des contrats « en attente du bareme 2027 » pour des AG
+  // de l'automne 2026. Une AG d'octobre vote au tarif de son annee, meme pour un
+  // mandat qui commence en janvier.
+  const anneeBareme = Number(dateAgISO.slice(0, 4));
 
   // Le bareme en UNE lecture, puis on exige les 21 prestations du contrat.
   const lignes = await repo.listerBareme(anneeBareme);
@@ -136,9 +144,7 @@ export async function getContrat(
   return assemblerChampsContrat(
     copro,
     {
-      // L'AG planifiee d'abord ; a defaut le debut du cycle, qui reste editable dans le
-      // formulaire. Mieux qu'une date inventee.
-      dateAgISO: options.dateAgISO ?? coproRef?.prochaineAg?.date ?? cycle.debut,
+      dateAgISO,
       debutISO: cycle.debut,
       finISO: cycle.fin,
       honorairesGestionTtc: honoraires,

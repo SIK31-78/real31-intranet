@@ -88,10 +88,14 @@ describe("assemblerChampsContrat", () => {
     expect(assemblerChampsContrat(COPRO, CYCLE, bareme()).forfaitPostauxTtc).toBe(792);
   });
 
-  it("prend l'annee du bareme sur le debut du cycle, pas sur la date d'AG", () => {
-    // L'AG est en octobre 2026, le cycle demarre en juillet 2026 : c'est bien 2026.
-    // La nuance compte pour un cycle a cheval (AG de janvier, contrat parti en juillet).
-    const c = assemblerChampsContrat(COPRO, { ...CYCLE, dateAgISO: "2027-01-15" }, bareme());
+  it("prend l'annee du bareme sur la date d'AG, pas sur le debut du cycle (regle MYTHEC)", () => {
+    // AG en octobre 2026 pour un mandat qui demarre le 01/01/2027 : c'est le bareme 2026
+    // qui s'applique - ORLEANS7, le cas qui a fait corriger la regle le 14/09/2026.
+    const c = assemblerChampsContrat(
+      COPRO,
+      { ...CYCLE, dateAgISO: "2026-10-29", debutISO: "2027-01-01", finISO: "2027-12-31" },
+      bareme(),
+    );
     expect(c.anneeBareme).toBe(2026);
   });
 

@@ -61,8 +61,8 @@ export default async function ContratsPage() {
             ton="warn"
             titre={`${bloquees.length} contrat${bloquees.length > 1 ? "s" : ""} à générer en attente du barème ${anneesManquantes.join(" et ")}`}
           >
-            leur cycle démarre sur une année dont la grille tarifaire est incomplète.
-            La compléter les débloque tous d&apos;un coup.
+            leur AG se tient une année dont la grille tarifaire est incomplète. La compléter
+            les débloque tous d&apos;un coup.
           </Callout>
         )}
 
@@ -100,9 +100,8 @@ function TableContrats({
           <Th>Copro</Th>
           <Th>Nom</Th>
           <Th>AG</Th>
-          <Th>Prochain cycle</Th>
-          <Th numeric>Barème</Th>
-          <Th numeric>{avecEtat ? "État" : "Mandat en cours"}</Th>
+          {avecEtat ? <Th numeric>Barème</Th> : <Th>Mandat en cours</Th>}
+          {avecEtat && <Th numeric>État</Th>}
         </tr>
       </Thead>
       <Tbody>
@@ -136,25 +135,28 @@ function TableContrats({
                 </span>
               )}
             </Td>
-            <Td secondaire className="tabular-nums">
-              {formatJour(l.debutISO)} → {formatJour(l.finISO)}
-            </Td>
-            <Td numeric>
-              {l.baremeComplet ? (
-                <span className="text-ink-2 tabular-nums">{l.anneeBareme}</span>
-              ) : (
-                <Badge ton="warn">{l.anneeBareme} incomplet</Badge>
-              )}
-            </Td>
-            <Td numeric>
-              {avecEtat ? (
-                <Etat ligne={l} />
-              ) : (
-                <span className="text-ink-2 tabular-nums">
-                  jusqu&apos;au {formatJour(l.finMandatISO)}
-                </span>
-              )}
-            </Td>
+            {avecEtat ? (
+              <>
+                {/* Le bareme est celui de l'annee de l'AG. S'il manque des prestations,
+                    le contrat ne pourra pas etre edite : on le dit sur la ligne. */}
+                <Td numeric>
+                  {l.baremeComplet ? (
+                    <span className="text-ink-2 tabular-nums">{l.anneeBareme ?? "—"}</span>
+                  ) : (
+                    <Badge ton="warn" title="Il manque des prestations à ce barème dans intranet_tarifs">
+                      barème {l.anneeBareme} incomplet
+                    </Badge>
+                  )}
+                </Td>
+                <Td numeric>
+                  <Etat ligne={l} />
+                </Td>
+              </>
+            ) : (
+              <Td secondaire className="tabular-nums">
+                jusqu&apos;au {formatJour(l.finMandatISO)}
+              </Td>
+            )}
           </Tr>
         ))}
       </Tbody>

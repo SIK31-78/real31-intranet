@@ -43,13 +43,13 @@ export interface LigneContratAPreparer {
   etat: EtatContrat;
   /** Derniere edition REUSSIE : quand, par qui, pour quelle AG. null si jamais edite. */
   derniereEdition: { creeLeISO: string; par: string | null; dateAgISO: string | null } | null;
-  /** Annee du bareme qui s'appliquera (= annee de debut du cycle). */
-  anneeBareme: number;
+  /** Annee du bareme qui s'appliquera : celle de l'AG (regle MYTHEC). null sans AG. */
+  anneeBareme: number | null;
   /**
    * Le bareme de cette annee porte-t-il les 21 prestations du contrat ?
    * false = le contrat ne pourra pas etre edite tant que `intranet_tarifs` n'est pas
    * complete. On le dit ICI plutot que de laisser le gestionnaire le decouvrir en
-   * cliquant : au 2026-09-11, 95 coproprietes sont dans ce cas pour l'annee 2027.
+   * cliquant. true quand il n'y a pas d'AG : rien a bloquer.
    */
   baremeComplet: boolean;
 }
@@ -84,9 +84,15 @@ export async function listerContratsAPreparer(
     })
     .filter((x): x is { copro: (typeof copros)[number]; fin: string } => x !== null);
 
-  // Les cycles ne couvrent que quelques annees : on lit CHAQUE bareme une fois, pas un
-  // par copropriete.
-  const annees = new Set(avecFin.map((x) => Number(cycleSuivant(x.fin).debut.slice(0, 4))));
+  // Le bareme est celui de l'annee de l'AG (regle MYTHEC, cf. get-contrat). Les AG a
+  // venir tiennent sur une ou deux annees : on lit CHAQUE bareme une fois, pas un par
+  // copropriete.
+  const annees = new Set(
+    avecFin
+      .map((x) => x.copro.prochaineAg?.date)
+      .filter((d): d is string => Boolean(d) && d! >= aujourdhuiISO)
+      .map((d) => Number(d.slice(0, 4))),
+  );
   const completude = new Map<number, boolean>();
   await Promise.all(
     [...annees].map(async (annee) => {
@@ -103,9 +109,9 @@ export async function listerContratsAPreparer(
     avecFin
       .map(({ copro: c, fin }) => {
         const cycle = cycleSuivant(fin);
-        const anneeBareme = Number(cycle.debut.slice(0, 4));
         const agReferentiel = c.prochaineAg?.date ?? null;
         const perimee = agReferentiel !== null && agReferentiel < aujourdhuiISO;
+        const anneeBareme = agReferentiel && !perimee ? Number(agReferentiel.slice(0, 4)) : null;
         const reussie = (editions.get(c.code) ?? []).find((e) => e.statut === "termine") ?? null;
         const etat = etatContrat({
           aujourdhuiISO,
@@ -135,7 +141,7 @@ export async function listerContratsAPreparer(
             ? jours(aujourdhuiISO, dateConvocationISO)
             : null,
           anneeBareme,
-          baremeComplet: completude.get(anneeBareme) ?? false,
+          baremeComplet: anneeBareme === null ? true : (completude.get(anneeBareme) ?? false),
         };
       })
       // Ordre = l'ordre de TRAVAIL, pas l'ordre des echeances : le contrat se prepare
