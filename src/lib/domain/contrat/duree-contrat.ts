@@ -60,14 +60,43 @@ export function calculerDureeContrat(debutISO: string, finISO: string): DureeCon
     mois += 12;
   }
 
-  // Arrondi metier : quasi une annee pleine -> une annee nette.
+  // Arrondi metier : quasi une annee pleine -> une annee nette (regle du legacy).
   if (mois === 11 && jours >= 29) {
     annees += 1;
     mois = 0;
     jours = 0;
   }
 
+  // Meme logique pour un mois plein (durees libres, 14/09/2026) : un contrat du 01/04
+  // au 30/06 de l'annee suivante dure « 1 an, 3 mois », pas « 1 an, 2 mois, 29 jours ».
+  // La fin est la veille de l'anniversaire : la mesure inclusive tombe sur le mois net.
+  // Ne s'applique qu'a une fin de mois pleine (>= 29 jours de reste, comme le legacy),
+  // jamais a une date quelconque.
+  if (jours >= 29 && estVeilleDAnniversaireMensuel(debutISO, finISO)) {
+    mois += 1;
+    jours = 0;
+    if (mois === 12) {
+      annees += 1;
+      mois = 0;
+    }
+  }
+
   return { annees, mois, jours };
+}
+
+/** `finISO` + 1 jour tombe-t-il sur le meme jour du mois que `debutISO` (ou sur le 1er du
+ *  mois suivant quand ce jour n'existe pas) ? */
+function estVeilleDAnniversaireMensuel(debutISO: string, finISO: string): boolean {
+  const debut = parseISO(debutISO);
+  const fin = parseISO(finISO);
+  const lendemain = new Date(Date.UTC(fin.annee, fin.moisIndex0, fin.jour + 1));
+  const jourLendemain = lendemain.getUTCDate();
+  // Jour d'anniversaire attendu, borne au nombre de jours du mois d'arrivee.
+  const jourAttendu = Math.min(
+    debut.jour,
+    joursDansMois(lendemain.getUTCFullYear(), lendemain.getUTCMonth()),
+  );
+  return jourLendemain === jourAttendu;
 }
 
 /** Reproduit le libelle exact de l'Office Script : "X an(s), Y mois, Z jour(s)".

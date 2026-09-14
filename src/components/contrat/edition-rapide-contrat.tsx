@@ -34,6 +34,8 @@ export function EditionRapideContrat({ lignes }: { lignes: LigneContratAPreparer
           key={ligne.coproCode}
           coproCode={ligne.coproCode}
           dateAgISO={ligne.dateAgISO ?? ""}
+          debutISO={ligne.debutISO}
+          finISO={ligne.finISO}
           honorairesTtc={ligne.honorairesTtc ?? 0}
           forfaitPostauxTtc={ligne.forfaitPostauxTtc ?? 0}
         />

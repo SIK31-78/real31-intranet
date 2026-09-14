@@ -26,6 +26,11 @@ export interface ContratCopro {
   honorairesGestionTtc?: number;
   forfaitPostauxTtc?: number;
   /**
+   * Fin du cycle, ISO, quand elle est STOCKEE (contrats a duree libre depuis le
+   * 14/09/2026). Absente = ancienne regle, debut + 1 an - 1 jour.
+   */
+  finContrat?: string;
+  /**
    * Jour ou ce cycle a ete ENREGISTRE (created_at), ISO "YYYY-MM-DD". C'est le recap AG
    * qui l'ecrit : un cycle enregistre apres une AG dit que son recap a ete fait - alors
    * que sa date de DEBUT, elle, precede souvent l'AG (mandat retroactif au 1er du mois).
@@ -196,6 +201,9 @@ export interface DonneesContratCopro {
   nbCs: number | null;
   /** Fin du mandat en cours, ISO (`syndicContractEndDate`) : origine du cycle suivant. */
   finMandatISO: string | null;
+  /** Date de prise en gestion (`syndicInitialDate`), ISO : debut propose pour une
+   *  reprise, quand aucun cycle n'existe encore. */
+  priseEnGestionISO: string | null;
 }
 
 /** Une edition de contrat de syndic deja realisee (historique MYTHEC + editions futures). */
@@ -208,9 +216,24 @@ export interface EditionContrat {
   forfaitPostauxTtc: number | null;
   statut: "termine" | "erreur";
   messageErreur: string | null;
+  /** Cycle imprime sur le document. null pour les editions MYTHEC (non exportees). */
+  debutISO: string | null;
+  finISO: string | null;
   /** Horodatage de l'edition, ISO. */
   creeLe: string;
   creePar: string | null;
+}
+
+/** Ce que l'intranet enregistre quand il edite un contrat. */
+export interface NouvelleEditionContrat {
+  coproCode: string;
+  dateAgISO: string;
+  debutISO: string;
+  finISO: string;
+  honorairesGestionTtc: number;
+  forfaitPostauxTtc: number;
+  /** Nom complet de qui edite. */
+  creePar: string;
 }
 
 /** Une ligne du bareme annuel. */
@@ -263,10 +286,18 @@ export interface FacturationRepository {
    * Map vide si la table n'existe pas encore : meme degradation que listerEditionsContrat.
    */
   listerEditionsContrats(coproCodes: string[]): Promise<Map<string, EditionContrat[]>>;
+  /**
+   * Trace une edition realisee par l'intranet (statut « termine »). C'est ce qui fait
+   * passer la copro en « genere » dans la liste, et ce que le recap AG proposera.
+   * Ne leve pas si la table manque : l'edition n'est pas bloquee par sa trace.
+   */
+  enregistrerEditionContrat(input: NouvelleEditionContrat): Promise<void>;
   /** Ouvre un cycle de contrat (une AG en ouvre un). Renvoie son id. */
   creerContrat(input: {
     coproCode: string;
     debutContrat: string;
+    /** Fin du cycle (duree libre). Absente = debut + 1 an - 1 jour. */
+    finContrat?: string;
     honorairesGestionTtc?: number;
     /** true = frais reels refactures, false = forfait annuel. */
     fraisPostauxReels?: boolean;

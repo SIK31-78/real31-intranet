@@ -66,6 +66,7 @@ export class MockFacturationRepository implements FacturationRepository {
   async creerContrat(input: {
     coproCode: string;
     debutContrat: string;
+    finContrat?: string;
     honorairesGestionTtc?: number;
     fraisPostauxReels?: boolean;
     forfaitPostauxTtc?: number;
@@ -75,6 +76,7 @@ export class MockFacturationRepository implements FacturationRepository {
       id,
       coproCode: input.coproCode,
       debutContrat: input.debutContrat,
+      ...(input.finContrat !== undefined ? { finContrat: input.finContrat } : {}),
       ...(input.honorairesGestionTtc !== undefined
         ? { honorairesGestionTtc: input.honorairesGestionTtc }
         : {}),
@@ -112,6 +114,7 @@ export class MockFacturationRepository implements FacturationRepository {
       nbVisites: 1,
       nbCs: 1,
       finMandatISO: "2026-06-30",
+      priseEnGestionISO: "2019-07-01",
     };
   }
 
@@ -132,6 +135,10 @@ export class MockFacturationRepository implements FacturationRepository {
 
   async listerEditionsContrats(): Promise<Map<string, EditionContrat[]>> {
     return new Map();
+  }
+
+  async enregistrerEditionContrat(): Promise<void> {
+    // Pas d'historique en mock.
   }
 
   async getDernierContrat(coproCode: string): Promise<ContratCopro | null> {

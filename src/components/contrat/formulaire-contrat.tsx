@@ -1,6 +1,6 @@
 "use client";
 
-// Les trois valeurs que le gestionnaire ajuste AVANT d'editer le contrat.
+// Les valeurs que le gestionnaire ajuste AVANT d'editer le contrat.
 //
 // POURQUOI ELLES SE SAISISSENT, et ne sont pas seulement lues : l'historique des 460
 // generations MYTHEC le prouve. Sur 231 coproprietes, 56 contrats portent des honoraires
@@ -13,49 +13,106 @@
 // L'ecart s'affiche en pourcentage : le meme historique montre des saisies aberrantes
 // (100 € d'honoraires, 50 000 €, 200 € de timbres). Voir « +2,0 % » ou « x 3,3 » sous le
 // champ arrete la faute de frappe avant l'impression.
+//
+// DUREE LIBRE (Sekou, 14/09/2026) : le cycle n'est plus « debut + 1 an » impose. Debut
+// et fin se saisissent, avec trois raccourcis (1 an, 2 ans, 15 mois pour une reprise) et
+// le maximum legal de trois ans. Le document imprime la duree reelle.
+//
+// La soumission passe par une Server Action : elle TRACE l'edition (c'est ce qui fait
+// passer la copro en « genere » et nourrit le recap AG) puis ouvre le document.
 
 import { useState } from "react";
 import { FileText } from "lucide-react";
-import { ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
+import {
+  DUREES_CONTRAT_MOIS,
+  finDeCycle,
+  motifRefusCycle,
+} from "@/lib/domain/contrat/cycle-contrat";
+import { dureeContratTexte } from "@/lib/domain/contrat/duree-contrat";
+import { editerContratAction } from "@/app/contrat/actions";
+
+const JOUR_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function FormulaireContrat({
   coproCode,
   dateAgISO,
+  debutISO,
+  finISO,
   honorairesTtc,
   forfaitPostauxTtc,
 }: {
   coproCode: string;
   dateAgISO: string;
+  debutISO: string;
+  finISO: string;
   /** Honoraires du contrat EN COURS : la reference d'ou se mesure l'augmentation. */
   honorairesTtc: number;
   forfaitPostauxTtc: number;
 }) {
   const [ag, setAg] = useState(dateAgISO);
+  const [debut, setDebut] = useState(debutISO);
+  const [fin, setFin] = useState(finISO);
   const [honoraires, setHonoraires] = useState(String(honorairesTtc));
   const [timbres, setTimbres] = useState(String(forfaitPostauxTtc));
 
   const saisi = Number(honoraires.replace(",", "."));
-  const valide = Number.isFinite(saisi) && saisi > 0 && /^\d{4}-\d{2}-\d{2}$/.test(ag);
+  const datesLisibles = JOUR_RE.test(ag) && JOUR_RE.test(debut) && JOUR_RE.test(fin);
+  const refusCycle = datesLisibles ? motifRefusCycle(debut, fin) : null;
+  const valide = Number.isFinite(saisi) && saisi > 0 && datesLisibles && refusCycle === null;
   const ecart =
     honorairesTtc > 0 && Number.isFinite(saisi) && saisi !== honorairesTtc
       ? (saisi / honorairesTtc - 1) * 100
       : null;
+  // Duree telle qu'elle s'imprimera, pour que « 15 mois » se lise avant d'editer.
+  const duree = datesLisibles && refusCycle === null ? dureeContratTexte(debut, fin) : null;
 
-  const href =
-    `/contrat/${coproCode}/imprimer?ag=${encodeURIComponent(ag)}` +
-    `&honoraires=${encodeURIComponent(honoraires.replace(",", "."))}` +
-    `&timbres=${encodeURIComponent(timbres.replace(",", "."))}`;
+  // Un raccourci recalcule la fin depuis le debut. Changer le debut garde la fin en
+  // place (le gestionnaire la voit et la corrige) - sauf quand elle est vide : poser un
+  // debut sur un formulaire vierge propose un an, comme partout ailleurs.
+  const poserDuree = (mois: number) => {
+    if (JOUR_RE.test(debut)) setFin(finDeCycle(debut, mois));
+  };
+  const poserDebut = (v: string) => {
+    setDebut(v);
+    if (fin === "" && JOUR_RE.test(v)) setFin(finDeCycle(v));
+  };
+  const dureeActive = (mois: number) => JOUR_RE.test(debut) && finDeCycle(debut, mois) === fin;
 
   return (
-    <div className="flex flex-col gap-3">
+    <form action={editerContratAction} className="flex flex-col gap-3">
+      <input type="hidden" name="copro" value={coproCode} />
       <div className="flex flex-wrap items-end gap-4">
         <Field label="Date de l'assemblée">
-          <Input type="date" value={ag} onChange={(e) => setAg(e.target.value)} largeur="auto" />
+          <Input type="date" name="ag" value={ag} onChange={(e) => setAg(e.target.value)} largeur="auto" />
         </Field>
+        <Field label="Début du contrat">
+          <Input type="date" name="debut" value={debut} onChange={(e) => poserDebut(e.target.value)} largeur="auto" />
+        </Field>
+        <Field label="Fin du contrat">
+          <Input type="date" name="fin" value={fin} onChange={(e) => setFin(e.target.value)} largeur="auto" />
+        </Field>
+        <div className="flex items-center gap-1 pb-1" role="group" aria-label="Durée du contrat">
+          {DUREES_CONTRAT_MOIS.map((d) => (
+            <Button
+              key={d.mois}
+              type="button"
+              variant={dureeActive(d.mois) ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => poserDuree(d.mois)}
+              title={"aide" in d ? d.aide : undefined}
+            >
+              {d.libelle}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-end gap-4">
         <Field label="Honoraires de gestion (TTC)">
           <Input
             type="text"
+            name="honoraires"
             inputMode="decimal"
             value={honoraires}
             onChange={(e) => setHonoraires(e.target.value)}
@@ -66,6 +123,7 @@ export function FormulaireContrat({
         <Field label="Forfait timbres (TTC)">
           <Input
             type="text"
+            name="timbres"
             inputMode="decimal"
             value={timbres}
             onChange={(e) => setTimbres(e.target.value)}
@@ -73,12 +131,20 @@ export function FormulaireContrat({
             className="tabular-nums"
           />
         </Field>
-        <ButtonLink href={valide ? href : "#"} variant="primary" aria-disabled={!valide}>
+        <Button type="submit" variant="primary" disabled={!valide}>
           <FileText strokeWidth={1.5} />
           Éditer le contrat
-        </ButtonLink>
+        </Button>
       </div>
 
+      {refusCycle !== null && (
+        <p className="text-body text-err-700">Cycle refusé : {refusCycle}.</p>
+      )}
+      {duree !== null && (
+        <p className="text-body text-ink-2">
+          Durée imprimée : <span className="font-medium">{duree}</span>.
+        </p>
+      )}
       {ecart !== null && (
         <p className={`text-body ${Math.abs(ecart) > 20 ? "text-warn-700" : "text-ink-2"}`}>
           {ecart > 0 ? "Augmentation" : "Baisse"} de{" "}
@@ -89,6 +155,6 @@ export function FormulaireContrat({
           {Math.abs(ecart) > 20 && " — écart inhabituel, à vérifier avant d'éditer"}.
         </p>
       )}
-    </div>
+    </form>
   );
 }

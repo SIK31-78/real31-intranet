@@ -6,7 +6,7 @@
 // et tous les contrats imprimes changeront.
 
 import { describe, expect, it } from "vitest";
-import { cycleSuivant, finContratEnCours, finDeCycle } from "./cycle-contrat";
+import { cycleSuivant, finContratEnCours, finDeCycle, motifRefusCycle } from "./cycle-contrat";
 import { dureeContratTexte } from "./duree-contrat";
 
 describe("cycleSuivant", () => {
@@ -53,6 +53,42 @@ describe("finDeCycle", () => {
   it("refuse une date illisible", () => {
     expect(() => finDeCycle("01/07/2026")).toThrow(/illisible/);
   });
+
+  // Durees libres (Sekou, 14/09/2026) : 2 ans, ou 15 mois pour une reprise.
+  it("calcule une fin a 2 ans et a 15 mois", () => {
+    expect(finDeCycle("2026-07-01", 24)).toBe("2028-06-30");
+    expect(finDeCycle("2026-04-01", 15)).toBe("2027-06-30");
+  });
+
+  it("ramene au dernier jour du mois quand le jour n'existe pas a l'arrivee", () => {
+    // 31/01 + 1 mois = « 31/02 » -> 28/02, moins un jour -> 27/02.
+    expect(finDeCycle("2026-01-31", 1)).toBe("2026-02-27");
+    // 31/03 + 15 mois = 31/06 inexistant -> 30/06, moins un jour -> 29/06.
+    expect(finDeCycle("2026-03-31", 15)).toBe("2027-06-29");
+  });
+
+  it("le document affiche la duree reelle : « 2 ans » et « 1 an, 3 mois »", () => {
+    expect(dureeContratTexte("2026-07-01", finDeCycle("2026-07-01", 24))).toBe("2 ans, 0 mois, 0 jour");
+    expect(dureeContratTexte("2026-04-01", finDeCycle("2026-04-01", 15))).toBe("1 an, 3 mois, 0 jour");
+  });
+});
+
+describe("motifRefusCycle", () => {
+  it("accepte 1 an, 2 ans, 15 mois et pile 3 ans", () => {
+    expect(motifRefusCycle("2026-07-01", "2027-06-30")).toBeNull();
+    expect(motifRefusCycle("2026-07-01", "2028-06-30")).toBeNull();
+    expect(motifRefusCycle("2026-04-01", "2027-06-30")).toBeNull();
+    expect(motifRefusCycle("2026-07-01", "2029-06-30")).toBeNull();
+  });
+
+  it("refuse plus de trois ans (maximum legal d'un mandat)", () => {
+    expect(motifRefusCycle("2026-07-01", "2029-07-01")).toMatch(/trois ans/);
+  });
+
+  it("refuse une fin qui ne suit pas le debut", () => {
+    expect(motifRefusCycle("2026-07-01", "2026-07-01")).toMatch(/après le début/);
+    expect(motifRefusCycle("2026-07-01", "2026-06-30")).toMatch(/après le début/);
+  });
 });
 
 // LE test qui vient d'un vrai constat terrain : Sekou, 2026-09-11, « 31 FOCH n'est pas
@@ -76,6 +112,16 @@ describe("finContratEnCours", () => {
   it("renvoie null quand aucune source ne dit rien (la copro sort de la liste)", () => {
     expect(finContratEnCours(null, null)).toBeNull();
     expect(finContratEnCours(undefined, undefined)).toBeNull();
+  });
+
+  it("prefere la fin STOCKEE du cycle a la fin deduite (contrat de 2 ans)", () => {
+    // Cycle enregistre 01/07/2026 -> 30/06/2028 : sans la fin stockee, on dirait
+    // 30/06/2027 et on preparerait un renouvellement un an trop tot.
+    expect(finContratEnCours("2026-06-30", "2026-07-01", "2028-06-30")).toBe("2028-06-30");
+  });
+
+  it("retombe sur debut + 1 an quand la fin n'est pas stockee (cycles anciens)", () => {
+    expect(finContratEnCours("2026-06-30", "2026-07-01", null)).toBe("2027-06-30");
   });
 
   it("ignore une date de referentiel illisible plutot que de la comparer de travers", () => {

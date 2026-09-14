@@ -10,6 +10,7 @@ import type {
   EditionContrat,
   LigneBareme,
   LigneGestionCourante,
+  NouvelleEditionContrat,
   FactureHistorique,
   NouvelleFacture,
   ParametresCopro,
@@ -23,8 +24,36 @@ type ContratRow = {
   debut_contrat: string;
   honoraires_gestion_ttc: number | null;
   forfait_postaux_ttc: number | null;
+  fin_contrat?: string | null;
   created_at?: string;
 };
+
+// Colonnes du suivi des contrats. `fin_contrat` est arrivee le 14/09/2026 (duree libre) :
+// tant que le SQL n'est pas passe, la lecture retombe sur les colonnes historiques
+// plutot que de casser toutes les pages qui lisent un contrat.
+const COLS_CONTRAT_BASE =
+  "id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, created_at";
+const COLS_CONTRAT = `${COLS_CONTRAT_BASE}, fin_contrat`;
+const COLS_EDITION_BASE =
+  "copropriete_id, titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par";
+const COLS_EDITION = `${COLS_EDITION_BASE}, debut_contrat, fin_contrat`;
+function colonneAbsente(message: string | undefined, colonne: string): boolean {
+  return Boolean(message && message.includes(colonne));
+}
+
+function contratDepuisLigne(r: ContratRow): ContratCopro {
+  return {
+    id: r.id,
+    coproCode: r.copropriete_id,
+    debutContrat: r.debut_contrat.slice(0, 10),
+    ...(r.honoraires_gestion_ttc !== null
+      ? { honorairesGestionTtc: Number(r.honoraires_gestion_ttc) }
+      : {}),
+    ...(r.forfait_postaux_ttc !== null ? { forfaitPostauxTtc: Number(r.forfait_postaux_ttc) } : {}),
+    ...(r.fin_contrat ? { finContrat: r.fin_contrat.slice(0, 10) } : {}),
+    ...(r.created_at ? { enregistreLeISO: r.created_at.slice(0, 10) } : {}),
+  };
+}
 
 export class SupabaseFacturationRepository implements FacturationRepository {
   async getTarifTtc(identifiantPrestation: string, annee: number): Promise<number | null> {
@@ -70,30 +99,23 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     // en avance) : sans le filtre <= aujourd'hui, on resoudrait le barème sur un
     // contrat pas encore actif.
     const aujourdhui = new Date().toISOString().slice(0, 10);
-    const { data, error } = await supabase
-      .from("intranet_suivi_contrats")
-      .select("id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc")
-      .eq("copropriete_id", coproCode)
-      .lte("debut_contrat", aujourdhui)
-      .order("debut_contrat", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const requete = (cols: string) =>
+      supabase
+        .from("intranet_suivi_contrats")
+        .select(cols)
+        .eq("copropriete_id", coproCode)
+        .lte("debut_contrat", aujourdhui)
+        .order("debut_contrat", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    let { data, error } = await requete(COLS_CONTRAT);
+    if (error && colonneAbsente(error.message, "fin_contrat")) {
+      ({ data, error } = await requete(COLS_CONTRAT_BASE));
+    }
 
     if (error) throw new Error(`Lecture contrat ${coproCode} : ${error.message}`);
     if (!data) return null;
-
-    const r = data as ContratRow;
-    return {
-      id: r.id,
-      coproCode: r.copropriete_id,
-      debutContrat: r.debut_contrat,
-      ...(r.honoraires_gestion_ttc !== null
-        ? { honorairesGestionTtc: Number(r.honoraires_gestion_ttc) }
-        : {}),
-      ...(r.forfait_postaux_ttc !== null
-        ? { forfaitPostauxTtc: Number(r.forfait_postaux_ttc) }
-        : {}),
-    };
+    return contratDepuisLigne(data as unknown as ContratRow);
   }
 
   async chargerProduits(): Promise<Produit[]> {
@@ -330,26 +352,61 @@ export class SupabaseFacturationRepository implements FacturationRepository {
   async creerContrat(input: {
     coproCode: string;
     debutContrat: string;
+    finContrat?: string;
     honorairesGestionTtc?: number;
     fraisPostauxReels?: boolean;
     forfaitPostauxTtc?: number;
   }): Promise<string> {
     const supabase = createSupabasePublicClient();
-    const { data, error } = await supabase
-      .from("intranet_suivi_contrats")
-      .insert({
-        copropriete_id: input.coproCode,
-        debut_contrat: input.debutContrat,
-        honoraires_gestion_ttc: input.honorairesGestionTtc ?? null,
-        frais_postaux_reels: input.fraisPostauxReels ?? null,
-        forfait_postaux_ttc: input.forfaitPostauxTtc ?? null,
-      })
-      .select("id")
-      .single();
+    const ligne = {
+      copropriete_id: input.coproCode,
+      debut_contrat: input.debutContrat,
+      honoraires_gestion_ttc: input.honorairesGestionTtc ?? null,
+      frais_postaux_reels: input.fraisPostauxReels ?? null,
+      forfait_postaux_ttc: input.forfaitPostauxTtc ?? null,
+    };
+    const inserer = (l: Record<string, unknown>) =>
+      supabase.from("intranet_suivi_contrats").insert(l).select("id").single();
+    let { data, error } = await inserer(
+      input.finContrat ? { ...ligne, fin_contrat: input.finContrat } : ligne,
+    );
+    // Colonne pas encore creee : on enregistre sans la fin plutot que de perdre le
+    // recap, et on le dit - la fin deduite (debut + 1 an) sera fausse pour un
+    // contrat de 2 ans tant que le SQL n'est pas passe.
+    if (error && input.finContrat && colonneAbsente(error.message, "fin_contrat")) {
+      console.warn(
+        `[suivi-contrats] fin_contrat absente en base, cycle ${input.coproCode} enregistre sans sa fin (${input.finContrat}). Passer supabase/sql/intranet_contrats_duree_libre.sql.`,
+      );
+      ({ data, error } = await inserer(ligne));
+    }
     if (error || !data) {
       throw new Error(`Creation contrat ${input.coproCode} : ${error?.message ?? "aucun id"}`);
     }
     return (data as { id: string }).id;
+  }
+
+  async enregistrerEditionContrat(input: NouvelleEditionContrat): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const base = {
+      copropriete_id: input.coproCode,
+      titre: `Contrat-${input.coproCode}-${new Date().toISOString().slice(0, 10)}`,
+      date_ag: input.dateAgISO,
+      honoraires_gestion_ttc: input.honorairesGestionTtc,
+      forfait_postaux_ttc: input.forfaitPostauxTtc,
+      statut: "termine",
+      cree_le: new Date().toISOString(),
+      cree_par: input.creePar,
+    };
+    let { error } = await supabase
+      .from("intranet_historique_contrats")
+      .insert({ ...base, debut_contrat: input.debutISO, fin_contrat: input.finISO });
+    if (error && (colonneAbsente(error.message, "fin_contrat") || colonneAbsente(error.message, "debut_contrat"))) {
+      ({ error } = await supabase.from("intranet_historique_contrats").insert(base));
+    }
+    // La trace ne doit jamais empecher d'imprimer le contrat.
+    if (error) {
+      console.warn(`[historique-contrats] edition non tracee (${input.coproCode}) : ${error.message}`);
+    }
   }
 
   async getDonneesContrat(coproCode: string): Promise<DonneesContratCopro | null> {
@@ -357,7 +414,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     const colonnes =
       "referenceCrypto, name, address1, address2, address3, postalCode, city, " +
       "registrationNumber, insuranceCompany, insuranceSubscriptionDate, agencyId, " +
-      "mainLotsCount, otherLotsCount, visitCount, csCount, syndicContractEndDate";
+      "mainLotsCount, otherLotsCount, visitCount, csCount, syndicContractEndDate, syndicInitialDate";
     // Meme cascade que getParametresCopro : le code peut etre une reference Crypto
     // (S0xxx) ou eStale selon la source de la copro.
     const requete = (colonne: string) =>
@@ -393,35 +450,30 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       nbVisites: nombre(r.visitCount),
       nbCs: nombre(r.csCount),
       finMandatISO: jour(r.syndicContractEndDate),
+      priseEnGestionISO: jour(r.syndicInitialDate),
     };
   }
 
   async listerDerniersContrats(coproCodes: string[]): Promise<Map<string, ContratCopro>> {
     if (coproCodes.length === 0) return new Map();
     const supabase = createSupabasePublicClient();
-    const { data, error } = await supabase
-      .from("intranet_suivi_contrats")
-      .select("id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, created_at")
-      .in("copropriete_id", coproCodes)
-      .order("debut_contrat", { ascending: false });
+    const requete = (cols: string) =>
+      supabase
+        .from("intranet_suivi_contrats")
+        .select(cols)
+        .in("copropriete_id", coproCodes)
+        .order("debut_contrat", { ascending: false });
+    let { data, error } = await requete(COLS_CONTRAT);
+    if (error && colonneAbsente(error.message, "fin_contrat")) {
+      ({ data, error } = await requete(COLS_CONTRAT_BASE));
+    }
 
     if (error) throw new Error(`Lecture des contrats de gestion : ${error.message}`);
     // Trie decroissant : la PREMIERE ligne vue pour une copro est la plus recente.
     const parCopro = new Map<string, ContratCopro>();
-    for (const r of (data ?? []) as ContratRow[]) {
+    for (const r of (data ?? []) as unknown as ContratRow[]) {
       if (parCopro.has(r.copropriete_id)) continue;
-      parCopro.set(r.copropriete_id, {
-        id: r.id,
-        coproCode: r.copropriete_id,
-        debutContrat: r.debut_contrat.slice(0, 10),
-        ...(r.honoraires_gestion_ttc !== null
-          ? { honorairesGestionTtc: Number(r.honoraires_gestion_ttc) }
-          : {}),
-        ...(r.forfait_postaux_ttc !== null
-          ? { forfaitPostauxTtc: Number(r.forfait_postaux_ttc) }
-          : {}),
-        ...(r.created_at ? { enregistreLeISO: r.created_at.slice(0, 10) } : {}),
-      });
+      parCopro.set(r.copropriete_id, contratDepuisLigne(r));
     }
     return parCopro;
   }
@@ -435,13 +487,17 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     const parCopro = new Map<string, EditionContrat[]>();
     if (coproCodes.length === 0) return parCopro;
     const supabase = createSupabasePublicClient();
-    const { data, error } = await supabase
-      .from("intranet_historique_contrats")
-      .select(
-        "copropriete_id, titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par",
-      )
-      .in("copropriete_id", coproCodes)
-      .order("cree_le", { ascending: false });
+    const requete = (cols: string) =>
+      supabase
+        .from("intranet_historique_contrats")
+        .select(cols)
+        .in("copropriete_id", coproCodes)
+        .order("cree_le", { ascending: false });
+    let { data, error } = await requete(COLS_EDITION);
+    // Postgres ne nomme que la PREMIERE colonne absente : tester les deux.
+    if (error && (colonneAbsente(error.message, "debut_contrat") || colonneAbsente(error.message, "fin_contrat"))) {
+      ({ data, error } = await requete(COLS_EDITION_BASE));
+    }
 
     // Table absente (SQL pas encore passe) : l'historique est un confort, on degrade a
     // vide plutot que d'empecher d'editer un contrat.
@@ -450,7 +506,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       return parCopro;
     }
     for (const r of data ?? []) {
-      const e = r as {
+      const e = r as unknown as {
         copropriete_id: string;
         titre: string | null;
         date_ag: string | null;
@@ -458,6 +514,8 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         forfait_postaux_ttc: number | null;
         statut: string;
         message_erreur: string | null;
+        debut_contrat?: string | null;
+        fin_contrat?: string | null;
         cree_le: string;
         cree_par: string | null;
       };
@@ -470,6 +528,8 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         forfaitPostauxTtc: e.forfait_postaux_ttc === null ? null : Number(e.forfait_postaux_ttc),
         statut: e.statut === "erreur" ? ("erreur" as const) : ("termine" as const),
         messageErreur: e.message_erreur,
+        debutISO: e.debut_contrat ? e.debut_contrat.slice(0, 10) : null,
+        finISO: e.fin_contrat ? e.fin_contrat.slice(0, 10) : null,
         creeLe: e.cree_le,
         creePar: e.cree_par,
       });

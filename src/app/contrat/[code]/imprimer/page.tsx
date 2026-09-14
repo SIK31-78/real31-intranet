@@ -22,10 +22,16 @@ export default async function ContratImprimerPage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ ag?: string; honoraires?: string; timbres?: string }>;
+  searchParams: Promise<{
+    ag?: string;
+    debut?: string;
+    fin?: string;
+    honoraires?: string;
+    timbres?: string;
+  }>;
 }) {
   const { code } = await params;
-  const { ag, honoraires, timbres } = await searchParams;
+  const { ag, debut, fin, honoraires, timbres } = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
@@ -40,6 +46,8 @@ export default async function ContratImprimerPage({
   try {
     champs = await getContrat(code, {
       ...(ag ? { dateAgISO: ag } : {}),
+      ...(debut ? { debutISO: debut } : {}),
+      ...(fin ? { finISO: fin } : {}),
       ...(nombreOuUndefined(honoraires) !== undefined
         ? { honorairesGestionTtc: nombreOuUndefined(honoraires)! }
         : {}),

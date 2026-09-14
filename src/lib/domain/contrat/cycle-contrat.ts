@@ -57,23 +57,50 @@ export function cycleSuivant(finPrecedenteISO: string): CycleContrat {
   return { debut: toISO(debut), fin: toISO(fin) };
 }
 
+/** Durees de contrat proposees au gestionnaire, en mois. La premiere est la regle. */
+export const DUREES_CONTRAT_MOIS = [
+  { mois: 12, libelle: "1 an" },
+  { mois: 24, libelle: "2 ans" },
+  { mois: 15, libelle: "15 mois", aide: "reprise : jusqu'a la fin de l'exercice suivant" },
+] as const;
+
+/** Un mandat de syndic ne peut exceder trois ans (decret du 17 mars 1967, art. 28). */
+export const DUREE_MAX_CONTRAT_MOIS = 36;
+
 /**
- * Fin d'un cycle a partir de son DEBUT : debut + 1 an - 1 jour. Exact inverse de
- * `cycleSuivant`, qui rend `fin = debut + 1 an - 1 jour` lui aussi (verifie par test).
- * Sert a dater la fin d'un contrat enregistre dans `intranet_suivi_contrats`, qui ne
- * porte que la date de DEBUT.
+ * Fin d'un cycle a partir de son DEBUT et de sa duree : debut + `mois` - 1 jour.
+ * A 12 mois c'est l'exact inverse de `cycleSuivant` (verifie par test). Sert a dater
+ * la fin d'un contrat dont on ne connait que le debut (cycles enregistres avant que
+ * la fin soit stockee) et a proposer une fin quand le gestionnaire choisit une duree.
+ *
+ * Un jour qui n'existe pas dans le mois d'arrivee (31 + 1 mois, 29/02 hors bissextile)
+ * est ramene au dernier jour du mois, jamais reporte au mois suivant.
  */
-export function finDeCycle(debutISO: string): string {
+export function finDeCycle(debutISO: string, mois = 12): string {
   if (!JOUR_RE.test(debutISO)) {
     throw new Error(`Cycle de contrat : date de debut illisible ("${debutISO}").`);
   }
   const d = parseISO(debutISO);
   const jourInitial = d.getUTCDate();
-  const moisInitial = d.getUTCMonth();
-  d.setUTCFullYear(d.getUTCFullYear() + 1);
-  if (d.getUTCMonth() !== moisInitial || d.getUTCDate() !== jourInitial) d.setUTCDate(0);
+  const moisCible = (d.getUTCMonth() + mois) % 12;
+  d.setUTCMonth(d.getUTCMonth() + mois);
+  if (d.getUTCMonth() !== moisCible || d.getUTCDate() !== jourInitial) d.setUTCDate(0);
   d.setUTCDate(d.getUTCDate() - 1);
   return toISO(d);
+}
+
+/**
+ * Le cycle propose est-il acceptable ? Renvoie le motif du refus, ou null.
+ * Regles : fin apres le debut, et jamais plus de trois ans (le maximum legal d'un
+ * mandat de syndic).
+ */
+export function motifRefusCycle(debutISO: string, finISO: string): string | null {
+  if (!JOUR_RE.test(debutISO) || !JOUR_RE.test(finISO)) return "dates illisibles";
+  if (finISO <= debutISO) return "la fin doit être après le début";
+  if (finISO > finDeCycle(debutISO, DUREE_MAX_CONTRAT_MOIS)) {
+    return "un mandat de syndic ne peut pas dépasser trois ans";
+  }
+  return null;
 }
 
 /**
@@ -86,13 +113,22 @@ export function finDeCycle(debutISO: string): string {
  * demarre le 01/07/2026. Se fier au seul referentiel affichait « echu depuis 73 jours »
  * des contrats signes - et faisait calculer le cycle suivant un an trop tot.
  *
- * `debutDernierCycle` : `intranet_suivi_contrats.debut_contrat` le plus recent, ou null.
+ * `debutDernierCycle` : `intranet_suivi_contrats.debut_contrat` le plus recent, ou null ;
+ * `finDernierCycle` : sa `fin_contrat` si elle est renseignee (duree libre).
  */
 export function finContratEnCours(
   finReferentielISO: string | null | undefined,
   debutDernierCycleISO: string | null | undefined,
+  finDernierCycleISO?: string | null,
 ): string | null {
-  const finIntranet = debutDernierCycleISO ? finDeCycle(debutDernierCycleISO) : null;
+  // La fin STOCKEE du cycle prime (contrats a duree libre) ; a defaut, l'ancienne
+  // regle du debut + 1 an, qui reste vraie pour tout ce qui a ete enregistre avant.
+  const finIntranet =
+    finDernierCycleISO && JOUR_RE.test(finDernierCycleISO)
+      ? finDernierCycleISO
+      : debutDernierCycleISO
+        ? finDeCycle(debutDernierCycleISO)
+        : null;
   const candidates = [finReferentielISO, finIntranet].filter(
     (d): d is string => Boolean(d) && JOUR_RE.test(d!),
   );

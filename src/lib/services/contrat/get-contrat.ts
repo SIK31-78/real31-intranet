@@ -10,7 +10,12 @@
 import { getCoproRepository, getFacturationRepository } from "@/lib/adapters/router";
 import type { EditionContrat } from "@/lib/ports/facturation-repository";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
-import { cycleSuivant, finContratEnCours } from "@/lib/domain/contrat/cycle-contrat";
+import {
+  cycleSuivant,
+  finContratEnCours,
+  finDeCycle,
+  motifRefusCycle,
+} from "@/lib/domain/contrat/cycle-contrat";
 import {
   assemblerChampsContrat,
   PRESTATIONS_CONTRAT,
@@ -23,6 +28,13 @@ import {
 export interface OptionsContrat {
   /** Date de l'AG qui vote le contrat, ISO. Defaut : la prochaine AG planifiee, sinon le debut du cycle. */
   dateAgISO?: string;
+  /**
+   * Debut et fin du cycle (duree libre, 14/09/2026). Defaut : lendemain de la fin du
+   * mandat en cours, et debut + 1 an - 1 jour. Une reprise sans aucun cycle demarre a
+   * la prise en gestion.
+   */
+  debutISO?: string;
+  finISO?: string;
   /** Honoraires annuels TTC. Defaut : ceux du contrat en cours. */
   honorairesGestionTtc?: number;
   /** Forfait timbres annuel TTC. Defaut : celui du contrat en cours. */
@@ -48,10 +60,13 @@ export async function getContrat(
   options: OptionsContrat = {},
 ): Promise<ChampsContrat> {
   const repo = getFacturationRepository();
-  const [donnees, parametres, contratCourant, editions, coproRef] = await Promise.all([
+  const [donnees, parametres, derniersContrats, editions, coproRef] = await Promise.all([
     repo.getDonneesContrat(coproCode),
     repo.getParametresCopro(coproCode),
-    repo.getDernierContrat(coproCode),
+    // Le DERNIER cycle enregistre, meme s'il n'a pas commence : un renouvellement deja
+    // acte par le recap est ce que le prochain contrat doit suivre. Meme lecture que la
+    // liste, pour que la fiche et la liste racontent le meme cycle.
+    repo.listerDerniersContrats([coproCode]),
     repo.listerEditionsContrat(coproCode),
     // La date d'AG n'est PAS une donnee du contrat : c'est celle de l'assemblee qui va le
     // voter, et au moment ou on genere (la convocation) elle est deja fixee - c'est meme
@@ -68,17 +83,37 @@ export async function getContrat(
   );
 
   if (!donnees) throw new Error(`Contrat de syndic : copropriete ${coproCode} introuvable.`);
+  const contratCourant = derniersContrats.get(coproCode);
   // La fin du contrat EN COURS croise les deux sources : le referentiel App A n'est pas
   // mis a jour au renouvellement, l'intranet si (cf. finContratEnCours).
-  const finEnCours = finContratEnCours(donnees.finMandatISO, contratCourant?.debutContrat);
-  if (!finEnCours) {
+  const finEnCours = finContratEnCours(
+    donnees.finMandatISO,
+    contratCourant?.debutContrat,
+    contratCourant?.finContrat,
+  );
+
+  // Le cycle propose : a la suite du mandat en cours ; pour une reprise sans aucun
+  // mandat connu, a la prise en gestion. Le gestionnaire peut imposer les deux bornes
+  // (contrat de 2 ans, 15 mois de reprise...) : on ne verifie que leur coherence.
+  let cycle: { debut: string; fin: string };
+  if (options.debutISO) {
+    cycle = { debut: options.debutISO, fin: options.finISO ?? finDeCycle(options.debutISO) };
+  } else if (finEnCours) {
+    const suivant = cycleSuivant(finEnCours);
+    cycle = { debut: suivant.debut, fin: options.finISO ?? suivant.fin };
+  } else if (donnees.priseEnGestionISO) {
+    cycle = {
+      debut: donnees.priseEnGestionISO,
+      fin: options.finISO ?? finDeCycle(donnees.priseEnGestionISO),
+    };
+  } else {
     throw new Error(
-      `Contrat de syndic : la copropriete ${coproCode} n'a ni fin de mandat au referentiel ` +
-        `ni cycle enregistre, impossible de calculer le cycle suivant.`,
+      `Contrat de syndic : la copropriété ${coproCode} n'a ni fin de mandat au référentiel, ` +
+        `ni cycle enregistré, ni date de prise en gestion : saisir le début du contrat.`,
     );
   }
-
-  const cycle = cycleSuivant(finEnCours);
+  const refus = motifRefusCycle(cycle.debut, cycle.fin);
+  if (refus) throw new Error(`Contrat de syndic : ${refus} (${cycle.debut} → ${cycle.fin}).`);
   // L'AG planifiee d'abord ; a defaut le debut du cycle, qui reste editable dans le
   // formulaire. Mieux qu'une date inventee.
   const dateAgISO = options.dateAgISO ?? coproRef?.prochaineAg?.date ?? cycle.debut;

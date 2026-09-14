@@ -19,7 +19,8 @@ export interface LigneContratAPreparer {
   nom: string;
   /** Fin du mandat en cours, ISO. */
   finMandatISO: string;
-  /** Cycle suivant, deduit de cette fin. */
+  /** Cycle suivant propose : lendemain de cette fin, et un an - 1 jour. Le gestionnaire
+   *  peut en changer a l'edition (duree libre). */
   debutISO: string;
   finISO: string;
   /** Jours restants avant la fin du mandat (negatif = mandat deja echu). */
@@ -91,7 +92,8 @@ export async function listerContratsAPreparer(
   ]);
   const avecFin = copros
     .map((copro) => {
-      const fin = finContratEnCours(copro.mandatSyndicFin, contrats.get(copro.code)?.debutContrat);
+      const dernier = contrats.get(copro.code);
+      const fin = finContratEnCours(copro.mandatSyndicFin, dernier?.debutContrat, dernier?.finContrat);
       return fin ? { copro, fin } : null;
     })
     .filter((x): x is { copro: (typeof copros)[number]; fin: string } => x !== null);

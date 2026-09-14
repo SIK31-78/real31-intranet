@@ -32,15 +32,39 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
   } catch (e) {
     const message = (e as Error).message;
     if (/introuvable/.test(message)) notFound();
-    // Mandat sans date de fin, bareme incomplet, honoraires inconnus : toutes des causes
-    // que le gestionnaire peut corriger. On les dit, on ne cache pas l'ecran.
+    // Ce qui manque est-il SAISISSABLE ? Honoraires inconnus, ou aucun cycle a suivre
+    // (une reprise : ni mandat au referentiel, ni cycle, ni prise en gestion) : on montre
+    // le formulaire VIDE plutot qu'une erreur - c'est justement la que le gestionnaire
+    // entre les valeurs du contrat de reprise. Le bareme incomplet, lui, ne se saisit
+    // pas ici : on le dit et on s'arrete.
+    const saisissable = /honoraire|saisir le début/.test(message);
     return (
       <AppShell user={g} active="contrat" breadcrumb={`Copropriétés · ${code} · Contrat`}>
         <Page largeur="travail">
           <PageHeader titre="Contrat de syndic" eyebrow={code} />
-          <Callout ton="err" titre="Contrat impossible à éditer">
-            {message}
-          </Callout>
+          {saisissable ? (
+            <>
+              <Callout ton="warn" titre="Rien à proposer : à saisir">
+                {message}
+              </Callout>
+              <Card>
+                <CardBody>
+                  <FormulaireContrat
+                    coproCode={code}
+                    dateAgISO=""
+                    debutISO=""
+                    finISO=""
+                    honorairesTtc={0}
+                    forfaitPostauxTtc={0}
+                  />
+                </CardBody>
+              </Card>
+            </>
+          ) : (
+            <Callout ton="err" titre="Contrat impossible à éditer">
+              {message}
+            </Callout>
+          )}
           <div>
             <ButtonLink href={`/copropriete/${code}`} variant="secondary">
               Retour à la copropriété
@@ -74,6 +98,8 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
             <FormulaireContrat
               coproCode={code}
               dateAgISO={champs.dateAgISO}
+              debutISO={champs.debutISO}
+              finISO={champs.finISO}
               honorairesTtc={champs.honorairesGestionTtc}
               forfaitPostauxTtc={champs.forfaitPostauxTtc}
             />
