@@ -39,6 +39,18 @@ describe("etatContrat", () => {
     ).toBe("recap-a-faire");
   });
 
+  it("S013 MURGERS19 : contrat edite pour une AG a venir que le referentiel ignore -> genere", () => {
+    // Le contrat existe ; c'est la date d'AG qui manque sur la fiche, pas le contrat.
+    expect(
+      etatContrat({
+        aujourdhuiISO: AUJOURDHUI,
+        prochaineAgISO: null,
+        derniereEditionAgISO: "2026-09-24",
+        dernierCycleEnregistreLeISO: "2026-07-22",
+      }),
+    ).toBe("genere");
+  });
+
   it("apres le recap (cycle ouvert apres l'AG), la copro retombe en « a planifier »", () => {
     expect(
       etatContrat({

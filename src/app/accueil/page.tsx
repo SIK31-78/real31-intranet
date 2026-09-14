@@ -17,6 +17,7 @@ import { getAffairesEnCours } from "@/lib/services/affaires/get-affaires-en-cour
 import { getAccueilComplement } from "@/lib/services/accueil/get-accueil-complement";
 import { getAnnoncesActives } from "@/lib/services/annonces/get-annonces-actives";
 import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
+import { listerMandatsSansAg } from "@/lib/services/contrat/mandats-sans-ag";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -29,6 +30,7 @@ import { AnnoncesPanel } from "@/components/dashboard/annonces-panel";
 import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
 import { EchangesComptablesPanel } from "@/components/dashboard/echanges-comptables-panel";
 import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
+import { AlerteMandatsSansAg } from "@/components/contrat/alerte-mandats-sans-ag";
 
 export const metadata: Metadata = { title: "Accueil - REAL31 Intranet" };
 
@@ -41,7 +43,7 @@ export default async function AccueilPage() {
 
   const today = new Date().toISOString().slice(0, 10);
   // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id.
-  const [agSemaine, affaires, complement, annonces, recapsEnRetard] = await Promise.all([
+  const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg] = await Promise.all([
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
     getAccueilComplement(g),
@@ -51,6 +53,9 @@ export default async function AccueilPage() {
     // comptable pur (pageAccueilPour le renvoie sur /comptabilite), le cadrage est donc
     // toujours le portefeuille. Degrade en liste vide, jamais bloquant pour l'accueil.
     listerRecapsEnRetard({ managerId: g.id, email: g.email, estComptable: false }, today),
+    // Mandats a 3 mois de leur fin sans AG posee (Sekou, 14/09 : « pour qu'on passe pas
+    // a cote »). Degrade en liste vide.
+    listerMandatsSansAg(g.id, today),
   ]);
 
   const prenom = g.nomComplet.split(" ")[0];
@@ -93,6 +98,10 @@ export default async function AccueilPage() {
             la comptabilite attend pour travailler. Le composant ne rend RIEN quand la liste
             est vide - pas de bandeau vert de felicitations, pas de titre orphelin. */}
         <AlerteRecapsEnRetard lignes={recapsEnRetard} variante="gestionnaire" />
+
+        {/* Mandats qui se terminent sans AG planifiee : juste sous les recaps, meme
+            registre (un trou dans la chaine AG), avant les annonces. Rien si vide. */}
+        <AlerteMandatsSansAg lignes={mandatsSansAg} />
 
         {/* Annonces du reseau (direction), pilotees depuis /admin/annonces. Rien si vide :
             une carte "aucune annonce" n'apprend rien. */}

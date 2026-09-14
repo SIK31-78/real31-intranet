@@ -49,6 +49,12 @@ export function etatContrat(e: EntreesEtatContrat): EtatContrat {
     return e.derniereEditionAgISO === e.prochaineAgISO ? "genere" : "a-generer";
   }
 
+  // Pas d'AG au referentiel, mais un contrat edite pour une AG A VENIR : il existe, et
+  // c'est le referentiel qui a un trou (MURGERS19 le 14/09/2026 : contrat du 24/09,
+  // aucune date posee). On le dit « genere » plutot que de reclamer une AG qu'il y a
+  // deja - a charge de l'ecran de montrer d'ou vient la date.
+  if (e.derniereEditionAgISO !== null && e.derniereEditionAgISO > e.aujourdhuiISO) return "genere";
+
   // Pas d'AG a venir. Si un contrat a ete edite pour une AG deja passee et qu'aucun
   // cycle n'a ete enregistre DEPUIS cette AG (le jour meme compris), le recap n'a pas
   // ete fait.

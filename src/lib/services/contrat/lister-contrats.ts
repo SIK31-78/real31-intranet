@@ -24,8 +24,13 @@ export interface LigneContratAPreparer {
   finISO: string;
   /** Jours restants avant la fin du mandat (negatif = mandat deja echu). */
   joursAvant: number;
-  /** AG qui votera ce contrat, si elle est planifiee dans l'intranet ET encore a venir. */
+  /** AG qui votera ce contrat, si elle est planifiee dans l'intranet ET encore a venir.
+   *  Pour un contrat « genere » dont le referentiel n'a pas la date, c'est celle du
+   *  contrat (voir `agDapresContrat`). */
   dateAgISO: string | null;
+  /** true = `dateAgISO` vient du contrat edite, pas du referentiel : la date d'AG est a
+   *  poser sur la fiche. */
+  agDapresContrat: boolean;
   /**
    * La date d'AG du referentiel est DEJA PASSEE : l'assemblee s'est tenue et personne
    * n'a fait glisser la date en « derniere AG ». Ce n'est donc PAS un retard, c'est une
@@ -119,7 +124,9 @@ export async function listerContratsAPreparer(
           derniereEditionAgISO: reussie?.dateAgISO ?? null,
           dernierCycleEnregistreLeISO: contrats.get(c.code)?.enregistreLeISO ?? null,
         });
-        const dateAgISO = perimee ? null : agReferentiel;
+        const agDapresContrat =
+          etat === "genere" && (agReferentiel === null || perimee) && Boolean(reussie?.dateAgISO);
+        const dateAgISO = agDapresContrat ? reussie!.dateAgISO : perimee ? null : agReferentiel;
         const dateConvocationISO = dateAgISO
           ? (calculerJalons(dateAgISO).find((j) => j.code === "CONVOC")?.cibleDate ?? null)
           : null;
@@ -131,6 +138,7 @@ export async function listerContratsAPreparer(
           finISO: cycle.fin,
           joursAvant: jours(aujourdhuiISO, fin),
           dateAgISO,
+          agDapresContrat,
           agDatePerimee: perimee ? agReferentiel : null,
           etat,
           derniereEdition: reussie

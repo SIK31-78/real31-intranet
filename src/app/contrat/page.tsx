@@ -6,6 +6,7 @@ import {
 } from "@/lib/services/contrat/lister-contrats";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { formatJour } from "@/lib/services/facturation/format";
+import { alerteMandat } from "@/lib/domain/contrat/alerte-mandat";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Section } from "@/components/ui/section";
@@ -70,7 +71,7 @@ export default async function ContratsPage() {
           {enCours.length === 0 ? (
             <EmptyState>Aucune AG planifiée n&apos;attend de contrat</EmptyState>
           ) : (
-            <TableContrats lignes={enCours} avecEtat />
+            <TableContrats lignes={enCours} avecEtat aujourdhuiISO={aujourdhuiISO} />
           )}
         </Section>
 
@@ -78,7 +79,7 @@ export default async function ContratsPage() {
           {sansAg.length === 0 ? (
             <EmptyState>Toutes les copropriétés ont une AG planifiée</EmptyState>
           ) : (
-            <TableContrats lignes={sansAg} />
+            <TableContrats lignes={sansAg} aujourdhuiISO={aujourdhuiISO} />
           )}
         </Section>
       </Page>
@@ -89,9 +90,11 @@ export default async function ContratsPage() {
 function TableContrats({
   lignes,
   avecEtat = false,
+  aujourdhuiISO,
 }: {
   lignes: LigneContratAPreparer[];
   avecEtat?: boolean;
+  aujourdhuiISO: string;
 }) {
   return (
     <Table>
@@ -114,7 +117,14 @@ function TableContrats({
             </Td>
             <Td principal>{l.nom}</Td>
             <Td className="tabular-nums">
-              {l.dateAgISO ? (
+              {l.dateAgISO && l.agDapresContrat ? (
+                // Le contrat porte une date d'AG que la fiche n'a pas : on l'affiche, et on
+                // dit qu'elle reste a poser - sinon le calendrier et les jalons l'ignorent.
+                <span title="Date lue sur le contrat édité : elle n'est pas posée sur la fiche">
+                  {formatJour(l.dateAgISO)}
+                  <span className="text-ink-3"> · à poser sur la fiche</span>
+                </span>
+              ) : l.dateAgISO ? (
                 formatJour(l.dateAgISO)
               ) : l.etat === "recap-a-faire" && l.derniereEdition?.dateAgISO ? (
                 // Pas de prochaine AG, mais on sait laquelle s'est tenue : c'est celle
@@ -153,14 +163,34 @@ function TableContrats({
                 </Td>
               </>
             ) : (
-              <Td secondaire className="tabular-nums">
-                jusqu&apos;au {formatJour(l.finMandatISO)}
-              </Td>
+              <MandatEnCours finMandatISO={l.finMandatISO} aujourdhuiISO={aujourdhuiISO} />
             )}
           </Tr>
         ))}
       </Tbody>
     </Table>
+  );
+}
+
+/** Fin du mandat en cours ; sous le seuil d'alerte (3 mois sans AG), on le dit ici aussi,
+ *  pour que la liste et l'accueil racontent la meme chose. */
+function MandatEnCours({ finMandatISO, aujourdhuiISO }: { finMandatISO: string; aujourdhuiISO: string }) {
+  const alerte = alerteMandat(finMandatISO, aujourdhuiISO);
+  if (!alerte) {
+    return (
+      <Td secondaire className="tabular-nums">
+        jusqu&apos;au {formatJour(finMandatISO)}
+      </Td>
+    );
+  }
+  return (
+    <Td className="tabular-nums">
+      <Badge ton={alerte.niveau === "echu" ? "err" : "warn"} dot>
+        {alerte.niveau === "echu"
+          ? `fini depuis ${-alerte.joursAvantFin} j`
+          : `fin le ${formatJour(finMandatISO)} · J-${alerte.joursAvantFin}`}
+      </Badge>
+    </Td>
   );
 }
 
