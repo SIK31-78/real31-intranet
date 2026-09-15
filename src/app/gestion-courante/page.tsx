@@ -7,6 +7,11 @@ import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { PanneauGestionCourante } from "@/components/gestion-courante/panneau-gestion-courante";
+import { PerdreCopro } from "@/components/gestion-courante/perdre-copro";
+import { Section } from "@/components/ui/section";
+import { CardBody } from "@/components/ui/card";
+import { getCoproRepository } from "@/lib/adapters/router";
+import { listerCoprosPerdues } from "@/lib/services/coproprietes/perdre-copro";
 import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Gestion courante - REAL31 Intranet" };
@@ -17,6 +22,15 @@ export default async function GestionCourantePage() {
   if (!g) redirect("/dev-login");
 
   const habilite = peutVoirGestionCourante(g.email);
+  // Pour « Perdre une copropriete » : toutes les copros ACTIVES du cabinet (geste
+  // transverse), et les dernieres pertes actees.
+  const [toutes, perdues] = habilite
+    ? await Promise.all([getCoproRepository().listerToutes(), listerCoprosPerdues(10)])
+    : [[], []];
+  const actives = toutes
+    .filter((c) => c.statut === "active")
+    .map((c) => ({ code: c.code, nom: c.nom }))
+    .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }));
 
   return (
     <AppShell user={g} active="gestion-courante" breadcrumb="Gestion courante">
@@ -47,6 +61,23 @@ export default async function GestionCourantePage() {
               Cette page est réservée à la comptabilité du cabinet.
             </p>
           </Card>
+        )}
+
+        {/* Perdre une copropriete (Sekou, 15/09/2026) : ici, parce que c'est la
+            facturation que ca protege - LAPROMENAD, plus geree depuis juin, etait
+            toujours ACTIVE et serait partie dans la prochaine fournee. */}
+        {habilite && (
+          <Section id="perdre-copro" titre="Perdre une copropriété">
+            <Card>
+              <CardBody>
+                <PerdreCopro
+                  copros={actives}
+                  perdues={perdues}
+                  aujourdhuiISO={new Date().toISOString().slice(0, 10)}
+                />
+              </CardBody>
+            </Card>
+          </Section>
         )}
       </Page>
     </AppShell>

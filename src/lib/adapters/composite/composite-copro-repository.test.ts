@@ -46,6 +46,10 @@ class FakeMiroir implements CoproRepository {
   async setDateEvenement(code: string, type: "ag" | "cs", quand: "prochaine" | "derniere", dateISO: string | null, managerId: string) {
     this.setAppels.push({ code, type, quand, dateISO, managerId });
   }
+  async perdreCopro() {}
+  async listerCoprosPerdues() {
+    return [];
+  }
 }
 
 class FakeEstale implements CoproEstaleProvider {

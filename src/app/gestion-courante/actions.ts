@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutVoirGestionCourante } from "@/lib/auth/roles";
+import { perdreCopro } from "@/lib/services/coproprietes/perdre-copro";
 import {
   apercuGestionCourante,
   lancerGestionCourante,
@@ -68,6 +69,46 @@ export async function lancerGestionCouranteAction(
     revalidatePath("/gestion-courante", "layout");
     revalidatePath("/facturation", "layout");
     return { ok: true, donnees };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Perdre une copropriete (Sekou, 15/09/2026) : la passer INACTIVE au referentiel, avec
+// la trace. Meme habilitation que la facturation : c'est la comptabilite du cabinet qui
+// sait qu'une copro est partie, et c'est elle que ca protege d'une fausse facture.
+
+const zPerte = z.object({
+  coproCode: z.string().regex(/^[A-Za-z0-9_-]{1,20}$/),
+  finGestionISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  motif: z.string().max(300).optional(),
+  /** Le code retape : une copro perdue disparait de tout l'intranet, on ne clique pas a cote. */
+  confirmation: z.string(),
+});
+
+export async function perdreCoproAction(input: unknown): Promise<Res<{ coproCode: string }>> {
+  const p = zPerte.safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Saisie invalide." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutVoirGestionCourante(g.email))
+    return { ok: false, erreur: "Réservé à la comptabilité du cabinet." };
+  if (p.data.confirmation.trim().toUpperCase() !== p.data.coproCode.toUpperCase()) {
+    return { ok: false, erreur: "Retape le code de la copropriété pour confirmer." };
+  }
+  try {
+    await perdreCopro({
+      coproCode: p.data.coproCode,
+      finGestionISO: p.data.finGestionISO,
+      ...(p.data.motif ? { motif: p.data.motif } : {}),
+      par: g.nomComplet,
+    });
+    revalidatePath("/gestion-courante");
+    revalidatePath("/copropriete");
+    revalidatePath("/contrat");
+    revalidatePath("/accueil");
+    return { ok: true, donnees: { coproCode: p.data.coproCode } };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message };
   }

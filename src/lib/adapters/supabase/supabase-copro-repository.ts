@@ -2,7 +2,7 @@
 // de l'App A) et mappe vers le domaine. Lecture seule (ADR-002). Seul cet adapter
 // connait la forme Prisma ; le domaine et l'UI l'ignorent (ADR-001).
 
-import type { CoproRepository } from "@/lib/ports/copro-repository";
+import type { CoproPerdue, CoproPerdueInput, CoproRepository } from "@/lib/ports/copro-repository";
 import type {
   Adresse,
   Copropriete,
@@ -267,6 +267,59 @@ export class SupabaseCoproRepository implements CoproRepository {
       .or(`referenceCrypto.eq.${coproCode},referenceEstale.eq.${coproCode}`)
       .or(filtrePerimetre(managerId));
     if (error) throw new Error(`MAJ date ${type} : ${error.message}`);
+  }
+
+  async perdreCopro(input: CoproPerdueInput): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    // Le statut vit dans App A : c'est lui que TOUT l'intranet filtre (facturation,
+    // alertes, listes). updatedAt rafraichi comme pour les dates.
+    const { data, error } = await supabase
+      .from("Copropriete")
+      .update({ status: "INACTIVE", updatedAt: new Date().toISOString() })
+      .or(`referenceCrypto.eq.${input.coproCode},referenceEstale.eq.${input.coproCode}`)
+      .select("referenceCrypto");
+    if (error) throw new Error(`Perte de ${input.coproCode} : ${error.message}`);
+    if (!data || data.length === 0) throw new Error(`Perte de ${input.coproCode} : copropriete introuvable.`);
+
+    // La trace (quand, pourquoi, qui) est un complement : son absence ne doit pas
+    // annuler la perte, mais elle se dit.
+    const { error: eTrace } = await supabase.from("intranet_copros_perdues").insert({
+      copropriete_id: input.coproCode,
+      fin_gestion: input.finGestionISO,
+      motif: input.motif ?? null,
+      par: input.par,
+    });
+    if (eTrace) console.warn(`[copros-perdues] trace non ecrite (${input.coproCode}) : ${eTrace.message}`);
+  }
+
+  async listerCoprosPerdues(limite: number): Promise<CoproPerdue[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_copros_perdues")
+      .select("copropriete_id, fin_gestion, motif, par, cree_le")
+      .order("cree_le", { ascending: false })
+      .limit(limite);
+    if (error) {
+      console.warn(`[copros-perdues] lecture impossible : ${error.message}`);
+      return [];
+    }
+    const lignes = (data ?? []) as unknown as {
+      copropriete_id: string; fin_gestion: string; motif: string | null; par: string; cree_le: string;
+    }[];
+    if (lignes.length === 0) return [];
+    const { data: copros } = await supabase
+      .from("Copropriete")
+      .select("referenceCrypto, name")
+      .in("referenceCrypto", lignes.map((l) => l.copropriete_id));
+    const noms = new Map(((copros ?? []) as { referenceCrypto: string; name: string }[]).map((c) => [c.referenceCrypto, c.name]));
+    return lignes.map((l) => ({
+      coproCode: l.copropriete_id,
+      coproNom: noms.get(l.copropriete_id) ?? l.copropriete_id,
+      finGestionISO: l.fin_gestion.slice(0, 10),
+      ...(l.motif ? { motif: l.motif } : {}),
+      par: l.par,
+      creeLeISO: l.cree_le.slice(0, 10),
+    }));
   }
 
   /** Resout l'equipe a partir des FK manager/assistant/accountant vers public."User".

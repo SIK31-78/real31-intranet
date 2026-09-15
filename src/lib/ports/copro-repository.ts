@@ -23,4 +23,26 @@ export interface CoproRepository {
     dateISO: string | null,
     managerId: string,
   ): Promise<void>;
+  /**
+   * Perd une copropriete : la passe INACTIVE dans le referentiel partage (App A) et en
+   * garde la trace (fin de gestion, motif, qui). Hors cloisonnement : c'est un geste de
+   * la comptabilite du cabinet, pas d'un gestionnaire. Leve si la copro est inconnue.
+   */
+  perdreCopro(input: CoproPerdueInput): Promise<void>;
+  /** Les dernieres copros perdues, la plus recente d'abord. [] si la trace n'existe pas. */
+  listerCoprosPerdues(limite: number): Promise<CoproPerdue[]>;
+}
+
+export interface CoproPerdueInput {
+  coproCode: string;
+  /** Dernier jour gere, ISO. */
+  finGestionISO: string;
+  motif?: string;
+  /** Nom complet de qui acte la perte. */
+  par: string;
+}
+
+export interface CoproPerdue extends CoproPerdueInput {
+  coproNom: string;
+  creeLeISO: string;
 }
