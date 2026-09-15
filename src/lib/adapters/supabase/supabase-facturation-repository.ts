@@ -2,6 +2,7 @@
 // public.intranet_tarifs / intranet_suivi_contrats / intranet_factures /
 // intranet_facture_lignes (base patron) via le client public.
 
+import { bornesTrimestre, type CycleTarif } from "@/lib/domain/facturation/filet-gestion-courante";
 import type {
   ContratCopro,
   FactureAEmettre,
@@ -157,11 +158,14 @@ export class SupabaseFacturationRepository implements FacturationRepository {
 
   async chargerGestionCourante(periode: string): Promise<LigneGestionCourante[]> {
     const supabase = createSupabasePublicClient();
-    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const bornes = bornesTrimestre(periode);
 
-    // Contrats deja commences, avec honoraires : on garde le plus recent par copro.
+    // La reference est le TRIMESTRE FACTURE, plus la date du jour (C, 15/09/2026) :
+    // facturer T2 le 3 juillet ne doit pas prendre le cycle du 1er juillet. On lit tous
+    // les cycles commences au plus tard a la fin du trimestre ; le domaine decoupe le
+    // trimestre entre eux, au prorata des jours si le tarif change en cours de route.
     // frais_postaux_reels : drapeau de la copro. Vrai = frais refactures au reel
-    // ailleurs, on ne facture PAS le forfait de timbres trimestriel (cf. plus bas).
+    // ailleurs, on ne facture PAS le forfait de timbres trimestriel.
     //
     // Les honoraires NULS ou a 0 ne sont PLUS filtres ici : une copro sans montant
     // de contrat doit remonter pour etre signalee « contrat non renseigne » par le
@@ -172,7 +176,8 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       .select(
         "copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, frais_postaux_reels",
       )
-      .lte("debut_contrat", aujourdhui);
+      .lte("debut_contrat", bornes.fin)
+      .order("debut_contrat", { ascending: true });
     if (e1) throw new Error(`Lecture contrats gestion courante : ${e1.message}`);
 
     type CRow = {
@@ -182,11 +187,22 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       forfait_postaux_ttc: number | null;
       frais_postaux_reels: boolean | null;
     };
-    const enVigueur = new Map<string, CRow>();
+    const cyclesParCopro = new Map<string, CycleTarif[]>();
     for (const c of (contrats as CRow[] | null) ?? []) {
-      const prec = enVigueur.get(c.copropriete_id);
-      if (!prec || c.debut_contrat > prec.debut_contrat) enVigueur.set(c.copropriete_id, c);
+      const liste = cyclesParCopro.get(c.copropriete_id) ?? [];
+      liste.push({
+        debutISO: c.debut_contrat.slice(0, 10),
+        honorairesAnnuelsTtc: c.honoraires_gestion_ttc === null ? null : Number(c.honoraires_gestion_ttc),
+        forfaitPostauxAnnuel: Number(c.forfait_postaux_ttc ?? 0),
+        // Drapeau absent (null) = forfait applique (comportement par defaut du legacy).
+        fraisPostauxReels: c.frais_postaux_reels === true,
+      });
+      cyclesParCopro.set(c.copropriete_id, liste);
     }
+    // Contrat de reference de la ligne = celui en vigueur au DEBUT du trimestre (le
+    // dernier commence avant), sinon le premier a commencer dedans.
+    const enVigueur = (cycles: CycleTarif[]): CycleTarif | undefined =>
+      [...cycles].reverse().find((c) => c.debutISO <= bornes.debut) ?? cycles[0];
 
     // Copros actives. `syndicInitialDate` = date de prise en gestion : elle sert
     // au prorata du trimestre pour une copro reprise en cours de route.
@@ -222,17 +238,16 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     const lignes: LigneGestionCourante[] = [];
     for (const active of codesActifs) {
       const code = active.referenceCrypto as string;
-      const c = enVigueur.get(code);
-      const honoraires = c?.honoraires_gestion_ttc;
+      const cycles = cyclesParCopro.get(code) ?? [];
+      const c = enVigueur(cycles);
       lignes.push({
         coproCode: code,
         // Pas de contrat en vigueur OU montant absent -> null : le filet signale
         // « contrat non renseigne » au lieu de laisser la copro passer a la trappe.
-        honorairesAnnuelsTtc:
-          honoraires === null || honoraires === undefined ? null : Number(honoraires),
-        forfaitPostauxAnnuel: Number(c?.forfait_postaux_ttc ?? 0),
-        // Drapeau absent (null) = forfait applique (comportement par defaut du legacy).
-        fraisPostauxReels: c?.frais_postaux_reels === true,
+        honorairesAnnuelsTtc: c?.honorairesAnnuelsTtc ?? null,
+        forfaitPostauxAnnuel: c?.forfaitPostauxAnnuel ?? 0,
+        fraisPostauxReels: c?.fraisPostauxReels ?? false,
+        cycles,
         dejaFacture: deja.has(code),
         dejaFactureLe: deja.get(code) ?? null,
         priseEnGestion: active.syndicInitialDate,

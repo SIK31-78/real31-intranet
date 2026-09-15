@@ -159,11 +159,23 @@ export interface AttenduTrimestre {
   totalPleinHt: number;
   /** Renseigne uniquement si un prorata s'applique. */
   prorata?: Prorata;
+  /** Renseigne uniquement si le tarif CHANGE en cours de trimestre (>= 2 segments). */
+  segments?: SegmentTarif[];
+}
+
+/** Un cycle de contrat tel que le suivi le porte : ses tarifs, et son debut. */
+export interface CycleTarif {
+  /** Debut du cycle, ISO "YYYY-MM-DD". */
+  debutISO: string;
+  honorairesAnnuelsTtc: number | null;
+  forfaitPostauxAnnuel: number;
+  fraisPostauxReels: boolean;
 }
 
 /** Entree du contrat, telle que le depot la fournit. */
 export interface ContratTrimestre {
-  /** Honoraires annuels TTC. `null` ou <= 0 = contrat non renseigne. */
+  /** Honoraires annuels TTC du contrat en vigueur au DEBUT du trimestre.
+   *  `null` ou <= 0 = contrat non renseigne. */
   honorairesAnnuelsTtc: number | null;
   /** Forfait de frais postaux annuel (sans TVA). */
   forfaitPostauxAnnuel: number;
@@ -171,6 +183,70 @@ export interface ContratTrimestre {
   fraisPostauxReels: boolean;
   /** Date de prise en gestion (ISO ou timestamp ISO). Null si inconnue. */
   priseEnGestion?: string | null;
+  /**
+   * TOUS les cycles de la copro commences au plus tard a la fin du trimestre, du plus
+   * ancien au plus recent (C, 15/09/2026). Quand un cycle change EN COURS de trimestre,
+   * chaque tarif est facture au prorata de ses jours. Absent : un seul contrat, regle
+   * d'origine.
+   */
+  cycles?: CycleTarif[];
+}
+
+/** Une part de trimestre facturee a UN tarif. */
+export interface SegmentTarif {
+  /** Bornes incluses, ISO. */
+  debut: string;
+  fin: string;
+  jours: number;
+  cycle: CycleTarif;
+  honorairesHt: number;
+  timbres: number;
+}
+
+/**
+ * Decoupe le trimestre selon les cycles qui s'y succedent, au prorata des jours.
+ *
+ * REGLE DE VIGUEUR : un cycle court de son debut jusqu'a la veille du cycle suivant, le
+ * dernier sans fin. Sa date de fin nominale ne compte PAS ici : tant que le
+ * renouvellement n'est pas enregistre, le syndic continue de gerer - et de facturer -
+ * au dernier tarif connu (c'est le cas de tout le portefeuille entre l'AG et le recap).
+ * Un mandat fini sans renouvellement est le travail de l'alerte « mandat sans AG »,
+ * pas de la facturation.
+ *
+ * Le prorata de PRISE EN GESTION se combine : les segments sont bornes a cette date.
+ * `[]` si aucun cycle n'est en vigueur sur le trimestre (rien n'est du).
+ */
+export function segmentsTrimestre(
+  cycles: CycleTarif[],
+  periode: string,
+  priseEnGestion?: string | null,
+): SegmentTarif[] {
+  const bornes = bornesTrimestre(periode);
+  const debutMandat = normaliserDateISO(priseEnGestion);
+  const debutFacturable = debutMandat && debutMandat > bornes.debut ? debutMandat : bornes.debut;
+  if (debutFacturable > bornes.fin) return [];
+
+  const tries = [...cycles].sort((a, b) => a.debutISO.localeCompare(b.debutISO));
+  const segments: SegmentTarif[] = [];
+  for (let i = 0; i < tries.length; i++) {
+    const cycle = tries[i]!;
+    const suivant = tries[i + 1];
+    const debutVigueur = cycle.debutISO;
+    const finVigueur = suivant ? veille(suivant.debutISO) : bornes.fin;
+    const debut = debutVigueur > debutFacturable ? debutVigueur : debutFacturable;
+    const fin = finVigueur < bornes.fin ? finVigueur : bornes.fin;
+    if (fin < debut) continue;
+    const jours = (jourUTC(fin) - jourUTC(debut)) / 86_400_000 + 1;
+    const ratio = jours / bornes.jours;
+    const honorairesHt = htDepuisTtc((cycle.honorairesAnnuelsTtc ?? 0) / 4) * ratio;
+    const timbres = (cycle.fraisPostauxReels ? 0 : cycle.forfaitPostauxAnnuel / 4) * ratio;
+    segments.push({ debut, fin, jours, cycle, honorairesHt, timbres });
+  }
+  return segments;
+}
+
+function veille(iso: string): string {
+  return new Date(jourUTC(iso) - 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -181,6 +257,7 @@ export interface ContratTrimestre {
  * trimestre, pas un droit d'entree.
  */
 export function attenduTrimestre(contrat: ContratTrimestre, periode: string): AttenduTrimestre {
+  if (contrat.cycles && contrat.cycles.length > 0) return attenduParCycles(contrat, periode);
   const annuel = contrat.honorairesAnnuelsTtc ?? 0;
   const honorairesPleinHt = htDepuisTtc(annuel / 4);
   const timbresPlein = contrat.fraisPostauxReels ? 0 : contrat.forfaitPostauxAnnuel / 4;
@@ -197,6 +274,31 @@ export function attenduTrimestre(contrat: ContratTrimestre, periode: string): At
     totalHt: honorairesHt + timbres,
     totalPleinHt,
     ...(prorata ? { prorata } : {}),
+  };
+}
+
+/**
+ * Attendu quand le trimestre est decoupe par cycles. Avec un seul cycle en vigueur, le
+ * resultat est celui de la regle d'origine (verifie par test) : un seul segment, plein
+ * ou au prorata de la prise en gestion.
+ */
+function attenduParCycles(contrat: ContratTrimestre, periode: string): AttenduTrimestre {
+  const cycles = contrat.cycles ?? [];
+  const segments = segmentsTrimestre(cycles, periode, contrat.priseEnGestion);
+  // « Plein » = le trimestre entier aux tarifs qui s'y succedent, SANS le prorata de
+  // prise en gestion : la reference que le recap de fournee compare au facture.
+  const pleins = segmentsTrimestre(cycles, periode, null);
+  const honorairesHt = segments.reduce((s, x) => s + x.honorairesHt, 0);
+  const timbres = segments.reduce((s, x) => s + x.timbres, 0);
+  const totalPleinHt = pleins.reduce((s, x) => s + x.honorairesHt + x.timbres, 0);
+  const prorata = prorataTrimestre(periode, contrat.priseEnGestion);
+  return {
+    honorairesHt,
+    timbres,
+    totalHt: honorairesHt + timbres,
+    totalPleinHt,
+    ...(prorata ? { prorata } : {}),
+    ...(segments.length > 1 ? { segments } : {}),
   };
 }
 

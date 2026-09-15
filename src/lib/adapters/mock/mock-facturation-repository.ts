@@ -180,9 +180,11 @@ export class MockFacturationRepository implements FacturationRepository {
         .map((f) => f.coproCode),
     );
     const parCopro = new Map<string, ContratCopro>();
+    const cyclesParCopro = new Map<string, ContratCopro[]>();
     for (const c of CONTRATS) {
       const prec = parCopro.get(c.coproCode);
       if (!prec || c.debutContrat > prec.debutContrat) parCopro.set(c.coproCode, c);
+      cyclesParCopro.set(c.coproCode, [...(cyclesParCopro.get(c.coproCode) ?? []), c]);
     }
     return [...parCopro.values()].map((c) => ({
       coproCode: c.coproCode,
@@ -190,6 +192,14 @@ export class MockFacturationRepository implements FacturationRepository {
       forfaitPostauxAnnuel: c.forfaitPostauxTtc ?? 0,
       // Mock : forfait postaux applique (les contrats d'exemple ne sont pas en frais reels).
       fraisPostauxReels: false,
+      cycles: (cyclesParCopro.get(c.coproCode) ?? [])
+        .sort((a, b) => a.debutContrat.localeCompare(b.debutContrat))
+        .map((x) => ({
+          debutISO: x.debutContrat,
+          honorairesAnnuelsTtc: x.honorairesGestionTtc ?? null,
+          forfaitPostauxAnnuel: x.forfaitPostauxTtc ?? 0,
+          fraisPostauxReels: false,
+        })),
       dejaFacture: dejaCodes.has(c.coproCode),
       dejaFactureLe: null,
       // Mock : copros en gestion de longue date, aucun prorata de reprise.

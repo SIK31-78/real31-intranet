@@ -25,6 +25,7 @@ import {
   recapFournee,
   verdictLigne,
   type EntreeFilet,
+  type SegmentTarif,
   type VerdictFilet,
   type VerdictLigne,
 } from "@/lib/domain/facturation/filet-gestion-courante";
@@ -104,12 +105,23 @@ export interface ApercuGestionCourante {
   lignes: LigneApercuGc[];
 }
 
-/** Les 2 lignes de facture d'un trimestre, telles qu'elles partiront. */
+/**
+ * Les lignes de facture d'un trimestre, telles qu'elles partiront : honoraires (+ timbres
+ * si forfait). Quand le tarif CHANGE en cours de trimestre, chaque tarif fait ses propres
+ * lignes, datees (« du 01/04 au 23/04 ») - choix de Sekou, 15/09/2026 : le copropriétaire
+ * et le conseil syndical voient d'ou vient le montant, plutot qu'un chiffre compose.
+ */
 function lignesFacture(
   periode: string,
   honorairesHt: number,
   timbres: number,
+  segments?: SegmentTarif[],
 ): LigneFactureInput[] {
+  if (segments && segments.length > 1) {
+    return segments.flatMap((s) =>
+      lignesFacture(`${periode} (du ${formatJour(s.debut)} au ${formatJour(s.fin)})`, s.honorairesHt, s.timbres),
+    );
+  }
   return [
     {
       description: `Honoraires de gestion courante - ${periode}`,
@@ -150,7 +162,7 @@ interface LignePreparee {
  */
 function preparer(base: LigneGestionCourante, periode: string): LignePreparee {
   const attendu = attenduTrimestre(base, periode);
-  const lignes = lignesFacture(periode, attendu.honorairesHt, attendu.timbres);
+  const lignes = lignesFacture(periode, attendu.honorairesHt, attendu.timbres, attendu.segments);
   const montantHt = lignes.reduce((s, l) => s + l.quantite * l.prixUnitaireHt, 0);
 
   const entree: EntreeFilet = { ...base, montantHt };
@@ -170,6 +182,10 @@ function messageVerdict(v: VerdictFilet, base: LigneGestionCourante): string {
         : "Contrat à 0 € : montant non renseigné";
     case "prorata":
       return `Prorata de reprise (${v.prorata?.jours ?? 0} jours sur ${v.prorata?.joursTrimestre ?? 0})`;
+    case "ok":
+      return v.attendu.segments
+        ? `Changement de tarif le ${formatJour(v.attendu.segments[1]!.debut)} : ${v.attendu.segments.length} tarifs au prorata`
+        : "Conforme au contrat";
     case "sous_facturation":
       return `Sous l'attendu au contrat de ${formatEuros(Math.abs(v.ecartHt))}`;
     case "alerte_10":

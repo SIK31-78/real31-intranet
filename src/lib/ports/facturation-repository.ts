@@ -5,6 +5,8 @@
 // ne porte que la resolution du bareme et la persistance. Ne depend d'aucune
 // techno (ni Supabase, ni Pennylane).
 
+import type { CycleTarif } from "@/lib/domain/facturation/filet-gestion-courante";
+
 /** Types de prestation SYNDIC facturables (cf. intranet_factures.type_prestation). */
 export type TypePrestation =
   | "depassement_cs"
@@ -151,10 +153,14 @@ export interface FactureAEmettre {
 /** Une copropriete facturable en gestion courante pour un trimestre. */
 export interface LigneGestionCourante {
   coproCode: string;
-  /** Honoraires annuels TTC du contrat en vigueur. `null` = AUCUN contrat en
-   *  vigueur (la copro est quand meme remontee, pour etre signalee « contrat non
-   *  renseigne » plutot que de disparaitre sans bruit du trimestre). */
+  /** Honoraires annuels TTC du contrat en vigueur au DEBUT du trimestre facture.
+   *  `null` = AUCUN contrat en vigueur (la copro est quand meme remontee, pour etre
+   *  signalee « contrat non renseigne » plutot que de disparaitre sans bruit). */
   honorairesAnnuelsTtc: number | null;
+  /** Tous les cycles commences au plus tard a la fin du trimestre, du plus ancien au
+   *  plus recent : un changement de tarif en cours de trimestre est facture au prorata
+   *  (cf. domain/facturation/filet-gestion-courante, segmentsTrimestre). */
+  cycles: CycleTarif[];
   /** Forfait postaux annuel du contrat en vigueur. */
   forfaitPostauxAnnuel: number;
   /** Vrai = frais postaux refactures au reel (ailleurs) : pas de ligne de timbres

@@ -54,6 +54,8 @@ function copro(over: Partial<LigneGestionCourante> = {}): LigneGestionCourante {
     honorairesAnnuelsTtc: 4800,
     forfaitPostauxAnnuel: 400,
     fraisPostauxReels: false,
+    // Un seul cycle : la regle d'origine. Les cas a deux tarifs ont leurs tests.
+    cycles: [],
     dejaFacture: false,
     ...over,
   };
@@ -66,6 +68,51 @@ function tout(): { coproCodes: string[] } {
 
 beforeEach(() => {
   etat.reset();
+});
+
+// C (Sekou, 15/09/2026) : changement de tarif en cours de trimestre -> DEUX lignes par
+// nature, datees, au prorata des jours. RIVIERE5 : nouveau cycle le 24/04.
+describe("gestion courante - changement de tarif en cours de trimestre (C)", () => {
+  const ANCIEN = { debutISO: "2025-07-01", honorairesAnnuelsTtc: 4800, forfaitPostauxAnnuel: 400, fraisPostauxReels: false };
+  const NOUVEAU = { debutISO: "2026-04-24", honorairesAnnuelsTtc: 6400, forfaitPostauxAnnuel: 400, fraisPostauxReels: false };
+
+  it("facture T2 en deux tarifs dates, honoraires et timbres chacun, conforme au contrat", async () => {
+    etat.base = [copro({ cycles: [ANCIEN, NOUVEAU] })];
+
+    await lancerGestionCourante("2026-T2", "AB", tout());
+
+    const lignes = etat.creees[0]!.lignes;
+    expect(lignes.map((l) => l.description)).toEqual([
+      "Honoraires de gestion courante - 2026-T2 (du 01/04/2026 au 23/04/2026)",
+      "Forfait de frais postaux - 2026-T2 (du 01/04/2026 au 23/04/2026)",
+      "Honoraires de gestion courante - 2026-T2 (du 24/04/2026 au 30/06/2026)",
+      "Forfait de frais postaux - 2026-T2 (du 24/04/2026 au 30/06/2026)",
+    ]);
+    // 1 000 HT x 23/91 + 1 333,33 HT x 68/91
+    const honoraires = lignes[0]!.prixUnitaireHt + lignes[2]!.prixUnitaireHt;
+    expect(honoraires).toBeCloseTo((1000 * 23 + (6400 / 4 / 1.2) * 68) / 91, 6);
+    // Les timbres suivent le meme decoupage : 100 x 23/91 + 100 x 68/91 = 100.
+    expect(lignes[1]!.prixUnitaireHt + lignes[3]!.prixUnitaireHt).toBeCloseTo(100, 9);
+  });
+
+  it("l'apercu dit le changement de tarif, et la ligne reste cochable en masse (aucune alerte)", async () => {
+    etat.base = [copro({ cycles: [ANCIEN, NOUVEAU] })];
+    const a = await apercuGestionCourante("2026-T2");
+    const l = a.lignes[0]!;
+    expect(l.verdict).toBe("ok");
+    expect(l.message).toMatch(/Changement de tarif le 24\/04\/2026/);
+  });
+
+  it("T2 facture apres le 1er juillet reste a l'ancien tarif : la reference est le trimestre, pas le jour", async () => {
+    const juillet = { ...NOUVEAU, debutISO: "2026-07-01" };
+    etat.base = [copro({ cycles: [ANCIEN, juillet] })];
+
+    await lancerGestionCourante("2026-T2", "AB", tout());
+
+    const lignes = etat.creees[0]!.lignes;
+    expect(lignes).toHaveLength(2);
+    expect(lignes[0]!.prixUnitaireHt).toBeCloseTo(1000, 9);
+  });
 });
 
 describe("gestion courante - frais postaux reels (Fix B)", () => {
