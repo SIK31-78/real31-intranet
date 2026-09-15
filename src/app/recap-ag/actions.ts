@@ -56,6 +56,7 @@ const zDemande = z.object({
   infoComptable: z.string().trim().max(5_000).optional(),
   travaux: zTravaux.optional(),
   debutContrat: zJour.optional(),
+  finContrat: zJour.optional(),
   honorairesGestionTtc: zMontant.optional(),
   fraisPostauxReels: z.boolean().optional(),
   forfaitPostauxTtc: zMontant.optional(),

@@ -47,6 +47,8 @@ export interface DemandeRecapAg {
 
   /** Nouveau contrat ouvert par cette AG. */
   debutContrat?: string;
+  /** Fin du cycle (duree libre). Absente = debut + 1 an - 1 jour. */
+  finContrat?: string;
   honorairesGestionTtc?: number;
   /** true = frais postaux reels refactures, false = forfait annuel. */
   fraisPostauxReels?: boolean;
@@ -245,6 +247,7 @@ export async function creerRecapAg(
     suiviContratId = await repoFacturation.creerContrat({
       coproCode: demande.coproCode,
       debutContrat: demande.debutContrat,
+      ...(demande.finContrat ? { finContrat: demande.finContrat } : {}),
       ...(demande.honorairesGestionTtc !== undefined
         ? { honorairesGestionTtc: demande.honorairesGestionTtc }
         : {}),

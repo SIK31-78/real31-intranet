@@ -23,6 +23,23 @@ import { ConfirmationFacturation } from "@/components/facturation/confirmation-f
 import { apercuRecapAgAction, creerRecapAgAction } from "@/app/recap-ag/actions";
 import { POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "@/lib/domain/recap-ag/fonds-travaux";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
+import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
+import { formatJour } from "@/lib/services/facturation/format";
+
+/** Montant -> texte de champ ("" si inconnu). */
+function texteMontant(v: number | null | undefined): string {
+  return v === null || v === undefined ? "" : String(v);
+}
+const formatJourCourt = formatJour;
+function formatEurosCourt(v: number): string {
+  return `${v.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+}
+/** Les honoraires saisis different-ils de ceux du contrat genere ? */
+function ecartContrat(saisi: string, genere: number | null): boolean {
+  if (genere === null || saisi.trim() === "") return false;
+  const n = Number(saisi);
+  return Number.isFinite(n) && Math.abs(n - genere) >= 0.005;
+}
 
 interface TravauxSaisis {
   numeroResolution: string;
@@ -82,7 +99,7 @@ export function FormulaireRecapAg({
   coproInitial,
   onSucces,
 }: {
-  copros: { code: string; nom: string; agDateSuggeree?: string }[];
+  copros: { code: string; nom: string; agDateSuggeree?: string; contratGenere?: ContratGenere }[];
   pennylaneMode: ModeEmissionFacture;
   /** Copro pre-selectionnee a l'ouverture (alerte des recaps en retard). Ignoree si elle
    *  n'est pas dans la liste : la selection ne sort jamais du portefeuille. */
@@ -120,12 +137,28 @@ export function FormulaireRecapAg({
 
   const [travaux, setTravaux] = useState<TravauxSaisis[]>([]);
 
-  const [debutContrat, setDebutContrat] = useState("");
-  const [honoraires, setHonoraires] = useState("");
-  const [forfaitPostaux, setForfaitPostaux] = useState("");
+  // Le bloc « Nouveau contrat de gestion » part du CONTRAT GENERE pour cette AG quand il
+  // existe (Sekou, 14/09/2026) : c'est le document qui a ete insere dans la convocation
+  // et signe. Modifiable - l'AG peut voter un autre montant, c'est rare mais ca arrive -
+  // et l'ecart s'affiche pour que ce soit un choix, pas une faute de frappe.
+  const genereDepart = depart?.contratGenere;
+  const [debutContrat, setDebutContrat] = useState(genereDepart?.debutISO ?? "");
+  const [finContrat, setFinContrat] = useState(genereDepart?.finISO ?? "");
+  const [honoraires, setHonoraires] = useState(texteMontant(genereDepart?.honorairesTtc));
+  const [forfaitPostaux, setForfaitPostaux] = useState(texteMontant(genereDepart?.forfaitPostauxTtc));
   // Nature des frais postaux prevue au contrat : reels refactures, ou forfait.
   // Le montant n'a de sens que dans le second cas.
   const [fraisPostauxReels, setFraisPostauxReels] = useState<boolean | null>(false);
+  const contratGenere = copros.find((c) => c.code === coproCode)?.contratGenere;
+
+  function proposerContrat(code: string) {
+    const g = copros.find((c) => c.code === code)?.contratGenere;
+    setDebutContrat(g?.debutISO ?? "");
+    setFinContrat(g?.finISO ?? "");
+    setHonoraires(texteMontant(g?.honorairesTtc));
+    setForfaitPostaux(texteMontant(g?.forfaitPostauxTtc));
+    setFraisPostauxReels(false);
+  }
 
   function nombreOuUndefined(v: string): number | undefined {
     const n = Number(v);
@@ -177,6 +210,7 @@ export function FormulaireRecapAg({
             : {}),
         })),
       ...(debutContrat ? { debutContrat } : {}),
+      ...(finContrat ? { finContrat } : {}),
       ...(nombreOuUndefined(honoraires) !== undefined
         ? { honorairesGestionTtc: nombreOuUndefined(honoraires) }
         : {}),
@@ -241,6 +275,7 @@ export function FormulaireRecapAg({
                 const v = e.target.value;
                 setCoproCode(v);
                 setJour(copros.find((c) => c.code === v)?.agDateSuggeree ?? "");
+                proposerContrat(v);
               }}
             >
               {copros.map((c) => (
@@ -357,11 +392,35 @@ export function FormulaireRecapAg({
 
       <SectionForm
         titre="Nouveau contrat de gestion"
-        hint="Renseigner ces champs ouvre un nouveau cycle de contrat : ces montants alimentent la facturation de gestion courante."
+        hint={
+          contratGenere
+            ? "Pré-rempli depuis le contrat généré pour cette AG. Si l'assemblée a voté autrement, corriger : c'est le montant voté qui alimente la facturation."
+            : "Renseigner ces champs ouvre un nouveau cycle de contrat : ces montants alimentent la facturation de gestion courante."
+        }
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {contratGenere && (
+          <p className="text-body text-ink-2">
+            Contrat généré le {formatJourCourt(contratGenere.editeLeISO)}
+            {contratGenere.par ? ` par ${contratGenere.par}` : ""}
+            {contratGenere.dateAgISO ? ` pour l'AG du ${formatJourCourt(contratGenere.dateAgISO)}` : ""} :{" "}
+            <span className="tabular-nums">{formatJourCourt(contratGenere.debutISO)} → {formatJourCourt(contratGenere.finISO)}</span>
+            {contratGenere.honorairesTtc !== null && (
+              <> · <span className="tabular-nums">{formatEurosCourt(contratGenere.honorairesTtc)}</span> TTC</>
+            )}
+            {contratGenere.forfaitPostauxTtc !== null && (
+              <> · timbres <span className="tabular-nums">{formatEurosCourt(contratGenere.forfaitPostauxTtc)}</span></>
+            )}
+            {ecartContrat(honoraires, contratGenere.honorairesTtc) && (
+              <span className="text-warn-700"> — honoraires différents du contrat généré ({formatEurosCourt(contratGenere.honorairesTtc!)})</span>
+            )}
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <Field label="Début du contrat" htmlFor="dcontrat">
             <Input id="dcontrat" type="date" value={debutContrat} onChange={(e) => setDebutContrat(e.target.value)} />
+          </Field>
+          <Field label="Fin du contrat" htmlFor="fcontrat">
+            <Input id="fcontrat" type="date" value={finContrat} onChange={(e) => setFinContrat(e.target.value)} />
           </Field>
           <Field label="Honoraires annuels TTC" htmlFor="hono">
             <Input id="hono" type="number" step="0.01" min="0" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} />

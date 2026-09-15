@@ -47,8 +47,18 @@ export interface LigneContratAPreparer {
   joursAvantConvocation: number | null;
   /** Ou en est le contrat dans son cycle de vie (cf. domain/contrat/etat-contrat). */
   etat: EtatContrat;
-  /** Derniere edition REUSSIE : quand, par qui, pour quelle AG. null si jamais edite. */
-  derniereEdition: { creeLeISO: string; par: string | null; dateAgISO: string | null } | null;
+  /** Derniere edition REUSSIE : quand, par qui, pour quelle AG, quel cycle et quels
+   *  montants imprimes. null si jamais edite. Cycle et montants null pour les editions
+   *  MYTHEC (non exportees). */
+  derniereEdition: {
+    creeLeISO: string;
+    par: string | null;
+    dateAgISO: string | null;
+    debutISO: string | null;
+    finISO: string | null;
+    honorairesTtc: number | null;
+    forfaitPostauxTtc: number | null;
+  } | null;
   /**
    * Valeurs proposees a l'edition, meme precedence que get-contrat : la derniere edition
    * reussie (elle porte l'augmentation votee) avant le contrat en cours. null = inconnu,
@@ -151,7 +161,15 @@ export async function listerContratsAPreparer(
           agDatePerimee: perimee ? agReferentiel : null,
           etat,
           derniereEdition: reussie
-            ? { creeLeISO: reussie.creeLe.slice(0, 10), par: reussie.creePar, dateAgISO: reussie.dateAgISO }
+            ? {
+                creeLeISO: reussie.creeLe.slice(0, 10),
+                par: reussie.creePar,
+                dateAgISO: reussie.dateAgISO,
+                debutISO: reussie.debutISO,
+                finISO: reussie.finISO,
+                honorairesTtc: reussie.honorairesGestionTtc,
+                forfaitPostauxTtc: reussie.forfaitPostauxTtc,
+              }
             : null,
           honorairesTtc:
             reussie?.honorairesGestionTtc ?? contrats.get(c.code)?.honorairesGestionTtc ?? null,

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
 import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
+import { listerContratsGeneres } from "@/lib/services/contrat/contrats-generes";
 import { getRecapAgRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -42,10 +43,12 @@ export default async function RecapAgPage({
   const today = new Date().toISOString().slice(0, 10);
   // Perimetre PORTEFEUILLE, meme cadrage que le select ci-dessous : on n'alerte que sur
   // ce que le gestionnaire peut corriger ICI (un comptable a sa propre vue, /comptabilite/recaps).
-  const [copros, historique, enRetard] = await Promise.all([
+  const [copros, historique, enRetard, contratsGeneres] = await Promise.all([
     getCoproprietes(g.id),
     getRecapAgRepository().listerRecapsRecents(LIMITE_HISTORIQUE),
     listerRecapsEnRetard({ managerId: g.id, email: g.email, estComptable: false }, today),
+    // Le contrat genere pour l'AG, a proposer dans « Nouveau contrat de gestion ».
+    listerContratsGeneres(g.id, today),
   ]);
 
   // « Les miens » = mes copros OU ma saisie. Calcule ICI et non dans le composant :
@@ -98,7 +101,13 @@ export default async function RecapAgPage({
                   c.prochaineAg?.date && c.prochaineAg.date <= today
                     ? c.prochaineAg.date
                     : c.derniereAgDate;
-                return { code: c.code, nom: c.nom, ...(suggeree ? { agDateSuggeree: suggeree } : {}) };
+                const contratGenere = contratsGeneres.get(c.code);
+                return {
+                  code: c.code,
+                  nom: c.nom,
+                  ...(suggeree ? { agDateSuggeree: suggeree } : {}),
+                  ...(contratGenere ? { contratGenere } : {}),
+                };
               })
               .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
             pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
