@@ -90,8 +90,13 @@ export async function getContrat(
   // mis a jour au renouvellement, l'intranet si (cf. finContratEnCours).
   const finEnCours = finContratEnCours(
     donnees.finMandatISO,
-    contratCourant?.debutContrat,
-    contratCourant?.finContrat,
+    contratCourant
+      ? {
+          debutISO: contratCourant.debutContrat,
+          finISO: contratCourant.finContrat,
+          enregistreLeISO: contratCourant.enregistreLeISO,
+        }
+      : null,
   );
 
   // Le cycle propose : a la suite du mandat en cours ; pour une reprise sans aucun

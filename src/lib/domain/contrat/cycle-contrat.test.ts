@@ -95,25 +95,38 @@ describe("motifRefusCycle", () => {
 // echu car nous avons signe le contrat ». App A portait encore une fin au 30/06/2026
 // alors que l'intranet avait enregistre un cycle demarre le 01/07/2026.
 describe("finContratEnCours", () => {
+  const cycle = (debutISO: string, extra: Partial<{ finISO: string; enregistreLeISO: string }> = {}) => ({ debutISO, ...extra });
+
   it("prefere le cycle enregistre par l'intranet quand le referentiel a pris du retard", () => {
     // Le cas FOCH31 exactement.
-    expect(finContratEnCours("2026-06-30", "2026-07-01")).toBe("2027-06-30");
+    expect(finContratEnCours("2026-06-30", cycle("2026-07-01", { enregistreLeISO: "2026-07-22" }))).toBe("2027-06-30");
   });
 
   it("garde le referentiel quand c'est LUI le plus a jour", () => {
-    expect(finContratEnCours("2027-06-30", "2025-10-01")).toBe("2027-06-30");
+    expect(finContratEnCours("2027-06-30", cycle("2025-06-01", { enregistreLeISO: "2026-07-22" }))).toBe("2027-06-30");
   });
 
-  it("34 GAUTHEY : un cycle qui commence AVANT la fin du referentiel ne la masque pas", () => {
-    // Mandat fini le 30/10/2025 (App A), aucune AG depuis la reprise ; le suivi ne porte
-    // que la ligne d'import du 01/10/2025. Sans cette regle : « jusqu'au 30/09/2026 »,
-    // et 320 jours sans mandat passaient inapercus.
-    expect(finContratEnCours("2025-10-30", "2025-10-01")).toBe("2025-10-30");
+  it("BARRILLET1 : un mandat renouvele AVANT terme compte (nouveau contrat au 01/01, fin App A au 30/06)", () => {
+    expect(finContratEnCours("2026-06-30", cycle("2026-01-01", { enregistreLeISO: "2026-07-22" }))).toBe("2026-12-31");
+  });
+
+  it("34 GAUTHEY : le cycle de bascule du 01/10/2025 ne masque pas la fin du referentiel", () => {
+    // Mandat fini le 30/10/2025, aucune AG depuis la reprise ; le suivi ne porte que la
+    // ligne d'import. Sans cette regle : « jusqu'au 30/09/2026 », 320 jours de silence.
+    expect(finContratEnCours("2025-10-30", cycle("2025-10-01", { enregistreLeISO: "2026-07-22" }))).toBe("2025-10-30");
+  });
+
+  it("un cycle qui commence un 01/10/2025 mais saisi par un recap n'est PAS la bascule", () => {
+    expect(finContratEnCours("2025-10-30", cycle("2025-10-01", { enregistreLeISO: "2025-09-20" }))).toBe("2026-09-30");
+  });
+
+  it("prefere la fin STOCKEE du cycle a la fin deduite (contrat de 2 ans)", () => {
+    expect(finContratEnCours("2026-06-30", cycle("2026-07-01", { finISO: "2028-06-30", enregistreLeISO: "2026-09-15" }))).toBe("2028-06-30");
   });
 
   it("se contente de ce qu'il a quand une source manque", () => {
     expect(finContratEnCours("2026-06-30", null)).toBe("2026-06-30");
-    expect(finContratEnCours(null, "2026-01-01")).toBe("2026-12-31");
+    expect(finContratEnCours(null, cycle("2026-01-01"))).toBe("2026-12-31");
   });
 
   it("renvoie null quand aucune source ne dit rien (la copro sort de la liste)", () => {
@@ -121,19 +134,7 @@ describe("finContratEnCours", () => {
     expect(finContratEnCours(undefined, undefined)).toBeNull();
   });
 
-  it("prefere la fin STOCKEE du cycle a la fin deduite (contrat de 2 ans)", () => {
-    // Cycle enregistre 01/07/2026 -> 30/06/2028 : sans la fin stockee, on dirait
-    // 30/06/2027 et on preparerait un renouvellement un an trop tot.
-    expect(finContratEnCours("2026-06-30", "2026-07-01", "2028-06-30")).toBe("2028-06-30");
-  });
-
-  it("retombe sur debut + 1 an quand la fin n'est pas stockee (cycles anciens)", () => {
-    expect(finContratEnCours("2026-06-30", "2026-07-01", null)).toBe("2027-06-30");
-  });
-
   it("ignore une date de referentiel illisible plutot que de la comparer de travers", () => {
-    // "30/06/2026" trie APRES "2027-..." en comparaison de chaines : sans le filtre, une
-    // date au format francais l'emporterait a tort sur la bonne.
-    expect(finContratEnCours("30/06/2026", "2026-07-01")).toBe("2027-06-30");
+    expect(finContratEnCours("30/06/2026", cycle("2026-07-01"))).toBe("2027-06-30");
   });
 });

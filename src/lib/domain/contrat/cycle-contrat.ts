@@ -103,9 +103,35 @@ export function motifRefusCycle(debutISO: string, finISO: string): string | null
   return null;
 }
 
+/** Le dernier cycle enregistre par l'intranet, tel que le suivi le porte. */
+export interface DernierCycle {
+  debutISO: string;
+  /** Fin stockee (duree libre), sinon absente = debut + 1 an - 1 jour. */
+  finISO?: string | null;
+  /** Jour ou la ligne a ete enregistree (created_at). */
+  enregistreLeISO?: string | null;
+}
+
+/**
+ * La reprise du suivi des contrats (22/07/2026, liste SharePoint MYTHEC) a pose sur TOUTES
+ * les copros un cycle date du 01/10/2025 : la bascule de la facturation sur Pennylane, pas
+ * un mandat. Cette ligne dit les honoraires en vigueur a la reprise, elle ne dit rien de la
+ * date du mandat. Pour 34 GAUTHEY (mandat fini le 30/10/2025, aucune AG depuis la reprise)
+ * elle faisait afficher « jusqu'au 30/09/2026 » et taisait 320 jours sans mandat
+ * (Sekou, 15/09/2026).
+ */
+export const BASCULE_SUIVI_CONTRATS = { debutISO: "2025-10-01", enregistreLeISO: "2026-07-22" } as const;
+
+export function estCycleDeBascule(cycle: DernierCycle): boolean {
+  return (
+    cycle.debutISO === BASCULE_SUIVI_CONTRATS.debutISO &&
+    (cycle.enregistreLeISO ?? null) === BASCULE_SUIVI_CONTRATS.enregistreLeISO
+  );
+}
+
 /**
  * Fin du contrat REELLEMENT en cours : la plus tardive entre la date du referentiel App A
- * (`syndicContractEndDate`) et la fin deduite du dernier cycle enregistre par l'intranet.
+ * (`syndicContractEndDate`) et la fin du dernier cycle enregistre par l'intranet.
  *
  * POURQUOI LES DEUX (constat Sekou, 2026-09-11 sur FOCH31 : « il n'est pas echu, nous
  * avons signe le contrat ») : App A n'est PAS mis a jour quand un contrat est renouvele.
@@ -113,29 +139,22 @@ export function motifRefusCycle(debutISO: string, finISO: string): string | null
  * demarre le 01/07/2026. Se fier au seul referentiel affichait « echu depuis 73 jours »
  * des contrats signes - et faisait calculer le cycle suivant un an trop tot.
  *
- * `debutDernierCycle` : `intranet_suivi_contrats.debut_contrat` le plus recent, ou null ;
- * `finDernierCycle` : sa `fin_contrat` si elle est renseignee (duree libre).
+ * Un renouvellement peut commencer AVANT la fin qu'App A connait (mandat renouvele avant
+ * terme : BARRILLET1, fin App A au 30/06/2026, nouveau contrat au 01/01/2026) : on ne
+ * compare donc pas les debuts, on prend la fin la plus tardive. Seul le cycle de bascule
+ * (cf. BASCULE_SUIVI_CONTRATS) est ignore.
  */
 export function finContratEnCours(
   finReferentielISO: string | null | undefined,
-  debutDernierCycleISO: string | null | undefined,
-  finDernierCycleISO?: string | null,
+  dernierCycle: DernierCycle | null | undefined,
 ): string | null {
   const finRef = finReferentielISO && JOUR_RE.test(finReferentielISO) ? finReferentielISO : null;
-  const debutCycle = debutDernierCycleISO && JOUR_RE.test(debutDernierCycleISO) ? debutDernierCycleISO : null;
-  if (!debutCycle) return finRef;
-
-  // Un cycle intranet ne compte que s'il COMMENCE APRES la fin du referentiel : c'est
-  // alors un renouvellement qu'App A ignore. Un cycle qui commence avant n'apprend rien
-  // de plus qu'App A - et peut meme le masquer : la reprise du suivi (22/07/2026) a pose
-  // un cycle au 01/10/2025 sur toutes les copros ; pour 34 GAUTHEY (mandat fini le
-  // 30/10/2025, aucune AG depuis la reprise), il faisait afficher « jusqu'au 30/09/2026 »
-  // et taisait 320 jours sans mandat (Sekou, 15/09/2026).
-  if (finRef && debutCycle <= finRef) return finRef;
+  const cycle = dernierCycle && JOUR_RE.test(dernierCycle.debutISO) && !estCycleDeBascule(dernierCycle) ? dernierCycle : null;
+  if (!cycle) return finRef;
 
   // La fin STOCKEE du cycle prime (contrats a duree libre) ; a defaut, l'ancienne
   // regle du debut + 1 an, qui reste vraie pour tout ce qui a ete enregistre avant.
-  return finDernierCycleISO && JOUR_RE.test(finDernierCycleISO)
-    ? finDernierCycleISO
-    : finDeCycle(debutCycle);
+  const finIntranet =
+    cycle.finISO && JOUR_RE.test(cycle.finISO) ? cycle.finISO : finDeCycle(cycle.debutISO);
+  return finRef && finRef > finIntranet ? finRef : finIntranet;
 }

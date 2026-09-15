@@ -104,7 +104,12 @@ export async function listerContratsAPreparer(
   const avecFin = copros
     .map((copro) => {
       const dernier = contrats.get(copro.code);
-      const fin = finContratEnCours(copro.mandatSyndicFin, dernier?.debutContrat, dernier?.finContrat);
+      const fin = finContratEnCours(
+        copro.mandatSyndicFin,
+        dernier
+          ? { debutISO: dernier.debutContrat, finISO: dernier.finContrat, enregistreLeISO: dernier.enregistreLeISO }
+          : null,
+      );
       return fin ? { copro, fin } : null;
     })
     .filter((x): x is { copro: (typeof copros)[number]; fin: string } => x !== null);
