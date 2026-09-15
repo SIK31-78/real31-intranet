@@ -64,6 +64,9 @@ import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-c
 import { MockCoproDatesRepository } from "@/lib/adapters/mock/mock-copro-dates-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import type { PerteRepository } from "@/lib/ports/perte-repository";
+import type { PropositionRepository, RegistreCoprosProvider } from "@/lib/ports/proposition-repository";
+import { SupabasePropositionRepository, SupabaseRegistreCoprosProvider } from "./supabase/supabase-proposition-repository";
+import { MockPropositionRepository, MockRegistreCoprosProvider } from "./mock/mock-proposition-repository";
 import { SupabasePerteRepository } from "./supabase/supabase-perte-repository";
 import { MockPerteRepository } from "./mock/mock-perte-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -233,6 +236,16 @@ export function getInvoicingProvider(): InvoicingProvider {
 export function getJalonRepository(): JalonRepository {
   if (coproSourceEstSupabase()) return new SupabaseJalonRepository();
   return new MockJalonRepository();
+}
+
+// Propositions de contrat de syndic et registre national des coproprietes (ADR-039).
+export function getPropositionRepository(): PropositionRepository {
+  if (coproSourceEstSupabase()) return new SupabasePropositionRepository();
+  return new MockPropositionRepository();
+}
+export function getRegistreCoprosProvider(): RegistreCoprosProvider {
+  if (coproSourceEstSupabase()) return new SupabaseRegistreCoprosProvider();
+  return new MockRegistreCoprosProvider();
 }
 
 // Dossiers de perte de copropriete (table native intranet_perte_dossier).

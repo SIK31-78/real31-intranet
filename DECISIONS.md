@@ -1724,6 +1724,36 @@ ADR-001, ADR-037. SQL : `supabase/sql/intranet_perte_dossier.sql`. Fiche source 
 
 ---
 
+## ADR-039 - Module « Propositions de contrat de syndic » : le début de la chaîne, adossé au registre national
+
+**Date** : 2026-09-15 - **Statut** : accepté (Sekou, 2026-09-15 — « je pense que c'est le bon moment pour développer ça » ; écarts de prix libres et invisibles du client ; visible de tout le cabinet ; mail pré-rédigé ; tout l'historique repris ; saisie rapide ouverte à tous, rôles plus tard)
+
+### Contexte
+
+Les 5 reprises de l'été (S297, S303, S304, S305, S306) sont **invisibles de la facturation** : elles vivent dans eStale, sans fiche App A ni cycle de contrat. La cause n'est pas technique : rien ne relie « on a gagné une copro » à « elle est branchée ». Le commercial vit dans un Excel (`Suivi Proposition reprise syndic.xlsx`, 1 161 propositions depuis 2012, 174 gagnées, 648 refusées par REAL 31), une fiche de visite Word, une grille tarifaire Excel (« 2 899 € + 202 € par lot + suppléments »), un mail type, et le contrat s'écrit à la main.
+
+Sekou a choisi de **garder App A** (le registre du patron) comme base pour le moment : chaque reprise doit donc y avoir sa fiche, créée par quelqu'un. Le module Propositions est l'endroit où ce quelqu'un devient un bouton.
+
+### Décision
+
+1. **Une proposition = un prospect + l'immeuble + le prix + un statut**, dans `intranet_proposition` : caractéristiques de la fiche de visite (lots, cages, ascenseurs, portes de parking, chauffage collectif, gardien, employés, visites et CS prévus, prochaine AG, syndic actuel, clôture, litiges), contact, origine, agence, gestionnaire, dates, journal. Statuts repris de l'Excel : *en cours → accepté par le CS → élu* / *refusé par le CS* / *refusé par l'AG* / *refusé par REAL 31* / *reporté*. **Tout le cabinet** voit et saisit ; la gestion des rôles viendra plus tard.
+2. **Le registre national des copropriétés (ANAH, open data)** est repris en base (`intranet_registre_copros`, extrait Île-de-France, ~115 000 lignes, script trimestriel `scripts/importer-registre-copros.mjs`). Une adresse tapée pré-remplit immatriculation, lots (total, habitation/bureaux/commerces, stationnement), syndic en place, fin de son mandat, période de construction. Vérifié sur des adresses réelles : les lots coïncident avec App A et avec l'Excel.
+3. **Le prix vient de la grille du cabinet**, qui entre dans `intranet_tarifs` (composition du forfait : base, par lot, suppléments chauffage / gardien / ascenseur / porte de garage, timbres par copropriétaire), calcul pur `domain/proposition/forfait.ts`. **L'écart est libre** — remise ou majoration, sans justification — et **le client ne le voit jamais** : le contrat et le mail portent le montant retenu, la trace de la grille reste interne.
+4. **Saisie rapide** : un appel, un passage à l'agence — n'importe qui crée l'entrée avec ce qu'il sait (adresse, contact, lots, origine) et la fiche dit ce qu'il reste à demander. Elle remonte dans le pipeline pour le gestionnaire.
+5. **Trois briques**, livrées dans l'ordre : (1) registre + pipeline + saisie rapide + import de l'Excel ; (2) le document — le contrat généré depuis la proposition avec le gabarit existant (source « proposition » à côté de la source « copropriété »), le mail type pré-rédigé à copier ; (3) **« Élu » déclenche la reprise** : fiche App A (pattern `dataSource: ESTALE`), client Pennylane par API, dossier de reprise pré-rempli, cycle de contrat (15 mois) — dans cet ordre, chaque étape tracée.
+6. **Historique** : les 1 161 lignes de l'Excel sont reprises telles quelles (statuts normalisés), c'est la mémoire commerciale du cabinet.
+
+### Conséquences
+
+**Positives** : une copro gagnée est branchée le jour de l'élection, plus jamais découverte facturable-nulle-part trois mois après ; le prix se calcule au lieu de se recopier ; le registre donne les lots et le syndic sortant sans visite ; le taux de transformation par origine et par agence devient lisible. **Négatives / dettes** : 115 000 lignes de registre à rafraîchir chaque trimestre (script, pas d'API) ; l'écriture dans App A depuis l'intranet s'étend (statut et dates hier, création de fiche demain — le schéma Prisma reste celui du patron, à border avec lui) ; les rôles (qui peut passer « élu », qui peut remiser) ne sont pas gérés.
+
+### Liens
+
+ADR-001, ADR-012 v2 (document imprimable), ADR-037 (reprise), ADR-038 (perte). Sources : `docs/Suivi Proposition reprise syndic.xlsx`, dossier SharePoint « Proposition contrat syndic » (fiche visite, grille 2026, mail type). Registre : data.gouv, jeu `62da71c068871f4c54258c7c`.
+
+
+---
+
 ## ADR-020 - Observabilité : Sentry seul, et les erreurs MÉTIER signalées explicitement
 
 **Date** : 2026-09-14 - **Statut** : accepté (Sekou, 2026-09-14 — « branche Sentry »)

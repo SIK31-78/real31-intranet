@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus,
-  PackageMinus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
+  PackageMinus, Handshake, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
   FolderOpen, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -20,6 +20,7 @@ export type NavKey =
   | "dossiers"
   | "reprise"
   | "perte"
+  | "propositions"
   | "resolutions"
   | "compta"
   | "facturation"
@@ -81,6 +82,8 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus },
       // Le miroir de la reprise : ce qu'il reste a faire quand une AG nomme un autre syndic.
       { key: "perte", label: "Perte de copropriété", href: "/perte-copro", icon: PackageMinus },
+      // Le debut de la chaine : ce qui pourrait devenir une copro geree (ADR-039).
+      { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
     ],
   },
   {
