@@ -1694,6 +1694,36 @@ ADR-001, ADR-029, ADR-030, ADR-031 (superseded), ADR-033. Docs : `docs/reprise/C
 
 ---
 
+## ADR-038 - Module « Perte de copropriété » : le miroir de la reprise, daté depuis l'AG
+
+**Date** : 2026-09-15 - **Statut** : accepté (Sekou, 2026-09-15 — « il faut faire comme reprise copropriété, des listes » ; « à la date de l'AG ; garde ça ; tout le monde, on verra la gestion des rôles un peu plus tard »)
+
+### Contexte
+
+LAPROMENAD (S182) n'est plus gérée depuis juin 2026 et était toujours `ACTIVE` dans App A : elle serait partie dans la première fournée de gestion courante, cochée par « Tout sélectionner ». Rien dans l'intranet ne permettait d'acter la perte d'une copropriété, alors que le cabinet a une **fiche process** (Loop, « Perte copro ») de 12 actions de gestion et 4 de comptabilité, dont certaines « dès le lendemain » de l'AG et une à 5 ans (clôture définitive sur Crypto, délai légal de conservation).
+
+Un premier jet (matin du 15/09) posait un bouton « Perdre une copropriété » dans `/gestion-courante` avec une simple table de trace. Sekou : ça doit être **un module à part, comme reprise**.
+
+### Décision
+
+1. **Un module `perte-copro`**, miroir du module reprise (ADR-037) : un **dossier par copro perdue** (`intranet_perte_dossier`), la **checklist de la fiche process** en JSONB (`ETAPES_PERTE`, `domain/perte/dossier.ts` : 17 étapes, 4 phases — lendemain, transmission, J+15, comptabilité — avec rôle indicatif, échéance, et pour deux étapes une **liste de contrôle** de cases), statut par étape (à faire / en cours / bloqué / fait / sans objet), assignation nominative libre, notes, journal.
+2. **Tout se date depuis l'AG** qui a nommé le nouveau syndic : J+1, J+15, J+5 ans. La liste des dossiers remonte retards et blocages ; « prochaine étape » = la plus en retard.
+3. **Ouvrir le dossier passe la copro `INACTIVE`** dans `Copropriete.status` (App A), le champ que tout l'intranet filtre (facturation, alertes, listes) ; l'étape « Inactive » est cochée par l'ouverture. Le dossier **est** la trace (fin de gestion, motif, qui, quand) : pas de table de trace à part.
+4. **Deux portes d'entrée**, même action métier : le module lui-même, et la section « Perdre une copropriété » de `/gestion-courante` (là où la fausse facture aurait été émise). Le code de la copro se retape pour confirmer.
+5. **Droits** : lecture et avancement des étapes ouverts à tout gestionnaire connecté (outil d'équipe, comme reprise) ; la gestion des rôles viendra plus tard (roadmap). L'entrée de menu est visible de tous.
+6. **Dégradation** : table absente → liste vide et avertissement, jamais une page cassée ; échec du passage `INACTIVE` après création → le dossier existe et son étape LE3 le dit.
+
+### Conséquences
+
+**Positives** : une copro perdue sort de partout en un geste, et ce qu'il reste à faire est visible par l'équipe avec ses échéances — la fiche Loop n'était ni datée ni partagée. **Négatives / dettes** : le dernier trimestre géré n'est pas facturé au prorata automatiquement (dit à l'écran) ; pas de rappel Outlook des échéances ; assignation par nom libre tant que les rôles ne sont pas gérés ; les 9 copros déjà `INACTIVE` dans App A n'ont pas de dossier (perdues avant le module).
+
+### Liens
+
+ADR-001, ADR-037. SQL : `supabase/sql/intranet_perte_dossier.sql`. Fiche source : `docs/fiche process perte de copropriété.pdf`.
+
+
+---
+
 ## ADR-020 - Observabilité : Sentry seul, et les erreurs MÉTIER signalées explicitement
 
 **Date** : 2026-09-14 - **Statut** : accepté (Sekou, 2026-09-14 — « branche Sentry »)

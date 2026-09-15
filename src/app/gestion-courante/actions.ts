@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutVoirGestionCourante } from "@/lib/auth/roles";
-import { perdreCopro } from "@/lib/services/coproprietes/perdre-copro";
+import { ouvrirDossierPerte } from "@/lib/services/perte/dossier-perte";
 import {
   apercuGestionCourante,
   lancerGestionCourante,
@@ -75,19 +75,20 @@ export async function lancerGestionCouranteAction(
 }
 
 // ---------------------------------------------------------------------------
-// Perdre une copropriete (Sekou, 15/09/2026) : la passer INACTIVE au referentiel, avec
-// la trace. Meme habilitation que la facturation : c'est la comptabilite du cabinet qui
-// sait qu'une copro est partie, et c'est elle que ca protege d'une fausse facture.
+// Perdre une copropriete (Sekou, 15/09/2026) : ouvre le DOSSIER DE PERTE (checklist de la
+// fiche process, datee depuis l'AG) et passe la copro INACTIVE au referentiel. Meme
+// habilitation que la facturation ici ; le dossier, lui, est ouvert a toute l'equipe.
 
 const zPerte = z.object({
   coproCode: z.string().regex(/^[A-Za-z0-9_-]{1,20}$/),
+  dateAgISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   finGestionISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   motif: z.string().max(300).optional(),
   /** Le code retape : une copro perdue disparait de tout l'intranet, on ne clique pas a cote. */
   confirmation: z.string(),
 });
 
-export async function perdreCoproAction(input: unknown): Promise<Res<{ coproCode: string }>> {
+export async function perdreCoproAction(input: unknown): Promise<Res<{ dossierId: string }>> {
   const p = zPerte.safeParse(input);
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await getGestionnaireCourant();
@@ -98,17 +99,19 @@ export async function perdreCoproAction(input: unknown): Promise<Res<{ coproCode
     return { ok: false, erreur: "Retape le code de la copropriété pour confirmer." };
   }
   try {
-    await perdreCopro({
+    const dossier = await ouvrirDossierPerte({
       coproCode: p.data.coproCode,
+      dateAgISO: p.data.dateAgISO,
       finGestionISO: p.data.finGestionISO,
       ...(p.data.motif ? { motif: p.data.motif } : {}),
       par: g.nomComplet,
     });
     revalidatePath("/gestion-courante");
+    revalidatePath("/perte-copro");
     revalidatePath("/copropriete");
     revalidatePath("/contrat");
     revalidatePath("/accueil");
-    return { ok: true, donnees: { coproCode: p.data.coproCode } };
+    return { ok: true, donnees: { dossierId: dossier.id } };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message };
   }

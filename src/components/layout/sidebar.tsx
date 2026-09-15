@@ -3,7 +3,8 @@ import Link from "next/link";
 import {
   LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
-  PackagePlus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
+  PackagePlus,
+  PackageMinus, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
   FolderOpen, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -18,6 +19,7 @@ export type NavKey =
   | "copros"
   | "dossiers"
   | "reprise"
+  | "perte"
   | "resolutions"
   | "compta"
   | "facturation"
@@ -77,6 +79,8 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
       { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
       { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus },
+      // Le miroir de la reprise : ce qu'il reste a faire quand une AG nomme un autre syndic.
+      { key: "perte", label: "Perte de copropriété", href: "/perte-copro", icon: PackageMinus },
     ],
   },
   {

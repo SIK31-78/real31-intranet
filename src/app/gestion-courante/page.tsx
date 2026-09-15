@@ -11,7 +11,7 @@ import { PerdreCopro } from "@/components/gestion-courante/perdre-copro";
 import { Section } from "@/components/ui/section";
 import { CardBody } from "@/components/ui/card";
 import { getCoproRepository } from "@/lib/adapters/router";
-import { listerCoprosPerdues } from "@/lib/services/coproprietes/perdre-copro";
+import { listerDossiersPerte } from "@/lib/services/perte/dossier-perte";
 import { Page, PageHeader } from "@/components/ui/page";
 
 export const metadata: Metadata = { title: "Gestion courante - REAL31 Intranet" };
@@ -24,9 +24,18 @@ export default async function GestionCourantePage() {
   const habilite = peutVoirGestionCourante(g.email);
   // Pour « Perdre une copropriete » : toutes les copros ACTIVES du cabinet (geste
   // transverse), et les dernieres pertes actees.
-  const [toutes, perdues] = habilite
-    ? await Promise.all([getCoproRepository().listerToutes(), listerCoprosPerdues(10)])
+  const aujourdhuiISO = new Date().toISOString().slice(0, 10);
+  const [toutes, dossiers] = habilite
+    ? await Promise.all([getCoproRepository().listerToutes(), listerDossiersPerte(aujourdhuiISO)])
     : [[], []];
+  const perdues = dossiers.slice(0, 5).map((d) => ({
+    id: d.id,
+    coproCode: d.coproCode,
+    coproNom: d.coproNom,
+    dateAgISO: d.dateAgISO,
+    faites: d.avancement.faites,
+    total: d.avancement.total,
+  }));
   const actives = toutes
     .filter((c) => c.statut === "active")
     .map((c) => ({ code: c.code, nom: c.nom }))
@@ -70,11 +79,7 @@ export default async function GestionCourantePage() {
           <Section id="perdre-copro" titre="Perdre une copropriété">
             <Card>
               <CardBody>
-                <PerdreCopro
-                  copros={actives}
-                  perdues={perdues}
-                  aujourdhuiISO={new Date().toISOString().slice(0, 10)}
-                />
+                <PerdreCopro copros={actives} perdues={perdues} aujourdhuiISO={aujourdhuiISO} />
               </CardBody>
             </Card>
           </Section>

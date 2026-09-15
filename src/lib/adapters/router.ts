@@ -63,6 +63,9 @@ import type { CoproDatesRepository } from "@/lib/ports/copro-dates-repository";
 import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
 import { MockCoproDatesRepository } from "@/lib/adapters/mock/mock-copro-dates-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
+import type { PerteRepository } from "@/lib/ports/perte-repository";
+import { SupabasePerteRepository } from "./supabase/supabase-perte-repository";
+import { MockPerteRepository } from "./mock/mock-perte-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
 import type { FacturationRepository } from "@/lib/ports/facturation-repository";
@@ -230,6 +233,12 @@ export function getInvoicingProvider(): InvoicingProvider {
 export function getJalonRepository(): JalonRepository {
   if (coproSourceEstSupabase()) return new SupabaseJalonRepository();
   return new MockJalonRepository();
+}
+
+// Dossiers de perte de copropriete (table native intranet_perte_dossier).
+export function getPerteRepository(): PerteRepository {
+  if (coproSourceEstSupabase()) return new SupabasePerteRepository();
+  return new MockPerteRepository();
 }
 
 // Prise en main des copros (onboarding, table native intranet_copro_prise_en_main).

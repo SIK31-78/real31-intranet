@@ -9,7 +9,7 @@
 // sur le MIROIR SEUL (l'app tourne, il manque juste les 3 copros eStale orphelines) - jamais
 // de plantage ni de page blanche. Chaque appel eStale est sous try/catch + console.warn.
 
-import type { CoproPerdue, CoproPerdueInput, CoproRepository } from "@/lib/ports/copro-repository";
+import type { CoproPerdueInput, CoproRepository } from "@/lib/ports/copro-repository";
 import type { CoproEstaleProvider } from "@/lib/ports/copro-estale-provider";
 import type { CoproDatesRepository } from "@/lib/ports/copro-dates-repository";
 import type { Copropriete } from "@/lib/domain/copropriete";
@@ -111,10 +111,6 @@ export class CompositeCoproRepository implements CoproRepository {
   // La perte est un geste sur le referentiel partage : le miroir (App A) fait foi.
   perdreCopro(input: CoproPerdueInput): Promise<void> {
     return this.miroir.perdreCopro(input);
-  }
-
-  listerCoprosPerdues(limite: number): Promise<CoproPerdue[]> {
-    return this.miroir.listerCoprosPerdues(limite);
   }
 
   // --- Interne -----------------------------------------------------------------
