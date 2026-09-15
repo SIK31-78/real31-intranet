@@ -3,14 +3,12 @@ import { redirect } from "next/navigation";
 import { Link2, Plus, Search } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { etatRegistre, listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
-import { LIBELLE_ORIGINE, LIBELLE_STATUT, ORIGINES, STATUTS_OUVERTS, STATUTS_PROPOSITION, type Origine, type StatutProposition } from "@/lib/domain/proposition/proposition";
+import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition } from "@/lib/domain/proposition/proposition";
 import {
-  anneesDistinctes,
   filtrer,
   FENETRE_TRANSFORMATION_ANNEES,
   transformation,
   trier,
-  valeursDistinctes,
   type CleTri,
   type FiltrePipeline,
   type TriPipeline,
@@ -53,18 +51,18 @@ const TRIS: { value: string; label: string }[] = [
   { value: "adresse-asc", label: "Adresse A → Z" },
 ];
 
-type Params = { q?: string; statut?: string; agence?: string; gestionnaire?: string; origine?: string; annee?: string; tri?: string; vue?: string };
+type Params = { q?: string; statut?: string; tri?: string; vue?: string };
+
+/** Les statuts proposes en boutons : ce qui est ouvert, tout, puis chaque issue. */
+const STATUTS_BOUTONS: { value: NonNullable<FiltrePipeline["statut"]>; label: string }[] = [
+  { value: "ouvertes", label: "Ouvertes" },
+  { value: "toutes", label: "Toutes" },
+  ...STATUTS_PROPOSITION.map((s) => ({ value: s, label: LIBELLE_STATUT[s] })),
+];
 
 function lireFiltre(sp: Params): FiltrePipeline {
   const statut = sp.statut && (sp.statut === "toutes" || (STATUTS_PROPOSITION as readonly string[]).includes(sp.statut)) ? (sp.statut as FiltrePipeline["statut"]) : "ouvertes";
-  return {
-    ...(sp.q?.trim() ? { texte: sp.q.trim() } : {}),
-    statut,
-    ...(sp.agence ? { agence: sp.agence } : {}),
-    ...(sp.gestionnaire ? { gestionnaire: sp.gestionnaire } : {}),
-    ...(sp.origine && (ORIGINES as readonly string[]).includes(sp.origine) ? { origine: sp.origine as Origine } : {}),
-    ...(sp.annee && /^\d{4}$/.test(sp.annee) ? { annee: Number(sp.annee) } : {}),
-  };
+  return { ...(sp.q?.trim() ? { texte: sp.q.trim() } : {}), statut };
 }
 
 function lireTri(sp: Params): TriPipeline {
@@ -91,15 +89,16 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   const compte = (s: StatutProposition) => perimetre.filter((p) => p.statut === s).length;
   const aujourdHui = new Date().toISOString().slice(0, 10);
   const transfo = transformation(perimetre, aujourdHui);
-  const agences = valeursDistinctes(toutes, "agence");
-  const gestionnaires = valeursDistinctes(toutes, "gestionnaire");
-  const annees = anneesDistinctes(toutes);
   // Le registre ne s'interroge pas ici (une requete par proposition) : le compte suffit.
   const aSuggestion = ouvertes.filter((p) => !p.immeuble.immatriculation).length;
 
-  const params = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "vue") as [string, string][]);
-  const lienVue = (v: "liste" | "statut") => `/propositions?${new URLSearchParams({ ...Object.fromEntries(params), ...(v === "statut" ? { vue: "statut" } : {}) }).toString()}`;
-  const filtreActif = Boolean(filtre.texte || filtre.agence || filtre.gestionnaire || filtre.origine || filtre.annee || filtre.statut !== "ouvertes");
+  const lien = (maj: Partial<Params>) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...sp, ...maj })) if (v) q.set(k, v);
+    return `/propositions?${q.toString()}`;
+  };
+  const lienVue = (v: "liste" | "statut") => lien({ vue: v === "statut" ? "statut" : undefined });
+  const filtreActif = Boolean(filtre.texte || filtre.statut !== "ouvertes");
 
   return (
     <AppShell user={g} active="propositions" breadcrumb="Propositions de contrat">
@@ -144,52 +143,29 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
           <CardBody>
             <form method="get" action="/propositions" className="flex flex-col gap-3">
               {vue === "statut" && <input type="hidden" name="vue" value="statut" />}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-                <Field label="Rechercher" htmlFor="f-q" className="col-span-2">
-                  <Input id="f-q" name="q" defaultValue={filtre.texte ?? ""} placeholder="adresse, commune, contact, immatriculation" />
+              {filtre.statut !== "ouvertes" && <input type="hidden" name="statut" value={filtre.statut} />}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <Field label="Rechercher" htmlFor="f-q" className="flex-1" hint="adresse, commune, contact, immatriculation, agence (LGC), gestionnaire, origine, année — plusieurs mots se cumulent">
+                  <div className="flex items-center gap-2">
+                    <Input id="f-q" name="q" defaultValue={filtre.texte ?? ""} placeholder="ex. « sartoris LGC 2026 » ou « bouche à oreille refusé »" autoComplete="off" />
+                    <Button type="submit" variant="secondary" size="md"><Search strokeWidth={1.5} /> Chercher</Button>
+                    {filtreActif && <ButtonLink href="/propositions" variant="ghost" size="md">Effacer</ButtonLink>}
+                  </div>
                 </Field>
-                <Field label="Statut" htmlFor="f-statut">
-                  <Select id="f-statut" name="statut" defaultValue={filtre.statut}>
-                    <option value="ouvertes">Ouvertes</option>
-                    <option value="toutes">Toutes</option>
-                    {STATUTS_PROPOSITION.map((s) => <option key={s} value={s}>{LIBELLE_STATUT[s]}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Agence" htmlFor="f-agence">
-                  <Select id="f-agence" name="agence" defaultValue={filtre.agence ?? ""}>
-                    <option value="">Toutes</option>
-                    {agences.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Gestionnaire" htmlFor="f-gest">
-                  <Select id="f-gest" name="gestionnaire" defaultValue={filtre.gestionnaire ?? ""}>
-                    <option value="">Tous</option>
-                    {gestionnaires.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Origine" htmlFor="f-origine">
-                  <Select id="f-origine" name="origine" defaultValue={filtre.origine ?? ""}>
-                    <option value="">Toutes</option>
-                    {ORIGINES.map((o) => <option key={o} value={o}>{LIBELLE_ORIGINE[o]}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Année" htmlFor="f-annee">
-                  <Select id="f-annee" name="annee" defaultValue={filtre.annee ? String(filtre.annee) : ""}>
-                    <option value="">Toutes</option>
-                    {annees.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Tri" htmlFor="f-tri">
+                <Field label="Tri" htmlFor="f-tri" className="sm:w-56">
                   <Select id="f-tri" name="tri" defaultValue={`${tri.cle}-${tri.sens}`}>
                     {TRIS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </Select>
                 </Field>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Button type="submit" variant="secondary" size="sm"><Search strokeWidth={1.5} /> Filtrer</Button>
-                  {filtreActif && <ButtonLink href="/propositions" variant="ghost" size="sm">Effacer</ButtonLink>}
-                  <span className="text-caption text-ink-3">{lignes.length} proposition{lignes.length > 1 ? "s" : ""}</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {STATUTS_BOUTONS.map((s) => (
+                    <ButtonLink key={s.value} href={lien({ statut: s.value === "ouvertes" ? undefined : s.value })} variant={filtre.statut === s.value ? "secondary" : "ghost"} size="sm">
+                      {s.label}
+                    </ButtonLink>
+                  ))}
+                  <span className="text-caption text-ink-3 pl-2">{lignes.length} proposition{lignes.length > 1 ? "s" : ""}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={registre?.perime ? "text-caption text-warn-700" : "text-caption text-ink-3"}>

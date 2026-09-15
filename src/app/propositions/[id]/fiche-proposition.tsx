@@ -39,6 +39,7 @@ import { calculerPrixAction, mettreAJourPropositionAction } from "../actions";
 const euros = (n: number) => `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const nb = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", ".")));
 const txt = (v: number | undefined) => (v === undefined ? "" : String(v));
+const arrondi = (n: number) => Math.round(n * 100) / 100;
 
 const TON: Record<StatutProposition, "ok" | "warn" | "err" | "neutral" | "info"> = {
   en_cours: "info",
@@ -86,9 +87,25 @@ export function FicheProposition({
   // --- Contact ---
   const [contact, setContact] = useState(p.contact);
   // --- Prix retenu ---
-  const [honoraires, setHonoraires] = useState(txt(p.prix.honorairesTtc ?? (prixGrille.grilleDisponible ? prixGrille.forfait.grilleTtc : undefined)));
+  // Le prix de base est la grille ; le gestionnaire applique un geste commercial (ou une
+  // majoration, geste negatif). Le retenu = grille - geste ; corriger l'un recalcule l'autre.
+  const grilleInitiale = p.prix.grilleTtc ?? (prixGrille.grilleDisponible ? prixGrille.forfait.grilleTtc : undefined);
+  const [geste, setGeste] = useState(txt(p.prix.gesteCommercialTtc ?? (p.prix.honorairesTtc !== undefined && grilleInitiale !== undefined ? arrondi(grilleInitiale - p.prix.honorairesTtc) : 0)));
+  const [honoraires, setHonoraires] = useState(txt(p.prix.honorairesTtc ?? grilleInitiale));
   const [timbres, setTimbres] = useState(txt(p.prix.timbresTtc ?? (prixGrille.grilleDisponible ? prixGrille.forfait.timbresTtc : undefined)));
-  const [reels, setReels] = useState(p.prix.fraisPostauxReels ?? false);
+  // Une offre part au reel pour les frais postaux, sauf choix contraire (Sekou, 15/09/2026).
+  const [reels, setReels] = useState(p.prix.fraisPostauxReels ?? true);
+  const base = prix.grilleDisponible ? prix.forfait.grilleTtc : grilleInitiale;
+  const changerGeste = (v: string) => {
+    setGeste(v);
+    const g = nb(v);
+    if (base !== undefined) setHonoraires(txt(arrondi(base - (g ?? 0))));
+  };
+  const changerHonoraires = (v: string) => {
+    setHonoraires(v);
+    const h = nb(v);
+    if (base !== undefined && h !== undefined) setGeste(txt(arrondi(base - h)));
+  };
   // --- Suivi ---
   const [statut, setStatut] = useState<StatutProposition>(p.statut);
   const [agence, setAgence] = useState(p.agence ?? "");
@@ -114,7 +131,7 @@ export function FicheProposition({
       if (!res.ok || !res.donnees) return toast.err(res.ok ? "Calcul impossible." : res.erreur);
       setPrix(res.donnees);
       if (res.donnees.grilleDisponible) {
-        setHonoraires(txt(res.donnees.forfait.grilleTtc));
+        setHonoraires(txt(arrondi(res.donnees.forfait.grilleTtc - (nb(geste) ?? 0))));
         setTimbres(txt(res.donnees.forfait.timbresTtc));
       }
     });
@@ -156,7 +173,8 @@ export function FicheProposition({
                 <p className="text-body text-warn-700">La grille du forfait {prix.annee} n&apos;est pas dans le barème : le prix se saisit à la main.</p>
               )}
               <div className="flex flex-wrap items-end gap-4 border-t border-line pt-4">
-                <Field label="Honoraires retenus (TTC)" htmlFor="pp-hono"><Input id="pp-hono" inputMode="decimal" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} largeur="auto" className="tabular-nums" /></Field>
+                <Field label="Geste commercial (€ TTC / an)" htmlFor="pp-geste" hint="négatif = majoration"><Input id="pp-geste" inputMode="decimal" value={geste} onChange={(e) => changerGeste(e.target.value)} largeur="auto" className="tabular-nums" /></Field>
+                <Field label="Honoraires retenus (TTC)" htmlFor="pp-hono" hint="= grille − geste"><Input id="pp-hono" inputMode="decimal" value={honoraires} onChange={(e) => changerHonoraires(e.target.value)} largeur="auto" className="tabular-nums font-medium" /></Field>
                 <div className="flex items-end pb-2 gap-3">
                   <Choix type="radio" name="pp-frais" label="Forfait timbres" checked={!reels} onChange={() => setReels(false)} />
                   <Choix type="radio" name="pp-frais" label="Frais réels" checked={reels} onChange={() => setReels(true)} />
@@ -172,6 +190,7 @@ export function FicheProposition({
                       {
                         prix: {
                           honorairesTtc: hono,
+                          gesteCommercialTtc: nb(geste) ?? 0,
                           timbresTtc: reels ? 0 : nb(timbres),
                           fraisPostauxReels: reels,
                           ...(prix.grilleDisponible ? { grilleTtc: prix.forfait.grilleTtc, grilleTimbresTtc: prix.forfait.timbresTtc, anneeGrille: prix.annee } : {}),

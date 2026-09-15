@@ -63,6 +63,13 @@ describe("filtrer", () => {
     expect(filtrer(liste, { texte: "AB1234567" }).map((p) => p.id)).toEqual(["p3"]);
     expect(filtrer(liste, { texte: "dupont" }).map((p) => p.id)).toEqual(["p1"]);
   });
+  it("texte libre : agence, gestionnaire, origine, statut, annee", () => {
+    expect(filtrer(liste, { statut: "toutes", texte: "ML" }).map((p) => p.id)).toEqual(["p2"]);
+    expect(filtrer(liste, { statut: "toutes", texte: "galiano" }).map((p) => p.id)).toEqual(["p2"]);
+    expect(filtrer(liste, { texte: "internet" }).map((p) => p.id)).toEqual(["p1"]);
+    expect(filtrer(liste, { statut: "toutes", texte: "élu" }).map((p) => p.id)).toEqual(["p2"]);
+    expect(filtrer(liste, { statut: "toutes", texte: "2024 LGC" }).map((p) => p.id)).toEqual(["p3"]);
+  });
 });
 
 describe("trier", () => {

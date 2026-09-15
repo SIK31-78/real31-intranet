@@ -169,7 +169,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
 
           <details className="group">
             <summary className="cursor-pointer text-body text-ink-2 hover:text-ink select-none">
-              Si la personne le sait : lots, syndic actuel, prochaine AG, clôture comptable
+              Si la personne le sait : lots, prochaine AG, clôture comptable, syndic actuel
             </summary>
             <div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-6">
               <Field label="Code postal" htmlFor="np-cp"><Input id="np-cp" value={codePostal} onChange={(e) => setCodePostal(e.target.value)} /></Field>

@@ -65,10 +65,9 @@ describe("normalisation de l'Excel", () => {
     expect(origineDepuisLibelle("NC")).toBeUndefined();
   });
 
-  it("la saisie rapide dit ce qu'il manque pour faire une offre", () => {
+  it("la saisie rapide dit ce qu'il manque pour faire une offre (le syndic actuel n'en fait pas partie)", () => {
     expect(informationsManquantes({ immeuble: { adresse: "1 rue X" }, contact: { nom: "Mme Y", telephone: "06" } })).toEqual([
       "le nombre de lots principaux",
-      "le syndic actuel",
       "la date de la prochaine AG",
       "la date de clôture comptable",
     ]);

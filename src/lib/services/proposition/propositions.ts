@@ -163,7 +163,12 @@ export async function mettreAJourProposition(id: string, maj: MiseAJourPropositi
   if (maj.contact) n.contact = maj.contact;
   if (maj.prix) {
     if (p.prix.honorairesTtc !== maj.prix.honorairesTtc && maj.prix.honorairesTtc !== undefined) {
-      journal.push({ quandISO: quand, par, texte: `Honoraires retenus : ${maj.prix.honorairesTtc.toLocaleString("fr-FR")} € TTC${maj.prix.grilleTtc ? ` (grille ${maj.prix.grilleTtc.toLocaleString("fr-FR")} €)` : ""}` });
+      const geste = maj.prix.gesteCommercialTtc;
+      const detail = [
+        maj.prix.grilleTtc ? `grille ${maj.prix.grilleTtc.toLocaleString("fr-FR")} €` : null,
+        geste ? (geste > 0 ? `geste commercial ${geste.toLocaleString("fr-FR")} €` : `majoration ${Math.abs(geste).toLocaleString("fr-FR")} €`) : null,
+      ].filter(Boolean);
+      journal.push({ quandISO: quand, par, texte: `Honoraires retenus : ${maj.prix.honorairesTtc.toLocaleString("fr-FR")} € TTC${detail.length ? ` (${detail.join(", ")})` : ""}` });
     }
     n.prix = maj.prix;
   }

@@ -5,12 +5,16 @@
 // plus rien dire (Sekou, 15/09/2026).
 
 import { normaliser } from "./rapprochement";
-import { STATUTS_OUVERTS, type Origine, type Proposition, type StatutProposition } from "./proposition";
+import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, type Origine, type Proposition, type StatutProposition } from "./proposition";
 
 export const FENETRE_TRANSFORMATION_ANNEES = 3;
 
 export interface FiltrePipeline {
-  /** Texte libre : adresse, commune, nom du contact, immatriculation. */
+  /**
+   * Texte libre, UNE barre pour tout (Sekou, 15/09/2026 : des barres de recherche plutot
+   * que des listes deroulantes) : adresse, commune, contact, immatriculation, mais aussi
+   * agence (« LGC »), gestionnaire, origine, statut et annee du premier contact.
+   */
   texte?: string;
   /** « ouvertes » (defaut), « toutes », ou un statut precis. */
   statut?: StatutProposition | "ouvertes" | "toutes";
@@ -47,7 +51,21 @@ export function filtrer(propositions: Proposition[], f: FiltrePipeline): Proposi
     if (f.annee && Number(dateReference(p).slice(0, 4)) !== f.annee) return false;
     if (texte) {
       const corpus = normaliser(
-        [p.immeuble.adresse, p.immeuble.commune, p.immeuble.immatriculation, p.contact.nom, p.contact.email, p.commentaires].filter(Boolean).join(" "),
+        [
+          p.immeuble.adresse,
+          p.immeuble.commune,
+          p.immeuble.immatriculation,
+          p.contact.nom,
+          p.contact.email,
+          p.commentaires,
+          p.agence,
+          p.gestionnaire,
+          p.origine ? LIBELLE_ORIGINE[p.origine] : null,
+          LIBELLE_STATUT[p.statut],
+          dateReference(p).slice(0, 4),
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
       if (!texte.split(" ").every((m) => corpus.includes(m))) return false;
     }

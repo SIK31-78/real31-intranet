@@ -57,6 +57,7 @@ const zContact = z.object({
 });
 const zPrix = z.object({
   honorairesTtc: zNb.optional(),
+  gesteCommercialTtc: z.number().min(-100000).max(100000).optional(),
   timbresTtc: zNb.optional(),
   grilleTtc: zNb.optional(),
   grilleTimbresTtc: zNb.optional(),

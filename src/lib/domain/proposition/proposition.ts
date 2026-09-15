@@ -81,13 +81,19 @@ export interface Contact {
 
 /** Le prix : la grille telle qu'elle a ete calculee, et ce que le gestionnaire retient. */
 export interface Prix {
-  /** Honoraires annuels TTC retenus (le montant du contrat et du mail). */
+  /** Honoraires annuels TTC retenus (le montant du contrat et du mail) = grille - geste. */
   honorairesTtc?: number;
+  /**
+   * Le geste commercial, en euros TTC par an, deduit de la grille (Sekou, 15/09/2026 : on
+   * garde le prix de base, avec la possibilite d'un geste). Negatif = majoration.
+   */
+  gesteCommercialTtc?: number;
   timbresTtc?: number;
   /** La grille au moment du calcul, pour la trace interne. */
   grilleTtc?: number;
   grilleTimbresTtc?: number;
   anneeGrille?: number;
+  /** Frais postaux au reel (defaut pour une offre) ou forfait timbres. */
   fraisPostauxReels?: boolean;
 }
 
@@ -139,7 +145,6 @@ export function informationsManquantes(p: Pick<Proposition, "immeuble" | "contac
   if (!p.contact.nom?.trim()) m.push("le nom du contact");
   if (!p.contact.telephone?.trim() && !p.contact.email?.trim()) m.push("un téléphone ou un e-mail");
   if (niveau === "contact") return m;
-  if (!p.immeuble.syndicActuel?.trim()) m.push("le syndic actuel");
   if (!p.immeuble.prochaineAgISO) m.push("la date de la prochaine AG");
   if (!p.immeuble.clotureComptable?.trim()) m.push("la date de clôture comptable");
   return m;
