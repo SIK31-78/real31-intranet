@@ -104,6 +104,13 @@ describe("finContratEnCours", () => {
     expect(finContratEnCours("2027-06-30", "2025-10-01")).toBe("2027-06-30");
   });
 
+  it("34 GAUTHEY : un cycle qui commence AVANT la fin du referentiel ne la masque pas", () => {
+    // Mandat fini le 30/10/2025 (App A), aucune AG depuis la reprise ; le suivi ne porte
+    // que la ligne d'import du 01/10/2025. Sans cette regle : « jusqu'au 30/09/2026 »,
+    // et 320 jours sans mandat passaient inapercus.
+    expect(finContratEnCours("2025-10-30", "2025-10-01")).toBe("2025-10-30");
+  });
+
   it("se contente de ce qu'il a quand une source manque", () => {
     expect(finContratEnCours("2026-06-30", null)).toBe("2026-06-30");
     expect(finContratEnCours(null, "2026-01-01")).toBe("2026-12-31");

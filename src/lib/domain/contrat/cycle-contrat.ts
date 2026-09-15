@@ -121,17 +121,21 @@ export function finContratEnCours(
   debutDernierCycleISO: string | null | undefined,
   finDernierCycleISO?: string | null,
 ): string | null {
+  const finRef = finReferentielISO && JOUR_RE.test(finReferentielISO) ? finReferentielISO : null;
+  const debutCycle = debutDernierCycleISO && JOUR_RE.test(debutDernierCycleISO) ? debutDernierCycleISO : null;
+  if (!debutCycle) return finRef;
+
+  // Un cycle intranet ne compte que s'il COMMENCE APRES la fin du referentiel : c'est
+  // alors un renouvellement qu'App A ignore. Un cycle qui commence avant n'apprend rien
+  // de plus qu'App A - et peut meme le masquer : la reprise du suivi (22/07/2026) a pose
+  // un cycle au 01/10/2025 sur toutes les copros ; pour 34 GAUTHEY (mandat fini le
+  // 30/10/2025, aucune AG depuis la reprise), il faisait afficher « jusqu'au 30/09/2026 »
+  // et taisait 320 jours sans mandat (Sekou, 15/09/2026).
+  if (finRef && debutCycle <= finRef) return finRef;
+
   // La fin STOCKEE du cycle prime (contrats a duree libre) ; a defaut, l'ancienne
   // regle du debut + 1 an, qui reste vraie pour tout ce qui a ete enregistre avant.
-  const finIntranet =
-    finDernierCycleISO && JOUR_RE.test(finDernierCycleISO)
-      ? finDernierCycleISO
-      : debutDernierCycleISO
-        ? finDeCycle(debutDernierCycleISO)
-        : null;
-  const candidates = [finReferentielISO, finIntranet].filter(
-    (d): d is string => Boolean(d) && JOUR_RE.test(d!),
-  );
-  if (candidates.length === 0) return null;
-  return candidates.sort().at(-1)!;
+  return finDernierCycleISO && JOUR_RE.test(finDernierCycleISO)
+    ? finDernierCycleISO
+    : finDeCycle(debutCycle);
 }
