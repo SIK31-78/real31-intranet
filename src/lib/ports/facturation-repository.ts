@@ -15,7 +15,9 @@ export type TypePrestation =
   | "pre_etat_date"
   | "etat_date"
   | "depassement_ag"
-  | "gestion_courante";
+  | "gestion_courante"
+  /** Les 16 prestations particulieres du contrat (domain/facturation/prestations-contrat). */
+  | "prestation_contrat";
 
 export type StatutFacture = "a_facturer" | "facturee" | "erreur";
 
@@ -32,6 +34,11 @@ export interface ContratCopro {
    * 14/09/2026). Absente = ancienne regle, debut + 1 an - 1 jour.
    */
   finContrat?: string;
+  /**
+   * Tarifs TTC FIGES au contrat par le recap AG (depuis le 15/09/2026), par identifiant
+   * de prestation. Absent = les cycles d'avant, tarifes par l'annee du bareme.
+   */
+  tarifs?: Record<string, number>;
   /**
    * Jour ou ce cycle a ete ENREGISTRE (created_at), ISO "YYYY-MM-DD". C'est le recap AG
    * qui l'ecrit : un cycle enregistre apres une AG dit que son recap a ete fait - alors
@@ -307,6 +314,8 @@ export interface FacturationRepository {
     debutContrat: string;
     /** Fin du cycle (duree libre). Absente = debut + 1 an - 1 jour. */
     finContrat?: string;
+    /** Tarifs TTC figes au contrat (photo du bareme de l'annee de l'AG). */
+    tarifs?: Record<string, number>;
     honorairesGestionTtc?: number;
     /** true = frais reels refactures, false = forfait annuel. */
     fraisPostauxReels?: boolean;

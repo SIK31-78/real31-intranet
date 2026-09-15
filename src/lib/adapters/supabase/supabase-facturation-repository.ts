@@ -26,6 +26,7 @@ type ContratRow = {
   honoraires_gestion_ttc: number | null;
   forfait_postaux_ttc: number | null;
   fin_contrat?: string | null;
+  tarifs?: Record<string, number> | null;
   created_at?: string;
 };
 
@@ -34,7 +35,7 @@ type ContratRow = {
 // plutot que de casser toutes les pages qui lisent un contrat.
 const COLS_CONTRAT_BASE =
   "id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, created_at";
-const COLS_CONTRAT = `${COLS_CONTRAT_BASE}, fin_contrat`;
+const COLS_CONTRAT = `${COLS_CONTRAT_BASE}, fin_contrat, tarifs`;
 const COLS_EDITION_BASE =
   "copropriete_id, titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par";
 const COLS_EDITION = `${COLS_EDITION_BASE}, debut_contrat, fin_contrat, frais_postaux_reels`;
@@ -52,6 +53,7 @@ function contratDepuisLigne(r: ContratRow): ContratCopro {
       : {}),
     ...(r.forfait_postaux_ttc !== null ? { forfaitPostauxTtc: Number(r.forfait_postaux_ttc) } : {}),
     ...(r.fin_contrat ? { finContrat: r.fin_contrat.slice(0, 10) } : {}),
+    ...(r.tarifs && typeof r.tarifs === "object" ? { tarifs: r.tarifs } : {}),
     ...(r.created_at ? { enregistreLeISO: r.created_at.slice(0, 10) } : {}),
   };
 }
@@ -110,7 +112,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         .limit(1)
         .maybeSingle();
     let { data, error } = await requete(COLS_CONTRAT);
-    if (error && colonneAbsente(error.message, "fin_contrat")) {
+    if (error && (colonneAbsente(error.message, "fin_contrat") || colonneAbsente(error.message, "tarifs"))) {
       ({ data, error } = await requete(COLS_CONTRAT_BASE));
     }
 
@@ -368,6 +370,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     coproCode: string;
     debutContrat: string;
     finContrat?: string;
+    tarifs?: Record<string, number>;
     honorairesGestionTtc?: number;
     fraisPostauxReels?: boolean;
     forfaitPostauxTtc?: number;
@@ -382,15 +385,18 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     };
     const inserer = (l: Record<string, unknown>) =>
       supabase.from("intranet_suivi_contrats").insert(l).select("id").single();
-    let { data, error } = await inserer(
-      input.finContrat ? { ...ligne, fin_contrat: input.finContrat } : ligne,
-    );
-    // Colonne pas encore creee : on enregistre sans la fin plutot que de perdre le
-    // recap, et on le dit - la fin deduite (debut + 1 an) sera fausse pour un
-    // contrat de 2 ans tant que le SQL n'est pas passe.
-    if (error && input.finContrat && colonneAbsente(error.message, "fin_contrat")) {
+    const complet = {
+      ...ligne,
+      ...(input.finContrat ? { fin_contrat: input.finContrat } : {}),
+      ...(input.tarifs ? { tarifs: input.tarifs } : {}),
+    };
+    let { data, error } = await inserer(complet);
+    // Colonne pas encore creee (fin_contrat, tarifs) : on enregistre sans plutot que de
+    // perdre le recap, et on le dit - la fin deduite ou le tarif par annee prendront le
+    // relais tant que le SQL n'est pas passe.
+    if (error && (colonneAbsente(error.message, "fin_contrat") || colonneAbsente(error.message, "tarifs"))) {
       console.warn(
-        `[suivi-contrats] fin_contrat absente en base, cycle ${input.coproCode} enregistre sans sa fin (${input.finContrat}). Passer supabase/sql/intranet_contrats_duree_libre.sql.`,
+        `[suivi-contrats] colonne absente en base (${error.message}), cycle ${input.coproCode} enregistre sans. Passer supabase/sql/intranet_contrats_duree_libre.sql et intranet_contrats_tarifs_figes.sql.`,
       );
       ({ data, error } = await inserer(ligne));
     }
@@ -487,7 +493,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         .in("copropriete_id", coproCodes)
         .order("debut_contrat", { ascending: false });
     let { data, error } = await requete(COLS_CONTRAT);
-    if (error && colonneAbsente(error.message, "fin_contrat")) {
+    if (error && (colonneAbsente(error.message, "fin_contrat") || colonneAbsente(error.message, "tarifs"))) {
       ({ data, error } = await requete(COLS_CONTRAT_BASE));
     }
 

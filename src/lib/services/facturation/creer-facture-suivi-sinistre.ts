@@ -13,7 +13,7 @@ import {
 } from "@/lib/domain/facturation/honoraires-sinistre";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
-import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
+import { aujourdhuiISO, exigerTarifTtc, resoudreContexteTarifaire } from "./bareme";
 import { formatEuros, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
 import { CATEGORIE_SUIVI_SINISTRE } from "@/lib/domain/facturation/produits";
@@ -42,13 +42,14 @@ export async function apercuSuiviSinistre(
 ): Promise<ApercuFacturation> {
   await exigerPerimetre(demande.coproCode, managerId);
   const repo = getFacturationRepository();
-  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
+  const contexte = await resoudreContexteTarifaire(repo, demande.coproCode);
+  const anneeBareme = contexte.anneeBareme;
 
   const cellesRetenues = DILIGENCES_SINISTRE.filter((d) => demande.diligences[d.cle] === true);
   const retenues: DiligenceTarifee[] = await Promise.all(
     cellesRetenues.map(async (d) => ({
       cle: d.cle,
-      tarifTtc: await exigerTarifTtc(repo, d.identifiantPrestation, anneeBareme),
+      tarifTtc: await exigerTarifTtc(repo, d.identifiantPrestation, contexte),
     })),
   );
 
@@ -103,14 +104,15 @@ export async function creerFactureSuiviSinistre(
   await exigerPerimetre(demande.coproCode, managerId);
   const repo = getFacturationRepository();
 
-  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
+  const contexte = await resoudreContexteTarifaire(repo, demande.coproCode);
+  const anneeBareme = contexte.anneeBareme;
 
   // On ne resout le tarif que des diligences effectivement retenues.
   const cellesRetenues = DILIGENCES_SINISTRE.filter((d) => demande.diligences[d.cle] === true);
   const retenues: DiligenceTarifee[] = await Promise.all(
     cellesRetenues.map(async (d) => ({
       cle: d.cle,
-      tarifTtc: await exigerTarifTtc(repo, d.identifiantPrestation, anneeBareme),
+      tarifTtc: await exigerTarifTtc(repo, d.identifiantPrestation, contexte),
     })),
   );
 

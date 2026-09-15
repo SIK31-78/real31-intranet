@@ -18,7 +18,7 @@ import { htDepuisTtc } from "@/lib/domain/facturation/commun";
 import type { TypePrestation } from "@/lib/ports/facturation-repository";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
-import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
+import { aujourdhuiISO, exigerTarifTtc, resoudreContexteTarifaire } from "./bareme";
 import { formatEuros, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
 import {
@@ -63,8 +63,9 @@ export async function apercuPrestationForfaitaire(
   const repo = getFacturationRepository();
   const prestation = PRESTATIONS[variante];
 
-  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
-  const tarifBaremeTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
+  const contexte = await resoudreContexteTarifaire(repo, demande.coproCode);
+  const anneeBareme = contexte.anneeBareme;
+  const tarifBaremeTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, contexte);
   const montantTtc = demande.montantTtcNegocie ?? tarifBaremeTtc;
   const negocie = montantTtc !== tarifBaremeTtc;
 
@@ -111,8 +112,9 @@ export async function tarifForfaitaireBareme(
 ): Promise<{ anneeBareme: number; tarifTtc: number }> {
   await exigerPerimetre(coproCode, managerId);
   const repo = getFacturationRepository();
-  const anneeBareme = await resoudreAnneeBareme(repo, coproCode);
-  const tarifTtc = await exigerTarifTtc(repo, PRESTATIONS[variante].identifiantPrestation, anneeBareme);
+  const contexte = await resoudreContexteTarifaire(repo, coproCode);
+  const anneeBareme = contexte.anneeBareme;
+  const tarifTtc = await exigerTarifTtc(repo, PRESTATIONS[variante].identifiantPrestation, contexte);
   return { anneeBareme, tarifTtc };
 }
 
@@ -124,8 +126,9 @@ async function creerFactureForfaitaire(
   await exigerPerimetre(demande.coproCode, managerId);
   const repo = getFacturationRepository();
 
-  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
-  const tarifBaremeTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, anneeBareme);
+  const contexte = await resoudreContexteTarifaire(repo, demande.coproCode);
+  const anneeBareme = contexte.anneeBareme;
+  const tarifBaremeTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, contexte);
   const montantTtc = demande.montantTtcNegocie ?? tarifBaremeTtc;
   const montantHt = htDepuisTtc(montantTtc);
 

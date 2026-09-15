@@ -244,10 +244,17 @@ export async function creerRecapAg(
   // Une AG ouvre un nouveau cycle de contrat (comportement du flow NotifComptable).
   let suiviContratId: string | undefined;
   if (demande.debutContrat) {
+    // Les tarifs du contrat vote sont FIGES sur le cycle : ceux du bareme de l'annee de
+    // l'AG (regle du contrat imprime). La grille pourra bouger ensuite sans toucher ce
+    // contrat (Sekou, 15/09 : « tant qu'on n'a pas signe de nouveau contrat, ce sont les
+    // anciens »). Un bareme vide ne bloque pas le recap : le cycle reste tarife par annee.
+    const bareme = await repoFacturation.listerBareme(Number(agDate.slice(0, 4)));
+    const tarifs = Object.fromEntries(bareme.map((l) => [l.identifiantPrestation, l.montantTtc]));
     suiviContratId = await repoFacturation.creerContrat({
       coproCode: demande.coproCode,
       debutContrat: demande.debutContrat,
       ...(demande.finContrat ? { finContrat: demande.finContrat } : {}),
+      ...(bareme.length > 0 ? { tarifs } : {}),
       ...(demande.honorairesGestionTtc !== undefined
         ? { honorairesGestionTtc: demande.honorairesGestionTtc }
         : {}),

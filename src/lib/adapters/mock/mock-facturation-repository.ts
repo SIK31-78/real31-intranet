@@ -67,6 +67,7 @@ export class MockFacturationRepository implements FacturationRepository {
     coproCode: string;
     debutContrat: string;
     finContrat?: string;
+    tarifs?: Record<string, number>;
     honorairesGestionTtc?: number;
     fraisPostauxReels?: boolean;
     forfaitPostauxTtc?: number;
@@ -77,6 +78,7 @@ export class MockFacturationRepository implements FacturationRepository {
       coproCode: input.coproCode,
       debutContrat: input.debutContrat,
       ...(input.finContrat !== undefined ? { finContrat: input.finContrat } : {}),
+      ...(input.tarifs !== undefined ? { tarifs: input.tarifs } : {}),
       ...(input.honorairesGestionTtc !== undefined
         ? { honorairesGestionTtc: input.honorairesGestionTtc }
         : {}),

@@ -9,3 +9,7 @@ export const CATEGORIE_SUIVI_TRAVAUX = "Honoraires suivi travaux";
 export const CATEGORIE_SUIVI_SINISTRE = "Honoraires suivi sinistre";
 export const CATEGORIE_PRE_ETAT_DATE = "Honoraires pré état daté";
 export const CATEGORIE_QUESTIONNAIRE_NOTAIRE = "Questionnaire notaire"; // etat date
+// Recouvrement (mise en demeure, relance, protocole, hypotheque, injonction, dossier
+// justice) : c'est le produit que le cabinet utilisait a la main dans Pennylane
+// (factures de juin-aout 2026), pas « Honoraires complementaires ».
+export const CATEGORIE_RELANCE_CHARGES = "Relance sur charges impayées";

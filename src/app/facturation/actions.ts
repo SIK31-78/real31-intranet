@@ -12,6 +12,11 @@ import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import {
+  apercuPrestationContrat,
+  contextePrestationContrat,
+  creerFacturePrestationContrat,
+} from "@/lib/services/facturation/creer-facture-prestation-contrat";
+import {
   apercuDepassementCs,
   creerFactureDepassementCs,
 } from "@/lib/services/facturation/creer-facture-depassement-cs";
@@ -314,4 +319,59 @@ export async function rejouerFactureAction(
     await getFacturationRepository().remettreEnAttente(factureId);
     return emettreFacturesEnAttente([factureId]);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Prestations particulieres du contrat (Sekou, 15/09/2026) : les 16 que MYTHEC ne
+// facturait pas, par un seul chemin (cf. domain/facturation/prestations-contrat).
+
+const zPrestationContrat = z.object({
+  coproCode: zCode,
+  prestation: z.string().regex(/^[a-z_]{3,40}$/),
+  quantite: z.number().positive().max(10000).optional(),
+  urgence: z.boolean().optional(),
+  nomClient: z.string().trim().max(200).optional(),
+  objet: z.string().trim().max(200).optional(),
+  datePrestation: zJour.optional(),
+});
+type DemandePrestationContrat = z.infer<typeof zPrestationContrat>;
+
+function nettoyer(d: DemandePrestationContrat) {
+  return {
+    coproCode: d.coproCode,
+    prestation: d.prestation,
+    ...(d.quantite !== undefined ? { quantite: d.quantite } : {}),
+    ...(d.urgence ? { urgence: true } : {}),
+    ...(d.nomClient ? { nomClient: d.nomClient } : {}),
+    ...(d.objet ? { objet: d.objet } : {}),
+    ...(d.datePrestation ? { datePrestation: d.datePrestation } : {}),
+  };
+}
+
+export async function apercuPrestationContratAction(input: unknown): Promise<Res<ApercuFacturation>> {
+  const p = zPrestationContrat.safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Données invalides." };
+  return executer((managerId) => apercuPrestationContrat(nettoyer(p.data), managerId));
+}
+
+export async function creerFacturePrestationContratAction(
+  input: unknown,
+): Promise<Res<{ montantHt: number; factureId: string | null }>> {
+  const p = zPrestationContrat.safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Données invalides." };
+  return executer(async (managerId, initiales) => {
+    const resultat = await creerFacturePrestationContrat({ ...nettoyer(p.data), par: initiales }, managerId);
+    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
+    return resultat;
+  });
+}
+
+/** Ce qu'il faut pour pre-remplir la quantite : lots principaux de la copro, et le tarif. */
+export async function contextePrestationContratAction(
+  coproCode: string,
+  prestation: string,
+): Promise<Res<{ tarifTtc: number; anneeBareme: number; tarifFige: boolean; lotsPrincipaux: number | null }>> {
+  const p = z.object({ coproCode: zCode, prestation: z.string().regex(/^[a-z_]{3,40}$/) }).safeParse({ coproCode, prestation });
+  if (!p.success) return { ok: false, erreur: "Données invalides." };
+  return executer((managerId) => contextePrestationContrat(coproCode, prestation, managerId));
 }

@@ -25,6 +25,8 @@ const LIBELLE_PRESTATION: Record<TypePrestation, string> = {
   pre_etat_date: "Honoraires de pre-etat date",
   etat_date: "Honoraires d'etat date",
   gestion_courante: "Honoraires de gestion courante",
+  // Le libelle exact du contrat est deja sur la ligne ; ceci n'est que le titre.
+  prestation_contrat: "Honoraires - prestation particuliere du contrat",
 };
 
 /** Objet de la facture (titre de section sur le PDF), par prestation. Repris des
@@ -37,6 +39,7 @@ const SUJET_PRESTATION: Record<TypePrestation, string> = {
   pre_etat_date: "Honoraires pré état daté",
   etat_date: "Honoraires état daté",
   gestion_courante: "Honoraires du trimestre en cours",
+  prestation_contrat: "Honoraires complémentaires",
 };
 
 /**

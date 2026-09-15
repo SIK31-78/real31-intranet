@@ -14,7 +14,7 @@ import { htDepuisTtc, type Creneau } from "@/lib/domain/facturation/commun";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { marquerHonorairesCsTraite } from "@/lib/services/supervision-ag/auto-cochage";
-import { aujourdhuiISO, exigerTarifTtc, resoudreAnneeBareme } from "./bareme";
+import { aujourdhuiISO, exigerTarifTtc, resoudreContexteTarifaire } from "./bareme";
 import { formatEuros, formatHeure, formatHeures, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
 import type { ParametresCopro } from "@/lib/ports/facturation-repository";
@@ -68,8 +68,9 @@ export async function apercuDepassementCs(
   if (!parametres) throw new Error(`Copropriete ${demande.coproCode} introuvable.`);
   const franchiseHeures = exigerFranchiseCs(parametres, demande.coproCode);
 
-  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
-  const tarifHoraireTtc = await exigerTarifTtc(repo, "TauxHoraire", anneeBareme);
+  const contexte = await resoudreContexteTarifaire(repo, demande.coproCode);
+  const anneeBareme = contexte.anneeBareme;
+  const tarifHoraireTtc = await exigerTarifTtc(repo, "TauxHoraire", contexte);
 
   const calcul = calculerDepassementCs({
     reunion: demande.reunion,
@@ -137,8 +138,9 @@ export async function creerFactureDepassementCs(
 
   // Depassement CS : bareme de l'annee du contrat actif (a la difference du
   // depassement d'AG, qui utilise l'annee de l'exercice approuve, N-1).
-  const anneeBareme = await resoudreAnneeBareme(repo, demande.coproCode);
-  const tarifHoraireTtc = await exigerTarifTtc(repo, "TauxHoraire", anneeBareme);
+  const contexte = await resoudreContexteTarifaire(repo, demande.coproCode);
+  const anneeBareme = contexte.anneeBareme;
+  const tarifHoraireTtc = await exigerTarifTtc(repo, "TauxHoraire", contexte);
 
   const calcul = calculerDepassementCs({
     reunion: demande.reunion,

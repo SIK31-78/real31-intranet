@@ -6,6 +6,8 @@ import { estComptable } from "@/lib/auth/roles";
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
 import { FormulaireFacturation } from "@/components/facturation/formulaire-facturation";
+import { FormulairePrestationContrat } from "@/components/facturation/formulaire-prestation-contrat";
+import { Aide } from "@/components/ui/aide";
 import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import {
   HistoriqueFacturations,
@@ -67,6 +69,32 @@ export default async function FacturationPage() {
     .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
           pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
         />
+
+        {/* Les 16 autres prestations du contrat (Sekou, 15/09/2026) : rangees sous un
+            pli, parce qu'on ne les facture pas tous les jours. Un seul formulaire, la
+            prestation choisie dicte ce qu'on saisit. */}
+        <details className="group">
+          <summary className="cursor-pointer text-title font-semibold tracking-tight text-ink flex items-center gap-2 py-1 list-none">
+            <span className="text-ink-3 transition-transform group-open:rotate-90">▸</span>
+            Autres prestations du contrat
+            <span className="text-body font-normal text-ink-2">— AG supplémentaire, publication EDD, emprunt, mise en demeure, hypothèque, opposition, temps passé…</span>
+          </summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <Aide titre="Comment c'est facturé">
+              Chaque prestation se compte comme le contrat l&apos;écrit : un montant fixe, un tarif par lot principal
+              (pré-rempli depuis la fiche), par copropriétaire, ou un taux horaire à la demi-heure avec majoration
+              d&apos;urgence de 40 %. Ce que le contrat impute au seul copropriétaire concerné est facturé au syndicat
+              avec son nom sur la ligne : c&apos;est lui qui refacture. Le tarif est celui figé au contrat, sinon celui
+              du barème de l&apos;année du contrat.
+            </Aide>
+            <FormulairePrestationContrat
+              copros={copros
+                .map((c) => ({ code: c.code, nom: c.nom }))
+                .sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }))}
+              pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
+            />
+          </div>
+        </details>
 
         <HistoriqueFacturations factures={factures} />
       </Page>

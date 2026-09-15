@@ -38,6 +38,8 @@ const LIBELLE_TYPE: Record<string, string> = {
   suivi_sinistre: "Suivi de sinistre",
   pre_etat_date: "Pré-état daté",
   etat_date: "État daté",
+  gestion_courante: "Gestion courante",
+  prestation_contrat: "Prestation du contrat",
 };
 
 function euros(n: number): string {
