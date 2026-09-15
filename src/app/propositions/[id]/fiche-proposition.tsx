@@ -20,6 +20,7 @@ import {
   informationsManquantes,
   LIBELLE_ORIGINE,
   LIBELLE_STATUT,
+  libellePeriodeConstruction,
   ORIGINES,
   STATUTS_PROPOSITION,
   type Immeuble,
@@ -128,7 +129,7 @@ export function FicheProposition({ proposition: p, prixGrille, agences }: { prop
             <div className="flex items-center justify-between gap-3">
               <p className="text-caption text-ink-3">
                 {im.immatriculation ? `Registre national : ${im.immatriculation}` : "Pas d'immatriculation connue"}
-                {im.periodeConstruction && ` · construit ${im.periodeConstruction.toLowerCase().replace(/_/g, " ")}`}
+                {im.periodeConstruction && ` · construit ${libellePeriodeConstruction(im.periodeConstruction)}`}
               </p>
               <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={() => enregistrer({ immeuble: im }, "Immeuble enregistré.")}>
                 <Save strokeWidth={1.5} /> Enregistrer l&apos;immeuble

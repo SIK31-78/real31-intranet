@@ -13,7 +13,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { formatJour } from "@/lib/services/facturation/format";
-import { informationsManquantes, LIBELLE_ORIGINE, ORIGINES, type Origine } from "@/lib/domain/proposition/proposition";
+import { informationsManquantes, LIBELLE_ORIGINE, ORIGINES, type Origine, libellePeriodeConstruction } from "@/lib/domain/proposition/proposition";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 import { creerPropositionAction, rechercherRegistreAction } from "../actions";
 
@@ -123,7 +123,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
             <p className="text-caption text-ink-2 flex items-center gap-2">
               <Search strokeWidth={1.5} className="h-3.5 w-3.5" />
               Registre national : {choisi.immatriculation} · {choisi.lotsTotal ?? "?"} lots dont {choisi.lotsStationnement ?? 0} stationnements
-              {choisi.periodeConstruction && ` · construit ${choisi.periodeConstruction.toLowerCase().replace(/_/g, " ")}`}
+              {choisi.periodeConstruction && ` · construit ${libellePeriodeConstruction(choisi.periodeConstruction)}`}
               {choisi.syndicNom && ` · syndic ${choisi.syndicNom}`}
               {choisi.finMandatISO && ` (${choisi.mandat?.toLowerCase() ?? "mandat"}, fin ${formatJour(choisi.finMandatISO)})`}
             </p>

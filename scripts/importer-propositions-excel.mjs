@@ -57,6 +57,22 @@ if (!ws) throw new Error("Feuille « Général » introuvable.");
 const existantes = await (await fetch(`${U}/rest/v1/intranet_proposition?select=immeuble,premier_contact&limit=5000`, { headers: H })).json();
 const deja = new Set((Array.isArray(existantes) ? existantes : []).map((p) => `${(p.immeuble?.adresse ?? "").toLowerCase()}|${p.premier_contact ?? ""}`));
 
+// La colonne « Contact » de l'Excel melange nom, telephone(s) et e-mail(s) dans une cellule :
+// on en sort le premier telephone et le premier e-mail, le reste est le nom.
+function contact(brut) {
+  if (!brut) return {};
+  const emails = brut.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? [];
+  const tels = brut.match(/(?:\+33|0)\s?[1-9](?:[\s.,-]?\d{2}){4}/g) ?? [];
+  let nom = brut;
+  for (const x of [...emails, ...tels]) nom = nom.replace(x, " ");
+  nom = nom.replace(/<\s*>/g, " ").replace(/\s[\/\-–]\s(?=[\/\-–(]|$)/g, " ").replace(/[\s\/\-–:;,]+$/g, "").replace(/^[\s\/\-–:;,]+/g, "").replace(/\s{2,}/g, " ").trim();
+  return {
+    ...(nom ? { nom } : {}),
+    ...(tels[0] ? { telephone: tels[0].replace(/[\s.,-]/g, "").replace(/^(\d{2})(?=\d)/, "$1 ").replace(/(\d{2})(?=\d)/g, "$1 ").trim() } : {}),
+    ...(emails[0] ? { email: emails[0].toLowerCase() } : {}),
+  };
+}
+
 let lues = 0, creees = 0, sautees = 0, sansStatut = 0;
 const lot = [];
 ws.eachRow((row, i) => {
@@ -80,7 +96,7 @@ ws.eachRow((row, i) => {
     gestionnaire: null,
     origine: origine(valeur(row.getCell(11))) ?? null,
     immeuble: { adresse, ...(nombre(valeur(row.getCell(3))) !== null ? { lotsPrincipaux: Math.round(nombre(valeur(row.getCell(3)))) } : {}) },
-    contact: { ...(texte(valeur(row.getCell(4))) ? { nom: texte(valeur(row.getCell(4))) } : {}) },
+    contact: contact(texte(valeur(row.getCell(4)))),
     prix: { ...(tarifTtc !== null ? { honorairesTtc: Math.round(tarifTtc * 100) / 100 } : {}) },
     premier_contact: premierContact,
     remise_proposition: jourISO(valeur(row.getCell(6))),
@@ -96,8 +112,11 @@ ws.eachRow((row, i) => {
 });
 
 for (let i = 0; i < lot.length; i += 200) {
+  // Les cles varient d'une ligne a l'autre (created_at absent sans date de premier contact) :
+  // PostgREST exige alors la liste des colonnes + `missing=default`.
   const tranche = lot.slice(i, i + 200).map((p) => Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)));
-  const r = await fetch(`${U}/rest/v1/intranet_proposition`, { method: "POST", headers: { ...H, Prefer: "return=minimal" }, body: JSON.stringify(tranche) });
+  const colonnes = [...new Set(tranche.flatMap((p) => Object.keys(p)))].join(",");
+  const r = await fetch(`${U}/rest/v1/intranet_proposition?columns=${colonnes}`, { method: "POST", headers: { ...H, Prefer: "return=minimal, missing=default" }, body: JSON.stringify(tranche) });
   if (r.status >= 300) throw new Error(`Supabase ${r.status} : ${(await r.text()).slice(0, 300)}`);
   creees += tranche.length;
 }

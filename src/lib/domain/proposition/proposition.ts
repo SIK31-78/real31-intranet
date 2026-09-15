@@ -126,12 +126,19 @@ export interface Proposition {
  * Ce qu'il manque pour faire une offre : la liste que la saisie rapide affiche a
  * celui qui prend l'appel (« quelle info prendre »).
  */
-export function informationsManquantes(p: Pick<Proposition, "immeuble" | "contact">): string[] {
+/**
+ * Ce qui manque a une proposition. Deux niveaux : `contact` = de quoi rappeler et chiffrer
+ * (adresse, lots, nom, un moyen de joindre) ; `offre` ajoute ce qu'il faut pour rediger
+ * l'offre elle-meme (syndic en place, prochaine AG, cloture). Le pipeline n'affiche que le
+ * premier niveau, sinon chaque ligne reprise de l'Excel serait « incomplete ».
+ */
+export function informationsManquantes(p: Pick<Proposition, "immeuble" | "contact">, niveau: "contact" | "offre" = "offre"): string[] {
   const m: string[] = [];
   if (!p.immeuble.adresse?.trim()) m.push("l'adresse de l'immeuble");
   if (!p.immeuble.lotsPrincipaux) m.push("le nombre de lots principaux");
   if (!p.contact.nom?.trim()) m.push("le nom du contact");
   if (!p.contact.telephone?.trim() && !p.contact.email?.trim()) m.push("un téléphone ou un e-mail");
+  if (niveau === "contact") return m;
   if (!p.immeuble.syndicActuel?.trim()) m.push("le syndic actuel");
   if (!p.immeuble.prochaineAgISO) m.push("la date de la prochaine AG");
   if (!p.immeuble.clotureComptable?.trim()) m.push("la date de clôture comptable");
@@ -161,4 +168,9 @@ export function origineDepuisLibelle(brut: string | null | undefined): Origine |
   if (s.startsWith("internet")) return "internet";
   if (s.startsWith("d")) return "deja_client";
   return "autre";
+}
+
+/** « DE_2001_A_2010 » (registre national) -> « de 2001 à 2010 ». */
+export function libellePeriodeConstruction(brut: string): string {
+  return brut.toLowerCase().replace(/_/g, " ").replace(/a/g, "à");
 }

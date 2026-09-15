@@ -13,6 +13,7 @@ import {
 } from "@/lib/domain/proposition/forfait";
 import {
   informationsManquantes,
+  LIBELLE_STATUT,
   STATUTS_OUVERTS,
   type Contact,
   type Immeuble,
@@ -28,7 +29,7 @@ export interface PropositionResume extends Proposition {
 
 export async function listerPropositions(): Promise<PropositionResume[]> {
   const toutes = await getPropositionRepository().lister();
-  return toutes.map((p) => ({ ...p, manquant: informationsManquantes(p) }));
+  return toutes.map((p) => ({ ...p, manquant: informationsManquantes(p, "contact") }));
 }
 
 export function getProposition(id: string): Promise<Proposition | null> {
@@ -156,7 +157,7 @@ export async function mettreAJourProposition(id: string, maj: MiseAJourPropositi
   }
   if (maj.statut && maj.statut !== p.statut) {
     n.statut = maj.statut;
-    journal.push({ quandISO: quand, par, texte: `Statut : ${maj.statut}` });
+    journal.push({ quandISO: quand, par, texte: `Statut : ${LIBELLE_STATUT[maj.statut]}` });
     // Une decision se date ; une reouverture l'efface.
     if (!STATUTS_OUVERTS.has(maj.statut)) n.decisionISO = maj.decisionISO ?? quand.slice(0, 10);
     else delete n.decisionISO;

@@ -87,15 +87,24 @@ function versLigne(p: Omit<Proposition, "id" | "creeLeISO" | "majLeISO"> & { id?
 export class SupabasePropositionRepository implements PropositionRepository {
   async lister(filtre?: { statuts?: StatutProposition[]; agence?: string }): Promise<Proposition[]> {
     const supabase = createSupabasePublicClient();
-    let q = supabase.from("intranet_proposition").select(COLS).order("updated_at", { ascending: false }).limit(2000);
-    if (filtre?.statuts?.length) q = q.in("statut", filtre.statuts);
-    if (filtre?.agence) q = q.eq("agence", filtre.agence);
-    const { data, error } = await q;
-    if (error) {
-      console.warn(`[propositions] lecture impossible : ${error.message}`);
-      return [];
+    // PostgREST plafonne chaque reponse a 1 000 lignes : l'historique (1 161 propositions
+    // reprises de l'Excel) se lit par pages.
+    const PAGE = 1000;
+    const lignes: Row[] = [];
+    for (let debut = 0; ; debut += PAGE) {
+      let q = supabase.from("intranet_proposition").select(COLS).order("updated_at", { ascending: false }).order("id").range(debut, debut + PAGE - 1);
+      if (filtre?.statuts?.length) q = q.in("statut", filtre.statuts);
+      if (filtre?.agence) q = q.eq("agence", filtre.agence);
+      const { data, error } = await q;
+      if (error) {
+        console.warn(`[propositions] lecture impossible : ${error.message}`);
+        return [];
+      }
+      const page = (data ?? []) as unknown as Row[];
+      lignes.push(...page);
+      if (page.length < PAGE) break;
     }
-    return ((data ?? []) as unknown as Row[]).map(versDomaine);
+    return lignes.map(versDomaine);
   }
 
   async get(id: string): Promise<Proposition | null> {
