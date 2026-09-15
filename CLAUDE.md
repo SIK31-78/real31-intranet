@@ -10,6 +10,35 @@ Lire dans l'ordre : `README.md` -> `DECISIONS.md` (les ADR) -> `ROADMAP.md` (ava
 
 ---
 
+## PDF scanné : OCRiser soi-même, ne jamais le demander au user
+
+La machine dispose de **tesseract (pack `fra`) et ocrmypdf 17.10**. Dès qu'un PDF n'a
+pas de couche texte (`extract_pdf.py` répond `scanned_pdf`, ou pdfplumber rend du vide) :
+
+```bash
+ocrmypdf -l fra --skip-text "<in>.pdf" "<in>-ocr.pdf"    # puis lire le -ocr.pdf
+```
+
+Poser le fichier `-ocr.pdf` **à côté de l'original**, ne jamais écraser la source.
+
+- **Le PATH d'une session déjà ouverte peut dater d'avant l'installation.** Si
+  `ocrmypdf: command not found` : recharger le PATH depuis le registre plutôt que
+  conclure à une absence —
+  `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')`
+  (PowerShell). Binaires : `C:\Program Files\Tesseract-OCR\tesseract.exe` et
+  `…\AppData\Local\Programs\Python\Python312\Scripts\ocrmypdf.exe`.
+- Les avertissements `[WinError 2]` / « could not produce PDF/A » : **Ghostscript n'est pas
+  absent** — il est installé en **32 bits** (`C:\Program Files (x86)\gs\gs10.07.1\bin`, dans
+  le PATH Machine) et n'expose que `gswin32c`, alors qu'ocrmypdf cherche `gswin64c`. Inutile
+  de le réinstaller : seuls le PDF/A et l'optimisation sautent, la couche texte est bien
+  écrite. Vérifier le résultat en lisant le PDF, pas en lisant les logs.
+- Un nom de fichier accentué casse un heredoc bash : écrire un `.py` sur disque et le
+  lancer, plutôt que `python -c`.
+- L'OCR est une **source**, pas une vérité : contrôler ses chiffres contre un total
+  indépendant avant de s'en servir (règles R9/R10 du skill `estale-migration`).
+
+---
+
 ## Documentation : modèle hybride repo ↔ Obsidian
 
 > Principe directeur : **le doc vit là où il est couplé.** Le vault a été **refondu le 2026-08-19** (structure Journal/Décisions/Concepts/Références + `AGENTS.md`).
