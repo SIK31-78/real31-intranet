@@ -370,7 +370,13 @@ export async function creerFacturePrestationContratAction(
 export async function contextePrestationContratAction(
   coproCode: string,
   prestation: string,
-): Promise<Res<{ tarifTtc: number; anneeBareme: number; tarifFige: boolean; lotsPrincipaux: number | null }>> {
+): Promise<
+  Res<{
+    lotsPrincipaux: number | null;
+    tarif: { tarifTtc: number; anneeBareme: number; tarifFige: boolean } | null;
+    erreurTarif: string | null;
+  }>
+> {
   const p = z.object({ coproCode: zCode, prestation: z.string().regex(/^[a-z_]{3,40}$/) }).safeParse({ coproCode, prestation });
   if (!p.success) return { ok: false, erreur: "Données invalides." };
   return executer((managerId) => contextePrestationContrat(coproCode, prestation, managerId));

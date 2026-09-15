@@ -143,25 +143,39 @@ export async function creerFacturePrestationContrat(
   return { montantHt: calcul.montantHt, factureId };
 }
 
-/** Pour le formulaire : le tarif applicable et les lots de la copro (pre-remplissage). */
+/**
+ * Pour le formulaire : les lots de la copro (pre-remplissage) et le tarif applicable.
+ * Les deux sont INDEPENDANTS : une copro sans contrat de gestion (SE999, une reprise
+ * pas encore actee) a quand meme ses lots ; le tarif manquant est dit, pas jete avec.
+ */
 export async function contextePrestationContrat(
   coproCode: string,
   codePrestation: string,
   managerId: string,
-): Promise<{ tarifTtc: number; anneeBareme: number; tarifFige: boolean; lotsPrincipaux: number | null }> {
+): Promise<{
+  lotsPrincipaux: number | null;
+  tarif: { tarifTtc: number; anneeBareme: number; tarifFige: boolean } | null;
+  /** Pourquoi le tarif manque, le cas echeant. */
+  erreurTarif: string | null;
+}> {
   await exigerPerimetre(coproCode, managerId);
   const prestation = prestationContrat(codePrestation);
   if (!prestation) throw new Error(`Prestation inconnue : ${codePrestation}.`);
   const repo = getFacturationRepository();
-  const [contexte, donnees] = await Promise.all([
-    resoudreContexteTarifaire(repo, coproCode),
-    repo.getDonneesContrat(coproCode),
-  ]);
-  const tarifTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, contexte);
-  return {
-    tarifTtc,
-    anneeBareme: contexte.anneeBareme,
-    tarifFige: contexte.tarifsContrat?.[prestation.identifiantPrestation] !== undefined,
-    lotsPrincipaux: donnees?.lotsPrincipaux ?? null,
-  };
+  const donnees = await repo.getDonneesContrat(coproCode);
+  try {
+    const contexte = await resoudreContexteTarifaire(repo, coproCode);
+    const tarifTtc = await exigerTarifTtc(repo, prestation.identifiantPrestation, contexte);
+    return {
+      lotsPrincipaux: donnees?.lotsPrincipaux ?? null,
+      tarif: {
+        tarifTtc,
+        anneeBareme: contexte.anneeBareme,
+        tarifFige: contexte.tarifsContrat?.[prestation.identifiantPrestation] !== undefined,
+      },
+      erreurTarif: null,
+    };
+  } catch (e) {
+    return { lotsPrincipaux: donnees?.lotsPrincipaux ?? null, tarif: null, erreurTarif: (e as Error).message };
+  }
 }

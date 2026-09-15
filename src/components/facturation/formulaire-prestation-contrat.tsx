@@ -49,7 +49,8 @@ export function FormulairePrestationContrat({
   const [nomClient, setNomClient] = useState("");
   const [objet, setObjet] = useState("");
   const [date, setDate] = useState("");
-  const [contexte, setContexte] = useState<{ tarifTtc: number; anneeBareme: number; tarifFige: boolean; lotsPrincipaux: number | null } | null>(null);
+  const [contexte, setContexte] = useState<{ tarifTtc: number; anneeBareme: number; tarifFige: boolean } | null>(null);
+  const [erreurTarif, setErreurTarif] = useState<string | null>(null);
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
 
   const prestation = code ? prestationContrat(code) : undefined;
@@ -63,23 +64,23 @@ export function FormulairePrestationContrat({
       if (!actif) return;
       if (!res.ok || !res.donnees) {
         setContexte(null);
-        toast.err(res.ok ? "Tarif introuvable." : res.erreur);
+        setErreurTarif(res.ok ? "Tarif introuvable." : res.erreur);
         return;
       }
-      setContexte(res.donnees);
+      // Les lots d'abord, quoi qu'il arrive au tarif : la fiche les connait toujours.
       const p = prestationContrat(code);
       if (p?.mode === "par_lot" && res.donnees.lotsPrincipaux) setQuantite(String(res.donnees.lotsPrincipaux));
+      setContexte(res.donnees.tarif);
+      setErreurTarif(res.donnees.erreurTarif);
     });
     return () => {
       actif = false;
     };
-    // toast est stable (contexte), on ne le met pas en dependance.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coproCode, code]);
 
   const q = Number(quantite.replace(",", "."));
   const quantiteOk = !prestation || prestation.mode === "fixe" || (Number.isFinite(q) && q > 0);
-  const pret = Boolean(coproCode && prestation && quantiteOk);
+  const pret = Boolean(coproCode && prestation && quantiteOk && contexte);
 
   function demande() {
     return {
@@ -179,6 +180,8 @@ export function FormulairePrestationContrat({
                 {" "}· article {prestation.article}
                 {prestation.imputation === "coproprietaire" && " · imputable au copropriétaire, facturé au syndicat"}
               </>
+            ) : erreurTarif ? (
+              <span className="text-err-700">{erreurTarif}</span>
             ) : (
               "Choisir la copropriété et la prestation : le tarif vient du contrat."
             )}

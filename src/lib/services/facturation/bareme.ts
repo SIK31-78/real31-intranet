@@ -20,7 +20,7 @@ export async function resoudreAnneeBareme(
   const contrat = await repo.getDernierContrat(coproCode);
   if (!contrat) {
     throw new Error(
-      `Aucun contrat de gestion pour la copropriete ${coproCode} : bareme introuvable.`,
+      `Aucun contrat de gestion pour la copropriété ${coproCode} : barème introuvable.`,
     );
   }
   return Number(contrat.debutContrat.slice(0, 4));
@@ -49,7 +49,7 @@ export async function resoudreContexteTarifaire(
   const contrat = await repo.getDernierContrat(coproCode);
   if (!contrat) {
     throw new Error(
-      `Aucun contrat de gestion pour la copropriete ${coproCode} : bareme introuvable.`,
+      `Aucun contrat de gestion pour la copropriété ${coproCode} : barème introuvable.`,
     );
   }
   return {
