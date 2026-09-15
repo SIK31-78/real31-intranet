@@ -58,6 +58,7 @@ export interface LigneContratAPreparer {
     finISO: string | null;
     honorairesTtc: number | null;
     forfaitPostauxTtc: number | null;
+    fraisPostauxReels: boolean;
   } | null;
   /**
    * Valeurs proposees a l'edition, meme precedence que get-contrat : la derniere edition
@@ -169,6 +170,7 @@ export async function listerContratsAPreparer(
                 finISO: reussie.finISO,
                 honorairesTtc: reussie.honorairesGestionTtc,
                 forfaitPostauxTtc: reussie.forfaitPostauxTtc,
+                fraisPostauxReels: reussie.fraisPostauxReels,
               }
             : null,
           honorairesTtc:

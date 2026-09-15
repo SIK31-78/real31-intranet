@@ -102,6 +102,7 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
               finISO={champs.finISO}
               honorairesTtc={champs.honorairesGestionTtc}
               forfaitPostauxTtc={champs.forfaitPostauxTtc}
+              fraisPostauxReels={champs.fraisPostauxReels}
             />
           </CardBody>
         </Card>

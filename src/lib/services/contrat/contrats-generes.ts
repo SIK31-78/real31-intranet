@@ -19,6 +19,7 @@ export interface ContratGenere {
   finISO: string;
   honorairesTtc: number | null;
   forfaitPostauxTtc: number | null;
+  fraisPostauxReels: boolean;
   editeLeISO: string;
   par: string | null;
 }
@@ -41,6 +42,7 @@ export async function listerContratsGeneres(
         finISO: e.finISO ?? l.finISO,
         honorairesTtc: e.honorairesTtc,
         forfaitPostauxTtc: e.forfaitPostauxTtc,
+        fraisPostauxReels: e.fraisPostauxReels,
         editeLeISO: e.creeLeISO,
         par: e.par,
       });

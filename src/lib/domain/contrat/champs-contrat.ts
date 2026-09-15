@@ -97,6 +97,8 @@ export interface CycleContratChamps {
   finISO: string;
   honorairesGestionTtc: number;
   forfaitPostauxTtc: number;
+  /** Defaut : false (forfait). */
+  fraisPostauxReels?: boolean;
 }
 
 /** Toutes les valeurs du document, pretes a rendre. */
@@ -113,6 +115,12 @@ export interface ChampsContrat {
   honorairesGestionHt: string;
   /** Forfait timbres annuel TTC (pas de HT dans le legacy : il l'injecte brut). */
   forfaitPostauxTtc: number;
+  /**
+   * Frais postaux au REEL (rembourses sur justificatif) plutot qu'au forfait. Change trois
+   * phrases du § 7.1.5 (modele « CONTRAT DE SYNDIC 2026_ReelFraisPostaux » du patron,
+   * 15/09/2026). Defaut : forfait.
+   */
+  fraisPostauxReels: boolean;
   /** Annee du bareme applique : celle de l'AG, pas du debut du cycle (regle MYTHEC). */
   anneeBareme: number;
   /** Les 21 prestations, dans l'ordre du document. */
@@ -143,6 +151,7 @@ export function assemblerChampsContrat(
     honorairesGestionTtc: cycle.honorairesGestionTtc,
     honorairesGestionHt: htDepuisTtc(cycle.honorairesGestionTtc),
     forfaitPostauxTtc: cycle.forfaitPostauxTtc,
+    fraisPostauxReels: cycle.fraisPostauxReels ?? false,
     // Le flow MYTHEC lisait les tarifs sur `formatDateTime(date AG, 'yyyy')` : une AG
     // vote au tarif de SON annee, meme si le mandat demarre en janvier suivant. Porte
     // d'abord sur le debut du cycle, corrige le 14/09/2026 (Sekou : des contrats

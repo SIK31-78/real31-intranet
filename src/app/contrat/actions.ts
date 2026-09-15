@@ -32,7 +32,9 @@ export async function editerContratAction(formData: FormData): Promise<void> {
   const debutISO = jour(formData.get("debut"));
   const finISO = jour(formData.get("fin"));
   const honorairesGestionTtc = nombre(formData.get("honoraires"));
-  const forfaitPostauxTtc = nombre(formData.get("timbres"));
+  const fraisPostauxReels = formData.get("frais") === "reels";
+  // Au reel, pas de forfait : le montant saisi (ou pre-rempli) ne doit pas s'imprimer.
+  const forfaitPostauxTtc = fraisPostauxReels ? 0 : nombre(formData.get("timbres"));
 
   // Leve sur toute incoherence (cycle > 3 ans, bareme incomplet...) : Next affiche
   // l'erreur, rien n'est trace.
@@ -44,6 +46,7 @@ export async function editerContratAction(formData: FormData): Promise<void> {
     ...(finISO ? { finISO } : {}),
     ...(honorairesGestionTtc !== undefined ? { honorairesGestionTtc } : {}),
     ...(forfaitPostauxTtc !== undefined ? { forfaitPostauxTtc } : {}),
+    fraisPostauxReels,
   });
   revalidatePath("/contrat");
   revalidatePath(`/contrat/${coproCode}`);
@@ -54,5 +57,6 @@ export async function editerContratAction(formData: FormData): Promise<void> {
   if (finISO) q.set("fin", finISO);
   if (honorairesGestionTtc !== undefined) q.set("honoraires", String(honorairesGestionTtc));
   if (forfaitPostauxTtc !== undefined) q.set("timbres", String(forfaitPostauxTtc));
+  if (fraisPostauxReels) q.set("frais", "reels");
   redirect(`/contrat/${encodeURIComponent(coproCode)}/imprimer?${q.toString()}`);
 }

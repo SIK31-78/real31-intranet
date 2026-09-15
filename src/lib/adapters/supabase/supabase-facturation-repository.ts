@@ -37,7 +37,7 @@ const COLS_CONTRAT_BASE =
 const COLS_CONTRAT = `${COLS_CONTRAT_BASE}, fin_contrat`;
 const COLS_EDITION_BASE =
   "copropriete_id, titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par";
-const COLS_EDITION = `${COLS_EDITION_BASE}, debut_contrat, fin_contrat`;
+const COLS_EDITION = `${COLS_EDITION_BASE}, debut_contrat, fin_contrat, frais_postaux_reels`;
 function colonneAbsente(message: string | undefined, colonne: string): boolean {
   return Boolean(message && message.includes(colonne));
 }
@@ -412,10 +412,18 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       cree_le: new Date().toISOString(),
       cree_par: input.creePar,
     };
-    let { error } = await supabase
-      .from("intranet_historique_contrats")
-      .insert({ ...base, debut_contrat: input.debutISO, fin_contrat: input.finISO });
-    if (error && (colonneAbsente(error.message, "fin_contrat") || colonneAbsente(error.message, "debut_contrat"))) {
+    let { error } = await supabase.from("intranet_historique_contrats").insert({
+      ...base,
+      debut_contrat: input.debutISO,
+      fin_contrat: input.finISO,
+      frais_postaux_reels: input.fraisPostauxReels,
+    });
+    if (
+      error &&
+      (colonneAbsente(error.message, "fin_contrat") ||
+        colonneAbsente(error.message, "debut_contrat") ||
+        colonneAbsente(error.message, "frais_postaux_reels"))
+    ) {
       ({ error } = await supabase.from("intranet_historique_contrats").insert(base));
     }
     // La trace ne doit jamais empecher d'imprimer le contrat.
@@ -510,7 +518,14 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         .order("cree_le", { ascending: false });
     let { data, error } = await requete(COLS_EDITION);
     // Postgres ne nomme que la PREMIERE colonne absente : tester les deux.
-    if (error && (colonneAbsente(error.message, "debut_contrat") || colonneAbsente(error.message, "fin_contrat"))) {
+    // Postgres ne nomme que la PREMIERE colonne absente : tester chacune des colonnes
+    // arrivees apres la creation de la table.
+    if (
+      error &&
+      (colonneAbsente(error.message, "debut_contrat") ||
+        colonneAbsente(error.message, "fin_contrat") ||
+        colonneAbsente(error.message, "frais_postaux_reels"))
+    ) {
       ({ data, error } = await requete(COLS_EDITION_BASE));
     }
 
@@ -531,6 +546,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         message_erreur: string | null;
         debut_contrat?: string | null;
         fin_contrat?: string | null;
+        frais_postaux_reels?: boolean | null;
         cree_le: string;
         cree_par: string | null;
       };
@@ -545,6 +561,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         messageErreur: e.message_erreur,
         debutISO: e.debut_contrat ? e.debut_contrat.slice(0, 10) : null,
         finISO: e.fin_contrat ? e.fin_contrat.slice(0, 10) : null,
+        fraisPostauxReels: e.frais_postaux_reels === true,
         creeLe: e.cree_le,
         creePar: e.cree_par,
       });

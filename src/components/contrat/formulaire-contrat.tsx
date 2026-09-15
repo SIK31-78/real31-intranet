@@ -24,7 +24,7 @@
 import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Choix, Field, GroupeChoix, Input } from "@/components/ui/field";
 import {
   DUREES_CONTRAT_MOIS,
   finDeCycle,
@@ -42,6 +42,7 @@ export function FormulaireContrat({
   finISO,
   honorairesTtc,
   forfaitPostauxTtc,
+  fraisPostauxReels = false,
 }: {
   coproCode: string;
   dateAgISO: string;
@@ -50,12 +51,15 @@ export function FormulaireContrat({
   /** Honoraires du contrat EN COURS : la reference d'ou se mesure l'augmentation. */
   honorairesTtc: number;
   forfaitPostauxTtc: number;
+  /** Defaut : forfait. Le reel ne se propose que si le dernier contrat edite l'etait. */
+  fraisPostauxReels?: boolean;
 }) {
   const [ag, setAg] = useState(dateAgISO);
   const [debut, setDebut] = useState(debutISO);
   const [fin, setFin] = useState(finISO);
   const [honoraires, setHonoraires] = useState(String(honorairesTtc));
   const [timbres, setTimbres] = useState(String(forfaitPostauxTtc));
+  const [reels, setReels] = useState(fraisPostauxReels);
 
   const saisi = Number(honoraires.replace(",", "."));
   const datesLisibles = JOUR_RE.test(ag) && JOUR_RE.test(debut) && JOUR_RE.test(fin);
@@ -120,17 +124,25 @@ export function FormulaireContrat({
             className="tabular-nums"
           />
         </Field>
-        <Field label="Forfait timbres (TTC)">
-          <Input
-            type="text"
-            name="timbres"
-            inputMode="decimal"
-            value={timbres}
-            onChange={(e) => setTimbres(e.target.value)}
-            largeur="auto"
-            className="tabular-nums"
-          />
-        </Field>
+        {/* Frais postaux : forfait par defaut ; au reel, le § 7.1.5 change et le montant
+            n'a plus lieu d'etre (modele du patron, 15/09/2026). */}
+        <GroupeChoix label="Frais postaux">
+          <Choix type="radio" name="frais" value="forfait" label="Forfait" checked={!reels} onChange={() => setReels(false)} />
+          <Choix type="radio" name="frais" value="reels" label="Frais réels" checked={reels} onChange={() => setReels(true)} />
+        </GroupeChoix>
+        {!reels && (
+          <Field label="Forfait timbres (TTC)">
+            <Input
+              type="text"
+              name="timbres"
+              inputMode="decimal"
+              value={timbres}
+              onChange={(e) => setTimbres(e.target.value)}
+              largeur="auto"
+              className="tabular-nums"
+            />
+          </Field>
+        )}
         <Button type="submit" variant="primary" disabled={!valide}>
           <FileText strokeWidth={1.5} />
           Éditer le contrat

@@ -73,8 +73,41 @@ export function tableRemplacement(champs: ChampsContrat): Record<string, string>
  * visible a l'ecran : mieux vaut un `[Xxx]` qui saute aux yeux a la relecture qu'un trou
  * silencieux dans un document contractuel.
  */
-export function remplirTexte(texte: string, table: Record<string, string>): string {
-  return texte.replace(/\[[^\]\n]+\]/g, (placeholder) => table[placeholder] ?? placeholder);
+export function remplirTexte(
+  texte: string,
+  table: Record<string, string>,
+  options: { fraisPostauxReels?: boolean } = {},
+): string {
+  const source = options.fraisPostauxReels ? varianteFraisReels(texte) : texte;
+  return source.replace(/\[[^\]\n]+\]/g, (placeholder) => table[placeholder] ?? placeholder);
+}
+
+/**
+ * Les trois phrases du § 7.1.5 qui changent quand les frais postaux sont au REEL, telles
+ * qu'elles sont dans le modele Word du patron (« CONTRAT DE SYNDIC 2026_ReelFraisPostaux »,
+ * compare phrase a phrase au gabarit le 15/09/2026 : rien d'autre ne differe).
+ * Une variante du gabarit, pas un second gabarit : le jour ou le texte legal bouge, il
+ * bouge une fois.
+ */
+const VARIANTE_FRAIS_REELS: readonly [forfait: string, reel: string][] = [
+  [
+    " € toutes taxes comprises plus frais postaux de [FormulaireContratSyndic.FraisPostaux] €. Cette rémunération",
+    " € toutes taxes comprises. Cette rémunération",
+  ],
+  [
+    "\nLe forfait de frais postaux est réduit de 10 € pour chaque copropriétaire optant pour la lettre recommandée électronique et de 3 € pour chaque copropriétaire optant pour l’envoi des appels de fonds par mail. \n",
+    "\n",
+  ],
+  [
+    "L’envoi des documents afférents aux prestations du forfait ne donne pas lieu à remboursement au syndic des frais d’affranchissement ou d’acheminement engagés, au-delà du forfait indiqué ci-dessus.",
+    "L’envoi des documents afférents aux prestations du forfait donne lieu à remboursement au syndic des frais d’affranchissement ou d’acheminement engagés.",
+  ],
+];
+
+export function varianteFraisReels(texte: string): string {
+  let t = texte;
+  for (const [forfait, reel] of VARIANTE_FRAIS_REELS) t = t.split(forfait).join(reel);
+  return t;
 }
 
 /** Les placeholders d'un texte qu'on ne sait PAS remplir. Sert au controle de rendu. */

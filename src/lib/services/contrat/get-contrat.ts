@@ -39,6 +39,8 @@ export interface OptionsContrat {
   honorairesGestionTtc?: number;
   /** Forfait timbres annuel TTC. Defaut : celui du contrat en cours. */
   forfaitPostauxTtc?: number;
+  /** Frais postaux au reel (variante du § 7.1.5). Defaut : la derniere edition, sinon forfait. */
+  fraisPostauxReels?: boolean;
 }
 
 /**
@@ -188,6 +190,9 @@ export async function getContrat(
         derniereEdition?.forfaitPostauxTtc ??
         contratCourant?.forfaitPostauxTtc ??
         0,
+      // Le defaut est le FORFAIT (Sekou, 15/09) ; on ne propose le reel que si le
+      // dernier contrat edite l'etait deja.
+      fraisPostauxReels: options.fraisPostauxReels ?? derniereEdition?.fraisPostauxReels ?? false,
     },
     tarifs,
   );

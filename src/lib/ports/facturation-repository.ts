@@ -225,6 +225,8 @@ export interface EditionContrat {
   /** Cycle imprime sur le document. null pour les editions MYTHEC (non exportees). */
   debutISO: string | null;
   finISO: string | null;
+  /** Frais postaux au reel sur ce document. false pour les editions MYTHEC (forfait). */
+  fraisPostauxReels: boolean;
   /** Horodatage de l'edition, ISO. */
   creeLe: string;
   creePar: string | null;
@@ -238,6 +240,7 @@ export interface NouvelleEditionContrat {
   finISO: string;
   honorairesGestionTtc: number;
   forfaitPostauxTtc: number;
+  fraisPostauxReels: boolean;
   /** Nom complet de qui edite. */
   creePar: string;
 }

@@ -148,7 +148,7 @@ export function FormulaireRecapAg({
   const [forfaitPostaux, setForfaitPostaux] = useState(texteMontant(genereDepart?.forfaitPostauxTtc));
   // Nature des frais postaux prevue au contrat : reels refactures, ou forfait.
   // Le montant n'a de sens que dans le second cas.
-  const [fraisPostauxReels, setFraisPostauxReels] = useState<boolean | null>(false);
+  const [fraisPostauxReels, setFraisPostauxReels] = useState<boolean | null>(genereDepart?.fraisPostauxReels ?? false);
   const contratGenere = copros.find((c) => c.code === coproCode)?.contratGenere;
 
   function proposerContrat(code: string) {
@@ -157,7 +157,7 @@ export function FormulaireRecapAg({
     setFinContrat(g?.finISO ?? "");
     setHonoraires(texteMontant(g?.honorairesTtc));
     setForfaitPostaux(texteMontant(g?.forfaitPostauxTtc));
-    setFraisPostauxReels(false);
+    setFraisPostauxReels(g?.fraisPostauxReels ?? false);
   }
 
   function nombreOuUndefined(v: string): number | undefined {
@@ -407,8 +407,12 @@ export function FormulaireRecapAg({
             {contratGenere.honorairesTtc !== null && (
               <> · <span className="tabular-nums">{formatEurosCourt(contratGenere.honorairesTtc)}</span> TTC</>
             )}
-            {contratGenere.forfaitPostauxTtc !== null && (
-              <> · timbres <span className="tabular-nums">{formatEurosCourt(contratGenere.forfaitPostauxTtc)}</span></>
+            {contratGenere.fraisPostauxReels ? (
+              <> · frais postaux au réel</>
+            ) : (
+              contratGenere.forfaitPostauxTtc !== null && (
+                <> · timbres <span className="tabular-nums">{formatEurosCourt(contratGenere.forfaitPostauxTtc)}</span></>
+              )
             )}
             {ecartContrat(honoraires, contratGenere.honorairesTtc) && (
               <span className="text-warn-700"> — honoraires différents du contrat généré ({formatEurosCourt(contratGenere.honorairesTtc!)})</span>

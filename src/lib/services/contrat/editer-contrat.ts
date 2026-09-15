@@ -30,6 +30,7 @@ export async function editerContrat(demande: DemandeEdition): Promise<ChampsCont
     finISO: champs.finISO,
     honorairesGestionTtc: champs.honorairesGestionTtc,
     forfaitPostauxTtc: champs.forfaitPostauxTtc,
+    fraisPostauxReels: champs.fraisPostauxReels,
     creePar: par,
   });
   return champs;

@@ -38,6 +38,7 @@ export function EditionRapideContrat({ lignes }: { lignes: LigneContratAPreparer
           finISO={ligne.finISO}
           honorairesTtc={ligne.honorairesTtc ?? 0}
           forfaitPostauxTtc={ligne.forfaitPostauxTtc ?? 0}
+          fraisPostauxReels={ligne.derniereEdition?.fraisPostauxReels ?? false}
         />
       )}
     </div>

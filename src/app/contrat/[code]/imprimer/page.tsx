@@ -28,10 +28,11 @@ export default async function ContratImprimerPage({
     fin?: string;
     honoraires?: string;
     timbres?: string;
+    frais?: string;
   }>;
 }) {
   const { code } = await params;
-  const { ag, debut, fin, honoraires, timbres } = await searchParams;
+  const { ag, debut, fin, honoraires, timbres, frais } = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
@@ -54,6 +55,7 @@ export default async function ContratImprimerPage({
       ...(nombreOuUndefined(timbres) !== undefined
         ? { forfaitPostauxTtc: nombreOuUndefined(timbres)! }
         : {}),
+      ...(frais !== undefined ? { fraisPostauxReels: frais === "reels" } : {}),
     });
   } catch (e) {
     const message = (e as Error).message;
