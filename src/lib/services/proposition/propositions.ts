@@ -1,8 +1,9 @@
 // Services du module Propositions (ADR-039). Passent par le routeur (ADR-001). Tout le
 // cabinet lit et ecrit ; la gestion des roles viendra plus tard.
 
-import { getFacturationRepository, getPropositionRepository, getRegistreCoprosProvider } from "@/lib/adapters/router";
+import { getCoproRepository, getFacturationRepository, getPropositionRepository, getRegistreCoprosProvider } from "@/lib/adapters/router";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
+import { analyserAdresse, immatriculationDansTexte, rapprocher, requeteRegistre, type CandidatRegistre } from "@/lib/domain/proposition/rapprochement";
 import {
   calculerForfait,
   LIGNES_FORFAIT,
@@ -34,6 +35,15 @@ export async function listerPropositions(): Promise<PropositionResume[]> {
 
 export function getProposition(id: string): Promise<Proposition | null> {
   return getPropositionRepository().get(id);
+}
+
+/** Le registre : charge quand, combien de coproprietes, et s'il date (l'ANAH publie chaque trimestre). */
+export async function etatRegistre(): Promise<{ chargeLeISO: string; nombre: number; perime: boolean } | null> {
+  const e = await getRegistreCoprosProvider().etat();
+  if (!e) return null;
+  const limite = new Date();
+  limite.setUTCMonth(limite.getUTCMonth() - 4);
+  return { ...e, perime: e.chargeLeISO < limite.toISOString().slice(0, 10) };
 }
 
 export function rechercherRegistre(texte: string): Promise<RegistreCopro[]> {
@@ -75,7 +85,9 @@ export async function creerProposition(s: SaisieRapide): Promise<Proposition> {
     const r = await getRegistreCoprosProvider().get(s.immatriculation);
     if (r) immeuble = immeubleDepuisRegistre(r, immeuble);
   }
-  if (!immeuble.adresse?.trim()) throw new Error("Proposition : l'adresse de l'immeuble est obligatoire.");
+  if (!immeuble.adresse?.trim()) throw new Error("L'adresse de l'immeuble est obligatoire.");
+  // Sans moyen de rappeler, la fiche ne sert a rien (Sekou, 15/09/2026).
+  if (!s.contact.telephone?.trim() && !s.contact.email?.trim()) throw new Error("Un téléphone ou un e-mail du contact est obligatoire.");
   const maintenant = new Date().toISOString();
   return getPropositionRepository().creer({
     statut: "en_cours",
@@ -171,6 +183,120 @@ export async function mettreAJourProposition(id: string, maj: MiseAJourPropositi
   }
   if (maj.note?.trim()) journal.push({ quandISO: quand, par, texte: maj.note.trim() });
   n.journal = journal;
+  await repo.sauver(n);
+  return n;
+}
+
+// --- Cet immeuble : l'historique par immatriculation, et la copro App A si elle existe ---
+
+export interface CoproConnue {
+  code: string;
+  nom: string;
+  statut: "active" | "inactive";
+  priseEnGestionISO?: string;
+  mandatFinISO?: string;
+}
+
+export interface ContexteImmeuble {
+  /** Les autres propositions pour le meme immeuble, les plus recentes d'abord. */
+  autres: Proposition[];
+  /** La copropriete du referentiel (geree, ou perdue) qui porte la meme immatriculation. */
+  copro?: CoproConnue;
+}
+
+export async function contexteImmeuble(p: Proposition): Promise<ContexteImmeuble> {
+  const imm = p.immeuble.immatriculation?.trim().toUpperCase();
+  if (!imm) return { autres: [] };
+  const [toutes, copros] = await Promise.all([
+    getPropositionRepository().listerParImmatriculation(imm),
+    getCoproRepository().listerToutes().catch(() => []),
+  ]);
+  const copro = copros.find((c) => c.immatriculation?.trim().toUpperCase() === imm);
+  return {
+    autres: toutes.filter((x) => x.id !== p.id),
+    ...(copro
+      ? {
+          copro: {
+            code: copro.code,
+            nom: copro.nom,
+            statut: copro.statut,
+            ...(copro.priseEnGestion ? { priseEnGestionISO: copro.priseEnGestion } : {}),
+            ...(copro.mandatSyndicFin ? { mandatFinISO: copro.mandatSyndicFin } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+// --- Rapprochement au registre (ADR-039, regle du 15/09/2026) ---
+
+export interface SuggestionRapprochement {
+  /** Le candidat certain (numero + voie + commune, unique), s'il y en a un. */
+  sur?: RegistreCopro;
+  candidats: RegistreCopro[];
+}
+
+function versCandidat(r: RegistreCopro): CandidatRegistre {
+  return { immatriculation: r.immatriculation, adresse: r.adresse, adressesCompl: r.adressesCompl, commune: r.commune, codePostal: r.codePostal };
+}
+
+/** Ce que le registre propose pour l'adresse d'une proposition non rattachee. */
+export async function suggererRapprochement(p: Proposition): Promise<SuggestionRapprochement> {
+  // L'immatriculation est parfois ecrite dans l'adresse de l'Excel : c'est la reponse.
+  const ecrite = immatriculationDansTexte(p.immeuble.adresse);
+  if (ecrite) {
+    const r = await getRegistreCoprosProvider().get(ecrite);
+    if (r) return { sur: r, candidats: [r] };
+  }
+  const a = analyserAdresse(p.immeuble.adresse);
+  const q = requeteRegistre(a);
+  if (q.numeros.length === 0 || q.voie.length === 0) return { candidats: [] };
+  const registre = await getRegistreCoprosProvider().candidats(q.numeros, q.voie);
+  const parImm = new Map(registre.map((r) => [r.immatriculation, r]));
+  const r = rapprocher(a, registre.map(versCandidat));
+  return {
+    ...(r.sur ? { sur: parImm.get(r.sur.immatriculation) } : {}),
+    candidats: r.candidats.map((c) => parImm.get(c.immatriculation)).filter((x): x is RegistreCopro => Boolean(x)),
+  };
+}
+
+export interface ARapprocher {
+  proposition: Proposition;
+  suggestion: SuggestionRapprochement;
+}
+
+/** Les propositions ouvertes sans immatriculation, avec ce que le registre propose. */
+export async function propositionsARapprocher(): Promise<ARapprocher[]> {
+  const ouvertes = await getPropositionRepository().lister({ statuts: [...STATUTS_OUVERTS] });
+  const sans = ouvertes.filter((p) => !p.immeuble.immatriculation);
+  const resultats: ARapprocher[] = [];
+  for (const proposition of sans) resultats.push({ proposition, suggestion: await suggererRapprochement(proposition) });
+  return resultats;
+}
+
+/** Rattache une proposition a un immeuble du registre : l'immatriculation devient sa cle. */
+export async function rattacherProposition(id: string, immatriculation: string, par: string): Promise<Proposition> {
+  const repo = getPropositionRepository();
+  const p = await repo.get(id);
+  if (!p) throw new Error("Proposition introuvable.");
+  const r = await getRegistreCoprosProvider().get(immatriculation);
+  if (!r) throw new Error("Cet immeuble n'est pas au registre.");
+  const n: Proposition = {
+    ...p,
+    immeuble: immeubleDepuisRegistre(r, p.immeuble),
+    journal: [...p.journal, { quandISO: new Date().toISOString(), par, texte: `Rattachée au registre national (${r.immatriculation}, ${r.adresse}, ${r.commune}).` }],
+  };
+  await repo.sauver(n);
+  return n;
+}
+
+/** Detache une proposition du registre (mauvais rattachement). */
+export async function detacherProposition(id: string, par: string): Promise<Proposition> {
+  const repo = getPropositionRepository();
+  const p = await repo.get(id);
+  if (!p) throw new Error("Proposition introuvable.");
+  const { immatriculation, ...immeuble } = p.immeuble;
+  const n: Proposition = { ...p, immeuble, journal: [...p.journal, { quandISO: new Date().toISOString(), par, texte: `Détachée du registre national (${immatriculation ?? "?"}).` }] };
   await repo.sauver(n);
   return n;
 }

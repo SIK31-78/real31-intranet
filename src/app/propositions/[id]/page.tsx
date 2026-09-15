@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getAgenceRepository } from "@/lib/adapters/router";
-import { calculerPrix, getProposition } from "@/lib/services/proposition/propositions";
+import { calculerPrix, contexteImmeuble, getProposition, suggererRapprochement } from "@/lib/services/proposition/propositions";
 import { LIBELLE_STATUT } from "@/lib/domain/proposition/proposition";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -20,7 +20,19 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
   if (!g) redirect("/dev-login");
   const p = await getProposition(id);
   if (!p) notFound();
-  const [prix, agences] = await Promise.all([calculerPrix(p.immeuble), getAgenceRepository().listerAgences()]);
+  const [prix, agences, contexte, suggestion] = await Promise.all([
+    calculerPrix(p.immeuble),
+    getAgenceRepository().listerAgences(),
+    contexteImmeuble(p),
+    p.immeuble.immatriculation ? Promise.resolve(undefined) : suggererRapprochement(p),
+  ]);
+  const meta = [
+    p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots principaux` : null,
+    p.prix.honorairesTtc !== undefined ? `${p.prix.honorairesTtc.toLocaleString("fr-FR")} € TTC retenus` : null,
+    p.contact.nom ?? null,
+    contexte.copro ? (contexte.copro.statut === "active" ? `déjà gérée (${contexte.copro.code})` : `ancienne copropriété (${contexte.copro.code})`) : null,
+    contexte.autres.length > 0 ? `${contexte.autres.length} consultation${contexte.autres.length > 1 ? "s" : ""} précédente${contexte.autres.length > 1 ? "s" : ""}` : null,
+  ].filter(Boolean);
 
   return (
     <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${p.immeuble.adresse}`}>
@@ -28,14 +40,11 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
         <PageHeader
           titre={p.immeuble.adresse}
           eyebrow={[p.immeuble.codePostal, p.immeuble.commune, p.agence ? `agence ${p.agence}` : null, p.gestionnaire].filter(Boolean).join(" · ")}
-          actions={
-            <span className="flex items-center gap-2">
-              <Badge ton={p.statut === "elu" ? "ok" : p.statut.startsWith("refuse") ? "err" : p.statut === "accepte_cs" ? "warn" : "info"}>{LIBELLE_STATUT[p.statut]}</Badge>
-              <ButtonLink href="/propositions" variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Toutes les propositions</ButtonLink>
-            </span>
-          }
+          badge={<Badge ton={p.statut === "elu" ? "ok" : p.statut.startsWith("refuse") ? "err" : p.statut === "accepte_cs" ? "warn" : "info"} size="md">{LIBELLE_STATUT[p.statut]}</Badge>}
+          meta={meta.length > 0 ? meta.join(" · ") : undefined}
+          actions={<ButtonLink href="/propositions" variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Pipeline</ButtonLink>}
         />
-        <FicheProposition proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} />
+        <FicheProposition proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} contexte={contexte} suggestion={suggestion} />
       </Page>
     </AppShell>
   );

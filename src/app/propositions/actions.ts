@@ -10,7 +10,9 @@ import { ORIGINES, STATUTS_PROPOSITION } from "@/lib/domain/proposition/proposit
 import {
   calculerPrix,
   creerProposition,
+  detacherProposition,
   mettreAJourProposition,
+  rattacherProposition,
   rechercherRegistre,
   type PrixCalcule,
 } from "@/lib/services/proposition/propositions";
@@ -154,6 +156,36 @@ export async function calculerPrixAction(immeuble: unknown): Promise<Res<PrixCal
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   try {
     return { ok: true, donnees: await calculerPrix(epurer(p.data)) };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
+}
+
+const zRattacher = z.object({ id: z.string().min(1), immatriculation: z.string().trim().regex(/^[A-Z]{2}\d{7}$/i) });
+
+export async function rattacherPropositionAction(input: unknown): Promise<Res> {
+  const p = zRattacher.safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Immatriculation invalide." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  try {
+    await rattacherProposition(p.data.id, p.data.immatriculation.toUpperCase(), g.nomComplet);
+    revalidatePath("/propositions");
+    revalidatePath(`/propositions/${p.data.id}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
+}
+
+export async function detacherPropositionAction(id: unknown): Promise<Res> {
+  if (typeof id !== "string" || !id) return { ok: false, erreur: "Proposition inconnue." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  try {
+    await detacherProposition(id, g.nomComplet);
+    revalidatePath(`/propositions/${id}`);
+    return { ok: true };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message };
   }

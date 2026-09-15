@@ -1,25 +1,38 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Link2, Plus, Search } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
-import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, type StatutProposition } from "@/lib/domain/proposition/proposition";
+import { etatRegistre, listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
+import { LIBELLE_ORIGINE, LIBELLE_STATUT, ORIGINES, STATUTS_OUVERTS, STATUTS_PROPOSITION, type Origine, type StatutProposition } from "@/lib/domain/proposition/proposition";
+import {
+  anneesDistinctes,
+  filtrer,
+  FENETRE_TRANSFORMATION_ANNEES,
+  transformation,
+  trier,
+  valeursDistinctes,
+  type CleTri,
+  type FiltrePipeline,
+  type TriPipeline,
+} from "@/lib/domain/proposition/pipeline";
 import { formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
-import { Section } from "@/components/ui/section";
+import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Field, Input, Select } from "@/components/ui/field";
 import { Stat } from "@/components/ui/stat";
+import { Rows, Row } from "@/components/ui/list-rows";
 import { Table, Thead, Tbody, Th, Tr, Td, LienLigne } from "@/components/ui/table";
 
 export const metadata: Metadata = { title: "Propositions de contrat - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
 // Le pipeline commercial (ADR-039) : ce qui remplace l'Excel « Suivi Proposition reprise
-// syndic ». En haut ce qui est ouvert (en cours, accepte par le CS, reporte), en dessous
-// l'historique - 1 161 propositions depuis 2012, la memoire du cabinet.
+// syndic ». Les filtres et le tri vivent dans l'URL (partageables) ; deux vues : la liste,
+// et les colonnes par statut pour ce qui est ouvert.
 
 const TON: Record<StatutProposition, "ok" | "warn" | "err" | "neutral" | "info"> = {
   en_cours: "info",
@@ -31,75 +44,187 @@ const TON: Record<StatutProposition, "ok" | "warn" | "err" | "neutral" | "info">
   refuse_real31: "neutral",
 };
 
-export default async function PropositionsPage({ searchParams }: { searchParams: Promise<{ agence?: string }> }) {
+const TRIS: { value: string; label: string }[] = [
+  { value: "date-desc", label: "Les plus récentes" },
+  { value: "date-asc", label: "Les plus anciennes" },
+  { value: "maj-desc", label: "Dernière modification" },
+  { value: "lots-desc", label: "Lots, du plus grand" },
+  { value: "honoraires-desc", label: "Honoraires, du plus haut" },
+  { value: "adresse-asc", label: "Adresse A → Z" },
+];
+
+type Params = { q?: string; statut?: string; agence?: string; gestionnaire?: string; origine?: string; annee?: string; tri?: string; vue?: string };
+
+function lireFiltre(sp: Params): FiltrePipeline {
+  const statut = sp.statut && (sp.statut === "toutes" || (STATUTS_PROPOSITION as readonly string[]).includes(sp.statut)) ? (sp.statut as FiltrePipeline["statut"]) : "ouvertes";
+  return {
+    ...(sp.q?.trim() ? { texte: sp.q.trim() } : {}),
+    statut,
+    ...(sp.agence ? { agence: sp.agence } : {}),
+    ...(sp.gestionnaire ? { gestionnaire: sp.gestionnaire } : {}),
+    ...(sp.origine && (ORIGINES as readonly string[]).includes(sp.origine) ? { origine: sp.origine as Origine } : {}),
+    ...(sp.annee && /^\d{4}$/.test(sp.annee) ? { annee: Number(sp.annee) } : {}),
+  };
+}
+
+function lireTri(sp: Params): TriPipeline {
+  const [cle, sens] = (sp.tri ?? "date-desc").split("-");
+  const cles: CleTri[] = ["date", "lots", "honoraires", "adresse", "maj"];
+  return { cle: cles.includes(cle as CleTri) ? (cle as CleTri) : "date", sens: sens === "asc" ? "asc" : "desc" };
+}
+
+export default async function PropositionsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const { agence } = await searchParams;
-  const toutes = await listerPropositions();
-  const filtrees = agence ? toutes.filter((p) => p.agence === agence) : toutes;
-  const ouvertes = filtrees.filter((p) => STATUTS_OUVERTS.has(p.statut));
-  const closes = filtrees.filter((p) => !STATUTS_OUVERTS.has(p.statut));
-  const agences = [...new Set(toutes.map((p) => p.agence).filter((a): a is string => Boolean(a)))].sort();
-  const elues = filtrees.filter((p) => p.statut === "elu").length;
-  const decidees = filtrees.filter((p) => ["elu", "refuse_cs", "refuse_ag"].includes(p.statut)).length;
+  const sp = await searchParams;
+  const filtre = lireFiltre(sp);
+  const tri = lireTri(sp);
+  const vue = sp.vue === "statut" ? "statut" : "liste";
+
+  const [toutes, registre] = await Promise.all([listerPropositions(), etatRegistre()]);
+  const ouvertes = toutes.filter((p) => STATUTS_OUVERTS.has(p.statut));
+  const lignes = trier(filtrer(toutes, filtre), tri) as PropositionResume[];
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  const transfo = transformation(toutes, aujourdHui);
+  const agences = valeursDistinctes(toutes, "agence");
+  const gestionnaires = valeursDistinctes(toutes, "gestionnaire");
+  const annees = anneesDistinctes(toutes);
+  // Le registre ne s'interroge pas ici (une requete par proposition) : le compte suffit.
+  const aSuggestion = ouvertes.filter((p) => !p.immeuble.immatriculation).length;
+
+  const params = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "vue") as [string, string][]);
+  const lienVue = (v: "liste" | "statut") => `/propositions?${new URLSearchParams({ ...Object.fromEntries(params), ...(v === "statut" ? { vue: "statut" } : {}) }).toString()}`;
+  const filtreActif = Boolean(filtre.texte || filtre.agence || filtre.gestionnaire || filtre.origine || filtre.annee || filtre.statut !== "ouvertes");
 
   return (
     <AppShell user={g} active="propositions" breadcrumb="Propositions de contrat">
       <Page largeur="travail">
         <PageHeader
           titre="Propositions de contrat de syndic"
-          eyebrow={`${ouvertes.length} en cours · ${filtrees.length} au total`}
+          eyebrow={`${ouvertes.length} ouvertes · ${toutes.length} depuis 2012`}
           actions={
-            <ButtonLink href="/propositions/nouvelle" variant="primary">
-              <Plus strokeWidth={1.5} /> Nouvelle proposition
-            </ButtonLink>
+            <>
+              {aSuggestion > 0 && (
+                <ButtonLink href="/propositions/a-rapprocher" variant="secondary">
+                  <Link2 strokeWidth={1.5} /> À rapprocher du registre ({aSuggestion})
+                </ButtonLink>
+              )}
+              <ButtonLink href="/propositions/nouvelle" variant="primary">
+                <Plus strokeWidth={1.5} /> Nouveau contact
+              </ButtonLink>
+            </>
           }
           aide={
             <p>
               Un appel, une visite, une offre : tout ce qui pourrait devenir une copropriété gérée. L&apos;adresse
               interroge le registre national des copropriétés (lots, syndic en place, fin de son mandat) ; le prix vient
-              de la grille du cabinet et s&apos;ajuste librement — le client ne voit que le montant retenu.
+              de la grille du cabinet et s&apos;ajuste librement — le client ne voit que le montant retenu. Le taux de
+              transformation se mesure sur {FENETRE_TRANSFORMATION_ANNEES} ans glissants : au-delà, l&apos;historique Excel a été nettoyé (tout en refusé).
             </p>
           }
         />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <ButtonLink href="/propositions" variant={agence ? "ghost" : "secondary"} size="sm">Toutes les agences</ButtonLink>
-          {agences.map((a) => (
-            <ButtonLink key={a} href={`/propositions?agence=${encodeURIComponent(a)}`} variant={agence === a ? "secondary" : "ghost"} size="sm">{a}</ButtonLink>
-          ))}
-        </div>
-
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="En cours" valeur={String(ouvertes.filter((p) => p.statut === "en_cours").length)} />
-          <Stat label="Acceptées par le CS" valeur={String(ouvertes.filter((p) => p.statut === "accepte_cs").length)} />
-          <Stat label="Élues" valeur={String(elues)} />
-          <Stat label="Transformation (hors refus REAL 31)" valeur={decidees ? `${Math.round((elues / decidees) * 100)} %` : "—"} />
+          <Stat label="Acceptées par le CS" valeur={String(ouvertes.filter((p) => p.statut === "accepte_cs").length)} note="en attente de l'AG" />
+          <Stat label="Reportées" valeur={String(ouvertes.filter((p) => p.statut === "reporte").length)} />
+          <Stat
+            label={`Transformation sur ${FENETRE_TRANSFORMATION_ANNEES} ans`}
+            valeur={transfo.taux === null ? "—" : `${transfo.taux} %`}
+            note={`${transfo.elues} élue${transfo.elues > 1 ? "s" : ""} sur ${transfo.decidees} décidée${transfo.decidees > 1 ? "s" : ""} depuis le ${formatJour(transfo.depuisISO)}`}
+          />
         </div>
 
-        <Section id="propositions-ouvertes" titre="En cours" compte={ouvertes.length}>
-          {ouvertes.length === 0 ? <EmptyState>Aucune proposition en cours</EmptyState> : <TableProps lignes={ouvertes} ouvertes />}
-        </Section>
+        <Card>
+          <CardBody>
+            <form method="get" action="/propositions" className="flex flex-col gap-3">
+              {vue === "statut" && <input type="hidden" name="vue" value="statut" />}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+                <Field label="Rechercher" htmlFor="f-q" className="col-span-2">
+                  <Input id="f-q" name="q" defaultValue={filtre.texte ?? ""} placeholder="adresse, commune, contact, immatriculation" />
+                </Field>
+                <Field label="Statut" htmlFor="f-statut">
+                  <Select id="f-statut" name="statut" defaultValue={filtre.statut}>
+                    <option value="ouvertes">Ouvertes</option>
+                    <option value="toutes">Toutes</option>
+                    {STATUTS_PROPOSITION.map((s) => <option key={s} value={s}>{LIBELLE_STATUT[s]}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Agence" htmlFor="f-agence">
+                  <Select id="f-agence" name="agence" defaultValue={filtre.agence ?? ""}>
+                    <option value="">Toutes</option>
+                    {agences.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Gestionnaire" htmlFor="f-gest">
+                  <Select id="f-gest" name="gestionnaire" defaultValue={filtre.gestionnaire ?? ""}>
+                    <option value="">Tous</option>
+                    {gestionnaires.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Origine" htmlFor="f-origine">
+                  <Select id="f-origine" name="origine" defaultValue={filtre.origine ?? ""}>
+                    <option value="">Toutes</option>
+                    {ORIGINES.map((o) => <option key={o} value={o}>{LIBELLE_ORIGINE[o]}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Année" htmlFor="f-annee">
+                  <Select id="f-annee" name="annee" defaultValue={filtre.annee ? String(filtre.annee) : ""}>
+                    <option value="">Toutes</option>
+                    {annees.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Tri" htmlFor="f-tri">
+                  <Select id="f-tri" name="tri" defaultValue={`${tri.cle}-${tri.sens}`}>
+                    {TRIS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Button type="submit" variant="secondary" size="sm"><Search strokeWidth={1.5} /> Filtrer</Button>
+                  {filtreActif && <ButtonLink href="/propositions" variant="ghost" size="sm">Effacer</ButtonLink>}
+                  <span className="text-caption text-ink-3">{lignes.length} proposition{lignes.length > 1 ? "s" : ""}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={registre?.perime ? "text-caption text-warn-700" : "text-caption text-ink-3"}>
+                    {registre
+                      ? `Registre national : ${registre.nombre.toLocaleString("fr-FR")} copropriétés, chargé le ${formatJour(registre.chargeLeISO)}${registre.perime ? " — à rafraîchir (publication trimestrielle)" : ""}`
+                      : "Registre national non chargé"}
+                  </span>
+                  <ButtonLink href={lienVue("liste")} variant={vue === "liste" ? "secondary" : "ghost"} size="sm">Liste</ButtonLink>
+                  <ButtonLink href={lienVue("statut")} variant={vue === "statut" ? "secondary" : "ghost"} size="sm">Par statut</ButtonLink>
+                </div>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
 
-        <Section id="propositions-historique" titre="Historique" compte={closes.length}>
-          {closes.length === 0 ? <EmptyState>Aucune proposition close</EmptyState> : <TableProps lignes={closes.slice(0, 200)} />}
-          {closes.length > 200 && <p className="text-caption text-ink-3 mt-2">Les 200 plus récentes sont affichées.</p>}
-        </Section>
+        {lignes.length === 0 ? (
+          <EmptyState>Aucune proposition ne correspond à ces filtres</EmptyState>
+        ) : vue === "statut" ? (
+          <VueParStatut lignes={lignes} />
+        ) : (
+          <>
+            <TableProps lignes={lignes.slice(0, 200)} />
+            {lignes.length > 200 && <p className="text-caption text-ink-3">Les 200 premières sont affichées — affinez les filtres pour voir le reste.</p>}
+          </>
+        )}
       </Page>
     </AppShell>
   );
 }
 
-function TableProps({ lignes, ouvertes = false }: { lignes: PropositionResume[]; ouvertes?: boolean }) {
+function TableProps({ lignes }: { lignes: PropositionResume[] }) {
   return (
     <Table>
       <Thead>
         <tr>
           <Th>Immeuble</Th>
-          <Th>Agence</Th>
           <Th numeric>Lots</Th>
           <Th>Contact</Th>
-          <Th>{ouvertes ? "1er contact" : "Décision"}</Th>
+          <Th>Agence</Th>
+          <Th>Date</Th>
           <Th numeric>Honoraires TTC</Th>
           <Th numeric>Statut</Th>
         </tr>
@@ -109,19 +234,23 @@ function TableProps({ lignes, ouvertes = false }: { lignes: PropositionResume[];
           <Tr key={p.id} interactive>
             <Td principal>
               <LienLigne href={`/propositions/${p.id}`}>{p.immeuble.adresse}</LienLigne>
-              {p.immeuble.commune && <span className="text-ink-3"> · {p.immeuble.commune}</span>}
-              {ouvertes && p.manquant.length > 0 && (
-                <span className="block text-caption text-warn-700">manque : {p.manquant.slice(0, 3).join(", ")}{p.manquant.length > 3 ? "…" : ""}</span>
-              )}
+              <span className="block text-caption text-ink-3">
+                {[p.immeuble.commune, p.immeuble.immatriculation].filter(Boolean).join(" · ") || "commune inconnue"}
+                {STATUTS_OUVERTS.has(p.statut) && p.manquant.length > 0 && <span className="text-warn-700"> · manque {p.manquant.join(", ")}</span>}
+              </span>
             </Td>
-            <Td secondaire>{p.agence ?? "—"}</Td>
             <Td numeric className="tabular-nums">{p.immeuble.lotsPrincipaux ?? "—"}</Td>
             <Td secondaire>
-              {p.contact.nom ?? "—"}
-              {p.origine && <span className="text-ink-3"> · {LIBELLE_ORIGINE[p.origine]}</span>}
+              <span className="block text-ink truncate max-w-56">{p.contact.nom ?? "—"}</span>
+              <span className="block text-caption text-ink-3 truncate max-w-56">{[p.contact.telephone, p.contact.email].filter(Boolean).join(" · ")}</span>
+            </Td>
+            <Td secondaire>
+              {p.agence ?? "—"}
+              {p.origine && <span className="block text-caption text-ink-3">{LIBELLE_ORIGINE[p.origine]}</span>}
             </Td>
             <Td secondaire className="tabular-nums">
-              {ouvertes ? (p.premierContactISO ? formatJour(p.premierContactISO) : "—") : p.decisionISO ? formatJour(p.decisionISO) : p.premierContactISO ? formatJour(p.premierContactISO) : "—"}
+              {p.premierContactISO ? formatJour(p.premierContactISO) : "—"}
+              {p.decisionISO && !STATUTS_OUVERTS.has(p.statut) && <span className="block text-caption text-ink-3">décidé le {formatJour(p.decisionISO)}</span>}
             </Td>
             <Td numeric className="tabular-nums">{p.prix.honorairesTtc !== undefined ? `${p.prix.honorairesTtc.toLocaleString("fr-FR")} €` : "—"}</Td>
             <Td numeric><Badge ton={TON[p.statut]}>{LIBELLE_STATUT[p.statut]}</Badge></Td>
@@ -129,5 +258,37 @@ function TableProps({ lignes, ouvertes = false }: { lignes: PropositionResume[];
         ))}
       </Tbody>
     </Table>
+  );
+}
+
+/** Les colonnes par statut : ce qui est ouvert se lit d'un coup d'oeil. */
+function VueParStatut({ lignes }: { lignes: PropositionResume[] }) {
+  const statuts = STATUTS_PROPOSITION.filter((s) => lignes.some((p) => p.statut === s));
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {statuts.map((s) => {
+        const groupe = lignes.filter((p) => p.statut === s);
+        return (
+          <div key={s} className="flex flex-col gap-2 min-w-0">
+            <div className="flex items-center gap-2">
+              <Badge ton={TON[s]}>{LIBELLE_STATUT[s]}</Badge>
+              <span className="text-caption text-ink-3">{groupe.length}</span>
+            </div>
+            <Rows>
+              {groupe.slice(0, 60).map((p) => (
+                <Row
+                  key={p.id}
+                  href={`/propositions/${p.id}`}
+                  principal={p.immeuble.adresse}
+                  secondaire={[p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots` : null, p.contact.nom, p.agence].filter(Boolean).join(" · ")}
+                  droite={<span className="text-caption text-ink-3 tabular-nums">{p.premierContactISO ? formatJour(p.premierContactISO) : "—"}</span>}
+                />
+              ))}
+            </Rows>
+            {groupe.length > 60 && <p className="text-caption text-ink-3">{groupe.length - 60} de plus — passez en liste.</p>}
+          </div>
+        );
+      })}
+    </div>
   );
 }

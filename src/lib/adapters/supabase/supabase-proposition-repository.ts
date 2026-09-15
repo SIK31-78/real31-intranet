@@ -114,6 +114,20 @@ export class SupabasePropositionRepository implements PropositionRepository {
     return data ? versDomaine(data as unknown as Row) : null;
   }
 
+  async listerParImmatriculation(immatriculation: string): Promise<Proposition[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_proposition")
+      .select(COLS)
+      .eq("immeuble->>immatriculation", immatriculation)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.warn(`[propositions] lecture par immatriculation impossible : ${error.message}`);
+      return [];
+    }
+    return ((data ?? []) as unknown as Row[]).map(versDomaine);
+  }
+
   async creer(p: Omit<Proposition, "id" | "creeLeISO" | "majLeISO">): Promise<Proposition> {
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase.from("intranet_proposition").insert(versLigne(p)).select(COLS).single();
@@ -135,6 +149,7 @@ type RowRegistre = {
   immatriculation: string;
   nom_usage: string | null;
   adresse: string;
+  adresses_compl: string[] | null;
   code_postal: string;
   commune: string;
   lots_total: number | null;
@@ -148,13 +163,14 @@ type RowRegistre = {
 };
 
 const COLS_REGISTRE =
-  "immatriculation, nom_usage, adresse, code_postal, commune, lots_total, lots_principaux, lots_stationnement, periode_construction, syndic_nom, syndic_type, mandat, fin_mandat";
+  "immatriculation, nom_usage, adresse, adresses_compl, code_postal, commune, lots_total, lots_principaux, lots_stationnement, periode_construction, syndic_nom, syndic_type, mandat, fin_mandat";
 
 function registreVersDomaine(r: RowRegistre): RegistreCopro {
   return {
     immatriculation: r.immatriculation,
     nomUsage: r.nom_usage,
     adresse: r.adresse,
+    adressesCompl: r.adresses_compl ?? [],
     codePostal: r.code_postal,
     commune: r.commune,
     lotsTotal: r.lots_total,
@@ -193,6 +209,37 @@ export class SupabaseRegistreCoprosProvider implements RegistreCoprosProvider {
       return [];
     }
     return ((data ?? []) as unknown as RowRegistre[]).map(registreVersDomaine);
+  }
+
+  async etat(): Promise<{ chargeLeISO: string; nombre: number } | null> {
+    const supabase = createSupabasePublicClient();
+    const { data, count, error } = await supabase
+      .from("intranet_registre_copros")
+      .select("importe_le", { count: "exact" })
+      .order("importe_le", { ascending: false })
+      .limit(1);
+    if (error || !data?.length) return null;
+    return { chargeLeISO: String((data[0] as { importe_le: string }).importe_le).slice(0, 10), nombre: count ?? 0 };
+  }
+
+  async candidats(numeros: string[], voie: string[]): Promise<RegistreCopro[]> {
+    if (numeros.length === 0 || voie.length === 0) return [];
+    const supabase = createSupabasePublicClient();
+    const vus = new Map<string, RegistreCopro>();
+    // Un numero = un mot entier de la colonne de recherche (« 4 » ne ramene ni 14 ni 92400),
+    // une requete par numero ecrit.
+    for (const n of numeros) {
+      let q = supabase.from("intranet_registre_copros").select(COLS_REGISTRE).limit(40);
+      q = q.filter("recherche", "imatch", `(^|\\s)${n.replace(/\D/g, "")}(bis|ter|b|t)?(\\s|$)`);
+      for (const m of voie) q = q.ilike("recherche", `%${m}%`);
+      const { data, error } = await q;
+      if (error) {
+        console.warn(`[registre-copros] candidats impossibles : ${error.message}`);
+        return [];
+      }
+      for (const r of (data ?? []) as unknown as RowRegistre[]) vus.set(r.immatriculation, registreVersDomaine(r));
+    }
+    return [...vus.values()];
   }
 
   async get(immatriculation: string): Promise<RegistreCopro | null> {

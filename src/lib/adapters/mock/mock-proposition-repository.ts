@@ -18,6 +18,9 @@ export class MockPropositionRepository implements PropositionRepository {
   async get(id: string): Promise<Proposition | null> {
     return PROPOSITIONS.find((p) => p.id === id) ?? null;
   }
+  async listerParImmatriculation(immatriculation: string): Promise<Proposition[]> {
+    return PROPOSITIONS.filter((p) => p.immeuble.immatriculation === immatriculation);
+  }
   async creer(p: Omit<Proposition, "id" | "creeLeISO" | "majLeISO">): Promise<Proposition> {
     const jour = new Date().toISOString().slice(0, 10);
     const cree = { ...p, id: `proposition-mock-${PROPOSITIONS.length + 1}`, creeLeISO: jour, majLeISO: jour };
@@ -35,6 +38,7 @@ const REGISTRE: RegistreCopro[] = [
     immatriculation: "AB1976653",
     nomUsage: "ORLEANS7",
     adresse: "7 r thomas d'orleans",
+    adressesCompl: [],
     codePostal: "92700",
     commune: "Colombes",
     lotsTotal: 46,
@@ -52,6 +56,12 @@ export class MockRegistreCoprosProvider implements RegistreCoprosProvider {
   async rechercher(texte: string): Promise<RegistreCopro[]> {
     const t = texte.toLowerCase();
     return REGISTRE.filter((r) => `${r.adresse} ${r.commune}`.toLowerCase().includes(t.split(" ")[0] ?? ""));
+  }
+  async etat(): Promise<{ chargeLeISO: string; nombre: number } | null> {
+    return { chargeLeISO: "2026-09-15", nombre: REGISTRE.length };
+  }
+  async candidats(numeros: string[], voie: string[]): Promise<RegistreCopro[]> {
+    return REGISTRE.filter((r) => numeros.some((n) => r.adresse.startsWith(n)) && voie.every((m) => r.adresse.includes(m)));
   }
   async get(immatriculation: string): Promise<RegistreCopro | null> {
     return REGISTRE.find((r) => r.immatriculation === immatriculation) ?? null;
