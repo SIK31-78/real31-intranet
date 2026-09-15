@@ -23,6 +23,7 @@ import {
 } from "@/lib/domain/perte/dossier";
 
 const JOUR_RE = /^\d{4}-\d{2}-\d{2}$/;
+const jjmmaaaa = (iso: string) => iso.split("-").reverse().join("/");
 
 export interface OuvertureDossierPerte {
   coproCode: string;
@@ -61,7 +62,7 @@ export async function ouvrirDossierPerte(input: OuvertureDossierPerte): Promise<
     statut: "en_cours",
     etapes,
     journal: [
-      { quandISO: maintenant, par: input.par, texte: `Dossier ouvert : AG du ${input.dateAgISO}, gérée jusqu'au ${finGestionISO}${input.motif?.trim() ? ` — ${input.motif.trim()}` : ""}` },
+      { quandISO: maintenant, par: input.par, texte: `Dossier ouvert : AG du ${jjmmaaaa(input.dateAgISO)}, gérée jusqu'au ${jjmmaaaa(finGestionISO)}${input.motif?.trim() ? ` — ${input.motif.trim()}` : ""}` },
       { quandISO: maintenant, par: input.par, texte: "Copropriété passée inactive au référentiel" },
     ],
     creeParNom: input.par,
