@@ -84,8 +84,13 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   const [toutes, registre] = await Promise.all([listerPropositions(), etatRegistre()]);
   const ouvertes = toutes.filter((p) => STATUTS_OUVERTS.has(p.statut));
   const lignes = trier(filtrer(toutes, filtre), tri) as PropositionResume[];
+  // Les compteurs suivent les filtres (agence, annee, texte...) mais pas le statut : on
+  // compte les en cours / acceptees / reportees DU PERIMETRE filtre, et la transformation
+  // se calcule sur ses decisions.
+  const perimetre = filtrer(toutes, { ...filtre, statut: "toutes" });
+  const compte = (s: StatutProposition) => perimetre.filter((p) => p.statut === s).length;
   const aujourdHui = new Date().toISOString().slice(0, 10);
-  const transfo = transformation(toutes, aujourdHui);
+  const transfo = transformation(perimetre, aujourdHui);
   const agences = valeursDistinctes(toutes, "agence");
   const gestionnaires = valeursDistinctes(toutes, "gestionnaire");
   const annees = anneesDistinctes(toutes);
@@ -125,9 +130,9 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
         />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="En cours" valeur={String(ouvertes.filter((p) => p.statut === "en_cours").length)} />
-          <Stat label="Acceptées par le CS" valeur={String(ouvertes.filter((p) => p.statut === "accepte_cs").length)} note="en attente de l'AG" />
-          <Stat label="Reportées" valeur={String(ouvertes.filter((p) => p.statut === "reporte").length)} />
+          <Stat label="En cours" valeur={String(compte("en_cours"))} note={filtreActif ? "dans ce filtre" : undefined} />
+          <Stat label="Acceptées par le CS" valeur={String(compte("accepte_cs"))} note="en attente de l'AG" />
+          <Stat label="Reportées" valeur={String(compte("reporte"))} />
           <Stat
             label={`Transformation sur ${FENETRE_TRANSFORMATION_ANNEES} ans`}
             valeur={transfo.taux === null ? "—" : `${transfo.taux} %`}
