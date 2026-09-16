@@ -30,6 +30,7 @@ import {
 } from "@/lib/domain/perte/dossier";
 import { mettreAJourEtapeAction } from "../actions";
 
+import { Journal } from "@/components/ui/journal";
 export function FicheDossierPerte({
   dossier,
   aujourdhuiISO,
@@ -82,15 +83,7 @@ export function FicheDossierPerte({
         <Section id="perte-journal" titre="Journal" compte={dossier.journal.length}>
           <Card>
             <CardBody>
-              <ul className="flex flex-col gap-1 text-body">
-                {[...dossier.journal].reverse().map((j, i) => (
-                  <li key={i} className="flex gap-3">
-                    <span className="text-ink-3 tabular-nums shrink-0">{formatDateLongue(j.quandISO.slice(0, 10))}</span>
-                    <span className="text-ink-2 shrink-0">{j.par}</span>
-                    <span>{j.texte}</span>
-                  </li>
-                ))}
-              </ul>
+              <Journal entrees={dossier.journal} />
             </CardBody>
           </Card>
         </Section>

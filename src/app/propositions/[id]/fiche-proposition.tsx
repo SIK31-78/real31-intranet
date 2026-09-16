@@ -36,6 +36,7 @@ import { DetacherRegistre, RattacherRegistre } from "@/components/proposition/ra
 import { calculerPrixAction, mettreAJourPropositionAction } from "../actions";
 
 import { formatEuros } from "@/lib/domain/format-montant";
+import { Journal } from "@/components/ui/journal";
 const euros = formatEuros;
 const nb = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", ".")));
 const txt = (v: number | undefined) => (v === undefined ? "" : String(v));
@@ -273,15 +274,7 @@ export function FicheProposition({
           <Section id="prop-journal" titre="Journal" compte={p.journal.length}>
             <Card>
               <CardBody>
-                <ul className="flex flex-col gap-1.5 text-body">
-                  {[...p.journal].reverse().map((j, i) => (
-                    <li key={i} className="grid grid-cols-[7.5rem_1fr] gap-3 sm:grid-cols-[7.5rem_10rem_1fr]">
-                      <span className="text-ink-3 tabular-nums">{formatDateLongue(j.quandISO.slice(0, 10))}</span>
-                      <span className="text-ink-2 truncate hidden sm:block">{j.par}</span>
-                      <span className="min-w-0">{j.texte}</span>
-                    </li>
-                  ))}
-                </ul>
+                <Journal entrees={p.journal} />
               </CardBody>
             </Card>
           </Section>
