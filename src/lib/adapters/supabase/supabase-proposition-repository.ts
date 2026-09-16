@@ -225,20 +225,21 @@ export class SupabaseRegistreCoprosProvider implements RegistreCoprosProvider {
   async candidats(numeros: string[], voie: string[]): Promise<RegistreCopro[]> {
     if (numeros.length === 0 || voie.length === 0) return [];
     const supabase = createSupabasePublicClient();
-    const vus = new Map<string, RegistreCopro>();
-    // Un numero = un mot entier de la colonne de recherche (« 4 » ne ramene ni 14 ni 92400),
-    // une requete par numero ecrit.
-    for (const n of numeros) {
-      let q = supabase.from("intranet_registre_copros").select(COLS_REGISTRE).limit(40);
-      q = q.filter("recherche", "imatch", `(^|\\s)${n.replace(/\D/g, "")}(bis|ter|b|t)?(\\s|$)`);
-      for (const m of voie) q = q.ilike("recherche", `%${m}%`);
-      const { data, error } = await q;
-      if (error) {
-        console.warn(`[registre-copros] candidats impossibles : ${error.message}`);
-        return [];
-      }
-      for (const r of (data ?? []) as unknown as RowRegistre[]) vus.set(r.immatriculation, registreVersDomaine(r));
+    // Un numero = un mot entier de la colonne de recherche (« 4 » ne ramene ni 14 ni 92400).
+    // Tous les numeros ecrits dans UN motif (audit 16/09/2026 : une requete par numero, sur
+    // 85 000 lignes) ; l'ilike sur les mots de voie est celui que l'index trigram sert.
+    const chiffres = [...new Set(numeros.map((n) => n.replace(/\D/g, "")).filter(Boolean))];
+    if (chiffres.length === 0) return [];
+    let q = supabase.from("intranet_registre_copros").select(COLS_REGISTRE).limit(40 * chiffres.length);
+    q = q.filter("recherche", "imatch", `(^|\\s)(${chiffres.join("|")})(bis|ter|b|t)?(\\s|$)`);
+    for (const m of voie) q = q.ilike("recherche", `%${m}%`);
+    const { data, error } = await q;
+    if (error) {
+      console.warn(`[registre-copros] candidats impossibles : ${error.message}`);
+      return [];
     }
+    const vus = new Map<string, RegistreCopro>();
+    for (const r of (data ?? []) as unknown as RowRegistre[]) vus.set(r.immatriculation, registreVersDomaine(r));
     return [...vus.values()];
   }
 
