@@ -25,6 +25,7 @@ import {
   getConfirmationEvenementRepository,
   getCoproRepository,
 } from "@/lib/adapters/router";
+import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 
 const ETAT_VIDE: EtatCompta = { comptesVerifies: false, envoyerAvant: false, checks: {}, notes: [] };
 
@@ -52,14 +53,20 @@ export async function listerLignesComptables(today: string): Promise<LigneCompta
     if (c.type === "AG") confAgParCopro.set(c.coproCode, c);
   }
 
-  return avecAg.map((c) => {
+  // Code d'agence par copro (table Agency lue une fois par requete) : le dashboard d'un
+  // comptable se limite a SES agences (Isabelle -> ML), cf. domain/perimetre-comptable.
+  const agences = await Promise.all(avecAg.map((c) => codeAgence(c.agenceId)));
+
+  return avecAg.map((c, i) => {
     const date = c.prochaineAg!.date;
     const etat = etats.get(`${c.code}|${date}`) ?? ETAT_VIDE;
     const gestionnaire = c.equipe.find((m) => m.role === "gestionnaire");
+    const agence = agences[i];
     return {
       coproCode: c.code,
       coproNom: c.nom,
       ...(gestionnaire ? { gestionnaireNom: gestionnaire.nomComplet } : {}),
+      ...(agence ? { agence } : {}),
       agDate: date,
       ...(c.prochaineAg!.heure ? { agHeure: c.prochaineAg!.heure } : {}),
       // Une date posee est provisoire tant que le CS ne l'a pas validee (statutPourDate

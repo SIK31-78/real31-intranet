@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estComptable, estVueComptable, peutVoirComptabilite } from "@/lib/auth/roles";
+import { agencesDuComptable } from "@/lib/domain/perimetre-comptable";
 import { getDashboardComptable } from "@/lib/services/compta/dashboard-comptable";
 import { listerRecapsRecus } from "@/lib/services/compta/recaps-recus";
 import type { LigneComptable } from "@/lib/domain/comptabilite";
@@ -119,7 +120,7 @@ function Section({
 export default async function ComptabilitePage({
   searchParams,
 }: {
-  searchParams: Promise<{ gestionnaire?: string; mois?: string }>;
+  searchParams: Promise<{ gestionnaire?: string; mois?: string; agences?: string }>;
 }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
@@ -139,9 +140,15 @@ export default async function ComptabilitePage({
 
   const today = ancreDuJour();
 
+  // Un comptable voit SES agences par defaut (Isabelle -> ML, cf. domain/perimetre-comptable) ;
+  // « Toutes les agences » garde la vue transverse a un clic. Sans perimetre declare
+  // (encadrement, super-admin) : tout, comme avant.
+  const perimetre = agencesDuComptable(g.email);
+  const toutesLesAgences = sp.agences === "toutes" || perimetre.length === 0;
+
   const { dashboard, gestionnaires, mois: moisDispo, total } = await getDashboardComptable(
     today,
-    { gestionnaire, mois },
+    { gestionnaire, mois, ...(toutesLesAgences ? {} : { agences: perimetre }) },
   );
 
   // File des recaps post-AG. Elle ne peut PAS vivre dans le tableau ci-dessous : celui-ci
@@ -195,8 +202,11 @@ export default async function ComptabilitePage({
           </Link>
         </Card>
 
-        {/* Filtres (GET, sans JS) : par gestionnaire et par mois d'AG. */}
+        {/* Filtres (GET, sans JS) : par gestionnaire et par mois d'AG, et le perimetre agence. */}
         <form method="get" className="flex flex-wrap items-end gap-3">
+          {perimetre.length > 0 && (
+            <input type="hidden" name="agences" value={toutesLesAgences ? "toutes" : ""} />
+          )}
           <label className="flex flex-col gap-1 text-body text-ink-3">
             Gestionnaire
             <Select
@@ -226,6 +236,14 @@ export default async function ComptabilitePage({
           <Button type="submit" variant="secondary">
             Filtrer
           </Button>
+          {perimetre.length > 0 && (
+            <Link
+              href={toutesLesAgences ? "/comptabilite" : "/comptabilite?agences=toutes"}
+              className="h-8 inline-flex items-center rounded-md border border-line px-3 text-body text-ink-2 hover:bg-surface-2 transition-colors"
+            >
+              {toutesLesAgences ? `Mes agences (${perimetre.join(", ")})` : "Toutes les agences"}
+            </Link>
+          )}
           {(gestionnaire || mois) && (
             <Link
               href="/comptabilite"

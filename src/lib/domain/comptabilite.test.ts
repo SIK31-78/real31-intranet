@@ -84,6 +84,16 @@ describe("filtrerComptable", () => {
     ).toEqual(["C"]);
   });
 
+  it("filtre par agences : les copros des autres agences sortent, celles sans agence restent", () => {
+    const avecAgence = [
+      ligne({ coproCode: "ML1", agence: "ML" }),
+      ligne({ coproCode: "LGC1", agence: "LGC" }),
+      ligne({ coproCode: "SANS" }),
+    ];
+    expect(filtrerComptable(avecAgence, { agences: ["ML"] }).map((l) => l.coproCode)).toEqual(["ML1", "SANS"]);
+    expect(filtrerComptable(avecAgence, { agences: [] })).toHaveLength(3);
+  });
+
   it("aucun filtre -> tout", () => {
     expect(filtrerComptable(lignes, {})).toHaveLength(3);
   });

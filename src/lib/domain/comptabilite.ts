@@ -12,6 +12,8 @@ export interface LigneComptable {
   coproNom: string;
   /** Nom du gestionnaire de la copro (equipe, role gestionnaire) ; absent si non resolu. */
   gestionnaireNom?: string;
+  /** Code d'agence de la copro (ML / LGC / HLS / ASN) ; absent si non resolu. */
+  agence?: string;
   /** Date d'AG a venir (ISO "YYYY-MM-DD"). */
   agDate: string;
   /** Heure de reunion "HH:mm" si connue. */
@@ -40,6 +42,8 @@ export interface FiltreComptable {
   gestionnaire?: string;
   /** Mois d'AG "YYYY-MM", ou undefined = tous. */
   mois?: string;
+  /** Codes d'agence a garder (le perimetre du comptable), ou undefined = toutes. */
+  agences?: readonly string[];
 }
 
 /** Tri stable : par date d'AG croissante, puis par code copro (departage deterministe). */
@@ -70,6 +74,9 @@ export function filtrerComptable(
   return lignes.filter((l) => {
     if (filtre.gestionnaire && l.gestionnaireNom !== filtre.gestionnaire) return false;
     if (filtre.mois && l.agDate.slice(0, 7) !== filtre.mois) return false;
+    // Perimetre agence : une copro sans agence resolue reste visible (jamais un ecran
+    // vide par defaut de resolution), une copro d'une autre agence sort.
+    if (filtre.agences && filtre.agences.length > 0 && l.agence && !filtre.agences.includes(l.agence)) return false;
     return true;
   });
 }
