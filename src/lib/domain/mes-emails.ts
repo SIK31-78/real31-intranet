@@ -125,8 +125,10 @@ export interface MailEntrant {
   coproNom: string;
   /** Lu / non lu (feeling boite mail ; passe a true a l'ouverture). */
   lu: boolean;
-  /** Corps complet du mail (deja nettoye). */
+  /** Corps du mail (deja nettoye). Dans la LISTE envoyee au navigateur : un extrait
+   *  seulement (`corpsTronque`), le complet se charge a l'ouverture. */
   corps: string;
+  corpsTronque?: boolean;
   attachments: PieceJointe[];
   // --- Analyse ---
   type: TypeMail;

@@ -24,6 +24,8 @@ import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
+import { lireCorpsMail } from "@/lib/services/mes-emails/lire-corps";
+import { messageUtilisateur } from "@/lib/actions/resultat";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
@@ -186,15 +188,32 @@ export async function synchroniserAction(): Promise<void> {
 export async function chargerPiecesJointesAction(
   emailId: string,
   coproCode: string,
-): Promise<PieceJointeRef[]> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return [];
+): Promise<{ ok: true; pieces: PieceJointeRef[] } | { ok: false; message: string }> {
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok || !auth.g.email) return [];
+  if (!auth.ok) return auth;
+  if (!auth.g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
   try {
-    return await listerPiecesJointesMail(auth.g.email, emailId);
+    return { ok: true, pieces: await listerPiecesJointesMail(auth.g.email, emailId) };
   } catch (e) {
-    console.warn("[mes-emails] pieces jointes indisponibles :", (e as Error).message);
-    return [];
+    // Graph muet : « indisponible », pas « aucune » (audit 16/09/2026).
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
+  }
+}
+
+/** Le corps complet d'un mail, a l'ouverture : la liste n'en porte qu'un extrait. */
+export async function chargerCorpsAction(
+  emailId: string,
+  coproCode: string,
+): Promise<{ ok: true; corps: string } | { ok: false; message: string }> {
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return { ok: false, message: "Données invalides." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
+  try {
+    const corps = await lireCorpsMail(auth.g.id, emailId);
+    return corps === null ? { ok: false, message: "Mail introuvable." } : { ok: true, corps };
+  } catch (e) {
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -212,7 +231,7 @@ export async function telechargerPieceJointeAction(
     const pj = await lirePieceJointeMail(auth.g.email, emailId, attachmentId);
     return { ok: true, ...pj };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -234,7 +253,7 @@ export async function genererBrouillonAction(
     revalidatePath("/mes-emails");
     return { ok: true, brouillon: reponse };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -284,7 +303,7 @@ export async function envoyerReponseAction(
     revalidatePath("/mes-emails");
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -304,20 +323,21 @@ export async function rattacherCoproAction(
     revalidatePath("/mes-emails");
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
 // --- Dossiers Outlook + classement (boite propre) ----------------------------
 
-export async function chargerDossiersAction(): Promise<DossierBoite[]> {
+export async function chargerDossiersAction(): Promise<{ ok: true; dossiers: DossierBoite[] } | { ok: false; message: string }> {
   const g = await getGestionnaireCourant();
-  if (!g?.email) return [];
+  if (!g) return { ok: false, message: "Non connecté." };
+  if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
   try {
-    return await listerDossiersBoite(g.email);
+    return { ok: true, dossiers: await listerDossiersBoite(g.email) };
   } catch (e) {
-    console.warn("[mes-emails] liste dossiers Outlook KO :", (e as Error).message);
-    return [];
+    // Outlook muet : le classement dit « indisponible », il ne propose pas une liste vide.
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -346,7 +366,7 @@ export async function classerDansDossierAction(
     revalidatePath("/mes-emails");
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -363,6 +383,6 @@ export async function creerBrouillonAction(
     await creerBrouillonOutlook(auth.g, emailId, corps);
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }

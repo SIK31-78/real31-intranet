@@ -49,7 +49,7 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
     dateCourante = brut.dateCourante;
   }
 
-  mails = mails.map((m) => appliquerEtat(m, etats.get(m.id)));
+  mails = mails.map((m) => alleger(appliquerEtat(m, etats.get(m.id))));
 
   return {
     gestionnaire: { nomComplet: g.nomComplet, initiales: g.initiales },
@@ -60,6 +60,15 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
     contextes: await enrichirContextes(mails, new Set(mesCopros.map((c) => c.code))),
     coprosDuGestionnaire: mesCopros.map((c) => ({ code: c.code, nom: c.nom })),
   };
+}
+
+/** Longueur de l'extrait envoye avec la liste : assez pour l'apercu, pas la boite entiere. */
+const EXTRAIT = 240;
+
+/** La liste ne porte qu'un extrait du corps ; le complet se charge a l'ouverture (lire-corps). */
+function alleger(m: MailEntrant): MailEntrant {
+  if (m.corps.length <= EXTRAIT) return m;
+  return { ...m, corps: m.corps.slice(0, EXTRAIT), corpsTronque: true };
 }
 
 /** Applique l'etat persiste sur un mail : statut, etapes cochees, brouillon/rattachement edites, lu. */

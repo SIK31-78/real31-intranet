@@ -51,6 +51,7 @@ import {
   genererBrouillonAction,
   envoyerReponseAction,
   chargerPiecesJointesAction,
+  chargerCorpsAction,
   telechargerPieceJointeAction,
   rattacherCoproAction,
   chargerDossiersAction,
@@ -98,6 +99,9 @@ function formatTaille(octets: number): string {
 const initiales = (nom: string) => initialesDe(nom.replace(/ \(.*\)$/, ""));
 
 
+/** Le corps a afficher : complet, ou l'extrait en attendant la suite. */
+type CorpsAffiche = { texte: string; etat: "complet" | "chargement" | "indisponible" };
+
 export function MesEmailsVue({
   data,
   signatureHtml,
@@ -144,7 +148,8 @@ export function MesEmailsVue({
     new Map(),
   );
   // Vrais dossiers Outlook de la boite (charges en lazy) + dossier choisi par mail.
-  const [dossiers, setDossiers] = useState<DossierBoite[] | null>(null);
+  // null = chargement ; "indisponible" = Outlook n'a pas repondu (pas une liste vide).
+  const [dossiers, setDossiers] = useState<DossierBoite[] | null | "indisponible">(null);
   const [dossiersChoisis, setDossiersChoisis] = useState<Map<string, string>>(new Map());
   const [msgClasser, setMsgClasser] = useState<string | null>(null);
   // Dossiers REELS (module Dossiers) de la copro, charges en lazy a l'ouverture du picker.
@@ -152,7 +157,9 @@ export function MesEmailsVue({
     Map<string, { id: string; titre: string; type: TypeDossier }[]>
   >(new Map());
   // Pieces jointes REELLES chargees a la demande a l'ouverture (null = en cours).
-  const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
+  const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null | "indisponible">>(new Map());
+  // Corps complet charge a l'ouverture (la liste n'a qu'un extrait) : null = en cours.
+  const [corpsParMail, setCorpsParMail] = useState<Map<string, string | null | "indisponible">>(new Map());
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
   const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
   // Mails dont l'editeur de reponse est ouvert manuellement (ex. mail sans action).
@@ -166,8 +173,8 @@ export function MesEmailsVue({
 
   useEffect(() => {
     void chargerDossiersAction()
-      .then(setDossiers)
-      .catch(() => setDossiers([]));
+      .then((r) => setDossiers(r.ok ? r.dossiers : "indisponible"))
+      .catch(() => setDossiers("indisponible"));
   }, []);
 
   const resumeMail = (m: MailEntrant): string => `${m.objet} - de ${m.de}`;
@@ -185,6 +192,12 @@ export function MesEmailsVue({
   const sujetDe = (m: MailEntrant): string => sujetParMail.get(m.id) ?? defautSujet(m);
   const majSujet = (m: MailEntrant, v: string) => setSujetParMail((p) => new Map(p).set(m.id, v));
   const pjJointesDe = (m: MailEntrant): Set<string> => pjJointesParMail.get(m.id) ?? new Set();
+  const corpsDe = (m: MailEntrant): CorpsAffiche => {
+    if (!m.corpsTronque) return { texte: m.corps, etat: "complet" };
+    const c = corpsParMail.get(m.id);
+    if (typeof c === "string" && c !== "indisponible") return { texte: c, etat: "complet" };
+    return { texte: m.corps, etat: c === "indisponible" ? "indisponible" : "chargement" };
+  };
   const togglePjJointe = (m: MailEntrant, id: string) =>
     setPjJointesParMail((p) => {
       const courant = new Set(p.get(m.id) ?? []);
@@ -196,7 +209,7 @@ export function MesEmailsVue({
   // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
   // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
   const autoDossier = (m: MailEntrant): string => {
-    if (!dossiers) return "";
+    if (!Array.isArray(dossiers)) return "";
     const code = m.coproCode.toLowerCase();
     const nom = m.coproNom.toLowerCase();
     const f =
@@ -315,8 +328,15 @@ export function MesEmailsVue({
       // Charge les vraies pieces jointes a la demande (une seule fois par mail).
       if (m.attachments.length > 0 && !pjParMail.has(id)) {
         setPjParMail((p) => new Map(p).set(id, null));
-        void chargerPiecesJointesAction(id, coproDe(m).code).then((pjs) =>
-          setPjParMail((prev) => new Map(prev).set(id, pjs)),
+        void chargerPiecesJointesAction(id, coproDe(m).code).then((r) =>
+          setPjParMail((prev) => new Map(prev).set(id, r.ok ? r.pieces : "indisponible")),
+        );
+      }
+      // Le corps complet, une seule fois par mail (la liste n'a qu'un extrait).
+      if (m.corpsTronque && !corpsParMail.has(id)) {
+        setCorpsParMail((p) => new Map(p).set(id, null));
+        void chargerCorpsAction(id, coproDe(m).code).then((r) =>
+          setCorpsParMail((prev) => new Map(prev).set(id, r.ok ? r.corps : "indisponible")),
         );
       }
     }
@@ -377,7 +397,7 @@ export function MesEmailsVue({
     }
     setMsgClasser(null);
     setClasses((p) => add(p, m.id));
-    const folderNom = (dossiers ?? []).find((f) => f.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
+    const folderNom = (Array.isArray(dossiers) ? dossiers : []).find((f) => f.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
     void classerDansDossierAction(m.id, coproDe(m).code, folderId, folderNom, [], brouillonDe(m)).then((r) => {
       if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
     });
@@ -526,6 +546,7 @@ export function MesEmailsVue({
               piecesJointes={
                 pjParMail.has(selection.id) ? (pjParMail.get(selection.id) ?? null) : []
               }
+              corps={corpsDe(selection)}
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
               pjJointes={pjJointesDe(selection)}
@@ -947,6 +968,7 @@ function AnalysePane({
   compose,
   onRepondre,
   piecesJointes,
+  corps,
   onTelecharger,
   onApercu,
   pjJointes,
@@ -978,7 +1000,7 @@ function AnalysePane({
   coproNom: string;
   coprosDispo: { code: string; nom: string }[];
   onRattacherCopro: (code: string) => void;
-  dossiers: DossierBoite[] | null;
+  dossiers: DossierBoite[] | null | "indisponible";
   dossierIdChoisi: string;
   onChoisirDossier: (id: string) => void;
   msgClasser: string | null;
@@ -992,7 +1014,8 @@ function AnalysePane({
   onGenererBrouillon: () => void;
   compose: boolean;
   onRepondre: () => void;
-  piecesJointes: PieceJointeRef[] | null;
+  piecesJointes: PieceJointeRef[] | null | "indisponible";
+  corps: CorpsAffiche;
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
   pjJointes: Set<string>;
@@ -1077,9 +1100,9 @@ function AnalysePane({
                     largeur="auto" className="max-w-[220px]"
                   >
                     <option value="">
-                      {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
+                      {dossiers === null ? "Chargement des dossiers…" : dossiers === "indisponible" ? "Dossiers Outlook indisponibles" : "Classer dans…"}
                     </option>
-                    {(dossiers ?? []).map((d) => (
+                    {(Array.isArray(dossiers) ? dossiers : []).map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.niveau > 0 ? `  ${d.nom}` : d.nom}
                       </option>
@@ -1093,7 +1116,9 @@ function AnalysePane({
 
         <div className="px-5 pb-4">
           <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-auto">
-            {m.corps}
+            {corps.texte}
+            {corps.etat === "chargement" && <span className="block mt-2 text-meta text-ink-3">… chargement de la suite</span>}
+            {corps.etat === "indisponible" && <span className="block mt-2 text-meta text-warn-700">La suite du mail n&apos;a pas pu être chargée (extrait seulement).</span>}
           </div>
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -1102,8 +1127,10 @@ function AnalysePane({
                   <Paperclip strokeWidth={1.5} className="w-3 h-3" />
                   Chargement des pièces jointes…
                 </span>
+              ) : piecesJointes === "indisponible" ? (
+                <span className="text-meta text-warn-700 italic">Pièces jointes indisponibles : Outlook n&apos;a pas répondu</span>
               ) : piecesJointes.length === 0 ? (
-                <span className="text-meta text-ink-3 italic">Pièces jointes indisponibles</span>
+                <span className="text-meta text-ink-3 italic">Aucune pièce jointe lisible</span>
               ) : (
                 piecesJointes.map((pj) => (
                   <span
@@ -1166,7 +1193,7 @@ function AnalysePane({
                 aria-label="Sujet de la réponse"
                 className="mb-2"
               />
-              {piecesJointes && piecesJointes.length > 0 ? (
+              {Array.isArray(piecesJointes) && piecesJointes.length > 0 ? (
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   <span className="text-meta text-ink-3">Joindre&nbsp;:</span>
                   {piecesJointes.map((pj) => {
