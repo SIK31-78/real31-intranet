@@ -15,6 +15,7 @@ import type {
 import { heureDe } from "@/lib/domain/reunion";
 import { createSupabasePublicClient } from "./public-client";
 import { filtrePerimetre } from "./perimetre";
+import { toutesLesLignes } from "./pages";
 import { exigerUneLigne, filtreCodeCopro, idCoproUnique } from "./cible-copro";
 
 // Sous-ensemble des 62 colonnes de public."Copropriete" reellement utilise par la fiche.
@@ -170,17 +171,15 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
 export class SupabaseCoproRepository implements CoproRepository {
   async list(managerId?: string): Promise<Copropriete[]> {
     const supabase = createSupabasePublicClient();
-    let q = supabase
-      .from("Copropriete")
-      .select(COPRO_COLS)
-      .order("name", { ascending: true })
-      .limit(500);
-    if (managerId) q = q.or(filtrePerimetre(managerId)); // cloisonnement : gere OU assiste
-    const { data, error } = await q;
-    if (error) throw new Error(`Lecture public.Copropriete : ${error.message}`);
+    // Par pages : la liste ne se tronque plus en silence au-dela d'un plafond (audit 16/09/2026).
+    const rows = await toutesLesLignes<CoproRow>("Lecture public.Copropriete", (debut, fin) => {
+      let q = supabase.from("Copropriete").select(COPRO_COLS).order("name", { ascending: true }).order("id").range(debut, fin);
+      if (managerId) q = q.or(filtrePerimetre(managerId)); // cloisonnement : gere OU assiste
+      return q;
+    });
     // Pas de resolution d'equipe en liste (la vue liste ne l'affiche pas).
     // On n'affiche que les copros ACTIVES (les inactives sont masquees des listes).
-    return (data as unknown as CoproRow[])
+    return rows
       .map((row) => toDomaine(row, []))
       .filter((c) => c.statut === "active");
   }
@@ -190,13 +189,9 @@ export class SupabaseCoproRepository implements CoproRepository {
   // comptables d'un coup) -> pas de N+1, contrairement a un findByCode par copro.
   async listerToutes(): Promise<Copropriete[]> {
     const supabase = createSupabasePublicClient();
-    const { data, error } = await supabase
-      .from("Copropriete")
-      .select(COPRO_COLS)
-      .order("name", { ascending: true })
-      .limit(500);
-    if (error) throw new Error(`Lecture public.Copropriete : ${error.message}`);
-    const rows = data as unknown as CoproRow[];
+    const rows = await toutesLesLignes<CoproRow>("Lecture public.Copropriete", (debut, fin) =>
+      supabase.from("Copropriete").select(COPRO_COLS).order("name", { ascending: true }).order("id").range(debut, fin),
+    );
 
     // Un seul aller-retour pour tous les membres d'equipe referencies.
     const ids = new Set<string>();

@@ -18,6 +18,7 @@ import type {
   Produit,
 } from "@/lib/ports/facturation-repository";
 import { createSupabasePublicClient } from "./public-client";
+import { toutesLesLignes } from "./pages";
 
 type ContratRow = {
   id: string;
@@ -201,15 +202,6 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     // de contrat doit remonter pour etre signalee « contrat non renseigne » par le
     // filet de securite (regle 7). La filtrer la faisait disparaitre du trimestre
     // sans que personne ne le voie.
-    const { data: contrats, error: e1 } = await supabase
-      .from("intranet_suivi_contrats")
-      .select(
-        "copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, frais_postaux_reels",
-      )
-      .lte("debut_contrat", bornes.fin)
-      .order("debut_contrat", { ascending: true });
-    if (e1) throw new Error(`Lecture contrats gestion courante : ${e1.message}`);
-
     type CRow = {
       copropriete_id: string;
       debut_contrat: string;
@@ -217,6 +209,17 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       forfait_postaux_ttc: number | null;
       frais_postaux_reels: boolean | null;
     };
+    // Une ligne par cycle de contrat et par copro : la table depasse le plafond PostgREST un
+    // jour ou l'autre, on lit par pages (audit 16/09/2026).
+    const contrats = await toutesLesLignes<CRow>("Lecture contrats gestion courante", (debut, fin) =>
+      supabase
+        .from("intranet_suivi_contrats")
+        .select("copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, frais_postaux_reels")
+        .lte("debut_contrat", bornes.fin)
+        .order("debut_contrat", { ascending: true })
+        .order("id")
+        .range(debut, fin),
+    );
     const cyclesParCopro = new Map<string, CycleTarif[]>();
     for (const c of (contrats as CRow[] | null) ?? []) {
       const liste = cyclesParCopro.get(c.copropriete_id) ?? [];
@@ -312,6 +315,11 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       .select("id")
       .single();
 
+    // 23505 = l'index unique (copro, prestation, periode) : la meme prestation a deja ete
+    // facturee sur cette periode, typiquement un second clic ou un retry apres timeout.
+    if (error?.code === "23505") {
+      throw new Error(`Facture déjà émise pour ${input.coproCode} (${input.typePrestation}${input.periode ? `, ${input.periode}` : ""}) : rien n'a été créé en double.`);
+    }
     if (error || !data) {
       throw new Error(`Creation facture : ${error?.message ?? "aucun id renvoye"}`);
     }
@@ -427,6 +435,17 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         `[suivi-contrats] colonne absente en base (${error.message}), cycle ${input.coproCode} enregistre sans. Passer supabase/sql/intranet_contrats_duree_libre.sql et intranet_contrats_tarifs_figes.sql.`,
       );
       ({ data, error } = await inserer(ligne));
+    }
+    // 23505 = ce cycle (copro, debut) existe deja : un retry ne doit ni doubler ni echouer,
+    // on rend le cycle en place.
+    if (error?.code === "23505") {
+      const { data: existant } = await supabase
+        .from("intranet_suivi_contrats")
+        .select("id")
+        .eq("copropriete_id", input.coproCode)
+        .eq("debut_contrat", input.debutContrat)
+        .maybeSingle();
+      if (existant) return (existant as { id: string }).id;
     }
     if (error || !data) {
       throw new Error(`Creation contrat ${input.coproCode} : ${error?.message ?? "aucun id"}`);
