@@ -10,6 +10,18 @@ import { coproDepuisElection, nomUsuelPropose, obstaclesElection, prochainCodeCo
 import { cycleOffre, INCLUS_OFFRE } from "@/lib/domain/proposition/offre";
 import type { Proposition } from "@/lib/domain/proposition/proposition";
 
+/**
+ * Le referentiel sert a controler l'unicite du code : s'il est illisible, on refuse
+ * plutot que de proposer S001 et de creer un doublon dans App A (audit 16/09/2026).
+ */
+async function listerCoprosOuRefuser() {
+  try {
+    return await getCoproRepository().listerToutes();
+  } catch (e) {
+    throw new Error(`Référentiel des copropriétés indisponible, élection impossible : ${(e as Error).message}`);
+  }
+}
+
 export interface PreparationElection {
   proposition: Proposition;
   codePropose: string;
@@ -28,7 +40,7 @@ export async function preparerElection(id: string): Promise<PreparationElection>
   const p = await getPropositionRepository().get(id);
   if (!p) throw new Error("Proposition introuvable.");
   const [copros, agences, gestionnaires] = await Promise.all([
-    getCoproRepository().listerToutes().catch(() => []),
+    listerCoprosOuRefuser(),
     getAgenceRepository().listerAgences(),
     getGestionnaireRepository().list(),
   ]);
@@ -56,7 +68,7 @@ export async function elireProposition(id: string, choix: ChoixElection, par: { 
   const p = await repoProp.get(id);
   if (!p) throw new Error("Proposition introuvable.");
   if (p.coproCode) throw new Error(`Cette proposition a déjà donné la copropriété ${p.coproCode}.`);
-  const copros = await getCoproRepository().listerToutes().catch(() => []);
+  const copros = await listerCoprosOuRefuser();
   const obstacles = obstaclesElection(p, choix, copros.map((c) => c.code));
   if (obstacles.length > 0) throw new Error(`Impossible de créer la copropriété : ${obstacles.join(" ; ")}.`);
 

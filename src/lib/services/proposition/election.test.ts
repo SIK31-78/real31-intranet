@@ -12,6 +12,7 @@ const etat = {
   clients: [] as unknown[],
   dossiers: [] as unknown[],
   pannePennylane: false,
+  panneReferentiel: false,
 };
 
 vi.mock("@/lib/adapters/router", () => ({
@@ -26,6 +27,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
   getCoproRepository: () => ({
     async listerToutes() {
+      if (etat.panneReferentiel) throw new Error("PostgREST timeout");
       return etat.copros;
     },
     async creerCopro(c: { code: string }) {
@@ -83,6 +85,7 @@ beforeEach(() => {
   etat.clients = [];
   etat.dossiers = [];
   etat.pannePennylane = false;
+  etat.panneReferentiel = false;
 });
 
 describe("elireProposition", () => {
@@ -103,6 +106,13 @@ describe("elireProposition", () => {
   it("refuse un code deja pris, sans rien creer", async () => {
     await expect(elireProposition("p1", { ...choix, code: "S302" }, { nom: "G" })).rejects.toThrow(/existe déjà/);
     expect(etat.copros).toHaveLength(1);
+  });
+
+  it("referentiel illisible : refuse, rien n'est cree (pas de S001 a l'aveugle)", async () => {
+    etat.panneReferentiel = true;
+    await expect(elireProposition("p1", choix, { nom: "G" })).rejects.toThrow(/Référentiel des copropriétés indisponible.*PostgREST timeout/);
+    expect(etat.copros).toHaveLength(1);
+    expect(etat.sauvegardes).toHaveLength(0);
   });
 
   it("refuse une proposition deja elue", async () => {
