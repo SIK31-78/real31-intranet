@@ -47,7 +47,9 @@ export function corpsNotificationRecap(r: RecapANotifier, coproNom: string, lien
     `Le récap de l'AG du ${formatJour(r.agDate)} de ${r.coproCode} – ${coproNom} vient d'être enregistré${r.par ? ` par ${r.par}` : ""}.`,
     ``,
     `• Comptes ${r.comptesApprouves === false ? "NON approuvés" : "approuvés"}`,
-    r.budgetModifie ? `• Budget modifié${r.montantBudget !== undefined ? ` : ${formatEuros(r.montantBudget)}` : ""}` : `• Budget inchangé`,
+    // Le montant n'est saisi que si l'AG a modifie le budget presente : sinon on le dit
+    // « non renseigne » plutot que « inchange », qui laissait croire a un chiffre connu.
+    r.montantBudget !== undefined ? `• Budget voté : ${formatEuros(r.montantBudget)}` : `• Budget voté : non renseigné`,
     r.nbTravauxVotes > 0 ? `• ${r.nbTravauxVotes} travaux voté${r.nbTravauxVotes > 1 ? "s" : ""} (appels de fonds à prévoir)` : `• Aucuns travaux votés`,
     r.depassementHeures > 0 ? `• Dépassement d'AG : ${r.depassementHeures} h` : null,
     r.infoComptable ? `` : null,
