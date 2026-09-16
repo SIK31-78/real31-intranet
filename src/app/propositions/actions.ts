@@ -11,6 +11,7 @@ import {
   calculerPrix,
   creerProposition,
   detacherProposition,
+  marquerOffreRemise,
   mettreAJourProposition,
   rattacherProposition,
   rechercherRegistre,
@@ -185,6 +186,24 @@ export async function detacherPropositionAction(id: unknown): Promise<Res> {
   if (!g) return { ok: false, erreur: "Session expirée." };
   try {
     await detacherProposition(id, g.nomComplet);
+    revalidatePath(`/propositions/${id}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
+}
+
+const zOffre = z.object({ id: z.string().min(1), dateAgISO: zJour.optional(), debutISO: zJour.optional(), dureeMois: z.number().int().min(1).max(36).optional() });
+
+export async function marquerOffreRemiseAction(input: unknown): Promise<Res> {
+  const p = zOffre.safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Saisie invalide." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  try {
+    const { id, ...options } = p.data;
+    await marquerOffreRemise(id, options, g.nomComplet);
+    revalidatePath("/propositions");
     revalidatePath(`/propositions/${id}`);
     return { ok: true };
   } catch (e) {

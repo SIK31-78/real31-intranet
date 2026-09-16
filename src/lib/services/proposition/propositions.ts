@@ -4,6 +4,9 @@
 import { getCoproRepository, getFacturationRepository, getPropositionRepository, getRegistreCoprosProvider } from "@/lib/adapters/router";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 import { analyserAdresse, immatriculationDansTexte, rapprocher, requeteRegistre, type CandidatRegistre } from "@/lib/domain/proposition/rapprochement";
+import { coproContratDepuisProposition, cycleOffre, obstaclesOffre, texteMailOffre, type OptionsOffre } from "@/lib/domain/proposition/offre";
+import { assemblerChampsContrat, PRESTATIONS_CONTRAT, type ChampsContrat, type PrestationContrat } from "@/lib/domain/contrat/champs-contrat";
+import { motifRefusCycle } from "@/lib/domain/contrat/cycle-contrat";
 import {
   calculerForfait,
   LIGNES_FORFAIT,
@@ -302,6 +305,73 @@ export async function detacherProposition(id: string, par: string): Promise<Prop
   if (!p) throw new Error("Proposition introuvable.");
   const { immatriculation, ...immeuble } = p.immeuble;
   const n: Proposition = { ...p, immeuble, journal: [...p.journal, { quandISO: new Date().toISOString(), par, texte: `Détachée du registre national (${immatriculation ?? "?"}).` }] };
+  await repo.sauver(n);
+  return n;
+}
+
+// --- L'offre (brique 2) : le contrat prospect et le mail pre-redige ---
+
+export interface Offre {
+  proposition: Proposition;
+  /** Ce qui empeche encore de faire l'offre ; vide quand tout est la. */
+  obstacles: string[];
+  /** Le contrat de syndic rempli au nom de l'immeuble (absent si obstacle ou bareme incomplet). */
+  champs?: ChampsContrat;
+  /** Ce qui a empeche de remplir le contrat, en clair. */
+  erreurContrat?: string;
+  mail: string;
+}
+
+/**
+ * Prepare l'offre : le contrat prospect sur le gabarit 2026 (bareme de l'annee de l'AG,
+ * les 21 prestations exigees, comme /contrat) et le mail du cabinet avec les montants.
+ */
+export async function preparerOffre(id: string, options: OptionsOffre, signataire: { nom: string }): Promise<Offre> {
+  const p = await getPropositionRepository().get(id);
+  if (!p) throw new Error("Proposition introuvable.");
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  const cycle = cycleOffre(p, options, aujourdHui);
+  const obstacles = obstaclesOffre(p);
+  const mail = texteMailOffre(p, cycle, signataire);
+  if (obstacles.length > 0) return { proposition: p, obstacles, mail };
+
+  const refus = motifRefusCycle(cycle.debutISO, cycle.finISO);
+  if (refus) return { proposition: p, obstacles, mail, erreurContrat: `Cycle impossible : ${refus}.` };
+  const annee = Number(cycle.dateAgISO.slice(0, 4));
+  const lignes = await getFacturationRepository().listerBareme(annee);
+  const parId = new Map(lignes.map((l) => [l.identifiantPrestation, l]));
+  const manquantes = PRESTATIONS_CONTRAT.filter((x) => !parId.has(x));
+  if (manquantes.length > 0) {
+    return { proposition: p, obstacles, mail, erreurContrat: `Barème ${annee} incomplet (${manquantes.join(", ")}) : ouvrir le barème avant d'éditer le contrat.` };
+  }
+  const tarifs = {} as Record<PrestationContrat, { libelle: string; ttc: number }>;
+  for (const x of PRESTATIONS_CONTRAT) {
+    const l = parId.get(x)!;
+    tarifs[x] = { libelle: l.libelle, ttc: l.montantTtc };
+  }
+  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(coproContratDepuisProposition(p), cycle, tarifs) };
+}
+
+/** L'offre est partie : la proposition en garde la date, le cycle propose et une ligne de journal. */
+export async function marquerOffreRemise(id: string, options: OptionsOffre, par: string): Promise<Proposition> {
+  const repo = getPropositionRepository();
+  const p = await repo.get(id);
+  if (!p) throw new Error("Proposition introuvable.");
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  const cycle = cycleOffre(p, options, aujourdHui);
+  const n: Proposition = {
+    ...p,
+    remisePropositionISO: aujourdHui,
+    ...(p.agPrevueISO ? {} : { agPrevueISO: cycle.dateAgISO }),
+    journal: [
+      ...p.journal,
+      {
+        quandISO: new Date().toISOString(),
+        par,
+        texte: `Offre remise : ${(p.prix.honorairesTtc ?? 0).toLocaleString("fr-FR")} € TTC par an, contrat du ${cycle.debutISO.split("-").reverse().join("/")} au ${cycle.finISO.split("-").reverse().join("/")}, AG du ${cycle.dateAgISO.split("-").reverse().join("/")}.`,
+      },
+    ],
+  };
   await repo.sauver(n);
   return n;
 }

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getAgenceRepository } from "@/lib/adapters/router";
 import { calculerPrix, contexteImmeuble, getProposition, suggererRapprochement } from "@/lib/services/proposition/propositions";
-import { LIBELLE_STATUT } from "@/lib/domain/proposition/proposition";
+import { LIBELLE_STATUT, STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
+import { obstaclesOffre } from "@/lib/domain/proposition/offre";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
@@ -26,6 +27,7 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
     contexteImmeuble(p),
     p.immeuble.immatriculation ? Promise.resolve(undefined) : suggererRapprochement(p),
   ]);
+  const obstacles = obstaclesOffre(p);
   const meta = [
     p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots principaux` : null,
     p.prix.honorairesTtc !== undefined ? `${p.prix.honorairesTtc.toLocaleString("fr-FR")} € TTC retenus` : null,
@@ -42,7 +44,16 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
           eyebrow={[p.immeuble.codePostal, p.immeuble.commune, p.agence ? `agence ${p.agence}` : null, p.gestionnaire].filter(Boolean).join(" · ")}
           badge={<Badge ton={p.statut === "elu" ? "ok" : p.statut.startsWith("refuse") ? "err" : p.statut === "accepte_cs" ? "warn" : "info"} size="md">{LIBELLE_STATUT[p.statut]}</Badge>}
           meta={meta.length > 0 ? meta.join(" · ") : undefined}
-          actions={<ButtonLink href="/propositions" variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Pipeline</ButtonLink>}
+          actions={
+            <>
+              <ButtonLink href="/propositions" variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Pipeline</ButtonLink>
+              {STATUTS_OUVERTS.has(p.statut) && (
+                <ButtonLink href={`/propositions/${p.id}/offre`} variant="primary" size="sm" title={obstacles.length ? `Il manque : ${obstacles.join(", ")}` : undefined}>
+                  <FileText strokeWidth={1.5} /> {p.remisePropositionISO ? "Revoir l'offre" : "Préparer l'offre"}
+                </ButtonLink>
+              )}
+            </>
+          }
         />
         <FicheProposition proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} contexte={contexte} suggestion={suggestion} />
       </Page>
