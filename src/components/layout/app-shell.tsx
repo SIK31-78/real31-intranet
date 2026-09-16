@@ -6,7 +6,7 @@ import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-contex
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante } from "@/lib/auth/roles";
+import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, profilDe } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
@@ -44,6 +44,8 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // Groupe "Administration" (cles API machine) : SUPER-ADMIN seulement. La page
   // /admin/cles-api porte sa propre garde serveur - l'entree sidebar n'est qu'un acces.
   const adminOuvert = estSuperAdmin(g?.email);
+  // Entree "Collaborateurs" : la direction (table User, referents d'agence, super-admin).
+  const directionOuverte = g ? estDirection(profilDe(g)) : false;
   return (
     <MobileSidebarProvider>
       <SentryUtilisateur id={g?.id ?? null} initiales={g?.initiales ?? null} />
@@ -62,6 +64,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               gestionCouranteOuverte={gestionCouranteOuverte}
               vueComptable={vueComptable}
               adminOuvert={adminOuvert}
+              directionOuverte={directionOuverte}
             />
           </SidebarDrawer>
           <main className="flex-1 min-w-0 min-h-0">{children}</main>

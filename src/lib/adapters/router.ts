@@ -67,6 +67,9 @@ import type { PerteRepository } from "@/lib/ports/perte-repository";
 import type { PropositionRepository, RegistreCoprosProvider } from "@/lib/ports/proposition-repository";
 import { SupabasePropositionRepository, SupabaseRegistreCoprosProvider } from "./supabase/supabase-proposition-repository";
 import { MockPropositionRepository, MockRegistreCoprosProvider } from "./mock/mock-proposition-repository";
+import type { CollaborateurRepository } from "@/lib/ports/collaborateur-repository";
+import { SupabaseCollaborateurRepository } from "./supabase/supabase-collaborateur-repository";
+import { MockCollaborateurRepository } from "./mock/mock-collaborateur-repository";
 import { SupabasePerteRepository } from "./supabase/supabase-perte-repository";
 import { MockPerteRepository } from "./mock/mock-perte-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
@@ -236,6 +239,12 @@ export function getInvoicingProvider(): InvoicingProvider {
 export function getJalonRepository(): JalonRepository {
   if (coproSourceEstSupabase()) return new SupabaseJalonRepository();
   return new MockJalonRepository();
+}
+
+// Collaborateurs : annuaire App A + arrivees / departs / habilitations intranet (16/09/2026).
+export function getCollaborateurRepository(): CollaborateurRepository {
+  if (coproSourceEstSupabase()) return new SupabaseCollaborateurRepository();
+  return new MockCollaborateurRepository();
 }
 
 // Propositions de contrat de syndic et registre national des coproprietes (ADR-039).

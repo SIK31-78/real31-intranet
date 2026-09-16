@@ -5,7 +5,7 @@ import {
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus,
   PackageMinus, Handshake, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
-  FolderOpen, ChevronDown, Euro,
+  FolderOpen, ChevronDown, Euro, Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -38,6 +38,7 @@ export type NavKey =
   | "nouveautes"
   | "cles-api"
   | "tarifs"
+  | "collaborateurs"
   | "points-estale"
   | "feedback"
   | "annonces"
@@ -125,6 +126,8 @@ const NAV_COMPTABLE: Item[] = [
   { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
   { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+  // Collaborateurs (16/09/2026) : qui est la, sur quel portefeuille. DIRECTION seulement.
+  { key: "collaborateurs", label: "Collaborateurs", href: "/collaborateurs", icon: Users },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
 
@@ -257,6 +260,7 @@ export function Sidebar({
   gestionCouranteOuverte = false,
   vueComptable = false,
   adminOuvert = false,
+  directionOuverte = false,
 }: {
   active: NavKey;
   user: { initiales: string; nomComplet: string };
@@ -269,6 +273,8 @@ export function Sidebar({
   vueComptable?: boolean;
   /** Groupe "Administration" (cles API) : visible SUPER-ADMIN seulement. */
   adminOuvert?: boolean;
+  /** Entree "Collaborateurs" : direction (directeurs, referents, super-admin). */
+  directionOuverte?: boolean;
 }) {
   return (
     <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto defilement-discret flex flex-col shadow-2 md:shadow-none">
@@ -304,6 +310,8 @@ export function Sidebar({
                 // "Mes e-mails" et "Reprise de copropriete" : fonctionnalites A VENIR pour les
                 // collegues (Sekou 2026-09-10) -> visibles des SUPER-ADMINS seulement.
                 if ((item.key === "emails" || item.key === "reprise") && !adminOuvert) return null;
+                // "Collaborateurs" : la direction (roles table, referents, super-admin).
+                if (item.key === "collaborateurs" && !directionOuverte) return null;
                 // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
                 const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
                 return <NavItem key={it.key} item={it} active={it.key === active} />;
