@@ -5,7 +5,7 @@ import {
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus,
   PackageMinus, Handshake, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
-  FolderOpen, ChevronDown,
+  FolderOpen, ChevronDown, Euro,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -37,6 +37,7 @@ export type NavKey =
   | "sinistres"
   | "nouveautes"
   | "cles-api"
+  | "tarifs"
   | "points-estale"
   | "feedback"
   | "annonces"
@@ -136,6 +137,7 @@ const GROUPE_ADMIN: { titre: string; items: Item[] } = {
     { key: "feedback", label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
     { key: "points-estale", label: "Points ESTALE", href: "/admin/estale", icon: Database },
     { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
+    { key: "tarifs", label: "Barème annuel", href: "/admin/tarifs", icon: Euro },
   ],
 };
 

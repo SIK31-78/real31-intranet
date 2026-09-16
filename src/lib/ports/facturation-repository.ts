@@ -269,6 +269,12 @@ export interface FacturationRepository {
    * Porte aussi le `libelle`, que le contrat imprime.
    */
   listerBareme(annee: number): Promise<LigneBareme[]>;
+  /** Les annees qui ont au moins une ligne au bareme, les plus recentes d'abord. */
+  listerAnneesBareme(): Promise<number[]>;
+  /** Cree ou remplace une ligne du bareme (cle : annee + identifiant). Panel d'administration. */
+  enregistrerTarif(ligne: LigneBareme & { annee: number }): Promise<void>;
+  /** Retire une ligne du bareme d'une annee. Les tarifs figes aux contrats ne bougent pas. */
+  supprimerTarif(annee: number, identifiantPrestation: string): Promise<void>;
   /** Contrat de gestion le plus recent d'une copro. Null si aucun. */
   getDernierContrat(coproCode: string): Promise<ContratCopro | null>;
   /**

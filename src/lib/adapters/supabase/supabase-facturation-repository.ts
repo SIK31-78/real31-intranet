@@ -75,6 +75,34 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     return Number((data as { montant_ttc: number }).montant_ttc);
   }
 
+  async listerAnneesBareme(): Promise<number[]> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase.from("intranet_tarifs").select("annee").order("annee", { ascending: false }).limit(2000);
+    if (error) throw new Error(`Lecture des annees du bareme : ${error.message}`);
+    return [...new Set((data ?? []).map((r) => (r as { annee: number }).annee))];
+  }
+
+  async enregistrerTarif(ligne: LigneBareme & { annee: number }): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase.from("intranet_tarifs").upsert(
+      {
+        annee: ligne.annee,
+        identifiant_prestation: ligne.identifiantPrestation,
+        libelle: ligne.libelle,
+        montant_ttc: ligne.montantTtc,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "annee,identifiant_prestation" },
+    );
+    if (error) throw new Error(`Enregistrement du tarif ${ligne.identifiantPrestation} ${ligne.annee} : ${error.message}`);
+  }
+
+  async supprimerTarif(annee: number, identifiantPrestation: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase.from("intranet_tarifs").delete().eq("annee", annee).eq("identifiant_prestation", identifiantPrestation);
+    if (error) throw new Error(`Suppression du tarif ${identifiantPrestation} ${annee} : ${error.message}`);
+  }
+
   async listerBareme(annee: number): Promise<LigneBareme[]> {
     const supabase = createSupabasePublicClient();
     const { data, error } = await supabase

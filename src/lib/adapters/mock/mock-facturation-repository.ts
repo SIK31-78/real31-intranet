@@ -52,6 +52,20 @@ export class MockFacturationRepository implements FacturationRepository {
     return TARIFS[identifiantPrestation]?.[annee] ?? null;
   }
 
+  async listerAnneesBareme(): Promise<number[]> {
+    const annees = new Set<number>();
+    for (const parAnnee of Object.values(TARIFS)) for (const a of Object.keys(parAnnee)) annees.add(Number(a));
+    return [...annees].sort((a, b) => b - a);
+  }
+
+  async enregistrerTarif(ligne: LigneBareme & { annee: number }): Promise<void> {
+    TARIFS[ligne.identifiantPrestation] = { ...(TARIFS[ligne.identifiantPrestation] ?? {}), [ligne.annee]: ligne.montantTtc };
+  }
+
+  async supprimerTarif(annee: number, identifiantPrestation: string): Promise<void> {
+    if (TARIFS[identifiantPrestation]) delete TARIFS[identifiantPrestation][annee];
+  }
+
   async listerBareme(annee: number): Promise<LigneBareme[]> {
     return Object.entries(TARIFS)
       .filter(([, parAnnee]) => parAnnee[annee] !== undefined)
