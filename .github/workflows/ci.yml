@@ -1,0 +1,29 @@
+# Vérifications à chaque push et chaque PR : typage, lint, tests unitaires, audit du design.
+# Pas de `next build` ici (il faudrait les secrets d'env) ; les tests *.smoke.ts, qui parlent
+# aux vrais services, restent hors CI (vitest ne les inclut pas).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: node scripts/audit-ui.mjs
