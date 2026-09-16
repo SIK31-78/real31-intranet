@@ -310,18 +310,12 @@ export async function creerRecapAg(
   await marquerRecapFait(demande.coproCode, agDate, demande.par ?? "");
 
   // Le mail au comptable de l'agence (+ copie au gestionnaire), lien vers la file.
+  // Tout le recap part dans le mail, comme le mail MYTHEC d'avant ; le contrat vote aussi.
   const notification = await notifierRecapAg({
+    ...demande,
     recapId,
-    coproCode: demande.coproCode,
-    agDate,
-    ...(demande.boite ? { boite: demande.boite } : {}),
-    ...(demande.par ? { par: demande.par } : {}),
-    ...(demande.comptesApprouves !== undefined ? { comptesApprouves: demande.comptesApprouves } : {}),
-    ...(demande.budgetModifie !== undefined ? { budgetModifie: demande.budgetModifie } : {}),
-    ...(demande.montantBudget !== undefined ? { montantBudget: demande.montantBudget } : {}),
-    nbTravauxVotes: (demande.travaux ?? []).length,
-    depassementHeures: calcul.totalDepassementHeures,
-    ...(demande.infoComptable ? { infoComptable: demande.infoComptable } : {}),
+    depassementTtc: calcul.montantTtc,
+    travaux: demande.travaux ?? [],
   });
 
   if (!aFacturer) {

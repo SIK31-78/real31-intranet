@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Le mail au comptable a l'enregistrement d'un recap (Sekou, 16/09/2026) : aux comptables
-// de l'agence de la copro, copie au gestionnaire, lien vers la file ; jamais bloquant.
+// de l'agence de la copro, copie au gestionnaire, tout le recap comme le mail MYTHEC,
+// lien vers la file ; jamais bloquant.
 
 const etat = vi.hoisted(() => ({
   agence: "ML" as string | undefined,
@@ -35,20 +36,30 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-import { corpsNotificationRecap, notifierRecapAg } from "./notifier-recap";
+import { corpsNotificationRecap, notifierRecapAg, sujetNotificationRecap } from "./notifier-recap";
 
+const NB = " ";
 const recap = {
   recapId: "r1",
-  coproCode: "S170",
-  agDate: "2026-07-20",
-  boite: "titouan.gaudin@real31.fr",
-  par: "TG",
+  coproCode: "S191",
+  assemblee: { jourDebut: "2026-03-12", heureDebut: 18, minuteDebut: 0, jourFin: "2026-03-12", heureFin: 20, minuteFin: 30 },
+  boite: "wilfrid.tohoubi@real31.fr",
+  par: "WT",
+  depassementTtc: 80.23,
   comptesApprouves: true,
-  budgetModifie: true,
-  montantBudget: 48000,
-  nbTravauxVotes: 2,
-  depassementHeures: 0,
-  infoComptable: "Appel travaux en 3 fois.",
+  budgetModifie: false,
+  pourcentageBudget: 5,
+  pptVote: false,
+  fondsTravaux: true,
+  travaux: [
+    { libelle: "Reprise étanchéité APT 27", budget: 913.33, numeroResolution: "Résolution 15", cleRepartition: "Charges générales", modalitesAppelFonds: "100% fonds de travaux" },
+    { libelle: "Traitement de bois", budget: 2500, numeroResolution: "Résolution 16", cleRepartition: "Charges générales", modalitesAppelFonds: "100 % fonds de travaux" },
+  ],
+  infoComptable: "Virement de 9900 à virer à M SALLA + d'info par mail SK",
+  debutContrat: "2026-01-01",
+  honorairesGestionTtc: 6722,
+  fraisPostauxReels: false,
+  forfaitPostauxTtc: 566,
 };
 
 beforeEach(() => {
@@ -65,14 +76,46 @@ describe("notifierRecapAg", () => {
     const r = await notifierRecapAg(recap);
     expect(r).toEqual({ envoye: true, a: ["isabelle.anglade@real31.fr"] });
     const m = etat.envois[0]!;
-    expect(m.boite).toBe("titouan.gaudin@real31.fr");
-    expect(m.cc).toEqual(["titouan.gaudin@real31.fr"]);
-    expect(m.sujet).toBe("Récap AG S170 – LES TILLEULS – AG du 20/07/2026");
+    expect(m.boite).toBe("wilfrid.tohoubi@real31.fr");
+    expect(m.cc).toEqual(["wilfrid.tohoubi@real31.fr"]);
+    expect(m.sujet).toBe("S191 - Récap AG 12/03/2026");
     expect(m.corps).toContain("https://real31.app/comptabilite/recaps/r1");
-    expect(m.corps).toContain("• Budget modifié en AG : 48 000,00 € votés");
-    expect(m.corps).toContain("2 travaux votés");
-    expect(m.corps).toContain("Note du gestionnaire : Appel travaux en 3 fois.");
     expect(etat.notifies).toEqual(["r1"]);
+  });
+  it("le corps reprend le mail MYTHEC champ par champ, travaux et contrat compris", () => {
+    const c = corpsNotificationRecap(recap, "LES TILLEULS", "u");
+    for (const attendu of [
+      "Code entité copropriété : S191 - LES TILLEULS",
+      "Date/Heure début AG : 12/03/2026 18:00",
+      "Date/Heure fin AG : 12/03/2026 20:30",
+      `Dépassement AG TTC : 80,23${NB}€`,
+      "Comptes approuvés : Oui",
+      "Le budget présenté a-t-il été modifié en AG ? : Non",
+      "Montant du budget N+2 : ",
+      "PPT voté à cette AG ? : Non",
+      "Fonds travaux : Oui",
+      "Pourcentage budget : 5 %",
+      "Y a-t-il eu des travaux votés ? : Oui",
+      "Travaux : Reprise étanchéité APT 27",
+      `  Budget : 913,33${NB}€`,
+      "  Résolution et clé de répartition : Résolution 15 // Charges générales",
+      "  Modalités d'appel de fonds : 100% fonds de travaux",
+      "Travaux : Traitement de bois",
+      "Autres informations utiles pour le comptable : Virement de 9900 à virer à M SALLA + d'info par mail SK",
+      "Informations nouveau contrat",
+      `Honoraires de gestion courante (TTC) : 6${NB}722,00${NB}€`,
+      `Frais postaux : 566,00${NB}€`,
+      "Date de début de contrat : 01/01/2026",
+    ]) {
+      expect(c, attendu).toContain(attendu);
+    }
+  });
+  it("sans travaux ni contrat : « Non », pas de bloc contrat, frais au reel dits", () => {
+    const c = corpsNotificationRecap({ ...recap, travaux: [], debutContrat: undefined, honorairesGestionTtc: undefined }, "X", "u");
+    expect(c).toContain("Y a-t-il eu des travaux votés ? : Non");
+    expect(c).not.toContain("Informations nouveau contrat");
+    expect(corpsNotificationRecap({ ...recap, fraisPostauxReels: true }, "X", "u")).toContain("Frais postaux : au réel");
+    expect(sujetNotificationRecap(recap)).toBe("S191 - Récap AG 12/03/2026");
   });
   it("LGC : les deux comptables du pole ; sans agence resolue : personne, et on le dit", async () => {
     etat.agence = "LGC";
@@ -85,13 +128,5 @@ describe("notifierRecapAg", () => {
     etat.panneMail = true;
     expect(await notifierRecapAg(recap)).toEqual({ envoye: false, a: [] });
     expect(etat.notifies).toEqual([]);
-  });
-  it("le corps reste lisible quand rien n'a ete vote", () => {
-    const c = corpsNotificationRecap({ ...recap, budgetModifie: false, nbTravauxVotes: 0, infoComptable: undefined, montantBudget: undefined }, "X", "https://x/y");
-    expect(c).toContain("• Budget voté tel que présenté (inchangé en AG)");
-    expect(c).toContain("• Aucuns travaux votés");
-    expect(c).not.toContain("Note du gestionnaire");
-    expect(corpsNotificationRecap({ ...recap, montantBudget: undefined }, "X", "u")).toContain("• Budget modifié en AG, nouveau montant non renseigné");
-    expect(corpsNotificationRecap({ ...recap, budgetModifie: undefined, montantBudget: undefined }, "X", "u")).toContain("• Budget : non renseigné");
   });
 });
