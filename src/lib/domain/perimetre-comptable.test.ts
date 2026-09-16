@@ -6,8 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   agencesDuComptable,
   aUnPerimetreComptable,
-  filtrerSurPerimetreComptable,
-} from "./perimetre-comptable";
+  filtrerSurPerimetreComptable, comptablesPourAgence } from "./perimetre-comptable";
 
 const copros = [
   { code: "S100", agence: "ML" },
@@ -20,6 +19,13 @@ const filtrer = (email: string | null | undefined) =>
   filtrerSurPerimetreComptable(copros, email, (c) => c.agence).map((c) => c.code);
 
 describe("perimetre comptable", () => {
+  it("dans l'autre sens : qui ecrire pour une agence", () => {
+    expect(comptablesPourAgence("ML")).toEqual(["isabelle.anglade@real31.fr"]);
+    expect(comptablesPourAgence("HLS").sort()).toEqual(["elsa.peixoto@real31.fr", "romain.gobert@real31.fr"]);
+    expect(comptablesPourAgence(undefined)).toEqual([]);
+    expect(comptablesPourAgence("XX")).toEqual([]);
+  });
+
   it("Isabelle tient Maisons-Laffitte", () => {
     expect(agencesDuComptable("isabelle.anglade@real31.fr")).toEqual(["ML"]);
     expect(filtrer("isabelle.anglade@real31.fr")).toEqual(["S100"]);

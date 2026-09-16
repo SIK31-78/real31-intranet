@@ -20,6 +20,7 @@ import {
 } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { marquerRecapFait } from "@/lib/services/supervision-ag/auto-cochage";
+import { notifierRecapAg } from "@/lib/services/compta/notifier-recap";
 import type { TravauxVotes } from "@/lib/ports/recap-ag-repository";
 import { aujourdhuiISO, exigerTarifTtc } from "./bareme";
 import { formatEuros, formatHeure, formatHeures, formatJour } from "./format";
@@ -45,6 +46,8 @@ export interface DemandeRecapAg {
 
   travaux?: TravauxVotes[];
 
+  /** Boite d'envoi du mail au comptable = email de session du gestionnaire. */
+  boite?: string;
   /** Nouveau contrat ouvert par cette AG. */
   debutContrat?: string;
   /** Fin du cycle (duree libre). Absente = debut + 1 an - 1 jour. */
@@ -71,6 +74,8 @@ export interface ResultatRecapAg {
   montantTtc: number;
   /** Null si aucun depassement : pas de facture. */
   factureId: string | null;
+  /** Comptables qui ont recu le mail ([] si aucun envoi : mock, panne, agence inconnue). */
+  mailComptableA: string[];
 }
 
 /** Annee de bareme d'un recap AG : l'exercice approuve, soit N-1. */
@@ -215,11 +220,10 @@ export async function apercuRecapAg(
  * Enregistre le recap AG, ouvre le nouveau cycle de contrat, et facture le
  * depassement s'il y en a un.
  *
- * Le mail au comptable (flow NotifComptable) n'est PAS envoye - et ne le sera pas.
- * Ce n'etait plus un blocage technique (la vanne Graph est ouverte depuis fin juillet),
- * c'est une DECISION (Sekou, 2026-08-17) : le comptable travaille depuis la file
- * « Recaps d'AG recus » de son espace, pas depuis sa boite mail. Le champ
- * notif_comptable_at reste donc null, et personne ne doit le detourner.
+ * Le mail au comptable (flow NotifComptable) part a l'enregistrement, copie au
+ * gestionnaire, avec le lien vers la file « Recaps d'AG recus » (Sekou, 16/09/2026,
+ * retour sur la decision du 17/08 : les recaps de l'ete ont dormi dans la file). Le mail
+ * ne remplace pas la file, il y renvoie. Best-effort : un envoi rate ne defait rien.
  */
 export async function creerRecapAg(
   demande: DemandeRecapAg,
@@ -305,6 +309,22 @@ export async function creerRecapAg(
   // Branchement best-effort (jamais bloquant pour le recap qui vient d'etre cree).
   await marquerRecapFait(demande.coproCode, agDate, demande.par ?? "");
 
+  // Le mail au comptable de l'agence (+ copie au gestionnaire), lien vers la file.
+  const notification = await notifierRecapAg({
+    recapId,
+    coproCode: demande.coproCode,
+    agDate,
+    ...(demande.boite ? { boite: demande.boite } : {}),
+    ...(demande.par ? { par: demande.par } : {}),
+    ...(demande.comptesApprouves !== undefined ? { comptesApprouves: demande.comptesApprouves } : {}),
+    ...(demande.budgetModifie !== undefined ? { budgetModifie: demande.budgetModifie } : {}),
+    ...(demande.montantBudget !== undefined ? { montantBudget: demande.montantBudget } : {}),
+    nbTravauxVotes: (demande.travaux ?? []).length,
+    depassementHeures: calcul.totalDepassementHeures,
+    nouveauContrat: Boolean(suiviContratId),
+    ...(demande.infoComptable ? { infoComptable: demande.infoComptable } : {}),
+  });
+
   if (!aFacturer) {
     // Les heures calculees restent rendues (le toast distingue "aucun depassement"
     // de "depassement non facture") ; seul le montant facture est nul.
@@ -313,6 +333,7 @@ export async function creerRecapAg(
       depassementHeures: calcul.totalDepassementHeures,
       montantTtc: 0,
       factureId: null,
+      mailComptableA: notification.a,
     };
   }
 
@@ -356,6 +377,7 @@ export async function creerRecapAg(
     depassementHeures: calcul.totalDepassementHeures,
     montantTtc: calcul.montantTtc,
     factureId,
+    mailComptableA: notification.a,
   };
 }
 

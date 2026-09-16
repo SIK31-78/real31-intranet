@@ -146,4 +146,6 @@ export interface RecapAgRepository {
    * une ecriture demandee par l'utilisateur ne doit jamais reussir a vide.
    */
   marquerTraite(recapId: string, traite: boolean, par: string): Promise<void>;
+  /** Le mail au comptable est parti : notif_comptable_at = maintenant (Sekou, 16/09/2026). */
+  marquerNotifie(recapId: string): Promise<void>;
 }

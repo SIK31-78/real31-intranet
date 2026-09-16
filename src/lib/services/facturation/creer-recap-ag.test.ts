@@ -47,6 +47,10 @@ vi.mock("@/lib/adapters/router", () => ({
   getComptaRepository: () => ({
     async ajouterNote() {},
   }),
+  // Notification comptable : sans boite d'envoi dans ces tests, le service n'envoie rien.
+  getCoproRepository: () => ({ async findByCode() { return null; } }),
+  getAgenceRepository: () => ({ async listerAgences() { return []; } }),
+  getMailOutboundProvider: () => ({ async envoyerNeuf() {} }),
   // marquerRecapFait est best-effort : un provider qui jette est avale (warn).
   getSupervisionAgProvider: () => ({
     async setStatutItem() {},

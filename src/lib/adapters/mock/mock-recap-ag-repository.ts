@@ -82,6 +82,8 @@ export class MockRecapAgRepository implements RecapAgRepository {
     return parCopro;
   }
 
+  async marquerNotifie(): Promise<void> {}
+
   async marquerTraite(recapId: string, traite: boolean, par: string): Promise<void> {
     const r = RECAPS.find((x) => x.id === recapId);
     if (!r) throw new Error(`Recap ${recapId} introuvable.`);

@@ -215,6 +215,15 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
     return parCopro;
   }
 
+  async marquerNotifie(recapId: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase
+      .from("intranet_recap_ag")
+      .update({ notif_comptable_at: new Date().toISOString() })
+      .eq("id", recapId);
+    if (error) throw new Error(`Recap ${recapId} : ${error.message}`);
+  }
+
   async marquerTraite(recapId: string, traite: boolean, par: string): Promise<void> {
     const supabase = createSupabasePublicClient();
     const { error } = await supabase

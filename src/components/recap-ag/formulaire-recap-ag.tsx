@@ -243,12 +243,14 @@ export function FormulaireRecapAg({
       setApercu(null);
       if (!res.ok) return toast.err(res.erreur);
       const d = res.donnees;
+      // Le mail au comptable est dit dans le toast : la personne sait qui a ete prevenue.
+      const mail = d?.mailComptableA?.length ? ` Mail envoyé à ${d.mailComptableA.join(", ")}.` : "";
       toast.ok(
-        d?.factureId
+        (d?.factureId
           ? `Récap enregistré, dépassement de ${d.depassementHeures} h facturé.`
           : sansFacture && d && d.depassementHeures > 0
             ? `Récap enregistré, dépassement de ${d.depassementHeures} h NON facturé (choix).`
-            : "Récap enregistré (aucun dépassement à facturer).",
+            : "Récap enregistré (aucun dépassement à facturer).") + mail,
       );
       router.refresh();
       onSucces?.();

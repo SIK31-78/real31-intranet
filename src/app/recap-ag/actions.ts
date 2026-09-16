@@ -64,12 +64,12 @@ const zDemande = z.object({
 });
 
 async function executer<T>(
-  travail: (managerId: string, initiales: string) => Promise<T>,
+  travail: (managerId: string, initiales: string, email?: string) => Promise<T>,
 ): Promise<Res<T>> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
   try {
-    const donnees = await travail(g.id, g.initiales);
+    const donnees = await travail(g.id, g.initiales, g.email);
     revalidatePath("/recap-ag", "layout");
     revalidatePath("/facturation", "layout");
     return { ok: true, donnees };
@@ -93,17 +93,19 @@ export async function apercuRecapAgAction(
  */
 export async function creerRecapAgAction(
   demande: DemandeRecapAg,
-): Promise<Res<{ recapId: string; depassementHeures: number; factureId: string | null }>> {
+): Promise<Res<{ recapId: string; depassementHeures: number; factureId: string | null; mailComptableA: string[] }>> {
   const saisie = zDemande.safeParse(demande);
   if (!saisie.success) return { ok: false, erreur: "Données invalides." };
 
-  return executer(async (managerId, initiales) => {
-    const resultat = await creerRecapAg({ ...saisie.data, par: initiales }, managerId);
+  return executer(async (managerId, initiales, email) => {
+    // La boite d'envoi du mail au comptable = l'email de session, jamais un champ client.
+    const resultat = await creerRecapAg({ ...saisie.data, par: initiales, ...(email ? { boite: email } : {}) }, managerId);
     if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
     return {
       recapId: resultat.recapId,
       depassementHeures: resultat.depassementHeures,
       factureId: resultat.factureId,
+      mailComptableA: resultat.mailComptableA,
     };
   });
 }

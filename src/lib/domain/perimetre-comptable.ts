@@ -44,6 +44,12 @@ export function agencesDuComptable(email: string | null | undefined): CodeAgence
   return [...(AFFECTATIONS.find((a) => a.email === cible)?.agences ?? [])];
 }
 
+/** Les comptables qui tiennent cette agence (emails), pour leur ecrire. [] si agence inconnue. */
+export function comptablesPourAgence(codeAgence: string | null | undefined): string[] {
+  if (!codeAgence) return [];
+  return AFFECTATIONS.filter((a) => (a.agences as readonly string[]).includes(codeAgence)).map((a) => a.email);
+}
+
 /** Ce comptable a-t-il un perimetre agence declare ? */
 export function aUnPerimetreComptable(email: string | null | undefined): boolean {
   return agencesDuComptable(email).length > 0;
