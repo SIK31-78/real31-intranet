@@ -11,6 +11,3 @@ export async function confirmerPriseEnMain(coproCode: string, par: string): Prom
   return getPriseEnMainRepository().confirmer(coproCode, par);
 }
 
-export async function annulerPriseEnMain(coproCode: string): Promise<void> {
-  return getPriseEnMainRepository().annuler(coproCode);
-}

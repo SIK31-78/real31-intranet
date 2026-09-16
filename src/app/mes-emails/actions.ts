@@ -14,13 +14,11 @@ import {
   enregistrerBrouillon,
   enregistrerCopro,
   enregistrerDossier,
-  enregistrerEtapes,
   enregistrerLu,
   enregistrerRattachement,
   enregistrerStatut,
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
-import type { Rattachement } from "@/lib/domain/mes-emails";
 import { synchroniserMesEmails } from "@/lib/services/mes-emails/synchroniser";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
@@ -84,33 +82,12 @@ export async function devaliderMailAction(emailId: string, coproCode: string): P
   revalidatePath("/mes-emails");
 }
 
-export async function toggleEtapeAction(emailId: string, coproCode: string, etapes: number[]): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, etapes: zEtapes }).safeParse({ emailId, coproCode, etapes }).success)
-    return;
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return;
-  await enregistrerEtapes(cibleDe(auth.g, emailId, coproCode), etapes);
-  revalidatePath("/mes-emails");
-}
-
 export async function editBrouillonAction(emailId: string, coproCode: string, brouillon: string): Promise<void> {
   if (!z.object({ emailId: zId, coproCode: zCopro, brouillon: zCorps }).safeParse({ emailId, coproCode, brouillon }).success)
     return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerBrouillon(cibleDe(auth.g, emailId, coproCode), brouillon);
-  revalidatePath("/mes-emails");
-}
-
-export async function rattachementAction(
-  emailId: string,
-  coproCode: string,
-  rattachement: Rattachement,
-): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return;
-  await enregistrerRattachement(cibleDe(auth.g, emailId, coproCode), rattachement);
   revalidatePath("/mes-emails");
 }
 

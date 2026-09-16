@@ -74,6 +74,3 @@ export async function resoudreCondoId(code: string): Promise<string | null> {
 }
 
 /** Vide le cache module (tests / diagnostic). */
-export function viderCacheCondos(): void {
-  cache = null;
-}

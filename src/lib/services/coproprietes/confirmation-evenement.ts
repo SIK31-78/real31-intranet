@@ -12,11 +12,6 @@ export async function getConfirmations(coproCode: string): Promise<ConfirmationE
 }
 
 /** Confirmations d'un lot de copros (lecture batch) - pour le calendrier. */
-export async function getConfirmationsPourCopros(
-  codes: string[],
-): Promise<ConfirmationEvenement[]> {
-  return getConfirmationEvenementRepository().getPourCopros(codes);
-}
 
 /**
  * Confirme la PROCHAINE date AG/CS de la copro : le conseil syndical a valide par

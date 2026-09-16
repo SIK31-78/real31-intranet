@@ -8,25 +8,6 @@
 import type { FacturationRepository } from "@/lib/ports/facturation-repository";
 
 /**
- * Annee de bareme applicable a une copropriete = annee de debut du contrat de
- * gestion le plus recent. Utilise par toutes les prestations SYNDIC ponctuelles.
- * (Le depassement d'AG fait exception : il utilise l'annee de l'exercice
- * approuve, soit N-1 par rapport a la date d'AG.)
- */
-export async function resoudreAnneeBareme(
-  repo: FacturationRepository,
-  coproCode: string,
-): Promise<number> {
-  const contrat = await repo.getDernierContrat(coproCode);
-  if (!contrat) {
-    throw new Error(
-      `Aucun contrat de gestion pour la copropriété ${coproCode} : barème introuvable.`,
-    );
-  }
-  return Number(contrat.debutContrat.slice(0, 4));
-}
-
-/**
  * Le contexte tarifaire d'une copro : l'annee de bareme de son contrat, et les tarifs
  * FIGES au contrat quand le recap AG les a photographies (depuis le 15/09/2026).
  *

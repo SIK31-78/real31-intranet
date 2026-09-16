@@ -288,28 +288,6 @@ export async function enregistrerSinistreAction(
   }
 }
 
-// Recharge un dossier sinistre persiste. ANTI-IDOR : on verifie que la copro du
-// dossier appartient au gestionnaire (le cloisonnement vit cote action, l'adapter
-// reste pur - cf. en-tete de supabase-sinistre-repository). null si hors scope.
-export async function chargerSinistreAction(id: string): Promise<DossierState | null> {
-  if (!zId.safeParse(id).success) return null;
-  const g = await getGestionnaireCourant();
-  if (!g) return null;
-
-  const etat = await getSinistreRepository().get(id, g.id);
-  if (!etat) return null;
-
-  // En mode supabase, une copro hors perimetre -> on ne divulgue rien (meme regle
-  // que chargerContexteDossierAction). En mock, pas de vraie data : pas de verrou.
-  if (
-    process.env.COPRO_SOURCE === "supabase" &&
-    !(await coproAppartient(etat.coproprieteId ?? "", g.id))
-  ) {
-    return null;
-  }
-  return etat;
-}
-
 // --- Generation des etapes du dossier DEPUIS le parcours (incrément 5) ----------
 // On projette cote SERVEUR (et non cote client) : l'action recoit l'etat du
 // parcours (DossierState, deja borne par zDossierState) et fabrique elle-meme les

@@ -59,9 +59,7 @@ import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import { CompositeCoproRepository } from "@/lib/adapters/composite/composite-copro-repository";
 import { EstaleCoproProvider } from "@/lib/adapters/estale/estale-copro-provider";
-import type { CoproDatesRepository } from "@/lib/ports/copro-dates-repository";
 import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
-import { MockCoproDatesRepository } from "@/lib/adapters/mock/mock-copro-dates-repository";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import type { PerteRepository } from "@/lib/ports/perte-repository";
 import type { PropositionRepository, RegistreCoprosProvider } from "@/lib/ports/proposition-repository";
@@ -204,13 +202,6 @@ export function getCoproRepository(): CoproRepository {
     return miroir;
   }
   return new MockCoproRepository();
-}
-
-// Dates AG/CS des copros eStale (table native intranet_copro_dates). eStale ne porte pas les
-// dates planifiees ; le composite les lit/ecrit ici. Meme bascule que le referentiel copro.
-export function getCoproDatesRepository(): CoproDatesRepository {
-  if (coproSourceEstSupabase()) return new SupabaseCoproDatesRepository();
-  return new MockCoproDatesRepository();
 }
 
 // Facturation des honoraires syndic (tables natives intranet_tarifs /
