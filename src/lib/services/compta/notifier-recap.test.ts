@@ -48,7 +48,6 @@ const recap = {
   montantBudget: 48000,
   nbTravauxVotes: 2,
   depassementHeures: 0,
-  nouveauContrat: true,
   infoComptable: "Appel travaux en 3 fois.",
 };
 
@@ -87,7 +86,7 @@ describe("notifierRecapAg", () => {
     expect(etat.notifies).toEqual([]);
   });
   it("le corps reste lisible quand rien n'a ete vote", () => {
-    const c = corpsNotificationRecap({ ...recap, budgetModifie: false, nbTravauxVotes: 0, nouveauContrat: false, infoComptable: undefined, montantBudget: undefined }, "X", "https://x/y");
+    const c = corpsNotificationRecap({ ...recap, budgetModifie: false, nbTravauxVotes: 0, infoComptable: undefined, montantBudget: undefined }, "X", "https://x/y");
     expect(c).toContain("• Budget inchangé");
     expect(c).toContain("• Aucuns travaux votés");
     expect(c).not.toContain("Note du gestionnaire");

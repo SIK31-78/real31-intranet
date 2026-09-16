@@ -26,7 +26,6 @@ export interface RecapANotifier {
   montantBudget?: number;
   nbTravauxVotes: number;
   depassementHeures: number;
-  nouveauContrat: boolean;
   infoComptable?: string;
 }
 
@@ -50,7 +49,6 @@ export function corpsNotificationRecap(r: RecapANotifier, coproNom: string, lien
     `• Comptes ${r.comptesApprouves === false ? "NON approuvés" : "approuvés"}`,
     r.budgetModifie ? `• Budget modifié${r.montantBudget !== undefined ? ` : ${formatEuros(r.montantBudget)}` : ""}` : `• Budget inchangé`,
     r.nbTravauxVotes > 0 ? `• ${r.nbTravauxVotes} travaux voté${r.nbTravauxVotes > 1 ? "s" : ""} (appels de fonds à prévoir)` : `• Aucuns travaux votés`,
-    r.nouveauContrat ? `• Nouveau cycle de contrat ouvert` : null,
     r.depassementHeures > 0 ? `• Dépassement d'AG : ${r.depassementHeures} h` : null,
     r.infoComptable ? `` : null,
     r.infoComptable ? `Note du gestionnaire : ${r.infoComptable}` : null,

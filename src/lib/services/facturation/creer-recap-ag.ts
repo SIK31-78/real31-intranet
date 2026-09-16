@@ -321,7 +321,6 @@ export async function creerRecapAg(
     ...(demande.montantBudget !== undefined ? { montantBudget: demande.montantBudget } : {}),
     nbTravauxVotes: (demande.travaux ?? []).length,
     depassementHeures: calcul.totalDepassementHeures,
-    nouveauContrat: Boolean(suiviContratId),
     ...(demande.infoComptable ? { infoComptable: demande.infoComptable } : {}),
   });
 
