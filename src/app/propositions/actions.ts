@@ -23,8 +23,8 @@ import {
 import { elireProposition } from "@/lib/services/proposition/election";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 
-type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 const zJour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const zNb = z.number().min(0).max(100000);
 const zTexte = z.string().trim().max(300);
@@ -83,7 +83,7 @@ export async function rechercherRegistreAction(texte: string): Promise<Res<Regis
   try {
     return { ok: true, donnees: await rechercherRegistre(texte.slice(0, 120)) };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }
 
@@ -115,7 +115,7 @@ export async function creerPropositionAction(input: unknown): Promise<Res<{ id: 
     revalidatePath("/propositions");
     return { ok: true, donnees: { id: cree.id } };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }
 
@@ -173,7 +173,7 @@ export async function mettreAJourPropositionAction(input: unknown): Promise<Res>
     revalidatePath(`/propositions/${id}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }
 
@@ -184,7 +184,7 @@ export async function calculerPrixAction(immeuble: unknown): Promise<Res<PrixCal
   try {
     return { ok: true, donnees: await calculerPrix(epurer(p.data)) };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }
 
@@ -202,7 +202,7 @@ export async function rattacherPropositionAction(input: unknown): Promise<Res> {
     revalidatePath(`/propositions/${p.data.id}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }
 
@@ -216,7 +216,7 @@ export async function detacherPropositionAction(id: unknown): Promise<Res> {
     revalidatePath(`/propositions/${id}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }
 
@@ -237,7 +237,7 @@ export async function marquerOffreRemiseAction(input: unknown): Promise<Res> {
     revalidatePath(`/propositions/${id}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }
 
@@ -272,6 +272,6 @@ export async function elirePropositionAction(input: unknown): Promise<Res<{ copr
     revalidatePath(`/propositions/${id}`);
     return { ok: true, donnees: r };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "propositions");
   }
 }

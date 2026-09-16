@@ -16,6 +16,7 @@ import {
   type StatutPointEstale,
 } from "@/lib/domain/points-estale";
 
+import { messageUtilisateur } from "@/lib/actions/resultat";
 type Resultat = { ok: boolean; message?: string };
 
 async function garde(): Promise<Resultat | null> {
@@ -26,7 +27,7 @@ async function garde(): Promise<Resultat | null> {
 
 function messageErreur(e: unknown): string {
   if (e instanceof PointsEstaleNonConfigureError) return e.message;
-  return e instanceof Error ? e.message : "Action impossible.";
+  return messageUtilisateur(e, "admin/estale");
 }
 
 const zCreation = z.object({

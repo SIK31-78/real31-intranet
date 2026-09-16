@@ -38,8 +38,8 @@ import {
 import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-factures-en-attente";
 import { getFacturationRepository } from "@/lib/adapters/router";
 
-type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 // Validation des entrees : ces Server Actions sont des endpoints POST publics.
 const zCode = z.string().trim().min(1).max(40);
 const zLibelle = z.string().trim().min(1).max(300);
@@ -70,7 +70,7 @@ async function executer<T>(travail: (managerId: string, initiales: string) => Pr
     revalider();
     return { ok: true, donnees };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "facturation");
   }
 }
 

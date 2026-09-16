@@ -18,6 +18,7 @@ import {
   type TypeFeedback,
 } from "@/lib/domain/feedback";
 
+import { messageUtilisateur } from "@/lib/actions/resultat";
 const zSaisie = z.object({
   type: z.enum(TYPES_FEEDBACK as unknown as [TypeFeedback, ...TypeFeedback[]]),
   description: z.string().trim().min(1).max(2000),
@@ -52,6 +53,6 @@ export async function envoyerFeedback(input: unknown): Promise<{ ok: boolean; me
     if (e instanceof FeedbackNonConfigureError) {
       return { ok: false, message: "Le module de remontées n'est pas encore activé côté base. Préviens Sekou." };
     }
-    return { ok: false, message: e instanceof Error ? e.message : "Envoi impossible." };
+    return { ok: false, message: messageUtilisateur(e, "feedback") };
   }
 }

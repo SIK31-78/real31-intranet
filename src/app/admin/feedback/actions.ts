@@ -24,6 +24,7 @@ import {
   type TypeFeedback,
 } from "@/lib/domain/feedback";
 
+import { messageUtilisateur } from "@/lib/actions/resultat";
 async function exigerSuperAdmin(): Promise<
   { ok: true; par: string; email?: string; initiales: string } | { ok: false; message: string }
 > {
@@ -200,6 +201,6 @@ export async function convertirEnPointEstaleAction(input: unknown): Promise<{ ok
     revalidatePath("/admin/estale");
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Conversion impossible." };
+    return { ok: false, message: messageUtilisateur(e, "admin/feedback") };
   }
 }

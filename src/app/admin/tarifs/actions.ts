@@ -10,8 +10,8 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutEditerBareme, profilDe } from "@/lib/auth/roles";
 import { enregistrerTarif, ouvrirAnnee, supprimerTarif } from "@/lib/services/admin/bareme";
 
-type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 async function garde(): Promise<string | null> {
   const g = await getGestionnaireCourant();
   if (!g) return "Session expirée.";
@@ -37,7 +37,7 @@ export async function enregistrerTarifAction(input: unknown): Promise<Res> {
     revalidatePath("/admin/tarifs");
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "admin/tarifs");
   }
 }
 
@@ -51,7 +51,7 @@ export async function supprimerTarifAction(input: unknown): Promise<Res> {
     revalidatePath("/admin/tarifs");
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "admin/tarifs");
   }
 }
 
@@ -65,6 +65,6 @@ export async function ouvrirAnneeAction(input: unknown): Promise<Res<{ creees: n
     revalidatePath("/admin/tarifs");
     return { ok: true, donnees: { creees } };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "admin/tarifs");
   }
 }

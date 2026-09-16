@@ -15,8 +15,8 @@ import {
 } from "@/lib/services/facturation/creer-recap-ag";
 import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-factures-en-attente";
 
-type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 const zCode = z.string().trim().min(1).max(40);
 const zJour = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Date attendue au format AAAA-MM-JJ");
 const zMontant = z.number().min(0).max(100_000_000);
@@ -74,7 +74,7 @@ async function executer<T>(
     revalidatePath("/facturation", "layout");
     return { ok: true, donnees };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "recap-ag");
   }
 }
 

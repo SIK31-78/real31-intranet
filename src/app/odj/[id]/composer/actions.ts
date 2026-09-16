@@ -11,6 +11,7 @@ import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { appliquerOdjAg, creerAssembleeAg } from "@/lib/services/odj/get-assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 
+import { echecDepuis } from "@/lib/actions/resultat";
 type ItemAjout = { id: string; titre: string; corps: string; majorite: MajoriteResolution };
 
 type Resultat =
@@ -91,7 +92,7 @@ export async function enregistrerProjetAction(
   } catch (e) {
     // Le message de l'adapter est deja explicite en cas d'echec partiel ("relance pour
     // completer, rien ne sera duplique") : on le remonte tel quel a l'UI.
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "odj/composer");
   }
 }
 
@@ -107,6 +108,6 @@ export async function creerAgAction(coproCode: string): Promise<ResultatCreation
     revalidatePath("/odj", "layout");
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "odj/composer");
   }
 }

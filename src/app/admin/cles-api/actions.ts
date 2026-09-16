@@ -12,6 +12,7 @@ import { creerCleApi, revoquerCleApi } from "@/lib/auth/cle-api";
 import { SCOPES_API, estScopeEcriture, type ScopeApi } from "@/lib/domain/cle-api";
 import type { CleApi } from "@/lib/domain/cle-api";
 
+import { messageUtilisateur } from "@/lib/actions/resultat";
 const zCreation = z
   .object({
     nom: z.string().trim().min(1).max(120),
@@ -66,7 +67,7 @@ export async function creerCle(input: unknown): Promise<ResultatCreation> {
     revalidatePath("/admin/cles-api");
     return { ok: true, cleEnClair, enregistrement };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Création impossible." };
+    return { ok: false, message: messageUtilisateur(e, "admin/cles-api") };
   }
 }
 
@@ -82,6 +83,6 @@ export async function revoquerCle(input: unknown): Promise<{ ok: boolean; messag
     revalidatePath("/admin/cles-api");
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Révocation impossible." };
+    return { ok: false, message: messageUtilisateur(e, "admin/cles-api") };
   }
 }

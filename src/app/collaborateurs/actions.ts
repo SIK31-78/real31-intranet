@@ -18,8 +18,8 @@ import {
   reaffecterCopro,
 } from "@/lib/services/collaborateurs/collaborateurs";
 
-type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 async function garde(): Promise<{ nom: string } | string> {
   const g = await getGestionnaireCourant();
   if (!g) return "Session expirée.";
@@ -51,7 +51,7 @@ export async function arriveeAction(input: unknown): Promise<Res<{ id: string }>
     revalidatePath("/collaborateurs");
     return { ok: true, donnees: { id } };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "collaborateurs");
   }
 }
 
@@ -73,7 +73,7 @@ export async function departAction(input: unknown): Promise<Res<{ reaffectees: n
     revalidatePath(`/collaborateurs/${p.data.userId}`);
     return { ok: true, donnees: r };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "collaborateurs");
   }
 }
 
@@ -88,7 +88,7 @@ export async function annulerDepartAction(userId: unknown): Promise<Res> {
     revalidatePath(`/collaborateurs/${p.data}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "collaborateurs");
   }
 }
 
@@ -103,7 +103,7 @@ export async function reaffecterAction(input: unknown): Promise<Res> {
     revalidatePath(`/collaborateurs/${p.data.depuis}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "collaborateurs");
   }
 }
 
@@ -121,7 +121,7 @@ export async function habilitationAction(input: unknown): Promise<Res> {
     revalidatePath(`/collaborateurs/${p.data.userId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "collaborateurs");
   }
 }
 
@@ -136,6 +136,6 @@ export async function fonctionAction(input: unknown): Promise<Res> {
     revalidatePath(`/collaborateurs/${p.data.userId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "collaborateurs");
   }
 }

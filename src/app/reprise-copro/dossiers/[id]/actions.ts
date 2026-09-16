@@ -49,6 +49,7 @@ import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signatur
 import { envoyerMailReunion } from "@/lib/services/coproprietes/envoyer-mail-reunion";
 import { validerCollaborateursConnus } from "@/app/reprise-copro/collaborateurs";
 
+import { messageUtilisateur } from "@/lib/actions/resultat";
 export type ActionResultat = { ok: true } | { ok: false; message: string };
 
 // --- Briques communes ---------------------------------------------------------
@@ -295,7 +296,7 @@ export async function archiverDossierAction(ref: string, archive: boolean): Prom
   try {
     await archiverDossier(getRepriseDossierRepository(), valid.data.ref, valid.data.archive, new Date().toISOString());
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Archivage impossible." };
+    return { ok: false, message: messageUtilisateur(e, "reprise-copro") };
   }
   revalider(valid.data.ref);
   return { ok: true };
@@ -315,7 +316,7 @@ export async function supprimerDossierRepriseAction(ref: string): Promise<Action
   try {
     await supprimerDossierEtFiches(getRepriseDossierRepository(), getFicheRenseignementsRepository(), valid.data);
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Suppression impossible." };
+    return { ok: false, message: messageUtilisateur(e, "reprise-copro") };
   }
 
   revalidatePath("/reprise-copro/dossiers");
@@ -412,7 +413,7 @@ export async function genererCourriersFicheAction(
     revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
     return { ok: true, html, nbCourriers: r.courriers.length, ignores: r.ignores };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant la génération." };
+    return { ok: false, message: messageUtilisateur(e, "reprise-copro") };
   }
 }
 
@@ -453,7 +454,7 @@ export async function validerFicheAction(dossierId: string, ownerId: string): Pr
       await envoyerMailReunion({ boite: g.email!, a: [email], cc: [], cci: [], sujet, corps, signatureHtml });
       return { envoye: true };
     } catch (e) {
-      return { envoye: false, note: `Mail non envoyé : ${(e as Error).message || "erreur Graph"}.` };
+      return { envoye: false, note: `Mail non envoyé : ${messageUtilisateur(e, "reprise-copro")}.` };
     }
   };
 
@@ -484,7 +485,7 @@ export async function validerFicheAction(dossierId: string, ownerId: string): Pr
       ...(r.mailNote ? { mailNote: r.mailNote } : {}),
     };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant la validation." };
+    return { ok: false, message: messageUtilisateur(e, "reprise-copro") };
   }
 }
 
@@ -531,7 +532,7 @@ export async function envoyerFicheEmailAction(dossierId: string, ownerId: string
       await envoyerMailReunion({ boite: g.email!, a: [email], cc: [], cci: [], sujet, corps, signatureHtml });
       return { envoye: true };
     } catch (e) {
-      return { envoye: false, note: `Mail non envoyé : ${(e as Error).message || "erreur Graph"}.` };
+      return { envoye: false, note: `Mail non envoyé : ${messageUtilisateur(e, "reprise-copro")}.` };
     }
   };
 
@@ -555,6 +556,6 @@ export async function envoyerFicheEmailAction(dossierId: string, ownerId: string
     revalidatePath(`/reprise-copro/dossiers/${valid.data.dossierId}`);
     return { ok: true, message: r.message, envoye: r.envoye, ...(r.note ? { note: r.note } : {}) };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Erreur pendant l'envoi." };
+    return { ok: false, message: messageUtilisateur(e, "reprise-copro") };
   }
 }

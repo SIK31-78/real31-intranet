@@ -16,6 +16,7 @@ import { heureDe } from "@/lib/domain/reunion";
 import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { validerCollaborateursConnus } from "@/lib/domain/collaborateurs-reunion";
 
+import { echecDepuis, messageUtilisateur } from "@/lib/actions/resultat";
 const zCode = z.string().trim().min(1).max(40);
 const zDate = z.string().trim().max(40); // ISO ou vide (= effacer la date)
 const zTypeEvenement = z.enum(["AG", "CS"]);
@@ -166,7 +167,7 @@ async function definir(
     revalidatePath("/accueil");
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message || "Enregistrement impossible." };
+    return { ok: false, erreur: messageUtilisateur(e, "fiche-copro") };
   }
 }
 
@@ -232,7 +233,7 @@ export async function confirmerEvenementAction(
     revalidatePath("/accueil");
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "fiche-copro");
   }
 }
 

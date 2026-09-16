@@ -9,7 +9,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estComptable, peutVoirComptabilite } from "@/lib/auth/roles";
 import { marquerRecapTraite } from "@/lib/services/compta/recaps-recus";
 
-type Res = { ok: true } | { ok: false; erreur: string };
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 
 const zId = z.string().trim().min(1).max(120);
 
@@ -40,6 +40,6 @@ export async function marquerRecapTraiteAction(recapId: string, traite: boolean)
     revalidatePath("/comptabilite", "layout");
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "comptabilite/recaps");
   }
 }

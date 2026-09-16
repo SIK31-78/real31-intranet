@@ -18,7 +18,7 @@ import type { AuteurNote } from "@/lib/domain/compta";
 import { estSlugPoste } from "@/lib/domain/compta";
 import type { FlagCompta } from "@/lib/ports/compta-repository";
 
-type Res = { ok: true } | { ok: false; erreur: string };
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 
 // Validation des entrees (zod) : ces Server Actions sont des endpoints POST publics.
 const zCode = z.string().trim().min(1).max(40);
@@ -61,7 +61,7 @@ export async function ajouterNoteAction(
     revalider();
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "compta");
   }
 }
 
@@ -85,7 +85,7 @@ export async function marquerNoteAction(
     revalider();
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "compta");
   }
 }
 
@@ -109,7 +109,7 @@ export async function setFlagAction(
     revalider();
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "compta");
   }
 }
 
@@ -133,6 +133,6 @@ export async function setCheckAction(
     revalider();
     return { ok: true };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "compta");
   }
 }

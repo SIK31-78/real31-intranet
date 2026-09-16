@@ -18,6 +18,7 @@ import { creerDossierSuivi } from "@/lib/reprise/services/suivi-dossier";
 import { ROLES_REPRISE, type EquipeReprise, type RoleReprise } from "@/lib/reprise/domain/dossier";
 import { validerCollaborateursConnus } from "@/app/reprise-copro/collaborateurs";
 
+import { messageUtilisateur } from "@/lib/actions/resultat";
 const zPersonneId = z.string().trim().min(1).max(80).nullable().optional();
 
 const schemaCreation = z.object({
@@ -70,7 +71,7 @@ export async function creerDossierAction(form: {
     });
   } catch (e) {
     // Ex. dossier déjà existant (même réf). On remonte un message propre, pas un throw.
-    return { ok: false, message: e instanceof Error ? e.message : "Création impossible." };
+    return { ok: false, message: messageUtilisateur(e, "reprise-copro") };
   }
 
   revalidatePath("/reprise-copro/dossiers");

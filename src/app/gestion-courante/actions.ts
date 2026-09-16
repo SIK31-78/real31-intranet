@@ -19,8 +19,8 @@ import {
 } from "@/lib/services/facturation/gestion-courante";
 
 import { periodeValide } from "@/lib/domain/facturation/filet-gestion-courante";
-type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
+import { type Res, echecDepuis } from "@/lib/actions/resultat";
 const zPeriode = z.string().trim().refine(periodeValide, "Periode attendue au format AAAA-Tn");
 
 /** Selection de l'ecran. Les codes copro sont des references logiques courtes. */
@@ -42,7 +42,7 @@ export async function apercuGestionCouranteAction(
   try {
     return { ok: true, donnees: await apercuGestionCourante(periode) };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "gestion-courante");
   }
 }
 
@@ -71,7 +71,7 @@ export async function lancerGestionCouranteAction(
     revalidatePath("/facturation", "layout");
     return { ok: true, donnees };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "gestion-courante");
   }
 }
 
@@ -116,6 +116,6 @@ export async function perdreCoproAction(input: unknown): Promise<Res<{ dossierId
     revalidatePath("/accueil");
     return { ok: true, donnees: { dossierId: dossier.id } };
   } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
+    return echecDepuis(e, "gestion-courante");
   }
 }
