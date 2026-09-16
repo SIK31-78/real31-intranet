@@ -123,6 +123,18 @@ describe("soumission unique", () => {
     expect(s.ok).toBe(false);
     if (!s.ok) expect(s.raison).toBe("expiree");
   });
+
+  it("un lien expire ne livre plus les coordonnees connues (audit 16/09/2026)", async () => {
+    const { repo, r } = await preparer();
+    const c = r.courriers[0];
+    const tokenHash = hacher(c.lien.split("/fiche/")[1]);
+    const vue = await consulterFiche(repo, tokenHash, c.code, "2026-08-01T00:00:00.000Z");
+    expect(vue.ok).toBe(true);
+    if (vue.ok) {
+      expect(vue.expiree).toBe(true);
+      expect(vue.connues).toEqual({ civilite: "", nom: "", pro: false });
+    }
+  });
 });
 
 describe("validation", () => {

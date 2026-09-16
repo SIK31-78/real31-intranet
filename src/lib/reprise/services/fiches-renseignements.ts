@@ -310,13 +310,16 @@ export async function consulterFiche(
   // Token inconnu -> on renvoie "code" (jamais "introuvable") pour ne pas fuiter la validite.
   if (!fiche) return { ok: false, raison: "code" };
   if (!hashEgal(hacher(normaliserCode(codeSaisi)), fiche.codeHash)) return { ok: false, raison: "code" };
+  const expiree = estExpiree(fiche, nowISO);
   return {
     ok: true,
     statut: fiche.statut,
-    expiree: estExpiree(fiche, nowISO),
+    expiree,
     soumissionPossible: peutSoumettre(fiche, nowISO),
     coproCode: fiche.coproCode,
-    connues: fiche.connues,
+    // Lien expire : l'ecran ne montre plus rien de la personne (un courrier qui a circule ne
+    // reste pas une fenetre sur ses coordonnees, audit du 16/09/2026).
+    connues: expiree ? { civilite: "", nom: "", pro: false } : fiche.connues,
     ...(fiche.soumises ? { soumises: fiche.soumises } : {}),
   };
 }
