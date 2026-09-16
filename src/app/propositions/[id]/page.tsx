@@ -25,7 +25,7 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
   // Hors syndic (vente, location, accueil) : seulement les contacts qu'on a soi-meme notes.
   const profil = profilDe(g);
   if (!peutVoirToutesLesPropositions(profil) && p.creeParNom !== g.nomComplet) notFound();
-  const droits = { completer: peutCompleterProposition(profil) || p.creeParNom === g.nomComplet, offre: peutFaireOffre(profil), elire: peutElire(profil) };
+  const droits = { completer: peutCompleterProposition(profil) || p.creeParNom === g.nomComplet, offre: peutFaireOffre(profil, p.agence), elire: peutElire(profil, p.agence) };
   const [prix, agences, contexte, suggestion] = await Promise.all([
     calculerPrix(p.immeuble),
     getAgenceRepository().listerAgences(),

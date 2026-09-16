@@ -6,7 +6,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutElire, peutFaireOffre, profilDe } from "@/lib/auth/roles";
+import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutDeciderProposition, peutElire, peutFaireOffre, profilDe } from "@/lib/auth/roles";
+import { STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
 import { ORIGINES, STATUTS_PROPOSITION } from "@/lib/domain/proposition/proposition";
 import {
   calculerPrix,
@@ -77,6 +78,7 @@ function epurer<T extends Record<string, unknown>>(o: T): T {
 }
 
 export async function rechercherRegistreAction(texte: string): Promise<Res<RegistreCopro[]>> {
+  if (!(await getGestionnaireCourant())) return { ok: false, erreur: "Session expirée." };
   if (typeof texte !== "string" || texte.trim().length < 3) return { ok: true, donnees: [] };
   try {
     return { ok: true, donnees: await rechercherRegistre(texte.slice(0, 120)) };
@@ -139,10 +141,21 @@ export async function mettreAJourPropositionAction(input: unknown): Promise<Res>
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
   const profil = profilDe(g);
-  if (p.data.prix && !peutFaireOffre(profil)) return { ok: false, erreur: `Le prix : ${MESSAGE_RESERVE_DIRECTION}` };
-  if (!p.data.prix && !peutCompleterProposition(profil)) {
-    const existante = await getProposition(p.data.id);
-    if (!existante || existante.creeParNom !== g.nomComplet) return { ok: false, erreur: "Vous ne pouvez modifier que les contacts que vous avez créés." };
+  const existante = await getProposition(p.data.id);
+  if (!existante) return { ok: false, erreur: "Proposition introuvable." };
+  const agence = existante.agence;
+  // Le prix : la direction de l'agence. Clore (elue, refusee) ou dater la remise / l'AG /
+  // la decision : les memes - sinon un gestionnaire passait « elue » sans creer la copro
+  // (audit du 16/09/2026).
+  if (p.data.prix && !peutFaireOffre(profil, agence)) return { ok: false, erreur: `Le prix : ${MESSAGE_RESERVE_DIRECTION}` };
+  const decide =
+    (p.data.statut !== undefined && p.data.statut !== existante.statut && (!STATUTS_OUVERTS.has(p.data.statut) || !STATUTS_OUVERTS.has(existante.statut))) ||
+    p.data.remisePropositionISO !== undefined ||
+    p.data.agPrevueISO !== undefined ||
+    p.data.decisionISO !== undefined;
+  if (decide && !peutDeciderProposition(profil, agence)) return { ok: false, erreur: `Clore ou dater une proposition : ${MESSAGE_RESERVE_DIRECTION}` };
+  if (!p.data.prix && !peutCompleterProposition(profil) && existante.creeParNom !== g.nomComplet) {
+    return { ok: false, erreur: "Vous ne pouvez modifier que les contacts que vous avez créés." };
   }
   try {
     const { id, ...maj } = p.data;
@@ -165,6 +178,7 @@ export async function mettreAJourPropositionAction(input: unknown): Promise<Res>
 }
 
 export async function calculerPrixAction(immeuble: unknown): Promise<Res<PrixCalcule>> {
+  if (!(await getGestionnaireCourant())) return { ok: false, erreur: "Session expirée." };
   const p = zImmeuble.safeParse(immeuble);
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   try {
@@ -213,7 +227,9 @@ export async function marquerOffreRemiseAction(input: unknown): Promise<Res> {
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
-  if (!peutFaireOffre(profilDe(g))) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
+  const cible = await getProposition(p.data.id);
+  if (!cible) return { ok: false, erreur: "Proposition introuvable." };
+  if (!peutFaireOffre(profilDe(g), cible.agence)) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
   try {
     const { id, ...options } = p.data;
     await marquerOffreRemise(id, options, g.nomComplet);
@@ -242,7 +258,9 @@ export async function elirePropositionAction(input: unknown): Promise<Res<{ copr
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
-  if (!peutElire(profilDe(g))) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
+  const cible = await getProposition(p.data.id);
+  if (!cible) return { ok: false, erreur: "Proposition introuvable." };
+  if (!peutElire(profilDe(g), cible.agence)) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
   try {
     const { id, ...choix } = p.data;
     const r = await elireProposition(

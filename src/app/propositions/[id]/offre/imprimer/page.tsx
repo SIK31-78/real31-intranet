@@ -27,7 +27,6 @@ export default async function ContratProspectImprimerPage({
   const { ag, debut, duree } = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  if (!peutFaireOffre(profilDe(g))) redirect(`/propositions/${id}`);
   const jour = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
   const dureeMois = Number(duree);
   let offre;
@@ -41,6 +40,7 @@ export default async function ContratProspectImprimerPage({
     if (/introuvable/.test((e as Error).message)) notFound();
     throw e;
   }
+  if (!peutFaireOffre(profilDe(g), offre.proposition.agence)) redirect(`/propositions/${id}`);
   const retour = `/propositions/${id}/offre`;
   if (!offre.champs) {
     return (

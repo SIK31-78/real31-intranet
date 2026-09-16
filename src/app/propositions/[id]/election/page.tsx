@@ -22,7 +22,6 @@ export default async function ElectionPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  if (!peutElire(profilDe(g))) redirect(`/propositions/${id}`);
   let prep;
   try {
     prep = await preparerElection(id);
@@ -31,6 +30,7 @@ export default async function ElectionPage({ params }: { params: Promise<{ id: s
     throw e;
   }
   const p = prep.proposition;
+  if (!peutElire(profilDe(g), p.agence)) redirect(`/propositions/${id}`);
   const agenceParDefaut = prep.agences.find((a) => a.code === p.agence)?.id ?? prep.agences.find((a) => a.id === g.agencyId)?.id;
   const gestionnaireParDefaut = prep.gestionnaires.find((x) => x.nomComplet === p.gestionnaire)?.id ?? g.id;
 

@@ -40,7 +40,6 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
   const sp = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  if (!peutFaireOffre(profilDe(g))) redirect(`/propositions/${id}`);
   const options = lireOptions(sp);
   let offre;
   try {
@@ -50,6 +49,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
     throw e;
   }
   const { proposition: p, champs, obstacles, erreurContrat, mail } = offre;
+  if (!peutFaireOffre(profilDe(g), p.agence)) redirect(`/propositions/${id}`);
   const query = new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString();
   const dureeMois = options.dureeMois ?? 12;
 
