@@ -1,3 +1,5 @@
+// Cle service_role : ce module ne doit jamais partir dans un bundle navigateur.
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Client Supabase service_role sur le schema `public`.

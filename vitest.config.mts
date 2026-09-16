@@ -9,6 +9,10 @@ import { fileURLToPath } from "node:url";
 // offline. Ils se lancent a la main via `pnpm run test:smoke` (cf. vitest.smoke.config.mts).
 export default defineConfig({
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // « server-only » leve des qu'il est importe hors Server Component : doublure vide en test.
+      "server-only": fileURLToPath(new URL("./test/server-only.ts", import.meta.url)),
+    },
   },
 });
