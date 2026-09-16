@@ -7,7 +7,7 @@ import type { Collaborateur, EquipeCopro, Habilitation, NouveauCollaborateur, Ro
 import { createSupabasePublicClient } from "./public-client";
 
 type UserRow = { id: string; name: string; initials: string | null; email: string | null; role: string | null; agencyId: string | null; isActive: boolean | null; referentDirectorId: string | null };
-type FicheRow = { user_id: string; arrivee_le: string | null; depart_le: string | null; note: string | null };
+type FicheRow = { user_id: string; arrivee_le: string | null; depart_le: string | null; note: string | null; fonction: string | null };
 type HabRow = { id: string; user_id: string; habilitation: string; agence: string | null; depuis: string; jusqua: string | null };
 
 const USER_COLS = "id, name, initials, email, role, agencyId, isActive, referentDirectorId";
@@ -16,7 +16,7 @@ const COLONNE_EQUIPE: Record<RoleEquipe, string> = { gestionnaire: "managerId", 
 export class SupabaseCollaborateurRepository implements CollaborateurRepository {
   private async complements(supabase: ReturnType<typeof createSupabasePublicClient>) {
     const [fiches, habs, agences] = await Promise.all([
-      supabase.from("intranet_collaborateur").select("user_id, arrivee_le, depart_le, note"),
+      supabase.from("intranet_collaborateur").select("user_id, arrivee_le, depart_le, note, fonction"),
       supabase.from("intranet_habilitation").select("id, user_id, habilitation, agence, depuis, jusqua"),
       supabase.from("Agency").select("id, name"),
     ]);
@@ -47,6 +47,7 @@ export class SupabaseCollaborateurRepository implements CollaborateurRepository 
       ...(f?.arrivee_le ? { arriveeISO: f.arrivee_le } : {}),
       ...(f?.depart_le ? { departISO: f.depart_le } : {}),
       ...(f?.note ? { note: f.note } : {}),
+      ...(f?.fonction ? { fonction: f.fonction } : {}),
       habilitations: c.habsParUser.get(u.id) ?? [],
     };
   }
@@ -96,7 +97,7 @@ export class SupabaseCollaborateurRepository implements CollaborateurRepository 
       updatedAt: maintenant,
     });
     if (error) throw new Error(`Création de ${n.nomComplet} : ${error.message}`);
-    const { error: e2 } = await supabase.from("intranet_collaborateur").upsert({ user_id: id, arrivee_le: n.arriveeISO ?? maintenant.slice(0, 10), note: n.note ?? null, maj_par: n.par, updated_at: maintenant }, { onConflict: "user_id" });
+    const { error: e2 } = await supabase.from("intranet_collaborateur").upsert({ user_id: id, arrivee_le: n.arriveeISO ?? maintenant.slice(0, 10), note: n.note ?? null, fonction: n.fonction ?? null, maj_par: n.par, updated_at: maintenant }, { onConflict: "user_id" });
     if (e2) console.warn(`[collaborateurs] arrivée non notée : ${e2.message}`);
     return id;
   }
@@ -130,6 +131,15 @@ export class SupabaseCollaborateurRepository implements CollaborateurRepository 
     await supabase.from("intranet_collaborateur").update({ depart_le: null, maj_par: par, updated_at: maintenant }).eq("user_id", userId);
     const { error } = await supabase.from("User").update({ isActive: true, updatedAt: maintenant }).eq("id", userId);
     if (error) throw new Error(`Réactivation dans App A : ${error.message}`);
+  }
+
+  async changerFonction(userId: string, fonction: string, roleTable: string, par: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const maintenant = new Date().toISOString();
+    const { error } = await supabase.from("intranet_collaborateur").upsert({ user_id: userId, fonction, maj_par: par, updated_at: maintenant }, { onConflict: "user_id" });
+    if (error) throw new Error(`Fonction : ${error.message}`);
+    const { error: e2 } = await supabase.from("User").update({ role: roleTable, updatedAt: maintenant }).eq("id", userId);
+    if (e2) throw new Error(`Rôle App A : ${e2.message}`);
   }
 
   async ajouterHabilitation(userId: string, type: TypeHabilitation, agence: string | undefined, par: string): Promise<void> {

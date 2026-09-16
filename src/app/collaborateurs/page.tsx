@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estDirection, profilDe } from "@/lib/auth/roles";
 import { listerAnnuaire, type CollaborateurResume } from "@/lib/services/collaborateurs/collaborateurs";
-import { LIBELLE_ROLE_TABLE, type RoleTable } from "@/lib/domain/collaborateur";
+import { familleDe, libelleFonction, LIBELLE_FAMILLE_FONCTION, type FamilleFonction } from "@/lib/domain/collaborateur";
 import { formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -27,8 +27,8 @@ export default async function CollaborateursPage() {
   const annuaire = await listerAnnuaire();
   const enPoste = annuaire.collaborateurs.filter((c) => c.enPoste);
   const partis = annuaire.collaborateurs.filter((c) => !c.enPoste);
-  const syndic = enPoste.filter((c) => ["ADMIN", "DIRECTEUR_SYNDIC", "GESTIONNAIRE", "ASSISTANT", "COMPTABLE"].includes(c.roleTable ?? ""));
-  const autres = enPoste.filter((c) => !syndic.includes(c));
+  const familles: FamilleFonction[] = ["direction", "syndic", "transaction", "location", "accueil"];
+  const parFamille = (f: FamilleFonction) => enPoste.filter((c) => familleDe(c) === f);
   const { sansGestionnaire, sansAssistant } = annuaire.orphelines;
 
   return (
@@ -61,12 +61,15 @@ export default async function CollaborateursPage() {
           <Arrivee agences={annuaire.agences} directeurs={enPoste.filter((c) => ["ADMIN", "DIRECTEUR_SYNDIC", "DIRECTEUR_AGENCE"].includes(c.roleTable ?? "")).map((c) => ({ id: c.id, nom: c.nomComplet }))} />
         </Section>
 
-        <Section id="collab-syndic" titre="Le syndic" compte={syndic.length}>
-          <TableCollab lignes={syndic} />
-        </Section>
-        <Section id="collab-autres" titre="Vente, location, accueil, direction d'agence" compte={autres.length}>
-          <TableCollab lignes={autres} />
-        </Section>
+        {familles.map((f) => {
+          const lignes = parFamille(f);
+          if (lignes.length === 0) return null;
+          return (
+            <Section key={f} id={`collab-${f}`} titre={LIBELLE_FAMILLE_FONCTION[f]} compte={lignes.length}>
+              <TableCollab lignes={lignes} />
+            </Section>
+          );
+        })}
         {partis.length > 0 && (
           <Section id="collab-partis" titre="Partis" compte={partis.length}>
             <TableCollab lignes={partis} />
@@ -83,7 +86,7 @@ function TableCollab({ lignes }: { lignes: CollaborateurResume[] }) {
       <Thead>
         <tr>
           <Th>Collaborateur</Th>
-          <Th>Rôle</Th>
+          <Th>Fonction</Th>
           <Th>Agence</Th>
           <Th numeric>Portefeuille</Th>
           <Th>Habilitations</Th>
@@ -97,7 +100,7 @@ function TableCollab({ lignes }: { lignes: CollaborateurResume[] }) {
               <LienLigne href={`/collaborateurs/${c.id}`}>{c.nomComplet}</LienLigne>
               {c.email && <span className="block text-caption text-ink-3">{c.email}</span>}
             </Td>
-            <Td secondaire>{c.roleTable ? (LIBELLE_ROLE_TABLE[c.roleTable as RoleTable] ?? c.roleTable) : "—"}</Td>
+            <Td secondaire>{libelleFonction(c)}{!c.fonction && c.roleTable === "AUTRE" && <span className="text-warn-700"> · à préciser</span>}</Td>
             <Td secondaire>{c.agenceCode ?? "—"}</Td>
             <Td numeric className="tabular-nums">
               {c.nbCopros === 0 ? "—" : [c.nbGestionnaire ? `${c.nbGestionnaire} gérées` : null, c.nbAssistant ? `${c.nbAssistant} assistées` : null, c.nbComptable ? `${c.nbComptable} en compta` : null].filter(Boolean).join(" · ")}

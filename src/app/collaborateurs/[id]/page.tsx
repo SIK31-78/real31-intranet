@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estDirection, profilDe } from "@/lib/auth/roles";
 import { getFicheCollaborateur } from "@/lib/services/collaborateurs/collaborateurs";
-import { LIBELLE_ROLE_TABLE, taillePortefeuille, type RoleTable } from "@/lib/domain/collaborateur";
+import { libelleFonction, taillePortefeuille } from "@/lib/domain/collaborateur";
 import { formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -30,7 +30,7 @@ export default async function CollaborateurPage({ params }: { params: Promise<{ 
       <Page largeur="travail">
         <PageHeader
           titre={c.nomComplet}
-          eyebrow={[c.roleTable ? (LIBELLE_ROLE_TABLE[c.roleTable as RoleTable] ?? c.roleTable) : null, c.agenceCode ? `agence ${c.agenceCode}` : null, c.email].filter(Boolean).join(" · ")}
+          eyebrow={[libelleFonction(c), c.agenceCode ? `agence ${c.agenceCode}` : null, c.email].filter(Boolean).join(" · ")}
           badge={fiche.enPoste ? <Badge ton="ok" size="md">En poste</Badge> : <Badge ton="err" size="md">{c.departISO ? `Parti le ${formatJour(c.departISO)}` : "Inactif"}</Badge>}
           meta={`${nb} copropriété${nb > 1 ? "s" : ""} au portefeuille${c.arriveeISO ? ` · arrivé le ${formatJour(c.arriveeISO)}` : ""}${c.note ? ` · ${c.note}` : ""}`}
           actions={<ButtonLink href="/collaborateurs" variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Annuaire</ButtonLink>}

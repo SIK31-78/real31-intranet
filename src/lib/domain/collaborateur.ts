@@ -22,6 +22,96 @@ export const LIBELLE_ROLE_TABLE: Record<RoleTable, string> = {
   AUTRE: "Autre (vente, location, accueil)",
 };
 
+/**
+ * La FONCTION d'un collaborateur, portee par l'intranet (intranet_collaborateur.fonction) :
+ * plus fine que le role App A, dont l'enum ne connait que « AUTRE » pour la vente, la
+ * location et l'accueil. Sekou (16/09/2026) : « pas "autres" mais leur vrai role, a terme
+ * ils utiliseront l'intranet avec leurs outils ». Liste fermee, tiree des pages equipe du
+ * site ; chaque fonction porte sa famille et le role App A qui lui correspond.
+ */
+export const FONCTIONS = [
+  "dirigeant",
+  "responsable_transaction_gestion",
+  "responsable_agence",
+  "assistant_direction",
+  "directeur_copropriete",
+  "gestionnaire_copropriete",
+  "assistant_copropriete",
+  "comptable_copropriete",
+  "assistant_comptable",
+  "charge_travaux",
+  "directeur_vente",
+  "conseiller_vente",
+  "conseiller_location",
+  "assistant_commercial",
+  "responsable_gestion_locative",
+  "gestionnaire_locative",
+  "assistant_gestionnaire_locative",
+  "assistant_administratif",
+  "comptable_entreprise",
+] as const;
+export type Fonction = (typeof FONCTIONS)[number];
+
+export type FamilleFonction = "direction" | "syndic" | "transaction" | "location" | "accueil";
+
+export const DETAIL_FONCTION: Record<Fonction, { libelle: string; famille: FamilleFonction; roleTable: RoleTable }> = {
+  dirigeant: { libelle: "Dirigeant", famille: "direction", roleTable: "ADMIN" },
+  responsable_transaction_gestion: { libelle: "Responsable transaction et gestion", famille: "direction", roleTable: "AUTRE" },
+  responsable_agence: { libelle: "Responsable d'agence", famille: "direction", roleTable: "DIRECTEUR_AGENCE" },
+  assistant_direction: { libelle: "Assistant de direction", famille: "direction", roleTable: "ADMIN" },
+  directeur_copropriete: { libelle: "Directeur de copropriété", famille: "syndic", roleTable: "DIRECTEUR_SYNDIC" },
+  gestionnaire_copropriete: { libelle: "Gestionnaire de copropriété", famille: "syndic", roleTable: "GESTIONNAIRE" },
+  assistant_copropriete: { libelle: "Assistant de copropriété", famille: "syndic", roleTable: "ASSISTANT" },
+  comptable_copropriete: { libelle: "Comptable copropriété", famille: "syndic", roleTable: "COMPTABLE" },
+  assistant_comptable: { libelle: "Assistant comptable copropriété", famille: "syndic", roleTable: "COMPTABLE" },
+  charge_travaux: { libelle: "Chargé du suivi des travaux", famille: "syndic", roleTable: "GESTIONNAIRE" },
+  directeur_vente: { libelle: "Directeur service vente", famille: "transaction", roleTable: "AUTRE" },
+  conseiller_vente: { libelle: "Conseiller immobilier en vente", famille: "transaction", roleTable: "AUTRE" },
+  conseiller_location: { libelle: "Conseiller immobilier en location", famille: "location", roleTable: "AUTRE" },
+  assistant_commercial: { libelle: "Assistant commercial", famille: "transaction", roleTable: "AUTRE" },
+  responsable_gestion_locative: { libelle: "Responsable gestion locative", famille: "location", roleTable: "AUTRE" },
+  gestionnaire_locative: { libelle: "Gestionnaire locative", famille: "location", roleTable: "GESTIONNAIRE_LOCATIVE" },
+  assistant_gestionnaire_locative: { libelle: "Assistant gestionnaire locative", famille: "location", roleTable: "AUTRE" },
+  assistant_administratif: { libelle: "Assistant administratif, accueil", famille: "accueil", roleTable: "AUTRE" },
+  comptable_entreprise: { libelle: "Comptable d'entreprise (le cabinet)", famille: "direction", roleTable: "AUTRE" },
+};
+
+export const LIBELLE_FAMILLE_FONCTION: Record<FamilleFonction, string> = {
+  direction: "Direction",
+  syndic: "Syndic de copropriété",
+  transaction: "Transaction",
+  location: "Location et gestion locative",
+  accueil: "Accueil et administratif",
+};
+
+/** Le libelle a afficher : la fonction intranet si elle est connue, sinon le role App A. */
+export function libelleFonction(c: { fonction?: string; roleTable?: string }): string {
+  const f = c.fonction as Fonction | undefined;
+  if (f && DETAIL_FONCTION[f]) return DETAIL_FONCTION[f].libelle;
+  const r = c.roleTable as RoleTable | undefined;
+  return r && LIBELLE_ROLE_TABLE[r] ? LIBELLE_ROLE_TABLE[r] : (c.roleTable ?? "—");
+}
+
+/** La famille : par la fonction, sinon deduite du role App A. */
+export function familleDe(c: { fonction?: string; roleTable?: string }): FamilleFonction {
+  const f = c.fonction as Fonction | undefined;
+  if (f && DETAIL_FONCTION[f]) return DETAIL_FONCTION[f].famille;
+  switch ((c.roleTable ?? "").toUpperCase()) {
+    case "ADMIN":
+    case "DIRECTEUR_AGENCE":
+      return "direction";
+    case "DIRECTEUR_SYNDIC":
+    case "GESTIONNAIRE":
+    case "ASSISTANT":
+    case "COMPTABLE":
+      return "syndic";
+    case "GESTIONNAIRE_LOCATIVE":
+      return "location";
+    default:
+      return "accueil";
+  }
+}
+
 export const HABILITATIONS = ["referent_syndic"] as const;
 export type TypeHabilitation = (typeof HABILITATIONS)[number];
 export const LIBELLE_HABILITATION: Record<TypeHabilitation, string> = {
@@ -50,6 +140,8 @@ export interface Collaborateur {
   arriveeISO?: string;
   departISO?: string;
   note?: string;
+  /** Fonction intranet (cf. FONCTIONS), plus fine que le role App A. */
+  fonction?: string;
   habilitations: Habilitation[];
 }
 
@@ -95,6 +187,7 @@ export interface NouveauCollaborateur {
   nomComplet: string;
   email: string;
   roleTable: RoleTable;
+  fonction?: Fonction;
   agenceId?: string;
   referentDirectorId?: string;
   arriveeISO?: string;

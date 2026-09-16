@@ -11,7 +11,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
-import { LIBELLE_ROLE_TABLE, ROLES_TABLE, type RoleTable } from "@/lib/domain/collaborateur";
+import { DETAIL_FONCTION, FONCTIONS, type Fonction } from "@/lib/domain/collaborateur";
 import { arriveeAction } from "./actions";
 
 export function Arrivee({ agences, directeurs }: { agences: { id: string; code: string }[]; directeurs: { id: string; nom: string }[] }) {
@@ -21,7 +21,7 @@ export function Arrivee({ agences, directeurs }: { agences: { id: string; code: 
   const [ouvert, setOuvert] = useState(false);
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<RoleTable>("ASSISTANT");
+  const [fonction, setFonction] = useState<Fonction>("assistant_copropriete");
   const [agenceId, setAgenceId] = useState("");
   const [directeurId, setDirecteurId] = useState("");
   const [arrivee, setArrivee] = useState(new Date().toISOString().slice(0, 10));
@@ -39,9 +39,9 @@ export function Arrivee({ agences, directeurs }: { agences: { id: string; code: 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Prénom et nom" htmlFor="ar-nom" requis><Input id="ar-nom" value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Victoria DORLEAC" autoFocus /></Field>
           <Field label="E-mail" htmlFor="ar-email" requis hint="@real31.fr, celui du compte Microsoft"><Input id="ar-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-          <Field label="Rôle" htmlFor="ar-role" requis>
-            <Select id="ar-role" value={role} onChange={(e) => setRole(e.target.value as RoleTable)}>
-              {ROLES_TABLE.map((r) => <option key={r} value={r}>{LIBELLE_ROLE_TABLE[r]}</option>)}
+          <Field label="Fonction" htmlFor="ar-fonction" requis hint="le rôle au référentiel en découle">
+            <Select id="ar-fonction" value={fonction} onChange={(e) => setFonction(e.target.value as Fonction)}>
+              {FONCTIONS.map((f) => <option key={f} value={f}>{DETAIL_FONCTION[f].libelle}</option>)}
             </Select>
           </Field>
           <Field label="Agence" htmlFor="ar-agence">
@@ -67,7 +67,7 @@ export function Arrivee({ agences, directeurs }: { agences: { id: string; code: 
             disabled={pending || !nom.trim() || !email.trim()}
             onClick={() =>
               demarrer(async () => {
-                const res = await arriveeAction({ nomComplet: nom, email, roleTable: role, agenceId: agenceId || undefined, referentDirectorId: directeurId || undefined, arriveeISO: arrivee || undefined, note: note || undefined });
+                const res = await arriveeAction({ nomComplet: nom, email, roleTable: DETAIL_FONCTION[fonction].roleTable, fonction, agenceId: agenceId || undefined, referentDirectorId: directeurId || undefined, arriveeISO: arrivee || undefined, note: note || undefined });
                 if (!res.ok) return toast.err(res.erreur);
                 toast.ok(`${nom.trim()} est dans l'annuaire.`);
                 router.push(`/collaborateurs/${res.donnees!.id}`);

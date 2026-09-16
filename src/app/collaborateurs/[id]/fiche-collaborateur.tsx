@@ -16,9 +16,9 @@ import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { formatJour } from "@/lib/services/facturation/format";
-import { LIBELLE_HABILITATION, type EquipeCopro, type RoleEquipe } from "@/lib/domain/collaborateur";
+import { DETAIL_FONCTION, FONCTIONS, LIBELLE_HABILITATION, LIBELLE_ROLE_TABLE, type EquipeCopro, type Fonction, type RoleEquipe, type RoleTable } from "@/lib/domain/collaborateur";
 import type { FicheCollaborateur as Fiche } from "@/lib/services/collaborateurs/collaborateurs";
-import { annulerDepartAction, departAction, habilitationAction, reaffecterAction } from "@/app/collaborateurs/actions";
+import { annulerDepartAction, departAction, fonctionAction, habilitationAction, reaffecterAction } from "@/app/collaborateurs/actions";
 
 const ROLES: { role: RoleEquipe; titre: string; cle: keyof Fiche["portefeuille"] }[] = [
   { role: "gestionnaire", titre: "Gestionnaire de", cle: "gestionnaire" },
@@ -37,6 +37,7 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
   const [remplacants, setRemplacants] = useState<{ gestionnaire: string; assistant: string; comptable: string }>({ gestionnaire: "", assistant: "", comptable: "" });
   const [noteDepart, setNoteDepart] = useState("");
   const [agenceRef, setAgenceRef] = useState(fiche.agences[0]?.code ?? "");
+  const [fonction, setFonction] = useState<Fonction | "">((c.fonction as Fonction | undefined) ?? "");
 
   const collegue = (id: string | undefined) => fiche.collegues.find((x) => x.id === id)?.nomComplet ?? (id ? "?" : "—");
 
@@ -114,6 +115,21 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
 
       <Card>
         <div className="divide-y divide-line">
+          <div className="flex flex-col gap-3 p-4">
+            <h2 className="text-body font-medium text-ink">Fonction</h2>
+            <p className="text-caption text-ink-3">Rôle au référentiel : {c.roleTable ? (LIBELLE_ROLE_TABLE[c.roleTable as RoleTable] ?? c.roleTable) : "—"}. La fonction intranet le précise et ouvrira ses outils ; la changer remet le rôle en cohérence.</p>
+            <div className="flex items-end gap-2">
+              <Field label="Fonction" htmlFor="fn" className="flex-1">
+                <Select id="fn" value={fonction} onChange={(e) => setFonction(e.target.value as Fonction | "")}>
+                  <option value="">—</option>
+                  {FONCTIONS.map((f) => <option key={f} value={f}>{DETAIL_FONCTION[f].libelle}</option>)}
+                </Select>
+              </Field>
+              <Button type="button" variant="secondary" size="sm" disabled={pending || !fonction || fonction === c.fonction} onClick={() => demarrer(async () => { const r = await fonctionAction({ userId: c.id, fonction }); if (!r.ok) return toast.err(r.erreur); toast.ok("Fonction enregistrée."); router.refresh(); })}>
+                Enregistrer
+              </Button>
+            </div>
+          </div>
           <div className="flex flex-col gap-3 p-4">
             <h2 className="text-body font-medium text-ink">Habilitations</h2>
             {habilitationsEnCours.length === 0 && <p className="text-caption text-ink-3">Aucune. Le rôle vient du référentiel.</p>}

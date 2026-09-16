@@ -42,6 +42,10 @@ export class MockCollaborateurRepository implements CollaborateurRepository {
       c.actif = true;
     }
   }
+  async changerFonction(userId: string, fonction: string, roleTable: string): Promise<void> {
+    const c = COLLABORATEURS.find((x) => x.id === userId);
+    if (c) Object.assign(c, { fonction, roleTable });
+  }
   async ajouterHabilitation(userId: string, type: TypeHabilitation, agence: string | undefined): Promise<void> {
     const c = COLLABORATEURS.find((x) => x.id === userId);
     c?.habilitations.push({ id: `h${c.habilitations.length + 1}`, type, ...(agence ? { agence } : {}), depuisISO: new Date().toISOString().slice(0, 10) });

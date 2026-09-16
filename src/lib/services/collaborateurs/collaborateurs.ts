@@ -3,6 +3,7 @@
 
 import { getAgenceRepository, getCollaborateurRepository } from "@/lib/adapters/router";
 import {
+  DETAIL_FONCTION,
   estEnPoste,
   initialesDe,
   obstaclesArrivee,
@@ -15,6 +16,7 @@ import {
   type NouveauCollaborateur,
   type Portefeuille,
   type Remplacants,
+  type Fonction,
   type RoleEquipe,
   type TypeHabilitation,
 } from "@/lib/domain/collaborateur";
@@ -85,6 +87,8 @@ export async function arriveeCollaborateur(n: NouveauCollaborateur, par: string)
   const tous = await repo.listerTous();
   const obstacles = obstaclesArrivee(n, tous.map((c) => c.email ?? "").filter(Boolean));
   if (obstacles.length > 0) throw new Error(`Il manque ${obstacles.join(", ")}.`);
+  // Le role App A decoule de la fonction quand elle est donnee.
+  if (n.fonction) n = { ...n, roleTable: DETAIL_FONCTION[n.fonction].roleTable };
   return repo.creer({ ...n, nomComplet: n.nomComplet.trim(), email: n.email.trim().toLowerCase(), initiales: initialesDe(n.nomComplet), par });
 }
 
@@ -107,6 +111,11 @@ export function annulerDepartCollaborateur(userId: string, par: string): Promise
 
 export async function reaffecterCopro(coproCode: string, role: RoleEquipe, userId: string | null): Promise<void> {
   await getCollaborateurRepository().reaffecter(coproCode, role, userId);
+}
+
+/** La fonction intranet, et le role App A qui va avec (coherence des droits). */
+export function changerFonction(userId: string, fonction: Fonction, par: string): Promise<void> {
+  return getCollaborateurRepository().changerFonction(userId, fonction, DETAIL_FONCTION[fonction].roleTable, par);
 }
 
 export function ajouterHabilitation(userId: string, type: TypeHabilitation, agence: string | undefined, par: string): Promise<void> {

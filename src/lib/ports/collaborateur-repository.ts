@@ -18,6 +18,8 @@ export interface CollaborateurRepository {
   noterDepart(userId: string, departISO: string, note: string | undefined, par: string): Promise<void>;
   /** Annule un depart note (retour, erreur). */
   annulerDepart(userId: string, par: string): Promise<void>;
+  /** Pose la fonction intranet d'un collaborateur (et met le role App A en coherence). */
+  changerFonction(userId: string, fonction: string, roleTable: string, par: string): Promise<void>;
   ajouterHabilitation(userId: string, type: TypeHabilitation, agence: string | undefined, par: string): Promise<void>;
   /** Clot une habilitation a aujourd'hui. */
   cloreHabilitation(id: string): Promise<void>;

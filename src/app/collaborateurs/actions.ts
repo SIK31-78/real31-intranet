@@ -7,11 +7,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estDirection, MESSAGE_RESERVE_DIRECTION, profilDe } from "@/lib/auth/roles";
-import { HABILITATIONS, ROLES_TABLE } from "@/lib/domain/collaborateur";
+import { FONCTIONS, HABILITATIONS, ROLES_TABLE } from "@/lib/domain/collaborateur";
 import {
   ajouterHabilitation,
   annulerDepartCollaborateur,
   arriveeCollaborateur,
+  changerFonction,
   cloreHabilitation,
   departCollaborateur,
   reaffecterCopro,
@@ -35,6 +36,7 @@ export async function arriveeAction(input: unknown): Promise<Res<{ id: string }>
       nomComplet: z.string().trim().min(3).max(80),
       email: z.string().trim().min(5).max(120),
       roleTable: z.enum(ROLES_TABLE),
+      fonction: z.enum(FONCTIONS).optional(),
       agenceId: zId.optional(),
       referentDirectorId: zId.optional(),
       arriveeISO: zJour.optional(),
@@ -116,6 +118,21 @@ export async function habilitationAction(input: unknown): Promise<Res> {
   try {
     if (p.data.action === "ajouter") await ajouterHabilitation(p.data.userId, p.data.type, p.data.agence, g.nom);
     else await cloreHabilitation(p.data.id);
+    revalidatePath(`/collaborateurs/${p.data.userId}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
+}
+
+export async function fonctionAction(input: unknown): Promise<Res> {
+  const p = z.object({ userId: zId, fonction: z.enum(FONCTIONS) }).safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Saisie invalide." };
+  const g = await garde();
+  if (typeof g === "string") return { ok: false, erreur: g };
+  try {
+    await changerFonction(p.data.userId, p.data.fonction, g.nom);
+    revalidatePath("/collaborateurs");
     revalidatePath(`/collaborateurs/${p.data.userId}`);
     return { ok: true };
   } catch (e) {
