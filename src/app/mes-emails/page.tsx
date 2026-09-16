@@ -20,8 +20,7 @@ export default async function MesEmailsPage() {
   // Module grise en prod tant que la vraie boite n'est pas branchee (MAIL_SOURCE=graph),
   // et reserve aux pilotes si MAIL_PILOTES est pose (deploiement pilote).
   if (!mailModuleActifPour(g.email)) redirect("/accueil");
-  const data = await getMesEmails(g);
-  const signatureHtml = await getSignatureGestionnaire(g);
+  const [data, signatureHtml] = await Promise.all([getMesEmails(g), getSignatureGestionnaire(g)]);
 
   return (
     <AppShell user={g} active="emails" breadcrumb="Mes e-mails">

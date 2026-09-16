@@ -31,11 +31,13 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   if (!g) redirect("/dev-login");
 
   const { id } = await params;
-  const dossier = await obtenirDossier(getRepriseDossierRepository(), decodeURIComponent(id));
+  const [dossier, collaborateurs] = await Promise.all([
+    obtenirDossier(getRepriseDossierRepository(), decodeURIComponent(id)),
+    listerCollaborateurs(),
+  ]);
   if (!dossier) notFound();
 
   const aujourdHui = new Date().toISOString().slice(0, 10);
-  const collaborateurs = await listerCollaborateurs();
 
   const vue: DossierFicheVue = {
     ref: dossier.ref,

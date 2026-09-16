@@ -20,11 +20,13 @@ import {
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 
 export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
-  const triage = await getMesEmailsTriageStore().lire(g.id);
-  const etats = new Map(
-    (await getMesEmailsEtatRepository().getEtats(g.id)).map((e) => [e.emailId, e]),
-  );
-  const mesCopros = await getCoproRepository().list(g.id);
+  // Trois lectures independantes : en parallele (la page la plus lourde de l'appli).
+  const [triage, etatsListe, mesCopros] = await Promise.all([
+    getMesEmailsTriageStore().lire(g.id),
+    getMesEmailsEtatRepository().getEtats(g.id),
+    getCoproRepository().list(g.id),
+  ]);
+  const etats = new Map(etatsListe.map((e) => [e.emailId, e]));
 
   let mails: MailEntrant[];
   let dossiers: MesEmails["dossiers"] = triage.dossiers;
