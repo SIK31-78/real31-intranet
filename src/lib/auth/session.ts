@@ -71,9 +71,13 @@ export const getGestionnaireCourant = cache(async (): Promise<Gestionnaire | nul
   const repo = getGestionnaireRepository();
   const email = await emailSso();
 
-  // Impersonation (super-admin connecte, ou mode sans SSO) : le cookie gid prime. Un
-  // super-admin doit etre LOGGE en SSO (email) pour etre reconnu -> le SSO passe d'abord.
-  if (!ssoConfigure || estSuperAdmin(email)) {
+  // Impersonation (super-admin connecte, ou mode sans SSO EN DEV) : le cookie gid prime.
+  // Un super-admin doit etre LOGGE en SSO (email) pour etre reconnu -> le SSO passe d'abord.
+  // Meme regle que impersonationAutoriseePure : en PRODUCTION sans SSO, le cookie n'ouvre
+  // rien - sinon quiconque passe le mot de passe Basic devient n'importe quel gestionnaire
+  // avec un simple `Cookie: gid=...` (audit du 16/09/2026, fiche P0).
+  const impersonation = impersonationAutoriseePure({ ssoConfigure, nodeEnv: process.env.NODE_ENV, estSuperAdmin: estSuperAdmin(email) });
+  if (impersonation) {
     const id = (await cookies()).get(COOKIE_GESTIONNAIRE)?.value;
     if (id) {
       const g = await repo.findById(id);

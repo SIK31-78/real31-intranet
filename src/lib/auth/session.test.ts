@@ -24,9 +24,10 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(async () => null),
 }));
 
-// Aucun cookie gid pose : le selecteur d'impersonation n'a rien a incarner.
+// Cookie gid pilotable par test : par defaut absent.
+const cookieGid = vi.hoisted(() => ({ valeur: undefined as string | undefined }));
 vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({ get: () => undefined })),
+  cookies: vi.fn(async () => ({ get: () => (cookieGid.valeur ? { value: cookieGid.valeur } : undefined) })),
 }));
 
 // Repo gestionnaire stub : le fallback dev renvoie le PREMIER ; en prod on ne doit jamais
@@ -34,7 +35,7 @@ vi.mock("next/headers", () => ({
 const PREMIER = { id: "g1", nom: "Premier Gestionnaire", email: "premier@example.test" };
 vi.mock("@/lib/adapters/router", () => ({
   getGestionnaireRepository: () => ({
-    findById: vi.fn(async () => null),
+    findById: vi.fn(async (id: string) => (id === "g1" ? PREMIER : null)),
     findByEmail: vi.fn(async () => null),
     list: vi.fn(async () => [PREMIER]),
   }),
@@ -127,6 +128,26 @@ describe("getGestionnaireCourant (fallback sans SSO)", () => {
   it("(d) prod, sans cookie, sans SSO -> null (jamais servir un gestionnaire reel a un anonyme)", async () => {
     vi.stubEnv("NODE_ENV", "production");
     await expect(getGestionnaireCourant()).resolves.toBeNull();
+  });
+
+  it("(d bis) prod, AVEC cookie gid, sans SSO -> null : le cookie ne contourne pas le verrou (audit 16/09/2026)", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    cookieGid.valeur = "g1";
+    try {
+      await expect(getGestionnaireCourant()).resolves.toBeNull();
+    } finally {
+      cookieGid.valeur = undefined;
+    }
+  });
+
+  it("dev, avec cookie gid, sans SSO -> le gestionnaire du cookie (impersonation de dev)", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    cookieGid.valeur = "g1";
+    try {
+      await expect(getGestionnaireCourant()).resolves.toEqual(PREMIER);
+    } finally {
+      cookieGid.valeur = undefined;
+    }
   });
 
   it("dev, sans cookie, sans SSO -> premier gestionnaire (confort de dev)", async () => {
