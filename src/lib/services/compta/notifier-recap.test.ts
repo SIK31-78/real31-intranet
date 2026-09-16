@@ -69,7 +69,7 @@ describe("notifierRecapAg", () => {
     expect(m.cc).toEqual(["titouan.gaudin@real31.fr"]);
     expect(m.sujet).toBe("Récap AG S170 – LES TILLEULS – AG du 20/07/2026");
     expect(m.corps).toContain("https://real31.app/comptabilite/recaps/r1");
-    expect(m.corps).toContain("• Budget voté : 48 000,00 €");
+    expect(m.corps).toContain("• Budget modifié en AG : 48 000,00 € votés");
     expect(m.corps).toContain("2 travaux votés");
     expect(m.corps).toContain("Note du gestionnaire : Appel travaux en 3 fois.");
     expect(etat.notifies).toEqual(["r1"]);
@@ -88,8 +88,10 @@ describe("notifierRecapAg", () => {
   });
   it("le corps reste lisible quand rien n'a ete vote", () => {
     const c = corpsNotificationRecap({ ...recap, budgetModifie: false, nbTravauxVotes: 0, infoComptable: undefined, montantBudget: undefined }, "X", "https://x/y");
-    expect(c).toContain("• Budget voté : non renseigné");
+    expect(c).toContain("• Budget voté tel que présenté (inchangé en AG)");
     expect(c).toContain("• Aucuns travaux votés");
     expect(c).not.toContain("Note du gestionnaire");
+    expect(corpsNotificationRecap({ ...recap, montantBudget: undefined }, "X", "u")).toContain("• Budget modifié en AG, nouveau montant non renseigné");
+    expect(corpsNotificationRecap({ ...recap, budgetModifie: undefined, montantBudget: undefined }, "X", "u")).toContain("• Budget : non renseigné");
   });
 });

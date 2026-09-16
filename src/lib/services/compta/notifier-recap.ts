@@ -40,6 +40,20 @@ function urlIntranet(): string {
   return (process.env.INTRANET_URL ?? process.env.AUTH_URL ?? "https://real31.app").replace(/\/$/, "");
 }
 
+/**
+ * Le budget, sans ambiguite : le montant n'est saisi que si l'AG a modifie le budget
+ * presente. Sinon le budget vote est celui presente (Sekou, 16/09/2026).
+ */
+function ligneBudget(r: RecapANotifier): string {
+  if (r.budgetModifie === true) {
+    return r.montantBudget !== undefined
+      ? `• Budget modifié en AG : ${formatEuros(r.montantBudget)} votés`
+      : `• Budget modifié en AG, nouveau montant non renseigné`;
+  }
+  if (r.budgetModifie === false) return `• Budget voté tel que présenté (inchangé en AG)`;
+  return `• Budget : non renseigné`;
+}
+
 export function corpsNotificationRecap(r: RecapANotifier, coproNom: string, lien: string): string {
   const lignes = [
     `Bonjour,`,
@@ -47,9 +61,7 @@ export function corpsNotificationRecap(r: RecapANotifier, coproNom: string, lien
     `Le récap de l'AG du ${formatJour(r.agDate)} de ${r.coproCode} – ${coproNom} vient d'être enregistré${r.par ? ` par ${r.par}` : ""}.`,
     ``,
     `• Comptes ${r.comptesApprouves === false ? "NON approuvés" : "approuvés"}`,
-    // Le montant n'est saisi que si l'AG a modifie le budget presente : sinon on le dit
-    // « non renseigne » plutot que « inchange », qui laissait croire a un chiffre connu.
-    r.montantBudget !== undefined ? `• Budget voté : ${formatEuros(r.montantBudget)}` : `• Budget voté : non renseigné`,
+    ligneBudget(r),
     r.nbTravauxVotes > 0 ? `• ${r.nbTravauxVotes} travaux voté${r.nbTravauxVotes > 1 ? "s" : ""} (appels de fonds à prévoir)` : `• Aucuns travaux votés`,
     r.depassementHeures > 0 ? `• Dépassement d'AG : ${r.depassementHeures} h` : null,
     r.infoComptable ? `` : null,
