@@ -7,7 +7,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estSuperAdmin, pageAccueilPour } from "@/lib/auth/roles";
+import { pageAccueilPour, peutEditerBareme, profilDe } from "@/lib/auth/roles";
 import { getBareme } from "@/lib/services/admin/bareme";
 import { Page, PageHeader } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function TarifsAdminPage({ searchParams }: { searchParams: Promise<{ annee?: string }> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  if (!estSuperAdmin(g.email)) redirect(pageAccueilPour(g.email, g.role));
+  if (!peutEditerBareme(profilDe(g))) redirect(pageAccueilPour(g.email, g.role));
   const sp = await searchParams;
   const demandee = Number(sp.annee);
   const annee = Number.isInteger(demandee) && demandee >= 2020 && demandee <= 2100 ? demandee : new Date().getUTCFullYear();

@@ -9,7 +9,7 @@
 
 import { notFound, redirect } from "next/navigation";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
-import { estAdminReprise } from "@/lib/auth/roles";
+import { profilDe, estAdminReprise } from "@/lib/auth/roles";
 import {
   getRepriseDossierRepository,
   getFicheRenseignementsRepository,
@@ -57,7 +57,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   const persistant = reprisePersistanceSupabase();
   const ecritureReelle = ecritureEstaleReelle();
   const mailActif = mailModuleActifPour(g.email);
-  const adminReprise = estAdminReprise(g.email);
+  const adminReprise = estAdminReprise(profilDe(g));
 
   // Fiches de renseignements : on joint les owners du jeu (nom) aux fiches persistées (statut,
   // dates, réponse). Un owner sans fiche apparaît en statut « aucune » (courrier à générer).

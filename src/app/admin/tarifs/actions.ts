@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
+import { peutEditerBareme, profilDe } from "@/lib/auth/roles";
 import { enregistrerTarif, ouvrirAnnee, supprimerTarif } from "@/lib/services/admin/bareme";
 
 type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
@@ -15,7 +15,7 @@ type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: strin
 async function garde(): Promise<string | null> {
   const g = await getGestionnaireCourant();
   if (!g) return "Session expirée.";
-  if (!estSuperAdmin(g.email)) return "Réservé à l'administration.";
+  if (!peutEditerBareme(profilDe(g))) return "Réservé à l'administration.";
   return null;
 }
 

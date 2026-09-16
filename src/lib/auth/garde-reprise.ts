@@ -13,7 +13,7 @@
 
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estAdminReprise, MESSAGE_RESERVE_ADMIN_REPRISE } from "@/lib/auth/roles";
+import { estAdminReprise, profilDe, MESSAGE_RESERVE_ADMIN_REPRISE } from "@/lib/auth/roles";
 
 export type GardeReprise =
   | { ok: true; gestionnaire: Gestionnaire }
@@ -30,7 +30,7 @@ export async function exigerAdminReprise(quoi = "faire cette action"): Promise<G
   if (!gestionnaire) {
     return { ok: false, message: `Session expiree : reconnecte-toi pour ${quoi}.`, statut: 401 };
   }
-  if (!estAdminReprise(gestionnaire.email)) {
+  if (!estAdminReprise(profilDe(gestionnaire))) {
     return { ok: false, message: MESSAGE_RESERVE_ADMIN_REPRISE, statut: 403 };
   }
   return { ok: true, gestionnaire };

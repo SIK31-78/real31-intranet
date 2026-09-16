@@ -8,7 +8,7 @@
 
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estAdminReprise } from "@/lib/auth/roles";
+import { profilDe, estAdminReprise } from "@/lib/auth/roles";
 import { getRepriseDossierRepository, reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
 import { listerDossiers } from "@/lib/reprise/services/suivi-dossier";
 import { resumerDossier, etapesAssigneesA } from "@/lib/reprise/services/resume-dossier";
@@ -52,7 +52,7 @@ export default async function DossiersReprisePage() {
         collaborateurs={collaborateurs}
         moi={{ id: g.id, nom: g.nomComplet }}
         aujourdHui={aujourdHui}
-        adminReprise={estAdminReprise(g.email)}
+        adminReprise={estAdminReprise(profilDe(g))}
       />
     </div>
   );
