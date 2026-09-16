@@ -4,19 +4,27 @@
 // domaine propose (numero + voie, commune a verifier), sinon une recherche libre. Un clic
 // = l'immatriculation devient la cle de l'immeuble (historique, copro App A).
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Search, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
+import { useCombobox } from "@/components/ui/combobox";
 import { formatJour } from "@/lib/services/facturation/format";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 import { detacherPropositionAction, rattacherPropositionAction, rechercherRegistreAction } from "@/app/propositions/actions";
 
-export function CandidatRegistre({ r, sur = false, onChoisir, pending }: { r: RegistreCopro; sur?: boolean; onChoisir: () => void; pending: boolean }) {
+export function CandidatRegistre({
+  r,
+  sur = false,
+  onChoisir,
+  pending,
+  actif = false,
+  ...option
+}: { r: RegistreCopro; sur?: boolean; onChoisir: () => void; pending: boolean; actif?: boolean } & Partial<ReturnType<ReturnType<typeof useCombobox<RegistreCopro>>["option"]>>) {
   return (
-    <li className="flex items-center justify-between gap-3 py-2">
+    <li {...option} className={`flex items-center justify-between gap-3 py-2 ${actif ? "bg-surface-2" : ""}`}>
       <span className="min-w-0 flex flex-col">
         <span className="text-body text-ink truncate">
           {r.adresse}, {r.codePostal} {r.commune}
@@ -73,8 +81,11 @@ export function RattacherRegistre({
     });
   }
 
-  const dejaVus = new Set(candidats.map((c) => c.immatriculation));
-  const autres = resultats.filter((r) => !dejaVus.has(r.immatriculation));
+  const autres = useMemo(() => {
+    const dejaVus = new Set(candidats.map((c) => c.immatriculation));
+    return resultats.filter((r) => !dejaVus.has(r.immatriculation));
+  }, [candidats, resultats]);
+  const combobox = useCombobox(autres, (r) => rattacher(r.immatriculation), () => setResultats([]));
 
   return (
     <div className="flex flex-col gap-2">
@@ -93,14 +104,17 @@ export function RattacherRegistre({
             if (e.target.value.trim().length < 4) setResultats([]);
           }}
           placeholder={candidats.length > 0 ? "Aucun de ceux-là ? Cherchez une autre adresse…" : "Chercher l'immeuble au registre (numéro, voie, commune)"}
+          aria-label="Chercher l'immeuble au registre national"
           autoComplete="off"
+          onKeyDown={combobox.onKeyDown}
+          {...combobox.input}
         />
-        <Search strokeWidth={1.5} className="pointer-events-none absolute right-2.5 top-2 h-4 w-4 text-ink-3" />
+        <Search strokeWidth={1.5} aria-hidden className="pointer-events-none absolute right-2.5 top-2 h-4 w-4 text-ink-3" />
       </div>
       {autres.length > 0 && (
-        <ul className="divide-y divide-line">
-          {autres.map((r) => (
-            <CandidatRegistre key={r.immatriculation} r={r} pending={pending} onChoisir={() => rattacher(r.immatriculation)} />
+        <ul {...combobox.liste} className="divide-y divide-line">
+          {autres.map((r, i) => (
+            <CandidatRegistre key={r.immatriculation} r={r} pending={pending} onChoisir={() => rattacher(r.immatriculation)} actif={combobox.actif === i} {...combobox.option(i)} />
           ))}
         </ul>
       )}

@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from "react";
+import { Children, cloneElement, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 // Champs de formulaire : label secondaire (ink-2), controle de 32 px, aide d'UNE
@@ -36,15 +36,23 @@ export function Field({
   children: ReactNode;
   className?: string;
 }) {
+  // L'erreur est reliee au controle (aria-describedby + aria-invalid) quand l'enfant est
+  // un Input/Select/Textarea direct : le lecteur d'ecran lit l'erreur avec le champ.
+  const erreurId = erreur && htmlFor ? `${htmlFor}-erreur` : undefined;
+  const unique = Children.count(children) === 1 ? Children.only(children) : null;
+  const controle =
+    erreurId && isValidElement(unique) && (unique.type === Input || unique.type === Select || unique.type === Textarea)
+      ? cloneElement(unique as ReactElement<Record<string, unknown>>, { "aria-invalid": true, "aria-describedby": erreurId })
+      : children;
   return (
     <div className={cn("flex gap-1", inline ? "flex-row items-center gap-3" : "flex-col", className)}>
       <label htmlFor={htmlFor} className={cn("text-body text-ink-2", inline && "shrink-0")}>
         {label}
         {requis && <span className="text-err-700" aria-hidden> *</span>}
       </label>
-      {children}
+      {controle}
       {hint && !erreur && <p className="text-meta text-ink-2">{hint}</p>}
-      {erreur && <p className="text-meta text-err-700" role="alert">{erreur}</p>}
+      {erreur && <p id={erreurId} className="text-meta text-err-700" role="alert">{erreur}</p>}
     </div>
   );
 }

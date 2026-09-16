@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
+import { useCombobox } from "@/components/ui/combobox";
 import { formatJour } from "@/lib/services/facturation/format";
 import { informationsManquantes, LIBELLE_ORIGINE, libellePeriodeConstruction, ORIGINES, type Origine } from "@/lib/domain/proposition/proposition";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
@@ -62,6 +63,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
     setResultats([]);
   }
 
+  const combobox = useCombobox(resultats, choisir, () => setResultats([]));
   const joignable = Boolean(telephone.trim() || email.trim());
   const pret = Boolean(adresse.trim()) && joignable;
   const apercu = {
@@ -106,12 +108,14 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
                   placeholder="7 rue Thomas d'Orléans, Colombes"
                   autoFocus
                   autoComplete="off"
+                  onKeyDown={combobox.onKeyDown}
+                  {...combobox.input}
                 />
                 {resultats.length > 0 && (
-                  <ul className="absolute z-10 mt-1 w-full rounded-lg border border-line bg-surface shadow-1 divide-y divide-line">
-                    {resultats.map((r) => (
-                      <li key={r.immatriculation}>
-                        <button type="button" className="w-full text-left px-3 py-2 hover:bg-surface-2 flex flex-col gap-0.5" onClick={() => choisir(r)}>
+                  <ul {...combobox.liste} className="absolute z-10 mt-1 w-full rounded-lg border border-line bg-surface shadow-1 divide-y divide-line">
+                    {resultats.map((r, i) => (
+                      <li key={r.immatriculation} {...combobox.option(i)} className={combobox.actif === i ? "bg-surface-2" : undefined}>
+                        <button type="button" tabIndex={-1} className="w-full text-left px-3 py-2 hover:bg-surface-2 flex flex-col gap-0.5" onClick={() => choisir(r)}>
                           <span className="text-body">{r.adresse} <span className="text-ink-3">{r.codePostal} {r.commune}</span></span>
                           <span className="text-meta text-ink-2">
                             {r.lotsPrincipaux ?? "?"} lots principaux · {r.syndicNom ?? "syndic non connu"}
