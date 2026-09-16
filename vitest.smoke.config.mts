@@ -9,7 +9,11 @@ import { fileURLToPath } from "node:url";
 //   corepack pnpm run test:smoke smoke-mapping   (un seul)
 export default defineConfig({
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // « server-only » leve hors Server Component : meme doublure vide que vitest.config.mts.
+      "server-only": fileURLToPath(new URL("./test/server-only.ts", import.meta.url)),
+    },
   },
   test: {
     include: ["src/**/*.smoke.ts"],
