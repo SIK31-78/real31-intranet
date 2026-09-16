@@ -283,6 +283,10 @@ export class MockFacturationRepository implements FacturationRepository {
     }));
   }
 
+  async coproDeFacture(factureId: string): Promise<string | null> {
+    return this.factures.find((x) => x.id === factureId)?.coproCode ?? null;
+  }
+
   async remettreEnAttente(factureId: string): Promise<void> {
     const f = this.factures.find((x) => x.id === factureId);
     if (f && f.statut === "erreur") f.statut = "a_facturer";

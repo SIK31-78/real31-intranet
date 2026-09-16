@@ -10,6 +10,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import {
   apercuPrestationContrat,
@@ -315,7 +316,12 @@ export async function rejouerFactureAction(
   if (!z.string().uuid().safeParse(factureId).success)
     return { ok: false, erreur: "Données invalides." };
 
-  return executer(async () => {
+  return executer(async (managerId) => {
+    // Une emission REELLE chez Pennylane : jamais hors du perimetre de l'appelant
+    // (audit du 16/09/2026 : seule action de facturation qui l'oubliait).
+    const coproCode = await getFacturationRepository().coproDeFacture(factureId);
+    if (!coproCode) throw new Error("Facture introuvable.");
+    await exigerPerimetre(coproCode, managerId);
     await getFacturationRepository().remettreEnAttente(factureId);
     return emettreFacturesEnAttente([factureId]);
   });

@@ -713,6 +713,13 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     }));
   }
 
+  async coproDeFacture(factureId: string): Promise<string | null> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase.from("intranet_factures").select("copropriete_id").eq("id", factureId).maybeSingle();
+    if (error) throw new Error(`Lecture de la facture ${factureId} : ${error.message}`);
+    return (data as { copropriete_id: string } | null)?.copropriete_id ?? null;
+  }
+
   async remettreEnAttente(factureId: string): Promise<void> {
     const supabase = createSupabasePublicClient();
     const { error } = await supabase

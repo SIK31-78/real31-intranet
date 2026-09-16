@@ -353,6 +353,8 @@ export interface FacturationRepository {
    *  BORNE aux factures de ces copros (le filtre est applique dans la requete, AVANT la
    *  limite : cloisonnement portefeuille = "nos facturations"). Omis = toutes. */
   listerFacturesRecentes(limite?: number, coproCodes?: string[]): Promise<FactureHistorique[]>;
+  /** Le code de la copropriete d'une facture, quel que soit son statut ; null si inconnue. */
+  coproDeFacture(factureId: string): Promise<string | null>;
   /** Repasse une facture en erreur au statut 'a_facturer' pour la rejouer. */
   remettreEnAttente(factureId: string): Promise<void>;
 }
