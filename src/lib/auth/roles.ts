@@ -235,8 +235,10 @@ export function pageAccueilPour(
  * la revue du mapping comptable, archiver/supprimer - est reserve a l'encadrement. Un
  * gestionnaire voit ces actions GRISEES (elles existent, il sait a qui s'adresser).
  */
-export function estAdminReprise(email: string | null | undefined): boolean {
-  return estDirecteur(email) || estManager(email);
+export function estAdminReprise(qui: Profil | string | null | undefined): boolean {
+  const profil: Profil = typeof qui === "string" || qui == null ? { email: qui ?? null } : qui;
+  // Le role de la table (ADMIN, DIRECTEUR_*) compte : les allowlists d'env ne sont qu'un secours.
+  return estDirection(profil) || estDirecteur(profil.email) || estManager(profil.email);
 }
 
 /** Message affiche a un non-admin sur une action reservee (UI + refus serveur : meme phrase). */
@@ -294,11 +296,19 @@ export function estReferentSyndic(profil: Profil, agence?: string): boolean {
 }
 
 /**
- * La DIRECTION au sens des decisions : direction table, referent d'agence, directeur d'env
- * (secours), super-admin.
+ * La DIRECTION au sens des decisions : direction table, directeur d'env (secours),
+ * super-admin - et le referent syndic d'une agence, MAIS SEULEMENT pour cette agence
+ * (Sekou, 16/09/2026 : « référent HLS seulement »). Sans agence connue (annuaire des
+ * collaborateurs, ecritures dans public."User"), le referent n'est pas direction.
  */
-export function estDirection(profil: Profil): boolean {
-  return estSuperAdmin(profil.email) || estDirecteur(profil.email) || estDirectionTable(profil.roleTable) || estReferentSyndic(profil);
+export function estDirection(profil: Profil, agence?: string): boolean {
+  if (estSuperAdmin(profil.email) || estDirecteur(profil.email) || estDirectionTable(profil.roleTable)) return true;
+  return agence !== undefined && estReferentSyndic(profil, agence);
+}
+
+/** Direction quelque part : direction pleine, ou referent d'au moins une agence (pour ouvrir un ecran, pas pour agir). */
+export function estDirectionQuelquePart(profil: Profil): boolean {
+  return estDirection(profil) || estReferentSyndic(profil);
 }
 
 /** Travaille au syndic : gestionnaire ou assistant de copropriete, ou la direction. */
@@ -328,19 +338,24 @@ export function peutCompleterProposition(profil: Profil): boolean {
   return estEquipeSyndic(profil);
 }
 
-/** Fixer le prix et le geste commercial, preparer et remettre l'offre : la direction. */
-export function peutFaireOffre(profil: Profil): boolean {
-  return estDirection(profil);
+/** Fixer le prix et le geste commercial, preparer et remettre l'offre : la direction (de l'agence de la proposition). */
+export function peutFaireOffre(profil: Profil, agence?: string): boolean {
+  return estDirection(profil, agence);
 }
 
-/** Passer une proposition « elue » et creer la copropriete (App A, contrat, Pennylane, reprise) : la direction. */
-export function peutElire(profil: Profil): boolean {
-  return estDirection(profil);
+/** Passer une proposition « elue » et creer la copropriete (App A, contrat, Pennylane, reprise) : la direction (de l'agence). */
+export function peutElire(profil: Profil, agence?: string): boolean {
+  return estDirection(profil, agence);
 }
 
-/** Ouvrir un dossier de perte (la copro passe inactive) : la direction. */
-export function peutOuvrirPerte(profil: Profil): boolean {
-  return estDirection(profil);
+/** Ouvrir un dossier de perte (la copro passe inactive) : la direction (de l'agence de la copro). */
+export function peutOuvrirPerte(profil: Profil, agence?: string): boolean {
+  return estDirection(profil, agence);
+}
+
+/** Clore une proposition (elue, refusee) ou dater sa remise : les memes que l'offre. */
+export function peutDeciderProposition(profil: Profil, agence?: string): boolean {
+  return estDirection(profil, agence);
 }
 
 /** Editer / imprimer un contrat de renouvellement, faire le recap AG : l'equipe syndic et la compta. */

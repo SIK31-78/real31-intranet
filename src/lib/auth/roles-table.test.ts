@@ -30,7 +30,11 @@ describe("la direction", () => {
     vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
     expect(estDirection(directrice)).toBe(true);
     expect(estDirection(dirigeant)).toBe(true);
-    expect(estDirection(referent)).toBe(true);
+    // Le referent : direction sur SON agence seulement (Sekou, 16/09/2026 : « référent HLS seulement »).
+    expect(estDirection(referent, "HLS")).toBe(true);
+    expect(estDirection(referent, "LGC")).toBe(false);
+    expect(estDirection(referent)).toBe(false);
+    expect(estDirection(directrice, "ML")).toBe(true);
     expect(estDirection({ email: "sekou@real31.fr", roleTable: "ADMIN" })).toBe(true);
     expect(estDirection(gestionnaire)).toBe(false);
     expect(estReferentSyndic(referent, "HLS")).toBe(true);
@@ -40,11 +44,15 @@ describe("la direction", () => {
 
 describe("intentions propositions", () => {
   it("seuls les directeurs font des offres, elisent, ouvrent une perte (Sekou, 16/09/2026)", () => {
-    for (const p of [directrice, dirigeant, referent]) {
+    for (const p of [directrice, dirigeant]) {
       expect(peutFaireOffre(p)).toBe(true);
       expect(peutElire(p)).toBe(true);
       expect(peutOuvrirPerte(p)).toBe(true);
     }
+    expect(peutFaireOffre(referent, "HLS")).toBe(true);
+    expect(peutElire(referent, "HLS")).toBe(true);
+    expect(peutOuvrirPerte(referent, "LGC")).toBe(false);
+    expect(peutElire(referent)).toBe(false);
     for (const p of [gestionnaire, assistant, comptable, vente]) {
       expect(peutFaireOffre(p)).toBe(false);
       expect(peutElire(p)).toBe(false);
