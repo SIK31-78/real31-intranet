@@ -26,16 +26,32 @@ const SSO_ACTIF = Boolean(
     process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
 );
 
+/** Comparaison en temps constant (pas de crypto Node ici : le proxy peut tourner en Edge). */
+function egalConstant(a: string, b: string): boolean {
+  const ea = new TextEncoder().encode(a);
+  const eb = new TextEncoder().encode(b);
+  let diff = ea.length ^ eb.length;
+  for (let i = 0; i < Math.max(ea.length, eb.length); i++) diff |= (ea[i] ?? 0) ^ (eb[i] ?? 0);
+  return diff === 0;
+}
+
+/** Le mot de passe du Basic, ou null si l'en-tete est absent ou illisible (jamais d'exception). */
+function motDePasseBasic(header: string | null): string | null {
+  if (!header?.startsWith("Basic ")) return null;
+  try {
+    const decode = atob(header.slice(6));
+    return decode.slice(decode.indexOf(":") + 1);
+  } catch {
+    return null;
+  }
+}
+
 export function proxy(req: NextRequest) {
   if (SSO_ACTIF) return NextResponse.next();
   // Aucun mot de passe configure en prod : on refuse tout (le defaut "real31" ne joue qu'en dev).
   if (MOT_DE_PASSE !== null) {
-    const header = req.headers.get("authorization");
-    if (header?.startsWith("Basic ")) {
-      const decode = atob(header.slice(6));
-      const motDePasse = decode.slice(decode.indexOf(":") + 1);
-      if (motDePasse === MOT_DE_PASSE) return NextResponse.next();
-    }
+    const motDePasse = motDePasseBasic(req.headers.get("authorization"));
+    if (motDePasse !== null && egalConstant(motDePasse, MOT_DE_PASSE)) return NextResponse.next();
   }
   return new NextResponse("Acces restreint REAL31.", {
     status: 401,
@@ -55,8 +71,10 @@ export function proxy(req: NextRequest) {
 //     l'exclut donc explicitement. La securite de la fiche est portee EN PROPRE (token + code,
 //     anti-enumeration, rate-limit) et non par ce gate. En SSO (prod) le middleware laisse deja
 //     tout passer (l'auth se fait par page) ; l'exclusion garde le comportement identique.
+// Chaque exclusion est ancree sur une frontiere de segment : « /fiches-internes » ou
+// « /api/v1bis » restent derriere le gate (test : src/proxy.test.ts).
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/v1|fiche|api/fiche|monitoring).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico$|api/v1(?:/|$)|fiche(?:/|$)|api/fiche(?:/|$)|monitoring(?:/|$)).*)",
   ],
 };
