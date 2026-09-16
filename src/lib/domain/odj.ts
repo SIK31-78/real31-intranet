@@ -4,6 +4,8 @@
 // d'autres champs), ou manuel. Objectif : basculer vers Estale au branchement
 // sans refondre l'UI (cf. memory Estale = source primaire).
 
+import { formatEuros } from "./format-montant";
+
 export type SourceDonnee = "estale" | "supabase" | "jalon" | "calcul" | "manuel";
 
 /** Type de saisie d'un champ : texte libre, montant en euros, pourcentage,
@@ -154,12 +156,7 @@ export function parseMontant(brut: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const EUROS = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
-
-/** Formate en euros francais : 4500 -> "4 500,00 EUR" (espace insecable). */
-export function formatEuros(n: number): string {
-  return EUROS.format(n);
-}
+export { formatEuros };
 
 /** Valeur affichable d'un champ selon son type (montant / pourcentage / booleen). */
 export function formatChampValeur(champ: ChampOdj): string | undefined {

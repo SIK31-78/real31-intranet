@@ -26,14 +26,13 @@ import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission
 import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
 import { formatJour } from "@/lib/services/facturation/format";
 
+import { formatEuros } from "@/lib/domain/format-montant";
 /** Montant -> texte de champ ("" si inconnu). */
 function texteMontant(v: number | null | undefined): string {
   return v === null || v === undefined ? "" : String(v);
 }
 const formatJourCourt = formatJour;
-function formatEurosCourt(v: number): string {
-  return `${v.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
-}
+const formatEurosCourt = (v: number) => formatEuros(v, { decimales: "auto" });
 /** Les honoraires saisis different-ils de ceux du contrat genere ? */
 function ecartContrat(saisi: string, genere: number | null): boolean {
   if (genere === null || saisi.trim() === "") return false;

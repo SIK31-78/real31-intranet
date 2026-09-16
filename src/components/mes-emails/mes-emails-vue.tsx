@@ -62,6 +62,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
 
+import { formatEuros } from "@/lib/domain/format-montant";
 type Statut = "nouveau" | "repondu" | "classe";
 
 type Destinataires = { to: string[]; cc: string[]; cci: string[] };
@@ -1429,9 +1430,7 @@ function Timeline({ dossier }: { dossier: Dossier }) {
   );
 }
 
-function formatEuro(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} €`;
-}
+const formatEuro = (n: number) => formatEuros(n, { decimales: 0 });
 
 function Fait({
   icone,

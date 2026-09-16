@@ -13,9 +13,8 @@ import {
 } from "@/lib/domain/facturation/mode-emission";
 import { Button } from "@/components/ui/button";
 
-function euros(n: number): string {
-  return `${n.toFixed(2).replace(".", ",")} €`;
-}
+import { formatEuros } from "@/lib/domain/format-montant";
+const euros = formatEuros;
 
 export function ConfirmationFacturation({
   apercu,

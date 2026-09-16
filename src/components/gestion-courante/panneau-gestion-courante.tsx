@@ -35,9 +35,8 @@ import { DialogueConfirmationEcrite } from "./dialogue-confirmation-ecrite";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 
-function euros(n: number): string {
-  return `${n.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €`;
-}
+import { formatEuros } from "@/lib/domain/format-montant";
+const euros = formatEuros;
 
 function pourcent(pct: number | null): string {
   if (pct === null) return "-";

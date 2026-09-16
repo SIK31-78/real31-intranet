@@ -36,7 +36,8 @@ import type { ContexteImmeuble, PrixCalcule, SuggestionRapprochement } from "@/l
 import { DetacherRegistre, RattacherRegistre } from "@/components/proposition/rattacher-registre";
 import { calculerPrixAction, mettreAJourPropositionAction } from "../actions";
 
-const euros = (n: number) => `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+import { formatEuros } from "@/lib/domain/format-montant";
+const euros = formatEuros;
 const nb = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", ".")));
 const txt = (v: number | undefined) => (v === undefined ? "" : String(v));
 const arrondi = (n: number) => Math.round(n * 100) / 100;
@@ -157,7 +158,7 @@ export function FicheProposition({
           <Callout ton="warn">Pour faire l&apos;offre, il manque encore : {manquant.join(", ")}.</Callout>
         )}
 
-        <Section id="prop-prix" titre="Le prix" actions={droits.offre ? <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={recalculer}>Recalculer depuis l&apos;immeuble</Button> : <span className="text-caption text-ink-3">prix et offre : réservés à la direction</span>}>
+        <Section id="prop-prix" titre="Le prix" actions={droits.offre ? <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={recalculer}>Recalculer depuis l&apos;immeuble</Button> : <span className="text-meta text-ink-3">prix et offre : réservés à la direction</span>}>
           <Card>
             <CardBody className="flex flex-col gap-4">
             <fieldset disabled={!droits.offre} className="contents">
@@ -207,7 +208,7 @@ export function FicheProposition({
                   <Save strokeWidth={1.5} /> Enregistrer le prix
                 </Button>
                 {ecart !== null && ecart !== 0 && (
-                  <p className="text-caption text-ink-2 basis-full">
+                  <p className="text-meta text-ink-2 basis-full">
                     {ecart < 0 ? "Remise" : "Majoration"} de <span className="font-medium tabular-nums">{Math.abs(ecart).toLocaleString("fr-FR")} %</span> par rapport à la grille — trace interne, le client ne la voit pas.
                   </p>
                 )}
@@ -294,7 +295,7 @@ export function FicheProposition({
             </Card>
           </Section>
         )}
-        <p className="text-caption text-ink-3">Créée le {formatDateLongue(p.creeLeISO)} par {p.creeParNom}{p.premierContactISO && ` · premier contact le ${formatJour(p.premierContactISO)}`}</p>
+        <p className="text-meta text-ink-3">Créée le {formatDateLongue(p.creeLeISO)} par {p.creeParNom}{p.premierContactISO && ` · premier contact le ${formatJour(p.premierContactISO)}`}</p>
       </div>
 
       {/* ---- Colonne laterale : UNE carte, des blocs separes par une hairline ---- */}
@@ -321,7 +322,7 @@ export function FicheProposition({
               </Button>
             }
           >
-            {!droits.completer && <p className="text-caption text-ink-3">Lecture seule : l&apos;équipe syndic complète cette fiche.</p>}
+            {!droits.completer && <p className="text-meta text-ink-3">Lecture seule : l&apos;équipe syndic complète cette fiche.</p>}
             <Field label="Statut" htmlFor="ps-statut">
               <Select id="ps-statut" value={statut} onChange={(e) => setStatut(e.target.value as StatutProposition)}>
                 {STATUTS_PROPOSITION.map((s) => <option key={s} value={s}>{LIBELLE_STATUT[s]}</option>)}
@@ -348,7 +349,7 @@ export function FicheProposition({
             </div>
             <Field label="Commentaires" htmlFor="ps-comm"><Textarea id="ps-comm" rows={2} value={commentaires} onChange={(e) => setCommentaires(e.target.value)} /></Field>
             <Field label="Ajouter au journal" htmlFor="ps-note"><Input id="ps-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Rappelé le CS, visite prévue le…" /></Field>
-            {p.decisionISO && <p className="text-caption text-ink-3">Décision le {formatJour(p.decisionISO)}{p.coproCode && ` · copropriété ${p.coproCode}`}</p>}
+            {p.decisionISO && <p className="text-meta text-ink-3">Décision le {formatJour(p.decisionISO)}{p.coproCode && ` · copropriété ${p.coproCode}`}</p>}
           </BlocLateral>
 
           <BlocLateral
@@ -370,7 +371,7 @@ export function FicheProposition({
           <BlocLateral titre="Cet immeuble" actions={p.immeuble.immatriculation && droits.completer ? <DetacherRegistre propositionId={p.id} /> : undefined}>
             {p.immeuble.immatriculation ? (
               <>
-                <p className="text-caption text-ink-2">
+                <p className="text-meta text-ink-2">
                   Registre national : <span className="font-mono">{p.immeuble.immatriculation}</span>
                   {p.immeuble.periodeConstruction && ` · construit ${libellePeriodeConstruction(p.immeuble.periodeConstruction)}`}
                 </p>
@@ -379,7 +380,7 @@ export function FicheProposition({
                     <Building2 strokeWidth={1.5} className="h-4 w-4 mt-0.5 shrink-0 text-ink-2" />
                     <span className="min-w-0 flex flex-col">
                       <span className="text-body text-ink"><span className="font-mono text-ink-2">{contexte.copro.code}</span> {contexte.copro.nom}</span>
-                      <span className="text-caption text-ink-3">
+                      <span className="text-meta text-ink-3">
                         {contexte.copro.statut === "active" ? "Copropriété gérée par REAL 31" : "Ancienne copropriété (perdue)"}
                         {contexte.copro.priseEnGestionISO && ` · depuis le ${formatJour(contexte.copro.priseEnGestionISO)}`}
                         {contexte.copro.mandatFinISO && ` · mandat jusqu'au ${formatJour(contexte.copro.mandatFinISO)}`}
@@ -387,17 +388,17 @@ export function FicheProposition({
                     </span>
                   </Link>
                 ) : (
-                  <p className="text-caption text-ink-3">Pas dans nos copropriétés.</p>
+                  <p className="text-meta text-ink-3">Pas dans nos copropriétés.</p>
                 )}
                 {contexte.autres.length > 0 ? (
                   <div className="flex flex-col gap-1">
-                    <p className="text-caption text-ink-2">Déjà consulté {contexte.autres.length} fois :</p>
+                    <p className="text-meta text-ink-2">Déjà consulté {contexte.autres.length} fois :</p>
                     <ul className="flex flex-col divide-y divide-line">
                       {contexte.autres.map((a) => (
                         <li key={a.id}>
                           <Link href={`/propositions/${a.id}`} className="flex items-center justify-between gap-2 py-1.5 hover:underline">
                             <span className="text-body text-ink tabular-nums">{a.premierContactISO ? formatJour(a.premierContactISO) : formatJour(a.creeLeISO)}</span>
-                            <span className="text-caption text-ink-3 truncate">{[a.contact.nom, a.prix.honorairesTtc !== undefined ? `${a.prix.honorairesTtc.toLocaleString("fr-FR")} €` : null].filter(Boolean).join(" · ")}</span>
+                            <span className="text-meta text-ink-3 truncate">{[a.contact.nom, a.prix.honorairesTtc !== undefined ? `${a.prix.honorairesTtc.toLocaleString("fr-FR")} €` : null].filter(Boolean).join(" · ")}</span>
                             <Badge ton={TON[a.statut]}>{LIBELLE_STATUT[a.statut]}</Badge>
                           </Link>
                         </li>
@@ -405,12 +406,12 @@ export function FicheProposition({
                     </ul>
                   </div>
                 ) : (
-                  <p className="text-caption text-ink-3">Première fois que cet immeuble nous consulte.</p>
+                  <p className="text-meta text-ink-3">Première fois que cet immeuble nous consulte.</p>
                 )}
               </>
             ) : (
               <>
-                <p className="text-caption text-ink-2">
+                <p className="text-meta text-ink-2">
                   Pas encore rattachée au registre national. Le rattachement retrouve l&apos;historique de l&apos;immeuble et le lien avec nos copropriétés.
                 </p>
                 {droits.completer && <RattacherRegistre propositionId={p.id} sur={suggestion?.sur} candidats={suggestion?.candidats ?? []} />}

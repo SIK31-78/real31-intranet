@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { rejouerFactureAction } from "@/app/facturation/actions";
 import { Button } from "@/components/ui/button";
 
+import { formatEuros } from "@/lib/domain/format-montant";
 /** Ce qu'on vient d'emettre tient en quelques lignes : on montre les 5 dernieres, le
  *  reste se deplie a la demande. Au-dela, l'historique noyait le formulaire. */
 const CAP_AFFICHAGE = 5;
@@ -42,9 +43,7 @@ const LIBELLE_TYPE: Record<string, string> = {
   prestation_contrat: "Prestation du contrat",
 };
 
-function euros(n: number): string {
-  return `${n.toFixed(2).replace(".", ",")} €`;
-}
+const euros = formatEuros;
 /** Date + heure locale de creation, ex "20/07/2026 a 16:35". */
 function quand(iso: string): string {
   const d = new Date(iso);

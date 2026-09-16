@@ -28,10 +28,8 @@ import {
   creerFacturePrestationContratAction,
 } from "@/app/facturation/actions";
 
-function formatEuros(n: number): string {
-  return `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-}
 
+import { formatEuros } from "@/lib/domain/format-montant";
 export function FormulairePrestationContrat({
   copros,
   pennylaneMode,

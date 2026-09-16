@@ -17,6 +17,7 @@ import { SegmentedControl } from "@/components/ui/segmented";
 import { EmptyState } from "@/components/ui/empty-state";
 import { filtrerParPortee, type PorteeRecaps } from "@/lib/domain/recap-ag/mes-recaps";
 
+import { formatEuros } from "@/lib/domain/format-montant";
 /** Au-dela, on replie : ce qu'on vient de saisir tient en quelques lignes, et une liste
  *  cabinet peut faire plusieurs centaines de lignes. */
 const CAP_AFFICHAGE = 5;
@@ -48,9 +49,7 @@ function quand(iso: string): string {
   return `${deuxChiffres(d.getDate())}/${deuxChiffres(d.getMonth() + 1)}/${d.getFullYear()} ${deuxChiffres(d.getHours())}:${deuxChiffres(d.getMinutes())}`;
 }
 
-function euros(n: number): string {
-  return `${n.toFixed(2).replace(".", ",")} €`;
-}
+const euros = formatEuros;
 
 const STATUT: Record<RecapAffiche["statut"], { label: string; ton: BadgeTon }> = {
   erreur: { label: "Échec", ton: "err" },
