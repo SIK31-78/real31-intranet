@@ -44,6 +44,7 @@ describe("contrat prospect", () => {
   it("remplit le gabarit avec l'immeuble et les inclusions par defaut", () => {
     const c = coproContratDepuisProposition(base);
     expect(c).toMatchObject({ adresse1: "16 rue Sébastopol", codePostal: "92400", ville: "Courbevoie", immatriculation: "AB0175828", agence: "LGC", lotsPrincipaux: 8, lotsAutres: 4, nbVisites: 1, dureeAgHeures: 2, nbCs: 1, dureeCsHeures: 1, finMaxAgHeure: 20, assurance: "" });
+    expect(coproContratDepuisProposition({ ...base, immeuble: { ...base.immeuble, assurance: "AXA", assuranceDateISO: "2024-01-01" } })).toMatchObject({ assurance: "AXA", assuranceDateISO: "2024-01-01" });
   });
   it("retire le suffixe de commune ou d'agence de l'adresse", () => {
     expect(adressePourContrat("16, rue Sébastopol - Courbevoie", "Courbevoie")).toBe("16, rue Sébastopol");

@@ -63,6 +63,9 @@ export interface Immeuble {
   /** Reunions de CS complementaires prevues. */
   csPrevus?: number;
   periodeConstruction?: string;
+  /** L'assureur du syndicat et la date de souscription, s'ils sont connus (ils vont au contrat). */
+  assurance?: string;
+  assuranceDateISO?: string;
   syndicActuel?: string;
   finMandatActuelISO?: string;
   prochaineAgISO?: string;

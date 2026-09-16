@@ -78,8 +78,20 @@ export function remplirTexte(
   table: Record<string, string>,
   options: { fraisPostauxReels?: boolean } = {},
 ): string {
-  const source = options.fraisPostauxReels ? varianteFraisReels(texte) : texte;
+  let source = options.fraisPostauxReels ? varianteFraisReels(texte) : texte;
+  if (assuranceInconnue(table)) source = source.split(ASSURANCE_DETAIL).join("");
   return source.replace(/\[[^\]\n]+\]/g, (placeholder) => table[placeholder] ?? placeholder);
+}
+
+/**
+ * Assurance du syndicat inconnue (une offre a un prospect, une fiche App A vide) : la
+ * phrase s'arrete a « Titulaire d'un contrat d'assurance responsabilité civile », sans
+ * « souscrit le … auprès de : … » a trous (Sekou, 16/09/2026).
+ */
+const ASSURANCE_DETAIL = " souscrit le [Coproprietes.DateAssurance] auprès de : [Coproprietes.Assurance]";
+
+export function assuranceInconnue(table: Record<string, string>): boolean {
+  return !table["[Coproprietes.Assurance]"]?.trim() && !table["[Coproprietes.DateAssurance]"]?.trim();
 }
 
 /**

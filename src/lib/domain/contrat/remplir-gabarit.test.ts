@@ -112,6 +112,13 @@ describe("remplirTexte", () => {
     expect(placeholdersNonResolus("Signe par [QuiDonc].", table)).toEqual(["[QuiDonc]"]);
   });
 
+  it("sans assurance connue, la phrase s'arrete a « responsabilité civile »", () => {
+    const phrase = "Titulaire d’un contrat d’assurance responsabilité civile souscrit le [Coproprietes.DateAssurance] auprès de : [Coproprietes.Assurance]\n\net";
+    expect(remplirTexte(phrase, table)).toContain("souscrit le ");
+    const sans = { ...table, "[Coproprietes.Assurance]": "", "[Coproprietes.DateAssurance]": "" };
+    expect(remplirTexte(phrase, sans)).toBe("Titulaire d’un contrat d’assurance responsabilité civile\n\net");
+  });
+
   it("ne laisse AUCUN placeholder sur le gabarit entier", () => {
     const blocs = [...GABARIT_GAUCHE, ...GABARIT_DROITE].flatMap((b) =>
       typeof b === "string" ? [b] : [...b],

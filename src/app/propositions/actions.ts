@@ -43,6 +43,8 @@ const zImmeuble = z.object({
   visitesPrevues: zNb.optional(),
   csPrevus: zNb.optional(),
   periodeConstruction: zTexte.optional(),
+  assurance: zTexte.optional(),
+  assuranceDateISO: zJour.optional(),
   syndicActuel: zTexte.optional(),
   finMandatActuelISO: zJour.optional(),
   prochaineAgISO: zJour.optional(),

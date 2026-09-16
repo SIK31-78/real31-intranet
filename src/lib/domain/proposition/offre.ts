@@ -52,10 +52,10 @@ export function coproContratDepuisProposition(p: Proposition): CoproContrat {
     codePostal: im.codePostal ?? "",
     ville: im.commune ?? "",
     immatriculation: im.immatriculation ?? "",
-    // L'assurance du syndicat n'est pas connue avant la reprise : la ligne reste vide,
-    // elle se complete a la signature.
-    assurance: "",
-    assuranceDateISO: "",
+    // Inconnue avant la reprise le plus souvent : le gabarit sait alors ecrire la phrase
+    // sans trou (cf. remplir-gabarit, assuranceInconnue).
+    assurance: im.assurance ?? "",
+    assuranceDateISO: im.assuranceDateISO ?? "",
     agence: p.agence ?? "",
     lotsPrincipaux: im.lotsPrincipaux ?? 0,
     lotsAutres: im.lotsStationnement ?? 0,

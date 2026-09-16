@@ -236,7 +236,7 @@ export function FicheProposition({
                 <Field label="Prochaine AG" htmlFor="pi-ag"><Input id="pi-ag" type="date" value={im.prochaineAgISO ?? ""} onChange={(e) => champ("prochaineAgISO", e.target.value || undefined)} /></Field>
               </div>
               <details className="group">
-                <summary className="cursor-pointer text-body text-ink-2 hover:text-ink select-none">Fiche de visite : équipements, clôture, litiges, notes</summary>
+                <summary className="cursor-pointer text-body text-ink-2 hover:text-ink select-none">Fiche de visite : équipements, clôture, assurance, litiges, notes</summary>
                 <div className="flex flex-col gap-3 pt-3">
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
                     {num("pi-cages", "Cages d'escalier", "cagesEscalier")}
@@ -253,6 +253,10 @@ export function FicheProposition({
                     {num("pi-visites", "Visites prévues", "visitesPrevues", "1")}
                     {num("pi-cs", "CS complémentaires", "csPrevus")}
                     <Field label="Clôture comptable" htmlFor="pi-cloture" className="col-span-2"><Input id="pi-cloture" value={im.clotureComptable ?? ""} onChange={(e) => champ("clotureComptable", e.target.value)} placeholder="31/12" /></Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+                    <Field label="Assurance du syndicat" htmlFor="pi-assurance" className="col-span-2 sm:col-span-4" hint="si inconnue, le contrat dit seulement « titulaire d'un contrat d'assurance responsabilité civile »"><Input id="pi-assurance" value={im.assurance ?? ""} onChange={(e) => champ("assurance", e.target.value)} placeholder="assureur" /></Field>
+                    <Field label="Souscrite le" htmlFor="pi-assurance-date" className="col-span-2"><Input id="pi-assurance-date" type="date" value={im.assuranceDateISO ?? ""} onChange={(e) => champ("assuranceDateISO", e.target.value || undefined)} /></Field>
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Field label="Litiges / procédures" htmlFor="pi-litiges"><Textarea id="pi-litiges" rows={2} value={im.litiges ?? ""} onChange={(e) => champ("litiges", e.target.value)} /></Field>
