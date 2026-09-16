@@ -24,6 +24,7 @@ import { FicheDossierReprise } from "./fiche-dossier-reprise";
 import type { DossierFicheVue } from "./vues";
 import type { FicheOwnerVue } from "./fiche-renseignements-bloc";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const dynamic = "force-dynamic";
 
 export default async function FicheDossierPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +38,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   ]);
   if (!dossier) notFound();
 
-  const aujourdHui = new Date().toISOString().slice(0, 10);
+  const aujourdHui = jourParis();
 
   const vue: DossierFicheVue = {
     ref: dossier.ref,

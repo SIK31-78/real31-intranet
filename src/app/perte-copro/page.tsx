@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Rows, Row } from "@/components/ui/list-rows";
 import { OuvrirDossierPerte } from "./ouvrir-dossier";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Perte de copropriété - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export const dynamic = "force-dynamic";
 export default async function PerteCoproPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const aujourdhuiISO = new Date().toISOString().slice(0, 10);
+  const aujourdhuiISO = jourParis();
   const [dossiers, toutes] = await Promise.all([
     listerDossiersPerte(aujourdhuiISO),
     getCoproRepository().listerToutes(),

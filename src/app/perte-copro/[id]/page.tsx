@@ -11,6 +11,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { FicheDossierPerte } from "./fiche-dossier";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Dossier de perte - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function DossierPertePage({ params }: { params: Promise<{ i
   if (!g) redirect("/dev-login");
   const dossier = await getDossierPerte(id);
   if (!dossier) notFound();
-  const aujourdhuiISO = new Date().toISOString().slice(0, 10);
+  const aujourdhuiISO = jourParis();
   const a = avancement(dossier, aujourdhuiISO);
 
   return (

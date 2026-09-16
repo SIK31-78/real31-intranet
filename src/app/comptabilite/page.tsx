@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { Page, PageHeader } from "@/components/ui/page";
 
+import { ancreDuJour } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Comptabilité - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -136,11 +137,7 @@ export default async function ComptabilitePage({
   const mois =
     typeof sp.mois === "string" && /^\d{4}-\d{2}$/.test(sp.mois) ? sp.mois : undefined;
 
-  // Vraie data : aujourd'hui reel ; mock : ancre calee sur les donnees mockees (2026-05-27).
-  const today =
-    process.env.COPRO_SOURCE === "supabase"
-      ? new Date().toISOString().slice(0, 10)
-      : "2026-05-27";
+  const today = ancreDuJour();
 
   const { dashboard, gestionnaires, mois: moisDispo, total } = await getDashboardComptable(
     today,

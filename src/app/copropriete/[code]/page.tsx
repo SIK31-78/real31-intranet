@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
 import { Page } from "@/components/ui/page";
 
+import { ancreDuJour } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = {
   title: "Fiche copropriété - REAL31 Intranet",
 };
@@ -20,10 +21,7 @@ export default async function CoproprietePage({
   const { code } = await params;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const aujourdhuiISO =
-    process.env.COPRO_SOURCE === "supabase"
-      ? new Date().toISOString().slice(0, 10)
-      : "2026-05-27";
+  const aujourdhuiISO = ancreDuJour();
   // LECTURE ELARGIE A L'EQUIPE (Sekou, 2026-09-04). Avant, seuls le pole comptable et les
   // super-admins ouvraient la fiche d'une copro qui n'etait pas la leur ; un gestionnaire
   // tombait sur un 404 - y compris depuis un resultat de recherche, qui montre desormais

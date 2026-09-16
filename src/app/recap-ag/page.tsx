@@ -13,6 +13,7 @@ import { HistoriqueRecaps, type RecapAffiche } from "@/components/recap-ag/histo
 import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import { appartenanceRecaps, estMonRecap } from "@/lib/domain/recap-ag/mes-recaps";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Récap AG - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function RecapAgPage({
   const coproInitial =
     typeof sp.copro === "string" && /^[A-Za-z0-9_-]{1,20}$/.test(sp.copro) ? sp.copro : undefined;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourParis();
   // Perimetre PORTEFEUILLE, meme cadrage que le select ci-dessous : on n'alerte que sur
   // ce que le gestionnaire peut corriger ICI (un comptable a sa propre vue, /comptabilite/recaps).
   const [copros, historique, enRetard, contratsGeneres] = await Promise.all([

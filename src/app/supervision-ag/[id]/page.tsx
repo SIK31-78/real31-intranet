@@ -14,6 +14,7 @@ import {
   conclureAgAction,
 } from "./actions";
 
+import { ancreDuJour } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = {
   title: "Supervision AG - REAL31 Intranet",
 };
@@ -29,10 +30,7 @@ export default async function SupervisionAgPage({
   const { id } = await params;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const aujourdhuiISO =
-    process.env.COPRO_SOURCE === "supabase"
-      ? new Date().toISOString().slice(0, 10)
-      : "2026-05-27";
+  const aujourdhuiISO = ancreDuJour();
   const supervision = await getSupervisionAg(id, g.id);
   if (!supervision) notFound();
 

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateLongue, formatMois } from "@/lib/format-date";
 import { Page, PageHeader } from "@/components/ui/page";
 
+import { ancreDuJour } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Récaps d'AG reçus - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -178,10 +179,7 @@ export default async function RecapsRecusPage() {
 
   // Vraie data : aujourd'hui reel ; mock : ancre calee sur les donnees mockees, comme
   // partout ailleurs (cf. /comptabilite) - sinon le mock vieillit et tout passe en retard.
-  const today =
-    process.env.COPRO_SOURCE === "supabase"
-      ? new Date().toISOString().slice(0, 10)
-      : "2026-05-27";
+  const today = ancreDuJour();
 
   const [{ aTraiter, traites }, enRetard] = await Promise.all([
     listerRecapsRecus(perimetre),

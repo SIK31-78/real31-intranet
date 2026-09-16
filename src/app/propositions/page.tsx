@@ -4,7 +4,7 @@ import { Link2, Plus, Search } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutCompleterProposition, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { etatRegistre, listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
-import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition } from "@/lib/domain/proposition/proposition";
+import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition, TON_STATUT } from "@/lib/domain/proposition/proposition";
 import {
   filtrer,
   FENETRE_TRANSFORMATION_ANNEES,
@@ -26,6 +26,7 @@ import { Stat } from "@/components/ui/stat";
 import { Rows, Row } from "@/components/ui/list-rows";
 import { Table, Thead, Tbody, Th, Tr, Td, LienLigne } from "@/components/ui/table";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Propositions de contrat - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -33,15 +34,7 @@ export const dynamic = "force-dynamic";
 // syndic ». Les filtres et le tri vivent dans l'URL (partageables) ; deux vues : la liste,
 // et les colonnes par statut pour ce qui est ouvert.
 
-const TON: Record<StatutProposition, "ok" | "warn" | "err" | "neutral" | "info"> = {
-  en_cours: "info",
-  accepte_cs: "warn",
-  reporte: "neutral",
-  elu: "ok",
-  refuse_cs: "err",
-  refuse_ag: "err",
-  refuse_real31: "neutral",
-};
+const TON = TON_STATUT;
 
 const TRIS: { value: string; label: string }[] = [
   { value: "date-desc", label: "Les plus récentes" },
@@ -92,7 +85,7 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   // se calcule sur ses decisions.
   const perimetre = filtrer(toutes, { ...filtre, statut: "toutes" });
   const compte = (s: StatutProposition) => perimetre.filter((p) => p.statut === s).length;
-  const aujourdHui = new Date().toISOString().slice(0, 10);
+  const aujourdHui = jourParis();
   const transfo = transformation(perimetre, aujourdHui);
   // Le registre ne s'interroge pas ici (une requete par proposition) : le compte suffit.
   const aSuggestion = ouvertes.filter((p) => !p.immeuble.immatriculation).length;

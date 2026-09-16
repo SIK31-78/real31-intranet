@@ -17,13 +17,14 @@ import { DossiersRepriseVue, type LigneDossierVue } from "./dossiers-reprise-vue
 import { PageHeader } from "@/components/ui/page";
 import { Callout } from "@/components/ui/callout";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const dynamic = "force-dynamic";
 
 export default async function DossiersReprisePage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
-  const aujourdHui = new Date().toISOString().slice(0, 10);
+  const aujourdHui = jourParis();
   const [dossiers, collaborateurs] = await Promise.all([
     listerDossiers(getRepriseDossierRepository()),
     listerCollaborateurs(),

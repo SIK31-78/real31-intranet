@@ -17,6 +17,7 @@ import { Table, Thead, Tbody, Th, Tr, Td, LienLigne } from "@/components/ui/tabl
 import { Card, CardBody } from "@/components/ui/card";
 import { EditionRapideContrat } from "@/components/contrat/edition-rapide-contrat";
 
+import { ancreDuJour } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Contrats de syndic - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -38,10 +39,7 @@ export const dynamic = "force-dynamic";
 export default async function ContratsPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const aujourdhuiISO =
-    process.env.COPRO_SOURCE === "supabase"
-      ? new Date().toISOString().slice(0, 10)
-      : "2026-05-27";
+  const aujourdhuiISO = ancreDuJour();
   const lignes = await listerContratsAPreparer(g.id, aujourdhuiISO);
   const enCours = lignes.filter((l) => l.etat !== "a-planifier");
   const sansAg = lignes.filter((l) => l.etat === "a-planifier");

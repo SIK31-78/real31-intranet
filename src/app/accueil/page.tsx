@@ -32,6 +32,7 @@ import { EchangesComptablesPanel } from "@/components/dashboard/echanges-comptab
 import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { AlerteMandatsSansAg } from "@/components/contrat/alerte-mandats-sans-ag";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Accueil - REAL31 Intranet" };
 
 // Lit la vraie data en mode supabase : rendu a la demande.
@@ -41,7 +42,7 @@ export default async function AccueilPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourParis();
   // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id.
   const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg] = await Promise.all([
     getAgSemaine(g.id),
