@@ -17,8 +17,20 @@ import {
 } from "@/lib/domain/dossier";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 
-// Validation des entrees (zod). Les enums (type/portee/statut) sont bornes en longueur ;
-// le service/repo rejette une valeur hors domaine.
+// Validation des entrees (zod). Les enums (type/portee/statut) sont de vraies enumerations :
+// l'adapter ne rejette rien, un statut inconnu ferait disparaitre le dossier des filtres et
+// un type inconnu ferait planter MODELES_ETAPES[type] (audit du 16/09/2026).
+const TYPES_DOSSIER = [
+  "travaux",
+  "sinistre",
+  "impaye",
+  "procedure",
+  "recouvrement",
+  "question_diverse",
+  "autre",
+] as const;
+const PORTEES_DOSSIER = ["copropriete", "coproprietaire", "lot"] as const;
+const STATUTS_DOSSIER = ["ouvert", "en_cours", "clos"] as const;
 const zId = z.string().trim().min(1).max(120);
 const zCode = z.string().trim().min(1).max(40);
 const zCourt = z.string().max(200);
@@ -63,8 +75,8 @@ export async function creerDossierAction(form: {
   const valid = z
     .object({
       coproCode: zCode,
-      type: zCourt,
-      portee: zCourt,
+      type: z.enum(TYPES_DOSSIER),
+      portee: z.enum(PORTEES_DOSSIER),
       cible: zCourt.optional(),
       titre: z.string().trim().min(1).max(300),
       modele: z.boolean(),
@@ -252,16 +264,6 @@ export async function rattacherAgAction(
 // sur les etapes/journal existants (on ne touche que ces 4 champs). Journalise une
 // note "Metadonnees modifiees". Cloisonne au perimetre + anti-IDOR (coproCode RELU
 // du dossier serveur, jamais du client).
-const TYPES_DOSSIER = [
-  "travaux",
-  "sinistre",
-  "impaye",
-  "procedure",
-  "recouvrement",
-  "question_diverse",
-  "autre",
-] as const;
-const PORTEES_DOSSIER = ["copropriete", "coproprietaire", "lot"] as const;
 
 export async function modifierDossierAction(
   id: string,
@@ -311,7 +313,7 @@ export async function supprimerDossierAction(id: string): Promise<void> {
 }
 
 export async function changerStatutAction(id: string, statut: StatutDossier): Promise<void> {
-  if (!z.object({ id: zId, statut: zCourt }).safeParse({ id, statut }).success) return;
+  if (!z.object({ id: zId, statut: z.enum(STATUTS_DOSSIER) }).safeParse({ id, statut }).success) return;
   const d = await getDossierRepository().get(id);
   if (!d) return;
   const g = await autorise(d.coproCode);
