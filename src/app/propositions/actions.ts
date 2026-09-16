@@ -6,11 +6,13 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutElire, peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { ORIGINES, STATUTS_PROPOSITION } from "@/lib/domain/proposition/proposition";
 import {
   calculerPrix,
   creerProposition,
   detacherProposition,
+  getProposition,
   marquerOffreRemise,
   mettreAJourProposition,
   rattacherProposition,
@@ -136,6 +138,12 @@ export async function mettreAJourPropositionAction(input: unknown): Promise<Res>
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
+  const profil = profilDe(g);
+  if (p.data.prix && !peutFaireOffre(profil)) return { ok: false, erreur: `Le prix : ${MESSAGE_RESERVE_DIRECTION}` };
+  if (!p.data.prix && !peutCompleterProposition(profil)) {
+    const existante = await getProposition(p.data.id);
+    if (!existante || existante.creeParNom !== g.nomComplet) return { ok: false, erreur: "Vous ne pouvez modifier que les contacts que vous avez créés." };
+  }
   try {
     const { id, ...maj } = p.data;
     await mettreAJourProposition(
@@ -173,6 +181,7 @@ export async function rattacherPropositionAction(input: unknown): Promise<Res> {
   if (!p.success) return { ok: false, erreur: "Immatriculation invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutCompleterProposition(profilDe(g))) return { ok: false, erreur: "Réservé à l'équipe syndic." };
   try {
     await rattacherProposition(p.data.id, p.data.immatriculation.toUpperCase(), g.nomComplet);
     revalidatePath("/propositions");
@@ -187,6 +196,7 @@ export async function detacherPropositionAction(id: unknown): Promise<Res> {
   if (typeof id !== "string" || !id) return { ok: false, erreur: "Proposition inconnue." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutCompleterProposition(profilDe(g))) return { ok: false, erreur: "Réservé à l'équipe syndic." };
   try {
     await detacherProposition(id, g.nomComplet);
     revalidatePath(`/propositions/${id}`);
@@ -203,6 +213,7 @@ export async function marquerOffreRemiseAction(input: unknown): Promise<Res> {
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutFaireOffre(profilDe(g))) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
   try {
     const { id, ...options } = p.data;
     await marquerOffreRemise(id, options, g.nomComplet);
@@ -231,6 +242,7 @@ export async function elirePropositionAction(input: unknown): Promise<Res<{ copr
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutElire(profilDe(g))) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
   try {
     const { id, ...choix } = p.data;
     const r = await elireProposition(

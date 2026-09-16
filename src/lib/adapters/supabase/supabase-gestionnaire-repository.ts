@@ -32,6 +32,32 @@ function toGestionnaire(u: UserRow): Gestionnaire {
   };
 }
 
+/**
+ * Les collaborateurs partis (intranet_collaborateur.depart_le renseigne et passe) : hors
+ * selecteurs et listes. Table absente = personne n'est parti (degradation propre).
+ */
+async function idsPartis(supabase: ReturnType<typeof createSupabasePublicClient>): Promise<Set<string>> {
+  const { data, error } = await supabase.from("intranet_collaborateur").select("user_id, depart_le").not("depart_le", "is", null);
+  if (error || !data) return new Set();
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  return new Set((data as { user_id: string; depart_le: string }[]).filter((r) => r.depart_le <= aujourdHui).map((r) => r.user_id));
+}
+
+/** Les habilitations en cours d'un collaborateur, sous la forme "type:agence". */
+async function habilitationsDe(supabase: ReturnType<typeof createSupabasePublicClient>, userId: string): Promise<string[]> {
+  const { data, error } = await supabase.from("intranet_habilitation").select("habilitation, agence, depuis, jusqua").eq("user_id", userId);
+  if (error || !data) return [];
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  return (data as { habilitation: string; agence: string | null; depuis: string; jusqua: string | null }[])
+    .filter((h) => h.depuis <= aujourdHui && (!h.jusqua || h.jusqua >= aujourdHui))
+    .map((h) => (h.agence ? `${h.habilitation}:${h.agence}` : h.habilitation));
+}
+
+async function avecHabilitations(supabase: ReturnType<typeof createSupabasePublicClient>, g: Gestionnaire): Promise<Gestionnaire> {
+  const habilitations = await habilitationsDe(supabase, g.id);
+  return habilitations.length > 0 ? { ...g, habilitations } : g;
+}
+
 export class SupabaseGestionnaireRepository implements GestionnaireRepository {
   async list(): Promise<Gestionnaire[]> {
     const supabase = createSupabasePublicClient();
@@ -49,11 +75,9 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       ),
     ];
     if (ids.length === 0) return [];
-    const { data: users } = await supabase
-      .from("User")
-      .select(USER_COLS)
-      .in("id", ids);
+    const [{ data: users }, partis] = await Promise.all([supabase.from("User").select(USER_COLS).in("id", ids), idsPartis(supabase)]);
     return ((users as UserRow[] | null) ?? [])
+      .filter((u) => !partis.has(u.id))
       .map(toGestionnaire)
       .sort((a, b) => a.nomComplet.localeCompare(b.nomComplet));
   }
@@ -78,8 +102,9 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
 
   async listTous(): Promise<Gestionnaire[]> {
     const supabase = createSupabasePublicClient();
-    const { data } = await supabase.from("User").select(USER_COLS).order("name");
+    const [{ data }, partis] = await Promise.all([supabase.from("User").select(USER_COLS).order("name"), idsPartis(supabase)]);
     return ((data as UserRow[] | null) ?? [])
+      .filter((u) => !partis.has(u.id))
       .map(toGestionnaire)
       .sort((a, b) => a.nomComplet.localeCompare(b.nomComplet, "fr"));
   }
@@ -91,7 +116,7 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       .select(USER_COLS)
       .eq("id", id)
       .maybeSingle();
-    return data ? toGestionnaire(data as UserRow) : null;
+    return data ? avecHabilitations(supabase, toGestionnaire(data as UserRow)) : null;
   }
 
   async findByEmail(email: string): Promise<Gestionnaire | null> {
@@ -102,6 +127,6 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       .select(USER_COLS)
       .ilike("email", email)
       .maybeSingle();
-    return data ? toGestionnaire(data as UserRow) : null;
+    return data ? avecHabilitations(supabase, toGestionnaire(data as UserRow)) : null;
   }
 }

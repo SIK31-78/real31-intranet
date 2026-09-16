@@ -242,3 +242,121 @@ export function estAdminReprise(email: string | null | undefined): boolean {
 /** Message affiche a un non-admin sur une action reservee (UI + refus serveur : meme phrase). */
 export const MESSAGE_RESERVE_ADMIN_REPRISE =
   "Action reservee aux directeurs et managers. Tu peux consulter le suivi de ce dossier ; pour agir dessus, rapproche-toi de ton manager.";
+
+// =============================================================================
+// ROLES PILOTES PAR LA TABLE public."User".role (extension du 16/09/2026, Sekou)
+// =============================================================================
+//
+// Depuis l'organigramme du 16/09, la table App A est LA source des roles du cabinet :
+// ADMIN (direction : Emmanuel, Lea L., Sekou), DIRECTEUR_SYNDIC (Sandy a LGC, Dimitri a ML),
+// DIRECTEUR_AGENCE (Sandrine a ML), GESTIONNAIRE, ASSISTANT, COMPTABLE, GESTIONNAIRE_LOCATIVE,
+// AUTRE (vente, location, accueil). Les allowlists d'env ci-dessus restent un SECOURS
+// (union), a vider une fois la table verifiee.
+//
+// Ce que la table ne sait pas dire vit dans les HABILITATIONS intranet (table
+// intranet_habilitation, passees ici en argument, ex. "referent_syndic:HLS" : Titouan, de ML,
+// est le referent syndic de Houilles qui n'a pas de directeur).
+//
+// LA REGLE METIER (Sekou, 16/09/2026) : « ce ne sont que les directeurs qui font des offres ».
+// Prix, geste commercial, offre, election d'une proposition, ouverture d'une perte = la
+// DIRECTION (direction table, referent, super-admin). Gestionnaires et assistants creent un
+// contact, voient le pipeline, completent la fiche. Comptables : lecture. Autres : leurs
+// contacts seulement.
+
+/** Le profil complet d'un collaborateur, tel que la session le porte. */
+export interface Profil {
+  email?: string | null;
+  /** public."User".role brut. */
+  roleTable?: string | null;
+  /** Habilitations intranet, ex. "referent_syndic:HLS". */
+  habilitations?: readonly string[];
+}
+
+const ROLES_DIRECTION_TABLE = new Set(["ADMIN", "DIRECTEUR_SYNDIC", "DIRECTEUR_AGENCE"]);
+const ROLES_SYNDIC_TABLE = new Set(["GESTIONNAIRE", "ASSISTANT"]);
+const ROLES_HORS_SYNDIC_TABLE = new Set(["AUTRE", "GESTIONNAIRE_LOCATIVE"]);
+
+function roleTableNormalise(roleTable: string | null | undefined): string {
+  return (roleTable ?? "").trim().toUpperCase();
+}
+
+/** Direction d'apres la table : ADMIN, DIRECTEUR_SYNDIC, DIRECTEUR_AGENCE. */
+export function estDirectionTable(roleTable: string | null | undefined): boolean {
+  return ROLES_DIRECTION_TABLE.has(roleTableNormalise(roleTable));
+}
+
+/** Referent syndic d'une agence (habilitation intranet), de n'importe quelle agence si `agence` est absent. */
+export function estReferentSyndic(profil: Profil, agence?: string): boolean {
+  return (profil.habilitations ?? []).some((h) => {
+    const [type, ag] = h.split(":");
+    return type === "referent_syndic" && (!agence || (ag ?? "").toUpperCase() === agence.toUpperCase());
+  });
+}
+
+/**
+ * La DIRECTION au sens des decisions : direction table, referent d'agence, directeur d'env
+ * (secours), super-admin.
+ */
+export function estDirection(profil: Profil): boolean {
+  return estSuperAdmin(profil.email) || estDirecteur(profil.email) || estDirectionTable(profil.roleTable) || estReferentSyndic(profil);
+}
+
+/** Travaille au syndic : gestionnaire ou assistant de copropriete, ou la direction. */
+export function estEquipeSyndic(profil: Profil): boolean {
+  return ROLES_SYNDIC_TABLE.has(roleTableNormalise(profil.roleTable)) || estDirection(profil);
+}
+
+/** Hors syndic : vente, location, accueil (AUTRE, GESTIONNAIRE_LOCATIVE). */
+export function estHorsSyndic(profil: Profil): boolean {
+  return ROLES_HORS_SYNDIC_TABLE.has(roleTableNormalise(profil.roleTable)) && !estDirection(profil);
+}
+
+// --- INTENTIONS METIER : propositions de contrat (ADR-039) ---
+
+/** Tout collaborateur connecte peut noter un contact : c'est le but de la saisie rapide. */
+export function peutSaisirContact(profil: Profil): boolean {
+  return profil !== null;
+}
+
+/** Voir tout le pipeline, ou seulement ses propres contacts (hors syndic). */
+export function peutVoirToutesLesPropositions(profil: Profil): boolean {
+  return !estHorsSyndic(profil);
+}
+
+/** Completer la fiche de visite, le contact, le suivi : l'equipe syndic (pas la compta, pas hors syndic). */
+export function peutCompleterProposition(profil: Profil): boolean {
+  return estEquipeSyndic(profil);
+}
+
+/** Fixer le prix et le geste commercial, preparer et remettre l'offre : la direction. */
+export function peutFaireOffre(profil: Profil): boolean {
+  return estDirection(profil);
+}
+
+/** Passer une proposition « elue » et creer la copropriete (App A, contrat, Pennylane, reprise) : la direction. */
+export function peutElire(profil: Profil): boolean {
+  return estDirection(profil);
+}
+
+/** Ouvrir un dossier de perte (la copro passe inactive) : la direction. */
+export function peutOuvrirPerte(profil: Profil): boolean {
+  return estDirection(profil);
+}
+
+/** Editer / imprimer un contrat de renouvellement, faire le recap AG : l'equipe syndic et la compta. */
+export function peutEditerContrat(profil: Profil): boolean {
+  return estEquipeSyndic(profil) || estComptable(profil.email, profil.roleTable);
+}
+
+/** Administrer le bareme : super-admin seulement. */
+export function peutEditerBareme(profil: Profil): boolean {
+  return estSuperAdmin(profil.email);
+}
+
+/** Message unique (UI + refus serveur) pour une action reservee a la direction. */
+export const MESSAGE_RESERVE_DIRECTION = "Réservé à la direction (directeur de copropriété, référent d'agence).";
+
+/** Le profil de droits d'un gestionnaire de session (email, role table, habilitations). */
+export function profilDe(g: { email?: string | null; role?: string | null; habilitations?: readonly string[] }): Profil {
+  return { email: g.email ?? null, roleTable: g.role ?? null, habilitations: g.habilitations ?? [] };
+}

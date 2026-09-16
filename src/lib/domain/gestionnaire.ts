@@ -23,4 +23,10 @@ export interface Gestionnaire {
    * Absent si la colonne n'est pas renseignee.
    */
   agencyId?: string;
+  /**
+   * Habilitations intranet (table intranet_habilitation), ex. "referent_syndic:HLS" : ce
+   * que public."User".role ne sait pas dire. Resolues a la session (cf. lib/auth/roles,
+   * `Profil`). Absent = aucune.
+   */
+  habilitations?: string[];
 }

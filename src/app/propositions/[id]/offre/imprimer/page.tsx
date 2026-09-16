@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
 import { BoutonImprimer } from "@/components/odj/bouton-imprimer";
 import { DocumentContrat } from "@/components/contrat/document-contrat";
@@ -26,6 +27,7 @@ export default async function ContratProspectImprimerPage({
   const { ag, debut, duree } = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
+  if (!peutFaireOffre(profilDe(g))) redirect(`/propositions/${id}`);
   const jour = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
   const dureeMois = Number(duree);
   let offre;

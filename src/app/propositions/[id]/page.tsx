@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Building2, FileText } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutElire, peutFaireOffre, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { getAgenceRepository } from "@/lib/adapters/router";
 import { calculerPrix, contexteImmeuble, getProposition, suggererRapprochement } from "@/lib/services/proposition/propositions";
 import { LIBELLE_STATUT, STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
@@ -21,6 +22,10 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
   if (!g) redirect("/dev-login");
   const p = await getProposition(id);
   if (!p) notFound();
+  // Hors syndic (vente, location, accueil) : seulement les contacts qu'on a soi-meme notes.
+  const profil = profilDe(g);
+  if (!peutVoirToutesLesPropositions(profil) && p.creeParNom !== g.nomComplet) notFound();
+  const droits = { completer: peutCompleterProposition(profil) || p.creeParNom === g.nomComplet, offre: peutFaireOffre(profil), elire: peutElire(profil) };
   const [prix, agences, contexte, suggestion] = await Promise.all([
     calculerPrix(p.immeuble),
     getAgenceRepository().listerAgences(),
@@ -47,20 +52,21 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
           actions={
             <>
               <ButtonLink href="/propositions" variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Pipeline</ButtonLink>
-              {STATUTS_OUVERTS.has(p.statut) && (
+              {STATUTS_OUVERTS.has(p.statut) && droits.offre && (
                 <ButtonLink href={`/propositions/${p.id}/offre`} variant={p.statut === "accepte_cs" ? "secondary" : "primary"} size="sm" title={obstacles.length ? `Il manque : ${obstacles.join(", ")}` : undefined}>
                   <FileText strokeWidth={1.5} /> {p.remisePropositionISO ? "Revoir l'offre" : "Préparer l'offre"}
                 </ButtonLink>
               )}
-              {(p.statut === "accepte_cs" || p.statut === "elu") && !p.coproCode && (
+              {(p.statut === "accepte_cs" || p.statut === "elu") && !p.coproCode && droits.elire && (
                 <ButtonLink href={`/propositions/${p.id}/election`} variant="primary" size="sm">
                   <Building2 strokeWidth={1.5} /> Élue : créer la copropriété
                 </ButtonLink>
               )}
+              {STATUTS_OUVERTS.has(p.statut) && !droits.offre && <span className="text-caption text-ink-3" title={MESSAGE_RESERVE_DIRECTION}>offre et élection : direction</span>}
             </>
           }
         />
-        <FicheProposition proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} contexte={contexte} suggestion={suggestion} />
+        <FicheProposition proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} contexte={contexte} suggestion={suggestion} droits={{ completer: droits.completer, offre: droits.offre }} />
       </Page>
     </AppShell>
   );

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { peutElire, profilDe } from "@/lib/auth/roles";
 import { preparerElection } from "@/lib/services/proposition/election";
 import { adressePourContrat } from "@/lib/domain/proposition/offre";
 import { AppShell } from "@/components/layout/app-shell";
@@ -21,6 +22,7 @@ export default async function ElectionPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
+  if (!peutElire(profilDe(g))) redirect(`/propositions/${id}`);
   let prep;
   try {
     prep = await preparerElection(id);

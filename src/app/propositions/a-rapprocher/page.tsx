@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { peutCompleterProposition, profilDe } from "@/lib/auth/roles";
 import { propositionsARapprocher } from "@/lib/services/proposition/propositions";
 import { LIBELLE_STATUT } from "@/lib/domain/proposition/proposition";
 import { formatJour } from "@/lib/services/facturation/format";
@@ -25,6 +26,7 @@ export const dynamic = "force-dynamic";
 export default async function ARapprocherPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
+  if (!peutCompleterProposition(profilDe(g))) redirect("/propositions");
   const lignes = await propositionsARapprocher();
   const avec = lignes.filter((l) => l.suggestion.candidats.length > 0);
   const sans = lignes.filter((l) => l.suggestion.candidats.length === 0);

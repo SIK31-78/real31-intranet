@@ -6,6 +6,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { MESSAGE_RESERVE_DIRECTION, peutOuvrirPerte, profilDe } from "@/lib/auth/roles";
 import { mettreAJourEtapePerte, ouvrirDossierPerte } from "@/lib/services/perte/dossier-perte";
 
 type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
@@ -51,6 +52,7 @@ export async function ouvrirDossierAction(input: unknown): Promise<Res<{ dossier
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutOuvrirPerte(profilDe(g))) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
   if (p.data.confirmation.trim().toUpperCase() !== p.data.coproCode.toUpperCase()) {
     return { ok: false, erreur: "Retape le code de la copropriété pour confirmer." };
   }

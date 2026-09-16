@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Link2, Plus, Search } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { peutCompleterProposition, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { etatRegistre, listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
 import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition } from "@/lib/domain/proposition/proposition";
 import {
@@ -79,7 +80,11 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   const tri = lireTri(sp);
   const vue = sp.vue === "statut" ? "statut" : "liste";
 
-  const [toutes, registre] = await Promise.all([listerPropositions(), etatRegistre()]);
+  const profil = profilDe(g);
+  const [chargees, registre] = await Promise.all([listerPropositions(), etatRegistre()]);
+  // Hors syndic (vente, location, accueil) : le pipeline se limite aux contacts qu'on a notes.
+  const toutes = peutVoirToutesLesPropositions(profil) ? chargees : chargees.filter((p) => p.creeParNom === g.nomComplet);
+  const equipeSyndic = peutCompleterProposition(profil);
   const ouvertes = toutes.filter((p) => STATUTS_OUVERTS.has(p.statut));
   const lignes = trier(filtrer(toutes, filtre), tri) as PropositionResume[];
   // Les compteurs suivent les filtres (agence, annee, texte...) mais pas le statut : on
@@ -108,7 +113,7 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
           eyebrow={`${ouvertes.length} ouvertes · ${toutes.length} depuis 2012`}
           actions={
             <>
-              {aSuggestion > 0 && (
+              {aSuggestion > 0 && equipeSyndic && (
                 <ButtonLink href="/propositions/a-rapprocher" variant="secondary">
                   <Link2 strokeWidth={1.5} /> À rapprocher du registre ({aSuggestion})
                 </ButtonLink>

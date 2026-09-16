@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { peutOuvrirPerte, profilDe } from "@/lib/auth/roles";
 import { getCoproRepository } from "@/lib/adapters/router";
 import { listerDossiersPerte } from "@/lib/services/perte/dossier-perte";
 import { definitionEtape, echeanceEtape } from "@/lib/domain/perte/dossier";
@@ -52,13 +53,17 @@ export default async function PerteCoproPage() {
           }
         />
 
-        <Section id="perte-ouvrir" titre="Perdre une copropriété">
-          <Card>
-            <CardBody>
-              <OuvrirDossierPerte copros={actives} aujourdhuiISO={aujourdhuiISO} />
-            </CardBody>
-          </Card>
-        </Section>
+        {peutOuvrirPerte(profilDe(g)) ? (
+          <Section id="perte-ouvrir" titre="Perdre une copropriété">
+            <Card>
+              <CardBody>
+                <OuvrirDossierPerte copros={actives} aujourdhuiISO={aujourdhuiISO} />
+              </CardBody>
+            </Card>
+          </Section>
+        ) : (
+          <p className="text-caption text-ink-3">Ouvrir un dossier de perte est une décision de direction ; les dossiers ouverts se suivent ici par tous.</p>
+        )}
 
         <Section id="perte-en-cours" titre="En cours" compte={enCours.length}>
           {enCours.length === 0 ? (

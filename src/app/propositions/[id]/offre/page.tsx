@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, FileText } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
 import { DUREES_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
 import { formatJour } from "@/lib/services/facturation/format";
@@ -39,6 +40,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
   const sp = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
+  if (!peutFaireOffre(profilDe(g))) redirect(`/propositions/${id}`);
   const options = lireOptions(sp);
   let offre;
   try {

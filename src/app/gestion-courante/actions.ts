@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { peutVoirGestionCourante } from "@/lib/auth/roles";
+import { MESSAGE_RESERVE_DIRECTION, peutOuvrirPerte, peutVoirGestionCourante, profilDe } from "@/lib/auth/roles";
 import { ouvrirDossierPerte } from "@/lib/services/perte/dossier-perte";
 import {
   apercuGestionCourante,
@@ -95,6 +95,8 @@ export async function perdreCoproAction(input: unknown): Promise<Res<{ dossierId
   if (!g) return { ok: false, erreur: "Session expirée." };
   if (!peutVoirGestionCourante(g.email))
     return { ok: false, erreur: "Réservé à la comptabilité du cabinet." };
+  // Perdre une copro est une decision de direction (16/09/2026), meme depuis la facturation.
+  if (!peutOuvrirPerte(profilDe(g))) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
   if (p.data.confirmation.trim().toUpperCase() !== p.data.coproCode.toUpperCase()) {
     return { ok: false, erreur: "Retape le code de la copropriété pour confirmer." };
   }

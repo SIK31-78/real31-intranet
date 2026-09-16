@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { peutVoirGestionCourante } from "@/lib/auth/roles";
+import { peutVoirGestionCourante, peutOuvrirPerte, profilDe } from "@/lib/auth/roles";
 import { trimestreCourant } from "@/lib/services/facturation/gestion-courante";
 import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import { AppShell } from "@/components/layout/app-shell";
@@ -75,7 +75,7 @@ export default async function GestionCourantePage() {
         {/* Perdre une copropriete (Sekou, 15/09/2026) : ici, parce que c'est la
             facturation que ca protege - LAPROMENAD, plus geree depuis juin, etait
             toujours ACTIVE et serait partie dans la prochaine fournee. */}
-        {habilite && (
+        {habilite && peutOuvrirPerte(profilDe(g)) && (
           <Section id="perdre-copro" titre="Perdre une copropriété">
             <Card>
               <CardBody>

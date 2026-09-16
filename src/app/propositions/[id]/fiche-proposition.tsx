@@ -69,12 +69,15 @@ export function FicheProposition({
   agences,
   contexte,
   suggestion,
+  droits,
 }: {
   proposition: Proposition;
   prixGrille: PrixCalcule;
   agences: string[];
   contexte: ContexteImmeuble;
   suggestion?: SuggestionRapprochement;
+  /** Ce que le collaborateur connecte peut faire ici (cf. lib/auth/roles). */
+  droits: { completer: boolean; offre: boolean };
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -154,9 +157,10 @@ export function FicheProposition({
           <Callout ton="warn">Pour faire l&apos;offre, il manque encore : {manquant.join(", ")}.</Callout>
         )}
 
-        <Section id="prop-prix" titre="Le prix" actions={<Button type="button" variant="ghost" size="sm" disabled={pending} onClick={recalculer}>Recalculer depuis l&apos;immeuble</Button>}>
+        <Section id="prop-prix" titre="Le prix" actions={droits.offre ? <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={recalculer}>Recalculer depuis l&apos;immeuble</Button> : <span className="text-caption text-ink-3">prix et offre : réservés à la direction</span>}>
           <Card>
             <CardBody className="flex flex-col gap-4">
+            <fieldset disabled={!droits.offre} className="contents">
               {prix.grilleDisponible ? (
                 <DataList align="left">
                   {prix.forfait.details.map((d) => (
@@ -208,6 +212,7 @@ export function FicheProposition({
                   </p>
                 )}
               </div>
+            </fieldset>
             </CardBody>
           </Card>
         </Section>
@@ -216,13 +221,16 @@ export function FicheProposition({
           id="prop-immeuble"
           titre="L'immeuble"
           actions={
-            <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={() => enregistrer({ immeuble: im }, "Immeuble enregistré.")}>
-              <Save strokeWidth={1.5} /> Enregistrer
-            </Button>
+            droits.completer ? (
+              <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={() => enregistrer({ immeuble: im }, "Immeuble enregistré.")}>
+                <Save strokeWidth={1.5} /> Enregistrer
+              </Button>
+            ) : undefined
           }
         >
           <Card>
             <CardBody className="flex flex-col gap-4">
+            <fieldset disabled={!droits.completer} className="contents">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
                 <Field label="Adresse" htmlFor="pi-adresse" className="col-span-2 sm:col-span-4"><Input id="pi-adresse" value={im.adresse} onChange={(e) => champ("adresse", e.target.value)} /></Field>
                 <Field label="Code postal" htmlFor="pi-cp"><Input id="pi-cp" value={im.codePostal ?? ""} onChange={(e) => champ("codePostal", e.target.value)} /></Field>
@@ -264,6 +272,7 @@ export function FicheProposition({
                   </div>
                 </div>
               </details>
+            </fieldset>
             </CardBody>
           </Card>
         </Section>
@@ -290,11 +299,12 @@ export function FicheProposition({
 
       {/* ---- Colonne laterale : UNE carte, des blocs separes par une hairline ---- */}
       <Card>
+        <fieldset disabled={!droits.completer} className="contents">
         <div className="divide-y divide-line">
           <BlocLateral
             titre="Le suivi"
             actions={
-              <Button
+              droits.completer && <Button
                 type="button"
                 variant="primary"
                 size="sm"
@@ -311,6 +321,7 @@ export function FicheProposition({
               </Button>
             }
           >
+            {!droits.completer && <p className="text-caption text-ink-3">Lecture seule : l&apos;équipe syndic complète cette fiche.</p>}
             <Field label="Statut" htmlFor="ps-statut">
               <Select id="ps-statut" value={statut} onChange={(e) => setStatut(e.target.value as StatutProposition)}>
                 {STATUTS_PROPOSITION.map((s) => <option key={s} value={s}>{LIBELLE_STATUT[s]}</option>)}
@@ -343,9 +354,11 @@ export function FicheProposition({
           <BlocLateral
             titre="Le contact"
             actions={
-              <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={() => enregistrer({ contact }, "Contact enregistré.")}>
-                <Save strokeWidth={1.5} /> Enregistrer
-              </Button>
+              droits.completer && (
+                <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={() => enregistrer({ contact }, "Contact enregistré.")}>
+                  <Save strokeWidth={1.5} /> Enregistrer
+                </Button>
+              )
             }
           >
             <Field label="Nom" htmlFor="pc-nom"><Input id="pc-nom" value={contact.nom ?? ""} onChange={(e) => setContact({ ...contact, nom: e.target.value })} /></Field>
@@ -354,7 +367,7 @@ export function FicheProposition({
             <Field label="E-mail" htmlFor="pc-email"><Input id="pc-email" value={contact.email ?? ""} onChange={(e) => setContact({ ...contact, email: e.target.value })} /></Field>
           </BlocLateral>
 
-          <BlocLateral titre="Cet immeuble" actions={p.immeuble.immatriculation ? <DetacherRegistre propositionId={p.id} /> : undefined}>
+          <BlocLateral titre="Cet immeuble" actions={p.immeuble.immatriculation && droits.completer ? <DetacherRegistre propositionId={p.id} /> : undefined}>
             {p.immeuble.immatriculation ? (
               <>
                 <p className="text-caption text-ink-2">
@@ -400,11 +413,12 @@ export function FicheProposition({
                 <p className="text-caption text-ink-2">
                   Pas encore rattachée au registre national. Le rattachement retrouve l&apos;historique de l&apos;immeuble et le lien avec nos copropriétés.
                 </p>
-                <RattacherRegistre propositionId={p.id} sur={suggestion?.sur} candidats={suggestion?.candidats ?? []} />
+                {droits.completer && <RattacherRegistre propositionId={p.id} sur={suggestion?.sur} candidats={suggestion?.candidats ?? []} />}
               </>
             )}
           </BlocLateral>
         </div>
+        </fieldset>
       </Card>
     </div>
   );
