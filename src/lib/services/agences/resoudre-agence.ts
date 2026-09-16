@@ -4,7 +4,7 @@
 // serveur), pas un aller-retour par copro.
 
 import { cache } from "react";
-import { getAgenceRepository } from "@/lib/adapters/router";
+import { getAgenceRepository, getCoproRepository } from "@/lib/adapters/router";
 
 /** Table { id -> code } des agences, memoisee par requete. [] si la table est absente
  *  (adapter degrade) -> la Map est vide -> aucune resolution -> pas de filtre agence. */
@@ -24,4 +24,13 @@ export async function codeAgence(
   if (!agencyId) return undefined;
   const parId = await chargerAgencesParId();
   return parId.get(agencyId);
+}
+
+/**
+ * Code d'agence d'une copropriete (ML/LGC/HLS/ASN), ou undefined si la copro est inconnue
+ * ou sans agence. Sert aux gardes « direction DE CETTE AGENCE » (referent syndic).
+ */
+export async function agenceDeCopro(coproCode: string): Promise<string | undefined> {
+  const copro = await getCoproRepository().findByCode(coproCode).catch(() => null);
+  return codeAgence(copro?.agenceId);
 }

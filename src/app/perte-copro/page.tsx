@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { peutOuvrirPerte, profilDe } from "@/lib/auth/roles";
+import { estDirectionQuelquePart, profilDe } from "@/lib/auth/roles";
 import { getCoproRepository } from "@/lib/adapters/router";
 import { listerDossiersPerte } from "@/lib/services/perte/dossier-perte";
 import { definitionEtape, echeanceEtape } from "@/lib/domain/perte/dossier";
@@ -53,7 +53,7 @@ export default async function PerteCoproPage() {
           }
         />
 
-        {peutOuvrirPerte(profilDe(g)) ? (
+        {estDirectionQuelquePart(profilDe(g)) ? (
           <Section id="perte-ouvrir" titre="Perdre une copropriété">
             <Card>
               <CardBody>
