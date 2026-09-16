@@ -8,26 +8,33 @@
 // entite seul.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FactureAEmettre } from "@/lib/ports/facturation-repository";
-import type { DemandeEmission } from "@/lib/ports/invoicing-provider";
+import type { FacturationRepository, FactureAEmettre } from "@/lib/ports/facturation-repository";
+import type { DemandeEmission, InvoicingProvider } from "@/lib/ports/invoicing-provider";
 import { construirePayloadFacture } from "@/lib/adapters/pennylane/payload";
 
 const etat = vi.hoisted(() => {
   const ref = {
     aEmettre: [] as FactureAEmettre[],
     demandes: [] as DemandeEmission[],
-    erreurs: [] as string[],
+    erreurs: [] as { id: string; message: string }[],
+    facturees: [] as string[],
+    /** Fait echouer l'emission de ces factures (par id). */
+    enPanne: new Set<string>(),
     reset() {
       ref.aEmettre = [];
       ref.demandes = [];
       ref.erreurs = [];
+      ref.facturees = [];
+      ref.enPanne.clear();
     },
   };
   return ref;
 });
 
+// Les mocks sont types sur les NOMS des methodes du port : un renommage casse tsc ici,
+// pas seulement en production (audit 16/09/2026).
 vi.mock("@/lib/adapters/router", () => ({
-  getFacturationRepository: () => ({
+  getFacturationRepository: (): Partial<Record<keyof FacturationRepository, unknown>> => ({
     async listerFacturesAEmettre() {
       return etat.aEmettre;
     },
@@ -40,13 +47,16 @@ vi.mock("@/lib/adapters/router", () => ({
     async getAgenceCopro() {
       return "LGC";
     },
-    async marquerFacturee() {},
-    async marquerErreur(_id: string, message: string) {
-      etat.erreurs.push(message);
+    async marquerFacturee(id: string) {
+      etat.facturees.push(id);
+    },
+    async marquerErreur(id: string, message: string) {
+      etat.erreurs.push({ id, message });
     },
   }),
-  getInvoicingProvider: () => ({
+  getInvoicingProvider: (): Partial<Record<keyof InvoicingProvider, unknown>> => ({
     async emettreFacture(demande: DemandeEmission) {
+      if (etat.enPanne.has(demande.codeEntite)) throw new Error(`Emission Pennylane : HTTP 500 (${demande.codeEntite})`);
       etat.demandes.push(demande);
       return { factureExterneId: `ext-${etat.demandes.length}` };
     },
@@ -124,5 +134,30 @@ describe("emission - reference du sinistre sur le PDF", () => {
     for (const demande of etat.demandes) {
       expect(construirePayloadFacture(demande).pdf_invoice_free_text).toBe("S072");
     }
+  });
+});
+
+describe("emission - un echec n'arrete pas le lot", () => {
+  it("la 2e facture plante : les deux autres partent, l'echec est persiste sur la bonne facture", async () => {
+    etat.aEmettre = [
+      facture({ id: "f1", coproCode: "S001" }),
+      facture({ id: "f2", coproCode: "S002" }),
+      facture({ id: "f3", coproCode: "S003" }),
+    ];
+    etat.enPanne.add("S002");
+
+    const resultat = await emettreFacturesEnAttente(["f1", "f2", "f3"]);
+
+    expect(resultat).toEqual({ emises: 2, enErreur: 1, erreurs: [{ factureId: "f2", message: "Emission Pennylane : HTTP 500 (S002)" }] });
+    expect(etat.facturees).toEqual(["f1", "f3"]);
+    expect(etat.erreurs).toEqual([{ id: "f2", message: "Emission Pennylane : HTTP 500 (S002)" }]);
+  });
+
+  it("facture sans ligne : refusee et persistee en erreur, sans appel au fournisseur", async () => {
+    etat.aEmettre = [facture({ id: "f9", lignes: [] })];
+    const resultat = await emettreFacturesEnAttente(["f9"]);
+    expect(resultat.enErreur).toBe(1);
+    expect(etat.demandes).toHaveLength(0);
+    expect(etat.erreurs[0]!.message).toMatch(/sans ligne/);
   });
 });
