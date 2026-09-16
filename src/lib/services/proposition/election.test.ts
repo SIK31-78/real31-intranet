@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Proposition } from "@/lib/domain/proposition/proposition";
+import type { PropositionRepository } from "@/lib/ports/proposition-repository";
+import type { CoproRepository } from "@/lib/ports/copro-repository";
+import type { FacturationRepository } from "@/lib/ports/facturation-repository";
+import type { InvoicingProvider } from "@/lib/ports/invoicing-provider";
+import type { AgenceRepository } from "@/lib/ports/agence-repository";
+import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
+
+// Les mocks sont types sur les NOMS des methodes des ports : un renommage casse tsc ici.
+type Partiel<P> = Partial<Record<keyof P, unknown>>;
 
 // Le service orchestre quatre ecritures : on verifie l'ordre, le journal, et qu'un echec
 // en cours de route laisse les etapes faites et le dit.
@@ -16,7 +25,7 @@ const etat = {
 };
 
 vi.mock("@/lib/adapters/router", () => ({
-  getPropositionRepository: () => ({
+  getPropositionRepository: (): Partiel<PropositionRepository> => ({
     async get() {
       return etat.proposition;
     },
@@ -25,7 +34,7 @@ vi.mock("@/lib/adapters/router", () => ({
       etat.proposition = p;
     },
   }),
-  getCoproRepository: () => ({
+  getCoproRepository: (): Partiel<CoproRepository> => ({
     async listerToutes() {
       if (etat.panneReferentiel) throw new Error("PostgREST timeout");
       return etat.copros;
@@ -34,7 +43,7 @@ vi.mock("@/lib/adapters/router", () => ({
       etat.copros.push(c);
     },
   }),
-  getFacturationRepository: () => ({
+  getFacturationRepository: (): Partiel<FacturationRepository> => ({
     async listerBareme() {
       return [{ identifiantPrestation: "AGE", montantTtc: 40.8 }];
     },
@@ -43,15 +52,15 @@ vi.mock("@/lib/adapters/router", () => ({
       return "contrat-1";
     },
   }),
-  getInvoicingProvider: () => ({
+  getInvoicingProvider: (): Partiel<InvoicingProvider> => ({
     async creerClient(c: unknown) {
       if (etat.pannePennylane) throw new Error("Création du client Pennylane : HTTP 500");
       etat.clients.push(c);
       return { clientExterneId: "42" };
     },
   }),
-  getAgenceRepository: () => ({ async listerAgences() { return []; } }),
-  getGestionnaireRepository: () => ({ async list() { return []; } }),
+  getAgenceRepository: (): Partiel<AgenceRepository> => ({ async listerAgences() { return []; } }),
+  getGestionnaireRepository: (): Partiel<GestionnaireRepository> => ({ async list() { return []; } }),
 }));
 vi.mock("@/lib/reprise/adapters/router", () => ({ getRepriseDossierRepository: () => ({}) }));
 vi.mock("@/lib/reprise/services/suivi-dossier", () => ({
