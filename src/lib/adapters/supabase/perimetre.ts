@@ -9,6 +9,10 @@
 //
 // L'etat natif (jalons, supervision) est cle par COPRO, pas par redacteur -> une fois
 // l'acces a la copro accorde, manager et assistant partagent la meme fiche.
+const ID_RE = /^[A-Za-z0-9-]{1,40}$/;
+
 export function filtrePerimetre(userId: string): string {
+  // L'id entre dans un filtre PostgREST : jamais de virgule ni de point (audit 16/09/2026).
+  if (!ID_RE.test(userId)) throw new Error(`Identifiant d'utilisateur illisible : « ${userId.slice(0, 40)} ».`);
   return `managerId.eq.${userId},assistantId.eq.${userId}`;
 }

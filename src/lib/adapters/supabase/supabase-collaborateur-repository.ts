@@ -5,6 +5,7 @@
 import type { CollaborateurRepository } from "@/lib/ports/collaborateur-repository";
 import type { Collaborateur, EquipeCopro, Habilitation, NouveauCollaborateur, RoleEquipe, TypeHabilitation } from "@/lib/domain/collaborateur";
 import { createSupabasePublicClient } from "./public-client";
+import { exigerUneLigne, idCoproUnique } from "./cible-copro";
 
 type UserRow = { id: string; name: string; initials: string | null; email: string | null; role: string | null; agencyId: string | null; isActive: boolean | null; referentDirectorId: string | null };
 type FicheRow = { user_id: string; arrivee_le: string | null; depart_le: string | null; note: string | null; fonction: string | null };
@@ -104,13 +105,16 @@ export class SupabaseCollaborateurRepository implements CollaborateurRepository 
 
   async reaffecter(coproCode: string, role: RoleEquipe, userId: string | null): Promise<void> {
     const supabase = createSupabasePublicClient();
+    // Une fiche a la fois, visee par son id (audit 16/09/2026 : le code interpole dans
+    // le filtre pouvait reaffecter toutes les copros d'un coup).
+    const contexte = `Réaffectation de ${coproCode}`;
+    const id = await idCoproUnique(supabase, coproCode, contexte);
     const { data, error } = await supabase
       .from("Copropriete")
       .update({ [COLONNE_EQUIPE[role]]: userId, updatedAt: new Date().toISOString() })
-      .or(`referenceCrypto.eq.${coproCode},referenceEstale.eq.${coproCode}`)
-      .select("referenceCrypto");
-    if (error) throw new Error(`Réaffectation de ${coproCode} : ${error.message}`);
-    if (!data || data.length === 0) throw new Error(`Réaffectation de ${coproCode} : copropriété introuvable.`);
+      .eq("id", id)
+      .select("id");
+    exigerUneLigne(contexte, data, error);
   }
 
   async noterDepart(userId: string, departISO: string, note: string | undefined, par: string): Promise<void> {

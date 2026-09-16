@@ -93,7 +93,7 @@ export async function annulerDepartAction(userId: unknown): Promise<Res> {
 }
 
 export async function reaffecterAction(input: unknown): Promise<Res> {
-  const p = z.object({ coproCode: z.string().trim().min(2).max(10), role: z.enum(["gestionnaire", "assistant", "comptable"]), userId: zId.nullable(), depuis: zId }).safeParse(input);
+  const p = z.object({ coproCode: z.string().trim().regex(/^[A-Za-z0-9_-]{1,20}$/), role: z.enum(["gestionnaire", "assistant", "comptable"]), userId: zId.nullable(), depuis: zId }).safeParse(input);
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const g = await garde();
   if (typeof g === "string") return { ok: false, erreur: g };

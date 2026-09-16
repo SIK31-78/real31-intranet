@@ -15,6 +15,7 @@ import type {
 import { heureDe } from "@/lib/domain/reunion";
 import { createSupabasePublicClient } from "./public-client";
 import { filtrePerimetre } from "./perimetre";
+import { exigerUneLigne, filtreCodeCopro, idCoproUnique } from "./cible-copro";
 
 // Sous-ensemble des 62 colonnes de public."Copropriete" reellement utilise par la fiche.
 type CoproRow = {
@@ -261,22 +262,27 @@ export class SupabaseCoproRepository implements CoproRepository {
     const colonne = colonnes[type][quand];
     // Ecriture dans la source partagee (App A). Scope managerId : seulement ses copros.
     // updatedAt rafraichi pour rester coherent avec l'App A (qui s'appuie dessus).
-    const { error } = await supabase
+    // On resout d'abord LA fiche (code + perimetre), puis on ecrit par id : hors perimetre
+    // ou code inconnu, c'est une erreur dite, plus un UPDATE silencieux de zero ligne.
+    const contexte = `MAJ date ${type}`;
+    const id = await idCoproUnique(supabase, coproCode, contexte, filtrePerimetre(managerId));
+    const { data, error } = await supabase
       .from("Copropriete")
       .update({ [colonne]: dateISO, updatedAt: new Date().toISOString() })
-      // Les deux .or sont ANDes par PostgREST : (bonne copro) ET (geree | assistee).
-      .or(`referenceCrypto.eq.${coproCode},referenceEstale.eq.${coproCode}`)
-      .or(filtrePerimetre(managerId));
-    if (error) throw new Error(`MAJ date ${type} : ${error.message}`);
+      .eq("id", id)
+      .select("id");
+    exigerUneLigne(contexte, data, error);
   }
 
   async creerCopro(c: NouvelleCopro): Promise<void> {
     const supabase = createSupabasePublicClient();
-    const { data: existante } = await supabase
+    const { data: existante, error: erreurLecture } = await supabase
       .from("Copropriete")
       .select("id")
-      .or(`referenceCrypto.eq.${c.code},referenceEstale.eq.${c.code}`)
+      .or(filtreCodeCopro(c.code))
       .limit(1);
+    // Lecture en panne : on ne cree pas a l'aveugle (un doublon de code casserait tout le filtrage).
+    if (erreurLecture) throw new Error(`Création de ${c.code} : référentiel illisible (${erreurLecture.message}).`);
     if (existante && existante.length > 0) throw new Error(`Création de ${c.code} : ce code existe déjà dans le référentiel.`);
     const maintenant = new Date().toISOString();
     // Meme forme que les fiches creees a la main dans App A (S302 sert de modele) :
@@ -313,6 +319,8 @@ export class SupabaseCoproRepository implements CoproRepository {
       updatedAt: maintenant,
     };
     const { error } = await supabase.from("Copropriete").insert(ligne);
+    // 23505 = unicite violee entre la verification et l'insertion (deux elections en meme temps).
+    if (error?.code === "23505") throw new Error(`Création de ${c.code} : ce code vient d'être pris dans le référentiel.`);
     if (error) throw new Error(`Création de ${c.code} : ${error.message}`);
   }
 
@@ -320,13 +328,14 @@ export class SupabaseCoproRepository implements CoproRepository {
     const supabase = createSupabasePublicClient();
     // Le statut vit dans App A : c'est lui que TOUT l'intranet filtre (facturation,
     // alertes, listes). updatedAt rafraichi comme pour les dates.
+    const contexte = `Perte de ${input.coproCode}`;
+    const id = await idCoproUnique(supabase, input.coproCode, contexte);
     const { data, error } = await supabase
       .from("Copropriete")
       .update({ status: "INACTIVE", updatedAt: new Date().toISOString() })
-      .or(`referenceCrypto.eq.${input.coproCode},referenceEstale.eq.${input.coproCode}`)
-      .select("referenceCrypto");
-    if (error) throw new Error(`Perte de ${input.coproCode} : ${error.message}`);
-    if (!data || data.length === 0) throw new Error(`Perte de ${input.coproCode} : copropriete introuvable.`);
+      .eq("id", id)
+      .select("id");
+    exigerUneLigne(contexte, data, error);
   }
 
   /** Resout l'equipe a partir des FK manager/assistant/accountant vers public."User".
