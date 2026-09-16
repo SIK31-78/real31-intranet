@@ -82,8 +82,9 @@ async function executer<T>(
 export async function apercuRecapAgAction(
   demande: DemandeRecapAg,
 ): Promise<Res<ApercuFacturation>> {
-  if (!zDemande.safeParse(demande).success) return { ok: false, erreur: "Données invalides." };
-  return executer((managerId) => apercuRecapAg(demande, managerId));
+  const saisie = zDemande.safeParse(demande);
+  if (!saisie.success) return { ok: false, erreur: "Données invalides." };
+  return executer((managerId) => apercuRecapAg(saisie.data, managerId));
 }
 
 /**
@@ -93,10 +94,11 @@ export async function apercuRecapAgAction(
 export async function creerRecapAgAction(
   demande: DemandeRecapAg,
 ): Promise<Res<{ recapId: string; depassementHeures: number; factureId: string | null }>> {
-  if (!zDemande.safeParse(demande).success) return { ok: false, erreur: "Données invalides." };
+  const saisie = zDemande.safeParse(demande);
+  if (!saisie.success) return { ok: false, erreur: "Données invalides." };
 
   return executer(async (managerId, initiales) => {
-    const resultat = await creerRecapAg({ ...demande, par: initiales }, managerId);
+    const resultat = await creerRecapAg({ ...saisie.data, par: initiales }, managerId);
     if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
     return {
       recapId: resultat.recapId,

@@ -89,7 +89,7 @@ export async function apercuFactureCsAction(
     .safeParse({ coproCode, reunion });
   if (!saisie.success) return { ok: false, erreur: "Données invalides." };
 
-  return executer((managerId) => apercuDepassementCs({ coproCode, reunion }, managerId));
+  return executer((managerId) => apercuDepassementCs(saisie.data, managerId));
 }
 
 export async function apercuFactureTravauxAction(
@@ -99,11 +99,9 @@ export async function apercuFactureTravauxAction(
     | { mode: "pourcentage"; montantTravauxHt: number; pourcentage: number }
     | { mode: "forfait"; forfaitTtc: number },
 ): Promise<Res<ApercuFacturation>> {
-  if (!z.object({ coproCode: zCode, libelleTravaux: zLibelle }).safeParse({ coproCode, libelleTravaux }).success)
-    return { ok: false, erreur: "Données invalides." };
-  return executer((managerId) =>
-    apercuSuiviTravaux({ coproCode, libelleTravaux, honoraires }, managerId),
-  );
+  const saisie = z.object({ coproCode: zCode, libelleTravaux: zLibelle }).safeParse({ coproCode, libelleTravaux });
+  if (!saisie.success) return { ok: false, erreur: "Données invalides." };
+  return executer((managerId) => apercuSuiviTravaux({ ...saisie.data, honoraires }, managerId));
 }
 
 export async function apercuFactureSinistreAction(
@@ -117,13 +115,10 @@ export async function apercuFactureSinistreAction(
   },
   dateSinistre?: string,
 ): Promise<Res<ApercuFacturation>> {
-  if (!z.object({ coproCode: zCode, libelleSinistre: zLibelle }).safeParse({ coproCode, libelleSinistre }).success)
-    return { ok: false, erreur: "Données invalides." };
+  const saisie = z.object({ coproCode: zCode, libelleSinistre: zLibelle }).safeParse({ coproCode, libelleSinistre });
+  if (!saisie.success) return { ok: false, erreur: "Données invalides." };
   return executer((managerId) =>
-    apercuSuiviSinistre(
-      { coproCode, libelleSinistre, diligences, ...(dateSinistre ? { dateSinistre } : {}) },
-      managerId,
-    ),
+    apercuSuiviSinistre({ ...saisie.data, diligences, ...(dateSinistre ? { dateSinistre } : {}) }, managerId),
   );
 }
 
@@ -186,10 +181,7 @@ export async function creerFactureCsAction(
   if (!saisie.success) return { ok: false, erreur: "Données invalides." };
 
   return executer(async (managerId, initiales) => {
-    const resultat = await creerFactureDepassementCs(
-      { coproCode, reunion, par: initiales },
-      managerId,
-    );
+    const resultat = await creerFactureDepassementCs({ ...saisie.data, par: initiales }, managerId);
     // Confirmation = « envoi en facturation » : on emet UNIQUEMENT la facture
     // qu'on vient de creer, jamais toute la file (une facture laissee en attente
     // ne doit pas partir par ricochet).
@@ -215,10 +207,7 @@ export async function creerFactureTravauxAction(
   if (!saisie.success) return { ok: false, erreur: "Données invalides." };
 
   return executer(async (managerId, initiales) => {
-    const resultat = await creerFactureSuiviTravaux(
-      { coproCode, libelleTravaux, honoraires, par: initiales },
-      managerId,
-    );
+    const resultat = await creerFactureSuiviTravaux({ ...saisie.data, par: initiales }, managerId);
     // Rien a facturer (montant a 0) : aucune facture creee, rien a emettre.
     if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
     return resultat;
@@ -253,16 +242,8 @@ export async function creerFactureSinistreAction(
   if (!saisie.success) return { ok: false, erreur: "Données invalides." };
 
   return executer(async (managerId, initiales) => {
-    const resultat = await creerFactureSuiviSinistre(
-      {
-        coproCode,
-        libelleSinistre,
-        diligences,
-        ...(dateSinistre ? { dateSinistre } : {}),
-        par: initiales,
-      },
-      managerId,
-    );
+    const { dateSinistre: date, ...reste } = saisie.data;
+    const resultat = await creerFactureSuiviSinistre({ ...reste, ...(date ? { dateSinistre: date } : {}), par: initiales }, managerId);
     await emettreFacturesEnAttente([resultat.factureId]);
     return resultat;
   });
@@ -286,9 +267,9 @@ export async function creerFactureEtatDateAction(
   if (!saisie.success) return { ok: false, erreur: "Données invalides." };
 
   const demande = {
-    coproCode,
-    ...(nomClient ? { nomClient } : {}),
-    ...(dateEtablissement ? { dateEtablissement } : {}),
+    coproCode: saisie.data.coproCode,
+    ...(saisie.data.nomClient ? { nomClient: saisie.data.nomClient } : {}),
+    ...(saisie.data.dateEtablissement ? { dateEtablissement: saisie.data.dateEtablissement } : {}),
     ...(montantTtcNegocie !== undefined ? { montantTtcNegocie } : {}),
   };
 
