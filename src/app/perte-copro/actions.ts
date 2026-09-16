@@ -1,13 +1,13 @@
 "use server";
 
-// Server Actions du module Perte de copropriete. Ouvertes a tout gestionnaire connecte :
-// c'est un tableau de suivi d'equipe (la gestion des roles viendra plus tard, roadmap).
+// Server Actions du module Perte de copropriete. Premier module sur actionGestionnaire
+// (zod -> session -> corps -> Res) : les gardes metier restent dans le corps.
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estDirection, MESSAGE_RESERVE_DIRECTION, peutOuvrirPerte, profilDe } from "@/lib/auth/roles";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
+import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import { agenceDeCopro } from "@/lib/services/agences/resoudre-agence";
 import { getDossierPerte, mettreAJourEtapePerte, ouvrirDossierPerte } from "@/lib/services/perte/dossier-perte";
 
@@ -25,24 +25,16 @@ const zMaj = z.object({
 });
 
 export async function mettreAJourEtapeAction(input: unknown): Promise<Res> {
-  const p = zMaj.safeParse(input);
-  if (!p.success) return { ok: false, erreur: "Saisie invalide." };
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, erreur: "Session expirée." };
-  try {
-    const { dossierId, code, ...patch } = p.data;
+  return actionGestionnaire(zMaj, input, "perte-copro", async ({ dossierId, code, ...patch }, g) => {
     // Cocher, assigner, noter : la direction de l'agence, ou quelqu'un du portefeuille de
     // la copro (audit du 16/09/2026 : tout le cabinet pouvait modifier n'importe quel dossier).
     const dossier = await getDossierPerte(dossierId);
-    if (!dossier) return { ok: false, erreur: "Dossier de perte introuvable." };
+    if (!dossier) throw new Refus("Dossier de perte introuvable.");
     if (!estDirection(profilDe(g), await agenceDeCopro(dossier.coproCode))) await exigerPerimetre(dossier.coproCode, g.id);
     await mettreAJourEtapePerte(dossierId, code, patch, g.nomComplet);
     revalidatePath(`/perte-copro/${dossierId}`);
     revalidatePath("/perte-copro");
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
-  }
+  });
 }
 
 const zOuverture = z.object({
@@ -55,20 +47,16 @@ const zOuverture = z.object({
 
 /** Ouvrir un dossier depuis le module lui-meme (meme geste que dans la gestion courante). */
 export async function ouvrirDossierAction(input: unknown): Promise<Res<{ dossierId: string }>> {
-  const p = zOuverture.safeParse(input);
-  if (!p.success) return { ok: false, erreur: "Saisie invalide." };
-  const g = await getGestionnaireCourant();
-  if (!g) return { ok: false, erreur: "Session expirée." };
-  if (!peutOuvrirPerte(profilDe(g), await agenceDeCopro(p.data.coproCode))) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
-  if (p.data.confirmation.trim().toUpperCase() !== p.data.coproCode.toUpperCase()) {
-    return { ok: false, erreur: "Retape le code de la copropriété pour confirmer." };
-  }
-  try {
+  return actionGestionnaire(zOuverture, input, "perte-copro", async (d, g) => {
+    if (!peutOuvrirPerte(profilDe(g), await agenceDeCopro(d.coproCode))) throw new Refus(MESSAGE_RESERVE_DIRECTION);
+    if (d.confirmation.trim().toUpperCase() !== d.coproCode.toUpperCase()) {
+      throw new Refus("Retape le code de la copropriété pour confirmer.");
+    }
     const dossier = await ouvrirDossierPerte({
-      coproCode: p.data.coproCode,
-      dateAgISO: p.data.dateAgISO,
-      finGestionISO: p.data.finGestionISO,
-      ...(p.data.motif ? { motif: p.data.motif } : {}),
+      coproCode: d.coproCode,
+      dateAgISO: d.dateAgISO,
+      finGestionISO: d.finGestionISO,
+      ...(d.motif ? { motif: d.motif } : {}),
       par: g.nomComplet,
     });
     revalidatePath("/perte-copro");
@@ -76,8 +64,6 @@ export async function ouvrirDossierAction(input: unknown): Promise<Res<{ dossier
     revalidatePath("/copropriete");
     revalidatePath("/contrat");
     revalidatePath("/accueil");
-    return { ok: true, donnees: { dossierId: dossier.id } };
-  } catch (e) {
-    return { ok: false, erreur: (e as Error).message };
-  }
+    return { dossierId: dossier.id };
+  });
 }
