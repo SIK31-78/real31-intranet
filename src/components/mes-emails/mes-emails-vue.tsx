@@ -63,6 +63,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
 
 import { formatEuros } from "@/lib/domain/format-montant";
+import { initialesDe } from "@/lib/domain/collaborateur";
 type Statut = "nouveau" | "repondu" | "classe";
 
 type Destinataires = { to: string[]; cc: string[]; cci: string[] };
@@ -94,10 +95,7 @@ function formatTaille(octets: number): string {
 }
 
 /** Initiales de l'expediteur (sans la qualite entre parentheses). */
-function initiales(nom: string): string {
-  const parts = nom.replace(/ \(.*\)$/, "").trim().split(/\s+/).filter(Boolean);
-  return parts.slice(0, 2).map((p) => (p[0] ?? "").toUpperCase()).join("");
-}
+const initiales = (nom: string) => initialesDe(nom.replace(/ \(.*\)$/, ""));
 
 
 export function MesEmailsVue({

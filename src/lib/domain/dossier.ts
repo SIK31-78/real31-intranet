@@ -68,6 +68,18 @@ export interface Dossier {
   journal: EvenementDossier[];
 }
 
+/** Ton du badge par type (liste des dossiers et affaires en cours : la meme couleur). */
+export const TYPE_DOSSIER_TON: Record<TypeDossier, "info" | "warn" | "err" | "neutral"> = {
+  gestion_courante: "neutral",
+  travaux: "info",
+  sinistre: "warn",
+  impaye: "err",
+  recouvrement: "err",
+  procedure: "neutral",
+  question_diverse: "neutral",
+  autre: "neutral",
+};
+
 export const TYPE_DOSSIER_LABEL: Record<TypeDossier, string> = {
   gestion_courante: "Gestion courante",
   travaux: "Travaux",

@@ -41,14 +41,6 @@ export const STATUT_ETAPE_LABEL: Record<StatutEtape, string> = {
   ignore: "Ignoré",
 };
 
-export const STATUT_ETAPE_TON: Record<StatutEtape, "neutral" | "info" | "err" | "ok"> = {
-  a_faire: "neutral",
-  en_cours: "info",
-  bloque: "err",
-  fait: "ok",
-  ignore: "neutral",
-};
-
 /** Une étape « close » (fait ou ignoré) ne compte plus dans le reste à faire. */
 export function etapeClose(statut: StatutEtape): boolean {
   return statut === "fait" || statut === "ignore";
@@ -59,12 +51,8 @@ export function echeanceDepassee(etape: { statut: StatutEtape; echeance?: string
   return Boolean(etape.echeance) && !etapeClose(etape.statut) && etape.echeance! < aujourdHuiIso.slice(0, 10);
 }
 
-/** Initiales d'un nom complet (« Sekou Koma » -> « SK ») pour l'avatar d'une personne assignée. */
-export function initialesDe(nom: string): string {
-  const parts = nom.trim().split(/[\s-]+/).filter(Boolean);
-  const ini = parts.map((p) => p[0]?.toUpperCase() ?? "").join("");
-  return ini.slice(0, 2) || "?";
-}
+// Les initiales d'une personne : UNE definition (domaine collaborateur), le meme avatar partout.
+export { initialesDe } from "@/lib/domain/collaborateur";
 
 /** « 9 sept. 2026 à 14:32 » à partir d'un ISO complet ; déterministe (UTC) pour éviter les hydration mismatches. */
 export function formatDateHeure(iso: string): string {
@@ -77,9 +65,4 @@ export function formatDateHeure(iso: string): string {
   return `${jj}/${mm}/${d.getUTCFullYear()} ${hh}:${mi}`;
 }
 
-/** « 12/04/2026 » à partir d'une ISO date (ou d'un ISO complet). */
-export function formatDateCourte(iso: string): string {
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y}`;
-}
+export { formatJour as formatDateCourte } from "@/lib/services/facturation/format";

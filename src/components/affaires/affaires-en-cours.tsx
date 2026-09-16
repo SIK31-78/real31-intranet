@@ -25,19 +25,9 @@ import {
   progressionDossier,
   type Dossier,
   type TypeDossier,
-  type SegmentAffaire,
-} from "@/lib/domain/dossier";
+  type SegmentAffaire, TYPE_DOSSIER_TON } from "@/lib/domain/dossier";
 
-const TYPE_TON: Record<TypeDossier, "info" | "warn" | "err" | "neutral"> = {
-  gestion_courante: "neutral",
-  travaux: "info",
-  sinistre: "warn",
-  impaye: "err",
-  recouvrement: "err",
-  procedure: "neutral",
-  question_diverse: "neutral",
-  autre: "neutral",
-};
+const TYPE_TON = TYPE_DOSSIER_TON;
 // Par segment, on n'affiche que les N premiers (depliable) pour ne pas noyer le
 // gestionnaire - meme principe que le bandeau AG (retour patron).
 const CAP_SEGMENT = 5;

@@ -18,6 +18,7 @@ import type {
 import { estaleGql } from "./client";
 import { resoudreCondoId } from "./condos-accessibles";
 
+import { initialesDe } from "@/lib/domain/collaborateur";
 // --- Resolution reference -> condo id ---------------------------------------
 // Passe par le helper PARTAGE (union collaborator + agency + accesses) : cf.
 // condos-accessibles.ts. Avant, `me.collaborator.condos` seul ne resolvait que les
@@ -55,15 +56,6 @@ type CondoData = {
   };
 };
 
-/** Initiales d'un nom complet ("Elsa PEIXOTO" -> "EP"). */
-function initialesDe(nomComplet: string): string {
-  return nomComplet
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((m) => m[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 /**
  * Equipe telle qu'eStale la connait. Le GESTIONNAIRE est celui designe par le mandat

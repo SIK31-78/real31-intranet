@@ -16,6 +16,17 @@ export const STATUTS_PROPOSITION = [
 ] as const;
 export type StatutProposition = (typeof STATUTS_PROPOSITION)[number];
 
+/** Ton du badge de statut (meme couleur dans la liste et sur la fiche). */
+export const TON_STATUT: Record<StatutProposition, "ok" | "warn" | "err" | "neutral" | "info"> = {
+  en_cours: "info",
+  accepte_cs: "warn",
+  reporte: "neutral",
+  elu: "ok",
+  refuse_cs: "err",
+  refuse_ag: "err",
+  refuse_real31: "neutral",
+};
+
 export const LIBELLE_STATUT: Record<StatutProposition, string> = {
   en_cours: "En cours",
   accepte_cs: "Accepté par le CS",

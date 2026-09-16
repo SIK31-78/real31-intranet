@@ -2,9 +2,10 @@
 // aussi bien au recapitulatif de confirmation (UI) qu'au detail de ligne envoye
 // a Pennylane, qui doit rester lisible sur le PDF remis a la copropriete.
 
-/** "2026-05-12" -> "12/05/2026". */
+/** "2026-05-12" (ou un ISO complet) -> "12/05/2026". */
 export function formatJour(jourISO: string): string {
-  const [a, m, j] = jourISO.split("-");
+  const [a, m, j] = jourISO.slice(0, 10).split("-");
+  if (!a || !m || !j) return jourISO;
   return `${j}/${m}/${a}`;
 }
 

@@ -30,8 +30,7 @@ import {
   type Immeuble,
   type Origine,
   type Proposition,
-  type StatutProposition,
-} from "@/lib/domain/proposition/proposition";
+  type StatutProposition, TON_STATUT } from "@/lib/domain/proposition/proposition";
 import type { ContexteImmeuble, PrixCalcule, SuggestionRapprochement } from "@/lib/services/proposition/propositions";
 import { DetacherRegistre, RattacherRegistre } from "@/components/proposition/rattacher-registre";
 import { calculerPrixAction, mettreAJourPropositionAction } from "../actions";
@@ -42,15 +41,7 @@ const nb = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", "
 const txt = (v: number | undefined) => (v === undefined ? "" : String(v));
 const arrondi = (n: number) => Math.round(n * 100) / 100;
 
-const TON: Record<StatutProposition, "ok" | "warn" | "err" | "neutral" | "info"> = {
-  en_cours: "info",
-  accepte_cs: "warn",
-  reporte: "neutral",
-  elu: "ok",
-  refuse_cs: "err",
-  refuse_ag: "err",
-  refuse_real31: "neutral",
-};
+const TON = TON_STATUT;
 
 function BlocLateral({ titre, children, actions }: { titre: string; children: ReactNode; actions?: ReactNode }) {
   return (

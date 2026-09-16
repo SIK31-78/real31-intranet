@@ -17,22 +17,12 @@ import {
   type Dossier,
   type TypeDossier,
   type PorteeDossier,
-  type StatutDossier,
-} from "@/lib/domain/dossier";
+  type StatutDossier, TYPE_DOSSIER_TON } from "@/lib/domain/dossier";
 import { creerDossierAction } from "@/app/dossiers/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 
-const TYPE_TON: Record<TypeDossier, "info" | "warn" | "err" | "neutral"> = {
-  gestion_courante: "neutral",
-  travaux: "info",
-  sinistre: "warn",
-  impaye: "err",
-  recouvrement: "err",
-  procedure: "neutral",
-  question_diverse: "neutral",
-  autre: "neutral",
-};
+const TYPE_TON = TYPE_DOSSIER_TON;
 const STATUT_TON: Record<StatutDossier, "warn" | "info" | "ok"> = {
   ouvert: "warn",
   en_cours: "info",
