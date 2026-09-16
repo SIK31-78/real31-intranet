@@ -54,7 +54,7 @@ export default async function CollaborateursPage() {
         )}
         {sansAssistant.length > 0 && (
           // Beaucoup de copros (ML, HLS) n'ont pas d'assistant au referentiel : une information, pas une alerte.
-          <p className="text-caption text-ink-3">{sansAssistant.length} copropriétés actives sans assistant renseigné au référentiel.</p>
+          <p className="text-meta text-ink-3">{sansAssistant.length} copropriétés actives sans assistant renseigné au référentiel.</p>
         )}
 
         <Section id="collab-arrivee" titre="Nouvelle arrivée">
@@ -98,7 +98,7 @@ function TableCollab({ lignes }: { lignes: CollaborateurResume[] }) {
           <Tr key={c.id} interactive>
             <Td principal>
               <LienLigne href={`/collaborateurs/${c.id}`}>{c.nomComplet}</LienLigne>
-              {c.email && <span className="block text-caption text-ink-3">{c.email}</span>}
+              {c.email && <span className="block text-meta text-ink-3">{c.email}</span>}
             </Td>
             <Td secondaire>{libelleFonction(c)}{!c.fonction && c.roleTable === "AUTRE" && <span className="text-warn-700"> · à préciser</span>}</Td>
             <Td secondaire>{c.agenceCode ?? "—"}</Td>

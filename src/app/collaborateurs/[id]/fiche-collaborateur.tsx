@@ -117,7 +117,7 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
         <div className="divide-y divide-line">
           <div className="flex flex-col gap-3 p-4">
             <h2 className="text-body font-medium text-ink">Fonction</h2>
-            <p className="text-caption text-ink-3">Rôle au référentiel : {c.roleTable ? (LIBELLE_ROLE_TABLE[c.roleTable as RoleTable] ?? c.roleTable) : "—"}. La fonction intranet le précise et ouvrira ses outils ; la changer remet le rôle en cohérence.</p>
+            <p className="text-meta text-ink-3">Rôle au référentiel : {c.roleTable ? (LIBELLE_ROLE_TABLE[c.roleTable as RoleTable] ?? c.roleTable) : "—"}. La fonction intranet le précise et ouvrira ses outils ; la changer remet le rôle en cohérence.</p>
             <div className="flex items-end gap-2">
               <Field label="Fonction" htmlFor="fn" className="flex-1">
                 <Select id="fn" value={fonction} onChange={(e) => setFonction(e.target.value as Fonction | "")}>
@@ -132,10 +132,10 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
           </div>
           <div className="flex flex-col gap-3 p-4">
             <h2 className="text-body font-medium text-ink">Habilitations</h2>
-            {habilitationsEnCours.length === 0 && <p className="text-caption text-ink-3">Aucune. Le rôle vient du référentiel.</p>}
+            {habilitationsEnCours.length === 0 && <p className="text-meta text-ink-3">Aucune. Le rôle vient du référentiel.</p>}
             {habilitationsEnCours.map((h) => (
               <div key={h.id} className="flex items-center justify-between gap-2">
-                <span className="text-body">Référent syndic <strong>{h.agence}</strong> <span className="text-caption text-ink-3">depuis le {formatJour(h.depuisISO)}</span></span>
+                <span className="text-body">Référent syndic <strong>{h.agence}</strong> <span className="text-meta text-ink-3">depuis le {formatJour(h.depuisISO)}</span></span>
                 <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => demarrer(async () => { const r = await habilitationAction({ action: "clore", userId: c.id, id: h.id }); if (!r.ok) return toast.err(r.erreur); router.refresh(); })}>Retirer</Button>
               </div>
             ))}

@@ -62,7 +62,7 @@ export default async function PerteCoproPage() {
             </Card>
           </Section>
         ) : (
-          <p className="text-caption text-ink-3">Ouvrir un dossier de perte est une décision de direction ; les dossiers ouverts se suivent ici par tous.</p>
+          <p className="text-meta text-ink-3">Ouvrir un dossier de perte est une décision de direction ; les dossiers ouverts se suivent ici par tous.</p>
         )}
 
         <Section id="perte-en-cours" titre="En cours" compte={enCours.length}>

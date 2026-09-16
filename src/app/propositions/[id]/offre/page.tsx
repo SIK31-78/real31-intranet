@@ -109,7 +109,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
                     <DataRow label="Barème">{champs.anneeBareme}</DataRow>
                   </DataList>
                 )}
-                {erreurContrat && <p className="text-caption text-err-700">{erreurContrat}</p>}
+                {erreurContrat && <p className="text-meta text-err-700">{erreurContrat}</p>}
               </form>
               <div className="flex flex-col gap-3 p-4">
                 {champs ? (

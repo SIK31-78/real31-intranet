@@ -113,7 +113,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
                       <li key={r.immatriculation}>
                         <button type="button" className="w-full text-left px-3 py-2 hover:bg-surface-2 flex flex-col gap-0.5" onClick={() => choisir(r)}>
                           <span className="text-body">{r.adresse} <span className="text-ink-3">{r.codePostal} {r.commune}</span></span>
-                          <span className="text-caption text-ink-2">
+                          <span className="text-meta text-ink-2">
                             {r.lotsPrincipaux ?? "?"} lots principaux · {r.syndicNom ?? "syndic non connu"}
                             {r.finMandatISO && ` · mandat jusqu'au ${formatJour(r.finMandatISO)}`}
                             {r.mandat && !r.mandat.startsWith("Mandat en cours") && <span className="text-warn-700"> · {r.mandat}</span>}
@@ -126,7 +126,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
               </div>
             </Field>
             {choisi ? (
-              <p className="text-caption text-ink-2 flex items-center gap-2">
+              <p className="text-meta text-ink-2 flex items-center gap-2">
                 <Search strokeWidth={1.5} className="h-3.5 w-3.5" />
                 Registre national : {choisi.immatriculation} · {choisi.lotsTotal ?? "?"} lots dont {choisi.lotsStationnement ?? 0} stationnements
                 {choisi.periodeConstruction && ` · construit ${libellePeriodeConstruction(choisi.periodeConstruction)}`}
@@ -134,7 +134,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
                 {choisi.finMandatISO && ` (${choisi.mandat?.toLowerCase() ?? "mandat"}, fin ${formatJour(choisi.finMandatISO)})`}
               </p>
             ) : (
-              <p className="text-caption text-ink-3">Tapez le numéro, la voie et la commune : si l&apos;immeuble est au registre, ses lots et son syndic se remplissent.</p>
+              <p className="text-meta text-ink-3">Tapez le numéro, la voie et la commune : si l&apos;immeuble est au registre, ses lots et son syndic se remplissent.</p>
             )}
           </div>
 
@@ -182,7 +182,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
           </details>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-            <p className="text-caption text-ink-2">
+            <p className="text-meta text-ink-2">
               {manquant.length === 0 ? "Tout ce qu'il faut pour faire l'offre." : <>À demander si possible : {manquant.join(", ")}.</>}
             </p>
             <Button type="button" variant="primary" disabled={pending} onClick={creer}>

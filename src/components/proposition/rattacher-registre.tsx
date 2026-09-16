@@ -22,7 +22,7 @@ export function CandidatRegistre({ r, sur = false, onChoisir, pending }: { r: Re
           {r.adresse}, {r.codePostal} {r.commune}
           {sur && <span className="text-ok-700"> · numéro, voie et commune coïncident</span>}
         </span>
-        <span className="text-caption text-ink-3 truncate">
+        <span className="text-meta text-ink-3 truncate">
           {r.immatriculation} · {r.lotsPrincipaux ?? "?"} lots principaux · {r.syndicNom ?? "syndic non connu"}
           {r.finMandatISO && ` (mandat jusqu'au ${formatJour(r.finMandatISO)})`}
           {r.adressesCompl.length > 0 && ` · aussi ${r.adressesCompl.slice(0, 2).join(", ")}`}

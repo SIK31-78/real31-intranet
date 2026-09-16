@@ -138,7 +138,7 @@ function LigneEtape({
             <span className="font-mono text-ink-3 mr-2">{etape.code}</span>
             {def.libelle}
           </p>
-          <p className="text-caption text-ink-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-meta text-ink-3 flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{LIBELLE_ROLE[def.role]}</span>
             {echeance && (
               <span className={cn(retard !== null && "text-warn-700 font-medium")}>
@@ -201,14 +201,14 @@ function LigneEtape({
           onBlur={() => assigne.trim() !== (etape.assigneA ?? "") && onMaj({ assigneA: assigne.trim() || null })}
           placeholder="Qui s'en charge"
           largeur="auto"
-          className="text-caption"
+          className="text-meta"
         />
         <Input
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onBlur={() => note.trim() !== (etape.note ?? "") && onMaj({ note: note.trim() || null })}
           placeholder={etape.statut === "bloque" ? "Pourquoi c'est bloqué" : "Note"}
-          className={cn("text-caption flex-1 min-w-48", etape.statut === "bloque" && !etape.note && "border-err-500")}
+          className={cn("text-meta flex-1 min-w-48", etape.statut === "bloque" && !etape.note && "border-err-500")}
         />
         {etape.statut === "bloque" && <Badge ton="err" dot>bloqué</Badge>}
       </div>

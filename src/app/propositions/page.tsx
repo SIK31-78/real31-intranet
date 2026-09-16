@@ -170,10 +170,10 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
                       {s.label}
                     </ButtonLink>
                   ))}
-                  <span className="text-caption text-ink-3 pl-2">{lignes.length} proposition{lignes.length > 1 ? "s" : ""}</span>
+                  <span className="text-meta text-ink-3 pl-2">{lignes.length} proposition{lignes.length > 1 ? "s" : ""}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={registre?.perime ? "text-caption text-warn-700" : "text-caption text-ink-3"}>
+                  <span className={registre?.perime ? "text-meta text-warn-700" : "text-meta text-ink-3"}>
                     {registre
                       ? `Registre national : ${registre.nombre.toLocaleString("fr-FR")} copropriétés, chargé le ${formatJour(registre.chargeLeISO)}${registre.perime ? " — à rafraîchir (publication trimestrielle)" : ""}`
                       : "Registre national non chargé"}
@@ -193,7 +193,7 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
         ) : (
           <>
             <TableProps lignes={lignes.slice(0, 200)} />
-            {lignes.length > 200 && <p className="text-caption text-ink-3">Les 200 premières sont affichées — affinez les filtres pour voir le reste.</p>}
+            {lignes.length > 200 && <p className="text-meta text-ink-3">Les 200 premières sont affichées — affinez les filtres pour voir le reste.</p>}
           </>
         )}
       </Page>
@@ -220,7 +220,7 @@ function TableProps({ lignes }: { lignes: PropositionResume[] }) {
           <Tr key={p.id} interactive>
             <Td principal>
               <LienLigne href={`/propositions/${p.id}`}>{p.immeuble.adresse}</LienLigne>
-              <span className="block text-caption text-ink-3">
+              <span className="block text-meta text-ink-3">
                 {[p.immeuble.commune, p.immeuble.immatriculation].filter(Boolean).join(" · ") || "commune inconnue"}
                 {STATUTS_OUVERTS.has(p.statut) && p.manquant.length > 0 && <span className="text-warn-700"> · manque {p.manquant.join(", ")}</span>}
               </span>
@@ -228,15 +228,15 @@ function TableProps({ lignes }: { lignes: PropositionResume[] }) {
             <Td numeric className="tabular-nums">{p.immeuble.lotsPrincipaux ?? "—"}</Td>
             <Td secondaire>
               <span className="block text-ink truncate max-w-56">{p.contact.nom ?? "—"}</span>
-              <span className="block text-caption text-ink-3 truncate max-w-56">{[p.contact.telephone, p.contact.email].filter(Boolean).join(" · ")}</span>
+              <span className="block text-meta text-ink-3 truncate max-w-56">{[p.contact.telephone, p.contact.email].filter(Boolean).join(" · ")}</span>
             </Td>
             <Td secondaire>
               {p.agence ?? "—"}
-              {p.origine && <span className="block text-caption text-ink-3">{LIBELLE_ORIGINE[p.origine]}</span>}
+              {p.origine && <span className="block text-meta text-ink-3">{LIBELLE_ORIGINE[p.origine]}</span>}
             </Td>
             <Td secondaire className="tabular-nums">
               {p.premierContactISO ? formatJour(p.premierContactISO) : "—"}
-              {p.decisionISO && !STATUTS_OUVERTS.has(p.statut) && <span className="block text-caption text-ink-3">décidé le {formatJour(p.decisionISO)}</span>}
+              {p.decisionISO && !STATUTS_OUVERTS.has(p.statut) && <span className="block text-meta text-ink-3">décidé le {formatJour(p.decisionISO)}</span>}
             </Td>
             <Td numeric className="tabular-nums">{p.prix.honorairesTtc !== undefined ? `${p.prix.honorairesTtc.toLocaleString("fr-FR")} €` : "—"}</Td>
             <Td numeric><Badge ton={TON[p.statut]}>{LIBELLE_STATUT[p.statut]}</Badge></Td>
@@ -258,7 +258,7 @@ function VueParStatut({ lignes }: { lignes: PropositionResume[] }) {
           <div key={s} className="flex flex-col gap-2 min-w-0">
             <div className="flex items-center gap-2">
               <Badge ton={TON[s]}>{LIBELLE_STATUT[s]}</Badge>
-              <span className="text-caption text-ink-3">{groupe.length}</span>
+              <span className="text-meta text-ink-3">{groupe.length}</span>
             </div>
             <Rows>
               {groupe.slice(0, 60).map((p) => (
@@ -267,11 +267,11 @@ function VueParStatut({ lignes }: { lignes: PropositionResume[] }) {
                   href={`/propositions/${p.id}`}
                   principal={p.immeuble.adresse}
                   secondaire={[p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots` : null, p.contact.nom, p.agence].filter(Boolean).join(" · ")}
-                  droite={<span className="text-caption text-ink-3 tabular-nums">{p.premierContactISO ? formatJour(p.premierContactISO) : "—"}</span>}
+                  droite={<span className="text-meta text-ink-3 tabular-nums">{p.premierContactISO ? formatJour(p.premierContactISO) : "—"}</span>}
                 />
               ))}
             </Rows>
-            {groupe.length > 60 && <p className="text-caption text-ink-3">{groupe.length - 60} de plus — passez en liste.</p>}
+            {groupe.length > 60 && <p className="text-meta text-ink-3">{groupe.length - 60} de plus — passez en liste.</p>}
           </div>
         );
       })}

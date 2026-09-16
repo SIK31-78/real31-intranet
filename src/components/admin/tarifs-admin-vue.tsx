@@ -114,7 +114,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
                   <Tbody>
                     {lignes.map((l) => (
                       <Tr key={l.identifiantPrestation}>
-                        <Td principal><span className="font-mono text-caption">{l.identifiantPrestation}</span></Td>
+                        <Td principal><span className="font-mono text-meta">{l.identifiantPrestation}</span></Td>
                         <Td>
                           <Input value={valeur(l.identifiantPrestation, "libelle", l.libelle)} onChange={(e) => setSaisies((s) => ({ ...s, [l.identifiantPrestation]: { libelle: e.target.value, montant: valeur(l.identifiantPrestation, "montant", String(l.montantTtc)) } }))} />
                         </Td>
@@ -152,7 +152,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
                     )}
                   </Tbody>
                 </Table>
-                {lignes.length === 0 && !nouvelle && <p className="p-4 text-caption text-ink-3">Aucune ligne.</p>}
+                {lignes.length === 0 && !nouvelle && <p className="p-4 text-meta text-ink-3">Aucune ligne.</p>}
               </CardBody>
             </Card>
           </Section>

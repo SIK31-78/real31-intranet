@@ -58,7 +58,7 @@ export default async function ARapprocherPage() {
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="flex items-baseline gap-2 min-w-0">
                       <Link href={`/propositions/${p.id}`} className="text-body font-medium text-ink hover:underline truncate">{p.immeuble.adresse}</Link>
-                      <span className="text-caption text-ink-3">
+                      <span className="text-meta text-ink-3">
                         {[p.immeuble.commune, p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots` : null, p.contact.nom, p.agence].filter(Boolean).join(" · ")}
                         {p.premierContactISO && ` · ${formatJour(p.premierContactISO)}`}
                       </span>
@@ -79,7 +79,7 @@ export default async function ARapprocherPage() {
                 {sans.length} proposition{sans.length > 1 ? "s" : ""} sans candidat au registre (adresse incomplète, faute de frappe, ou immeuble
                 hors 75/78/92/95) : à rattacher depuis leur fiche si besoin.
               </p>
-              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-caption">
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta">
                 {sans.map(({ proposition: p }) => (
                   <li key={p.id}><Link href={`/propositions/${p.id}`} className="text-ink-2 hover:text-ink hover:underline">{p.immeuble.adresse}</Link></li>
                 ))}

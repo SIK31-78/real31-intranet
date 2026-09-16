@@ -62,7 +62,7 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
                   <Building2 strokeWidth={1.5} /> Élue : créer la copropriété
                 </ButtonLink>
               )}
-              {STATUTS_OUVERTS.has(p.statut) && !droits.offre && <span className="text-caption text-ink-3" title={MESSAGE_RESERVE_DIRECTION}>offre et élection : direction</span>}
+              {STATUTS_OUVERTS.has(p.statut) && !droits.offre && <span className="text-meta text-ink-3" title={MESSAGE_RESERVE_DIRECTION}>offre et élection : direction</span>}
             </>
           }
         />

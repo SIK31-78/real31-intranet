@@ -32,9 +32,9 @@ export function MailOffre({ texte }: { texte: string }) {
   return (
     <Card>
       <CardBody className="flex flex-col gap-3">
-        <Textarea value={valeur} onChange={(e) => setValeur(e.target.value)} rows={26} className="font-mono text-caption leading-relaxed" spellCheck={false} />
+        <Textarea value={valeur} onChange={(e) => setValeur(e.target.value)} rows={26} className="font-mono text-meta leading-relaxed" spellCheck={false} />
         <div className="flex items-center justify-between gap-3">
-          <p className="text-caption text-ink-3">Le texte se retouche ici avant copie ; il n&apos;est pas enregistré.</p>
+          <p className="text-meta text-ink-3">Le texte se retouche ici avant copie ; il n&apos;est pas enregistré.</p>
           <Button type="button" variant="secondary" onClick={copier}>
             {copie ? <Check strokeWidth={1.5} /> : <Copy strokeWidth={1.5} />} Copier le mail
           </Button>
@@ -75,7 +75,7 @@ export function MarquerOffreRemise({
       >
         {pending ? <Loader2 strokeWidth={1.5} className="animate-spin" /> : <Send strokeWidth={1.5} />} Offre envoyée
       </Button>
-      <p className="text-caption text-ink-3">{dejaRemiseISO ? `Déjà remise le ${formatJour(dejaRemiseISO)} — recliquer trace un nouvel envoi.` : "Date la remise et note le cycle proposé dans le journal."}</p>
+      <p className="text-meta text-ink-3">{dejaRemiseISO ? `Déjà remise le ${formatJour(dejaRemiseISO)} — recliquer trace un nouvel envoi.` : "Date la remise et note le cycle proposé dans le journal."}</p>
     </div>
   );
 }
