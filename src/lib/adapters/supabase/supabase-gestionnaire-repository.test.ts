@@ -7,18 +7,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const etat = vi.hoisted(() => ({
   row: null as Record<string, unknown> | null,
+  // Colonnes du SELECT sur "User" seulement : findById lit aussi intranet_habilitation
+  // et intranet_collaborateur depuis les roles pilotes par la table (16/09/2026).
   cols: null as string | null,
+  table: "",
   reset() {
     etat.row = null;
     etat.cols = null;
+    etat.table = "";
   },
 }));
 
 function fakeSb() {
   const b: Record<string, unknown> = {};
-  b.from = () => b;
+  b.from = (table: string) => {
+    etat.table = table;
+    return b;
+  };
   b.select = (cols: string) => {
-    etat.cols = cols;
+    if (etat.table === "User") etat.cols = cols;
     return b;
   };
   b.eq = () => b;
