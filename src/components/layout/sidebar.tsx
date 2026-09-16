@@ -105,6 +105,8 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     titre: "Ressources",
     items: [
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+      // Collaborateurs (16/09/2026) : qui est la, sur quel portefeuille. DIRECTION seulement.
+      { key: "collaborateurs", label: "Collaborateurs", href: "/collaborateurs", icon: Users },
       { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
     ],
   },
@@ -126,8 +128,6 @@ const NAV_COMPTABLE: Item[] = [
   { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
   { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
-  // Collaborateurs (16/09/2026) : qui est la, sur quel portefeuille. DIRECTION seulement.
-  { key: "collaborateurs", label: "Collaborateurs", href: "/collaborateurs", icon: Users },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
 

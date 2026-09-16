@@ -47,11 +47,14 @@ export default async function CollaborateursPage() {
           }
         />
 
-        {(sansGestionnaire.length > 0 || sansAssistant.length > 0) && (
-          <Callout ton="warn" titre="Des copropriétés sans responsable en poste">
-            {sansGestionnaire.length > 0 && <p>Sans gestionnaire : {sansGestionnaire.map((e) => e.code).join(", ")}.</p>}
-            {sansAssistant.length > 0 && <p>Sans assistant : {sansAssistant.length > 12 ? `${sansAssistant.slice(0, 12).map((e) => e.code).join(", ")}… (${sansAssistant.length})` : sansAssistant.map((e) => e.code).join(", ")}.</p>}
+        {sansGestionnaire.length > 0 && (
+          <Callout ton="warn" titre={`${sansGestionnaire.length} copropriété${sansGestionnaire.length > 1 ? "s" : ""} sans gestionnaire en poste`}>
+            {sansGestionnaire.map((e) => e.code).join(", ")}.
           </Callout>
+        )}
+        {sansAssistant.length > 0 && (
+          // Beaucoup de copros (ML, HLS) n'ont pas d'assistant au referentiel : une information, pas une alerte.
+          <p className="text-caption text-ink-3">{sansAssistant.length} copropriétés actives sans assistant renseigné au référentiel.</p>
         )}
 
         <Section id="collab-arrivee" titre="Nouvelle arrivée">
