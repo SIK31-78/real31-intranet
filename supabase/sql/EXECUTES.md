@@ -48,5 +48,5 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `reprise_mapping_decision.sql` | ❔ | Reprise compta — décisions de mapping. |
 | `_diagnostic_avant_deploiement.sql` | — | Script de diagnostic (lecture seule, pas une migration). |
 - 🔲 `intranet_feedback_resume_public.sql` — resume public des remontees (vitrine /nouveautes depliable)
-- 🔲 `audit_base_2026-09-16.sql` — lot C de l'audit : pg_trgm + index trigram sur le registre (remplace le gin tsvector inutilisé), uniques factures (copro, prestation, période) et contrats (copro, début), index immatriculation des propositions. Aucun doublon en base au 16/09 (vérifié), le code gère 23505.
+- ✅ `audit_base_2026-09-16.sql` (passé le 16/09/2026, uniques prouvés par un doublon SE999 refusé 23505) — lot C de l'audit : pg_trgm + index trigram sur le registre (remplace le gin tsvector inutilisé), uniques factures (copro, prestation, période) et contrats (copro, début), index immatriculation des propositions. Aucun doublon en base au 16/09 (vérifié), le code gère 23505.
 - 🔲 `intranet_points_estale.sql` — points a porter a ESTALE (outil admin /admin/estale)
