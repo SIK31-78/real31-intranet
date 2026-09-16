@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutVoirGestionCourante, estDirectionQuelquePart, profilDe } from "@/lib/auth/roles";
-import { trimestreCourant } from "@/lib/services/facturation/gestion-courante";
+import { trimestreCourant } from "@/lib/domain/facturation/filet-gestion-courante";
 import { modeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { getCoproRepository } from "@/lib/adapters/router";
 import { listerDossiersPerte } from "@/lib/services/perte/dossier-perte";
 import { Page, PageHeader } from "@/components/ui/page";
 
+import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Gestion courante - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function GestionCourantePage() {
   const habilite = peutVoirGestionCourante(g.email);
   // Pour « Perdre une copropriete » : toutes les copros ACTIVES du cabinet (geste
   // transverse), et les dernieres pertes actees.
-  const aujourdhuiISO = new Date().toISOString().slice(0, 10);
+  const aujourdhuiISO = jourParis();
   const [toutes, dossiers] = habilite
     ? await Promise.all([getCoproRepository().listerToutes(), listerDossiersPerte(aujourdhuiISO)])
     : [[], []];
@@ -56,7 +57,7 @@ export default async function GestionCourantePage() {
 
         {habilite ? (
           <PanneauGestionCourante
-            trimestreParDefaut={trimestreCourant()}
+            trimestreParDefaut={trimestreCourant(aujourdhuiISO)}
             // L'ecran doit DIRE la verite avant d'engager : brouillon ou facture
             // deja validee chez Pennylane (donc irreversible).
             pennylaneMode={modeEmissionFacture(

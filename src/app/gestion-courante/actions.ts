@@ -13,12 +13,12 @@ import { ouvrirDossierPerte } from "@/lib/services/perte/dossier-perte";
 import {
   apercuGestionCourante,
   lancerGestionCourante,
-  periodeValide,
   type ApercuGestionCourante,
   type ResultatLancementGc,
   type SelectionGc,
 } from "@/lib/services/facturation/gestion-courante";
 
+import { periodeValide } from "@/lib/domain/facturation/filet-gestion-courante";
 type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
 const zPeriode = z.string().trim().refine(periodeValide, "Periode attendue au format AAAA-Tn");

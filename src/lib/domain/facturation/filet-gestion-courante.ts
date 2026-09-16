@@ -88,9 +88,23 @@ function deuxChiffres(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+const PERIODE_RE = /^(\d{4})-T([1-4])$/;
+
+/** Valide le format d'une periode "AAAA-Tn". */
+export function periodeValide(periode: string): boolean {
+  return PERIODE_RE.test(periode);
+}
+
+/** Periode trimestrielle d'un jour, ex "2026-T3" (trimestre civil). */
+export function trimestreCourant(aujISO: string): string {
+  const [annee, mois] = aujISO.split("-").map(Number);
+  const t = Math.floor(((mois ?? 1) - 1) / 3) + 1;
+  return `${annee}-T${t}`;
+}
+
 /** Bornes d'une periode "AAAA-Tn". Leve si la periode est mal formee. */
 export function bornesTrimestre(periode: string): BornesTrimestre {
-  const m = /^(\d{4})-T([1-4])$/.exec(periode);
+  const m = PERIODE_RE.exec(periode);
   if (!m) throw new Error(`Periode invalide : ${periode} (attendu "AAAA-Tn").`);
   const annee = Number(m[1]);
   const t = Number(m[2]);

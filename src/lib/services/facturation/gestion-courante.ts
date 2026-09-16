@@ -39,17 +39,9 @@ import {
   CATEGORIE_FORFAIT_POSTAUX,
 } from "@/lib/domain/facturation/produits";
 
-/** Periode trimestrielle courante, ex "2026-T3" (trimestre civil). */
-export function trimestreCourant(aujISO = aujourdhuiISO()): string {
-  const [annee, mois] = aujISO.split("-").map(Number);
-  const t = Math.floor(((mois ?? 1) - 1) / 3) + 1;
-  return `${annee}-T${t}`;
-}
-
-/** Valide le format d'une periode "AAAA-Tn". */
-export function periodeValide(periode: string): boolean {
-  return /^\d{4}-T[1-4]$/.test(periode);
-}
+import { periodeValide } from "@/lib/domain/facturation/filet-gestion-courante";
+// La grammaire « AAAA-Tn » et le trimestre civil vivent dans le domaine
+// (filet-gestion-courante), a cote des bornes : une seule definition.
 
 export interface LigneApercuGc {
   coproCode: string;
