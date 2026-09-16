@@ -4,6 +4,7 @@
 
 import type {
   DemandeEmission,
+  NouveauClient,
   InvoicingProvider,
   ResultatEmission,
 } from "@/lib/ports/invoicing-provider";
@@ -11,6 +12,11 @@ import type {
 export class NoopInvoicingProvider implements InvoicingProvider {
   /** Emissions simulees pendant la session (inspectables en test). */
   readonly emissions: DemandeEmission[] = [];
+
+  async creerClient(client: NouveauClient): Promise<{ clientExterneId: string }> {
+    console.log(`[invoicing:noop] client simule (${client.referenceExterne})`);
+    return { clientExterneId: `noop-client-${client.referenceExterne}` };
+  }
 
   async emettreFacture(demande: DemandeEmission): Promise<ResultatEmission> {
     this.emissions.push(demande);

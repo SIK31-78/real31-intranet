@@ -2,6 +2,7 @@
 // "prochains evenements" remonte des donnees. Une copro en source Estale (S045) pour
 // demontrer le badge + deep-link (ADR-003). Ne depend que du domaine et des ports.
 
+import type { NouvelleCopro } from "@/lib/domain/proposition/election";
 import type { CoproPerdueInput, CoproRepository } from "@/lib/ports/copro-repository";
 import type { Copropriete, MembreEquipe } from "@/lib/domain/copropriete";
 
@@ -120,6 +121,24 @@ export class MockCoproRepository implements CoproRepository {
     } else {
       delete c.derniereCsDate;
     }
+  }
+
+  async creerCopro(c: NouvelleCopro): Promise<void> {
+    if (COPROS[c.code]) throw new Error(`Création de ${c.code} : ce code existe déjà.`);
+    COPROS[c.code] = {
+      code: c.code,
+      source: "estale",
+      nom: c.nom,
+      adresse: { ligne1: c.adresse1, codePostal: c.codePostal, ville: c.ville },
+      statut: "active",
+      lotsPrincipaux: c.lotsPrincipaux,
+      lotsAutres: c.lotsAutres,
+      exercice: { debut: "01/01", fin: "31/12" },
+      priseEnGestion: c.priseEnGestionISO,
+      equipe: [],
+      mandatSyndicFin: c.finMandatISO,
+      ...(c.immatriculation ? { immatriculation: c.immatriculation } : {}),
+    } as Copropriete;
   }
 
   async perdreCopro(input: CoproPerdueInput): Promise<void> {

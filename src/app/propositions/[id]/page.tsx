@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, Building2, FileText } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getAgenceRepository } from "@/lib/adapters/router";
 import { calculerPrix, contexteImmeuble, getProposition, suggererRapprochement } from "@/lib/services/proposition/propositions";
@@ -48,8 +48,13 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
             <>
               <ButtonLink href="/propositions" variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Pipeline</ButtonLink>
               {STATUTS_OUVERTS.has(p.statut) && (
-                <ButtonLink href={`/propositions/${p.id}/offre`} variant="primary" size="sm" title={obstacles.length ? `Il manque : ${obstacles.join(", ")}` : undefined}>
+                <ButtonLink href={`/propositions/${p.id}/offre`} variant={p.statut === "accepte_cs" ? "secondary" : "primary"} size="sm" title={obstacles.length ? `Il manque : ${obstacles.join(", ")}` : undefined}>
                   <FileText strokeWidth={1.5} /> {p.remisePropositionISO ? "Revoir l'offre" : "Préparer l'offre"}
+                </ButtonLink>
+              )}
+              {(p.statut === "accepte_cs" || p.statut === "elu") && !p.coproCode && (
+                <ButtonLink href={`/propositions/${p.id}/election`} variant="primary" size="sm">
+                  <Building2 strokeWidth={1.5} /> Élue : créer la copropriété
                 </ButtonLink>
               )}
             </>

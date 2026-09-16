@@ -3,6 +3,7 @@
 // connait la forme Prisma ; le domaine et l'UI l'ignorent (ADR-001).
 
 import type { CoproPerdueInput, CoproRepository } from "@/lib/ports/copro-repository";
+import type { NouvelleCopro } from "@/lib/domain/proposition/election";
 import type {
   Adresse,
   Copropriete,
@@ -267,6 +268,52 @@ export class SupabaseCoproRepository implements CoproRepository {
       .or(`referenceCrypto.eq.${coproCode},referenceEstale.eq.${coproCode}`)
       .or(filtrePerimetre(managerId));
     if (error) throw new Error(`MAJ date ${type} : ${error.message}`);
+  }
+
+  async creerCopro(c: NouvelleCopro): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { data: existante } = await supabase
+      .from("Copropriete")
+      .select("id")
+      .or(`referenceCrypto.eq.${c.code},referenceEstale.eq.${c.code}`)
+      .limit(1);
+    if (existante && existante.length > 0) throw new Error(`Création de ${c.code} : ce code existe déjà dans le référentiel.`);
+    const maintenant = new Date().toISOString();
+    // Meme forme que les fiches creees a la main dans App A (S302 sert de modele) :
+    // dataSource ESTALE, les deux references au meme code, searchNormalized recalcule.
+    const ligne = {
+      id: crypto.randomUUID(),
+      referenceCrypto: c.code,
+      referenceEstale: c.code,
+      dataSource: "ESTALE",
+      name: c.nom,
+      address1: c.adresse1,
+      postalCode: c.codePostal,
+      city: c.ville,
+      registrationNumber: c.immatriculation ?? null,
+      status: "ACTIVE",
+      agencyId: c.agenceId ?? null,
+      managerId: c.managerId ?? null,
+      mainLotsCount: c.lotsPrincipaux,
+      otherLotsCount: c.lotsAutres,
+      syndicInitialDate: c.priseEnGestionISO,
+      syndicContractEndDate: c.finMandatISO,
+      nextAGDate: c.prochaineAgISO ?? null,
+      agDurationHours: c.dureeAgHeures,
+      agEndMax: c.finMaxAgHeure,
+      csCount: c.nbCs,
+      csDurationMinutes: c.dureeCsHeures,
+      visitCount: c.nbVisites,
+      realPostalFees: c.fraisPostauxReels,
+      pennylaneId: c.pennylaneId ?? null,
+      sdcName: c.nomSdc,
+      currentMgmtBilling: "A préparer",
+      searchNormalized: `${c.nom} ${c.code} ${c.adresse1} ${c.ville} ${c.codePostal}`.toLowerCase(),
+      createdAt: maintenant,
+      updatedAt: maintenant,
+    };
+    const { error } = await supabase.from("Copropriete").insert(ligne);
+    if (error) throw new Error(`Création de ${c.code} : ${error.message}`);
   }
 
   async perdreCopro(input: CoproPerdueInput): Promise<void> {

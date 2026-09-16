@@ -17,6 +17,7 @@ import {
   rechercherRegistre,
   type PrixCalcule,
 } from "@/lib/services/proposition/propositions";
+import { elireProposition } from "@/lib/services/proposition/election";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 
 type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
@@ -208,6 +209,38 @@ export async function marquerOffreRemiseAction(input: unknown): Promise<Res> {
     revalidatePath("/propositions");
     revalidatePath(`/propositions/${id}`);
     return { ok: true };
+  } catch (e) {
+    return { ok: false, erreur: (e as Error).message };
+  }
+}
+
+const zElection = z.object({
+  id: z.string().min(1),
+  code: z.string().trim().min(2).max(10),
+  nomUsuel: z.string().trim().min(1).max(40),
+  debutISO: zJour,
+  dureeMois: z.number().int().min(1).max(36),
+  agenceId: z.string().trim().max(80).optional(),
+  managerId: z.string().trim().max(80).optional(),
+  creerClientPennylane: z.boolean(),
+  ouvrirDossierReprise: z.boolean(),
+});
+
+export async function elirePropositionAction(input: unknown): Promise<Res<{ coproCode: string; etapes: string[] }>> {
+  const p = zElection.safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Saisie invalide." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  try {
+    const { id, ...choix } = p.data;
+    const r = await elireProposition(
+      id,
+      { ...choix, ...(choix.agenceId ? {} : { agenceId: undefined }), ...(choix.managerId ? {} : { managerId: undefined }) },
+      { nom: g.nomComplet, ...(g.email ? { email: g.email } : {}) },
+    );
+    revalidatePath("/propositions");
+    revalidatePath(`/propositions/${id}`);
+    return { ok: true, donnees: r };
   } catch (e) {
     return { ok: false, erreur: (e as Error).message };
   }

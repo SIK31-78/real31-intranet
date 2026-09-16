@@ -3,6 +3,7 @@
 // Ne depend que du domaine.
 
 import type { Copropriete } from "@/lib/domain/copropriete";
+import type { NouvelleCopro } from "@/lib/domain/proposition/election";
 
 export interface CoproRepository {
   /** Liste les copros ; si managerId fourni, cloisonne au gestionnaire (cloisonnement). */
@@ -30,6 +31,11 @@ export interface CoproRepository {
    * Leve si la copro est inconnue.
    */
   perdreCopro(input: CoproPerdueInput): Promise<void>;
+  /**
+   * Cree une copropriete dans le referentiel partage (App A) : une proposition elue qui
+   * entre en gestion (ADR-039, brique 3). Leve si le code existe deja.
+   */
+  creerCopro(input: NouvelleCopro): Promise<void>;
 }
 
 export interface CoproPerdueInput {

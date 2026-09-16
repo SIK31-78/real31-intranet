@@ -47,6 +47,7 @@ class FakeMiroir implements CoproRepository {
     this.setAppels.push({ code, type, quand, dateISO, managerId });
   }
   async perdreCopro() {}
+  async creerCopro() {}
 }
 
 class FakeEstale implements CoproEstaleProvider {

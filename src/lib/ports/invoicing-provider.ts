@@ -66,4 +66,22 @@ export interface InvoicingProvider {
    * facture validee est comptablement engagee et ne se defait pas.
    */
   emettreFacture(demande: DemandeEmission): Promise<ResultatEmission>;
+  /**
+   * Cree le client (le syndicat des coproprietaires) chez le fournisseur, avec la
+   * reference externe que la copropriete garde (Copropriete.pennylaneId). Renvoie l'id
+   * interne du fournisseur. Une proposition elue (ADR-039, brique 3).
+   */
+  creerClient(client: NouveauClient): Promise<{ clientExterneId: string }>;
+}
+
+export interface NouveauClient {
+  /** « SDC 16 rue Sébastopol - S303 » */
+  nom: string;
+  adresse: string;
+  codePostal: string;
+  ville: string;
+  /** UUID pose par l'intranet, retrouve ensuite par `external_reference`. */
+  referenceExterne: string;
+  /** Adresse(s) qui recoivent les factures : le gestionnaire, comme sur les clients existants. */
+  emails: string[];
 }
