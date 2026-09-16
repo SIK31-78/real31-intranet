@@ -325,10 +325,17 @@ export async function supprimerDossierRepriseAction(ref: string): Promise<Action
 // --- FICHES DE RENSEIGNEMENTS (courriers -> formulaire public -> validation) -----
 // Étape de FIN de reprise (EX4 / EX6) ; la route publique /fiche/[token] en dépend. Conservé tel quel.
 
-/** Base URL publique du formulaire : env explicite, sinon reconstruite depuis la requête. */
+/**
+ * Base URL publique du formulaire : env explicite ; en dev seulement, reconstruite depuis la
+ * requête. En production on refuse de la deviner d'un en-tête `x-forwarded-host` (un host
+ * falsifié enverrait les copropriétaires saisir leur code sur un domaine tiers).
+ */
 async function baseUrlPublique(): Promise<string> {
   const override = process.env.FICHE_PUBLIC_BASE_URL;
   if (override) return override.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("FICHE_PUBLIC_BASE_URL manquante : les courriers ne peuvent pas porter le lien du formulaire.");
+  }
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
