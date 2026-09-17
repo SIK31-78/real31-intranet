@@ -353,7 +353,7 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
 }
 
 /** L'offre est partie : la proposition en garde la date, le cycle propose et une ligne de journal. */
-export async function marquerOffreRemise(id: string, options: OptionsOffre, par: string): Promise<Proposition> {
+export async function marquerOffreRemise(id: string, options: OptionsOffre, par: string, detail?: string): Promise<Proposition> {
   const repo = getPropositionRepository();
   const p = await repo.get(id);
   if (!p) throw new Error("Proposition introuvable.");
@@ -368,7 +368,7 @@ export async function marquerOffreRemise(id: string, options: OptionsOffre, par:
       {
         quandISO: new Date().toISOString(),
         par,
-        texte: `Offre remise : ${(p.prix.honorairesTtc ?? 0).toLocaleString("fr-FR")} € TTC par an, contrat du ${cycle.debutISO.split("-").reverse().join("/")} au ${cycle.finISO.split("-").reverse().join("/")}, AG du ${cycle.dateAgISO.split("-").reverse().join("/")}.`,
+        texte: `Offre remise : ${(p.prix.honorairesTtc ?? 0).toLocaleString("fr-FR")} € TTC par an, contrat du ${cycle.debutISO.split("-").reverse().join("/")} au ${cycle.finISO.split("-").reverse().join("/")}, AG du ${cycle.dateAgISO.split("-").reverse().join("/")}.${detail ? ` Offre ${detail}.` : ""}`,
       },
     ],
   };

@@ -40,8 +40,9 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     sujet: string;
     corps: string;
     corpsHtml?: string;
+    piecesJointes?: { nom: string }[];
   }): Promise<void> {
     // Pas de PII en log (RGPD) : nombre de destinataires seulement, jamais les adresses.
-    console.log(`[mail-outbound:noop] mail neuf simule (${p.a.length} dest., ${p.corps.length} car.)`);
+    console.log(`[mail-outbound:noop] mail neuf simule (${p.a.length} dest., ${p.corps.length} car., ${p.piecesJointes?.length ?? 0} PJ)`);
   }
 }

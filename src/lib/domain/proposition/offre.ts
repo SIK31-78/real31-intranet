@@ -197,3 +197,16 @@ function jj(iso: string): string {
   const [a, m, j] = iso.split("-");
   return `${j}/${m}/${a}`;
 }
+
+export const SUJET_OFFRE = "Votre proposition de contrat de syndic – REAL 31";
+
+/**
+ * Le texte de l'offre tel qu'il a ete relu dans l'ecran, decoupe pour l'envoi : la ligne
+ * « Objet : … » devient le sujet du mail, le reste le corps. Sans ligne d'objet, le sujet
+ * est celui du cabinet.
+ */
+export function decouperMailOffre(texte: string): { sujet: string; corps: string } {
+  const m = /^\s*Objet\s*:\s*(.+?)\s*\r?\n/i.exec(texte);
+  if (!m) return { sujet: SUJET_OFFRE, corps: texte.trim() };
+  return { sujet: m[1]!.trim() || SUJET_OFFRE, corps: texte.slice(m[0].length).trim() };
+}

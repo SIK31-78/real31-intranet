@@ -63,5 +63,13 @@ export interface MailOutboundProvider {
      */
     corpsHtml?: string;
     signatureHtml?: string;
+    /** Pieces jointes (le contrat de l'offre en PDF). Petites : Graph accepte ~3 Mo en base64 par sendMail. */
+    piecesJointes?: PieceJointeMail[];
   }): Promise<void>;
+}
+
+export interface PieceJointeMail {
+  nom: string;
+  contentType: string;
+  base64: string;
 }

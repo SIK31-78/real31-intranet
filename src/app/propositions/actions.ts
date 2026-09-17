@@ -21,6 +21,7 @@ import {
   type PrixCalcule,
 } from "@/lib/services/proposition/propositions";
 import { elireProposition } from "@/lib/services/proposition/election";
+import { envoyerOffre } from "@/lib/services/proposition/envoyer-offre";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 
 
@@ -237,6 +238,29 @@ export async function marquerOffreRemiseAction(input: unknown): Promise<Res> {
     revalidatePath("/propositions");
     revalidatePath(`/propositions/${id}`);
     return { ok: true };
+  } catch (e) {
+    return echecDepuis(e, "propositions");
+  }
+}
+
+const zEnvoiOffre = zOffre.extend({ texteMail: z.string().trim().min(20).max(20_000) });
+
+/** Envoie l'offre au contact (mail + contrat PDF) depuis la boite du gestionnaire, puis la marque remise. */
+export async function envoyerOffreAction(input: unknown): Promise<Res<{ a: string; pieceJointe: string }>> {
+  const p = zEnvoiOffre.safeParse(input);
+  if (!p.success) return { ok: false, erreur: "Saisie invalide : le mail est vide ou trop long." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!g.email) return { ok: false, erreur: "Votre compte n'a pas d'adresse e-mail : l'envoi part de votre boîte." };
+  const cible = await getProposition(p.data.id);
+  if (!cible) return { ok: false, erreur: "Proposition introuvable." };
+  if (!peutFaireOffre(profilDe(g), cible.agence)) return { ok: false, erreur: MESSAGE_RESERVE_DIRECTION };
+  try {
+    const { id, texteMail, ...options } = p.data;
+    const envoi = await envoyerOffre(id, options, texteMail, { nom: g.nomComplet, email: g.email });
+    revalidatePath("/propositions");
+    revalidatePath(`/propositions/${id}`);
+    return { ok: true, donnees: { a: envoi.a, pieceJointe: envoi.pieceJointe } };
   } catch (e) {
     return echecDepuis(e, "propositions");
   }

@@ -1,7 +1,8 @@
 "use client";
 
-// Le mail de l'offre : a relire, retoucher, copier dans Outlook. Et le bouton qui acte
-// que l'offre est partie.
+// Le mail de l'offre : a relire, retoucher, puis ENVOYER depuis l'intranet (contrat PDF
+// en piece jointe, depuis la boite du gestionnaire). Le bouton « copier » reste pour qui
+// prefere finir dans Outlook ; « offre remise sans envoi » date une remise faite ailleurs.
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -11,12 +12,31 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { formatJour } from "@/lib/services/facturation/format";
-import { marquerOffreRemiseAction } from "@/app/propositions/actions";
+import { envoyerOffreAction, marquerOffreRemiseAction } from "@/app/propositions/actions";
 
-export function MailOffre({ texte }: { texte: string }) {
+type Options = { dateAgISO?: string; debutISO?: string; dureeMois?: number };
+
+export function MailOffre({
+  texte,
+  propositionId,
+  options,
+  contactEmail,
+  contratPret,
+  dejaRemiseISO,
+}: {
+  texte: string;
+  propositionId: string;
+  options: Options;
+  contactEmail?: string;
+  /** Le contrat se remplit : sans lui, rien ne part. */
+  contratPret: boolean;
+  dejaRemiseISO?: string;
+}) {
+  const router = useRouter();
   const toast = useToast();
   const [valeur, setValeur] = useState(texte);
   const [copie, setCopie] = useState(false);
+  const [pending, demarrer] = useTransition();
 
   async function copier() {
     try {
@@ -29,15 +49,38 @@ export function MailOffre({ texte }: { texte: string }) {
     }
   }
 
+  const envoyer = () =>
+    demarrer(async () => {
+      const res = await envoyerOffreAction({ id: propositionId, ...options, texteMail: valeur });
+      if (!res.ok) return toast.err(res.erreur);
+      toast.ok(`Offre envoyée à ${res.donnees?.a ?? contactEmail} avec ${res.donnees?.pieceJointe ?? "le contrat"}.`);
+      router.push(`/propositions/${propositionId}`);
+    });
+
+  const peutEnvoyer = contratPret && !!contactEmail && !pending;
+  const pourquoiPas = !contactEmail ? "Le contact n'a pas d'adresse e-mail." : !contratPret ? "Le contrat ne se remplit pas encore." : null;
+
   return (
     <Card>
       <CardBody className="flex flex-col gap-3">
         <Textarea value={valeur} onChange={(e) => setValeur(e.target.value)} rows={26} className="font-mono text-meta leading-relaxed" spellCheck={false} />
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-meta text-ink-3">Le texte se retouche ici avant copie ; il n&apos;est pas enregistré.</p>
-          <Button type="button" variant="secondary" onClick={copier}>
-            {copie ? <Check strokeWidth={1.5} /> : <Copy strokeWidth={1.5} />} Copier le mail
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-meta text-ink-3">
+            {pourquoiPas ?? (
+              <>
+                Part de votre boîte à <span className="text-ink">{contactEmail}</span>, vous en copie, avec le contrat en PDF.
+                {dejaRemiseISO ? ` Déjà remise le ${formatJour(dejaRemiseISO)}.` : ""}
+              </>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="secondary" onClick={copier} disabled={pending}>
+              {copie ? <Check strokeWidth={1.5} /> : <Copy strokeWidth={1.5} />} Copier
+            </Button>
+            <Button type="button" variant="primary" onClick={envoyer} disabled={!peutEnvoyer}>
+              {pending ? <Loader2 strokeWidth={1.5} className="animate-spin" /> : <Send strokeWidth={1.5} />} Envoyer l&apos;offre
+            </Button>
+          </div>
         </div>
       </CardBody>
     </Card>
@@ -51,7 +94,7 @@ export function MarquerOffreRemise({
   dejaRemiseISO,
 }: {
   propositionId: string;
-  options: { dateAgISO?: string; debutISO?: string; dureeMois?: number };
+  options: Options;
   disabled: boolean;
   dejaRemiseISO?: string;
 }) {
@@ -73,9 +116,11 @@ export function MarquerOffreRemise({
           })
         }
       >
-        {pending ? <Loader2 strokeWidth={1.5} className="animate-spin" /> : <Send strokeWidth={1.5} />} Offre envoyée
+        {pending ? <Loader2 strokeWidth={1.5} className="animate-spin" /> : <Check strokeWidth={1.5} />} Remise sans envoi
       </Button>
-      <p className="text-meta text-ink-3">{dejaRemiseISO ? `Déjà remise le ${formatJour(dejaRemiseISO)} — recliquer trace un nouvel envoi.` : "Date la remise et note le cycle proposé dans le journal."}</p>
+      <p className="text-meta text-ink-3">
+        {dejaRemiseISO ? `Déjà remise le ${formatJour(dejaRemiseISO)} — recliquer trace une nouvelle remise.` : "Si l'offre est partie autrement (en main propre, depuis Outlook) : date la remise et note le cycle."}
+      </p>
     </div>
   );
 }

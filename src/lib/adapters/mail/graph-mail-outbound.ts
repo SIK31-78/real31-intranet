@@ -4,7 +4,7 @@
 // texte du cockpit en commentaire (Graph garde le fil + la citation). Pas de
 // signature injectee (Signitic s'en charge cote Outlook).
 
-import type { MailOutboundProvider } from "@/lib/ports/mail-outbound-provider";
+import type { MailOutboundProvider, PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 function echapperHtml(s: string): string {
@@ -138,6 +138,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     corps: string;
     corpsHtml?: string;
     signatureHtml?: string;
+    piecesJointes?: PieceJointeMail[];
   }): Promise<void> {
     if (!p.boite) throw new Error("Envoi : boite manquante.");
     if (dest(p.a).length === 0) throw new Error("Envoi : au moins un destinataire en 'A'.");
@@ -154,6 +155,18 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
       toRecipients: dest(p.a),
       ccRecipients: dest(p.cc),
       bccRecipients: dest(p.cci),
+      // Pieces jointes en base64 dans le message meme (fileAttachment) : un contrat de
+      // ~300 Ko, loin du plafond de 3 Mo de sendMail.
+      ...(p.piecesJointes && p.piecesJointes.length > 0
+        ? {
+            attachments: p.piecesJointes.map((pj) => ({
+              "@odata.type": "#microsoft.graph.fileAttachment",
+              name: pj.nom,
+              contentType: pj.contentType,
+              contentBytes: pj.base64,
+            })),
+          }
+        : {}),
     };
 
     // sendMail : Graph cree, envoie et archive dans "Elements envoyes" en un appel.

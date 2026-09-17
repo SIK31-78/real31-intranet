@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adressePourContrat, coproContratDepuisProposition, cycleOffre, lieuxAgAgence, obstaclesOffre, texteMailOffre } from "./offre";
+import { adressePourContrat, coproContratDepuisProposition, cycleOffre, decouperMailOffre, lieuxAgAgence, obstaclesOffre, SUJET_OFFRE, texteMailOffre } from "./offre";
 import type { Proposition } from "./proposition";
 
 const base: Proposition = {
@@ -78,5 +78,25 @@ describe("texteMailOffre", () => {
   it("lieux d'AG : LGC a deux adresses, ASN aucune", () => {
     expect(lieuxAgAgence("LGC")).toHaveLength(2);
     expect(lieuxAgAgence("ASN")).toEqual([]);
+  });
+});
+
+describe("decouperMailOffre", () => {
+  it("prend la ligne « Objet : » comme sujet et le reste comme corps", () => {
+    const d = decouperMailOffre("Objet : Votre proposition – REAL 31\n\nBonjour Madame,\n\nCordialement");
+    expect(d.sujet).toBe("Votre proposition – REAL 31");
+    expect(d.corps).toBe("Bonjour Madame,\n\nCordialement");
+  });
+  it("sans ligne d'objet, garde le sujet du cabinet et tout le texte", () => {
+    const d = decouperMailOffre("Bonjour,\nvoici l'offre.");
+    expect(d.sujet).toBe(SUJET_OFFRE);
+    expect(d.corps).toBe("Bonjour,\nvoici l'offre.");
+  });
+  it("relit le texte produit par texteMailOffre", () => {
+    const p = { contact: { nom: "Mme Durand" }, immeuble: { adresse: "1 rue X" }, agence: "LGC" } as never;
+    const cycle = { dateAgISO: "2026-11-05", debutISO: "2026-11-06", finISO: "2027-11-05", honorairesGestionTtc: 6717, forfaitPostauxTtc: 0, fraisPostauxReels: true } as never;
+    const d = decouperMailOffre(texteMailOffre(p, cycle, { nom: "Sekou KOMA" }));
+    expect(d.sujet).toBe(SUJET_OFFRE);
+    expect(d.corps.startsWith("Bonjour Madame,")).toBe(true);
   });
 });
