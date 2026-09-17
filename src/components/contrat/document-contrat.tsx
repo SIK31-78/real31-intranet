@@ -59,7 +59,7 @@ export function DocumentContrat({ champs }: { champs: ChampsContrat }) {
           du classeur : quand un decret change, le texte suit tout seul. */}
       <header className="mb-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-real31.png" alt="REAL 31 Immobilier" className="h-14 w-auto mb-4" />
+        <img src="/contrat-bandeau.png" alt="REAL 31 Immobilier, FNAIM, 20 ans d'expertise immobilière" className="w-full h-auto mb-4" />
         <h1 className="text-center text-page font-bold tracking-tight mb-2">{a.titre}</h1>
         {a.enTete.map((t, i) => (
           <p key={i} className="text-meta text-ink-2 text-justify whitespace-pre-line">{t}</p>

@@ -37,19 +37,18 @@ const ADRESSE_ML = "31 rue du Prieuré, 78600 Maisons-Laffitte";
 const ADRESSE_HLS = "3 place Michelet, 78800 Houilles";
 
 // Liste FERMEE des ressources REAL31. Toute reservation cible une de ces boites.
-/** Le siege de chaque agence, tel qu'il figure sur le contrat de syndic (MYTHEC remplissait
- *  [Coproprietes.Agence] avec l'adresse de la liste SharePoint « Agences »). */
-const SIEGES_AGENCES: Readonly<Record<string, { nom: string; adresse: string }>> = {
-  LGC: { nom: "Agence de La Garenne-Colombes", adresse: ADRESSE_LGC },
-  ML: { nom: "Agence de Maisons-Laffitte", adresse: ADRESSE_ML },
-  HLS: { nom: "Agence de Houilles", adresse: ADRESSE_HLS },
+/** Le siege de chaque agence, tel qu'il figure sur le contrat de syndic MYTHEC (S159 :
+ *  « 13 rond-point du Souvenir Français 92250 LA GARENNE-COLOMBES », ville en capitales). */
+const SIEGES_AGENCES: Readonly<Record<string, string>> = {
+  LGC: "13 rond-point du Souvenir Français 92250 LA GARENNE-COLOMBES",
+  ML: "31 rue du Prieuré 78600 MAISONS-LAFFITTE",
+  HLS: "3 place Michelet 78800 HOUILLES",
 };
 
-/** « Agence de Maisons-Laffitte, 31 rue du Prieuré, 78600 Maisons-Laffitte » ; le code seul si inconnu. */
+/** « 31 rue du Prieuré 78600 MAISONS-LAFFITTE » ; le code seul si inconnu. */
 export function siegeAgence(code: string | null | undefined): string {
   const c = (code ?? "").trim().toUpperCase();
-  const s = SIEGES_AGENCES[c];
-  return s ? `${s.nom}, ${s.adresse}` : c;
+  return SIEGES_AGENCES[c] ?? c;
 }
 
 export const RESSOURCES_REAL31: readonly RessourceReunion[] = [

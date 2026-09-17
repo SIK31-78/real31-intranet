@@ -10,7 +10,7 @@ const CSS = `
   * { box-sizing: border-box; }
   body { margin: 0; font-family: Aptos, Calibri, Arial, Helvetica, sans-serif; font-size: 8.6pt; line-height: 1.3; color: #20251F; }
   header { margin-bottom: 8px; }
-  header img { height: 44px; margin-bottom: 8px; }
+  header img { width: 100%; height: auto; margin-bottom: 10px; }
   h1 { font-size: 15pt; font-weight: 700; text-align: center; margin: 0 0 4px; letter-spacing: -0.01em; }
   header p { font-size: 7.4pt; color: #4C5347; text-align: justify; margin: 0 0 2px; white-space: pre-line; }
   .colonnes { display: flex; gap: 18px; align-items: flex-start; }
@@ -53,14 +53,14 @@ function noeud(n: NoeudContrat): string {
   return `<table${classe}>${colgroup}${thead}<tbody>${reste.map(ligne).join("")}</tbody></table>`;
 }
 
-/** Le document complet. `logoDataUri` : le logo en data: URI (le PDF n'a pas d'acces au site). */
+/** Le document complet. `logoDataUri` : le bandeau d'en-tete en data: URI (le PDF n'a pas d'acces au site). */
 export function htmlContrat(champs: ChampsContrat, logoDataUri?: string): string {
   const a = arbreContrat(champs);
   return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>${e(a.titre)}</title><style>${CSS}</style></head>
 <body>
 <header>
-  ${logoDataUri ? `<img src="${logoDataUri}" alt="REAL 31 Immobilier">` : ""}
+  ${logoDataUri ? `<img src="${logoDataUri}" alt="REAL 31 Immobilier, FNAIM, 20 ans d'expertise immobilière">` : ""}
   <h1>${e(a.titre)}</h1>
   ${a.enTete.map((t) => `<p>${e(t)}</p>`).join("")}
 </header>
