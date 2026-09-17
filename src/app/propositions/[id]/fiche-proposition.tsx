@@ -260,9 +260,8 @@ export function FicheProposition({
                   <Field label="Fin de son mandat" htmlFor="pi-finmandat"><Input id="pi-finmandat" type="date" value={im.finMandatActuelISO ?? ""} onChange={(e) => champ("finMandatActuelISO", e.target.value || undefined)} /></Field>
                   <Field label="AG prévue" htmlFor="pi-ag" hint="celle qui votera le contrat"><Input id="pi-ag" type="date" value={im.prochaineAgISO ?? ""} onChange={(e) => champ("prochaineAgISO", e.target.value || undefined)} /></Field>
                 </div>
-                <details className="group">
-                  <summary className="cursor-pointer text-body text-ink-2 hover:text-ink select-none">Fiche de visite : équipements, clôture, assurance, litiges, notes</summary>
-                  <div className="flex flex-col gap-3 pt-3">
+                <div className="flex flex-col gap-3 border-t border-line pt-4">
+                  <p className="text-meta text-ink-2 uppercase tracking-wide">Fiche de visite</p>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
                       {num("pi-cages", "Cages d'escalier", "cagesEscalier")}
                       {num("pi-asc", "Ascenseurs", "ascenseurs")}
@@ -287,8 +286,7 @@ export function FicheProposition({
                       <Field label="Litiges / procédures" htmlFor="pi-litiges"><Textarea id="pi-litiges" rows={2} value={im.litiges ?? ""} onChange={(e) => champ("litiges", e.target.value)} /></Field>
                       <Field label="Notes de visite" htmlFor="pi-notes"><Textarea id="pi-notes" rows={2} value={im.notes ?? ""} onChange={(e) => champ("notes", e.target.value)} /></Field>
                     </div>
-                  </div>
-                </details>
+                </div>
               </CardBody>
             </Card>
           </Section>

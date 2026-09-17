@@ -137,12 +137,12 @@ export function DetacherRegistre({ propositionId }: { propositionId: string }) {
         demarrer(async () => {
           const res = await detacherPropositionAction(propositionId);
           if (!res.ok) return toast.err(res.erreur);
-          toast.ok("Détachée du registre.");
+          toast.ok("Immeuble détaché : choisissez le bon dans la liste.");
           router.refresh();
         })
       }
     >
-      <Unlink strokeWidth={1.5} /> Mauvais immeuble
+      <Unlink strokeWidth={1.5} /> Corriger l&apos;immeuble
     </Button>
   );
 }

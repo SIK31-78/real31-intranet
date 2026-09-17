@@ -14,6 +14,7 @@
 // appose a l'AG, a l'impression du mandat signe, et vient du registre des mandats (App A,
 // module a fusionner). Ne pas « completer » ce trou : ce n'est pas un oubli.
 
+import type React from "react";
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
 import {
   GABARIT_DROITE,
@@ -39,31 +40,56 @@ function estMontant(texte: string): boolean {
 
 type OptionsRendu = { fraisPostauxReels?: boolean };
 
-function Bloc({ bloc, table, options }: { bloc: BlocGabarit; table: Record<string, string>; options: OptionsRendu }) {
-  // Ligne de grille tarifaire : plusieurs cellules sur la meme ligne.
-  if (typeof bloc !== "string") {
-    return (
-      <div className="flex items-baseline justify-between gap-3 py-0.5 border-b border-line/60">
-        {bloc.map((cellule, i) => {
-          const texte = remplirTexte(cellule, table, options);
-          // Un MONTANT reste sur une ligne et s'aligne a droite ; une cellule de TEXTE se
-          // replie. Sans cette distinction, les lignes a trois colonnes de texte (« IV. -
-          // Administration et gestion… ») poussaient le document a 7 500 px de large.
-          return estMontant(texte) ? (
-            <span key={i} className="tabular-nums whitespace-nowrap text-right shrink-0">
-              {texte}
-            </span>
-          ) : (
-            <span key={i} className="flex-1 min-w-0 break-words">
-              {texte}
-            </span>
+/** Une cellule d'en-tete de tableau : tout en capitales (« DETAIL DE LA PRESTATION »). */
+function estEnTete(texte: string): boolean {
+  const lettres = texte.replace(/[^A-Za-zÀ-ÿ]/g, "");
+  return lettres.length > 3 && lettres === lettres.toUpperCase();
+}
+
+/**
+ * Les lignes de grille consecutives du gabarit forment UN tableau (retour du test du 17/09 :
+ * en lignes flex, les colonnes ne s'alignaient pas d'une ligne a l'autre et le PDF etait
+ * illisible). Un tableau par serie de lignes au meme nombre de cellules ; les lignes tout en
+ * capitales sont des en-tetes ; un montant s'aligne a droite ; une ligne ne se coupe pas
+ * entre deux pages.
+ */
+function Tableau({ lignes, table, options }: { lignes: readonly (readonly string[])[]; table: Record<string, string>; options: OptionsRendu }) {
+  const colonnes = lignes[0]!.length;
+  // Deux colonnes : la prestation prend plus de place que sa tarification.
+  const largeurs = colonnes === 2 ? ["58%", "42%"] : undefined;
+  return (
+    <table className="w-full table-fixed border-collapse my-1.5 text-[0.95em]">
+      {largeurs && (
+        <colgroup>
+          {largeurs.map((l, i) => <col key={i} style={{ width: l }} />)}
+        </colgroup>
+      )}
+      <tbody>
+        {lignes.map((ligne, r) => {
+          const cellules = ligne.map((c) => remplirTexte(c, table, options));
+          const enTete = cellules.every(estEnTete);
+          return (
+            <tr key={r} className="break-inside-avoid align-top">
+              {cellules.map((texte, i) =>
+                enTete ? (
+                  <th key={i} className="border border-line bg-green-50 text-green-800 px-1.5 py-1 text-left font-semibold whitespace-pre-line">
+                    {texte}
+                  </th>
+                ) : (
+                  <td key={i} className={`border border-line px-1.5 py-1 whitespace-pre-line ${estMontant(texte) ? "text-right tabular-nums whitespace-nowrap" : ""}`}>
+                    {texte}
+                  </td>
+                ),
+              )}
+            </tr>
           );
         })}
-      </div>
-    );
-  }
+      </tbody>
+    </table>
+  );
+}
 
-  const texte = remplirTexte(bloc, table, options);
+function Paragraphe({ texte }: { texte: string }) {
   if (estTitre(texte)) {
     return (
       <h2 className="mt-3 mb-1 px-1.5 py-1 bg-green-50 text-green-800 font-semibold break-inside-avoid">
@@ -74,6 +100,28 @@ function Bloc({ bloc, table, options }: { bloc: BlocGabarit; table: Record<strin
   // `whitespace-pre-line` : le gabarit porte ses propres sauts de ligne, ils font partie
   // de la mise en page du contrat (adresses, listes d'horaires).
   return <p className="whitespace-pre-line mb-1.5 text-justify">{texte}</p>;
+}
+
+/** Une colonne du contrat : les paragraphes tels quels, les lignes de grille regroupees en tableaux. */
+function Colonne({ blocs, table, options }: { blocs: readonly BlocGabarit[]; table: Record<string, string>; options: OptionsRendu }) {
+  const rendu: React.ReactNode[] = [];
+  let serie: (readonly string[])[] = [];
+  const vider = (cle: string) => {
+    if (serie.length > 0) rendu.push(<Tableau key={cle} lignes={serie} table={table} options={options} />);
+    serie = [];
+  };
+  blocs.forEach((bloc, i) => {
+    if (typeof bloc === "string") {
+      vider(`t${i}`);
+      rendu.push(<Paragraphe key={i} texte={remplirTexte(bloc, table, options)} />);
+    } else {
+      // Un nombre de cellules different = un autre tableau (2 colonnes puis 3).
+      if (serie.length > 0 && serie[0]!.length !== bloc.length) vider(`t${i}`);
+      serie.push(bloc);
+    }
+  });
+  vider("fin");
+  return <div>{rendu}</div>;
 }
 
 export function DocumentContrat({ champs }: { champs: ChampsContrat }) {
@@ -105,15 +153,9 @@ export function DocumentContrat({ champs }: { champs: ChampsContrat }) {
       {/* Le corps, sur deux colonnes. `items-start` : les deux flux commencent en haut,
           ils n'ont aucune raison d'etre alignes l'un sur l'autre. */}
       <div className="grid grid-cols-2 gap-6 items-start">
+        <Colonne blocs={GABARIT_GAUCHE} table={table} options={options} />
         <div>
-          {GABARIT_GAUCHE.map((bloc, i) => (
-            <Bloc key={i} bloc={bloc} table={table} options={options} />
-          ))}
-        </div>
-        <div>
-          {GABARIT_DROITE.map((bloc, i) => (
-            <Bloc key={i} bloc={bloc} table={table} options={options} />
-          ))}
+          <Colonne blocs={GABARIT_DROITE} table={table} options={options} />
           {champs.conditionsParticulieres && (
             <>
               <h2 className="mt-3 mb-1 px-1.5 py-1 bg-green-50 text-green-800 font-semibold break-inside-avoid">CONDITIONS PARTICULIÈRES</h2>

@@ -2,6 +2,7 @@
 // Portage de la table `replacements` de l'Office Script `ContratReplace` (MYTHEC).
 // Pur, deterministe, sans dependance.
 
+import { siegeAgence } from "@/lib/domain/salles-reunion";
 import type { ChampsContrat, PrestationContrat } from "./champs-contrat";
 import { htDepuisTtc, ttcBrut } from "./montants-contrat";
 
@@ -43,7 +44,7 @@ export function tableRemplacement(champs: ChampsContrat): Record<string, string>
     "[Coproprietes.RegistreNumero]": copro.immatriculation,
     "[Coproprietes.DateAssurance]": jjmmaaaa(copro.assuranceDateISO),
     "[Coproprietes.Assurance]": copro.assurance,
-    "[Coproprietes.Agence]": copro.agence,
+    "[Coproprietes.Agence]": siegeAgence(copro.agence),
     "[Coproprietes.NbVisite]": nombre(copro.nbVisites),
     "[Coproprietes.DureeAG]": nombre(copro.dureeAgHeures),
     "[Coproprietes.NbCS]": nombre(copro.nbCs),
