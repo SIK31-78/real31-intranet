@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import { entetesSecurite } from "./src/lib/securite/entetes-http";
 
+const FICHIERS_CHROMIUM = [
+  "./node_modules/playwright-core/**",
+  "./node_modules/.pnpm/playwright-core@*/node_modules/playwright-core/**",
+  "./node_modules/@sparticuz/chromium/**",
+  "./node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/**",
+];
+
 const nextConfig: NextConfig = {
   // Reprise compta : pdfjs-dist (lecture couche texte des grands livres) doit rester un
   // module Node externe - bundle par Next, son import dynamique echoue au runtime et la
@@ -12,9 +19,12 @@ const nextConfig: NextConfig = {
   // eux aussi (binaire Chromium lu par chemin), et les archives .br de Chromium sont
   // embarquees avec les fonctions qui rendent un PDF (routes contrat.pdf, envoi de l'offre).
   serverExternalPackages: ["pdfjs-dist", "playwright-core", "@sparticuz/chromium"],
+  // Vercel installe avec pnpm : les paquets vivent sous node_modules/.pnpm/<nom>@<version>/,
+  // et le traceur ne suit pas les fichiers lus par chemin calcule (browsers.json de
+  // playwright-core manquait en prod le 17/09). On cible les deux formes de chemin.
   outputFileTracingIncludes: {
-    "/contrat/**": ["./node_modules/@sparticuz/chromium/bin/**"],
-    "/propositions/**": ["./node_modules/@sparticuz/chromium/bin/**"],
+    "/contrat/**": FICHIERS_CHROMIUM,
+    "/propositions/**": FICHIERS_CHROMIUM,
   },
   experimental: {
     // Reprise-copro : l'analyse recoit les PDF (RCP scanne, EDD, PV...) via une Server
