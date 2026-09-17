@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
@@ -8,6 +8,9 @@ import { genererPhaseA, slug, verifierTemplatesAJour } from "../generer-xlsx";
 import { HEADERS_LOTS, HEADERS_OWNERS } from "../colonnes-estale";
 
 const templatesDir = join(process.cwd(), "src/lib/reprise/templates");
+// Les templates eStale (.xlsx) sont ignores par git : presents sur le poste, absents en CI.
+// Le garde-fou de derive ne tourne que la ou ils sont.
+const templatesPresents = existsSync(join(templatesDir, "lots - template.xlsx"));
 const outDir = mkdtempSync(join(tmpdir(), "reprise-xlsx-"));
 afterAll(() => rmSync(outDir, { recursive: true, force: true }));
 
@@ -40,7 +43,7 @@ async function lire(fichier: string): Promise<ExcelJS.Worksheet> {
 }
 
 describe("genererPhaseA (clone des templates eStale reels)", () => {
-  it(
+  it.skipIf(!templatesPresents)(
     "les templates eStale reels correspondent toujours a notre spec (pas de derive)",
     async () => {
       const ecarts = await verifierTemplatesAJour(templatesDir);
