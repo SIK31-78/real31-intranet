@@ -5,10 +5,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getContrat } from "@/lib/services/contrat/get-contrat";
 import { nomFichierContrat, pdfContrat } from "@/lib/services/contrat/pdf-contrat";
-import { reponsePdf } from "@/lib/services/pdf/reponse-pdf";
+import { reponseEchecPdf, reponsePdf } from "@/lib/services/pdf/reponse-pdf";
 import { lireOptionsContrat } from "../options";
 
 export const dynamic = "force-dynamic";
+// Chromium demarre a froid en quelques secondes sur la fonction : plus que les 10 s par defaut.
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ code: string }> }): Promise<Response> {
   const { code } = await ctx.params;
@@ -27,5 +29,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ code: strin
     if (/introuvable/.test(message)) return new NextResponse("Copropriété introuvable.", { status: 404 });
     return new NextResponse(message, { status: 409 });
   }
-  return reponsePdf(await pdfContrat(champs), nomFichierContrat(champs));
+  try {
+    return reponsePdf(await pdfContrat(champs), nomFichierContrat(champs));
+  } catch (e) {
+    return reponseEchecPdf(e, "contrat.pdf");
+  }
 }

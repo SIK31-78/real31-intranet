@@ -6,10 +6,12 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
 import { nomFichierContrat, pdfContrat } from "@/lib/services/contrat/pdf-contrat";
-import { reponsePdf } from "@/lib/services/pdf/reponse-pdf";
+import { reponseEchecPdf, reponsePdf } from "@/lib/services/pdf/reponse-pdf";
 import { lireOptionsOffre } from "../options";
 
 export const dynamic = "force-dynamic";
+// Chromium demarre a froid en quelques secondes sur la fonction : plus que les 10 s par defaut.
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await ctx.params;
@@ -28,5 +30,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!offre.champs) {
     return new NextResponse(offre.erreurContrat ?? `Il manque encore : ${offre.obstacles.join(", ")}.`, { status: 409 });
   }
-  return reponsePdf(await pdfContrat(offre.champs), nomFichierContrat(offre.champs));
+  try {
+    return reponsePdf(await pdfContrat(offre.champs), nomFichierContrat(offre.champs));
+  } catch (e) {
+    return reponseEchecPdf(e, "offre.pdf");
+  }
 }

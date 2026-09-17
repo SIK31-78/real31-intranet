@@ -7,11 +7,15 @@
 // doit partir par mail avec le contrat en piece jointe, il faut des octets.
 
 import "server-only";
-import { chromium, type Browser } from "playwright-core";
+import type { Browser } from "playwright-core";
 
 let navigateur: Promise<Browser> | null = null;
 
+// playwright-core et @sparticuz/chromium ne se chargent qu'au premier PDF : un module qui
+// manque sur la fonction ne doit pas faire tomber la route entiere au chargement (500 muet
+// sur Vercel le 17/09), il doit donner un message.
 async function ouvrir(): Promise<Browser> {
+  const { chromium } = await import("playwright-core");
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     const sparticuz = (await import("@sparticuz/chromium")).default;
     return chromium.launch({ args: sparticuz.args, executablePath: await sparticuz.executablePath(), headless: true });
