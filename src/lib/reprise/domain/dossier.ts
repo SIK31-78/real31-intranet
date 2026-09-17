@@ -8,7 +8,15 @@
 //
 // Pur, testable, aucune I/O. Les etapes vivent dans le JSONB `etapes` de reprise_dossier : tout
 // ajout de champ est ADDITIF (retro-compatible avec les dossiers deja persistes).
+//
+// Les regles communes a toute checklist (statut, etape close, avancement, etape courante) vivent
+// dans le noyau `domain/suivi/etape` partage avec la perte.
 
+import {
+  avancement as avancementSuivi,
+  etapeCourante as etapeCouranteSuivi,
+  type StatutEtape,
+} from "@/lib/domain/suivi/etape";
 import type { JeuDeDonnees } from "@/lib/reprise/domain/patrimoine";
 import type { CompteAvantRepartition, VerdictRaccordement } from "@/lib/reprise/domain/controle-comptes";
 import type { AnnexeAnalysee, ContactRapproche } from "@/lib/reprise/domain/rapprochement-contacts";
@@ -69,7 +77,7 @@ export interface Personne {
 export type EquipeReprise = Partial<Record<RoleReprise, Personne>>;
 
 /** `bloque` = l'etape ne peut pas avancer ; le motif est dans `note`. */
-export type StatutEtape = "a_faire" | "en_cours" | "bloque" | "fait" | "ignore";
+export type { StatutEtape } from "@/lib/domain/suivi/etape";
 
 /** Statut global du dossier (historique ; l'affichage se derive desormais de la phase courante). */
 export type StatutDossier =
@@ -377,11 +385,7 @@ export function assignerParRole(etapes: Etape[], equipe: EquipeReprise, forcer =
  * undefined quand tout est fait ou ignore.
  */
 export function etapeCourante(etapes: Etape[]): Etape | undefined {
-  return (
-    etapes.find((e) => e.statut === "bloque") ??
-    etapes.find((e) => e.statut === "en_cours") ??
-    etapes.find((e) => e.statut === "a_faire")
-  );
+  return etapeCouranteSuivi(etapes);
 }
 
 /** Phase de l'etape courante (undefined = reprise terminee). */
@@ -418,7 +422,6 @@ export function estArchive(dossier: Dossier): boolean {
 
 /** Avancement (0..1) = part des etapes "fait" ou "ignore" sur le total. */
 export function avancement(dossier: Dossier): number {
-  if (dossier.etapes.length === 0) return 0;
-  const faites = dossier.etapes.filter((e) => e.statut === "fait" || e.statut === "ignore").length;
-  return faites / dossier.etapes.length;
+  const a = avancementSuivi(dossier.etapes);
+  return a.total === 0 ? 0 : a.faites / a.total;
 }

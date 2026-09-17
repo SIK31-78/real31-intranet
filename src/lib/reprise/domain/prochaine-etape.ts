@@ -7,6 +7,7 @@
 
 import type { Etape, Personne, Phase } from "@/lib/reprise/domain/dossier";
 import { etapeCourante } from "@/lib/reprise/domain/dossier";
+import { echeanceDepassee } from "@/lib/domain/suivi/etape";
 
 /** Tonalite d'affichage du bandeau (couleur). */
 export type TonaliteEtape = "normal" | "attention" | "bloque" | "termine";
@@ -69,7 +70,7 @@ export function prochaineEtape(etapes: Etape[], aujourdHuiIso?: string): Prochai
     };
   }
 
-  const enRetard = !!aujourdHuiIso && !!e.echeance && e.echeance < aujourdHuiIso.slice(0, 10);
+  const enRetard = !!aujourdHuiIso && echeanceDepassee(e, aujourdHuiIso);
   return {
     ...commun,
     titre: `Prochaine étape : ${e.libelle}`,

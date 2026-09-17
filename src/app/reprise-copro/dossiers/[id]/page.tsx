@@ -18,6 +18,7 @@ import {
 } from "@/lib/reprise/adapters/router";
 import { obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
 import { avancement, estArchive } from "@/lib/reprise/domain/dossier";
+import { avancement as compterEtapes } from "@/lib/domain/suivi/etape";
 import { prochaineEtape } from "@/lib/reprise/domain/prochaine-etape";
 import { listerCollaborateurs } from "@/app/reprise-copro/collaborateurs";
 import { FicheDossierReprise } from "./fiche-dossier-reprise";
@@ -39,6 +40,7 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
   if (!dossier) notFound();
 
   const aujourdHui = jourParis();
+  const compte = compterEtapes(dossier.etapes);
 
   const vue: DossierFicheVue = {
     ref: dossier.ref,
@@ -48,8 +50,8 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     ...(dossier.dateBascule ? { dateBascule: dossier.dateBascule } : {}),
     archive: estArchive(dossier),
     avancement: avancement(dossier),
-    etapesFaites: dossier.etapes.filter((e) => e.statut === "fait" || e.statut === "ignore").length,
-    etapesTotal: dossier.etapes.length,
+    etapesFaites: compte.faites,
+    etapesTotal: compte.total,
     etapes: dossier.etapes,
     equipe: dossier.equipe ?? {},
     journal: dossier.journal.map((j) => ({ date: j.date, texte: j.texte, ...(j.auteur ? { auteur: j.auteur } : {}) })),

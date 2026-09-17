@@ -4,6 +4,10 @@
 
 import type { EquipeReprise, Etape, StatutEtape } from "@/lib/reprise/domain/dossier";
 
+// Les regles d'une etape (close, echeance depassee) et l'ordre des statuts sont ceux du noyau
+// de suivi partage avec la perte : la vue les re-exporte, elle ne les definit pas.
+export { STATUTS_ETAPE, etapeClose, echeanceDepassee } from "@/lib/domain/suivi/etape";
+
 /** Une étape telle que persistée : le domaine est déjà sérialisable, on le réutilise tel quel. */
 export type EtapeVue = Etape;
 
@@ -30,9 +34,6 @@ export interface DossierFicheVue {
   journal: EntreeJournalVue[];
 }
 
-/** Ordre des statuts dans le menu de la pastille. */
-export const STATUTS_ETAPE: readonly StatutEtape[] = ["a_faire", "en_cours", "bloque", "fait", "ignore"];
-
 export const STATUT_ETAPE_LABEL: Record<StatutEtape, string> = {
   a_faire: "À faire",
   en_cours: "En cours",
@@ -40,16 +41,6 @@ export const STATUT_ETAPE_LABEL: Record<StatutEtape, string> = {
   fait: "Fait",
   ignore: "Ignoré",
 };
-
-/** Une étape « close » (fait ou ignoré) ne compte plus dans le reste à faire. */
-export function etapeClose(statut: StatutEtape): boolean {
-  return statut === "fait" || statut === "ignore";
-}
-
-/** Échéance dépassée = date strictement avant aujourd'hui, sur une étape encore ouverte. */
-export function echeanceDepassee(etape: { statut: StatutEtape; echeance?: string }, aujourdHuiIso: string): boolean {
-  return Boolean(etape.echeance) && !etapeClose(etape.statut) && etape.echeance! < aujourdHuiIso.slice(0, 10);
-}
 
 // Les initiales d'une personne : UNE definition (domaine collaborateur), le meme avatar partout.
 export { initialesDe } from "@/lib/domain/collaborateur";

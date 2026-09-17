@@ -4,6 +4,7 @@
 
 import type { Dossier, EquipeReprise, Etape, Personne, Phase, StatutEtape } from "@/lib/reprise/domain/dossier";
 import { avancement, estArchive, etapeCourante } from "@/lib/reprise/domain/dossier";
+import { avancement as compterEtapes, compterParStatut, echeanceDepassee, etapeClose } from "@/lib/domain/suivi/etape";
 
 export interface DossierResume {
   ref: string;
@@ -35,13 +36,9 @@ export interface DossierResume {
   equipe?: EquipeReprise;
 }
 
-function estClose(e: Etape): boolean {
-  return e.statut === "fait" || e.statut === "ignore";
-}
-
 export function resumerDossier(d: Dossier, aujourdHuiIso: string): DossierResume {
-  const aujourdHui = aujourdHuiIso.slice(0, 10);
   const courante = etapeCourante(d.etapes);
+  const compte = compterEtapes(d.etapes);
   const dates = [
     ...d.journal.map((j) => j.date),
     ...d.etapes.map((e) => e.majLe).filter((x): x is string => !!x),
@@ -56,8 +53,8 @@ export function resumerDossier(d: Dossier, aujourdHuiIso: string): DossierResume
     ...(d.dateBascule ? { dateBascule: d.dateBascule } : {}),
     archive: estArchive(d),
     avancement: avancement(d),
-    etapesFaites: d.etapes.filter(estClose).length,
-    etapesTotal: d.etapes.length,
+    etapesFaites: compte.faites,
+    etapesTotal: compte.total,
     ...(courante ? { phase: courante.phase } : {}),
     ...(courante
       ? {
@@ -71,8 +68,8 @@ export function resumerDossier(d: Dossier, aujourdHuiIso: string): DossierResume
           },
         }
       : {}),
-    nbBloquees: d.etapes.filter((e) => e.statut === "bloque").length,
-    nbEnRetard: d.etapes.filter((e) => !estClose(e) && !!e.echeance && e.echeance < aujourdHui).length,
+    nbBloquees: compterParStatut(d.etapes).bloque,
+    nbEnRetard: d.etapes.filter((e) => echeanceDepassee(e, aujourdHuiIso)).length,
     ...(derniereActivite ? { derniereActivite } : {}),
     ...(d.equipe ? { equipe: d.equipe } : {}),
   };
@@ -80,5 +77,5 @@ export function resumerDossier(d: Dossier, aujourdHuiIso: string): DossierResume
 
 /** Etapes assignees a une personne et encore ouvertes (ni faites ni ignorees), dans l'ordre du dossier. */
 export function etapesAssigneesA(d: Dossier, personneId: string): Etape[] {
-  return d.etapes.filter((e) => e.assigneA?.id === personneId && !estClose(e));
+  return d.etapes.filter((e) => e.assigneA?.id === personneId && !etapeClose(e.statut));
 }
