@@ -14,11 +14,18 @@ let navigateur: Promise<Browser> | null = null;
 // playwright-core et @sparticuz/chromium ne se chargent qu'au premier PDF : un module qui
 // manque sur la fonction ne doit pas faire tomber la route entiere au chargement (500 muet
 // sur Vercel le 17/09), il doit donner un message.
+const SUR_LAMBDA = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
 async function ouvrir(): Promise<Browser> {
   const { chromium } = await import("playwright-core");
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  if (SUR_LAMBDA) {
     const sparticuz = (await import("@sparticuz/chromium")).default;
-    return chromium.launch({ args: sparticuz.args, executablePath: await sparticuz.executablePath(), headless: true });
+    // Les arguments de @sparticuz/chromium sont pensés pour Puppeteer : avec Playwright,
+    // `--single-process` fait tomber la page dès newPage (« Target page, context or browser
+    // has been closed », prod du 17/09) et `--headless='shell'` double le mode headless que
+    // Playwright pose lui-même. On les retire.
+    const args = sparticuz.args.filter((a) => a !== "--single-process" && !a.startsWith("--headless"));
+    return chromium.launch({ args, executablePath: await sparticuz.executablePath(), headless: true, chromiumSandbox: false });
   }
   const executablePath = process.env.CHROME_PATH;
   return chromium.launch(executablePath ? { executablePath, headless: true } : { channel: "chrome", headless: true });
@@ -41,7 +48,17 @@ async function navigateurPartage(): Promise<Browser> {
 
 /** Rend un HTML complet (avec son CSS et sa regle @page) en PDF. */
 export async function rendrePdf(html: string): Promise<Buffer> {
-  const b = await navigateurPartage();
+  // Sur la fonction, un navigateur par PDF : entre deux invocations le processus est gele
+  // et Chromium peut mourir sans que `isConnected` le sache. Sur un poste, on le garde.
+  const b = SUR_LAMBDA ? await ouvrir() : await navigateurPartage();
+  try {
+    return await rendreAvec(b, html);
+  } finally {
+    if (SUR_LAMBDA) await b.close().catch(() => undefined);
+  }
+}
+
+async function rendreAvec(b: Browser, html: string): Promise<Buffer> {
   const page = await b.newPage();
   try {
     await page.setContent(html, { waitUntil: "load" });
