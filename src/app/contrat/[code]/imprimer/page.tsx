@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { getContrat } from "@/lib/services/contrat/get-contrat";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { BoutonImprimer } from "@/components/odj/bouton-imprimer";
 import { DocumentContrat } from "@/components/contrat/document-contrat";
 import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
+import { lireOptionsContrat, queryContrat, type ParamsContrat } from "../options";
 
 export const metadata: Metadata = { title: "Contrat de syndic (impression) - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -22,41 +23,18 @@ export default async function ContratImprimerPage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{
-    ag?: string;
-    debut?: string;
-    fin?: string;
-    honoraires?: string;
-    timbres?: string;
-    frais?: string;
-  }>;
+  searchParams: Promise<ParamsContrat>;
 }) {
   const { code } = await params;
-  const { ag, debut, fin, honoraires, timbres, frais } = await searchParams;
+  const sp = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
   // Les ajustements de l'ecran de preparation voyagent en query : le document reste une
-  // page SERVEUR sans etat, imprimable et partageable par son URL.
-  const nombreOuUndefined = (v?: string) => {
-    const n = Number(v);
-    return v !== undefined && Number.isFinite(n) ? n : undefined;
-  };
-
+  // page SERVEUR sans etat, imprimable et partageable par son URL. Le PDF relit la meme query.
   let champs;
   try {
-    champs = await getContrat(code, {
-      ...(ag ? { dateAgISO: ag } : {}),
-      ...(debut ? { debutISO: debut } : {}),
-      ...(fin ? { finISO: fin } : {}),
-      ...(nombreOuUndefined(honoraires) !== undefined
-        ? { honorairesGestionTtc: nombreOuUndefined(honoraires)! }
-        : {}),
-      ...(nombreOuUndefined(timbres) !== undefined
-        ? { forfaitPostauxTtc: nombreOuUndefined(timbres)! }
-        : {}),
-      ...(frais !== undefined ? { fraisPostauxReels: frais === "reels" } : {}),
-    });
+    champs = await getContrat(code, lireOptionsContrat(sp));
   } catch (e) {
     const message = (e as Error).message;
     // Copro inconnue : c'est un 404. Toute autre cause (mandat sans date de fin, bareme
@@ -86,7 +64,13 @@ export default async function ContratImprimerPage({
             <ArrowLeft strokeWidth={1.5} />
             Retour à la copropriété
           </ButtonLink>
-          <BoutonImprimer />
+          <div className="flex items-center gap-2">
+            <BoutonImprimer />
+            <ButtonLink href={`/contrat/${encodeURIComponent(code)}/contrat.pdf${queryContrat(sp)}`} variant="primary">
+              <Download strokeWidth={1.5} />
+              Télécharger le PDF
+            </ButtonLink>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, Download, FileText } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
@@ -15,6 +15,7 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { DataList, DataRow } from "@/components/ui/data-list";
 import { Section } from "@/components/ui/section";
 import { MailOffre, MarquerOffreRemise } from "./mail-offre";
+import { lireOptionsOffre, queryOffre, type ParamsOffre } from "./options";
 
 export const metadata: Metadata = { title: "Préparer l'offre - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -23,24 +24,12 @@ export const dynamic = "force-dynamic";
 // Outlook. Les choix (AG, debut, duree) voyagent dans l'URL : la page d'impression les
 // relit telle quelle, sans etat.
 
-type Params = { ag?: string; debut?: string; duree?: string };
-
-function lireOptions(sp: Params) {
-  const jour = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
-  const duree = Number(sp.duree);
-  return {
-    ...(jour(sp.ag) ? { dateAgISO: jour(sp.ag) } : {}),
-    ...(jour(sp.debut) ? { debutISO: jour(sp.debut) } : {}),
-    ...(Number.isInteger(duree) && duree > 0 ? { dureeMois: duree } : {}),
-  };
-}
-
-export default async function OffrePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Params> }) {
+export default async function OffrePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ParamsOffre> }) {
   const { id } = await params;
   const sp = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const options = lireOptions(sp);
+  const options = lireOptionsOffre(sp);
   let offre;
   try {
     offre = await preparerOffre(id, options, { nom: g.nomComplet });
@@ -50,7 +39,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
   }
   const { proposition: p, champs, obstacles, erreurContrat, mail } = offre;
   if (!peutFaireOffre(profilDe(g), p.agence)) redirect(`/propositions/${id}`);
-  const query = new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString();
+  const query = queryOffre(sp);
   const dureeMois = options.dureeMois ?? 12;
 
   return (
@@ -67,10 +56,8 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
           actions={<ButtonLink href={`/propositions/${p.id}`} variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Fiche</ButtonLink>}
           aide={
             <p>
-              L&apos;offre part par mail avec le contrat en pièce jointe. Ajustez l&apos;AG, le début et la durée, imprimez le
-              contrat en PDF, copiez le mail dans Outlook et ajoutez-y les pièces fixes de l&apos;agence (présentation du service,
-              démarches de changement de syndic, modèle de courrier). Puis marquez l&apos;offre comme remise : la fiche en garde
-              la trace.
+              Ajustez l&apos;AG, le début et la durée, relisez le mail, puis envoyez : il part de votre boîte, au contact de la
+              fiche, avec le contrat en PDF. La fiche garde la trace de l&apos;envoi.
             </p>
           }
         />
@@ -84,7 +71,14 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5 items-start">
           <div className="flex flex-col gap-5 min-w-0">
             <Section id="offre-mail" titre="Le mail à envoyer">
-              <MailOffre texte={mail} />
+              <MailOffre
+                texte={mail}
+                propositionId={p.id}
+                options={options}
+                contactEmail={p.contact.email?.trim() || undefined}
+                contratPret={!!champs}
+                dejaRemiseISO={p.remisePropositionISO}
+              />
             </Section>
           </div>
 
@@ -113,11 +107,16 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
               </form>
               <div className="flex flex-col gap-3 p-4">
                 {champs ? (
-                  <ButtonLink href={`/propositions/${p.id}/offre/imprimer${query ? `?${query}` : ""}`} variant="primary" target="_blank">
-                    <FileText strokeWidth={1.5} /> Imprimer le contrat (PDF)
-                  </ButtonLink>
+                  <>
+                    <ButtonLink href={`/propositions/${p.id}/offre/contrat.pdf${query}`} variant="secondary">
+                      <Download strokeWidth={1.5} /> Télécharger le contrat (PDF)
+                    </ButtonLink>
+                    <ButtonLink href={`/propositions/${p.id}/offre/imprimer${query}`} variant="ghost" size="sm" target="_blank">
+                      <FileText strokeWidth={1.5} /> Aperçu à l&apos;écran
+                    </ButtonLink>
+                  </>
                 ) : (
-                  <Button type="button" variant="primary" disabled><FileText strokeWidth={1.5} /> Imprimer le contrat (PDF)</Button>
+                  <Button type="button" variant="secondary" disabled><Download strokeWidth={1.5} /> Télécharger le contrat (PDF)</Button>
                 )}
                 <MarquerOffreRemise propositionId={p.id} options={options} disabled={!champs} dejaRemiseISO={p.remisePropositionISO} />
               </div>
