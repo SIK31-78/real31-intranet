@@ -66,3 +66,31 @@ export function texteSimple(html: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/** Une ligne numerotee : les resolutions de TETE portent 1, 2, 3… ; les sous-resolutions
+ *  d'un groupe n'ont pas de numero (elles portent celui de leur groupe). */
+export interface LigneNumerotee<T> {
+  item: T;
+  /** Numero de la resolution de tete courante (celui du groupe pour un enfant). */
+  numero: number;
+  enfant: boolean;
+  /** Premiere / derniere resolution de tete (pour desactiver « monter » / « descendre »). */
+  premierTop: boolean;
+  dernierTop: boolean;
+}
+
+/**
+ * LA regle de numerotation des resolutions d'une convocation (loi du 10 juillet 1965 :
+ * chaque question a l'ordre du jour porte un numero ; une sous-resolution de groupe est
+ * une modalite de la question, pas une question). Meme regle pour le brouillon intranet
+ * et pour les motions eStale : l'appelant dit seulement qui est enfant.
+ */
+export function numeroterResolutions<T>(items: readonly T[], estEnfant: (item: T) => boolean): LigneNumerotee<T>[] {
+  const nbTops = items.filter((i) => !estEnfant(i)).length;
+  let n = 0;
+  return items.map((item) => {
+    const enfant = estEnfant(item);
+    if (!enfant) n += 1;
+    return { item, numero: n, enfant, premierTop: !enfant && n === 1, dernierTop: !enfant && n === nbTops };
+  });
+}

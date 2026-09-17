@@ -9,6 +9,15 @@ const MOIS_FR = [
 
 /** "2025-04-12" -> "12 avril 2025". Deterministe (UTC) pour eviter les
  *  hydration mismatches Server/Client. */
+/** "yyyy-mm-dd" ou "dd/mm/yyyy" -> "yyyymmdd", pour comparer deux dates ecrites differemment. */
+export function jourCanonique(s: string): string {
+  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}${iso[2]}${iso[3]}`;
+  const fr = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (fr) return `${fr[3]}${fr[2]}${fr[1]}`;
+  return s.replace(/\D/g, "");
+}
+
 export function formatDateLongue(iso: string): string {
   const d = new Date(`${iso}T12:00:00Z`);
   return `${d.getUTCDate()} ${MOIS_FR[d.getUTCMonth()]} ${d.getUTCFullYear()}`;

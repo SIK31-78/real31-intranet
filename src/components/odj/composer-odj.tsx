@@ -12,7 +12,8 @@ import { Card } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm";
 import { MajoriteBadge } from "@/components/resolutions/majorite-badge";
 import type { MajoriteResolution, Resolution } from "@/lib/domain/resolution";
-import { MAJORITE_LABEL, MAJORITE_ORDRE, rangParent } from "@/lib/domain/resolution";
+import { MAJORITE_LABEL, MAJORITE_ORDRE, numeroterResolutions, rangParent } from "@/lib/domain/resolution";
+import { jourCanonique } from "@/lib/format-date";
 import type { AssembleeAg, MotionAg } from "@/lib/domain/assemblee";
 import type { BibliothequeData } from "@/lib/services/resolutions/get-bibliotheque";
 import { enregistrerProjetAction, creerAgAction } from "@/app/odj/[id]/composer/actions";
@@ -112,7 +113,7 @@ export function ComposerOdj({
   const datesDivergent = useMemo(() => {
     const iso = assemblee?.dateISO;
     if (!dateAg || !iso) return false;
-    return canonDate(dateAg) !== canonDate(iso);
+    return jourCanonique(dateAg) !== jourCanonique(iso);
   }, [dateAg, assemblee]);
 
   // Picker conscient des groupes : on liste les resolutions de TETE (les sous-resolutions
@@ -325,14 +326,9 @@ export function ComposerOdj({
 
 // --- Colonne droite (haut) : l'AG telle qu'elle existe deja dans Estale ----
 
-/** Numerote le brouillon : resolutions de tete numerotees, enfants de groupe sans numero. */
+/** Numerote le brouillon (regle unique du domaine : un enfant de groupe n'a pas de numero). */
 function numeroterDraft(draft: Resolution[]): { r: Resolution; numero: number; enfant: boolean }[] {
-  let n = 0;
-  return draft.map((r) => {
-    const enfant = rangParent(r.rank) !== null;
-    if (!enfant) n += 1;
-    return { r, numero: n, enfant };
-  });
+  return numeroterResolutions(draft, (r) => rangParent(r.rank) !== null).map(({ item, numero, enfant }) => ({ r: item, numero, enfant }));
 }
 
 /** Regroupe les sous-resolutions par id de groupe parent (dans leur ordre). */
@@ -348,31 +344,11 @@ function grouperEnfants(motions: MotionAg[]): Map<string, MotionAg[]> {
   return m;
 }
 
-/** Numerote les motions de tete (1, 2, 3...) ; les enfants n'ont pas de numero. Marque
- *  le premier / dernier de tete (pour desactiver monter / descendre). */
+/** Numerote les motions eStale (meme regle du domaine que le brouillon). */
 function numeroter(
   motions: MotionAg[],
 ): { m: MotionAg; numero: number; premierTop: boolean; dernierTop: boolean }[] {
-  const nbTops = motions.filter((mo) => !mo.estEnfant).length;
-  let n = 0;
-  return motions.map((m) => {
-    if (!m.estEnfant) n += 1;
-    return {
-      m,
-      numero: n,
-      premierTop: !m.estEnfant && n === 1,
-      dernierTop: !m.estEnfant && n === nbTops,
-    };
-  });
-}
-
-/** Canonicalise une date "yyyy-mm-dd" ou "dd/mm/yyyy" en "yyyymmdd" pour comparaison robuste. */
-function canonDate(s: string): string {
-  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[1]}${iso[2]}${iso[3]}`;
-  const fr = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (fr) return `${fr[3]}${fr[2]}${fr[1]}`;
-  return s.replace(/\D/g, "");
+  return numeroterResolutions(motions, (mo) => Boolean(mo.estEnfant)).map(({ item, numero, premierTop, dernierTop }) => ({ m: item, numero, premierTop, dernierTop }));
 }
 
 function AssembleeExistante({
