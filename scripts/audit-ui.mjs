@@ -53,7 +53,17 @@ const REGLES = {
 const EXEMPTS = {
   // Le document ODJ est un DOCUMENT (A4, echelle papier 12 px / 7,5 px en pied), pas une
   // page d'UI : il garde ses tailles. Ses couleurs, elles, sont sur les tokens.
-  px: ["src/components/odj/document-odj.tsx", "src/components/odj/document-odj-editable.tsx"],
+  // Les morceaux de l'editable (saisie inline, valeurs, ajouts libres, lignes de section,
+  // points) rendent DANS la feuille : memes tailles papier.
+  px: [
+    "src/components/odj/document-odj.tsx",
+    "src/components/odj/document-odj-editable.tsx",
+    "src/components/odj/saisie-inline.tsx",
+    "src/components/odj/valeur-editable.tsx",
+    "src/components/odj/ajouts-libres.tsx",
+    "src/components/odj/lignes-section-editables.tsx",
+    "src/components/odj/points-editables.tsx",
+  ],
   vert: [
     "src/components/ui",
     "src/components/layout/sidebar.tsx",
