@@ -37,7 +37,18 @@ import type {
   PieceJointeRef,
   Rattachement,
 } from "@/lib/domain/mes-emails";
-import { LIBELLE_TYPE, trierMails, trouverContexte, trouverDossier, typeDossierSuggere } from "@/lib/domain/mes-emails";
+import {
+  LIBELLE_TYPE,
+  destinatairesDeReponse,
+  dossierOutlookSuggere,
+  phraseRecommandation,
+  sujetDeReponse,
+  trierMails,
+  trouverContexte,
+  trouverDossier,
+  typeDossierSuggere,
+  type Destinataires,
+} from "@/lib/domain/mes-emails";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -67,23 +78,10 @@ import { formatEuros } from "@/lib/domain/format-montant";
 import { initialesDe } from "@/lib/domain/collaborateur";
 type Statut = "nouveau" | "repondu" | "classe";
 
-type Destinataires = { to: string[]; cc: string[]; cci: string[] };
-
-// Sujet par defaut d'une reponse : prefixe "Re:" si l'objet n'en a pas deja un.
-function defautSujet(m: MailEntrant): string {
-  return /^(re|ré|tr|fwd?)\s*:/i.test(m.objet.trim()) ? m.objet : `Re: ${m.objet}`;
-}
-
-// Destinataires par defaut d'une reponse : A = l'expediteur ; Cc = les autres
-// participants (To + Cc d'origine, dedupliques, sans l'expediteur) ; Cci vide.
-function defautDestinataires(m: MailEntrant): Destinataires {
-  const exp = (m.expediteurEmail || "").trim();
-  const to = exp.includes("@") ? [exp] : [];
-  const autres = [...m.destinataires, ...m.copie]
-    .map((e) => e.trim())
-    .filter((e) => e.includes("@") && e.toLowerCase() !== exp.toLowerCase());
-  return { to, cc: [...new Set(autres)], cci: [] };
-}
+// Les regles de la reponse (sujet, destinataires, dossier propose, recommandation) vivent
+// dans le domaine mes-emails, testees ; l'ecran ne fait que les appeler.
+const defautSujet = sujetDeReponse;
+const defautDestinataires = destinatairesDeReponse;
 
 function jourMois(iso: string): string {
   return formatDateLongue(iso).replace(/ \d{4}$/, "");
@@ -208,15 +206,7 @@ export function MesEmailsVue({
 
   // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
   // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
-  const autoDossier = (m: MailEntrant): string => {
-    if (!Array.isArray(dossiers)) return "";
-    const code = m.coproCode.toLowerCase();
-    const nom = m.coproNom.toLowerCase();
-    const f =
-      (code ? dossiers.find((d) => d.nom.toLowerCase().includes(code)) : undefined) ??
-      (nom.length >= 4 ? dossiers.find((d) => d.nom.toLowerCase().includes(nom)) : undefined);
-    return f?.id ?? "";
-  };
+  const autoDossier = (m: MailEntrant): string => (Array.isArray(dossiers) ? dossierOutlookSuggere(m, dossiers) : "");
   // Priorite : choix de session > dossier persiste (reload) > auto-detection.
   const dossierIdDe = (m: MailEntrant): string =>
     dossiersChoisis.get(m.id) ?? m.dossierClasseId ?? autoDossier(m);
@@ -807,17 +797,7 @@ function BoiteItem({
   );
 }
 
-function recommandation(m: MailEntrant, ratt: Rattachement): string {
-  if (!m.ticketable) return "Aucune action requise - à classer pour information.";
-  const cible = m.de.replace(/ \(.*\)$/, "");
-  const dossier =
-    ratt.statut === "existant"
-      ? `le dossier « ${ratt.dossierLabel} »`
-      : `un nouveau dossier « ${ratt.dossierLabel} »`;
-  return m.brouillonReponse
-    ? `Répondre à ${cible} et classer dans ${dossier}.`
-    : `Traiter et classer dans ${dossier}.`;
-}
+const recommandation = phraseRecommandation;
 
 // Editeur de destinataires de la reponse : A / Cc / Cci, chips + ajout/retrait.
 function ChampsDestinataires({

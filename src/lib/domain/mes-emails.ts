@@ -218,3 +218,43 @@ export function trouverDossier(dossiers: Dossier[], id: string): Dossier | undef
 export function trouverContexte(contextes: ContexteCopro[], coproCode: string): ContexteCopro | undefined {
   return contextes.find((c) => c.coproCode === coproCode);
 }
+
+// --- La reponse a un mail : quatre regles metier, hors de l'ecran (audit 16/09/2026) -----
+
+export type Destinataires = { to: string[]; cc: string[]; cci: string[] };
+
+/** Sujet par defaut d'une reponse : prefixe « Re: » si l'objet n'en a pas deja un (Re, Ré, TR, Fwd). */
+export function sujetDeReponse(m: Pick<MailEntrant, "objet">): string {
+  return /^(re|ré|tr|fwd?)\s*:/i.test(m.objet.trim()) ? m.objet : `Re: ${m.objet}`;
+}
+
+/** Destinataires par defaut : A = l'expediteur ; Cc = To + Cc d'origine dedupliques, sans l'expediteur ; Cci vide. */
+export function destinatairesDeReponse(m: Pick<MailEntrant, "expediteurEmail" | "destinataires" | "copie">): Destinataires {
+  const exp = (m.expediteurEmail || "").trim();
+  const to = exp.includes("@") ? [exp] : [];
+  const autres = [...m.destinataires, ...m.copie]
+    .map((e) => e.trim())
+    .filter((e) => e.includes("@") && e.toLowerCase() !== exp.toLowerCase());
+  return { to, cc: [...new Set(autres)], cci: [] };
+}
+
+/**
+ * Dossier Outlook propose pour le classement : celui dont le nom contient le code de la copro,
+ * sinon son nom (si assez long pour ne pas matcher n'importe quoi). "" = aucun.
+ */
+export function dossierOutlookSuggere(m: Pick<MailEntrant, "coproCode" | "coproNom">, dossiers: readonly DossierBoite[]): string {
+  const code = m.coproCode.toLowerCase();
+  const nom = m.coproNom.toLowerCase();
+  const f =
+    (code ? dossiers.find((d) => d.nom.toLowerCase().includes(code)) : undefined) ??
+    (nom.length >= 4 ? dossiers.find((d) => d.nom.toLowerCase().includes(nom)) : undefined);
+  return f?.id ?? "";
+}
+
+/** La phrase de l'assistant : quoi faire de ce mail. */
+export function phraseRecommandation(m: Pick<MailEntrant, "ticketable" | "de" | "brouillonReponse">, ratt: Pick<Rattachement, "statut" | "dossierLabel">): string {
+  if (!m.ticketable) return "Aucune action requise - à classer pour information.";
+  const cible = m.de.replace(/ \(.*\)$/, "");
+  const dossier = ratt.statut === "existant" ? `le dossier « ${ratt.dossierLabel} »` : `un nouveau dossier « ${ratt.dossierLabel} »`;
+  return m.brouillonReponse ? `Répondre à ${cible} et classer dans ${dossier}.` : `Traiter et classer dans ${dossier}.`;
+}
