@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Pencil, X, Check, ChevronRight, ChevronDown, AlertTriangle, UserPlus } from "lucide-react";
-import { formatDateLongue, formatHeure } from "@/lib/format-date";
+import { X, Check } from "lucide-react";
 import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
 import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import { avertissementDateReunion } from "@/lib/domain/validation-date-reunion";
 import { alerteDelaiAg } from "@/lib/domain/jalons-ag/alerte-delai";
-import { sallesReunion, vehicules, ressourceParEmail } from "@/lib/domain/salles-reunion";
+import { sallesReunion, ressourceParEmail } from "@/lib/domain/salles-reunion";
 import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { partitionnerParAgence } from "@/lib/domain/cloisonnement-agence";
 import { Button } from "@/components/ui/button";
-import { Input, Select, Choix } from "@/components/ui/field";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { Input } from "@/components/ui/field";
 import {
   definirDateAg,
   definirDateCs,
@@ -21,60 +19,19 @@ import {
   listerCollaborateursAction,
   type CollaborateurAssociable,
 } from "./dates-actions";
-
-// La ZOE : seul vehicule reservable (case "Reserver la voiture ZOE"). Email pris dans
-// la liste fermee du domaine (jamais code en dur ici).
-const ZOE_EMAIL = vehicules()[0]?.email ?? "";
-
-// Modes de reunion proposes dans le selecteur (+ "" = non precise). Libelle du badge
-// affiche a cote de la date hors edition.
-const MODES: { valeur: ModeReunion; label: string }[] = [
-  { valeur: "visio", label: "Visio" },
-  { valeur: "presentiel", label: "Présentiel" },
-  { valeur: "hybride", label: "Hybride" },
-];
-const MODE_LABEL: Record<ModeReunion, string> = {
-  visio: "Visio",
-  presentiel: "Présentiel",
-  hybride: "Hybride",
-};
-
-/** "dans 6 semaines" / "dans 9 jours" : on bascule en jours sous 2 semaines, ou "6 sem."
- *  serait plus flou qu'utile a l'approche de l'echeance. */
-function echeanceLisible(joursAvant: number, semainesAvant: number): string {
-  if (semainesAvant >= 2) return `dans ${semainesAvant} semaines`;
-  return `dans ${joursAvant} jour${joursAvant > 1 ? "s" : ""}`;
-}
-
-/** Un collaborateur (collegue) associable a une reunion : email + nom lisible. */
-type Collaborateur = { email: string; nom: string };
-
-/** Deux listes d'emails designent-elles le MEME ensemble (ordre / casse ignores) ? */
-function memeEnsemble(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sa = new Set(a.map((e) => e.toLowerCase()));
-  return b.every((e) => sa.has(e.toLowerCase()));
-}
-
-/**
- * Valeur DEBOUNCEE (audit API 2026-07-16, P1-6) : ne se propage qu'apres `delaiMs` sans
- * changement. Les verifications de dispo (getSchedule Graph) ne partent plus a CHAQUE frappe
- * dans les champs date/heure (6-10 appels Graph en quelques secondes en reglant une heure au
- * clavier) mais une fois la saisie stabilisee. Les appels obsoletes restent neutralises par
- * la cle de creneau (le resultat n'est affiche que s'il correspond a la saisie COURANTE) +
- * le flag `annule` du cleanup de chaque effet.
- */
-function useValeurDebouncee<T>(valeur: T, delaiMs: number): T {
-  const [debouncee, setDebouncee] = useState(valeur);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncee(valeur), delaiMs);
-    return () => clearTimeout(t);
-  }, [valeur, delaiMs]);
-  return debouncee;
-}
-
-/** Delai de stabilisation de la saisie avant de verifier les dispos (400-600 ms recommande). */
-const DELAI_DISPO_MS = 500;
+import { DateAffichee } from "./date-affichee";
+import { LogistiqueReunion } from "./logistique-reunion";
+import { PointsAVerifier, type PointAVerifier } from "./points-a-verifier";
+import {
+  DELAI_DISPO_MS,
+  MODE_LABEL,
+  ZOE_EMAIL,
+  echeanceLisible,
+  memeEnsemble,
+  useValeurDebouncee,
+  type Collaborateur,
+  type Dispo,
+} from "./editeur-date.utils";
 
 // Edition inline d'une date d'AG / CS. `quand` = prochaine (planifiee) ou derniere
 // (tenue, correction du referentiel App A). Clic sur la date -> selecteur inline.
@@ -156,25 +113,14 @@ export function EditeurDate({
   // Resultat de dispo indexe par le creneau interroge (date|heure|salle) : on n'affiche
   // que s'il correspond a la saisie courante -> pas de reset synchrone dans l'effet
   // (evite les rendus en cascade) ni d'indicateur perime apres un changement de salle.
-  const [dispo, setDispo] = useState<{
-    cle: string;
-    valeur: "libre" | "occupee" | "inconnu";
-  } | null>(null);
+  const [dispo, setDispo] = useState<{ cle: string; valeur: Dispo } | null>(null);
   // Dispo de la ZOE (meme mecanique que la salle, indexee par creneau).
-  const [dispoZoe, setDispoZoe] = useState<{
-    cle: string;
-    valeur: "libre" | "occupee" | "inconnu";
-  } | null>(null);
+  const [dispoZoe, setDispoZoe] = useState<{ cle: string; valeur: Dispo } | null>(null);
   // Dispo de MON agenda (le gestionnaire connecte) sur le creneau, meme mecanique.
-  const [dispoAgenda, setDispoAgenda] = useState<{
-    cle: string;
-    valeur: "libre" | "occupee" | "inconnu";
-  } | null>(null);
+  const [dispoAgenda, setDispoAgenda] = useState<{ cle: string; valeur: Dispo } | null>(null);
   // Dispo de chaque collegue selectionne, indexee par `${email}|${cleAgenda}` : on ne
   // lit que la valeur qui correspond au creneau courant (pas d'indicateur perime).
-  const [dispoCollab, setDispoCollab] = useState<
-    Record<string, "libre" | "occupee" | "inconnu">
-  >({});
+  const [dispoCollab, setDispoCollab] = useState<Record<string, Dispo>>({});
   const [erreur, setErreur] = useState<string | null>(null);
   // Le dernier echec est-il FORCABLE (agenda/collegue occupe cote serveur) ? -> propose
   // "Fixer quand meme". Une salle occupee n'est jamais forcable.
@@ -507,48 +453,18 @@ export function EditeurDate({
 
   if (!edition) {
     // Salle / vehicule / mode / collegues reserves (hors edition) : affiches discretement.
-    const salleNom = avecHeure ? ressourceParEmail(salleEmail)?.nom : undefined;
-    const zoeReservee = avecHeure && Boolean(vehiculeEmail);
-    const modeNom = avecHeure ? modeReunion : undefined;
-    const collabs = avecHeure ? (collaborateurs ?? []) : [];
     return (
-      <span className="inline-flex flex-col gap-0.5">
-        <span className="inline-flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={ouvrir}
-            className="inline-flex items-center gap-1.5 text-title font-medium text-ink hover:text-green-700 transition-colors duration-120 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-            title="Modifier la date"
-          >
-            {dateISO ? (
-              <span>
-                {formatDateLongue(dateISO)}
-                {avecHeure && heure && <span className="text-ink-2"> à {formatHeure(heure)}</span>}
-              </span>
-            ) : (
-              <span className="text-ink-3 font-normal">{labelVide}</span>
-            )}
-            <Pencil strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-2" aria-hidden />
-          </button>
-          {/* Mode de tenue : badge discret a cote de la date. */}
-          {dateISO && modeNom && (
-            <span className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-2 border border-line text-ink-2 text-meta font-medium">
-              {MODE_LABEL[modeNom]}
-            </span>
-          )}
-        </span>
-        {dateISO && (salleNom || zoeReservee) && (
-          <span className="text-body text-ink-2">
-            {salleNom && <>salle {salleNom}</>}
-            {salleNom && zoeReservee && <> · </>}
-            {zoeReservee && <>voiture ZOE</>}
-          </span>
-        )}
-        {/* Collegues associes : prenoms/noms discrets a cote de la date. */}
-        {dateISO && collabs.length > 0 && (
-          <span className="text-body text-ink-2">avec {collabs.map((c) => c.nom).join(", ")}</span>
-        )}
-      </span>
+      <DateAffichee
+        dateISO={dateISO}
+        heure={heure}
+        avecHeure={avecHeure}
+        labelVide={labelVide}
+        salleNom={avecHeure ? ressourceParEmail(salleEmail)?.nom : undefined}
+        zoeReservee={avecHeure && Boolean(vehiculeEmail)}
+        modeNom={avecHeure ? modeReunion : undefined}
+        collabs={avecHeure ? (collaborateurs ?? []) : []}
+        onOuvrir={ouvrir}
+      />
     );
   }
 
@@ -580,7 +496,7 @@ export function EditeurDate({
   // avertissement de date, empilees sous les champs. Quatre couleurs pour un seul message :
   // "regarde avant de fixer". On les rassemble ici, en gardant la distinction qui COMPTE -
   // bloquant (on ne peut pas fixer) contre forcable (on peut, apres accord).
-  const pointsAVerifier: { cle: string; texte: string; bloquant?: boolean }[] = [];
+  const pointsAVerifier: PointAVerifier[] = [];
   if (blocageSalle) pointsAVerifier.push({ cle: "salle", texte: blocageSalle, bloquant: true });
   for (const a of avertissements) pointsAVerifier.push({ cle: a, texte: a });
   if (avertissement && !erreur) pointsAVerifier.push({ cle: "date", texte: avertissement });
@@ -663,209 +579,43 @@ export function EditeurDate({
           dispos) etait affiche en permanence : c'etait l'essentiel des 11 blocs que Sekou
           voyait "one shot" alors qu'il venait juste poser une date. */}
       {avecHeure && (
-        <span className="inline-flex flex-col gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="self-start"
-            aria-expanded={logistiqueOuverte}
-            disabled={pending}
-            onClick={() => setLogistiqueOuverte((v) => !v)}
-          >
-            {logistiqueOuverte ? (
-              <ChevronDown strokeWidth={1.5} />
-            ) : (
-              <ChevronRight strokeWidth={1.5} />
-            )}
-            {resumeLogistique}
-          </Button>
-
-          {logistiqueOuverte && (
-            <span className="inline-flex flex-col gap-2 pl-3 border-l border-line">
-              {/* Mode de tenue : visio / presentiel / hybride, ou "non precise". Pas de
-                  lien Teams genere pour l'instant ; la salle reste optionnelle en visio. */}
-              <span className="inline-flex items-center gap-2 flex-wrap">
-                <Select
-                  largeur="auto"
-                  value={modeVal}
-                  disabled={pending}
-                  aria-label="Mode de tenue de la réunion"
-                  onChange={(e) => setModeVal(e.target.value as ModeReunion | "")}
-                >
-                  <option value="">Mode non précisé</option>
-                  {MODES.map((m) => (
-                    <option key={m.valeur} value={m.valeur}>
-                      {m.label}
-                    </option>
-                  ))}
-                </Select>
-              </span>
-
-              {/* Salle + ZOE. La room mailbox auto-accepte si le creneau est libre. */}
-              <span className="inline-flex items-center gap-2 flex-wrap">
-                <Select
-                  largeur="auto"
-                  value={salleVal}
-                  disabled={pending}
-                  aria-label="Salle de réunion à réserver"
-                  onChange={(e) => setSalleVal(e.target.value)}
-                >
-                  <option value="">Aucune salle</option>
-                  {sallesAffichees.map((s) => (
-                    <option key={s.email} value={s.email}>
-                      {s.nom}
-                    </option>
-                  ))}
-                </Select>
-
-                {/* Debordement : revele les salles des autres agences. */}
-                {sallesAutres.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setVoirAutresSalles((v) => !v)}
-                    aria-expanded={voirAutresSalles}
-                    disabled={pending}
-                  >
-                    {voirAutresSalles ? "Masquer les autres agences" : "Voir les autres agences"}
-                  </Button>
-                )}
-
-                <Choix
-                  type="checkbox"
-                  label="Réserver la voiture ZOE"
-                  checked={zoeVal}
-                  disabled={pending}
-                  onChange={(e) => setZoeVal(e.target.checked)}
-                />
-              </span>
-
-              {/* Dispos du creneau. Seul le vert et le gris restent ICI : ce qui est OCCUPE
-                  remonte dans le bloc "A verifier" et n'est plus dit deux fois. */}
-              {(agendaCreneau || dispoCreneau || dispoZoeCreneau) && (
-                <span className="inline-flex items-center gap-3 flex-wrap text-body" aria-live="polite">
-                  {agendaCreneau && dispoAgendaValeur !== "occupee" && (
-                    <span className={dispoAgendaValeur === "libre" ? "text-ok-700" : "text-ink-2"}>
-                      {dispoAgendaValeur === null
-                        ? "Ton agenda : vérification…"
-                        : dispoAgendaValeur === "libre"
-                          ? "Ton agenda : libre"
-                          : "Ton agenda : dispo inconnue"}
-                    </span>
-                  )}
-                  {dispoCreneau && dispoValeur !== "occupee" && (
-                    <span className={dispoValeur === "libre" ? "text-ok-700" : "text-ink-2"}>
-                      {dispoValeur === null
-                        ? "Salle : vérification…"
-                        : dispoValeur === "libre"
-                          ? "Salle libre"
-                          : "Salle : dispo inconnue"}
-                    </span>
-                  )}
-                  {dispoZoeCreneau && (
-                    <span
-                      className={
-                        dispoZoeValeur === "libre"
-                          ? "text-ok-700"
-                          : dispoZoeValeur === "occupee"
-                            ? "text-warn-700"
-                            : "text-ink-2"
-                      }
-                    >
-                      {dispoZoeValeur === null
-                        ? "ZOE : vérification…"
-                        : dispoZoeValeur === "libre"
-                          ? "ZOE libre"
-                          : dispoZoeValeur === "occupee"
-                            ? "ZOE occupée"
-                            : "ZOE : dispo inconnue"}
-                    </span>
-                  )}
-                </span>
-              )}
-
-              {/* Collegues associes : les RETENUS en pastilles, la liste a la demande.
-                  Douze cases a cocher permanentes etaient le plus gros bloc de l'editeur
-                  pour un reglage rare. Chaque collegue retenu est invite a l'evenement
-                  Outlook et sa dispo est verifiee sur le creneau. */}
-              {collabList.length > 0 && (
-                <span className="inline-flex flex-col gap-1.5">
-                  <Eyebrow as="span">Collègues associés</Eyebrow>
-                  <span className="inline-flex items-center gap-1 flex-wrap">
-                    {collabRetenus.map((c) => {
-                      const d = agendaCreneau ? dispoCollabValeur(c.email) : undefined;
-                      return (
-                        <span
-                          key={c.email}
-                          className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1 rounded-sm bg-surface-2 border border-line text-meta text-ink"
-                        >
-                          {c.nom}
-                          {d === "occupee" && <span className="text-warn-700">occupé</span>}
-                          <button
-                            type="button"
-                            onClick={() => toggleCollaborateur(c.email)}
-                            disabled={pending}
-                            aria-label={`Retirer ${c.nom}`}
-                            className="text-ink-3 hover:text-err-700 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-                          >
-                            <X strokeWidth={2} className="w-3 h-3" />
-                          </button>
-                        </span>
-                      );
-                    })}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-expanded={choixCollabOuvert}
-                      disabled={pending}
-                      onClick={() => setChoixCollabOuvert((v) => !v)}
-                    >
-                      <UserPlus strokeWidth={1.5} />
-                      {choixCollabOuvert ? "Fermer la liste" : "Associer des collègues"}
-                    </Button>
-                  </span>
-
-                  {choixCollabOuvert && (
-                    <span className="inline-flex flex-col gap-0.5">
-                      {collabAffiches.map((c) => (
-                        <label
-                          key={c.email}
-                          className="inline-flex items-center gap-1.5 text-body text-ink cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={collaborateursVal.includes(c.email)}
-                            disabled={pending}
-                            onChange={() => toggleCollaborateur(c.email)}
-                            className="accent-green-700 w-3.5 h-3.5"
-                          />
-                          {c.nom}
-                        </label>
-                      ))}
-                      {/* Debordement : revele les collegues des autres agences. */}
-                      {collabAutres.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="self-start"
-                          onClick={() => setVoirAutresCollab((v) => !v)}
-                          aria-expanded={voirAutresCollab}
-                          disabled={pending}
-                        >
-                          {voirAutresCollab
-                            ? "Masquer les autres agences"
-                            : "Voir les autres agences"}
-                        </Button>
-                      )}
-                    </span>
-                  )}
-                </span>
-              )}
-            </span>
-          )}
-        </span>
+        <LogistiqueReunion
+          ouverte={logistiqueOuverte}
+          onToggleOuverte={() => setLogistiqueOuverte((v) => !v)}
+          resume={resumeLogistique}
+          pending={pending}
+          modeVal={modeVal}
+          onModeChange={setModeVal}
+          salleVal={salleVal}
+          onSalleChange={setSalleVal}
+          sallesAffichees={sallesAffichees}
+          sallesAutres={sallesAutres}
+          voirAutresSalles={voirAutresSalles}
+          onToggleVoirAutresSalles={() => setVoirAutresSalles((v) => !v)}
+          zoeVal={zoeVal}
+          onZoeChange={setZoeVal}
+          agendaCreneau={Boolean(agendaCreneau)}
+          dispoCreneau={Boolean(dispoCreneau)}
+          dispoZoeCreneau={Boolean(dispoZoeCreneau)}
+          dispoAgendaValeur={dispoAgendaValeur}
+          dispoValeur={dispoValeur}
+          dispoZoeValeur={dispoZoeValeur}
+          avecCollegues={collabList.length > 0}
+          collegues={{
+            collabRetenus,
+            collabAffiches,
+            collabAutres,
+            collaborateursVal,
+            agendaCreneau: Boolean(agendaCreneau),
+            dispoCollabValeur,
+            onToggleCollaborateur: toggleCollaborateur,
+            choixOuvert: choixCollabOuvert,
+            onToggleChoix: () => setChoixCollabOuvert((v) => !v),
+            voirAutres: voirAutresCollab,
+            onToggleVoirAutres: () => setVoirAutresCollab((v) => !v),
+            pending,
+          }}
+        />
       )}
 
       {/* Confirmation legere de l'effacement (geste destructif : ca deplanifie). */}
@@ -901,49 +651,13 @@ export function EditeurDate({
           accord. Le detail du retroplanning descend dans un repli : on le consulte quand
           on en a besoin, il n'occupe plus quatre lignes en permanence. */}
       {aVerifier && !erreur && (
-        <span
-          className={
-            "inline-flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-body " +
-            (tonVerif === "err"
-              ? "border-err-500/30 bg-err-50 text-err-700"
-              : "border-warn-500/30 bg-warn-50 text-warn-700")
-          }
-          role={tonVerif === "err" ? "alert" : undefined}
-          aria-live="polite"
-        >
-          <span className="inline-flex items-center gap-1.5 font-medium">
-            <AlertTriangle strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" aria-hidden />
-            À vérifier avant de fixer
-          </span>
-          {pointsAVerifier.map((pt) => (
-            <span key={pt.cle}>· {pt.texte}</span>
-          ))}
-
-          {/* Retroplanning : le detail des deux echeances, replie. */}
-          {delaiAg && (
-            <details className="text-ink-2">
-              <summary className="cursor-pointer text-meta">Voir les échéances</summary>
-              <span className="inline-flex flex-col gap-0.5 pt-1 text-meta">
-                <span className={delaiAg.odjCsDepasse ? "text-warn-700" : undefined}>
-                  · ODJ à valider en CS avant le {formatDateLongue(delaiAg.odjCsISO)}
-                  {delaiAg.odjCsDepasse && " (échéance dépassée)"}
-                </span>
-                <span className={delaiAg.convocDepassee ? "text-warn-700" : undefined}>
-                  · Mise sous pli avant le {formatDateLongue(delaiAg.convocISO)}
-                  {delaiAg.convocDepassee && " (échéance dépassée)"}
-                </span>
-              </span>
-            </details>
-          )}
-
-          <span className="text-ink-2 text-meta">
-            {blocageSalle
-              ? "Choisis une autre salle ou un autre créneau."
-              : aAvertir
-                ? "Après accord avec le(s) collègue(s), tu peux fixer quand même."
-                : "Tu peux fixer cette date quand même."}
-          </span>
-        </span>
+        <PointsAVerifier
+          points={pointsAVerifier}
+          ton={tonVerif}
+          delaiAg={delaiAg}
+          blocageSalle={blocageSalle}
+          aAvertir={aAvertir}
+        />
       )}
 
       {/* Erreur d'enregistrement : fini l'echec silencieux. Si l'echec est FORCABLE (agenda /
