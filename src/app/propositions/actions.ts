@@ -70,6 +70,7 @@ const zPrix = z.object({
   grilleTimbresTtc: zNb.optional(),
   anneeGrille: z.number().int().optional(),
   fraisPostauxReels: z.boolean().optional(),
+  conditionsParticulieres: z.string().trim().max(4000).optional(),
 });
 
 /** Retire les chaines vides : un champ efface redevient absent. */

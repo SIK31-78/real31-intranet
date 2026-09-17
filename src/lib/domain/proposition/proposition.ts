@@ -109,6 +109,8 @@ export interface Prix {
   anneeGrille?: number;
   /** Frais postaux au reel (defaut pour une offre) ou forfait timbres. */
   fraisPostauxReels?: boolean;
+  /** Conditions particulieres ajoutees au contrat prospect (texte libre, retour du test du 17/09/2026). */
+  conditionsParticulieres?: string;
 }
 
 export interface EntreeJournalProposition {

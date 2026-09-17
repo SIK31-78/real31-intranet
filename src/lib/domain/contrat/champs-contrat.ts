@@ -125,6 +125,11 @@ export interface ChampsContrat {
   anneeBareme: number;
   /** Les 21 prestations, dans l'ordre du document. */
   tarifs: TarifContrat[];
+  /**
+   * Conditions particulieres negociees (une offre a un prospect : une clause, une ligne ou
+   * deux que le gabarit n'a pas). Texte libre, un paragraphe par ligne ; absent = rien.
+   */
+  conditionsParticulieres?: string;
 }
 
 /**
@@ -136,6 +141,7 @@ export function assemblerChampsContrat(
   copro: CoproContrat,
   cycle: CycleContratChamps,
   tarifsTtc: Record<PrestationContrat, { libelle: string; ttc: number }>,
+  conditionsParticulieres?: string,
 ): ChampsContrat {
   const manquantes = PRESTATIONS_CONTRAT.filter((p) => tarifsTtc[p] === undefined);
   if (manquantes.length > 0) {
@@ -161,5 +167,6 @@ export function assemblerChampsContrat(
       const { libelle, ttc } = tarifsTtc[identifiant];
       return { identifiant, libelle, ttc, ht: htDepuisTtc(ttc), ttcTexte: ttcBrut(ttc) };
     }),
+    ...(conditionsParticulieres?.trim() ? { conditionsParticulieres: conditionsParticulieres.trim() } : {}),
   };
 }

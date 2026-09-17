@@ -349,7 +349,7 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
     const l = parId.get(x)!;
     tarifs[x] = { libelle: l.libelle, ttc: l.montantTtc };
   }
-  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(coproContratDepuisProposition(p), cycle, tarifs) };
+  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(coproContratDepuisProposition(p), cycle, tarifs, p.prix.conditionsParticulieres) };
 }
 
 /** L'offre est partie : la proposition en garde la date, le cycle propose et une ligne de journal. */

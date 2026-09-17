@@ -114,6 +114,12 @@ export function DocumentContrat({ champs }: { champs: ChampsContrat }) {
           {GABARIT_DROITE.map((bloc, i) => (
             <Bloc key={i} bloc={bloc} table={table} options={options} />
           ))}
+          {champs.conditionsParticulieres && (
+            <>
+              <h2 className="mt-3 mb-1 px-1.5 py-1 bg-green-50 text-green-800 font-semibold break-inside-avoid">CONDITIONS PARTICULIÈRES</h2>
+              <p className="whitespace-pre-line mb-1.5 text-justify">{champs.conditionsParticulieres}</p>
+            </>
+          )}
         </div>
       </div>
     </article>
