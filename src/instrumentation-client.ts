@@ -20,6 +20,9 @@ function expurgerFiche(event: Sentry.ErrorEvent): void {
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
+  // Tunnel MAISON : les enveloppes passent par notre domaine (bloqueurs de pub) et ne
+  // sont relayees que vers notre projet (src/app/monitoring/route.ts).
+  tunnel: "/monitoring",
   tracesSampleRate: 0.1,
   sendDefaultPii: false,
   // Session Replay : on n'enregistre RIEN en temps normal, et les 30 s qui precedent une
