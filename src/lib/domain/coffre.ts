@@ -263,3 +263,25 @@ export function impactReinitialisation(coffres: readonly Coffre[]): ImpactReinit
   }
   return { perdus, aReoctroyer, perteDefinitive: perdus.length > 0 };
 }
+
+// --- Recherche dans les secrets en clair -----------------------------------
+// Ces regles servaient l'ecran seul ; elles vivent ici pour etre testees hors React.
+
+/** Une valeur "renseignee" : non vide et pas un placeholder "-" / "--". */
+export function estRenseigne(v?: string): v is string {
+  return !!v && !/^-+$/.test(v.trim());
+}
+
+/** Recherche : tous les termes (separes par espace) doivent apparaitre dans l'un
+ *  des champs du secret (titre, entreprise via titre, copro, immeuble, login, url, notes). */
+export function secretCorrespond(s: SecretClair, q: string): boolean {
+  const foin = [s.titre, s.copropriete, s.immeuble, s.login, s.url, s.notes]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return q
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((t) => foin.includes(t));
+}

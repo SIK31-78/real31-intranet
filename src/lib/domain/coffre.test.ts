@@ -3,7 +3,10 @@ import {
   evaluerForceMotDePasse,
   validerNouveauMotDePasseMaitre,
   impactReinitialisation,
+  estRenseigne,
+  secretCorrespond,
   type Coffre,
+  type SecretClair,
   type ScopeCoffre,
 } from "./coffre";
 
@@ -99,5 +102,37 @@ describe("impactReinitialisation (ce qu'on annonce AVANT de detruire)", () => {
 
   it("aucun coffre : rien a perdre", () => {
     expect(impactReinitialisation([])).toEqual({ perdus: [], aReoctroyer: [], perteDefinitive: false });
+  });
+});
+
+describe("estRenseigne (valeur utile ou placeholder)", () => {
+  it("accepte un texte, refuse le vide et les tirets seuls", () => {
+    expect(estRenseigne("S0297")).toBe(true);
+    expect(estRenseigne("")).toBe(false);
+    expect(estRenseigne(undefined)).toBe(false);
+    expect(estRenseigne("-")).toBe(false);
+    expect(estRenseigne(" -- ")).toBe(false);
+  });
+});
+
+describe("secretCorrespond (recherche multi-termes)", () => {
+  const s: SecretClair = {
+    titre: "EDF",
+    copropriete: "S0297 La Pleiade",
+    immeuble: "Bat A",
+    url: "https://espace.edf.fr",
+    login: "syndic@real31.fr",
+    motDePasse: "secret",
+    notes: "compteur chaufferie",
+  };
+  it("tous les termes doivent apparaitre, dans n'importe quel champ, sans tenir compte de la casse", () => {
+    expect(secretCorrespond(s, "edf pleiade")).toBe(true);
+    expect(secretCorrespond(s, "CHAUFFERIE syndic")).toBe(true);
+    expect(secretCorrespond(s, "edf engie")).toBe(false);
+  });
+  it("une recherche vide correspond a tout, le mot de passe n'est jamais fouille", () => {
+    expect(secretCorrespond(s, "")).toBe(true);
+    expect(secretCorrespond(s, "   ")).toBe(true);
+    expect(secretCorrespond(s, "secret")).toBe(false);
   });
 });
