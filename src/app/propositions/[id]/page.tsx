@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Building2, FileText } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutElire, peutFaireOffre, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
-import { getAgenceRepository } from "@/lib/adapters/router";
+import { getAgenceRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { calculerPrix, contexteImmeuble, getProposition, suggererRapprochement } from "@/lib/services/proposition/propositions";
 import { LIBELLE_STATUT, STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
 import { obstaclesOffre } from "@/lib/domain/proposition/offre";
@@ -26,12 +26,17 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
   const profil = profilDe(g);
   if (!peutVoirToutesLesPropositions(profil) && p.creeParNom !== g.nomComplet) notFound();
   const droits = { completer: peutCompleterProposition(profil) || p.creeParNom === g.nomComplet, offre: peutFaireOffre(profil, p.agence), elire: peutElire(profil, p.agence) };
-  const [prix, agences, contexte, suggestion] = await Promise.all([
+  const [prix, agences, gestionnairesBruts, contexte, suggestion] = await Promise.all([
     calculerPrix(p.immeuble),
     getAgenceRepository().listerAgences(),
+    getGestionnaireRepository().list(),
     contexteImmeuble(p),
     p.immeuble.immatriculation ? Promise.resolve(undefined) : suggererRapprochement(p),
   ]);
+  // Les gestionnaires proposes pour porter la proposition : ceux de l'agence choisie (Sekou,
+  // 17/09/2026). L'agence d'un gestionnaire est un id App A -> code via la table Agency.
+  const codeAgenceParId = new Map(agences.map((a) => [a.id, a.code]));
+  const gestionnaires = gestionnairesBruts.map((g) => ({ nomComplet: g.nomComplet, ...(g.agencyId && codeAgenceParId.get(g.agencyId) ? { agence: codeAgenceParId.get(g.agencyId) } : {}) }));
   const obstacles = obstaclesOffre(p);
   const meta = [
     p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots principaux` : null,
@@ -66,7 +71,7 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
             </>
           }
         />
-        <FicheProposition proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} contexte={contexte} suggestion={suggestion} droits={{ completer: droits.completer, offre: droits.offre }} />
+        <FicheProposition key={p.majLeISO} proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} gestionnaires={gestionnaires} contexte={contexte} suggestion={suggestion} droits={{ completer: droits.completer, offre: droits.offre }} />
       </Page>
     </AppShell>
   );
