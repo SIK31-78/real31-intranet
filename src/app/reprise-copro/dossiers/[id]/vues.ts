@@ -2,11 +2,12 @@
 // d'équipe, ADR-037). La page serveur projette un Dossier vers DossierFicheVue (sérialisable),
 // les zones client (en-tête, checklist, journal) consomment ces contrats.
 
-import type { EquipeReprise, Etape, StatutEtape } from "@/lib/reprise/domain/dossier";
+import type { EquipeReprise, Etape } from "@/lib/reprise/domain/dossier";
 
-// Les regles d'une etape (close, echeance depassee) et l'ordre des statuts sont ceux du noyau
-// de suivi partage avec la perte : la vue les re-exporte, elle ne les definit pas.
-export { STATUTS_ETAPE, etapeClose, echeanceDepassee } from "@/lib/domain/suivi/etape";
+// Les regles d'une etape (close, echeance depassee) sont celles du noyau de suivi partage avec
+// la perte : la vue les re-exporte, elle ne les definit pas. Les libelles et la pastille des
+// statuts vivent dans `components/suivi/statut-etape`.
+export { etapeClose, echeanceDepassee } from "@/lib/domain/suivi/etape";
 
 /** Une étape telle que persistée : le domaine est déjà sérialisable, on le réutilise tel quel. */
 export type EtapeVue = Etape;
@@ -33,14 +34,6 @@ export interface DossierFicheVue {
   equipe: EquipeReprise;
   journal: EntreeJournalVue[];
 }
-
-export const STATUT_ETAPE_LABEL: Record<StatutEtape, string> = {
-  a_faire: "À faire",
-  en_cours: "En cours",
-  bloque: "Bloqué",
-  fait: "Fait",
-  ignore: "Ignoré",
-};
 
 // Les initiales d'une personne : UNE definition (domaine collaborateur), le meme avatar partout.
 export { initialesDe } from "@/lib/domain/collaborateur";
