@@ -50,7 +50,7 @@ describe("checklist de perte", () => {
     const le1 = d.etapes.find((e) => e.code === "LE1")!;
     expect(retardEtape(d, le1, "2026-09-15")).toBe(81);
     expect(retardEtape(d, { ...le1, statut: "fait" }, "2026-09-15")).toBeNull();
-    expect(retardEtape(d, { ...le1, statut: "sans_objet" }, "2026-09-15")).toBeNull();
+    expect(retardEtape(d, { ...le1, statut: "ignore" }, "2026-09-15")).toBeNull();
     expect(retardEtape(d, d.etapes.find((e) => e.code === "TR1")!, "2026-09-15")).toBeNull();
   });
 
@@ -64,7 +64,7 @@ describe("checklist de perte", () => {
 
   it("l'avancement ignore le sans objet et compte retards et blocages", () => {
     const etapes = etapesInitiales().map((e) =>
-      e.code === "LE4" ? { ...e, statut: "sans_objet" as const } : e.code === "LE1" ? { ...e, statut: "fait" as const } : e.code === "TR2" ? { ...e, statut: "bloque" as const } : e,
+      e.code === "LE4" ? { ...e, statut: "ignore" as const } : e.code === "LE1" ? { ...e, statut: "fait" as const } : e.code === "TR2" ? { ...e, statut: "bloque" as const } : e,
     );
     const a = avancement(dossier({ etapes }), "2026-09-15");
     expect(a.total).toBe(16);

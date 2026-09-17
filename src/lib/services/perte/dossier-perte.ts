@@ -23,6 +23,14 @@ import {
 } from "@/lib/domain/perte/dossier";
 
 const JOUR_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** Le mot du journal pour chaque statut (« ignore » se dit « sans objet » dans une perte). */
+const MOT_STATUT: Record<StatutEtape, string> = {
+  a_faire: "a faire",
+  en_cours: "en cours",
+  bloque: "bloque",
+  fait: "fait",
+  ignore: "sans objet",
+};
 const jjmmaaaa = (iso: string) => iso.split("-").reverse().join("/");
 
 export interface OuvertureDossierPerte {
@@ -117,7 +125,7 @@ export async function mettreAJourEtapePerte(
       n = { ...n, statut: patch.statut };
       if (patch.statut === "fait") n.faitLeISO = aujourdhui;
       else delete n.faitLeISO;
-      journal.push({ quandISO: new Date().toISOString(), par, texte: `${code} → ${patch.statut.replace("_", " ")}` });
+      journal.push({ quandISO: new Date().toISOString(), par, texte: `${code} → ${MOT_STATUT[patch.statut]}` });
     }
     if (patch.assigneA !== undefined) {
       if (patch.assigneA) n.assigneA = patch.assigneA;

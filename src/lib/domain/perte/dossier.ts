@@ -9,6 +9,19 @@
 // TOUT SE DATE DEPUIS L'AG (Sekou, 15/09) : « des le lendemain » = J+1, le rappel
 // espace client = J+15, la cloture definitive sur Crypto = J+5 ans (delai legal de
 // conservation). Fonctions pures.
+//
+// Les regles communes a toute checklist (statut, etape close, retard, avancement, prochaine
+// etape) vivent dans le noyau `domain/suivi/etape` partage avec la reprise.
+
+import {
+  compterParStatut,
+  echeanceDepassee,
+  etapeClose,
+  prochaineEtape as prochaineEtapeSuivi,
+  type StatutEtape,
+} from "@/lib/domain/suivi/etape";
+
+export type { StatutEtape } from "@/lib/domain/suivi/etape";
 
 export const PHASES_PERTE = ["LENDEMAIN", "TRANSMISSION", "J15", "COMPTABILITE"] as const;
 export type PhasePerte = (typeof PHASES_PERTE)[number];
@@ -30,8 +43,6 @@ export const LIBELLE_ROLE: Record<RolePerte, string> = {
   comptable_copro: "comptable copro",
   comptable_entreprise: "comptable entreprise",
 };
-
-export type StatutEtape = "a_faire" | "en_cours" | "bloque" | "fait" | "sans_objet";
 
 export interface DefinitionEtape {
   code: string;
@@ -154,15 +165,15 @@ export function echeanceEtape(dateAgISO: string, code: string): string | null {
   return d?.echeanceJours === undefined ? null : plusJours(dateAgISO, d.echeanceJours);
 }
 
-/** Retard en jours d'une etape non faite dont l'echeance est passee, sinon null. */
+/** Retard en jours d'une etape ouverte dont l'echeance est passee, sinon null. */
 export function retardEtape(dossier: DossierPerte, etape: EtapePerte, aujourdhuiISO: string): number | null {
-  if (etape.statut === "fait" || etape.statut === "sans_objet") return null;
   const echeance = echeanceEtape(dossier.dateAgISO, etape.code);
-  if (!echeance || echeance >= aujourdhuiISO) return null;
+  if (!echeance || !echeanceDepassee({ statut: etape.statut, echeance }, aujourdhuiISO)) return null;
   return Math.round((Date.parse(`${aujourdhuiISO}T00:00:00Z`) - Date.parse(`${echeance}T00:00:00Z`)) / 86_400_000);
 }
 
 export interface AvancementPerte {
+  /** Les etapes faites (une etape « sans objet » n'est ni faite ni comptee). */
   faites: number;
   /** Les etapes qui comptent (hors « sans objet »). */
   total: number;
@@ -170,25 +181,24 @@ export interface AvancementPerte {
   bloquees: number;
 }
 
+/**
+ * Avancement du dossier. A la difference du noyau (et du compteur par phase de la fiche), une
+ * etape « sans objet » sort du total au lieu de compter comme faite : c'est le choix d'origine
+ * du module, conserve tel quel.
+ */
 export function avancement(dossier: DossierPerte, aujourdhuiISO: string): AvancementPerte {
-  const utiles = dossier.etapes.filter((e) => e.statut !== "sans_objet");
+  const n = compterParStatut(dossier.etapes);
   return {
-    faites: utiles.filter((e) => e.statut === "fait").length,
-    total: utiles.length,
+    faites: n.fait,
+    total: dossier.etapes.length - n.ignore,
     enRetard: dossier.etapes.filter((e) => retardEtape(dossier, e, aujourdhuiISO) !== null).length,
-    bloquees: dossier.etapes.filter((e) => e.statut === "bloque").length,
+    bloquees: n.bloque,
   };
 }
 
 /** La prochaine etape a faire, dans l'ordre de la fiche (la plus en retard d'abord). */
 export function prochaineEtape(dossier: DossierPerte, aujourdhuiISO: string): EtapePerte | null {
-  const ouvertes = dossier.etapes.filter((e) => e.statut === "a_faire" || e.statut === "en_cours" || e.statut === "bloque");
-  if (ouvertes.length === 0) return null;
-  const enRetard = ouvertes
-    .map((e) => ({ e, r: retardEtape(dossier, e, aujourdhuiISO) ?? -1 }))
-    .filter((x) => x.r >= 0)
-    .sort((a, b) => b.r - a.r);
-  return enRetard[0]?.e ?? ouvertes[0]!;
+  return prochaineEtapeSuivi(dossier.etapes, (e) => retardEtape(dossier, e, aujourdhuiISO));
 }
 
 /** Une etape dont toutes les cases de controle sont cochees est faite ; l'inverse n'est pas force. */
@@ -200,5 +210,5 @@ export function controlesComplets(etape: EtapePerte): boolean {
 
 /** Le dossier est termine quand plus rien n'est ouvert (la cloture a 5 ans comprise). */
 export function estTermine(dossier: DossierPerte): boolean {
-  return dossier.etapes.every((e) => e.statut === "fait" || e.statut === "sans_objet");
+  return dossier.etapes.every((e) => etapeClose(e.statut));
 }

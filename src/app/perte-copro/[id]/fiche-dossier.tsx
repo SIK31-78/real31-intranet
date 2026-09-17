@@ -28,6 +28,7 @@ import {
   type EtapePerte,
   type StatutEtape,
 } from "@/lib/domain/perte/dossier";
+import { avancement, etapeClose } from "@/lib/domain/suivi/etape";
 import { mettreAJourEtapeAction } from "../actions";
 
 import { Journal } from "@/components/ui/journal";
@@ -57,7 +58,7 @@ export function FicheDossierPerte({
       {PHASES_PERTE.map((phase) => {
         const defs = ETAPES_PERTE.filter((d) => d.phase === phase);
         const etapes = defs.map((d) => dossier.etapes.find((e) => e.code === d.code) ?? { code: d.code, statut: "a_faire" as const });
-        const faites = etapes.filter((e) => e.statut === "fait" || e.statut === "sans_objet").length;
+        const { faites } = avancement(etapes);
         return (
           <Section key={phase} id={`phase-${phase.toLowerCase()}`} titre={`${LIBELLE_PHASE[phase]} · ${faites}/${etapes.length}`}>
             <Card>
@@ -112,7 +113,7 @@ function LigneEtape({
   const retard = retardEtape(dossier, etape, aujourdhuiISO);
   const [note, setNote] = useState(etape.note ?? "");
   const [assigne, setAssigne] = useState(etape.assigneA ?? "");
-  const close = etape.statut === "fait" || etape.statut === "sans_objet";
+  const close = etapeClose(etape.statut);
 
   return (
     <li className={cn("px-4 py-3 flex flex-col gap-2", etape.statut === "bloque" && "bg-err-50/40", pending && "opacity-70")}>
@@ -125,7 +126,7 @@ function LigneEtape({
               etape.statut === "fait" && "text-ink-2",
               etape.statut === "en_cours" && "text-info-700 font-medium",
               etape.statut === "bloque" && "text-err-700 font-medium",
-              etape.statut === "sans_objet" && "text-ink-3 line-through",
+              etape.statut === "ignore" && "text-ink-3 line-through",
             )}
           >
             <span className="font-mono text-ink-3 mr-2">{etape.code}</span>
@@ -155,7 +156,7 @@ function LigneEtape({
               <Button type="button" variant="ghost" size="sm" disabled={pending} title="Bloqué : préciser pourquoi dans la note" onClick={() => onMaj({ statut: "bloque" })}>
                 <OctagonAlert strokeWidth={1.5} />
               </Button>
-              <Button type="button" variant="ghost" size="sm" disabled={pending} title="Sans objet pour cette copropriété" onClick={() => onMaj({ statut: "sans_objet" })}>
+              <Button type="button" variant="ghost" size="sm" disabled={pending} title="Sans objet pour cette copropriété" onClick={() => onMaj({ statut: "ignore" })}>
                 <Minus strokeWidth={1.5} />
               </Button>
             </>
@@ -214,6 +215,6 @@ function Pastille({ statut }: { statut: StatutEtape }) {
   if (statut === "fait") return <span className={cn(base, "bg-ok-500 text-white")} aria-hidden><Check strokeWidth={3} className="w-3 h-3" /></span>;
   if (statut === "en_cours") return <span className={cn(base, "bg-surface border-2 border-info-500 text-info-700")} aria-hidden><Circle strokeWidth={0} className="w-2 h-2 fill-info-500" /></span>;
   if (statut === "bloque") return <span className={cn(base, "bg-err-500 text-white")} aria-hidden><OctagonAlert strokeWidth={2.5} className="w-3 h-3" /></span>;
-  if (statut === "sans_objet") return <span className={cn(base, "bg-surface-2 border border-line text-ink-3")} aria-hidden><Minus strokeWidth={2} className="w-3 h-3" /></span>;
+  if (statut === "ignore") return <span className={cn(base, "bg-surface-2 border border-line text-ink-3")} aria-hidden><Minus strokeWidth={2} className="w-3 h-3" /></span>;
   return <span className={cn(base, "bg-surface border border-line-2")} aria-hidden />;
 }

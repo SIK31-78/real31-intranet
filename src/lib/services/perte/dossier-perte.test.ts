@@ -105,6 +105,15 @@ describe("mettreAJourEtapePerte", () => {
     expect(maj.statut).toBe("termine");
     expect(maj.journal.at(-1)!.texte).toBe("Dossier terminé : toutes les étapes sont faites");
   });
+  it("le journal garde les mots du module : « ignore » se dit « sans objet », et l'etape ignoree compte comme close", async () => {
+    const d = await ouvrirDossierPerte(ouverture);
+    const maj = await mettreAJourEtapePerte(d.id, "LE4", { statut: "ignore" }, "Sandy");
+    expect(maj.etapes.find((e) => e.code === "LE4")!.statut).toBe("ignore");
+    expect(maj.journal.at(-1)!.texte).toBe("LE4 → sans objet");
+    let fin = maj;
+    for (const e of d.etapes) if (e.code !== "LE4") fin = await mettreAJourEtapePerte(d.id, e.code, { statut: "fait" }, "Sandy");
+    expect(fin.statut).toBe("termine");
+  });
   it("etape inconnue ou dossier inconnu : erreur explicite", async () => {
     const d = await ouvrirDossierPerte(ouverture);
     await expect(mettreAJourEtapePerte(d.id, "ZZ9", { statut: "fait" }, "S")).rejects.toThrow(/Étape inconnue : ZZ9/);

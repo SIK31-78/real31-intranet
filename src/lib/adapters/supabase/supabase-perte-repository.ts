@@ -2,6 +2,7 @@
 
 import type { PerteRepository } from "@/lib/ports/perte-repository";
 import type { DossierPerte, EntreeJournalPerte, EtapePerte } from "@/lib/domain/perte/dossier";
+import { normaliserStatut } from "@/lib/domain/suivi/etape";
 import { createSupabasePublicClient } from "./public-client";
 
 type Row = {
@@ -12,7 +13,8 @@ type Row = {
   fin_gestion: string;
   motif: string | null;
   statut: "en_cours" | "termine";
-  etapes: EtapePerte[];
+  /** Le statut est normalise a la lecture : les dossiers d'avant le 17/09/2026 portent « sans_objet ». */
+  etapes: Array<Omit<EtapePerte, "statut"> & { statut: string }>;
   journal: EntreeJournalPerte[];
   cree_par: string;
   created_at: string;
@@ -30,7 +32,7 @@ function versDomaine(r: Row): DossierPerte {
     finGestionISO: r.fin_gestion.slice(0, 10),
     ...(r.motif ? { motif: r.motif } : {}),
     statut: r.statut,
-    etapes: Array.isArray(r.etapes) ? r.etapes : [],
+    etapes: Array.isArray(r.etapes) ? r.etapes.map((e) => ({ ...e, statut: normaliserStatut(e.statut) })) : [],
     journal: Array.isArray(r.journal) ? r.journal : [],
     creeParNom: r.cree_par,
     creeLeISO: r.created_at.slice(0, 10),

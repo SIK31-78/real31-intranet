@@ -10,6 +10,7 @@ import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import { agenceDeCopro } from "@/lib/services/agences/resoudre-agence";
 import { getDossierPerte, mettreAJourEtapePerte, ouvrirDossierPerte } from "@/lib/services/perte/dossier-perte";
+import { normaliserStatut, STATUTS_ETAPE } from "@/lib/domain/suivi/etape";
 
 type Res<T = undefined> = { ok: true; donnees?: T } | { ok: false; erreur: string };
 
@@ -18,7 +19,8 @@ const zJour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const zMaj = z.object({
   dossierId: z.string().min(1),
   code: z.string().regex(/^[A-Z]{2}\d$/),
-  statut: z.enum(["a_faire", "en_cours", "bloque", "fait", "sans_objet"]).optional(),
+  // « sans_objet » = l'ancien nom d'« ignore » (un onglet ouvert avant la mise en ligne l'envoie encore).
+  statut: z.enum([...STATUTS_ETAPE, "sans_objet"]).transform(normaliserStatut).optional(),
   assigneA: z.string().max(80).nullable().optional(),
   note: z.string().max(1000).nullable().optional(),
   controle: z.object({ libelle: z.string().min(1), coche: z.boolean() }).optional(),
