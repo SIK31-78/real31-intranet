@@ -127,3 +127,17 @@ describe("remplirTexte", () => {
     expect([...new Set(restants)]).toEqual([]);
   });
 });
+
+describe("coquille du § 7.1.1 (patron, 17/09/2026)", () => {
+  const bloc = GABARIT_DROITE.find((b) => typeof b === "string" && b.includes("Les frais de reprographie")) as string;
+  it("le modele est bien porteur de la coquille (sinon retirer la correction)", () => {
+    expect(bloc).toContain("les frais d’affranchissement et les frais administratifs afférents aux prestations du forfait sont inclus");
+  });
+  it("au forfait : les frais d'affranchissement renvoient au 7.1.5 ; au reel : refactures sur justificatif", () => {
+    const forfait = remplirTexte(bloc, {}, {});
+    expect(forfait).toContain("les frais d’affranchissement font l’objet du forfait de frais postaux prévu au 7.1.5");
+    expect(forfait).not.toContain("les frais d’affranchissement et les frais administratifs");
+    const reel = remplirTexte(bloc, {}, { fraisPostauxReels: true });
+    expect(reel).toContain("les frais d’affranchissement sont refacturés au réel, sur justificatif");
+  });
+});

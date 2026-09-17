@@ -78,9 +78,27 @@ export function remplirTexte(
   table: Record<string, string>,
   options: { fraisPostauxReels?: boolean } = {},
 ): string {
-  let source = options.fraisPostauxReels ? varianteFraisReels(texte) : texte;
+  let source = corrigerGabarit(texte, options);
+  if (options.fraisPostauxReels) source = varianteFraisReels(source);
   if (assuranceInconnue(table)) source = source.split(ASSURANCE_DETAIL).join("");
   return source.replace(/\[[^\]\n]+\]/g, (placeholder) => table[placeholder] ?? placeholder);
+}
+
+/**
+ * Corrections du modele Word, appliquees AU RENDU pour survivre a une regeneration du gabarit
+ * depuis le classeur. § 7.1.1 : le modele disait les frais d'affranchissement « inclus dans la
+ * rémunération forfaitaire » alors que le § 7.1.5 facture un forfait de frais postaux (ou le
+ * reel) - coquille relevee par le patron le 17/09/2026, phrase corrigee validee par Sekou.
+ */
+const COQUILLE_7_1_1 =
+  "Les frais de reprographie, les frais d’affranchissement et les frais administratifs afférents aux prestations du forfait sont inclus dans la rémunération forfaitaire.";
+const CORRECTION_7_1_1_FORFAIT =
+  "Les frais de reprographie et les frais administratifs afférents aux prestations du forfait sont inclus dans la rémunération forfaitaire ; les frais d’affranchissement font l’objet du forfait de frais postaux prévu au 7.1.5.";
+const CORRECTION_7_1_1_REEL =
+  "Les frais de reprographie et les frais administratifs afférents aux prestations du forfait sont inclus dans la rémunération forfaitaire ; les frais d’affranchissement sont refacturés au réel, sur justificatif.";
+
+export function corrigerGabarit(texte: string, options: { fraisPostauxReels?: boolean } = {}): string {
+  return texte.split(COQUILLE_7_1_1).join(options.fraisPostauxReels ? CORRECTION_7_1_1_REEL : CORRECTION_7_1_1_FORFAIT);
 }
 
 /**
