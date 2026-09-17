@@ -26,6 +26,8 @@ import {
   ApiNonConfigureeError,
   PREFIXE_LONGUEUR,
   estScopeEcriture,
+  QUOTA_JOUR,
+  quotaDepasse,
   verifierAcces,
   usageApresRequete,
   type CleApi,
@@ -63,7 +65,14 @@ const REFUS_HTTP: Record<RefusCle, { status: number; message: string }> = {
     status: 403,
     message: "Toute écriture exige une clé liée à un gestionnaire (clé cabinet = lecture seule).",
   },
+  quota_depasse: { status: 429, message: "Quota journalier de la clé dépassé : réessayez demain." },
 };
+
+/** Plafond effectif : API_QUOTA_JOUR (env) sinon QUOTA_JOUR du domaine. */
+function quotaEffectif(): number {
+  const n = Number(process.env.API_QUOTA_JOUR);
+  return Number.isInteger(n) && n > 0 ? n : QUOTA_JOUR;
+}
 
 // --- Generation / hash --------------------------------------------------------
 
@@ -159,8 +168,10 @@ export async function verifierCleApi(
   const verdict = verifierAcces(cle, scopeRequis, nowISO);
   if (!verdict.ok) return { ok: false, refus: verdict.refus };
 
-  // Compteur d'usage (visibilite admin). Best-effort : ne bloque jamais la requete.
+  // Compteur d'usage : au-dela du quota du jour, refus 429 SANS ecriture (une cle en
+  // boucle ne doit pas faire une ecriture par requete sur la base partagee).
   const usage = usageApresRequete(cle, nowISO.slice(0, 10));
+  if (quotaDepasse(usage.usageJour, quotaEffectif())) return { ok: false, refus: "quota_depasse" };
   await repo.enregistrerUsage(cle.id, nowISO, usage.usageJour, usage.usageJourDate);
 
   // Auteur des ecritures : les initiales du gestionnaire lie (resolu seulement si

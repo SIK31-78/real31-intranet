@@ -3,7 +3,7 @@
 // sert l'adapter MOCK (COPRO_SOURCE non defini). Chaque test cree SES cles (pas de
 // reset du store : la regle boundaries interdit a auth d'importer un adapter).
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   creerCleApi,
   genererCleApi,
@@ -113,5 +113,21 @@ describe("idempotence best-effort", () => {
     expect(idempotenceDejaVue("cle-1", "op-42")).toBe(false); // 1er passage : enregistre
     expect(idempotenceDejaVue("cle-1", "op-42")).toBe(true); // rejeu
     expect(idempotenceDejaVue("cle-2", "op-42")).toBe(false); // autre cle API : independant
+  });
+});
+
+describe("quota journalier", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("au-dela du plafond du jour : 429 quota_depasse, et plus aucune ecriture d'usage", async () => {
+    vi.stubEnv("API_QUOTA_JOUR", "2");
+    const { cleEnClair } = await creerCleApi({ nom: "boucle", scopes: ["lecture"] });
+    expect((await verifierCleApi(`Bearer ${cleEnClair}`, "lecture")).ok).toBe(true);
+    expect((await verifierCleApi(`Bearer ${cleEnClair}`, "lecture")).ok).toBe(true);
+    const v = await verifierCleApi(`Bearer ${cleEnClair}`, "lecture");
+    expect(v).toEqual({ ok: false, refus: "quota_depasse" });
+    const encore = await verifierCleApi(`Bearer ${cleEnClair}`, "lecture");
+    expect(encore).toEqual({ ok: false, refus: "quota_depasse" });
+    const cle = (await listerClesApi()).find((c) => c.nom === "boucle")!;
+    expect(cle.usageJour).toBe(2);
   });
 });

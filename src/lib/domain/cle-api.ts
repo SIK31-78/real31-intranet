@@ -77,7 +77,8 @@ export type RefusCle =
   | "cle_revoquee"
   | "cle_expiree"
   | "scope_manquant"
-  | "ecriture_exige_gestionnaire";
+  | "ecriture_exige_gestionnaire"
+  | "quota_depasse"; // plus de QUOTA_JOUR requetes aujourd'hui (429)
 
 export type VerdictAcces = { ok: true } | { ok: false; refus: RefusCle };
 
@@ -118,6 +119,14 @@ export function usageApresRequete(
 ): { usageJour: number; usageJourDate: string } {
   const memeJour = cle.usageJourDate === dateJourISO;
   return { usageJour: memeJour ? cle.usageJour + 1 : 1, usageJourDate: dateJourISO };
+}
+
+/** Plafond de requetes par cle et par jour (audit 16/09/2026 : aucun plafond, base partagee). */
+export const QUOTA_JOUR = 5000;
+
+/** La requete qui porterait le compteur a `usageJour` depasse-t-elle le quota ? */
+export function quotaDepasse(usageJour: number, quota = QUOTA_JOUR): boolean {
+  return usageJour > quota;
 }
 
 /** Longueur du prefixe affiche (8 premiers caracteres, ex "real31_x"). */

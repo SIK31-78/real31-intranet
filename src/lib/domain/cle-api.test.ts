@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   estScopeApi,
   estScopeEcriture,
+  QUOTA_JOUR,
+  quotaDepasse,
   scopeAutorise,
   usageApresRequete,
   verifierAcces,
@@ -108,5 +110,13 @@ describe("compteur journalier", () => {
       usageJour: 1,
       usageJourDate: "2026-07-23",
     });
+  });
+});
+
+describe("quota journalier", () => {
+  it("la requete au-dela du plafond est refusee, celle qui l'atteint passe", () => {
+    expect(quotaDepasse(QUOTA_JOUR)).toBe(false);
+    expect(quotaDepasse(QUOTA_JOUR + 1)).toBe(true);
+    expect(quotaDepasse(4, 3)).toBe(true);
   });
 });
