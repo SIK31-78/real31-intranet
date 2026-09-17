@@ -7,6 +7,8 @@ const FICHIERS_CHROMIUM = [
   "./node_modules/.pnpm/playwright-core@*/node_modules/playwright-core/**",
   "./node_modules/@sparticuz/chromium/**",
   "./node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/**",
+  // Aptos, lue par chemin pour etre embarquee dans l'HTML du PDF.
+  "./src/lib/services/pdf/polices/**",
 ];
 
 const nextConfig: NextConfig = {

@@ -53,11 +53,12 @@ function noeud(n: NoeudContrat): string {
   return `<table${classe}>${colgroup}${thead}<tbody>${reste.map(ligne).join("")}</tbody></table>`;
 }
 
-/** Le document complet. `logoDataUri` : le bandeau d'en-tete en data: URI (le PDF n'a pas d'acces au site). */
-export function htmlContrat(champs: ChampsContrat, logoDataUri?: string): string {
+/** Le document complet. `logoDataUri` : le bandeau d'en-tete en data: URI (le PDF n'a pas
+ *  d'acces au site) ; `cssPolices` : les @font-face embarquees (Chromium sur Vercel n'a pas Aptos). */
+export function htmlContrat(champs: ChampsContrat, logoDataUri?: string, cssPolices = ""): string {
   const a = arbreContrat(champs);
   return `<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><title>${e(a.titre)}</title><style>${CSS}</style></head>
+<html lang="fr"><head><meta charset="utf-8"><title>${e(a.titre)}</title><style>${cssPolices}${CSS}</style></head>
 <body>
 <header>
   ${logoDataUri ? `<img src="${logoDataUri}" alt="REAL 31 Immobilier, FNAIM, 20 ans d'expertise immobilière">` : ""}

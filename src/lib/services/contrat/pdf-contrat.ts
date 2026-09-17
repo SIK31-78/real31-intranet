@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
 import { htmlContrat } from "@/lib/domain/contrat/html-contrat";
+import { cssPolicesPdf } from "@/lib/services/pdf/polices";
 import { rendrePdf } from "@/lib/services/pdf/rendre-pdf";
 
 let bandeau: Promise<string | undefined> | null = null;
@@ -21,7 +22,8 @@ function bandeauDataUri(): Promise<string | undefined> {
 }
 
 export async function pdfContrat(champs: ChampsContrat): Promise<Buffer> {
-  return rendrePdf(htmlContrat(champs, await bandeauDataUri()));
+  const [bandeau, polices] = await Promise.all([bandeauDataUri(), cssPolicesPdf()]);
+  return rendrePdf(htmlContrat(champs, bandeau, polices));
 }
 
 /** Nom de fichier du PDF : « Contrat de syndic - 16 rue Sébastopol - 2026-11-20.pdf ». */
