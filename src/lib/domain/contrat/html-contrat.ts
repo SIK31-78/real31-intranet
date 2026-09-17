@@ -18,8 +18,9 @@ const CSS = `
   h2 { font-size: 8.6pt; font-weight: 600; margin: 9px 0 3px; padding: 3px 5px; background: #E3F1E7; color: #173626; white-space: pre-line; break-inside: avoid; break-after: avoid; }
   p { margin: 0 0 4px; text-align: justify; white-space: pre-line; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 4px 0 6px; font-size: 8.2pt; }
-  th, td { border: 1px solid #C5BEAE; padding: 3px 5px; vertical-align: top; text-align: left; white-space: pre-line; }
-  th { background: #E3F1E7; color: #173626; font-weight: 600; }
+  th, td { border: 1px solid #000; padding: 3px 5px; vertical-align: top; text-align: left; white-space: pre-line; }
+  th { font-weight: 700; text-align: center; vertical-align: middle; }
+  td.categorie { font-weight: 600; vertical-align: top; }
   td.montant { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   tr { break-inside: avoid; }
   thead { display: table-header-group; }
@@ -37,8 +38,13 @@ function noeud(n: NoeudContrat): string {
   const colgroup = n.colonnes === 2 ? `<colgroup><col style="width:58%"><col style="width:42%"></colgroup>` : "";
   const enTetes = n.lignes.filter((l) => l.enTete);
   const corps = n.lignes.filter((l) => !l.enTete);
-  const ligne = (l: (typeof n.lignes)[number]) =>
-    `<tr>${l.cellules.map((c) => (l.enTete ? `<th>${e(c.texte)}</th>` : `<td${c.montant ? ' class="montant"' : ""}>${e(c.texte)}</td>`)).join("")}</tr>`;
+  const cellule = (c: (typeof n.lignes)[number]["cellules"][number], enTete: boolean) => {
+    if (c.fusionnee) return "";
+    if (enTete) return `<th>${e(c.texte)}</th>`;
+    const attrs = `${c.portee ? ` rowspan="${c.portee}" class="categorie"` : c.montant ? ' class="montant"' : ""}`;
+    return `<td${attrs}>${e(c.texte)}</td>`;
+  };
+  const ligne = (l: (typeof n.lignes)[number]) => `<tr>${l.cellules.map((c) => cellule(c, l.enTete)).join("")}</tr>`;
   // Les en-tetes en <thead> : Chromium les repete en haut de chaque page si le tableau se coupe.
   const thead = enTetes.length > 0 && n.lignes[0]?.enTete ? `<thead>${ligne(enTetes[0]!)}</thead>` : "";
   const reste = thead ? n.lignes.slice(1) : corps;

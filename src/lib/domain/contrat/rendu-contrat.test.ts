@@ -86,6 +86,18 @@ describe("arbreContrat", () => {
     expect(avecEnTete.length).toBeGreaterThan(5);
   });
 
+  it("dessine la categorie de l'annexe 1 une fois, sur toute sa portee", () => {
+    const annexe = tableaux(a.gauche).find((t) => t.type === "tableau" && t.lignes.some((l) => l.cellules[0]?.texte === "I. - Assemblée générale"));
+    expect(annexe).toBeTruthy();
+    if (annexe?.type !== "tableau") return;
+    const lignesI = annexe.lignes.filter((l) => l.cellules[0]?.texte === "I. - Assemblée générale");
+    expect(lignesI.length).toBeGreaterThan(1);
+    expect(lignesI[0]!.cellules[0]!.portee).toBe(lignesI.length);
+    expect(lignesI.slice(1).every((l) => l.cellules[0]!.fusionnee)).toBe(true);
+    const html = htmlContrat(champs());
+    expect(html).toContain(`rowspan="${lignesI.length}" class="categorie">I. - Assemblée générale`);
+  });
+
   it("numerote les sections en titres", () => {
     expect(titres(a.gauche)).toContain("7.1.5. Modalités de rémunération");
     expect(titres(a.gauche).some((t) => t.startsWith("7.1.3. Prestations optionnelles"))).toBe(true);

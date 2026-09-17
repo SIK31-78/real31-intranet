@@ -38,10 +38,10 @@ function Noeud({ n }: { n: NoeudContrat }) {
         {n.lignes.map((l, r) => (
           <tr key={r} className="break-inside-avoid align-top">
             {l.cellules.map((c, i) =>
-              l.enTete ? (
-                <th key={i} className="border border-line bg-green-50 text-green-800 px-1.5 py-1 text-left font-semibold whitespace-pre-line">{c.texte}</th>
+              c.fusionnee ? null : l.enTete ? (
+                <th key={i} className="border border-ink px-1.5 py-1 text-center font-bold whitespace-pre-line">{c.texte}</th>
               ) : (
-                <td key={i} className={`border border-line px-1.5 py-1 whitespace-pre-line ${c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
+                <td key={i} rowSpan={c.portee} className={`border border-ink px-1.5 py-1 whitespace-pre-line ${c.portee ? "font-semibold" : c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
               ),
             )}
           </tr>

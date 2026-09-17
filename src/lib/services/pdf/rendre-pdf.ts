@@ -41,7 +41,16 @@ export async function rendrePdf(html: string): Promise<Buffer> {
   const page = await b.newPage();
   try {
     await page.setContent(html, { waitUntil: "load" });
-    return await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+    return await page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+      // Numero de page en pied, dans la marge basse de la regle @page.
+      displayHeaderFooter: true,
+      headerTemplate: "<span></span>",
+      footerTemplate:
+        '<div style="width:100%;font-family:Aptos,Calibri,Arial,sans-serif;font-size:8pt;color:#4C5347;text-align:right;padding:0 12mm 4mm 0"><span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+    });
   } finally {
     await page.close();
   }

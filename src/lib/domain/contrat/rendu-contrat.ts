@@ -16,7 +16,16 @@ export type NoeudContrat =
 export interface LigneTableau {
   /** Toutes les cellules en capitales : une ligne d'en-tete. */
   enTete: boolean;
-  cellules: { texte: string; montant: boolean }[];
+  cellules: CelluleTableau[];
+}
+
+export interface CelluleTableau {
+  texte: string;
+  montant: boolean;
+  /** Cette cellule couvre aussi les N-1 lignes suivantes (categorie de l'annexe 1 : « I. - Assemblée générale »). */
+  portee?: number;
+  /** Cellule couverte par celle de la ligne du dessus : ne pas la dessiner. */
+  fusionnee?: boolean;
 }
 
 export interface ArbreContrat {
@@ -59,7 +68,7 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
   let serie: LigneTableau[] = [];
   let colonnes = 0;
   const vider = () => {
-    if (serie.length > 0) noeuds.push({ type: "tableau", colonnes, lignes: serie });
+    if (serie.length > 0) noeuds.push({ type: "tableau", colonnes, lignes: fusionnerCategories(serie) });
     serie = [];
   };
   for (const bloc of blocs) {
@@ -79,6 +88,27 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
   }
   vider();
   return noeuds;
+}
+
+/**
+ * Dans les annexes, la premiere cellule est la categorie (« I. - Assemblée générale »),
+ * repetee sur chaque ligne par le classeur : on la dessine une fois, sur toute sa portee,
+ * comme le modele du cabinet. Une grille tarifaire n'a jamais deux lignes de meme libelle.
+ */
+function fusionnerCategories(lignes: LigneTableau[]): LigneTableau[] {
+  if (lignes.some((l) => l.cellules.length < 2)) return lignes;
+  let i = 0;
+  while (i < lignes.length) {
+    const tete = lignes[i]!;
+    let j = i + 1;
+    while (j < lignes.length && !lignes[j]!.enTete && !tete.enTete && lignes[j]!.cellules[0]!.texte === tete.cellules[0]!.texte) j++;
+    if (j - i > 1) {
+      tete.cellules[0] = { ...tete.cellules[0]!, portee: j - i };
+      for (let k = i + 1; k < j; k++) lignes[k]!.cellules[0] = { ...lignes[k]!.cellules[0]!, fusionnee: true };
+    }
+    i = j;
+  }
+  return lignes;
 }
 
 export function arbreContrat(champs: ChampsContrat): ArbreContrat {
