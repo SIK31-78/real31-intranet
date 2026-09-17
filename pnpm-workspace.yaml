@@ -1,2 +1,8 @@
+# pnpm 11 exige une décision explicite pour chaque paquet qui veut lancer un script
+# d'installation, sinon `pnpm install` sort en erreur (CI du 17/09/2026). Seul @sentry/cli
+# est autorisé ; les trois autres tournent sans leur script depuis toujours en local.
 allowBuilds:
   '@sentry/cli': true
+  sharp: false
+  tesseract.js: false
+  unrs-resolver: false
