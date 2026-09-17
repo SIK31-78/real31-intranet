@@ -14,6 +14,7 @@
 // etape) vivent dans le noyau `domain/suivi/etape` partage avec la reprise.
 
 import {
+  avancement as avancementNoyau,
   compterParStatut,
   echeanceDepassee,
   etapeClose,
@@ -173,24 +174,20 @@ export function retardEtape(dossier: DossierPerte, etape: EtapePerte, aujourdhui
 }
 
 export interface AvancementPerte {
-  /** Les etapes faites (une etape « sans objet » n'est ni faite ni comptee). */
+  /** Les etapes closes : faites ou « sans objet » (meme regle que le noyau, Sekou 17/09/2026). */
   faites: number;
-  /** Les etapes qui comptent (hors « sans objet »). */
   total: number;
   enRetard: number;
   bloquees: number;
 }
 
-/**
- * Avancement du dossier. A la difference du noyau (et du compteur par phase de la fiche), une
- * etape « sans objet » sort du total au lieu de compter comme faite : c'est le choix d'origine
- * du module, conserve tel quel.
- */
+/** Avancement du dossier : la regle du noyau (« sans objet » = faite), plus retards et blocages. */
 export function avancement(dossier: DossierPerte, aujourdhuiISO: string): AvancementPerte {
   const n = compterParStatut(dossier.etapes);
+  const base = avancementNoyau(dossier.etapes);
   return {
-    faites: n.fait,
-    total: dossier.etapes.length - n.ignore,
+    faites: base.faites,
+    total: base.total,
     enRetard: dossier.etapes.filter((e) => retardEtape(dossier, e, aujourdhuiISO) !== null).length,
     bloquees: n.bloque,
   };

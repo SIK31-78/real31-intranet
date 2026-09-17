@@ -62,13 +62,13 @@ describe("checklist de perte", () => {
     expect(prochaineEtape(tout, "2026-09-15")?.code).toBe("TR1");
   });
 
-  it("l'avancement ignore le sans objet et compte retards et blocages", () => {
+  it("l'avancement compte le sans objet comme fait (regle du noyau), plus retards et blocages", () => {
     const etapes = etapesInitiales().map((e) =>
       e.code === "LE4" ? { ...e, statut: "ignore" as const } : e.code === "LE1" ? { ...e, statut: "fait" as const } : e.code === "TR2" ? { ...e, statut: "bloque" as const } : e,
     );
     const a = avancement(dossier({ etapes }), "2026-09-15");
-    expect(a.total).toBe(16);
-    expect(a.faites).toBe(1);
+    expect(a.total).toBe(17);
+    expect(a.faites).toBe(2);
     expect(a.bloquees).toBe(1);
     // LE2, LE3, QZ1 en retard (LE1 faite, LE4 sans objet).
     expect(a.enRetard).toBe(3);
