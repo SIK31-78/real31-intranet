@@ -1,6 +1,7 @@
 // Les choix de l'offre (AG, debut, duree) voyagent dans l'URL : la page, l'apercu
 // imprimable et le PDF les relisent tels quels, sans etat.
 
+import { DUREE_MAX_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
 import type { OptionsOffre } from "@/lib/domain/proposition/offre";
 
 export type ParamsOffre = { ag?: string; debut?: string; duree?: string };
@@ -11,7 +12,7 @@ export function lireOptionsOffre(sp: ParamsOffre): OptionsOffre {
   return {
     ...(jour(sp.ag) ? { dateAgISO: jour(sp.ag) } : {}),
     ...(jour(sp.debut) ? { debutISO: jour(sp.debut) } : {}),
-    ...(Number.isInteger(duree) && duree > 0 ? { dureeMois: duree } : {}),
+    ...(Number.isInteger(duree) && duree > 0 && duree <= DUREE_MAX_CONTRAT_MOIS ? { dureeMois: duree } : {}),
   };
 }
 

@@ -4,14 +4,14 @@ import { ArrowLeft, Download, FileText } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
-import { DUREES_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
+import { DUREE_MAX_CONTRAT_MOIS, DUREES_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
 import { formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Callout } from "@/components/ui/callout";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/field";
+import { Field, Input } from "@/components/ui/field";
 import { DataList, DataRow } from "@/components/ui/data-list";
 import { Section } from "@/components/ui/section";
 import { MailOffre, MarquerOffreRemise } from "./mail-offre";
@@ -88,11 +88,13 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
                 <h2 className="text-body font-medium text-ink">Le contrat</h2>
                 <Field label="AG qui votera le contrat" htmlFor="o-ag"><Input id="o-ag" name="ag" type="date" defaultValue={champs?.dateAgISO ?? options.dateAgISO ?? ""} /></Field>
                 <Field label="Début du mandat" htmlFor="o-debut" hint="lendemain de la fin du mandat en place, sinon le jour de l'AG"><Input id="o-debut" name="debut" type="date" defaultValue={champs?.debutISO ?? options.debutISO ?? ""} /></Field>
-                <Field label="Durée" htmlFor="o-duree">
-                  <Select id="o-duree" name="duree" defaultValue={String(dureeMois)}>
+                {/* Duree libre en mois, 3 ans au plus (art. 28 du decret de 1967), comme sur
+                    /contrat ; les trois durees courantes en suggestions. */}
+                <Field label="Durée (mois)" htmlFor="o-duree" hint={`1 an = 12, 2 ans = 24, 15 mois pour une reprise ; ${DUREE_MAX_CONTRAT_MOIS} au plus`}>
+                  <Input id="o-duree" name="duree" type="number" min={1} max={DUREE_MAX_CONTRAT_MOIS} step={1} defaultValue={dureeMois} list="o-durees" className="tabular-nums" />
+                  <datalist id="o-durees">
                     {DUREES_CONTRAT_MOIS.map((d) => <option key={d.mois} value={d.mois}>{d.libelle}</option>)}
-                    {!DUREES_CONTRAT_MOIS.some((d) => d.mois === dureeMois) && <option value={dureeMois}>{dureeMois} mois</option>}
-                  </Select>
+                  </datalist>
                 </Field>
                 <Button type="submit" variant="secondary" size="sm">Recalculer</Button>
                 {champs && (
