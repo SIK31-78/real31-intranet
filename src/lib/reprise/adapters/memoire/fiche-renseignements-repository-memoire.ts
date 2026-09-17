@@ -31,6 +31,16 @@ export class FicheRenseignementsRepositoryMemoire implements FicheRenseignements
     this.store.set(cle(fiche.coproCode, fiche.ownerId), structuredClone(fiche));
   }
 
+  async noterEchecCode(tokenHash: string, echecsCode: number, verrouJusquaISO: string | null): Promise<void> {
+    for (const [k, v] of this.store.entries()) {
+      if (v.tokenHash !== tokenHash) continue;
+      const maj: FicheRenseignement = { ...v, echecsCode };
+      if (verrouJusquaISO) maj.verrouJusquaISO = verrouJusquaISO;
+      else delete maj.verrouJusquaISO;
+      this.store.set(k, maj);
+    }
+  }
+
   async supprimerParDossier(coproCode: string): Promise<number> {
     const prefixe = `${coproCode}::`;
     let n = 0;

@@ -49,4 +49,5 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `_diagnostic_avant_deploiement.sql` | — | Script de diagnostic (lecture seule, pas une migration). |
 - 🔲 `intranet_feedback_resume_public.sql` — resume public des remontees (vitrine /nouveautes depliable)
 - ✅ `audit_base_2026-09-16.sql` (passé le 16/09/2026, uniques prouvés par un doublon SE999 refusé 23505) — lot C de l'audit : pg_trgm + index trigram sur le registre (remplace le gin tsvector inutilisé), uniques factures (copro, prestation, période) et contrats (copro, début), index immatriculation des propositions. Aucun doublon en base au 16/09 (vérifié), le code gère 23505.
+- 🔲 `reprise_fiche_verrou.sql` — lot E de l'audit : colonnes `echecs_code` / `verrou_jusqua` sur les fiches publiques (verrou anti-pilonnage par token : 5 échecs = 15 min, 10 = 1 h, 20 = 24 h). **Sans lui l'app tourne** : le compteur est un no-op avec avertissement, la fiche répond comme avant.
 - 🔲 `intranet_points_estale.sql` — points a porter a ESTALE (outil admin /admin/estale)

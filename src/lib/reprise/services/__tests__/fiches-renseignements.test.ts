@@ -89,6 +89,24 @@ describe("anti-enumeration + consultation", () => {
     }
   });
 
+  it("5 mauvais codes verrouillent la fiche 15 min : le bon code est refuse pendant le verrou, puis accepte et remet a zero", async () => {
+    const { repo, r } = await preparer();
+    const c = r.courriers[0];
+    const tokenHash = hacher(c.lien.split("/fiche/")[1]);
+    for (let i = 0; i < 5; i++) expect((await consulterFiche(repo, tokenHash, "00000000", NOW)).ok).toBe(false);
+    const verrouillee = await repo.obtenirParTokenHash(tokenHash);
+    expect(verrouillee?.echecsCode).toBe(5);
+    expect(verrouillee?.verrouJusquaISO).toBe(new Date(new Date(NOW).getTime() + 15 * 60_000).toISOString());
+    // Pendant le verrou : meme le bon code est refuse, avec la meme raison qu'un mauvais code.
+    expect(await consulterFiche(repo, tokenHash, c.code, NOW)).toEqual({ ok: false, raison: "code" });
+    // Apres le verrou : accepte, compteur remis a zero.
+    const apres = new Date(new Date(NOW).getTime() + 16 * 60_000).toISOString();
+    expect((await consulterFiche(repo, tokenHash, c.code, apres)).ok).toBe(true);
+    const relue = await repo.obtenirParTokenHash(tokenHash);
+    expect(relue?.echecsCode ?? 0).toBe(0);
+    expect(relue?.verrouJusquaISO).toBeUndefined();
+  });
+
   it("code tolere minuscules/espaces (normalisation)", async () => {
     const { repo, r } = await preparer();
     const c = r.courriers[0];

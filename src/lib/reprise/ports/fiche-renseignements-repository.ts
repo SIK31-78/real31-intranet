@@ -14,6 +14,11 @@ export interface FicheRenseignementsRepository {
   /** Cree ou remplace une fiche (upsert, cle = coproCode + ownerId). */
   sauver(fiche: FicheRenseignement): Promise<void>;
   /**
+   * Pose le compteur de mauvais codes et le verrou (null = leve) d'une fiche, par token.
+   * Colonnes pas encore en base -> no-op avec avertissement (le module marche sans).
+   */
+  noterEchecCode(tokenHash: string, echecsCode: number, verrouJusquaISO: string | null): Promise<void>;
+  /**
    * Supprime TOUTES les fiches d'une copro (suppression definitive d'un dossier de reprise).
    * Renvoie le nombre de fiches supprimees (pour tracer/annoncer ce qui part). No-op propre si
    * la table est absente ou si aucune fiche n'existe.

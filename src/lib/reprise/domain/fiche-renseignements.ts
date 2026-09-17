@@ -113,6 +113,39 @@ export interface FicheRenseignement {
   canal?: "courrier" | "email";
   /** Date d'envoi de la fiche PAR EMAIL (bonus email). Distinct de mailEnvoyeAt (mail de validation). */
   envoiEmailAt?: string;
+  /** Mauvais codes saisis d'affilee (verrou anti-pilonnage, cf. apresEchecCode). Absent = 0. */
+  echecsCode?: number;
+  /** Tant que now < verrouJusquaISO, le code n'est pas verifie (meme reponse qu'un mauvais code). */
+  verrouJusquaISO?: string;
+}
+
+/** Paliers du verrou : a partir de N echecs, verrou de M minutes. */
+export const PALIERS_VERROU: ReadonlyArray<{ echecs: number; minutes: number }> = [
+  { echecs: 20, minutes: 24 * 60 },
+  { echecs: 10, minutes: 60 },
+  { echecs: 5, minutes: 15 },
+];
+
+/** La fiche est-elle verrouillee a l'instant `nowISO` ? */
+export function estVerrouillee(fiche: Pick<FicheRenseignement, "verrouJusquaISO">, nowISO: string): boolean {
+  return Boolean(fiche.verrouJusquaISO && nowISO < fiche.verrouJusquaISO);
+}
+
+/**
+ * L'etat du compteur apres UN mauvais code : +1, et un verrou si un palier est atteint. Le
+ * code personnel fait 40 bits : le brute-force est hors de portee, c'est le pilonnage (cout,
+ * enumeration) qu'on freine.
+ */
+export function apresEchecCode(
+  fiche: Pick<FicheRenseignement, "echecsCode">,
+  nowISO: string,
+): { echecsCode: number; verrouJusquaISO: string | null } {
+  const echecsCode = (fiche.echecsCode ?? 0) + 1;
+  const palier = PALIERS_VERROU.find((p) => echecsCode >= p.echecs);
+  return {
+    echecsCode,
+    verrouJusquaISO: palier ? new Date(new Date(nowISO).getTime() + palier.minutes * 60_000).toISOString() : null,
+  };
 }
 
 /** true si la fiche est expiree a la date donnee (ISO). */

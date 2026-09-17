@@ -47,6 +47,9 @@ interface LigneFiche {
   mail_envoye_at: string | null;
   derniere_relance_at: string | null;
   expires_at: string;
+  /** Verrou anti-pilonnage (reprise_fiche_verrou.sql) : absents tant que le SQL n'est pas passe. */
+  echecs_code?: number | null;
+  verrou_jusqua?: string | null;
 }
 
 function versFiche(l: LigneFiche): FicheRenseignement {
@@ -64,6 +67,8 @@ function versFiche(l: LigneFiche): FicheRenseignement {
     ...(l.mail_envoye_at ? { mailEnvoyeAt: l.mail_envoye_at } : {}),
     ...(l.derniere_relance_at ? { derniereRelanceAt: l.derniere_relance_at } : {}),
     expiresAt: l.expires_at,
+    ...(l.echecs_code ? { echecsCode: l.echecs_code } : {}),
+    ...(l.verrou_jusqua ? { verrouJusquaISO: l.verrou_jusqua } : {}),
   };
 }
 
@@ -114,6 +119,21 @@ export class FicheRenseignementsRepositorySupabase implements FicheRenseignement
     if (error && !tableAbsente(error)) {
       throw new Error(`Reprise sauver fiche : ${error.message}`);
     }
+  }
+
+  async noterEchecCode(tokenHash: string, echecsCode: number, verrouJusquaISO: string | null): Promise<void> {
+    const sb = createSupabasePublicClient();
+    const { error } = await sb
+      .from(TABLE)
+      .update({ echecs_code: echecsCode, verrou_jusqua: verrouJusquaISO })
+      .eq("token_hash", tokenHash);
+    if (!error || tableAbsente(error)) return;
+    // Colonnes pas encore posees (PGRST204) : on le dit, sans casser la fiche publique.
+    if (error.code === "PGRST204" || /could not find the '?\w+'? column/i.test(error.message)) {
+      console.warn("[fiche] verrou anti-pilonnage inactif : passer supabase/sql/reprise_fiche_verrou.sql");
+      return;
+    }
+    throw new Error(`Reprise verrou fiche : ${error.message}`);
   }
 
   async supprimerParDossier(coproCode: string): Promise<number> {

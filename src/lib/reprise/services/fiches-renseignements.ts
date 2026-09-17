@@ -20,6 +20,8 @@ import {
   type DonneesSoumises,
   type FicheRenseignement,
   type FicheStatut,
+  apresEchecCode,
+  estVerrouillee,
 } from "@/lib/reprise/domain/fiche-renseignements";
 import type { FicheRenseignementsRepository } from "@/lib/reprise/ports/fiche-renseignements-repository";
 import type {
@@ -296,6 +298,31 @@ export type ConsulterResultat =
     };
 
 /**
+ * Le code personnel est-il bon ? Fiche verrouillee (trop d'echecs) = non, sans meme comparer
+ * (meme reponse qu'un mauvais code : anti-enumeration). Un echec incremente le compteur et
+ * pose le verrou au palier ; un succes remet a zero. Ecritures best-effort : le verrou ne
+ * doit jamais empecher la fiche de repondre.
+ */
+async function codeAccepte(
+  repo: FicheRenseignementsRepository,
+  fiche: FicheRenseignement,
+  codeSaisi: string,
+  nowISO: string,
+): Promise<boolean> {
+  if (estVerrouillee(fiche, nowISO)) return false;
+  const bon = hashEgal(hacher(normaliserCode(codeSaisi)), fiche.codeHash);
+  const noter = (echecs: number, verrou: string | null) =>
+    repo.noterEchecCode(fiche.tokenHash, echecs, verrou).catch((e) => console.warn("[fiche] compteur d'echecs non pose :", (e as Error).message));
+  if (!bon) {
+    const { echecsCode, verrouJusquaISO } = apresEchecCode(fiche, nowISO);
+    await noter(echecsCode, verrouJusquaISO);
+    return false;
+  }
+  if (fiche.echecsCode || fiche.verrouJusquaISO) await noter(0, null);
+  return true;
+}
+
+/**
  * Verifie (tokenHash, codeSaisi) et renvoie l'etat de la fiche. ANTI-ENUMERATION : un token
  * inconnu ET un mauvais code renvoient la MEME raison ("code") -> impossible de distinguer un
  * token valide d'un invalide. Aucune PII n'est renvoyee tant que le code n'est pas bon.
@@ -309,7 +336,7 @@ export async function consulterFiche(
   const fiche = await repo.obtenirParTokenHash(tokenHash);
   // Token inconnu -> on renvoie "code" (jamais "introuvable") pour ne pas fuiter la validite.
   if (!fiche) return { ok: false, raison: "code" };
-  if (!hashEgal(hacher(normaliserCode(codeSaisi)), fiche.codeHash)) return { ok: false, raison: "code" };
+  if (!(await codeAccepte(repo, fiche, codeSaisi, nowISO))) return { ok: false, raison: "code" };
   const expiree = estExpiree(fiche, nowISO);
   return {
     ok: true,
@@ -341,7 +368,7 @@ export async function soumettreFiche(
   nowISO: string,
 ): Promise<SoumettreResultat> {
   const fiche = await repo.obtenirParTokenHash(tokenHash);
-  if (!fiche || !hashEgal(hacher(normaliserCode(codeSaisi)), fiche.codeHash)) return { ok: false, raison: "code" };
+  if (!fiche || !(await codeAccepte(repo, fiche, codeSaisi, nowISO))) return { ok: false, raison: "code" };
   if (estExpiree(fiche, nowISO)) return { ok: false, raison: "expiree" };
   if (fiche.statut !== "courrier_genere") return { ok: false, raison: "deja_soumis" };
 
