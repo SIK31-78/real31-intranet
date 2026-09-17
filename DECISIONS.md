@@ -26,7 +26,7 @@ met à jour l'ADR existant et on incrémente la version dans son entête.
 | ADR-009 | Permissions et scopes - gestionnaire cloisonné au MVP, modèle extensible                  | Accepted              | v1      | 2026-05-22 |
 | ADR-010 | Identification utilisateurs - mapping initiales Crypto ↔ email Entra ID                   | Accepted              | v1      | 2026-05-22 |
 | ADR-011 | RLS Supabase activée dès J1, complexification par ajout de policies                       | Accepted              | v1      | 2026-05-22 |
-| ADR-012 | Génération de documents : page imprimable, pas de PDF serveur (+ retrait du deep-link Crypto) | Accepted              | v2      | 2026-09-11 |
+| ADR-012 | Génération de documents : page imprimable, et PDF serveur par Chromium quand il faut des octets (+ retrait du deep-link Crypto) | Accepted              | v3      | 2026-09-17 |
 | ADR-013 | Géocodage des adresses via Nominatim OSM dans le job de sync                              | Deprecated (MVP)      | v3      | 2026-06-09 |
 | ADR-021 | Plateforme REAL31 unifiée - absorber l'app A, MVP strict, cohabitation Prisma/supabase-js | Accepted              | v1      | 2026-05-27 |
 | ADR-022 | Positionnement intranet vis-à-vis d'eStale et stratégie d'intégration défensive           | Accepted              | v1      | 2026-05-27 |
@@ -851,9 +851,35 @@ Ne PAS désactiver RLS pour le service role et faire toute la logique côté Ser
 
 ---
 
-## ADR-012 - Génération de documents : page imprimable, pas de PDF serveur
+## ADR-012 - Génération de documents : page imprimable, et PDF serveur par Chromium quand il faut des octets
 
-**Date** : 2026-05-22, révisé le 2026-09-11 · **Statut** : Accepted · **Version** : v2
+**Date** : 2026-05-22, révisé le 2026-09-11 et le 2026-09-17 · **Statut** : Accepted · **Version** : v3
+
+> **v3 (2026-09-17)** — le besoin annoncé en v2 est arrivé : l'offre de contrat de syndic
+> doit **partir par mail avec le contrat en pièce jointe**, depuis l'intranet (Sekou :
+> « outil génération pdf et envoi depuis l'intranet »). Il faut donc des octets, pas
+> seulement une page à imprimer.
+>
+> **Décision** : un service PDF unique, `lib/services/pdf/rendre-pdf.ts`, rend un **HTML A4
+> autonome** (CSS inline, `@page`) en PDF par **Chromium** via `playwright-core`. Deux
+> moteurs selon l'endroit : sur Vercel, `@sparticuz/chromium` (Chromium allégé pour Lambda,
+> ~50 Mo, dans la limite de la fonction) ; sur un poste, le Chrome installé (`channel:
+> "chrome"`) ou `CHROME_PATH`. Un navigateur par instance, ouvert à la demande.
+>
+> **Le document reste une seule source** : le contrat est un **arbre de rendu pur**
+> (`domain/contrat/rendu-contrat.ts` : titres, paragraphes, tableaux) que l'écran
+> (`components/contrat/document-contrat.tsx`) et le PDF (`domain/contrat/html-contrat.ts`)
+> dessinent chacun. Pas de second gabarit à maintenir.
+>
+> **La page imprimable reste la voie par défaut** pour un document que le lecteur imprime
+> lui-même (ODJ, courriers de reprise). Le PDF serveur ne se justifie que pour joindre,
+> archiver ou télécharger : contrat de syndic (`/contrat/<code>/contrat.pdf`,
+> `/propositions/<id>/offre/contrat.pdf`), et l'envoi de l'offre.
+>
+> **Ce que ça coûte** : deux dépendances (`playwright-core`, `@sparticuz/chromium`), un
+> démarrage à froid d'environ 2 à 3 s pour le premier PDF d'une instance, et un rendu qui
+> dépend de Chromium (les tests unitaires couvrent l'arbre et l'HTML, pas les octets).
+> Le premier PDF sur Vercel reste à vérifier au déploiement.
 
 > **v2 (2026-09-11)** — la v1 reportait toute génération de document « post-MVP » faute de
 > générateur PDF serveur viable. Le code a tranché autrement, et ça marche : l'ODJ
