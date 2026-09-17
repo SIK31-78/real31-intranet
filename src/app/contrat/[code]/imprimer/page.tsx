@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { getContrat } from "@/lib/services/contrat/get-contrat";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { BoutonImprimer } from "@/components/odj/bouton-imprimer";
+import { BoutonPdf } from "@/components/contrat/bouton-pdf";
 import { DocumentContrat } from "@/components/contrat/document-contrat";
 import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
@@ -66,10 +67,7 @@ export default async function ContratImprimerPage({
           </ButtonLink>
           <div className="flex items-center gap-2">
             <BoutonImprimer />
-            <ButtonLink href={`/contrat/${encodeURIComponent(code)}/contrat.pdf${queryContrat(sp)}`} variant="primary">
-              <Download strokeWidth={1.5} />
-              Télécharger le PDF
-            </ButtonLink>
+            <BoutonPdf href={`/contrat/${encodeURIComponent(code)}/contrat.pdf${queryContrat(sp)}`} />
           </div>
         </div>
       </div>

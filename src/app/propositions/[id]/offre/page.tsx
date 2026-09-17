@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Download, FileText } from "lucide-react";
+import { BoutonPdf } from "@/components/contrat/bouton-pdf";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
@@ -110,9 +111,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
               <div className="flex flex-col gap-3 p-4">
                 {champs ? (
                   <>
-                    <ButtonLink href={`/propositions/${p.id}/offre/contrat.pdf${query}`} variant="secondary">
-                      <Download strokeWidth={1.5} /> Télécharger le contrat (PDF)
-                    </ButtonLink>
+                    <BoutonPdf href={`/propositions/${p.id}/offre/contrat.pdf${query}`} variant="secondary" enfants="Télécharger le contrat (PDF)" />
                     <ButtonLink href={`/propositions/${p.id}/offre/imprimer${query}`} variant="ghost" size="sm" target="_blank">
                       <FileText strokeWidth={1.5} /> Aperçu à l&apos;écran
                     </ButtonLink>
