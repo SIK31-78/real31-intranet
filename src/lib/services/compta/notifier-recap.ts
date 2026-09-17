@@ -14,6 +14,7 @@ import type { TravauxVotes } from "@/lib/ports/recap-ag-repository";
 import { agenceDeCopro } from "@/lib/services/agences/resoudre-agence";
 import { signalerException } from "@/lib/observabilite";
 import { formatEuros, formatHeure, formatJour } from "@/lib/services/facturation/format";
+import { htmlNotificationRecap } from "./notifier-recap-html";
 
 export interface RecapANotifier {
   recapId: string;
@@ -130,6 +131,7 @@ export async function notifierRecapAg(r: RecapANotifier): Promise<ResultatNotifi
       cci: [],
       sujet: sujetNotificationRecap(r),
       corps: corpsNotificationRecap(r, coproNom, lien),
+      corpsHtml: htmlNotificationRecap(r, coproNom, lien),
     });
     await getRecapAgRepository().marquerNotifie(r.recapId).catch((e) => console.warn("[recap-ag] notif_comptable_at non posé :", (e as Error).message));
     return { envoye: true, a };

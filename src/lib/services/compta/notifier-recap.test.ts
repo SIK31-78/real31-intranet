@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const etat = vi.hoisted(() => ({
   agence: "ML" as string | undefined,
-  envois: [] as { boite: string; a: string[]; cc: string[]; sujet: string; corps: string }[],
+  envois: [] as { boite: string; a: string[]; cc: string[]; sujet: string; corps: string; corpsHtml?: string }[],
   notifies: [] as string[],
   panneMail: false,
 }));
@@ -37,6 +37,7 @@ vi.mock("@/lib/adapters/router", () => ({
 }));
 
 import { corpsNotificationRecap, notifierRecapAg, sujetNotificationRecap } from "./notifier-recap";
+import { htmlNotificationRecap } from "./notifier-recap-html";
 
 const NB = " ";
 const recap = {
@@ -80,6 +81,7 @@ describe("notifierRecapAg", () => {
     expect(m.cc).toEqual(["wilfrid.tohoubi@real31.fr"]);
     expect(m.sujet).toBe("S191 - Récap AG 12/03/2026");
     expect(m.corps).toContain("https://real31.app/comptabilite/recaps/r1");
+    expect(m.corpsHtml).toContain('href="https://real31.app/comptabilite/recaps/r1"');
     expect(etat.notifies).toEqual(["r1"]);
   });
   it("le corps reprend le mail MYTHEC champ par champ, travaux et contrat compris", () => {
@@ -116,6 +118,22 @@ describe("notifierRecapAg", () => {
     expect(c).not.toContain("Informations nouveau contrat");
     expect(corpsNotificationRecap({ ...recap, fraisPostauxReels: true }, "X", "u")).toContain("Frais postaux : au réel");
     expect(sujetNotificationRecap(recap)).toBe("S191 - Récap AG 12/03/2026");
+  });
+  it("le HTML : tableau aux couleurs de l'intranet, valeurs echappees, travaux en table", () => {
+    const h = htmlNotificationRecap({ ...recap, infoComptable: "Voir <b>M. SALLA</b> & co" }, "LES TILLEULS", "https://x/y");
+    expect(h).toContain("#1C4736");
+    expect(h).toContain("Voir &lt;b&gt;M. SALLA&lt;/b&gt; &amp; co");
+    expect(h).not.toContain("<b>M. SALLA</b>");
+    expect(h).toContain("Travaux votés (2)");
+    expect(h).toContain("Reprise étanchéité APT 27");
+    expect(h).toContain(`913,33${NB}€`);
+    expect(h).toContain("Résolution 15 // Charges générales");
+    expect(h).toContain(`6${NB}722,00${NB}€`);
+    expect(h).toContain("01/01/2026");
+    const sans = htmlNotificationRecap({ ...recap, travaux: [], debutContrat: undefined, honorairesGestionTtc: undefined, infoComptable: undefined }, "X", "u");
+    expect(sans).not.toContain("Travaux votés (");
+    expect(sans).not.toContain("Nouveau contrat");
+    expect(sans).not.toContain("Informations utiles");
   });
   it("LGC : les deux comptables du pole ; sans agence resolue : personne, et on le dit", async () => {
     etat.agence = "LGC";

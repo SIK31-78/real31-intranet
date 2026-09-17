@@ -56,6 +56,12 @@ export interface MailOutboundProvider {
     cci: string[];
     sujet: string;
     corps: string;
+    /**
+     * Corps HTML deja compose (tableau, styles inline), quand le texte ne suffit pas
+     * (recap AG au comptable). L'appelant en repond : il DOIT echapper ses valeurs.
+     * `corps` reste le texte equivalent (journal, tests, fournisseur sans HTML).
+     */
+    corpsHtml?: string;
     signatureHtml?: string;
   }): Promise<void>;
 }
