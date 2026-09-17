@@ -17,8 +17,13 @@ const CSS = `
   .colonne { flex: 1 1 0; min-width: 0; }
   h2 { font-size: 8.6pt; font-weight: 600; margin: 9px 0 3px; padding: 3px 5px; background: #E3F1E7; color: #173626; white-space: pre-line; break-inside: avoid; break-after: avoid; }
   p { margin: 0 0 4px; text-align: justify; white-space: pre-line; }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 4px 0 6px; font-size: 8.2pt; }
-  th, td { border: 1px solid #000; padding: 3px 5px; vertical-align: top; text-align: left; white-space: pre-line; }
+  /* Bordures dessinees DANS la boite du tableau (separate + bord droit/bas par cellule) : en
+     collapse, le trait exterieur deborde d'un demi-pixel et Chromium le coupe au bord de la
+     page pour la colonne de droite (retour de Sekou, 17/09). */
+  table { width: 100%; border-collapse: separate; border-spacing: 0; border-left: 1px solid #000; border-top: 1px solid #000; table-layout: fixed; margin: 4px 0 6px; font-size: 8.2pt; }
+  th, td { border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 3px 5px; vertical-align: top; text-align: left; white-space: pre-line; }
+  .signatures { display: flex; gap: 24px; margin: 6px 0 14px; break-inside: avoid; break-before: avoid; }
+  .signatures div { flex: 1 1 0; min-height: 60px; padding-top: 4px; font-weight: 600; }
   th { font-weight: 700; text-align: center; vertical-align: middle; }
   td.categorie { font-weight: 600; vertical-align: top; }
   td.montant { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -34,6 +39,7 @@ export function e(s: string): string {
 
 function noeud(n: NoeudContrat): string {
   if (n.type === "titre") return `<h2>${e(n.texte)}</h2>`;
+  if (n.type === "signatures") return `<div class="signatures">${n.parties.map((p) => `<div>${e(p)}</div>`).join("")}</div>`;
   if (n.type === "paragraphe") return `<p>${e(n.texte)}</p>`;
   const colgroup = n.colonnes === 2 ? `<colgroup><col style="width:58%"><col style="width:42%"></colgroup>` : "";
   const enTetes = n.lignes.filter((l) => l.enTete);

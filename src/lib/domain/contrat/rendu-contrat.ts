@@ -11,7 +11,12 @@ import { remplirTexte, tableRemplacement } from "./remplir-gabarit";
 export type NoeudContrat =
   | { type: "titre"; texte: string }
   | { type: "paragraphe"; texte: string }
-  | { type: "tableau"; colonnes: number; lignes: LigneTableau[] };
+  | { type: "tableau"; colonnes: number; lignes: LigneTableau[] }
+  /** Le bloc de signatures, les parties cote a cote avec la place pour signer. */
+  | { type: "signatures"; parties: string[] };
+
+/** Le classeur ne porte que « Le syndicat » ; le contrat MYTHEC imprime les deux parties cote a cote. */
+const PARTIES_SIGNATAIRES = ["Le syndicat", "Le syndic"];
 
 export interface LigneTableau {
   /** Toutes les cellules en capitales : une ligne d'en-tete. */
@@ -44,8 +49,9 @@ export function estTitre(texte: string): boolean {
   // sur deux lignes (« 7.2.2. ... \n(au-dela du contenu du forfait...) »). Au-dela de 140
   // caracteres c'est un paragraphe qui commence par un numero (« 8.4 Préparation... »).
   if (/^\d+(\.\d+)*\.?\s/.test(texte)) return texte.length <= 140;
-  if (texte.includes("\n") || texte.length > 90) return false;
-  return estCapitales(texte);
+  // « ANNEXE 1 AU CONTRAT DE SYNDIC \n LISTE NON LIMITATIVE… » : un titre en capitales sur deux lignes.
+  if (texte.includes("\n")) return texte.length <= 140 && texte.split("\n").every((l) => estCapitales(l));
+  return texte.length <= 90 && estCapitales(texte);
 }
 
 function estCapitales(texte: string): boolean {
@@ -75,7 +81,8 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
     if (typeof bloc === "string") {
       vider();
       const texte = remplirTexte(bloc, table, options);
-      noeuds.push(estTitre(texte) ? { type: "titre", texte } : { type: "paragraphe", texte });
+      if (texte.trim() === PARTIES_SIGNATAIRES[0]) noeuds.push({ type: "signatures", parties: PARTIES_SIGNATAIRES });
+      else noeuds.push(estTitre(texte) ? { type: "titre", texte } : { type: "paragraphe", texte });
       continue;
     }
     const cellules = bloc.map((c) => remplirTexte(c, table, options)).map((texte) => ({ texte, montant: estMontant(texte) }));

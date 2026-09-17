@@ -98,6 +98,13 @@ describe("arbreContrat", () => {
     expect(html).toContain(`rowspan="${lignesI.length}" class="categorie">I. - Assemblée générale`);
   });
 
+  it("imprime les deux parties signataires cote a cote", () => {
+    const sig = a.gauche.find((n) => n.type === "signatures");
+    expect(sig).toEqual({ type: "signatures", parties: ["Le syndicat", "Le syndic"] });
+    expect(a.gauche.some((n) => n.type === "paragraphe" && n.texte === "Le syndicat")).toBe(false);
+    expect(htmlContrat(champs())).toContain('<div class="signatures"><div>Le syndicat</div><div>Le syndic</div></div>');
+  });
+
   it("numerote les sections en titres", () => {
     expect(titres(a.gauche)).toContain("7.1.5. Modalités de rémunération");
     expect(titres(a.gauche).some((t) => t.startsWith("7.1.3. Prestations optionnelles"))).toBe(true);

@@ -24,10 +24,19 @@ function Noeud({ n }: { n: NoeudContrat }) {
   // `whitespace-pre-line` : le gabarit porte ses propres sauts de ligne, ils font partie
   // de la mise en page du contrat (adresses, listes d'horaires).
   if (n.type === "paragraphe") return <p className="whitespace-pre-line mb-1.5 text-justify">{n.texte}</p>;
+  if (n.type === "signatures") {
+    return (
+      <div className="flex gap-6 my-3 break-inside-avoid">
+        {n.parties.map((p) => (
+          <div key={p} className="flex-1 min-h-[70px] pt-1 font-semibold">{p}</div>
+        ))}
+      </div>
+    );
+  }
   // Un vrai tableau : colonnes alignees, en-tetes en capitales, montants a droite, une
   // ligne ne se coupe pas entre deux pages (retour du test du 17/09/2026).
   return (
-    <table className="w-full table-fixed border-collapse my-1.5 text-[0.95em]">
+    <table className="w-full table-fixed border-separate border-spacing-0 border-l border-t border-ink my-1.5 text-[0.95em]">
       {n.colonnes === 2 && (
         <colgroup>
           <col style={{ width: "58%" }} />
@@ -39,9 +48,9 @@ function Noeud({ n }: { n: NoeudContrat }) {
           <tr key={r} className="break-inside-avoid align-top">
             {l.cellules.map((c, i) =>
               c.fusionnee ? null : l.enTete ? (
-                <th key={i} className="border border-ink px-1.5 py-1 text-center font-bold whitespace-pre-line">{c.texte}</th>
+                <th key={i} className="border-r border-b border-ink px-1.5 py-1 text-center font-bold whitespace-pre-line">{c.texte}</th>
               ) : (
-                <td key={i} rowSpan={c.portee} className={`border border-ink px-1.5 py-1 whitespace-pre-line ${c.portee ? "font-semibold" : c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
+                <td key={i} rowSpan={c.portee} className={`border-r border-b border-ink px-1.5 py-1 whitespace-pre-line ${c.portee ? "font-semibold" : c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
               ),
             )}
           </tr>
