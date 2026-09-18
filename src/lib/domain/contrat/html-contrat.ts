@@ -31,7 +31,17 @@ const CSS = `
   thead { display: table-header-group; }
   table.courte { break-inside: avoid; }
   tbody tr:first-child { break-before: avoid; }
+  thead { break-after: avoid; }
+  /* Les annexes : une cellule peut courir sur deux pages, comme dans le classeur (sinon une
+     cellule de vingt lignes laisse une demi-page blanche derriere elle). */
+  table.annexe tr { break-inside: auto; }
 `;
+
+/** Les largeurs du classeur : grille tarifaire 4/8 + 4/8 ; annexe 2/8 + 2/8 + 4/8, ou 2/8 + 6/8. */
+export function largeursColonnes(genre: "tarif" | "annexe", colonnes: number): number[] {
+  if (genre === "annexe") return colonnes === 3 ? [25, 25, 50] : colonnes === 2 ? [25, 75] : Array(colonnes).fill(100 / colonnes);
+  return colonnes === 2 ? [50, 50] : Array(colonnes).fill(100 / colonnes);
+}
 
 export function e(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -41,7 +51,7 @@ function noeud(n: NoeudContrat): string {
   if (n.type === "titre") return `<h2>${e(n.texte)}</h2>`;
   if (n.type === "signatures") return `<div class="signatures">${n.parties.map((p) => `<div>${e(p)}</div>`).join("")}</div>`;
   if (n.type === "paragraphe") return `<p>${e(n.texte)}</p>`;
-  const colgroup = n.colonnes === 2 ? `<colgroup><col style="width:58%"><col style="width:42%"></colgroup>` : "";
+  const colgroup = `<colgroup>${largeursColonnes(n.genre, n.colonnes).map((w) => `<col style="width:${w}%">`).join("")}</colgroup>`;
   const enTetes = n.lignes.filter((l) => l.enTete);
   const corps = n.lignes.filter((l) => !l.enTete);
   const cellule = (c: (typeof n.lignes)[number]["cellules"][number], enTete: boolean) => {
@@ -55,8 +65,8 @@ function noeud(n: NoeudContrat): string {
   const thead = enTetes.length > 0 && n.lignes[0]?.enTete ? `<thead>${ligne(enTetes[0]!)}</thead>` : "";
   const reste = thead ? n.lignes.slice(1) : corps;
   // Une grille courte ne se coupe jamais ; une longue peut, l'en-tete se repete alors.
-  const classe = n.lignes.length <= 6 ? ' class="courte"' : "";
-  return `<table${classe}>${colgroup}${thead}<tbody>${reste.map(ligne).join("")}</tbody></table>`;
+  const classes = [n.genre, ...(n.genre === "tarif" && n.lignes.length <= 6 ? ["courte"] : [])].join(" ");
+  return `<table class="${classes}">${colgroup}${thead}<tbody>${reste.map(ligne).join("")}</tbody></table>`;
 }
 
 /** Le document complet. `logoDataUri` : le bandeau d'en-tete en data: URI (le PDF n'a pas

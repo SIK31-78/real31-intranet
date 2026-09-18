@@ -47,6 +47,9 @@ describe("estTitre", () => {
     expect(estTitre("7.1.3. Prestations optionnelles qui peuvent être incluses dans le forfait sur décision des parties")).toBe(true);
     expect(estTitre("7.2.2. Prestations relatives aux réunions et visites supplémentaires \n(au-delà du contenu du forfait stipulé aux 7.1.1 et 7.1.3)")).toBe(true);
   });
+  it("laisse en paragraphe un montant qui commence par un nombre", () => {
+    expect(estTitre("5597.50 € HT, soit 6717 € TTC.")).toBe(false);
+  });
   it("laisse en paragraphe un alinea qui commence par un numero", () => {
     expect(estTitre("8.4 Préparation, convocation et tenue d’une assemblée générale à la demande d’un ou plusieurs copropriétaires, pour des questions concernant leurs droits ou obligations (art. 17-1 AA de la loi du 10 juillet 1965)")).toBe(false);
     expect(estTitre("Le présent contrat est conclu pour une durée de 1 an.")).toBe(false);
@@ -81,9 +84,24 @@ describe("arbreContrat", () => {
     }
   });
 
+  it("ne garde aucun tableau fait d'un en-tete seul", () => {
+    for (const t of [...tableaux(a.gauche), ...tableaux(a.droite)]) {
+      expect(t.type === "tableau" && t.lignes.some((l) => !l.enTete)).toBe(true);
+    }
+  });
+
   it("voit l'en-tete « MODALITE DE TARIFICATION\\nconvenues » comme un en-tete", () => {
     const avecEnTete = [...tableaux(a.gauche), ...tableaux(a.droite)].filter((t) => t.type === "tableau" && t.lignes[0]?.enTete);
     expect(avecEnTete.length).toBeGreaterThan(5);
+  });
+
+  it("recolle l'en-tete « PRESTATIONS | DÉTAILS » a ses trois colonnes, et distingue annexe et grille tarifaire", () => {
+    const annexes = [...tableaux(a.gauche), ...tableaux(a.droite)].filter((t) => t.type === "tableau" && t.genre === "annexe");
+    expect(annexes.length).toBeGreaterThan(3);
+    const trois = annexes.find((t) => t.type === "tableau" && t.colonnes === 3 && t.lignes[0]?.enTete);
+    expect(trois?.type === "tableau" && trois.lignes[0]!.cellules.map((c) => c.texte)).toEqual(["", "PRESTATIONS", "DÉTAILS"]);
+    const tarif = tableaux(a.gauche).find((t) => t.type === "tableau" && t.lignes[0]?.cellules[0]?.texte === "DETAIL DE LA PRESTATION");
+    expect(tarif?.type === "tableau" && tarif.genre).toBe("tarif");
   });
 
   it("dessine la categorie de l'annexe 1 une fois, sur toute sa portee", () => {

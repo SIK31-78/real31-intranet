@@ -15,6 +15,7 @@
 // module a fusionner). Ne pas « completer » ce trou : ce n'est pas un oubli.
 
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
+import { largeursColonnes } from "@/lib/domain/contrat/html-contrat";
 import { arbreContrat, type NoeudContrat } from "@/lib/domain/contrat/rendu-contrat";
 
 function Noeud({ n }: { n: NoeudContrat }) {
@@ -37,12 +38,11 @@ function Noeud({ n }: { n: NoeudContrat }) {
   // ligne ne se coupe pas entre deux pages (retour du test du 17/09/2026).
   return (
     <table className="w-full table-fixed border-separate border-spacing-0 border-l border-t border-ink my-1.5 text-[0.95em]">
-      {n.colonnes === 2 && (
-        <colgroup>
-          <col style={{ width: "58%" }} />
-          <col style={{ width: "42%" }} />
-        </colgroup>
-      )}
+      <colgroup>
+        {largeursColonnes(n.genre, n.colonnes).map((w, i) => (
+          <col key={i} style={{ width: `${w}%` }} />
+        ))}
+      </colgroup>
       <tbody>
         {n.lignes.map((l, r) => (
           <tr key={r} className="break-inside-avoid align-top">

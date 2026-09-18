@@ -11,12 +11,16 @@ import { remplirTexte, tableRemplacement } from "./remplir-gabarit";
 export type NoeudContrat =
   | { type: "titre"; texte: string }
   | { type: "paragraphe"; texte: string }
-  | { type: "tableau"; colonnes: number; lignes: LigneTableau[] }
+  | { type: "tableau"; colonnes: number; genre: GenreTableau; lignes: LigneTableau[] }
   /** Le bloc de signatures, les parties cote a cote avec la place pour signer. */
   | { type: "signatures"; parties: string[] };
 
 /** Le classeur ne porte que « Le syndicat » ; le contrat MYTHEC imprime les deux parties cote a cote. */
 const PARTIES_SIGNATAIRES = ["Le syndicat", "Le syndic"];
+
+/** Une grille tarifaire (deux colonnes a parts egales dans le classeur) ou une annexe
+ *  (categorie 25 %, prestation 25 %, detail 50 % ; ou categorie 25 %, detail 75 %). */
+export type GenreTableau = "tarif" | "annexe";
 
 export interface LigneTableau {
   /** Toutes les cellules en capitales : une ligne d'en-tete. */
@@ -48,7 +52,8 @@ export function estTitre(texte: string): boolean {
   // Numerote : un titre meme long (« 7.1.3. Prestations optionnelles qui peuvent... »), meme
   // sur deux lignes (« 7.2.2. ... \n(au-dela du contenu du forfait...) »). Au-dela de 140
   // caracteres c'est un paragraphe qui commence par un numero (« 8.4 Préparation... »).
-  if (/^\d+(\.\d+)*\.?\s/.test(texte)) return texte.length <= 140;
+  // Numero suivi d'une lettre : « 5597.50 € HT, soit 6717 € TTC » n'est pas un titre.
+  if (/^\d+(\.\d+)*\.?\s+\p{L}/u.test(texte)) return texte.length <= 140;
   // « ANNEXE 1 AU CONTRAT DE SYNDIC \n LISTE NON LIMITATIVE… » : un titre en capitales sur deux lignes.
   if (texte.includes("\n")) return texte.length <= 140 && texte.split("\n").every((l) => estCapitales(l));
   return texte.length <= 90 && estCapitales(texte);
@@ -74,7 +79,9 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
   let serie: LigneTableau[] = [];
   let colonnes = 0;
   const vider = () => {
-    if (serie.length > 0) noeuds.push({ type: "tableau", colonnes, lignes: fusionnerCategories(serie) });
+    // Un en-tete sans aucune ligne : le classeur repetait « PRESTATIONS | DÉTAILS » en haut de
+    // chaque page ; ici le <thead> se repete tout seul, l'en-tete orphelin ne sert a rien.
+    if (serie.some((l) => !l.enTete)) noeuds.push({ type: "tableau", colonnes, genre: genreTableau(serie, colonnes), lignes: fusionnerCategories(serie) });
     serie = [];
   };
   for (const bloc of blocs) {
@@ -87,6 +94,13 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
     }
     const cellules = bloc.map((c) => remplirTexte(c, table, options)).map((texte) => ({ texte, montant: estMontant(texte) }));
     const enTete = cellules.every((c) => estCelluleEnTete(c.texte));
+    // L'en-tete « PRESTATIONS | DÉTAILS » de l'annexe couvre les colonnes 2 et 3 : dans le
+    // classeur la case au-dessus de la categorie est vide, le convertisseur l'a laissee tomber.
+    // On la remet pour que l'en-tete et ses lignes forment un seul tableau.
+    if (serie.length === 1 && serie[0]!.enTete && colonnes === 2 && bloc.length === 3) {
+      serie[0]!.cellules.unshift({ texte: "", montant: false });
+      colonnes = 3;
+    }
     // Un nombre de cellules different (2 colonnes, puis 3) ou un en-tete repete au milieu de la
     // grille = un autre tableau.
     if (serie.length > 0 && (colonnes !== bloc.length || enTete)) vider();
@@ -95,6 +109,11 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
   }
   vider();
   return noeuds;
+}
+
+function genreTableau(lignes: LigneTableau[], colonnes: number): GenreTableau {
+  const enTete = lignes[0]?.enTete ? lignes[0].cellules.map((c) => c.texte.toUpperCase()).join("|") : "";
+  return colonnes === 3 || /PRESTATIONS\|D[ÉE]TAILS/.test(enTete) ? "annexe" : "tarif";
 }
 
 /**
