@@ -320,17 +320,43 @@ if (process.argv.includes("--photos-seulement")) {
   const parNumero = new Map((existants ?? []).map((r) => [r.numero, r.id]));
   const { data: buckets } = await sb.storage.listBuckets();
   if (!(buckets ?? []).some((b) => b.name === "cles")) { const { error } = await sb.storage.createBucket("cles", { public: false }); if (error) { console.error("Bucket :", error.message); process.exit(1); } }
+  // Trois facons de nommer une photo dans le dossier : le nom d'origine SharePoint (colonne
+  // Photo), « <NUMERO>.jpg » (R004.jpg), ou « ID-<id SharePoint>.jpg » avec un export
+  // Keys_ids.xml|json de _api/web/lists/getbytitle('Keys')/items?$select=Id,Title pose a cote.
+  const fichiers = fs.readdirSync(DOSSIER_PHOTOS);
+  const parNomBas = new Map(fichiers.map((f) => [f.toLowerCase(), f]));
+  const trouverParPrefixe = (prefixe) => fichiers.find((f) => /\.(jpe?g|png|webp)$/i.test(f) && f.toLowerCase().replace(/\.[^.]+$/, "") === prefixe.toLowerCase());
+  const idVersNumero = new Map();
+  for (const nom of ["Keys_ids.xml", "Keys_ids.json"]) {
+    const f = [path.join(DOSSIER_PHOTOS, nom), path.join(path.dirname(DOSSIER_PHOTOS), nom)].find((x) => fs.existsSync(x));
+    if (!f) continue;
+    const txt = fs.readFileSync(f, "utf8");
+    if (nom.endsWith(".json")) {
+      const j = JSON.parse(txt);
+      for (const it of j.value ?? j.d?.results ?? j) if (it.Id != null && it.Title) idVersNumero.set(String(it.Id), numeroCanonique(it.Title));
+    } else {
+      for (const m of txt.matchAll(/<d:Id[^>]*>(\d+)<\/d:Id>[\s\S]*?<d:Title>([^<]*)<\/d:Title>/g)) idVersNumero.set(m[1], numeroCanonique(m[2]));
+    }
+    console.log(`Correspondance ID -> numero : ${idVersNumero.size} lignes (${nom})`);
+  }
+  const numeroVersId = new Map([...idVersNumero].map(([id, num]) => [num, id]));
+  const TYPES = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
   let n = 0;
+  const manquants = [];
   for (const t of trousseaux.values()) {
     const id = parNumero.get(t.numero);
-    if (!id || !t.photo || !fs.existsSync(path.join(DOSSIER_PHOTOS, t.photo))) continue;
-    const chemin = `trousseaux/${id}.jpg`;
-    const { error } = await sb.storage.from("cles").upload(chemin, fs.readFileSync(path.join(DOSSIER_PHOTOS, t.photo)), { contentType: "image/jpeg", upsert: true });
+    if (!id) continue;
+    const candidat = (t.photo && parNomBas.get(t.photo.toLowerCase())) || trouverParPrefixe(t.numero) || (numeroVersId.has(t.numero) ? trouverParPrefixe(`ID-${numeroVersId.get(t.numero)}`) : undefined);
+    if (!candidat) { if (t.photo) manquants.push(t.numero); continue; }
+    const ext = candidat.split(".").pop().toLowerCase();
+    const chemin = `trousseaux/${id}.${ext === "jpeg" ? "jpg" : ext}`;
+    const { error } = await sb.storage.from("cles").upload(chemin, fs.readFileSync(path.join(DOSSIER_PHOTOS, candidat)), { contentType: TYPES[ext] ?? "image/jpeg", upsert: true });
     if (error) { console.warn(`photo ${t.numero} : ${error.message}`); continue; }
     await sb.from("intranet_cles_trousseau").update({ photo_chemin: chemin }).eq("id", id);
     n++;
   }
   console.log(`✓ ${n} photos rattachées`);
+  if (manquants.length) console.log(`Sans photo trouvée (${manquants.length}) : ${manquants.join(", ")}`);
   process.exit(0);
 }
 if (deja && deja > 0) { console.error(`\nREFUS : ${deja} trousseau(x) existent déjà pour ${AGENCE}. Le journal est immuable : vider les tables à la main (SQL editor) avant de rejouer.`); process.exit(1); }
