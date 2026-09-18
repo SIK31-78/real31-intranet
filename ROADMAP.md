@@ -880,6 +880,7 @@ Les 6 automatisations à reprendre :
 
 ## Idées / outils internes - backlog
 
+- 🔲 **Trousseaux de la gestion locative et de la transaction** (Sekou, 18/09/2026) : ils existent aussi, hors périmètre de la V1 syndic du module clés ; le modèle prévoit l'extension (accès sur un bien locatif ou en vente, `bien_type` + `bien_ref`), à ouvrir quand on continuera les outils de ces métiers.
 - 🔲 **Générateur d'étiquettes BAL (boîtes aux lettres)** : produire des étiquettes prêtes à imprimer/coller pour les boîtes aux lettres d'une copropriété (nom des copropriétaires/occupants par lot). À cadrer : source des noms (eStale `owners` / lots, ou saisie), format de planche (Avery type L7160/L7163, A4 X colonnes), gestion des locataires vs propriétaires, sortie PDF imprimable (réutilise le socle d'impression de l'ODJ). Outil autonome, sans dépendance DSI - bon candidat « quick win » côté gestionnaires.
 
 ---

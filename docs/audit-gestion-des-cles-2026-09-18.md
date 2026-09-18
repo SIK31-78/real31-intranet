@@ -89,7 +89,7 @@ Date limite + retard visuel · relances automatiques graduées avec escalade ver
 - **Comptes partagés** : chez nous chaque collaborateur est authentifié Entra ID ; l'auteur est gratuit et fiable.
 - **Signature de contrat par SMS** : coût/complexité pour 5 % des cas ; une attestation PDF horodatée suffit, éventuellement signature au doigt sur tablette plus tard (chantier OneSpan en pause, ne pas mélanger).
 - **Inventaire par « armoire »** : notre référentiel est la copro (déjà en base), pas l'armoire. Le tiroir reste un attribut.
-- **Volet Biens** (gestion locative) : hors périmètre syndic.
+- **Volet Biens** (gestion locative, transaction) : **hors périmètre V1**, mais pas écarté — Sekou (18/09) : la gestion locative et la vente ont aussi des trousseaux, à garder en tête quand on continuera les outils. Le modèle ne doit pas supposer qu'un trousseau ouvre forcément une copropriété (voir §4.4 et §5).
 - **Comptage de clés par IA sur photo** : gadget ; un champ « composition » saisi une fois vaut mieux.
 
 ### 2.4 Ce que nous pouvons faire mieux
@@ -196,6 +196,7 @@ Transitions autorisées (service, jamais l'UI) :
 | Trousseau commun à plusieurs copros ? | 9 cas réels (ensembles immobiliers) | Plusieurs accès sur un trousseau, chacun avec sa copro. La copro « principale » = celle du premier accès (pour le cloisonnement et la fiche copro). | — |
 | Usage interne (gestionnaire en visite) ? | 66 mouvements « REAL31 - Syndic » | Entreprise spéciale « Usage interne REAL31 » avec le collaborateur comme contact ; ou type de prêt `interne`. Recommandation : **type de prêt `interne`** (pas d'entreprise, contact = collaborateur), exclu des stats de retard fournisseur. | Sekou |
 | Durée de prêt par défaut ? | 54 % rendus le jour même, p90 = 25 j | Date de retour prévue **obligatoire**, pré-remplie à aujourd'hui ; retard = J+1 après la date prévue. Pas de durée max imposée. | Sekou |
+| Trousseaux hors syndic (lot en gestion locative, bien en vente) ? | Inexistant dans l'outil (LGC syndic) | **Pas en V1.** L'accès porte aujourd'hui une copro obligatoire ; extension prévue : `copropriete_id` devient facultatif et un couple `bien_type` (copro / lot_locatif / bien_vente) + `bien_ref` apparaît, sans toucher aux prêts ni au journal. | Sekou : à garder en tête, plus tard |
 | Copro perdue / inactive ? | 3 copros inactives ont encore des trousseaux | Alerte sur la fiche ; passage en `retire` proposé depuis l'étape TR2 de la checklist de perte (`domain/perte/dossier.ts:67`) | — |
 
 ---
@@ -513,7 +514,7 @@ Chaque incrément = branche `chantier/cles-*`, commits atomiques, `pnpm check`, 
 | Inventaire = armoires | Découpage libre | Non (tiroir texte) | Partiel | `emplacement` texte, filtre par tiroir | — |
 | Contrat signé par SMS | Option pour trousseaux sensibles | Non | **Non** | Signature manuscrite sur l'attestation ; OneSpan plus tard si besoin | Coût |
 | Identification des clés par IA | Photo → liste | Non | **Non** | Composition déclarée | — |
-| Volet Biens (locatif) | — | Non | **Non** | Hors périmètre | — |
+| Volet Biens (locatif, transaction) | Tous les biens en gestion et en syndic, avec leurs trousseaux | Non | **Plus tard** (Sekou, 18/09) | L'accès s'ouvre à un bien locatif ou en vente (colonne `bien_type` + `bien_ref`), prêts et journal inchangés | Source des lots locatifs / mandats de vente à définir (App A, ESTALE) |
 | Comptes utilisateurs | Souvent un compte partagé | N/A | **Non** (on fait mieux) | Entra ID | — |
 
 ## 17. Ce que nous faisons mieux

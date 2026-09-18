@@ -59,6 +59,9 @@ comment on table public.intranet_cles_trousseau is
 
 -- ---------------------------------------------------------------------------
 -- 2. Accès : ce qu'ouvre un trousseau (copro obligatoire, immeuble facultatif)
+-- Extension prévue (Sekou 18/09) : la gestion locative et la vente ont aussi des
+-- trousseaux. Le jour venu : copropriete_id devient facultatif + colonnes bien_type
+-- (copro | lot_locatif | bien_vente) et bien_ref, par `alter table`, prêts et journal inchangés.
 -- ---------------------------------------------------------------------------
 create table if not exists public.intranet_cles_acces (
   id              uuid primary key default gen_random_uuid(),
