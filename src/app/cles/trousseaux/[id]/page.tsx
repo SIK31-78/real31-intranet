@@ -14,6 +14,7 @@ import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Section } from "@/components/ui/section";
+import { SectionRepliable } from "@/components/ui/section-repliable";
 import { Card, CardBody } from "@/components/ui/card";
 import { DataList, DataRow } from "@/components/ui/data-list";
 import { Badge } from "@/components/ui/badge";
@@ -101,46 +102,55 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
               </Section>
             )}
 
-            <Section id="tr-prets" titre="Prêts" compte={prets.length}>
-              {prets.length === 0 ? <p className="text-body text-ink-3">Jamais sorti.</p> : (
-                <Rows>
-                  {prets.map((p) => {
-                    const clos = Boolean(p.renduLeISO);
-                    const jours = joursDehors(p, aujourdhuiISO);
-                    const tardif = clos && (p.renduLeISO ?? "").slice(0, 10) > p.retourPrevuLeISO;
-                    return (
-                      <Row
-                        key={p.id}
-                        avant={formatDateLongue(p.sortiLeISO.slice(0, 10))}
-                        principal={p.type === "interne" ? `Interne${p.contact?.nom ? ` · ${p.contact.nom}` : ""}` : p.entrepriseNom ?? "?"}
-                        secondaire={<>{clos ? `rendu le ${formatDateLongue(p.renduLeISO!.slice(0, 10))}, ${libelleDuree(jours)}` : `retour prévu le ${formatDateLongue(p.retourPrevuLeISO)}`}{p.motif ? ` · ${p.motif}` : ""}{p.commentaireRetour ? ` · « ${p.commentaireRetour} »` : ""}</>}
-                        droite={
-                          <span className="flex items-center gap-2">
-                            {clos ? <Badge ton={p.retourConforme === "complet" || !p.retourConforme ? "ok" : "err"}>{p.retourConforme ? LIBELLE_CONFORMITE[p.retourConforme] : "rendu"}</Badge> : <Badge ton="warn" dot>ouvert</Badge>}
-                            {tardif && <Badge ton="err">rendu en retard</Badge>}
-                            {direction && <CorrectionPret pret={p} />}
-                          </span>
-                        }
-                      />
-                    );
-                  })}
-                </Rows>
-              )}
-            </Section>
+            {(() => {
+              const ligne = (p: (typeof prets)[number]) => {
+                const clos = Boolean(p.renduLeISO);
+                const jours = joursDehors(p, aujourdhuiISO);
+                const tardif = clos && (p.renduLeISO ?? "").slice(0, 10) > p.retourPrevuLeISO;
+                return (
+                  <Row
+                    key={p.id}
+                    avant={formatDateLongue(p.sortiLeISO.slice(0, 10))}
+                    principal={p.type === "interne" ? `Interne${p.contact?.nom ? ` · ${p.contact.nom}` : ""}` : p.entrepriseNom ?? "?"}
+                    secondaire={<>{clos ? `rendu le ${formatDateLongue(p.renduLeISO!.slice(0, 10))}, ${libelleDuree(jours)}` : `retour prévu le ${formatDateLongue(p.retourPrevuLeISO)}`}{p.motif ? ` · ${p.motif}` : ""}{p.commentaireRetour ? ` · « ${p.commentaireRetour} »` : ""}</>}
+                    droite={
+                      <span className="flex items-center gap-2">
+                        {clos ? <Badge ton={p.retourConforme === "complet" || !p.retourConforme ? "ok" : "err"}>{p.retourConforme ? LIBELLE_CONFORMITE[p.retourConforme] : "rendu"}</Badge> : <Badge ton="warn" dot>ouvert</Badge>}
+                        {tardif && <Badge ton="err">rendu en retard</Badge>}
+                        {direction && <CorrectionPret pret={p} />}
+                      </span>
+                    }
+                  />
+                );
+              };
+              const [dernier, ...anciens] = prets;
+              return (
+                <>
+                  <Section id="tr-prets" titre={pret ? "Prêt en cours" : "Dernier prêt"}>
+                    {!dernier ? <p className="text-body text-ink-3">Jamais sorti.</p> : <Rows>{ligne(dernier)}</Rows>}
+                  </Section>
+                  {anciens.length > 0 && (
+                    <SectionRepliable id="tr-prets-anciens" titre="Prêts précédents" compte={anciens.length} resume={`le dernier le ${formatDateLongue(anciens[0].sortiLeISO.slice(0, 10))}`}>
+                      <Rows>{anciens.map(ligne)}</Rows>
+                    </SectionRepliable>
+                  )}
+                </>
+              );
+            })()}
 
             {reservations.some((r) => r.statut !== "prevue") && (
-              <Section id="tr-resas-passees" titre="Réservations passées" compte={reservations.filter((r) => r.statut !== "prevue").length}>
+              <SectionRepliable id="tr-resas-passees" titre="Réservations passées" compte={reservations.filter((r) => r.statut !== "prevue").length}>
                 <Rows>
                   {reservations.filter((r) => r.statut !== "prevue").map((r) => (
                     <Row key={r.id} avant={formatDateLongue(r.debutISO)} principal={r.entrepriseNom ?? "?"} secondaire={r.statut === "annulee" ? `annulée${r.annuleePar && !(r.motifAnnulation ?? "").startsWith(r.annuleePar) ? ` par ${r.annuleePar}` : ""}${r.motifAnnulation ? ` : ${r.motifAnnulation.replace(/^Reprise PowerApps : /, "")}` : ""}` : "convertie en prêt"} droite={<Badge ton={r.statut === "annulee" ? "neutral" : "ok"}>{r.statut === "annulee" ? "annulée" : "sortie"}</Badge>} />
                   ))}
                 </Rows>
-              </Section>
+              </SectionRepliable>
             )}
 
-            <Section id="tr-journal" titre="Journal" compte={mouvements.length}>
+            <SectionRepliable id="tr-journal" titre="Journal" compte={mouvements.length} resume={mouvements[0] ? `dernier mouvement le ${formatDateLongue(mouvements[0].horodatageISO.slice(0, 10))}` : undefined}>
               <JournalTable lignes={mouvements} avecTrousseau={false} />
-            </Section>
+            </SectionRepliable>
           </div>
 
           <div className="flex flex-col gap-4">
