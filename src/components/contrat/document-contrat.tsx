@@ -39,8 +39,8 @@ function Noeud({ n }: { n: NoeudContrat }) {
   return (
     <table className="w-full table-fixed border-separate border-spacing-0 border-l border-t border-ink my-1.5 text-[0.95em]">
       <colgroup>
-        {largeursColonnes(n.genre, n.colonnes).map((w, i) => (
-          <col key={i} style={{ width: `${w}%` }} />
+        {largeursColonnes(n.genre, n.colonnes).map((w, i, tous) => (
+          <col key={i} style={i < tous.length - 1 ? { width: `${w}%` } : undefined} />
         ))}
       </colgroup>
       <tbody>

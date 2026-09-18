@@ -15,6 +15,8 @@ const CSS = `
   header p { font-size: 7.4pt; color: #4C5347; text-align: justify; margin: 0 0 2px; white-space: pre-line; }
   .colonnes { display: flex; gap: 18px; align-items: flex-start; }
   .colonne { flex: 1 1 0; min-width: 0; }
+  /* Un pixel de marge a droite : un bord de tableau ne doit jamais toucher la limite de page. */
+  .colonne:last-child { padding-right: 2px; }
   h2 { font-size: 8.6pt; font-weight: 600; margin: 9px 0 3px; padding: 3px 5px; background: #E3F1E7; color: #173626; white-space: pre-line; break-inside: avoid; break-after: avoid; }
   p { margin: 0 0 4px; text-align: justify; white-space: pre-line; }
   /* Bordures dessinees DANS la boite du tableau (separate + bord droit/bas par cellule) : en
@@ -51,7 +53,10 @@ function noeud(n: NoeudContrat): string {
   if (n.type === "titre") return `<h2>${e(n.texte)}</h2>`;
   if (n.type === "signatures") return `<div class="signatures">${n.parties.map((p) => `<div>${e(p)}</div>`).join("")}</div>`;
   if (n.type === "paragraphe") return `<p>${e(n.texte)}</p>`;
-  const colgroup = `<colgroup>${largeursColonnes(n.genre, n.colonnes).map((w) => `<col style="width:${w}%">`).join("")}</colgroup>`;
+  // La derniere colonne prend le reste : trois largeurs en % arrondies depassaient d'un pixel,
+  // et Chromium coupait le bord droit des tableaux de la colonne de droite (Sekou, 18/09).
+  const largeurs = largeursColonnes(n.genre, n.colonnes);
+  const colgroup = `<colgroup>${largeurs.map((w, i) => (i < largeurs.length - 1 ? `<col style="width:${w}%">` : "<col>")).join("")}</colgroup>`;
   const enTetes = n.lignes.filter((l) => l.enTete);
   const corps = n.lignes.filter((l) => !l.enTete);
   const cellule = (c: (typeof n.lignes)[number]["cellules"][number], enTete: boolean) => {
