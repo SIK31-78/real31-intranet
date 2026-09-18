@@ -12,7 +12,6 @@ import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea, Choix } from "@/components/ui/field";
 import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
-import { useConfirm } from "@/components/ui/confirm";
 import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ELEMENT, type ConformiteRetour, type EtatTrousseau, type Pret, type Reservation, type Trousseau } from "@/lib/domain/cles/types";
 import { plusJours } from "@/lib/domain/cles/etat";
 import { formatDateLongue } from "@/lib/format-date";
@@ -400,18 +399,16 @@ function ModaleAnnulation({ trousseau, reservations, onFermer }: { trousseau: Tr
 function ModaleMarquage({ trousseau, marquage, onFermer }: { trousseau: Trousseau; marquage: "introuvable" | "retrouve" | "retire"; onFermer: () => void }) {
   const router = useRouter();
   const toast = useToast();
-  const confirmer = useConfirm();
   const [pending, demarrer] = useTransition();
   const [motif, setMotif] = useState("");
   const titres = { introuvable: `Déclarer ${trousseau.numero} introuvable`, retrouve: `${trousseau.numero} retrouvé`, retire: `Retirer ${trousseau.numero}` };
   const textes = {
     introuvable: "Le trousseau sort des compteurs « en agence ». S'il est sorti, le prêt reste ouvert et l'entreprise en reste responsable.",
     retrouve: "Le trousseau redevient disponible.",
-    retire: "Le trousseau est archivé : plus de sortie possible, l'historique est conservé. Réservé à la direction.",
+    retire: "Le trousseau est archivé : plus de sortie possible, l'historique est conservé. Réservé à la direction ; cette action se voit au journal.",
   };
   function valider() {
     demarrer(async () => {
-      if (marquage === "retire" && !(await confirmer({ titre: `Retirer ${trousseau.numero} ?`, message: "Cette action se voit au journal et n'est réversible que par la direction.", danger: true }))) return;
       const res = await marquerAction({ trousseauId: trousseau.id, marquage, motif: motif || undefined });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(marquage === "retrouve" ? `${trousseau.numero} retrouvé.` : marquage === "retire" ? `${trousseau.numero} retiré.` : `${trousseau.numero} déclaré introuvable.`);

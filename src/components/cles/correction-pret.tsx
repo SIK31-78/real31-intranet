@@ -21,9 +21,19 @@ const CHAMPS = [
 ] as const;
 
 export function CorrectionPret({ pret }: { pret: Pret }) {
+  // Le declencheur ne touche a aucun contexte : la modale (toast, router) ne se monte qu'au clic.
+  const [ouvert, setOuvert] = useState(false);
+  return (
+    <>
+      <Button variant="ghost" size="sm" onClick={() => setOuvert(true)}>Corriger</Button>
+      {ouvert && <ModaleCorrection pret={pret} onFermer={() => setOuvert(false)} />}
+    </>
+  );
+}
+
+function ModaleCorrection({ pret, onFermer }: { pret: Pret; onFermer: () => void }) {
   const router = useRouter();
   const toast = useToast();
-  const [ouvert, setOuvert] = useState(false);
   const [champ, setChamp] = useState<(typeof CHAMPS)[number]["valeur"]>("retourPrevuLeISO");
   const [valeur, setValeur] = useState("");
   const [motif, setMotif] = useState("");
@@ -36,38 +46,33 @@ export function CorrectionPret({ pret }: { pret: Pret }) {
       const res = await corrigerPretAction({ pretId: pret.id, trousseauId: pret.trousseauId, champ, valeur: v, motif });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok("Correction enregistrée au journal.");
-      setOuvert(false);
+      onFermer();
       router.refresh();
     });
   }
 
   return (
-    <>
-      <Button variant="ghost" size="sm" onClick={() => setOuvert(true)}>Corriger</Button>
-      {ouvert && (
-        <Modal titre="Corriger ce prêt" onFermer={() => setOuvert(false)} size="sm">
-          <ModalBody>
-            <div className="flex flex-col gap-3">
-              <p className="text-body text-ink-2">L&apos;original reste au journal ; la correction s&apos;y ajoute avec son motif.</p>
-              <Field label="Champ" htmlFor="corr-champ">
-                <Select id="corr-champ" value={champ} onChange={(e) => { setChamp(e.target.value as typeof champ); setValeur(""); }}>
-                  {CHAMPS.filter((c) => c.valeur !== "renduLeISO" || pret.renduLeISO).map((c) => <option key={c.valeur} value={c.valeur}>{c.libelle}</option>)}
-                </Select>
-              </Field>
-              <Field label="Nouvelle valeur" htmlFor="corr-valeur" hint={typeof pret[champ] === "string" ? `Actuellement : ${String(pret[champ]).slice(0, 16)}` : undefined}>
-                <Input id="corr-valeur" type={def.type} value={valeur} onChange={(e) => setValeur(e.target.value)} />
-              </Field>
-              <Field label="Motif" htmlFor="corr-motif" requis>
-                <Input id="corr-motif" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Erreur de saisie, retour oublié…" />
-              </Field>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" onClick={() => setOuvert(false)}>Annuler</Button>
-            <Button variant="primary" loading={pending} disabled={!motif.trim() || (!valeur && def.type !== "text")} onClick={valider}>Corriger</Button>
-          </ModalFooter>
-        </Modal>
-      )}
-    </>
+    <Modal titre="Corriger ce prêt" onFermer={onFermer} size="sm">
+      <ModalBody>
+        <div className="flex flex-col gap-3">
+          <p className="text-body text-ink-2">L&apos;original reste au journal ; la correction s&apos;y ajoute avec son motif.</p>
+          <Field label="Champ" htmlFor="corr-champ">
+            <Select id="corr-champ" value={champ} onChange={(e) => { setChamp(e.target.value as typeof champ); setValeur(""); }}>
+              {CHAMPS.filter((c) => c.valeur !== "renduLeISO" || pret.renduLeISO).map((c) => <option key={c.valeur} value={c.valeur}>{c.libelle}</option>)}
+            </Select>
+          </Field>
+          <Field label="Nouvelle valeur" htmlFor="corr-valeur" hint={typeof pret[champ] === "string" ? `Actuellement : ${String(pret[champ]).slice(0, 16)}` : undefined}>
+            <Input id="corr-valeur" type={def.type} value={valeur} onChange={(e) => setValeur(e.target.value)} />
+          </Field>
+          <Field label="Motif" htmlFor="corr-motif" requis>
+            <Input id="corr-motif" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Erreur de saisie, retour oublié…" />
+          </Field>
+        </div>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="ghost" onClick={onFermer}>Annuler</Button>
+        <Button variant="primary" loading={pending} disabled={!motif.trim() || (!valeur && def.type !== "text")} onClick={valider}>Corriger</Button>
+      </ModalFooter>
+    </Modal>
   );
 }
