@@ -9,6 +9,7 @@ import { useState, type ComponentProps } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { telechargerPdf } from "./telecharger-pdf";
 
 export function BoutonPdf({
   href,
@@ -29,23 +30,8 @@ export function BoutonPdf({
   async function telecharger() {
     setEnCours(true);
     try {
-      const r = await fetch(href, { credentials: "same-origin" });
-      if (!r.ok) {
-        toast.err((await r.text()).slice(0, 300) || `Téléchargement impossible (${r.status}).`);
-        return;
-      }
-      const blob = await r.blob();
-      const nom = nomDepuisEntete(r.headers.get("content-disposition")) ?? "contrat.pdf";
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nom;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    } catch {
-      toast.err("Téléchargement impossible : le serveur n'a pas répondu.");
+      const res = await telechargerPdf(href);
+      if (!res.ok) toast.err(res.erreur);
     } finally {
       setEnCours(false);
     }
@@ -57,19 +43,4 @@ export function BoutonPdf({
       {enCours ? "Préparation du PDF…" : enfants}
     </Button>
   );
-}
-
-/** Le nom de fichier de l'en-tete Content-Disposition, version UTF-8 (`filename*`) d'abord. */
-function nomDepuisEntete(entete: string | null): string | null {
-  if (!entete) return null;
-  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(entete);
-  if (utf8) {
-    try {
-      return decodeURIComponent(utf8[1]!);
-    } catch {
-      /* on retombe sur filename= */
-    }
-  }
-  const ascii = /filename="([^"]+)"/i.exec(entete);
-  return ascii ? ascii[1]! : null;
 }

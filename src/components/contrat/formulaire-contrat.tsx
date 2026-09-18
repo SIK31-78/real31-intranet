@@ -19,12 +19,17 @@
 // le maximum legal de trois ans. Le document imprime la duree reelle.
 //
 // La soumission passe par une Server Action : elle TRACE l'edition (c'est ce qui fait
-// passer la copro en « genere » et nourrit le recap AG) puis ouvre le document.
+// passer la copro en « genere » et nourrit le recap AG) puis rend l'adresse du PDF, que le
+// navigateur telecharge (Chromium cote serveur, comme l'offre depuis le 18/09/2026). L'apercu
+// a l'ecran reste disponible, sans trace.
 
-import { useState } from "react";
-import { FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useTransition } from "react";
+import { Download, Eye, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Choix, Field, GroupeChoix, Input } from "@/components/ui/field";
+import { useToast } from "@/components/ui/toast";
+import { telechargerPdf } from "./telecharger-pdf";
 import {
   DUREES_CONTRAT_MOIS,
   finDeCycle,
@@ -54,6 +59,9 @@ export function FormulaireContrat({
   /** Defaut : forfait. Le reel ne se propose que si le dernier contrat edite l'etait. */
   fraisPostauxReels?: boolean;
 }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, demarrer] = useTransition();
   const [ag, setAg] = useState(dateAgISO);
   const [debut, setDebut] = useState(debutISO);
   const [fin, setFin] = useState(finISO);
@@ -84,9 +92,37 @@ export function FormulaireContrat({
   };
   const dureeActive = (mois: number) => JOUR_RE.test(debut) && finDeCycle(debut, mois) === fin;
 
+  // L'apercu a l'ecran, avec les valeurs saisies, sans tracer d'edition.
+  const apercu = (() => {
+    const q = new URLSearchParams();
+    if (JOUR_RE.test(ag)) q.set("ag", ag);
+    if (JOUR_RE.test(debut)) q.set("debut", debut);
+    if (JOUR_RE.test(fin)) q.set("fin", fin);
+    if (Number.isFinite(saisi)) q.set("honoraires", String(saisi));
+    if (reels) q.set("frais", "reels");
+    else if (timbres.trim()) q.set("timbres", timbres.trim().replace(",", "."));
+    return `/contrat/${encodeURIComponent(coproCode)}/imprimer?${q}`;
+  })();
+
+  function editer() {
+    demarrer(async () => {
+      const res = await editerContratAction({ copro: coproCode, ag, debut, fin, honoraires, timbres, frais: reels ? "reels" : "forfait" });
+      if (!res.ok) return toast.err(res.erreur);
+      const t = await telechargerPdf(res.donnees!.pdf);
+      if (!t.ok) return toast.err(t.erreur);
+      toast.ok(`Contrat édité : ${t.nom}`);
+      router.refresh();
+    });
+  }
+
   return (
-    <form action={editerContratAction} className="flex flex-col gap-3">
-      <input type="hidden" name="copro" value={coproCode} />
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valide && !pending) editer();
+      }}
+      className="flex flex-col gap-3"
+    >
       <div className="flex flex-wrap items-end gap-4">
         <Field label="Date de l'assemblée">
           <Input type="date" name="ag" value={ag} onChange={(e) => setAg(e.target.value)} largeur="auto" />
@@ -143,10 +179,13 @@ export function FormulaireContrat({
             />
           </Field>
         )}
-        <Button type="submit" variant="primary" disabled={!valide}>
-          <FileText strokeWidth={1.5} />
-          Éditer le contrat
+        <Button type="submit" variant="primary" disabled={!valide || pending} aria-busy={pending}>
+          {pending ? <Loader2 strokeWidth={1.5} className="animate-spin" /> : <Download strokeWidth={1.5} />}
+          {pending ? "Préparation du PDF…" : "Éditer le contrat (PDF)"}
         </Button>
+        <ButtonLink href={apercu} variant="ghost" size="sm" target="_blank">
+          <Eye strokeWidth={1.5} /> Aperçu à l&apos;écran
+        </ButtonLink>
       </div>
 
       {refusCycle !== null && (
