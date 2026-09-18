@@ -135,6 +135,17 @@ const NAV_COMPTABLE: Item[] = [
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
 
+// Vue HORS SYNDIC (vente, location, accueil - roles AUTRE et GESTIONNAIRE_LOCATIVE de la
+// table, Sekou 18/09/2026) : Neis n'a que faire des AG, des sinistres et de la facturation.
+// Sa nav : le pipeline des propositions (il y note ses contacts), le comptoir des cles, le
+// coffre-fort et les nouveautes. Les pages elles-memes portent leurs gardes.
+const NAV_HORS_SYNDIC: Item[] = [
+  { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
+  { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
+  { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
+  { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
+];
+
 // Administration (visible SUPER-ADMIN seulement, cf. AppShell adminOuvert) : le panneau
 // des cles API machine (auth de /api/v1 + MCP). Groupe separe pour ne pas noyer la nav.
 const GROUPE_ADMIN: { titre: string; items: Item[] } = {
@@ -258,6 +269,7 @@ export function Sidebar({
   comptaOuvert = false,
   gestionCouranteOuverte = false,
   vueComptable = false,
+  vueHorsSyndic = false,
   adminOuvert = false,
   directionOuverte = false,
 }: {
@@ -270,6 +282,8 @@ export function Sidebar({
   gestionCouranteOuverte?: boolean;
   /** Vue comptable epuree : remplace la nav principale par NAV_COMPTABLE (dashboard compta + copros + coffre). */
   vueComptable?: boolean;
+  /** Vue hors syndic (vente, location, accueil) : propositions, cles, coffre, nouveautes. */
+  vueHorsSyndic?: boolean;
   /** Groupe "Administration" (cles API) : visible SUPER-ADMIN seulement. */
   adminOuvert?: boolean;
   /** Entree "Collaborateurs" : direction (directeurs, referents, super-admin). */
@@ -286,10 +300,17 @@ export function Sidebar({
         </div>
       </div>
       <div className="hidden md:block px-3 pt-3">
-        <CommandPalette emailsOuvert={emailsOuvert} />
+        <CommandPalette emailsOuvert={emailsOuvert} vueHorsSyndic={vueHorsSyndic} />
       </div>
       <nav className="px-3 py-4 flex flex-col gap-4 flex-1">
-        {vueComptable ? (
+        {vueHorsSyndic ? (
+          // Vente, location, accueil : quatre entrees, pas de titre de groupe.
+          <div>
+            {NAV_HORS_SYNDIC.map((item) => (
+              <NavItem key={item.key} item={item} active={item.key === active} />
+            ))}
+          </div>
+        ) : vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
           <div>
             {NAV_COMPTABLE.filter((item) => item.key !== "gestion-courante" || gestionCouranteOuverte).map((item) => (

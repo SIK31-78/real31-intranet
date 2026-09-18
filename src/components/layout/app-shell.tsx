@@ -6,7 +6,7 @@ import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-contex
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, profilDe } from "@/lib/auth/roles";
+import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estHorsSyndic, profilDe } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
@@ -46,12 +46,14 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const adminOuvert = estSuperAdmin(g?.email);
   // Entree "Collaborateurs" : la direction (table User, referents d'agence, super-admin).
   const directionOuverte = g ? estDirection(profilDe(g)) : false;
+  // Vue HORS SYNDIC (vente, location, accueil) : propositions, cles, coffre, nouveautes.
+  const vueHorsSyndic = g ? estHorsSyndic(profilDe(g)) : false;
   return (
     <MobileSidebarProvider>
       <SentryUtilisateur id={g?.id ?? null} initiales={g?.initiales ?? null} />
       <FilArianeProvider valeur={breadcrumb ?? null}>
         <div className="flex flex-col min-h-screen md:flex-row">
-          <BarreMobile emailsOuvert={emailsOuvert} />
+          <BarreMobile emailsOuvert={emailsOuvert} vueHorsSyndic={vueHorsSyndic} />
           {/* Sous md: le rail est un tiroir masque par defaut (SidebarDrawer), ouvert par
               la barre mobile. Des md: colonne statique, pleine hauteur, toujours visible. */}
           <SidebarDrawer>
@@ -63,6 +65,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               comptaOuvert={comptaOuvert}
               gestionCouranteOuverte={gestionCouranteOuverte}
               vueComptable={vueComptable}
+              vueHorsSyndic={vueHorsSyndic}
               adminOuvert={adminOuvert}
               directionOuverte={directionOuverte}
             />

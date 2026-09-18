@@ -222,8 +222,13 @@ export function estVueComptable(
 export function pageAccueilPour(
   email: string | null | undefined,
   roleTable?: string | null,
+  habilitations?: readonly string[],
 ): string {
-  return estVueComptable(email, roleTable) ? "/comptabilite" : "/accueil";
+  if (estVueComptable(email, roleTable)) return "/comptabilite";
+  // Hors syndic (vente, location, accueil) : leur intranet, c'est le pipeline des
+  // propositions, les cles et le coffre (Sekou, 18/09/2026). L'accueil syndic ne leur dit rien.
+  if (estHorsSyndic({ email, roleTable, habilitations })) return "/propositions";
+  return "/accueil";
 }
 
 /**

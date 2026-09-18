@@ -229,6 +229,11 @@ describe("estVueComptable (vue epuree = comptable PUR)", () => {
 });
 
 describe("pageAccueilPour", () => {
+  it("un collaborateur hors syndic (vente, location) atterrit sur les propositions", () => {
+    expect(pageAccueilPour("neis@real31.fr", "AUTRE")).toBe("/propositions");
+    expect(pageAccueilPour("loc@real31.fr", "GESTIONNAIRE_LOCATIVE")).toBe("/propositions");
+    expect(pageAccueilPour("remi@real31.fr", "GESTIONNAIRE")).toBe("/accueil");
+  });
   it("un comptable pur atterrit sur /comptabilite", () => {
     expect(pageAccueilPour("elsa@real31.fr", "COMPTABLE")).toBe("/comptabilite");
     vi.stubEnv("COMPTABLES", "elsa@real31.fr");

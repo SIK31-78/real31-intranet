@@ -24,6 +24,14 @@ const NAV: { label: string; href: string }[] = [
   { label: "Coffre-fort", href: "/coffre" },
 ];
 
+// Hors syndic (vente, location, accueil) : les memes entrees que leur rail.
+const NAV_HORS_SYNDIC: { label: string; href: string }[] = [
+  { label: "Propositions de contrat", href: "/propositions" },
+  { label: "Gestion des clés", href: "/cles" },
+  { label: "Coffre-fort", href: "/coffre" },
+  { label: "Nouveautés", href: "/nouveautes" },
+];
+
 interface Item {
   cle: string;
   titre: string;
@@ -38,9 +46,12 @@ type Variante = "rail" | "rail-icone";
 
 export function CommandPalette({
   emailsOuvert = true,
+  vueHorsSyndic = false,
   variante = "rail",
 }: {
   emailsOuvert?: boolean;
+  /** Vente, location, accueil : la navigation reduite du rail. */
+  vueHorsSyndic?: boolean;
   /** rail = pilule de recherche dans le rail ; rail-icone = icone seule (barre mobile). */
   variante?: Variante;
 }) {
@@ -78,7 +89,7 @@ export function CommandPalette({
     const q = query.toLowerCase().trim();
     if (!q) {
       // "Mes evenements" (boite mail) reserve au pilote -> hors navigation si verrouille.
-      const nav = emailsOuvert ? NAV : NAV.filter((n) => n.href !== "/mes-emails");
+      const nav = vueHorsSyndic ? NAV_HORS_SYNDIC : emailsOuvert ? NAV : NAV.filter((n) => n.href !== "/mes-emails");
       return nav.map((n) => ({ cle: n.href, titre: n.label, href: n.href, copro: false }));
     }
     return filtrerRecherche(copros ?? [], q).map((c) => ({
@@ -89,7 +100,7 @@ export function CommandPalette({
       href: `/copropriete/${c.code}`,
       copro: true,
     }));
-  }, [query, copros, emailsOuvert]);
+  }, [query, copros, emailsOuvert, vueHorsSyndic]);
 
   function fermer() {
     setOuvert(false);
