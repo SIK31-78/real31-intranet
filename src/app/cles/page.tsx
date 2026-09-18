@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RechercheComptoir } from "@/components/cles/recherche-comptoir";
 import { LigneTrousseau } from "@/components/cles/ligne-trousseau";
+import { ListeComptoir } from "@/components/cles/liste-comptoir";
+import { estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
 import { ListeTrousseaux } from "@/components/cles/liste-trousseaux";
 import { JournalTable } from "@/components/cles/journal-table";
 import { LegendeArmoire, PlanArmoire } from "@/components/cles/plan-armoire";
@@ -68,14 +70,14 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
         {copro && (
           <Section id="cles-copro" titre={`Trousseaux de ${copro.toUpperCase()}`} compte={deCopro.length} actions={<ButtonLink href={`/copropriete/${encodeURIComponent(copro.toUpperCase())}`} variant="ghost" size="sm">Fiche copropriété <ArrowRight strokeWidth={1.5} /></ButtonLink>}>
-            {deCopro.length === 0 ? <EmptyState>Aucun trousseau rattaché à cette copropriété</EmptyState> : <Rows>{deCopro.map((r) => <LigneTrousseau key={r.trousseau.id} resume={r} />)}</Rows>}
+            {deCopro.length === 0 ? <EmptyState>Aucun trousseau rattaché à cette copropriété</EmptyState> : <ListeComptoir resumes={deCopro} aujourdhuiISO={aujourdhuiISO} peutOperer={acteur.agence ? peutOperer(acteur, acteur.agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, acteur.agence)} />}
           </Section>
         )}
 
         {posTiroir && (
           <Section id="cles-tiroir" titre={`Tiroir ${posTiroir.code}`} compte={duTiroir.length} actions={<ButtonLink href="/cles#cles-armoire" variant="ghost" size="sm">Toute l&apos;armoire</ButtonLink>}>
             <p className="text-body text-ink-2">{libellePosition(posTiroir).replace(/^c/, "C")}.</p>
-            {duTiroir.length === 0 ? <EmptyState compact>Bac vide</EmptyState> : <Rows>{duTiroir.map((r) => <LigneTrousseau key={r.trousseau.id} resume={r} />)}</Rows>}
+            {duTiroir.length === 0 ? <EmptyState compact>Bac vide</EmptyState> : <ListeComptoir resumes={duTiroir} aujourdhuiISO={aujourdhuiISO} peutOperer={acteur.agence ? peutOperer(acteur, acteur.agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, acteur.agence)} />}
           </Section>
         )}
 
