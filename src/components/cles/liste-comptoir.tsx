@@ -19,7 +19,7 @@ export function ListeComptoir({ resumes, aujourdhuiISO, peutOperer, direction }:
         const d = decrireTrousseau(r);
         const t = r.trousseau;
         return (
-          <li key={t.id} className={cn("flex items-center gap-3 px-4 min-h-10 py-1.5 text-body", r.etat === "en_retard" && "bg-err-50/40")}>
+          <li key={t.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 px-4 min-h-10 py-2 text-body", r.etat === "en_retard" && "bg-err-50/40")}>
             <Link href={`/cles/trousseaux/${t.id}`} className="shrink-0 font-mono text-ink-2 hover:text-ink hover:underline underline-offset-2" title="Ouvrir la fiche">
               {t.numero}
             </Link>
@@ -27,7 +27,7 @@ export function ListeComptoir({ resumes, aujourdhuiISO, peutOperer, direction }:
               <span className="font-medium text-ink truncate">{d.principal}</span>
               {d.secondaire && <span className="text-ink-2 truncate">{d.secondaire}</span>}
             </Link>
-            <span className="flex items-center gap-2 shrink-0">
+            <span className="flex items-center gap-2 shrink-0 ml-auto flex-wrap">
               <PastilleEtat etat={r.etat} detail={d.detail} />
               <ActionsTrousseau trousseau={t} etat={r.etat} pret={r.pret} reservations={r.reservations} aujourdhuiISO={aujourdhuiISO} peutOperer={peutOperer} direction={direction} compact />
             </span>

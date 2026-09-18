@@ -8,7 +8,7 @@
 
 import { getClesEntrepriseRepository, getClesRepository } from "@/lib/adapters/router";
 import { joursDehors, reservationCouvre, reservationImminente, verifierReservation, verifierRetour, verifierSortie } from "@/lib/domain/cles/etat";
-import type { ConformiteRetour, Contact, Marque, Pret, Reservation, Trousseau } from "@/lib/domain/cles/types";
+import type { ConformiteRetour, Contact, Marque, Pret, Reservation, Trousseau, TypePret } from "@/lib/domain/cles/types";
 import { estDirectionCles, MESSAGE_HORS_AGENCE, MESSAGE_RESERVE_DIRECTION_CLES, peutOperer, type Acteur } from "./contexte";
 
 async function trousseauOperable(id: string, acteur: Acteur): Promise<Trousseau> {
@@ -24,7 +24,7 @@ function contactPrincipal(contacts: Contact[]): Contact | undefined {
 
 export interface SortieInput {
   trousseauId: string;
-  type: "entreprise" | "interne";
+  type: TypePret;
   entrepriseId?: string;
   contact?: Contact;
   retourPrevuLeISO: string;
@@ -51,6 +51,7 @@ export async function sortir(input: SortieInput, acteur: Acteur): Promise<Result
     reservations,
     entreprise,
     type: input.type,
+    contactNom: input.contact?.nom,
     retourPrevuLeISO: input.retourPrevuLeISO,
     aujourdhuiISO: input.aujourdhuiISO,
     confirme: input.confirme,

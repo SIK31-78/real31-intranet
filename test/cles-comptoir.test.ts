@@ -103,7 +103,7 @@ describe("comptoir : sortir, rendre", () => {
   });
   it("pret interne : sans entreprise", async () => {
     const { t, cth } = await jeu();
-    await expect(sortir({ trousseauId: t.id, type: "interne", entrepriseId: cth.id, retourPrevuLeISO: AUJ, aujourdhuiISO: AUJ }, NEIS)).rejects.toThrow(/interne/);
+    await expect(sortir({ trousseauId: t.id, type: "interne", entrepriseId: cth.id, retourPrevuLeISO: AUJ, aujourdhuiISO: AUJ }, NEIS)).rejects.toThrow(/Seul un prêt à une entreprise/);
     const r = await sortir({ trousseauId: t.id, type: "interne", contact: { nom: "Julie B." }, retourPrevuLeISO: AUJ, aujourdhuiISO: AUJ }, NEIS);
     expect("pret" in r && r.pret.type).toBe("interne");
   });

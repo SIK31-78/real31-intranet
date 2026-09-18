@@ -37,7 +37,7 @@ function revaliderTrousseau(id: string) {
 
 const zSortie = z.object({
   trousseauId: zId,
-  type: z.enum(["entreprise", "interne"]),
+  type: z.enum(["entreprise", "coproprietaire", "interne"]),
   entrepriseId: zId.optional(),
   contact: zContact.optional(),
   retourPrevuLeISO: zJour,
@@ -142,6 +142,8 @@ const zTrousseau = z.object({
   composition: z.array(zElement).max(30),
   acces: z.array(zAcces).min(1).max(12),
   note: z.string().trim().max(1000).optional(),
+  sensible: z.boolean().optional(),
+  consigne: z.string().trim().max(500).optional(),
 });
 
 function versInput(d: z.output<typeof zTrousseau>) {

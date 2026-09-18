@@ -16,6 +16,8 @@ export interface TrousseauInput {
   acces: Omit<Acces, "id">[];
   note?: string;
   jumeauDe?: string;
+  sensible?: boolean;
+  consigne?: string;
 }
 
 function nettoyerComposition(c: ElementComposition[]): ElementComposition[] {
@@ -47,6 +49,8 @@ export async function creerTrousseau(input: TrousseauInput, acteur: Acteur): Pro
     composition: nettoyerComposition(input.composition),
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     ...(input.jumeauDe ? { jumeauDe: input.jumeauDe } : {}),
+    sensible: Boolean(input.sensible),
+    ...(input.consigne?.trim() ? { consigne: input.consigne.trim() } : {}),
     source: "intranet",
     creeParNom: acteur.nom,
     acces: nettoyerAcces(input.acces),
@@ -70,7 +74,10 @@ export async function modifierTrousseau(id: string, input: TrousseauInput, acteu
     libelle: input.libelle.trim(),
     composition,
     acces,
+    sensible: Boolean(input.sensible),
   };
+  if (input.consigne?.trim()) maj.consigne = input.consigne.trim();
+  else delete maj.consigne;
   if (input.emplacement?.trim()) maj.emplacement = input.emplacement.trim().toUpperCase();
   else delete maj.emplacement;
   if (input.note?.trim()) maj.note = input.note.trim();
@@ -85,7 +92,7 @@ export async function modifierTrousseau(id: string, input: TrousseauInput, acteu
     parUserId: acteur.id,
     parNom: acteur.nom,
     agenceCode: t.agenceCode,
-    details: compositionChangee ? { avant: t.composition, apres: composition } : { avant: { numero: t.numero, libelle: t.libelle, emplacement: t.emplacement, acces: t.acces.length }, apres: { numero, libelle: maj.libelle, emplacement: maj.emplacement, acces: acces.length } },
+    details: compositionChangee ? { avant: t.composition, apres: composition } : { avant: { numero: t.numero, libelle: t.libelle, emplacement: t.emplacement, acces: t.acces.length, sensible: t.sensible }, apres: { numero, libelle: maj.libelle, emplacement: maj.emplacement, acces: acces.length, sensible: maj.sensible } },
   });
   return maj;
 }

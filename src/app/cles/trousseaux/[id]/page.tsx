@@ -64,11 +64,14 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
           }
         />
 
+        {t.sensible && (
+          <Callout ton="err" titre="Trousseau sensible">{t.consigne ?? "Le conseil syndical ne souhaite pas que ces clés soient remises sans accord."}</Callout>
+        )}
         {!operable && <Callout ton="info">Ce trousseau appartient à l&apos;agence {t.agenceCode} : lecture seule.</Callout>}
 
         {pret && (
           <Callout ton={resume.etat === "en_retard" ? "err" : "warn"} titre={resume.etat === "en_retard" ? `En retard de ${resume.joursRetard} jour${resume.joursRetard > 1 ? "s" : ""}` : "Sorti"}>
-            {pret.type === "interne" ? "Usage interne" : pret.entrepriseId ? <Link href={`/cles/entreprises/${pret.entrepriseId}`} className="font-medium underline-offset-2 hover:underline">{pret.entrepriseNom}</Link> : "Entreprise inconnue"}
+            {pret.type === "interne" ? "Usage interne" : pret.type === "coproprietaire" ? `Copropriétaire ou CS` : pret.entrepriseId ? <Link href={`/cles/entreprises/${pret.entrepriseId}`} className="font-medium underline-offset-2 hover:underline">{pret.entrepriseNom}</Link> : "Entreprise inconnue"}
             {pret.contact?.nom ? `, ${pret.contact.nom}${pret.contact.telephone ? ` (${pret.contact.telephone})` : ""}` : ""}.
             {" "}Sorti le {formatDateLongue(pret.sortiLeISO.slice(0, 10))} par {pret.sortiParNom}, retour prévu le {formatDateLongue(pret.retourPrevuLeISO)}.
             {pret.motif ? ` Intervention : ${pret.motif}.` : ""}
@@ -111,7 +114,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
                   <Row
                     key={p.id}
                     avant={formatDateLongue(p.sortiLeISO.slice(0, 10))}
-                    principal={p.type === "interne" ? `Interne${p.contact?.nom ? ` · ${p.contact.nom}` : ""}` : p.entrepriseNom ?? "?"}
+                    principal={p.type === "interne" ? `Interne${p.contact?.nom ? ` · ${p.contact.nom}` : ""}` : p.type === "coproprietaire" ? `${p.contact?.nom ?? "Copropriétaire"} · copropriétaire` : p.entrepriseNom ?? "?"}
                     secondaire={<>{clos ? `rendu le ${formatDateLongue(p.renduLeISO!.slice(0, 10))}, ${libelleDuree(jours)}` : `retour prévu le ${formatDateLongue(p.retourPrevuLeISO)}`}{p.motif ? ` · ${p.motif}` : ""}{p.commentaireRetour ? ` · « ${p.commentaireRetour} »` : ""}</>}
                     droite={
                       <span className="flex items-center gap-2">

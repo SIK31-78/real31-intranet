@@ -51,6 +51,8 @@ type TrousseauRow = {
   photo_chemin: string | null;
   marque: "introuvable" | "retire" | null;
   marque_depuis: string | null;
+  sensible: boolean | null;
+  consigne: string | null;
   jumeau_de: string | null;
   note: string | null;
   source: "intranet" | "import_powerapps";
@@ -83,7 +85,7 @@ type ReservationRow = {
 type PretRow = {
   id: string;
   trousseau_id: string;
-  type: "entreprise" | "interne";
+  type: "entreprise" | "interne" | "coproprietaire";
   entreprise_id: string | null;
   contact: Contact | null;
   composition: ElementComposition[] | null;
@@ -141,7 +143,7 @@ const T_RESERVATION = "intranet_cles_reservation";
 const T_PRET = "intranet_cles_pret";
 const T_MOUVEMENT = "intranet_cles_mouvement";
 
-const COLS_TROUSSEAU = `id, agence_code, numero, libelle, emplacement, composition, photo_chemin, marque, marque_depuis, jumeau_de, note, source, cree_par, created_at, acces:${T_ACCES}(id, trousseau_id, copropriete_id, immeuble, types, libelle, ordre)`;
+const COLS_TROUSSEAU = `id, agence_code, numero, libelle, emplacement, composition, photo_chemin, marque, marque_depuis, sensible, consigne, jumeau_de, note, source, cree_par, created_at, acces:${T_ACCES}(id, trousseau_id, copropriete_id, immeuble, types, libelle, ordre)`;
 const COLS_RESERVATION = `id, trousseau_id, entreprise_id, contact, debut, fin_prevue, motif, origine, statut, pret_id, annulee_le, annulee_par, motif_annulation, cree_par, created_at, entreprise:${T_ENTREPRISE}(nom)`;
 const COLS_PRET = `id, trousseau_id, type, entreprise_id, contact, composition, reservation_id, motif, sorti_le, sorti_par_id, sorti_par_nom, retour_prevu_le, rendu_le, recu_par_id, recu_par_nom, retour_conforme, commentaire_retour, photo_retour_chemin, entreprise:${T_ENTREPRISE}(nom)`;
 const COLS_MOUVEMENT = "id, trousseau_id, type, horodatage, par_user_id, par_nom, agence_code, entreprise_id, pret_id, reservation_id, corrige_id, details";
@@ -175,6 +177,8 @@ function trousseauVersDomaine(r: TrousseauRow): Trousseau {
     ...(r.photo_chemin ? { photoChemin: r.photo_chemin } : {}),
     ...(r.marque ? { marque: r.marque } : {}),
     ...(r.marque_depuis ? { marqueDepuisISO: r.marque_depuis } : {}),
+    sensible: Boolean(r.sensible),
+    ...(r.consigne ? { consigne: r.consigne } : {}),
     ...(r.jumeau_de ? { jumeauDe: r.jumeau_de } : {}),
     ...(r.note ? { note: r.note } : {}),
     source: r.source,
@@ -349,6 +353,8 @@ export class SupabaseClesRepository implements ClesRepository {
         photo_chemin: t.photoChemin ?? null,
         marque: t.marque ?? null,
         marque_depuis: t.marqueDepuisISO ?? null,
+        sensible: t.sensible,
+        consigne: t.consigne ?? null,
         jumeau_de: t.jumeauDe ?? null,
         note: t.note ?? null,
         source: t.source,
@@ -382,6 +388,8 @@ export class SupabaseClesRepository implements ClesRepository {
         photo_chemin: t.photoChemin ?? null,
         marque: t.marque ?? null,
         marque_depuis: t.marqueDepuisISO ?? null,
+        sensible: t.sensible,
+        consigne: t.consigne ?? null,
         jumeau_de: t.jumeauDe ?? null,
         note: t.note ?? null,
         updated_at: new Date().toISOString(),

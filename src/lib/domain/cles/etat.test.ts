@@ -102,8 +102,18 @@ describe("verifierSortie", () => {
   });
   it("exige une entreprise pour un pret entreprise, aucune pour un pret interne", () => {
     expect(verifierSortie({ ...base, entreprise: null }).raison).toMatch(/Choisis l'entreprise/);
-    expect(verifierSortie({ ...base, type: "interne" }).raison).toMatch(/interne/);
+    expect(verifierSortie({ ...base, type: "interne" }).raison).toMatch(/Seul un prêt à une entreprise/);
     expect(verifierSortie({ ...base, type: "interne", entreprise: null }).autorise).toBe(true);
+  });
+  it("un pret a un coproprietaire exige un nom ; un trousseau sensible demande confirmation", () => {
+    expect(verifierSortie({ ...base, type: "coproprietaire", entreprise: null }).raison).toMatch(/nom du copropriétaire/);
+    expect(verifierSortie({ ...base, type: "coproprietaire", entreprise: null, contactNom: "M. Martin" }).autorise).toBe(true);
+    const sensible = { numero: "R004", sensible: true, consigne: "appeler le président du CS" };
+    const v = verifierSortie({ ...base, trousseau: sensible });
+    expect(v.autorise).toBe(false);
+    expect(v.confirmable).toBe(true);
+    expect(v.avertissement).toMatch(/sensible : appeler le président du CS/);
+    expect(verifierSortie({ ...base, trousseau: sensible, confirme: true }).autorise).toBe(true);
   });
   it("entreprise bloquee : refus, sauf direction qui confirme", () => {
     const bloquee = { ...CTH, statut: "bloquee" as const, motifBlocage: "clés perdues en 2025" };

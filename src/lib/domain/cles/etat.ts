@@ -4,7 +4,7 @@
 // prevue, des reservations et de la marque. Une reservation « expiree » = prevue + debut
 // passe. Le retard commence le lendemain de la date de retour prevue.
 
-import type { ConformiteRetour, Entreprise, EtatTrousseau, Pret, Reservation, Trousseau } from "./types";
+import type { ConformiteRetour, Entreprise, EtatTrousseau, Pret, Reservation, Trousseau, TypePret } from "./types";
 
 const JOUR_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -90,11 +90,13 @@ export interface Verdict {
 const OK: Verdict = { autorise: true };
 
 export interface ContexteSortie {
-  trousseau: Pick<Trousseau, "marque" | "numero">;
+  trousseau: Pick<Trousseau, "marque" | "numero"> & Partial<Pick<Trousseau, "sensible" | "consigne">>;
   pretOuvert: Pret | null;
   reservations: Reservation[];
   entreprise: Pick<Entreprise, "id" | "nom" | "statut" | "motifBlocage"> | null;
-  type: "entreprise" | "interne";
+  type: TypePret;
+  /** Nom de la personne (obligatoire pour un coproprietaire). */
+  contactNom?: string;
   retourPrevuLeISO: string;
   aujourdhuiISO: string;
   /** L'utilisateur a confirme l'avertissement (autre entreprise reservee, entreprise bloquee). */
@@ -111,13 +113,21 @@ export function verifierSortie(c: ContexteSortie): Verdict {
   if (!estJourISO(c.retourPrevuLeISO)) return { autorise: false, raison: "Date de retour prévue illisible." };
   if (c.retourPrevuLeISO < c.aujourdhuiISO) return { autorise: false, raison: "La date de retour prévue ne peut pas être dans le passé." };
   if (c.type === "entreprise" && !c.entreprise) return { autorise: false, raison: "Choisis l'entreprise qui emporte le trousseau." };
-  if (c.type === "interne" && c.entreprise) return { autorise: false, raison: "Un prêt interne n'a pas d'entreprise." };
+  if (c.type !== "entreprise" && c.entreprise) return { autorise: false, raison: "Seul un prêt à une entreprise porte une entreprise." };
+  if (c.type === "coproprietaire" && !c.contactNom?.trim()) return { autorise: false, raison: "Indique le nom du copropriétaire ou du membre du conseil syndical." };
+  if (c.trousseau.sensible && !c.confirme) {
+    return {
+      autorise: false,
+      avertissement: `${c.trousseau.numero} est un trousseau sensible${c.trousseau.consigne ? ` : ${c.trousseau.consigne}` : " (le conseil syndical ne souhaite pas qu'il soit remis sans accord)"}. Confirmer la sortie ?`,
+      confirmable: true,
+    };
+  }
   if (c.entreprise?.statut === "bloquee") {
     if (!c.direction) return { autorise: false, raison: `${c.entreprise.nom} est bloquée${c.entreprise.motifBlocage ? ` (${c.entreprise.motifBlocage})` : ""} : seule la direction peut lui confier un trousseau.` };
     if (!c.confirme) return { autorise: false, avertissement: `${c.entreprise.nom} est bloquée${c.entreprise.motifBlocage ? ` (${c.entreprise.motifBlocage})` : ""}. Confirmer la sortie ?`, confirmable: true };
   }
   const autre = c.reservations.find(
-    (r) => reservationCouvre(r, c.aujourdhuiISO) && (c.type === "interne" || r.entrepriseId !== c.entreprise?.id),
+    (r) => reservationCouvre(r, c.aujourdhuiISO) && (c.type !== "entreprise" || r.entrepriseId !== c.entreprise?.id),
   );
   if (autre && !c.confirme) {
     return {

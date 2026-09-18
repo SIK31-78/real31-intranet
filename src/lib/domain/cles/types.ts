@@ -106,6 +106,10 @@ export interface Trousseau {
   photoChemin?: string;
   marque?: Marque;
   marqueDepuisISO?: string;
+  /** Le CS ne veut pas qu'on remette les cles sans accord : consigne affichee, confirmation a la sortie. */
+  sensible: boolean;
+  /** Ce qu'il faut savoir avant de remettre ce trousseau. */
+  consigne?: string;
   /** Un autre trousseau, double de celui-ci. */
   jumeauDe?: string;
   note?: string;
@@ -173,7 +177,14 @@ export interface Reservation {
   creeLeISO: string;
 }
 
-export type TypePret = "entreprise" | "interne";
+/** A qui va le trousseau : une entreprise, un coproprietaire ou membre du CS (acces fibre, visite), ou l'agence elle-meme. */
+export type TypePret = "entreprise" | "coproprietaire" | "interne";
+
+export const LIBELLE_TYPE_PRET: Record<TypePret, string> = {
+  entreprise: "Entreprise",
+  coproprietaire: "Copropriétaire ou conseil syndical",
+  interne: "Usage interne",
+};
 export type ConformiteRetour = "complet" | "incomplet" | "endommage";
 
 export const LIBELLE_CONFORMITE: Record<ConformiteRetour, string> = {

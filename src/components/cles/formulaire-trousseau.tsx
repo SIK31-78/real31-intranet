@@ -59,6 +59,8 @@ export function FormulaireTrousseau({
   const [libelle, setLibelle] = useState(trousseau?.libelle ?? "");
   const [emplacement, setEmplacement] = useState(trousseau?.emplacement ?? "");
   const [note, setNote] = useState(trousseau?.note ?? "");
+  const [sensible, setSensible] = useState(trousseau?.sensible ?? false);
+  const [consigne, setConsigne] = useState(trousseau?.consigne ?? "");
   const [composition, setComposition] = useState<ElementSaisi[]>(trousseau?.composition.map((e) => ({ ...e })) ?? [{ type: "cle", libelle: "", quantite: 1 }]);
   const [acces, setAcces] = useState<AccesSaisi[]>(
     trousseau?.acces.map((a) => ({ coproCode: a.bien.type === "copro" ? a.bien.code : "", immeuble: a.immeuble ?? "", types: a.types, libelle: a.libelle })) ?? [{ coproCode: "", immeuble: "", types: ["total"], libelle: "Accès total" }],
@@ -79,6 +81,8 @@ export function FormulaireTrousseau({
         composition: composition.filter((e) => e.quantite > 0),
         acces: acces.filter((a) => a.coproCode).map((a) => ({ coproCode: a.coproCode, immeuble: a.immeuble || undefined, types: a.types, libelle: a.libelle })),
         note: note || undefined,
+        sensible,
+        consigne: sensible && consigne ? consigne : undefined,
       };
       const res = trousseau ? await modifierTrousseauAction({ ...donnees, trousseauId: trousseau.id }) : await creerTrousseauAction(donnees);
       if (!res.ok) return toast.err(res.erreur);
@@ -145,6 +149,15 @@ export function FormulaireTrousseau({
           </Button>
         </div>
       </fieldset>
+
+      <div className="flex flex-col gap-2 rounded-lg border border-line p-3">
+        <Choix type="checkbox" checked={sensible} onChange={(e) => setSensible(e.target.checked)} label={<span className="font-medium">Trousseau sensible : le conseil syndical ne souhaite pas qu&apos;il soit remis sans accord</span>} />
+        {sensible && (
+          <Field label="Consigne affichée avant la sortie" htmlFor="tr-consigne" hint="Ce qu'il faut savoir ou demander avant de remettre les clés.">
+            <Input id="tr-consigne" value={consigne} onChange={(e) => setConsigne(e.target.value)} placeholder="Appeler M. Dupont (président du CS) avant toute remise" />
+          </Field>
+        )}
+      </div>
 
       <Field label="Note (facultatif)" htmlFor="tr-note">
         <Textarea id="tr-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Particularités, double chez le gardien…" />

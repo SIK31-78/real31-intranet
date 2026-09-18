@@ -29,9 +29,9 @@ export function texteMouvement(m: Mouvement): string {
     case "annulation_reservation":
       return `Réservation annulée${qui ? ` (${qui})` : ""}${motif ? ` (${motif})` : ""}`;
     case "sortie":
-      return d.type === "interne"
-        ? `Sorti en interne${texte(d.contactNom) ? ` par ${texte(d.contactNom)}` : ""}, retour prévu le ${jjmm(d.retourPrevuLeISO)}${motif ? ` (${motif})` : ""}`
-        : `Remis à ${qui || "?"}${texte(d.contactNom) ? ` (${texte(d.contactNom)})` : ""}, retour prévu le ${jjmm(d.retourPrevuLeISO)}${motif ? ` (${motif})` : ""}`;
+      if (d.type === "interne") return `Sorti en interne${texte(d.contactNom) ? ` par ${texte(d.contactNom)}` : ""}, retour prévu le ${jjmm(d.retourPrevuLeISO)}${motif ? ` (${motif})` : ""}`;
+      if (d.type === "coproprietaire") return `Remis à ${texte(d.contactNom) || "un copropriétaire"} (copropriétaire ou CS), retour prévu le ${jjmm(d.retourPrevuLeISO)}${motif ? ` (${motif})` : ""}`;
+      return `Remis à ${qui || "?"}${texte(d.contactNom) ? ` (${texte(d.contactNom)})` : ""}, retour prévu le ${jjmm(d.retourPrevuLeISO)}${motif ? ` (${motif})` : ""}`;
     case "prolongation":
       return `Retour reporté au ${jjmm(d.retourPrevuLeISO)}${motif ? ` (${motif})` : ""}`;
     case "retour": {

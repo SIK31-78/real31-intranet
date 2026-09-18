@@ -12,7 +12,7 @@ export function decrireTrousseau(resume: TrousseauResume, sansDetenteur = false)
   const biens = resume.biens.map((b) => `${b.coproCode ? `${b.coproCode} · ` : ""}${b.libelle}`).join(" · ");
   const prochaine = resume.reservations[0];
   const dehors = resume.etat === "sorti" || resume.etat === "en_retard";
-  const qui = pret && sansDetenteur ? "sorti" : pret ? (pret.type === "interne" ? `en interne${pret.contact?.nom ? ` (${pret.contact.nom})` : ""}` : `chez ${pret.entrepriseNom ?? "une entreprise"}`) : null;
+  const qui = pret && sansDetenteur ? "sorti" : pret ? (pret.type === "interne" ? `en interne${pret.contact?.nom ? ` (${pret.contact.nom})` : ""}` : pret.type === "coproprietaire" ? `chez ${pret.contact?.nom ?? "un copropriétaire"} (copropriétaire)` : `chez ${pret.entrepriseNom ?? "une entreprise"}`) : null;
   const depuis = pret ? (resume.joursDehors <= 0 ? "depuis ce matin" : `depuis ${formatDateLongue(pret.sortiLeISO.slice(0, 10))}`) : null;
   const detail =
     resume.etat === "en_retard" ? `${resume.joursRetard} j` :
@@ -20,6 +20,7 @@ export function decrireTrousseau(resume: TrousseauResume, sansDetenteur = false)
     undefined;
   const parts: React.ReactNode[] = [];
   if (t.libelle && biens) parts.push(biens);
+  if (t.sensible) parts.unshift(<span key="sens" className="font-medium text-err-700">sensible</span>);
   if (dehors && qui) parts.push(<span key="qui" className="text-ink">{qui} {depuis}</span>);
   if (!dehors && t.emplacement) parts.push(<span key="empl" className="text-ink-3">{t.emplacement}</span>);
   if (!dehors && prochaine && resume.etat !== "reserve") parts.push(<span key="resa" className="text-ink-2">réservé le {formatDateLongue(prochaine.debutISO)}{prochaine.entrepriseNom ? ` par ${prochaine.entrepriseNom}` : ""}</span>);

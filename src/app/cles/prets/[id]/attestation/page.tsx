@@ -46,8 +46,8 @@ export default async function AttestationPage({ params }: { params: Promise<{ id
             Le {formatDateLongue(pret.sortiLeISO.slice(0, 10))} à {heure(pret.sortiLeISO)}, l&apos;agence REAL31 {trousseau.agenceCode} a remis le trousseau <strong className="font-mono">{trousseau.numero}</strong>{trousseau.libelle ? ` (${trousseau.libelle})` : ""} à :
           </p>
           <div className="rounded-lg border border-line p-4 flex flex-col gap-1">
-            <p className="font-medium text-title">{pret.type === "interne" ? "Usage interne REAL31" : pret.entrepriseNom ?? "Entreprise non renseignée"}</p>
-            {pret.contact?.nom && <p>Représentée par : {pret.contact.nom}{pret.contact.telephone ? ` · ${pret.contact.telephone}` : ""}{pret.contact.email ? ` · ${pret.contact.email}` : ""}</p>}
+            <p className="font-medium text-title">{pret.type === "interne" ? "Usage interne REAL31" : pret.type === "coproprietaire" ? `${pret.contact?.nom ?? "Copropriétaire"}, copropriétaire ou membre du conseil syndical` : pret.entrepriseNom ?? "Entreprise non renseignée"}</p>
+            {pret.type !== "coproprietaire" && pret.contact?.nom && <p>Représentée par : {pret.contact.nom}{pret.contact.telephone ? ` · ${pret.contact.telephone}` : ""}{pret.contact.email ? ` · ${pret.contact.email}` : ""}</p>}
             {pret.motif && <p>Intervention : {pret.motif}</p>}
             <p>Retour prévu le <strong>{formatDateLongue(pret.retourPrevuLeISO)}</strong>.</p>
           </div>
@@ -84,7 +84,7 @@ export default async function AttestationPage({ params }: { params: Promise<{ id
             <p className="border-t border-line pt-1 text-meta text-ink-2">Signature</p>
           </div>
           <div className="flex flex-col gap-10">
-            <p>Pour {pret.type === "interne" ? "l'utilisateur" : pret.entrepriseNom ?? "l'entreprise"} : <strong>{pret.contact?.nom ?? " "}</strong></p>
+            <p>Pour {pret.type === "interne" ? "l'utilisateur" : pret.type === "coproprietaire" ? "le copropriétaire" : pret.entrepriseNom ?? "l'entreprise"} : <strong>{pret.contact?.nom ?? " "}</strong></p>
             <p className="border-t border-line pt-1 text-meta text-ink-2">Signature, précédée de « reçu le … »</p>
           </div>
         </section>

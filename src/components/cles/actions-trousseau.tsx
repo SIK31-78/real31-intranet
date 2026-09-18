@@ -12,7 +12,7 @@ import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Field, Input, Select, Textarea, Choix } from "@/components/ui/field";
 import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
-import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ELEMENT, type ConformiteRetour, type EtatTrousseau, type Pret, type Reservation, type Trousseau } from "@/lib/domain/cles/types";
+import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ELEMENT, type ConformiteRetour, type EtatTrousseau, type Pret, type Reservation, type Trousseau, type TypePret } from "@/lib/domain/cles/types";
 import { plusJours } from "@/lib/domain/cles/etat";
 import { formatDateLongue } from "@/lib/format-date";
 import { ChoixEntreprise } from "./choix-entreprise";
@@ -65,7 +65,7 @@ export function ActionsTrousseau({
   const retire = etat === "retire";
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-2 flex-wrap [@media(pointer:coarse)]:[&_button]:min-h-9">
       {sortable && (
         <Button variant="primary" size={compact ? "sm" : "md"} onClick={() => setGeste("sortir")}>
           <LogOut strokeWidth={1.5} /> Sortir
@@ -142,7 +142,7 @@ function ModaleSortie({ trousseau, reservations, entreprises, setEntreprises, au
   const toast = useToast();
   const [pending, demarrer] = useTransition();
   const resaDuJour = reservations.find((r) => r.debutISO <= plusJours(aujourdhuiISO, 1));
-  const [type, setType] = useState<"entreprise" | "interne">("entreprise");
+  const [type, setType] = useState<TypePret>("entreprise");
   // `undefined` = pas encore touche : la reservation du jour pre-remplit l'entreprise des
   // que la liste est la (derivation, pas d'effet). `null` = choix efface par l'utilisateur.
   const [choix, setChoix] = useState<EntrepriseChoix | null | undefined>(undefined);
@@ -154,7 +154,7 @@ function ModaleSortie({ trousseau, reservations, entreprises, setEntreprises, au
   const [motif, setMotif] = useState(resaDuJour?.motif ?? "");
   const [confirmation, setConfirmation] = useState<string | null>(null);
 
-  const pret = type === "interne" ? contact.trim().length > 0 : entreprise !== null;
+  const pret = type === "entreprise" ? entreprise !== null : contact.trim().length > 0;
 
   function valider(confirme = false) {
     demarrer(async () => {
@@ -182,8 +182,14 @@ function ModaleSortie({ trousseau, reservations, entreprises, setEntreprises, au
         <div className="flex flex-col gap-3">
           <Composition trousseau={trousseau} />
           {resaDuJour && <Callout ton="info">Réservé{resaDuJour.entrepriseNom ? ` par ${resaDuJour.entrepriseNom}` : ""} du {formatDateLongue(resaDuJour.debutISO)} au {formatDateLongue(resaDuJour.finPrevueISO)}{resaDuJour.motif ? ` pour « ${resaDuJour.motif} »` : ""}.</Callout>}
-          <div className="flex gap-4">
+          {trousseau.sensible && (
+            <Callout ton="err" titre="Trousseau sensible">
+              {trousseau.consigne ?? "Le conseil syndical ne souhaite pas que ces clés soient remises sans accord."}
+            </Callout>
+          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
             <Choix type="radio" name="type" checked={type === "entreprise"} onChange={() => setType("entreprise")} label="À une entreprise" />
+            <Choix type="radio" name="type" checked={type === "coproprietaire"} onChange={() => { setType("coproprietaire"); setEntreprise(null); }} label="À un copropriétaire ou au CS" />
             <Choix type="radio" name="type" checked={type === "interne"} onChange={() => { setType("interne"); setEntreprise(null); }} label="Usage interne" />
           </div>
           {type === "entreprise" ? (
@@ -193,8 +199,8 @@ function ModaleSortie({ trousseau, reservations, entreprises, setEntreprises, au
               )}
             </Field>
           ) : null}
-          <Field label={type === "interne" ? "Qui l'emporte" : "Personne qui vient (facultatif)"} htmlFor="sortie-contact" requis={type === "interne"}>
-            <Input id="sortie-contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder={type === "interne" ? "Gestionnaire, assistante…" : "Nom du technicien"} autoComplete="off" />
+          <Field label={type === "interne" ? "Qui l'emporte" : type === "coproprietaire" ? "Nom du copropriétaire ou du membre du CS" : "Personne qui vient (facultatif)"} htmlFor="sortie-contact" requis={type !== "entreprise"}>
+            <Input id="sortie-contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder={type === "interne" ? "Gestionnaire, assistante…" : type === "coproprietaire" ? "M. Martin, lot 12" : "Nom du technicien"} autoComplete="off" autoFocus={type !== "entreprise"} />
           </Field>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Retour prévu le" htmlFor="sortie-retour" requis>
@@ -246,7 +252,7 @@ function ModaleRetour({ trousseau, pret, onFermer }: { trousseau: Trousseau; pre
       <ModalBody>
         <div className="flex flex-col gap-3">
           <p className="text-body text-ink-2">
-            Sorti {pret.type === "interne" ? "en interne" : pret.entrepriseNom ? `chez ${pret.entrepriseNom}` : ""}{pret.contact?.nom ? ` (${pret.contact.nom})` : ""} le {formatDateLongue(pret.sortiLeISO.slice(0, 10))}, retour prévu le {formatDateLongue(pret.retourPrevuLeISO)}.
+            Sorti {pret.type === "interne" ? "en interne" : pret.type === "coproprietaire" ? "chez un copropriétaire" : pret.entrepriseNom ? `chez ${pret.entrepriseNom}` : ""}{pret.contact?.nom ? ` (${pret.contact.nom})` : ""} le {formatDateLongue(pret.sortiLeISO.slice(0, 10))}, retour prévu le {formatDateLongue(pret.retourPrevuLeISO)}.
           </p>
           <Composition trousseau={{ composition: pret.composition }} />
           <Field label="État du trousseau" htmlFor="retour-conformite">
