@@ -42,7 +42,10 @@ export type EntreeIndex = EntreeIndexTrousseau | EntreeIndexCopro | EntreeIndexE
 function foin(e: EntreeIndex): string {
   switch (e.kind) {
     case "trousseau":
-      return normaliserTexte(`${e.numero} ${e.libelle} ${e.biens} ${e.detenteur ?? ""} ${e.emplacement ?? ""}`);
+      // Un trousseau se cherche par son numero, son libelle, son emplacement ou l'entreprise
+      // qui l'a : PAS par sa copro. « canopea » donne la copro CANOPEA (avec ses 8 trousseaux
+      // derriere), pas 8 lignes indistinctes (Sekou, 18/09).
+      return normaliserTexte(`${e.numero} ${e.libelle} ${e.detenteur ?? ""} ${e.emplacement ?? ""}`);
     case "copro":
       return normaliserTexte(`${e.code} ${e.nom} ${e.adresse}`);
     case "entreprise":
@@ -52,8 +55,9 @@ function foin(e: EntreeIndex): string {
 
 /**
  * Tous les termes doivent apparaitre (ET), sans accents ni casse. Un terme qui ressemble a
- * un numero (« r4 », « j045 ») matche aussi le numero canonique (« R004 »). Les trousseaux
- * dont le NUMERO matche exactement passent en tete.
+ * un numero (« r4 », « j045 ») matche le numero canonique (« R004 »). Ordre : le trousseau
+ * dont le numero est exactement celui tape, puis les coproprietes, les entreprises, et
+ * enfin les trousseaux trouves par libelle ou detenteur.
  */
 export function filtrerIndex(index: EntreeIndex[], requete: string, limite = 12): EntreeIndex[] {
   const brut = requete.trim();
@@ -61,12 +65,8 @@ export function filtrerIndex(index: EntreeIndex[], requete: string, limite = 12)
   const termes = normaliserTexte(brut).split(" ").filter(Boolean);
   if (termes.length === 0) return [];
   const numero = normaliserTexte(numeroCanonique(brut));
-  const resultats = index.filter((e) => {
-    const f = foin(e);
-    if (e.kind === "trousseau" && normaliserTexte(e.numero) === numero) return true;
-    return termes.every((t) => f.includes(t));
-  });
-  const exact = (e: EntreeIndex) => (e.kind === "trousseau" && normaliserTexte(e.numero) === numero ? 0 : 1);
-  const rang = (e: EntreeIndex) => (e.kind === "trousseau" ? 0 : e.kind === "copro" ? 1 : 2);
-  return resultats.sort((a, b) => exact(a) - exact(b) || rang(a) - rang(b)).slice(0, limite);
+  const exactNumero = (e: EntreeIndex) => e.kind === "trousseau" && normaliserTexte(e.numero) === numero;
+  const resultats = index.filter((e) => exactNumero(e) || termes.every((t) => foin(e).includes(t)));
+  const rang = (e: EntreeIndex) => (exactNumero(e) ? 0 : e.kind === "copro" ? 1 : e.kind === "entreprise" ? 2 : 3);
+  return resultats.sort((a, b) => rang(a) - rang(b)).slice(0, limite);
 }

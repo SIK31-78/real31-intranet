@@ -34,14 +34,16 @@ describe("filtrerIndex", () => {
     // « r4 » ne matche pas R040 par sous-chaine (le numero canonique est R004).
     expect(r.some((e) => e.kind === "trousseau" && e.numero === "R040")).toBe(false);
   });
-  it("tolere les accents et cherche dans les biens", () => {
-    expect(filtrerIndex(INDEX, "nordman").map((e) => e.kind)).toEqual(["trousseau", "copro"]);
-    expect(filtrerIndex(INDEX, "mederic")[0]).toMatchObject({ numero: "J045" });
+  it("une copro donne la copro, pas ses trousseaux ; les accents ne comptent pas", () => {
+    expect(filtrerIndex(INDEX, "nordman").map((e) => e.kind)).toEqual(["copro"]);
+    expect(filtrerIndex(INDEX, "mederic")).toEqual([]);
     expect(filtrerIndex(INDEX, "eco securite")[0]).toMatchObject({ kind: "entreprise" });
   });
-  it("tous les termes doivent matcher", () => {
-    expect(filtrerIndex(INDEX, "nordmann fibre")).toEqual([]);
+  it("un trousseau se trouve par libelle, emplacement ou detenteur", () => {
+    expect(filtrerIndex(INDEX, "fibre")[0]).toMatchObject({ numero: "J045" });
+    expect(filtrerIndex(INDEX, "t004")[0]).toMatchObject({ numero: "R004" });
     expect(filtrerIndex(INDEX, "cth")).toHaveLength(1);
+    expect(filtrerIndex(INDEX, "nordmann fibre")).toEqual([]);
   });
 });
 

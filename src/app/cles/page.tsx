@@ -66,15 +66,6 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
         <RechercheComptoir index={index} />
 
-        {c.total > 0 && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="En agence" valeur={c.enAgence} note={c.reserves > 0 ? `dont ${c.reserves} réservé${c.reserves > 1 ? "s" : ""}` : undefined} />
-            <Stat label="Sortis" valeur={c.sortis} ton="warn" />
-            <Stat label="En retard" valeur={c.enRetard} ton={c.enRetard > 0 ? "err" : "neutral"} note={c.enRetard > 0 ? "à relancer" : undefined} />
-            <Stat label="Introuvables" valeur={c.introuvables} ton={c.introuvables > 0 ? "err" : "neutral"} />
-          </div>
-        )}
-
         {copro && (
           <Section id="cles-copro" titre={`Trousseaux de ${copro.toUpperCase()}`} compte={deCopro.length} actions={<ButtonLink href={`/copropriete/${encodeURIComponent(copro.toUpperCase())}`} variant="ghost" size="sm">Fiche copropriété <ArrowRight strokeWidth={1.5} /></ButtonLink>}>
             {deCopro.length === 0 ? <EmptyState>Aucun trousseau rattaché à cette copropriété</EmptyState> : <Rows>{deCopro.map((r) => <LigneTrousseau key={r.trousseau.id} resume={r} />)}</Rows>}
@@ -86,6 +77,15 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
             <p className="text-body text-ink-2">{libellePosition(posTiroir).replace(/^c/, "C")}.</p>
             {duTiroir.length === 0 ? <EmptyState compact>Bac vide</EmptyState> : <Rows>{duTiroir.map((r) => <LigneTrousseau key={r.trousseau.id} resume={r} />)}</Rows>}
           </Section>
+        )}
+
+        {c.total > 0 && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="En agence" valeur={c.enAgence} note={c.reserves > 0 ? `dont ${c.reserves} réservé${c.reserves > 1 ? "s" : ""}` : undefined} />
+            <Stat label="Sortis" valeur={c.sortis} ton="warn" />
+            <Stat label="En retard" valeur={c.enRetard} ton={c.enRetard > 0 ? "err" : "neutral"} note={c.enRetard > 0 ? "à relancer" : undefined} />
+            <Stat label="Introuvables" valeur={c.introuvables} ton={c.introuvables > 0 ? "err" : "neutral"} />
+          </div>
         )}
 
         {tb.conflits.length > 0 && (

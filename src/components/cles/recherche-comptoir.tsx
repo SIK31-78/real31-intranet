@@ -1,7 +1,7 @@
 "use client";
 
-// La barre du comptoir : un champ, focus a l'arrivee, resultats meles (trousseaux, copros,
-// entreprises) filtres dans le navigateur sur un index charge une fois par la page.
+// La barre du comptoir : un champ, focus a l'arrivee, des resultats SIMPLES : une copro (ses
+// trousseaux s'affichent dessous au clic), une entreprise, ou un trousseau par son numero.
 // Clavier complet (useCombobox). Un numero tape ouvre le trousseau exact avec Entree.
 
 import { useMemo, useState } from "react";
@@ -29,7 +29,8 @@ export function RechercheComptoir({ index, autoFocus = true, placeholder }: { in
   const router = useRouter();
   const [q, setQ] = useState("");
   const resultats = useMemo(() => filtrerIndex(index, q), [index, q]);
-  const combobox = useCombobox(resultats, (e) => router.push(hrefDe(e)), () => setQ(""));
+  const aller = (e: EntreeIndex) => { setQ(""); router.push(hrefDe(e)); };
+  const combobox = useCombobox(resultats, aller, () => setQ(""));
 
   return (
     <div className="relative">
@@ -41,7 +42,7 @@ export function RechercheComptoir({ index, autoFocus = true, placeholder }: { in
           onKeyDown={combobox.onKeyDown}
           {...combobox.input}
           autoFocus={autoFocus}
-          placeholder={placeholder ?? "Numéro de trousseau, copropriété, adresse, entreprise…"}
+          placeholder={placeholder ?? "Copropriété, adresse, numéro de trousseau, entreprise…"}
           aria-label="Rechercher un trousseau, une copropriété ou une entreprise"
           className="pl-9 h-9"
           autoComplete="off"
@@ -53,7 +54,7 @@ export function RechercheComptoir({ index, autoFocus = true, placeholder }: { in
             <li
               key={`${e.kind}-${e.kind === "copro" ? e.code : e.id}`}
               {...combobox.option(i)}
-              onMouseDown={(ev) => { ev.preventDefault(); router.push(hrefDe(e)); }}
+              onMouseDown={(ev) => { ev.preventDefault(); aller(e); }}
               className={cn("flex items-center gap-3 px-3 min-h-9 py-1.5 text-body cursor-pointer", i === combobox.actif ? "bg-surface-2" : "hover:bg-surface-2/60")}
             >
               {e.kind === "trousseau" && (
@@ -72,7 +73,7 @@ export function RechercheComptoir({ index, autoFocus = true, placeholder }: { in
                   <Building2 strokeWidth={1.5} className="w-4 h-4 shrink-0 text-ink-3" aria-hidden />
                   <span className="font-mono text-ink-2 shrink-0">{e.code}</span>
                   <span className="min-w-0 flex-1 truncate"><span className="font-medium text-ink">{e.nom}</span><span className="text-ink-2"> · {e.adresse}</span></span>
-                  <Badge ton="neutral">{e.trousseaux} trousseau{e.trousseaux > 1 ? "x" : ""}</Badge>
+                  <Badge ton="neutral">{e.trousseaux} trousseau{e.trousseaux > 1 ? "x" : ""} · voir</Badge>
                 </>
               )}
               {e.kind === "entreprise" && (
