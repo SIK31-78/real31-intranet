@@ -19,6 +19,8 @@ import { RechercheComptoir } from "@/components/cles/recherche-comptoir";
 import { LigneTrousseau } from "@/components/cles/ligne-trousseau";
 import { ListeTrousseaux } from "@/components/cles/liste-trousseaux";
 import { JournalTable } from "@/components/cles/journal-table";
+import { LegendeArmoire, PlanArmoire } from "@/components/cles/plan-armoire";
+import { libellePosition, occupationArmoire, positionTiroir } from "@/lib/domain/cles/armoire";
 
 export const metadata: Metadata = { title: "Gestion des clés - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -27,10 +29,10 @@ export const dynamic = "force-dynamic";
 // reservations du jour, conflits), puis l'etat de tous les trousseaux. Rien ne s'affiche
 // quand une liste est vide (regle de l'accueil).
 
-export default async function ClesPage({ searchParams }: { searchParams: Promise<{ copro?: string }> }) {
+export default async function ClesPage({ searchParams }: { searchParams: Promise<{ copro?: string; tiroir?: string }> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const { copro } = await searchParams;
+  const { copro, tiroir } = await searchParams;
   const aujourdhuiISO = jourParis();
   const acteur = await acteurCles(g);
   const [tb, index, deCopro] = await Promise.all([
@@ -39,6 +41,9 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
     copro ? trousseauxDeCopro(copro.toUpperCase(), aujourdhuiISO) : Promise.resolve([]),
   ]);
   const c = tb.compteurs;
+  const armoire = occupationArmoire(tb.resumes.map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement })));
+  const posTiroir = positionTiroir(tiroir);
+  const duTiroir = posTiroir ? tb.resumes.filter((r) => positionTiroir(r.trousseau.emplacement)?.code === posTiroir.code && r.etat !== "retire") : [];
   const aGerer = tb.enRetard.length + tb.reservationsDuJour.length + tb.conflits.length + tb.reservationsNonRetirees.length;
 
   return (
@@ -73,6 +78,13 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
         {copro && (
           <Section id="cles-copro" titre={`Trousseaux de ${copro.toUpperCase()}`} compte={deCopro.length} actions={<ButtonLink href={`/copropriete/${encodeURIComponent(copro.toUpperCase())}`} variant="ghost" size="sm">Fiche copropriété <ArrowRight strokeWidth={1.5} /></ButtonLink>}>
             {deCopro.length === 0 ? <EmptyState>Aucun trousseau rattaché à cette copropriété</EmptyState> : <Rows>{deCopro.map((r) => <LigneTrousseau key={r.trousseau.id} resume={r} />)}</Rows>}
+          </Section>
+        )}
+
+        {posTiroir && (
+          <Section id="cles-tiroir" titre={`Tiroir ${posTiroir.code}`} compte={duTiroir.length} actions={<ButtonLink href="/cles#cles-armoire" variant="ghost" size="sm">Toute l&apos;armoire</ButtonLink>}>
+            <p className="text-body text-ink-2">{libellePosition(posTiroir).replace(/^c/, "C")}.</p>
+            {duTiroir.length === 0 ? <EmptyState compact>Bac vide</EmptyState> : <Rows>{duTiroir.map((r) => <LigneTrousseau key={r.trousseau.id} resume={r} />)}</Rows>}
           </Section>
         )}
 
@@ -134,6 +146,17 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
                 <Row key={r.id} href={`/cles/trousseaux/${r.trousseauId}`} avant={r.resume.trousseau.numero} principal={r.entrepriseNom ?? "Entreprise ?"} secondaire={<>{formatDateLongue(r.debutISO)}{r.finPrevueISO !== r.debutISO ? ` jusqu'au ${formatDateLongue(r.finPrevueISO)}` : ""}{r.motif ? ` · ${r.motif}` : ""}</>} />
               ))}
             </Rows>
+          </Section>
+        )}
+
+        {c.total > 0 && (
+          <Section id="cles-armoire" titre="L'armoire" actions={<LegendeArmoire />}>
+            <PlanArmoire bacs={armoire.bacs} surligne={posTiroir?.code} />
+            {armoire.horsArmoire.length > 0 && (
+              <p className="text-meta text-ink-2">
+                Hors armoire ou sans tiroir : {armoire.horsArmoire.map((t) => t.numero).join(", ")}.
+              </p>
+            )}
           </Section>
         )}
 
