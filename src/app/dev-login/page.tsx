@@ -70,7 +70,7 @@ export default async function DevLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
       <div className="w-full max-w-md bg-surface border border-line rounded-lg shadow-1 p-6">
-        <h1 className="text-title font-medium text-ink">Choisir un gestionnaire</h1>
+        <h1 className="text-title font-medium text-ink">Choisir un collaborateur</h1>
         <p className="text-body text-ink-3 mt-1 mb-4">
           Session dev (sera remplacée par l&apos;authentification Entra ID). Vous ne verrez
           que les copropriétés du gestionnaire choisi.

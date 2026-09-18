@@ -7,13 +7,10 @@ export interface GestionnaireRepository {
   /** Gestionnaires reels (Users qui gerent au moins une copro). */
   list(): Promise<Gestionnaire[]>;
   /**
-   * Profils INCARNABLES via le selecteur dev-login : les gestionnaires/assistants de
-   * copros (`list()`) UNION les Users role=COMPTABLE (transverses, sans portefeuille,
-   * donc absents de `list()`). Deduplique par id, trie par nom. Sert UNIQUEMENT a
-   * l'impersonation : `list()` reste la liste des collaborateurs a portefeuille (AG,
-   * filtres) et ne doit pas contenir les comptables.
+   * Profils INCARNABLES via le selecteur dev-login. Sert UNIQUEMENT a l'impersonation :
+   * `list()` reste la liste des collaborateurs a portefeuille (AG, filtres).
    */
-  /** Profils incarnables au dev-login : gestionnaires/assistants de copros + comptables. */
+  /** Profils incarnables au dev-login : tout le cabinet encore present (vente et location compris). */
   listImpersonables(): Promise<Gestionnaire[]>;
   /**
    * TOUS les collaborateurs du cabinet (public."User"), quel que soit le role ou le
