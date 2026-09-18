@@ -72,7 +72,7 @@ export function RechercheComptoir({ index, autoFocus = true, placeholder }: { in
                 <>
                   <Building2 strokeWidth={1.5} className="w-4 h-4 shrink-0 text-ink-3" aria-hidden />
                   <span className="font-mono text-ink-2 shrink-0">{e.code}</span>
-                  <span className="min-w-0 flex-1 truncate"><span className="font-medium text-ink">{e.nom}</span><span className="text-ink-2"> · {e.adresse}</span></span>
+                  <span className="min-w-0 flex-1 truncate"><span className="font-medium text-ink">{e.nom}</span><span className="text-ink-2"> · {e.adresse}</span>{(e.gestionnaire || e.assistant) && <span className="text-ink-2"> · {[e.gestionnaire, e.assistant].filter(Boolean).join(" / ")}</span>}</span>
                   <Badge ton="neutral">{e.trousseaux} trousseau{e.trousseaux > 1 ? "x" : ""} · voir</Badge>
                 </>
               )}

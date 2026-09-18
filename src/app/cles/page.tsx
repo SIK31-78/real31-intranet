@@ -70,6 +70,7 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
         {copro && (
           <Section id="cles-copro" titre={`Trousseaux de ${copro.toUpperCase()}`} compte={deCopro.length} actions={<ButtonLink href={`/copropriete/${encodeURIComponent(copro.toUpperCase())}`} variant="ghost" size="sm">Fiche copropriété <ArrowRight strokeWidth={1.5} /></ButtonLink>}>
+            {(() => { const b = deCopro[0]?.biens.find((x) => x.coproCode === copro.toUpperCase()); return b ? <p className="text-body text-ink-2">{b.libelle} · {b.adresse}{b.gestionnaire ? ` · gestionnaire : ${b.gestionnaire}` : ""}{b.assistant ? ` · assistant(e) : ${b.assistant}` : ""}</p> : null; })()}
             {deCopro.length === 0 ? <EmptyState>Aucun trousseau rattaché à cette copropriété</EmptyState> : <ListeComptoir resumes={deCopro} aujourdhuiISO={aujourdhuiISO} peutOperer={acteur.agence ? peutOperer(acteur, acteur.agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, acteur.agence)} />}
           </Section>
         )}

@@ -20,6 +20,8 @@ export function decrireTrousseau(resume: TrousseauResume, sansDetenteur = false)
     undefined;
   const parts: React.ReactNode[] = [];
   if (t.libelle && biens) parts.push(biens);
+  const principal = resume.biens[0];
+  if (principal?.gestionnaire || principal?.assistant) parts.push(<span key="equipe" className="text-ink-3">{[principal.gestionnaire, principal.assistant].filter(Boolean).join(" / ")}</span>);
   if (t.sensible) parts.unshift(<span key="sens" className="font-medium text-err-700">sensible</span>);
   if (dehors && qui) parts.push(<span key="qui" className="text-ink">{qui} {depuis}</span>);
   if (!dehors && t.emplacement) parts.push(<span key="empl" className="text-ink-3">{t.emplacement}</span>);

@@ -88,7 +88,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
                     href={a.bien.type === "copro" ? `/copropriete/${encodeURIComponent(a.bien.code)}` : undefined}
                     avant={a.bien.type === "copro" ? a.bien.code : a.bien.ref}
                     principal={resume.biens.find((b) => b.bien === a.bien)?.libelle ?? (a.bien.type === "copro" ? a.bien.code : a.bien.ref)}
-                    secondaire={<>{resume.biens.find((b) => b.bien === a.bien)?.adresse}{a.immeuble ? ` · ${a.immeuble}` : ""}{a.libelle && !a.types.some((ty) => LIBELLE_TYPE_ACCES[ty].toLowerCase() === a.libelle.toLowerCase()) ? ` · ${a.libelle}` : ""}</>}
+                    secondaire={(() => { const b = resume.biens.find((x) => x.bien === a.bien); return <>{b?.adresse}{a.immeuble ? ` · ${a.immeuble}` : ""}{a.libelle && !a.types.some((ty) => LIBELLE_TYPE_ACCES[ty].toLowerCase() === a.libelle.toLowerCase()) ? ` · ${a.libelle}` : ""}{b?.gestionnaire || b?.assistant ? <span className="text-ink"> · {[b?.gestionnaire, b?.assistant].filter(Boolean).join(" / ")}</span> : null}</>; })()}
                     droite={<span className="flex gap-1 flex-wrap justify-end">{a.types.map((ty) => <Badge key={ty} ton="outline">{LIBELLE_TYPE_ACCES[ty]}</Badge>)}</span>}
                   />
                 ))}

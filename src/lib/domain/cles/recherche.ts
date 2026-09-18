@@ -25,6 +25,8 @@ export interface EntreeIndexCopro {
   adresse: string;
   /** Nombre de trousseaux rattaches. */
   trousseaux: number;
+  gestionnaire?: string;
+  assistant?: string;
 }
 
 export interface EntreeIndexEntreprise {
@@ -47,7 +49,7 @@ function foin(e: EntreeIndex): string {
       // derriere), pas 8 lignes indistinctes (Sekou, 18/09).
       return normaliserTexte(`${e.numero} ${e.libelle} ${e.detenteur ?? ""} ${e.emplacement ?? ""}`);
     case "copro":
-      return normaliserTexte(`${e.code} ${e.nom} ${e.adresse}`);
+      return normaliserTexte(`${e.code} ${e.nom} ${e.adresse} ${e.gestionnaire ?? ""} ${e.assistant ?? ""}`);
     case "entreprise":
       return normaliserTexte(e.nom);
   }

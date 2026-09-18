@@ -15,7 +15,12 @@ export interface BienResume {
   adresse: string;
   /** Code copro quand le bien est une copro (lien vers la fiche). */
   coproCode?: string;
+  /** Qui suit la copro : le gestionnaire et l'assistant(e), depuis le referentiel. */
+  gestionnaire?: string;
+  assistant?: string;
 }
+
+type CoproRef = { nom: string; adresse: string; gestionnaire?: string; assistant?: string };
 
 export interface TrousseauResume {
   trousseau: Trousseau;
@@ -30,21 +35,25 @@ export interface TrousseauResume {
 }
 
 /** Referentiel copro { code -> nom, adresse }, memoise par rendu. */
-const chargerCopros = cache(async (): Promise<Map<string, { nom: string; adresse: string }>> => {
+const chargerCopros = cache(async (): Promise<Map<string, CoproRef>> => {
   const copros = await getCoproRepository().listerToutes().catch(() => []);
   return new Map(
-    copros.map((c) => [
-      c.code,
-      { nom: c.nom, adresse: [c.adresse?.ligne1, c.adresse?.ville].filter(Boolean).join(", ") },
-    ]),
+    copros.map((c) => {
+      const gestionnaire = (c.equipe ?? []).find((m) => m.role === "gestionnaire")?.nomComplet;
+      const assistant = (c.equipe ?? []).find((m) => m.role === "assistant")?.nomComplet;
+      return [
+        c.code,
+        { nom: c.nom, adresse: [c.adresse?.ligne1, c.adresse?.ville].filter(Boolean).join(", "), ...(gestionnaire ? { gestionnaire } : {}), ...(assistant ? { assistant } : {}) },
+      ];
+    }),
   );
 });
 
-function biensDe(t: Trousseau, copros: Map<string, { nom: string; adresse: string }>): BienResume[] {
+function biensDe(t: Trousseau, copros: Map<string, CoproRef>): BienResume[] {
   return t.acces.map((a) => {
     if (a.bien.type === "copro") {
       const c = copros.get(a.bien.code);
-      return { bien: a.bien, libelle: c?.nom ?? a.bien.nom ?? a.bien.code, adresse: c?.adresse ?? "", coproCode: a.bien.code };
+      return { bien: a.bien, libelle: c?.nom ?? a.bien.nom ?? a.bien.code, adresse: c?.adresse ?? "", coproCode: a.bien.code, ...(c?.gestionnaire ? { gestionnaire: c.gestionnaire } : {}), ...(c?.assistant ? { assistant: c.assistant } : {}) };
     }
     return { bien: a.bien, libelle: a.bien.nom ?? a.bien.ref, adresse: "" };
   });
@@ -54,7 +63,7 @@ function resumer(
   t: Trousseau,
   pret: Pret | null,
   reservations: Reservation[],
-  copros: Map<string, { nom: string; adresse: string }>,
+  copros: Map<string, CoproRef>,
   aujourdhuiISO: string,
 ): TrousseauResume {
   const prevues = reservations
@@ -232,7 +241,7 @@ export async function listerEntreprises(aujourdhuiISO: string): Promise<Entrepri
 export async function indexRecherche(agenceCode: string | undefined, aujourdhuiISO: string): Promise<EntreeIndex[]> {
   const [resumes, entreprises] = await Promise.all([vueTrousseaux(agenceCode, aujourdhuiISO), listerEntreprises(aujourdhuiISO)]);
   const index: EntreeIndex[] = [];
-  const copros = new Map<string, { nom: string; adresse: string; n: number }>();
+  const copros = new Map<string, { nom: string; adresse: string; n: number; gestionnaire?: string; assistant?: string }>();
   for (const r of resumes) {
     if (r.trousseau.marque === "retire") continue;
     index.push({
@@ -247,12 +256,12 @@ export async function indexRecherche(agenceCode: string | undefined, aujourdhuiI
     });
     for (const b of r.biens) {
       if (!b.coproCode) continue;
-      const c = copros.get(b.coproCode) ?? { nom: b.libelle, adresse: b.adresse, n: 0 };
+      const c = copros.get(b.coproCode) ?? { nom: b.libelle, adresse: b.adresse, n: 0, ...(b.gestionnaire ? { gestionnaire: b.gestionnaire } : {}), ...(b.assistant ? { assistant: b.assistant } : {}) };
       c.n += 1;
       copros.set(b.coproCode, c);
     }
   }
-  for (const [code, c] of copros) index.push({ kind: "copro", code, nom: c.nom, adresse: c.adresse, trousseaux: c.n });
+  for (const [code, c] of copros) index.push({ kind: "copro", code, nom: c.nom, adresse: c.adresse, trousseaux: c.n, ...(c.gestionnaire ? { gestionnaire: c.gestionnaire } : {}), ...(c.assistant ? { assistant: c.assistant } : {}) });
   for (const e of entreprises) index.push({ kind: "entreprise", id: e.id, nom: e.nom, detenus: e.detenus, enRetard: e.enRetard, bloquee: e.statut === "bloquee" });
   return index;
 }

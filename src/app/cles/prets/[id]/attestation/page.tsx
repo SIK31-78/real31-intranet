@@ -6,6 +6,7 @@ import { getClesRepository } from "@/lib/adapters/router";
 import { LIBELLE_TYPE_ACCES, LIBELLE_TYPE_ELEMENT } from "@/lib/domain/cles/types";
 import { formatDateLongue } from "@/lib/format-date";
 import { coprosPourCles } from "@/lib/services/cles/copros-choix";
+import { getCoproRepository } from "@/lib/adapters/router";
 import { BoutonImprimer } from "@/components/odj/bouton-imprimer";
 import { ButtonLink } from "@/components/ui/button";
 
@@ -25,6 +26,9 @@ export default async function AttestationPage({ params }: { params: Promise<{ id
   const [trousseau, copros] = await Promise.all([repo.getTrousseau(pret.trousseauId), coprosPourCles()]);
   if (!trousseau) notFound();
   const parCode = new Map(copros.map((c) => [c.code, c]));
+  const premiereCopro = trousseau.acces.find((a) => a.bien.type === "copro")?.bien;
+  const copro = premiereCopro && premiereCopro.type === "copro" ? await getCoproRepository().findByCode(premiereCopro.code).catch(() => null) : null;
+  const gestionnaire = copro?.equipe.find((m) => m.role === "gestionnaire")?.nomComplet;
   const heure = (iso: string) => new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
   const restitue = Boolean(pret.renduLeISO);
 
@@ -37,7 +41,7 @@ export default async function AttestationPage({ params }: { params: Promise<{ id
         </div>
 
         <header className="flex flex-col gap-1 border-b border-line pb-4">
-          <p className="text-meta uppercase tracking-[0.06em] text-ink-2">REAL31 · Agence {trousseau.agenceCode} · Gestion des clés</p>
+          <p className="text-meta uppercase tracking-[0.06em] text-ink-2">REAL31 · Agence {trousseau.agenceCode} · Gestion des clés{gestionnaire ? ` · Gestionnaire : ${gestionnaire}` : ""}</p>
           <h1 className="text-page font-semibold">{restitue ? "Attestation de restitution de clés" : "Attestation de remise de clés"}</h1>
         </header>
 
