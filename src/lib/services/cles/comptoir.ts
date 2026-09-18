@@ -250,9 +250,11 @@ export async function marquer(input: { trousseauId: string; marquage: Marquage; 
   }
   if (input.marquage === "retrouve" && t.marque !== "introuvable") throw new Error("Ce trousseau n'est pas déclaré introuvable.");
   if (input.marquage === "introuvable" && t.marque === "retire") throw new Error("Ce trousseau est retiré.");
-  const maj: Trousseau = input.marquage === "retrouve"
-    ? (({ marque: _m, marqueDepuisISO: _d, ...reste }) => reste)(t)
-    : { ...t, marque: input.marquage, marqueDepuisISO: new Date().toISOString() };
+  const maj: Trousseau = { ...t, marque: input.marquage === "retrouve" ? undefined : input.marquage, marqueDepuisISO: new Date().toISOString() };
+  if (input.marquage === "retrouve") {
+    delete maj.marque;
+    delete maj.marqueDepuisISO;
+  }
   await repo.sauverTrousseau(maj);
   await repo.ajouterMouvement({
     trousseauId: t.id,

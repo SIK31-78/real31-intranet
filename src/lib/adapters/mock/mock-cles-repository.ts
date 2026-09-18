@@ -158,7 +158,9 @@ export class MockClesEntrepriseRepository implements ClesEntrepriseRepository {
   async creer(e: NouvelleEntreprise): Promise<Entreprise> {
     if (this.entreprises.some((x) => x.nomNormalise === e.nomNormalise)) throw new Error(`L'entreprise « ${e.nom} » existe déjà.`);
     this.seq += 1;
-    const cree: Entreprise = { ...e, id: `e-${this.seq}`, creeLeISO: new Date().toISOString() };
+    const { creeParNom: _cree, ...champs } = e;
+    void _cree;
+    const cree: Entreprise = { ...champs, id: `e-${this.seq}`, creeLeISO: new Date().toISOString() };
     this.entreprises.push(cree);
     this.noms?.set(cree.id, cree.nom);
     return cree;

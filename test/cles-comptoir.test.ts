@@ -10,15 +10,15 @@ vi.mock("@/lib/adapters/router", () => ({
   getCoproRepository: () => ({ listerToutes: async () => [{ code: "S004", nom: "BLEUETS6", adresse: { ligne1: "6 rue des Bleuets", ville: "La Garenne-Colombes" } }] }),
 }));
 
-import { annulerReservation, corrigerPret, enregistrerRetour, marquer, prolonger, reserver, sortir } from "./comptoir";
-import { creerEntreprise, creerTrousseau } from "./referentiel";
-import { ficheEntreprise, indexRecherche, tableauDeBord, trousseauxDeCopro, vueTrousseaux } from "./lecture";
-import type { Acteur } from "./contexte";
+import { annulerReservation, corrigerPret, enregistrerRetour, marquer, prolonger, reserver, sortir } from "@/lib/services/cles/comptoir";
+import { creerEntreprise, creerTrousseau } from "@/lib/services/cles/referentiel";
+import { ficheEntreprise, indexRecherche, tableauDeBord, trousseauxDeCopro, vueTrousseaux } from "@/lib/services/cles/lecture";
+import type { Acteur } from "@/lib/domain/cles/acteur";
 
 const AUJ = "2026-09-18";
-const NEIS: Acteur = { id: "u1", nom: "Neis L.", agence: "LGC", profil: { email: "neis@real31.fr", roleTable: "ASSISTANT" } };
-const ML: Acteur = { id: "u2", nom: "Isa M.", agence: "ML", profil: { email: "isa@real31.fr", roleTable: "GESTIONNAIRE" } };
-const DIRECTION: Acteur = { id: "u3", nom: "Sekou K.", agence: "LGC", profil: { email: "sekou@real31.fr", roleTable: "ADMIN" } };
+const NEIS: Acteur = { id: "u1", nom: "Neis L.", agence: "LGC", direction: [] };
+const ML: Acteur = { id: "u2", nom: "Isa M.", agence: "ML", direction: [] };
+const DIRECTION: Acteur = { id: "u3", nom: "Sekou K.", agence: "LGC", direction: "toutes" };
 
 async function jeu() {
   const t = await creerTrousseau({ numero: "r4", libelle: "Accès total", emplacement: "t004", composition: [{ type: "cle", libelle: "hall", quantite: 2 }], acces: [{ bien: { type: "copro", code: "s004" }, types: ["total"], libelle: "Accès total", ordre: 0 }] }, NEIS);
@@ -30,7 +30,6 @@ async function jeu() {
 beforeEach(() => {
   etat.repo = new MockClesRepository();
   etat.entreprises = new MockClesEntrepriseRepository(etat.repo.nomsEntreprises);
-  vi.stubEnv("SUPER_ADMINS", "");
 });
 
 describe("referentiel", () => {

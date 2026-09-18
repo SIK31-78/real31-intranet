@@ -641,7 +641,7 @@ export class SupabaseClesEntrepriseRepository implements ClesEntrepriseRepositor
         relances: e.relances,
         estale_supplier_id: e.estaleSupplierId ?? null,
         source: e.source,
-        cree_par: "intranet",
+        cree_par: e.creeParNom ?? "intranet",
       })
       .select(COLS_ENTREPRISE)
       .single();

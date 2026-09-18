@@ -57,7 +57,7 @@ export type NouveauTrousseau = Omit<Trousseau, "id" | "creeLeISO" | "acces"> & {
 export type NouvelleReservation = Omit<Reservation, "id" | "creeLeISO" | "entrepriseNom">;
 export type NouveauPret = Omit<Pret, "id" | "entrepriseNom">;
 export type NouveauMouvement = Omit<Mouvement, "id" | "horodatageISO" | "entrepriseNom">;
-export type NouvelleEntreprise = Omit<Entreprise, "id" | "creeLeISO">;
+export type NouvelleEntreprise = Omit<Entreprise, "id" | "creeLeISO"> & { creeParNom?: string };
 
 export interface ClesRepository {
   /** Trousseaux (avec leurs acces) d'une agence, ou de tout le cabinet. [] si la table est absente. */

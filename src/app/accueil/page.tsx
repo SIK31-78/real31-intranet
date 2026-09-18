@@ -18,6 +18,8 @@ import { getAccueilComplement } from "@/lib/services/accueil/get-accueil-complem
 import { getAnnoncesActives } from "@/lib/services/annonces/get-annonces-actives";
 import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
 import { listerMandatsSansAg } from "@/lib/services/contrat/mandats-sans-ag";
+import { retardsPourCopros } from "@/lib/services/cles/lecture";
+import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -31,6 +33,7 @@ import { ProblemesPanel } from "@/components/dashboard/problemes-panel";
 import { EchangesComptablesPanel } from "@/components/dashboard/echanges-comptables-panel";
 import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { AlerteMandatsSansAg } from "@/components/contrat/alerte-mandats-sans-ag";
+import { AlerteClesEnRetard } from "@/components/cles/alerte-cles-en-retard";
 
 import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Accueil - REAL31 Intranet" };
@@ -44,7 +47,7 @@ export default async function AccueilPage() {
 
   const today = jourParis();
   // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id.
-  const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg] = await Promise.all([
+  const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg, clesEnRetard] = await Promise.all([
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
     getAccueilComplement(g),
@@ -57,6 +60,8 @@ export default async function AccueilPage() {
     // Mandats a 3 mois de leur fin sans AG posee (Sekou, 14/09 : « pour qu'on passe pas
     // a cote »). Degrade en liste vide.
     listerMandatsSansAg(g.id, today),
+    // Trousseaux de cles en retard sur les copros du portefeuille (ADR-040). Degrade en [].
+    listerCoprosParRequete(g.id).then((copros) => retardsPourCopros(copros.map((c) => c.code), today)).catch(() => []),
   ]);
 
   const prenom = g.nomComplet.split(" ")[0];
@@ -103,6 +108,9 @@ export default async function AccueilPage() {
         {/* Mandats qui se terminent sans AG planifiee : juste sous les recaps, meme
             registre (un trou dans la chaine AG), avant les annonces. Rien si vide. */}
         <AlerteMandatsSansAg lignes={mandatsSansAg} />
+
+        {/* Trousseaux de cles chez une entreprise au-dela du retour prevu, sur vos copros. Rien si vide. */}
+        <AlerteClesEnRetard lignes={clesEnRetard} />
 
         {/* Annonces du reseau (direction), pilotees depuis /admin/annonces. Rien si vide :
             une carte "aucune annonce" n'apprend rien. */}

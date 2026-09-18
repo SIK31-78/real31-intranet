@@ -137,11 +137,11 @@ export async function creerEntreprise(input: EntrepriseInput, acteur: Acteur): P
     relances: input.relances ?? true,
     ...(input.estaleSupplierId ? { estaleSupplierId: input.estaleSupplierId } : {}),
     source: "intranet",
+    creeParNom: acteur.nom,
   });
 }
 
-export async function modifierEntreprise(id: string, input: EntrepriseInput, acteur: Acteur): Promise<Entreprise> {
-  void acteur;
+export async function modifierEntreprise(id: string, input: EntrepriseInput): Promise<Entreprise> {
   const repo = getClesEntrepriseRepository();
   const e = await repo.get(id);
   if (!e) throw new Error("Entreprise introuvable.");

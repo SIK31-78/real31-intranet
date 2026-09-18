@@ -9,8 +9,10 @@ import { CoproHeader } from "./copro-header";
 import { FicheVueEnsemble } from "./fiche-vue-ensemble";
 import { FicheEvenements } from "./fiche-evenements";
 import { DossiersCoproApercu } from "@/components/dossiers/dossiers-copro-apercu";
+import { TrousseauxCoproApercu } from "@/components/cles/trousseaux-copro-apercu";
+import type { TrousseauResume } from "@/lib/services/cles/lecture";
 
-type Onglet = "ensemble" | "evenements" | "dossiers";
+type Onglet = "ensemble" | "evenements" | "dossiers" | "cles";
 
 // Onglets verrouilles : modules a venir. Grises, non cliquables (post-MVP). Sinistres
 // et Contrats sont des onglets-liens vers leurs apps externes ; Documents a ete retire
@@ -22,12 +24,15 @@ export function FicheCoproVue({
   dossiers,
   mailActif = false,
   listeSecoursCS,
+  trousseaux = [],
 }: {
   fiche: FicheCopro;
   dossiers: Dossier[];
   mailActif?: boolean;
   /** Etat de la liste de diffusion CS (secours) : source active du mail + adresses editables. */
   listeSecoursCS?: EtatListeSecoursCS;
+  /** Trousseaux de cles qui ouvrent cette copro (module Gestion des cles, ADR-040). */
+  trousseaux?: TrousseauResume[];
 }) {
   const [onglet, setOnglet] = useState<Onglet>("ensemble");
   const panelId = useId();
@@ -63,6 +68,15 @@ export function FicheCoproVue({
         >
           Dossiers
         </Tab>
+        <Tab
+          id="tab-cles"
+          panelId={`${panelId}-cles`}
+          active={onglet === "cles"}
+          onClick={() => setOnglet("cles")}
+          count={trousseaux.length}
+        >
+          Clés
+        </Tab>
         <TabLink href="https://sinistres.real31.app/" title="Ouvrir l'application Sinistres (nouvel onglet)">
           Sinistres
         </TabLink>
@@ -89,6 +103,11 @@ export function FicheCoproVue({
       {onglet === "dossiers" && (
         <TabPanel id={`${panelId}-dossiers`} tabId="tab-dossiers">
           <DossiersCoproApercu dossiers={dossiers} />
+        </TabPanel>
+      )}
+      {onglet === "cles" && (
+        <TabPanel id={`${panelId}-cles`} tabId="tab-cles">
+          <TrousseauxCoproApercu trousseaux={trousseaux} coproCode={fiche.copro.code} />
         </TabPanel>
       )}
     </div>
