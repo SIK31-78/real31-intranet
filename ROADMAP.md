@@ -6,6 +6,20 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
+## 📍 État actuel - 2026-09-18 (soir) — GESTION DES CLÉS : LA V1 EST CODÉE, IMPORTÉE ET VÉRIFIÉE SUR LA VRAIE BASE (branche `chantier/cles`, 7 commits, NON mergée, NON poussée)
+
+> Sekou a passé `intranet_cles.sql` le matin ; la V1 (incréments 1 à 3 de l'audit) est livrée dans la foulée, en autonomie. Audit : `docs/audit-gestion-des-cles-2026-09-18.md`. ADR-040.
+
+- **✅ Domaine, ports, adapters, services** (`src/lib/domain/cles/`, `ports/cles-repository.ts`, `adapters/supabase/supabase-cles-*`, `adapters/mock/mock-cles-repository.ts`, `services/cles/`, `auth/acteur-cles.ts`). État dérivé du prêt ouvert (jamais stocké), verdicts sortie / réservation / retour, retard dès le lendemain, recherche tolérante (« r4 » → R004). 43 tests (`src/lib/domain/cles/*.test.ts`, `test/cles-comptoir.test.ts` — hors `src/` parce que la règle boundaries interdit à un service d'importer un mock).
+- **✅ Écrans** : `/cles` (recherche en tête, compteurs, réservations du jour, conflits, retards, sortis, tous les trousseaux filtrables, derniers mouvements), `/cles/trousseaux/[id]` (Sortir / Enregistrer le retour / Réserver en 3 champs, menu ⋯ reporter · annuler · introuvable · retrouvé · retirer, correction par la direction, prêts, réservations, journal), `/cles/trousseaux/nouveau`, `/cles/entreprises` + fiche (détient N, retards, taux, blocage motivé), `/cles/journal` (paginé, filtres en query), `/cles/prets/[id]/attestation` (imprimable). Entrée de menu à la place du lien PowerApps ; onglet **Clés** sur la fiche copro ; alerte « trousseaux en retard sur vos copros » à l'accueil.
+- **✅ Données reprises** (`scripts/import-cles-powerapps.mjs`, passé le 18/09) : 163 trousseaux (4 doublons fusionnés), 173 accès, 187 entreprises (« DIVERS » → « Non identifiée (historique) », bloquée), 1 095 prêts dont **37 ouverts**, 200 réservations, 2 643 mouvements, 54 incohérences marquées. Retour prévu des prêts clos aligné sur le jour du retour (la date était inconnue dans PowerApps). Les 37 ouverts affichent un retard depuis leur sortie : **c'est l'inventaire de départ à pointer par LGC**.
+- **✅ Vérifié dans le navigateur** (session SSO de Sekou, serveur de dev) : recherche « nordman », fiche R004, création du trousseau de test **ZZ999** (SE999), sortie avec entreprise créée à la volée, retour, retrait (direction), journal filtré, onglet Clés, liste des entreprises. Deux correctifs à chaud (double confirmation imbriquée, hooks dans la modale de correction).
+- **⚠️ Photos non reprises** : l'app Entra n'a pas `Sites.Read.All` (Graph 403 sur le site ITDarkwood). Chemin de repli prêt : exporter à la main le dossier `SiteAssets/Lists/462e0997-…` du site SharePoint, puis `node scripts/import-cles-powerapps.mjs --ecrire --photos-seulement --photos "<dossier>"` (crée le bucket `cles` s'il manque).
+- **🔲 Reste avant la bascule LGC** : (1) relire l'écran avec LGC et poser les 7 questions terrain (§ 18 de l'audit) ; (2) pointage physique des 37 trousseaux sortis (enregistrer le retour de ceux qui sont rentrés, reporter la date des chantiers longs) ; (3) photos ; (4) `git switch increment/02-supabase && git merge chantier/cles`, push, PowerApps en lecture seule. Incrément 4 (relances mail + premier cron, QR) ensuite.
+- **Prochaine action** : montrer `/cles` à LGC et pointer les 37 sortis.
+
+---
+
 ## 📍 État actuel - 2026-09-18 — GESTION DES CLÉS : AUDIT DE L'OUTIL POWERAPPS ET CONCEPTION V2 VALIDÉES (branche `chantier/cles`, incrément 0 = cadrage, aucun code applicatif)
 
 > Le 7e et dernier outil MYTHEC n'est pas un flux : une **canvas app** (5 listes SharePoint) utilisée par **LGC seule**. Audit complet dans `docs/audit-gestion-des-cles-2026-09-18.md`, décision **ADR-040**, SQL `supabase/sql/intranet_cles.sql` (🔲 à passer), note vault `Journal/2026-09-18 - Gestion des clés, audit et conception V2`.
@@ -868,7 +882,7 @@ Les 6 automatisations à reprendre :
   - ✅ **Depuis le 15/09** : durée libre (2 ans, 15 mois), frais postaux au réel (variante du § 7.1.5), trace de chaque édition, historique MYTHEC chargé (460 lignes), états de la chaîne convocation → AG → récap, alerte de mandat à 3 mois. Détail dans l'état du 15/09 en tête de ce fichier.
 - ✅ **Notification comptable** (`REALNotifComptable`, 16/09/2026) : mail aux comptables de l'agence + copie au gestionnaire à l'enregistrement du récap, lien vers la file « Récaps d'AG reçus » (`services/compta/notifier-recap.ts`). Texte brut rendu par l'adapter Graph, pas le template HTML MYTHEC. **Le 6e et dernier module MYTHEC est porté.**
 - 🔲 **Synchro Crypto -> SharePoint** (`REALSynchroCrypto-SharePoint`) : référence de mapping de champs uniquement, pas un portage direct.
-- 🔄 **Gestion des clés** (canvas app « Gestion des Clés », hors solution `MYTHEC_REAL31_Automation`, dossier `Mythec-refactor/Gestion des clés/`) : **audit et conception V2 validés le 18/09/2026** (ADR-040, `docs/audit-gestion-des-cles-2026-09-18.md`), branche `chantier/cles`. LGC seule utilisatrice ; 37 trousseaux sortis dont 9 depuis > 240 j que l'outil ne signale pas. Incrément 1 (domaine + référentiel) à démarrer.
+- ✅ **Gestion des clés** (canvas app « Gestion des Clés », hors solution `MYTHEC_REAL31_Automation`, dossier `Mythec-refactor/Gestion des clés/`) : audit et conception validés puis **V1 codée, données reprises et vérifiée sur la vraie base le 18/09/2026** (ADR-040, `docs/audit-gestion-des-cles-2026-09-18.md`, branche `chantier/cles` non mergée). Reste : pointage des 37 sortis par LGC, photos (export SharePoint manuel), merge, PowerApps en lecture seule. **Les 7 outils MYTHEC sont portés.**
 
 **Dépendances transverses résolues** : l'API Pennylane est branchée (jeton en variable d'environnement, plus jamais en base) ; la grille **Tarifs** est reprise en base (`intranet_tarifs`, 47 lignes, années 2024-2026) ; la source de données est **notre Supabase** (tables `intranet_*`), plus les listes SharePoint.
 
