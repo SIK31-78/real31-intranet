@@ -96,7 +96,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 py-8"
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-0 py-0 sm:px-4 sm:py-8"
       role="dialog"
       aria-modal="true"
       aria-label={titre}
@@ -106,7 +106,8 @@ export function Modal({
         ref={panneauRef}
         tabIndex={-1}
         className={cn(
-          "relative my-auto w-full rounded-xl border border-line bg-surface shadow-2 focus:outline-none animate-scale-in",
+          // Sous sm (telephone) : plein ecran, sans coins ; des sm : la carte centree.
+          "relative my-auto w-full min-h-screen sm:min-h-0 rounded-none sm:rounded-xl border-0 sm:border border-line bg-surface shadow-2 focus:outline-none animate-scale-in",
           TAILLES[size],
         )}
       >
@@ -116,7 +117,7 @@ export function Modal({
             <X strokeWidth={1.5} />
           </Button>
         </div>
-        <div className="max-h-[calc(100vh-9rem)] overflow-y-auto">{children}</div>
+        <div className="sm:max-h-[calc(100vh-9rem)] overflow-y-auto">{children}</div>
       </div>
     </div>
   );

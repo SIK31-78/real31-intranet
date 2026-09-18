@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { etatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
+import { trousseauxDeCopro } from "@/lib/services/cles/lecture";
 import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
@@ -43,7 +44,7 @@ export default async function CoproprietePage({
   //  - etat de la liste de diffusion CS (secours) : source active (eStale vs secours) +
   //    adresses de secours. L'appel eStale est un hit de cache (deja lu par la fiche). On
   //    degrade en secours vide si la lecture echoue (l'ecran ne casse pas).
-  const [dossiers, listeSecoursCS] = await Promise.all([
+  const [dossiers, listeSecoursCS, trousseaux] = await Promise.all([
     getDossiersCopro(code, g.id),
     etatListeSecoursCS(code).catch(() => ({
       sourceActive: "aucune" as const,
@@ -52,6 +53,8 @@ export default async function CoproprietePage({
       destinatairesActifs: [] as { email: string; nom?: string }[],
       emailsSecours: [] as string[],
     })),
+    // Trousseaux de cles de la copro (module cles) : une requete de plus, degradee en [].
+    trousseauxDeCopro(fiche.copro.code, aujourdhuiISO).catch(() => []),
   ]);
 
   return (
@@ -66,6 +69,7 @@ export default async function CoproprietePage({
           dossiers={dossiers}
           mailActif={mailActif}
           listeSecoursCS={listeSecoursCS}
+          trousseaux={trousseaux}
         />
       </Page>
     </AppShell>

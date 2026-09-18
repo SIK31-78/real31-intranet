@@ -6,6 +6,36 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 
 ---
 
+## 📍 État actuel - 2026-09-18 (soir) — GESTION DES CLÉS : LA V1 EST CODÉE, IMPORTÉE, VÉRIFIÉE SUR LA VRAIE BASE ET MERGÉE AU TRONC (branche `increment/02-supabase`, poussée)
+
+> Sekou a passé `intranet_cles.sql` le matin ; la V1 (incréments 1 à 3 de l'audit) est livrée dans la foulée, en autonomie. Audit : `docs/audit-gestion-des-cles-2026-09-18.md`. ADR-040.
+
+- **✅ Domaine, ports, adapters, services** (`src/lib/domain/cles/`, `ports/cles-repository.ts`, `adapters/supabase/supabase-cles-*`, `adapters/mock/mock-cles-repository.ts`, `services/cles/`, `auth/acteur-cles.ts`). État dérivé du prêt ouvert (jamais stocké), verdicts sortie / réservation / retour, retard dès le lendemain, recherche tolérante (« r4 » → R004). 43 tests (`src/lib/domain/cles/*.test.ts`, `test/cles-comptoir.test.ts` — hors `src/` parce que la règle boundaries interdit à un service d'importer un mock).
+- **✅ Écrans** : `/cles` (recherche en tête, compteurs, réservations du jour, conflits, retards, sortis, tous les trousseaux filtrables, derniers mouvements), `/cles/trousseaux/[id]` (Sortir / Enregistrer le retour / Réserver en 3 champs, menu ⋯ reporter · annuler · introuvable · retrouvé · retirer, correction par la direction, prêts, réservations, journal), `/cles/trousseaux/nouveau`, `/cles/entreprises` + fiche (détient N, retards, taux, blocage motivé), `/cles/journal` (paginé, filtres en query), `/cles/prets/[id]/attestation` (imprimable). Entrée de menu à la place du lien PowerApps ; onglet **Clés** sur la fiche copro ; alerte « trousseaux en retard sur vos copros » à l'accueil.
+- **✅ Données reprises** (`scripts/import-cles-powerapps.mjs`, passé le 18/09) : 163 trousseaux (4 doublons fusionnés), 173 accès, 187 entreprises (« DIVERS » → « Non identifiée (historique) », bloquée), 1 095 prêts dont **37 ouverts**, 200 réservations, 2 643 mouvements, 54 incohérences marquées. Retour prévu des prêts clos aligné sur le jour du retour (la date était inconnue dans PowerApps). Les 37 ouverts affichent un retard depuis leur sortie : **c'est l'inventaire de départ à pointer par LGC**.
+- **✅ Vérifié dans le navigateur** (session SSO de Sekou, serveur de dev) : recherche « nordman », fiche R004, création du trousseau de test **ZZ999** (SE999), sortie avec entreprise créée à la volée, retour, retrait (direction), journal filtré, onglet Clés, liste des entreprises. Deux correctifs à chaud (double confirmation imbriquée, hooks dans la modale de correction).
+- **✅ Photos reprises** (162 trousseaux) : téléchargées par Sekou depuis SharePoint (script console dans sa session, Graph refusant l'accès au site), rattachées par nom d'origine, par numéro ou par ID SharePoint (`Keys_ids.xml`) avec `--photos-seulement`.
+- **✅ Retours de Sekou intégrés le soir même** : recherche simplifiée (une copro = une ligne, ses trousseaux dessous avec **Sortir / Retour sur la ligne**), plan de l'**armoire** (6 colonnes × 20 bacs, bac cliquable, mini-plan sur la fiche), fiche allégée (dernier prêt, journal et historiques repliés), photo agrandissable, **trousseau sensible** avec consigne et confirmation à la sortie, **prêt à un copropriétaire ou au CS**, gestionnaire et assistant de la copro visibles partout, écrans tactiles (modales plein écran, boutons repliés). SQL complémentaire `intranet_cles_v2.sql` passé.
+- **✅ Décisions terrain (Sekou)** : tout le monde de l'agence opère ; PC, tablette, mobile ; l'armoire est numérotée colonne par colonne ; pas de transfert direct entre entreprises ; 5 comptes sans agence dans App A (Kirill NIKOLAEV, Clément ABRAHAM, Joel DA SILVA, Aissata GOITA, Nicolas VINCENT) ne peuvent pas saisir tant que ce n'est pas renseigné.
+- **⚠️ Photos (historique)** : l'app Entra n'a pas `Sites.Read.All` (Graph 403 sur le site ITDarkwood). Chemin de repli prêt : exporter à la main le dossier `SiteAssets/Lists/462e0997-…` du site SharePoint, puis `node scripts/import-cles-powerapps.mjs --ecrire --photos-seulement --photos "<dossier>"` (crée le bucket `cles` s'il manque).
+- **🔲 Reste avant la bascule LGC** : pointage physique des 37 trousseaux sortis (retour, report de date ou introuvable) directement dans l'outil ; PowerApps en lecture seule ; retirer le lien PowerApps deux semaines après. Incrément 4 (relances mail + premier cron, QR) ensuite.
+- **Prochaine action** : ouvrir `/cles` à LGC et pointer les 37 sortis avec elles.
+
+---
+
+## 📍 État actuel - 2026-09-18 — GESTION DES CLÉS : AUDIT DE L'OUTIL POWERAPPS ET CONCEPTION V2 VALIDÉES (branche `chantier/cles`, incrément 0 = cadrage, aucun code applicatif)
+
+> Le 7e et dernier outil MYTHEC n'est pas un flux : une **canvas app** (5 listes SharePoint) utilisée par **LGC seule**. Audit complet dans `docs/audit-gestion-des-cles-2026-09-18.md`, décision **ADR-040**, SQL `supabase/sql/intranet_cles.sql` (🔲 à passer), note vault `Journal/2026-09-18 - Gestion des clés, audit et conception V2`.
+
+- **✅ Audit de l'existant** (msapp décompilé, 5 CSV, base Supabase en lecture seule) : 167 trousseaux (séries R et J), 134 copros LGC sur 141, les « immeubles » sont les copros Crypto (138/139 refs retrouvées), 2 391 mouvements en 2 ans, **37 trousseaux sortis dont 9 depuis plus de 240 jours et personne ne le voit** (pas de date de retour), journal non chaîné (57 anomalies), statut écrasable, collaborateur choisi dans une liste, « DIVERS » = 13 % des mouvements, 188 entreprises utiles sur 2 036.
+- **✅ Démo Keiko analysée** (`SPK_1.txt`) : on reprend date limite, relances graduées + escalade, « confier » en 3 questions, contrôle de complétude au retour, attestation, identification physique (QR plutôt que NFC) ; on écarte comptes partagés, contrat par SMS, comptage IA.
+- **✅ Conception V2 validée par Sekou (4 arbitrages)** : entreprise = référentiel intranet autonome (dérogation ADR-022) ; photos dans **Supabase Storage dès l'import** (première brique fichiers) ; **aucun accès externe en V1**, mails sortants ensuite ; **trousseau + composition**, pas de clé unitaire. Principe technique : **un seul fait stocké par vérité** (état du trousseau dérivé du prêt ouvert), **journal immuable par trigger**, un seul prêt ouvert par trousseau (index partiel). Vocabulaire : Réserver / **Sortir** / **Enregistrer le retour**.
+- **🔲 Incrément 1 — domaine + référentiel** (`src/lib/domain/cles/`, ports, adapters Supabase + Storage + mock, pages `/cles`, `/cles/trousseaux/[id]`, `/cles/entreprises`, import du référentiel et des photos, menu à la place du lien PowerApps). Puis 2 — comptoir (les 3 gestes, historique repris), 3 — pilotage (tableau de bord, alerte accueil, attestation, bascule LGC), 4 — automatisations (premier cron, relances, QR), 5 — options. ~10 jours pour la V1.
+- **⏳ Attend** : (1) Sekou passe `intranet_cles.sql` et crée le bucket `cles` ; (2) vérifier que l'export des pièces jointes SharePoint (163 photos) est possible via Graph avec les droits actuels ; (3) 7 questions terrain à poser à LGC (§ 18 de l'audit : sens des préfixes R/J, trousseaux sensibles, sort des 9 sortis depuis des mois, appareil du comptoir…).
+- **Prochaine action** : incrément 1 — écrire `src/lib/domain/cles/trousseau.ts` (types, `etatTrousseau`, transitions, retard) et ses tests, puis les ports.
+
+---
+
 ## 📍 État actuel - 2026-09-17 — AUDIT BOUCLÉ (8 lots), MAIL DE RÉCAP AG, PROPOSITIONS REFONDUES, CONTRAT EN PDF ET OFFRE ENVOYÉE DEPUIS L'INTRANET (branche `increment/02-supabase`, tronc)
 
 > Méthode : le skill `/audit-correction` (7 sous-agents en lecture seule, 74 fiches brutes → 61 retenues, chaque fiche vérifiée dans le code), puis correction **lot par lot sur « go »**, un commit par fiche ou sous-thème, tests à chaque fois. 1 894 tests, tsc/eslint propres, suite vérifiée sans `.env.local` comme sur le runner.
@@ -855,6 +885,7 @@ Les 6 automatisations à reprendre :
   - ✅ **Depuis le 15/09** : durée libre (2 ans, 15 mois), frais postaux au réel (variante du § 7.1.5), trace de chaque édition, historique MYTHEC chargé (460 lignes), états de la chaîne convocation → AG → récap, alerte de mandat à 3 mois. Détail dans l'état du 15/09 en tête de ce fichier.
 - ✅ **Notification comptable** (`REALNotifComptable`, 16/09/2026) : mail aux comptables de l'agence + copie au gestionnaire à l'enregistrement du récap, lien vers la file « Récaps d'AG reçus » (`services/compta/notifier-recap.ts`). Texte brut rendu par l'adapter Graph, pas le template HTML MYTHEC. **Le 6e et dernier module MYTHEC est porté.**
 - 🔲 **Synchro Crypto -> SharePoint** (`REALSynchroCrypto-SharePoint`) : référence de mapping de champs uniquement, pas un portage direct.
+- ✅ **Gestion des clés** (canvas app « Gestion des Clés », hors solution `MYTHEC_REAL31_Automation`, dossier `Mythec-refactor/Gestion des clés/`) : audit et conception validés puis **V1 codée, données reprises et vérifiée sur la vraie base le 18/09/2026** (ADR-040, `docs/audit-gestion-des-cles-2026-09-18.md`, branche `chantier/cles` non mergée). Reste : pointage des 37 sortis par LGC, photos (export SharePoint manuel), merge, PowerApps en lecture seule. **Les 7 outils MYTHEC sont portés.**
 
 **Dépendances transverses résolues** : l'API Pennylane est branchée (jeton en variable d'environnement, plus jamais en base) ; la grille **Tarifs** est reprise en base (`intranet_tarifs`, 47 lignes, années 2024-2026) ; la source de données est **notre Supabase** (tables `intranet_*`), plus les listes SharePoint.
 
@@ -866,6 +897,7 @@ Les 6 automatisations à reprendre :
 
 ## Idées / outils internes - backlog
 
+- 🔲 **Trousseaux de la gestion locative et de la transaction** (Sekou, 18/09/2026) : ils existent aussi, hors périmètre de la V1 syndic du module clés ; le modèle prévoit l'extension (accès sur un bien locatif ou en vente, `bien_type` + `bien_ref`), à ouvrir quand on continuera les outils de ces métiers.
 - 🔲 **Générateur d'étiquettes BAL (boîtes aux lettres)** : produire des étiquettes prêtes à imprimer/coller pour les boîtes aux lettres d'une copropriété (nom des copropriétaires/occupants par lot). À cadrer : source des noms (eStale `owners` / lots, ou saisie), format de planche (Avery type L7160/L7163, A4 X colonnes), gestion des locataires vs propriétaires, sortie PDF imprimable (réutilise le socle d'impression de l'ODJ). Outil autonome, sans dépendance DSI - bon candidat « quick win » côté gestionnaires.
 
 ---

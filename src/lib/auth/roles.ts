@@ -363,6 +363,21 @@ export function peutEditerContrat(profil: Profil): boolean {
   return estEquipeSyndic(profil) || estComptable(profil.email, profil.roleTable);
 }
 
+/**
+ * Operer au comptoir des cles (reserver, sortir, enregistrer le retour, creer un trousseau) :
+ * un collaborateur de l'AGENCE du trousseau, ou la direction de cette agence (ADR-040).
+ * Sans agence connue en session, on lit tout mais on n'ecrit rien.
+ */
+export function peutOperererCles(profil: Profil, agenceSession: string | undefined, agenceTrousseau: string): boolean {
+  if (estDirection(profil, agenceTrousseau)) return true;
+  return agenceSession !== undefined && agenceSession.toUpperCase() === agenceTrousseau.toUpperCase();
+}
+
+/** Corriger un mouvement, bloquer une entreprise, retirer un trousseau, forcer une sortie : la direction (de l'agence). */
+export function peutAdministrerCles(profil: Profil, agence?: string): boolean {
+  return estDirection(profil, agence);
+}
+
 /** Administrer le bareme : super-admin seulement. */
 export function peutEditerBareme(profil: Profil): boolean {
   return estSuperAdmin(profil.email);

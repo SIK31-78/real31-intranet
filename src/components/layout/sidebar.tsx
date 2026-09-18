@@ -42,6 +42,8 @@ export type NavKey =
   | "points-estale"
   | "feedback"
   | "annonces"
+  // Gestion des cles (ADR-040) : le comptoir des trousseaux, remplace la canvas app PowerApps.
+  | "cles"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
   // surligne AUCUNE entree (avant, ils empruntaient "calendrier" a tort). Pas de
   // nouvelle entree sidebar - juste une valeur qui ne matche aucun item.
@@ -86,6 +88,8 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "perte", label: "Perte de copropriété", href: "/perte-copro", icon: PackageMinus },
       // Le debut de la chaine : ce qui pourrait devenir une copro geree (ADR-039).
       { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
+      // Le comptoir des cles (18/09/2026, ADR-040) : trousseaux, sorties, retours, reservations.
+      { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
     ],
   },
   {
@@ -149,11 +153,6 @@ type LienApp = { label: string; href: string; icon: ComponentType<{ className?: 
 // Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
 const APPS_EXTERNES: LienApp[] = [
   { label: "Registre des mandats", href: "https://mandats.real31.app/", icon: FileSignature },
-  {
-    label: "Gestion des clés",
-    href: "https://apps.powerapps.com/play/e/default-b025af61-5fb4-43b5-9892-5a82865e7686/a/87a42a4c-89cb-4e40-a579-5ce9b51d5a89?tenantId=b025af61-5fb4-43b5-9892-5a82865e7686",
-    icon: Key,
-  },
 ];
 
 // Outils externes (tiers) qu'on utilise mais qui ne sont pas a nous.

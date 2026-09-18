@@ -1,0 +1,195 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { getGestionnaireCourant } from "@/lib/auth/session";
+import { jourParis } from "@/lib/services/date-du-jour";
+import { acteurCles } from "@/lib/auth/acteur-cles";
+import { estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
+import { ficheTrousseau } from "@/lib/services/cles/lecture";
+import { coprosPourCles } from "@/lib/services/cles/copros-choix";
+import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ACCES, LIBELLE_TYPE_ELEMENT } from "@/lib/domain/cles/types";
+import { joursDehors, libelleDuree } from "@/lib/domain/cles/etat";
+import { formatDateLongue } from "@/lib/format-date";
+import { AppShell } from "@/components/layout/app-shell";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Section } from "@/components/ui/section";
+import { SectionRepliable } from "@/components/ui/section-repliable";
+import { Card, CardBody } from "@/components/ui/card";
+import { DataList, DataRow } from "@/components/ui/data-list";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Rows, Row } from "@/components/ui/list-rows";
+import { Callout } from "@/components/ui/callout";
+import { PastilleEtat } from "@/components/cles/pastille-etat";
+import { EnTeteTrousseau } from "@/components/cles/en-tete-trousseau";
+import { JournalTable } from "@/components/cles/journal-table";
+import { CorrectionPret } from "@/components/cles/correction-pret";
+import { PhotoTrousseau } from "@/components/cles/photo-trousseau";
+import { PlanArmoire } from "@/components/cles/plan-armoire";
+import { libellePosition, occupationArmoire, positionTiroir } from "@/lib/domain/cles/armoire";
+import { vueTrousseaux } from "@/lib/services/cles/lecture";
+
+export const metadata: Metadata = { title: "Trousseau - REAL31 Intranet" };
+export const dynamic = "force-dynamic";
+
+export default async function TrousseauPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const g = await getGestionnaireCourant();
+  if (!g) redirect("/dev-login");
+  const aujourdhuiISO = jourParis();
+  const [acteur, fiche, copros] = await Promise.all([acteurCles(g), ficheTrousseau(id, aujourdhuiISO), coprosPourCles()]);
+  if (!fiche) notFound();
+  // Le plan de l'armoire de l'agence du trousseau, pour montrer ou le chercher / le ranger.
+  const position = positionTiroir(fiche.resume.trousseau.emplacement);
+  const armoire = position ? occupationArmoire((await vueTrousseaux(fiche.resume.trousseau.agenceCode, aujourdhuiISO)).map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement }))) : null;
+  const { resume, prets, reservations, mouvements, photoUrl } = fiche;
+  const t = resume.trousseau;
+  const operable = peutOperer(acteur, t.agenceCode);
+  const direction = estDirectionCles(acteur, t.agenceCode);
+  const pret = resume.pret;
+
+  return (
+    <AppShell user={g} active="cles" breadcrumb={`Gestion des clés · ${t.numero}`}>
+      <Page largeur="travail">
+        <PageHeader
+          titre={<span className="flex items-center gap-3 flex-wrap"><span className="font-mono">{t.numero}</span><span className="font-normal text-ink-2">{t.libelle}</span></span>}
+          eyebrow={`Agence ${t.agenceCode}${t.emplacement ? ` · ${t.emplacement}` : ""}`}
+          badge={<PastilleEtat etat={resume.etat} size="md" detail={resume.etat === "en_retard" ? `${resume.joursRetard} j` : undefined} />}
+          actions={
+            <span className="flex items-center gap-2 flex-wrap justify-end">
+              <EnTeteTrousseau trousseau={t} etat={resume.etat} pret={pret} reservations={resume.reservations} aujourdhuiISO={aujourdhuiISO} peutOperer={operable} direction={direction} copros={copros} />
+              <ButtonLink href="/cles" variant="ghost" size="sm"><ArrowLeft strokeWidth={1.5} /> Comptoir</ButtonLink>
+            </span>
+          }
+        />
+
+        {t.sensible && (
+          <Callout ton="err" titre="Trousseau sensible">{t.consigne ?? "Le conseil syndical ne souhaite pas que ces clés soient remises sans accord."}</Callout>
+        )}
+        {!operable && <Callout ton="info">Ce trousseau appartient à l&apos;agence {t.agenceCode} : lecture seule.</Callout>}
+
+        {pret && (
+          <Callout ton={resume.etat === "en_retard" ? "err" : "warn"} titre={resume.etat === "en_retard" ? `En retard de ${resume.joursRetard} jour${resume.joursRetard > 1 ? "s" : ""}` : "Sorti"}>
+            {pret.type === "interne" ? "Usage interne" : pret.type === "coproprietaire" ? `Copropriétaire ou CS` : pret.entrepriseId ? <Link href={`/cles/entreprises/${pret.entrepriseId}`} className="font-medium underline-offset-2 hover:underline">{pret.entrepriseNom}</Link> : "Entreprise inconnue"}
+            {pret.contact?.nom ? `, ${pret.contact.nom}${pret.contact.telephone ? ` (${pret.contact.telephone})` : ""}` : ""}.
+            {" "}Sorti le {formatDateLongue(pret.sortiLeISO.slice(0, 10))} par {pret.sortiParNom}, retour prévu le {formatDateLongue(pret.retourPrevuLeISO)}.
+            {pret.motif ? ` Intervention : ${pret.motif}.` : ""}
+          </Callout>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_320px]">
+          <div className="flex flex-col gap-4">
+            <Section id="tr-acces" titre="Ce qu'il ouvre" compte={t.acces.length}>
+              <Rows>
+                {t.acces.map((a) => (
+                  <Row
+                    key={a.id}
+                    href={a.bien.type === "copro" ? `/copropriete/${encodeURIComponent(a.bien.code)}` : undefined}
+                    avant={a.bien.type === "copro" ? a.bien.code : a.bien.ref}
+                    principal={resume.biens.find((b) => b.bien === a.bien)?.libelle ?? (a.bien.type === "copro" ? a.bien.code : a.bien.ref)}
+                    secondaire={(() => { const b = resume.biens.find((x) => x.bien === a.bien); return <>{b?.adresse}{a.immeuble ? ` · ${a.immeuble}` : ""}{a.libelle && !a.types.some((ty) => LIBELLE_TYPE_ACCES[ty].toLowerCase() === a.libelle.toLowerCase()) ? ` · ${a.libelle}` : ""}{b?.gestionnaire || b?.assistant ? <span className="text-ink"> · {[b?.gestionnaire, b?.assistant].filter(Boolean).join(" / ")}</span> : null}</>; })()}
+                    droite={<span className="flex gap-1 flex-wrap justify-end">{a.types.map((ty) => <Badge key={ty} ton="outline">{LIBELLE_TYPE_ACCES[ty]}</Badge>)}</span>}
+                  />
+                ))}
+              </Rows>
+            </Section>
+
+            {resume.reservations.length > 0 && (
+              <Section id="tr-resas" titre="Réservations à venir" compte={resume.reservations.length}>
+                <Rows>
+                  {resume.reservations.map((r) => (
+                    <Row key={r.id} avant={formatDateLongue(r.debutISO)} principal={r.entrepriseNom ?? "?"} secondaire={<>{r.finPrevueISO !== r.debutISO ? `jusqu'au ${formatDateLongue(r.finPrevueISO)} · ` : ""}{r.contact?.nom ? `${r.contact.nom} · ` : ""}{r.motif ?? ""} · par {r.creeParNom}</>} droite={<Badge ton="info" dot>prévue</Badge>} />
+                  ))}
+                </Rows>
+              </Section>
+            )}
+
+            {(() => {
+              const ligne = (p: (typeof prets)[number]) => {
+                const clos = Boolean(p.renduLeISO);
+                const jours = joursDehors(p, aujourdhuiISO);
+                const tardif = clos && (p.renduLeISO ?? "").slice(0, 10) > p.retourPrevuLeISO;
+                return (
+                  <Row
+                    key={p.id}
+                    avant={formatDateLongue(p.sortiLeISO.slice(0, 10))}
+                    principal={p.type === "interne" ? `Interne${p.contact?.nom ? ` · ${p.contact.nom}` : ""}` : p.type === "coproprietaire" ? `${p.contact?.nom ?? "Copropriétaire"} · copropriétaire` : p.entrepriseNom ?? "?"}
+                    secondaire={<>{clos ? `rendu le ${formatDateLongue(p.renduLeISO!.slice(0, 10))}, ${libelleDuree(jours)}` : `retour prévu le ${formatDateLongue(p.retourPrevuLeISO)}`}{p.motif ? ` · ${p.motif}` : ""}{p.commentaireRetour ? ` · « ${p.commentaireRetour} »` : ""}</>}
+                    droite={
+                      <span className="flex items-center gap-2">
+                        {clos ? <Badge ton={p.retourConforme === "complet" || !p.retourConforme ? "ok" : "err"}>{p.retourConforme ? LIBELLE_CONFORMITE[p.retourConforme] : "rendu"}</Badge> : <Badge ton="warn" dot>ouvert</Badge>}
+                        {tardif && <Badge ton="err">rendu en retard</Badge>}
+                        {direction && <CorrectionPret pret={p} />}
+                      </span>
+                    }
+                  />
+                );
+              };
+              const [dernier, ...anciens] = prets;
+              return (
+                <>
+                  <Section id="tr-prets" titre={pret ? "Prêt en cours" : "Dernier prêt"}>
+                    {!dernier ? <p className="text-body text-ink-3">Jamais sorti.</p> : <Rows>{ligne(dernier)}</Rows>}
+                  </Section>
+                  {anciens.length > 0 && (
+                    <SectionRepliable id="tr-prets-anciens" titre="Prêts précédents" compte={anciens.length} resume={`le dernier le ${formatDateLongue(anciens[0].sortiLeISO.slice(0, 10))}`}>
+                      <Rows>{anciens.map(ligne)}</Rows>
+                    </SectionRepliable>
+                  )}
+                </>
+              );
+            })()}
+
+            {reservations.some((r) => r.statut !== "prevue") && (
+              <SectionRepliable id="tr-resas-passees" titre="Réservations passées" compte={reservations.filter((r) => r.statut !== "prevue").length}>
+                <Rows>
+                  {reservations.filter((r) => r.statut !== "prevue").map((r) => (
+                    <Row key={r.id} avant={formatDateLongue(r.debutISO)} principal={r.entrepriseNom ?? "?"} secondaire={r.statut === "annulee" ? `annulée${r.annuleePar && !(r.motifAnnulation ?? "").startsWith(r.annuleePar) ? ` par ${r.annuleePar}` : ""}${r.motifAnnulation ? ` : ${r.motifAnnulation.replace(/^Reprise PowerApps : /, "")}` : ""}` : "convertie en prêt"} droite={<Badge ton={r.statut === "annulee" ? "neutral" : "ok"}>{r.statut === "annulee" ? "annulée" : "sortie"}</Badge>} />
+                  ))}
+                </Rows>
+              </SectionRepliable>
+            )}
+
+            <SectionRepliable id="tr-journal" titre="Journal" compte={mouvements.length} resume={mouvements[0] ? `dernier mouvement le ${formatDateLongue(mouvements[0].horodatageISO.slice(0, 10))}` : undefined}>
+              <JournalTable lignes={mouvements} avecTrousseau={false} />
+            </SectionRepliable>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardBody>
+                {photoUrl ? (
+                  <PhotoTrousseau url={photoUrl} numero={t.numero} />
+                ) : (
+                  <p className="text-meta text-ink-3">Pas de photo.</p>
+                )}
+                <DataList align="left" className="mt-3">
+                  <DataRow label="Composition">
+                    {t.composition.length === 0 ? <span className="text-ink-3">non renseignée</span> : t.composition.map((e) => `${e.quantite} ${LIBELLE_TYPE_ELEMENT[e.type]}${e.quantite > 1 ? "s" : ""}${e.libelle ? ` (${e.libelle})` : ""}`).join(", ")}
+                  </DataRow>
+                  {t.emplacement && <DataRow label="Emplacement">{t.emplacement}</DataRow>}
+                  {t.note && <DataRow label="Note">{t.note}</DataRow>}
+                  <DataRow label="Créé le">{formatDateLongue(t.creeLeISO.slice(0, 10))}</DataRow>
+                  <DataRow label="Par">{t.creeParNom}</DataRow>
+                  {t.source === "import_powerapps" && <DataRow label="Origine">repris de PowerApps</DataRow>}
+                </DataList>
+              </CardBody>
+            </Card>
+            {position && armoire && (
+              <Card>
+                <CardBody>
+                  <p className="text-meta text-ink-2 mb-2">Dans l&apos;armoire : <span className="font-mono text-ink">{position.code}</span>, {libellePosition(position)}</p>
+                  <Link href={`/cles?tiroir=${position.code}`} className="block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600" aria-label={`Voir le tiroir ${position.code} dans l'armoire`}>
+                    <PlanArmoire bacs={armoire.bacs} surligne={position.code} taille="mini" />
+                  </Link>
+                  {(() => { const b = armoire.bacs.find((x) => x.code === position.code); const autres = b?.trousseaux.filter((x) => x.id !== t.id) ?? []; return autres.length > 0 ? <p className="text-meta text-ink-2 mt-2">Dans le même bac : {autres.map((x) => x.numero).join(", ")}</p> : null; })()}
+                </CardBody>
+              </Card>
+            )}
+          </div>
+        </div>
+      </Page>
+    </AppShell>
+  );
+}
