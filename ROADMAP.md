@@ -18,8 +18,11 @@ Roadmap macro jusqu'à la mise en production du MVP, puis aperçu post-MVP.
 - **✅ Retours de Sekou intégrés le soir même** : recherche simplifiée (une copro = une ligne, ses trousseaux dessous avec **Sortir / Retour sur la ligne**), plan de l'**armoire** (6 colonnes × 20 bacs, bac cliquable, mini-plan sur la fiche), fiche allégée (dernier prêt, journal et historiques repliés), photo agrandissable, **trousseau sensible** avec consigne et confirmation à la sortie, **prêt à un copropriétaire ou au CS**, gestionnaire et assistant de la copro visibles partout, écrans tactiles (modales plein écran, boutons repliés). SQL complémentaire `intranet_cles_v2.sql` passé.
 - **✅ Décisions terrain (Sekou)** : tout le monde de l'agence opère ; PC, tablette, mobile ; l'armoire est numérotée colonne par colonne ; pas de transfert direct entre entreprises ; 5 comptes sans agence dans App A (Kirill NIKOLAEV, Clément ABRAHAM, Joel DA SILVA, Aissata GOITA, Nicolas VINCENT) ne peuvent pas saisir tant que ce n'est pas renseigné.
 - **⚠️ Photos (historique)** : l'app Entra n'a pas `Sites.Read.All` (Graph 403 sur le site ITDarkwood). Chemin de repli prêt : exporter à la main le dossier `SiteAssets/Lists/462e0997-…` du site SharePoint, puis `node scripts/import-cles-powerapps.mjs --ecrire --photos-seulement --photos "<dossier>"` (crée le bucket `cles` s'il manque).
-- **🔲 Reste avant la bascule LGC** : pointage physique des 37 trousseaux sortis (retour, report de date ou introuvable) directement dans l'outil ; PowerApps en lecture seule ; retirer le lien PowerApps deux semaines après. Incrément 4 (relances mail + premier cron, QR) ensuite.
-- **Prochaine action** : ouvrir `/cles` à LGC et pointer les 37 sortis avec elles.
+- **✅ Pointage physique de l'armoire fait par Sekou le 18/09** (`scripts/cles-pointage-2026-09-18.mjs`) : 21 des 37 « sortis » étaient dans l'armoire → retour enregistré (commentaire « pointage physique ») ; **16 restent réellement dehors** (J012, R071, R056, R072, R083, R059, R055, J051, J053, R054, R060, R093, R037, J013, R042, J032), à regarder en détail la semaine du 21/09.
+- **✅ Photo à la création et à la modification** d'un trousseau (caméra sur téléphone/tablette, JPEG/PNG/WebP ≤ 8 Mo, envoyée par FormData après l'enregistrement).
+- **✅ Mail de lancement** rédigé pour l'agence (`Mythec-refactor/Gestion des clés/Mail lancement/`, 3 captures).
+- **🔲 Reste** : PowerApps en lecture seule, retirer le lien deux semaines après ; les 16 sortis ; incrément 4 (relances mail + premier cron, QR).
+- **Prochaine action** : traiter les 16 trousseaux réellement sortis avec LGC (relance, report de date ou introuvable).
 
 ---
 

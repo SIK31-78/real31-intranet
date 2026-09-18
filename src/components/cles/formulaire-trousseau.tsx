@@ -14,7 +14,8 @@ import { useCombobox } from "@/components/ui/combobox";
 import { LIBELLE_TYPE_ACCES, LIBELLE_TYPE_ELEMENT, TYPES_ACCES, TYPES_ELEMENT, type Trousseau, type TypeAcces, type TypeElement } from "@/lib/domain/cles/types";
 import { normaliserTexte } from "@/lib/domain/cles/normaliser";
 import { cn } from "@/lib/cn";
-import { creerTrousseauAction, modifierTrousseauAction } from "@/app/cles/actions";
+import { creerTrousseauAction, modifierTrousseauAction, televerserPhotoAction } from "@/app/cles/actions";
+import { Camera } from "lucide-react";
 
 export interface CoproChoix {
   code: string;
@@ -60,6 +61,7 @@ export function FormulaireTrousseau({
   const [emplacement, setEmplacement] = useState(trousseau?.emplacement ?? "");
   const [note, setNote] = useState(trousseau?.note ?? "");
   const [sensible, setSensible] = useState(trousseau?.sensible ?? false);
+  const [photo, setPhoto] = useState<File | null>(null);
   const [consigne, setConsigne] = useState(trousseau?.consigne ?? "");
   const [composition, setComposition] = useState<ElementSaisi[]>(trousseau?.composition.map((e) => ({ ...e })) ?? [{ type: "cle", libelle: "", quantite: 1 }]);
   const [acces, setAcces] = useState<AccesSaisi[]>(
@@ -86,13 +88,21 @@ export function FormulaireTrousseau({
       };
       const res = trousseau ? await modifierTrousseauAction({ ...donnees, trousseauId: trousseau.id }) : await creerTrousseauAction(donnees);
       if (!res.ok) return toast.err(res.erreur);
+      const id = trousseau?.id ?? (res.donnees as { trousseauId: string }).trousseauId;
+      if (photo) {
+        const form = new FormData();
+        form.set("trousseauId", id);
+        form.set("photo", photo);
+        const rp = await televerserPhotoAction(form);
+        if (!rp.ok) toast.warn(`Trousseau enregistré, mais pas la photo : ${rp.erreur}`);
+      }
       if (trousseau) {
         toast.ok(`${numero.toUpperCase()} mis à jour.`);
         onFermer?.();
         router.refresh();
       } else {
         toast.ok(`Trousseau ${numero.toUpperCase()} créé.`);
-        router.push(`/cles/trousseaux/${(res.donnees as { trousseauId: string }).trousseauId}`);
+        router.push(`/cles/trousseaux/${id}`);
       }
     });
   }
@@ -158,6 +168,23 @@ export function FormulaireTrousseau({
           </Field>
         )}
       </div>
+
+      <Field label={trousseau?.photoChemin ? "Remplacer la photo (facultatif)" : "Photo du trousseau (facultatif)"} htmlFor="tr-photo" hint="JPEG, PNG ou WebP, 8 Mo maximum. Sur téléphone ou tablette, la caméra s'ouvre.">
+        <div className="flex items-center gap-3 flex-wrap">
+          <label htmlFor="tr-photo" className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-body text-ink hover:bg-surface-2">
+            <Camera strokeWidth={1.5} className="w-4 h-4" aria-hidden /> {photo ? "Changer" : "Prendre ou choisir une photo"}
+          </label>
+          <input id="tr-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+          {photo && (
+            <span className="flex items-center gap-2 text-body text-ink-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={URL.createObjectURL(photo)} alt="" className="h-10 w-10 rounded-sm object-cover" />
+              {photo.name} · {Math.round(photo.size / 1024)} Ko
+              <Button type="button" variant="ghost" size="sm" onClick={() => setPhoto(null)}>Retirer</Button>
+            </span>
+          )}
+        </div>
+      </Field>
 
       <Field label="Note (facultatif)" htmlFor="tr-note">
         <Textarea id="tr-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Particularités, double chez le gardien…" />

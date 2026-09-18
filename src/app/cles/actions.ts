@@ -12,7 +12,7 @@ import { TYPES_ACCES, TYPES_ELEMENT } from "@/lib/domain/cles/types";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { acteurCles } from "@/lib/auth/acteur-cles";
 import { annulerReservation, corrigerPret, CHAMPS_CORRIGEABLES, enregistrerRetour, marquer, prolonger, reserver, sortir } from "@/lib/services/cles/comptoir";
-import { bloquerEntreprise, creerEntreprise, creerTrousseau, modifierEntreprise, modifierTrousseau } from "@/lib/services/cles/referentiel";
+import { bloquerEntreprise, creerEntreprise, creerTrousseau, modifierEntreprise, modifierTrousseau, TAILLE_MAX_PHOTO, televerserPhoto } from "@/lib/services/cles/referentiel";
 import { indexRecherche, listerEntreprises } from "@/lib/services/cles/lecture";
 import type { EntreeIndex } from "@/lib/domain/cles/recherche";
 
@@ -165,6 +165,19 @@ export async function modifierTrousseauAction(input: unknown): Promise<Res> {
   return actionGestionnaire(zTrousseau.extend({ trousseauId: zId }), input, "cles-trousseau", async ({ trousseauId, ...d }, g) => {
     await modifierTrousseau(trousseauId, versInput(d), await acteurCles(g));
     revaliderTrousseau(trousseauId);
+  });
+}
+
+/** La photo d'un trousseau, envoyee en FormData (champ « photo », champ « trousseauId »). */
+export async function televerserPhotoAction(form: FormData): Promise<Res<{ chemin: string }>> {
+  const trousseauId = String(form.get("trousseauId") ?? "");
+  const fichier = form.get("photo");
+  if (!(fichier instanceof File) || fichier.size === 0) return { ok: false, erreur: "Aucune photo reçue." };
+  if (fichier.size > TAILLE_MAX_PHOTO) return { ok: false, erreur: "Photo trop lourde (8 Mo maximum)." };
+  return actionGestionnaire(z.object({ trousseauId: zId }), { trousseauId }, "cles-photo", async (d, g) => {
+    const chemin = await televerserPhoto(d.trousseauId, new Uint8Array(await fichier.arrayBuffer()), fichier.type, await acteurCles(g));
+    revaliderTrousseau(d.trousseauId);
+    return { chemin };
   });
 }
 

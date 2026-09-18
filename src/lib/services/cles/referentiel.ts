@@ -1,7 +1,7 @@
 // Le referentiel du module cles : trousseaux (fiche, acces, composition) et entreprises.
 // Toute modification de trousseau laisse un mouvement ; l'entreprise est cabinet.
 
-import { getClesEntrepriseRepository, getClesRepository } from "@/lib/adapters/router";
+import { getClesEntrepriseRepository, getClesPhotoStore, getClesRepository } from "@/lib/adapters/router";
 import { normaliserNomEntreprise, numeroCanonique } from "@/lib/domain/cles/normaliser";
 import type { Acces, AdresseEntreprise, Contact, ElementComposition, Entreprise, Trousseau } from "@/lib/domain/cles/types";
 import { AGENCES_CLES } from "@/lib/domain/cles/types";
@@ -95,6 +95,24 @@ export async function modifierTrousseau(id: string, input: TrousseauInput, acteu
     details: compositionChangee ? { avant: t.composition, apres: composition } : { avant: { numero: t.numero, libelle: t.libelle, emplacement: t.emplacement, acces: t.acces.length, sensible: t.sensible }, apres: { numero, libelle: maj.libelle, emplacement: maj.emplacement, acces: acces.length, sensible: maj.sensible } },
   });
   return maj;
+}
+
+const TYPES_PHOTO: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+export const TAILLE_MAX_PHOTO = 8 * 1024 * 1024;
+
+/** Televerse la photo d'un trousseau dans le bucket « cles » (chemin stable, ecrase l'ancienne) et la pose sur la fiche. */
+export async function televerserPhoto(id: string, contenu: Uint8Array, contentType: string, acteur: Acteur): Promise<string> {
+  const ext = TYPES_PHOTO[contentType];
+  if (!ext) throw new Error("Photo : format accepté JPEG, PNG ou WebP.");
+  if (contenu.byteLength === 0) throw new Error("Photo vide.");
+  if (contenu.byteLength > TAILLE_MAX_PHOTO) throw new Error("Photo trop lourde (8 Mo maximum).");
+  const t = await getClesRepository().getTrousseau(id);
+  if (!t) throw new Error("Trousseau introuvable.");
+  if (!peutOperer(acteur, t.agenceCode)) throw new Error(MESSAGE_HORS_AGENCE);
+  const chemin = `trousseaux/${id}.${ext}`;
+  await getClesPhotoStore().televerser(chemin, contenu, contentType);
+  await poserPhoto(id, chemin, acteur);
+  return chemin;
 }
 
 export async function poserPhoto(id: string, chemin: string, acteur: Acteur): Promise<void> {
