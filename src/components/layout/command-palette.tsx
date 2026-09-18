@@ -26,8 +26,8 @@ const NAV: { label: string; href: string }[] = [
 
 // Hors syndic (vente, location, accueil) : les memes entrees que leur rail.
 const NAV_HORS_SYNDIC: { label: string; href: string }[] = [
-  { label: "Propositions de contrat", href: "/propositions" },
   { label: "Gestion des clés", href: "/cles" },
+  { label: "Propositions de contrat", href: "/propositions" },
   { label: "Coffre-fort", href: "/coffre" },
   { label: "Nouveautés", href: "/nouveautes" },
 ];

@@ -225,9 +225,9 @@ export function pageAccueilPour(
   habilitations?: readonly string[],
 ): string {
   if (estVueComptable(email, roleTable)) return "/comptabilite";
-  // Hors syndic (vente, location, accueil) : leur intranet, c'est le pipeline des
-  // propositions, les cles et le coffre (Sekou, 18/09/2026). L'accueil syndic ne leur dit rien.
-  if (estHorsSyndic({ email, roleTable, habilitations })) return "/propositions";
+  // Hors syndic (vente, location, accueil) : leur intranet, c'est le comptoir des cles en
+  // premier, puis les propositions et le coffre (Sekou, 18/09/2026). L'accueil syndic ne leur dit rien.
+  if (estHorsSyndic({ email, roleTable, habilitations })) return "/cles";
   return "/accueil";
 }
 

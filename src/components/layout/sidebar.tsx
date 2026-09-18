@@ -140,8 +140,8 @@ const NAV_COMPTABLE: Item[] = [
 // Sa nav : le pipeline des propositions (il y note ses contacts), le comptoir des cles, le
 // coffre-fort et les nouveautes. Les pages elles-memes portent leurs gardes.
 const NAV_HORS_SYNDIC: Item[] = [
-  { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
   { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
+  { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];

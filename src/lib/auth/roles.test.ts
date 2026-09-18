@@ -229,9 +229,9 @@ describe("estVueComptable (vue epuree = comptable PUR)", () => {
 });
 
 describe("pageAccueilPour", () => {
-  it("un collaborateur hors syndic (vente, location) atterrit sur les propositions", () => {
-    expect(pageAccueilPour("neis@real31.fr", "AUTRE")).toBe("/propositions");
-    expect(pageAccueilPour("loc@real31.fr", "GESTIONNAIRE_LOCATIVE")).toBe("/propositions");
+  it("un collaborateur hors syndic (vente, location) atterrit sur la gestion des cles", () => {
+    expect(pageAccueilPour("neis@real31.fr", "AUTRE")).toBe("/cles");
+    expect(pageAccueilPour("loc@real31.fr", "GESTIONNAIRE_LOCATIVE")).toBe("/cles");
     expect(pageAccueilPour("remi@real31.fr", "GESTIONNAIRE")).toBe("/accueil");
   });
   it("un comptable pur atterrit sur /comptabilite", () => {
