@@ -69,6 +69,10 @@ import type { CollaborateurRepository } from "@/lib/ports/collaborateur-reposito
 import { SupabaseCollaborateurRepository } from "./supabase/supabase-collaborateur-repository";
 import { MockCollaborateurRepository } from "./mock/mock-collaborateur-repository";
 import { SupabasePerteRepository } from "./supabase/supabase-perte-repository";
+import type { ClesEntrepriseRepository, ClesPhotoStore, ClesRepository } from "@/lib/ports/cles-repository";
+import { SupabaseClesEntrepriseRepository, SupabaseClesRepository } from "./supabase/supabase-cles-repository";
+import { SupabaseClesPhotoStore } from "./supabase/supabase-cles-photo-store";
+import { mockCles } from "./mock/mock-cles-repository";
 import { MockPerteRepository } from "./mock/mock-perte-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
@@ -252,6 +256,22 @@ export function getRegistreCoprosProvider(): RegistreCoprosProvider {
 export function getPerteRepository(): PerteRepository {
   if (coproSourceEstSupabase()) return new SupabasePerteRepository();
   return new MockPerteRepository();
+}
+
+// Gestion des cles (ADR-040) : trousseaux, prets, reservations, journal ; entreprises
+// (referentiel cabinet) ; photos (bucket Storage « cles »). Meme bascule que les autres
+// tables natives.
+export function getClesRepository(): ClesRepository {
+  if (coproSourceEstSupabase()) return new SupabaseClesRepository();
+  return mockCles().repo;
+}
+export function getClesEntrepriseRepository(): ClesEntrepriseRepository {
+  if (coproSourceEstSupabase()) return new SupabaseClesEntrepriseRepository();
+  return mockCles().entreprises;
+}
+export function getClesPhotoStore(): ClesPhotoStore {
+  if (coproSourceEstSupabase()) return new SupabaseClesPhotoStore();
+  return mockCles().photos;
 }
 
 // Prise en main des copros (onboarding, table native intranet_copro_prise_en_main).
