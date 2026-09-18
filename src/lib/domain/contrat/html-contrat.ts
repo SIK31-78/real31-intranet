@@ -34,9 +34,8 @@ const CSS = `
   table.courte { break-inside: avoid; }
   tbody tr:first-child { break-before: avoid; }
   thead { break-after: avoid; }
-  /* Les annexes : une cellule peut courir sur deux pages, comme dans le classeur (sinon une
-     cellule de vingt lignes laisse une demi-page blanche derriere elle). */
-  table.annexe tr { break-inside: auto; }
+  /* Aucune ligne ne se coupe entre deux pages, meme dans les annexes : un morceau de cellule
+     sous un en-tete repete se lit mal (Sekou, 18/09). On prefere un blanc en bas de colonne. */
 `;
 
 /** Les largeurs du classeur : grille tarifaire 4/8 + 4/8 ; annexe 2/8 + 2/8 + 4/8, ou 2/8 + 6/8. */
@@ -62,7 +61,7 @@ function noeud(n: NoeudContrat): string {
   const cellule = (c: (typeof n.lignes)[number]["cellules"][number], enTete: boolean) => {
     if (c.fusionnee) return "";
     if (enTete) return `<th>${e(c.texte)}</th>`;
-    const attrs = `${c.portee ? ` rowspan="${c.portee}" class="categorie"` : c.montant ? ' class="montant"' : ""}`;
+    const attrs = `${c.portee ? ` rowspan="${c.portee}" class="categorie"` : c.montant ? ' class="montant"' : ""}${c.etendue ? ` colspan="${c.etendue}"` : ""}`;
     return `<td${attrs}>${e(c.texte)}</td>`;
   };
   const ligne = (l: (typeof n.lignes)[number]) => `<tr>${l.cellules.map((c) => cellule(c, l.enTete)).join("")}</tr>`;

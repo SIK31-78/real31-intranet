@@ -50,7 +50,7 @@ function Noeud({ n }: { n: NoeudContrat }) {
               c.fusionnee ? null : l.enTete ? (
                 <th key={i} className="border-r border-b border-ink px-1.5 py-1 text-center font-bold whitespace-pre-line">{c.texte}</th>
               ) : (
-                <td key={i} rowSpan={c.portee} className={`border-r border-b border-ink px-1.5 py-1 whitespace-pre-line ${c.portee ? "font-semibold" : c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
+                <td key={i} rowSpan={c.portee} colSpan={c.etendue} className={`border-r border-b border-ink px-1.5 py-1 whitespace-pre-line ${c.portee ? "font-semibold" : c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
               ),
             )}
           </tr>

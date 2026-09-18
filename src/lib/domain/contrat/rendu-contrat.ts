@@ -35,6 +35,8 @@ export interface CelluleTableau {
   portee?: number;
   /** Cellule couverte par celle de la ligne du dessus : ne pas la dessiner. */
   fusionnee?: boolean;
+  /** Cette cellule couvre N colonnes (le texte d'une annexe a deux colonnes, sous un en-tete a trois). */
+  etendue?: number;
 }
 
 export interface ArbreContrat {
@@ -92,7 +94,7 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
       else noeuds.push(estTitre(texte) ? { type: "titre", texte } : { type: "paragraphe", texte });
       continue;
     }
-    const cellules = bloc.map((c) => remplirTexte(c, table, options)).map((texte) => ({ texte, montant: estMontant(texte) }));
+    const cellules: CelluleTableau[] = bloc.map((c) => remplirTexte(c, table, options)).map((texte) => ({ texte, montant: estMontant(texte) }));
     const enTete = cellules.every((c) => estCelluleEnTete(c.texte));
     // L'en-tete « PRESTATIONS | DÉTAILS » de l'annexe couvre les colonnes 2 et 3 : dans le
     // classeur la case au-dessus de la categorie est vide, le convertisseur l'a laissee tomber.
@@ -101,14 +103,27 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
       serie[0]!.cellules.unshift({ texte: "", montant: false });
       colonnes = 3;
     }
+    // Le meme en-tete au-dessus de lignes a DEUX cellules (« II. - Conseil syndical | II-5°… ») :
+    // dans le classeur la categorie occupe 2/8 et le texte 6/8, sous « PRESTATIONS » (2/8) et
+    // « DÉTAILS » (4/8). L'en-tete passe a trois cases et le texte s'etend sur deux colonnes.
+    if (serie.length === 1 && serie[0]!.enTete && colonnes === 2 && bloc.length === 2 && !enTete && estEnTeteAnnexe(serie[0]!)) {
+      serie[0]!.cellules.unshift({ texte: "", montant: false });
+      colonnes = 3;
+    }
+    const etendue = colonnes === 3 && bloc.length === 2 && serie.length > 0 && !enTete;
+    if (etendue) cellules[1] = { ...cellules[1]!, etendue: 2 };
     // Un nombre de cellules different (2 colonnes, puis 3) ou un en-tete repete au milieu de la
     // grille = un autre tableau.
-    if (serie.length > 0 && (colonnes !== bloc.length || enTete)) vider();
-    colonnes = bloc.length;
+    if (serie.length > 0 && (!etendue && colonnes !== bloc.length || enTete)) vider();
+    if (!etendue) colonnes = bloc.length;
     serie.push({ enTete, cellules });
   }
   vider();
   return noeuds;
+}
+
+function estEnTeteAnnexe(ligne: LigneTableau): boolean {
+  return /PRESTATIONS\|D[ÉE]TAILS/.test(ligne.cellules.map((c) => c.texte.toUpperCase()).join("|"));
 }
 
 function genreTableau(lignes: LigneTableau[], colonnes: number): GenreTableau {

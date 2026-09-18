@@ -71,7 +71,7 @@ describe("arbreContrat", () => {
     const tous = [...tableaux(a.gauche), ...tableaux(a.droite)];
     expect(tous.length).toBeGreaterThan(5);
     for (const t of tous) {
-      expect(t.type === "tableau" && t.lignes.every((l) => l.cellules.length === t.colonnes)).toBe(true);
+      expect(t.type === "tableau" && t.lignes.every((l) => l.cellules.reduce((n, c) => n + (c.etendue ?? 1), 0) === t.colonnes)).toBe(true);
     }
   });
 
@@ -102,6 +102,14 @@ describe("arbreContrat", () => {
     expect(trois?.type === "tableau" && trois.lignes[0]!.cellules.map((c) => c.texte)).toEqual(["", "PRESTATIONS", "DÉTAILS"]);
     const tarif = tableaux(a.gauche).find((t) => t.type === "tableau" && t.lignes[0]?.cellules[0]?.texte === "DETAIL DE LA PRESTATION");
     expect(tarif?.type === "tableau" && tarif.genre).toBe("tarif");
+  });
+
+  it("met « PRESTATIONS » au-dessus de la prestation, pas de la categorie, dans une annexe a deux cellules", () => {
+    const conseil = tableaux(a.droite).find((t) => t.type === "tableau" && t.lignes.some((l) => l.cellules[0]?.texte === "II. - Conseil syndical"));
+    expect(conseil?.type === "tableau" && conseil.colonnes).toBe(3);
+    if (conseil?.type !== "tableau") return;
+    expect(conseil.lignes[0]!.cellules.map((c) => c.texte)).toEqual(["", "PRESTATIONS", "DÉTAILS"]);
+    expect(conseil.lignes[1]!.cellules[1]!.etendue).toBe(2);
   });
 
   it("dessine la categorie de l'annexe 1 une fois, sur toute sa portee", () => {
