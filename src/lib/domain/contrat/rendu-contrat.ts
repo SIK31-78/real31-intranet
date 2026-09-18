@@ -55,7 +55,7 @@ export function estTitre(texte: string): boolean {
   // Numero suivi d'une lettre : « 5597.50 € HT, soit 6717 € TTC » n'est pas un titre.
   if (/^\d+(\.\d+)*\.?\s+\p{L}/u.test(texte)) return texte.length <= 140;
   // « ANNEXE 1 AU CONTRAT DE SYNDIC \n LISTE NON LIMITATIVE… » : un titre en capitales sur deux lignes.
-  if (texte.includes("\n")) return texte.length <= 140 && texte.split("\n").every((l) => estCapitales(l));
+  if (texte.includes("\n")) return texte.length <= 200 && (texte.startsWith("ANNEXE ") || texte.split("\n").every((l) => estCapitales(l)));
   return texte.length <= 90 && estCapitales(texte);
 }
 
