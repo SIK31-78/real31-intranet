@@ -121,7 +121,7 @@ describe("remplirTexte", () => {
 
   it("ne laisse AUCUN placeholder sur le gabarit entier", () => {
     const blocs = [...GABARIT_GAUCHE, ...GABARIT_DROITE].flatMap((b) =>
-      typeof b === "string" ? [b] : [...b],
+      typeof b === "string" ? [b] : b.map((c) => c.texte),
     );
     const restants = blocs.flatMap((b) => placeholdersNonResolus(b, table));
     expect([...new Set(restants)]).toEqual([]);

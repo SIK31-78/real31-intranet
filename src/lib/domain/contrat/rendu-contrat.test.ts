@@ -67,67 +67,54 @@ describe("estMontant", () => {
 describe("arbreContrat", () => {
   const a = arbreContrat(champs());
 
-  it("rend les grilles tarifaires en vrais tableaux aux colonnes constantes", () => {
-    const tous = [...tableaux(a.gauche), ...tableaux(a.droite)];
-    expect(tous.length).toBeGreaterThan(5);
+  const tous = [...tableaux(a.gauche), ...tableaux(a.droite)].filter((t) => t.type === "tableau");
+  const lignesDe = (t: NoeudContrat) => (t.type === "tableau" ? t.lignes : []);
+
+  it("dessine chaque tableau sur les huit cases du classeur, chaque ligne remplit sa largeur", () => {
+    expect(tous.length).toBeGreaterThan(10);
     for (const t of tous) {
-      expect(t.type === "tableau" && t.lignes.every((l) => l.cellules.reduce((n, c) => n + (c.etendue ?? 1), 0) === t.colonnes)).toBe(true);
+      expect(t.type === "tableau" && t.colonnes).toBe(8);
+      // Une ligne sous une cellule haute a moins de cases ; jamais plus de huit.
+      for (const l of lignesDe(t)) expect(l.cellules.reduce((n, c) => n + c.etendue, 0)).toBeLessThanOrEqual(8);
+      // La premiere ligne et les en-tetes couvrent toute la largeur.
+      expect(lignesDe(t)[0]!.cellules.reduce((n, c) => n + c.etendue, 0)).toBe(8);
     }
   });
 
-  it("ouvre un nouveau tableau a chaque en-tete « DETAIL DE LA PRESTATION », meme au milieu d'une grille", () => {
-    const tous = [...tableaux(a.gauche), ...tableaux(a.droite)];
+  it("une grille tarifaire fait 4 + 4, une annexe 2 + 2 + 4 avec sa case vide au-dessus de la categorie", () => {
+    const tarif = tous.find((t) => lignesDe(t)[0]?.cellules[0]?.texte === "DETAIL DE LA PRESTATION");
+    expect(lignesDe(tarif!).map((l) => l.cellules.map((c) => c.etendue))[0]).toEqual([4, 4]);
+    const annexe = tous.find((t) => lignesDe(t).some((l) => l.cellules[0]?.texte === "I. - Assemblée générale"));
+    expect(lignesDe(annexe!)[0]!.cellules.map((c) => [c.texte, c.etendue])).toEqual([["", 2], ["PRESTATIONS", 2], ["DÉTAILS", 4]]);
+  });
+
+  it("garde un seul en-tete par tableau, en premiere ligne, et aucun tableau fait d'un en-tete seul", () => {
     for (const t of tous) {
-      if (t.type !== "tableau") continue;
-      const enTetes = t.lignes.map((l, i) => (l.enTete ? i : -1)).filter((i) => i >= 0);
-      expect(enTetes.every((i) => i === 0)).toBe(true);
+      const lignes = lignesDe(t);
+      expect(lignes.some((l) => !l.enTete)).toBe(true);
+      expect(lignes.map((l, i) => (l.enTete ? i : -1)).filter((i) => i >= 0).every((i) => i === 0)).toBe(true);
     }
+    expect(tous.filter((t) => lignesDe(t)[0]?.enTete).length).toBeGreaterThan(5);
   });
 
-  it("ne garde aucun tableau fait d'un en-tete seul", () => {
-    for (const t of [...tableaux(a.gauche), ...tableaux(a.droite)]) {
-      expect(t.type === "tableau" && t.lignes.some((l) => !l.enTete)).toBe(true);
-    }
+  it("la categorie de l'annexe 1 est une cellule haute, dessinee une fois", () => {
+    const annexe = tous.find((t) => lignesDe(t).some((l) => l.cellules[0]?.texte === "I. - Assemblée générale"))!;
+    const tete = lignesDe(annexe).find((l) => l.cellules[0]?.texte === "I. - Assemblée générale")!;
+    expect(tete.cellules[0]!.portee).toBe(3);
+    const suivante = lignesDe(annexe)[lignesDe(annexe).indexOf(tete) + 1]!;
+    expect(suivante.cellules.reduce((n, c) => n + c.etendue, 0)).toBe(6);
+    expect(htmlContrat(champs())).toContain('<td colspan="2" rowspan="3" class="categorie">I. - Assemblée générale</td>');
   });
 
-  it("voit l'en-tete « MODALITE DE TARIFICATION\\nconvenues » comme un en-tete", () => {
-    const avecEnTete = [...tableaux(a.gauche), ...tableaux(a.droite)].filter((t) => t.type === "tableau" && t.lignes[0]?.enTete);
-    expect(avecEnTete.length).toBeGreaterThan(5);
-  });
-
-  it("recolle l'en-tete « PRESTATIONS | DÉTAILS » a ses trois colonnes, et distingue annexe et grille tarifaire", () => {
-    const annexes = [...tableaux(a.gauche), ...tableaux(a.droite)].filter((t) => t.type === "tableau" && t.genre === "annexe");
-    expect(annexes.length).toBeGreaterThan(3);
-    const trois = annexes.find((t) => t.type === "tableau" && t.colonnes === 3 && t.lignes[0]?.enTete);
-    expect(trois?.type === "tableau" && trois.lignes[0]!.cellules.map((c) => c.texte)).toEqual(["", "PRESTATIONS", "DÉTAILS"]);
-    const tarif = tableaux(a.gauche).find((t) => t.type === "tableau" && t.lignes[0]?.cellules[0]?.texte === "DETAIL DE LA PRESTATION");
-    expect(tarif?.type === "tableau" && tarif.genre).toBe("tarif");
-  });
-
-  it("met « PRESTATIONS » au-dessus de la prestation, pas de la categorie, dans une annexe a deux cellules", () => {
-    const conseil = tableaux(a.droite).find((t) => t.type === "tableau" && t.lignes.some((l) => l.cellules[0]?.texte === "II. - Conseil syndical"));
-    expect(conseil?.type === "tableau" && conseil.colonnes).toBe(3);
-    if (conseil?.type !== "tableau") return;
-    expect(conseil.lignes[0]!.cellules.map((c) => c.texte)).toEqual(["", "PRESTATIONS", "DÉTAILS"]);
-    expect(conseil.lignes[1]!.cellules[1]!.etendue).toBe(2);
-  });
-
-  it("dessine la categorie de l'annexe 1 une fois, sur toute sa portee", () => {
-    const annexe = tableaux(a.gauche).find((t) => t.type === "tableau" && t.lignes.some((l) => l.cellules[0]?.texte === "I. - Assemblée générale"));
-    expect(annexe).toBeTruthy();
-    if (annexe?.type !== "tableau") return;
-    const lignesI = annexe.lignes.filter((l) => l.cellules[0]?.texte === "I. - Assemblée générale");
-    expect(lignesI.length).toBeGreaterThan(1);
-    expect(lignesI[0]!.cellules[0]!.portee).toBe(lignesI.length);
-    expect(lignesI.slice(1).every((l) => l.cellules[0]!.fusionnee)).toBe(true);
-    const html = htmlContrat(champs());
-    expect(html).toContain(`rowspan="${lignesI.length}" class="categorie">I. - Assemblée générale`);
+  it("la fiche d'information 3.4 a ses trois colonnes, dont « Au temps passé »", () => {
+    const fiche = tous.find((t) => lignesDe(t)[0]?.cellules.some((c) => c.texte === "Au temps passé"))!;
+    expect(lignesDe(fiche)[0]!.cellules.map((c) => [c.texte, c.etendue])).toEqual([["", 4], ["Au temps passé", 2], ["Tarif forfaitaire total proposé", 2]]);
   });
 
   it("imprime les deux parties signataires cote a cote", () => {
     const sig = a.gauche.find((n) => n.type === "signatures");
     expect(sig).toEqual({ type: "signatures", parties: ["Le syndicat", "Le syndic"] });
-    expect(a.gauche.some((n) => n.type === "paragraphe" && n.texte === "Le syndicat")).toBe(false);
+    expect(tous.some((t) => lignesDe(t).some((l) => l.cellules[0]?.texte === "Le syndicat"))).toBe(false);
     expect(htmlContrat(champs())).toContain('<div class="signatures"><div>Le syndicat</div><div>Le syndic</div></div>');
   });
 

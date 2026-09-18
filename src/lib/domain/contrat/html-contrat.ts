@@ -38,12 +38,6 @@ const CSS = `
      sous un en-tete repete se lit mal (Sekou, 18/09). On prefere un blanc en bas de colonne. */
 `;
 
-/** Les largeurs du classeur : grille tarifaire 4/8 + 4/8 ; annexe 2/8 + 2/8 + 4/8, ou 2/8 + 6/8. */
-export function largeursColonnes(genre: "tarif" | "annexe", colonnes: number): number[] {
-  if (genre === "annexe") return colonnes === 3 ? [25, 25, 50] : colonnes === 2 ? [25, 75] : Array(colonnes).fill(100 / colonnes);
-  return colonnes === 2 ? [50, 50] : Array(colonnes).fill(100 / colonnes);
-}
-
 export function e(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -52,25 +46,23 @@ function noeud(n: NoeudContrat): string {
   if (n.type === "titre") return `<h2>${e(n.texte)}</h2>`;
   if (n.type === "signatures") return `<div class="signatures">${n.parties.map((p) => `<div>${e(p)}</div>`).join("")}</div>`;
   if (n.type === "paragraphe") return `<p>${e(n.texte)}</p>`;
-  // La derniere colonne prend le reste : trois largeurs en % arrondies depassaient d'un pixel,
-  // et Chromium coupait le bord droit des tableaux de la colonne de droite (Sekou, 18/09).
-  const largeurs = largeursColonnes(n.genre, n.colonnes);
-  const colgroup = `<colgroup>${largeurs.map((w, i) => (i < largeurs.length - 1 ? `<col style="width:${w}%">` : "<col>")).join("")}</colgroup>`;
-  const enTetes = n.lignes.filter((l) => l.enTete);
-  const corps = n.lignes.filter((l) => !l.enTete);
+  // Les colonnes du classeur, egales ; la derniere prend le reste (des pourcentages arrondis
+  // depassaient d'un pixel, et Chromium coupait le bord droit dans la colonne de droite).
+  const largeur = (100 / n.colonnes).toFixed(3);
+  const colgroup = `<colgroup>${Array.from({ length: n.colonnes }, (_, i) => (i < n.colonnes - 1 ? `<col style="width:${largeur}%">` : "<col>")).join("")}</colgroup>`;
   const cellule = (c: (typeof n.lignes)[number]["cellules"][number], enTete: boolean) => {
-    if (c.fusionnee) return "";
-    if (enTete) return `<th>${e(c.texte)}</th>`;
-    const attrs = `${c.portee ? ` rowspan="${c.portee}" class="categorie"` : c.montant ? ' class="montant"' : ""}${c.etendue ? ` colspan="${c.etendue}"` : ""}`;
-    return `<td${attrs}>${e(c.texte)}</td>`;
+    const span = `${c.etendue > 1 ? ` colspan="${c.etendue}"` : ""}${c.portee ? ` rowspan="${c.portee}"` : ""}`;
+    if (enTete) return `<th${span}>${e(c.texte)}</th>`;
+    const classe = c.portee ? ' class="categorie"' : c.montant ? ' class="montant"' : "";
+    return `<td${span}${classe}>${e(c.texte)}</td>`;
   };
   const ligne = (l: (typeof n.lignes)[number]) => `<tr>${l.cellules.map((c) => cellule(c, l.enTete)).join("")}</tr>`;
-  // Les en-tetes en <thead> : Chromium les repete en haut de chaque page si le tableau se coupe.
-  const thead = enTetes.length > 0 && n.lignes[0]?.enTete ? `<thead>${ligne(enTetes[0]!)}</thead>` : "";
-  const reste = thead ? n.lignes.slice(1) : corps;
+  // L'en-tete en <thead> : Chromium le repete en haut de chaque page si le tableau se coupe.
+  const thead = n.lignes[0]?.enTete ? `<thead>${ligne(n.lignes[0])}</thead>` : "";
+  const corps = thead ? n.lignes.slice(1) : n.lignes;
   // Une grille courte ne se coupe jamais ; une longue peut, l'en-tete se repete alors.
-  const classes = [n.genre, ...(n.genre === "tarif" && n.lignes.length <= 6 ? ["courte"] : [])].join(" ");
-  return `<table class="${classes}">${colgroup}${thead}<tbody>${reste.map(ligne).join("")}</tbody></table>`;
+  const classe = n.lignes.length <= 6 ? ' class="courte"' : "";
+  return `<table${classe}>${colgroup}${thead}<tbody>${corps.map(ligne).join("")}</tbody></table>`;
 }
 
 /** Le document complet. `logoDataUri` : le bandeau d'en-tete en data: URI (le PDF n'a pas

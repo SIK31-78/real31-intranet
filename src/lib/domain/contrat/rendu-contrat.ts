@@ -3,27 +3,30 @@
 // font deux dessins du meme arbre, sans redecider ce qui est un titre ou une cellule de
 // montant. Retour du test du 17/09/2026 : les grilles tarifaires doivent etre de vrais
 // tableaux, aux colonnes alignees, qui ne se coupent pas entre deux pages.
+//
+// Depuis le 18/09/2026 le gabarit porte les FUSIONS du classeur : chaque cellule a sa
+// largeur en cases (sur 8) et sa hauteur en lignes. Le tableau se dessine sur huit
+// colonnes egales, une cellule couvre `etendue` colonnes et `portee` lignes. Plus rien
+// n'est devine a partir des textes, sauf ce que le classeur ne sait pas dire : un titre
+// (capitales ou numero) et une ligne d'en-tete (capitales).
 
 import type { ChampsContrat } from "./champs-contrat";
-import { GABARIT_DROITE, GABARIT_GAUCHE, GABARIT_PLEINE_LARGEUR, type BlocGabarit } from "./gabarit-contrat";
+import { CASES_PAR_COLONNE, GABARIT_DROITE, GABARIT_GAUCHE, GABARIT_PLEINE_LARGEUR, type BlocGabarit } from "./gabarit-contrat";
 import { remplirTexte, tableRemplacement } from "./remplir-gabarit";
 
 export type NoeudContrat =
   | { type: "titre"; texte: string }
   | { type: "paragraphe"; texte: string }
-  | { type: "tableau"; colonnes: number; genre: GenreTableau; lignes: LigneTableau[] }
+  /** Un tableau sur `colonnes` colonnes egales (les cases du classeur). */
+  | { type: "tableau"; colonnes: number; lignes: LigneTableau[] }
   /** Le bloc de signatures, les parties cote a cote avec la place pour signer. */
   | { type: "signatures"; parties: string[] };
 
-/** Le classeur ne porte que « Le syndicat » ; le contrat MYTHEC imprime les deux parties cote a cote. */
+/** La ligne du classeur ou les deux parties signent, cote a cote. */
 const PARTIES_SIGNATAIRES = ["Le syndicat", "Le syndic"];
 
-/** Une grille tarifaire (deux colonnes a parts egales dans le classeur) ou une annexe
- *  (categorie 25 %, prestation 25 %, detail 50 % ; ou categorie 25 %, detail 75 %). */
-export type GenreTableau = "tarif" | "annexe";
-
 export interface LigneTableau {
-  /** Toutes les cellules en capitales : une ligne d'en-tete. */
+  /** Toutes les cellules pleines en capitales : une ligne d'en-tete. */
   enTete: boolean;
   cellules: CelluleTableau[];
 }
@@ -31,12 +34,10 @@ export interface LigneTableau {
 export interface CelluleTableau {
   texte: string;
   montant: boolean;
-  /** Cette cellule couvre aussi les N-1 lignes suivantes (categorie de l'annexe 1 : « I. - Assemblée générale »). */
+  /** Le nombre de colonnes couvertes (colspan). */
+  etendue: number;
+  /** Le nombre de lignes couvertes (rowspan), quand il y en a plus d'une. */
   portee?: number;
-  /** Cellule couverte par celle de la ligne du dessus : ne pas la dessiner. */
-  fusionnee?: boolean;
-  /** Cette cellule couvre N colonnes (le texte d'une annexe a deux colonnes, sous un en-tete a trois). */
-  etendue?: number;
 }
 
 export interface ArbreContrat {
@@ -57,7 +58,7 @@ export function estTitre(texte: string): boolean {
   // Numero suivi d'une lettre : « 5597.50 € HT, soit 6717 € TTC » n'est pas un titre.
   if (/^\d+(\.\d+)*\.?\s+\p{L}/u.test(texte)) return texte.length <= 140;
   // « ANNEXE 1 AU CONTRAT DE SYNDIC \n LISTE NON LIMITATIVE… » : un titre en capitales sur deux lignes.
-  if (texte.includes("\n")) return texte.length <= 200 && (texte.startsWith("ANNEXE ") || texte.split("\n").every((l) => estCapitales(l)));
+  if (texte.includes("\n")) return texte.startsWith("ANNEXE ") ? texte.length <= 260 : texte.length <= 200 && texte.split("\n").every((l) => estCapitales(l));
   return texte.length <= 90 && estCapitales(texte);
 }
 
@@ -79,77 +80,38 @@ export function estMontant(texte: string): boolean {
 function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, options: { fraisPostauxReels?: boolean }): NoeudContrat[] {
   const noeuds: NoeudContrat[] = [];
   let serie: LigneTableau[] = [];
-  let colonnes = 0;
   const vider = () => {
     // Un en-tete sans aucune ligne : le classeur repetait « PRESTATIONS | DÉTAILS » en haut de
     // chaque page ; ici le <thead> se repete tout seul, l'en-tete orphelin ne sert a rien.
-    if (serie.some((l) => !l.enTete)) noeuds.push({ type: "tableau", colonnes, genre: genreTableau(serie, colonnes), lignes: fusionnerCategories(serie) });
+    if (serie.some((l) => !l.enTete)) noeuds.push({ type: "tableau", colonnes: CASES_PAR_COLONNE, lignes: serie });
     serie = [];
   };
   for (const bloc of blocs) {
     if (typeof bloc === "string") {
       vider();
       const texte = remplirTexte(bloc, table, options);
-      if (texte.trim() === PARTIES_SIGNATAIRES[0]) noeuds.push({ type: "signatures", parties: PARTIES_SIGNATAIRES });
-      else noeuds.push(estTitre(texte) ? { type: "titre", texte } : { type: "paragraphe", texte });
+      noeuds.push(estTitre(texte) ? { type: "titre", texte } : { type: "paragraphe", texte });
       continue;
     }
-    const cellules: CelluleTableau[] = bloc.map((c) => remplirTexte(c, table, options)).map((texte) => ({ texte, montant: estMontant(texte) }));
-    const enTete = cellules.every((c) => estCelluleEnTete(c.texte));
-    // L'en-tete « PRESTATIONS | DÉTAILS » de l'annexe couvre les colonnes 2 et 3 : dans le
-    // classeur la case au-dessus de la categorie est vide, le convertisseur l'a laissee tomber.
-    // On la remet pour que l'en-tete et ses lignes forment un seul tableau.
-    if (serie.length === 1 && serie[0]!.enTete && colonnes === 2 && bloc.length === 3) {
-      serie[0]!.cellules.unshift({ texte: "", montant: false });
-      colonnes = 3;
+    // La ligne ou les deux parties signent, cote a cote : un bloc de signatures, pas un tableau.
+    if (bloc.length === PARTIES_SIGNATAIRES.length && bloc.every((c, i) => c.texte === PARTIES_SIGNATAIRES[i])) {
+      vider();
+      noeuds.push({ type: "signatures", parties: [...PARTIES_SIGNATAIRES] });
+      continue;
     }
-    // Le meme en-tete au-dessus de lignes a DEUX cellules (« II. - Conseil syndical | II-5°… ») :
-    // dans le classeur la categorie occupe 2/8 et le texte 6/8, sous « PRESTATIONS » (2/8) et
-    // « DÉTAILS » (4/8). L'en-tete passe a trois cases et le texte s'etend sur deux colonnes.
-    if (serie.length === 1 && serie[0]!.enTete && colonnes === 2 && bloc.length === 2 && !enTete && estEnTeteAnnexe(serie[0]!)) {
-      serie[0]!.cellules.unshift({ texte: "", montant: false });
-      colonnes = 3;
-    }
-    const etendue = colonnes === 3 && bloc.length === 2 && serie.length > 0 && !enTete;
-    if (etendue) cellules[1] = { ...cellules[1]!, etendue: 2 };
-    // Un nombre de cellules different (2 colonnes, puis 3) ou un en-tete repete au milieu de la
-    // grille = un autre tableau.
-    if (serie.length > 0 && (!etendue && colonnes !== bloc.length || enTete)) vider();
-    if (!etendue) colonnes = bloc.length;
+    const cellules: CelluleTableau[] = bloc.map((c) => {
+      const texte = remplirTexte(c.texte, table, options);
+      return { texte, montant: estMontant(texte), etendue: c.largeur, ...(c.hauteur && c.hauteur > 1 ? { portee: c.hauteur } : {}) };
+    });
+    const pleines = cellules.filter((c) => c.texte);
+    const enTete = pleines.length > 0 && pleines.every((c) => estCelluleEnTete(c.texte));
+    // Un en-tete au milieu d'une grille : le classeur le repetait en haut de chaque page. Le
+    // <thead> se repete tout seul, on ne garde que le premier.
+    if (enTete && serie.length > 0) continue;
     serie.push({ enTete, cellules });
   }
   vider();
   return noeuds;
-}
-
-function estEnTeteAnnexe(ligne: LigneTableau): boolean {
-  return /PRESTATIONS\|D[ÉE]TAILS/.test(ligne.cellules.map((c) => c.texte.toUpperCase()).join("|"));
-}
-
-function genreTableau(lignes: LigneTableau[], colonnes: number): GenreTableau {
-  const enTete = lignes[0]?.enTete ? lignes[0].cellules.map((c) => c.texte.toUpperCase()).join("|") : "";
-  return colonnes === 3 || /PRESTATIONS\|D[ÉE]TAILS/.test(enTete) ? "annexe" : "tarif";
-}
-
-/**
- * Dans les annexes, la premiere cellule est la categorie (« I. - Assemblée générale »),
- * repetee sur chaque ligne par le classeur : on la dessine une fois, sur toute sa portee,
- * comme le modele du cabinet. Une grille tarifaire n'a jamais deux lignes de meme libelle.
- */
-function fusionnerCategories(lignes: LigneTableau[]): LigneTableau[] {
-  if (lignes.some((l) => l.cellules.length < 2)) return lignes;
-  let i = 0;
-  while (i < lignes.length) {
-    const tete = lignes[i]!;
-    let j = i + 1;
-    while (j < lignes.length && !lignes[j]!.enTete && !tete.enTete && lignes[j]!.cellules[0]!.texte === tete.cellules[0]!.texte) j++;
-    if (j - i > 1) {
-      tete.cellules[0] = { ...tete.cellules[0]!, portee: j - i };
-      for (let k = i + 1; k < j; k++) lignes[k]!.cellules[0] = { ...lignes[k]!.cellules[0]!, fusionnee: true };
-    }
-    i = j;
-  }
-  return lignes;
 }
 
 export function arbreContrat(champs: ChampsContrat): ArbreContrat {

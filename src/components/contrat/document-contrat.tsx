@@ -15,7 +15,6 @@
 // module a fusionner). Ne pas « completer » ce trou : ce n'est pas un oubli.
 
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
-import { largeursColonnes } from "@/lib/domain/contrat/html-contrat";
 import { arbreContrat, type NoeudContrat } from "@/lib/domain/contrat/rendu-contrat";
 
 function Noeud({ n }: { n: NoeudContrat }) {
@@ -39,18 +38,18 @@ function Noeud({ n }: { n: NoeudContrat }) {
   return (
     <table className="w-full table-fixed border-separate border-spacing-0 border-l border-t border-ink my-1.5 text-[0.95em]">
       <colgroup>
-        {largeursColonnes(n.genre, n.colonnes).map((w, i, tous) => (
-          <col key={i} style={i < tous.length - 1 ? { width: `${w}%` } : undefined} />
+        {Array.from({ length: n.colonnes }, (_, i) => (
+          <col key={i} style={i < n.colonnes - 1 ? { width: `${100 / n.colonnes}%` } : undefined} />
         ))}
       </colgroup>
       <tbody>
         {n.lignes.map((l, r) => (
           <tr key={r} className="break-inside-avoid align-top">
             {l.cellules.map((c, i) =>
-              c.fusionnee ? null : l.enTete ? (
-                <th key={i} className="border-r border-b border-ink px-1.5 py-1 text-center font-bold whitespace-pre-line">{c.texte}</th>
+              l.enTete ? (
+                <th key={i} colSpan={c.etendue} rowSpan={c.portee} className="border-r border-b border-ink px-1.5 py-1 text-center font-bold whitespace-pre-line">{c.texte}</th>
               ) : (
-                <td key={i} rowSpan={c.portee} colSpan={c.etendue} className={`border-r border-b border-ink px-1.5 py-1 whitespace-pre-line ${c.portee ? "font-semibold" : c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
+                <td key={i} colSpan={c.etendue} rowSpan={c.portee} className={`border-r border-b border-ink px-1.5 py-1 whitespace-pre-line ${c.portee ? "font-semibold" : c.montant ? "text-right tabular-nums whitespace-nowrap" : ""}`}>{c.texte}</td>
               ),
             )}
           </tr>

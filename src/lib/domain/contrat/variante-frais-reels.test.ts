@@ -6,7 +6,7 @@ import { GABARIT_DROITE, GABARIT_GAUCHE, GABARIT_PLEINE_LARGEUR } from "./gabari
 import { remplirTexte, varianteFraisReels } from "./remplir-gabarit";
 
 const TOUT = [...GABARIT_PLEINE_LARGEUR, ...GABARIT_GAUCHE, ...GABARIT_DROITE]
-  .flatMap((b) => (typeof b === "string" ? [b] : b))
+  .flatMap((b) => (typeof b === "string" ? [b] : b.map((c) => c.texte)))
   .join("\n");
 
 describe("varianteFraisReels", () => {
