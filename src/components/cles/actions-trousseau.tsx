@@ -170,7 +170,7 @@ function ModaleSortie({ trousseau, reservations, entreprises, setEntreprises, au
       });
       if (!res.ok) return toast.err(res.erreur);
       if (res.donnees?.confirmationRequise) return setConfirmation(res.donnees.confirmationRequise);
-      toast.ok(`${trousseau.numero} sorti${entreprise ? ` — ${entreprise.nom}` : ""}, retour prévu le ${formatDateLongue(retour)}.`);
+      toast.ok(`${trousseau.numero} sorti${entreprise ? ` chez ${entreprise.nom}` : ""}, retour prévu le ${formatDateLongue(retour)}.`);
       onFermer();
       router.refresh();
     });
@@ -181,7 +181,7 @@ function ModaleSortie({ trousseau, reservations, entreprises, setEntreprises, au
       <ModalBody>
         <div className="flex flex-col gap-3">
           <Composition trousseau={trousseau} />
-          {resaDuJour && <Callout ton="info">Réservé{resaDuJour.entrepriseNom ? ` par ${resaDuJour.entrepriseNom}` : ""} du {formatDateLongue(resaDuJour.debutISO)} au {formatDateLongue(resaDuJour.finPrevueISO)}{resaDuJour.motif ? ` — ${resaDuJour.motif}` : ""}.</Callout>}
+          {resaDuJour && <Callout ton="info">Réservé{resaDuJour.entrepriseNom ? ` par ${resaDuJour.entrepriseNom}` : ""} du {formatDateLongue(resaDuJour.debutISO)} au {formatDateLongue(resaDuJour.finPrevueISO)}{resaDuJour.motif ? ` pour « ${resaDuJour.motif} »` : ""}.</Callout>}
           <div className="flex gap-4">
             <Choix type="radio" name="type" checked={type === "entreprise"} onChange={() => setType("entreprise")} label="À une entreprise" />
             <Choix type="radio" name="type" checked={type === "interne"} onChange={() => { setType("interne"); setEntreprise(null); }} label="Usage interne" />

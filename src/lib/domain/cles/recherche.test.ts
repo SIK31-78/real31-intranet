@@ -48,9 +48,9 @@ describe("filtrerIndex", () => {
 describe("texteMouvement", () => {
   const base = { id: "m", trousseauId: "t", horodatageISO: "2026-09-18T10:00:00Z", parNom: "Neis", agenceCode: "LGC" };
   it("dit qui, quoi, quand", () => {
-    expect(texteMouvement({ ...base, type: "sortie", entrepriseNom: "CTH", details: { retourPrevuLeISO: "2026-09-19", contactNom: "M. Martin", motif: "fuite" } })).toBe("Remis à CTH (M. Martin), retour prévu le 19/09/2026 — fuite");
+    expect(texteMouvement({ ...base, type: "sortie", entrepriseNom: "CTH", details: { retourPrevuLeISO: "2026-09-19", contactNom: "M. Martin", motif: "fuite" } })).toBe("Remis à CTH (M. Martin), retour prévu le 19/09/2026 (fuite)");
     expect(texteMouvement({ ...base, type: "sortie", details: { type: "interne", retourPrevuLeISO: "2026-09-18", contactNom: "Julie B." } })).toBe("Sorti en interne par Julie B., retour prévu le 18/09/2026");
-    expect(texteMouvement({ ...base, type: "retour", entrepriseNom: "CTH", details: { conformite: "incomplet", joursDehors: 3, commentaire: "manque le bip" } })).toBe("Rendu par CTH — incomplet (3 j dehors) — manque le bip");
+    expect(texteMouvement({ ...base, type: "retour", entrepriseNom: "CTH", details: { conformite: "incomplet", joursDehors: 3, commentaire: "manque le bip" } })).toBe("Rendu par CTH, incomplet (3 j dehors) : manque le bip");
     expect(texteMouvement({ ...base, type: "reservation", entrepriseNom: "ABSOLU", details: { debutISO: "2026-09-20", finPrevueISO: "2026-09-20" } })).toBe("Réservé pour ABSOLU du 20/09/2026 au 20/09/2026");
     expect(texteMouvement({ ...base, type: "import", details: { libelle: "Emprunté", incoherence: "restitué sans emprunt" } })).toMatch(/incohérence : restitué sans emprunt/);
   });

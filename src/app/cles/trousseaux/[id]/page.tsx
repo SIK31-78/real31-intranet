@@ -20,10 +20,11 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Rows, Row } from "@/components/ui/list-rows";
 import { Callout } from "@/components/ui/callout";
-import { PastilleEtat, detailEtat } from "@/components/cles/pastille-etat";
+import { PastilleEtat } from "@/components/cles/pastille-etat";
 import { EnTeteTrousseau } from "@/components/cles/en-tete-trousseau";
 import { JournalTable } from "@/components/cles/journal-table";
 import { CorrectionPret } from "@/components/cles/correction-pret";
+import { PhotoTrousseau } from "@/components/cles/photo-trousseau";
 
 export const metadata: Metadata = { title: "Trousseau - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
         <PageHeader
           titre={<span className="flex items-center gap-3 flex-wrap"><span className="font-mono">{t.numero}</span><span className="font-normal text-ink-2">{t.libelle}</span></span>}
           eyebrow={`Agence ${t.agenceCode}${t.emplacement ? ` · ${t.emplacement}` : ""}`}
-          badge={<PastilleEtat etat={resume.etat} size="md" detail={detailEtat({ etat: resume.etat, entrepriseNom: pret?.entrepriseNom, joursDehors: resume.joursDehors, joursRetard: resume.joursRetard, type: pret?.type, contactNom: pret?.contact?.nom })} />}
+          badge={<PastilleEtat etat={resume.etat} size="md" detail={resume.etat === "en_retard" ? `${resume.joursRetard} j` : undefined} />}
           actions={
             <span className="flex items-center gap-2 flex-wrap justify-end">
               <EnTeteTrousseau trousseau={t} etat={resume.etat} pret={pret} reservations={resume.reservations} aujourdhuiISO={aujourdhuiISO} peutOperer={operable} direction={direction} copros={copros} />
@@ -61,9 +62,9 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
         {pret && (
           <Callout ton={resume.etat === "en_retard" ? "err" : "warn"} titre={resume.etat === "en_retard" ? `En retard de ${resume.joursRetard} jour${resume.joursRetard > 1 ? "s" : ""}` : "Sorti"}>
             {pret.type === "interne" ? "Usage interne" : pret.entrepriseId ? <Link href={`/cles/entreprises/${pret.entrepriseId}`} className="font-medium underline-offset-2 hover:underline">{pret.entrepriseNom}</Link> : "Entreprise inconnue"}
-            {pret.contact?.nom ? ` · ${pret.contact.nom}${pret.contact.telephone ? ` (${pret.contact.telephone})` : ""}` : ""}
-            {" · "}sorti le {formatDateLongue(pret.sortiLeISO.slice(0, 10))} par {pret.sortiParNom} · retour prévu le {formatDateLongue(pret.retourPrevuLeISO)}
-            {pret.motif ? ` · ${pret.motif}` : ""}
+            {pret.contact?.nom ? `, ${pret.contact.nom}${pret.contact.telephone ? ` (${pret.contact.telephone})` : ""}` : ""}.
+            {" "}Sorti le {formatDateLongue(pret.sortiLeISO.slice(0, 10))} par {pret.sortiParNom}, retour prévu le {formatDateLongue(pret.retourPrevuLeISO)}.
+            {pret.motif ? ` Intervention : ${pret.motif}.` : ""}
           </Callout>
         )}
 
@@ -77,7 +78,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
                     href={a.bien.type === "copro" ? `/copropriete/${encodeURIComponent(a.bien.code)}` : undefined}
                     avant={a.bien.type === "copro" ? a.bien.code : a.bien.ref}
                     principal={resume.biens.find((b) => b.bien === a.bien)?.libelle ?? (a.bien.type === "copro" ? a.bien.code : a.bien.ref)}
-                    secondaire={<>{resume.biens.find((b) => b.bien === a.bien)?.adresse}{a.immeuble ? ` · ${a.immeuble}` : ""}{a.libelle ? ` · ${a.libelle}` : ""}</>}
+                    secondaire={<>{resume.biens.find((b) => b.bien === a.bien)?.adresse}{a.immeuble ? ` · ${a.immeuble}` : ""}{a.libelle && !a.types.some((ty) => LIBELLE_TYPE_ACCES[ty].toLowerCase() === a.libelle.toLowerCase()) ? ` · ${a.libelle}` : ""}</>}
                     droite={<span className="flex gap-1 flex-wrap justify-end">{a.types.map((ty) => <Badge key={ty} ton="outline">{LIBELLE_TYPE_ACCES[ty]}</Badge>)}</span>}
                   />
                 ))}
@@ -106,7 +107,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
                         key={p.id}
                         avant={formatDateLongue(p.sortiLeISO.slice(0, 10))}
                         principal={p.type === "interne" ? `Interne${p.contact?.nom ? ` · ${p.contact.nom}` : ""}` : p.entrepriseNom ?? "?"}
-                        secondaire={<>{clos ? `rendu le ${formatDateLongue(p.renduLeISO!.slice(0, 10))} (${libelleDuree(jours)})` : `retour prévu le ${formatDateLongue(p.retourPrevuLeISO)}`}{p.motif ? ` · ${p.motif}` : ""}{p.commentaireRetour ? ` · ${p.commentaireRetour}` : ""}</>}
+                        secondaire={<>{clos ? `rendu le ${formatDateLongue(p.renduLeISO!.slice(0, 10))}, ${libelleDuree(jours)}` : `retour prévu le ${formatDateLongue(p.retourPrevuLeISO)}`}{p.motif ? ` · ${p.motif}` : ""}{p.commentaireRetour ? ` · « ${p.commentaireRetour} »` : ""}</>}
                         droite={
                           <span className="flex items-center gap-2">
                             {clos ? <Badge ton={p.retourConforme === "complet" || !p.retourConforme ? "ok" : "err"}>{p.retourConforme ? LIBELLE_CONFORMITE[p.retourConforme] : "rendu"}</Badge> : <Badge ton="warn" dot>ouvert</Badge>}
@@ -125,7 +126,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
               <Section id="tr-resas-passees" titre="Réservations passées" compte={reservations.filter((r) => r.statut !== "prevue").length}>
                 <Rows>
                   {reservations.filter((r) => r.statut !== "prevue").map((r) => (
-                    <Row key={r.id} avant={formatDateLongue(r.debutISO)} principal={r.entrepriseNom ?? "?"} secondaire={r.statut === "annulee" ? `annulée${r.annuleePar ? ` par ${r.annuleePar}` : ""}${r.motifAnnulation ? ` — ${r.motifAnnulation}` : ""}` : "convertie en prêt"} droite={<Badge ton={r.statut === "annulee" ? "neutral" : "ok"}>{r.statut === "annulee" ? "annulée" : "sortie"}</Badge>} />
+                    <Row key={r.id} avant={formatDateLongue(r.debutISO)} principal={r.entrepriseNom ?? "?"} secondaire={r.statut === "annulee" ? `annulée${r.annuleePar && !(r.motifAnnulation ?? "").startsWith(r.annuleePar) ? ` par ${r.annuleePar}` : ""}${r.motifAnnulation ? ` : ${r.motifAnnulation.replace(/^Reprise PowerApps : /, "")}` : ""}` : "convertie en prêt"} droite={<Badge ton={r.statut === "annulee" ? "neutral" : "ok"}>{r.statut === "annulee" ? "annulée" : "sortie"}</Badge>} />
                   ))}
                 </Rows>
               </Section>
@@ -140,8 +141,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
             <Card>
               <CardBody>
                 {photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photoUrl} alt={`Photo du trousseau ${t.numero}`} className="w-full rounded-md object-cover max-h-64" />
+                  <PhotoTrousseau url={photoUrl} numero={t.numero} />
                 ) : (
                   <p className="text-meta text-ink-3">Pas de photo.</p>
                 )}
@@ -151,7 +151,8 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
                   </DataRow>
                   {t.emplacement && <DataRow label="Emplacement">{t.emplacement}</DataRow>}
                   {t.note && <DataRow label="Note">{t.note}</DataRow>}
-                  <DataRow label="Créé">{formatDateLongue(t.creeLeISO.slice(0, 10))} · {t.creeParNom}</DataRow>
+                  <DataRow label="Créé le">{formatDateLongue(t.creeLeISO.slice(0, 10))}</DataRow>
+                  <DataRow label="Par">{t.creeParNom}</DataRow>
                   {t.source === "import_powerapps" && <DataRow label="Origine">repris de PowerApps</DataRow>}
                 </DataList>
               </CardBody>

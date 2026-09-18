@@ -78,7 +78,13 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
         {tb.conflits.length > 0 && (
           <Callout ton="warn" titre={`${tb.conflits.length} réservation${tb.conflits.length > 1 ? "s" : ""} sur un trousseau encore sorti`}>
-            {tb.conflits.map((r) => `${r.resume.trousseau.numero} réservé le ${formatDateLongue(r.debutISO)}${r.entrepriseNom ? ` par ${r.entrepriseNom}` : ""} — sorti chez ${r.resume.pret?.entrepriseNom ?? "?"}, retour prévu le ${formatDateLongue(r.resume.pret?.retourPrevuLeISO ?? r.debutISO)}`).join(" · ")}
+            <ul className="flex flex-col gap-0.5">
+              {tb.conflits.map((r) => (
+                <li key={r.id}>
+                  <span className="font-mono">{r.resume.trousseau.numero}</span> réservé le {formatDateLongue(r.debutISO)}{r.entrepriseNom ? ` par ${r.entrepriseNom}` : ""}, encore chez {r.resume.pret?.entrepriseNom ?? "une entreprise"} (retour prévu le {formatDateLongue(r.resume.pret?.retourPrevuLeISO ?? r.debutISO)})
+                </li>
+              ))}
+            </ul>
           </Callout>
         )}
 
@@ -103,7 +109,7 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
           <Section id="cles-non-retirees" titre="Réservées, jamais retirées" compte={tb.reservationsNonRetirees.length}>
             <Rows>
               {tb.reservationsNonRetirees.map((r) => (
-                <Row key={r.id} href={`/cles/trousseaux/${r.trousseauId}`} ton="warn" avant={r.resume.trousseau.numero} principal={r.entrepriseNom ?? "Entreprise ?"} secondaire={<>prévu le {formatDateLongue(r.debutISO)}{r.motif ? ` · ${r.motif}` : ""} — à sortir ou à annuler</>} />
+                <Row key={r.id} href={`/cles/trousseaux/${r.trousseauId}`} ton="warn" avant={r.resume.trousseau.numero} principal={r.entrepriseNom ?? "Entreprise ?"} secondaire={<>prévu le {formatDateLongue(r.debutISO)}{r.motif ? ` · ${r.motif}` : ""}</>} droite={<Badge ton="warn">à sortir ou à annuler</Badge>} />
               ))}
             </Rows>
           </Section>
@@ -115,8 +121,8 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
           </Section>
         )}
 
-        {tb.sortis.length > 0 && (
-          <Section id="cles-sortis" titre="Sortis" compte={tb.sortis.length}>
+        {tb.sortis.some((r) => r.etat !== "en_retard") && (
+          <Section id="cles-sortis" titre="Sortis, dans les temps" compte={tb.sortis.filter((r) => r.etat !== "en_retard").length}>
             <Rows>{tb.sortis.filter((r) => r.etat !== "en_retard").map((r) => <LigneTrousseau key={r.trousseau.id} resume={r} />)}</Rows>
           </Section>
         )}
@@ -125,7 +131,7 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
           <Section id="cles-a-venir" titre="Réservations à venir" compte={tb.reservationsAVenir.length}>
             <Rows>
               {tb.reservationsAVenir.map((r) => (
-                <Row key={r.id} href={`/cles/trousseaux/${r.trousseauId}`} avant={r.resume.trousseau.numero} principal={r.entrepriseNom ?? "Entreprise ?"} secondaire={<>{formatDateLongue(r.debutISO)}{r.finPrevueISO !== r.debutISO ? ` → ${formatDateLongue(r.finPrevueISO)}` : ""}{r.motif ? ` · ${r.motif}` : ""}</>} />
+                <Row key={r.id} href={`/cles/trousseaux/${r.trousseauId}`} avant={r.resume.trousseau.numero} principal={r.entrepriseNom ?? "Entreprise ?"} secondaire={<>{formatDateLongue(r.debutISO)}{r.finPrevueISO !== r.debutISO ? ` jusqu'au ${formatDateLongue(r.finPrevueISO)}` : ""}{r.motif ? ` · ${r.motif}` : ""}</>} />
               ))}
             </Rows>
           </Section>

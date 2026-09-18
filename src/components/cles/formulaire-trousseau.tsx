@@ -128,7 +128,7 @@ export function FormulaireTrousseau({
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-body font-medium text-ink mb-1">Composition <span className="font-normal text-ink-2">— contrôlée au retour</span></legend>
+        <legend className="text-body font-medium text-ink mb-1">Composition <span className="font-normal text-ink-2">(contrôlée au retour)</span></legend>
         {composition.map((e, i) => (
           <div key={i} className="grid grid-cols-[6rem_1fr_5rem_2rem] items-end gap-2">
             <Select value={e.type} onChange={(ev) => setComposition(composition.map((x, j) => (j === i ? { ...x, type: ev.target.value as TypeElement } : x)))} aria-label="Type d'élément">

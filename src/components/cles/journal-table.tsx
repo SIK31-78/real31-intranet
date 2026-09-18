@@ -36,7 +36,7 @@ export function JournalTable({ lignes, avecTrousseau = true }: { lignes: Mouveme
                 <Td secondaire className="whitespace-nowrap tabular-nums">{jour} <span className="text-ink-3">{heure}</span></Td>
                 {avecTrousseau && (
                   <Td code>
-                    {m.trousseauNumero ? <Link href={`/cles/trousseaux/${m.trousseauId}`} className="hover:underline">{m.trousseauNumero}</Link> : "—"}
+                    {m.trousseauNumero ? <Link href={`/cles/trousseaux/${m.trousseauId}`} className="hover:underline">{m.trousseauNumero}</Link> : <span className="text-ink-3">sans trousseau</span>}
                   </Td>
                 )}
                 <Td principal>{texteMouvement(m)}</Td>

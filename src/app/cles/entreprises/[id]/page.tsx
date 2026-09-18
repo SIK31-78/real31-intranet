@@ -57,7 +57,7 @@ export default async function EntreprisePage({ params }: { params: Promise<{ id:
           <Stat label="Détient" valeur={detenus.length} ton={detenus.length > 0 ? "warn" : "neutral"} />
           <Stat label="En retard" valeur={enRetard} ton={enRetard > 0 ? "err" : "neutral"} />
           <Stat label="Prêts clos" valeur={historique.length} />
-          <Stat label="Rendus en retard" valeur={tauxRetard === null ? "—" : `${tauxRetard} %`} ton={tauxRetard !== null && tauxRetard >= 30 ? "err" : tauxRetard !== null && tauxRetard >= 10 ? "warn" : "neutral"} note="sur 24 mois" />
+          <Stat label="Rendus en retard" valeur={tauxRetard === null ? "aucun" : `${tauxRetard} %`} ton={tauxRetard !== null && tauxRetard >= 30 ? "err" : tauxRetard !== null && tauxRetard >= 10 ? "warn" : "neutral"} note={tauxRetard === null ? "pas d'historique" : "sur 24 mois"} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_320px]">
@@ -65,7 +65,7 @@ export default async function EntreprisePage({ params }: { params: Promise<{ id:
             {detenus.length > 0 && (
               <Section id="ent-detenus" titre="Trousseaux détenus" compte={detenus.length}>
                 <Rows>
-                  {detenus.map((p) => p.resume ? <LigneTrousseau key={p.id} resume={p.resume} /> : <Row key={p.id} principal={numeros.get(p.trousseauId) ?? "?"} secondaire={`sorti le ${formatDateLongue(p.sortiLeISO.slice(0, 10))}`} />)}
+                  {detenus.map((p) => p.resume ? <LigneTrousseau key={p.id} resume={p.resume} sansDetenteur /> : <Row key={p.id} principal={numeros.get(p.trousseauId) ?? "?"} secondaire={`sorti le ${formatDateLongue(p.sortiLeISO.slice(0, 10))}`} />)}
                 </Rows>
               </Section>
             )}
