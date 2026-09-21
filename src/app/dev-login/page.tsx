@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { getGestionnaireRepository, getAgenceRepository } from "@/lib/adapters/router";
 import { impersonationAutorisee } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
-import { choisirGestionnaire, connecterMicrosoft } from "./actions";
+import { connecterMicrosoft } from "./actions";
+import { SelecteurCollaborateur } from "./selecteur-collaborateur";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Connexion - REAL31 Intranet" };
@@ -67,47 +68,23 @@ export default async function DevLoginPage() {
   // (4 lignes), degrade en Map vide si la table est absente -> pas de badge agence.
   const agences = await getAgenceRepository().listerAgences();
   const codeParAgence = new Map(agences.map((a) => [a.id, a.code]));
+  const collaborateurs = gestionnaires.map((g) => ({
+    id: g.id,
+    nomComplet: g.nomComplet,
+    initiales: g.initiales,
+    role: libelleRole(g.role),
+    roleBrut: g.role ?? null,
+    agence: (g.agencyId ? codeParAgence.get(g.agencyId) : undefined) ?? null,
+    superAdmin: estSuperAdmin(g.email),
+  }));
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-2 px-4">
-      <div className="w-full max-w-md bg-surface border border-line rounded-lg shadow-1 p-6">
+    <div className="min-h-screen flex items-start justify-center bg-surface-2 px-4 py-10">
+      <div className="w-full max-w-lg bg-surface border border-line rounded-lg shadow-1 p-6">
         <h1 className="text-title font-medium text-ink">Choisir un collaborateur</h1>
         <p className="text-body text-ink-3 mt-1 mb-4">
-          Session dev (sera remplacée par l&apos;authentification Entra ID). Vous ne verrez
-          que les copropriétés du gestionnaire choisi.
+          Session dev. Vous verrez l&apos;intranet comme la personne choisie : ses copropriétés, son rail, ses droits.
         </p>
-        <ul className="flex flex-col gap-1.5">
-          {gestionnaires.map((g) => {
-            const roleLisible = libelleRole(g.role);
-            const agenceCode = g.agencyId ? codeParAgence.get(g.agencyId) : undefined;
-            return (
-              <li key={g.id}>
-                <form action={choisirGestionnaire.bind(null, g.id)}>
-                  <Button
-                    type="submit"
-                    variant="secondary" size="lg" className="w-full text-left"
-                  >
-                    <span className="w-8 h-8 rounded-full bg-surface-2 text-ink-2 text-body font-medium flex items-center justify-center shrink-0">
-                      {g.initiales}
-                    </span>
-                    <span className="text-body text-ink">{g.nomComplet}</span>
-                    {/* Badges DISPLAY : role (libelle FR) + agence (code) + super-admin
-                        (statut env SUPER_ADMINS, pas dans la table -> sinon invisible). Le
-                        libelle de role couvre deja "Comptable" (pas de marqueur separe). */}
-                    <span className="ml-auto flex items-center gap-1.5 shrink-0">
-                      {roleLisible && <span className="text-meta font-medium uppercase tracking-wide text-ink-3 border border-line rounded-sm px-1.5 py-px">{roleLisible}</span>}
-                      {agenceCode && <span className="text-meta font-medium uppercase tracking-wide text-ink-3 border border-line rounded-sm px-1.5 py-px">{agenceCode}</span>}
-                      {estSuperAdmin(g.email) && (
-                        <span className="text-meta font-medium uppercase tracking-wide text-green-700 border border-green-700/40 rounded-sm px-1.5 py-px">
-                          super-admin
-                        </span>
-                      )}
-                    </span>
-                  </Button>
-                </form>
-              </li>
-            );
-          })}
-        </ul>
+        <SelecteurCollaborateur collaborateurs={collaborateurs} />
       </div>
     </div>
   );
