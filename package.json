@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:smoke": "vitest run --config vitest.smoke.config.mts",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "verifier": "pnpm typecheck && pnpm lint && vitest run --maxWorkers=2 && node scripts/audit-ui.mjs",
     "db:push": "supabase db push",
     "db:diff": "supabase db diff --linked",
     "db:types": "supabase gen types typescript --linked --schema real31_intranet > src/types/database.ts",

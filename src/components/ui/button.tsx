@@ -47,6 +47,11 @@ type Communs = {
   iconOnly?: boolean;
 };
 
+/** Les classes d'un bouton, pour un element qui n'en est pas un (un <label> de champ fichier). */
+export function classesBouton(communs: Communs, className?: string): string {
+  return classes(communs, className);
+}
+
 function classes({ variant = "secondary", size = "md", iconOnly = false }: Communs, className?: string) {
   return cn(BASE, VARIANTS[variant], iconOnly ? SIZES_ICON_ONLY[size] : SIZES[size], className);
 }

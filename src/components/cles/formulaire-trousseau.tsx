@@ -7,7 +7,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, classesBouton } from "@/components/ui/button";
 import { Field, Input, Select, Textarea, Choix } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { useCombobox } from "@/components/ui/combobox";
@@ -171,7 +171,7 @@ export function FormulaireTrousseau({
 
       <Field label={trousseau?.photoChemin ? "Remplacer la photo (facultatif)" : "Photo du trousseau (facultatif)"} htmlFor="tr-photo" hint="JPEG, PNG ou WebP, 8 Mo maximum. Sur téléphone ou tablette, la caméra s'ouvre.">
         <div className="flex items-center gap-3 flex-wrap">
-          <label htmlFor="tr-photo" className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-body text-ink hover:bg-surface-2">
+          <label htmlFor="tr-photo" className={classesBouton({ variant: "secondary" })}>
             <Camera strokeWidth={1.5} className="w-4 h-4" aria-hidden /> {photo ? "Changer" : "Prendre ou choisir une photo"}
           </label>
           <input id="tr-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />

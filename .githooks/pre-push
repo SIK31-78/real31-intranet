@@ -1,0 +1,8 @@
+#!/bin/sh
+# Les mêmes vérifications que la CI (.github/workflows/ci.yml), AVANT de pousser : typage,
+# lint, tests, audit du design. Ce qui casse ici aurait cassé là-bas trois minutes plus tard.
+# Activer une fois par clone : git config core.hooksPath .githooks
+# Passer outre, en connaissance de cause : git push --no-verify
+set -e
+echo "pre-push : vérifications de la CI (typecheck, lint, tests, audit-ui)…"
+corepack pnpm verifier
