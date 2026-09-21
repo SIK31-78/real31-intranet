@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutElire, profilDe } from "@/lib/auth/roles";
 import { preparerElection } from "@/lib/services/proposition/election";
 import { adressePourContrat } from "@/lib/domain/proposition/offre";
@@ -20,8 +20,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ElectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const g = await getGestionnaireCourant();
-  if (!g) redirect("/dev-login");
+  const g = await exigerAccesPropositions();
   let prep;
   try {
     prep = await preparerElection(id);

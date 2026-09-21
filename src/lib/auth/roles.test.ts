@@ -10,6 +10,7 @@ import {
   peutVoirComptabilite,
   estVueComptable,
   pageAccueilPour,
+  peutVoirPropositions,
   estAdminReprise, peutVoirGestionCourante } from "./roles";
 
 // Chaque test part d'un env VIDE (les vraies allowlists de .env.local ne doivent pas
@@ -225,6 +226,16 @@ describe("estVueComptable (vue epuree = comptable PUR)", () => {
   it("un gestionnaire simple (pas comptable) -> false", () => {
     expect(estVueComptable("gestionnaire@real31.fr")).toBe(false);
     expect(estVueComptable("gestionnaire@real31.fr", "GESTIONNAIRE")).toBe(false);
+  });
+});
+
+describe("peutVoirPropositions", () => {
+  it("les habilites et le super-admin, personne d'autre, direction comprise", () => {
+    expect(peutVoirPropositions({ email: "nicolas@real31.fr", roleTable: "GESTIONNAIRE", habilitations: ["propositions"] })).toBe(true);
+    expect(peutVoirPropositions({ email: "sandrine@real31.fr", roleTable: "DIRECTEUR_AGENCE" })).toBe(false);
+    expect(peutVoirPropositions({ email: "remi@real31.fr", roleTable: "GESTIONNAIRE", habilitations: ["referent_syndic:HLS"] })).toBe(false);
+    vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
+    expect(peutVoirPropositions({ email: "sekou@real31.fr", roleTable: "ADMIN" })).toBe(true);
   });
 });
 

@@ -16,18 +16,26 @@ import { Search, Building2, CornerDownLeft, ArrowRight } from "lucide-react";
 import { chargerCoprosRecherche } from "@/app/recherche/actions";
 import { filtrerRecherche, type CoproRecherche } from "@/lib/domain/recherche-copro";
 
+// Ctrl+K sans texte : les pages du rail, plus celles qui n'y sont pas (calendrier). Les pages
+// reservees (propositions, comptabilite, admin) ne s'y proposent pas : leur garde est serveur.
 const NAV: { label: string; href: string }[] = [
   { label: "Accueil", href: "/accueil" },
-  { label: "Mes e-mails", href: "/mes-emails" },
   { label: "Calendrier AG/CS", href: "/calendrier" },
   { label: "Toutes les copropriétés", href: "/copropriete" },
+  { label: "Dossiers", href: "/dossiers" },
+  { label: "Gestion des clés", href: "/cles" },
+  { label: "Mes e-mails", href: "/mes-emails" },
+  { label: "Récap AG", href: "/recap-ag" },
+  { label: "Contrats de syndic", href: "/contrat" },
+  { label: "Sinistres", href: "/sinistre" },
+  { label: "Facturation", href: "/facturation" },
   { label: "Coffre-fort", href: "/coffre" },
+  { label: "Nouveautés", href: "/nouveautes" },
 ];
 
 // Hors syndic (vente, location, accueil) : les memes entrees que leur rail.
 const NAV_HORS_SYNDIC: { label: string; href: string }[] = [
   { label: "Gestion des clés", href: "/cles" },
-  { label: "Propositions de contrat", href: "/propositions" },
   { label: "Coffre-fort", href: "/coffre" },
   { label: "Nouveautés", href: "/nouveautes" },
 ];

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Download, FileText } from "lucide-react";
 import { BoutonPdf } from "@/components/contrat/bouton-pdf";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
 import { DUREE_MAX_CONTRAT_MOIS, DUREES_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
@@ -28,8 +28,7 @@ export const dynamic = "force-dynamic";
 export default async function OffrePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ParamsOffre> }) {
   const { id } = await params;
   const sp = await searchParams;
-  const g = await getGestionnaireCourant();
-  if (!g) redirect("/dev-login");
+  const g = await exigerAccesPropositions();
   const options = lireOptionsOffre(sp);
   let offre;
   try {

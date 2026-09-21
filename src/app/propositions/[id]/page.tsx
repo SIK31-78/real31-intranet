@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, FileText } from "lucide-react";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutElire, peutFaireOffre, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { getAgenceRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { calculerPrix, contexteImmeuble, getProposition, suggererRapprochement } from "@/lib/services/proposition/propositions";
@@ -18,8 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PropositionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const g = await getGestionnaireCourant();
-  if (!g) redirect("/dev-login");
+  const g = await exigerAccesPropositions();
   const p = await getProposition(id);
   if (!p) notFound();
   // Hors syndic (vente, location, accueil) : seulement les contacts qu'on a soi-meme notes.

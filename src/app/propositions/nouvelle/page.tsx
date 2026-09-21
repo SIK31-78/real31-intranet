@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { getAgenceRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -13,8 +12,7 @@ export const dynamic = "force-dynamic";
 // demander, et la proposition remonte dans le pipeline pour le gestionnaire.
 
 export default async function NouvellePropositionPage() {
-  const g = await getGestionnaireCourant();
-  if (!g) redirect("/dev-login");
+  const g = await exigerAccesPropositions();
   const toutes = await getAgenceRepository().listerAgences();
   const agences = toutes.map((a) => a.code);
   // L'agence du collaborateur, proposee par defaut.

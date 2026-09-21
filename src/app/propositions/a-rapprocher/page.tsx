@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutCompleterProposition, profilDe } from "@/lib/auth/roles";
 import { propositionsARapprocher } from "@/lib/services/proposition/propositions";
 import { LIBELLE_STATUT } from "@/lib/domain/proposition/proposition";
@@ -24,8 +24,7 @@ export const dynamic = "force-dynamic";
 // l'historique (« ils nous ont deja consultes en 2019 ») et le lien avec la copro App A.
 
 export default async function ARapprocherPage() {
-  const g = await getGestionnaireCourant();
-  if (!g) redirect("/dev-login");
+  const g = await exigerAccesPropositions();
   if (!peutCompleterProposition(profilDe(g))) redirect("/propositions");
   const lignes = await propositionsARapprocher();
   const avec = lignes.filter((l) => l.suggestion.candidats.length > 0);

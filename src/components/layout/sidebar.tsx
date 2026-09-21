@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, Home, Inbox, Calendar, Building2, Calculator, KeyRound,
+  LayoutDashboard, Home, Inbox, Building2, Calculator, KeyRound,
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus,
   PackageMinus, Handshake, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
@@ -65,52 +65,44 @@ type Item = {
 // "Comptabilite" visible pole compta only ; "Gestion courante" comptable d'entreprise + super-admin only.
 const GROUPES: { titre: string; items: Item[] }[] = [
   {
-    titre: "Vue d'ensemble",
+    // Ce qu'on ouvre tous les jours. Le calendrier AG/CS n'a plus d'entree : il est en tete
+    // de l'accueil (Sekou, 21/09/2026).
+    titre: "Tous les jours",
     items: [
-      // Accueil = LA home (AG + dossiers en cours + en-tete, annonces, points signales).
-      // Le "Dashboard" a ete demantele (Sekou 2026-07-22) : plus d'entree, /dashboard redirige.
       { key: "accueil", label: "Accueil", href: "/accueil", icon: Home },
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
-      { key: "calendrier", label: "Calendrier AG/CS", href: "/calendrier", icon: Calendar },
-    ],
-  },
-  {
-    titre: "À traiter",
-    items: [
-      // Les dossiers etaient atteignables SEULEMENT depuis l'accueil : la page /dossiers
-      // existait (avec sa vue detaillee) mais aucun lien de menu n'y menait, et la NavKey
-      // "dossiers" etait declaree sans etre utilisee par aucune entree.
       { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
-      { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
-      { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
-      { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus },
-      // Le miroir de la reprise : ce qu'il reste a faire quand une AG nomme un autre syndic.
-      { key: "perte", label: "Perte de copropriété", href: "/perte-copro", icon: PackageMinus },
-      // Le debut de la chaine : ce qui pourrait devenir une copro geree (ADR-039).
-      { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
-      // Le comptoir des cles (18/09/2026, ADR-040) : trousseaux, sorties, retours, reservations.
       { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
+      { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
     ],
   },
   {
-    titre: "Facturation",
+    // Le travail de gestion autour de l'AG et de la copro.
+    titre: "Gestion",
     items: [
-      { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
       { key: "recap-ag", label: "Récap AG", href: "/recap-ag", icon: ClipboardList },
-      // Le contrat de syndic vit ICI et pas dans "Vue d'ensemble" : ce qu'on y regle
-      // (honoraires, forfait timbres, bareme des prestations) est de la facturation,
-      // et c'est l'AG qui ouvre chaque nouveau cycle de contrat.
       { key: "contrat", label: "Contrats de syndic", href: "/contrat", icon: FileSignature },
+      { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
+      { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
+    ],
+  },
+  {
+    // Ce que la direction pilote : chaque entree a sa propre condition, le groupe disparait
+    // s'il est vide.
+    titre: "Direction",
+    items: [
+      { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
+      { key: "perte", label: "Perte de copropriété", href: "/perte-copro", icon: PackageMinus },
+      { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus },
       { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
       { key: "compta", label: "Comptabilité", href: "/comptabilite", icon: Calculator },
+      { key: "collaborateurs", label: "Collaborateurs", href: "/collaborateurs", icon: Users },
     ],
   },
   {
-    titre: "Ressources",
+    titre: "Plus",
     items: [
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
-      // Collaborateurs (16/09/2026) : qui est la, sur quel portefeuille. DIRECTION seulement.
-      { key: "collaborateurs", label: "Collaborateurs", href: "/collaborateurs", icon: Users },
       { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
     ],
   },
@@ -137,11 +129,10 @@ const NAV_COMPTABLE: Item[] = [
 
 // Vue HORS SYNDIC (vente, location, accueil - roles AUTRE et GESTIONNAIRE_LOCATIVE de la
 // table, Sekou 18/09/2026) : Neis n'a que faire des AG, des sinistres et de la facturation.
-// Sa nav : le pipeline des propositions (il y note ses contacts), le comptoir des cles, le
-// coffre-fort et les nouveautes. Les pages elles-memes portent leurs gardes.
+// Sa nav : le comptoir des cles, le coffre-fort et les nouveautes (les propositions de
+// contrat sont reservees aux habilites depuis le 21/09). Les pages portent leurs gardes.
 const NAV_HORS_SYNDIC: Item[] = [
   { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
-  { key: "propositions", label: "Propositions de contrat", href: "/propositions", icon: Handshake },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
@@ -272,6 +263,8 @@ export function Sidebar({
   vueHorsSyndic = false,
   adminOuvert = false,
   directionOuverte = false,
+  propositionsOuvertes = false,
+  perteOuverte = false,
 }: {
   active: NavKey;
   user: { initiales: string; nomComplet: string };
@@ -288,6 +281,10 @@ export function Sidebar({
   adminOuvert?: boolean;
   /** Entree "Collaborateurs" : direction (directeurs, referents, super-admin). */
   directionOuverte?: boolean;
+  /** Entree "Propositions de contrat" : les habilites (Léa, Emmanuel, Sandy, Dimitri, Nicolas) et super-admin. */
+  propositionsOuvertes?: boolean;
+  /** Entree "Perte de copropriete" : la direction. */
+  perteOuverte?: boolean;
 }) {
   return (
     <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto defilement-discret flex flex-col shadow-2 md:shadow-none">
@@ -318,26 +315,33 @@ export function Sidebar({
             ))}
           </div>
         ) : (
-          GROUPES.map((groupe) => (
-            <div key={groupe.titre}>
-              <SectionTitre>{groupe.titre}</SectionTitre>
-              {groupe.items.map((item) => {
-                // "Comptabilite" (dashboard transverse) : lien ABSENT hors pole compta / super-admin.
-                if (item.key === "compta" && !comptaOuvert) return null;
-                // "Gestion courante" (facturation des honoraires du cabinet) : comptable
-                // d'ENTREPRISE et super-admin seulement (Sekou 2026-09-14).
-                if (item.key === "gestion-courante" && !gestionCouranteOuverte) return null;
-                // "Mes e-mails" et "Reprise de copropriete" : fonctionnalites A VENIR pour les
-                // collegues (Sekou 2026-09-10) -> visibles des SUPER-ADMINS seulement.
-                if ((item.key === "emails" || item.key === "reprise") && !adminOuvert) return null;
-                // "Collaborateurs" : la direction (roles table, referents, super-admin).
-                if (item.key === "collaborateurs" && !directionOuverte) return null;
-                // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
-                const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
-                return <NavItem key={it.key} item={it} active={it.key === active} />;
-              })}
-            </div>
-          ))
+          GROUPES.map((groupe) => {
+            const visibles = groupe.items.filter((item) => {
+              // "Comptabilite" (dashboard transverse) : pole compta / super-admin.
+              if (item.key === "compta") return comptaOuvert;
+              // "Gestion courante" : comptable d'ENTREPRISE et super-admin (Sekou 2026-09-14).
+              if (item.key === "gestion-courante") return gestionCouranteOuverte;
+              // "Mes e-mails" et "Reprise" : A VENIR pour les collegues -> super-admins seulement.
+              if (item.key === "emails" || item.key === "reprise") return adminOuvert;
+              // "Collaborateurs" et "Perte" : la direction.
+              if (item.key === "collaborateurs") return directionOuverte;
+              if (item.key === "perte") return perteOuverte;
+              // "Propositions" : les habilites (Sekou, 21/09/2026).
+              if (item.key === "propositions") return propositionsOuvertes;
+              return true;
+            });
+            if (visibles.length === 0) return null;
+            return (
+              <div key={groupe.titre}>
+                <SectionTitre>{groupe.titre}</SectionTitre>
+                {visibles.map((item) => {
+                  // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
+                  const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
+                  return <NavItem key={it.key} item={it} active={it.key === active} />;
+                })}
+              </div>
+            );
+          })
         )}
 
         {adminOuvert && (

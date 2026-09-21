@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Link2, Plus, Search } from "lucide-react";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutCompleterProposition, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { etatRegistre, listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
 import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition, TON_STATUT } from "@/lib/domain/proposition/proposition";
@@ -66,8 +65,7 @@ function lireTri(sp: Params): TriPipeline {
 }
 
 export default async function PropositionsPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const g = await getGestionnaireCourant();
-  if (!g) redirect("/dev-login");
+  const g = await exigerAccesPropositions();
   const sp = await searchParams;
   const filtre = lireFiltre(sp);
   const tri = lireTri(sp);

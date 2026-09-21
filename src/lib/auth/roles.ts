@@ -333,6 +333,18 @@ export function peutSaisirContact(profil: Profil): boolean {
   return profil !== null;
 }
 
+/**
+ * Voir le module Propositions de contrat : les habilites (`propositions` dans
+ * intranet_habilitation) et les super-admins. Decision Sekou, 21/09/2026 : « seuls Léa,
+ * Emmanuel, Sandy, Dimitri et Nicolas (seul gestionnaire de Houilles) ont besoin d'y
+ * acceder ». Ce n'est plus un module de tout le cabinet ; les droits a l'interieur
+ * (offre, prix, election) restent ceux de la direction.
+ */
+export function peutVoirPropositions(profil: Profil): boolean {
+  if (estSuperAdmin(profil.email)) return true;
+  return (profil.habilitations ?? []).some((h) => h.split(":")[0] === "propositions");
+}
+
 /** Voir tout le pipeline, ou seulement ses propres contacts (hors syndic). */
 export function peutVoirToutesLesPropositions(profil: Profil): boolean {
   return !estHorsSyndic(profil);

@@ -6,7 +6,7 @@ import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-contex
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estHorsSyndic, profilDe } from "@/lib/auth/roles";
+import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, peutVoirPropositions, profilDe } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
@@ -46,8 +46,12 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const adminOuvert = estSuperAdmin(g?.email);
   // Entree "Collaborateurs" : la direction (table User, referents d'agence, super-admin).
   const directionOuverte = g ? estDirection(profilDe(g)) : false;
-  // Vue HORS SYNDIC (vente, location, accueil) : propositions, cles, coffre, nouveautes.
+  // Vue HORS SYNDIC (vente, location, accueil) : cles, coffre, nouveautes.
   const vueHorsSyndic = g ? estHorsSyndic(profilDe(g)) : false;
+  // "Propositions de contrat" : les habilites et super-admin (Sekou, 21/09/2026).
+  const propositionsOuvertes = g ? peutVoirPropositions(profilDe(g)) : false;
+  // "Perte de copropriete" : la direction, ou qu'elle soit.
+  const perteOuverte = g ? estDirectionQuelquePart(profilDe(g)) : false;
   return (
     <MobileSidebarProvider>
       <SentryUtilisateur id={g?.id ?? null} initiales={g?.initiales ?? null} />
@@ -66,6 +70,8 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               gestionCouranteOuverte={gestionCouranteOuverte}
               vueComptable={vueComptable}
               vueHorsSyndic={vueHorsSyndic}
+              propositionsOuvertes={propositionsOuvertes}
+              perteOuverte={perteOuverte}
               adminOuvert={adminOuvert}
               directionOuverte={directionOuverte}
             />
