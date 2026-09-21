@@ -101,6 +101,7 @@ function cellulesDe(r, moitie, utiles) {
   };
   let c = moitie.de;
   let couvertesIci = 0;
+  let derniereLigne = r;
   while (c <= moitie.a) {
     const cle = `${r},${c}`;
     if (couvertes.has(cle)) {
@@ -118,6 +119,7 @@ function cellulesDe(r, moitie, utiles) {
       continue;
     }
     fermerVide(c - 1);
+    if (f) derniereLigne = Math.max(derniereLigne, f.r2);
     let hauteur = 1;
     if (f && f.r2 > f.r1) {
       hauteur = 0;
@@ -128,11 +130,16 @@ function cellulesDe(r, moitie, utiles) {
     c = fin + 1;
   }
   fermerVide(moitie.a);
-  return { cellules, couvertesIci };
+  return { cellules, couvertesIci, derniereLigne };
 }
 
 const pleineLargeur = [];
 const flux = { gauche: [], droite: [] };
+// La position de chaque bloc dans le classeur : [premiere ligne, derniere ligne] Excel. Les
+// deux colonnes s'impriment EN VIS-A-VIS ligne a ligne (le bloc de gauche qui commence
+// ligne 47 est en face de celui de droite qui commence ligne 47) : c'est ce qui donne les
+// memes pages que le classeur, et le patron y tient (21/09/2026).
+const lignes = { gauche: [], droite: [] };
 const utilesPar = Object.fromEntries(MOITIES.map((m) => [m.nom, lignesUtiles(m)]));
 
 for (let r = 1; r <= ws.rowCount; r++) {
@@ -147,8 +154,9 @@ for (let r = 1; r <= ws.rowCount; r++) {
   for (const moitie of MOITIES) {
     const utiles = utilesPar[moitie.nom];
     if (!utiles.has(r)) continue;
-    const { cellules, couvertesIci } = cellulesDe(r, moitie, utiles);
+    const { cellules, couvertesIci, derniereLigne } = cellulesDe(r, moitie, utiles);
     const pleines = cellules.filter((x) => x.texte);
+    lignes[moitie.nom].push([r, derniereLigne]);
     // Un seul texte sur les huit cases, rien de couvert : un paragraphe.
     if (pleines.length === 1 && pleines[0].largeur === LARGEUR && couvertesIci === 0) {
       flux[moitie.nom].push(pleines[0].texte);
@@ -214,6 +222,12 @@ ${liste(flux.gauche)}
 export const GABARIT_DROITE: readonly BlocGabarit[] = [
 ${liste(flux.droite)}
 ] as const;
+
+/** Position [premiere ligne, derniere ligne] de chaque bloc de GABARIT_GAUCHE dans le classeur (meme index). */
+export const LIGNES_GAUCHE: readonly (readonly [number, number])[] = ${JSON.stringify(lignes.gauche)};
+
+/** Idem pour GABARIT_DROITE. */
+export const LIGNES_DROITE: readonly (readonly [number, number])[] = ${JSON.stringify(lignes.droite)};
 
 /** Tous les placeholders du gabarit, pour le test de couverture. */
 export const PLACEHOLDERS_GABARIT: readonly string[] = [

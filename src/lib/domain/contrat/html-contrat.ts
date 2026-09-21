@@ -3,7 +3,7 @@
 // Toute valeur passe par `e()` : rien de ce qui vient d'une fiche ne devient du HTML.
 
 import type { ChampsContrat } from "./champs-contrat";
-import { arbreContrat, type NoeudContrat } from "./rendu-contrat";
+import { arbreContrat, grilleAlignee, type ArbreContrat, type BlocPlace, type NoeudContrat } from "./rendu-contrat";
 
 const CSS = `
   @page { size: A4; margin: 14mm 12mm; }
@@ -15,6 +15,12 @@ const CSS = `
   header p { font-size: 7.4pt; color: #4C5347; text-align: justify; margin: 0 0 2px; white-space: pre-line; }
   .colonnes { display: flex; gap: 18px; align-items: flex-start; }
   .colonne { flex: 1 1 0; min-width: 0; }
+  /* Les deux colonnes EN VIS-A-VIS (grille, une rangee par debut de bloc du classeur) : un
+     bloc de gauche commence en face de celui de droite qui commence a la meme ligne Excel. */
+  .grille { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 18px; align-items: start; }
+  .grille > .bloc { min-width: 0; break-inside: avoid; }
+  .grille > .bloc.long { break-inside: auto; }
+  .grille > .bloc > h2:first-child { margin-top: 0; }
   /* Un pixel de marge a droite : un bord de tableau ne doit jamais toucher la limite de page. */
   .colonne:last-child { padding-right: 2px; }
   /* Une seule colonne (contrat de mandat) : texte un peu plus grand, tableaux moins serres. */
@@ -69,6 +75,18 @@ function noeud(n: NoeudContrat): string {
   return `<table${classe}>${colgroup}${thead}<tbody>${corps.map(ligne).join("")}</tbody></table>`;
 }
 
+/** Le corps : la grille en vis-a-vis quand il y a deux colonnes, un flux sinon (mandat). */
+function corps(a: ArbreContrat): string {
+  if (a.droite.length === 0) return `<div class="colonnes seule"><div class="colonne">${a.gauche.map(noeud).join("")}</div></div>`;
+  const g = grilleAlignee(a);
+  const bloc = (p: BlocPlace, col: 1 | 2) => {
+    // Un tableau qui court sur plusieurs rangees d'en face peut se couper entre deux pages.
+    const long = p.noeud.type === "tableau" && p.etendue > 1;
+    return `<div class="bloc${long ? " long" : ""}" style="grid-column:${col};grid-row:${p.rangee} / span ${p.etendue}">${noeud(p.noeud)}</div>`;
+  };
+  return `<div class="grille">${g.gauche.map((p) => bloc(p, 1)).join("")}${g.droite.map((p) => bloc(p, 2)).join("")}</div>`;
+}
+
 /** Le document complet. `logoDataUri` : le bandeau d'en-tete en data: URI (le PDF n'a pas
  *  d'acces au site) ; `cssPolices` : les @font-face embarquees (Chromium sur Vercel n'a pas Aptos). */
 export function htmlContrat(champs: ChampsContrat, logoDataUri?: string, cssPolices = ""): string {
@@ -81,9 +99,6 @@ export function htmlContrat(champs: ChampsContrat, logoDataUri?: string, cssPoli
   <h1>${e(a.titre)}</h1>
   ${a.enTete.map((t) => `<p>${e(t)}</p>`).join("")}
 </header>
-<div class="colonnes${a.droite.length === 0 ? " seule" : ""}">
-  <div class="colonne">${a.gauche.map(noeud).join("")}</div>
-  ${a.droite.length > 0 ? `<div class="colonne">${a.droite.map(noeud).join("")}</div>` : ""}
-</div>
+${corps(a)}
 </body></html>`;
 }

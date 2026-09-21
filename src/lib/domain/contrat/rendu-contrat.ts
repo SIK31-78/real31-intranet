@@ -12,17 +12,26 @@
 
 import { estAslOuAful } from "@/lib/domain/copropriete";
 import type { ChampsContrat } from "./champs-contrat";
-import { CASES_PAR_COLONNE, GABARIT_DROITE, GABARIT_GAUCHE, GABARIT_PLEINE_LARGEUR, type BlocGabarit } from "./gabarit-contrat";
+import { CASES_PAR_COLONNE, GABARIT_DROITE, GABARIT_GAUCHE, GABARIT_PLEINE_LARGEUR, LIGNES_DROITE, LIGNES_GAUCHE, type BlocGabarit } from "./gabarit-contrat";
 import { CASES_MANDAT, GABARIT_MANDAT, TITRE_MANDAT } from "./gabarit-mandat";
 import { remplirTexte, tableRemplacement } from "./remplir-gabarit";
 
-export type NoeudContrat =
+/** La position d'un bloc dans le classeur : premiere et derniere ligne Excel. Sert a
+ *  imprimer les deux colonnes EN VIS-A-VIS, comme le classeur (cf. grilleAlignee). */
+export interface PositionClasseur {
+  de?: number;
+  a?: number;
+}
+
+export type NoeudContrat = (
   | { type: "titre"; texte: string }
   | { type: "paragraphe"; texte: string }
   /** Un tableau sur `colonnes` colonnes egales (les cases du classeur). */
   | { type: "tableau"; colonnes: number; lignes: LigneTableau[] }
   /** Le bloc de signatures, les parties cote a cote avec la place pour signer. */
-  | { type: "signatures"; parties: string[] };
+  | { type: "signatures"; parties: string[] }
+) &
+  PositionClasseur;
 
 /** La ligne ou les deux parties signent, cote a cote : « Le syndicat | Le syndic » (contrat de
  *  syndic), « Le représentant de l'AFUL | Le gestionnaire de l'AFUL » (contrat de mandat). */
@@ -88,27 +97,33 @@ function colonne(
   table: Record<string, string>,
   options: { fraisPostauxReels?: boolean; sansCorrections?: boolean },
   cases = CASES_PAR_COLONNE,
+  positions?: readonly (readonly [number, number])[],
 ): NoeudContrat[] {
   const noeuds: NoeudContrat[] = [];
   let serie: LigneTableau[] = [];
+  let serieDe: number | undefined;
+  let serieA: number | undefined;
+  const pos = (i: number): PositionClasseur => (positions?.[i] ? { de: positions[i]![0], a: positions[i]![1] } : {});
   const vider = () => {
     // Un en-tete sans aucune ligne : le classeur repetait « PRESTATIONS | DÉTAILS » en haut de
     // chaque page ; ici le <thead> se repete tout seul, l'en-tete orphelin ne sert a rien.
-    if (serie.some((l) => !l.enTete)) noeuds.push({ type: "tableau", colonnes: cases, lignes: serie });
+    if (serie.some((l) => !l.enTete)) noeuds.push({ type: "tableau", colonnes: cases, lignes: serie, ...(serieDe !== undefined ? { de: serieDe, a: serieA } : {}) });
     serie = [];
+    serieDe = undefined;
+    serieA = undefined;
   };
-  for (const bloc of blocs) {
+  blocs.forEach((bloc, i) => {
     if (typeof bloc === "string") {
       vider();
       const texte = remplirTexte(bloc, table, options);
-      noeuds.push(estTitre(texte) ? { type: "titre", texte } : { type: "paragraphe", texte });
-      continue;
+      noeuds.push(estTitre(texte) ? { type: "titre", texte, ...pos(i) } : { type: "paragraphe", texte, ...pos(i) });
+      return;
     }
     // La ligne ou les deux parties signent, cote a cote : un bloc de signatures, pas un tableau.
     if (bloc.length === 2 && bloc.every((c) => SIGNATAIRE_RE.test(c.texte))) {
       vider();
-      noeuds.push({ type: "signatures", parties: bloc.map((c) => remplirTexte(c.texte, table, options)) });
-      continue;
+      noeuds.push({ type: "signatures", parties: bloc.map((c) => remplirTexte(c.texte, table, options)), ...pos(i) });
+      return;
     }
     const cellules: CelluleTableau[] = bloc.map((c) => {
       const texte = remplirTexte(c.texte, table, options);
@@ -118,11 +133,48 @@ function colonne(
     const enTete = pleines.length > 0 && pleines.every((c) => estCelluleEnTete(c.texte));
     // Un en-tete au milieu d'une grille : le classeur le repetait en haut de chaque page. Le
     // <thead> se repete tout seul, on ne garde que le premier.
-    if (enTete && serie.length > 0) continue;
+    if (enTete && serie.length > 0) return;
+    const p = pos(i);
+    if (serie.length === 0) serieDe = p.de;
+    serieA = p.a ?? serieA;
     serie.push({ enTete, cellules });
-  }
+  });
   vider();
   return noeuds;
+}
+
+/** Un bloc place sur la grille en vis-a-vis : sa rangee (1 = la premiere) et le nombre de rangees qu'il couvre. */
+export interface BlocPlace {
+  noeud: NoeudContrat;
+  rangee: number;
+  etendue: number;
+}
+
+/**
+ * Les deux colonnes EN VIS-A-VIS, comme le classeur les imprime : un bloc qui commence a la
+ * ligne Excel 47 a gauche est en face de celui qui commence a la ligne 47 a droite, et une
+ * cellule fusionnee sur dix lignes couvre les rangees des blocs d'en face. Retour du patron
+ * (21/09/2026) : deux colonnes independantes mettaient le § 4 une page trop tot et le
+ * 7.2.3 avant le 7.2.2.
+ */
+export function grilleAlignee(a: ArbreContrat): { rangees: number; gauche: BlocPlace[]; droite: BlocPlace[] } {
+  const tous = [...a.gauche, ...a.droite];
+  const debuts = [...new Set(tous.map((n) => n.de).filter((x): x is number => x !== undefined))].sort((x, y) => x - y);
+  const rangeeDe = new Map(debuts.map((d, i) => [d, i + 1]));
+  const placer = (noeuds: NoeudContrat[]): BlocPlace[] => {
+    let suivante = 1;
+    return noeuds.map((noeud) => {
+      const rangee = noeud.de !== undefined ? (rangeeDe.get(noeud.de) ?? suivante) : suivante;
+      const fin = noeud.a ?? noeud.de ?? rangee;
+      const etendue = noeud.de !== undefined ? Math.max(1, debuts.filter((d) => d >= noeud.de! && d <= fin).length) : 1;
+      suivante = rangee + etendue;
+      return { noeud, rangee, etendue };
+    });
+  };
+  const gauche = placer(a.gauche);
+  const droite = placer(a.droite);
+  const rangees = Math.max(debuts.length, ...gauche.map((p) => p.rangee + p.etendue - 1), ...droite.map((p) => p.rangee + p.etendue - 1));
+  return { rangees, gauche, droite };
 }
 
 export function arbreContrat(champs: ChampsContrat): ArbreContrat {
@@ -135,9 +187,9 @@ export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   }
   const options = { fraisPostauxReels: champs.fraisPostauxReels };
   const [titre, ...enTete] = GABARIT_PLEINE_LARGEUR.map((b) => remplirTexte(b, table, options));
-  const droite = colonne(GABARIT_DROITE, table, options);
+  const droite = colonne(GABARIT_DROITE, table, options, CASES_PAR_COLONNE, LIGNES_DROITE);
   if (champs.conditionsParticulieres) {
     droite.push({ type: "titre", texte: "CONDITIONS PARTICULIÈRES" }, { type: "paragraphe", texte: champs.conditionsParticulieres });
   }
-  return { titre: titre ?? "", enTete, gauche: colonne(GABARIT_GAUCHE, table, options), droite };
+  return { titre: titre ?? "", enTete, gauche: colonne(GABARIT_GAUCHE, table, options, CASES_PAR_COLONNE, LIGNES_GAUCHE), droite };
 }

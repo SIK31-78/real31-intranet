@@ -15,7 +15,7 @@
 // module a fusionner). Ne pas « completer » ce trou : ce n'est pas un oubli.
 
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
-import { arbreContrat, type NoeudContrat } from "@/lib/domain/contrat/rendu-contrat";
+import { arbreContrat, grilleAlignee, type NoeudContrat } from "@/lib/domain/contrat/rendu-contrat";
 
 function Noeud({ n }: { n: NoeudContrat }) {
   if (n.type === "titre") {
@@ -76,10 +76,18 @@ export function DocumentContrat({ champs }: { champs: ChampsContrat }) {
 
       {/* Le corps, sur deux colonnes. `items-start` : les deux flux commencent en haut,
           ils n'ont aucune raison d'etre alignes l'un sur l'autre. */}
-      <div className={`grid gap-6 items-start ${a.droite.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+      {a.droite.length === 0 ? (
         <div>{a.gauche.map((n, i) => <Noeud key={i} n={n} />)}</div>
-        {a.droite.length > 0 && <div>{a.droite.map((n, i) => <Noeud key={i} n={n} />)}</div>}
-      </div>
+      ) : (
+        // Les deux colonnes EN VIS-A-VIS, rangee par rangee du classeur (cf. grilleAlignee).
+        <div className="grid grid-cols-2 gap-x-6 items-start">
+          {[...grilleAlignee(a).gauche.map((p) => [p, 1] as const), ...grilleAlignee(a).droite.map((p) => [p, 2] as const)].map(([p, col], i) => (
+            <div key={i} className="min-w-0 break-inside-avoid" style={{ gridColumn: col, gridRow: `${p.rangee} / span ${p.etendue}` }}>
+              <Noeud n={p.noeud} />
+            </div>
+          ))}
+        </div>
+      )}
     </article>
   );
 }

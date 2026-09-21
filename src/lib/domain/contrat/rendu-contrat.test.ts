@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { assemblerChampsContrat, PRESTATIONS_CONTRAT, PRESTATIONS_MANDAT, type CoproContrat, type PrestationContrat } from "./champs-contrat";
 import { htmlContrat } from "./html-contrat";
-import { arbreContrat, estMontant, estTitre, type NoeudContrat } from "./rendu-contrat";
+import { arbreContrat, estMontant, estTitre, grilleAlignee, type NoeudContrat } from "./rendu-contrat";
 import { PLACEHOLDERS_MANDAT } from "./gabarit-mandat";
 import { placeholdersNonResolus, tableRemplacement } from "./remplir-gabarit";
 
@@ -119,7 +119,7 @@ describe("arbreContrat", () => {
 
   it("imprime les deux parties signataires cote a cote", () => {
     const sig = a.gauche.find((n) => n.type === "signatures");
-    expect(sig).toEqual({ type: "signatures", parties: ["Le syndicat", "Le syndic"] });
+    expect(sig).toMatchObject({ type: "signatures", parties: ["Le syndicat", "Le syndic"] });
     expect(tous.some((t) => lignesDe(t).some((l) => l.cellules[0]?.texte === "Le syndicat"))).toBe(false);
     expect(htmlContrat(champs())).toContain('<div class="signatures"><div>Le syndicat</div><div>Le syndic</div></div>');
   });
@@ -127,6 +127,21 @@ describe("arbreContrat", () => {
   it("numerote les sections en titres", () => {
     expect(titres(a.gauche)).toContain("7.1.5. Modalités de rémunération");
     expect(titres(a.gauche).some((t) => t.startsWith("7.1.3. Prestations optionnelles"))).toBe(true);
+  });
+
+  it("place les deux colonnes en vis-a-vis, rangee par rangee du classeur", () => {
+    const g = grilleAlignee(a);
+    // « 4. RESILIATION... » (gauche, ligne 38 du classeur) est en face de la suite du § 3
+    // « après en avoir donné avis... » (droite, ligne 38) : comme dans le contrat MYTHEC.
+    const quatre = g.gauche.find((p) => p.noeud.type === "titre" && p.noeud.texte.startsWith("4. RESILIATION"))!;
+    const suiteDuTrois = g.droite.find((p) => p.noeud.type === "paragraphe" && p.noeud.texte.startsWith("après en avoir donné avis"))!;
+    expect(quatre.rangee).toBe(suiteDuTrois.rangee);
+    // Chaque colonne avance sans chevauchement, et couvre au moins une rangee par bloc.
+    for (const col of [g.gauche, g.droite]) {
+      for (let i = 1; i < col.length; i++) expect(col[i]!.rangee).toBeGreaterThanOrEqual(col[i - 1]!.rangee + col[i - 1]!.etendue);
+      for (const p of col) expect(p.etendue).toBeGreaterThanOrEqual(1);
+    }
+    expect(g.rangees).toBeGreaterThan(80);
   });
 
   it("ajoute les conditions particulieres en fin de colonne droite, seulement si renseignees", () => {
