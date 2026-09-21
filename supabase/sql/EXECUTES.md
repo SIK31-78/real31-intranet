@@ -10,6 +10,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 
 | Fichier | Statut | Notes |
 |---|---|---|
+| `copropriete_forme_juridique.sql` | 🔲 | **App A** : colonne `legalForm` (COPROPRIETE / ASL / AFUL) sur `Copropriete`, avec le recensement du 21/09 (8 ASL, 4 AFUL dont ILOTBLEUET). À déclarer aussi dans le `schema.prisma` du patron. |
 | `intranet_jalons.sql` | ❔ | Socle jalons (RLS off assumée). |
 | `intranet_jalons_types_postag.sql` | ❔ | Extension des types de jalons post-AG. |
 | `intranet_supervision_items.sql` | ❔ | Items de supervision. |
