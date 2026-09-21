@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estDirection, profilDe } from "@/lib/auth/roles";
+import { estDirection, estSuperAdmin, profilDe } from "@/lib/auth/roles";
+import { ecranDelegations } from "@/lib/services/delegations/delegations";
+import { BlocDelegations } from "@/app/delegations/bloc-delegations";
 import { listerAnnuaire, type CollaborateurResume } from "@/lib/services/collaborateurs/collaborateurs";
 import { familleDe, libelleFonction, LIBELLE_FAMILLE_FONCTION, type FamilleFonction } from "@/lib/domain/collaborateur";
 import { formatJour } from "@/lib/services/facturation/format";
@@ -24,7 +26,7 @@ export default async function CollaborateursPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
   if (!estDirection(profilDe(g))) redirect("/accueil");
-  const annuaire = await listerAnnuaire();
+  const [annuaire, delegations] = await Promise.all([listerAnnuaire(), ecranDelegations(g.id, estSuperAdmin(g.email))]);
   const enPoste = annuaire.collaborateurs.filter((c) => c.enPoste);
   const partis = annuaire.collaborateurs.filter((c) => !c.enPoste);
   const familles: FamilleFonction[] = ["direction", "syndic", "transaction", "location", "accueil"];
@@ -43,7 +45,7 @@ export default async function CollaborateursPage() {
               arrivées, les départs et les habilitations. Le portefeuille, c&apos;est ce que chaque copropriété dit de son
               gestionnaire, de son assistant et de son comptable. Un départ réaffecte le portefeuille avant de désactiver la
               personne — pour ne jamais se demander « qui est sur quoi ». Les remplacements (congé, binôme) se posent
-              dans <a href="/delegations" className="underline">Délégations</a>.
+              dans les délégations, ci-dessous.
             </p>
           }
         />
@@ -61,6 +63,13 @@ export default async function CollaborateursPage() {
         <Section id="collab-arrivee" titre="Nouvelle arrivée">
           <Arrivee agences={annuaire.agences} directeurs={enPoste.filter((c) => ["ADMIN", "DIRECTEUR_SYNDIC", "DIRECTEUR_AGENCE"].includes(c.roleTable ?? "")).map((c) => ({ id: c.id, nom: c.nomComplet }))} />
         </Section>
+
+        {/* Les remplacements (ADR-041) : qui ecrit sur le portefeuille de qui, jusqu'a quand. */}
+        {delegations && (
+          <Section id="collab-delegations" titre="Délégations" compte={delegations.delegations.filter((d) => d.etat !== "passee").length}>
+            <BlocDelegations ecran={delegations} moi={g.id} />
+          </Section>
+        )}
 
         {familles.map((f) => {
           const lignes = parFamille(f);
