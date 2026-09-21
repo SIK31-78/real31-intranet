@@ -1,0 +1,2 @@
+# Les crochets git sont des scripts sh : fins de ligne LF, sinon « bad interpreter » sous Git Bash.
+.githooks/* text eol=lf
