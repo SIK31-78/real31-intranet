@@ -4,7 +4,13 @@
 // Les tarifs FIGES au contrat (intranet_suivi_contrats.tarifs) ne bougent jamais d'ici :
 // changer la grille 2027 ne touche aucun contrat signe (Sekou, 15/09/2026).
 
-import { PRESTATIONS_CONTRAT as PRESTATIONS_DU_CONTRAT_IMPRIME } from "@/lib/domain/contrat/champs-contrat";
+import { PRESTATIONS_CONTRAT, PRESTATIONS_MANDAT } from "@/lib/domain/contrat/champs-contrat";
+
+/** Les prestations des deux documents imprimes : contrat de syndic, puis ce que le mandat ASL/AFUL ajoute. */
+const PRESTATIONS_DU_CONTRAT_IMPRIME: readonly string[] = [
+  ...PRESTATIONS_CONTRAT,
+  ...PRESTATIONS_MANDAT.filter((p) => !(PRESTATIONS_CONTRAT as readonly string[]).includes(p)),
+];
 import { PRESTATIONS_CONTRAT as PRESTATIONS_FACTURABLES } from "./prestations-contrat";
 import { LIGNES_FORFAIT } from "@/lib/domain/proposition/forfait";
 

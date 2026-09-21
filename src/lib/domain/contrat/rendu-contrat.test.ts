@@ -2,9 +2,11 @@
 // 17/09/2026 : « le pdf est mal genere notamment au niveau des tableaux ».
 
 import { describe, expect, it } from "vitest";
-import { assemblerChampsContrat, PRESTATIONS_CONTRAT, type CoproContrat, type PrestationContrat } from "./champs-contrat";
+import { assemblerChampsContrat, PRESTATIONS_CONTRAT, PRESTATIONS_MANDAT, type CoproContrat, type PrestationContrat } from "./champs-contrat";
 import { htmlContrat } from "./html-contrat";
 import { arbreContrat, estMontant, estTitre, type NoeudContrat } from "./rendu-contrat";
+import { PLACEHOLDERS_MANDAT } from "./gabarit-mandat";
+import { placeholdersNonResolus, tableRemplacement } from "./remplir-gabarit";
 
 const COPRO: CoproContrat = {
   code: "S215",
@@ -27,11 +29,11 @@ const COPRO: CoproContrat = {
   finMaxAgHeure: 22,
 };
 
-function champs(conditionsParticulieres?: string) {
+function champs(conditionsParticulieres?: string, copro: CoproContrat = COPRO) {
   const tarifs = {} as Record<PrestationContrat, { libelle: string; ttc: number }>;
-  for (const p of PRESTATIONS_CONTRAT) tarifs[p] = { libelle: p, ttc: 120 };
+  for (const p of [...PRESTATIONS_CONTRAT, ...PRESTATIONS_MANDAT]) tarifs[p] = { libelle: p, ttc: 120 };
   return assemblerChampsContrat(
-    COPRO,
+    copro,
     { dateAgISO: "2026-10-22", debutISO: "2026-07-01", finISO: "2027-06-30", honorairesGestionTtc: 9419, forfaitPostauxTtc: 792 },
     tarifs,
     conditionsParticulieres,
@@ -47,8 +49,12 @@ describe("estTitre", () => {
     expect(estTitre("7.1.3. Prestations optionnelles qui peuvent être incluses dans le forfait sur décision des parties")).toBe(true);
     expect(estTitre("7.2.2. Prestations relatives aux réunions et visites supplémentaires \n(au-delà du contenu du forfait stipulé aux 7.1.1 et 7.1.3)")).toBe(true);
   });
-  it("laisse en paragraphe un montant qui commence par un nombre", () => {
+  it("laisse en paragraphe un montant ou une adresse qui commence par un nombre", () => {
     expect(estTitre("5597.50 € HT, soit 6717 € TTC.")).toBe(false);
+    expect(estTitre("13 rond-point du Souvenir Français 92250 LA GARENNE-COLOMBES,")).toBe(false);
+    expect(estTitre("78600 Maisons-Laffitte,")).toBe(false);
+    expect(estTitre("8.4 Préparation, convocation")).toBe(true);
+    expect(estTitre("5.3 Frais de délivrance")).toBe(true);
   });
   it("laisse en paragraphe un alinea qui commence par un numero", () => {
     expect(estTitre("8.4 Préparation, convocation et tenue d’une assemblée générale à la demande d’un ou plusieurs copropriétaires, pour des questions concernant leurs droits ou obligations (art. 17-1 AA de la loi du 10 juillet 1965)")).toBe(false);
@@ -144,5 +150,51 @@ describe("htmlContrat", () => {
     expect(html).toContain("<thead>");
     expect(html).toContain('<img src="data:image/png;base64,AAAA"');
     expect(html).toContain("4 rue des Bleuets");
+  });
+});
+
+describe("contrat de mandat (ASL / AFUL)", () => {
+  const aful: CoproContrat = { ...COPRO, code: "S216", nom: "ILOTBLEUET", formeJuridique: "aful", denomination: "Îlot Lacroix Bleuets" };
+  const c = champs(undefined, aful);
+  const a = arbreContrat(c);
+
+  it("sort sur une colonne, avec le titre du mandat et la forme en capitales", () => {
+    expect(a.droite).toEqual([]);
+    expect(a.enTete).toEqual([]);
+    expect(a.titre).toBe("CONTRAT DE MANDAT DU GESTIONNAIRE PROFESSIONNEL\nD’UNE AFUL N°");
+    const textes = a.gauche.flatMap((n) => (n.type === "paragraphe" || n.type === "titre" ? [n.texte] : []));
+    expect(textes).toContain("Ci-après dénommé l’AFUL Îlot Lacroix Bleuets");
+    expect(textes.some((t) => t.includes("prendra effet le 01/07/2026 et prendra fin le 30/06/2027"))).toBe(true);
+  });
+
+  it("resout TOUS les placeholders du gabarit du mandat", () => {
+    const table = tableRemplacement(c);
+    expect(PLACEHOLDERS_MANDAT.filter((p) => table[p] === undefined)).toEqual([]);
+    const restants = a.gauche.flatMap((n) =>
+      n.type === "tableau" ? n.lignes.flatMap((l) => l.cellules.flatMap((x) => placeholdersNonResolus(x.texte, table))) : n.type === "signatures" ? [] : placeholdersNonResolus(n.texte, table),
+    );
+    expect([...new Set(restants)]).toEqual([]);
+  });
+
+  it("les tableaux font 12 cases (7 + 5, ou 4 + 4 + 4), les signataires sont ceux du mandat", () => {
+    const tableaux = a.gauche.filter((n) => n.type === "tableau");
+    expect(tableaux.length).toBeGreaterThan(5);
+    for (const t of tableaux) {
+      expect(t.type === "tableau" && t.colonnes).toBe(12);
+      expect(t.type === "tableau" && t.lignes[0]!.cellules.reduce((n, x) => n + x.etendue, 0)).toBe(12);
+    }
+    expect(a.gauche.at(-1)).toEqual({ type: "signatures", parties: ["Le représentant de l’AFUL", "Le gestionnaire de l’AFUL"] });
+  });
+
+  it("n'applique pas la correction du § 7.1.1 du contrat de syndic", () => {
+    const textes = a.gauche.flatMap((n) => (n.type === "paragraphe" ? [n.texte] : []));
+    expect(textes.some((t) => t.includes("sont inclus dans la rémunération forfaitaire"))).toBe(true);
+    expect(textes.some((t) => t.includes("7.1.5"))).toBe(false);
+  });
+
+  it("un contrat de syndic ordinaire ne change pas", () => {
+    const b = arbreContrat(champs());
+    expect(b.droite.length).toBeGreaterThan(10);
+    expect(b.titre).toContain("CONTRAT DE SYNDIC");
   });
 });

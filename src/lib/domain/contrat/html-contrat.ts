@@ -17,6 +17,10 @@ const CSS = `
   .colonne { flex: 1 1 0; min-width: 0; }
   /* Un pixel de marge a droite : un bord de tableau ne doit jamais toucher la limite de page. */
   .colonne:last-child { padding-right: 2px; }
+  /* Une seule colonne (contrat de mandat) : texte un peu plus grand, tableaux moins serres. */
+  .colonnes.seule { font-size: 9.6pt; }
+  .colonnes.seule table { font-size: 9.2pt; }
+  .colonnes.seule h1, .colonnes.seule h2 { font-size: 9.8pt; }
   h2 { font-size: 8.6pt; font-weight: 600; margin: 9px 0 3px; padding: 3px 5px; background: #E3F1E7; color: #173626; white-space: pre-line; break-inside: avoid; break-after: avoid; }
   p { margin: 0 0 4px; text-align: justify; white-space: pre-line; }
   /* Bordures dessinees DANS la boite du tableau (separate + bord droit/bas par cellule) : en
@@ -77,9 +81,9 @@ export function htmlContrat(champs: ChampsContrat, logoDataUri?: string, cssPoli
   <h1>${e(a.titre)}</h1>
   ${a.enTete.map((t) => `<p>${e(t)}</p>`).join("")}
 </header>
-<div class="colonnes">
+<div class="colonnes${a.droite.length === 0 ? " seule" : ""}">
   <div class="colonne">${a.gauche.map(noeud).join("")}</div>
-  <div class="colonne">${a.droite.map(noeud).join("")}</div>
+  ${a.droite.length > 0 ? `<div class="colonne">${a.droite.map(noeud).join("")}</div>` : ""}
 </div>
 </body></html>`;
 }

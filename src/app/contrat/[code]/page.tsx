@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getContrat, getEditionsContrat } from "@/lib/services/contrat/get-contrat";
+import { estAslOuAful, libelleFormeJuridique } from "@/lib/domain/copropriete";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { formatEuros, formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
@@ -79,6 +80,8 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
   // fonctionne comme avant.
   const editions = await getEditionsContrat(code);
   const { copro } = champs;
+  // ASL / AFUL : le contrat de mandat du gestionnaire, sans forfait postal.
+  const mandat = estAslOuAful(copro.formeJuridique);
   const adresse = [copro.adresse1, copro.adresse2, copro.adresse3]
     .filter(Boolean)
     .join(" ");
@@ -87,8 +90,8 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
     <AppShell user={g} active="contrat" breadcrumb={`Copropriétés · ${code} · Contrat`}>
       <Page largeur="travail">
         <PageHeader
-          titre="Contrat de syndic"
-          eyebrow={`${copro.nom} · ${code}`}
+          titre={mandat ? "Contrat de mandat du gestionnaire" : "Contrat de syndic"}
+          eyebrow={`${copro.nom} · ${code}${mandat ? ` · ${libelleFormeJuridique(copro.formeJuridique)}` : ""}`}
         />
 
         {/* Les trois valeurs ajustables AVANT d'editer : elles changent a chaque
@@ -103,6 +106,7 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
               honorairesTtc={champs.honorairesGestionTtc}
               forfaitPostauxTtc={champs.forfaitPostauxTtc}
               fraisPostauxReels={champs.fraisPostauxReels}
+              sansFraisPostaux={mandat}
             />
           </CardBody>
         </Card>
@@ -118,9 +122,11 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
               <DataRow label="Honoraires de gestion">
                 {formatEuros(champs.honorairesGestionTtc)} TTC
               </DataRow>
-              <DataRow label="Forfait timbres">
-                {formatEuros(champs.forfaitPostauxTtc)} TTC
-              </DataRow>
+              {!mandat && (
+                <DataRow label="Forfait timbres">
+                  {formatEuros(champs.forfaitPostauxTtc)} TTC
+                </DataRow>
+              )}
               <DataRow label="Barème appliqué">{champs.anneeBareme}</DataRow>
             </DataList>
           </CardBody>

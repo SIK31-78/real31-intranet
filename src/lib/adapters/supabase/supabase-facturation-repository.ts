@@ -488,7 +488,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
   async getDonneesContrat(coproCode: string): Promise<DonneesContratCopro | null> {
     const supabase = createSupabasePublicClient();
     const colonnes =
-      "referenceCrypto, name, address1, address2, address3, postalCode, city, " +
+      "referenceCrypto, name, legalForm, sdcName, address1, address2, address3, postalCode, city, " +
       "registrationNumber, insuranceCompany, insuranceSubscriptionDate, agencyId, " +
       "mainLotsCount, otherLotsCount, visitCount, csCount, syndicContractEndDate, syndicInitialDate";
     // Meme cascade que getParametresCopro : le code peut etre une reference Crypto
@@ -509,9 +509,12 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     const jour = (v: string | number | null): string | null =>
       v === null ? null : String(v).slice(0, 10);
 
+    const legalForm = (texte(r.legalForm) ?? "").toUpperCase();
     return {
       code: coproCode,
       nom: texte(r.name) ?? coproCode,
+      formeJuridique: legalForm === "ASL" ? "asl" : legalForm === "AFUL" ? "aful" : "copropriete",
+      denomination: texte(r.sdcName),
       adresse1: texte(r.address1),
       adresse2: texte(r.address2),
       adresse3: texte(r.address3),

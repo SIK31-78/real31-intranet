@@ -48,6 +48,7 @@ export function FormulaireContrat({
   honorairesTtc,
   forfaitPostauxTtc,
   fraisPostauxReels = false,
+  sansFraisPostaux = false,
 }: {
   coproCode: string;
   dateAgISO: string;
@@ -58,6 +59,8 @@ export function FormulaireContrat({
   forfaitPostauxTtc: number;
   /** Defaut : forfait. Le reel ne se propose que si le dernier contrat edite l'etait. */
   fraisPostauxReels?: boolean;
+  /** Contrat de mandat (ASL / AFUL) : pas de forfait postal, le bloc n'apparait pas. */
+  sansFraisPostaux?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -162,11 +165,13 @@ export function FormulaireContrat({
         </Field>
         {/* Frais postaux : forfait par defaut ; au reel, le § 7.1.5 change et le montant
             n'a plus lieu d'etre (modele du patron, 15/09/2026). */}
-        <GroupeChoix label="Frais postaux">
-          <Choix type="radio" name="frais" value="forfait" label="Forfait" checked={!reels} onChange={() => setReels(false)} />
-          <Choix type="radio" name="frais" value="reels" label="Frais réels" checked={reels} onChange={() => setReels(true)} />
-        </GroupeChoix>
-        {!reels && (
+        {!sansFraisPostaux && (
+          <GroupeChoix label="Frais postaux">
+            <Choix type="radio" name="frais" value="forfait" label="Forfait" checked={!reels} onChange={() => setReels(false)} />
+            <Choix type="radio" name="frais" value="reels" label="Frais réels" checked={reels} onChange={() => setReels(true)} />
+          </GroupeChoix>
+        )}
+        {!sansFraisPostaux && !reels && (
           <Field label="Forfait timbres (TTC)">
             <Input
               type="text"
@@ -181,7 +186,7 @@ export function FormulaireContrat({
         )}
         <Button type="submit" variant="primary" disabled={!valide || pending} aria-busy={pending}>
           {pending ? <Loader2 strokeWidth={1.5} className="animate-spin" /> : <Download strokeWidth={1.5} />}
-          {pending ? "Préparation du PDF…" : "Éditer le contrat (PDF)"}
+          {pending ? "Préparation du PDF…" : sansFraisPostaux ? "Éditer le contrat de mandat (PDF)" : "Éditer le contrat (PDF)"}
         </Button>
         <ButtonLink href={apercu} variant="ghost" size="sm" target="_blank">
           <Eye strokeWidth={1.5} /> Aperçu à l&apos;écran

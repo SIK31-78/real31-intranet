@@ -18,7 +18,7 @@ import {
 } from "@/lib/domain/contrat/cycle-contrat";
 import {
   assemblerChampsContrat,
-  PRESTATIONS_CONTRAT,
+  prestationsRequises,
   type ChampsContrat,
   type CoproContrat,
   type PrestationContrat,
@@ -134,15 +134,17 @@ export async function getContrat(
   // Le bareme en UNE lecture, puis on exige les 21 prestations du contrat.
   const lignes = await repo.listerBareme(anneeBareme);
   const parIdentifiant = new Map(lignes.map((l) => [l.identifiantPrestation, l]));
-  const manquantes = PRESTATIONS_CONTRAT.filter((p) => !parIdentifiant.has(p));
+  // Le contrat de syndic exige ses 21 prestations, le contrat de mandat (ASL / AFUL) les siennes.
+  const requises = prestationsRequises(donnees.formeJuridique ?? undefined);
+  const manquantes = requises.filter((p) => !parIdentifiant.has(p));
   if (manquantes.length > 0) {
     throw new Error(
       `Contrat de syndic : bareme ${anneeBareme} incomplet, prestations absentes (${manquantes.join(", ")}). ` +
         `Completer intranet_tarifs avant d'editer le contrat.`,
     );
   }
-  const tarifs = {} as Record<PrestationContrat, { libelle: string; ttc: number }>;
-  for (const p of PRESTATIONS_CONTRAT) {
+  const tarifs: Partial<Record<PrestationContrat, { libelle: string; ttc: number }>> = {};
+  for (const p of requises) {
     const l = parIdentifiant.get(p)!;
     tarifs[p] = { libelle: l.libelle, ttc: l.montantTtc };
   }
@@ -161,6 +163,8 @@ export async function getContrat(
   const copro: CoproContrat = {
     code: donnees.code,
     nom: donnees.nom,
+    ...(donnees.formeJuridique && donnees.formeJuridique !== "copropriete" ? { formeJuridique: donnees.formeJuridique } : {}),
+    ...(donnees.denomination ? { denomination: donnees.denomination } : {}),
     // Les champs d'adresse absents deviennent des chaines vides : le document imprime
     // une ligne vide, il ne doit jamais afficher « null ».
     adresse1: donnees.adresse1 ?? "",

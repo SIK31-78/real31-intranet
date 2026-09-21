@@ -5,6 +5,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
+import { estAslOuAful } from "@/lib/domain/copropriete";
 import { htmlContrat } from "@/lib/domain/contrat/html-contrat";
 import { cssPolicesPdf } from "@/lib/services/pdf/polices";
 import { rendrePdf } from "@/lib/services/pdf/rendre-pdf";
@@ -29,5 +30,6 @@ export async function pdfContrat(champs: ChampsContrat): Promise<Buffer> {
 /** Nom de fichier du PDF : « Contrat de syndic - 16 rue Sébastopol - 2026-11-20.pdf ». */
 export function nomFichierContrat(champs: ChampsContrat): string {
   const sujet = (champs.copro.code || champs.copro.nom || "copropriete").replace(/[\\/:*?"<>|]+/g, " ").trim();
-  return `Contrat de syndic - ${sujet} - ${champs.dateAgISO}.pdf`;
+  const nature = estAslOuAful(champs.copro.formeJuridique) ? "Contrat de mandat" : "Contrat de syndic";
+  return `${nature} - ${sujet} - ${champs.dateAgISO}.pdf`;
 }

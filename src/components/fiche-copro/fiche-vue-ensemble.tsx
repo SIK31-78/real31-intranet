@@ -11,6 +11,7 @@ import type {
   RoleEquipe,
 } from "@/lib/domain/copropriete";
 import type { CycleAg } from "@/lib/domain/cycle-ag";
+import { estAslOuAful, type FormeJuridique } from "@/lib/domain/copropriete";
 import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +87,7 @@ export function FicheVueEnsemble({
         <div className="flex flex-col gap-5 min-w-0">
           <BlocAg
             coproCode={fiche.copro.code}
+            formeJuridique={fiche.copro.formeJuridique}
             derniere={fiche.derniereAg}
             derniereAgDate={fiche.copro.derniereAgDate}
             prochaine={fiche.copro.prochaineAg}
@@ -197,6 +199,7 @@ function BlocParcours({
 
 function BlocAg({
   coproCode,
+  formeJuridique,
   derniere,
   derniereAgDate,
   prochaine,
@@ -221,6 +224,7 @@ function BlocAg({
   masquerLienOdj,
 }: {
   coproCode: string;
+  formeJuridique?: FormeJuridique;
   derniere?: AgPassee;
   derniereAgDate?: string;
   prochaine?: ProchaineAg;
@@ -398,7 +402,7 @@ function BlocAg({
         <div>
           <ButtonLink href={`/contrat/${coproCode}`} variant="ghost" size="sm">
             <FileSignature strokeWidth={1.5} />
-            Contrat de syndic
+            {estAslOuAful(formeJuridique) ? "Contrat de mandat du gestionnaire" : "Contrat de syndic"}
           </ButtonLink>
         </div>
       </CardBody>

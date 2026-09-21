@@ -76,9 +76,9 @@ export function DocumentContrat({ champs }: { champs: ChampsContrat }) {
 
       {/* Le corps, sur deux colonnes. `items-start` : les deux flux commencent en haut,
           ils n'ont aucune raison d'etre alignes l'un sur l'autre. */}
-      <div className="grid grid-cols-2 gap-6 items-start">
+      <div className={`grid gap-6 items-start ${a.droite.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
         <div>{a.gauche.map((n, i) => <Noeud key={i} n={n} />)}</div>
-        <div>{a.droite.map((n, i) => <Noeud key={i} n={n} />)}</div>
+        {a.droite.length > 0 && <div>{a.droite.map((n, i) => <Noeud key={i} n={n} />)}</div>}
       </div>
     </article>
   );

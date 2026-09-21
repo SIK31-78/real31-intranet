@@ -116,6 +116,8 @@ export class MockFacturationRepository implements FacturationRepository {
     return {
       code: coproCode,
       nom: `Copropriete ${coproCode}`,
+      formeJuridique: "copropriete",
+      denomination: null,
       adresse1: "1 rue de la Mairie",
       adresse2: null,
       adresse3: null,

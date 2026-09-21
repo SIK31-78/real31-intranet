@@ -6,6 +6,7 @@
 // techno (ni Supabase, ni Pennylane).
 
 import type { CycleTarif } from "@/lib/domain/facturation/filet-gestion-courante";
+import type { FormeJuridique } from "@/lib/domain/copropriete";
 
 /** Types de prestation SYNDIC facturables (cf. intranet_factures.type_prestation). */
 export type TypePrestation =
@@ -192,6 +193,10 @@ export interface LigneGestionCourante {
 export interface DonneesContratCopro {
   code: string;
   nom: string;
+  /** Copropriete / ASL / AFUL (`legalForm`) : choisit le contrat de syndic ou de mandat. */
+  formeJuridique: FormeJuridique | null;
+  /** Denomination officielle (`sdcName`), quand la fiche la porte. */
+  denomination: string | null;
   adresse1: string | null;
   adresse2: string | null;
   adresse3: string | null;

@@ -10,8 +10,10 @@
 // n'est devine a partir des textes, sauf ce que le classeur ne sait pas dire : un titre
 // (capitales ou numero) et une ligne d'en-tete (capitales).
 
+import { estAslOuAful } from "@/lib/domain/copropriete";
 import type { ChampsContrat } from "./champs-contrat";
 import { CASES_PAR_COLONNE, GABARIT_DROITE, GABARIT_GAUCHE, GABARIT_PLEINE_LARGEUR, type BlocGabarit } from "./gabarit-contrat";
+import { CASES_MANDAT, GABARIT_MANDAT, TITRE_MANDAT } from "./gabarit-mandat";
 import { remplirTexte, tableRemplacement } from "./remplir-gabarit";
 
 export type NoeudContrat =
@@ -22,8 +24,9 @@ export type NoeudContrat =
   /** Le bloc de signatures, les parties cote a cote avec la place pour signer. */
   | { type: "signatures"; parties: string[] };
 
-/** La ligne du classeur ou les deux parties signent, cote a cote. */
-const PARTIES_SIGNATAIRES = ["Le syndicat", "Le syndic"];
+/** La ligne ou les deux parties signent, cote a cote : « Le syndicat | Le syndic » (contrat de
+ *  syndic), « Le représentant de l'AFUL | Le gestionnaire de l'AFUL » (contrat de mandat). */
+const SIGNATAIRE_RE = /^Le (syndicat|syndic|représentant|gestionnaire)\b/;
 
 export interface LigneTableau {
   /** Toutes les cellules pleines en capitales : une ligne d'en-tete. */
@@ -46,6 +49,7 @@ export interface ArbreContrat {
   /** Les mentions sous le titre (decrets). */
   enTete: string[];
   gauche: NoeudContrat[];
+  /** Vide pour le contrat de mandat : une seule colonne. */
   droite: NoeudContrat[];
 }
 
@@ -56,7 +60,9 @@ export function estTitre(texte: string): boolean {
   // sur deux lignes (« 7.2.2. ... \n(au-dela du contenu du forfait...) »). Au-dela de 140
   // caracteres c'est un paragraphe qui commence par un numero (« 8.4 Préparation... »).
   // Numero suivi d'une lettre : « 5597.50 € HT, soit 6717 € TTC » n'est pas un titre.
-  if (/^\d+(\.\d+)*\.?\s+\p{L}/u.test(texte)) return texte.length <= 140;
+  // Il faut un point dans le numero (« 1. », « 4.2.1. », « 8.4 ») : « 13 rond-point du
+  // Souvenir Français » ou « 78600 Maisons-Laffitte » sont des adresses, pas des titres.
+  if (/^(\d+(\.\d+)+\.?|\d+\.)\s+\p{L}/u.test(texte)) return texte.length <= 140;
   // « ANNEXE 1 AU CONTRAT DE SYNDIC \n LISTE NON LIMITATIVE… » : un titre en capitales sur deux lignes.
   if (texte.includes("\n")) return texte.startsWith("ANNEXE ") ? texte.length <= 260 : texte.length <= 200 && texte.split("\n").every((l) => estCapitales(l));
   return texte.length <= 90 && estCapitales(texte);
@@ -77,13 +83,18 @@ export function estMontant(texte: string): boolean {
   return /^[\d\s .,]+(€|EUR)?$/.test(texte.trim()) && /\d/.test(texte);
 }
 
-function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, options: { fraisPostauxReels?: boolean }): NoeudContrat[] {
+function colonne(
+  blocs: readonly BlocGabarit[],
+  table: Record<string, string>,
+  options: { fraisPostauxReels?: boolean; sansCorrections?: boolean },
+  cases = CASES_PAR_COLONNE,
+): NoeudContrat[] {
   const noeuds: NoeudContrat[] = [];
   let serie: LigneTableau[] = [];
   const vider = () => {
     // Un en-tete sans aucune ligne : le classeur repetait « PRESTATIONS | DÉTAILS » en haut de
     // chaque page ; ici le <thead> se repete tout seul, l'en-tete orphelin ne sert a rien.
-    if (serie.some((l) => !l.enTete)) noeuds.push({ type: "tableau", colonnes: CASES_PAR_COLONNE, lignes: serie });
+    if (serie.some((l) => !l.enTete)) noeuds.push({ type: "tableau", colonnes: cases, lignes: serie });
     serie = [];
   };
   for (const bloc of blocs) {
@@ -94,9 +105,9 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
       continue;
     }
     // La ligne ou les deux parties signent, cote a cote : un bloc de signatures, pas un tableau.
-    if (bloc.length === PARTIES_SIGNATAIRES.length && bloc.every((c, i) => c.texte === PARTIES_SIGNATAIRES[i])) {
+    if (bloc.length === 2 && bloc.every((c) => SIGNATAIRE_RE.test(c.texte))) {
       vider();
-      noeuds.push({ type: "signatures", parties: [...PARTIES_SIGNATAIRES] });
+      noeuds.push({ type: "signatures", parties: bloc.map((c) => remplirTexte(c.texte, table, options)) });
       continue;
     }
     const cellules: CelluleTableau[] = bloc.map((c) => {
@@ -116,6 +127,12 @@ function colonne(blocs: readonly BlocGabarit[], table: Record<string, string>, o
 
 export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   const table = tableRemplacement(champs);
+  // ASL / AFUL : le contrat de mandat du gestionnaire, une colonne, sans les corrections
+  // propres au contrat de syndic.
+  if (estAslOuAful(champs.copro.formeJuridique)) {
+    const options = { sansCorrections: true };
+    return { titre: remplirTexte(TITRE_MANDAT, table, options), enTete: [], gauche: colonne(GABARIT_MANDAT, table, options, CASES_MANDAT), droite: [] };
+  }
   const options = { fraisPostauxReels: champs.fraisPostauxReels };
   const [titre, ...enTete] = GABARIT_PLEINE_LARGEUR.map((b) => remplirTexte(b, table, options));
   const droite = colonne(GABARIT_DROITE, table, options);

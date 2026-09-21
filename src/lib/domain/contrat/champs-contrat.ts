@@ -8,6 +8,7 @@
 // DEUX NIVEAUX POUR CHAQUE PRESTATION, comme le legacy : le TTC lu au bareme et le
 // HT qui en decoule. Le contrat affiche les deux.
 
+import { estAslOuAful, type FormeJuridique } from "@/lib/domain/copropriete";
 import { dureeContratTexte } from "./duree-contrat";
 import { htDepuisTtc, ttcBrut } from "./montants-contrat";
 
@@ -41,7 +42,39 @@ export const PRESTATIONS_CONTRAT = [
   "TauxHoraire",
 ] as const;
 
-export type PrestationContrat = (typeof PRESTATIONS_CONTRAT)[number];
+/**
+ * Les prestations du CONTRAT DE MANDAT d'une ASL / AFUL (modele du cabinet, 21/09/2026) :
+ * les memes tarifs que le contrat de syndic, moins ce que le mandat facture au taux horaire
+ * (AG supplementaire, reprise de compta, dossier d'emprunt) et les statuts a la place du
+ * reglement de copropriete (publication au volume, 77 € TTC en 2025).
+ */
+export const PRESTATIONS_MANDAT = [
+  "CSSupp",
+  "VisiteSupp",
+  "PublicationStatuts",
+  "DepLieu",
+  "MesConser",
+  "AssExp",
+  "DossierAssureur",
+  "MED",
+  "DossierAvocat",
+  "ImmatInitiale",
+  "Echeancier",
+  "Hypotheque",
+  "Injonction",
+  "DossierJustice",
+  "EtatDate",
+  "Opposition",
+  "DelivranceCopie",
+  "TauxHoraire",
+] as const;
+
+export type PrestationContrat = (typeof PRESTATIONS_CONTRAT)[number] | (typeof PRESTATIONS_MANDAT)[number];
+
+/** Les prestations que le document exige au bareme, selon la forme juridique. */
+export function prestationsRequises(forme: FormeJuridique | undefined): readonly PrestationContrat[] {
+  return estAslOuAful(forme) ? PRESTATIONS_MANDAT : PRESTATIONS_CONTRAT;
+}
 
 /** Un tarif du contrat : le TTC du bareme et le HT qui en decoule. */
 export interface TarifContrat {
@@ -59,6 +92,10 @@ export interface TarifContrat {
 export interface CoproContrat {
   code: string;
   nom: string;
+  /** Copropriete (defaut), ASL ou AFUL : choisit le gabarit (contrat de syndic / de mandat). */
+  formeJuridique?: FormeJuridique;
+  /** La denomination officielle (« Îlot Lacroix Bleuets ») quand la fiche la porte ; sinon le nom. */
+  denomination?: string;
   adresse1: string;
   adresse2: string;
   adresse3: string;
@@ -140,10 +177,11 @@ export interface ChampsContrat {
 export function assemblerChampsContrat(
   copro: CoproContrat,
   cycle: CycleContratChamps,
-  tarifsTtc: Record<PrestationContrat, { libelle: string; ttc: number }>,
+  tarifsTtc: Partial<Record<PrestationContrat, { libelle: string; ttc: number }>>,
   conditionsParticulieres?: string,
 ): ChampsContrat {
-  const manquantes = PRESTATIONS_CONTRAT.filter((p) => tarifsTtc[p] === undefined);
+  const requises = prestationsRequises(copro.formeJuridique);
+  const manquantes = requises.filter((p) => tarifsTtc[p] === undefined);
   if (manquantes.length > 0) {
     throw new Error(`Contrat de syndic : prestations absentes du bareme (${manquantes.join(", ")}).`);
   }
@@ -163,8 +201,8 @@ export function assemblerChampsContrat(
     // d'abord sur le debut du cycle, corrige le 14/09/2026 (Sekou : des contrats
     // « en attente du bareme 2027 » pour des AG d'octobre 2026).
     anneeBareme: Number(cycle.dateAgISO.slice(0, 4)),
-    tarifs: PRESTATIONS_CONTRAT.map((identifiant) => {
-      const { libelle, ttc } = tarifsTtc[identifiant];
+    tarifs: requises.map((identifiant) => {
+      const { libelle, ttc } = tarifsTtc[identifiant]!;
       return { identifiant, libelle, ttc, ht: htDepuisTtc(ttc), ttcTexte: ttcBrut(ttc) };
     }),
     ...(conditionsParticulieres?.trim() ? { conditionsParticulieres: conditionsParticulieres.trim() } : {}),

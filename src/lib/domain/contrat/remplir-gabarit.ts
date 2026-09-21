@@ -2,6 +2,7 @@
 // Portage de la table `replacements` de l'Office Script `ContratReplace` (MYTHEC).
 // Pur, deterministe, sans dependance.
 
+import { libelleFormeJuridique } from "@/lib/domain/copropriete";
 import { siegeAgence } from "@/lib/domain/salles-reunion";
 import type { ChampsContrat, PrestationContrat } from "./champs-contrat";
 import { htDepuisTtc, ttcBrut } from "./montants-contrat";
@@ -59,6 +60,9 @@ export function tableRemplacement(champs: ChampsContrat): Record<string, string>
     "[HonoGestionHT]": champs.honorairesGestionHt,
     "[FormulaireContratSyndic.HonoGestion]": String(champs.honorairesGestionTtc),
     "[FormulaireContratSyndic.FraisPostaux]": String(champs.forfaitPostauxTtc),
+    // Contrat de mandat (ASL / AFUL) : la forme en capitales et la denomination officielle.
+    "[FormeJuridique]": libelleFormeJuridique(copro.formeJuridique),
+    "[Coproprietes.Denomination]": copro.denomination ?? copro.nom,
   };
 
   for (const tarif of champs.tarifs) {
@@ -77,10 +81,12 @@ export function tableRemplacement(champs: ChampsContrat): Record<string, string>
 export function remplirTexte(
   texte: string,
   table: Record<string, string>,
-  options: { fraisPostauxReels?: boolean } = {},
+  options: { fraisPostauxReels?: boolean; sansCorrections?: boolean } = {},
 ): string {
-  let source = corrigerGabarit(texte, options);
-  if (options.fraisPostauxReels) source = varianteFraisReels(source);
+  // Les corrections (§ 7.1.1, variante frais reels) sont celles du contrat de SYNDIC : le
+  // contrat de mandat n'a pas de forfait postal, on ne les lui applique pas.
+  let source = options.sansCorrections ? texte : corrigerGabarit(texte, options);
+  if (options.fraisPostauxReels && !options.sansCorrections) source = varianteFraisReels(source);
   if (assuranceInconnue(table)) source = source.split(ASSURANCE_DETAIL).join("");
   return source.replace(/\[[^\]\n]+\]/g, (placeholder) => table[placeholder] ?? placeholder);
 }
