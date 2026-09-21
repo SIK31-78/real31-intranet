@@ -131,7 +131,9 @@ const REMPLACEMENTS = [
   // de 2022 (Sekou, 21/09/2026).
   [
     "Titulaire de la carte professionnelle n° CPI 7801 2016 000 014 479, permettant l’exercice de l’activité de : transaction sur immeubles et fonds de commerces * gestion immobilière * Syndic de copropriété, délivrée par la CCI Paris Ile de France le 25 Novembre 2022. Garanti par GALIAN-SMABTP, 89 rue la Boétie – 75008 Paris sous la référence 110891J.",
-    "Titulaire de la carte professionnelle n° CPI 7801 2016 000 014 479, permettant l’exercice de l’activité de : transaction sur immeubles et fonds de commerces * gestion immobilière * Syndic de copropriété, délivrée par la CCI Paris Île-de-France le 25 Novembre 2025. Garanti par GALIAN-SMABTP, 89 rue la Boétie – 75008 Paris sous la référence 110891J, pour un montant de 10 106 000€ pour l’activité de Syndic de Copropriété, contrat souscrit le 13/12/2004 et couvrant la zone géographique suivante : République Française (France Métropolitaine, DROM-COM).",
+    // Sans la date de delivrance de la carte ni le montant de la garantie (Sekou, 21/09/2026 :
+    // ils changent, on ne veut pas les tenir a jour dans le mandat).
+    "Titulaire de la carte professionnelle n° CPI 7801 2016 000 014 479, permettant l’exercice de l’activité de : transaction sur immeubles et fonds de commerces * gestion immobilière * Syndic de copropriété, délivrée par la CCI Paris Île-de-France. Garanti par GALIAN-SMABTP, 89 rue la Boétie – 75008 Paris sous la référence 110891J, contrat souscrit le 13/12/2004 et couvrant la zone géographique suivante : République Française (France Métropolitaine, DROM-COM).",
   ],
   [
     "Assuré(e) en responsabilité civile professionnelle par MMA IARD – 14 boulevard Marie et Alexandre Oyon – 72030 Le Mans Cedex 9 sous le contrat n° 127 103 751.",

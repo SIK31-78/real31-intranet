@@ -186,10 +186,13 @@ describe("contrat de mandat (ASL / AFUL)", () => {
     expect(a.gauche.at(-1)).toEqual({ type: "signatures", parties: ["Le représentant de l’AFUL", "Le gestionnaire de l’AFUL"] });
   });
 
-  it("porte la carte professionnelle a jour, celle du contrat de syndic", () => {
+  it("porte la carte professionnelle du contrat de syndic, sans sa date ni le montant de la garantie", () => {
     const textes = a.gauche.flatMap((n) => (n.type === "paragraphe" ? [n.texte] : []));
-    expect(textes.some((t) => t.includes("le 25 Novembre 2025") && t.includes("10 106 000€"))).toBe(true);
-    expect(textes.some((t) => t.includes("25 Novembre 2022"))).toBe(false);
+    const carte = textes.find((t) => t.startsWith("Titulaire de la carte professionnelle"))!;
+    expect(carte).toContain("délivrée par la CCI Paris Île-de-France. Garanti par GALIAN-SMABTP");
+    expect(carte).toContain("contrat souscrit le 13/12/2004");
+    expect(carte).not.toContain("Novembre");
+    expect(carte).not.toContain("10 106 000");
   });
 
   it("n'applique pas la correction du § 7.1.1 du contrat de syndic", () => {
