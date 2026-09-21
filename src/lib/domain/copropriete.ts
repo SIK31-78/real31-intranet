@@ -125,12 +125,10 @@ export interface Copropriete {
   /** Id de l'agence gestionnaire. */
   agenceId?: string;
 
-  // --- Ids techniques de CLOISONNEMENT EN CODE (copros eStale live uniquement).
-  //     Les copros Crypto (miroir Supabase) sont cloisonnees au niveau REQUETE SQL
-  //     (`.or(filtrePerimetre)`) et ne portent donc PAS ces ids. Les copros lues en
-  //     direct sur eStale n'ont pas de requete SQL a filtrer : le composite applique
-  //     le cloisonnement en memoire, d'ou ces ids resolus depuis les collaborateurs
-  //     eStale (public."User".id). Absents si aucun gestionnaire/assistant resolu.
+  // --- Ids techniques de l'equipe (public."User".id). Portes par toutes les sources depuis
+  //     le 21/09/2026 : le perimetre d'ecriture (ADR-041) decide en memoire (delegation sur
+  //     le portefeuille d'un titulaire), et le composite cloisonne les copros eStale live.
+  //     Absents si aucun gestionnaire/assistant resolu.
   /** Id technique (public."User".id) du gestionnaire de la copro (cloisonnement eStale). */
   managerId?: string;
   /** Id technique (public."User".id) de l'assistant de la copro (cloisonnement eStale). */

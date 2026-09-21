@@ -1840,3 +1840,32 @@ Sekou a demandé une **V2 repensée**, pas une copie : comptoir en quelques seco
 ### Liens
 
 ADR-001 (hexagonal), ADR-004 (jobs), ADR-012 v3 (attestation imprimable), ADR-022 (dérogation), ADR-032 (forme d'un portage MYTHEC), ADR-033, ADR-038 (étape TR2). Audit : `docs/audit-gestion-des-cles-2026-09-18.md`. SQL : `supabase/sql/intranet_cles.sql`. Source : `Mythec-refactor/Gestion des clés/` (msapp, 5 CSV, `SPK_1.txt`).
+
+## ADR-041 - Périmètre d'écriture unifié : portefeuille, rôle, délégations, une seule porte
+
+**Date** : 2026-09-21 · **Statut** : accepté (Sekou, 21/09/2026 — 4 arbitrages : directeurs syndic = agence ; une délégation peut viser plusieurs bénéficiaires, dont un assistant ; la direction et le titulaire posent les délégations ; le périmètre comptable reste à part pour l'instant)
+
+### Contexte
+
+Trois demandes en une semaine, qui sont le même problème : les directeurs d'agence et les référents doivent **voir et agir** sur tout le portefeuille de leur agence ; Dimitri doit reprendre le portefeuille de Delphine pendant son congé maternité ; les gestionnaires doivent pouvoir **facturer sur les copropriétés des autres** en cas d'absence. Or l'intranet avait trois réponses qui se marchaient dessus : la lecture ouverte au cabinet (04/09, `perimetre-lecture`), l'écriture cloisonnée au portefeuille (`coproAppartient`, appelé par 54 gardes : dates, ODJ, jalons, récap, contrat, sinistre, facturation…), un périmètre comptable par agence codé à part, et des rôles (directeur, référent) qui donnaient des droits de décision (prix, offre, perte) sans droit d'écriture sur l'agence. Chaque besoin ajoutait une exception.
+
+### Décision
+
+**Un seul périmètre d'écriture**, résolu en un seul endroit (`services/coproprietes/copro-appartient`), règle pure dans `domain/perimetre-ecriture.ts`. Le droit d'écrire sur une copropriété est l'**union de trois sources** :
+
+1. **Le portefeuille** : titulaire (`managerId`) ou assistant (`assistantId`). Comme avant, et toujours le chemin nominal (une requête).
+2. **Le rôle** : `DIRECTEUR_AGENCE`, `DIRECTEUR_SYNDIC` et référent syndic (`referent_syndic:<agence>`) écrivent sur **toute leur agence** ; `ADMIN` et super-admin sur le cabinet.
+3. **Une délégation** (`intranet_delegation`) : un titulaire confie à un bénéficiaire son portefeuille, une agence ou une copro, entre deux dates, avec un motif. Posée par le titulaire lui-même, par la direction de son agence, ou par le cabinet. Elle expire seule et se retire à tout moment. Une délégation par bénéficiaire (le remplaçant *et* son assistant = deux lignes).
+
+Les 54 gardes ne changent pas : elles appellent la même porte, qui essaie le portefeuille, puis le rôle et les délégations (trois lectures de plus, seulement quand le portefeuille a dit non), puis le repli comptable existant. Les écrans transverses (facturation, récaps) passent par `coprosEcrivables`, la même règle en liste.
+
+La **lecture** reste ouverte au cabinet. Le **périmètre comptable** reste dans `perimetre-comptable.ts` (à ranger dans ce modèle comme un rôle par agence, plus tard). Un futur sélecteur d'affichage « Mon portefeuille · Mon agence · Le cabinet » n'est qu'un filtre sur ce périmètre.
+
+### Conséquences
+
+**Positives** : une réponse unique à « qui peut écrire sur quoi », lisible dans une page (`/delegations`) ; les absences se préparent à l'avance sans toucher au référentiel ; la facturation « pour un collègue » ne demande aucune règle spéciale ; chaque élargissement a un nom, une date, une raison.
+**Négatives** : le super-admin d'env n'est pas connu du service (lib/auth hors de portée) — Sekou est `ADMIN` dans la table, ça suffit ; une délégation n'est pas encore signalée au bénéficiaire (pas de mail) ; le principe « on n'ouvre jamais tout le cabinet par défaut » tient, mais un ADMIN écrit partout.
+
+### Liens
+
+ADR-001 (hexagonal), ADR-039 (droits des propositions), `supabase/sql/intranet_delegation.sql`, `domain/perimetre-ecriture.test.ts`.

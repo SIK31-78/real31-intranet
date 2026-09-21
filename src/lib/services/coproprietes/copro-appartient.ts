@@ -1,6 +1,7 @@
-// Service : la copro `code` est-elle dans le PERIMETRE de l'utilisateur `managerId` ?
-// Sert a cloisonner les ECRITURES (les actions verifient avant de muter, les services
-// re-verifient via exigerPerimetre). Passe par le routeur.
+// Service : la copro `code` est-elle dans le PERIMETRE D'ECRITURE de l'utilisateur ?
+// LA porte unique des ecritures (ADR-041) : les actions verifient avant de muter, les
+// services re-verifient via exigerPerimetre. Portefeuille, puis role et delegations
+// (domain/perimetre-ecriture), puis le repli comptable. Passe par le routeur.
 //
 // DEUX perimetres, pas un (Sekou 2026-07-29) :
 //   - GESTIONNAIRE : son portefeuille (findByCode(code, managerId) renvoie null hors scope).
@@ -16,8 +17,9 @@
 // perimetre agence, donc rien ne s'ouvre par defaut.
 
 import { cache } from "react";
-import { getAgenceRepository, getCoproRepository, getGestionnaireRepository } from "@/lib/adapters/router";
+import { getAgenceRepository, getCoproRepository, getDelegationRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { agencesDuComptable } from "@/lib/domain/perimetre-comptable";
+import { peutEcrire, type AuteurEcriture, type CoproEcriture } from "@/lib/domain/perimetre-ecriture";
 
 /** La copro est-elle dans une agence tenue par ce comptable ? false des que quelque chose
  *  manque (utilisateur, email, agence de la copro non resolue) : on n'ouvre jamais au doute. */
@@ -35,12 +37,45 @@ async function dansPerimetreComptable(code: string, managerId: string): Promise<
   return Boolean(codeAgence) && agences.includes(codeAgence as (typeof agences)[number]);
 }
 
+/**
+ * Au-dela du portefeuille : le ROLE (directeur, referent : son agence ; ADMIN : le cabinet)
+ * et les DELEGATIONS actives dont il est beneficiaire (ADR-041, 21/09/2026). Une lecture
+ * de l'utilisateur, une de la copro, une des delegations : seulement quand le portefeuille
+ * a deja dit non. Le super-admin d'env n'est pas connu ici (lib/auth est hors de portee
+ * d'un service) : Sekou est ADMIN dans la table, ca suffit.
+ */
+async function parRoleOuDelegation(code: string, managerId: string): Promise<boolean> {
+  const [utilisateur, copro, delegations, agences] = await Promise.all([
+    getGestionnaireRepository().findById(managerId),
+    getCoproRepository().findByCode(code),
+    getDelegationRepository().listerPourBeneficiaire(managerId),
+    getAgenceRepository().listerAgences(),
+  ]);
+  if (!utilisateur || !copro) return false;
+  const codeDe = (id: string | undefined) => (id ? agences.find((a) => a.id === id)?.code ?? null : null);
+  const auteur: AuteurEcriture = {
+    id: utilisateur.id,
+    roleTable: utilisateur.role ?? null,
+    agenceCode: codeDe(utilisateur.agencyId),
+    habilitations: utilisateur.habilitations ?? [],
+  };
+  const cible: CoproEcriture = {
+    code: copro.code,
+    managerId: copro.managerId ?? null,
+    assistantId: copro.assistantId ?? null,
+    agenceCode: codeDe(copro.agenceId),
+  };
+  return peutEcrire(auteur, cible, delegations, new Date().toISOString().slice(0, 10));
+}
+
 // Memoise par requete (React.cache) : le meme (code, managerId) n'interroge la base
 // qu'une fois, meme si l'action ET le service (exigerPerimetre) le verifient tous deux.
 export const coproAppartient = cache(async (code: string, managerId: string): Promise<boolean> => {
   if ((await getCoproRepository().findByCode(code, managerId)) !== null) return true;
-  // Repli comptable UNIQUEMENT : coute une lecture de plus, et seulement quand le
-  // portefeuille a deja dit non (donc jamais sur le chemin nominal d'un gestionnaire).
+  // Au-dela du portefeuille : role, delegations, puis le repli comptable. Chacun coute des
+  // lectures de plus, et seulement quand le portefeuille a deja dit non (donc jamais sur
+  // le chemin nominal d'un gestionnaire).
+  if (await parRoleOuDelegation(code, managerId)) return true;
   return dansPerimetreComptable(code, managerId);
 });
 

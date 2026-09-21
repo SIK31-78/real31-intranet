@@ -20,6 +20,8 @@
 
 import { getAgenceRepository, getCoproRepository } from "@/lib/adapters/router";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
+import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
+import { coprosEcrivables } from "@/lib/services/coproprietes/perimetre-ecriture";
 import {
   aUnPerimetreComptable,
   filtrerSurPerimetreComptable,
@@ -39,7 +41,9 @@ function cadrageAgence(params: PerimetreUtilisateur): boolean {
 
 /** Toutes les copros du perimetre de cet utilisateur. */
 export async function getCoprosDuPerimetre(params: PerimetreUtilisateur): Promise<Copropriete[]> {
-  if (!cadrageAgence(params)) return getCoproprietes(params.managerId);
+  // Gestionnaire, directeur, referent, remplacant : son perimetre d'ECRITURE (ADR-041) —
+  // le portefeuille, plus ce que le role et les delegations lui ouvrent.
+  if (!cadrageAgence(params)) return coprosEcrivables(params.managerId);
 
   // Perimetre agence : on lit TOUTES les copros puis on filtre sur les agences du
   // comptable. La copro porte un `agenceId` technique -> resolution id -> code via la
@@ -64,8 +68,13 @@ export async function getCoproDuPerimetre(
   params: PerimetreUtilisateur,
 ): Promise<Copropriete | null> {
   const repo = getCoproRepository();
-  // Gestionnaire : le cloisonnement est deja porte par la requete (managerId).
-  if (!cadrageAgence(params)) return repo.findByCode(coproCode, params.managerId);
+  // Gestionnaire : le portefeuille par la requete (managerId), sinon la porte d'ecriture
+  // (role, delegation) puis une lecture non bornee.
+  if (!cadrageAgence(params)) {
+    const mienne = await repo.findByCode(coproCode, params.managerId);
+    if (mienne) return mienne;
+    return (await coproAppartient(coproCode, params.managerId)) ? repo.findByCode(coproCode) : null;
+  }
 
   // Comptable : resolution non bornee au portefeuille (il n'en a pas), puis filtre agence.
   const [copro, agences] = await Promise.all([

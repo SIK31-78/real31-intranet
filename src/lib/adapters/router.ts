@@ -66,6 +66,9 @@ import type { PropositionRepository, RegistreCoprosProvider } from "@/lib/ports/
 import { SupabasePropositionRepository, SupabaseRegistreCoprosProvider } from "./supabase/supabase-proposition-repository";
 import { MockPropositionRepository, MockRegistreCoprosProvider } from "./mock/mock-proposition-repository";
 import type { CollaborateurRepository } from "@/lib/ports/collaborateur-repository";
+import type { DelegationRepository } from "@/lib/ports/delegation-repository";
+import { SupabaseDelegationRepository } from "./supabase/supabase-delegation-repository";
+import { MockDelegationRepository } from "./mock/mock-delegation-repository";
 import { SupabaseCollaborateurRepository } from "./supabase/supabase-collaborateur-repository";
 import { MockCollaborateurRepository } from "./mock/mock-collaborateur-repository";
 import { SupabasePerteRepository } from "./supabase/supabase-perte-repository";
@@ -237,6 +240,12 @@ export function getJalonRepository(): JalonRepository {
 }
 
 // Collaborateurs : annuaire App A + arrivees / departs / habilitations intranet (16/09/2026).
+/** Delegations d'ecriture (ADR-041) : Supabase, ou memoire en mock. */
+export function getDelegationRepository(): DelegationRepository {
+  if (coproSourceEstSupabase()) return new SupabaseDelegationRepository();
+  return new MockDelegationRepository();
+}
+
 export function getCollaborateurRepository(): CollaborateurRepository {
   if (coproSourceEstSupabase()) return new SupabaseCollaborateurRepository();
   return new MockCollaborateurRepository();

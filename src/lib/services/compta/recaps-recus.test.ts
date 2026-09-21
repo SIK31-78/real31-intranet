@@ -51,6 +51,9 @@ const etat = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/adapters/router", () => ({
+  // Perimetre d'ecriture (ADR-041) : un gestionnaire sans role ni delegation = son portefeuille.
+  getGestionnaireRepository: () => ({ async findById(id: string) { return { id, nomComplet: id, initiales: "XX", role: "GESTIONNAIRE" }; } }),
+  getDelegationRepository: () => ({ async listerPourBeneficiaire() { return []; } }),
   getCoproRepository: () => ({
     async list(managerId?: string) {
       return managerId ? COPROS.filter((c) => c.managerId === managerId) : COPROS;

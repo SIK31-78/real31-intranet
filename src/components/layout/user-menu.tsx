@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Users, LogOut, ChevronsUpDown } from "lucide-react";
+import { Users, LogOut, ChevronsUpDown, UserCheck } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { deconnecter } from "@/app/dev-login/actions";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,14 @@ export function UserMenu({
             role="menu"
             className="absolute left-0 right-0 bottom-full mb-2 z-20 rounded-lg border border-line bg-surface shadow-2 py-1 animate-scale-in"
           >
+            <Link
+              href="/delegations"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 h-9 text-body text-ink hover:bg-surface-2"
+            >
+              <UserCheck strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-2" /> Délégations
+            </Link>
             {peutImpersonner && (
               <Link
                 href="/dev-login"

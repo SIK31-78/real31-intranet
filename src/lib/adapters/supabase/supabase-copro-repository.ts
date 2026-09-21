@@ -174,6 +174,10 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
     ...(row.agConnect !== null ? { agConnect: row.agConnect } : {}),
     ...(row.sharepointUrl ? { sharepointUrl: row.sharepointUrl } : {}),
     ...(row.agencyId ? { agenceId: row.agencyId } : {}),
+    // Les ids de l'equipe : le perimetre d'ecriture (ADR-041) en a besoin pour decider en
+    // memoire (portefeuille du titulaire d'une delegation), pas seulement la requete SQL.
+    ...(row.managerId ? { managerId: row.managerId } : {}),
+    ...(row.assistantId ? { assistantId: row.assistantId } : {}),
   };
 }
 

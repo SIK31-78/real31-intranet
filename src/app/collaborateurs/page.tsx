@@ -42,7 +42,8 @@ export default async function CollaborateursPage() {
               L&apos;annuaire du cabinet vient du référentiel (rôle, agence, directeur référent) ; l&apos;intranet y ajoute les
               arrivées, les départs et les habilitations. Le portefeuille, c&apos;est ce que chaque copropriété dit de son
               gestionnaire, de son assistant et de son comptable. Un départ réaffecte le portefeuille avant de désactiver la
-              personne — pour ne jamais se demander « qui est sur quoi ».
+              personne — pour ne jamais se demander « qui est sur quoi ». Les remplacements (congé, binôme) se posent
+              dans <a href="/delegations" className="underline">Délégations</a>.
             </p>
           }
         />

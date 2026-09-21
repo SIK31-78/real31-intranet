@@ -65,6 +65,9 @@ vi.mock("@/lib/adapters/router", () => ({
       return managerId ? COPROS.filter((c) => c.managerId === managerId) : COPROS;
     },
   }),
+  // Perimetre d'ecriture (ADR-041) : un gestionnaire sans role ni delegation = son portefeuille.
+  getGestionnaireRepository: () => ({ async findById(id: string) { return { id, nomComplet: id, initiales: "XX", role: "GESTIONNAIRE" }; } }),
+  getDelegationRepository: () => ({ async listerPourBeneficiaire() { return []; } }),
   getAgenceRepository: () => ({
     async listerAgences() {
       return [
