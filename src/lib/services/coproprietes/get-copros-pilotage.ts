@@ -1,7 +1,8 @@
 // Service : liste des copros du gestionnaire enrichie de leur ETAT de cycle AG
 // (cockpit). Passe par le routeur (ADR-001). "Convoquee" = jalon CONVOC accompli.
 
-import { getCoproRepository, getJalonRepository } from "@/lib/adapters/router";
+import { getJalonRepository } from "@/lib/adapters/router";
+import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import { etatCycleAg, ETAT_CYCLE_ORDRE, type EtatCycle } from "@/lib/domain/etat-cycle-ag";
 import { getPrisesEnMain } from "@/lib/services/coproprietes/prise-en-main";
 import type { SourceCopro } from "@/lib/domain/copropriete";
@@ -29,9 +30,10 @@ function aujourdhuiISO(): string {
 }
 
 // managerId absent = vue TRANSVERSE (toutes les copros) - reserve a l'encadrement/compta/
-// super-admin par l'appelant (cf. peutVoirToutesLesCopros). Un gestionnaire passe son id.
+// super-admin par l'appelant. Un gestionnaire passe son id ; la VUE posee par la page
+// (portefeuille, agence, cabinet — ADR-041) est suivie par listerCoprosParRequete.
 export async function getCoprosPilotage(managerId?: string): Promise<CoproPilotage[]> {
-  const copros = await getCoproRepository().list(managerId);
+  const copros = await listerCoprosParRequete(managerId);
   const today = aujourdhuiISO();
 
   const codes = copros.map((c) => c.code);

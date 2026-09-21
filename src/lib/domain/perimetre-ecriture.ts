@@ -17,6 +17,32 @@
 
 export type NiveauEcriture = "portefeuille" | "agence" | "cabinet";
 
+/**
+ * La VUE choisie a l'ecran (accueil, listes) : un filtre d'affichage borne par le perimetre
+ * d'ecriture, jamais plus large. « perimetre » = tout ce que je peux toucher au-dela de mon
+ * portefeuille (mon agence si mon role me la donne, mes delegations).
+ */
+export type VuePerimetre = "portefeuille" | "perimetre" | "cabinet";
+
+/** Les vues qu'un collaborateur peut choisir, dans l'ordre d'affichage. */
+export function vuesPermises(a: AuteurEcriture, aDesDelegations: boolean): VuePerimetre[] {
+  const niveau = niveauEcriture(a);
+  // Cabinet : « mon perimetre » serait le cabinet, une seule entree suffit.
+  if (niveau === "cabinet") return ["portefeuille", "cabinet"];
+  return niveau === "agence" || aDesDelegations ? ["portefeuille", "perimetre"] : ["portefeuille"];
+}
+
+/** Ramene une vue demandee a une vue permise (la plus proche, sinon le portefeuille). */
+export function vueEffective(demandee: string | null | undefined, permises: readonly VuePerimetre[]): VuePerimetre {
+  if (demandee && (permises as readonly string[]).includes(demandee)) return demandee as VuePerimetre;
+  return "portefeuille";
+}
+
+/** Le libelle de la vue « perimetre », selon ce qui l'ouvre. */
+export function libelleVuePerimetre(a: AuteurEcriture): string {
+  return niveauEcriture(a) === "portefeuille" ? "Mes délégations" : "Mon agence";
+}
+
 /** Ce que le domaine a besoin de savoir d'un collaborateur pour decider. */
 export interface AuteurEcriture {
   id: string;

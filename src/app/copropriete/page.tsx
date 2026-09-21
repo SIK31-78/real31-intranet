@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCoprosPilotage, pipelineDepuisCopros } from "@/lib/services/coproprietes/get-copros-pilotage";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estComptable, peutVoirToutesLesCopros } from "@/lib/auth/roles";
+import { estComptable, estSuperAdmin } from "@/lib/auth/roles";
+import { lireVueChoisie } from "@/lib/auth/vue-perimetre";
+import { vuesDisponibles } from "@/lib/services/coproprietes/vue-perimetre";
+import { definirVueRequete } from "@/lib/services/coproprietes/lister-copros-cache";
+import { SelecteurVue } from "@/components/layout/selecteur-vue";
 import { agencesDuComptable } from "@/lib/domain/perimetre-comptable";
 import { getCoprosDuPerimetre } from "@/lib/services/coproprietes/copros-du-perimetre";
 import { AppShell } from "@/components/layout/app-shell";
@@ -23,12 +27,15 @@ export default async function CoproprietesPage({
 }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  // Encadrement / compta / super-admin : vue TRANSVERSE (toutes les copros, dont les eStale
-  // gerees par d'autres et S297 sans gestionnaire). Un gestionnaire ne voit que son portefeuille.
-  const managerId = peutVoirToutesLesCopros(g.email, g.role) ? undefined : g.id;
   // Un comptable voit les copros de SES agences (Isabelle -> ML), pas tout le cabinet :
   // meme cadrage que la facturation et la file des recaps (domain/perimetre-comptable).
   const agencesComptable = estComptable(g.email, g.role) ? agencesDuComptable(g.email) : [];
+  // La VUE (ADR-041) : portefeuille par defaut, « Mon agence » ou « Le cabinet » selon le
+  // role et les delegations ; le comptable garde sa vue transverse par agence.
+  const dispo = await vuesDisponibles(g.id, estSuperAdmin(g.email));
+  const vue = agencesComptable.length > 0 ? "cabinet" : await lireVueChoisie(dispo.vues);
+  definirVueRequete(vue);
+  const managerId = vue === "cabinet" ? undefined : g.id;
   let copros = await getCoprosPilotage(managerId);
   if (agencesComptable.length > 0) {
     const codes = new Set((await getCoprosDuPerimetre({ managerId: g.id, email: g.email, estComptable: true })).map((c) => c.code));
@@ -47,7 +54,8 @@ export default async function CoproprietesPage({
       <Page largeur="travail">
         <PageHeader
           titre="Toutes les copropriétés"
-          meta={`${copros.length} copropriété${copros.length > 1 ? "s" : ""}${managerId ? " dans votre portefeuille" : agencesComptable.length > 0 ? ` (${agencesComptable.join(", ")})` : " au cabinet"}`}
+          meta={`${copros.length} copropriété${copros.length > 1 ? "s" : ""}${agencesComptable.length > 0 ? ` (${agencesComptable.join(", ")})` : vue === "cabinet" ? " au cabinet" : vue === "perimetre" ? ` · ${dispo.libelles.perimetre.toLowerCase()}` : " dans votre portefeuille"}`}
+          actions={agencesComptable.length === 0 ? <SelecteurVue vues={dispo.vues} libelles={dispo.libelles} active={vue} /> : undefined}
         />
         {totalPipeline > 0 && <PipelineAg pipeline={pipeline} />}
         <CoprosVue copros={copros} etatInitial={etatInitial} />

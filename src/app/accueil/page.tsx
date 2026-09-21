@@ -19,7 +19,11 @@ import { getAnnoncesActives } from "@/lib/services/annonces/get-annonces-actives
 import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
 import { listerMandatsSansAg } from "@/lib/services/contrat/mandats-sans-ag";
 import { retardsPourCopros } from "@/lib/services/cles/lecture";
-import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
+import { definirVueRequete, listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
+import { vuesDisponibles } from "@/lib/services/coproprietes/vue-perimetre";
+import { lireVueChoisie } from "@/lib/auth/vue-perimetre";
+import { estSuperAdmin } from "@/lib/auth/roles";
+import { SelecteurVue } from "@/components/layout/selecteur-vue";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -46,7 +50,12 @@ export default async function AccueilPage() {
   if (!g) redirect("/dev-login");
 
   const today = jourParis();
-  // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id.
+  // La vue (ADR-041) : portefeuille par defaut ; « Mon agence » ou « Le cabinet » si le role
+  // ou une delegation l'ouvre. Posee une fois, tous les services de la page la suivent.
+  const dispo = await vuesDisponibles(g.id, estSuperAdmin(g.email));
+  const vue = await lireVueChoisie(dispo.vues);
+  definirVueRequete(vue);
+  // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id (et la vue).
   const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg, clesEnRetard] = await Promise.all([
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
@@ -76,9 +85,12 @@ export default async function AccueilPage() {
           eyebrow={formatDateLongue(today)}
           titre={`Bonjour ${prenom}`}
           actions={
-            <ButtonLink href="/calendrier" variant="secondary">
-              <Calendar strokeWidth={1.5} /> Calendrier AG/CS
-            </ButtonLink>
+            <span className="flex items-center gap-2 flex-wrap">
+              <SelecteurVue vues={dispo.vues} libelles={dispo.libelles} active={vue} />
+              <ButtonLink href="/calendrier" variant="secondary">
+                <Calendar strokeWidth={1.5} /> Calendrier AG/CS
+              </ButtonLink>
+            </span>
           }
         />
 
