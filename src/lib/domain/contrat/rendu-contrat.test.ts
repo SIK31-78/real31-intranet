@@ -186,6 +186,12 @@ describe("contrat de mandat (ASL / AFUL)", () => {
     expect(a.gauche.at(-1)).toEqual({ type: "signatures", parties: ["Le représentant de l’AFUL", "Le gestionnaire de l’AFUL"] });
   });
 
+  it("porte la carte professionnelle a jour, celle du contrat de syndic", () => {
+    const textes = a.gauche.flatMap((n) => (n.type === "paragraphe" ? [n.texte] : []));
+    expect(textes.some((t) => t.includes("le 25 Novembre 2025") && t.includes("10 106 000€"))).toBe(true);
+    expect(textes.some((t) => t.includes("25 Novembre 2022"))).toBe(false);
+  });
+
   it("n'applique pas la correction du § 7.1.1 du contrat de syndic", () => {
     const textes = a.gauche.flatMap((n) => (n.type === "paragraphe" ? [n.texte] : []));
     expect(textes.some((t) => t.includes("sont inclus dans la rémunération forfaitaire"))).toBe(true);
