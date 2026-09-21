@@ -70,8 +70,8 @@ export function CoprosVue({
 
   const prendre = (codes: string[]) =>
     startTransition(async () => {
-      if (codes.length === 1) await prendreEnMainAction(codes[0]);
-      else await prendreEnMainLotAction(codes);
+      const res = codes.length === 1 ? await prendreEnMainAction(codes[0]!) : await prendreEnMainLotAction(codes);
+      if (!res.ok) return toast.err(res.erreur);
       toast.ok(codes.length > 1 ? `${codes.length} copropriétés prises en main.` : "Copropriété prise en main.");
     });
 
