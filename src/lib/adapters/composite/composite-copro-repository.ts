@@ -13,7 +13,7 @@ import type { NouvelleCopro } from "@/lib/domain/proposition/election";
 import type { CoproPerdueInput, CoproRepository } from "@/lib/ports/copro-repository";
 import type { CoproEstaleProvider } from "@/lib/ports/copro-estale-provider";
 import type { CoproDatesRepository } from "@/lib/ports/copro-dates-repository";
-import type { Copropriete } from "@/lib/domain/copropriete";
+import type { Copropriete, FormeJuridique } from "@/lib/domain/copropriete";
 import {
   appliquerDates,
   datesDuMiroir,
@@ -107,6 +107,11 @@ export class CompositeCoproRepository implements CoproRepository {
     }
     // Copro Crypto (ou eStale indeterminee car API KO) -> miroir INCHANGE.
     return this.miroir.setDateEvenement(coproCode, type, quand, dateISO, managerId);
+  }
+
+  // La forme juridique vit dans le referentiel partage : le miroir (App A) fait foi.
+  setFormeJuridique(coproCode: string, forme: FormeJuridique): Promise<void> {
+    return this.miroir.setFormeJuridique(coproCode, forme);
   }
 
   // La perte est un geste sur le referentiel partage : le miroir (App A) fait foi.

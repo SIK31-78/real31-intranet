@@ -2,7 +2,7 @@
 // Source reelle a terme : App A (public.Copropriete), lue via un adapter.
 // Ne depend que du domaine.
 
-import type { Copropriete } from "@/lib/domain/copropriete";
+import type { Copropriete, FormeJuridique } from "@/lib/domain/copropriete";
 import type { NouvelleCopro } from "@/lib/domain/proposition/election";
 
 export interface CoproRepository {
@@ -24,6 +24,12 @@ export interface CoproRepository {
     dateISO: string | null,
     managerId: string,
   ): Promise<void>;
+  /**
+   * Change la forme juridique (copropriete / ASL / AFUL) dans le referentiel partage
+   * (App A, colonne legalForm). Geste de l'equipe syndic, hors cloisonnement. Leve si la
+   * copro est inconnue.
+   */
+  setFormeJuridique(coproCode: string, forme: FormeJuridique): Promise<void>;
   /**
    * Perd une copropriete : la passe INACTIVE dans le referentiel partage (App A). La
    * trace (quand, pourquoi, qui, ou en est la sortie) est le DOSSIER DE PERTE

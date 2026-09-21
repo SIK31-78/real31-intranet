@@ -24,6 +24,7 @@ import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { actionPrincipaleEcran } from "@/components/parcours/action-principale";
 import { formatDateLongue } from "@/lib/format-date";
 import { EditeurDate } from "./editeur-date";
+import { EditeurFormeJuridique } from "./editeur-forme-juridique";
 import { ActionCycleFiche } from "./action-cycle-fiche";
 import { ConfirmationEvenement } from "./confirmation-evenement";
 import { MailReunionBouton } from "./mail-reunion-bouton";
@@ -480,6 +481,7 @@ function SideIdentite({ copro }: { copro: Copropriete }) {
       <DataList>
         <DataRow label="Code"><span className="font-mono">{copro.code}</span></DataRow>
         <DataRow label="Statut">{copro.statut === "active" ? "Active" : "Inactive"}</DataRow>
+        <DataRow label="Forme juridique"><EditeurFormeJuridique coproCode={copro.code} forme={copro.formeJuridique ?? "copropriete"} /></DataRow>
         <DataRow label="Lots principaux">{copro.lotsPrincipaux}</DataRow>
         {copro.lotsAutres > 0 && <DataRow label="Autres lots">{copro.lotsAutres}</DataRow>}
         <DataRow label="Exercice">

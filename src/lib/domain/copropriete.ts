@@ -19,6 +19,23 @@ export type SourceCopro = "crypto" | "estale";
 
 export type StatutCopro = "active" | "inactive";
 
+/**
+ * La forme juridique de l'entite geree (colonne `legalForm` d'App A, posee le 21/09/2026) :
+ * une copropriete (loi de 1965, contrat de syndic) ou une ASL / AFUL (ordonnance du
+ * 1er juillet 2004, contrat de mandat du gestionnaire). C'est elle qui choisit le contrat.
+ */
+export type FormeJuridique = "copropriete" | "asl" | "aful";
+export const FORMES_JURIDIQUES: readonly FormeJuridique[] = ["copropriete", "asl", "aful"];
+
+export function libelleFormeJuridique(forme: FormeJuridique | undefined): string {
+  return forme === "asl" ? "ASL" : forme === "aful" ? "AFUL" : "Copropriété";
+}
+
+/** ASL et AFUL partagent le meme contrat de mandat ; la copropriete a le contrat de syndic. */
+export function estAslOuAful(forme: FormeJuridique | undefined): boolean {
+  return forme === "asl" || forme === "aful";
+}
+
 export type RoleEquipe =
   | "gestionnaire"
   | "assistant"
@@ -67,6 +84,8 @@ export interface Copropriete {
   nom: string;
   adresse: Adresse;
   statut: StatutCopro;
+  /** Absente = copropriete (les sources sans la colonne, le mock). */
+  formeJuridique?: FormeJuridique;
   lotsPrincipaux: number;
   lotsAutres: number;
   exercice: Exercice;

@@ -11,6 +11,7 @@ import type {
   MembreEquipe,
   SourceCopro,
   StatutCopro,
+  FormeJuridique,
 } from "@/lib/domain/copropriete";
 import { heureDe } from "@/lib/domain/reunion";
 import { createSupabasePublicClient } from "./public-client";
@@ -31,6 +32,7 @@ type CoproRow = {
   postalCode: string | null;
   city: string | null;
   status: string | null;
+  legalForm: string | null;
   managerId: string | null;
   assistantId: string | null;
   accountantId: string | null;
@@ -59,7 +61,7 @@ type UserRow = { id: string; name: string; initials: string | null };
 
 const COPRO_COLS =
   "id, referenceCrypto, referenceEstale, externalIdEstale, dataSource, name, " +
-  "address1, address2, postalCode, city, status, managerId, assistantId, accountantId, " +
+  "address1, address2, postalCode, city, status, legalForm, managerId, assistantId, accountantId, " +
   "mainLotsCount, otherLotsCount, accountingStartDate, accountingEndDate, " +
   "syndicInitialDate, lastAGDate, nextAGDate, lastCSDate, nextCSDate, ppt, " +
   "insuranceDueDate, syndicContractEndDate, lastGasVmcCtqDate, registrationNumber, " +
@@ -72,6 +74,12 @@ const MOIS = [
 
 function mapSource(dataSource: string | null): SourceCopro {
   return (dataSource ?? "").toLowerCase().includes("estale") ? "estale" : "crypto";
+}
+
+/** App A : COPROPRIETE / ASL / AFUL ; tout le reste (null, valeur inconnue) = copropriete. */
+function mapFormeJuridique(legalForm: string | null): FormeJuridique {
+  const v = (legalForm ?? "").trim().toUpperCase();
+  return v === "ASL" ? "asl" : v === "AFUL" ? "aful" : "copropriete";
 }
 
 function mapStatut(status: string | null): StatutCopro {
@@ -133,6 +141,7 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
     nom: row.name,
     adresse: adresseDe(row),
     statut: mapStatut(row.status),
+    ...(mapFormeJuridique(row.legalForm) !== "copropriete" ? { formeJuridique: mapFormeJuridique(row.legalForm) } : {}),
     lotsPrincipaux: row.mainLotsCount ?? 0,
     lotsAutres: row.otherLotsCount ?? 0,
     exercice: exerciceDe(row),
@@ -264,6 +273,18 @@ export class SupabaseCoproRepository implements CoproRepository {
     const { data, error } = await supabase
       .from("Copropriete")
       .update({ [colonne]: dateISO, updatedAt: new Date().toISOString() })
+      .eq("id", id)
+      .select("id");
+    exigerUneLigne(contexte, data, error);
+  }
+
+  async setFormeJuridique(coproCode: string, forme: FormeJuridique): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const contexte = "Forme juridique";
+    const id = await idCoproUnique(supabase, coproCode, contexte);
+    const { data, error } = await supabase
+      .from("Copropriete")
+      .update({ legalForm: forme.toUpperCase(), updatedAt: new Date().toISOString() })
       .eq("id", id)
       .select("id");
     exigerUneLigne(contexte, data, error);

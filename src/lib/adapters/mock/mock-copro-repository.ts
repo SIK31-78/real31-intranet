@@ -4,7 +4,7 @@
 
 import type { NouvelleCopro } from "@/lib/domain/proposition/election";
 import type { CoproPerdueInput, CoproRepository } from "@/lib/ports/copro-repository";
-import type { Copropriete, MembreEquipe } from "@/lib/domain/copropriete";
+import type { Copropriete, FormeJuridique, MembreEquipe } from "@/lib/domain/copropriete";
 
 const EL: MembreEquipe = { initiales: "EL", nomComplet: "Élise Lambert", role: "gestionnaire" };
 const LM: MembreEquipe = { initiales: "LM", nomComplet: "Léa Martin", role: "assistant" };
@@ -97,6 +97,11 @@ export class MockCoproRepository implements CoproRepository {
 
   async findByCode(code: string): Promise<Copropriete | null> {
     return COPROS[code] ?? null;
+  }
+
+  async setFormeJuridique(coproCode: string, forme: FormeJuridique): Promise<void> {
+    const c = COPROS[coproCode];
+    if (c) c.formeJuridique = forme;
   }
 
   async setDateEvenement(
