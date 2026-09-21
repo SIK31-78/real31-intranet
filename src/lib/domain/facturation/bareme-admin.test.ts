@@ -17,6 +17,12 @@ describe("bareme-admin", () => {
     const r = dupliquerBareme([l("AGE", 40.8), l("MED", 100)], [l("MED", 120)], 2);
     expect(r).toEqual([l("AGE", 41.62)]);
   });
+  it("une majoration ne depasse jamais le plafond legal de l'etat date (380 € TTC)", () => {
+    expect(dupliquerBareme([l("EtatDate", 380), l("AGE", 100)], [], 2)).toEqual([l("EtatDate", 380), l("AGE", 102)]);
+    expect(motifRefusMontant(390, "EtatDate")).toContain("plafonné");
+    expect(motifRefusMontant(380, "EtatDate")).toBeNull();
+    expect(motifRefusMontant(390, "AGE")).toBeNull();
+  });
   it("ecart avec l'annee precedente", () => {
     expect(ecartAvecPrecedent(l("AGE", 42), [l("AGE", 40)])).toBe(5);
     expect(ecartAvecPrecedent(l("AGE", 42), [])).toBeNull();

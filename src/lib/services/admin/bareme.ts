@@ -29,7 +29,7 @@ export async function getBareme(annee: number): Promise<BaremeAnnee> {
 }
 
 export async function enregistrerTarif(ligne: LigneBareme & { annee: number }): Promise<void> {
-  const refus = motifRefusMontant(ligne.montantTtc);
+  const refus = motifRefusMontant(ligne.montantTtc, ligne.identifiantPrestation);
   if (refus) throw new Error(refus);
   if (!/^[A-Za-z][A-Za-z0-9_]{1,60}$/.test(ligne.identifiantPrestation)) throw new Error("identifiant illisible (lettres et chiffres, sans espace)");
   await getFacturationRepository().enregistrerTarif({ ...ligne, libelle: ligne.libelle.trim() || ligne.identifiantPrestation });

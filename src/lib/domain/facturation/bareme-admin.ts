@@ -67,16 +67,32 @@ export function identifiantsManquants(lignes: LigneBareme[]): string[] {
 }
 
 /**
+ * Les prestations dont le prix est PLAFONNE par la loi, en euros TTC. Une majoration ne
+ * les depasse jamais (Sekou, 21/09/2026 : « l'état daté est plafonné par la loi », apres
+ * un +2 % qui l'avait porte a 387,60 €).
+ *  - Etat date : 380 € TTC, decret n° 2020-153 du 21 fevrier 2020 (art. 10-1 de la loi de 1965).
+ */
+export const PLAFONDS_LEGAUX_TTC: Readonly<Record<string, number>> = {
+  EtatDate: 380,
+};
+
+/** Le montant, ramene au plafond legal de la prestation s'il y en a un. */
+export function plafonner(identifiantPrestation: string, montantTtc: number): number {
+  const plafond = PLAFONDS_LEGAUX_TTC[identifiantPrestation];
+  return plafond !== undefined ? Math.min(montantTtc, plafond) : montantTtc;
+}
+
+/**
  * Ouvrir une annee : les lignes de la source, au meme montant (ou majorees d'un
- * pourcentage, arrondi au centime), pour l'annee cible. Les lignes deja presentes dans la
- * cible sont conservees telles quelles.
+ * pourcentage, arrondi au centime, sans depasser un plafond legal), pour l'annee cible.
+ * Les lignes deja presentes dans la cible sont conservees telles quelles.
  */
 export function dupliquerBareme(source: LigneBareme[], dejaDansCible: LigneBareme[], majorationPourcent = 0): LigneBareme[] {
   const deja = new Set(dejaDansCible.map((l) => l.identifiantPrestation));
   const coef = 1 + majorationPourcent / 100;
   return source
     .filter((l) => !deja.has(l.identifiantPrestation))
-    .map((l) => ({ ...l, montantTtc: Math.round(l.montantTtc * coef * 100) / 100 }));
+    .map((l) => ({ ...l, montantTtc: plafonner(l.identifiantPrestation, Math.round(l.montantTtc * coef * 100) / 100) }));
 }
 
 /** L'ecart en % d'une ligne par rapport a l'annee precedente, null si elle n'existait pas. */
@@ -87,9 +103,11 @@ export function ecartAvecPrecedent(ligne: LigneBareme, precedent: LigneBareme[])
 }
 
 /** Un montant saisi est-il acceptable ? */
-export function motifRefusMontant(montant: number): string | null {
+export function motifRefusMontant(montant: number, identifiantPrestation?: string): string | null {
   if (!Number.isFinite(montant)) return "montant illisible";
   if (montant < 0) return "un tarif ne peut pas être négatif";
   if (montant > 100000) return "montant trop grand";
+  const plafond = identifiantPrestation ? PLAFONDS_LEGAUX_TTC[identifiantPrestation] : undefined;
+  if (plafond !== undefined && montant > plafond) return `plafonné par la loi à ${plafond} € TTC`;
   return null;
 }
