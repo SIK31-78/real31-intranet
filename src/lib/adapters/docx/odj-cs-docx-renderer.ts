@@ -25,6 +25,24 @@ export class DocxtemplaterOdjCsRenderer implements OdjCsDocxRenderer {
       nullGetter: () => "",
     });
     doc.render(donnees);
-    return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
+    return archivePropre(gabarit, doc.getZip());
   }
+}
+
+/**
+ * Word refuse une archive OOXML qui contient des ENTREES DE DOSSIER ("word/", "docProps/")
+ * ou dont [Content_Types].xml n'est pas en tete - et PizZip en ajoute a la generation
+ * (constate le 2026-09-22 : "Word a rencontre une erreur lors de l'ouverture du fichier",
+ * 39 entrees au lieu de 37). On reconstruit donc l'archive de sortie a l'identique du
+ * gabarit : memes entrees, meme ordre, aucun dossier.
+ */
+function archivePropre(gabarit: Buffer, rendu: PizZip): Buffer {
+  const ordre = Object.keys(new PizZip(gabarit).files);
+  const propre = new PizZip();
+  for (const nom of ordre) {
+    const entree = rendu.files[nom];
+    if (!entree || entree.dir) continue;
+    propre.file(nom, entree.asNodeBuffer(), { createFolders: false });
+  }
+  return propre.generate({ type: "nodebuffer", compression: "DEFLATE" });
 }

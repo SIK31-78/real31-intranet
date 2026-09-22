@@ -80,3 +80,14 @@ describe("DocxtemplaterOdjCsRenderer", () => {
     expect(texte).not.toContain("undefined");
   });
 });
+
+describe("archive OOXML", () => {
+  it("aucune entrée de dossier, [Content_Types].xml en tête, mêmes entrées que le gabarit (Word refuse sinon)", async () => {
+    const docx = await new DocxtemplaterOdjCsRenderer().rendre(DONNEES);
+    const z = new PizZip(docx);
+    const noms = Object.keys(z.files);
+    expect(noms.filter((n) => z.files[n]!.dir)).toEqual([]);
+    expect(noms[0]).toBe("[Content_Types].xml");
+    expect(noms).toHaveLength(37);
+  });
+});
