@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/contrat/**": FICHIERS_CHROMIUM,
     "/propositions/**": FICHIERS_CHROMIUM,
+    // ODJ du CS en Word : le gabarit du cabinet est lu par chemin (adapters/docx).
+    "/odj/**": ["./src/lib/adapters/docx/gabarits/**"],
   },
   experimental: {
     // Reprise-copro : l'analyse recoit les PDF (RCP scanne, EDD, PV...) via une Server

@@ -62,6 +62,8 @@ import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-
 import { CompositeCoproRepository } from "@/lib/adapters/composite/composite-copro-repository";
 import { EstaleCoproProvider } from "@/lib/adapters/estale/estale-copro-provider";
 import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
+import type { OdjCsDocxRenderer } from "@/lib/ports/odj-cs-docx-renderer";
+import { DocxtemplaterOdjCsRenderer } from "@/lib/adapters/docx/odj-cs-docx-renderer";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import type { PerteRepository } from "@/lib/ports/perte-repository";
 import type { PropositionRepository, RegistreCoprosProvider } from "@/lib/ports/proposition-repository";
@@ -237,6 +239,12 @@ export function getInvoicingProvider(): InvoicingProvider {
 }
 
 // Etat des jalons (table native intranet_jalons). Meme bascule que le referentiel.
+/** Rendu Word de l'ODJ du CS : une seule implementation, pas de variante mock (le gabarit
+ *  est un fichier du repo, il est la partout). */
+export function getOdjCsDocxRenderer(): OdjCsDocxRenderer {
+  return new DocxtemplaterOdjCsRenderer();
+}
+
 export function getJalonRepository(): JalonRepository {
   if (coproSourceEstSupabase()) return new SupabaseJalonRepository();
   return new MockJalonRepository();
