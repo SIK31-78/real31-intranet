@@ -13,12 +13,22 @@ import type { Odj } from "./odj";
 import { ecartMontants, formatChampValeur, parseMontant } from "./odj";
 import { formatEuros } from "./format-montant";
 
+/** Un chantier vote, rendu en BLOC REPETE dans le document (retour Sekou 2026-09-23 :
+ *  plusieurs chantiers sur une seule ligne etaient illisibles). */
+export interface TravauxDocx {
+  libelle: string;
+  budgetVote: string;
+  depenses: string;
+}
+
 /** Les balises du gabarit, une par blanc pre-remplissable. Noms = ceux du .docx. */
 export interface DonneesOdjCsDocx {
   adresse: string;
   dateCs: string;
   heureCs: string;
   equipeSyndic: string;
+  /** Tous les membres du CS : on RAYE les absents en seance (demande Sekou). */
+  presentsCs: string;
   dateAg: string;
   heureAg: string;
   lieuAg: string;
@@ -29,11 +39,13 @@ export interface DonneesOdjCsDocx {
   budget: string;
   ecartLibelle: string;
   ecart: string;
-  travauxIntitule: string;
-  travauxBudget: string;
-  travauxDepenses: string;
+  /** Un bloc par chantier ; vide = le bloc entier disparait. */
+  travaux: TravauxDocx[];
   debiteurs: string;
+  /** Les memes gros debiteurs, rappeles au point "Dossier procedure". */
+  debiteursProcedure: string;
   fondsTravaux: string;
+  interetsLivret: string;
   exercicePrecedent: string;
   gazDebut: string;
   gazFin: string;
@@ -44,7 +56,10 @@ export interface DonneesOdjCsDocx {
   anneeBudget: string;
   budgetPropose: string;
   contratSyndicActuel: string;
+  contratSyndicPropose: string;
   membresCs: string;
+  /** Candidats au renouvellement = les membres actuels ; on retire en seance. */
+  candidatsCs: string;
   /** Sections legales : false = le bloc entier disparait du document. */
   ppt: boolean;
   dpe: boolean;
@@ -59,18 +74,17 @@ export interface DonneesOdjCsDocx {
 /** Ce que le modele Word ecrit quand la donnee n'est pas connue : le blanc d'origine. */
 const MODE_AG_INCONNU = "présentiel / hybride (présentiel et visio)";
 
+function champDe(odj: Odj, id: string) {
+  return [...odj.enTete, ...odj.sections.flatMap((s) => s.champs)].find((c) => c.id === id && !c.masque);
+}
+
 function valeur(odj: Odj, id: string): string {
-  for (const c of [...odj.enTete, ...odj.sections.flatMap((s) => s.champs)]) {
-    if (c.id === id && !c.masque) return formatChampValeur(c) ?? "";
-  }
-  return "";
+  const c = champDe(odj, id);
+  return c ? (formatChampValeur(c) ?? "") : "";
 }
 
 function brute(odj: Odj, id: string): string | undefined {
-  for (const c of [...odj.enTete, ...odj.sections.flatMap((s) => s.champs)]) {
-    if (c.id === id && !c.masque) return c.valeur;
-  }
-  return undefined;
+  return champDe(odj, id)?.valeur;
 }
 
 /**
@@ -96,15 +110,56 @@ export function heureFrancaise(hhmm: string | undefined): string {
   return m ? `${m[1]}h${m[2]}` : hhmm;
 }
 
+/** "2026-09-23" -> "23/09/2026". */
+function dateFr(iso: string | undefined): string {
+  if (!iso) return "";
+  const [a, m, j] = iso.slice(0, 10).split("-");
+  return a && m && j ? `${j}/${m}/${a}` : "";
+}
+
+/**
+ * Les GROS debiteurs seulement (plus de 5 % du budget annuel), un par ligne, avec la date
+ * a laquelle les comptes ont ete consultes : "M. KOMA : 1 200,00 € (au 23/09/2026)".
+ * Format demande par Sekou le 2026-09-23 - le CS doit pouvoir dater l'information.
+ */
+export function debiteursImportants(
+  debiteurs: { nom: string; montant: number; depasse5pct: boolean }[] | undefined,
+  dateConsultationISO: string,
+): string {
+  const gros = (debiteurs ?? []).filter((d) => d.depasse5pct);
+  if (gros.length === 0) return "";
+  const le = dateFr(dateConsultationISO);
+  return gros.map((d) => `${d.nom} : ${formatEuros(d.montant)}${le ? ` (au ${le})` : ""}`).join("\n");
+}
+
 function pointApplicable(odj: Odj, id: string): boolean {
   const p = odj.pointsLegaux.find((x) => x.id === id);
   return p ? p.applicable : false;
 }
 
-export function donneesDocxOdjCs(
-  odj: Odj,
-  options: { heureCs?: string; heureAg?: string } = {},
-): DonneesOdjCsDocx {
+/** Montant TTC en toutes lettres du modele : "4 800,00 €", ou "" si inconnu. */
+function euros(montant: number | null | undefined): string {
+  return montant === null || montant === undefined ? "" : formatEuros(montant);
+}
+
+export interface OptionsOdjCsDocx {
+  heureCs?: string;
+  heureAg?: string;
+  /** Debiteurs ESTALE bruts : le modele veut les GROS, dates. */
+  debiteurs?: { nom: string; montant: number; depasse5pct: boolean }[];
+  /** Jour de lecture des comptes, ISO (injecte : le domaine ne lit pas l'horloge). */
+  dateConsultationISO?: string;
+  /** Chantiers votes (ESTALE), rendus en blocs repetes. */
+  travauxVotes?: { libelle: string; budgetVote: number; depenses: number }[];
+  /** Honoraires du contrat de gestion en cours, TTC. */
+  contratSyndicTtc?: number;
+  /** Budget de l'exercice SUIVANT s'il est deja vote. */
+  budgetSuivant?: number;
+  /** Interets generes par le livret du fonds travaux sur l'exercice precedent. */
+  interetsLivret?: number;
+}
+
+export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): DonneesOdjCsDocx {
   const budgetBrut = brute(odj, "comptes.budget");
   const depensesBrut = brute(odj, "comptes.depenses-courantes");
   // Sans objet : le modele ecrit deja "cela represente un ... de".
@@ -119,7 +174,13 @@ export function donneesDocxOdjCs(
   // Exercice precedent = annee de l'AG - 1 (l'AG approuve l'exercice clos).
   const anneeAg = odj.dateAgISO ? Number(odj.dateAgISO.slice(0, 4)) : undefined;
 
-  const budgetPropose = parseMontant(brute(odj, "points.budget-n1"));
+  // Budget N+1 : l'exercice suivant s'il est vote, sinon la saisie du gestionnaire.
+  const budgetPropose = options.budgetSuivant ?? parseMontant(brute(odj, "points.budget-n1"));
+
+  const debiteurs = debiteursImportants(options.debiteurs, options.dateConsultationISO ?? "");
+
+  // Le CS renouvelle : on repropose les membres en place, on retire en seance.
+  const membresCs = valeur(odj, "points.renouvellement-cs");
 
   const irve = pointApplicable(odj, "irve");
   const velo = pointApplicable(odj, "local-velo");
@@ -129,6 +190,7 @@ export function donneesDocxOdjCs(
     dateCs: valeur(odj, "date-cs"),
     heureCs: heureFrancaise(options.heureCs),
     equipeSyndic: valeur(odj, "presents-syndic") || "Gestionnaire et assistant",
+    presentsCs: valeur(odj, "presents-cs") || "M/MME",
     dateAg: valeur(odj, "date-ag"),
     heureAg: heureFrancaise(options.heureAg) || "18h00",
     lieuAg: valeur(odj, "lieu"),
@@ -140,11 +202,15 @@ export function donneesDocxOdjCs(
     // Sans ecart calculable, on garde la formulation du modele (les deux cas, a rayer).
     ecartLibelle: ecart ? `un ${ecart.libelle.toLowerCase()}` : "un trop-perçu / un dépassement",
     ecart: ecart ? ecart.valeur : "",
-    travauxIntitule: valeur(odj, "travaux.intitule"),
-    travauxBudget: valeur(odj, "travaux.budget-vote"),
-    travauxDepenses: valeur(odj, "travaux.depenses"),
-    debiteurs: valeur(odj, "comptes.debiteurs"),
+    travaux: (options.travauxVotes ?? []).map((t) => ({
+      libelle: t.libelle,
+      budgetVote: euros(t.budgetVote),
+      depenses: euros(t.depenses),
+    })),
+    debiteurs,
+    debiteursProcedure: debiteurs,
     fondsTravaux: valeur(odj, "comptes.fonds-travaux"),
+    interetsLivret: euros(options.interetsLivret),
     exercicePrecedent: anneeAg ? String(anneeAg - 1) : "",
     gazDebut: gaz.debut,
     gazFin: gaz.fin,
@@ -153,9 +219,11 @@ export function donneesDocxOdjCs(
     elecFin: elec.fin,
     elecPrix: "",
     anneeBudget: anneeAg ? String(anneeAg + 1) : "20XX",
-    budgetPropose: budgetPropose === null ? "….." : formatEuros(budgetPropose).replace(/\s?€$/, ""),
-    contratSyndicActuel: valeur(odj, "points.contrat-syndic-actuel"),
-    membresCs: valeur(odj, "points.renouvellement-cs"),
+    budgetPropose: budgetPropose === null || budgetPropose === undefined ? "" : formatEuros(budgetPropose),
+    contratSyndicActuel: euros(options.contratSyndicTtc) || valeur(odj, "points.contrat-syndic-actuel"),
+    contratSyndicPropose: valeur(odj, "points.contrat-syndic-proposition"),
+    membresCs,
+    candidatsCs: membresCs,
     ppt: pointApplicable(odj, "ppt"),
     dpe: pointApplicable(odj, "dpe-collectif"),
     irve,

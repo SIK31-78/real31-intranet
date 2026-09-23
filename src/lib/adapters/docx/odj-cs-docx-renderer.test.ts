@@ -12,6 +12,7 @@ const DONNEES: DonneesOdjCsDocx = {
   equipeSyndic: "KOMA Sekou",
   dateAg: "19/11/2026",
   heureAg: "19h00",
+  presentsCs: "DURAND Paul (président), LEROY Marie",
   lieuAg: "Salle Molière",
   modeAg: "présentiel",
   dateLimitePoints: "09/10/2026",
@@ -20,11 +21,14 @@ const DONNEES: DonneesOdjCsDocx = {
   budget: "45 000,00 €",
   ecartLibelle: "un trop-perçu",
   ecart: "3 800,00 €",
-  travauxIntitule: "Ravalement",
-  travauxBudget: "120 000,00 €",
-  travauxDepenses: "98 000,00 €",
-  debiteurs: "MARTIN 1 200,00 €",
+  travaux: [
+    { libelle: "Ravalement", budgetVote: "120 000,00 €", depenses: "98 000,00 €" },
+    { libelle: "DTG", budgetVote: "3 500,00 €", depenses: "0,00 €" },
+  ],
+  debiteurs: "M. MARTIN : 1 200,00 € (au 23/09/2026)",
+  debiteursProcedure: "M. MARTIN : 1 200,00 € (au 23/09/2026)",
   fondsTravaux: "8 000,00 €",
+  interetsLivret: "42,50 €",
   exercicePrecedent: "2025",
   gazDebut: "01/01/2025",
   gazFin: "31/12/2026",
@@ -35,7 +39,9 @@ const DONNEES: DonneesOdjCsDocx = {
   anneeBudget: "2027",
   budgetPropose: "46 500,00",
   contratSyndicActuel: "4 800,00 €",
+  contratSyndicPropose: "4 944,00 €",
   membresCs: "DURAND Paul (président)",
+  candidatsCs: "DURAND Paul (président)",
   ppt: true,
   dpe: false,
   irve: false,
@@ -62,6 +68,27 @@ describe("DocxtemplaterOdjCsRenderer", () => {
     expect(texte).toContain("3 800,00 €");
     expect(texte).toContain("Budget pour 2027");
     expect(texte).not.toMatch(/\{[#/]?\w+\}/);
+  });
+
+  it("répète un bloc complet par chantier voté, avec la question de clôture", async () => {
+    const texte = texteDu(await new DocxtemplaterOdjCsRenderer().rendre(DONNEES));
+    expect(texte).toContain("Travaux : Ravalement");
+    expect(texte).toContain("Travaux : DTG");
+    expect((texte.match(/Nous clôturons les travaux/g) ?? []).length).toBe(2);
+  });
+
+  it("sans chantier voté, le bloc travaux disparaît entièrement", async () => {
+    const texte = texteDu(await new DocxtemplaterOdjCsRenderer().rendre({ ...DONNEES, travaux: [] }));
+    expect(texte).not.toContain("Nous clôturons les travaux");
+    expect(texte).toContain("Dépenses travaux ou études votées en AG");
+  });
+
+  it("les vérifications internes retirées ne sont plus là, les autres restent", async () => {
+    const texte = texteDu(await new DocxtemplaterOdjCsRenderer().rendre(DONNEES));
+    expect(texte).not.toContain("fonds placés");
+    expect(texte).not.toContain("F9 de sinistre");
+    expect(texte).toContain("budgets ouverts");
+    expect(texte).toContain("F9 de travaux");
   });
 
   it("retire les sections légales non applicables et garde les autres", async () => {

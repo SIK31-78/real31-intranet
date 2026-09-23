@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Odj } from "./odj";
-import { bornesContrat, donneesDocxOdjCs, heureFrancaise } from "./odj-docx";
+import { bornesContrat, debiteursImportants, donneesDocxOdjCs, heureFrancaise } from "./odj-docx";
 
 function odjMinimal(surcharges: Partial<Odj> = {}): Odj {
   return {
@@ -13,6 +13,7 @@ function odjMinimal(surcharges: Partial<Odj> = {}): Odj {
       { id: "lieu", libelle: "Lieu", source: "supabase", valeur: "Salle des fêtes" },
       { id: "visio", libelle: "Visio", source: "estale", type: "booleen", valeur: "oui" },
       { id: "presents-syndic", libelle: "Syndic", source: "supabase", valeur: "KOMA Sekou, DUPONT Anne" },
+      { id: "presents-cs", libelle: "CS", source: "estale", valeur: "DURAND Paul (président), LEROY Marie" },
       { id: "limite-odj", libelle: "Limite", source: "jalon", valeur: "09/10/2026" },
       { id: "mise-sous-pli", libelle: "Pli", source: "jalon", valeur: "19/10/2026" },
     ],
@@ -77,8 +78,8 @@ describe("donneesDocxOdjCs", () => {
     expect(d.ecart).toBe("3 800,00 €");
   });
 
-  it("le budget proposé sort SANS le symbole euro (le modèle l'écrit déjà)", () => {
-    expect(donneesDocxOdjCs(odjMinimal()).budgetPropose).toBe("46 500,00");
+  it("le budget proposé reprend la saisie quand l'exercice suivant n'est pas voté", () => {
+    expect(donneesDocxOdjCs(odjMinimal()).budgetPropose).toBe("46 500,00 €");
   });
 
   it("exercice précédent et budget N+1 se déduisent de l'année d'AG", () => {
@@ -110,6 +111,7 @@ describe("donneesDocxOdjCs", () => {
     expect(d.depenses).toBe("");
     expect(d.ecart).toBe("");
     expect(d.ecartLibelle).toBe("un trop-perçu / un dépassement");
+    expect(d.travaux).toEqual([]);
     expect(d.modeAg).toBe("présentiel / hybride (présentiel et visio)");
     expect(d.heureAg).toBe("18h00");
     expect(d.equipeSyndic).toBe("Gestionnaire et assistant");
@@ -120,6 +122,87 @@ describe("donneesDocxOdjCs", () => {
     const odj = odjMinimal();
     odj.enTete[2] = { ...odj.enTete[2]!, masque: true };
     expect(donneesDocxOdjCs(odj).lieuAg).toBe("");
+  });
+});
+
+
+describe("retours Sekou du 2026-09-23", () => {
+  it("tous les membres du CS sont écrits (on raye les absents en séance)", () => {
+    expect(donneesDocxOdjCs(odjMinimal()).presentsCs).toBe("DURAND Paul (président), LEROY Marie");
+  });
+
+  it("sans membre connu, le modèle garde son « M/MME »", () => {
+    expect(donneesDocxOdjCs(odjMinimal({ enTete: [] })).presentsCs).toBe("M/MME");
+  });
+
+  it("un bloc par chantier voté, montants formatés", () => {
+    const d = donneesDocxOdjCs(odjMinimal(), {
+      travauxVotes: [
+        { libelle: "Réfection cage d'escalier", budgetVote: 12000, depenses: 0 },
+        { libelle: "DTG", budgetVote: 3500, depenses: 0 },
+      ],
+    });
+    expect(d.travaux).toHaveLength(2);
+    expect(d.travaux[0]).toEqual({
+      libelle: "Réfection cage d'escalier",
+      budgetVote: "12 000,00 €",
+      depenses: "0,00 €",
+    });
+  });
+
+  it("sans chantier, la liste est vide (le bloc disparaît du document)", () => {
+    expect(donneesDocxOdjCs(odjMinimal()).travaux).toEqual([]);
+  });
+
+  it("seuls les GROS débiteurs sortent, un par ligne, datés du jour de consultation", () => {
+    const d = donneesDocxOdjCs(odjMinimal(), {
+      debiteurs: [
+        { nom: "M. KOMA", montant: 3200, depasse5pct: true },
+        { nom: "Mme PETIT", montant: 90, depasse5pct: false },
+      ],
+      dateConsultationISO: "2026-09-23",
+    });
+    expect(d.debiteurs).toBe("M. KOMA : 3 200,00 € (au 23/09/2026)");
+    expect(d.debiteurs).not.toContain("PETIT");
+    // Le point "Dossier procédure" rappelle les mêmes débiteurs.
+    expect(d.debiteursProcedure).toBe(d.debiteurs);
+  });
+
+  it("les candidats au renouvellement reprennent les membres en place", () => {
+    const d = donneesDocxOdjCs(odjMinimal());
+    expect(d.candidatsCs).toBe("DURAND Paul (président), LEROY Marie");
+    expect(d.candidatsCs).toBe(d.membresCs);
+  });
+
+  it("le contrat de syndic en cours vient du contrat de gestion", () => {
+    expect(donneesDocxOdjCs(odjMinimal(), { contratSyndicTtc: 4800 }).contratSyndicActuel).toBe("4 800,00 €");
+  });
+
+  it("le budget N+1 voté prime sur la saisie", () => {
+    expect(donneesDocxOdjCs(odjMinimal(), { budgetSuivant: 48000 }).budgetPropose).toBe("48 000,00 €");
+  });
+
+  it("les intérêts du livret sont un blanc tant qu'on ne les a pas", () => {
+    expect(donneesDocxOdjCs(odjMinimal()).interetsLivret).toBe("");
+    expect(donneesDocxOdjCs(odjMinimal(), { interetsLivret: 42.5 }).interetsLivret).toBe("42,50 €");
+  });
+});
+
+describe("debiteursImportants", () => {
+  it("rend un blanc quand aucun débiteur ne dépasse le seuil", () => {
+    expect(debiteursImportants([{ nom: "X", montant: 10, depasse5pct: false }], "2026-09-23")).toBe("");
+    expect(debiteursImportants(undefined, "2026-09-23")).toBe("");
+  });
+
+  it("une ligne par débiteur", () => {
+    const t = debiteursImportants(
+      [
+        { nom: "M. A", montant: 1000, depasse5pct: true },
+        { nom: "Mme B", montant: 2000, depasse5pct: true },
+      ],
+      "2026-09-23",
+    );
+    expect(t.split(String.fromCharCode(10))).toHaveLength(2);
   });
 });
 

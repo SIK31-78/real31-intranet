@@ -5,7 +5,8 @@
 // pre-remplissage ESTALE / referentiel, et rend le document du cabinet tel quel.
 // Passe par le routeur (ADR-001). Meme perimetre de lecture que l'ecran /odj/<id>.
 
-import { getCoproRepository, getOdjCsDocxRenderer } from "@/lib/adapters/router";
+import { getCoproRepository, getFacturationRepository, getOdjCsDocxRenderer } from "@/lib/adapters/router";
+import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { donneesDocxOdjCs } from "@/lib/domain/odj-docx";
 import { getOdj } from "./get-odj";
 
@@ -27,11 +28,30 @@ export async function genererOdjCsDocx(idOdj: string, gestionnaireId: string): P
   const odj = await getOdj(idOdj, gestionnaireId, { transverse: true });
   if (!odj) return null;
 
-  // Les heures ne sont pas des champs de l'ODJ : elles viennent de la fiche copro.
-  const copro = await getCoproRepository().findByCode(odj.copro.code);
+  // Ce que l'ODJ d'ecran ne porte pas : les heures (fiche copro), les chantiers et les
+  // debiteurs DETAILLES (eStale ; l'ecran n'en garde qu'un resume sur une ligne), et le
+  // montant du contrat de gestion en cours. Tout est best-effort : une source muette
+  // laisse un blanc dans le document, elle ne fait pas echouer le telechargement.
+  const [copro, estale, contrat] = await Promise.all([
+    getCoproRepository().findByCode(odj.copro.code),
+    donneesCoproEstale(odj.copro.code).catch((e) => {
+      console.warn(`[odj-docx] eStale indisponible pour ${odj.copro.code} :`, (e as Error).message);
+      return null;
+    }),
+    getFacturationRepository()
+      .getDernierContrat(odj.copro.code)
+      .catch(() => null),
+  ]);
+
   const donnees = donneesDocxOdjCs(odj, {
     ...(copro?.prochaineCsHeure ? { heureCs: copro.prochaineCsHeure } : {}),
     ...(copro?.prochaineAg?.heure ? { heureAg: copro.prochaineAg.heure } : {}),
+    ...(estale?.debiteurs ? { debiteurs: estale.debiteurs } : {}),
+    ...(estale?.travauxVotes ? { travauxVotes: estale.travauxVotes } : {}),
+    ...(contrat?.honorairesGestionTtc !== undefined
+      ? { contratSyndicTtc: contrat.honorairesGestionTtc }
+      : {}),
+    dateConsultationISO: new Date().toISOString().slice(0, 10),
   });
 
   const contenu = await getOdjCsDocxRenderer().rendre(donnees);
