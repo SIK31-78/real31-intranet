@@ -12,6 +12,12 @@
 import type { Odj } from "./odj";
 import { ecartMontants, formatChampValeur, parseMontant } from "./odj";
 import { formatEuros } from "./format-montant";
+import {
+  formatTaux,
+  propositionFraisPostaux,
+  proposerContratSyndic,
+  type TauxBareme,
+} from "./proposition-contrat-syndic";
 
 /** Un chantier vote, rendu en BLOC REPETE dans le document (retour Sekou 2026-09-23 :
  *  plusieurs chantiers sur une seule ligne etaient illisibles). */
@@ -57,6 +63,10 @@ export interface DonneesOdjCsDocx {
   budgetPropose: string;
   contratSyndicActuel: string;
   contratSyndicPropose: string;
+  /** "soit une augmentation de 2 % (bareme 2027)" ; vide si rien a proposer. */
+  hausseContrat: string;
+  /** Rappel de l'option frais postaux au reel ; vide si la copro y est deja. */
+  propositionFraisPostaux: string;
   membresCs: string;
   /** Candidats au renouvellement = les membres actuels ; on retire en seance. */
   candidatsCs: string;
@@ -157,6 +167,10 @@ export interface OptionsOdjCsDocx {
   budgetSuivant?: number;
   /** Interets generes par le livret du fonds travaux sur l'exercice precedent. */
   interetsLivret?: number;
+  /** Taux de revalorisation du bareme de l'annee suivante (ex 0.02), s'il est ouvert. */
+  tauxBaremeSuivant?: TauxBareme | null;
+  /** La copro est-elle deja aux frais postaux reels ? */
+  fraisPostauxReels?: boolean;
 }
 
 export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): DonneesOdjCsDocx {
@@ -181,6 +195,10 @@ export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): Donn
 
   // Le CS renouvelle : on repropose les membres en place, on retire en seance.
   const membresCs = valeur(odj, "points.renouvellement-cs");
+
+  // Renouvellement du contrat : le bareme de l'annee suivante donne la hausse, le contrat
+  // en cours donne la base. Sans l'un des deux, on laisse le blanc du modele.
+  const proposition = proposerContratSyndic(options.contratSyndicTtc, options.tauxBaremeSuivant ?? null);
 
   const irve = pointApplicable(odj, "irve");
   const velo = pointApplicable(odj, "local-velo");
@@ -221,7 +239,13 @@ export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): Donn
     anneeBudget: anneeAg ? String(anneeAg + 1) : "20XX",
     budgetPropose: budgetPropose === null || budgetPropose === undefined ? "" : formatEuros(budgetPropose),
     contratSyndicActuel: euros(options.contratSyndicTtc) || valeur(odj, "points.contrat-syndic-actuel"),
-    contratSyndicPropose: valeur(odj, "points.contrat-syndic-proposition"),
+    contratSyndicPropose: proposition
+      ? formatEuros(proposition.montantTtc)
+      : valeur(odj, "points.contrat-syndic-proposition"),
+    hausseContrat: proposition
+      ? `soit une augmentation de ${formatTaux(proposition.taux)}${anneeAg ? ` (barème ${anneeAg + 1})` : ""}`
+      : "",
+    propositionFraisPostaux: propositionFraisPostaux(options.fraisPostauxReels),
     membresCs,
     candidatsCs: membresCs,
     ppt: pointApplicable(odj, "ppt"),

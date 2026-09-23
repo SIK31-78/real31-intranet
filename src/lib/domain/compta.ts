@@ -81,6 +81,9 @@ export const POSTES_COMPTA: readonly PosteCompta[] = [
   { slug: "travaux-votes", libelle: "Travaux votés art. 14-2 (suivi budget / dépenses)" },
   { slug: "report-resultat", libelle: "Report à nouveau & résultat de l'exercice" },
   { slug: "annexes-comptables", libelle: "Annexes comptables cohérentes (5 annexes réglementaires)" },
+  // Ajoute le 2026-09-23 (Sekou) : le budget N+1 se prepare AVEC les comptes, il est
+  // presente au CS puis vote en AG. Sans lui, le CS decouvre un budget non prepare.
+  { slug: "budget-suivant", libelle: "Budget prévisionnel de l'exercice suivant (à présenter au CS)" },
 ] as const;
 
 /** Prefixe des champ_id de la checklist dans intranet_odj_champs. */

@@ -182,6 +182,25 @@ describe("retours Sekou du 2026-09-23", () => {
     expect(donneesDocxOdjCs(odjMinimal(), { budgetSuivant: 48000 }).budgetPropose).toBe("48 000,00 €");
   });
 
+  it("la proposition de contrat revalorise le contrat en cours du taux du barème suivant", () => {
+    const d = donneesDocxOdjCs(odjMinimal(), { contratSyndicTtc: 4800, tauxBaremeSuivant: 0.02 });
+    expect(d.contratSyndicActuel).toBe("4 800,00 €");
+    expect(d.contratSyndicPropose).toBe("4 896,00 €");
+    expect(d.hausseContrat).toBe("soit une augmentation de 2 % (barème 2027)");
+  });
+
+  it("sans barème suivant ouvert, aucune hausse n'est annoncée", () => {
+    const d = donneesDocxOdjCs(odjMinimal(), { contratSyndicTtc: 4800, tauxBaremeSuivant: null });
+    expect(d.hausseContrat).toBe("");
+  });
+
+  it("le passage au réel n'est proposé qu'au forfait", () => {
+    expect(donneesDocxOdjCs(odjMinimal(), { fraisPostauxReels: false }).propositionFraisPostaux).toBe(
+      "Il est proposé de passer les frais postaux au réel.",
+    );
+    expect(donneesDocxOdjCs(odjMinimal(), { fraisPostauxReels: true }).propositionFraisPostaux).toBe("");
+  });
+
   it("les intérêts du livret sont un blanc tant qu'on ne les a pas", () => {
     expect(donneesDocxOdjCs(odjMinimal()).interetsLivret).toBe("");
     expect(donneesDocxOdjCs(odjMinimal(), { interetsLivret: 42.5 }).interetsLivret).toBe("42,50 €");

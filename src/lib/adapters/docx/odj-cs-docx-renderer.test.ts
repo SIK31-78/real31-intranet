@@ -40,6 +40,8 @@ const DONNEES: DonneesOdjCsDocx = {
   budgetPropose: "46 500,00",
   contratSyndicActuel: "4 800,00 €",
   contratSyndicPropose: "4 944,00 €",
+  hausseContrat: "soit une augmentation de 2 % (barème 2027)",
+  propositionFraisPostaux: "Il est proposé de passer les frais postaux au réel.",
   membresCs: "DURAND Paul (président)",
   candidatsCs: "DURAND Paul (président)",
   ppt: true,

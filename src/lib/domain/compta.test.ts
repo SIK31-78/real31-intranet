@@ -12,10 +12,10 @@ import {
 } from "./compta";
 
 describe("checklist compta - postes & mapping", () => {
-  it("expose 9 postes aux slugs uniques et non vides", () => {
-    expect(POSTES_COMPTA).toHaveLength(9);
+  it("expose 10 postes aux slugs uniques et non vides", () => {
+    expect(POSTES_COMPTA).toHaveLength(10);
     const slugs = POSTES_COMPTA.map((p) => p.slug);
-    expect(new Set(slugs).size).toBe(9);
+    expect(new Set(slugs).size).toBe(10);
     for (const p of POSTES_COMPTA) {
       expect(p.slug.length).toBeGreaterThan(0);
       expect(p.libelle.length).toBeGreaterThan(0);
@@ -63,7 +63,7 @@ describe("statutPoste - defaut", () => {
 describe("progressionChecklist", () => {
   it("checklist vierge : tout a verifier, 0 traite", () => {
     const p = progressionChecklist({});
-    expect(p).toEqual({ total: 9, ok: 0, aRevoir: 0, nonApplicable: 0, aVerifier: 9, traites: 0 });
+    expect(p).toEqual({ total: 10, ok: 0, aRevoir: 0, nonApplicable: 0, aVerifier: 10, traites: 0 });
   });
 
   it("compte ok / a_revoir / non_applicable et deduit a_verifier + traites", () => {
@@ -77,7 +77,7 @@ describe("progressionChecklist", () => {
     expect(p.ok).toBe(2);
     expect(p.aRevoir).toBe(1);
     expect(p.nonApplicable).toBe(1);
-    expect(p.aVerifier).toBe(5);
+    expect(p.aVerifier).toBe(6);
     // traites = ok + non_applicable (plus rien a faire), pas a_revoir.
     expect(p.traites).toBe(3);
   });
@@ -85,7 +85,7 @@ describe("progressionChecklist", () => {
   it("ignore un slug inconnu present dans la map (compte sur POSTES_COMPTA)", () => {
     const p = progressionChecklist({ "slug-bidon": "ok" } as ChecksCompta);
     expect(p.ok).toBe(0);
-    expect(p.total).toBe(9);
+    expect(p.total).toBe(10);
   });
 });
 
