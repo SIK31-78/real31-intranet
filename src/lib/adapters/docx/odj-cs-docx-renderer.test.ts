@@ -90,4 +90,10 @@ describe("archive OOXML", () => {
     expect(noms[0]).toBe("[Content_Types].xml");
     expect(noms).toHaveLength(37);
   });
+
+  it('document.xml garde la declaration XML avec standalone="yes" (Word refuse sinon)', async () => {
+    const docx = await new DocxtemplaterOdjCsRenderer().rendre(DONNEES);
+    const xml = new PizZip(docx).file("word/document.xml")!.asText();
+    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')).toBe(true);
+  });
 });
