@@ -219,6 +219,12 @@ export interface DonneesEstaleCopro {
   travauxVotes?: { libelle: string; budgetVote: number; depenses: number }[];
   /** Montant du fonds de travaux ALUR (compte 105) en fin d'exercice, en euros. */
   fondsTravaux?: number;
+  /** Les deux budgets qui rendent le taux du fonds travaux VERIFIABLE (ALUR / ordinaire
+   *  du meme exercice) : 5 % en droit commun, 2,5 % avec un PPT. */
+  fondsTravauxBudgets?: { alur: number; ordinaire: number };
+  /** Budget de l'exercice SUIVANT tel qu'eStale le connait. `montant` vaut 0 tant que la
+   *  comptabilite ne l'a pas chiffre : l'annee sert quand meme a titrer le point d'ODJ. */
+  budgetSuivant?: { annee: number; montant: number };
   /** Coproprietaires debiteurs (solde a ce jour > 0), tries par montant decroissant. */
   debiteurs?: DebiteurEstale[];
   /** Consommation d'eau de l'exercice (compte 601, volume lu dans les libelles). */

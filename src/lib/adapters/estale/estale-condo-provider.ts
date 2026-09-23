@@ -46,7 +46,12 @@ type CondoData = {
     litigation: { count: number };
     accountingV2: {
       periodCurrent: [string, string] | null;
-      exercices: { id: string; period: [string, string]; budgetOrdinary: { amount: number } | null }[];
+      exercices: {
+        id: string;
+        period: [string, string];
+        budgetOrdinary: { amount: number } | null;
+        budgets: { __typename: string; amount: number }[] | null;
+      }[];
     };
     lots: { use: string | null }[] | null;
     collaborators: { id: string; fullname: string; role: string | null }[] | null;
@@ -100,7 +105,7 @@ const QUERY_CONDO = `query DonneesCopro($id: ID!) {
     meetings { category startAt transcript { validated } }
     contracts { label category period }
     litigation { count }
-    accountingV2 { periodCurrent exercices { id period budgetOrdinary { amount } } }
+    accountingV2 { periodCurrent exercices { id period budgetOrdinary { amount } budgets { __typename amount } } }
     lots { use }
     collaborators { id fullname role }
     serviceBook { mandate { signed end managerID } }
@@ -296,6 +301,23 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       acc.exercices.find((e) => acc.periodCurrent && e.period[0] === acc.periodCurrent[0]) ??
       acc.exercices[0];
     const budgetPrevisionnel = exCourant?.budgetOrdinary?.amount;
+
+    // Fonds travaux : le taux appele se CONSTATE (budget ALUR / budget ordinaire du meme
+    // exercice) au lieu d'etre affirme. Mesure S0306 : 5 500 / 110 000 = 5 %.
+    const budgetAlur = (exCourant?.budgets ?? []).find((b) => b.__typename === "BudgetALUR")?.amount;
+    const fondsTravauxBudgets =
+      budgetAlur && budgetPrevisionnel ? { alur: budgetAlur, ordinaire: budgetPrevisionnel } : undefined;
+
+    // Budget de l'exercice SUIVANT : eStale le cree des l'ouverture de l'exercice, souvent
+    // a 0 tant que la comptabilite ne l'a pas chiffre. On remonte les deux : l'annee titre
+    // le point d'ODJ ("Budget pour 2027"), le montant ne s'ecrit que s'il existe.
+    const anneeCourante = exCourant ? Number(exCourant.period[0].slice(0, 4)) : undefined;
+    const exSuivant = anneeCourante
+      ? acc.exercices.find((e) => Number(e.period[0].slice(0, 4)) === anneeCourante + 1)
+      : undefined;
+    const budgetSuivant = exSuivant
+      ? { annee: Number(exSuivant.period[0].slice(0, 4)), montant: exSuivant.budgetOrdinary?.amount ?? 0 }
+      : undefined;
     // Comptes et debiteurs sont deux requetes independantes du meme exercice (debiteurs
     // ne depend PAS du resultat de comptes) -> parallelisees. Eau depend de comptes.eauIds,
     // donc reste sequentiel apres.
@@ -330,6 +352,8 @@ export class EstaleCondoProvider implements CondoEstaleProvider {
       ...(comptes.depenses != null ? { depensesCourantes: comptes.depenses } : {}),
       ...(comptes.travauxVotes.length > 0 ? { travauxVotes: comptes.travauxVotes } : {}),
       ...(comptes.fonds != null ? { fondsTravaux: comptes.fonds } : {}),
+      ...(fondsTravauxBudgets ? { fondsTravauxBudgets } : {}),
+      ...(budgetSuivant ? { budgetSuivant } : {}),
       ...(debiteurs.length > 0 ? { debiteurs } : {}),
       ...(eau ? { eau } : {}),
       // Identite complementaire (absente du referentiel pour les copros eStale-only).

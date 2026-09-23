@@ -29,6 +29,7 @@ const DONNEES: DonneesOdjCsDocx = {
   debiteursProcedure: "M. MARTIN : 1 200,00 € (au 23/09/2026)",
   fondsTravaux: "8 000,00 €",
   interetsLivret: "42,50 €",
+  tauxFondsTravaux: "aujourd'hui = 5 % du budget annuel",
   exercicePrecedent: "2025",
   gazDebut: "01/01/2025",
   gazFin: "31/12/2026",
@@ -89,8 +90,27 @@ describe("DocxtemplaterOdjCsRenderer", () => {
     const texte = texteDu(await new DocxtemplaterOdjCsRenderer().rendre(DONNEES));
     expect(texte).not.toContain("fonds placés");
     expect(texte).not.toContain("F9 de sinistre");
-    expect(texte).toContain("budgets ouverts");
-    expect(texte).toContain("F9 de travaux");
+    expect(texte).not.toContain("budgets ouverts");
+    expect(texte).not.toContain("F9 de travaux");
+    // Celles-ci restent (Sekou n'a demandé que trois retraits).
+    expect(texte).toContain("photo de l");
+    expect(texte).toContain("ENGIE");
+  });
+
+  it("le taux du fonds travaux vient des budgets, il n'est plus écrit en dur", async () => {
+    const texte = texteDu(
+      await new DocxtemplaterOdjCsRenderer().rendre({
+        ...DONNEES,
+        tauxFondsTravaux: "aujourd'hui = 2,5 % du budget annuel, taux des copropriétés dotées d'un PPT",
+      }),
+    );
+    expect(texte).toContain("2,5 % du budget annuel");
+    expect(texte).not.toContain("= 5% du budget");
+  });
+
+  it("la question de clôture suit les dépenses et propose Oui/Non", async () => {
+    const texte = texteDu(await new DocxtemplaterOdjCsRenderer().rendre(DONNEES));
+    expect(texte).toContain("Nous clôturons les travaux ? Oui/Non");
   });
 
   it("retire les sections légales non applicables et garde les autres", async () => {

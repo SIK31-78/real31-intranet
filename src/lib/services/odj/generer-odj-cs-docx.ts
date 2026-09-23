@@ -62,6 +62,14 @@ export async function genererOdjCsDocx(idOdj: string, gestionnaireId: string): P
     // dans le premier cas.
     ...(contrat ? { fraisPostauxReels: !contrat.forfaitPostauxTtc } : {}),
     tauxBaremeSuivant: tauxRevalorisation(baremeAg, baremeSuivant),
+    ...(estale?.fondsTravauxBudgets
+      ? {
+          budgetAlur: estale.fondsTravauxBudgets.alur,
+          budgetOrdinaire: estale.fondsTravauxBudgets.ordinaire,
+        }
+      : {}),
+    ...(estale?.budgetSuivant?.montant ? { budgetSuivant: estale.budgetSuivant.montant } : {}),
+    ...(estale?.budgetSuivant?.annee ? { anneeBudgetSuivant: estale.budgetSuivant.annee } : {}),
     dateConsultationISO: new Date().toISOString().slice(0, 10),
   });
 

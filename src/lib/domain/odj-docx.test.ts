@@ -201,6 +201,27 @@ describe("retours Sekou du 2026-09-23", () => {
     expect(donneesDocxOdjCs(odjMinimal(), { fraisPostauxReels: true }).propositionFraisPostaux).toBe("");
   });
 
+  it("un point sans contenu dit « Rien à signaler » au lieu de rester vide", () => {
+    const d = donneesDocxOdjCs(odjMinimal());
+    expect(d.debiteurs).toBe("Rien à signaler");
+    expect(d.debiteursProcedure).toBe("Rien à signaler");
+  });
+
+  it("le taux du fonds travaux se constate sur les budgets eStale", () => {
+    const d = donneesDocxOdjCs(odjMinimal(), { budgetAlur: 5500, budgetOrdinaire: 110000 });
+    expect(d.tauxFondsTravaux).toBe("aujourd'hui = 5 % du budget annuel");
+  });
+
+  it("sans budget ALUR connu, on garde la phrase du modèle", () => {
+    expect(donneesDocxOdjCs(odjMinimal()).tauxFondsTravaux).toBe("aujourd'hui = 5 % du budget annuel");
+  });
+
+  it("l'année du budget vient d'eStale quand l'AG n'est pas datée", () => {
+    const sansDate = odjMinimal({ dateAgISO: undefined as unknown as string });
+    expect(donneesDocxOdjCs(sansDate, { anneeBudgetSuivant: 2027 }).anneeBudget).toBe("2027");
+    expect(donneesDocxOdjCs(sansDate).anneeBudget).toBe("20XX");
+  });
+
   it("les intérêts du livret sont un blanc tant qu'on ne les a pas", () => {
     expect(donneesDocxOdjCs(odjMinimal()).interetsLivret).toBe("");
     expect(donneesDocxOdjCs(odjMinimal(), { interetsLivret: 42.5 }).interetsLivret).toBe("42,50 €");

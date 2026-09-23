@@ -18,6 +18,7 @@ import {
   proposerContratSyndic,
   type TauxBareme,
 } from "./proposition-contrat-syndic";
+import { tauxFondsTravaux } from "./taux-fonds-travaux";
 
 /** Un chantier vote, rendu en BLOC REPETE dans le document (retour Sekou 2026-09-23 :
  *  plusieurs chantiers sur une seule ligne etaient illisibles). */
@@ -52,6 +53,8 @@ export interface DonneesOdjCsDocx {
   debiteursProcedure: string;
   fondsTravaux: string;
   interetsLivret: string;
+  /** "aujourd'hui = 5 % du budget annuel", CONSTATE sur les budgets eStale. */
+  tauxFondsTravaux: string;
   exercicePrecedent: string;
   gazDebut: string;
   gazFin: string;
@@ -83,6 +86,9 @@ export interface DonneesOdjCsDocx {
 
 /** Ce que le modele Word ecrit quand la donnee n'est pas connue : le blanc d'origine. */
 const MODE_AG_INCONNU = "présentiel / hybride (présentiel et visio)";
+
+/** Un point sans contenu se DIT, il ne se laisse pas vide (retour Sekou 2026-09-23). */
+const RIEN_A_SIGNALER = "Rien à signaler";
 
 function champDe(odj: Odj, id: string) {
   return [...odj.enTete, ...odj.sections.flatMap((s) => s.champs)].find((c) => c.id === id && !c.masque);
@@ -171,6 +177,12 @@ export interface OptionsOdjCsDocx {
   tauxBaremeSuivant?: TauxBareme | null;
   /** La copro est-elle deja aux frais postaux reels ? */
   fraisPostauxReels?: boolean;
+  /** Budget ALUR de l'exercice (eStale) : donne le taux du fonds travaux. */
+  budgetAlur?: number;
+  /** Budget ordinaire du MEME exercice, denominateur du taux. */
+  budgetOrdinaire?: number;
+  /** Annee du budget a proposer, quand l'AG n'est pas encore datee. */
+  anneeBudgetSuivant?: number;
 }
 
 export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): DonneesOdjCsDocx {
@@ -200,6 +212,13 @@ export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): Donn
   // en cours donne la base. Sans l'un des deux, on laisse le blanc du modele.
   const proposition = proposerContratSyndic(options.contratSyndicTtc, options.tauxBaremeSuivant ?? null);
 
+  // Le taux du fonds travaux n'est plus une affirmation du modele : il se constate.
+  const alur = tauxFondsTravaux(options.budgetAlur, options.budgetOrdinaire);
+
+  // L'annee du budget a voter : celle de l'AG + 1 si l'AG est datee, sinon l'exercice
+  // suivant connu d'eStale (une copro sans date d'AG gardait "20XX").
+  const anneeBudget = anneeAg ? anneeAg + 1 : options.anneeBudgetSuivant;
+
   const irve = pointApplicable(odj, "irve");
   const velo = pointApplicable(odj, "local-velo");
 
@@ -225,10 +244,11 @@ export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): Donn
       budgetVote: euros(t.budgetVote),
       depenses: euros(t.depenses),
     })),
-    debiteurs,
-    debiteursProcedure: debiteurs,
+    debiteurs: debiteurs || RIEN_A_SIGNALER,
+    debiteursProcedure: debiteurs || RIEN_A_SIGNALER,
     fondsTravaux: valeur(odj, "comptes.fonds-travaux"),
     interetsLivret: euros(options.interetsLivret),
+    tauxFondsTravaux: alur ? alur.libelle : "aujourd'hui = 5 % du budget annuel",
     exercicePrecedent: anneeAg ? String(anneeAg - 1) : "",
     gazDebut: gaz.debut,
     gazFin: gaz.fin,
@@ -236,14 +256,14 @@ export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): Donn
     elecDebut: elec.debut,
     elecFin: elec.fin,
     elecPrix: "",
-    anneeBudget: anneeAg ? String(anneeAg + 1) : "20XX",
+    anneeBudget: anneeBudget ? String(anneeBudget) : "20XX",
     budgetPropose: budgetPropose === null || budgetPropose === undefined ? "" : formatEuros(budgetPropose),
     contratSyndicActuel: euros(options.contratSyndicTtc) || valeur(odj, "points.contrat-syndic-actuel"),
     contratSyndicPropose: proposition
       ? formatEuros(proposition.montantTtc)
       : valeur(odj, "points.contrat-syndic-proposition"),
     hausseContrat: proposition
-      ? `soit une augmentation de ${formatTaux(proposition.taux)}${anneeAg ? ` (barème ${anneeAg + 1})` : ""}`
+      ? `soit une augmentation de ${formatTaux(proposition.taux)}${anneeBudget ? ` (barème ${anneeBudget})` : ""}`
       : "",
     propositionFraisPostaux: propositionFraisPostaux(options.fraisPostauxReels),
     membresCs,
