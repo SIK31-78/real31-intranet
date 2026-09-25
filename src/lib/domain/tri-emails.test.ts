@@ -86,8 +86,9 @@ describe("suggererCopro", () => {
   });
 
   it("signale une copro citee qui n'est pas sur ESTALE", () => {
-    const s = suggererCopro(mail({ objet: "Résiliation S0142" }), REF);
+    const s = suggererCopro(mail({ objet: "Résiliation s0142" }), REF);
     expect(s).toMatchObject({ nature: "hors-estale", candidats: [] });
+    expect(s.raison).toBe("Code S0142 cité, mais cette copropriété n'est pas sur ESTALE.");
   });
 
   it("ne propose rien sans indice", () => {

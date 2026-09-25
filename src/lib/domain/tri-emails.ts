@@ -53,6 +53,8 @@ export interface MailATrier {
   recuLe: string;
   apercu: string;
   aPiecesJointes: boolean;
+  /** Lien pour ouvrir le mail dans Outlook sur le web ; absent pour l'echantillon. */
+  lienOutlook?: string;
 }
 
 export type NatureSuggestion =
@@ -168,13 +170,15 @@ export function suggererCopro(
     };
   }
 
-  // Un code est cite mais aucune copro ESTALE ne le porte : hors perimetre.
-  const cites = [...dansObjet, ...dansCorps];
-  if (cites.length > 0) {
+  // Un code est cite mais aucune copro ESTALE ne le porte : hors perimetre. On affiche
+  // le code tel qu'il est ecrit dans le mail ("S0142"), pas sa cle de comparaison.
+  const premier = new RegExp(MOTIF_REFERENCE.source, "i").exec(`${mail.objet}
+${mail.apercu}`);
+  if (premier) {
     return {
       nature: "hors-estale",
       candidats: [],
-      raison: `Code ${cites[0]} cité, mais cette copropriété n'est pas sur ESTALE.`,
+      raison: `Code ${premier[0].toUpperCase()} cité, mais cette copropriété n'est pas sur ESTALE.`,
     };
   }
 
