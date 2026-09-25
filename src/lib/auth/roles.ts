@@ -169,6 +169,19 @@ export function peutVoirComptabilite(
 }
 
 /**
+ * Export de l'annuaire Linkus (/admin/linkus : téléphones de tous les copropriétaires
+ * ESTALE, pour le standard). Les ADMIN de la table public."User" (Léa LOUSSOUARN gère la
+ * téléphonie, décision Sekou du 25/09/2026) et les super-admins. Piloté par la base,
+ * sans variable Vercel.
+ */
+export function peutExporterAnnuaireLinkus(
+  email: string | null | undefined,
+  roleTable?: string | null,
+): boolean {
+  return estSuperAdmin(email) || (roleTable ?? "").trim().toUpperCase() === "ADMIN";
+}
+
+/**
  * Acces a la facturation de gestion courante (/gestion-courante) : la comptabilite du
  * CABINET (comptable_entreprise) et les super-admins. Le pole compta des copros n'y a
  * PAS acces : facturer les honoraires du cabinet n'est pas tenir les comptes des copros.

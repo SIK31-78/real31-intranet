@@ -321,3 +321,12 @@ describe("estAdminReprise", () => {
     expect(estAdminReprise("elsa@real31.fr")).toBe(false);
   });
 });
+
+describe("peutExporterAnnuaireLinkus", () => {
+  it("ouvre aux ADMIN de la table, pas aux autres rôles", async () => {
+    const { peutExporterAnnuaireLinkus } = await import("./roles");
+    expect(peutExporterAnnuaireLinkus("lea@real31.fr", "ADMIN")).toBe(true);
+    expect(peutExporterAnnuaireLinkus("x@real31.fr", "GESTIONNAIRE")).toBe(false);
+    expect(peutExporterAnnuaireLinkus("x@real31.fr", null)).toBe(false);
+  });
+});

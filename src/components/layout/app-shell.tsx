@@ -6,7 +6,7 @@ import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-contex
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, peutVoirPropositions, profilDe } from "@/lib/auth/roles";
+import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, peutVoirPropositions, profilDe } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
@@ -44,6 +44,8 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // Groupe "Administration" (cles API machine) : SUPER-ADMIN seulement. La page
   // /admin/cles-api porte sa propre garde serveur - l'entree sidebar n'est qu'un acces.
   const adminOuvert = estSuperAdmin(g?.email);
+  // Entree "Annuaire Linkus" : ADMIN de la table User (Léa, téléphonie) + super-admin.
+  const linkusOuvert = peutExporterAnnuaireLinkus(g?.email, g?.role);
   // Entree "Collaborateurs" : la direction (table User, referents d'agence, super-admin).
   const directionOuverte = g ? estDirection(profilDe(g)) : false;
   // Vue HORS SYNDIC (vente, location, accueil) : cles, coffre, nouveautes.
@@ -67,6 +69,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               peutImpersonner={peutImpersonner}
               emailsOuvert={emailsOuvert}
               comptaOuvert={comptaOuvert}
+              linkusOuvert={linkusOuvert}
               gestionCouranteOuverte={gestionCouranteOuverte}
               vueComptable={vueComptable}
               vueHorsSyndic={vueHorsSyndic}

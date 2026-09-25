@@ -11,6 +11,7 @@ import type { CalendrierProvider } from "@/lib/ports/calendrier-provider";
 import type { SupervisionAgProvider } from "@/lib/ports/supervision-ag-provider";
 import type { CoproRepository } from "@/lib/ports/copro-repository";
 import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
+import type { AnnuaireEstaleProvider } from "@/lib/ports/annuaire-estale-provider";
 import type { MesEvenementsProvider } from "@/lib/ports/mes-evenements-provider";
 import type { MesEmailsProvider } from "@/lib/ports/mes-emails-provider";
 import { MockDashboardProvider } from "@/lib/adapters/mock/mock-dashboard-provider";
@@ -18,6 +19,7 @@ import { MockCalendrierProvider } from "@/lib/adapters/mock/mock-calendrier-prov
 import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-ag-provider";
 import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
 import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
+import { MockAnnuaireEstaleProvider } from "@/lib/adapters/mock/mock-annuaire-estale-provider";
 import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
 import { MockMesEmailsProvider } from "@/lib/adapters/mock/mock-mes-emails-provider";
 import { FichierMesEmailsProvider, triageFichierPresent } from "@/lib/adapters/fichier/fichier-mes-emails-provider";
@@ -115,6 +117,7 @@ import { SupabaseAgenceRepository } from "@/lib/adapters/supabase/supabase-agenc
 import { MockAgenceRepository } from "@/lib/adapters/mock/mock-agence-repository";
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 import { EstaleCondoProvider } from "@/lib/adapters/estale/estale-condo-provider";
+import { EstaleAnnuaireProvider } from "@/lib/adapters/estale/estale-annuaire-provider";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
 import type { EstaleCacheStore } from "@/lib/ports/estale-cache-store";
 import { SupabaseEstaleCacheStore } from "@/lib/adapters/supabase/supabase-estale-cache-store";
@@ -324,6 +327,12 @@ export function getCondoEstaleProvider(): CondoEstaleProvider {
     return new EstaleCondoProvider();
   }
   return new MockCondoEstaleProvider();
+}
+
+// Annuaire Linkus (copropriétaires ESTALE + téléphones, /admin/linkus). Même bascule.
+export function getAnnuaireEstaleProvider(): AnnuaireEstaleProvider {
+  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleAnnuaireProvider();
+  return new MockAnnuaireEstaleProvider();
 }
 
 // Cache read-through des donnees eStale (ADR-002) : table native si Supabase, sinon no-op.

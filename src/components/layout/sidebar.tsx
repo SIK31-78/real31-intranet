@@ -5,7 +5,7 @@ import {
   FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
   PackagePlus,
   PackageMinus, Handshake, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
-  FolderOpen, ChevronDown, Euro, Users,
+  FolderOpen, ChevronDown, Euro, Users, PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -40,6 +40,7 @@ export type NavKey =
   | "tarifs"
   | "collaborateurs"
   | "points-estale"
+  | "linkus"
   | "feedback"
   | "annonces"
   // Gestion des cles (ADR-040) : le comptoir des trousseaux, remplace la canvas app PowerApps.
@@ -145,6 +146,7 @@ const GROUPE_ADMIN: { titre: string; items: Item[] } = {
     { key: "annonces", label: "Annonces", href: "/admin/annonces", icon: Megaphone },
     { key: "feedback", label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
     { key: "points-estale", label: "Points ESTALE", href: "/admin/estale", icon: Database },
+    { key: "linkus", label: "Annuaire Linkus", href: "/admin/linkus", icon: PhoneCall },
     { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
     { key: "tarifs", label: "Barème annuel", href: "/admin/tarifs", icon: Euro },
   ],
@@ -262,6 +264,7 @@ export function Sidebar({
   vueComptable = false,
   vueHorsSyndic = false,
   adminOuvert = false,
+  linkusOuvert = false,
   directionOuverte = false,
   propositionsOuvertes = false,
   perteOuverte = false,
@@ -279,6 +282,8 @@ export function Sidebar({
   vueHorsSyndic?: boolean;
   /** Groupe "Administration" (cles API) : visible SUPER-ADMIN seulement. */
   adminOuvert?: boolean;
+  /** Entree "Annuaire Linkus" : ADMIN de la table User + super-admin (seule entree du groupe Administration pour un non super-admin). */
+  linkusOuvert?: boolean;
   /** Entree "Collaborateurs" : direction (directeurs, referents, super-admin). */
   directionOuverte?: boolean;
   /** Entree "Propositions de contrat" : les habilites (Léa, Emmanuel, Sandy, Dimitri, Nicolas) et super-admin. */
@@ -344,10 +349,10 @@ export function Sidebar({
           })
         )}
 
-        {adminOuvert && (
+        {(adminOuvert || linkusOuvert) && (
           <div>
             <SectionTitre>{GROUPE_ADMIN.titre}</SectionTitre>
-            {GROUPE_ADMIN.items.map((item) => (
+            {GROUPE_ADMIN.items.filter((item) => adminOuvert || item.key === "linkus").map((item) => (
               <NavItem key={item.key} item={item} active={item.key === active} />
             ))}
           </div>
