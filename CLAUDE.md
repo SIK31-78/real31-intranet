@@ -1,12 +1,12 @@
 # CLAUDE.md - REAL31 Intranet
 
 Instructions projet pour Claude Code.
-Le global `~/.claude/CLAUDE.md` s'applique aussi (ton humain sans marqueur IA, commits atomiques, ROADMAP tenu à jour, **guider sans imposer**, validation avant push infra).
+Le global `~/.claude/CLAUDE.md` s'applique aussi (ton humain sans marqueur IA, commits atomiques, Linear + ROADMAP tenus à jour, **guider sans imposer**, validation avant push infra).
 
 ## Orientation rapide
 
 Surcouche de coordination syndic par-dessus eStale (et Crypto/SharePoint pendant la transition). Stack : **Next.js 16 / TS strict / Tailwind 4 / Supabase / archi hexagonale (Ports & Adapters)**.
-Lire dans l'ordre : `README.md` -> `DECISIONS.md` (les ADR) -> `ROADMAP.md` (avancement).
+Lire dans l'ordre : Linear (pilotage) -> `ROADMAP.md` (une page : branche, bloqueurs, prochain geste) -> `DECISIONS.md` (les ADR) -> `README.md`.
 
 ---
 
@@ -54,17 +54,18 @@ Poser le fichier `-ocr.pdf` **à côté de l'original**, ne jamais écraser la s
     - `Références/` — les notes de fond 01-07.
 
 ### Au démarrage de session - lire dans l'ordre
-1. `ROADMAP.md` (repo) - état opérationnel + prochaine action.
-2. `DECISIONS.md` (repo) - ADR en vigueur.
-3. Vault `30_Intranet/_COCKPIT Intranet.md` - contexte stratégique, "où on en est" humain, bloqueurs.
+1. **Linear** (MCP `linear`, https://linear.app/real31) : tickets « In Progress » et « Todo » du projet **Intranet REAL31**, dernière project update. C'est le pilotage, tous projets confondus (décision Sekou du 25/09/2026).
+2. `ROADMAP.md` (repo) - une page : branche active, ce qui bloque, premier geste de la session.
+3. `DECISIONS.md` (repo) - ADR en vigueur.
+4. Vault `30_Intranet/_COCKPIT Intranet.md` - contexte stratégique, le « pourquoi ».
 
 ### Quand mettre à jour quoi (déclencheurs) — **tenir le vault à jour DÈS QUE POSSIBLE**
 
 | Événement | Repo (détail) | Vault Obsidian (carte) |
 |---|---|---|
 | **Décision structurelle / archi** | ADR **complet** dans `DECISIONS.md` | 1 ligne + lien dans `Décisions/_Décisions - carte.md` ; bump le COCKPIT si "où on en est" change |
-| **Fin d'incrément / session significative** | `ROADMAP.md` (état détaillé) | **nouvelle note** `Journal/AAAA-MM-JJ - titre.md` (atomique) + ajout à `Journal/_Journal Intranet - index.md` + bump COCKPIT *Où on en est* |
-| **Nouveau blocage / dépendance externe** | `ROADMAP.md` (bloqueurs) | COCKPIT - *Ce qui bloque* |
+| **Fin d'incrément / session significative** | **Linear** : ticket → Done, jalon daté si livraison notable, project update le vendredi (Livré / En cours / Bloqué / Prochaine étape). `ROADMAP.md` seulement si la branche ou la prochaine action change. | bump COCKPIT *Où on en est* (une ligne). Le `Journal/` n'est plus alimenté : la project update Linear et le document « Historique de l'intranet » le remplacent. |
+| **Nouveau blocage / dépendance externe** | **Linear** : étiquette `Attend externe` sur le ticket + `ROADMAP.md` (section « Ce qui bloque ») | COCKPIT - *Ce qui bloque* |
 | **Concept / apprentissage de fond réutilisable** | - | **nouvelle note** dans `Concepts/` + lien dans `Concepts/_Concepts - index.md`. **Le faire souvent** : chaque piège eStale, règle métier, notion d'archi comprise = une note concept. C'est le capital le plus sous-alimenté du vault. |
 
 ### Règles (cf. `AGENTS.md`)
