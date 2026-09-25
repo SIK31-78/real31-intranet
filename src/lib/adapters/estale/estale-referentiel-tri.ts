@@ -1,7 +1,8 @@
 // Adapter ESTALE du referentiel du tri des e-mails (ADR-043). LECTURE SEULE.
 // Pour chaque copro accessible au compte de service : nom, adresse, equipe, et toutes
-// les adresses e-mail qu'ESTALE lui connait (coproprietaires et leurs contacts, conseil
-// syndical, contacts fournisseurs). Une requete par copro, 4 a la fois, comme l'annuaire
+// les adresses e-mail qu'ESTALE lui connait : coproprietaires et leurs contacts
+// (locataires compris), conseil syndical, mandataires des coproprietaires, notaires des
+// ventes en cours, contacts fournisseurs. Une requete par copro, 4 a la fois, comme l'annuaire
 // Linkus : l'API coupe a 30 s, une mega-requete tomberait sur la limite quand le parc
 // grandira. Cache module de 10 min : mesure du 25/09/2026, ~0,6 s pour 9 copros.
 
@@ -22,9 +23,10 @@ const Q_COPRO = `query($id: ID!) {
     address { housenumber street postcode city }
     collaborators { id role fullname email }
     serviceBook { mandate { managerID } }
-    owners(archived: false) { email contacts(archived: false) { email } }
+    owners(archived: false) { email rentalAgent { email } contacts(archived: false) { email tenant } }
     council { owner { email } }
     suppliers(archived: false) { contacts(archived: false) { email } }
+    sales(archived: false) { notaryPersonnel { email } notaryOffice { personnels { email } } }
   }
 }`;
 
@@ -34,9 +36,21 @@ type Condo = {
   address: { housenumber: string | null; street: string | null; postcode: string | null; city: string | null } | null;
   collaborators: { id: string; role: string | null; fullname: string; email: string }[] | null;
   serviceBook: { mandate: { managerID: string | null } | null } | null;
-  owners: { email: string | null; contacts: { email: string | null }[] | null }[] | null;
+  owners:
+    | {
+        email: string | null;
+        rentalAgent: { email: string | null } | null;
+        contacts: { email: string | null; tenant: boolean }[] | null;
+      }[]
+    | null;
   council: { owner: { email: string | null } | null }[] | null;
   suppliers: { contacts: { email: string | null }[] | null }[] | null;
+  sales:
+    | {
+        notaryPersonnel: { email: string | null } | null;
+        notaryOffice: { personnels: { email: string | null }[] | null } | null;
+      }[]
+    | null;
 };
 
 const EN_PARALLELE = 4;
@@ -79,7 +93,12 @@ function indexer(c: Condo, index: Record<string, LienExpediteur[]>): void {
   for (const m of c.council ?? []) ajouter(m.owner?.email, "conseil syndical");
   for (const o of c.owners ?? []) {
     ajouter(o.email, "copropriétaire");
-    for (const x of o.contacts ?? []) ajouter(x.email, "copropriétaire");
+    for (const x of o.contacts ?? []) ajouter(x.email, x.tenant ? "locataire" : "copropriétaire");
+    ajouter(o.rentalAgent?.email, "mandataire");
+  }
+  for (const v of c.sales ?? []) {
+    ajouter(v.notaryPersonnel?.email, "notaire");
+    for (const p of v.notaryOffice?.personnels ?? []) ajouter(p.email, "notaire");
   }
   for (const s of c.suppliers ?? []) for (const x of s.contacts ?? []) ajouter(x.email, "fournisseur");
 }

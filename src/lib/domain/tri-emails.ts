@@ -26,7 +26,13 @@ export interface CoproTri {
 }
 
 /** Pourquoi une adresse e-mail est connue d'une copro dans ESTALE. */
-export type QualiteExpediteur = "copropriétaire" | "conseil syndical" | "fournisseur";
+export type QualiteExpediteur =
+  | "copropriétaire"
+  | "conseil syndical"
+  | "locataire"
+  | "mandataire"
+  | "notaire"
+  | "fournisseur";
 
 export interface LienExpediteur {
   reference: string;
@@ -105,6 +111,9 @@ export function referencesCitees(texte: string): string[] {
 const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {
   "copropriétaire": "copropriétaire",
   "conseil syndical": "membre du conseil syndical",
+  locataire: "locataire",
+  mandataire: "mandataire d'un copropriétaire",
+  notaire: "notaire d'une vente en cours",
   fournisseur: "fournisseur",
 };
 

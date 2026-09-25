@@ -25,6 +25,7 @@ const REF: ReferentielTri = {
       { reference: "S0305", qualite: "conseil syndical" },
       { reference: "S0305", qualite: "copropriétaire" },
     ],
+    "agence@gestion-locative.fr": [{ reference: "SE999", qualite: "mandataire" }],
     "devis@plombier.fr": [
       { reference: "S0297", qualite: "fournisseur" },
       { reference: "S0305", qualite: "fournisseur" },
@@ -66,6 +67,12 @@ describe("suggererCopro", () => {
     const s = suggererCopro(mail({ deAdresse: "Proprio@Exemple.fr" }), REF);
     expect(s).toMatchObject({ nature: "sure", candidats: ["S0297"] });
     expect(s.raison).toBe("Adresse connue dans ESTALE : copropriétaire de S0297.");
+  });
+
+  it("reconnait un mandataire de coproprietaire", () => {
+    expect(suggererCopro(mail({ deAdresse: "agence@gestion-locative.fr" }), REF).raison).toBe(
+      "Adresse connue dans ESTALE : mandataire d'un copropriétaire de SE999.",
+    );
   });
 
   it("un expediteur deux fois sur la meme copro reste une suggestion sure", () => {
