@@ -31,3 +31,12 @@ export function mailModuleActifPour(email: string | null | undefined): boolean {
   if (liste.length === 0) return true;
   return Boolean(email && liste.includes(email.toLowerCase()));
 }
+
+/**
+ * Tri des e-mails V2 (ADR-043) : l'adresse de la boite generique a trier, ou null si le
+ * module n'est pas configure (il reste alors invisible). "echantillon" = mails fictifs.
+ */
+export function boiteTriConfiguree(): string | null {
+  const brut = (process.env.MAIL_BOITE_TRI ?? "").trim().toLowerCase();
+  return brut || null;
+}

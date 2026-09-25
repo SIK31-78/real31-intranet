@@ -41,6 +41,9 @@ import { SupabaseMesEmailsTriageStore } from "@/lib/adapters/supabase/supabase-m
 import type { MailIngestionProvider } from "@/lib/ports/mail-ingestion-provider";
 import { SampleMailIngestionProvider } from "@/lib/adapters/mail/sample-mail-ingestion";
 import { GraphMailIngestionProvider } from "@/lib/adapters/mail/graph-mail-ingestion";
+import { EchantillonTriIngestion } from "@/lib/adapters/mock/echantillon-tri-ingestion";
+import { MockReferentielTri } from "@/lib/adapters/mock/mock-referentiel-tri";
+import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
 import type { SignatureProvider } from "@/lib/ports/signature-provider";
 import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
@@ -125,6 +128,7 @@ import { MockAgenceRepository } from "@/lib/adapters/mock/mock-agence-repository
 import { checkDbHealth, type DbHealth } from "@/lib/adapters/supabase/health";
 import { EstaleCondoProvider } from "@/lib/adapters/estale/estale-condo-provider";
 import { EstaleAnnuaireProvider } from "@/lib/adapters/estale/estale-annuaire-provider";
+import { EstaleReferentielTri } from "@/lib/adapters/estale/estale-referentiel-tri";
 import { estaleConfigure } from "@/lib/adapters/estale/client";
 import type { EstaleCacheStore } from "@/lib/ports/estale-cache-store";
 import { SupabaseEstaleCacheStore } from "@/lib/adapters/supabase/supabase-estale-cache-store";
@@ -429,6 +433,21 @@ export function getListesDiffusionProvider(): ListesDiffusionProvider {
 export function getMailIngestionProvider(): MailIngestionProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailIngestionProvider();
   return new SampleMailIngestionProvider();
+}
+
+// Tri des e-mails V2 (ADR-043) : lecture de la boite generique. MAIL_BOITE_TRI=echantillon
+// -> mails fictifs (developpement sans la vraie boite) ; sinon Graph si MAIL_SOURCE=graph.
+export function getIngestionTri(): MailIngestionProvider {
+  if (process.env.MAIL_BOITE_TRI?.trim().toLowerCase() === "echantillon") return new EchantillonTriIngestion();
+  if (process.env.MAIL_SOURCE === "graph") return new GraphMailIngestionProvider();
+  return new EchantillonTriIngestion();
+}
+
+// Referentiel du tri (copros ESTALE, gestionnaire, adresses connues). Meme bascule que
+// les autres lectures ESTALE ; referentiel fictif sinon.
+export function getReferentielTriProvider(): ReferentielTriProvider {
+  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleReferentielTri();
+  return new MockReferentielTri();
 }
 
 // Mail sortant (creer un brouillon, envoyer). Graph en reel (MAIL_SOURCE=graph),

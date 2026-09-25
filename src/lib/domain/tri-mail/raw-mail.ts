@@ -12,6 +12,8 @@ export interface RawMail {
   /** Id de conversation Graph (le fil) -> ancre d'affaire. */
   conversationId?: string;
   from: string;
+  /** Nom affiche de l'expediteur ("Marc Delmas"), si Graph le donne. */
+  fromName?: string;
   to: string[];
   subject: string;
   /** ISO 8601. */
@@ -20,6 +22,8 @@ export interface RawMail {
   /** Copropriete best-effort (dossier source ou extraction) ; "" si inconnue. */
   copro: string;
   attachments: { name: string; contentType?: string; sizeBytes?: number }[];
+  /** Lien Outlook sur le web vers ce mail (Graph `webLink`), si connu. */
+  webLink?: string;
 }
 
 /** Les 10 types de tete (memes valeurs que TypeMail) pour la validation runtime. */
