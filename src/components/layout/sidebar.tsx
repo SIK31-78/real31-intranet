@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
+  Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -11,6 +11,7 @@ export type NavKey =
   | "accueil"
   | "evenements"
   | "emails"
+  | "tri-emails"
   | "calendrier"
   | "copros"
   | "dossiers"
@@ -70,6 +71,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
       { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
       { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
+      { key: "tri-emails", label: "Tri des e-mails", href: "/tri-emails", icon: MailCheck },
     ],
   },
   {
@@ -272,6 +274,7 @@ export function Sidebar({
   directionOuverte = false,
   propositionsOuvertes = false,
   perteOuverte = false,
+  triOuvert = false,
 }: {
   active: NavKey;
   user: { initiales: string; nomComplet: string };
@@ -296,6 +299,8 @@ export function Sidebar({
   propositionsOuvertes?: boolean;
   /** Entree "Perte de copropriete" : la direction. */
   perteOuverte?: boolean;
+  /** Entree "Tri des e-mails" : la boite generique est configuree (MAIL_BOITE_TRI). */
+  triOuvert?: boolean;
 }) {
   return (
     <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto defilement-discret flex flex-col shadow-2 md:shadow-none">
@@ -339,6 +344,8 @@ export function Sidebar({
               // "Reprise" : ouverte aux gestionnaires depuis le 08/10/2026. Chacun n'y voit
               // que ses propres reprises (cf. dossierVisiblePar), la direction voit tout.
               if (item.key === "reprise") return repriseOuverte;
+              // "Tri des e-mails" (ADR-046) : pilote super-admin, et seulement si la boite est configuree.
+              if (item.key === "tri-emails") return adminOuvert && triOuvert;
               // "Collaborateurs" et "Perte" : la direction.
               if (item.key === "collaborateurs") return directionOuverte;
               if (item.key === "perte") return perteOuverte;

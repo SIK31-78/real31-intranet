@@ -8,6 +8,7 @@ import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
 import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, estEquipeSyndic, peutVoirPropositions, profilDe } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
+import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
 type AppShellProps = {
@@ -81,6 +82,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               perteOuverte={perteOuverte}
               adminOuvert={adminOuvert}
               directionOuverte={directionOuverte}
+              triOuvert={boiteTriConfiguree() !== null}
             />
           </SidebarDrawer>
           <main className="flex-1 min-w-0 min-h-0">{children}</main>
