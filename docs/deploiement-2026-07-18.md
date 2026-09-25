@@ -59,8 +59,9 @@ Doivent déjà être en place (socle) : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC
 ### 3. Le push (Claude, sur go explicite de Sekou)
 
 ```
-git push origin increment/02-supabase   # backup GitHub perso (skreal92)
-git push deploy  increment/02-supabase   # → Vercel de la collègue, rebuild prod
+# Depuis le 25/09/2026 le tronc s'appelle main (Vercel suit main).
+git push origin main   # backup GitHub perso (skreal92)
+git push deploy  main   # → Vercel de la collègue, rebuild prod
 ```
 
 Vercel rebuild automatiquement sur push de la branche de prod.
@@ -78,7 +79,7 @@ Vercel rebuild automatiquement sur push de la branche de prod.
 Le tronc distant avant merge = `c33deef` (mémorisé). Si la prod casse :
 
 ```
-git push deploy c33deef:increment/02-supabase --force-with-lease
+git push deploy c33deef:main --force-with-lease   # (increment/02-supabase avant le 25/09/2026)
 ```
 
 Vercel rebuild la version d'avant. (Alternative plus propre : `git revert -m 1 <sha du merge>` puis push - garde l'historique.)

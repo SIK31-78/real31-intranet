@@ -54,7 +54,7 @@ Pour chaque remontee, dans l'ordre :
 - Corriger : deleguer aux agents par LOTS PAR ZONE DE CODE (jamais deux agents sur les
   memes fichiers — collisions git mesurees le 2026-09-04 ; si plusieurs lots, exiger
   `git add` par chemins explicites, jamais `-A`). Consignes agents : tronc
-  `increment/02-supabase`, pas de push, machine legere (vitest cible --maxWorkers=1,
+  `main` (le tronc), pas de push, machine legere (vitest cible --maxWorkers=1,
   jamais next build ni suite complete), commits atomiques francais sans marqueur IA.
 - La session principale garde : la revue, `tsc --noEmit`, l'E2E navigateur (les agents
   n'ont pas le Chrome MCP), le push origin puis deploy apres verification.

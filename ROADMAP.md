@@ -7,8 +7,8 @@
 
 ## Où on en est
 
-- **Prod** : `real31.app`, branche `increment/02-supabase` (tronc), déployée via le Vercel de la collègue.
-- **Branche active** : `increment/02-supabase` (le tronc). 9 commits du 22-23/09 (l'ODJ du CS en Word) ne sont **ni poussés ni déployés** : à tester puis pousser.
+- **Prod** : `real31.app`, branche `main` (le tronc, renommé le 25/09/2026, anciennement `increment/02-supabase`), déployée via le Vercel de la collègue qui suit `main`.
+- **Branche active** : `main` (le tronc). 9 commits du 22-23/09 (l'ODJ du CS en Word) ne sont **ni poussés ni déployés** : à tester puis pousser.
 - **Branches en pause** :
   - `chantier/mcp-distant` : MCP distant pour Claude Team, 4 lots codés et testés (ADR-042), sauvegardée sur GitHub, mise de côté le 25/09. Tout pour reprendre est dans le ticket REA-5.
   - `chantier/mail-v12` : chantier « Mes e-mails », en pause depuis fin août, non mergée (REA-15).
