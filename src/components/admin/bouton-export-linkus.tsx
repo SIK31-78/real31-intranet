@@ -51,7 +51,7 @@ export function BoutonExportLinkus() {
         {enCours ? "Lecture d'ESTALE…" : "Télécharger l'annuaire (CSV)"}
       </Button>
       {bilan && (
-        <ul className="text-sm text-ink-2 space-y-1">
+        <ul className="text-body text-ink-2 space-y-1">
           <li>{bilan.lignes} contacts sur {bilan.copros} copropriétés, dont {bilan.locataires} locataires.</li>
           <li>{bilan.proprietairesSansNumero} copropriétaires sans aucun numéro dans ESTALE (absents du fichier).</li>
           {bilan.numerosEnDouble > 0 && <li>{bilan.numerosEnDouble} numéros en double écartés (gardés une seule fois).</li>}

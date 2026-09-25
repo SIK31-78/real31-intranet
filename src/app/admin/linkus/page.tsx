@@ -29,7 +29,7 @@ export default async function AnnuaireLinkusPage() {
             </p>
           }
         />
-        <div className="space-y-6 text-sm">
+        <div className="space-y-6 text-body">
           <BoutonExportLinkus />
           <div className="space-y-2">
             <p className="font-medium">Pour l&apos;importer dans Linkus</p>
