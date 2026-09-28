@@ -10,6 +10,8 @@
 // recent...). On alerte donc a la validation, et le gestionnaire tranche en
 // connaissance de cause plutot que d'etre bloque par l'outil.
 
+import { formatEuros } from "@/lib/domain/format-montant";
+
 /** Minimum legal de reference du fonds travaux, en % du budget previsionnel. */
 export const POURCENTAGE_FONDS_TRAVAUX_MINIMUM = 5;
 
@@ -39,4 +41,31 @@ export function avertissementFondsTravaux(saisie: SaisieFondsTravaux): string | 
     );
   }
   return null;
+}
+
+/** Montant annuel du fonds travaux : budget vote x pourcentage, arrondi au centime. */
+export function montantFondsTravaux(budget: number, pourcentage: number): number {
+  return Math.round(budget * pourcentage) / 100;
+}
+
+/**
+ * Ligne « Fonds travaux (ALUR) » de la vue comptable du recap (remontee ee96b2d8) : le
+ * pourcentage saisi est celui du FONDS TRAVAUX, pas une evolution du budget. On fusionne
+ * le Oui/Non et le pourcentage, et on donne le montant quand le budget vote est connu.
+ *   ex. « Oui : 5 % du budget, soit 1 250,00 € »
+ */
+export function libelleFondsTravaux(saisie: {
+  fondsTravaux?: boolean;
+  pourcentageBudget?: number;
+  montantBudget?: number;
+}): string {
+  if (saisie.fondsTravaux === false) return "Non";
+  const prefixe = saisie.fondsTravaux === true ? "Oui" : "";
+  if (saisie.pourcentageBudget === undefined) return prefixe || "non renseigné";
+  const pct = `${String(saisie.pourcentageBudget).replace(".", ",")} % du budget`;
+  const montant =
+    saisie.montantBudget !== undefined
+      ? `, soit ${formatEuros(montantFondsTravaux(saisie.montantBudget, saisie.pourcentageBudget))}`
+      : "";
+  return prefixe ? `${prefixe} : ${pct}${montant}` : `${pct}${montant}`;
 }

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { avertissementFondsTravaux, POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "./fonds-travaux";
+import {
+  avertissementFondsTravaux,
+  libelleFondsTravaux,
+  montantFondsTravaux,
+  POURCENTAGE_FONDS_TRAVAUX_MINIMUM,
+} from "./fonds-travaux";
 
 describe("avertissementFondsTravaux", () => {
   it("n'avertit pas au minimum legal de 5 %", () => {
@@ -30,5 +35,31 @@ describe("avertissementFondsTravaux", () => {
 
   it("expose le minimum legal", () => {
     expect(POURCENTAGE_FONDS_TRAVAUX_MINIMUM).toBe(5);
+  });
+});
+
+describe("libelleFondsTravaux (vue comptable du recap)", () => {
+  const nbsp = (t: string) => t.replace(/ /g, " ");
+
+  it("fusionne Oui/Non, pourcentage du budget et montant quand le budget vote est connu", () => {
+    expect(nbsp(libelleFondsTravaux({ fondsTravaux: true, pourcentageBudget: 5, montantBudget: 25_000 }))).toBe(
+      "Oui : 5 % du budget, soit 1 250,00 €",
+    );
+  });
+
+  it("sans budget vote connu : le pourcentage seul", () => {
+    expect(libelleFondsTravaux({ fondsTravaux: true, pourcentageBudget: 5.5 })).toBe("Oui : 5,5 % du budget");
+  });
+
+  it("pas de fonds travaux : Non, quel que soit le pourcentage", () => {
+    expect(libelleFondsTravaux({ fondsTravaux: false, pourcentageBudget: 5 })).toBe("Non");
+  });
+
+  it("rien de saisi : non renseigne", () => {
+    expect(libelleFondsTravaux({})).toBe("non renseigné");
+  });
+
+  it("montant arrondi au centime", () => {
+    expect(montantFondsTravaux(12_345.67, 5)).toBe(617.28);
   });
 });

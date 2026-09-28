@@ -12,6 +12,7 @@ import { BoutonRecapTraite } from "@/components/compta/bouton-recap-traite";
 import { formatEuros, formatHeures } from "@/lib/services/facturation/format";
 import { formatDateLongue } from "@/lib/format-date";
 import { Page, PageHeader } from "@/components/ui/page";
+import { libelleFondsTravaux } from "@/lib/domain/recap-ag/fonds-travaux";
 
 export const metadata: Metadata = { title: "Récap d'AG - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -177,12 +178,21 @@ export default async function RecapRecuPage({ params }: { params: Promise<{ id: 
         >
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Champ libelle="Budget voté" valeur={euros(recap.montantBudget)} fort />
-            <Champ libelle="Évolution du budget" valeur={pourcent(recap.pourcentageBudget)} />
             <Champ
               libelle="Budget modifié en séance"
               valeur={oui(recap.budgetModifie)}
             />
-            <Champ libelle="Fonds travaux (ALUR)" valeur={oui(recap.fondsTravaux)} fort />
+            {/* Le pourcentage saisi est celui du FONDS TRAVAUX (pas une evolution du budget) :
+                une seule ligne, Oui/Non + % + montant si le budget vote est connu. */}
+            <Champ
+              libelle="Fonds travaux (ALUR)"
+              valeur={libelleFondsTravaux({
+                ...(recap.fondsTravaux !== undefined ? { fondsTravaux: recap.fondsTravaux } : {}),
+                ...(recap.pourcentageBudget !== undefined ? { pourcentageBudget: recap.pourcentageBudget } : {}),
+                ...(recap.montantBudget !== undefined ? { montantBudget: recap.montantBudget } : {}),
+              })}
+              fort
+            />
             <Champ libelle="PPT voté" valeur={oui(recap.pptVote)} />
             <Champ libelle="Pourcentage PPT" valeur={pourcent(recap.pourcentagePpt)} />
             <Champ libelle="Montant PPT" valeur={euros(recap.montantPpt)} />
