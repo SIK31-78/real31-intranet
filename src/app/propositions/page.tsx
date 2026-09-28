@@ -44,7 +44,7 @@ const TRIS: { value: string; label: string }[] = [
   { value: "adresse-asc", label: "Adresse A → Z" },
 ];
 
-type Params = { q?: string; statut?: string; tri?: string; vue?: string };
+type Params = { q?: string; statut?: string; tri?: string; vue?: string; gestionnaire?: string };
 
 /** Les statuts proposes en boutons : ce qui est ouvert, tout, puis chaque issue. */
 const STATUTS_BOUTONS: { value: NonNullable<FiltrePipeline["statut"]>; label: string }[] = [
@@ -55,7 +55,7 @@ const STATUTS_BOUTONS: { value: NonNullable<FiltrePipeline["statut"]>; label: st
 
 function lireFiltre(sp: Params): FiltrePipeline {
   const statut = sp.statut && (sp.statut === "toutes" || (STATUTS_PROPOSITION as readonly string[]).includes(sp.statut)) ? (sp.statut as FiltrePipeline["statut"]) : "ouvertes";
-  return { ...(sp.q?.trim() ? { texte: sp.q.trim() } : {}), statut };
+  return { ...(sp.q?.trim() ? { texte: sp.q.trim() } : {}), ...(sp.gestionnaire?.trim() ? { gestionnaire: sp.gestionnaire.trim() } : {}), statut };
 }
 
 function lireTri(sp: Params): TriPipeline {
@@ -78,6 +78,10 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   const equipeSyndic = peutCompleterProposition(profil);
   const ouvertes = toutes.filter((p) => STATUTS_OUVERTS.has(p.statut));
   const lignes = trier(filtrer(toutes, filtre), tri) as PropositionResume[];
+  // Les gestionnaires qui portent au moins une proposition du perimetre visible : le
+  // selecteur n'offre que ce qui peut renvoyer un resultat.
+  const gestionnaires = [...new Set(toutes.map((p) => p.gestionnaire).filter((n): n is string => Boolean(n)))].sort((a, b) => a.localeCompare(b, "fr"));
+  const jePorte = Boolean(g.nomComplet) && gestionnaires.includes(g.nomComplet);
   // Les compteurs suivent les filtres (agence, annee, texte...) mais pas le statut : on
   // compte les en cours / acceptees / reportees DU PERIMETRE filtre, et la transformation
   // se calcule sur ses decisions.
@@ -94,7 +98,7 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
     return `/propositions?${q.toString()}`;
   };
   const lienVue = (v: "liste" | "statut") => lien({ vue: v === "statut" ? "statut" : undefined });
-  const filtreActif = Boolean(filtre.texte || filtre.statut !== "ouvertes");
+  const filtreActif = Boolean(filtre.texte || filtre.gestionnaire || filtre.statut !== "ouvertes");
 
   return (
     <AppShell user={g} active="propositions" breadcrumb="Propositions de contrat">
@@ -148,6 +152,13 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
                     {filtreActif && <ButtonLink href="/propositions" variant="ghost" size="md">Effacer</ButtonLink>}
                   </div>
                 </Field>
+                <Field label="Gestionnaire" htmlFor="f-gest" className="sm:w-56">
+                  <Select id="f-gest" name="gestionnaire" defaultValue={filtre.gestionnaire ?? ""}>
+                    <option value="">Tous</option>
+                    {filtre.gestionnaire && !gestionnaires.includes(filtre.gestionnaire) && <option value={filtre.gestionnaire}>{filtre.gestionnaire}</option>}
+                    {gestionnaires.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </Select>
+                </Field>
                 <Field label="Tri" htmlFor="f-tri" className="sm:w-56">
                   <Select id="f-tri" name="tri" defaultValue={`${tri.cle}-${tri.sens}`}>
                     {TRIS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -161,6 +172,11 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
                       {s.label}
                     </ButtonLink>
                   ))}
+                  {jePorte && (
+                    <ButtonLink href={lien({ gestionnaire: filtre.gestionnaire === g.nomComplet ? undefined : g.nomComplet })} variant={filtre.gestionnaire === g.nomComplet ? "secondary" : "ghost"} size="sm" className="ml-2">
+                      Mes propositions
+                    </ButtonLink>
+                  )}
                   <span className="text-meta text-ink-3 pl-2">{lignes.length} proposition{lignes.length > 1 ? "s" : ""}</span>
                 </div>
                 <div className="flex items-center gap-3">
