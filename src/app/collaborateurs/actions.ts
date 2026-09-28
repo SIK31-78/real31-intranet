@@ -60,7 +60,8 @@ export async function departAction(input: unknown): Promise<Res<{ reaffectees: n
     .object({
       userId: zId,
       departISO: zJour,
-      remplacants: z.object({ gestionnaire: zId.optional(), assistant: zId.optional(), comptable: zId.optional() }),
+      // null = « aucun·e » (choix explicite, refuse pour le gestionnaire par le domaine).
+      remplacants: z.object({ gestionnaire: zId.optional(), assistant: zId.nullable().optional(), comptable: zId.nullable().optional() }),
       note: z.string().trim().max(500).optional(),
     })
     .safeParse(input);

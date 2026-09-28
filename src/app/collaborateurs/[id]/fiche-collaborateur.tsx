@@ -39,13 +39,18 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
   const [agenceRef, setAgenceRef] = useState(fiche.agences[0]?.code ?? "");
   const [fonction, setFonction] = useState<Fonction | "">((c.fonction as Fonction | undefined) ?? "");
 
+  // Valeur de <select> pour « aucun·e » : un choix explicite, distinct de « — » (rien choisi).
+  const AUCUN = "__aucun__";
+  const versRemplacant = (v: string): string | null | undefined => (v === AUCUN ? null : v || undefined);
+
   const collegue = (id: string | undefined) => fiche.collegues.find((x) => x.id === id)?.nomComplet ?? (id ? "?" : "—");
 
   function reaffecter(e: EquipeCopro, role: RoleEquipe, userId: string) {
     demarrer(async () => {
-      const res = await reaffecterAction({ coproCode: e.code, role, userId: userId || null, depuis: c.id });
+      const vers = userId === AUCUN ? null : userId || null;
+      const res = await reaffecterAction({ coproCode: e.code, role, userId: vers, depuis: c.id });
       if (!res.ok) return toast.err(res.erreur);
-      toast.ok(`${e.code} : ${role} → ${userId ? collegue(userId) : "personne"}.`);
+      toast.ok(vers ? `${e.code} : ${role} → ${collegue(vers)}.` : `${e.code} : ${role === "assistant" ? "plus d'assistant·e" : "plus de comptable"}.`);
       router.refresh();
     });
   }
@@ -60,7 +65,7 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
     });
     if (!ok) return;
     demarrer(async () => {
-      const res = await departAction({ userId: c.id, departISO, remplacants: { gestionnaire: remplacants.gestionnaire || undefined, assistant: remplacants.assistant || undefined, comptable: remplacants.comptable || undefined }, note: noteDepart || undefined });
+      const res = await departAction({ userId: c.id, departISO, remplacants: { gestionnaire: remplacants.gestionnaire || undefined, assistant: versRemplacant(remplacants.assistant), comptable: versRemplacant(remplacants.comptable) }, note: noteDepart || undefined });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(`Départ noté, ${res.donnees?.reaffectees ?? 0} copropriété(s) réaffectée(s).`);
       setDepartOuvert(false);
@@ -99,6 +104,7 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
                             <Select value="" onChange={(ev) => ev.target.value && reaffecter(e, role, ev.target.value)} disabled={pending} largeur="auto">
                               <option value="">—</option>
                               {fiche.collegues.map((x) => <option key={x.id} value={x.id}>{x.nomComplet}</option>)}
+                              {role !== "gestionnaire" && <option value={AUCUN}>Retirer (aucun·e)</option>}
                             </Select>
                           </Td>
                         </Tr>
@@ -169,6 +175,7 @@ export function FicheCollaborateur({ fiche }: { fiche: Fiche }) {
                   <Field key={r.role} label={`${fiche.portefeuille[r.cle].length} copropriété(s) en ${r.role} → confier à`} htmlFor={`dep-${r.role}`} requis>
                     <Select id={`dep-${r.role}`} value={remplacants[r.role]} onChange={(e) => setRemplacants({ ...remplacants, [r.role]: e.target.value })}>
                       <option value="">—</option>
+                      {r.role !== "gestionnaire" && <option value={AUCUN}>Aucun·e (laisser le rôle vide)</option>}
                       {fiche.collegues.map((x) => <option key={x.id} value={x.id}>{x.nomComplet}</option>)}
                     </Select>
                   </Field>

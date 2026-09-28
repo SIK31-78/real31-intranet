@@ -216,38 +216,60 @@ export function initialesDe(nomComplet: string): string {
     .slice(0, 3);
 }
 
+/**
+ * Les remplacants d'un depart, par role : l'id d'un collegue, `null` pour « aucun·e »
+ * (choix EXPLICITE de laisser le role vide), `undefined` tant que rien n'est choisi.
+ * La distinction garde l'oubli detectable : un role non choisi bloque le depart, un role
+ * volontairement laisse vide passe - sauf le gestionnaire, toujours obligatoire
+ * (remontee du 28/09/2026 : faute de pouvoir laisser une copro sans assistant, une
+ * gestionnaire avait ete mise assistante sur 24 copros).
+ */
 export interface Remplacants {
   gestionnaire?: string;
-  assistant?: string;
-  comptable?: string;
+  assistant?: string | null;
+  comptable?: string | null;
 }
+
+/** Les roles qui peuvent rester vides sur une copro. Le gestionnaire ne le peut pas. */
+export const ROLES_FACULTATIFS: ReadonlySet<RoleEquipe> = new Set<RoleEquipe>(["assistant", "comptable"]);
 
 export interface Reaffectation {
   code: string;
   role: RoleEquipe;
   de: string;
   vers: string | null;
+  /** Aucun remplacant choisi pour ce role (ni un collegue, ni « aucun·e »). */
+  nonChoisi?: true;
 }
 
 /**
  * Le plan d'un depart : chaque copro du portefeuille passe au remplacant du role, ou a
- * personne (null) si aucun remplacant n'est donne. Rien n'est ecrit ici.
+ * personne (null) si « aucun·e » est choisi ou si rien ne l'est encore (`nonChoisi`,
+ * que obstaclesDepart refuse). Rien n'est ecrit ici.
  */
 export function planDeDepart(userId: string, equipes: EquipeCopro[], remplacants: Remplacants): Reaffectation[] {
   const p = portefeuilleDe(userId, equipes);
   const plan: Reaffectation[] = [];
-  for (const e of p.gestionnaire) plan.push({ code: e.code, role: "gestionnaire", de: userId, vers: remplacants.gestionnaire ?? null });
-  for (const e of p.assistant) plan.push({ code: e.code, role: "assistant", de: userId, vers: remplacants.assistant ?? null });
-  for (const e of p.comptable) plan.push({ code: e.code, role: "comptable", de: userId, vers: remplacants.comptable ?? null });
+  const ligne = (code: string, role: RoleEquipe, choix: string | null | undefined): Reaffectation =>
+    choix === undefined ? { code, role, de: userId, vers: null, nonChoisi: true } : { code, role, de: userId, vers: choix };
+  for (const e of p.gestionnaire) plan.push(ligne(e.code, "gestionnaire", remplacants.gestionnaire));
+  for (const e of p.assistant) plan.push(ligne(e.code, "assistant", remplacants.assistant));
+  for (const e of p.comptable) plan.push(ligne(e.code, "comptable", remplacants.comptable));
   return plan;
 }
+
+const copros = (n: number) => `${n} copropriété${n > 1 ? "s" : ""}`;
 
 /** Ce qui empeche un depart. Vide = on peut. */
 export function obstaclesDepart(c: Collaborateur, departISO: string, plan: Reaffectation[]): string[] {
   const m: string[] = [];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(departISO)) m.push("une date de départ lisible");
   if (plan.some((r) => r.vers === c.id)) m.push("un remplaçant ne peut pas être la personne qui part");
-  const sansRemplacant = plan.filter((r) => r.vers === null);
-  if (sansRemplacant.length > 0) m.push(`${sansRemplacant.length} copropriété${sansRemplacant.length > 1 ? "s" : ""} resteraient sans ${sansRemplacant[0].role} : choisir un remplaçant`);
+  const sansGestionnaire = plan.filter((r) => r.role === "gestionnaire" && r.vers === null).length;
+  if (sansGestionnaire > 0) m.push(`${copros(sansGestionnaire)} resteraient sans gestionnaire : choisir un remplaçant`);
+  for (const role of ROLES_FACULTATIFS) {
+    const n = plan.filter((r) => r.role === role && r.nonChoisi).length;
+    if (n > 0) m.push(`${copros(n)} en ${role} : choisir un remplaçant ou « Aucun·e »`);
+  }
   return m;
 }

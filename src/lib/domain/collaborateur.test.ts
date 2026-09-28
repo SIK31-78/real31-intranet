@@ -24,9 +24,29 @@ describe("portefeuille", () => {
   });
   it("un depart sans remplacant est refuse, et le remplacant n'est pas le partant", () => {
     const c: Collaborateur = { id: "phoebe", nomComplet: "Phoebé LAJUS", initiales: "PL", actif: true, habilitations: [] };
-    expect(obstaclesDepart(c, "2026-09-16", planDeDepart("phoebe", equipes, {}))).toEqual(["2 copropriétés resteraient sans assistant : choisir un remplaçant"]);
+    expect(obstaclesDepart(c, "2026-09-16", planDeDepart("phoebe", equipes, {}))).toEqual(["2 copropriétés en assistant : choisir un remplaçant ou « Aucun·e »"]);
     expect(obstaclesDepart(c, "2026-09-16", planDeDepart("phoebe", equipes, { assistant: "phoebe" }))).toContain("un remplaçant ne peut pas être la personne qui part");
     expect(obstaclesDepart(c, "2026-09-16", planDeDepart("phoebe", equipes, { assistant: "victoria" }))).toEqual([]);
+  });
+  it("assistant et comptable peuvent rester vides si « aucun·e » est choisi explicitement", () => {
+    const c: Collaborateur = { id: "phoebe", nomComplet: "Phoebé LAJUS", initiales: "PL", actif: true, habilitations: [] };
+    const plan = planDeDepart("phoebe", equipes, { assistant: null });
+    expect(plan).toEqual([
+      { code: "S004", role: "assistant", de: "phoebe", vers: null },
+      { code: "S014", role: "assistant", de: "phoebe", vers: null },
+    ]);
+    expect(obstaclesDepart(c, "2026-09-16", plan)).toEqual([]);
+    // Le comptable d'Elsa : « aucun·e » passe, l'oubli non.
+    const elsa: Collaborateur = { id: "elsa", nomComplet: "Elsa X", initiales: "EX", actif: true, habilitations: [] };
+    expect(obstaclesDepart(elsa, "2026-09-16", planDeDepart("elsa", equipes, { comptable: null }))).toEqual([]);
+    expect(obstaclesDepart(elsa, "2026-09-16", planDeDepart("elsa", equipes, {}))).toEqual(["1 copropriété en comptable : choisir un remplaçant ou « Aucun·e »"]);
+  });
+  it("le gestionnaire reste obligatoire, meme si « aucun·e » arrive jusqu'au domaine", () => {
+    const fanny: Collaborateur = { id: "fanny", nomComplet: "Fanny SORIVELLE", initiales: "FS", actif: true, habilitations: [] };
+    expect(obstaclesDepart(fanny, "2026-09-16", planDeDepart("fanny", equipes, {}))).toEqual(["2 copropriétés resteraient sans gestionnaire : choisir un remplaçant"]);
+    const force = planDeDepart("fanny", equipes, { gestionnaire: null as unknown as string });
+    expect(obstaclesDepart(fanny, "2026-09-16", force)).toEqual(["2 copropriétés resteraient sans gestionnaire : choisir un remplaçant"]);
+    expect(obstaclesDepart(fanny, "2026-09-16", planDeDepart("fanny", equipes, { gestionnaire: "remi" }))).toEqual([]);
   });
 });
 
