@@ -18,6 +18,14 @@ import { Page, PageHeader } from "@/components/ui/page";
 export const metadata: Metadata = { title: "Facturation - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
+/**
+ * Fenetre de lecture de l'historique : la recherche et la periode filtrent COTE CLIENT sur
+ * ces lignes. ~110 factures en deux mois au 28/09/2026 (~650/an) : 1 000 lignes couvrent
+ * plus d'un an pour un portefeuille, pour une charge legere. Si le volume depasse, passer
+ * le filtre cote serveur (port listerFacturesRecentes).
+ */
+const LIMITE_HISTORIQUE = 1000;
+
 export default async function FacturationPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
@@ -32,13 +40,15 @@ export default async function FacturationPage() {
     estComptable: estComptable(g.email, g.role),
   });
   const historique = await getFacturationRepository().listerFacturesRecentes(
-    50,
+    LIMITE_HISTORIQUE,
     copros.map((c) => c.code),
   );
+  const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
 
   const factures: FactureAffichee[] = historique.map((f) => ({
     id: f.id,
     coproCode: f.coproCode,
+    ...(nomDe.get(f.coproCode) ? { coproNom: nomDe.get(f.coproCode)! } : {}),
     typePrestation: f.typePrestation,
     libelle: f.libelle,
     dateFacture: f.dateFacture,
@@ -96,7 +106,7 @@ export default async function FacturationPage() {
           </div>
         </details>
 
-        <HistoriqueFacturations factures={factures} />
+        <HistoriqueFacturations factures={factures} tronque={historique.length >= LIMITE_HISTORIQUE} />
       </Page>
     </AppShell>
   );
