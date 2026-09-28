@@ -5,6 +5,7 @@ import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { etatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
 import { trousseauxDeCopro } from "@/lib/services/cles/lecture";
 import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
+import { peutVoirComptabilite } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { FicheCoproVue } from "@/components/fiche-copro/fiche-copro-vue";
 import { Page } from "@/components/ui/page";
@@ -70,6 +71,7 @@ export default async function CoproprietePage({
           mailActif={mailActif}
           listeSecoursCS={listeSecoursCS}
           trousseaux={trousseaux}
+          roleCompta={peutVoirComptabilite(g.email, g.role) ? "comptable" : "gestionnaire"}
         />
       </Page>
     </AppShell>
