@@ -11,7 +11,7 @@
 // facturation : depuis que le fond de page est du papier chaud, un formulaire pose a
 // meme le papier detonne (retour Sekou 2026-09-10, "herite du fond ocre").
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,8 @@ import { Field, Input, Select, Choix, GroupeChoix } from "@/components/ui/field"
 import { useToast } from "@/components/ui/toast";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "@/components/facturation/confirmation-facturation";
-import { apercuRecapAgAction, creerRecapAgAction } from "@/app/recap-ag/actions";
+import { apercuRecapAgAction, creerRecapAgAction, listerClesRepartitionAction } from "@/app/recap-ag/actions";
+import type { CleRepartition } from "@/lib/domain/assemblee";
 import { POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "@/lib/domain/recap-ag/fonds-travaux";
 import { debutContratRequis, erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
 import { heureDebutSuggeree, heureFinSuggeree } from "@/lib/domain/recap-ag/creneau-suggere";
@@ -146,6 +147,25 @@ export function FormulaireRecapAg({
   const [infoComptable, setInfoComptable] = useState("");
 
   const [travaux, setTravaux] = useState<TravauxSaisis[]>([]);
+
+  // Cles de repartition ESTALE de la copro, en SUGGESTION (datalist) : la saisie libre
+  // reste possible, et une liste vide (ESTALE muet, copro hors ESTALE) ne bloque rien.
+  const [cles, setCles] = useState<{ coproCode: string; liste: CleRepartition[] }>({ coproCode: "", liste: [] });
+  useEffect(() => {
+    if (!coproCode) return;
+    let actif = true;
+    listerClesRepartitionAction(coproCode)
+      .then((res) => {
+        if (actif) setCles({ coproCode, liste: res.ok ? (res.donnees ?? []) : [] });
+      })
+      .catch(() => {
+        if (actif) setCles({ coproCode, liste: [] });
+      });
+    return () => {
+      actif = false;
+    };
+  }, [coproCode]);
+  const clesCopro = cles.coproCode === coproCode ? cles.liste : [];
 
   // Le bloc « Nouveau contrat de gestion » part du CONTRAT GENERE pour cette AG quand il
   // existe (Sekou, 14/09/2026) : c'est le document qui a ete insere dans la convocation
@@ -400,7 +420,13 @@ export function FormulaireRecapAg({
                   <Input type="number" step="0.01" min="0" value={t.budget} aria-label="Budget" onChange={(e) => majTravaux(i, { budget: e.target.value })} />
                 </Field>
                 <Field label={i === 0 ? "Clé de répartition" : ""}>
-                  <Input value={t.cleRepartition} aria-label="Clé de répartition" onChange={(e) => majTravaux(i, { cleRepartition: e.target.value })} />
+                  <Input
+                    value={t.cleRepartition}
+                    aria-label="Clé de répartition"
+                    list={clesCopro.length > 0 ? "cles-repartition" : undefined}
+                    placeholder={clesCopro.length > 0 ? "Choisir ou saisir" : undefined}
+                    onChange={(e) => majTravaux(i, { cleRepartition: e.target.value })}
+                  />
                 </Field>
                 <Field label={i === 0 ? "Appel de fonds" : ""}>
                   <Input value={t.modalitesAppelFonds} aria-label="Modalités d'appel de fonds" onChange={(e) => majTravaux(i, { modalitesAppelFonds: e.target.value })} />
@@ -411,6 +437,13 @@ export function FormulaireRecapAg({
               </li>
             ))}
           </ul>
+        )}
+        {clesCopro.length > 0 && (
+          <datalist id="cles-repartition">
+            {clesCopro.map((k) => (
+              <option key={k.id} value={k.nom}>{`${k.code}${k.parDefaut ? " · par défaut" : ""}`}</option>
+            ))}
+          </datalist>
         )}
       </SectionForm>
 

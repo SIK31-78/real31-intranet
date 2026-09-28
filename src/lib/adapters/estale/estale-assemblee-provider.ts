@@ -3,7 +3,7 @@
 // l'AG ORDINARY pertinente (non close en priorite). Cf. ADR-024.
 
 import type { AssembleeEstaleProvider } from "@/lib/ports/assemblee-estale-provider";
-import type { AssembleeAg, MotionAg, OrdreMotion, ResolutionLibre } from "@/lib/domain/assemblee";
+import type { AssembleeAg, CleRepartition, MotionAg, OrdreMotion, ResolutionLibre } from "@/lib/domain/assemblee";
 import type { MajoriteResolution } from "@/lib/domain/resolution";
 import { rangParent } from "@/lib/domain/resolution";
 import { estaleGql } from "./client";
@@ -69,7 +69,27 @@ type MeetingRow = {
   motions: MotionRow[];
 };
 
+type DkRow = { id: string; name: string; code: string; isDefault: boolean; archivedAt: string | null };
+
+/** Cles actives (non archivees), la cle par defaut en tete puis par code. */
+export function clesActives(dks: DkRow[]): CleRepartition[] {
+  return dks
+    .filter((k) => !k.archivedAt)
+    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.code.localeCompare(b.code, "fr", { numeric: true }))
+    .map((k) => ({ id: k.id, nom: k.name, code: k.code, parDefaut: k.isDefault }));
+}
+
 export class EstaleAssembleeProvider implements AssembleeEstaleProvider {
+  async listerClesRepartition(coproCode: string): Promise<CleRepartition[]> {
+    const condoId = await resoudreCondoIdCache(coproCode);
+    if (!condoId) return [];
+    const data = await estaleGql<{ condo: { dks: DkRow[] } }>(
+      `query ClesCopro($id: ID!) { condo(id: $id) { dks { id name code isDefault archivedAt } } }`,
+      { id: condoId },
+    );
+    return clesActives(data.condo.dks);
+  }
+
   async getAssemblee(coproCode: string): Promise<AssembleeAg | null> {
     const condoId = await resoudreCondoIdCache(coproCode);
     if (!condoId) return null;

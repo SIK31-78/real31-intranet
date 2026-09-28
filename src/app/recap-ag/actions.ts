@@ -15,6 +15,8 @@ import {
 } from "@/lib/services/facturation/creer-recap-ag";
 import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-factures-en-attente";
 import { debutContratRequis, MESSAGE_DEBUT_CONTRAT_REQUIS } from "@/lib/domain/recap-ag/contrat-vote";
+import { listerClesRepartition } from "@/lib/services/recap-ag/cles-repartition";
+import type { CleRepartition } from "@/lib/domain/assemblee";
 
 
 import { type Res, echecDepuis } from "@/lib/actions/resultat";
@@ -117,6 +119,22 @@ export async function creerRecapAgAction(
       mailComptableA: resultat.mailComptableA,
     };
   });
+}
+
+/**
+ * Les clés de répartition ESTALE de la copro, proposées en suggestion pour les travaux
+ * votés. Lecture seule, sans revalidation. Liste vide si ESTALE ne répond pas.
+ */
+export async function listerClesRepartitionAction(coproCode: string): Promise<Res<CleRepartition[]>> {
+  const code = zCode.safeParse(coproCode);
+  if (!code.success) return { ok: false, erreur: "Données invalides." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  try {
+    return { ok: true, donnees: await listerClesRepartition(code.data, g.id) };
+  } catch (e) {
+    return echecDepuis(e, "recap-ag");
+  }
 }
 
 // La bascule « effectué » du gestionnaire a ete retiree (decision Sekou 2026-09-08) :

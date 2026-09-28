@@ -2,7 +2,7 @@
 // (palier 1) ; les ecritures (ajout/suppression/ordre des motions) viendront.
 // Ne depend que du domaine.
 
-import type { AssembleeAg, ResolutionLibre } from "@/lib/domain/assemblee";
+import type { AssembleeAg, CleRepartition, ResolutionLibre } from "@/lib/domain/assemblee";
 
 export interface AssembleeEstaleProvider {
   /** L'AG Estale pertinente d'une copro (ORDINARY non close en priorite), ou null. */
@@ -31,4 +31,9 @@ export interface AssembleeEstaleProvider {
    * auto-injecte le socle standard. Renvoie l'id du Meeting cree. Ecriture reelle.
    */
   creerAssemblee(coproCode: string): Promise<string>;
+  /**
+   * Les cles de repartition de la copro (hors archivees), la cle par defaut en tete.
+   * [] si la copro n'est pas sur Estale. Lecture seule.
+   */
+  listerClesRepartition(coproCode: string): Promise<CleRepartition[]>;
 }

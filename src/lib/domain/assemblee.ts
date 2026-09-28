@@ -42,3 +42,14 @@ export interface ResolutionLibre {
   corps: string;
   majorite: MajoriteResolution;
 }
+
+/** Une cle de repartition de la copro (Estale `condo.dks`), hors cles archivees. */
+export interface CleRepartition {
+  id: string;
+  /** Libelle affiche, ex "Charges générales". */
+  nom: string;
+  /** Code court Estale, ex "001". */
+  code: string;
+  /** Cle par defaut de la copro. */
+  parDefaut: boolean;
+}
