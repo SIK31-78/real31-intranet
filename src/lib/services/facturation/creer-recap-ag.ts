@@ -12,6 +12,7 @@
 
 import { calculerDepassementAg } from "@/lib/domain/facturation/depassement-ag";
 import { avertissementFondsTravaux } from "@/lib/domain/recap-ag/fonds-travaux";
+import { erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
 import { htDepuisTtc, type Creneau } from "@/lib/domain/facturation/commun";
 import {
   getFacturationRepository,
@@ -95,6 +96,16 @@ function avertissements(demande: DemandeRecapAg): string[] {
   return alerte ? [alerte] : [];
 }
 
+/**
+ * Des honoraires sans date de debut n'ouvriraient aucun cycle de contrat (montant perdu
+ * en silence, alors que le mail au comptable l'annonce). L'action le refuse deja ; le
+ * service le refuse aussi, pour tout appelant.
+ */
+function exigerContratCoherent(demande: DemandeRecapAg): void {
+  const erreur = erreurContratVote(demande);
+  if (erreur) throw new Error(erreur);
+}
+
 async function calculer(demande: DemandeRecapAg) {
   const repo = getFacturationRepository();
 
@@ -143,6 +154,7 @@ export async function apercuRecapAg(
   managerId: string,
 ): Promise<ApercuFacturation> {
   await exigerPerimetre(demande.coproCode, managerId);
+  exigerContratCoherent(demande);
   const { dureeAgHeures, debutMinAgHeure, finMaxAgHeure, anneeBareme, tarifHoraireTtc, calcul } =
     await calculer(demande);
   const alertes = avertissements(demande);
@@ -230,6 +242,7 @@ export async function creerRecapAg(
   managerId: string,
 ): Promise<ResultatRecapAg> {
   await exigerPerimetre(demande.coproCode, managerId);
+  exigerContratCoherent(demande);
   const repoFacturation = getFacturationRepository();
   const repoRecap = getRecapAgRepository();
 
@@ -295,9 +308,9 @@ export async function creerRecapAg(
   });
 
   // Le recap reste un PUR compte-rendu : les DATES et le jalon TENUE sont poses par
-  // conclureAg (l'AG est finie), pas ici. Seule retombee cote recap : la synthese comptable
-  // devient une note auto dans le fil compta (le recap lui-meme arrive au comptable par la
-  // file « Recaps d'AG recus », aucun mail - notif_comptable_at reste null).
+  // conclureAg (l'AG est finie), pas ici. La synthese comptable devient une note auto dans
+  // le fil compta ; le recap lui-meme arrive au comptable par la file « Recaps d'AG recus »
+  // ET par le mail envoye plus bas (notifierRecapAg, depuis le 16/09/2026).
   // Best-effort (jamais bloquant).
   if (demande.infoComptable) {
     await getComptaRepository()

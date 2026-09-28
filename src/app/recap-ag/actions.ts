@@ -14,6 +14,7 @@ import {
   type DemandeRecapAg,
 } from "@/lib/services/facturation/creer-recap-ag";
 import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-factures-en-attente";
+import { debutContratRequis, MESSAGE_DEBUT_CONTRAT_REQUIS } from "@/lib/domain/recap-ag/contrat-vote";
 
 
 import { type Res, echecDepuis } from "@/lib/actions/resultat";
@@ -61,7 +62,15 @@ const zDemande = z.object({
   fraisPostauxReels: z.boolean().optional(),
   forfaitPostauxTtc: zMontant.optional(),
   sansFacture: z.boolean().optional(),
+}).refine((d) => !debutContratRequis(d) || d.debutContrat !== undefined, {
+  message: MESSAGE_DEBUT_CONTRAT_REQUIS,
+  path: ["debutContrat"],
 });
+
+/** Le message d'une regle metier (refine) remonte tel quel ; le reste reste generique. */
+function erreurSaisie(e: z.ZodError): string {
+  return e.issues.find((i) => i.code === "custom")?.message ?? "Données invalides.";
+}
 
 async function executer<T>(
   travail: (managerId: string, initiales: string, email?: string) => Promise<T>,
@@ -83,7 +92,7 @@ export async function apercuRecapAgAction(
   demande: DemandeRecapAg,
 ): Promise<Res<ApercuFacturation>> {
   const saisie = zDemande.safeParse(demande);
-  if (!saisie.success) return { ok: false, erreur: "Données invalides." };
+  if (!saisie.success) return { ok: false, erreur: erreurSaisie(saisie.error) };
   return executer((managerId) => apercuRecapAg(saisie.data, managerId));
 }
 
@@ -95,7 +104,7 @@ export async function creerRecapAgAction(
   demande: DemandeRecapAg,
 ): Promise<Res<{ recapId: string; depassementHeures: number; factureId: string | null; mailComptableA: string[] }>> {
   const saisie = zDemande.safeParse(demande);
-  if (!saisie.success) return { ok: false, erreur: "Données invalides." };
+  if (!saisie.success) return { ok: false, erreur: erreurSaisie(saisie.error) };
 
   return executer(async (managerId, initiales, email) => {
     // La boite d'envoi du mail au comptable = l'email de session, jamais un champ client.

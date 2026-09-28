@@ -156,3 +156,29 @@ describe("recap AG - 'Ne pas facturer' le depassement", () => {
     expect(etat.recapsCrees[0]).toMatchObject({ statut: "a_facturer" });
   });
 });
+
+// Remontee a4c0f7a6 : des honoraires saisis sans date de debut n'ouvraient aucun cycle de
+// contrat, en silence, alors que le mail au comptable affichait le montant.
+describe("recap AG - honoraires du nouveau contrat sans date de debut", () => {
+  it("creation refusee avec un message qui dit quoi faire, rien n'est ecrit", async () => {
+    await expect(
+      creerRecapAg({ coproCode: "S002", assemblee, honorairesGestionTtc: 2400 }, "m1"),
+    ).rejects.toThrow(/date de début du contrat/);
+    expect(etat.recapsCrees).toHaveLength(0);
+    expect(etat.facturesCreees).toHaveLength(0);
+  });
+
+  it("l'apercu refuse aussi, avant meme la validation", async () => {
+    await expect(
+      apercuRecapAg({ coproCode: "S002", assemblee, honorairesGestionTtc: 2400 }, "m1"),
+    ).rejects.toThrow(/date de début du contrat/);
+  });
+
+  it("sans honoraires (ou a 0), pas de date exigee", async () => {
+    await expect(creerRecapAg({ coproCode: "S002", assemblee }, "m1")).resolves.toBeDefined();
+    etat.reset();
+    await expect(
+      creerRecapAg({ coproCode: "S002", assemblee, honorairesGestionTtc: 0 }, "m1"),
+    ).resolves.toBeDefined();
+  });
+});

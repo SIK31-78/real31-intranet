@@ -22,6 +22,7 @@ import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "@/components/facturation/confirmation-facturation";
 import { apercuRecapAgAction, creerRecapAgAction } from "@/app/recap-ag/actions";
 import { POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "@/lib/domain/recap-ag/fonds-travaux";
+import { debutContratRequis, erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
 import { formatJour } from "@/lib/services/facturation/format";
@@ -149,6 +150,9 @@ export function FormulaireRecapAg({
   // Le montant n'a de sens que dans le second cas.
   const [fraisPostauxReels, setFraisPostauxReels] = useState<boolean | null>(genereDepart?.fraisPostauxReels ?? false);
   const contratGenere = copros.find((c) => c.code === coproCode)?.contratGenere;
+  const nHonoraires = Number(honoraires);
+  const debutRequis =
+    honoraires.trim() !== "" && Number.isFinite(nHonoraires) && debutContratRequis({ honorairesGestionTtc: nHonoraires });
 
   function proposerContrat(code: string) {
     const g = copros.find((c) => c.code === code)?.contratGenere;
@@ -227,6 +231,11 @@ export function FormulaireRecapAg({
       return toast.err("Le budget a été modifié en AG : renseigne le nouveau montant.");
     if (fraisPostauxReels === false && nombreOuUndefined(forfaitPostaux) === undefined)
       return toast.err("Frais postaux au forfait : renseigne le montant du forfait.");
+    const erreurContrat = erreurContratVote({
+      ...(debutContrat ? { debutContrat } : {}),
+      ...(nombreOuUndefined(honoraires) !== undefined ? { honorairesGestionTtc: nombreOuUndefined(honoraires) } : {}),
+    });
+    if (erreurContrat) return toast.err(erreurContrat);
     demarrer(async () => {
       const res = await apercuRecapAgAction(construireDemande());
       if (!res.ok) return toast.err(res.erreur);
@@ -421,8 +430,15 @@ export function FormulaireRecapAg({
           </p>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <Field label="Début du contrat" htmlFor="dcontrat">
-            <Input id="dcontrat" type="date" value={debutContrat} onChange={(e) => setDebutContrat(e.target.value)} />
+          {/* Requis des que des honoraires sont saisis : sans debut, aucun cycle n'est ouvert
+              et le montant serait perdu (remontee a4c0f7a6). */}
+          <Field
+            label="Début du contrat"
+            htmlFor="dcontrat"
+            requis={debutRequis}
+            {...(debutRequis && !debutContrat ? { erreur: "Requis dès que des honoraires sont saisis." } : {})}
+          >
+            <Input id="dcontrat" type="date" value={debutContrat} required={debutRequis} onChange={(e) => setDebutContrat(e.target.value)} />
           </Field>
           <Field label="Fin du contrat" htmlFor="fcontrat">
             <Input id="fcontrat" type="date" value={finContrat} onChange={(e) => setFinContrat(e.target.value)} />
