@@ -255,6 +255,9 @@ export function FicheProposition({
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
                   {num("pi-lots", "Lots principaux", "lotsPrincipaux")}
+                  <Field label="Autres lots" htmlFor="pi-lots-autres" hint="caves, parkings, box…">
+                    <Input id="pi-lots-autres" inputMode="numeric" value={txt(im.lotsStationnement)} onChange={(e) => champ("lotsStationnement", nb(e.target.value))} placeholder="0" className="tabular-nums" />
+                  </Field>
                   {num("pi-copros", "Copropriétaires", "coproprietaires")}
                   <Field label="Syndic actuel" htmlFor="pi-syndic" className="col-span-2"><Input id="pi-syndic" value={im.syndicActuel ?? ""} onChange={(e) => champ("syndicActuel", e.target.value)} /></Field>
                   <Field label="Fin de son mandat" htmlFor="pi-finmandat"><Input id="pi-finmandat" type="date" value={im.finMandatActuelISO ?? ""} onChange={(e) => champ("finMandatActuelISO", e.target.value || undefined)} /></Field>
