@@ -3,7 +3,7 @@
 // Fiche dossier : en-tete + statut, onglets (Suivi / Mes evenements), etapes EDITABLES
 // et ASSIGNABLES (gestionnaire/assistant), journal/timeline. Brique 1 (manuel).
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Check, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, Flag, Mail, Phone, Inbox, Pencil, Gavel, ClipboardList,
@@ -57,6 +57,9 @@ function uid(): string {
 
 type OngletDossier = "suivi" | "evenements";
 
+/** Delai de la sauvegarde differee d'un renommage d'etape (frappe au clavier). */
+const DELAI_RENOMMAGE_MS = 600;
+
 export function DossierFiche({
   dossier,
   gestionnaire,
@@ -78,33 +81,91 @@ export function DossierFiche({
   const toast = useToast();
   const p = progressionDossier({ ...dossier, etapes });
 
-  const sauver = (next: EtapeDossier[]) => {
+  // Les etapes s'ecrivent EN ENTIER (majEtapesAction remplace la liste) : deux sauvegardes
+  // concurrentes pourraient arriver dans le desordre et la plus ancienne ecraser la plus
+  // recente. D'ou : une reference toujours a jour (pas de closure perimee sur `etapes`),
+  // une file qui envoie les sauvegardes une par une, et un renommage differe (600 ms)
+  // qu'on vide avant toute autre action et au demontage (remontee du 28/09/2026 : un
+  // renommage suivi d'un changement de statut etait perdu).
+  const etapesRef = useRef(etapes);
+  const minuterie = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const file = useRef<Promise<unknown>>(Promise.resolve());
+  // Le toast par reference : `envoyer`/`vider` restent stables, le nettoyage au
+  // demontage ne se rejoue pas a chaque rendu.
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+  const envoyer = useCallback(
+    (next: EtapeDossier[]) => {
+      file.current = file.current
+        .then(() => majEtapesAction(dossier.id, next))
+        .catch(() => toastRef.current.err("Les étapes n'ont pas pu être enregistrées."));
+      return file.current;
+    },
+    [dossier.id],
+  );
+  /** Envoie tout de suite un renommage en attente ; rend la file (a attendre au besoin). */
+  const vider = useCallback(() => {
+    if (minuterie.current) {
+      clearTimeout(minuterie.current);
+      minuterie.current = null;
+      void envoyer(etapesRef.current);
+    }
+    return file.current;
+  }, [envoyer]);
+  useEffect(() => () => void vider(), [vider]);
+
+  const majLocale = (next: EtapeDossier[]) => {
+    etapesRef.current = next;
     setEtapes(next);
-    startTransition(() => majEtapesAction(dossier.id, next));
   };
-  const toggle = (id: string) => sauver(etapes.map((e) => (e.id === id ? { ...e, fait: !e.fait } : e)));
-  const supprimer = (id: string) => sauver(etapes.filter((e) => e.id !== id));
-  const renommer = (id: string, label: string) => setEtapes(etapes.map((e) => (e.id === id ? { ...e, label } : e)));
+  const sauver = (transformer: (actuelles: EtapeDossier[]) => EtapeDossier[]) => {
+    // La liste envoyee contient le renommage en attente : on l'annule, elle le porte.
+    if (minuterie.current) clearTimeout(minuterie.current);
+    minuterie.current = null;
+    const next = transformer(etapesRef.current);
+    majLocale(next);
+    startTransition(async () => {
+      await envoyer(next);
+    });
+  };
+  const toggle = (id: string) => sauver((et) => et.map((e) => (e.id === id ? { ...e, fait: !e.fait } : e)));
+  const supprimer = (id: string) => sauver((et) => et.filter((e) => e.id !== id));
+  const renommer = (id: string, label: string) => {
+    majLocale(etapesRef.current.map((e) => (e.id === id ? { ...e, label } : e)));
+    if (minuterie.current) clearTimeout(minuterie.current);
+    minuterie.current = setTimeout(() => {
+      minuterie.current = null;
+      void envoyer(etapesRef.current);
+    }, DELAI_RENOMMAGE_MS);
+  };
   const assigner = (id: string, role: AssigneRole | "") =>
-    sauver(etapes.map((e) => (e.id === id ? { ...e, ...(role ? { assigneA: role } : { assigneA: undefined }) } : e)));
-  const deplacer = (i: number, d: -1 | 1) => {
-    const j = i + d;
-    if (j < 0 || j >= etapes.length) return;
-    const next = [...etapes];
-    [next[i], next[j]] = [next[j], next[i]];
-    sauver(next);
-  };
+    sauver((et) => et.map((e) => (e.id === id ? { ...e, ...(role ? { assigneA: role } : { assigneA: undefined }) } : e)));
+  const deplacer = (i: number, d: -1 | 1) =>
+    sauver((et) => {
+      const j = i + d;
+      if (j < 0 || j >= et.length) return et;
+      const next = [...et];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
   const ajouter = () => {
     const label = nouvelle.trim();
     if (!label) return;
-    sauver([...etapes, { id: uid(), label, fait: false }]);
+    sauver((et) => [...et, { id: uid(), label, fait: false }]);
     setNouvelle("");
   };
-  const changerStatut = (statut: StatutDossier) => startTransition(() => changerStatutAction(dossier.id, statut));
+  const changerStatut = (statut: StatutDossier) =>
+    startTransition(async () => {
+      await vider();
+      await changerStatutAction(dossier.id, statut);
+    });
   const envoyerNote = () => {
     const t = note.trim();
     if (!t) return;
     startTransition(async () => {
+      await vider();
       await ajouterNoteAction(dossier.id, t);
       toast.ok("Note ajoutée.");
     });
@@ -112,6 +173,7 @@ export function DossierFiche({
   };
   const supprimerNote = (le: string) =>
     startTransition(async () => {
+      await vider();
       await supprimerNoteAction(dossier.id, le);
       toast.ok("Note supprimée.");
     });
@@ -138,7 +200,7 @@ export function DossierFiche({
                 <div className="flex items-center gap-2">
                   <h1 className="text-page font-medium tracking-tight text-ink">{dossier.titre}</h1>
                   <Button
-                    onClick={() => setEditMeta(true)}
+                    onClick={() => { void vider(); setEditMeta(true); }}
                     aria-label="Modifier le dossier"
                     title="Modifier le dossier"
                     variant="ghost" iconOnly className="shrink-0"
@@ -191,7 +253,7 @@ export function DossierFiche({
       {/* Onglets */}
       <div role="tablist" aria-label="Sections du dossier" className="flex items-center gap-1 border-b border-line">
         <OngletBouton actif={onglet === "suivi"} onClick={() => setOnglet("suivi")}>Suivi</OngletBouton>
-        <OngletBouton actif={onglet === "evenements"} onClick={() => setOnglet("evenements")}>Mes événements</OngletBouton>
+        <OngletBouton actif={onglet === "evenements"} onClick={() => { void vider(); setOnglet("evenements"); }}>Mes événements</OngletBouton>
       </div>
 
       {onglet === "suivi" ? (
@@ -216,7 +278,7 @@ export function DossierFiche({
                   <input
                     value={e.label}
                     onChange={(ev) => renommer(e.id, ev.target.value)}
-                    onBlur={() => sauver(etapes)}
+                    onBlur={() => void vider()}
                     className={cn(
                       "flex-1 min-w-0 bg-transparent text-body focus:outline-none",
                       e.fait ? "line-through text-ink-3" : "text-ink",
