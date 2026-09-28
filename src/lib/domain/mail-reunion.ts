@@ -74,6 +74,27 @@ function fragmentDate(d: DateReunionMail): string {
   return frag;
 }
 
+/** Une date dont le fragment n'aura AUCUN lieu : ni mode, ou presentiel / hybride sans
+ *  salle (une salle sans mode n'est pas reprise non plus, cf. fragmentDate). */
+function lieuAbsent(d: DateReunionMail): boolean {
+  if (d.mode === "visio") return false;
+  if (d.mode === "presentiel" || d.mode === "hybride") return !d.salleLibelle;
+  return true;
+}
+
+/**
+ * Avertissements NON bloquants a afficher avant envoi : une reunion proposee dont le
+ * lieu n'apparaitra pas dans le mail (fragmentDate n'invente rien). Une phrase par
+ * reunion concernee ; [] si tout est renseigne.
+ */
+export function avertissementsLieuMail(infos: Pick<InfosMailDatesReunion, "cs" | "ag">): string[] {
+  const conseil = "le lieu n'apparaîtra pas : renseignez le mode et la salle de la réunion.";
+  const avertissements: string[] = [];
+  if (infos.cs && lieuAbsent(infos.cs)) avertissements.push(`CS préparatoire : ${conseil}`);
+  if (infos.ag && lieuAbsent(infos.ag)) avertissements.push(`Assemblée générale : ${conseil}`);
+  return avertissements;
+}
+
 /**
  * Objet du mail. Deux dates -> "S046 - Dates de CS et d'AG à fixer" ; une seule ->
  * variante ("Date de CS à fixer" / "Date d'AG à fixer"). Reference copro en tete.

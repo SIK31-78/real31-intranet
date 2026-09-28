@@ -27,6 +27,7 @@ import {
   corpsMailDatesReunion,
   objetMailDatesReunion,
   dateConfirmationJ7,
+  avertissementsLieuMail,
   type DateReunionMail,
   type InfosMailDatesReunion,
 } from "@/lib/domain/mail-reunion";
@@ -44,7 +45,15 @@ const zCorps = z.string().min(1).max(100_000);
 const zEmails = z.array(z.string().trim().max(320)).max(50);
 
 type PreparerResult =
-  | { ok: true; source: SourceDestinataires; emails: string[]; sujet: string; corps: string }
+  | {
+      ok: true;
+      source: SourceDestinataires;
+      emails: string[];
+      sujet: string;
+      corps: string;
+      /** Alertes NON bloquantes a afficher avant envoi (ex. lieu absent du mail). */
+      avertissements: string[];
+    }
   | { ok: false; message: string };
 
 type EnvoiResult = { ok: true } | { ok: false; message: string };
@@ -128,6 +137,7 @@ export async function preparerMailReunionAction(coproCode: string): Promise<Prep
     emails,
     sujet: objetMailDatesReunion(infos),
     corps: corpsMailDatesReunion(infos),
+    avertissements: avertissementsLieuMail(infos),
   };
 }
 

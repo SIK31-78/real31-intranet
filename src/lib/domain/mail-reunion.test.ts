@@ -7,6 +7,7 @@ import {
   objetMailDatesReunion,
   corpsMailDatesReunion,
   dateConfirmationJ7,
+  avertissementsLieuMail,
   type InfosMailDatesReunion,
 } from "./mail-reunion";
 
@@ -139,5 +140,39 @@ describe("objet avec adresse (demande Sekou)", () => {
       dateConfirmationISO: "2026-07-17",
     });
     expect(objet).toBe("S046 - Date d'AG à fixer");
+  });
+});
+
+describe("avertissementsLieuMail (lieu absent du mail, non bloquant)", () => {
+  const LIEU = "le lieu n'apparaîtra pas : renseignez le mode et la salle de la réunion.";
+
+  it("ni mode ni salle : un avertissement par reunion proposee", () => {
+    expect(
+      avertissementsLieuMail({ cs: { dateISO: "2026-09-08" }, ag: { dateISO: "2026-09-15" } }),
+    ).toEqual([`CS préparatoire : ${LIEU}`, `Assemblée générale : ${LIEU}`]);
+  });
+
+  it("presentiel ou hybride sans salle : avertissement", () => {
+    expect(avertissementsLieuMail({ ag: { dateISO: "2026-09-15", mode: "presentiel" } })).toEqual([
+      `Assemblée générale : ${LIEU}`,
+    ]);
+    expect(avertissementsLieuMail({ cs: { dateISO: "2026-09-08", mode: "hybride" } })).toHaveLength(1);
+  });
+
+  it("salle sans mode : la salle n'est pas reprise, avertissement", () => {
+    expect(avertissementsLieuMail({ ag: { dateISO: "2026-09-15", salleLibelle: "LGC" } })).toHaveLength(1);
+  });
+
+  it("visio, ou presentiel avec salle : aucun avertissement", () => {
+    expect(
+      avertissementsLieuMail({
+        cs: { dateISO: "2026-09-08", mode: "visio" },
+        ag: { dateISO: "2026-09-15", mode: "presentiel", salleLibelle: "LGC - Salle de reunions" },
+      }),
+    ).toEqual([]);
+  });
+
+  it("aucune reunion proposee : rien", () => {
+    expect(avertissementsLieuMail({})).toEqual([]);
   });
 });

@@ -9,6 +9,7 @@
 import { useState, useTransition } from "react";
 import { Mail, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
@@ -41,6 +42,7 @@ export function MailReunionBouton({
   const [cc, setCc] = useState<string[]>([]);
   const [sujet, setSujet] = useState("");
   const [corps, setCorps] = useState("");
+  const [avertissements, setAvertissements] = useState<string[]>([]);
 
   function ouvrir() {
     startPrep(async () => {
@@ -54,6 +56,7 @@ export function MailReunionBouton({
       setCc([]);
       setSujet(r.sujet);
       setCorps(r.corps);
+      setAvertissements(r.avertissements);
       setOuvert(true);
     });
   }
@@ -113,6 +116,7 @@ export function MailReunionBouton({
           cc={cc}
           sujet={sujet}
           corps={corps}
+          avertissements={avertissements}
           envoiEnCours={envoiEnCours}
           onA={setA}
           onCc={setCc}
@@ -132,6 +136,7 @@ function ModaleComposition({
   cc,
   sujet,
   corps,
+  avertissements,
   envoiEnCours,
   onA,
   onCc,
@@ -145,6 +150,7 @@ function ModaleComposition({
   cc: string[];
   sujet: string;
   corps: string;
+  avertissements: string[];
   envoiEnCours: boolean;
   onA: (v: string[]) => void;
   onCc: (v: string[]) => void;
@@ -166,6 +172,14 @@ function ModaleComposition({
               {SOURCE_LABEL[source]}. Relisez et modifiez avant d&apos;envoyer.
             </p>
           )}
+
+          {/* Non bloquant : le mail part tel quel, mais le gestionnaire sait que le lieu
+              manque (le modele n'invente rien) et peut le completer dans le message. */}
+          {avertissements.map((m) => (
+            <Callout key={m} ton="warn">
+              {m}
+            </Callout>
+          ))}
 
           <div className="border border-line bg-surface rounded-md px-2.5 py-2 flex flex-col gap-1">
             <LigneDest label="À" valeurs={a} onChange={onA} />
