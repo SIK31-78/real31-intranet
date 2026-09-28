@@ -1,11 +1,40 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
+import { useToast } from "@/components/ui/toast";
 import type { StatutConfirmation } from "@/lib/domain/confirmation-evenement";
-import { confirmerEvenementAction } from "./dates-actions";
+import { confirmerEvenementAction, resynchroniserOutlookAction } from "./dates-actions";
+
+/** Petit bouton discret "Resynchroniser Outlook" : rejoue la projection de la date
+ *  courante (evenement + creneaux d'une AG) quand Outlook n'a pas suivi. Visible aussi
+ *  une fois la date confirmee (sinon plus aucun geste ne permettait de rattraper). */
+function ResynchroniserOutlook({ coproCode, type }: { coproCode: string; type: "AG" | "CS" }) {
+  const [pending, startTransition] = useTransition();
+  const toast = useToast();
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      iconOnly
+      loading={pending}
+      aria-label="Resynchroniser Outlook"
+      title="Resynchroniser Outlook : remet le rendez-vous à la date affichée ici"
+      onClick={() => {
+        startTransition(async () => {
+          const r = await resynchroniserOutlookAction(coproCode, type);
+          if (r.ok) toast.ok("Agenda Outlook resynchronisé.");
+          else toast.err(r.erreur);
+        });
+      }}
+    >
+      {!pending && <RefreshCw strokeWidth={1.5} aria-hidden />}
+    </Button>
+  );
+}
 
 /** Fin proposee par defaut : debut + 2 h (duree usuelle d'un CS). Vide si pas d'heure de
  *  debut connue - on ne devine pas une fin sans point de depart. */
@@ -47,9 +76,12 @@ export function ConfirmationEvenement({
 
   if (statut === "confirme" || confirmeOptimiste) {
     return (
-      <Badge ton="ok" dot>
-        {type === "CS" ? "Confirmé" : "Confirmée"}
-      </Badge>
+      <span className="inline-flex items-center gap-1">
+        <Badge ton="ok" dot>
+          {type === "CS" ? "Confirmé" : "Confirmée"}
+        </Badge>
+        <ResynchroniserOutlook coproCode={coproCode} type={type} />
+      </span>
     );
   }
   return (
@@ -89,6 +121,7 @@ export function ConfirmationEvenement({
       >
         Confirmer
       </Button>
+      <ResynchroniserOutlook coproCode={coproCode} type={type} />
       {erreur && <span className="text-meta text-err-700" role="alert">{erreur}</span>}
     </span>
   );

@@ -58,87 +58,104 @@ export async function projeterEvenementOutlook(
   statut: StatutConfirmation,
   boite?: string,
 ): Promise<void> {
+  try {
+    await projeterEvenementOutlookOuLever(coproCode, type, debut, statut, boite);
+  } catch {
+    // Degradation propre : la donnee intranet est deja ecrite, Outlook rattrapera au
+    // prochain geste (re-pose / confirmation / "Resynchroniser Outlook"). Pas de PII en log.
+    console.warn(`[projection-outlook] projection impossible pour ${coproCode} ${type} (statut intranet conserve)`);
+  }
+}
+
+/**
+ * Meme projection que `projeterEvenementOutlook`, mais un echec Graph / base REMONTE
+ * (throw) au lieu d'etre avale. Reserve a un appelant qui veut rendre compte de l'echec
+ * (bouton "Resynchroniser Outlook") ; les gestes courants passent par la version
+ * silencieuse ci-dessus.
+ */
+export async function projeterEvenementOutlookOuLever(
+  coproCode: string,
+  type: "AG" | "CS",
+  debut: string,
+  statut: StatutConfirmation,
+  boite?: string,
+): Promise<void> {
   // Gate GLOBAL (MAIL_SOURCE=graph) : la projection Outlook AG/CS s'active pour tous les
   // gestionnaires des que le provider Graph est actif -- pas de filtre pilotes (decision
   // Sekou 2026-07-23 : ouverture Outlook pour tout le monde, comme le mail au CS ; seuls le
   // module Mes e-mails et les envois sinistre restent bornes a MAIL_PILOTES).
   if (!mailModuleActif()) return;
-  try {
-    const repo = getConfirmationEvenementRepository();
-    const provider = getCalendrierOutboundProvider();
-    const titre = titreProjectionOutlook(coproCode, type, statut);
-    const fin = finDe(debut);
+  const repo = getConfirmationEvenementRepository();
+  const provider = getCalendrierOutboundProvider();
+  const titre = titreProjectionOutlook(coproCode, type, statut);
+  const fin = finDe(debut);
 
-    const existante = (await repo.get(coproCode)).find((c) => c.type === type);
-    // Salle + vehicule reserves (persistes AVANT la projection par definirDateEvenement) :
-    // ajoutes comme ressources de l'evenement. La MAJ (confirm / replanif) les REMET donc
-    // ils sont conserves. Liste vide -> aucune ressource attachee (ou retiree).
-    const ressources = [existante?.salleEmail, existante?.vehiculeEmail].filter(
-      (e): e is string => Boolean(e),
-    );
-    // Collegues associes (persistes de meme AVANT la projection) : invites comme
-    // participants "required" -> l'evenement apparait dans leur agenda. Liste vide ->
-    // aucun participant (ou retire au PATCH, comme les ressources).
-    const participants = existante?.collaborateursEmails ?? [];
-    // Lieu deduit du mode (bonus) : "Visio" en visio, sinon la salle. undefined -> aucun
-    // lieu a afficher (ni mode ni salle).
-    const lieu = lieuDe(existante);
+  const existante = (await repo.get(coproCode)).find((c) => c.type === type);
+  // Salle + vehicule reserves (persistes AVANT la projection par definirDateEvenement) :
+  // ajoutes comme ressources de l'evenement. La MAJ (confirm / replanif) les REMET donc
+  // ils sont conserves. Liste vide -> aucune ressource attachee (ou retiree).
+  const ressources = [existante?.salleEmail, existante?.vehiculeEmail].filter(
+    (e): e is string => Boolean(e),
+  );
+  // Collegues associes (persistes de meme AVANT la projection) : invites comme
+  // participants "required" -> l'evenement apparait dans leur agenda. Liste vide ->
+  // aucun participant (ou retire au PATCH, comme les ressources).
+  const participants = existante?.collaborateursEmails ?? [];
+  // Lieu deduit du mode (bonus) : "Visio" en visio, sinon la salle. undefined -> aucun
+  // lieu a afficher (ni mode ni salle).
+  const lieu = lieuDe(existante);
 
-    if (existante?.outlookEventId && existante.outlookBoite) {
-      // Projection deja en place : on DEPLACE / RENOMME le MEME evenement (jamais de doublon).
-      // `lieu` est TOUJOURS transmis (chaine vide si ni mode ni salle) pour que la salle /
-      // "Visio" apparaisse dans le rendez-vous du gestionnaire ET soit retiree quand on
-      // retire la salle (sinon un ancien lieu resterait affiche a tort).
-      await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
-        titre,
-        debut,
-        ...(fin ? { fin } : {}),
-        ressources,
-        participants,
-        lieu: lieu ?? "",
-      });
-      // Re-memorise (id + boite) a l'identique : idempotent, mais self-heal si la colonne
-      // avait ete videe entre-temps (l'id relu reste la reference du meme evenement).
-      await repo.enregistrerProjection(coproCode, type, existante.outlookEventId, existante.outlookBoite);
-      return;
-    }
-
-    // Etat incoherent : un id d'evenement est connu mais SANS boite exploitable (on ne
-    // peut pas le PATCHer). Avant de recreer, on supprime l'ancien (best-effort) pour ne
-    // jamais laisser deux evenements en parallele.
-    if (existante?.outlookEventId) {
-      const boiteAncienne = existante.outlookBoite ?? boite;
-      if (boiteAncienne) {
-        await provider.supprimerEvenement(boiteAncienne, existante.outlookEventId).catch(() => {});
-      }
-    }
-
-    if (!boite) return; // pas d'agenda cible (ex. dev-login sans email) -> pas de projection
-
-    // `debut` jour seul -> journee entiere ; datetime -> evenement de duree reunion.
-    const { id } = await provider.creerEvenement({
-      boite,
-      sujet: titre,
+  if (existante?.outlookEventId && existante.outlookBoite) {
+    // Projection deja en place : on DEPLACE / RENOMME le MEME evenement (jamais de doublon).
+    // `lieu` est TOUJOURS transmis (chaine vide si ni mode ni salle) pour que la salle /
+    // "Visio" apparaisse dans le rendez-vous du gestionnaire ET soit retiree quand on
+    // retire la salle (sinon un ancien lieu resterait affiche a tort).
+    await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
+      titre,
       debut,
       ...(fin ? { fin } : {}),
-      ...(ressources.length > 0 ? { ressources } : {}),
-      ...(participants.length > 0 ? { participants } : {}),
-      ...(lieu ? { lieu } : {}),
+      ressources,
+      participants,
+      lieu: lieu ?? "",
     });
-    // Pas d'id (provider no-op) : rien a memoriser, la projection reste inexistante.
-    if (!id) return;
-    // On memorise l'id. Si AUCUNE ligne n'a ete mise a jour (row de confirmation absente
-    // ou persistance en echec), l'evenement qu'on vient de creer serait un ORPHELIN :
-    // introuvable au prochain geste, il produirait un DOUBLON (et la salle resterait
-    // bloquee sur lui). On le supprime immediatement -> au pire pas d'evenement, jamais deux.
-    const memorise = await repo.enregistrerProjection(coproCode, type, id, boite);
-    if (!memorise) {
-      await provider.supprimerEvenement(boite, id).catch(() => {});
+    // Re-memorise (id + boite) a l'identique : idempotent, mais self-heal si la colonne
+    // avait ete videe entre-temps (l'id relu reste la reference du meme evenement).
+    await repo.enregistrerProjection(coproCode, type, existante.outlookEventId, existante.outlookBoite);
+    return;
+  }
+
+  // Etat incoherent : un id d'evenement est connu mais SANS boite exploitable (on ne
+  // peut pas le PATCHer). Avant de recreer, on supprime l'ancien (best-effort) pour ne
+  // jamais laisser deux evenements en parallele.
+  if (existante?.outlookEventId) {
+    const boiteAncienne = existante.outlookBoite ?? boite;
+    if (boiteAncienne) {
+      await provider.supprimerEvenement(boiteAncienne, existante.outlookEventId).catch(() => {});
     }
-  } catch {
-    // Degradation propre : la donnee intranet est deja ecrite, Outlook rattrapera au
-    // prochain geste (re-pose / confirmation). Pas de PII en log.
-    console.warn(`[projection-outlook] projection impossible pour ${coproCode} ${type} (statut intranet conserve)`);
+  }
+
+  if (!boite) return; // pas d'agenda cible (ex. dev-login sans email) -> pas de projection
+
+  // `debut` jour seul -> journee entiere ; datetime -> evenement de duree reunion.
+  const { id } = await provider.creerEvenement({
+    boite,
+    sujet: titre,
+    debut,
+    ...(fin ? { fin } : {}),
+    ...(ressources.length > 0 ? { ressources } : {}),
+    ...(participants.length > 0 ? { participants } : {}),
+    ...(lieu ? { lieu } : {}),
+  });
+  // Pas d'id (provider no-op) : rien a memoriser, la projection reste inexistante.
+  if (!id) return;
+  // On memorise l'id. Si AUCUNE ligne n'a ete mise a jour (row de confirmation absente
+  // ou persistance en echec), l'evenement qu'on vient de creer serait un ORPHELIN :
+  // introuvable au prochain geste, il produirait un DOUBLON (et la salle resterait
+  // bloquee sur lui). On le supprime immediatement -> au pire pas d'evenement, jamais deux.
+  const memorise = await repo.enregistrerProjection(coproCode, type, id, boite);
+  if (!memorise) {
+    await provider.supprimerEvenement(boite, id).catch(() => {});
+    throw new Error("Projection Outlook : evenement cree mais non memorise (supprime).");
   }
 }
 

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { definirDateEvenement } from "@/lib/services/coproprietes/definir-date-evenement";
 import { confirmerEvenement, getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import { verifierDispoSalle } from "@/lib/services/coproprietes/verifier-dispo-salle";
+import { resynchroniserOutlook } from "@/lib/services/coproprietes/resynchroniser-outlook";
 import { controlerDisposReunion } from "@/lib/services/coproprietes/controler-dispo-reunion";
 import { reporterSupervisionSansDate } from "@/lib/services/supervision-ag/reporter-sans-date";
 import { reporterOdjSansDate } from "@/lib/services/odj/saisir-champ-odj";
@@ -232,6 +233,29 @@ export async function confirmerEvenementAction(
     revalidatePath("/calendrier");
     revalidatePath("/accueil");
     return { ok: true };
+  } catch (e) {
+    return echecDepuis(e, "fiche-copro");
+  }
+}
+
+// "Resynchroniser Outlook" : rejoue la projection de la PROCHAINE date AG/CS (evenement +
+// creneaux derives d'une AG) dans l'agenda de SESSION. Utile quand Outlook n'a pas suivi
+// un changement de date (echec Graph avale au geste courant), y compris une fois la date
+// confirmee. La date est RELUE cote serveur ; l'echec est RENDU a l'UI (toast).
+// Memes gardes que les autres actions : zod, session, coproAppartient (anti-IDOR).
+export async function resynchroniserOutlookAction(
+  coproCode: string,
+  type: "AG" | "CS",
+): Promise<{ ok: true } | { ok: false; erreur: string }> {
+  if (!z.object({ coproCode: zCode, type: zTypeEvenement }).safeParse({ coproCode, type }).success)
+    return { ok: false, erreur: "Données invalides." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée, reconnectez-vous." };
+  if (!g.email) return { ok: false, erreur: "Aucun agenda Outlook associé à votre session." };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
+    return { ok: false, erreur: "Copropriété hors de votre périmètre." };
+  try {
+    return await resynchroniserOutlook(coproCode, type, g.id, g.email);
   } catch (e) {
     return echecDepuis(e, "fiche-copro");
   }

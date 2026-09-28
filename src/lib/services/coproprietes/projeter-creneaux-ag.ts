@@ -46,69 +46,86 @@ export async function projeterCreneauxAg(
   boite?: string,
 ): Promise<void> {
   try {
-    // Le repo AVANT tout appel Graph : s'il est indisponible, on n'a pas encore cree
-    // d'evenement qu'on ne saurait pas memoriser.
-    const repo = getProjectionsOutlookRepository();
-    const provider = getCalendrierOutboundProvider();
-    const existantes = await repo.get(coproCode);
-    const participants = await collaborateursAg(coproCode);
-
-    for (const creneau of creneauxAg(coproCode, agDebut)) {
-      const existante = existantes.find((p) => p.role === creneau.role);
-
-      if (existante?.outlookEventId && existante.outlookBoite) {
-        // Projection deja en place : on DEPLACE le MEME evenement (jamais de doublon).
-        await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
-          titre: creneau.sujet,
-          debut: creneau.debut,
-          fin: creneau.fin,
-          participants,
-        });
-        // Re-memorise a l'identique : idempotent, mais self-heal si la ligne avait ete
-        // videe entre-temps.
-        await repo.enregistrerProjection(
-          coproCode,
-          creneau.role,
-          existante.outlookEventId,
-          existante.outlookBoite,
-        );
-        continue;
-      }
-
-      // Etat incoherent : un id est connu mais SANS boite exploitable (impossible a
-      // PATCHer). Avant de recreer, on supprime l'ancien (best-effort) pour ne jamais
-      // laisser deux evenements en parallele.
-      if (existante?.outlookEventId) {
-        const boiteAncienne = existante.outlookBoite ?? boite;
-        if (boiteAncienne) {
-          await provider.supprimerEvenement(boiteAncienne, existante.outlookEventId).catch(() => {});
-        }
-      }
-
-      if (!boite) continue; // pas d'agenda cible (ex. dev-login sans email)
-
-      const { id } = await provider.creerEvenement({
-        boite,
-        sujet: creneau.sujet,
-        debut: creneau.debut,
-        fin: creneau.fin,
-        ...(participants.length > 0 ? { participants } : {}),
-      });
-      if (!id) continue; // provider no-op : rien a memoriser
-      // Memorisation en echec = evenement ORPHELIN (introuvable au prochain geste, il
-      // produirait un DOUBLON). On le supprime immediatement.
-      const memorise = await repo.enregistrerProjection(coproCode, creneau.role, id, boite);
-      if (!memorise) {
-        await provider.supprimerEvenement(boite, id).catch(() => {});
-      }
-    }
+    await projeterCreneauxAgOuLever(coproCode, agDebut, boite);
   } catch {
     // Degradation propre : la date d'AG est deja ecrite, Outlook rattrapera au prochain
-    // geste (re-pose / confirmation). Pas de PII en log.
+    // geste (re-pose / confirmation / "Resynchroniser Outlook"). Pas de PII en log.
     console.warn(
       `[creneaux-ag] projection des creneaux impossible pour ${coproCode} (date AG conservee)`,
     );
   }
+}
+
+/**
+ * Meme projection que `projeterCreneauxAg`, mais un echec REMONTE (throw) au lieu d'etre
+ * avale. Reserve au bouton "Resynchroniser Outlook", qui rend compte du resultat.
+ */
+export async function projeterCreneauxAgOuLever(
+  coproCode: string,
+  agDebut: string,
+  boite?: string,
+): Promise<void> {
+  // Le repo AVANT tout appel Graph : s'il est indisponible, on n'a pas encore cree
+  // d'evenement qu'on ne saurait pas memoriser.
+  const repo = getProjectionsOutlookRepository();
+  const provider = getCalendrierOutboundProvider();
+  const existantes = await repo.get(coproCode);
+  const participants = await collaborateursAg(coproCode);
+  // Un creneau cree mais non memorise est supprime (anti-doublon) : on poursuit avec
+  // l'autre creneau, puis on signale l'echec a la fin.
+  let nonMemorise = false;
+
+  for (const creneau of creneauxAg(coproCode, agDebut)) {
+    const existante = existantes.find((p) => p.role === creneau.role);
+
+    if (existante?.outlookEventId && existante.outlookBoite) {
+      // Projection deja en place : on DEPLACE le MEME evenement (jamais de doublon).
+      await provider.mettreAJourEvenement(existante.outlookBoite, existante.outlookEventId, {
+        titre: creneau.sujet,
+        debut: creneau.debut,
+        fin: creneau.fin,
+        participants,
+      });
+      // Re-memorise a l'identique : idempotent, mais self-heal si la ligne avait ete
+      // videe entre-temps.
+      await repo.enregistrerProjection(
+        coproCode,
+        creneau.role,
+        existante.outlookEventId,
+        existante.outlookBoite,
+      );
+      continue;
+    }
+
+    // Etat incoherent : un id est connu mais SANS boite exploitable (impossible a
+    // PATCHer). Avant de recreer, on supprime l'ancien (best-effort) pour ne jamais
+    // laisser deux evenements en parallele.
+    if (existante?.outlookEventId) {
+      const boiteAncienne = existante.outlookBoite ?? boite;
+      if (boiteAncienne) {
+        await provider.supprimerEvenement(boiteAncienne, existante.outlookEventId).catch(() => {});
+      }
+    }
+
+    if (!boite) continue; // pas d'agenda cible (ex. dev-login sans email)
+
+    const { id } = await provider.creerEvenement({
+      boite,
+      sujet: creneau.sujet,
+      debut: creneau.debut,
+      fin: creneau.fin,
+      ...(participants.length > 0 ? { participants } : {}),
+    });
+    if (!id) continue; // provider no-op : rien a memoriser
+    // Memorisation en echec = evenement ORPHELIN (introuvable au prochain geste, il
+    // produirait un DOUBLON). On le supprime immediatement.
+    const memorise = await repo.enregistrerProjection(coproCode, creneau.role, id, boite);
+    if (!memorise) {
+      await provider.supprimerEvenement(boite, id).catch(() => {});
+      nonMemorise = true;
+    }
+  }
+  if (nonMemorise) throw new Error("Creneaux AG : evenement cree mais non memorise (supprime).");
 }
 
 /**
