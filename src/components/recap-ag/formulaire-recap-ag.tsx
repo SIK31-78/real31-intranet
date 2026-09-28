@@ -23,6 +23,7 @@ import { ConfirmationFacturation } from "@/components/facturation/confirmation-f
 import { apercuRecapAgAction, creerRecapAgAction } from "@/app/recap-ag/actions";
 import { POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "@/lib/domain/recap-ag/fonds-travaux";
 import { debutContratRequis, erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
+import { heureDebutSuggeree, heureFinSuggeree } from "@/lib/domain/recap-ag/creneau-suggere";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
 import { formatJour } from "@/lib/services/facturation/format";
@@ -99,7 +100,14 @@ export function FormulaireRecapAg({
   coproInitial,
   onSucces,
 }: {
-  copros: { code: string; nom: string; agDateSuggeree?: string; contratGenere?: ContratGenere }[];
+  copros: {
+    code: string;
+    nom: string;
+    agDateSuggeree?: string;
+    /** Heure "HH:mm" de l'AG suggeree, quand elle est connue (prochaine AG planifiee). */
+    agHeureSuggeree?: string;
+    contratGenere?: ContratGenere;
+  }[];
   pennylaneMode: ModeEmissionFacture;
   /** Copro pre-selectionnee a l'ouverture (alerte des recaps en retard). Ignoree si elle
    *  n'est pas dans la liste : la selection ne sort jamais du portefeuille. */
@@ -118,9 +126,11 @@ export function FormulaireRecapAg({
   // (la prochaine AG si elle est deja passee, sinon la derniere tenue). Modifiable au besoin,
   // aucune ecriture - simple defaut.
   const [jour, setJour] = useState(depart?.agDateSuggeree ?? "");
-  // Creneau d'AG le plus frequent chez REAL31.
-  const [debut, setDebut] = useState("18:00");
-  const [fin, setFin] = useState("20:00");
+  // Heure de l'AG planifiee quand on la connait, sinon 18:00 (le creneau le plus frequent) ;
+  // la fin n'est jamais connue d'avance : debut + 2 h. Simple defaut, modifiable.
+  const debutDepart = heureDebutSuggeree(depart?.agHeureSuggeree);
+  const [debut, setDebut] = useState(debutDepart);
+  const [fin, setFin] = useState(heureFinSuggeree(debutDepart));
 
   // Defauts poses sur les cas courants : la saisie ne corrige que l'exception.
   const [comptesApprouves, setComptesApprouves] = useState<boolean | null>(true);
@@ -284,7 +294,11 @@ export function FormulaireRecapAg({
               onChange={(e) => {
                 const v = e.target.value;
                 setCoproCode(v);
-                setJour(copros.find((c) => c.code === v)?.agDateSuggeree ?? "");
+                const choisie = copros.find((c) => c.code === v);
+                setJour(choisie?.agDateSuggeree ?? "");
+                const d = heureDebutSuggeree(choisie?.agHeureSuggeree);
+                setDebut(d);
+                setFin(heureFinSuggeree(d));
                 proposerContrat(v);
               }}
             >

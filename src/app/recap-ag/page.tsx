@@ -98,15 +98,17 @@ export default async function RecapAgPage({
               .map((c) => {
                 // Date suggeree du recap = l'AG qui vient d'avoir lieu : la prochaine AG si sa
                 // date est deja passee (ou du jour), sinon la derniere AG tenue. Modifiable dans le form.
-                const suggeree =
-                  c.prochaineAg?.date && c.prochaineAg.date <= today
-                    ? c.prochaineAg.date
-                    : c.derniereAgDate;
+                const prochaineTenue = c.prochaineAg?.date && c.prochaineAg.date <= today ? c.prochaineAg : undefined;
+                const suggeree = prochaineTenue ? prochaineTenue.date : c.derniereAgDate;
+                // L'heure n'est connue que pour la prochaine AG planifiee (pas pour la derniere
+                // tenue) : sans elle, le formulaire retombe sur 18:00.
+                const heure = prochaineTenue?.heure;
                 const contratGenere = contratsGeneres.get(c.code);
                 return {
                   code: c.code,
                   nom: c.nom,
                   ...(suggeree ? { agDateSuggeree: suggeree } : {}),
+                  ...(heure ? { agHeureSuggeree: heure } : {}),
                   ...(contratGenere ? { contratGenere } : {}),
                 };
               })
