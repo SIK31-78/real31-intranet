@@ -109,6 +109,12 @@ export interface RecapAgRepository {
   existeRecap(coproCode: string, agDate: string): Promise<boolean>;
   /** Historique des recaps, les plus recents d'abord. */
   listerRecapsRecents(limite?: number): Promise<RecapAgHistorique[]>;
+  /**
+   * Les recaps d'UNE copro (bloc « Récaps d'AG » de la fiche copro), l'AG la plus
+   * recente d'abord. Une requete ciblee plutot que de filtrer listerRecapsRecents, borne
+   * aux derniers recaps du cabinet : les vieux recaps d'une copro en sortiraient.
+   */
+  listerRecapsDeCopro(coproCode: string): Promise<RecapAgHistorique[]>;
 
   // --- File comptable (le recap comme note de travail) -----------------------
 

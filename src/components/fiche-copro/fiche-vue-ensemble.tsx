@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRight, CircleCheck, AlertCircle, FileSignature, FileText, Flag, History, Route, Users } from "lucide-react";
 import type {
   AgPassee,
@@ -8,6 +9,7 @@ import type {
   MembreConseilSyndical,
   MembreEquipe,
   ProchaineAg,
+  RecapAgFiche,
   RoleEquipe,
 } from "@/lib/domain/copropriete";
 import type { CycleAg } from "@/lib/domain/cycle-ag";
@@ -126,6 +128,7 @@ export function FicheVueEnsemble({
             <SideIdentite copro={fiche.copro} />
             <SideEquipe equipe={fiche.copro.equipe} />
             <SideConseil membres={fiche.estale.conseilSyndical} indisponible={indispo} />
+            <SideRecapsAg recaps={fiche.recapsAg} />
             <SideConformite items={fiche.conformite} indisponible={indispo} />
           </div>
         </Card>
@@ -511,6 +514,30 @@ function SideEquipe({ equipe }: { equipe: MembreEquipe[] }) {
           </li>
         ))}
       </ul>
+    </SideBloc>
+  );
+}
+
+// Les recaps saisis apres chaque AG (remontee du 28/09/2026 : la fiche ne les montrait
+// pas). Le lien ouvre la note de travail en lecture ; le service y applique le perimetre.
+function SideRecapsAg({ recaps }: { recaps: RecapAgFiche[] | undefined }) {
+  return (
+    <SideBloc titre="Récaps d'AG">
+      {recaps === undefined ? (
+        <EmptyState compact>Récaps d&apos;AG momentanément illisibles</EmptyState>
+      ) : recaps.length === 0 ? (
+        <EmptyState compact>Aucun récap d&apos;AG saisi</EmptyState>
+      ) : (
+        <ul className="flex flex-col text-body">
+          {recaps.map((r) => (
+            <li key={r.id} className="min-h-7 flex items-center">
+              <Link href={`/comptabilite/recaps/${r.id}`} className="text-ink hover:text-green-700 hover:underline">
+                AG du {formatDateLongue(r.agDate)}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </SideBloc>
   );
 }

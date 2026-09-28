@@ -11,8 +11,13 @@ const etat = vi.hoisted(() => {
     // La copro "S024" est geree par g1. findByCode simule le scope de l'adapter :
     // sans managerId -> trouvee ; avec managerId -> trouvee seulement si c'est g1.
     appels: [] as { code: string; managerId?: string }[],
+    /** Recaps d'AG par code copro ; `recapsEnPanne` fait echouer la lecture. */
+    recaps: {} as Record<string, { id: string; coproCode: string; agDate: string }[]>,
+    recapsEnPanne: false,
     reset() {
       ref.appels.length = 0;
+      ref.recaps = {};
+      ref.recapsEnPanne = false;
     },
   };
   return ref;
@@ -46,6 +51,12 @@ vi.mock("@/lib/adapters/router", () => ({
   getGestionnaireRepository: () => ({
     async list() {
       return [];
+    },
+  }),
+  getRecapAgRepository: () => ({
+    async listerRecapsDeCopro(code: string) {
+      if (etat.recapsEnPanne) throw new Error("base indisponible");
+      return etat.recaps[code] ?? [];
     },
   }),
 }));
@@ -95,5 +106,31 @@ describe("getFicheCopro - scope de lecture", () => {
   it("copro inconnue : null meme en transverse (pas d'invention)", async () => {
     const fiche = await getFicheCopro("S999", "g2", TODAY, { transverse: true });
     expect(fiche).toBeNull();
+  });
+});
+
+describe("getFicheCopro - recaps d'AG", () => {
+  it("remonte les recaps de la copro (id + jour de l'AG)", async () => {
+    etat.recaps.S024 = [
+      { id: "r2", coproCode: "S024", agDate: "2026-06-12" },
+      { id: "r1", coproCode: "S024", agDate: "2025-06-10T00:00:00" },
+    ];
+    const fiche = await getFicheCopro("S024", "g1", TODAY);
+    expect(fiche?.recapsAg).toEqual([
+      { id: "r2", agDate: "2026-06-12" },
+      { id: "r1", agDate: "2025-06-10" },
+    ]);
+  });
+
+  it("aucun recap : tableau vide (et non absent)", async () => {
+    const fiche = await getFicheCopro("S024", "g1", TODAY);
+    expect(fiche?.recapsAg).toEqual([]);
+  });
+
+  it("lecture des recaps en panne : la fiche s'ouvre, recapsAg absent", async () => {
+    etat.recapsEnPanne = true;
+    const fiche = await getFicheCopro("S024", "g1", TODAY);
+    expect(fiche?.copro.code).toBe("S024");
+    expect(fiche?.recapsAg).toBeUndefined();
   });
 });

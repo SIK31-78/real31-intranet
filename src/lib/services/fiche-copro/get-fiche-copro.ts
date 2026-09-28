@@ -8,6 +8,7 @@ import type {
   FicheCopro,
   ItemConformite,
   MembreEquipe,
+  RecapAgFiche,
 } from "@/lib/domain/copropriete";
 import { prochainsEvenements } from "@/lib/domain/calendrier";
 import { statutPourDate } from "@/lib/domain/confirmation-evenement";
@@ -15,7 +16,7 @@ import { itemConformitePpt } from "@/lib/domain/conformite-ppt";
 import { calculerCycleAg } from "@/lib/domain/cycle-ag";
 import type { StatutAg } from "@/lib/domain/supervision-ag";
 import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
-import { getCoproRepository, getJalonRepository, getGestionnaireRepository } from "@/lib/adapters/router";
+import { getCoproRepository, getJalonRepository, getGestionnaireRepository, getRecapAgRepository } from "@/lib/adapters/router";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
@@ -63,6 +64,17 @@ async function chargerStatutSupervision(
   return sup?.statut;
 }
 
+/** Les recaps d'AG de la copro ; undefined si la lecture echoue (la fiche ne tombe pas). */
+async function chargerRecapsAg(coproCode: string): Promise<RecapAgFiche[] | undefined> {
+  try {
+    const recaps = await getRecapAgRepository().listerRecapsDeCopro(coproCode);
+    return recaps.map((r) => ({ id: r.id, agDate: r.agDate.slice(0, 10) }));
+  } catch (err) {
+    console.warn(`[fiche-copro] recaps AG de ${coproCode} illisibles :`, (err as Error).message);
+    return undefined;
+  }
+}
+
 export async function getFicheCopro(
   code: string,
   gestionnaireId: string,
@@ -87,7 +99,7 @@ export async function getFicheCopro(
   // et chargerStatutSupervision ne rejettent pas de facon a casser la fiche : chargerEstale
   // degrade, chargerStatutSupervision ne s'execute que sur un cas etroit.
   const scopeSupervision = options?.transverse ? undefined : gestionnaireId;
-  const [{ estale, estaleIndisponible }, jalons, compta, confirmations, statutSupervision, agenceCode] =
+  const [{ estale, estaleIndisponible }, jalons, compta, confirmations, statutSupervision, agenceCode, recapsAg] =
     await Promise.all([
       chargerEstale(code),
       copro.prochaineAg ? getJalonRepository().getJalons(copro.code, copro.prochaineAg.date) : Promise.resolve([]),
@@ -97,6 +109,7 @@ export async function getFicheCopro(
       // Code d'agence (ML/LGC/HLS/ASN) resolu depuis l'id technique ; undefined si pas
       // d'agence / table indisponible -> l'editeur ne filtre pas (montre toutes les salles).
       codeAgence(copro.agenceId),
+      chargerRecapsAg(copro.code),
     ]);
 
   // Confirmations AG/CS par le conseil syndical : lues UNE fois (avant : getEvenements les
@@ -267,5 +280,6 @@ export async function getFicheCopro(
     ...(collaborateursAg.length > 0 ? { collaborateursAg } : {}),
     ...(collaborateursCs.length > 0 ? { collaborateursCs } : {}),
     ...(agenceCode ? { agenceCode } : {}),
+    ...(recapsAg ? { recapsAg } : {}),
   };
 }

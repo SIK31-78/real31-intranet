@@ -31,6 +31,21 @@ function colonneAbsente(error: { code?: string; message?: string }): boolean {
   );
 }
 
+function versHistorique(r: LigneFile): RecapAgHistorique {
+  return {
+    id: r.id,
+    coproCode: r.copropriete_id,
+    agDate: r.ag_date,
+    statut: r.statut as StatutRecapAg,
+    depassementHeures: Number(r.depassement_heures ?? 0),
+    depassementTtc: Number(r.depassement_ttc ?? 0),
+    nbTravaux: (r.intranet_recap_ag_travaux ?? []).length,
+    ...(r.facture_id ? { factureId: r.facture_id } : {}),
+    ...(r.cree_par ? { par: r.cree_par } : {}),
+    creeLe: r.created_at,
+  };
+}
+
 export class SupabaseRecapAgRepository implements RecapAgRepository {
   async existeRecap(coproCode: string, agDate: string): Promise<boolean> {
     const supabase = createSupabasePublicClient();
@@ -127,18 +142,17 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
       .limit(limite);
     if (error) throw new Error(`Lecture historique recap AG : ${error.message}`);
 
-    return ((data as unknown as LigneFile[] | null) ?? []).map((r) => ({
-      id: r.id,
-      coproCode: r.copropriete_id,
-      agDate: r.ag_date,
-      statut: r.statut as StatutRecapAg,
-      depassementHeures: Number(r.depassement_heures ?? 0),
-      depassementTtc: Number(r.depassement_ttc ?? 0),
-      nbTravaux: (r.intranet_recap_ag_travaux ?? []).length,
-      ...(r.facture_id ? { factureId: r.facture_id } : {}),
-      ...(r.cree_par ? { par: r.cree_par } : {}),
-      creeLe: r.created_at,
-    }));
+    return ((data as unknown as LigneFile[] | null) ?? []).map(versHistorique);
+  }
+
+  async listerRecapsDeCopro(coproCode: string): Promise<RecapAgHistorique[]> {
+    const { data, error } = await createSupabasePublicClient()
+      .from("intranet_recap_ag")
+      .select(COLS_FILE)
+      .eq("copropriete_id", coproCode)
+      .order("ag_date", { ascending: false });
+    if (error) throw new Error(`Lecture des recaps AG de ${coproCode} : ${error.message}`);
+    return ((data as unknown as LigneFile[] | null) ?? []).map(versHistorique);
   }
 
   // --- File comptable (le recap comme note de travail) -----------------------

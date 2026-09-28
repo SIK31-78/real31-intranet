@@ -327,6 +327,17 @@ export interface FicheCopro {
    *  les salles proposees). Absent si la copro n'a pas d'agence / la table est indisponible
    *  -> pas de filtre (on montre tout). */
   agenceCode?: string;
+  /** Recaps d'AG saisis pour la copro, l'AG la plus recente d'abord (lien vers
+   *  /comptabilite/recaps/<id>). Tableau vide = aucun recap ; ABSENT = lecture impossible
+   *  (la fiche ne tombe pas pour autant). */
+  recapsAg?: RecapAgFiche[];
+}
+
+/** Un recap d'AG tel que la fiche copro le liste. */
+export interface RecapAgFiche {
+  id: string;
+  /** Jour de l'AG, ISO "YYYY-MM-DD". */
+  agDate: string;
 }
 
 /** Libelle UI de la source (ADR-003 : 'crypto' s'affiche "Crypto"). */

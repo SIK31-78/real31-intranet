@@ -50,6 +50,12 @@ export class MockRecapAgRepository implements RecapAgRepository {
     return [...RECAPS].reverse().slice(0, limite).map(ligne);
   }
 
+  async listerRecapsDeCopro(coproCode: string): Promise<RecapAgHistorique[]> {
+    return RECAPS.filter((r) => r.coproCode === coproCode)
+      .sort((a, b) => b.agDate.localeCompare(a.agDate))
+      .map(ligne);
+  }
+
   async getRecapAg(recapId: string): Promise<RecapAgDetail | null> {
     const r = RECAPS.find((x) => x.id === recapId);
     if (!r) return null;
