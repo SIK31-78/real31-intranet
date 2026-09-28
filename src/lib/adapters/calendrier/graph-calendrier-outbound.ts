@@ -105,7 +105,10 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
 
     const allDay = p.journeeEntiere === true || estJourSeul(p.debut);
 
-    const body: Record<string, unknown> = { subject: p.sujet };
+    // responseRequested: false -> les invites (collegues, salles) ne sont pas sollicites
+    // pour une reponse : sinon l'organisateur recoit un accuse par rendez-vous pose
+    // (remontee collaborateurs). L'invitation part toujours, l'agenda est rempli.
+    const body: Record<string, unknown> = { subject: p.sujet, responseRequested: false };
 
     if (allDay) {
       // Journee entiere : Graph exige start a minuit et end au jour suivant.
@@ -194,6 +197,10 @@ export class GraphCalendrierOutboundProvider implements CalendrierOutboundProvid
       }
     }
     if (Object.keys(body).length === 0) return; // rien a changer
+    // Meme regle qu'a la creation : aucune reponse demandee aux invites. Pose a chaque
+    // PATCH pour que les evenements crees avant le correctif soient rattrapes a leur
+    // prochaine mise a jour.
+    body.responseRequested = false;
 
     const tk = await jetonGraph();
     const r = await graphFetch(
