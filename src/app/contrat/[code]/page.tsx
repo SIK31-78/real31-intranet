@@ -13,7 +13,9 @@ import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { FormulaireContrat } from "@/components/contrat/formulaire-contrat";
 import { Callout } from "@/components/ui/callout";
 import { Badge } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
+import { ButtonAnchor, ButtonLink } from "@/components/ui/button";
+import { FolderOpen } from "lucide-react";
+import { coproEnLecture } from "@/lib/services/coproprietes/perimetre-lecture";
 
 export const metadata: Metadata = { title: "Contrat de syndic - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -22,10 +24,36 @@ export const dynamic = "force-dynamic";
 // Reprend le `NewContractScreen` du canvas PowerApps MYTHEC, en beaucoup plus court :
 // les 22 tarifs ne sont plus saisis un par un, ils viennent du bareme de l'annee.
 
+/** Le lien SharePoint de la copro, s'il est lisible et en https (jamais un javascript:). */
+async function dossierAgSharepoint(code: string): Promise<string | undefined> {
+  try {
+    const url = (await coproEnLecture(code))?.sharepointUrl?.trim();
+    return url && /^https:\/\//i.test(url) ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Le PDF ne se range plus seul dans le dossier d'AG SharePoint comme le faisait PowerApps
+// (<dossier copro>/<annee de l'AG>/) : le depot automatique attend une permission DSI. En
+// attendant, on ouvre le dossier pour que le gestionnaire y depose le PDF a la main.
+function DossierAg({ url }: { url: string | undefined }) {
+  if (!url) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <ButtonAnchor href={url} target="_blank" rel="noopener noreferrer" variant="secondary">
+        <FolderOpen strokeWidth={1.5} /> Ouvrir le dossier d&apos;AG
+      </ButtonAnchor>
+      <span className="text-meta text-ink-3">Déposez-y le PDF dans le sous-dossier de l&apos;année.</span>
+    </div>
+  );
+}
+
 export default async function ContratPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
+  const dossierAg = dossierAgSharepoint(code);
 
   let champs;
   try {
@@ -60,6 +88,7 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
                   />
                 </CardBody>
               </Card>
+              <DossierAg url={await dossierAg} />
             </>
           ) : (
             <Callout ton="err" titre="Contrat impossible à éditer">
@@ -78,7 +107,7 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
 
   // L'historique est un CONFORT : s'il est vide (table pas encore creee), l'ecran
   // fonctionne comme avant.
-  const editions = await getEditionsContrat(code);
+  const [editions, urlDossierAg] = await Promise.all([getEditionsContrat(code), dossierAg]);
   const { copro } = champs;
   // ASL / AFUL : le contrat de mandat du gestionnaire, sans forfait postal.
   const mandat = estAslOuAful(copro.formeJuridique);
@@ -110,6 +139,7 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
             />
           </CardBody>
         </Card>
+        <DossierAg url={urlDossierAg} />
 
         <Card>
           <CardBody>
