@@ -23,7 +23,7 @@ import { ConfirmationFacturation } from "@/components/facturation/confirmation-f
 import { apercuRecapAgAction, creerRecapAgAction, listerClesRepartitionAction } from "@/app/recap-ag/actions";
 import type { CleRepartition } from "@/lib/domain/assemblee";
 import { POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "@/lib/domain/recap-ag/fonds-travaux";
-import { debutContratRequis, erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
+import { contratEnSaisie, debutContratRequis, erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
 import { heureDebutSuggeree, heureFinSuggeree } from "@/lib/domain/recap-ag/creneau-suggere";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
@@ -180,9 +180,18 @@ export function FormulaireRecapAg({
   // Le montant n'a de sens que dans le second cas.
   const [fraisPostauxReels, setFraisPostauxReels] = useState<boolean | null>(genereDepart?.fraisPostauxReels ?? false);
   const contratGenere = copros.find((c) => c.code === coproCode)?.contratGenere;
-  const nHonoraires = Number(honoraires);
-  const debutRequis =
-    honoraires.trim() !== "" && Number.isFinite(nHonoraires) && debutContratRequis({ honorairesGestionTtc: nHonoraires });
+  // Saisie du bloc « Nouveau contrat » telle que la verifie le domaine (le forfait ne
+  // compte que si les frais postaux sont au forfait).
+  function saisieContrat() {
+    const h = nombreOuUndefined(honoraires);
+    const f = fraisPostauxReels === false ? nombreOuUndefined(forfaitPostaux) : undefined;
+    return {
+      ...(debutContrat ? { debutContrat } : {}),
+      ...(h !== undefined ? { honorairesGestionTtc: h } : {}),
+      ...(f !== undefined ? { forfaitPostauxTtc: f } : {}),
+    };
+  }
+  const debutRequis = debutContratRequis(saisieContrat());
 
   function proposerContrat(code: string) {
     const g = copros.find((c) => c.code === code)?.contratGenere;
@@ -259,12 +268,11 @@ export function FormulaireRecapAg({
     if (!jour) return toast.err("Renseigne la date de l'assemblée.");
     if (budgetModifie === true && nombreOuUndefined(montantBudget) === undefined)
       return toast.err("Le budget a été modifié en AG : renseigne le nouveau montant.");
-    if (fraisPostauxReels === false && nombreOuUndefined(forfaitPostaux) === undefined)
+    // Le montant du forfait n'est exige que si un nouveau contrat est saisi : « Forfait »
+    // est coche par defaut, et un recap sans nouveau contrat etait bloque pour rien.
+    if (contratEnSaisie(saisieContrat()) && fraisPostauxReels === false && nombreOuUndefined(forfaitPostaux) === undefined)
       return toast.err("Frais postaux au forfait : renseigne le montant du forfait.");
-    const erreurContrat = erreurContratVote({
-      ...(debutContrat ? { debutContrat } : {}),
-      ...(nombreOuUndefined(honoraires) !== undefined ? { honorairesGestionTtc: nombreOuUndefined(honoraires) } : {}),
-    });
+    const erreurContrat = erreurContratVote(saisieContrat());
     if (erreurContrat) return toast.err(erreurContrat);
     demarrer(async () => {
       const res = await apercuRecapAgAction(construireDemande());
@@ -483,7 +491,7 @@ export function FormulaireRecapAg({
             label="Début du contrat"
             htmlFor="dcontrat"
             requis={debutRequis}
-            {...(debutRequis && !debutContrat ? { erreur: "Requis dès que des honoraires sont saisis." } : {})}
+            {...(debutRequis && !debutContrat ? { erreur: "Requis dès que des honoraires ou un forfait sont saisis." } : {})}
           >
             <Input id="dcontrat" type="date" value={debutContrat} required={debutRequis} onChange={(e) => setDebutContrat(e.target.value)} />
           </Field>
