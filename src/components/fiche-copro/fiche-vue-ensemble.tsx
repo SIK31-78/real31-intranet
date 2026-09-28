@@ -11,7 +11,7 @@ import type {
   RoleEquipe,
 } from "@/lib/domain/copropriete";
 import type { CycleAg } from "@/lib/domain/cycle-ag";
-import { estAslOuAful, type FormeJuridique } from "@/lib/domain/copropriete";
+import { estAslOuAful, regrouperEquipeParPersonne, type FormeJuridique } from "@/lib/domain/copropriete";
 import type { ModeReunion, StatutConfirmation } from "@/lib/domain/confirmation-evenement";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -501,13 +501,13 @@ function SideEquipe({ equipe }: { equipe: MembreEquipe[] }) {
   return (
     <SideBloc titre="Équipe">
       <ul className="flex flex-col">
-        {equipe.map((m, i) => (
+        {regrouperEquipeParPersonne(equipe).map((m, i) => (
           <li key={`${m.initiales}-${i}`} className="flex items-center gap-2 min-h-8 text-body">
             <span className="w-6 h-6 rounded-full bg-surface-2 text-ink-2 text-meta font-medium flex items-center justify-center shrink-0">
               {m.initiales}
             </span>
             <span className="font-medium text-ink truncate">{m.nomComplet}</span>
-            <span className="text-ink-2 ml-auto shrink-0">{ROLE_LABEL[m.role]}</span>
+            <span className="text-ink-2 ml-auto shrink-0">{m.roles.map((r) => ROLE_LABEL[r]).join(", ")}</span>
           </li>
         ))}
       </ul>

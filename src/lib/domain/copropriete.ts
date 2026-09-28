@@ -56,6 +56,32 @@ export interface MembreEquipe {
   role: RoleEquipe;
 }
 
+/** Une personne de l'equipe avec tous les roles qu'elle tient sur la copro. */
+export interface PersonneEquipe {
+  initiales: string;
+  nomComplet: string;
+  roles: RoleEquipe[];
+}
+
+/**
+ * Regroupe l'equipe par personne pour l'AFFICHAGE : une gestionnaire aussi assistante
+ * apparait une fois, « Gestionnaire, Assistant·e », au lieu de deux lignes identiques.
+ * L'equipe elle-meme reste une entree par role (les lecteurs cherchent
+ * `equipe.find((m) => m.role === "assistant")`). Cle = nom sans casse ni accents ;
+ * ordre de premiere apparition conserve, roles sans doublon.
+ */
+export function regrouperEquipeParPersonne(equipe: MembreEquipe[]): PersonneEquipe[] {
+  const cle = (nom: string) => nom.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const parCle = new Map<string, PersonneEquipe>();
+  for (const m of equipe) {
+    const k = cle(m.nomComplet);
+    const deja = parCle.get(k);
+    if (!deja) parCle.set(k, { initiales: m.initiales, nomComplet: m.nomComplet, roles: [m.role] });
+    else if (!deja.roles.includes(m.role)) deja.roles.push(m.role);
+  }
+  return [...parCle.values()];
+}
+
 export type StatutProchaineAg = "planifiee" | "en_preparation" | "convoquee";
 
 /** Prochaine AG : date + etat + lien vers la supervision (fiche prepa). */
