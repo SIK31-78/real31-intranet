@@ -177,6 +177,40 @@ export function grilleAlignee(a: ArbreContrat): { rangees: number; gauche: BlocP
   return { rangees, gauche, droite };
 }
 
+/** Une rangee du vis-a-vis : ce que la colonne de gauche et celle de droite portent en face. */
+export interface RangeeVisAVis {
+  gauche: NoeudContrat[];
+  droite: NoeudContrat[];
+}
+
+/**
+ * Le vis-a-vis REGROUPE : on coupe la grille a chaque hauteur ou aucun bloc, ni a gauche ni a
+ * droite, n'est a cheval. Chaque groupe devient une rangee de tableau HTML, ou les deux
+ * colonnes restent en face sans qu'aucune cellule n'ait besoin de rowspan.
+ *
+ * Pourquoi un tableau et plus une grille CSS (29/09/2026) : Chromium ne sait pas couper une
+ * grille entre deux pages. Une bande de rangees a cheval sur une fin de page gardait la
+ * hauteur calculee pour la page entiere, et son contenu s'imprimait PAR-DESSUS celui de la
+ * bande suivante (annexe 1 et fiche d'information superposees, page 9). Un tableau, lui, se
+ * fragmente correctement depuis toujours.
+ */
+export function rangeesVisAVis(a: ArbreContrat): RangeeVisAVis[] {
+  const g = grilleAlignee(a);
+  // Les hauteurs ou l'on peut couper : aucune des deux colonnes n'y a de bloc a cheval.
+  const aCheval = (r: number) => [...g.gauche, ...g.droite].some((p) => p.rangee < r && p.rangee + p.etendue > r);
+  const coupures: number[] = [];
+  for (let r = 2; r <= g.rangees + 1; r++) if (!aCheval(r)) coupures.push(r);
+  const rangees: RangeeVisAVis[] = [];
+  let debut = 1;
+  for (const fin of coupures) {
+    const dans = (blocs: typeof g.gauche) => blocs.filter((p) => p.rangee >= debut && p.rangee < fin).map((p) => p.noeud);
+    const rangee = { gauche: dans(g.gauche), droite: dans(g.droite) };
+    if (rangee.gauche.length || rangee.droite.length) rangees.push(rangee);
+    debut = fin;
+  }
+  return rangees;
+}
+
 export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   const table = tableRemplacement(champs);
   // ASL / AFUL : le contrat de mandat du gestionnaire, une colonne, sans les corrections

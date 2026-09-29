@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { assemblerChampsContrat, PRESTATIONS_CONTRAT, PRESTATIONS_MANDAT, type CoproContrat, type PrestationContrat } from "./champs-contrat";
 import { htmlContrat } from "./html-contrat";
-import { arbreContrat, estMontant, estTitre, grilleAlignee, type NoeudContrat } from "./rendu-contrat";
+import { arbreContrat, estMontant, estTitre, grilleAlignee, rangeesVisAVis, type NoeudContrat } from "./rendu-contrat";
 import { PLACEHOLDERS_MANDAT } from "./gabarit-mandat";
 import { placeholdersNonResolus, tableRemplacement } from "./remplir-gabarit";
 
@@ -220,5 +220,39 @@ describe("contrat de mandat (ASL / AFUL)", () => {
     const b = arbreContrat(champs());
     expect(b.droite.length).toBeGreaterThan(10);
     expect(b.titre).toContain("CONTRAT DE SYNDIC");
+  });
+});
+
+describe("rangeesVisAVis", () => {
+  it("ne perd aucun bloc et garde l'ordre de chaque colonne", () => {
+    const a = arbreContrat(champs());
+    const rangees = rangeesVisAVis(a);
+    expect(rangees.flatMap((r) => r.gauche)).toEqual(a.gauche);
+    expect(rangees.flatMap((r) => r.droite)).toEqual(a.droite);
+  });
+
+  it("coupe partout ou aucun bloc n'est a cheval : plus de rangee fourre-tout", () => {
+    const a = arbreContrat(champs());
+    // Une seule rangee voudrait dire que tout le contrat tient dans une cellule de tableau,
+    // qui ne se couperait plus entre deux pages : c'est le bug qu'on corrige.
+    expect(rangeesVisAVis(a).length).toBeGreaterThan(10);
+  });
+
+  it("garde dans la meme rangee les blocs qui commencent a la meme ligne du classeur", () => {
+    const a = arbreContrat(champs());
+    const rangees = rangeesVisAVis(a);
+    const rangeeDu = (n: NoeudContrat) => rangees.findIndex((r) => r.gauche.includes(n) || r.droite.includes(n));
+    // C'est tout l'interet du vis-a-vis : la prestation a gauche et son tarif a droite,
+    // ecrits sur la meme ligne Excel, ne doivent jamais se retrouver a deux hauteurs.
+    let verifiees = 0;
+    for (const gauche of a.gauche) {
+      if (gauche.de === undefined) continue;
+      for (const droite of a.droite) {
+        if (droite.de !== gauche.de) continue;
+        expect(rangeeDu(gauche)).toBe(rangeeDu(droite));
+        verifiees++;
+      }
+    }
+    expect(verifiees).toBeGreaterThan(0);
   });
 });

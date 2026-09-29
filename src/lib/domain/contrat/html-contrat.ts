@@ -3,7 +3,7 @@
 // Toute valeur passe par `e()` : rien de ce qui vient d'une fiche ne devient du HTML.
 
 import type { ChampsContrat } from "./champs-contrat";
-import { arbreContrat, grilleAlignee, type ArbreContrat, type BlocPlace, type NoeudContrat } from "./rendu-contrat";
+import { arbreContrat, rangeesVisAVis, type ArbreContrat, type NoeudContrat } from "./rendu-contrat";
 
 const CSS = `
   @page { size: A4; margin: 14mm 12mm; }
@@ -15,12 +15,17 @@ const CSS = `
   header p { font-size: 7.4pt; color: #4C5347; text-align: justify; margin: 0 0 2px; white-space: pre-line; }
   .colonnes { display: flex; gap: 18px; align-items: flex-start; }
   .colonne { flex: 1 1 0; min-width: 0; }
-  /* Les deux colonnes EN VIS-A-VIS (grille, une rangee par debut de bloc du classeur) : un
-     bloc de gauche commence en face de celui de droite qui commence a la meme ligne Excel. */
-  .grille { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 18px; align-items: start; }
-  .grille > .bloc { min-width: 0; break-inside: avoid; }
-  .grille > .bloc.long { break-inside: auto; }
-  .grille > .bloc > h2:first-child { margin-top: 0; }
+  /* Les deux colonnes EN VIS-A-VIS : un TABLEAU de mise en page, une rangee par groupe de
+     blocs du classeur (cf. rangeesVisAVis). Une grille CSS ne se coupe pas entre deux pages
+     dans Chromium — le contenu d'une bande a cheval s'imprimait par-dessus la suivante
+     (annexe 1 sur la fiche d'information, 29/09/2026). Un tableau, lui, se fragmente. */
+  table.grille { width: 100%; border: 0; border-collapse: separate; border-spacing: 0; table-layout: fixed; margin: 0; font-size: inherit; }
+  table.grille > tbody > tr { break-inside: auto; }
+  table.grille > tbody > tr > td { border: 0; padding: 0; width: 50%; vertical-align: top; white-space: normal; }
+  table.grille > tbody > tr > td.gauche { padding-right: 9px; }
+  table.grille > tbody > tr > td.droite { padding-left: 9px; }
+  .bloc { min-width: 0; }
+  .bloc > h2:first-child { margin-top: 0; }
   /* Un pixel de marge a droite : un bord de tableau ne doit jamais toucher la limite de page. */
   .colonne:last-child { padding-right: 2px; }
   /* Une seule colonne (contrat de mandat) : texte un peu plus grand, tableaux moins serres. */
@@ -75,16 +80,13 @@ function noeud(n: NoeudContrat): string {
   return `<table${classe}>${colgroup}${thead}<tbody>${corps.map(ligne).join("")}</tbody></table>`;
 }
 
-/** Le corps : la grille en vis-a-vis quand il y a deux colonnes, un flux sinon (mandat). */
+/** Le corps : le vis-a-vis en tableau quand il y a deux colonnes, un flux sinon (mandat). */
 function corps(a: ArbreContrat): string {
   if (a.droite.length === 0) return `<div class="colonnes seule"><div class="colonne">${a.gauche.map(noeud).join("")}</div></div>`;
-  const g = grilleAlignee(a);
-  const bloc = (p: BlocPlace, col: 1 | 2) => {
-    // Un tableau qui court sur plusieurs rangees d'en face peut se couper entre deux pages.
-    const long = p.noeud.type === "tableau" && p.etendue > 1;
-    return `<div class="bloc${long ? " long" : ""}" style="grid-column:${col};grid-row:${p.rangee} / span ${p.etendue}">${noeud(p.noeud)}</div>`;
-  };
-  return `<div class="grille">${g.gauche.map((p) => bloc(p, 1)).join("")}${g.droite.map((p) => bloc(p, 2)).join("")}</div>`;
+  const cellule = (noeuds: NoeudContrat[], cote: "gauche" | "droite") =>
+    `<td class="${cote}">${noeuds.map((n) => `<div class="bloc">${noeud(n)}</div>`).join("")}</td>`;
+  const rangee = (r: { gauche: NoeudContrat[]; droite: NoeudContrat[] }) => `<tr>${cellule(r.gauche, "gauche")}${cellule(r.droite, "droite")}</tr>`;
+  return `<table class="grille"><tbody>${rangeesVisAVis(a).map(rangee).join("")}</tbody></table>`;
 }
 
 /** Le document complet. `logoDataUri` : le bandeau d'en-tete en data: URI (le PDF n'a pas
