@@ -5,6 +5,11 @@
 //   node scripts/feedback-triage.mjs liste [--tous]        # actives (ou tout)
 //   node scripts/feedback-triage.mjs voir <id>             # detail complet d'une remontee
 //   node scripts/feedback-triage.mjs maj <id> champ=valeur [champ=valeur...]
+//   node scripts/feedback-triage.mjs creer type=bug titre="..." description="..." [champ=...]
+//
+// `creer` sert aux remontees qui n'arrivent PAS par le bouton « Un bug / une idee » :
+// un mail, un appel, un post-it. La description reste la parole de celui qui signale,
+// recopiee telle quelle ; l'auteur se donne par ses initiales, jamais par son email.
 //
 // Champs acceptes par `maj` :
 //   statut=nouveau|prevu|en_cours|livre|ecarte   (livre pose livre_at ; ecarte EXIGE raison=...)
@@ -63,6 +68,38 @@ if (commande === "liste") {
   // L'email de l'auteur ne sort pas (PII) : les initiales suffisent au triage.
   const { auteur_email: _email, ...reste } = data;
   console.log(JSON.stringify(reste, null, 2));
+} else if (commande === "creer") {
+  const champs = { type: "bug", statut: "nouveau" };
+  for (const arg of args) {
+    const i = arg.indexOf("=");
+    if (i < 1) fatal(`argument illisible : ${arg}`);
+    const cle = arg.slice(0, i);
+    const val = arg.slice(i + 1);
+    if (cle === "type") {
+      if (!["bug", "idee"].includes(val)) fatal(`type inconnu : ${val} (bug | idee)`);
+      champs.type = val;
+    } else if (cle === "titre") champs.titre = val;
+    else if (cle === "description") champs.description = val;
+    else if (cle === "page") champs.page = val;
+    else if (cle === "auteur") champs.auteur_initiales = val;
+    else if (cle === "severite") {
+      if (!SEVERITES.includes(val)) fatal(`severite inconnue : ${val}`);
+      champs.severite = val;
+    } else if (cle === "statut") {
+      if (!STATUTS.includes(val)) fatal(`statut inconnu : ${val}`);
+      champs.statut = val;
+      if (val === "livre") champs.livre_at = new Date().toISOString();
+    } else if (cle === "priorite") champs.priorite = val === "" ? null : Number(val);
+    else if (cle === "resume") champs.resume_public = val || null;
+    else if (cle === "note") champs.note_interne = val;
+    else fatal(`champ inconnu : ${cle}`);
+  }
+  if (!champs.titre) fatal("titre= manquant");
+  if (!champs.description) fatal("description= manquante (la parole de celui qui signale)");
+  if (champs.auteur_initiales && champs.auteur_initiales.includes("@")) fatal("auteur= prend des INITIALES, pas un email");
+  const { data, error } = await sb.from(TABLE).insert(champs).select("id, titre, statut").maybeSingle();
+  if (error) fatal(error.message);
+  console.log(`CREEE : ${data.id} -> ${data.statut} | ${data.titre.slice(0, 80)}`);
 } else if (commande === "maj") {
   const id = args[0] ?? fatal("id manquant");
   const patch = { updated_at: new Date().toISOString() };
@@ -92,5 +129,5 @@ if (commande === "liste") {
   if (!data) fatal("introuvable");
   console.log(`OK : ${data.id} -> ${data.statut} | ${data.titre.slice(0, 80)}`);
 } else {
-  fatal("commande inconnue (liste | voir | maj)");
+  fatal("commande inconnue (liste | voir | creer | maj)");
 }
