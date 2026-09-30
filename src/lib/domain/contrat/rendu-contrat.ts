@@ -211,6 +211,81 @@ export function rangeesVisAVis(a: ArbreContrat): RangeeVisAVis[] {
   return rangees;
 }
 
+/**
+ * Les phrases que le CLASSEUR coupe entre la colonne de gauche et celle de droite.
+ *
+ * Le classeur MYTHEC est une mise en page, pas un texte : quand un paragraphe ne tenait plus
+ * au bas de la colonne de gauche, la fin a ete recopiee a la main en haut de la colonne de
+ * droite. Les deux morceaux ne portent donc AUCUN lien, et les colonnes ne sont
+ * qu'approximativement synchronisees d'une ligne a l'autre. Resultat mesure sur la S111
+ * (30/09/2026) : « ...dans les conditions precisees a » finissait page 3, et sa suite
+ * « l'article 18 de la loi... » etait imprimee page 2 — la fin AVANT le debut. Le president
+ * d'un conseil syndical a refuse de signer, faute de pouvoir lire l'article en entier.
+ *
+ * On recolle donc chaque phrase avant de dessiner : le premier paragraphe du bloc de droite
+ * rejoint le bloc de gauche, le reste du bloc de droite ne bouge pas.
+ *
+ * Les reperes sont des TEXTES, pas des indices : si le cabinet met a jour son classeur et
+ * que la coupure se deplace, le test echoue au lieu de recoller au mauvais endroit.
+ */
+const RECOLLEMENTS: readonly { readonly finGauche: string; readonly debutDroite: string }[] = [
+  {
+    finGauche: "le conseil syndical peut prendre connaissance et copie, a sa demande,",
+    debutDroite: "apres en avoir donne avis au syndic,",
+  },
+  {
+    finGauche: "et dans les conditions precisees a",
+    debutDroite: "l'article 18 de la loi du 10 juillet 1965, decide de confier les archives",
+  },
+];
+
+/** Apostrophes et accents neutralises : le classeur melange ' et ’ d'un bloc a l'autre. */
+function repere(t: string): string {
+  return t
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[’‘`]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Le premier paragraphe d'un bloc, et ce qui reste derriere. */
+function detacherPremierParagraphe(texte: string): { premier: string; reste: string } {
+  const coupure = texte.search(/\n[ \t]*\n/);
+  if (coupure === -1) return { premier: texte.trim(), reste: "" };
+  return { premier: texte.slice(0, coupure).trim(), reste: texte.slice(coupure).replace(/^\s+/, "") };
+}
+
+/**
+ * Recolle les phrases coupees entre les deux colonnes. Rend les deux colonnes corrigees et
+ * la liste des recollements NON appliques : un recollement qui ne trouve plus ses deux
+ * reperes est une alerte, pas un detail — le gabarit a bouge sous nos pieds.
+ */
+export function recollerPhrasesCoupees(
+  gauche: NoeudContrat[],
+  droite: NoeudContrat[],
+): { gauche: NoeudContrat[]; droite: NoeudContrat[]; manques: string[] } {
+  const g = [...gauche];
+  const d = [...droite];
+  const manques: string[] = [];
+  for (const { finGauche, debutDroite } of RECOLLEMENTS) {
+    const ig = g.findIndex((n) => n.type === "paragraphe" && repere(n.texte).endsWith(repere(finGauche)));
+    const id = d.findIndex((n) => n.type === "paragraphe" && repere(n.texte).startsWith(repere(debutDroite)));
+    if (ig === -1 || id === -1) {
+      manques.push(finGauche);
+      continue;
+    }
+    const cible = g[ig] as Extract<NoeudContrat, { type: "paragraphe" }>;
+    const source = d[id] as Extract<NoeudContrat, { type: "paragraphe" }>;
+    const { premier, reste } = detacherPremierParagraphe(source.texte);
+    g[ig] = { ...cible, texte: `${cible.texte.trimEnd()} ${premier}` };
+    // Le bloc de droite vide disparait ; sinon il garde sa place et sa position classeur.
+    if (reste) d[id] = { ...source, texte: reste };
+    else d.splice(id, 1);
+  }
+  return { gauche: g, droite: d, manques };
+}
+
 export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   const table = tableRemplacement(champs);
   // ASL / AFUL : le contrat de mandat du gestionnaire, une colonne, sans les corrections
@@ -225,5 +300,6 @@ export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   if (champs.conditionsParticulieres) {
     droite.push({ type: "titre", texte: "CONDITIONS PARTICULIÈRES" }, { type: "paragraphe", texte: champs.conditionsParticulieres });
   }
-  return { titre: titre ?? "", enTete, gauche: colonne(GABARIT_GAUCHE, table, options, CASES_PAR_COLONNE, LIGNES_GAUCHE), droite };
+  const recolle = recollerPhrasesCoupees(colonne(GABARIT_GAUCHE, table, options, CASES_PAR_COLONNE, LIGNES_GAUCHE), droite);
+  return { titre: titre ?? "", enTete, gauche: recolle.gauche, droite: recolle.droite };
 }

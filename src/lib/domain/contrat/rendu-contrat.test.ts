@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { assemblerChampsContrat, PRESTATIONS_CONTRAT, PRESTATIONS_MANDAT, type CoproContrat, type PrestationContrat } from "./champs-contrat";
 import { htmlContrat } from "./html-contrat";
-import { arbreContrat, estMontant, estTitre, grilleAlignee, rangeesVisAVis, type NoeudContrat } from "./rendu-contrat";
+import { arbreContrat, estMontant, estTitre, grilleAlignee, rangeesVisAVis, recollerPhrasesCoupees, type NoeudContrat } from "./rendu-contrat";
 import { PLACEHOLDERS_MANDAT } from "./gabarit-mandat";
 import { placeholdersNonResolus, tableRemplacement } from "./remplir-gabarit";
 
@@ -131,11 +131,14 @@ describe("arbreContrat", () => {
 
   it("place les deux colonnes en vis-a-vis, rangee par rangee du classeur", () => {
     const g = grilleAlignee(a);
-    // « 4. RESILIATION... » (gauche, ligne 38 du classeur) est en face de la suite du § 3
-    // « après en avoir donné avis... » (droite, ligne 38) : comme dans le contrat MYTHEC.
+    // « 4. RESILIATION... » (gauche, ligne 38 du classeur) est en face du bloc de droite qui
+    // commence a la meme ligne. Depuis le recollement des phrases coupees (30/09/2026), ce
+    // bloc commence a « En l'absence de transmission... » : sa premiere phrase a rejoint la
+    // colonne de gauche, ou la phrase commence.
     const quatre = g.gauche.find((p) => p.noeud.type === "titre" && p.noeud.texte.startsWith("4. RESILIATION"))!;
-    const suiteDuTrois = g.droite.find((p) => p.noeud.type === "paragraphe" && p.noeud.texte.startsWith("après en avoir donné avis"))!;
-    expect(quatre.rangee).toBe(suiteDuTrois.rangee);
+    const enFace = g.droite.find((p) => p.noeud.type === "paragraphe" && /^En l.absence de transmission/.test(p.noeud.texte))!;
+    expect(enFace).toBeDefined();
+    expect(quatre.rangee).toBe(enFace.rangee);
     // Chaque colonne avance sans chevauchement, et couvre au moins une rangee par bloc.
     for (const col of [g.gauche, g.droite]) {
       for (let i = 1; i < col.length; i++) expect(col[i]!.rangee).toBeGreaterThanOrEqual(col[i - 1]!.rangee + col[i - 1]!.etendue);
@@ -254,5 +257,47 @@ describe("rangeesVisAVis", () => {
       }
     }
     expect(verifiees).toBeGreaterThan(0);
+  });
+});
+
+// Le classeur MYTHEC coupe deux phrases au bas de la colonne de gauche et en recopie la fin
+// en haut de celle de droite. Les deux colonnes n'etant qu'approximativement synchronisees,
+// la fin pouvait s'imprimer une page AVANT le debut (S111, 30/09/2026 : signature refusee en
+// AG, le president ne trouvait pas la fin du 7.1.5).
+describe("recollerPhrasesCoupees", () => {
+  const a = arbreContrat(champs());
+  // Le classeur melange ' et ’ d'un bloc a l'autre : on compare sans s'en soucier.
+  const sansApostrophe = (t: string) => t.replace(/[’‘`]/g, "'");
+  const paras = (n: NoeudContrat[]) =>
+    n.filter((x) => x.type === "paragraphe").map((x) => sansApostrophe((x as { texte: string }).texte));
+
+  it("le 6.2 porte sa phrase entiere, ponctuation comprise", () => {
+    const bloc = paras(a.gauche).find((t) => t.includes("le conseil syndical peut prendre connaissance et copie"))!;
+    expect(bloc).toContain("à sa demande, après en avoir donné avis au syndic");
+    expect(bloc.trimEnd()).toMatch(/\.$/);
+  });
+
+  it("le 7.1.5 porte sa phrase entiere : elle ne s'arrete plus sur « précisées à »", () => {
+    const bloc = paras(a.gauche).find((t) => t.includes("en cours d'exécution du présent contrat et dans les conditions précisées"))!;
+    expect(bloc).toBeDefined();
+    expect(bloc).toContain("dans les conditions précisées à l'article 18 de la loi du 10 juillet 1965");
+    expect(bloc.trimEnd()).not.toMatch(/à$/);
+  });
+
+  it("la colonne de droite garde le reste du bloc, sans le repeter", () => {
+    const droite = paras(a.droite);
+    // La phrase recollee ne demarre plus un bloc de droite...
+    expect(droite.some((t) => t.startsWith("après en avoir donné avis"))).toBe(false);
+    expect(droite.some((t) => t.startsWith("l'article 18 de la loi du 10 juillet 1965, décidé de confier"))).toBe(false);
+    // ...mais la suite du bloc, elle, reste a sa place.
+    expect(droite.some((t) => t.startsWith("En l'absence de transmission"))).toBe(true);
+    expect(droite.some((t) => t.startsWith("Dans l'hypothèse où l'assemblée générale"))).toBe(true);
+  });
+
+  it("aucun paragraphe du contrat ne se termine en plein milieu d'une phrase", () => {
+    const pendantes = [...paras(a.gauche), ...paras(a.droite)]
+      .map((t) => t.trim())
+      .filter((t) => t.length > 60 && /\s(à|de|du|des|le|la|les|et|ou|par|pour|dans|sur|au|aux)$/.test(t));
+    expect(pendantes).toEqual([]);
   });
 });
