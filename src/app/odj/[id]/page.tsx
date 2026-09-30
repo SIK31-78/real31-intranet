@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Printer, ListChecks, ArrowRight } from "lucide-react";
+import { Printer, ListChecks, ArrowRight, FileDown } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { getOdj } from "@/lib/services/odj/get-odj";
 import { decouperIdOdj } from "@/lib/services/odj/resoudre-cle-odj";
@@ -79,20 +79,28 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
           meta={`${odj.copro.nom}${odj.dateAg ? ` · AG du ${odj.dateAg}` : " · AG non datée"}`}
           actions={
             <>
-              <ButtonLink href={`/odj/${id}/imprimer`} variant="secondary">
+              <ButtonLink href={`/odj/${id}/imprimer`} variant="ghost">
                 <Printer strokeWidth={1.5} />
                 Version imprimable
               </ButtonLink>
               {/* "Composer" est un ecran d'EDITION : on ne le propose pas a qui ne peut
                   pas ecrire (il refuserait, et un bouton qui refuse est une fausse piste). */}
               {peutModifier && (
-                <ButtonLink href={`/odj/${id}/composer`} variant="secondary">
+                <ButtonLink href={`/odj/${id}/composer`} variant="ghost">
                   <ListChecks strokeWidth={1.5} />
                   Composer l&apos;ODJ
                 </ButtonLink>
               )}
+              {/* LE geste de l'ecran depuis le 22/09 : le CS se remplit dans Word, en
+                  reunion. Le moteur existait mais aucun bouton n'y menait (il fallait
+                  taper l'URL) -> il devient le primaire, et la sortie de l'ecran
+                  ("Passer a la supervision") repasse en secondaire. */}
+              <ButtonLink href={`/odj/${id}/odj-cs.docx`} variant="primary">
+                <FileDown strokeWidth={1.5} />
+                Télécharger l&apos;ODJ en Word
+              </ButtonLink>
               {principale?.href && (
-                <ButtonLink href={principale.href} variant="primary">
+                <ButtonLink href={principale.href} variant="secondary">
                   {principale.label}
                   <ArrowRight strokeWidth={1.5} />
                 </ButtonLink>
