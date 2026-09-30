@@ -63,11 +63,13 @@ export function FicheVueEnsemble({
   // ce lien reste la seule porte permanente vers la supervision.
   const stepperVersSupervision =
     fiche.cycle?.actionDuMoment?.href.startsWith("/supervision-ag/") ?? false;
-  // Idem pour l'ODJ : le stepper y renvoie deja pendant la phase ODJ (action du moment
-  // ou action secondaire "Preparer l'ODJ"), inutile de doubler l'entree.
+  // Idem pour l'ODJ, mais SEULEMENT si le stepper mene a l'ECRAN. Depuis le 30/09 il
+  // mene au document Word (.docx) : masquer "Voir l'ordre du jour" priverait alors la
+  // fiche de toute porte vers l'ecran de consultation.
+  const versEcranOdj = (href?: string) => Boolean(href?.startsWith("/odj/") && !href.endsWith(".docx"));
   const stepperVersOdj =
-    (fiche.cycle?.actionDuMoment?.href.startsWith("/odj/") ?? false) ||
-    (fiche.cycle?.actionDuMoment?.secondaire?.href.startsWith("/odj/") ?? false);
+    versEcranOdj(fiche.cycle?.actionDuMoment?.href) ||
+    versEcranOdj(fiche.cycle?.actionDuMoment?.secondaire?.href);
   return (
     <div className="flex flex-col gap-5">
       {indispo && (

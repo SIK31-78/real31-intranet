@@ -101,6 +101,13 @@ function dateISO(annee: number, mois: number, jour: number): string {
 }
 
 /**
+ * Ou mene "preparer l'ODJ" : le DOCUMENT WORD, pas l'ecran (decision Sekou 2026-09-30).
+ * Le CS se remplit dans Word, en reunion ; l'ecran /odj/<code> reste la porte de
+ * consultation, atteignable par "Voir l'ordre du jour".
+ */
+const LIEN_ODJ_WORD = (code: string) => `/odj/${code}/odj-cs.docx`;
+
+/**
  * Ajoute `n` mois a une date ISO, avec BORNAGE en fin de mois.
  *
  * L'implementation naive (`new Date(Date.UTC(y, m - 1 + n, d))`) DEBORDE : 31/12 + 6 mois
@@ -227,10 +234,14 @@ function actionEtape(
         // La preparation n'attend PAS la date (retour collegue 2026-09-01) : l'ODJ
         // s'edite sans date et son etat est rattache a l'AG quand elle est fixee
         // (reporterOdjSansDate, branche sur la saisie de date de la fiche).
-        actionSecondaire: { label: "Préparer l'ODJ", lien: `/odj/${c.code}` },
+        actionSecondaire: { label: "Préparer l'ODJ", lien: LIEN_ODJ_WORD(c.code) },
       };
     case "odj":
-      return { prochaineAction: "préparer l'ODJ", actionLabel: "ODJ", lien: `/odj/${c.code}` };
+      return {
+        prochaineAction: "préparer l'ODJ",
+        actionLabel: "Télécharger l'ODJ",
+        lien: LIEN_ODJ_WORD(c.code),
+      };
     case "convoc":
       return { prochaineAction: "envoyer les convocations", actionLabel: "Supervision", lien: sup };
     case "tenue":

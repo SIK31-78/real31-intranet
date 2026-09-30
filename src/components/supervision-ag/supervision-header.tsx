@@ -1,4 +1,4 @@
-import { ArrowRight, FileText, Route } from "lucide-react";
+import { ArrowRight, FileDown, FileText, Route } from "lucide-react";
 import {
   peutConclure,
   estVerifie,
@@ -142,11 +142,18 @@ export function SupervisionHeader({ supervision, cycle, role, onConclure }: Supe
               </p>
               {/* L'ordre du jour est l'etape juste avant : il reste consultable d'ici, meme
                   cloture (Sekou 2026-09-10 : une fois l'etape franchie, le document
-                  n'etait plus atteignable nulle part). */}
-              <ButtonLink href={`/odj/${supervision.id}`} variant="ghost" size="sm">
-                <FileText strokeWidth={1.5} />
-                Voir l&apos;ordre du jour
-              </ButtonLink>
+                  n'etait plus atteignable nulle part). Le Word est a cote : depuis le
+                  30/09, c'est LUI qu'on emporte en reunion de conseil syndical. */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <ButtonLink href={`/odj/${supervision.id}/odj-cs.docx`} variant="secondary" size="sm">
+                  <FileDown strokeWidth={1.5} />
+                  Télécharger l&apos;ODJ en Word
+                </ButtonLink>
+                <ButtonLink href={`/odj/${supervision.id}`} variant="ghost" size="sm">
+                  <FileText strokeWidth={1.5} />
+                  Voir l&apos;ordre du jour
+                </ButtonLink>
+              </div>
             </div>
           </div>
         )}

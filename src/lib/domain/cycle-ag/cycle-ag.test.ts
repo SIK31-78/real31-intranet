@@ -99,10 +99,10 @@ describe("calculerCycleAg - action du moment par etat", () => {
     expect(actionDuMoment?.href).toBe("/copropriete/S001");
   });
 
-  it("en_preparation, ODJ a faire -> 'ODJ' vers le composer", () => {
+  it("en_preparation, ODJ a faire -> le DOCUMENT WORD (le CS se remplit dans Word)", () => {
     const { actionDuMoment } = calculerCycleAg(copro(AG_PROCHE), new Set(), TODAY);
-    expect(actionDuMoment?.label).toBe("ODJ");
-    expect(actionDuMoment?.href).toBe("/odj/S001");
+    expect(actionDuMoment?.label).toBe("Télécharger l'ODJ");
+    expect(actionDuMoment?.href).toBe("/odj/S001/odj-cs.docx");
     expect(actionDuMoment?.action).toBe("préparer l'ODJ");
   });
 
@@ -201,7 +201,7 @@ describe("calculerCycleAg - priorisation post-tenue (S2.D, param statutSupervisi
 
   it("statut sans effet hors 'tenue' : en_preparation sur une AG a venir garde son action normale", () => {
     const { actionDuMoment } = calculerCycleAg(copro(AG_PROCHE), new Set(), TODAY, "en_preparation");
-    expect(actionDuMoment?.label).toBe("ODJ"); // etat en_preparation, pas tenue -> pas d'ecrasement
+    expect(actionDuMoment?.label).toBe("Télécharger l'ODJ"); // etat en_preparation, pas tenue -> pas d'ecrasement
   });
 });
 
@@ -391,10 +391,10 @@ describe("bornage fin d'exercice - qui entre et qui sort du pipeline", () => {
 });
 
 describe("phase dates - action secondaire ODJ (preparation sans attendre la date)", () => {
-  it("en phase Dates, l'action secondaire pointe vers l'ODJ de la copro", () => {
+  it("en phase Dates, l'action secondaire telecharge l'ODJ en Word", () => {
     const { actionDuMoment } = calculerCycleAg(copro({}), new Set(), TODAY);
     expect(actionDuMoment?.label).toBe("Fixer");
-    expect(actionDuMoment?.secondaire).toEqual({ label: "Préparer l'ODJ", href: "/odj/S001" });
+    expect(actionDuMoment?.secondaire).toEqual({ label: "Préparer l'ODJ", href: "/odj/S001/odj-cs.docx" });
   });
 
   it("hors phase Dates (ODJ deja l'action principale), pas d'action secondaire", () => {
