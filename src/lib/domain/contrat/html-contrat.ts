@@ -21,6 +21,8 @@ const CSS = `
      (annexe 1 sur la fiche d'information, 29/09/2026). Un tableau, lui, se fragmente. */
   table.grille { width: 100%; border: 0; border-collapse: separate; border-spacing: 0; table-layout: fixed; margin: 0; font-size: inherit; }
   table.grille > tbody > tr { break-inside: auto; }
+  /* La page s'ouvre ou MYTHEC l'ouvre (cf. DEBUTS_DE_PAGE). */
+  table.grille > tbody > tr.page { break-before: page; }
   table.grille > tbody > tr > td { border: 0; padding: 0; width: 50%; vertical-align: top; white-space: normal; }
   table.grille > tbody > tr > td.gauche { padding-right: 9px; }
   table.grille > tbody > tr > td.droite { padding-left: 9px; }
@@ -85,7 +87,8 @@ function corps(a: ArbreContrat): string {
   if (a.droite.length === 0) return `<div class="colonnes seule"><div class="colonne">${a.gauche.map(noeud).join("")}</div></div>`;
   const cellule = (noeuds: NoeudContrat[], cote: "gauche" | "droite") =>
     `<td class="${cote}">${noeuds.map((n) => `<div class="bloc">${noeud(n)}</div>`).join("")}</td>`;
-  const rangee = (r: { gauche: NoeudContrat[]; droite: NoeudContrat[] }) => `<tr>${cellule(r.gauche, "gauche")}${cellule(r.droite, "droite")}</tr>`;
+  const rangee = (r: { gauche: NoeudContrat[]; droite: NoeudContrat[]; nouvellePage?: boolean }) =>
+    `<tr${r.nouvellePage ? ' class="page"' : ""}>${cellule(r.gauche, "gauche")}${cellule(r.droite, "droite")}</tr>`;
   return `<table class="grille"><tbody>${rangeesVisAVis(a).map(rangee).join("")}</tbody></table>`;
 }
 

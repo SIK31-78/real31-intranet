@@ -181,7 +181,29 @@ export function grilleAlignee(a: ArbreContrat): { rangees: number; gauche: BlocP
 export interface RangeeVisAVis {
   gauche: NoeudContrat[];
   droite: NoeudContrat[];
+  /** Vrai quand le contrat MYTHEC ouvre une page ici (cf. DEBUTS_DE_PAGE). */
+  nouvellePage?: boolean;
 }
+
+/**
+ * Ou le contrat MYTHEC ouvre une page : le premier bloc de chaque colonne, releve sur
+ * « 05. Contrat de Syndic-S080-2026-02-16 », celui parti dans la convocation de Bapst 25.
+ *
+ * Pourquoi c'est necessaire : le contrat se lit page par page, colonne GAUCHE puis colonne
+ * DROITE. Nos hauteurs de bloc ne sont pas celles du Word de MYTHEC, nos colonnes se
+ * remplissent donc a un autre rythme et un article change de page. Le § 4 se retrouvait en
+ * bas de la page 1, donc AVANT les §§ 1 a 3 qui sont dans la colonne de droite — signale
+ * par Lea le 21/09/2026 : « le point 4 est visible une page trop tot ».
+ *
+ * Ce qui rend la chose sure : a chaque saut de page, les DEUX colonnes du classeur
+ * repartent de la MEME ligne. Il n'y a donc qu'une seule serie de bornes, et `grilleAlignee`
+ * ouvre deja une rangee a chaque debut de bloc — la borne tombe pile dessus.
+ *
+ * On ne garde que les six bornes confirmees des deux cotes a la fois. Les pages 5, 7 et 8
+ * sont de longs tableaux d'annexe aux en-tetes repetes, qu'on ne sait pas situer de facon
+ * sure : Chromium les coupe, ce qu'il fait proprement depuis que le corps est un tableau.
+ */
+const DEBUTS_DE_PAGE: readonly number[] = [38, 86, 133, 226, 367, 414];
 
 /**
  * Le vis-a-vis REGROUPE : on coupe la grille a chaque hauteur ou aucun bloc, ni a gauche ni a
@@ -204,7 +226,11 @@ export function rangeesVisAVis(a: ArbreContrat): RangeeVisAVis[] {
   let debut = 1;
   for (const fin of coupures) {
     const dans = (blocs: typeof g.gauche) => blocs.filter((p) => p.rangee >= debut && p.rangee < fin).map((p) => p.noeud);
-    const rangee = { gauche: dans(g.gauche), droite: dans(g.droite) };
+    const rangee: RangeeVisAVis = { gauche: dans(g.gauche), droite: dans(g.droite) };
+    // Une rangee ouvre une page quand elle porte, en tete de l'une de ses colonnes, le bloc
+    // par lequel MYTHEC commence une page.
+    const premiereLigne = rangee.gauche[0]?.de ?? rangee.droite[0]?.de;
+    if (premiereLigne !== undefined && DEBUTS_DE_PAGE.includes(premiereLigne)) rangee.nouvellePage = true;
     if (rangee.gauche.length || rangee.droite.length) rangees.push(rangee);
     debut = fin;
   }

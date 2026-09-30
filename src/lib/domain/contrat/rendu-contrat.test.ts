@@ -301,3 +301,30 @@ describe("recollerPhrasesCoupees", () => {
     expect(pendantes).toEqual([]);
   });
 });
+
+// Le contrat se lit page par page, colonne gauche puis colonne droite. Nos hauteurs de bloc
+// n'etant pas celles du Word de MYTHEC, le § 4 debordait en bas de la page 1 — donc AVANT
+// les §§ 1 a 3 de la colonne de droite (Lea, 21/09/2026). On rouvre la page la ou MYTHEC
+// l'ouvre, aux six bornes relevees sur le contrat S080 parti en convocation.
+describe("debuts de page", () => {
+  const rangees = rangeesVisAVis(arbreContrat(champs()));
+  const ouvrantes = rangees.filter((r) => r.nouvellePage);
+
+  it("ouvre une page aux six bornes du contrat MYTHEC, pas ailleurs", () => {
+    expect(ouvrantes).toHaveLength(6);
+    expect(ouvrantes.map((r) => r.gauche[0]?.de ?? r.droite[0]?.de)).toEqual([38, 86, 133, 226, 367, 414]);
+  });
+
+  it("le § 4 ouvre une page : il ne peut plus passer avant les §§ 1 a 3 d'en face", () => {
+    const quatre = ouvrantes.find((r) => r.gauche[0]?.type === "titre" && r.gauche[0].texte.startsWith("4. RESILIATION"));
+    expect(quatre).toBeDefined();
+  });
+
+  it("une rangee a colonne vide n'ouvre pas de page par accident", () => {
+    // Le piege : `rangee.gauche[0]` vaut undefined quand la colonne est vide. Compare a un
+    // index hors bornes, undefined === undefined marquait 14 rangees au lieu de 6.
+    for (const r of rangees) {
+      if (!r.gauche.length && !r.droite.length) expect(r.nouvellePage).toBeFalsy();
+    }
+  });
+});
