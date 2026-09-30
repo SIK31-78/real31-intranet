@@ -8,7 +8,7 @@
 ## Où on en est
 
 - **Prod** : `real31.app`, branche `main` (le tronc, renommé le 25/09/2026, anciennement `increment/02-supabase`), déployée via le Vercel de la collègue qui suit `main`.
-- **Branche active** : `main` (le tronc). 9 commits du 22-23/09 (l'ODJ du CS en Word) ne sont **ni poussés ni déployés** : à tester puis pousser.
+- **Branche active** : `main` (le tronc). L'ODJ du CS en Word est en prod ; les boutons qui y mènent aussi (30/09).
 - **Branches en pause** :
   - `chantier/mcp-distant` : MCP distant pour Claude Team, 4 lots codés et testés (ADR-042), sauvegardée sur GitHub, mise de côté le 25/09. Tout pour reprendre est dans le ticket REA-5.
   - `chantier/mail-v12` : chantier « Mes e-mails », en pause depuis fin août, non mergée (REA-15).
@@ -17,10 +17,11 @@
 
 - **MCP distant en pause** : mail DSI pas envoyé, SQL du journal pas passé (REA-5, REA-6).
 - **Patron** : accord sur la validation par la comptable des factures déposées dans ESTALE (REA-11).
+- **Éditeur ODJ en ligne** : on garde les deux outils (Word + éditeur) et on tranche vers le 15/10. Mesurer avant de décider : `node --env-file=.env.local scripts/odj-usage-editeur.mjs`. Au 30/09, trois personnes saisissent encore (FS, MA, OR) et 10 copropriétés portent des contenus que le Word ne reprend pas (REA-62).
 
 ## Prochaine action
 
-Tester l'ODJ du CS en Word (les 9 commits non poussés du tronc), puis pousser et déployer. Ensuite, l'urgence du moment, à mettre en ticket Linear.
+Vérifier à l'écran que « Télécharger l'ODJ en Word » apparaît bien sur la page ODJ et dans la supervision (serveur de dev éteint au moment de la livraison). Ensuite, l'urgence du moment, à mettre en ticket Linear.
 
 ## Où trouver quoi
 
