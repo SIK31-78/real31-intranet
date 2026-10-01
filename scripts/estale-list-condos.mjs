@@ -22,7 +22,9 @@ const res = await fetch(`${BASE}/graphql/intranet`, {
   method: "POST",
   headers: { "content-type": "application/json", cookie },
   body: JSON.stringify({
-    query: `{ me { collaborator { condos(archived: false) { reference name } } } }`,
+    // me.agency (toutes les copros du cabinet), PAS me.collaborator : ce dernier ne rend
+    // que les copros dont le compte est collaborateur (4 sur 9 le 01/10/2026).
+    query: `{ me { agency { condos(archived: false) { reference name } } } }`,
   }),
 });
 const json = await res.json();
@@ -30,7 +32,7 @@ if (json.errors) {
   console.error("GraphQL:", json.errors.map((e) => e.message).join(" ; "));
   process.exit(1);
 }
-const condos = json.data.me.collaborator.condos
+const condos = json.data.me.agency.condos
   .filter((c) => !FILTRE || `${c.reference} ${c.name}`.toLowerCase().includes(FILTRE))
   .sort((a, b) => a.reference.localeCompare(b.reference));
 
