@@ -10,6 +10,7 @@ import type {
   LigneBareme,
   LigneGestionCourante,
   FactureHistorique,
+  FacturePourEstale,
   NouvelleFacture,
   ParametresCopro,
   Produit,
@@ -42,6 +43,8 @@ type FactureMock = NouvelleFacture & {
   statut: "a_facturer" | "facturee" | "erreur";
   factureExterneId?: string;
   erreur?: string;
+  estaleEcritureId?: string;
+  estaleErreur?: string;
 };
 
 export class MockFacturationRepository implements FacturationRepository {
@@ -280,6 +283,8 @@ export class MockFacturationRepository implements FacturationRepository {
       montantHt: f.lignes.reduce((t, l) => t + l.quantite * l.prixUnitaireHt, 0),
       ...(f.factureExterneId ? { factureExterneId: f.factureExterneId } : {}),
       ...(f.erreur ? { erreur: f.erreur } : {}),
+      ...(f.estaleEcritureId ? { estaleEcritureId: f.estaleEcritureId } : {}),
+      ...(f.estaleErreur ? { estaleErreur: f.estaleErreur } : {}),
       ...(f.par ? { par: f.par } : {}),
       creeLe: new Date().toISOString(),
     }));
@@ -292,6 +297,39 @@ export class MockFacturationRepository implements FacturationRepository {
   async remettreEnAttente(factureId: string): Promise<void> {
     const f = this.factures.find((x) => x.id === factureId);
     if (f && f.statut === "erreur") f.statut = "a_facturer";
+  }
+
+  async listerFacturesPourEstale(ids: string[]): Promise<FacturePourEstale[]> {
+    const cibles = new Set(ids);
+    return this.factures
+      .filter((f) => f.statut === "facturee" && f.factureExterneId && cibles.has(f.id))
+      .map((f) => ({
+        id: f.id,
+        coproCode: f.coproCode,
+        typePrestation: f.typePrestation,
+        libelle: f.libelle,
+        factureExterneId: f.factureExterneId as string,
+        ...(f.estaleEcritureId ? { estaleEcritureId: f.estaleEcritureId } : {}),
+        lignes: f.lignes.map((l) => ({
+          categorieProduit: l.categorieProduit ?? null,
+          quantite: l.quantite,
+          prixUnitaireHt: l.prixUnitaireHt,
+          tauxTva: l.tauxTva ?? 0.2,
+        })),
+      }));
+  }
+
+  async marquerEnvoyeeEstale(factureId: string, ecritureId: string): Promise<void> {
+    const f = this.factures.find((x) => x.id === factureId);
+    if (f) {
+      f.estaleEcritureId = ecritureId;
+      delete f.estaleErreur;
+    }
+  }
+
+  async marquerErreurEstale(factureId: string, message: string): Promise<void> {
+    const f = this.factures.find((x) => x.id === factureId);
+    if (f) f.estaleErreur = message;
   }
 
   async marquerErreur(factureId: string, message: string): Promise<void> {

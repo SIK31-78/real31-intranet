@@ -72,6 +72,26 @@ export interface InvoicingProvider {
    * interne du fournisseur. Une proposition elue (ADR-039, brique 3).
    */
   creerClient(client: NouveauClient): Promise<{ clientExterneId: string }>;
+  /**
+   * Relit une facture deja emise chez le fournisseur : est-elle validee, sous quel
+   * numero, pour quel montant. Sert a la saisie dans ESTALE (REA-11), qui n'envoie
+   * qu'une facture validee.
+   */
+  lireFactureEmise(factureExterneId: string): Promise<FactureEmise>;
+  /** Le PDF de la facture, tel que le client le recoit. */
+  telechargerPdf(factureExterneId: string): Promise<Uint8Array>;
+}
+
+export interface FactureEmise {
+  /** false = encore un brouillon chez le fournisseur : ni numero ni engagement. */
+  validee: boolean;
+  /** Numero definitif (F-2026-09-46683), present une fois validee. */
+  numero?: string;
+  /** ISO "YYYY-MM-DD". */
+  date: string;
+  /** Echeance, ISO "YYYY-MM-DD". */
+  echeance: string;
+  montantTtc: number;
 }
 
 export interface NouveauClient {

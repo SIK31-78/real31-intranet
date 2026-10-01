@@ -13,6 +13,7 @@ import type {
   LigneGestionCourante,
   NouvelleEditionContrat,
   FactureHistorique,
+  FacturePourEstale,
   NouvelleFacture,
   ParametresCopro,
   Produit,
@@ -695,7 +696,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       .from("intranet_factures")
       .select(
         "id, copropriete_id, type_prestation, libelle, date_facture, statut, " +
-          "pennylane_invoice_id, pennylane_error, cree_par, created_at, " +
+          "pennylane_invoice_id, pennylane_error, estale_entry_id, estale_erreur, cree_par, created_at, " +
           "intranet_facture_lignes (quantite, prix_unitaire_ht)",
       );
     if (coproCodes) q = q.in("copropriete_id", coproCodes);
@@ -712,6 +713,8 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       statut: string;
       pennylane_invoice_id: string | null;
       pennylane_error: string | null;
+      estale_entry_id: string | null;
+      estale_erreur: string | null;
       cree_par: string | null;
       created_at: string;
       intranet_facture_lignes: Array<{ quantite: number; prix_unitaire_ht: number }> | null;
@@ -730,6 +733,8 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       ),
       ...(f.pennylane_invoice_id ? { factureExterneId: f.pennylane_invoice_id } : {}),
       ...(f.pennylane_error ? { erreur: f.pennylane_error } : {}),
+      ...(f.estale_entry_id ? { estaleEcritureId: f.estale_entry_id } : {}),
+      ...(f.estale_erreur ? { estaleErreur: f.estale_erreur } : {}),
       ...(f.cree_par ? { par: f.cree_par } : {}),
       creeLe: f.created_at,
     }));
@@ -750,6 +755,71 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       .eq("id", factureId)
       .eq("statut", "erreur"); // garde-fou : on ne rejoue jamais une facture deja emise
     if (error) throw new Error(`Remise en attente de ${factureId} : ${error.message}`);
+  }
+
+  async listerFacturesPourEstale(ids: string[]): Promise<FacturePourEstale[]> {
+    if (ids.length === 0) return [];
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_factures")
+      .select(
+        "id, copropriete_id, type_prestation, libelle, pennylane_invoice_id, estale_entry_id, " +
+          "intranet_facture_lignes (categorie_produit, quantite, prix_unitaire_ht, taux_tva, ordre)",
+      )
+      .in("id", ids)
+      .eq("statut", "facturee")
+      .not("pennylane_invoice_id", "is", null);
+    if (error) throw new Error(`Lecture des factures à saisir dans ESTALE : ${error.message}`);
+
+    type Row = {
+      id: string;
+      copropriete_id: string;
+      type_prestation: string;
+      libelle: string;
+      pennylane_invoice_id: string;
+      estale_entry_id: string | null;
+      intranet_facture_lignes: Array<{
+        categorie_produit: string | null;
+        quantite: number;
+        prix_unitaire_ht: number;
+        taux_tva: number;
+        ordre: number;
+      }> | null;
+    };
+    return ((data as unknown as Row[] | null) ?? []).map((f) => ({
+      id: f.id,
+      coproCode: f.copropriete_id,
+      typePrestation: f.type_prestation as FacturePourEstale["typePrestation"],
+      libelle: f.libelle,
+      factureExterneId: f.pennylane_invoice_id,
+      ...(f.estale_entry_id ? { estaleEcritureId: f.estale_entry_id } : {}),
+      lignes: [...(f.intranet_facture_lignes ?? [])]
+        .sort((a, b) => a.ordre - b.ordre)
+        .map((l) => ({
+          categorieProduit: l.categorie_produit,
+          quantite: Number(l.quantite),
+          prixUnitaireHt: Number(l.prix_unitaire_ht),
+          tauxTva: Number(l.taux_tva),
+        })),
+    }));
+  }
+
+  async marquerEnvoyeeEstale(factureId: string, ecritureId: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase
+      .from("intranet_factures")
+      .update({ estale_entry_id: ecritureId, estale_erreur: null, updated_at: new Date().toISOString() })
+      .eq("id", factureId);
+    if (error) throw new Error(`Marquage facture ${factureId} saisie dans ESTALE : ${error.message}`);
+  }
+
+  async marquerErreurEstale(factureId: string, message: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    const { error } = await supabase
+      .from("intranet_factures")
+      .update({ estale_erreur: message.slice(0, 1000), updated_at: new Date().toISOString() })
+      .eq("id", factureId);
+    if (error) throw new Error(`Marquage facture ${factureId} en erreur ESTALE : ${error.message}`);
   }
 
   async marquerErreur(factureId: string, message: string): Promise<void> {

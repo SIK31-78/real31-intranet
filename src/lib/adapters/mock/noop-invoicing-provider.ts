@@ -4,6 +4,7 @@
 
 import type {
   DemandeEmission,
+  FactureEmise,
   NouveauClient,
   InvoicingProvider,
   ResultatEmission,
@@ -26,5 +27,15 @@ export class NoopInvoicingProvider implements InvoicingProvider {
     );
     // Toujours `validee: false` : le no-op ne simule jamais un engagement comptable.
     return { factureExterneId: `noop-${this.emissions.length}`, validee: false };
+  }
+
+  async lireFactureEmise(): Promise<FactureEmise> {
+    // Un brouillon simule reste un brouillon : rien ne part vers ESTALE en simulation.
+    const jour = new Date().toISOString().slice(0, 10);
+    return { validee: false, date: jour, echeance: jour, montantTtc: 0 };
+  }
+
+  async telechargerPdf(): Promise<Uint8Array> {
+    throw new Error("Mode simulation : aucun PDF de facture (PENNYLANE_API_KEY absente).");
   }
 }

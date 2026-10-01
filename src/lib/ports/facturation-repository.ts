@@ -132,10 +132,32 @@ export interface FactureHistorique {
   factureExterneId?: string;
   /** Message du dernier echec d'emission, si en erreur. */
   erreur?: string;
+  /** Ecriture creee dans la compta ESTALE de la copro (REA-11), si envoyee. */
+  estaleEcritureId?: string;
+  /** Pourquoi la facture n'est pas (encore) partie dans ESTALE : rend le renvoi possible. */
+  estaleErreur?: string;
   /** Initiales de l'auteur. */
   par?: string;
   /** Horodatage ISO de creation. */
   creeLe: string;
+}
+
+/** Facture emise chez Pennylane, candidate a la saisie dans ESTALE (REA-11). */
+export interface FacturePourEstale {
+  id: string;
+  coproCode: string;
+  typePrestation: TypePrestation;
+  libelle: string;
+  /** Identifiant de la facture chez Pennylane. */
+  factureExterneId: string;
+  /** Present = deja saisie dans ESTALE : ne repart jamais. */
+  estaleEcritureId?: string;
+  lignes: Array<{
+    categorieProduit: string | null;
+    quantite: number;
+    prixUnitaireHt: number;
+    tauxTva: number;
+  }>;
 }
 
 /** Facture en attente d'emission, avec ses lignes. */
@@ -362,4 +384,10 @@ export interface FacturationRepository {
   coproDeFacture(factureId: string): Promise<string | null>;
   /** Repasse une facture en erreur au statut 'a_facturer' pour la rejouer. */
   remettreEnAttente(factureId: string): Promise<void>;
+  /** Parmi les factures donnees, celles emises chez Pennylane (statut 'facturee'), avec leurs lignes. */
+  listerFacturesPourEstale(ids: string[]): Promise<FacturePourEstale[]>;
+  /** Trace l'ecriture ESTALE creee et efface l'erreur ESTALE eventuelle. */
+  marquerEnvoyeeEstale(factureId: string, ecritureId: string): Promise<void>;
+  /** Trace pourquoi la facture n'est pas partie dans ESTALE (reste renvoyable). */
+  marquerErreurEstale(factureId: string, message: string): Promise<void>;
 }

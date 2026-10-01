@@ -92,6 +92,9 @@ import { MockRecapAgRepository } from "@/lib/adapters/mock/mock-recap-ag-reposit
 import type { InvoicingProvider } from "@/lib/ports/invoicing-provider";
 import { PennylaneInvoicingProvider } from "@/lib/adapters/pennylane/pennylane-invoicing-provider";
 import { NoopInvoicingProvider } from "@/lib/adapters/mock/noop-invoicing-provider";
+import type { ComptaEstaleProvider } from "@/lib/ports/compta-estale-provider";
+import { EstaleComptaProvider } from "@/lib/adapters/estale/estale-compta-provider";
+import { NoopComptaEstaleProvider } from "@/lib/adapters/mock/noop-compta-estale-provider";
 import type { PriseEnMainRepository } from "@/lib/ports/prise-en-main-repository";
 import { SupabasePriseEnMainRepository } from "@/lib/adapters/supabase/supabase-prise-en-main-repository";
 import { MockPriseEnMainRepository } from "@/lib/adapters/mock/mock-prise-en-main-repository";
@@ -236,6 +239,13 @@ export function getRecapAgRepository(): RecapAgRepository {
 export function getInvoicingProvider(): InvoicingProvider {
   if (process.env.PENNYLANE_API_KEY) return new PennylaneInvoicingProvider();
   return new NoopInvoicingProvider();
+}
+
+// Saisie des factures REAL31 dans la compta ESTALE des copros (REA-11). Sans
+// identifiants ESTALE, aucune copro n'est « dans ESTALE » : rien ne part.
+export function getComptaEstaleProvider(): ComptaEstaleProvider {
+  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleComptaProvider();
+  return new NoopComptaEstaleProvider();
 }
 
 // Etat des jalons (table native intranet_jalons). Meme bascule que le referentiel.

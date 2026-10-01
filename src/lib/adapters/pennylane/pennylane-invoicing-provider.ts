@@ -15,6 +15,7 @@
 
 import type {
   DemandeEmission,
+  FactureEmise,
   NouveauClient,
   InvoicingProvider,
   ResultatEmission,
@@ -155,5 +156,43 @@ export class PennylaneInvoicingProvider implements InvoicingProvider {
 
     await this.validerFacture(factureExterneId);
     return { factureExterneId, validee: true };
+  }
+
+  private async lireBrut(factureExterneId: string): Promise<{
+    draft: boolean;
+    invoice_number?: string | null;
+    date: string;
+    deadline: string;
+    amount: string;
+    public_file_url?: string | null;
+  }> {
+    const reponse = await fetch(`${BASE_URL}/customer_invoices/${encodeURIComponent(factureExterneId)}`, {
+      method: "GET",
+      headers: this.entetes(),
+    });
+    if (!reponse.ok) {
+      throw new Error(`Lecture Pennylane de la facture ${factureExterneId} : HTTP ${reponse.status}`);
+    }
+    return reponse.json();
+  }
+
+  async lireFactureEmise(factureExterneId: string): Promise<FactureEmise> {
+    const f = await this.lireBrut(factureExterneId);
+    return {
+      validee: f.draft === false,
+      ...(f.invoice_number ? { numero: f.invoice_number } : {}),
+      date: f.date,
+      echeance: f.deadline,
+      montantTtc: Number(f.amount),
+    };
+  }
+
+  async telechargerPdf(factureExterneId: string): Promise<Uint8Array> {
+    // L'URL du PDF est signee et change : on la relit au moment du telechargement.
+    const { public_file_url: url } = await this.lireBrut(factureExterneId);
+    if (!url) throw new Error(`Pennylane ne fournit pas encore le PDF de la facture ${factureExterneId}.`);
+    const reponse = await fetch(url);
+    if (!reponse.ok) throw new Error(`Telechargement du PDF Pennylane ${factureExterneId} : HTTP ${reponse.status}`);
+    return new Uint8Array(await reponse.arrayBuffer());
   }
 }

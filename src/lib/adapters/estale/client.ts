@@ -182,6 +182,59 @@ export async function estaleGql<T>(
   return corps.data;
 }
 
+/**
+ * Mutation GraphQL avec UN fichier (spec graphql-multipart-request, prouvee par
+ * scripts/estale-upload-poc.mjs). `cheminFichier` = chemin de la variable Upload,
+ * ex "input.file" ; sa valeur dans `variables` est remplacee par null.
+ *
+ * Meme politique qu'une mutation JSON : re-login sur 401/403, JAMAIS de retry sur 5xx
+ * (l'ecriture a pu passer, rejouer creerait un doublon).
+ */
+export async function estaleGqlUpload<T>(
+  query: string,
+  variables: Record<string, unknown>,
+  cheminFichier: string,
+  fichier: { contenu: Uint8Array; nom: string; type: string },
+): Promise<T> {
+  let cookie = await sessionEstale();
+
+  const appel = (): Promise<Response> => {
+    const fd = new FormData();
+    fd.append("operations", JSON.stringify({ query, variables }));
+    fd.append("map", JSON.stringify({ "0": [`variables.${cheminFichier}`] }));
+    fd.append("0", new Blob([fichier.contenu as BlobPart], { type: fichier.type }), fichier.nom);
+    // Pas de content-type : fetch pose lui-meme le boundary multipart.
+    return fetch(`${BASE}/graphql/intranet`, {
+      method: "POST",
+      headers: { cookie, "apollo-require-preflight": "true" },
+      body: fd,
+      signal: AbortSignal.timeout(TIMEOUT_MUTATION_MS),
+    });
+  };
+
+  let res = await appel();
+  if (res.status === 401 || res.status === 403) {
+    cookie = await renouvelerSession(cookie);
+    res = await appel();
+  }
+  if (!res.ok) throw new EstaleError(`GraphQL Estale (upload) HTTP ${res.status}`, res.status);
+
+  const corps = (await res.json()) as GqlReponse<T>;
+  if (corps.errors?.length) {
+    const messages = corps.errors.map((e) => e.message).join(" ; ");
+    console.error(
+      "[estale/client] erreur GraphQL (upload)",
+      JSON.stringify({ query: query.slice(0, 200), errors: corps.errors }, null, 2),
+    );
+    void import("@/lib/observabilite").then((m) =>
+      m.signaler("ESTALE GraphQL (upload) : " + messages, { source: "estale", detail: { query: query.slice(0, 200), errors: corps.errors } }),
+    );
+    throw new EstaleError(`GraphQL Estale : ${messages}`);
+  }
+  if (corps.data === undefined) throw new EstaleError("GraphQL Estale : reponse sans data");
+  return corps.data;
+}
+
 /** L'integration Estale est-elle configuree (identifiants presents) ? */
 export function estaleConfigure(): boolean {
   return Boolean(process.env.ESTALE_EMAIL && process.env.ESTALE_PASSWORD);
