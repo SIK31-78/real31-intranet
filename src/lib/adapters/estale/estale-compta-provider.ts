@@ -34,7 +34,8 @@ type Referentiel = {
   condo: {
     suppliers: { id: string; name: string; account: { id: string; nomenclature: string } }[];
     accounts: { id: string; nomenclature: string; isWritable: boolean; dkID: string }[];
-    accountings: { period: string; lockedAt: string | null; closedAt: string | null }[];
+    // Daterange : ESTALE le rend en tableau [debut, fin] (mesure du 01/10/2026), pas en chaine.
+    accountings: { period: unknown; lockedAt: string | null; closedAt: string | null }[];
   };
 };
 
@@ -64,7 +65,11 @@ export class EstaleComptaProvider implements ComptaEstaleProvider {
 
     const raison = raisonExerciceFerme(
       f.date,
-      condo.accountings.map((e) => ({ periode: e.period, verrouille: Boolean(e.lockedAt), clos: Boolean(e.closedAt) })),
+      condo.accountings.map((e) => ({
+        periode: typeof e.period === "string" ? e.period : JSON.stringify(e.period),
+        verrouille: Boolean(e.lockedAt),
+        clos: Boolean(e.closedAt),
+      })),
     );
     if (raison) throw new Error(`${raison} (${f.coproCode})`);
 

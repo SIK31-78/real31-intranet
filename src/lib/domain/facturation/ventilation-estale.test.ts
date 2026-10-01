@@ -56,6 +56,12 @@ describe("raisonExerciceFerme", () => {
     expect(raisonExerciceFerme("2025-01-15", exercices)).toMatch(/clos/);
     expect(raisonExerciceFerme("2027-09-30", exercices)).toMatch(/Aucun exercice/);
   });
+  it("lit la forme reelle d'ESTALE, un tableau [debut, fin] serialise, fin comprise", () => {
+    const ex = [{ periode: JSON.stringify(["2027-01-01", "2027-12-31"]), verrouille: false, clos: false }];
+    expect(raisonExerciceFerme("2027-12-31", ex)).toBeNull();
+    expect(raisonExerciceFerme("2028-01-01", ex)).toMatch(/Aucun exercice/);
+  });
+
   it("comprend une borne de fin exclue au format [debut,fin)", () => {
     const ex = [{ periode: "[2026-01-01,2027-01-01)", verrouille: false, clos: false }];
     expect(raisonExerciceFerme("2026-12-31", ex)).toBeNull();
