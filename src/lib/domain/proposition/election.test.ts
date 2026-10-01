@@ -61,6 +61,9 @@ describe("coproDepuisElection", () => {
       priseEnGestionISO: "2027-01-01",
       finMandatISO: "2027-12-31",
       dureeAgHeures: 2,
+      // Plage complete : sans le debut, le recap AG bloque (« parametres d'AG non renseignes »).
+      debutMinAgHeure: 10,
+      finMaxAgHeure: 20,
       nbCs: 1,
       nbVisites: 1,
       fraisPostauxReels: true,

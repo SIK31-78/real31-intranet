@@ -34,6 +34,9 @@ export function adressePourContrat(adresse: string, commune?: string): string {
  */
 export const INCLUS_OFFRE = {
   dureeAgHeures: 2,
+  // Debut de la plage contractuelle d'AG : sans lui, le recap AG refuse de calculer
+  // le depassement (« parametres d'AG non renseignes », S284..S302 le 01/10/2026).
+  debutMinAgHeure: 10,
   finMaxAgHeure: 20,
   nbCs: 1,
   dureeCsHeures: 1,

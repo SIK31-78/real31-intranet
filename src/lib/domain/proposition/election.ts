@@ -73,6 +73,7 @@ export interface NouvelleCopro {
   /** Prochaine AG connue (celle qui a elu, si elle est a venir). */
   prochaineAgISO?: string;
   dureeAgHeures: number;
+  debutMinAgHeure: number;
   finMaxAgHeure: number;
   nbCs: number;
   dureeCsHeures: number;
@@ -101,7 +102,7 @@ export function obstaclesElection(p: Proposition, choix: Pick<ChoixElection, "co
   return m;
 }
 
-export function coproDepuisElection(p: Proposition, choix: ChoixElection, inclus: { dureeAgHeures: number; finMaxAgHeure: number; nbCs: number; dureeCsHeures: number; nbVisites: number }): NouvelleCopro {
+export function coproDepuisElection(p: Proposition, choix: ChoixElection, inclus: { dureeAgHeures: number; debutMinAgHeure: number; finMaxAgHeure: number; nbCs: number; dureeCsHeures: number; nbVisites: number }): NouvelleCopro {
   const code = choix.code.trim().toUpperCase();
   const finISO = choix.finISO ?? finDeCycle(choix.debutISO, choix.dureeMois ?? 12);
   const ag = p.agPrevueISO ?? p.immeuble.prochaineAgISO;
@@ -122,6 +123,7 @@ export function coproDepuisElection(p: Proposition, choix: ChoixElection, inclus
     finMandatISO: finISO,
     ...(ag && ag > choix.debutISO ? { prochaineAgISO: ag } : {}),
     dureeAgHeures: inclus.dureeAgHeures,
+    debutMinAgHeure: inclus.debutMinAgHeure,
     finMaxAgHeure: inclus.finMaxAgHeure,
     nbCs: p.immeuble.csPrevus ?? inclus.nbCs,
     dureeCsHeures: inclus.dureeCsHeures,

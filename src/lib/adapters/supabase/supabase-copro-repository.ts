@@ -326,6 +326,7 @@ export class SupabaseCoproRepository implements CoproRepository {
       syndicContractEndDate: c.finMandatISO,
       nextAGDate: c.prochaineAgISO ?? null,
       agDurationHours: c.dureeAgHeures,
+      agStartMin: c.debutMinAgHeure,
       agEndMax: c.finMaxAgHeure,
       csCount: c.nbCs,
       csDurationMinutes: c.dureeCsHeures,
