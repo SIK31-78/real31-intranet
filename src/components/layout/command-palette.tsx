@@ -40,6 +40,9 @@ const NAV_HORS_SYNDIC: { label: string; href: string }[] = [
   { label: "Nouveautés", href: "/nouveautes" },
 ];
 
+/** Reservee a la comptable du cabinet : ajoutee a la nav reduite quand elle y a droit. */
+const GESTION_COURANTE = { label: "Gestion courante", href: "/gestion-courante" };
+
 interface Item {
   cle: string;
   titre: string;
@@ -55,11 +58,14 @@ type Variante = "rail" | "rail-icone";
 export function CommandPalette({
   emailsOuvert = true,
   vueHorsSyndic = false,
+  gestionCouranteOuverte = false,
   variante = "rail",
 }: {
   emailsOuvert?: boolean;
   /** Vente, location, accueil : la navigation reduite du rail. */
   vueHorsSyndic?: boolean;
+  /** Comptable d'entreprise : la facturation de gestion courante est dans sa nav. */
+  gestionCouranteOuverte?: boolean;
   /** rail = pilule de recherche dans le rail ; rail-icone = icone seule (barre mobile). */
   variante?: Variante;
 }) {
@@ -97,7 +103,8 @@ export function CommandPalette({
     const q = query.toLowerCase().trim();
     if (!q) {
       // "Mes evenements" (boite mail) reserve au pilote -> hors navigation si verrouille.
-      const nav = vueHorsSyndic ? NAV_HORS_SYNDIC : emailsOuvert ? NAV : NAV.filter((n) => n.href !== "/mes-emails");
+      const horsSyndic = gestionCouranteOuverte ? [...NAV_HORS_SYNDIC, GESTION_COURANTE] : NAV_HORS_SYNDIC;
+      const nav = vueHorsSyndic ? horsSyndic : emailsOuvert ? NAV : NAV.filter((n) => n.href !== "/mes-emails");
       return nav.map((n) => ({ cle: n.href, titre: n.label, href: n.href, copro: false }));
     }
     return filtrerRecherche(copros ?? [], q).map((c) => ({
@@ -108,7 +115,7 @@ export function CommandPalette({
       href: `/copropriete/${c.code}`,
       copro: true,
     }));
-  }, [query, copros, emailsOuvert, vueHorsSyndic]);
+  }, [query, copros, emailsOuvert, vueHorsSyndic, gestionCouranteOuverte]);
 
   function fermer() {
     setOuvert(false);

@@ -134,6 +134,11 @@ const NAV_COMPTABLE: Item[] = [
 // contrat sont reservees aux habilites depuis le 21/09). Les pages portent leurs gardes.
 const NAV_HORS_SYNDIC: Item[] = [
   { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
+  // Gestion courante : la COMPTABLE DU CABINET (role AUTRE en base, elle n'est pas dans
+  // le syndic) facture les honoraires trimestriels. La page lui etait deja ouverte, mais
+  // sa nav reduite n'y menait pas : il fallait taper l'URL (Sekou 2026-10-01). Filtree
+  // par gestionCouranteOuverte, donc invisible pour vente, location et accueil.
+  { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
@@ -302,15 +307,17 @@ export function Sidebar({
         </div>
       </div>
       <div className="hidden md:block px-3 pt-3">
-        <CommandPalette emailsOuvert={emailsOuvert} vueHorsSyndic={vueHorsSyndic} />
+        <CommandPalette emailsOuvert={emailsOuvert} vueHorsSyndic={vueHorsSyndic} gestionCouranteOuverte={gestionCouranteOuverte} />
       </div>
       <nav className="px-3 py-4 flex flex-col gap-4 flex-1">
         {vueHorsSyndic ? (
-          // Vente, location, accueil : quatre entrees, pas de titre de groupe.
+          // Vente, location, accueil : nav courte, pas de titre de groupe.
           <div>
-            {NAV_HORS_SYNDIC.map((item) => (
-              <NavItem key={item.key} item={item} active={item.key === active} />
-            ))}
+            {NAV_HORS_SYNDIC.filter((item) => item.key !== "gestion-courante" || gestionCouranteOuverte).map(
+              (item) => (
+                <NavItem key={item.key} item={item} active={item.key === active} />
+              ),
+            )}
           </div>
         ) : vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).

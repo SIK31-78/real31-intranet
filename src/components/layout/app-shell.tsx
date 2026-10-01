@@ -59,7 +59,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
       <SentryUtilisateur id={g?.id ?? null} initiales={g?.initiales ?? null} />
       <FilArianeProvider valeur={breadcrumb ?? null}>
         <div className="flex flex-col min-h-screen md:flex-row">
-          <BarreMobile emailsOuvert={emailsOuvert} vueHorsSyndic={vueHorsSyndic} />
+          <BarreMobile emailsOuvert={emailsOuvert} vueHorsSyndic={vueHorsSyndic} gestionCouranteOuverte={gestionCouranteOuverte} />
           {/* Sous md: le rail est un tiroir masque par defaut (SidebarDrawer), ouvert par
               la barre mobile. Des md: colonne statique, pleine hauteur, toujours visible. */}
           <SidebarDrawer>
