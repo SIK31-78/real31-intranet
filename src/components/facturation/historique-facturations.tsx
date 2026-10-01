@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, RotateCcw, CheckCircle2, TriangleAlert, Clock, Search } from "lucide-react";
 import { Card, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
-import { rejouerFactureAction } from "@/app/facturation/actions";
+import { rejouerFactureAction, renvoyerDansEstaleAction } from "@/app/facturation/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented";
@@ -36,6 +36,10 @@ export interface FactureAffichee {
   montantHt: number;
   factureExterneId?: string;
   erreur?: string;
+  /** Saisie dans la compta ESTALE de la copro, en bon à payer (REA-11). */
+  estaleSaisie?: boolean;
+  /** Pourquoi elle n'est pas (encore) partie dans ESTALE : affiche le bouton de renvoi. */
+  estaleErreur?: string;
   par?: string;
   /** Horodatage ISO de creation (affiche date + heure). */
   creeLe: string;
@@ -127,6 +131,20 @@ export function HistoriqueFacturations({
     });
   }
 
+  function renvoyerEstale(id: string) {
+    setEnCours(id);
+    demarrer(async () => {
+      const res = await renvoyerDansEstaleAction(id);
+      setEnCours(null);
+      if (!res.ok) return toast.err(res.erreur);
+      const r = res.donnees;
+      if (r && r.enErreur > 0) toast.err(r.erreurs[0]?.message ?? "Échec de la saisie dans ESTALE.");
+      else if (r && r.enAttente > 0) toast.err("Facture encore en brouillon chez Pennylane : à valider d'abord.");
+      else toast.ok("Facture saisie dans ESTALE, en bon à payer.");
+      router.refresh();
+    });
+  }
+
   return (
     <Card>
       <div className="border-b border-line px-4 py-3">
@@ -196,6 +214,7 @@ export function HistoriqueFacturations({
                       {quand(f.creeLe)}
                       {f.par ? ` · ${f.par}` : ""}
                       {f.factureExterneId ? ` · Pennylane ${f.factureExterneId}` : ""}
+                      {f.estaleSaisie ? " · saisie dans ESTALE" : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
@@ -216,11 +235,31 @@ export function HistoriqueFacturations({
                         Réessayer
                       </Button>
                     )}
+                    {f.statut === "facturee" && f.estaleErreur && (
+                      <Button
+                        onClick={() => renvoyerEstale(f.id)}
+                        disabled={pending}
+                        title="Saisir la facture dans la compta ESTALE de la copropriété"
+                        variant="secondary"
+                      >
+                        {pending && enCours === f.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        )}
+                        Renvoyer dans ESTALE
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {f.statut === "erreur" && f.erreur && (
                   <p className="mt-1 rounded-sm bg-err-50 px-2 py-1 text-meta leading-snug text-err-700">
                     {f.erreur.slice(0, 300)}
+                  </p>
+                )}
+                {f.statut === "facturee" && f.estaleErreur && (
+                  <p className="mt-1 rounded-sm bg-warn-50 px-2 py-1 text-meta leading-snug text-warn-700">
+                    ESTALE : {f.estaleErreur.slice(0, 300)}
                   </p>
                 )}
               </li>

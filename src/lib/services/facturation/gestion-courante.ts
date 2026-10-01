@@ -33,6 +33,7 @@ import { getFacturationRepository } from "@/lib/adapters/router";
 import type { LigneFactureInput, LigneGestionCourante } from "@/lib/ports/facturation-repository";
 import { aujourdhuiISO } from "./bareme";
 import { emettreFacturesEnAttente } from "./emettre-factures-en-attente";
+import { saisirFacturesDansEstale, type ResultatSaisieEstale } from "./saisir-factures-estale";
 import { formatEuros, formatJour } from "./format";
 import {
   CATEGORIE_GESTION_COURANTE,
@@ -270,6 +271,8 @@ export interface ResultatLancementGc {
   /** Lignes selectionnees que le filet a refusees, avec le motif. */
   ignorees: Array<{ coproCode: string; motif: string }>;
   erreurs: Array<{ coproCode: string; message: string }>;
+  /** Saisie dans la compta ESTALE des copros qui y sont tenues (REA-11). */
+  estale: ResultatSaisieEstale;
 }
 
 /** Pourquoi le filet refuse une ligne pourtant selectionnee. */
@@ -321,6 +324,7 @@ export async function lancerGestionCourante(
     enErreur: 0,
     ignorees: [],
     erreurs: [],
+    estale: { envoyees: 0, enAttente: 0, enErreur: 0, erreurs: [] },
   };
   const idsCrees: string[] = [];
 
@@ -389,6 +393,17 @@ export async function lancerGestionCourante(
   resultat.enErreur += emission.enErreur;
   for (const e of emission.erreurs)
     resultat.erreurs.push({ coproCode: e.factureId, message: e.message });
+
+  // Puis la saisie dans ESTALE. Les factures sont deja emises chez Pennylane : un echec
+  // ici ne doit pas faire croire au lancement que la facturation a echoue. Chaque echec
+  // est trace sur sa facture et reste renvoyable depuis l'historique.
+  try {
+    resultat.estale = await saisirFacturesDansEstale(idsCrees);
+  } catch (erreur) {
+    const message = erreur instanceof Error ? erreur.message : String(erreur);
+    resultat.estale.enErreur += 1;
+    resultat.estale.erreurs.push({ factureId: "", coproCode: "", message: `Saisie ESTALE interrompue : ${message}` });
+  }
 
   return resultat;
 }

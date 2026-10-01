@@ -204,6 +204,13 @@ export function PanneauGestionCourante({
         } else {
           toast.ok(`${r.emises} facture(s) de gestion courante émise(s) pour ${r.periode}${mis}.`);
         }
+        const e = r.estale;
+        if (e.enErreur > 0) {
+          toast.err(`ESTALE : ${e.envoyees} saisie(s), ${e.enErreur} en erreur. Détail et renvoi dans l'historique de facturation.`);
+        } else if (e.envoyees > 0 || e.enAttente > 0) {
+          const attente = e.enAttente > 0 ? `, ${e.enAttente} en attente de validation Pennylane` : "";
+          toast.ok(`ESTALE : ${e.envoyees} facture(s) saisie(s) en bon à payer${attente}.`);
+        }
       }
       reinitialiser();
       router.refresh();

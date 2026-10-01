@@ -36,6 +36,10 @@ import {
   tarifForfaitaireBareme,
 } from "@/lib/services/facturation/creer-facture-prestation-forfaitaire";
 import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-factures-en-attente";
+import {
+  saisirFacturesDansEstale,
+  type ResultatSaisieEstale,
+} from "@/lib/services/facturation/saisir-factures-estale";
 import { getFacturationRepository } from "@/lib/adapters/router";
 
 
@@ -305,6 +309,25 @@ export async function rejouerFactureAction(
     await exigerPerimetre(coproCode, managerId);
     await getFacturationRepository().remettreEnAttente(factureId);
     return emettreFacturesEnAttente([factureId]);
+  });
+}
+
+/**
+ * Renvoie dans la compta ESTALE une facture deja emise chez Pennylane (REA-11) : la
+ * premiere fois apres sa validation dans Pennylane, ou apres un echec (exercice
+ * verrouille, panne). Ne recree jamais une facture deja saisie (anti-doublon intranet
+ * et ESTALE, cf. services/facturation/saisir-factures-estale).
+ */
+export async function renvoyerDansEstaleAction(factureId: string): Promise<Res<ResultatSaisieEstale>> {
+  if (!z.string().uuid().safeParse(factureId).success)
+    return { ok: false, erreur: "Données invalides." };
+
+  return executer(async (managerId) => {
+    // Une ecriture REELLE dans la compta d'une copro : meme garde de perimetre que le rejeu.
+    const coproCode = await getFacturationRepository().coproDeFacture(factureId);
+    if (!coproCode) throw new Error("Facture introuvable.");
+    await exigerPerimetre(coproCode, managerId);
+    return saisirFacturesDansEstale([factureId]);
   });
 }
 

@@ -56,6 +56,8 @@ export default async function FacturationPage() {
     montantHt: f.montantHt,
     ...(f.factureExterneId ? { factureExterneId: f.factureExterneId } : {}),
     ...(f.erreur ? { erreur: f.erreur } : {}),
+    ...(f.estaleEcritureId ? { estaleSaisie: true } : {}),
+    ...(f.estaleErreur ? { estaleErreur: f.estaleErreur } : {}),
     ...(f.par ? { par: f.par } : {}),
     creeLe: f.creeLe,
   }));
