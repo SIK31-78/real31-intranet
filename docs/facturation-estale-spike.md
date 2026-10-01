@@ -1,5 +1,25 @@
 # Comptabiliser les factures REAL31 dans ESTALE - spike du 2026-09-08
 
+> **Mise à jour du 2026-10-01 : la saisie automatique est possible sans verrou.**
+> La bonne mutation est `createEntry` (écriture d'achat, celle du formulaire « Ajouter une
+> facture »), pas `createInvoiceCondo`. Testé sur SE999 : facture `DEMO-2026-T3-004`
+> créée avec numéro de pièce, PDF joint, compte fournisseur `4010001` et contrepartie
+> `6211` → `isUpdatable: true`, `isDeletable: true`, puis supprimée par
+> `updateEntry(id).delete` sans reste.
+>
+> - `createInvoiceCondo` = **émettre** une facture depuis ESTALE (numérotation ESTALE
+>   `AAAA-MM-C<ref>-N`, lignes en quantité × taux de TVA). Une facture émise ne se modifie
+>   pas : c'est la cause du verrou, comme pour les frais de relance et frais postaux générés
+>   par ESTALE.
+> - `createEntry` porte `piece` (n° de facture Pennylane), `dueDate`, `status`, `file`
+>   (upload), `predictionID` et les lignes (`amount` TTC, `vat`, `dkID`, `accountID`).
+> - **Piège** : sans `status`, l'écriture est créée en `PAID`. Toujours passer le statut
+>   « en attente de paiement » explicitement.
+> - La facture à valider (`createInvoicePrediction`) n'est donc plus nécessaire pour
+>   l'automatisation : elle laisse l'imputation à la comptable.
+>
+> Le reste du document décrit l'état au 2026-09-08 et garde sa valeur pour les garde-fous.
+
 **Question posée** (demande du patron) : quand l'intranet génère les factures d'honoraires,
 comment les faire arriver dans ESTALE ? Par l'adresse mail d'intégration du facturier, ou
 par l'API ?
