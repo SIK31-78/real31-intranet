@@ -56,6 +56,15 @@ describe("doitPartirDansLinear", () => {
     expect(doitPartirDansLinear({ statut: "livre" })).toBe(false);
   });
 
+  // Archiver est le geste par lequel l'admin MASQUE une entrée sans la détruire :
+  // la pousser dans Linear la ferait réapparaître par la fenêtre. 6 des 67 remontées
+  // du premier passage étaient dans ce cas, dont un artefact de test E2E.
+  it("ignore une remontée archivée, quel que soit son statut", () => {
+    expect(doitPartirDansLinear({ severite: "genant", statut: "nouveau", archiveAt: "2026-07-23T10:00:00.000Z" })).toBe(false);
+    expect(doitPartirDansLinear({ severite: "genant", statut: "prevu", archiveAt: "2026-07-30T10:00:00.000Z" })).toBe(false);
+    expect(doitPartirDansLinear({ severite: "bloquant", statut: "en_cours", archiveAt: "2026-08-11T10:00:00.000Z" })).toBe(false);
+  });
+
   // Au premier passage du cron la table contient des mois d'historique : ne pas
   // remplir le backlog de tickets déjà réglés.
   it("ignore une remontée déjà terminée", () => {

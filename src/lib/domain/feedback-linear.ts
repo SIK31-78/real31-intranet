@@ -15,7 +15,7 @@
 // ajouter un "In Review" ou traduire les etats en francais ne doit rien casser.
 
 import type { Feedback, SeveriteFeedback, StatutFeedback, TypeFeedback } from "./feedback";
-import { decoderPageFeedback, LIBELLES_APPLICATION } from "./feedback";
+import { decoderPageFeedback, estArchivee, LIBELLES_APPLICATION } from "./feedback";
 
 /**
  * Les `type` d'etat que Linear expose sur un WorkflowState. `duplicate` n'est pas
@@ -118,7 +118,7 @@ export function labelsLinear(type: TypeFeedback): string[] {
 /**
  * Une remontee doit-elle partir dans Linear ?
  *
- * DEUX garde-fous, et ils comptent au premier passage du cron (la table contient
+ * TROIS garde-fous, et ils comptent au premier passage du cron (la table contient
  * deja des mois de remontees) :
  *
  *  1. SEVERITE PRESENTE. Une severite absente = entree « maison » creee par l'admin
@@ -126,9 +126,16 @@ export function labelsLinear(type: TypeFeedback): string[] {
  *     pas une remontee de collaborateur : elle n'a rien a faire dans le backlog.
  *  2. STATUT NON TERMINAL. Creer aujourd'hui un ticket pour une remontee deja `livre`
  *     ou `ecarte` il y a trois mois ne remplirait le backlog que de bruit.
+ *  3. NON ARCHIVEE. Archiver est le geste par lequel l'admin MASQUE une entree (de
+ *     /nouveautes et de la worklist) sans la detruire : la pousser dans Linear la
+ *     ferait reapparaitre par la fenetre. 6 des 67 remontees du premier passage
+ *     etaient archivees, dont un artefact de test E2E - et elles etaient
+ *     introuvables dans le panneau, justement parce qu'archivees (releve en
+ *     cherchant l'entree de test avec Sekou, 2026-10-06).
  */
-export function doitPartirDansLinear(f: Pick<Feedback, "severite" | "statut">): boolean {
+export function doitPartirDansLinear(f: Pick<Feedback, "severite" | "statut" | "archiveAt">): boolean {
   if (!f.severite) return false;
+  if (estArchivee(f)) return false;
   return f.statut === "nouveau" || f.statut === "prevu" || f.statut === "en_cours";
 }
 
