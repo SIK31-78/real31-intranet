@@ -1,11 +1,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, Home, Inbox, Building2, Calculator, KeyRound,
-  FileSignature, ShieldAlert, Key, Signature, Globe, Vote, Database, ExternalLink,
-  PackagePlus,
-  PackageMinus, Handshake, Receipt, ClipboardList, Landmark, Sparkles, MessageSquare, Megaphone,
-  FolderOpen, ChevronDown, Euro, Users, PhoneCall,
+  Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -162,6 +158,10 @@ type LienApp = { label: string; href: string; icon: ComponentType<{ className?: 
 // Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
 const APPS_EXTERNES: LienApp[] = [
   { label: "Registre des mandats", href: "https://mandats.real31.app/", icon: FileSignature },
+  // Suivi des contrats fournisseurs des copropriétés. Le lien n'existait que dans les
+  // onglets d'une fiche copropriété : il fallait ouvrir une copro pour atteindre l'outil
+  // (demande Sekou, 06/10/2026).
+  { label: "Contrats copro", href: "https://contratscopro.real31.app/", icon: ScrollText },
 ];
 
 // Outils externes (tiers) qu'on utilise mais qui ne sont pas a nous.
