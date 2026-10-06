@@ -11,8 +11,15 @@
 // un mail, un appel, un post-it. La description reste la parole de celui qui signale,
 // recopiee telle quelle ; l'auteur se donne par ses initiales, jamais par son email.
 //
+// DEPUIS LE PONT LINEAR (ADR-043, 2026-10-06) : le STATUT est porte par LINEAR.
+// `maj <id> statut=...` est REFUSE des que la remontee a un ticket, et le script dit
+// ou aller. Sans ce refus, le cron de 6h relirait l etat du ticket (reste en Backlog)
+// et ecraserait le triage de la nuit - silencieusement. Ce qui reste ici : titre,
+// resume public, severite, note. Linear ne sait pas faire le resume de la vitrine.
+//
 // Champs acceptes par `maj` :
 //   statut=nouveau|prevu|en_cours|livre|ecarte   (livre pose livre_at ; ecarte EXIGE raison=...)
+//                                               REFUSE si la remontee a un ticket Linear
 //   titre="..."  resume="..."  severite=bloquant|genant|confort
 //   priorite=<entier|vide>  note="..."  raison="..."
 // Le titre et le resume sont PUBLICS (vitrine /nouveautes) : langage simple, jamais
@@ -42,12 +49,22 @@ function fatal(msg) {
 
 if (commande === "liste") {
   const tous = args.includes("--tous");
-  const colsBase = "id, type, titre, statut, severite, priorite, page, auteur_initiales, created_at, archive_at";
+  const colsBase = "id, type, titre, statut, severite, priorite, page, auteur_initiales, created_at, archive_at, linear_identifier";
   // Lecture degradee tant que le SQL resume_public n'est pas passe.
   let r = await sb.from(TABLE).select(`${colsBase}, resume_public`).order("created_at", { ascending: false });
+  if (r.error && /linear_identifier/.test(r.error.message)) {
+    console.error("NB : colonnes Linear absentes - SQL a passer : supabase/sql/intranet_feedback_linear.sql");
+    r = await sb
+      .from(TABLE)
+      .select(`${colsBase.replace(", linear_identifier", "")}, resume_public`)
+      .order("created_at", { ascending: false });
+  }
   if (r.error && /resume_public/.test(r.error.message)) {
     console.error("NB : colonne resume_public absente - SQL a passer : supabase/sql/intranet_feedback_resume_public.sql");
-    r = await sb.from(TABLE).select(colsBase).order("created_at", { ascending: false });
+    r = await sb
+      .from(TABLE)
+      .select(colsBase.replace(", linear_identifier", ""))
+      .order("created_at", { ascending: false });
   }
   const { data, error } = r;
   if (error) fatal(error.message);
@@ -57,7 +74,9 @@ if (commande === "liste") {
   for (const f of lignes) {
     const marqueurs = [f.statut, f.type, f.severite ?? "-", f.priorite ?? "-", f.auteur_initiales ?? "?", f.created_at.slice(0, 10)];
     const resume = f.resume_public ? " [resume OK]" : "";
-    console.log(`${f.id} | [${marqueurs.join("|")}]${resume} ${f.titre.slice(0, 100)}`);
+    // L identifiant Linear dit OU statuer : present = le statut se change la-bas.
+    const ticket = f.linear_identifier ? ` <${f.linear_identifier}>` : "";
+    console.log(`${f.id} | [${marqueurs.join("|")}]${resume}${ticket} ${f.titre.slice(0, 100)}`);
   }
   console.log(`\n${lignes.length} remontee(s).`);
 } else if (commande === "voir") {
@@ -124,6 +143,24 @@ if (commande === "liste") {
     else fatal(`champ inconnu : ${cle}`);
   }
   if (patch.statut === "ecarte" && !patch.raison_ecart) fatal("ecarter EXIGE raison=...");
+
+  // LE garde-fou du pont : le statut d une remontee deja poussee se change DANS
+  // LINEAR, sinon le cron l ecrase a 6h. On lit l etat courant avant d ecrire.
+  if (patch.statut) {
+    const sonde = await sb.from(TABLE).select("linear_issue_id, linear_identifier").eq("id", id).maybeSingle();
+    // Colonnes absentes (SQL pas passe) = pas de pont : on laisse passer.
+    if (!sonde.error && sonde.data?.linear_issue_id) {
+      fatal(
+        `statut= refuse : cette remontee est suivie par le ticket ${sonde.data.linear_identifier}.
+` +
+          `  Le STATUT est porte par Linear (ADR-043) : change l etat du ticket la-bas,
+` +
+          `  le cron de 6h realignera la remontee. Ici tu peux encore poser
+` +
+          `  titre= resume= severite= note= priorite=.`,
+      );
+    }
+  }
   const { data, error } = await sb.from(TABLE).update(patch).eq("id", id).select("id, titre, statut").maybeSingle();
   if (error) fatal(error.message);
   if (!data) fatal("introuvable");
