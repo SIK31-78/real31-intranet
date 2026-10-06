@@ -9,9 +9,11 @@ import { STATUTS_PUBLICS } from "@/lib/domain/feedback";
 import type {
   ChangementStatut,
   EntreeAdmin,
+  EtatDepuisLinear,
   FeedbackRepository,
   FiltreFeedback,
   PatchFeedback,
+  RattachementTicket,
   RemonteeFeedback,
 } from "@/lib/ports/feedback-repository";
 import { createSupabasePublicClient } from "./public-client";
@@ -24,13 +26,36 @@ const COLS =
 // degrade (resume absent partout) et l'ECRITURE du resume leve une erreur qui nomme
 // le fichier - meme filet que le traitement des recaps.
 const SQL_RESUME = "supabase/sql/intranet_feedback_resume_public.sql";
+// Idem pour les trois colonnes du pont Linear : tant que le SQL n'est pas passe, la
+// LECTURE se degrade (champs Linear absents partout, le cron ne trouve donc rien a
+// synchroniser) et l'ECRITURE leve une erreur qui NOMME le fichier a jouer.
+const SQL_LINEAR = "supabase/sql/intranet_feedback_linear.sql";
+const COLS_LINEAR = "linear_issue_id, linear_identifier, linear_sync_at";
 let colonneResumeConnue: boolean | undefined;
+let colonnesLinearConnues: boolean | undefined;
+
+async function linearDisponible(sb: ReturnType<typeof createSupabasePublicClient>): Promise<boolean> {
+  if (colonnesLinearConnues === undefined) {
+    const sonde = await sb.from(TABLE).select("linear_issue_id").limit(1);
+    colonnesLinearConnues = !sonde.error;
+  }
+  return colonnesLinearConnues;
+}
+
 async function colsEffectives(sb: ReturnType<typeof createSupabasePublicClient>): Promise<string> {
   if (colonneResumeConnue === undefined) {
     const sonde = await sb.from(TABLE).select("resume_public").limit(1);
     colonneResumeConnue = !sonde.error;
   }
-  return colonneResumeConnue ? `${COLS}, resume_public` : COLS;
+  const avecResume = colonneResumeConnue ? `${COLS}, resume_public` : COLS;
+  return (await linearDisponible(sb)) ? `${avecResume}, ${COLS_LINEAR}` : avecResume;
+}
+
+/** Garde commune aux ecritures du pont : sans les colonnes, on NOMME le SQL. */
+async function exigerColonnesLinear(sb: ReturnType<typeof createSupabasePublicClient>): Promise<void> {
+  if (!(await linearDisponible(sb))) {
+    throw new Error(`Pont Linear : colonnes absentes - SQL a passer : ${SQL_LINEAR}`);
+  }
 }
 
 type Row = {
@@ -47,6 +72,9 @@ type Row = {
   note_interne: string | null;
   raison_ecart: string | null;
   resume_public?: string | null;
+  linear_issue_id?: string | null;
+  linear_identifier?: string | null;
+  linear_sync_at?: string | null;
   created_at: string;
   updated_at: string | null;
   livre_at: string | null;
@@ -77,6 +105,9 @@ function map(r: Row): Feedback {
     ...(r.note_interne ? { noteInterne: r.note_interne } : {}),
     ...(r.raison_ecart ? { raisonEcart: r.raison_ecart } : {}),
     ...(r.resume_public ? { resumePublic: r.resume_public } : {}),
+    ...(r.linear_issue_id ? { linearIssueId: r.linear_issue_id } : {}),
+    ...(r.linear_identifier ? { linearIdentifiant: r.linear_identifier } : {}),
+    ...(r.linear_sync_at ? { linearSyncAt: r.linear_sync_at } : {}),
     ...(r.updated_at ? { updatedAt: r.updated_at } : {}),
     ...(r.livre_at ? { livreAt: r.livre_at } : {}),
     ...(r.archive_at ? { archiveAt: r.archive_at } : {}),
@@ -210,5 +241,87 @@ export class SupabaseFeedbackRepository implements FeedbackRepository {
       throw new Error(`lister feedback public : ${error.message}`);
     }
     return (data as unknown as Row[]).map(map);
+  }
+
+  // --- PONT LINEAR ------------------------------------------------------------
+
+  async listerSansTicket(): Promise<Feedback[]> {
+    const sb = createSupabasePublicClient();
+    // Colonnes absentes = pont pas encore installe : rien a pousser, et surtout PAS
+    // une erreur (le cron doit pouvoir tourner avant que le SQL soit passe).
+    if (!(await linearDisponible(sb))) return [];
+    const { data, error } = await sb
+      .from(TABLE)
+      .select(await colsEffectives(sb))
+      .is("linear_issue_id", null)
+      .order("created_at", { ascending: false });
+    if (error) {
+      if (tableAbsente(error)) throw new FeedbackNonConfigureError();
+      throw new Error(`lister feedback sans ticket : ${error.message}`);
+    }
+    return (data as unknown as Row[]).map(map);
+  }
+
+  async listerAvecTicket(): Promise<Feedback[]> {
+    const sb = createSupabasePublicClient();
+    if (!(await linearDisponible(sb))) return [];
+    const { data, error } = await sb
+      .from(TABLE)
+      .select(await colsEffectives(sb))
+      .not("linear_issue_id", "is", null)
+      .order("created_at", { ascending: false });
+    if (error) {
+      if (tableAbsente(error)) throw new FeedbackNonConfigureError();
+      throw new Error(`lister feedback avec ticket : ${error.message}`);
+    }
+    return (data as unknown as Row[]).map(map);
+  }
+
+  async attacherTicket(id: string, ticket: RattachementTicket): Promise<Feedback | null> {
+    const sb = createSupabasePublicClient();
+    await exigerColonnesLinear(sb);
+    const { data, error } = await sb
+      .from(TABLE)
+      .update({
+        linear_issue_id: ticket.issueId,
+        linear_identifier: ticket.identifiant,
+        linear_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select(await colsEffectives(sb))
+      .maybeSingle();
+    if (error) {
+      if (tableAbsente(error)) throw new FeedbackNonConfigureError();
+      throw new Error(`attacher ticket Linear : ${error.message}`);
+    }
+    return data ? map(data as unknown as Row) : null;
+  }
+
+  async appliquerEtatLinear(id: string, etat: EtatDepuisLinear): Promise<Feedback | null> {
+    const sb = createSupabasePublicClient();
+    await exigerColonnesLinear(sb);
+    const maj: Record<string, unknown> = {
+      statut: etat.statut,
+      // raison_ecart : posee quand on ecarte, effacee quand on en sort (meme regle
+      // que changerStatut, pour qu'un ticket desannule dans Linear soit propre).
+      raison_ecart: etat.statut === "ecarte" ? (etat.raisonEcart ?? null) : null,
+      linear_sync_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    // livre_at est la date du changelog : posee en passant a `livre`, retiree si le
+    // ticket repart en arriere (sinon /nouveautes daterait une livraison annulee).
+    maj.livre_at = etat.statut === "livre" ? (etat.livreAt ?? new Date().toISOString()) : null;
+    const { data, error } = await sb
+      .from(TABLE)
+      .update(maj)
+      .eq("id", id)
+      .select(await colsEffectives(sb))
+      .maybeSingle();
+    if (error) {
+      if (tableAbsente(error)) throw new FeedbackNonConfigureError();
+      throw new Error(`appliquer etat Linear : ${error.message}`);
+    }
+    return data ? map(data as unknown as Row) : null;
   }
 }

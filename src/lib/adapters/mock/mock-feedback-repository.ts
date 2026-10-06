@@ -7,9 +7,11 @@ import { estVisiblePublic } from "@/lib/domain/feedback";
 import type {
   ChangementStatut,
   EntreeAdmin,
+  EtatDepuisLinear,
   FeedbackRepository,
   FiltreFeedback,
   PatchFeedback,
+  RattachementTicket,
   RemonteeFeedback,
 } from "@/lib/ports/feedback-repository";
 
@@ -117,5 +119,54 @@ export class MockFeedbackRepository implements FeedbackRepository {
       .filter((f) => estVisiblePublic(f))
       .sort(parDateDesc)
       .map((f) => ({ ...f }));
+  }
+
+  // --- PONT LINEAR ------------------------------------------------------------
+
+  async listerSansTicket(): Promise<Feedback[]> {
+    return [...STORE.values()]
+      .filter((f) => !f.linearIssueId)
+      .sort(parDateDesc)
+      .map((f) => ({ ...f }));
+  }
+
+  async listerAvecTicket(): Promise<Feedback[]> {
+    return [...STORE.values()]
+      .filter((f) => Boolean(f.linearIssueId))
+      .sort(parDateDesc)
+      .map((f) => ({ ...f }));
+  }
+
+  async attacherTicket(id: string, ticket: RattachementTicket): Promise<Feedback | null> {
+    const f = STORE.get(id);
+    if (!f) return null;
+    const maj: Feedback = {
+      ...f,
+      linearIssueId: ticket.issueId,
+      linearIdentifiant: ticket.identifiant,
+      linearSyncAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    STORE.set(id, maj);
+    return { ...maj };
+  }
+
+  async appliquerEtatLinear(id: string, etat: EtatDepuisLinear): Promise<Feedback | null> {
+    const f = STORE.get(id);
+    if (!f) return null;
+    const maj: Feedback = {
+      ...f,
+      statut: etat.statut,
+      linearSyncAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    // Memes effacements que l'adapter Supabase, pour que les tests sur mock
+    // decrivent bien le comportement reel (un retour en arriere nettoie).
+    if (etat.statut === "ecarte" && etat.raisonEcart) maj.raisonEcart = etat.raisonEcart;
+    else delete maj.raisonEcart;
+    if (etat.statut === "livre") maj.livreAt = etat.livreAt ?? new Date().toISOString();
+    else delete maj.livreAt;
+    STORE.set(id, maj);
+    return { ...maj };
   }
 }

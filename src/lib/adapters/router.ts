@@ -140,6 +140,9 @@ import type { ClesApiRepository } from "@/lib/ports/cles-api-repository";
 import { SupabaseClesApiRepository } from "@/lib/adapters/supabase/supabase-cles-api-repository";
 import { MockClesApiRepository } from "@/lib/adapters/mock/mock-cles-api-repository";
 import type { FeedbackRepository } from "@/lib/ports/feedback-repository";
+import type { TicketTracker } from "@/lib/ports/ticket-tracker";
+import { LinearTicketTracker } from "@/lib/adapters/linear/linear-ticket-tracker";
+import { NoopTicketTracker } from "@/lib/adapters/linear/noop-ticket-tracker";
 import { SupabaseFeedbackRepository } from "@/lib/adapters/supabase/supabase-feedback-repository";
 import { MockFeedbackRepository } from "@/lib/adapters/mock/mock-feedback-repository";
 import type { PointsEstaleRepository } from "@/lib/ports/points-estale-repository";
@@ -532,6 +535,14 @@ export function getClesApiRepository(): ClesApiRepository {
 export function getFeedbackRepository(): FeedbackRepository {
   if (coproSourceEstSupabase()) return new SupabaseFeedbackRepository();
   return new MockFeedbackRepository();
+}
+
+// Suivi de tickets externe (pont remontees <-> Linear, cf. /api/cron/linear).
+// Linear en reel des que la cle ET l'equipe sont configurees, sinon no-op : sans
+// cle, le module de remontees fonctionne exactement comme avant le pont.
+export function getTicketTracker(): TicketTracker {
+  if (process.env.LINEAR_API_KEY && process.env.LINEAR_TEAM_ID) return new LinearTicketTracker();
+  return new NoopTicketTracker();
 }
 
 // Points a porter a ESTALE (outil admin de Sekou, /admin/estale).

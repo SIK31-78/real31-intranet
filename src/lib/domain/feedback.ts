@@ -67,6 +67,14 @@ export interface Feedback {
   updatedAt?: string;
   /** ISO ; pose quand statut -> `livre`. Sert de date du changelog. */
   livreAt?: string;
+  /** uuid de l'issue Linear rattachee (pont /api/cron/linear). Absent = pas encore
+   *  pousse, ou entree « maison » qui n'a pas a l'etre. INTERNE : la projection
+   *  publique ne le laisse pas passer. */
+  linearIssueId?: string;
+  /** 'REA-87' : identifiant lisible du ticket, pour le lien depuis /admin/feedback. */
+  linearIdentifiant?: string;
+  /** ISO ; derniere synchro reussie avec Linear (aller ou retour). */
+  linearSyncAt?: string;
   /** ISO ; pose quand l'admin ARCHIVE l'entree (masquage REVERSIBLE). Une entree
    *  archivee sort de /nouveautes ET de la worklist par defaut, mais reste en base
    *  (rien n'est perdu) : desarchiver la remet a null. Orthogonal au statut : on peut

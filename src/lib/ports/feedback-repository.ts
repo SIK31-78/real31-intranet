@@ -78,6 +78,31 @@ export interface PatchFeedback {
   archive?: boolean;
 }
 
+/** Rattachement d'une remontee a son ticket Linear (l'aller du cron). */
+export interface RattachementTicket {
+  /** uuid de l'issue : la cle de rapprochement. */
+  issueId: string;
+  /** 'REA-87'. */
+  identifiant: string;
+}
+
+/**
+ * Etat ramene de Linear (le retour du cron).
+ *
+ * ATTENTION : appliquer cet etat COURT-CIRCUITE `verifierTransition`. C'est
+ * delibere - Linear est la source de verite du cycle de vie depuis le pont du
+ * 2026-10-06, et un ticket peut legitimement repasser de Done a In Progress, ce que
+ * le domaine interdit cote app (`livre` est terminal). Aucun autre appelant que le
+ * service de synchro ne doit utiliser `appliquerEtatLinear`.
+ */
+export interface EtatDepuisLinear {
+  statut: StatutFeedback;
+  /** ISO ; pose quand le statut cible est `livre`. */
+  livreAt?: string;
+  /** Requis quand le statut cible est `ecarte` (regle domaine). */
+  raisonEcart?: string;
+}
+
 export interface FeedbackRepository {
   /** Cree la remontee (statut initial `nouveau`) et renvoie l'enregistrement. */
   creer(remontee: RemonteeFeedback): Promise<Feedback>;
@@ -95,4 +120,16 @@ export interface FeedbackRepository {
   /** Uniquement les entrees VISIBLES du public (statut prevu/en_cours/livre ET non
    *  archivees), pour /nouveautes. */
   listerPublic(): Promise<Feedback[]>;
+
+  // --- PONT LINEAR (cf. supabase/sql/intranet_feedback_linear.sql) -------------
+
+  /** Remontees qui n'ont PAS encore de ticket Linear (l'aller du cron). */
+  listerSansTicket(): Promise<Feedback[]>;
+  /** Remontees qui ONT un ticket Linear (le retour du cron). */
+  listerAvecTicket(): Promise<Feedback[]>;
+  /** Rattache la remontee a son ticket fraichement cree. null = introuvable. */
+  attacherTicket(id: string, ticket: RattachementTicket): Promise<Feedback | null>;
+  /** Applique l'etat ramene de Linear. COURT-CIRCUITE le cycle de vie : reserve au
+   *  service de synchro (cf. {@link EtatDepuisLinear}). null = introuvable. */
+  appliquerEtatLinear(id: string, etat: EtatDepuisLinear): Promise<Feedback | null>;
 }

@@ -63,6 +63,7 @@ const eslintConfig = defineConfig([
         { type: "adapter-mail",        pattern: "src/lib/adapters/mail/**" },
         { type: "adapter-signitic",    pattern: "src/lib/adapters/signitic/**" },
         { type: "adapter-docx",        pattern: "src/lib/adapters/docx/**" },
+        { type: "adapter-linear",      pattern: "src/lib/adapters/linear/**" },
         { type: "router",              pattern: "src/lib/adapters/router*.ts" },
         { type: "services",            pattern: "src/lib/services/**" },
         { type: "jobs",                pattern: "src/lib/jobs/**" },
@@ -104,9 +105,10 @@ const eslintConfig = defineConfig([
           { from: "adapter-mail",       allow: ["domain", "ports"] },
           { from: "adapter-signitic",   allow: ["domain", "ports"] },
           { from: "adapter-docx",       allow: ["domain", "ports"] },
+          { from: "adapter-linear",     allow: ["domain", "ports"] },
 
           // Router : seul endroit qui connaît tous les adapters
-          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-composite", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic", "adapter-docx"] },
+          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-composite", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic", "adapter-docx", "adapter-linear"] },
 
           // Audit, auth : helpers transverses qui parlent au domaine via ports
           { from: "audit",              allow: ["domain", "ports"] },
