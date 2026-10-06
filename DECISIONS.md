@@ -1869,3 +1869,49 @@ La **lecture** reste ouverte au cabinet. Le **périmètre comptable** reste dans
 ### Liens
 
 ADR-001 (hexagonal), ADR-039 (droits des propositions), `supabase/sql/intranet_delegation.sql`, `domain/perimetre-ecriture.test.ts`.
+
+---
+
+## ADR-043 - Remontées collaborateurs et Linear : une seule saisie, un cron quotidien, Linear source de vérité
+
+**Date** : 2026-10-06 · **Statut** : accepté (Sekou, 06/10/2026 — 3 arbitrages : cron quotidien plutôt que webhook, clé API personnelle plutôt qu'app OAuth, sort de `/admin/feedback` à décider en le voyant tourner)
+
+### Contexte
+
+Depuis le 25/09/2026 le pilotage vit dans Linear (règle globale, cf. `~/.claude/CLAUDE.md`), mais le bouton « Un bug / une idée » de real31.app écrit dans `intranet_feedback` et nulle part ailleurs. Résultat : **double saisie**. Sekou relisait les remontées dans `/admin/feedback`, puis recréait à la main les tickets qui méritaient d'être traités. Et sa phrase cadre le besoin : « moi je juge sur Linear si ça vaut le coup ou non » — donc c'est Linear qui doit porter le jugement, pas le panneau admin.
+
+Le piège, c'est que la double saisie a **deux moitiés**. Pousser la remontée vers Linear est facile ; mais sans retour, `/nouveautes` meurt : les collègues ne voient plus ce que devient leur remontée, et il faudrait ressaisir le statut côté app. La ressaisie aurait juste changé de place.
+
+### Décision
+
+**Un seul cron quotidien fait les deux sens** (`/api/cron/linear`, 6 h UTC, `vercel.json`) :
+
+1. **L'aller** : les remontées sans `linear_issue_id` deviennent des issues Linear (équipe REAL31, projet *Intranet REAL31* pour real31.app, backlog d'équipe pour ESTALE / Registre des Mandats), label `Bug` ou `Idée`, priorité dérivée de la gravité ressentie (bloquant → Urgent, gênant → High, confort → Low).
+2. **Le retour** : l'état des tickets connus réaligne le statut de la remontée, donc `/nouveautes` suit tout seul.
+
+**Linear devient la source de vérité du cycle de vie.** Le retour court-circuite volontairement `verifierTransition` : un ticket peut repasser de *Done* à *In Progress*, alors que `livre` est terminal côté domaine. Ce n'est pas un oubli, c'est le prix du « une seule saisie », et il est confiné dans `appliquerEtatLinear` (adapters) + `domain/feedback-linear.ts`.
+
+**Pas de push dans la server action.** Le bouton ne doit jamais dépendre de Linear : une panne, un throttling ou une clé expirée ne peut ni faire attendre un collègue ni perdre sa remontée. Elle est enregistrée en base, le cron la poussera. Et comme le triage se fait en une fournée hebdo, un jour de latence ne coûte rien. **Pas de webhook** non plus pour la même raison : une route publique de plus, un HMAC à vérifier et un mapping à tenir en temps réel, pour une fraîcheur dont personne n'a besoin.
+
+**Quatre garde-fous**, tous testés :
+- **Le mapping se fait sur le `type` de l'état, jamais sur son nom** : renommer « In Progress » ou traduire les états ne casse rien. Un type **inconnu** (état custom créé dans Linear) ne touche à rien — mieux vaut un statut figé qu'une remontée écartée par surprise.
+- **Seules les remontées de collaborateurs partent** : sévérité absente = entrée « maison » créée par l'admin pour alimenter `/nouveautes`, elle n'a rien à faire dans le backlog. Et une remontée déjà `livre` / `ecarte` n'est pas poussée, sinon le premier passage aurait rempli le backlog de mois d'historique réglé.
+- **Chaque remontée est traitée indépendamment** : un échec (label supprimé, 429) ne fait pas tomber le lot, et le passage du lendemain la reprend puisque rien n'a été écrit pour elle.
+- **Un ticket effacé à la main dans Linear est signalé, pas délié** : délier recréerait un ticket au passage suivant, en boucle.
+- **Le ticket naît dans l'état qui correspond au statut actuel** (`prevu` → Todo, `en_cours` → In Progress), et l'état est résolu **par position croissante**, pas par ordre de réponse de l'API. Les deux points viennent de la simulation du premier passage (06/10) : sans le premier, l'aller faisait naître en *Backlog* 25 remontées déjà triées sur 67 et le retour du même passage les ramenait à `nouveau`, hors de `/nouveautes` — le pont aurait effacé le triage existant. Sans le second, l'API rendant *In Review* (position 1002) avant *In Progress* (position 2), une remontée `en_cours` naissait « en relecture ».
+
+**Qui porte quoi**, parce que le triage est fait par un agent via le skill `/corrections` et pas à la main dans `/admin/feedback` (précisé par Sekou le 06/10) : **Linear** porte le statut, la priorité et l'assignation ; la **base** porte la description brute (jamais modifiée), le `resume_public` de la vitrine, la sévérité requalifiée, la note interne, et le **titre** — l'agent le reformule en langage non technique pour `/nouveautes`, et le cron le pousse dans Linear (`issueUpdate`) pour que les deux surfaces ne montrent pas deux libellés de la même chose. La priorité, elle, est posée **à la naissance seulement** et jamais réécrite, sinon elle écraserait l'arbitrage fait à la main dans Linear.
+
+Ce partage avait un piège qui méritait de l'outillage plutôt qu'une consigne : l'agent faisait `maj <id> statut=prevu` dans `intranet_feedback`, et le cron du lendemain l'écrasait silencieusement. **`scripts/feedback-triage.mjs` refuse donc `statut=` dès que la remontée a un `linear_issue_id`** et nomme le ticket où aller. Ce qui n'est pas outillé n'est pas exécuté.
+
+**L'écart** (`canceled` / `duplicate`) pose `raison_ecart = "<État> dans Linear (REA-xx)"`. Le domaine exige une raison non vide ; on trace la provenance plutôt que d'inventer un motif. La raison lisible par le collègue passe par `resume_public`, rédigé à la main au triage.
+
+### Conséquences
+
+**Positives** : une seule saisie ; `/nouveautes` reste vrai sans intervention ; le bouton collaborateur ne dépend d'aucun service externe ; sans `LINEAR_API_KEY`, l'adaptateur no-op rend le module exactement tel qu'avant le pont (dev, tests, preview) ; le cron est idempotent, le rejouer ne change rien.
+
+**Négatives** : les tickets apparaissent **créés par Sekou**, indiscernables de ceux qu'il saisit à la main — une app OAuth Linear avec `actor: application` les distinguerait, et `linear-ticket-tracker.ts` serait le seul fichier à changer ; `/admin/feedback` peut encore changer un statut, que le cron du lendemain écrasera (sort du panneau à trancher en le voyant tourner) ; une fenêtre de doublon subsiste si l'écriture en base échoue juste après la création du ticket (assumée : rare, visible dans le bilan du cron, plutôt qu'un verrou distribué pour un cron quotidien) ; un cron de plus à surveiller, et Vercel plafonne les crons en plan Hobby.
+
+### Liens
+
+ADR-001 (hexagonal), ADR-020 (observabilité), `supabase/sql/intranet_feedback_linear.sql`, `domain/feedback-linear.ts` + `.test.ts`, `ports/ticket-tracker.ts`, `adapters/linear/`, `services/feedback/synchroniser-linear.ts` + `.test.ts`, `app/api/cron/linear/route.ts`, `vercel.json`, `scripts/feedback-triage.mjs`, `.claude/skills/corrections/SKILL.md`. Env : `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `LINEAR_PROJECT_ID`, `CRON_SECRET`.
