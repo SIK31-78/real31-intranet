@@ -13,7 +13,8 @@ describe("en-tetes de securite", () => {
   it("la CSP interdit l'iframe, autorise Sentry et les apercus blob, et rapporte a Sentry", () => {
     const csp = politiqueCsp({ dsn: DSN });
     expect(csp).toContain("frame-ancestors 'none'");
-    expect(csp).toContain("connect-src 'self' https://o4512083716145152.ingest.de.sentry.io");
+    // Entra ID doit rester dans connect-src : sans lui, une CSP bloquante couperait le SSO.
+    expect(csp).toContain("connect-src 'self' https://login.microsoftonline.com https://o4512083716145152.ingest.de.sentry.io");
     expect(csp).toContain("frame-src 'self' blob:");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("report-uri https://o4512083716145152.ingest.de.sentry.io/api/4512083726958673/security/?sentry_key=abc123");

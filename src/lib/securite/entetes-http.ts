@@ -22,6 +22,14 @@ export function reportUriSentry(dsn: string | undefined): string | undefined {
   return d ? `https://${d.hote}/api/${d.projet}/security/?sentry_key=${d.cle}` : undefined;
 }
 
+/**
+ * Entra ID : le bouton Microsoft 365 de /dev-login passe par une Server Action, donc un
+ * fetch cote client qui suit la redirection vers l'endpoint authorize. Sans cet hote dans
+ * connect-src, la CSP bloquante couperait la connexion SSO (rapport report-only du
+ * 05/10/2026, JAVASCRIPT-NEXTJS-C : connect bloque vers login.microsoftonline.com).
+ */
+const HOTE_ENTRA = "https://login.microsoftonline.com";
+
 export function politiqueCsp(o: OptionsEntetes = {}): string {
   const d = decomposerDsn(o.dsn);
   const sentry = d ? `https://${d.hote}` : "";
@@ -34,7 +42,7 @@ export function politiqueCsp(o: OptionsEntetes = {}): string {
     `font-src 'self' data:`,
     // Sentry : les evenements passent par /monitoring (tunnel maison), le replay aussi ;
     // l'hote ingest reste autorise pour le SDK edge/serveur et en secours.
-    `connect-src 'self'${sentry ? ` ${sentry}` : ""}${o.dev ? " ws: wss:" : ""}`,
+    `connect-src 'self' ${HOTE_ENTRA}${sentry ? ` ${sentry}` : ""}${o.dev ? " ws: wss:" : ""}`,
     // Apercus de pieces jointes (PDF / images) en iframe blob:.
     `frame-src 'self' blob:`,
     `worker-src 'self' blob:`,
