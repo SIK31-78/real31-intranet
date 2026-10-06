@@ -271,6 +271,30 @@ describe("synchroniserLinear - le retour", () => {
     expect(tracker.renommes).toHaveLength(0);
   });
 
+  // Archivé = hors du pont DANS LES DEUX SENS. Le filtre n'était d'abord que sur
+  // l'aller, et cette asymétrie laissait le retour réécrire le statut d'une entrée
+  // que l'admin avait délibérément masquée.
+  it("laisse tranquille une remontée archivée, même si son ticket bouge", async () => {
+    const repo = getFeedbackRepository();
+    const f = await remonteePoussee("Sujet archivé volontairement");
+    await repo.patch(f.id, { archive: true });
+
+    tracker.etats = [
+      { issueId: f.linearIssueId!, identifiant: f.linearIdentifiant!, titre: f.titre, nomEtat: "Canceled", typeEtat: "canceled" },
+    ];
+    const bilan = await synchroniserLinear();
+
+    expect(bilan.archivees).toBeGreaterThan(0);
+    expect(bilan.realignes.some((r) => r.identifiant === f.linearIdentifiant)).toBe(false);
+    const relu = await repo.get(f.id);
+    expect(relu?.statut).toBe("nouveau");
+    expect(relu?.raisonEcart).toBeUndefined();
+    // Et elle n'est pas comptée comme orpheline : elle est hors du pont, pas perdue.
+    expect(bilan.orphelins).not.toContain(f.linearIdentifiant);
+
+    await repo.patch(f.id, { archive: false }); // ne pas polluer le STORE partagé
+  });
+
   // Ticket effacé à la main dans Linear : on le SIGNALE sans délier, sinon le passage
   // suivant recréerait un ticket, en boucle.
   it("signale un ticket orphelin sans le délier", async () => {

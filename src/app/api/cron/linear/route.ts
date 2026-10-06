@@ -42,7 +42,7 @@ export async function GET(req: Request): Promise<Response> {
     // On loggue le resume : c'est ce qu'on lira dans les logs Vercel apres coup.
     console.log(
       `[cron:linear] actif=${bilan.actif} poussés=${bilan.pousses.length} réalignés=${bilan.realignes.length}` +
-        ` renommés=${bilan.renommes.length}` +
+        ` renommés=${bilan.renommes.length} archivés=${bilan.archivees}` +
         ` ignorés=${bilan.ignorees} orphelins=${bilan.orphelins.length} erreurs=${bilan.erreurs.length}`,
     );
     // Les echecs unitaires ne font PAS echouer la route : Vercel retenterait tout le

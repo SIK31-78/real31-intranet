@@ -13,6 +13,7 @@
 
 import { getFeedbackRepository, getTicketTracker } from "@/lib/adapters/router";
 import type { Feedback } from "@/lib/domain/feedback";
+import { estArchivee } from "@/lib/domain/feedback";
 import {
   doitPartirDansLinear,
   raisonEcartDepuisLinear,
@@ -28,8 +29,10 @@ export interface BilanSynchro {
   realignes: { identifiant: string; de: string; vers: string }[];
   /** Tickets renommes dans Linear apres reformulation du titre au triage. */
   renommes: { identifiant: string; titre: string }[];
-  /** Remontees ignorees a l'aller, avec la raison (entree maison, deja terminee). */
+  /** Remontees ignorees a l'aller (entree maison, deja terminee, archivee). */
   ignorees: number;
+  /** Remontees rattachees a un ticket mais ARCHIVEES : le retour les laisse tranquilles. */
+  archivees: number;
   /** Tickets connus en base mais introuvables dans Linear (supprimes a la main). */
   orphelins: string[];
   /** Echecs unitaires : le cron CONTINUE, il ne s'arrete pas au premier raté. */
@@ -51,6 +54,7 @@ export async function synchroniserLinear(): Promise<BilanSynchro> {
     pousses: [],
     realignes: [],
     renommes: [],
+    archivees: 0,
     ignorees: 0,
     orphelins: [],
     erreurs: [],
@@ -79,7 +83,18 @@ export async function synchroniserLinear(): Promise<BilanSynchro> {
   }
 
   // --- LE RETOUR : etats Linear -> statuts des remontees ----------------------
-  const avecTicket = await repo.listerAvecTicket();
+  //
+  // ARCHIVE = HORS DU PONT, DANS LES DEUX SENS. Archiver est le geste par lequel
+  // l'admin sort une entree de la vitrine ET de la worklist sans la detruire : son
+  // statut ne doit pas bouger parce qu'un ticket deja cree a ete annule quelque
+  // part. Le filtre n'etait d'abord que sur l'aller ; cette asymetrie laissait le
+  // retour reecrire des entrees masquees (reparation des 6 tickets du premier
+  // passage, 2026-10-06). Desarchiver remet la remontee dans le pont.
+  const avecTicket = (await repo.listerAvecTicket()).filter((f) => {
+    if (!estArchivee(f)) return true;
+    bilan.archivees++;
+    return false;
+  });
   const parIssue = new Map<string, Feedback>();
   for (const f of avecTicket) if (f.linearIssueId) parIssue.set(f.linearIssueId, f);
   if (parIssue.size === 0) return bilan;
