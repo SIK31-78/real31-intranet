@@ -1961,3 +1961,41 @@ Mais depuis ADR-043 le pilotage a un lieu unique, et ce carnet en était le dern
 ### Liens
 
 ADR-043 (pont remontées ↔ Linear), projet Linear *Points ESTALE* (P-REA-7), `supabase/sql/intranet_points_estale.sql` (conservé, plus d'écriture). Retirés : `app/admin/estale/`, `components/admin/points-estale-vue.tsx`, `domain/points-estale.ts`, `ports/points-estale-repository.ts`, `adapters/{supabase,mock}/*-points-estale-repository.ts`, `getPointsEstaleRepository()`.
+
+---
+
+## ADR-045 - L'ODJ rempli en ligne sort en Word et en PDF, par un arbre de rendu
+
+**Date** : 2026-10-07 · **Statut** : accepté (Sekou, 07/10/2026 — 3 arbitrages : deux documents plutôt qu'un seul, arbre de rendu + lib `docx` plutôt qu'un second gabarit, PDF dans la foulée)
+
+### Contexte
+
+Le bouton « Télécharger l'ODJ en Word » existait depuis le 22/09 (REA-62) et rendait le **modèle du cabinet pré-rempli** : 44 balises alimentées par ESTALE et le référentiel, tout ce qui se décide en séance restant un blanc (`domain/odj-docx.ts`). C'est la voie de ceux qui remplissent le document **en réunion**, dans Word — Emmanuel et Sekou l'ont confirmée au point du 01/10.
+
+Mais le module en ligne, lui, permet bien plus que ces 44 blancs : paragraphes libres de section, notes ancrées sous une ligne précise, champs ajoutés, libellés et titres réécrits, lignes masquées, points réglementaires retenus, heure de fin de réunion. Un collègue qui prépare tout à l'écran n'avait **aucun moyen d'emporter son travail** : le Word lui rendait un document vierge de ses saisies, et la « version imprimable » ne produit pas de fichier (REA-132, remontée Rémi Bard du 08/09).
+
+### Décision
+
+**Deux documents distincts, nommés.** On garde le modèle du cabinet pré-rempli *et* on ajoute l'ODJ **rempli**. Ils ne servent pas au même moment : l'un se complète en séance, l'autre s'envoie après. Les deux vivent sous un seul bouton « Télécharger » (`components/odj/telechargements-odj.tsx`), chaque entrée disant à quoi elle sert — quatre boutons côte à côte dans l'en-tête, sans légende, n'auraient appris à personne lequel prendre.
+
+**Un arbre de rendu pur, pas un second gabarit.** `domain/odj-rendu.ts` projette l'`Odj` en une structure pauvre (lignes, paragraphes, points, sections numérotées) que trois sorties dessinent : l'écran (`components/odj/document-odj.tsx`), le Word (`adapters/docx/odj-rempli-docx-renderer.ts`, lib `docx`) et l'HTML A4 du PDF (`domain/odj-html.ts`). C'est le parti de l'**ADR-012 v3** pour le contrat de syndic, repris tel quel.
+
+Deux règles qui décidaient de la mise en page descendent dans le domaine pour que les trois rendus coupent au même endroit : `estParagraphe` (le texte long passe sous son libellé) et `finReunionLisible` (la saisie prime sur l'heure de clôture).
+
+**Le PDF dans la foulée** (`/odj/<id>/odj-rempli.pdf`), par le service Chromium existant : c'est le fichier que REA-146 joindra au mail du conseil syndical.
+
+### Justifications
+
+- **Pourquoi pas faire évoluer le gabarit** : un `.docx` figé n'a pas d'emplacement pour une note ancrée sous une ligne quelconque, ni pour un champ que le gestionnaire vient d'ajouter, ni pour un libellé réécrit. Il aurait fallu une balise de boucle par ligne, à maintenir à chaque changement de catalogue. Et le gabarit, lui, garde un vrai rôle : il reste le document du cabinet.
+- **Pourquoi pas le PDF seul** : le collègue doit pouvoir retoucher avant d'envoyer. Le ticket demandait Word.
+- **Le coût** : une dépendance (`docx`, ~400 Ko), et la typographie du Word rempli est la nôtre (logo + mentions légales de l'agence reproduits), pas celle du `.dotx` du cabinet.
+
+### Conséquences
+
+**Positives** : ce qui est préparé en ligne s'emporte enfin ; les trois rendus ne peuvent plus diverger sur la mise en page (une seule règle, testée) ; REA-146 a son fichier à joindre ; REA-136 (mode lecture) pourra réutiliser le même arbre.
+
+**Négatives** : deux documents Word à expliquer aux collègues (atténué par les libellés du menu) ; le rendu Word n'est pas pixel-identique à l'écran — il est fidèle au contenu, pas à la feuille de style ; le PDF hérite du démarrage à froid Chromium (2-3 s au premier appel d'une instance) et reste à vérifier en production, comme le PDF du contrat.
+
+### Liens
+
+ADR-001 (ports & adapters), ADR-012 v3 (PDF serveur). Tickets : REA-132 (celui-ci), REA-62 (le Word pré-rempli), REA-136 (mode lecture), REA-146 (envoi au CS). Code : `domain/odj-rendu.ts`, `domain/odj-html.ts`, `ports/odj-rempli-docx-renderer.ts`, `adapters/docx/odj-rempli-docx-renderer.ts`, `services/odj/generer-odj-rempli.ts`, `app/odj/[id]/odj-rempli.{docx,pdf}/route.ts`.
