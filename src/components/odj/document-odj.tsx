@@ -10,6 +10,7 @@
 import { Fragment, type ReactNode } from "react";
 import type { ChampOdj, Odj, PointLegal, SectionOdj } from "@/lib/domain/odj";
 import { formatChampValeur } from "@/lib/domain/odj";
+import { estParagraphe, finReunionLisible } from "@/lib/domain/odj-rendu";
 import { lignesMentions, mentionsAgence } from "@/lib/domain/mentions-agences";
 
 /** Points d'injection de la page d'edition. Tous optionnels : defaut = statique. */
@@ -44,7 +45,7 @@ export interface RenduDocumentOdj {
 
 /** Fin de reunion en LECTURE : la saisie, sinon l'heure de cloture, sinon un pointille. */
 function FinReunionStatique({ odj }: { odj: Odj }) {
-  const heure = odj.finReunion ?? (odj.cloture ? formatFinReunion(odj.cloture.le) : undefined);
+  const heure = finReunionLisible(odj);
   return heure ? (
     <span className="font-medium text-ink">{heure}</span>
   ) : (
@@ -71,14 +72,10 @@ export function ValeurStatique({ v, gras = true }: { v?: string; gras?: boolean 
   );
 }
 
-/** Une valeur de section se rend-elle en PARAGRAPHE sous son titre (plutot qu'inline) ?
- *  Regle (retour collegue 2026-09-01, "des lignes qui ne sont pas d'office en saut de
- *  ligne") : TOUT texte renseigne passe sous le titre, comme leur ODJ Word. Seuls les
- *  montants/pourcentages (courts par nature) et les champs vides restent inline. */
-export function estParagraphe(champ: { type?: string; valeur?: string } | undefined, v?: string): boolean {
-  if (!v) return false;
-  return !champ?.type || champ.type === "texte";
-}
+/* La regle "cette valeur passe en paragraphe" vit dans le domaine (odj-rendu) : l'ecran, le
+   Word rempli et le PDF doivent couper au MEME endroit. Reexportee ici parce que les lignes
+   editables l'importent de ce module depuis le 2026-09-01. */
+export { estParagraphe };
 
 /** Mise en page d'une ligne de SECTION, calquee sur leur ODJ CS Word : sous-titre en
  *  GRAS, et le texte long passe EN DESSOUS en paragraphe. Partagee entre le rendu
@@ -153,19 +150,6 @@ function Ligne({
       {rendu?.valeur && champ ? rendu.valeur(champ) : <ValeurStatique v={champ ? formatChampValeur(champ) : undefined} />}
     </p>
   );
-}
-
-/** Heure de cloture du CS, fuseau cabinet (Europe/Paris) EXPLICITE : le meme rendu
- *  cote serveur (UTC Vercel) et cote client, sinon mismatch d'hydratation. */
-function formatFinReunion(iso: string): string | undefined {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return undefined;
-  const f = new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-  return f.replace(":", "h");
 }
 
 /** Mentions legales du cabinet, en pied de document (papier a en-tete). Elles DIFFERENT

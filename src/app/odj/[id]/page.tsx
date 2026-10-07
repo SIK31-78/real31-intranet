@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Printer, ListChecks, ArrowRight, FileDown } from "lucide-react";
+import { Printer, ListChecks, ArrowRight } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { getOdj } from "@/lib/services/odj/get-odj";
 import { decouperIdOdj } from "@/lib/services/odj/resoudre-cle-odj";
@@ -9,6 +9,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
+import { TelechargementsOdj } from "@/components/odj/telechargements-odj";
 import { Callout } from "@/components/ui/callout";
 import { DocumentOdj } from "@/components/odj/document-odj";
 import { DocumentOdjEditable } from "@/components/odj/document-odj-editable";
@@ -92,14 +93,12 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
                   Composer l&apos;ODJ
                 </ButtonLink>
               )}
-              {/* LE geste de l'ecran depuis le 22/09 : le CS se remplit dans Word, en
-                  reunion. Le moteur existait mais aucun bouton n'y menait (il fallait
-                  taper l'URL) -> il devient le primaire, et la sortie de l'ecran
-                  ("Passer a la supervision") repasse en secondaire. */}
-              <ButtonLink href={`/odj/${id}/odj-cs.docx`} variant="primary">
-                <FileDown strokeWidth={1.5} />
-                Télécharger l&apos;ODJ en Word
-              </ButtonLink>
+              {/* LE geste de l'ecran depuis le 22/09 : sortir le document. Il y en a deux
+                  (l'ODJ REMPLI ici, et le MODELE du cabinet a finir en reunion) plus deux
+                  formats depuis le 07/10 -> un seul primaire qui ouvre la liste, chaque
+                  entree disant a quoi elle sert. La sortie de l'ecran ("Passer a la
+                  supervision") reste en secondaire. */}
+              <TelechargementsOdj id={id} />
               {principale?.href && (
                 <ButtonLink href={principale.href} variant="secondary">
                   {principale.label}

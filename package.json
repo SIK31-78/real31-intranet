@@ -31,6 +31,7 @@
     "@sparticuz/chromium": "^153.0.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
+    "docx": "^9.8.1",
     "docxtemplater": "^3.70.1",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.16.0",
