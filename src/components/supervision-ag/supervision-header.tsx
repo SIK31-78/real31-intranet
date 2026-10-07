@@ -1,4 +1,4 @@
-import { ArrowRight, FileDown, FileText, Route } from "lucide-react";
+import { ArrowRight, FileText, Route } from "lucide-react";
 import {
   peutConclure,
   estVerifie,
@@ -14,6 +14,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { FriseEtapes } from "@/components/parcours/frise-etapes";
 import { actionPrincipaleEcran } from "@/components/parcours/action-principale";
+import { TelechargementsOdj } from "@/components/odj/telechargements-odj";
 import { ConclureBouton } from "./conclure-bouton";
 
 // LA bande d'en-tete de la supervision (refonte 2026-09) : titre, AG cible, etat,
@@ -145,10 +146,7 @@ export function SupervisionHeader({ supervision, cycle, role, onConclure }: Supe
                   n'etait plus atteignable nulle part). Le Word est a cote : depuis le
                   30/09, c'est LUI qu'on emporte en reunion de conseil syndical. */}
               <div className="flex items-center gap-2 flex-wrap">
-                <ButtonLink href={`/odj/${supervision.id}/odj-cs.docx`} variant="secondary" size="sm">
-                  <FileDown strokeWidth={1.5} />
-                  Télécharger l&apos;ODJ en Word
-                </ButtonLink>
+                <TelechargementsOdj id={supervision.id} variant="secondary" size="sm" />
                 <ButtonLink href={`/odj/${supervision.id}`} variant="ghost" size="sm">
                   <FileText strokeWidth={1.5} />
                   Voir l&apos;ordre du jour
