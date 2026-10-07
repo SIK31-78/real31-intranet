@@ -8,7 +8,7 @@
 ## Où on en est
 
 - **Prod** : `real31.app`, branche `main` (le tronc, renommé le 25/09/2026, anciennement `increment/02-supabase`), déployée via le Vercel de la collègue qui suit `main`.
-- **Branche active** : `main` (le tronc). L'ODJ du CS en Word est en prod ; les boutons qui y mènent aussi (30/09).
+- **Branche active** : `main` (le tronc). L'ODJ du CS sort en Word et en PDF : le modèle du cabinet pré-rempli (30/09) **et**, depuis le 07/10, l'ODJ tel qu'il a été rempli en ligne, avec les paragraphes libres et les saisies de séance (ADR-045, REA-132).
 - **Branches en pause** :
   - `chantier/mcp-distant` : MCP distant pour Claude Team, 4 lots codés et testés (ADR-042), sauvegardée sur GitHub, mise de côté le 25/09. Tout pour reprendre est dans le ticket REA-5.
   - `chantier/mail-v12` : chantier « Mes e-mails », en pause depuis fin août, non mergée (REA-15).
@@ -17,11 +17,11 @@
 
 - **MCP distant en pause** : mail DSI pas envoyé, SQL du journal pas passé (REA-5, REA-6).
 - **Patron** : accord sur la validation par la comptable des factures déposées dans ESTALE (REA-11).
-- **Éditeur ODJ en ligne** : on garde les deux outils (Word + éditeur) et on tranche vers le 15/10. Mesurer avant de décider : `node --env-file=.env.local scripts/odj-usage-editeur.mjs`. Au 30/09, trois personnes saisissent encore (FS, MA, OR) et 10 copropriétés portent des contenus que le Word ne reprend pas (REA-62).
+- **Éditeur ODJ en ligne** : arbitrage vers le 15/10, à reprendre sur de nouvelles bases — depuis REA-132 (07/10), ce qui est saisi en ligne s'exporte en Word et en PDF, donc l'argument « le Word ne reprend pas les contenus de 10 copros » est levé. Mesurer avant de décider : `node --env-file=.env.local scripts/odj-usage-editeur.mjs`.
 
 ## Prochaine action
 
-Vérifier à l'écran que « Télécharger l'ODJ en Word » apparaît bien sur la page ODJ et dans la supervision (serveur de dev éteint au moment de la livraison). Ensuite, l'urgence du moment, à mettre en ticket Linear.
+Ouvrir un `.docx` d'ODJ rempli dans Word et vérifier le premier PDF sur `real31.app` (démarrage à froid Chromium, 2-3 s) : les deux sorties de REA-132 sont en prod mais n'ont pas été vues dans Word ni sur Vercel. Ensuite, l'urgence du moment, à mettre en ticket Linear.
 
 ## Où trouver quoi
 
