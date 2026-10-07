@@ -1916,3 +1916,48 @@ Ce partage avait un piège qui méritait de l'outillage plutôt qu'une consigne 
 ### Liens
 
 ADR-001 (hexagonal), ADR-020 (observabilité), `supabase/sql/intranet_feedback_linear.sql`, `domain/feedback-linear.ts` + `.test.ts`, `ports/ticket-tracker.ts`, `adapters/linear/`, `services/feedback/synchroniser-linear.ts` + `.test.ts`, `app/api/cron/linear/route.ts`, `vercel.json`, `scripts/feedback-triage.mjs`, `.claude/skills/corrections/SKILL.md`. Env : `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `LINEAR_PROJECT_ID`, `CRON_SECRET`.
+
+---
+
+## ADR-044 - Le carnet « Points ESTALE » quitte l'intranet pour Linear
+
+**Date** : 2026-10-07 · **Statut** : accepté (Sekou, 07/10/2026 — 3 arbitrages : projet dans l'équipe REAL31 plutôt qu'équipe dédiée, Linear seule surface plutôt qu'un second pont, migration de l'historique complet)
+
+### Contexte
+
+`/admin/estale` était le carnet des points à porter à l'éditeur ESTALE : bloquants, questions d'usage, demandes d'évolution, du constat interne jusqu'à la réponse. Ouvert le 07/09/2026, il remplaçait un fichier de notes, et il a bien tenu son rôle — 76 points y vivaient au 07/10, dont 60 actifs et 5 bloquants.
+
+Mais depuis ADR-043 le pilotage a un lieu unique, et ce carnet en était le dernier îlot : un backlog de plus, avec ses états, ses priorités, son historique, en dehors de Linear. Tenir les deux, c'est la même double saisie que le bouton « Un bug / une idée » — à une différence près qui change la solution : **cette page était super-admin**, donc à usage unique. Aucun collègue n'y écrit, aucune surface publique n'en dépend. Le pont de l'ADR-043 existait parce que 40 personnes saisissent par le bouton et que `/nouveautes` doit leur répondre ; ici il n'y avait personne à qui répondre.
+
+### Décision
+
+**Le carnet devient le projet Linear « Points ESTALE » (P-REA-7)** dans l'équipe REAL31, et le module est retiré du code (≈ 840 lignes : page, server actions, vue, domaine, port, adaptateurs Supabase et mock, entrée de menu, fabrique du routeur).
+
+**Projet dans l'équipe REAL31, pas d'équipe dédiée.** Une équipe `EST` aurait permis de nommer les états comme le carnet les nommait (*À trancher / À envoyer / Envoyé / Répondu / Résolu / Abandonné*), ce qui dit mieux le cycle d'une demande faite à un éditeur qu'un cycle de dev. Écartée : la création d'équipe n'est pas dans l'API Linear exposée par le MCP, elle aurait demandé un geste manuel, et surtout un second backlog à ouvrir chaque semaine. Les 6 statuts du carnet se mappent un pour un sur les états existants :
+
+| Statut du carnet | État Linear | Ce que l'état veut dire sur un point ESTALE |
+|---|---|---|
+| `a_trancher` | Backlog | à trancher en interne |
+| `a_envoyer` | Todo | tranché, pas encore parti chez l'éditeur |
+| `envoye` | In Progress | la balle est chez ESTALE |
+| `repondu` | In Review | leur réponse est là, à qualifier |
+| `resolu` | Done | résolu |
+| `abandonne` | Canceled | abandonné |
+
+**Le prix de ce choix est que les états ne disent pas la même chose selon le projet** : « In Progress » sur un point ESTALE veut dire « envoyé à l'éditeur », pas « en cours de dev ». C'est le seul inconvénient réel, et il est payé en documentation (la table ci-dessus est aussi dans la description du projet) plus l'étiquette `ESTALE`, qui permet de sortir ces tickets d'une vue de dev.
+
+**Migration : les 76, historique inclus** (REA-170 → REA-245, le 07/10). Les 16 points clos arrivent directement en Done / Canceled : ils n'encombrent aucune vue par défaut mais restent cherchables avec la réponse d'ESTALE qui les a fermés. L'alternative — ne migrer que les 60 actifs — aurait gardé la base « juste pour l'historique », donc gardé le module. Chaque ticket porte en tête sa catégorie (produit / migration / usage), son demandeur et sa date de constat ; la réponse de l'éditeur est sous un titre « Réponse d'ESTALE », jamais à la place du constat d'origine ; un pied de ticket cite l'identifiant du point d'origine.
+
+**La table `intranet_points_estale` reste en base**, plus personne n'écrit dedans. C'est le filet : si un point a été mal traduit, la source est encore là. `supabase/sql/intranet_points_estale.sql` reste au dépôt pour la même raison (il dit ce qui a été passé, le registre `EXECUTES.md` n'est pas une preuve).
+
+**Le bouton « transmettre au carnet ESTALE » de `/admin/feedback` disparaît** (et avec lui `convertirEnPointEstaleAction`). Il écrivait dans le carnet puis écartait la remontée — deux écritures en base qui, depuis le pont, se font dans Linear. Le geste de remplacement y est manuel et tient en deux clics : dupliquer le ticket de la remontée dans le projet *Points ESTALE*, puis passer l'original en Canceled (le cron écarte alors la remontée côté base, avec sa trace de provenance). Déplacer simplement le ticket aurait été plus court mais faux : il resterait relié à la remontée, et un point ESTALE passé en Done publierait sur `/nouveautes` une livraison qui n'est pas la nôtre.
+
+### Conséquences
+
+**Positives** : un seul endroit où ouvrir son backlog le matin ; les points ESTALE héritent de ce que Linear sait faire et que le carnet ne savait pas (commentaires, pièces jointes, liens entre tickets, project updates, recherche) ; ≈ 840 lignes de moins à maintenir, dont une vue de 429 lignes ; un port et deux adaptateurs de moins dans le routeur.
+
+**Négatives** : le suivi des points ESTALE dépend maintenant d'un SaaS tiers, sans copie d'écran interne — acceptable pour un outil de pilotage personnel, pas pour une donnée métier ; la catégorie (produit / migration / usage) n'est plus filtrable, elle n'est qu'en tête de ticket (à passer en étiquettes si le besoin se fait sentir) ; les états de l'équipe REAL31 portent deux sens selon le projet ; la migration n'est pas rejouable sans retoucher le script (il est hors dépôt, avec son journal `point → REA-xx`).
+
+### Liens
+
+ADR-043 (pont remontées ↔ Linear), projet Linear *Points ESTALE* (P-REA-7), `supabase/sql/intranet_points_estale.sql` (conservé, plus d'écriture). Retirés : `app/admin/estale/`, `components/admin/points-estale-vue.tsx`, `domain/points-estale.ts`, `ports/points-estale-repository.ts`, `adapters/{supabase,mock}/*-points-estale-repository.ts`, `getPointsEstaleRepository()`.
