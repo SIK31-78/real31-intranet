@@ -25,13 +25,21 @@ function remontee(p: Partial<Feedback> = {}): Feedback {
 
 describe("statutDepuisEtatLinear", () => {
   it("mappe les états standards de l'équipe REAL31", () => {
-    expect(statutDepuisEtatLinear("backlog")).toBe("nouveau");
     expect(statutDepuisEtatLinear("triage")).toBe("nouveau");
     expect(statutDepuisEtatLinear("unstarted")).toBe("prevu");
     expect(statutDepuisEtatLinear("started")).toBe("en_cours");
     expect(statutDepuisEtatLinear("completed")).toBe("livre");
     expect(statutDepuisEtatLinear("canceled")).toBe("ecarte");
     expect(statutDepuisEtatLinear("duplicate")).toBe("ecarte");
+  });
+
+  // Backlog portait DEUX sens tant que Triage n'existait pas : « jamais regardé »
+  // pour un ticket neuf, « regardé, pas maintenant » pour un ticket qu'on y déplace
+  // en triant. Vu en vrai le 06/10 : Sekou sort 8 sujets ODJ de Todo vers Backlog,
+  // le cron les ramène à `nouveau`, ils disparaissent de /nouveautes alors qu'il
+  // venait de les juger. Triage actif, Backlog redevient un jugement.
+  it("traite Backlog comme un jugement, pas comme une arrivée", () => {
+    expect(statutDepuisEtatLinear("backlog")).toBe("prevu");
   });
 
   // LE garde-fou : un état custom créé dans Linear ne doit pas écarter une remontée
@@ -78,9 +86,16 @@ describe("doitPartirDansLinear", () => {
 // remontees a pousser (elles revenaient a `nouveau`, donc hors de /nouveautes).
 describe("etatLinearPourStatut (ne pas effacer le triage déjà fait)", () => {
   it("fait naître le ticket dans l'état qui correspond au statut actuel", () => {
-    expect(etatLinearPourStatut("nouveau")).toBe("backlog");
     expect(etatLinearPourStatut("prevu")).toBe("unstarted");
     expect(etatLinearPourStatut("en_cours")).toBe("started");
+  });
+
+  // Linear ne met d'office en Triage que ce qui vient d'une intégration ou d'un
+  // non-membre ; nos tickets naissent par l'API avec la clé de Sekou, donc en tant
+  // que membre. Sans demande explicite, ils tomberaient en Backlog — qui vaut
+  // maintenant `prevu`, donc PUBLIÉ sans avoir été jugé.
+  it("fait naître une remontée non jugée en Triage, jamais en Backlog", () => {
+    expect(etatLinearPourStatut("nouveau")).toBe("triage");
   });
 
   it("est le miroir exact de statutDepuisEtatLinear sur les statuts qui partent", () => {

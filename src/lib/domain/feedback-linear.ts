@@ -36,15 +36,29 @@ export type TypeEtatLinear = (typeof TYPES_ETAT_LINEAR)[number];
 /**
  * LA table de correspondance etat Linear -> statut remontee.
  *
- *   triage / backlog  -> nouveau   (pas encore juge)
- *   unstarted (Todo)  -> prevu     (juge bon, pas commence)
+ *   triage            -> nouveau   (ca arrive, pas encore juge)
+ *   backlog           -> prevu     (juge bon, pas planifie)
+ *   unstarted (Todo)  -> prevu     (juge bon, planifie)
  *   started (In Progress, In Review) -> en_cours
  *   completed (Done)  -> livre     (+ livre_at = completedAt)
  *   canceled / duplicate -> ecarte (+ raison, cf. raisonEcartDepuisLinear)
+ *
+ * POURQUOI `backlog` VAUT `prevu` (bascule du 2026-10-07, Triage active dans
+ * l'equipe) : au depart les deux valaient `nouveau`, et Backlog portait donc
+ * DEUX sens contradictoires - « jamais regarde » pour un ticket fraichement
+ * cree, et « regarde, pas maintenant » pour un ticket que Sekou y deplace en
+ * triant. Consequence vue en vrai : il a sorti 8 sujets ODJ de Todo vers
+ * Backlog, le cron les a ramenes a `nouveau`, et ils ont disparu de
+ * /nouveautes alors qu'il venait precisement de les juger.
+ *
+ * Triage leve l'ambiguite : l'arrivee a son propre etat, Backlog redevient un
+ * jugement. `prevu` et non `en_cours` parce que rien n'est commence - c'est le
+ * meme sens que Todo, la planification en moins, et le domaine n'a pas de
+ * statut intermediaire (en ajouter un se verrait sur la vitrine pour rien).
  */
 const STATUT_PAR_ETAT: Record<TypeEtatLinear, StatutFeedback> = {
   triage: "nouveau",
-  backlog: "nouveau",
+  backlog: "prevu",
   unstarted: "prevu",
   started: "en_cours",
   completed: "livre",
@@ -81,18 +95,20 @@ export function raisonEcartDepuisLinear(identifiant: string, nomEtat: string): s
  *
  * SANS CA, LE PONT EFFACE LE TRIAGE DEJA FAIT (bug trouve a la simulation du premier
  * passage, 2026-10-06) : l'aller creerait le ticket dans l'etat par defaut de
- * l'equipe (Backlog -> `nouveau`), et le retour du meme passage ramenerait a
- * `nouveau` une remontee deja `prevu` ou `en_cours` - 25 des 67 remontees a pousser
- * etaient dans ce cas. Elles auraient en plus disparu de /nouveautes, `nouveau`
- * n'etant pas un statut public.
+ * l'equipe, et le retour du meme passage ramenerait a `nouveau` une remontee deja
+ * `prevu` ou `en_cours` - 25 des 67 remontees a pousser etaient dans ce cas. Elles
+ * auraient en plus disparu de /nouveautes, `nouveau` n'etant pas un statut public.
  *
- * C'est l'exact miroir de {@link statutDepuisEtatLinear} pour les trois statuts non
- * terminaux (les seuls qui partent, cf. {@link doitPartirDansLinear}).
+ * Une remontee `nouveau` naît en TRIAGE depuis le 2026-10-07 : Linear n'y met
+ * d'office que ce qui vient d'une integration ou d'un non-membre de l'equipe, et
+ * nos tickets sont crees par l'API avec la cle de Sekou, donc en tant que membre -
+ * il faut demander l'etat explicitement, sinon ils tomberaient en Backlog, qui
+ * vaut maintenant `prevu` et serait donc PUBLIE sans avoir ete juge.
  */
 export function etatLinearPourStatut(statut: StatutFeedback): TypeEtatLinear {
   if (statut === "prevu") return "unstarted";
   if (statut === "en_cours") return "started";
-  return "backlog";
+  return "triage";
 }
 
 // --- L'ALLER : ce qu'on envoie a Linear --------------------------------------
