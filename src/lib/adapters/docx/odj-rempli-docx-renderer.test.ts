@@ -63,9 +63,11 @@ describe("DocxOdjRempliRenderer", () => {
     expect(Object.keys(zip.files)).toContain("[Content_Types].xml");
     // Un pied de page est declare : c'est la qu'on met les mentions legales.
     expect(Object.keys(zip.files).some((n) => /^word\/footer\d*\.xml$/.test(n))).toBe(true);
-    // Word refuse une archive qui contient des ENTREES DE DOSSIER ("word/", "docProps/") :
-    // c'est ce qui cassait le gabarit le 22/09/2026 (cf. odj-cs-docx-renderer).
+    // Word refuse une archive qui contient des ENTREES DE DOSSIER ("word/", "docProps/"),
+    // ou dont [Content_Types].xml n'est pas en tete : c'est ce qui cassait le gabarit le
+    // 22/09/2026 (cf. odj-cs-docx-renderer). La lib `docx` ecrit les deux ; on normalise.
     expect(Object.values(zip.files).filter((f) => f.dir)).toEqual([]);
+    expect(Object.keys(zip.files)[0]).toBe("[Content_Types].xml");
   });
 
   it("ecrit la copropriete, l'encadre reunion et les sections numerotees", async () => {

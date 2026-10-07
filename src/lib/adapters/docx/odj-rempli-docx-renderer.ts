@@ -11,6 +11,7 @@
 // seule fois en fin de document : c'est leur papier a en-tete, et un ODJ fait deux a trois
 // pages.
 
+import PizZip from "pizzip";
 import {
   AlignmentType,
   BorderStyle,
@@ -260,6 +261,27 @@ export class DocxOdjRempliRenderer implements OdjRempliDocxRenderer {
       ],
     });
 
-    return Packer.toBuffer(doc);
+    return archiveOpcPropre(await Packer.toBuffer(doc));
   }
+}
+
+/**
+ * Normalise l'archive de sortie : aucune ENTREE DE DOSSIER ("word/", "docProps/"), et
+ * [Content_Types].xml EN TETE. C'est exactement ce qui faisait refuser le gabarit par Word
+ * le 22/09/2026 (« Word a rencontre une erreur lors de l'ouverture du fichier », cf.
+ * odj-cs-docx-renderer) - et la lib `docx`, elle, ecrit bien des dossiers et place
+ * [Content_Types].xml en dernier. Dix lignes valent mieux qu'un pari sur la tolerance de
+ * Word : le fichier doit s'ouvrir chez les collegues du premier coup.
+ */
+function archiveOpcPropre(docx: Buffer): Buffer {
+  const lu = new PizZip(docx);
+  const noms = Object.keys(lu.files).filter((n) => !lu.files[n]?.dir);
+  const ordre = ["[Content_Types].xml", ...noms.filter((n) => n !== "[Content_Types].xml")];
+  const propre = new PizZip();
+  for (const nom of ordre) {
+    const entree = lu.files[nom];
+    if (!entree) continue;
+    propre.file(nom, entree.asNodeBuffer(), { createFolders: false });
+  }
+  return propre.generate({ type: "nodebuffer", compression: "DEFLATE" });
 }
