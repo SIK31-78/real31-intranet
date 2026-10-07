@@ -42,3 +42,12 @@ export const CLE_CLOTURE_ODJ = "__cloture";
  *  d'etat, donc zero SQL. Elle memorise l'ancienne "derniere" date pour que rouvrir
  *  l'ODJ remette le referentiel exactement dans son etat d'avant. Cf. domain/odj-glissement-cs. */
 export const CLE_CS_GLISSE = "__cs-glisse";
+
+/**
+ * Heure de FIN de la reunion du CS, saisie a la main (double underscore : cle reservee,
+ * jamais un id de champ). Avant, le pied du document affichait l'horodatage de la
+ * CLOTURE : clore le lendemain matin ecrivait une heure fausse, et rien ne permettait de
+ * la corriger (remontee d'une collegue, 07/10/2026). La saisie prime desormais sur cet
+ * horodatage, qui reste le defaut quand personne n'a rien ecrit.
+ */
+export const CLE_FIN_REUNION = "__fin-reunion";

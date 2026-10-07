@@ -28,6 +28,7 @@ import { DocumentOdj } from "@/components/odj/document-odj";
 import { useAutosaveOdj } from "./use-autosave-odj";
 import { BarreSauvegarde } from "./barre-sauvegarde";
 import { ValeurEditable, ModaliteEditable } from "./valeur-editable";
+import { CLE_FIN_REUNION } from "@/lib/ports/odj-repository";
 import { ChampLibreEditable, BlocLibreEditable, BoutonAjout, champDepuisBrouillon } from "./ajouts-libres";
 import { PointEditable, PointsRetires } from "./points-editables";
 import { LigneStandardEditable, TitreSectionEditable, ChampsMasques } from "./lignes-section-editables";
@@ -96,6 +97,23 @@ export function DocumentOdjEditable({
             modalite: (champVisio) => <ModaliteEditable champ={champVisio} moteur={moteur} />,
             point: (p) => <PointEditable point={p} onToggle={onTogglePoint} />,
             finPoints: <PointsRetires points={retires} onToggle={onTogglePoint} />,
+            // Heure de fin : un champ comme un autre, branche sur la cle reservee. Son
+            // defaut est l'heure de cloture, mais elle reste librement modifiable - une
+            // reunion close le lendemain n'a pas fini a l'heure du clic.
+            finReunion: (
+              <ValeurEditable
+                champ={{
+                  id: CLE_FIN_REUNION,
+                  libelle: "Fin de réunion",
+                  source: "manuel",
+                  type: "texte",
+                  editable: true,
+                  ...(odj.finReunion ? { valeur: odj.finReunion, saisi: true } : {}),
+                }}
+                moteur={moteur}
+                sobre
+              />
+            ),
             note: (n) => <BlocLibreEditable id={n.id} texteServeur={n.texte} moteur={moteur} />,
             apresLigne: (c) => (
               <>

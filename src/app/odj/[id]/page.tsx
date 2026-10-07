@@ -13,6 +13,7 @@ import { Callout } from "@/components/ui/callout";
 import { DocumentOdj } from "@/components/odj/document-odj";
 import { DocumentOdjEditable } from "@/components/odj/document-odj-editable";
 import { ClotureOdjBloc } from "@/components/odj/cloture-odj";
+import { CLE_FIN_REUNION } from "@/lib/ports/odj-repository";
 import { actionPrincipaleEcran } from "@/components/parcours/action-principale";
 import { saisirChampAction, togglePointAction, cloturerOdjAction } from "./actions";
 
@@ -152,7 +153,9 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
         {peutModifier && (
           <ClotureOdjBloc
             {...(odj.cloture ? { cloture: odj.cloture } : {})}
+            {...(odj.finReunion ? { finReunion: odj.finReunion } : {})}
             onCloturer={onCloturer}
+            onSaisirFinReunion={onSaisir.bind(null, CLE_FIN_REUNION)}
           />
         )}
 

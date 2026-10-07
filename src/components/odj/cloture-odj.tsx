@@ -17,7 +17,7 @@ import { CheckCircle2, RotateCcw } from "lucide-react";
 import type { ClotureOdj } from "@/lib/domain/odj";
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
-import { Choix } from "@/components/ui/field";
+import { Choix, Input } from "@/components/ui/field";
 
 function dateLisible(iso: string): string {
   const d = new Date(iso);
@@ -26,12 +26,64 @@ function dateLisible(iso: string): string {
     : d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
+/**
+ * Heure de fin de la reunion, saisie a la main et corrigeable A TOUT MOMENT - y compris
+ * une fois l'ODJ clos, puisque c'est la qu'on la connait (remontee d'une collegue,
+ * 07/10/2026 : clore le lendemain ecrivait l'heure du clic, et rien ne permettait de la
+ * corriger). Vide = le document retombe sur l'heure de cloture.
+ */
+function HeureFin({
+  valeur,
+  onSaisir,
+}: {
+  valeur?: string;
+  onSaisir: (valeur: string) => Promise<void>;
+}) {
+  const [texte, setTexte] = useState(valeur ?? "");
+  const [pending, demarrer] = useTransition();
+
+  function enregistrer() {
+    const propre = texte.trim();
+    if (propre === (valeur ?? "")) return;
+    demarrer(async () => {
+      await onSaisir(propre);
+    });
+  }
+
+  return (
+    <label className="flex items-center gap-2 text-body text-ink-2">
+      Fin de réunion
+      <Input
+        value={texte}
+        onChange={(e) => setTexte(e.target.value)}
+        onBlur={enregistrer}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+        placeholder="20h30"
+        aria-label="Heure de fin de la réunion du conseil syndical"
+        disabled={pending}
+        className="w-24"
+      />
+    </label>
+  );
+}
+
 export function ClotureOdjBloc({
   cloture,
+  finReunion,
   onCloturer,
+  onSaisirFinReunion,
 }: {
   cloture?: ClotureOdj;
+  /** Heure de fin deja saisie. */
+  finReunion?: string;
   onCloturer: (clore: boolean) => Promise<void>;
+  /** Enregistre l'heure de fin (cle reservee de l'etat de l'ODJ). */
+  onSaisirFinReunion: (valeur: string) => Promise<void>;
 }) {
   const [confirme, setConfirme] = useState(false);
   const [pending, demarrer] = useTransition();
@@ -42,7 +94,9 @@ export function ClotureOdjBloc({
         ton="ok"
         titre="Réunion terminée, ordre du jour clôturé"
         actions={
-          <Button
+          <>
+            <HeureFin {...(finReunion ? { valeur: finReunion } : {})} onSaisir={onSaisirFinReunion} />
+            <Button
             size="sm"
             variant="ghost"
             loading={pending}
@@ -51,7 +105,8 @@ export function ClotureOdjBloc({
           >
             <RotateCcw strokeWidth={1.5} />
             Rouvrir
-          </Button>
+            </Button>
+          </>
         }
       >
         le {dateLisible(cloture.le)}{cloture.par ? ` par ${cloture.par}` : ""}. Le compte rendu se dépose à la
@@ -62,12 +117,15 @@ export function ClotureOdjBloc({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-4 min-h-12 py-2 text-body">
-      <Choix
-        type="checkbox"
-        label="Le conseil syndical s'est tenu : je confirme que la réunion a eu lieu."
-        checked={confirme}
-        onChange={(e) => setConfirme(e.target.checked)}
-      />
+      <div className="flex flex-wrap items-center gap-4">
+        <Choix
+          type="checkbox"
+          label="Le conseil syndical s'est tenu : je confirme que la réunion a eu lieu."
+          checked={confirme}
+          onChange={(e) => setConfirme(e.target.checked)}
+        />
+        <HeureFin {...(finReunion ? { valeur: finReunion } : {})} onSaisir={onSaisirFinReunion} />
+      </div>
       <Button
         variant="primary"
         loading={pending}

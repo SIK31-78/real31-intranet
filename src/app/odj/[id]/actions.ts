@@ -53,6 +53,8 @@ async function estCloture(code: string, agDate: string): Promise<boolean> {
 export async function saisirChampAction(id: string, champId: string, valeur: string): Promise<void> {
   if (!z.object({ id: zId, champId: zChampId, valeur: zValeur }).safeParse({ id, champId, valeur }).success) return;
   // Les cles reservees ne sont PAS des champs : elles ne passent que par cloturerOdjAction.
+  // Cles reservees non saisissables. CLE_FIN_REUNION, elle, EST saisissable : c'est le
+  // seul moyen de corriger l'heure de fin (remontee collegue, 07/10/2026).
   if (champId === CLE_CLOTURE_ODJ || champId === CLE_CS_GLISSE) return;
   const { code } = decouperIdOdj(id);
   const g = await autorise(code);

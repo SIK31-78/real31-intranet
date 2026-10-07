@@ -16,7 +16,7 @@ import {
   parseCloture,
 } from "@/lib/domain/odj";
 import { getCoproRepository, getOdjRepository } from "@/lib/adapters/router";
-import { CLE_CLOTURE_ODJ } from "@/lib/ports/odj-repository";
+import { CLE_CLOTURE_ODJ, CLE_FIN_REUNION } from "@/lib/ports/odj-repository";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { PREFIXE_POINT } from "@/lib/ports/odj-repository";
 import { cleOdj, decouperIdOdj } from "@/lib/services/odj/resoudre-cle-odj";
@@ -287,6 +287,10 @@ export async function getOdj(
   // On la retire des saisies pour qu'elle ne soit jamais confondue avec la valeur d'un champ.
   const cloture = parseCloture(saisies.get(CLE_CLOTURE_ODJ));
   saisies.delete(CLE_CLOTURE_ODJ);
+  // Heure de fin saisie a la main : meme traitement que la cloture (cle reservee, retiree
+  // des saisies pour ne jamais etre confondue avec la valeur d'un champ).
+  const finReunion = saisies.get(CLE_FIN_REUNION)?.trim() || undefined;
+  saisies.delete(CLE_FIN_REUNION);
   const appliquer = (c: ChampOdj): ChampOdj => {
     const v = saisies.get(c.id);
     if (!v) return c;
@@ -397,5 +401,6 @@ export async function getOdj(
     pointsLegaux: points,
     ...(blocs.length ? { blocsLibres: blocs } : {}),
     ...(cloture ? { cloture } : {}),
+    ...(finReunion ? { finReunion } : {}),
   };
 }

@@ -38,6 +38,18 @@ export interface RenduDocumentOdj {
   apresLigne?: (champ: ChampOdj) => ReactNode;
   /** Ajout apres les paragraphes libres (ex. bouton "+ paragraphe"). */
   finDocument?: ReactNode;
+  /** Heure de fin de reunion, rendue EDITABLE en mode edition (sinon lecture seule). */
+  finReunion?: ReactNode;
+}
+
+/** Fin de reunion en LECTURE : la saisie, sinon l'heure de cloture, sinon un pointille. */
+function FinReunionStatique({ odj }: { odj: Odj }) {
+  const heure = odj.finReunion ?? (odj.cloture ? formatFinReunion(odj.cloture.le) : undefined);
+  return heure ? (
+    <span className="font-medium text-ink">{heure}</span>
+  ) : (
+    <span className="inline-block min-w-[90px] border-b border-dotted border-line-2" />
+  );
 }
 
 function champDe(champs: ChampOdj[], id: string): ChampOdj | undefined {
@@ -303,17 +315,14 @@ export function DocumentOdj({ odj, rendu }: { odj: Odj; rendu?: RenduDocumentOdj
         </section>
       ) : null}
 
-      {/* Pied : fin de reunion = l'heure de CLOTURE du CS (posee par "Marquer la
-          reunion terminee"), pas une ligne a remplir a la main. Puis les mentions
-          legales de l'AGENCE, en petit, comme sur leur papier a en-tete. */}
+      {/* Pied : fin de reunion. L'heure SAISIE prime ; a defaut on propose celle de la
+          cloture, qui n'est qu'une approximation (clore le lendemain ecrivait une heure
+          fausse, remontee collegue 07/10/2026). Puis les mentions legales de l'AGENCE,
+          en petit, comme sur leur papier a en-tete. */}
       <footer className="mt-8 pt-3 border-t border-line">
         <p className="text-[12px] text-ink">
           Fin de réunion :{" "}
-          {odj.cloture ? (
-            <span className="font-medium text-ink">{formatFinReunion(odj.cloture.le)}</span>
-          ) : (
-            <span className="inline-block min-w-[90px] border-b border-dotted border-line-2" />
-          )}
+          {rendu?.finReunion ?? <FinReunionStatique odj={odj} />}
         </p>
         <MentionsLegales agence={odj.agence} />
       </footer>

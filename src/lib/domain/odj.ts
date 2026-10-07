@@ -123,6 +123,9 @@ export interface Odj {
   blocsLibres?: { id: string; texte: string }[];
   /** Presente = ODJ cloture ("reunion terminee") : plus rien n'est modifiable. */
   cloture?: ClotureOdj;
+  /** Heure de fin SAISIE ("20h30"), qui prime sur l'horodatage de cloture au pied du
+   *  document. Absente = on retombe sur l'heure de cloture. */
+  finReunion?: string;
 }
 
 // --- Cloture ----------------------------------------------------------------
