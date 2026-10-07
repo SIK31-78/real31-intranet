@@ -51,7 +51,8 @@ export function TelechargementsOdj({
         Télécharger
         <ChevronDown strokeWidth={1.5} />
       </summary>
-      <div className="absolute right-0 z-20 mt-1 w-[19rem] rounded-md border border-line bg-surface p-1 shadow-lg">
+      {/* Surface flottante : rayon 16 et shadow-2, comme la modale et les toasts. */}
+      <div className="absolute right-0 z-20 mt-1 w-[19rem] rounded-xl border border-line bg-surface p-1 shadow-2">
         <Entree
           href={`/odj/${id}/odj-rempli.docx`}
           icone={<FileText strokeWidth={1.5} />}
