@@ -64,6 +64,8 @@ import { EstaleCoproProvider } from "@/lib/adapters/estale/estale-copro-provider
 import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
 import type { OdjCsDocxRenderer } from "@/lib/ports/odj-cs-docx-renderer";
 import { DocxtemplaterOdjCsRenderer } from "@/lib/adapters/docx/odj-cs-docx-renderer";
+import type { OdjRempliDocxRenderer } from "@/lib/ports/odj-rempli-docx-renderer";
+import { DocxOdjRempliRenderer } from "@/lib/adapters/docx/odj-rempli-docx-renderer";
 import type { JalonRepository } from "@/lib/ports/jalon-repository";
 import type { PerteRepository } from "@/lib/ports/perte-repository";
 import type { PropositionRepository, RegistreCoprosProvider } from "@/lib/ports/proposition-repository";
@@ -253,6 +255,12 @@ export function getComptaEstaleProvider(): ComptaEstaleProvider {
  *  est un fichier du repo, il est la partout). */
 export function getOdjCsDocxRenderer(): OdjCsDocxRenderer {
   return new DocxtemplaterOdjCsRenderer();
+}
+
+/** Rendu Word de l'ODJ REMPLI en ligne (REA-132) : dessine depuis l'arbre, sans gabarit,
+ *  donc disponible partout aussi - pas de variante mock. */
+export function getOdjRempliDocxRenderer(): OdjRempliDocxRenderer {
+  return new DocxOdjRempliRenderer();
 }
 
 export function getJalonRepository(): JalonRepository {

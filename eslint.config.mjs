@@ -162,6 +162,13 @@ const eslintConfig = defineConfig([
               "@supabase/ssr",
             ],
           },
+          // Generation Word : docxtemplater (gabarit du cabinet), la lib docx (ODJ rempli,
+          // dessine sans gabarit) et pizzip restent dans adapter-docx. Le domaine prepare
+          // l'arbre, l'adapter seul sait le dessiner.
+          {
+            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-estale", "adapter-sharepoint", "adapter-supabase", "adapter-composite", "adapter-mock"],
+            disallow: ["docx", "docxtemplater", "pizzip"],
+          },
           // Clients GraphQL : uniquement dans adapter-estale
           {
             from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-sharepoint", "adapter-supabase", "adapter-composite", "adapter-mock"],
