@@ -35,7 +35,6 @@ export type NavKey =
   | "cles-api"
   | "tarifs"
   | "collaborateurs"
-  | "points-estale"
   | "linkus"
   | "feedback"
   | "annonces"
@@ -146,7 +145,6 @@ const GROUPE_ADMIN: { titre: string; items: Item[] } = {
   items: [
     { key: "annonces", label: "Annonces", href: "/admin/annonces", icon: Megaphone },
     { key: "feedback", label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
-    { key: "points-estale", label: "Points ESTALE", href: "/admin/estale", icon: Database },
     { key: "linkus", label: "Annuaire Linkus", href: "/admin/linkus", icon: PhoneCall },
     { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
     { key: "tarifs", label: "Barème annuel", href: "/admin/tarifs", icon: Euro },

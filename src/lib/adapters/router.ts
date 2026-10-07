@@ -145,9 +145,6 @@ import { LinearTicketTracker } from "@/lib/adapters/linear/linear-ticket-tracker
 import { NoopTicketTracker } from "@/lib/adapters/linear/noop-ticket-tracker";
 import { SupabaseFeedbackRepository } from "@/lib/adapters/supabase/supabase-feedback-repository";
 import { MockFeedbackRepository } from "@/lib/adapters/mock/mock-feedback-repository";
-import type { PointsEstaleRepository } from "@/lib/ports/points-estale-repository";
-import { SupabasePointsEstaleRepository } from "@/lib/adapters/supabase/supabase-points-estale-repository";
-import { MockPointsEstaleRepository } from "@/lib/adapters/mock/mock-points-estale-repository";
 import type { AnnonceRepository } from "@/lib/ports/annonce-repository";
 import { SupabaseAnnonceRepository } from "@/lib/adapters/supabase/supabase-annonce-repository";
 import { MockAnnonceRepository } from "@/lib/adapters/mock/mock-annonce-repository";
@@ -543,12 +540,6 @@ export function getFeedbackRepository(): FeedbackRepository {
 export function getTicketTracker(): TicketTracker {
   if (process.env.LINEAR_API_KEY && process.env.LINEAR_TEAM_ID) return new LinearTicketTracker();
   return new NoopTicketTracker();
-}
-
-// Points a porter a ESTALE (outil admin de Sekou, /admin/estale).
-export function getPointsEstaleRepository(): PointsEstaleRepository {
-  if (coproSourceEstSupabase()) return new SupabasePointsEstaleRepository();
-  return new MockPointsEstaleRepository();
 }
 
 // Annonces reseau (table native intranet_annonces) : affichees sur l'accueil,
