@@ -8,6 +8,8 @@ export type NouvelleEntreeJournal = Omit<EntreeJournalTri, "id" | "faitLe" | "an
 export interface TriRepository {
   /** Binomes tenus dans l'intranet : e-mail du gestionnaire (minuscules) -> son assistant. */
   binomes(): Promise<Record<string, MembreTri>>;
+  definirBinome(emailGestionnaire: string, assistant: MembreTri, par: string): Promise<void>;
+  retirerBinome(emailGestionnaire: string): Promise<void>;
   /** Dossier deja cree pour cette cle dans cette boite, ou null. */
   dossier(boite: string, cle: string): Promise<{ folderId: string; nom: string } | null>;
   enregistrerDossier(boite: string, cle: string, d: { folderId: string; nom: string }): Promise<void>;

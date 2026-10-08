@@ -7,21 +7,23 @@
 
 import {
   destinationDe,
+  lignesBinomes,
   suggererCopro,
   type CoproTri,
   type Destination,
   type EntreeJournalTri,
+  type LigneBinome,
   type MailATrier,
   type Suggestion,
 } from "@/lib/domain/tri-emails";
 import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
 import {
-  getGestionnaireRepository,
   getIngestionTri,
   getReferentielTriProvider,
   getTriRepository,
 } from "@/lib/adapters/router";
 import { rangementSimule } from "./ranger";
+import { listerCollaborateurs, type Collaborateur } from "./binomes";
 
 /** Nombre de mails lus a chaque affichage : la file du jour, pas l'historique. */
 const MAX_FILE = 100;
@@ -44,6 +46,10 @@ export interface FileATrier {
   copros: CoproDeLaFile[];
   /** Rangements des 7 derniers jours (revue de fin de semaine), les plus recents d'abord. */
   journal: EntreeJournalTri[];
+  /** Un binome par gestionnaire de copros ESTALE (onglet « Binômes »). */
+  binomes: LigneBinome[];
+  /** Collaborateurs designables comme assistant. */
+  collaborateurs: Collaborateur[];
   /** true = l'ecriture dans la boite est coupee : les rangements sont simules. */
   simulation: boolean;
   /** Message lisible si la boite ou ESTALE n'a pas repondu ; la page reste affichable. */
@@ -52,12 +58,6 @@ export interface FileATrier {
 
 const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
 
-async function initialesParEmail(): Promise<Record<string, string>> {
-  const tous = await getGestionnaireRepository().listTous();
-  const out: Record<string, string> = {};
-  for (const g of tous) if (g.email && g.initiales) out[g.email.trim().toLowerCase()] = g.initiales;
-  return out;
-}
 
 export async function lireFileATrier(): Promise<FileATrier | null> {
   const boite = boiteTriConfiguree();
@@ -67,7 +67,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const [refRes, mailsRes, iniRes, binRes, journalRes] = await Promise.allSettled([
     getReferentielTriProvider().charger(),
     getIngestionTri().lireRecents({ email: boite, max: MAX_FILE }),
-    initialesParEmail(),
+    listerCollaborateurs(),
     repo.binomes(),
     repo.journalDepuis(boite, new Date(Date.now() - SEPT_JOURS_MS).toISOString()),
   ]);
@@ -84,7 +84,9 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   }
 
   const ref = refRes.status === "fulfilled" ? refRes.value : { copros: [], expediteurs: {} };
-  const initiales = iniRes.status === "fulfilled" ? iniRes.value : {};
+  const collaborateurs = iniRes.status === "fulfilled" ? iniRes.value : [];
+  const initiales: Record<string, string> = {};
+  for (const c of collaborateurs) if (c.initiales) initiales[c.email] = c.initiales;
   const binomes = binRes.status === "fulfilled" ? binRes.value : {};
   const journal = journalRes.status === "fulfilled" ? journalRes.value : [];
   if (journalRes.status === "rejected") erreurs.push("Le journal du tri est indisponible.");
@@ -119,6 +121,8 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     mails,
     copros,
     journal,
+    binomes: lignesBinomes(ref.copros, binomes, initiales),
+    collaborateurs,
     simulation: rangementSimule(boite),
     erreur: erreurs.length ? erreurs.join(" ") : null,
   };

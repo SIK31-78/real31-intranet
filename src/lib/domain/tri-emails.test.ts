@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cleDeReference,
   destinationDe,
+  lignesBinomes,
   suggestionSuivie,
   estAssistantDeCopro,
   referencesCitees,
@@ -152,5 +153,21 @@ describe("estAssistantDeCopro", () => {
     expect(estAssistantDeCopro("Assistante commerciale")).toBe(false);
     expect(estAssistantDeCopro("Assistant comptable")).toBe(false);
     expect(estAssistantDeCopro(null)).toBe(false);
+  });
+});
+
+describe("lignesBinomes", () => {
+  it("une ligne par gestionnaire, avec ses copros et le dossier qui en decoule", () => {
+    const copros = [copro("S0305", "sandy@real31.fr"), copro("S0297", "Sandy@real31.fr"), copro("SE999", "sekou@real31.fr")];
+    const lignes = lignesBinomes(
+      copros,
+      { "sandy@real31.fr": { nomComplet: "Julie", email: "julie@real31.fr" } },
+      { "sandy@real31.fr": "SC", "julie@real31.fr": "JB", "sekou@real31.fr": "SK" },
+    );
+    expect(lignes).toHaveLength(2);
+    const sandy = lignes.find((l) => l.gestionnaire.email.toLowerCase() === "sandy@real31.fr")!;
+    expect(sandy.copros).toEqual(["S0297", "S0305"]);
+    expect(sandy.nomDossier).toBe("SC-JB");
+    expect(lignes.find((l) => l.copros.includes("SE999"))?.nomDossier).toBe("SK");
   });
 });

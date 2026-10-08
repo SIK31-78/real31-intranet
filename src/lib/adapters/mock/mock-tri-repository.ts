@@ -7,10 +7,19 @@ import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repos
 export class MockTriRepository implements TriRepository {
   private journal: EntreeJournalTri[] = [];
   private dossiers = new Map<string, { folderId: string; nom: string }>();
-  constructor(private readonly binomesInitiaux: Record<string, MembreTri> = {}) {}
+  private readonly lesBinomes: Record<string, MembreTri>;
+  constructor(binomesInitiaux: Record<string, MembreTri> = {}) {
+    this.lesBinomes = { ...binomesInitiaux };
+  }
 
   async binomes(): Promise<Record<string, MembreTri>> {
-    return this.binomesInitiaux;
+    return { ...this.lesBinomes };
+  }
+  async definirBinome(emailGestionnaire: string, assistant: MembreTri) {
+    this.lesBinomes[emailGestionnaire.toLowerCase()] = assistant;
+  }
+  async retirerBinome(emailGestionnaire: string) {
+    delete this.lesBinomes[emailGestionnaire.toLowerCase()];
   }
   async dossier(boite: string, cle: string) {
     return this.dossiers.get(`${boite}|${cle}`) ?? null;

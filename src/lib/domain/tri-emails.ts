@@ -292,3 +292,47 @@ export function suggestionSuivie(e: Pick<EntreeJournalTri, "coproReference" | "c
 export function estAssistantDeCopro(intitule: string | null | undefined): boolean {
   return /\bassistant(e)?\s+de\s+copro/i.test(intitule ?? "");
 }
+
+/** Une ligne de l'ecran des binomes : un gestionnaire de copros ESTALE et son assistant. */
+export interface LigneBinome {
+  gestionnaire: MembreTri;
+  /** References ESTALE des copros dont il est gestionnaire au mandat. */
+  copros: string[];
+  /** Assistant tenu dans l'intranet (fait foi), ou null. */
+  assistant: MembreTri | null;
+  /** Assistant de copropriete connu d'ESTALE, propose quand l'intranet n'en a pas. */
+  assistantEstale: MembreTri | null;
+  /** Nom du dossier qui en decoule, ex "SC-JB" ; null si les initiales du gestionnaire manquent. */
+  nomDossier: string | null;
+}
+
+/** Les binomes a tenir : un par gestionnaire au mandat des copros ESTALE, tries par nom. */
+export function lignesBinomes(
+  copros: CoproTri[],
+  binomes: Record<string, MembreTri>,
+  initialesParEmail: Record<string, string>,
+): LigneBinome[] {
+  const parGestionnaire = new Map<string, { g: MembreTri; copros: string[]; estale: MembreTri | null }>();
+  for (const c of copros) {
+    if (!c.gestionnaire) continue;
+    const cle = c.gestionnaire.email.trim().toLowerCase();
+    const l = parGestionnaire.get(cle) ?? { g: c.gestionnaire, copros: [], estale: null };
+    l.copros.push(c.reference);
+    l.estale ??= c.assistant;
+    parGestionnaire.set(cle, l);
+  }
+  return [...parGestionnaire.entries()]
+    .map(([cle, l]) => {
+      const assistant = binomes[cle] ?? null;
+      const iniG = initialesParEmail[cle]?.trim() || null;
+      const iniA = assistant ? initialesParEmail[assistant.email.trim().toLowerCase()]?.trim() || null : null;
+      return {
+        gestionnaire: l.g,
+        copros: l.copros.sort(),
+        assistant,
+        assistantEstale: l.estale,
+        nomDossier: iniG ? nomDossierBinome(iniG, iniA) : null,
+      };
+    })
+    .sort((a, b) => a.gestionnaire.nomComplet.localeCompare(b.gestionnaire.nomComplet, "fr"));
+}

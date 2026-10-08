@@ -71,6 +71,27 @@ export class SupabaseTriRepository implements TriRepository {
     return out;
   }
 
+  async definirBinome(emailGestionnaire: string, assistant: MembreTri, par: string) {
+    const { error } = await createSupabasePublicClient()
+      .from("intranet_tri_binome")
+      .upsert({
+        gestionnaire_email: emailGestionnaire.trim().toLowerCase(),
+        assistant_email: assistant.email.trim().toLowerCase(),
+        assistant_nom: assistant.nomComplet,
+        maj_le: new Date().toISOString(),
+        maj_par: par,
+      });
+    if (error) throw erreur("binôme", error);
+  }
+
+  async retirerBinome(emailGestionnaire: string) {
+    const { error } = await createSupabasePublicClient()
+      .from("intranet_tri_binome")
+      .delete()
+      .eq("gestionnaire_email", emailGestionnaire.trim().toLowerCase());
+    if (error) throw erreur("binôme", error);
+  }
+
   async dossier(boite: string, cle: string) {
     const { data, error } = await createSupabasePublicClient()
       .from("intranet_tri_dossier")
