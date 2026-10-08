@@ -1999,3 +1999,37 @@ Deux règles qui décidaient de la mise en page descendent dans le domaine pour 
 ### Liens
 
 ADR-001 (ports & adapters), ADR-012 v3 (PDF serveur). Tickets : REA-132 (celui-ci), REA-62 (le Word pré-rempli), REA-136 (mode lecture), REA-146 (envoi au CS). Code : `domain/odj-rendu.ts`, `domain/odj-html.ts`, `ports/odj-rempli-docx-renderer.ts`, `adapters/docx/odj-rempli-docx-renderer.ts`, `services/odj/generer-odj-rempli.ts`, `app/odj/[id]/odj-rempli.{docx,pdf}/route.ts`.
+
+---
+
+## ADR-046 - Mes e-mails V2 : l'intranet trie et attribue, Outlook reste l'outil de travail
+
+**Date** : 2026-09-25 · **Statut** : accepté (échange Emmanuel / Sekou du 25/09, arbitrages Sekou du même jour) · **Remplace** la V1.2 non mergée (`chantier/mail-v12`) · **Ticket** : REA-15
+
+### Contexte
+
+Crypto distribue à la main les mails des boîtes syndicN : un mail reçu devient un évènement, rattaché à un immeuble et transféré à une personne (environ 2 h par jour). La V1.2 faisait de l'intranet un client mail (lecture en direct de la boîte perso et de syndic2, réponse dans l'app avec « De : »). Le patron veut l'inverse : **l'app ne sert qu'à trier et attribuer**, le travail (lire, répondre, chercher) se fait dans Outlook.
+
+### Décision
+
+1. **Une nouvelle boîte partagée générique** (pas syndic2, adresse à confirmer), sans licence, créée dans le centre d'administration (REA-26). Elle entre dans le groupe `REAL31-Intranet-MailRead` de l'Access Policy (ADR-027). Les collaborateurs y ont l'accès total et le droit « Envoyer en tant que » (tranché : pas « de la part de »), avec copie des éléments envoyés dans la générique.
+2. **La boîte de réception de la générique EST la file à trier.** L'app la lit en direct (Graph, app-only), sans synchro ni table de cache : ce qui y est reste à trier, ce qui en est sorti est traité.
+3. **Au clic « Attribuer »** (incrément 2), l'app **déplace** le mail dans `Boîte de réception › <initiales du gestionnaire>` (dossier créé s'il manque) et (incrément 3) pose une **catégorie Outlook** au code copro. Chacun met en favori la générique et le ou les dossiers de ses gestionnaires. **Un dossier par gestionnaire, pas par binôme** : le gestionnaire est toujours connu (mandat ESTALE), l'assistant presque jamais, et l'assistant voit le mail en favorisant le dossier de son gestionnaire.
+4. **Copropriétés ESTALE seulement** (9 au 25/09/2026). Référentiel lu dans ESTALE derrière le port `ReferentielTriProvider` : références, gestionnaire (`serviceBook.mandate.managerID`), assistant de copropriété s'il existe, et index adresse → copros (copropriétaires et leurs contacts, conseil syndical, contacts fournisseurs). Lecture en direct avec cache de 10 min (une requête par copro, 4 en parallèle : ~0,6 s pour 9 copros). Une table de nuit ne se justifiera qu'avec beaucoup plus de copros.
+5. **La suggestion n'est jamais appliquée seule** : code cité dans l'objet, puis expéditeur connu d'ESTALE, puis code cité dans le corps (indice faible). Plusieurs candidates = on laisse choisir ; code hors ESTALE = signalé. Règle pure dans `domain/tri-emails.ts`.
+6. **Les initiales des dossiers viennent de la table `User` de l'intranet** (rapprochées par e-mail), pas d'ESTALE : le nom complet ESTALE ne contient souvent qu'un prénom.
+
+### Ce qu'on garde, ce qu'on jette
+
+On garde l'ingestion Graph app-only (`graph-mail-ingestion.ts`) et le déplacement déjà codé (`graph-mailbox.ts`, `Mail.ReadWrite` déjà accordé). On ne reprend pas la réponse dans l'app ni le « De : » de la V1.2. L'ancien cockpit « Mes e-mails » (ADR-026/027, tri IA, boîte perso) reste en place et masqué en prod ; son sort se décidera quand la V2 tournera.
+
+### Conséquences
+
+- **Positives** : aucune habitude à changer pour répondre ; la continuité (absences) est assurée par les favoris Outlook ; la file ne peut pas diverger de la boîte, puisqu'elle EST la boîte.
+- **Négatives, assumées** : la boîte gratuite plafonne à 50 Go (environ 2 ans et demi au rythme de syndic2 : alerte à 40 Go, archivage ou licence avant) ; tout collaborateur ayant l'accès total voit tous les dossiers ; ce qu'on perd par rapport à Crypto est listé dans REA-15 (l'évènement comme fiche, le lien au tiers, qui a répondu).
+- **Sécurité** : l'app porte encore `Application.ReadWrite.All` et `AppRoleAssignment.ReadWrite.All`, à retirer (REA-27). `Mail.ReadWrite` donne l'écriture sur toutes les boîtes du groupe de l'Access Policy : le groupe doit rester minimal.
+- **Règle de test** : aucun mail réel déplacé ou étiqueté sans l'accord de Sekou, geste par geste ; les essais se font sur la boîte `test-tri@`.
+
+### Liens
+
+ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (délégations : le remplaçant favorise le dossier du titulaire), `docs/etude-mail-central.md`, maquette https://claude.ai/artifact/93Z4r2TGnimwebjkCud9nr.
