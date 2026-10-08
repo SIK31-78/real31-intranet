@@ -214,8 +214,17 @@ export const DOSSIERS_HORS_BINOME = {
 } as const;
 export type DossierHorsBinome = keyof typeof DOSSIERS_HORS_BINOME;
 
-/** Ce qu'un collaborateur choisit pour un mail. */
-export type CibleTri = { type: "copro"; reference: string } | { type: DossierHorsBinome };
+/**
+ * Ce qu'un collaborateur choisit pour un mail :
+ * - une copro : le dossier de son binome, etiquete a son code ;
+ * - un dossier de binome choisi librement, avec zero, une ou plusieurs etiquettes (une
+ *   invitation d'un prestataire, des factures pour plusieurs copros : demande du 08/10) ;
+ * - Comptabilité ou Divers.
+ */
+export type CibleTri =
+  | { type: "copro"; reference: string }
+  | { type: "dossier"; cle: string; copros: string[] }
+  | { type: DossierHorsBinome };
 
 const cheminSousReception = (nom: string) => `Boîte de réception › ${nom}`;
 
@@ -316,7 +325,10 @@ export interface EntreeJournalTri {
   messageId: string;
   expediteur: string;
   objet: string;
+  /** La copro principale du rangement (mesure des signaux) ; null s'il n'y en a pas. */
   coproReference: string | null;
+  /** Toutes les etiquettes posees (codes copro) ; vide pour Comptabilité / Divers. */
+  copros: string[];
   /** Nom du dossier au moment du rangement, ex "SK-CP" ou "Comptabilité". */
   dossierNom: string;
   /** Cle stable du dossier (binome:..., comptabilite, divers) ; null sur les toutes premieres lignes. */
@@ -463,4 +475,35 @@ export function coproDuDossier(
 ): string | null {
   const candidates = copros.filter((c) => destinationDe(c, initialesParEmail, b)?.cle === cle);
   return candidates.length === 1 ? candidates[0]!.reference : null;
+}
+
+/** Un dossier de binome qu'on peut choisir a la main. */
+export interface DossierChoisissable {
+  cle: string;
+  nom: string;
+  /** Ce qu'on lit dans la liste, ex "SC-GG · Sandy CARRIER avec Galiano GUAETTA". */
+  libelle: string;
+}
+
+/**
+ * Tous les dossiers de binome qu'on peut viser a la main : le principal (ou le gestionnaire
+ * seul) et les autres assistants de chaque gestionnaire. Sans initiales, pas de dossier.
+ */
+export function dossiersChoisissables(lignes: LigneBinome[]): DossierChoisissable[] {
+  const out: DossierChoisissable[] = [];
+  for (const l of lignes) {
+    const g = l.gestionnaire.nomComplet;
+    const nomPrincipal = l.principal?.nomDossier ?? l.nomDossierSeul;
+    if (nomPrincipal) {
+      out.push({
+        cle: cleDossierBinome(l.gestionnaire.email),
+        nom: nomPrincipal,
+        libelle: l.principal ? `${nomPrincipal} · ${g} avec ${l.principal.assistant.nomComplet}` : `${nomPrincipal} · ${g}`,
+      });
+    }
+    for (const a of l.autres) {
+      if (a.nomDossier) out.push({ cle: `binome:${a.id}`, nom: a.nomDossier, libelle: `${a.nomDossier} · ${g} avec ${a.assistant.nomComplet}` });
+    }
+  }
+  return out;
 }

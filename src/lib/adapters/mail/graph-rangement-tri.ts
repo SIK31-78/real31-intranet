@@ -98,12 +98,12 @@ export class GraphRangementTri implements RangementTriProvider {
     return this.deplacer(boite, messageId, "inbox");
   }
 
-  async etiqueter(boite: string, messageId: string, p: { ajouter?: string; retirer?: string }): Promise<void> {
+  async etiqueter(boite: string, messageId: string, p: { ajouter?: string[]; retirer?: string[] }): Promise<void> {
     const url = `${u(boite)}/messages/${encodeURIComponent(messageId)}`;
     const m = await json<{ categories?: string[] }>(await appel(`${url}?$select=categories`), "categories");
     const avant = m.categories ?? [];
-    const apres = avant.filter((c) => c !== p.retirer);
-    if (p.ajouter && !apres.includes(p.ajouter)) apres.push(p.ajouter);
+    const apres = avant.filter((c) => !(p.retirer ?? []).includes(c));
+    for (const c of p.ajouter ?? []) if (!apres.includes(c)) apres.push(c);
     if (apres.length === avant.length && apres.every((c, i) => c === avant[i])) return;
     // Sans MailboxSettings.ReadWrite, la categorie n'entre pas dans la liste de la boite :
     // elle est posee sur le mail, cherchable, mais sans couleur.

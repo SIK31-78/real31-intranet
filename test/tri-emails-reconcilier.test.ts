@@ -29,6 +29,7 @@ async function monter(position: PositionMail | null) {
     expediteur: "x@exemple.fr",
     objet: "Objet",
     coproReference: "S0297",
+    copros: ["S0297"],
     dossierNom: "SC",
     dossierCle: "binome:sandy@real31.fr",
     signal: "sure",
@@ -43,7 +44,7 @@ async function monter(position: PositionMail | null) {
     deplacer: async () => ({ messageId: "x" }),
     remettreEnReception: async () => ({ messageId: "x" }),
     etiqueter: async (_b, mid, p) => {
-      appels.push(`${mid} +${p.ajouter ?? ""} -${p.retirer ?? ""}`);
+      appels.push(`${mid} +${(p.ajouter ?? []).join(",")} -${(p.retirer ?? []).join(",")}`);
     },
     localiser: async () => position,
   };
@@ -54,6 +55,7 @@ async function monter(position: PositionMail | null) {
     referentiel: { charger: async () => REF },
     repo,
     initialesParEmail: async () => ({ "sandy@real31.fr": "SC", "oceane@real31.fr": "OR", "charlotte@real31.fr": "CL" }),
+    gestionnaires: async () => [],
   };
   return { repo, deps, id, appels };
 }

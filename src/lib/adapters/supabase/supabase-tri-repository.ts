@@ -18,6 +18,7 @@ type RowJournal = {
   expediteur: string;
   objet: string;
   copro_reference: string | null;
+  copros: string[] | null;
   dossier_nom: string;
   dossier_cle: string | null;
   signal: string | null;
@@ -29,7 +30,7 @@ type RowJournal = {
 };
 
 const COLS =
-  "id, boite, internet_message_id, message_id, expediteur, objet, copro_reference, dossier_nom, dossier_cle, signal, candidats, simulation, par, fait_le, annule_le";
+  "id, boite, internet_message_id, message_id, expediteur, objet, copro_reference, copros, dossier_nom, dossier_cle, signal, candidats, simulation, par, fait_le, annule_le";
 
 function tableAbsente(error: { code?: string } | null): boolean {
   return error?.code === "42P01" || error?.code === "PGRST205";
@@ -48,6 +49,7 @@ function versDomaine(r: RowJournal): EntreeJournalTri {
     expediteur: r.expediteur,
     objet: r.objet,
     coproReference: r.copro_reference,
+    copros: r.copros ?? (r.copro_reference ? [r.copro_reference] : []),
     dossierNom: r.dossier_nom,
     dossierCle: r.dossier_cle ?? null,
     signal: (r.signal as NatureSuggestion | null) ?? null,
@@ -147,7 +149,7 @@ export class SupabaseTriRepository implements TriRepository {
   }
 
   async majCopro(id: string, reference: string) {
-    const { error } = await createSupabasePublicClient().from("intranet_tri_journal").update({ copro_reference: reference }).eq("id", id);
+    const { error } = await createSupabasePublicClient().from("intranet_tri_journal").update({ copro_reference: reference, copros: [reference] }).eq("id", id);
     if (error) throw erreur("journal", error);
   }
 
@@ -161,6 +163,7 @@ export class SupabaseTriRepository implements TriRepository {
         expediteur: e.expediteur,
         objet: e.objet,
         copro_reference: e.coproReference,
+        copros: e.copros,
         dossier_nom: e.dossierNom,
         dossier_cle: e.dossierCle,
         signal: e.signal,

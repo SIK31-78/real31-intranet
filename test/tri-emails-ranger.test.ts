@@ -41,7 +41,7 @@ function fauxGraph(enReception = true) {
       return { messageId: `${id}-remis` };
     },
     async etiqueter(_b, id, p) {
-      appels.push(`etiqueter ${id} +${p.ajouter ?? ""} -${p.retirer ?? ""}`);
+      appels.push(`etiqueter ${id} +${(p.ajouter ?? []).join(",")} -${(p.retirer ?? []).join(",")}`);
     },
     async localiser(_b, imid) {
       appels.push(`localiser ${imid}`);
@@ -60,7 +60,8 @@ function deps(p: Partial<DepsRangement> & { rangement: RangementTriProvider }): 
       binomes: [{ id: "b1", gestionnaireEmail: "sandy@real31.fr", assistant: { nomComplet: "Julie", email: "julie@real31.fr" }, principal: true }],
       parCopro: {},
     }),
-    initialesParEmail: async () => ({ "sandy@real31.fr": "SC", "julie@real31.fr": "JB" }),
+    initialesParEmail: async () => ({ "sandy@real31.fr": "SC", "julie@real31.fr": "JB", "oceane@real31.fr": "OR" }),
+    gestionnaires: async () => [{ nomComplet: "Océane", email: "oceane@real31.fr" }],
     ...p,
   };
 }
@@ -99,6 +100,36 @@ describe("rangerMail", () => {
     const r = await rangerMail(demande({ cible: { type: "comptabilite" } }), "a", deps({ rangement: g }));
     expect(r.dossierNom).toBe("Comptabilité");
     expect(appels.some((x) => x.startsWith("etiqueter"))).toBe(false);
+  });
+
+  it("range dans un dossier choisi, sans etiquette (invitation d'un prestataire)", async () => {
+    const { g, appels } = fauxGraph();
+    const r = await rangerMail(demande({ cible: { type: "dossier", cle: "binome:oceane@real31.fr", copros: [] } }), "a", deps({ rangement: g }));
+    expect(r.dossierNom).toBe("OR");
+    expect(appels.some((x) => x.startsWith("etiqueter"))).toBe(false);
+  });
+
+  it("range dans un dossier choisi avec plusieurs etiquettes (factures pour plusieurs copros)", async () => {
+    const { g, appels } = fauxGraph();
+    const d = deps({ rangement: g });
+    const r = await rangerMail(
+      demande({ cible: { type: "dossier", cle: "binome:sandy@real31.fr", copros: ["S0297", "S0305"] } }),
+      "a",
+      d,
+    );
+    expect(r.dossierNom).toBe("SC-JB");
+    expect(appels).toContain("etiqueter m1-deplace +S0297,S0305 -");
+    expect(await d.repo.entree(r.journalId)).toMatchObject({ coproReference: "S0297", copros: ["S0297", "S0305"] });
+  });
+
+  it("refuse un dossier inconnu ou une etiquette hors ESTALE", async () => {
+    const { g } = fauxGraph();
+    await expect(
+      rangerMail(demande({ cible: { type: "dossier", cle: "binome:personne@real31.fr", copros: [] } }), "a", deps({ rangement: g })),
+    ).rejects.toThrow(/n'existe pas/);
+    await expect(
+      rangerMail(demande({ cible: { type: "dossier", cle: "binome:oceane@real31.fr", copros: ["S0142"] } }), "a", deps({ rangement: g })),
+    ).rejects.toThrow(/pas dans ESTALE/);
   });
 
   it("un echec d'etiquette ne defait pas le rangement", async () => {

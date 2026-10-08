@@ -8,7 +8,9 @@
 import {
   AUCUN_BINOME,
   destinationDe,
+  dossiersChoisissables,
   lignesBinomes,
+  type DossierChoisissable,
   suggererCopro,
   type CoproTri,
   type Destination,
@@ -50,6 +52,8 @@ export interface FileATrier {
   journal: EntreeJournalTri[];
   /** Un binome par gestionnaire de copros ESTALE (onglet « Binômes »). */
   binomes: LigneBinome[];
+  /** Dossiers de binome qu'on peut viser a la main (« Ranger ailleurs »). */
+  dossiers: DossierChoisissable[];
   /** Collaborateurs designables comme assistant. */
   collaborateurs: Collaborateur[];
   /** Mails que l'equipe a deplaces a la main dans Outlook depuis le dernier affichage. */
@@ -132,6 +136,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     };
   });
 
+  const lignes = lignesBinomes(gestionnaires, ref.copros, binomes, initiales);
   const copros: CoproDeLaFile[] = ref.copros.map((c) => ({ ...c, destination: destinationDe(c, initiales, binomes) }));
 
   return {
@@ -139,7 +144,8 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     mails,
     copros,
     journal,
-    binomes: lignesBinomes(gestionnaires, ref.copros, binomes, initiales),
+    binomes: lignes,
+    dossiers: dossiersChoisissables(lignes),
     collaborateurs,
     corrigesOutlook,
     simulation: rangementSimule(boite),

@@ -42,7 +42,7 @@ export async function reconcilierRangements(deps: DepsRangement = depsParDefaut(
         const constat = constaterRangement(e.dossierCle!, pos, dossiers);
         if (constat.cas === "en-place" || constat.cas === "introuvable" || !pos) return;
 
-        if (e.coproReference) await deps.rangement.etiqueter(boite, pos.messageId, { retirer: e.coproReference });
+        if (e.copros.length) await deps.rangement.etiqueter(boite, pos.messageId, { retirer: e.copros });
         await deps.repo.marquerAnnule(e.id, PAR_OUTLOOK);
 
         if (constat.cas === "remis-en-reception") {
@@ -52,7 +52,7 @@ export async function reconcilierRangements(deps: DepsRangement = depsParDefaut(
         // Glisse dans un autre dossier : on suit, et on deduit la copro si on peut.
         const [ref, initiales, binomes] = await charger();
         const copro = coproDuDossier(constat.vers.cle, ref.copros, initiales, binomes);
-        if (copro) await deps.rangement.etiqueter(boite, pos.messageId, { ajouter: copro });
+        if (copro) await deps.rangement.etiqueter(boite, pos.messageId, { ajouter: [copro] });
         await deps.repo.journaliser({
           boite,
           internetMessageId: e.internetMessageId,
@@ -60,6 +60,7 @@ export async function reconcilierRangements(deps: DepsRangement = depsParDefaut(
           expediteur: e.expediteur,
           objet: e.objet,
           coproReference: copro,
+          copros: copro ? [copro] : [],
           dossierNom: constat.vers.nom,
           dossierCle: constat.vers.cle,
           signal: null,

@@ -10,6 +10,7 @@ import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { estSuperAdmin } from "@/lib/auth/session";
 import { annulerRangement, preciserCopro, rangerMail } from "@/lib/services/tri-emails/ranger";
+import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
 import { lirePieceJointeTri, listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
@@ -24,6 +25,11 @@ const zRanger = z.object({
   objet: zTexte(500),
   cible: z.discriminatedUnion("type", [
     z.object({ type: z.literal("copro"), reference: z.string().regex(/^(SE|S)\d{3,4}$/) }),
+    z.object({
+      type: z.literal("dossier"),
+      cle: z.string().regex(/^binome:[^\s]{1,320}$/),
+      copros: z.array(z.string().regex(/^(SE|S)\d{3,4}$/)).max(20),
+    }),
     z.object({ type: z.literal("comptabilite") }),
     z.object({ type: z.literal("divers") }),
   ]),
@@ -40,6 +46,7 @@ export async function rangerMailAction(
   return actionGestionnaire(zRanger, input, "tri-emails-ranger", async (d, g) => {
     gardePilote(g.email);
     const r = await rangerMail(d, g.email ?? g.id);
+    oublierCompteur();
     revalidatePath("/tri-emails");
     return r;
   });
@@ -49,6 +56,7 @@ export async function annulerRangementAction(input: unknown): Promise<Res> {
   return actionGestionnaire(z.object({ journalId: z.string().min(1).max(80) }), input, "tri-emails-annuler", async (d, g) => {
     gardePilote(g.email);
     await annulerRangement(d.journalId, g.email ?? g.id);
+    oublierCompteur();
     revalidatePath("/tri-emails");
   });
 }

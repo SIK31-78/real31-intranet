@@ -5,7 +5,7 @@
 // d'un clic (dossier du binome, Comptabilité, Divers) et on peut annuler. Sans
 // MAIL_TRI_ECRITURE=on, tout rangement est simule (le mail ne bouge pas).
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Paperclip } from "lucide-react";
 import type { CoproDeLaFile, FileATrier, MailDeLaFile } from "@/lib/services/tri-emails/lire-file";
@@ -14,6 +14,7 @@ import {
   PAR_OUTLOOK,
   suggestionSuivie,
   type CibleTri,
+  type DossierChoisissable,
   type EntreeJournalTri,
   type LigneBinome,
   type NatureSuggestion,
@@ -88,6 +89,24 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
   const toast = useToast();
 
   const mails = file.mails.filter((m) => !masques.has(m.id));
+
+  // Arrivee automatique des nouveaux mails (demande du 08/10) : on relit la file toutes
+  // les 60 s quand l'onglet est visible, et des qu'on y revient. Jamais pendant une action.
+  const occupe = useRef(false);
+  useEffect(() => {
+    occupe.current = enCours;
+  }, [enCours]);
+  useEffect(() => {
+    const rafraichir = () => {
+      if (document.visibilityState === "visible" && !occupe.current) router.refresh();
+    };
+    const minuterie = setInterval(rafraichir, 60_000);
+    document.addEventListener("visibilitychange", rafraichir);
+    return () => {
+      clearInterval(minuterie);
+      document.removeEventListener("visibilitychange", rafraichir);
+    };
+  }, [router]);
 
   function ranger(mail: MailDeLaFile, cible: CibleTri) {
     demarrer(async () => {
@@ -175,7 +194,7 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
       </TabList>
       {onglet === "file" && (
         <TabPanel id="tri-p-file" tabId="tri-t-file">
-          <FileVue copros={file.copros} mails={mails} enCours={enCours} ranger={ranger} />
+          <FileVue copros={file.copros} dossiers={file.dossiers} mails={mails} enCours={enCours} ranger={ranger} />
         </TabPanel>
       )}
       {onglet === "journal" && (
@@ -194,11 +213,13 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
 
 function FileVue({
   copros,
+  dossiers,
   mails,
   enCours,
   ranger,
 }: {
   copros: CoproDeLaFile[];
+  dossiers: DossierChoisissable[];
   mails: MailDeLaFile[];
   enCours: boolean;
   ranger: (mail: MailDeLaFile, cible: CibleTri) => void;
@@ -269,6 +290,7 @@ function FileVue({
           key={courant.id}
           mail={courant}
           copros={copros}
+          dossiers={dossiers}
           parRef={parRef}
           choisie={choix[courant.id] ?? (courant.suggestion.candidats.length === 1 ? courant.suggestion.candidats[0]! : null)}
           choisir={(ref) => setChoix((c) => ({ ...c, [courant.id]: ref }))}
@@ -285,6 +307,7 @@ function FileVue({
 function DetailMail({
   mail,
   copros,
+  dossiers,
   parRef,
   choisie,
   choisir,
@@ -293,6 +316,7 @@ function DetailMail({
 }: {
   mail: MailDeLaFile;
   copros: CoproDeLaFile[];
+  dossiers: DossierChoisissable[];
   parRef: Map<string, CoproDeLaFile>;
   choisie: string | null;
   choisir: (ref: string) => void;
@@ -457,7 +481,178 @@ function DetailMail({
             Divers
           </Button>
         </div>
+        <RangerAilleurs
+          key={mail.id}
+          dossiers={dossiers}
+          copros={copros}
+          proposees={s.nature === "plusieurs" ? s.candidats : []}
+          enCours={enCours}
+          ranger={ranger}
+        />
       </section>
+    </div>
+  );
+}
+
+/**
+ * Ranger dans n'importe quel dossier de binome, avec zero, une ou plusieurs etiquettes :
+ * l'invitation d'un prestataire (aucune copro), des factures pour plusieurs copros.
+ */
+function RangerAilleurs({
+  dossiers,
+  copros,
+  proposees,
+  enCours,
+  ranger,
+}: {
+  dossiers: DossierChoisissable[];
+  copros: CoproDeLaFile[];
+  /** Etiquettes cochees d'avance : les copros candidates quand il y en a plusieurs. */
+  proposees: string[];
+  enCours: boolean;
+  ranger: (cible: CibleTri) => void;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [dossier, setDossier] = useState<DossierChoisissable | null>(null);
+  const [rechDossier, setRechDossier] = useState("");
+  const [etiquettes, setEtiquettes] = useState<string[]>(proposees);
+  const [rechCopro, setRechCopro] = useState("");
+
+  const dossiersTrouves = useMemo(() => {
+    const q = normaliser(rechDossier.trim());
+    return q ? dossiers.filter((d) => normaliser(d.libelle).includes(q)).slice(0, 6) : [];
+  }, [dossiers, rechDossier]);
+  const coprosTrouvees = useMemo(() => {
+    const q = normaliser(rechCopro.trim());
+    if (!q) return [];
+    return copros.filter((c) => !etiquettes.includes(c.reference) && normaliser(`${c.reference} ${c.nom} ${c.adresse}`).includes(q)).slice(0, 6);
+  }, [copros, rechCopro, etiquettes]);
+
+  if (!ouvert) {
+    return (
+      <div>
+        <Button size="sm" variant="ghost" onClick={() => setOuvert(true)}>
+          Ranger dans un autre dossier…
+        </Button>
+      </div>
+    );
+  }
+
+  const champ =
+    "w-full rounded-lg border border-line bg-canvas px-3 py-1.5 text-body focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600";
+  const resultat = "w-full flex gap-3 px-3 py-1.5 text-left hover:bg-surface-2";
+  return (
+    <div className="rounded-lg border border-line bg-canvas p-3 flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <strong className="font-medium text-ink">Ranger dans un autre dossier</strong>
+        <Button size="sm" variant="ghost" onClick={() => setOuvert(false)}>
+          Fermer
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-meta uppercase tracking-wider text-ink-3">Dossier</span>
+        {dossier ? (
+          <span className="inline-flex w-fit items-center gap-2 rounded-lg border border-green-600 bg-surface px-2.5 py-1">
+            <span className="text-ink">{dossier.libelle}</span>
+            <button type="button" className="text-meta text-ink-3 hover:text-ink" onClick={() => setDossier(null)} aria-label="Changer de dossier">
+              Changer
+            </button>
+          </span>
+        ) : (
+          <>
+            <label htmlFor="ailleurs-dossier" className="sr-only">
+              Chercher un dossier de binôme
+            </label>
+            <input
+              id="ailleurs-dossier"
+              type="search"
+              value={rechDossier}
+              onChange={(e) => setRechDossier(e.target.value)}
+              placeholder="Initiales ou nom : SC, Sandy, Galiano…"
+              autoComplete="off"
+              className={champ}
+            />
+            {dossiersTrouves.length > 0 && (
+              <ul className="rounded-lg border border-line divide-y divide-line bg-surface">
+                {dossiersTrouves.map((d) => (
+                  <li key={d.cle}>
+                    <button type="button" className={resultat} onClick={() => setDossier(d)}>
+                      <span className="font-mono text-meta text-green-700 min-w-[60px]">{d.nom}</span>
+                      <span className="text-ink">{d.libelle.split(" · ")[1]}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-meta uppercase tracking-wider text-ink-3">Étiquettes (facultatif)</span>
+        {etiquettes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {etiquettes.map((r) => (
+              <span key={r} className="inline-flex items-center gap-1.5 rounded bg-info-50 text-info-700 px-2 py-0.5">
+                <span className="font-mono text-meta font-medium">{r}</span>
+                <button
+                  type="button"
+                  className="text-meta hover:text-ink"
+                  aria-label={`Retirer l'étiquette ${r}`}
+                  onClick={() => setEtiquettes((e) => e.filter((x) => x !== r))}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <label htmlFor="ailleurs-copro" className="sr-only">
+          Ajouter une étiquette de copropriété
+        </label>
+        <input
+          id="ailleurs-copro"
+          type="search"
+          value={rechCopro}
+          onChange={(e) => setRechCopro(e.target.value)}
+          placeholder="Ajouter une copropriété : code, nom, adresse"
+          autoComplete="off"
+          className={champ}
+        />
+        {coprosTrouvees.length > 0 && (
+          <ul className="rounded-lg border border-line divide-y divide-line bg-surface">
+            {coprosTrouvees.map((c) => (
+              <li key={c.reference}>
+                <button
+                  type="button"
+                  className={resultat}
+                  onClick={() => {
+                    setEtiquettes((e) => [...e, c.reference]);
+                    setRechCopro("");
+                  }}
+                >
+                  <span className="font-mono text-meta text-green-700 min-w-[52px]">{c.reference}</span>
+                  <span className="text-ink">{c.nom}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div>
+        <Button
+          variant="primary"
+          loading={enCours}
+          disabled={!dossier || enCours}
+          onClick={() => dossier && ranger({ type: "dossier", cle: dossier.cle, copros: etiquettes })}
+        >
+          {dossier
+            ? `Ranger dans ${dossier.nom} ${etiquettes.length ? `avec ${etiquettes.length} étiquette${etiquettes.length > 1 ? "s" : ""}` : "sans étiquette"}`
+            : "Choisir un dossier"}
+        </Button>
+      </div>
     </div>
   );
 }

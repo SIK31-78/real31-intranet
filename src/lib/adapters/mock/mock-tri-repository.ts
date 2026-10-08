@@ -43,7 +43,10 @@ export class MockTriRepository implements TriRepository {
   }
   async majCopro(id: string, reference: string) {
     const e = this.journal.find((x) => x.id === id);
-    if (e) e.coproReference = reference;
+    if (e) {
+      e.coproReference = reference;
+      e.copros = [reference];
+    }
   }
   async journaliser(e: NouvelleEntreeJournal): Promise<string> {
     const id = `j-${this.journal.length + 1}`;
