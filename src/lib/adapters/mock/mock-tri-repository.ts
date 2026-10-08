@@ -1,25 +1,34 @@
 // Persistance EN MEMOIRE du tri des e-mails (COPRO_SOURCE != supabase, tests). Perdue au
 // redemarrage. Aucune donnee reelle.
 
-import type { EntreeJournalTri, MembreTri } from "@/lib/domain/tri-emails";
+import type { Binome, BinomesTri, EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
 
 export class MockTriRepository implements TriRepository {
   private journal: EntreeJournalTri[] = [];
   private dossiers = new Map<string, { folderId: string; nom: string }>();
-  private readonly lesBinomes: Record<string, MembreTri>;
-  constructor(binomesInitiaux: Record<string, MembreTri> = {}) {
-    this.lesBinomes = { ...binomesInitiaux };
+  private lesBinomes: Binome[];
+  private parCopro: Record<string, string> = {};
+  constructor(b: BinomesTri = { binomes: [], parCopro: {} }) {
+    this.lesBinomes = [...b.binomes];
+    this.parCopro = { ...b.parCopro };
   }
 
-  async binomes(): Promise<Record<string, MembreTri>> {
-    return { ...this.lesBinomes };
+  async binomes(): Promise<BinomesTri> {
+    return { binomes: [...this.lesBinomes], parCopro: { ...this.parCopro } };
   }
-  async definirBinome(emailGestionnaire: string, assistant: MembreTri) {
-    this.lesBinomes[emailGestionnaire.toLowerCase()] = assistant;
+  async enregistrerBinome(b: Omit<Binome, "id"> & { id?: string }): Promise<string> {
+    const id = b.id ?? `b-${this.lesBinomes.length + 1}-${b.assistant.email}`;
+    this.lesBinomes = [...this.lesBinomes.filter((x) => x.id !== id), { ...b, id }];
+    return id;
   }
-  async retirerBinome(emailGestionnaire: string) {
-    delete this.lesBinomes[emailGestionnaire.toLowerCase()];
+  async supprimerBinome(id: string) {
+    this.lesBinomes = this.lesBinomes.filter((x) => x.id !== id);
+    for (const [ref, bid] of Object.entries(this.parCopro)) if (bid === id) delete this.parCopro[ref];
+  }
+  async affecterCopro(reference: string, binomeId: string | null) {
+    if (binomeId) this.parCopro[reference] = binomeId;
+    else delete this.parCopro[reference];
   }
   async dossier(boite: string, cle: string) {
     return this.dossiers.get(`${boite}|${cle}`) ?? null;

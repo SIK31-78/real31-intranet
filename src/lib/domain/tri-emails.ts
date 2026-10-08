@@ -236,25 +236,72 @@ export function cheminDossierHorsBinome(d: DossierHorsBinome): string {
 }
 
 /**
+ * Un binome tenu dans l'intranet : un gestionnaire et UN de ses assistants. Un gestionnaire
+ * a au plus un assistant principal, et peut en avoir d'autres quand ses copros sont
+ * partagees (Sandy : Galiano et Julie, arbitrage du 08/10/2026).
+ */
+export interface Binome {
+  id: string;
+  /** En minuscules. */
+  gestionnaireEmail: string;
+  assistant: MembreTri;
+  /** L'assistant des copros sans affectation particuliere. */
+  principal: boolean;
+}
+
+export interface BinomesTri {
+  binomes: Binome[];
+  /** Reference ESTALE -> id du binome qui s'occupe de cette copro (sinon le principal). */
+  parCopro: Record<string, string>;
+}
+
+export const AUCUN_BINOME: BinomesTri = { binomes: [], parCopro: {} };
+
+const minuscules = (e: string) => e.trim().toLowerCase();
+
+/**
+ * Le binome d'une copro : celui qui lui est affecte, sinon le principal de son gestionnaire.
+ * Une affectation qui pointe le binome d'un AUTRE gestionnaire (le mandat a change dans
+ * ESTALE) est ignoree.
+ */
+export function binomeDeCopro(copro: CoproTri, b: BinomesTri): Binome | null {
+  if (!copro.gestionnaire) return null;
+  const g = minuscules(copro.gestionnaire.email);
+  const affecte = b.parCopro[copro.reference];
+  const parAffectation = affecte ? b.binomes.find((x) => x.id === affecte && x.gestionnaireEmail === g) : undefined;
+  return parAffectation ?? b.binomes.find((x) => x.gestionnaireEmail === g && x.principal) ?? null;
+}
+
+/**
+ * Cle du dossier. Le binome principal (ou le gestionnaire seul) garde la cle du
+ * gestionnaire : poser ou changer l'assistant principal RENOMME le dossier existant
+ * (« SC » -> « SC-GG »). Un binome secondaire a sa propre cle (son id).
+ */
+export function cleDossierDe(emailGestionnaire: string, binome: Binome | null): string {
+  return !binome || binome.principal ? cleDossierBinome(emailGestionnaire) : `binome:${binome.id}`;
+}
+
+/**
  * Destination d'un mail rattache a une copro. Les initiales viennent de l'intranet et
  * non d'ESTALE : le nom complet ESTALE ne donne souvent qu'un prenom (constat du 25/09).
- * L'assistant du binome vient de l'intranet (`assistantParGestionnaire`), a defaut d'ESTALE.
+ * L'assistant vient du binome tenu dans l'intranet ; a defaut seulement, de celui d'ESTALE.
  */
 export function destinationDe(
   copro: CoproTri,
   initialesParEmail: Record<string, string>,
-  binomes: Record<string, MembreTri> = {},
+  b: BinomesTri = AUCUN_BINOME,
 ): Destination | null {
   if (!copro.gestionnaire) return null;
-  const emailG = copro.gestionnaire.email.trim().toLowerCase();
-  const assistant = binomes[emailG] ?? copro.assistant;
+  const emailG = minuscules(copro.gestionnaire.email);
+  const binome = binomeDeCopro(copro, b);
+  const assistant = binome ? binome.assistant : copro.assistant;
   const iniG = initialesParEmail[emailG]?.trim() || null;
-  const iniA = assistant ? initialesParEmail[assistant.email.trim().toLowerCase()]?.trim() || null : null;
+  const iniA = assistant ? initialesParEmail[minuscules(assistant.email)]?.trim() || null : null;
   const nomDossier = iniG ? nomDossierBinome(iniG, iniA) : null;
   return {
     gestionnaire: copro.gestionnaire,
     assistant,
-    cle: cleDossierBinome(emailG),
+    cle: cleDossierDe(emailG, binome),
     nomDossier,
     dossier: nomDossier ? cheminSousReception(nomDossier) : null,
   };
@@ -293,46 +340,73 @@ export function estAssistantDeCopro(intitule: string | null | undefined): boolea
   return /\bassistant(e)?\s+de\s+copro/i.test(intitule ?? "");
 }
 
-/** Une ligne de l'ecran des binomes : un gestionnaire de copros ESTALE et son assistant. */
-export interface LigneBinome {
-  gestionnaire: MembreTri;
-  /** References ESTALE des copros dont il est gestionnaire au mandat. */
-  copros: string[];
-  /** Assistant tenu dans l'intranet (fait foi), ou null. */
-  assistant: MembreTri | null;
-  /** Assistant de copropriete connu d'ESTALE, propose quand l'intranet n'en a pas. */
-  assistantEstale: MembreTri | null;
-  /** Nom du dossier qui en decoule, ex "SC-JB" ; null si les initiales du gestionnaire manquent. */
+/** Un binome tel que l'ecran le montre, avec le dossier qui en decoule. */
+export interface BinomeAffiche extends Binome {
   nomDossier: string | null;
 }
 
-/** Les binomes a tenir : un par gestionnaire au mandat des copros ESTALE, tries par nom. */
+/** Une ligne de l'ecran des binomes : un gestionnaire, ses assistants, ses copros ESTALE. */
+export interface LigneBinome {
+  gestionnaire: MembreTri;
+  principal: BinomeAffiche | null;
+  autres: BinomeAffiche[];
+  /** Ses copros ESTALE ; `binomeId` = affectation explicite (null : le principal). */
+  copros: { reference: string; nom: string; binomeId: string | null }[];
+  /** Assistant de copropriete connu d'ESTALE, propose quand l'intranet n'a pas de principal. */
+  assistantEstale: MembreTri | null;
+  /** Le dossier sans aucun assistant, ex "SC" ; null si les initiales manquent. */
+  nomDossierSeul: string | null;
+}
+
+/**
+ * Les lignes de l'ecran des binomes. Les gestionnaires listes = ceux des copros ESTALE ET
+ * ceux du cabinet (`gestionnaires`) : un binome se pose avant que les copros arrivent sur
+ * ESTALE (EL-FS, RB-WHT, demande du 08/10/2026). Tries par nom.
+ */
 export function lignesBinomes(
+  gestionnaires: MembreTri[],
   copros: CoproTri[],
-  binomes: Record<string, MembreTri>,
+  b: BinomesTri,
   initialesParEmail: Record<string, string>,
 ): LigneBinome[] {
-  const parGestionnaire = new Map<string, { g: MembreTri; copros: string[]; estale: MembreTri | null }>();
+  const ini = (email: string) => initialesParEmail[minuscules(email)]?.trim() || null;
+  const affiche = (x: Binome): BinomeAffiche => {
+    const iniG = ini(x.gestionnaireEmail);
+    return { ...x, nomDossier: iniG ? nomDossierBinome(iniG, ini(x.assistant.email)) : null };
+  };
+
+  const parG = new Map<string, { g: MembreTri; copros: CoproTri[] }>();
+  for (const g of gestionnaires) parG.set(minuscules(g.email), { g, copros: [] });
   for (const c of copros) {
     if (!c.gestionnaire) continue;
-    const cle = c.gestionnaire.email.trim().toLowerCase();
-    const l = parGestionnaire.get(cle) ?? { g: c.gestionnaire, copros: [], estale: null };
-    l.copros.push(c.reference);
-    l.estale ??= c.assistant;
-    parGestionnaire.set(cle, l);
+    const cle = minuscules(c.gestionnaire.email);
+    const l = parG.get(cle) ?? { g: c.gestionnaire, copros: [] };
+    l.copros.push(c);
+    parG.set(cle, l);
   }
-  return [...parGestionnaire.entries()]
+  // Un binome deja pose pour un gestionnaire absent des deux listes reste visible.
+  for (const x of b.binomes) {
+    if (!parG.has(x.gestionnaireEmail)) parG.set(x.gestionnaireEmail, { g: { nomComplet: x.gestionnaireEmail, email: x.gestionnaireEmail }, copros: [] });
+  }
+
+  return [...parG.entries()]
     .map(([cle, l]) => {
-      const assistant = binomes[cle] ?? null;
-      const iniG = initialesParEmail[cle]?.trim() || null;
-      const iniA = assistant ? initialesParEmail[assistant.email.trim().toLowerCase()]?.trim() || null : null;
+      const siens = b.binomes.filter((x) => x.gestionnaireEmail === cle);
+      const principal = siens.find((x) => x.principal) ?? null;
+      const iniG = ini(cle);
       return {
         gestionnaire: l.g,
-        copros: l.copros.sort(),
-        assistant,
-        assistantEstale: l.estale,
-        nomDossier: iniG ? nomDossierBinome(iniG, iniA) : null,
+        principal: principal ? affiche(principal) : null,
+        autres: siens.filter((x) => !x.principal).map(affiche),
+        copros: l.copros
+          .map((c) => {
+            const id = b.parCopro[c.reference];
+            return { reference: c.reference, nom: c.nom, binomeId: id && siens.some((x) => x.id === id) ? id : null };
+          })
+          .sort((x, y) => x.reference.localeCompare(y.reference)),
+        assistantEstale: l.copros.find((c) => c.assistant)?.assistant ?? null,
+        nomDossierSeul: iniG ? nomDossierBinome(iniG, null) : null,
       };
     })
-    .sort((a, b) => a.gestionnaire.nomComplet.localeCompare(b.gestionnaire.nomComplet, "fr"));
+    .sort((x, y) => x.gestionnaire.nomComplet.localeCompare(y.gestionnaire.nomComplet, "fr"));
 }

@@ -6,8 +6,10 @@
 --
 -- POURQUOI TROIS TABLES
 --   intranet_tri_binome  : ESTALE connait le gestionnaire de chaque copro (mandat) mais
---                          presque jamais l'assistant. Le binome se tient donc ici :
---                          un gestionnaire -> son assistant. Le dossier « SK-CP » en decoule.
+--                          presque jamais l'assistant. Le binome se tient donc ici.
+--                          REMPLACEE le 08/10/2026 par intranet_tri_binomes_par_copro.sql
+--                          (plusieurs assistants par gestionnaire, affectes par copro) :
+--                          sur une base neuve, passer les deux fichiers dans l'ordre.
 --   intranet_tri_dossier : l'id Outlook du dossier deja cree pour chaque binome (et pour
 --                          « Comptabilité » / « Divers »). La cle est le GESTIONNAIRE, pas
 --                          les initiales : quand l'assistant change, on renomme le dossier

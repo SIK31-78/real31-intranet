@@ -2,11 +2,13 @@
 // intranet_tri_dossier, intranet_tri_journal (supabase/sql/intranet_tri_emails.sql).
 // Tables absentes (SQL pas encore passe) : lectures vides, ecritures en erreur claire.
 
-import type { EntreeJournalTri, MembreTri, NatureSuggestion } from "@/lib/domain/tri-emails";
+import type { Binome, BinomesTri, EntreeJournalTri, NatureSuggestion } from "@/lib/domain/tri-emails";
 import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
 import { createSupabasePublicClient } from "./public-client";
 
-const SQL = "supabase/sql/intranet_tri_emails.sql";
+const SQL = "supabase/sql/intranet_tri_emails.sql puis intranet_tri_binomes_par_copro.sql";
+
+type RowBinome = { id: string; gestionnaire_email: string; assistant_email: string; assistant_nom: string; principal: boolean };
 
 type RowJournal = {
   id: string;
@@ -56,40 +58,59 @@ function versDomaine(r: RowJournal): EntreeJournalTri {
 }
 
 export class SupabaseTriRepository implements TriRepository {
-  async binomes(): Promise<Record<string, MembreTri>> {
-    const { data, error } = await createSupabasePublicClient()
-      .from("intranet_tri_binome")
-      .select("gestionnaire_email, assistant_email, assistant_nom");
+  async binomes(): Promise<BinomesTri> {
+    const client = createSupabasePublicClient();
+    const [bin, aff] = await Promise.all([
+      client.from("intranet_tri_binome").select("id, gestionnaire_email, assistant_email, assistant_nom, principal"),
+      client.from("intranet_tri_binome_copro").select("copro_reference, binome_id"),
+    ]);
+    if (bin.error) {
+      if (tableAbsente(bin.error)) return { binomes: [], parCopro: {} };
+      throw erreur("binômes", bin.error);
+    }
+    if (aff.error && !tableAbsente(aff.error)) throw erreur("binômes", aff.error);
+    const binomes: Binome[] = ((bin.data ?? []) as RowBinome[]).map((r) => ({
+      id: r.id,
+      gestionnaireEmail: r.gestionnaire_email.toLowerCase(),
+      assistant: { nomComplet: r.assistant_nom, email: r.assistant_email.toLowerCase() },
+      principal: r.principal,
+    }));
+    const parCopro: Record<string, string> = {};
+    for (const r of (aff.data ?? []) as { copro_reference: string; binome_id: string }[]) parCopro[r.copro_reference] = r.binome_id;
+    return { binomes, parCopro };
+  }
+
+  async enregistrerBinome(b: Omit<Binome, "id"> & { id?: string }, par: string): Promise<string> {
+    const ligne = {
+      gestionnaire_email: b.gestionnaireEmail.trim().toLowerCase(),
+      assistant_email: b.assistant.email.trim().toLowerCase(),
+      assistant_nom: b.assistant.nomComplet,
+      principal: b.principal,
+      maj_le: new Date().toISOString(),
+      maj_par: par,
+    };
+    const client = createSupabasePublicClient();
+    const { data, error } = b.id
+      ? await client.from("intranet_tri_binome").update(ligne).eq("id", b.id).select("id").single()
+      : await client.from("intranet_tri_binome").insert(ligne).select("id").single();
     if (error) {
-      if (tableAbsente(error)) return {};
-      throw erreur("binômes", error);
+      if (error.code === "23505") throw new Error("Ce collaborateur est déjà assistant de ce gestionnaire.");
+      throw erreur("binôme", error);
     }
-    const out: Record<string, MembreTri> = {};
-    for (const r of (data ?? []) as { gestionnaire_email: string; assistant_email: string; assistant_nom: string }[]) {
-      out[r.gestionnaire_email.toLowerCase()] = { nomComplet: r.assistant_nom, email: r.assistant_email.toLowerCase() };
-    }
-    return out;
+    return (data as { id: string }).id;
   }
 
-  async definirBinome(emailGestionnaire: string, assistant: MembreTri, par: string) {
-    const { error } = await createSupabasePublicClient()
-      .from("intranet_tri_binome")
-      .upsert({
-        gestionnaire_email: emailGestionnaire.trim().toLowerCase(),
-        assistant_email: assistant.email.trim().toLowerCase(),
-        assistant_nom: assistant.nomComplet,
-        maj_le: new Date().toISOString(),
-        maj_par: par,
-      });
+  async supprimerBinome(id: string) {
+    const { error } = await createSupabasePublicClient().from("intranet_tri_binome").delete().eq("id", id);
     if (error) throw erreur("binôme", error);
   }
 
-  async retirerBinome(emailGestionnaire: string) {
-    const { error } = await createSupabasePublicClient()
-      .from("intranet_tri_binome")
-      .delete()
-      .eq("gestionnaire_email", emailGestionnaire.trim().toLowerCase());
-    if (error) throw erreur("binôme", error);
+  async affecterCopro(reference: string, binomeId: string | null, par: string) {
+    const t = createSupabasePublicClient().from("intranet_tri_binome_copro");
+    const { error } = binomeId
+      ? await t.upsert({ copro_reference: reference, binome_id: binomeId, maj_le: new Date().toISOString(), maj_par: par })
+      : await t.delete().eq("copro_reference", reference);
+    if (error) throw erreur("affectation", error);
   }
 
   async dossier(boite: string, cle: string) {

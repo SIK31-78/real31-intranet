@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUCUN_BINOME,
   cleDeReference,
   destinationDe,
   lignesBinomes,
@@ -105,21 +106,41 @@ describe("suggererCopro", () => {
   });
 });
 
+const CLARA = { nomComplet: "Clara", email: "clara@real31.fr" };
+const NADIA = { nomComplet: "Nadia", email: "nadia@real31.fr" };
+const binome = (id: string, assistant: { nomComplet: string; email: string }, principal: boolean, g = "sophie@real31.fr") => ({
+  id,
+  gestionnaireEmail: g,
+  assistant,
+  principal,
+});
+
 describe("destinationDe", () => {
   const ini = { "sophie@real31.fr": "SK", "clara@real31.fr": "CP", "nadia@real31.fr": "NF" };
 
-  it("range dans le dossier du binome", () => {
-    const d = destinationDe(copro("S0297", "Sophie@real31.fr"), ini, {
-      "sophie@real31.fr": { nomComplet: "Clara", email: "clara@real31.fr" },
-    });
+  it("range dans le dossier du binome principal", () => {
+    const d = destinationDe(copro("S0297", "Sophie@real31.fr"), ini, { binomes: [binome("b1", CLARA, true)], parCopro: {} });
     expect(d?.dossier).toBe("Boîte de réception › SK-CP");
     expect(d?.cle).toBe("binome:sophie@real31.fr");
   });
 
+  it("une copro affectee a un autre assistant part dans son dossier, avec sa propre cle", () => {
+    const b = { binomes: [binome("b1", CLARA, true), binome("b2", NADIA, false)], parCopro: { S0305: "b2" } };
+    expect(destinationDe(copro("S0297", "sophie@real31.fr"), ini, b)?.nomDossier).toBe("SK-CP");
+    const d = destinationDe(copro("S0305", "sophie@real31.fr"), ini, b);
+    expect(d?.nomDossier).toBe("SK-NF");
+    expect(d?.cle).toBe("binome:b2");
+  });
+
+  it("ignore l'affectation vers le binome d'un autre gestionnaire", () => {
+    const b = { binomes: [binome("b9", NADIA, false, "autre@real31.fr")], parCopro: { S0297: "b9" } };
+    expect(destinationDe(copro("S0297", "sophie@real31.fr"), ini, b)?.nomDossier).toBe("SK");
+  });
+
   it("le binome de l'intranet passe devant l'assistant d'ESTALE", () => {
-    const c = { ...copro("S0297", "sophie@real31.fr"), assistant: { nomComplet: "Nadia", email: "nadia@real31.fr" } };
+    const c = { ...copro("S0297", "sophie@real31.fr"), assistant: NADIA };
     expect(destinationDe(c, ini)?.nomDossier).toBe("SK-NF");
-    expect(destinationDe(c, ini, { "sophie@real31.fr": { nomComplet: "Clara", email: "clara@real31.fr" } })?.nomDossier).toBe("SK-CP");
+    expect(destinationDe(c, ini, { binomes: [binome("b1", CLARA, true)], parCopro: {} })?.nomDossier).toBe("SK-CP");
   });
 
   it("sans assistant, le dossier porte le seul gestionnaire et garde la meme cle", () => {
@@ -157,17 +178,31 @@ describe("estAssistantDeCopro", () => {
 });
 
 describe("lignesBinomes", () => {
-  it("une ligne par gestionnaire, avec ses copros et le dossier qui en decoule", () => {
+  const ini = { "sandy@real31.fr": "SC", "julie@real31.fr": "JB", "galiano@real31.fr": "GG", "sekou@real31.fr": "SK", "remi@real31.fr": "RB" };
+  const GALIANO = { nomComplet: "Galiano", email: "galiano@real31.fr" };
+  const JULIE = { nomComplet: "Julie", email: "julie@real31.fr" };
+
+  it("une ligne par gestionnaire : principal, autres assistants, copros et affectations", () => {
     const copros = [copro("S0305", "sandy@real31.fr"), copro("S0297", "Sandy@real31.fr"), copro("SE999", "sekou@real31.fr")];
-    const lignes = lignesBinomes(
-      copros,
-      { "sandy@real31.fr": { nomComplet: "Julie", email: "julie@real31.fr" } },
-      { "sandy@real31.fr": "SC", "julie@real31.fr": "JB", "sekou@real31.fr": "SK" },
-    );
+    const b = {
+      binomes: [binome("g", GALIANO, true, "sandy@real31.fr"), binome("j", JULIE, false, "sandy@real31.fr")],
+      parCopro: { S0305: "j" },
+    };
+    const lignes = lignesBinomes([], copros, b, ini);
     expect(lignes).toHaveLength(2);
     const sandy = lignes.find((l) => l.gestionnaire.email.toLowerCase() === "sandy@real31.fr")!;
-    expect(sandy.copros).toEqual(["S0297", "S0305"]);
-    expect(sandy.nomDossier).toBe("SC-JB");
-    expect(lignes.find((l) => l.copros.includes("SE999"))?.nomDossier).toBe("SK");
+    expect(sandy.principal?.nomDossier).toBe("SC-GG");
+    expect(sandy.autres.map((x) => x.nomDossier)).toEqual(["SC-JB"]);
+    expect(sandy.copros).toEqual([
+      { reference: "S0297", nom: "Copro S0297", binomeId: null },
+      { reference: "S0305", nom: "Copro S0305", binomeId: "j" },
+    ]);
+    expect(lignes.find((l) => l.copros.some((c) => c.reference === "SE999"))?.nomDossierSeul).toBe("SK");
+  });
+
+  it("liste aussi les gestionnaires sans copro ESTALE, pour poser leur binome a l'avance", () => {
+    const lignes = lignesBinomes([{ nomComplet: "Rémi", email: "Remi@real31.fr" }], [], AUCUN_BINOME, ini);
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]).toMatchObject({ copros: [], principal: null, nomDossierSeul: "RB" });
   });
 });
