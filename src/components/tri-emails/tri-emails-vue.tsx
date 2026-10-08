@@ -11,6 +11,7 @@ import { ExternalLink, Paperclip } from "lucide-react";
 import type { CoproDeLaFile, FileATrier, MailDeLaFile } from "@/lib/services/tri-emails/lire-file";
 import type { Collaborateur } from "@/lib/services/tri-emails/binomes";
 import {
+  PAR_OUTLOOK,
   suggestionSuivie,
   type CibleTri,
   type EntreeJournalTri,
@@ -24,6 +25,7 @@ import {
   definirPrincipalAction,
   lirePieceJointeTriAction,
   listerPiecesJointesTriAction,
+  preciserCoproAction,
   rangerMailAction,
   retirerAssistantAction,
 } from "@/app/tri-emails/actions";
@@ -103,6 +105,7 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
       }
       setMasques((m) => new Set(m).add(mail.id));
       if (r.donnees) setDernier({ ...r.donnees, objet: mail.objet, mailId: mail.id });
+      if (r.donnees?.etiquetteNonPosee) toast.warn("Mail rangé, mais l'étiquette n'a pas pu être posée : ajoute-la dans Outlook.");
       router.refresh();
     });
   }
@@ -129,6 +132,14 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {file.corrigesOutlook > 0 && (
+        <div role="status" className="rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-body text-ink-2">
+          {file.corrigesOutlook === 1
+            ? "Un mail déplacé à la main dans Outlook a été pris en compte."
+            : `${file.corrigesOutlook} mails déplacés à la main dans Outlook ont été pris en compte.`}{" "}
+          Voir l&apos;onglet « Rangés sur 7 jours ».
+        </div>
+      )}
       {dernier && (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2 text-body">
           <span className="min-w-0 flex-1">
@@ -169,7 +180,7 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
       )}
       {onglet === "journal" && (
         <TabPanel id="tri-p-journal" tabId="tri-t-journal">
-          <JournalVue journal={file.journal} enCours={enCours} annuler={(id) => annuler(id)} />
+          <JournalVue journal={file.journal} copros={file.copros} enCours={enCours} annuler={(id) => annuler(id)} />
         </TabPanel>
       )}
       {onglet === "binomes" && (
@@ -520,13 +531,48 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
   );
 }
 
+/** Un mail glisse dans un dossier qui recoit plusieurs copros : on choisit laquelle. */
+function PreciserCopro({ entree, candidates }: { entree: EntreeJournalTri; candidates: CoproDeLaFile[] }) {
+  const [enCours, demarrer] = useTransition();
+  const router = useRouter();
+  const toast = useToast();
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-1.5 whitespace-normal">
+      <Badge ton="warn">Copro à préciser</Badge>
+      {candidates.map((c) => (
+        <Button
+          key={c.reference}
+          size="sm"
+          variant="ghost"
+          disabled={enCours}
+          onClick={() =>
+            demarrer(async () => {
+              const r = await preciserCoproAction({ journalId: entree.id, reference: c.reference });
+              if (!r.ok) {
+                toast.err(r.erreur);
+                return;
+              }
+              toast.ok(`Étiqueté ${c.reference}.`);
+              router.refresh();
+            })
+          }
+        >
+          {c.reference}
+        </Button>
+      ))}
+    </span>
+  );
+}
+
 /** Revue de fin de semaine : chaque rangement, le signal qui l'avait propose, suivi ou non. */
 function JournalVue({
   journal,
+  copros,
   enCours,
   annuler,
 }: {
   journal: EntreeJournalTri[];
+  copros: CoproDeLaFile[];
   enCours: boolean;
   annuler: (journalId: string) => void;
 }) {
@@ -559,6 +605,9 @@ function JournalVue({
                 <td className="px-3 py-2 whitespace-nowrap">
                   <span className="font-mono">{e.dossierNom}</span>
                   {e.coproReference && <span className="block text-meta text-ink-3 font-mono">{e.coproReference}</span>}
+                  {!e.coproReference && e.dossierCle?.startsWith("binome:") && (
+                    <PreciserCopro entree={e} candidates={copros.filter((c) => c.destination?.cle === e.dossierCle)} />
+                  )}
                   {e.simulation && (
                     <span className="block mt-1">
                       <Badge ton="warn">Simulé</Badge>
@@ -575,7 +624,7 @@ function JournalVue({
                     <span className="text-ink-3">—</span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-meta text-ink-2">{e.par}</td>
+                <td className="px-3 py-2 text-meta text-ink-2">{e.par === PAR_OUTLOOK ? "Glissé dans Outlook" : e.par}</td>
                 <td className="px-3 py-2 text-right">
                   <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id)}>
                     Annuler

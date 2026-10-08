@@ -24,6 +24,7 @@ import {
   getTriRepository,
 } from "@/lib/adapters/router";
 import { rangementSimule } from "./ranger";
+import { reconcilierRangements } from "./reconcilier";
 import { listerCollaborateurs, listerGestionnairesCabinet, type Collaborateur } from "./binomes";
 
 /** Nombre de mails lus a chaque affichage : la file du jour, pas l'historique. */
@@ -51,6 +52,8 @@ export interface FileATrier {
   binomes: LigneBinome[];
   /** Collaborateurs designables comme assistant. */
   collaborateurs: Collaborateur[];
+  /** Mails que l'equipe a deplaces a la main dans Outlook depuis le dernier affichage. */
+  corrigesOutlook: number;
   /** true = l'ecriture dans la boite est coupee : les rangements sont simules. */
   simulation: boolean;
   /** Message lisible si la boite ou ESTALE n'a pas repondu ; la page reste affichable. */
@@ -64,6 +67,18 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const boite = boiteTriConfiguree();
   if (!boite) return null;
 
+  // D'abord suivre ce que l'equipe a fait dans Outlook : un mail remis dans la generique
+  // doit reapparaitre dans la file des cet affichage.
+  let corrigesOutlook = 0;
+  let erreurReconciliation: string | null = null;
+  try {
+    const bilan = await reconcilierRangements();
+    corrigesOutlook = bilan.remisEnFile + bilan.deplaces;
+  } catch (e) {
+    erreurReconciliation = "La vérification des mails déplacés dans Outlook n'a pas abouti.";
+    console.error("[tri-emails] reconciliation :", e instanceof Error ? e.message : e);
+  }
+
   const repo = getTriRepository();
   const [refRes, mailsRes, iniRes, binRes, journalRes, gestRes] = await Promise.allSettled([
     getReferentielTriProvider().charger(),
@@ -74,7 +89,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     listerGestionnairesCabinet(),
   ]);
 
-  const erreurs: string[] = [];
+  const erreurs: string[] = erreurReconciliation ? [erreurReconciliation] : [];
   if (refRes.status === "rejected") erreurs.push("ESTALE n'a pas répondu : les suggestions sont indisponibles.");
   if (mailsRes.status === "rejected") {
     // Cas attendu tant que la boite n'existe pas ou n'est pas dans l'Access Policy (403/404).
@@ -126,6 +141,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     journal,
     binomes: lignesBinomes(gestionnaires, ref.copros, binomes, initiales),
     collaborateurs,
+    corrigesOutlook,
     simulation: rangementSimule(boite),
     erreur: erreurs.length ? erreurs.join(" ") : null,
   };

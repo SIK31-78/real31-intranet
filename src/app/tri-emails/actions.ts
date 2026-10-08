@@ -9,7 +9,7 @@ import { z } from "zod";
 import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { estSuperAdmin } from "@/lib/auth/session";
-import { annulerRangement, rangerMail } from "@/lib/services/tri-emails/ranger";
+import { annulerRangement, preciserCopro, rangerMail } from "@/lib/services/tri-emails/ranger";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
 import { lirePieceJointeTri, listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
@@ -34,7 +34,9 @@ function gardePilote(email: string | undefined) {
   if (!estSuperAdmin(email)) throw new Refus("Le tri des e-mails est réservé au pilote pour l'instant.");
 }
 
-export async function rangerMailAction(input: unknown): Promise<Res<{ journalId: string; dossierNom: string; simulation: boolean }>> {
+export async function rangerMailAction(
+  input: unknown,
+): Promise<Res<{ journalId: string; dossierNom: string; simulation: boolean; etiquetteNonPosee: boolean }>> {
   return actionGestionnaire(zRanger, input, "tri-emails-ranger", async (d, g) => {
     gardePilote(g.email);
     const r = await rangerMail(d, g.email ?? g.id);
@@ -103,6 +105,19 @@ export async function lirePieceJointeTriAction(input: unknown): Promise<Res<{ no
     async (d, g) => {
       gardePilote(g.email);
       return lirePieceJointeTri(d.internetMessageId, d.attachmentId);
+    },
+  );
+}
+
+export async function preciserCoproAction(input: unknown): Promise<Res> {
+  return actionGestionnaire(
+    z.object({ journalId: z.string().min(1).max(80), reference: z.string().regex(/^(SE|S)\d{3,4}$/) }),
+    input,
+    "tri-emails-preciser",
+    async (d, g) => {
+      gardePilote(g.email);
+      await preciserCopro(d.journalId, d.reference);
+      revalidatePath("/tri-emails");
     },
   );
 }
