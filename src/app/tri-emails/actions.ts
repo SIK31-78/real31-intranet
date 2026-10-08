@@ -10,6 +10,7 @@ import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { estSuperAdmin } from "@/lib/auth/session";
 import { annulerRangement, rangerMail } from "@/lib/services/tri-emails/ranger";
+import { definirBinome, retirerBinome } from "@/lib/services/tri-emails/binomes";
 
 const zTexte = (max: number) => z.string().max(max);
 const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune"]);
@@ -44,6 +45,29 @@ export async function annulerRangementAction(input: unknown): Promise<Res> {
   return actionGestionnaire(z.object({ journalId: z.string().min(1).max(80) }), input, "tri-emails-annuler", async (d, g) => {
     gardePilote(g.email);
     await annulerRangement(d.journalId, g.email ?? g.id);
+    revalidatePath("/tri-emails");
+  });
+}
+
+const zEmail = z.string().email().max(320);
+
+export async function definirBinomeAction(input: unknown): Promise<Res> {
+  return actionGestionnaire(
+    z.object({ gestionnaire: zEmail, assistant: zEmail }),
+    input,
+    "tri-emails-binome",
+    async (d, g) => {
+      gardePilote(g.email);
+      await definirBinome(d.gestionnaire, d.assistant, g.email ?? g.id);
+      revalidatePath("/tri-emails");
+    },
+  );
+}
+
+export async function retirerBinomeAction(input: unknown): Promise<Res> {
+  return actionGestionnaire(z.object({ gestionnaire: zEmail }), input, "tri-emails-binome", async (d, g) => {
+    gardePilote(g.email);
+    await retirerBinome(d.gestionnaire);
     revalidatePath("/tri-emails");
   });
 }
