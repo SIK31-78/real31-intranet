@@ -331,6 +331,26 @@ export async function renvoyerDansEstaleAction(factureId: string): Promise<Res<R
   });
 }
 
+/**
+ * « Tout renvoyer dans ESTALE » : les factures en attente que l'historique affiche. Chaque
+ * facture repasse la garde de perimetre, comme au renvoi unitaire ; les brouillons
+ * Pennylane restent en attente, sans erreur.
+ */
+export async function renvoyerToutDansEstaleAction(factureIds: string[]): Promise<Res<ResultatSaisieEstale>> {
+  const parse = z.array(z.string().uuid()).min(1).max(200).safeParse(factureIds);
+  if (!parse.success) return { ok: false, erreur: "Données invalides." };
+
+  return executer(async (managerId) => {
+    const repo = getFacturationRepository();
+    for (const id of parse.data) {
+      const coproCode = await repo.coproDeFacture(id);
+      if (!coproCode) throw new Error("Facture introuvable.");
+      await exigerPerimetre(coproCode, managerId);
+    }
+    return saisirFacturesDansEstale(parse.data);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Prestations particulieres du contrat (Sekou, 15/09/2026) : les 16 que MYTHEC ne
 // facturait pas, par un seul chemin (cf. domain/facturation/prestations-contrat).

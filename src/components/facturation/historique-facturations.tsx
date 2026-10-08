@@ -9,7 +9,11 @@ import { useRouter } from "next/navigation";
 import { Loader2, RotateCcw, CheckCircle2, TriangleAlert, Clock, Search } from "lucide-react";
 import { Card, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
-import { rejouerFactureAction, renvoyerDansEstaleAction } from "@/app/facturation/actions";
+import {
+  rejouerFactureAction,
+  renvoyerDansEstaleAction,
+  renvoyerToutDansEstaleAction,
+} from "@/app/facturation/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented";
@@ -145,15 +149,48 @@ export function HistoriqueFacturations({
     });
   }
 
+  // Toutes les factures en attente d'ESTALE, pas seulement celles affichees ou filtrees.
+  const enAttenteEstale = factures.filter((f) => f.statut === "facturee" && f.estaleErreur).map((f) => f.id);
+
+  function renvoyerToutEstale() {
+    setEnCours("tout-estale");
+    demarrer(async () => {
+      const res = await renvoyerToutDansEstaleAction(enAttenteEstale);
+      setEnCours(null);
+      if (!res.ok) return toast.err(res.erreur);
+      const r = res.donnees;
+      if (!r) return;
+      const attente = r.enAttente > 0 ? `, ${r.enAttente} encore en brouillon chez Pennylane` : "";
+      if (r.enErreur > 0) toast.err(`ESTALE : ${r.envoyees} saisie(s), ${r.enErreur} en erreur${attente}. Détail sur chaque ligne.`);
+      else toast.ok(`ESTALE : ${r.envoyees} facture(s) saisie(s) en bon à payer${attente}.`);
+      router.refresh();
+    });
+  }
+
   return (
     <Card>
-      <div className="border-b border-line px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <h2 className="text-body font-semibold text-ink">
           Historique des facturations{" "}
           <span className="font-normal text-ink-3">
             ({filtreActif ? `${filtrees.length} sur ${factures.length}` : factures.length})
           </span>
         </h2>
+        {enAttenteEstale.length > 0 && (
+          <Button
+            onClick={renvoyerToutEstale}
+            disabled={pending}
+            title="Saisir dans ESTALE toutes les factures validées dans Pennylane qui attendent"
+            variant="secondary"
+          >
+            {pending && enCours === "tout-estale" ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+            )}
+            Tout renvoyer dans ESTALE ({enAttenteEstale.length})
+          </Button>
+        )}
       </div>
 
       {factures.length > 0 && (
