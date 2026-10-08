@@ -144,6 +144,7 @@ export function HistoriqueFacturations({
       const r = res.donnees;
       if (r && r.enErreur > 0) toast.err(r.erreurs[0]?.message ?? "Échec de la saisie dans ESTALE.");
       else if (r && r.enAttente > 0) toast.err("Facture encore en brouillon chez Pennylane : à valider d'abord.");
+      else if (r && r.aCodifier > 0) toast.ok("Facture déposée dans ESTALE, à codifier par le gestionnaire.");
       else toast.ok("Facture saisie dans ESTALE, en bon à payer.");
       router.refresh();
     });
@@ -161,8 +162,9 @@ export function HistoriqueFacturations({
       const r = res.donnees;
       if (!r) return;
       const attente = r.enAttente > 0 ? `, ${r.enAttente} encore en brouillon chez Pennylane` : "";
-      if (r.enErreur > 0) toast.err(`ESTALE : ${r.envoyees} saisie(s), ${r.enErreur} en erreur${attente}. Détail sur chaque ligne.`);
-      else toast.ok(`ESTALE : ${r.envoyees} facture(s) saisie(s) en bon à payer${attente}.`);
+      const bilan = `${r.envoyees} en bon à payer, ${r.aCodifier} à codifier`;
+      if (r.enErreur > 0) toast.err(`ESTALE : ${bilan}, ${r.enErreur} en erreur${attente}. Détail sur chaque ligne.`);
+      else toast.ok(`ESTALE : ${bilan}${attente}.`);
       router.refresh();
     });
   }
@@ -251,7 +253,11 @@ export function HistoriqueFacturations({
                       {quand(f.creeLe)}
                       {f.par ? ` · ${f.par}` : ""}
                       {f.factureExterneId ? ` · Pennylane ${f.factureExterneId}` : ""}
-                      {f.estaleSaisie ? " · saisie dans ESTALE" : ""}
+                      {f.estaleSaisie
+                        ? f.typePrestation === "gestion_courante"
+                          ? " · saisie dans ESTALE (bon à payer)"
+                          : " · déposée dans ESTALE, à codifier"
+                        : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
@@ -276,7 +282,7 @@ export function HistoriqueFacturations({
                       <Button
                         onClick={() => renvoyerEstale(f.id)}
                         disabled={pending}
-                        title="Saisir la facture dans la compta ESTALE de la copropriété"
+                        title="Envoyer la facture dans ESTALE (gestion courante en bon à payer, le reste à codifier)"
                         variant="secondary"
                       >
                         {pending && enCours === f.id ? (

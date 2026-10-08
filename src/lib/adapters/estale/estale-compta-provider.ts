@@ -12,6 +12,7 @@
 
 import type {
   ComptaEstaleProvider,
+  FactureACodifierEstale,
   FactureFournisseurEstale,
   ResultatDepotEstale,
 } from "@/lib/ports/compta-estale-provider";
@@ -112,5 +113,23 @@ export class EstaleComptaProvider implements ComptaEstaleProvider {
       { contenu: f.pdf, nom: f.nomFichier, type: "application/pdf" },
     );
     return { ecritureId: createEntry.id, dejaPresente: false };
+  }
+
+  async deposerFactureACodifier(f: FactureACodifierEstale): Promise<{ depotId: string }> {
+    const condoId = await resoudreCondoId(f.coproCode);
+    if (!condoId) throw new Error(`La copropriété ${f.coproCode} n'est pas dans ESTALE.`);
+    const { condo } = await estaleGql<{ condo: { establishmentID: string } }>(
+      `query($c: ID!) { condo(id: $c) { establishmentID } }`,
+      { c: condoId },
+    );
+    // Facture a valider : arrive dans Comptabilite > Paiement, ESTALE lit le PDF et en
+    // deduit le libelle ; rien n'est comptabilise avant la validation du gestionnaire.
+    const { createInvoicePrediction } = await estaleGqlUpload<{ createInvoicePrediction: { id: string } }>(
+      `mutation($input: InvoicePredictionCreateInput!) { createInvoicePrediction(input: $input) { id } }`,
+      { input: { condoID: condoId, establishmentID: condo.establishmentID, file: null } },
+      "input.file",
+      { contenu: f.pdf, nom: f.nomFichier, type: "application/pdf" },
+    );
+    return { depotId: createInvoicePrediction.id };
   }
 }

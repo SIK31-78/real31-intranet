@@ -41,4 +41,16 @@ export interface ComptaEstaleProvider {
    * Idempotent sur le numero : une facture deja presente n'est pas recreee.
    */
   deposerFacture(facture: FactureFournisseurEstale): Promise<ResultatDepotEstale>;
+  /**
+   * Depose le PDF dans ESTALE comme facture A CODIFIER (« facture a valider ») : rien
+   * n'est comptabilise, le gestionnaire choisit l'imputation et valide. Sert a toutes
+   * les prestations autres que la gestion courante (decision Sekou du 08/10/2026).
+   */
+  deposerFactureACodifier(facture: FactureACodifierEstale): Promise<{ depotId: string }>;
+}
+
+export interface FactureACodifierEstale {
+  coproCode: string;
+  pdf: Uint8Array;
+  nomFichier: string;
 }

@@ -5,8 +5,12 @@
 // fournisseur REAL 31 creee dans ESTALE, deja imputee, au statut « bon a payer », PDF
 // joint. Personne n'a rien a saisir.
 //
-// Perimetre V1 : gestion courante, copros tenues dans ESTALE. Les autres copros ont leur
-// propre processus (decision Sekou du 01/10/2026) : elles sont ignorees sans trace.
+// Deux voies, selon la prestation (decision Sekou du 08/10/2026) :
+//   - gestion courante : ecriture fournisseur deja imputee, « bon a payer » ;
+//   - toute autre prestation : PDF depose « a codifier » (facture a valider), c'est le
+//     gestionnaire qui choisit l'imputation dans ESTALE.
+// Seules les copros tenues dans ESTALE sont concernees ; les autres ont leur propre
+// processus (CRYPTO via BPO) et sont ignorees sans trace.
 //
 // Une facture encore BROUILLON chez Pennylane n'a ni numero ni engagement : on note
 // pourquoi elle n'est pas partie, et le bouton « Renvoyer dans ESTALE » la reprendra une
@@ -25,7 +29,10 @@ export const MESSAGE_BROUILLON_PENNYLANE =
   "Brouillon Pennylane : à valider dans Pennylane, puis « Renvoyer dans ESTALE ».";
 
 export interface ResultatSaisieEstale {
+  /** Gestion courante saisie en bon a payer. */
   envoyees: number;
+  /** Autres prestations deposees a codifier par le gestionnaire. */
+  aCodifier: number;
   /** Encore en brouillon chez Pennylane : partiront au renvoi, une fois validees. */
   enAttente: number;
   enErreur: number;
@@ -33,7 +40,7 @@ export interface ResultatSaisieEstale {
 }
 
 export async function saisirFacturesDansEstale(ids: string[]): Promise<ResultatSaisieEstale> {
-  const resultat: ResultatSaisieEstale = { envoyees: 0, enAttente: 0, enErreur: 0, erreurs: [] };
+  const resultat: ResultatSaisieEstale = { envoyees: 0, aCodifier: 0, enAttente: 0, enErreur: 0, erreurs: [] };
   if (ids.length === 0) return resultat;
 
   const repo = getFacturationRepository();
@@ -42,7 +49,7 @@ export async function saisirFacturesDansEstale(ids: string[]): Promise<ResultatS
 
   const factures = await repo.listerFacturesPourEstale(ids);
   for (const f of factures) {
-    if (f.typePrestation !== "gestion_courante" || f.estaleEcritureId) continue;
+    if (f.estaleEcritureId) continue;
     try {
       if (!(await estale.coproPresente(f.coproCode))) continue;
 
@@ -50,6 +57,18 @@ export async function saisirFacturesDansEstale(ids: string[]): Promise<ResultatS
       if (!emise.validee || !emise.numero) {
         await repo.marquerErreurEstale(f.id, MESSAGE_BROUILLON_PENNYLANE);
         resultat.enAttente += 1;
+        continue;
+      }
+
+      if (f.typePrestation !== "gestion_courante") {
+        const pdf = await pennylane.telechargerPdf(f.factureExterneId);
+        const { depotId } = await estale.deposerFactureACodifier({
+          coproCode: f.coproCode,
+          pdf,
+          nomFichier: `${emise.numero}.pdf`,
+        });
+        await repo.marquerEnvoyeeEstale(f.id, depotId);
+        resultat.aCodifier += 1;
         continue;
       }
 

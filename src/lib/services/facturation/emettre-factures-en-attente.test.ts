@@ -59,6 +59,10 @@ vi.mock("@/lib/adapters/router", () => ({
     async marquerErreur(id: string, message: string) {
       etat.erreurs.push({ id, message });
     },
+    // L'envoi ESTALE qui suit l'emission a son propre test (saisir-factures-estale).
+    async listerFacturesPourEstale() {
+      return [];
+    },
   }),
   getComptaEstaleProvider: (): Partial<Record<keyof ComptaEstaleProvider, unknown>> => ({
     async coproPresente(code: string) {
@@ -194,7 +198,7 @@ describe("emission - un echec n'arrete pas le lot", () => {
 
     const resultat = await emettreFacturesEnAttente(["f1", "f2", "f3"]);
 
-    expect(resultat).toEqual({ emises: 2, enErreur: 1, erreurs: [{ factureId: "f2", message: "Emission Pennylane : HTTP 500 (S002)" }] });
+    expect(resultat).toMatchObject({ emises: 2, enErreur: 1, erreurs: [{ factureId: "f2", message: "Emission Pennylane : HTTP 500 (S002)" }] });
     expect(etat.facturees).toEqual(["f1", "f3"]);
     expect(etat.erreurs).toEqual([{ id: "f2", message: "Emission Pennylane : HTTP 500 (S002)" }]);
   });

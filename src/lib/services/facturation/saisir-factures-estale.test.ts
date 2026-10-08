@@ -12,6 +12,7 @@ const etat = vi.hoisted(() => ({
   pennylane: new Map<string, FactureEmise>(),
   coprosEstale: new Set<string>(),
   depots: [] as FactureFournisseurEstale[],
+  aCodifier: [] as string[],
   envoyees: new Map<string, string>(),
   erreurs: new Map<string, string>(),
   depotEnPanne: false,
@@ -46,6 +47,10 @@ vi.mock("@/lib/adapters/router", () => ({
       etat.depots.push(f);
       return { ecritureId: `ecriture-${f.numero}`, dejaPresente: false };
     },
+    async deposerFactureACodifier(f: { coproCode: string; nomFichier: string }) {
+      etat.aCodifier.push(f.nomFichier);
+      return { depotId: `depot-${f.nomFichier}` };
+    },
   }),
 }));
 
@@ -79,6 +84,7 @@ beforeEach(() => {
   etat.pennylane.clear();
   etat.coprosEstale = new Set(["S300"]);
   etat.depots = [];
+  etat.aCodifier = [];
   etat.envoyees.clear();
   etat.erreurs.clear();
   etat.depotEnPanne = false;
@@ -117,18 +123,36 @@ describe("saisirFacturesDansEstale", () => {
     expect(etat.erreurs.get("f1")).toBe(MESSAGE_BROUILLON_PENNYLANE);
   });
 
-  it("ignore sans trace une copro hors ESTALE, une autre prestation et une facture deja saisie", async () => {
-    etat.factures = [
-      factureGc("f1", "S091"),
-      factureGc("f2", "S300", { typePrestation: "etat_date" }),
-      factureGc("f3", "S300", { estaleEcritureId: "deja" }),
-    ];
+  it("ignore sans trace une copro hors ESTALE et une facture deja envoyee", async () => {
+    etat.factures = [factureGc("f1", "S091"), factureGc("f3", "S300", { estaleEcritureId: "deja" })];
 
-    const r = await saisirFacturesDansEstale(["f1", "f2", "f3"]);
+    const r = await saisirFacturesDansEstale(["f1", "f3"]);
 
-    expect(r).toMatchObject({ envoyees: 0, enAttente: 0, enErreur: 0 });
+    expect(r).toMatchObject({ envoyees: 0, aCodifier: 0, enAttente: 0, enErreur: 0 });
     expect(etat.depots).toHaveLength(0);
     expect(etat.erreurs.size).toBe(0);
+  });
+
+  it("une autre prestation part A CODIFIER (PDF seul), jamais en bon a payer", async () => {
+    etat.factures = [factureGc("f2", "S300", { typePrestation: "etat_date", lignes: [] })];
+    etat.pennylane.set("pl-f2", validee("F-2026-10-00002", 380));
+
+    const r = await saisirFacturesDansEstale(["f2"]);
+
+    expect(r).toMatchObject({ envoyees: 0, aCodifier: 1, enErreur: 0 });
+    expect(etat.depots).toHaveLength(0);
+    expect(etat.aCodifier).toEqual(["F-2026-10-00002.pdf"]);
+    expect(etat.envoyees.get("f2")).toBe("depot-F-2026-10-00002.pdf");
+  });
+
+  it("une autre prestation encore en brouillon attend, comme la gestion courante", async () => {
+    etat.factures = [factureGc("f2", "S300", { typePrestation: "suivi_travaux" })];
+    etat.pennylane.set("pl-f2", { validee: false, date: "2026-10-01", echeance: "2026-10-31", montantTtc: 100 });
+
+    const r = await saisirFacturesDansEstale(["f2"]);
+
+    expect(r).toMatchObject({ aCodifier: 0, enAttente: 1 });
+    expect(etat.aCodifier).toHaveLength(0);
   });
 
   it("refuse d'envoyer si le total intranet ne tombe pas au centime sur Pennylane", async () => {

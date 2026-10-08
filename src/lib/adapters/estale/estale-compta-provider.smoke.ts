@@ -109,4 +109,32 @@ describe("smoke saisie ESTALE (SE999 : cree, rejoue, relit, supprime)", () => {
     },
     120_000,
   );
+
+  it(
+    "depose une facture A CODIFIER (facture a valider), puis la retire",
+    async () => {
+      const { EstaleComptaProvider } = await import("./estale-compta-provider");
+      const { estaleGql } = await import("./client");
+      const numero = `TEST-REA11-CODIF-${Date.now()}`;
+
+      const { depotId } = await new EstaleComptaProvider().deposerFactureACodifier({
+        coproCode: "SE999",
+        pdf: pdfDeTest(`REAL 31 - FACTURE ${numero} - etat date`),
+        nomFichier: `${numero}.pdf`,
+      });
+      console.log("5) déposée à codifier :", depotId);
+
+      try {
+        const { condo } = await estaleGql<{ condo: { invoice: { predictions: { id: string }[] } } }>(
+          `query($c: ID!) { condo(id: $c) { invoice { predictions { id } } } }`,
+          { c: CONDO_SE999 },
+        );
+        expect(condo.invoice.predictions.some((p) => p.id === depotId)).toBe(true);
+      } finally {
+        await estaleGql(`mutation($id: ID!) { deleteInvoicePrediction(id: $id) { __typename } }`, { id: depotId });
+        console.log("6) retirée");
+      }
+    },
+    120_000,
+  );
 });

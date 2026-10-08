@@ -11,4 +11,8 @@ export class NoopComptaEstaleProvider implements ComptaEstaleProvider {
   async deposerFacture(): Promise<ResultatDepotEstale> {
     throw new Error("ESTALE non configuré (ESTALE_EMAIL / ESTALE_PASSWORD absents).");
   }
+
+  async deposerFactureACodifier(): Promise<{ depotId: string }> {
+    throw new Error("ESTALE non configuré (ESTALE_EMAIL / ESTALE_PASSWORD absents).");
+  }
 }

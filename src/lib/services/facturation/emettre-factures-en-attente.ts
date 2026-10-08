@@ -14,6 +14,7 @@
 
 import { getComptaEstaleProvider, getFacturationRepository, getInvoicingProvider } from "@/lib/adapters/router";
 import type { FactureAEmettre, TypePrestation } from "@/lib/ports/facturation-repository";
+import { saisirFacturesDansEstale, type ResultatSaisieEstale } from "./saisir-factures-estale";
 
 /** Titre court de la ligne sur le PDF. Le legacy le tirait de la liste Produits ;
  *  faute de reprise de cette liste, on le derive du type de prestation. */
@@ -65,6 +66,8 @@ export interface ResultatEmissionLot {
   enErreur: number;
   /** Detail des echecs, pour le log du job / l'affichage admin. */
   erreurs: Array<{ factureId: string; message: string }>;
+  /** Envoi dans ESTALE des factures emises pour des copros qui y sont tenues (REA-11). */
+  estale: ResultatSaisieEstale;
 }
 
 export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatEmissionLot> {
@@ -73,7 +76,13 @@ export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatE
   const estale = getComptaEstaleProvider();
 
   const factures = await repo.listerFacturesAEmettre(ids);
-  const resultat: ResultatEmissionLot = { emises: 0, enErreur: 0, erreurs: [] };
+  const resultat: ResultatEmissionLot = {
+    emises: 0,
+    enErreur: 0,
+    erreurs: [],
+    estale: { envoyees: 0, aCodifier: 0, enAttente: 0, enErreur: 0, erreurs: [] },
+  };
+  const emisesIds: string[] = [];
 
   // Catalogue produits charge une fois : resout libelle + product_id + compte
   // comptable par (categorie, agence de la copro).
@@ -138,6 +147,7 @@ export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatE
 
       await repo.marquerFacturee(facture.id, factureExterneId);
       resultat.emises += 1;
+      emisesIds.push(facture.id);
     } catch (erreur) {
       const message = erreur instanceof Error ? erreur.message : String(erreur);
       // On persiste l'echec sans interrompre le lot : les factures suivantes
@@ -146,6 +156,17 @@ export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatE
       resultat.enErreur += 1;
       resultat.erreurs.push({ factureId: facture.id, message });
     }
+  }
+
+  // Puis l'envoi dans ESTALE (copros ESTALE seulement). Les factures sont deja emises
+  // chez Pennylane : un echec ici ne doit pas faire croire que la facturation a echoue.
+  // Chaque echec est trace sur sa facture et reste renvoyable depuis l'historique.
+  try {
+    resultat.estale = await saisirFacturesDansEstale(emisesIds);
+  } catch (erreur) {
+    const message = erreur instanceof Error ? erreur.message : String(erreur);
+    resultat.estale.enErreur += 1;
+    resultat.estale.erreurs.push({ factureId: "", coproCode: "", message: `Envoi ESTALE interrompu : ${message}` });
   }
 
   return resultat;
