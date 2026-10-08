@@ -153,7 +153,8 @@ describe("reconcilierEtapes (migration douce)", () => {
     expect(r[i1 - 1]!.code).toBe("BA7");
     expect(r[i1 + 1]!.code).toBe("CO1");
     const i2 = r.findIndex((e) => e.code === "X-2");
-    expect(r[i2 - 1]!.code).toBe("CA5");
+    // Derniere etape de la phase CADRAGE depuis le 08/10/2026 (CA6 a CA8 ajoutees).
+    expect(r[i2 - 1]!.code).toBe("CA8");
     expect(r[i2 + 1]!.code).toBe("DO1");
   });
 

@@ -88,7 +88,8 @@ describe("etapesAssigneesA", () => {
     par("DO1").statut = "en_cours"; // incluse
     par("CA4").assigneA = marie; // assistant reassigne a Marie -> incluse
     const codes = etapesAssigneesA(d, marie.id).map((e) => e.code);
-    expect(codes.slice(0, 3)).toEqual(["CA4", "DO1", "DO2"]);
+    // CA8 (fichier « copros par gestionnaire ») est entree au catalogue le 08/10/2026.
+    expect(codes.slice(0, 4)).toEqual(["CA4", "CA8", "DO1", "DO2"]);
     expect(codes).not.toContain("CA1");
     expect(codes).not.toContain("PA1"); // referent
     expect(etapesAssigneesA(d, "inconnu")).toEqual([]);

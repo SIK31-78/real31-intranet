@@ -219,6 +219,13 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
   { code: "CA1", phase: "CADRAGE", role: "gestionnaire", libelle: "Rendez-vous avec le syndic sortant : remise des archives et des dossiers en cours (contentieux, travaux, sinistres, ventes), PV de remise daté" },
   { code: "CA4", phase: "CADRAGE", role: "banque", libelle: "Compte bancaire : le compte séparé au nom du syndicat est-il conservé (même RIB) ou faut-il en ouvrir un ? Confirmé auprès de la banque" },
   { code: "CA5", phase: "CADRAGE", role: "gestionnaire", libelle: "Âge de l'immeuble et fonds de travaux ALUR (dispense si moins de 5 ans après réception) ; assurance multirisque identifiée" },
+  // Ouverture de la copropriete dans NOS outils. Ajoutees au catalogue le 08/10/2026 :
+  // elles etaient recreees a la main sur chaque reprise (X-1 a X-3 de Saint-Ouen). Au
+  // CADRAGE et pas en exploitation, parce que tout le reste en depend - EX10 facture les
+  // honoraires DANS Pennylane, qui doit donc exister avant.
+  { code: "CA6", phase: "CADRAGE", role: "outils", libelle: "Identifiant Pennylane créé (API)" },
+  { code: "CA7", phase: "CADRAGE", role: "outils", libelle: "Copropriété créée dans Supabase" },
+  { code: "CA8", phase: "CADRAGE", role: "gestionnaire", libelle: "Copropriété ajoutée au fichier « copros par gestionnaire »" },
   // ---- DOCUMENTS
   { code: "DO1", phase: "DOCUMENTS", role: "gestionnaire", libelle: "Pièces de nomination : PV d'AG nommant le cabinet, feuille de présence, contrat de syndic signé, règlement de copropriété" },
   { code: "DO2", phase: "DOCUMENTS", role: "gestionnaire", libelle: "Grands livres N-1 (après répartition) et N jusqu'à la bascule : un fichier par exercice, Excel de préférence" },
@@ -263,11 +270,6 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
   { code: "EX8", phase: "EXPLOITATION", role: "assistant", libelle: "Documents du sortant versés sur l'extranet ; contrats scannés et enregistrés (carnet d'entretien)" },
   { code: "EX9", phase: "EXPLOITATION", role: "comptable", libelle: "Registre national des copropriétés mis à jour (changement de syndic)" },
   { code: "EX10", phase: "EXPLOITATION", role: "comptable", libelle: "Honoraires du cabinet facturés au prorata du trimestre en cours (Pennylane)" },
-  // Ajoutees au catalogue le 08/10/2026 : elles etaient recreees a la main sur chaque
-  // reprise (etapes ad hoc X-1 a X-3 de Saint-Ouen).
-  { code: "EX11", phase: "EXPLOITATION", role: "outils", libelle: "Identifiant Pennylane créé (API)" },
-  { code: "EX12", phase: "EXPLOITATION", role: "outils", libelle: "Copropriété créée dans Supabase" },
-  { code: "EX13", phase: "EXPLOITATION", role: "gestionnaire", libelle: "Copropriété ajoutée au fichier « copros par gestionnaire »" },
   // ---- CLOTURE
   { code: "CL1", phase: "CLOTURE", role: "referent", libelle: "Dossier de travail archivé dans reprise/<REF>/ et skill mis à jour" },
   { code: "CL2", phase: "CLOTURE", role: "gestionnaire", libelle: "Première AG : comptes de tout l'exercice repris présentés ; écart de reprise inscrit à l'ordre du jour si besoin" },
@@ -279,6 +281,10 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
  * code coche reporte son statut sur le nouveau ; a defaut de correspondance, l'ancienne etape est
  * conservee telle quelle si elle porte de l'information (jamais de perte d'etat coche).
  */
+// NE JAMAIS y mettre "X-1", "X-2"... : ce sont les codes GENERIQUES des etapes ad hoc
+// (cf. prochainCodeAdHoc). Les mapper reecrirait l'etape ad hoc de n'importe quel dossier
+// portant ce code. Une etape ad hoc promue au catalogue se supprime a la main sur le
+// dossier d'origine (3 gestes sur Saint-Ouen le 08/10/2026).
 export const CORRESPONDANCE_ANCIENS_CODES: Readonly<Record<string, string>> = {
   R1: "DO2",
   R2: "PA1",
