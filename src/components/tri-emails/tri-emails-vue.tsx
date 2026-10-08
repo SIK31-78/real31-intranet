@@ -1,16 +1,21 @@
 "use client";
 
 // Ecran du tri des e-mails V2 (ADR-046) : la file a gauche, le mail et son rattachement
-// a droite. Increment 1 = lecture seule : on voit la suggestion ESTALE et ou le mail
-// partirait, le bouton d'attribution arrive a l'increment 2.
+// a droite ; un onglet journal pour la revue de fin de semaine. Increment 2 : on range
+// d'un clic (dossier du binome, Comptabilité, Divers) et on peut annuler. Sans
+// MAIL_TRI_ECRITURE=on, tout rangement est simule (le mail ne bouge pas).
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ExternalLink, Paperclip } from "lucide-react";
 import type { CoproDeLaFile, FileATrier, MailDeLaFile } from "@/lib/services/tri-emails/lire-file";
-import type { NatureSuggestion } from "@/lib/domain/tri-emails";
+import { suggestionSuivie, type CibleTri, type EntreeJournalTri, type NatureSuggestion } from "@/lib/domain/tri-emails";
+import { annulerRangementAction, rangerMailAction } from "@/app/tri-emails/actions";
 import { Badge, type BadgeTon } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tab, TabList, TabPanel } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
 const TON: Record<NatureSuggestion, BadgeTon> = {
@@ -29,6 +34,14 @@ const TITRE: Record<NatureSuggestion, string> = {
   aucune: "Pas de suggestion",
 };
 
+const LIBELLE_SIGNAL: Record<NatureSuggestion, string> = {
+  sure: "suggestion sûre",
+  faible: "indice faible",
+  plusieurs: "plusieurs copros",
+  "hors-estale": "hors ESTALE",
+  aucune: "aucune piste",
+};
+
 function pastille(m: MailDeLaFile): string {
   const s = m.suggestion;
   if (s.nature === "sure" || s.nature === "faible") return s.candidats[0]!;
@@ -42,25 +55,126 @@ const heure = (iso: string) =>
 
 const normaliser = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
+type Dernier = { journalId: string; dossierNom: string; objet: string; mailId: string; simulation: boolean };
+
 export function TriEmailsVue({ file }: { file: FileATrier }) {
-  const [courantId, setCourantId] = useState<string | null>(file.mails[0]?.id ?? null);
+  const [onglet, setOnglet] = useState<"file" | "journal">("file");
+  // Mails ranges depuis l'affichage : masques tout de suite, sans attendre le rechargement.
+  const [masques, setMasques] = useState<Set<string>>(new Set());
+  const [dernier, setDernier] = useState<Dernier | null>(null);
+  const [enCours, demarrer] = useTransition();
+  const router = useRouter();
+  const toast = useToast();
+
+  const mails = file.mails.filter((m) => !masques.has(m.id));
+
+  function ranger(mail: MailDeLaFile, cible: CibleTri) {
+    demarrer(async () => {
+      const r = await rangerMailAction({
+        messageId: mail.id,
+        internetMessageId: mail.internetMessageId,
+        expediteur: mail.deAdresse,
+        objet: mail.objet,
+        cible,
+        suggestion: { nature: mail.suggestion.nature, candidats: mail.suggestion.candidats },
+      });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      setMasques((m) => new Set(m).add(mail.id));
+      if (r.donnees) setDernier({ ...r.donnees, objet: mail.objet, mailId: mail.id });
+      router.refresh();
+    });
+  }
+
+  function annuler(journalId: string, mailId?: string) {
+    demarrer(async () => {
+      const r = await annulerRangementAction({ journalId });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      if (mailId) {
+        setMasques((m) => {
+          const n = new Set(m);
+          n.delete(mailId);
+          return n;
+        });
+      }
+      setDernier(null);
+      toast.ok("Remis dans la boîte de réception.");
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {dernier && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2 text-body">
+          <span className="min-w-0 flex-1">
+            {dernier.simulation ? "Simulé : " : ""}« {dernier.objet} » rangé dans <span className="font-mono">{dernier.dossierNom}</span>.
+          </span>
+          <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(dernier.journalId, dernier.mailId)}>
+            Annuler
+          </Button>
+        </div>
+      )}
+      <TabList label="Tri des e-mails">
+        <Tab id="tri-t-file" panelId="tri-p-file" active={onglet === "file"} onClick={() => setOnglet("file")} count={mails.length}>
+          À trier
+        </Tab>
+        <Tab
+          id="tri-t-journal"
+          panelId="tri-p-journal"
+          active={onglet === "journal"}
+          onClick={() => setOnglet("journal")}
+          count={file.journal.length}
+        >
+          Rangés sur 7 jours
+        </Tab>
+      </TabList>
+      {onglet === "file" ? (
+        <TabPanel id="tri-p-file" tabId="tri-t-file">
+          <FileVue copros={file.copros} mails={mails} enCours={enCours} ranger={ranger} />
+        </TabPanel>
+      ) : (
+        <TabPanel id="tri-p-journal" tabId="tri-t-journal">
+          <JournalVue journal={file.journal} enCours={enCours} annuler={(id) => annuler(id)} />
+        </TabPanel>
+      )}
+    </div>
+  );
+}
+
+function FileVue({
+  copros,
+  mails,
+  enCours,
+  ranger,
+}: {
+  copros: CoproDeLaFile[];
+  mails: MailDeLaFile[];
+  enCours: boolean;
+  ranger: (mail: MailDeLaFile, cible: CibleTri) => void;
+}) {
+  const [courantId, setCourantId] = useState<string | null>(mails[0]?.id ?? null);
   const [filtre, setFiltre] = useState("");
-  // Choix de copro par mail (id -> reference). Non persiste a l'increment 1.
+  // Choix de copro par mail (id -> reference), le temps de l'affichage.
   const [choix, setChoix] = useState<Record<string, string>>({});
 
-  const parRef = useMemo(() => new Map(file.copros.map((c) => [c.reference, c])), [file.copros]);
+  const parRef = useMemo(() => new Map(copros.map((c) => [c.reference, c])), [copros]);
 
   const visibles = useMemo(() => {
     const q = normaliser(filtre.trim());
-    if (!q) return file.mails;
-    return file.mails.filter((m) =>
-      normaliser(`${m.deNom} ${m.deAdresse} ${m.objet} ${m.suggestion.candidats.join(" ")}`).includes(q),
-    );
-  }, [file.mails, filtre]);
+    if (!q) return mails;
+    return mails.filter((m) => normaliser(`${m.deNom} ${m.deAdresse} ${m.objet} ${m.suggestion.candidats.join(" ")}`).includes(q));
+  }, [mails, filtre]);
 
-  const courant = file.mails.find((m) => m.id === courantId) ?? null;
+  // Le mail affiche : celui choisi s'il est encore dans la file, sinon le premier.
+  const courant = mails.find((m) => m.id === courantId) ?? mails[0] ?? null;
 
-  if (file.mails.length === 0) {
+  if (mails.length === 0) {
     return <EmptyState>La boîte de réception générique est vide : tout est trié.</EmptyState>;
   }
 
@@ -86,10 +200,10 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
               <button
                 type="button"
                 onClick={() => setCourantId(m.id)}
-                aria-current={m.id === courantId}
+                aria-current={m.id === courant?.id}
                 className={cn(
                   "w-full text-left px-4 py-2.5 grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 hover:bg-surface-2",
-                  m.id === courantId && "bg-green-50 hover:bg-green-50",
+                  m.id === courant?.id && "bg-green-50 hover:bg-green-50",
                 )}
               >
                 <span className="font-medium text-ink truncate">{m.deNom}</span>
@@ -109,10 +223,12 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
         <DetailMail
           key={courant.id}
           mail={courant}
-          copros={file.copros}
+          copros={copros}
           parRef={parRef}
           choisie={choix[courant.id] ?? (courant.suggestion.candidats.length === 1 ? courant.suggestion.candidats[0]! : null)}
           choisir={(ref) => setChoix((c) => ({ ...c, [courant.id]: ref }))}
+          enCours={enCours}
+          ranger={(cible) => ranger(courant, cible)}
         />
       ) : (
         <EmptyState>Sélectionnez un mail dans la file.</EmptyState>
@@ -127,12 +243,16 @@ function DetailMail({
   parRef,
   choisie,
   choisir,
+  enCours,
+  ranger,
 }: {
   mail: MailDeLaFile;
   copros: CoproDeLaFile[];
   parRef: Map<string, CoproDeLaFile>;
   choisie: string | null;
   choisir: (ref: string) => void;
+  enCours: boolean;
+  ranger: (cible: CibleTri) => void;
 }) {
   const [recherche, setRecherche] = useState("");
   const s = mail.suggestion;
@@ -246,12 +366,12 @@ function DetailMail({
 
         {copro && (
           <div className="grid gap-2.5 sm:grid-cols-3 mt-1">
-            <Case titre="Gestionnaire ESTALE">
+            <Case titre="Binôme">
               {dest ? (
                 <>
                   <span className="font-medium text-ink">{dest.gestionnaire.nomComplet}</span>
                   <span className="text-meta text-ink-2">
-                    {dest.assistant ? `Assistant : ${dest.assistant.nomComplet}` : "Pas d'assistant dans ESTALE"}
+                    {dest.assistant ? `Assistant : ${dest.assistant.nomComplet}` : "Assistant non renseigné"}
                   </span>
                 </>
               ) : (
@@ -273,13 +393,93 @@ function DetailMail({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-3 mt-1">
-          <Button variant="primary" disabled>
-            {dest?.initiales ? `Attribuer à ${dest.initiales}` : "Attribuer"}
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <Button
+            variant="primary"
+            loading={enCours}
+            disabled={!copro || !dest?.nomDossier || enCours}
+            onClick={() => copro && ranger({ type: "copro", reference: copro.reference })}
+          >
+            {dest?.nomDossier ? `Ranger dans ${dest.nomDossier}` : "Ranger"}
           </Button>
-          <span className="text-meta text-ink-3">Lecture seule pour l&apos;instant : l&apos;attribution arrive à l&apos;étape suivante.</span>
+          <Button variant="secondary" disabled={enCours} onClick={() => ranger({ type: "comptabilite" })}>
+            Comptabilité
+          </Button>
+          <Button variant="ghost" disabled={enCours} onClick={() => ranger({ type: "divers" })}>
+            Divers
+          </Button>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** Revue de fin de semaine : chaque rangement, le signal qui l'avait propose, suivi ou non. */
+function JournalVue({
+  journal,
+  enCours,
+  annuler,
+}: {
+  journal: EntreeJournalTri[];
+  enCours: boolean;
+  annuler: (journalId: string) => void;
+}) {
+  if (journal.length === 0) return <EmptyState>Aucun mail rangé ces 7 derniers jours.</EmptyState>;
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+      <table className="w-full text-body">
+        <thead className="bg-surface-2 text-meta uppercase tracking-wider text-ink-3">
+          <tr>
+            <th className="text-left font-medium px-3 py-2">Quand</th>
+            <th className="text-left font-medium px-3 py-2">Mail</th>
+            <th className="text-left font-medium px-3 py-2">Rangé dans</th>
+            <th className="text-left font-medium px-3 py-2">Signal</th>
+            <th className="text-left font-medium px-3 py-2">Par</th>
+            <th className="px-3 py-2">
+              <span className="sr-only">Action</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {journal.map((e) => {
+            const suivie = suggestionSuivie(e);
+            return (
+              <tr key={e.id} className="border-t border-line align-top">
+                <td className="px-3 py-2 font-mono text-meta text-ink-2 tabular-nums whitespace-nowrap">{heure(e.faitLe)}</td>
+                <td className="px-3 py-2 min-w-[220px]">
+                  <span className="text-ink">{e.objet}</span>
+                  <span className="block text-meta text-ink-3 font-mono">{e.expediteur}</span>
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className="font-mono">{e.dossierNom}</span>
+                  {e.coproReference && <span className="block text-meta text-ink-3 font-mono">{e.coproReference}</span>}
+                  {e.simulation && (
+                    <span className="block mt-1">
+                      <Badge ton="warn">Simulé</Badge>
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  {e.signal ? (
+                    <Badge ton={suivie === false ? "err" : suivie ? "ok" : "neutral"}>
+                      {LIBELLE_SIGNAL[e.signal]}
+                      {suivie === false ? " · corrigé" : suivie ? " · suivi" : ""}
+                    </Badge>
+                  ) : (
+                    <span className="text-ink-3">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-meta text-ink-2">{e.par}</td>
+                <td className="px-3 py-2 text-right">
+                  <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id)}>
+                    Annuler
+                  </Button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

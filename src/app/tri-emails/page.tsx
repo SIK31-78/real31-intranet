@@ -31,12 +31,17 @@ export default async function TriEmailsPage() {
           aide={
             <p className="max-w-[65ch] text-ink-2">
               La file, c&apos;est la boîte de réception de la boîte générique. Pour chaque mail, l&apos;intranet propose
-              une copropriété ESTALE ; en l&apos;attribuant, le mail partira dans le dossier du gestionnaire, où
-              l&apos;équipe le traite et y répond depuis Outlook. Cette première version est en lecture seule : rien
-              n&apos;est déplacé.
+              une copropriété ESTALE ; en le rangeant, le mail part dans le dossier du binôme (ou dans
+              Comptabilité / Divers), où l&apos;équipe le traite et y répond depuis Outlook. L&apos;onglet « Rangés
+              sur 7 jours » sert à la revue du vendredi : chaque rangement y montre le signal qui l&apos;a proposé.
             </p>
           }
         />
+        {file.simulation && (
+          <Callout ton="info" titre="Mode simulation.">
+            {" "}Les rangements sont notés au journal, mais aucun mail ne bouge dans la boîte.
+          </Callout>
+        )}
         {file.erreur && <Callout ton="warn">{file.erreur}</Callout>}
         <TriEmailsVue file={file} />
       </Page>
