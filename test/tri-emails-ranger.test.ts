@@ -49,7 +49,10 @@ function deps(p: Partial<DepsRangement> & { rangement: RangementTriProvider }): 
     boite: BOITE,
     simulation: false,
     referentiel: { charger: async () => REF },
-    repo: new MockTriRepository({ "sandy@real31.fr": { nomComplet: "Julie", email: "julie@real31.fr" } }),
+    repo: new MockTriRepository({
+      binomes: [{ id: "b1", gestionnaireEmail: "sandy@real31.fr", assistant: { nomComplet: "Julie", email: "julie@real31.fr" }, principal: true }],
+      parCopro: {},
+    }),
     initialesParEmail: async () => ({ "sandy@real31.fr": "SC", "julie@real31.fr": "JB" }),
     ...p,
   };

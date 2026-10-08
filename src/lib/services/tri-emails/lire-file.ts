@@ -6,6 +6,7 @@
 // ou le mail n'a pas bouge.
 
 import {
+  AUCUN_BINOME,
   destinationDe,
   lignesBinomes,
   suggererCopro,
@@ -23,7 +24,7 @@ import {
   getTriRepository,
 } from "@/lib/adapters/router";
 import { rangementSimule } from "./ranger";
-import { listerCollaborateurs, type Collaborateur } from "./binomes";
+import { listerCollaborateurs, listerGestionnairesCabinet, type Collaborateur } from "./binomes";
 
 /** Nombre de mails lus a chaque affichage : la file du jour, pas l'historique. */
 const MAX_FILE = 100;
@@ -64,12 +65,13 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   if (!boite) return null;
 
   const repo = getTriRepository();
-  const [refRes, mailsRes, iniRes, binRes, journalRes] = await Promise.allSettled([
+  const [refRes, mailsRes, iniRes, binRes, journalRes, gestRes] = await Promise.allSettled([
     getReferentielTriProvider().charger(),
     getIngestionTri().lireRecents({ email: boite, max: MAX_FILE }),
     listerCollaborateurs(),
     repo.binomes(),
     repo.journalDepuis(boite, new Date(Date.now() - SEPT_JOURS_MS).toISOString()),
+    listerGestionnairesCabinet(),
   ]);
 
   const erreurs: string[] = [];
@@ -87,7 +89,8 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const collaborateurs = iniRes.status === "fulfilled" ? iniRes.value : [];
   const initiales: Record<string, string> = {};
   for (const c of collaborateurs) if (c.initiales) initiales[c.email] = c.initiales;
-  const binomes = binRes.status === "fulfilled" ? binRes.value : {};
+  const binomes = binRes.status === "fulfilled" ? binRes.value : AUCUN_BINOME;
+  const gestionnaires = gestRes.status === "fulfilled" ? gestRes.value : [];
   const journal = journalRes.status === "fulfilled" ? journalRes.value : [];
   if (journalRes.status === "rejected") erreurs.push("Le journal du tri est indisponible.");
   const tous = mailsRes.status === "fulfilled" ? mailsRes.value : [];
@@ -121,7 +124,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     mails,
     copros,
     journal,
-    binomes: lignesBinomes(ref.copros, binomes, initiales),
+    binomes: lignesBinomes(gestionnaires, ref.copros, binomes, initiales),
     collaborateurs,
     simulation: rangementSimule(boite),
     erreur: erreurs.length ? erreurs.join(" ") : null,

@@ -1,36 +1,106 @@
 // Binomes du tri des e-mails (ADR-046) : ESTALE donne le gestionnaire de chaque copro,
-// l'intranet tient son assistant. Changer l'assistant ne deplace aucun mail : le dossier
-// du binome sera renomme au prochain rangement (sa cle reste le gestionnaire).
+// l'intranet tient ses assistants. Un assistant PRINCIPAL par gestionnaire (les copros
+// sans affectation), d'autres au besoin, affectes copro par copro (arbitrage du 08/10/2026).
+// Changer le principal renomme son dossier au prochain rangement ; aucun mail ne bouge.
 
 import type { MembreTri } from "@/lib/domain/tri-emails";
-import { getGestionnaireRepository, getReferentielTriProvider, getTriRepository } from "@/lib/adapters/router";
+import {
+  getGestionnaireRepository,
+  getReferentielTriProvider,
+  getTriRepository,
+} from "@/lib/adapters/router";
 
 /** Un collaborateur qu'on peut designer comme assistant. */
 export interface Collaborateur extends MembreTri {
   initiales: string;
 }
 
+const minuscules = (e: string) => e.trim().toLowerCase();
+
 export async function listerCollaborateurs(): Promise<Collaborateur[]> {
   const tous = await getGestionnaireRepository().listTous();
   return tous
     .filter((g): g is typeof g & { email: string } => Boolean(g.email))
-    .map((g) => ({ nomComplet: g.nomComplet, email: g.email.trim().toLowerCase(), initiales: g.initiales }))
+    .map((g) => ({ nomComplet: g.nomComplet, email: minuscules(g.email), initiales: g.initiales }))
     .sort((a, b) => a.nomComplet.localeCompare(b.nomComplet, "fr"));
 }
 
-export async function definirBinome(emailGestionnaire: string, emailAssistant: string, par: string): Promise<void> {
-  const g = emailGestionnaire.trim().toLowerCase();
-  const a = emailAssistant.trim().toLowerCase();
-  if (g === a) throw new Error("Le gestionnaire ne peut pas être son propre assistant.");
-  const [ref, collaborateurs] = await Promise.all([getReferentielTriProvider().charger(), listerCollaborateurs()]);
-  if (!ref.copros.some((c) => c.gestionnaire?.email.trim().toLowerCase() === g)) {
-    throw new Error("Ce gestionnaire n'a aucune copropriété ESTALE.");
-  }
-  const assistant = collaborateurs.find((c) => c.email === a);
-  if (!assistant) throw new Error("Collaborateur introuvable dans l'intranet.");
-  await getTriRepository().definirBinome(g, { nomComplet: assistant.nomComplet, email: assistant.email }, par);
+/** Les gestionnaires du cabinet (ceux qui ont un portefeuille), meme sans copro ESTALE. */
+export async function listerGestionnairesCabinet(): Promise<MembreTri[]> {
+  const liste = await getGestionnaireRepository().list();
+  return liste
+    .filter((g): g is typeof g & { email: string } => Boolean(g.email))
+    .map((g) => ({ nomComplet: g.nomComplet, email: minuscules(g.email) }));
 }
 
-export async function retirerBinome(emailGestionnaire: string): Promise<void> {
-  await getTriRepository().retirerBinome(emailGestionnaire);
+async function personnes(emailGestionnaire: string, emailAssistant: string) {
+  const g = minuscules(emailGestionnaire);
+  const a = minuscules(emailAssistant);
+  if (g === a) throw new Error("Le gestionnaire ne peut pas être son propre assistant.");
+  const collaborateurs = await listerCollaborateurs();
+  if (!collaborateurs.some((c) => c.email === g)) throw new Error("Gestionnaire introuvable dans l'intranet.");
+  const assistant = collaborateurs.find((c) => c.email === a);
+  if (!assistant) throw new Error("Collaborateur introuvable dans l'intranet.");
+  return { g, assistant: { nomComplet: assistant.nomComplet, email: assistant.email } };
+}
+
+/** Pose (ou change) l'assistant principal d'un gestionnaire. */
+export async function definirPrincipal(emailGestionnaire: string, emailAssistant: string, par: string): Promise<void> {
+  const { g, assistant } = await personnes(emailGestionnaire, emailAssistant);
+  const repo = getTriRepository();
+  const siens = (await repo.binomes()).binomes.filter((x) => x.gestionnaireEmail === g);
+  const principal = siens.find((x) => x.principal);
+  const meme = siens.find((x) => x.assistant.email === assistant.email);
+  if (meme?.principal) return;
+  if (meme && principal) {
+    // L'assistant etait « autre » : ses copros reviennent au principal, qui devient lui.
+    await repo.supprimerBinome(meme.id);
+    await repo.enregistrerBinome({ ...principal, assistant }, par);
+    return;
+  }
+  if (meme) {
+    await repo.enregistrerBinome({ ...meme, principal: true }, par);
+    return;
+  }
+  if (principal) {
+    await repo.enregistrerBinome({ ...principal, assistant }, par);
+    return;
+  }
+  await repo.enregistrerBinome({ gestionnaireEmail: g, assistant, principal: true }, par);
+}
+
+/** Ajoute un autre assistant au gestionnaire (copros partagees). */
+export async function ajouterAssistant(emailGestionnaire: string, emailAssistant: string, par: string): Promise<void> {
+  const { g, assistant } = await personnes(emailGestionnaire, emailAssistant);
+  const repo = getTriRepository();
+  const siens = (await repo.binomes()).binomes.filter((x) => x.gestionnaireEmail === g);
+  if (siens.some((x) => x.assistant.email === assistant.email)) {
+    throw new Error("Ce collaborateur est déjà assistant de ce gestionnaire.");
+  }
+  await repo.enregistrerBinome({ gestionnaireEmail: g, assistant, principal: false }, par);
+}
+
+/** Retire un assistant ; ses copros reviennent au principal. */
+export async function retirerAssistant(binomeId: string): Promise<void> {
+  const repo = getTriRepository();
+  if (!(await repo.binomes()).binomes.some((x) => x.id === binomeId)) throw new Error("Ce binôme n'existe plus.");
+  await repo.supprimerBinome(binomeId);
+}
+
+/** Confie une copro ESTALE a un assistant de son gestionnaire, ou la rend au principal (null). */
+export async function affecterCopro(reference: string, binomeId: string | null, par: string): Promise<void> {
+  const repo = getTriRepository();
+  const [ref, b] = await Promise.all([getReferentielTriProvider().charger(), repo.binomes()]);
+  const copro = ref.copros.find((c) => c.reference === reference);
+  if (!copro?.gestionnaire) throw new Error(`La copropriété ${reference} n'a pas de gestionnaire dans ESTALE.`);
+  let cible = binomeId;
+  if (cible) {
+    const binome = b.binomes.find((x) => x.id === cible);
+    if (!binome || binome.gestionnaireEmail !== minuscules(copro.gestionnaire.email)) {
+      throw new Error("Cet assistant ne travaille pas avec le gestionnaire de cette copropriété.");
+    }
+    // Affecter au principal = pas d'affectation particuliere.
+    if (binome.principal) cible = null;
+  }
+  await repo.affecterCopro(reference, cible, par);
 }
