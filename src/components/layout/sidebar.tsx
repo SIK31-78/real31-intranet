@@ -264,6 +264,7 @@ export function Sidebar({
   emailsOuvert = true,
   comptaOuvert = false,
   gestionCouranteOuverte = false,
+  repriseOuverte = false,
   vueComptable = false,
   vueHorsSyndic = false,
   adminOuvert = false,
@@ -279,6 +280,8 @@ export function Sidebar({
   comptaOuvert?: boolean;
   /** Entree "Gestion courante" : comptable d'entreprise + super-admin seulement. */
   gestionCouranteOuverte?: boolean;
+  /** Entree "Reprise de copropriete" : l'equipe syndic (chacun ne voit que ses dossiers). */
+  repriseOuverte?: boolean;
   /** Vue comptable epuree : remplace la nav principale par NAV_COMPTABLE (dashboard compta + copros + coffre). */
   vueComptable?: boolean;
   /** Vue hors syndic (vente, location, accueil) : propositions, cles, coffre, nouveautes. */
@@ -331,8 +334,11 @@ export function Sidebar({
               if (item.key === "compta") return comptaOuvert;
               // "Gestion courante" : comptable d'ENTREPRISE et super-admin (Sekou 2026-09-14).
               if (item.key === "gestion-courante") return gestionCouranteOuverte;
-              // "Mes e-mails" et "Reprise" : A VENIR pour les collegues -> super-admins seulement.
-              if (item.key === "emails" || item.key === "reprise") return adminOuvert;
+              // "Mes e-mails" : A VENIR pour les collegues -> super-admins seulement.
+              if (item.key === "emails") return adminOuvert;
+              // "Reprise" : ouverte aux gestionnaires depuis le 08/10/2026. Chacun n'y voit
+              // que ses propres reprises (cf. dossierVisiblePar), la direction voit tout.
+              if (item.key === "reprise") return repriseOuverte;
               // "Collaborateurs" et "Perte" : la direction.
               if (item.key === "collaborateurs") return directionOuverte;
               if (item.key === "perte") return perteOuverte;

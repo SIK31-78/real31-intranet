@@ -11,7 +11,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { profilDe, estAdminReprise } from "@/lib/auth/roles";
 import { getRepriseDossierRepository, reprisePersistanceSupabase } from "@/lib/reprise/adapters/router";
 import { listerDossiers } from "@/lib/reprise/services/suivi-dossier";
-import { resumerDossier, etapesAssigneesA } from "@/lib/reprise/services/resume-dossier";
+import { dossierVisiblePar, etapesAssigneesA, resumerDossier } from "@/lib/reprise/services/resume-dossier";
 import { listerCollaborateurs } from "@/app/reprise-copro/collaborateurs";
 import { DossiersRepriseVue, type LigneDossierVue } from "./dossiers-reprise-vue";
 import { PageHeader } from "@/components/ui/page";
@@ -30,10 +30,15 @@ export default async function DossiersReprisePage() {
     listerCollaborateurs(),
   ]);
 
-  const lignes: LigneDossierVue[] = dossiers.map((d) => ({
+  // Chacun ne voit que SES reprises : celles dont il est le gestionnaire nomme, ou sur
+  // lesquelles une etape lui est assignee. La direction et les managers voient tout.
+  const voitTout = estAdminReprise(profilDe(g));
+  const lignes: LigneDossierVue[] = dossiers
+    .filter((d) => dossierVisiblePar(d, g.id, voitTout))
+    .map((d) => ({
     ...resumerDossier(d, aujourdHui),
     mesEtapesRestantes: etapesAssigneesA(d, g.id).filter((e) => e.statut !== "fait" && e.statut !== "ignore").length,
-  }));
+    }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -53,7 +58,7 @@ export default async function DossiersReprisePage() {
         collaborateurs={collaborateurs}
         moi={{ id: g.id, nom: g.nomComplet }}
         aujourdHui={aujourdHui}
-        adminReprise={estAdminReprise(profilDe(g))}
+        adminReprise={voitTout}
       />
     </div>
   );

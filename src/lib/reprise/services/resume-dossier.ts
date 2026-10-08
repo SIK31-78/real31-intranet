@@ -79,3 +79,27 @@ export function resumerDossier(d: Dossier, aujourdHuiIso: string): DossierResume
 export function etapesAssigneesA(d: Dossier, personneId: string): Etape[] {
   return d.etapes.filter((e) => e.assigneA?.id === personneId && !etapeClose(e.statut));
 }
+
+/**
+ * Ce dossier doit-il apparaitre a cette personne ?
+ *
+ * Demande Sekou (08/10/2026) : le module s'ouvre aux GESTIONNAIRES, et chacun ne voit que
+ * les copropriétés dont il est le gestionnaire nomme sur le dossier. Avant, l'ecran listait
+ * toutes les reprises du cabinet et n'etait de toute facon atteignable que par les
+ * super-admins (aucune entree de menu pour les autres).
+ *
+ * Les etapes qui lui sont ASSIGNEES comptent aussi : un assistant ou un comptable a qui on
+ * a confie des etapes doit pouvoir ouvrir le dossier, sinon il ne peut pas les faire.
+ *
+ * `voitTout` (direction, managers) court-circuite le filtre : le pilotage a besoin de la
+ * vue d'ensemble.
+ */
+export function dossierVisiblePar(
+  d: Dossier,
+  personneId: string,
+  voitTout: boolean,
+): boolean {
+  if (voitTout) return true;
+  if (d.equipe?.gestionnaire?.id === personneId) return true;
+  return d.etapes.some((e) => e.assigneA?.id === personneId);
+}

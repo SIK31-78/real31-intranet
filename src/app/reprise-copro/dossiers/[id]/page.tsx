@@ -17,6 +17,7 @@ import {
   ecritureEstaleReelle,
 } from "@/lib/reprise/adapters/router";
 import { obtenirDossier } from "@/lib/reprise/services/suivi-dossier";
+import { dossierVisiblePar } from "@/lib/reprise/services/resume-dossier";
 import { avancement, estArchive } from "@/lib/reprise/domain/dossier";
 import { avancement as compterEtapes } from "@/lib/domain/suivi/etape";
 import { prochaineEtape } from "@/lib/reprise/domain/prochaine-etape";
@@ -38,6 +39,10 @@ export default async function FicheDossierPage({ params }: { params: Promise<{ i
     listerCollaborateurs(),
   ]);
   if (!dossier) notFound();
+  // Garde anti-IDOR : un gestionnaire ne doit pas ouvrir la reprise d'un collegue en
+  // devinant l'URL. Meme regle que la liste - 404 plutot que 403, pour ne pas confirmer
+  // qu'un dossier existe a cette reference.
+  if (!dossierVisiblePar(dossier, g.id, estAdminReprise(profilDe(g)))) notFound();
 
   const aujourdHui = jourParis();
   const compte = compterEtapes(dossier.etapes);
