@@ -2,7 +2,7 @@
 // intranet_tri_dossier, intranet_tri_journal (supabase/sql/intranet_tri_emails.sql).
 // Tables absentes (SQL pas encore passe) : lectures vides, ecritures en erreur claire.
 
-import type { Binome, BinomesTri, EntreeJournalTri, NatureSuggestion } from "@/lib/domain/tri-emails";
+import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri, NatureSuggestion } from "@/lib/domain/tri-emails";
 import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -19,6 +19,7 @@ type RowJournal = {
   objet: string;
   copro_reference: string | null;
   dossier_nom: string;
+  dossier_cle: string | null;
   signal: string | null;
   candidats: string[] | null;
   simulation: boolean;
@@ -28,7 +29,7 @@ type RowJournal = {
 };
 
 const COLS =
-  "id, boite, internet_message_id, message_id, expediteur, objet, copro_reference, dossier_nom, signal, candidats, simulation, par, fait_le, annule_le";
+  "id, boite, internet_message_id, message_id, expediteur, objet, copro_reference, dossier_nom, dossier_cle, signal, candidats, simulation, par, fait_le, annule_le";
 
 function tableAbsente(error: { code?: string } | null): boolean {
   return error?.code === "42P01" || error?.code === "PGRST205";
@@ -48,6 +49,7 @@ function versDomaine(r: RowJournal): EntreeJournalTri {
     objet: r.objet,
     coproReference: r.copro_reference,
     dossierNom: r.dossier_nom,
+    dossierCle: r.dossier_cle ?? null,
     signal: (r.signal as NatureSuggestion | null) ?? null,
     candidats: r.candidats ?? [],
     simulation: r.simulation,
@@ -135,6 +137,20 @@ export class SupabaseTriRepository implements TriRepository {
     if (error) throw erreur("dossier", error);
   }
 
+  async dossiers(boite: string): Promise<DossierConnu[]> {
+    const { data, error } = await createSupabasePublicClient().from("intranet_tri_dossier").select("cle, folder_id, nom").eq("boite", boite);
+    if (error) {
+      if (tableAbsente(error)) return [];
+      throw erreur("dossiers", error);
+    }
+    return ((data ?? []) as { cle: string; folder_id: string; nom: string }[]).map((r) => ({ cle: r.cle, folderId: r.folder_id, nom: r.nom }));
+  }
+
+  async majCopro(id: string, reference: string) {
+    const { error } = await createSupabasePublicClient().from("intranet_tri_journal").update({ copro_reference: reference }).eq("id", id);
+    if (error) throw erreur("journal", error);
+  }
+
   async journaliser(e: NouvelleEntreeJournal): Promise<string> {
     const { data, error } = await createSupabasePublicClient()
       .from("intranet_tri_journal")
@@ -146,6 +162,7 @@ export class SupabaseTriRepository implements TriRepository {
         objet: e.objet,
         copro_reference: e.coproReference,
         dossier_nom: e.dossierNom,
+        dossier_cle: e.dossierCle,
         signal: e.signal,
         candidats: e.candidats,
         simulation: e.simulation,

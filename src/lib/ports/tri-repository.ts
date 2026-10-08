@@ -1,7 +1,7 @@
 // Port de la persistance du tri des e-mails (ADR-046) : les binomes tenus dans l'intranet,
 // les dossiers deja crees dans la boite, et le journal des rangements. Ne depend que du domaine.
 
-import type { Binome, BinomesTri, EntreeJournalTri } from "@/lib/domain/tri-emails";
+import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri } from "@/lib/domain/tri-emails";
 
 export type NouvelleEntreeJournal = Omit<EntreeJournalTri, "id" | "faitLe" | "annuleLe">;
 
@@ -17,6 +17,10 @@ export interface TriRepository {
   /** Dossier deja cree pour cette cle dans cette boite, ou null. */
   dossier(boite: string, cle: string): Promise<{ folderId: string; nom: string } | null>;
   enregistrerDossier(boite: string, cle: string, d: { folderId: string; nom: string }): Promise<void>;
+  /** Tous les dossiers deja crees dans cette boite. */
+  dossiers(boite: string): Promise<DossierConnu[]>;
+  /** Precise la copro d'une ligne de journal (« copro a preciser »). */
+  majCopro(id: string, reference: string): Promise<void>;
   journaliser(e: NouvelleEntreeJournal): Promise<string>;
   entree(id: string): Promise<EntreeJournalTri | null>;
   /** Les rangements non annules depuis cette date, les plus recents d'abord. */

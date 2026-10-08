@@ -38,7 +38,14 @@ function fauxGraph(enReception = true) {
     },
     async remettreEnReception(_b, id) {
       appels.push(`remettre ${id}`);
-      return { messageId: id };
+      return { messageId: `${id}-remis` };
+    },
+    async etiqueter(_b, id, p) {
+      appels.push(`etiqueter ${id} +${p.ajouter ?? ""} -${p.retirer ?? ""}`);
+    },
+    async localiser(_b, imid) {
+      appels.push(`localiser ${imid}`);
+      return { messageId: "m1-deplace", folderId: "f-SC-JB", enReception: false, categories: ["S0297"] };
     },
   };
   return { g, appels };
@@ -74,7 +81,7 @@ describe("rangerMail", () => {
     const d = deps({ rangement: g });
     const r = await rangerMail(demande(), "sekou@real31.fr", d);
     expect(r).toMatchObject({ dossierNom: "SC-JB", simulation: false });
-    expect(appels).toEqual(["lire m1", "dossier SC-JB (connu: non)", "deplacer m1 -> f-SC-JB"]);
+    expect(appels).toEqual(["lire m1", "dossier SC-JB (connu: non)", "deplacer m1 -> f-SC-JB", "etiqueter m1-deplace +S0297 -"]);
     const e = await d.repo.entree(r.journalId);
     expect(e).toMatchObject({ coproReference: "S0297", signal: "sure", candidats: ["S0297"], messageId: "m1-deplace", objet: "Objet réel" });
   });
@@ -87,10 +94,20 @@ describe("rangerMail", () => {
     expect(appels).toContain("dossier SC-JB (connu: f-SC-JB)");
   });
 
-  it("range dans Comptabilité sans copro", async () => {
-    const { g } = fauxGraph();
+  it("range dans Comptabilité sans copro, donc sans etiquette", async () => {
+    const { g, appels } = fauxGraph();
     const r = await rangerMail(demande({ cible: { type: "comptabilite" } }), "a", deps({ rangement: g }));
     expect(r.dossierNom).toBe("Comptabilité");
+    expect(appels.some((x) => x.startsWith("etiqueter"))).toBe(false);
+  });
+
+  it("un echec d'etiquette ne defait pas le rangement", async () => {
+    const { g } = fauxGraph();
+    g.etiqueter = async () => {
+      throw new Error("Graph etiquette 500");
+    };
+    const r = await rangerMail(demande(), "a", deps({ rangement: g }));
+    expect(r).toMatchObject({ dossierNom: "SC-JB", etiquetteNonPosee: true });
   });
 
   it("refuse un mail qui n'est plus en reception", async () => {
@@ -127,7 +144,7 @@ describe("annulerRangement", () => {
     const d = deps({ rangement: g });
     const r = await rangerMail(demande(), "a", d);
     await annulerRangement(r.journalId, "a", d);
-    expect(appels.at(-1)).toBe("remettre m1-deplace");
+    expect(appels.slice(-3)).toEqual(["localiser <m1>", "remettre m1-deplace", "etiqueter m1-deplace-remis + -S0297"]);
     expect((await d.repo.entree(r.journalId))?.annuleLe).not.toBeNull();
     await expect(annulerRangement(r.journalId, "a", d)).rejects.toThrow(/déjà été annulé/);
   });

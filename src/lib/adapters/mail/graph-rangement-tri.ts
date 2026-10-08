@@ -3,7 +3,7 @@
 // renommer un dossier, deplacer un mail) : le routeur ne le branche que si
 // MAIL_TRI_ECRITURE=on. Plain fetch, pas de SDK.
 
-import type { MailEnReception, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
+import type { MailEnReception, PositionMail, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import { GRAPH, graphFetch, jetonGraph } from "./graph-auth";
 
 const u = (boite: string) => `${GRAPH}/users/${encodeURIComponent(boite)}`;
@@ -96,5 +96,33 @@ export class GraphRangementTri implements RangementTriProvider {
 
   async remettreEnReception(boite: string, messageId: string): Promise<{ messageId: string }> {
     return this.deplacer(boite, messageId, "inbox");
+  }
+
+  async etiqueter(boite: string, messageId: string, p: { ajouter?: string; retirer?: string }): Promise<void> {
+    const url = `${u(boite)}/messages/${encodeURIComponent(messageId)}`;
+    const m = await json<{ categories?: string[] }>(await appel(`${url}?$select=categories`), "categories");
+    const avant = m.categories ?? [];
+    const apres = avant.filter((c) => c !== p.retirer);
+    if (p.ajouter && !apres.includes(p.ajouter)) apres.push(p.ajouter);
+    if (apres.length === avant.length && apres.every((c, i) => c === avant[i])) return;
+    // Sans MailboxSettings.ReadWrite, la categorie n'entre pas dans la liste de la boite :
+    // elle est posee sur le mail, cherchable, mais sans couleur.
+    await json(await appel(url, { method: "PATCH", body: JSON.stringify({ categories: apres }) }), "etiquette");
+  }
+
+  async localiser(boite: string, internetMessageId: string): Promise<PositionMail | null> {
+    const filtre = encodeURIComponent(`internetMessageId eq '${internetMessageId.replace(/'/g, "''")}'`);
+    const j = await json<{ value: { id: string; parentFolderId: string; categories?: string[] }[] }>(
+      await appel(`${u(boite)}/messages?$filter=${filtre}&$select=id,parentFolderId,categories&$top=2`),
+      "recherche message",
+    );
+    const m = j.value[0];
+    if (!m) return null;
+    return {
+      messageId: m.id,
+      folderId: m.parentFolderId,
+      enReception: m.parentFolderId === (await idReception(boite)),
+      categories: m.categories ?? [],
+    };
   }
 }

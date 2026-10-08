@@ -2,7 +2,7 @@
 // Rien ne bouge dans la boite ; le journal note `simulation = true`. Sert a derouler tout
 // le parcours (clic, journal, annulation) sans toucher un vrai mail.
 
-import type { MailEnReception, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
+import type { MailEnReception, PositionMail, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 
 export class SimulationRangementTri implements RangementTriProvider {
   async lireEnReception(): Promise<MailEnReception | null> {
@@ -16,6 +16,13 @@ export class SimulationRangementTri implements RangementTriProvider {
 
   async deplacer(_boite: string, messageId: string): Promise<{ messageId: string }> {
     return { messageId };
+  }
+
+  async etiqueter(): Promise<void> {}
+
+  /** En simulation, rien n'a bouge : il n'y a rien a verifier. */
+  async localiser(): Promise<PositionMail | null> {
+    return null;
   }
 
   async remettreEnReception(_boite: string, messageId: string): Promise<{ messageId: string }> {

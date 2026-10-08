@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   AUCUN_BINOME,
   cleDeReference,
+  constaterRangement,
+  coproDuDossier,
   destinationDe,
   lignesBinomes,
   suggestionSuivie,
@@ -204,5 +206,33 @@ describe("lignesBinomes", () => {
     const lignes = lignesBinomes([{ nomComplet: "Rémi", email: "Remi@real31.fr" }], [], AUCUN_BINOME, ini);
     expect(lignes).toHaveLength(1);
     expect(lignes[0]).toMatchObject({ copros: [], principal: null, nomDossierSeul: "RB" });
+  });
+});
+
+describe("constaterRangement", () => {
+  const dossiers = [
+    { cle: "binome:sandy@real31.fr", folderId: "f-sc", nom: "SC-GG" },
+    { cle: "binome:b2", folderId: "f-jb", nom: "SC-JB" },
+    { cle: "divers", folderId: "f-div", nom: "Divers" },
+  ];
+  it("reconnait chaque situation", () => {
+    expect(constaterRangement("binome:sandy@real31.fr", { folderId: "f-sc", enReception: false }, dossiers)).toEqual({ cas: "en-place" });
+    expect(constaterRangement("binome:sandy@real31.fr", { folderId: "inbox", enReception: true }, dossiers)).toEqual({ cas: "remis-en-reception" });
+    expect(constaterRangement("binome:sandy@real31.fr", { folderId: "f-jb", enReception: false }, dossiers)).toEqual({
+      cas: "deplace",
+      vers: dossiers[1],
+    });
+    expect(constaterRangement("binome:sandy@real31.fr", { folderId: "f-inconnu", enReception: false }, dossiers)).toEqual({ cas: "introuvable" });
+    expect(constaterRangement("binome:sandy@real31.fr", null, dossiers)).toEqual({ cas: "introuvable" });
+  });
+});
+
+describe("coproDuDossier", () => {
+  const ini = { "sandy@real31.fr": "SC", "sekou@real31.fr": "SK" };
+  it("deduit la copro quand le dossier n'en recoit qu'une, sinon rien", () => {
+    const copros = [copro("S0297", "sandy@real31.fr"), copro("SE999", "sekou@real31.fr"), copro("S0300", "sekou@real31.fr")];
+    expect(coproDuDossier("binome:sandy@real31.fr", copros, ini, AUCUN_BINOME)).toBe("S0297");
+    expect(coproDuDossier("binome:sekou@real31.fr", copros, ini, AUCUN_BINOME)).toBeNull();
+    expect(coproDuDossier("divers", copros, ini, AUCUN_BINOME)).toBeNull();
   });
 });

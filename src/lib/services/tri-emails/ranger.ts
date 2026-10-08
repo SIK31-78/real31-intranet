@@ -70,6 +70,8 @@ export interface ResultatRangement {
   journalId: string;
   dossierNom: string;
   simulation: boolean;
+  /** Le mail est range mais l'etiquette n'a pas pu etre posee (message a afficher). */
+  etiquetteNonPosee: boolean;
 }
 
 /** Ou ranger : cle stable du dossier + nom attendu. Erreur lisible si on ne peut pas. */
@@ -88,6 +90,17 @@ async function resoudreDossier(cible: CibleTri, deps: DepsRangement): Promise<{ 
     throw new Error(`Les initiales de ${dest.gestionnaire.nomComplet} sont inconnues dans l'intranet : rangement impossible.`);
   }
   return { cle: dest.cle, nom: dest.nomDossier, copro: copro.reference };
+}
+
+/** Pose l'etiquette sans faire echouer le rangement : le mail est deja au bon endroit. */
+async function etiqueterSansBloquer(deps: DepsRangement, boite: string, messageId: string, p: { ajouter?: string; retirer?: string }): Promise<boolean> {
+  try {
+    await deps.rangement.etiqueter(boite, messageId, p);
+    return true;
+  } catch (e) {
+    console.error("[tri-emails] etiquette :", e instanceof Error ? e.message : e);
+    return false;
+  }
 }
 
 export async function rangerMail(
@@ -117,6 +130,9 @@ export async function rangerMail(
   }
 
   const { messageId } = await deps.rangement.deplacer(boite, d.messageId, folderId);
+  // L'etiquette au code copro, pour chercher dans Outlook (increment 3). Pas d'etiquette
+  // pour Comptabilité / Divers : ils n'ont pas de copro.
+  const etiquetee = copro ? await etiqueterSansBloquer(deps, boite, messageId, { ajouter: copro }) : true;
 
   const journalId = await deps.repo.journaliser({
     boite,
@@ -126,15 +142,16 @@ export async function rangerMail(
     objet: lu.objet || d.objet,
     coproReference: copro,
     dossierNom: nom,
+    dossierCle: cle,
     signal: d.suggestion?.nature ?? null,
     candidats: d.suggestion?.candidats ?? [],
     simulation: deps.simulation,
     par,
   });
-  return { journalId, dossierNom: nom, simulation: deps.simulation };
+  return { journalId, dossierNom: nom, simulation: deps.simulation, etiquetteNonPosee: !etiquetee };
 }
 
-/** Annule un rangement : le mail revient dans la boite de reception, la ligne est marquee. */
+/** Annule un rangement : le mail revient dans la boite de reception, sans son etiquette. */
 export async function annulerRangement(
   journalId: string,
   par: string,
@@ -147,14 +164,33 @@ export async function annulerRangement(
     // Un vrai rangement ne s'annule qu'avec l'ecriture ouverte : sinon on marquerait
     // « annule » un mail reste dans le dossier.
     if (deps.simulation) throw new Error("L'écriture dans la boîte est coupée : ce rangement réel ne peut pas être annulé d'ici.");
-    try {
-      await deps.rangement.remettreEnReception(e.boite, e.messageId);
-    } catch (err) {
-      if (err instanceof Error && / 404 /.test(err.message)) {
-        throw new Error("Le mail n'est plus là où l'intranet l'avait rangé (déplacé ou supprimé dans Outlook). Remets-le à la main.");
-      }
-      throw err;
-    }
+    // On retrouve le mail ou qu'il soit : glisse a la main, il a change d'id.
+    const pos = await deps.rangement.localiser(e.boite, e.internetMessageId);
+    if (!pos) throw new Error("Le mail est introuvable dans la boîte (supprimé ?) : rien à annuler.");
+    const { messageId } = pos.enReception ? pos : await deps.rangement.remettreEnReception(e.boite, pos.messageId);
+    if (e.coproReference) await etiqueterSansBloquer(deps, e.boite, messageId, { retirer: e.coproReference });
   }
   await deps.repo.marquerAnnule(journalId, par);
+}
+
+/**
+ * Precise la copro d'un mail glisse dans un dossier qui en recoit plusieurs : pose
+ * l'etiquette et complete le journal. La copro doit bien aller dans ce dossier.
+ */
+export async function preciserCopro(
+  journalId: string,
+  reference: string,
+  deps: DepsRangement = depsParDefaut(),
+): Promise<void> {
+  const e = await deps.repo.entree(journalId);
+  if (!e || e.annuleLe) throw new Error("Ce rangement n'existe plus.");
+  if (e.coproReference) throw new Error("La copropriété de ce mail est déjà connue.");
+  if (!e.dossierCle?.startsWith("binome:")) throw new Error("Ce mail n'est pas dans un dossier de binôme.");
+  const dossier = await resoudreDossier({ type: "copro", reference }, deps);
+  if (dossier.cle !== e.dossierCle) throw new Error(`${reference} ne va pas dans le dossier ${e.dossierNom}.`);
+  if (!e.simulation && !deps.simulation) {
+    const pos = await deps.rangement.localiser(e.boite, e.internetMessageId);
+    if (pos) await etiqueterSansBloquer(deps, e.boite, pos.messageId, { ajouter: reference });
+  }
+  await deps.repo.majCopro(journalId, reference);
 }

@@ -1,12 +1,12 @@
 // Persistance EN MEMOIRE du tri des e-mails (COPRO_SOURCE != supabase, tests). Perdue au
 // redemarrage. Aucune donnee reelle.
 
-import type { Binome, BinomesTri, EntreeJournalTri } from "@/lib/domain/tri-emails";
+import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
 
 export class MockTriRepository implements TriRepository {
   private journal: EntreeJournalTri[] = [];
-  private dossiers = new Map<string, { folderId: string; nom: string }>();
+  private dossiersParCle = new Map<string, { folderId: string; nom: string }>();
   private lesBinomes: Binome[];
   private parCopro: Record<string, string> = {};
   constructor(b: BinomesTri = { binomes: [], parCopro: {} }) {
@@ -31,10 +31,19 @@ export class MockTriRepository implements TriRepository {
     else delete this.parCopro[reference];
   }
   async dossier(boite: string, cle: string) {
-    return this.dossiers.get(`${boite}|${cle}`) ?? null;
+    return this.dossiersParCle.get(`${boite}|${cle}`) ?? null;
   }
   async enregistrerDossier(boite: string, cle: string, d: { folderId: string; nom: string }) {
-    this.dossiers.set(`${boite}|${cle}`, d);
+    this.dossiersParCle.set(`${boite}|${cle}`, d);
+  }
+  async dossiers(boite: string): Promise<DossierConnu[]> {
+    return [...this.dossiersParCle.entries()]
+      .filter(([k]) => k.startsWith(`${boite}|`))
+      .map(([k, d]) => ({ cle: k.slice(boite.length + 1), ...d }));
+  }
+  async majCopro(id: string, reference: string) {
+    const e = this.journal.find((x) => x.id === id);
+    if (e) e.coproReference = reference;
   }
   async journaliser(e: NouvelleEntreeJournal): Promise<string> {
     const id = `j-${this.journal.length + 1}`;

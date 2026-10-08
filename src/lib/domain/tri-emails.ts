@@ -319,6 +319,8 @@ export interface EntreeJournalTri {
   coproReference: string | null;
   /** Nom du dossier au moment du rangement, ex "SK-CP" ou "Comptabilité". */
   dossierNom: string;
+  /** Cle stable du dossier (binome:..., comptabilite, divers) ; null sur les toutes premieres lignes. */
+  dossierCle: string | null;
   /** La suggestion au moment du clic : sa nature et ses candidates (mesure de fiabilite). */
   signal: NatureSuggestion | null;
   candidats: string[];
@@ -409,4 +411,56 @@ export function lignesBinomes(
       };
     })
     .sort((x, y) => x.gestionnaire.nomComplet.localeCompare(y.gestionnaire.nomComplet, "fr"));
+}
+
+/** Auteur des lignes de journal deduites d'un deplacement fait a la main dans Outlook. */
+export const PAR_OUTLOOK = "outlook";
+
+/** Un dossier deja cree par l'app dans la boite. */
+export interface DossierConnu {
+  cle: string;
+  folderId: string;
+  nom: string;
+}
+
+/** Ce que l'app constate en relisant un mail qu'elle a range. */
+export type ConstatRangement =
+  | { cas: "en-place" }
+  /** Remis dans la boite de reception generique : retour dans la file. */
+  | { cas: "remis-en-reception" }
+  /** Glisse dans un autre dossier que l'app connait. */
+  | { cas: "deplace"; vers: DossierConnu }
+  /** Supprime, ou range dans un dossier que l'app ne connait pas : on n'y touche pas. */
+  | { cas: "introuvable" };
+
+/**
+ * Ou en est un mail range, d'apres sa position actuelle dans la boite (null = introuvable).
+ * Un mail glisse a la main dans Outlook change d'id Graph : la position se retrouve par
+ * l'internetMessageId, qui, lui, ne change jamais.
+ */
+export function constaterRangement(
+  dossierCle: string,
+  position: { folderId: string; enReception: boolean } | null,
+  dossiers: DossierConnu[],
+): ConstatRangement {
+  if (!position) return { cas: "introuvable" };
+  if (position.enReception) return { cas: "remis-en-reception" };
+  const ici = dossiers.find((d) => d.folderId === position.folderId);
+  if (!ici) return { cas: "introuvable" };
+  if (ici.cle === dossierCle) return { cas: "en-place" };
+  return { cas: "deplace", vers: ici };
+}
+
+/**
+ * La copro a deduire d'un dossier : celle-la seule si le dossier ne recoit qu'une copro
+ * ESTALE, sinon null (« copro a preciser »). Comptabilité et Divers n'ont pas de copro.
+ */
+export function coproDuDossier(
+  cle: string,
+  copros: CoproTri[],
+  initialesParEmail: Record<string, string>,
+  b: BinomesTri,
+): string | null {
+  const candidates = copros.filter((c) => destinationDe(c, initialesParEmail, b)?.cle === cle);
+  return candidates.length === 1 ? candidates[0]!.reference : null;
 }
