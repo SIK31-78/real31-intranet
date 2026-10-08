@@ -5,6 +5,7 @@
 // Repris du flow legacy `[REAL] FacturationSyndic` / `Facturation Gestion Courante`.
 
 import type { DemandeEmission } from "@/lib/ports/invoicing-provider";
+import { MARQUEUR_HORS_BPO } from "@/lib/domain/facturation/marqueur-bpo";
 
 export interface PennylaneLigne {
   label: string;
@@ -79,9 +80,11 @@ export function construirePayloadFacture(demande: DemandeEmission): PennylaneInv
     // legacy, omis par erreur au premier portage.
     // La mention libre s'imprime a sa suite ("S072 - S072DODUPINDDE") : c'est
     // ce qui permet a la compta de codifier une facture de suivi de sinistre.
-    pdf_invoice_free_text: demande.mentionLibre
-      ? `${demande.codeEntite} - ${demande.mentionLibre}`
-      : demande.codeEntite,
+    // Copro tenue dans ESTALE : « *** » a la fin exclut la facture du ramassage BPO
+    // (cf. domain/facturation/marqueur-bpo).
+    pdf_invoice_free_text:
+      (demande.mentionLibre ? `${demande.codeEntite} - ${demande.mentionLibre}` : demande.codeEntite) +
+      (demande.horsTransfertBpo ? ` ${MARQUEUR_HORS_BPO}` : ""),
     currency: "EUR",
     language: "fr_FR",
     // label = titre court de la ligne, description = detail dessous. C'est la

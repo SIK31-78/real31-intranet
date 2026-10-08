@@ -40,6 +40,8 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
   // Jamais appele (aucune facture a emettre), mais getInvoicingProvider() est resolu.
   getInvoicingProvider: () => ({}),
+  // Aucune copro du test n'est tenue dans ESTALE : ni marqueur BPO, ni saisie ESTALE.
+  getComptaEstaleProvider: () => ({ coproPresente: async () => false }),
 }));
 
 import {

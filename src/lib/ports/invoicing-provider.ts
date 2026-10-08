@@ -36,6 +36,11 @@ export interface DemandeEmission {
    * compta). Absente = seul le code entite est imprime.
    */
   mentionLibre?: string;
+  /**
+   * Copro tenue dans ESTALE : la facture porte le marqueur « *** » qui l'exclut du
+   * ramassage BPO vers CRYPTO (cf. domain/facturation/marqueur-bpo). Absent = CRYPTO.
+   */
+  horsTransfertBpo?: boolean;
   /** Libelle general de la facture. */
   libelle: string;
   /** Objet de la facture (pdf_invoice_subject), ex "Honoraires du trimestre en cours". */

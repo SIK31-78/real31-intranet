@@ -12,7 +12,7 @@
 // une facture passe a 'facturee' et ne peut plus etre re-emise par ce service
 // (pas de double facturation si le job est relance).
 
-import { getFacturationRepository, getInvoicingProvider } from "@/lib/adapters/router";
+import { getComptaEstaleProvider, getFacturationRepository, getInvoicingProvider } from "@/lib/adapters/router";
 import type { FactureAEmettre, TypePrestation } from "@/lib/ports/facturation-repository";
 
 /** Titre court de la ligne sur le PDF. Le legacy le tirait de la liste Produits ;
@@ -70,6 +70,7 @@ export interface ResultatEmissionLot {
 export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatEmissionLot> {
   const repo = getFacturationRepository();
   const provider = getInvoicingProvider();
+  const estale = getComptaEstaleProvider();
 
   const factures = await repo.listerFacturesAEmettre(ids);
   const resultat: ResultatEmissionLot = { emises: 0, enErreur: 0, erreurs: [] };
@@ -93,11 +94,24 @@ export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatE
 
       const agence = await repo.getAgenceCopro(facture.coproCode);
       const mention = mentionLibre(facture);
+      // Copro ESTALE -> marqueur « *** » : BPO ne la ramasse pas vers CRYPTO, l'intranet
+      // la saisit lui-meme dans ESTALE. Si ESTALE ne repond pas, on ne devine PAS :
+      // l'emission echoue (rejouable) plutot que de risquer une double saisie.
+      let horsBpo: boolean;
+      try {
+        horsBpo = await estale.coproPresente(facture.coproCode);
+      } catch (erreur) {
+        const detail = erreur instanceof Error ? erreur.message : String(erreur);
+        throw new Error(
+          `Impossible de savoir si ${facture.coproCode} est tenue dans ESTALE (${detail}). Facture non émise, à réessayer.`,
+        );
+      }
 
       const { factureExterneId } = await provider.emettreFacture({
         clientRef,
         codeEntite: facture.coproCode,
         ...(mention ? { mentionLibre: mention } : {}),
+        ...(horsBpo ? { horsTransfertBpo: true } : {}),
         libelle: facture.libelle,
         sujet: SUJET_PRESTATION[facture.typePrestation],
         dateFacture: facture.dateFacture,

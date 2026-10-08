@@ -10,6 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FacturationRepository, FactureAEmettre } from "@/lib/ports/facturation-repository";
 import type { DemandeEmission, InvoicingProvider } from "@/lib/ports/invoicing-provider";
+import type { ComptaEstaleProvider } from "@/lib/ports/compta-estale-provider";
 import { construirePayloadFacture } from "@/lib/adapters/pennylane/payload";
 
 const etat = vi.hoisted(() => {
@@ -20,7 +21,12 @@ const etat = vi.hoisted(() => {
     facturees: [] as string[],
     /** Fait echouer l'emission de ces factures (par id). */
     enPanne: new Set<string>(),
+    /** Copros tenues dans ESTALE (marqueur hors BPO). */
+    coprosEstale: new Set<string>(),
+    estaleEnPanne: false,
     reset() {
+      ref.coprosEstale.clear();
+      ref.estaleEnPanne = false;
       ref.aEmettre = [];
       ref.demandes = [];
       ref.erreurs = [];
@@ -52,6 +58,12 @@ vi.mock("@/lib/adapters/router", () => ({
     },
     async marquerErreur(id: string, message: string) {
       etat.erreurs.push({ id, message });
+    },
+  }),
+  getComptaEstaleProvider: (): Partial<Record<keyof ComptaEstaleProvider, unknown>> => ({
+    async coproPresente(code: string) {
+      if (etat.estaleEnPanne) throw new Error("GraphQL Estale HTTP 503");
+      return etat.coprosEstale.has(code);
     },
   }),
   getInvoicingProvider: (): Partial<Record<keyof InvoicingProvider, unknown>> => ({
@@ -134,6 +146,40 @@ describe("emission - reference du sinistre sur le PDF", () => {
     for (const demande of etat.demandes) {
       expect(construirePayloadFacture(demande).pdf_invoice_free_text).toBe("S072");
     }
+  });
+});
+
+describe("emission - marqueur hors BPO des copros ESTALE", () => {
+  it("copro ESTALE : « *** » en fin de texte libre, quelle que soit la prestation", async () => {
+    etat.coprosEstale.add("S297");
+    etat.aEmettre = [
+      facture({ id: "f1", coproCode: "S297", typePrestation: "etat_date", details: null }),
+      facture({ id: "f2", coproCode: "S297", details: { libelleSinistre: "S297DDE" } }),
+    ];
+
+    await emettreFacturesEnAttente(["f1", "f2"]);
+
+    expect(construirePayloadFacture(etat.demandes[0]!).pdf_invoice_free_text).toBe("S297 ***");
+    expect(construirePayloadFacture(etat.demandes[1]!).pdf_invoice_free_text).toBe("S297 - S297DDE ***");
+  });
+
+  it("copro CRYPTO : aucun marqueur, BPO la ramasse comme avant", async () => {
+    etat.aEmettre = [facture({ id: "f1", coproCode: "S016", details: null })];
+
+    await emettreFacturesEnAttente(["f1"]);
+
+    expect(construirePayloadFacture(etat.demandes[0]!).pdf_invoice_free_text).toBe("S016");
+  });
+
+  it("ESTALE injoignable : la facture n'est pas emise (pas de double saisie), elle reste rejouable", async () => {
+    etat.estaleEnPanne = true;
+    etat.aEmettre = [facture({ id: "f1", coproCode: "S297", details: null })];
+
+    const resultat = await emettreFacturesEnAttente(["f1"]);
+
+    expect(resultat.enErreur).toBe(1);
+    expect(etat.demandes).toHaveLength(0);
+    expect(etat.erreurs[0]?.message).toMatch(/tenue dans ESTALE/);
   });
 });
 
