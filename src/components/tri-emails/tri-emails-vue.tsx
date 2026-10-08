@@ -18,14 +18,17 @@ import {
   type NatureSuggestion,
 } from "@/lib/domain/tri-emails";
 import {
+  affecterCoproAction,
+  ajouterAssistantAction,
   annulerRangementAction,
-  definirBinomeAction,
+  definirPrincipalAction,
   rangerMailAction,
-  retirerBinomeAction,
+  retirerAssistantAction,
 } from "@/app/tri-emails/actions";
 import { Badge, type BadgeTon } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Tab, TabList, TabPanel } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -150,7 +153,7 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
           panelId="tri-p-binomes"
           active={onglet === "binomes"}
           onClick={() => setOnglet("binomes")}
-          count={file.binomes.filter((b) => !b.assistant).length || undefined}
+          count={file.binomes.filter((b) => b.copros.length > 0 && !b.principal).length || undefined}
         >
           Binômes
         </Tab>
@@ -511,150 +514,236 @@ function JournalVue({
   );
 }
 
-/** Les binomes : un gestionnaire de copros ESTALE, son assistant, le dossier qui en decoule. */
+/** Les binomes : un gestionnaire, son assistant principal, ses autres assistants et leurs copros. */
 function BinomesVue({ lignes, collaborateurs }: { lignes: LigneBinome[]; collaborateurs: Collaborateur[] }) {
-  if (lignes.length === 0) return <EmptyState>Aucun gestionnaire de copropriété ESTALE.</EmptyState>;
+  if (lignes.length === 0) return <EmptyState>Aucun gestionnaire à afficher.</EmptyState>;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-meta text-ink-2 max-w-[75ch]">
-        ESTALE donne le gestionnaire de chaque copropriété ; l&apos;assistant se choisit ici. Changer
-        d&apos;assistant ne déplace aucun mail : le dossier du binôme est renommé au prochain rangement.
+        ESTALE donne le gestionnaire de chaque copropriété ; les assistants se tiennent ici. L&apos;assistant
+        principal reçoit les mails de toutes les copropriétés du gestionnaire, sauf celles confiées à un autre
+        assistant. Changer d&apos;assistant ne déplace aucun mail : le dossier est renommé au prochain rangement.
       </p>
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-        <table className="w-full text-body">
-          <thead className="bg-surface-2 text-meta uppercase tracking-wider text-ink-3">
-            <tr>
-              <th className="text-left font-medium px-3 py-2">Gestionnaire</th>
-              <th className="text-left font-medium px-3 py-2">Copropriétés ESTALE</th>
-              <th className="text-left font-medium px-3 py-2">Assistant</th>
-              <th className="text-left font-medium px-3 py-2">Dossier</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lignes.map((l) => (
-              <LigneBinomeVue key={l.gestionnaire.email} ligne={l} collaborateurs={collaborateurs} />
-            ))}
-          </tbody>
-        </table>
+      <ul className="flex flex-col gap-2.5">
+        {lignes.map((l) => (
+          <LigneBinomeVue key={l.gestionnaire.email} ligne={l} collaborateurs={collaborateurs} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Barre de recherche d'un collaborateur (nom, initiales, e-mail). */
+function ChoixCollaborateur({
+  id,
+  collaborateurs,
+  exclure,
+  desactive,
+  choisir,
+  fermer,
+}: {
+  id: string;
+  collaborateurs: Collaborateur[];
+  exclure: string[];
+  desactive: boolean;
+  choisir: (email: string) => void;
+  fermer: () => void;
+}) {
+  const [recherche, setRecherche] = useState("");
+  const resultats = useMemo(() => {
+    const q = normaliser(recherche.trim());
+    if (!q) return [];
+    return collaborateurs
+      .filter((c) => !exclure.includes(c.email))
+      .filter((c) => normaliser(`${c.nomComplet} ${c.email} ${c.initiales}`).includes(q))
+      .slice(0, 6);
+  }, [collaborateurs, recherche, exclure]);
+  return (
+    <div className="flex flex-col gap-1.5 w-full max-w-[360px]">
+      <div className="flex gap-2">
+        <label htmlFor={id} className="sr-only">
+          Chercher un collaborateur
+        </label>
+        <input
+          id={id}
+          type="search"
+          autoFocus
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Nom, initiales ou e-mail"
+          autoComplete="off"
+          className="w-full rounded-lg border border-line bg-canvas px-3 py-1.5 text-body focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        />
+        <Button size="sm" variant="ghost" onClick={fermer}>
+          Fermer
+        </Button>
       </div>
+      {resultats.length > 0 && (
+        <ul className="rounded-lg border border-line divide-y divide-line bg-surface">
+          {resultats.map((c) => (
+            <li key={c.email}>
+              <button
+                type="button"
+                disabled={desactive}
+                onClick={() => choisir(c.email)}
+                className="w-full flex gap-3 px-3 py-1.5 text-left hover:bg-surface-2"
+              >
+                <span className="font-mono text-meta text-green-700 min-w-[40px]">{c.initiales}</span>
+                <span className="text-ink">{c.nomComplet}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
 function LigneBinomeVue({ ligne, collaborateurs }: { ligne: LigneBinome; collaborateurs: Collaborateur[] }) {
-  const [edition, setEdition] = useState(false);
-  const [recherche, setRecherche] = useState("");
+  const [edition, setEdition] = useState<"principal" | "autre" | null>(null);
   const [enCours, demarrer] = useTransition();
   const router = useRouter();
   const toast = useToast();
   const emailG = ligne.gestionnaire.email.toLowerCase();
+  const dejaPris = [emailG, ...(ligne.principal ? [ligne.principal.assistant.email] : []), ...ligne.autres.map((x) => x.assistant.email)];
 
-  const resultats = useMemo(() => {
-    const q = normaliser(recherche.trim());
-    if (!q) return [];
-    return collaborateurs
-      .filter((c) => c.email !== emailG)
-      .filter((c) => normaliser(`${c.nomComplet} ${c.email} ${c.initiales}`).includes(q))
-      .slice(0, 6);
-  }, [collaborateurs, recherche, emailG]);
-
-  function choisir(email: string) {
+  function agir(action: () => Promise<{ ok: boolean; erreur?: string }>, succes: string) {
     demarrer(async () => {
-      const r = await definirBinomeAction({ gestionnaire: ligne.gestionnaire.email, assistant: email });
+      const r = await action();
       if (!r.ok) {
-        toast.err(r.erreur);
+        toast.err(r.erreur ?? "Échec.");
         return;
       }
-      setEdition(false);
-      setRecherche("");
-      toast.ok("Binôme enregistré.");
-      router.refresh();
-    });
-  }
-
-  function retirer() {
-    demarrer(async () => {
-      const r = await retirerBinomeAction({ gestionnaire: ligne.gestionnaire.email });
-      if (!r.ok) {
-        toast.err(r.erreur);
-        return;
-      }
-      toast.ok("Assistant retiré du binôme.");
+      setEdition(null);
+      toast.ok(succes);
       router.refresh();
     });
   }
 
   const estale = ligne.assistantEstale;
-  const idRecherche = `binome-${emailG}`;
+  const plusieurs = ligne.autres.length > 0;
+  const options = [
+    { value: "principal", label: ligne.principal?.nomDossier ?? ligne.nomDossierSeul ?? "Principal" },
+    ...ligne.autres.map((x) => ({ value: x.id, label: x.nomDossier ?? x.assistant.nomComplet })),
+  ];
+
   return (
-    <tr className="border-t border-line align-top">
-      <td className="px-3 py-2.5">
+    <li className="rounded-xl border border-line bg-surface px-4 py-3 grid gap-3 lg:grid-cols-[minmax(180px,1fr)_2fr]">
+      <div className="min-w-0">
         <span className="text-ink font-medium">{ligne.gestionnaire.nomComplet}</span>
-        <span className="block text-meta text-ink-3 font-mono">{ligne.gestionnaire.email}</span>
-      </td>
-      <td className="px-3 py-2.5 font-mono text-meta text-ink-2">{ligne.copros.join(", ")}</td>
-      <td className="px-3 py-2.5 min-w-[260px]">
-        {!edition ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {ligne.assistant ? <span className="text-ink">{ligne.assistant.nomComplet}</span> : <Badge ton="warn">Non renseigné</Badge>}
-            <Button size="sm" variant="secondary" disabled={enCours} onClick={() => setEdition(true)}>
-              {ligne.assistant ? "Changer" : "Choisir"}
-            </Button>
-            {ligne.assistant && (
-              <Button size="sm" variant="ghost" disabled={enCours} onClick={retirer}>
+        <span className="block text-meta text-ink-3 font-mono truncate">{ligne.gestionnaire.email}</span>
+        <span className="block text-meta text-ink-3 mt-1">
+          {ligne.copros.length === 0
+            ? "Pas encore de copropriété ESTALE"
+            : `${ligne.copros.length} copropriété${ligne.copros.length > 1 ? "s" : ""} ESTALE`}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2.5 min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-meta uppercase tracking-wider text-ink-3 w-[150px]">Assistant principal</span>
+          {edition === "principal" ? (
+            <ChoixCollaborateur
+              id={`principal-${emailG}`}
+              collaborateurs={collaborateurs}
+              exclure={[emailG]}
+              desactive={enCours}
+              fermer={() => setEdition(null)}
+              choisir={(email) => agir(() => definirPrincipalAction({ gestionnaire: emailG, assistant: email }), "Assistant principal enregistré.")}
+            />
+          ) : (
+            <>
+              {ligne.principal ? (
+                <span className="text-ink">{ligne.principal.assistant.nomComplet}</span>
+              ) : (
+                <Badge ton="neutral">Aucun</Badge>
+              )}
+              <span className="font-mono text-meta text-ink-2">{ligne.principal?.nomDossier ?? ligne.nomDossierSeul ?? ""}</span>
+              <Button size="sm" variant="secondary" disabled={enCours} onClick={() => setEdition("principal")}>
+                {ligne.principal ? "Changer" : "Choisir"}
+              </Button>
+              {ligne.principal && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={enCours}
+                  onClick={() => agir(() => retirerAssistantAction({ binomeId: ligne.principal!.id }), "Assistant principal retiré.")}
+                >
+                  Retirer
+                </Button>
+              )}
+              {!ligne.principal && estale && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={enCours}
+                  onClick={() => agir(() => definirPrincipalAction({ gestionnaire: emailG, assistant: estale.email }), "Assistant principal enregistré.")}
+                >
+                  Prendre {estale.nomComplet} (ESTALE)
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-meta uppercase tracking-wider text-ink-3 w-[150px]">Autres assistants</span>
+          {ligne.autres.map((x) => (
+            <span key={x.id} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-canvas pl-2.5 pr-1 py-0.5">
+              <span className="text-ink">{x.assistant.nomComplet}</span>
+              <span className="font-mono text-meta text-ink-2">{x.nomDossier}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={enCours}
+                onClick={() => agir(() => retirerAssistantAction({ binomeId: x.id }), "Assistant retiré : ses copropriétés reviennent au principal.")}
+              >
                 Retirer
               </Button>
-            )}
-            {!ligne.assistant && estale && (
-              <Button size="sm" variant="ghost" disabled={enCours} onClick={() => choisir(estale.email)}>
-                Prendre {estale.nomComplet} (ESTALE)
-              </Button>
-            )}
-          </div>
-        ) : (
+            </span>
+          ))}
+          {edition === "autre" ? (
+            <ChoixCollaborateur
+              id={`autre-${emailG}`}
+              collaborateurs={collaborateurs}
+              exclure={dejaPris}
+              desactive={enCours}
+              fermer={() => setEdition(null)}
+              choisir={(email) => agir(() => ajouterAssistantAction({ gestionnaire: emailG, assistant: email }), "Assistant ajouté.")}
+            />
+          ) : (
+            <Button size="sm" variant="ghost" disabled={enCours || !ligne.principal} onClick={() => setEdition("autre")}>
+              {ligne.principal ? "Ajouter" : "Choisir d'abord le principal"}
+            </Button>
+          )}
+        </div>
+
+        {plusieurs && ligne.copros.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <div className="flex gap-2">
-              <label htmlFor={idRecherche} className="sr-only">
-                Chercher un collaborateur
-              </label>
-              <input
-                id={idRecherche}
-                type="search"
-                autoFocus
-                value={recherche}
-                onChange={(e) => setRecherche(e.target.value)}
-                placeholder="Nom, initiales ou e-mail"
-                autoComplete="off"
-                className="w-full rounded-lg border border-line bg-canvas px-3 py-1.5 text-body focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
-              />
-              <Button size="sm" variant="ghost" onClick={() => setEdition(false)}>
-                Fermer
-              </Button>
-            </div>
-            {resultats.length > 0 && (
-              <ul className="rounded-lg border border-line divide-y divide-line">
-                {resultats.map((c) => (
-                  <li key={c.email}>
-                    <button
-                      type="button"
-                      disabled={enCours}
-                      onClick={() => choisir(c.email)}
-                      className="w-full flex gap-3 px-3 py-1.5 text-left hover:bg-surface-2"
-                    >
-                      <span className="font-mono text-meta text-green-700 min-w-[40px]">{c.initiales}</span>
-                      <span className="text-ink">{c.nomComplet}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <span className="text-meta uppercase tracking-wider text-ink-3">Qui s&apos;occupe de quelle copropriété</span>
+            <ul className="flex flex-col gap-1.5">
+              {ligne.copros.map((c) => (
+                <li key={c.reference} className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-meta text-green-700 min-w-[52px]">{c.reference}</span>
+                  <span className="text-ink min-w-[140px]">{c.nom}</span>
+                  <SegmentedControl
+                    size="sm"
+                    label={`Assistant de ${c.reference}`}
+                    options={options}
+                    value={c.binomeId ?? "principal"}
+                    disabled={enCours}
+                    onChange={(v) => {
+                      const binomeId = !v || v === "principal" ? null : v;
+                      agir(() => affecterCoproAction({ reference: c.reference, binomeId }), `${c.reference} affectée.`);
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
           </div>
         )}
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        {ligne.nomDossier ? <span className="font-mono">{ligne.nomDossier}</span> : <span className="text-meta text-ink-3">Initiales inconnues</span>}
-      </td>
-    </tr>
+      </div>
+    </li>
   );
 }
 

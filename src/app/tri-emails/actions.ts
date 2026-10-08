@@ -10,7 +10,7 @@ import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { estSuperAdmin } from "@/lib/auth/session";
 import { annulerRangement, rangerMail } from "@/lib/services/tri-emails/ranger";
-import { definirBinome, retirerBinome } from "@/lib/services/tri-emails/binomes";
+import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
 
 const zTexte = (max: number) => z.string().max(max);
 const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune"]);
@@ -50,24 +50,34 @@ export async function annulerRangementAction(input: unknown): Promise<Res> {
 }
 
 const zEmail = z.string().email().max(320);
+const zId = z.string().min(1).max(80);
 
-export async function definirBinomeAction(input: unknown): Promise<Res> {
-  return actionGestionnaire(
-    z.object({ gestionnaire: zEmail, assistant: zEmail }),
-    input,
-    "tri-emails-binome",
-    async (d, g) => {
+function binomeAction<S extends z.ZodTypeAny>(schema: S, corps: (d: z.output<S>, par: string) => Promise<void>) {
+  return (input: unknown): Promise<Res> =>
+    actionGestionnaire(schema, input, "tri-emails-binome", async (d, g) => {
       gardePilote(g.email);
-      await definirBinome(d.gestionnaire, d.assistant, g.email ?? g.id);
+      await corps(d, g.email ?? g.id);
       revalidatePath("/tri-emails");
-    },
-  );
+    });
 }
 
-export async function retirerBinomeAction(input: unknown): Promise<Res> {
-  return actionGestionnaire(z.object({ gestionnaire: zEmail }), input, "tri-emails-binome", async (d, g) => {
-    gardePilote(g.email);
-    await retirerBinome(d.gestionnaire);
-    revalidatePath("/tri-emails");
-  });
+const zPersonnes = z.object({ gestionnaire: zEmail, assistant: zEmail });
+
+export async function definirPrincipalAction(input: unknown): Promise<Res> {
+  return binomeAction(zPersonnes, (d, par) => definirPrincipal(d.gestionnaire, d.assistant, par))(input);
+}
+
+export async function ajouterAssistantAction(input: unknown): Promise<Res> {
+  return binomeAction(zPersonnes, (d, par) => ajouterAssistant(d.gestionnaire, d.assistant, par))(input);
+}
+
+export async function retirerAssistantAction(input: unknown): Promise<Res> {
+  return binomeAction(z.object({ binomeId: zId }), (d) => retirerAssistant(d.binomeId))(input);
+}
+
+export async function affecterCoproAction(input: unknown): Promise<Res> {
+  return binomeAction(
+    z.object({ reference: z.string().regex(/^(SE|S)\d{3,4}$/), binomeId: zId.nullable() }),
+    (d, par) => affecterCopro(d.reference, d.binomeId, par),
+  )(input);
 }
