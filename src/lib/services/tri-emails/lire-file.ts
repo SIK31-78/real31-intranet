@@ -1,13 +1,16 @@
 // Service du tri des e-mails V2 (ADR-046) : la file a trier = la boite de reception de
 // la boite generique, lue en direct. Pour chaque mail : la copro ESTALE proposee ; pour
 // chaque copro : ou partirait le mail (dossier aux initiales du gestionnaire).
-// LECTURE SEULE (increment 1) : rien n'est deplace ni etiquete.
+// Lecture : rien n'est deplace ici (le rangement vit dans ranger.ts). Les mails deja
+// ranges (journal non annule) sont retires de la file, ce qui couvre aussi la simulation
+// ou le mail n'a pas bouge.
 
 import {
   destinationDe,
   suggererCopro,
   type CoproTri,
   type Destination,
+  type EntreeJournalTri,
   type MailATrier,
   type Suggestion,
 } from "@/lib/domain/tri-emails";
@@ -16,7 +19,9 @@ import {
   getGestionnaireRepository,
   getIngestionTri,
   getReferentielTriProvider,
+  getTriRepository,
 } from "@/lib/adapters/router";
+import { rangementSimule } from "./ranger";
 
 /** Nombre de mails lus a chaque affichage : la file du jour, pas l'historique. */
 const MAX_FILE = 100;
@@ -37,9 +42,15 @@ export interface FileATrier {
   boite: string;
   mails: MailDeLaFile[];
   copros: CoproDeLaFile[];
+  /** Rangements des 7 derniers jours (revue de fin de semaine), les plus recents d'abord. */
+  journal: EntreeJournalTri[];
+  /** true = l'ecriture dans la boite est coupee : les rangements sont simules. */
+  simulation: boolean;
   /** Message lisible si la boite ou ESTALE n'a pas repondu ; la page reste affichable. */
   erreur: string | null;
 }
+
+const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
 
 async function initialesParEmail(): Promise<Record<string, string>> {
   const tous = await getGestionnaireRepository().listTous();
@@ -52,10 +63,13 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const boite = boiteTriConfiguree();
   if (!boite) return null;
 
-  const [refRes, mailsRes, iniRes] = await Promise.allSettled([
+  const repo = getTriRepository();
+  const [refRes, mailsRes, iniRes, binRes, journalRes] = await Promise.allSettled([
     getReferentielTriProvider().charger(),
     getIngestionTri().lireRecents({ email: boite, max: MAX_FILE }),
     initialesParEmail(),
+    repo.binomes(),
+    repo.journalDepuis(boite, new Date(Date.now() - SEPT_JOURS_MS).toISOString()),
   ]);
 
   const erreurs: string[] = [];
@@ -71,7 +85,12 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
 
   const ref = refRes.status === "fulfilled" ? refRes.value : { copros: [], expediteurs: {} };
   const initiales = iniRes.status === "fulfilled" ? iniRes.value : {};
-  const bruts = mailsRes.status === "fulfilled" ? mailsRes.value : [];
+  const binomes = binRes.status === "fulfilled" ? binRes.value : {};
+  const journal = journalRes.status === "fulfilled" ? journalRes.value : [];
+  if (journalRes.status === "rejected") erreurs.push("Le journal du tri est indisponible.");
+  const tous = mailsRes.status === "fulfilled" ? mailsRes.value : [];
+  const ranges = await repo.dejaRanges(boite, tous.map((m) => m.internetMessageId)).catch(() => new Set<string>());
+  const bruts = tous.filter((m) => !ranges.has(m.internetMessageId));
 
   const mails: MailDeLaFile[] = bruts.map((m) => {
     const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
@@ -93,7 +112,14 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     };
   });
 
-  const copros: CoproDeLaFile[] = ref.copros.map((c) => ({ ...c, destination: destinationDe(c, initiales) }));
+  const copros: CoproDeLaFile[] = ref.copros.map((c) => ({ ...c, destination: destinationDe(c, initiales, binomes) }));
 
-  return { boite, mails, copros, erreur: erreurs.length ? erreurs.join(" ") : null };
+  return {
+    boite,
+    mails,
+    copros,
+    journal,
+    simulation: rangementSimule(boite),
+    erreur: erreurs.length ? erreurs.join(" ") : null,
+  };
 }
