@@ -194,32 +194,98 @@ ${mail.apercu}`);
   return { nature: "aucune", candidats: [], raison: "Adresse inconnue dans ESTALE et aucun code de copropriété dans le mail." };
 }
 
-/** Ou part le mail quand on l'attribue (option A : un dossier par gestionnaire). */
+/** Ou part le mail quand on l'attribue a une copro : le dossier du binome (ADR-046). */
 export interface Destination {
   gestionnaire: MembreTri;
-  /** Initiales du gestionnaire (table User de l'intranet). null = inconnues : on ne peut pas ranger. */
-  initiales: string | null;
-  /** Chemin affiche, ex "Boîte de réception › SK". */
-  dossier: string | null;
+  /** Assistant du binome : celui tenu dans l'intranet, a defaut celui d'ESTALE. */
   assistant: MembreTri | null;
+  /** Cle stable du dossier (le binome = son gestionnaire) : survit au changement d'assistant. */
+  cle: string;
+  /** Nom du dossier, ex "SK-CP" ; null si les initiales du gestionnaire sont inconnues. */
+  nomDossier: string | null;
+  /** Chemin affiche, ex "Boîte de réception › SK-CP" ; null = on ne peut pas ranger. */
+  dossier: string | null;
+}
+
+/** Les deux dossiers hors binome (arbitrage du 30/09/2026). */
+export const DOSSIERS_HORS_BINOME = {
+  comptabilite: "Comptabilité",
+  divers: "Divers",
+} as const;
+export type DossierHorsBinome = keyof typeof DOSSIERS_HORS_BINOME;
+
+/** Ce qu'un collaborateur choisit pour un mail. */
+export type CibleTri = { type: "copro"; reference: string } | { type: DossierHorsBinome };
+
+const cheminSousReception = (nom: string) => `Boîte de réception › ${nom}`;
+
+/** "SK" + "CP" -> "SK-CP" ; binome sans assistant -> "SK". */
+export function nomDossierBinome(initialesGestionnaire: string, initialesAssistant: string | null): string {
+  const g = initialesGestionnaire.trim().toUpperCase();
+  const a = initialesAssistant?.trim().toUpperCase();
+  return a ? `${g}-${a}` : g;
+}
+
+/** Cle de dossier d'un binome : le gestionnaire (son e-mail), pas les initiales qui peuvent changer. */
+export function cleDossierBinome(emailGestionnaire: string): string {
+  return `binome:${emailGestionnaire.trim().toLowerCase()}`;
+}
+
+export function cheminDossierHorsBinome(d: DossierHorsBinome): string {
+  return cheminSousReception(DOSSIERS_HORS_BINOME[d]);
 }
 
 /**
  * Destination d'un mail rattache a une copro. Les initiales viennent de l'intranet et
  * non d'ESTALE : le nom complet ESTALE ne donne souvent qu'un prenom (constat du 25/09).
+ * L'assistant du binome vient de l'intranet (`assistantParGestionnaire`), a defaut d'ESTALE.
  */
 export function destinationDe(
   copro: CoproTri,
   initialesParEmail: Record<string, string>,
+  binomes: Record<string, MembreTri> = {},
 ): Destination | null {
   if (!copro.gestionnaire) return null;
-  const initiales = initialesParEmail[copro.gestionnaire.email.trim().toLowerCase()]?.trim() || null;
+  const emailG = copro.gestionnaire.email.trim().toLowerCase();
+  const assistant = binomes[emailG] ?? copro.assistant;
+  const iniG = initialesParEmail[emailG]?.trim() || null;
+  const iniA = assistant ? initialesParEmail[assistant.email.trim().toLowerCase()]?.trim() || null : null;
+  const nomDossier = iniG ? nomDossierBinome(iniG, iniA) : null;
   return {
     gestionnaire: copro.gestionnaire,
-    initiales,
-    dossier: initiales ? `Boîte de réception › ${initiales}` : null,
-    assistant: copro.assistant,
+    assistant,
+    cle: cleDossierBinome(emailG),
+    nomDossier,
+    dossier: nomDossier ? cheminSousReception(nomDossier) : null,
   };
+}
+
+/** Une ligne du journal du tri : ce qui a ete range, ou, par qui, sur quel signal. */
+export interface EntreeJournalTri {
+  id: string;
+  boite: string;
+  internetMessageId: string;
+  /** Id Graph du mail APRES deplacement (sert a l'annulation). */
+  messageId: string;
+  expediteur: string;
+  objet: string;
+  coproReference: string | null;
+  /** Nom du dossier au moment du rangement, ex "SK-CP" ou "Comptabilité". */
+  dossierNom: string;
+  /** La suggestion au moment du clic : sa nature et ses candidates (mesure de fiabilite). */
+  signal: NatureSuggestion | null;
+  candidats: string[];
+  /** true = rangement simule (ecriture Graph coupee) : le mail n'a pas bouge. */
+  simulation: boolean;
+  par: string;
+  faitLe: string;
+  annuleLe: string | null;
+}
+
+/** La suggestion a-t-elle ete suivie ? Sert a mesurer chaque signal avant de l'automatiser. */
+export function suggestionSuivie(e: Pick<EntreeJournalTri, "coproReference" | "candidats">): boolean | null {
+  if (e.candidats.length === 0) return null;
+  return e.coproReference !== null && e.candidats[0] === e.coproReference;
 }
 
 /** Intitule ESTALE d'un assistant de copropriete (pas "Assistante commerciale", pas "Assistant comptable"). */

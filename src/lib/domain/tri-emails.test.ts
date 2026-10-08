@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cleDeReference,
   destinationDe,
+  suggestionSuivie,
   estAssistantDeCopro,
   referencesCitees,
   suggererCopro,
@@ -104,9 +105,26 @@ describe("suggererCopro", () => {
 });
 
 describe("destinationDe", () => {
-  it("range dans le dossier aux initiales du gestionnaire", () => {
-    const d = destinationDe(copro("S0297", "Sophie@real31.fr"), { "sophie@real31.fr": "SK" });
-    expect(d?.dossier).toBe("Boîte de réception › SK");
+  const ini = { "sophie@real31.fr": "SK", "clara@real31.fr": "CP", "nadia@real31.fr": "NF" };
+
+  it("range dans le dossier du binome", () => {
+    const d = destinationDe(copro("S0297", "Sophie@real31.fr"), ini, {
+      "sophie@real31.fr": { nomComplet: "Clara", email: "clara@real31.fr" },
+    });
+    expect(d?.dossier).toBe("Boîte de réception › SK-CP");
+    expect(d?.cle).toBe("binome:sophie@real31.fr");
+  });
+
+  it("le binome de l'intranet passe devant l'assistant d'ESTALE", () => {
+    const c = { ...copro("S0297", "sophie@real31.fr"), assistant: { nomComplet: "Nadia", email: "nadia@real31.fr" } };
+    expect(destinationDe(c, ini)?.nomDossier).toBe("SK-NF");
+    expect(destinationDe(c, ini, { "sophie@real31.fr": { nomComplet: "Clara", email: "clara@real31.fr" } })?.nomDossier).toBe("SK-CP");
+  });
+
+  it("sans assistant, le dossier porte le seul gestionnaire et garde la meme cle", () => {
+    const d = destinationDe(copro("S0297", "sophie@real31.fr"), ini);
+    expect(d?.nomDossier).toBe("SK");
+    expect(d?.cle).toBe("binome:sophie@real31.fr");
   });
 
   it("sans initiales connues, pas de dossier", () => {
@@ -115,6 +133,15 @@ describe("destinationDe", () => {
 
   it("sans gestionnaire au mandat, pas de destination", () => {
     expect(destinationDe({ ...copro("S0297"), gestionnaire: null }, {})).toBeNull();
+  });
+});
+
+describe("suggestionSuivie", () => {
+  it("compare la copro choisie a la premiere candidate", () => {
+    expect(suggestionSuivie({ coproReference: "S0297", candidats: ["S0297"] })).toBe(true);
+    expect(suggestionSuivie({ coproReference: "S0305", candidats: ["S0297", "S0305"] })).toBe(false);
+    expect(suggestionSuivie({ coproReference: null, candidats: ["S0297"] })).toBe(false);
+    expect(suggestionSuivie({ coproReference: "S0297", candidats: [] })).toBeNull();
   });
 });
 
