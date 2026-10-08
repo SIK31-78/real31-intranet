@@ -10,6 +10,45 @@ Lire dans l'ordre : Linear (pilotage) -> `ROADMAP.md` (une page : branche, bloqu
 
 ---
 
+## Plusieurs agents, UN seul dossier : ne jamais commiter le travail du voisin
+
+Sekou fait souvent travailler plusieurs agents en parallèle, **dans le même dossier
+`real31-intranet`** (il refuse les dossiers multiples, cf. sa règle « un seul dossier »).
+Un seul dossier = **un seul index Git partagé**. Trois collisions mesurées le 04/09/2026 :
+des commits qui emportaient le travail à moitié écrit d'un autre agent.
+
+**La règle, non négociable : `git add` par CHEMINS EXPLICITES.**
+
+```bash
+git add src/lib/reprise/ src/components/layout/sidebar.tsx   # OUI
+git add -A          # NON
+git add .           # NON
+git add -A src/     # NON - ramasse aussi ce que le voisin écrit
+```
+
+Un agent qui ne sait pas nommer les fichiers qu'il a modifiés n'est pas prêt à commiter :
+qu'il relise son propre diff (`git diff --stat`) d'abord.
+
+**Avant de pousser**, dans cet ordre :
+
+1. `git diff --stat origin/main..main` — tout ce qui sort est-il bien de MOI ? Un fichier
+   étranger dans la liste = travail d'un autre agent aspiré, on répare avant de pousser.
+2. `git fetch origin main` puis `git log main..origin/main` — quelqu'un est-il passé avant ?
+3. S'il y a du monde devant : `git pull --rebase`, jamais un merge (l'historique reste
+   lisible et le crochet pre-push rejoue la CI sur le résultat réel).
+
+**Se répartir par ZONE DE CODE, pas par tâche.** Deux agents sur `src/components/layout/`
+se marcheront dessus même avec des sujets différents.
+
+**Worktree** (`git worktree add ../real31-chantier-x main`) : la seule étanchéité réelle,
+un index par agent. À réserver aux gros chantiers parallèles — ça coûte un second
+`pnpm install` et un dossier de plus, ce que Sekou n'aime pas. Nettoyer après.
+
+**Le crochet pre-push rejoue toute la CI** (tsc, eslint, vitest, audit UI) : deux agents qui
+poussent en même temps attendent chacun leur tour. C'est normal, ce n'est pas un blocage.
+
+---
+
 ## PDF scanné : OCRiser soi-même, ne jamais le demander au user
 
 La machine dispose de **tesseract (pack `fra`) et ocrmypdf 17.10**. Dès qu'un PDF n'a
