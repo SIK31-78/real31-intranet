@@ -42,6 +42,15 @@ function versRaw(m: GraphMessage): RawMail {
 }
 
 export class GraphMailIngestionProvider implements MailIngestionProvider {
+  async compterReception(email: string): Promise<number> {
+    const tk = await jetonGraph();
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(email)}/mailFolders/inbox?$select=totalItemCount`, {
+      headers: { Authorization: `Bearer ${tk}` },
+    });
+    if (!r.ok) throw new Error(`Graph inbox ${r.status}`);
+    return ((await r.json()) as { totalItemCount?: number }).totalItemCount ?? 0;
+  }
+
   async lireRecents(opts: OptionsIngestion): Promise<RawMail[]> {
     const boite = opts.email;
     if (!boite) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");

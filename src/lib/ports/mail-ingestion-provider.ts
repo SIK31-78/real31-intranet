@@ -13,4 +13,6 @@ export interface OptionsIngestion {
 
 export interface MailIngestionProvider {
   lireRecents(opts: OptionsIngestion): Promise<RawMail[]>;
+  /** Nombre de mails dans la boite de reception (un appel leger) ; facultatif. */
+  compterReception?(email: string): Promise<number>;
 }

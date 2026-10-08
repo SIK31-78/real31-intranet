@@ -35,6 +35,10 @@ const ECHANTILLON: RawMail[] = [
 ];
 
 export class EchantillonTriIngestion implements MailIngestionProvider {
+  async compterReception(): Promise<number> {
+    return ECHANTILLON.length;
+  }
+
   async lireRecents(opts: OptionsIngestion): Promise<RawMail[]> {
     return [...ECHANTILLON].reverse().slice(0, opts.max);
   }

@@ -52,6 +52,8 @@ type Item = {
   href: string;
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   count?: number;
+  /** Le compteur est une alerte (pastille rouge) : des choses attendent. */
+  alerte?: boolean;
   /** Page pas encore ouverte : grisee, non cliquable, badge "a venir". */
   aVenir?: boolean;
 };
@@ -202,11 +204,19 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
     >
       <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-rail-muted")} />
       <span className="truncate">{item.label}</span>
-      {item.count !== undefined && (
-        <span className={cn("ml-auto text-meta tabular-nums rounded-full border px-1.5", active ? "text-green-700 border-green-200" : "text-rail-muted border-rail-line")}>
-          {item.count}
-        </span>
-      )}
+      {item.count !== undefined &&
+        (item.alerte ? (
+          <span
+            className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-err-500 text-white text-meta font-semibold tabular-nums leading-[18px] text-center"
+            aria-label={`${item.count} à traiter`}
+          >
+            {item.count > 99 ? "99+" : item.count}
+          </span>
+        ) : (
+          <span className={cn("ml-auto text-meta tabular-nums rounded-full border px-1.5", active ? "text-green-700 border-green-200" : "text-rail-muted border-rail-line")}>
+            {item.count}
+          </span>
+        ))}
     </Link>
   );
 }
@@ -275,6 +285,7 @@ export function Sidebar({
   propositionsOuvertes = false,
   perteOuverte = false,
   triOuvert = false,
+  triATrier = null,
 }: {
   active: NavKey;
   user: { initiales: string; nomComplet: string };
@@ -301,6 +312,8 @@ export function Sidebar({
   perteOuverte?: boolean;
   /** Entree "Tri des e-mails" : la boite generique est configuree (MAIL_BOITE_TRI). */
   triOuvert?: boolean;
+  /** Mails dans la boite de reception generique (pastille rouge) ; null = inconnu. */
+  triATrier?: number | null;
 }) {
   return (
     <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto defilement-discret flex flex-col shadow-2 md:shadow-none">
@@ -359,7 +372,12 @@ export function Sidebar({
                 <SectionTitre>{groupe.titre}</SectionTitre>
                 {visibles.map((item) => {
                   // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
-                  const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
+                  const it =
+                    item.key === "emails" && !emailsOuvert
+                      ? { ...item, aVenir: true }
+                      : item.key === "tri-emails" && triATrier
+                        ? { ...item, count: triATrier, alerte: true }
+                        : item;
                   return <NavItem key={it.key} item={it} active={it.key === active} />;
                 })}
               </div>
