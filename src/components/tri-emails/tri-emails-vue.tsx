@@ -533,6 +533,16 @@ function BinomesVue({ lignes, collaborateurs }: { lignes: LigneBinome[]; collabo
   );
 }
 
+const ROLES: Record<string, string> = {
+  ASSISTANT: "Assistant",
+  GESTIONNAIRE: "Gestionnaire",
+  DIRECTEUR_SYNDIC: "Directeur syndic",
+  DIRECTEUR_AGENCE: "Directeur d'agence",
+  COMPTABLE: "Comptable",
+  ADMIN: "Administrateur",
+};
+const libelleRole = (role: string) => ROLES[role.toUpperCase()] ?? "Autre";
+
 /** Barre de recherche d'un collaborateur (nom, initiales, e-mail). */
 function ChoixCollaborateur({
   id,
@@ -590,6 +600,7 @@ function ChoixCollaborateur({
               >
                 <span className="font-mono text-meta text-green-700 min-w-[40px]">{c.initiales}</span>
                 <span className="text-ink">{c.nomComplet}</span>
+                {c.role && <span className="ml-auto text-meta text-ink-3">{libelleRole(c.role)}</span>}
               </button>
             </li>
           ))}

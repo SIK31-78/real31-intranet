@@ -6,12 +6,13 @@ const etat = vi.hoisted(() => ({ repo: null as unknown as MockTriRepository }));
 const gens = [
   { id: "1", nomComplet: "Sandy CARRIER", initiales: "SC", email: "sandy@real31.fr" },
   { id: "2", nomComplet: "Galiano GUAETTA", initiales: "GG", email: "galiano@real31.fr" },
-  { id: "3", nomComplet: "Julie BOIRON", initiales: "JB", email: "julie@real31.fr" },
+  { id: "3", nomComplet: "Julie BOIRON", initiales: "JB", email: "julie@real31.fr", role: "ASSISTANT" },
+  { id: "4", nomComplet: "Wilfrid-Huang TOHOUBI", initiales: "WHT", email: "wilfrid@real31.fr", role: "ASSISTANT" },
 ];
 
 vi.mock("@/lib/adapters/router", () => ({
   getTriRepository: () => etat.repo,
-  getGestionnaireRepository: () => ({ listTous: async () => gens, list: async () => gens.slice(0, 1) }),
+  getGestionnaireRepository: () => ({ listTous: async () => gens, list: async () => gens }),
   getReferentielTriProvider: () => ({
     charger: async () => ({
       copros: [
@@ -23,7 +24,9 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-const { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } = await import("@/lib/services/tri-emails/binomes");
+const { affecterCopro, ajouterAssistant, definirPrincipal, listerCollaborateurs, listerGestionnairesCabinet, retirerAssistant } = await import(
+  "@/lib/services/tri-emails/binomes"
+);
 
 const principalDe = async () => (await etat.repo.binomes()).binomes.find((b) => b.principal);
 
@@ -76,6 +79,11 @@ describe("binomes du tri", () => {
     await affecterCopro("S0297", julie.id, "sk");
     await retirerAssistant(julie.id);
     expect((await etat.repo.binomes()).parCopro).toEqual({});
+  });
+
+  it("la liste des gestionnaires ecarte les assistants ; le choix d'assistant les met en tete", async () => {
+    expect((await listerGestionnairesCabinet()).map((g) => g.email)).toEqual(["sandy@real31.fr", "galiano@real31.fr"]);
+    expect((await listerCollaborateurs()).slice(0, 2).map((c) => c.role)).toEqual(["ASSISTANT", "ASSISTANT"]);
   });
 
   it("refuse un gestionnaire assistant de lui-meme", async () => {

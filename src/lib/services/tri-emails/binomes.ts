@@ -13,7 +13,12 @@ import {
 /** Un collaborateur qu'on peut designer comme assistant. */
 export interface Collaborateur extends MembreTri {
   initiales: string;
+  /** Role de public."User" (ASSISTANT, GESTIONNAIRE...), pour l'affichage et le tri. */
+  role: string | null;
 }
+
+/** Roles qui ne gerent pas de copropriete : exclus de la liste des gestionnaires. */
+const ROLES_NON_GESTIONNAIRES = new Set(["ASSISTANT", "COMPTABLE"]);
 
 const minuscules = (e: string) => e.trim().toLowerCase();
 
@@ -21,15 +26,22 @@ export async function listerCollaborateurs(): Promise<Collaborateur[]> {
   const tous = await getGestionnaireRepository().listTous();
   return tous
     .filter((g): g is typeof g & { email: string } => Boolean(g.email))
-    .map((g) => ({ nomComplet: g.nomComplet, email: minuscules(g.email), initiales: g.initiales }))
-    .sort((a, b) => a.nomComplet.localeCompare(b.nomComplet, "fr"));
+    .map((g) => ({ nomComplet: g.nomComplet, email: minuscules(g.email), initiales: g.initiales, role: g.role ?? null }))
+    // Les assistants d'abord : ce sont eux qu'on cherche le plus souvent.
+    .sort((a, b) => Number(b.role === "ASSISTANT") - Number(a.role === "ASSISTANT") || a.nomComplet.localeCompare(b.nomComplet, "fr"));
 }
 
-/** Les gestionnaires du cabinet (ceux qui ont un portefeuille), meme sans copro ESTALE. */
+/**
+ * Les gestionnaires du cabinet, meme sans copro ESTALE. `list()` rend tous ceux qui
+ * figurent dans une equipe de copro, assistants compris (il sert aussi au dev-login) :
+ * on ecarte les roles qui ne gerent pas (constat de Sekou du 08/10/2026 : Wilfrid
+ * apparaissait en gestionnaire).
+ */
 export async function listerGestionnairesCabinet(): Promise<MembreTri[]> {
   const liste = await getGestionnaireRepository().list();
   return liste
     .filter((g): g is typeof g & { email: string } => Boolean(g.email))
+    .filter((g) => !ROLES_NON_GESTIONNAIRES.has((g.role ?? "").toUpperCase()))
     .map((g) => ({ nomComplet: g.nomComplet, email: minuscules(g.email) }));
 }
 
