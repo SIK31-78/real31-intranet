@@ -321,7 +321,15 @@ function DetailMail({
             </a>
           )}
         </div>
-        <p className="mt-3 pt-3 border-t border-line whitespace-pre-line text-ink-2 max-w-[68ch]">{mail.apercu}</p>
+        {/* Hauteur fixe, defilement interne (retour de Sekou du 08/10) : un long mail ne
+            repousse plus le bloc de rattachement sous la ligne de flottaison. */}
+        <div
+          tabIndex={0}
+          aria-label="Contenu du mail"
+          className="mt-3 pt-3 border-t border-line max-h-[38vh] overflow-y-auto pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded-sm"
+        >
+          <p className="whitespace-pre-line text-ink-2 max-w-[68ch]">{mail.apercu}</p>
+        </div>
         {mail.aPiecesJointes && <PiecesJointes internetMessageId={mail.internetMessageId} />}
       </section>
 
