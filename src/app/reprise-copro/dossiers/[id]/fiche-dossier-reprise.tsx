@@ -264,12 +264,13 @@ function EquipeDossier({
   equipe: EquipeReprise;
   collaborateurs: CollaborateurVue[];
 }) {
-  const [ids, setIds] = useState<Record<RoleReprise, string>>(() => ({
-    referent: equipe.referent?.id ?? "",
-    gestionnaire: equipe.gestionnaire?.id ?? "",
-    assistant: equipe.assistant?.id ?? "",
-    comptable: equipe.comptable?.id ?? "",
-  }));
+  const [ids, setIds] = useState<Record<RoleReprise, string>>(
+    () =>
+      Object.fromEntries(ROLES_REPRISE.map((r) => [r, equipe[r]?.id ?? ""])) as Record<
+        RoleReprise,
+        string
+      >,
+  );
   const [ecraser, setEcraser] = useState(false);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
@@ -280,12 +281,7 @@ function EquipeDossier({
     startTransition(async () => {
       const r = await definirEquipeAction(
         dossierRef,
-        {
-          referent: prochains.referent || null,
-          gestionnaire: prochains.gestionnaire || null,
-          assistant: prochains.assistant || null,
-          comptable: prochains.comptable || null,
-        },
+        Object.fromEntries(ROLES_REPRISE.map((r) => [r, prochains[r] || null])),
         forcer,
       );
       if (r.ok) toast.ok(messageOk);

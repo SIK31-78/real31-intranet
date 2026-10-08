@@ -208,12 +208,10 @@ export async function supprimerEtapeAdHocAction(ref: string, code: string): Prom
 
 const schemaEquipe = z.object({
   ref: zRef,
-  equipe: z.object({
-    referent: zPersonneId.optional(),
-    gestionnaire: zPersonneId.optional(),
-    assistant: zPersonneId.optional(),
-    comptable: zPersonneId.optional(),
-  }),
+  // Derive de ROLES_REPRISE : un role ajoute au domaine est accepte sans retoucher ici.
+  equipe: z.object(
+    Object.fromEntries(ROLES_REPRISE.map((r) => [r, zPersonneId.optional()])),
+  ),
   forcer: z.boolean().optional(),
 });
 

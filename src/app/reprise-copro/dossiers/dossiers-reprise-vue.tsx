@@ -293,12 +293,10 @@ function FormCreation({
   const [sortant, setSortant] = useState("");
   const [dateBascule, setDateBascule] = useState("");
   // Le référent = l'utilisateur courant par défaut (celui qui ouvre la reprise la conduit).
-  const [equipe, setEquipe] = useState<Record<RoleReprise, string>>({
+  const [equipe, setEquipe] = useState<Record<RoleReprise, string>>(() => ({
+    ...(Object.fromEntries(ROLES_REPRISE.map((r) => [r, ""])) as Record<RoleReprise, string>),
     referent: collaborateurs.some((c) => c.id === moi.id) ? moi.id : "",
-    gestionnaire: "",
-    assistant: "",
-    comptable: "",
-  });
+  }));
   const [pending, startTransition] = useTransition();
   const toast = useToast();
 

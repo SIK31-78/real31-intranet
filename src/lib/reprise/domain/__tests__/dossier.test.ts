@@ -27,8 +27,8 @@ function statut(etapes: Etape[], code: string) {
 }
 
 describe("checklist canonique v3", () => {
-  it("compte 44 etapes, codes uniques, phases connues, un role par etape", () => {
-    expect(ETAPES_REPRISE).toHaveLength(44);
+  it("compte 47 etapes, codes uniques, phases connues, un role par etape", () => {
+    expect(ETAPES_REPRISE).toHaveLength(47);
     const codes = ETAPES_REPRISE.map((e) => e.code);
     expect(new Set(codes).size).toBe(codes.length);
     for (const e of ETAPES_REPRISE) {
@@ -130,7 +130,8 @@ describe("reconcilierEtapes (migration douce)", () => {
     expect(ba2.majPar).toBe("Sekou");
     expect(ba2.phase).toBe("BANQUE");
     expect(ba2.libelle).toBe(ETAPES_REPRISE.find((e) => e.code === "BA2")!.libelle);
-    expect(ba2.role).toBe("assistant");
+    // BA2 est passee au role transverse « banque » le 08/10/2026 (Saint-Ouen).
+    expect(ba2.role).toBe("banque");
   });
 
   it("une etape ad hoc est TOUJOURS conservee (meme a_faire) et placee juste apres son apresCode", () => {

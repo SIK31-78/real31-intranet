@@ -53,11 +53,27 @@ const ANCIENNES_PHASES: Record<string, Phase> = {
 };
 
 /**
- * Roles d'une reprise. Le « referent » est la personne qui conduit la reprise au terminal avec le
- * skill (aujourd'hui Sekou) ; les trois autres sont les metiers du cabinet. Un role sert de
- * DEFAUT d'assignation : renseigner l'equipe du dossier assigne d'un coup toutes les etapes du role.
+ * Roles d'une reprise. Le « referent » conduit la reprise au terminal avec le skill
+ * (aujourd'hui Sekou) ; gestionnaire / assistant / comptable sont les metiers du dossier.
+ *
+ * « banque » et « outils » sont TRANSVERSES (ajoutes le 08/10/2026 d'apres Saint-Ouen) :
+ * l'ouverture de compte, l'IBAN, l'ICS, le livret et le contact de l'ancienne banque vont
+ * toujours a la meme personne du cabinet, quelle que soit la copropriete - de meme que la
+ * creation Pennylane, la copro dans Supabase et le parametrage ESTALE. Les classer comme
+ * « assistant » les envoyait a l'assistant(e) du dossier, qui n'en fait rien : il fallait
+ * les reassigner a la main sur chaque reprise.
+ *
+ * Un role sert de DEFAUT d'assignation : renseigner l'equipe du dossier assigne d'un coup
+ * toutes les etapes du role.
  */
-export const ROLES_REPRISE = ["referent", "gestionnaire", "assistant", "comptable"] as const;
+export const ROLES_REPRISE = [
+  "referent",
+  "gestionnaire",
+  "assistant",
+  "comptable",
+  "banque",
+  "outils",
+] as const;
 export type RoleReprise = (typeof ROLES_REPRISE)[number];
 
 export const ROLE_LABEL: Record<RoleReprise, string> = {
@@ -65,6 +81,8 @@ export const ROLE_LABEL: Record<RoleReprise, string> = {
   gestionnaire: "Gestionnaire",
   assistant: "Assistant(e)",
   comptable: "Comptable",
+  banque: "Banque et moyens de paiement",
+  outils: "Outils et paramétrage",
 };
 
 /** Une personne assignee : id technique (public."User".id) + nom affichable (denormalise). */
@@ -199,7 +217,7 @@ export interface Dossier {
 export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle: string; role: RoleReprise }> = [
   // ---- CADRAGE
   { code: "CA1", phase: "CADRAGE", role: "gestionnaire", libelle: "Rendez-vous avec le syndic sortant : remise des archives et des dossiers en cours (contentieux, travaux, sinistres, ventes), PV de remise daté" },
-  { code: "CA4", phase: "CADRAGE", role: "assistant", libelle: "Compte bancaire : le compte séparé au nom du syndicat est-il conservé (même RIB) ou faut-il en ouvrir un ? Confirmé auprès de la banque" },
+  { code: "CA4", phase: "CADRAGE", role: "banque", libelle: "Compte bancaire : le compte séparé au nom du syndicat est-il conservé (même RIB) ou faut-il en ouvrir un ? Confirmé auprès de la banque" },
   { code: "CA5", phase: "CADRAGE", role: "gestionnaire", libelle: "Âge de l'immeuble et fonds de travaux ALUR (dispense si moins de 5 ans après réception) ; assurance multirisque identifiée" },
   // ---- DOCUMENTS
   { code: "DO1", phase: "DOCUMENTS", role: "gestionnaire", libelle: "Pièces de nomination : PV d'AG nommant le cabinet, feuille de présence, contrat de syndic signé, règlement de copropriété" },
@@ -210,12 +228,12 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
   { code: "DO6", phase: "DOCUMENTS", role: "gestionnaire", libelle: "EDD + RCP et tous les modificatifs, fiche synthèse du registre national, liste des résidents" },
   { code: "DO7", phase: "DOCUMENTS", role: "gestionnaire", libelle: "Réclamation art. 18-2 au sortant pour ce qui manque (fonds et relevés sous 1 mois, état des comptes sous 2 mois)" },
   // ---- BANQUE
-  { code: "BA1", phase: "BANQUE", role: "assistant", libelle: "Dossier d'ouverture de compte remis à la banque (PV de nomination, RCP, contrat de syndic), ou compte existant identifié" },
-  { code: "BA2", phase: "BANQUE", role: "assistant", libelle: "IBAN reçu" },
-  { code: "BA3", phase: "BANQUE", role: "assistant", libelle: "ICS reçu et émetteur SEPA paramétré dans ESTALE (donneur d'ordre « SDC ... - REAL 31 ») ; sans lui, aucun prélèvement" },
-  { code: "BA4", phase: "BANQUE", role: "assistant", libelle: "Livret A / compte rémunéré ouvert ou rapatrié (fonds de travaux)" },
-  { code: "BA5", phase: "BANQUE", role: "assistant", libelle: "Synchronisation du compte bancaire sur ESTALE" },
-  { code: "BA6", phase: "BANQUE", role: "assistant", libelle: "Ancienne banque contactée : prélèvements et virements du sortant arrêtés, solde et livret à rapatrier" },
+  { code: "BA1", phase: "BANQUE", role: "banque", libelle: "Dossier d'ouverture de compte remis à la banque (PV de nomination, RCP, contrat de syndic), ou compte existant identifié" },
+  { code: "BA2", phase: "BANQUE", role: "banque", libelle: "IBAN reçu" },
+  { code: "BA3", phase: "BANQUE", role: "banque", libelle: "ICS reçu et émetteur SEPA paramétré dans ESTALE (donneur d'ordre « SDC ... - REAL 31 ») ; sans lui, aucun prélèvement" },
+  { code: "BA4", phase: "BANQUE", role: "banque", libelle: "Livret A / compte rémunéré ouvert ou rapatrié (fonds de travaux)" },
+  { code: "BA5", phase: "BANQUE", role: "outils", libelle: "Synchronisation du compte bancaire sur ESTALE" },
+  { code: "BA6", phase: "BANQUE", role: "banque", libelle: "Ancienne banque contactée : prélèvements et virements du sortant arrêtés, solde et livret à rapatrier" },
   { code: "BA7", phase: "BANQUE", role: "comptable", libelle: "Virement du sortant contrôlé (= solde du compte d'attente), ou OD « Récupération gestion banque » si le compte est conservé" },
   // ---- COMMUNICATION
   { code: "CO1", phase: "COMMUNICATION", role: "gestionnaire", libelle: "Courrier / mail à tous les copropriétaires : changement de syndic, présentation, mandat de prélèvement SEPA, extranet" },
@@ -245,6 +263,11 @@ export const ETAPES_REPRISE: ReadonlyArray<{ code: string; phase: Phase; libelle
   { code: "EX8", phase: "EXPLOITATION", role: "assistant", libelle: "Documents du sortant versés sur l'extranet ; contrats scannés et enregistrés (carnet d'entretien)" },
   { code: "EX9", phase: "EXPLOITATION", role: "comptable", libelle: "Registre national des copropriétés mis à jour (changement de syndic)" },
   { code: "EX10", phase: "EXPLOITATION", role: "comptable", libelle: "Honoraires du cabinet facturés au prorata du trimestre en cours (Pennylane)" },
+  // Ajoutees au catalogue le 08/10/2026 : elles etaient recreees a la main sur chaque
+  // reprise (etapes ad hoc X-1 a X-3 de Saint-Ouen).
+  { code: "EX11", phase: "EXPLOITATION", role: "outils", libelle: "Identifiant Pennylane créé (API)" },
+  { code: "EX12", phase: "EXPLOITATION", role: "outils", libelle: "Copropriété créée dans Supabase" },
+  { code: "EX13", phase: "EXPLOITATION", role: "gestionnaire", libelle: "Copropriété ajoutée au fichier « copros par gestionnaire »" },
   // ---- CLOTURE
   { code: "CL1", phase: "CLOTURE", role: "referent", libelle: "Dossier de travail archivé dans reprise/<REF>/ et skill mis à jour" },
   { code: "CL2", phase: "CLOTURE", role: "gestionnaire", libelle: "Première AG : comptes de tout l'exercice repris présentés ; écart de reprise inscrit à l'ordre du jour si besoin" },

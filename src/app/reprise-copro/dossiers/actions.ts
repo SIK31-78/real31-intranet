@@ -27,9 +27,8 @@ const schemaCreation = z.object({
   adresse: z.string().trim().max(200).optional(),
   sortant: z.string().trim().max(120).optional(),
   dateBascule: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")]).optional(),
-  equipe: z
-    .object({ referent: zPersonneId, gestionnaire: zPersonneId, assistant: zPersonneId, comptable: zPersonneId })
-    .optional(),
+  // Derive de ROLES_REPRISE : ajouter un role au domaine suffit, rien a retoucher ici.
+  equipe: z.object(Object.fromEntries(ROLES_REPRISE.map((r) => [r, zPersonneId]))).optional(),
 });
 
 export type CreerDossierResultat = { ok: true } | { ok: false; message: string };
