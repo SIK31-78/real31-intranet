@@ -44,6 +44,13 @@ import { GraphMailIngestionProvider } from "@/lib/adapters/mail/graph-mail-inges
 import { EchantillonTriIngestion } from "@/lib/adapters/mock/echantillon-tri-ingestion";
 import { MockReferentielTri } from "@/lib/adapters/mock/mock-referentiel-tri";
 import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
+import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
+import type { TriRepository } from "@/lib/ports/tri-repository";
+import { GraphRangementTri } from "@/lib/adapters/mail/graph-rangement-tri";
+import { SimulationRangementTri } from "@/lib/adapters/mock/simulation-rangement-tri";
+import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
+import { SupabaseTriRepository } from "@/lib/adapters/supabase/supabase-tri-repository";
+import { boiteTriConfiguree, ecritureTriActive } from "@/lib/domain/mail-gate";
 import type { SignatureProvider } from "@/lib/ports/signature-provider";
 import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
@@ -448,6 +455,22 @@ export function getIngestionTri(): MailIngestionProvider {
 export function getReferentielTriProvider(): ReferentielTriProvider {
   if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleReferentielTri();
   return new MockReferentielTri();
+}
+
+// Rangement du tri : ECRITURE reelle dans la boite seulement si MAIL_TRI_ECRITURE=on, avec
+// Graph branche et une vraie boite. Sinon simulation (rien ne bouge, journal "simulation").
+export function getRangementTri(): RangementTriProvider {
+  if (ecritureTriActive() && process.env.MAIL_SOURCE === "graph" && boiteTriConfiguree() !== "echantillon") {
+    return new GraphRangementTri();
+  }
+  return new SimulationRangementTri();
+}
+
+// Journal, dossiers et binomes du tri. Memoire (une instance pour le process) hors Supabase.
+let triRepositoryMemoire: MockTriRepository | null = null;
+export function getTriRepository(): TriRepository {
+  if (coproSourceEstSupabase()) return new SupabaseTriRepository();
+  return (triRepositoryMemoire ??= new MockTriRepository());
 }
 
 // Mail sortant (creer un brouillon, envoyer). Graph en reel (MAIL_SOURCE=graph),

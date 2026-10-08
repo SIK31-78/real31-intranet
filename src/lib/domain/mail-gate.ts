@@ -40,3 +40,12 @@ export function boiteTriConfiguree(): string | null {
   const brut = (process.env.MAIL_BOITE_TRI ?? "").trim().toLowerCase();
   return brut || null;
 }
+
+/**
+ * Le tri ECRIT-il vraiment dans la boite (creer un dossier, deplacer un mail) ? Seulement
+ * si MAIL_TRI_ECRITURE=on. Sinon tout rangement est simule et journalise comme tel : la
+ * regle est qu'aucun vrai mail ne bouge sans l'accord de Sekou (ADR-046).
+ */
+export function ecritureTriActive(): boolean {
+  return (process.env.MAIL_TRI_ECRITURE ?? "").trim().toLowerCase() === "on";
+}
