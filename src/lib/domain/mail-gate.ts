@@ -33,7 +33,7 @@ export function mailModuleActifPour(email: string | null | undefined): boolean {
 }
 
 /**
- * Tri des e-mails V2 (ADR-043) : l'adresse de la boite generique a trier, ou null si le
+ * Tri des e-mails V2 (ADR-046) : l'adresse de la boite generique a trier, ou null si le
  * module n'est pas configure (il reste alors invisible). "echantillon" = mails fictifs.
  */
 export function boiteTriConfiguree(): string | null {

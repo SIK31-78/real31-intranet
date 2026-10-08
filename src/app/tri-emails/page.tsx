@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function TriEmailsPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  // Pilote (ADR-043) : super-admins seulement, et seulement si la boite est configuree.
+  // Pilote (ADR-046) : super-admins seulement, et seulement si la boite est configuree.
   if (!estSuperAdmin(g.email)) redirect("/accueil");
   const file = await lireFileATrier();
   if (!file) redirect("/accueil");

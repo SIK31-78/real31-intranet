@@ -1,4 +1,4 @@
-// Tri des e-mails V2 (ADR-043) : l'intranet lit la boite de reception d'une boite
+// Tri des e-mails V2 (ADR-046) : l'intranet lit la boite de reception d'une boite
 // partagee generique et PROPOSE une copropriete ESTALE pour chaque mail ; au clic, le
 // mail part dans le sous-dossier du gestionnaire (increment 2). On repond dans Outlook.
 // Domaine pur : aucune lecture d'env, aucun appel reseau -> testable tel quel.

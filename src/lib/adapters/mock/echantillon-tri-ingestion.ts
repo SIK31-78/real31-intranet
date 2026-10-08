@@ -1,4 +1,4 @@
-// Echantillon FICTIF de la boite de reception generique (ADR-043), pour developper
+// Echantillon FICTIF de la boite de reception generique (ADR-046), pour developper
 // l'ecran de tri sans la vraie boite (MAIL_BOITE_TRI=echantillon). Adresses et noms
 // inventes ; les codes S0297 / S0305 / SE999 existent dans ESTALE pour que la
 // suggestion par code se voie aussi avec le vrai referentiel.

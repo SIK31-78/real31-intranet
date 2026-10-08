@@ -1,4 +1,4 @@
-// Service du tri des e-mails V2 (ADR-043) : la file a trier = la boite de reception de
+// Service du tri des e-mails V2 (ADR-046) : la file a trier = la boite de reception de
 // la boite generique, lue en direct. Pour chaque mail : la copro ESTALE proposee ; pour
 // chaque copro : ou partirait le mail (dossier aux initiales du gestionnaire).
 // LECTURE SEULE (increment 1) : rien n'est deplace ni etiquete.

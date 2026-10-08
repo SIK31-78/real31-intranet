@@ -435,7 +435,7 @@ export function getMailIngestionProvider(): MailIngestionProvider {
   return new SampleMailIngestionProvider();
 }
 
-// Tri des e-mails V2 (ADR-043) : lecture de la boite generique. MAIL_BOITE_TRI=echantillon
+// Tri des e-mails V2 (ADR-046) : lecture de la boite generique. MAIL_BOITE_TRI=echantillon
 // -> mails fictifs (developpement sans la vraie boite) ; sinon Graph si MAIL_SOURCE=graph.
 export function getIngestionTri(): MailIngestionProvider {
   if (process.env.MAIL_BOITE_TRI?.trim().toLowerCase() === "echantillon") return new EchantillonTriIngestion();

@@ -1,6 +1,6 @@
 "use client";
 
-// Ecran du tri des e-mails V2 (ADR-043) : la file a gauche, le mail et son rattachement
+// Ecran du tri des e-mails V2 (ADR-046) : la file a gauche, le mail et son rattachement
 // a droite. Increment 1 = lecture seule : on voit la suggestion ESTALE et ou le mail
 // partirait, le bouton d'attribution arrive a l'increment 2.
 

@@ -1,4 +1,4 @@
-// Adapter ESTALE du referentiel du tri des e-mails (ADR-043). LECTURE SEULE.
+// Adapter ESTALE du referentiel du tri des e-mails (ADR-046). LECTURE SEULE.
 // Pour chaque copro accessible au compte de service : nom, adresse, equipe, et toutes
 // les adresses e-mail qu'ESTALE lui connait : coproprietaires et leurs contacts
 // (locataires compris), conseil syndical, mandataires des coproprietaires, notaires des
