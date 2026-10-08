@@ -11,6 +11,8 @@ import type { Res } from "@/lib/actions/resultat";
 import { estSuperAdmin } from "@/lib/auth/session";
 import { annulerRangement, rangerMail } from "@/lib/services/tri-emails/ranger";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
+import { lirePieceJointeTri, listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
+import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 
 const zTexte = (max: number) => z.string().max(max);
 const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune"]);
@@ -80,4 +82,27 @@ export async function affecterCoproAction(input: unknown): Promise<Res> {
     z.object({ reference: z.string().regex(/^(SE|S)\d{3,4}$/), binomeId: zId.nullable() }),
     (d, par) => affecterCopro(d.reference, d.binomeId, par),
   )(input);
+}
+
+// --- Pieces jointes (apercu) --------------------------------------------------------
+
+const zMessage = z.string().min(1).max(400);
+
+export async function listerPiecesJointesTriAction(input: unknown): Promise<Res<PieceJointeRef[]>> {
+  return actionGestionnaire(z.object({ internetMessageId: zMessage }), input, "tri-emails-pj", async (d, g) => {
+    gardePilote(g.email);
+    return listerPiecesJointesTri(d.internetMessageId);
+  });
+}
+
+export async function lirePieceJointeTriAction(input: unknown): Promise<Res<{ nom: string; type: string; base64: string }>> {
+  return actionGestionnaire(
+    z.object({ internetMessageId: zMessage, attachmentId: z.string().min(1).max(400) }),
+    input,
+    "tri-emails-pj",
+    async (d, g) => {
+      gardePilote(g.email);
+      return lirePieceJointeTri(d.internetMessageId, d.attachmentId);
+    },
+  );
 }

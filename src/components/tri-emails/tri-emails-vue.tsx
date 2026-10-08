@@ -5,7 +5,7 @@
 // d'un clic (dossier du binome, Comptabilité, Divers) et on peut annuler. Sans
 // MAIL_TRI_ECRITURE=on, tout rangement est simule (le mail ne bouge pas).
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Paperclip } from "lucide-react";
 import type { CoproDeLaFile, FileATrier, MailDeLaFile } from "@/lib/services/tri-emails/lire-file";
@@ -22,6 +22,8 @@ import {
   ajouterAssistantAction,
   annulerRangementAction,
   definirPrincipalAction,
+  lirePieceJointeTriAction,
+  listerPiecesJointesTriAction,
   rangerMailAction,
   retirerAssistantAction,
 } from "@/app/tri-emails/actions";
@@ -29,6 +31,8 @@ import { Badge, type BadgeTon } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/segmented";
+import { VisionneusePj, type ApercuPj } from "@/components/mes-emails/visionneuse-pj";
+import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { Tab, TabList, TabPanel } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -318,12 +322,7 @@ function DetailMail({
           )}
         </div>
         <p className="mt-3 pt-3 border-t border-line whitespace-pre-line text-ink-2 max-w-[68ch]">{mail.apercu}</p>
-        {mail.aPiecesJointes && (
-          <p className="mt-3 inline-flex items-center gap-1.5 text-meta text-ink-3">
-            <Paperclip strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden="true" />
-            Pièces jointes : à ouvrir dans Outlook
-          </p>
-        )}
+        {mail.aPiecesJointes && <PiecesJointes internetMessageId={mail.internetMessageId} />}
       </section>
 
       <section className="rounded-xl border border-line bg-surface p-4 sm:p-5 flex flex-col gap-3">
@@ -440,6 +439,75 @@ function DetailMail({
           </Button>
         </div>
       </section>
+    </div>
+  );
+}
+
+const taille = (o: number) => (o < 1024 * 1024 ? `${Math.max(1, Math.round(o / 1024))} Ko` : `${(o / 1024 / 1024).toFixed(1)} Mo`);
+
+/** Les pieces jointes du mail, chargees a l'ouverture ; un clic ouvre l'apercu (PDF, image). */
+function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
+  const [pieces, setPieces] = useState<PieceJointeRef[] | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [apercu, setApercu] = useState<ApercuPj | null>(null);
+  const [ouverture, setOuverture] = useState<string | null>(null);
+
+  useEffect(() => {
+    let actif = true;
+    listerPiecesJointesTriAction({ internetMessageId }).then((r) => {
+      if (!actif) return;
+      if (r.ok) setPieces(r.donnees ?? []);
+      else setErreur(r.erreur);
+    });
+    return () => {
+      actif = false;
+    };
+  }, [internetMessageId]);
+
+  // L'URL objet du blob est liberee a la fermeture de l'apercu.
+  useEffect(() => () => {
+    if (apercu) URL.revokeObjectURL(apercu.url);
+  }, [apercu]);
+
+  async function ouvrir(pj: PieceJointeRef) {
+    setOuverture(pj.id);
+    const r = await lirePieceJointeTriAction({ internetMessageId, attachmentId: pj.id });
+    setOuverture(null);
+    if (!r.ok || !r.donnees) {
+      setErreur(r.ok ? "Pièce jointe vide." : r.erreur);
+      return;
+    }
+    const octets = Uint8Array.from(atob(r.donnees.base64), (c) => c.charCodeAt(0));
+    const type = r.donnees.type || "application/octet-stream";
+    setApercu({ nom: r.donnees.nom, type, url: URL.createObjectURL(new Blob([octets], { type })) });
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-1.5">
+      <span className="inline-flex items-center gap-1.5 text-meta text-ink-3">
+        <Paperclip strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden="true" />
+        Pièces jointes
+      </span>
+      {erreur && <span className="text-meta text-err-700">{erreur}</span>}
+      {pieces === null && !erreur && <span className="text-meta text-ink-3">Chargement…</span>}
+      {pieces?.length === 0 && <span className="text-meta text-ink-3">Aucune à afficher ici : voir dans Outlook.</span>}
+      {pieces && pieces.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {pieces.map((pj) => (
+            <button
+              key={pj.id}
+              type="button"
+              disabled={ouverture !== null}
+              onClick={() => ouvrir(pj)}
+              className="inline-flex items-center gap-2 rounded-lg border border-line-2 bg-surface px-2.5 py-1 text-body hover:bg-surface-2 disabled:opacity-60"
+            >
+              <span className="text-ink truncate max-w-[260px]">{pj.nom}</span>
+              <span className="text-meta text-ink-3 tabular-nums">{ouverture === pj.id ? "ouverture…" : taille(pj.taille)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <VisionneusePj apercu={apercu} onFermer={() => setApercu(null)} />
     </div>
   );
 }
