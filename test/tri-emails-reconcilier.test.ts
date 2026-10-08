@@ -92,6 +92,14 @@ describe("reconcilierRangements", () => {
     expect((await repo.journalDepuis(BOITE, "2000-01-01"))[0]).toMatchObject({ coproReference: null, dossierNom: "CL" });
   });
 
+  it("deux passages simultanes (tache planifiee + ecran) ne traitent le mail qu'une fois", async () => {
+    const { deps, repo, appels } = await monter(ici("f-or"));
+    const [a, b] = await Promise.all([reconcilierRangements(deps), reconcilierRangements(deps)]);
+    expect(a.deplaces + b.deplaces).toBe(1);
+    expect(appels).toEqual(["m1-bis + -S0297", "m1-bis +S0305 -"]);
+    expect(await repo.journalDepuis(BOITE, "2000-01-01")).toHaveLength(1);
+  });
+
   it("ne touche a rien si le mail est introuvable ou en simulation", async () => {
     const perdu = await monter(null);
     await reconcilierRangements(perdu.deps);

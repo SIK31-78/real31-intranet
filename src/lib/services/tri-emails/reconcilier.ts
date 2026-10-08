@@ -1,8 +1,8 @@
 // Mails glisses a la main dans Outlook (ADR-046) : l'app relit les rangements recents et
 // suit ce que l'equipe a fait. Remis dans la boite generique -> retour dans la file ;
 // glisse dans un autre dossier connu -> etiquette corrigee (ou « copro a preciser »).
-// Ecrit dans la boite (etiquettes) : ne tourne que si l'ecriture est ouverte. Appele a
-// l'ouverture de l'ecran en attendant la tache planifiee.
+// Ecrit dans la boite (etiquettes) : ne tourne que si l'ecriture est ouverte. Appele par
+// la tache planifiee (/api/cron/tri-emails, toutes les 5 min) ET a l'ouverture de l'ecran.
 
 import { PAR_OUTLOOK, constaterRangement, coproDuDossier } from "@/lib/domain/tri-emails";
 import { depsParDefaut, type DepsRangement } from "./ranger";
@@ -42,8 +42,9 @@ export async function reconcilierRangements(deps: DepsRangement = depsParDefaut(
         const constat = constaterRangement(e.dossierCle!, pos, dossiers);
         if (constat.cas === "en-place" || constat.cas === "introuvable" || !pos) return;
 
+        // Premier arrive, seul servi : la tache planifiee et l'ecran peuvent passer ensemble.
+        if (!(await deps.repo.marquerAnnule(e.id, PAR_OUTLOOK))) return;
         if (e.copros.length) await deps.rangement.etiqueter(boite, pos.messageId, { retirer: e.copros });
-        await deps.repo.marquerAnnule(e.id, PAR_OUTLOOK);
 
         if (constat.cas === "remis-en-reception") {
           bilan.remisEnFile++;

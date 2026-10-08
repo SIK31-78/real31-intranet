@@ -27,5 +27,10 @@ export interface TriRepository {
   journalDepuis(boite: string, depuisISO: string): Promise<EntreeJournalTri[]>;
   /** Parmi ces internetMessageId, ceux qui ont un rangement non annule. */
   dejaRanges(boite: string, internetMessageIds: string[]): Promise<Set<string>>;
-  marquerAnnule(id: string, par: string): Promise<void>;
+  /**
+   * Marque la ligne annulee, SEULEMENT si elle ne l'est pas deja ; true = c'est cet appel
+   * qui l'a marquee. La tache planifiee et l'ouverture de l'ecran peuvent traiter le meme
+   * mail au meme instant : seul le premier poursuit.
+   */
+  marquerAnnule(id: string, par: string): Promise<boolean>;
 }

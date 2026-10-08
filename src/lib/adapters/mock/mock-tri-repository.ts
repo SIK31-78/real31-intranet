@@ -64,8 +64,10 @@ export class MockTriRepository implements TriRepository {
       this.journal.filter((e) => e.boite === boite && e.annuleLe === null && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId),
     );
   }
-  async marquerAnnule(id: string) {
+  async marquerAnnule(id: string): Promise<boolean> {
     const e = this.journal.find((x) => x.id === id);
-    if (e) e.annuleLe = new Date().toISOString();
+    if (!e || e.annuleLe) return false;
+    e.annuleLe = new Date().toISOString();
+    return true;
   }
 }

@@ -217,11 +217,15 @@ export class SupabaseTriRepository implements TriRepository {
     return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
   }
 
-  async marquerAnnule(id: string, par: string) {
-    const { error } = await createSupabasePublicClient()
+  async marquerAnnule(id: string, par: string): Promise<boolean> {
+    // UPDATE conditionnel : Postgres ne le fait reussir qu'une fois.
+    const { data, error } = await createSupabasePublicClient()
       .from("intranet_tri_journal")
       .update({ annule_le: new Date().toISOString(), annule_par: par })
-      .eq("id", id);
+      .eq("id", id)
+      .is("annule_le", null)
+      .select("id");
     if (error) throw erreur("annulation", error);
+    return ((data as unknown[] | null) ?? []).length > 0;
   }
 }
