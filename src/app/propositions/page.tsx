@@ -7,6 +7,7 @@ import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, STATUTS_PROPOSITION, 
 import {
   filtrer,
   FENETRE_TRANSFORMATION_ANNEES,
+  totaux,
   transformation,
   trier,
   type CleTri,
@@ -14,6 +15,7 @@ import {
   type TriPipeline,
 } from "@/lib/domain/proposition/pipeline";
 import { formatJour } from "@/lib/services/facturation/format";
+import { formatEuros } from "@/lib/domain/format-montant";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Card, CardBody } from "@/components/ui/card";
@@ -78,6 +80,9 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   const equipeSyndic = peutCompleterProposition(profil);
   const ouvertes = toutes.filter((p) => STATUTS_OUVERTS.has(p.statut));
   const lignes = trier(filtrer(toutes, filtre), tri) as PropositionResume[];
+  // Totaux de TOUTE la selection filtree (statut + recherche + gestionnaire), pas des 200
+  // lignes affichees (REA-254).
+  const total = totaux(lignes);
   // Les gestionnaires qui portent au moins une proposition du perimetre visible : le
   // selecteur n'offre que ce qui peut renvoyer un resultat.
   const gestionnaires = [...new Set(toutes.map((p) => p.gestionnaire).filter((n): n is string => Boolean(n)))].sort((a, b) => a.localeCompare(b, "fr"));
@@ -203,8 +208,33 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
             {lignes.length > 200 && <p className="text-meta text-ink-3">Les 200 premières sont affichées — affinez les filtres pour voir le reste.</p>}
           </>
         )}
+        {lignes.length > 0 && <LigneTotaux total={total} nombre={lignes.length} />}
       </Page>
     </AppShell>
+  );
+}
+
+/** Totaux de la selection filtree, sous la liste. */
+function LigneTotaux({ total, nombre }: { total: ReturnType<typeof totaux>; nombre: number }) {
+  const manquants = [
+    total.sansHonoraires > 0 ? `${total.sansHonoraires} sans honoraires` : null,
+    total.sansLots > 0 ? `${total.sansLots} sans nombre de lots` : null,
+  ].filter(Boolean);
+  return (
+    <div className="flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 px-1 text-body">
+      <span className="text-ink-2">
+        Total des {nombre} proposition{nombre > 1 ? "s" : ""}
+        {manquants.length > 0 && <span className="text-meta text-ink-3"> (dont {manquants.join(", ")})</span>}
+      </span>
+      <span className="tabular-nums">
+        <span className="text-ink-2">Honoraires TTC </span>
+        <span className="font-medium text-ink">{formatEuros(total.honorairesTtc)}</span>
+      </span>
+      <span className="tabular-nums">
+        <span className="text-ink-2">Lots principaux </span>
+        <span className="font-medium text-ink">{total.lotsPrincipaux.toLocaleString("fr-FR")}</span>
+      </span>
+    </div>
   );
 }
 

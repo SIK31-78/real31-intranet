@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anneesDistinctes, filtrer, transformation, trier } from "./pipeline";
+import { anneesDistinctes, filtrer, totaux, transformation, trier } from "./pipeline";
 import type { Proposition, StatutProposition } from "./proposition";
 
 function prop(n: number, statut: StatutProposition, extra: Partial<Proposition> = {}): Proposition {
@@ -85,5 +85,20 @@ describe("trier", () => {
   });
   it("annees distinctes, recentes d'abord", () => {
     expect(anneesDistinctes(liste)).toEqual([2026]);
+  });
+});
+
+describe("totaux", () => {
+  it("additionne honoraires TTC et lots principaux, sans compter les manquants a zero", () => {
+    const t = totaux([
+      prop(1, "en_cours", { prix: { honorairesTtc: 4800.1 }, immeuble: { adresse: "a", lotsPrincipaux: 20 } }),
+      prop(2, "en_cours", { prix: { honorairesTtc: 3600.2 }, immeuble: { adresse: "b" } }),
+      prop(3, "elu", { immeuble: { adresse: "c", lotsPrincipaux: 12 } }),
+    ]);
+    expect(t).toEqual({ honorairesTtc: 8400.3, lotsPrincipaux: 32, sansHonoraires: 1, sansLots: 1 });
+  });
+
+  it("selection vide : tout a zero", () => {
+    expect(totaux([])).toEqual({ honorairesTtc: 0, lotsPrincipaux: 0, sansHonoraires: 0, sansLots: 0 });
   });
 });

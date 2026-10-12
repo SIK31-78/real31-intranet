@@ -133,3 +133,31 @@ export function valeursDistinctes(propositions: Proposition[], champ: "agence" |
 export function anneesDistinctes(propositions: Proposition[]): number[] {
   return [...new Set(propositions.map((p) => Number(dateReference(p).slice(0, 4))))].filter((a) => a > 2000).sort((a, b) => b - a);
 }
+
+export interface TotauxPipeline {
+  /** Somme des honoraires TTC renseignes. */
+  honorairesTtc: number;
+  /** Somme des lots principaux renseignes. */
+  lotsPrincipaux: number;
+  /** Propositions sans honoraires chiffres (exclues de la somme, pas comptees a zero). */
+  sansHonoraires: number;
+  /** Propositions sans nombre de lots connu. */
+  sansLots: number;
+}
+
+/**
+ * Totaux d'une selection de propositions (REA-254) : a calculer sur TOUTE la selection
+ * filtree, jamais sur la page affichee (la liste est tronquee a 200 lignes).
+ */
+export function totaux(propositions: Proposition[]): TotauxPipeline {
+  const t: TotauxPipeline = { honorairesTtc: 0, lotsPrincipaux: 0, sansHonoraires: 0, sansLots: 0 };
+  for (const p of propositions) {
+    if (p.prix.honorairesTtc !== undefined) t.honorairesTtc += p.prix.honorairesTtc;
+    else t.sansHonoraires++;
+    if (p.immeuble.lotsPrincipaux !== undefined) t.lotsPrincipaux += p.immeuble.lotsPrincipaux;
+    else t.sansLots++;
+  }
+  // Les honoraires portent des centimes : on arrondit la somme au centime (flottants).
+  t.honorairesTtc = Math.round(t.honorairesTtc * 100) / 100;
+  return t;
+}
