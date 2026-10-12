@@ -25,7 +25,8 @@ export type { CreneauCsSuggere };
  */
 export async function creneauCsDeLaCopro(
   coproCode: string,
-  managerId: string,
+  /** Absent = lecture sans cloisonnement, l'appelant a deja verifie le perimetre. */
+  managerId?: string,
 ): Promise<CreneauCsSuggere | undefined> {
   const copro = await getCoproRepository().findByCode(coproCode, managerId);
   if (!copro?.prochaineCsDate && !copro?.derniereCsDate) return undefined;
