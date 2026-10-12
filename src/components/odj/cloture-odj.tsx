@@ -126,16 +126,26 @@ export function ClotureOdjBloc({
         />
         <HeureFin {...(finReunion ? { valeur: finReunion } : {})} onSaisir={onSaisirFinReunion} />
       </div>
-      <Button
-        variant="primary"
-        loading={pending}
-        disabled={!confirme}
-        onClick={() => demarrer(async () => { await onCloturer(true); })}
-        title="Fige l'ordre du jour et ouvre la supervision AG. Réversible : rien n'est envoyé ni diffusé."
-      >
-        <CheckCircle2 strokeWidth={1.5} />
-        Marquer la réunion terminée
-      </Button>
+      <div className="flex flex-col items-end gap-1">
+        <Button
+          variant="primary"
+          loading={pending}
+          disabled={!confirme}
+          aria-describedby={confirme ? undefined : "aide-cloture-odj"}
+          onClick={() => demarrer(async () => { await onCloturer(true); })}
+          title="Fige l'ordre du jour et ouvre la supervision AG. Réversible : rien n'est envoyé ni diffusé."
+        >
+          <CheckCircle2 strokeWidth={1.5} />
+          Marquer la réunion terminée
+        </Button>
+        {/* REA-131 : un bouton grise sans explication laissait croire a une panne. La
+            raison se lit a l'ecran, pas seulement au survol (le title ne sort pas au doigt). */}
+        {!confirme && (
+          <p id="aide-cloture-odj" className="text-meta text-ink-3">
+            Cochez d&apos;abord la case pour confirmer que la réunion a eu lieu.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
