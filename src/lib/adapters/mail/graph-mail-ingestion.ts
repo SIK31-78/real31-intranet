@@ -42,11 +42,18 @@ function versRaw(m: GraphMessage): RawMail {
 }
 
 export class GraphMailIngestionProvider implements MailIngestionProvider {
-  async compterReception(email: string): Promise<number> {
+  async compterReception(email: string, depuis?: string): Promise<number> {
     const tk = await jetonGraph();
-    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(email)}/mailFolders/inbox?$select=totalItemCount`, {
-      headers: { Authorization: `Bearer ${tk}` },
-    });
+    const boite = `${GRAPH}/users/${encodeURIComponent(email)}/mailFolders/inbox`;
+    if (depuis) {
+      // Le stock d'avant la mise en service ne compte pas (18 233 mails dans syndic4).
+      const r = await graphFetch(`${boite}/messages?$count=true&$top=1&$select=id&$filter=receivedDateTime ge ${depuis}`, {
+        headers: { Authorization: `Bearer ${tk}`, ConsistencyLevel: "eventual" },
+      });
+      if (!r.ok) throw new Error(`Graph inbox ${r.status}`);
+      return ((await r.json()) as { "@odata.count"?: number })["@odata.count"] ?? 0;
+    }
+    const r = await graphFetch(`${boite}?$select=totalItemCount`, { headers: { Authorization: `Bearer ${tk}` } });
     if (!r.ok) throw new Error(`Graph inbox ${r.status}`);
     return ((await r.json()) as { totalItemCount?: number }).totalItemCount ?? 0;
   }
@@ -59,7 +66,8 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
       "id,internetMessageId,conversationId,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
     let url: string =
       `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/inbox/messages` +
-      `?$top=${PAGE}&$orderby=receivedDateTime desc&$select=${select}`;
+      `?$top=${PAGE}&$orderby=receivedDateTime desc&$select=${select}` +
+      (opts.depuis ? `&$filter=receivedDateTime ge ${opts.depuis}` : "");
 
     const out: RawMail[] = [];
     while (url && out.length < opts.max) {

@@ -9,10 +9,12 @@ export interface OptionsIngestion {
   email?: string;
   /** Nombre max de mails recents a remonter. */
   max: number;
+  /** Seulement les mails recus a partir de cette date (ISO) : la mise en service du tri. */
+  depuis?: string;
 }
 
 export interface MailIngestionProvider {
   lireRecents(opts: OptionsIngestion): Promise<RawMail[]>;
-  /** Nombre de mails dans la boite de reception (un appel leger) ; facultatif. */
-  compterReception?(email: string): Promise<number>;
+  /** Nombre de mails dans la boite de reception (un appel leger), recus depuis `depuis` si donne ; facultatif. */
+  compterReception?(email: string, depuis?: string): Promise<number>;
 }

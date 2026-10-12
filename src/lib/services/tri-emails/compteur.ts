@@ -3,7 +3,7 @@
 // ralentir. Un seul appel Graph leger, garde une minute, abandonne au-dela de 1,5 s
 // (pas de pastille plutot qu'une page lente).
 
-import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
+import { boiteTriConfiguree, debutTri } from "@/lib/domain/mail-gate";
 import { getIngestionTri } from "@/lib/adapters/router";
 
 const TTL_MS = 60_000;
@@ -17,8 +17,8 @@ export async function compterMailsATrier(): Promise<number | null> {
   if (cache && cache.boite === boite && Date.now() < cache.expire) return cache.valeur;
   const ingestion = getIngestionTri();
   const comptage = ingestion.compterReception
-    ? ingestion.compterReception(boite)
-    : ingestion.lireRecents({ email: boite, max: 100 }).then((m) => m.length);
+    ? ingestion.compterReception(boite, debutTri() ?? undefined)
+    : ingestion.lireRecents({ email: boite, max: 100, ...(debutTri() ? { depuis: debutTri()! } : {}) }).then((m) => m.length);
   try {
     const valeur = await Promise.race([
       comptage,

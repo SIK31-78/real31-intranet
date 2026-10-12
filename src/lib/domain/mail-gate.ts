@@ -42,6 +42,22 @@ export function boiteTriConfiguree(): string | null {
 }
 
 /**
+ * Mise en service du tri : seuls les mails recus a partir de MAIL_TRI_DEPUIS (AAAA-MM-JJ,
+ * minuit heure de Paris) entrent dans la file. Le stock d'avant reste ou il est (syndic4 :
+ * 18 233 mails en reception le 12/10/2026). Absente ou illisible = toute la reception.
+ */
+export function debutTri(): string | null {
+  const brut = (process.env.MAIL_TRI_DEPUIS ?? "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(brut);
+  if (!m) return null;
+  // Minuit a Paris : UTC+2 l'ete, UTC+1 l'hiver. On calcule le decalage du jour vise.
+  const midiUtc = new Date(`${brut}T12:00:00Z`);
+  const heureParis = Number(midiUtc.toLocaleString("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", hour12: false }));
+  const decalage = heureParis - 12;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), -decalage)).toISOString().replace(".000Z", "Z");
+}
+
+/**
  * Le tri ECRIT-il vraiment dans la boite (creer un dossier, deplacer un mail) ? Seulement
  * si MAIL_TRI_ECRITURE=on. Sinon tout rangement est simule et journalise comme tel : la
  * regle est qu'aucun vrai mail ne bouge sans l'accord de Sekou (ADR-046).
