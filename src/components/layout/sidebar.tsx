@@ -51,6 +51,8 @@ type Item = {
   href: string;
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   count?: number;
+  /** Le compteur est une alerte (pastille rouge) : des choses attendent. */
+  alerte?: boolean;
   /** Page pas encore ouverte : grisee, non cliquable, badge "a venir". */
   aVenir?: boolean;
 };
@@ -200,11 +202,19 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
     >
       <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-rail-muted")} />
       <span className="truncate">{item.label}</span>
-      {item.count !== undefined && (
-        <span className={cn("ml-auto text-meta tabular-nums rounded-full border px-1.5", active ? "text-green-700 border-green-200" : "text-rail-muted border-rail-line")}>
-          {item.count}
-        </span>
-      )}
+      {item.count !== undefined &&
+        (item.alerte ? (
+          <span
+            className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-err-500 text-white text-meta font-semibold tabular-nums leading-[18px] text-center"
+            aria-label={`${item.count} à traiter`}
+          >
+            {item.count > 99 ? "99+" : item.count}
+          </span>
+        ) : (
+          <span className={cn("ml-auto text-meta tabular-nums rounded-full border px-1.5", active ? "text-green-700 border-green-200" : "text-rail-muted border-rail-line")}>
+            {item.count}
+          </span>
+        ))}
     </Link>
   );
 }
@@ -262,6 +272,7 @@ export function Sidebar({
   user,
   peutImpersonner = false,
   emailsOuvert = true,
+  recapsEnRetard = null,
   comptaOuvert = false,
   gestionCouranteOuverte = false,
   repriseOuverte = false,
@@ -277,6 +288,8 @@ export function Sidebar({
   user: { initiales: string; nomComplet: string };
   peutImpersonner?: boolean;
   emailsOuvert?: boolean;
+  /** Recaps d'AG en retard du collaborateur (pastille rouge sur « Récap AG ») ; null = inconnu. */
+  recapsEnRetard?: number | null;
   comptaOuvert?: boolean;
   /** Entree "Gestion courante" : comptable d'entreprise + super-admin seulement. */
   gestionCouranteOuverte?: boolean;
@@ -352,7 +365,13 @@ export function Sidebar({
                 <SectionTitre>{groupe.titre}</SectionTitre>
                 {visibles.map((item) => {
                   // "Mes evenements" grise "a venir" tant que la boite n'est pas branchee.
-                  const it = item.key === "emails" && !emailsOuvert ? { ...item, aVenir: true } : item;
+                  // "Récap AG" : pastille rouge des recaps en retard (rien si 0 ou inconnu).
+                  const it =
+                    item.key === "emails" && !emailsOuvert
+                      ? { ...item, aVenir: true }
+                      : item.key === "recap-ag" && recapsEnRetard
+                        ? { ...item, count: recapsEnRetard, alerte: true }
+                        : item;
                   return <NavItem key={it.key} item={it} active={it.key === active} />;
                 })}
               </div>

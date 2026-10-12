@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
 import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
+import { retenirRecapsEnRetard } from "@/lib/services/compta/compteur-recaps-en-retard";
 import { listerContratsGeneres } from "@/lib/services/contrat/contrats-generes";
 import { getRecapAgRepository } from "@/lib/adapters/router";
 import { AppShell } from "@/components/layout/app-shell";
@@ -54,6 +55,8 @@ export default async function RecapAgPage({
     // Le contrat genere pour l'AG, a proposer dans « Nouveau contrat de gestion ».
     listerContratsGeneres(g.id, today),
   ]);
+  // La pastille de la barre laterale suit l'alerte de cette page, sans attendre sa memoire.
+  retenirRecapsEnRetard(g.id, enRetard.length);
   const codes = copros.map((c) => c.code);
   const [miens, datesRecaps] = await Promise.all([
     // Vue « Les miens » : filtree AVANT la limite (REA-166). Au-dela de 300 lignes cabinet,
