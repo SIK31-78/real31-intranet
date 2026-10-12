@@ -10,6 +10,7 @@
 import { getCoproRepository, getFacturationRepository } from "@/lib/adapters/router";
 import type { EditionContrat } from "@/lib/ports/facturation-repository";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
+import { signalerSiegeAgenceInconnu } from "@/lib/services/contrat/signaler-siege-agence";
 import {
   cycleSuivant,
   finContratEnCours,
@@ -186,6 +187,10 @@ export async function getContrat(
     dureeCsHeures: parametres?.franchiseCsHeures ?? 0,
     finMaxAgHeure: parametres?.finMaxAgHeure ?? null,
   };
+
+  // Agence sans siege connu : le contrat imprimerait un blanc. On le SIGNALE (Sentry +
+  // logs) ; l'ecran de generation affiche le meme avertissement (REA-273).
+  signalerSiegeAgenceInconnu(copro.agence, { copro: coproCode });
 
   return assemblerChampsContrat(
     copro,

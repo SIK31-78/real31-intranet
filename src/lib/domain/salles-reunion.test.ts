@@ -11,6 +11,8 @@ import {
   attendeesRessource,
   attendeesParticipant,
   siegeAgence,
+  avertissementSiegeAgence,
+  CODES_AGENCE_AVEC_SIEGE,
   interpreterAvailabilityView,
 } from "./salles-reunion";
 
@@ -125,5 +127,26 @@ describe("siegeAgence (adresse d'agence du contrat)", () => {
     expect(siegeAgence("")).toBe("");
     expect(siegeAgence(null)).toBe("");
     expect(siegeAgence(undefined)).toBe("");
+  });
+});
+
+// Sekou, 12/10/2026 : toutes les agences connues ont leur adresse, et une agence
+// inconnue malgré tout se SIGNALE au lieu de laisser un blanc silencieux au contrat.
+describe("avertissementSiegeAgence", () => {
+  it("couvre les 4 agences de public.\"Agency\" (ML, LGC, HLS, ASN)", () => {
+    expect([...CODES_AGENCE_AVEC_SIEGE].sort()).toEqual(["ASN", "HLS", "LGC", "ML"]);
+    for (const code of ["ML", "LGC", "HLS", "ASN", " asn "]) {
+      expect(avertissementSiegeAgence(code)).toBeUndefined();
+    }
+  });
+
+  it("nomme l'agence inconnue et dit quoi faire", () => {
+    expect(avertissementSiegeAgence("bzs")).toBe("Adresse de l'agence BZS inconnue : à compléter avant envoi.");
+  });
+
+  it("avertit aussi quand l'agence est absente", () => {
+    for (const vide of ["", "  ", null, undefined]) {
+      expect(avertissementSiegeAgence(vide)).toMatch(/^Agence de la copropriété inconnue/);
+    }
   });
 });
