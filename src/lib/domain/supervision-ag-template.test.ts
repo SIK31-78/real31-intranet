@@ -23,3 +23,23 @@ describe("SECTIONS_TEMPLATE", () => {
     expect(ids).toEqual(expect.arrayContaining([ITEM_CS_PREPA, "avcs.avancement-tx", "apcs.honos", "apag.recap-reality"]));
   });
 });
+
+describe("section « Vérifications comptables »", () => {
+  it("porte les points de contrôle ajoutés par la compta (12/10/2026), sans doublon", () => {
+    const compta = SECTIONS_TEMPLATE.find((s) => s.id === "compta");
+    const ids = compta?.items.map((i) => i.id) ?? [];
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "compta.interets-livret-a",
+        "compta.comptes-attente",
+        "compta.avoir-frais-postaux",
+        "compta.frais-bancaires",
+        "compta.factures-contrats",
+        // déjà présents avant l'ajout : ids inchangés
+        "compta.compteurs-eau",
+        "compta.repartiteurs-chauffage",
+        "compta.solde-sinistre",
+      ]),
+    );
+  });
+});
