@@ -9,6 +9,8 @@
 //
 // Domaine PUR : aucune I/O, le bareme et le contrat sont fournis par le service.
 
+import { estNonRevalorise } from "./facturation/bareme-admin";
+
 /** Taux de revalorisation entre deux barèmes, ex 0.02 pour +2 %. */
 export type TauxBareme = number;
 
@@ -27,6 +29,9 @@ export function tauxRevalorisation(
   const suivante = new Map(anneeSuivante.map((l) => [l.identifiantPrestation, l.montantTtc]));
   const ratios: number[] = [];
   for (const ligne of anneeEnCours) {
+    // Les frais figés d'une année sur l'autre (relances, état daté…) ne disent rien de la
+    // hausse du cabinet : ils tireraient la médiane vers 0 %.
+    if (estNonRevalorise(ligne.identifiantPrestation)) continue;
     const apres = suivante.get(ligne.identifiantPrestation);
     if (apres === undefined || ligne.montantTtc <= 0) continue;
     ratios.push(apres / ligne.montantTtc);
