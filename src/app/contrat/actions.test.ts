@@ -22,6 +22,8 @@ vi.mock("@/lib/services/contrat/editer-contrat", () => ({
   },
 }));
 
+vi.mock("@/lib/services/contrat/deposer-contrat", () => ({ deposerContrat: async () => null }));
+
 import { editerContratAction } from "./actions";
 
 const gestionnaire = { id: "u1", nomComplet: "Rémi BARD", email: "remi@real31.fr", role: "GESTIONNAIRE" };
@@ -38,7 +40,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe("editerContratAction", () => {
   it("l'equipe syndic edite une copro de son perimetre, puis recoit l'adresse du PDF", async () => {
     const res = await editerContratAction({ copro: "S215", honoraires: "4200" });
-    expect(res).toEqual({ ok: true, donnees: { pdf: "/contrat/S215/contrat.pdf?honoraires=4200", apercu: "/contrat/S215/imprimer?honoraires=4200" } });
+    expect(res).toEqual({ ok: true, donnees: { pdf: "/contrat/S215/contrat.pdf?honoraires=4200", apercu: "/contrat/S215/imprimer?honoraires=4200", depot: null } });
     expect(etat.editions).toBe(1);
   });
   it("au reel, le forfait timbres ne part pas dans l'adresse", async () => {

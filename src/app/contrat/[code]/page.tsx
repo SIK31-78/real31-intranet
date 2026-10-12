@@ -20,6 +20,9 @@ import { coproEnLecture } from "@/lib/services/coproprietes/perimetre-lecture";
 
 export const metadata: Metadata = { title: "Contrat de syndic - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
+// L'édition produit le PDF (Chromium, démarrage à froid de quelques secondes) pour le
+// ranger dans SharePoint : plus que les 10 s par défaut.
+export const maxDuration = 60;
 
 // Preparation du contrat de syndic : ce que le document VA dire, avant de l'editer.
 // Reprend le `NewContractScreen` du canvas PowerApps MYTHEC, en beaucoup plus court :

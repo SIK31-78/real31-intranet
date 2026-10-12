@@ -11,6 +11,7 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutEditerContrat, profilDe } from "@/lib/auth/roles";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { editerContrat } from "@/lib/services/contrat/editer-contrat";
+import { deposerContrat } from "@/lib/services/contrat/deposer-contrat";
 import { type Res, echecDepuis } from "@/lib/actions/resultat";
 import { lireMontant } from "@/lib/domain/lire-montant";
 
@@ -35,7 +36,9 @@ const zEdition = z.object({
 export type EditionContrat = z.input<typeof zEdition>;
 
 /** Trace l'edition, puis rend l'URL du PDF (et celle de l'apercu) avec les valeurs retenues. */
-export async function editerContratAction(input: unknown): Promise<Res<{ pdf: string; apercu: string }>> {
+export async function editerContratAction(
+  input: unknown,
+): Promise<Res<{ pdf: string; apercu: string; depot: Awaited<ReturnType<typeof deposerContrat>> }>> {
   const p = zEdition.safeParse(input);
   if (!p.success) return { ok: false, erreur: `Contrat de syndic : ${p.error.issues[0]?.message ?? "saisie invalide"}.` };
   const g = await getGestionnaireCourant();
@@ -52,7 +55,7 @@ export async function editerContratAction(input: unknown): Promise<Res<{ pdf: st
 
     // Leve sur toute incoherence (cycle > 3 ans, bareme incomplet...) : le message revient
     // au formulaire, rien n'est trace.
-    await editerContrat({
+    const champs = await editerContrat({
       coproCode,
       par: g.nomComplet,
       ...(ag ? { dateAgISO: ag } : {}),
@@ -64,6 +67,8 @@ export async function editerContratAction(input: unknown): Promise<Res<{ pdf: st
     });
     revalidatePath("/contrat");
     revalidatePath(`/contrat/${coproCode}`);
+    // Rangé dans le dossier d'AG de la copro (REA-116) ; le téléchargement suit quoi qu'il arrive.
+    const depot = await deposerContrat(coproCode, champs);
 
     const q = new URLSearchParams();
     if (ag) q.set("ag", ag);
@@ -73,7 +78,7 @@ export async function editerContratAction(input: unknown): Promise<Res<{ pdf: st
     if (forfaitPostauxTtc !== undefined) q.set("timbres", String(forfaitPostauxTtc));
     if (fraisPostauxReels) q.set("frais", "reels");
     const base = `/contrat/${encodeURIComponent(coproCode)}`;
-    return { ok: true, donnees: { pdf: `${base}/contrat.pdf?${q}`, apercu: `${base}/imprimer?${q}` } };
+    return { ok: true, donnees: { pdf: `${base}/contrat.pdf?${q}`, apercu: `${base}/imprimer?${q}`, depot } };
   } catch (e) {
     return echecDepuis(e, "contrat");
   }

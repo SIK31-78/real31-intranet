@@ -114,9 +114,14 @@ export function FormulaireContrat({
     demarrer(async () => {
       const res = await editerContratAction({ copro: coproCode, ag, debut, fin, honoraires, timbres, frais: reels ? "reels" : "forfait" });
       if (!res.ok) return toast.err(res.erreur);
+      const depot = res.donnees!.depot;
       const t = await telechargerPdf(res.donnees!.pdf);
       if (!t.ok) return toast.err(t.erreur);
-      toast.ok(`Contrat édité : ${t.nom}`);
+      if (depot?.depose) toast.ok(`Contrat édité et rangé dans le dossier de la copropriété : ${depot.dossier}.`);
+      else {
+        toast.ok(`Contrat édité : ${t.nom}`);
+        if (depot) toast.warn(`Contrat non rangé dans le dossier de la copropriété : ${depot.raison}`);
+      }
       router.refresh();
     });
   }
