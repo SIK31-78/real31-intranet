@@ -72,9 +72,11 @@ export function ChampLibreEditable({ champ, moteur }: { champ: ChampOdj; moteur:
             </button>
             <button
               type="button"
-              title="Supprimer ce champ"
+              title="Retirer cette ligne"
+              aria-label="Retirer cette ligne"
               onClick={() => moteur.commettre(champ.id, encodeActuel, "", true)}
-              className="self-center p-0.5 rounded text-ink-3 opacity-0 group-hover/libre:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+              // Visible en permanence, en ton attenue (REA-128).
+              className="self-center p-0.5 rounded text-ink-3 opacity-60 group-hover/libre:opacity-100 focus-visible:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
             >
               <X strokeWidth={1.5} className="w-3 h-3" />
             </button>
@@ -183,9 +185,11 @@ export function BlocLibreEditable({
       </button>
       <button
         type="button"
-        title="Supprimer ce paragraphe"
+        title="Retirer ce paragraphe"
+        aria-label="Retirer ce paragraphe"
         onClick={() => moteur.commettre(id, texte, "", true)}
-        className="absolute right-0 top-0.5 p-1 rounded text-ink-3 opacity-0 group-hover/bloc:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
+        // Visible en permanence, en ton attenue (REA-128).
+        className="absolute right-0 top-0.5 p-1 rounded text-ink-3 opacity-60 group-hover/bloc:opacity-100 focus-visible:opacity-100 hover:text-err-700 hover:bg-err-50 transition-opacity"
       >
         <X strokeWidth={1.5} className="w-3.5 h-3.5" />
       </button>

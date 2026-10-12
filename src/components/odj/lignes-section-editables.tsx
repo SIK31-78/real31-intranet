@@ -78,9 +78,12 @@ export function LigneStandardEditable({
             </button>
             <button
               type="button"
-              title="Retirer cette ligne du document"
+              title="Retirer cette ligne"
+              aria-label="Retirer cette ligne"
               onClick={() => moteur.commettre(cleMasque, "", "1", true)}
-              className="self-center p-0.5 rounded text-ink-3 opacity-0 group-hover/std:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
+              // Visible en permanence, en ton attenue (REA-128 : "on ne peut pas enlever les
+              // champs" - la croix n'apparaissait qu'au survol, personne ne la trouvait).
+              className="self-center p-0.5 rounded text-ink-3 opacity-60 group-hover/std:opacity-100 focus-visible:opacity-100 hover:text-warn-700 hover:bg-warn-50 transition-opacity"
             >
               <EyeOff strokeWidth={1.5} className="w-3 h-3" />
             </button>

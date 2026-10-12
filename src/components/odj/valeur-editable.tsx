@@ -109,7 +109,9 @@ export function ValeurEditable({
       ) : (
         <Pencil
           strokeWidth={1.5}
-          className="w-3 h-3 self-center text-ink-3 opacity-0 group-hover:opacity-100 group-hover:text-green-700 transition-opacity"
+          // Visible en permanence, attenue : signale que la valeur se modifie (REA-128).
+          aria-hidden
+          className="w-3 h-3 self-center text-ink-3 opacity-40 group-hover:opacity-100 group-hover:text-green-700 transition-opacity"
         />
       )}
     </button>
