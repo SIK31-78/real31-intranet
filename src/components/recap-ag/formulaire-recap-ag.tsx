@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Select, Choix, GroupeChoix } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "@/components/facturation/confirmation-facturation";
 import { apercuRecapAgAction, creerRecapAgAction, listerClesRepartitionAction } from "@/app/recap-ag/actions";
@@ -119,8 +120,12 @@ export function FormulaireRecapAg({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const confirmerDialogue = useConfirm();
   const [pending, demarrer] = useTransition();
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
+  // Date d'AG suspecte maintenue par le gestionnaire (REA-166) : cle copro|jour, pour que
+  // la confirmation ne survive pas a un changement de copro ou de date.
+  const [dateConfirmee, setDateConfirmee] = useState<string | null>(null);
 
   const depart = copros.find((c) => c.code === coproInitial) ?? copros[0];
   const [coproCode, setCoproCode] = useState(depart?.code ?? "");
@@ -228,6 +233,7 @@ export function FormulaireRecapAg({
     setInfoComptable("");
     setTravaux([]);
     setApercu(null);
+    setDateConfirmee(null);
     proposerContrat(code);
   }
 
@@ -305,7 +311,23 @@ export function FormulaireRecapAg({
     demarrer(async () => {
       const res = await apercuRecapAgAction(construireDemande());
       if (!res.ok) return toast.err(res.erreur);
-      if (res.donnees) setApercu(res.donnees);
+      if (!res.donnees) return;
+      // Un recap = une AG (REA-166) : une date suspecte (autre recap a moins de 10 mois,
+      // AG de plus de 6 mois) se confirme explicitement avant d'aller plus loin.
+      const aConfirmer = res.donnees.confirmationsDate ?? [];
+      if (aConfirmer.length > 0) {
+        const ok = await confirmerDialogue({
+          titre: "Vérifier la date de l'assemblée",
+          message: aConfirmer.join(" "),
+          confirmer: "La date est juste",
+          annuler: "Corriger la date",
+        });
+        if (!ok) return;
+        setDateConfirmee(`${coproCode}|${jour}`);
+      } else {
+        setDateConfirmee(null);
+      }
+      setApercu(res.donnees);
     });
   }
 
@@ -314,6 +336,7 @@ export function FormulaireRecapAg({
       const res = await creerRecapAgAction({
         ...construireDemande(),
         ...(sansFacture ? { sansFacture: true } : {}),
+        ...(dateConfirmee === `${coproCode}|${jour}` ? { confirmerDate: true } : {}),
       });
       setApercu(null);
       if (!res.ok) return toast.err(res.erreur);

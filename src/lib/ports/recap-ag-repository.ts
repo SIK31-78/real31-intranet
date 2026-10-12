@@ -100,6 +100,14 @@ export interface RecapAgDetail extends NouveauRecapAg, TraitementComptable {
 /** Ligne de la file "Recaps d'AG recus" (espace comptable). */
 export interface RecapAgFileLigne extends RecapAgHistorique, TraitementComptable {}
 
+/** Restriction appliquee AVANT la limite de lecture (REA-166). */
+export interface FiltreRecaps {
+  /** Codes copro retenus (le perimetre). */
+  coproCodes?: readonly string[];
+  /** Initiales de l'auteur (`cree_par`), retenues en plus des copros, casse ignoree. */
+  par?: string;
+}
+
 export interface RecapAgRepository {
   /** Cree le recap et ses travaux. Renvoie l'id du recap. */
   creerRecapAg(input: NouveauRecapAg): Promise<string>;
@@ -107,8 +115,14 @@ export interface RecapAgRepository {
   rattacherFacture(recapId: string, factureId: string, statut: StatutRecapAg): Promise<void>;
   /** Existe-t-il deja un recap pour cette AG ? (unicite copro + date) */
   existeRecap(coproCode: string, agDate: string): Promise<boolean>;
-  /** Historique des recaps, les plus recents d'abord. */
-  listerRecapsRecents(limite?: number): Promise<RecapAgHistorique[]>;
+  /**
+   * Historique des recaps, les plus recents d'abord.
+   *
+   * `filtre` (REA-166) : restreint AVANT la limite aux recaps de ces copros OU saisis par
+   * ces initiales. Sans lui, la limite tombe sur tout le cabinet (335 lignes au 12/10/2026)
+   * et les recaps anciens d'un gestionnaire en sortaient avant meme d'etre filtres.
+   */
+  listerRecapsRecents(limite?: number, filtre?: FiltreRecaps): Promise<RecapAgHistorique[]>;
   /**
    * Les recaps d'UNE copro (bloc « Récaps d'AG » de la fiche copro), l'AG la plus
    * recente d'abord. Une requete ciblee plutot que de filtrer listerRecapsRecents, borne
@@ -134,7 +148,7 @@ export interface RecapAgRepository {
    * Le cloisonnement (portefeuille / agences) est applique par le SERVICE : le port
    * ne connait ni les roles ni le perimetre.
    */
-  listerRecapsPourFile(limite?: number): Promise<RecapAgFileLigne[]>;
+  listerRecapsPourFile(limite?: number, filtre?: Pick<FiltreRecaps, "coproCodes">): Promise<RecapAgFileLigne[]>;
 
   /**
    * Dates d'AG des recaps deja saisis, groupees par code copro (cle = coproCode).

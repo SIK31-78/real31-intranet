@@ -47,6 +47,8 @@ function ligne(id: string, coproCode: string, traiteLe?: string): RecapAgFileLig
 
 const etat = vi.hoisted(() => ({
   listeJette: false,
+  /** Filtres recus par listerRecapsPourFile (REA-166 : le perimetre part dans la lecture). */
+  filtres: [] as ({ coproCodes?: readonly string[] } | undefined)[],
   marquages: [] as { id: string; traite: boolean; par: string }[],
 }));
 
@@ -73,7 +75,8 @@ vi.mock("@/lib/adapters/router", () => ({
     },
   }),
   getRecapAgRepository: () => ({
-    async listerRecapsPourFile(): Promise<RecapAgFileLigne[]> {
+    async listerRecapsPourFile(_limite?: number, filtre?: { coproCodes?: readonly string[] }): Promise<RecapAgFileLigne[]> {
+      etat.filtres.push(filtre);
       if (etat.listeJette) throw new Error("colonne traite_compta_at inconnue");
       return [ligne("r1", "S104"), ligne("r2", "S088"), ligne("r3", "S045", "2026-06-20T10:00:00.000Z")];
     },
@@ -117,6 +120,7 @@ const COMPTABLE_SANS_PERIMETRE = {
 
 beforeEach(() => {
   etat.listeJette = false;
+  etat.filtres = [];
   etat.marquages = [];
 });
 
@@ -140,6 +144,13 @@ describe("listerRecapsRecus - cloisonnement", () => {
     const { aTraiter, traites } = await listerRecapsRecus(COMPTABLE_SANS_PERIMETRE);
     expect(aTraiter).toHaveLength(0);
     expect(traites).toHaveLength(0);
+    // Et sans meme lire la table.
+    expect(etat.filtres).toHaveLength(0);
+  });
+
+  it("le perimetre part DANS la lecture, avant la limite (REA-166)", async () => {
+    await listerRecapsRecus(GESTIONNAIRE_M1);
+    expect(etat.filtres).toEqual([{ coproCodes: ["S104", "S045"] }]);
   });
 });
 
