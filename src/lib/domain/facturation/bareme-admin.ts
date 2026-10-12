@@ -25,10 +25,21 @@ export type FamilleBareme = "forfait" | "contrat" | "prestations" | "autres";
 
 export const LIBELLE_FAMILLE: Record<FamilleBareme, string> = {
   forfait: "Le forfait de gestion courante (proposition de contrat)",
-  contrat: "Les prestations tarifées au contrat (imprimées)",
-  prestations: "Les prestations facturables hors contrat imprimé",
+  // Libelles du panneau seulement (REA-103) : le contrat imprime garde les siens.
+  contrat: "Prestations prévues au contrat",
+  prestations: "Autres prestations facturables (hors contrat)",
   autres: "Autres lignes",
 };
+
+/**
+ * Tarifs tenus dans la grille pour INFORMATION : rien ne les facture automatiquement et
+ * l'application ne les exige pas (ils ne comptent pas dans les identifiants manquants).
+ * Ranges avec les prestations hors contrat, apres celles qui se facturent.
+ *  - RelanceSimple : relance simple d'un copropriétaire, 7,20 € TTC en 2026 (REA-103).
+ */
+export const TARIFS_INFORMATIFS: ReadonlyArray<{ identifiantPrestation: string; libelle: string }> = [
+  { identifiantPrestation: "RelanceSimple", libelle: "Relance simple" },
+];
 
 const ORDRE_FAMILLES: FamilleBareme[] = ["forfait", "contrat", "prestations", "autres"];
 
@@ -41,6 +52,8 @@ export function familleDe(identifiant: string): { famille: FamilleBareme; rang: 
   if (i >= 0) return { famille: "contrat", rang: i };
   i = PRESTATIONS_FACTURABLES.findIndex((p) => p.identifiantPrestation === identifiant);
   if (i >= 0) return { famille: "prestations", rang: i };
+  i = TARIFS_INFORMATIFS.findIndex((p) => p.identifiantPrestation === identifiant);
+  if (i >= 0) return { famille: "prestations", rang: PRESTATIONS_FACTURABLES.length + i };
   return { famille: "autres", rang: 0 };
 }
 
@@ -92,13 +105,22 @@ export function plafonner(identifiantPrestation: string, montantTtc: number): nu
  * Ouvrir une annee : les lignes de la source, au meme montant (ou majorees d'un
  * pourcentage, arrondi au centime, sans depasser un plafond legal), pour l'annee cible.
  * Les lignes deja presentes dans la cible sont conservees telles quelles.
+ *
+ * `arrondiEuro` (REA-103) : arrondit chaque montant a l'euro le plus proche (41,62 -> 42),
+ * PUIS applique le plafond legal : l'arrondi ne fait jamais depasser un plafond.
  */
-export function dupliquerBareme(source: LigneBareme[], dejaDansCible: LigneBareme[], majorationPourcent = 0): LigneBareme[] {
+export function dupliquerBareme(
+  source: LigneBareme[],
+  dejaDansCible: LigneBareme[],
+  majorationPourcent = 0,
+  options: { arrondiEuro?: boolean } = {},
+): LigneBareme[] {
   const deja = new Set(dejaDansCible.map((l) => l.identifiantPrestation));
   const coef = 1 + majorationPourcent / 100;
+  const arrondir = (m: number) => (options.arrondiEuro ? Math.round(m) : Math.round(m * 100) / 100);
   return source
     .filter((l) => !deja.has(l.identifiantPrestation))
-    .map((l) => ({ ...l, montantTtc: plafonner(l.identifiantPrestation, Math.round(l.montantTtc * coef * 100) / 100) }));
+    .map((l) => ({ ...l, montantTtc: plafonner(l.identifiantPrestation, arrondir(l.montantTtc * coef)) }));
 }
 
 /** L'ecart en % d'une ligne par rapport a l'annee precedente, null si elle n'existait pas. */

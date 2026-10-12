@@ -40,11 +40,11 @@ export function supprimerTarif(annee: number, identifiantPrestation: string): Pr
 }
 
 /** Ouvre une annee en copiant la source (sans ecraser ce qui y est deja). Renvoie le nombre de lignes creees. */
-export async function ouvrirAnnee(cible: number, source: number, majorationPourcent = 0): Promise<number> {
+export async function ouvrirAnnee(cible: number, source: number, majorationPourcent = 0, options: { arrondiEuro?: boolean } = {}): Promise<number> {
   const repo = getFacturationRepository();
   const [src, deja] = await Promise.all([repo.listerBareme(source), repo.listerBareme(cible)]);
   if (src.length === 0) throw new Error(`Le barème ${source} est vide, rien à copier.`);
-  const nouvelles = dupliquerBareme(src, deja, majorationPourcent);
+  const nouvelles = dupliquerBareme(src, deja, majorationPourcent, options);
   for (const l of nouvelles) await repo.enregistrerTarif({ ...l, annee: cible });
   return nouvelles.length;
 }

@@ -23,6 +23,18 @@ describe("bareme-admin", () => {
     expect(motifRefusMontant(380, "EtatDate")).toBeNull();
     expect(motifRefusMontant(390, "AGE")).toBeNull();
   });
+  it("arrondit a l'euro sur demande, sans jamais depasser le plafond legal", () => {
+    const r = dupliquerBareme([l("AGE", 40.8), l("MED", 60), l("EtatDate", 380), l("RepriseCompta", 46.5)], [], 2, { arrondiEuro: true });
+    expect(r).toEqual([l("AGE", 42), l("MED", 61), l("EtatDate", 380), l("RepriseCompta", 47)]);
+    // Sans l'option : au centime, comme avant.
+    expect(dupliquerBareme([l("AGE", 40.8)], [], 2)).toEqual([l("AGE", 41.62)]);
+  });
+  it("la relance simple est rangee avec les prestations hors contrat, sans etre exigee", () => {
+    expect(familleDe("RelanceSimple").famille).toBe("prestations");
+    expect(identifiantsManquants([l("AGE", 1)])).not.toContain("RelanceSimple");
+    const r = rangerBareme([l("RelanceSimple", 7.2), l("TauxHoraire", 163.65), l("Opposition", 260)]);
+    expect(r.map((x) => x.identifiantPrestation).at(-1)).toBe("RelanceSimple");
+  });
   it("ecart avec l'annee precedente", () => {
     expect(ecartAvecPrecedent(l("AGE", 42), [l("AGE", 40)])).toBe(5);
     expect(ecartAvecPrecedent(l("AGE", 42), [])).toBeNull();

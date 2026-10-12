@@ -10,7 +10,7 @@ import { Copy, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
-import { Field, Input } from "@/components/ui/field";
+import { Choix, Field, Input } from "@/components/ui/field";
 import { Section } from "@/components/ui/section";
 import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
@@ -28,6 +28,8 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
   const confirmer = useConfirm();
   const [pending, demarrer] = useTransition();
   const [majoration, setMajoration] = useState("0");
+  // Arrondir a l'euro les tarifs copies (REA-103) ; le plafond legal reste applique apres.
+  const [arrondiEuro, setArrondiEuro] = useState(false);
   // Les montants en cours d'edition, par identifiant (chaine, pour laisser taper une virgule).
   const [saisies, setSaisies] = useState<Record<string, { libelle: string; montant: string }>>({});
   const [nouvelle, setNouvelle] = useState<{ famille: FamilleBareme; identifiant: string; libelle: string; montant: string } | null>(null);
@@ -63,7 +65,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
     if (!bareme.precedente) return;
     const source = bareme.precedente;
     demarrer(async () => {
-      const res = await ouvrirAnneeAction({ cible: bareme.annee, source, majorationPourcent: lireMontant(majoration) ?? 0 });
+      const res = await ouvrirAnneeAction({ cible: bareme.annee, source, majorationPourcent: lireMontant(majoration) ?? 0, arrondiEuro });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(`${res.donnees?.creees ?? 0} tarifs copiés de ${source} vers ${bareme.annee}.`);
       router.refresh();
@@ -79,6 +81,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
           actions={
             <span className="flex items-center gap-2">
               <Field label="Majoration %" htmlFor="ba-maj" inline><Input id="ba-maj" inputMode="decimal" value={majoration} onChange={(e) => setMajoration(e.target.value)} largeur="auto" className="w-20 tabular-nums" /></Field>
+              <Choix type="checkbox" label="Arrondir à l'euro" checked={arrondiEuro} onChange={(e) => setArrondiEuro(e.target.checked)} />
               <Button type="button" variant="primary" size="sm" disabled={pending} onClick={ouvrir}><Copy strokeWidth={1.5} /> Copier {bareme.precedente}</Button>
             </span>
           }
