@@ -159,7 +159,14 @@ export interface DonneesAnnonce {
   /** "HH:mm". */
   heure: string;
   lieu: LieuAnnonce;
-  gestionnaire: { nomComplet: string; ligneDirecte?: string | undefined };
+  /** Signataire. `prenom` + `nom` (profil Signitic) priment sur `nomComplet` (session) :
+   *  un prénom composé « Jean Pierre » ne doit pas passer en capitales. */
+  gestionnaire: {
+    nomComplet: string;
+    prenom?: string | undefined;
+    nom?: string | undefined;
+    ligneDirecte?: string | undefined;
+  };
 }
 
 export interface AnnonceRendue {
@@ -237,7 +244,11 @@ export function rendreAnnonceAg(d: DonneesAnnonce): AnnonceRendue {
   const corps =
     d.modele === "hybride" ? paragraphesHybride(d, quand, limite) : paragraphesPresentiel(d, quand, limite);
 
-  const signature: Paragraphe = ["Cordialement,", signataire(d.gestionnaire.nomComplet)];
+  const { prenom, nom } = d.gestionnaire;
+  const qui = prenom?.trim() && nom?.trim()
+    ? `${prenom.trim()} ${nom.trim().toUpperCase()}`
+    : signataire(d.gestionnaire.nomComplet);
+  const signature: Paragraphe = ["Cordialement,", qui];
   // Le modèle hybride porte la ligne directe ; on l'omet si le profil ne la connaît pas.
   const ligne = d.gestionnaire.ligneDirecte?.trim();
   if (d.modele === "hybride" && ligne) signature.push(`Ligne directe : ${ligne}`);

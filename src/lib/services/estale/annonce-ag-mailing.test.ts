@@ -10,12 +10,21 @@ const etat = vi.hoisted(() => ({
   copro: null as unknown,
   confirmations: [] as unknown[],
   mailing: null as unknown,
+  profil: null as unknown,
+  emailsProfil: [] as string[],
 }));
 
 vi.mock("@/lib/adapters/router", () => ({
   getCoproRepository: () => ({ findByCode: async () => etat.copro }),
   getAgenceRepository: () => ({ listerAgences: async () => [{ id: "ag-lgc", code: "LGC" }] }),
   getMailingEstaleProvider: () => etat.mailing,
+  getSignatureProvider: () => ({
+    getProfil: async (email: string) => {
+      etat.emailsProfil.push(email);
+      if (etat.profil instanceof Error) throw etat.profil;
+      return etat.profil;
+    },
+  }),
 }));
 vi.mock("@/lib/services/coproprietes/exiger-perimetre", () => ({ exigerPerimetre: async () => undefined }));
 vi.mock("@/lib/services/coproprietes/confirmation-evenement", () => ({
@@ -55,6 +64,8 @@ beforeEach(() => {
   etat.mailing = mock;
   etat.copro = copro();
   etat.confirmations = [];
+  etat.profil = null;
+  etat.emailsProfil = [];
   delete process.env.ESTALE_MAILING_ACTIF;
 });
 afterEach(() => {
@@ -145,5 +156,31 @@ describe("creerAnnonceAg", () => {
     etat.mailing = { creerBrouillon: async () => { throw new Error("Oupss"); } };
     const r = await creerAnnonceAg("SE999", AUTEUR, AUJ);
     expect(!r.ok && r.raison).toMatch(/ESTALE a refusé.*Oupss/);
+  });
+});
+
+describe("signature du gestionnaire (Signitic)", () => {
+  it("prénom NOM et ligne directe du profil Signitic du gestionnaire connecté", async () => {
+    etat.profil = { prenom: "Jean Pierre", nom: "Martin", ligneDirecte: "01 47 84 00 71" };
+    const r = await apercuAnnonceAg("SE999", AUTEUR, AUJ, "hybride");
+    expect(etat.emailsProfil).toEqual(["sekou.koma@real31.fr"]);
+    expect(r.ok && r.valeur.texte).toContain("Cordialement,\nJean Pierre MARTIN\nLigne directe : 01 47 84 00 71");
+  });
+
+  it("Signitic muet (null) : nom de session, ligne omise", async () => {
+    const r = await apercuAnnonceAg("SE999", AUTEUR, AUJ, "hybride");
+    expect(r.ok && r.valeur.texte).toContain("Cordialement,\nSekou KOMA");
+    expect(r.ok && r.valeur.texte).not.toContain("Ligne directe");
+  });
+
+  it("Signitic en erreur : même repli, l'annonce n'échoue pas", async () => {
+    etat.profil = new Error("boom");
+    const r = await apercuAnnonceAg("SE999", AUTEUR, AUJ, "hybride");
+    expect(r.ok && r.valeur.texte).toContain("Sekou KOMA");
+  });
+
+  it("sans e-mail de session : Signitic n'est pas interrogé", async () => {
+    await apercuAnnonceAg("SE999", { id: "u1", nomComplet: "Sekou Koma" }, AUJ);
+    expect(etat.emailsProfil).toEqual([]);
   });
 });

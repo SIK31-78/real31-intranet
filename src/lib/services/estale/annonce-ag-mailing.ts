@@ -7,8 +7,16 @@
 // n'a pas de copropriétaires dans ESTALE), drapeau ESTALE_MAILING_ACTIF (SE999 seule
 // tant qu'il n'est pas à "1"), puis les préconditions du texte (date, heure, lieu,
 // date limite pas encore passée). Passe par le routeur (ADR-001).
+//
+// Signature : prénom NOM et ligne directe du gestionnaire connecté, lus dans Signitic
+// (port de signature, getProfil). Signitic muet -> nom de session, ligne omise.
 
-import { getAgenceRepository, getCoproRepository, getMailingEstaleProvider } from "@/lib/adapters/router";
+import {
+  getAgenceRepository,
+  getCoproRepository,
+  getMailingEstaleProvider,
+  getSignatureProvider,
+} from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import {
@@ -25,7 +33,7 @@ export interface AuteurAnnonce {
   id: string;
   nomComplet: string;
   email?: string | undefined;
-  /** Ligne directe du gestionnaire si un jour le profil la porte ; absente = omise. */
+  /** Ligne directe connue d'avance ; sinon lue dans Signitic, absente = omise. */
   ligneDirecte?: string | undefined;
 }
 
@@ -82,6 +90,9 @@ async function preparer(
   const refus = refusAnnonce({ agDateISO: ag?.date, heure: ag?.heure, lieu, aujourdhuiISO });
   if (refus || !ag || !ag.heure || !lieu) return { ok: false, raison: refus ?? "Annonce impossible." };
 
+  // Profil Signitic du gestionnaire : un confort, jamais bloquant (null = repli session).
+  const profil = auteur.email ? await getSignatureProvider().getProfil(auteur.email).catch(() => null) : null;
+
   const propose = choisirModeleAnnonce({ modeReunion: confirmation?.modeReunion, agConnect: copro.agConnect });
   const modele = modeleChoisi ?? propose.modele;
   const rendu = rendreAnnonceAg({
@@ -89,7 +100,12 @@ async function preparer(
     agDateISO: ag.date,
     heure: ag.heure,
     lieu,
-    gestionnaire: { nomComplet: auteur.nomComplet, ligneDirecte: auteur.ligneDirecte },
+    gestionnaire: {
+      nomComplet: auteur.nomComplet,
+      prenom: profil?.prenom,
+      nom: profil?.nom,
+      ligneDirecte: profil?.ligneDirecte ?? auteur.ligneDirecte,
+    },
   });
   const [a, m, j] = ag.date.split("-");
   return {
