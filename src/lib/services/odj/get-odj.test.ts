@@ -6,6 +6,7 @@ import type { Odj } from "@/lib/domain/odj";
 
 const etat = vi.hoisted(() => ({
   copro: {} as Record<string, unknown>,
+  confirmations: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/lib/adapters/router", () => ({
@@ -24,7 +25,7 @@ vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({
   donneesCoproEstale: async () => null,
 }));
 vi.mock("@/lib/services/coproprietes/confirmation-evenement", () => ({
-  getConfirmations: async () => [],
+  getConfirmations: async () => etat.confirmations,
 }));
 vi.mock("@/lib/services/agences/resoudre-agence", () => ({
   codeAgence: async () => undefined,
@@ -48,10 +49,12 @@ function enTete(odj: Odj | null, id: string) {
   return odj?.enTete.find((c) => c.id === id);
 }
 
+beforeEach(() => {
+  etat.copro = copro();
+  etat.confirmations = [];
+});
+
 describe("getOdj - date du CS", () => {
-  beforeEach(() => {
-    etat.copro = copro();
-  });
 
   it("porte l'heure du CS quand la fiche copro la connait (REA-143)", async () => {
     etat.copro = copro({ prochaineCsDate: "2026-10-05", prochaineCsHeure: "18:30" });
@@ -99,5 +102,30 @@ describe("getOdj - gestion courante (REA-251)", () => {
     const lignes = (section?.noeuds ?? []).flatMap((n) => (n.type === "ligne" ? [[n.libelle, n.valeur]] : []));
     expect(lignes).toContainEqual(["Échéance du contrat d'assurance", "31/03/2027"]);
     expect(lignes).toContainEqual(["Dernier contrôle gaz / VMC (CTQ)", "12/06/2025"]);
+  });
+});
+
+describe("getOdj - lieu de l'AG (REA-148)", () => {
+  it("une reunion a l'exterieur du cabinet : l'adresse libre est le lieu", async () => {
+    etat.confirmations = [{ type: "AG", lieuLibre: "Salle municipale, 3 place de la Mairie, 92250 La Garenne-Colombes" }];
+    const lieu = enTete(await getOdj("S146", "g1"), "lieu");
+    expect(lieu).toMatchObject({ valeur: "Salle municipale, 3 place de la Mairie, 92250 La Garenne-Colombes", source: "supabase" });
+  });
+
+  it("l'adresse libre prime sur une salle du cabinet", async () => {
+    etat.confirmations = [{ type: "AG", lieuLibre: "Loge du gardien", salleEmail: "inconnue@real31.fr" }];
+    expect(enTete(await getOdj("S146", "g1"), "lieu")?.valeur).toBe("Loge du gardien");
+  });
+
+  it("un lieu libre sur le CS ne remonte pas comme lieu de l'AG", async () => {
+    etat.confirmations = [{ type: "CS", lieuLibre: "Chez le président" }];
+    const lieu = enTete(await getOdj("S146", "g1"), "lieu");
+    expect(lieu?.valeur).toBeUndefined();
+    expect(lieu?.source).toBe("manuel");
+  });
+
+  it("colonne absente (SQL pas encore passe) : lieu vide, aucune erreur", async () => {
+    etat.confirmations = [{ type: "AG" }];
+    expect(enTete(await getOdj("S146", "g1"), "lieu")?.valeur).toBeUndefined();
   });
 });

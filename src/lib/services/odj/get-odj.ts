@@ -172,8 +172,11 @@ export async function getOdj(
   // du nom interne de la salle (demande Sekou 2026-07-28). Le gestionnaire garde la main :
   // le champ reste editable et sa saisie prime (AG hors les murs, salle municipale...).
   // Degrade proprement : aucune salle reservee, ou salle sans adresse -> champ vide a saisir.
+  // Reunion a l'EXTERIEUR du cabinet (REA-148) : l'adresse saisie a la main sur la date
+  // d'AG prime sur la salle (les deux sont exclusifs, mais on ne parie pas dessus). Colonne
+  // absente tant que le SQL n'est pas passe : le repo rend alors un lieu indefini.
   const confirmationAg = (await getConfirmations(code)).find((c) => c.type === "AG");
-  const lieuSalle = adresseRessource(confirmationAg?.salleEmail);
+  const lieuSalle = confirmationAg?.lieuLibre?.trim() || adresseRessource(confirmationAg?.salleEmail);
 
   const RAPPORT_CS =
     "Le syndic rappelle au CS qu'un rapport / compte rendu de son activité sur l'année devra nous être adressé afin d'être joint à la convocation.";
