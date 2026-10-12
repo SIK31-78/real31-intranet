@@ -10,6 +10,7 @@ import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estS
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
 import { compterMailsATrier } from "@/lib/services/tri-emails/compteur";
+import { echangesOuverts, utilisateurEchanges } from "@/lib/services/echanges/rechercher";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
 type AppShellProps = {
@@ -52,6 +53,8 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // Pastille du tri : comptee seulement pour qui voit l'entree (pilote), jamais bloquante.
   const triOuvert = boiteTriConfiguree() !== null;
   const triATrier = adminOuvert && triOuvert ? await compterMailsATrier() : null;
+  // "Échanges" : l'agence a une boite commune configuree (MAIL_BOITES_AGENCE), ou super-admin.
+  const echangesOuvert = g ? echangesOuverts(await utilisateurEchanges(g, adminOuvert).catch(() => null)) : false;
   // Entree "Annuaire Linkus" : ADMIN de la table User (Léa, téléphonie) + super-admin.
   const linkusOuvert = peutExporterAnnuaireLinkus(g?.email, g?.role);
   // Entree "Collaborateurs" : la direction (table User, referents d'agence, super-admin).
@@ -88,6 +91,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               directionOuverte={directionOuverte}
               triOuvert={triOuvert}
               triATrier={triATrier}
+              echangesOuvert={echangesOuvert}
             />
           </SidebarDrawer>
           <main className="flex-1 min-w-0 min-h-0">{children}</main>

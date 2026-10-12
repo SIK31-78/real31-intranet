@@ -12,6 +12,7 @@ export type NavKey =
   | "evenements"
   | "emails"
   | "tri-emails"
+  | "echanges"
   | "calendrier"
   | "copros"
   | "dossiers"
@@ -74,6 +75,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
       { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
       { key: "tri-emails", label: "Tri des e-mails", href: "/tri-emails", icon: MailCheck },
+      { key: "echanges", label: "Échanges", href: "/echanges", icon: MessageSquare },
     ],
   },
   {
@@ -286,6 +288,7 @@ export function Sidebar({
   perteOuverte = false,
   triOuvert = false,
   triATrier = null,
+  echangesOuvert = false,
 }: {
   active: NavKey;
   user: { initiales: string; nomComplet: string };
@@ -314,6 +317,8 @@ export function Sidebar({
   triOuvert?: boolean;
   /** Mails dans la boite de reception generique (pastille rouge) ; null = inconnu. */
   triATrier?: number | null;
+  /** Entree "Échanges" : l'agence de l'utilisateur a une boite commune configuree (Houilles d'abord), ou super-admin. */
+  echangesOuvert?: boolean;
 }) {
   return (
     <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto defilement-discret flex flex-col shadow-2 md:shadow-none">
@@ -359,6 +364,7 @@ export function Sidebar({
               if (item.key === "reprise") return repriseOuverte;
               // "Tri des e-mails" (ADR-046) : pilote super-admin, et seulement si la boite est configuree.
               if (item.key === "tri-emails") return adminOuvert && triOuvert;
+              if (item.key === "echanges") return echangesOuvert;
               // "Collaborateurs" et "Perte" : la direction.
               if (item.key === "collaborateurs") return directionOuverte;
               if (item.key === "perte") return perteOuverte;

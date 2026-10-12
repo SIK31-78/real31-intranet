@@ -57,6 +57,9 @@ import { SupabaseSynchroRepository } from "@/lib/adapters/supabase/supabase-sync
 import { CLE_ANNUAIRE_CRYPTO } from "@/lib/domain/synchro";
 import { ReferentielTriBoite } from "@/lib/adapters/referentiel-tri-boite";
 import { SupabaseReferentielTriCrypto } from "@/lib/adapters/supabase/supabase-referentiel-tri-crypto";
+import type { RechercheMailProvider } from "@/lib/ports/recherche-mail-provider";
+import { GraphRechercheMail } from "@/lib/adapters/mail/graph-recherche-mail";
+import { EchantillonRechercheMail } from "@/lib/adapters/mock/echantillon-recherche-mail";
 import type { SignatureProvider } from "@/lib/ports/signature-provider";
 import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
@@ -483,6 +486,12 @@ let triRepositoryMemoire: MockTriRepository | null = null;
 export function getTriRepository(): TriRepository {
   if (coproSourceEstSupabase()) return new SupabaseTriRepository();
   return (triRepositoryMemoire ??= new MockTriRepository());
+}
+
+// Écran « Échanges » : recherche dans les boîtes (Graph) ; échantillon fictif sans Graph.
+export function getRechercheMail(): RechercheMailProvider {
+  if (process.env.MAIL_SOURCE === "graph") return new GraphRechercheMail();
+  return new EchantillonRechercheMail();
 }
 
 // Compte rendu des synchros externes (annuaire Crypto). Hors Supabase : une synchro

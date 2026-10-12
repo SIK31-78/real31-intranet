@@ -42,6 +42,14 @@ export function boiteTriConfiguree(): string | null {
 }
 
 /**
+ * Écran « Échanges » : les boîtes communes de chaque agence, ex. « HLS=syndic4@real31.fr ».
+ * Une agence absente n'a pas l'écran (ouverture à Houilles seulement, décision du 12/10).
+ */
+export function boitesParAgenceBrut(): string {
+  return process.env.MAIL_BOITES_AGENCE ?? "";
+}
+
+/**
  * Mise en service du tri : seuls les mails recus a partir de MAIL_TRI_DEPUIS (AAAA-MM-JJ,
  * minuit heure de Paris) entrent dans la file. Le stock d'avant reste ou il est (syndic4 :
  * 18 233 mails en reception le 12/10/2026). Absente ou illisible = toute la reception.
