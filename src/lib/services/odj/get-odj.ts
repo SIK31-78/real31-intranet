@@ -14,6 +14,7 @@ import {
   parseMontant,
   formatEuros,
   parseCloture,
+  dateHeureCs,
 } from "@/lib/domain/odj";
 import { getCoproRepository, getOdjRepository } from "@/lib/adapters/router";
 import { CLE_CLOTURE_ODJ, CLE_FIN_REUNION } from "@/lib/ports/odj-repository";
@@ -181,7 +182,8 @@ export async function getOdj(
     champ("adresse", "Adresse", "supabase", { valeur: adresse }),
     champ("date-ag", "Date de l'AG", dateAg ? "supabase" : "manuel", { valeur: dateCourte(dateAg) }),
     champ("date-cs", "Date du CS préparatoire", "supabase", {
-      valeur: dateCourte(copro.prochaineCsDate),
+      // Avec l'heure quand la fiche copro la porte (REA-143) : "16/11/2026 à 18h30".
+      valeur: dateHeureCs(copro.prochaineCsDate, copro.prochaineCsHeure),
       alerte: copro.prochaineCsDate
         ? undefined
         : "Date de CS non renseignée : à planifier (fiche copro ou supervision).",

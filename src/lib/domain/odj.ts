@@ -149,6 +149,32 @@ export function parseCloture(valeur: string | null | undefined): ClotureOdj | un
   return { le, par };
 }
 
+// --- Dates de l'en-tete et de la gestion courante ----------------------------
+
+/** "2026-11-16" -> "16/11/2026" ; undefined si la date est absente ou illisible. */
+export function dateCourteOdj(iso: string | undefined): string | undefined {
+  if (!iso) return undefined;
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return y && m && d ? `${d}/${m}/${y}` : undefined;
+}
+
+/** Date du CS telle qu'on l'affiche : "16/11/2026 à 18h30", ou la date seule quand le
+ *  CS n'a pas d'heure (journee entiere). L'heure vient de la fiche copro ("HH:mm") ;
+ *  elle sortait deja dans le Word du gabarit, pas dans l'ODJ en ligne (REA-143). */
+export function dateHeureCs(iso: string | undefined, heure: string | undefined): string | undefined {
+  const date = dateCourteOdj(iso);
+  if (!date) return undefined;
+  const h = heure?.match(/^(\d{1,2}):(\d{2})/);
+  return h ? `${date} à ${h[1]!.padStart(2, "0")}h${h[2]}` : date;
+}
+
+/** La date seule d'une valeur "Conseil syndical du" ("16/11/2026 à 18h30" -> "16/11/2026").
+ *  Le gabarit Word a son propre blanc pour l'heure : sans ce decoupage, elle y sortirait
+ *  deux fois. Une valeur qui ne commence pas par une date est rendue telle quelle. */
+export function dateSeuleCs(valeur: string): string {
+  return valeur.match(/^\d{2}\/\d{2}\/\d{4}/)?.[0] ?? valeur;
+}
+
 // --- Montants ---------------------------------------------------------------
 
 /** Parse un montant saisi ("4500", "4 500,50", "4500.5") ; null si illisible. */
