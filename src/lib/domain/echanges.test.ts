@@ -4,6 +4,10 @@ import {
   boitesVisibles,
   codesDeCopro,
   fusionnerResultats,
+  lienEchange,
+  lireRefEchange,
+  refEchange,
+  resumeEchange,
   lireBoitesParAgence,
   requetesKql,
   sensDe,
@@ -96,5 +100,20 @@ describe("codes, sens et fusion", () => {
       10,
     );
     expect(r.map((x) => x.internetMessageId)).toEqual(["<b>", "<a>"]);
+  });
+});
+
+describe("mail rattaché à un dossier", () => {
+  it("la référence survit au déplacement du mail et rouvre le mail dans Échanges", () => {
+    const ref = refEchange("Syndic4@real31.fr", "<abc|def@x>");
+    expect(lireRefEchange(ref)).toEqual({ boite: "syndic4@real31.fr", internetMessageId: "<abc|def@x>" });
+    expect(lireRefEchange("AAMkAD-ancien-id-graph")).toBeNull();
+    expect(lienEchange("syndic4@real31.fr", "<a@b>")).toBe("/echanges?boite=syndic4%40real31.fr&mid=%3Ca%40b%3E");
+  });
+
+  it("résume le mail pour le journal du dossier", () => {
+    const base = { boite: "syndic4@real31.fr", deNom: "Jean Dupont", deAdresse: "jean@x.fr", a: ["syndic4@real31.fr"], objet: "Fuite" };
+    expect(resumeEchange(base)).toBe("Reçu de Jean Dupont : Fuite");
+    expect(resumeEchange({ ...base, deAdresse: "syndic4@real31.fr", a: ["jean@x.fr"] })).toBe("Envoyé à jean@x.fr : Fuite");
   });
 });

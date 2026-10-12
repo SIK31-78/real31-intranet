@@ -145,6 +145,31 @@ export function sensDe(e: Pick<EchangeTrouve, "boite" | "deAdresse">): Sens {
   return de.endsWith(DOMAINE_INTERNE) ? "interne" : "recu";
 }
 
+/**
+ * Un mail rattaché à un dossier (journal du dossier, kind « email ») : la boîte et
+ * l'internetMessageId, qui ne change pas quand le mail est déplacé (l'id Graph, si).
+ */
+export function refEchange(boite: string, internetMessageId: string): string {
+  return `echange:${boite.toLowerCase()}|${internetMessageId}`;
+}
+
+export function lireRefEchange(ref: string | undefined): { boite: string; internetMessageId: string } | null {
+  const m = /^echange:([^|]+)\|(.+)$/.exec(ref ?? "");
+  return m ? { boite: m[1]!, internetMessageId: m[2]! } : null;
+}
+
+/** Le lien qui rouvre un mail rattaché dans l'écran « Échanges ». */
+export function lienEchange(boite: string, internetMessageId: string): string {
+  return `/echanges?boite=${encodeURIComponent(boite)}&mid=${encodeURIComponent(internetMessageId)}`;
+}
+
+/** La ligne du journal du dossier : qui, quand, quoi. */
+export function resumeEchange(e: Pick<EchangeTrouve, "boite" | "deAdresse" | "deNom" | "a" | "objet">): string {
+  const s = sensDe(e);
+  const qui = s === "envoye" ? `Envoyé à ${e.a.slice(0, 2).join(", ") || "?"}` : `${s === "interne" ? "Message interne" : "Reçu"} de ${e.deNom || e.deAdresse}`;
+  return `${qui} : ${e.objet}`;
+}
+
 /** Fusionne les résultats de plusieurs requêtes et boîtes : sans doublon, les plus récents d'abord. */
 export function fusionnerResultats(listes: EchangeTrouve[][], max: number): EchangeTrouve[] {
   const vus = new Set<string>();

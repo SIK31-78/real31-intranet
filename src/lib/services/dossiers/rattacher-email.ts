@@ -23,14 +23,17 @@ export async function rattacherEmailAuDossier(
   initiales: string,
   resume: string,
   emailRef: string,
+  /** Date du mail (écran Échanges) : le journal le place à sa date ; défaut = maintenant. */
+  le: string = new Date().toISOString(),
 ): Promise<boolean> {
   const repo = getDossierRepository();
   const d = await repo.get(dossierId);
   if (!d || !(await coproAppartient(d.coproCode, managerId))) return false;
-  const journal = [
-    ...d.journal,
-    { le: new Date().toISOString(), par: initiales, texte: resume, kind: "email" as const, ref: emailRef },
-  ];
+  // Deja rattache : on ne le met pas deux fois.
+  if (d.journal.some((ev) => ev.kind === "email" && ev.ref === emailRef)) return true;
+  const journal = [...d.journal, { le, par: initiales, texte: resume, kind: "email" as const, ref: emailRef }].sort((a, b) =>
+    a.le.localeCompare(b.le),
+  );
   await repo.patch(dossierId, { journal });
   return true;
 }

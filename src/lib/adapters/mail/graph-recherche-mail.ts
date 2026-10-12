@@ -26,7 +26,37 @@ const SELECT =
   "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,webLink";
 const adresses = (l?: Adresse[]) => (l ?? []).map((d) => d.emailAddress?.address ?? "").filter(Boolean);
 
+function versEchange(boite: string, m: GraphMessage): EchangeTrouve {
+  return {
+    boite,
+    id: m.id,
+    internetMessageId: m.internetMessageId ?? m.id,
+    ...(m.conversationId ? { conversationId: m.conversationId } : {}),
+    objet: m.subject || "(sans objet)",
+    deNom: m.from?.emailAddress?.name ?? m.from?.emailAddress?.address ?? "",
+    deAdresse: (m.from?.emailAddress?.address ?? "").toLowerCase(),
+    a: adresses(m.toRecipients),
+    cc: adresses(m.ccRecipients),
+    date: m.receivedDateTime,
+    aPiecesJointes: Boolean(m.hasAttachments),
+    apercu: m.bodyPreview ?? "",
+    ...(m.webLink ? { lienOutlook: m.webLink } : {}),
+  };
+}
+
 export class GraphRechercheMail implements RechercheMailProvider {
+  async trouver(p: { boite: string; internetMessageId: string }): Promise<EchangeTrouve | null> {
+    const tk = await jetonGraph();
+    const filtre = encodeURIComponent(`internetMessageId eq '${p.internetMessageId.replace(/'/g, "''")}'`);
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages?$filter=${filtre}&$top=1&$select=${SELECT}`, {
+      headers: { Authorization: `Bearer ${tk}` },
+    });
+    if (r.status === 403 || r.status === 404) throw new BoiteNonLisible(p.boite);
+    if (!r.ok) throw new Error(`Graph message ${r.status}`);
+    const m = ((await r.json()) as { value?: GraphMessage[] }).value?.[0];
+    return m ? versEchange(p.boite, m) : null;
+  }
+
   async rechercher(p: { boite: string; kql: string; max: number }): Promise<EchangeTrouve[]> {
     const tk = await jetonGraph();
     let url =
@@ -38,23 +68,7 @@ export class GraphRechercheMail implements RechercheMailProvider {
       if (r.status === 403 || r.status === 404) throw new BoiteNonLisible(p.boite);
       if (!r.ok) throw new Error(`Graph recherche ${r.status} : ${(await r.text()).slice(0, 200)}`);
       const j = (await r.json()) as { value?: GraphMessage[]; "@odata.nextLink"?: string };
-      for (const m of j.value ?? []) {
-        out.push({
-          boite: p.boite,
-          id: m.id,
-          internetMessageId: m.internetMessageId ?? m.id,
-          ...(m.conversationId ? { conversationId: m.conversationId } : {}),
-          objet: m.subject || "(sans objet)",
-          deNom: m.from?.emailAddress?.name ?? m.from?.emailAddress?.address ?? "",
-          deAdresse: (m.from?.emailAddress?.address ?? "").toLowerCase(),
-          a: adresses(m.toRecipients),
-          cc: adresses(m.ccRecipients),
-          date: m.receivedDateTime,
-          aPiecesJointes: Boolean(m.hasAttachments),
-          apercu: m.bodyPreview ?? "",
-          ...(m.webLink ? { lienOutlook: m.webLink } : {}),
-        });
-      }
+      for (const m of j.value ?? []) out.push(versEchange(p.boite, m));
       url = j["@odata.nextLink"] ?? "";
     }
     return out.slice(0, p.max);

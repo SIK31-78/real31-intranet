@@ -5,6 +5,7 @@ import {
   boitesDe,
   coprosEchanges,
   rechercherEchanges,
+  trouverEchange,
   utilisateurEchanges,
   type ResultatRecherche,
 } from "@/lib/services/echanges/rechercher";
@@ -42,17 +43,31 @@ export default async function EchangesPage({ searchParams }: { searchParams: Pro
   const cochees = plusieurs(p.boite).map((b) => b.toLowerCase());
   const cibles = cochees.length ? cochees : boites.map((b) => b.adresse);
   const recherche = Object.keys(critere).length > 0;
+  // Lien depuis un dossier : un mail précis, par son internetMessageId.
+  const mid = un(p.mid);
+  const boiteDuLien = cochees[0];
 
+  const echec = (e: unknown): ResultatRecherche => ({
+    echanges: [],
+    erreurs: [e instanceof Error ? e.message : "La recherche n'a pas abouti."],
+    adressesCopro: null,
+    tronque: false,
+  });
   const [copros, resultat] = await Promise.all([
     coprosEchanges().catch(() => []),
-    recherche
-      ? rechercherEchanges(u, critere, cibles).catch((e: unknown): ResultatRecherche => ({
-          echanges: [],
-          erreurs: [e instanceof Error ? e.message : "La recherche n'a pas abouti."],
-          adressesCopro: null,
-          tronque: false,
-        }))
-      : null,
+    mid && boiteDuLien
+      ? trouverEchange(u, boiteDuLien, mid).then(
+          (e): ResultatRecherche => ({
+            echanges: e ? [e] : [],
+            erreurs: e ? [] : ["Ce mail n'est plus dans la boîte (supprimé ou archivé ailleurs)."],
+            adressesCopro: null,
+            tronque: false,
+          }),
+          echec,
+        )
+      : recherche
+        ? rechercherEchanges(u, critere, cibles).catch(echec)
+        : null,
   ]);
   const coproChoisie = critere.copro ? copros.find((c) => c.reference.toUpperCase() === critere.copro) : undefined;
 
@@ -128,7 +143,7 @@ export default async function EchangesPage({ searchParams }: { searchParams: Pro
               {resultat.adressesCopro !== null && ` · ${resultat.adressesCopro} adresse${resultat.adressesCopro > 1 ? "s" : ""} connue${resultat.adressesCopro > 1 ? "s" : ""} pour la copropriété`}
               {resultat.tronque && " · affichage limité aux plus récents : affinez par date ou par mot"}
             </p>
-            <EchangesVue echanges={resultat.echanges} plusieursBoites={cibles.length > 1} />
+            <EchangesVue echanges={resultat.echanges} plusieursBoites={cibles.length > 1} {...(critere.copro ? { coproParDefaut: critere.copro } : {})} />
           </>
         )}
       </Page>

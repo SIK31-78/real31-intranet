@@ -23,6 +23,7 @@ import {
   type EtapeDossier,
   type StatutDossier,
   type KindEvenement,
+  type EvenementDossier,
   type AssigneRole,
   type TypeDossier,
   type PorteeDossier,
@@ -40,8 +41,15 @@ import {
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input, Select } from "@/components/ui/field";
+import { lienEchange, lireRefEchange } from "@/lib/domain/echanges";
 
 const PORTEE_ORDRE: PorteeDossier[] = ["copropriete", "coproprietaire", "lot"];
+
+/** Lien vers l'écran « Échanges » pour un mail rattaché depuis cet écran ; null pour les autres. */
+function lienDe(ev: EvenementDossier): string | null {
+  const r = lireRefEchange(ev.ref);
+  return r ? lienEchange(r.boite, r.internetMessageId) : null;
+}
 
 const KIND_ICON: Record<KindEvenement, typeof Flag> = {
   note: MessageSquare,
@@ -80,6 +88,8 @@ export function DossierFiche({
   const [pending, startTransition] = useTransition();
   const toast = useToast();
   const p = progressionDossier({ ...dossier, etapes });
+  // Les mails rattachés (écran « Échanges ») : le fil du dossier, du plus ancien au plus récent.
+  const mails = dossier.journal.filter((ev) => ev.kind === "email").sort((a, b) => a.le.localeCompare(b.le));
 
   // Les etapes s'ecrivent EN ENTIER (majEtapesAction remplace la liste) : deux sauvegardes
   // concurrentes pourraient arriver dans le desordre et la plus ancienne ecraser la plus
@@ -253,7 +263,9 @@ export function DossierFiche({
       {/* Onglets */}
       <div role="tablist" aria-label="Sections du dossier" className="flex items-center gap-1 border-b border-line">
         <OngletBouton actif={onglet === "suivi"} onClick={() => setOnglet("suivi")}>Suivi</OngletBouton>
-        <OngletBouton actif={onglet === "evenements"} onClick={() => { void vider(); setOnglet("evenements"); }}>Mes événements</OngletBouton>
+        <OngletBouton actif={onglet === "evenements"} onClick={() => { void vider(); setOnglet("evenements"); }}>
+          Échanges{mails.length > 0 ? ` (${mails.length})` : ""}
+        </OngletBouton>
       </div>
 
       {onglet === "suivi" ? (
@@ -360,7 +372,15 @@ export function DossierFiche({
                       <Icon strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 mt-0.5 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="text-body text-ink">{ev.texte}</p>
-                        <p className="text-meta text-ink-3 mt-0.5">{ev.par} · {formatDateLongue(ev.le.slice(0, 10))}</p>
+                        <p className="text-meta text-ink-3 mt-0.5">
+                          {ev.par} · {formatDateLongue(ev.le.slice(0, 10))}
+                          {lienDe(ev) && (
+                            <>
+                              {" · "}
+                              <Link href={lienDe(ev)!} className="text-green-700 hover:underline">Ouvrir le mail</Link>
+                            </>
+                          )}
+                        </p>
                       </div>
                       {maNote && (
                         <Button
@@ -382,13 +402,38 @@ export function DossierFiche({
         </>
       ) : (
         <Card>
-          <div className="px-4 py-12 text-center">
-            <Inbox strokeWidth={1.5} className="w-6 h-6 text-ink-3 mx-auto mb-2" />
-            <p className="text-body text-ink-3">Aucun échange rattaché à ce dossier.</p>
-            <p className="text-body text-ink-3 mt-1">
-              Les emails (et bientôt les appels) rattachés à ce dossier apparaîtront ici.
-            </p>
-          </div>
+          {mails.length === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <Inbox strokeWidth={1.5} className="w-6 h-6 text-ink-3 mx-auto mb-2" />
+              <p className="text-body text-ink-3">Aucun mail rattaché à ce dossier.</p>
+              <p className="text-body text-ink-3 mt-1">
+                Depuis l&apos;écran « Échanges », ouvrez un mail puis « Rattacher à un dossier » : il apparaît ici, à sa date.
+              </p>
+            </div>
+          ) : (
+            <>
+              <CardHeader><CardTitle>Mails du dossier, dans l&apos;ordre</CardTitle></CardHeader>
+              <ol className="divide-y divide-line">
+                {mails.map((ev) => (
+                  <li key={`${ev.le}|${ev.ref ?? ev.texte}`} className="flex items-start gap-2.5 px-4 py-2.5">
+                    <Mail strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 mt-0.5 shrink-0" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-body text-ink">{ev.texte}</p>
+                      <p className="text-meta text-ink-3 mt-0.5">
+                        {formatDateLongue(ev.le.slice(0, 10))} · rattaché par {ev.par}
+                        {lienDe(ev) && (
+                          <>
+                            {" · "}
+                            <Link href={lienDe(ev)!} className="text-green-700 hover:underline">Ouvrir le mail</Link>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
         </Card>
       )}
 

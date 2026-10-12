@@ -3,14 +3,23 @@
 // Résultats de l'écran « Échanges » : la liste (du plus récent au plus ancien) et, au clic,
 // le mail complet avec ses pièces jointes. Lecture seule ; on répond depuis Outlook.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { ArrowDownLeft, ArrowUpRight, ExternalLink, Paperclip, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/field";
+import { useToast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
 import { VisionneusePj, type ApercuPj } from "@/components/mes-emails/visionneuse-pj";
 import { sensDe, type EchangeTrouve, type Sens } from "@/lib/domain/echanges";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
-import { lireEchangeAction, lirePieceJointeEchangeAction, listerPiecesJointesEchangeAction } from "@/app/echanges/actions";
+import {
+  dossiersPourRattacherAction,
+  lireEchangeAction,
+  lirePieceJointeEchangeAction,
+  listerPiecesJointesEchangeAction,
+  rattacherEchangeAction,
+} from "@/app/echanges/actions";
 
 const SENS: Record<Sens, { libelle: string; Icone: typeof ArrowDownLeft; ton: "info" | "ok" | "neutral" }> = {
   recu: { libelle: "Reçu", Icone: ArrowDownLeft, ton: "info" },
@@ -23,7 +32,16 @@ const date = (iso: string) =>
 
 const taille = (o: number) => (o > 1_000_000 ? `${(o / 1_000_000).toFixed(1)} Mo` : `${Math.max(1, Math.round(o / 1000))} Ko`);
 
-export function EchangesVue({ echanges, plusieursBoites }: { echanges: EchangeTrouve[]; plusieursBoites: boolean }) {
+export function EchangesVue({
+  echanges,
+  plusieursBoites,
+  coproParDefaut,
+}: {
+  echanges: EchangeTrouve[];
+  plusieursBoites: boolean;
+  /** Copro de la recherche : proposee pour le rattachement a un dossier. */
+  coproParDefaut?: string;
+}) {
   const [choisi, setChoisi] = useState<EchangeTrouve | null>(echanges[0] ?? null);
   if (echanges.length === 0) return <EmptyState>Aucun échange ne correspond à cette recherche.</EmptyState>;
 
@@ -55,12 +73,12 @@ export function EchangesVue({ echanges, plusieursBoites }: { echanges: EchangeTr
           );
         })}
       </ul>
-      {choisi && <Detail key={`${choisi.boite}|${choisi.id}`} e={choisi} />}
+      {choisi && <Detail key={`${choisi.boite}|${choisi.id}`} e={choisi} coproParDefaut={coproParDefaut} />}
     </div>
   );
 }
 
-function Detail({ e }: { e: EchangeTrouve }) {
+function Detail({ e, coproParDefaut }: { e: EchangeTrouve; coproParDefaut?: string | undefined }) {
   const [corps, setCorps] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const s = SENS[sensDe(e)];
@@ -105,6 +123,7 @@ function Detail({ e }: { e: EchangeTrouve }) {
         {erreur ? <span className="text-err-700">{erreur}</span> : corps === null ? <span className="text-ink-3">Chargement…</span> : corps.trim() || e.apercu}
       </div>
       {e.aPiecesJointes && <PiecesJointes boite={e.boite} internetMessageId={e.internetMessageId} />}
+      <RattacherDossier e={e} coproParDefaut={coproParDefaut ?? ""} />
     </article>
   );
 }
@@ -171,6 +190,75 @@ function PiecesJointes({ boite, internetMessageId }: { boite: string; internetMe
         </div>
       )}
       <VisionneusePj apercu={apercu} onFermer={() => setApercu(null)} />
+    </div>
+  );
+}
+
+type DossierChoix = { id: string; titre: string; coproCode: string };
+
+/** Rattacher le mail a un dossier ouvert de la copro : il rejoint le fil du dossier, a sa date. */
+function RattacherDossier({ e, coproParDefaut }: { e: EchangeTrouve; coproParDefaut: string }) {
+  const [copro, setCopro] = useState(coproParDefaut);
+  const [dossiers, setDossiers] = useState<DossierChoix[] | null>(null);
+  const [choisi, setChoisi] = useState("");
+  const [enCours, demarrer] = useTransition();
+  const toast = useToast();
+
+  function chercher() {
+    demarrer(async () => {
+      const r = await dossiersPourRattacherAction({ copro: copro.trim() });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      setDossiers(r.donnees ?? []);
+      setChoisi(r.donnees?.[0]?.id ?? "");
+    });
+  }
+
+  function rattacher() {
+    demarrer(async () => {
+      const r = await rattacherEchangeAction({ dossierId: choisi, boite: e.boite, internetMessageId: e.internetMessageId });
+      if (r.ok) toast.ok("Mail rattaché au dossier.");
+      else toast.err(r.erreur);
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-line pt-2">
+      <span className="text-meta text-ink-3">Rattacher à un dossier</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={copro}
+          onChange={(ev) => {
+            setCopro(ev.target.value.toUpperCase());
+            setDossiers(null);
+          }}
+          onKeyDown={(ev) => ev.key === "Enter" && chercher()}
+          placeholder="Code copro, ex. S247"
+          aria-label="Copropriété du dossier"
+          largeur="auto"
+          className="w-36"
+        />
+        <Button size="sm" variant="secondary" disabled={enCours || !/^(SE|S)\d{3,4}$/i.test(copro.trim())} onClick={chercher}>
+          Voir les dossiers
+        </Button>
+      </div>
+      {dossiers?.length === 0 && <span className="text-meta text-ink-3">Aucun dossier ouvert pour cette copropriété (ou hors de votre périmètre).</span>}
+      {dossiers && dossiers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={choisi} onChange={(ev) => setChoisi(ev.target.value)} aria-label="Dossier" largeur="auto" className="max-w-full">
+            {dossiers.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.coproCode} · {d.titre}
+              </option>
+            ))}
+          </Select>
+          <Button size="sm" variant="primary" disabled={enCours || !choisi} onClick={rattacher}>
+            Rattacher
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

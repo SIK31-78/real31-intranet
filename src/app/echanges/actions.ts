@@ -11,12 +11,16 @@ import { estSuperAdmin } from "@/lib/auth/session";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import {
   AccesRefuse,
+  dossiersPourRattacher,
   lireEchange,
+  rattacherEchange,
   lirePieceJointeEchange,
   listerPiecesJointesEchange,
   utilisateurEchanges,
 } from "@/lib/services/echanges/rechercher";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+import type { Dossier } from "@/lib/domain/dossier";
+import { revalidatePath } from "next/cache";
 
 const zBoite = z.string().email().max(320);
 const zId = z.string().min(1).max(400);
@@ -54,5 +58,30 @@ export async function lirePieceJointeEchangeAction(input: unknown): Promise<Res<
     input,
     "echanges-pj-lire",
     async (d, g) => garde(async () => lirePieceJointeEchange(await utilisateur(g), d.boite, d.internetMessageId, d.attachmentId)),
+  );
+}
+
+const zCopro = z.string().regex(/^(SE|S)\d{3,4}$/i);
+
+export async function dossiersPourRattacherAction(
+  input: unknown,
+): Promise<Res<Pick<Dossier, "id" | "titre" | "type" | "statut" | "coproCode">[]>> {
+  return actionGestionnaire(z.object({ copro: zCopro }), input, "echanges-dossiers", async (d, g) => {
+    await utilisateur(g);
+    return dossiersPourRattacher(g.id, d.copro.toUpperCase());
+  });
+}
+
+export async function rattacherEchangeAction(input: unknown): Promise<Res> {
+  return actionGestionnaire(
+    z.object({ dossierId: z.string().min(1).max(80), boite: zBoite, internetMessageId: zId }),
+    input,
+    "echanges-rattacher",
+    async (d, g) =>
+      garde(async () => {
+        const ok = await rattacherEchange(await utilisateur(g), g, d.dossierId, d.boite, d.internetMessageId);
+        if (!ok) throw new Refus("Ce dossier n'est pas dans votre périmètre.");
+        revalidatePath(`/dossiers/${d.dossierId}`);
+      }),
   );
 }

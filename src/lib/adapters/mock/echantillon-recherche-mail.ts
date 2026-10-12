@@ -42,6 +42,11 @@ export class EchantillonRechercheMail implements RechercheMailProvider {
       .slice(0, p.max);
   }
 
+  async trouver(p: { boite: string; internetMessageId: string }): Promise<EchangeTrouve | null> {
+    const e = ECHANTILLON.find((x) => x.internetMessageId === p.internetMessageId);
+    return e ? { ...e, boite: p.boite } : null;
+  }
+
   async lireCorps(p: { id: string }): Promise<string> {
     return ECHANTILLON.find((e) => e.id === p.id)?.apercu ?? "";
   }

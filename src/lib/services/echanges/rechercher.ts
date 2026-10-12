@@ -10,7 +10,9 @@ import {
   codesDeCopro,
   fusionnerResultats,
   lireBoitesParAgence,
+  refEchange,
   requetesKql,
+  resumeEchange,
   type BoiteVisible,
   type CritereEchanges,
   type EchangeTrouve,
@@ -18,6 +20,9 @@ import {
 } from "@/lib/domain/echanges";
 import { cleDeReference, type CoproTri } from "@/lib/domain/tri-emails";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
+import type { Dossier } from "@/lib/domain/dossier";
+import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
+import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email";
 import { boitesParAgenceBrut } from "@/lib/domain/mail-gate";
 import { getAgenceRepository, getMailboxProvider, getRechercheMail, getReferentielTriProvider } from "@/lib/adapters/router";
 
@@ -138,4 +143,35 @@ export async function lirePieceJointeEchange(
   attachmentId: string,
 ): Promise<{ nom: string; type: string; base64: string }> {
   return getMailboxProvider().lirePieceJointe({ boite: garder(u, boite), internetMessageId, attachmentId });
+}
+
+/** Un mail précis (lien depuis un dossier), dans une boîte qu'on a le droit de lire. */
+export async function trouverEchange(u: Utilisateur, boite: string, internetMessageId: string): Promise<EchangeTrouve | null> {
+  return getRechercheMail().trouver({ boite: garder(u, boite), internetMessageId });
+}
+
+/** Dossiers ouverts de la copro, auxquels rattacher un mail (cloisonnement du module Dossiers). */
+export async function dossiersPourRattacher(managerId: string, coproRef: string): Promise<Pick<Dossier, "id" | "titre" | "type" | "statut" | "coproCode">[]> {
+  // Les dossiers portent le code Crypto (S300) ou ESTALE (S0300) : on cherche les deux.
+  const listes = await Promise.all(codesDeCopro(coproRef).map((code) => getDossiersCopro(code, managerId).catch(() => [])));
+  return listes
+    .flat()
+    .filter((d) => d.statut !== "clos")
+    .map((d) => ({ id: d.id, titre: d.titre, type: d.type, statut: d.statut, coproCode: d.coproCode }));
+}
+
+/**
+ * Rattache un mail au journal d'un dossier, à la date du mail. Le résumé est relu dans la
+ * boîte, jamais pris du navigateur. false si le dossier est hors du périmètre.
+ */
+export async function rattacherEchange(
+  u: Utilisateur,
+  g: { id: string; initiales: string },
+  dossierId: string,
+  boite: string,
+  internetMessageId: string,
+): Promise<boolean> {
+  const e = await trouverEchange(u, boite, internetMessageId);
+  if (!e) throw new Error("Ce mail n'est plus dans la boîte.");
+  return rattacherEmailAuDossier(dossierId, g.id, g.initiales, resumeEchange(e), refEchange(e.boite, e.internetMessageId), e.date);
 }
