@@ -172,11 +172,20 @@ describe("CompositeCoproRepository.setDateEvenement (routage)", () => {
     expect(miroir.setAppels).toHaveLength(0);
   });
 
-  it("copro eStale hors scope -> no-op (comme le miroir)", async () => {
+  it("copro eStale hors portefeuille (ADMIN, delegue) -> ECRIT : l'autorite est verifiee en amont (REA-274)", async () => {
     const dates = new FakeDates();
     const c = new CompositeCoproRepository(new FakeMiroir(miroirRows), new FakeEstale(estaleRows), dates);
-    await c.setDateEvenement("S300", "ag", "prochaine", "2026-12-01", "u-autre");
-    expect(dates.ecritures).toHaveLength(0);
+    await c.setDateEvenement("S300", "ag", "derniere", "2026-06-15", "u-admin");
+    expect(dates.ecritures).toEqual([{ code: "S300", type: "ag", quand: "derniere", dateISO: "2026-06-15" }]);
+  });
+
+  it("copro eStale : un echec d'ecriture REMONTE (plus de succes muet)", async () => {
+    const dates = new FakeDates();
+    dates.ecrire = async () => {
+      throw new Error("MAJ intranet_copro_dates : boom");
+    };
+    const c = new CompositeCoproRepository(new FakeMiroir(miroirRows), new FakeEstale(estaleRows), dates);
+    await expect(c.setDateEvenement("S300", "ag", "prochaine", "2026-12-01", "u-mahaut")).rejects.toThrow(/boom/);
   });
 
   it("copro Crypto -> delegue au miroir, PAS a la table intranet", async () => {

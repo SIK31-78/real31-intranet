@@ -100,8 +100,13 @@ export class CompositeCoproRepository implements CoproRepository {
       console.warn(`[composite-copro] eStale indisponible (setDate ${coproCode}), miroir :`, (err as Error).message);
     }
     if (estaleCopro) {
-      // Cloisonnement identique au miroir : no-op silencieux si le manager ne gere/assiste pas.
-      if (managerId && estaleCopro.managerId !== managerId && estaleCopro.assistantId !== managerId) return;
+      // PAS de cloisonnement ici (REA-274) : l'autorite d'ecriture est verifiee EN AMONT
+      // (coproAppartient dans les actions, exigerPerimetre dans les services, ADR-041), et
+      // elle couvre le role (ADMIN, directeur) et les delegations, que le seul couple
+      // gestionnaire/assistant ignorait. L'ancien test ici sortait en no-op MUET pour un
+      // ADMIN ou un delegue : l'UI affichait "enregistre" et rien n'etait ecrit.
+      // `ecrire` leve sur tout echec (table/colonne absente, erreur base) : jamais de succes
+      // affiche sans ecriture.
       await this.datesRepo.ecrire(coproCode, type, quand, dateISO);
       return;
     }
