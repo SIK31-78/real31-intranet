@@ -1,14 +1,15 @@
 "use client";
 
 // Annonce de la prochaine AG aux copropriétaires par un mailing ESTALE (REA-144).
-// Bouton -> aperçu du texte (modèle présentiel ou hybride, modifiable) -> création du
-// mailing dans ESTALE, NON ENVOYÉ. Le gestionnaire relit et lance l'envoi dans ESTALE.
-// Rendu seulement pour une copro ESTALE (la page ne le passe pas pour une copro Crypto).
-// Hors des paliers de la checklist : l'annonce part avant le CS (date limite à J-45),
-// quand la phase « Convocation » est encore verrouillée.
+// Module ouvert en modale depuis l'item « Date d'AG annoncée aux copropriétaires » de la
+// phase « Avant CS » (cf. module-modal.tsx). Aperçu du texte (modèle présentiel ou
+// hybride) -> création du mailing dans ESTALE, NON ENVOYÉ. Le gestionnaire relit et
+// lance l'envoi dans ESTALE, puis coche l'item.
+// Copro Crypto (`actions` absent) : la modale explique que l'annonce automatique n'existe
+// que pour les copros ESTALE ; l'item reste cochable à la main.
 
-import { useState, useTransition } from "react";
-import { ExternalLink, Mail } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { ExternalLink } from "lucide-react";
 import { Button, ButtonAnchor } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
@@ -31,8 +32,30 @@ function dateCourte(iso: string): string {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 }
 
-export function AnnonceAgEstale({ actions, lectureSeule }: { actions: ActionsAnnonceAg; lectureSeule: boolean }) {
-  const [ouvert, setOuvert] = useState(false);
+/** Point d'entrée du module : explication pour une copro Crypto, sinon l'annonce ESTALE. */
+export function AnnonceAgModal({ actions, onFermer }: { actions?: ActionsAnnonceAg | undefined; onFermer: () => void }) {
+  if (!actions) {
+    return (
+      <Modal titre="Annonce de l'AG aux copropriétaires" onFermer={onFermer} size="md">
+        <ModalBody>
+          <Callout ton="info">
+            L&apos;annonce automatique par mailing n&apos;existe que pour les copropriétés gérées dans ESTALE : les
+            copropriétaires de cette copropriété sont dans Crypto. Prévenez-les comme d&apos;habitude, puis cochez
+            l&apos;item à la main.
+          </Callout>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="ghost" onClick={onFermer}>
+            Fermer
+          </Button>
+        </ModalFooter>
+      </Modal>
+    );
+  }
+  return <AnnonceAgEstale actions={actions} onFermer={onFermer} />;
+}
+
+function AnnonceAgEstale({ actions, onFermer }: { actions: ActionsAnnonceAg; onFermer: () => void }) {
   const [apercu, setApercu] = useState<ApercuAnnonceAg | null>(null);
   const [cree, setCree] = useState<MailingCree | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -50,11 +73,9 @@ export function AnnonceAgEstale({ actions, lectureSeule }: { actions: ActionsAnn
       }
     });
 
-  const ouvrir = () => {
-    setOuvert(true);
-    setCree(null);
-    charger();
-  };
+  // Aperçu chargé à l'ouverture : la modale n'est montée que quand l'item l'ouvre.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => charger(), []);
 
   const creer = () => {
     if (!apercu) return;
@@ -69,22 +90,7 @@ export function AnnonceAgEstale({ actions, lectureSeule }: { actions: ActionsAnn
   };
 
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-4 py-2.5">
-        <Mail strokeWidth={1.5} className="w-4 h-4 text-ink-3 shrink-0" aria-hidden />
-        <div className="flex-1 min-w-0">
-          <div className="text-body text-ink">Annonce de la date d&apos;AG aux copropriétaires</div>
-          <div className="text-meta text-ink-3">
-            Mailing ESTALE préparé ici, relu et envoyé depuis ESTALE. À faire avant la date limite des demandes (J-45).
-          </div>
-        </div>
-        <Button variant="secondary" size="sm" onClick={ouvrir} disabled={lectureSeule}>
-          Préparer l&apos;annonce de l&apos;AG (ESTALE)
-        </Button>
-      </div>
-
-      {ouvert && (
-        <Modal titre="Annonce de l'AG aux copropriétaires" onFermer={() => setOuvert(false)} size="lg">
+        <Modal titre="Annonce de l'AG aux copropriétaires" onFermer={onFermer} size="lg">
           <ModalBody>
             <div className="flex flex-col gap-3">
               {erreur && <Callout ton="err">{erreur}</Callout>}
@@ -152,7 +158,7 @@ export function AnnonceAgEstale({ actions, lectureSeule }: { actions: ActionsAnn
           <ModalFooter>
             {cree ? (
               <>
-                <Button variant="ghost" onClick={() => setOuvert(false)}>
+                <Button variant="ghost" onClick={onFermer}>
                   Fermer
                 </Button>
                 <ButtonAnchor variant="primary" href={cree.lien} target="_blank" rel="noreferrer">
@@ -161,7 +167,7 @@ export function AnnonceAgEstale({ actions, lectureSeule }: { actions: ActionsAnn
               </>
             ) : (
               <>
-                <Button variant="ghost" onClick={() => setOuvert(false)}>
+                <Button variant="ghost" onClick={onFermer}>
                   Annuler
                 </Button>
                 <Button
@@ -175,7 +181,5 @@ export function AnnonceAgEstale({ actions, lectureSeule }: { actions: ActionsAnn
             )}
           </ModalFooter>
         </Modal>
-      )}
-    </>
   );
 }

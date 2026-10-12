@@ -7,7 +7,7 @@
 export type TypeItem = "check" | "date";
 
 /** Module interne de l'intranet ouvert en modale par l'item (2e porte d'entree). */
-export type ModuleItem = "recap" | "depassement_cs";
+export type ModuleItem = "recap" | "depassement_cs" | "annonce_ag";
 
 export interface ItemTemplate {
   id: string;
@@ -16,7 +16,7 @@ export interface ItemTemplate {
   type?: TypeItem;
   /** Lien externe vers l'app metier concernee (Registre des mandats...). */
   lien?: string;
-  /** Ouvre un module interne EN MODALE (recap AG / depassement CS), pre-scope a la
+  /** Ouvre un module interne EN MODALE (recap AG / depassement CS / annonce de l'AG), pre-scope a la
    *  copro courante, au lieu d'un lien externe. Remplace l'ancien renvoi vers Reality. */
   module?: ModuleItem;
 }
@@ -37,6 +37,12 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
       { id: "avcs.avancement-tx", libelle: "Contrôle avancement travaux + dossiers AG N-1" },
       { id: "avcs.carnet-entretien", libelle: "Carnet d'entretien à jour sur Crypto" },
       { id: "avcs.cs-prepa-date", libelle: "CS préparatoire de l'AG le", type: "date" },
+      // Annonce de la date d'AG aux copropriétaires par mailing ESTALE (REA-144), avant
+      // la date limite des demandes (J-45). Copro Crypto : l'item se coche à la main, le
+      // module explique que l'annonce automatique n'existe que pour les copros ESTALE.
+      // Ajout du 12/10/2026 : rouvre la phase « Avant CS » des supervisions en cours
+      // (accepté par Sekou), l'état étant stocké par id d'item.
+      { id: "avcs.annonce-ag", libelle: "Date d'AG annoncée aux copropriétaires (mailing ESTALE)", module: "annonce_ag" },
     ],
   },
   {

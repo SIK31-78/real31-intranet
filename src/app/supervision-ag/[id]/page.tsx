@@ -50,7 +50,8 @@ export default async function SupervisionAgPage({
   // Tout est facultatif : sans confirmation, le formulaire garde ses valeurs par defaut.
   const creneauCsSuggere = await creneauCsDeLaCopro(supervision.copro.code, g.id);
 
-  // Annonce de l'AG par mailing ESTALE (REA-144) : copros ESTALE seulement.
+  // Annonce de l'AG par mailing ESTALE (REA-144), ouverte depuis l'item avcs.annonce-ag :
+  // actions pour une copro ESTALE seulement (Crypto : le module explique, cochage à la main).
   const annonceEstale = (await annonceAgPossible(supervision.copro.code))
     ? { apercu: apercuAnnonceAgAction.bind(null, id), creer: creerAnnonceAgAction.bind(null, id) }
     : undefined;

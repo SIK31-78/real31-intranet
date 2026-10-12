@@ -8,9 +8,10 @@
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { FormulaireRecapAg } from "@/components/recap-ag/formulaire-recap-ag";
 import { FormulaireFacturation } from "@/components/facturation/formulaire-facturation";
+import { AnnonceAgModal, type ActionsAnnonceAg } from "./annonce-ag-estale";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 
-export type ModuleSupervision = "recap" | "depassement_cs";
+export type ModuleSupervision = "recap" | "depassement_cs" | "annonce_ag";
 
 export function ModuleModal({
   module,
@@ -18,6 +19,7 @@ export function ModuleModal({
   agDateISO,
   creneauCsSuggere,
   pennylaneMode,
+  annonceEstale,
   onFermer,
 }: {
   module: ModuleSupervision;
@@ -27,8 +29,14 @@ export function ModuleModal({
   /** Date ISO de l'AG courante (pre-remplit la date du recap) ; null si AG sans date. */
   agDateISO: string | null;
   pennylaneMode: ModeEmissionFacture;
+  /** Annonce de l'AG par mailing ESTALE (REA-144) ; absente pour une copro Crypto. */
+  annonceEstale?: ActionsAnnonceAg | undefined;
   onFermer: () => void;
 }) {
+  if (module === "annonce_ag") {
+    return <AnnonceAgModal actions={annonceEstale} onFermer={onFermer} />;
+  }
+
   if (module === "recap") {
     return (
       <Modal titre={`Récap AG · ${copro.nomCourt}`} onFermer={onFermer} size="lg">
