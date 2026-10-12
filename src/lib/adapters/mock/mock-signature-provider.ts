@@ -1,7 +1,7 @@
 // Adapter mock du port de signature : une signature HTML cannee, pour tester le
 // rendu dans le cockpit sans cle Signitic.
 
-import type { SignatureProvider } from "@/lib/ports/signature-provider";
+import type { ProfilSignature, SignatureProvider } from "@/lib/ports/signature-provider";
 
 export class MockSignatureProvider implements SignatureProvider {
   async getSignatureHtml(email: string): Promise<string | null> {
@@ -14,5 +14,15 @@ export class MockSignatureProvider implements SignatureProvider {
       `<span style="color:#0a7">www.real31.fr</span>` +
       `</td></tr></table>`
     );
+  }
+
+  /** Prénom et nom tirés de l'email (prenom.nom@...), SANS ligne directe : un numéro
+   *  inventé pourrait partir dans un vrai brouillon ESTALE (mieux vaut aucune ligne
+   *  qu'une fausse, cf. SansSignatureProvider). */
+  async getProfil(email: string): Promise<ProfilSignature | null> {
+    const [prenom, ...reste] = (email.split("@")[0] ?? "").split(/[._]/).filter(Boolean);
+    if (!prenom) return null;
+    const maj = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
+    return { prenom: maj(prenom), nom: reste.map(maj).join(" ") };
   }
 }
