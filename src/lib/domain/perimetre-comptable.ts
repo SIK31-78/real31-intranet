@@ -17,8 +17,17 @@
 // fermee des salles de reunion (domain/salles-reunion.ts). A deplacer en base le jour ou les
 // affectations bougeront souvent.
 
+import { delegationActive, type Delegation } from "./perimetre-ecriture";
+
 /** Codes d'agence REAL31, alignes sur public."Agency".name. */
 export type CodeAgence = "ML" | "LGC" | "HLS" | "ASN";
+
+const CODES_AGENCE: readonly CodeAgence[] = ["ML", "LGC", "HLS", "ASN"];
+
+function codeAgenceConnu(code: string | null | undefined): CodeAgence | null {
+  const c = (code ?? "").trim().toUpperCase();
+  return (CODES_AGENCE as readonly string[]).includes(c) ? (c as CodeAgence) : null;
+}
 
 /** Affectation d'un comptable aux agences dont il tient la compta. */
 interface AffectationComptable {
@@ -55,6 +64,68 @@ export function aUnPerimetreComptable(email: string | null | undefined): boolean
   return agencesDuComptable(email).length > 0;
 }
 
+/** Le perimetre comptable d'une personne, delegations comprises (REA-158). */
+export interface PerimetreComptableEtendu {
+  /** Toutes les agences tenues, dans l'ordre ML, LGC, HLS, ASN. */
+  agences: CodeAgence[];
+  /** Celles qui ne viennent QUE d'une delegation active (a signaler a l'ecran). */
+  parDelegation: CodeAgence[];
+}
+
+/**
+ * Agences comptables de cette personne, ELARGIES par ses delegations ACTIVES (REA-158,
+ * decision Sekou : une comptable reprend l'agence d'une collegue pendant ses conges par
+ * une delegation DATEE, pas en touchant la liste fermee ci-dessus).
+ *
+ * Deux portees elargissent le perimetre COMPTABLE :
+ *   - « agence » : l'agence deleguee ;
+ *   - « portefeuille » d'une COMPTABLE : ses agences (une comptable n'a pas de portefeuille
+ *     de copros, son « portefeuille » est son perimetre agence) - Romain confie le sien a
+ *     Isabelle pour ses conges. Le portefeuille d'un GESTIONNAIRE, lui, ne donne aucune
+ *     agence : il s'ouvre copro par copro, par le perimetre d'ecriture (ADR-041).
+ * La portee « copro » n'ouvre pas d'agence (meme raison).
+ *
+ * `emailDe` : l'email d'un titulaire, que l'appelant resout. Delegation expiree ou a venir :
+ * ignoree. Pur, sans horloge.
+ */
+export function perimetreComptableEtendu(
+  email: string | null | undefined,
+  delegations: readonly Delegation[],
+  emailDe: (userId: string) => string | null | undefined,
+  aujourdHuiISO: string,
+): PerimetreComptableEtendu {
+  const propres = new Set<CodeAgence>(agencesDuComptable(email));
+  const deleguees = new Set<CodeAgence>();
+  for (const d of delegations) {
+    if (!delegationActive(d, aujourdHuiISO)) continue;
+    if (d.portee === "agence") {
+      const code = codeAgenceConnu(d.agenceCode);
+      if (code) deleguees.add(code);
+    } else if (d.portee === "portefeuille") {
+      for (const code of agencesDuComptable(emailDe(d.deUserId))) deleguees.add(code);
+    }
+  }
+  const toutes = new Set<CodeAgence>([...propres, ...deleguees]);
+  return {
+    agences: CODES_AGENCE.filter((c) => toutes.has(c)),
+    parDelegation: CODES_AGENCE.filter((c) => deleguees.has(c) && !propres.has(c)),
+  };
+}
+
+/** Filtre des copros sur une liste d'agences donnee (vide -> liste VIDE, jamais tout). */
+export function filtrerSurAgences<T>(
+  copros: readonly T[],
+  agences: readonly string[],
+  codeAgenceDe: (copro: T) => string | null | undefined,
+): T[] {
+  const retenues = new Set<string>(agences);
+  if (retenues.size === 0) return [];
+  return copros.filter((c) => {
+    const code = codeAgenceDe(c);
+    return Boolean(code) && retenues.has(code as string);
+  });
+}
+
 /**
  * Filtre des copros sur le perimetre du comptable. `codeAgenceDe` resout le code d'agence
  * d'une copro (l'appelant le sait : la copro porte un `agenceId` technique, la resolution
@@ -69,10 +140,5 @@ export function filtrerSurPerimetreComptable<T>(
   email: string | null | undefined,
   codeAgenceDe: (copro: T) => string | null | undefined,
 ): T[] {
-  const agences = new Set<string>(agencesDuComptable(email));
-  if (agences.size === 0) return [];
-  return copros.filter((c) => {
-    const code = codeAgenceDe(c);
-    return Boolean(code) && agences.has(code as string);
-  });
+  return filtrerSurAgences(copros, agencesDuComptable(email), codeAgenceDe);
 }
