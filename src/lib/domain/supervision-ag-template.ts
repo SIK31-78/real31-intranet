@@ -102,17 +102,10 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
     items: [
       { id: "compta.depenses-courantes", libelle: "Dépenses courantes vs budget vérifiées" },
       { id: "compta.travaux-votes", libelle: "Dépenses travaux votés contrôlées" },
-      // Points ajoutés par la compta le 12/10/2026 (ids neufs : aucun état existant
-      // touché ; ils comptent dans le « dossier complet » exigé pour conclure).
-      { id: "compta.factures-contrats", libelle: "Factures des contrats courants vérifiées" },
-      { id: "compta.frais-bancaires", libelle: "Frais bancaires vérifiés" },
-      { id: "compta.avoir-frais-postaux", libelle: "Avoir sur frais postaux" },
       { id: "compta.coherence-102", libelle: "Cohérence comptable classe 102 / budgets ouverts" },
-      { id: "compta.comptes-attente", libelle: "Comptes d'attente soldés" },
       { id: "compta.compteurs-eau", libelle: "Compteurs eau collectés" },
       { id: "compta.repartiteurs-chauffage", libelle: "Répartiteurs chauffage collectés" },
       { id: "compta.fonds-travaux-vs-places", libelle: "Fonds travaux > fonds placés (502 vs 105)" },
-      { id: "compta.interets-livret-a", libelle: "Intérêts du livret A présentés au CS" },
       { id: "compta.debiteurs-anciens", libelle: "Comptes débiteurs / créditeurs anciens propriétaires nettoyés" },
       { id: "compta.solde-sinistre", libelle: "Solde compte sinistre vérifié" },
       { id: "compta.affectations-recup", libelle: "Affectations entretien / réparations contrôlées (récup / loc)" },
