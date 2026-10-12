@@ -21,8 +21,10 @@ const etat = vi.hoisted(() => ({
   /** Referentiel Copropriete simule : les deux dates de CS que la cloture fait glisser. */
   derniereCsDate: undefined as string | undefined,
   prochaineCsDate: undefined as string | undefined,
-  /** Titulaire de la fiche : le referentiel reel filtre lecture ET ecriture scopees sur lui. */
+  /** Titulaire de la fiche : le referentiel reel filtre la lecture SCOPEE sur lui. */
   titulaire: "g1",
+  /** Auteur de chaque ecriture de date (REA-274 : plus de cloisonnement a l'ecriture). */
+  auteursEcriture: [] as string[],
 }));
 
 vi.mock("@/lib/services/coproprietes/exiger-perimetre", () => ({
@@ -53,7 +55,7 @@ vi.mock("@/lib/adapters/router", () => ({
         prochaineCsDate: etat.prochaineCsDate,
       };
     },
-    // Et une ecriture hors portefeuille leve (idCoproUnique + filtrePerimetre).
+    // L'ecriture ne cloisonne plus (REA-274) : elle note l'auteur, quel qu'il soit.
     async setDateEvenement(
       _c: string,
       _type: "ag" | "cs",
@@ -61,7 +63,7 @@ vi.mock("@/lib/adapters/router", () => ({
       dateISO: string | null,
       managerId: string,
     ) {
-      if (managerId !== etat.titulaire) throw new Error("hors perimetre");
+      etat.auteursEcriture.push(managerId);
       if (quand === "prochaine") etat.prochaineCsDate = dateISO ?? undefined;
       else etat.derniereCsDate = dateISO ?? undefined;
     },
@@ -132,6 +134,7 @@ beforeEach(() => {
   etat.derniereCsDate = undefined;
   etat.prochaineCsDate = undefined;
   etat.titulaire = "g1";
+  etat.auteursEcriture = [];
 });
 
 describe("cloturerOdj - la cloture fait avancer le cycle AG", () => {
@@ -305,6 +308,8 @@ describe("cloturerOdj - glissement du CS par un utilisateur hors portefeuille", 
 
     expect(etat.derniereCsDate).toBe("2026-09-03");
     expect(etat.prochaineCsDate).toBeUndefined();
+    // Ecrit sous l'identite de l'utilisateur, plus sous celle du titulaire de la fiche.
+    expect(etat.auteursEcriture).toEqual(["admin-1", "admin-1"]);
   });
 
   it("et la reouverture par le meme utilisateur remet les dates", async () => {

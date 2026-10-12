@@ -151,10 +151,8 @@ async function glisserDateCs(params: {
   // ADR-041). Lue avec le scope gestionnaire/assistant, la copro revenait `null` pour un
   // ADMIN ou un delegue hors portefeuille, et le CS ne glissait pas, sans un mot.
   const copro = await copros.findByCode(coproCode);
-  // Meme raison cote ecriture : setDateEvenement filtre sur managerId/assistantId de la
-  // fiche. On ecrit donc sous l'identite du TITULAIRE de la copro (le perimetre est deja
-  // tranche plus haut) ; a defaut de titulaire connu, sous celle de l'utilisateur.
-  const ecrivain = copro?.managerId ?? copro?.assistantId ?? managerId;
+  // L'ecriture se fait sous l'identite de l'utilisateur : setDateEvenement ne refait plus
+  // de cloisonnement gestionnaire/assistant (REA-274), le perimetre est tranche plus haut.
 
   if (clore) {
     if (!doitGlisserCs(copro?.prochaineCsDate, maintenantISO)) return;
@@ -166,11 +164,11 @@ async function glisserDateCs(params: {
       formatGlissementCs(glissee, copro?.derniereCsDate),
       initiales,
     );
-    await copros.setDateEvenement(coproCode, "cs", "derniere", glissee, ecrivain);
+    await copros.setDateEvenement(coproCode, "cs", "derniere", glissee, managerId);
     // On efface la prochaine date SANS passer par definirDateEvenement : celui-ci
     // deprojetterait l'evenement Outlook, or cette reunion a EU LIEU - elle doit rester
     // dans les agendas.
-    await copros.setDateEvenement(coproCode, "cs", "prochaine", null, ecrivain);
+    await copros.setDateEvenement(coproCode, "cs", "prochaine", null, managerId);
     return;
   }
 
@@ -179,13 +177,13 @@ async function glisserDateCs(params: {
   const etat = await odj.getEtat(coproCode, agDateISO);
   const glissement = parseGlissementCs(etat.find((e) => e.champId === CLE_CS_GLISSE)?.valeur);
   if (!glissement) return;
-  await copros.setDateEvenement(coproCode, "cs", "prochaine", glissement.glissee, ecrivain);
+  await copros.setDateEvenement(coproCode, "cs", "prochaine", glissement.glissee, managerId);
   await copros.setDateEvenement(
     coproCode,
     "cs",
     "derniere",
     glissement.ancienneDerniere || null,
-    ecrivain,
+    managerId,
   );
   await odj.setChamp(coproCode, agDateISO, CLE_CS_GLISSE, null, initiales);
 }
