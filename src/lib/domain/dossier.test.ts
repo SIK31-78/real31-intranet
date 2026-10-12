@@ -7,6 +7,10 @@ import {
   segmentAffaire,
   indexEtapeEnCours,
   actionEtape,
+  MODELES_ETAPES,
+  TYPE_DOSSIER_LABEL,
+  TYPE_DOSSIER_ORDRE,
+  TYPE_DOSSIER_TON,
   type Dossier,
   type EtapeDossier,
   type StatutDossier,
@@ -91,5 +95,28 @@ describe("actionEtape", () => {
     const a = actionEtape({ id: "d1", type: "sinistre" }, etape("Envoyer le courrier au syndic", false));
     expect(a?.href).toBe("/sinistre/courriers?dossier=d1");
     expect(a?.label).toBe("Rédiger le courrier");
+  });
+});
+
+describe("type Dommage-Ouvrage (REA-152)", () => {
+  it("a son libelle, sa place dans la liste et les etapes validees par Sekou", () => {
+    expect(TYPE_DOSSIER_LABEL.dommage_ouvrage).toBe("Dommage-Ouvrage");
+    expect(TYPE_DOSSIER_ORDRE).toContain("dommage_ouvrage");
+    expect(MODELES_ETAPES.dommage_ouvrage.map((e) => e.label)).toEqual([
+      "Déclaration à l'assureur DO",
+      "Accusé de réception de l'assureur",
+      "Expertise",
+      "Position de garantie",
+      "Indemnisation",
+      "Travaux de reprise",
+      "Clôture",
+    ]);
+  });
+  it("chaque type de la liste a un libelle, un ton et un modele d'etapes", () => {
+    for (const t of TYPE_DOSSIER_ORDRE) {
+      expect(TYPE_DOSSIER_LABEL[t]).toBeTruthy();
+      expect(TYPE_DOSSIER_TON[t]).toBeTruthy();
+      expect(Array.isArray(MODELES_ETAPES[t])).toBe(true);
+    }
   });
 });

@@ -9,6 +9,7 @@ import { getDossierRepository } from "@/lib/adapters/router";
 import {
   MODELES_ETAPES,
   STATUT_DOSSIER_LABEL,
+  TYPE_DOSSIER_ORDRE,
   type EtapeDossier,
   type EtapeModele,
   type PorteeDossier,
@@ -20,15 +21,9 @@ import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 // Validation des entrees (zod). Les enums (type/portee/statut) sont de vraies enumerations :
 // l'adapter ne rejette rien, un statut inconnu ferait disparaitre le dossier des filtres et
 // un type inconnu ferait planter MODELES_ETAPES[type] (audit du 16/09/2026).
-const TYPES_DOSSIER = [
-  "travaux",
-  "sinistre",
-  "impaye",
-  "procedure",
-  "recouvrement",
-  "question_diverse",
-  "autre",
-] as const;
+// La liste vient du domaine (TYPE_DOSSIER_ORDRE) : une liste recopiee ici avait oublie
+// "gestion_courante", refuse en silence a la creation comme a la modification.
+const TYPES_DOSSIER = TYPE_DOSSIER_ORDRE as [TypeDossier, ...TypeDossier[]];
 const PORTEES_DOSSIER = ["copropriete", "coproprietaire", "lot"] as const;
 const STATUTS_DOSSIER = ["ouvert", "en_cours", "clos"] as const;
 const zId = z.string().trim().min(1).max(120);

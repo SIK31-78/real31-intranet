@@ -7,6 +7,7 @@ export type TypeDossier =
   | "gestion_courante"
   | "travaux"
   | "sinistre"
+  | "dommage_ouvrage"
   | "impaye"
   | "procedure"
   | "recouvrement"
@@ -73,6 +74,7 @@ export const TYPE_DOSSIER_TON: Record<TypeDossier, "info" | "warn" | "err" | "ne
   gestion_courante: "neutral",
   travaux: "info",
   sinistre: "warn",
+  dommage_ouvrage: "warn",
   impaye: "err",
   recouvrement: "err",
   procedure: "neutral",
@@ -84,6 +86,7 @@ export const TYPE_DOSSIER_LABEL: Record<TypeDossier, string> = {
   gestion_courante: "Gestion courante",
   travaux: "Travaux",
   sinistre: "Sinistre",
+  dommage_ouvrage: "Dommage-Ouvrage",
   impaye: "Impayé",
   procedure: "Procédure",
   recouvrement: "Recouvrement",
@@ -98,6 +101,7 @@ export const TYPE_DOSSIER_ORDRE: TypeDossier[] = [
   "gestion_courante",
   "travaux",
   "sinistre",
+  "dommage_ouvrage",
   "impaye",
   "recouvrement",
   "procedure",
@@ -153,6 +157,18 @@ export const MODELES_ETAPES: Record<TypeDossier, EtapeModele[]> = {
     { label: "Accord d'indemnisation", assigneA: "gestionnaire" },
     { label: "Travaux", assigneA: "gestionnaire" },
     { label: "Règlement", assigneA: "assistant" },
+    { label: "Clôture", assigneA: "assistant" },
+  ],
+  // Dommage-Ouvrage (REA-152) : sinistre couvert par l'assurance DO d'un immeuble neuf ou
+  // de travaux recents. Etapes validees par Sekou le 12/10/2026 ; l'assignation suit la
+  // meme logique que le sinistre (administratif -> assistant, decisions -> gestionnaire).
+  dommage_ouvrage: [
+    { label: "Déclaration à l'assureur DO", assigneA: "assistant" },
+    { label: "Accusé de réception de l'assureur", assigneA: "assistant" },
+    { label: "Expertise", assigneA: "gestionnaire" },
+    { label: "Position de garantie", assigneA: "gestionnaire" },
+    { label: "Indemnisation", assigneA: "gestionnaire" },
+    { label: "Travaux de reprise", assigneA: "gestionnaire" },
     { label: "Clôture", assigneA: "assistant" },
   ],
   impaye: [
