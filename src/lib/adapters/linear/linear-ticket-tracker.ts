@@ -28,6 +28,9 @@ const TIMEOUT_MS = Number(process.env.LINEAR_TIMEOUT_MS) || 20_000;
 // large, juste pour qu'une description aberrante ne fasse pas rejeter la mutation.
 const DESCRIPTION_MAX = 20_000;
 
+// Taille d'une page `issues` chez Linear (maximum accepte par `first`).
+const TAILLE_PAQUET = 250;
+
 type Reponse<T> = { data?: T; errors?: { message: string }[] };
 
 export class LinearTicketTracker implements TicketTracker {
@@ -153,9 +156,25 @@ export class LinearTicketTracker implements TicketTracker {
 
   async lireEtats(issueIds: readonly string[]): Promise<EtatTicket[]> {
     if (!this.estActif() || issueIds.length === 0) return [];
+    // PAR PAQUETS DE 250 : `first` plafonne a 250 noeuds par page, et un seul appel
+    // avec plus d'ids tronquait silencieusement la reponse - les tickets au-dela
+    // seraient sortis « orphelins ». Un paquet ne peut pas depasser sa page, donc
+    // pas de curseur a suivre. Sequentiel : un cron quotidien n'a rien a gagner a
+    // paralleliser, et ca menage le rate limit.
+    const etats: EtatTicket[] = [];
+    for (let i = 0; i < issueIds.length; i += TAILLE_PAQUET) {
+      etats.push(...(await this.lirePaquet(issueIds.slice(i, i + TAILLE_PAQUET))));
+    }
+    return etats;
+  }
+
+  private async lirePaquet(issueIds: readonly string[]): Promise<EtatTicket[]> {
+    // `includeArchived: true` : sans lui, Linear exclut les tickets ARCHIVES (Done ou
+    // Canceled depuis un moment, archives automatiquement par l'equipe) et le pont
+    // les comptait comme « orphelins », alors qu'ils existent toujours.
     const query = `
-      query Etats($ids: [ID!]) {
-        issues(filter: { id: { in: $ids } }, first: 250) {
+      query Etats($ids: [ID!], $first: Int!) {
+        issues(filter: { id: { in: $ids } }, first: $first, includeArchived: true) {
           nodes {
             id
             identifier
@@ -177,7 +196,7 @@ export class LinearTicketTracker implements TicketTracker {
           state: { name: string; type: string };
         }[];
       };
-    }>(query, { ids: [...issueIds] });
+    }>(query, { ids: [...issueIds], first: TAILLE_PAQUET });
     return d.issues.nodes.map((n) => ({
       issueId: n.id,
       identifiant: n.identifier,
