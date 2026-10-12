@@ -150,8 +150,8 @@ function AnnonceAgEstale({ actions, onFermer }: { actions: ActionsAnnonceAg; onF
                     </Callout>
                   )}
                   <p className="text-body text-ink-2">
-                    Ouvrez ESTALE, menu Mailings, mailing « {cree.titre} » (référence {cree.reference}) : relisez puis
-                    lancez l&apos;envoi.
+                    Ouvrez le mailing « {cree.titre} » dans ESTALE (bouton ci-dessous, ou menu Mailings, référence{" "}
+                    {cree.reference}) : relisez puis lancez l&apos;envoi.
                   </p>
                 </>
               )}
@@ -166,7 +166,7 @@ function AnnonceAgEstale({ actions, onFermer }: { actions: ActionsAnnonceAg; onF
                   Fermer
                 </Button>
                 <ButtonAnchor variant="primary" href={cree.lien} target="_blank" rel="noreferrer">
-                  <ExternalLink strokeWidth={1.5} /> Ouvrir ESTALE
+                  <ExternalLink strokeWidth={1.5} /> Ouvrir le mailing dans ESTALE
                 </ButtonAnchor>
               </>
             ) : (

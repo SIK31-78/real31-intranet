@@ -36,8 +36,16 @@ export function couperObjet(objet: string, max = OBJET_MAILING_MAX): string {
   return `${base.replace(/[\s,;:.\-–]+$/u, "")}…`;
 }
 
-/** Page d'accueil d'ESTALE : le mailing se retrouve dans la liste des mailings par sa référence. */
+/** Page d'accueil d'ESTALE : repli quand le lien direct du mailing ne peut pas être construit. */
 export const URL_ESTALE_APP = "https://estale.app/";
+
+/**
+ * Lien direct vers le mailing dans ESTALE. L'URL porte l'identifiant du collaborateur qui
+ * l'a créé (le compte ESTALE de l'intranet).
+ */
+export function lienMailingEstale(collaborateurId: string, mailingId: string): string {
+  return `${URL_ESTALE_APP}intranet/collaborator/${collaborateurId}/mailings/${mailingId}`;
+}
 
 type OwnerRow = { id: string; email: string | null; canReceiveMail: boolean };
 type RecipientRow = { resourceID: string; sendingMode: string; acceptModes: string[] };
@@ -117,6 +125,7 @@ export class EstaleMailingProvider implements MailingEstaleProvider {
       const relu = await estaleGql<{
         me: {
           collaborator: {
+            id: string;
             mailing: {
               item: {
                 reference: string;
@@ -131,11 +140,13 @@ export class EstaleMailingProvider implements MailingEstaleProvider {
       }>(
         `query RelireMailing($id: ID!) {
           me { collaborator {
+            id
             mailing { item(id: $id) { reference title isSent nbRecipients channelInfos { unsentPrice { total } } } }
           } }
         }`,
         { id },
       );
+      const collaborateurId = relu.me.collaborator.id;
       const m = relu.me.collaborator.mailing.item;
       if (m.isSent) {
         // Ne devrait jamais arriver : aucune mutation d'envoi n'est émise ici.
@@ -148,7 +159,7 @@ export class EstaleMailingProvider implements MailingEstaleProvider {
         destinatairesMail: m.nbRecipients,
         sansEmail: sansEmail + aRetirer.length,
         coutEnvoi: m.channelInfos.unsentPrice.total,
-        lien: URL_ESTALE_APP,
+        lien: collaborateurId ? lienMailingEstale(collaborateurId, id) : URL_ESTALE_APP,
       };
     } catch (e) {
       // Brouillon incomplet : on tente de le supprimer pour ne pas laisser un mailing

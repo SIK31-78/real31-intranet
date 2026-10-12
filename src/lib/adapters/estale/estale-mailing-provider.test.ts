@@ -52,6 +52,7 @@ function scenario(opts: { recipients?: Recipient[]; echecCorps?: boolean; isSent
       return {
         me: {
           collaborator: {
+            id: "collab-1",
             mailing: {
               item: {
                 reference: "00042",
@@ -135,7 +136,7 @@ describe("EstaleMailingProvider.creerBrouillon", () => {
       destinatairesMail: 2,
       sansEmail: 3, // o4 sans e-mail, o5 refuse le mail, o3 n'accepte pas le mail
       coutEnvoi: 0,
-      lien: "https://estale.app/",
+      lien: "https://estale.app/intranet/collaborator/collab-1/mailings/m-1",
     });
   });
 
