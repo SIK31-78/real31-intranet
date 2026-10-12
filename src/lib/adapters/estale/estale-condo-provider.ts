@@ -63,13 +63,21 @@ type CondoData = {
 
 
 /**
+ * Intitules d'assistant de COPROPRIETE seulement (REA-33) : un simple /assistant/ rangeait
+ * l'« Assistante commerciale » dans l'equipe de la copro. « Assistant comptable » est
+ * capte avant, par /comptab/ (il reste comptable).
+ */
+const ASSISTANT_COPRO = /\bassistante?\s+(de\s+)?(copro|gestion)/i;
+
+/**
  * Equipe telle qu'eStale la connait. Le GESTIONNAIRE est celui designe par le mandat
  * (`serviceBook.mandate.managerID`) - c'est ce qu'affiche l'UI eStale ; les autres roles
- * sont deduits de l'intitule libre du collaborateur ("Comptable", "Assistante..."). Les
- * intitules hors des 3 roles metier (Dirigeant, Responsable innovation...) sont ecartes :
- * la fiche montre l'equipe OPERATIONNELLE de la copro, pas tout le cabinet.
+ * sont deduits de l'intitule libre du collaborateur ("Comptable", "Assistante de
+ * copropriété"...). Les intitules hors des 3 roles metier (Dirigeant, Responsable
+ * innovation, Assistante commerciale...) sont ecartes : la fiche montre l'equipe
+ * OPERATIONNELLE de la copro, pas tout le cabinet.
  */
-function equipeDepuisEstale(
+export function equipeDepuisEstale(
   collaborateurs: { id: string; fullname: string; role: string | null }[],
   managerId: string | null,
 ): MembreEquipe[] {
@@ -81,7 +89,7 @@ function equipeDepuisEstale(
         ? "gestionnaire"
         : /comptab/.test(intitule)
           ? "comptable"
-          : /assistant/.test(intitule)
+          : ASSISTANT_COPRO.test(intitule)
             ? "assistant"
             : null;
     if (!role) continue;
