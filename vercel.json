@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/linear",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/rappel-comptes-cs",
+      "schedule": "0 5 * * *"
     }
   ]
 }
