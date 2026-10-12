@@ -205,6 +205,32 @@ export function FormulaireRecapAg({
 
   // « 12 500 », « 12 500,50 € » se lisent (REA-99) : les champs montants sont en texte,
   // un <input type="number"> refuse les espaces entre les milliers.
+  // Repartir d'un formulaire vierge (REA-111) : au changement de copro, rien de la
+  // precedente ne doit rester (travaux, reserves, budget...) ; apres un enregistrement,
+  // tout repart a zero pour enchainer le recap suivant. Les defauts sont ceux de
+  // l'ouverture. `sansDate` : la date suggeree de la copro vient d'etre couverte par le
+  // recap enregistre, on ne la repropose pas.
+  function remettreAZero(code: string, { sansDate = false }: { sansDate?: boolean } = {}) {
+    const choisie = copros.find((c) => c.code === code);
+    setJour(sansDate ? "" : (choisie?.agDateSuggeree ?? ""));
+    const d = heureDebutSuggeree(choisie?.agHeureSuggeree);
+    setDebut(d);
+    setFin(heureFinSuggeree(d));
+    setComptesApprouves(true);
+    setReserves("");
+    setBudgetModifie(false);
+    setMontantBudget("");
+    setPourcentageBudget(String(POURCENTAGE_FONDS_TRAVAUX_MINIMUM));
+    setPptVote(false);
+    setPourcentagePpt("");
+    setMontantPpt("");
+    setFondsTravaux(true);
+    setInfoComptable("");
+    setTravaux([]);
+    setApercu(null);
+    proposerContrat(code);
+  }
+
   function nombreOuUndefined(v: string): number | undefined {
     return lireMontant(v) ?? undefined;
   }
@@ -301,6 +327,7 @@ export function FormulaireRecapAg({
             ? `Récap enregistré, dépassement de ${d.depassementHeures} h NON facturé (choix).`
             : "Récap enregistré (aucun dépassement à facturer).") + mail,
       );
+      remettreAZero(coproCode, { sansDate: true });
       router.refresh();
       onSucces?.();
     });
@@ -324,12 +351,7 @@ export function FormulaireRecapAg({
               onChange={(e) => {
                 const v = e.target.value;
                 setCoproCode(v);
-                const choisie = copros.find((c) => c.code === v);
-                setJour(choisie?.agDateSuggeree ?? "");
-                const d = heureDebutSuggeree(choisie?.agHeureSuggeree);
-                setDebut(d);
-                setFin(heureFinSuggeree(d));
-                proposerContrat(v);
+                remettreAZero(v);
               }}
             >
               {copros.map((c) => (
