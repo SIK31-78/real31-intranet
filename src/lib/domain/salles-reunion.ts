@@ -43,12 +43,18 @@ const SIEGES_AGENCES: Readonly<Record<string, string>> = {
   LGC: "13 rond-point du Souvenir Français 92250 LA GARENNE-COLOMBES",
   ML: "31 rue du Prieuré 78600 MAISONS-LAFFITTE",
   HLS: "3 place Michelet 78800 HOUILLES",
+  // Adresse FUTURE de l'agence d'Asnieres (REA-273, Sekou 12/10/2026) : c'est elle qui
+  // doit figurer sur les contrats, pas le code « ASN ».
+  ASN: "79 avenue de la Marne 92600 ASNIERES-SUR-SEINE",
 };
 
-/** « 31 rue du Prieuré 78600 MAISONS-LAFFITTE » ; le code seul si inconnu. */
+/** « 31 rue du Prieuré 78600 MAISONS-LAFFITTE » ; chaine VIDE si l'agence est inconnue.
+ *  On ne renvoie plus le code brut (« ASN » imprime dans un contrat, REA-273), et on ne
+ *  replie pas non plus sur le siege LGC : une adresse fausse dans un contrat signe passe
+ *  inapercue, un blanc se voit a la relecture. */
 export function siegeAgence(code: string | null | undefined): string {
   const c = (code ?? "").trim().toUpperCase();
-  return SIEGES_AGENCES[c] ?? c;
+  return SIEGES_AGENCES[c] ?? "";
 }
 
 export const RESSOURCES_REAL31: readonly RessourceReunion[] = [
