@@ -15,13 +15,15 @@ const TABLE = "intranet_confirmations_evenement";
 //   RESSOURCES  : + salle_email, vehicule_email (increment 4) ;
 //   MODE        : + mode_reunion (increment 2, volet mode de reunion) ;
 //   COLLABS     : + collaborateurs_emails (increment 4c, multi-collaborateurs) ;
-//   COLONNES    : + heure_fin (heure de fin REELLE du CS, saisie a la confirmation).
+//   COLONNES    : + heure_fin (heure de fin REELLE du CS, saisie a la confirmation) ;
+//   LIEU        : + lieu_libre (reunion « à l'extérieur du cabinet », REA-148).
 const COLONNES_BASE =
   "copro_code, type, date_evenement, statut, confirme_le, confirme_par, outlook_event_id, outlook_boite";
 const COLONNES_RESSOURCES = `${COLONNES_BASE}, salle_email, vehicule_email`;
 const COLONNES_MODE = `${COLONNES_RESSOURCES}, mode_reunion`;
 const COLONNES_COLLABS = `${COLONNES_MODE}, collaborateurs_emails`;
 const COLONNES = `${COLONNES_COLLABS}, heure_fin`;
+const COLONNES_LIEU = `${COLONNES}, lieu_libre`;
 
 type Row = {
   copro_code: string;
@@ -44,6 +46,8 @@ type Row = {
   // ("HH:mm"), saisie au moment de la confirmation -> alimente la facturation du
   // depassement d'honoraires CS.
   heure_fin?: string | null;
+  // Absente tant que intranet_confirmations_evenement_lieu_libre.sql n'est pas lance.
+  lieu_libre?: string | null;
 };
 
 // Colonne absente (ALTER pas encore lance) : code Postgres 42703, ou message explicite
@@ -96,6 +100,7 @@ function versDomaine(r: Row): ConfirmationEvenement {
     ...(mode ? { modeReunion: mode } : {}),
     ...(collaborateurs ? { collaborateursEmails: collaborateurs } : {}),
     ...(r.heure_fin ? { heureFin: r.heure_fin } : {}),
+    ...(r.lieu_libre ? { lieuLibre: r.lieu_libre } : {}),
   };
 }
 
@@ -112,7 +117,7 @@ type Reponse = { data: unknown; error: { code?: string; message?: string } | nul
 async function lireEnCascade(
   select: (colonnes: string) => PromiseLike<Reponse>,
 ): Promise<ConfirmationEvenement[]> {
-  for (const colonnes of [COLONNES, COLONNES_COLLABS, COLONNES_MODE, COLONNES_RESSOURCES, COLONNES_BASE]) {
+  for (const colonnes of [COLONNES_LIEU, COLONNES, COLONNES_COLLABS, COLONNES_MODE, COLONNES_RESSOURCES, COLONNES_BASE]) {
     const { data, error } = await select(colonnes);
     if (!error) return (data as Row[]).map(versDomaine);
     if (!colonneAbsente(error)) return []; // table absente / autre erreur -> inerte
@@ -266,6 +271,18 @@ export class SupabaseConfirmationEvenementRepository implements ConfirmationEven
     const { error } = await supabase
       .from(TABLE)
       .update({ collaborateurs_emails: emails, updated_at: new Date().toISOString() })
+      .eq("copro_code", coproCode)
+      .eq("type", type);
+    if (error && colonneAbsente(error)) return; // colonne absente -> no-op (degrade propre)
+  }
+
+  async enregistrerLieuLibre(coproCode: string, type: "AG" | "CS", lieu: string | null): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    // UPDATE cible SEPARE (comme enregistrerModeReunion) : tant que la colonne lieu_libre
+    // n'est pas deployee, seule cette ecriture degrade (no-op), jamais la pose de la date.
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ lieu_libre: lieu, updated_at: new Date().toISOString() })
       .eq("copro_code", coproCode)
       .eq("type", type);
     if (error && colonneAbsente(error)) return; // colonne absente -> no-op (degrade propre)

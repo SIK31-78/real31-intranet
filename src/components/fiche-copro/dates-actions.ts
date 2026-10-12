@@ -14,6 +14,7 @@ import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getGestionnaireRepository, getCoproRepository } from "@/lib/adapters/router";
 import { ressourceParEmail } from "@/lib/domain/salles-reunion";
+import { normaliserLieuLibre } from "@/lib/domain/confirmation-evenement";
 import { heureDe } from "@/lib/domain/reunion";
 import { planifierControlesDispo } from "@/lib/domain/disponibilite-reunion";
 import { validerCollaborateursConnus } from "@/lib/domain/collaborateurs-reunion";
@@ -29,6 +30,8 @@ const zMode = z.enum(["visio", "presentiel", "hybride", ""]);
 // Collaborateurs associes : liste BORNEE d'emails (forme seulement ici ; l'appartenance
 // a la liste des gestionnaires connus est verifiee ensuite cote serveur, anti-injection).
 const zCollaborateurs = z.array(z.string().trim().min(3).max(120)).max(20);
+// Lieu libre (REA-148) : borne large ici, nettoye et coupe a LIEU_LIBRE_MAX par le domaine.
+const zLieuLibre = z.string().max(400);
 
 /**
  * Valide les emails de collaborateurs contre la liste FERMEE des gestionnaires du
@@ -90,6 +93,9 @@ async function definir(
   collaborateursEmails?: string[],
   /** true = passe outre un agenda/collegue occupe (JAMAIS une salle : blocage dur). */
   forcer?: boolean,
+  /** Lieu « à l'extérieur du cabinet » (REA-148). undefined = ne pas toucher au lieu
+   *  enregistre (editeur qui ne l'a pas encore relu) ; "" = l'effacer. */
+  lieuLibre?: string,
 ): Promise<ResultatAction> {
   const parseBase = z
     .object({ coproCode: zCode, dateISO: zDate, mode: zMode, collaborateurs: zCollaborateurs })
@@ -102,6 +108,14 @@ async function definir(
     return { ok: false, erreur: "Ressource de réunion invalide." };
   // "" (non precise) -> null ; sinon le mode valide (zMode a deja borne les valeurs).
   const mode = parseBase.data.mode === "" ? null : parseBase.data.mode;
+  // Lieu exterieur : texte libre BORNE et nettoye (domaine). Exclusif d'une salle REAL31 :
+  // une reunion se tient dans une salle du cabinet OU a l'exterieur, pas les deux.
+  if (lieuLibre !== undefined && !zLieuLibre.safeParse(lieuLibre).success)
+    return { ok: false, erreur: "Données invalides." };
+  // Une salle du cabinet choisie efface toujours un ancien lieu exterieur (exclusifs).
+  const lieu = lieuLibre === undefined ? (salle ? null : undefined) : normaliserLieuLibre(lieuLibre);
+  if (lieu && salle)
+    return { ok: false, erreur: "Choisis une salle du cabinet ou un lieu à l'extérieur, pas les deux." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée, reconnectez-vous." };
   if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
@@ -168,6 +182,7 @@ async function definir(
       vehiculeEmail: vehicule,
       modeReunion: mode,
       collaborateursEmails: collaborateurs,
+      ...(lieu !== undefined ? { lieuLibre: lieu } : {}),
     });
     // (Re)fixer la PROCHAINE date d'AG reporte les prepas "sans date" (supervision + ODJ).
     // Corriger la derniere AG tenue est une mise a jour du referentiel : pas de report.
@@ -204,8 +219,9 @@ export async function definirDateAg(
   modeReunion?: string,
   collaborateursEmails?: string[],
   forcer?: boolean,
+  lieuLibre?: string,
 ): Promise<ResultatAction> {
-  return definir(coproCode, "ag", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails, forcer);
+  return definir(coproCode, "ag", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails, forcer, lieuLibre);
 }
 export async function definirDateCs(
   coproCode: string,
@@ -216,8 +232,26 @@ export async function definirDateCs(
   modeReunion?: string,
   collaborateursEmails?: string[],
   forcer?: boolean,
+  lieuLibre?: string,
 ): Promise<ResultatAction> {
-  return definir(coproCode, "cs", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails, forcer);
+  return definir(coproCode, "cs", quand, dateISO, salleEmail, vehiculeEmail, modeReunion, collaborateursEmails, forcer, lieuLibre);
+}
+
+// Lieu « à l'extérieur du cabinet » enregistre pour la prochaine reunion (REA-148). Relu
+// par l'editeur de date a l'ouverture, pour pre-remplir le champ et ne pas l'effacer en
+// re-validant. Lecture seule ; memes gardes que les autres actions (anti-IDOR).
+export async function lireLieuLibreAction(
+  coproCode: string,
+  type: "AG" | "CS",
+): Promise<{ lieuLibre: string | null }> {
+  if (!z.object({ coproCode: zCode, type: zTypeEvenement }).safeParse({ coproCode, type }).success)
+    return { lieuLibre: null };
+  const g = await getGestionnaireCourant();
+  if (!g) return { lieuLibre: null };
+  if (process.env.COPRO_SOURCE === "supabase" && !(await coproAppartient(coproCode, g.id)))
+    return { lieuLibre: null };
+  const conf = (await getConfirmations(coproCode)).find((c) => c.type === type);
+  return { lieuLibre: conf?.lieuLibre ?? null };
 }
 
 // Confirme la prochaine date AG/CS : le conseil syndical a valide par retour de mail.

@@ -280,3 +280,30 @@ describe("REA-272 : poser la date du CS annonce la date aux comptables", () => {
     expect(etat.annoncesCs).toHaveLength(0);
   });
 });
+
+describe("REA-148 : reunion a l'exterieur du cabinet (lieu libre)", () => {
+  it("lieu saisi -> transmis normalise au service", async () => {
+    const r = await definirDateAg("S024", "2026-12-10", "prochaine", "", "", "", [], true, "  Salle des fêtes,  2 rue de la Mairie ");
+    expect(r).toEqual({ ok: true });
+    const details = etat.definirAppels[0][6] as Record<string, unknown>;
+    expect(details.lieuLibre).toBe("Salle des fêtes, 2 rue de la Mairie");
+  });
+
+  it("lieu vide -> efface (null) ; lieu non relu (undefined) -> on n'y touche pas", async () => {
+    await definirDateAg("S024", "2026-12-10", "prochaine", "", "", "", [], true, "");
+    expect((etat.definirAppels[0][6] as Record<string, unknown>).lieuLibre).toBeNull();
+    await definirDateAg("S024", "2026-12-10", "prochaine", "", "", "", [], true);
+    expect("lieuLibre" in (etat.definirAppels[1][6] as Record<string, unknown>)).toBe(false);
+  });
+
+  it("salle du cabinet ET lieu exterieur -> refus, aucune ecriture", async () => {
+    const r = await definirDateAg("S024", "2026-12-10", "prochaine", SALLE, "", "", [], true, "Mairie");
+    expect(r.ok).toBe(false);
+    expect(etat.definirAppels).toHaveLength(0);
+  });
+
+  it("salle choisie sans lieu relu -> l'ancien lieu exterieur est efface", async () => {
+    await definirDateAg("S024", "2026-12-10", "prochaine", SALLE, "", "", [], true);
+    expect((etat.definirAppels[0][6] as Record<string, unknown>).lieuLibre).toBeNull();
+  });
+});

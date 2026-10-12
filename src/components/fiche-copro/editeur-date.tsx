@@ -17,6 +17,7 @@ import {
   verifierDispoSalleAction,
   verifierDispoAgendaAction,
   listerCollaborateursAction,
+  lireLieuLibreAction,
   type CollaborateurAssociable,
 } from "./dates-actions";
 import { DateAffichee } from "./date-affichee";
@@ -87,6 +88,12 @@ export function EditeurDate({
   const [heureVal, setHeureVal] = useState("");
   const [salleVal, setSalleVal] = useState("");
   const [zoeVal, setZoeVal] = useState(false);
+  // Reunion « à l'extérieur du cabinet » (REA-148) : exclusive d'une salle REAL31, avec une
+  // adresse libre. Le lieu enregistre est relu a l'ouverture (undefined = pas encore relu :
+  // on ne l'envoie pas, pour ne jamais effacer un lieu qu'on n'a pas vu).
+  const [exterieurVal, setExterieurVal] = useState(false);
+  const [lieuLibreVal, setLieuLibreVal] = useState("");
+  const [lieuEnregistre, setLieuEnregistre] = useState<string | undefined>(undefined);
   // Mode de reunion : "" = non precise (aucun mode). Cf. MODES / zMode cote action.
   const [modeVal, setModeVal] = useState<ModeReunion | "">("");
   // Collaborateurs selectionnes (emails) + annuaire des collegues associables (charge a
@@ -155,7 +162,9 @@ export function EditeurDate({
   const zoeEnregistree = avecHeure ? Boolean(vehiculeEmail) : false;
   const modeEnregistre = avecHeure ? (modeReunion ?? "") : "";
   const collaborateursEnregistres = avecHeure ? (collaborateurs?.map((c) => c.email) ?? []) : [];
+  const lieuSaisi = exterieurVal ? lieuLibreVal.trim() : "";
   const ressourceInchangee =
+    lieuSaisi === (lieuEnregistre ?? "") &&
     salleVal === salleEnregistree &&
     zoeVal === zoeEnregistree &&
     modeVal === modeEnregistre &&
@@ -283,6 +292,28 @@ export function EditeurDate({
 
   // Charge l'annuaire des collegues associables a l'ouverture (prochaine reunion seule) +
   // l'agence de la copro (pour le filtrage par agence). Un seul aller-retour serveur.
+  // Lieu exterieur enregistre (REA-148) : relu a l'ouverture, pre-remplit le choix
+  // « À l'extérieur du cabinet » et son adresse. Echec -> on reste sur « pas relu »
+  // (lieuEnregistre undefined) : la validation ne touchera pas au lieu en base.
+  useEffect(() => {
+    if (!edition || !avecHeure) return;
+    let annule = false;
+    lireLieuLibreAction(coproCode, typeApi)
+      .then((r) => {
+        if (annule) return;
+        setLieuEnregistre(r.lieuLibre ?? "");
+        if (r.lieuLibre) {
+          setExterieurVal(true);
+          setLieuLibreVal(r.lieuLibre);
+          setSalleVal("");
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      annule = true;
+    };
+  }, [edition, avecHeure, coproCode, typeApi]);
+
   useEffect(() => {
     if (!edition || !avecHeure) return;
     let annule = false;
@@ -388,6 +419,10 @@ export function EditeurDate({
     // Pre-remplissage salle / ZOE / mode / collegues depuis la reservation existante.
     setSalleVal(avecHeure ? (salleEmail ?? "") : "");
     setZoeVal(avecHeure ? Boolean(vehiculeEmail) : false);
+    // Lieu exterieur : remis a zero, puis pre-rempli par la relecture (effet ci-dessus).
+    setExterieurVal(false);
+    setLieuLibreVal("");
+    setLieuEnregistre(undefined);
     setModeVal(avecHeure ? (modeReunion ?? "") : "");
     setCollaborateursVal(avecHeure ? (collaborateurs?.map((c) => c.email) ?? []) : []);
     setDispo(null);
@@ -426,6 +461,16 @@ export function EditeurDate({
     const vehicule = avecHeure && valeur && zoeVal ? ZOE_EMAIL : "";
     const mode = avecHeure && valeur ? modeVal : "";
     const collabs = avecHeure && valeur ? collaborateursVal : [];
+    // Lieu exterieur : envoye s'il est choisi ; sinon "" (efface) seulement si on a relu
+    // le lieu enregistre, undefined (ne pas toucher) tant qu'on ne l'a pas vu.
+    const lieu =
+      avecHeure && valeur
+        ? exterieurVal
+          ? lieuLibreVal
+          : lieuEnregistre !== undefined
+            ? ""
+            : undefined
+        : undefined;
     startTransition(async () => {
       const r = await action(
         coproCode,
@@ -436,6 +481,7 @@ export function EditeurDate({
         mode || undefined,
         collabs,
         forcer,
+        lieu,
       );
       if (!r.ok) {
         setErreur(r.erreur); // on garde l'edition ouverte pour reessayer
@@ -471,7 +517,11 @@ export function EditeurDate({
   // --- Resume de la logistique (la ligne qu'on lit quand tout est replie) -------------
   // Elle doit repondre sans cliquer : sous quelle forme, ou, avec qui. Quand rien n'est
   // pose, elle le dit aussi - sinon on ne saurait pas qu'il y a quelque chose a ouvrir.
-  const salleNom = salleVal ? (ressourceParEmail(salleVal)?.nom ?? "salle") : null;
+  const salleNom = exterieurVal
+    ? lieuLibreVal.trim() || "à l'extérieur du cabinet"
+    : salleVal
+      ? (ressourceParEmail(salleVal)?.nom ?? "salle")
+      : null;
   const partsResume = [
     modeVal ? MODE_LABEL[modeVal] : null,
     salleNom,
@@ -588,6 +638,10 @@ export function EditeurDate({
           onModeChange={setModeVal}
           salleVal={salleVal}
           onSalleChange={setSalleVal}
+          exterieurVal={exterieurVal}
+          onExterieurChange={setExterieurVal}
+          lieuLibreVal={lieuLibreVal}
+          onLieuLibreChange={setLieuLibreVal}
           sallesAffichees={sallesAffichees}
           sallesAutres={sallesAutres}
           voirAutresSalles={voirAutresSalles}

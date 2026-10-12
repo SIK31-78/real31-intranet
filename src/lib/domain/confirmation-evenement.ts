@@ -41,6 +41,22 @@ export interface ConfirmationEvenement {
    *  gestionnaire doit la retrouver de memoire au moment de facturer. Seul le CS la
    *  renseigne aujourd'hui (une AG n'est pas facturee au temps passe). */
   heureFin?: string;
+  /** Lieu LIBRE de la reunion quand elle se tient « à l'extérieur du cabinet » (salle
+   *  louee, loge, salle municipale... REA-148) : adresse saisie a la main. Exclusif d'une
+   *  salle REAL31 (salleEmail). Absent = pas de lieu exterieur. */
+  lieuLibre?: string;
+}
+
+/** Longueur max d'un lieu libre (une adresse, pas un roman). */
+export const LIEU_LIBRE_MAX = 200;
+
+/**
+ * Normalise un lieu libre saisi : caracteres de controle retires, espaces ecrases,
+ * borne a LIEU_LIBRE_MAX. Vide apres nettoyage -> null (aucun lieu).
+ */
+export function normaliserLieuLibre(brut: string | null | undefined): string | null {
+  const propre = (brut ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return propre ? propre.slice(0, LIEU_LIBRE_MAX).trim() : null;
 }
 
 /**
