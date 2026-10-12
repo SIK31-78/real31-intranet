@@ -50,9 +50,28 @@ describe("datesDepuisTimestamps", () => {
     expect(d.derniereAgDate).toBe("2026-04-02");
     expect(d.derniereCsDate).toBeUndefined();
   });
+
+  it("last_cs_date porte l'heure du CS tenu (REA-109) ; minuit ou date pure = pas d'heure", () => {
+    expect(datesDepuisTimestamps({ last_cs_date: "2026-09-03T18:30:00+00:00" })).toMatchObject({
+      derniereCsDate: "2026-09-03",
+      derniereCsHeure: "18:30",
+    });
+    expect(datesDepuisTimestamps({ last_cs_date: "2026-09-03" }).derniereCsHeure).toBeUndefined();
+    expect(datesDepuisTimestamps({ last_cs_date: "2026-09-03T00:00:00+00:00" }).derniereCsHeure).toBeUndefined();
+  });
 });
 
 describe("fusionnerDates (intranet prioritaire, repli miroir)", () => {
+  it("le dernier CS bascule en bloc, jour + heure de la meme source (REA-109)", () => {
+    expect(fusionnerDates({}, { derniereCsDate: "2026-09-03", derniereCsHeure: "18:30" })).toMatchObject({
+      derniereCsDate: "2026-09-03",
+      derniereCsHeure: "18:30",
+    });
+    const d = fusionnerDates({ derniereCsDate: "2026-10-01" }, { derniereCsDate: "2026-09-03", derniereCsHeure: "18:30" });
+    expect(d.derniereCsDate).toBe("2026-10-01");
+    expect(d.derniereCsHeure).toBeUndefined(); // pas l'heure d'une autre seance
+  });
+
   it("intranet ecrase le miroir pour la prochaine AG (jour + heure ensemble)", () => {
     const intranet = { prochaineAgDate: "2026-10-01", prochaineAgHeure: "14:00" };
     const miroir = { prochaineAgDate: "2027-06-30", derniereAgDate: "2026-04-02" };

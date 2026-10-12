@@ -21,6 +21,9 @@ const etat = vi.hoisted(() => ({
   /** Referentiel Copropriete simule : les deux dates de CS que la cloture fait glisser. */
   derniereCsDate: undefined as string | undefined,
   prochaineCsDate: undefined as string | undefined,
+  /** Heures de debut, lues comme l'adapter les decompose (REA-109). */
+  prochaineCsHeure: undefined as string | undefined,
+  derniereCsHeure: undefined as string | undefined,
   /** Titulaire de la fiche : le referentiel reel filtre la lecture SCOPEE sur lui. */
   titulaire: "g1",
   /** Auteur de chaque ecriture de date (REA-274 : plus de cloisonnement a l'ecriture). */
@@ -53,6 +56,8 @@ vi.mock("@/lib/adapters/router", () => ({
         managerId: etat.titulaire,
         derniereCsDate: etat.derniereCsDate,
         prochaineCsDate: etat.prochaineCsDate,
+        prochaineCsHeure: etat.prochaineCsHeure,
+        derniereCsHeure: etat.derniereCsHeure,
       };
     },
     // L'ecriture ne cloisonne plus (REA-274) : elle note l'auteur, quel qu'il soit.
@@ -64,8 +69,16 @@ vi.mock("@/lib/adapters/router", () => ({
       managerId: string,
     ) {
       etat.auteursEcriture.push(managerId);
-      if (quand === "prochaine") etat.prochaineCsDate = dateISO ?? undefined;
-      else etat.derniereCsDate = dateISO ?? undefined;
+      // Comme l'adapter : on stocke ce qui est ecrit, et on decompose jour / heure a la lecture.
+      const jour = dateISO?.slice(0, 10);
+      const heure = /T(\d{2}:\d{2})/.exec(dateISO ?? "")?.[1];
+      if (quand === "prochaine") {
+        etat.prochaineCsDate = jour;
+        etat.prochaineCsHeure = heure;
+      } else {
+        etat.derniereCsDate = jour;
+        etat.derniereCsHeure = heure;
+      }
     },
   }),
   getJalonRepository: () => ({
@@ -133,6 +146,8 @@ beforeEach(() => {
   etat.echouerMarquage = false;
   etat.derniereCsDate = undefined;
   etat.prochaineCsDate = undefined;
+  etat.prochaineCsHeure = undefined;
+  etat.derniereCsHeure = undefined;
   etat.titulaire = "g1";
   etat.auteursEcriture = [];
 });
@@ -270,6 +285,24 @@ describe("cloturerOdj - la date de CS glisse quand la reunion est terminee", () 
     expect(etat.derniereCsDate).toBe("2025-09-05");
     expect(etat.prochaineCsDate).toBe("2026-09-03");
     expect(etat.champs.at(-1)).toEqual({ champId: "__cs-glisse", valeur: null });
+  });
+
+  it("REA-109 : l'heure de debut glisse avec la date, et la reouverture la rend", async () => {
+    etat.derniereCsDate = "2025-09-05";
+    etat.derniereCsHeure = "19:00";
+    etat.prochaineCsDate = "2026-09-03";
+    etat.prochaineCsHeure = "18:30";
+
+    await clore(true, AG, LE_10_SEPTEMBRE);
+    expect(etat.derniereCsDate).toBe("2026-09-03");
+    expect(etat.derniereCsHeure).toBe("18:30");
+    expect(etat.champs.find((c) => c.champId === "__cs-glisse")?.valeur).toBe("2026-09-03T18:30|2025-09-05T19:00");
+
+    await clore(false, AG, LE_10_SEPTEMBRE);
+    expect(etat.prochaineCsDate).toBe("2026-09-03");
+    expect(etat.prochaineCsHeure).toBe("18:30");
+    expect(etat.derniereCsDate).toBe("2025-09-05");
+    expect(etat.derniereCsHeure).toBe("19:00");
   });
 
   it("ne deplace RIEN quand le CS est encore a venir (ODJ cloture en avance)", async () => {

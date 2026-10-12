@@ -33,10 +33,13 @@ export interface CoproDates {
   /** Derniere AG tenue, jour "YYYY-MM-DD". */
   derniereAgDate?: string;
   derniereCsDate?: string;
+  /** Heure de debut du dernier CS tenu (REA-109), absente = inconnue. */
+  derniereCsHeure?: string;
 }
 
 /** CoproDates depuis les timestamps bruts de la table intranet (next_* = timestamptz avec
- *  heure ; last_* = date pure). Le jour est lu DEPUIS LA CHAINE (pas via `new Date`) pour
+ *  heure ; last_ag_date = date pure ; last_cs_date = timestamptz depuis REA-109, date pure
+ *  tant que le SQL n'est pas passe -> pas d'heure). Le jour est lu DEPUIS LA CHAINE (pas via `new Date`) pour
  *  eviter tout decalage de fuseau a minuit. */
 export function datesDepuisTimestamps(row: {
   next_ag_date?: string | null;
@@ -53,7 +56,9 @@ export function datesDepuisTimestamps(row: {
       ? { prochaineCsDate: row.next_cs_date.slice(0, 10), ...(heure(row.next_cs_date) ? { prochaineCsHeure: heure(row.next_cs_date) } : {}) }
       : {}),
     ...(row.last_ag_date ? { derniereAgDate: row.last_ag_date.slice(0, 10) } : {}),
-    ...(row.last_cs_date ? { derniereCsDate: row.last_cs_date.slice(0, 10) } : {}),
+    ...(row.last_cs_date
+      ? { derniereCsDate: row.last_cs_date.slice(0, 10), ...(heure(row.last_cs_date) ? { derniereCsHeure: heure(row.last_cs_date) } : {}) }
+      : {}),
   };
 }
 
@@ -68,7 +73,9 @@ export function datesDuMiroir(copro: Copropriete | null | undefined): CoproDates
       ? { prochaineCsDate: copro.prochaineCsDate, ...(copro.prochaineCsHeure ? { prochaineCsHeure: copro.prochaineCsHeure } : {}) }
       : {}),
     ...(copro.derniereAgDate ? { derniereAgDate: copro.derniereAgDate } : {}),
-    ...(copro.derniereCsDate ? { derniereCsDate: copro.derniereCsDate } : {}),
+    ...(copro.derniereCsDate
+      ? { derniereCsDate: copro.derniereCsDate, ...(copro.derniereCsHeure ? { derniereCsHeure: copro.derniereCsHeure } : {}) }
+      : {}),
   };
 }
 
@@ -94,7 +101,8 @@ export function fusionnerDates(
   const ag = gereParIntranet || i.prochaineAgDate ? i : m;
   const cs = gereParIntranet || i.prochaineCsDate ? i : m;
   const derniereAg = i.derniereAgDate ?? m.derniereAgDate;
-  const derniereCs = i.derniereCsDate ?? m.derniereCsDate;
+  // Jour et heure du dernier CS basculent ensemble (meme source).
+  const derniereCs = i.derniereCsDate ? i : m;
   return {
     ...(ag.prochaineAgDate
       ? { prochaineAgDate: ag.prochaineAgDate, ...(ag.prochaineAgHeure ? { prochaineAgHeure: ag.prochaineAgHeure } : {}) }
@@ -103,7 +111,12 @@ export function fusionnerDates(
       ? { prochaineCsDate: cs.prochaineCsDate, ...(cs.prochaineCsHeure ? { prochaineCsHeure: cs.prochaineCsHeure } : {}) }
       : {}),
     ...(derniereAg ? { derniereAgDate: derniereAg } : {}),
-    ...(derniereCs ? { derniereCsDate: derniereCs } : {}),
+    ...(derniereCs.derniereCsDate
+      ? {
+          derniereCsDate: derniereCs.derniereCsDate,
+          ...(derniereCs.derniereCsHeure ? { derniereCsHeure: derniereCs.derniereCsHeure } : {}),
+        }
+      : {}),
   };
 }
 
@@ -126,6 +139,7 @@ export function appliquerDates(copro: Copropriete, dates: CoproDates): Coproprie
     ...(dates.prochaineCsDate ? { prochaineCsDate: dates.prochaineCsDate } : {}),
     ...(dates.prochaineCsDate && dates.prochaineCsHeure ? { prochaineCsHeure: dates.prochaineCsHeure } : {}),
     ...(dates.derniereCsDate ? { derniereCsDate: dates.derniereCsDate } : {}),
+    ...(dates.derniereCsDate && dates.derniereCsHeure ? { derniereCsHeure: dates.derniereCsHeure } : {}),
   };
 }
 

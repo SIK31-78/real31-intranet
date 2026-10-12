@@ -16,12 +16,16 @@
 // date est ecrasee), donc on la MEMORISE, serialisee comme la cloture : une chaine
 // "<datePasseeEnDerniere>|<ancienneDerniere>" dans la table d'etat de l'ODJ. Zero SQL a
 // passer a la main, meme parti que CLE_CLOTURE_ODJ et PREFIXE_POINT.
+//
+// L'HEURE (REA-109) : la date glisse AVEC son heure de debut ("YYYY-MM-DDTHH:mm"), sinon
+// la facture d'un CS depasse ne la retrouve plus. Le marqueur porte donc jour + heure
+// quand elle est connue ; les anciens marqueurs (jour seul) restent lisibles.
 
 /** Ce qu'un glissement a deplace, pour pouvoir le remettre a l'identique. */
 export interface GlissementCs {
-  /** Date qui est passee de "prochain CS" a "dernier CS". */
+  /** Date qui est passee de "prochain CS" a "dernier CS" ("YYYY-MM-DD[THH:mm]"). */
   glissee: string;
-  /** Ce qu'il y avait en "dernier CS" AVANT (vide = il n'y en avait pas). */
+  /** Ce qu'il y avait en "dernier CS" AVANT, meme forme (vide = il n'y en avait pas). */
   ancienneDerniere: string;
 }
 
@@ -37,9 +41,16 @@ export function doitGlisserCs(prochaineCsDate: string | undefined, maintenantISO
   return prochaine <= maintenantISO.slice(0, 10);
 }
 
-/** "2026-09-03" + "2025-09-05" -> "2026-09-03|2025-09-05". */
+/** Jour + heure facultative : "2026-09-03" + "18:30" -> "2026-09-03T18:30". */
+export function dateHeureCs(jour: string | undefined, heure: string | undefined): string {
+  const j = (jour ?? "").slice(0, 10);
+  if (!j) return "";
+  return heure && /^\d{2}:\d{2}$/.test(heure) ? `${j}T${heure}` : j;
+}
+
+/** "2026-09-03T18:30" + "2025-09-05" -> "2026-09-03T18:30|2025-09-05" (jour + minute au plus). */
 export function formatGlissementCs(glissee: string, ancienneDerniere: string | undefined): string {
-  return `${glissee.slice(0, 10)}|${(ancienneDerniere ?? "").slice(0, 10)}`;
+  return `${glissee.slice(0, 16)}|${(ancienneDerniere ?? "").slice(0, 16)}`;
 }
 
 /** Inverse de formatGlissementCs. undefined si la valeur est vide ou illisible : sans
@@ -50,6 +61,6 @@ export function parseGlissementCs(valeur: string | null | undefined): Glissement
   const i = valeur.indexOf("|");
   const glissee = (i < 0 ? valeur : valeur.slice(0, i)).trim();
   const ancienneDerniere = i < 0 ? "" : valeur.slice(i + 1).trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(glissee)) return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(glissee)) return undefined;
   return { glissee, ancienneDerniere };
 }

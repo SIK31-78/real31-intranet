@@ -24,6 +24,7 @@ import { getCoproRepository, getJalonRepository, getOdjRepository } from "@/lib/
 import { CLE_CLOTURE_ODJ, CLE_CS_GLISSE, ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
 import { formatCloture, parseCloture } from "@/lib/domain/odj";
 import {
+  dateHeureCs,
   doitGlisserCs,
   formatGlissementCs,
   parseGlissementCs,
@@ -156,12 +157,13 @@ async function glisserDateCs(params: {
 
   if (clore) {
     if (!doitGlisserCs(copro?.prochaineCsDate, maintenantISO)) return;
-    const glissee = (copro?.prochaineCsDate ?? "").slice(0, 10);
+    // Jour ET heure de debut (REA-109) : la facture d'un CS depasse reprend cette heure.
+    const glissee = dateHeureCs(copro?.prochaineCsDate, copro?.prochaineCsHeure);
     await odj.setChamp(
       coproCode,
       agDateISO,
       CLE_CS_GLISSE,
-      formatGlissementCs(glissee, copro?.derniereCsDate),
+      formatGlissementCs(glissee, dateHeureCs(copro?.derniereCsDate, copro?.derniereCsHeure)),
       initiales,
     );
     await copros.setDateEvenement(coproCode, "cs", "derniere", glissee, managerId);

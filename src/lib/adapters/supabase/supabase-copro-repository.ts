@@ -134,6 +134,8 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
   // Heure de reunion extraite du timestamp (T00:00 des donnees existantes -> pas d'heure).
   const prochaineHeure = heureDe(row.nextAGDate);
   const prochaineCsHeure = heureDe(row.nextCSDate);
+  // Le dernier CS garde l'heure que la cloture de l'ODJ a fait glisser (REA-109).
+  const derniereCsHeure = heureDe(row.lastCSDate);
   const deepBase = process.env.ESTALE_DEEPLINK_BASE;
   return {
     code: codeDe(row),
@@ -159,6 +161,7 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
         }
       : {}),
     ...(derniereCs ? { derniereCsDate: derniereCs } : {}),
+    ...(derniereCs && derniereCsHeure ? { derniereCsHeure } : {}),
     ...(prochaineCs ? { prochaineCsDate: prochaineCs } : {}),
     ...(prochaineCs && prochaineCsHeure ? { prochaineCsHeure } : {}),
     ...(row.ppt !== null ? { pptVote: row.ppt } : {}),

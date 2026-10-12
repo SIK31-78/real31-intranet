@@ -5,8 +5,10 @@
 // (cloturer-odj) : facturer le depassement arrive justement apres. On reprend donc la
 // prochaine date si elle existe, sinon la derniere tenue.
 //
-// L'heure de debut n'est connue que pour la prochaine date (elle vit dans son horodatage ;
-// le glissement n'ecrit que le jour) : pour la derniere, le formulaire garde son defaut.
+// L'heure de debut vit dans l'horodatage de la date. Depuis REA-109, le glissement fait
+// passer la prochaine date en derniere AVEC son heure (derniereCsHeure) : la facture d'un
+// CS tenu reprend l'heure reelle. Heure inconnue (CS glisse avant, saisie au jour seul) :
+// "" et le formulaire garde son defaut.
 // L'heure de fin ne vaut que pour SA date (la confirmation porte la date : un CS
 // replanifie ne doit pas heriter de l'heure de fin d'une autre seance).
 
@@ -20,13 +22,16 @@ export interface CreneauCsSuggere {
 }
 
 export function creneauCsSuggere(
-  copro: { prochaineCsDate?: string; prochaineCsHeure?: string; derniereCsDate?: string } | null | undefined,
+  copro:
+    | { prochaineCsDate?: string; prochaineCsHeure?: string; derniereCsDate?: string; derniereCsHeure?: string }
+    | null
+    | undefined,
   confirmationCs: { date: string; heureFin?: string } | undefined,
 ): CreneauCsSuggere | undefined {
   const prochaine = copro?.prochaineCsDate?.slice(0, 10);
   const jour = prochaine || copro?.derniereCsDate?.slice(0, 10);
   if (!jour) return undefined;
-  const debut = prochaine ? (copro?.prochaineCsHeure ?? "") : "";
+  const debut = (prochaine ? copro?.prochaineCsHeure : copro?.derniereCsHeure) ?? "";
   const fin = confirmationCs?.date === jour ? confirmationCs.heureFin : undefined;
   return { jour, debut, ...(fin ? { fin } : {}) };
 }

@@ -126,6 +126,10 @@ export interface Copropriete {
   prochaineCsDate?: string;
   /** Heure du prochain CS "HH:mm" ; absente = journee entiere (retrocompatible). */
   prochaineCsHeure?: string;
+  /** Heure de debut "HH:mm" du dernier CS tenu (REA-109) : la cloture de l'ODJ fait
+   *  glisser la prochaine date AVEC son heure. Absente = inconnue (CS ancien, saisie
+   *  au jour seul, ou colonne intranet pas encore passee en timestamptz). */
+  derniereCsHeure?: string;
   /** PPT voté (true) / à programmer (false) ; undefined si inconnu. Référentiel. */
   pptVote?: boolean;
   /** Deep-link Estale, present uniquement si source = 'estale' (ADR-003/012 :
