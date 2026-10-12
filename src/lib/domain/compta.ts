@@ -72,15 +72,20 @@ export interface PosteCompta {
 
 /** Les postes de verification, dans l'ordre d'affichage (editable par Sekou). */
 export const POSTES_COMPTA: readonly PosteCompta[] = [
-  { slug: "rappro-bancaire", libelle: "Rapprochement bancaire (solde banque = compta)" },
-  { slug: "comptes-coproprietaires", libelle: "Comptes copropriétaires (soldes, impayés, relances à jour)" },
+  // Revue avec la comptable le 2026-10-12 (Sekou) : les postes qu'elle mettait en N/A
+  // partout sont retires (rapprochement bancaire, comptes copropriétaires, répartition et
+  // régularisation des charges, report à nouveau, annexes) ; ses points de contrôle réels
+  // sont ajoutés. Les états déjà enregistrés pour un poste retiré restent en base, ignorés.
   { slug: "comptes-fournisseurs", libelle: "Comptes fournisseurs (factures rattachées, charges à payer)" },
-  { slug: "repartition-charges", libelle: "Répartition des charges (clés / tantièmes corrects)" },
-  { slug: "regularisation-charges", libelle: "Régularisation des charges de l'exercice" },
+  { slug: "factures-contrats", libelle: "Vérification des factures des contrats courants" },
+  { slug: "frais-bancaires", libelle: "Frais bancaires" },
+  { slug: "comptes-attente", libelle: "Comptes d'attente" },
+  { slug: "comptes-sinistre", libelle: "Comptes sinistre" },
+  { slug: "compteurs-eau-chauffage", libelle: "Compteurs eau / chauffage" },
+  { slug: "avoir-frais-postaux", libelle: "Avoir sur frais postaux" },
   { slug: "fonds-travaux-alur", libelle: "Fonds de travaux ALUR (cotisation + solde)" },
+  { slug: "interets-livret-a", libelle: "Intérêts du livret A (à présenter au CS)" },
   { slug: "travaux-votes", libelle: "Travaux votés art. 14-2 (suivi budget / dépenses)" },
-  { slug: "report-resultat", libelle: "Report à nouveau & résultat de l'exercice" },
-  { slug: "annexes-comptables", libelle: "Annexes comptables cohérentes (5 annexes réglementaires)" },
   // Ajoute le 2026-09-23 (Sekou) : le budget N+1 se prepare AVEC les comptes, il est
   // presente au CS puis vote en AG. Sans lui, le CS decouvre un budget non prepare.
   { slug: "budget-suivant", libelle: "Budget prévisionnel de l'exercice suivant (à présenter au CS)" },
