@@ -6,7 +6,7 @@ import {
   saisirChampOdj,
   retirerPointOdj,
 } from "@/lib/services/odj/saisir-champ-odj";
-import { cloturerOdj } from "@/lib/services/odj/cloturer-odj";
+import { cloturerOdj, type ResultatCloture } from "@/lib/services/odj/cloturer-odj";
 import { peutEcrireSurCopro } from "@/lib/services/coproprietes/copro-appartient";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getOdjRepository } from "@/lib/adapters/router";
@@ -78,13 +78,13 @@ export async function togglePointAction(id: string, pointId: string, retire: boo
 
 /** Clot ("reunion terminee") ou rouvre l'ODJ. Reversible : aucune ecriture externe n'est
  *  engagee par la cloture (ni PDF, ni depot eStale) - cf. cloturer-odj.ts. */
-export async function cloturerOdjAction(id: string, clore: boolean): Promise<void> {
-  if (!z.object({ id: zId, clore: z.boolean() }).safeParse({ id, clore }).success) return;
+export async function cloturerOdjAction(id: string, clore: boolean): Promise<ResultatCloture> {
+  if (!z.object({ id: zId, clore: z.boolean() }).safeParse({ id, clore }).success) return {};
   const { code } = decouperIdOdj(id);
   const g = await autorise(code);
-  if (!g) return;
+  if (!g) return {};
   const { agDate } = await resoudreCleOdj(id, g.id);
-  await cloturerOdj({
+  const resultat = await cloturerOdj({
     coproCode: code,
     agDateISO: agDate,
     clore,
@@ -99,4 +99,6 @@ export async function cloturerOdjAction(id: string, clore: boolean): Promise<voi
   revalidatePath(`/copropriete/${code}`);
   revalidatePath("/calendrier");
   revalidatePath("/accueil");
+  // La cloture est faite ; l'avertissement (frise non mise a jour) remonte a l'ecran.
+  return resultat;
 }

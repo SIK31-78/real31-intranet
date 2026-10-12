@@ -22,13 +22,24 @@
 
 import { getCoproRepository, getJalonRepository, getOdjRepository } from "@/lib/adapters/router";
 import { CLE_CLOTURE_ODJ, CLE_CS_GLISSE, ODJ_SANS_DATE } from "@/lib/ports/odj-repository";
-import { formatCloture } from "@/lib/domain/odj";
+import { formatCloture, parseCloture } from "@/lib/domain/odj";
 import {
   doitGlisserCs,
   formatGlissementCs,
   parseGlissementCs,
 } from "@/lib/domain/odj-glissement-cs";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
+
+/** Ce que la cloture rend a l'ecran. La cloture elle-meme est faite des que la fonction
+ *  rend la main ; `avertissement` dit ce qui, a cote, n'a pas pu suivre. */
+export interface ResultatCloture {
+  avertissement?: string;
+}
+
+/** Message affiche quand le jalon ODJ_CS n'a pas pu etre ecrit : sans lui, la frise de la
+ *  fiche reste sur l'etape ODJ (ou y revient mal a la reouverture). */
+export const AVERTISSEMENT_FRISE =
+  "L'ordre du jour est bien enregistré, mais l'étape de la frise de la copropriété n'a pas pu être mise à jour. Réessayez dans un instant (rouvrir puis clôturer) ; si cela persiste, signalez-le.";
 
 /**
  * Clot ou rouvre l'ODJ d'une copro pour une date d'AG donnee.
@@ -42,7 +53,7 @@ export async function cloturerOdj(params: {
   initiales: string;
   managerId: string;
   maintenantISO: string;
-}): Promise<void> {
+}): Promise<ResultatCloture> {
   const { coproCode, agDateISO, clore, initiales, managerId, maintenantISO } = params;
   await exigerPerimetre(coproCode, managerId);
   await getOdjRepository().setChamp(
@@ -69,20 +80,52 @@ export async function cloturerOdj(params: {
   // sur "ODJ" / "a confirmer" et la phase convocation ne se debloquait pas (bug remonte deux
   // fois par les collegues). Meme mecanique que conclureAg, qui marque TENUE.
   // Reouvrir l'ODJ remet le jalon "a faire" : la cloture reste reversible de bout en bout.
-  // Sans date d'AG (ODJ prepare en avance, cle sentinelle), il n'y a pas de jalon a marquer.
-  // BEST-EFFORT : un echec ici ne doit pas defaire la cloture (l'acte primaire).
+  // Sans date d'AG (ODJ prepare en avance, cle sentinelle), il n'y a pas de jalon a marquer
+  // ICI : les jalons sont ranges par date d'AG, et une ligne posee sur la sentinelle ne
+  // serait relue par personne. Le jalon est pose au moment ou la date d'AG est fixee,
+  // quand l'etat de l'ODJ (cloture comprise) y est reporte : cf. reporterOdjSansDate.
+  // Un echec ici ne defait pas la cloture (l'acte primaire), mais il SE DIT : la frise
+  // resterait sinon sur l'etape ODJ sans que personne ne sache pourquoi.
   if (agDateISO !== ODJ_SANS_DATE) {
-    await getJalonRepository()
-      .marquer({
+    try {
+      await getJalonRepository().marquer({
         coproCode,
         agDate: agDateISO,
         type: "ODJ_CS",
         statut: clore ? "accompli" : "a_faire",
         par: initiales,
-      })
-      .catch((e) =>
-        console.warn(`[cloturer-odj] jalon ODJ_CS non marque (${coproCode}) :`, (e as Error).message),
-      );
+      });
+    } catch (e) {
+      console.warn(`[cloturer-odj] jalon ODJ_CS non marque (${coproCode}) :`, (e as Error).message);
+      return { avertissement: AVERTISSEMENT_FRISE };
+    }
+  }
+  return {};
+}
+
+/**
+ * L'ODJ prepare SANS date d'AG vient d'etre reporte sur sa vraie date : s'il etait deja
+ * clos, on pose maintenant le jalon ODJ_CS que la cloture n'avait pas pu poser (elle
+ * n'avait pas de date). Sans ca, la frise restait bloquee sur l'etape ODJ alors que la
+ * reunion etait tenue et le document fige.
+ * Best-effort : appele apres l'enregistrement d'une date d'AG, il ne doit pas le faire
+ * echouer ; un echec se rattrape en rouvrant puis en cloturant l'ODJ.
+ */
+export async function poserJalonOdjSiClos(coproCode: string, agDateISO: string): Promise<void> {
+  if (agDateISO === ODJ_SANS_DATE) return;
+  try {
+    const etat = await getOdjRepository().getEtat(coproCode, agDateISO);
+    const cloture = parseCloture(etat.find((e) => e.champId === CLE_CLOTURE_ODJ)?.valeur);
+    if (!cloture) return;
+    await getJalonRepository().marquer({
+      coproCode,
+      agDate: agDateISO,
+      type: "ODJ_CS",
+      statut: "accompli",
+      ...(cloture.par ? { par: cloture.par } : {}),
+    });
+  } catch (e) {
+    console.warn(`[cloturer-odj] jalon ODJ_CS non pose au report (${coproCode}) :`, (e as Error).message);
   }
 }
 
@@ -103,8 +146,17 @@ async function glisserDateCs(params: {
   const copros = getCoproRepository();
   const odj = getOdjRepository();
 
+  // Lecture TRANSVERSE (sans managerId). L'autorite est deja verifiee en tete de
+  // cloturerOdj (exigerPerimetre -> coproAppartient : portefeuille, role, delegations,
+  // ADR-041). Lue avec le scope gestionnaire/assistant, la copro revenait `null` pour un
+  // ADMIN ou un delegue hors portefeuille, et le CS ne glissait pas, sans un mot.
+  const copro = await copros.findByCode(coproCode);
+  // Meme raison cote ecriture : setDateEvenement filtre sur managerId/assistantId de la
+  // fiche. On ecrit donc sous l'identite du TITULAIRE de la copro (le perimetre est deja
+  // tranche plus haut) ; a defaut de titulaire connu, sous celle de l'utilisateur.
+  const ecrivain = copro?.managerId ?? copro?.assistantId ?? managerId;
+
   if (clore) {
-    const copro = await copros.findByCode(coproCode, managerId);
     if (!doitGlisserCs(copro?.prochaineCsDate, maintenantISO)) return;
     const glissee = (copro?.prochaineCsDate ?? "").slice(0, 10);
     await odj.setChamp(
@@ -114,11 +166,11 @@ async function glisserDateCs(params: {
       formatGlissementCs(glissee, copro?.derniereCsDate),
       initiales,
     );
-    await copros.setDateEvenement(coproCode, "cs", "derniere", glissee, managerId);
+    await copros.setDateEvenement(coproCode, "cs", "derniere", glissee, ecrivain);
     // On efface la prochaine date SANS passer par definirDateEvenement : celui-ci
     // deprojetterait l'evenement Outlook, or cette reunion a EU LIEU - elle doit rester
     // dans les agendas.
-    await copros.setDateEvenement(coproCode, "cs", "prochaine", null, managerId);
+    await copros.setDateEvenement(coproCode, "cs", "prochaine", null, ecrivain);
     return;
   }
 
@@ -127,13 +179,13 @@ async function glisserDateCs(params: {
   const etat = await odj.getEtat(coproCode, agDateISO);
   const glissement = parseGlissementCs(etat.find((e) => e.champId === CLE_CS_GLISSE)?.valeur);
   if (!glissement) return;
-  await copros.setDateEvenement(coproCode, "cs", "prochaine", glissement.glissee, managerId);
+  await copros.setDateEvenement(coproCode, "cs", "prochaine", glissement.glissee, ecrivain);
   await copros.setDateEvenement(
     coproCode,
     "cs",
     "derniere",
     glissement.ancienneDerniere || null,
-    managerId,
+    ecrivain,
   );
   await odj.setChamp(coproCode, agDateISO, CLE_CS_GLISSE, null, initiales);
 }

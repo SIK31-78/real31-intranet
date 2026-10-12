@@ -4,6 +4,7 @@
 import { getOdjRepository } from "@/lib/adapters/router";
 import { PREFIXE_POINT } from "@/lib/ports/odj-repository";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
+import { poserJalonOdjSiClos } from "@/lib/services/odj/cloturer-odj";
 
 export async function saisirChampOdj(
   coproCode: string,
@@ -43,5 +44,8 @@ export async function reporterOdjSansDate(
   managerId: string,
 ): Promise<void> {
   await exigerPerimetre(coproCode, managerId);
-  return getOdjRepository().reporterSansDate(coproCode, nouvelleDateISO);
+  await getOdjRepository().reporterSansDate(coproCode, nouvelleDateISO);
+  // Un ODJ deja clos sans date n'avait pas pu marquer son jalon : on le pose maintenant
+  // que la date existe (sinon la frise reste sur l'etape ODJ).
+  await poserJalonOdjSiClos(coproCode, nouvelleDateISO);
 }
