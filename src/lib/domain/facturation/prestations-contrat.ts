@@ -72,6 +72,7 @@ export interface PrestationContrat {
 export const PRESTATIONS_CONTRAT: ReadonlyArray<PrestationContrat> = [
   // --- 7.2.2 Reunions et visites supplementaires --------------------------------------
   { code: "ag_supplementaire", identifiantPrestation: "AGE", libelle: "Assemblée générale supplémentaire", mode: "par_lot", imputation: "syndicat", groupe: "reunions", categorieProduit: CATEGORIE_HONORAIRES_COMPLEMENTAIRES, article: "7.2.2" },
+  { code: "cs_supplementaire", identifiantPrestation: "CSSupp", libelle: "Réunion supplémentaire avec le conseil syndical", mode: "fixe", imputation: "syndicat", groupe: "reunions", categorieProduit: CATEGORIE_HONORAIRES_COMPLEMENTAIRES, article: "7.2.2" },
   { code: "visite_supplementaire", identifiantPrestation: "VisiteSupp", libelle: "Visite supplémentaire de la copropriété", mode: "fixe", imputation: "syndicat", groupe: "reunions", categorieProduit: CATEGORIE_HONORAIRES_COMPLEMENTAIRES, article: "7.2.2" },
   // --- 7.2.3 / 7.2.6 / 7.2.7 Administratif et juridique -------------------------------
   { code: "publication_edd_rcp", identifiantPrestation: "ModifRCP", libelle: "Publication de l'EDD / RCP ou de leurs modifications", mode: "par_lot", imputation: "syndicat", groupe: "administratif", categorieProduit: CATEGORIE_HONORAIRES_COMPLEMENTAIRES, article: "7.2.3" },
