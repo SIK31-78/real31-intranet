@@ -15,7 +15,7 @@ import { Section } from "@/components/ui/section";
 import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
-import { LIBELLE_FAMILLE, type FamilleBareme } from "@/lib/domain/facturation/bareme-admin";
+import { LIBELLE_FAMILLE, estNonRevalorise, type FamilleBareme } from "@/lib/domain/facturation/bareme-admin";
 import { lireMontant } from "@/lib/domain/lire-montant";
 import type { BaremeAnnee } from "@/lib/services/admin/bareme";
 import { enregistrerTarifAction, ouvrirAnneeAction, supprimerTarifAction } from "@/app/admin/tarifs/actions";
@@ -86,7 +86,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
             </span>
           }
         >
-          Ouvrez-le en copiant {bareme.precedente}, tel quel ou majoré, puis retouchez les lignes.
+          Ouvrez-le en copiant {bareme.precedente}, tel quel ou majoré, puis retouchez les lignes. Les relances, l’état daté et le pré-état daté sont recopiés à l’identique, sans majoration ni arrondi.
         </Callout>
       )}
       {bareme.manquants.length > 0 && bareme.lignes.length > 0 && (
@@ -121,7 +121,11 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
                   <Tbody>
                     {lignes.map((l) => (
                       <Tr key={l.identifiantPrestation}>
-                        <Td principal><span className="font-mono text-meta">{l.identifiantPrestation}</span></Td>
+                        <Td principal>
+                          <span className="font-mono text-meta">{l.identifiantPrestation}</span>
+                          {/* Recopie telle quelle a l'ouverture d'une annee (relances, etat date, pre-etat date). */}
+                          {estNonRevalorise(l.identifiantPrestation) && <span className="block text-meta text-ink-3">non arrondi ni revalorisé</span>}
+                        </Td>
                         <Td>
                           <Input value={valeur(l.identifiantPrestation, "libelle", l.libelle)} onChange={(e) => setSaisies((s) => ({ ...s, [l.identifiantPrestation]: { libelle: e.target.value, montant: valeur(l.identifiantPrestation, "montant", String(l.montantTtc)) } }))} />
                         </Td>

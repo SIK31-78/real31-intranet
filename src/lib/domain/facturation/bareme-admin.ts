@@ -102,12 +102,28 @@ export function plafonner(identifiantPrestation: string, montantTtc: number): nu
 }
 
 /**
+ * Les tarifs que l'ouverture d'une annee recopie TELS QUELS : ni majores, ni arrondis a
+ * l'euro (Sekou, 12/10/2026). Seule une saisie a la main dans /admin/tarifs les change.
+ *  - MED : mise en demeure ET relance apres mise en demeure (un seul identifiant au contrat).
+ *  - RelanceSimple : relance simple d'un copropriétaire.
+ *  - EtatDate, PreEtatDate : honoraires de mutation (l'etat date est en plus plafonne).
+ */
+export const TARIFS_NON_REVALORISES: ReadonlySet<string> = new Set(["MED", "RelanceSimple", "EtatDate", "PreEtatDate"]);
+
+export function estNonRevalorise(identifiantPrestation: string): boolean {
+  return TARIFS_NON_REVALORISES.has(identifiantPrestation);
+}
+
+/**
  * Ouvrir une annee : les lignes de la source, au meme montant (ou majorees d'un
  * pourcentage, arrondi au centime, sans depasser un plafond legal), pour l'annee cible.
  * Les lignes deja presentes dans la cible sont conservees telles quelles.
  *
  * `arrondiEuro` (REA-103) : arrondit chaque montant a l'euro le plus proche (41,62 -> 42),
  * PUIS applique le plafond legal : l'arrondi ne fait jamais depasser un plafond.
+ *
+ * Les TARIFS_NON_REVALORISES echappent a la majoration comme a l'arrondi : ils gardent le
+ * montant de la source au centime pres (plafond legal toujours applique).
  */
 export function dupliquerBareme(
   source: LigneBareme[],
@@ -120,7 +136,10 @@ export function dupliquerBareme(
   const arrondir = (m: number) => (options.arrondiEuro ? Math.round(m) : Math.round(m * 100) / 100);
   return source
     .filter((l) => !deja.has(l.identifiantPrestation))
-    .map((l) => ({ ...l, montantTtc: plafonner(l.identifiantPrestation, arrondir(l.montantTtc * coef)) }));
+    .map((l) => ({
+      ...l,
+      montantTtc: plafonner(l.identifiantPrestation, estNonRevalorise(l.identifiantPrestation) ? l.montantTtc : arrondir(l.montantTtc * coef)),
+    }));
 }
 
 /** L'ecart en % d'une ligne par rapport a l'annee precedente, null si elle n'existait pas. */
