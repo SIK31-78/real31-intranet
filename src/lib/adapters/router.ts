@@ -135,6 +135,9 @@ import { MockBibliothequeResolutions } from "@/lib/adapters/mock/mock-bibliotheq
 import type { AssembleeEstaleProvider } from "@/lib/ports/assemblee-estale-provider";
 import { EstaleAssembleeProvider } from "@/lib/adapters/estale/estale-assemblee-provider";
 import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-estale-provider";
+import type { MailingEstaleProvider } from "@/lib/ports/mailing-estale-provider";
+import { EstaleMailingProvider } from "@/lib/adapters/estale/estale-mailing-provider";
+import { MockMailingEstaleProvider } from "@/lib/adapters/mock/mock-mailing-estale-provider";
 import type { ComptaRepository } from "@/lib/ports/compta-repository";
 import { SupabaseComptaRepository } from "@/lib/adapters/supabase/supabase-compta-repository";
 import { MockComptaRepository } from "@/lib/adapters/mock/mock-compta-repository";
@@ -509,6 +512,13 @@ export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
     return new EstaleAssembleeProvider();
   }
   return new MockAssembleeEstaleProvider();
+}
+
+// Mailings ESTALE aux copropriétaires (REA-144) : crée un BROUILLON, n'envoie jamais.
+// Même bascule que l'AG ; la garde ESTALE_MAILING_ACTIF est appliquée par le service.
+export function getMailingEstaleProvider(): MailingEstaleProvider {
+  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleMailingProvider();
+  return new MockMailingEstaleProvider();
 }
 
 // Pole compta (notes gestionnaire <-> comptable + flags). Table native
