@@ -45,6 +45,28 @@ export interface EvenementDossier {
   kind: KindEvenement;
   /** Reference externe (ex id d'email rattache), pour les sources non-manuelles. */
   ref?: string;
+  /** Date ISO de la derniere modification d'une note (REA-139). Absent = jamais modifiee.
+   *  Stocke dans le JSON du journal : aucune colonne a ajouter. */
+  modifieLe?: string;
+}
+
+/** Modifie le texte d'UNE note du journal, et seulement si elle appartient a `par`
+ *  (kind "note" + memes initiales) : meme regle que la suppression. La note est reperee
+ *  par sa date de creation `le` (premiere qui matche). Rend le nouveau journal, ou null si
+ *  rien n'a change (pas ma note, introuvable, texte vide ou identique). Pur. */
+export function modifierNoteJournal(
+  journal: EvenementDossier[],
+  cible: { le: string; par: string },
+  texte: string,
+  modifieLe: string,
+): EvenementDossier[] | null {
+  const valeur = texte.trim();
+  if (!valeur) return null;
+  const i = journal.findIndex((e) => e.kind === "note" && e.le === cible.le && e.par === cible.par);
+  if (i < 0 || journal[i].texte === valeur) return null;
+  const next = [...journal];
+  next[i] = { ...journal[i], texte: valeur, modifieLe };
+  return next;
 }
 
 export interface Dossier {

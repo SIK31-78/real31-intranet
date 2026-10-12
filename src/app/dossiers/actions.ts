@@ -9,6 +9,7 @@ import { getDossierRepository } from "@/lib/adapters/router";
 import {
   MODELES_ETAPES,
   STATUT_DOSSIER_LABEL,
+  modifierNoteJournal,
   TYPE_DOSSIER_ORDRE,
   type EtapeDossier,
   type EtapeModele,
@@ -233,6 +234,24 @@ export async function supprimerNoteAction(id: string, le: string): Promise<void>
   if (!retire) return; // pas ma note (ou introuvable) -> no-op
   await getDossierRepository().patch(id, { journal });
   revalidatePath(`/dossiers/${id}`);
+}
+
+// Modifie le texte d'UNE note du journal (REA-139). Memes gardes que la suppression :
+// perimetre (coproCode relu du dossier serveur) + auteur (kind "note" + memes initiales),
+// verifies cote serveur. La date de creation reste, la modification est datee (modifieLe).
+// Rend true si la note a ete modifiee, false sinon (pas ma note, introuvable, inchangee).
+export async function modifierNoteAction(id: string, le: string, texte: string): Promise<boolean> {
+  if (!z.object({ id: zId, le: z.string().trim().min(1).max(40), texte: zTexte }).safeParse({ id, le, texte }).success)
+    return false;
+  const d = await getDossierRepository().get(id);
+  if (!d) return false;
+  const g = await autorise(d.coproCode);
+  if (!g) return false;
+  const journal = modifierNoteJournal(d.journal, { le, par: g.initiales }, texte, new Date().toISOString());
+  if (!journal) return false;
+  await getDossierRepository().patch(id, { journal });
+  revalidatePath(`/dossiers/${id}`);
+  return true;
 }
 
 // Rattache (ou met a jour) le dossier a une AG + une resolution (C5). Champs vides
