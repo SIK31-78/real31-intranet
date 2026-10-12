@@ -65,3 +65,39 @@ describe("getOdj - date du CS", () => {
     expect(enTete(odj, "date-cs")?.valeur).toBe("05/10/2026");
   });
 });
+
+describe("getOdj - gestion courante (REA-251)", () => {
+  function gestion(odj: Odj | null) {
+    return odj?.sections.find((s) => s.id === "gestion-courante")?.champs ?? [];
+  }
+
+  it("reprend l'echeance d'assurance et le dernier controle gaz / VMC de la fiche copro", async () => {
+    etat.copro = copro({ assuranceEcheance: "2027-03-31", ctqGazVmcDate: "2025-06-12" });
+    const champs = gestion(await getOdj("S146", "g1"));
+    const assurance = champs.find((c) => c.id === "gestion.assurance");
+    const ctq = champs.find((c) => c.id === "gestion.ctq-gaz-vmc");
+    expect(assurance).toMatchObject({ libelle: "Échéance du contrat d'assurance", valeur: "31/03/2027", editable: true });
+    expect(ctq).toMatchObject({ libelle: "Dernier contrôle gaz / VMC (CTQ)", valeur: "12/06/2025", editable: true });
+    // Juste apres les contrats d'energie, dans la meme section.
+    const ids = champs.map((c) => c.id);
+    expect(ids.indexOf("gestion.assurance")).toBe(ids.indexOf("gestion.electricite") + 1);
+    expect(ids.indexOf("gestion.ctq-gaz-vmc")).toBe(ids.indexOf("gestion.assurance") + 1);
+  });
+
+  it("sans donnee sur la fiche, les deux lignes restent a saisir", async () => {
+    etat.copro = copro();
+    const champs = gestion(await getOdj("S146", "g1"));
+    expect(champs.find((c) => c.id === "gestion.assurance")?.valeur).toBeUndefined();
+    expect(champs.find((c) => c.id === "gestion.ctq-gaz-vmc")?.valeur).toBeUndefined();
+  });
+
+  it("les deux lignes passent dans l'ODJ rempli (Word / PDF)", async () => {
+    const { arbreOdj } = await import("@/lib/domain/odj-rendu");
+    etat.copro = copro({ assuranceEcheance: "2027-03-31", ctqGazVmcDate: "2025-06-12" });
+    const odj = await getOdj("S146", "g1");
+    const section = arbreOdj(odj!).sections.find((s) => s.titre === "Gestion courante");
+    const lignes = (section?.noeuds ?? []).flatMap((n) => (n.type === "ligne" ? [[n.libelle, n.valeur]] : []));
+    expect(lignes).toContainEqual(["Échéance du contrat d'assurance", "31/03/2027"]);
+    expect(lignes).toContainEqual(["Dernier contrôle gaz / VMC (CTQ)", "12/06/2025"]);
+  });
+});

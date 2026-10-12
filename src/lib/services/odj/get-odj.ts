@@ -256,6 +256,16 @@ export async function getOdj(
         champ("gestion.autres", "Autres dossiers de gestion courante", "manuel", e),
         champ("gestion.gaz", "Contrat gaz (dates d'effet / fin)", "estale", { editable: true, valeur: valeurGaz }),
         champ("gestion.electricite", "Contrat électricité (dates d'effet / fin)", "estale", { editable: true, valeur: valeurElec }),
+        // Referentiel de la fiche copro (REA-251) : le CS veut voir l'assurance arriver a
+        // echeance et la date du dernier controle gaz / VMC sans ouvrir la fiche.
+        champ("gestion.assurance", "Échéance du contrat d'assurance", "supabase", {
+          editable: true,
+          valeur: dateCourte(copro.assuranceEcheance),
+        }),
+        champ("gestion.ctq-gaz-vmc", "Dernier contrôle gaz / VMC (CTQ)", "supabase", {
+          editable: true,
+          valeur: dateCourte(copro.ctqGazVmcDate),
+        }),
         champ("gestion.engie", "Optimisation du contrat ENGIE", "manuel", e),
         champ("gestion.subvention-dtg", "Subvention Métropole pour le DTG", "manuel", e),
         champ("gestion.dtg-pppt", "Avancement DTG / PPPT", "manuel", e),
