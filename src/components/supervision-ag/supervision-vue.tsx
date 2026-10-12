@@ -14,6 +14,7 @@ import { SupervisionHeader } from "./supervision-header";
 import { BandeauConclue } from "./bandeau-conclue";
 import { ChecklistSection } from "./checklist-section";
 import { ModuleModal, type ModuleSupervision } from "./module-modal";
+import { AnnonceAgEstale, type ActionsAnnonceAg } from "./annonce-ag-estale";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 
 type SupervisionVueProps = {
@@ -28,6 +29,8 @@ type SupervisionVueProps = {
    *  fiche copro. Pre-remplit la facturation des honoraires CS ouverte depuis la
    *  checklist : le gestionnaire n'a plus a retrouver l'horaire de memoire. */
   creneauCsSuggere?: { jour: string; debut: string; fin?: string };
+  /** Annonce de l'AG par mailing ESTALE (REA-144) : absente pour une copro Crypto. */
+  annonceEstale?: ActionsAnnonceAg;
   onCocher: (itemId: string, statut: StatutItem) => Promise<void>;
   onCommenter: (itemId: string, commentaire: string) => Promise<void>;
   onConclure: () => Promise<void>;
@@ -40,6 +43,7 @@ export function SupervisionVue({
   aujourdhuiISO,
   pennylaneMode,
   creneauCsSuggere,
+  annonceEstale,
   onCocher,
   onCommenter,
   onConclure,
@@ -93,6 +97,7 @@ export function SupervisionVue({
     <div className="flex flex-col gap-5">
       <SupervisionHeader supervision={supervision} cycle={cycle} role={role} onConclure={onConclure} />
       <BandeauConclue supervision={supervision} />
+      {annonceEstale && <AnnonceAgEstale actions={annonceEstale} lectureSeule={lectureSeule} />}
       {/* Les phases s'empilent a la hairline dans UN cadre. */}
       <Card>
         <div className="divide-y divide-line">

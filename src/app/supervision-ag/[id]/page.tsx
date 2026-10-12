@@ -13,6 +13,8 @@ import {
   commenterItemAction,
   conclureAgAction,
 } from "./actions";
+import { apercuAnnonceAgAction, creerAnnonceAgAction } from "./annonce-ag-actions";
+import { annonceAgPossible } from "@/lib/services/estale/annonce-ag-mailing";
 
 import { ancreDuJour } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = {
@@ -48,6 +50,11 @@ export default async function SupervisionAgPage({
   // Tout est facultatif : sans confirmation, le formulaire garde ses valeurs par defaut.
   const creneauCsSuggere = await creneauCsDeLaCopro(supervision.copro.code, g.id);
 
+  // Annonce de l'AG par mailing ESTALE (REA-144) : copros ESTALE seulement.
+  const annonceEstale = (await annonceAgPossible(supervision.copro.code))
+    ? { apercu: apercuAnnonceAgAction.bind(null, id), creer: creerAnnonceAgAction.bind(null, id) }
+    : undefined;
+
   return (
     <AppShell
       user={g}
@@ -62,6 +69,7 @@ export default async function SupervisionAgPage({
           aujourdhuiISO={aujourdhuiISO}
           pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
           {...(creneauCsSuggere ? { creneauCsSuggere } : {})}
+          {...(annonceEstale ? { annonceEstale } : {})}
           onCocher={cocherItemAction.bind(null, id)}
           onCommenter={commenterItemAction.bind(null, id)}
           onConclure={conclureAgAction.bind(null, id)}
