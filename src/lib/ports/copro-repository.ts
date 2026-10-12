@@ -15,8 +15,10 @@ export interface CoproRepository {
   /** Renvoie la copro par son code, ou null si introuvable / hors scope du gestionnaire. */
   findByCode(code: string, managerId?: string): Promise<Copropriete | null>;
   /** Definit une date d'AG ou de CS (null = deplanifier / effacer). `quand` choisit
-   *  la prochaine (planifiee) ou la derniere (tenue). Scope managerId : n'agit que
-   *  sur une copro du gestionnaire. */
+   *  la prochaine (planifiee) ou la derniere (tenue). `managerId` = l'auteur du geste :
+   *  AUCUN cloisonnement gestionnaire/assistant a l'ecriture (REA-274), l'autorite est
+   *  verifiee en amont (coproAppartient, exigerPerimetre, ADR-041). Leve si rien n'est
+   *  ecrit (copro inconnue, erreur base) : jamais de succes muet. */
   setDateEvenement(
     coproCode: string,
     type: "ag" | "cs",

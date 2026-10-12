@@ -197,4 +197,13 @@ describe("CompositeCoproRepository.setDateEvenement (routage)", () => {
     expect(miroir.setAppels).toHaveLength(1);
     expect(miroir.setAppels[0].code).toBe("S104");
   });
+
+  it("copro Crypto hors portefeuille (ADMIN, delegue) -> delegue au miroir sans filtrer (REA-274)", async () => {
+    const miroir = new FakeMiroir(miroirRows);
+    const c = new CompositeCoproRepository(miroir, new FakeEstale(estaleRows), new FakeDates());
+    await c.setDateEvenement("S104", "cs", "derniere", "2026-09-03", "u-admin");
+    expect(miroir.setAppels).toEqual([
+      { code: "S104", type: "cs", quand: "derniere", dateISO: "2026-09-03", managerId: "u-admin" },
+    ]);
+  });
 });

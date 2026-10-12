@@ -1,6 +1,7 @@
 // Service : definit une date d'AG ou de CS d'une copro (null = deplanifier / effacer).
 // `quand` choisit la prochaine (planifiee) ou la derniere (tenue).
-// Passe par le routeur (ADR-001). Le scope managerId est applique dans l'adapter.
+// Passe par le routeur (ADR-001). L'autorite (coproAppartient, ADR-041) est verifiee par
+// l'appelant : l'adapter ne refait plus de cloisonnement a l'ecriture (REA-274).
 // `boite` (email du gestionnaire connecte, passe par l'action) sert a la projection
 // Outlook automatique de la prochaine date - facultatif, jamais bloquant.
 
