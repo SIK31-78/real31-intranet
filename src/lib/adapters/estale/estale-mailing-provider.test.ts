@@ -2,7 +2,7 @@
 // non négociable : AUCUNE requête émise ne doit envoyer le mailing.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EstaleMailingProvider } from "./estale-mailing-provider";
+import { EstaleMailingProvider, OBJET_MAILING_MAX, couperObjet } from "./estale-mailing-provider";
 import { estaleGql } from "./client";
 import { resoudreCondoId } from "./condos-accessibles";
 
@@ -77,7 +77,36 @@ beforeEach(() => {
   resoudre.mockResolvedValue("condo-se999");
 });
 
+describe("couperObjet", () => {
+  it("laisse intact un objet court", () => {
+    expect(couperObjet("Prochaine assemblée générale : jeudi 10 décembre 2026")).toBe(
+      "Prochaine assemblée générale : jeudi 10 décembre 2026",
+    );
+  });
+  it("coupe un objet trop long sans couper de mot, avec « … », dans la limite", () => {
+    const long = "Prochaine assemblée générale de votre résidence : jeudi 10 décembre 2026"; // 72, refusé par ESTALE
+    const c = couperObjet(long);
+    expect(c).toBe("Prochaine assemblée générale de votre résidence : jeudi 10…");
+    expect(c.length).toBeLessThanOrEqual(OBJET_MAILING_MAX);
+  });
+  it("retire la ponctuation pendante avant « … » et coupe dur un mot unique", () => {
+    expect(couperObjet("aaaa bbbb : cccc", 12)).toBe("aaaa bbbb…");
+    expect(couperObjet("x".repeat(80))).toBe(`${"x".repeat(OBJET_MAILING_MAX - 1)}…`);
+  });
+});
+
 describe("EstaleMailingProvider.creerBrouillon", () => {
+  it("coupe l'objet avant updateMail", async () => {
+    scenario();
+    const long = `${"Prochaine assemblée générale ".repeat(4)}`;
+    await new EstaleMailingProvider().creerBrouillon({ ...BROUILLON, objet: long });
+    const vars = gql.mock.calls.find((c) => (c[0] as string).includes("CorpsMailing"))?.[1] as {
+      input: { object: string };
+    };
+    expect(vars.input.object.length).toBeLessThanOrEqual(OBJET_MAILING_MAX);
+    expect(vars.input.object.endsWith("…")).toBe(true);
+  });
+
   it("crée un brouillon informatif, objet + corps + réponse au gestionnaire, et ne l'envoie jamais", async () => {
     scenario();
     const r = await new EstaleMailingProvider().creerBrouillon(BROUILLON);

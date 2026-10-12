@@ -258,7 +258,9 @@ export function rendreAnnonceAg(d: DonneesAnnonce): AnnonceRendue {
   const html = paragraphes
     .map((p) => p.map((l) => `<p>${echapperHtml(l)}</p>`).join(""))
     .join("<p><br></p>");
-  const objet = `Prochaine assemblée générale de votre résidence : ${dateLongue(d.agDateISO)}`;
+  // Court : ESTALE refuse un objet trop long (seuil entre 60 et 80 car., cf. adaptateur).
+  // Au plus 57 caractères (« mercredi 30 septembre 2026 »).
+  const objet = `Prochaine assemblée générale : ${dateLongue(d.agDateISO)}`;
   return { objet, texte, html, dateLimiteISO };
 }
 

@@ -7,7 +7,7 @@
 //   1. condo(id) : establishmentID + copropriétaires actifs (email, canReceiveMail).
 //   2. createMailing(establishmentID, title)            -> brouillon vide.
 //   3. updateMailing(id).update(category INFORMATIVE)   -> catégorie informative.
-//   4. updateMailing(id).updateMail(object, content)    -> objet + corps HTML.
+//   4. updateMailing(id).updateMail(object, content)    -> objet (coupé à 64 car.) + corps HTML.
 //   5. updateMailing(id).upsertRecipientsOwner(ids)     -> destinataires.
 //   6. Tout destinataire hors MAIL est passé en MAIL (s'il l'accepte) ou retiré : un
 //      courrier postal coûte l'affranchissement et exige un modèle Word qu'on ne fournit pas.
@@ -18,6 +18,23 @@
 import type { BrouillonMailing, MailingCree, MailingEstaleProvider } from "@/lib/ports/mailing-estale-provider";
 import { estaleGql } from "./client";
 import { resoudreCondoId } from "./condos-accessibles";
+
+/**
+ * Longueur maximale de l'objet envoyé à updateMail. Mesuré sur SE999 le 12/10/2026 :
+ * ESTALE répond « Oupss une erreur s'est produite » au-delà d'une limite située entre 60
+ * (accepté) et 80 caractères (refusé) ; 67 passent. 64 garde une marge sous le seuil connu.
+ */
+export const OBJET_MAILING_MAX = 64;
+
+/** Coupe l'objet à OBJET_MAILING_MAX sans couper un mot, terminé par « … ». */
+export function couperObjet(objet: string, max = OBJET_MAILING_MAX): string {
+  const o = objet.trim();
+  if (o.length <= max) return o;
+  const tranche = o.slice(0, max - 1); // place pour « … »
+  const espace = tranche.lastIndexOf(" ");
+  const base = espace > 0 ? tranche.slice(0, espace) : tranche;
+  return `${base.replace(/[\s,;:.\-–]+$/u, "")}…`;
+}
 
 /** Page d'accueil d'ESTALE : le mailing se retrouve dans la liste des mailings par sa référence. */
 export const URL_ESTALE_APP = "https://estale.app/";
@@ -63,7 +80,7 @@ export class EstaleMailingProvider implements MailingEstaleProvider {
         }`,
         {
           id,
-          input: { object: b.objet, content: b.contenuHtml, ...(b.repondreA ? { replyto: b.repondreA } : {}) },
+          input: { object: couperObjet(b.objet), content: b.contenuHtml, ...(b.repondreA ? { replyto: b.repondreA } : {}) },
         },
       );
       const dest = await estaleGql<{ updateMailing: { upsertRecipientsOwner: { recipients: RecipientRow[] } } }>(

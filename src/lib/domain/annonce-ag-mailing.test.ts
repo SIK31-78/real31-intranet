@@ -96,6 +96,11 @@ describe("rendu présentiel", () => {
     expect(r.texte).not.toContain("AG CONNECT");
     expect(r.dateLimiteISO).toBe("2026-10-26");
   });
+  it("objet court, sous la limite d'ESTALE (refus mesuré entre 60 et 80 caractères)", () => {
+    expect(r.objet).toBe("Prochaine assemblée générale : jeudi 10 décembre 2026");
+    const pire = rendreAnnonceAg({ ...base, agDateISO: "2026-09-30" }).objet; // mercredi 30 septembre
+    expect(pire.length).toBeLessThanOrEqual(60);
+  });
   it("HTML : un paragraphe par ligne, texte échappé", () => {
     expect(r.html.startsWith("<p>Madame, Monsieur,</p><p><br></p>")).toBe(true);
     expect(r.html).toContain("l&#39;agence REAL31");
