@@ -9,6 +9,7 @@ import { resynchroniserOutlook } from "@/lib/services/coproprietes/resynchronise
 import { controlerDisposReunion } from "@/lib/services/coproprietes/controler-dispo-reunion";
 import { reporterSupervisionSansDate } from "@/lib/services/supervision-ag/reporter-sans-date";
 import { reporterOdjSansDate } from "@/lib/services/odj/saisir-champ-odj";
+import { annoncerDateCsAuxComptables } from "@/lib/services/coproprietes/annoncer-date-cs";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getGestionnaireRepository, getCoproRepository } from "@/lib/adapters/router";
@@ -146,6 +147,19 @@ async function definir(
         erreur: `${cap(controle.agenda)}. Après accord avec le(s) collègue(s), tu peux fixer quand même.`,
       };
   }
+  // Date du CS AVANT la pose : le mail aux comptables (REA-272) ne part que si elle change
+  // (changer la salle ou les collegues re-sauvegarde la meme date). Lecture non bloquante.
+  const annoncerCs = type === "cs" && quand === "prochaine" && Boolean(dateISO);
+  const ancienneDateCs = annoncerCs
+    ? await getCoproRepository()
+        .findByCode(coproCode)
+        .then((c) =>
+          c?.prochaineCsDate
+            ? `${c.prochaineCsDate.slice(0, 10)}${c.prochaineCsHeure ? `T${c.prochaineCsHeure}` : ""}`
+            : null,
+        )
+        .catch(() => null)
+    : null;
   try {
     // La boite de projection Outlook = email de SESSION (jamais un parametre client),
     // comme le RDV sinistre : le gestionnaire n'ecrit que dans son propre agenda.
@@ -161,6 +175,15 @@ async function definir(
       await reporterSupervisionSansDate(coproCode, dateISO, g.id);
       await reporterOdjSansDate(coproCode, dateISO, g.id);
     }
+    // Date du CS posee ou deplacee : mail aux comptables de l'agence (REA-272, pas de jalon
+    // dans les agendas). Best-effort : le service ne leve jamais, la date est deja posee.
+    if (annoncerCs)
+      await annoncerDateCsAuxComptables({
+        coproCode,
+        dateCsISO: dateISO,
+        ancienneDateCsISO: ancienneDateCs,
+        boite: g.email ?? undefined,
+      });
     // Changer une date recalcule les jalons : revalider TOUTES les vues qui les affichent
     // (sinon le calendrier / dashboard / accueil restent sur l'ancien calcul).
     revalidatePath(`/copropriete/${coproCode}`);
