@@ -38,6 +38,7 @@ const ROLE_LABEL: Record<RoleEquipe, string> = {
   comptable: "Comptable",
   directeur: "Directeur",
   negociateur: "Négociateur",
+  direction: "Direction",
 };
 
 const STATUT_AG_LABEL: Record<ProchaineAg["statut"], string> = {

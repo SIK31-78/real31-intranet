@@ -41,7 +41,14 @@ export type RoleEquipe =
   | "assistant"
   | "comptable"
   | "directeur"
-  | "negociateur";
+  | "negociateur"
+  /**
+   * Directeur·rice de copropriete qui suit la copro sans en etre le gestionnaire du mandat
+   * (decision Sekou du 12/10/2026, ex. Dimitri MYAUX sur S0303/S0304). Affichage SEULEMENT :
+   * aucun calcul (cloisonnement, routage des mails, Mes e-mails) ne lit ce role, ils
+   * cherchent gestionnaire/assistant/comptable. Plusieurs entrees possibles par copro.
+   */
+  | "direction";
 
 export interface Adresse {
   ligne1: string;

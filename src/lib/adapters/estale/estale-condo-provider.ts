@@ -70,10 +70,17 @@ type CondoData = {
 const ASSISTANT_COPRO = /\bassistante?\s+(de\s+)?(copro|gestion)/i;
 
 /**
+ * « Directeur / Directrice de copropriété » (decision Sekou du 12/10/2026) : la direction
+ * qui suit la copro sans en etre la gestionnaire du mandat entre dans l'equipe, role
+ * « direction ». Quand elle EST la gestionnaire du mandat, le mandat prime (pas de doublon).
+ */
+const DIRECTION_COPRO = /\bdirect(eur|rice)\s+(de\s+)?(la\s+)?copro/i;
+
+/**
  * Equipe telle qu'eStale la connait. Le GESTIONNAIRE est celui designe par le mandat
  * (`serviceBook.mandate.managerID`) - c'est ce qu'affiche l'UI eStale ; les autres roles
  * sont deduits de l'intitule libre du collaborateur ("Comptable", "Assistante de
- * copropriété"...). Les intitules hors des 3 roles metier (Dirigeant, Responsable
+ * copropriété", "Directrice de copropriété"...). Les intitules hors de ces roles (Dirigeant, Responsable
  * innovation, Assistante commerciale...) sont ecartes : la fiche montre l'equipe
  * OPERATIONNELLE de la copro, pas tout le cabinet.
  */
@@ -91,12 +98,15 @@ export function equipeDepuisEstale(
           ? "comptable"
           : ASSISTANT_COPRO.test(intitule)
             ? "assistant"
-            : null;
+            : DIRECTION_COPRO.test(intitule)
+              ? "direction"
+              : null;
     if (!role) continue;
     membres.push({ initiales: initialesDe(c.fullname), nomComplet: c.fullname, role });
   }
-  // Gestionnaire d'abord, puis comptable, puis assistant (ordre de lecture de la fiche).
-  const rang: Partial<Record<RoleEquipe, number>> = { gestionnaire: 0, comptable: 1, assistant: 2 };
+  // Gestionnaire d'abord, puis comptable, assistant, et la direction en dernier (ordre de
+  // lecture de la fiche : l'equipe operationnelle avant ceux qui la supervisent).
+  const rang: Partial<Record<RoleEquipe, number>> = { gestionnaire: 0, comptable: 1, assistant: 2, direction: 3 };
   return membres.sort((a, b) => (rang[a.role] ?? 9) - (rang[b.role] ?? 9));
 }
 

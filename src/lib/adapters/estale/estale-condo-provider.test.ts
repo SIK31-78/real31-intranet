@@ -43,4 +43,44 @@ describe("equipeDepuisEstale - intitules reels", () => {
       ["Elsa Martin", "assistant"],
     ]);
   });
+
+  it("« Directeur de copropriété » hors mandat : direction, apres l'equipe operationnelle", () => {
+    const equipe = equipeDepuisEstale(
+      [
+        collab("d", "Dimitri Myaux", "Directeur de copropriété"),
+        collab("g", "Océane Bernard", "Gestionnaire de copropriété"),
+        collab("a", "Elsa Martin", "Assistante de copropriété"),
+      ],
+      "g",
+    );
+    expect(equipe.map((m) => [m.nomComplet, m.role])).toEqual([
+      ["Océane Bernard", "gestionnaire"],
+      ["Elsa Martin", "assistant"],
+      ["Dimitri Myaux", "direction"],
+    ]);
+  });
+
+  it("plusieurs directeur·rices de copropriété : toutes en direction", () => {
+    const equipe = equipeDepuisEstale(
+      [
+        collab("d", "Dimitri Myaux", "Directeur de copropriété"),
+        collab("s", "Sandy Carrier", "Directrice de copropriété"),
+      ],
+      null,
+    );
+    expect(equipe.map((m) => m.role)).toEqual(["direction", "direction"]);
+  });
+
+  it("la directrice gestionnaire du mandat reste gestionnaire, sans doublon direction", () => {
+    const equipe = equipeDepuisEstale([collab("s", "Sandy Carrier", "Directrice de copropriété")], "s");
+    expect(equipe.map((m) => [m.nomComplet, m.role])).toEqual([["Sandy Carrier", "gestionnaire"]]);
+  });
+
+  it("« Directeur d'agence » ou « Dirigeant » : ecartes", () => {
+    const equipe = equipeDepuisEstale(
+      [collab("1", "Jean Roux", "Directeur d'agence"), collab("2", "Marc Petit", "Dirigeant")],
+      null,
+    );
+    expect(equipe).toEqual([]);
+  });
 });
