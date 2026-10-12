@@ -8,6 +8,10 @@
 // remontee - elle est enregistree en base, le cron la poussera. Et comme le triage se
 // fait en une fournee hebdo, un jour de latence ne coute rien.
 //
+// FILTRE DE L'ALLER (regle du 2026-10-12) : seule une remontee acceptee au triage
+// (`prevu` / `en_cours` en base) part dans Linear - le plan gratuit plafonne a 250
+// tickets, une remontee `nouveau` ne doit pas en consommer un. Cf. doitPartirDansLinear.
+//
 // IDEMPOTENT : l'aller ne regarde que les remontees sans ticket, le retour ne fait
 // qu'ecrire l'etat courant. Rejouer le cron deux fois de suite ne change rien.
 
@@ -29,7 +33,7 @@ export interface BilanSynchro {
   realignes: { identifiant: string; de: string; vers: string }[];
   /** Tickets renommes dans Linear apres reformulation du titre au triage. */
   renommes: { identifiant: string; titre: string }[];
-  /** Remontees ignorees a l'aller (entree maison, deja terminee, archivee). */
+  /** Remontees ignorees a l'aller (pas encore triee, entree maison, deja terminee, archivee). */
   ignorees: number;
   /** Remontees rattachees a un ticket mais ARCHIVEES : le retour les laisse tranquilles. */
   archivees: number;
@@ -40,7 +44,8 @@ export interface BilanSynchro {
 }
 
 /**
- * Pousse les remontees sans ticket, puis realigne les statuts depuis Linear.
+ * Pousse les remontees triees (`prevu` / `en_cours`) sans ticket, puis realigne les
+ * statuts depuis Linear.
  *
  * Chaque remontee est traitee INDEPENDAMMENT : une erreur sur l'une (label supprime,
  * ticket efface, 429) n'empeche pas les autres. Le bilan nomme les echecs, et le

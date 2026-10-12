@@ -51,10 +51,17 @@ describe("statutDepuisEtatLinear", () => {
 });
 
 describe("doitPartirDansLinear", () => {
-  it("pousse une remontée de collaborateur non terminée", () => {
-    expect(doitPartirDansLinear({ severite: "bloquant", statut: "nouveau" })).toBe(true);
+  it("pousse une remontée de collaborateur acceptée au triage", () => {
     expect(doitPartirDansLinear({ severite: "confort", statut: "prevu" })).toBe(true);
     expect(doitPartirDansLinear({ severite: "genant", statut: "en_cours" })).toBe(true);
+  });
+
+  // Règle du 2026-10-12 : le plan gratuit Linear plafonne à 250 tickets. Une remontée
+  // pas encore jugée reste en base ; c'est le triage (statut prevu / en_cours posé en
+  // base) qui la fait partir. Écartée au triage, elle ne coûte jamais de ticket.
+  it("garde en base une remontée pas encore triée, même bloquante", () => {
+    expect(doitPartirDansLinear({ severite: "bloquant", statut: "nouveau" })).toBe(false);
+    expect(doitPartirDansLinear({ severite: "confort", statut: "nouveau" })).toBe(false);
   });
 
   // Sévérité absente = entrée « maison » créée par l'admin pour /nouveautes : ce

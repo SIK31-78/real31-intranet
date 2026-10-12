@@ -69,12 +69,16 @@ beforeEach(() => {
   tracker.actif = true;
 });
 
+/** Remontée de collaborateur acceptée au triage (statut `prevu` posé en base). */
+async function remonteeTriee(description: string, email = "c@real31.fr"): Promise<Feedback> {
+  const f = await creerFeedback({ type: "bug", description, severite: "genant" }, { email });
+  await changerStatutFeedback(f.id, "prevu", { par: "sekou.koma@real31.fr" });
+  return f;
+}
+
 describe("synchroniserLinear - l'aller", () => {
-  it("pousse une remontée de collaborateur et la rattache à son ticket", async () => {
-    const f = await creerFeedback(
-      { type: "bug", description: "Le CS supplémentaire n'est pas facturable", severite: "genant" },
-      { email: "remi.bard@real31.fr" },
-    );
+  it("pousse une remontée triée et la rattache à son ticket", async () => {
+    const f = await remonteeTriee("Le CS supplémentaire n'est pas facturable", "remi.bard@real31.fr");
 
     const bilan = await synchroniserLinear();
 
@@ -89,11 +93,39 @@ describe("synchroniserLinear - l'aller", () => {
     expect(relu?.linearSyncAt).toBeTruthy();
   });
 
-  it("ne repousse pas une remontée déjà rattachée (idempotence)", async () => {
-    await creerFeedback(
-      { type: "bug", description: "Doublon à éviter", severite: "bloquant" },
-      { email: "sekou.koma@real31.fr" },
+  // Règle du 2026-10-12 (plan gratuit Linear plafonné à 250 tickets) : une remontée
+  // pas encore jugée reste en base, sans ticket, tant que le triage ne l'a pas acceptée.
+  it("ne crée PAS de ticket pour une remontée pas encore triée", async () => {
+    const f = await creerFeedback(
+      { type: "bug", description: "Pas encore jugée", severite: "bloquant" },
+      { email: "e@real31.fr" },
     );
+
+    const bilan = await synchroniserLinear();
+
+    expect(tracker.creees.map((c) => c.id)).not.toContain(f.id);
+    expect(bilan.ignorees).toBeGreaterThan(0);
+    expect((await getFeedbackRepository().get(f.id))?.linearIssueId).toBeUndefined();
+
+    // Acceptée au triage en base -> le passage suivant crée le ticket, en Todo.
+    await changerStatutFeedback(f.id, "prevu", { par: "sekou.koma@real31.fr" });
+    await synchroniserLinear();
+    expect(tracker.creees.map((c) => c.id)).toContain(f.id);
+    expect(tracker.etats.find((e) => e.titre === f.titre)?.typeEtat).toBe("unstarted");
+  });
+
+  it("fait naître le ticket In Progress pour une remontée en cours", async () => {
+    const f = await remonteeTriee("Déjà commencée au triage");
+    await changerStatutFeedback(f.id, "en_cours", { par: "sekou.koma@real31.fr" });
+
+    await synchroniserLinear();
+
+    expect(tracker.etats.find((e) => e.titre === f.titre)?.typeEtat).toBe("started");
+    expect((await getFeedbackRepository().get(f.id))?.statut).toBe("en_cours");
+  });
+
+  it("ne repousse pas une remontée déjà rattachée (idempotence)", async () => {
+    await remonteeTriee("Doublon à éviter", "sekou.koma@real31.fr");
     await synchroniserLinear();
     const premierLot = tracker.creees.length;
     expect(premierLot).toBeGreaterThan(0);
@@ -117,14 +149,8 @@ describe("synchroniserLinear - l'aller", () => {
   // Un raté sur une remontée ne doit pas emporter les autres : le passage du
   // lendemain la reprendra puisque rien n'aura été écrit pour elle.
   it("isole un échec de création et continue le lot", async () => {
-    const casse = await creerFeedback(
-      { type: "bug", description: "Celle qui casse", severite: "genant" },
-      { email: "a@real31.fr" },
-    );
-    const ok = await creerFeedback(
-      { type: "bug", description: "Celle qui passe", severite: "genant" },
-      { email: "b@real31.fr" },
-    );
+    const casse = await remonteeTriee("Celle qui casse", "a@real31.fr");
+    const ok = await remonteeTriee("Celle qui passe", "b@real31.fr");
     tracker.echoueSur = casse.titre;
 
     const bilan = await synchroniserLinear();
@@ -165,7 +191,7 @@ describe("synchroniserLinear - l'aller", () => {
 
 describe("synchroniserLinear - le retour", () => {
   async function remonteePoussee(description: string): Promise<Feedback> {
-    const f = await creerFeedback({ type: "bug", description, severite: "genant" }, { email: "c@real31.fr" });
+    const f = await remonteeTriee(description);
     await synchroniserLinear();
     const relu = await getFeedbackRepository().get(f.id);
     if (!relu?.linearIssueId) throw new Error("la remontée n'a pas été poussée");
@@ -188,7 +214,7 @@ describe("synchroniserLinear - le retour", () => {
     const bilan = await synchroniserLinear();
 
     expect(bilan.realignes).toEqual(
-      expect.arrayContaining([{ identifiant: f.linearIdentifiant, de: "nouveau", vers: "livre" }]),
+      expect.arrayContaining([{ identifiant: f.linearIdentifiant, de: "prevu", vers: "livre" }]),
     );
     const relu = await getFeedbackRepository().get(f.id);
     expect(relu?.statut).toBe("livre");
@@ -247,7 +273,7 @@ describe("synchroniserLinear - le retour", () => {
     const bilan = await synchroniserLinear();
 
     expect(bilan.realignes.some((r) => r.identifiant === f.linearIdentifiant)).toBe(false);
-    expect((await getFeedbackRepository().get(f.id))?.statut).toBe("nouveau");
+    expect((await getFeedbackRepository().get(f.id))?.statut).toBe("prevu");
   });
 
   // Le titre est porté par la base (c'est lui qui s'affiche sur /nouveautes) : après
@@ -287,7 +313,7 @@ describe("synchroniserLinear - le retour", () => {
     expect(bilan.archivees).toBeGreaterThan(0);
     expect(bilan.realignes.some((r) => r.identifiant === f.linearIdentifiant)).toBe(false);
     const relu = await repo.get(f.id);
-    expect(relu?.statut).toBe("nouveau");
+    expect(relu?.statut).toBe("prevu");
     expect(relu?.raisonEcart).toBeUndefined();
     // Et elle n'est pas comptée comme orpheline : elle est hors du pont, pas perdue.
     expect(bilan.orphelins).not.toContain(f.linearIdentifiant);

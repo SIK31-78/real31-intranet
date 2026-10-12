@@ -1,6 +1,6 @@
 ---
 name: corrections
-description: Triage hebdomadaire des remontees collaborateurs (bugs/idees du bouton "Un bug / une idee") puis pilotage des corrections. Utilise ce skill quand Sekou invoque /corrections, demande un point sur les feedbacks, le triage des remontees, la requalification des bugs, ou de passer des remontees en prevu/en cours/livre. Le STATUT se change dans Linear (MCP linear), le reste via scripts/feedback-triage.mjs.
+description: Triage hebdomadaire des remontees collaborateurs (bugs/idees du bouton "Un bug / une idee") puis pilotage des corrections. Utilise ce skill quand Sekou invoque /corrections, demande un point sur les feedbacks, le triage des remontees, la requalification des bugs, ou de passer des remontees en prevu/en cours/livre. Le STATUT d'une remontee sans ticket se pose en base (scripts/feedback-triage.mjs, le cron cree le ticket une fois prevu/en_cours), celui d'une remontee avec ticket dans Linear (MCP linear).
 ---
 
 # /corrections — triage hebdomadaire des remontees
@@ -11,11 +11,16 @@ Sekou LIT les remontees ; c'est cet agent qui les TRAITE (confirme le 2026-10-06
 
 ## DEUX surfaces depuis le pont Linear (ADR-043, 2026-10-06)
 
-Chaque remontee du bouton devient un ticket Linear (cron quotidien, 6h). Donc :
+**Depuis le 2026-10-12, seule une remontee ACCEPTEE AU TRIAGE devient un ticket**
+(plan gratuit Linear plafonne a 250 tickets). Le cron quotidien (6h) ne pousse que les
+remontees `prevu` ou `en_cours` en base, sans ticket ; une remontee `nouveau` reste en
+base, et une remontee ecartee au triage ne coute jamais de ticket. Le ticket naît dans
+l'etat du statut : `prevu` → Todo, `en_cours` → In Progress. Donc :
 
 | Quoi | Ou | Comment |
 |---|---|---|
-| **Statut** (le jugement) | **LINEAR** | MCP `linear` → `save_issue` avec `state=` |
+| **Statut**, remontee SANS ticket (`nouveau`) | **base** | le script : `maj <id> statut=prevu` (ou `ecarte raison=...`) |
+| **Statut**, remontee AVEC ticket | **LINEAR** | MCP `linear` → `save_issue` avec `state=` |
 | Priorite, assignation | **LINEAR** | MCP `linear` |
 | **Titre** (public, vitrine) | **base** | le script ; le cron le pousse ensuite dans Linear |
 | **`resume_public`** (vitrine) | **base** | le script — Linear ne sait pas faire ca |
@@ -23,12 +28,11 @@ Chaque remontee du bouton devient un ticket Linear (cron quotidien, 6h). Donc :
 | Description brute | **base** | JAMAIS modifiee (c'est la parole du collegue) |
 
 **Ne JAMAIS poser un statut avec le script sur une remontee qui a un ticket** : le cron
-de 6h relirait l'etat du ticket (reste en Backlog) et ecraserait le triage pendant la
-nuit. Le script REFUSE d'ailleurs `statut=` dans ce cas et affiche l'identifiant du
+de 6h relirait l'etat du ticket et ecraserait le triage pendant la nuit. Le script REFUSE d'ailleurs `statut=` dans ce cas et affiche l'identifiant du
 ticket — s'il refuse, c'est que la reponse est « va dans Linear », pas « contourne ».
 
 Correspondance etat Linear ↔ statut (elle vit dans `src/lib/domain/feedback-linear.ts`,
-mappee sur le TYPE de l'etat) : Backlog → `nouveau` · Todo → `prevu` · In Progress /
+mappee sur le TYPE de l'etat) : Triage → `nouveau` · Backlog / Todo → `prevu` · In Progress /
 In Review → `en_cours` · Done → `livre` · Canceled / Duplicate → `ecarte`.
 
 ## L'outil
@@ -42,8 +46,9 @@ node scripts/feedback-triage.mjs maj <id> titre="..." resume="..." severite=gena
 node scripts/feedback-triage.mjs creer type=bug titre="..." description="..." severite=genant auteur=RB
 ```
 
-`creer` sert aux remontees qui n'arrivent PAS par le bouton (un mail, un appel) : le
-cron les poussera dans Linear tout seul, inutile de creer le ticket a la main.
+`creer` sert aux remontees qui n'arrivent PAS par le bouton (un mail, un appel) : une
+fois triee (`statut=prevu`), le cron la poussera dans Linear tout seul, inutile de creer
+le ticket a la main.
 
 ## Etape 1 — Triage de chaque remontee `nouveau`
 
@@ -71,14 +76,22 @@ Pour chaque remontee, dans l'ordre :
    - La description BRUTE du collaborateur ne se modifie jamais (c'est sa parole) et ne
      sort JAMAIS sur /nouveautes — seul `resume_public` est expose (ligne rouge du
      domaine feedback).
-5. **Statuer DANS LINEAR** (MCP `linear`, `save_issue` avec l'identifiant du ticket) :
-   correction identifiee et jugee faisable → `state="Todo"`. Mauvais usage ou doublon →
-   `state="Canceled"` ET la raison pedagogique en `note=` cote base (le cron posera
-   `raison_ecart`, mais il n'ecrit qu'une trace de provenance : la raison lisible par le
-   collegue, c'est `resume=`). Besoin d'un arbitrage de Sekou (choix metier, cout eleve)
-   → laisser le ticket en Backlog et le lister dans le rapport avec la question precise.
-   Pas de ticket encore (remontee du jour, cron pas passe) → laisser `nouveau` en base
-   et statuer au prochain tour ; ne jamais forcer le statut pour « gagner un jour ».
+5. **Statuer**. Le cas courant depuis le 2026-10-12 : **pas de ticket → statuer EN BASE,
+   le cron creera le ticket en Todo.**
+   - **Remontee sans ticket** (pas de `<REA-xx>` dans `liste`, toutes les `nouveau`) :
+     correction identifiee et jugee faisable → `maj <id> statut=prevu` (le cron de 6h
+     cree le ticket en Todo ; `statut=en_cours` le ferait naitre In Progress). Mauvais
+     usage ou doublon → `maj <id> statut=ecarte raison="..."` : la remontee ne part
+     jamais dans Linear, aucun ticket consomme. Besoin d'un arbitrage de Sekou (choix
+     metier, cout eleve) → laisser `nouveau` et lister la question precise dans le
+     rapport : pas de ticket tant qu'il n'a pas tranche.
+   - **Remontee deja rattachee a un ticket** (`<REA-xx>`) : statuer DANS LINEAR (MCP
+     `linear`, `save_issue`) — `state="Todo"`, ou `state="Canceled"` ET la raison
+     pedagogique en `note=` cote base (le cron posera `raison_ecart`, mais il n'ecrit
+     qu'une trace de provenance : la raison lisible par le collegue, c'est `resume=`).
+     Le script refuse `statut=` dans ce cas.
+   - Titre et resume publics reformules AVANT le `statut=prevu` : le ticket nait avec
+     le titre de la base.
 
 ## Etape 2 — Sur le « go » de Sekou
 
@@ -114,4 +127,5 @@ Pour chaque remontee, dans l'ordre :
 - Le titre vit dans la BASE : le reformuler avec le script, jamais en renommant le ticket
   dans Linear (le cron repousserait l'ancien titre au passage suivant).
 - Une remontee marquee `<REA-xx>` dans `liste` est deja suivie : son statut ne se touche
-  que dans Linear. Une remontee sans marqueur n'a pas encore de ticket.
+  que dans Linear. Une remontee sans marqueur n'a pas encore de ticket : son statut se
+  pose en base, et seul `prevu` / `en_cours` la fera partir dans Linear.
