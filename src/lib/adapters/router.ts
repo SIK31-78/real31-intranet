@@ -51,6 +51,10 @@ import { SimulationRangementTri } from "@/lib/adapters/mock/simulation-rangement
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
 import { SupabaseTriRepository } from "@/lib/adapters/supabase/supabase-tri-repository";
 import { boiteTriConfiguree, ecritureTriActive } from "@/lib/domain/mail-gate";
+import type { SynchroRepository } from "@/lib/ports/synchro-repository";
+import { MockSynchroRepository } from "@/lib/adapters/mock/mock-synchro-repository";
+import { SupabaseSynchroRepository } from "@/lib/adapters/supabase/supabase-synchro-repository";
+import { CLE_ANNUAIRE_CRYPTO } from "@/lib/domain/synchro";
 import type { SignatureProvider } from "@/lib/ports/signature-provider";
 import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
@@ -471,6 +475,16 @@ let triRepositoryMemoire: MockTriRepository | null = null;
 export function getTriRepository(): TriRepository {
   if (coproSourceEstSupabase()) return new SupabaseTriRepository();
   return (triRepositoryMemoire ??= new MockTriRepository());
+}
+
+// Compte rendu des synchros externes (annuaire Crypto). Hors Supabase : une synchro
+// reussie a l'instant, pour que la demo n'affiche pas d'alerte sans objet.
+export function getSynchroRepository(): SynchroRepository {
+  if (coproSourceEstSupabase()) return new SupabaseSynchroRepository();
+  const maintenant = new Date().toISOString();
+  return new MockSynchroRepository({
+    [CLE_ANNUAIRE_CRYPTO]: { passeLe: maintenant, reussiLe: maintenant, exportDu: maintenant, statut: "reussi", message: null, lignes: 0 },
+  });
 }
 
 // Mail sortant (creer un brouillon, envoyer). Graph en reel (MAIL_SOURCE=graph),

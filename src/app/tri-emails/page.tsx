@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant, estSuperAdmin } from "@/lib/auth/session";
 import { lireFileATrier } from "@/lib/services/tri-emails/lire-file";
+import { diagnosticAnnuaire } from "@/lib/services/synchro/surveiller-annuaire";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ export default async function TriEmailsPage() {
   if (!g) redirect("/dev-login");
   // Pilote (ADR-046) : super-admins seulement, et seulement si la boite est configuree.
   if (!estSuperAdmin(g.email)) redirect("/accueil");
-  const file = await lireFileATrier();
+  const [file, annuaire] = await Promise.all([lireFileATrier(), diagnosticAnnuaire()]);
   if (!file) redirect("/accueil");
 
   return (
@@ -43,6 +44,12 @@ export default async function TriEmailsPage() {
           </Callout>
         )}
         {file.erreur && <Callout ton="warn">{file.erreur}</Callout>}
+        {annuaire.alerte && (
+          <Callout ton="warn" titre="Annuaire des expéditeurs Crypto pas à jour.">
+            {" "}{annuaire.raisons.join(" ")} Pour relancer : double-clic sur{" "}
+            <code>scripts\sync-annuaire-crypto.cmd</code>, sur le PC qui synchronise l&apos;export Crypto.
+          </Callout>
+        )}
         <TriEmailsVue file={file} />
       </Page>
     </AppShell>

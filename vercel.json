@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/tri-emails",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/annuaire-crypto",
+      "schedule": "0 6 * * *"
     }
   ]
 }
