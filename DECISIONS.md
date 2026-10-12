@@ -1843,7 +1843,7 @@ ADR-001 (hexagonal), ADR-004 (jobs), ADR-012 v3 (attestation imprimable), ADR-02
 
 ## ADR-041 - Périmètre d'écriture unifié : portefeuille, rôle, délégations, une seule porte
 
-**Date** : 2026-09-21 · **Statut** : accepté (Sekou, 21/09/2026 — 4 arbitrages : directeurs syndic = agence ; une délégation peut viser plusieurs bénéficiaires, dont un assistant ; la direction et le titulaire posent les délégations ; le périmètre comptable reste à part pour l'instant)
+**Date** : 2026-09-21 · **Statut** : accepté (Sekou, 21/09/2026 — 4 arbitrages : directeurs syndic = agence ; une délégation peut viser plusieurs bénéficiaires, dont un assistant ; la direction et le titulaire posent les délégations ; le périmètre comptable reste à part pour l'instant) · complété le 12/10/2026 (les délégations élargissent le périmètre comptable, REA-158)
 
 ### Contexte
 
@@ -1860,6 +1860,8 @@ Trois demandes en une semaine, qui sont le même problème : les directeurs d'ag
 Les 54 gardes ne changent pas : elles appellent la même porte, qui essaie le portefeuille, puis le rôle et les délégations (trois lectures de plus, seulement quand le portefeuille a dit non), puis le repli comptable existant. Les écrans transverses (facturation, récaps) passent par `coprosEcrivables`, la même règle en liste.
 
 La **lecture** reste ouverte au cabinet. Le **périmètre comptable** reste dans `perimetre-comptable.ts` (à ranger dans ce modèle comme un rôle par agence, plus tard). Un futur sélecteur d'affichage « Mon portefeuille · Mon agence · Le cabinet » n'est qu'un filtre sur ce périmètre.
+
+**Complément du 12/10/2026 — les délégations élargissent aussi le périmètre comptable** (REA-158, décision Sekou). L'arbitrage du 21/09 laissait le périmètre comptable à part ; il reste codé à part (`perimetre-comptable.ts`, liste fermée des agences par comptable), mais il **lit désormais les mêmes délégations datées** (`intranet_delegation`) : quand une comptable part en congés, on ne touche plus à la liste fermée, on pose une délégation. Deux portées l'élargissent, une délégation **d'agence** (l'agence déléguée) et une délégation du **portefeuille d'une comptable** (ses agences, puisqu'une comptable n'a pas de portefeuille de copros) ; le portefeuille d'un gestionnaire et une délégation de copro n'ouvrent aucune agence comptable, ils passent copro par copro par le périmètre d'écriture ci-dessus. Résolu une fois par requête dans `services/coproprietes/copro-appartient` (`perimetreComptableDe`, règle pure `perimetreComptableEtendu`), donc appliqué à `/comptabilite` (« Mes agences », l'agence déléguée signalée comme telle), à la facturation, au pré-état daté, aux récaps et au repli comptable de la garde d'écriture. Expirée ou à venir, une délégation est ignorée : le périmètre revient seul à ses agences. Délégations illisibles : la comptable garde ses propres agences, jamais plus. Le rangement du périmètre comptable comme un rôle par agence reste à faire.
 
 ### Conséquences
 

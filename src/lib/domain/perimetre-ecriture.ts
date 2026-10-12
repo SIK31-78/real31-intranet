@@ -10,8 +10,11 @@
 //      posee par la direction de l'agence ou par le titulaire, sur son portefeuille, une
 //      agence ou une copro ; elle expire toute seule.
 //
-// La LECTURE reste ouverte au cabinet (services/coproprietes/perimetre-lecture) ; le
-// perimetre COMPTABLE (domain/perimetre-comptable) reste a part pour l'instant (Sekou).
+// La LECTURE reste ouverte au cabinet (services/coproprietes/perimetre-lecture). Le
+// perimetre COMPTABLE (domain/perimetre-comptable) reste code a part (liste fermee des
+// agences par comptable), mais depuis le 12/10/2026 il lit les MEMES delegations datees
+// (REA-158, `perimetreComptableEtendu`) : une delegation d'agence, ou du portefeuille
+// d'une comptable, lui ouvre les agences correspondantes tant qu'elle est active.
 //
 // Pur : pas de base, pas d'horloge, tout est fourni.
 
