@@ -101,11 +101,18 @@ function dateISO(annee: number, mois: number, jour: number): string {
 }
 
 /**
- * Ou mene "preparer l'ODJ" : le DOCUMENT WORD, pas l'ecran (decision Sekou 2026-09-30).
- * Le CS se remplit dans Word, en reunion ; l'ecran /odj/<code> reste la porte de
- * consultation, atteignable par "Voir l'ordre du jour".
+ * Raccourci "preparer l'ODJ" de la phase Dates : le DOCUMENT WORD (decision Sekou
+ * 2026-09-30, le CS se remplit dans Word, en reunion).
  */
 const LIEN_ODJ_WORD = (code: string) => `/odj/${code}/odj-cs.docx`;
+
+/**
+ * Ou mene l'etape ODJ du stepper : l'ECRAN /odj/<code> (decision Sekou, REA-168). L'etape
+ * ne se franchit qu'avec « Marquer la réunion terminée », qui vit sur cet ecran : la mener
+ * au seul Word laissait l'utilisateur sans la porte pour la cloturer. Le Word reste
+ * telechargeable depuis l'ecran.
+ */
+const LIEN_ODJ_ECRAN = (code: string) => `/odj/${code}`;
 
 /**
  * Ajoute `n` mois a une date ISO, avec BORNAGE en fin de mois.
@@ -239,8 +246,8 @@ function actionEtape(
     case "odj":
       return {
         prochaineAction: "préparer l'ODJ",
-        actionLabel: "Télécharger l'ODJ",
-        lien: LIEN_ODJ_WORD(c.code),
+        actionLabel: "Ouvrir l'ODJ",
+        lien: LIEN_ODJ_ECRAN(c.code),
       };
     case "convoc":
       return { prochaineAction: "envoyer les convocations", actionLabel: "Supervision", lien: sup };
