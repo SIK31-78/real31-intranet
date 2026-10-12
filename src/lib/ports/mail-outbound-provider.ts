@@ -34,6 +34,8 @@ export interface MailOutboundProvider {
    * Aptos 11). Statut Draft : on N'ENVOIE PAS. Pas de signature injectee (Signitic
    * s'applique a l'ouverture cote Outlook, comme creerBrouillon). Renvoie le
    * webLink Outlook du brouillon cree si Graph le fournit.
+   * `piecesJointes` : jointes au brouillon (l'ODJ du CS en PDF, REA-146). Petites : elles
+   * voyagent en base64 dans la requete de creation (~3 Mo au total).
    */
   creerBrouillonNeuf(p: {
     boite: string;
@@ -41,6 +43,7 @@ export interface MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    piecesJointes?: PieceJointeMail[];
   }): Promise<{ webLink?: string }>;
 
   /**

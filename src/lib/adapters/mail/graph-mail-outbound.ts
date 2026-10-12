@@ -107,6 +107,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    piecesJointes?: PieceJointeMail[];
   }): Promise<{ webLink?: string }> {
     if (!p.boite) throw new Error("Creation brouillon neuf : boite manquante.");
     const tk = await jetonGraph();
@@ -122,8 +123,20 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
         body: { contentType: "HTML", content },
         toRecipients: dest(p.a ?? []),
         ccRecipients: dest(p.cc ?? []),
+        // Pieces jointes dans le message meme (fileAttachment), comme envoyerNeuf : un
+        // seul appel, le brouillon arrive complet dans Outlook. Permission : Mail.ReadWrite.
+        ...(p.piecesJointes && p.piecesJointes.length > 0
+          ? {
+              attachments: p.piecesJointes.map((pj) => ({
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                name: pj.nom,
+                contentType: pj.contentType,
+                contentBytes: pj.base64,
+              })),
+            }
+          : {}),
       }),
-    });
+    }, p.piecesJointes?.length ? 60_000 : undefined);
     if (!r.ok) throw new Error(`Graph creer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as { webLink?: string };
     return j.webLink ? { webLink: j.webLink } : {};
