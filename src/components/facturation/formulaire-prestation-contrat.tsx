@@ -30,6 +30,7 @@ import {
 
 
 import { formatEuros } from "@/lib/domain/format-montant";
+import { lireMontant } from "@/lib/domain/lire-montant";
 export function FormulairePrestationContrat({
   copros,
   pennylaneMode,
@@ -76,7 +77,8 @@ export function FormulairePrestationContrat({
     };
   }, [coproCode, code]);
 
-  const q = Number(quantite.replace(",", "."));
+  // « 1 250 » lots ou « 1,5 » heure : meme lecture que les montants (REA-99).
+  const q = lireMontant(quantite) ?? Number.NaN;
   const quantiteOk = !prestation || prestation.mode === "fixe" || (Number.isFinite(q) && q > 0);
   const pret = Boolean(coproCode && prestation && quantiteOk && contexte);
 

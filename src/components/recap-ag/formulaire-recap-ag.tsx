@@ -30,6 +30,7 @@ import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
 import { formatJour } from "@/lib/services/facturation/format";
 
 import { formatEuros } from "@/lib/domain/format-montant";
+import { lireMontant } from "@/lib/domain/lire-montant";
 /** Montant -> texte de champ ("" si inconnu). */
 function texteMontant(v: number | null | undefined): string {
   return v === null || v === undefined ? "" : String(v);
@@ -39,8 +40,8 @@ const formatEurosCourt = (v: number) => formatEuros(v, { decimales: "auto" });
 /** Les honoraires saisis different-ils de ceux du contrat genere ? */
 function ecartContrat(saisi: string, genere: number | null): boolean {
   if (genere === null || saisi.trim() === "") return false;
-  const n = Number(saisi);
-  return Number.isFinite(n) && Math.abs(n - genere) >= 0.005;
+  const n = lireMontant(saisi);
+  return n !== null && Math.abs(n - genere) >= 0.005;
 }
 
 interface TravauxSaisis {
@@ -202,9 +203,10 @@ export function FormulaireRecapAg({
     setFraisPostauxReels(g?.fraisPostauxReels ?? false);
   }
 
+  // « 12 500 », « 12 500,50 € » se lisent (REA-99) : les champs montants sont en texte,
+  // un <input type="number"> refuse les espaces entre les milliers.
   function nombreOuUndefined(v: string): number | undefined {
-    const n = Number(v);
-    return v.trim() === "" || Number.isNaN(n) ? undefined : n;
+    return lireMontant(v) ?? undefined;
   }
 
   function construireDemande() {
@@ -358,7 +360,7 @@ export function FormulaireRecapAg({
               (le legacy ne l'exigeait aussi que dans ce cas). */}
           {budgetModifie === true ? (
             <Field label="Nouveau montant du budget (€)" htmlFor="mbudget">
-              <Input id="mbudget" type="number" step="0.01" min="0" value={montantBudget} onChange={(e) => setMontantBudget(e.target.value)} />
+              <Input id="mbudget" type="text" inputMode="decimal" className="tabular-nums" value={montantBudget} onChange={(e) => setMontantBudget(e.target.value)} />
             </Field>
           ) : (
             <div />
@@ -388,7 +390,7 @@ export function FormulaireRecapAg({
                 <Input id="pppt" type="number" step="0.1" min="0" value={pourcentagePpt} onChange={(e) => setPourcentagePpt(e.target.value)} />
               </Field>
               <Field label="Montant PPT voté sur 10 ans (€)" htmlFor="mppt">
-                <Input id="mppt" type="number" step="0.01" min="0" value={montantPpt} onChange={(e) => setMontantPpt(e.target.value)} />
+                <Input id="mppt" type="text" inputMode="decimal" className="tabular-nums" value={montantPpt} onChange={(e) => setMontantPpt(e.target.value)} />
               </Field>
             </>
           )}
@@ -425,7 +427,7 @@ export function FormulaireRecapAg({
                   <Input value={t.libelle} aria-label="Libellé des travaux" onChange={(e) => majTravaux(i, { libelle: e.target.value })} />
                 </Field>
                 <Field label={i === 0 ? "Budget" : ""}>
-                  <Input type="number" step="0.01" min="0" value={t.budget} aria-label="Budget" onChange={(e) => majTravaux(i, { budget: e.target.value })} />
+                  <Input type="text" inputMode="decimal" className="tabular-nums" value={t.budget} aria-label="Budget" onChange={(e) => majTravaux(i, { budget: e.target.value })} />
                 </Field>
                 <Field label={i === 0 ? "Clé de répartition" : ""}>
                   <Input
@@ -499,7 +501,7 @@ export function FormulaireRecapAg({
             <Input id="fcontrat" type="date" value={finContrat} onChange={(e) => setFinContrat(e.target.value)} />
           </Field>
           <Field label="Honoraires annuels TTC" htmlFor="hono">
-            <Input id="hono" type="number" step="0.01" min="0" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} />
+            <Input id="hono" type="text" inputMode="decimal" className="tabular-nums" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} />
           </Field>
           <GroupeChoix label="Frais postaux">
             <Choix type="radio" name="frais-postaux" label="Frais réels" checked={fraisPostauxReels === true} onChange={() => setFraisPostauxReels(true)} />
@@ -508,7 +510,7 @@ export function FormulaireRecapAg({
           {/* Le montant n'est demande que si le contrat prevoit un forfait. */}
           {fraisPostauxReels === false && (
             <Field label="Forfait frais postaux TTC (€)" htmlFor="postaux">
-              <Input id="postaux" type="number" step="0.01" min="0" value={forfaitPostaux} onChange={(e) => setForfaitPostaux(e.target.value)} />
+              <Input id="postaux" type="text" inputMode="decimal" className="tabular-nums" value={forfaitPostaux} onChange={(e) => setForfaitPostaux(e.target.value)} />
             </Field>
           )}
         </div>

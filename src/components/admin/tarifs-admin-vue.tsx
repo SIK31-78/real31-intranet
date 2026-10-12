@@ -16,6 +16,7 @@ import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { LIBELLE_FAMILLE, type FamilleBareme } from "@/lib/domain/facturation/bareme-admin";
+import { lireMontant } from "@/lib/domain/lire-montant";
 import type { BaremeAnnee } from "@/lib/services/admin/bareme";
 import { enregistrerTarifAction, ouvrirAnneeAction, supprimerTarifAction } from "@/app/admin/tarifs/actions";
 
@@ -32,11 +33,14 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
   const [nouvelle, setNouvelle] = useState<{ famille: FamilleBareme; identifiant: string; libelle: string; montant: string } | null>(null);
 
   const valeur = (id: string, champ: "libelle" | "montant", defaut: string) => saisies[id]?.[champ] ?? defaut;
-  const modifie = (id: string, libelle: string, montant: number) => saisies[id] !== undefined && (saisies[id].libelle !== libelle || Number(saisies[id].montant.replace(",", ".")) !== montant);
+  const modifie = (id: string, libelle: string, montant: number) => saisies[id] !== undefined && (saisies[id].libelle !== libelle || lireMontant(saisies[id].montant) !== montant);
 
   function enregistrer(identifiantPrestation: string, libelle: string, montant: string) {
+    // « 1 250,00 € » se lit ; « abc » ne part pas en base (REA-99).
+    const montantTtc = lireMontant(montant);
+    if (montantTtc === null) return toast.err(`Montant illisible pour ${identifiantPrestation} : « ${montant} ».`);
     demarrer(async () => {
-      const res = await enregistrerTarifAction({ annee: bareme.annee, identifiantPrestation, libelle, montantTtc: Number(montant.replace(",", ".")) });
+      const res = await enregistrerTarifAction({ annee: bareme.annee, identifiantPrestation, libelle, montantTtc });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(`${identifiantPrestation} ${bareme.annee} enregistré.`);
       setSaisies((s) => Object.fromEntries(Object.entries(s).filter(([k]) => k !== identifiantPrestation)));
@@ -59,7 +63,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
     if (!bareme.precedente) return;
     const source = bareme.precedente;
     demarrer(async () => {
-      const res = await ouvrirAnneeAction({ cible: bareme.annee, source, majorationPourcent: Number(majoration.replace(",", ".")) || 0 });
+      const res = await ouvrirAnneeAction({ cible: bareme.annee, source, majorationPourcent: lireMontant(majoration) ?? 0 });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(`${res.donnees?.creees ?? 0} tarifs copiés de ${source} vers ${bareme.annee}.`);
       router.refresh();
@@ -74,7 +78,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
           titre={`Le barème ${bareme.annee} est vide`}
           actions={
             <span className="flex items-center gap-2">
-              <Field label="Majoration %" htmlFor="ba-maj" inline><Input id="ba-maj" value={majoration} onChange={(e) => setMajoration(e.target.value)} largeur="auto" className="w-20 tabular-nums" /></Field>
+              <Field label="Majoration %" htmlFor="ba-maj" inline><Input id="ba-maj" inputMode="decimal" value={majoration} onChange={(e) => setMajoration(e.target.value)} largeur="auto" className="w-20 tabular-nums" /></Field>
               <Button type="button" variant="primary" size="sm" disabled={pending} onClick={ouvrir}><Copy strokeWidth={1.5} /> Copier {bareme.precedente}</Button>
             </span>
           }

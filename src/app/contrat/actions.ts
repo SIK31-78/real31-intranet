@@ -12,12 +12,14 @@ import { peutEditerContrat, profilDe } from "@/lib/auth/roles";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { editerContrat } from "@/lib/services/contrat/editer-contrat";
 import { type Res, echecDepuis } from "@/lib/actions/resultat";
+import { lireMontant } from "@/lib/domain/lire-montant";
 
 const zJour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 /** Un montant TTC annuel : borne, jamais negatif (un contrat imprime ne doit pas porter -1e9). */
 const MONTANT_MAX = 1_000_000;
 const zMontant = z.preprocess(
-  (v) => (typeof v === "string" ? Number(v.trim().replace(",", ".")) : v),
+  // « 12 500,50 € » se lit (REA-99) ; vide vaut 0 comme avant, illisible echoue (NaN).
+  (v) => (typeof v === "string" ? (v.trim() === "" ? 0 : (lireMontant(v) ?? Number.NaN)) : v),
   z.number().finite().min(0, "montant hors limites (0 à 1 000 000 €)").max(MONTANT_MAX, "montant hors limites (0 à 1 000 000 €)"),
 );
 const zEdition = z.object({
