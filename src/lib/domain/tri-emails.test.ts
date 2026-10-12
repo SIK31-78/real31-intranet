@@ -10,6 +10,7 @@ import {
   estAssistantDeCopro,
   referencesCitees,
   suggererCopro,
+  fusionnerReferentiels,
   type CoproTri,
   type ReferentielTri,
 } from "./tri-emails";
@@ -100,7 +101,7 @@ describe("suggererCopro", () => {
   it("signale une copro citee qui n'est pas sur ESTALE", () => {
     const s = suggererCopro(mail({ objet: "Résiliation s0142" }), REF);
     expect(s).toMatchObject({ nature: "hors-estale", candidats: [] });
-    expect(s.raison).toBe("Code S0142 cité, mais cette copropriété n'est pas sur ESTALE.");
+    expect(s.raison).toBe("Code S0142 cité, mais cette copropriété n'est pas dans le périmètre de la boîte.");
   });
 
   it("ne propose rien sans indice", () => {
@@ -234,5 +235,55 @@ describe("coproDuDossier", () => {
     expect(coproDuDossier("binome:sandy@real31.fr", copros, ini, AUCUN_BINOME)).toBe("S0297");
     expect(coproDuDossier("binome:sekou@real31.fr", copros, ini, AUCUN_BINOME)).toBeNull();
     expect(coproDuDossier("divers", copros, ini, AUCUN_BINOME)).toBeNull();
+  });
+});
+
+describe("fusionnerReferentiels (ESTALE + Crypto, 12/10/2026)", () => {
+  const g = (email: string) => ({ nomComplet: email, email });
+  const estale: ReferentielTri = {
+    copros: [
+      { reference: "S0300", nom: "Estale A", adresse: "1 rue A", gestionnaire: g("mp@real31.fr"), assistant: null },
+      { reference: "S0297", nom: "Autre agence", adresse: "", gestionnaire: g("sc@real31.fr"), assistant: null },
+    ],
+    expediteurs: { "a@x.fr": [{ reference: "S0300", qualite: "copropriétaire" }] },
+  };
+  const crypto: ReferentielTri = {
+    copros: [
+      { reference: "S300", nom: "Crypto A", adresse: "", gestionnaire: g("autre@real31.fr"), assistant: g("as@real31.fr"), source: "crypto" },
+      { reference: "S247", nom: "Crypto B", adresse: "2 rue B", gestionnaire: g("mp@real31.fr"), assistant: null, source: "crypto" },
+    ],
+    expediteurs: {
+      "a@x.fr": [{ reference: "S300", qualite: "conseil syndical", source: "crypto" }],
+      "b@y.fr": [{ reference: "S247", qualite: "copropriétaire", source: "crypto" }],
+      "c@z.fr": [{ reference: "S999", qualite: "copropriétaire", source: "crypto" }],
+    },
+  };
+
+  it("fusionne par code : ESTALE fait foi, Crypto complete l'assistant", () => {
+    const r = fusionnerReferentiels(estale, crypto, null);
+    const a = r.copros.find((c) => c.reference === "S0300")!;
+    expect(a).toMatchObject({ nom: "Estale A", gestionnaire: g("mp@real31.fr"), assistant: g("as@real31.fr"), source: "estale" });
+    expect(r.copros.find((c) => c.reference === "S247")?.source).toBe("crypto");
+  });
+
+  it("rattache les adresses Crypto a la reference ESTALE et ignore les copros inconnues", () => {
+    const r = fusionnerReferentiels(estale, crypto, null);
+    expect(r.expediteurs["a@x.fr"]).toEqual([
+      { reference: "S0300", qualite: "copropriétaire", source: "estale" },
+      { reference: "S0300", qualite: "conseil syndical", source: "crypto" },
+    ]);
+    expect(r.expediteurs["c@z.fr"]).toBeUndefined();
+  });
+
+  it("borne au perimetre de l'agence", () => {
+    const r = fusionnerReferentiels(estale, crypto, new Set(["S300", "S247"]));
+    expect(r.copros.map((c) => c.reference).sort()).toEqual(["S0300", "S247"]);
+  });
+
+  it("dit dans la suggestion d'ou vient l'adresse", () => {
+    const r = fusionnerReferentiels(estale, crypto, null);
+    const s = suggererCopro({ deAdresse: "b@y.fr", objet: "Fuite", apercu: "" }, r);
+    expect(s).toMatchObject({ nature: "sure", candidats: ["S247"] });
+    expect(s.raison).toContain("Crypto");
   });
 });

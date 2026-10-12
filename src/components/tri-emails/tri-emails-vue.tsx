@@ -52,7 +52,7 @@ const TITRE: Record<NatureSuggestion, string> = {
   sure: "Suggestion",
   faible: "Suggestion à confirmer",
   plusieurs: "À départager",
-  "hors-estale": "Hors ESTALE",
+  "hors-estale": "Hors périmètre",
   aucune: "Pas de suggestion",
 };
 
@@ -60,7 +60,7 @@ const LIBELLE_SIGNAL: Record<NatureSuggestion, string> = {
   sure: "suggestion sûre",
   faible: "indice faible",
   plusieurs: "plusieurs copros",
-  "hors-estale": "hors ESTALE",
+  "hors-estale": "hors périmètre",
   aucune: "aucune piste",
 };
 
@@ -68,7 +68,7 @@ function pastille(m: MailDeLaFile): string {
   const s = m.suggestion;
   if (s.nature === "sure" || s.nature === "faible") return s.candidats[0]!;
   if (s.nature === "plusieurs") return `${s.candidats.length} copros possibles`;
-  if (s.nature === "hors-estale") return "Hors ESTALE";
+  if (s.nature === "hors-estale") return "Hors périmètre";
   return "Aucune piste";
 }
 
@@ -402,14 +402,14 @@ function DetailMail({
         {s.nature !== "hors-estale" && (
           <div>
             <label htmlFor="tri-recherche" className="sr-only">
-              Chercher une copropriété ESTALE
+              Chercher une copropriété
             </label>
             <input
               id="tri-recherche"
               type="search"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Chercher une copropriété ESTALE : code, nom, adresse"
+              placeholder="Chercher une copropriété : code, nom, adresse"
               autoComplete="off"
               className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-body focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
@@ -427,6 +427,7 @@ function DetailMail({
                     >
                       <span className="font-mono text-meta text-green-700 min-w-[52px]">{c.reference}</span>
                       <span className="text-ink">{c.nom}</span>
+                      {c.source === "crypto" && <span className="text-meta text-ink-3">Crypto</span>}
                       <span className="ml-auto text-meta text-ink-3 truncate">{c.adresse}</span>
                     </button>
                   </li>
@@ -447,7 +448,7 @@ function DetailMail({
                   </span>
                 </>
               ) : (
-                <span className="text-ink-2">Pas de gestionnaire au mandat dans ESTALE</span>
+                <span className="text-ink-2">Pas de gestionnaire connu pour cette copropriété</span>
               )}
             </Case>
             <Case titre="Rangé dans">
@@ -840,7 +841,7 @@ function BinomesVue({ lignes, collaborateurs }: { lignes: LigneBinome[]; collabo
   return (
     <div className="flex flex-col gap-3">
       <p className="text-meta text-ink-2 max-w-[75ch]">
-        ESTALE donne le gestionnaire de chaque copropriété ; les assistants se tiennent ici. L&apos;assistant
+        Le gestionnaire de chaque copropriété vient d&apos;ESTALE ou de la fiche copro de l&apos;intranet ; les assistants se tiennent ici. L&apos;assistant
         principal reçoit les mails de toutes les copropriétés du gestionnaire, sauf celles confiées à un autre
         assistant. Changer d&apos;assistant ne déplace aucun mail : le dossier est renommé au prochain rangement.
       </p>
@@ -965,8 +966,8 @@ function LigneBinomeVue({ ligne, collaborateurs }: { ligne: LigneBinome; collabo
         <span className="block text-meta text-ink-3 font-mono truncate">{ligne.gestionnaire.email}</span>
         <span className="block text-meta text-ink-3 mt-1">
           {ligne.copros.length === 0
-            ? "Pas encore de copropriété ESTALE"
-            : `${ligne.copros.length} copropriété${ligne.copros.length > 1 ? "s" : ""} ESTALE`}
+            ? "Pas encore de copropriété dans la boîte"
+            : `${ligne.copros.length} copropriété${ligne.copros.length > 1 ? "s" : ""}`}
         </span>
       </div>
 
@@ -1010,7 +1011,7 @@ function LigneBinomeVue({ ligne, collaborateurs }: { ligne: LigneBinome; collabo
                   disabled={enCours}
                   onClick={() => agir(() => definirPrincipalAction({ gestionnaire: emailG, assistant: estale.email }), "Assistant principal enregistré.")}
                 >
-                  Prendre {estale.nomComplet} (ESTALE)
+                  Prendre {estale.nomComplet} (fiche copro)
                 </Button>
               )}
             </>

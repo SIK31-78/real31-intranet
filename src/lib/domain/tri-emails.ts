@@ -3,8 +3,10 @@
 // mail part dans le sous-dossier du gestionnaire (increment 2). On repond dans Outlook.
 // Domaine pur : aucune lecture d'env, aucun appel reseau -> testable tel quel.
 //
-// Perimetre : uniquement les coproprietes ESTALE (decision Sekou du 25/09/2026). Un mail
-// qui cite une copro absente d'ESTALE est signale "hors ESTALE", jamais rattache.
+// Perimetre : les coproprietes ESTALE ET Crypto de l'agence de la boite (decision Sekou du
+// 12/10/2026 : syndic4, agence de Houilles, avant la migration). Un mail qui cite une copro
+// hors de ce perimetre est signale « hors périmètre », jamais rattache. Le code de nature
+// reste "hors-estale" : il est deja ecrit dans le journal.
 
 /** Une personne de l'equipe ESTALE d'une copro. */
 export interface MembreTri {
@@ -23,7 +25,11 @@ export interface CoproTri {
   gestionnaire: MembreTri | null;
   /** Assistant de copropriete, seulement si ESTALE le connait (rare au 25/09/2026). */
   assistant: MembreTri | null;
+  /** D'ou vient la copro : ESTALE, ou le referentiel de l'intranet pour une copro Crypto. */
+  source?: SourceTri;
 }
+
+export type SourceTri = "estale" | "crypto";
 
 /** Pourquoi une adresse e-mail est connue d'une copro dans ESTALE. */
 export type QualiteExpediteur =
@@ -37,13 +43,69 @@ export type QualiteExpediteur =
 export interface LienExpediteur {
   reference: string;
   qualite: QualiteExpediteur;
+  /** Ou l'adresse est connue ; ESTALE par defaut. */
+  source?: SourceTri;
 }
 
-/** Le referentiel ESTALE du tri : les copros et l'index adresse -> copros. */
+/** Le referentiel du tri : les copros et l'index adresse -> copros. */
 export interface ReferentielTri {
   copros: CoproTri[];
   /** Cle = adresse e-mail en minuscules. */
   expediteurs: Record<string, LienExpediteur[]>;
+  /** Une source n'a pas repondu : le tri marche avec l'autre, l'ecran le dit. */
+  avertissements?: string[];
+}
+
+/**
+ * Le referentiel de la boite : les copros ESTALE et les copros Crypto, fusionnees par code
+ * (S0300 dans ESTALE = S300 dans Crypto). Pour une copro presente des deux cotes, ESTALE
+ * fait foi (equipe du mandat), Crypto complete ce qu'il ne sait pas (l'assistant).
+ * `perimetre` (cles de reference) borne le resultat a l'agence de la boite ; null = tout.
+ */
+export function fusionnerReferentiels(
+  estale: ReferentielTri | null,
+  crypto: ReferentielTri | null,
+  perimetre: Set<string> | null,
+): ReferentielTri {
+  const dans = (reference: string) => {
+    const cle = cleDeReference(reference);
+    return cle !== null && (perimetre === null || perimetre.has(cle));
+  };
+  const parCle = new Map<string, CoproTri>();
+  for (const c of estale?.copros ?? []) if (dans(c.reference)) parCle.set(cleDeReference(c.reference)!, { ...c, source: c.source ?? "estale" });
+  for (const c of crypto?.copros ?? []) {
+    if (!dans(c.reference)) continue;
+    const cle = cleDeReference(c.reference)!;
+    const deja = parCle.get(cle);
+    parCle.set(
+      cle,
+      deja
+        ? { ...deja, gestionnaire: deja.gestionnaire ?? c.gestionnaire, assistant: deja.assistant ?? c.assistant, adresse: deja.adresse || c.adresse }
+        : { ...c, source: "crypto" },
+    );
+  }
+
+  const expediteurs: Record<string, LienExpediteur[]> = {};
+  const ajouter = (index: Record<string, LienExpediteur[]> | undefined, source: SourceTri) => {
+    for (const [email, liens] of Object.entries(index ?? {})) {
+      for (const l of liens) {
+        const copro = parCle.get(cleDeReference(l.reference) ?? "");
+        if (!copro) continue;
+        const liste = (expediteurs[email] ??= []);
+        if (!liste.some((x) => x.reference === copro.reference && x.qualite === l.qualite)) {
+          liste.push({ reference: copro.reference, qualite: l.qualite, source: l.source ?? source });
+        }
+      }
+    }
+  };
+  ajouter(estale?.expediteurs, "estale");
+  ajouter(crypto?.expediteurs, "crypto");
+
+  return {
+    copros: [...parCle.values()],
+    expediteurs,
+    avertissements: [...(estale?.avertissements ?? []), ...(crypto?.avertissements ?? [])],
+  };
 }
 
 /** Un mail de la file a trier (boite de reception de la generique). */
@@ -147,15 +209,16 @@ export function suggererCopro(
     };
   }
 
-  // 2. Expediteur connu d'ESTALE.
+  // 2. Expediteur connu d'ESTALE ou de l'annuaire Crypto.
   const liens = ref.expediteurs[mail.deAdresse.trim().toLowerCase()] ?? [];
   const references = [...new Set(liens.map((l) => l.reference))];
+  const ou = [...new Set(liens.map((l) => (l.source === "crypto" ? "Crypto" : "ESTALE")))].join(" et ");
   if (references.length === 1) {
     const qualite = LIBELLE_QUALITE[liens[0]!.qualite];
     return {
       nature: "sure",
       candidats: references,
-      raison: `Adresse connue dans ESTALE : ${qualite} de ${references[0]}.`,
+      raison: `Adresse connue dans ${ou} : ${qualite} de ${references[0]}.`,
     };
   }
   if (references.length > 1) {
@@ -163,7 +226,7 @@ export function suggererCopro(
     return {
       nature: "plusieurs",
       candidats: references,
-      raison: `Adresse connue dans ESTALE sur ${references.length} copropriétés (${qualites}).`,
+      raison: `Adresse connue dans ${ou} sur ${references.length} copropriétés (${qualites}).`,
     };
   }
 
@@ -179,7 +242,7 @@ export function suggererCopro(
     };
   }
 
-  // Un code est cite mais aucune copro ESTALE ne le porte : hors perimetre. On affiche
+  // Un code est cite mais aucune copro du perimetre ne le porte : hors perimetre. On affiche
   // le code tel qu'il est ecrit dans le mail ("S0142"), pas sa cle de comparaison.
   const premier = new RegExp(MOTIF_REFERENCE.source, "i").exec(`${mail.objet}
 ${mail.apercu}`);
@@ -187,11 +250,11 @@ ${mail.apercu}`);
     return {
       nature: "hors-estale",
       candidats: [],
-      raison: `Code ${premier[0].toUpperCase()} cité, mais cette copropriété n'est pas sur ESTALE.`,
+      raison: `Code ${premier[0].toUpperCase()} cité, mais cette copropriété n'est pas dans le périmètre de la boîte.`,
     };
   }
 
-  return { nature: "aucune", candidats: [], raison: "Adresse inconnue dans ESTALE et aucun code de copropriété dans le mail." };
+  return { nature: "aucune", candidats: [], raison: "Adresse inconnue dans ESTALE et dans Crypto, et aucun code de copropriété dans le mail." };
 }
 
 /** Ou part le mail quand on l'attribue a une copro : le dossier du binome (ADR-046). */

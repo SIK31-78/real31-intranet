@@ -19,7 +19,7 @@ import {
   type MailATrier,
   type Suggestion,
 } from "@/lib/domain/tri-emails";
-import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
+import { boiteTriConfiguree, debutTri } from "@/lib/domain/mail-gate";
 import {
   getIngestionTri,
   getReferentielTriProvider,
@@ -86,7 +86,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const repo = getTriRepository();
   const [refRes, mailsRes, iniRes, binRes, journalRes, gestRes] = await Promise.allSettled([
     getReferentielTriProvider().charger(),
-    getIngestionTri().lireRecents({ email: boite, max: MAX_FILE }),
+    getIngestionTri().lireRecents({ email: boite, max: MAX_FILE, ...(debutTri() ? { depuis: debutTri()! } : {}) }),
     listerCollaborateurs(),
     repo.binomes(),
     repo.journalDepuis(boite, new Date(Date.now() - SEPT_JOURS_MS).toISOString()),
@@ -94,14 +94,15 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   ]);
 
   const erreurs: string[] = erreurReconciliation ? [erreurReconciliation] : [];
-  if (refRes.status === "rejected") erreurs.push("ESTALE n'a pas répondu : les suggestions sont indisponibles.");
+  if (refRes.status === "rejected") erreurs.push("Ni ESTALE ni le référentiel Crypto n'ont répondu : les suggestions sont indisponibles.");
+  if (refRes.status === "fulfilled") erreurs.push(...(refRes.value.avertissements ?? []));
   if (mailsRes.status === "rejected") {
     // Cas attendu tant que la boite n'existe pas ou n'est pas dans l'Access Policy (403/404).
     erreurs.push(`La boîte ${boite} n'est pas lisible pour l'instant (boîte absente ou pas encore autorisée).`);
     console.error("[tri-emails] lecture de la boite :", mailsRes.reason instanceof Error ? mailsRes.reason.message : mailsRes.reason);
   }
   if (refRes.status === "rejected") {
-    console.error("[tri-emails] referentiel ESTALE :", refRes.reason instanceof Error ? refRes.reason.message : refRes.reason);
+    console.error("[tri-emails] referentiel :", refRes.reason instanceof Error ? refRes.reason.message : refRes.reason);
   }
 
   const ref = refRes.status === "fulfilled" ? refRes.value : { copros: [], expediteurs: {} };

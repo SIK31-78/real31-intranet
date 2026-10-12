@@ -28,11 +28,11 @@ export default async function TriEmailsPage() {
         <PageHeader
           titre="Tri des e-mails"
           badge={<Badge ton="outline">{file.boite === "echantillon" ? "Échantillon fictif" : file.boite}</Badge>}
-          meta={`${file.mails.length} ${file.mails.length > 1 ? "mails" : "mail"} dans la boîte de réception · copropriétés ESTALE : ${file.copros.length}`}
+          meta={`${file.mails.length} ${file.mails.length > 1 ? "mails" : "mail"} dans la boîte de réception · ${file.copros.length} copropriétés (ESTALE : ${file.copros.filter((c) => c.source !== "crypto").length}, Crypto : ${file.copros.filter((c) => c.source === "crypto").length})`}
           aide={
             <p className="max-w-[65ch] text-ink-2">
               La file, c&apos;est la boîte de réception de la boîte générique. Pour chaque mail, l&apos;intranet propose
-              une copropriété ESTALE ; en le rangeant, le mail part dans le dossier du binôme (ou dans
+              une copropriété, ESTALE ou Crypto ; en le rangeant, le mail part dans le dossier du binôme (ou dans
               Comptabilité / Divers), où l&apos;équipe le traite et y répond depuis Outlook. L&apos;onglet « Rangés
               sur 7 jours » sert à la revue du vendredi : chaque rangement y montre le signal qui l&apos;a proposé.
             </p>

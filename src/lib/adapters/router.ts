@@ -55,6 +55,8 @@ import type { SynchroRepository } from "@/lib/ports/synchro-repository";
 import { MockSynchroRepository } from "@/lib/adapters/mock/mock-synchro-repository";
 import { SupabaseSynchroRepository } from "@/lib/adapters/supabase/supabase-synchro-repository";
 import { CLE_ANNUAIRE_CRYPTO } from "@/lib/domain/synchro";
+import { ReferentielTriBoite } from "@/lib/adapters/referentiel-tri-boite";
+import { SupabaseReferentielTriCrypto } from "@/lib/adapters/supabase/supabase-referentiel-tri-crypto";
 import type { SignatureProvider } from "@/lib/ports/signature-provider";
 import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-signature-provider";
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
@@ -454,11 +456,17 @@ export function getIngestionTri(): MailIngestionProvider {
   return new EchantillonTriIngestion();
 }
 
-// Referentiel du tri (copros ESTALE, gestionnaire, adresses connues). Meme bascule que
-// les autres lectures ESTALE ; referentiel fictif sinon.
+// Referentiel du tri (copros, equipe, adresses connues) : ESTALE + copros Crypto de
+// l'intranet et annuaire Crypto, bornes a l'agence de la boite (MAIL_TRI_AGENCE, ex. HLS).
+// Referentiel fictif hors Supabase.
 export function getReferentielTriProvider(): ReferentielTriProvider {
-  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleReferentielTri();
-  return new MockReferentielTri();
+  if (!coproSourceEstSupabase()) return new MockReferentielTri();
+  const agence = process.env.MAIL_TRI_AGENCE?.trim() || null;
+  return new ReferentielTriBoite(
+    estaleConfigure() ? new EstaleReferentielTri() : null,
+    new SupabaseReferentielTriCrypto(agence),
+    agence !== null,
+  );
 }
 
 // Rangement du tri : ECRITURE reelle dans la boite seulement si MAIL_TRI_ECRITURE=on, avec
