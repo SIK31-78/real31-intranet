@@ -97,7 +97,10 @@ async function synchroniser() {
     }
   }
   const { data: n, error: e2 } = await sb.rpc("intranet_crypto_annuaire_basculer", { p_passage: passage });
-  if (e2) throw new Error(e2.message);
+  if (e2) {
+    await sb.from("intranet_crypto_annuaire_import").delete().eq("passage", passage);
+    throw new Error(e2.message);
+  }
 
   await noter({ statut: "reussi", reussi_le: new Date().toISOString(), export_du: exportDu.toISOString(), lignes: n, message: `${bilan.adresses} adresses, ${bilan.adressesAvecCopro} reliées à une copro.` });
   console.log(`Annuaire remplacé : ${n} lignes.`);

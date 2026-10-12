@@ -62,21 +62,16 @@ begin
   select count(*) into n_actuel from intranet_crypto_annuaire;
   if n_nouveau = 0 or n_nouveau < n_actuel * 0.8 then
     delete from intranet_crypto_annuaire_import where passage = p_passage;
-    raise exception 'Annuaire refusé : % lignes reçues contre % en place (moins de 80 %%).', n_nouveau, n_actuel;
+    raise exception 'Annuaire refusé : % lignes reçues contre % en place (moins de 80 pour cent).', n_nouveau, n_actuel;
   end if;
-  delete from intranet_crypto_annuaire;
+  -- « where true » : Supabase refuse un DELETE sans WHERE (extension safeupdate).
+  delete from intranet_crypto_annuaire where true;
   insert into intranet_crypto_annuaire (email, tiers_id, nom, qualite, metier, copro_code, source)
     select email, tiers_id, nom, qualite, metier, copro_code, source
     from intranet_crypto_annuaire_import where passage = p_passage;
-  delete from intranet_crypto_annuaire_import;
+  delete from intranet_crypto_annuaire_import where true;
   return n_nouveau;
 end;
 $$;
 revoke all on function public.intranet_crypto_annuaire_basculer(uuid) from public, anon, authenticated;
 grant execute on function public.intranet_crypto_annuaire_basculer(uuid) to service_role;
-
--- Controle
-select
-  (select count(*) from public.intranet_crypto_annuaire) as annuaire,
-  (select count(*) from public.intranet_crypto_annuaire_import) as depot,
-  (select count(*) from public.intranet_synchro) as synchros;
