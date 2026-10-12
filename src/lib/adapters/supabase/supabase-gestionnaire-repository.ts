@@ -119,4 +119,19 @@ export class SupabaseGestionnaireRepository implements GestionnaireRepository {
       .maybeSingle();
     return data ? avecHabilitations(supabase, toGestionnaire(data as UserRow)) : null;
   }
+
+  async findByEmails(emails: readonly string[]): Promise<Map<string, Gestionnaire>> {
+    const voulus = new Set(emails.map((e) => e.toLowerCase()));
+    const out = new Map<string, Gestionnaire>();
+    if (voulus.size === 0) return out;
+    // Une seule lecture de public."User" (quelques dizaines de lignes) filtree en memoire :
+    // la comparaison reste insensible a la casse comme findByEmail, sans un aller-retour
+    // par collaborateur (N+1 releve par Sentry sur /accueil, JAVASCRIPT-NEXTJS-D).
+    const { data } = await createSupabasePublicClient().from("User").select(USER_COLS).not("email", "is", null);
+    for (const u of (data as UserRow[] | null) ?? []) {
+      const cle = u.email?.toLowerCase();
+      if (cle && voulus.has(cle)) out.set(cle, toGestionnaire(u));
+    }
+    return out;
+  }
 }
