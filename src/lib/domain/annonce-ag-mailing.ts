@@ -171,9 +171,11 @@ export interface DonneesAnnonce {
 
 export interface AnnonceRendue {
   objet: string;
-  /** Texte brut (aperçu), paragraphes séparés par une ligne vide. */
+  /** Texte brut (aperçu), paragraphes séparés par une ligne vide. « Madame, Monsieur, »
+   *  à la place du champ de fusion : l'aperçu n'est PAS le HTML envoyé. */
   texte: string;
-  /** Corps HTML du mailing (un <p> par ligne, comme l'éditeur ESTALE). */
+  /** Corps HTML du mailing (un <p> par ligne, comme l'éditeur ESTALE). La formule d'appel
+   *  y est le champ de fusion {{DST_CIVILITE}}, que l'échappement ne touche pas. */
   html: string;
   dateLimiteISO: string;
 }
@@ -181,12 +183,20 @@ export interface AnnonceRendue {
 /** Un paragraphe = des lignes qui se suivent sans blanc. */
 type Paragraphe = string[];
 
+/** Formule d'appel de l'APERÇU (texte lu dans l'intranet). */
+export const SALUTATION_APERCU = "Madame, Monsieur,";
+/**
+ * Formule d'appel du HTML ENVOYÉ : champ de fusion ESTALE, remplacé à l'envoi par la
+ * civilité de chaque destinataire (vu dans ses propres modèles : `<p>{{DST_CIVILITE}},</p>`).
+ */
+export const SALUTATION_ESTALE = "{{DST_CIVILITE}},";
+
 function paragraphesHybride(d: DonneesAnnonce, quand: string, limite: string): Paragraphe[] {
   const presentiel = d.lieu.exterieur
     ? `En présentiel : ${d.lieu.adresse}`
     : `En présentiel : à l'agence REAL 31, ${d.lieu.adresse}`;
   return [
-    ["Madame, Monsieur,"],
+    [SALUTATION_APERCU],
     [
       "Nous avons le plaisir de vous informer que la prochaine assemblée générale des copropriétaires de votre résidence se tiendra en présentiel et en visio :",
       `le ${quand}`,
@@ -206,7 +216,7 @@ function paragraphesPresentiel(d: DonneesAnnonce, quand: string, limite: string)
     ? `En présentiel : ${d.lieu.adresse}.`
     : `En présentiel à l'agence REAL31 : ${d.lieu.adresse}.`;
   return [
-    ["Madame, Monsieur,"],
+    [SALUTATION_APERCU],
     [
       "Nous avons le plaisir de vous informer que la prochaine assemblée générale des copropriétaires de votre résidence se tiendra en présentiel le :",
       quand,
@@ -256,7 +266,11 @@ export function rendreAnnonceAg(d: DonneesAnnonce): AnnonceRendue {
 
   const texte = paragraphes.map((p) => p.join("\n")).join("\n\n");
   const html = paragraphes
-    .map((p) => p.map((l) => `<p>${echapperHtml(l)}</p>`).join(""))
+    .map((p) =>
+      p
+        .map((l) => (l === SALUTATION_APERCU ? `<p>${SALUTATION_ESTALE}</p>` : `<p>${echapperHtml(l)}</p>`))
+        .join(""),
+    )
     .join("<p><br></p>");
   // Court : ESTALE refuse un objet trop long (seuil entre 60 et 80 car., cf. adaptateur).
   // Au plus 57 caractères (« mercredi 30 septembre 2026 »).
@@ -269,8 +283,8 @@ export function rendreAnnonceAg(d: DonneesAnnonce): AnnonceRendue {
 // ---------------------------------------------------------------------------
 
 /**
- * Ce qui empêche de préparer l'annonce, ou null. Pas de date ou d'heure d'AG, pas de
- * lieu, ou une date limite déjà passée (le texte donnerait une échéance révolue).
+ * Ce qui empêche de préparer l'annonce, ou null : pas de date ou d'heure d'AG, pas de
+ * lieu. Une date limite déjà passée n'est PAS un refus (cf. `avertissementAnnonce`).
  */
 export function refusAnnonce(p: {
   agDateISO?: string | undefined;
@@ -286,9 +300,16 @@ export function refusAnnonce(p: {
   if (!p.lieu) {
     return "Lieu de l'AG inconnu : réservez une salle ou saisissez un lieu extérieur sur la date d'AG.";
   }
-  const limite = dateLimiteDemandes(p.agDateISO);
-  if (limite < p.aujourdhuiISO) {
-    return `La date limite des demandes (${dateLongue(limite)}, J-${DELAIS_CABINET.ODJ_CS_JOURS}) est déjà passée : l'annonce n'a plus de sens telle quelle.`;
-  }
   return null;
+}
+
+/**
+ * Avertissement à afficher dans l'aperçu, ou null. Date limite des demandes déjà passée :
+ * le texte donnerait une échéance révolue, mais la création reste possible (décision
+ * Sekou du 12/10/2026) : le gestionnaire relit et corrige dans ESTALE avant d'envoyer.
+ */
+export function avertissementAnnonce(agDateISO: string, aujourdhuiISO: string): string | null {
+  const limite = dateLimiteDemandes(agDateISO);
+  if (limite >= aujourdhuiISO) return null;
+  return `La date limite des demandes (${dateLongue(limite)}) est déjà passée : vérifiez le texte avant d'envoyer.`;
 }

@@ -5,8 +5,8 @@
 //
 // Gardes, dans l'ordre : périmètre d'écriture (ADR-041), copro ESTALE (une copro Crypto
 // n'a pas de copropriétaires dans ESTALE), drapeau ESTALE_MAILING_ACTIF (SE999 seule
-// tant qu'il n'est pas à "1"), puis les préconditions du texte (date, heure, lieu,
-// date limite pas encore passée). Passe par le routeur (ADR-001).
+// tant qu'il n'est pas à "1"), puis les préconditions du texte (date, heure, lieu). Une
+// date limite des demandes déjà passée n'est qu'un avertissement (création permise). Passe par le routeur (ADR-001).
 //
 // Signature : prénom NOM et ligne directe du gestionnaire connecté, lus dans Signitic
 // (port de signature, getProfil). Signitic muet -> nom de session, ligne omise.
@@ -20,6 +20,7 @@ import {
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
 import {
+  avertissementAnnonce,
   choisirModeleAnnonce,
   lieuAnnonce,
   refusAnnonce,
@@ -49,6 +50,8 @@ export interface ApercuAnnonceAg {
   objet: string;
   texte: string;
   html: string;
+  /** Avertissement bien visible dans l'aperçu (date limite passée), sinon null. */
+  avertissement: string | null;
   /** Raison pour laquelle la création sera refusée (garde d'activation), sinon null. */
   refusCreation: string | null;
 }
@@ -121,6 +124,7 @@ async function preparer(
       objet: rendu.objet,
       texte: rendu.texte,
       html: rendu.html,
+      avertissement: avertissementAnnonce(ag.date, aujourdhuiISO),
       refusCreation: refusGardeMailing(copro.code, process.env.ESTALE_MAILING_ACTIF),
     },
   };

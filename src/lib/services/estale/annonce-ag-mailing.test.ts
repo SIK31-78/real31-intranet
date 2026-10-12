@@ -96,6 +96,17 @@ describe("apercuAnnonceAg", () => {
     expect(r.valeur.texte).toContain("13 rond-point du Souvenir Français");
     expect(r.valeur.dateLimiteISO).toBe("2026-10-26");
     expect(r.valeur.refusCreation).toBeNull(); // SE999 passe la garde
+    expect(r.valeur.avertissement).toBeNull();
+  });
+
+  it("date limite des demandes passée : avertissement, et la création reste possible", async () => {
+    etat.copro = copro({ prochaineAg: { date: "2026-11-10", heure: "18:30", statut: "planifiee" } as Copropriete["prochaineAg"] });
+    const r = await apercuAnnonceAg("SE999", AUTEUR, AUJ);
+    expect(r.ok && r.valeur.avertissement).toMatch(/date limite des demandes \(samedi 26 septembre 2026\) est déjà passée/);
+    expect(r.ok && r.valeur.refusCreation).toBeNull();
+    const c = await creerAnnonceAg("SE999", AUTEUR, AUJ);
+    expect(c.ok).toBe(true);
+    expect(mock.brouillons).toHaveLength(1);
   });
 
   it("le mode et le lieu libre de la confirmation d'AG s'appliquent, pas ceux d'une autre date", async () => {
@@ -142,7 +153,8 @@ describe("creerAnnonceAg", () => {
       titre: "SE999 - Annonce de l'AG du 10/12/2026",
       repondreA: "sekou.koma@real31.fr",
     });
-    expect(mock.brouillons[0]!.contenuHtml).toContain("<p>Madame, Monsieur,</p>");
+    expect(mock.brouillons[0]!.contenuHtml).toContain("<p>{{DST_CIVILITE}},</p>");
+    expect(mock.brouillons[0]!.contenuHtml).not.toContain("Madame, Monsieur");
   });
 
   it("vraie copro avec ESTALE_MAILING_ACTIF=1 : création permise", async () => {

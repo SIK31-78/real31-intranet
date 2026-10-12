@@ -5,6 +5,7 @@ import {
   dateLongue,
   heureCourte,
   lieuAnnonce,
+  avertissementAnnonce,
   refusAnnonce,
   refusGardeMailing,
   rendreAnnonceAg,
@@ -101,8 +102,12 @@ describe("rendu présentiel", () => {
     const pire = rendreAnnonceAg({ ...base, agDateISO: "2026-09-30" }).objet; // mercredi 30 septembre
     expect(pire.length).toBeLessThanOrEqual(60);
   });
-  it("HTML : un paragraphe par ligne, texte échappé", () => {
-    expect(r.html.startsWith("<p>Madame, Monsieur,</p><p><br></p>")).toBe(true);
+  it("HTML : un paragraphe par ligne, texte échappé, civilité en champ de fusion ESTALE", () => {
+    // Le HTML envoyé porte {{DST_CIVILITE}} (accolades intactes) ; l'aperçu garde « Madame, Monsieur, ».
+    expect(r.html.startsWith("<p>{{DST_CIVILITE}},</p><p><br></p>")).toBe(true);
+    expect(r.html).not.toContain("Madame, Monsieur");
+    expect(r.texte.startsWith("Madame, Monsieur,\n\n")).toBe(true);
+    expect(r.texte).not.toContain("DST_CIVILITE");
     expect(r.html).toContain("l&#39;agence REAL31");
     expect(r.html).not.toMatch(/<script/);
   });
@@ -138,6 +143,11 @@ describe("rendu hybride", () => {
     const t = rendreAnnonceAg({ ...h, lieu: { adresse: "Salle des fêtes", exterieur: true } }).texte;
     expect(t).toContain("En présentiel : Salle des fêtes\nEn visio");
   });
+  it("civilité en champ de fusion dans le HTML, aperçu inchangé", () => {
+    const r = rendreAnnonceAg(h);
+    expect(r.html.startsWith("<p>{{DST_CIVILITE}},</p>")).toBe(true);
+    expect(r.texte.startsWith("Madame, Monsieur,")).toBe(true);
+  });
 });
 
 describe("préconditions", () => {
@@ -147,8 +157,15 @@ describe("préconditions", () => {
     expect(refusAnnonce({ agDateISO: "2026-12-10", lieu, aujourdhuiISO: "2026-10-12" })).toMatch(/heure/);
     expect(refusAnnonce({ agDateISO: "2026-12-10", heure: "18:00", lieu: null, aujourdhuiISO: "2026-10-12" })).toMatch(/Lieu/);
   });
-  it("refuse quand la date limite est passée, accepte sinon", () => {
-    expect(refusAnnonce({ agDateISO: "2026-11-10", heure: "18:00", lieu, aujourdhuiISO: "2026-10-12" })).toMatch(/déjà passée/);
-    expect(refusAnnonce({ agDateISO: "2026-12-10", heure: "18:00", lieu, aujourdhuiISO: "2026-10-12" })).toBeNull();
+  it("date limite passée : plus un refus, un avertissement", () => {
+    expect(refusAnnonce({ agDateISO: "2026-11-10", heure: "18:00", lieu, aujourdhuiISO: "2026-10-12" })).toBeNull();
+    expect(avertissementAnnonce("2026-11-10", "2026-10-12")).toBe(
+      "La date limite des demandes (samedi 26 septembre 2026) est déjà passée : vérifiez le texte avant d'envoyer.",
+    );
+  });
+  it("pas d'avertissement tant que la date limite n'est pas passée (le jour même compris)", () => {
+    expect(avertissementAnnonce("2026-12-10", "2026-10-12")).toBeNull();
+    expect(avertissementAnnonce("2026-12-10", "2026-10-26")).toBeNull();
+    expect(avertissementAnnonce("2026-12-10", "2026-10-27")).toMatch(/lundi 26 octobre 2026/);
   });
 });

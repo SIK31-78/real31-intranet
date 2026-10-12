@@ -118,9 +118,13 @@ function AnnonceAgEstale({ actions, onFermer }: { actions: ActionsAnnonceAg; onF
                     <span className="text-ink-3">Objet : </span>
                     {apercu.objet}
                   </div>
+                  {apercu.avertissement && <Callout ton="warn">{apercu.avertissement}</Callout>}
                   <div className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-md border border-line bg-surface-2 p-3 text-body text-ink">
                     {apercu.texte}
                   </div>
+                  <p className="text-meta text-ink-3">
+                    « Madame, Monsieur, » est un aperçu : la civilité de chaque copropriétaire sera reprise par ESTALE.
+                  </p>
                   {apercu.refusCreation ? (
                     <Callout ton="warn">{apercu.refusCreation}</Callout>
                   ) : (
