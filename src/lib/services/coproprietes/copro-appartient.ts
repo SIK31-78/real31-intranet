@@ -18,7 +18,7 @@
 
 import { cache } from "react";
 import { getAgenceRepository, getCoproRepository, getDelegationRepository, getGestionnaireRepository } from "@/lib/adapters/router";
-import { perimetreComptableEtendu, type PerimetreComptableEtendu } from "@/lib/domain/perimetre-comptable";
+import { agencesDuComptable, perimetreComptableEtendu, type PerimetreComptableEtendu } from "@/lib/domain/perimetre-comptable";
 import { peutEcrire, type AuteurEcriture, type CoproEcriture } from "@/lib/domain/perimetre-ecriture";
 
 /**
@@ -26,14 +26,15 @@ import { peutEcrire, type AuteurEcriture, type CoproEcriture } from "@/lib/domai
  * ses agences (liste fermee du domaine), plus l'agence qu'on lui a deleguee, plus les
  * agences d'une comptable qui lui a confie son portefeuille. Une lecture de l'utilisateur et
  * de ses delegations ; les titulaires ne sont lus que s'il y a une delegation de portefeuille.
- * `email` : celui de la session quand l'appelant l'a (evite de relire l'utilisateur pour
- * l'email seul) ; sinon celui de la table.
+ * `email` : celui de la session quand l'appelant l'a ; sinon celui de la table.
  */
 export const perimetreComptableDe = cache(
   async (userId: string, email?: string | null): Promise<PerimetreComptableEtendu> => {
     const repo = getGestionnaireRepository();
+    // L'utilisateur est toujours relu : son ROLE dit s'il est comptable, condition pour
+    // qu'un portefeuille de comptable lui soit ouvert (cf. perimetreComptableEtendu).
     const [utilisateur, delegations] = await Promise.all([
-      email ? Promise.resolve(null) : repo.findById(userId),
+      repo.findById(userId),
       // Delegations illisibles : le comptable garde ses propres agences (jamais plus).
       getDelegationRepository()
         .listerPourBeneficiaire(userId)
@@ -47,7 +48,10 @@ export const perimetreComptableDe = cache(
     const emails = new Map(
       await Promise.all(titulaires.map(async (id) => [id, (await repo.findById(id))?.email ?? null] as const)),
     );
-    return perimetreComptableEtendu(email ?? utilisateur?.email, delegations, (id) => emails.get(id), aujourdHui);
+    const emailEffectif = email ?? utilisateur?.email;
+    const comptable =
+      agencesDuComptable(emailEffectif).length > 0 || (utilisateur?.role ?? "").trim().toUpperCase() === "COMPTABLE";
+    return perimetreComptableEtendu(emailEffectif, delegations, (id) => emails.get(id), aujourdHui, comptable);
   },
 );
 

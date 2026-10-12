@@ -19,6 +19,7 @@ const UTILISATEURS: Record<string, { id: string; email: string; role?: string }>
   isabelle: { id: "isabelle", email: "isabelle.anglade@real31.fr", role: "COMPTABLE" },
   romain: { id: "romain", email: "romain.gobert@real31.fr", role: "COMPTABLE" },
   "g-hls": { id: "g-hls", email: "gestion.hls@real31.fr", role: "GESTIONNAIRE" },
+  "dir-hls": { id: "dir-hls", email: "direction.hls@real31.fr", role: "DIRECTEUR_AGENCE" },
 };
 
 vi.mock("@/lib/adapters/router", () => ({
@@ -60,6 +61,7 @@ vi.mock("@/lib/services/coproprietes/get-coproprietes", () => ({
 }));
 
 import { getCoproDuPerimetre, getCoprosDuPerimetre } from "./copros-du-perimetre";
+import { coproAppartient } from "./copro-appartient";
 
 const ISABELLE = { managerId: "isabelle", email: "isabelle.anglade@real31.fr", estComptable: true };
 const delegation = (extra: Partial<Delegation>): Delegation => ({
@@ -111,5 +113,24 @@ describe("getCoproDuPerimetre - garde des vues de detail", () => {
   it("portefeuille de Romain (comptable HLS/LGC/ASN) delegue : S300 s'ouvre", async () => {
     etat.delegations = [delegation({ portee: "portefeuille" })];
     expect((await getCoproDuPerimetre("S300", ISABELLE))?.code).toBe("S300");
+  });
+});
+
+describe("securite : le portefeuille d'une comptable ne s'ouvre qu'a une comptable", () => {
+  it("un directeur qui se delegue le portefeuille de Romain n'ecrit pas sur LGC", async () => {
+    // peutDeleguer laisse la direction d'une agence deleguer le portefeuille d'un
+    // collaborateur de son agence : sans verrou, il recuperait les agences de la comptable.
+    etat.delegations = [delegation({ aUserId: "dir-hls", portee: "portefeuille" })];
+    expect(await coproAppartient("S200", "dir-hls")).toBe(false);
+  });
+
+  it("un gestionnaire beneficiaire du portefeuille de Romain n'ecrit pas sur LGC", async () => {
+    etat.delegations = [delegation({ aUserId: "g-hls", portee: "portefeuille" })];
+    expect(await coproAppartient("S200", "g-hls")).toBe(false);
+  });
+
+  it("une comptable beneficiaire garde l'ouverture voulue (REA-158)", async () => {
+    etat.delegations = [delegation({ portee: "portefeuille" })];
+    expect(await coproAppartient("S200", "isabelle")).toBe(true);
   });
 });

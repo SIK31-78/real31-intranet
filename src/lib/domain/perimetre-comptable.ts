@@ -87,21 +87,29 @@ export interface PerimetreComptableEtendu {
  *
  * `emailDe` : l'email d'un titulaire, que l'appelant resout. Delegation expiree ou a venir :
  * ignoree. Pur, sans horloge.
+ *
+ * SECURITE : le portefeuille d'une comptable ne s'ouvre qu'a une BENEFICIAIRE COMPTABLE
+ * (`beneficiaireComptable`, par defaut : une agence a elle dans la liste fermee). Sans ce
+ * verrou, un directeur d'agence pouvait se deleguer a lui-meme le portefeuille de la
+ * comptable rattachee a son agence (peutDeleguer l'y autorise) et recuperer l'ecriture sur
+ * TOUTES les agences qu'elle tient, bien au-dela de la sienne (coproAppartient).
  */
 export function perimetreComptableEtendu(
   email: string | null | undefined,
   delegations: readonly Delegation[],
   emailDe: (userId: string) => string | null | undefined,
   aujourdHuiISO: string,
+  beneficiaireComptable?: boolean,
 ): PerimetreComptableEtendu {
   const propres = new Set<CodeAgence>(agencesDuComptable(email));
+  const comptable = beneficiaireComptable ?? propres.size > 0;
   const deleguees = new Set<CodeAgence>();
   for (const d of delegations) {
     if (!delegationActive(d, aujourdHuiISO)) continue;
     if (d.portee === "agence") {
       const code = codeAgenceConnu(d.agenceCode);
       if (code) deleguees.add(code);
-    } else if (d.portee === "portefeuille") {
+    } else if (d.portee === "portefeuille" && comptable) {
       for (const code of agencesDuComptable(emailDe(d.deUserId))) deleguees.add(code);
     }
   }

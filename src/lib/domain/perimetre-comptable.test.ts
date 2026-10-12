@@ -118,6 +118,19 @@ describe("perimetre comptable elargi par delegation (REA-158)", () => {
     });
   });
 
+  it("securite : le portefeuille d'une comptable ne s'ouvre pas a une non-comptable", () => {
+    expect(perimetreComptableEtendu("directeur@real31.fr", [delegation({})], emailDe, AUJ)).toEqual({
+      agences: [],
+      parDelegation: [],
+    });
+    // Role COMPTABLE en table, hors liste fermee : l'ouverture reste permise.
+    expect(perimetreComptableEtendu("nouvelle@real31.fr", [delegation({})], emailDe, AUJ, true).agences).toEqual([
+      "LGC",
+      "HLS",
+      "ASN",
+    ]);
+  });
+
   it("filtrerSurAgences : liste vide -> rien, agence non resolue -> exclue", () => {
     expect(filtrerSurAgences(copros, [], (c) => c.agence)).toEqual([]);
     expect(filtrerSurAgences(copros, ["ML", "LGC"], (c) => c.agence).map((c) => c.code)).toEqual(["S100", "S200"]);
