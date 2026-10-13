@@ -223,17 +223,26 @@ const TYPES_VOIE = ["boulevard", "avenue", "impasse", "passage", "sentier", "rue
 
 // Segments de voie d'une adresse (avant le code postal), chacun = son type + ses mots de rue
 // porteurs de sens. "86 rue E Vaillant - 89-91 rue M Berteaux 95870" -> [rue:[vaillant], rue:[berteaux]].
+const RE_TYPES_VOIE = TYPES_VOIE.map((t) => [t, new RegExp(`\\b${t}\\b`)] as const);
+// Le découpage d'une adresse est déterministe : mémoïsé (le moteur le redemande pour chaque
+// copro et chaque mail ; LGC = 144 copros x 100 mails par affichage).
+const cacheVoies = new Map<string, { type: string; mots: string[] }[]>();
+
 function voiesDe(adresse: string): { type: string; mots: string[] }[] {
+  const deja = cacheVoies.get(adresse);
+  if (deja) return deja;
   const avantCP = normaliser(adresse).split(/\b\d{5}\b/)[0] ?? "";
-  return avantCP
+  const voies = avantCP
     .split(/[-/,;]| et /)
     .map((seg) => {
       const n = seg.replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-      const type = TYPES_VOIE.find((t) => new RegExp(`\\b${t}\\b`).test(n));
+      const type = RE_TYPES_VOIE.find(([, re]) => re.test(n))?.[0];
       const mots = n.split(" ").filter((t) => t.length >= 4 && !MOTS_BANALS.has(t) && !/^\d+$/.test(t));
       return type && mots.length ? { type, mots } : null;
     })
     .filter((x): x is { type: string; mots: string[] } => x !== null);
+  cacheVoies.set(adresse, voies);
+  return voies;
 }
 
 // La ville d'une adresse : apres le code postal. Sert a retirer du nom de l'immeuble les mots

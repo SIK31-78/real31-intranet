@@ -34,7 +34,8 @@ export async function listerCoprosCompositionAction(): Promise<Res<CoproChoisiss
 
 export async function listerContactsCompositionAction(input: unknown): Promise<Res<ContactCopro[]>> {
   if (!(await autorise())) return echec("Le module e-mails n'est pas disponible.");
-  const d = z.object({ reference: z.string().min(1).max(20) }).safeParse(input);
+  // Format strict : la référence finit dans un filtre PostgREST (.or) côté adaptateur.
+  const d = z.object({ reference: z.string().regex(/^(SE|S)\d{3,4}$/i) }).safeParse(input);
   if (!d.success) return echec("Référence de copropriété invalide.");
   try {
     return { ok: true, donnees: await listerContactsComposition(d.data.reference) };

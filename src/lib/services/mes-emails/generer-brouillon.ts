@@ -8,13 +8,14 @@
 
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getAnalyseMailProvider, getCoproRepository } from "@/lib/adapters/router";
-import { construireBoites } from "@/lib/domain/boites-mail";
+import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { lireBoitesLive } from "@/lib/services/mes-emails/lire-boites";
 
 /** Renvoie le brouillon propose (chaine vide si aucune reponse pertinente), null si le
  *  mail est introuvable dans les boites visibles. */
 export async function genererBrouillonMail(g: Gestionnaire, emailId: string): Promise<string | null> {
-  const boites = construireBoites(g.email, process.env.MAIL_BOITES_PARTAGEES);
+  // Memes boites que l'ecran (le mail vit dans le sous-dossier du binome, pas en reception).
+  const boites = await boitesVisibles(g);
   const copros = await getCoproRepository().list(g.id);
   const { mails } = await lireBoitesLive(g, boites, copros);
   const m = mails.find((x) => x.id === emailId);

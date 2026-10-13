@@ -19,7 +19,10 @@ export class PdfjsExtracteur implements ExtracteurPdf {
       for (let i = 1; i <= Math.min(doc.numPages, maxPages); i++) {
         const page = await doc.getPage(i);
         const contenu = await page.getTextContent();
-        pages.push(contenu.items.map((x) => ("str" in x ? x.str : "")).join(" "));
+        // On reconstruit les LIGNES (hasEOL) : le domaine retire les lignes du papier a
+        // en-tete du cabinet ; une page aplatie en une ligne serait jetee en entier,
+        // adresse du chantier comprise (bug vu le 13/10 : pdftotext gardait les lignes).
+        pages.push(contenu.items.map((x) => ("str" in x ? x.str + (x.hasEOL ? "\n" : " ") : "")).join(""));
         page.cleanup();
       }
       return pages.join("\n");

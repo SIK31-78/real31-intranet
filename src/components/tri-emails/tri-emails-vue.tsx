@@ -74,6 +74,10 @@ function pastille(m: MailDeLaFile): string {
   return "Aucune piste";
 }
 
+// Résultat de l'analyse des PDF par mail (internetMessageId -> copro déduite ou null), pour
+// la durée de la page : revenir sur un mail ne relance pas le téléchargement des PDF.
+const ANALYSE_PJ = new Map<string, { candidats: string[]; piece: string } | null>();
+
 // Type MIME fiable d'une pièce jointe : l'extension du nom prime sur ce que Graph déclare
 // (il renvoie souvent « application/octet-stream » pour un PDF ou une image).
 const MIME_PAR_EXT: Record<string, string> = {
@@ -386,14 +390,20 @@ function DetailMail({
 
   // Quand le mail n'a pas de piste sûre, on lit automatiquement le texte de ses PDF (facture,
   // bon d'intervention) pour en déduire une copro (décision du 13/10/2026). À confirmer.
-  const [pjCopro, setPjCopro] = useState<{ candidats: string[]; piece: string } | null>(null);
+  const [pjCopro, setPjCopro] = useState<{ candidats: string[]; piece: string } | null>(
+    () => ANALYSE_PJ.get(mail.internetMessageId) ?? null,
+  );
   const [pjEnCours, setPjEnCours] = useState(false);
   useEffect(() => {
     if (mail.interne || !mail.aPiecesJointes || s.nature === "sure") return;
+    // Déjà analysé (retour sur un mail) : pas de nouveau téléchargement des PDF.
+    if (ANALYSE_PJ.has(mail.internetMessageId)) return;
     let actif = true;
     setPjEnCours(true);
     coproDepuisPjAction({ internetMessageId: mail.internetMessageId }).then(
       (r) => {
+        // Le résultat est gardé même si on a quitté le mail entre-temps.
+        if (r.ok) ANALYSE_PJ.set(mail.internetMessageId, r.donnees ?? null);
         if (!actif) return;
         setPjEnCours(false);
         if (r.ok && r.donnees) setPjCopro(r.donnees);

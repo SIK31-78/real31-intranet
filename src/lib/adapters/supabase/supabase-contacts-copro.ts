@@ -17,7 +17,9 @@ const cache = new Map<string, { valeur: ContactCopro[]; expire: number }>();
 
 export class SupabaseContactsCopro implements ContactsCoproProvider {
   async listerParCopro(reference: string): Promise<ContactCopro[]> {
-    const ref = reference.trim();
+    const ref = reference.trim().toUpperCase();
+    // Défense en profondeur : la référence est interpolée dans un filtre .or() PostgREST.
+    if (!/^(SE|S)\d{3,4}$/.test(ref)) return [];
     const enCache = cache.get(ref);
     if (enCache && Date.now() < enCache.expire) return enCache.valeur;
 

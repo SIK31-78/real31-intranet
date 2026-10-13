@@ -10,10 +10,12 @@ import type { ContactCopro, CoproChoisissable } from "@/lib/domain/mes-emails-co
 
 export type { CoproChoisissable };
 
-/** La boîte partagée d'où part le mail (null si le module n'est pas configuré sur cette agence). */
+/**
+ * La boîte partagée d'où part le mail : celle de l'agence (MAIL_BOITE_TRI). null si le module
+ * n'est pas configuré ; "echantillon" en dev (aperçu possible, jamais de brouillon).
+ */
 export function boiteEnvoi(): string | null {
-  const b = boiteTriConfiguree();
-  return b && b !== "echantillon" ? b : b; // "echantillon" en dev, null si absent
+  return boiteTriConfiguree();
 }
 
 export async function listerCoprosComposition(): Promise<CoproChoisissable[]> {

@@ -21,7 +21,8 @@ import {
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
 import type { Rattachement } from "@/lib/domain/mes-emails";
-import { boiteAutorisee, construireBoites } from "@/lib/domain/boites-mail";
+import { boiteAutorisee } from "@/lib/domain/boites-mail";
+import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
@@ -41,8 +42,8 @@ import { TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 
 const zBoite = z.string().max(320).optional();
 
-function boiteCible(g: { email?: string }, demandee: string | undefined): string | null {
-  const boites = construireBoites(g.email, process.env.MAIL_BOITES_PARTAGEES);
+async function boiteCible(g: { email?: string }, demandee: string | undefined): Promise<string | null> {
+  const boites = await boitesVisibles(g);
   const cible =
     (demandee ?? "").trim().toLowerCase() || boites.find((b) => b.personnelle)?.id || "";
   if (!cible) return null;
@@ -234,7 +235,7 @@ export async function chargerPiecesJointesAction(
     return [];
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok || !auth.g.email) return [];
-  const cible = boiteCible(auth.g, boite);
+  const cible = await boiteCible(auth.g, boite);
   if (!cible) return [];
   try {
     return await listerPiecesJointesMail(cible, emailId);
@@ -255,7 +256,7 @@ export async function telechargerPieceJointeAction(
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
   if (!auth.g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  const cible = boiteCible(auth.g, boite);
+  const cible = await boiteCible(auth.g, boite);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
     const pj = await lirePieceJointeMail(cible, emailId, attachmentId);
@@ -321,8 +322,8 @@ export async function envoyerReponseAction(
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
   // Les DEUX boites sont validees contre la configuration : celle qui detient le mail
   // et celle qui expedie. Un "De :" fabrique cote client est refuse ici.
-  const cibleMessage = boiteCible(g, boiteMessage);
-  const cibleEnvoi = boiteCible(g, boiteEnvoi);
+  const cibleMessage = await boiteCible(g, boiteMessage);
+  const cibleEnvoi = await boiteCible(g, boiteEnvoi);
   if (!cibleMessage || !cibleEnvoi) return { ok: false, message: "Boîte non autorisée." };
   if (!corps.trim()) return { ok: false, message: "Le message est vide." };
   // Destinataires : adresses bien formees, au moins une en "A", plafond global (anti-spam).
@@ -382,7 +383,7 @@ export async function chargerDossiersAction(boite?: string): Promise<DossierBoit
   const g = await getGestionnaireCourant();
   if (!g?.email) return [];
   if (!zBoite.safeParse(boite).success) return [];
-  const cible = boiteCible(g, boite);
+  const cible = await boiteCible(g, boite);
   if (!cible) return [];
   try {
     return await listerDossiersBoite(cible);
@@ -410,7 +411,7 @@ export async function classerDansDossierAction(
   if (!auth.ok) return auth;
   const g = auth.g;
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  const cible = boiteCible(g, boite);
+  const cible = await boiteCible(g, boite);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
     const res = await classerDansDossier(cible, emailId, folderId);
@@ -435,7 +436,7 @@ export async function creerBrouillonAction(
   if (!zBoite.safeParse(boite).success) return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
-  const cible = boiteCible(auth.g, boite);
+  const cible = await boiteCible(auth.g, boite);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
     await creerBrouillonOutlook(cible, emailId, corps);
