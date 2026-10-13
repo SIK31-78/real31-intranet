@@ -59,6 +59,9 @@ import { SupabaseSynchroRepository } from "@/lib/adapters/supabase/supabase-sync
 import { CLE_ANNUAIRE_CRYPTO } from "@/lib/domain/synchro";
 import { ReferentielTriBoite } from "@/lib/adapters/referentiel-tri-boite";
 import { SupabaseReferentielTriCrypto } from "@/lib/adapters/supabase/supabase-referentiel-tri-crypto";
+import type { ContactsCoproProvider } from "@/lib/ports/contacts-copro-provider";
+import { SupabaseContactsCopro } from "@/lib/adapters/supabase/supabase-contacts-copro";
+import { MockContactsCopro } from "@/lib/adapters/mock/mock-contacts-copro";
 import type { RechercheMailProvider } from "@/lib/ports/recherche-mail-provider";
 import { GraphRechercheMail } from "@/lib/adapters/mail/graph-recherche-mail";
 import { EchantillonRechercheMail } from "@/lib/adapters/mock/echantillon-recherche-mail";
@@ -494,6 +497,12 @@ let triRepositoryMemoire: MockTriRepository | null = null;
 export function getTriRepository(): TriRepository {
   if (coproSourceEstSupabase()) return new SupabaseTriRepository();
   return (triRepositoryMemoire ??= new MockTriRepository());
+}
+
+// Compositeur : contacts (copropriétaires, CS, locataires…) d'une copro depuis l'annuaire.
+export function getContactsCoproProvider(): ContactsCoproProvider {
+  if (coproSourceEstSupabase()) return new SupabaseContactsCopro();
+  return new MockContactsCopro();
 }
 
 // Écran « Échanges » : recherche dans les boîtes (Graph) ; échantillon fictif sans Graph.

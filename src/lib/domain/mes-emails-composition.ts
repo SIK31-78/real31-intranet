@@ -4,12 +4,27 @@
 // Modèles d'événement = gabarits simples {{variable}}. Domaine PUR : aucune dépendance,
 // aucun réseau -> testable tel quel. L'envoi réel vit ailleurs (gaté par envoiMailActif()).
 
+/** Un contact d'une copro (copropriétaire, conseil syndical, locataire, pro…), issu de l'annuaire. */
+export interface ContactCopro {
+  email: string;
+  /** Nom affiché ("" si l'annuaire ne l'a pas). */
+  nom: string;
+  /** coproprietaire | conseil_syndical | locataire | professionnel | autre. */
+  qualite: string;
+  metier?: string;
+}
+
 /** La copro telle qu'on en a besoin pour composer (sous-ensemble de CoproTri). */
 export interface CoproComposition {
   reference: string;
   nom: string;
   /** Adresse sur une ligne, "" si inconnue. */
   adresse: string;
+}
+
+/** Une copro proposée dans le compositeur : la copro + son gestionnaire (pour affichage). */
+export interface CoproChoisissable extends CoproComposition {
+  gestionnaire: string | null;
 }
 
 /**

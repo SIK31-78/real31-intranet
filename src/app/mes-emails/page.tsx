@@ -8,6 +8,7 @@ import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signatur
 import { synchroniserAction } from "./actions";
 import { BoutonSynchro } from "./bouton-synchro";
 import { Page } from "@/components/ui/page";
+import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Mes e-mails - REAL31 Intranet" };
 
@@ -29,6 +30,9 @@ export default async function MesEmailsPage() {
           {data.dateCourante ? (
             <span className="text-body text-ink-2">{data.dateCourante}</span>
           ) : null}
+          <ButtonLink href="/mes-emails/composer" variant="secondary" size="sm">
+            Composer un e-mail
+          </ButtonLink>
           <BoutonSynchro />
         </form>
         <MesEmailsVue data={data} signatureHtml={signatureHtml} />
