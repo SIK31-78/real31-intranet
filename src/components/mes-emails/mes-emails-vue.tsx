@@ -55,6 +55,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
+import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
@@ -290,8 +291,12 @@ export function MesEmailsVue({
     const bin = atob(r.base64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([bytes], { type: r.type || "application/octet-stream" }));
-    return { nom: r.nom || pj.nom, type: r.type || "", url };
+    // Graph étiquette parfois un PDF en octet-stream : le navigateur le télécharge au lieu de
+    // l'afficher. On corrige le type d'après l'extension avant de créer l'URL objet.
+    const nom = r.nom || pj.nom;
+    const type = typeDepuisNom(nom, r.type);
+    const url = URL.createObjectURL(new Blob([bytes], { type }));
+    return { nom, type, url };
   }
   async function telechargerPj(m: MailEntrant, pj: PieceJointeRef) {
     const b = await chargerBlobPj(m, pj);
@@ -752,55 +757,7 @@ export function MesEmailsVue({
       </div>
       )}
 
-      {apercu ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Aperçu ${apercu.nom}`}
-        >
-          <div className="absolute inset-0 bg-black/50" onClick={fermerApercu} />
-          <div className="relative flex flex-col w-full max-w-[920px] h-[85vh] rounded-lg border border-line bg-surface shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between gap-3 px-4 h-11 border-b border-line shrink-0">
-              <span className="text-[13px] font-medium text-ink truncate">{apercu.nom}</span>
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={apercu.url}
-                  download={apercu.nom}
-                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line text-[12px] text-ink-2 hover:bg-surface-2"
-                >
-                  <Download strokeWidth={1.5} className="w-3.5 h-3.5" /> Télécharger
-                </a>
-                <button
-                  type="button"
-                  onClick={fermerApercu}
-                  aria-label="Fermer"
-                  className="inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-2 hover:bg-surface-2"
-                >
-                  <X strokeWidth={1.5} className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 min-h-0 bg-surface-2">
-              {apercu.type === "application/pdf" ? (
-                <iframe src={apercu.url} title={apercu.nom} className="w-full h-full" />
-              ) : apercu.type.startsWith("image/") ? (
-                <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={apercu.url} alt={apercu.nom} className="max-w-full max-h-full object-contain" />
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-2 text-[13px] text-ink-3 px-4 text-center">
-                  <p>Aperçu non disponible pour ce type de fichier.</p>
-                  <a href={apercu.url} download={apercu.nom} className="text-green-700 hover:underline">
-                    Télécharger «&nbsp;{apercu.nom}&nbsp;»
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <VisionneusePj apercu={apercu} onFermer={fermerApercu} />
     </div>
   );
 }
@@ -1627,4 +1584,12 @@ function ContexteCoproContenu({ ctx }: { ctx: ContexteCopro | undefined }) {
       ) : null}
     </div>
   );
+}
+
+/** Type MIME fiable d'une PJ : celui de Graph, sauf s'il est générique et que l'extension parle. */
+function typeDepuisNom(nom: string, type: string | undefined): string {
+  if (type && type !== "application/octet-stream") return type;
+  const ext = /\.([a-z0-9]+)$/i.exec(nom)?.[1]?.toLowerCase();
+  const parExt: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+  return (ext && parExt[ext]) || type || "application/octet-stream";
 }
