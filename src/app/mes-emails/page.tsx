@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { depotPieceJointeActif } from "@/lib/services/mes-emails/deposer-piece-jointe";
+import { adresseFacturesAgence } from "@/lib/services/mes-emails/transmettre-facture";
 import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
@@ -34,7 +35,12 @@ export default async function MesEmailsPage() {
           </ButtonLink>
           <BoutonRafraichir />
         </form>
-        <MesEmailsVue data={data} signatureHtml={signatureHtml} depotDriveActif={depotPieceJointeActif()} />
+        <MesEmailsVue
+          data={data}
+          signatureHtml={signatureHtml}
+          depotDriveActif={depotPieceJointeActif()}
+          adresseFactures={adresseFacturesAgence()}
+        />
       </Page>
     </AppShell>
   );

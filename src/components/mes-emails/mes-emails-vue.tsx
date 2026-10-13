@@ -56,6 +56,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
+import { TransmettreFacture } from "./transmettre-facture";
 import {
   devaliderMailAction,
   editBrouillonAction,
@@ -66,6 +67,7 @@ import {
   chargerPiecesJointesAction,
   telechargerPieceJointeAction,
   deposerPieceJointeAction,
+  transmettreFactureAction,
   rattacherCoproAction,
   chargerDossiersAction,
   classerDansDossierAction,
@@ -112,11 +114,14 @@ export function MesEmailsVue({
   data,
   signatureHtml,
   depotDriveActif = false,
+  adresseFactures = null,
 }: {
   data: MesEmails;
   signatureHtml?: string | null;
   /** Dépôt SharePoint branché (SHAREPOINT_DEPOT_ACTIF) : affiche « Déposer » sur les PJ. */
   depotDriveActif?: boolean;
+  /** Boîte factures ESTALE de l'agence (MAIL_ROBOT_FACTURE_ESTALE) ; null = bouton masqué. */
+  adresseFactures?: string | null;
 }) {
   // Boite affichee. Les deux boites ne sont JAMAIS fusionnees (decision Sekou 5) :
   // on en regarde une a la fois, la perso par defaut.
@@ -304,6 +309,12 @@ export function MesEmailsVue({
     setMsgClasser(`Dépôt de « ${pj.nom} » sur SharePoint…`);
     const r = await deposerPieceJointeAction(m.id, coproDe(m).code, pj.id, m.recuLe ?? new Date().toISOString(), boiteDuMail(m));
     setMsgClasser(r.ok ? `« ${pj.nom} » ${r.message ?? "déposé."}` : (r.message ?? "Le dépôt a échoué."));
+  }
+  // Facture : brouillon de transfert vers la boîte factures ESTALE, objet codifié.
+  async function transmettreFactureMail(m: MailEntrant, f: { compte: string; fournisseur: string; libelle: string }) {
+    setMsgClasser("Création du brouillon de transfert…");
+    const r = await transmettreFactureAction(m.id, coproDe(m).code, f, boiteDuMail(m));
+    setMsgClasser(r.message ?? (r.ok ? "Brouillon créé." : "La transmission a échoué."));
   }
   const fermerApercu = () =>
     setApercu((a) => {
@@ -649,6 +660,9 @@ export function MesEmailsVue({
               onApercu={(pj) => void voirPj(selection, pj)}
               {...(depotDriveActif && coproDe(selection).code
                 ? { onDeposer: (pj: PieceJointeRef) => void deposerPj(selection, pj) }
+                : {})}
+              {...(adresseFactures
+                ? { adresseFactures, onTransmettreFacture: (f: { compte: string; fournisseur: string; libelle: string }) => transmettreFactureMail(selection, f) }
                 : {})}
               pjJointes={pjJointesDe(selection)}
               onTogglePjJointe={(id) => togglePjJointe(selection, id)}
@@ -1175,6 +1189,8 @@ function AnalysePane({
   onTelecharger,
   onApercu,
   onDeposer,
+  adresseFactures,
+  onTransmettreFacture,
   pjJointes,
   onTogglePjJointe,
   destinataires,
@@ -1227,6 +1243,8 @@ function AnalysePane({
   onApercu: (pj: PieceJointeRef) => void;
   /** Déposer la PJ dans le dossier SharePoint de la copro. Absent = dépôt coupé ou mail sans copro. */
   onDeposer?: (pj: PieceJointeRef) => void;
+  adresseFactures?: string;
+  onTransmettreFacture?: (f: { compte: string; fournisseur: string; libelle: string }) => Promise<void>;
   pjJointes: Set<string>;
   onTogglePjJointe: (id: string) => void;
   destinataires: Destinataires;
@@ -1401,6 +1419,9 @@ function AnalysePane({
                 ))
               )}
             </div>
+          )}
+          {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
+            <TransmettreFacture destinataire={adresseFactures} onTransmettre={onTransmettreFacture} />
           )}
         </div>
       </div>

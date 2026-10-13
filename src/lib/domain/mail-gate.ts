@@ -85,11 +85,26 @@ export function envoiMailActif(): boolean {
 }
 
 /**
- * Adresse de la boîte "robot facture" d'ESTALE : on lui transmet une facture avec sa
- * codification comptable (ex. « 601000 - DGP NETTOYAGE - Entretien EV »). Inconnue tant
- * que la DSI/compta ne l'a pas donnée -> le bouton compose le mail mais ne peut pas l'envoyer.
+ * Lit la config des boîtes de réception des factures ESTALE, une PAR AGENCE (une par
+ * établissement ESTALE, lue via l'API le 13/10/2026 : Condo.invoice.inbox), au format
+ * « HLS=xxx@invoice.estale.app,LGC=yyy@invoice.estale.app ». Pur, testable.
  */
-export function robotFactureEstale(): string | null {
-  const brut = (process.env.MAIL_ROBOT_FACTURE_ESTALE ?? "").trim().toLowerCase();
-  return brut || null;
+export function lireRobotsFacture(brut: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const paire of brut.split(/[,;]/)) {
+    const [agence, adresse] = paire.split("=").map((s) => s?.trim() ?? "");
+    if (agence && adresse && /^[^\s@]+@[^\s@]+$/.test(adresse)) out[agence.toUpperCase()] = adresse.toLowerCase();
+  }
+  return out;
+}
+
+/**
+ * Adresse de réception des factures ESTALE de l'agence (MAIL_ROBOT_FACTURE_ESTALE) : on y
+ * transmet une facture avec sa codification (« 601000 - DGP NETTOYAGE - Entretien EV »).
+ * L'adresse n'est PAS dans le dépôt Git (une boîte qui injecte des factures dans la compta) :
+ * .env.local et Vercel seulement. null si l'agence n'est pas configurée.
+ */
+export function robotFactureEstale(agence: string | null | undefined): string | null {
+  if (!agence) return null;
+  return lireRobotsFacture(process.env.MAIL_ROBOT_FACTURE_ESTALE ?? "")[agence.trim().toUpperCase()] ?? null;
 }

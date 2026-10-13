@@ -12,10 +12,8 @@ import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
 import {
   MODELES_MAIL,
-  factureComplete,
   fusionnerModele,
   objetCompose,
-  objetFactureEstale,
   type ContactCopro,
   type CoproChoisissable,
   type VariablesModele,
@@ -62,12 +60,6 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [modeleId, setModeleId] = useState("");
   const [sujet, setSujet] = useState("");
   const [corps, setCorps] = useState("");
-  const [facture, setFacture] = useState<{ actif: boolean; compte: string; fournisseur: string; libelle: string }>({
-    actif: false,
-    compte: "",
-    fournisseur: "",
-    libelle: "",
-  });
   const [chargement, demarrer] = useTransition();
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
 
@@ -128,11 +120,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     setCorps(fusionnerModele(m.corps, variables));
   }
 
-  const objet = facture.actif && factureComplete(facture)
-    ? objetFactureEstale(facture)
-    : copro
-      ? objetCompose(copro, sujet)
-      : sujet;
+  const objet = copro ? objetCompose(copro, sujet) : sujet;
 
   const pretAEnvoyer = Boolean(objet.trim() && destinataires.length && corps.trim());
 
@@ -266,38 +254,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
             </Select>
           </Field>
           <Field label="Sujet" htmlFor="comp-sujet">
-            <Input id="comp-sujet" value={sujet} onChange={(e) => setSujet(e.target.value)} placeholder="Objet du message" disabled={facture.actif} />
+            <Input id="comp-sujet" value={sujet} onChange={(e) => setSujet(e.target.value)} placeholder="Objet du message" />
           </Field>
           <Field label="Message" htmlFor="comp-corps">
             <Textarea id="comp-corps" value={corps} onChange={(e) => setCorps(e.target.value)} rows={12} placeholder="Votre message…" />
           </Field>
         </section>
 
-        <section className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3">
-          <label className="flex items-center gap-2 text-body">
-            <input type="checkbox" checked={facture.actif} onChange={(e) => setFacture((f) => ({ ...f, actif: e.target.checked }))} />
-            <span className="font-medium text-ink">Transmettre une facture à ESTALE</span>
-          </label>
-          {facture.actif && (
-            <>
-              <div className="grid grid-cols-3 gap-2">
-                <Field label="Compte" htmlFor="f-compte">
-                  <Input id="f-compte" value={facture.compte} onChange={(e) => setFacture((f) => ({ ...f, compte: e.target.value }))} placeholder="601000" />
-                </Field>
-                <Field label="Fournisseur" htmlFor="f-four">
-                  <Input id="f-four" value={facture.fournisseur} onChange={(e) => setFacture((f) => ({ ...f, fournisseur: e.target.value }))} placeholder="DGP NETTOYAGE" />
-                </Field>
-                <Field label="Libellé" htmlFor="f-lib">
-                  <Input id="f-lib" value={facture.libelle} onChange={(e) => setFacture((f) => ({ ...f, libelle: e.target.value }))} placeholder="Entretien EV" />
-                </Field>
-              </div>
-              <Callout ton="neutral">
-                L&apos;objet reprend la codification « COMPTE - FOURNISSEUR - LIBELLÉ ». Destinataire = robot facture ESTALE (adresse
-                à configurer) ; joindre la facture avant d&apos;envoyer. La liste des comptes par copro n&apos;est pas encore branchée.
-              </Callout>
-            </>
-          )}
-        </section>
       </div>
 
       {/* Colonne droite : aperçu */}

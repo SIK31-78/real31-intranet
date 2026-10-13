@@ -33,6 +33,38 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     if (!r.ok) throw new Error(`Graph createReply ${r.status} : ${(await r.text()).slice(0, 200)}`);
   }
 
+  async creerTransfert(p: {
+    boite: string;
+    internetMessageId: string;
+    a: string[];
+    sujet: string;
+    commentaire: string;
+  }): Promise<{ webLink?: string; internetMessageId?: string }> {
+    if (!p.boite) throw new Error("Transfert : boite manquante.");
+    if (dest(p.a).length === 0) throw new Error("Transfert : au moins un destinataire.");
+    const tk = await jetonGraph();
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    // createForward cree le brouillon de transfert AVEC les pieces jointes d'origine.
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/createForward`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ toRecipients: dest(p.a), comment: p.commentaire }),
+    });
+    if (!r.ok) throw new Error(`Graph createForward ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const brouillon = (await r.json()) as { id: string; webLink?: string; internetMessageId?: string };
+    // L'objet codifie remplace « TR: … » : c'est lui que lit la reception des factures.
+    const maj = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(brouillon.id)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ subject: p.sujet }),
+    });
+    if (!maj.ok) throw new Error(`Graph objet du transfert ${maj.status} : ${(await maj.text()).slice(0, 200)}`);
+    return {
+      ...(brouillon.webLink ? { webLink: brouillon.webLink } : {}),
+      ...(brouillon.internetMessageId ? { internetMessageId: brouillon.internetMessageId } : {}),
+    };
+  }
+
   async envoyer(p: {
     boite: string;
     internetMessageId: string;

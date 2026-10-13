@@ -10,6 +10,20 @@ export interface MailOutboundProvider {
   creerBrouillon(p: { boite: string; internetMessageId: string; corps: string }): Promise<void>;
 
   /**
+   * Cree un brouillon de TRANSFERT du message d'origine (pieces jointes conservees par
+   * Graph), adresse a `a`, avec l'objet `sujet` (remplace « TR: … ») et un commentaire en
+   * tete. Statut Draft : on N'ENVOIE PAS. Sert a transmettre une facture recue a la boite
+   * de reception des factures ESTALE avec sa codification dans l'objet.
+   */
+  creerTransfert(p: {
+    boite: string;
+    internetMessageId: string;
+    a: string[];
+    sujet: string;
+    commentaire: string;
+  }): Promise<{ webLink?: string; internetMessageId?: string }>;
+
+  /**
    * ENVOIE une reponse au message d'origine (fil + citation conserves) avec des
    * destinataires CHOISIS (A / Cc / Cci). Cree un brouillon de reponse, y pose le
    * corps + les destinataires, puis l'envoie. Action irreversible (vrai mail).

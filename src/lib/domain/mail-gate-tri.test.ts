@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { debutTri } from "./mail-gate";
+import { debutTri, lireRobotsFacture } from "./mail-gate";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -16,5 +16,15 @@ describe("debutTri (mise en service du tri)", () => {
     expect(debutTri()).toBeNull();
     vi.stubEnv("MAIL_TRI_DEPUIS", "19/10/2026");
     expect(debutTri()).toBeNull();
+  });
+});
+
+describe("lireRobotsFacture (adresse factures ESTALE par agence)", () => {
+  it("lit une adresse par agence, ignore les entrées invalides", () => {
+    expect(lireRobotsFacture("HLS=AAA@invoice.estale.app, lgc=bbb@invoice.estale.app;ML=pas-une-adresse;=x@y.z")).toEqual({
+      HLS: "aaa@invoice.estale.app",
+      LGC: "bbb@invoice.estale.app",
+    });
+    expect(lireRobotsFacture("")).toEqual({});
   });
 });

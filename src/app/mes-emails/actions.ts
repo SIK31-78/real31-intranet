@@ -29,6 +29,7 @@ import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emai
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
+import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
@@ -293,6 +294,31 @@ export async function deposerPieceJointeAction(
   if (!r) return { ok: false, message: "Le dépôt sur SharePoint n'est pas encore branché (droit Sites.Selected à accorder)." };
   if (!r.depose) return { ok: false, message: `Dépôt impossible : ${r.raison}` };
   return { ok: true, webUrl: r.webUrl, message: `Déposé dans ${r.dossier}.` };
+}
+
+// --- Transmettre une facture a la boite factures ESTALE de l'agence ------------
+// Brouillon de transfert (PJ conservees), objet codifie « COMPTE - FOURNISSEUR - Libelle ».
+
+export async function transmettreFactureAction(
+  emailId: string,
+  coproCode: string,
+  facture: { compte: string; fournisseur: string; libelle: string },
+  boite?: string,
+): Promise<{ ok: boolean; message?: string; webLink?: string }> {
+  const zFacture = z.object({ compte: z.string().trim().regex(/^\d{3,8}$/), fournisseur: z.string().trim().min(1).max(120), libelle: z.string().trim().min(1).max(200) });
+  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success || !zFacture.safeParse(facture).success)
+    return { ok: false, message: "Compte (chiffres), fournisseur et libellé sont requis." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
+  const cible = await boiteCible(auth.g, boite);
+  if (!cible) return { ok: false, message: "Boîte non autorisée." };
+  try {
+    const r = await transmettreFacture({ boite: cible, internetMessageId: emailId, facture });
+    if (r.simulation) return { ok: true, message: `Aperçu : « ${r.objet} » vers ${r.destinataire} (boîte non branchée, rien créé).` };
+    return { ok: true, ...(r.webLink ? { webLink: r.webLink } : {}), message: `Brouillon de transfert « ${r.objet} » créé vers ${r.destinataire} : à relire puis envoyer dans Outlook.` };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 }
 
 // --- Brouillon IA a la demande -----------------------------------------------
