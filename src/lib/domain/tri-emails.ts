@@ -195,11 +195,24 @@ function motsSignificatifs(s: string): string[] {
   return [...new Set(normaliser(s).split(/[^a-z0-9]+/).filter((t) => t.length >= 4 && !MOTS_BANALS.has(t) && !/^\d+$/.test(t)))];
 }
 
-// L'adresse d'une CoproTri est "voie code_postal ville" concatenee. La voie = avant le code
-// postal, numero de rue retire : "3 place michelet 95100 Chatou" -> "place michelet".
-function voieDe(adresse: string): string {
+// Les types de voie reconnus. On matche une adresse sur ses MOTS (type + nom de rue), pas en
+// bloc exact : « 86 rue E Vaillant » en base doit matcher « 86 rue Edouard Vaillant » dans le
+// mail (abreviation), et une adresse composee « X - Y » doit matcher par l'une ou l'autre rue.
+const TYPES_VOIE = ["boulevard", "avenue", "impasse", "passage", "sentier", "ruelle", "chemin", "allees", "allee", "square", "route", "place", "quai", "voie", "cours", "sente", "rue"];
+
+// Segments de voie d'une adresse (avant le code postal), chacun = son type + ses mots de rue
+// porteurs de sens. "86 rue E Vaillant - 89-91 rue M Berteaux 95870" -> [rue:[vaillant], rue:[berteaux]].
+function voiesDe(adresse: string): { type: string; mots: string[] }[] {
   const avantCP = normaliser(adresse).split(/\b\d{5}\b/)[0] ?? "";
-  return avantCP.replace(/^\s*\d+\s*(bis|ter|quater)?\s*/, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  return avantCP
+    .split(/[-/,;]| et /)
+    .map((seg) => {
+      const n = seg.replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+      const type = TYPES_VOIE.find((t) => new RegExp(`\\b${t}\\b`).test(n));
+      const mots = n.split(" ").filter((t) => t.length >= 4 && !MOTS_BANALS.has(t) && !/^\d+$/.test(t));
+      return type && mots.length ? { type, mots } : null;
+    })
+    .filter((x): x is { type: string; mots: string[] } => x !== null);
 }
 
 // La ville d'une adresse : apres le code postal. Sert a retirer du nom de l'immeuble les mots
@@ -246,11 +259,14 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
       vues.add(cle);
       continue;
     }
-    const voie = voieDe(c.adresse);
     const cp = codePostalDe(c.adresse);
     const lieuPresent = (cp !== "" && mots.has(cp)) || (ville.length >= 4 && espace.includes(` ${ville} `));
-    if (voie.length >= 10 && espace.includes(` ${voie} `) && lieuPresent) {
-      parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie} » citée dans le mail, à confirmer.` });
+    // Une rue compte si son type (rue, avenue…) ET tous ses mots porteurs sont cités, ET que
+    // le lieu (code postal ou ville) l'est aussi : « 71 rue de Bezons » à Carrières ne matche
+    // pas un mail de Bezons 95870.
+    const voie = lieuPresent ? voiesDe(c.adresse).find((v) => mots.has(v.type) && v.mots.every((m) => mots.has(m))) : undefined;
+    if (voie) {
+      parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie.type} ${voie.mots.join(" ")} » citée dans le mail, à confirmer.` });
       vues.add(cle);
     }
   }

@@ -121,7 +121,16 @@ describe("suggererCopro", () => {
     };
     const s = suggererCopro(mail({ objet: "SOFRET - 71 RUE DE BEZONS 95100 ARGENTEUIL - devis" }), ref);
     expect(s).toMatchObject({ nature: "faible", candidats: ["S0300"] });
-    expect(s.raison).toContain("rue de bezons");
+    expect(s.raison).toContain("bezons");
+  });
+
+  it("matche une adresse abrégée ou composée par les mots de la rue (E Vaillant ≈ Edouard Vaillant)", () => {
+    const ref: ReferentielTri = {
+      copros: [{ reference: "S0109", nom: "STMARTIN", adresse: "86 rue E Vaillant - 89-91 rue M Berteaux 95870 Bezons", gestionnaire: null, assistant: null }],
+      expediteurs: {},
+    };
+    const s = suggererCopro(mail({ objet: "Minuterie HS - 86 rue Edouard Vaillant 95870 BEZONS" }), ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0109"] });
   });
 
   it("n'attache pas une voie citee sans son lieu (71 rue de Bezons à Carrières ≠ mail de Bezons)", () => {
