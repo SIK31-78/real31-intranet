@@ -44,7 +44,7 @@ export function TransmettreFacture({
         <input aria-label="Libellé" placeholder="Entretien EV" value={f.libelle} onChange={(e) => setF({ ...f, libelle: e.target.value })} className={`${champ} flex-1 min-w-[140px]`} />
       </div>
       <div className="text-ink-3">
-        Objet : <span className="font-mono text-ink-2">{factureComplete(f) ? objetFactureEstale(f) : "—"}</span> · vers{" "}
+        Objet : <span className="font-mono text-ink-2">{factureComplete(f) ? objetFactureEstale(f) : "-"}</span> · vers{" "}
         <span className="font-mono">{destinataire}</span>
       </div>
       <div className="flex items-center gap-2">

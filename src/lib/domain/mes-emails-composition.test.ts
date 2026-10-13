@@ -21,7 +21,7 @@ describe("objet auto-taggé copro", () => {
   });
 
   it("colle le sujet saisi après le préfixe identifiant", () => {
-    expect(objetCompose(copro, "Fuite dans le hall", false)).toBe("S0247 · Résidence Le Cyrano — Fuite dans le hall");
+    expect(objetCompose(copro, "Fuite dans le hall", false)).toBe("S0247 · Résidence Le Cyrano - Fuite dans le hall");
     expect(objetCompose(copro, "  ", false)).toBe("S0247 · Résidence Le Cyrano");
   });
 });

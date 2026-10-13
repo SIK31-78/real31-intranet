@@ -43,7 +43,7 @@ export function prefixeObjetCopro(copro: CoproComposition, avecAdresse = true): 
 export function objetCompose(copro: CoproComposition, sujet: string, avecAdresse = true): string {
   const prefixe = prefixeObjetCopro(copro, avecAdresse);
   const s = sujet.trim();
-  return s ? `${prefixe} — ${s}` : prefixe;
+  return s ? `${prefixe} - ${s}` : prefixe;
 }
 
 /** Variables de fusion offertes aux modèles. Toutes facultatives : une variable absente devient "". */
@@ -97,7 +97,7 @@ export const MODELES_MAIL: ModeleMail[] = [
     titre: "Information à la copropriété",
     sujet: "Information",
     corps:
-      "Bonjour,\n\nNous vous informons que …\n\nNous restons à votre disposition.\n\nCordialement,\n{{gestionnaire_nom}}\nREAL 31 — {{agence}}",
+      "Bonjour,\n\nNous vous informons que …\n\nNous restons à votre disposition.\n\nCordialement,\n{{gestionnaire_nom}}\nREAL 31 - {{agence}}",
   },
   {
     id: "demande-devis",

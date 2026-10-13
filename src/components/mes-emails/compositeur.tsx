@@ -148,7 +148,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         toast.ok("Aperçu vérifié : aucune boîte branchée ici, aucun brouillon créé.");
         return;
       }
-      toast.ok(`Brouillon créé dans ${res.boite ?? "la boîte"} — à relire puis envoyer dans Outlook.`);
+      toast.ok(`Brouillon créé dans ${res.boite ?? "la boîte"}, à relire puis envoyer dans Outlook.`);
       if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
       if (res.rattache === false) toast.warn("Brouillon créé, mais le rattachement au dossier a échoué : rattache-le depuis Échanges.");
     });
@@ -160,7 +160,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       <div className="flex flex-col gap-4">
         <section className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3">
           <h2 className="text-meta uppercase tracking-wider text-ink-3 font-medium">Destinataire</h2>
-          <Field label="Copropriété" htmlFor="comp-copro" hint="Code, nom ou adresse — la copro taggue l'objet pour le tri.">
+          <Field label="Copropriété" htmlFor="comp-copro" hint="Code, nom ou adresse : la copro taggue l'objet pour le tri.">
             <Input
               id="comp-copro"
               list="comp-copros"
@@ -214,7 +214,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
             </div>
           )}
           {contacts && contacts.length === 0 && (
-            <p className="text-meta text-ink-3">Aucun contact connu pour cette copropriété — saisissez l&apos;adresse ci-dessous.</p>
+            <p className="text-meta text-ink-3">Aucun contact connu pour cette copropriété : saisissez l&apos;adresse ci-dessous.</p>
           )}
 
           <Field label="Autres destinataires (À)" htmlFor="comp-a">
@@ -230,7 +230,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
               hint={dossiers && dossiers.length === 0 ? "Aucun dossier ouvert pour cette copropriété dans votre périmètre." : "Facultatif : le mail entre au journal du dossier."}
             >
               <Select id="comp-dossier" value={dossierId} onChange={(e) => setDossierId(e.target.value)} disabled={!dossiers || dossiers.length === 0}>
-                <option value="">— Aucun —</option>
+                <option value="">Aucun</option>
                 {(dossiers ?? []).map((d) => (
                   <option key={d.id} value={d.id}>
                     {TYPE_DOSSIER_LABEL[d.type]} · {d.titre}
@@ -245,7 +245,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           <h2 className="text-meta uppercase tracking-wider text-ink-3 font-medium">Contenu</h2>
           <Field label="Modèle d'événement" htmlFor="comp-modele">
             <Select id="comp-modele" value={modeleId} onChange={(e) => appliquerModele(e.target.value)}>
-              <option value="">— Aucun (texte libre) —</option>
+              <option value="">Aucun (texte libre)</option>
               {MODELES_MAIL.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.titre}
@@ -277,18 +277,18 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         <section className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3">
           <h2 className="text-meta uppercase tracking-wider text-ink-3 font-medium">Aperçu</h2>
           <p className="text-meta text-ink-2">
-            De : <span className="font-mono">{boite ?? "—"}</span>
+            De : <span className="font-mono">{boite ?? "-"}</span>
           </p>
           <p className="text-meta text-ink-2 break-words">
-            À : <span className="font-mono">{destinataires.join(", ") || "—"}</span>
+            À : <span className="font-mono">{destinataires.join(", ") || "-"}</span>
             {emails(cc).length > 0 && (
               <>
                 {" "}· Cc : <span className="font-mono">{emails(cc).join(", ")}</span>
               </>
             )}
           </p>
-          <p className="text-body font-medium text-ink break-words border-t border-line pt-2">{objet || "—"}</p>
-          <pre className="whitespace-pre-wrap text-body text-ink-2 font-sans max-h-[40vh] overflow-y-auto">{corps || "—"}</pre>
+          <p className="text-body font-medium text-ink break-words border-t border-line pt-2">{objet || "-"}</p>
+          <pre className="whitespace-pre-wrap text-body text-ink-2 font-sans max-h-[40vh] overflow-y-auto">{corps || "-"}</pre>
         </section>
         <div className="flex items-center gap-3">
           <Button variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} onClick={creerBrouillon}>

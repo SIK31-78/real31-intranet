@@ -465,7 +465,7 @@ function DetailMail({
       {mail.interne && (
         <div className="rounded-xl border border-err-200 bg-err-50 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
           <span className="text-body text-ink">
-            <strong className="font-medium">Mail interne</strong> — réponse d&apos;un collègue, la boîte partagée est restée en copie. Sans utilité : à mettre en corbeille.
+            <strong className="font-medium">Mail interne</strong> : réponse d&apos;un collègue, la boîte partagée est restée en copie. Sans utilité : à mettre en corbeille.
           </span>
           <Button variant="destructive" size="sm" disabled={enCours} onClick={supprimer}>
             Mettre à la corbeille
@@ -958,7 +958,7 @@ function JournalVue({
                       {suivie === false ? " · corrigé" : suivie ? " · suivi" : ""}
                     </Badge>
                   ) : (
-                    <span className="text-ink-3">—</span>
+                    <span className="text-ink-3">-</span>
                   )}
                 </td>
                 <td className="px-3 py-2 text-meta text-ink-2">{e.par === PAR_OUTLOOK ? "Glissé dans Outlook" : e.par}</td>

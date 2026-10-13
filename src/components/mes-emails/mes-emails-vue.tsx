@@ -439,7 +439,7 @@ export function MesEmailsVue({
         ? []
         : [
             "",
-            "Attention : boîte différente de celle du mail — le fil d'origine et les pièces jointes ne suivront pas.",
+            "Attention : boîte différente de celle du mail : le fil d'origine et les pièces jointes ne suivront pas.",
           ]),
       "",
       "Envoyer ?",
@@ -807,7 +807,7 @@ function LigneMail({
           <span className="shrink-0 text-[11px] text-ink-4">{jourMois(m.date)}</span>
         </div>
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-[11px] text-ink-3">
-          <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-4")}>{m.coproCode || "—"}</span>
+          <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-4")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
           {statut !== "nouveau" ? <span className="ml-auto shrink-0"><StatutBadge statut={statut} /></span> : null}
         </div>
@@ -863,7 +863,7 @@ function ChampDe({
           {boites.map((b) => (
             <option key={b.id} value={b.id}>
               {b.adresse}
-              {b.id === boiteDuMail ? " — boîte du mail" : ""}
+              {b.id === boiteDuMail ? " (boîte du mail)" : ""}
             </option>
           ))}
         </select>

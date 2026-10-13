@@ -1,6 +1,6 @@
 // Compositeur d'un mail SORTANT depuis la boîte partagée (syndicN), façon « F1 » de Crypto.
 // Fournit les DONNÉES (copros ESTALE+Crypto de l'agence, contacts et dossiers ouverts d'une
-// copro) et crée un BROUILLON — jamais d'envoi direct. L'objet/corps sont composés côté
+// copro) et crée un BROUILLON, jamais d'envoi direct. L'objet/corps sont composés côté
 // domaine (pur), ici on orchestre les ports. Le brouillon se crée sur clic (geste de
 // validation) dès que Graph est branché ; l'envoi réel se fait dans Outlook. Expéditeur =
 // syndicN (la boîte passée au provider). Le brouillon peut être rattaché à un dossier : son

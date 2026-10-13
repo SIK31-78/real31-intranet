@@ -111,7 +111,7 @@ function Detail({ e, coproParDefaut }: { e: EchangeTrouve; coproParDefaut?: stri
         <dt className="text-ink-3">De</dt>
         <dd className="text-ink-2 break-all">{e.deNom && e.deNom !== e.deAdresse ? `${e.deNom} <${e.deAdresse}>` : e.deAdresse}</dd>
         <dt className="text-ink-3">À</dt>
-        <dd className="text-ink-2 break-all">{e.a.join(", ") || "—"}</dd>
+        <dd className="text-ink-2 break-all">{e.a.join(", ") || "-"}</dd>
         {e.cc.length > 0 && (
           <>
             <dt className="text-ink-3">Cc</dt>

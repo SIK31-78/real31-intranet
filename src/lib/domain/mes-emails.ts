@@ -271,7 +271,7 @@ export function sujetDeReponse(m: Pick<MailEntrant, "objet"> & Partial<Pick<Mail
   const cle = m.coproCode ? cleDeReference(m.coproCode) : null;
   if (cle && !referencesCitees(objet).includes(cle)) {
     const tag = `${m.coproCode!.trim()}${m.coproNom?.trim() ? ` · ${m.coproNom.trim()}` : ""}`;
-    return `Re: ${tag} — ${objet.replace(PREFIXE_REPONSE, "").trim()}`;
+    return `Re: ${tag} - ${objet.replace(PREFIXE_REPONSE, "").trim()}`;
   }
   return dejaRe ? m.objet : `Re: ${m.objet}`;
 }

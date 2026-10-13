@@ -159,7 +159,7 @@ describe("suggererCopro", () => {
       copros: [{ reference: "S0158", nom: "LE MICHELET", adresse: "3 place Michelet 78800 Houilles", gestionnaire: null, assistant: null }],
       expediteurs: {},
     };
-    const apercu = `${"Bonjour, merci de votre retour sur ce dossier. ".repeat(20)}\n-- \nREAL 31 — 3 place Michelet, LE MICHELET, Houilles`;
+    const apercu = `${"Bonjour, merci de votre retour sur ce dossier. ".repeat(20)}\n-- \nREAL 31 - 3 place Michelet, LE MICHELET, Houilles`;
     expect(suggererCopro(mail({ objet: "Relance facture", apercu }), ref).nature).toBe("aucune");
   });
 
