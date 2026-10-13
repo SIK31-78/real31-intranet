@@ -2054,10 +2054,11 @@ ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (déléga
 9. **Brouillon composé rattaché à un dossier** : le port d'envoi renvoie l'`internetMessageId` du brouillon (ajout pur) ; le compositeur propose les dossiers OUVERTS de la copro (codes Crypto et ESTALE) et inscrit le mail au journal, référence `echange:boîte|id` (rouvrable depuis la fiche dossier, survit à l'envoi).
 10. **Dépôt d'une pièce jointe sur SharePoint** (bon d'intervention, facture) : brique de dépôt reprise à l'identique de `main` (REA-116), coupée tant que `SHAREPOINT_DEPOT_ACTIF=1` n'est pas posé (Sites.Selected). Cible = racine de la copro (lien d'AG sans `/AG`) `/Interventions/<année>/<date> - <nom>` — **le sous-dossier « Interventions » est une convention à valider**.
 11. **Mails travaillés pour le tri, aussi en réponse** : le sujet par défaut d'une réponse porte `CODE · Nom` quand le code n'est pas déjà dans l'objet. « Classer dans… » groupe les sous-dossiers de la réception puis les autres, sans les dossiers système.
+12. **Transmettre une facture à ESTALE** : l'adresse de réception est lue dans l'API (`Condo.invoice.inbox`), une par établissement donc par agence, configurée dans `MAIL_ROBOT_FACTURE_ESTALE` (hors Git). Sur un mail reçu : brouillon de **transfert** (PJ conservées) vers cette adresse, objet codifié `COMPTE - FOURNISSEUR - Libellé`. Le compositeur n'a plus ce bloc (il ne joint pas de fichier).
 
 ### Ce qui N'A PAS été fait (et pourquoi)
 - **Lecture de l'arborescence SharePoint** : l'app n'a aucun droit de lecture, d'où la convention « Interventions » à valider plutôt qu'un choix de dossier.
-- **Transmission d'une facture au robot ESTALE** : l'objet codifié existe (compositeur), mais l'adresse du robot (`MAIL_ROBOT_FACTURE_ESTALE`) et la liste des comptes par copro manquent.
+- **Liste des comptes par copro** pour la codification des factures : saisie à la main (pas de plan de comptes exposé en base).
 - **IA « à froid »** (rédiger un mail neuf, interroger ESTALE pour répondre à un copropriétaire) : à cadrer (coût, anti-injection) ; l'IA existante (Mistral) ne sert que la réponse.
 - **Rebase sur `main`** : à faire avant merge (la brique SharePoint, reprise à l'identique, ne devrait pas conflicter).
 
