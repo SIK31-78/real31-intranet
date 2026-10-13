@@ -1,7 +1,7 @@
 // Service du cockpit "Mes emails".
-//   - Source du triage : le CACHE (table intranet_mes_emails_triage), alimente par
-//     la synchro de la boite du gestionnaire. Repli sur le triage fichier/mock
-//     (archive) tant qu'aucune synchro n'a eu lieu.
+//   - Source du triage : la LECTURE LIVE des boites visibles (decision Sekou
+//     2026-08-23). Plus de cache d'affichage : il montrait un instantane perime
+//     ("synchronisé le 2026-06-26" en pleine page). Cf. lire-boites.ts.
 //   - etat de traitement : fusionne depuis intranet_mes_emails_etat (ce que le
 //     gestionnaire a fait sur chaque mail).
 //   - contextes : enrichissement REEL eStale par copro (degradation propre si absent).
@@ -11,64 +11,38 @@ import type { ContexteCopro, MailEntrant, MesEmails } from "@/lib/domain/mes-ema
 import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import type { EtatMail } from "@/lib/ports/mes-emails-etat-provider";
-import {
-  getCoproRepository,
-  getMesEmailsEtatRepository,
-  getMesEmailsProvider,
-  getMesEmailsTriageStore,
-} from "@/lib/adapters/router";
+import { getCoproRepository, getMesEmailsEtatRepository } from "@/lib/adapters/router";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
+import { construireBoites } from "@/lib/domain/boites-mail";
+import { lireBoitesLive } from "@/lib/services/mes-emails/lire-boites";
 
 export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
-  // Trois lectures independantes : en parallele (la page la plus lourde de l'appli).
-  const [triage, etatsListe, mesCopros] = await Promise.all([
-    getMesEmailsTriageStore().lire(g.id),
+  // Les boites visibles sont de la CONFIGURATION, jamais une constante de code
+  // (decision 8 : multi-boites des le depart).
+  const boites = construireBoites(g.email, process.env.MAIL_BOITES_PARTAGEES);
+  const mesCopros = await getCoproRepository().list(g.id);
+
+  const [triage, etatsListe] = await Promise.all([
+    lireBoitesLive(g, boites, mesCopros),
     getMesEmailsEtatRepository().getEtats(g.id),
-    getCoproRepository().list(g.id),
   ]);
   const etats = new Map(etatsListe.map((e) => [e.emailId, e]));
 
-  let mails: MailEntrant[];
-  let dossiers: MesEmails["dossiers"] = triage.dossiers;
-  let nbMailsAnalyses: number;
-  let dateCourante: string;
-
-  if (triage.mails.length > 0) {
-    // Triage live : la boite du gestionnaire connecte, deja a lui. Pas de filtre
-    // portefeuille (tout lui appartient).
-    mails = triage.mails;
-    nbMailsAnalyses = triage.nbMailsAnalyses;
-    dateCourante = triage.syncAt ? `synchronisé le ${triage.syncAt.slice(0, 10)}` : "";
-  } else {
-    // Repli : triage fichier/mock (archive multi-copros) -> cloisonnement par portefeuille.
-    const brut = await getMesEmailsProvider().getMesEmails(g.id);
-    const miennes = new Set(mesCopros.map((c) => c.code));
-    mails = brut.mails.filter((m) => miennes.has(m.coproCode));
-    dossiers = brut.dossiers.filter((d) => miennes.has(d.coproCode));
-    nbMailsAnalyses = brut.nbMailsAnalyses;
-    dateCourante = brut.dateCourante;
-  }
-
-  mails = mails.map((m) => alleger(appliquerEtat(m, etats.get(m.id))));
+  // Pas de filtre portefeuille : la boite personnelle est deja celle du connecte, et
+  // une boite partagee est par nature multi-copros (c'est ce qu'on vient chercher).
+  const mails = triage.mails.map((m) => appliquerEtat(m, etats.get(m.id)));
 
   return {
     gestionnaire: { nomComplet: g.nomComplet, initiales: g.initiales },
-    nbMailsAnalyses,
-    dateCourante,
+    boites,
+    nbMailsAnalyses: triage.nbMailsAnalyses,
+    // Lecture live : plus de date de synchro a afficher (elle ne pouvait qu'etre perimee).
+    dateCourante: "",
     mails,
-    dossiers,
+    dossiers: triage.dossiers,
     contextes: await enrichirContextes(mails, new Set(mesCopros.map((c) => c.code))),
     coprosDuGestionnaire: mesCopros.map((c) => ({ code: c.code, nom: c.nom })),
   };
-}
-
-/** Longueur de l'extrait envoye avec la liste : assez pour l'apercu, pas la boite entiere. */
-const EXTRAIT = 240;
-
-/** La liste ne porte qu'un extrait du corps ; le complet se charge a l'ouverture (lire-corps). */
-function alleger(m: MailEntrant): MailEntrant {
-  if (m.corps.length <= EXTRAIT) return m;
-  return { ...m, corps: m.corps.slice(0, EXTRAIT), corpsTronque: true };
 }
 
 /** Applique l'etat persiste sur un mail : statut, etapes cochees, brouillon/rattachement edites, lu. */

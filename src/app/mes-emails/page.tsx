@@ -5,14 +5,14 @@ import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session"
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
-import { synchroniserAction } from "./actions";
-import { BoutonSynchro } from "./bouton-synchro";
+import { rafraichirAction } from "./actions";
+import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Mes e-mails - REAL31 Intranet" };
 
-// Tri issu d'un backtest : rendu a la demande (pas de prerender statique).
+// Lecture LIVE des boites a chaque affichage (plus de synchro) : rendu a la demande.
 export const dynamic = "force-dynamic";
 
 export default async function MesEmailsPage() {
@@ -26,14 +26,12 @@ export default async function MesEmailsPage() {
   return (
     <AppShell user={g} active="emails" breadcrumb="Mes e-mails">
       <Page largeur="travail">
-        <form action={synchroniserAction} className="flex items-center justify-end gap-3">
-          {data.dateCourante ? (
-            <span className="text-body text-ink-2">{data.dateCourante}</span>
-          ) : null}
+        <form action={rafraichirAction} className="flex items-center justify-end gap-3">
+          <span className="text-meta text-ink-3">Lecture en direct des boîtes</span>
           <ButtonLink href="/mes-emails/composer" variant="secondary" size="sm">
             Composer un e-mail
           </ButtonLink>
-          <BoutonSynchro />
+          <BoutonRafraichir />
         </form>
         <MesEmailsVue data={data} signatureHtml={signatureHtml} />
       </Page>
