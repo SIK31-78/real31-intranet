@@ -43,6 +43,7 @@ async function monter(position: PositionMail | null) {
     assurerDossier: async () => ({ folderId: "x" }),
     deplacer: async () => ({ messageId: "x" }),
     remettreEnReception: async () => ({ messageId: "x" }),
+    supprimer: async () => ({ messageId: "x" }),
     etiqueter: async (_b, mid, p) => {
       appels.push(`${mid} +${(p.ajouter ?? []).join(",")} -${(p.retirer ?? []).join(",")}`);
     },

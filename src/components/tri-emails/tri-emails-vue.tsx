@@ -29,6 +29,7 @@ import {
   preciserCoproAction,
   rangerMailAction,
   retirerAssistantAction,
+  supprimerMailAction,
 } from "@/app/tri-emails/actions";
 import { Badge, type BadgeTon } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,17 @@ function pastille(m: MailDeLaFile): string {
   if (s.nature === "plusieurs") return `${s.candidats.length} copros possibles`;
   if (s.nature === "hors-estale") return "Hors périmètre";
   return "Aucune piste";
+}
+
+// Type MIME fiable d'une pièce jointe : l'extension du nom prime sur ce que Graph déclare
+// (il renvoie souvent « application/octet-stream » pour un PDF ou une image).
+const MIME_PAR_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+};
+function mimePieceJointe(nom: string, declare: string | undefined): string {
+  const ext = nom.toLowerCase().split(".").pop() ?? "";
+  return MIME_PAR_EXT[ext] ?? declare ?? "application/octet-stream";
 }
 
 const heure = (iso: string) =>
@@ -125,6 +137,25 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
       setMasques((m) => new Set(m).add(mail.id));
       if (r.donnees) setDernier({ ...r.donnees, objet: mail.objet, mailId: mail.id });
       if (r.donnees?.etiquetteNonPosee) toast.warn("Mail rangé, mais l'étiquette n'a pas pu être posée : ajoute-la dans Outlook.");
+      router.refresh();
+    });
+  }
+
+  function supprimer(mail: MailDeLaFile) {
+    demarrer(async () => {
+      const r = await supprimerMailAction({
+        messageId: mail.id,
+        internetMessageId: mail.internetMessageId,
+        expediteur: mail.deAdresse,
+        objet: mail.objet,
+        suggestion: { nature: mail.suggestion.nature, candidats: mail.suggestion.candidats },
+      });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      setMasques((m) => new Set(m).add(mail.id));
+      if (r.donnees) setDernier({ ...r.donnees, objet: mail.objet, mailId: mail.id });
       router.refresh();
     });
   }
@@ -194,7 +225,7 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
       </TabList>
       {onglet === "file" && (
         <TabPanel id="tri-p-file" tabId="tri-t-file">
-          <FileVue copros={file.copros} dossiers={file.dossiers} mails={mails} enCours={enCours} ranger={ranger} />
+          <FileVue copros={file.copros} dossiers={file.dossiers} mails={mails} enCours={enCours} ranger={ranger} supprimer={supprimer} />
         </TabPanel>
       )}
       {onglet === "journal" && (
@@ -217,12 +248,14 @@ function FileVue({
   mails,
   enCours,
   ranger,
+  supprimer,
 }: {
   copros: CoproDeLaFile[];
   dossiers: DossierChoisissable[];
   mails: MailDeLaFile[];
   enCours: boolean;
   ranger: (mail: MailDeLaFile, cible: CibleTri) => void;
+  supprimer: (mail: MailDeLaFile) => void;
 }) {
   const [courantId, setCourantId] = useState<string | null>(mails[0]?.id ?? null);
   const [filtre, setFiltre] = useState("");
@@ -314,6 +347,7 @@ function FileVue({
           choisir={(ref) => setChoix((c) => ({ ...c, [courant.id]: ref }))}
           enCours={enCours}
           ranger={(cible) => ranger(courant, cible)}
+          supprimer={() => supprimer(courant)}
         />
       ) : (
         <EmptyState>Sélectionnez un mail dans la file.</EmptyState>
@@ -331,6 +365,7 @@ function DetailMail({
   choisir,
   enCours,
   ranger,
+  supprimer,
 }: {
   mail: MailDeLaFile;
   copros: CoproDeLaFile[];
@@ -340,6 +375,7 @@ function DetailMail({
   choisir: (ref: string) => void;
   enCours: boolean;
   ranger: (cible: CibleTri) => void;
+  supprimer: () => void;
 }) {
   const [recherche, setRecherche] = useState("");
   const s = mail.suggestion;
@@ -503,6 +539,9 @@ function DetailMail({
           </Button>
           <Button variant="ghost" disabled={enCours} onClick={() => ranger({ type: "divers" })}>
             Divers
+          </Button>
+          <Button variant="ghost" disabled={enCours} onClick={supprimer} className="ml-auto text-err-700 hover:bg-err-50">
+            Supprimer
           </Button>
         </div>
         <RangerAilleurs
@@ -716,7 +755,9 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
       return;
     }
     const octets = Uint8Array.from(atob(r.donnees.base64), (c) => c.charCodeAt(0));
-    const type = r.donnees.type || "application/octet-stream";
+    // Graph étiquette souvent un PDF en « application/octet-stream » : l'extension prime,
+    // sinon ni le blob ni la visionneuse ne l'ouvrent en aperçu (constat du 13/10/2026).
+    const type = mimePieceJointe(r.donnees.nom, r.donnees.type);
     setApercu({ nom: r.donnees.nom, type, url: URL.createObjectURL(new Blob([octets], { type })) });
   }
 

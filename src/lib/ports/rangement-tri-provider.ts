@@ -32,6 +32,8 @@ export interface RangementTriProvider {
   deplacer(boite: string, messageId: string, folderId: string): Promise<{ messageId: string }>;
   /** Remet le mail dans la boite de reception (annulation). */
   remettreEnReception(boite: string, messageId: string): Promise<{ messageId: string }>;
+  /** Met le mail a la corbeille (dossier Elements supprimes, recuperable) ; renvoie son nouvel id. */
+  supprimer(boite: string, messageId: string): Promise<{ messageId: string }>;
   /** Ajoute et/ou retire des categories Outlook (codes copro), sans toucher aux autres. */
   etiqueter(boite: string, messageId: string, p: { ajouter?: string[]; retirer?: string[] }): Promise<void>;
   /** Retrouve un mail dans toute la boite par son internetMessageId ; null s'il n'y est plus. */

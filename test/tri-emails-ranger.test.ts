@@ -40,6 +40,10 @@ function fauxGraph(enReception = true) {
       appels.push(`remettre ${id}`);
       return { messageId: `${id}-remis` };
     },
+    async supprimer(_b, id) {
+      appels.push(`supprimer ${id}`);
+      return { messageId: `${id}-corbeille` };
+    },
     async etiqueter(_b, id, p) {
       appels.push(`etiqueter ${id} +${(p.ajouter ?? []).join(",")} -${(p.retirer ?? []).join(",")}`);
     },

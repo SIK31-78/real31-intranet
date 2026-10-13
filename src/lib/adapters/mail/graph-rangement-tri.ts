@@ -98,6 +98,11 @@ export class GraphRangementTri implements RangementTriProvider {
     return this.deplacer(boite, messageId, "inbox");
   }
 
+  async supprimer(boite: string, messageId: string): Promise<{ messageId: string }> {
+    // A la corbeille, pas de suppression definitive : un deplacement vers « deleteditems ».
+    return this.deplacer(boite, messageId, "deleteditems");
+  }
+
   async etiqueter(boite: string, messageId: string, p: { ajouter?: string[]; retirer?: string[] }): Promise<void> {
     const url = `${u(boite)}/messages/${encodeURIComponent(messageId)}`;
     const m = await json<{ categories?: string[] }>(await appel(`${url}?$select=categories`), "categories");

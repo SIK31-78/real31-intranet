@@ -28,4 +28,8 @@ export class SimulationRangementTri implements RangementTriProvider {
   async remettreEnReception(_boite: string, messageId: string): Promise<{ messageId: string }> {
     return { messageId };
   }
+
+  async supprimer(_boite: string, messageId: string): Promise<{ messageId: string }> {
+    return { messageId };
+  }
 }

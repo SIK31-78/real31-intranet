@@ -15,6 +15,10 @@ export function VisionneusePj({
   onFermer: () => void;
 }) {
   if (!apercu) return null;
+  // Tolérant : Graph peut mal étiqueter un PDF ; on se fie aussi à l'extension du nom.
+  const nom = apercu.nom.toLowerCase();
+  const estPdf = apercu.type.includes("pdf") || nom.endsWith(".pdf");
+  const estImage = apercu.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(nom);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
@@ -44,9 +48,9 @@ export function VisionneusePj({
           </div>
         </div>
         <div className="flex-1 min-h-0 bg-surface-2">
-          {apercu.type === "application/pdf" ? (
+          {estPdf ? (
             <iframe src={apercu.url} title={apercu.nom} className="w-full h-full" />
-          ) : apercu.type.startsWith("image/") ? (
+          ) : estImage ? (
             <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={apercu.url} alt={apercu.nom} className="max-w-full max-h-full object-contain" />

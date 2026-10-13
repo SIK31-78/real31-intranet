@@ -180,6 +180,49 @@ export async function rangerMail(
   return { journalId, dossierNom: nom, simulation: deps.simulation, etiquetteNonPosee: !etiquetee };
 }
 
+/** Dossier « corbeille » du journal : un mail supprime (newsletter, spam) mis aux elements supprimes. */
+export const CORBEILLE_CLE = "corbeille";
+const CORBEILLE_NOM = "Corbeille";
+
+/**
+ * Supprime un mail de la file : a la corbeille (elements supprimes, recuperable), journalise.
+ * En simulation (ecriture coupee), rien ne bouge dans la boite : le mail est juste retire de
+ * la file et journalise. Annulable comme un rangement (annulerRangement).
+ */
+export async function supprimerMail(
+  d: Pick<DemandeRangement, "messageId" | "internetMessageId" | "expediteur" | "objet" | "suggestion">,
+  par: string,
+  deps: DepsRangement = depsParDefaut(),
+): Promise<ResultatRangement> {
+  const boite = deps.boite;
+  if (!boite) throw new Error("Le tri des e-mails n'est pas configuré.");
+
+  const lu = await deps.rangement.lireEnReception(boite, d.messageId);
+  if (!lu) throw new Error("Ce mail n'est plus dans la boîte de réception : quelqu'un l'a sans doute déjà rangé.");
+  const internetMessageId = lu.internetMessageId || d.internetMessageId;
+  if ((await deps.repo.dejaRanges(boite, [internetMessageId])).size > 0) {
+    throw new Error("Ce mail a déjà été rangé.");
+  }
+
+  const { messageId } = await deps.rangement.supprimer(boite, d.messageId);
+  const journalId = await deps.repo.journaliser({
+    boite,
+    internetMessageId,
+    messageId,
+    expediteur: lu.expediteur || d.expediteur,
+    objet: lu.objet || d.objet,
+    coproReference: null,
+    copros: [],
+    dossierNom: CORBEILLE_NOM,
+    dossierCle: CORBEILLE_CLE,
+    signal: d.suggestion?.nature ?? null,
+    candidats: d.suggestion?.candidats ?? [],
+    simulation: deps.simulation,
+    par,
+  });
+  return { journalId, dossierNom: CORBEILLE_NOM, simulation: deps.simulation, etiquetteNonPosee: false };
+}
+
 /** Annule un rangement : le mail revient dans la boite de reception, sans son etiquette. */
 export async function annulerRangement(
   journalId: string,

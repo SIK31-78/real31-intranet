@@ -9,7 +9,7 @@ import { z } from "zod";
 import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { estSuperAdmin } from "@/lib/auth/session";
-import { annulerRangement, preciserCopro, rangerMail } from "@/lib/services/tri-emails/ranger";
+import { annulerRangement, preciserCopro, rangerMail, supprimerMail } from "@/lib/services/tri-emails/ranger";
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
 import { lirePieceJointeTri, listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
@@ -46,6 +46,26 @@ export async function rangerMailAction(
   return actionGestionnaire(zRanger, input, "tri-emails-ranger", async (d, g) => {
     gardePilote(g.email);
     const r = await rangerMail(d, g.email ?? g.id);
+    oublierCompteur();
+    revalidatePath("/tri-emails");
+    return r;
+  });
+}
+
+const zSupprimer = z.object({
+  messageId: z.string().min(1).max(400),
+  internetMessageId: zTexte(400),
+  expediteur: zTexte(320),
+  objet: zTexte(500),
+  suggestion: z.object({ nature: zNature, candidats: z.array(z.string().max(10)).max(20) }).nullable(),
+});
+
+export async function supprimerMailAction(
+  input: unknown,
+): Promise<Res<{ journalId: string; dossierNom: string; simulation: boolean; etiquetteNonPosee: boolean }>> {
+  return actionGestionnaire(zSupprimer, input, "tri-emails-supprimer", async (d, g) => {
+    gardePilote(g.email);
+    const r = await supprimerMail(d, g.email ?? g.id);
     oublierCompteur();
     revalidatePath("/tri-emails");
     return r;
