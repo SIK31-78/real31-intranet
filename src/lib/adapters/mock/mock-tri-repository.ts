@@ -41,11 +41,11 @@ export class MockTriRepository implements TriRepository {
       .filter(([k]) => k.startsWith(`${boite}|`))
       .map(([k, d]) => ({ cle: k.slice(boite.length + 1), ...d }));
   }
-  async majCopro(id: string, reference: string) {
+  async majCopro(id: string, reference: string | null) {
     const e = this.journal.find((x) => x.id === id);
     if (e) {
       e.coproReference = reference;
-      e.copros = [reference];
+      e.copros = reference ? [reference] : [];
     }
   }
   async journaliser(e: NouvelleEntreeJournal): Promise<string> {

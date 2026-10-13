@@ -148,8 +148,11 @@ export class SupabaseTriRepository implements TriRepository {
     return ((data ?? []) as { cle: string; folder_id: string; nom: string }[]).map((r) => ({ cle: r.cle, folderId: r.folder_id, nom: r.nom }));
   }
 
-  async majCopro(id: string, reference: string) {
-    const { error } = await createSupabasePublicClient().from("intranet_tri_journal").update({ copro_reference: reference, copros: [reference] }).eq("id", id);
+  async majCopro(id: string, reference: string | null) {
+    const { error } = await createSupabasePublicClient()
+      .from("intranet_tri_journal")
+      .update({ copro_reference: reference, copros: reference ? [reference] : [] })
+      .eq("id", id);
     if (error) throw erreur("journal", error);
   }
 

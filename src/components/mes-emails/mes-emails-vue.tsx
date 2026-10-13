@@ -269,7 +269,10 @@ export function MesEmailsVue({
   const choisirCopro = (m: MailEntrant, code: string) => {
     const nom = code ? ((data.coprosDuGestionnaire ?? []).find((c) => c.code === code)?.nom ?? code) : "";
     setCoprosChoisies((p) => new Map(p).set(m.id, { code, nom }));
-    void rattacherCoproAction(m.id, code, nom);
+    void rattacherCoproAction(m.id, code, nom, boiteDuMail(m)).then((r) => {
+      if (!r.ok) setMsgClasser(r.message ?? "La copro n'a pas pu être enregistrée.");
+      else if (r.message) setMsgClasser(r.message);
+    });
   };
 
   async function creerBrouillon(m: MailEntrant) {

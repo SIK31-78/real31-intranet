@@ -19,8 +19,8 @@ export interface TriRepository {
   enregistrerDossier(boite: string, cle: string, d: { folderId: string; nom: string }): Promise<void>;
   /** Tous les dossiers deja crees dans cette boite. */
   dossiers(boite: string): Promise<DossierConnu[]>;
-  /** Precise la copro d'une ligne de journal (« copro a preciser »). */
-  majCopro(id: string, reference: string): Promise<void>;
+  /** Precise ou corrige la copro d'une ligne de journal ; null = sans copro. */
+  majCopro(id: string, reference: string | null): Promise<void>;
   journaliser(e: NouvelleEntreeJournal): Promise<string>;
   entree(id: string): Promise<EntreeJournalTri | null>;
   /** Les rangements non annules depuis cette date, les plus recents d'abord. */

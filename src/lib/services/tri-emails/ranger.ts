@@ -7,6 +7,7 @@
 
 import {
   DOSSIERS_HORS_BINOME,
+  cleDeReference,
   destinationDe,
   dossiersChoisissables,
   lignesBinomes,
@@ -265,4 +266,50 @@ export async function preciserCopro(
     if (pos) await etiqueterSansBloquer(deps, e.boite, pos.messageId, { ajouter: [reference] });
   }
   await deps.repo.majCopro(journalId, reference);
+}
+
+/** Le journal du tri garde 45 jours (meme fenetre que la distribution aux binomes). */
+const FENETRE_CORRECTION_JOURS = 45;
+
+/**
+ * Corrige la copro d'un mail deja distribue, depuis « E-mails » : le journal du tri prend la
+ * nouvelle copro (c'est lui qui fait foi pour les collegues du binome, et qui mesure la
+ * fiabilite des suggestions), et l'etiquette Outlook suit si l'ecriture est ouverte.
+ * Le mail ne change PAS de dossier : si la nouvelle copro releve d'un autre binome, on le
+ * signale (`autreDossier`), on ne deplace rien dans la vraie boite.
+ * `code` : le code saisi (S247 ou S0247), vide = retirer la copro.
+ */
+export async function corrigerCopro(
+  boite: string,
+  internetMessageId: string,
+  code: string,
+  deps: DepsRangement = depsParDefaut(),
+): Promise<{ corrige: boolean; autreDossier?: string }> {
+  const depuis = new Date(Date.now() - FENETRE_CORRECTION_JOURS * 86_400_000).toISOString();
+  const e = (await deps.repo.journalDepuis(boite, depuis)).find((x) => x.internetMessageId === internetMessageId);
+  if (!e) return { corrige: false };
+
+  let reference: string | null = null;
+  if (code) {
+    const cle = cleDeReference(code);
+    const copro = (await deps.referentiel.charger()).copros.find((c) => cleDeReference(c.reference) === cle);
+    if (!copro) throw new Error(`La copropriété ${code} n'est pas dans ESTALE.`);
+    reference = copro.reference;
+  }
+  if (reference === e.coproReference) return { corrige: false };
+
+  if (!e.simulation && !deps.simulation) {
+    const pos = await deps.rangement.localiser(e.boite, e.internetMessageId);
+    if (pos) {
+      await etiqueterSansBloquer(deps, e.boite, pos.messageId, {
+        ...(reference ? { ajouter: [reference] } : {}),
+        ...(e.copros.length ? { retirer: e.copros.filter((c) => c !== reference) } : {}),
+      });
+    }
+  }
+  await deps.repo.majCopro(e.id, reference);
+
+  if (!reference || !e.dossierCle?.startsWith("binome:")) return { corrige: true };
+  const attendu = await resoudreDossier({ type: "copro", reference }, deps).catch(() => null);
+  return attendu && attendu.cle !== e.dossierCle ? { corrige: true, autreDossier: attendu.nom } : { corrige: true };
 }

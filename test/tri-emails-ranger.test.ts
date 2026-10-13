@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
 import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { ReferentielTri } from "@/lib/domain/tri-emails";
-import { annulerRangement, rangerMail, type DemandeRangement, type DepsRangement } from "@/lib/services/tri-emails/ranger";
+import { annulerRangement, corrigerCopro, rangerMail, type DemandeRangement, type DepsRangement } from "@/lib/services/tri-emails/ranger";
 
 const BOITE = "copro2@real31.fr";
 
@@ -189,5 +189,54 @@ describe("annulerRangement", () => {
     const repo = new MockTriRepository();
     const r = await rangerMail(demande({ cible: { type: "divers" } }), "a", deps({ rangement: g, repo }));
     await expect(annulerRangement(r.journalId, "a", deps({ rangement: g, repo, simulation: true }))).rejects.toThrow(/coupée/);
+  });
+});
+
+describe("corrigerCopro (changement de copro depuis « E-mails »)", () => {
+  const REF_OCEANE: ReferentielTri = {
+    ...REF,
+    copros: [
+      ...REF.copros,
+      { reference: "S0310", nom: "Les Tilleuls", adresse: "", gestionnaire: { nomComplet: "Océane", email: "oceane@real31.fr" }, assistant: null },
+    ],
+  };
+
+  it("met le journal à jour, déplace l'étiquette, et signale un autre dossier de binôme sans déplacer le mail", async () => {
+    const { g, appels } = fauxGraph();
+    const d = deps({ rangement: g, referentiel: { charger: async () => REF_OCEANE } });
+    await rangerMail(demande(), "a", d);
+    appels.length = 0;
+
+    const r = await corrigerCopro(BOITE, "<m1>", "S310", d);
+
+    expect(r.corrige).toBe(true);
+    expect(r.autreDossier).toBe("OR");
+    const [e] = await d.repo.journalDepuis(BOITE, "2000-01-01");
+    expect(e?.coproReference).toBe("S0310");
+    expect(e?.copros).toEqual(["S0310"]);
+    expect(appels).toEqual(["localiser <m1>", "etiqueter m1-deplace +S0310 -S0297"]);
+    expect(appels.some((a) => a.startsWith("deplacer"))).toBe(false);
+  });
+
+  it("retire la copro (code vide) et ne touche pas la boîte en simulation", async () => {
+    const { g, appels } = fauxGraph();
+    const d = deps({ rangement: g, simulation: true });
+    await rangerMail(demande(), "a", d);
+    appels.length = 0;
+
+    expect(await corrigerCopro(BOITE, "<m1>", "", d)).toEqual({ corrige: true });
+    const [e] = await d.repo.journalDepuis(BOITE, "2000-01-01");
+    expect(e?.coproReference).toBeNull();
+    expect(e?.copros).toEqual([]);
+    expect(appels).toEqual([]);
+  });
+
+  it("ne fait rien si la copro ne change pas ou si le mail n'est pas au journal ; refuse une copro inconnue", async () => {
+    const { g } = fauxGraph();
+    const d = deps({ rangement: g });
+    await rangerMail(demande(), "a", d);
+    expect(await corrigerCopro(BOITE, "<m1>", "S297", d)).toEqual({ corrige: false });
+    expect(await corrigerCopro(BOITE, "<absent>", "S305", d)).toEqual({ corrige: false });
+    await expect(corrigerCopro(BOITE, "<m1>", "S999", d)).rejects.toThrow("pas dans ESTALE");
   });
 });

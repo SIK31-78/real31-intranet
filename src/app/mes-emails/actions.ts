@@ -24,6 +24,7 @@ import type { Rattachement } from "@/lib/domain/mes-emails";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { envoiMailActif } from "@/lib/domain/mail-gate";
 import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
+import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
@@ -427,15 +428,21 @@ export async function rattacherCoproAction(
   emailId: string,
   coproCode: string,
   coproNom: string,
+  boite?: string,
 ): Promise<{ ok: boolean; message?: string }> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, coproNom: zCourt }).safeParse({ emailId, coproCode, coproNom }).success)
+  if (!z.object({ emailId: zId, coproCode: zCopro, coproNom: zCourt, boite: zBoite }).safeParse({ emailId, coproCode, coproNom, boite }).success)
     return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
   try {
     await enregistrerCopro(cibleDe(auth.g, emailId, coproCode), coproNom);
+    // Boîte partagée : le journal du tri suit (vu par tout le binôme, mesure du tri).
+    const tri = boite ? await reporterCoproAuTri(auth.g, boite, emailId, coproCode) : { corrige: false };
     revalidatePath("/mes-emails");
-    return { ok: true };
+    if (tri.autreDossier) {
+      return { ok: true, message: `Copro corrigée dans le tri. Elle relève du dossier ${tri.autreDossier} : le mail n'a pas été déplacé.` };
+    }
+    return { ok: true, ...(tri.corrige ? { message: "Copro corrigée aussi dans le tri." } : {}) };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
