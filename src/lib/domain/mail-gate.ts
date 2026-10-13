@@ -73,3 +73,23 @@ export function debutTri(): string | null {
 export function ecritureTriActive(): boolean {
   return (process.env.MAIL_TRI_ECRITURE ?? "").trim().toLowerCase() === "on";
 }
+
+/**
+ * L'ENVOI réel d'un mail (réponse ou mail neuf) est-il autorisé ? Seulement si MAIL_ENVOI=on.
+ * Garde-fou dédié, séparé de MAIL_SOURCE (qui ne fait que brancher Graph en lecture) : tant
+ * que ce flag est coupé, le compositeur reste en aperçu / brouillon, aucun mail ne part.
+ * Même esprit qu'ecritureTriActive() pour le tri (ADR-046/047).
+ */
+export function envoiMailActif(): boolean {
+  return (process.env.MAIL_ENVOI ?? "").trim().toLowerCase() === "on";
+}
+
+/**
+ * Adresse de la boîte "robot facture" d'ESTALE : on lui transmet une facture avec sa
+ * codification comptable (ex. « 601000 - DGP NETTOYAGE - Entretien EV »). Inconnue tant
+ * que la DSI/compta ne l'a pas donnée -> le bouton compose le mail mais ne peut pas l'envoyer.
+ */
+export function robotFactureEstale(): string | null {
+  const brut = (process.env.MAIL_ROBOT_FACTURE_ESTALE ?? "").trim().toLowerCase();
+  return brut || null;
+}
