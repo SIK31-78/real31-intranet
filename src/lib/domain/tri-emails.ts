@@ -27,6 +27,8 @@ export interface CoproTri {
   assistant: MembreTri | null;
   /** D'ou vient la copro : ESTALE, ou le referentiel de l'intranet pour une copro Crypto. */
   source?: SourceTri;
+  /** Numero d'immatriculation au Registre National des Coproprietes (ex "AA6459523"), s'il est connu. */
+  immatriculation?: string;
 }
 
 export type SourceTri = "estale" | "crypto";
@@ -80,7 +82,7 @@ export function fusionnerReferentiels(
     parCle.set(
       cle,
       deja
-        ? { ...deja, gestionnaire: deja.gestionnaire ?? c.gestionnaire, assistant: deja.assistant ?? c.assistant, adresse: deja.adresse || c.adresse }
+        ? { ...deja, gestionnaire: deja.gestionnaire ?? c.gestionnaire, assistant: deja.assistant ?? c.assistant, adresse: deja.adresse || c.adresse, immatriculation: deja.immatriculation ?? c.immatriculation }
         : { ...c, source: "crypto" },
     );
   }
@@ -170,6 +172,23 @@ export function referencesCitees(texte: string): string[] {
     if (!vues.includes(cle)) vues.push(cle);
   }
   return vues;
+}
+
+// Numero d'immatriculation au Registre National des Coproprietes : 2 lettres + 6 a 8 chiffres
+// (ex "AA6459523"). Identifiant UNIQUE d'une copro : la reconnaitre vaut un indice sur. Les
+// mails de l'ANAH (anah.gouv.fr) le citent systematiquement (40 % d'une boite comme syndic1).
+const MOTIF_IMMATRICULATION = /\b([A-Za-z]{2}\d{6,8})\b/g;
+
+/** References des copros dont l'immatriculation RNC est citee dans le texte (comparaison insensible a la casse). */
+export function coprosParImmatriculation(texte: string, copros: CoproTri[]): string[] {
+  const parImmat = new Map<string, string>();
+  for (const c of copros) if (c.immatriculation) parImmat.set(c.immatriculation.toUpperCase(), c.reference);
+  const refs: string[] = [];
+  for (const m of texte.matchAll(MOTIF_IMMATRICULATION)) {
+    const ref = parImmat.get(m[1]!.toUpperCase());
+    if (ref && !refs.includes(ref)) refs.push(ref);
+  }
+  return refs;
 }
 
 // Mots trop courants pour identifier une copro : type de voie, articles, termes generiques
@@ -292,7 +311,7 @@ export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
     const cle = cleDeReference(c.reference);
     if (cle) parCle.set(cle, c);
   }
-  const refs: string[] = [];
+  const refs: string[] = [...coprosParImmatriculation(utile, copros)];
   for (const cle of referencesCitees(utile)) {
     const c = parCle.get(cle);
     if (c && !refs.includes(c.reference)) refs.push(c.reference);
@@ -323,6 +342,16 @@ export function suggererCopro(
   for (const c of ref.copros) {
     const cle = cleDeReference(c.reference);
     if (cle) parCle.set(cle, c);
+  }
+
+  // 0. Numero d'immatriculation RNC cite (objet ou corps) : identifiant unique -> indice sur.
+  // Les notifications de l'ANAH ne portent que ca (ni code, ni expediteur connu).
+  const immats = coprosParImmatriculation(`${mail.objet}\n${mail.apercu}`, ref.copros);
+  if (immats.length === 1) {
+    return { nature: "sure", candidats: immats, raison: `Numéro d'immatriculation de ${immats[0]} cité.` };
+  }
+  if (immats.length > 1) {
+    return { nature: "plusieurs", candidats: immats, raison: "Plusieurs numéros d'immatriculation cités." };
   }
 
   // 1. Code dans l'objet (le plus fiable : c'est souvent une reponse a nos propres mails).

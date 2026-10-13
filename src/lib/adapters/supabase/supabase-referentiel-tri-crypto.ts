@@ -20,6 +20,7 @@ type RowCopro = {
   address1: string | null;
   postalCode: string | null;
   city: string | null;
+  registrationNumber: string | null;
   managerId: string | null;
   assistantId: string | null;
 };
@@ -57,7 +58,7 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
 
     let q = sb
       .from("Copropriete")
-      .select("referenceCrypto, referenceEstale, name, address1, postalCode, city, managerId, assistantId")
+      .select("referenceCrypto, referenceEstale, name, address1, postalCode, city, registrationNumber, managerId, assistantId")
       .eq("status", "ACTIVE");
     if (agencyId) q = q.eq("agencyId", agencyId);
     const { data: lignes, error } = await q.returns<RowCopro[]>();
@@ -84,6 +85,7 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
         gestionnaire: (c.managerId && membres.get(c.managerId)) || null,
         assistant: (c.assistantId && membres.get(c.assistantId)) || null,
         source: "crypto",
+        ...(c.registrationNumber ? { immatriculation: c.registrationNumber.trim() } : {}),
       });
     }
 

@@ -99,6 +99,16 @@ describe("suggererCopro", () => {
     });
   });
 
+  it("reconnaît une copro par son numéro d'immatriculation RNC (indice sûr, cas ANAH)", () => {
+    const ref: ReferentielTri = {
+      copros: [{ reference: "S302", nom: "GABRIEL PERI", adresse: "", gestionnaire: null, assistant: null, immatriculation: "AA6459523" }],
+      expediteurs: {},
+    };
+    const s = suggererCopro(mail({ deAdresse: "nepasrepondre.registre-coproprietes@anah.gouv.fr", apercu: "la copropriété 44/50 RUE GABRIEL PERI (numéro de copropriété : AA6459523 )" }), ref);
+    expect(s).toMatchObject({ nature: "sure", candidats: ["S302"] });
+    expect(s.raison).toContain("immatriculation");
+  });
+
   it("reconnait une copro par le nom de l'immeuble cite (indice faible)", () => {
     const ref: ReferentielTri = {
       copros: [
