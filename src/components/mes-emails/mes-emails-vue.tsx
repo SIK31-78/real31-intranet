@@ -43,6 +43,7 @@ import {
   LIBELLE_TYPE,
   grouperDossiersBoite,
   mailsDeLaBoite,
+  sujetDeReponse,
   trierMails,
   trouverContexte,
   trouverDossier,
@@ -76,11 +77,6 @@ import {
 type Statut = "nouveau" | "repondu" | "classe";
 
 type Destinataires = { to: string[]; cc: string[]; cci: string[] };
-
-// Sujet par defaut d'une reponse : prefixe "Re:" si l'objet n'en a pas deja un.
-function defautSujet(m: MailEntrant): string {
-  return /^(re|ré|tr|fwd?)\s*:/i.test(m.objet.trim()) ? m.objet : `Re: ${m.objet}`;
-}
 
 // Destinataires par defaut d'une reponse : A = l'expediteur ; Cc = les autres
 // participants (To + Cc d'origine, dedupliques, sans l'expediteur) ; Cci vide.
@@ -225,7 +221,10 @@ export function MesEmailsVue({
     destParMail.get(m.id) ?? defautDestinataires(m);
   const majDest = (m: MailEntrant, champ: keyof Destinataires, valeurs: string[]) =>
     setDestParMail((p) => new Map(p).set(m.id, { ...destinatairesDe(m), [champ]: valeurs }));
-  const sujetDe = (m: MailEntrant): string => sujetParMail.get(m.id) ?? defautSujet(m);
+  const sujetDe = (m: MailEntrant): string => {
+    const c = coproDe(m);
+    return sujetParMail.get(m.id) ?? sujetDeReponse({ objet: m.objet, coproCode: c.code, coproNom: c.nom });
+  };
   /** Boite qui DETIENT le mail (repli sur la boite active : les fixtures sans `boite`). */
   const boiteDuMail = (m: MailEntrant): string => m.boite ?? boiteActive;
   const expediteurDe = (m: MailEntrant): string =>

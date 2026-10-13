@@ -64,3 +64,15 @@ describe("grouperDossiersBoite", () => {
     expect(g.autres.map((d) => d.nom)).toEqual(["Archives 2025", "Boîte de réception"]);
   });
 });
+
+describe("sujetDeReponse tagué copro (mail travaillé pour le tri)", () => {
+  it("ajoute le code et le nom de la copro quand l'objet ne les cite pas", () => {
+    expect(sujetDeReponse({ objet: "Fuite au 3e", coproCode: "S247", coproNom: "Le Cyrano" })).toBe("Re: S247 · Le Cyrano — Fuite au 3e");
+    expect(sujetDeReponse({ objet: "RE: Fuite au 3e", coproCode: "S247", coproNom: "" })).toBe("Re: S247 — Fuite au 3e");
+  });
+
+  it("ne double pas un code déjà cité (S0247 ≡ S247) et ne touche rien sans copro", () => {
+    expect(sujetDeReponse({ objet: "RE: [S0247] ODJ", coproCode: "S247", coproNom: "Le Cyrano" })).toBe("RE: [S0247] ODJ");
+    expect(sujetDeReponse({ objet: "Fuite", coproCode: "", coproNom: "" })).toBe("Re: Fuite");
+  });
+});

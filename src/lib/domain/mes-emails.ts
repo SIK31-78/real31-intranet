@@ -9,6 +9,7 @@
 import type { Severite } from "@/lib/domain/commun";
 import type { TypeDossier } from "@/lib/domain/dossier";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
+import { cleDeReference, referencesCitees } from "@/lib/domain/tri-emails";
 
 /** Ton du badge de priorite : rouge (urgent), ambre (a traiter), neutre (info). */
 export type UrgenceTon = "err" | "warn" | "neutral";
@@ -261,9 +262,21 @@ export function trouverContexte(contextes: ContexteCopro[], coproCode: string): 
 export type Destinataires = { to: string[]; cc: string[]; cci: string[] };
 
 /** Sujet par defaut d'une reponse : prefixe « Re: » si l'objet n'en a pas deja un (Re, Ré, TR, Fwd). */
-export function sujetDeReponse(m: Pick<MailEntrant, "objet">): string {
-  return /^(re|ré|tr|fwd?)\s*:/i.test(m.objet.trim()) ? m.objet : `Re: ${m.objet}`;
+export function sujetDeReponse(m: Pick<MailEntrant, "objet"> & Partial<Pick<MailEntrant, "coproCode" | "coproNom">>): string {
+  const objet = m.objet.trim();
+  const dejaRe = PREFIXE_REPONSE.test(objet);
+  // Mail travaillé pour le tri (13/10) : si le mail est rattaché à une copro et que son code
+  // n'est pas déjà dans l'objet, la réponse le porte -> la réponse du client reviendra avec,
+  // et le tri la reconnaîtra à coup sûr (« code dans l'objet »).
+  const cle = m.coproCode ? cleDeReference(m.coproCode) : null;
+  if (cle && !referencesCitees(objet).includes(cle)) {
+    const tag = `${m.coproCode!.trim()}${m.coproNom?.trim() ? ` · ${m.coproNom.trim()}` : ""}`;
+    return `Re: ${tag} — ${objet.replace(PREFIXE_REPONSE, "").trim()}`;
+  }
+  return dejaRe ? m.objet : `Re: ${m.objet}`;
 }
+
+const PREFIXE_REPONSE = /^(re|ré|tr|fwd?)\s*:\s*/i;
 
 /** Destinataires par defaut : A = l'expediteur ; Cc = To + Cc d'origine dedupliques, sans l'expediteur ; Cci vide. */
 export function destinatairesDeReponse(m: Pick<MailEntrant, "expediteurEmail" | "destinataires" | "copie">): Destinataires {
