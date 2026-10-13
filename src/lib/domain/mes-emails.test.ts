@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { destinatairesDeReponse, dossierOutlookSuggere, phraseRecommandation, sujetDeReponse } from "./mes-emails";
+import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, phraseRecommandation, sujetDeReponse } from "./mes-emails";
 
 // Les regles de la reponse a un mail vivaient dans 1 500 lignes de JSX, sans test.
 
@@ -46,5 +46,21 @@ describe("phraseRecommandation", () => {
     expect(phraseRecommandation(m, { statut: "existant", dossierLabel: "Fuite 3e" })).toBe("Répondre à M. Bardet et classer dans le dossier « Fuite 3e ».");
     expect(phraseRecommandation({ ...m, brouillonReponse: undefined }, { statut: "nouveau", dossierLabel: "Fuite 3e" })).toBe("Traiter et classer dans un nouveau dossier « Fuite 3e ».");
     expect(phraseRecommandation({ ...m, ticketable: false }, { statut: "nouveau", dossierLabel: "x" })).toBe("Aucune action requise - à classer pour information.");
+  });
+});
+
+describe("grouperDossiersBoite", () => {
+  it("met les sous-dossiers de la réception d'abord, retire les dossiers système, trie en français", () => {
+    const g = grouperDossiersBoite([
+      { id: "1", nom: "Éléments supprimés", niveau: 0 },
+      { id: "2", nom: "SK-CP", niveau: 1 },
+      { id: "3", nom: "Comptabilité", niveau: 1 },
+      { id: "4", nom: "Archives 2025", niveau: 0 },
+      { id: "5", nom: "Boîte de réception", niveau: 0 },
+      { id: "6", nom: "Brouillons", niveau: 0 },
+      { id: "7", nom: "Éléments envoyés", niveau: 0 },
+    ]);
+    expect(g.reception.map((d) => d.nom)).toEqual(["Comptabilité", "SK-CP"]);
+    expect(g.autres.map((d) => d.nom)).toEqual(["Archives 2025", "Boîte de réception"]);
   });
 });

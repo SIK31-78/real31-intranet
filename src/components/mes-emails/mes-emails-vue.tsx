@@ -41,6 +41,7 @@ import type {
 } from "@/lib/domain/mes-emails";
 import {
   LIBELLE_TYPE,
+  grouperDossiersBoite,
   mailsDeLaBoite,
   trierMails,
   trouverContexte,
@@ -1316,11 +1317,32 @@ function AnalysePane({
                     <option value="">
                       {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
                     </option>
-                    {(dossiers ?? []).map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.niveau > 0 ? `  ${d.nom}` : d.nom}
-                      </option>
-                    ))}
+                    {dossiers &&
+                      (() => {
+                        const { reception, autres } = grouperDossiersBoite(dossiers);
+                        return (
+                          <>
+                            {reception.length > 0 && (
+                              <optgroup label="Sous-dossiers de la réception">
+                                {reception.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.nom}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {autres.length > 0 && (
+                              <optgroup label="Autres dossiers">
+                                {autres.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.nom}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </>
+                        );
+                      })()}
                   </select>
                 </span>
               </div>

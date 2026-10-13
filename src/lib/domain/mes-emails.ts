@@ -26,6 +26,23 @@ export interface DossierBoite {
   niveau: number;
 }
 
+// Dossiers systeme d'Outlook : on n'y « classe » pas un mail (supprimer, ce n'est pas ranger).
+const DOSSIERS_SYSTEME = /^(éléments supprimés|deleted items|courrier indésirable|junk e-?mail|brouillons|drafts|éléments envoyés|sent items|boîte d'envoi|outbox|historique des conversations|conversation history|archive|flux rss|rss feeds|problèmes de synchronisation|sync issues)$/i;
+
+/**
+ * Le selecteur « Classer dans… » range les dossiers en deux groupes au lieu d'un tri
+ * alphabetique melant les niveaux (retour de Sekou, 13/10) : d'abord les SOUS-DOSSIERS DE
+ * LA RECEPTION (dossiers de binome, de travail), puis les autres dossiers racine. Les
+ * dossiers systeme (supprimes, envoyes, indesirables…) sont retires. Tri francais.
+ */
+export function grouperDossiersBoite(dossiers: readonly DossierBoite[]): { reception: DossierBoite[]; autres: DossierBoite[] } {
+  const tri = (a: DossierBoite, b: DossierBoite) => a.nom.localeCompare(b.nom, "fr", { sensitivity: "base" });
+  return {
+    reception: dossiers.filter((d) => d.niveau > 0).sort(tri),
+    autres: dossiers.filter((d) => d.niveau === 0 && !DOSSIERS_SYSTEME.test(d.nom.trim())).sort(tri),
+  };
+}
+
 /** Taxonomie de tete du tri (cf. assistant-ia/src/types.ts). */
 export type TypeMail =
   | "panne_intervention"
