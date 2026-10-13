@@ -18,6 +18,7 @@ import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission
 import {
   GROUPES_PRESTATION,
   LIBELLE_GROUPE,
+  calculerPrestation,
   PRESTATIONS_CONTRAT,
   prestationContrat,
 } from "@/lib/domain/facturation/prestations-contrat";
@@ -51,6 +52,9 @@ export function FormulairePrestationContrat({
   const [contexte, setContexte] = useState<{ tarifTtc: number; anneeBareme: number; tarifFige: boolean } | null>(null);
   const [erreurTarif, setErreurTarif] = useState<string | null>(null);
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
+  // Montant TTC : pre-rempli au calcul du bareme, MODIFIABLE (une AGE se negocie, comme
+  // l'etat date). Tant qu'on n'y touche pas, il suit le calcul.
+  const [montantSaisi, setMontantSaisi] = useState<string | null>(null);
 
   const prestation = code ? prestationContrat(code) : undefined;
 
@@ -80,7 +84,17 @@ export function FormulairePrestationContrat({
   // « 1 250 » lots ou « 1,5 » heure : meme lecture que les montants (REA-99).
   const q = lireMontant(quantite) ?? Number.NaN;
   const quantiteOk = !prestation || prestation.mode === "fixe" || (Number.isFinite(q) && q > 0);
-  const pret = Boolean(coproCode && prestation && quantiteOk && contexte);
+  const calcule = (() => {
+    if (!prestation || !contexte || !quantiteOk) return null;
+    try {
+      return calculerPrestation({ prestation, tarifTtc: contexte.tarifTtc, ...(prestation.mode !== "fixe" ? { quantite: q } : {}), ...(urgence ? { urgence: true } : {}) }).montantTtc;
+    } catch {
+      return null;
+    }
+  })();
+  const montantRetenu = montantSaisi === null ? null : lireMontant(montantSaisi);
+  const montantOk = montantSaisi === null || (montantRetenu !== null && montantRetenu >= 0);
+  const pret = Boolean(coproCode && prestation && quantiteOk && contexte && montantOk);
 
   function demande() {
     return {
@@ -91,6 +105,7 @@ export function FormulairePrestationContrat({
       ...(nomClient.trim() ? { nomClient: nomClient.trim() } : {}),
       ...(objet.trim() ? { objet: objet.trim() } : {}),
       ...(date ? { datePrestation: date } : {}),
+      ...(montantSaisi !== null && montantRetenu !== null ? { montantTtcRetenu: montantRetenu } : {}),
     };
   }
 
@@ -114,6 +129,7 @@ export function FormulairePrestationContrat({
       setNomClient("");
       setObjet("");
       setDate("");
+      setMontantSaisi(null);
       router.refresh();
     });
   }
@@ -125,7 +141,7 @@ export function FormulairePrestationContrat({
       <CardBody className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Copropriété" htmlFor="pc-copro">
-            <Select id="pc-copro" value={coproCode} onChange={(e) => setCoproCode(e.target.value)}>
+            <Select id="pc-copro" value={coproCode} onChange={(e) => { setCoproCode(e.target.value); setMontantSaisi(null); }}>
               <option value="">Choisir…</option>
               {copros.map((c) => (
                 <option key={c.code} value={c.code}>{c.code} · {c.nom}</option>
@@ -133,7 +149,7 @@ export function FormulairePrestationContrat({
             </Select>
           </Field>
           <Field label="Prestation" htmlFor="pc-prestation">
-            <Select id="pc-prestation" value={code} onChange={(e) => { setCode(e.target.value); setQuantite(""); setUrgence(false); }}>
+            <Select id="pc-prestation" value={code} onChange={(e) => { setCode(e.target.value); setQuantite(""); setUrgence(false); setMontantSaisi(null); }}>
               <option value="">Choisir…</option>
               {GROUPES_PRESTATION.map((g) => (
                 <optgroup key={g} label={LIBELLE_GROUPE[g]}>
@@ -166,6 +182,28 @@ export function FormulairePrestationContrat({
             </Field>
             <Field label="Date de la prestation" htmlFor="pc-date">
               <Input id="pc-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+            <Field
+              label="Montant TTC"
+              htmlFor="pc-montant"
+              {...(calcule !== null
+                ? {
+                    hint:
+                      montantSaisi !== null && montantRetenu !== null && Math.abs(montantRetenu - calcule) >= 0.005
+                        ? `Calcul du barème : ${formatEuros(calcule)} TTC. L'écart sera signalé à la validation et tracé sur la facture.`
+                        : "Calculé au barème. Modifiable : cette prestation peut se négocier.",
+                  }
+                : {})}
+              {...(!montantOk ? { erreur: "Montant illisible." } : {})}
+            >
+              <Input
+                id="pc-montant"
+                type="text"
+                inputMode="decimal"
+                value={montantSaisi ?? (calcule !== null ? calcule.toFixed(2).replace(".", ",") : "")}
+                onChange={(e) => setMontantSaisi(e.target.value)}
+                className="tabular-nums"
+              />
             </Field>
           </div>
         )}

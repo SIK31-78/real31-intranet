@@ -72,6 +72,23 @@ describe("creerFacturePrestationContrat", () => {
     await expect(creerFacturePrestationContrat({ coproCode: "S001", prestation: "nimporte" }, "m1")).rejects.toThrow(/Prestation inconnue/);
     await expect(creerFacturePrestationContrat({ coproCode: "S001", prestation: "hypotheque" }, "m1")).rejects.toThrow(/absent du bareme 2026/);
   });
+  it("montant modifie (AGE negociee) : facture au montant retenu, en une ligne, les deux montants traces", async () => {
+    // 28 lots x 12 € = 336 € TTC calcules ; on retient 240 € TTC = 200 € HT.
+    const r = await creerFacturePrestationContrat({ coproCode: "S001", prestation: "ag_supplementaire", quantite: 28, montantTtcRetenu: 240 }, "m1");
+    expect(r.montantHt).toBe(200);
+    expect(etat.creees[0]).toMatchObject({
+      details: { montantTtc: 336, montantTtcApplique: 240, negocie: true },
+      lignes: [{ quantite: 1, prixUnitaireHt: 200 }],
+    });
+    const a = await apercuPrestationContrat({ coproCode: "S001", prestation: "ag_supplementaire", quantite: 28, montantTtcRetenu: 240 }, "m1");
+    expect(a.montantTtc).toBe(240);
+    expect(a.details.find((d) => d.libelle === "Montant modifié")?.valeur).toMatch(/240/);
+  });
+  it("montant retenu egal au calcul : rien de change ; montant retenu a 0 : aucune facture", async () => {
+    await creerFacturePrestationContrat({ coproCode: "S001", prestation: "ag_supplementaire", quantite: 28, montantTtcRetenu: 336 }, "m1");
+    expect(etat.creees[0]).toMatchObject({ details: { negocie: false }, lignes: [{ quantite: 28 }] });
+    expect(await creerFacturePrestationContrat({ coproCode: "S001", prestation: "ag_supplementaire", quantite: 28, montantTtcRetenu: 0 }, "m1")).toEqual({ montantHt: 0, factureId: null });
+  });
   it("par lot sans quantite : erreur qui nomme l'unite attendue", async () => {
     await expect(creerFacturePrestationContrat({ coproCode: "S001", prestation: "ag_supplementaire" }, "m1")).rejects.toThrow(/indiquer le nombre de lot/);
   });

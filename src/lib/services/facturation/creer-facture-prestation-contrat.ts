@@ -13,6 +13,7 @@
 import { getFacturationRepository } from "@/lib/adapters/router";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import { calculerPrestation, prestationContrat, type PrestationContrat } from "@/lib/domain/facturation/prestations-contrat";
+import { htDepuisTtc } from "@/lib/domain/facturation/commun";
 import { aujourdhuiISO, exigerTarifTtc, resoudreContexteTarifaire } from "./bareme";
 import { formatEuros, formatJour } from "./format";
 import type { ApercuFacturation } from "./apercu";
@@ -31,6 +32,11 @@ export interface DemandeFacturePrestationContrat {
   objet?: string;
   /** Date de la prestation, ISO. */
   datePrestation?: string;
+  /**
+   * Montant TTC retenu quand il differe du calcul (une AGE se negocie, comme l'etat date :
+   * Mathilde, 13/10/2026). Absent = le montant calcule au bareme.
+   */
+  montantTtcRetenu?: number;
   par?: string;
 }
 
@@ -41,6 +47,10 @@ interface Prepare {
   tarifTtc: number;
   calcul: ReturnType<typeof calculerPrestation>;
   libelle: string;
+  /** Ce qui est facture : le calcul, ou le montant modifie. */
+  montantTtc: number;
+  montantHt: number;
+  modifie: boolean;
 }
 
 async function preparer(demande: DemandeFacturePrestationContrat, managerId: string): Promise<Prepare> {
@@ -56,6 +66,8 @@ async function preparer(demande: DemandeFacturePrestationContrat, managerId: str
     ...(demande.quantite !== undefined ? { quantite: demande.quantite } : {}),
     ...(demande.urgence ? { urgence: true } : {}),
   });
+  const montantTtc = demande.montantTtcRetenu ?? calcul.montantTtc;
+  const modifie = Math.abs(montantTtc - calcul.montantTtc) >= 0.005;
   const complements = [demande.objet?.trim(), demande.nomClient?.trim()].filter(Boolean);
   const libelle = complements.length > 0 ? `${prestation.libelle} - ${complements.join(" - ")}` : prestation.libelle;
   return {
@@ -65,6 +77,9 @@ async function preparer(demande: DemandeFacturePrestationContrat, managerId: str
     tarifTtc,
     calcul,
     libelle,
+    montantTtc,
+    montantHt: modifie ? htDepuisTtc(montantTtc) : calcul.montantHt,
+    modifie,
   };
 }
 
@@ -90,13 +105,15 @@ export async function apercuPrestationContrat(
       ...(calcul.majorationPct > 0
         ? [{ libelle: "Majoration d'urgence", valeur: `+${Math.round(calcul.majorationPct * 100)} %`, accent: "fort" as const }]
         : []),
-      { libelle: "Montant", valeur: `${formatEuros(calcul.montantTtc)} TTC`, accent: "fort" as const },
+      { libelle: p.modifie ? "Montant calculé" : "Montant", valeur: `${formatEuros(calcul.montantTtc)} TTC`, ...(p.modifie ? {} : { accent: "fort" as const }) },
+      // Une modification doit sauter aux yeux sur l'ecran de validation (comme l'etat date).
+      ...(p.modifie ? [{ libelle: "Montant modifié", valeur: `${formatEuros(p.montantTtc)} TTC`, accent: "fort" as const }] : []),
     ],
-    lignes: [{ description: p.libelle, montantHt: calcul.montantHt }],
-    montantHt: calcul.montantHt,
-    montantTtc: calcul.montantTtc,
-    rienAFacturer: calcul.montantTtc === 0,
-    ...(calcul.montantTtc === 0 ? { motifRienAFacturer: "Le tarif est nul : aucune facture ne sera créée." } : {}),
+    lignes: [{ description: p.libelle, montantHt: p.montantHt }],
+    montantHt: p.montantHt,
+    montantTtc: p.montantTtc,
+    rienAFacturer: p.montantTtc === 0,
+    ...(p.montantTtc === 0 ? { motifRienAFacturer: "Le montant retenu est nul : aucune facture ne sera créée." } : {}),
   };
 }
 
@@ -106,7 +123,7 @@ export async function creerFacturePrestationContrat(
 ): Promise<{ montantHt: number; factureId: string | null }> {
   const p = await preparer(demande, managerId);
   const { calcul } = p;
-  if (calcul.montantTtc === 0) return { montantHt: 0, factureId: null };
+  if (p.montantTtc === 0) return { montantHt: 0, factureId: null };
 
   const factureId = await getFacturationRepository().creerFacture({
     coproCode: demande.coproCode,
@@ -125,7 +142,10 @@ export async function creerFacturePrestationContrat(
       tarifTtc: p.tarifTtc,
       quantite: calcul.quantite,
       majorationPct: calcul.majorationPct,
+      // Les DEUX montants sont conserves : une modification reste auditable.
       montantTtc: calcul.montantTtc,
+      montantTtcApplique: p.montantTtc,
+      negocie: p.modifie,
       ...(demande.nomClient ? { nomClient: demande.nomClient } : {}),
       ...(demande.objet ? { objet: demande.objet } : {}),
     },
@@ -135,12 +155,13 @@ export async function creerFacturePrestationContrat(
         description: p.libelle,
         categorieProduit: p.prestation.categorieProduit,
         // La quantite est portee par la ligne : « 28 x 34,00 € » se lit sur la facture.
-        quantite: calcul.quantite,
-        prixUnitaireHt: calcul.unitaireHt,
+        // Montant modifie : une ligne au forfait (le prix unitaire ne voudrait plus rien dire).
+        quantite: p.modifie ? 1 : calcul.quantite,
+        prixUnitaireHt: p.modifie ? p.montantHt : calcul.unitaireHt,
       },
     ],
   });
-  return { montantHt: calcul.montantHt, factureId };
+  return { montantHt: p.montantHt, factureId };
 }
 
 /**

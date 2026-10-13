@@ -363,6 +363,7 @@ const zPrestationContrat = z.object({
   nomClient: z.string().trim().max(200).optional(),
   objet: z.string().trim().max(200).optional(),
   datePrestation: zJour.optional(),
+  montantTtcRetenu: z.number().min(0).max(1_000_000).optional(),
 });
 type DemandePrestationContrat = z.infer<typeof zPrestationContrat>;
 
@@ -375,6 +376,7 @@ function nettoyer(d: DemandePrestationContrat) {
     ...(d.nomClient ? { nomClient: d.nomClient } : {}),
     ...(d.objet ? { objet: d.objet } : {}),
     ...(d.datePrestation ? { datePrestation: d.datePrestation } : {}),
+    ...(d.montantTtcRetenu !== undefined ? { montantTtcRetenu: d.montantTtcRetenu } : {}),
   };
 }
 
