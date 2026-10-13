@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LayoutGrid, ExternalLink } from "lucide-react";
+import { classesBouton } from "@/components/ui/button";
 import { APPS_REAL31, OUTILS_TIERS, domaineDe, type LienApp } from "@/components/layout/liens-externes";
 
 // Lanceur d'applications (icone en damier de la topbar) : nos applications + les
@@ -20,11 +21,11 @@ function Tuile({ lien, onNavigue }: { lien: LienApp; onNavigue: () => void }) {
     >
       <Icon strokeWidth={1.5} className="w-4 h-4 mt-px shrink-0 text-ink-3" />
       <span className="min-w-0">
-        <span className="flex items-center gap-1 text-[12.5px] text-ink">
+        <span className="flex items-center gap-1 text-body text-ink">
           <span className="truncate">{lien.label}</span>
-          <ExternalLink strokeWidth={1.5} className="w-3 h-3 shrink-0 text-ink-4 group-hover:text-ink-3" />
+          <ExternalLink strokeWidth={1.5} className="w-3 h-3 shrink-0 text-ink-3 group-hover:text-ink-3" />
         </span>
-        <span className="block truncate text-[10.5px] text-ink-4">{domaineDe(lien.href)}</span>
+        <span className="block truncate text-meta text-ink-3">{domaineDe(lien.href)}</span>
       </span>
     </a>
   );
@@ -51,7 +52,7 @@ export function LanceurApps() {
         aria-expanded={open}
         aria-label="Applications et outils"
         title="Applications et outils"
-        className="flex items-center justify-center w-7 h-7 rounded-md border border-line bg-surface text-ink-3 hover:bg-surface-2 hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1"
+        className={classesBouton({ size: "sm", iconOnly: true })}
       >
         <LayoutGrid strokeWidth={1.5} className="w-3.5 h-3.5" />
       </button>
@@ -63,15 +64,15 @@ export function LanceurApps() {
           <div
             role="menu"
             aria-label="Applications et outils"
-            className="absolute right-0 mt-2 w-[290px] z-20 rounded-md border border-line bg-surface shadow-1 p-1.5"
+            className="absolute right-0 mt-2 w-[290px] z-20 rounded-lg border border-line bg-surface shadow-2 p-1.5"
           >
-            <p className="px-2 pt-1 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
+            <p className="px-2 pt-1 pb-1 text-meta font-medium uppercase tracking-[0.08em] text-ink-3">
               Nos applications
             </p>
             {APPS_REAL31.map((lien) => (
               <Tuile key={lien.label} lien={lien} onNavigue={() => setOpen(false)} />
             ))}
-            <p className="px-2 pt-2.5 pb-1 mt-1 border-t border-line text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">
+            <p className="px-2 pt-2.5 pb-1 mt-1 border-t border-line text-meta font-medium uppercase tracking-[0.08em] text-ink-3">
               Outils externes
             </p>
             {OUTILS_TIERS.map((lien) => (

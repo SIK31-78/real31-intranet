@@ -29,7 +29,7 @@ export default async function MesEmailsPage() {
     <AppShell user={g} active="emails" breadcrumb="E-mails">
       <Page largeur="travail">
         <form action={rafraichirAction} className="flex items-center gap-3">
-          <h1 className="text-[20px] font-medium tracking-tight text-ink mr-auto">E-mails</h1>
+          <h1 className="text-page font-medium tracking-tight text-ink mr-auto">E-mails</h1>
           <ButtonLink href="/mes-emails/composer" variant="secondary" size="sm">
             Composer un e-mail
           </ButtonLink>

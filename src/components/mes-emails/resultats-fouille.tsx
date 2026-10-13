@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import { Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EchangesVue } from "@/components/echanges/echanges-vue";
 import { critereDepuisRecherche, type EchangeTrouve } from "@/lib/domain/echanges";
 
@@ -38,7 +39,7 @@ export function ResultatsFouille({ fouille, onFermer }: { fouille: Fouille; onFe
   const r = fouille.resultat;
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+      <div className="flex flex-wrap items-center gap-2 text-body">
         <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" />
         <span className="text-ink">
           « {fouille.saisie} » dans tous les échanges, reçus et envoyés
@@ -50,24 +51,20 @@ export function ResultatsFouille({ fouille, onFermer }: { fouille: Fouille; onFe
         <Link href={lienAvance(fouille.saisie)} className="text-ink-3 underline hover:text-ink">
           recherche avancée
         </Link>
-        <button
-          type="button"
-          onClick={onFermer}
-          className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] text-ink-2 hover:bg-surface-2"
-        >
-          <X strokeWidth={1.5} className="w-3.5 h-3.5" />
+        <Button size="sm" onClick={onFermer} className="ml-auto">
+          <X strokeWidth={1.5} />
           Retour à la boîte
-        </button>
+        </Button>
       </div>
 
-      {fouille.enCours && <p className="text-[12.5px] text-ink-3">Recherche en cours…</p>}
-      {fouille.erreur && <p className="text-[12.5px] text-err-700">{fouille.erreur}</p>}
+      {fouille.enCours && <p className="text-body text-ink-3">Recherche en cours…</p>}
+      {fouille.erreur && <p className="text-body text-err-700">{fouille.erreur}</p>}
       {r?.erreurs.map((e) => (
-        <p key={e} className="text-[12px] text-warn-700">
+        <p key={e} className="text-meta text-warn-700">
           {e}
         </p>
       ))}
-      {r?.tronque && <p className="text-[12px] text-ink-3">Affichage limité aux plus récents : précisez (copro, personne, mot).</p>}
+      {r?.tronque && <p className="text-meta text-ink-3">Affichage limité aux plus récents : précisez (copro, personne, mot).</p>}
       {r && <EchangesVue key={fouille.saisie} echanges={r.echanges} plusieursBoites={r.plusieursBoites} {...(r.copro ? { coproParDefaut: r.copro } : {})} />}
     </div>
   );

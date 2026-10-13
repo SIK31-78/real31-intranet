@@ -52,6 +52,8 @@ import { boiteReponseParDefaut } from "@/lib/domain/boites-mail";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { Button, classesBouton } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
@@ -101,9 +103,6 @@ function formatTaille(octets: number): string {
   if (octets >= 1000) return `${Math.round(octets / 1000)} Ko`;
   return `${octets} o`;
 }
-
-const BTN =
-  "inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] text-ink hover:bg-surface-2 transition-colors";
 
 export function MesEmailsVue({
   data,
@@ -527,7 +526,7 @@ export function MesEmailsVue({
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {data.boites.length > 1 && (
-            <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface p-0.5">
+            <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface-2 p-0.5">
               {data.boites.map((b) => {
                 const nonLus = data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id)).length;
                 const actif = b.id === boiteActive;
@@ -540,13 +539,13 @@ export function MesEmailsVue({
                     onClick={() => choisirBoite(b.id)}
                     title={b.adresse}
                     className={
-                      "h-7 px-3 rounded text-[12.5px] inline-flex items-center gap-1.5 transition-colors " +
-                      (actif ? "bg-green-50 text-green-700 font-medium" : "text-ink-2 hover:bg-surface-2")
+                      "h-7 px-3 rounded text-body inline-flex items-center gap-1.5 transition-colors " +
+                      (actif ? "bg-surface text-ink font-medium shadow-1" : "text-ink-2 hover:text-ink")
                     }
                   >
                     {b.personnelle ? <Inbox strokeWidth={1.5} className="w-3.5 h-3.5" /> : <Users strokeWidth={1.5} className="w-3.5 h-3.5" />}
                     {b.libelle}
-                    {nonLus > 0 && <span className="text-[11px] font-semibold text-info-700">{nonLus}</span>}
+                    {nonLus > 0 && <span className="text-meta font-semibold text-info-700">{nonLus}</span>}
                   </button>
                 );
               })}
@@ -554,7 +553,7 @@ export function MesEmailsVue({
           )}
           <div className="relative flex-1 min-w-[220px]">
             <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
+            <Input
               type="search"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
@@ -563,19 +562,13 @@ export function MesEmailsVue({
               }}
               placeholder="Copro (S247), personne, mot… · Entrée : chercher dans tous les échanges"
               aria-label="Filtrer la boîte ; Entrée pour chercher dans tous les échanges"
-              className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-[12.5px] text-ink placeholder:text-ink-4"
+              className="pl-8"
             />
           </div>
-          <button
-            type="button"
-            onClick={lancerFouille}
-            disabled={recherche.trim().length < 2}
-            title="Chercher dans tous les échanges, reçus et envoyés"
-            className="h-8 px-3 rounded-md border border-line bg-surface text-[12.5px] text-ink-2 hover:bg-surface-2 disabled:opacity-50 inline-flex items-center gap-1.5"
-          >
-            <Search strokeWidth={1.5} className="w-3.5 h-3.5" />
+          <Button onClick={lancerFouille} disabled={recherche.trim().length < 2} title="Chercher dans tous les échanges, reçus et envoyés">
+            <Search strokeWidth={1.5} />
             Tous les échanges
-          </button>
+          </Button>
         </div>
         {!fouille && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -586,12 +579,12 @@ export function MesEmailsVue({
               aria-pressed={vue === d.cle}
               onClick={() => setVue(d.cle)}
               className={
-                "h-7 px-2.5 rounded-full text-[12px] border transition-colors inline-flex items-center gap-1.5 " +
+                "h-7 px-2.5 rounded-full text-meta border transition-colors inline-flex items-center gap-1.5 " +
                 (vue === d.cle ? "bg-green-50 text-green-700 border-green-500/30 font-medium" : "bg-surface text-ink-2 border-line hover:bg-surface-2")
               }
             >
               {d.label}
-              <span className={vue === d.cle ? "text-green-700/70" : "text-ink-4"}>{d.n}</span>
+              <span className={vue === d.cle ? "text-green-700/70" : "text-ink-3"}>{d.n}</span>
             </button>
           ))}
           {filtreCopro !== "toutes" && (
@@ -599,7 +592,7 @@ export function MesEmailsVue({
               type="button"
               onClick={() => setFiltreCopro("toutes")}
               title="Retirer le filtre copropriété"
-              className="h-7 px-2.5 rounded-full text-[12px] border border-info-500/30 bg-info-50 text-info-700 inline-flex items-center gap-1"
+              className="h-7 px-2.5 rounded-full text-meta border border-info-500/30 bg-info-50 text-info-700 inline-flex items-center gap-1"
             >
               <Building2 strokeWidth={1.5} className="w-3 h-3" />
               {filtreCopro || "Non rattaché"}
@@ -629,7 +622,7 @@ export function MesEmailsVue({
                 />
               ))}
               {visibles.length === 0 && (
-                <li className="px-4 py-6 text-center text-[12.5px] text-ink-3">Aucun mail.</li>
+                <li className="px-4 py-6 text-center text-body text-ink-3">Aucun mail.</li>
               )}
             </ul>
           </Card>
@@ -745,11 +738,11 @@ export function MesEmailsVue({
             />
           ) : (
             <Card className="px-6 py-16 text-center">
-              <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-4 mx-auto" />
-              <p className="text-[14px] font-medium text-ink mt-3">
+              <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
+              <p className="text-body font-medium text-ink mt-3">
                 {vue === "traites" ? "Aucun mail traité" : vue === "tous" ? "Aucun mail" : "Boîte vide"}
               </p>
-              <p className="text-[12.5px] text-ink-3 mt-1">
+              <p className="text-body text-ink-3 mt-1">
                 {vue === "recus"
                   ? "Tous les mails de ce dossier sont traités."
                   : "Rien à afficher ici."}
@@ -797,17 +790,17 @@ function LigneMail({
           <span className={`w-2 h-2 rounded-full shrink-0 ${!lu ? "bg-info-500" : "bg-transparent"}`} />
           <span
             className={
-              "text-[12.5px] text-ink truncate flex-1 " +
+              "text-body text-ink truncate flex-1 " +
               (statut === "classe" ? "line-through " : "") +
               (!lu ? "font-semibold" : "font-medium")
             }
           >
             {m.objet}
           </span>
-          <span className="shrink-0 text-[11px] text-ink-4">{jourMois(m.date)}</span>
+          <span className="shrink-0 text-meta text-ink-3">{jourMois(m.date)}</span>
         </div>
-        <div className="flex items-center gap-1.5 mt-1 pl-4 text-[11px] text-ink-3">
-          <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-4")}>{m.coproCode || "-"}</span>
+        <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
+          <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-3")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
           {statut !== "nouveau" ? <span className="ml-auto shrink-0"><StatutBadge statut={statut} /></span> : null}
         </div>
@@ -849,16 +842,16 @@ function ChampDe({
   if (boites.length < 2) return null;
   const horsFil = valeur !== boiteDuMail;
   return (
-    <div className="mb-2 rounded-md border border-line bg-surface px-2.5 py-2">
+    <div className="mb-2 rounded-md border border-line px-2.5 py-2">
       <div className="flex items-center gap-2">
-        <label htmlFor="champ-de" className="w-7 shrink-0 text-[11px] font-medium text-ink-3">
+        <label htmlFor="champ-de" className="w-7 shrink-0 text-meta font-medium text-ink-3">
           De
         </label>
         <select
           id="champ-de"
           value={valeur}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 min-w-0 h-7 rounded border border-line bg-surface px-1.5 text-[12px] text-ink"
+          className="flex-1 min-w-0 h-7 rounded border border-line bg-surface px-1.5 text-meta text-ink"
         >
           {boites.map((b) => (
             <option key={b.id} value={b.id}>
@@ -869,7 +862,7 @@ function ChampDe({
         </select>
       </div>
       {horsFil && (
-        <p className="mt-1.5 pl-9 text-[11px] text-warn-700">
+        <p className="mt-1.5 pl-9 text-meta text-warn-700">
           Envoi hors du fil : le mail partira comme un message neuf, sans la citation ni
           les pièces jointes d’origine.
         </p>
@@ -887,7 +880,7 @@ function ChampsDestinataires({
   onChange: (champ: keyof Destinataires, v: string[]) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1 mb-2 rounded-md border border-line bg-surface px-2.5 py-2">
+    <div className="flex flex-col gap-1 mb-2 rounded-md border border-line px-2.5 py-2">
       <LigneDest label="À" champ="to" valeurs={valeur.to} onChange={onChange} />
       <LigneDest label="Cc" champ="cc" valeurs={valeur.cc} onChange={onChange} />
       <LigneDest label="Cci" champ="cci" valeurs={valeur.cci} onChange={onChange} />
@@ -914,19 +907,19 @@ function LigneDest({
   };
   return (
     <div className="flex items-start gap-2 min-h-[24px]">
-      <span className="w-7 shrink-0 pt-1 text-[11px] font-medium text-ink-3">{label}</span>
+      <span className="w-7 shrink-0 pt-1 text-meta font-medium text-ink-3">{label}</span>
       <div className="flex-1 flex flex-wrap items-center gap-1">
         {valeurs.map((e) => (
           <span
             key={e}
-            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-[11.5px] text-ink-2"
+            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-meta text-ink-2"
           >
             <span className="truncate max-w-[200px]">{e}</span>
             <button
               type="button"
               onClick={() => onChange(champ, valeurs.filter((x) => x !== e))}
               aria-label={`Retirer ${e}`}
-              className="text-ink-4 hover:text-err-700"
+              className="text-ink-3 hover:text-err-700"
             >
               <X strokeWidth={2} className="w-3 h-3" />
             </button>
@@ -943,7 +936,7 @@ function LigneDest({
           }}
           onBlur={ajouter}
           placeholder="ajouter une adresse…"
-          className="flex-1 min-w-[120px] h-6 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-4"
+          className="flex-1 min-w-[120px] h-6 bg-transparent text-meta text-ink outline-none placeholder:text-ink-3"
         />
       </div>
     </div>
@@ -965,7 +958,7 @@ function FormCreerDossier({
   const [titre, setTitre] = useState(titreSuggere);
   return (
     <div className="border-t border-line bg-surface-2/40 px-3 py-2 flex flex-col gap-2">
-      <p className="text-[11px] font-medium text-ink-3 flex items-center gap-1">
+      <p className="text-meta font-medium text-ink-3 flex items-center gap-1">
         <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 text-green-700" /> Créer un dossier
       </p>
       <div className="flex items-center gap-2 flex-wrap">
@@ -973,7 +966,7 @@ function FormCreerDossier({
           value={type}
           onChange={(e) => setType(e.target.value as TypeDossier)}
           aria-label="Type de dossier"
-          className="h-7 rounded border border-line bg-surface px-1.5 text-[12px]"
+          className="h-7 rounded border border-line bg-surface px-1.5 text-meta"
         >
           {TYPE_DOSSIER_ORDRE.map((t) => (
             <option key={t} value={t}>
@@ -986,24 +979,16 @@ function FormCreerDossier({
           onChange={(e) => setTitre(e.target.value)}
           placeholder="Titre du dossier"
           aria-label="Titre du dossier"
-          className="flex-1 min-w-[140px] h-7 rounded border border-line bg-surface px-2 text-[12px]"
+          className="flex-1 min-w-[140px] h-7 rounded border border-line bg-surface px-2 text-meta"
         />
-        <button
-          type="button"
-          disabled={!titre.trim()}
-          onClick={() => onCreer(type, titre.trim())}
-          className="h-7 px-2.5 rounded bg-green-700 text-white text-[12px] font-medium hover:bg-green-600 disabled:opacity-50"
-        >
+        <Button size="sm" disabled={!titre.trim()} onClick={() => onCreer(type, titre.trim())}>
           Créer
-        </button>
+        </Button>
       </div>
     </div>
   );
 }
 
-const BTN_ACTION =
-  "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed";
-const SELECT_ACTION = "h-7 text-[12px] rounded-md border border-line bg-surface px-1.5 text-ink-2 max-w-[200px]";
 
 function AnalysePane({
   m,
@@ -1123,35 +1108,36 @@ function AnalysePane({
       {/* En-tête : objet, qui, quand -- puis UNE barre d'actions. */}
       <div className="px-5 pt-4 pb-3 border-b border-line">
         <div className="flex items-start gap-3">
-          <h2 className="flex-1 text-[16px] font-semibold text-ink leading-snug">{m.objet}</h2>
+          <h2 className="flex-1 text-title font-semibold text-ink leading-snug">{m.objet}</h2>
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
         </div>
-        <p className="mt-1 text-[12px] text-ink-3 leading-relaxed">
+        <p className="mt-1 text-meta text-ink-3 leading-relaxed">
           <span className="font-medium text-ink">{m.de}</span> &lt;{m.expediteurEmail}&gt; → {m.destinataires.join(", ")}
           {m.copie.length > 0 && <> · Cc : {m.copie.join(", ")}</>} · {formatDateLongue(m.date)}
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {!(brouillon || compose) && (
-            <button type="button" onClick={onRepondre} className={BTN_ACTION}>
-              <Mail strokeWidth={1.5} className="w-3.5 h-3.5" />
+            <Button onClick={onRepondre}>
+              <Mail strokeWidth={1.5} />
               Répondre
-            </button>
+            </Button>
           )}
           {!(brouillon || compose) && m.ticketable ? (
-            <button type="button" onClick={onGenererBrouillon} disabled={genEnCours} className={BTN_ACTION + " text-green-700"}>
-              <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
+            <Button onClick={onGenererBrouillon} loading={genEnCours}>
+              <Sparkles strokeWidth={1.5} />
               {genEnCours ? "Génération…" : "Brouillon IA"}
-            </button>
+            </Button>
           ) : null}
-          <span className="inline-flex items-center gap-1 text-[12px]">
+          <span className="inline-flex items-center gap-1 text-meta">
             <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-            <select
+            <Select
+              largeur="auto"
               value={coproCode}
               onChange={(e) => onRattacherCopro(e.target.value)}
               aria-label="Copropriété du mail"
               title={coproCode ? `${coproCode} · ${coproNom}` : "Rattacher à une copropriété"}
-              className={SELECT_ACTION}
+              className="max-w-[200px]"
             >
               {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
               <option value="">{coproCode ? "Retirer la copropriété" : "Copropriété…"}</option>
@@ -1165,10 +1151,10 @@ function AnalysePane({
                   {c.code} · {c.nom}
                 </option>
               ))}
-            </select>
+            </Select>
           </span>
           {classe ? (
-            <span className="inline-flex items-center gap-2 text-[12px] text-ink-3">
+            <span className="inline-flex items-center gap-2 text-meta text-ink-3">
               <Check strokeWidth={2} className="w-3.5 h-3.5 text-green-700" />
               {m.dossierClasseNom ? <>Classé dans «&nbsp;{m.dossierClasseNom}&nbsp;»</> : "Classé"}
               <button type="button" onClick={onDevalider} className="underline hover:text-ink">
@@ -1176,13 +1162,14 @@ function AnalysePane({
               </button>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[12px]">
+            <span className="inline-flex items-center gap-1 text-meta">
               <FolderInput strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                  <select
+                  <Select
+                    largeur="auto"
                     value={dossierIdChoisi}
                     onChange={(e) => onChoisirDossier(e.target.value)}
                     aria-label="Dossier Outlook de classement"
-                    className={SELECT_ACTION}
+                    className="max-w-[200px]"
                   >
                     <option value="">
                       {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
@@ -1213,53 +1200,53 @@ function AnalysePane({
                           </>
                         );
                       })()}
-                  </select>
+                  </Select>
               <button
                 type="button"
                 onClick={onValider}
                 disabled={!dossierIdChoisi}
                 title={!dossierIdChoisi ? "Choisis un dossier de destination" : "Classer dans ce dossier"}
                 aria-label={labelValider}
-                className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-40 disabled:cursor-not-allowed"
+                className={classesBouton({ iconOnly: true })}
               >
-                <Check strokeWidth={2} className="w-3.5 h-3.5" />
+                <Check strokeWidth={2} />
               </button>
             </span>
           )}
           {ratt.intranet ? (
-            <Link href={`/dossiers/${ratt.dossierId}`} className="inline-flex items-center gap-1 text-[12px] text-info-700 hover:underline">
+            <Link href={`/dossiers/${ratt.dossierId}`} className="inline-flex items-center gap-1 text-meta text-info-700 hover:underline">
               <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
               {ratt.dossierLabel}
             </Link>
           ) : null}
-          <button type="button" onClick={onToggleChanger} className="text-[12px] text-ink-3 underline hover:text-ink">
+          <button type="button" onClick={onToggleChanger} className="text-meta text-ink-3 underline hover:text-ink">
             {changer ? "fermer" : ratt.intranet ? "changer de dossier" : "dossier…"}
           </button>
         </div>
-        {msgClasser ? <p className="mt-1.5 text-[11.5px] text-ink-3">{msgClasser}</p> : null}
-        {msgBrouillon && !(brouillon || compose) ? <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p> : null}
+        {msgClasser ? <p className="mt-1.5 text-meta text-ink-3">{msgClasser}</p> : null}
+        {msgBrouillon && !(brouillon || compose) ? <p className="mt-1.5 text-meta text-ink-3">{msgBrouillon}</p> : null}
       </div>
 
       {/* Le mail */}
       <div className="px-5 py-4">
-        <div className="text-[13px] text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
+        <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
           {m.corps}
         </div>
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {piecesJointes === null ? (
-                <span className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-[11.5px] text-ink-3">
+                <span className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-meta text-ink-3">
                   <Paperclip strokeWidth={1.5} className="w-3 h-3" />
                   Chargement des pièces jointes…
                 </span>
               ) : piecesJointes.length === 0 ? (
-                <span className="text-[11.5px] text-ink-4 italic">Pièces jointes indisponibles</span>
+                <span className="text-meta text-ink-3 italic">Pièces jointes indisponibles</span>
               ) : (
                 piecesJointes.map((pj) => (
                   <span
                     key={pj.id}
                     title={formatTaille(pj.taille)}
-                    className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded border border-line bg-surface text-[11.5px] text-ink-2"
+                    className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded border border-line bg-surface text-meta text-ink-2"
                   >
                     <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3 shrink-0" />
                     <button
@@ -1274,7 +1261,7 @@ function AnalysePane({
                       type="button"
                       onClick={() => onTelecharger(pj)}
                       title="Télécharger"
-                      className="text-ink-4 hover:text-ink"
+                      className="text-ink-3 hover:text-ink"
                     >
                       <Download strokeWidth={1.5} className="w-3 h-3" />
                     </button>
@@ -1284,7 +1271,7 @@ function AnalysePane({
                         onClick={() => onDeposer(pj)}
                         title="Déposer dans le dossier SharePoint de la copropriété"
                         aria-label={`Déposer ${pj.nom} sur SharePoint`}
-                        className="text-ink-4 hover:text-ink"
+                        className="text-ink-3 hover:text-ink"
                       >
                         <FolderUp strokeWidth={1.5} className="w-3 h-3" />
                       </button>
@@ -1301,7 +1288,7 @@ function AnalysePane({
 
       <div className="px-5 pb-4 flex flex-col gap-3">
         {changer && !coproCode && (
-          <div className="rounded-md border border-dashed border-line px-3 py-2 text-[12px] text-ink-3">
+          <div className="rounded-md border border-dashed border-line px-3 py-2 text-meta text-ink-3">
             Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété. Pour simplement
             <strong> ranger</strong> ce mail, utilise «&nbsp;Classer dans…&nbsp;» en haut - aucune copropriété requise.
           </div>
@@ -1310,7 +1297,7 @@ function AnalysePane({
         {changer && coproCode && (
           <div className="rounded-md border border-line overflow-hidden">
             {dossiersReels === null ? (
-              <p className="px-3 py-2 text-[12px] text-ink-3">Chargement des dossiers…</p>
+              <p className="px-3 py-2 text-meta text-ink-3">Chargement des dossiers…</p>
             ) : (
               <ul className="divide-y divide-line">
                 {dossiersReels.map((d) => (
@@ -1318,7 +1305,7 @@ function AnalysePane({
                     <button
                       type="button"
                       onClick={() => onRattacherDossier(d.id, d.titre)}
-                      className="w-full text-left px-3 py-2 text-[12.5px] text-ink hover:bg-surface-2 flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 text-body text-ink hover:bg-surface-2 flex items-center gap-2"
                     >
                       <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                       <span className="flex-1 min-w-0 truncate">{d.titre}</span>
@@ -1327,7 +1314,7 @@ function AnalysePane({
                   </li>
                 ))}
                 {dossiersReels.length === 0 && (
-                  <li className="px-3 py-2 text-[12px] text-ink-4">Aucun dossier sur cette copropriété.</li>
+                  <li className="px-3 py-2 text-meta text-ink-3">Aucun dossier sur cette copropriété.</li>
                 )}
               </ul>
             )}
@@ -1339,16 +1326,16 @@ function AnalysePane({
         {(brouillon || compose) && (
           <div className="rounded-lg border border-line p-4">
               <div className="flex items-center justify-between mt-3 mb-1">
-              <span className="text-[11.5px] text-ink-3">Réponse (modifiable)</span>
+              <span className="text-meta text-ink-3">Réponse (modifiable)</span>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={onCopier} className={BTN}>
-                  <Copy strokeWidth={1.5} className="w-3.5 h-3.5" />
+                <Button size="sm" onClick={onCopier}>
+                  <Copy strokeWidth={1.5} />
                   {copie ? "Copié" : "Copier"}
-                </button>
-                <button type="button" onClick={onCreerBrouillon} className={BTN}>
-                  <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" onClick={onCreerBrouillon}>
+                  <FilePlus2 strokeWidth={1.5} />
                   Brouillon Outlook
-                </button>
+                </Button>
               </div>
             </div>
             <ChampDe
@@ -1358,16 +1345,10 @@ function AnalysePane({
               onChange={onMajExpediteur}
             />
             <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
-            <input
-              value={sujet}
-              onChange={(e) => onMajSujet(e.target.value)}
-              placeholder="Sujet"
-              aria-label="Sujet de la réponse"
-              className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink outline-none focus:ring-1 focus:ring-green-500/40"
-            />
+            <Input value={sujet} onChange={(e) => onMajSujet(e.target.value)} placeholder="Sujet" aria-label="Sujet de la réponse" className="mb-2" />
             {piecesJointes && piecesJointes.length > 0 ? (
               <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-ink-3">Joindre&nbsp;:</span>
+                <span className="text-meta text-ink-3">Joindre&nbsp;:</span>
                 {piecesJointes.map((pj) => {
                   const jointe = pjJointes.has(pj.id);
                   return (
@@ -1376,7 +1357,7 @@ function AnalysePane({
                       type="button"
                       onClick={() => onTogglePjJointe(pj.id)}
                       title={jointe ? "Jointe à la réponse" : "Joindre à la réponse"}
-                      className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full border text-[11.5px] transition-colors ${jointe ? "border-green-500/40 bg-green-50 text-green-700" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}
+                      className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full border text-meta transition-colors ${jointe ? "border-green-500/40 bg-green-50 text-green-700" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}
                     >
                       {jointe ? (
                         <Check strokeWidth={2} className="w-3 h-3 shrink-0" />
@@ -1389,16 +1370,10 @@ function AnalysePane({
                 })}
               </div>
             ) : null}
-            <textarea
-              value={brouillon}
-              onChange={(e) => onEditBrouillon(e.target.value)}
-              onBlur={onBlurBrouillon}
-              rows={7}
-              className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[12.5px] text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
-            />
+            <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" />
             {signatureHtml ? (
               <div className="mt-2">
-                <span className="text-[11px] text-ink-3">Signature (ajoutée à l’envoi)</span>
+                <span className="text-meta text-ink-3">Signature (ajoutée à l’envoi)</span>
                 <iframe
                   title="Signature"
                   sandbox=""
@@ -1408,16 +1383,11 @@ function AnalysePane({
               </div>
             ) : null}
             <div className="mt-2.5 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onEnvoyer}
-                disabled={envoiEnCours}
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <Send strokeWidth={2} className="w-4 h-4" />
+              <Button variant="primary" size="lg" onClick={onEnvoyer} loading={envoiEnCours}>
+                <Send strokeWidth={2} />
                 {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
-              </button>
-              {msgBrouillon ? <span className="text-[11.5px] text-ink-3">{msgBrouillon}</span> : null}
+              </Button>
+              {msgBrouillon ? <span className="text-meta text-ink-3">{msgBrouillon}</span> : null}
             </div>
           </div>
         )}
@@ -1431,19 +1401,19 @@ function AnalysePane({
           open={ouverts.has("contexte")}
           onToggle={onToggleSection}
         >
-          <div className="flex flex-col gap-3 text-[12.5px]">
+          <div className="flex flex-col gap-3 text-body">
             <p className="text-ink">
               <span className="text-ink-3">Suggestion de l&apos;assistant : </span>
               {recommandation(m, ratt)}
             </p>
             {dossier && dossier.historique.length > 0 ? (
               <div>
-                <p className="text-[11px] uppercase tracking-[0.06em] text-ink-4 mb-1">Fil ({dossier.historique.length})</p>
+                <p className="text-meta uppercase tracking-[0.06em] text-ink-3 mb-1">Fil ({dossier.historique.length})</p>
                 <Timeline dossier={dossier} />
               </div>
             ) : null}
             <div>
-              <p className="text-[11px] uppercase tracking-[0.06em] text-ink-4 mb-1">Copropriété (ESTALE)</p>
+              <p className="text-meta uppercase tracking-[0.06em] text-ink-3 mb-1">Copropriété (ESTALE)</p>
               <ContexteCoproContenu ctx={contexte} />
             </div>
           </div>
@@ -1475,7 +1445,7 @@ function SectionRepliable({
       <button
         type="button"
         onClick={() => onToggle(cle)}
-        className="w-full flex items-center gap-1.5 py-2.5 text-left text-[12.5px] font-medium text-ink-2 hover:text-ink"
+        className="w-full flex items-center gap-1.5 py-2.5 text-left text-body font-medium text-ink-2 hover:text-ink"
       >
         <ChevronRight
           strokeWidth={1.5}
@@ -1483,7 +1453,7 @@ function SectionRepliable({
         />
         {icone}
         {titre}
-        {compte && <span className="text-ink-4 font-normal">· {compte}</span>}
+        {compte && <span className="text-ink-3 font-normal">· {compte}</span>}
       </button>
       {open && <div className="pb-3 pl-5">{children}</div>}
     </div>
@@ -1505,8 +1475,8 @@ function Timeline({ dossier }: { dossier: Dossier }) {
           <span className="absolute -left-[22px] top-0.5 w-5 h-5 rounded-full bg-surface border border-line flex items-center justify-center">
             {KIND_ICON[e.kind]}
           </span>
-          <p className="text-[12.5px] text-ink leading-snug">{e.resume}</p>
-          <p className="text-[11px] text-ink-3 mt-0.5">
+          <p className="text-body text-ink leading-snug">{e.resume}</p>
+          <p className="text-meta text-ink-3 mt-0.5">
             {jourMois(e.date)} · {e.acteur}
           </p>
         </li>
@@ -1529,7 +1499,7 @@ function Fait({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2 text-[12.5px]">
+    <div className="flex items-start gap-2 text-body">
       <span className="text-ink-3 mt-0.5 shrink-0">{icone}</span>
       <p className="text-ink-2">
         <span className="text-ink-3">{label} : </span>
@@ -1542,7 +1512,7 @@ function Fait({
 function ContexteCoproContenu({ ctx }: { ctx: ContexteCopro | undefined }) {
   if (!ctx || !ctx.disponible) {
     return (
-      <p className="text-[12.5px] text-ink-3 italic">
+      <p className="text-body text-ink-3 italic">
         Indisponible (copro absente d’eStale, ou eStale non configuré).
       </p>
     );

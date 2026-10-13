@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { Receipt } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { factureComplete, objetFactureEstale } from "@/lib/domain/mes-emails-composition";
 
 export function TransmettreFacture({
@@ -27,7 +28,7 @@ export function TransmettreFacture({
       <button
         type="button"
         onClick={() => setOuvert(true)}
-        className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink underline"
+        className="mt-2 inline-flex items-center gap-1 text-meta text-ink-3 hover:text-ink underline"
       >
         <Receipt strokeWidth={1.5} className="w-3.5 h-3.5" />
         Transmettre la facture à ESTALE
@@ -35,9 +36,9 @@ export function TransmettreFacture({
     );
   }
 
-  const champ = "h-7 rounded border border-line bg-surface px-2 text-[12px] text-ink";
+  const champ = "h-7 rounded border border-line bg-surface px-2 text-meta text-ink";
   return (
-    <div className="mt-2 rounded-md border border-line bg-surface-2 p-2.5 flex flex-col gap-2 text-[12px]">
+    <div className="mt-2 rounded-md border border-line bg-surface-2 p-2.5 flex flex-col gap-2 text-meta">
       <div className="flex flex-wrap gap-2">
         <input aria-label="Compte" placeholder="601000" value={f.compte} onChange={(e) => setF({ ...f, compte: e.target.value })} className={`${champ} w-24 font-mono`} />
         <input aria-label="Fournisseur" placeholder="DGP NETTOYAGE" value={f.fournisseur} onChange={(e) => setF({ ...f, fournisseur: e.target.value })} className={`${champ} flex-1 min-w-[140px]`} />
@@ -48,18 +49,18 @@ export function TransmettreFacture({
         <span className="font-mono">{destinataire}</span>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={!pret || enCours}
+        <Button
+          size="sm"
+          disabled={!pret}
+          loading={enCours}
           onClick={async () => {
             setEnCours(true);
             await onTransmettre(f);
             setEnCours(false);
           }}
-          className="h-7 px-3 rounded bg-green-700 text-white text-[12px] font-medium disabled:opacity-50"
         >
           {enCours ? "Création…" : "Créer le brouillon de transfert"}
-        </button>
+        </Button>
         <button type="button" onClick={() => setOuvert(false)} className="text-ink-3 hover:text-ink underline">
           Fermer
         </button>

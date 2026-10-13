@@ -7,15 +7,12 @@
 // clics repetes). Doit etre rendu DANS le <form action=...> parent.
 
 import { useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/button";
 
 export function BoutonRafraichir() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-60 disabled:cursor-not-allowed"
-    >
+    <Button type="submit" size="sm" disabled={pending}>
       <svg
         width="13"
         height="13"
@@ -32,6 +29,6 @@ export function BoutonRafraichir() {
         <path d="M3 21v-5h5" />
       </svg>
       {pending ? "Lecture…" : "Actualiser"}
-    </button>
+    </Button>
   );
 }
