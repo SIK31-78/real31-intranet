@@ -7,14 +7,12 @@ import {
   Search,
   Link2,
   FilePlus2,
-  Clock,
   MessageSquare,
   Wrench,
   Paperclip,
   Flag,
   Copy,
   Check,
-  RotateCcw,
   Building2,
   Users,
   Euro,
@@ -99,12 +97,6 @@ function formatTaille(octets: number): string {
   if (octets >= 1_000_000) return `${(octets / 1_000_000).toFixed(1)} Mo`;
   if (octets >= 1000) return `${Math.round(octets / 1000)} Ko`;
   return `${octets} o`;
-}
-
-/** Initiales de l'expediteur (sans la qualite entre parentheses). */
-function initiales(nom: string): string {
-  const parts = nom.replace(/ \(.*\)$/, "").trim().split(/\s+/).filter(Boolean);
-  return parts.slice(0, 2).map((p) => (p[0] ?? "").toUpperCase()).join("");
 }
 
 const BTN =
@@ -1014,6 +1006,10 @@ function FormCreerDossier({
   );
 }
 
+const BTN_ACTION =
+  "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface text-[12px] font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed";
+const SELECT_ACTION = "h-7 text-[12px] rounded-md border border-line bg-surface px-1.5 text-ink-2 max-w-[200px]";
+
 function AnalysePane({
   m,
   contexte,
@@ -1129,63 +1125,69 @@ function AnalysePane({
 
   return (
     <Card className="overflow-hidden">
-      {/* === LE MAIL ENTRANT === */}
-      <div className="border-b border-line">
-        <div className="px-5 pt-4 pb-3">
-          <div className="flex items-center justify-between gap-3 mb-2.5">
-            <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3 flex items-center gap-1.5">
+      {/* En-tête : objet, qui, quand -- puis UNE barre d'actions. */}
+      <div className="px-5 pt-4 pb-3 border-b border-line">
+        <div className="flex items-start gap-3">
+          <h2 className="flex-1 text-[16px] font-semibold text-ink leading-snug">{m.objet}</h2>
+          {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
+        </div>
+        <p className="mt-1 text-[12px] text-ink-3 leading-relaxed">
+          <span className="font-medium text-ink">{m.de}</span> &lt;{m.expediteurEmail}&gt; → {m.destinataires.join(", ")}
+          {m.copie.length > 0 && <> · Cc : {m.copie.join(", ")}</>} · {formatDateLongue(m.date)}
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {!(brouillon || compose) && (
+            <button type="button" onClick={onRepondre} className={BTN_ACTION}>
               <Mail strokeWidth={1.5} className="w-3.5 h-3.5" />
-              Mail reçu
+              Répondre
+            </button>
+          )}
+          {!(brouillon || compose) && m.ticketable ? (
+            <button type="button" onClick={onGenererBrouillon} disabled={genEnCours} className={BTN_ACTION + " text-green-700"}>
+              <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
+              {genEnCours ? "Génération…" : "Brouillon IA"}
+            </button>
+          ) : null}
+          <span className="inline-flex items-center gap-1 text-[12px]">
+            <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+            <select
+              value={coproCode}
+              onChange={(e) => onRattacherCopro(e.target.value)}
+              aria-label="Copropriété du mail"
+              title={coproCode ? `${coproCode} · ${coproNom}` : "Rattacher à une copropriété"}
+              className={SELECT_ACTION}
+            >
+              {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
+              <option value="">{coproCode ? "Retirer la copropriété" : "Copropriété…"}</option>
+              {coproCode && !coprosDispo.some((c) => c.code === coproCode) ? (
+                <option value={coproCode}>
+                  {coproCode} · {coproNom}
+                </option>
+              ) : null}
+              {coprosDispo.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} · {c.nom}
+                </option>
+              ))}
+            </select>
+          </span>
+          {classe ? (
+            <span className="inline-flex items-center gap-2 text-[12px] text-ink-3">
+              <Check strokeWidth={2} className="w-3.5 h-3.5 text-green-700" />
+              {m.dossierClasseNom ? <>Classé dans «&nbsp;{m.dossierClasseNom}&nbsp;»</> : "Classé"}
+              <button type="button" onClick={onDevalider} className="underline hover:text-ink">
+                annuler
+              </button>
             </span>
-            <div className="flex items-center gap-2 shrink-0">
-              <StatutBadge statut={statut} />
-            </div>
-          </div>
-
-          <h2 className="text-[16px] font-semibold text-ink leading-snug">{m.objet}</h2>
-
-          <div className="mt-2.5 flex items-start gap-2.5">
-            <span className="w-8 h-8 rounded-full bg-surface-3 text-ink-2 text-[11px] font-medium flex items-center justify-center shrink-0">
-              {initiales(m.de)}
-            </span>
-            <div className="text-[12px] leading-relaxed min-w-0">
-              <p className="text-ink">
-                <span className="font-medium">{m.de}</span>{" "}
-                <span className="text-ink-3">&lt;{m.expediteurEmail}&gt;</span>
-              </p>
-              <p className="text-ink-3">
-                À : {m.destinataires.join(", ")}
-                {m.copie.length > 0 && <> · Cc : {m.copie.join(", ")}</>}
-              </p>
-              <p className="text-ink-3">{formatDateLongue(m.date)}</p>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 text-[12px]">
-                  <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                  <span className={coproCode ? "font-medium text-ink" : "text-ink-3 italic"}>
-                    {coproCode ? `${coproNom} (${coproCode})` : "Sans copropriété"}
-                  </span>
-                </span>
-                <select
-                  value={coproCode}
-                  onChange={(e) => onRattacherCopro(e.target.value)}
-                  aria-label="Copropriété (facultatif)"
-                  className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
-                >
-                  {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
-                  <option value="">{coproCode ? "- Retirer la copropriété" : "Rattacher à une copropriété…"}</option>
-                  {coprosDispo.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.nom} ({c.code})
-                    </option>
-                  ))}
-                </select>
-                <span className="inline-flex items-center gap-1 text-[11.5px]">
-                  <FolderInput strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[12px]">
+              <FolderInput strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
                   <select
                     value={dossierIdChoisi}
                     onChange={(e) => onChoisirDossier(e.target.value)}
                     aria-label="Dossier Outlook de classement"
-                    className="text-[11.5px] rounded border border-line bg-surface px-1.5 py-0.5 text-ink-2 max-w-[220px]"
+                    className={SELECT_ACTION}
                   >
                     <option value="">
                       {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
@@ -1217,16 +1219,37 @@ function AnalysePane({
                         );
                       })()}
                   </select>
-                </span>
-              </div>
-            </div>
-          </div>
+              <button
+                type="button"
+                onClick={onValider}
+                disabled={!dossierIdChoisi}
+                title={!dossierIdChoisi ? "Choisis un dossier de destination" : "Classer dans ce dossier"}
+                aria-label={labelValider}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Check strokeWidth={2} className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
+          {ratt.intranet ? (
+            <Link href={`/dossiers/${ratt.dossierId}`} className="inline-flex items-center gap-1 text-[12px] text-info-700 hover:underline">
+              <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+              {ratt.dossierLabel}
+            </Link>
+          ) : null}
+          <button type="button" onClick={onToggleChanger} className="text-[12px] text-ink-3 underline hover:text-ink">
+            {changer ? "fermer" : ratt.intranet ? "changer de dossier" : "dossier…"}
+          </button>
         </div>
+        {msgClasser ? <p className="mt-1.5 text-[11.5px] text-ink-3">{msgClasser}</p> : null}
+        {msgBrouillon && !(brouillon || compose) ? <p className="mt-1.5 text-[11.5px] text-ink-3">{msgBrouillon}</p> : null}
+      </div>
 
-        <div className="px-5 pb-4">
-          <div className="rounded-md border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-auto">
-            {m.corps}
-          </div>
+      {/* Le mail */}
+      <div className="px-5 py-4">
+        <div className="text-[13px] text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
+          {m.corps}
+        </div>
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {piecesJointes === null ? (
@@ -1279,188 +1302,9 @@ function AnalysePane({
           {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
             <TransmettreFacture destinataire={adresseFactures} onTransmettre={onTransmettreFacture} />
           )}
-        </div>
       </div>
 
-      <div className="px-5 py-4 flex flex-col gap-3">
-        {/* Recommandation : phrase + reponse EDITABLE */}
-        <div className="rounded-lg border border-green-500/25 bg-green-50/60 p-4">
-          <p className="text-[12px] font-semibold text-green-700 flex items-center gap-1.5 mb-1.5">
-            <Sparkles strokeWidth={1.5} className="w-4 h-4" />
-            Recommandation de l’assistant
-          </p>
-          <p className="text-[13.5px] text-ink leading-snug">{recommandation(m, ratt)}</p>
-
-          {brouillon || compose ? (
-            <>
-              <div className="flex items-center justify-between mt-3 mb-1">
-                <span className="text-[11.5px] text-ink-3">Réponse (modifiable)</span>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={onCopier} className={BTN}>
-                    <Copy strokeWidth={1.5} className="w-3.5 h-3.5" />
-                    {copie ? "Copié" : "Copier"}
-                  </button>
-                  <button type="button" onClick={onCreerBrouillon} className={BTN}>
-                    <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5" />
-                    Brouillon Outlook
-                  </button>
-                </div>
-              </div>
-              <ChampDe
-                boites={boites}
-                boiteDuMail={boiteDuMail}
-                valeur={expediteur}
-                onChange={onMajExpediteur}
-              />
-              <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
-              <input
-                value={sujet}
-                onChange={(e) => onMajSujet(e.target.value)}
-                placeholder="Sujet"
-                aria-label="Sujet de la réponse"
-                className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink outline-none focus:ring-1 focus:ring-green-500/40"
-              />
-              {piecesJointes && piecesJointes.length > 0 ? (
-                <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-ink-3">Joindre&nbsp;:</span>
-                  {piecesJointes.map((pj) => {
-                    const jointe = pjJointes.has(pj.id);
-                    return (
-                      <button
-                        key={pj.id}
-                        type="button"
-                        onClick={() => onTogglePjJointe(pj.id)}
-                        title={jointe ? "Jointe à la réponse" : "Joindre à la réponse"}
-                        className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full border text-[11.5px] transition-colors ${jointe ? "border-green-500/40 bg-green-50 text-green-700" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}
-                      >
-                        {jointe ? (
-                          <Check strokeWidth={2} className="w-3 h-3 shrink-0" />
-                        ) : (
-                          <Paperclip strokeWidth={1.5} className="w-3 h-3 shrink-0" />
-                        )}
-                        <span className="truncate max-w-[160px]">{pj.nom}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-              <textarea
-                value={brouillon}
-                onChange={(e) => onEditBrouillon(e.target.value)}
-                onBlur={onBlurBrouillon}
-                rows={7}
-                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[12.5px] text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
-              />
-              {signatureHtml ? (
-                <div className="mt-2">
-                  <span className="text-[11px] text-ink-3">Signature (ajoutée à l’envoi)</span>
-                  <iframe
-                    title="Signature"
-                    sandbox=""
-                    srcDoc={signatureHtml}
-                    className="mt-1 w-full h-[110px] rounded-md border border-line bg-white"
-                  />
-                </div>
-              ) : null}
-              <div className="mt-2.5 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={onEnvoyer}
-                  disabled={envoiEnCours}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <Send strokeWidth={2} className="w-4 h-4" />
-                  {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
-                </button>
-                {msgBrouillon ? <span className="text-[11.5px] text-ink-3">{msgBrouillon}</span> : null}
-              </div>
-            </>
-          ) : (
-            // Repondre possible sur N'IMPORTE QUEL mail (meme sans action). Pour les mails
-            // a traiter, on propose en plus la generation IA (a la demande = sur clic).
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={onRepondre}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-line bg-surface text-[12.5px] font-medium text-ink-2 hover:bg-surface-2"
-              >
-                <Mail strokeWidth={1.5} className="w-3.5 h-3.5" />
-                Répondre
-              </button>
-              {m.ticketable ? (
-                <button
-                  type="button"
-                  onClick={onGenererBrouillon}
-                  disabled={genEnCours}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-green-500/30 bg-surface text-[12.5px] font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />
-                  {genEnCours ? "Génération…" : "Générer un brouillon (IA)"}
-                </button>
-              ) : null}
-              {msgBrouillon ? (
-                <p className="w-full mt-1 text-[11.5px] text-ink-3">{msgBrouillon}</p>
-              ) : null}
-            </div>
-          )}
-        </div>
-
-        {/* Action principale : repond (brouillon) + classe dans le dossier choisi.
-            Le "Plan d'action" (etapes IA) est differe -> cf. ROADMAP (a venir). */}
-        <div>
-          {classe ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={onDevalider}
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium border border-line bg-surface text-ink-2 hover:bg-surface-2"
-              >
-                <RotateCcw strokeWidth={1.5} className="w-4 h-4" />
-                Annuler (classé)
-              </button>
-              {m.dossierClasseNom ? (
-                <span className="text-[11.5px] text-ink-3">
-                  classé dans «&nbsp;{m.dossierClasseNom}&nbsp;»
-                </span>
-              ) : null}
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onValider}
-              disabled={!dossierIdChoisi}
-              title={!dossierIdChoisi ? "Choisis un dossier de destination" : undefined}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Check strokeWidth={2} className="w-4 h-4" />
-              {labelValider}
-            </button>
-          )}
-          {msgClasser ? <p className="mt-1.5 text-[11.5px] text-err-700">{msgClasser}</p> : null}
-        </div>
-
-        {/* Ligne meta discrete : type + rattachement modifiable */}
-        <div className="flex items-center gap-2 flex-wrap text-[12px] text-ink-3">
-          <Badge ton="outline">{LIBELLE_TYPE[m.type]}</Badge>
-          {ratt.intranet ? (
-            <Link
-              href={`/dossiers/${ratt.dossierId}`}
-              className="inline-flex items-center gap-1 text-info-700 hover:underline"
-            >
-              <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
-              {ratt.dossierLabel}
-            </Link>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-ink-4">
-              <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
-              non rattaché à un dossier
-            </span>
-          )}
-          <button type="button" onClick={onToggleChanger} className="text-ink-3 underline hover:text-ink">
-            {changer ? "fermer" : ratt.intranet ? "changer" : "rattacher / créer"}
-          </button>
-        </div>
-
+      <div className="px-5 pb-4 flex flex-col gap-3">
         {changer && !coproCode && (
           <div className="rounded-md border border-dashed border-line px-3 py-2 text-[12px] text-ink-3">
             Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété. Pour simplement
@@ -1496,32 +1340,119 @@ function AnalysePane({
           </div>
         )}
 
-        {/* Detail repliable : historique + contexte eStale */}
-        <div>
-          {dossier && dossier.historique.length > 0 && (
-            <SectionRepliable
-              cle="histo"
-              titre="Historique du dossier"
-              compte={`${dossier.historique.length}`}
-              icone={<Clock strokeWidth={1.5} className="w-3.5 h-3.5" />}
-              open={ouverts.has("histo")}
-              onToggle={onToggleSection}
-            >
-              <Timeline dossier={dossier} />
-            </SectionRepliable>
-          )}
+        {/* Réponse : seulement quand on l'a ouverte. */}
+        {(brouillon || compose) && (
+          <div className="rounded-lg border border-line p-4">
+              <div className="flex items-center justify-between mt-3 mb-1">
+              <span className="text-[11.5px] text-ink-3">Réponse (modifiable)</span>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={onCopier} className={BTN}>
+                  <Copy strokeWidth={1.5} className="w-3.5 h-3.5" />
+                  {copie ? "Copié" : "Copier"}
+                </button>
+                <button type="button" onClick={onCreerBrouillon} className={BTN}>
+                  <FilePlus2 strokeWidth={1.5} className="w-3.5 h-3.5" />
+                  Brouillon Outlook
+                </button>
+              </div>
+            </div>
+            <ChampDe
+              boites={boites}
+              boiteDuMail={boiteDuMail}
+              valeur={expediteur}
+              onChange={onMajExpediteur}
+            />
+            <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
+            <input
+              value={sujet}
+              onChange={(e) => onMajSujet(e.target.value)}
+              placeholder="Sujet"
+              aria-label="Sujet de la réponse"
+              className="w-full mb-2 rounded-md border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink outline-none focus:ring-1 focus:ring-green-500/40"
+            />
+            {piecesJointes && piecesJointes.length > 0 ? (
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-ink-3">Joindre&nbsp;:</span>
+                {piecesJointes.map((pj) => {
+                  const jointe = pjJointes.has(pj.id);
+                  return (
+                    <button
+                      key={pj.id}
+                      type="button"
+                      onClick={() => onTogglePjJointe(pj.id)}
+                      title={jointe ? "Jointe à la réponse" : "Joindre à la réponse"}
+                      className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full border text-[11.5px] transition-colors ${jointe ? "border-green-500/40 bg-green-50 text-green-700" : "border-line bg-surface text-ink-3 hover:bg-surface-2"}`}
+                    >
+                      {jointe ? (
+                        <Check strokeWidth={2} className="w-3 h-3 shrink-0" />
+                      ) : (
+                        <Paperclip strokeWidth={1.5} className="w-3 h-3 shrink-0" />
+                      )}
+                      <span className="truncate max-w-[160px]">{pj.nom}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            <textarea
+              value={brouillon}
+              onChange={(e) => onEditBrouillon(e.target.value)}
+              onBlur={onBlurBrouillon}
+              rows={7}
+              className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[12.5px] text-ink-2 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-green-500/40"
+            />
+            {signatureHtml ? (
+              <div className="mt-2">
+                <span className="text-[11px] text-ink-3">Signature (ajoutée à l’envoi)</span>
+                <iframe
+                  title="Signature"
+                  sandbox=""
+                  srcDoc={signatureHtml}
+                  className="mt-1 w-full h-[110px] rounded-md border border-line bg-white"
+                />
+              </div>
+            ) : null}
+            <div className="mt-2.5 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onEnvoyer}
+                disabled={envoiEnCours}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-md text-[13px] font-medium bg-green-700 text-white hover:bg-green-700/90 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Send strokeWidth={2} className="w-4 h-4" />
+                {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
+              </button>
+              {msgBrouillon ? <span className="text-[11.5px] text-ink-3">{msgBrouillon}</span> : null}
+            </div>
+          </div>
+        )}
 
-          <SectionRepliable
-            cle="estale"
-            titre="Contexte copropriété - eStale"
-            compte={contexte?.disponible ? "réel" : "-"}
-            icone={<Building2 strokeWidth={1.5} className="w-3.5 h-3.5" />}
-            open={ouverts.has("estale")}
-            onToggle={onToggleSection}
-          >
-            <ContexteCoproContenu ctx={contexte} />
-          </SectionRepliable>
-        </div>
+        {/* Tout le contexte replié dans UN seul volet. */}
+        <SectionRepliable
+          cle="contexte"
+          titre="Contexte"
+          compte={[LIBELLE_TYPE[m.type], contexte?.disponible ? "ESTALE" : null].filter(Boolean).join(" · ")}
+          icone={<Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />}
+          open={ouverts.has("contexte")}
+          onToggle={onToggleSection}
+        >
+          <div className="flex flex-col gap-3 text-[12.5px]">
+            <p className="text-ink">
+              <span className="text-ink-3">Suggestion de l&apos;assistant : </span>
+              {recommandation(m, ratt)}
+            </p>
+            {dossier && dossier.historique.length > 0 ? (
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.06em] text-ink-4 mb-1">Fil ({dossier.historique.length})</p>
+                <Timeline dossier={dossier} />
+              </div>
+            ) : null}
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.06em] text-ink-4 mb-1">Copropriété (ESTALE)</p>
+              <ContexteCoproContenu ctx={contexte} />
+            </div>
+          </div>
+        </SectionRepliable>
       </div>
     </Card>
   );
