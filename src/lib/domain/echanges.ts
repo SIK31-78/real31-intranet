@@ -69,6 +69,23 @@ export interface CritereEchanges {
   au?: string;
 }
 
+/**
+ * La barre de recherche unique de « E-mails » (13/10/2026) : une saisie libre devient des
+ * critères. Un code copro (S247, S0300, SE999) -> copro ; une adresse -> correspondant ; le
+ * reste -> mots. « S247 dupont@x.fr fuite » = la copro S247, avec Dupont, mot « fuite ».
+ */
+export function critereDepuisRecherche(saisie: string): CritereEchanges {
+  const c: CritereEchanges = {};
+  const mots: string[] = [];
+  for (const t of saisie.trim().split(/\s+/).filter(Boolean)) {
+    if (!c.copro && /^(SE|S)\d{3,4}$/i.test(t)) c.copro = t.toUpperCase();
+    else if (!c.correspondant && /^[^\s@]+@[^\s@]+$/.test(t)) c.correspondant = t.toLowerCase();
+    else mots.push(t);
+  }
+  if (mots.length) c.mots = mots.join(" ");
+  return c;
+}
+
 /** Au-delà, la requête devient trop longue pour l'URL Graph : on la coupe en paquets. */
 const ADRESSES_PAR_REQUETE = 15;
 

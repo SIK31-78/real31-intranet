@@ -11,13 +11,17 @@ import { estSuperAdmin } from "@/lib/auth/session";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import {
   AccesRefuse,
+  boitesDe,
   dossiersPourRattacher,
   lireEchange,
   rattacherEchange,
   lirePieceJointeEchange,
   listerPiecesJointesEchange,
+  rechercherEchanges,
   utilisateurEchanges,
+  type ResultatRecherche,
 } from "@/lib/services/echanges/rechercher";
+import { critereDepuisRecherche } from "@/lib/domain/echanges";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import type { Dossier } from "@/lib/domain/dossier";
 import { revalidatePath } from "next/cache";
@@ -38,6 +42,25 @@ async function garde<T>(f: () => Promise<T>): Promise<T> {
     if (e instanceof AccesRefuse) throw new Refus(e.message);
     throw e;
   }
+}
+
+/**
+ * Recherche dans TOUS les échanges (reçus et envoyés) des boîtes que l'on a le droit de lire,
+ * depuis la barre unique de « E-mails » : saisie libre -> code copro / adresse / mots.
+ */
+export async function rechercherEchangesAction(
+  input: unknown,
+): Promise<Res<ResultatRecherche & { plusieursBoites: boolean; copro: string | null; boitesLues: number }>> {
+  return actionGestionnaire(z.object({ saisie: z.string().trim().min(2).max(200) }), input, "echanges-rechercher", async (d, g) =>
+    garde(async () => {
+      const u = await utilisateur(g);
+      const cibles = boitesDe(u).map((b) => b.adresse);
+      if (cibles.length === 0) throw new Refus("Aucune boîte à fouiller n'est configurée pour vous.");
+      const critere = critereDepuisRecherche(d.saisie);
+      const r = await rechercherEchanges(u, critere, cibles);
+      return { ...r, plusieursBoites: cibles.length > 1, copro: critere.copro ?? null, boitesLues: cibles.length };
+    }),
+  );
 }
 
 export async function lireEchangeAction(input: unknown): Promise<Res<string>> {

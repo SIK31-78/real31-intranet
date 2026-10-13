@@ -55,6 +55,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
+import { ResultatsFouille, type Fouille } from "./resultats-fouille";
+import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
   devaliderMailAction,
   editBrouillonAction,
@@ -152,6 +154,20 @@ export function MesEmailsVue({
   const [vue, setVue] = useState<"recus" | "traites" | "tous">("recus");
   const [filtreCopro, setFiltreCopro] = useState<string>("toutes");
   const [recherche, setRecherche] = useState("");
+  // Recherche dans TOUS les échanges (ex-écran Échanges) : null = on regarde la boîte.
+  const [fouille, setFouille] = useState<Fouille | null>(null);
+  function lancerFouille() {
+    const saisie = recherche.trim();
+    if (saisie.length < 2) return;
+    setFouille({ saisie, enCours: true });
+    void rechercherEchangesAction({ saisie }).then((r) =>
+      setFouille(
+        r.ok && r.donnees
+          ? { saisie, enCours: false, resultat: r.donnees }
+          : { saisie, enCours: false, erreur: r.ok ? "La recherche n'a rien renvoyé." : r.erreur },
+      ),
+    );
+  }
   const [copie, setCopie] = useState<string | null>(null);
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
   // Verrou anti double-envoi : le bouton "Envoyer la réponse" declenche un envoi REEL
@@ -534,12 +550,26 @@ export function MesEmailsVue({
               type="search"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Filtrer : copro (S247), personne, mot…"
-              aria-label="Filtrer les mails de la boîte"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") lancerFouille();
+              }}
+              placeholder="Copro (S247), personne, mot… · Entrée : chercher dans tous les échanges"
+              aria-label="Filtrer la boîte ; Entrée pour chercher dans tous les échanges"
               className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-[12.5px] text-ink placeholder:text-ink-4"
             />
           </div>
+          <button
+            type="button"
+            onClick={lancerFouille}
+            disabled={recherche.trim().length < 2}
+            title="Chercher dans tous les échanges, reçus et envoyés"
+            className="h-8 px-3 rounded-md border border-line bg-surface text-[12.5px] text-ink-2 hover:bg-surface-2 disabled:opacity-50 inline-flex items-center gap-1.5"
+          >
+            <Search strokeWidth={1.5} className="w-3.5 h-3.5" />
+            Tous les échanges
+          </button>
         </div>
+        {!fouille && (
         <div className="flex flex-wrap items-center gap-1.5">
           {DOSSIERS.map((d) => (
             <button
@@ -569,8 +599,12 @@ export function MesEmailsVue({
             </button>
           )}
         </div>
+        )}
       </div>
 
+      {fouille ? (
+        <ResultatsFouille fouille={fouille} onFermer={() => setFouille(null)} />
+      ) : (
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* La liste, en premier : c'est ce qu'on vient chercher. */}
         <aside className="w-full lg:w-[340px] shrink-0">
@@ -716,6 +750,7 @@ export function MesEmailsVue({
           )}
         </section>
       </div>
+      )}
 
       {apercu ? (
         <div

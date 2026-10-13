@@ -12,7 +12,7 @@ import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
 
-export const metadata: Metadata = { title: "Mes e-mails - REAL31 Intranet" };
+export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
 // Lecture LIVE des boites a chaque affichage (plus de synchro) : rendu a la demande.
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export default async function MesEmailsPage() {
   const [data, signatureHtml] = await Promise.all([getMesEmails(g), getSignatureGestionnaire(g)]);
 
   return (
-    <AppShell user={g} active="emails" breadcrumb="Mes e-mails">
+    <AppShell user={g} active="emails" breadcrumb="E-mails">
       <Page largeur="travail">
         <form action={rafraichirAction} className="flex items-center gap-3">
           <h1 className="text-[20px] font-medium tracking-tight text-ink mr-auto">E-mails</h1>

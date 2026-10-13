@@ -73,9 +73,8 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
       { key: "dossiers", label: "Dossiers", href: "/dossiers", icon: FolderOpen },
       { key: "cles", label: "Gestion des clés", href: "/cles", icon: Key },
-      { key: "emails", label: "Mes e-mails", href: "/mes-emails", icon: Inbox },
+      { key: "emails", label: "E-mails", href: "/mes-emails", icon: Inbox },
       { key: "tri-emails", label: "Tri des e-mails", href: "/tri-emails", icon: MailCheck },
-      { key: "echanges", label: "Échanges", href: "/echanges", icon: MessageSquare },
     ],
   },
   {
@@ -358,13 +357,14 @@ export function Sidebar({
               // "Gestion courante" : comptable d'ENTREPRISE et super-admin (Sekou 2026-09-14).
               if (item.key === "gestion-courante") return gestionCouranteOuverte;
               // "Mes e-mails" : A VENIR pour les collegues -> super-admins seulement.
-              if (item.key === "emails") return adminOuvert;
+              // « E-mails » (boîte + recherche dans tous les échanges, ex-écran Échanges, 13/10/2026) :
+              // les admins, et les agences qui ont une boîte commune configurée.
+              if (item.key === "emails") return adminOuvert || echangesOuvert;
               // "Reprise" : ouverte aux gestionnaires depuis le 08/10/2026. Chacun n'y voit
               // que ses propres reprises (cf. dossierVisiblePar), la direction voit tout.
               if (item.key === "reprise") return repriseOuverte;
               // "Tri des e-mails" (ADR-046) : pilote super-admin, et seulement si la boite est configuree.
               if (item.key === "tri-emails") return adminOuvert && triOuvert;
-              if (item.key === "echanges") return echangesOuvert;
               // "Collaborateurs" et "Perte" : la direction.
               if (item.key === "collaborateurs") return directionOuverte;
               if (item.key === "perte") return perteOuverte;

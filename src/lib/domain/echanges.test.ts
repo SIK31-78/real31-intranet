@@ -3,6 +3,7 @@ import {
   boiteAutorisee,
   boitesVisibles,
   codesDeCopro,
+  critereDepuisRecherche,
   fusionnerResultats,
   lienEchange,
   lireRefEchange,
@@ -115,5 +116,13 @@ describe("mail rattaché à un dossier", () => {
     const base = { boite: "syndic4@real31.fr", deNom: "Jean Dupont", deAdresse: "jean@x.fr", a: ["syndic4@real31.fr"], objet: "Fuite" };
     expect(resumeEchange(base)).toBe("Reçu de Jean Dupont : Fuite");
     expect(resumeEchange({ ...base, deAdresse: "syndic4@real31.fr", a: ["jean@x.fr"] })).toBe("Envoyé à jean@x.fr : Fuite");
+  });
+});
+
+describe("critereDepuisRecherche (barre unique de E-mails)", () => {
+  it("reconnaît le code copro, l'adresse et garde le reste en mots", () => {
+    expect(critereDepuisRecherche("s0247 Dupont@X.fr fuite hall")).toEqual({ copro: "S0247", correspondant: "dupont@x.fr", mots: "fuite hall" });
+    expect(critereDepuisRecherche("  devis ascenseur ")).toEqual({ mots: "devis ascenseur" });
+    expect(critereDepuisRecherche("")).toEqual({});
   });
 });
