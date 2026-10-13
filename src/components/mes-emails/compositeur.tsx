@@ -5,7 +5,7 @@
 // dans la boîte partagée (syndicN). Aucun envoi direct ; brouillon seulement, et seulement
 // si l'envoi est ouvert (sinon aperçu). Composition (objet/corps) = domaine pur, en direct.
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Callout } from "@/components/ui/callout";
@@ -23,7 +23,11 @@ import {
 import {
   creerBrouillonCompositionAction,
   listerContactsCompositionAction,
+  listerDossiersCompositionAction,
 } from "@/app/mes-emails/composer/actions";
+import { TYPE_DOSSIER_LABEL, type TypeDossier } from "@/lib/domain/dossier";
+
+type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 
 type Props = {
   copros: CoproChoisissable[];
@@ -67,18 +71,31 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [chargement, demarrer] = useTransition();
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
 
+  const [dossiers, setDossiers] = useState<DossierAffiche[] | null>(null);
+  const [dossierId, setDossierId] = useState("");
+  // Garde anti-course : seule la DERNIÈRE copro choisie peut remplir contacts et dossiers.
+  const derniereCopro = useRef("");
+
   const copro = useMemo(() => copros.find((c) => c.reference.toUpperCase() === refCopro.trim().toUpperCase()) ?? null, [copros, refCopro]);
 
   function choisirCopro(ref: string) {
     setRefCopro(ref);
     setContacts(null);
     setCoches(new Set());
+    setDossiers(null);
+    setDossierId("");
     const c = copros.find((x) => x.reference.toUpperCase() === ref.trim().toUpperCase());
+    derniereCopro.current = c?.reference ?? "";
     if (!c) return;
     demarrer(async () => {
-      const r = await listerContactsCompositionAction({ reference: c.reference });
-      if (r.ok) setContacts(r.donnees ?? []);
-      else toast.err(r.erreur);
+      const [rc, rd] = await Promise.all([
+        listerContactsCompositionAction({ reference: c.reference }),
+        listerDossiersCompositionAction({ reference: c.reference }),
+      ]);
+      if (derniereCopro.current !== c.reference) return; // une autre copro a été choisie entre-temps
+      if (rc.ok) setContacts(rc.donnees ?? []);
+      else toast.err(rc.erreur);
+      if (rd.ok) setDossiers(rd.donnees ?? []);
     });
   }
 
@@ -126,17 +143,26 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     }
     setEnvoiEnCours(true);
     demarrer(async () => {
-      const r = await creerBrouillonCompositionAction({ objet, corps, a: destinataires, cc: emails(cc) });
+      const r = await creerBrouillonCompositionAction({
+        objet,
+        corps,
+        a: destinataires,
+        cc: emails(cc),
+        ...(dossierId ? { dossierId } : {}),
+      });
       setEnvoiEnCours(false);
       if (!r.ok) {
         toast.err(r.erreur);
         return;
       }
-      if (r.donnees?.simulation) {
+      const res = r.donnees;
+      if (!res || res.simulation) {
         toast.ok("Aperçu vérifié : aucune boîte branchée ici, aucun brouillon créé.");
-      } else {
-        toast.ok(`Brouillon créé dans ${r.donnees?.boite ?? "la boîte"} — à relire puis envoyer dans Outlook.`);
+        return;
       }
+      toast.ok(`Brouillon créé dans ${res.boite ?? "la boîte"} — à relire puis envoyer dans Outlook.`);
+      if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
+      if (res.rattache === false) toast.warn("Brouillon créé, mais le rattachement au dossier a échoué : rattache-le depuis Échanges.");
     });
   }
 
@@ -209,6 +235,22 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           <Field label="Copie (Cc)" htmlFor="comp-cc">
             <Input id="comp-cc" value={cc} onChange={(e) => setCc(e.target.value)} placeholder="adresse@exemple.fr, …" />
           </Field>
+          {copro && (
+            <Field
+              label="Rattacher à un dossier"
+              htmlFor="comp-dossier"
+              hint={dossiers && dossiers.length === 0 ? "Aucun dossier ouvert pour cette copropriété dans votre périmètre." : "Facultatif : le mail entre au journal du dossier."}
+            >
+              <Select id="comp-dossier" value={dossierId} onChange={(e) => setDossierId(e.target.value)} disabled={!dossiers || dossiers.length === 0}>
+                <option value="">— Aucun —</option>
+                {(dossiers ?? []).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {TYPE_DOSSIER_LABEL[d.type]} · {d.titre}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </section>
 
         <section className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3">

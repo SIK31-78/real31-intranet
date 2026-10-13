@@ -33,7 +33,8 @@ export interface MailOutboundProvider {
    * declaration assureur, recours...). `corps` = texte (l'adapter le met en HTML
    * Aptos 11). Statut Draft : on N'ENVOIE PAS. Pas de signature injectee (Signitic
    * s'applique a l'ouverture cote Outlook, comme creerBrouillon). Renvoie le
-   * webLink Outlook du brouillon cree si Graph le fournit.
+   * webLink Outlook du brouillon cree et son internetMessageId (stable, il survit a
+   * l'envoi et aux deplacements : sert a rattacher le mail a un dossier).
    */
   creerBrouillonNeuf(p: {
     boite: string;
@@ -41,7 +42,7 @@ export interface MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
-  }): Promise<{ webLink?: string }>;
+  }): Promise<{ webLink?: string; internetMessageId?: string }>;
 
   /**
    * ENVOIE un mail NEUF (pas une reponse : aucun fil d'origine) depuis la boite, avec

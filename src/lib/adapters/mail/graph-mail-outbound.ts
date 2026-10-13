@@ -107,7 +107,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
-  }): Promise<{ webLink?: string }> {
+  }): Promise<{ webLink?: string; internetMessageId?: string }> {
     if (!p.boite) throw new Error("Creation brouillon neuf : boite manquante.");
     const tk = await jetonGraph();
     // Meme rendu HTML que envoyer() (police Aptos 11). Pas de signature (Signitic
@@ -125,8 +125,11 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
       }),
     });
     if (!r.ok) throw new Error(`Graph creer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    const j = (await r.json()) as { webLink?: string };
-    return j.webLink ? { webLink: j.webLink } : {};
+    const j = (await r.json()) as { webLink?: string; internetMessageId?: string };
+    return {
+      ...(j.webLink ? { webLink: j.webLink } : {}),
+      ...(j.internetMessageId ? { internetMessageId: j.internetMessageId } : {}),
+    };
   }
 
   async envoyerNeuf(p: {
