@@ -6,9 +6,18 @@
 
 import type { MailIngestionProvider, OptionsIngestion } from "@/lib/ports/mail-ingestion-provider";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
+import type { Correspondant } from "@/lib/domain/mes-emails";
 import { GRAPH, graphFetch, jetonGraph } from "./graph-auth";
 
 const PAGE = 50;
+
+type AdresseGraph = { emailAddress?: { address?: string; name?: string } };
+
+function correspondants(l: AdresseGraph[] | undefined): Correspondant[] {
+  return (l ?? [])
+    .map((d) => ({ adresse: d.emailAddress?.address ?? "", ...(d.emailAddress?.name ? { nom: d.emailAddress.name } : {}) }))
+    .filter((c) => c.adresse);
+}
 
 type GraphMessage = {
   id: string;
@@ -16,13 +25,19 @@ type GraphMessage = {
   conversationId?: string;
   subject: string | null;
   from?: { emailAddress?: { address?: string; name?: string } };
-  toRecipients?: { emailAddress?: { address?: string } }[];
+  toRecipients?: AdresseGraph[];
+  ccRecipients?: AdresseGraph[];
+  replyTo?: AdresseGraph[];
   receivedDateTime: string;
   bodyPreview?: string;
   body?: { content?: string };
   hasAttachments?: boolean;
   webLink?: string;
+  singleValueExtendedProperties?: { id: string; value: string }[];
 };
+
+/** Le dernier geste d'Outlook (répondu, transféré) : propriété MAPI 0x1081, vérifiée le 13/10/2026. */
+const EXPAND_VERBE = "$expand=" + encodeURIComponent("singleValueExtendedProperties($filter=id eq 'Integer 0x1081')");
 
 function versRaw(m: GraphMessage): RawMail {
   return {
@@ -32,12 +47,16 @@ function versRaw(m: GraphMessage): RawMail {
     from: m.from?.emailAddress?.address ?? m.from?.emailAddress?.name ?? "",
     ...(m.from?.emailAddress?.name ? { fromName: m.from.emailAddress.name } : {}),
     to: (m.toRecipients ?? []).map((d) => d.emailAddress?.address ?? "").filter(Boolean),
+    toDetail: correspondants(m.toRecipients),
+    ccDetail: correspondants(m.ccRecipients),
+    replyTo: correspondants(m.replyTo),
     subject: m.subject ?? "",
     receivedAt: m.receivedDateTime,
     bodyText: m.body?.content ?? m.bodyPreview ?? "",
     copro: "",
     attachments: m.hasAttachments ? [{ name: "piece jointe" }] : [],
     ...(m.webLink ? { webLink: m.webLink } : {}),
+    ...(m.singleValueExtendedProperties?.[0]?.value ? { dernierVerbe: Number(m.singleValueExtendedProperties[0].value) } : {}),
   };
 }
 
@@ -63,12 +82,12 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     if (!boite) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");
     const tk = await jetonGraph();
     const select =
-      "id,internetMessageId,conversationId,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
+      "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,replyTo,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
     // Dossier precis (sous-dossier du binome dans la boite partagee) ou boite de reception.
     const dossier = opts.folderId ? encodeURIComponent(opts.folderId) : "inbox";
     let url: string =
       `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/${dossier}/messages` +
-      `?$top=${PAGE}&$orderby=receivedDateTime desc&$select=${select}` +
+      `?$top=${PAGE}&$orderby=receivedDateTime desc&$select=${select}&${EXPAND_VERBE}` +
       (opts.depuis ? `&$filter=receivedDateTime ge ${opts.depuis}` : "");
 
     const out: RawMail[] = [];
@@ -92,7 +111,7 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     if (!email) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");
     const tk = await jetonGraph();
     const select =
-      "id,internetMessageId,conversationId,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
+      "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,replyTo,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
     const ids = [...new Set(internetMessageIds.filter(Boolean))];
     const out: RawMail[] = [];
     // Par lots de 10 (filtre OR) : une URL raisonnable, peu d'appels.
@@ -102,7 +121,7 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
         .map((id) => `internetMessageId eq '${id.replace(/'/g, "''")}'`)
         .join(" or ");
       const r = await graphFetch(
-        `${GRAPH}/users/${encodeURIComponent(email)}/messages?$filter=${encodeURIComponent(filtre)}&$select=${select}&$top=50`,
+        `${GRAPH}/users/${encodeURIComponent(email)}/messages?$filter=${encodeURIComponent(filtre)}&$select=${select}&${EXPAND_VERBE}&$top=50`,
         { headers: { Authorization: `Bearer ${tk}`, Prefer: 'outlook.body-content-type="text"' } },
       );
       if (!r.ok) throw new Error(`Graph messages par id ${r.status} : ${(await r.text()).slice(0, 200)}`);

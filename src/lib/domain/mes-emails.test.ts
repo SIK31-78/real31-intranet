@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, phraseRecommandation, sujetDeReponse } from "./mes-emails";
+import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, nomDossierCopro, phraseRecommandation, sujetDeReponse } from "./mes-emails";
 
 // Les regles de la reponse a un mail vivaient dans 1 500 lignes de JSX, sans test.
 
@@ -32,11 +32,28 @@ describe("dossierOutlookSuggere", () => {
     { id: "d2", nom: "Résidence du Parc", niveau: 1 },
     { id: "d3", nom: "Spam", niveau: 0 },
   ];
-  it("le code de la copro d'abord, le nom ensuite (4 caracteres minimum), sinon rien", () => {
+  it("le code de la copro d'abord, le nom ensuite (5 caracteres minimum, sans accents), sinon rien", () => {
     expect(dossierOutlookSuggere({ coproCode: "s072", coproNom: "Autre" }, dossiers)).toBe("d1");
     expect(dossierOutlookSuggere({ coproCode: "S999", coproNom: "du Parc" }, dossiers)).toBe("d2");
-    expect(dossierOutlookSuggere({ coproCode: "", coproNom: "Par" }, dossiers)).toBe("");
+    expect(dossierOutlookSuggere({ coproCode: "S999", coproNom: "residence DU parc" }, dossiers)).toBe("d2");
+    expect(dossierOutlookSuggere({ coproCode: "", coproNom: "Parc" }, dossiers)).toBe("");
     expect(dossierOutlookSuggere({ coproCode: "S999", coproNom: "Inconnue" }, dossiers)).toBe("");
+  });
+  it("reconnait le code quelle que soit son ecriture, sans confondre S270 et S2700", () => {
+    const d = [
+      { id: "a", nom: "S2700 - Autre", niveau: 1 },
+      { id: "b", nom: "S270 - 34 rue de Vaugirard - 75015", niveau: 1 },
+    ];
+    expect(dossierOutlookSuggere({ coproCode: "S0270", coproNom: "x" }, d)).toBe("b");
+    expect(dossierOutlookSuggere({ coproCode: "S2700", coproNom: "x" }, d)).toBe("a");
+  });
+});
+
+describe("nomDossierCopro", () => {
+  it("code - nom, sans caracteres interdits par Outlook", () => {
+    expect(nomDossierCopro("S270", "Le Cyrano")).toBe("S270 - Le Cyrano");
+    expect(nomDossierCopro("S270", "A/B : C")).toBe("S270 - A B C");
+    expect(nomDossierCopro("S270", "")).toBe("S270");
   });
 });
 

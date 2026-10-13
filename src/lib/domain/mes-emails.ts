@@ -122,6 +122,27 @@ export interface PieceJointeRef {
   type: string;
 }
 
+/** Une adresse d'en-tête, avec le nom affiché quand Outlook le connaît. */
+export interface Correspondant {
+  adresse: string;
+  nom?: string;
+}
+
+/** « Nom <adresse> », ou l'adresse seule : la forme d'Outlook. */
+export function libelleCorrespondant(c: Correspondant): string {
+  const nom = (c.nom ?? "").trim();
+  return nom && nom.toLowerCase() !== c.adresse.toLowerCase() ? `${nom} <${c.adresse}>` : c.adresse;
+}
+
+export type ReponseOutlook = "repondu" | "transfere";
+
+/** Le dernier geste d'Outlook sur le mail (PidTagLastVerbExecuted) : 102/103 réponse, 104 transfert. */
+export function reponseDepuisVerbe(verbe: number | undefined): ReponseOutlook | undefined {
+  if (verbe === 102 || verbe === 103) return "repondu";
+  if (verbe === 104) return "transfere";
+  return undefined;
+}
+
 /** Un mail entrant en cours de traitement. */
 export interface MailEntrant {
   id: string;
@@ -133,6 +154,12 @@ export interface MailEntrant {
   destinataires: string[];
   /** Copie (champ Cc). */
   copie: string[];
+  /** En-tête complet comme dans Outlook (noms + adresses) : À, Cc, Répondre à. */
+  destinatairesDetail?: Correspondant[];
+  copieDetail?: Correspondant[];
+  repondreA?: Correspondant[];
+  /** Ce qu'Outlook a fait de ce mail (réponse ou transfert, depuis Outlook ou l'intranet). */
+  reponseOutlook?: ReponseOutlook;
   objet: string;
   /** Date ISO "YYYY-MM-DD" de reception (affichage). */
   date: string;
@@ -288,17 +315,28 @@ export function destinatairesDeReponse(m: Pick<MailEntrant, "expediteurEmail" | 
   return { to, cc: [...new Set(autres)], cci: [] };
 }
 
+const sansAccents = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
 /**
- * Dossier Outlook propose pour le classement : celui dont le nom contient le code de la copro,
- * sinon son nom (si assez long pour ne pas matcher n'importe quoi). "" = aucun.
+ * Le sous-dossier Outlook de la copro, pour archiver un mail conclu. Chacun a un dossier
+ * par copro, nommé « S270 - nom » ou juste du nom : on reconnaît le CODE quelle que soit
+ * son écriture (S270 = S0270, jamais S2700), sinon le nom (5 caractères au moins, sans
+ * accents). "" = aucun.
  */
 export function dossierOutlookSuggere(m: Pick<MailEntrant, "coproCode" | "coproNom">, dossiers: readonly DossierBoite[]): string {
-  const code = m.coproCode.toLowerCase();
-  const nom = m.coproNom.toLowerCase();
-  const f =
-    (code ? dossiers.find((d) => d.nom.toLowerCase().includes(code)) : undefined) ??
-    (nom.length >= 4 ? dossiers.find((d) => d.nom.toLowerCase().includes(nom)) : undefined);
-  return f?.id ?? "";
+  const cle = m.coproCode ? cleDeReference(m.coproCode) : null;
+  const parCode = cle ? dossiers.find((d) => referencesCitees(d.nom).includes(cle)) : undefined;
+  if (parCode) return parCode.id;
+  const nom = sansAccents(m.coproNom);
+  if (nom.length < 5) return "";
+  return dossiers.find((d) => sansAccents(d.nom).includes(nom))?.id ?? "";
+}
+
+/** Le nom du sous-dossier à créer pour une copro : « S270 - Nom », la forme déjà en usage. */
+export function nomDossierCopro(code: string, nom: string): string {
+  const n = nom.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
+  return (n ? `${code.trim()} - ${n}` : code.trim()).slice(0, 120);
 }
 
 /** La phrase de l'assistant : quoi faire de ce mail. */

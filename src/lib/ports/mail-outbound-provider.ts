@@ -28,18 +28,15 @@ export interface MailOutboundProvider {
    * destinataires CHOISIS (A / Cc / Cci). Cree un brouillon de reponse, y pose le
    * corps + les destinataires, puis l'envoie. Action irreversible (vrai mail).
    */
-  envoyer(p: {
-    boite: string;
-    internetMessageId: string;
-    corps: string;
-    sujet?: string;
-    a: string[];
-    cc: string[];
-    cci: string[];
-    signatureHtml?: string;
-    /** Ids des pieces jointes du mail D'ORIGINE a re-joindre a la reponse. */
-    pjIds?: string[];
-  }): Promise<void>;
+  envoyer(p: ReponseMail): Promise<void>;
+
+  /**
+   * Meme reponse que `envoyer` (fil, destinataires, objet, pieces jointes), mais laissee en
+   * BROUILLON dans la boite : rien ne part. C'est la voie de la boite partagee pendant le
+   * pilote : on relit et on envoie dans Outlook. Pas de signature injectee (Signitic
+   * l'ajoute a l'ouverture dans Outlook). Renvoie le lien Outlook du brouillon.
+   */
+  creerBrouillonReponse(p: ReponseMail): Promise<{ webLink?: string }>;
 
   /**
    * Cree un brouillon mail NEUF dans la boite (pas une reponse : aucun message
@@ -56,6 +53,9 @@ export interface MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    /** Signature (Signitic) posée sous le texte : un brouillon créé par l'app n'en a pas sinon. */
+    signatureHtml?: string;
+    piecesJointes?: PieceJointeMail[];
   }): Promise<{ webLink?: string; internetMessageId?: string }>;
 
   /**
@@ -81,6 +81,21 @@ export interface MailOutboundProvider {
     /** Pieces jointes (le contrat de l'offre en PDF). Petites : Graph accepte ~3 Mo en base64 par sendMail. */
     piecesJointes?: PieceJointeMail[];
   }): Promise<void>;
+}
+
+export interface ReponseMail {
+  boite: string;
+  internetMessageId: string;
+  corps: string;
+  sujet?: string;
+  a: string[];
+  cc: string[];
+  cci: string[];
+  signatureHtml?: string;
+  /** Ids des pieces jointes du mail D'ORIGINE a re-joindre a la reponse. */
+  pjIds?: string[];
+  /** Fichiers ajoutes depuis l'ordinateur (3 Mo max chacun : envoi simple de Graph). */
+  piecesJointes?: PieceJointeMail[];
 }
 
 export interface PieceJointeMail {

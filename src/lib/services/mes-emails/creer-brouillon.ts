@@ -4,12 +4,13 @@
 // `createReply` ne trouve pas le message. Passe par le routeur (ADR-001).
 
 import { getMailOutboundProvider } from "@/lib/adapters/router";
+import type { ReponseMail } from "@/lib/ports/mail-outbound-provider";
 
-export async function creerBrouillonOutlook(
-  boite: string,
-  internetMessageId: string,
-  corps: string,
-): Promise<void> {
-  if (!boite) throw new Error("Pas de boite ciblee : impossible de creer le brouillon.");
-  await getMailOutboundProvider().creerBrouillon({ boite, internetMessageId, corps });
+/**
+ * La réponse préparée dans l'intranet (destinataires, objet, pièces jointes du mail et
+ * fichiers ajoutés) devient un brouillon dans la boîte qui détient le mail. Rien ne part.
+ */
+export async function creerBrouillonReponse(p: ReponseMail): Promise<{ webLink?: string }> {
+  if (!p.boite) throw new Error("Pas de boite ciblee : impossible de creer le brouillon.");
+  return getMailOutboundProvider().creerBrouillonReponse(p);
 }

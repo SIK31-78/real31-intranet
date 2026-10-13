@@ -18,6 +18,11 @@ export class NoopMailboxProvider implements MailboxProvider {
     return [];
   }
 
+  async creerDossier(_boite: string, nom: string): Promise<DossierBoite> {
+    console.log("[mailbox:noop] creation de dossier simulee");
+    return { id: `noop-${nom}`, nom, niveau: 1 };
+  }
+
   async classerDansDossier(p: {
     boite: string;
     internetMessageId: string;

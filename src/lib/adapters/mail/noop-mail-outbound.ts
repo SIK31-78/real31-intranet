@@ -25,6 +25,11 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     console.log(`[mail-outbound:noop] envoi simule pour ${p.internetMessageId} (${p.a.length} dest.)`);
   }
 
+  async creerBrouillonReponse(p: { internetMessageId: string; a: string[] }): Promise<{ webLink?: string }> {
+    console.log(`[mail-outbound:noop] brouillon de reponse simule pour ${p.internetMessageId} (${p.a.length} dest.)`);
+    return {};
+  }
+
   async creerBrouillonNeuf(p: {
     boite: string;
     sujet: string;

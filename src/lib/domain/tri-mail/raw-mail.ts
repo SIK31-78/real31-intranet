@@ -2,7 +2,7 @@
 // pipeline (clean/prefilter/group/sender) et le port d'analyse. Ne depend que du
 // domaine (la taxonomie TypeMail est deja definie dans mes-emails).
 
-import type { TypeMail } from "@/lib/domain/mes-emails";
+import type { Correspondant, TypeMail } from "@/lib/domain/mes-emails";
 
 /** Mail normalise, issu de l'ingestion (Graph) ou d'un echantillon de test. */
 export interface RawMail {
@@ -15,6 +15,12 @@ export interface RawMail {
   /** Nom affiche de l'expediteur ("Marc Delmas"), si Graph le donne. */
   fromName?: string;
   to: string[];
+  /** En-tête complet (noms compris), si la source le donne : À, Cc, Répondre à. */
+  toDetail?: Correspondant[];
+  ccDetail?: Correspondant[];
+  replyTo?: Correspondant[];
+  /** Dernier geste d'Outlook sur le mail (PidTagLastVerbExecuted : 102, 103, 104…). */
+  dernierVerbe?: number;
   subject: string;
   /** ISO 8601. */
   receivedAt: string;

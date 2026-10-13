@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Mail,
   Sparkles,
@@ -20,12 +20,16 @@ import {
   FileText,
   CalendarCheck,
   ChevronRight,
-  FolderInput,
   FolderUp,
   Download,
   X,
   Send,
   Inbox,
+  CircleCheck,
+  Archive,
+  Reply,
+  ReplyAll,
+  FolderPlus,
 } from "lucide-react";
 import type {
   ContexteCopro,
@@ -34,12 +38,16 @@ import type {
   EvenementKind,
   MailEntrant,
   MesEmails,
+  ReponseOutlook,
   PieceJointeRef,
   Rattachement,
 } from "@/lib/domain/mes-emails";
 import {
   LIBELLE_TYPE,
+  dossierOutlookSuggere,
   grouperDossiersBoite,
+  libelleCorrespondant,
+  nomDossierCopro,
   mailsDeLaBoite,
   sujetDeReponse,
   trierMails,
@@ -52,6 +60,7 @@ import { boiteReponseParDefaut } from "@/lib/domain/boites-mail";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Button, classesBouton } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +71,7 @@ import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
   devaliderMailAction,
+  marquerTraiteAction,
   editBrouillonAction,
   marquerLuAction,
   creerBrouillonAction,
@@ -73,6 +83,7 @@ import {
   transmettreFactureAction,
   rattacherCoproAction,
   chargerDossiersAction,
+  creerDossierOutlookAction,
   classerDansDossierAction,
   chargerDossiersCoproAction,
   rattacherADossierAction,
@@ -88,9 +99,10 @@ type Destinataires = { to: string[]; cc: string[]; cci: string[] };
 function defautDestinataires(m: MailEntrant): Destinataires {
   const exp = (m.expediteurEmail || "").trim();
   const to = exp.includes("@") ? [exp] : [];
+  const moi = (m.boite ?? "").toLowerCase();
   const autres = [...m.destinataires, ...m.copie]
     .map((e) => e.trim())
-    .filter((e) => e.includes("@") && e.toLowerCase() !== exp.toLowerCase());
+    .filter((e) => e.includes("@") && e.toLowerCase() !== exp.toLowerCase() && e.toLowerCase() !== moi);
   return { to, cc: [...new Set(autres)], cci: [] };
 }
 
@@ -140,7 +152,7 @@ export function MesEmailsVue({
     () =>
       new Set(
         data.mails
-          .filter((m) => m.statutTraitement === "classe" || m.statutTraitement === "repondu")
+          .filter((m) => m.statutTraitement === "repondu")
           .map((m) => m.id),
       ),
   );
@@ -151,7 +163,6 @@ export function MesEmailsVue({
   const [overrides, setOverrides] = useState<Map<string, Rattachement>>(new Map());
   const [changer, setChanger] = useState(false);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
-  const [vue, setVue] = useState<"recus" | "traites" | "tous">("recus");
   const [filtreCopro, setFiltreCopro] = useState<string>("toutes");
   const [recherche, setRecherche] = useState("");
   // Recherche dans TOUS les échanges (ex-écran Échanges) : null = on regarde la boîte.
@@ -192,7 +203,10 @@ export function MesEmailsVue({
   // Pieces jointes REELLES chargees a la demande a l'ouverture (null = en cours).
   const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
+  const [vue, setVue] = useState<"a_traiter" | "conclus">("a_traiter");
   const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
+  // Fichiers ajoutés depuis l'ordinateur à la réponse (en plus des PJ du mail d'origine).
+  const [fichiersParMail, setFichiersParMail] = useState<Map<string, FichierJoint[]>>(new Map());
   // Mails dont l'editeur de reponse est ouvert manuellement (ex. mail sans action).
   const [composeParMail, setComposeParMail] = useState<Set<string>>(new Set());
   // Sujet editable de la reponse, par mail.
@@ -250,15 +264,26 @@ export function MesEmailsVue({
 
   // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
   // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
-  const autoDossier = (m: MailEntrant): string => {
-    if (!dossiers) return "";
-    const code = m.coproCode.toLowerCase();
-    const nom = m.coproNom.toLowerCase();
-    const f =
-      (code ? dossiers.find((d) => d.nom.toLowerCase().includes(code)) : undefined) ??
-      (nom.length >= 4 ? dossiers.find((d) => d.nom.toLowerCase().includes(nom)) : undefined);
-    return f?.id ?? "";
-  };
+  // Le sous-dossier Outlook de la copro, reconnu par son code (S270 = S0270) ou son nom.
+  const autoDossier = (m: MailEntrant): string => (dossiers ? dossierOutlookSuggere(m, dossiers) : "");
+  // La copro n'a pas encore de sous-dossier : on propose de le créer, sous la forme « S270 - Nom ».
+  const dossierACreer = (m: MailEntrant): string | null =>
+    dossiers && m.coproCode && !dossierIdDe(m) ? nomDossierCopro(m.coproCode, m.coproNom) : null;
+  async function creerDossierOutlook(m: MailEntrant) {
+    const nom = dossierACreer(m);
+    if (!nom) return;
+    setMsgClasser(`Création du dossier « ${nom} » dans Outlook…`);
+    const boite = boiteDuMail(m);
+    const r = await creerDossierOutlookAction(nom, boite);
+    if (!r.ok || !r.dossier) {
+      setMsgClasser(r.message ?? "Le dossier n'a pas pu être créé.");
+      return;
+    }
+    const cree = r.dossier;
+    setDossiersParBoite((p) => new Map(p).set(boite, [...(p.get(boite) ?? []).filter((d) => d.id !== cree.id), cree]));
+    setDossiersChoisis((p) => new Map(p).set(m.id, cree.id));
+    setMsgClasser(`Dossier « ${cree.nom} » prêt.`);
+  }
   // Priorite : choix de session > dossier persiste (reload) > auto-detection.
   const dossierIdDe = (m: MailEntrant): string =>
     dossiersChoisis.get(m.id) ?? m.dossierClasseId ?? autoDossier(m);
@@ -275,13 +300,50 @@ export function MesEmailsVue({
   };
 
   async function creerBrouillon(m: MailEntrant) {
-    setMsgBrouillon("Création du brouillon dans Outlook...");
-    const r = await creerBrouillonAction(m.id, m.coproCode, brouillonDe(m), boiteDuMail(m));
-    setMsgBrouillon(r.ok ? "Brouillon créé dans Outlook." : `Échec : ${r.message ?? ""}`);
+    setMsgBrouillon("Création du brouillon dans Outlook…");
+    const dst = destinatairesDe(m);
+    const r = await creerBrouillonAction({
+      emailId: m.id,
+      coproCode: coproDe(m).code,
+      corps: brouillonDe(m),
+      sujet: sujetDe(m),
+      a: dst.to,
+      cc: dst.cc,
+      cci: dst.cci,
+      pjIds: [...pjJointesDe(m)],
+      fichiers: fichiersEnvoi(m),
+      boite: boiteDuMail(m),
+    });
+    setMsgBrouillon(
+      r.ok
+        ? `Brouillon créé dans ${boiteDuMail(m)}, avec destinataires, objet et pièces jointes : à relire puis envoyer dans Outlook.`
+        : `Échec : ${r.message ?? ""}`,
+    );
   }
 
-  // Ouvre l'editeur de reponse sur un mail (meme sans action) : reponse manuelle.
-  const repondre = (m: MailEntrant) => setComposeParMail((p) => new Set(p).add(m.id));
+  // Ouvre l'editeur de reponse. « Répondre » = l'expediteur seul ; « Répondre à tous » =
+  // l'expediteur en À, les autres en Cc (comme Outlook).
+  const repondre = (m: MailEntrant, tous: boolean) => {
+    const d = defautDestinataires(m);
+    setDestParMail((p) => new Map(p).set(m.id, tous ? d : { to: d.to, cc: [], cci: [] }));
+    setComposeParMail((p) => new Set(p).add(m.id));
+  };
+  const fichiersDe = (m: MailEntrant): FichierJoint[] => fichiersParMail.get(m.id) ?? [];
+  async function ajouterFichiers(m: MailEntrant, liste: FileList | null) {
+    if (!liste?.length) return;
+    const ajout: FichierJoint[] = [];
+    for (const f of Array.from(liste)) {
+      if (f.size > TAILLE_MAX_FICHIER) {
+        setMsgBrouillon(`« ${f.name} » dépasse 3 Mo : à envoyer depuis Outlook ou à déposer sur SharePoint.`);
+        continue;
+      }
+      ajout.push({ nom: f.name, contentType: f.type, taille: f.size, base64: await enBase64(f) });
+    }
+    setFichiersParMail((p) => new Map(p).set(m.id, [...fichiersDe(m), ...ajout].slice(0, 10)));
+  }
+  const retirerFichier = (m: MailEntrant, i: number) =>
+    setFichiersParMail((p) => new Map(p).set(m.id, fichiersDe(m).filter((_, k) => k !== i)));
+  const fichiersEnvoi = (m: MailEntrant) => fichiersDe(m).map(({ nom, contentType, base64 }) => ({ nom, contentType, base64 }));
 
   // Recupere une PJ (base64 cote serveur) -> Blob -> URL objet (pour download OU apercu).
   async function chargerBlobPj(
@@ -344,8 +406,8 @@ export function MesEmailsVue({
   }
 
   const q = recherche.trim().toLowerCase();
-  const matchVue = (m: MailEntrant): boolean =>
-    vue === "tous" || (vue === "traites" ? classes.has(m.id) : !classes.has(m.id));
+  // « À traiter » = ce qui reste à conclure ; « Conclus » = les événements fermés, avec leur réponse.
+  const matchVue = (m: MailEntrant): boolean => (vue === "conclus" ? classes.has(m.id) : !classes.has(m.id));
   const visibles = mailsTries.filter(
     (m) =>
       matchVue(m) &&
@@ -458,6 +520,7 @@ export function MesEmailsVue({
         [...pjJointesDe(m)],
         boiteDuMail(m),
         expediteur,
+        fichiersEnvoi(m),
       );
       if (!r.ok) {
         setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
@@ -495,14 +558,23 @@ export function MesEmailsVue({
     ).then((r) => {
       if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
     });
-    // Enchaînement : dans « Reçus », passer au mail suivant (le courant part en « Traités »).
-    if (vue === "recus") {
-      const idx = visibles.findIndex((x) => x.id === m.id);
-      const suivant =
-        visibles.slice(idx + 1).find((x) => x.id !== m.id) ??
-        [...visibles.slice(0, Math.max(idx, 0))].reverse().find((x) => x.id !== m.id);
-      if (suivant) ouvrir(suivant.id);
-    }
+    passerAuSuivant(m);
+  }
+  // Conclure l'événement : le mail sort de la liste, sans bouger dans Outlook (les deux boîtes).
+  function marquerTraite(m: MailEntrant) {
+    setMsgClasser(null);
+    setClasses((p) => add(p, m.id));
+    void marquerTraiteAction(m.id, coproDe(m).code);
+    passerAuSuivant(m);
+  }
+  function passerAuSuivant(m: MailEntrant) {
+    // Enchaînement : on passe au mail suivant, le courant sort de la liste.
+    if (vue !== "a_traiter") return;
+    const idx = visibles.findIndex((x) => x.id === m.id);
+    const suivant =
+      visibles.slice(idx + 1).find((x) => x.id !== m.id) ??
+      [...visibles.slice(0, Math.max(idx, 0))].reverse().find((x) => x.id !== m.id);
+    if (suivant) ouvrir(suivant.id);
   }
   function devalider(m: MailEntrant) {
     setClasses((p) => del(p, m.id));
@@ -512,13 +584,6 @@ export function MesEmailsVue({
   const toggleSection = (cle: string) =>
     setOuverts((p) => (p.has(cle) ? del(p, cle) : add(p, cle)));
 
-  const nbClasses = mailsBoite.filter((m) => classes.has(m.id)).length;
-  const nbRecus = mailsBoite.length - nbClasses;
-  const DOSSIERS = [
-    { cle: "recus", label: "À traiter", n: nbRecus },
-    { cle: "traites", label: "Traités", n: nbClasses },
-    { cle: "tous", label: "Tous", n: mailsBoite.length },
-  ] as const;
 
   return (
     <div className="flex flex-col gap-3">
@@ -572,21 +637,16 @@ export function MesEmailsVue({
         </div>
         {!fouille && (
         <div className="flex flex-wrap items-center gap-1.5">
-          {DOSSIERS.map((d) => (
-            <button
-              key={d.cle}
-              type="button"
-              aria-pressed={vue === d.cle}
-              onClick={() => setVue(d.cle)}
-              className={
-                "h-7 px-2.5 rounded-full text-meta border transition-colors inline-flex items-center gap-1.5 " +
-                (vue === d.cle ? "bg-green-50 text-green-700 border-green-500/30 font-medium" : "bg-surface text-ink-2 border-line hover:bg-surface-2")
-              }
-            >
-              {d.label}
-              <span className={vue === d.cle ? "text-green-700/70" : "text-ink-3"}>{d.n}</span>
-            </button>
-          ))}
+          <SegmentedControl
+            label="Événements affichés"
+            size="sm"
+            value={vue}
+            onChange={(v) => v && setVue(v)}
+            options={[
+              { value: "a_traiter", label: `À traiter · ${mailsBoite.filter((m) => !classes.has(m.id)).length}` },
+              { value: "conclus", label: `Conclus · ${mailsBoite.filter((m) => classes.has(m.id)).length}` },
+            ]}
+          />
           {filtreCopro !== "toutes" && (
             <button
               type="button"
@@ -618,6 +678,8 @@ export function MesEmailsVue({
                   actif={m.id === selection?.id}
                   lu={lus.has(m.id)}
                   statut={statutDe(m.id)}
+                  reponse={repondus.has(m.id) ? "repondu" : (m.reponseOutlook ?? null)}
+                  conclus={vue === "conclus"}
                   onClick={() => ouvrir(m.id)}
                 />
               ))}
@@ -649,12 +711,17 @@ export function MesEmailsVue({
               onChoisirDossier={(id) =>
                 setDossiersChoisis((p) => new Map(p).set(selection.id, id))
               }
+              dossierACreer={dossierACreer(selection)}
+              onCreerDossierOutlook={() => void creerDossierOutlook(selection)}
               msgClasser={msgClasser}
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
               onGenererBrouillon={() => void genererBrouillon(selection)}
               compose={composeParMail.has(selection.id)}
-              onRepondre={() => repondre(selection)}
+              onRepondre={(tous) => repondre(selection, tous)}
+              fichiers={fichiersDe(selection)}
+              onAjouterFichiers={(l) => void ajouterFichiers(selection, l)}
+              onRetirerFichier={(i) => retirerFichier(selection, i)}
               piecesJointes={
                 pjParMail.has(selection.id) ? (pjParMail.get(selection.id) ?? null) : []
               }
@@ -733,6 +800,8 @@ export function MesEmailsVue({
                 setCopie(selection.id);
               }}
               onValider={() => void valider(selection)}
+              classementOutlook={data.boites.find((b) => b.id === boiteDuMail(selection))?.personnelle ?? true}
+              onConclure={() => marquerTraite(selection)}
               onDevalider={() => devalider(selection)}
               onToggleSection={toggleSection}
             />
@@ -740,12 +809,10 @@ export function MesEmailsVue({
             <Card className="px-6 py-16 text-center">
               <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
               <p className="text-body font-medium text-ink mt-3">
-                {vue === "traites" ? "Aucun mail traité" : vue === "tous" ? "Aucun mail" : "Boîte vide"}
+                {vue === "conclus" ? "Aucun événement conclu" : "Rien à traiter"}
               </p>
               <p className="text-body text-ink-3 mt-1">
-                {vue === "recus"
-                  ? "Tous les mails de ce dossier sont traités."
-                  : "Rien à afficher ici."}
+                {vue === "conclus" ? "Les événements conclus apparaissent ici, avec leur réponse." : "Tous les événements sont conclus."}
               </p>
             </Card>
           )}
@@ -759,7 +826,7 @@ export function MesEmailsVue({
 }
 
 function StatutBadge({ statut }: { statut: Statut }) {
-  if (statut === "classe") return <Badge ton="ok">Classé</Badge>;
+  if (statut === "classe") return <Badge ton="ok">Conclu</Badge>;
   if (statut === "repondu") return <Badge ton="info">Répondu</Badge>;
   return null;
 }
@@ -770,12 +837,17 @@ function LigneMail({
   actif,
   lu,
   statut,
+  reponse,
+  conclus,
   onClick,
 }: {
   m: MailEntrant;
   actif: boolean;
   lu: boolean;
   statut: Statut;
+  reponse: ReponseOutlook | null;
+  /** Vue des conclus : on montre aussi « Sans réponse ». */
+  conclus: boolean;
   onClick: () => void;
 }) {
   const qui = m.de.replace(/ \(.*\)$/, "");
@@ -784,15 +856,13 @@ function LigneMail({
       <button
         type="button"
         onClick={onClick}
-        className={"w-full text-left px-3.5 py-2.5 transition-colors" + (statut === "classe" ? " opacity-55" : "")}
+        className="w-full text-left px-3.5 py-2.5 transition-colors"
       >
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full shrink-0 ${!lu ? "bg-info-500" : "bg-transparent"}`} />
           <span
             className={
-              "text-body text-ink truncate flex-1 " +
-              (statut === "classe" ? "line-through " : "") +
-              (!lu ? "font-semibold" : "font-medium")
+              "text-body text-ink truncate flex-1 " + (!lu && statut !== "classe" ? "font-semibold" : "font-medium")
             }
           >
             {m.objet}
@@ -802,7 +872,15 @@ function LigneMail({
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
           <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-3")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
-          {statut !== "nouveau" ? <span className="ml-auto shrink-0"><StatutBadge statut={statut} /></span> : null}
+          {reponse ? (
+            <span className="ml-auto shrink-0">
+              <Badge ton="info">{reponse === "transfere" ? "Transféré" : "Répondu"}</Badge>
+            </span>
+          ) : conclus ? (
+            <span className="ml-auto shrink-0">
+              <Badge ton="warn">Sans réponse</Badge>
+            </span>
+          ) : null}
         </div>
       </button>
     </li>
@@ -888,6 +966,9 @@ function ChampsDestinataires({
   );
 }
 
+/** Une boîte partagée du cabinet (syndic1, syndic2…) : en rouge dans une réponse, sans bloquer. */
+const BOITE_PARTAGEE = /^syndic\d+@real31\.fr$/i;
+
 function LigneDest({
   label,
   champ,
@@ -912,7 +993,11 @@ function LigneDest({
         {valeurs.map((e) => (
           <span
             key={e}
-            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-meta text-ink-2"
+            title={BOITE_PARTAGEE.test(e) ? "Boîte partagée" : undefined}
+            className={
+              "inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full text-meta " +
+              (BOITE_PARTAGEE.test(e) ? "bg-err-50 text-err-700 border border-err-500/40" : "bg-surface-3 text-ink-2")
+            }
           >
             <span className="truncate max-w-[200px]">{e}</span>
             <button
@@ -1006,6 +1091,8 @@ function AnalysePane({
   dossiers,
   dossierIdChoisi,
   onChoisirDossier,
+  dossierACreer,
+  onCreerDossierOutlook,
   msgClasser,
   changer,
   ouverts,
@@ -1017,6 +1104,9 @@ function AnalysePane({
   onGenererBrouillon,
   compose,
   onRepondre,
+  fichiers,
+  onAjouterFichiers,
+  onRetirerFichier,
   piecesJointes,
   onTelecharger,
   onApercu,
@@ -1043,6 +1133,8 @@ function AnalysePane({
   onValider,
   onDevalider,
   onToggleSection,
+  classementOutlook,
+  onConclure,
 }: {
   m: MailEntrant;
   contexte: ContexteCopro | undefined;
@@ -1059,6 +1151,9 @@ function AnalysePane({
   dossiers: DossierBoite[] | null;
   dossierIdChoisi: string;
   onChoisirDossier: (id: string) => void;
+  /** Nom du sous-dossier de la copro à créer quand elle n'en a pas ; null sinon. */
+  dossierACreer: string | null;
+  onCreerDossierOutlook: () => void;
   msgClasser: string | null;
   changer: boolean;
   ouverts: Set<string>;
@@ -1069,7 +1164,10 @@ function AnalysePane({
   onCreerBrouillon: () => void;
   onGenererBrouillon: () => void;
   compose: boolean;
-  onRepondre: () => void;
+  onRepondre: (tous: boolean) => void;
+  fichiers: FichierJoint[];
+  onAjouterFichiers: (l: FileList | null) => void;
+  onRetirerFichier: (i: number) => void;
   piecesJointes: PieceJointeRef[] | null;
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
@@ -1098,9 +1196,12 @@ function AnalysePane({
   onValider: () => void;
   onDevalider: () => void;
   onToggleSection: (cle: string) => void;
+  /** Boîte perso : on range dans un dossier Outlook. Boîte partagée : non (le tri l'a fait). */
+  classementOutlook: boolean;
+  /** Conclure l'événement (vocabulaire Crypto) : le mail sort de la liste, sans bouger dans Outlook. */
+  onConclure: () => void;
 }) {
   const classe = statut === "classe";
-  const labelValider = "Classer";
   const genEnCours = (msgBrouillon ?? "").startsWith("Génération");
 
   return (
@@ -1110,19 +1211,22 @@ function AnalysePane({
         <div className="flex items-start gap-3">
           <h2 className="flex-1 text-title font-semibold text-ink leading-snug">{m.objet}</h2>
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
+          {!(brouillon || compose) && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="doux" onClick={() => onRepondre(false)}>
+                <Reply strokeWidth={1.75} />
+                Répondre
+              </Button>
+              <Button onClick={() => onRepondre(true)}>
+                <ReplyAll strokeWidth={1.75} />
+                Répondre à tous
+              </Button>
+            </div>
+          )}
         </div>
-        <p className="mt-1 text-meta text-ink-3 leading-relaxed">
-          <span className="font-medium text-ink">{m.de}</span> &lt;{m.expediteurEmail}&gt; → {m.destinataires.join(", ")}
-          {m.copie.length > 0 && <> · Cc : {m.copie.join(", ")}</>} · {formatDateLongue(m.date)}
-        </p>
+        <EnTeteMail m={m} />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {!(brouillon || compose) && (
-            <Button onClick={onRepondre}>
-              <Mail strokeWidth={1.5} />
-              Répondre
-            </Button>
-          )}
           {!(brouillon || compose) && m.ticketable ? (
             <Button onClick={onGenererBrouillon} loading={genEnCours}>
               <Sparkles strokeWidth={1.5} />
@@ -1153,75 +1257,16 @@ function AnalysePane({
               ))}
             </Select>
           </span>
-          {classe ? (
-            <span className="inline-flex items-center gap-2 text-meta text-ink-3">
-              <Check strokeWidth={2} className="w-3.5 h-3.5 text-green-700" />
-              {m.dossierClasseNom ? <>Classé dans «&nbsp;{m.dossierClasseNom}&nbsp;»</> : "Classé"}
-              <button type="button" onClick={onDevalider} className="underline hover:text-ink">
-                annuler
-              </button>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-meta">
-              <FolderInput strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                  <Select
-                    largeur="auto"
-                    value={dossierIdChoisi}
-                    onChange={(e) => onChoisirDossier(e.target.value)}
-                    aria-label="Dossier Outlook de classement"
-                    className="max-w-[200px]"
-                  >
-                    <option value="">
-                      {dossiers === null ? "Chargement des dossiers…" : "Classer dans…"}
-                    </option>
-                    {dossiers &&
-                      (() => {
-                        const { reception, autres } = grouperDossiersBoite(dossiers);
-                        return (
-                          <>
-                            {reception.length > 0 && (
-                              <optgroup label="Sous-dossiers de la réception">
-                                {reception.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.nom}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {autres.length > 0 && (
-                              <optgroup label="Autres dossiers">
-                                {autres.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.nom}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                          </>
-                        );
-                      })()}
-                  </Select>
-              <button
-                type="button"
-                onClick={onValider}
-                disabled={!dossierIdChoisi}
-                title={!dossierIdChoisi ? "Choisis un dossier de destination" : "Classer dans ce dossier"}
-                aria-label={labelValider}
-                className={classesBouton({ iconOnly: true })}
-              >
-                <Check strokeWidth={2} />
-              </button>
-            </span>
-          )}
           {ratt.intranet ? (
             <Link href={`/dossiers/${ratt.dossierId}`} className="inline-flex items-center gap-1 text-meta text-info-700 hover:underline">
               <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
               {ratt.dossierLabel}
             </Link>
           ) : null}
-          <button type="button" onClick={onToggleChanger} className="text-meta text-ink-3 underline hover:text-ink">
-            {changer ? "fermer" : ratt.intranet ? "changer de dossier" : "dossier…"}
-          </button>
+          <Button onClick={onToggleChanger} aria-expanded={changer}>
+            {changer ? <X strokeWidth={1.5} /> : <FolderPlus strokeWidth={1.5} />}
+            {changer ? "Fermer" : ratt.intranet ? "Changer de dossier" : "Rattacher à un dossier"}
+          </Button>
         </div>
         {msgClasser ? <p className="mt-1.5 text-meta text-ink-3">{msgClasser}</p> : null}
         {msgBrouillon && !(brouillon || compose) ? <p className="mt-1.5 text-meta text-ink-3">{msgBrouillon}</p> : null}
@@ -1370,6 +1415,30 @@ function AnalysePane({
                 })}
               </div>
             ) : null}
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              <label className={classesBouton({ size: "sm" })}>
+                <Paperclip strokeWidth={1.5} />
+                Ajouter une pièce jointe
+                <input
+                  type="file"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => {
+                    onAjouterFichiers(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {fichiers.map((f, i) => (
+                <span key={`${f.nom}-${i}`} className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2">
+                  <span className="truncate max-w-[180px]">{f.nom}</span>
+                  <span className="text-ink-3">{formatTaille(f.taille)}</span>
+                  <button type="button" onClick={() => onRetirerFichier(i)} aria-label={`Retirer ${f.nom}`} className="text-ink-3 hover:text-err-700">
+                    <X strokeWidth={1.5} className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
             <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" />
             {signatureHtml ? (
               <div className="mt-2">
@@ -1418,6 +1487,81 @@ function AnalysePane({
             </div>
           </div>
         </SectionRepliable>
+      </div>
+      {/* Fin d'action, en bas à droite comme dans Crypto. */}
+      <div className="px-5 py-3 border-t border-line flex flex-wrap items-center justify-end gap-3">
+        {classe ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 text-body text-ink-2 mr-auto">
+              <CircleCheck strokeWidth={1.5} className="w-4 h-4 text-green-700" />
+              Événement conclu
+              {m.dossierClasseNom ? <span className="text-ink-3">, archivé dans «&nbsp;{m.dossierClasseNom}&nbsp;»</span> : null}
+            </span>
+            <Button onClick={onDevalider}>Rouvrir</Button>
+          </>
+        ) : classementOutlook ? (
+          // Boîte perso : conclure = archiver dans un dossier Outlook, qu'il faut choisir.
+          <>
+                  <Select
+                    largeur="auto"
+                    value={dossierIdChoisi}
+                    onChange={(e) => onChoisirDossier(e.target.value)}
+                    aria-label="Dossier Outlook où archiver le mail traité"
+                    className="max-w-[200px]"
+                  >
+                    <option value="">
+                      {dossiers === null ? "Chargement des dossiers…" : "Archiver dans…"}
+                    </option>
+                    {dossiers &&
+                      (() => {
+                        const { reception, autres } = grouperDossiersBoite(dossiers);
+                        return (
+                          <>
+                            {reception.length > 0 && (
+                              <optgroup label="Sous-dossiers de la réception">
+                                {reception.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.nom}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {autres.length > 0 && (
+                              <optgroup label="Autres dossiers">
+                                {autres.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.nom}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </>
+                        );
+                      })()}
+                  </Select>
+            {dossierACreer ? (
+              <Button onClick={onCreerDossierOutlook} title="Crée le sous-dossier dans votre boîte de réception">
+                <FolderPlus strokeWidth={1.5} />
+                Créer «&nbsp;{dossierACreer}&nbsp;»
+              </Button>
+            ) : null}
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={onValider}
+              disabled={!dossierIdChoisi}
+              title={!dossierIdChoisi ? "Choisis d'abord le dossier Outlook" : undefined}
+            >
+              <Archive strokeWidth={1.75} />
+              Conclure et archiver
+            </Button>
+          </>
+        ) : (
+          <Button variant="primary" size="lg" onClick={onConclure}>
+            <CircleCheck strokeWidth={1.75} />
+            Conclure l&apos;événement
+          </Button>
+        )}
       </div>
     </Card>
   );
@@ -1565,4 +1709,45 @@ function typeDepuisNom(nom: string, type: string | undefined): string {
   const ext = /\.([a-z0-9]+)$/i.exec(nom)?.[1]?.toLowerCase();
   const parExt: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
   return (ext && parExt[ext]) || type || "application/octet-stream";
+}
+
+/** L'en-tête comme dans Outlook : De, À, Cc, Répondre à, date et heure. Rien n'est tronqué. */
+function EnTeteMail({ m }: { m: MailEntrant }) {
+  const a = m.destinatairesDetail ?? m.destinataires.map((adresse) => ({ adresse }));
+  const cc = m.copieDetail ?? m.copie.map((adresse) => ({ adresse }));
+  const heure = m.recuLe
+    ? new Date(m.recuLe).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" })
+    : null;
+  const lignes: [string, string][] = [
+    ["De", libelleCorrespondant({ adresse: m.expediteurEmail, nom: m.de })],
+    ["À", a.map(libelleCorrespondant).join(" ; ") || "-"],
+    ...(cc.length ? ([["Cc", cc.map(libelleCorrespondant).join(" ; ")]] as [string, string][]) : []),
+    ...(m.repondreA?.length ? ([["Répondre à", m.repondreA.map(libelleCorrespondant).join(" ; ")]] as [string, string][]) : []),
+    ["Date", `${formatDateLongue(m.date)}${heure ? ` à ${heure}` : ""}`],
+  ];
+  return (
+    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-meta">
+      {lignes.map(([label, valeur]) => (
+        <Fragment key={label}>
+          <dt className="text-ink-3">{label}</dt>
+          <dd className={(label === "De" ? "text-ink font-medium" : "text-ink-2") + " break-words select-text"}>{valeur}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
+/** Un fichier ajouté depuis l'ordinateur à une réponse. */
+type FichierJoint = { nom: string; contentType: string; taille: number; base64: string };
+
+/** 3 Mo : au-delà, Graph exige un envoi par morceaux (non branché). */
+const TAILLE_MAX_FICHIER = 3 * 1024 * 1024;
+
+function enBase64(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(f);
+  });
 }

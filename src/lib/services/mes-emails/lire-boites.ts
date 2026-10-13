@@ -11,6 +11,7 @@
 // brouillon IA reste declenche a la demande. Passe par le routeur (ADR-001).
 
 import type { BadgeUrgence, Dossier, MailEntrant, TypeMail, UrgenceTon } from "@/lib/domain/mes-emails";
+import { reponseDepuisVerbe } from "@/lib/domain/mes-emails";
 import type { Severite } from "@/lib/domain/commun";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
@@ -183,15 +184,19 @@ export async function lireBoitesLive(
     const aff = idx !== undefined ? affaires[idx] : undefined;
     const filMultiple = (aff?.mails.length ?? 1) > 1;
     const prio = priorite(an.type, an.ticketable);
-    const exp = resoudreExpediteur(m.from);
     const corps = cleanBody(m);
     return {
       id: m.internetMessageId || m.id,
       boite: boiteDe.get(m.id) ?? boites[0]!.id,
-      de: nomCourt(m.from),
-      expediteurEmail: exp.type === "interne" ? "(interne real31)" : m.from,
+      de: m.fromName || nomCourt(m.from),
+      // L'adresse réelle, même d'un collègue : on doit pouvoir lui répondre (comme Outlook).
+      expediteurEmail: m.from,
       destinataires: m.to,
-      copie: [],
+      copie: (m.ccDetail ?? []).map((c) => c.adresse),
+      ...(m.toDetail?.length ? { destinatairesDetail: m.toDetail } : {}),
+      ...(m.ccDetail?.length ? { copieDetail: m.ccDetail } : {}),
+      ...(reponseDepuisVerbe(m.dernierVerbe) ? { reponseOutlook: reponseDepuisVerbe(m.dernierVerbe)! } : {}),
+      ...(m.replyTo?.length && m.replyTo.some((r) => r.adresse.toLowerCase() !== m.from.toLowerCase()) ? { repondreA: m.replyTo } : {}),
       objet: m.subject || "(sans objet)",
       date: m.receivedAt.slice(0, 10),
       recuLe: m.receivedAt,

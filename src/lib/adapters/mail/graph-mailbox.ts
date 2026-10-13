@@ -113,6 +113,27 @@ export class GraphMailboxProvider implements MailboxProvider {
     return { deplace: true, dossier: cible.displayName };
   }
 
+  async creerDossier(boite: string, nom: string): Promise<DossierBoite> {
+    if (!boite || !nom.trim()) throw new Error("Creation dossier : boite ou nom manquant.");
+    const tk = await jetonGraph();
+    const h = { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" };
+    const base = `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/inbox/childFolders`;
+    // Un dossier du meme nom existe peut-etre deja (cree a la main entre-temps) : on le reprend.
+    const filtre = encodeURIComponent(`displayName eq '${nom.replace(/'/g, "''")}'`);
+    const r0 = await graphFetch(`${base}?$filter=${filtre}&$select=id,displayName`, { headers: h });
+    if (!r0.ok) throw new Error(`Graph recherche dossier ${r0.status} : ${(await r0.text()).slice(0, 200)}`);
+    const existant = ((await r0.json()) as { value?: Folder[] }).value?.[0];
+    const f =
+      existant ??
+      (await (async () => {
+        const r = await graphFetch(base, { method: "POST", headers: h, body: JSON.stringify({ displayName: nom }) });
+        if (!r.ok) throw new Error(`Graph creation dossier ${r.status} : ${(await r.text()).slice(0, 200)}`);
+        return (await r.json()) as Folder;
+      })());
+    cacheDossiersInbox.delete(boite);
+    return { id: f.id, nom: f.displayName, niveau: 1 };
+  }
+
   async listerDossiers(boite: string): Promise<DossierBoite[]> {
     if (!boite) throw new Error("Liste dossiers : boite manquante.");
     const tk = await jetonGraph();

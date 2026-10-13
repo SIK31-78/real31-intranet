@@ -4,7 +4,7 @@
 // texte du cockpit en commentaire (Graph garde le fil + la citation). Pas de
 // signature injectee (Signitic s'en charge cote Outlook).
 
-import type { MailOutboundProvider, PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
+import type { MailOutboundProvider, PieceJointeMail, ReponseMail } from "@/lib/ports/mail-outbound-provider";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 function echapperHtml(s: string): string {
@@ -65,17 +65,8 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     };
   }
 
-  async envoyer(p: {
-    boite: string;
-    internetMessageId: string;
-    corps: string;
-    sujet?: string;
-    a: string[];
-    cc: string[];
-    cci: string[];
-    signatureHtml?: string;
-    pjIds?: string[];
-  }): Promise<void> {
+  /** Brouillon de reponse complet (fil, PJ, corps, objet, destinataires), pas envoye. */
+  private async preparerReponse(p: ReponseMail): Promise<{ u: string; h: Record<string, string>; draftId: string; webLink?: string }> {
     if (!p.boite) throw new Error("Envoi : boite manquante.");
     if (dest(p.a).length === 0) throw new Error("Envoi : au moins un destinataire en 'A'.");
     const tk = await jetonGraph();
@@ -86,7 +77,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     // 1. Brouillon de reponse (Graph garde le fil + la citation HTML).
     const r1 = await graphFetch(`${u}/messages/${id}/createReply`, { method: "POST", headers: h, body: "{}" });
     if (!r1.ok) throw new Error(`Graph createReply ${r1.status} : ${(await r1.text()).slice(0, 200)}`);
-    const draft = (await r1.json()) as { id: string; body?: { content?: string } };
+    const draft = (await r1.json()) as { id: string; webLink?: string; body?: { content?: string } };
 
     // 1bis. Re-joint les PJ choisies du mail d'origine (recuperees puis ajoutees au draft).
     for (const aid of p.pjIds ?? []) {
@@ -106,6 +97,20 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
         }),
       }, 60_000);
       if (!rp.ok) throw new Error(`Graph ajout PJ ${rp.status} : ${(await rp.text()).slice(0, 200)}`);
+    }
+    // 1ter. Fichiers ajoutes depuis l'ordinateur.
+    for (const f of p.piecesJointes ?? []) {
+      const rf = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
+        method: "POST",
+        headers: h,
+        body: JSON.stringify({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: f.nom,
+          contentType: f.contentType || "application/octet-stream",
+          contentBytes: f.base64,
+        }),
+      }, 60_000);
+      if (!rf.ok) throw new Error(`Graph ajout fichier ${rf.status} : ${(await rf.text()).slice(0, 200)}`);
     }
 
     // 2. Pose le corps (mon texte + signature AU-DESSUS de la citation), le sujet et les
@@ -128,9 +133,18 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     });
     if (!r2.ok) throw new Error(`Graph PATCH brouillon ${r2.status} : ${(await r2.text()).slice(0, 200)}`);
 
-    // 3. Envoi.
-    const r3 = await graphFetch(`${u}/messages/${draft.id}/send`, { method: "POST", headers: h });
+    return { u, h, draftId: draft.id, ...(draft.webLink ? { webLink: draft.webLink } : {}) };
+  }
+
+  async envoyer(p: ReponseMail): Promise<void> {
+    const { u, h, draftId } = await this.preparerReponse(p);
+    const r3 = await graphFetch(`${u}/messages/${draftId}/send`, { method: "POST", headers: h });
     if (!r3.ok) throw new Error(`Graph send ${r3.status} : ${(await r3.text()).slice(0, 200)}`);
+  }
+
+  async creerBrouillonReponse(p: ReponseMail): Promise<{ webLink?: string }> {
+    const { webLink } = await this.preparerReponse(p);
+    return webLink ? { webLink } : {};
   }
 
   async creerBrouillonNeuf(p: {
@@ -139,12 +153,15 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    signatureHtml?: string;
+    piecesJointes?: PieceJointeMail[];
   }): Promise<{ webLink?: string; internetMessageId?: string }> {
     if (!p.boite) throw new Error("Creation brouillon neuf : boite manquante.");
     const tk = await jetonGraph();
-    // Meme rendu HTML que envoyer() (police Aptos 11). Pas de signature (Signitic
-    // s'applique a l'ouverture du brouillon cote Outlook).
-    const content = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
+    // Meme rendu HTML que envoyer() (police Aptos 11), signature dessous quand on la connait.
+    const content =
+      `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>` +
+      (p.signatureHtml ? `<br/>${p.signatureHtml}` : "");
     // POST /messages cree un message en statut Draft (on n'envoie PAS).
     const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages`, {
       method: "POST",
@@ -154,8 +171,18 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
         body: { contentType: "HTML", content },
         toRecipients: dest(p.a ?? []),
         ccRecipients: dest(p.cc ?? []),
+        ...(p.piecesJointes?.length
+          ? {
+              attachments: p.piecesJointes.map((f) => ({
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                name: f.nom,
+                contentType: f.contentType || "application/octet-stream",
+                contentBytes: f.base64,
+              })),
+            }
+          : {}),
       }),
-    });
+    }, 60_000);
     if (!r.ok) throw new Error(`Graph creer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as { webLink?: string; internetMessageId?: string };
     return {

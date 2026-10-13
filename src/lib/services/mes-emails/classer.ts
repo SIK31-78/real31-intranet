@@ -18,6 +18,11 @@ export async function listerDossiersBoite(boite: string): Promise<DossierBoite[]
   return getMailboxProvider().listerDossiers(boite);
 }
 
+/** Cree le sous-dossier d'une copro sous la boite de reception (ou reprend l'existant). */
+export async function creerDossierBoite(boite: string, nom: string): Promise<DossierBoite> {
+  return getMailboxProvider().creerDossier(boite, nom);
+}
+
 /** Deplace un mail dans un dossier CHOISI (par son id). */
 export async function classerDansDossier(
   boite: string,

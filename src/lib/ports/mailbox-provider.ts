@@ -23,6 +23,10 @@ export interface MailboxProvider {
    *  niveaux, dedupliques) pour alimenter le selecteur de classement du cockpit. */
   listerDossiers(boite: string): Promise<DossierBoite[]>;
 
+  /** Cree un sous-dossier de la boite de reception (ou reprend celui qui porte deja ce
+   *  nom). Sert au sous-dossier d'une copro qui n'en a pas encore. */
+  creerDossier(boite: string, nom: string): Promise<DossierBoite>;
+
   /** Deplace le mail dans un dossier CHOISI (par son id Graph) : pas de matching,
    *  destination explicite. Renvoie si le deplacement a eu lieu. */
   classerDansDossier(p: {

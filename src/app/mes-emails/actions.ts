@@ -25,8 +25,8 @@ import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { envoiMailActif } from "@/lib/domain/mail-gate";
 import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
-import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
-import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
+import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon";
+import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
@@ -88,6 +88,10 @@ const zCorps = z.string().max(100_000); // corps de mail / brouillon
 const zEmails = z.array(z.string().trim().max(320)).max(50);
 const zIds = z.array(z.string().max(600)).max(50);
 const zEtapes = z.array(z.number().int()).max(200);
+// Fichiers joints depuis l'ordinateur : 3 Mo chacun (envoi simple de Graph), 10 au plus.
+const zFichiers = z
+  .array(z.object({ nom: z.string().trim().min(1).max(255), contentType: z.string().max(200), base64: z.string().max(4_200_000) }))
+  .max(10);
 
 /** Construit la Cible d'ecriture d'etat depuis un gestionnaire valide. */
 function cibleDe(g: Gestionnaire, emailId: string, coproCode: string): Cible {
@@ -95,6 +99,15 @@ function cibleDe(g: Gestionnaire, emailId: string, coproCode: string): Cible {
 }
 
 // --- Actions d'etat (retour void : sur entree/auth invalide, on ne fait rien) -----------
+
+/** Conclure l'événement : le mail sort de la liste « à traiter », sans bouger dans Outlook. */
+export async function marquerTraiteAction(emailId: string, coproCode: string): Promise<void> {
+  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return;
+  await enregistrerStatut(cibleDe(auth.g, emailId, coproCode), "classe", []);
+  revalidatePath("/mes-emails");
+}
 
 export async function devaliderMailAction(emailId: string, coproCode: string): Promise<void> {
   if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
@@ -357,7 +370,10 @@ export async function envoyerReponseAction(
   pjIds: string[],
   boiteMessage?: string,
   boiteEnvoi?: string,
+  fichiers: unknown = [],
 ): Promise<{ ok: boolean; message?: string; filConserve?: boolean }> {
+  const f = zFichiers.safeParse(fichiers);
+  if (!f.success) return { ok: false, message: "Pièces jointes invalides (3 Mo et 10 fichiers au plus)." };
   const v = z
     .object({
       emailId: zId,
@@ -414,6 +430,7 @@ export async function envoyerReponseAction(
       cci,
       ...(signatureHtml !== undefined ? { signatureHtml } : {}),
       pjIds,
+      ...(f.data.length ? { piecesJointes: f.data } : {}),
     });
     revalidatePath("/mes-emails");
     return { ok: true, filConserve };
@@ -449,6 +466,25 @@ export async function rattacherCoproAction(
 }
 
 // --- Dossiers Outlook + classement (dans la boite du mail) -------------------
+
+/**
+ * Crée le sous-dossier Outlook d'une copro dans SA boîte perso (geste explicite : un clic sur
+ * « Créer le dossier »). Jamais dans une boîte partagée : le tri y range par binôme.
+ */
+export async function creerDossierOutlookAction(nom: string, boite?: string): Promise<{ ok: boolean; dossier?: DossierBoite; message?: string }> {
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return { ok: false, message: "Non connecté." };
+  if (!z.string().trim().min(1).max(120).safeParse(nom).success || !zBoite.safeParse(boite).success)
+    return { ok: false, message: "Nom de dossier invalide." };
+  const cible = await boiteCible(g, boite);
+  const perso = (await boitesVisibles(g)).find((b) => b.id === cible)?.personnelle;
+  if (!cible || !perso) return { ok: false, message: "Le dossier ne se crée que dans votre boîte personnelle." };
+  try {
+    return { ok: true, dossier: await creerDossierBoite(cible, nom.trim()) };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
 
 export async function chargerDossiersAction(boite?: string): Promise<DossierBoite[]> {
   const g = await getGestionnaireCourant();
@@ -496,22 +532,50 @@ export async function classerDansDossierAction(
   }
 }
 
-export async function creerBrouillonAction(
-  emailId: string,
-  coproCode: string,
-  corps: string,
-  boite?: string,
-): Promise<{ ok: boolean; message?: string }> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, corps: zCorps }).safeParse({ emailId, coproCode, corps }).success)
-    return { ok: false, message: "Données invalides." };
-  if (!zBoite.safeParse(boite).success) return { ok: false, message: "Données invalides." };
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+/**
+ * « Brouillon Outlook » : la réponse telle que préparée ici (destinataires, objet, pièces
+ * jointes du mail et fichiers ajoutés) devient un brouillon dans la boîte du mail. Rien ne
+ * part : on relit et on envoie dans Outlook. C'est la voie de la boîte partagée pendant le pilote.
+ */
+export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolean; message?: string; webLink?: string }> {
+  const v = z
+    .object({
+      emailId: zId,
+      coproCode: zCopro,
+      corps: zCorps,
+      sujet: zCourt,
+      a: zEmails,
+      cc: zEmails,
+      cci: zEmails,
+      pjIds: zIds,
+      fichiers: zFichiers,
+      boite: zBoite,
+    })
+    .safeParse(input);
+  if (!v.success) return { ok: false, message: "Données invalides (pièces jointes : 3 Mo et 10 fichiers au plus)." };
+  const d = v.data;
+  const auth = await withGestionnaire(d.coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
-  const cible = await boiteCible(auth.g, boite);
+  const cible = await boiteCible(auth.g, d.boite);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
+  const invalide = [...d.a, ...d.cc, ...d.cci].map((x) => x.trim()).find((x) => x && !EMAIL_RE.test(x));
+  if (invalide) return { ok: false, message: `Adresse invalide : ${invalide}` };
   try {
-    await creerBrouillonOutlook(cible, emailId, corps);
-    return { ok: true };
+    // Signitic ne passe pas sur un brouillon créé par l'app : on pose la signature nous-mêmes.
+    const signatureHtml = (await getSignatureGestionnaire(auth.g)) ?? undefined;
+    const { webLink } = await creerBrouillonReponse({
+      boite: cible,
+      ...(signatureHtml ? { signatureHtml } : {}),
+      internetMessageId: d.emailId,
+      corps: d.corps,
+      ...(d.sujet.trim() ? { sujet: d.sujet } : {}),
+      a: d.a,
+      cc: d.cc,
+      cci: d.cci,
+      pjIds: d.pjIds,
+      ...(d.fichiers.length ? { piecesJointes: d.fichiers } : {}),
+    });
+    return { ok: true, ...(webLink ? { webLink } : {}) };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }

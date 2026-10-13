@@ -12,6 +12,7 @@
 //     degrader en silence.
 
 import { getMailOutboundProvider } from "@/lib/adapters/router";
+import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 
 export interface ResultatEnvoi {
   /** false = mail neuf (fil d'origine rompu, PJ non re-jointes). */
@@ -31,6 +32,8 @@ export async function envoyerReponseMail(p: {
   cci: string[];
   signatureHtml?: string;
   pjIds?: string[];
+  /** Fichiers ajoutés depuis l'ordinateur. */
+  piecesJointes?: PieceJointeMail[];
 }): Promise<ResultatEnvoi> {
   const sortant = getMailOutboundProvider();
 
@@ -45,6 +48,7 @@ export async function envoyerReponseMail(p: {
       cci: p.cci,
       ...(p.signatureHtml !== undefined ? { signatureHtml: p.signatureHtml } : {}),
       ...(p.pjIds !== undefined ? { pjIds: p.pjIds } : {}),
+      ...(p.piecesJointes?.length ? { piecesJointes: p.piecesJointes } : {}),
     });
     return { filConserve: true };
   }
@@ -57,6 +61,7 @@ export async function envoyerReponseMail(p: {
     sujet: p.sujet ?? "",
     corps: p.corps,
     ...(p.signatureHtml !== undefined ? { signatureHtml: p.signatureHtml } : {}),
+    ...(p.piecesJointes?.length ? { piecesJointes: p.piecesJointes } : {}),
   });
   return { filConserve: false };
 }

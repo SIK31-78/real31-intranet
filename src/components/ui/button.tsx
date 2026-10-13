@@ -9,12 +9,15 @@ import { cn } from "@/lib/cn";
 // a la main. Props explicites : pas de `className` de surcharge conflictuelle
 // (cn() ne merge pas), seulement du placement (marge, largeur).
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "destructive";
+export type ButtonVariant = "primary" | "doux" | "secondary" | "ghost" | "danger" | "destructive";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
     "bg-green-700 text-white border-transparent hover:bg-green-800 active:translate-y-px",
+  // Vert clair (celui de la ligne sélectionnée) : une action principale qui ne crie pas,
+  // quand l'écran a déjà son bouton vert plein (ex. « Répondre » face à « Conclure l'événement »).
+  doux: "bg-green-50 text-green-700 border-green-500/30 hover:bg-green-100",
   secondary: "bg-surface text-ink border-line hover:bg-surface-2 hover:border-line-2",
   ghost: "bg-transparent text-ink-2 border-transparent hover:bg-surface-2 hover:text-ink",
   danger: "bg-surface text-err-700 border-line hover:bg-err-50 hover:border-err-500/40",
