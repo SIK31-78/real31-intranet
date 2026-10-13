@@ -125,6 +125,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
       ...(m.conversationId ? { conversationId: m.conversationId } : {}),
       deNom: m.fromName ?? m.from,
       deAdresse: m.from,
+      ...(m.to.length ? { a: m.to } : {}),
       objet: m.subject || "(sans objet)",
       recuLe: m.receivedAt,
       apercu: texte.slice(0, APERCU),

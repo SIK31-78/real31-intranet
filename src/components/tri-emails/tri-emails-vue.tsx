@@ -237,8 +237,26 @@ function FileVue({
     return mails.filter((m) => normaliser(`${m.deNom} ${m.deAdresse} ${m.objet} ${m.suggestion.candidats.join(" ")}`).includes(q));
   }, [mails, filtre]);
 
-  // Le mail affiche : celui choisi s'il est encore dans la file, sinon le premier.
-  const courant = mails.find((m) => m.id === courantId) ?? mails[0] ?? null;
+  // Quand le mail courant est rangé il quitte la file : on avance au SUIVANT (même position),
+  // au lieu de revenir en haut (correction du 13/10/2026). L'index courant est mémorisé.
+  const indexCourant = useRef(0);
+  useEffect(() => {
+    const i = mails.findIndex((m) => m.id === courantId);
+    if (i >= 0) {
+      indexCourant.current = i;
+      return;
+    }
+    const suivant = mails[Math.min(indexCourant.current, mails.length - 1)];
+    setCourantId(suivant ? suivant.id : null);
+  }, [mails, courantId]);
+
+  const courant = mails.find((m) => m.id === courantId) ?? null;
+
+  // Garder la ligne sélectionnée visible sans sauter en haut de la liste.
+  const ligneCourante = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    ligneCourante.current?.scrollIntoView({ block: "nearest" });
+  }, [courant?.id]);
 
   if (mails.length === 0) {
     return <EmptyState>La boîte de réception générique est vide : tout est trié.</EmptyState>;
@@ -262,7 +280,7 @@ function FileVue({
         </div>
         <ul className="max-h-[70vh] overflow-y-auto">
           {visibles.map((m) => (
-            <li key={m.id} className="border-b border-line last:border-b-0">
+            <li key={m.id} ref={m.id === courant?.id ? ligneCourante : null} className="border-b border-line last:border-b-0">
               <button
                 type="button"
                 onClick={() => setCourantId(m.id)}
@@ -343,6 +361,11 @@ function DetailMail({
             <p className="text-meta text-ink-2 mt-0.5">
               {mail.deNom} · <span className="font-mono">{mail.deAdresse}</span> · {heure(mail.recuLe)}
             </p>
+            {mail.a && mail.a.length > 0 && (
+              <p className="text-meta text-ink-3 mt-0.5 break-words">
+                À : <span className="font-mono">{mail.a.join(", ")}</span>
+              </p>
+            )}
           </div>
           {mail.lienOutlook && (
             <a

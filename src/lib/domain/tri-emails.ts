@@ -116,6 +116,8 @@ export interface MailATrier {
   conversationId?: string;
   deNom: string;
   deAdresse: string;
+  /** Destinataires (To) : utile pour voir si le mail nous est adressé ou en copie/transfert. */
+  a?: string[];
   objet: string;
   /** ISO 8601. */
   recuLe: string;
