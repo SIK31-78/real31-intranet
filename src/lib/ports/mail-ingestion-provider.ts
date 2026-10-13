@@ -11,6 +11,12 @@ export interface OptionsIngestion {
   max: number;
   /** Seulement les mails recus a partir de cette date (ISO) : la mise en service du tri. */
   depuis?: string;
+  /**
+   * Lire un SOUS-DOSSIER precis au lieu de la boite de reception : l'id Graph du dossier.
+   * Sert a /mes-emails sur une boite partagee = seulement le dossier du binome du
+   * gestionnaire (les mails que le tri lui a distribues), pas toute la reception.
+   */
+  folderId?: string;
 }
 
 export interface MailIngestionProvider {

@@ -64,8 +64,10 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     const tk = await jetonGraph();
     const select =
       "id,internetMessageId,conversationId,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
+    // Dossier precis (sous-dossier du binome dans la boite partagee) ou boite de reception.
+    const dossier = opts.folderId ? encodeURIComponent(opts.folderId) : "inbox";
     let url: string =
-      `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/inbox/messages` +
+      `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/${dossier}/messages` +
       `?$top=${PAGE}&$orderby=receivedDateTime desc&$select=${select}` +
       (opts.depuis ? `&$filter=receivedDateTime ge ${opts.depuis}` : "");
 

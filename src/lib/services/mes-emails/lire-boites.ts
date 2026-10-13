@@ -91,6 +91,8 @@ async function ingererBoite(boite: BoiteMail): Promise<{ boite: BoiteMail; bruts
     const bruts = await getMailIngestionProvider().lireRecents({
       email: boite.adresse,
       max: MAX_INGEST,
+      // Boite partagee : seulement le dossier du binome du gestionnaire (pas toute la reception).
+      ...(boite.folderId ? { folderId: boite.folderId } : {}),
     });
     return { boite, bruts };
   } catch (err) {

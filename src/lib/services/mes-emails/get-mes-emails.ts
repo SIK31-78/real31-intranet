@@ -11,15 +11,43 @@ import type { ContexteCopro, MailEntrant, MesEmails } from "@/lib/domain/mes-ema
 import type { DonneesEstaleCopro } from "@/lib/domain/copropriete";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import type { EtatMail } from "@/lib/ports/mes-emails-etat-provider";
-import { getCoproRepository, getMesEmailsEtatRepository } from "@/lib/adapters/router";
+import { getCoproRepository, getMesEmailsEtatRepository, getTriRepository } from "@/lib/adapters/router";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
-import { construireBoites } from "@/lib/domain/boites-mail";
+import { construireBoites, type BoiteMail } from "@/lib/domain/boites-mail";
+import { cleDossierBinome } from "@/lib/domain/tri-emails";
 import { lireBoitesLive } from "@/lib/services/mes-emails/lire-boites";
+
+/**
+ * Sur une boite PARTAGEE (syndicN), /mes-emails ne montre que le SOUS-DOSSIER du binome du
+ * gestionnaire — les mails que le tri lui a distribues —, jamais toute la reception
+ * (decision Sekou du 13/10). On resout ce dossier via le journal du tri (intranet_tri_dossier,
+ * cle = binome:email). Pas de dossier (rien distribue, ou tri non ecrit) -> la boite partagee
+ * n'apparait pas : on ne risque jamais d'exposer toute la boite commune.
+ */
+async function scoperAuBinome(g: Gestionnaire, boites: BoiteMail[]): Promise<BoiteMail[]> {
+  const cle = g.email ? cleDossierBinome(g.email) : null;
+  const repo = getTriRepository();
+  const out: BoiteMail[] = [];
+  for (const b of boites) {
+    if (b.personnelle) {
+      out.push(b);
+      continue;
+    }
+    if (!cle) continue;
+    try {
+      const d = await repo.dossier(b.adresse, cle);
+      if (d?.folderId) out.push({ ...b, folderId: d.folderId, libelle: `${b.libelle} · mes mails` });
+    } catch (err) {
+      console.warn(`[mes-emails] dossier binome introuvable pour ${b.adresse} :`, (err as Error).message);
+    }
+  }
+  return out;
+}
 
 export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
   // Les boites visibles sont de la CONFIGURATION, jamais une constante de code
   // (decision 8 : multi-boites des le depart).
-  const boites = construireBoites(g.email, process.env.MAIL_BOITES_PARTAGEES);
+  const boites = await scoperAuBinome(g, construireBoites(g.email, process.env.MAIL_BOITES_PARTAGEES));
   const mesCopros = await getCoproRepository().list(g.id);
 
   const [triage, etatsListe] = await Promise.all([
