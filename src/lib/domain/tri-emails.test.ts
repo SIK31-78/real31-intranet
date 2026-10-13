@@ -154,6 +154,18 @@ describe("suggererCopro", () => {
     expect(s.candidats.sort()).toEqual(["S0247", "S0305"]);
   });
 
+  it("le nom d'immeuble prime sur une copro qui ne partage que la rue", () => {
+    const ref: ReferentielTri = {
+      copros: [
+        { reference: "S0204", nom: "LE PLAZZA", adresse: "152 avenue Gabriel Péri 95870 Bezons", gestionnaire: null, assistant: null },
+        { reference: "S0198", nom: "DOUCE FOLIE", adresse: "150 avenue Gabriel Péri 95870 Bezons", gestionnaire: null, assistant: null },
+      ],
+      expediteurs: {},
+    };
+    const s = suggererCopro(mail({ objet: "LE PLAZZA - avenue Gabriel Péri 95870 Bezons - chauffage" }), ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0204"] });
+  });
+
   it("un indice fort (code, adresse connue) prime sur le nom de l'immeuble", () => {
     const ref: ReferentielTri = {
       copros: [

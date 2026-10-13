@@ -229,7 +229,8 @@ function codePostalDe(adresse: string): string {
 export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string }[] {
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
-  const out: { reference: string; raison: string }[] = [];
+  const parNom: { reference: string; raison: string }[] = [];
+  const parAdresse: { reference: string; raison: string }[] = [];
   const vues = new Set<string>();
   for (const c of copros) {
     const cle = cleDeReference(c.reference);
@@ -237,11 +238,11 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
     const ville = villeDe(c.adresse);
     const motsVille = new Set(motsSignificatifs(ville));
     const distinctifs = motsSignificatifs(c.nom).filter((m) => !motsVille.has(m));
-    const parNom = distinctifs.length >= 2
+    const nomTrouve = distinctifs.length >= 2
       ? distinctifs.every((m) => mots.has(m))
       : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!);
-    if (parNom) {
-      out.push({ reference: c.reference, raison: `Immeuble « ${c.nom} » cité dans le mail, à confirmer.` });
+    if (nomTrouve) {
+      parNom.push({ reference: c.reference, raison: `Immeuble « ${c.nom} » cité dans le mail, à confirmer.` });
       vues.add(cle);
       continue;
     }
@@ -249,11 +250,13 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
     const cp = codePostalDe(c.adresse);
     const lieuPresent = (cp !== "" && mots.has(cp)) || (ville.length >= 4 && espace.includes(` ${ville} `));
     if (voie.length >= 10 && espace.includes(` ${voie} `) && lieuPresent) {
-      out.push({ reference: c.reference, raison: `Adresse « ${voie} » citée dans le mail, à confirmer.` });
+      parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie} » citée dans le mail, à confirmer.` });
       vues.add(cle);
     }
   }
-  return out;
+  // Le nom d'immeuble prime : s'il y a un « LE PLAZZA », on ne noie pas la suggestion sous
+  // les copros qui ne partagent que la rue (constat du 13/10/2026 : départage souvent evident).
+  return parNom.length > 0 ? parNom : parAdresse;
 }
 
 const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {
