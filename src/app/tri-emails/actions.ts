@@ -13,6 +13,7 @@ import { annulerRangement, preciserCopro, rangerMail, supprimerMail } from "@/li
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
 import { lirePieceJointeTri, listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
+import { coproDepuisPiecesJointes, type CoproDepuisPj } from "@/lib/services/tri-emails/copro-pieces-jointes";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 
 const zTexte = (max: number) => z.string().max(max);
@@ -135,6 +136,13 @@ export async function lirePieceJointeTriAction(input: unknown): Promise<Res<{ no
       return lirePieceJointeTri(d.internetMessageId, d.attachmentId);
     },
   );
+}
+
+export async function coproDepuisPjAction(input: unknown): Promise<Res<CoproDepuisPj | null>> {
+  return actionGestionnaire(z.object({ internetMessageId: zMessage }), input, "tri-emails-pj-copro", async (d, g) => {
+    gardePilote(g.email);
+    return coproDepuisPiecesJointes(d.internetMessageId);
+  });
 }
 
 export async function preciserCoproAction(input: unknown): Promise<Res> {

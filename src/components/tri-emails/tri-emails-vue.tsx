@@ -27,6 +27,7 @@ import {
   lirePieceJointeTriAction,
   listerPiecesJointesTriAction,
   preciserCoproAction,
+  coproDepuisPjAction,
   rangerMailAction,
   retirerAssistantAction,
   supprimerMailAction,
@@ -382,6 +383,29 @@ function DetailMail({
   const copro = choisie ? parRef.get(choisie) ?? null : null;
   const dest = copro?.destination ?? null;
 
+  // Quand le mail n'a pas de piste sûre, on lit automatiquement le texte de ses PDF (facture,
+  // bon d'intervention) pour en déduire une copro (décision du 13/10/2026). À confirmer.
+  const [pjCopro, setPjCopro] = useState<{ candidats: string[]; piece: string } | null>(null);
+  const [pjEnCours, setPjEnCours] = useState(false);
+  useEffect(() => {
+    if (!mail.aPiecesJointes || s.nature === "sure") return;
+    let actif = true;
+    setPjEnCours(true);
+    coproDepuisPjAction({ internetMessageId: mail.internetMessageId }).then(
+      (r) => {
+        if (!actif) return;
+        setPjEnCours(false);
+        if (r.ok && r.donnees) setPjCopro(r.donnees);
+      },
+      () => {
+        if (actif) setPjEnCours(false);
+      },
+    );
+    return () => {
+      actif = false;
+    };
+  }, [mail.internetMessageId, mail.aPiecesJointes, s.nature]);
+
   const resultats = useMemo(() => {
     const q = normaliser(recherche.trim());
     if (!q) return [];
@@ -457,6 +481,37 @@ function DetailMail({
             </div>
           )}
         </div>
+
+        {(pjEnCours || pjCopro) && (
+          <div className="rounded-lg border border-info-200 bg-info-50 px-3 py-2.5 flex flex-col gap-2">
+            {pjEnCours && !pjCopro && <span className="text-meta text-ink-2">Analyse des pièces jointes…</span>}
+            {pjCopro && (
+              <>
+                <span className="text-meta text-ink-2">
+                  D&apos;après la pièce jointe «&nbsp;{pjCopro.piece}&nbsp;», à confirmer :
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {pjCopro.candidats
+                    .filter((ref) => parRef.has(ref))
+                    .map((ref) => (
+                      <button
+                        key={ref}
+                        type="button"
+                        onClick={() => choisir(ref)}
+                        aria-pressed={choisie === ref}
+                        className={cn(
+                          "rounded-lg border border-line-2 bg-surface px-2.5 py-1 text-left text-body hover:bg-surface-2",
+                          choisie === ref && "border-green-600 ring-1 ring-green-600",
+                        )}
+                      >
+                        <span className="font-mono text-meta text-green-700 font-medium">{ref}</span> {parRef.get(ref)?.nom}
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {s.nature !== "hors-estale" && (
           <div>

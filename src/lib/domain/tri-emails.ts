@@ -259,6 +259,32 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
   return parNom.length > 0 ? parNom : parAdresse;
 }
 
+// Lignes du papier a en-tete du cabinet (son adresse, SIREN…) : a ignorer dans une piece
+// jointe, sinon toute facture rattache le mail a la copro ou siege l'agence (place Michelet).
+// Mesure du 13/10/2026 : sans ce filtre, 24 PDF sur 35 remontaient « place Michelet ».
+const LIGNE_ENTETE_CABINET = /real\s*31|place\s+michelet|\bsiren\b|\brcs\b|\bnaf\b|carte\s+professionnelle|garantie\s+financiere/i;
+
+/**
+ * References de copro trouvees dans le texte d'une piece jointe (facture, bon d'intervention),
+ * apres avoir retire les lignes du papier a en-tete du cabinet : d'abord les codes cites, puis
+ * le nom d'immeuble / l'adresse du chantier (meme moteur que le mail). Toujours a confirmer.
+ */
+export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
+  const utile = texte.split(/\r?\n/).filter((l) => !LIGNE_ENTETE_CABINET.test(normaliser(l))).join("\n");
+  const parCle = new Map<string, CoproTri>();
+  for (const c of copros) {
+    const cle = cleDeReference(c.reference);
+    if (cle) parCle.set(cle, c);
+  }
+  const refs: string[] = [];
+  for (const cle of referencesCitees(utile)) {
+    const c = parCle.get(cle);
+    if (c && !refs.includes(c.reference)) refs.push(c.reference);
+  }
+  for (const i of indicesNomAdresse(utile, copros)) if (!refs.includes(i.reference)) refs.push(i.reference);
+  return refs;
+}
+
 const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {
   "copropriétaire": "copropriétaire",
   "conseil syndical": "membre du conseil syndical",

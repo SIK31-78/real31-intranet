@@ -48,6 +48,8 @@ import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { TriRepository } from "@/lib/ports/tri-repository";
 import { GraphRangementTri } from "@/lib/adapters/mail/graph-rangement-tri";
 import { SimulationRangementTri } from "@/lib/adapters/mock/simulation-rangement-tri";
+import type { ExtracteurPdf } from "@/lib/ports/extracteur-pdf";
+import { PdfjsExtracteur } from "@/lib/adapters/pdf/pdfjs-extracteur";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
 import { SupabaseTriRepository } from "@/lib/adapters/supabase/supabase-tri-repository";
 import { boiteTriConfiguree, ecritureTriActive } from "@/lib/domain/mail-gate";
@@ -479,6 +481,12 @@ export function getRangementTri(): RangementTriProvider {
     return new GraphRangementTri();
   }
   return new SimulationRangementTri();
+}
+
+// Extraction du texte des pieces jointes PDF (tri : deduire une copro d'une facture). pdfjs,
+// sans OCR ; pas de bascule, c'est le meme dans tous les environnements.
+export function getExtracteurPdf(): ExtracteurPdf {
+  return new PdfjsExtracteur();
 }
 
 // Journal, dossiers et binomes du tri. Memoire (une instance pour le process) hors Supabase.

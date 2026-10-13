@@ -4,6 +4,7 @@ import {
   cleDeReference,
   constaterRangement,
   coproDuDossier,
+  coprosDansPdf,
   destinationDe,
   lignesBinomes,
   suggestionSuivie,
@@ -185,6 +186,28 @@ describe("suggererCopro", () => {
 
   it("ne propose rien sans indice", () => {
     expect(suggererCopro(mail({}), REF)).toMatchObject({ nature: "aucune", candidats: [] });
+  });
+});
+
+describe("coprosDansPdf", () => {
+  const copros: CoproTri[] = [
+    { reference: "S0177", nom: "DOUCE FOLIE", adresse: "25 avenue Gabriel Péri 95870 Bezons", gestionnaire: null, assistant: null },
+    { reference: "S0158", nom: "LE MICHELET", adresse: "3 place Michelet 78800 Houilles", gestionnaire: null, assistant: null },
+  ];
+
+  it("trouve la copro du chantier et ignore l'en-tête du cabinet (REAL 31, place Michelet)", () => {
+    const facture = [
+      "REAL 31 - 3 place Michelet 78800 Houilles",
+      "SIREN 123 456 789 - Carte professionnelle CPI 000",
+      "Facture n° F-2026",
+      "Lieu d'intervention : SDC DOUCE FOLIE, 25 avenue Gabriel Péri 95870 Bezons",
+    ].join("\n");
+    // L'en-tête (place Michelet -> S0158) est retirée ; seul le chantier (DOUCE FOLIE) ressort.
+    expect(coprosDansPdf(facture, copros)).toEqual(["S0177"]);
+  });
+
+  it("rien quand le PDF ne cite qu'un code hors périmètre ou l'en-tête", () => {
+    expect(coprosDansPdf("REAL 31 - 3 place Michelet 78800 Houilles\nSIREN 123", copros)).toEqual([]);
   });
 });
 
