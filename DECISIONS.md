@@ -2034,3 +2034,30 @@ On garde l'ingestion Graph app-only (`graph-mail-ingestion.ts`) et le déplaceme
 ### Liens
 
 ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (délégations : le remplaçant favorise le dossier du titulaire), `docs/etude-mail-central.md`, maquette https://claude.ai/artifact/93Z4r2TGnimwebjkCud9nr.
+
+## ADR-047 - Mes e-mails : traiter dans l'intranet (compositeur copro-lié) et garde-fou d'envoi
+
+**Statut** : en cours (bac à sable, branche `chantier/mail-v2`). Fait suite à ADR-046 (tri). Décidé le 13/10/2026 par Sekou : à terme on traite les mails DANS l'intranet (socle des automatisations IA), Outlook reste possible mais n'est plus le seul lieu.
+
+### Contexte
+`/mes-emails` était un cockpit de RÉPONSE à un mail entrant de la boîte PERSO du gestionnaire. Limites relevées par Sekou : on ne peut que répondre (pas composer / mailing), l'objet n'aide pas le tri, les copros hors Crypto manquent, le choix de l'expéditeur est absent, les dossiers sont mal rangés.
+
+### Décisions
+1. **Compositeur de mail sortant copro-lié** (`/mes-emails/composer`), façon « F1 » de Crypto : choisir une copro → ses contacts (copropriétaires / CS / locataires) → un modèle → l'objet est **auto-taggé `CODE · Nom · Adresse — sujet`** pour que le mail soit retrouvé par le tri (mail « travaillé pour le tri »).
+2. **Référentiel unifié ESTALE + Crypto** réutilisé (`getReferentielTriProvider().charger().copros`) : corrige « pas les copros hors Crypto ». Borné à l'agence par `MAIL_TRI_AGENCE` (cohérent avec le déploiement par agence : Houilles → LGC → ML).
+3. **Envoi au nom de la boîte partagée (syndicN)** uniquement, pour le moment (les collègues ne se perdent pas). La boîte = `boiteTriConfiguree()`. Le choix perso/partagée est repoussé.
+4. **Garde-fou d'envoi dédié `MAIL_ENVOI` (`envoiMailActif()`, défaut OFF)**, distinct de `MAIL_SOURCE` (qui ne branche que la lecture). Tant qu'il est coupé : aperçu seulement, **aucun mail ni brouillon écrit**. On ne propose JAMAIS l'envoi direct, toujours un **brouillon** relu puis envoyé dans Outlook. Corrige l'asymétrie d'ADR-046 (le tri avait `MAIL_TRI_ECRITURE`, l'envoi n'avait aucun flag).
+5. **Modèles d'événement** : mécanisme `{{variable}}` + 4 modèles seed en dur (domaine `mes-emails-composition.ts`). Les vrais modèles Crypto seront extraits plus tard (le tri d'abord). Patron pour la variabilisation : moteur courriers-types sinistre.
+6. **Transmission facture ESTALE** : objet codifié `COMPTE - FOURNISSEUR - LIBELLÉ` (ex. « 601000 - DGP NETTOYAGE - Entretien EV »). Adresse du robot en env `MAIL_ROBOT_FACTURE_ESTALE` (inconnue → le mail se compose mais ne s'envoie pas). Pas de plan de comptes par copro en base → la codification reste saisie à la main pour l'instant.
+
+### Ce qui N'A PAS été fait (et pourquoi)
+- La **lecture de /mes-emails n'a pas été repointée vers syndicN** : décision produit (expose toute la boîte partagée à tous les pilotes) laissée à Sekou.
+- **Rattachement d'un brouillon composé à un dossier** : le port d'envoi ne renvoie que `webLink`, pas l'`internetMessageId` du brouillon → rattachement impossible proprement sans étendre l'adaptateur partagé. Noté comme prochaine étape.
+- **Dépôt « bon d'intervention » sur le Drive** : la brique `DepotDocumentProvider` existe sur `main` (commit 32c2fca) mais pas sur cette branche, et exige **Sites.Selected** (write) non accordé. À récupérer + permission DSI.
+- **Arbo des dossiers Outlook aplatie** : `DossierBoite` ne porte pas de parentId → vrai regroupement parent/enfant impossible sans étendre le provider mailbox. Noté.
+
+### Sécurité
+Contenu mail = input non fiable (anti-injection déjà géré par l'adaptateur Mistral existant, qui encapsule le corps en donnée). Toute action reste humain-dans-la-boucle. Aucun envoi automatique.
+
+### Liens
+ADR-046 (tri), ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy). Vision long terme (tickets, plan d'action, playbooks) : projet Elron (`C:\Users\SekouKOMA\Projects\Elron`, docs 02/07). Session : https://claude.ai/code/session_018jC6a3XPuJA9Pj4BHtzGv6
