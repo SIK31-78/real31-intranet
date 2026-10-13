@@ -540,7 +540,7 @@ function DetailMail({
           <Button variant="ghost" disabled={enCours} onClick={() => ranger({ type: "divers" })}>
             Divers
           </Button>
-          <Button variant="ghost" disabled={enCours} onClick={supprimer} className="ml-auto text-err-700 hover:bg-err-50">
+          <Button variant="destructive" disabled={enCours} onClick={supprimer} className="ml-auto">
             Supprimer
           </Button>
         </div>
