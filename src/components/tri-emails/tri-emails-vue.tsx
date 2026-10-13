@@ -393,23 +393,26 @@ function DetailMail({
   const [pjCopro, setPjCopro] = useState<{ candidats: string[]; piece: string } | null>(
     () => ANALYSE_PJ.get(mail.internetMessageId) ?? null,
   );
-  const [pjEnCours, setPjEnCours] = useState(false);
+  // « En cours » se déduit : une analyse est due et ce mail n'a pas encore de réponse.
+  const [analyseFinie, setAnalyseFinie] = useState<string | null>(null);
+  const analyseDue = !mail.interne && mail.aPiecesJointes && s.nature !== "sure" && !ANALYSE_PJ.has(mail.internetMessageId);
+  const pjEnCours = analyseDue && analyseFinie !== mail.internetMessageId;
   useEffect(() => {
     if (mail.interne || !mail.aPiecesJointes || s.nature === "sure") return;
     // Déjà analysé (retour sur un mail) : pas de nouveau téléchargement des PDF.
     if (ANALYSE_PJ.has(mail.internetMessageId)) return;
     let actif = true;
-    setPjEnCours(true);
-    coproDepuisPjAction({ internetMessageId: mail.internetMessageId }).then(
+    const id = mail.internetMessageId;
+    coproDepuisPjAction({ internetMessageId: id }).then(
       (r) => {
         // Le résultat est gardé même si on a quitté le mail entre-temps.
-        if (r.ok) ANALYSE_PJ.set(mail.internetMessageId, r.donnees ?? null);
+        if (r.ok) ANALYSE_PJ.set(id, r.donnees ?? null);
         if (!actif) return;
-        setPjEnCours(false);
+        setAnalyseFinie(id);
         if (r.ok && r.donnees) setPjCopro(r.donnees);
       },
       () => {
-        if (actif) setPjEnCours(false);
+        if (actif) setAnalyseFinie(id);
       },
     );
     return () => {
