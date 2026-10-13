@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
+  Bot, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -40,6 +40,8 @@ export type NavKey =
   | "annonces"
   // Gestion des cles (ADR-040) : le comptoir des trousseaux, remplace la canvas app PowerApps.
   | "cles"
+  // Hub IA du groupe : un lien vers une autre application, pas un ecran de l'intranet.
+  | "hub-ia"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
   // surligne AUCUNE entree (avant, ils empruntaient "calendrier" a tort). Pas de
   // nouvelle entree sidebar - juste une valeur qui ne matche aucun item.
@@ -55,6 +57,8 @@ type Item = {
   alerte?: boolean;
   /** Page pas encore ouverte : grisee, non cliquable, badge "a venir". */
   aVenir?: boolean;
+  /** Autre application : s'ouvre dans un nouvel onglet, jamais surlignee. */
+  externe?: boolean;
 };
 
 // Navigation groupee par usage (reorg 2026-07-23, demande Sekou "manque de logique") :
@@ -102,6 +106,8 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     items: [
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
       { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
+      // Le hub des outils d'IA du groupe (demande Sekou, 13/10/2026).
+      { key: "hub-ia", label: "HUB IA", href: "https://ia.real31.app/", icon: Bot, externe: true },
     ],
   },
 ];
@@ -187,6 +193,24 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
           à venir
         </span>
       </div>
+    );
+  }
+
+  if (item.externe) {
+    return (
+      <a
+        href={item.href}
+        target="_blank"
+        rel="noreferrer"
+        className={cn(
+          "group flex items-center gap-2 px-2.5 h-8 rounded-md text-body font-medium text-rail-ink hover:bg-rail-2 transition-colors duration-120",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300",
+        )}
+      >
+        <Icon strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-rail-muted" />
+        <span className="truncate">{item.label}</span>
+        <ExternalLink strokeWidth={1.5} className="ml-auto w-3 h-3 shrink-0 text-rail-muted opacity-60 group-hover:opacity-100" />
+      </a>
     );
   }
 
