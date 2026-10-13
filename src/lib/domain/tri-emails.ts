@@ -180,6 +180,10 @@ const MOTS_BANALS = new Set([
   "les", "le", "la", "des", "de", "du", "et", "aux", "au", "sur", "sous", "saint", "sainte", "mon", "ma",
 ]);
 
+// Longueur de corps lue pour la reconnaissance nom/adresse : assez pour l'objet du mail,
+// trop courte pour atteindre la signature (ou figure l'adresse du cabinet). Mesure du 13/10.
+const TETE_CORPS = 600;
+
 function normaliser(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
@@ -198,9 +202,13 @@ function voieDe(adresse: string): string {
 
 // La ville d'une adresse : apres le code postal. Sert a retirer du nom de l'immeuble les mots
 // qui ne sont que son lieu (« Les Jardins de Bezons » a Bezons ne doit pas matcher tout
-// mail citant Bezons).
+// mail citant Bezons) ET a exiger le lieu quand on matche sur l'adresse.
 function villeDe(adresse: string): string {
-  return normaliser(adresse).split(/\b\d{5}\b/)[1] ?? "";
+  return (normaliser(adresse).split(/\b\d{5}\b/)[1] ?? "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function codePostalDe(adresse: string): string {
+  return /\b(\d{5})\b/.exec(adresse)?.[1] ?? "";
 }
 
 /**
@@ -209,8 +217,12 @@ function villeDe(adresse: string): string {
  * plutot que le code. Deux garde-fous contre les faux positifs :
  *   - du nom, on retire les mots de la ville de la copro ; il faut >= 2 mots distinctifs
  *     presents, ou un seul d'au moins 5 lettres ;
- *   - une adresse ne compte que si la voie (type de voie inclus) fait >= 10 caracteres et
- *     apparait telle quelle. On rend au plus une raison par copro, le nom primant.
+ *   - une adresse ne compte que si la voie (type de voie inclus) fait >= 10 caracteres,
+ *     apparait telle quelle, ET que le code postal ou la ville de la copro apparait aussi
+ *     (« 71 rue de Bezons » a Carrieres ne matche pas un mail de Bezons). On rend au plus
+ *     une raison par copro, le nom primant.
+ * L'appelant ne passe ici que l'objet et le DEBUT du corps : une adresse de copro dans la
+ * signature du cabinet (son bureau) ne doit pas rattacher tous les mails (constat du 13/10).
  */
 export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string }[] {
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/));
@@ -220,8 +232,9 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
   for (const c of copros) {
     const cle = cleDeReference(c.reference);
     if (!cle || vues.has(cle)) continue;
-    const ville = new Set(motsSignificatifs(villeDe(c.adresse)));
-    const distinctifs = motsSignificatifs(c.nom).filter((m) => !ville.has(m));
+    const ville = villeDe(c.adresse);
+    const motsVille = new Set(motsSignificatifs(ville));
+    const distinctifs = motsSignificatifs(c.nom).filter((m) => !motsVille.has(m));
     const parNom = distinctifs.length >= 2
       ? distinctifs.every((m) => mots.has(m))
       : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!);
@@ -231,7 +244,9 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
       continue;
     }
     const voie = voieDe(c.adresse);
-    if (voie.length >= 10 && espace.includes(` ${voie} `)) {
+    const cp = codePostalDe(c.adresse);
+    const lieuPresent = (cp !== "" && mots.has(cp)) || (ville.length >= 4 && espace.includes(` ${ville} `));
+    if (voie.length >= 10 && espace.includes(` ${voie} `) && lieuPresent) {
       out.push({ reference: c.reference, raison: `Adresse « ${voie} » citée dans le mail, à confirmer.` });
       vues.add(cle);
     }
@@ -312,8 +327,10 @@ export function suggererCopro(
   }
 
   // 4. Nom de l'immeuble ou adresse cite (prestataires : « LE CYRANO », « 71 rue de Bezons »).
-  // Indice faible : a confirmer au clic, rien ne bouge sans decision humaine.
-  const indices = indicesNomAdresse(`${mail.objet}\n${mail.apercu}`, ref.copros);
+  // Indice faible : a confirmer au clic, rien ne bouge sans decision humaine. On ne lit que
+  // l'objet et le DEBUT du corps : l'adresse du cabinet, en signature de bas de mail, ne
+  // doit pas rattacher tous les mails (constat du 13/10/2026).
+  const indices = indicesNomAdresse(`${mail.objet}\n${mail.apercu.slice(0, TETE_CORPS)}`, ref.copros);
   if (indices.length === 1) {
     return { nature: "faible", candidats: [indices[0]!.reference], raison: indices[0]!.raison };
   }

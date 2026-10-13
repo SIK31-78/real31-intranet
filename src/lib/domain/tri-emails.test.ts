@@ -113,14 +113,32 @@ describe("suggererCopro", () => {
     expect(suggererCopro(mail({ objet: "Intervention à Bezons" }), ref).nature).toBe("aucune");
   });
 
-  it("reconnait une copro par sa voie citee (type de voie inclus, >= 10 car.)", () => {
+  it("reconnait une copro par sa voie citee quand le lieu (ville/CP) est present", () => {
     const ref: ReferentielTri = {
       copros: [{ reference: "S0300", nom: "RESIDENCE DU STADE", adresse: "71 rue de Bezons 95100 Argenteuil", gestionnaire: null, assistant: null }],
       expediteurs: {},
     };
-    const s = suggererCopro(mail({ objet: "SOFRET - 71 RUE DE BEZONS - devis" }), ref);
+    const s = suggererCopro(mail({ objet: "SOFRET - 71 RUE DE BEZONS 95100 ARGENTEUIL - devis" }), ref);
     expect(s).toMatchObject({ nature: "faible", candidats: ["S0300"] });
     expect(s.raison).toContain("rue de bezons");
+  });
+
+  it("n'attache pas une voie citee sans son lieu (71 rue de Bezons à Carrières ≠ mail de Bezons)", () => {
+    const ref: ReferentielTri = {
+      copros: [{ reference: "S0300", nom: "BEZONS71CA", adresse: "71 rue de Bezons 78420 Carrières-sur-Seine", gestionnaire: null, assistant: null }],
+      expediteurs: {},
+    };
+    // La voie apparaît mais la ville est 95870 Bezons, pas Carrières : pas de rattachement.
+    expect(suggererCopro(mail({ objet: "DOUCE FOLIE - 71 rue de Bezons 95870 BEZONS" }), ref).nature).toBe("aucune");
+  });
+
+  it("ignore un nom d'immeuble qui n'apparaît que dans la signature (bas de corps)", () => {
+    const ref: ReferentielTri = {
+      copros: [{ reference: "S0158", nom: "LE MICHELET", adresse: "3 place Michelet 78800 Houilles", gestionnaire: null, assistant: null }],
+      expediteurs: {},
+    };
+    const apercu = `${"Bonjour, merci de votre retour sur ce dossier. ".repeat(20)}\n-- \nREAL 31 — 3 place Michelet, LE MICHELET, Houilles`;
+    expect(suggererCopro(mail({ objet: "Relance facture", apercu }), ref).nature).toBe("aucune");
   });
 
   it("laisse choisir quand deux copros sont citees par nom ou adresse", () => {
