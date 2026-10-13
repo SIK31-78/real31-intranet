@@ -5,6 +5,7 @@ import {
   constaterRangement,
   coproDuDossier,
   coprosDansPdf,
+  estMailInterne,
   destinationDe,
   lignesBinomes,
   suggestionSuivie,
@@ -205,6 +206,14 @@ describe("suggererCopro", () => {
 
   it("ne propose rien sans indice", () => {
     expect(suggererCopro(mail({}), REF)).toMatchObject({ nature: "aucune", candidats: [] });
+  });
+});
+
+describe("estMailInterne", () => {
+  it("vrai pour un collègue @real31.fr, faux pour la boîte partagée elle-même ou un externe", () => {
+    expect(estMailInterne("Mylene.Pin@real31.fr", "syndic1@real31.fr")).toBe(true);
+    expect(estMailInterne("syndic1@real31.fr", "syndic1@real31.fr")).toBe(false);
+    expect(estMailInterne("client@gmail.com", "syndic1@real31.fr")).toBe(false);
   });
 });
 

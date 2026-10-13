@@ -327,7 +327,8 @@ function FileVue({
                 <span className="font-medium text-ink truncate">{m.deNom}</span>
                 <span className="font-mono text-meta text-ink-3 tabular-nums">{heure(m.recuLe)}</span>
                 <span className="col-span-2 text-ink-2 truncate">{m.objet}</span>
-                <span className="col-span-2 mt-1">
+                <span className="col-span-2 mt-1 flex flex-wrap gap-1.5">
+                  {m.interne && <Badge ton="err">Interne</Badge>}
                   <Badge ton={TON[m.suggestion.nature]}>{pastille(m)}</Badge>
                 </span>
               </button>
@@ -388,7 +389,7 @@ function DetailMail({
   const [pjCopro, setPjCopro] = useState<{ candidats: string[]; piece: string } | null>(null);
   const [pjEnCours, setPjEnCours] = useState(false);
   useEffect(() => {
-    if (!mail.aPiecesJointes || s.nature === "sure") return;
+    if (mail.interne || !mail.aPiecesJointes || s.nature === "sure") return;
     let actif = true;
     setPjEnCours(true);
     coproDepuisPjAction({ internetMessageId: mail.internetMessageId }).then(
@@ -404,7 +405,7 @@ function DetailMail({
     return () => {
       actif = false;
     };
-  }, [mail.internetMessageId, mail.aPiecesJointes, s.nature]);
+  }, [mail.internetMessageId, mail.aPiecesJointes, mail.interne, s.nature]);
 
   const resultats = useMemo(() => {
     const q = normaliser(recherche.trim());
@@ -450,6 +451,17 @@ function DetailMail({
         </div>
         {mail.aPiecesJointes && <PiecesJointes internetMessageId={mail.internetMessageId} />}
       </section>
+
+      {mail.interne && (
+        <div className="rounded-xl border border-err-200 bg-err-50 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-body text-ink">
+            <strong className="font-medium">Mail interne</strong> — réponse d&apos;un collègue, la boîte partagée est restée en copie. Sans utilité : à mettre en corbeille.
+          </span>
+          <Button variant="destructive" size="sm" disabled={enCours} onClick={supprimer}>
+            Mettre à la corbeille
+          </Button>
+        </div>
+      )}
 
       <section className="rounded-xl border border-line bg-surface p-4 sm:p-5 flex flex-col gap-3">
         <h3 className="text-meta uppercase tracking-wider text-ink-3 font-medium">Rattacher à une copropriété</h3>

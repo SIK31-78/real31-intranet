@@ -120,6 +120,8 @@ export interface MailATrier {
   deAdresse: string;
   /** Destinataires (To) : utile pour voir si le mail nous est adressé ou en copie/transfert. */
   a?: string[];
+  /** Mail interne : réponse d'un collègue où la boîte partagée est restée en copie. À corbeille. */
+  interne?: boolean;
   objet: string;
   /** ISO 8601. */
   recuLe: string;
@@ -318,6 +320,16 @@ export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
   }
   for (const i of indicesNomAdresse(utile, copros)) if (!refs.includes(i.reference)) refs.push(i.reference);
   return refs;
+}
+
+/**
+ * Mail interne : envoyé depuis une adresse du cabinet (@real31.fr), hors la boîte partagée
+ * elle-même. En pratique, un collègue a répondu à un client en laissant la boîte partagée en
+ * copie ; le mail n'a plus d'utilité (avant on le gardait pour archiver sur Crypto). À corbeille.
+ */
+export function estMailInterne(deAdresse: string, boite: string): boolean {
+  const de = deAdresse.trim().toLowerCase();
+  return /@real31\.fr$/.test(de) && de !== boite.trim().toLowerCase();
 }
 
 const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {
