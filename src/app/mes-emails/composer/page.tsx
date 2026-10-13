@@ -5,8 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Callout } from "@/components/ui/callout";
 import { Compositeur } from "@/components/mes-emails/compositeur";
-import { boiteEnvoi, listerCoprosComposition } from "@/lib/services/mes-emails/composer-mail";
-import { envoiMailActif } from "@/lib/domain/mail-gate";
+import { boiteEnvoi, brouillonPossible, listerCoprosComposition } from "@/lib/services/mes-emails/composer-mail";
 
 export const metadata: Metadata = { title: "Composer un e-mail - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -35,7 +34,7 @@ export default async function ComposerPage() {
           copros={copros}
           gestionnaireNom={g.nomComplet}
           agence={agence}
-          envoiOuvert={envoiMailActif()}
+          brouillonPossible={brouillonPossible()}
           boite={boiteEnvoi()}
         />
       </Page>

@@ -75,10 +75,10 @@ export function ecritureTriActive(): boolean {
 }
 
 /**
- * L'ENVOI réel d'un mail (réponse ou mail neuf) est-il autorisé ? Seulement si MAIL_ENVOI=on.
- * Garde-fou dédié, séparé de MAIL_SOURCE (qui ne fait que brancher Graph en lecture) : tant
- * que ce flag est coupé, le compositeur reste en aperçu / brouillon, aucun mail ne part.
- * Même esprit qu'ecritureTriActive() pour le tri (ADR-046/047).
+ * L'ENVOI réel d'un mail depuis une boîte PARTAGÉE (syndicN) est-il autorisé ? Seulement si
+ * MAIL_ENVOI=on. Garde-fou dédié, séparé de MAIL_SOURCE (qui branche Graph) : tant qu'il est
+ * coupé, on passe par le BROUILLON (créé sur clic, relu et envoyé dans Outlook). La réponse
+ * depuis la boîte perso n'est pas concernée. Même esprit qu'ecritureTriActive() (ADR-046/047).
  */
 export function envoiMailActif(): boolean {
   return (process.env.MAIL_ENVOI ?? "").trim().toLowerCase() === "on";

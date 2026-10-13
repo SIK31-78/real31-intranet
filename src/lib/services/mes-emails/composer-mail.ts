@@ -1,11 +1,11 @@
 // Compositeur d'un mail SORTANT depuis la boîte partagée (syndicN), façon « F1 » de Crypto.
 // Fournit les DONNÉES (copros ESTALE+Crypto de l'agence, contacts d'une copro) et crée un
-// BROUILLON — jamais d'envoi. L'objet/corps sont composés côté domaine (pur), ici on
-// orchestre les ports. Garde-fou : tant qu'envoiMailActif() est faux, rien n'écrit dans la
-// boîte (aperçu seul). Envoi au nom de syndicN = la boîte passée au provider.
+// BROUILLON — jamais d'envoi direct. L'objet/corps sont composés côté domaine (pur), ici on
+// orchestre les ports. Le brouillon se crée sur clic (geste de validation) dès que Graph est
+// branché ; l'envoi réel se fait dans Outlook. Expéditeur = syndicN (la boîte passée au provider).
 
 import { getContactsCoproProvider, getMailOutboundProvider, getReferentielTriProvider } from "@/lib/adapters/router";
-import { boiteTriConfiguree, envoiMailActif } from "@/lib/domain/mail-gate";
+import { boiteTriConfiguree, mailModuleActif } from "@/lib/domain/mail-gate";
 import type { ContactCopro, CoproChoisissable } from "@/lib/domain/mes-emails-composition";
 
 export type { CoproChoisissable };
@@ -43,14 +43,20 @@ export interface ResultatBrouillon {
   webLink?: string;
 }
 
+/** Un brouillon peut-il être créé (Graph branché et vraie boîte partagée configurée) ? */
+export function brouillonPossible(): boolean {
+  const boite = boiteEnvoi();
+  return mailModuleActif() && Boolean(boite) && boite !== "echantillon";
+}
+
 /**
- * Crée un brouillon NEUF dans la boîte partagée (statut Draft, jamais envoyé). Si l'envoi
- * n'est pas ouvert (MAIL_ENVOI≠on) ou si aucune boîte n'est configurée, renvoie simulation:true
- * sans toucher la boîte. On ne propose JAMAIS l'envoi direct ici (toujours un brouillon relu).
+ * Crée un brouillon NEUF dans la boîte partagée (statut Draft, rien n'est envoyé) : c'est le
+ * geste de validation, le mail se relit et part depuis Outlook (ADR-047). Sans Graph ou sans
+ * vraie boîte, renvoie simulation:true sans rien écrire. Jamais d'envoi direct ici.
  */
 export async function creerBrouillonComposition(d: DemandeBrouillon): Promise<ResultatBrouillon> {
   const boite = boiteEnvoi();
-  if (!envoiMailActif() || !boite || boite === "echantillon") {
+  if (!brouillonPossible() || !boite) {
     return { simulation: true, boite };
   }
   const r = await getMailOutboundProvider().creerBrouillonNeuf({

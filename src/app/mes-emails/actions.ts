@@ -22,6 +22,7 @@ import {
 } from "@/lib/services/mes-emails/maj-etat";
 import type { Rattachement } from "@/lib/domain/mes-emails";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
+import { envoiMailActif } from "@/lib/domain/mail-gate";
 import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
@@ -325,6 +326,15 @@ export async function envoyerReponseAction(
   const cibleMessage = await boiteCible(g, boiteMessage);
   const cibleEnvoi = await boiteCible(g, boiteEnvoi);
   if (!cibleMessage || !cibleEnvoi) return { ok: false, message: "Boîte non autorisée." };
+  // Envoi RÉEL depuis une boîte partagée (syndicN) : seulement si MAIL_ENVOI=on (ADR-047).
+  // Un mail qui part de la boîte commune engage le cabinet : pendant le pilote, on passe
+  // par le brouillon, relu puis envoyé dans Outlook. La boîte perso garde son comportement.
+  if (cibleEnvoi !== g.email.trim().toLowerCase() && !envoiMailActif()) {
+    return {
+      ok: false,
+      message: "L'envoi depuis la boîte partagée est coupé pendant le pilote. Utilise « Brouillon Outlook » : il se relit et s'envoie dans Outlook.",
+    };
+  }
   if (!corps.trim()) return { ok: false, message: "Le message est vide." };
   // Destinataires : adresses bien formees, au moins une en "A", plafond global (anti-spam).
   const tous = [...a, ...cc, ...cci].map((x) => x.trim()).filter(Boolean);

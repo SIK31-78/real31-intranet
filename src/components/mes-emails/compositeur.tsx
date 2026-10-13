@@ -29,7 +29,8 @@ type Props = {
   copros: CoproChoisissable[];
   gestionnaireNom: string;
   agence: string;
-  envoiOuvert: boolean;
+  /** Graph branché + vraie boîte partagée : le bouton crée un brouillon (sinon aperçu). */
+  brouillonPossible: boolean;
   boite: string | null;
 };
 
@@ -47,7 +48,7 @@ const emails = (brut: string): string[] =>
     .map((s) => s.trim())
     .filter((s) => /.@./.test(s));
 
-export function Compositeur({ copros, gestionnaireNom, agence, envoiOuvert, boite }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, boite }: Props) {
   const toast = useToast();
   const [refCopro, setRefCopro] = useState("");
   const [contacts, setContacts] = useState<ContactCopro[] | null>(null);
@@ -132,7 +133,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, envoiOuvert, boit
         return;
       }
       if (r.donnees?.simulation) {
-        toast.ok("Aperçu prêt (envoi coupé) : aucun brouillon créé dans la boîte.");
+        toast.ok("Aperçu vérifié : aucune boîte branchée ici, aucun brouillon créé.");
       } else {
         toast.ok(`Brouillon créé dans ${r.donnees?.boite ?? "la boîte"} — à relire puis envoyer dans Outlook.`);
       }
@@ -259,10 +260,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, envoiOuvert, boit
 
       {/* Colonne droite : aperçu */}
       <div className="flex flex-col gap-4 lg:sticky lg:top-4">
-        {!envoiOuvert && (
+        {brouillonPossible ? (
+          <Callout ton="neutral">
+            Rien ne part d&apos;ici : le bouton crée un <strong>brouillon</strong> dans {boite}, à relire puis envoyer depuis Outlook.
+          </Callout>
+        ) : (
           <Callout ton="warn">
-            Envoi coupé (bac à sable) : vous pouvez tout préparer, mais aucun mail ni brouillon n&apos;est écrit dans la boîte. Activez
-            l&apos;envoi (MAIL_ENVOI) pour créer des brouillons dans {boite ?? "la boîte partagée"}.
+            Aperçu seulement : la boîte partagée n&apos;est pas branchée sur cet environnement, aucun brouillon ne sera créé.
           </Callout>
         )}
         <section className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-3">
@@ -283,7 +287,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, envoiOuvert, boit
         </section>
         <div className="flex items-center gap-3">
           <Button variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} onClick={creerBrouillon}>
-            {envoiOuvert ? "Créer le brouillon dans la boîte" : "Vérifier l'aperçu"}
+            {brouillonPossible ? "Créer le brouillon" : "Vérifier l'aperçu"}
           </Button>
           {!pretAEnvoyer && <span className="text-meta text-ink-3">Objet, destinataire et message requis.</span>}
         </div>
