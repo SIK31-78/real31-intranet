@@ -138,15 +138,6 @@ export function MesEmailsVue({
     [data.mails, data.boites, boiteActive],
   );
   const mailsTries = useMemo(() => trierMails(mailsBoite), [mailsBoite]);
-  const copros = useMemo(() => {
-    const vus = new Map<string, string>();
-    for (const m of mailsBoite) if (!vus.has(m.coproCode)) vus.set(m.coproCode, m.coproNom);
-    // Les copros par code, « Non rattaché » (code vide) en dernier.
-    return [...vus.entries()]
-      .map(([code, nom]) => ({ code, nom }))
-      .sort((a, b) => (a.code ? 0 : 1) - (b.code ? 0 : 1) || a.code.localeCompare(b.code, "fr"));
-  }, [mailsBoite]);
-
   const [selId, setSelId] = useState<string>(mailsTries[0]?.id ?? "");
   const [lus, setLus] = useState<Set<string>>(
     () => new Set(data.mails.filter((m) => m.lu).map((m) => m.id)),
@@ -340,17 +331,11 @@ export function MesEmailsVue({
   const q = recherche.trim().toLowerCase();
   const matchVue = (m: MailEntrant): boolean =>
     vue === "tous" || (vue === "traites" ? classes.has(m.id) : !classes.has(m.id));
-  const countCopro = (code: string | null): number =>
-    mailsBoite.filter((m) => matchVue(m) && (code === null || m.coproCode === code)).length;
-  const countCoproNonLus = (code: string | null): number =>
-    mailsBoite.filter(
-      (m) => matchVue(m) && !lus.has(m.id) && (code === null || m.coproCode === code),
-    ).length;
   const visibles = mailsTries.filter(
     (m) =>
       matchVue(m) &&
       (filtreCopro === "toutes" || m.coproCode === filtreCopro) &&
-      (q === "" || `${m.objet} ${m.de} ${m.coproNom}`.toLowerCase().includes(q)),
+      (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
   );
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
@@ -512,106 +497,93 @@ export function MesEmailsVue({
   const toggleSection = (cle: string) =>
     setOuverts((p) => (p.has(cle) ? del(p, cle) : add(p, cle)));
 
-  const nbNonLus = mailsBoite.filter((m) => !lus.has(m.id)).length;
   const nbClasses = mailsBoite.filter((m) => classes.has(m.id)).length;
   const nbRecus = mailsBoite.length - nbClasses;
   const DOSSIERS = [
-    { cle: "recus", label: "Reçus", n: nbRecus },
+    { cle: "recus", label: "À traiter", n: nbRecus },
     { cle: "traites", label: "Traités", n: nbClasses },
     { cle: "tous", label: "Tous", n: mailsBoite.length },
   ] as const;
 
   return (
-    <div className="flex flex-col gap-5">
-      <EnTete
-        data={data}
-        nbNonLus={nbNonLus}
-        nbATraiter={nbRecus}
-        nbClasses={nbClasses}
-        nomBoite={data.boites.find((b) => b.id === boiteActive)?.libelle}
-      />
-
-      <div className="flex flex-col lg:flex-row gap-5 items-start">
-        {/* Volet gauche : la boite */}
-        <aside className="w-full lg:w-[300px] shrink-0 flex flex-col gap-2.5">
-          {/* Boites : perso + partagees. Masque s'il n'y en a qu'une (rien a choisir). */}
+    <div className="flex flex-col gap-3">
+      {/* Barre unique : la boîte affichée (onglets), la recherche, les vues. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {data.boites.length > 1 && (
-            <div className="flex flex-col gap-0.5">
-              <p className="px-2 pt-1 pb-0.5 text-[10.5px] font-medium uppercase tracking-[0.07em] text-ink-4">
-                Boîtes
-              </p>
-              {data.boites.map((b) => (
-                <BoiteItem
-                  key={b.id}
-                  boite={b}
-                  actif={b.id === boiteActive}
-                  nonLus={data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id)).length}
-                  onClick={() => choisirBoite(b.id)}
-                />
-              ))}
+            <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface p-0.5">
+              {data.boites.map((b) => {
+                const nonLus = data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id)).length;
+                const actif = b.id === boiteActive;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={actif}
+                    onClick={() => choisirBoite(b.id)}
+                    title={b.adresse}
+                    className={
+                      "h-7 px-3 rounded text-[12.5px] inline-flex items-center gap-1.5 transition-colors " +
+                      (actif ? "bg-green-50 text-green-700 font-medium" : "text-ink-2 hover:bg-surface-2")
+                    }
+                  >
+                    {b.personnelle ? <Inbox strokeWidth={1.5} className="w-3.5 h-3.5" /> : <Users strokeWidth={1.5} className="w-3.5 h-3.5" />}
+                    {b.libelle}
+                    {nonLus > 0 && <span className="text-[11px] font-semibold text-info-700">{nonLus}</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
-
-          {/* Dossiers (vues) : Reçus / Traités / Tous */}
-          <div className="flex items-center gap-1">
-            {DOSSIERS.map((d) => (
-              <button
-                key={d.cle}
-                type="button"
-                onClick={() => setVue(d.cle)}
-                className={
-                  "flex-1 h-8 rounded-md text-[12px] border transition-colors inline-flex items-center justify-center gap-1.5 " +
-                  (vue === d.cle
-                    ? "bg-green-50 text-green-700 border-green-500/30 font-medium"
-                    : "bg-surface text-ink-2 border-line hover:bg-surface-2")
-                }
-              >
-                {d.label}
-                <span className={vue === d.cle ? "text-green-700/70" : "text-ink-4"}>{d.n}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Sous-dossiers par copropriété */}
-          <div className="flex flex-col gap-0.5">
-            <p className="px-2 pt-1 pb-0.5 text-[10.5px] font-medium uppercase tracking-[0.07em] text-ink-4">
-              Copropriétés
-            </p>
-            <CoproFolder
-              actif={filtreCopro === "toutes"}
-              label="Toutes les copropriétés"
-              n={countCopro(null)}
-              nonLus={countCoproNonLus(null)}
-              onClick={() => setFiltreCopro("toutes")}
-            />
-            {copros.map((c) => (
-              <CoproFolder
-                key={c.code}
-                actif={filtreCopro === c.code}
-                label={!c.code ? "Non rattaché" : c.nom && c.nom !== c.code ? `${c.code} · ${c.nom}` : c.code}
-                n={countCopro(c.code)}
-                nonLus={countCoproNonLus(c.code)}
-                onClick={() => setFiltreCopro(c.code)}
-              />
-            ))}
-          </div>
-
-          <div className="relative">
-            <Search
-              strokeWidth={1.5}
-              className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-1/2 -translate-y-1/2"
-            />
+          <div className="relative flex-1 min-w-[220px]">
+            <Search strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
-              type="text"
+              type="search"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Rechercher..."
+              placeholder="Filtrer : copro (S247), personne, mot…"
+              aria-label="Filtrer les mails de la boîte"
               className="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-[12.5px] text-ink placeholder:text-ink-4"
             />
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {DOSSIERS.map((d) => (
+            <button
+              key={d.cle}
+              type="button"
+              aria-pressed={vue === d.cle}
+              onClick={() => setVue(d.cle)}
+              className={
+                "h-7 px-2.5 rounded-full text-[12px] border transition-colors inline-flex items-center gap-1.5 " +
+                (vue === d.cle ? "bg-green-50 text-green-700 border-green-500/30 font-medium" : "bg-surface text-ink-2 border-line hover:bg-surface-2")
+              }
+            >
+              {d.label}
+              <span className={vue === d.cle ? "text-green-700/70" : "text-ink-4"}>{d.n}</span>
+            </button>
+          ))}
+          {filtreCopro !== "toutes" && (
+            <button
+              type="button"
+              onClick={() => setFiltreCopro("toutes")}
+              title="Retirer le filtre copropriété"
+              className="h-7 px-2.5 rounded-full text-[12px] border border-info-500/30 bg-info-50 text-info-700 inline-flex items-center gap-1"
+            >
+              <Building2 strokeWidth={1.5} className="w-3 h-3" />
+              {filtreCopro || "Non rattaché"}
+              <X strokeWidth={1.5} className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
 
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        {/* La liste, en premier : c'est ce qu'on vient chercher. */}
+        <aside className="w-full lg:w-[340px] shrink-0">
           <Card className="overflow-hidden">
-            <ul className="divide-y divide-line max-h-[calc(100vh-300px)] overflow-auto">
+            <ul className="divide-y divide-line max-h-[calc(100vh-220px)] overflow-auto">
               {visibles.map((m) => (
                 <LigneMail
                   key={m.id}
@@ -813,116 +785,6 @@ function StatutBadge({ statut }: { statut: Statut }) {
 }
 
 /** Une boite dans le rail : libelle + adresse + compteur de non-lus. */
-function BoiteItem({
-  boite,
-  actif,
-  nonLus,
-  onClick,
-}: {
-  boite: BoiteMail;
-  actif: boolean;
-  nonLus: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={actif ? "true" : undefined}
-      className={
-        "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors " +
-        (actif ? "bg-green-50 text-green-700" : "text-ink-2 hover:bg-surface-2")
-      }
-    >
-      <Inbox
-        strokeWidth={1.5}
-        className={"w-3.5 h-3.5 shrink-0 " + (actif ? "text-green-700" : "text-ink-3")}
-      />
-      <span className="min-w-0 flex-1">
-        <span className={"block truncate text-[12px] " + (actif ? "font-medium" : "")}>
-          {boite.libelle}
-        </span>
-        <span className="block truncate text-[10.5px] text-ink-4">{boite.adresse}</span>
-      </span>
-      {nonLus > 0 ? (
-        <span className="text-info-700 font-semibold text-[11px]">{nonLus}</span>
-      ) : null}
-    </button>
-  );
-}
-
-function CoproFolder({
-  actif,
-  label,
-  n,
-  nonLus,
-  onClick,
-}: {
-  actif: boolean;
-  label: string;
-  n: number;
-  nonLus: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-left transition-colors " +
-        (actif ? "bg-green-50 text-green-700 font-medium" : "text-ink-2 hover:bg-surface-2")
-      }
-    >
-      <Building2
-        strokeWidth={1.5}
-        className={"w-3.5 h-3.5 shrink-0 " + (actif ? "text-green-700" : "text-ink-3")}
-      />
-      <span className={"truncate flex-1 " + (nonLus > 0 ? "font-semibold text-ink" : "")}>{label}</span>
-      {nonLus > 0 ? (
-        <span className="text-info-700 font-semibold text-[11px]">{nonLus}</span>
-      ) : (
-        <span className="text-ink-4 text-[11px]">{n}</span>
-      )}
-    </button>
-  );
-}
-
-function EnTete({
-  data,
-  nbNonLus,
-  nbATraiter,
-  nbClasses,
-  nomBoite,
-}: {
-  data: MesEmails;
-  nbNonLus: number;
-  nbATraiter: number;
-  nbClasses: number;
-  /** Boite affichee : les compteurs ne parlent QUE d'elle. */
-  nomBoite?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-11 h-11 rounded-full bg-info-50 text-info-700 text-[14px] font-medium flex items-center justify-center shrink-0">
-        {data.gestionnaire.initiales}
-      </span>
-      <div>
-        <h1 className="text-[20px] font-medium tracking-tight text-ink flex items-center gap-2">
-          <Mail strokeWidth={1.5} className="w-5 h-5 text-ink-3" />
-          Mes e-mails
-        </h1>
-        <p className="text-[13px] text-ink-3 mt-0.5">
-          {nomBoite ? <span className="text-ink-2">{nomBoite} · </span> : null}
-          {nbNonLus} non lus · {nbATraiter} à traiter · {nbClasses} classés
-        </p>
-        <p className="text-[11px] text-ink-4 mt-0.5">
-          Lecture en direct · rattachement aux copropriétés
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function LigneMail({
   m,
   actif,
@@ -936,19 +798,15 @@ function LigneMail({
   statut: Statut;
   onClick: () => void;
 }) {
+  const qui = m.de.replace(/ \(.*\)$/, "");
   return (
-    <li>
+    <li className={actif ? "bg-green-50" : "hover:bg-surface-2"}>
       <button
         type="button"
         onClick={onClick}
-        className={
-          "w-full text-left px-3.5 py-3 transition-colors " +
-          (actif ? "bg-green-50" : "hover:bg-surface-2") +
-          (statut === "classe" ? " opacity-55" : "")
-        }
+        className={"w-full text-left px-3.5 py-2.5 transition-colors" + (statut === "classe" ? " opacity-55" : "")}
       >
         <div className="flex items-center gap-2">
-          {/* Indicateur neutre lu/non-lu (plus d'urgence IA). */}
           <span className={`w-2 h-2 rounded-full shrink-0 ${!lu ? "bg-info-500" : "bg-transparent"}`} />
           <span
             className={
@@ -959,18 +817,13 @@ function LigneMail({
           >
             {m.objet}
           </span>
-          {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
+          <span className="shrink-0 text-[11px] text-ink-4">{jourMois(m.date)}</span>
         </div>
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-[11px] text-ink-3">
-          <Building2 strokeWidth={1.5} className="w-3 h-3 shrink-0" />
-          <span className="truncate">
-            {m.coproNom} · {m.de.replace(/ \(.*\)$/, "")}
-          </span>
-          <span className="ml-auto shrink-0">{jourMois(m.date)}</span>
+          <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-4")}>{m.coproCode || "—"}</span>
+          <span className="truncate">· {qui}</span>
+          {statut !== "nouveau" ? <span className="ml-auto shrink-0"><StatutBadge statut={statut} /></span> : null}
         </div>
-        <p className="mt-0.5 pl-4 text-[11px] text-ink-4 truncate">
-          {m.corps.replace(/\s+/g, " ").trim()}
-        </p>
       </button>
     </li>
   );
