@@ -79,6 +79,8 @@ import { NoopMailOutboundProvider } from "@/lib/adapters/mail/noop-mail-outbound
 import type { CalendrierOutboundProvider } from "@/lib/ports/calendrier-outbound-provider";
 import { GraphCalendrierOutboundProvider } from "@/lib/adapters/calendrier/graph-calendrier-outbound";
 import { NoopCalendrierOutboundProvider } from "@/lib/adapters/calendrier/noop-calendrier-outbound";
+import type { DepotDocumentProvider } from "@/lib/ports/depot-document-provider";
+import { DepotDocumentInactif, GraphDepotDocumentProvider } from "@/lib/adapters/mail/graph-depot-document";
 import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
 import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
 import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
@@ -541,6 +543,14 @@ export function getMailboxProvider(): MailboxProvider {
 export function getCalendrierOutboundProvider(): CalendrierOutboundProvider {
   if (process.env.MAIL_SOURCE === "graph") return new GraphCalendrierOutboundProvider();
   return new NoopCalendrierOutboundProvider();
+}
+
+// Dépôt de documents dans les dossiers SharePoint des copros (contrat de syndic, REA-116).
+// Actif seulement avec SHAREPOINT_DEPOT_ACTIF=1, posé une fois le droit Sites.Selected
+// accordé sur le site « copro » ; sinon l'édition se contente du téléchargement.
+export function getDepotDocumentProvider(): DepotDocumentProvider {
+  if (process.env.SHAREPOINT_DEPOT_ACTIF === "1") return new GraphDepotDocumentProvider();
+  return new DepotDocumentInactif();
 }
 
 // Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie

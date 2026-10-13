@@ -5,6 +5,7 @@ import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session"
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
+import { depotPieceJointeActif } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
@@ -33,7 +34,7 @@ export default async function MesEmailsPage() {
           </ButtonLink>
           <BoutonRafraichir />
         </form>
-        <MesEmailsVue data={data} signatureHtml={signatureHtml} />
+        <MesEmailsVue data={data} signatureHtml={signatureHtml} depotDriveActif={depotPieceJointeActif()} />
       </Page>
     </AppShell>
   );

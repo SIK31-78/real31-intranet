@@ -28,6 +28,7 @@ import { creerBrouillonOutlook } from "@/lib/services/mes-emails/creer-brouillon
 import { classerDansDossier, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
+import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
@@ -265,6 +266,33 @@ export async function telechargerPieceJointeAction(
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
+}
+
+// --- Depot d'une piece jointe sur SharePoint (bon d'intervention, facture) ------
+// Coupe tant que SHAREPOINT_DEPOT_ACTIF n'est pas pose : renvoie alors un message clair.
+// La copro est obligatoire (c'est elle qui donne le dossier SharePoint).
+
+export async function deposerPieceJointeAction(
+  emailId: string,
+  coproCode: string,
+  attachmentId: string,
+  recuLe: string,
+  boite?: string,
+): Promise<{ ok: boolean; message?: string; webUrl?: string }> {
+  if (
+    !z
+      .object({ emailId: zId, coproCode: zCopro.min(1), attachmentId: zId, recuLe: z.string().max(40).regex(/^\d{4}-\d{2}-\d{2}/), boite: zBoite })
+      .safeParse({ emailId, coproCode, attachmentId, recuLe, boite }).success
+  )
+    return { ok: false, message: "Données invalides (la copropriété du mail est-elle renseignée ?)." };
+  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+  if (!auth.ok) return auth;
+  const cible = await boiteCible(auth.g, boite);
+  if (!cible) return { ok: false, message: "Boîte non autorisée." };
+  const r = await deposerPieceJointe({ boite: cible, internetMessageId: emailId, attachmentId, coproCode, recuLe });
+  if (!r) return { ok: false, message: "Le dépôt sur SharePoint n'est pas encore branché (droit Sites.Selected à accorder)." };
+  if (!r.depose) return { ok: false, message: `Dépôt impossible : ${r.raison}` };
+  return { ok: true, webUrl: r.webUrl, message: `Déposé dans ${r.dossier}.` };
 }
 
 // --- Brouillon IA a la demande -----------------------------------------------

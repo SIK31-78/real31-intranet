@@ -23,6 +23,7 @@ import {
   CalendarCheck,
   ChevronRight,
   FolderInput,
+  FolderUp,
   Download,
   X,
   Send,
@@ -62,6 +63,7 @@ import {
   envoyerReponseAction,
   chargerPiecesJointesAction,
   telechargerPieceJointeAction,
+  deposerPieceJointeAction,
   rattacherCoproAction,
   chargerDossiersAction,
   classerDansDossierAction,
@@ -112,9 +114,12 @@ const BTN =
 export function MesEmailsVue({
   data,
   signatureHtml,
+  depotDriveActif = false,
 }: {
   data: MesEmails;
   signatureHtml?: string | null;
+  /** Dépôt SharePoint branché (SHAREPOINT_DEPOT_ACTIF) : affiche « Déposer » sur les PJ. */
+  depotDriveActif?: boolean;
 }) {
   // Boite affichee. Les deux boites ne sont JAMAIS fusionnees (decision Sekou 5) :
   // on en regarde une a la fois, la perso par defaut.
@@ -293,6 +298,12 @@ export function MesEmailsVue({
   async function voirPj(m: MailEntrant, pj: PieceJointeRef) {
     const b = await chargerBlobPj(m, pj);
     if (b) setApercu(b);
+  }
+  // Bon d'intervention, facture : rangé dans le dossier SharePoint de la copro du mail.
+  async function deposerPj(m: MailEntrant, pj: PieceJointeRef) {
+    setMsgClasser(`Dépôt de « ${pj.nom} » sur SharePoint…`);
+    const r = await deposerPieceJointeAction(m.id, coproDe(m).code, pj.id, m.recuLe ?? new Date().toISOString(), boiteDuMail(m));
+    setMsgClasser(r.ok ? `« ${pj.nom} » ${r.message ?? "déposé."}` : (r.message ?? "Le dépôt a échoué."));
   }
   const fermerApercu = () =>
     setApercu((a) => {
@@ -636,6 +647,9 @@ export function MesEmailsVue({
               }
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
+              {...(depotDriveActif && coproDe(selection).code
+                ? { onDeposer: (pj: PieceJointeRef) => void deposerPj(selection, pj) }
+                : {})}
               pjJointes={pjJointesDe(selection)}
               onTogglePjJointe={(id) => togglePjJointe(selection, id)}
               destinataires={destinatairesDe(selection)}
@@ -1160,6 +1174,7 @@ function AnalysePane({
   piecesJointes,
   onTelecharger,
   onApercu,
+  onDeposer,
   pjJointes,
   onTogglePjJointe,
   destinataires,
@@ -1210,6 +1225,8 @@ function AnalysePane({
   piecesJointes: PieceJointeRef[] | null;
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
+  /** Déposer la PJ dans le dossier SharePoint de la copro. Absent = dépôt coupé ou mail sans copro. */
+  onDeposer?: (pj: PieceJointeRef) => void;
   pjJointes: Set<string>;
   onTogglePjJointe: (id: string) => void;
   destinataires: Destinataires;
@@ -1348,6 +1365,17 @@ function AnalysePane({
                     >
                       <Download strokeWidth={1.5} className="w-3 h-3" />
                     </button>
+                    {onDeposer && (
+                      <button
+                        type="button"
+                        onClick={() => onDeposer(pj)}
+                        title="Déposer dans le dossier SharePoint de la copropriété"
+                        aria-label={`Déposer ${pj.nom} sur SharePoint`}
+                        className="text-ink-4 hover:text-ink"
+                      >
+                        <FolderUp strokeWidth={1.5} className="w-3 h-3" />
+                      </button>
+                    )}
                   </span>
                 ))
               )}
