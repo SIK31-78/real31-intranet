@@ -10,6 +10,7 @@
 // paye sur intranet_copro_dates le 2026-07-28.
 
 import type {
+  FiltreRecaps,
   NouveauRecapAg,
   RecapAgDetail,
   RecapAgFileLigne,
@@ -134,15 +135,9 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
     if (error) throw new Error(`Rattachement facture au recap ${recapId} : ${error.message}`);
   }
 
-  async listerRecapsRecents(limite = 50): Promise<RecapAgHistorique[]> {
-    const { data, error } = await createSupabasePublicClient()
-      .from("intranet_recap_ag")
-      .select(COLS_FILE)
-      .order("created_at", { ascending: false })
-      .limit(limite);
-    if (error) throw new Error(`Lecture historique recap AG : ${error.message}`);
-
-    return ((data as unknown as LigneFile[] | null) ?? []).map(versHistorique);
+  async listerRecapsRecents(limite = 50, filtre?: FiltreRecaps): Promise<RecapAgHistorique[]> {
+    const lignes = await lireFiltre(COLS_FILE, limite, filtre, "Lecture historique recap AG");
+    return lignes.map(versHistorique);
   }
 
   async listerRecapsDeCopro(coproCode: string): Promise<RecapAgHistorique[]> {
@@ -175,19 +170,18 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
     return versDetail(data as unknown as LigneDetail);
   }
 
-  async listerRecapsPourFile(limite = 100): Promise<RecapAgFileLigne[]> {
-    const lire = async (avecTraitement: boolean) =>
-      createSupabasePublicClient()
-        .from("intranet_recap_ag")
-        .select(avecTraitement ? `${COLS_FILE}, ${COLS_TRAITEMENT}` : COLS_FILE)
-        .order("created_at", { ascending: false })
-        .limit(limite);
+  async listerRecapsPourFile(limite = 100, filtre?: Pick<FiltreRecaps, "coproCodes">): Promise<RecapAgFileLigne[]> {
+    const contexte = "Lecture de la file des recaps AG";
+    let lignes: LigneFile[];
+    try {
+      lignes = await lireFiltre(`${COLS_FILE}, ${COLS_TRAITEMENT}`, limite, filtre, contexte);
+    } catch (e) {
+      // Colonnes de traitement pas encore posees : on relit sans elles.
+      if (!(e instanceof ErreurLecture) || !colonneAbsente(e.erreur)) throw e;
+      lignes = await lireFiltre(COLS_FILE, limite, filtre, contexte);
+    }
 
-    let { data, error } = await lire(true);
-    if (error && colonneAbsente(error)) ({ data, error } = await lire(false));
-    if (error) throw new Error(`Lecture de la file des recaps AG : ${error.message}`);
-
-    return ((data as unknown as LigneFile[] | null) ?? []).map((r) => ({
+    return lignes.map((r) => ({
       id: r.id,
       coproCode: r.copropriete_id,
       agDate: r.ag_date,
@@ -260,6 +254,56 @@ export class SupabaseRecapAgRepository implements RecapAgRepository {
     }
   }
 
+}
+
+// --- Lecture filtree AVANT la limite (REA-166) -------------------------------
+
+/** Erreur PostgREST gardee intacte, pour que l'appelant puisse tester son code. */
+class ErreurLecture extends Error {
+  constructor(contexte: string, readonly erreur: { code?: string; message?: string }) {
+    super(`${contexte} : ${erreur.message}`);
+  }
+}
+
+/**
+ * Les `limite` recaps les plus recents qui passent le filtre. Le filtre part DANS la
+ * requete (et non apres) : avec 335 lignes au 12/10/2026, une limite posee sur tout le
+ * cabinet faisait sortir des recaps du perimetre avant meme qu'on les filtre.
+ * Les codes partent par paquets (longueur d'URL), l'auteur dans une requete a part ; on
+ * fusionne, dedoublonne, trie et coupe a la fin.
+ */
+async function lireFiltre(
+  colonnes: string,
+  limite: number,
+  filtre: FiltreRecaps | undefined,
+  contexte: string,
+): Promise<LigneFile[]> {
+  const base = () =>
+    createSupabasePublicClient()
+      .from("intranet_recap_ag")
+      .select(colonnes)
+      .order("created_at", { ascending: false })
+      .limit(limite);
+  const executer = async (requete: PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>) => {
+    const { data, error } = await requete;
+    if (error) throw new ErreurLecture(contexte, error);
+    return (data as unknown as LigneFile[] | null) ?? [];
+  };
+
+  if (!filtre) return executer(base());
+
+  const requetes: Promise<LigneFile[]>[] = [];
+  const codes = filtre.coproCodes ?? [];
+  for (let i = 0; i < codes.length; i += TAILLE_PAQUET_CODES) {
+    requetes.push(executer(base().in("copropriete_id", codes.slice(i, i + TAILLE_PAQUET_CODES) as string[])));
+  }
+  const par = filtre.par?.trim();
+  // Initiales saisies a la main : comparaison sans casse, jokers ILIKE neutralises.
+  if (par) requetes.push(executer(base().ilike("cree_par", par.replace(/[\\%_]/g, (c) => `\\${c}`))));
+
+  const parId = new Map<string, LigneFile>();
+  for (const lot of await Promise.all(requetes)) for (const r of lot) parId.set(r.id, r);
+  return [...parId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, limite);
 }
 
 // --- Mapping des lignes (snake_case -> domaine) ------------------------------

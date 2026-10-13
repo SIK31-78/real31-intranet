@@ -5,7 +5,12 @@ import { ChevronRight, ChevronDown } from "lucide-react";
 import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
 import type { RessourceReunion } from "@/lib/domain/salles-reunion";
 import { Button } from "@/components/ui/button";
-import { Select, Choix } from "@/components/ui/field";
+import { Select, Choix, Input } from "@/components/ui/field";
+import { LIEU_LIBRE_MAX } from "@/lib/domain/confirmation-evenement";
+
+/** Valeur du selecteur de salle pour une reunion hors des locaux (REA-148). Jamais un
+ *  email de salle : elle ne part pas au serveur comme salle, seulement comme lieu libre. */
+const EXTERIEUR = "__exterieur__";
 import { ColleguesAssocies } from "./collegues-associes";
 import { MODES, type Dispo } from "./editeur-date.utils";
 
@@ -22,6 +27,10 @@ export function LogistiqueReunion({
   onModeChange,
   salleVal,
   onSalleChange,
+  exterieurVal,
+  onExterieurChange,
+  lieuLibreVal,
+  onLieuLibreChange,
   sallesAffichees,
   sallesAutres,
   voirAutresSalles,
@@ -45,6 +54,12 @@ export function LogistiqueReunion({
   onModeChange: (v: ModeReunion | "") => void;
   salleVal: string;
   onSalleChange: (v: string) => void;
+  /** Reunion « à l'extérieur du cabinet » : exclusive d'une salle REAL31. */
+  exterieurVal: boolean;
+  onExterieurChange: (v: boolean) => void;
+  /** Adresse libre du lieu exterieur. */
+  lieuLibreVal: string;
+  onLieuLibreChange: (v: string) => void;
   sallesAffichees: RessourceReunion[];
   sallesAutres: RessourceReunion[];
   voirAutresSalles: boolean;
@@ -105,10 +120,15 @@ export function LogistiqueReunion({
           <span className="inline-flex items-center gap-2 flex-wrap">
             <Select
               largeur="auto"
-              value={salleVal}
+              value={exterieurVal ? EXTERIEUR : salleVal}
               disabled={pending}
               aria-label="Salle de réunion à réserver"
-              onChange={(e) => onSalleChange(e.target.value)}
+              onChange={(e) => {
+                // « À l'extérieur » et une salle du cabinet s'excluent : choisir l'un vide l'autre.
+                const v = e.target.value;
+                onExterieurChange(v === EXTERIEUR);
+                onSalleChange(v === EXTERIEUR ? "" : v);
+              }}
             >
               <option value="">Aucune salle</option>
               {sallesAffichees.map((s) => (
@@ -116,6 +136,7 @@ export function LogistiqueReunion({
                   {s.nom}
                 </option>
               ))}
+              <option value={EXTERIEUR}>À l&apos;extérieur du cabinet</option>
             </Select>
 
             {/* Debordement : revele les salles des autres agences. */}
@@ -139,6 +160,20 @@ export function LogistiqueReunion({
               onChange={(e) => onZoeChange(e.target.checked)}
             />
           </span>
+
+          {/* Lieu exterieur (REA-148) : l'adresse libre, qui part dans l'invitation Outlook
+              et que l'ordre du jour reprend comme lieu de la reunion. */}
+          {exterieurVal && (
+            <Input
+              largeur="pleine"
+              value={lieuLibreVal}
+              disabled={pending}
+              maxLength={LIEU_LIBRE_MAX}
+              placeholder="Adresse du lieu (ex. salle des fêtes, 2 rue de la Mairie, 92250 La Garenne-Colombes)"
+              aria-label="Adresse du lieu de la réunion à l'extérieur du cabinet"
+              onChange={(e) => onLieuLibreChange(e.target.value)}
+            />
+          )}
 
           {/* Dispos du creneau. Seul le vert et le gris restent ICI : ce qui est OCCUPE
               remonte dans le bloc "A verifier" et n'est plus dit deux fois. */}

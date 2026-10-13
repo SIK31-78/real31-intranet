@@ -34,13 +34,14 @@ import {
   ajouterNoteAction,
   changerStatutAction,
   supprimerNoteAction,
+  modifierNoteAction,
   rattacherAgAction,
   modifierDossierAction,
   supprimerDossierAction,
 } from "@/app/dossiers/actions";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Input, Select } from "@/components/ui/field";
+import { Input, Select, Textarea } from "@/components/ui/field";
 import { lienEchange, lireRefEchange } from "@/lib/domain/echanges";
 
 const PORTEE_ORDRE: PorteeDossier[] = ["copropriete", "coproprietaire", "lot"];
@@ -85,6 +86,8 @@ export function DossierFiche({
   const [etapes, setEtapes] = useState<EtapeDossier[]>(dossier.etapes);
   const [nouvelle, setNouvelle] = useState("");
   const [note, setNote] = useState("");
+  /** Note du journal en cours de modification (REA-139), reperee par sa date de creation. */
+  const [noteEditee, setNoteEditee] = useState<{ le: string; texte: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
   const p = progressionDossier({ ...dossier, etapes });
@@ -180,6 +183,21 @@ export function DossierFiche({
       toast.ok("Note ajoutée.");
     });
     setNote("");
+  };
+  const enregistrerNote = () => {
+    if (!noteEditee) return;
+    const { le, texte } = noteEditee;
+    if (!texte.trim()) return;
+    startTransition(async () => {
+      await vider();
+      const ok = await modifierNoteAction(dossier.id, le, texte);
+      if (ok) {
+        setNoteEditee(null);
+        toast.ok("Note modifiée.");
+      } else {
+        toast.err("La note n'a pas pu être modifiée.");
+      }
+    });
   };
   const supprimerNote = (le: string) =>
     startTransition(async () => {
@@ -367,22 +385,66 @@ export function DossierFiche({
                 {[...dossier.journal].reverse().map((ev, idx) => {
                   const Icon = KIND_ICON[ev.kind] ?? MessageSquare;
                   const maNote = ev.kind === "note" && ev.par === monInitiales;
+                  const enEdition = maNote && noteEditee?.le === ev.le;
+                  const brouillon = enEdition ? (noteEditee?.texte ?? "") : "";
                   return (
                     <li key={idx} className="group flex items-start gap-2.5 px-4 py-2.5">
                       <Icon strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 mt-0.5 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-body text-ink">{ev.texte}</p>
-                        <p className="text-meta text-ink-3 mt-0.5">
-                          {ev.par} · {formatDateLongue(ev.le.slice(0, 10))}
-                          {lienDe(ev) && (
-                            <>
-                              {" · "}
-                              <Link href={lienDe(ev)!} className="text-green-700 hover:underline">Ouvrir le mail</Link>
-                            </>
-                          )}
-                        </p>
+                        {enEdition ? (
+                          <div className="flex flex-col gap-2">
+                            <Textarea
+                              value={brouillon}
+                              onChange={(e) => setNoteEditee({ le: ev.le, texte: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setNoteEditee(null);
+                                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) enregistrerNote();
+                              }}
+                              rows={3}
+                              autoFocus
+                              aria-label="Modifier ma note"
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button
+                                onClick={enregistrerNote}
+                                disabled={!brouillon.trim() || brouillon.trim() === ev.texte || pending}
+                                variant="secondary"
+                              >
+                                Enregistrer
+                              </Button>
+                              <Button onClick={() => setNoteEditee(null)} disabled={pending} variant="ghost">
+                                Annuler
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-body text-ink whitespace-pre-line">{ev.texte}</p>
+                            <p className="text-meta text-ink-3 mt-0.5">
+                              {ev.par} · {formatDateLongue(ev.le.slice(0, 10))}
+                              {ev.modifieLe ? ` · modifiée le ${formatDateLongue(ev.modifieLe.slice(0, 10))}` : ""}
+                              {lienDe(ev) && (
+                                <>
+                                  {" · "}
+                                  <Link href={lienDe(ev)!} className="text-green-700 hover:underline">Ouvrir le mail</Link>
+                                </>
+                              )}
+                            </p>
+                          </>
+                        )}
                       </div>
-                      {maNote && (
+                      {maNote && !enEdition && (
+                        <Button
+                          onClick={() => setNoteEditee({ le: ev.le, texte: ev.texte })}
+                          disabled={pending}
+                          aria-label="Modifier ma note"
+                          title="Modifier ma note"
+                          variant="ghost" iconOnly className="shrink-0"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      {maNote && !enEdition && (
                         <Button
                           onClick={() => supprimerNote(ev.le)}
                           disabled={pending}

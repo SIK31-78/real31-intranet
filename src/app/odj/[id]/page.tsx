@@ -14,9 +14,10 @@ import { Callout } from "@/components/ui/callout";
 import { DocumentOdj } from "@/components/odj/document-odj";
 import { DocumentOdjEditable } from "@/components/odj/document-odj-editable";
 import { ClotureOdjBloc } from "@/components/odj/cloture-odj";
+import { MailConseilOdj } from "@/components/odj/mail-conseil-odj";
 import { CLE_FIN_REUNION } from "@/lib/ports/odj-repository";
 import { actionPrincipaleEcran } from "@/components/parcours/action-principale";
-import { saisirChampAction, togglePointAction, cloturerOdjAction } from "./actions";
+import { saisirChampAction, togglePointAction, cloturerOdjAction, preparerMailConseilAction } from "./actions";
 
 export const metadata: Metadata = { title: "ODJ - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -99,6 +100,9 @@ export default async function OdjPage({ params }: { params: Promise<{ id: string
                   entree disant a quoi elle sert. La sortie de l'ecran ("Passer a la
                   supervision") reste en secondaire. */}
               <TelechargementsOdj id={id} />
+              {/* Le mail au CS (REA-146) : un brouillon Outlook, ODJ en PDF joint. Ecrire au
+                  conseil est un geste du gestionnaire : pas en consultation. */}
+              {peutModifier && <MailConseilOdj onPreparer={preparerMailConseilAction.bind(null, id)} />}
               {principale?.href && (
                 <ButtonLink href={principale.href} variant="secondary">
                   {principale.label}

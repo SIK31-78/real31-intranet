@@ -122,9 +122,14 @@ export class MockCoproRepository implements CoproRepository {
       if (dateISO) c.prochaineCsDate = dateISO;
       else delete c.prochaineCsDate;
     } else if (dateISO) {
-      c.derniereCsDate = dateISO;
+      // Jour + heure separes, comme l'adapter Supabase (REA-109).
+      c.derniereCsDate = dateISO.slice(0, 10);
+      const heure = /T(\d{2}:\d{2})/.exec(dateISO)?.[1];
+      if (heure && heure !== "00:00") c.derniereCsHeure = heure;
+      else delete c.derniereCsHeure;
     } else {
       delete c.derniereCsDate;
+      delete c.derniereCsHeure;
     }
   }
 

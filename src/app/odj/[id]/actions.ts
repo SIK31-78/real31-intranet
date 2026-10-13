@@ -6,9 +6,10 @@ import {
   saisirChampOdj,
   retirerPointOdj,
 } from "@/lib/services/odj/saisir-champ-odj";
-import { cloturerOdj } from "@/lib/services/odj/cloturer-odj";
+import { cloturerOdj, type ResultatCloture } from "@/lib/services/odj/cloturer-odj";
 import { peutEcrireSurCopro } from "@/lib/services/coproprietes/copro-appartient";
-import { getGestionnaireCourant } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
+import { preparerMailOdjAuConseil, type ResultatMailOdjCs } from "@/lib/services/odj/preparer-mail-odj-cs";
 import { getOdjRepository } from "@/lib/adapters/router";
 import { parseCloture } from "@/lib/domain/odj";
 import { CLE_CLOTURE_ODJ, CLE_CS_GLISSE } from "@/lib/ports/odj-repository";
@@ -78,13 +79,13 @@ export async function togglePointAction(id: string, pointId: string, retire: boo
 
 /** Clot ("reunion terminee") ou rouvre l'ODJ. Reversible : aucune ecriture externe n'est
  *  engagee par la cloture (ni PDF, ni depot eStale) - cf. cloturer-odj.ts. */
-export async function cloturerOdjAction(id: string, clore: boolean): Promise<void> {
-  if (!z.object({ id: zId, clore: z.boolean() }).safeParse({ id, clore }).success) return;
+export async function cloturerOdjAction(id: string, clore: boolean): Promise<ResultatCloture> {
+  if (!z.object({ id: zId, clore: z.boolean() }).safeParse({ id, clore }).success) return {};
   const { code } = decouperIdOdj(id);
   const g = await autorise(code);
-  if (!g) return;
+  if (!g) return {};
   const { agDate } = await resoudreCleOdj(id, g.id);
-  await cloturerOdj({
+  const resultat = await cloturerOdj({
     coproCode: code,
     agDateISO: agDate,
     clore,
@@ -99,4 +100,29 @@ export async function cloturerOdjAction(id: string, clore: boolean): Promise<voi
   revalidatePath(`/copropriete/${code}`);
   revalidatePath("/calendrier");
   revalidatePath("/accueil");
+  // La cloture est faite ; l'avertissement (frise non mise a jour) remonte a l'ecran.
+  return resultat;
+}
+
+/**
+ * « Préparer le mail au conseil syndical » (REA-146) : un BROUILLON dans la boite Outlook du
+ * gestionnaire connecte, adresse a la liste du CS, l'ODJ rempli en PDF joint. Rien n'est
+ * envoye : le gestionnaire ouvre le brouillon par le lien rendu, relit et envoie.
+ * Meme verrou que les autres ecritures de l'ODJ (ecrire au CS est un geste du gestionnaire
+ * de la copro), meme gate que le mail des dates au CS (MAIL_SOURCE=graph).
+ */
+export async function preparerMailConseilAction(id: string): Promise<ResultatMailOdjCs> {
+  if (!zId.safeParse(id).success) return { ok: false, erreur: "Ordre du jour introuvable." };
+  const { code } = decouperIdOdj(id);
+  const g = await autorise(code);
+  if (!g) return { ok: false, erreur: "Seul le gestionnaire de la copropriété peut préparer ce mail." };
+  // La boite = SA propre adresse (session), jamais un parametre client.
+  if (!g.email) return { ok: false, erreur: "Adresse e-mail du gestionnaire inconnue." };
+  if (!mailModuleActif()) return { ok: false, erreur: "La messagerie n'est pas branchée sur cet environnement." };
+  try {
+    return await preparerMailOdjAuConseil({ idOdj: id, gestionnaireId: g.id, boite: g.email });
+  } catch (e) {
+    console.warn(`[odj] brouillon du mail au CS impossible (${code}) :`, (e as Error).message);
+    return { ok: false, erreur: "Le brouillon n'a pas pu être créé dans Outlook. Réessayez dans un instant." };
+  }
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getContrat, getEditionsContrat } from "@/lib/services/contrat/get-contrat";
 import { estAslOuAful, libelleFormeJuridique } from "@/lib/domain/copropriete";
+import { avertissementSiegeAgence } from "@/lib/domain/salles-reunion";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { formatEuros, formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
@@ -19,6 +20,9 @@ import { coproEnLecture } from "@/lib/services/coproprietes/perimetre-lecture";
 
 export const metadata: Metadata = { title: "Contrat de syndic - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
+// L'édition produit le PDF (Chromium, démarrage à froid de quelques secondes) pour le
+// ranger dans SharePoint : plus que les 10 s par défaut.
+export const maxDuration = 60;
 
 // Preparation du contrat de syndic : ce que le document VA dire, avant de l'editer.
 // Reprend le `NewContractScreen` du canvas PowerApps MYTHEC, en beaucoup plus court :
@@ -114,6 +118,9 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
   const adresse = [copro.adresse1, copro.adresse2, copro.adresse3]
     .filter(Boolean)
     .join(" ");
+  // Agence sans siege connu : le contrat sortirait avec un blanc a la place de l'adresse
+  // de l'agence. On le dit AVANT l'edition (REA-273) ; le serveur l'a deja signale.
+  const avertissementAgence = avertissementSiegeAgence(copro.agence);
 
   return (
     <AppShell user={g} active="contrat" breadcrumb={`Copropriétés · ${code} · Contrat`}>
@@ -122,6 +129,12 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
           titre={mandat ? "Contrat de mandat du gestionnaire" : "Contrat de syndic"}
           eyebrow={`${copro.nom} · ${code}${mandat ? ` · ${libelleFormeJuridique(copro.formeJuridique)}` : ""}`}
         />
+
+        {avertissementAgence && (
+          <Callout ton="warn" titre="Adresse de l'agence manquante">
+            {avertissementAgence}
+          </Callout>
+        )}
 
         {/* Les trois valeurs ajustables AVANT d'editer : elles changent a chaque
             renouvellement (augmentation votee en AG), cf. formulaire-contrat.tsx. */}

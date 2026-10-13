@@ -134,6 +134,8 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
   // Heure de reunion extraite du timestamp (T00:00 des donnees existantes -> pas d'heure).
   const prochaineHeure = heureDe(row.nextAGDate);
   const prochaineCsHeure = heureDe(row.nextCSDate);
+  // Le dernier CS garde l'heure que la cloture de l'ODJ a fait glisser (REA-109).
+  const derniereCsHeure = heureDe(row.lastCSDate);
   const deepBase = process.env.ESTALE_DEEPLINK_BASE;
   return {
     code: codeDe(row),
@@ -159,6 +161,7 @@ function toDomaine(row: CoproRow, equipe: MembreEquipe[]): Copropriete {
         }
       : {}),
     ...(derniereCs ? { derniereCsDate: derniereCs } : {}),
+    ...(derniereCs && derniereCsHeure ? { derniereCsHeure } : {}),
     ...(prochaineCs ? { prochaineCsDate: prochaineCs } : {}),
     ...(prochaineCs && prochaineCsHeure ? { prochaineCsHeure } : {}),
     ...(row.ppt !== null ? { pptVote: row.ppt } : {}),
@@ -260,7 +263,6 @@ export class SupabaseCoproRepository implements CoproRepository {
     type: "ag" | "cs",
     quand: "prochaine" | "derniere",
     dateISO: string | null,
-    managerId: string,
   ): Promise<void> {
     const supabase = createSupabasePublicClient();
     const colonnes = {
@@ -268,12 +270,17 @@ export class SupabaseCoproRepository implements CoproRepository {
       cs: { prochaine: "nextCSDate", derniere: "lastCSDate" },
     } as const;
     const colonne = colonnes[type][quand];
-    // Ecriture dans la source partagee (App A). Scope managerId : seulement ses copros.
-    // updatedAt rafraichi pour rester coherent avec l'App A (qui s'appuie dessus).
-    // On resout d'abord LA fiche (code + perimetre), puis on ecrit par id : hors perimetre
-    // ou code inconnu, c'est une erreur dite, plus un UPDATE silencieux de zero ligne.
+    // Ecriture dans la source partagee (App A). updatedAt rafraichi pour rester coherent
+    // avec l'App A (qui s'appuie dessus).
+    // PAS de cloisonnement gestionnaire/assistant ici (REA-274, aligne sur le composite) :
+    // l'autorite d'ecriture est verifiee EN AMONT (coproAppartient dans les actions,
+    // exigerPerimetre dans les services, ADR-041) et couvre le role (ADMIN, directeur) et
+    // les delegations. Le filtre `managerId|assistantId` refaisait ce controle en plus
+    // etroit : un ADMIN ou un delegue hors portefeuille recevait « hors perimetre ».
+    // On resout d'abord LA fiche par son code, puis on ecrit par id : code inconnu ou
+    // ambigu, ou zero ligne ecrite, c'est une erreur dite, jamais un succes muet.
     const contexte = `MAJ date ${type}`;
-    const id = await idCoproUnique(supabase, coproCode, contexte, filtrePerimetre(managerId));
+    const id = await idCoproUnique(supabase, coproCode, contexte);
     const { data, error } = await supabase
       .from("Copropriete")
       .update({ [colonne]: dateISO, updatedAt: new Date().toISOString() })

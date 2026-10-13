@@ -28,6 +28,7 @@ const etat = vi.hoisted(() => {
     confirmations: [] as Record<string, unknown>[],
     // Ecritures.
     definirAppels: [] as unknown[][],
+    annoncesCs: [] as Record<string, unknown>[],
     reset() {
       ref.session = { id: "g1", email: "remi@real31.fr", initiales: "RL", nomComplet: "Rémi" };
       ref.appartient = true;
@@ -37,6 +38,7 @@ const etat = vi.hoisted(() => {
       ref.copro = { code: "S024" };
       ref.confirmations = [];
       ref.definirAppels.length = 0;
+      ref.annoncesCs.length = 0;
     },
   };
   return ref;
@@ -74,6 +76,12 @@ vi.mock("@/lib/services/coproprietes/controler-dispo-reunion", () => ({
 vi.mock("@/lib/services/supervision-ag/reporter-sans-date", () => ({
   reporterSupervisionSansDate: async () => undefined,
 }));
+vi.mock("@/lib/services/coproprietes/annoncer-date-cs", () => ({
+  annoncerDateCsAuxComptables: async (d: Record<string, unknown>) => {
+    etat.annoncesCs.push(d);
+    return { envoye: true, a: [] };
+  },
+}));
 vi.mock("@/lib/services/odj/saisir-champ-odj", () => ({
   reporterOdjSansDate: async () => undefined,
 }));
@@ -99,7 +107,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-import { definirDateAg } from "@/components/fiche-copro/dates-actions";
+import { definirDateAg, definirDateCs } from "@/components/fiche-copro/dates-actions";
 
 const SALLE = "real31lgc@real31.fr";
 const COLLEGUE = "emmanuel@real31.fr";
@@ -252,5 +260,50 @@ describe("definirDateAg - cloisonnement (l'action date reste fermee aux non-gest
     etat.session = null;
     const r = await definirDateAg("S024", "2026-09-15", "prochaine");
     expect(r).toEqual({ ok: false, erreur: "Session expirée, reconnectez-vous." });
+  });
+});
+
+describe("REA-272 : poser la date du CS annonce la date aux comptables", () => {
+  it("CS prochaine posee -> annonce avec l'ancienne date (date + heure) et la boite de session", async () => {
+    etat.copro = { code: "S024", prochaineCsDate: "2026-11-01", prochaineCsHeure: "17:00" };
+    const r = await definirDateCs("S024", "2026-11-15T18:00", "prochaine", "", "", "", [], true);
+    expect(r).toEqual({ ok: true });
+    expect(etat.annoncesCs).toEqual([
+      { coproCode: "S024", dateCsISO: "2026-11-15T18:00", ancienneDateCsISO: "2026-11-01T17:00", boite: "remi@real31.fr" },
+    ]);
+  });
+
+  it("date d'AG, date de CS derniere ou effacee -> aucune annonce", async () => {
+    await definirDateAg("S024", "2026-12-10", "prochaine");
+    await definirDateCs("S024", "2026-06-01", "derniere");
+    await definirDateCs("S024", "", "prochaine");
+    expect(etat.annoncesCs).toHaveLength(0);
+  });
+});
+
+describe("REA-148 : reunion a l'exterieur du cabinet (lieu libre)", () => {
+  it("lieu saisi -> transmis normalise au service", async () => {
+    const r = await definirDateAg("S024", "2026-12-10", "prochaine", "", "", "", [], true, "  Salle des fêtes,  2 rue de la Mairie ");
+    expect(r).toEqual({ ok: true });
+    const details = etat.definirAppels[0][6] as Record<string, unknown>;
+    expect(details.lieuLibre).toBe("Salle des fêtes, 2 rue de la Mairie");
+  });
+
+  it("lieu vide -> efface (null) ; lieu non relu (undefined) -> on n'y touche pas", async () => {
+    await definirDateAg("S024", "2026-12-10", "prochaine", "", "", "", [], true, "");
+    expect((etat.definirAppels[0][6] as Record<string, unknown>).lieuLibre).toBeNull();
+    await definirDateAg("S024", "2026-12-10", "prochaine", "", "", "", [], true);
+    expect("lieuLibre" in (etat.definirAppels[1][6] as Record<string, unknown>)).toBe(false);
+  });
+
+  it("salle du cabinet ET lieu exterieur -> refus, aucune ecriture", async () => {
+    const r = await definirDateAg("S024", "2026-12-10", "prochaine", SALLE, "", "", [], true, "Mairie");
+    expect(r.ok).toBe(false);
+    expect(etat.definirAppels).toHaveLength(0);
+  });
+
+  it("salle choisie sans lieu relu -> l'ancien lieu exterieur est efface", async () => {
+    await definirDateAg("S024", "2026-12-10", "prochaine", SALLE, "", "", [], true);
+    expect((etat.definirAppels[0][6] as Record<string, unknown>).lieuLibre).toBeNull();
   });
 });

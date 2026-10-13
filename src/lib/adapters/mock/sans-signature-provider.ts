@@ -32,4 +32,9 @@ export class SansSignatureProvider implements SignatureProvider {
     }
     return null;
   }
+
+  /** Aucun profil : sans cle Signitic, la signature garde le nom de session, sans ligne. */
+  async getProfil(): Promise<null> {
+    return null;
+  }
 }

@@ -15,8 +15,8 @@ let bandeau: Promise<string | undefined> | null = null;
 /** Le bandeau du contrat (logo, motif, FNAIM, 20 ans — l'image du classeur) en data: URI, lu une fois par instance. */
 function bandeauDataUri(): Promise<string | undefined> {
   if (!bandeau) {
-    bandeau = readFile(join(process.cwd(), "public", "contrat-bandeau.png"))
-      .then((b) => `data:image/png;base64,${b.toString("base64")}`)
+    bandeau = readFile(join(process.cwd(), "public", "contrat-bandeau.jpg"))
+      .then((b) => `data:image/jpeg;base64,${b.toString("base64")}`)
       .catch(() => undefined);
   }
   return bandeau;

@@ -40,4 +40,13 @@ export class MockGestionnaireRepository implements GestionnaireRepository {
   async findByEmail(): Promise<Gestionnaire | null> {
     return GESTIONNAIRES[0] ?? null;
   }
+
+  async findByEmails(emails: readonly string[]): Promise<Map<string, Gestionnaire>> {
+    const voulus = new Set(emails.map((e) => e.toLowerCase()));
+    return new Map(
+      [...GESTIONNAIRES, ...COMPTABLES]
+        .filter((g) => g.email && voulus.has(g.email.toLowerCase()))
+        .map((g) => [g.email!.toLowerCase(), g]),
+    );
+  }
 }

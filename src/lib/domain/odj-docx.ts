@@ -10,7 +10,7 @@
 // Domaine PUR : aucune I/O, testable sans gabarit.
 
 import type { Odj } from "./odj";
-import { ecartMontants, formatChampValeur, parseMontant } from "./odj";
+import { dateSeuleCs, ecartMontants, formatChampValeur, parseMontant } from "./odj";
 import { formatEuros } from "./format-montant";
 import {
   formatTaux,
@@ -224,7 +224,8 @@ export function donneesDocxOdjCs(odj: Odj, options: OptionsOdjCsDocx = {}): Donn
 
   return {
     adresse: odj.copro.adresse,
-    dateCs: valeur(odj, "date-cs"),
+    // La valeur d'ecran porte l'heure ("16/11/2026 à 18h30") ; le gabarit a son blanc a lui.
+    dateCs: dateSeuleCs(valeur(odj, "date-cs")),
     heureCs: heureFrancaise(options.heureCs),
     equipeSyndic: valeur(odj, "presents-syndic") || "Gestionnaire et assistant",
     presentsCs: valeur(odj, "presents-cs") || "M/MME",

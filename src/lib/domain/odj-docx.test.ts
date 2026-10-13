@@ -260,3 +260,13 @@ describe("helpers", () => {
     expect(bornesContrat(undefined)).toEqual({ debut: "", fin: "" });
   });
 });
+
+describe("donneesDocxOdjCs - date du CS avec heure (REA-143)", () => {
+  it("l'heure portee par la valeur d'ecran ne sort pas deux fois : dateCs garde la date seule", () => {
+    const odj = odjMinimal();
+    odj.enTete = odj.enTete.map((c) => (c.id === "date-cs" ? { ...c, valeur: "05/10/2026 à 18h30" } : c));
+    const d = donneesDocxOdjCs(odj, { heureCs: "18:30" });
+    expect(d.dateCs).toBe("05/10/2026");
+    expect(d.heureCs).toBe("18h30");
+  });
+});

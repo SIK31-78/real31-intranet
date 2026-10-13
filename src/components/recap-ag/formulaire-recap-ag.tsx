@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Select, Choix, GroupeChoix } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import { ConfirmationFacturation } from "@/components/facturation/confirmation-facturation";
 import { apercuRecapAgAction, creerRecapAgAction, listerClesRepartitionAction } from "@/app/recap-ag/actions";
@@ -30,6 +31,7 @@ import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
 import { formatJour } from "@/lib/services/facturation/format";
 
 import { formatEuros } from "@/lib/domain/format-montant";
+import { lireMontant } from "@/lib/domain/lire-montant";
 /** Montant -> texte de champ ("" si inconnu). */
 function texteMontant(v: number | null | undefined): string {
   return v === null || v === undefined ? "" : String(v);
@@ -39,8 +41,8 @@ const formatEurosCourt = (v: number) => formatEuros(v, { decimales: "auto" });
 /** Les honoraires saisis different-ils de ceux du contrat genere ? */
 function ecartContrat(saisi: string, genere: number | null): boolean {
   if (genere === null || saisi.trim() === "") return false;
-  const n = Number(saisi);
-  return Number.isFinite(n) && Math.abs(n - genere) >= 0.005;
+  const n = lireMontant(saisi);
+  return n !== null && Math.abs(n - genere) >= 0.005;
 }
 
 interface TravauxSaisis {
@@ -118,8 +120,12 @@ export function FormulaireRecapAg({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const confirmerDialogue = useConfirm();
   const [pending, demarrer] = useTransition();
   const [apercu, setApercu] = useState<ApercuFacturation | null>(null);
+  // Date d'AG suspecte maintenue par le gestionnaire (REA-166) : cle copro|jour, pour que
+  // la confirmation ne survive pas a un changement de copro ou de date.
+  const [dateConfirmee, setDateConfirmee] = useState<string | null>(null);
 
   const depart = copros.find((c) => c.code === coproInitial) ?? copros[0];
   const [coproCode, setCoproCode] = useState(depart?.code ?? "");
@@ -202,9 +208,37 @@ export function FormulaireRecapAg({
     setFraisPostauxReels(g?.fraisPostauxReels ?? false);
   }
 
+  // « 12 500 », « 12 500,50 € » se lisent (REA-99) : les champs montants sont en texte,
+  // un <input type="number"> refuse les espaces entre les milliers.
+  // Repartir d'un formulaire vierge (REA-111) : au changement de copro, rien de la
+  // precedente ne doit rester (travaux, reserves, budget...) ; apres un enregistrement,
+  // tout repart a zero pour enchainer le recap suivant. Les defauts sont ceux de
+  // l'ouverture. `sansDate` : la date suggeree de la copro vient d'etre couverte par le
+  // recap enregistre, on ne la repropose pas.
+  function remettreAZero(code: string, { sansDate = false }: { sansDate?: boolean } = {}) {
+    const choisie = copros.find((c) => c.code === code);
+    setJour(sansDate ? "" : (choisie?.agDateSuggeree ?? ""));
+    const d = heureDebutSuggeree(choisie?.agHeureSuggeree);
+    setDebut(d);
+    setFin(heureFinSuggeree(d));
+    setComptesApprouves(true);
+    setReserves("");
+    setBudgetModifie(false);
+    setMontantBudget("");
+    setPourcentageBudget(String(POURCENTAGE_FONDS_TRAVAUX_MINIMUM));
+    setPptVote(false);
+    setPourcentagePpt("");
+    setMontantPpt("");
+    setFondsTravaux(true);
+    setInfoComptable("");
+    setTravaux([]);
+    setApercu(null);
+    setDateConfirmee(null);
+    proposerContrat(code);
+  }
+
   function nombreOuUndefined(v: string): number | undefined {
-    const n = Number(v);
-    return v.trim() === "" || Number.isNaN(n) ? undefined : n;
+    return lireMontant(v) ?? undefined;
   }
 
   function construireDemande() {
@@ -277,7 +311,23 @@ export function FormulaireRecapAg({
     demarrer(async () => {
       const res = await apercuRecapAgAction(construireDemande());
       if (!res.ok) return toast.err(res.erreur);
-      if (res.donnees) setApercu(res.donnees);
+      if (!res.donnees) return;
+      // Un recap = une AG (REA-166) : une date suspecte (autre recap a moins de 10 mois,
+      // AG de plus de 6 mois) se confirme explicitement avant d'aller plus loin.
+      const aConfirmer = res.donnees.confirmationsDate ?? [];
+      if (aConfirmer.length > 0) {
+        const ok = await confirmerDialogue({
+          titre: "Vérifier la date de l'assemblée",
+          message: aConfirmer.join(" "),
+          confirmer: "La date est juste",
+          annuler: "Corriger la date",
+        });
+        if (!ok) return;
+        setDateConfirmee(`${coproCode}|${jour}`);
+      } else {
+        setDateConfirmee(null);
+      }
+      setApercu(res.donnees);
     });
   }
 
@@ -286,6 +336,7 @@ export function FormulaireRecapAg({
       const res = await creerRecapAgAction({
         ...construireDemande(),
         ...(sansFacture ? { sansFacture: true } : {}),
+        ...(dateConfirmee === `${coproCode}|${jour}` ? { confirmerDate: true } : {}),
       });
       setApercu(null);
       if (!res.ok) return toast.err(res.erreur);
@@ -299,6 +350,7 @@ export function FormulaireRecapAg({
             ? `Récap enregistré, dépassement de ${d.depassementHeures} h NON facturé (choix).`
             : "Récap enregistré (aucun dépassement à facturer).") + mail,
       );
+      remettreAZero(coproCode, { sansDate: true });
       router.refresh();
       onSucces?.();
     });
@@ -322,12 +374,7 @@ export function FormulaireRecapAg({
               onChange={(e) => {
                 const v = e.target.value;
                 setCoproCode(v);
-                const choisie = copros.find((c) => c.code === v);
-                setJour(choisie?.agDateSuggeree ?? "");
-                const d = heureDebutSuggeree(choisie?.agHeureSuggeree);
-                setDebut(d);
-                setFin(heureFinSuggeree(d));
-                proposerContrat(v);
+                remettreAZero(v);
               }}
             >
               {copros.map((c) => (
@@ -358,7 +405,7 @@ export function FormulaireRecapAg({
               (le legacy ne l'exigeait aussi que dans ce cas). */}
           {budgetModifie === true ? (
             <Field label="Nouveau montant du budget (€)" htmlFor="mbudget">
-              <Input id="mbudget" type="number" step="0.01" min="0" value={montantBudget} onChange={(e) => setMontantBudget(e.target.value)} />
+              <Input id="mbudget" type="text" inputMode="decimal" className="tabular-nums" value={montantBudget} onChange={(e) => setMontantBudget(e.target.value)} />
             </Field>
           ) : (
             <div />
@@ -388,7 +435,7 @@ export function FormulaireRecapAg({
                 <Input id="pppt" type="number" step="0.1" min="0" value={pourcentagePpt} onChange={(e) => setPourcentagePpt(e.target.value)} />
               </Field>
               <Field label="Montant PPT voté sur 10 ans (€)" htmlFor="mppt">
-                <Input id="mppt" type="number" step="0.01" min="0" value={montantPpt} onChange={(e) => setMontantPpt(e.target.value)} />
+                <Input id="mppt" type="text" inputMode="decimal" className="tabular-nums" value={montantPpt} onChange={(e) => setMontantPpt(e.target.value)} />
               </Field>
             </>
           )}
@@ -425,7 +472,7 @@ export function FormulaireRecapAg({
                   <Input value={t.libelle} aria-label="Libellé des travaux" onChange={(e) => majTravaux(i, { libelle: e.target.value })} />
                 </Field>
                 <Field label={i === 0 ? "Budget" : ""}>
-                  <Input type="number" step="0.01" min="0" value={t.budget} aria-label="Budget" onChange={(e) => majTravaux(i, { budget: e.target.value })} />
+                  <Input type="text" inputMode="decimal" className="tabular-nums" value={t.budget} aria-label="Budget" onChange={(e) => majTravaux(i, { budget: e.target.value })} />
                 </Field>
                 <Field label={i === 0 ? "Clé de répartition" : ""}>
                   <Input
@@ -499,7 +546,7 @@ export function FormulaireRecapAg({
             <Input id="fcontrat" type="date" value={finContrat} onChange={(e) => setFinContrat(e.target.value)} />
           </Field>
           <Field label="Honoraires annuels TTC" htmlFor="hono">
-            <Input id="hono" type="number" step="0.01" min="0" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} />
+            <Input id="hono" type="text" inputMode="decimal" className="tabular-nums" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} />
           </Field>
           <GroupeChoix label="Frais postaux">
             <Choix type="radio" name="frais-postaux" label="Frais réels" checked={fraisPostauxReels === true} onChange={() => setFraisPostauxReels(true)} />
@@ -508,7 +555,7 @@ export function FormulaireRecapAg({
           {/* Le montant n'est demande que si le contrat prevoit un forfait. */}
           {fraisPostauxReels === false && (
             <Field label="Forfait frais postaux TTC (€)" htmlFor="postaux">
-              <Input id="postaux" type="number" step="0.01" min="0" value={forfaitPostaux} onChange={(e) => setForfaitPostaux(e.target.value)} />
+              <Input id="postaux" type="text" inputMode="decimal" className="tabular-nums" value={forfaitPostaux} onChange={(e) => setForfaitPostaux(e.target.value)} />
             </Field>
           )}
         </div>

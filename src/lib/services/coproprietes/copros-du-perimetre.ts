@@ -9,6 +9,12 @@
 //                    VIDE. Son perimetre est l'AGENCE : Isabelle tient Maisons-Laffitte,
 //                    Romain et Elsa tiennent HLS / LGC / ASN (domain/perimetre-comptable).
 //
+// DELEGATIONS (REA-158) : le perimetre agence d'un comptable s'elargit de ses delegations
+// datees actives (agence deleguee, portefeuille d'une collegue comptable : cf.
+// perimetreComptableDe), et les copros que lui ouvre le perimetre d'ecriture (delegation
+// d'une copro, du portefeuille d'un gestionnaire) s'y ajoutent. Ses conges finis, la
+// delegation expire et le perimetre revient seul a ses agences.
+//
 // REGLE NON NEGOCIABLE : on n'ouvre JAMAIS tout le cabinet par defaut. Un comptable sans
 // perimetre declare retombe sur son portefeuille (vide en pratique) ; une agence qui ne se
 // resout pas EXCLUT la copro. Un ecran vide se voit et se signale ; une liste trop large
@@ -20,12 +26,9 @@
 
 import { getAgenceRepository, getCoproRepository } from "@/lib/adapters/router";
 import { getCoproprietes } from "@/lib/services/coproprietes/get-coproprietes";
-import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
+import { coproAppartient, perimetreComptableDe } from "@/lib/services/coproprietes/copro-appartient";
 import { coprosEcrivables } from "@/lib/services/coproprietes/perimetre-ecriture";
-import {
-  aUnPerimetreComptable,
-  filtrerSurPerimetreComptable,
-} from "@/lib/domain/perimetre-comptable";
+import { filtrerSurAgences } from "@/lib/domain/perimetre-comptable";
 import type { Copropriete } from "@/lib/domain/copropriete";
 
 export interface PerimetreUtilisateur {
@@ -34,28 +37,35 @@ export interface PerimetreUtilisateur {
   estComptable: boolean;
 }
 
-/** Le cadrage AGENCE s'applique-t-il ? (comptable ET perimetre declare) */
-function cadrageAgence(params: PerimetreUtilisateur): boolean {
-  return params.estComptable && aUnPerimetreComptable(params.email);
+/** Les agences du cadrage AGENCE (comptable ET perimetre declare ou delegue) ; [] sinon. */
+async function agencesDuCadrage(params: PerimetreUtilisateur): Promise<string[]> {
+  if (!params.estComptable) return [];
+  return (await perimetreComptableDe(params.managerId, params.email)).agences;
 }
 
 /** Toutes les copros du perimetre de cet utilisateur. */
 export async function getCoprosDuPerimetre(params: PerimetreUtilisateur): Promise<Copropriete[]> {
   // Gestionnaire, directeur, referent, remplacant : son perimetre d'ECRITURE (ADR-041) —
   // le portefeuille, plus ce que le role et les delegations lui ouvrent.
-  if (!cadrageAgence(params)) return coprosEcrivables(params.managerId);
+  const agencesComptables = await agencesDuCadrage(params);
+  if (agencesComptables.length === 0) return coprosEcrivables(params.managerId);
 
   // Perimetre agence : on lit TOUTES les copros puis on filtre sur les agences du
   // comptable. La copro porte un `agenceId` technique -> resolution id -> code via la
   // table Agency (4 lignes). Table absente / agence non resolue -> copro EXCLUE.
-  const [toutes, agences] = await Promise.all([
+  // Plus son perimetre d'ecriture (delegation d'une copro ou du portefeuille d'un
+  // gestionnaire) : sans delegation, c'est son portefeuille, vide en pratique.
+  const [toutes, agences, ecrivables] = await Promise.all([
     getCoproprietes(),
     getAgenceRepository().listerAgences(),
+    coprosEcrivables(params.managerId),
   ]);
   const codeParId = new Map(agences.map((a) => [a.id, a.code]));
-  return filtrerSurPerimetreComptable(toutes, params.email, (c) =>
+  const parAgence = filtrerSurAgences(toutes, agencesComptables, (c) =>
     c.agenceId ? codeParId.get(c.agenceId) : undefined,
   );
+  const vues = new Set(parAgence.map((c) => c.code));
+  return [...parAgence, ...ecrivables.filter((c) => !vues.has(c.code))];
 }
 
 /**
@@ -70,21 +80,24 @@ export async function getCoproDuPerimetre(
   const repo = getCoproRepository();
   // Gestionnaire : le portefeuille par la requete (managerId), sinon la porte d'ecriture
   // (role, delegation) puis une lecture non bornee.
-  if (!cadrageAgence(params)) {
+  const agencesComptables = await agencesDuCadrage(params);
+  if (agencesComptables.length === 0) {
     const mienne = await repo.findByCode(coproCode, params.managerId);
     if (mienne) return mienne;
     return (await coproAppartient(coproCode, params.managerId)) ? repo.findByCode(coproCode) : null;
   }
 
-  // Comptable : resolution non bornee au portefeuille (il n'en a pas), puis filtre agence.
+  // Comptable : resolution non bornee au portefeuille (il n'en a pas), puis filtre agence
+  // (delegations comprises) ; a defaut, la porte d'ecriture (delegation d'une copro...).
   const [copro, agences] = await Promise.all([
     repo.findByCode(coproCode),
     getAgenceRepository().listerAgences(),
   ]);
   if (!copro) return null;
   const codeParId = new Map(agences.map((a) => [a.id, a.code]));
-  const retenues = filtrerSurPerimetreComptable([copro], params.email, (c) =>
+  const retenues = filtrerSurAgences([copro], agencesComptables, (c) =>
     c.agenceId ? codeParId.get(c.agenceId) : undefined,
   );
-  return retenues[0] ?? null;
+  if (retenues[0]) return retenues[0];
+  return (await coproAppartient(coproCode, params.managerId)) ? copro : null;
 }

@@ -49,6 +49,13 @@ describe("calculerPrestation", () => {
     expect(u.montantTtc).toBeCloseTo(229.11, 2);
   });
 
+  it("reunion supplementaire avec le CS : une ligne par reunion, au tarif CSSupp, sans quantite", () => {
+    const p = prestationContrat("cs_supplementaire")!;
+    expect(p).toMatchObject({ identifiantPrestation: "CSSupp", mode: "fixe", groupe: "reunions", imputation: "syndicat" });
+    const c = calculerPrestation({ prestation: p, tarifTtc: 228, quantite: 3 });
+    expect(c).toMatchObject({ quantite: 1, unite: null, montantTtc: 228, montantHt: 190 });
+  });
+
   it("l'urgence ne majore que le temps passe", () => {
     const c = calculerPrestation({ prestation: prestationContrat("hypotheque")!, tarifTtc: 453, urgence: true });
     expect(c.majorationPct).toBe(0);

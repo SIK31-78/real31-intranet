@@ -14,6 +14,7 @@ import {
   parseMontant,
   formatEuros,
   parseCloture,
+  dateHeureCs,
 } from "@/lib/domain/odj";
 import { getCoproRepository, getOdjRepository } from "@/lib/adapters/router";
 import { CLE_CLOTURE_ODJ, CLE_FIN_REUNION } from "@/lib/ports/odj-repository";
@@ -171,8 +172,11 @@ export async function getOdj(
   // du nom interne de la salle (demande Sekou 2026-07-28). Le gestionnaire garde la main :
   // le champ reste editable et sa saisie prime (AG hors les murs, salle municipale...).
   // Degrade proprement : aucune salle reservee, ou salle sans adresse -> champ vide a saisir.
+  // Reunion a l'EXTERIEUR du cabinet (REA-148) : l'adresse saisie a la main sur la date
+  // d'AG prime sur la salle (les deux sont exclusifs, mais on ne parie pas dessus). Colonne
+  // absente tant que le SQL n'est pas passe : le repo rend alors un lieu indefini.
   const confirmationAg = (await getConfirmations(code)).find((c) => c.type === "AG");
-  const lieuSalle = adresseRessource(confirmationAg?.salleEmail);
+  const lieuSalle = confirmationAg?.lieuLibre?.trim() || adresseRessource(confirmationAg?.salleEmail);
 
   const RAPPORT_CS =
     "Le syndic rappelle au CS qu'un rapport / compte rendu de son activité sur l'année devra nous être adressé afin d'être joint à la convocation.";
@@ -181,7 +185,8 @@ export async function getOdj(
     champ("adresse", "Adresse", "supabase", { valeur: adresse }),
     champ("date-ag", "Date de l'AG", dateAg ? "supabase" : "manuel", { valeur: dateCourte(dateAg) }),
     champ("date-cs", "Date du CS préparatoire", "supabase", {
-      valeur: dateCourte(copro.prochaineCsDate),
+      // Avec l'heure quand la fiche copro la porte (REA-143) : "16/11/2026 à 18h30".
+      valeur: dateHeureCs(copro.prochaineCsDate, copro.prochaineCsHeure),
       alerte: copro.prochaineCsDate
         ? undefined
         : "Date de CS non renseignée : à planifier (fiche copro ou supervision).",
@@ -254,6 +259,16 @@ export async function getOdj(
         champ("gestion.autres", "Autres dossiers de gestion courante", "manuel", e),
         champ("gestion.gaz", "Contrat gaz (dates d'effet / fin)", "estale", { editable: true, valeur: valeurGaz }),
         champ("gestion.electricite", "Contrat électricité (dates d'effet / fin)", "estale", { editable: true, valeur: valeurElec }),
+        // Referentiel de la fiche copro (REA-251) : le CS veut voir l'assurance arriver a
+        // echeance et la date du dernier controle gaz / VMC sans ouvrir la fiche.
+        champ("gestion.assurance", "Échéance du contrat d'assurance", "supabase", {
+          editable: true,
+          valeur: dateCourte(copro.assuranceEcheance),
+        }),
+        champ("gestion.ctq-gaz-vmc", "Dernier contrôle gaz / VMC (CTQ)", "supabase", {
+          editable: true,
+          valeur: dateCourte(copro.ctqGazVmcDate),
+        }),
         champ("gestion.engie", "Optimisation du contrat ENGIE", "manuel", e),
         champ("gestion.subvention-dtg", "Subvention Métropole pour le DTG", "manuel", e),
         champ("gestion.dtg-pppt", "Avancement DTG / PPPT", "manuel", e),

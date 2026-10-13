@@ -95,7 +95,7 @@ export function FeedbackTrigger() {
       </button>
 
       {ouvert && (
-        <Modal titre="Signaler un bug / une idée" onFermer={fermer}>
+        <Modal titre="Signaler un bug / une idée" onFermer={fermer} deplacable>
           {envoye ? (
             <div className="px-6 py-10 flex flex-col items-center text-center gap-2">
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-green-700">

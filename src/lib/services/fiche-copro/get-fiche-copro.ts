@@ -16,7 +16,14 @@ import { itemConformitePpt } from "@/lib/domain/conformite-ppt";
 import { calculerCycleAg } from "@/lib/domain/cycle-ag";
 import type { StatutAg } from "@/lib/domain/supervision-ag";
 import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
-import { getCoproRepository, getJalonRepository, getGestionnaireRepository, getRecapAgRepository } from "@/lib/adapters/router";
+import { finContratEnCours, type DernierCycle } from "@/lib/domain/contrat/cycle-contrat";
+import {
+  getCoproRepository,
+  getFacturationRepository,
+  getJalonRepository,
+  getGestionnaireRepository,
+  getRecapAgRepository,
+} from "@/lib/adapters/router";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
@@ -75,6 +82,20 @@ async function chargerRecapsAg(coproCode: string): Promise<RecapAgFiche[] | unde
   }
 }
 
+/** Le dernier cycle de contrat enregistre par l'intranet (renouvellement acte au recap) ;
+ *  null si aucun ou si la lecture echoue (la fiche retombe alors sur le referentiel). */
+async function chargerDernierCycle(coproCode: string): Promise<DernierCycle | null> {
+  try {
+    const contrat = (await getFacturationRepository().listerDerniersContrats([coproCode])).get(coproCode);
+    return contrat
+      ? { debutISO: contrat.debutContrat, finISO: contrat.finContrat, enregistreLeISO: contrat.enregistreLeISO }
+      : null;
+  } catch (err) {
+    console.warn(`[fiche-copro] cycle de contrat de ${coproCode} illisible :`, (err as Error).message);
+    return null;
+  }
+}
+
 export async function getFicheCopro(
   code: string,
   gestionnaireId: string,
@@ -99,7 +120,7 @@ export async function getFicheCopro(
   // et chargerStatutSupervision ne rejettent pas de facon a casser la fiche : chargerEstale
   // degrade, chargerStatutSupervision ne s'execute que sur un cas etroit.
   const scopeSupervision = options?.transverse ? undefined : gestionnaireId;
-  const [{ estale, estaleIndisponible }, jalons, compta, confirmations, statutSupervision, agenceCode, recapsAg] =
+  const [{ estale, estaleIndisponible }, jalons, compta, confirmations, statutSupervision, agenceCode, recapsAg, dernierCycle] =
     await Promise.all([
       chargerEstale(code),
       copro.prochaineAg ? getJalonRepository().getJalons(copro.code, copro.prochaineAg.date) : Promise.resolve([]),
@@ -110,6 +131,7 @@ export async function getFicheCopro(
       // d'agence / table indisponible -> l'editeur ne filtre pas (montre toutes les salles).
       codeAgence(copro.agenceId),
       chargerRecapsAg(copro.code),
+      chargerDernierCycle(copro.code),
     ]);
 
   // Confirmations AG/CS par le conseil syndical : lues UNE fois (avant : getEvenements les
@@ -151,10 +173,14 @@ export async function getFicheCopro(
       etat: copro.assuranceEcheance < aujourdhuiISO ? "ko" : "ok",
     });
   }
-  if (copro.mandatSyndicFin) {
+  // Fin du mandat EN COURS, comme sur /contrat : le referentiel App A n'est PAS mis a jour
+  // au renouvellement, le dernier cycle enregistre par l'intranet si (cf. finContratEnCours).
+  // Le seul referentiel affichait « jusqu'au 31/12/2025 » sur un mandat renouvele (REA-249).
+  const finMandat = finContratEnCours(copro.mandatSyndicFin, dernierCycle);
+  if (finMandat) {
     conformiteReferentiel.push({
-      libelle: `Mandat de syndic jusqu'au ${jjmmaaaa(copro.mandatSyndicFin)}`,
-      etat: copro.mandatSyndicFin < aujourdhuiISO ? "ko" : "attention",
+      libelle: `Mandat de syndic jusqu'au ${jjmmaaaa(finMandat)}`,
+      etat: finMandat < aujourdhuiISO ? "ko" : "attention",
     });
   }
   const conformite = [...conformiteReferentiel, ...estale.conformite];

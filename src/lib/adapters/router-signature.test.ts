@@ -23,6 +23,16 @@ describe("getSignatureProvider — repli sans clé Signitic", () => {
     expect(html).toBeNull();
   });
 
+  it("aucun profil quand le mail réel est branché sans clé (pas de fausse ligne)", async () => {
+    process.env.MAIL_SOURCE = "graph";
+    expect(await getSignatureProvider().getProfil("sekou.koma@real31.fr")).toBeNull();
+  });
+
+  it("en dev, profil tiré de l'email mais JAMAIS de ligne directe inventée", async () => {
+    const p = await getSignatureProvider().getProfil("sekou.koma@real31.fr");
+    expect(p).toEqual({ prenom: "Sekou", nom: "Koma" });
+  });
+
   it("sert la signature de démo en dev, où aucun mail ne part", async () => {
     const html = await getSignatureProvider().getSignatureHtml("sekou.koma@real31.fr");
     expect(html).toContain("REAL31");

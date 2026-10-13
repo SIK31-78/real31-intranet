@@ -135,6 +135,12 @@ vi.mock("@/lib/adapters/router", () => ({
       delete c.modeReunion;
       if (mode) c.modeReunion = mode;
     },
+    async enregistrerLieuLibre(coproCode: string, type: string, lieu: string | null) {
+      const c = etat.confirmations.get(etat.cle(coproCode, type));
+      if (!c) return;
+      delete c.lieuLibre;
+      if (lieu) c.lieuLibre = lieu;
+    },
     async enregistrerCollaborateurs(coproCode: string, type: string, emails: string[]) {
       const c = etat.confirmations.get(etat.cle(coproCode, type));
       if (!c) return;
@@ -508,6 +514,14 @@ describe("mode de reunion -> lieu Outlook (bonus)", () => {
     });
     // Libelle depuis RESSOURCES_REAL31 (pas l'email brut).
     expect(etat.appels.creer[0]?.lieu).toBe("LGC - Salle de reunions");
+  });
+
+  it("a l'exterieur du cabinet (REA-148) : le lieu est l'adresse saisie", async () => {
+    await definirDateEvenement("S024", "ag", "prochaine", "2026-09-07T18:00:00", "g1", BOITE, {
+      modeReunion: "presentiel",
+      lieuLibre: "Salle des fêtes, 2 rue de la Mairie 92250 La Garenne-Colombes",
+    });
+    expect(etat.appels.creer[0]?.lieu).toBe("Salle des fêtes, 2 rue de la Mairie 92250 La Garenne-Colombes");
   });
 
   it("sans mode ni salle : aucun lieu transmis (inchange)", async () => {

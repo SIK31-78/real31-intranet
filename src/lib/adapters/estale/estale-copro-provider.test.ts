@@ -36,8 +36,14 @@ const fakeGestionnaires: GestionnaireRepository = {
   async listTous() { return []; },
   async findById() { return null; },
   async findByEmail(email: string) {
-    findByEmailCount += 1;
     return USERS[email.toLowerCase()] ?? null;
+  },
+  // Compte les LECTURES (une par appel, quel que soit le nombre d'emails) : plus de N+1.
+  async findByEmails(emails: readonly string[]) {
+    findByEmailCount += 1;
+    return new Map(
+      emails.flatMap((e) => (USERS[e.toLowerCase()] ? [[e.toLowerCase(), USERS[e.toLowerCase()]!] as const] : [])),
+    );
   },
 };
 const fakeAgences: AgenceRepository = { async listerAgences() { return AGENCES; } };

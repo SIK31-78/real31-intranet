@@ -39,9 +39,9 @@ export interface ItemChecklist {
   audite?: AuditeurItem;
   /** Lien externe vers l'app metier concernee (Registre des mandats...). */
   lien?: string;
-  /** Ouvre un module interne EN MODALE (recap AG / depassement CS) au lieu d'un lien
-   *  externe : le bouton "ouvrir" declenche une modale pre-scopee a la copro. */
-  module?: "recap" | "depassement_cs";
+  /** Ouvre un module interne EN MODALE (recap AG / depassement CS / annonce de l'AG) au
+   *  lieu d'un lien externe : le bouton "ouvrir" declenche une modale pre-scopee a la copro. */
+  module?: "recap" | "depassement_cs" | "annonce_ag";
 }
 
 export interface SectionChecklist {

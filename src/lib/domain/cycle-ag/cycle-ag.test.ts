@@ -99,10 +99,10 @@ describe("calculerCycleAg - action du moment par etat", () => {
     expect(actionDuMoment?.href).toBe("/copropriete/S001");
   });
 
-  it("en_preparation, ODJ a faire -> le DOCUMENT WORD (le CS se remplit dans Word)", () => {
+  it("en_preparation, ODJ a faire -> l'ECRAN de l'ODJ, ou l'on marque la reunion terminee (REA-168)", () => {
     const { actionDuMoment } = calculerCycleAg(copro(AG_PROCHE), new Set(), TODAY);
-    expect(actionDuMoment?.label).toBe("Télécharger l'ODJ");
-    expect(actionDuMoment?.href).toBe("/odj/S001/odj-cs.docx");
+    expect(actionDuMoment?.label).toBe("Ouvrir l'ODJ");
+    expect(actionDuMoment?.href).toBe("/odj/S001");
     expect(actionDuMoment?.action).toBe("préparer l'ODJ");
   });
 
@@ -201,7 +201,7 @@ describe("calculerCycleAg - priorisation post-tenue (S2.D, param statutSupervisi
 
   it("statut sans effet hors 'tenue' : en_preparation sur une AG a venir garde son action normale", () => {
     const { actionDuMoment } = calculerCycleAg(copro(AG_PROCHE), new Set(), TODAY, "en_preparation");
-    expect(actionDuMoment?.label).toBe("Télécharger l'ODJ"); // etat en_preparation, pas tenue -> pas d'ecrasement
+    expect(actionDuMoment?.label).toBe("Ouvrir l'ODJ"); // etat en_preparation, pas tenue -> pas d'ecrasement
   });
 });
 

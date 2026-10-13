@@ -17,6 +17,7 @@ import { arbreOdj, nomFichierOdjRempli } from "@/lib/domain/odj-rendu";
 import { htmlOdj } from "@/lib/domain/odj-html";
 import { cssPolicesPdf } from "@/lib/services/pdf/polices";
 import { rendrePdf } from "@/lib/services/pdf/rendre-pdf";
+import type { Odj } from "@/lib/domain/odj";
 import { getOdj } from "./get-odj";
 
 export interface FichierOdjRempli {
@@ -47,10 +48,16 @@ export async function genererOdjRempliDocx(idOdj: string, gestionnaireId: string
 }
 
 /** Le PDF du MEME document : l'arbre dessine en HTML A4, puis Chromium (ADR-012 v3). Sert au
- *  telechargement et, demain, a la piece jointe du mail au CS (REA-146). */
+ *  telechargement et a la piece jointe du mail au CS (REA-146). */
 export async function genererOdjRempliPdf(idOdj: string, gestionnaireId: string): Promise<FichierOdjRempli | null> {
   const odj = await getOdj(idOdj, gestionnaireId, { transverse: true });
   if (!odj) return null;
+  return pdfOdjRempli(odj);
+}
+
+/** Le PDF d'un ODJ DEJA compose. Le mail au CS (REA-146) a besoin de l'ODJ pour son objet
+ *  et son corps : il le compose une fois et passe ici, sans relire ESTALE une seconde fois. */
+export async function pdfOdjRempli(odj: Odj): Promise<FichierOdjRempli> {
   const [image, polices] = await Promise.all([logoReal31(), cssPolicesPdf()]);
   const dataUri = image ? `data:image/png;base64,${image.toString("base64")}` : undefined;
   const contenu = await rendrePdf(htmlOdj(arbreOdj(odj), dataUri, polices));

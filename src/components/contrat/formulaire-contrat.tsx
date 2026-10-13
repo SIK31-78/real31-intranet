@@ -36,6 +36,7 @@ import {
   motifRefusCycle,
 } from "@/lib/domain/contrat/cycle-contrat";
 import { dureeContratTexte } from "@/lib/domain/contrat/duree-contrat";
+import { lireMontant } from "@/lib/domain/lire-montant";
 import { editerContratAction } from "@/app/contrat/actions";
 
 const JOUR_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -72,12 +73,14 @@ export function FormulaireContrat({
   const [timbres, setTimbres] = useState(String(forfaitPostauxTtc));
   const [reels, setReels] = useState(fraisPostauxReels);
 
-  const saisi = Number(honoraires.replace(",", "."));
+  // « 12 500 », « 12 500,50 € » : lireMontant accepte ce que le gestionnaire tape (REA-99).
+  const saisi = lireMontant(honoraires);
+  const timbresLus = lireMontant(timbres);
   const datesLisibles = JOUR_RE.test(ag) && JOUR_RE.test(debut) && JOUR_RE.test(fin);
   const refusCycle = datesLisibles ? motifRefusCycle(debut, fin) : null;
-  const valide = Number.isFinite(saisi) && saisi > 0 && datesLisibles && refusCycle === null;
+  const valide = saisi !== null && saisi > 0 && datesLisibles && refusCycle === null;
   const ecart =
-    honorairesTtc > 0 && Number.isFinite(saisi) && saisi !== honorairesTtc
+    honorairesTtc > 0 && saisi !== null && saisi !== honorairesTtc
       ? (saisi / honorairesTtc - 1) * 100
       : null;
   // Duree telle qu'elle s'imprimera, pour que « 15 mois » se lise avant d'editer.
@@ -101,9 +104,9 @@ export function FormulaireContrat({
     if (JOUR_RE.test(ag)) q.set("ag", ag);
     if (JOUR_RE.test(debut)) q.set("debut", debut);
     if (JOUR_RE.test(fin)) q.set("fin", fin);
-    if (Number.isFinite(saisi)) q.set("honoraires", String(saisi));
+    if (saisi !== null) q.set("honoraires", String(saisi));
     if (reels) q.set("frais", "reels");
-    else if (timbres.trim()) q.set("timbres", timbres.trim().replace(",", "."));
+    else if (timbresLus !== null) q.set("timbres", String(timbresLus));
     return `/contrat/${encodeURIComponent(coproCode)}/imprimer?${q}`;
   })();
 
@@ -111,9 +114,14 @@ export function FormulaireContrat({
     demarrer(async () => {
       const res = await editerContratAction({ copro: coproCode, ag, debut, fin, honoraires, timbres, frais: reels ? "reels" : "forfait" });
       if (!res.ok) return toast.err(res.erreur);
+      const depot = res.donnees!.depot;
       const t = await telechargerPdf(res.donnees!.pdf);
       if (!t.ok) return toast.err(t.erreur);
-      toast.ok(`Contrat édité : ${t.nom}`);
+      if (depot?.depose) toast.ok(`Contrat édité et rangé dans le dossier de la copropriété : ${depot.dossier}.`);
+      else {
+        toast.ok(`Contrat édité : ${t.nom}`);
+        if (depot) toast.warn(`Contrat non rangé dans le dossier de la copropriété : ${depot.raison}`);
+      }
       router.refresh();
     });
   }

@@ -38,6 +38,7 @@ const ROLE_LABEL: Record<RoleEquipe, string> = {
   comptable: "Comptable",
   directeur: "Directeur",
   negociateur: "Négociateur",
+  direction: "Direction",
 };
 
 const STATUT_AG_LABEL: Record<ProchaineAg["statut"], string> = {
@@ -63,9 +64,9 @@ export function FicheVueEnsemble({
   // ce lien reste la seule porte permanente vers la supervision.
   const stepperVersSupervision =
     fiche.cycle?.actionDuMoment?.href.startsWith("/supervision-ag/") ?? false;
-  // Idem pour l'ODJ, mais SEULEMENT si le stepper mene a l'ECRAN. Depuis le 30/09 il
-  // mene au document Word (.docx) : masquer "Voir l'ordre du jour" priverait alors la
-  // fiche de toute porte vers l'ecran de consultation.
+  // Idem pour l'ODJ, mais SEULEMENT si le stepper mene a l'ECRAN (etape ODJ, REA-168).
+  // Le raccourci de la phase Dates mene, lui, au document Word (.docx) : masquer "Voir
+  // l'ordre du jour" priverait alors la fiche de toute porte vers l'ecran.
   const versEcranOdj = (href?: string) => Boolean(href?.startsWith("/odj/") && !href.endsWith(".docx"));
   const stepperVersOdj =
     versEcranOdj(fiche.cycle?.actionDuMoment?.href) ||

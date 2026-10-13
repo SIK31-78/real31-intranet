@@ -7,11 +7,15 @@
     },
     {
       "path": "/api/cron/tri-emails",
-      "schedule": "*/5 * * * *"
+      "schedule": "30 6 * * *"
     },
     {
       "path": "/api/cron/annuaire-crypto",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/rappel-comptes-cs",
+      "schedule": "0 5 * * *"
     }
   ]
 }

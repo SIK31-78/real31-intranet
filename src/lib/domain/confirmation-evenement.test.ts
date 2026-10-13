@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ConfirmationEvenement } from "./confirmation-evenement";
-import { agMasqueeCarTenue, statutPourDate } from "./confirmation-evenement";
+import { LIEU_LIBRE_MAX, agMasqueeCarTenue, normaliserLieuLibre, statutPourDate } from "./confirmation-evenement";
 
 // Fabrique une confirmation minimale.
 function conf(p: Partial<ConfirmationEvenement>): ConfirmationEvenement {
@@ -82,5 +82,20 @@ describe("agMasqueeCarTenue", () => {
     expect(agMasqueeCarTenue("2026-04-16", { debut: "2026-01-01", fin: "31/12" }, "2026-07-08")).toBe(
       false,
     );
+  });
+});
+
+describe("normaliserLieuLibre (REA-148 : reunion a l'exterieur du cabinet)", () => {
+  it("nettoie espaces et caracteres de controle", () => {
+    expect(normaliserLieuLibre("  Salle des fêtes,\n 2 rue de la Mairie \t ")).toBe("Salle des fêtes, 2 rue de la Mairie");
+  });
+  it("vide, blanc ou absent -> null", () => {
+    expect(normaliserLieuLibre("")).toBeNull();
+    expect(normaliserLieuLibre("   ")).toBeNull();
+    expect(normaliserLieuLibre(null)).toBeNull();
+    expect(normaliserLieuLibre(undefined)).toBeNull();
+  });
+  it("borne a LIEU_LIBRE_MAX", () => {
+    expect(normaliserLieuLibre("a".repeat(500))?.length).toBe(LIEU_LIBRE_MAX);
   });
 });

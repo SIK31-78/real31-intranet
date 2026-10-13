@@ -59,7 +59,11 @@ export function PageHeader({
 }) {
   return (
     <header className="flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-4">
+      {/* flex-WRAP (REA-252) : quand le titre et les boutons ne tiennent pas sur une ligne,
+          les boutons passent SOUS le titre au lieu de l'ecraser dans une colonne etroite
+          (l'ODJ et ses 4 boutons dans la largeur "lecture"). Le saut depend du contenu, pas
+          d'un point de rupture : une page dont tout tient sur une ligne ne bouge pas. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0 flex flex-col gap-0.5">
           {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
           <div className="flex items-center gap-2 flex-wrap">
@@ -69,7 +73,7 @@ export function PageHeader({
           </div>
           {meta && <p className="text-body text-ink-2">{meta}</p>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0 pt-0.5">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2 max-w-full pt-0.5">{actions}</div>}
       </div>
       {aide && <Aide>{aide}</Aide>}
     </header>

@@ -41,6 +41,16 @@ describe("tauxRevalorisation", () => {
     expect(tauxRevalorisation([], bareme2027)).toBeNull();
   });
 
+  it("ne compte pas les frais figés (relances, état daté), qui tireraient le taux vers 0", () => {
+    const figes = ["MED", "RelanceSimple", "EtatDate", "PreEtatDate", "Opposition"].map((id) => ({
+      identifiantPrestation: id,
+      montantTtc: 100,
+    }));
+    // Opposition suit la hausse ; les 4 autres sont recopiés tels quels.
+    const suivants = figes.map((l) => (l.identifiantPrestation === "Opposition" ? { ...l, montantTtc: 102 } : l));
+    expect(tauxRevalorisation([...bareme2026, ...figes], [...bareme2027, ...suivants])).toBe(0.02);
+  });
+
   it("rend 0 quand le barème est reconduit sans hausse", () => {
     expect(tauxRevalorisation(bareme2026, bareme2026)).toBe(0);
   });

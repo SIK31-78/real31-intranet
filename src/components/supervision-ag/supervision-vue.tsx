@@ -14,6 +14,7 @@ import { SupervisionHeader } from "./supervision-header";
 import { BandeauConclue } from "./bandeau-conclue";
 import { ChecklistSection } from "./checklist-section";
 import { ModuleModal, type ModuleSupervision } from "./module-modal";
+import type { ActionsAnnonceAg } from "./annonce-ag-estale";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 
 type SupervisionVueProps = {
@@ -28,6 +29,9 @@ type SupervisionVueProps = {
    *  fiche copro. Pre-remplit la facturation des honoraires CS ouverte depuis la
    *  checklist : le gestionnaire n'a plus a retrouver l'horaire de memoire. */
   creneauCsSuggere?: { jour: string; debut: string; fin?: string };
+  /** Annonce de l'AG par mailing ESTALE (REA-144), ouverte depuis l'item avcs.annonce-ag :
+   *  absente pour une copro Crypto (le module affiche alors une explication). */
+  annonceEstale?: ActionsAnnonceAg;
   onCocher: (itemId: string, statut: StatutItem) => Promise<void>;
   onCommenter: (itemId: string, commentaire: string) => Promise<void>;
   onConclure: () => Promise<void>;
@@ -40,6 +44,7 @@ export function SupervisionVue({
   aujourdhuiISO,
   pennylaneMode,
   creneauCsSuggere,
+  annonceEstale,
   onCocher,
   onCommenter,
   onConclure,
@@ -81,7 +86,7 @@ export function SupervisionVue({
     setDerniereForcee(id);
   };
 
-  // Module interne ouvert en modale (recap / depassement CS), pre-scope a la copro.
+  // Module interne ouvert en modale (recap / depassement CS / annonce AG), pre-scope a la copro.
   // Jamais en lecture seule (AG conclue / role lecture) : ces modales ecrivent.
   const [moduleOuvert, setModuleOuvert] = useState<ModuleSupervision | null>(null);
   const ouvrirModule = (item: ItemChecklist) => {
@@ -137,6 +142,7 @@ export function SupervisionVue({
           agDateISO={agDateISO}
           {...(creneauCsSuggere ? { creneauCsSuggere } : {})}
           pennylaneMode={pennylaneMode}
+          annonceEstale={annonceEstale}
           onFermer={() => setModuleOuvert(null)}
         />
       )}

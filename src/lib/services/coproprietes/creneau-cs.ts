@@ -14,31 +14,22 @@
 
 import { getCoproRepository } from "@/lib/adapters/router";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
+import { creneauCsSuggere, type CreneauCsSuggere } from "@/lib/domain/facturation/creneau-cs-suggere";
 
-export interface CreneauCsSuggere {
-  /** Jour du CS, ISO "YYYY-MM-DD". */
-  jour: string;
-  /** Heure de debut "HH:mm". */
-  debut: string;
-  /** Heure de fin reelle "HH:mm", si elle a ete saisie a la confirmation. */
-  fin?: string;
-}
+export type { CreneauCsSuggere };
 
 /**
- * Creneau du prochain CS de la copro, ou `undefined` si aucune date de CS n'est posee.
- * L'heure de fin n'est retenue que si elle correspond a CE jour-la (la confirmation porte
- * la date : si le CS a ete replanifie depuis, l'heure de fin d'une autre seance ne doit
- * pas fuiter dans la facturation).
+ * Creneau du CS de la copro a facturer : la prochaine date, sinon la derniere tenue
+ * (REA-109 : la cloture de l'ODJ fait glisser la date, cf. creneauCsSuggere).
+ * `undefined` si aucune date de CS n'est posee.
  */
 export async function creneauCsDeLaCopro(
   coproCode: string,
-  managerId: string,
+  /** Absent = lecture sans cloisonnement, l'appelant a deja verifie le perimetre. */
+  managerId?: string,
 ): Promise<CreneauCsSuggere | undefined> {
   const copro = await getCoproRepository().findByCode(coproCode, managerId);
-  const jour = copro?.prochaineCsDate;
-  if (!jour) return undefined;
-  const debut = copro?.prochaineCsHeure ?? "";
+  if (!copro?.prochaineCsDate && !copro?.derniereCsDate) return undefined;
   const confirmation = (await getConfirmations(coproCode)).find((c) => c.type === "CS");
-  const fin = confirmation?.date === jour ? confirmation.heureFin : undefined;
-  return { jour, debut, ...(fin ? { fin } : {}) };
+  return creneauCsSuggere(copro, confirmation);
 }

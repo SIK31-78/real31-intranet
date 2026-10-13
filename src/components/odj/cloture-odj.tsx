@@ -81,61 +81,95 @@ export function ClotureOdjBloc({
   cloture?: ClotureOdj;
   /** Heure de fin deja saisie. */
   finReunion?: string;
-  onCloturer: (clore: boolean) => Promise<void>;
+  /** Rend un `avertissement` quand la cloture est faite mais que la frise de la fiche n'a
+   *  pas pu suivre (jalon ODJ_CS non ecrit). */
+  onCloturer: (clore: boolean) => Promise<{ avertissement?: string } | void>;
   /** Enregistre l'heure de fin (cle reservee de l'etat de l'ODJ). */
   onSaisirFinReunion: (valeur: string) => Promise<void>;
 }) {
   const [confirme, setConfirme] = useState(false);
   const [pending, demarrer] = useTransition();
+  const [avertissement, setAvertissement] = useState<string | undefined>();
+
+  function basculer(clore: boolean) {
+    demarrer(async () => {
+      const r = await onCloturer(clore);
+      setAvertissement(r?.avertissement);
+    });
+  }
+
+  // La cloture est faite mais la frise n'a pas suivi : on le DIT (avant, un console.warn
+  // serveur que personne ne lisait, et une frise bloquee sur l'etape ODJ).
+  const alerte = avertissement ? (
+    <Callout ton="warn" titre="Étape de la frise non mise à jour">
+      {avertissement}
+    </Callout>
+  ) : null;
 
   if (cloture) {
     return (
-      <Callout
-        ton="ok"
-        titre="Réunion terminée, ordre du jour clôturé"
-        actions={
-          <>
-            <HeureFin {...(finReunion ? { valeur: finReunion } : {})} onSaisir={onSaisirFinReunion} />
-            <Button
-            size="sm"
-            variant="ghost"
-            loading={pending}
-            onClick={() => demarrer(async () => { await onCloturer(false); })}
-            title="Rouvrir l'ODJ (aucune diffusion n'a été engagée)"
-          >
-            <RotateCcw strokeWidth={1.5} />
-            Rouvrir
-            </Button>
-          </>
-        }
-      >
-        le {dateLisible(cloture.le)}{cloture.par ? ` par ${cloture.par}` : ""}. Le compte rendu se dépose à la
-        main sur l&apos;extranet, puis se coche dans la supervision.
-      </Callout>
+      <>
+        {alerte}
+        <Callout
+          ton="ok"
+          titre="Réunion terminée, ordre du jour clôturé"
+          actions={
+            <>
+              <HeureFin {...(finReunion ? { valeur: finReunion } : {})} onSaisir={onSaisirFinReunion} />
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={pending}
+                onClick={() => basculer(false)}
+                title="Rouvrir l'ODJ (aucune diffusion n'a été engagée)"
+              >
+                <RotateCcw strokeWidth={1.5} />
+                Rouvrir
+              </Button>
+            </>
+          }
+        >
+          le {dateLisible(cloture.le)}{cloture.par ? ` par ${cloture.par}` : ""}. Le compte rendu se dépose à la
+          main sur l&apos;extranet, puis se coche dans la supervision.
+        </Callout>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-4 min-h-12 py-2 text-body">
-      <div className="flex flex-wrap items-center gap-4">
-        <Choix
-          type="checkbox"
-          label="Le conseil syndical s'est tenu : je confirme que la réunion a eu lieu."
-          checked={confirme}
-          onChange={(e) => setConfirme(e.target.checked)}
-        />
-        <HeureFin {...(finReunion ? { valeur: finReunion } : {})} onSaisir={onSaisirFinReunion} />
+    <>
+      {alerte}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-4 min-h-12 py-2 text-body">
+        <div className="flex flex-wrap items-center gap-4">
+          <Choix
+            type="checkbox"
+            label="Le conseil syndical s'est tenu : je confirme que la réunion a eu lieu."
+            checked={confirme}
+            onChange={(e) => setConfirme(e.target.checked)}
+          />
+          <HeureFin {...(finReunion ? { valeur: finReunion } : {})} onSaisir={onSaisirFinReunion} />
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            variant="primary"
+            loading={pending}
+            disabled={!confirme}
+            aria-describedby={confirme ? undefined : "aide-cloture-odj"}
+            onClick={() => basculer(true)}
+            title="Fige l'ordre du jour et ouvre la supervision AG. Réversible : rien n'est envoyé ni diffusé."
+          >
+            <CheckCircle2 strokeWidth={1.5} />
+            Marquer la réunion terminée
+          </Button>
+          {/* REA-131 : un bouton grise sans explication laissait croire a une panne. La
+              raison se lit a l'ecran, pas seulement au survol (le title ne sort pas au doigt). */}
+          {!confirme && (
+            <p id="aide-cloture-odj" className="text-meta text-ink-3">
+              Cochez d&apos;abord la case pour confirmer que la réunion a eu lieu.
+            </p>
+          )}
+        </div>
       </div>
-      <Button
-        variant="primary"
-        loading={pending}
-        disabled={!confirme}
-        onClick={() => demarrer(async () => { await onCloturer(true); })}
-        title="Fige l'ordre du jour et ouvre la supervision AG. Réversible : rien n'est envoyé ni diffusé."
-      >
-        <CheckCircle2 strokeWidth={1.5} />
-        Marquer la réunion terminée
-      </Button>
-    </div>
+    </>
   );
 }

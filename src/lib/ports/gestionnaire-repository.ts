@@ -21,4 +21,9 @@ export interface GestionnaireRepository {
   findById(id: string): Promise<Gestionnaire | null>;
   /** Resout un gestionnaire par email (SSO Entra ID -> public."User"). */
   findByEmail(email: string): Promise<Gestionnaire | null>;
+  /**
+   * Resout plusieurs emails en UNE lecture (cle = email en minuscules ; absent = inconnu).
+   * Sans habilitations : sert a reconnaitre les membres d'une equipe, pas a ouvrir une session.
+   */
+  findByEmails(emails: readonly string[]): Promise<Map<string, Gestionnaire>>;
 }

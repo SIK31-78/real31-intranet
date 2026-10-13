@@ -10,6 +10,9 @@ import {
   ressourceParEmail,
   attendeesRessource,
   attendeesParticipant,
+  siegeAgence,
+  avertissementSiegeAgence,
+  CODES_AGENCE_AVEC_SIEGE,
   interpreterAvailabilityView,
 } from "./salles-reunion";
 
@@ -107,5 +110,43 @@ describe("attendeesParticipant", () => {
       attendeesParticipant(["", "  ", "Emmanuel@real31.fr", "emmanuel@REAL31.fr"]),
     ).toEqual([{ type: "required", emailAddress: { address: "Emmanuel@real31.fr" } }]);
     expect(attendeesParticipant([])).toEqual([]);
+  });
+});
+
+describe("siegeAgence (adresse d'agence du contrat)", () => {
+  it("rend l'adresse de chaque agence, Asnieres comprise (REA-273)", () => {
+    expect(siegeAgence("ASN")).toBe("79 avenue de la Marne 92600 ASNIERES-SUR-SEINE");
+    expect(siegeAgence(" asn ")).toBe("79 avenue de la Marne 92600 ASNIERES-SUR-SEINE");
+    expect(siegeAgence("LGC")).toBe("13 rond-point du Souvenir Français 92250 LA GARENNE-COLOMBES");
+    expect(siegeAgence("ML")).toBe("31 rue du Prieuré 78600 MAISONS-LAFFITTE");
+    expect(siegeAgence("HLS")).toBe("3 place Michelet 78800 HOUILLES");
+  });
+
+  it("agence inconnue ou absente -> chaine vide, jamais le code brut", () => {
+    expect(siegeAgence("XYZ")).toBe("");
+    expect(siegeAgence("")).toBe("");
+    expect(siegeAgence(null)).toBe("");
+    expect(siegeAgence(undefined)).toBe("");
+  });
+});
+
+// Sekou, 12/10/2026 : toutes les agences connues ont leur adresse, et une agence
+// inconnue malgré tout se SIGNALE au lieu de laisser un blanc silencieux au contrat.
+describe("avertissementSiegeAgence", () => {
+  it("couvre les 4 agences de public.\"Agency\" (ML, LGC, HLS, ASN)", () => {
+    expect([...CODES_AGENCE_AVEC_SIEGE].sort()).toEqual(["ASN", "HLS", "LGC", "ML"]);
+    for (const code of ["ML", "LGC", "HLS", "ASN", " asn "]) {
+      expect(avertissementSiegeAgence(code)).toBeUndefined();
+    }
+  });
+
+  it("nomme l'agence inconnue et dit quoi faire", () => {
+    expect(avertissementSiegeAgence("bzs")).toBe("Adresse de l'agence BZS inconnue : à compléter avant envoi.");
+  });
+
+  it("avertit aussi quand l'agence est absente", () => {
+    for (const vide of ["", "  ", null, undefined]) {
+      expect(avertissementSiegeAgence(vide)).toMatch(/^Agence de la copropriété inconnue/);
+    }
   });
 });

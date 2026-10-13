@@ -56,12 +56,12 @@ export async function supprimerTarifAction(input: unknown): Promise<Res> {
 }
 
 export async function ouvrirAnneeAction(input: unknown): Promise<Res<{ creees: number }>> {
-  const p = z.object({ cible: zAnnee, source: zAnnee, majorationPourcent: z.number().min(-50).max(50).optional() }).safeParse(input);
+  const p = z.object({ cible: zAnnee, source: zAnnee, majorationPourcent: z.number().min(-50).max(50).optional(), arrondiEuro: z.boolean().optional() }).safeParse(input);
   if (!p.success) return { ok: false, erreur: "Saisie invalide." };
   const refus = await garde();
   if (refus) return { ok: false, erreur: refus };
   try {
-    const creees = await ouvrirAnnee(p.data.cible, p.data.source, p.data.majorationPourcent ?? 0);
+    const creees = await ouvrirAnnee(p.data.cible, p.data.source, p.data.majorationPourcent ?? 0, { arrondiEuro: p.data.arrondiEuro === true });
     revalidatePath("/admin/tarifs");
     return { ok: true, donnees: { creees } };
   } catch (e) {

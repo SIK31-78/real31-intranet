@@ -13,6 +13,8 @@
 import { calculerDepassementAg } from "@/lib/domain/facturation/depassement-ag";
 import { avertissementFondsTravaux } from "@/lib/domain/recap-ag/fonds-travaux";
 import { erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
+import { controlerDateRecap, refusDateRecap, type AlerteDateRecap } from "@/lib/domain/recap-ag/controle-date";
+import { jourParis } from "@/lib/services/date-du-jour";
 import { htDepuisTtc, type Creneau } from "@/lib/domain/facturation/commun";
 import {
   getFacturationRepository,
@@ -65,6 +67,13 @@ export interface DemandeRecapAg {
    */
   sansFacture?: boolean;
 
+  /**
+   * true = le gestionnaire a vu les alertes sur la date d'AG (autre recap a moins de
+   * 10 mois, AG de plus de 6 mois) et la maintient (REA-166). Sans elle, l'enregistrement
+   * d'une date suspecte est refuse.
+   */
+  confirmerDate?: boolean;
+
   /** Initiales de l'auteur. */
   par?: string;
 }
@@ -82,6 +91,25 @@ export interface ResultatRecapAg {
 /** Annee de bareme d'un recap AG : l'exercice approuve, soit N-1. */
 function anneeExerciceApprouve(jourAg: string): number {
   return Number(jourAg.slice(0, 4)) - 1;
+}
+
+/** Apercu du recap : celui de la facturation + les alertes de date a faire confirmer. */
+export type ApercuRecapAg = ApercuFacturation & {
+  /** Alertes sur la date d'AG a faire confirmer avant d'enregistrer (REA-166). */
+  confirmationsDate?: string[];
+};
+
+/**
+ * Les alertes sur la date d'AG, au regard des recaps deja saisis pour la copro
+ * (REA-166 : un recap = une AG). Une seule lecture, ciblee sur la copro.
+ */
+async function alertesDate(demande: DemandeRecapAg): Promise<AlerteDateRecap[]> {
+  const parCopro = await getRecapAgRepository().listerDatesAgParCopro([demande.coproCode]);
+  return controlerDateRecap({
+    agDate: demande.assemblee.jourDebut,
+    datesRecaps: parCopro.get(demande.coproCode) ?? [],
+    aujourdhui: jourParis(),
+  });
 }
 
 /** Resout parametres, tarif et calcul. Partage par l'apercu et la creation. */
@@ -152,12 +180,18 @@ async function calculer(demande: DemandeRecapAg) {
 export async function apercuRecapAg(
   demande: DemandeRecapAg,
   managerId: string,
-): Promise<ApercuFacturation> {
+): Promise<ApercuRecapAg> {
   await exigerPerimetre(demande.coproCode, managerId);
   exigerContratCoherent(demande);
+  // Une AG deja couverte par un recap s'arrete ici ; une date suspecte est montree a
+  // l'ecran de validation et devra etre confirmee (REA-166).
+  const dates = await alertesDate(demande);
+  const bloquante = dates.find((a) => !a.confirmable);
+  if (bloquante) throw new Error(bloquante.message);
+  const confirmationsDate = dates.map((a) => a.message);
   const { dureeAgHeures, debutMinAgHeure, finMaxAgHeure, anneeBareme, tarifHoraireTtc, calcul } =
     await calculer(demande);
-  const alertes = avertissements(demande);
+  const alertes = [...confirmationsDate, ...avertissements(demande)];
 
   const rienAFacturer = calcul.totalDepassementHeures === 0;
   const { assemblee } = demande;
@@ -210,6 +244,7 @@ export async function apercuRecapAg(
     montantHt: htDepuisTtc(calcul.montantTtc),
     montantTtc: calcul.montantTtc,
     ...(alertes.length > 0 ? { avertissements: alertes } : {}),
+    ...(confirmationsDate.length > 0 ? { confirmationsDate } : {}),
     rienAFacturer,
     ...(rienAFacturer
       ? {
@@ -252,6 +287,10 @@ export async function creerRecapAg(
       `Un recap existe deja pour la copropriete ${demande.coproCode} et l'AG du ${formatJour(agDate)}.`,
     );
   }
+  // Une AG = un recap (REA-166) : autre recap a moins de 10 mois, ou AG de plus de 6 mois,
+  // refuses tant que le gestionnaire n'a pas confirme la date.
+  const refusDate = refusDateRecap(await alertesDate(demande), demande.confirmerDate === true);
+  if (refusDate) throw new Error(refusDate);
 
   const { anneeBareme, tarifHoraireTtc, calcul } = await calculer(demande);
   // sansFacture = renoncement explicite du gestionnaire : le depassement CALCULE

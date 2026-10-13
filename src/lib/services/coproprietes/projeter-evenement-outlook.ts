@@ -34,11 +34,12 @@ function finDe(debut: string): string | undefined {
  * Lieu de l'evenement Outlook deduit du mode de tenue (bonus, degrade OK) : "Visio"
  * en visio, sinon le libelle de la salle reservee (presentiel / hybride). undefined si
  * rien a afficher (aucun mode ni salle) -> le lieu Outlook est alors laisse inchange.
+ * Reunion « à l'extérieur du cabinet » (REA-148) : l'adresse saisie, a la place de la salle.
  * Pas de lien Teams genere ici (limitation assumee).
  */
 function lieuDe(conf: ConfirmationEvenement | undefined): string | undefined {
   if (conf?.modeReunion === "visio") return "Visio";
-  return ressourceParEmail(conf?.salleEmail)?.nom;
+  return conf?.lieuLibre || ressourceParEmail(conf?.salleEmail)?.nom;
 }
 
 /**

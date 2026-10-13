@@ -162,9 +162,15 @@ import { MockBibliothequeResolutions } from "@/lib/adapters/mock/mock-bibliotheq
 import type { AssembleeEstaleProvider } from "@/lib/ports/assemblee-estale-provider";
 import { EstaleAssembleeProvider } from "@/lib/adapters/estale/estale-assemblee-provider";
 import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-estale-provider";
+import type { MailingEstaleProvider } from "@/lib/ports/mailing-estale-provider";
+import { EstaleMailingProvider } from "@/lib/adapters/estale/estale-mailing-provider";
+import { MockMailingEstaleProvider } from "@/lib/adapters/mock/mock-mailing-estale-provider";
 import type { ComptaRepository } from "@/lib/ports/compta-repository";
 import { SupabaseComptaRepository } from "@/lib/adapters/supabase/supabase-compta-repository";
 import { MockComptaRepository } from "@/lib/adapters/mock/mock-compta-repository";
+import { SupabaseRappelEnvoyeRepository } from "@/lib/adapters/supabase/supabase-rappel-envoye-repository";
+import { MockRappelEnvoyeRepository } from "@/lib/adapters/mock/mock-rappel-envoye-repository";
+import type { RappelEnvoyeRepository } from "@/lib/ports/rappel-envoye-repository";
 import type { ClesApiRepository } from "@/lib/ports/cles-api-repository";
 import { SupabaseClesApiRepository } from "@/lib/adapters/supabase/supabase-cles-api-repository";
 import { MockClesApiRepository } from "@/lib/adapters/mock/mock-cles-api-repository";
@@ -608,11 +614,25 @@ export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
   return new MockAssembleeEstaleProvider();
 }
 
+// Mailings ESTALE aux copropriétaires (REA-144) : crée un BROUILLON, n'envoie jamais.
+// Même bascule que l'AG ; la garde ESTALE_MAILING_ACTIF est appliquée par le service.
+export function getMailingEstaleProvider(): MailingEstaleProvider {
+  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleMailingProvider();
+  return new MockMailingEstaleProvider();
+}
+
 // Pole compta (notes gestionnaire <-> comptable + flags). Table native
 // intranet_compta_notes ; flags dans intranet_odj_champs. Meme bascule que le reste.
 export function getComptaRepository(): ComptaRepository {
   if (coproSourceEstSupabase()) return new SupabaseComptaRepository();
   return new MockComptaRepository();
+}
+
+// Trace des rappels automatiques deja envoyes (idempotence des crons, REA-140). Table native
+// intranet_rappels_envoyes ; memoire en dev. Meme bascule que le reste.
+export function getRappelEnvoyeRepository(): RappelEnvoyeRepository {
+  if (coproSourceEstSupabase()) return new SupabaseRappelEnvoyeRepository();
+  return new MockRappelEnvoyeRepository();
 }
 
 // Gestionnaire de mots de passe (ADR-025). Tables intranet_pm_* en Supabase

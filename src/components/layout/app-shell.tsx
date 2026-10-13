@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { compterRecapsEnRetard } from "@/lib/services/compta/compteur-recaps-en-retard";
 import { Sidebar, type NavKey } from "@/components/layout/sidebar";
 import { BarreMobile } from "@/components/layout/barre-mobile";
 import { SidebarDrawer } from "@/components/layout/sidebar-drawer";
@@ -65,6 +66,10 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const propositionsOuvertes = g ? peutVoirPropositions(profilDe(g)) : false;
   // "Perte de copropriete" : la direction, ou qu'elle soit.
   const perteOuverte = g ? estDirectionQuelquePart(profilDe(g)) : false;
+  // Pastille "Récap AG" : les recaps en retard du portefeuille, meme regle que l'alerte de
+  // /recap-ag. Comptee seulement pour qui voit l'entree (pas la vue comptable ni hors
+  // syndic), memorisee 5 min et jamais bloquante (cf. compteur-recaps-en-retard).
+  const recapsEnRetard = g && !vueComptable && !vueHorsSyndic ? await compterRecapsEnRetard(g.id, g.email ?? null) : null;
   return (
     <MobileSidebarProvider>
       <SentryUtilisateur id={g?.id ?? null} initiales={g?.initiales ?? null} />
@@ -79,6 +84,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               user={user}
               peutImpersonner={peutImpersonner}
               emailsOuvert={emailsOuvert}
+              recapsEnRetard={recapsEnRetard}
               comptaOuvert={comptaOuvert}
               linkusOuvert={linkusOuvert}
               gestionCouranteOuverte={gestionCouranteOuverte}

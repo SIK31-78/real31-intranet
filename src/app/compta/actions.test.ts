@@ -112,7 +112,7 @@ describe("actions compta ouvertes au role comptable (toute copro)", () => {
   });
 
   it("setCheckAction : la comptable pose le statut d'un poste connu", async () => {
-    const r = await setCheckAction("S024", "2026-09-15", "rappro-bancaire", "ok");
+    const r = await setCheckAction("S024", "2026-09-15", "comptes-fournisseurs", "ok");
     expect(r).toEqual({ ok: true });
     expect(etat.appels).toEqual([{ fn: "setCheck", options: { transverse: true } }]);
   });

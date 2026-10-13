@@ -3,7 +3,7 @@
 // (une duree d'AG absente ferait basculer toute l'assemblee en depassement). On
 // teste par l'apercu, qui partage le calcul avec la creation (meme garde).
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParametresCopro } from "@/lib/ports/facturation-repository";
 
 const etat = vi.hoisted(() => {
@@ -12,8 +12,11 @@ const etat = vi.hoisted(() => {
     parametres: { ...complet } as ParametresCopro,
     facturesCreees: [] as unknown[],
     recapsCrees: [] as { statut?: string; depassementHeures?: number }[],
+    /** Dates d'AG des recaps deja saisis pour la copro (REA-166). */
+    datesRecaps: [] as string[],
     reset() {
       ref.parametres = { ...complet };
+      ref.datesRecaps = [];
       ref.facturesCreees = [];
       ref.recapsCrees = [];
     },
@@ -37,6 +40,9 @@ vi.mock("@/lib/adapters/router", () => ({
   getRecapAgRepository: () => ({
     async existeRecap() {
       return false;
+    },
+    async listerDatesAgParCopro(codes: readonly string[]) {
+      return new Map(etat.datesRecaps.length > 0 ? [[codes[0], etat.datesRecaps]] : []);
     },
     async creerRecapAg(r: { statut?: string; depassementHeures?: number }) {
       etat.recapsCrees.push(r);
@@ -71,6 +77,46 @@ const assemblee = {
 
 beforeEach(() => {
   etat.reset();
+  // « Aujourd'hui » fige deux jours apres l'AG : les controles de date (REA-166) ne
+  // doivent pas faire vieillir ces tests.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-06-12T10:00:00Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+// REA-166 : un recap = une AG. Les dates suspectes se confirment, la meme date se refuse.
+describe("recap AG - controle de la date d'AG", () => {
+  it("meme AG deja recapee : l'apercu s'arrete", async () => {
+    etat.datesRecaps = ["2026-06-10"];
+    await expect(apercuRecapAg({ coproCode: "S002", assemblee }, "m1")).rejects.toThrow(/une assemblée n'a qu'un récap/);
+  });
+
+  it("autre recap a moins de 10 mois : l'apercu le signale, l'enregistrement exige la confirmation", async () => {
+    etat.datesRecaps = ["2025-09-24"];
+    const apercu = await apercuRecapAg({ coproCode: "S002", assemblee }, "m1");
+    expect(apercu.confirmationsDate?.[0]).toMatch(/24\/09\/2025/);
+    expect(apercu.avertissements?.[0]).toMatch(/Vérifiez l'année/);
+    await expect(creerRecapAg({ coproCode: "S002", assemblee }, "m1")).rejects.toThrow(/Confirmez la date/);
+    expect(etat.recapsCrees).toHaveLength(0);
+    const r = await creerRecapAg({ coproCode: "S002", assemblee, confirmerDate: true }, "m1");
+    expect(r.recapId).toBe("recap-1");
+  });
+
+  it("AG de plus de 6 mois : confirmation exigee", async () => {
+    const ancienne = { ...assemblee, jourDebut: "2025-06-10", jourFin: "2025-06-10" };
+    const apercu = await apercuRecapAg({ coproCode: "S002", assemblee: ancienne }, "m1");
+    expect(apercu.confirmationsDate?.[0]).toMatch(/plus de 6 mois/);
+    await expect(creerRecapAg({ coproCode: "S002", assemblee: ancienne }, "m1")).rejects.toThrow(/Confirmez la date/);
+  });
+
+  it("date propre : ni alerte ni confirmation", async () => {
+    etat.datesRecaps = ["2025-06-05"];
+    const apercu = await apercuRecapAg({ coproCode: "S002", assemblee }, "m1");
+    expect(apercu.confirmationsDate).toBeUndefined();
+  });
 });
 
 describe("recap AG - parametres d'AG non renseignes (Fix A)", () => {

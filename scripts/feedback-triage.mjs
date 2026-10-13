@@ -11,9 +11,12 @@
 // un mail, un appel, un post-it. La description reste la parole de celui qui signale,
 // recopiee telle quelle ; l'auteur se donne par ses initiales, jamais par son email.
 //
-// DEPUIS LE PONT LINEAR (ADR-043, 2026-10-06) : le STATUT est porte par LINEAR.
-// `maj <id> statut=...` est REFUSE des que la remontee a un ticket, et le script dit
-// ou aller. Sans ce refus, le cron de 6h relirait l etat du ticket (reste en Backlog)
+// DEPUIS LE PONT LINEAR (ADR-043, 2026-10-06) : le STATUT d'une remontee AVEC ticket
+// est porte par LINEAR. `maj <id> statut=...` est REFUSE des que la remontee a un
+// ticket, et le script dit ou aller. SANS ticket, c'est ici que se fait le triage
+// (regle du 2026-10-12, plan gratuit Linear plafonne a 250 tickets) : seule une
+// remontee passee `prevu` / `en_cours` en base part dans Linear au cron suivant
+// (ticket ne en Todo / In Progress) ; `ecarte` la garde hors de Linear pour de bon. Sans ce refus, le cron de 6h relirait l etat du ticket (reste en Backlog)
 // et ecraserait le triage de la nuit - silencieusement. Ce qui reste ici : titre,
 // resume public, severite, note. Linear ne sait pas faire le resume de la vitrine.
 //

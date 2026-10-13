@@ -1843,7 +1843,7 @@ ADR-001 (hexagonal), ADR-004 (jobs), ADR-012 v3 (attestation imprimable), ADR-02
 
 ## ADR-041 - Périmètre d'écriture unifié : portefeuille, rôle, délégations, une seule porte
 
-**Date** : 2026-09-21 · **Statut** : accepté (Sekou, 21/09/2026 — 4 arbitrages : directeurs syndic = agence ; une délégation peut viser plusieurs bénéficiaires, dont un assistant ; la direction et le titulaire posent les délégations ; le périmètre comptable reste à part pour l'instant)
+**Date** : 2026-09-21 · **Statut** : accepté (Sekou, 21/09/2026 — 4 arbitrages : directeurs syndic = agence ; une délégation peut viser plusieurs bénéficiaires, dont un assistant ; la direction et le titulaire posent les délégations ; le périmètre comptable reste à part pour l'instant) · complété le 12/10/2026 (les délégations élargissent le périmètre comptable, REA-158)
 
 ### Contexte
 
@@ -1860,6 +1860,8 @@ Trois demandes en une semaine, qui sont le même problème : les directeurs d'ag
 Les 54 gardes ne changent pas : elles appellent la même porte, qui essaie le portefeuille, puis le rôle et les délégations (trois lectures de plus, seulement quand le portefeuille a dit non), puis le repli comptable existant. Les écrans transverses (facturation, récaps) passent par `coprosEcrivables`, la même règle en liste.
 
 La **lecture** reste ouverte au cabinet. Le **périmètre comptable** reste dans `perimetre-comptable.ts` (à ranger dans ce modèle comme un rôle par agence, plus tard). Un futur sélecteur d'affichage « Mon portefeuille · Mon agence · Le cabinet » n'est qu'un filtre sur ce périmètre.
+
+**Complément du 12/10/2026 — les délégations élargissent aussi le périmètre comptable** (REA-158, décision Sekou). L'arbitrage du 21/09 laissait le périmètre comptable à part ; il reste codé à part (`perimetre-comptable.ts`, liste fermée des agences par comptable), mais il **lit désormais les mêmes délégations datées** (`intranet_delegation`) : quand une comptable part en congés, on ne touche plus à la liste fermée, on pose une délégation. Deux portées l'élargissent, une délégation **d'agence** (l'agence déléguée) et une délégation du **portefeuille d'une comptable** (ses agences, puisqu'une comptable n'a pas de portefeuille de copros) ; le portefeuille d'un gestionnaire et une délégation de copro n'ouvrent aucune agence comptable, ils passent copro par copro par le périmètre d'écriture ci-dessus. Résolu une fois par requête dans `services/coproprietes/copro-appartient` (`perimetreComptableDe`, règle pure `perimetreComptableEtendu`), donc appliqué à `/comptabilite` (« Mes agences », l'agence déléguée signalée comme telle), à la facturation, au pré-état daté, aux récaps et au repli comptable de la garde d'écriture. Expirée ou à venir, une délégation est ignorée : le périmètre revient seul à ses agences. Délégations illisibles : la comptable garde ses propres agences, jamais plus. Le rangement du périmètre comptable comme un rôle par agence reste à faire.
 
 ### Conséquences
 
@@ -1906,6 +1908,8 @@ Le piège, c'est que la double saisie a **deux moitiés**. Pousser la remontée 
 Ce partage avait un piège qui méritait de l'outillage plutôt qu'une consigne : l'agent faisait `maj <id> statut=prevu` dans `intranet_feedback`, et le cron du lendemain l'écrasait silencieusement. **`scripts/feedback-triage.mjs` refuse donc `statut=` dès que la remontée a un `linear_issue_id`** et nomme le ticket où aller. Ce qui n'est pas outillé n'est pas exécuté.
 
 **L'écart** (`canceled` / `duplicate`) pose `raison_ecart = "<État> dans Linear (REA-xx)"`. Le domaine exige une raison non vide ; on trace la provenance plutôt que d'inventer un motif. La raison lisible par le collègue passe par `resume_public`, rédigé à la main au triage.
+
+**Révision du 12/10/2026 — seul ce qui est accepté au triage part dans Linear** (décision Sekou). Le plan gratuit Linear plafonne l'espace à **250 tickets**, et l'aller créait un ticket par remontée nouvelle, jugée ou non : doublons, mauvais usages et sujets jamais retenus consommaient chacun une place. Désormais l'aller ne pousse que les remontées **`prevu` ou `en_cours` en base** (`doitPartirDansLinear`), et le ticket naît dans l'état correspondant (Todo / In Progress, mécanique `etatLinearPourStatut` inchangée). Le triage d'une remontée **sans ticket** se fait donc en base, `scripts/feedback-triage.mjs maj <id> statut=prevu` (le script ne refusait déjà `statut=` que lorsqu'un ticket existe) ; une remontée écartée au triage ne coûte jamais de ticket. Les remontées déjà rattachées à un ticket continuent d'être synchronisées par le retour, et leur statut se change toujours dans Linear. Conséquence : l'inbox Triage de Linear ne reçoit plus de remontées neuves, le premier jugement se fait via `/corrections` en base ; le cas `nouveau` → Triage reste dans `etatLinearPourStatut` par sécurité, si la règle de départ était un jour relâchée.
 
 ### Conséquences
 

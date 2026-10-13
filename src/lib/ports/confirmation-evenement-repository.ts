@@ -75,4 +75,10 @@ export interface ConfirmationEvenementRepository {
     type: "AG" | "CS",
     emails: string[],
   ): Promise<void>;
+  /**
+   * Pose (ou efface avec null) le lieu LIBRE de la reunion (« à l'extérieur du cabinet »,
+   * REA-148) : UPDATE cible SEPARE (comme enregistrerModeReunion). No-op si aucune ligne
+   * n'existe, et degrade proprement si la colonne lieu_libre n'est pas encore deployee.
+   */
+  enregistrerLieuLibre(coproCode: string, type: "AG" | "CS", lieu: string | null): Promise<void>;
 }

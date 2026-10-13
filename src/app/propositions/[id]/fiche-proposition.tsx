@@ -39,10 +39,12 @@ import type { ContexteImmeuble, PrixCalcule, SuggestionRapprochement } from "@/l
 import { DetacherRegistre, RattacherRegistre } from "@/components/proposition/rattacher-registre";
 import { calculerPrixAction, mettreAJourPropositionAction } from "../actions";
 import { formatEuros } from "@/lib/domain/format-montant";
+import { lireMontant } from "@/lib/domain/lire-montant";
 import { Journal } from "@/components/ui/journal";
 
 const euros = formatEuros;
-const nb = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(",", ".")));
+// « 12 500 », « 12 500,50 € » se lisent (REA-99) ; vide = non renseigne, illisible = NaN.
+const nb = (v: string) => (v.trim() === "" ? undefined : (lireMontant(v) ?? Number.NaN));
 const txt = (v: number | undefined) => (v === undefined ? "" : String(v));
 const arrondi = (n: number) => Math.round(n * 100) / 100;
 

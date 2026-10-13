@@ -7,6 +7,7 @@ import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
 import { DUREE_MAX_CONTRAT_MOIS, DUREES_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
 import { formatJour } from "@/lib/services/facturation/format";
+import { avertissementSiegeAgence } from "@/lib/domain/salles-reunion";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
@@ -61,6 +62,14 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
             </p>
           }
         />
+
+        {/* Agence sans siege connu : le contrat sortirait avec un blanc a la place de
+            l'adresse de l'agence (REA-273) ; le serveur l'a deja signale. */}
+        {champs && avertissementSiegeAgence(champs.copro.agence) && (
+          <Callout ton="warn" titre="Adresse de l'agence manquante">
+            {avertissementSiegeAgence(champs.copro.agence)}
+          </Callout>
+        )}
 
         {obstacles.length > 0 && (
           <Callout ton="warn" titre="Il manque encore" actions={<ButtonLink href={`/propositions/${p.id}`} variant="secondary" size="sm">Compléter la fiche</ButtonLink>}>

@@ -7,7 +7,13 @@ import {
   segmentAffaire,
   indexEtapeEnCours,
   actionEtape,
+  MODELES_ETAPES,
+  modifierNoteJournal,
+  TYPE_DOSSIER_LABEL,
+  TYPE_DOSSIER_ORDRE,
+  TYPE_DOSSIER_TON,
   type Dossier,
+  type EvenementDossier,
   type EtapeDossier,
   type StatutDossier,
 } from "@/lib/domain/dossier";
@@ -91,5 +97,56 @@ describe("actionEtape", () => {
     const a = actionEtape({ id: "d1", type: "sinistre" }, etape("Envoyer le courrier au syndic", false));
     expect(a?.href).toBe("/sinistre/courriers?dossier=d1");
     expect(a?.label).toBe("Rédiger le courrier");
+  });
+});
+
+describe("type Dommage-Ouvrage (REA-152)", () => {
+  it("a son libelle, sa place dans la liste et les etapes validees par Sekou", () => {
+    expect(TYPE_DOSSIER_LABEL.dommage_ouvrage).toBe("Dommage-Ouvrage");
+    expect(TYPE_DOSSIER_ORDRE).toContain("dommage_ouvrage");
+    expect(MODELES_ETAPES.dommage_ouvrage.map((e) => e.label)).toEqual([
+      "Déclaration à l'assureur DO",
+      "Accusé de réception de l'assureur",
+      "Expertise",
+      "Position de garantie",
+      "Indemnisation",
+      "Travaux de reprise",
+      "Clôture",
+    ]);
+  });
+  it("chaque type de la liste a un libelle, un ton et un modele d'etapes", () => {
+    for (const t of TYPE_DOSSIER_ORDRE) {
+      expect(TYPE_DOSSIER_LABEL[t]).toBeTruthy();
+      expect(TYPE_DOSSIER_TON[t]).toBeTruthy();
+      expect(Array.isArray(MODELES_ETAPES[t])).toBe(true);
+    }
+  });
+});
+
+describe("modifierNoteJournal (REA-139)", () => {
+  const journal: EvenementDossier[] = [
+    { le: "2026-10-01T08:00:00.000Z", par: "SK", texte: "Dossier ouvert", kind: "statut" },
+    { le: "2026-10-02T08:00:00.000Z", par: "SK", texte: "Appel au syndic", kind: "note" },
+    { le: "2026-10-03T08:00:00.000Z", par: "EL", texte: "Devis reçu", kind: "note" },
+  ];
+  const quand = "2026-10-12T09:00:00.000Z";
+
+  it("modifie ma note, garde sa date de creation et date la modification", () => {
+    const next = modifierNoteJournal(journal, { le: journal[1].le, par: "SK" }, "  Appel au gardien  ", quand);
+    expect(next?.[1]).toEqual({ ...journal[1], texte: "Appel au gardien", modifieLe: quand });
+    expect(next?.[0]).toBe(journal[0]);
+    expect(next?.[2]).toBe(journal[2]);
+    expect(journal[1].texte).toBe("Appel au syndic"); // pas de mutation
+  });
+  it("refuse la note d'un autre", () => {
+    expect(modifierNoteJournal(journal, { le: journal[2].le, par: "SK" }, "Pirate", quand)).toBeNull();
+  });
+  it("refuse une entree qui n'est pas une note", () => {
+    expect(modifierNoteJournal(journal, { le: journal[0].le, par: "SK" }, "Autre", quand)).toBeNull();
+  });
+  it("refuse un texte vide ou inchange, et une note introuvable", () => {
+    expect(modifierNoteJournal(journal, { le: journal[1].le, par: "SK" }, "   ", quand)).toBeNull();
+    expect(modifierNoteJournal(journal, { le: journal[1].le, par: "SK" }, "Appel au syndic", quand)).toBeNull();
+    expect(modifierNoteJournal(journal, { le: "2020-01-01", par: "SK" }, "x", quand)).toBeNull();
   });
 });

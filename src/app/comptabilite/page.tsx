@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { estComptable, estVueComptable, peutVoirComptabilite } from "@/lib/auth/roles";
-import { agencesDuComptable } from "@/lib/domain/perimetre-comptable";
+import { aUnPerimetreComptable, type PerimetreComptableEtendu } from "@/lib/domain/perimetre-comptable";
+import { perimetreComptableDe } from "@/lib/services/coproprietes/copro-appartient";
 import { getDashboardComptable } from "@/lib/services/compta/dashboard-comptable";
 import { listerRecapsRecus } from "@/lib/services/compta/recaps-recus";
 import type { LigneComptable } from "@/lib/domain/comptabilite";
@@ -140,10 +141,18 @@ export default async function ComptabilitePage({
 
   const today = ancreDuJour();
 
-  // Un comptable voit SES agences par defaut (Isabelle -> ML, cf. domain/perimetre-comptable) ;
+  // Un comptable voit SES agences par defaut (Isabelle -> ML, cf. domain/perimetre-comptable),
+  // plus celles qu'une delegation datee active lui confie (conges d'une collegue, REA-158) ;
   // « Toutes les agences » garde la vue transverse a un clic. Sans perimetre declare
-  // (encadrement, super-admin) : tout, comme avant.
-  const perimetre = agencesDuComptable(g.email);
+  // (encadrement, super-admin) : tout, comme avant - une delegation ne change pas leur vue.
+  const sansPerimetre: PerimetreComptableEtendu = { agences: [], parDelegation: [] };
+  const { agences: perimetre, parDelegation } =
+    estComptable(g.email, g.role) || aUnPerimetreComptable(g.email)
+      ? await perimetreComptableDe(g.id, g.email)
+      : sansPerimetre;
+  const libellePerimetre = perimetre
+    .map((a) => (parDelegation.includes(a) ? `${a} par délégation` : a))
+    .join(", ");
   const toutesLesAgences = sp.agences === "toutes" || perimetre.length === 0;
 
   const { dashboard, gestionnaires, mois: moisDispo, total } = await getDashboardComptable(
@@ -241,7 +250,7 @@ export default async function ComptabilitePage({
               href={toutesLesAgences ? "/comptabilite" : "/comptabilite?agences=toutes"}
               className="h-8 inline-flex items-center rounded-md border border-line px-3 text-body text-ink-2 hover:bg-surface-2 transition-colors"
             >
-              {toutesLesAgences ? `Mes agences (${perimetre.join(", ")})` : "Toutes les agences"}
+              {toutesLesAgences ? `Mes agences (${libellePerimetre})` : "Toutes les agences"}
             </Link>
           )}
           {(gestionnaire || mois) && (

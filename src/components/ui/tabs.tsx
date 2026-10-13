@@ -10,14 +10,22 @@ import { cn } from "@/lib/cn";
 
 export function TabList({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div role="tablist" aria-label={label} className="flex items-center gap-1 border-b border-line overflow-x-auto">
+    // Le trait du bas est une ombre INTERNE, pas une bordure : les onglets n'ont plus a
+    // deborder d'un pixel pour le recouvrir, donc plus de defilement vertical parasite (une
+    // petite barre grise a fleches apparaissait a droite de la barre d'onglets, Windows).
+    // Le defilement horizontal reste (ecran etroit), sans barre visible.
+    <div
+      role="tablist"
+      aria-label={label}
+      className="flex items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] shadow-[inset_0_-1px_0_var(--color-line)]"
+    >
       {children}
     </div>
   );
 }
 
 const TAB =
-  "inline-flex items-center gap-1.5 px-3 h-9 text-body -mb-px border-b-2 whitespace-nowrap transition-colors duration-120 " +
+  "inline-flex items-center gap-1.5 px-3 h-9 text-body border-b-2 whitespace-nowrap transition-colors duration-120 " +
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset";
 
 export function Tab({

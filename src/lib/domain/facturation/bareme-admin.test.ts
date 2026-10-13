@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dupliquerBareme, ecartAvecPrecedent, familleDe, identifiantsManquants, motifRefusMontant, rangerBareme } from "./bareme-admin";
+import { dupliquerBareme, ecartAvecPrecedent, estNonRevalorise, familleDe, identifiantsManquants, motifRefusMontant, rangerBareme } from "./bareme-admin";
 
 const l = (id: string, m: number) => ({ identifiantPrestation: id, libelle: id, montantTtc: m });
 
@@ -14,7 +14,7 @@ describe("bareme-admin", () => {
     expect(identifiantsManquants([l("AGE", 1)])).not.toContain("AGE");
   });
   it("duplique sans ecraser, avec majoration au centime", () => {
-    const r = dupliquerBareme([l("AGE", 40.8), l("MED", 100)], [l("MED", 120)], 2);
+    const r = dupliquerBareme([l("AGE", 40.8), l("Opposition", 100)], [l("Opposition", 120)], 2);
     expect(r).toEqual([l("AGE", 41.62)]);
   });
   it("une majoration ne depasse jamais le plafond legal de l'etat date (380 € TTC)", () => {
@@ -22,6 +22,26 @@ describe("bareme-admin", () => {
     expect(motifRefusMontant(390, "EtatDate")).toContain("plafonné");
     expect(motifRefusMontant(380, "EtatDate")).toBeNull();
     expect(motifRefusMontant(390, "AGE")).toBeNull();
+  });
+  it("arrondit a l'euro sur demande, sans jamais depasser le plafond legal", () => {
+    const r = dupliquerBareme([l("AGE", 40.8), l("Opposition", 60), l("EtatDate", 380), l("RepriseCompta", 46.5)], [], 2, { arrondiEuro: true });
+    expect(r).toEqual([l("AGE", 42), l("Opposition", 61), l("EtatDate", 380), l("RepriseCompta", 47)]);
+    // Sans l'option : au centime, comme avant.
+    expect(dupliquerBareme([l("AGE", 40.8)], [], 2)).toEqual([l("AGE", 41.62)]);
+  });
+  it("la relance simple est rangee avec les prestations hors contrat, sans etre exigee", () => {
+    expect(familleDe("RelanceSimple").famille).toBe("prestations");
+    expect(identifiantsManquants([l("AGE", 1)])).not.toContain("RelanceSimple");
+    const r = rangerBareme([l("RelanceSimple", 7.2), l("TauxHoraire", 163.65), l("Opposition", 260)]);
+    expect(r.map((x) => x.identifiantPrestation).at(-1)).toBe("RelanceSimple");
+  });
+  it("relances, etat date et pre-etat date : ni arrondis ni majores, au centime de la source", () => {
+    const source = [l("MED", 61.37), l("RelanceSimple", 7.2), l("EtatDate", 379.5), l("PreEtatDate", 182.4), l("AGE", 40.8)];
+    expect(dupliquerBareme(source, [], 2, { arrondiEuro: true })).toEqual([l("MED", 61.37), l("RelanceSimple", 7.2), l("EtatDate", 379.5), l("PreEtatDate", 182.4), l("AGE", 42)]);
+    expect(dupliquerBareme(source, [], 5)).toEqual([l("MED", 61.37), l("RelanceSimple", 7.2), l("EtatDate", 379.5), l("PreEtatDate", 182.4), l("AGE", 42.84)]);
+    expect(dupliquerBareme(source, [], -10, { arrondiEuro: true }).slice(0, 4).map((x) => x.montantTtc)).toEqual([61.37, 7.2, 379.5, 182.4]);
+    expect(estNonRevalorise("MED")).toBe(true);
+    expect(estNonRevalorise("Opposition")).toBe(false);
   });
   it("ecart avec l'annee precedente", () => {
     expect(ecartAvecPrecedent(l("AGE", 42), [l("AGE", 40)])).toBe(5);

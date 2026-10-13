@@ -7,6 +7,7 @@ import { analyserAdresse, immatriculationDansTexte, rapprocher, requeteRegistre,
 import { coproContratDepuisProposition, cycleOffre, obstaclesOffre, texteMailOffre, type OptionsOffre } from "@/lib/domain/proposition/offre";
 import { assemblerChampsContrat, PRESTATIONS_CONTRAT, type ChampsContrat, type PrestationContrat } from "@/lib/domain/contrat/champs-contrat";
 import { motifRefusCycle } from "@/lib/domain/contrat/cycle-contrat";
+import { signalerSiegeAgenceInconnu } from "@/lib/services/contrat/signaler-siege-agence";
 import {
   calculerForfait,
   LIGNES_FORFAIT,
@@ -349,7 +350,11 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
     const l = parId.get(x)!;
     tarifs[x] = { libelle: l.libelle, ttc: l.montantTtc };
   }
-  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(coproContratDepuisProposition(p), cycle, tarifs, p.prix.conditionsParticulieres) };
+  const copro = coproContratDepuisProposition(p);
+  // Agence sans siege connu (propositions historiques « BZS », « JF ») : le contrat
+  // imprimerait un blanc. Signale cote serveur ; la page de l'offre l'affiche (REA-273).
+  signalerSiegeAgenceInconnu(copro.agence, { proposition: p.id });
+  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(copro, cycle, tarifs, p.prix.conditionsParticulieres) };
 }
 
 /** L'offre est partie : la proposition en garde la date, le cycle propose et une ligne de journal. */

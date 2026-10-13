@@ -10,12 +10,13 @@ import { Copy, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
-import { Field, Input } from "@/components/ui/field";
+import { Choix, Field, Input } from "@/components/ui/field";
 import { Section } from "@/components/ui/section";
 import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
-import { LIBELLE_FAMILLE, type FamilleBareme } from "@/lib/domain/facturation/bareme-admin";
+import { LIBELLE_FAMILLE, estNonRevalorise, type FamilleBareme } from "@/lib/domain/facturation/bareme-admin";
+import { lireMontant } from "@/lib/domain/lire-montant";
 import type { BaremeAnnee } from "@/lib/services/admin/bareme";
 import { enregistrerTarifAction, ouvrirAnneeAction, supprimerTarifAction } from "@/app/admin/tarifs/actions";
 
@@ -27,16 +28,21 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
   const confirmer = useConfirm();
   const [pending, demarrer] = useTransition();
   const [majoration, setMajoration] = useState("0");
+  // Arrondir a l'euro les tarifs copies (REA-103) ; le plafond legal reste applique apres.
+  const [arrondiEuro, setArrondiEuro] = useState(false);
   // Les montants en cours d'edition, par identifiant (chaine, pour laisser taper une virgule).
   const [saisies, setSaisies] = useState<Record<string, { libelle: string; montant: string }>>({});
   const [nouvelle, setNouvelle] = useState<{ famille: FamilleBareme; identifiant: string; libelle: string; montant: string } | null>(null);
 
   const valeur = (id: string, champ: "libelle" | "montant", defaut: string) => saisies[id]?.[champ] ?? defaut;
-  const modifie = (id: string, libelle: string, montant: number) => saisies[id] !== undefined && (saisies[id].libelle !== libelle || Number(saisies[id].montant.replace(",", ".")) !== montant);
+  const modifie = (id: string, libelle: string, montant: number) => saisies[id] !== undefined && (saisies[id].libelle !== libelle || lireMontant(saisies[id].montant) !== montant);
 
   function enregistrer(identifiantPrestation: string, libelle: string, montant: string) {
+    // « 1 250,00 € » se lit ; « abc » ne part pas en base (REA-99).
+    const montantTtc = lireMontant(montant);
+    if (montantTtc === null) return toast.err(`Montant illisible pour ${identifiantPrestation} : « ${montant} ».`);
     demarrer(async () => {
-      const res = await enregistrerTarifAction({ annee: bareme.annee, identifiantPrestation, libelle, montantTtc: Number(montant.replace(",", ".")) });
+      const res = await enregistrerTarifAction({ annee: bareme.annee, identifiantPrestation, libelle, montantTtc });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(`${identifiantPrestation} ${bareme.annee} enregistré.`);
       setSaisies((s) => Object.fromEntries(Object.entries(s).filter(([k]) => k !== identifiantPrestation)));
@@ -59,7 +65,7 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
     if (!bareme.precedente) return;
     const source = bareme.precedente;
     demarrer(async () => {
-      const res = await ouvrirAnneeAction({ cible: bareme.annee, source, majorationPourcent: Number(majoration.replace(",", ".")) || 0 });
+      const res = await ouvrirAnneeAction({ cible: bareme.annee, source, majorationPourcent: lireMontant(majoration) ?? 0, arrondiEuro });
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(`${res.donnees?.creees ?? 0} tarifs copiés de ${source} vers ${bareme.annee}.`);
       router.refresh();
@@ -74,12 +80,13 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
           titre={`Le barème ${bareme.annee} est vide`}
           actions={
             <span className="flex items-center gap-2">
-              <Field label="Majoration %" htmlFor="ba-maj" inline><Input id="ba-maj" value={majoration} onChange={(e) => setMajoration(e.target.value)} largeur="auto" className="w-20 tabular-nums" /></Field>
+              <Field label="Majoration %" htmlFor="ba-maj" inline><Input id="ba-maj" inputMode="decimal" value={majoration} onChange={(e) => setMajoration(e.target.value)} largeur="auto" className="w-20 tabular-nums" /></Field>
+              <Choix type="checkbox" label="Arrondir à l'euro" checked={arrondiEuro} onChange={(e) => setArrondiEuro(e.target.checked)} />
               <Button type="button" variant="primary" size="sm" disabled={pending} onClick={ouvrir}><Copy strokeWidth={1.5} /> Copier {bareme.precedente}</Button>
             </span>
           }
         >
-          Ouvrez-le en copiant {bareme.precedente}, tel quel ou majoré, puis retouchez les lignes.
+          Ouvrez-le en copiant {bareme.precedente}, tel quel ou majoré, puis retouchez les lignes. Les relances, l’état daté et le pré-état daté sont recopiés à l’identique, sans majoration ni arrondi.
         </Callout>
       )}
       {bareme.manquants.length > 0 && bareme.lignes.length > 0 && (
@@ -114,7 +121,11 @@ export function TarifsAdminVue({ bareme }: { bareme: BaremeAnnee }) {
                   <Tbody>
                     {lignes.map((l) => (
                       <Tr key={l.identifiantPrestation}>
-                        <Td principal><span className="font-mono text-meta">{l.identifiantPrestation}</span></Td>
+                        <Td principal>
+                          <span className="font-mono text-meta">{l.identifiantPrestation}</span>
+                          {/* Recopie telle quelle a l'ouverture d'une annee (relances, etat date, pre-etat date). */}
+                          {estNonRevalorise(l.identifiantPrestation) && <span className="block text-meta text-ink-3">non arrondi ni revalorisé</span>}
+                        </Td>
                         <Td>
                           <Input value={valeur(l.identifiantPrestation, "libelle", l.libelle)} onChange={(e) => setSaisies((s) => ({ ...s, [l.identifiantPrestation]: { libelle: e.target.value, montant: valeur(l.identifiantPrestation, "montant", String(l.montantTtc)) } }))} />
                         </Td>

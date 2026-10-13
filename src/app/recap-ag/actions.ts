@@ -7,10 +7,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
 import {
   apercuRecapAg,
   creerRecapAg,
+  type ApercuRecapAg,
   type DemandeRecapAg,
 } from "@/lib/services/facturation/creer-recap-ag";
 import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-factures-en-attente";
@@ -64,6 +64,7 @@ const zDemande = z.object({
   fraisPostauxReels: z.boolean().optional(),
   forfaitPostauxTtc: zMontant.optional(),
   sansFacture: z.boolean().optional(),
+  confirmerDate: z.boolean().optional(),
 }).refine((d) => !debutContratRequis(d) || d.debutContrat !== undefined, {
   message: MESSAGE_DEBUT_CONTRAT_REQUIS,
   path: ["debutContrat"],
@@ -92,7 +93,7 @@ async function executer<T>(
 /** Aperçu du dépassement AG, sans aucune écriture. Alimente la validation. */
 export async function apercuRecapAgAction(
   demande: DemandeRecapAg,
-): Promise<Res<ApercuFacturation>> {
+): Promise<Res<ApercuRecapAg>> {
   const saisie = zDemande.safeParse(demande);
   if (!saisie.success) return { ok: false, erreur: erreurSaisie(saisie.error) };
   return executer((managerId) => apercuRecapAg(saisie.data, managerId));

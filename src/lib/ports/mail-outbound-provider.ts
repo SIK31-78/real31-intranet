@@ -46,6 +46,8 @@ export interface MailOutboundProvider {
    * s'applique a l'ouverture cote Outlook, comme creerBrouillon). Renvoie le
    * webLink Outlook du brouillon cree et son internetMessageId (stable, il survit a
    * l'envoi et aux deplacements : sert a rattacher le mail a un dossier).
+   * `piecesJointes` : jointes au brouillon (l'ODJ du CS en PDF, REA-146 ; un fichier joint
+   * a la main). Petites : elles voyagent en base64 dans la requete de creation (~3 Mo au total).
    */
   creerBrouillonNeuf(p: {
     boite: string;

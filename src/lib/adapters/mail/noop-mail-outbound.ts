@@ -36,9 +36,10 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    piecesJointes?: { nom: string }[];
   }): Promise<{ webLink?: string }> {
     // No-op tracable : pas de Graph, donc pas de webLink (le bouton UI degradera).
-    console.log(`[mail-outbound:noop] brouillon neuf simule (${p.corps.length} car.)`);
+    console.log(`[mail-outbound:noop] brouillon neuf simule (${p.corps.length} car., ${p.piecesJointes?.length ?? 0} PJ)`);
     return {};
   }
 

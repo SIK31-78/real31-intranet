@@ -53,10 +53,14 @@ export async function listerRecapsRecus(
   limite = 100,
 ): Promise<FileRecapsRecus> {
   try {
-    const [recaps, copros] = await Promise.all([
-      getRecapAgRepository().listerRecapsPourFile(limite),
-      getCoprosDuPerimetre(params),
-    ]);
+    // Le perimetre D'ABORD, puis la lecture filtree sur lui : la limite s'applique apres le
+    // filtre (REA-166). L'inverse - 100 derniers recaps du cabinet, puis filtre - vidait la
+    // file d'un comptable des que les autres agences avaient saisi plus recemment.
+    const copros = await getCoprosDuPerimetre(params);
+    if (copros.length === 0) return FILE_VIDE;
+    const recaps = await getRecapAgRepository().listerRecapsPourFile(limite, {
+      coproCodes: copros.map((c) => c.code),
+    });
     const nomParCode = new Map(copros.map((c) => [c.code, c.nom]));
 
     const lignes: RecapRecu[] = recaps

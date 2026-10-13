@@ -1,6 +1,7 @@
 // Service : definit une date d'AG ou de CS d'une copro (null = deplanifier / effacer).
 // `quand` choisit la prochaine (planifiee) ou la derniere (tenue).
-// Passe par le routeur (ADR-001). Le scope managerId est applique dans l'adapter.
+// Passe par le routeur (ADR-001). L'autorite (coproAppartient, ADR-041) est verifiee par
+// l'appelant : l'adapter ne refait plus de cloisonnement a l'ecriture (REA-274).
 // `boite` (email du gestionnaire connecte, passe par l'action) sert a la projection
 // Outlook automatique de la prochaine date - facultatif, jamais bloquant.
 
@@ -28,6 +29,9 @@ export async function definirDateEvenement(
     modeReunion?: ModeReunion | null;
     /** Emails des collegues associes (deja valides cote action). [] / absent = aucun. */
     collaborateursEmails?: string[];
+    /** Lieu « à l'extérieur du cabinet » (REA-148), deja normalise par l'action.
+     *  undefined = ne pas toucher au lieu enregistre ; null = l'effacer. */
+    lieuLibre?: string | null;
   },
 ): Promise<void> {
   await getCoproRepository().setDateEvenement(coproCode, type, quand, dateISO, managerId);
@@ -65,6 +69,15 @@ export async function definirDateEvenement(
         typeConfirmation,
         details?.collaborateursEmails ?? [],
       );
+      // Lieu exterieur (REA-148) : UPDATE separe, AVANT la projection (le lieu Outlook en
+      // depend). Degrade propre si la colonne lieu_libre n'est pas deployee.
+      if (details?.lieuLibre !== undefined) {
+        await getConfirmationEvenementRepository().enregistrerLieuLibre(
+          coproCode,
+          typeConfirmation,
+          details.lieuLibre,
+        );
+      }
       // Projection Outlook : cree l'evenement "a confirmer" ou DEPLACE l'existant
       // (replanification). On passe le `debut` COMPLET (date + heure eventuelle).
       // Degrade propre : n'empeche jamais la pose de la date.

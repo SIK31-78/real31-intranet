@@ -14,10 +14,18 @@ const etat = vi.hoisted(() => {
     /** Recaps d'AG par code copro ; `recapsEnPanne` fait echouer la lecture. */
     recaps: {} as Record<string, { id: string; coproCode: string; agDate: string }[]>,
     recapsEnPanne: false,
+    /** Fin de mandat du referentiel App A (syndicContractEndDate). */
+    mandatSyndicFin: undefined as string | undefined,
+    /** Dernier cycle de contrat enregistre par l'intranet, par code copro. */
+    contrats: {} as Record<string, { debutContrat: string; finContrat?: string | null; enregistreLeISO?: string }>,
+    contratsEnPanne: false,
     reset() {
       ref.appels.length = 0;
       ref.recaps = {};
       ref.recapsEnPanne = false;
+      ref.mandatSyndicFin = undefined;
+      ref.contrats = {};
+      ref.contratsEnPanne = false;
     },
   };
   return ref;
@@ -40,7 +48,14 @@ vi.mock("@/lib/adapters/router", () => ({
         exercice: { debut: "01/01", fin: "31/12" },
         priseEnGestion: "mars 2018",
         equipe: [],
+        ...(etat.mandatSyndicFin ? { mandatSyndicFin: etat.mandatSyndicFin } : {}),
       };
+    },
+  }),
+  getFacturationRepository: () => ({
+    async listerDerniersContrats(codes: string[]) {
+      if (etat.contratsEnPanne) throw new Error("base indisponible");
+      return new Map(codes.filter((c) => etat.contrats[c]).map((c) => [c, etat.contrats[c]]));
     },
   }),
   getJalonRepository: () => ({
@@ -132,5 +147,36 @@ describe("getFicheCopro - recaps d'AG", () => {
     const fiche = await getFicheCopro("S024", "g1", TODAY);
     expect(fiche?.copro.code).toBe("S024");
     expect(fiche?.recapsAg).toBeUndefined();
+  });
+});
+
+describe("getFicheCopro - fin du mandat de syndic (REA-249)", () => {
+  const libelleMandat = (fiche: Awaited<ReturnType<typeof getFicheCopro>>) =>
+    fiche?.conformite.find((c) => c.libelle.startsWith("Mandat de syndic"));
+
+  it("mandat renouvele dans l'intranet : la fin du NOUVEAU cycle, pas celle du referentiel", async () => {
+    etat.mandatSyndicFin = "2025-12-31";
+    etat.contrats.S024 = { debutContrat: "2026-01-01", finContrat: "2026-12-31", enregistreLeISO: "2026-01-20" };
+    const item = libelleMandat(await getFicheCopro("S024", "g1", TODAY));
+    expect(item).toEqual({ libelle: "Mandat de syndic jusqu'au 31/12/2026", etat: "attention" });
+  });
+
+  it("aucun cycle enregistre : la date du referentiel, echue -> ko", async () => {
+    etat.mandatSyndicFin = "2025-12-31";
+    const item = libelleMandat(await getFicheCopro("S024", "g1", TODAY));
+    expect(item).toEqual({ libelle: "Mandat de syndic jusqu'au 31/12/2025", etat: "ko" });
+  });
+
+  it("referentiel vide mais cycle enregistre : la ligne apparait", async () => {
+    etat.contrats.S024 = { debutContrat: "2026-07-01", enregistreLeISO: "2026-07-10" };
+    const item = libelleMandat(await getFicheCopro("S024", "g1", TODAY));
+    expect(item?.libelle).toBe("Mandat de syndic jusqu'au 30/06/2027");
+  });
+
+  it("lecture des contrats en panne : la fiche s'ouvre sur la date du referentiel", async () => {
+    etat.mandatSyndicFin = "2027-06-30";
+    etat.contratsEnPanne = true;
+    const fiche = await getFicheCopro("S024", "g1", TODAY);
+    expect(libelleMandat(fiche)?.libelle).toBe("Mandat de syndic jusqu'au 30/06/2027");
   });
 });

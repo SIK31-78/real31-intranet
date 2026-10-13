@@ -43,12 +43,37 @@ const SIEGES_AGENCES: Readonly<Record<string, string>> = {
   LGC: "13 rond-point du Souvenir Français 92250 LA GARENNE-COLOMBES",
   ML: "31 rue du Prieuré 78600 MAISONS-LAFFITTE",
   HLS: "3 place Michelet 78800 HOUILLES",
+  // Adresse FUTURE de l'agence d'Asnieres (REA-273, Sekou 12/10/2026) : c'est elle qui
+  // doit figurer sur les contrats, pas le code « ASN ».
+  ASN: "79 avenue de la Marne 92600 ASNIERES-SUR-SEINE",
 };
 
-/** « 31 rue du Prieuré 78600 MAISONS-LAFFITTE » ; le code seul si inconnu. */
+/** Codes d'agence dont on connait le siege : les 4 lignes de public."Agency" (verifie
+ *  le 12/10/2026 : ML, LGC, HLS, ASN, et toutes les copros du referentiel y sont). */
+export const CODES_AGENCE_AVEC_SIEGE: readonly string[] = Object.keys(SIEGES_AGENCES);
+
+/** « 31 rue du Prieuré 78600 MAISONS-LAFFITTE » ; chaine VIDE si l'agence est inconnue.
+ *  On ne renvoie plus le code brut (« ASN » imprime dans un contrat, REA-273), et on ne
+ *  replie pas non plus sur le siege LGC : une adresse fausse dans un contrat signe passe
+ *  inapercue. Le blanc, lui, ne doit pas etre SILENCIEUX (Sekou, 12/10/2026) : cf.
+ *  `avertissementSiegeAgence`, que l'ecran de generation affiche et que le serveur signale. */
 export function siegeAgence(code: string | null | undefined): string {
   const c = (code ?? "").trim().toUpperCase();
-  return SIEGES_AGENCES[c] ?? c;
+  return SIEGES_AGENCES[c] ?? "";
+}
+
+/**
+ * L'avertissement a montrer quand le contrat sortirait SANS adresse d'agence, ou
+ * `undefined` si l'adresse est connue. Toutes les agences du referentiel ont leur siege
+ * dans SIEGES_AGENCES ; si une agence inconnue passe malgre tout (proposition historique
+ * « BZS », nouvelle agence pas encore ajoutee ici), le gestionnaire doit le voir avant
+ * d'envoyer le contrat, plutot que de decouvrir un blanc a la signature.
+ */
+export function avertissementSiegeAgence(code: string | null | undefined): string | undefined {
+  const c = (code ?? "").trim().toUpperCase();
+  if (SIEGES_AGENCES[c]) return undefined;
+  if (!c) return "Agence de la copropriété inconnue : l'adresse de l'agence est à compléter avant envoi.";
+  return `Adresse de l'agence ${c} inconnue : à compléter avant envoi.`;
 }
 
 export const RESSOURCES_REAL31: readonly RessourceReunion[] = [

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  dateHeureCs,
   doitGlisserCs,
   formatGlissementCs,
   parseGlissementCs,
@@ -41,10 +42,19 @@ describe("formatGlissementCs / parseGlissementCs", () => {
     expect(parseGlissementCs(s)).toEqual({ glissee: "2026-09-03", ancienneDerniere: "" });
   });
 
-  it("tronque les horodatages au jour", () => {
+  it("garde l'heure a la minute (REA-109), tronque le reste", () => {
     expect(formatGlissementCs("2026-09-03T18:00:00.000Z", "2025-09-05T10:00:00.000Z")).toBe(
-      "2026-09-03|2025-09-05",
+      "2026-09-03T18:00|2025-09-05T10:00",
     );
+  });
+
+  it("aller-retour avec heure, et les anciens marqueurs (jour seul) restent lisibles", () => {
+    expect(parseGlissementCs(formatGlissementCs("2026-09-03T18:30", "2025-09-05T19:00"))).toEqual({
+      glissee: "2026-09-03T18:30",
+      ancienneDerniere: "2025-09-05T19:00",
+    });
+    expect(parseGlissementCs("2026-09-03|2025-09-05")).toEqual({ glissee: "2026-09-03", ancienneDerniere: "2025-09-05" });
+    expect(parseGlissementCs("2026-09-03T18|")).toBeUndefined();
   });
 
   it("refuse une valeur vide ou illisible plutot que d'ecrire n'importe quoi", () => {
@@ -52,5 +62,14 @@ describe("formatGlissementCs / parseGlissementCs", () => {
     expect(parseGlissementCs("")).toBeUndefined();
     expect(parseGlissementCs("|2025-09-05")).toBeUndefined();
     expect(parseGlissementCs("bientot|2025-09-05")).toBeUndefined();
+  });
+});
+
+describe("dateHeureCs", () => {
+  it("colle l'heure au jour quand elle est connue", () => {
+    expect(dateHeureCs("2026-09-03", "18:30")).toBe("2026-09-03T18:30");
+    expect(dateHeureCs("2026-09-03", undefined)).toBe("2026-09-03");
+    expect(dateHeureCs("2026-09-03T00:00:00", "bientot")).toBe("2026-09-03");
+    expect(dateHeureCs(undefined, "18:30")).toBe("");
   });
 });

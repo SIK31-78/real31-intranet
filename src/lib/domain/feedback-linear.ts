@@ -99,11 +99,12 @@ export function raisonEcartDepuisLinear(identifiant: string, nomEtat: string): s
  * `prevu` ou `en_cours` - 25 des 67 remontees a pousser etaient dans ce cas. Elles
  * auraient en plus disparu de /nouveautes, `nouveau` n'etant pas un statut public.
  *
- * Une remontee `nouveau` naît en TRIAGE depuis le 2026-10-07 : Linear n'y met
- * d'office que ce qui vient d'une integration ou d'un non-membre de l'equipe, et
- * nos tickets sont crees par l'API avec la cle de Sekou, donc en tant que membre -
- * il faut demander l'etat explicitement, sinon ils tomberaient en Backlog, qui
- * vaut maintenant `prevu` et serait donc PUBLIE sans avoir ete juge.
+ * Depuis le 2026-10-12, seules les remontees `prevu` / `en_cours` partent (cf.
+ * `doitPartirDansLinear`) : en pratique un ticket naît en Todo ou In Progress.
+ * Le cas `nouveau` -> TRIAGE reste par securite : si la regle de depart etait un
+ * jour relachee, une remontee non jugee ne doit pas tomber en Backlog (Linear y met
+ * d'office les tickets crees par un membre, et nos tickets sont crees avec la cle
+ * de Sekou), Backlog valant `prevu` et donc PUBLIE sans avoir ete juge.
  */
 export function etatLinearPourStatut(statut: StatutFeedback): TypeEtatLinear {
   if (statut === "prevu") return "unstarted";
@@ -134,8 +135,18 @@ export function labelsLinear(type: TypeFeedback): string[] {
 /**
  * Une remontee doit-elle partir dans Linear ?
  *
- * TROIS garde-fous, et ils comptent au premier passage du cron (la table contient
- * deja des mois de remontees) :
+ * REGLE DU 2026-10-12 : SEULE UNE REMONTEE ACCEPTEE AU TRIAGE PART. Le plan
+ * gratuit Linear plafonne l'espace a 250 tickets ; au depart le pont creait un
+ * ticket par remontee `nouveau` (ne en Triage), et chaque remontee jamais jugee,
+ * doublon ou hors sujet consommait une place. Desormais le triage d'une remontee
+ * sans ticket se fait EN BASE (`scripts/feedback-triage.mjs maj <id> statut=prevu`)
+ * et c'est ce jugement qui la fait partir : `prevu` -> ticket en Todo, `en_cours`
+ * -> In Progress (cf. `etatLinearPourStatut`). Une remontee `nouveau` reste en base,
+ * ecartee au triage elle ne coute jamais de ticket. Les remontees DEJA rattachees a
+ * un ticket ne passent pas par ici : le retour continue de les synchroniser.
+ *
+ * Les autres garde-fous, qui comptaient au premier passage du cron (la table
+ * contenait deja des mois de remontees) :
  *
  *  1. SEVERITE PRESENTE. Une severite absente = entree « maison » creee par l'admin
  *     pour alimenter /nouveautes ou annoncer la roadmap (cf. `creerEntree`). Ce n'est
@@ -152,7 +163,7 @@ export function labelsLinear(type: TypeFeedback): string[] {
 export function doitPartirDansLinear(f: Pick<Feedback, "severite" | "statut" | "archiveAt">): boolean {
   if (!f.severite) return false;
   if (estArchivee(f)) return false;
-  return f.statut === "nouveau" || f.statut === "prevu" || f.statut === "en_cours";
+  return f.statut === "prevu" || f.statut === "en_cours";
 }
 
 /**

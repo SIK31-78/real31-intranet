@@ -1,6 +1,8 @@
 // Bloc 1 de l'accueil : "Vos assemblees generales" - la colonne vertebrale.
 // Une ligne par copro dont l'AG presse : prochaine action + echeance + bouton vers
-// l'ACTION precise (ODJ / supervision / fixer dates), jamais la fiche copro.
+// l'ACTION precise (ODJ / supervision / fixer dates). Le code et le nom de la copro
+// menent a sa fiche (REA-250) ; la ligne entiere ne l'est PAS : elle contient deja les
+// boutons d'action, et un lien dans un lien est invalide.
 // Le calcul (action, lien, echeance) vient du domaine cycle-ag via le service
 // get-ag-semaine : ce composant ne fait que presenter. Vide -> non rendu.
 //
@@ -8,6 +10,7 @@
 // ici chaque ligne porte son action en secondaire, 36 px, pas de carte, pas de mono
 // sur les echeances.
 
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Rows, Row } from "@/components/ui/list-rows";
 import { Badge, type BadgeTon } from "@/components/ui/badge";
@@ -27,6 +30,11 @@ function tonEcheance(ligne: AgSemaineLigne): BadgeTon {
 // noyer le gestionnaire ; le reste est accessible via "Toutes les AG". Retour patron.
 const MAX_VISIBLE = 5;
 
+const CLASSE_LIEN_COPRO =
+  "hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded-sm";
+
+const ficheCopro = (code: string) => `/copropriete/${encodeURIComponent(code)}`;
+
 export function AgSemaineBloc({ lignes }: { lignes: AgSemaineLigne[] }) {
   if (lignes.length === 0) return null; // rien d'imminent : bloc masque
 
@@ -39,8 +47,17 @@ export function AgSemaineBloc({ lignes }: { lignes: AgSemaineLigne[] }) {
         {visibles.map((ligne) => (
           <Row
             key={ligne.id}
-            avant={ligne.coproCode}
-            principal={ligne.coproNom}
+            avant={
+              // Meme cible que le nom : hors tabulation pour ne pas doubler l'arret clavier.
+              <Link href={ficheCopro(ligne.coproCode)} tabIndex={-1} aria-hidden className={CLASSE_LIEN_COPRO}>
+                {ligne.coproCode}
+              </Link>
+            }
+            principal={
+              <Link href={ficheCopro(ligne.coproCode)} className={CLASSE_LIEN_COPRO}>
+                {ligne.coproNom}
+              </Link>
+            }
             secondaire={ligne.prochaineAction}
             ton={ligne.enRetard ? "err" : undefined}
             droite={

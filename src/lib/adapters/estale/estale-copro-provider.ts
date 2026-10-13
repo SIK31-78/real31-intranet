@@ -159,10 +159,7 @@ export class EstaleCoproProvider implements CoproEstaleProvider {
         condos.flatMap((c) => c.collaborators.map((co) => co.email).filter((e): e is string => Boolean(e))),
       ),
     ];
-    const resolus = await Promise.all(
-      emails.map(async (email) => [email.toLowerCase(), await this.gestionnaires.findByEmail(email)] as const),
-    );
-    const userParEmail = new Map(resolus);
+    const userParEmail = await this.gestionnaires.findByEmails(emails);
 
     const deepBase = process.env.ESTALE_DEEPLINK_BASE;
     const copros: Copropriete[] = condos.map((c) => {

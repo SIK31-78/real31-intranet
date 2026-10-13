@@ -171,18 +171,20 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
         body: { contentType: "HTML", content },
         toRecipients: dest(p.a ?? []),
         ccRecipients: dest(p.cc ?? []),
-        ...(p.piecesJointes?.length
+        // Pieces jointes dans le message meme (fileAttachment), comme envoyerNeuf : un
+        // seul appel, le brouillon arrive complet dans Outlook. Permission : Mail.ReadWrite.
+        ...(p.piecesJointes && p.piecesJointes.length > 0
           ? {
-              attachments: p.piecesJointes.map((f) => ({
+              attachments: p.piecesJointes.map((pj) => ({
                 "@odata.type": "#microsoft.graph.fileAttachment",
-                name: f.nom,
-                contentType: f.contentType || "application/octet-stream",
-                contentBytes: f.base64,
+                name: pj.nom,
+                contentType: pj.contentType || "application/octet-stream",
+                contentBytes: pj.base64,
               })),
             }
           : {}),
       }),
-    }, 60_000);
+    }, p.piecesJointes?.length ? 60_000 : undefined);
     if (!r.ok) throw new Error(`Graph creer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as { webLink?: string; internetMessageId?: string };
     return {

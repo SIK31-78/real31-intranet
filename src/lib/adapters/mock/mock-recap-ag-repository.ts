@@ -6,6 +6,7 @@
 // Meme parti que mock-supervision-ag-provider.
 
 import type {
+  FiltreRecaps,
   NouveauRecapAg,
   RecapAgDetail,
   RecapAgFileLigne,
@@ -46,8 +47,8 @@ export class MockRecapAgRepository implements RecapAgRepository {
     }
   }
 
-  async listerRecapsRecents(limite = 50): Promise<RecapAgHistorique[]> {
-    return [...RECAPS].reverse().slice(0, limite).map(ligne);
+  async listerRecapsRecents(limite = 50, filtre?: FiltreRecaps): Promise<RecapAgHistorique[]> {
+    return [...RECAPS].reverse().filter(retenu(filtre)).slice(0, limite).map(ligne);
   }
 
   async listerRecapsDeCopro(coproCode: string): Promise<RecapAgHistorique[]> {
@@ -65,9 +66,10 @@ export class MockRecapAgRepository implements RecapAgRepository {
     };
   }
 
-  async listerRecapsPourFile(limite = 100): Promise<RecapAgFileLigne[]> {
+  async listerRecapsPourFile(limite = 100, filtre?: Pick<FiltreRecaps, "coproCodes">): Promise<RecapAgFileLigne[]> {
     return [...RECAPS]
       .reverse()
+      .filter(retenu(filtre))
       .slice(0, limite)
       .map((r) => ({
         ...ligne(r),
@@ -102,6 +104,14 @@ export class MockRecapAgRepository implements RecapAgRepository {
     }
   }
 
+}
+
+/** Meme semantique que l'adapter Supabase : copros du filtre OU initiales de l'auteur. */
+function retenu(filtre?: FiltreRecaps): (r: RecapMock) => boolean {
+  if (!filtre) return () => true;
+  const codes = new Set(filtre.coproCodes ?? []);
+  const par = filtre.par?.trim().toUpperCase();
+  return (r) => codes.has(r.coproCode) || Boolean(par && r.par?.trim().toUpperCase() === par);
 }
 
 function ligne(r: RecapMock): RecapAgHistorique {
