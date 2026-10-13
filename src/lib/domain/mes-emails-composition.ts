@@ -33,10 +33,40 @@ export interface CoproChoisissable extends CoproComposition {
  * adresse trop longue pour garder un objet lisible.
  */
 export function prefixeObjetCopro(copro: CoproComposition, avecAdresse = true): string {
-  const bouts = [copro.reference, copro.nom.trim()];
   const adresse = copro.adresse.trim();
+  // Beaucoup de copros portent leur adresse comme nom (« 44/50 rue Gabriel Péri ») : on ne
+  // la répète pas. L'adresse complète (avec la ville) l'emporte sur le nom qu'elle contient.
+  const nom = avecAdresse && adresse && sansAccents(adresse).includes(sansAccents(copro.nom)) ? "" : copro.nom.trim();
+  const bouts = [copro.reference, nom];
   if (avecAdresse && adresse) bouts.push(adresse.length > 60 ? `${adresse.slice(0, 57)}…` : adresse);
   return bouts.filter(Boolean).join(" · ");
+}
+
+const sansAccents = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Une personne de l'annuaire (fiche Crypto) : TOUTES ses adresses (certains en ont deux et
+ * veulent les deux en destinataires, Crypto les note « a@x.fr;b@y.fr ») et ses copros.
+ */
+export interface DestinataireTrouve {
+  cle: string;
+  nom: string;
+  /** La casquette Crypto (« Entrep. Plomberie », « Notaire ») ou la qualité (copropriétaire…). */
+  casquette: string;
+  emails: string[];
+  copros: (CoproChoisissable & { qualite: string })[];
+}
+
+/** Une ligne d'annuaire rendue par la recherche, avant enrichissement des copros. */
+export interface IdentiteAnnuaire {
+  cle: string;
+  nom: string;
+  /** Casquette Crypto (métier) quand la fiche en a une. */
+  metier?: string;
+  emails: string[];
+  /** Référence affichée (ESTALE sinon Crypto) et qualité dans cette copro. */
+  copros: { reference: string; qualite: string }[];
 }
 
 /** Objet complet d'un mail à une copro : le préfixe identifiant, puis le sujet saisi. */

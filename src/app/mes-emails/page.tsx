@@ -10,7 +10,8 @@ import { adresseFacturesAgence } from "@/lib/services/mes-emails/transmettre-fac
 import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
-import { ButtonLink } from "@/components/ui/button";
+import { EnvoyerEmail } from "@/components/mes-emails/envoyer-email";
+import { boiteEnvoi, brouillonPossible } from "@/lib/services/mes-emails/composer-mail";
 
 export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
@@ -30,9 +31,13 @@ export default async function MesEmailsPage() {
       <Page largeur="travail">
         <form action={rafraichirAction} className="flex items-center gap-3">
           <h1 className="text-page font-medium tracking-tight text-ink mr-auto">E-mails</h1>
-          <ButtonLink href="/mes-emails/composer" variant="secondary" size="sm">
-            Composer un e-mail
-          </ButtonLink>
+          <EnvoyerEmail
+            gestionnaireNom={g.nomComplet}
+            agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
+            brouillonPossible={brouillonPossible()}
+            boite={boiteEnvoi()}
+            signatureHtml={signatureHtml}
+          />
           <BoutonRafraichir />
         </form>
         <MesEmailsVue

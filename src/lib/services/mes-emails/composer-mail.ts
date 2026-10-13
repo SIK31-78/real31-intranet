@@ -8,7 +8,10 @@
 
 import { getContactsCoproProvider, getMailOutboundProvider, getReferentielTriProvider } from "@/lib/adapters/router";
 import { boiteTriConfiguree, mailModuleActif } from "@/lib/domain/mail-gate";
-import type { ContactCopro, CoproChoisissable } from "@/lib/domain/mes-emails-composition";
+import type { ContactCopro, CoproChoisissable, DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
+import { cleDeReference } from "@/lib/domain/tri-emails";
+import { getSignatureGestionnaire } from "./get-signature";
 import type { Dossier } from "@/lib/domain/dossier";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { refEchange } from "@/lib/domain/echanges";
@@ -32,6 +35,45 @@ export async function listerCoprosComposition(): Promise<CoproChoisissable[]> {
     .sort((a, b) => a.reference.localeCompare(b.reference, "fr"));
 }
 
+/**
+ * Chercher un destinataire par son nom (ou son adresse) : la personne, toutes ses adresses et
+ * ses copros, pour choisir à laquelle rattacher le mail (ou aucune : c'est parfois perso).
+ */
+export async function rechercherDestinataires(texte: string): Promise<DestinataireTrouve[]> {
+  const [identites, copros] = await Promise.all([
+    getContactsCoproProvider().rechercherIdentites(texte),
+    listerCoprosComposition().catch(() => [] as CoproChoisissable[]),
+  ]);
+  // Les copros de l'AGENCE seulement (MAIL_TRI_AGENCE) : un copropriétaire de La Garenne ne
+  // sort pas pour Houilles. Une fiche sans copro (artisan, notaire) reste proposée.
+  const parCle = new Map(copros.map((c) => [cleDeReference(c.reference) ?? c.reference, c]));
+  const out: DestinataireTrouve[] = [];
+  for (const i of identites) {
+    const vues = new Set<string>();
+    const siennes: DestinataireTrouve["copros"] = [];
+    for (const x of i.copros) {
+      const cle = cleDeReference(x.reference) ?? x.reference;
+      const c = parCle.get(cle);
+      if (!c || vues.has(cle)) continue;
+      vues.add(cle);
+      siennes.push({ ...c, qualite: x.qualite });
+    }
+    if (i.copros.length > 0 && siennes.length === 0) continue;
+    const qualites = siennes.map((c) => c.qualite);
+    const casquette =
+      i.metier ??
+      (qualites.includes("conseil_syndical")
+        ? "conseil syndical"
+        : qualites.includes("coproprietaire")
+          ? "copropriétaire"
+          : qualites.includes("locataire")
+            ? "locataire"
+            : "");
+    out.push({ cle: i.cle, nom: i.nom, casquette, emails: i.emails, copros: siennes });
+  }
+  return out.slice(0, 15);
+}
+
 export async function listerContactsComposition(reference: string): Promise<ContactCopro[]> {
   return getContactsCoproProvider().listerParCopro(reference);
 }
@@ -50,6 +92,8 @@ export interface DemandeBrouillon {
   cc: string[];
   /** Dossier auquel rattacher le mail (facultatif). */
   dossierId?: string;
+  /** Fichiers joints depuis l'ordinateur. */
+  piecesJointes?: PieceJointeMail[];
 }
 
 export interface ResultatBrouillon {
@@ -75,18 +119,22 @@ export function brouillonPossible(): boolean {
  */
 export async function creerBrouillonComposition(
   d: DemandeBrouillon,
-  g: Pick<Gestionnaire, "id" | "initiales">,
+  g: Gestionnaire,
 ): Promise<ResultatBrouillon> {
   const boite = boiteEnvoi();
   if (!brouillonPossible() || !boite) {
     return { simulation: true, boite };
   }
+  // Signitic ne passe pas sur un brouillon créé par l'app : on pose la signature nous-mêmes.
+  const signatureHtml = await getSignatureGestionnaire(g);
   const r = await getMailOutboundProvider().creerBrouillonNeuf({
     boite,
     sujet: d.objet,
     corps: d.corps,
     ...(d.a.length ? { a: d.a } : {}),
     ...(d.cc.length ? { cc: d.cc } : {}),
+    ...(signatureHtml ? { signatureHtml } : {}),
+    ...(d.piecesJointes?.length ? { piecesJointes: d.piecesJointes } : {}),
   });
 
   let rattache: boolean | undefined;

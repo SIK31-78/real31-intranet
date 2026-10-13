@@ -13,11 +13,12 @@ import {
   listerContactsComposition,
   listerCoprosComposition,
   listerDossiersComposition,
+  rechercherDestinataires,
   type CoproChoisissable,
   type DossierComposition,
   type ResultatBrouillon,
 } from "@/lib/services/mes-emails/composer-mail";
-import type { ContactCopro } from "@/lib/domain/mes-emails-composition";
+import type { ContactCopro, DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 
 const CTX = "mes-emails-composer";
 const INDISPONIBLE = "Le module e-mails n'est pas disponible.";
@@ -33,6 +34,17 @@ export async function listerCoprosCompositionAction(): Promise<Res<CoproChoisiss
   if (!(await gestionnaire())) return echec(INDISPONIBLE);
   try {
     return { ok: true, donnees: await listerCoprosComposition() };
+  } catch (e) {
+    return echecDepuis(e, CTX);
+  }
+}
+
+export async function rechercherDestinatairesAction(input: unknown): Promise<Res<DestinataireTrouve[]>> {
+  if (!(await gestionnaire())) return echec(INDISPONIBLE);
+  const d = z.object({ texte: z.string().trim().min(3).max(100) }).safeParse(input);
+  if (!d.success) return { ok: true, donnees: [] };
+  try {
+    return { ok: true, donnees: await rechercherDestinataires(d.data.texte) };
   } catch (e) {
     return echecDepuis(e, CTX);
   }
@@ -71,14 +83,22 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
       a: z.array(z.string().email().max(320)).min(1).max(200),
       cc: z.array(z.string().email().max(320)).max(200),
       dossierId: z.string().min(1).max(80).optional(),
+      // Fichiers joints : 3 Mo chacun (envoi simple de Graph), 10 au plus.
+      fichiers: z
+        .array(z.object({ nom: z.string().trim().min(1).max(255), contentType: z.string().max(200), base64: z.string().max(4_200_000) }))
+        .max(10)
+        .default([]),
     })
     .safeParse(input);
-  if (!d.success) return echec("Le mail est incomplet (objet ou destinataires).");
+  if (!d.success) return echec("Le mail est incomplet (objet ou destinataires), ou une pièce jointe dépasse 3 Mo.");
   try {
-    const { objet, corps, a, cc, dossierId } = d.data;
+    const { objet, corps, a, cc, dossierId, fichiers } = d.data;
     return {
       ok: true,
-      donnees: await creerBrouillonComposition({ objet, corps, a, cc, ...(dossierId ? { dossierId } : {}) }, g),
+      donnees: await creerBrouillonComposition(
+        { objet, corps, a, cc, ...(dossierId ? { dossierId } : {}), ...(fichiers.length ? { piecesJointes: fichiers } : {}) },
+        g,
+      ),
     };
   } catch (e) {
     return echecDepuis(e, CTX);

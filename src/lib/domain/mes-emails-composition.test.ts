@@ -18,6 +18,10 @@ describe("objet auto-taggé copro", () => {
     const longue = { reference: "S1", nom: "X", adresse: "a".repeat(80) };
     expect(prefixeObjetCopro(longue).endsWith("…")).toBe(true);
     expect(prefixeObjetCopro(copro, false)).toBe("S0247 · Résidence Le Cyrano");
+    // Le nom est l'adresse : on ne la répète pas (cas réel S0302).
+    const peri = { reference: "S0302", nom: "44/50 rue Gabriel Péri", adresse: "44/50 Rue Gabriel Péri 78800 Houilles" };
+    expect(prefixeObjetCopro(peri)).toBe("S0302 · 44/50 Rue Gabriel Péri 78800 Houilles");
+    expect(prefixeObjetCopro(peri, false)).toBe("S0302 · 44/50 rue Gabriel Péri");
   });
 
   it("colle le sujet saisi après le préfixe identifiant", () => {
