@@ -2051,11 +2051,15 @@ ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (déléga
 6. **Transmission facture ESTALE** : objet codifié `COMPTE - FOURNISSEUR - LIBELLÉ` (ex. « 601000 - DGP NETTOYAGE - Entretien EV »). Adresse du robot en env `MAIL_ROBOT_FACTURE_ESTALE` (inconnue → le mail se compose mais ne s'envoie pas). Pas de plan de comptes par copro en base → la codification reste saisie à la main pour l'instant.
 7. **Consolidation des deux chantiers mail** (13/10) : la V2 de /mes-emails de `chantier/mail-v12` (lecture LIVE des boîtes, domaine `BoiteMail`, sélecteur « De : ») est fusionnée dans `chantier/mail-v2`, qui reste la branche unique du mail.
 8. **Boîte partagée limitée au sous-dossier du binôme** : sur syndicN, /mes-emails ne lit que le dossier du binôme du gestionnaire (les mails que le tri lui a distribués), résolu via `intranet_tri_dossier`. Source unique `boitesVisibles(g)` pour l'écran, les actions et l'IA. Pas de dossier → la boîte partagée n'apparaît pas (jamais toute la boîte commune).
+9. **Brouillon composé rattaché à un dossier** : le port d'envoi renvoie l'`internetMessageId` du brouillon (ajout pur) ; le compositeur propose les dossiers OUVERTS de la copro (codes Crypto et ESTALE) et inscrit le mail au journal, référence `echange:boîte|id` (rouvrable depuis la fiche dossier, survit à l'envoi).
+10. **Dépôt d'une pièce jointe sur SharePoint** (bon d'intervention, facture) : brique de dépôt reprise à l'identique de `main` (REA-116), coupée tant que `SHAREPOINT_DEPOT_ACTIF=1` n'est pas posé (Sites.Selected). Cible = racine de la copro (lien d'AG sans `/AG`) `/Interventions/<année>/<date> - <nom>` — **le sous-dossier « Interventions » est une convention à valider**.
+11. **Mails travaillés pour le tri, aussi en réponse** : le sujet par défaut d'une réponse porte `CODE · Nom` quand le code n'est pas déjà dans l'objet. « Classer dans… » groupe les sous-dossiers de la réception puis les autres, sans les dossiers système.
 
 ### Ce qui N'A PAS été fait (et pourquoi)
-- **Rattachement d'un brouillon composé à un dossier** : le port d'envoi ne renvoie que `webLink`, pas l'`internetMessageId` du brouillon → rattachement impossible proprement sans étendre l'adaptateur partagé. Noté comme prochaine étape.
-- **Dépôt « bon d'intervention » sur le Drive** : la brique `DepotDocumentProvider` existe sur `main` (commit 32c2fca) mais pas sur cette branche, et exige **Sites.Selected** (write) non accordé. À récupérer + permission DSI.
-- **Arbo des dossiers Outlook aplatie** : `DossierBoite` ne porte pas de parentId → vrai regroupement parent/enfant impossible sans étendre le provider mailbox. Noté.
+- **Lecture de l'arborescence SharePoint** : l'app n'a aucun droit de lecture, d'où la convention « Interventions » à valider plutôt qu'un choix de dossier.
+- **Transmission d'une facture au robot ESTALE** : l'objet codifié existe (compositeur), mais l'adresse du robot (`MAIL_ROBOT_FACTURE_ESTALE`) et la liste des comptes par copro manquent.
+- **IA « à froid »** (rédiger un mail neuf, interroger ESTALE pour répondre à un copropriétaire) : à cadrer (coût, anti-injection) ; l'IA existante (Mistral) ne sert que la réponse.
+- **Rebase sur `main`** : à faire avant merge (la brique SharePoint, reprise à l'identique, ne devrait pas conflicter).
 
 ### Sécurité
 Contenu mail = input non fiable (anti-injection déjà géré par l'adaptateur Mistral existant, qui encapsule le corps en donnée). Toute action reste humain-dans-la-boucle. Aucun envoi automatique.
