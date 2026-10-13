@@ -98,6 +98,55 @@ describe("suggererCopro", () => {
     });
   });
 
+  it("reconnait une copro par le nom de l'immeuble cite (indice faible)", () => {
+    const ref: ReferentielTri = {
+      copros: [
+        { reference: "S0247", nom: "LE CYRANO", adresse: "12 rue des Lilas 78400 Chatou", gestionnaire: null, assistant: null },
+        { reference: "S0305", nom: "Les Jardins de Bezons", adresse: "3 rue du Parc 95870 Bezons", gestionnaire: null, assistant: null },
+      ],
+      expediteurs: {},
+    };
+    const s = suggererCopro(mail({ objet: "LE CYRANO - facture ascenseur" }), ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0247"] });
+    expect(s.raison).toContain("Immeuble « LE CYRANO »");
+    // « Bezons » seul (sa ville) ne doit PAS declencher la copro Les Jardins de Bezons.
+    expect(suggererCopro(mail({ objet: "Intervention à Bezons" }), ref).nature).toBe("aucune");
+  });
+
+  it("reconnait une copro par sa voie citee (type de voie inclus, >= 10 car.)", () => {
+    const ref: ReferentielTri = {
+      copros: [{ reference: "S0300", nom: "RESIDENCE DU STADE", adresse: "71 rue de Bezons 95100 Argenteuil", gestionnaire: null, assistant: null }],
+      expediteurs: {},
+    };
+    const s = suggererCopro(mail({ objet: "SOFRET - 71 RUE DE BEZONS - devis" }), ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0300"] });
+    expect(s.raison).toContain("rue de bezons");
+  });
+
+  it("laisse choisir quand deux copros sont citees par nom ou adresse", () => {
+    const ref: ReferentielTri = {
+      copros: [
+        { reference: "S0247", nom: "LE CYRANO", adresse: "", gestionnaire: null, assistant: null },
+        { reference: "S0305", nom: "URANUS", adresse: "", gestionnaire: null, assistant: null },
+      ],
+      expediteurs: {},
+    };
+    const s = suggererCopro(mail({ objet: "LE CYRANO et URANUS - tournée" }), ref);
+    expect(s.nature).toBe("plusieurs");
+    expect(s.candidats.sort()).toEqual(["S0247", "S0305"]);
+  });
+
+  it("un indice fort (code, adresse connue) prime sur le nom de l'immeuble", () => {
+    const ref: ReferentielTri = {
+      copros: [
+        { reference: "SE999", nom: "LE CYRANO", adresse: "", gestionnaire: null, assistant: null },
+        { reference: "S0297", nom: "AUTRE", adresse: "", gestionnaire: null, assistant: null },
+      ],
+      expediteurs: { "proprio@exemple.fr": [{ reference: "S0297", qualite: "copropriétaire" }] },
+    };
+    expect(suggererCopro(mail({ objet: "LE CYRANO", deAdresse: "proprio@exemple.fr" }), ref).candidats).toEqual(["S0297"]);
+  });
+
   it("signale une copro citee qui n'est pas sur ESTALE", () => {
     const s = suggererCopro(mail({ objet: "Résiliation s0142" }), REF);
     expect(s).toMatchObject({ nature: "hors-estale", candidats: [] });

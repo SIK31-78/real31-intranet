@@ -170,6 +170,75 @@ export function referencesCitees(texte: string): string[] {
   return vues;
 }
 
+// Mots trop courants pour identifier une copro : type de voie, articles, termes generiques
+// d'un nom d'immeuble. Un mot restant (« CYRANO », « MICHELET ») est, lui, distinctif.
+const MOTS_BANALS = new Set([
+  "residence", "copropriete", "syndicat", "immeuble", "batiment", "villa", "clos", "parc",
+  "jardin", "jardins", "cour", "square", "hameau", "domaine", "lotissement", "ensemble", "foncier",
+  "rue", "avenue", "boulevard", "place", "allee", "allees", "impasse", "chemin", "passage", "quai",
+  "route", "cours", "sente", "sentier", "voie", "ruelle",
+  "les", "le", "la", "des", "de", "du", "et", "aux", "au", "sur", "sous", "saint", "sainte", "mon", "ma",
+]);
+
+function normaliser(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+/** Mots porteurs de sens d'un libelle (>= 4 lettres, ni banals ni purement numeriques). */
+function motsSignificatifs(s: string): string[] {
+  return [...new Set(normaliser(s).split(/[^a-z0-9]+/).filter((t) => t.length >= 4 && !MOTS_BANALS.has(t) && !/^\d+$/.test(t)))];
+}
+
+// L'adresse d'une CoproTri est "voie code_postal ville" concatenee. La voie = avant le code
+// postal, numero de rue retire : "3 place michelet 95100 Chatou" -> "place michelet".
+function voieDe(adresse: string): string {
+  const avantCP = normaliser(adresse).split(/\b\d{5}\b/)[0] ?? "";
+  return avantCP.replace(/^\s*\d+\s*(bis|ter|quater)?\s*/, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// La ville d'une adresse : apres le code postal. Sert a retirer du nom de l'immeuble les mots
+// qui ne sont que son lieu (« Les Jardins de Bezons » a Bezons ne doit pas matcher tout
+// mail citant Bezons).
+function villeDe(adresse: string): string {
+  return normaliser(adresse).split(/\b\d{5}\b/)[1] ?? "";
+}
+
+/**
+ * Copros dont le NOM d'immeuble ou l'ADRESSE est cite dans le texte (objet + apercu). Indice
+ * faible, a confirmer : les prestataires ecrivent « LE CYRANO » ou « 71 rue de Bezons »
+ * plutot que le code. Deux garde-fous contre les faux positifs :
+ *   - du nom, on retire les mots de la ville de la copro ; il faut >= 2 mots distinctifs
+ *     presents, ou un seul d'au moins 5 lettres ;
+ *   - une adresse ne compte que si la voie (type de voie inclus) fait >= 10 caracteres et
+ *     apparait telle quelle. On rend au plus une raison par copro, le nom primant.
+ */
+export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string }[] {
+  const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/));
+  const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const out: { reference: string; raison: string }[] = [];
+  const vues = new Set<string>();
+  for (const c of copros) {
+    const cle = cleDeReference(c.reference);
+    if (!cle || vues.has(cle)) continue;
+    const ville = new Set(motsSignificatifs(villeDe(c.adresse)));
+    const distinctifs = motsSignificatifs(c.nom).filter((m) => !ville.has(m));
+    const parNom = distinctifs.length >= 2
+      ? distinctifs.every((m) => mots.has(m))
+      : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!);
+    if (parNom) {
+      out.push({ reference: c.reference, raison: `Immeuble « ${c.nom} » cité dans le mail, à confirmer.` });
+      vues.add(cle);
+      continue;
+    }
+    const voie = voieDe(c.adresse);
+    if (voie.length >= 10 && espace.includes(` ${voie} `)) {
+      out.push({ reference: c.reference, raison: `Adresse « ${voie} » citée dans le mail, à confirmer.` });
+      vues.add(cle);
+    }
+  }
+  return out;
+}
+
 const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {
   "copropriétaire": "copropriétaire",
   "conseil syndical": "membre du conseil syndical",
@@ -240,6 +309,16 @@ export function suggererCopro(
       candidats: refs,
       raison: refs.length === 1 ? `Code ${refs[0]} cité dans le message.` : "Plusieurs codes cités dans le message.",
     };
+  }
+
+  // 4. Nom de l'immeuble ou adresse cite (prestataires : « LE CYRANO », « 71 rue de Bezons »).
+  // Indice faible : a confirmer au clic, rien ne bouge sans decision humaine.
+  const indices = indicesNomAdresse(`${mail.objet}\n${mail.apercu}`, ref.copros);
+  if (indices.length === 1) {
+    return { nature: "faible", candidats: [indices[0]!.reference], raison: indices[0]!.raison };
+  }
+  if (indices.length > 1) {
+    return { nature: "plusieurs", candidats: indices.map((i) => i.reference), raison: "Plusieurs copropriétés citées par leur nom ou adresse, à confirmer." };
   }
 
   // Un code est cite mais aucune copro du perimetre ne le porte : hors perimetre. On affiche
