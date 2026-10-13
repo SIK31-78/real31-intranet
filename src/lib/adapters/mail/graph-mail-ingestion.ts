@@ -87,4 +87,32 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     }
     return out.slice(0, opts.max);
   }
+
+  async lireParIds(email: string, internetMessageIds: string[]): Promise<RawMail[]> {
+    if (!email) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");
+    const tk = await jetonGraph();
+    const select =
+      "id,internetMessageId,conversationId,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
+    const ids = [...new Set(internetMessageIds.filter(Boolean))];
+    const out: RawMail[] = [];
+    // Par lots de 10 (filtre OR) : une URL raisonnable, peu d'appels.
+    for (let i = 0; i < ids.length; i += 10) {
+      const filtre = ids
+        .slice(i, i + 10)
+        .map((id) => `internetMessageId eq '${id.replace(/'/g, "''")}'`)
+        .join(" or ");
+      const r = await graphFetch(
+        `${GRAPH}/users/${encodeURIComponent(email)}/messages?$filter=${encodeURIComponent(filtre)}&$select=${select}&$top=50`,
+        { headers: { Authorization: `Bearer ${tk}`, Prefer: 'outlook.body-content-type="text"' } },
+      );
+      if (!r.ok) throw new Error(`Graph messages par id ${r.status} : ${(await r.text()).slice(0, 200)}`);
+      const j = (await r.json()) as { value?: GraphMessage[] };
+      out.push(...(j.value ?? []).map(versRaw));
+    }
+    // Un meme mail peut exister en double (copie dans Elements envoyes...) : un par id.
+    const vus = new Set<string>();
+    return out
+      .filter((m) => (vus.has(m.internetMessageId) ? false : (vus.add(m.internetMessageId), true)))
+      .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+  }
 }

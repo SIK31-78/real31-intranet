@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUCUN_BINOME,
   cleDeReference,
+  clesDossiersDe,
   constaterRangement,
   coproDuDossier,
   coprosDansPdf,
@@ -415,5 +416,24 @@ describe("fusionnerReferentiels (ESTALE + Crypto, 12/10/2026)", () => {
     const s = suggererCopro({ deAdresse: "b@y.fr", objet: "Fuite", apercu: "" }, r);
     expect(s).toMatchObject({ nature: "sure", candidats: ["S247"] });
     expect(s.raison).toContain("Crypto");
+  });
+});
+
+describe("clesDossiersDe (mes mails sur la boîte partagée)", () => {
+  const b = {
+    binomes: [
+      { id: "b1", gestionnaireEmail: "sophie@real31.fr", assistant: { nomComplet: "Clara", email: "Clara@real31.fr" }, principal: true },
+      { id: "b2", gestionnaireEmail: "sophie@real31.fr", assistant: { nomComplet: "Nadia", email: "nadia@real31.fr" }, principal: false },
+      { id: "b3", gestionnaireEmail: "marc@real31.fr", assistant: { nomComplet: "Clara", email: "clara@real31.fr" }, principal: true },
+    ],
+    parCopro: {},
+  };
+
+  it("un gestionnaire voit ses dossiers (principal et secondaires)", () => {
+    expect([...clesDossiersDe("Sophie@real31.fr", b)].sort()).toEqual(["binome:b2", "binome:sophie@real31.fr"]);
+  });
+
+  it("une assistante voit les dossiers de ses binômes, chez plusieurs gestionnaires", () => {
+    expect([...clesDossiersDe("clara@real31.fr", b)].sort()).toEqual(["binome:clara@real31.fr", "binome:marc@real31.fr", "binome:sophie@real31.fr"]);
   });
 });

@@ -21,6 +21,12 @@ export interface OptionsIngestion {
 
 export interface MailIngestionProvider {
   lireRecents(opts: OptionsIngestion): Promise<RawMail[]>;
+  /**
+   * Lit des mails PRECIS de la boite, par internetMessageId (stable : il survit aux
+   * deplacements), ou qu'ils soient. Sert a /mes-emails : les mails que le tri a distribues
+   * au binome du gestionnaire. Facultatif : absent = repli sur lireRecents filtre.
+   */
+  lireParIds?(email: string, internetMessageIds: string[]): Promise<RawMail[]>;
   /** Nombre de mails dans la boite de reception (un appel leger), recus depuis `depuis` si donne ; facultatif. */
   compterReception?(email: string, depuis?: string): Promise<number>;
 }

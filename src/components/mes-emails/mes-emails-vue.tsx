@@ -141,7 +141,10 @@ export function MesEmailsVue({
   const copros = useMemo(() => {
     const vus = new Map<string, string>();
     for (const m of mailsBoite) if (!vus.has(m.coproCode)) vus.set(m.coproCode, m.coproNom);
-    return [...vus.entries()].map(([code, nom]) => ({ code, nom }));
+    // Les copros par code, « Non rattaché » (code vide) en dernier.
+    return [...vus.entries()]
+      .map(([code, nom]) => ({ code, nom }))
+      .sort((a, b) => (a.code ? 0 : 1) - (b.code ? 0 : 1) || a.code.localeCompare(b.code, "fr"));
   }, [mailsBoite]);
 
   const [selId, setSelId] = useState<string>(mailsTries[0]?.id ?? "");
@@ -585,7 +588,7 @@ export function MesEmailsVue({
               <CoproFolder
                 key={c.code}
                 actif={filtreCopro === c.code}
-                label={`${c.code} · ${c.nom}`}
+                label={!c.code ? "Non rattaché" : c.nom && c.nom !== c.code ? `${c.code} · ${c.nom}` : c.code}
                 n={countCopro(c.code)}
                 nonLus={countCoproNonLus(c.code)}
                 onClick={() => setFiltreCopro(c.code)}

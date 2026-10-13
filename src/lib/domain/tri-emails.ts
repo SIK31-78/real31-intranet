@@ -547,6 +547,20 @@ export function cleDossierDe(emailGestionnaire: string, binome: Binome | null): 
 }
 
 /**
+ * Les dossiers de binôme d'une personne : ceux où elle est GESTIONNAIRE ou ASSISTANT(E), plus
+ * le dossier « gestionnaire seul » à son nom. Sert à /mes-emails : « mes mails » sur la boîte
+ * partagée = les rangements du tri vers ces dossiers (un assistant voit ceux de son binôme).
+ */
+export function clesDossiersDe(email: string, b: BinomesTri): Set<string> {
+  const moi = minuscules(email);
+  const cles = new Set<string>([cleDossierBinome(moi)]);
+  for (const x of b.binomes) {
+    if (x.gestionnaireEmail === moi || minuscules(x.assistant.email) === moi) cles.add(cleDossierDe(x.gestionnaireEmail, x));
+  }
+  return cles;
+}
+
+/**
  * Destination d'un mail rattache a une copro. Les initiales viennent de l'intranet et
  * non d'ESTALE : le nom complet ESTALE ne donne souvent qu'un prenom (constat du 25/09).
  * L'assistant vient du binome tenu dans l'intranet ; a defaut seulement, de celui d'ESTALE.

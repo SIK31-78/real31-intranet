@@ -22,9 +22,11 @@ import { groupAffaires } from "@/lib/domain/tri-mail/group";
 import { resoudreExpediteur } from "@/lib/domain/tri-mail/sender";
 import {
   getAnalyseCacheStore,
-  getCryptoContactsProvider,
   getMailIngestionProvider,
+  getReferentielTriProvider,
 } from "@/lib/adapters/router";
+import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
+import { distributionDe } from "./boites-visibles";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
 // chasser les mails de la boite personnelle de l'affichage.
@@ -60,40 +62,23 @@ function nomCourt(from: string): string {
 }
 
 /**
- * Rattachement copro best-effort depuis l'objet ET le corps (la boite live n'a pas
- * de dossier copro). Le code/nom de copro est souvent dans le texte ou la signature,
- * pas seulement l'objet. Code en priorite (plus specifique), puis nom (>= 4 car.).
+ * Ingere UNE boite. Boite perso : sa reception. Boite PARTAGEE : seulement les mails que le
+ * tri a distribues aux binomes du gestionnaire (journal), relus par leur internetMessageId,
+ * avec la copro choisie au tri. Une boite en echec (droits Exchange, panne Graph) ne fait
+ * pas tomber l'ecran : on journalise et on rend une liste vide.
  */
-function attribuerCopro(subject: string, body: string, copros: Copropriete[]): string {
-  const texte = `${subject || ""}\n${body || ""}`.toLowerCase();
-  // Code (le plus specifique) > nom (>= 4 car.) > adresse de l'immeuble (>= 8 car., la
-  // rue complete avec le numero est assez specifique pour eviter les faux positifs).
-  const parCode = copros.find((c) => c.code && texte.includes(c.code.toLowerCase()));
-  if (parCode) return parCode.code;
-  const parNom = copros.find((c) => c.nom && c.nom.length >= 4 && texte.includes(c.nom.toLowerCase()));
-  if (parNom) return parNom.code;
-  // Adresse AMBIGUE (ex. 6 copros "rue de l'Aigle") : on n'attribue que si UNE seule
-  // copro matche. Sinon non-rattache (mieux qu'un faux positif = mauvais contexte).
-  const parAdresse = copros.filter((c) => {
-    const rue = c.adresse.ligne1.toLowerCase().trim();
-    return rue.length >= 8 && texte.includes(rue);
-  });
-  return parAdresse.length === 1 ? parAdresse[0]!.code : "";
-}
-
-/**
- * Ingere UNE boite. Une boite en echec (droits Exchange, panne Graph) ne doit pas
- * faire tomber tout l'ecran : on journalise et on rend une liste vide -> les autres
- * boites s'affichent quand meme. Le silence serait pire, d'ou le console.warn.
- */
-async function ingererBoite(boite: BoiteMail): Promise<{ boite: BoiteMail; bruts: RawMail[] }> {
+async function ingererBoite(g: Gestionnaire, boite: BoiteMail): Promise<{ boite: BoiteMail; bruts: RawMail[] }> {
   try {
-    const bruts = await getMailIngestionProvider().lireRecents({
-      email: boite.adresse,
-      max: MAX_INGEST,
-      // Boite partagee : seulement le dossier du binome du gestionnaire (pas toute la reception).
-      ...(boite.folderId ? { folderId: boite.folderId } : {}),
-    });
+    const ingestion = getMailIngestionProvider();
+    if (boite.personnelle) return { boite, bruts: await ingestion.lireRecents({ email: boite.adresse, max: MAX_INGEST }) };
+    const distribues = await distributionDe(g, boite.adresse);
+    if (distribues.size === 0) return { boite, bruts: [] };
+    const ids = [...distribues.keys()].slice(0, MAX_INGEST);
+    const bruts = ingestion.lireParIds
+      ? await ingestion.lireParIds(boite.adresse, ids)
+      : (await ingestion.lireRecents({ email: boite.adresse, max: 200 })).filter((m) => distribues.has(m.internetMessageId));
+    // La copro decidee au tri fait foi (choix humain) : on la pose avant toute deduction.
+    for (const m of bruts) m.copro = distribues.get(m.internetMessageId) ?? "";
     return { boite, bruts };
   } catch (err) {
     console.warn(`[mes-emails] boite ${boite.adresse} illisible :`, (err as Error).message);
@@ -116,7 +101,7 @@ export async function lireBoitesLive(
   const coproNomDe = (code: string) => nomDe.get(code) ?? (code || "Non rattaché");
 
   // Les boites sont lues EN PARALLELE : leur latence ne s'additionne pas.
-  const parBoite = await Promise.all(boites.map(ingererBoite));
+  const parBoite = await Promise.all(boites.map((b) => ingererBoite(g, b)));
   const boiteDe = new Map<string, string>();
   const bruts: RawMail[] = [];
   for (const { boite, bruts: lot } of parBoite) {
@@ -127,23 +112,30 @@ export async function lireBoitesLive(
   }
   if (bruts.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0 };
 
-  for (const b of bruts) b.copro = attribuerCopro(b.subject, b.bodyText, copros);
+  // Copro des mails que le tri n'a pas tranches : le MOTEUR DU TRI (codes, annuaire ESTALE+Crypto,
+  // immatriculation, nom/adresse hors signature), seulement quand il est SUR. L'ancien
+  // detecteur (texte entier, signature comprise) rattachait tout a S158 « place Michelet ».
+  const referentiel = await getReferentielTriProvider().charger().catch((): ReferentielTri | null => null);
+  if (referentiel) {
+    for (const b of bruts) {
+      if (b.copro) continue;
+      const s = suggererCopro({ deAdresse: b.from, objet: b.subject, apercu: b.bodyText.slice(0, 4000) }, referentiel);
+      if (s.nature === "sure") b.copro = s.candidats[0]!;
+    }
+  }
+  // Codes du tri (ESTALE « S0302 », Crypto « S247 ») ramenes au code du portefeuille.
+  const codeDe = new Map(copros.map((c) => [cleDeReference(c.code) ?? c.code, c.code]));
+  const nomTri = new Map((referentiel?.copros ?? []).map((c) => [cleDeReference(c.reference) ?? c.reference, c.nom]));
+  for (const b of bruts) {
+    if (!b.copro) continue;
+    const cle = cleDeReference(b.copro) ?? b.copro;
+    b.copro = codeDe.get(cle) ?? b.copro;
+    if (!nomDe.has(b.copro) && nomTri.has(cle)) nomDe.set(b.copro, nomTri.get(cle)!);
+  }
 
   // Les affaires servent de CONTEXTE (le fil auquel un mail appartient) : on ne plie
   // PAS la liste. Un mail = une carte (decision Sekou 2026-06-25).
   const affaires = groupAffaires(bruts).sort((a, b) => b.last.localeCompare(a.last));
-
-  // Resolveur Crypto : pour les mails encore non-rattaches, on cherche la copro par
-  // l'email de l'EXPEDITEUR (annuaire Crypto importe). Attribution SEULEMENT si une
-  // seule copro (anti-ambiguite).
-  const sansCopro = bruts.filter((b) => !b.copro);
-  if (sansCopro.length > 0) {
-    const parEmail = await getCryptoContactsProvider().coprosPourEmails(sansCopro.map((b) => b.from));
-    for (const b of sansCopro) {
-      const trouvees = parEmail.get((b.from || "").toLowerCase().trim());
-      if (trouvees && new Set(trouvees).size === 1) b.copro = trouvees[0]!;
-    }
-  }
 
   // Heritage par fil : un mail sans copro herite de celle d'un autre mail du meme fil
   // (les reponses ne re-citent pas toujours la copro).

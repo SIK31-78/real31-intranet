@@ -17,12 +17,6 @@ export interface BoiteMail {
   libelle: string;
   /** true = boite personnelle du connecte ; false = boite partagee d'agence. */
   personnelle: boolean;
-  /**
-   * Sous-dossier a lire au lieu de la boite de reception (id Graph). Pour une boite
-   * partagee, c'est le dossier du binome du gestionnaire (les mails que le tri lui a
-   * distribues) : on ne lit PAS toute la reception. Absent = boite de reception.
-   */
-  folderId?: string;
 }
 
 function normaliser(adresse: string): string {
