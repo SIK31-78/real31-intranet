@@ -10,6 +10,8 @@ export interface PropositionRepository {
   listerParImmatriculation(immatriculation: string): Promise<Proposition[]>;
   creer(p: Omit<Proposition, "id" | "creeLeISO" | "majLeISO">): Promise<Proposition>;
   sauver(p: Proposition): Promise<void>;
+  /** Supprime DEFINITIVEMENT une proposition (doublon). Le journal, en JSONB dans la ligne, part avec. */
+  supprimer(id: string): Promise<void>;
 }
 
 /** Une copropriete telle que le registre national la connait. */

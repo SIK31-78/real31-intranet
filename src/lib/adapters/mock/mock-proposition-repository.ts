@@ -32,6 +32,10 @@ export class MockPropositionRepository implements PropositionRepository {
     const maintenant = new Date().toISOString();
     if (i >= 0) PROPOSITIONS[i] = { ...p, majLeISO: maintenant.slice(0, 10), majLeInstant: maintenant };
   }
+  async supprimer(id: string): Promise<void> {
+    const i = PROPOSITIONS.findIndex((x) => x.id === id);
+    if (i >= 0) PROPOSITIONS.splice(i, 1);
+  }
 }
 
 const REGISTRE: RegistreCopro[] = [

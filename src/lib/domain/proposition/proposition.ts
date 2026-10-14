@@ -150,6 +150,16 @@ export interface Proposition {
   majLeInstant?: string;
 }
 
+/**
+ * Peut-on supprimer cette proposition (un doublon) ? La suppression est DEFINITIVE (Sekou,
+ * 14/10/2026 : pas de statut « doublon »). Une proposition qui a donne une copropriete ne
+ * se supprime pas : la fiche du referentiel y renvoie, et son historique commercial avec.
+ * Renvoie le motif du refus, ou null.
+ */
+export function motifRefusSuppression(p: Pick<Proposition, "coproCode">): string | null {
+  return p.coproCode ? `Cette proposition a donné la copropriété ${p.coproCode} : elle ne se supprime pas.` : null;
+}
+
 /** Ce qu'on affiche a la place d'une adresse vide (immeuble neuf, adresse pas encore connue). */
 export const ADRESSE_A_PRECISER = "Adresse à préciser";
 

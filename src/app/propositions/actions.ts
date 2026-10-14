@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutDeciderProposition, peutElire, peutFaireOffre, profilDe } from "@/lib/auth/roles";
-import { STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
+import { motifRefusSuppression, STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
 import { ORIGINES, STATUTS_PROPOSITION } from "@/lib/domain/proposition/proposition";
 import {
   calculerPrix,
@@ -17,6 +17,7 @@ import {
   marquerOffreRemise,
   mettreAJourProposition,
   rattacherProposition,
+  supprimerProposition,
   rechercherRegistre,
   type PrixCalcule,
 } from "@/lib/services/proposition/propositions";
@@ -174,6 +175,30 @@ export async function mettreAJourPropositionAction(input: unknown): Promise<Res>
     );
     revalidatePath("/propositions");
     revalidatePath(`/propositions/${id}`);
+    return { ok: true };
+  } catch (e) {
+    return echecDepuis(e, "propositions");
+  }
+}
+
+/**
+ * Supprime DEFINITIVEMENT une proposition creee en double. Memes droits que la modifier
+ * (l'equipe syndic, ou celui qui l'a creee) ; refusee si elle a donne une copropriete.
+ */
+export async function supprimerPropositionAction(id: unknown): Promise<Res> {
+  if (typeof id !== "string" || !id) return { ok: false, erreur: "Proposition inconnue." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  const existante = await getProposition(id);
+  if (!existante) return { ok: false, erreur: "Proposition introuvable." };
+  if (!peutCompleterProposition(profilDe(g)) && existante.creeParNom !== g.nomComplet) {
+    return { ok: false, erreur: "Vous ne pouvez supprimer que les contacts que vous avez créés." };
+  }
+  const refus = motifRefusSuppression(existante);
+  if (refus) return { ok: false, erreur: refus };
+  try {
+    await supprimerProposition(id, g.nomComplet);
+    revalidatePath("/propositions");
     return { ok: true };
   } catch (e) {
     return echecDepuis(e, "propositions");

@@ -18,7 +18,9 @@ import {
 } from "@/lib/domain/proposition/forfait";
 import {
   informationsManquantes,
+  libelleAdresse,
   LIBELLE_STATUT,
+  motifRefusSuppression,
   STATUTS_OUVERTS,
   type Contact,
   type Immeuble,
@@ -195,6 +197,18 @@ export async function mettreAJourProposition(id: string, maj: MiseAJourPropositi
   n.journal = journal;
   await repo.sauver(n);
   return n;
+}
+
+/** Supprime DEFINITIVEMENT une proposition (un doublon), sauf si elle a donne une copropriete. */
+export async function supprimerProposition(id: string, par: string): Promise<void> {
+  const repo = getPropositionRepository();
+  const p = await repo.get(id);
+  if (!p) throw new Error("Proposition introuvable.");
+  const refus = motifRefusSuppression(p);
+  if (refus) throw new Error(refus);
+  await repo.supprimer(id);
+  // Le journal part avec la ligne : la seule trace qui reste est celle des logs serveur.
+  console.info(`[propositions] proposition ${id} (${libelleAdresse(p.immeuble)}, créée par ${p.creeParNom}) supprimée par ${par}`);
 }
 
 // --- Cet immeuble : l'historique par immatriculation, et la copro App A si elle existe ---

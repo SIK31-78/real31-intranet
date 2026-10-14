@@ -10,6 +10,7 @@ const etat = vi.hoisted(() => ({
   session: null as { id: string; nomComplet: string; initiales: string; email?: string; role?: string; habilitations?: string[] } | null,
   proposition: null as Proposition | null,
   majAppelee: 0,
+  supprimees: 0,
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
@@ -26,10 +27,13 @@ vi.mock("@/lib/services/proposition/propositions", () => ({
   creerProposition: async () => etat.proposition,
   detacherProposition: async () => etat.proposition,
   rattacherProposition: async () => etat.proposition,
+  supprimerProposition: async () => {
+    etat.supprimees++;
+  },
 }));
 vi.mock("@/lib/services/proposition/election", () => ({ elireProposition: async () => ({ coproCode: "S307", etapes: [] }) }));
 
-import { calculerPrixAction, marquerOffreRemiseAction, mettreAJourPropositionAction, rechercherRegistreAction } from "./actions";
+import { calculerPrixAction, marquerOffreRemiseAction, mettreAJourPropositionAction, rechercherRegistreAction, supprimerPropositionAction } from "./actions";
 
 const base: Proposition = {
   id: "p1",
@@ -51,6 +55,7 @@ beforeEach(() => {
   etat.session = gestionnaire;
   etat.proposition = { ...base };
   etat.majAppelee = 0;
+  etat.supprimees = 0;
   for (const v of ["SUPER_ADMINS", "DIRECTEURS", "MANAGERS"]) vi.stubEnv(v, "");
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -86,6 +91,32 @@ describe("mettreAJourPropositionAction — qui peut clore", () => {
     expect((await marquerOffreRemiseAction({ id: "p1" })).ok).toBe(false);
     etat.proposition = { ...base, agence: "HLS" };
     expect((await marquerOffreRemiseAction({ id: "p1" })).ok).toBe(true);
+  });
+});
+
+describe("supprimerPropositionAction — un doublon, definitivement", () => {
+  const vendeur = { id: "u4", nomComplet: "Paul VENTE", initiales: "PV", email: "paul@real31.fr", role: "AUTRE" };
+  it("l'equipe syndic supprime une proposition sans copropriete", async () => {
+    expect((await supprimerPropositionAction("p1")).ok).toBe(true);
+    expect(etat.supprimees).toBe(1);
+  });
+  it("refuse une proposition qui a donne une copropriete", async () => {
+    etat.proposition = { ...base, coproCode: "S307" };
+    const r = await supprimerPropositionAction("p1");
+    expect(r.ok).toBe(false);
+    expect(r.ok ? "" : r.erreur).toMatch(/S307/);
+    expect(etat.supprimees).toBe(0);
+  });
+  it("hors syndic, seulement les contacts qu'on a crees", async () => {
+    etat.session = vendeur;
+    expect((await supprimerPropositionAction("p1")).ok).toBe(false);
+    etat.proposition = { ...base, creeParNom: "Paul VENTE" };
+    expect((await supprimerPropositionAction("p1")).ok).toBe(true);
+  });
+  it("exige une session", async () => {
+    etat.session = null;
+    expect((await supprimerPropositionAction("p1")).ok).toBe(false);
+    expect(etat.supprimees).toBe(0);
   });
 });
 

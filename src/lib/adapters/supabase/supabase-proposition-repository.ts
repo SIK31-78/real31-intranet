@@ -145,6 +145,14 @@ export class SupabasePropositionRepository implements PropositionRepository {
       .eq("id", p.id);
     if (error) throw new Error(`Proposition ${p.id} : ${error.message}`);
   }
+
+  async supprimer(id: string): Promise<void> {
+    const supabase = createSupabasePublicClient();
+    // Aucune table ne pointe vers intranet_proposition (journal, prix, immeuble sont en
+    // JSONB dans la ligne) : la suppression ne laisse rien derriere elle.
+    const { error } = await supabase.from("intranet_proposition").delete().eq("id", id);
+    if (error) throw new Error(`Suppression de la proposition ${id} : ${error.message}`);
+  }
 }
 
 type RowRegistre = {

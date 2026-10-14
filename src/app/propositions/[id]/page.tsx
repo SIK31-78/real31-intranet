@@ -11,6 +11,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SupprimerProposition } from "@/components/proposition/supprimer-proposition";
 import { FicheProposition } from "./fiche-proposition";
 
 export const metadata: Metadata = { title: "Proposition de contrat - REAL31 Intranet" };
@@ -67,6 +68,8 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
                 </ButtonLink>
               )}
               {STATUTS_OUVERTS.has(p.statut) && !droits.offre && <span className="text-meta text-ink-3" title={MESSAGE_RESERVE_DIRECTION}>offre et élection : direction</span>}
+              {/* Un doublon se supprime (definitivement) ; pas une proposition qui a donne une copro. */}
+              {droits.completer && !p.coproCode && <SupprimerProposition propositionId={p.id} adresse={libelleAdresse(p.immeuble)} />}
             </>
           }
         />
