@@ -106,7 +106,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
                 />
                 {alerte && (
                   <Callout ton="warn" titre="Début avant l'AG">
-                    {alerte} Vérifiez les dates avant d&apos;envoyer.
+                    {`${alerte} Vérifiez les dates avant d'envoyer.`}
                   </Callout>
                 )}
                 {champs && (

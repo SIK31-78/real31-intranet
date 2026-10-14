@@ -198,7 +198,7 @@ export function FicheProposition({
       {/* ---- Colonne principale : le formulaire, du pilotage au prix ---- */}
       <div className="flex flex-col gap-5 min-w-0">
         {manquant.length > 0 && STATUTS_OUVERTS.has(p.statut) && (
-          <Callout ton="warn">Pour faire l&apos;offre, il manque encore : {manquant.join(", ")}.</Callout>
+          <Callout ton="warn">{`À renseigner dès que possible : ${manquant.join(", ")}.`}</Callout>
         )}
         {lectureSeule && <Callout ton="neutral">Lecture seule : l&apos;équipe syndic complète cette fiche.</Callout>}
 
