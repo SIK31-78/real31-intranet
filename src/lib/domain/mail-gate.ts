@@ -66,6 +66,18 @@ export function debutTri(): string | null {
 }
 
 /**
+ * Un mail de la boite partagee compte-t-il dans « mes mails » ? Seulement s'il est arrive
+ * apres la mise en service (MAIL_TRI_DEPUIS) : le stock d'avant se traite dans Outlook,
+ * meme si le tri l'a range pendant les essais. Sans date : tout compte.
+ */
+export function recuDepuisDebutTri(receivedAt: string): boolean {
+  const debut = debutTri();
+  if (!debut) return true;
+  const recu = Date.parse(receivedAt);
+  return Number.isNaN(recu) || recu >= Date.parse(debut);
+}
+
+/**
  * Le tri ECRIT-il vraiment dans la boite (creer un dossier, deplacer un mail) ? Seulement
  * si MAIL_TRI_ECRITURE=on. Sinon tout rangement est simule et journalise comme tel : la
  * regle est qu'aucun vrai mail ne bouge sans l'accord de Sekou (ADR-046).

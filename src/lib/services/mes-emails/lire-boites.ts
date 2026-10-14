@@ -27,6 +27,7 @@ import {
   getReferentielTriProvider,
 } from "@/lib/adapters/router";
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
+import { recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { distributionDe } from "./boites-visibles";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
@@ -75,9 +76,11 @@ async function ingererBoite(g: Gestionnaire, boite: BoiteMail): Promise<{ boite:
     const distribues = await distributionDe(g, boite.adresse);
     if (distribues.size === 0) return { boite, bruts: [] };
     const ids = [...distribues.keys()].slice(0, MAX_INGEST);
-    const bruts = ingestion.lireParIds
+    const lus = ingestion.lireParIds
       ? await ingestion.lireParIds(boite.adresse, ids)
       : (await ingestion.lireRecents({ email: boite.adresse, max: 200 })).filter((m) => distribues.has(m.internetMessageId));
+    // Rien d'avant la mise en service : les rangements des essais ne reviennent pas « a traiter ».
+    const bruts = lus.filter((m) => recuDepuisDebutTri(m.receivedAt));
     // La copro decidee au tri fait foi (choix humain) : on la pose avant toute deduction.
     for (const m of bruts) m.copro = distribues.get(m.internetMessageId) ?? "";
     return { boite, bruts };
