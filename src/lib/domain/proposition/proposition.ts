@@ -150,6 +150,14 @@ export interface Proposition {
   majLeInstant?: string;
 }
 
+/** Ce qu'on affiche a la place d'une adresse vide (immeuble neuf, adresse pas encore connue). */
+export const ADRESSE_A_PRECISER = "Adresse à préciser";
+
+/** L'adresse a afficher : celle de la fiche, sinon « Adresse à préciser ». */
+export function libelleAdresse(immeuble: Pick<Immeuble, "adresse">): string {
+  return immeuble.adresse?.trim() || ADRESSE_A_PRECISER;
+}
+
 /**
  * Ce qu'il manque pour faire une offre : la liste que la saisie rapide affiche a
  * celui qui prend l'appel (« quelle info prendre »).

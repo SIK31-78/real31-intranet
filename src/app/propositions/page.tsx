@@ -3,7 +3,7 @@ import { Link2, Plus, Search } from "lucide-react";
 import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutCompleterProposition, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { etatRegistre, listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
-import { LIBELLE_ORIGINE, LIBELLE_STATUT, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition, TON_STATUT } from "@/lib/domain/proposition/proposition";
+import { LIBELLE_ORIGINE, LIBELLE_STATUT, libelleAdresse, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition, TON_STATUT } from "@/lib/domain/proposition/proposition";
 import {
   filtrer,
   FENETRE_TRANSFORMATION_ANNEES,
@@ -256,7 +256,7 @@ function TableProps({ lignes }: { lignes: PropositionResume[] }) {
         {lignes.map((p) => (
           <Tr key={p.id} interactive>
             <Td principal>
-              <LienLigne href={`/propositions/${p.id}`}>{p.immeuble.adresse}</LienLigne>
+              <LienLigne href={`/propositions/${p.id}`}>{libelleAdresse(p.immeuble)}</LienLigne>
               <span className="block text-meta text-ink-3">
                 {[p.immeuble.commune, p.immeuble.immatriculation].filter(Boolean).join(" · ") || "commune inconnue"}
                 {STATUTS_OUVERTS.has(p.statut) && p.manquant.length > 0 && <span className="text-warn-700"> · manque {p.manquant.join(", ")}</span>}
@@ -302,7 +302,7 @@ function VueParStatut({ lignes }: { lignes: PropositionResume[] }) {
                 <Row
                   key={p.id}
                   href={`/propositions/${p.id}`}
-                  principal={p.immeuble.adresse}
+                  principal={libelleAdresse(p.immeuble)}
                   secondaire={[p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots` : null, p.contact.nom, p.agence].filter(Boolean).join(" · ")}
                   droite={<span className="text-meta text-ink-3 tabular-nums">{p.premierContactISO ? formatJour(p.premierContactISO) : "—"}</span>}
                 />

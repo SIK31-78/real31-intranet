@@ -3,6 +3,12 @@
 // Nouveau contact : ce que celui qui decroche doit noter (l'adresse, et de quoi rappeler),
 // le reste est replie. L'adresse cherche dans le registre national ; la fiche dira ce
 // qu'il manque pour faire l'offre.
+//
+// L'adresse est LIBRE : le registre ne fait que suggerer. Un immeuble neuf n'y est pas, et
+// son adresse n'est parfois pas encore connue : elle peut rester vide (« Adresse à
+// préciser » partout ou elle s'affiche). Un collaborateur l'a crue impossible a saisir
+// (liste du registre par-dessus les champs, code postal et commune replies) : l'aide le
+// dit, et le code postal et la commune sont visibles.
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -65,7 +71,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
 
   const combobox = useCombobox(resultats, choisir, () => setResultats([]));
   const joignable = Boolean(telephone.trim() || email.trim());
-  const pret = Boolean(adresse.trim()) && joignable;
+  const pret = joignable;
   const apercu = {
     immeuble: { adresse, ...(lots ? { lotsPrincipaux: Number(lots) } : {}), ...(syndic ? { syndicActuel: syndic } : {}), ...(prochaineAg ? { prochaineAgISO: prochaineAg } : {}), ...(cloture ? { clotureComptable: cloture } : {}) },
     contact: { nom, telephone, email },
@@ -95,7 +101,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
       <Card>
         <CardBody className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Field label="Adresse de l'immeuble" htmlFor="np-adresse" requis erreur={tente && !adresse.trim() ? "L'adresse est obligatoire." : undefined}>
+            <Field label="Adresse de l'immeuble" htmlFor="np-adresse">
               <div className="relative">
                 <Input
                   id="np-adresse"
@@ -112,7 +118,8 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
                   {...combobox.input}
                 />
                 {resultats.length > 0 && (
-                  <ul {...combobox.liste} className="absolute z-10 mt-1 w-full rounded-lg border border-line bg-surface shadow-1 divide-y divide-line">
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-line bg-surface shadow-1">
+                  <ul {...combobox.liste} className="divide-y divide-line">
                     {resultats.map((r, i) => (
                       <li key={r.immatriculation} {...combobox.option(i)} className={combobox.actif === i ? "bg-surface-2" : undefined}>
                         <button type="button" tabIndex={-1} className="w-full text-left px-3 py-2 hover:bg-surface-2 flex flex-col gap-0.5" onClick={() => choisir(r)}>
@@ -126,6 +133,11 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
                       </li>
                     ))}
                   </ul>
+                  {/* Pas d'option du registre qui convienne : on garde la saisie libre. */}
+                  <button type="button" className="w-full border-t border-line px-3 py-2 text-left text-meta text-ink-2 hover:bg-surface-2 hover:text-ink" onClick={() => setResultats([])}>
+                    Aucun ne correspond : garder l&apos;adresse telle que saisie
+                  </button>
+                  </div>
                 )}
               </div>
             </Field>
@@ -138,8 +150,15 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
                 {choisi.finMandatISO && ` (${choisi.mandat?.toLowerCase() ?? "mandat"}, fin ${formatJour(choisi.finMandatISO)})`}
               </p>
             ) : (
-              <p className="text-meta text-ink-3">Tapez le numéro, la voie et la commune : si l&apos;immeuble est au registre, ses lots et son syndic se remplissent.</p>
+              <p className="text-meta text-ink-3">
+                Tapez le numéro, la voie et la commune : si l&apos;immeuble est au registre national, choisissez-le dans la liste, ses lots et son syndic se
+                remplissent. Sinon, l&apos;adresse se saisit librement. Immeuble neuf dont l&apos;adresse n&apos;est pas encore connue : laissez-la vide.
+              </p>
             )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Field label="Code postal" htmlFor="np-cp"><Input id="np-cp" value={codePostal} onChange={(e) => setCodePostal(e.target.value)} inputMode="numeric" /></Field>
+              <Field label="Commune" htmlFor="np-commune"><Input id="np-commune" value={commune} onChange={(e) => setCommune(e.target.value)} /></Field>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -175,9 +194,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
             <summary className="cursor-pointer text-body text-ink-2 hover:text-ink select-none">
               Si la personne le sait : lots, prochaine AG, clôture comptable, syndic actuel
             </summary>
-            <div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-6">
-              <Field label="Code postal" htmlFor="np-cp"><Input id="np-cp" value={codePostal} onChange={(e) => setCodePostal(e.target.value)} /></Field>
-              <Field label="Commune" htmlFor="np-commune"><Input id="np-commune" value={commune} onChange={(e) => setCommune(e.target.value)} /></Field>
+            <div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
               <Field label="Lots principaux" htmlFor="np-lots"><Input id="np-lots" inputMode="numeric" value={lots} onChange={(e) => setLots(e.target.value)} className="tabular-nums" /></Field>
               <Field label="Syndic actuel" htmlFor="np-syndic"><Input id="np-syndic" value={syndic} onChange={(e) => setSyndic(e.target.value)} /></Field>
               <Field label="Prochaine AG" htmlFor="np-ag"><Input id="np-ag" type="date" value={prochaineAg} onChange={(e) => setProchaineAg(e.target.value)} /></Field>
@@ -197,7 +214,7 @@ export function SaisieRapide({ agences, agenceParDefaut }: { agences: string[]; 
         </CardBody>
       </Card>
       <Callout ton="neutral">
-        <strong>Au téléphone, demandez</strong> : l&apos;adresse exacte, un téléphone ou un e-mail pour rappeler, et si possible le nombre de lots, le
+        <strong>Au téléphone, demandez</strong> : l&apos;adresse exacte (si elle existe déjà), un téléphone ou un e-mail pour rappeler, et si possible le nombre de lots, le
         syndic en place et la date de la prochaine AG. Le reste (visite, prix) revient au gestionnaire.
       </Callout>
     </div>

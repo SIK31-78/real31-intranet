@@ -89,7 +89,8 @@ export async function creerProposition(s: SaisieRapide): Promise<Proposition> {
     const r = await getRegistreCoprosProvider().get(s.immatriculation);
     if (r) immeuble = immeubleDepuisRegistre(r, immeuble);
   }
-  if (!immeuble.adresse?.trim()) throw new Error("L'adresse de l'immeuble est obligatoire.");
+  // Pas d'adresse obligatoire : un immeuble neuf n'en a pas toujours une (remontee du
+  // 14/10/2026). Elle s'affiche alors « Adresse à préciser ».
   // Sans moyen de rappeler, la fiche ne sert a rien (Sekou, 15/09/2026).
   if (!s.contact.telephone?.trim() && !s.contact.email?.trim()) throw new Error("Un téléphone ou un e-mail du contact est obligatoire.");
   const maintenant = new Date().toISOString();

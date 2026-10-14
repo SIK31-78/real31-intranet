@@ -11,7 +11,7 @@ import { finDeCycle } from "@/lib/domain/contrat/cycle-contrat";
 import type { CoproContrat, CycleContratChamps } from "@/lib/domain/contrat/champs-contrat";
 import { RESSOURCES_REAL31 } from "@/lib/domain/salles-reunion";
 import { COMMUNE_PAR_CODE, normaliser } from "./rapprochement";
-import type { Proposition } from "./proposition";
+import { libelleAdresse, type Proposition } from "./proposition";
 
 /**
  * L'adresse telle qu'elle ira sur le contrat : sans le suffixe de commune ou de code
@@ -43,13 +43,17 @@ export const INCLUS_OFFRE = {
   nbVisites: 1,
 } as const;
 
+/** Ce que le contrat imprime a la place d'une valeur inconnue : une ligne a completer a la main. */
+export const BLANC_A_COMPLETER = "______________________________";
+
 /** L'immeuble d'une proposition, vu par le gabarit du contrat. */
 export function coproContratDepuisProposition(p: Proposition): CoproContrat {
   const im = p.immeuble;
   return {
     code: "",
-    nom: im.adresse,
-    adresse1: adressePourContrat(im.adresse, im.commune),
+    nom: libelleAdresse(im),
+    // Immeuble neuf sans adresse connue : une ligne a completer a la main, pas un trou.
+    adresse1: im.adresse?.trim() ? adressePourContrat(im.adresse, im.commune) : BLANC_A_COMPLETER,
     adresse2: "",
     adresse3: "",
     codePostal: im.codePostal ?? "",

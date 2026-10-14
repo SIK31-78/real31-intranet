@@ -105,7 +105,8 @@ export async function creerPropositionAction(input: unknown): Promise<Res<{ id: 
   if (!g) return { ok: false, erreur: "Session expirée." };
   try {
     const cree = await creerProposition({
-      immeuble: epurer(p.data.immeuble),
+      // `epurer` retirerait une adresse vide : la cle reste, le domaine la veut toujours.
+      immeuble: { ...epurer(p.data.immeuble), adresse: p.data.immeuble.adresse },
       contact: epurer(p.data.contact),
       ...(p.data.origine ? { origine: p.data.origine } : {}),
       ...(p.data.agence ? { agence: p.data.agence } : {}),
@@ -165,7 +166,7 @@ export async function mettreAJourPropositionAction(input: unknown): Promise<Res>
       id,
       {
         ...maj,
-        ...(maj.immeuble ? { immeuble: epurer(maj.immeuble) } : {}),
+        ...(maj.immeuble ? { immeuble: { ...epurer(maj.immeuble), adresse: maj.immeuble.adresse } } : {}),
         ...(maj.contact ? { contact: epurer(maj.contact) } : {}),
         ...(maj.prix ? { prix: epurer(maj.prix) } : {}),
       },

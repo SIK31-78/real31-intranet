@@ -5,6 +5,7 @@ import { BoutonPdf } from "@/components/contrat/bouton-pdf";
 import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
+import { libelleAdresse } from "@/lib/domain/proposition/proposition";
 import { DUREE_MAX_CONTRAT_MOIS, DUREES_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
 import { formatJour } from "@/lib/services/facturation/format";
 import { avertissementSiegeAgence } from "@/lib/domain/salles-reunion";
@@ -44,11 +45,11 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
   const dureeMois = options.dureeMois ?? 12;
 
   return (
-    <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${p.immeuble.adresse} · Offre`}>
+    <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${libelleAdresse(p.immeuble)} · Offre`}>
       <Page largeur="travail">
         <PageHeader
           titre="Préparer l'offre"
-          eyebrow={[p.immeuble.adresse, p.immeuble.commune, p.agence ? `agence ${p.agence}` : null].filter(Boolean).join(" · ")}
+          eyebrow={[libelleAdresse(p.immeuble), p.immeuble.commune, p.agence ? `agence ${p.agence}` : null].filter(Boolean).join(" · ")}
           meta={
             p.prix.honorairesTtc !== undefined
               ? `${p.prix.honorairesTtc.toLocaleString("fr-FR")} € TTC par an · ${p.immeuble.lotsPrincipaux ?? "?"} lots principaux · frais postaux ${p.prix.fraisPostauxReels ?? true ? "au réel" : "au forfait"}`

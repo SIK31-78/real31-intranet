@@ -253,7 +253,7 @@ export function FicheProposition({
             <Card>
               <CardBody className="flex flex-col gap-4">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-                  <Field label="Adresse" htmlFor="pi-adresse" className="col-span-2 sm:col-span-4"><Input id="pi-adresse" value={im.adresse} onChange={(e) => champ("adresse", e.target.value)} /></Field>
+                  <Field label="Adresse" htmlFor="pi-adresse" className="col-span-2 sm:col-span-4"><Input id="pi-adresse" value={im.adresse} onChange={(e) => champ("adresse", e.target.value)} placeholder="à préciser (immeuble neuf)" /></Field>
                   <Field label="Code postal" htmlFor="pi-cp"><Input id="pi-cp" value={im.codePostal ?? ""} onChange={(e) => champ("codePostal", e.target.value)} /></Field>
                   <Field label="Commune" htmlFor="pi-commune"><Input id="pi-commune" value={im.commune ?? ""} onChange={(e) => champ("commune", e.target.value)} /></Field>
                 </div>

@@ -48,7 +48,8 @@ function versDomaine(r: Row): Proposition {
     ...(r.agence ? { agence: r.agence } : {}),
     ...(r.gestionnaire ? { gestionnaire: r.gestionnaire } : {}),
     ...(r.origine ? { origine: r.origine } : {}),
-    immeuble: r.immeuble ?? { adresse: "" },
+    // L'adresse peut etre vide (immeuble neuf) : toujours une chaine, jamais absente.
+    immeuble: { ...r.immeuble, adresse: r.immeuble?.adresse ?? "" },
     contact: r.contact ?? {},
     prix: r.prix ?? {},
     ...(jour(r.premier_contact) ? { premierContactISO: jour(r.premier_contact) } : {}),

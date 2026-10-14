@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adressePourContrat, coproContratDepuisProposition, cycleOffre, decouperMailOffre, lieuxAgAgence, obstaclesOffre, SUJET_OFFRE, texteMailOffre } from "./offre";
+import { adressePourContrat, BLANC_A_COMPLETER, coproContratDepuisProposition, cycleOffre, decouperMailOffre, lieuxAgAgence, obstaclesOffre, SUJET_OFFRE, texteMailOffre } from "./offre";
 import type { Proposition } from "./proposition";
 
 const base: Proposition = {
@@ -45,6 +45,10 @@ describe("contrat prospect", () => {
     const c = coproContratDepuisProposition(base);
     expect(c).toMatchObject({ adresse1: "16 rue Sébastopol", codePostal: "92400", ville: "Courbevoie", immatriculation: "AB0175828", agence: "LGC", lotsPrincipaux: 8, lotsAutres: 4, nbVisites: 1, dureeAgHeures: 2, nbCs: 1, dureeCsHeures: 1, finMaxAgHeure: 20, assurance: "" });
     expect(coproContratDepuisProposition({ ...base, immeuble: { ...base.immeuble, assurance: "AXA", assuranceDateISO: "2024-01-01" } })).toMatchObject({ assurance: "AXA", assuranceDateISO: "2024-01-01" });
+  });
+  it("immeuble neuf sans adresse : « Adresse à préciser » et une ligne a completer", () => {
+    const c = coproContratDepuisProposition({ ...base, immeuble: { ...base.immeuble, adresse: "  " } });
+    expect(c).toMatchObject({ nom: "Adresse à préciser", adresse1: BLANC_A_COMPLETER, codePostal: "92400", ville: "Courbevoie" });
   });
   it("retire le suffixe de commune ou d'agence de l'adresse", () => {
     expect(adressePourContrat("16, rue Sébastopol - Courbevoie", "Courbevoie")).toBe("16, rue Sébastopol");

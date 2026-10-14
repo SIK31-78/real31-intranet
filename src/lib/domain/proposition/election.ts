@@ -98,6 +98,8 @@ export function obstaclesElection(p: Proposition, choix: Pick<ChoixElection, "co
   if (!/^\d{4}-\d{2}-\d{2}$/.test(choix.debutISO)) m.push("la date de prise en gestion");
   if (!p.immeuble.lotsPrincipaux) m.push("le nombre de lots principaux");
   if (p.prix.honorairesTtc === undefined) m.push("les honoraires retenus");
+  // Une proposition peut naitre sans adresse (immeuble neuf), pas la copropriete du referentiel.
+  if (!p.immeuble.adresse?.trim()) m.push("l'adresse de l'immeuble");
   if (!p.immeuble.codePostal?.trim() || !p.immeuble.commune?.trim()) m.push("le code postal et la commune");
   return m;
 }

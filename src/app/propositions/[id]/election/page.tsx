@@ -5,6 +5,7 @@ import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutElire, profilDe } from "@/lib/auth/roles";
 import { preparerElection } from "@/lib/services/proposition/election";
 import { adressePourContrat } from "@/lib/domain/proposition/offre";
+import { libelleAdresse } from "@/lib/domain/proposition/proposition";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
@@ -34,11 +35,11 @@ export default async function ElectionPage({ params }: { params: Promise<{ id: s
   const gestionnaireParDefaut = prep.gestionnaires.find((x) => x.nomComplet === p.gestionnaire)?.id ?? g.id;
 
   return (
-    <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${p.immeuble.adresse} · Élection`}>
+    <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${libelleAdresse(p.immeuble)} · Élection`}>
       <Page largeur="lecture">
         <PageHeader
           titre="Créer la copropriété"
-          eyebrow={[p.immeuble.adresse, p.immeuble.commune, p.agence ? `agence ${p.agence}` : null].filter(Boolean).join(" · ")}
+          eyebrow={[libelleAdresse(p.immeuble), p.immeuble.commune, p.agence ? `agence ${p.agence}` : null].filter(Boolean).join(" · ")}
           meta={`${p.immeuble.lotsPrincipaux ?? "?"} lots principaux · ${p.prix.honorairesTtc !== undefined ? `${p.prix.honorairesTtc.toLocaleString("fr-FR")} € TTC par an` : "prix non enregistré"}`}
           actions={<ButtonLink href={`/propositions/${p.id}`} variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Fiche</ButtonLink>}
           aide={
@@ -64,7 +65,7 @@ export default async function ElectionPage({ params }: { params: Promise<{ id: s
             gestionnaires={prep.gestionnaires}
             agenceParDefaut={agenceParDefaut}
             gestionnaireParDefaut={gestionnaireParDefaut}
-            immeuble={{ adresse: adressePourContrat(p.immeuble.adresse, p.immeuble.commune), codePostal: p.immeuble.codePostal, commune: p.immeuble.commune, immatriculation: p.immeuble.immatriculation, lots: p.immeuble.lotsPrincipaux, stationnements: p.immeuble.lotsStationnement, syndicActuel: p.immeuble.syndicActuel }}
+            immeuble={{ adresse: adressePourContrat(p.immeuble.adresse, p.immeuble.commune) || libelleAdresse(p.immeuble), codePostal: p.immeuble.codePostal, commune: p.immeuble.commune, immatriculation: p.immeuble.immatriculation, lots: p.immeuble.lotsPrincipaux, stationnements: p.immeuble.lotsStationnement, syndicActuel: p.immeuble.syndicActuel }}
             prix={{ honorairesTtc: p.prix.honorairesTtc, fraisPostauxReels: p.prix.fraisPostauxReels ?? true, timbresTtc: p.prix.timbresTtc }}
             pennylaneDisponible={Boolean(process.env.PENNYLANE_API_KEY)}
           />

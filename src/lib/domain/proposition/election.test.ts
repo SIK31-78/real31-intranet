@@ -41,6 +41,8 @@ describe("obstaclesElection", () => {
       "la date de prise en gestion",
     ]);
     expect(obstaclesElection(p, { code: "303", nomUsuel: "x", debutISO: "2027-01-01" }, [])).toEqual(["le code doit être S suivi de trois chiffres (S303)"]);
+    // Une proposition nait sans adresse (immeuble neuf), la copropriete non.
+    expect(obstaclesElection({ ...p, immeuble: { ...p.immeuble, adresse: "" } }, { code: "S303", nomUsuel: "x", debutISO: "2027-01-01" }, [])).toEqual(["l'adresse de l'immeuble"]);
   });
 });
 

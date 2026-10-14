@@ -5,7 +5,7 @@ import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { MESSAGE_RESERVE_DIRECTION, peutCompleterProposition, peutElire, peutFaireOffre, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { getAgenceRepository, getGestionnaireRepository } from "@/lib/adapters/router";
 import { calculerPrix, contexteImmeuble, getProposition, suggererRapprochement } from "@/lib/services/proposition/propositions";
-import { LIBELLE_STATUT, STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
+import { LIBELLE_STATUT, libelleAdresse, STATUTS_OUVERTS } from "@/lib/domain/proposition/proposition";
 import { obstaclesOffre } from "@/lib/domain/proposition/offre";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -46,10 +46,10 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
   ].filter(Boolean);
 
   return (
-    <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${p.immeuble.adresse}`}>
+    <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${libelleAdresse(p.immeuble)}`}>
       <Page largeur="travail">
         <PageHeader
-          titre={p.immeuble.adresse}
+          titre={libelleAdresse(p.immeuble)}
           eyebrow={[p.immeuble.codePostal, p.immeuble.commune, p.agence ? `agence ${p.agence}` : null, p.gestionnaire].filter(Boolean).join(" · ")}
           badge={<Badge ton={p.statut === "elu" ? "ok" : p.statut.startsWith("refuse") ? "err" : p.statut === "accepte_cs" ? "warn" : "info"} size="md">{LIBELLE_STATUT[p.statut]}</Badge>}
           meta={meta.length > 0 ? meta.join(" · ") : undefined}

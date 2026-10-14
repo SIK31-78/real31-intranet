@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutCompleterProposition, profilDe } from "@/lib/auth/roles";
 import { propositionsARapprocher } from "@/lib/services/proposition/propositions";
-import { LIBELLE_STATUT } from "@/lib/domain/proposition/proposition";
+import { LIBELLE_STATUT, libelleAdresse } from "@/lib/domain/proposition/proposition";
 import { formatJour } from "@/lib/services/facturation/format";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -56,7 +56,7 @@ export default async function ARapprocherPage() {
                 <CardBody className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="flex items-baseline gap-2 min-w-0">
-                      <Link href={`/propositions/${p.id}`} className="text-body font-medium text-ink hover:underline truncate">{p.immeuble.adresse}</Link>
+                      <Link href={`/propositions/${p.id}`} className="text-body font-medium text-ink hover:underline truncate">{libelleAdresse(p.immeuble)}</Link>
                       <span className="text-meta text-ink-3">
                         {[p.immeuble.commune, p.immeuble.lotsPrincipaux !== undefined ? `${p.immeuble.lotsPrincipaux} lots` : null, p.contact.nom, p.agence].filter(Boolean).join(" · ")}
                         {p.premierContactISO && ` · ${formatJour(p.premierContactISO)}`}
@@ -80,7 +80,7 @@ export default async function ARapprocherPage() {
               </p>
               <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta">
                 {sans.map(({ proposition: p }) => (
-                  <li key={p.id}><Link href={`/propositions/${p.id}`} className="text-ink-2 hover:text-ink hover:underline">{p.immeuble.adresse}</Link></li>
+                  <li key={p.id}><Link href={`/propositions/${p.id}`} className="text-ink-2 hover:text-ink hover:underline">{libelleAdresse(p.immeuble)}</Link></li>
                 ))}
               </ul>
             </CardBody>
