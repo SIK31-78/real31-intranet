@@ -5,7 +5,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
-import { nomFichierContrat, pdfContrat } from "@/lib/services/contrat/pdf-contrat";
+import { pdfContrat } from "@/lib/services/contrat/pdf-contrat";
+import { nomFichierOffre } from "@/lib/domain/proposition/offre";
 import { reponseEchecPdf, reponsePdf } from "@/lib/services/pdf/reponse-pdf";
 import { lireOptionsOffre } from "../options";
 
@@ -31,7 +32,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return new NextResponse(offre.erreurContrat ?? `Il manque encore : ${offre.obstacles.join(", ")}.`, { status: 409 });
   }
   try {
-    return reponsePdf(await pdfContrat(offre.champs), nomFichierContrat(offre.champs));
+    // Date de generation dans le nom, pas celle de l'AG (souvent en blanc) : cf. nomFichierOffre.
+    return reponsePdf(await pdfContrat(offre.champs), nomFichierOffre(offre.champs, new Date().toISOString().slice(0, 10)));
   } catch (e) {
     return reponseEchecPdf(e, "offre.pdf");
   }

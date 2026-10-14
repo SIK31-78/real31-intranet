@@ -12,7 +12,7 @@ import {
   type PrestationContrat,
 } from "./champs-contrat";
 import { GABARIT_DROITE, GABARIT_GAUCHE, PLACEHOLDERS_GABARIT } from "./gabarit-contrat";
-import { placeholdersNonResolus, remplirTexte, tableRemplacement } from "./remplir-gabarit";
+import { DATE_A_COMPLETER, placeholdersNonResolus, remplirTexte, tableRemplacement } from "./remplir-gabarit";
 
 const COPRO: CoproContrat = {
   code: "S215",
@@ -103,6 +103,13 @@ describe("remplirTexte", () => {
     expect(
       remplirTexte("Il prendra effet le [DebutContrat] et prendra fin le [FinContrat].", table),
     ).toBe("Il prendra effet le 01/07/2026 et prendra fin le 30/06/2027.");
+  });
+
+  it("une date du cycle inconnue s'imprime en blanc a completer, jamais en trou", () => {
+    const t = tableRemplacement({ ...champs(), dateAgISO: "", debutISO: "", finISO: "" });
+    expect(remplirTexte("Fait le [DateAG]. Effet le [DebutContrat], fin le [FinContrat].", t)).toBe(
+      `Fait le ${DATE_A_COMPLETER}. Effet le ${DATE_A_COMPLETER}, fin le ${DATE_A_COMPLETER}.`,
+    );
   });
 
   it("laisse VISIBLE un placeholder inconnu au lieu de creuser un trou", () => {

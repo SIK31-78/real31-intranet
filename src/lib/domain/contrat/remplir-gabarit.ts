@@ -23,6 +23,16 @@ function jjmmaaaa(iso: string): string {
   return `${j}/${m}/${a}`;
 }
 
+/**
+ * Une date du cycle pas encore connue (offre a un prospect) : un blanc a completer a la
+ * main, jamais une case vide qui ferait lire « signé ce jour, le  à ».
+ */
+export const DATE_A_COMPLETER = "____/____/________";
+
+function dateOuBlanc(iso: string): string {
+  return iso.trim() ? jjmmaaaa(iso) : DATE_A_COMPLETER;
+}
+
 /** Un nombre absent s'imprime "0", jamais "null" ni une case vide sur un contrat. */
 function nombre(v: number | null | undefined): string {
   return v === null || v === undefined ? "0" : String(v);
@@ -53,9 +63,9 @@ export function tableRemplacement(champs: ChampsContrat): Record<string, string>
     "[Coproprietes.NbLot]": nombre(copro.lotsPrincipaux),
     "[Coproprietes.NbAutreLot]": nombre(copro.lotsAutres),
     "[Coproprietes.FinMaxAG]": nombre(copro.finMaxAgHeure),
-    "[DateAG]": jjmmaaaa(champs.dateAgISO),
-    "[DebutContrat]": jjmmaaaa(champs.debutISO),
-    "[FinContrat]": jjmmaaaa(champs.finISO),
+    "[DateAG]": dateOuBlanc(champs.dateAgISO),
+    "[DebutContrat]": dateOuBlanc(champs.debutISO),
+    "[FinContrat]": dateOuBlanc(champs.finISO),
     "[DureeContrat]": champs.dureeTexte,
     "[HonoGestionHT]": champs.honorairesGestionHt,
     "[FormulaireContratSyndic.HonoGestion]": String(champs.honorairesGestionTtc),

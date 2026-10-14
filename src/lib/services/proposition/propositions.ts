@@ -4,7 +4,7 @@
 import { getCoproRepository, getFacturationRepository, getPropositionRepository, getRegistreCoprosProvider } from "@/lib/adapters/router";
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 import { analyserAdresse, immatriculationDansTexte, rapprocher, requeteRegistre, type CandidatRegistre } from "@/lib/domain/proposition/rapprochement";
-import { coproContratDepuisProposition, cycleOffre, obstaclesOffre, texteMailOffre, type OptionsOffre } from "@/lib/domain/proposition/offre";
+import { coproContratDepuisProposition, cycleOffre, obstaclesOffre, resumeCycleOffre, texteMailOffre, type OptionsOffre } from "@/lib/domain/proposition/offre";
 import { assemblerChampsContrat, PRESTATIONS_CONTRAT, type ChampsContrat, type PrestationContrat } from "@/lib/domain/contrat/champs-contrat";
 import { motifRefusCycle } from "@/lib/domain/contrat/cycle-contrat";
 import { signalerSiegeAgenceInconnu } from "@/lib/services/contrat/signaler-siege-agence";
@@ -337,9 +337,11 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
   const mail = texteMailOffre(p, cycle, signataire);
   if (obstacles.length > 0) return { proposition: p, obstacles, mail };
 
-  const refus = motifRefusCycle(cycle.debutISO, cycle.finISO);
+  // Debut inconnu : debut et fin partent en blanc, il n'y a pas de cycle a controler.
+  const refus = cycle.debutISO ? motifRefusCycle(cycle.debutISO, cycle.finISO) : null;
   if (refus) return { proposition: p, obstacles, mail, erreurContrat: `Cycle impossible : ${refus}.` };
-  const annee = Number(cycle.dateAgISO.slice(0, 4));
+  // Le bareme de l'annee de l'AG ; AG pas encore datee : celui de l'annee en cours.
+  const annee = Number((cycle.dateAgISO || aujourdHui).slice(0, 4));
   const lignes = await getFacturationRepository().listerBareme(annee);
   const parId = new Map(lignes.map((l) => [l.identifiantPrestation, l]));
   const manquantes = PRESTATIONS_CONTRAT.filter((x) => !parId.has(x));
@@ -355,7 +357,7 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
   // Agence sans siege connu (propositions historiques « BZS », « JF ») : le contrat
   // imprimerait un blanc. Signale cote serveur ; la page de l'offre l'affiche (REA-273).
   signalerSiegeAgenceInconnu(copro.agence, { proposition: p.id });
-  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(copro, cycle, tarifs, p.prix.conditionsParticulieres) };
+  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(copro, { ...cycle, anneeBareme: annee }, tarifs, p.prix.conditionsParticulieres) };
 }
 
 /** L'offre est partie : la proposition en garde la date, le cycle propose et une ligne de journal. */
@@ -368,13 +370,14 @@ export async function marquerOffreRemise(id: string, options: OptionsOffre, par:
   const n: Proposition = {
     ...p,
     remisePropositionISO: aujourdHui,
-    ...(p.agPrevueISO ? {} : { agPrevueISO: cycle.dateAgISO }),
+    // Une AG en blanc ne s'ecrit pas (la colonne est une date).
+    ...(p.agPrevueISO || !cycle.dateAgISO ? {} : { agPrevueISO: cycle.dateAgISO }),
     journal: [
       ...p.journal,
       {
         quandISO: new Date().toISOString(),
         par,
-        texte: `Offre remise : ${(p.prix.honorairesTtc ?? 0).toLocaleString("fr-FR")} € TTC par an, contrat du ${cycle.debutISO.split("-").reverse().join("/")} au ${cycle.finISO.split("-").reverse().join("/")}, AG du ${cycle.dateAgISO.split("-").reverse().join("/")}.${detail ? ` Offre ${detail}.` : ""}`,
+        texte: `Offre remise : ${(p.prix.honorairesTtc ?? 0).toLocaleString("fr-FR")} € TTC par an, ${resumeCycleOffre(cycle)}.${detail ? ` Offre ${detail}.` : ""}`,
       },
     ],
   };

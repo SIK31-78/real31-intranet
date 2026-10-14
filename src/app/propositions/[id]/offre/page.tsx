@@ -96,8 +96,8 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
             <div className="divide-y divide-line">
               <form method="get" className="flex flex-col gap-3 p-4">
                 <h2 className="text-body font-medium text-ink">Le contrat</h2>
-                <Field label="AG qui votera le contrat" htmlFor="o-ag"><Input id="o-ag" name="ag" type="date" defaultValue={champs?.dateAgISO ?? options.dateAgISO ?? ""} /></Field>
-                <Field label="Début du mandat" htmlFor="o-debut" hint="lendemain de la fin du mandat en place, sinon le jour de l'AG"><Input id="o-debut" name="debut" type="date" defaultValue={champs?.debutISO ?? options.debutISO ?? ""} /></Field>
+                <Field label="AG qui votera le contrat" htmlFor="o-ag" hint="vide : en blanc sur le contrat, à compléter"><Input id="o-ag" name="ag" type="date" defaultValue={champs?.dateAgISO ?? options.dateAgISO ?? ""} /></Field>
+                <Field label="Début du mandat" htmlFor="o-debut" hint="lendemain de la fin du mandat en place, sinon le jour de l'AG ; vide : en blanc"><Input id="o-debut" name="debut" type="date" defaultValue={champs?.debutISO ?? options.debutISO ?? ""} /></Field>
                 {/* Duree libre en mois, 3 ans au plus (art. 28 du decret de 1967), comme sur
                     /contrat ; les trois durees courantes en suggestions. */}
                 <Field label="Durée (mois)" htmlFor="o-duree" hint={`1 an = 12, 2 ans = 24, 15 mois pour une reprise ; ${DUREE_MAX_CONTRAT_MOIS} au plus`}>
@@ -109,7 +109,10 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
                 <Button type="submit" variant="secondary" size="sm">Recalculer</Button>
                 {champs && (
                   <DataList align="left">
-                    <DataRow label="Contrat">du {formatJour(champs.debutISO)} au {formatJour(champs.finISO)} ({champs.dureeTexte})</DataRow>
+                    <DataRow label="Contrat">
+                      {champs.debutISO ? `du ${formatJour(champs.debutISO)} au ${formatJour(champs.finISO)}` : "dates en blanc"} ({champs.dureeTexte})
+                    </DataRow>
+                    {!champs.dateAgISO && <DataRow label="AG">en blanc, à compléter</DataRow>}
                     <DataRow label="Honoraires">{champs.honorairesGestionTtc.toLocaleString("fr-FR")} € TTC ({champs.honorairesGestionHt} € HT)</DataRow>
                     <DataRow label="Frais postaux">{champs.fraisPostauxReels ? "au réel" : `forfait ${champs.forfaitPostauxTtc.toLocaleString("fr-FR")} € TTC`}</DataRow>
                     <DataRow label="Barème">{champs.anneeBareme}</DataRow>

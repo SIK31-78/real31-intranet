@@ -6,9 +6,9 @@
 
 import "server-only";
 import { getMailOutboundProvider } from "@/lib/adapters/router";
-import { decouperMailOffre, type OptionsOffre } from "@/lib/domain/proposition/offre";
+import { decouperMailOffre, nomFichierOffre, type OptionsOffre } from "@/lib/domain/proposition/offre";
 import type { Proposition } from "@/lib/domain/proposition/proposition";
-import { nomFichierContrat, pdfContrat } from "@/lib/services/contrat/pdf-contrat";
+import { pdfContrat } from "@/lib/services/contrat/pdf-contrat";
 import { marquerOffreRemise, preparerOffre } from "./propositions";
 
 export interface EnvoiOffre {
@@ -31,7 +31,8 @@ export async function envoyerOffre(
   if (!offre.champs) throw new Error(offre.erreurContrat ?? `Il manque encore : ${offre.obstacles.join(", ")}.`);
 
   const pdf = await pdfContrat(offre.champs);
-  const pieceJointe = nomFichierContrat(offre.champs);
+  // Date du jour dans le nom : les versions envoyees au conseil syndical se distinguent.
+  const pieceJointe = nomFichierOffre(offre.champs, new Date().toISOString().slice(0, 10));
   const { sujet, corps } = decouperMailOffre(texteMail);
   await getMailOutboundProvider().envoyerNeuf({
     boite: expediteur.email,

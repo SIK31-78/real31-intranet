@@ -8,7 +8,7 @@
 // Fonctions pures : aucune lecture de base ni d'horloge.
 
 import { finDeCycle } from "@/lib/domain/contrat/cycle-contrat";
-import type { CoproContrat, CycleContratChamps } from "@/lib/domain/contrat/champs-contrat";
+import type { ChampsContrat, CoproContrat, CycleContratChamps } from "@/lib/domain/contrat/champs-contrat";
 import { RESSOURCES_REAL31 } from "@/lib/domain/salles-reunion";
 import { COMMUNE_PAR_CODE, normaliser } from "./rapprochement";
 import { libelleAdresse, type Proposition } from "./proposition";
@@ -75,9 +75,9 @@ export function coproContratDepuisProposition(p: Proposition): CoproContrat {
 }
 
 export interface OptionsOffre {
-  /** L'AG qui votera le contrat. Defaut : l'AG prevue, sinon la prochaine AG de la fiche. */
+  /** L'AG qui votera le contrat. Defaut : l'AG prevue, sinon la prochaine AG de la fiche, sinon en blanc. */
   dateAgISO?: string;
-  /** Debut du mandat. Defaut : lendemain de la fin du mandat du syndic en place, sinon le jour de l'AG. */
+  /** Debut du mandat. Defaut : lendemain de la fin du mandat du syndic en place, sinon le jour de l'AG, sinon en blanc. */
   debutISO?: string;
   /** Duree, en mois. Defaut : 12. */
   dureeMois?: number;
@@ -94,17 +94,24 @@ function lendemain(iso: string): string {
  * Le cycle propose dans l'offre. La duree est celle que Sekou a demandee au contrat
  * (16/09/2026) ; le debut suit le mandat en place quand on le connait (le registre le
  * donne), sinon l'AG elle-meme.
+ *
+ * RIEN N'EST INVENTE (direction, 14/10/2026) : sans AG connue (ni saisie, ni prevue, ni
+ * sur la fiche), la date d'AG reste en blanc ; sans debut connu, le debut et la fin aussi.
+ * L'AG retombait sur la date du jour et le contrat partait avec des dates fausses.
+ * `aujourdHuiISO` ne sert plus qu'a ecarter un mandat en place deja echu.
  */
 export function cycleOffre(p: Proposition, options: OptionsOffre, aujourdHuiISO: string): CycleContratChamps {
-  const dateAgISO = options.dateAgISO ?? p.agPrevueISO ?? p.immeuble.prochaineAgISO ?? aujourdHuiISO;
-  const debutISO =
-    options.debutISO ??
-    (p.immeuble.finMandatActuelISO && p.immeuble.finMandatActuelISO >= dateAgISO ? lendemain(p.immeuble.finMandatActuelISO) : dateAgISO);
-  const finISO = finDeCycle(debutISO, options.dureeMois ?? 12);
+  const dureeMois = options.dureeMois ?? 12;
+  const dateAgISO = options.dateAgISO ?? p.agPrevueISO ?? p.immeuble.prochaineAgISO ?? "";
+  const finEnPlace = p.immeuble.finMandatActuelISO;
+  // Le mandat en place compte s'il court encore a l'AG (ou, AG non datee, aujourd'hui).
+  const debutISO = options.debutISO ?? (finEnPlace && finEnPlace >= (dateAgISO || aujourdHuiISO) ? lendemain(finEnPlace) : dateAgISO);
+  const finISO = debutISO ? finDeCycle(debutISO, dureeMois) : "";
   return {
     dateAgISO,
     debutISO,
     finISO,
+    dureeMois,
     honorairesGestionTtc: p.prix.honorairesTtc ?? 0,
     forfaitPostauxTtc: p.prix.fraisPostauxReels ? 0 : (p.prix.timbresTtc ?? 0),
     fraisPostauxReels: p.prix.fraisPostauxReels ?? true,
@@ -147,7 +154,8 @@ export function texteMailOffre(p: Proposition, cycle: CycleContratChamps, signat
     ? "Les frais postaux sont refacturés au réel, sur justificatifs, sans marge."
     : `Forfait frais postaux : ${euros(cycle.forfaitPostauxTtc)} par an (réduit de 13 € par copropriétaire optant pour la dématérialisation).`;
   const lots = p.immeuble.lotsPrincipaux ? ` pour ${p.immeuble.lotsPrincipaux} lots principaux` : "";
-  const duree = cycle.debutISO && cycle.finISO ? ` (contrat du ${jj(cycle.debutISO)} au ${jj(cycle.finISO)})` : "";
+  const duree =
+    cycle.debutISO && cycle.finISO ? ` (contrat du ${jj(cycle.debutISO)} au ${jj(cycle.finISO)})` : cycle.dureeMois ? ` (contrat de ${dureeEnClair(cycle.dureeMois)})` : "";
 
   return [
     `Objet : Votre proposition de contrat de syndic – REAL 31`,
@@ -203,6 +211,34 @@ export function texteMailOffre(p: Proposition, cycle: CycleContratChamps, signat
 function jj(iso: string): string {
   const [a, m, j] = iso.split("-");
   return `${j}/${m}/${a}`;
+}
+
+/** 12 -> « 1 an », 24 -> « 2 ans », 15 -> « 15 mois ». */
+export function dureeEnClair(mois: number): string {
+  return mois % 12 === 0 ? `${mois / 12} an${mois > 12 ? "s" : ""}` : `${mois} mois`;
+}
+
+/**
+ * Le cycle d'une offre en une phrase de journal : les dates connues, « à préciser » sinon.
+ * « contrat du 01/01/2027 au 31/12/2027, AG du 20/11/2026 ».
+ */
+export function resumeCycleOffre(cycle: Pick<CycleContratChamps, "dateAgISO" | "debutISO" | "finISO" | "dureeMois">): string {
+  const contrat =
+    cycle.debutISO && cycle.finISO
+      ? `contrat du ${jj(cycle.debutISO)} au ${jj(cycle.finISO)}`
+      : `contrat${cycle.dureeMois ? ` de ${dureeEnClair(cycle.dureeMois)}` : ""}, début à préciser`;
+  return `${contrat}, ${cycle.dateAgISO ? `AG du ${jj(cycle.dateAgISO)}` : "AG pas encore datée"}`;
+}
+
+/**
+ * Nom du PDF d'une OFFRE : la date du jour de generation, pas celle de l'AG (souvent en
+ * blanc a ce stade). Plusieurs versions partent au conseil syndical : la date les range
+ * et les distingue. « Proposition de contrat de syndic - 16 rue Sébastopol - 2026-10-14.pdf ».
+ * Distinct de `nomFichierContrat` (/contrat), qui reste date de l'AG.
+ */
+export function nomFichierOffre(champs: Pick<ChampsContrat, "copro">, jourISO: string): string {
+  const sujet = (champs.copro.nom || "copropriete").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+  return `Proposition de contrat de syndic - ${sujet} - ${jourISO}.pdf`;
 }
 
 export const SUJET_OFFRE = "Votre proposition de contrat de syndic – REAL 31";

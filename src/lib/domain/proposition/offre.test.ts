@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adressePourContrat, BLANC_A_COMPLETER, coproContratDepuisProposition, cycleOffre, decouperMailOffre, lieuxAgAgence, obstaclesOffre, SUJET_OFFRE, texteMailOffre } from "./offre";
+import { adressePourContrat, BLANC_A_COMPLETER, coproContratDepuisProposition, cycleOffre, decouperMailOffre, lieuxAgAgence, nomFichierOffre, obstaclesOffre, resumeCycleOffre, SUJET_OFFRE, texteMailOffre } from "./offre";
 import type { Proposition } from "./proposition";
 
 const base: Proposition = {
@@ -21,10 +21,25 @@ describe("cycleOffre", () => {
       dateAgISO: "2026-11-20",
       debutISO: "2027-01-01",
       finISO: "2027-12-31",
+      dureeMois: 12,
       honorairesGestionTtc: 4944,
       forfaitPostauxTtc: 0,
       fraisPostauxReels: true,
     });
+  });
+  it("sans AG connue, rien n'est invente : AG, debut et fin en blanc", () => {
+    const p = { ...base, immeuble: { ...base.immeuble, prochaineAgISO: undefined, finMandatActuelISO: undefined } };
+    expect(cycleOffre(p, {}, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "", finISO: "", dureeMois: 12 });
+    // Le debut saisi suffit a dater le contrat, l'AG reste en blanc.
+    expect(cycleOffre(p, { debutISO: "2027-01-01", dureeMois: 24 }, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "2027-01-01", finISO: "2028-12-31" });
+  });
+  it("sans AG, le mandat en place qui court encore donne le debut ; echu, non", () => {
+    const p = { ...base, immeuble: { ...base.immeuble, prochaineAgISO: undefined } };
+    expect(cycleOffre(p, {}, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "2027-01-01", finISO: "2027-12-31" });
+    expect(cycleOffre({ ...p, immeuble: { ...p.immeuble, finMandatActuelISO: "2026-06-30" } }, {}, "2026-09-16")).toMatchObject({ debutISO: "", finISO: "" });
+  });
+  it("l'AG prevue de la proposition reste le premier repli", () => {
+    expect(cycleOffre({ ...base, agPrevueISO: "2026-12-05" }, {}, "2026-09-16").dateAgISO).toBe("2026-12-05");
   });
   it("sans mandat connu, part de l'AG ; duree et AG imposables", () => {
     const p = { ...base, immeuble: { ...base.immeuble, finMandatActuelISO: undefined } };
@@ -37,6 +52,18 @@ describe("cycleOffre", () => {
   it("forfait timbres quand les frais ne sont pas au reel", () => {
     const p = { ...base, prix: { ...base.prix, fraisPostauxReels: false } };
     expect(cycleOffre(p, {}, "2026-09-16")).toMatchObject({ forfaitPostauxTtc: 173.6, fraisPostauxReels: false });
+  });
+});
+
+describe("journal et nom de fichier de l'offre", () => {
+  it("resume le cycle, dates connues ou non", () => {
+    expect(resumeCycleOffre({ dateAgISO: "2026-11-20", debutISO: "2027-01-01", finISO: "2027-12-31" })).toBe("contrat du 01/01/2027 au 31/12/2027, AG du 20/11/2026");
+    expect(resumeCycleOffre({ dateAgISO: "", debutISO: "", finISO: "", dureeMois: 24 })).toBe("contrat de 2 ans, début à préciser, AG pas encore datée");
+  });
+  it("date le PDF du jour de generation, pas de l'AG", () => {
+    const champs = { copro: coproContratDepuisProposition(base) };
+    expect(nomFichierOffre(champs, "2026-10-14")).toBe("Proposition de contrat de syndic - 16 rue Sébastopol - 2026-10-14.pdf");
+    expect(nomFichierOffre({ copro: { ...champs.copro, nom: "12/14 rue : A" } }, "2026-10-14")).toBe("Proposition de contrat de syndic - 12 14 rue A - 2026-10-14.pdf");
   });
 });
 

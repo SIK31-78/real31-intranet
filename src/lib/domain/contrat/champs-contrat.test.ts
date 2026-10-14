@@ -126,6 +126,13 @@ describe("assemblerChampsContrat", () => {
     );
   });
 
+  it("dates inconnues (offre a un prospect) : en blanc, la duree voulue et le bareme donne", () => {
+    const c = assemblerChampsContrat(COPRO, { ...CYCLE, dateAgISO: "", debutISO: "", finISO: "", dureeMois: 12, anneeBareme: 2026 }, bareme());
+    expect(c).toMatchObject({ dateAgISO: "", debutISO: "", finISO: "", dureeTexte: "1 an, 0 mois, 0 jour", anneeBareme: 2026 });
+    expect(assemblerChampsContrat(COPRO, { ...CYCLE, debutISO: "", finISO: "", dureeMois: 15 }, bareme())).toMatchObject({ dureeTexte: "1 an, 3 mois, 0 jour", anneeBareme: 2026 });
+    expect(() => assemblerChampsContrat(COPRO, { ...CYCLE, dateAgISO: "" }, bareme())).toThrow(/année du barème/);
+  });
+
   it("reporte la copropriete telle quelle, y compris la duree de CS en heures", () => {
     const c = assemblerChampsContrat(COPRO, CYCLE, bareme());
     expect(c.copro.dureeCsHeures).toBe(1);

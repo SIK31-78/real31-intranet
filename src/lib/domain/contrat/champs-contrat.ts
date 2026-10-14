@@ -9,7 +9,7 @@
 // HT qui en decoule. Le contrat affiche les deux.
 
 import { estAslOuAful, type FormeJuridique } from "@/lib/domain/copropriete";
-import { dureeContratTexte } from "./duree-contrat";
+import { dureeContratTexte, formaterDureeContrat } from "./duree-contrat";
 import { htDepuisTtc, ttcBrut } from "./montants-contrat";
 
 /**
@@ -126,16 +126,33 @@ export interface CoproContrat {
   finMaxAgHeure: number | null;
 }
 
-/** Ce que le cycle de contrat apporte. */
+/**
+ * Ce que le cycle de contrat apporte.
+ *
+ * DATES INCONNUES (offre a un prospect, 14/10/2026) : une chaine VIDE dit « pas encore
+ * connue ». Le contrat imprime alors un blanc a completer a la main plutot qu'une date
+ * inventee (la direction : une proposition sans date d'AG ni debut de mandat sort avec ces
+ * dates en blanc). /contrat passe toujours ses trois dates : rien ne change pour lui.
+ */
 export interface CycleContratChamps {
-  /** Date de l'AG qui ouvre le cycle, ISO. */
+  /** Date de l'AG qui ouvre le cycle, ISO ; vide = AG pas encore datee. */
   dateAgISO: string;
+  /** Vide = debut du mandat inconnu (la fin l'est alors aussi). */
   debutISO: string;
   finISO: string;
   honorairesGestionTtc: number;
   forfaitPostauxTtc: number;
   /** Defaut : false (forfait). */
   fraisPostauxReels?: boolean;
+  /** Duree voulue, en mois : seule a dire la duree du contrat quand ses dates sont en blanc. */
+  dureeMois?: number;
+  /** Annee du bareme quand l'AG n'est pas datee (sinon : celle de l'AG). */
+  anneeBareme?: number;
+}
+
+/** « 1 an, 0 mois, 0 jour » depuis une duree en mois, au format du legacy. */
+export function dureeTexteDepuisMois(mois: number): string {
+  return formaterDureeContrat({ annees: Math.floor(mois / 12), mois: mois % 12, jours: 0 });
 }
 
 /** Toutes les valeurs du document, pretes a rendre. */
@@ -186,12 +203,16 @@ export function assemblerChampsContrat(
     throw new Error(`Contrat de syndic : prestations absentes du bareme (${manquantes.join(", ")}).`);
   }
 
+  const anneeBareme = cycle.dateAgISO ? Number(cycle.dateAgISO.slice(0, 4)) : cycle.anneeBareme;
+  if (anneeBareme === undefined) throw new Error("Contrat de syndic : sans date d'AG, l'année du barème doit être donnée.");
+
   return {
     copro,
     dateAgISO: cycle.dateAgISO,
     debutISO: cycle.debutISO,
     finISO: cycle.finISO,
-    dureeTexte: dureeContratTexte(cycle.debutISO, cycle.finISO),
+    // Dates en blanc : la duree voulue reste ecrite (« conclu pour une durée de 1 an »).
+    dureeTexte: cycle.debutISO && cycle.finISO ? dureeContratTexte(cycle.debutISO, cycle.finISO) : cycle.dureeMois ? dureeTexteDepuisMois(cycle.dureeMois) : "",
     honorairesGestionTtc: cycle.honorairesGestionTtc,
     honorairesGestionHt: htDepuisTtc(cycle.honorairesGestionTtc),
     forfaitPostauxTtc: cycle.forfaitPostauxTtc,
@@ -199,8 +220,9 @@ export function assemblerChampsContrat(
     // Le flow MYTHEC lisait les tarifs sur `formatDateTime(date AG, 'yyyy')` : une AG
     // vote au tarif de SON annee, meme si le mandat demarre en janvier suivant. Porte
     // d'abord sur le debut du cycle, corrige le 14/09/2026 (Sekou : des contrats
-    // « en attente du bareme 2027 » pour des AG d'octobre 2026).
-    anneeBareme: Number(cycle.dateAgISO.slice(0, 4)),
+    // « en attente du bareme 2027 » pour des AG d'octobre 2026). AG pas encore datee
+    // (offre a un prospect) : l'annee que le service a choisie.
+    anneeBareme,
     tarifs: requises.map((identifiant) => {
       const { libelle, ttc } = tarifsTtc[identifiant]!;
       return { identifiant, libelle, ttc, ht: htDepuisTtc(ttc), ttcTexte: ttcBrut(ttc) };
