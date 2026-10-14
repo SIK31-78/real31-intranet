@@ -87,6 +87,8 @@ import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
 import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-repository";
 import { CompositeCoproRepository } from "@/lib/adapters/composite/composite-copro-repository";
 import { EstaleCoproProvider } from "@/lib/adapters/estale/estale-copro-provider";
+import { CachePartageCoprosEstale } from "@/lib/adapters/composite/cache-partage-copros-estale";
+import { unstable_cache } from "next/cache";
 import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
 import type { OdjCsDocxRenderer } from "@/lib/ports/odj-cs-docx-renderer";
 import { DocxtemplaterOdjCsRenderer } from "@/lib/adapters/docx/odj-cs-docx-renderer";
@@ -243,9 +245,11 @@ export function getCoproRepository(): CoproRepository {
   if (coproSourceEstSupabase()) {
     const miroir = new SupabaseCoproRepository();
     if (estaleConfigure() && estaleLiveActif()) {
-      const provider = new EstaleCoproProvider(
-        new SupabaseGestionnaireRepository(),
-        new SupabaseAgenceRepository(),
+      // Liste ESTALE partagee entre instances (24 h par defaut) : cf. cache-partage-copros-estale.
+      const ttl = Number(process.env.ESTALE_LISTE_TTL_S) || 24 * 3600;
+      const provider = new CachePartageCoprosEstale(
+        new EstaleCoproProvider(new SupabaseGestionnaireRepository(), new SupabaseAgenceRepository()),
+        (charger) => unstable_cache(charger, ["estale-copros-v1"], { revalidate: ttl, tags: ["estale-copros"] }),
       );
       return new CompositeCoproRepository(miroir, provider, new SupabaseCoproDatesRepository());
     }
