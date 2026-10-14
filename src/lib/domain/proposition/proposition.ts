@@ -142,6 +142,12 @@ export interface Proposition {
   creeParNom: string;
   creeLeISO: string;
   majLeISO: string;
+  /**
+   * L'horodatage complet de la derniere mise a jour (`updated_at`). `majLeISO` n'a que le
+   * jour : deux enregistrements le meme jour ne s'y distinguent pas, et la fiche, qui se
+   * remonte sur cette cle apres chaque enregistrement, gardait son etat de depart perime.
+   */
+  majLeInstant?: string;
 }
 
 /**

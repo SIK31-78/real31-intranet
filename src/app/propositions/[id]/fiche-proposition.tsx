@@ -151,8 +151,10 @@ export function FicheProposition({
   }, [im, contact, agence, gestionnaire, origine, commentaires, statut, note, droits.offre, hono, geste, reels, timbres, conditions, prix, p.statut]);
 
   // L'etat de depart, fige au montage : « modifie » = le formulaire ne serialise plus pareil.
-  // La page remonte le composant apres chaque enregistrement (key = majLeISO), donc le
-  // point de depart suit toujours ce qui est en base.
+  // La page remonte le composant apres chaque enregistrement (key = majLeInstant, l'horodatage
+  // complet : le jour seul ne changeait pas a la deuxieme sauvegarde de la journee et
+  // « Modifications non enregistrées » restait affiche). Le point de depart suit donc
+  // toujours ce qui est en base.
   const [initial] = useState(() => JSON.stringify(maj));
   const modifie = JSON.stringify(maj) !== initial;
 

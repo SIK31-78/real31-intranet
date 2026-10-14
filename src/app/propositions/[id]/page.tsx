@@ -70,7 +70,7 @@ export default async function PropositionPage({ params }: { params: Promise<{ id
             </>
           }
         />
-        <FicheProposition key={p.majLeISO} proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} gestionnaires={gestionnaires} contexte={contexte} suggestion={suggestion} droits={{ completer: droits.completer, offre: droits.offre }} />
+        <FicheProposition key={p.majLeInstant ?? p.majLeISO} proposition={p} prixGrille={prix} agences={agences.map((a) => a.code)} gestionnaires={gestionnaires} contexte={contexte} suggestion={suggestion} droits={{ completer: droits.completer, offre: droits.offre }} />
       </Page>
     </AppShell>
   );

@@ -61,6 +61,7 @@ function versDomaine(r: Row): Proposition {
     creeParNom: r.cree_par,
     creeLeISO: r.created_at.slice(0, 10),
     majLeISO: r.updated_at.slice(0, 10),
+    majLeInstant: r.updated_at,
   };
 }
 

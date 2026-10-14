@@ -29,7 +29,8 @@ export class MockPropositionRepository implements PropositionRepository {
   }
   async sauver(p: Proposition): Promise<void> {
     const i = PROPOSITIONS.findIndex((x) => x.id === p.id);
-    if (i >= 0) PROPOSITIONS[i] = { ...p, majLeISO: new Date().toISOString().slice(0, 10) };
+    const maintenant = new Date().toISOString();
+    if (i >= 0) PROPOSITIONS[i] = { ...p, majLeISO: maintenant.slice(0, 10), majLeInstant: maintenant };
   }
 }
 
