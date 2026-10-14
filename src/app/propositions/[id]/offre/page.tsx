@@ -6,7 +6,7 @@ import { exigerAccesPropositions } from "@/app/propositions/acces";
 import { peutFaireOffre, profilDe } from "@/lib/auth/roles";
 import { preparerOffre } from "@/lib/services/proposition/propositions";
 import { libelleAdresse } from "@/lib/domain/proposition/proposition";
-import { DUREE_MAX_CONTRAT_MOIS, DUREES_CONTRAT_MOIS } from "@/lib/domain/contrat/cycle-contrat";
+import { alerteDebutAvantAg } from "@/lib/domain/proposition/offre";
 import { formatJour } from "@/lib/services/facturation/format";
 import { avertissementSiegeAgence } from "@/lib/domain/salles-reunion";
 import { AppShell } from "@/components/layout/app-shell";
@@ -14,9 +14,9 @@ import { Page, PageHeader } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Callout } from "@/components/ui/callout";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
 import { DataList, DataRow } from "@/components/ui/data-list";
 import { Section } from "@/components/ui/section";
+import { ChoixCycle } from "./choix-cycle";
 import { MailOffre, MarquerOffreRemise } from "./mail-offre";
 import { lireOptionsOffre, queryOffre, type ParamsOffre } from "./options";
 
@@ -24,8 +24,8 @@ export const metadata: Metadata = { title: "Préparer l'offre - REAL31 Intranet"
 export const dynamic = "force-dynamic";
 
 // L'offre (ADR-039, brique 2) : le contrat prospect a imprimer et le mail a copier dans
-// Outlook. Les choix (AG, debut, duree) voyagent dans l'URL : la page d'impression les
-// relit telle quelle, sans etat.
+// Outlook. Les choix (AG, debut, duree) voyagent dans l'URL, mise a jour a la saisie
+// (ChoixCycle) : la page d'impression et le PDF la relisent telle quelle, sans etat.
 
 export default async function OffrePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ParamsOffre> }) {
   const { id } = await params;
@@ -39,10 +39,10 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
     if (/introuvable/.test((e as Error).message)) notFound();
     throw e;
   }
-  const { proposition: p, champs, obstacles, erreurContrat, mail } = offre;
+  const { proposition: p, cycle, champs, obstacles, erreurContrat, mail } = offre;
   if (!peutFaireOffre(profilDe(g), p.agence)) redirect(`/propositions/${id}`);
   const query = queryOffre(sp);
-  const dureeMois = options.dureeMois ?? 12;
+  const alerte = alerteDebutAvantAg(cycle);
 
   return (
     <AppShell user={g} active="propositions" breadcrumb={`Propositions · ${libelleAdresse(p.immeuble)} · Offre`}>
@@ -58,7 +58,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
           actions={<ButtonLink href={`/propositions/${p.id}`} variant="secondary" size="sm"><ArrowLeft strokeWidth={1.5} /> Fiche</ButtonLink>}
           aide={
             <p>
-              Ajustez l&apos;AG, le début et la durée, relisez le mail, puis envoyez : il part de votre boîte, au contact de la
+              Ajustez l&apos;AG, le début et la durée (le contrat et le mail suivent aussitôt), relisez le mail, puis envoyez : il part de votre boîte, au contact de la
               fiche, avec le contrat en PDF. La fiche garde la trace de l&apos;envoi.
             </p>
           }
@@ -81,7 +81,10 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5 items-start">
           <div className="flex flex-col gap-5 min-w-0">
             <Section id="offre-mail" titre="Le mail à envoyer">
+              {/* Remonte a chaque recalcul : le texte retouche est un etat local, il doit
+                  reprendre les nouvelles dates (sinon l'envoi partait avec les anciennes). */}
               <MailOffre
+                key={query}
                 texte={mail}
                 propositionId={p.id}
                 options={options}
@@ -94,19 +97,18 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
 
           <Card>
             <div className="divide-y divide-line">
-              <form method="get" className="flex flex-col gap-3 p-4">
+              <div className="flex flex-col gap-3 p-4">
                 <h2 className="text-body font-medium text-ink">Le contrat</h2>
-                <Field label="AG qui votera le contrat" htmlFor="o-ag" hint="vide : en blanc sur le contrat, à compléter"><Input id="o-ag" name="ag" type="date" defaultValue={champs?.dateAgISO ?? options.dateAgISO ?? ""} /></Field>
-                <Field label="Début du mandat" htmlFor="o-debut" hint="lendemain de la fin du mandat en place, sinon le jour de l'AG ; vide : en blanc"><Input id="o-debut" name="debut" type="date" defaultValue={champs?.debutISO ?? options.debutISO ?? ""} /></Field>
-                {/* Duree libre en mois, 3 ans au plus (art. 28 du decret de 1967), comme sur
-                    /contrat ; les trois durees courantes en suggestions. */}
-                <Field label="Durée (mois)" htmlFor="o-duree" hint={`1 an = 12, 2 ans = 24, 15 mois pour une reprise ; ${DUREE_MAX_CONTRAT_MOIS} au plus`}>
-                  <Input id="o-duree" name="duree" type="number" min={1} max={DUREE_MAX_CONTRAT_MOIS} step={1} defaultValue={dureeMois} list="o-durees" className="tabular-nums" />
-                  <datalist id="o-durees">
-                    {DUREES_CONTRAT_MOIS.map((d) => <option key={d.mois} value={d.mois}>{d.libelle}</option>)}
-                  </datalist>
-                </Field>
-                <Button type="submit" variant="secondary" size="sm">Recalculer</Button>
+                <ChoixCycle
+                  base={`/propositions/${p.id}/offre`}
+                  saisis={sp}
+                  calcules={{ ag: cycle.dateAgISO, debut: cycle.debutISO, duree: String(options.dureeMois ?? 12) }}
+                />
+                {alerte && (
+                  <Callout ton="warn" titre="Début avant l'AG">
+                    {alerte} Vérifiez les dates avant d&apos;envoyer.
+                  </Callout>
+                )}
                 {champs && (
                   <DataList align="left">
                     <DataRow label="Contrat">
@@ -119,7 +121,7 @@ export default async function OffrePage({ params, searchParams }: { params: Prom
                   </DataList>
                 )}
                 {erreurContrat && <p className="text-meta text-err-700">{erreurContrat}</p>}
-              </form>
+              </div>
               <div className="flex flex-col gap-3 p-4">
                 {champs ? (
                   <>

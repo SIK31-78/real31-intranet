@@ -8,6 +8,7 @@ import { BoutonImprimer } from "@/components/odj/bouton-imprimer";
 import { DocumentContrat } from "@/components/contrat/document-contrat";
 import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/callout";
+import { lireOptionsOffre } from "../options";
 
 export const metadata: Metadata = { title: "Contrat prospect (impression) - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -24,17 +25,12 @@ export default async function ContratProspectImprimerPage({
   searchParams: Promise<{ ag?: string; debut?: string; duree?: string }>;
 }) {
   const { id } = await params;
-  const { ag, debut, duree } = await searchParams;
+  const sp = await searchParams;
   const g = await exigerAccesPropositions();
-  const jour = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
-  const dureeMois = Number(duree);
   let offre;
   try {
-    offre = await preparerOffre(
-      id,
-      { ...(jour(ag) ? { dateAgISO: jour(ag) } : {}), ...(jour(debut) ? { debutISO: jour(debut) } : {}), ...(Number.isInteger(dureeMois) && dureeMois > 0 ? { dureeMois } : {}) },
-      { nom: g.nomComplet },
-    );
+    // Meme lecture que la page et le PDF : une date videe part en blanc ici aussi.
+    offre = await preparerOffre(id, lireOptionsOffre(sp), { nom: g.nomComplet });
   } catch (e) {
     if (/introuvable/.test((e as Error).message)) notFound();
     throw e;

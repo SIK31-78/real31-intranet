@@ -223,7 +223,9 @@ export async function detacherPropositionAction(id: unknown): Promise<Res> {
   }
 }
 
-const zOffre = z.object({ id: z.string().min(1), dateAgISO: zJour.optional(), debutISO: zJour.optional(), dureeMois: z.number().int().min(1).max(36).optional() });
+// Une date videe dans l'offre (« "" ») part en blanc sur le contrat : elle passe telle quelle.
+const zJourOuBlanc = zJour.or(z.literal(""));
+const zOffre = z.object({ id: z.string().min(1), dateAgISO: zJourOuBlanc.optional(), debutISO: zJourOuBlanc.optional(), dureeMois: z.number().int().min(1).max(36).optional() });
 
 export async function marquerOffreRemiseAction(input: unknown): Promise<Res> {
   const p = zOffre.safeParse(input);

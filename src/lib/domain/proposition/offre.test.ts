@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adressePourContrat, BLANC_A_COMPLETER, coproContratDepuisProposition, cycleOffre, decouperMailOffre, lieuxAgAgence, nomFichierOffre, obstaclesOffre, resumeCycleOffre, SUJET_OFFRE, texteMailOffre } from "./offre";
+import { adressePourContrat, alerteDebutAvantAg, BLANC_A_COMPLETER, coproContratDepuisProposition, cycleOffre, decouperMailOffre, lieuxAgAgence, nomFichierOffre, obstaclesOffre, resumeCycleOffre, SUJET_OFFRE, texteMailOffre } from "./offre";
 import type { Proposition } from "./proposition";
 
 const base: Proposition = {
@@ -52,6 +52,21 @@ describe("cycleOffre", () => {
   it("forfait timbres quand les frais ne sont pas au reel", () => {
     const p = { ...base, prix: { ...base.prix, fraisPostauxReels: false } };
     expect(cycleOffre(p, {}, "2026-09-16")).toMatchObject({ forfaitPostauxTtc: 173.6, fraisPostauxReels: false });
+  });
+});
+
+describe("alerteDebutAvantAg", () => {
+  it("previent quand le mandat commencerait avant l'AG qui le vote", () => {
+    expect(alerteDebutAvantAg({ dateAgISO: "2026-11-20", debutISO: "2026-10-01" })).toBe("Le mandat commencerait le 01/10/2026, avant l'AG du 20/11/2026 qui doit le voter.");
+  });
+  it("se tait quand le debut suit l'AG, ou qu'une date est en blanc", () => {
+    expect(alerteDebutAvantAg({ dateAgISO: "2026-11-20", debutISO: "2026-11-20" })).toBeNull();
+    expect(alerteDebutAvantAg({ dateAgISO: "2026-11-20", debutISO: "2027-01-01" })).toBeNull();
+    expect(alerteDebutAvantAg({ dateAgISO: "", debutISO: "2026-10-01" })).toBeNull();
+    expect(alerteDebutAvantAg({ dateAgISO: "2026-11-20", debutISO: "" })).toBeNull();
+  });
+  it("une date videe expres part en blanc, sans repli sur la fiche", () => {
+    expect(cycleOffre(base, { dateAgISO: "", debutISO: "" }, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "", finISO: "" });
   });
 });
 

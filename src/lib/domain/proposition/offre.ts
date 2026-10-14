@@ -118,6 +118,15 @@ export function cycleOffre(p: Proposition, options: OptionsOffre, aujourdHuiISO:
   };
 }
 
+/**
+ * Le mandat commencerait AVANT l'AG qui doit le voter : avertissement, pas blocage (une
+ * reprise en urgence peut l'assumer). Null quand une des deux dates est en blanc.
+ */
+export function alerteDebutAvantAg(cycle: Pick<CycleContratChamps, "dateAgISO" | "debutISO">): string | null {
+  if (!cycle.dateAgISO || !cycle.debutISO || cycle.debutISO >= cycle.dateAgISO) return null;
+  return `Le mandat commencerait le ${jj(cycle.debutISO)}, avant l'AG du ${jj(cycle.dateAgISO)} qui doit le voter.`;
+}
+
 /** Ce qui empeche de faire l'offre, en clair. Vide = on peut y aller. */
 export function obstaclesOffre(p: Proposition): string[] {
   const m: string[] = [];

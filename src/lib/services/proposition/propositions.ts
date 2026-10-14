@@ -5,7 +5,7 @@ import { getCoproRepository, getFacturationRepository, getPropositionRepository,
 import type { RegistreCopro } from "@/lib/ports/proposition-repository";
 import { analyserAdresse, immatriculationDansTexte, rapprocher, requeteRegistre, type CandidatRegistre } from "@/lib/domain/proposition/rapprochement";
 import { coproContratDepuisProposition, cycleOffre, obstaclesOffre, resumeCycleOffre, texteMailOffre, type OptionsOffre } from "@/lib/domain/proposition/offre";
-import { assemblerChampsContrat, PRESTATIONS_CONTRAT, type ChampsContrat, type PrestationContrat } from "@/lib/domain/contrat/champs-contrat";
+import { assemblerChampsContrat, PRESTATIONS_CONTRAT, type ChampsContrat, type CycleContratChamps, type PrestationContrat } from "@/lib/domain/contrat/champs-contrat";
 import { motifRefusCycle } from "@/lib/domain/contrat/cycle-contrat";
 import { signalerSiegeAgenceInconnu } from "@/lib/services/contrat/signaler-siege-agence";
 import {
@@ -315,6 +315,8 @@ export async function detacherProposition(id: string, par: string): Promise<Prop
 
 export interface Offre {
   proposition: Proposition;
+  /** Le cycle retenu (dates vides = en blanc), meme quand le contrat ne se remplit pas. */
+  cycle: CycleContratChamps;
   /** Ce qui empeche encore de faire l'offre ; vide quand tout est la. */
   obstacles: string[];
   /** Le contrat de syndic rempli au nom de l'immeuble (absent si obstacle ou bareme incomplet). */
@@ -335,18 +337,18 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
   const cycle = cycleOffre(p, options, aujourdHui);
   const obstacles = obstaclesOffre(p);
   const mail = texteMailOffre(p, cycle, signataire);
-  if (obstacles.length > 0) return { proposition: p, obstacles, mail };
+  if (obstacles.length > 0) return { proposition: p, cycle, obstacles, mail };
 
   // Debut inconnu : debut et fin partent en blanc, il n'y a pas de cycle a controler.
   const refus = cycle.debutISO ? motifRefusCycle(cycle.debutISO, cycle.finISO) : null;
-  if (refus) return { proposition: p, obstacles, mail, erreurContrat: `Cycle impossible : ${refus}.` };
+  if (refus) return { proposition: p, cycle, obstacles, mail, erreurContrat: `Cycle impossible : ${refus}.` };
   // Le bareme de l'annee de l'AG ; AG pas encore datee : celui de l'annee en cours.
   const annee = Number((cycle.dateAgISO || aujourdHui).slice(0, 4));
   const lignes = await getFacturationRepository().listerBareme(annee);
   const parId = new Map(lignes.map((l) => [l.identifiantPrestation, l]));
   const manquantes = PRESTATIONS_CONTRAT.filter((x) => !parId.has(x));
   if (manquantes.length > 0) {
-    return { proposition: p, obstacles, mail, erreurContrat: `Barème ${annee} incomplet (${manquantes.join(", ")}) : ouvrir le barème avant d'éditer le contrat.` };
+    return { proposition: p, cycle, obstacles, mail, erreurContrat: `Barème ${annee} incomplet (${manquantes.join(", ")}) : ouvrir le barème avant d'éditer le contrat.` };
   }
   const tarifs = {} as Record<PrestationContrat, { libelle: string; ttc: number }>;
   for (const x of PRESTATIONS_CONTRAT) {
@@ -357,7 +359,7 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
   // Agence sans siege connu (propositions historiques « BZS », « JF ») : le contrat
   // imprimerait un blanc. Signale cote serveur ; la page de l'offre l'affiche (REA-273).
   signalerSiegeAgenceInconnu(copro.agence, { proposition: p.id });
-  return { proposition: p, obstacles, mail, champs: assemblerChampsContrat(copro, { ...cycle, anneeBareme: annee }, tarifs, p.prix.conditionsParticulieres) };
+  return { proposition: p, cycle, obstacles, mail, champs: assemblerChampsContrat(copro, { ...cycle, anneeBareme: annee }, tarifs, p.prix.conditionsParticulieres) };
 }
 
 /** L'offre est partie : la proposition en garde la date, le cycle propose et une ligne de journal. */
