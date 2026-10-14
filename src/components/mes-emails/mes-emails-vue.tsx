@@ -11,7 +11,6 @@ import {
   Wrench,
   Paperclip,
   Flag,
-  Copy,
   Check,
   Building2,
   Users,
@@ -65,6 +64,8 @@ import { Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
+import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
+import { MODELES_MAIL, fusionnerModele } from "@/lib/domain/mes-emails-composition";
 import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
@@ -122,8 +123,11 @@ export function MesEmailsVue({
   depotDriveActif = false,
   adresseFactures = null,
   maxPerso = 40,
+  agence = "",
 }: {
   data: MesEmails;
+  /** Agence de la boîte (MAIL_TRI_AGENCE) : signe les modèles de réponse. */
+  agence?: string;
   /** Plafond de la boîte perso pour cet affichage (« Plus de mails » l'augmente). */
   maxPerso?: number;
   signatureHtml?: string | null;
@@ -182,7 +186,8 @@ export function MesEmailsVue({
       ),
     );
   }
-  const [copie, setCopie] = useState<string | null>(null);
+  // Modèle choisi pour la réponse, par mail (la liste se remet à « Aucun » à la fermeture).
+  const [modeleParMail, setModeleParMail] = useState<Map<string, string>>(new Map());
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
   // Verrou anti double-envoi : le bouton "Envoyer la réponse" declenche un envoi REEL
   // (irreversible). Tant qu'un envoi est en cours, on ignore les nouveaux clics et on grise
@@ -499,26 +504,9 @@ export function MesEmailsVue({
       setMsgBrouillon("Ajoute au moins un destinataire en « À ».");
       return;
     }
+    // Pas de fenêtre de confirmation (retour du 14/10 : un clic de trop). La boîte d'envoi est
+    // affichée en couleur au-dessus, et l'envoi hors du fil y est signalé avant de cliquer.
     const expediteur = expediteurDe(m);
-    const memeBoite = expediteur === boiteDuMail(m);
-    // Depuis une AUTRE boite que celle du mail, Graph ne peut pas repondre dans le fil
-    // (createReply s'execute dans la boite du message) : c'est un mail NEUF. On le dit
-    // AVANT l'envoi, pas apres.
-    const recap = [
-      `Envoyer depuis ${expediteur}`,
-      `À : ${dst.to.join(", ")}`,
-      ...(dst.cc.length ? [`Cc : ${dst.cc.join(", ")}`] : []),
-      ...(dst.cci.length ? [`Cci : ${dst.cci.join(", ")}`] : []),
-      ...(memeBoite
-        ? []
-        : [
-            "",
-            "Attention : boîte différente de celle du mail : le fil d'origine et les pièces jointes ne suivront pas.",
-          ]),
-      "",
-      "Envoyer ?",
-    ];
-    if (!window.confirm(recap.join("\n"))) return;
     setEnvoiEnCours(true);
     setMsgBrouillon("Envoi en cours…");
     try {
@@ -540,14 +528,69 @@ export function MesEmailsVue({
         return;
       }
       setRepondus((p) => add(p, m.id));
+      // La réponse est partie : l'éditeur se referme, comme dans Outlook.
+      fermerReponse(m);
       setMsgBrouillon(
         r.filConserve === false
           ? `Envoyé depuis ${expediteur} ✓ (mail neuf, hors du fil d'origine)`
-          : "Réponse envoyée ✓",
+          : `Réponse envoyée depuis ${expediteur} ✓`,
       );
     } finally {
       setEnvoiEnCours(false);
     }
+  }
+
+  // Referme l'éditeur de réponse et oublie ce qui y était saisi (envoi réussi ou « Annuler »).
+  function fermerReponse(m: MailEntrant) {
+    const sans = <T,>(p: Map<string, T>) => {
+      const n = new Map(p);
+      n.delete(m.id);
+      return n;
+    };
+    setComposeParMail((p) => del(p, m.id));
+    setEdits((p) => new Map(p).set(m.id, ""));
+    setDestParMail(sans);
+    setSujetParMail(sans);
+    setFichiersParMail(sans);
+    setPjJointesParMail(sans);
+    setModeleParMail(sans);
+    setMsgBrouillon(null);
+    void editBrouillonAction(m.id, m.coproCode, "");
+  }
+
+  // Un destinataire glissé d'un champ à l'autre (À, Cc, Cci) : retiré de l'un, ajouté à l'autre.
+  function deplacerDest(m: MailEntrant, depuis: keyof Destinataires, vers: keyof Destinataires, adresse: string) {
+    const d = destinatairesDe(m);
+    if (!d[depuis].includes(adresse)) return;
+    setDestParMail((p) =>
+      new Map(p).set(m.id, {
+        ...d,
+        [depuis]: d[depuis].filter((x) => x !== adresse),
+        [vers]: d[vers].includes(adresse) ? d[vers] : [...d[vers], adresse],
+      }),
+    );
+  }
+
+  // Modèle appliqué à la réponse : le texte remplace le message, l'objet de la réponse reste.
+  function appliquerModeleReponse(m: MailEntrant, id: string) {
+    setModeleParMail((p) => new Map(p).set(m.id, id));
+    const modele = MODELES_MAIL.find((x) => x.id === id);
+    if (!modele) return;
+    const c = coproDe(m);
+    setEdits((p) =>
+      new Map(p).set(
+        m.id,
+        fusionnerModele(modele.corps, {
+          copro_code: c.code,
+          copro_nom: c.nom,
+          destinataire_nom: m.de,
+          gestionnaire_nom: data.gestionnaire.nomComplet,
+          gestionnaire_initiales: data.gestionnaire.initiales,
+          agence,
+          date: new Date().toLocaleDateString("fr-FR"),
+        }),
+      ),
+    );
   }
 
   // Classer = deplacer dans le dossier Outlook choisi (independant de l'envoi).
@@ -757,6 +800,10 @@ export function MesEmailsVue({
               onTogglePjJointe={(id) => togglePjJointe(selection, id)}
               destinataires={destinatairesDe(selection)}
               onMajDestinataires={(champ, v) => majDest(selection, champ, v)}
+              onDeplacerDestinataire={(depuis, vers, adresse) => deplacerDest(selection, depuis, vers, adresse)}
+              modele={modeleParMail.get(selection.id) ?? ""}
+              onModele={(id) => appliquerModeleReponse(selection, id)}
+              onAnnuler={() => fermerReponse(selection)}
               boites={data.boites}
               boiteDuMail={boiteDuMail(selection)}
               expediteur={expediteurDe(selection)}
@@ -768,7 +815,6 @@ export function MesEmailsVue({
               msgBrouillon={msgBrouillon}
               changer={changer}
               ouverts={ouverts}
-              copie={copie === selection.id}
               onEditBrouillon={(t) => setEdits((p) => new Map(p).set(selection.id, t))}
               onBlurBrouillon={() =>
                 void editBrouillonAction(selection.id, selection.coproCode, brouillonDe(selection))
@@ -814,10 +860,6 @@ export function MesEmailsVue({
                     rafraichirDossiersCopro(coproDe(selection).code);
                   }
                 });
-              }}
-              onCopier={() => {
-                void navigator.clipboard?.writeText(brouillonDe(selection));
-                setCopie(selection.id);
               }}
               onValider={() => void valider(selection)}
               classementOutlook={data.boites.find((b) => b.id === boiteDuMail(selection))?.personnelle ?? true}
@@ -937,19 +979,27 @@ function ChampDe({
   valeur: string;
   onChange: (v: string) => void;
 }) {
-  if (boites.length < 2) return null;
   const horsFil = valeur !== boiteDuMail;
+  // La boîte d'envoi saute aux yeux (retour du 14/10) : bleu pour une boîte partagée, qui
+  // engage le cabinet ; vert pour sa boîte perso.
+  const partagee = !(boites.find((b) => b.id === valeur)?.personnelle ?? false);
+  const teinte = partagee
+    ? "bg-info-50 text-info-700 border-info-500/40 font-semibold"
+    : "bg-green-50 text-green-700 border-green-500/40 font-semibold";
   return (
     <div className="mb-2 rounded-md border border-line px-2.5 py-2">
       <div className="flex items-center gap-2">
         <label htmlFor="champ-de" className="w-7 shrink-0 text-meta font-medium text-ink-3">
           De
         </label>
+        {boites.length < 2 ? (
+          <span className={`inline-flex items-center h-7 px-2 rounded border text-meta ${teinte}`}>{valeur}</span>
+        ) : (
         <select
           id="champ-de"
           value={valeur}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 min-w-0 h-7 rounded border border-line bg-surface px-1.5 text-meta text-ink"
+          className={`flex-1 min-w-0 h-7 rounded border px-1.5 text-meta ${teinte}`}
         >
           {boites.map((b) => (
             <option key={b.id} value={b.id}>
@@ -958,6 +1008,7 @@ function ChampDe({
             </option>
           ))}
         </select>
+        )}
       </div>
       {horsFil && (
         <p className="mt-1.5 pl-9 text-meta text-warn-700">
@@ -973,15 +1024,17 @@ function ChampDe({
 function ChampsDestinataires({
   valeur,
   onChange,
+  onDeplacer,
 }: {
   valeur: Destinataires;
   onChange: (champ: keyof Destinataires, v: string[]) => void;
+  onDeplacer: (depuis: keyof Destinataires, vers: keyof Destinataires, adresse: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-1 mb-2 rounded-md border border-line px-2.5 py-2">
-      <LigneDest label="À" champ="to" valeurs={valeur.to} onChange={onChange} />
-      <LigneDest label="Cc" champ="cc" valeurs={valeur.cc} onChange={onChange} />
-      <LigneDest label="Cci" champ="cci" valeurs={valeur.cci} onChange={onChange} />
+      <LigneDest label="À" champ="to" valeurs={valeur.to} onChange={onChange} onDeplacer={onDeplacer} />
+      <LigneDest label="Cc" champ="cc" valeurs={valeur.cc} onChange={onChange} onDeplacer={onDeplacer} />
+      <LigneDest label="Cci" champ="cci" valeurs={valeur.cci} onChange={onChange} onDeplacer={onDeplacer} />
     </div>
   );
 }
@@ -994,28 +1047,35 @@ function LigneDest({
   champ,
   valeurs,
   onChange,
+  onDeplacer,
 }: {
   label: string;
   champ: keyof Destinataires;
   valeurs: string[];
   onChange: (champ: keyof Destinataires, v: string[]) => void;
+  onDeplacer: (depuis: keyof Destinataires, vers: keyof Destinataires, adresse: string) => void;
 }) {
   const [saisie, setSaisie] = useState("");
+  const depot = useDepotDestinataire(champ, (depuis, adresse) => onDeplacer(depuis as keyof Destinataires, champ, adresse));
   const ajouter = () => {
     const e = saisie.trim().replace(/[,;]$/, "").trim();
     if (e && !valeurs.includes(e)) onChange(champ, [...valeurs, e]);
     setSaisie("");
   };
   return (
-    <div className="flex items-start gap-2 min-h-[24px]">
+    <div
+      {...depot.zone}
+      className={"flex items-start gap-2 min-h-[24px] rounded " + (depot.survol ? "bg-green-50/60 ring-1 ring-green-600" : "")}
+    >
       <span className="w-7 shrink-0 pt-1 text-meta font-medium text-ink-3">{label}</span>
       <div className="flex-1 flex flex-wrap items-center gap-1">
         {valeurs.map((e) => (
           <span
             key={e}
-            title={BOITE_PARTAGEE.test(e) ? "Boîte partagée" : undefined}
+            {...pastilleGlissable(champ, e)}
+            title={BOITE_PARTAGEE.test(e) ? "Boîte partagée (glisser vers un autre champ)" : "Glisser vers un autre champ"}
             className={
-              "inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full text-meta " +
+              "inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full text-meta cursor-grab active:cursor-grabbing " +
               (BOITE_PARTAGEE.test(e) ? "bg-err-50 text-err-700 border border-err-500/40" : "bg-surface-3 text-ink-2")
             }
           >
@@ -1044,6 +1104,107 @@ function LigneDest({
           className="flex-1 min-w-[120px] h-6 bg-transparent text-meta text-ink outline-none placeholder:text-ink-3"
         />
       </div>
+    </div>
+  );
+}
+
+/** Mots utiles d'un texte, pour rapprocher l'objet d'un mail du titre d'un dossier. */
+function motsUtiles(t: string): Set<string> {
+  return new Set(
+    t
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 4 && !["pour", "dans", "avec", "votre", "notre", "suite", "objet"].includes(w)),
+  );
+}
+
+// Rattacher le mail à un dossier en un geste (retour du 14/10 : « trop brouillon »). Une
+// recherche, les dossiers les plus proches de l'objet en tête, et la création d'un dossier
+// au nom de l'objet en un clic ; le formulaire complet ne s'ouvre que si on veut changer.
+function ChoixDossier({
+  dossiers,
+  objet,
+  typeSuggere,
+  onRattacher,
+  onCreer,
+}: {
+  dossiers: { id: string; titre: string; type: TypeDossier }[] | null;
+  objet: string;
+  typeSuggere: TypeDossier;
+  onRattacher: (dossierId: string, titre: string) => void;
+  onCreer: (type: TypeDossier, titre: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [formulaire, setFormulaire] = useState(false);
+  const motsObjet = useMemo(() => motsUtiles(objet), [objet]);
+  const classes = useMemo(() => {
+    const liste = (dossiers ?? []).map((d) => {
+      const communs = [...motsUtiles(d.titre)].filter((w) => motsObjet.has(w)).length;
+      return { d, score: communs * 2 + (d.type === typeSuggere ? 1 : 0) };
+    });
+    return liste.sort((x, y) => y.score - x.score || x.d.titre.localeCompare(y.d.titre, "fr"));
+  }, [dossiers, motsObjet, typeSuggere]);
+  const filtre = q.trim().toLowerCase();
+  const visibles = filtre
+    ? classes.filter(({ d }) => `${d.titre} ${TYPE_DOSSIER_LABEL[d.type]}`.toLowerCase().includes(filtre))
+    : classes.slice(0, 6);
+
+  return (
+    <div className="rounded-md border border-line overflow-hidden">
+      <div className="px-3 py-2 border-b border-line bg-surface-2/40">
+        <Input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Chercher un dossier de la copropriété…"
+          aria-label="Chercher un dossier"
+        />
+      </div>
+      {dossiers === null ? (
+        <p className="px-3 py-2 text-meta text-ink-3">Chargement des dossiers…</p>
+      ) : (
+        <ul className="divide-y divide-line max-h-64 overflow-y-auto">
+          {visibles.map(({ d, score }, i) => (
+            <li key={d.id}>
+              <button
+                type="button"
+                onClick={() => onRattacher(d.id, d.titre)}
+                className="w-full text-left px-3 py-2 text-body text-ink hover:bg-surface-2 flex items-center gap-2"
+              >
+                <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                <span className="flex-1 min-w-0 truncate">{d.titre}</span>
+                {!filtre && i === 0 && score >= 2 ? <Badge ton="ok">Suggéré</Badge> : null}
+                <Badge ton="outline">{TYPE_DOSSIER_LABEL[d.type]}</Badge>
+              </button>
+            </li>
+          ))}
+          {visibles.length === 0 && (
+            <li className="px-3 py-2 text-meta text-ink-3">
+              {filtre ? "Aucun dossier ne correspond." : "Aucun dossier ouvert sur cette copropriété."}
+            </li>
+          )}
+          {!filtre && classes.length > visibles.length ? (
+            <li className="px-3 py-1.5 text-meta text-ink-3">
+              {classes.length - visibles.length} autre(s) : tapez pour chercher.
+            </li>
+          ) : null}
+        </ul>
+      )}
+      {formulaire ? (
+        <FormCreerDossier typeSuggere={typeSuggere} titreSuggere={objet} onCreer={onCreer} />
+      ) : (
+        <div className="border-t border-line px-3 py-2 flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => onCreer(typeSuggere, objet.trim() || "Nouveau dossier")}>
+            <FilePlus2 strokeWidth={1.5} />
+            Nouveau dossier « {TYPE_DOSSIER_LABEL[typeSuggere]} »
+          </Button>
+          <button type="button" onClick={() => setFormulaire(true)} className="text-meta text-ink-3 underline hover:text-ink">
+            changer le type ou le titre
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1116,7 +1277,6 @@ function AnalysePane({
   msgClasser,
   changer,
   ouverts,
-  copie,
   onEditBrouillon,
   onBlurBrouillon,
   signatureHtml,
@@ -1137,6 +1297,10 @@ function AnalysePane({
   onTogglePjJointe,
   destinataires,
   onMajDestinataires,
+  onDeplacerDestinataire,
+  modele,
+  onModele,
+  onAnnuler,
   boites,
   boiteDuMail,
   expediteur,
@@ -1149,7 +1313,6 @@ function AnalysePane({
   onToggleChanger,
   onRattacherDossier,
   onCreerDossier,
-  onCopier,
   onValider,
   onDevalider,
   onToggleSection,
@@ -1178,7 +1341,6 @@ function AnalysePane({
   msgClasser: string | null;
   changer: boolean;
   ouverts: Set<string>;
-  copie: boolean;
   onEditBrouillon: (t: string) => void;
   onBlurBrouillon: () => void;
   signatureHtml?: string | null;
@@ -1200,6 +1362,12 @@ function AnalysePane({
   onTogglePjJointe: (id: string) => void;
   destinataires: Destinataires;
   onMajDestinataires: (champ: keyof Destinataires, v: string[]) => void;
+  onDeplacerDestinataire: (depuis: keyof Destinataires, vers: keyof Destinataires, adresse: string) => void;
+  /** Modèle choisi pour la réponse ("" = aucun). */
+  modele: string;
+  onModele: (id: string) => void;
+  /** Referme l'éditeur sans envoyer. */
+  onAnnuler: () => void;
   boites: BoiteMail[];
   /** Boite qui detient le mail : sert de reference au "De :" par defaut. */
   boiteDuMail: string;
@@ -1213,7 +1381,6 @@ function AnalysePane({
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
   onCreerDossier: (type: TypeDossier, titre: string) => void;
-  onCopier: () => void;
   onValider: () => void;
   onDevalider: () => void;
   onToggleSection: (cle: string) => void;
@@ -1224,6 +1391,8 @@ function AnalysePane({
 }) {
   const classe = statut === "classe";
   const genEnCours = (msgBrouillon ?? "").startsWith("Génération");
+  // Fichiers glissés sur l'éditeur de réponse : joints comme avec « Ajouter une pièce jointe ».
+  const depotPj = useDepotFichiers((l) => onAjouterFichiers(l));
 
   return (
     <Card className="overflow-hidden">
@@ -1361,43 +1530,38 @@ function AnalysePane({
         )}
 
         {changer && coproCode && (
-          <div className="rounded-md border border-line overflow-hidden">
-            {dossiersReels === null ? (
-              <p className="px-3 py-2 text-meta text-ink-3">Chargement des dossiers…</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {dossiersReels.map((d) => (
-                  <li key={d.id}>
-                    <button
-                      type="button"
-                      onClick={() => onRattacherDossier(d.id, d.titre)}
-                      className="w-full text-left px-3 py-2 text-body text-ink hover:bg-surface-2 flex items-center gap-2"
-                    >
-                      <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                      <span className="flex-1 min-w-0 truncate">{d.titre}</span>
-                      <Badge ton="outline">{TYPE_DOSSIER_LABEL[d.type]}</Badge>
-                    </button>
-                  </li>
-                ))}
-                {dossiersReels.length === 0 && (
-                  <li className="px-3 py-2 text-meta text-ink-3">Aucun dossier sur cette copropriété.</li>
-                )}
-              </ul>
-            )}
-            <FormCreerDossier typeSuggere={typeSuggere} titreSuggere={m.objet} onCreer={onCreerDossier} />
-          </div>
+          <ChoixDossier
+            dossiers={dossiersReels}
+            objet={m.objet}
+            typeSuggere={typeSuggere}
+            onRattacher={onRattacherDossier}
+            onCreer={onCreerDossier}
+          />
         )}
 
         {/* Réponse : seulement quand on l'a ouverte. */}
         {(brouillon || compose) && (
-          <div className="rounded-lg border border-line p-4">
-              <div className="flex items-center justify-between mt-3 mb-1">
-              <span className="text-meta text-ink-3">Réponse (modifiable)</span>
+          <div
+            {...depotPj.zone}
+            className={"rounded-lg border p-4 transition-colors " + (depotPj.survol ? "border-green-600 bg-green-50/30" : "border-line")}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-meta text-ink-3">Réponse</span>
               <div className="flex items-center gap-2">
-                <Button size="sm" onClick={onCopier}>
-                  <Copy strokeWidth={1.5} />
-                  {copie ? "Copié" : "Copier"}
-                </Button>
+                <Select
+                  largeur="auto"
+                  value={modele}
+                  onChange={(e) => onModele(e.target.value)}
+                  aria-label="Modèle de réponse"
+                  className="max-w-[240px]"
+                >
+                  <option value="">Modèle…</option>
+                  {MODELES_MAIL.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.titre}
+                    </option>
+                  ))}
+                </Select>
                 <Button size="sm" onClick={onCreerBrouillon}>
                   <FilePlus2 strokeWidth={1.5} />
                   Brouillon Outlook
@@ -1410,7 +1574,7 @@ function AnalysePane({
               valeur={expediteur}
               onChange={onMajExpediteur}
             />
-            <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} />
+            <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} onDeplacer={onDeplacerDestinataire} />
             <Input value={sujet} onChange={(e) => onMajSujet(e.target.value)} placeholder="Sujet" aria-label="Sujet de la réponse" className="mb-2" />
             {piecesJointes && piecesJointes.length > 0 ? (
               <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -1450,6 +1614,7 @@ function AnalysePane({
                   }}
                 />
               </label>
+              {fichiers.length === 0 ? <span className="text-meta text-ink-3">ou glissez les fichiers ici</span> : null}
               {fichiers.map((f, i) => (
                 <span key={`${f.nom}-${i}`} className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2">
                   <span className="truncate max-w-[180px]">{f.nom}</span>
@@ -1476,6 +1641,9 @@ function AnalysePane({
               <Button variant="primary" size="lg" onClick={onEnvoyer} loading={envoiEnCours}>
                 <Send strokeWidth={2} />
                 {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
+              </Button>
+              <Button variant="ghost" size="lg" onClick={onAnnuler} disabled={envoiEnCours}>
+                Annuler
               </Button>
               {msgBrouillon ? <span className="text-meta text-ink-3">{msgBrouillon}</span> : null}
             </div>

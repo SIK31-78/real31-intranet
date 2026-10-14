@@ -11,7 +11,7 @@ import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
 import { EnvoyerEmail } from "@/components/mes-emails/envoyer-email";
-import { boiteEnvoi, brouillonPossible } from "@/lib/services/mes-emails/composer-mail";
+import { boiteEnvoi, brouillonPossible, envoiDirectComposition } from "@/lib/services/mes-emails/composer-mail";
 
 export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
@@ -42,6 +42,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
             gestionnaireNom={g.nomComplet}
             agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
             brouillonPossible={brouillonPossible()}
+            envoiDirect={envoiDirectComposition()}
             boite={boiteEnvoi()}
             signatureHtml={signatureHtml}
           />
@@ -52,6 +53,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           signatureHtml={signatureHtml}
           depotDriveActif={depotPieceJointeActif()}
           adresseFactures={adresseFacturesAgence()}
+          agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
           maxPerso={maxPerso}
         />
       </Page>

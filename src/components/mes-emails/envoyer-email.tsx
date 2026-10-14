@@ -17,12 +17,14 @@ export function EnvoyerEmail({
   gestionnaireNom,
   agence,
   brouillonPossible,
+  envoiDirect = false,
   boite,
   signatureHtml,
 }: {
   gestionnaireNom: string;
   agence: string;
   brouillonPossible: boolean;
+  envoiDirect?: boolean;
   boite: string | null;
   signatureHtml: string | null;
 }) {
@@ -61,6 +63,7 @@ export function EnvoyerEmail({
                 gestionnaireNom={gestionnaireNom}
                 agence={agence}
                 brouillonPossible={brouillonPossible}
+                envoiDirect={envoiDirect}
                 boite={boite}
                 signatureHtml={signatureHtml}
                 onTermine={() => setOuvert(false)}

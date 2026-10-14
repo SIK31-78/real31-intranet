@@ -4,8 +4,9 @@
 // l'annuaire rend la personne avec TOUTES ses adresses (certains en veulent deux) et ses
 // immeubles ; on choisit l'immeuble auquel rattacher le mail, ou aucun (c'est parfois perso).
 // Le conseil syndical s'ajoute d'un clic. L'objet est taggé par la copro pour le tri.
-// Pièces jointes et signature (Signitic) partent avec. Rien n'est envoyé d'ici : le bouton
-// crée un BROUILLON dans la boîte partagée, relu puis envoyé depuis Outlook (ADR-047).
+// Pièces jointes et signature (Signitic) partent avec. Le bouton ENVOIE quand l'envoi depuis
+// la boîte partagée est ouvert (MAIL_ENVOI=on) ; sinon il crée un BROUILLON, relu puis
+// envoyé depuis Outlook (ADR-047). Fichiers et destinataires se glissent-déposent.
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { Paperclip, Users, X } from "lucide-react";
@@ -30,6 +31,7 @@ import {
   rechercherDestinatairesAction,
 } from "@/app/mes-emails/composer/actions";
 import { TYPE_DOSSIER_LABEL, type TypeDossier } from "@/lib/domain/dossier";
+import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 
 type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 
@@ -44,6 +46,8 @@ type Props = {
   agence: string;
   /** Graph branché + vraie boîte partagée : le bouton crée un brouillon (sinon aperçu). */
   brouillonPossible: boolean;
+  /** Le bouton envoie pour de vrai (MAIL_ENVOI=on) au lieu de créer un brouillon. */
+  envoiDirect?: boolean;
   boite: string | null;
   /** Signature du gestionnaire (Signitic), posée sous le message. */
   signatureHtml?: string | null;
@@ -84,7 +88,7 @@ function avecPrefixe(objet: string, ancienne: CoproChoisissable | null, nouvelle
 
 const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
-export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, boite, signatureHtml, onTermine }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine }: Props) {
   const toast = useToast();
   const [a, setA] = useState<Personne[]>([]);
   const [cc, setCc] = useState<Personne[]>([]);
@@ -136,6 +140,15 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     if (!copro && d.copros.length === 1) choisirCopro(d.copros[0]!.reference);
   }
 
+  // Une personne glissée de « À » vers « Cc » (ou l'inverse).
+  function deplacer(depuis: string, cle: string) {
+    const [source, setSource, setCible] = depuis === "a" ? [a, setA, setCc] : [cc, setCc, setA];
+    const p = source.find((x) => x.cle === cle);
+    if (!p) return;
+    setSource((l) => l.filter((x) => x.cle !== cle));
+    setCible((l) => (l.some((x) => x.cle === cle) ? l : [...l, p]));
+  }
+
   function ajouterConseil() {
     if (!conseil?.length) return;
     const deja = new Set(adresses(a));
@@ -155,6 +168,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     }
     setFichiers((l) => [...l, ...ajout].slice(0, 10));
   }
+
+  const depot = useDepotFichiers((l) => void ajouterFichiers(l));
 
   const variables: VariablesModele = {
     copro_code: copro?.reference ?? "",
@@ -198,26 +213,32 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       }
       const res = r.donnees;
       if (!res || res.simulation) {
-        toast.ok("Aperçu vérifié : aucune boîte branchée ici, aucun brouillon créé.");
+        toast.ok("Aperçu vérifié : aucune boîte branchée ici, rien n'est parti.");
         return;
       }
-      toast.ok(`Brouillon créé dans ${res.boite ?? "la boîte"}, à relire puis envoyer dans Outlook.`);
+      toast.ok(res.envoye ? `Mail envoyé depuis ${res.boite ?? "la boîte"}.` : `Brouillon créé dans ${res.boite ?? "la boîte"}, à relire puis envoyer dans Outlook.`);
       if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
-      if (res.rattache === false) toast.warn("Brouillon créé, mais le rattachement au dossier a échoué.");
+      if (res.rattache === false) toast.warn(`${res.envoye ? "Mail envoyé" : "Brouillon créé"}, mais le rattachement au dossier a échoué.`);
       onTermine?.();
     });
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      {...depot.zone}
+      className={"flex flex-col gap-4 rounded-lg transition-shadow " + (depot.survol ? "ring-2 ring-green-600 ring-offset-4" : "")}
+    >
+      {boite && brouillonPossible ? <LigneExpediteur boite={boite} /> : null}
       <ChampPersonnes
+        champ="a"
         label="À"
         personnes={a}
         onChange={setA}
+        onDeplacer={deplacer}
         onChoisie={personneChoisie}
-        placeholder="Nom du copropriétaire (ou une adresse)…"
+        placeholder="Nom du destinataire (ou une adresse)…"
       />
-      <ChampPersonnes label="Cc" personnes={cc} onChange={setCc} placeholder="Nom ou adresse…" />
+      <ChampPersonnes champ="cc" label="Cc" personnes={cc} onChange={setCc} onDeplacer={deplacer} placeholder="Nom ou adresse…" />
 
       {/* Rattachement : l'immeuble de la personne, ou aucun (perso). */}
       <div className="flex flex-col gap-2">
@@ -299,6 +320,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
             }}
           />
         </label>
+        {fichiers.length === 0 ? <span className="text-meta text-ink-3">ou glissez les fichiers ici</span> : null}
         {fichiers.map((f, i) => (
           <span key={`${f.nom}-${i}`} className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2">
             <span className="truncate max-w-[200px]">{f.nom}</span>
@@ -311,22 +333,39 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
 
       {signatureHtml ? (
         <div>
-          <span className="text-meta text-ink-3">Signature (ajoutée au brouillon)</span>
+          <span className="text-meta text-ink-3">Signature (ajoutée au mail)</span>
           <iframe title="Signature" sandbox="" srcDoc={signatureHtml} className="mt-1 w-full h-[170px] rounded-md border border-line bg-white" />
         </div>
       ) : null}
 
       {!brouillonPossible && (
-        <Callout ton="warn">Aperçu seulement : la boîte partagée n&apos;est pas branchée ici, aucun brouillon ne sera créé.</Callout>
+        <Callout ton="warn">Aperçu seulement : la boîte partagée n&apos;est pas branchée ici, rien ne partira.</Callout>
       )}
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3">
         <span className="text-meta text-ink-3 mr-auto">
-          {brouillonPossible ? `Brouillon dans ${boite} : à relire puis envoyer dans Outlook.` : null}
+          {brouillonPossible && !envoiDirect ? `Brouillon dans ${boite} : à relire puis envoyer dans Outlook.` : null}
         </span>
+        {onTermine ? (
+          <Button variant="ghost" onClick={onTermine} disabled={envoiEnCours}>
+            Annuler
+          </Button>
+        ) : null}
         <Button variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} loading={envoiEnCours} onClick={creerBrouillon}>
-          {brouillonPossible ? "Créer le brouillon" : "Vérifier l'aperçu"}
+          {!brouillonPossible ? "Vérifier l'aperçu" : envoiDirect ? (envoiEnCours ? "Envoi…" : "Envoyer") : "Créer le brouillon"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** La boîte d'où part le mail, bien visible : une boîte partagée engage tout le cabinet. */
+export function LigneExpediteur({ boite }: { boite: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-6 shrink-0 text-body text-ink-3">De</span>
+      <span className="inline-flex items-center h-7 px-2.5 rounded-md bg-info-50 text-info-700 border border-info-500/30 text-body font-medium">
+        {boite}
+      </span>
     </div>
   );
 }
@@ -349,19 +388,24 @@ function ChoixCopro({ actif, onClick, children }: { actif: boolean; onClick: () 
 
 /** Un champ À ou Cc : on tape un nom, l'annuaire propose les personnes ; une adresse tapée passe aussi. */
 function ChampPersonnes({
+  champ,
   label,
   personnes,
   onChange,
+  onDeplacer,
   onChoisie,
   placeholder,
 }: {
+  champ: string;
   label: string;
   personnes: Personne[];
   onChange: (l: Personne[]) => void;
+  onDeplacer: (depuis: string, cle: string) => void;
   onChoisie?: (d: DestinataireTrouve) => void;
   placeholder: string;
 }) {
   const [saisie, setSaisie] = useState("");
+  const depot = useDepotDestinataire(champ, onDeplacer);
   // Résultats rangés par la saisie qui les a demandés : on n'affiche que ceux de la saisie en cours.
   const [trouves, setTrouves] = useState<{ q: string; liste: DestinataireTrouve[] } | null>(null);
   const q = saisie.trim();
@@ -388,9 +432,17 @@ function ChampPersonnes({
   return (
     <div className="relative flex items-start gap-2">
       <span className="w-6 shrink-0 pt-1.5 text-body text-ink-3">{label}</span>
-      <div className="flex-1 flex flex-wrap items-center gap-1 min-h-8 rounded-md border border-line px-1.5 py-1">
+      <div
+        {...depot.zone}
+        className={"flex-1 flex flex-wrap items-center gap-1 min-h-8 rounded-md border px-1.5 py-1 " + (depot.survol ? "border-green-600 bg-green-50/40" : "border-line")}
+      >
         {personnes.map((p) => (
-          <span key={p.cle} className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-meta text-ink-2 max-w-full">
+          <span
+            key={p.cle}
+            {...pastilleGlissable(champ, p.cle)}
+            title="Glisser vers un autre champ"
+            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-meta text-ink-2 max-w-full cursor-grab active:cursor-grabbing"
+          >
             <span className="truncate">
               {p.nom ? <span className="text-ink">{p.nom} </span> : null}
               {p.emails.join(" ; ")}

@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Callout } from "@/components/ui/callout";
 import { Compositeur } from "@/components/mes-emails/compositeur";
-import { boiteEnvoi, brouillonPossible, listerCoprosComposition } from "@/lib/services/mes-emails/composer-mail";
+import { boiteEnvoi, brouillonPossible, envoiDirectComposition, listerCoprosComposition } from "@/lib/services/mes-emails/composer-mail";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 
 export const metadata: Metadata = { title: "Envoyer un e-mail - REAL31 Intranet" };
@@ -36,6 +36,7 @@ export default async function ComposerPage() {
           gestionnaireNom={g.nomComplet}
           agence={agence}
           brouillonPossible={brouillonPossible()}
+          envoiDirect={envoiDirectComposition()}
           boite={boiteEnvoi()}
           signatureHtml={signatureHtml}
         />
