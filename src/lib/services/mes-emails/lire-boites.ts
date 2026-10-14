@@ -31,8 +31,11 @@ import { recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { distributionDe } from "./boites-visibles";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
-// chasser les mails de la boite personnelle de l'affichage.
-const MAX_INGEST = 80;
+// chasser les mails de la boite personnelle de l'affichage. Boite perso : 40 par defaut,
+// soit UNE page Graph (mesure prod du 14/10 : 80 mails = deux allers-retours de 1,1 s en
+// serie) ; « Plus de mails » en demande davantage.
+export const MAX_PERSO = 40;
+const MAX_PARTAGEE = 80;
 // Bumpe cette version si tu changes les prompts/modele -> le cache se reanalyse tout seul.
 // v3 : invalide les sorties MOCK mises en cache quand MISTRAL_API_KEY etait absent
 // (le routeur servait le mock) ; force la reanalyse via le vrai modele.
@@ -43,6 +46,8 @@ export interface TriageLive {
   dossiers: Dossier[];
   /** Nombre de mails bruts remontes, toutes boites confondues. */
   nbMailsAnalyses: number;
+  /** La boite perso a rempli son plafond : un « Plus de mails » a du sens. */
+  plusDeMails: boolean;
 }
 
 function priorite(type: TypeMail, ticketable: boolean): Severite {
@@ -69,13 +74,13 @@ function nomCourt(from: string): string {
  * avec la copro choisie au tri. Une boite en echec (droits Exchange, panne Graph) ne fait
  * pas tomber l'ecran : on journalise et on rend une liste vide.
  */
-async function ingererBoite(g: Gestionnaire, boite: BoiteMail): Promise<{ boite: BoiteMail; bruts: RawMail[] }> {
+async function ingererBoite(g: Gestionnaire, boite: BoiteMail, maxPerso: number): Promise<{ boite: BoiteMail; bruts: RawMail[] }> {
   try {
     const ingestion = getMailIngestionProvider();
-    if (boite.personnelle) return { boite, bruts: await ingestion.lireRecents({ email: boite.adresse, max: MAX_INGEST }) };
+    if (boite.personnelle) return { boite, bruts: await ingestion.lireRecents({ email: boite.adresse, max: maxPerso }) };
     const distribues = await distributionDe(g, boite.adresse);
     if (distribues.size === 0) return { boite, bruts: [] };
-    const ids = [...distribues.keys()].slice(0, MAX_INGEST);
+    const ids = [...distribues.keys()].slice(0, MAX_PARTAGEE);
     const lus = ingestion.lireParIds
       ? await ingestion.lireParIds(boite.adresse, ids)
       : (await ingestion.lireRecents({ email: boite.adresse, max: 200 })).filter((m) => distribues.has(m.internetMessageId));
@@ -97,15 +102,22 @@ async function ingererBoite(g: Gestionnaire, boite: BoiteMail): Promise<{ boite:
 export async function lireBoitesLive(
   g: Gestionnaire,
   boites: BoiteMail[],
-  copros: Copropriete[],
+  coprosEnCours: Copropriete[] | Promise<Copropriete[]>,
+  maxPerso: number = MAX_PERSO,
 ): Promise<TriageLive> {
-  if (boites.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0 };
+  if (boites.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false };
 
+  // Boites, portefeuille (ESTALE en direct) et referentiel du tri sont lus EN PARALLELE :
+  // leurs latences ne s'additionnent pas (mesure prod du 14/10 : jusqu'a 7 s en serie).
+  const [parBoite, copros, referentiel] = await Promise.all([
+    Promise.all(boites.map((b) => ingererBoite(g, b, maxPerso))),
+    Promise.resolve(coprosEnCours),
+    getReferentielTriProvider().charger().catch((): ReferentielTri | null => null),
+  ]);
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
   const coproNomDe = (code: string) => nomDe.get(code) ?? (code || "Non rattaché");
-
-  // Les boites sont lues EN PARALLELE : leur latence ne s'additionne pas.
-  const parBoite = await Promise.all(boites.map((b) => ingererBoite(g, b)));
+  // La boite perso est pleine : il en reste sans doute d'autres a charger.
+  const plusDeMails = parBoite.some(({ boite, bruts: lot }) => boite.personnelle && lot.length >= maxPerso);
   const boiteDe = new Map<string, string>();
   const bruts: RawMail[] = [];
   for (const { boite, bruts: lot } of parBoite) {
@@ -114,12 +126,11 @@ export async function lireBoitesLive(
       bruts.push(b);
     }
   }
-  if (bruts.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0 };
+  if (bruts.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false };
 
   // Copro des mails que le tri n'a pas tranches : le MOTEUR DU TRI (codes, annuaire ESTALE+Crypto,
   // immatriculation, nom/adresse hors signature), seulement quand il est SUR. L'ancien
   // detecteur (texte entier, signature comprise) rattachait tout a S158 « place Michelet ».
-  const referentiel = await getReferentielTriProvider().charger().catch((): ReferentielTri | null => null);
   if (referentiel) {
     for (const b of bruts) {
       if (b.copro) continue;
@@ -242,5 +253,5 @@ export async function lireBoitesLive(
     };
   });
 
-  return { mails, dossiers, nbMailsAnalyses: bruts.length };
+  return { mails, dossiers, nbMailsAnalyses: bruts.length, plusDeMails };
 }

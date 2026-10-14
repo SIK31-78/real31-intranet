@@ -253,6 +253,8 @@ export interface MesEmails {
   dossiers: Dossier[];
   /** Contexte eStale par copro (rempli par le service). */
   contextes: ContexteCopro[];
+  /** La boîte perso a rempli son plafond : « Plus de mails » en charge davantage. */
+  plusDeMails?: boolean;
   /** Copros du portefeuille du gestionnaire (rempli par le service ; rattachement manuel). */
   coprosDuGestionnaire?: { code: string; nom: string }[];
 }

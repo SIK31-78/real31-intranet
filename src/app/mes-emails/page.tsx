@@ -18,13 +18,20 @@ export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 // Lecture LIVE des boites a chaque affichage (plus de synchro) : rendu a la demande.
 export const dynamic = "force-dynamic";
 
-export default async function MesEmailsPage() {
+// Boite perso : 40 mails par defaut (une seule page Graph), « Plus de mails » ajoute 40.
+function plafondPerso(plus: string | undefined): number {
+  const n = Number(plus);
+  return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 40), 200) : 40;
+}
+
+export default async function MesEmailsPage({ searchParams }: { searchParams: Promise<{ plus?: string }> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
   // Module grise en prod tant que la vraie boite n'est pas branchee (MAIL_SOURCE=graph),
   // et reserve aux pilotes si MAIL_PILOTES est pose (deploiement pilote).
   if (!mailModuleActifPour(g.email)) redirect("/accueil");
-  const [data, signatureHtml] = await Promise.all([getMesEmails(g), getSignatureGestionnaire(g)]);
+  const maxPerso = plafondPerso((await searchParams).plus);
+  const [data, signatureHtml] = await Promise.all([getMesEmails(g, maxPerso), getSignatureGestionnaire(g)]);
 
   return (
     <AppShell user={g} active="emails" breadcrumb="E-mails">
@@ -45,6 +52,7 @@ export default async function MesEmailsPage() {
           signatureHtml={signatureHtml}
           depotDriveActif={depotPieceJointeActif()}
           adresseFactures={adresseFacturesAgence()}
+          maxPerso={maxPerso}
         />
       </Page>
     </AppShell>

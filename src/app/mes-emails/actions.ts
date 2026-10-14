@@ -33,7 +33,8 @@ import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-join
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
-import type { PieceJointeRef } from "@/lib/domain/mes-emails";
+import type { ContexteCopro, PieceJointeRef } from "@/lib/domain/mes-emails";
+import { contexteCoproPour } from "@/lib/services/mes-emails/get-mes-emails";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier, creerDossierDepuisMail } from "@/lib/services/dossiers/rattacher-email";
 import type { DossierBoite } from "@/lib/domain/mes-emails";
@@ -152,6 +153,15 @@ export async function marquerLuAction(emailId: string, coproCode: string): Promi
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerLu(cibleDe(auth.g, emailId, coproCode));
+}
+
+/** Le contexte ESTALE d'une copro, à l'ouverture du volet Contexte (plus au chargement de
+ *  la page). Toujours borné au périmètre du gestionnaire. */
+export async function chargerContexteCoproAction(coproCode: string): Promise<ContexteCopro | null> {
+  if (!zCopro.safeParse(coproCode).success || !coproCode) return null;
+  const auth = await withGestionnaire(coproCode, true);
+  if (!auth.ok) return null;
+  return contexteCoproPour(coproCode);
 }
 
 // --- Pont vers le module Dossiers (intranet_dossiers, TOUJOURS copro-scope) --------------

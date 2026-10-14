@@ -87,7 +87,7 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     const dossier = opts.folderId ? encodeURIComponent(opts.folderId) : "inbox";
     let url: string =
       `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/${dossier}/messages` +
-      `?$top=${PAGE}&$orderby=receivedDateTime desc&$select=${select}&${EXPAND_VERBE}` +
+      `?$top=${Math.min(PAGE, opts.max)}&$orderby=receivedDateTime desc&$select=${select}&${EXPAND_VERBE}` +
       (opts.depuis ? `&$filter=receivedDateTime ge ${opts.depuis}` : "");
 
     const out: RawMail[] = [];

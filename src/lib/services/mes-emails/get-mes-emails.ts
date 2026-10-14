@@ -4,7 +4,9 @@
 //     ("synchronisé le 2026-06-26" en pleine page). Cf. lire-boites.ts.
 //   - etat de traitement : fusionne depuis intranet_mes_emails_etat (ce que le
 //     gestionnaire a fait sur chaque mail).
-//   - contextes : enrichissement REEL eStale par copro (degradation propre si absent).
+//   - contextes : NON charges ici. Le volet Contexte les demande a l'ouverture
+//     (contexteCoproPour) : ~10 requetes ESTALE par affichage pour un volet replie par
+//     defaut coutaient 2,3 s (mesure prod du 14/10).
 // Passe par le routeur, jamais un adapter en direct (ADR-001).
 
 import type { ContexteCopro, MailEntrant, MesEmails } from "@/lib/domain/mes-emails";
@@ -16,14 +18,16 @@ import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { lireBoitesLive } from "@/lib/services/mes-emails/lire-boites";
 
-export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
+export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<MesEmails> {
   // Boites visibles = source unique (perso + sous-dossier du binome sur la partagee).
   const boites = await boitesVisibles(g);
-  const mesCopros = await getCoproRepository().list(g.id);
+  // Le portefeuille vient d'ESTALE en direct : on le lit PENDANT la lecture des boites.
+  const mesCoprosP = getCoproRepository().list(g.id);
 
-  const [triage, etatsListe] = await Promise.all([
-    lireBoitesLive(g, boites, mesCopros),
+  const [triage, etatsListe, mesCopros] = await Promise.all([
+    lireBoitesLive(g, boites, mesCoprosP, maxPerso),
     getMesEmailsEtatRepository().getEtats(g.id),
+    mesCoprosP,
   ]);
   const etats = new Map(etatsListe.map((e) => [e.emailId, e]));
 
@@ -39,7 +43,8 @@ export async function getMesEmails(g: Gestionnaire): Promise<MesEmails> {
     dateCourante: "",
     mails,
     dossiers: triage.dossiers,
-    contextes: await enrichirContextes(mails, new Set(mesCopros.map((c) => c.code))),
+    contextes: [],
+    plusDeMails: triage.plusDeMails,
     coprosDuGestionnaire: mesCopros.map((c) => ({ code: c.code, nom: c.nom })),
   };
 }
@@ -59,26 +64,16 @@ function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
   };
 }
 
-/** Pour chaque copro rattachee ET dans le perimetre du gestionnaire, tire son contexte
- *  eStale. Le filtre perimetre evite de divulguer le contexte (CS, debiteurs, procedures)
- *  d'une copro hors scope si un mail/override pointe dehors (audit prod 2026-06-25). */
-async function enrichirContextes(
-  mails: MailEntrant[],
-  perimetre: Set<string>,
-): Promise<ContexteCopro[]> {
-  const codes = [...new Set(mails.map((m) => m.coproCode).filter(Boolean))].filter((c) =>
-    perimetre.has(c),
-  );
-  return Promise.all(
-    codes.map(async (code) => {
-      try {
-        return versContexte(code, await donneesCoproEstale(code));
-      } catch (err) {
-        console.warn(`[mes-emails] eStale indisponible pour ${code} :`, (err as Error).message);
-        return { coproCode: code, disponible: false, conseilSyndical: [] };
-      }
-    }),
-  );
+/** Le contexte ESTALE d'UNE copro, demande par le volet Contexte a son ouverture. Le
+ *  controle de perimetre (la copro est-elle au gestionnaire ?) est fait par l'appelant :
+ *  il evite de divulguer CS, debiteurs, procedures d'une copro hors scope (audit 2026-06-25). */
+export async function contexteCoproPour(code: string): Promise<ContexteCopro> {
+  try {
+    return versContexte(code, await donneesCoproEstale(code));
+  } catch (err) {
+    console.warn(`[mes-emails] ESTALE indisponible pour ${code} :`, (err as Error).message);
+    return { coproCode: code, disponible: false, conseilSyndical: [] };
+  }
 }
 
 function versContexte(code: string, d: DonneesEstaleCopro | null): ContexteCopro {

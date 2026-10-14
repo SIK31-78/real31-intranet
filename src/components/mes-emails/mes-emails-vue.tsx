@@ -51,7 +51,6 @@ import {
   mailsDeLaBoite,
   sujetDeReponse,
   trierMails,
-  trouverContexte,
   trouverDossier,
   typeDossierSuggere,
 } from "@/lib/domain/mes-emails";
@@ -86,6 +85,7 @@ import {
   creerDossierOutlookAction,
   classerDansDossierAction,
   chargerDossiersCoproAction,
+  chargerContexteCoproAction,
   rattacherADossierAction,
   creerDossierDepuisMailAction,
 } from "@/app/mes-emails/actions";
@@ -121,8 +121,11 @@ export function MesEmailsVue({
   signatureHtml,
   depotDriveActif = false,
   adresseFactures = null,
+  maxPerso = 40,
 }: {
   data: MesEmails;
+  /** Plafond de la boîte perso pour cet affichage (« Plus de mails » l'augmente). */
+  maxPerso?: number;
   signatureHtml?: string | null;
   /** Dépôt SharePoint branché (SHAREPOINT_DEPOT_ACTIF) : affiche « Déposer » sur les PJ. */
   depotDriveActif?: boolean;
@@ -200,6 +203,8 @@ export function MesEmailsVue({
   const [dossiersReels, setDossiersReels] = useState<
     Map<string, { id: string; titre: string; type: TypeDossier }[]>
   >(new Map());
+  // Contexte ESTALE par copro, charge a l'ouverture du volet (null = indisponible).
+  const [contextes, setContextes] = useState<Map<string, ContexteCopro | null>>(new Map());
   // Pieces jointes REELLES chargees a la demande a l'ouverture (null = en cours).
   const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
@@ -425,6 +430,14 @@ export function MesEmailsVue({
       setDossiersReels((p) => new Map(p).set(coproSel, ds)),
     );
   }, [changer, coproSel, dossiersReels]);
+
+  // Contexte ESTALE de la copro, charge a l'ouverture du volet Contexte et plus au chargement
+  // de la page (mesure prod du 14/10 : 2,3 s pour un volet replie par defaut).
+  const contexteOuvert = ouverts.has("contexte");
+  useEffect(() => {
+    if (!contexteOuvert || !coproSel || contextes.has(coproSel)) return;
+    void chargerContexteCoproAction(coproSel).then((c) => setContextes((p) => new Map(p).set(coproSel, c)));
+  }, [contexteOuvert, coproSel, contextes]);
 
   const rafraichirDossiersCopro = (code: string) =>
     setDossiersReels((p) => {
@@ -687,6 +700,13 @@ export function MesEmailsVue({
                 <li className="px-4 py-6 text-center text-body text-ink-3">Aucun mail.</li>
               )}
             </ul>
+            {data.plusDeMails && data.boites.find((b) => b.id === boiteActive)?.personnelle ? (
+              <div className="px-4 py-3 border-t border-line text-center">
+                <Link href={`/mes-emails?plus=${maxPerso + 40}`} className={classesBouton({ variant: "ghost", size: "sm" })}>
+                  Plus de mails
+                </Link>
+              </div>
+            ) : null}
           </Card>
         </aside>
 
@@ -695,7 +715,7 @@ export function MesEmailsVue({
           {selection ? (
             <AnalysePane
               m={selection}
-              contexte={trouverContexte(data.contextes, selection.coproCode)}
+              contexte={selection.coproCode ? contextes.get(selection.coproCode) : null}
               ratt={rattDe(selection)}
               dossier={trouverDossier(data.dossiers, rattDe(selection).dossierId)}
               dossiersReels={dossiersReels.get(coproDe(selection).code) ?? null}
@@ -1137,7 +1157,8 @@ function AnalysePane({
   onConclure,
 }: {
   m: MailEntrant;
-  contexte: ContexteCopro | undefined;
+  /** undefined = en cours de chargement, null = indisponible. */
+  contexte: ContexteCopro | null | undefined;
   ratt: Rattachement;
   dossier: Dossier | undefined;
   dossiersReels: { id: string; titre: string; type: TypeDossier }[] | null;
@@ -1653,11 +1674,12 @@ function Fait({
   );
 }
 
-function ContexteCoproContenu({ ctx }: { ctx: ContexteCopro | undefined }) {
+function ContexteCoproContenu({ ctx }: { ctx: ContexteCopro | null | undefined }) {
+  if (ctx === undefined) return <p className="text-body text-ink-3 italic">Chargement…</p>;
   if (!ctx || !ctx.disponible) {
     return (
       <p className="text-body text-ink-3 italic">
-        Indisponible (copro absente d’eStale, ou eStale non configuré).
+        Indisponible (copro absente d’ESTALE, ou ESTALE non configuré).
       </p>
     );
   }
