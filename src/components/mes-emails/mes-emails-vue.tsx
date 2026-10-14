@@ -929,6 +929,9 @@ function LigneMail({
           >
             {m.objet}
           </span>
+          {m.attachments.length > 0 ? (
+            <Paperclip strokeWidth={1.75} className="w-3.5 h-3.5 shrink-0 text-ink-3" aria-label="Pièce jointe" />
+          ) : null}
           <span className="shrink-0 text-meta text-ink-3">{jourMois(m.date)}</span>
         </div>
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
