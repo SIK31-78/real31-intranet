@@ -72,17 +72,21 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const boite = boiteTriConfiguree();
   if (!boite) return null;
 
-  // D'abord suivre ce que l'equipe a fait dans Outlook : un mail remis dans la generique
-  // doit reapparaitre dans la file des cet affichage.
+  // Suivre ce que l'equipe a fait dans Outlook (un mail remis dans la generique doit
+  // reapparaitre dans la file des cet affichage), EN PARALLELE du chargement : avant, ce
+  // controle (jusqu'a 50 mails, 4 par 4) passait seul devant et allongeait le premier clic.
+  // Seul « deja ranges », lu plus bas, depend de son resultat : on l'attend avant.
   let corrigesOutlook = 0;
   let erreurReconciliation: string | null = null;
-  try {
-    const bilan = await reconcilierRangements();
-    corrigesOutlook = bilan.remisEnFile + bilan.deplaces;
-  } catch (e) {
-    erreurReconciliation = "La vérification des mails déplacés dans Outlook n'a pas abouti.";
-    console.error("[tri-emails] reconciliation :", e instanceof Error ? e.message : e);
-  }
+  const reconciliation = reconcilierRangements().then(
+    (bilan) => {
+      corrigesOutlook = bilan.remisEnFile + bilan.deplaces;
+    },
+    (e) => {
+      erreurReconciliation = "La vérification des mails déplacés dans Outlook n'a pas abouti.";
+      console.error("[tri-emails] reconciliation :", e instanceof Error ? e.message : e);
+    },
+  );
 
   const repo = getTriRepository();
   const [refRes, mailsRes, iniRes, binRes, journalRes, gestRes] = await Promise.allSettled([
@@ -94,6 +98,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     listerGestionnairesCabinet(),
   ]);
 
+  await reconciliation;
   const erreurs: string[] = erreurReconciliation ? [erreurReconciliation] : [];
   if (refRes.status === "rejected") erreurs.push("Ni ESTALE ni le référentiel Crypto n'ont répondu : les suggestions sont indisponibles.");
   if (refRes.status === "fulfilled") erreurs.push(...(refRes.value.avertissements ?? []));

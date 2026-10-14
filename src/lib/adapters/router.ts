@@ -88,6 +88,7 @@ import { SupabaseCoproRepository } from "@/lib/adapters/supabase/supabase-copro-
 import { CompositeCoproRepository } from "@/lib/adapters/composite/composite-copro-repository";
 import { EstaleCoproProvider } from "@/lib/adapters/estale/estale-copro-provider";
 import { CachePartageCoprosEstale } from "@/lib/adapters/composite/cache-partage-copros-estale";
+import { CachePartageReferentielTri } from "@/lib/adapters/composite/cache-partage-referentiel-tri";
 import { unstable_cache } from "next/cache";
 import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
 import type { OdjCsDocxRenderer } from "@/lib/ports/odj-cs-docx-renderer";
@@ -476,6 +477,15 @@ export function getIngestionTri(): MailIngestionProvider {
   return new EchantillonTriIngestion();
 }
 
+// Referentiel ESTALE du tri partage entre instances (1 h par defaut) : cf. cache-partage-referentiel-tri.
+function referentielTriEstalePartage(): ReferentielTriProvider {
+  const ttl = Number(process.env.ESTALE_REFERENTIEL_TRI_TTL_S) || 3600;
+  return new CachePartageReferentielTri(
+    new EstaleReferentielTri(),
+    (charger) => unstable_cache(charger, ["estale-referentiel-tri-v1"], { revalidate: ttl, tags: ["estale-referentiel-tri"] }),
+  );
+}
+
 // Referentiel du tri (copros, equipe, adresses connues) : ESTALE + copros Crypto de
 // l'intranet et annuaire Crypto, bornes a l'agence de la boite (MAIL_TRI_AGENCE, ex. HLS).
 // Referentiel fictif hors Supabase.
@@ -483,7 +493,7 @@ export function getReferentielTriProvider(): ReferentielTriProvider {
   if (!coproSourceEstSupabase()) return new MockReferentielTri();
   const agence = process.env.MAIL_TRI_AGENCE?.trim() || null;
   return new ReferentielTriBoite(
-    estaleConfigure() ? new EstaleReferentielTri() : null,
+    estaleConfigure() ? referentielTriEstalePartage() : null,
     new SupabaseReferentielTriCrypto(agence),
     agence !== null,
   );
