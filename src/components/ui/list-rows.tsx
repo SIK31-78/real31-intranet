@@ -51,8 +51,11 @@ export function Row({
   return (
     <li>
       {href ? (
+        // Pas de prechargement : une liste de 15 trousseaux ou copros lancait 15 requetes au
+        // chargement de l'accueil, en concurrence avec le code de la page (Sentry, 14/10).
         <Link
           href={href}
+          prefetch={false}
           className={cn(classes, "hover:bg-surface-2/60 transition-colors duration-120 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-inset")}
         >
           {contenu}

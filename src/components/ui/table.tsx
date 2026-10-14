@@ -101,8 +101,10 @@ export function Td({ numeric, principal, secondaire, code, className, ...props }
 
 /** Lien qui recouvre toute la ligne (a poser dans la cellule principale d'un <Tr interactive>). */
 export function LienLigne({ className, ...props }: ComponentProps<typeof Link>) {
+  // Pas de prechargement par defaut : un tableau de 50 lignes = 50 requetes au chargement.
   return (
     <Link
+      prefetch={false}
       className={cn(
         "text-ink font-medium hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded-sm",
         "before:absolute before:inset-0 before:content-['']",
