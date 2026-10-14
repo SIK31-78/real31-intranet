@@ -130,6 +130,11 @@ const NAV_COMPTABLE: Item[] = [
   // menait depuis sa nav reduite : il devait taper l'URL a la main.
   { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
   { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
+  // Perte de copropriete : la fiche process a des etapes pour la comptable copro et la
+  // comptable entreprise (dossier comptable a transmettre, cloture). La page et la coche
+  // leur etaient deja ouvertes (repli comptable de coproAppartient), mais aucun lien n'y
+  // menait depuis cette nav reduite (Isabelle, S224, 14/10/2026, REA-311).
+  { key: "perte", label: "Perte de copropriété", href: "/perte-copro", icon: PackageMinus },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
