@@ -66,6 +66,7 @@ import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { MODELES_MAIL, fusionnerModele } from "@/lib/domain/mes-emails-composition";
+import { estMailInterne } from "@/lib/domain/tri-emails";
 import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
@@ -937,6 +938,12 @@ function LigneMail({
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
           <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-3")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
+          {/* Même repère que l'écran de tri : un collègue du cabinet, pas un client. */}
+          {estMailInterne(m.expediteurEmail, m.boite ?? "") ? (
+            <span className={"shrink-0" + (reponse || conclus ? "" : " ml-auto")}>
+              <Badge ton="err">Interne</Badge>
+            </span>
+          ) : null}
           {reponse ? (
             <span className="ml-auto shrink-0">
               <Badge ton="info">{reponse === "transfere" ? "Transféré" : "Répondu"}</Badge>
