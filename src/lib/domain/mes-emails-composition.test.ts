@@ -14,9 +14,10 @@ describe("objet auto-taggé copro", () => {
     expect(prefixeObjetCopro(copro)).toBe("S0247 · Résidence Le Cyrano · 12 rue des Lilas 78400 Chatou");
   });
 
-  it("tronque une adresse trop longue et peut l'omettre", () => {
-    const longue = { reference: "S1", nom: "X", adresse: "a".repeat(80) };
-    expect(prefixeObjetCopro(longue).endsWith("…")).toBe(true);
+  it("garde l'adresse entière, même longue, et peut l'omettre", () => {
+    // Cas réel S247 : l'objet partait avec « 78420 CARRIERES… ».
+    const longue = { reference: "S0247", nom: "CYRANO", adresse: "16-18 Av Maréchal Juin / 56 r Gal Leclerc 78420 CARRIERES SUR SEINE" };
+    expect(prefixeObjetCopro(longue)).toBe(`S0247 · CYRANO · ${longue.adresse}`);
     expect(prefixeObjetCopro(copro, false)).toBe("S0247 · Résidence Le Cyrano");
     // Le nom est l'adresse : on ne la répète pas (cas réel S0302).
     const peri = { reference: "S0302", nom: "44/50 rue Gabriel Péri", adresse: "44/50 Rue Gabriel Péri 78800 Houilles" };

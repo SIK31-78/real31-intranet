@@ -38,7 +38,8 @@ export function prefixeObjetCopro(copro: CoproComposition, avecAdresse = true): 
   // la répète pas. L'adresse complète (avec la ville) l'emporte sur le nom qu'elle contient.
   const nom = avecAdresse && adresse && sansAccents(adresse).includes(sansAccents(copro.nom)) ? "" : copro.nom.trim();
   const bouts = [copro.reference, nom];
-  if (avecAdresse && adresse) bouts.push(adresse.length > 60 ? `${adresse.slice(0, 57)}…` : adresse);
+  // Adresse complète, jamais tronquée : ce préfixe part tel quel dans l'objet du mail.
+  if (avecAdresse && adresse) bouts.push(adresse);
   return bouts.filter(Boolean).join(" · ");
 }
 
