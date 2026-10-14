@@ -51,7 +51,6 @@ export const SECTIONS_TEMPLATE: SectionTemplate[] = [
     items: [
       { id: "apcs.honos", libelle: "Honoraires CS (horaire dépassé ?)", module: "depassement_cs" },
       { id: "apcs.cr-cs-extranet", libelle: "Compte rendu CS diffusé sur l'extranet" },
-      { id: "apcs.suppr-fichiers-n1", libelle: "Suppression des anciens fichiers inutiles AG N-1" },
     ],
   },
   {

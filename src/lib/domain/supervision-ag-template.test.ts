@@ -18,6 +18,11 @@ describe("SECTIONS_TEMPLATE", () => {
     expect(item?.type).toBeUndefined(); // case à cocher : cochable à la main (copro Crypto)
   });
 
+  it("l'étape de suppression des fichiers AG N-1 est retirée (incomprise, cochages gardés en base)", () => {
+    const ids = SECTIONS_TEMPLATE.flatMap((s) => s.items.map((i) => i.id));
+    expect(ids).not.toContain("apcs.suppr-fichiers-n1");
+  });
+
   it("les ids historiques restent en place (cochages existants conservés)", () => {
     const ids = SECTIONS_TEMPLATE.flatMap((s) => s.items.map((i) => i.id));
     expect(ids).toEqual(expect.arrayContaining([ITEM_CS_PREPA, "avcs.avancement-tx", "apcs.honos", "apag.recap-reality"]));
