@@ -20,8 +20,10 @@ export interface DateReunionMail {
   heure?: string;
   /** Mode de tenue ; absent = on n'ecrit pas de parenthese (on n'invente rien). */
   mode?: ModeReunion;
-  /** Libelle de la salle reservee (RESSOURCES_REAL31) ; mentionne si mode presentiel/hybride. */
-  salleLibelle?: string;
+  /** ADRESSE du lieu (jamais le nom interne d'une salle, regle de la maison) : le lieu libre
+   *  saisi pour une reunion a l'exterieur (REA-148) prime, sinon l'adresse postale de la
+   *  salle REAL31 reservee. Mentionnee sauf en visio. */
+  lieu?: string;
 }
 
 export interface InfosMailDatesReunion {
@@ -62,24 +64,21 @@ export function dateConfirmationJ7(aujourdhuiISO: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Fragment "le JJ/MM/AAAA à XXhXX (mode), salle ..." d'une date proposee. */
+/** Fragment "le JJ/MM/AAAA à XXhXX (mode), à <adresse>" d'une date proposee. */
 function fragmentDate(d: DateReunionMail): string {
   const heure = formatHeure(d.heure ?? HEURE_DEFAUT_REUNION);
   let frag = `le ${dateNumerique(d.dateISO)} à ${heure}`;
   if (d.mode) frag += ` (${MODE_PHRASE[d.mode]})`;
-  // Salle mentionnee seulement en presentiel / hybride (une visio n'a pas de salle).
-  if (d.salleLibelle && (d.mode === "presentiel" || d.mode === "hybride")) {
-    frag += `, salle ${d.salleLibelle}`;
-  }
+  // Adresse mentionnee sauf en visio (pas de lieu physique).
+  if (d.lieu && d.mode !== "visio") frag += `, à ${d.lieu}`;
   return frag;
 }
 
-/** Une date dont le fragment n'aura AUCUN lieu : ni mode, ou presentiel / hybride sans
- *  salle (une salle sans mode n'est pas reprise non plus, cf. fragmentDate). */
+/** Une date dont le fragment n'aura AUCUN lieu : hors visio, ni adresse de salle ni lieu
+ *  libre (cf. fragmentDate). */
 function lieuAbsent(d: DateReunionMail): boolean {
   if (d.mode === "visio") return false;
-  if (d.mode === "presentiel" || d.mode === "hybride") return !d.salleLibelle;
-  return true;
+  return !d.lieu;
 }
 
 /**
@@ -88,7 +87,7 @@ function lieuAbsent(d: DateReunionMail): boolean {
  * reunion concernee ; [] si tout est renseigne.
  */
 export function avertissementsLieuMail(infos: Pick<InfosMailDatesReunion, "cs" | "ag">): string[] {
-  const conseil = "le lieu n'apparaîtra pas : renseignez le mode et la salle de la réunion.";
+  const conseil = "le lieu n'apparaîtra pas : renseignez la salle ou le lieu de la réunion.";
   const avertissements: string[] = [];
   if (infos.cs && lieuAbsent(infos.cs)) avertissements.push(`CS préparatoire : ${conseil}`);
   if (infos.ag && lieuAbsent(infos.ag)) avertissements.push(`Assemblée générale : ${conseil}`);

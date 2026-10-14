@@ -93,7 +93,7 @@ describe("corpsMailDatesReunion", () => {
     expect(c).not.toContain("(en ");
   });
 
-  it("salle mentionnee en presentiel ; ignoree en visio", () => {
+  it("adresse mentionnee en presentiel ; ignoree en visio", () => {
     const enPresentiel = corpsMailDatesReunion({
       ...BASE,
       cs: undefined,
@@ -101,10 +101,12 @@ describe("corpsMailDatesReunion", () => {
         dateISO: "2026-09-15",
         heure: "18:30",
         mode: "presentiel",
-        salleLibelle: "LGC - Salle de reunions",
+        lieu: "13 rond-point du Souvenir Français, 92250 La Garenne-Colombes",
       },
     });
-    expect(enPresentiel).toContain("(en présentiel), salle LGC - Salle de reunions");
+    expect(enPresentiel).toContain(
+      "(en présentiel), à 13 rond-point du Souvenir Français, 92250 La Garenne-Colombes",
+    );
 
     const enVisio = corpsMailDatesReunion({
       ...BASE,
@@ -113,10 +115,19 @@ describe("corpsMailDatesReunion", () => {
         dateISO: "2026-09-15",
         heure: "18:30",
         mode: "visio",
-        salleLibelle: "LGC - Salle de reunions",
+        lieu: "13 rond-point du Souvenir Français, 92250 La Garenne-Colombes",
       },
     });
-    expect(enVisio).not.toContain("salle LGC");
+    expect(enVisio).not.toContain("Souvenir");
+  });
+
+  it("lieu libre (reunion a l'exterieur) repris tel quel", () => {
+    const c = corpsMailDatesReunion({
+      ...BASE,
+      cs: undefined,
+      ag: { dateISO: "2026-09-15", heure: "18:30", mode: "presentiel", lieu: "Salle des fêtes, 1 place de la Mairie" },
+    });
+    expect(c).toContain("(en présentiel), à Salle des fêtes, 1 place de la Mairie");
   });
 });
 
@@ -144,7 +155,7 @@ describe("objet avec adresse (demande Sekou)", () => {
 });
 
 describe("avertissementsLieuMail (lieu absent du mail, non bloquant)", () => {
-  const LIEU = "le lieu n'apparaîtra pas : renseignez le mode et la salle de la réunion.";
+  const LIEU = "le lieu n'apparaîtra pas : renseignez la salle ou le lieu de la réunion.";
 
   it("ni mode ni salle : un avertissement par reunion proposee", () => {
     expect(
@@ -159,15 +170,21 @@ describe("avertissementsLieuMail (lieu absent du mail, non bloquant)", () => {
     expect(avertissementsLieuMail({ cs: { dateISO: "2026-09-08", mode: "hybride" } })).toHaveLength(1);
   });
 
-  it("salle sans mode : la salle n'est pas reprise, avertissement", () => {
-    expect(avertissementsLieuMail({ ag: { dateISO: "2026-09-15", salleLibelle: "LGC" } })).toHaveLength(1);
+  it("lieu sans mode : repris, pas d'avertissement", () => {
+    expect(avertissementsLieuMail({ ag: { dateISO: "2026-09-15", lieu: "1 rue X" } })).toEqual([]);
+  });
+
+  it("lieu libre en presentiel : pas d'avertissement", () => {
+    expect(
+      avertissementsLieuMail({ cs: { dateISO: "2026-09-08", mode: "presentiel", lieu: "1 rue X" } }),
+    ).toEqual([]);
   });
 
   it("visio, ou presentiel avec salle : aucun avertissement", () => {
     expect(
       avertissementsLieuMail({
         cs: { dateISO: "2026-09-08", mode: "visio" },
-        ag: { dateISO: "2026-09-15", mode: "presentiel", salleLibelle: "LGC - Salle de reunions" },
+        ag: { dateISO: "2026-09-15", mode: "presentiel", lieu: "13 rond-point du Souvenir Français, 92250 La Garenne-Colombes" },
       }),
     ).toEqual([]);
   });

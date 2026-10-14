@@ -21,7 +21,7 @@ import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { getCoproRepository } from "@/lib/adapters/router";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
-import { ressourceParEmail } from "@/lib/domain/salles-reunion";
+import { adresseRessource } from "@/lib/domain/salles-reunion";
 import type { ConfirmationEvenement } from "@/lib/domain/confirmation-evenement";
 import {
   corpsMailDatesReunion,
@@ -77,8 +77,8 @@ async function garde(
 
 /**
  * Construit le fragment "date proposee" d'un type (CS / AG) SI la date est a venir.
- * Mode + salle sont portes par la confirmation ; la salle n'est reprise dans le mail
- * que si le mode est presentiel / hybride (logique du modele).
+ * Mode + lieu sont portes par la confirmation ; le lieu n'est repris dans le mail
+ * qu'hors visio (logique du modele).
  */
 function dateAProposer(
   dateISO: string | undefined,
@@ -88,12 +88,14 @@ function dateAProposer(
 ): DateReunionMail | undefined {
   const jour = dateISO?.slice(0, 10);
   if (!jour || jour < todayISO) return undefined; // pas de date, ou deja passee
-  const salleLibelle = ressourceParEmail(conf?.salleEmail)?.nom;
+  // Une ADRESSE, pas un nom de salle (comme l'ODJ) : le lieu libre d'une reunion a
+  // l'exterieur (REA-148) prime, sinon l'adresse postale de la salle reservee.
+  const lieu = conf?.lieuLibre?.trim() || adresseRessource(conf?.salleEmail);
   return {
     dateISO: jour,
     ...(heure ? { heure } : {}),
     ...(conf?.modeReunion ? { mode: conf.modeReunion } : {}),
-    ...(salleLibelle ? { salleLibelle } : {}),
+    ...(lieu ? { lieu } : {}),
   };
 }
 
