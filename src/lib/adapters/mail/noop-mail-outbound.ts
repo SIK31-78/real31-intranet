@@ -43,6 +43,10 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     return {};
   }
 
+  async envoyerBrouillon(p: { boite: string; id: string }): Promise<void> {
+    console.log(`[mail-outbound:noop] envoi du brouillon ${p.id} simule (${p.boite})`);
+  }
+
   async envoyerNeuf(p: {
     boite: string;
     a: string[];

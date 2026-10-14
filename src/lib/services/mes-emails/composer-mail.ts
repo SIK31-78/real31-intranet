@@ -7,10 +7,12 @@
 // internetMessageId survit à l'envoi, « Ouvrir le mail » depuis le dossier le retrouve.
 
 import { getContactsCoproProvider, getMailOutboundProvider, getReferentielTriProvider } from "@/lib/adapters/router";
-import { boiteTriConfiguree, mailModuleActif } from "@/lib/domain/mail-gate";
+import { boiteTriConfiguree, envoiMailActif, mailModuleActif } from "@/lib/domain/mail-gate";
+import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import type { ContactCopro, CoproChoisissable, DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 import { cleDeReference } from "@/lib/domain/tri-emails";
+import { normaliserRef } from "@/lib/domain/copro-fusion";
 import { getSignatureGestionnaire } from "./get-signature";
 import type { Dossier } from "@/lib/domain/dossier";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
@@ -74,8 +76,26 @@ export async function rechercherDestinataires(texte: string): Promise<Destinatai
   return out.slice(0, 15);
 }
 
+/**
+ * Contacts d'une copro : l'annuaire Crypto, complete du conseil syndical ESTALE. Une copro
+ * ESTALE n'a pas son CS dans l'annuaire Crypto : le bouton « Conseil syndical » restait vide
+ * (retour du 14/10). Les membres ESTALE sans adresse sont ignores ; une adresse deja connue
+ * de Crypto prend la qualite « conseil syndical ».
+ */
 export async function listerContactsComposition(reference: string): Promise<ContactCopro[]> {
-  return getContactsCoproProvider().listerParCopro(reference);
+  const [crypto, estale] = await Promise.all([
+    getContactsCoproProvider().listerParCopro(reference),
+    donneesCoproEstale(normaliserRef(reference)).catch(() => null),
+  ]);
+  const parEmail = new Map(crypto.map((c) => [c.email.toLowerCase(), c]));
+  for (const m of estale?.conseilSyndical ?? []) {
+    const email = m.email?.trim().toLowerCase();
+    if (!email) continue;
+    const deja = parEmail.get(email);
+    if (deja) parEmail.set(email, { ...deja, qualite: "conseil_syndical" });
+    else parEmail.set(email, { email, nom: m.nomComplet, qualite: "conseil_syndical" });
+  }
+  return [...parEmail.values()];
 }
 
 export type DossierComposition = Pick<Dossier, "id" | "titre" | "type" | "statut" | "coproCode">;
@@ -99,10 +119,17 @@ export interface DemandeBrouillon {
 export interface ResultatBrouillon {
   /** true = rien n'a été écrit dans la boîte (Graph absent / pas de vraie boîte) : aperçu seulement. */
   simulation: boolean;
+  /** true = le mail est PARTI (MAIL_ENVOI=on) ; false = brouillon à relire dans Outlook. */
+  envoye?: boolean;
   boite: string | null;
   webLink?: string;
   /** Le mail a bien été inscrit au journal du dossier demandé. */
   rattache?: boolean;
+}
+
+/** Le bouton du compositeur ENVOIE-t-il (MAIL_ENVOI=on) ou crée-t-il un brouillon ? */
+export function envoiDirectComposition(): boolean {
+  return brouillonPossible() && envoiMailActif();
 }
 
 /** Un brouillon peut-il être créé (Graph branché et vraie boîte partagée configurée) ? */
@@ -127,7 +154,8 @@ export async function creerBrouillonComposition(
   }
   // Signitic ne passe pas sur un brouillon créé par l'app : on pose la signature nous-mêmes.
   const signatureHtml = await getSignatureGestionnaire(g);
-  const r = await getMailOutboundProvider().creerBrouillonNeuf({
+  const outbound = getMailOutboundProvider();
+  const r = await outbound.creerBrouillonNeuf({
     boite,
     sujet: d.objet,
     corps: d.corps,
@@ -137,15 +165,21 @@ export async function creerBrouillonComposition(
     ...(d.piecesJointes?.length ? { piecesJointes: d.piecesJointes } : {}),
   });
 
+  // Envoi réel (MAIL_ENVOI=on) : le brouillon part aussitôt. Créer puis envoyer garde
+  // l'internetMessageId, qui rattache le mail au dossier.
+  const envoye = envoiMailActif() && Boolean(r.id);
+  if (envoye) await outbound.envoyerBrouillon({ boite, id: r.id! });
+
   let rattache: boolean | undefined;
   if (d.dossierId && r.internetMessageId) {
-    const resume = `Mail préparé pour ${d.a.slice(0, 2).join(", ") || "?"} : ${d.objet}`;
+    const resume = `${envoye ? "Mail envoyé à" : "Mail préparé pour"} ${d.a.slice(0, 2).join(", ") || "?"} : ${d.objet}`;
     rattache = await rattacherEmailAuDossier(d.dossierId, g.id, g.initiales, resume, refEchange(boite, r.internetMessageId));
   } else if (d.dossierId) {
     rattache = false; // Graph n'a pas rendu d'identifiant : on le dit plutôt que de faire semblant.
   }
   return {
     simulation: false,
+    envoye,
     boite,
     ...(r.webLink ? { webLink: r.webLink } : {}),
     ...(rattache !== undefined ? { rattache } : {}),

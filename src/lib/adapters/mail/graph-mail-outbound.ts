@@ -186,11 +186,22 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
       }),
     }, p.piecesJointes?.length ? 60_000 : undefined);
     if (!r.ok) throw new Error(`Graph creer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    const j = (await r.json()) as { webLink?: string; internetMessageId?: string };
+    const j = (await r.json()) as { id?: string; webLink?: string; internetMessageId?: string };
     return {
+      ...(j.id ? { id: j.id } : {}),
       ...(j.webLink ? { webLink: j.webLink } : {}),
       ...(j.internetMessageId ? { internetMessageId: j.internetMessageId } : {}),
     };
+  }
+
+  async envoyerBrouillon(p: { boite: string; id: string }): Promise<void> {
+    const tk = await jetonGraph();
+    // POST /messages/{id}/send : le brouillon part tel quel (202, corps vide).
+    const r = await graphFetch(
+      `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.id)}/send`,
+      { method: "POST", headers: { Authorization: `Bearer ${tk}` } },
+    );
+    if (!r.ok) throw new Error(`Graph envoyer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
   }
 
   async envoyerNeuf(p: {

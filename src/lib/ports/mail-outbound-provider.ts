@@ -58,7 +58,14 @@ export interface MailOutboundProvider {
     /** Signature (Signitic) posée sous le texte : un brouillon créé par l'app n'en a pas sinon. */
     signatureHtml?: string;
     piecesJointes?: PieceJointeMail[];
-  }): Promise<{ webLink?: string; internetMessageId?: string }>;
+  }): Promise<{ webLink?: string; internetMessageId?: string; id?: string }>;
+
+  /**
+   * ENVOIE un brouillon deja cree (son `id` Graph, rendu par creerBrouillonNeuf). Action
+   * irreversible. Creer puis envoyer garde l'internetMessageId du mail, qui sert a le
+   * rattacher a un dossier (envoyerNeuf n'en rend aucun).
+   */
+  envoyerBrouillon(p: { boite: string; id: string }): Promise<void>;
 
   /**
    * ENVOIE un mail NEUF (pas une reponse : aucun fil d'origine) depuis la boite, avec
