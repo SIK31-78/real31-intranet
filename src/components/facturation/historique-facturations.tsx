@@ -44,6 +44,8 @@ export interface FactureAffichee {
   estaleSaisie?: boolean;
   /** Pourquoi elle n'est pas (encore) partie dans ESTALE : affiche le bouton de renvoi. */
   estaleErreur?: string;
+  /** Copro ESTALE, jamais envoyée ni tentée (REA-321) : envoi à la main, hors « Tout renvoyer ». */
+  estaleJamaisEnvoyee?: boolean;
   par?: string;
   /** Horodatage ISO de creation (affiche date + heure). */
   creeLe: string;
@@ -278,7 +280,7 @@ export function HistoriqueFacturations({
                         Réessayer
                       </Button>
                     )}
-                    {f.statut === "facturee" && f.estaleErreur && (
+                    {f.statut === "facturee" && (f.estaleErreur || f.estaleJamaisEnvoyee) && (
                       <Button
                         onClick={() => renvoyerEstale(f.id)}
                         disabled={pending}
@@ -303,6 +305,12 @@ export function HistoriqueFacturations({
                 {f.statut === "facturee" && f.estaleErreur && (
                   <p className="mt-1 rounded-sm bg-warn-50 px-2 py-1 text-meta leading-snug text-warn-700">
                     ESTALE : {f.estaleErreur.slice(0, 300)}
+                  </p>
+                )}
+                {f.estaleJamaisEnvoyee && (
+                  <p className="mt-1 rounded-sm bg-warn-50 px-2 py-1 text-meta leading-snug text-warn-700">
+                    Jamais envoyée dans ESTALE (émise avant le 08/10). Vérifiez avec la compta qu&apos;elle n&apos;a pas été
+                    saisie par BPO ou dans Crypto avant de l&apos;envoyer.
                   </p>
                 )}
               </li>

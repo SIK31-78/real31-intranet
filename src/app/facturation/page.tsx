@@ -14,6 +14,7 @@ import {
   type FactureAffichee,
 } from "@/components/facturation/historique-facturations";
 import { Page, PageHeader } from "@/components/ui/page";
+import { jamaisEnvoyeeDansEstale } from "@/lib/domain/facturation/saisie-estale";
 
 export const metadata: Metadata = { title: "Facturation - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function FacturationPage() {
     copros.map((c) => c.code),
   );
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
+  const coprosEstale = new Set(copros.filter((c) => c.source === "estale").map((c) => c.code));
 
   const factures: FactureAffichee[] = historique.map((f) => ({
     id: f.id,
@@ -58,6 +60,14 @@ export default async function FacturationPage() {
     ...(f.erreur ? { erreur: f.erreur } : {}),
     ...(f.estaleEcritureId ? { estaleSaisie: true } : {}),
     ...(f.estaleErreur ? { estaleErreur: f.estaleErreur } : {}),
+    ...(jamaisEnvoyeeDansEstale({
+      statut: f.statut,
+      coproEstale: coprosEstale.has(f.coproCode),
+      saisie: Boolean(f.estaleEcritureId),
+      erreur: Boolean(f.estaleErreur),
+    })
+      ? { estaleJamaisEnvoyee: true }
+      : {}),
     ...(f.par ? { par: f.par } : {}),
     creeLe: f.creeLe,
   }));
