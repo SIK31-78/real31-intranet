@@ -6,6 +6,7 @@
 // pas que sur l'UI) ; (3) ecrit puis revalide. L'identite vient du serveur, jamais du client.
 
 import { revalidatePath } from "next/cache";
+import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import { z } from "zod";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
@@ -31,6 +32,8 @@ import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillo
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
+import { coprosPourReaffecter, envoyerABonneCopro, rendreAuTri } from "@/lib/services/tri-emails/reaffecter";
+import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import type { ReponseEnvoyee } from "@/lib/domain/echanges";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
@@ -312,6 +315,56 @@ export async function chargerHistoriqueAction(emailId: string, boite?: string): 
   } catch (e) {
     console.warn("[mes-emails] historique indisponible :", (e as Error).message);
     return null;
+  }
+}
+
+// --- « Pas pour moi » (REA-327) : un mail de la boîte partagée rangé chez le mauvais binôme ---
+
+/** La boîte partagée du mail, si la personne la voit ; null sinon (boîte perso, boîte inconnue). */
+async function boitePartageeDe(g: Gestionnaire, boite: string | undefined): Promise<string | null> {
+  const demandee = (boite ?? "").trim().toLowerCase();
+  const b = (await boitesVisibles(g)).find((x) => x.id === demandee);
+  return b && !b.personnelle ? b.id : null;
+}
+
+export async function coprosPourReaffecterAction(): Promise<Res<CoproDestination[]>> {
+  const g = await getGestionnaireCourant();
+  if (!g) return echec("Non connecté.");
+  try {
+    return { ok: true, donnees: await coprosPourReaffecter() };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
+export async function rendreAuTriAction(emailId: string, boite?: string): Promise<Res> {
+  if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return echec("Données invalides.");
+  const g = await getGestionnaireCourant();
+  if (!g) return echec("Non connecté.");
+  const partagee = await boitePartageeDe(g, boite);
+  if (!partagee) return echec("Seul un mail de la boîte partagée peut être rendu au tri.");
+  try {
+    await rendreAuTri(partagee, emailId, g.email ?? g.id);
+    revalidatePath("/mes-emails");
+    return { ok: true };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
+export async function envoyerABonneCoproAction(emailId: string, reference: string, boite?: string): Promise<Res<{ dossierNom: string }>> {
+  const v = z.object({ emailId: zId, reference: z.string().regex(/^(SE|S)\d{3,4}$/i), boite: zBoite }).safeParse({ emailId, reference, boite });
+  if (!v.success) return echec("Données invalides.");
+  const g = await getGestionnaireCourant();
+  if (!g) return echec("Non connecté.");
+  const partagee = await boitePartageeDe(g, boite);
+  if (!partagee) return echec("Seul un mail de la boîte partagée peut changer de binôme.");
+  try {
+    const r = await envoyerABonneCopro(partagee, emailId, reference.toUpperCase(), g.email ?? g.id);
+    revalidatePath("/mes-emails");
+    return { ok: true, donnees: { dossierNom: r.dossierNom } };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
   }
 }
 

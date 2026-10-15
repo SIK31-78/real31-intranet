@@ -83,7 +83,7 @@ export interface ResultatRangement {
 }
 
 /** Ou ranger : cle stable du dossier, nom attendu, etiquettes. Erreur lisible si on ne peut pas. */
-async function resoudreDossier(
+export async function resoudreDossier(
   cible: CibleTri,
   deps: DepsRangement,
 ): Promise<{ cle: string; nom: string; copro: string | null; copros: string[] }> {

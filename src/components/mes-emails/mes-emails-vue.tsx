@@ -66,6 +66,7 @@ import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
 import { ReponseEnvoyee } from "./reponse-envoyee";
 import { HistoriqueMail } from "./historique-mail";
+import { PasPourMoi } from "./pas-pour-moi";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { fusionnerModele, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
 import { estMailInterne } from "@/lib/domain/tri-emails";
@@ -169,6 +170,8 @@ export function MesEmailsVue({
           .map((m) => m.id),
       ),
   );
+  // Mails partis ailleurs (« Pas pour moi ») : retirés de la liste sans attendre le rechargement.
+  const [partis, setPartis] = useState<Set<string>>(new Set());
   const [classes, setClasses] = useState<Set<string>>(
     () => new Set(data.mails.filter((m) => m.statutTraitement === "classe").map((m) => m.id)),
   );
@@ -426,6 +429,7 @@ export function MesEmailsVue({
   const matchVue = (m: MailEntrant): boolean => (vue === "conclus" ? classes.has(m.id) : !classes.has(m.id));
   const visibles = mailsTries.filter(
     (m) =>
+      !partis.has(m.id) &&
       matchVue(m) &&
       (filtreCopro === "toutes" || m.coproCode === filtreCopro) &&
       (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
@@ -870,6 +874,10 @@ export function MesEmailsVue({
               }}
               onValider={() => void valider(selection)}
               classementOutlook={data.boites.find((b) => b.id === boiteDuMail(selection))?.personnelle ?? true}
+              onParti={() => {
+                setPartis((p) => new Set(p).add(selection.id));
+                passerAuSuivant(selection);
+              }}
               onConclure={() => marquerTraite(selection)}
               onDevalider={() => devalider(selection)}
               onToggleSection={toggleSection}
@@ -1334,6 +1342,7 @@ function AnalysePane({
   onDevalider,
   onToggleSection,
   classementOutlook,
+  onParti,
   onConclure,
 }: {
   m: MailEntrant;
@@ -1404,6 +1413,8 @@ function AnalysePane({
   onToggleSection: (cle: string) => void;
   /** Boîte perso : on range dans un dossier Outlook. Boîte partagée : non (le tri l'a fait). */
   classementOutlook: boolean;
+  /** Le mail a quitté la personne (rendu au tri, envoyé à un autre binôme). */
+  onParti?: () => void;
   /** Conclure l'événement (vocabulaire Crypto) : le mail sort de la liste, sans bouger dans Outlook. */
   onConclure: () => void;
 }) {
@@ -1475,6 +1486,8 @@ function AnalysePane({
             {changer ? <X strokeWidth={1.5} /> : <FolderPlus strokeWidth={1.5} />}
             {changer ? "Fermer" : ratt.intranet ? "Changer de dossier" : "Rattacher à un dossier"}
           </Button>
+          {/* Boîte partagée : un mail rangé chez le mauvais binôme repart (REA-327). */}
+          {!classementOutlook && onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} /> : null}
         </div>
         {msgClasser ? <p className="mt-1.5 text-meta text-ink-3">{msgClasser}</p> : null}
         {msgBrouillon && !(brouillon || compose) ? <p className="mt-1.5 text-meta text-ink-3">{msgBrouillon}</p> : null}
