@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   adresseMailValide,
+  adressesTouteLaCopro,
+  enLots,
   sansPolitesseEnDouble,
   factureComplete,
   fusionnerModele,
@@ -77,5 +79,40 @@ describe("formule de politesse en double avec la signature", () => {
   it("ne touche pas un modèle qui ne finit pas par une formule", () => {
     const sans = "Madame, Monsieur,\n\nCordialement, nous vous informons que la visite est maintenue.";
     expect(sansPolitesseEnDouble(sans, "Cordialement")).toBe(sans);
+  });
+});
+
+describe("adressesTouteLaCopro", () => {
+  it("garde copropriétaires et conseil syndical, sans locataires ni pros, sans doublon", () => {
+    const contacts = [
+      { email: "B@x.fr", nom: "B", qualite: "coproprietaire" },
+      { email: "a@x.fr", nom: "A", qualite: "conseil_syndical" },
+      { email: "b@x.fr", nom: "B bis", qualite: "coproprietaire" },
+      { email: "loc@x.fr", nom: "L", qualite: "locataire" },
+      { email: "plombier@x.fr", nom: "P", qualite: "professionnel" },
+      { email: "pas une adresse", nom: "Z", qualite: "coproprietaire" },
+    ];
+    expect(adressesTouteLaCopro(contacts)).toEqual(["a@x.fr", "b@x.fr"]);
+  });
+
+  it("chacun des deux membres d'un couple reçoit le mail", () => {
+    const couple = [
+      { email: "monsieur@x.fr", nom: "M. et Mme DURAND", qualite: "coproprietaire" },
+      { email: "madame@x.fr", nom: "M. et Mme DURAND", qualite: "coproprietaire" },
+    ];
+    expect(adressesTouteLaCopro(couple)).toHaveLength(2);
+  });
+});
+
+describe("enLots", () => {
+  it("découpe sous la limite d'Exchange", () => {
+    const liste = Array.from({ length: 1000 }, (_, i) => `c${i}@x.fr`);
+    const lots = enLots(liste);
+    expect(lots.map((l) => l.length)).toEqual([450, 450, 100]);
+    expect(lots.flat()).toEqual(liste);
+  });
+
+  it("une liste vide ne donne aucun lot", () => {
+    expect(enLots([])).toEqual([]);
   });
 });

@@ -78,13 +78,13 @@ export async function listerDossiersCompositionAction(input: unknown): Promise<R
  * côté de l'objet et des pièces jointes alors que c'était « mylène.pin@… » en copie, 15/10/2026).
  */
 function motifRefus(input: unknown): string {
-  const i = (input ?? {}) as { objet?: unknown; a?: unknown; cc?: unknown };
+  const i = (input ?? {}) as { objet?: unknown; a?: unknown; cc?: unknown; cci?: unknown };
   const liste = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
   const invalides = [...liste(i.a), ...liste(i.cc)].filter((e) => !adresseMailValide(e));
   if (invalides.length) {
     return `Adresse invalide : ${invalides.map((e) => `« ${e} »`).join(", ")}. Une adresse ne prend ni accent ni espace.`;
   }
-  if (!liste(i.a).length) return "Il manque un destinataire.";
+  if (!liste(i.a).length && !liste(i.cci).length) return "Il manque un destinataire.";
   if (typeof i.objet !== "string" || !i.objet.trim()) return "Il manque l'objet du mail.";
   return "Le mail n'a pas pu partir : une pièce jointe dépasse 3 Mo, il y en a plus de 10, ou le message est trop long.";
 }
@@ -96,8 +96,10 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
     .object({
       objet: z.string().min(1).max(500),
       corps: z.string().max(20000),
-      a: z.array(z.string().max(320).regex(ADRESSE_MAIL)).min(1).max(200),
+      a: z.array(z.string().max(320).regex(ADRESSE_MAIL)).max(200),
       cc: z.array(z.string().max(320).regex(ADRESSE_MAIL)).max(200),
+      // Toute la copropriété (REA-305) : la plus grosse copro tient sous 3 000 adresses.
+      cci: z.array(z.string().max(320).regex(ADRESSE_MAIL)).max(3000).default([]),
       dossierId: z.string().min(1).max(80).optional(),
       // Fichiers joints : 3 Mo chacun (envoi simple de Graph), 10 au plus.
       fichiers: z
@@ -105,14 +107,15 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
         .max(10)
         .default([]),
     })
+    .refine((v) => v.a.length > 0 || v.cci.length > 0)
     .safeParse(input);
   if (!d.success) return echec(motifRefus(input));
   try {
-    const { objet, corps, a, cc, dossierId, fichiers } = d.data;
+    const { objet, corps, a, cc, cci, dossierId, fichiers } = d.data;
     return {
       ok: true,
       donnees: await creerBrouillonComposition(
-        { objet, corps, a, cc, ...(dossierId ? { dossierId } : {}), ...(fichiers.length ? { piecesJointes: fichiers } : {}) },
+        { objet, corps, a, cc, ...(cci.length ? { cci } : {}), ...(dossierId ? { dossierId } : {}), ...(fichiers.length ? { piecesJointes: fichiers } : {}) },
         g,
       ),
     };

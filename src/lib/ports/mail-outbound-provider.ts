@@ -55,6 +55,8 @@ export interface MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    /** Copie cachée : le mail à toute une copropriété (REA-305), jamais d'adresse visible. */
+    cci?: string[];
     /** Signature (Signitic) posée sous le texte : un brouillon créé par l'app n'en a pas sinon. */
     signatureHtml?: string;
     piecesJointes?: PieceJointeMail[];

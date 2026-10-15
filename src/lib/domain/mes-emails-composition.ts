@@ -203,3 +203,33 @@ export function factureComplete(f: Partial<FactureEstale>): f is FactureEstale {
 export function objetFactureEstale(f: FactureEstale): string {
   return `${f.compte.trim()} - ${f.fournisseur.trim().toUpperCase()} - ${f.libelle.trim()}`;
 }
+
+// --- Mail à toute la copropriété (REA-305) ---------------------------------------------------
+// Pour les copros Crypto, l'intranet remplace l'envoi groupé de Crypto (« l'ascenseur est en
+// panne »). Tous les copropriétaires partent en COPIE CACHÉE : jamais une adresse visible
+// d'un copropriétaire à l'autre. Les deux membres d'un couple ont chacun leur adresse dans
+// l'annuaire : chacun reçoit le mail.
+
+/** Destinataires par mail, sous la limite d'Exchange Online (500 par message, À et Cc compris). */
+export const LOT_MAX_DESTINATAIRES = 450;
+
+/** Les qualités qui reçoivent un mail « à toute la copropriété » : pas les locataires ni les pros. */
+const QUALITES_COPRO = new Set(["coproprietaire", "conseil_syndical"]);
+
+/** Les adresses des copropriétaires d'une copro (conseil syndical compris), dédoublonnées et valides. */
+export function adressesTouteLaCopro(contacts: readonly ContactCopro[]): string[] {
+  const vues = new Set<string>();
+  for (const c of contacts) {
+    const email = c.email.trim().toLowerCase();
+    if (QUALITES_COPRO.has(c.qualite) && adresseMailValide(email)) vues.add(email);
+  }
+  return [...vues].sort();
+}
+
+/** Découpe une liste d'adresses en lots d'au plus `taille` (un mail par lot). */
+export function enLots<T>(liste: readonly T[], taille = LOT_MAX_DESTINATAIRES): T[][] {
+  if (taille < 1) throw new Error("Taille de lot invalide.");
+  const lots: T[][] = [];
+  for (let i = 0; i < liste.length; i += taille) lots.push(liste.slice(i, i + taille));
+  return lots;
+}

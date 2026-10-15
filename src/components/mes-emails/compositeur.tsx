@@ -3,19 +3,23 @@
 // « Envoyer un e-mail » (façon F1 de Crypto, en plus simple) : on tape le NOM de la personne,
 // l'annuaire rend la personne avec TOUTES ses adresses (certains en veulent deux) et ses
 // immeubles ; on choisit l'immeuble auquel rattacher le mail, ou aucun (c'est parfois perso).
-// Le conseil syndical s'ajoute d'un clic. L'objet est taggé par la copro pour le tri.
+// Le conseil syndical s'ajoute d'un clic, toute la copropriété aussi (en copie cachée, REA-305).
+// L'objet est taggé par la copro pour le tri.
 // Pièces jointes et signature (Signitic) partent avec. Le bouton ENVOIE quand l'envoi depuis
 // la boîte partagée est ouvert (MAIL_ENVOI=on) ; sinon il crée un BROUILLON, relu puis
 // envoyé depuis Outlook (ADR-047). Fichiers et destinataires se glissent-déposent.
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { Paperclip, Users, X } from "lucide-react";
+import { Building2, Paperclip, Users, X } from "lucide-react";
 import { Button, classesBouton } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
 import {
   adresseMailValide,
+  adressesTouteLaCopro,
+  enLots,
   fusionnerModele,
   sansPolitesseEnDouble,
   objetCompose,
@@ -93,6 +97,7 @@ const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e
 
 export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles }: Props) {
   const toast = useToast();
+  const confirmer = useConfirm();
   const [a, setA] = useState<Personne[]>([]);
   const [cc, setCc] = useState<Personne[]>([]);
   // Les immeubles proposés : ceux des personnes choisies.
@@ -100,6 +105,9 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [refCopro, setRefCopro] = useState("");
   const [autreCopro, setAutreCopro] = useState(false);
   const [conseil, setConseil] = useState<ContactCopro[] | null>(null);
+  // Toute la copropriété (REA-305) : les adresses des copropriétaires, envoyées en copie cachée.
+  const [touteCopro, setTouteCopro] = useState<string[] | null>(null);
+  const [cciCopro, setCciCopro] = useState(false);
   const [dossiers, setDossiers] = useState<DossierAffiche[] | null>(null);
   const [dossierId, setDossierId] = useState("");
   const [modeleId, setModeleId] = useState("");
@@ -119,6 +127,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     setObjet((o) => avecPrefixe(o, copro, nouvelle));
     setRefCopro(ref);
     setConseil(null);
+    setTouteCopro(null);
+    setCciCopro(false);
     setDossiers(null);
     setDossierId("");
     const c = copros.find((x) => x.reference.toUpperCase() === ref.trim().toUpperCase()) ?? proposees.find((x) => x.reference === ref);
@@ -130,7 +140,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         listerDossiersCompositionAction({ reference: c.reference }),
       ]);
       if (derniereCopro.current !== c.reference) return;
-      if (rc.ok) setConseil((rc.donnees ?? []).filter((x) => x.qualite === "conseil_syndical"));
+      if (rc.ok) {
+        setConseil((rc.donnees ?? []).filter((x) => x.qualite === "conseil_syndical"));
+        setTouteCopro(adressesTouteLaCopro(rc.donnees ?? []));
+      }
       if (rd.ok) setDossiers(rd.donnees ?? []);
     });
   }
@@ -192,10 +205,11 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     setCorps(sansPolitesseEnDouble(fusionnerModele(m.corps, variables), signatureHtml));
   }
 
-  const pretAEnvoyer = Boolean(objet.trim().replace(/\s*-$/, "") && adresses(a).length && corps.trim());
+  const cci = cciCopro ? (touteCopro ?? []) : [];
+  const pretAEnvoyer = Boolean(objet.trim().replace(/\s*-$/, "") && (adresses(a).length || cci.length) && corps.trim());
   const adressesInvalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
 
-  function creerBrouillon() {
+  async function creerBrouillon() {
     if (adressesInvalides.length) {
       toast.err(`Adresse invalide : ${adressesInvalides.map((e) => `« ${e} »`).join(", ")}. À retirer ou corriger avant l'envoi.`);
       return;
@@ -204,6 +218,19 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       toast.err("Il manque un destinataire, l'objet ou le message.");
       return;
     }
+    // Un envoi à toute la copropriété part à des dizaines de personnes : on le fait confirmer.
+    if (cci.length && brouillonPossible) {
+      const lots = enLots(cci).length;
+      const ok = await confirmer({
+        titre: envoiDirect ? "Envoyer à toute la copropriété ?" : "Préparer le mail à toute la copropriété ?",
+        message:
+          `${cci.length} adresses en copie cachée : aucun copropriétaire ne verra les autres.` +
+          (lots > 1 ? ` Le mail partira en ${lots} envois, pour rester sous la limite de la messagerie.` : "") +
+          (envoiDirect ? " Il part tout de suite." : " Le brouillon se relit dans Outlook."),
+        confirmer: envoiDirect ? "Envoyer" : "Créer le brouillon",
+      });
+      if (!ok) return;
+    }
     setEnvoiEnCours(true);
     demarrer(async () => {
       const r = await creerBrouillonCompositionAction({
@@ -211,6 +238,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         corps,
         a: adresses(a),
         cc: adresses(cc),
+        ...(cci.length ? { cci } : {}),
         ...(dossierId ? { dossierId } : {}),
         fichiers: fichiers.map(({ nom, contentType, base64 }) => ({ nom, contentType, base64 })),
       });
@@ -224,7 +252,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         toast.ok("Aperçu vérifié : aucune boîte branchée ici, rien n'est parti.");
         return;
       }
-      toast.ok(res.envoye ? `Mail envoyé depuis ${res.boite ?? "la boîte"}.` : `Brouillon créé dans ${res.boite ?? "la boîte"}, à relire puis envoyer dans Outlook.`);
+      const plusieurs = (res.mails ?? 1) > 1 ? ` (${res.mails} mails)` : "";
+      toast.ok(res.envoye ? `Mail envoyé depuis ${res.boite ?? "la boîte"}${plusieurs}.` : `Brouillon créé dans ${res.boite ?? "la boîte"}${plusieurs}, à relire puis envoyer dans Outlook.`);
       if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
       if (res.rattache === false) toast.warn(`${res.envoye ? "Mail envoyé" : "Brouillon créé"}, mais le rattachement au dossier a échoué.`);
       onTermine?.();
@@ -247,6 +276,17 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         placeholder="Nom du destinataire (ou une adresse)…"
       />
       <ChampPersonnes champ="cc" label="Cc" personnes={cc} onChange={setCc} onDeplacer={deplacer} placeholder="Nom ou adresse…" />
+      {cci.length > 0 && copro ? (
+        <div className="flex items-center gap-2">
+          <span className="w-6 shrink-0 text-body text-ink-3">Cci</span>
+          <span className="inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-md bg-green-50 text-green-700 border border-green-500/30 text-body">
+            Tous les copropriétaires de {copro.reference} ({cci.length} adresses, aucune visible des autres)
+            <button type="button" onClick={() => setCciCopro(false)} aria-label="Retirer la copie cachée à toute la copropriété" className="hover:text-err-700">
+              <X strokeWidth={1.5} className="w-3.5 h-3.5" />
+            </button>
+          </span>
+        </div>
+      ) : null}
 
       {/* Rattachement : l'immeuble de la personne, ou aucun (perso). */}
       <div className="flex flex-col gap-2">
@@ -284,6 +324,21 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
             <Button size="sm" onClick={ajouterConseil} disabled={!conseil?.length} title="Ajoute tous les membres du conseil syndical en « À »">
               <Users strokeWidth={1.5} />
               {conseil === null ? "Conseil syndical…" : `Conseil syndical (${conseil.length})`}
+            </Button>
+            <Button
+              size="sm"
+              variant={cciCopro ? "doux" : "secondary"}
+              aria-pressed={cciCopro}
+              onClick={() => setCciCopro((v) => !v)}
+              disabled={!touteCopro?.length}
+              title={
+                touteCopro && !touteCopro.length
+                  ? "Aucune adresse de copropriétaire connue (copro ESTALE : passer par le mailing ESTALE)"
+                  : "Tous les copropriétaires, en copie cachée"
+              }
+            >
+              <Building2 strokeWidth={1.5} />
+              {touteCopro === null ? "Toute la copropriété…" : `Toute la copropriété (${touteCopro.length})`}
             </Button>
             <Select largeur="auto" value={dossierId} onChange={(e) => setDossierId(e.target.value)} disabled={!dossiers?.length} aria-label="Dossier où ranger ce mail" className="max-w-[320px]">
               <option value="">{dossiers?.length ? "Ranger dans un dossier…" : "Aucun dossier ouvert"}</option>
@@ -358,7 +413,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
             Annuler
           </Button>
         ) : null}
-        <Button variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} loading={envoiEnCours} onClick={creerBrouillon}>
+        <Button variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} loading={envoiEnCours} onClick={() => void creerBrouillon()}>
           {!brouillonPossible ? "Vérifier l'aperçu" : envoiDirect ? (envoiEnCours ? "Envoi…" : "Envoyer") : "Créer le brouillon"}
         </Button>
       </div>

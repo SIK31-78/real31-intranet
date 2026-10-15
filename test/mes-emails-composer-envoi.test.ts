@@ -41,6 +41,20 @@ describe("creerBrouillonComposition", () => {
     expect(etat.envoyerBrouillon).toHaveBeenCalledWith({ boite: "syndic4@real31.fr", id: "AAMk1" });
   });
 
+  it("toute la copropriété : copie cachée, adressé à la boîte, découpé en lots (REA-305)", async () => {
+    vi.stubEnv("MAIL_ENVOI", "on");
+    const cci = Array.from({ length: 500 }, (_, i) => `c${i}@x.fr`);
+    const r = await creerBrouillonComposition({ ...demande, a: [], cci }, g);
+    expect(r.mails).toBe(2);
+    expect(etat.creerBrouillonNeuf).toHaveBeenCalledTimes(2);
+    const [premier, second] = etat.creerBrouillonNeuf.mock.calls.map((c) => c[0]);
+    expect(premier).toMatchObject({ a: ["syndic4@real31.fr"] });
+    expect(premier.cci).toHaveLength(450);
+    expect(second.cci).toHaveLength(50);
+    expect([...premier.cci, ...second.cci]).toEqual(cci);
+    expect(etat.envoyerBrouillon).toHaveBeenCalledTimes(2);
+  });
+
   it("s'arrête au brouillon tant que l'envoi est coupé", async () => {
     const r = await creerBrouillonComposition(demande, g);
     expect(r.envoye).toBe(false);

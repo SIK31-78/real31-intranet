@@ -153,6 +153,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    cci?: string[];
     signatureHtml?: string;
     piecesJointes?: PieceJointeMail[];
   }): Promise<{ webLink?: string; internetMessageId?: string }> {
@@ -171,6 +172,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
         body: { contentType: "HTML", content },
         toRecipients: dest(p.a ?? []),
         ccRecipients: dest(p.cc ?? []),
+        bccRecipients: dest(p.cci ?? []),
         // Pieces jointes dans le message meme (fileAttachment), comme envoyerNeuf : un
         // seul appel, le brouillon arrive complet dans Outlook. Permission : Mail.ReadWrite.
         ...(p.piecesJointes && p.piecesJointes.length > 0

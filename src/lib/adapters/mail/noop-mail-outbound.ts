@@ -36,6 +36,7 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     corps: string;
     a?: string[];
     cc?: string[];
+    cci?: string[];
     piecesJointes?: { nom: string }[];
   }): Promise<{ webLink?: string }> {
     // No-op tracable : pas de Graph, donc pas de webLink (le bouton UI degradera).

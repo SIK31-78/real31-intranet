@@ -9,7 +9,7 @@
 import { getContactsCoproProvider, getMailOutboundProvider, getReferentielTriProvider } from "@/lib/adapters/router";
 import { boiteTriConfiguree, envoiMailActif, mailModuleActif } from "@/lib/domain/mail-gate";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
-import type { ContactCopro, CoproChoisissable, DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import { enLots, type ContactCopro, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
@@ -110,6 +110,11 @@ export interface DemandeBrouillon {
   corps: string;
   a: string[];
   cc: string[];
+  /**
+   * Copie cachée : « toute la copropriété » (REA-305). Découpée en plusieurs mails au-delà de
+   * la limite d'Exchange ; sans « À », le mail est adressé à la boîte elle-même.
+   */
+  cci?: string[];
   /** Dossier auquel rattacher le mail (facultatif). */
   dossierId?: string;
   /** Fichiers joints depuis l'ordinateur. */
@@ -125,6 +130,8 @@ export interface ResultatBrouillon {
   webLink?: string;
   /** Le mail a bien été inscrit au journal du dossier demandé. */
   rattache?: boolean;
+  /** Nombre de mails créés : plus d'un quand la copie cachée a été découpée en lots. */
+  mails?: number;
 }
 
 /** Le bouton du compositeur ENVOIE-t-il (MAIL_ENVOI=on) ou crée-t-il un brouillon ? */
@@ -155,24 +162,37 @@ export async function creerBrouillonComposition(
   // Signitic ne passe pas sur un brouillon créé par l'app : on pose la signature nous-mêmes.
   const signatureHtml = await getSignatureGestionnaire(g);
   const outbound = getMailOutboundProvider();
-  const r = await outbound.creerBrouillonNeuf({
-    boite,
-    sujet: d.objet,
-    corps: d.corps,
-    ...(d.a.length ? { a: d.a } : {}),
-    ...(d.cc.length ? { cc: d.cc } : {}),
-    ...(signatureHtml ? { signatureHtml } : {}),
-    ...(d.piecesJointes?.length ? { piecesJointes: d.piecesJointes } : {}),
-  });
-
-  // Envoi réel (MAIL_ENVOI=on) : le brouillon part aussitôt. Créer puis envoyer garde
-  // l'internetMessageId, qui rattache le mail au dossier.
-  const envoye = envoiMailActif() && Boolean(r.id);
-  if (envoye) await outbound.envoyerBrouillon({ boite, id: r.id! });
+  // Toute la copropriété (REA-305) : la copie cachée part en lots sous la limite d'Exchange,
+  // un mail par lot. Sans « À », le mail est adressé à la boîte elle-même.
+  const a = d.a.length ? d.a : d.cci?.length ? [boite] : [];
+  const lots = d.cci?.length ? enLots(d.cci) : [[]];
+  const envoi = envoiMailActif();
+  let r: Awaited<ReturnType<typeof outbound.creerBrouillonNeuf>> = {};
+  let envoye = false;
+  for (const [i, cci] of lots.entries()) {
+    const cree = await outbound.creerBrouillonNeuf({
+      boite,
+      sujet: d.objet,
+      corps: d.corps,
+      ...(a.length ? { a } : {}),
+      ...(d.cc.length ? { cc: d.cc } : {}),
+      ...(cci.length ? { cci } : {}),
+      ...(signatureHtml ? { signatureHtml } : {}),
+      ...(d.piecesJointes?.length ? { piecesJointes: d.piecesJointes } : {}),
+    });
+    if (i === 0) r = cree;
+    // Envoi réel (MAIL_ENVOI=on) : le brouillon part aussitôt. Créer puis envoyer garde
+    // l'internetMessageId, qui rattache le mail au dossier.
+    if (envoi && cree.id) {
+      await outbound.envoyerBrouillon({ boite, id: cree.id });
+      envoye = true;
+    }
+  }
 
   let rattache: boolean | undefined;
   if (d.dossierId && r.internetMessageId) {
-    const resume = `${envoye ? "Mail envoyé à" : "Mail préparé pour"} ${d.a.slice(0, 2).join(", ") || "?"} : ${d.objet}`;
+    const pour = d.cci?.length ? `toute la copropriété (${d.cci.length} adresses)` : d.a.slice(0, 2).join(", ") || "?";
+    const resume = `${envoye ? "Mail envoyé à" : "Mail préparé pour"} ${pour} : ${d.objet}`;
     rattache = await rattacherEmailAuDossier(d.dossierId, g.id, g.initiales, resume, refEchange(boite, r.internetMessageId));
   } else if (d.dossierId) {
     rattache = false; // Graph n'a pas rendu d'identifiant : on le dit plutôt que de faire semblant.
@@ -183,5 +203,6 @@ export async function creerBrouillonComposition(
     boite,
     ...(r.webLink ? { webLink: r.webLink } : {}),
     ...(rattache !== undefined ? { rattache } : {}),
+    mails: lots.length,
   };
 }
