@@ -70,6 +70,16 @@ export interface IdentiteAnnuaire {
   copros: { reference: string; qualite: string }[];
 }
 
+/**
+ * Une adresse que l'envoi acceptera : la même règle que la validation serveur (celle de zod),
+ * pour que le compositeur refuse à la saisie ce que le serveur refuserait à l'envoi. Pas
+ * d'accent : « mylène.pin@… » passait à la saisie puis bloquait l'envoi sans dire pourquoi
+ * (Nicolas, 15/10/2026).
+ */
+export const ADRESSE_MAIL = /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
+
+export const adresseMailValide = (e: string): boolean => e.length <= 320 && ADRESSE_MAIL.test(e);
+
 /** Objet complet d'un mail à une copro : le préfixe identifiant, puis le sujet saisi. */
 export function objetCompose(copro: CoproComposition, sujet: string, avecAdresse = true): string {
   const prefixe = prefixeObjetCopro(copro, avecAdresse);

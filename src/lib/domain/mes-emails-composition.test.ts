@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  adresseMailValide,
   factureComplete,
   fusionnerModele,
   objetCompose,
@@ -51,5 +52,14 @@ describe("facture ESTALE", () => {
     expect(objetFactureEstale({ compte: "601000", fournisseur: "Dgp Nettoyage", libelle: "Entretien EV" })).toBe(
       "601000 - DGP NETTOYAGE - Entretien EV",
     );
+  });
+});
+
+describe("adresse acceptée à l'envoi", () => {
+  it("accepte les adresses courantes", () => {
+    for (const e of ["mylene.pin@real31.fr", "contact@fidec-services.fr", "o'brien+copro@mail.co.uk"]) expect(adresseMailValide(e)).toBe(true);
+  });
+  it("refuse une adresse accentuée ou mal formée, comme le serveur", () => {
+    for (const e of ["mylène.pin@real31.fr", "jean dupont@real31.fr", "a@b", ".a@real31.fr", "a..b@real31.fr"]) expect(adresseMailValide(e)).toBe(false);
   });
 });

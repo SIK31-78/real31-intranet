@@ -18,7 +18,7 @@ import {
   type DossierComposition,
   type ResultatBrouillon,
 } from "@/lib/services/mes-emails/composer-mail";
-import type { ContactCopro, DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import { ADRESSE_MAIL, adresseMailValide, type ContactCopro, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 
 const CTX = "mes-emails-composer";
 const INDISPONIBLE = "Le module e-mails n'est pas disponible.";
@@ -73,6 +73,22 @@ export async function listerDossiersCompositionAction(input: unknown): Promise<R
   }
 }
 
+/**
+ * Ce qui bloque, dit précisément : une adresse invalide est nommée (Nicolas a cherché du
+ * côté de l'objet et des pièces jointes alors que c'était « mylène.pin@… » en copie, 15/10/2026).
+ */
+function motifRefus(input: unknown): string {
+  const i = (input ?? {}) as { objet?: unknown; a?: unknown; cc?: unknown };
+  const liste = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  const invalides = [...liste(i.a), ...liste(i.cc)].filter((e) => !adresseMailValide(e));
+  if (invalides.length) {
+    return `Adresse invalide : ${invalides.map((e) => `« ${e} »`).join(", ")}. Une adresse ne prend ni accent ni espace.`;
+  }
+  if (!liste(i.a).length) return "Il manque un destinataire.";
+  if (typeof i.objet !== "string" || !i.objet.trim()) return "Il manque l'objet du mail.";
+  return "Le mail n'a pas pu partir : une pièce jointe dépasse 3 Mo, il y en a plus de 10, ou le message est trop long.";
+}
+
 export async function creerBrouillonCompositionAction(input: unknown): Promise<Res<ResultatBrouillon>> {
   const g = await gestionnaire();
   if (!g) return echec(INDISPONIBLE);
@@ -80,8 +96,8 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
     .object({
       objet: z.string().min(1).max(500),
       corps: z.string().max(20000),
-      a: z.array(z.string().email().max(320)).min(1).max(200),
-      cc: z.array(z.string().email().max(320)).max(200),
+      a: z.array(z.string().max(320).regex(ADRESSE_MAIL)).min(1).max(200),
+      cc: z.array(z.string().max(320).regex(ADRESSE_MAIL)).max(200),
       dossierId: z.string().min(1).max(80).optional(),
       // Fichiers joints : 3 Mo chacun (envoi simple de Graph), 10 au plus.
       fichiers: z
@@ -90,7 +106,7 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
         .default([]),
     })
     .safeParse(input);
-  if (!d.success) return echec("Le mail est incomplet (objet ou destinataires), ou une pièce jointe dépasse 3 Mo.");
+  if (!d.success) return echec(motifRefus(input));
   try {
     const { objet, corps, a, cc, dossierId, fichiers } = d.data;
     return {

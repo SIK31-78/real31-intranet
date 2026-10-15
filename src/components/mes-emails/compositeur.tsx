@@ -16,6 +16,7 @@ import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
 import {
   MODELES_MAIL,
+  adresseMailValide,
   fusionnerModele,
   objetCompose,
   prefixeObjetCopro,
@@ -63,7 +64,6 @@ const LIBELLE_QUALITE: Record<string, string> = {
   autre: "autre",
 };
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TAILLE_MAX_FICHIER = 3 * 1024 * 1024;
 
 function enBase64(f: File): Promise<string> {
@@ -190,8 +190,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   }
 
   const pretAEnvoyer = Boolean(objet.trim().replace(/\s*-$/, "") && adresses(a).length && corps.trim());
+  const adressesInvalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
 
   function creerBrouillon() {
+    if (adressesInvalides.length) {
+      toast.err(`Adresse invalide : ${adressesInvalides.map((e) => `« ${e} »`).join(", ")}. À retirer ou corriger avant l'envoi.`);
+      return;
+    }
     if (!pretAEnvoyer) {
       toast.err("Il manque un destinataire, l'objet ou le message.");
       return;
@@ -409,7 +414,9 @@ function ChampPersonnes({
   // Résultats rangés par la saisie qui les a demandés : on n'affiche que ceux de la saisie en cours.
   const [trouves, setTrouves] = useState<{ q: string; liste: DestinataireTrouve[] } | null>(null);
   const q = saisie.trim();
-  const chercher = q.length >= 3 && !EMAIL.test(q);
+  // Une saisie avec un @ est une ou des adresses tapées (ou rouvertes) : pas de recherche.
+  const chercher = q.length >= 3 && !q.includes("@");
+  const [refusee, setRefusee] = useState("");
   const resultats = chercher && trouves?.q === q ? trouves.liste : null;
 
   useEffect(() => {
@@ -425,9 +432,29 @@ function ChampPersonnes({
     setSaisie("");
   }
   function ajouterSaisie() {
-    const e = saisie.trim().replace(/[,;]$/, "");
-    if (EMAIL.test(e)) ajouter({ cle: e.toLowerCase(), nom: "", emails: [e.toLowerCase()] });
+    // Une ou plusieurs adresses (« a@x.fr ; b@y.fr », ou une pastille rouverte pour correction).
+    const morceaux = saisie.split(/[\s,;]+/).filter(Boolean);
+    const valides = morceaux.filter(adresseMailValide).map((e) => e.toLowerCase());
+    const autres = morceaux.filter((e) => !adresseMailValide(e));
+    const nouvelles = valides.filter((e) => !personnes.some((x) => x.cle === e));
+    if (nouvelles.length) onChange([...personnes, ...nouvelles.map((e) => ({ cle: e, nom: "", emails: [e] }))]);
+    // Une adresse fausse reste dans le champ, à corriger : l'envoi la refuserait.
+    const fausse = autres.find((e) => e.includes("@"));
+    setRefusee(fausse ?? "");
+    if (valides.length || !autres.length) setSaisie(autres.join(" ; "));
   }
+
+  // Clic sur une pastille : son adresse revient dans le champ pour être corrigée, sans
+  // avoir à la retirer puis la retaper (le « bloc » d'Outlook, qu'on ne reprend pas).
+  const champSaisie = useRef<HTMLInputElement>(null);
+  function modifier(p: Personne) {
+    onChange(personnes.filter((x) => x.cle !== p.cle));
+    setSaisie((s) => [s.trim(), ...p.emails].filter(Boolean).join(" ; "));
+    setRefusee("");
+    champSaisie.current?.focus();
+  }
+  // Une adresse de l'annuaire peut aussi être fausse : elle est montrée en rouge.
+  const invalide = (p: Personne) => p.emails.some((e) => !adresseMailValide(e));
 
   return (
     <div className="relative flex items-start gap-2">
@@ -440,21 +467,28 @@ function ChampPersonnes({
           <span
             key={p.cle}
             {...pastilleGlissable(champ, p.cle)}
-            title="Glisser vers un autre champ"
-            className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-surface-3 text-meta text-ink-2 max-w-full cursor-grab active:cursor-grabbing"
+            title={invalide(p) ? "Adresse invalide : cliquer pour la corriger" : "Cliquer pour modifier, glisser vers un autre champ"}
+            className={
+              "inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full text-meta max-w-full cursor-grab active:cursor-grabbing " +
+              (invalide(p) ? "bg-err-50 text-err-700 ring-1 ring-err-700" : "bg-surface-3 text-ink-2")
+            }
           >
-            <span className="truncate">
+            <button type="button" onClick={() => modifier(p)} aria-label={`Modifier ${p.emails.join(" ; ")}`} className="truncate text-left cursor-text">
               {p.nom ? <span className="text-ink">{p.nom} </span> : null}
               {p.emails.join(" ; ")}
-            </span>
+            </button>
             <button type="button" onClick={() => onChange(personnes.filter((x) => x.cle !== p.cle))} aria-label={`Retirer ${p.nom || p.emails[0]}`} className="text-ink-3 hover:text-err-700">
               <X strokeWidth={2} className="w-3 h-3" />
             </button>
           </span>
         ))}
         <input
+          ref={champSaisie}
           value={saisie}
-          onChange={(e) => setSaisie(e.target.value)}
+          onChange={(e) => {
+            setSaisie(e.target.value);
+            setRefusee("");
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === "," || e.key === ";") {
               e.preventDefault();
@@ -471,6 +505,11 @@ function ChampPersonnes({
           className="flex-1 min-w-[160px] h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
         />
       </div>
+      {refusee && !resultats && (
+        <p role="alert" className="absolute left-8 top-full mt-1 z-20 rounded-md bg-err-50 px-2 py-1 text-meta text-err-700">
+          « {refusee} » n&apos;est pas une adresse valide : ni accent ni espace dans une adresse.
+        </p>
+      )}
       {resultats && (
         <ul className="absolute left-8 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto rounded-lg border border-line bg-surface shadow-2 py-1">
           {resultats.length === 0 && <li className="px-3 py-2 text-meta text-ink-3">Personne de ce nom dans l&apos;annuaire Crypto.</li>}
