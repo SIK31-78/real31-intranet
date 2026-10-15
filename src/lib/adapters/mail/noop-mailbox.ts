@@ -2,8 +2,13 @@
 // MAIL_SOURCE != graph (dev/demo) -> le classement reste cote intranet seulement.
 
 import type { DossierBoite, MailboxProvider, PieceJointeRef } from "@/lib/ports/mailbox-provider";
+import type { ImageInline } from "@/lib/domain/mail-html";
 
 export class NoopMailboxProvider implements MailboxProvider {
+  async lireHtml(): Promise<{ html: string; inline: ImageInline[] }> {
+    return { html: "", inline: [] };
+  }
+
   async classerDansCopro(p: {
     boite: string;
     internetMessageId: string;

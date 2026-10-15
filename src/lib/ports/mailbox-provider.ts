@@ -3,6 +3,7 @@
 // Outlook. Le type DossierBoite vit dans le domaine (mes-emails).
 
 import type { DossierBoite, PieceJointeRef } from "@/lib/domain/mes-emails";
+import type { ImageInline } from "@/lib/domain/mail-html";
 
 export type { DossierBoite, PieceJointeRef };
 
@@ -45,4 +46,7 @@ export interface MailboxProvider {
     internetMessageId: string;
     attachmentId: string;
   }): Promise<{ nom: string; type: string; base64: string }>;
+
+  /** Le corps HTML d'origine et ses images inline (collées dans le corps), pour l'affichage. */
+  lireHtml(p: { boite: string; internetMessageId: string }): Promise<{ html: string; inline: ImageInline[] }>;
 }

@@ -32,6 +32,7 @@ import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillo
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
+import { htmlDuMail } from "@/lib/services/mes-emails/html-mail";
 import { coprosPourReaffecter, envoyerABonneCopro, rendreAuTri } from "@/lib/services/tri-emails/reaffecter";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import type { ReponseEnvoyee } from "@/lib/domain/echanges";
@@ -314,6 +315,21 @@ export async function chargerHistoriqueAction(emailId: string, boite?: string): 
     return await historiqueDuMail(cible, emailId);
   } catch (e) {
     console.warn("[mes-emails] historique indisponible :", (e as Error).message);
+    return null;
+  }
+}
+
+/** Le mail en HTML (REA-328), lu dans la boîte qui le détient ; null si illisible, "" sans HTML. */
+export async function chargerHtmlAction(emailId: string, boite?: string): Promise<string | null> {
+  if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return null;
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return null;
+  const cible = await boiteCible(g, boite);
+  if (!cible) return null;
+  try {
+    return await htmlDuMail(cible, emailId);
+  } catch (e) {
+    console.warn("[mes-emails] HTML indisponible :", (e as Error).message);
     return null;
   }
 }
