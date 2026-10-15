@@ -5,6 +5,7 @@
 // d'un clic (dossier du binome, Comptabilité, Divers) et on peut annuler. Sans
 // MAIL_TRI_ECRITURE=on, tout rangement est simule (le mail ne bouge pas).
 
+import { chercherCopros } from "@/lib/domain/recherche-copro-tolerante";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Paperclip } from "lucide-react";
@@ -421,9 +422,8 @@ function DetailMail({
   }, [mail.internetMessageId, mail.aPiecesJointes, mail.interne, s.nature]);
 
   const resultats = useMemo(() => {
-    const q = normaliser(recherche.trim());
-    if (!q) return [];
-    return copros.filter((c) => normaliser(`${c.reference} ${c.nom} ${c.adresse}`).includes(q)).slice(0, 8);
+    // Tolérante : « St Martin » trouve STMARTIN, la ville compte, S109 = S0109 (REA-327).
+    return chercherCopros(copros, recherche);
   }, [copros, recherche]);
 
   return (
