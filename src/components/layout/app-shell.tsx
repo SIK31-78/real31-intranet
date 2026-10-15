@@ -66,6 +66,8 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const propositionsOuvertes = g ? peutVoirPropositions(profilDe(g)) : false;
   // "Perte de copropriete" : la direction, ou qu'elle soit.
   const perteOuverte = g ? estDirectionQuelquePart(profilDe(g)) : false;
+  // "Modèles de mail" (REA-296) : admins et responsables d'agence, comme la perte.
+  const modelesMailOuvert = perteOuverte;
   // Pastille "Récap AG" : les recaps en retard du portefeuille, meme regle que l'alerte de
   // /recap-ag. Comptee seulement pour qui voit l'entree (pas la vue comptable ni hors
   // syndic), memorisee 5 min et jamais bloquante (cf. compteur-recaps-en-retard).
@@ -87,6 +89,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               recapsEnRetard={recapsEnRetard}
               comptaOuvert={comptaOuvert}
               linkusOuvert={linkusOuvert}
+              modelesMailOuvert={modelesMailOuvert}
               gestionCouranteOuverte={gestionCouranteOuverte}
               repriseOuverte={repriseOuverte}
               vueComptable={vueComptable}

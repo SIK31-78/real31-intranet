@@ -186,6 +186,9 @@ import { MockFeedbackRepository } from "@/lib/adapters/mock/mock-feedback-reposi
 import type { AnnonceRepository } from "@/lib/ports/annonce-repository";
 import { SupabaseAnnonceRepository } from "@/lib/adapters/supabase/supabase-annonce-repository";
 import { MockAnnonceRepository } from "@/lib/adapters/mock/mock-annonce-repository";
+import type { ModeleMailRepository } from "@/lib/ports/modele-mail-repository";
+import { SupabaseModeleMailRepository } from "@/lib/adapters/supabase/supabase-modele-mail-repository";
+import { MockModeleMailRepository } from "@/lib/adapters/mock/mock-modele-mail-repository";
 import type { CoffreRepository } from "@/lib/ports/coffre-repository";
 import type { CoffreIdentiteRepository } from "@/lib/ports/coffre-identite-repository";
 import { MockCoffreRepository } from "@/lib/adapters/mock/mock-coffre-repository";
@@ -689,6 +692,13 @@ export function getTicketTracker(): TicketTracker {
 export function getAnnonceRepository(): AnnonceRepository {
   if (coproSourceEstSupabase()) return new SupabaseAnnonceRepository();
   return new MockAnnonceRepository();
+}
+
+// Modèles de mail (table native intranet_mail_modeles, REA-296) : édités depuis
+// /admin/modeles-mail, proposés dans le compositeur et les réponses.
+export function getModeleMailRepository(): ModeleMailRepository {
+  if (coproSourceEstSupabase()) return new SupabaseModeleMailRepository();
+  return new MockModeleMailRepository();
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).

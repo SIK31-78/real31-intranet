@@ -408,6 +408,15 @@ export function peutAdministrerCles(profil: Profil, agence?: string): boolean {
   return estDirection(profil, agence);
 }
 
+/**
+ * Modifier les modèles de mail (REA-296, Sekou 15/10/2026 : admins et responsables d'agence) :
+ * la direction de l'agence du modèle. Un modèle de tout le cabinet (agence absente) demande
+ * la direction pleine : un référent d'agence ne le modifie pas.
+ */
+export function peutEditerModelesMail(profil: Profil, agence?: string): boolean {
+  return estDirection(profil, agence);
+}
+
 /** Administrer le bareme : super-admin seulement. */
 export function peutEditerBareme(profil: Profil): boolean {
   return estSuperAdmin(profil.email);

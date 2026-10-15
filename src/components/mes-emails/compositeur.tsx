@@ -15,14 +15,15 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
 import {
-  MODELES_MAIL,
   adresseMailValide,
   fusionnerModele,
+  sansPolitesseEnDouble,
   objetCompose,
   prefixeObjetCopro,
   type ContactCopro,
   type CoproChoisissable,
   type DestinataireTrouve,
+  type ModeleMail,
   type VariablesModele,
 } from "@/lib/domain/mes-emails-composition";
 import {
@@ -54,6 +55,8 @@ type Props = {
   signatureHtml?: string | null;
   /** Brouillon créé : la fenêtre qui contient le compositeur peut se fermer. */
   onTermine?: () => void;
+  /** Modèles proposés (ceux de l'agence et du cabinet, cf. services/mes-emails/modeles-mail). */
+  modeles: ModeleMail[];
 };
 
 const LIBELLE_QUALITE: Record<string, string> = {
@@ -88,7 +91,7 @@ function avecPrefixe(objet: string, ancienne: CoproChoisissable | null, nouvelle
 
 const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
-export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles }: Props) {
   const toast = useToast();
   const [a, setA] = useState<Personne[]>([]);
   const [cc, setCc] = useState<Personne[]>([]);
@@ -183,10 +186,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
 
   function appliquerModele(id: string) {
     setModeleId(id);
-    const m = MODELES_MAIL.find((x) => x.id === id);
+    const m = modeles.find((x) => x.id === id);
     if (!m) return;
     setObjet(copro ? objetCompose(copro, m.sujet) : m.sujet);
-    setCorps(fusionnerModele(m.corps, variables));
+    setCorps(sansPolitesseEnDouble(fusionnerModele(m.corps, variables), signatureHtml));
   }
 
   const pretAEnvoyer = Boolean(objet.trim().replace(/\s*-$/, "") && adresses(a).length && corps.trim());
@@ -298,7 +301,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         <Field label="Modèle" htmlFor="comp-modele">
           <Select id="comp-modele" value={modeleId} onChange={(e) => appliquerModele(e.target.value)}>
             <option value="">Aucun</option>
-            {MODELES_MAIL.map((m) => (
+            {modeles.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.titre}
               </option>

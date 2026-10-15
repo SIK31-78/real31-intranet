@@ -44,6 +44,7 @@ Statuts : ✅ exécuté · 🔲 en attente · ❔ à confirmer par Sekou.
 | `intranet_compta_notes.sql` | ✅ | Passé par Sekou ; **vérifié en base le 2026-07-28** (4 lignes). |
 | `intranet_api_keys.sql` | ✅ | Passé par Sekou ; **vérifié en base le 2026-07-28** (2 clés). L'API v1 répond bien 401 (et non 503). |
 | `intranet_annonces.sql` | ✅ | Table + **colonnes de ciblage `agences[]` / `emails[]`** passées ; **vérifié en base le 2026-07-28** (colonnes présentes) → annonces par agence / par collaborateur opérationnelles. |
+| `intranet_mail_modeles.sql` | 🔲 | **À PASSER (2026-10-15, REA-296).** Table des modèles de mail par agence (ou tout le cabinet), éditée depuis `/admin/modeles-mail`, plus 8 modèles de départ repris de Crypto (4 HLS, 4 LGC), insérés seulement s'ils manquent : rejouable. **Sans elle l'app tourne** : le compositeur garde les 4 modèles de secours du code et l'écran d'admin affiche un bandeau « SQL à passer ». Contrôle : `select agence, titre from public.intranet_mail_modeles` → 8 lignes. |
 | `intranet_feedback.sql` | ⚠️ | Table passée (+ ALTER `severite drop not null` du 2026-07-23). **Un 2e ALTER à rejouer** (2026-07-23, masquage réversible) : `alter table public.intranet_feedback add column if not exists archive_at timestamptz;`. Idempotent → repasser tout le fichier est sans risque. Sans lui, archiver/désarchiver lèvera une erreur colonne inconnue (le reste marche). |
 | `reprise_dossier.sql` | ❔ | Reprise copro — dossier. |
 | `reprise_dossier_jeu.sql` | ❔ | Reprise copro — jeu de test. |

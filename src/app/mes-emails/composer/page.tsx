@@ -7,6 +7,7 @@ import { Callout } from "@/components/ui/callout";
 import { Compositeur } from "@/components/mes-emails/compositeur";
 import { boiteEnvoi, brouillonPossible, envoiDirectComposition, listerCoprosComposition } from "@/lib/services/mes-emails/composer-mail";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
+import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
 
 export const metadata: Metadata = { title: "Envoyer un e-mail - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -16,7 +17,11 @@ export default async function ComposerPage() {
   if (!g) redirect("/dev-login");
   if (!mailModuleActifPour(g.email)) redirect("/accueil");
 
-  const [copros, signatureHtml] = await Promise.all([listerCoprosComposition().catch(() => []), getSignatureGestionnaire(g)]);
+  const [copros, signatureHtml, modeles] = await Promise.all([
+    listerCoprosComposition().catch(() => []),
+    getSignatureGestionnaire(g),
+    agenceDesModeles(g.agencyId).then(modelesMailPour),
+  ]);
   const agence = (process.env.MAIL_TRI_AGENCE ?? "").trim();
 
   return (
@@ -39,6 +44,7 @@ export default async function ComposerPage() {
           envoiDirect={envoiDirectComposition()}
           boite={boiteEnvoi()}
           signatureHtml={signatureHtml}
+          modeles={modeles}
         />
       </Page>
     </AppShell>

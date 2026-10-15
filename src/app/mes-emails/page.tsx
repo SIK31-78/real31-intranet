@@ -5,6 +5,7 @@ import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session"
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
+import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
 import { depotPieceJointeActif } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { adresseFacturesAgence } from "@/lib/services/mes-emails/transmettre-facture";
 import { rafraichirAction } from "./actions";
@@ -31,7 +32,11 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   // et reserve aux pilotes si MAIL_PILOTES est pose (deploiement pilote).
   if (!mailModuleActifPour(g.email)) redirect("/accueil");
   const maxPerso = plafondPerso((await searchParams).plus);
-  const [data, signatureHtml] = await Promise.all([getMesEmails(g, maxPerso), getSignatureGestionnaire(g)]);
+  const [data, signatureHtml, modeles] = await Promise.all([
+    getMesEmails(g, maxPerso),
+    getSignatureGestionnaire(g),
+    agenceDesModeles(g.agencyId).then(modelesMailPour),
+  ]);
 
   return (
     <AppShell user={g} active="emails" breadcrumb="E-mails">
@@ -45,6 +50,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
             envoiDirect={envoiDirectComposition()}
             boite={boiteEnvoi()}
             signatureHtml={signatureHtml}
+            modeles={modeles}
           />
           <BoutonRafraichir />
         </form>
@@ -55,6 +61,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           adresseFactures={adresseFacturesAgence()}
           agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
           maxPerso={maxPerso}
+          modeles={modeles}
         />
       </Page>
     </AppShell>

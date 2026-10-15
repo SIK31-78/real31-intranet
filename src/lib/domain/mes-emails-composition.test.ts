@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adresseMailValide,
+  sansPolitesseEnDouble,
   factureComplete,
   fusionnerModele,
   objetCompose,
@@ -61,5 +62,20 @@ describe("adresse acceptée à l'envoi", () => {
   });
   it("refuse une adresse accentuée ou mal formée, comme le serveur", () => {
     for (const e of ["mylène.pin@real31.fr", "jean dupont@real31.fr", "a@b", ".a@real31.fr", "a..b@real31.fr"]) expect(adresseMailValide(e)).toBe(false);
+  });
+});
+
+describe("formule de politesse en double avec la signature", () => {
+  const corps = "Madame, Monsieur,\n\nMerci d'intervenir.\n\nCordialement,";
+  it("retire le Cordialement du modèle quand la signature en a déjà un", () => {
+    expect(sansPolitesseEnDouble(corps, "<p>Bien cordialement</p><p>Nicolas PELOQUIN</p>")).toBe("Madame, Monsieur,\n\nMerci d'intervenir.\n");
+  });
+  it("le garde quand la signature n'en a pas", () => {
+    expect(sansPolitesseEnDouble(corps, "<p>Nicolas PELOQUIN</p><p>REAL 31</p>")).toBe(corps);
+    expect(sansPolitesseEnDouble(corps, null)).toBe(corps);
+  });
+  it("ne touche pas un modèle qui ne finit pas par une formule", () => {
+    const sans = "Madame, Monsieur,\n\nCordialement, nous vous informons que la visite est maintenue.";
+    expect(sansPolitesseEnDouble(sans, "Cordialement")).toBe(sans);
   });
 });

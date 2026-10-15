@@ -66,7 +66,7 @@ import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
 import { ReponseEnvoyee } from "./reponse-envoyee";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
-import { MODELES_MAIL, fusionnerModele } from "@/lib/domain/mes-emails-composition";
+import { fusionnerModele, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
 import { estMailInterne } from "@/lib/domain/tri-emails";
 import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
@@ -126,8 +126,11 @@ export function MesEmailsVue({
   adresseFactures = null,
   maxPerso = 40,
   agence = "",
+  modeles,
 }: {
   data: MesEmails;
+  /** Modèles de réponse proposés (agence et cabinet). */
+  modeles: ModeleMail[];
   /** Agence de la boîte (MAIL_TRI_AGENCE) : signe les modèles de réponse. */
   agence?: string;
   /** Plafond de la boîte perso pour cet affichage (« Plus de mails » l'augmente). */
@@ -576,13 +579,13 @@ export function MesEmailsVue({
   // Modèle appliqué à la réponse : le texte remplace le message, l'objet de la réponse reste.
   function appliquerModeleReponse(m: MailEntrant, id: string) {
     setModeleParMail((p) => new Map(p).set(m.id, id));
-    const modele = MODELES_MAIL.find((x) => x.id === id);
+    const modele = modeles.find((x) => x.id === id);
     if (!modele) return;
     const c = coproDe(m);
     setEdits((p) =>
       new Map(p).set(
         m.id,
-        fusionnerModele(modele.corps, {
+        sansPolitesseEnDouble(fusionnerModele(modele.corps, {
           copro_code: c.code,
           copro_nom: c.nom,
           destinataire_nom: m.de,
@@ -590,7 +593,7 @@ export function MesEmailsVue({
           gestionnaire_initiales: data.gestionnaire.initiales,
           agence,
           date: new Date().toLocaleDateString("fr-FR"),
-        }),
+        }), signatureHtml),
       ),
     );
   }
@@ -787,6 +790,7 @@ export function MesEmailsVue({
               fichiers={fichiersDe(selection)}
               onAjouterFichiers={(l) => void ajouterFichiers(selection, l)}
               onRetirerFichier={(i) => retirerFichier(selection, i)}
+              modeles={modeles}
               piecesJointes={
                 pjParMail.has(selection.id) ? (pjParMail.get(selection.id) ?? null) : []
               }
@@ -1299,6 +1303,7 @@ function AnalysePane({
   onAjouterFichiers,
   onRetirerFichier,
   piecesJointes,
+  modeles,
   onTelecharger,
   onApercu,
   onDeposer,
@@ -1363,6 +1368,7 @@ function AnalysePane({
   onAjouterFichiers: (l: FileList | null) => void;
   onRetirerFichier: (i: number) => void;
   piecesJointes: PieceJointeRef[] | null;
+  modeles: ModeleMail[];
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
   /** Déposer la PJ dans le dossier SharePoint de la copro. Absent = dépôt coupé ou mail sans copro. */
@@ -1568,7 +1574,7 @@ function AnalysePane({
                   className="max-w-[240px]"
                 >
                   <option value="">Modèle…</option>
-                  {MODELES_MAIL.map((x) => (
+                  {modeles.map((x) => (
                     <option key={x.id} value={x.id}>
                       {x.titre}
                     </option>

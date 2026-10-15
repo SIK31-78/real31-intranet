@@ -11,7 +11,7 @@ import { Modal, ModalBody } from "@/components/ui/modal";
 import { Callout } from "@/components/ui/callout";
 import { Compositeur } from "./compositeur";
 import { listerCoprosCompositionAction } from "@/app/mes-emails/composer/actions";
-import type { CoproChoisissable } from "@/lib/domain/mes-emails-composition";
+import type { CoproChoisissable, ModeleMail } from "@/lib/domain/mes-emails-composition";
 
 export function EnvoyerEmail({
   gestionnaireNom,
@@ -20,6 +20,7 @@ export function EnvoyerEmail({
   envoiDirect = false,
   boite,
   signatureHtml,
+  modeles,
 }: {
   gestionnaireNom: string;
   agence: string;
@@ -27,6 +28,7 @@ export function EnvoyerEmail({
   envoiDirect?: boolean;
   boite: string | null;
   signatureHtml: string | null;
+  modeles: ModeleMail[];
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [copros, setCopros] = useState<CoproChoisissable[] | null>(null);
@@ -66,6 +68,7 @@ export function EnvoyerEmail({
                 envoiDirect={envoiDirect}
                 boite={boite}
                 signatureHtml={signatureHtml}
+                modeles={modeles}
                 onTermine={() => setOuvert(false)}
               />
             </div>

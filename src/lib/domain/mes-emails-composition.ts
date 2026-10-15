@@ -113,10 +113,28 @@ export function fusionnerModele(gabarit: string, variables: VariablesModele): st
 }
 
 // Clés reconnues (pour distinguer variable vide d'une variable inconnue).
-const MODELE_CLES: Record<keyof VariablesModele, true> = {
+export const MODELE_CLES: Record<keyof VariablesModele, true> = {
   copro_code: true, copro_nom: true, copro_adresse: true, destinataire_nom: true,
   gestionnaire_nom: true, gestionnaire_initiales: true, agence: true, date: true,
 };
+
+// Formule de politesse finale d'un modèle (une ligne seule, en fin de texte).
+const FORMULE_FIN = /^(?:bien\s+)?cordialement[\s,.!]*$|^bien\s+à\s+vous[\s,.!]*$|^(?:sincères|meilleures|bien\s+sincères)\s+salutations[\s,.!]*$/i;
+// Une signature qui porte déjà une formule de politesse (certaines signatures Signitic).
+const FORMULE_DANS_SIGNATURE = /cordialement|bien\s+à\s+vous|salutations/i;
+
+/**
+ * Retire le « Cordialement » final d'un modèle quand la signature de la personne en contient
+ * déjà un : sinon le mail en porterait deux. Point encore à trancher en interne (15/10/2026) ;
+ * d'ici là, la signature gagne. `signature` = HTML ou texte de la signature Signitic.
+ */
+export function sansPolitesseEnDouble(corps: string, signature: string | null | undefined): string {
+  const texteSignature = (signature ?? "").replace(/<[^>]+>/g, " ");
+  if (!FORMULE_DANS_SIGNATURE.test(texteSignature)) return corps;
+  const lignes = corps.replace(/\s+$/, "").split("\n");
+  if (!FORMULE_FIN.test((lignes.at(-1) ?? "").trim())) return corps;
+  return lignes.slice(0, -1).join("\n").replace(/\s+$/, "") + "\n";
+}
 
 /** Un modèle d'événement (gabarit de mail réutilisable). */
 export interface ModeleMail {
