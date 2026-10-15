@@ -1,7 +1,7 @@
 // Doublure de l'écran « Échanges » (dev sans Graph) : quelques échanges fictifs, filtrés
 // grossièrement sur les termes de la requête.
 
-import type { EchangeTrouve } from "@/lib/domain/echanges";
+import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
 import type { RechercheMailProvider } from "@/lib/ports/recherche-mail-provider";
 
 const ECHANTILLON: Omit<EchangeTrouve, "boite">[] = [
@@ -49,5 +49,9 @@ export class EchantillonRechercheMail implements RechercheMailProvider {
 
   async lireCorps(p: { id: string }): Promise<string> {
     return ECHANTILLON.find((e) => e.id === p.id)?.apercu ?? "";
+  }
+
+  async envoyesDuFil(): Promise<ReponseEnvoyee[]> {
+    return [];
   }
 }

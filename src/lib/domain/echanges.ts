@@ -146,6 +146,26 @@ export interface EchangeTrouve {
   lienOutlook?: string;
 }
 
+/** Une réponse envoyée depuis la boîte dans le fil d'un mail reçu (bloc « Réponse envoyée »). */
+export interface ReponseEnvoyee {
+  date: string;
+  deNom: string;
+  a: string[];
+  /** Le texte écrit, sans le message cité en dessous. */
+  corps: string;
+  lienOutlook?: string;
+}
+
+// Début du message cité sous une réponse : en-tête Outlook FR/EN, séparateur, « Le … a écrit ».
+const DEBUT_CITATION = /^\s*(?:(?:De|From)\s?:.*$|-{3,}\s*(?:Message d'origine|Original Message)|_{10,}|Le .{5,120} a écrit\s?:|On .{5,120} wrote:)/im;
+
+/** Le texte propre d'une réponse : on coupe le message d'origine cité en dessous. */
+export function sansCitation(corps: string): string {
+  const texte = corps.replace(/\r\n/g, "\n");
+  const i = texte.search(DEBUT_CITATION);
+  return (i > 0 ? texte.slice(0, i) : texte).replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /** La boîte ne répond pas à l'app : hors du groupe autorisé par la DSI (403) ou inexistante. */
 export class BoiteNonLisible extends Error {
   constructor(readonly boite: string) {

@@ -3,7 +3,7 @@
 // d'une recherche du plus récent au plus ancien, par pages de 50. L'accès à une boîte est
 // borné côté tenant par l'Application Access Policy : une boîte hors du groupe répond 403.
 
-import { BoiteNonLisible, type EchangeTrouve } from "@/lib/domain/echanges";
+import { BoiteNonLisible, sansCitation, type EchangeTrouve, type ReponseEnvoyee } from "@/lib/domain/echanges";
 import type { RechercheMailProvider } from "@/lib/ports/recherche-mail-provider";
 import { GRAPH, graphFetch, jetonGraph } from "./graph-auth";
 
@@ -82,5 +82,29 @@ export class GraphRechercheMail implements RechercheMailProvider {
     if (r.status === 403) throw new BoiteNonLisible(p.boite);
     if (!r.ok) throw new Error(`Graph message ${r.status}`);
     return ((await r.json()) as { body?: { content?: string } }).body?.content ?? "";
+  }
+
+  async envoyesDuFil(p: { boite: string; conversationId: string; apres: string; max: number }): Promise<ReponseEnvoyee[]> {
+    const tk = await jetonGraph();
+    // Filtre seul (Graph refuse souvent filtre + tri sur deux champs différents) : tri ici.
+    const filtre = encodeURIComponent(`conversationId eq '${p.conversationId.replace(/'/g, "''")}'`);
+    const r = await graphFetch(
+      `${GRAPH}/users/${encodeURIComponent(p.boite)}/mailFolders/sentitems/messages?$filter=${filtre}&$top=25&$select=from,toRecipients,sentDateTime,body,webLink`,
+      { headers: { Authorization: `Bearer ${tk}`, Prefer: 'outlook.body-content-type="text"' } },
+    );
+    if (r.status === 403 || r.status === 404) throw new BoiteNonLisible(p.boite);
+    if (!r.ok) throw new Error(`Graph envoyés du fil ${r.status}`);
+    const l = ((await r.json()) as { value?: (GraphMessage & { sentDateTime?: string; body?: { content?: string } })[] }).value ?? [];
+    return l
+      .filter((m) => (m.sentDateTime ?? "") > p.apres)
+      .sort((a, b) => (a.sentDateTime ?? "").localeCompare(b.sentDateTime ?? ""))
+      .slice(0, p.max)
+      .map((m) => ({
+        date: m.sentDateTime ?? "",
+        deNom: m.from?.emailAddress?.name ?? m.from?.emailAddress?.address ?? p.boite,
+        a: adresses(m.toRecipients),
+        corps: sansCitation(m.body?.content ?? ""),
+        ...(m.webLink ? { lienOutlook: m.webLink } : {}),
+      }));
   }
 }

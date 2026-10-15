@@ -64,6 +64,7 @@ import { Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
+import { ReponseEnvoyee } from "./reponse-envoyee";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { MODELES_MAIL, fusionnerModele } from "@/lib/domain/mes-emails-composition";
 import { estMailInterne } from "@/lib/domain/tri-emails";
@@ -1529,6 +1530,7 @@ function AnalysePane({
           {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
             <TransmettreFacture destinataire={adresseFactures} onTransmettre={onTransmettreFacture} />
           )}
+          {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={m.id} emailId={m.id} boite={boiteDuMail} />}
       </div>
 
       <div className="px-5 pb-4 flex flex-col gap-3">

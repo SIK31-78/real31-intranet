@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  sansCitation,
   boiteAutorisee,
   boitesVisibles,
   codesDeCopro,
@@ -124,5 +125,19 @@ describe("critereDepuisRecherche (barre unique de E-mails)", () => {
     expect(critereDepuisRecherche("s0247 Dupont@X.fr fuite hall")).toEqual({ copro: "S0247", correspondant: "dupont@x.fr", mots: "fuite hall" });
     expect(critereDepuisRecherche("  devis ascenseur ")).toEqual({ mots: "devis ascenseur" });
     expect(critereDepuisRecherche("")).toEqual({});
+  });
+});
+
+describe("réponse envoyée sans le message cité", () => {
+  it("coupe à l'en-tête Outlook du message d'origine", () => {
+    const corps = "Bonjour,\n\nC'est noté, le plombier passe jeudi.\n\nCordialement\n\nDe : Jean Dupont <jean@x.fr>\nEnvoyé : mardi\nObjet : fuite";
+    expect(sansCitation(corps)).toBe("Bonjour,\n\nC'est noté, le plombier passe jeudi.\n\nCordialement");
+  });
+  it("coupe à « Le … a écrit : » et au séparateur", () => {
+    expect(sansCitation("Merci.\r\n\r\nLe 14/10/2026 à 09:12, Jean a écrit :\r\n> fuite")).toBe("Merci.");
+    expect(sansCitation("Ok.\n________________________________\nFrom: x")).toBe("Ok.");
+  });
+  it("garde tout quand rien n'est cité", () => {
+    expect(sansCitation("  Bien reçu.  ")).toBe("Bien reçu.");
   });
 });

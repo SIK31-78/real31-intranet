@@ -29,6 +29,8 @@ import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
+import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
+import type { ReponseEnvoyee } from "@/lib/domain/echanges";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
@@ -279,6 +281,21 @@ export async function chargerPiecesJointesAction(
   } catch (e) {
     console.warn("[mes-emails] pieces jointes indisponibles :", (e as Error).message);
     return [];
+  }
+}
+
+/** La réponse envoyée depuis la boîte qui détient le mail ; null si la boîte n'a pas pu être lue. */
+export async function chargerReponsesEnvoyeesAction(emailId: string, boite?: string): Promise<ReponseEnvoyee[] | null> {
+  if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return null;
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return null;
+  const cible = await boiteCible(g, boite);
+  if (!cible) return null;
+  try {
+    return await reponsesEnvoyees(cible, emailId);
+  } catch (e) {
+    console.warn("[mes-emails] réponse envoyée indisponible :", (e as Error).message);
+    return null;
   }
 }
 
