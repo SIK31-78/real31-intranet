@@ -21,6 +21,8 @@ import {
   type HistoriqueOdj,
 } from "@/lib/domain/odj-historique";
 import { estAjoutLibre } from "@/lib/domain/odj-libre";
+import { estErreurVersionPerimee } from "@/lib/domain/version-app";
+import { signalerVersionPerimee } from "@/components/version/bandeau-nouvelle-version";
 
 export const DELAI_AUTOSAVE_MS = 900;
 
@@ -66,7 +68,11 @@ export function useAutosaveOdj(onSaisir: (champId: string, valeur: string) => Pr
     for (const [champId, valeur] of entrees) {
       void onSaisir(champId, valeur)
         .then(() => maj((b) => atterrir(b, champId, true)))
-        .catch(() => maj((b) => atterrir(b, champId, false)));
+        .catch((e: unknown) => {
+          // Onglet périmé (REA-312) : la saisie reste en brouillon, le bandeau le dit.
+          if (estErreurVersionPerimee(e)) signalerVersionPerimee();
+          maj((b) => atterrir(b, champId, false));
+        });
     }
   }, [onSaisir, maj]);
 

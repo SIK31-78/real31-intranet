@@ -14,6 +14,8 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { envoyerFeedback } from "@/app/feedback/actions";
+import { signalerVersionPerimee } from "@/components/version/bandeau-nouvelle-version";
+import { estErreurVersionPerimee } from "@/lib/domain/version-app";
 import {
   APPLICATIONS_FEEDBACK,
   LIBELLES_APPLICATION,
@@ -62,13 +64,25 @@ export function FeedbackTrigger() {
     startTransition(async () => {
       // real31 : le pathname est capture automatiquement ; autre application : le lien
       // colle par le collaborateur (facultatif).
-      const r = await envoyerFeedback({
-        type,
-        description,
-        severite,
-        application,
-        page: application === "real31" ? pathname : lien.trim() || undefined,
-      });
+      let r: Awaited<ReturnType<typeof envoyerFeedback>>;
+      try {
+        r = await envoyerFeedback({
+          type,
+          description,
+          severite,
+          application,
+          page: application === "real31" ? pathname : lien.trim() || undefined,
+        });
+      } catch (e) {
+        // Onglet ouvert avant une mise en ligne (REA-312) : le texte reste dans le champ.
+        if (estErreurVersionPerimee(e)) {
+          signalerVersionPerimee();
+          setErreur("La page a été mise à jour pendant que vous écriviez. Copiez votre texte, actualisez la page, puis renvoyez-le.");
+        } else {
+          setErreur("Envoi impossible. Votre texte est conservé : réessayez dans un instant.");
+        }
+        return;
+      }
       if (!r.ok) {
         setErreur(r.message ?? "Envoi impossible.");
         return;

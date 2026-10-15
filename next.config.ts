@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import { entetesSecurite } from "./src/lib/securite/entetes-http";
+import { versionDuBuild } from "./src/lib/domain/version-app";
 
 const FICHIERS_CHROMIUM = [
   "./node_modules/playwright-core/**",
@@ -12,6 +13,11 @@ const FICHIERS_CHROMIUM = [
 ];
 
 const nextConfig: NextConfig = {
+  // Version figée dans le code client au build (REA-312) : le bandeau « nouvelle version »
+  // la compare à celle que renvoie /api/version.
+  env: {
+    NEXT_PUBLIC_VERSION_APP: versionDuBuild(process.env),
+  },
   // Reprise compta : pdfjs-dist (lecture couche texte des grands livres) doit rester un
   // module Node externe - bundle par Next, son import dynamique echoue au runtime et la
   // voie couche texte retombe silencieusement sur l'OCR (ecart -25,57 reapparu + intitules
