@@ -25,12 +25,17 @@ const QUOTE_MARKERS: RegExp[] = [
 
 /** Coupe l'historique cite : ne garde que le message du jour (avant le 1er marqueur). */
 export function stripQuotedHistory(body: string): string {
+  return body.slice(0, debutCitation(body)).trim();
+}
+
+/** Position du debut de l'historique cite (le 1er marqueur), ou la fin du texte. */
+function debutCitation(body: string): number {
   let cut = body.length;
   for (const re of QUOTE_MARKERS) {
     const m = re.exec(body);
     if (m && m.index < cut) cut = m.index;
   }
-  return body.slice(0, cut).trim();
+  return cut;
 }
 
 // Sur un transfert, le contenu utile est le 1er message transfere : on coupe au
@@ -38,10 +43,12 @@ export function stripQuotedHistory(body: string): string {
 const FORWARD_SUBJECT = /^\s*(tr|fw|fwd)\s*:/i;
 const DE_LINE = /^[ \t]*(De|From)[ \t]*:/gim;
 
+function debutApresTransfert(body: string): number {
+  return [...body.matchAll(DE_LINE)][1]?.index ?? body.length;
+}
+
 function trimForward(body: string): string {
-  const second = [...body.matchAll(DE_LINE)][1];
-  if (!second || second.index == null) return body.trim();
-  return body.slice(0, second.index).trim();
+  return body.slice(0, debutApresTransfert(body)).trim();
 }
 
 /**
@@ -53,7 +60,24 @@ export function cleanBody(mail: RawMail): string {
   const body = FORWARD_SUBJECT.test(mail.subject ?? "")
     ? trimForward(normalise)
     : stripQuotedHistory(normalise);
-  return body
+  return aere(body);
+}
+
+/**
+ * L'historique cite que cleanBody retire : les messages precedents de la conversation.
+ * cleanBody sert au tri ; l'affichage doit pourtant montrer a quoi on repond (Mahaut,
+ * 15/10/2026 : « on ne sait pas a quel mail elle recoit une reponse »). Borne a `max`
+ * caracteres : un long fil ne doit pas alourdir la page.
+ */
+export function historiqueCite(mail: Pick<RawMail, "subject" | "bodyText">, max = 30_000): string {
+  const normalise = (mail.bodyText ?? "").replace(/\r\n?/g, "\n");
+  const debut = FORWARD_SUBJECT.test(mail.subject ?? "") ? debutApresTransfert(normalise) : debutCitation(normalise);
+  const reste = aere(normalise.slice(debut));
+  return reste.length > max ? `${reste.slice(0, max)}\n…` : reste;
+}
+
+function aere(texte: string): string {
+  return texte
     .replace(/ /g, " ")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")

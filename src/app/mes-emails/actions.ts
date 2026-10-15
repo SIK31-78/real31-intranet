@@ -30,6 +30,7 @@ import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/li
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
+import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 import type { ReponseEnvoyee } from "@/lib/domain/echanges";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
@@ -295,6 +296,21 @@ export async function chargerReponsesEnvoyeesAction(emailId: string, boite?: str
     return await reponsesEnvoyees(cible, emailId);
   } catch (e) {
     console.warn("[mes-emails] réponse envoyée indisponible :", (e as Error).message);
+    return null;
+  }
+}
+
+/** L'historique cité sous un mail reçu, lu dans la boîte qui le détient ; null si illisible. */
+export async function chargerHistoriqueAction(emailId: string, boite?: string): Promise<string | null> {
+  if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return null;
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return null;
+  const cible = await boiteCible(g, boite);
+  if (!cible) return null;
+  try {
+    return await historiqueDuMail(cible, emailId);
+  } catch (e) {
+    console.warn("[mes-emails] historique indisponible :", (e as Error).message);
     return null;
   }
 }
