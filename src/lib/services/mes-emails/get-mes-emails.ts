@@ -17,6 +17,7 @@ import { getCoproRepository, getMesEmailsEtatRepository } from "@/lib/adapters/r
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { lireBoitesLive } from "@/lib/services/mes-emails/lire-boites";
+import { statutPartage, type StatutEcrit } from "@/lib/services/mes-emails/statut-partage";
 
 export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<MesEmails> {
   // Boites visibles = source unique (perso + sous-dossier du binome sur la partagee).
@@ -31,9 +32,21 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<
   ]);
   const etats = new Map(etatsListe.map((e) => [e.emailId, e]));
 
+  // Boite partagee : le statut « traité » est commun a ceux qui la voient (cf. statut-partage).
+  const partagees = new Set(boites.filter((b) => !b.personnelle).map((b) => b.id));
+  const idsPartages = triage.mails.filter((m) => m.boite && partagees.has(m.boite)).map((m) => m.id);
+  const lignesPartagees = new Map<string, StatutEcrit[]>();
+  for (const l of await getMesEmailsEtatRepository().getStatutsDesMails(idsPartages)) {
+    lignesPartagees.set(l.emailId, [...(lignesPartagees.get(l.emailId) ?? []), l]);
+  }
+
   // Pas de filtre portefeuille : la boite personnelle est deja celle du connecte, et
   // une boite partagee est par nature multi-copros (c'est ce qu'on vient chercher).
-  const mails = triage.mails.map((m) => appliquerEtat(m, etats.get(m.id)));
+  const mails = triage.mails.map((m) => {
+    const avecEtat = appliquerEtat(m, etats.get(m.id));
+    const commun = m.boite && partagees.has(m.boite) ? statutPartage(m.boite, lignesPartagees.get(m.id) ?? []) : null;
+    return commun ? { ...avecEtat, statutTraitement: commun.statut, etapesFaites: commun.etapesFaites } : avecEtat;
+  });
 
   return {
     gestionnaire: { nomComplet: g.nomComplet, initiales: g.initiales },

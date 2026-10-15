@@ -5,6 +5,16 @@
 
 import type { Rattachement, StatutTraitement } from "@/lib/domain/mes-emails";
 
+/** Le statut d'un mail tel qu'ecrit par quelqu'un (un gestionnaire, ou « boite:<adresse> »). */
+export type StatutEcrit = {
+  gestionnaireId: string;
+  emailId: string;
+  statut: StatutTraitement;
+  etapesFaites: number[];
+  /** Horodatage de la derniere ecriture de la ligne (ISO). */
+  marqueAt?: string;
+};
+
 /** Etat persiste d'un mail, pour un gestionnaire donne. */
 export interface EtatMail {
   emailId: string;
@@ -41,6 +51,8 @@ export type MajDossier = CleEtat & { dossierId: string; dossierNom: string };
 export interface MesEmailsEtatRepository {
   /** Tous les etats d'un gestionnaire (cle emailId). */
   getEtats(gestionnaireId: string): Promise<EtatMail[]>;
+  /** Le statut de CES mails, toutes lignes confondues (boite partagee : statut commun). */
+  getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]>;
   /** Valider/devalider : pose le statut + les etapes (+ le brouillon final si fourni). */
   setStatut(p: MajStatut): Promise<void>;
   setEtapes(p: MajEtapes): Promise<void>;

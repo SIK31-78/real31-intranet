@@ -621,7 +621,7 @@ export function MesEmailsVue({
   function marquerTraite(m: MailEntrant) {
     setMsgClasser(null);
     setClasses((p) => add(p, m.id));
-    void marquerTraiteAction(m.id, coproDe(m).code);
+    void marquerTraiteAction(m.id, coproDe(m).code, boiteDuMail(m));
     passerAuSuivant(m);
   }
   function passerAuSuivant(m: MailEntrant) {
@@ -636,7 +636,7 @@ export function MesEmailsVue({
   function devalider(m: MailEntrant) {
     setClasses((p) => del(p, m.id));
     setRepondus((p) => del(p, m.id));
-    void devaliderMailAction(m.id, m.coproCode);
+    void devaliderMailAction(m.id, m.coproCode, boiteDuMail(m));
   }
   const toggleSection = (cle: string) =>
     setOuverts((p) => (p.has(cle) ? del(p, cle) : add(p, cle)));

@@ -11,6 +11,7 @@ import type {
   MajRattachement,
   MajStatut,
   MesEmailsEtatRepository,
+  StatutEcrit,
 } from "@/lib/ports/mes-emails-etat-provider";
 
 const STORE = new Map<string, { gid: string; etat: EtatMail }>();
@@ -25,6 +26,11 @@ function maj(gid: string, emailId: string, patch: Partial<EtatMail>): void {
 export class MockMesEmailsEtatRepository implements MesEmailsEtatRepository {
   async getEtats(gestionnaireId: string): Promise<EtatMail[]> {
     return [...STORE.values()].filter((e) => e.gid === gestionnaireId).map((e) => e.etat);
+  }
+  async getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]> {
+    return [...STORE.values()]
+      .filter((e) => emailIds.includes(e.etat.emailId))
+      .map((e) => ({ gestionnaireId: e.gid, emailId: e.etat.emailId, statut: e.etat.statut, etapesFaites: e.etat.etapesFaites }));
   }
   async setStatut(p: MajStatut): Promise<void> {
     maj(p.gestionnaireId, p.emailId, {

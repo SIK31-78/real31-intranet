@@ -13,6 +13,7 @@ import type {
   MajRattachement,
   MajStatut,
   MesEmailsEtatRepository,
+  StatutEcrit,
 } from "@/lib/ports/mes-emails-etat-provider";
 import type { Rattachement, StatutTraitement } from "@/lib/domain/mes-emails";
 import { createSupabasePublicClient } from "./public-client";
@@ -66,6 +67,29 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
       ...(r.copro_code ? { coproCode: r.copro_code, coproNom: r.copro_nom ?? "" } : {}),
       ...(r.dossier_id ? { dossierId: r.dossier_id, dossierNom: r.dossier_nom ?? "" } : {}),
     }));
+  }
+
+  async getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]> {
+    if (!emailIds.length) return [];
+    const sb = createSupabasePublicClient();
+    const { data, error } = await sb
+      .from(TABLE)
+      .select("gestionnaire_id, email_id, statut, etapes_faites, marque_at")
+      .in("email_id", emailIds);
+    // Lecture d'appoint : en cas d'echec, chacun garde son statut personnel.
+    if (error) {
+      console.warn("[mes-emails] statuts partages illisibles :", error.message);
+      return [];
+    }
+    return ((data as (Pick<Row, "email_id" | "statut" | "etapes_faites"> & { gestionnaire_id: string; marque_at: string | null })[] | null) ?? []).map(
+      (r) => ({
+        gestionnaireId: r.gestionnaire_id,
+        emailId: r.email_id,
+        statut: versStatut(r.statut),
+        etapesFaites: r.etapes_faites ?? [],
+        ...(r.marque_at ? { marqueAt: r.marque_at } : {}),
+      }),
+    );
   }
 
   private async upsert(p: CleEtat, champs: Record<string, unknown>): Promise<void> {

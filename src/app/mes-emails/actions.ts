@@ -99,22 +99,32 @@ function cibleDe(g: Gestionnaire, emailId: string, coproCode: string): Cible {
   return { gid: g.id, emailId, coproCode, initiales: g.initiales, ...(g.email ? { email: g.email } : {}) };
 }
 
+/** La Cible d'un changement de STATUT : sur une boite partagee visible, le statut vaut
+ *  pour tous ceux qui la voient (Mylene conclut pour Nicolas, 15/10/2026). */
+async function cibleStatut(g: Gestionnaire, emailId: string, coproCode: string, boite: string | undefined): Promise<Cible> {
+  const c = cibleDe(g, emailId, coproCode);
+  const demandee = (boite ?? "").trim().toLowerCase();
+  if (!demandee) return c;
+  const b = (await boitesVisibles(g)).find((x) => x.id === demandee);
+  return b && !b.personnelle ? { ...c, boitePartagee: b.id } : c;
+}
+
 // --- Actions d'etat (retour void : sur entree/auth invalide, on ne fait rien) -----------
 
 /** Conclure l'événement : le mail sort de la liste « à traiter », sans bouger dans Outlook. */
-export async function marquerTraiteAction(emailId: string, coproCode: string): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
+export async function marquerTraiteAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
+  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
-  await enregistrerStatut(cibleDe(auth.g, emailId, coproCode), "classe", []);
+  await enregistrerStatut(await cibleStatut(auth.g, emailId, coproCode, boite), "classe", []);
   revalidatePath("/mes-emails");
 }
 
-export async function devaliderMailAction(emailId: string, coproCode: string): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
+export async function devaliderMailAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
+  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
-  await enregistrerStatut(cibleDe(auth.g, emailId, coproCode), "nouveau", []);
+  await enregistrerStatut(await cibleStatut(auth.g, emailId, coproCode, boite), "nouveau", []);
   revalidatePath("/mes-emails");
 }
 
@@ -533,7 +543,7 @@ export async function classerDansDossierAction(
   try {
     const res = await classerDansDossier(cible, emailId, folderId);
     const c = cibleDe(g, emailId, coproCode);
-    await enregistrerStatut(c, "classe", etapes, brouillon);
+    await enregistrerStatut(await cibleStatut(g, emailId, coproCode, cible), "classe", etapes, brouillon);
     await enregistrerDossier(c, folderId, folderNom);
     revalidatePath("/mes-emails");
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
