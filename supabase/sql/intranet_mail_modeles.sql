@@ -35,35 +35,115 @@ create index if not exists intranet_mail_modeles_agence_idx
 -- Modèles de départ : repris des modèles d'événement Crypto les plus utilisés (export du
 -- 15/10/2026, tri validé par Sekou, cf. Mythec-refactor/Migration communication/
 -- tri-modeles-crypto.md). Sans la signature ni le bloc agence (Signitic signe), sans la ligne
--- « Réf » (en attente de REA-323). Insérés seulement si aucun modèle du même titre n'existe
+-- « Réf » (en attente de REA-323). Textes entre $c$ … $c$ (aucun échappement : les
+-- apostrophes restent telles quelles). Insérés seulement si aucun modèle du même titre n'existe
 -- pour la même agence : rejouer le fichier ne crée pas de doublon.
 insert into public.intranet_mail_modeles (titre, objet, corps, agence, auteur_email)
 select v.titre, v.objet, v.corps, v.agence, 'reprise-crypto'
 from (values
-  ('Mail simple', '',
-   E'Immeuble concerné : {{copro_adresse}}\n\nMadame, Monsieur,\n\n\n\nCordialement,',
-   'HLS'),
-  ('Ordre de service', 'Ordre de service',
-   E'Immeuble concerné : {{copro_adresse}}\n\nMadame, Monsieur,\n\nNous vous remercions de bien vouloir intervenir dans l''immeuble référencé ci-dessus dans les meilleurs délais.\n\nProblème constaté :\n\nModalités d''accès :\n\nPersonne à contacter sur place :\n\nNous vous en remercions par avance,\n\nCordialement,',
-   'HLS'),
-  ('Demande de devis', 'Devis',
-   E'Immeuble concerné : {{copro_adresse}}\n\nMadame, Monsieur,\n\nNous vous remercions de bien vouloir nous établir votre proposition pour :\n\nProblème constaté :\n\nModalités d''accès :\n\nPersonne à contacter sur place :\n\nNous vous remercions par avance de votre retour,\n\nCordialement,',
-   'HLS'),
-  ('Devis validé', 'Devis validé',
-   E'Immeuble concerné : {{copro_adresse}}\n\nMadame, Monsieur,\n\nNous vous retournons ci-joint votre devis signé bon pour accord et vous remercions de bien vouloir planifier l''intervention correspondante.\n\nModalités d''accès :\n\nNous vous en remercions par avance,\n\nCordialement,',
-   'HLS'),
-  ('Mail simple', '',
-   E'Immeuble concerné : {{copro_adresse}}\n\nMadame, Monsieur,\n\n\n\nCordialement,',
-   'LGC'),
-  ('Ordre de service', 'Ordre de service',
-   E'Immeuble concerné : {{copro_adresse}}\n\nMadame, Monsieur,\n\nNous vous remercions d''intervenir dans l''immeuble référencé ci-dessus dans les meilleurs délais.\n\nProblème constaté :\n\nModalités d''accès :\nCodes d''accès :\n\nPersonne à contacter sur place :\n\nLes clés se trouvent à votre disposition à notre agence.\nNos horaires d''ouverture sont : lundi au samedi de 09h30 à 12h30 et de 14h00 à 19h30 (fermeture à 18h00 le samedi)\n\nCordialement,',
-   'LGC'),
-  ('Devis validé', 'Devis validé',
-   E'Immeuble concerné : {{copro_adresse}}\n\nMadame, Monsieur,\n\nNous vous prions de trouver ci-joint votre devis n° … dûment validé et signé.\n\nNous vous remercions d''en accuser bonne réception et de nous indiquer votre date d''intervention.\n\nCordialement,',
-   'LGC'),
-  ('Changement de syndic (fournisseur)', 'Changement de syndic - IMPORTANT',
-   E'Immeuble concerné : {{copro_adresse}}\n\nRéférence du contrat :\n\nMadame, Monsieur,\n\nPar la présente, nous vous informons que nous avons été nommés syndic de la copropriété citée en référence.\n\nNous vous remercions de bien vouloir faire parvenir toutes les correspondances concernant cet immeuble par mail à l''adresse suivante :\n\nsyndic2@real31.fr\n\nLes factures doivent être libellées de la manière suivante :\n\nSDC {{copro_adresse}}\nC/O REAL 31\n13 rd pt du Souvenir Français\n92250 LA GARENNE-COLOMBES\n\nNous vous prions également de nous adresser la copie de vos attestations d''assurance professionnelle pour l''année en cours.\n\nCordialement,',
-   'LGC')
+  ($c$Mail simple$c$, $c$$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Madame, Monsieur,
+
+
+
+Cordialement,$c$, $c$HLS$c$),
+  ($c$Ordre de service$c$, $c$Ordre de service$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Madame, Monsieur,
+
+Nous vous remercions de bien vouloir intervenir dans l'immeuble référencé ci-dessus dans les meilleurs délais.
+
+Problème constaté :
+
+Modalités d'accès :
+
+Personne à contacter sur place :
+
+Nous vous en remercions par avance,
+
+Cordialement,$c$, $c$HLS$c$),
+  ($c$Demande de devis$c$, $c$Devis$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Madame, Monsieur,
+
+Nous vous remercions de bien vouloir nous établir votre proposition pour :
+
+Problème constaté :
+
+Modalités d'accès :
+
+Personne à contacter sur place :
+
+Nous vous remercions par avance de votre retour,
+
+Cordialement,$c$, $c$HLS$c$),
+  ($c$Devis validé$c$, $c$Devis validé$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Madame, Monsieur,
+
+Nous vous retournons ci-joint votre devis signé bon pour accord et vous remercions de bien vouloir planifier l'intervention correspondante.
+
+Modalités d'accès :
+
+Nous vous en remercions par avance,
+
+Cordialement,$c$, $c$HLS$c$),
+  ($c$Mail simple$c$, $c$$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Madame, Monsieur,
+
+
+
+Cordialement,$c$, $c$LGC$c$),
+  ($c$Ordre de service$c$, $c$Ordre de service$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Madame, Monsieur,
+
+Nous vous remercions d'intervenir dans l'immeuble référencé ci-dessus dans les meilleurs délais.
+
+Problème constaté :
+
+Modalités d'accès :
+Codes d'accès :
+
+Personne à contacter sur place :
+
+Les clés se trouvent à votre disposition à notre agence.
+Nos horaires d'ouverture sont : lundi au samedi de 09h30 à 12h30 et de 14h00 à 19h30 (fermeture à 18h00 le samedi)
+
+Cordialement,$c$, $c$LGC$c$),
+  ($c$Devis validé$c$, $c$Devis validé$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Madame, Monsieur,
+
+Nous vous prions de trouver ci-joint votre devis n° … dûment validé et signé.
+
+Nous vous remercions d'en accuser bonne réception et de nous indiquer votre date d'intervention.
+
+Cordialement,$c$, $c$LGC$c$),
+  ($c$Changement de syndic (fournisseur)$c$, $c$Changement de syndic - IMPORTANT$c$, $c$Immeuble concerné : {{copro_adresse}}
+
+Référence du contrat :
+
+Madame, Monsieur,
+
+Par la présente, nous vous informons que nous avons été nommés syndic de la copropriété citée en référence.
+
+Nous vous remercions de bien vouloir faire parvenir toutes les correspondances concernant cet immeuble par mail à l'adresse suivante :
+
+syndic2@real31.fr
+
+Les factures doivent être libellées de la manière suivante :
+
+SDC {{copro_adresse}}
+C/O REAL 31
+13 rd pt du Souvenir Français
+92250 LA GARENNE-COLOMBES
+
+Nous vous prions également de nous adresser la copie de vos attestations d'assurance professionnelle pour l'année en cours.
+
+Cordialement,$c$, $c$LGC$c$)
 ) as v(titre, objet, corps, agence)
 where not exists (
   select 1 from public.intranet_mail_modeles m
