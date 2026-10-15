@@ -62,7 +62,7 @@ export function ChoixCycle({
       <Field label="AG qui votera le contrat" htmlFor="o-ag" hint="vide : en blanc sur le contrat, à compléter">
         <Input id="o-ag" type="date" value={valeur("ag")} onChange={(e) => changer("ag", e.target.value)} />
       </Field>
-      <Field label="Début du mandat" htmlFor="o-debut" hint="lendemain de la fin du mandat en place, sinon le jour de l'AG ; vide : en blanc">
+      <Field label="Début du mandat" htmlFor="o-debut" hint="par défaut, le lendemain de l'AG ; vide : en blanc">
         <Input id="o-debut" type="date" value={valeur("debut")} onChange={(e) => changer("debut", e.target.value)} />
       </Field>
       {/* Duree libre en mois, 3 ans au plus (art. 28 du decret de 1967), comme sur

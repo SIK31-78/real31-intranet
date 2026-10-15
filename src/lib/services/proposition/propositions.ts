@@ -348,7 +348,7 @@ export async function preparerOffre(id: string, options: OptionsOffre, signatair
   const p = await getPropositionRepository().get(id);
   if (!p) throw new Error("Proposition introuvable.");
   const aujourdHui = new Date().toISOString().slice(0, 10);
-  const cycle = cycleOffre(p, options, aujourdHui);
+  const cycle = cycleOffre(p, options);
   const obstacles = obstaclesOffre(p);
   const mail = texteMailOffre(p, cycle, signataire);
   if (obstacles.length > 0) return { proposition: p, cycle, obstacles, mail };
@@ -382,7 +382,7 @@ export async function marquerOffreRemise(id: string, options: OptionsOffre, par:
   const p = await repo.get(id);
   if (!p) throw new Error("Proposition introuvable.");
   const aujourdHui = new Date().toISOString().slice(0, 10);
-  const cycle = cycleOffre(p, options, aujourdHui);
+  const cycle = cycleOffre(p, options);
   const n: Proposition = {
     ...p,
     remisePropositionISO: aujourdHui,

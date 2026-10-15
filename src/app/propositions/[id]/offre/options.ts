@@ -1,7 +1,7 @@
 // Les choix de l'offre (AG, debut, duree) voyagent dans l'URL : la page, l'apercu
 // imprimable et le PDF les relisent tels quels, sans etat.
 //
-// Une date ABSENTE de l'URL est laissee au calcul (AG prevue, fin du mandat en place) ;
+// Une date ABSENTE de l'URL est laissee au calcul (AG prevue, debut au lendemain de l'AG) ;
 // une date presente mais VIDE (`?ag=`) a ete effacee expres : elle part en blanc sur le
 // contrat, sans repli.
 

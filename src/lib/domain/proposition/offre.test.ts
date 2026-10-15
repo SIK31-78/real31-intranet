@@ -16,11 +16,11 @@ const base: Proposition = {
 };
 
 describe("cycleOffre", () => {
-  it("part du lendemain de la fin du mandat en place, un an", () => {
-    expect(cycleOffre(base, {}, "2026-09-16")).toEqual({
+  it("part du lendemain de l'AG, un an, meme si le mandat en place court au-dela", () => {
+    expect(cycleOffre(base, {})).toEqual({
       dateAgISO: "2026-11-20",
-      debutISO: "2027-01-01",
-      finISO: "2027-12-31",
+      debutISO: "2026-11-21",
+      finISO: "2027-11-20",
       dureeMois: 12,
       honorairesGestionTtc: 4944,
       forfaitPostauxTtc: 0,
@@ -28,30 +28,26 @@ describe("cycleOffre", () => {
     });
   });
   it("sans AG connue, rien n'est invente : AG, debut et fin en blanc", () => {
-    const p = { ...base, immeuble: { ...base.immeuble, prochaineAgISO: undefined, finMandatActuelISO: undefined } };
-    expect(cycleOffre(p, {}, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "", finISO: "", dureeMois: 12 });
-    // Le debut saisi suffit a dater le contrat, l'AG reste en blanc.
-    expect(cycleOffre(p, { debutISO: "2027-01-01", dureeMois: 24 }, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "2027-01-01", finISO: "2028-12-31" });
-  });
-  it("sans AG, le mandat en place qui court encore donne le debut ; echu, non", () => {
     const p = { ...base, immeuble: { ...base.immeuble, prochaineAgISO: undefined } };
-    expect(cycleOffre(p, {}, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "2027-01-01", finISO: "2027-12-31" });
-    expect(cycleOffre({ ...p, immeuble: { ...p.immeuble, finMandatActuelISO: "2026-06-30" } }, {}, "2026-09-16")).toMatchObject({ debutISO: "", finISO: "" });
+    expect(cycleOffre(p, {})).toMatchObject({ dateAgISO: "", debutISO: "", finISO: "", dureeMois: 12 });
+    // Le debut saisi suffit a dater le contrat, l'AG reste en blanc.
+    expect(cycleOffre(p, { debutISO: "2027-01-01", dureeMois: 24 })).toMatchObject({ dateAgISO: "", debutISO: "2027-01-01", finISO: "2028-12-31" });
   });
   it("l'AG prevue de la proposition reste le premier repli", () => {
-    expect(cycleOffre({ ...base, agPrevueISO: "2026-12-05" }, {}, "2026-09-16").dateAgISO).toBe("2026-12-05");
+    expect(cycleOffre({ ...base, agPrevueISO: "2026-12-05" }, {})).toMatchObject({ dateAgISO: "2026-12-05", debutISO: "2026-12-06" });
   });
-  it("sans mandat connu, part de l'AG ; duree et AG imposables", () => {
-    const p = { ...base, immeuble: { ...base.immeuble, finMandatActuelISO: undefined } };
-    expect(cycleOffre(p, { dateAgISO: "2026-10-05", dureeMois: 24 }, "2026-09-16")).toMatchObject({ dateAgISO: "2026-10-05", debutISO: "2026-10-05", finISO: "2028-10-04" });
+  it("AG et duree imposables ; le debut suit l'AG saisie", () => {
+    expect(cycleOffre(base, { dateAgISO: "2026-10-05", dureeMois: 24 })).toMatchObject({ dateAgISO: "2026-10-05", debutISO: "2026-10-06", finISO: "2028-10-05" });
   });
-  it("un mandat deja echu ne repousse pas le debut", () => {
-    const p = { ...base, immeuble: { ...base.immeuble, finMandatActuelISO: "2025-06-30" } };
-    expect(cycleOffre(p, {}, "2026-09-16").debutISO).toBe("2026-11-20");
+  it("un debut saisi a la main l'emporte", () => {
+    expect(cycleOffre(base, { debutISO: "2027-01-01" })).toMatchObject({ dateAgISO: "2026-11-20", debutISO: "2027-01-01", finISO: "2027-12-31" });
+  });
+  it("le lendemain d'une AG du 31/12 tombe le 01/01", () => {
+    expect(cycleOffre(base, { dateAgISO: "2026-12-31" }).debutISO).toBe("2027-01-01");
   });
   it("forfait timbres quand les frais ne sont pas au reel", () => {
     const p = { ...base, prix: { ...base.prix, fraisPostauxReels: false } };
-    expect(cycleOffre(p, {}, "2026-09-16")).toMatchObject({ forfaitPostauxTtc: 173.6, fraisPostauxReels: false });
+    expect(cycleOffre(p, {})).toMatchObject({ forfaitPostauxTtc: 173.6, fraisPostauxReels: false });
   });
 });
 
@@ -66,7 +62,7 @@ describe("alerteDebutAvantAg", () => {
     expect(alerteDebutAvantAg({ dateAgISO: "2026-11-20", debutISO: "" })).toBeNull();
   });
   it("une date videe expres part en blanc, sans repli sur la fiche", () => {
-    expect(cycleOffre(base, { dateAgISO: "", debutISO: "" }, "2026-09-16")).toMatchObject({ dateAgISO: "", debutISO: "", finISO: "" });
+    expect(cycleOffre(base, { dateAgISO: "", debutISO: "" })).toMatchObject({ dateAgISO: "", debutISO: "", finISO: "" });
   });
 });
 
@@ -105,19 +101,19 @@ describe("contrat prospect", () => {
 });
 
 describe("texteMailOffre", () => {
-  const cycle = cycleOffre(base, {}, "2026-09-16");
+  const cycle = cycleOffre(base, {});
   const mail = texteMailOffre(base, cycle, { nom: "Emmanuel LOPES" });
   it("civilite, montant, lieu d'AG de l'agence, frais reels, signature", () => {
     expect(mail).toContain("Bonjour Madame,");
     // toLocaleString separe les milliers d'une espace fine insecable.
-    expect(mail).toMatch(/Gestion courante : 4.944,00 € TTC par an pour 8 lots principaux \(contrat du 01\/01\/2027 au 31\/12\/2027\)\./);
+    expect(mail).toMatch(/Gestion courante : 4.944,00 € TTC par an pour 8 lots principaux \(contrat du 21\/11\/2026 au 20\/11\/2027\)\./);
     expect(mail).toContain("13 rond-point du Souvenir Français ou 38 rue Jules Ferry");
     expect(mail).toContain("refacturés au réel");
     expect(mail).toContain("Emmanuel LOPES\nREAL 31 Immobilier");
   });
   it("forfait timbres quand il y en a un, Monsieur pour M.", () => {
     const p = { ...base, contact: { nom: "M. DUPONT" }, prix: { ...base.prix, fraisPostauxReels: false } };
-    const m = texteMailOffre(p, cycleOffre(p, {}, "2026-09-16"), { nom: "X" });
+    const m = texteMailOffre(p, cycleOffre(p, {}), { nom: "X" });
     expect(m).toContain("Bonjour Monsieur,");
     expect(m).toContain("Forfait frais postaux : 173,60 € TTC par an");
   });

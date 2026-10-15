@@ -77,7 +77,7 @@ export function coproContratDepuisProposition(p: Proposition): CoproContrat {
 export interface OptionsOffre {
   /** L'AG qui votera le contrat. Defaut : l'AG prevue, sinon la prochaine AG de la fiche, sinon en blanc. */
   dateAgISO?: string;
-  /** Debut du mandat. Defaut : lendemain de la fin du mandat du syndic en place, sinon le jour de l'AG, sinon en blanc. */
+  /** Debut du mandat. Defaut : le lendemain de l'AG qui vote le contrat, sinon en blanc. */
   debutISO?: string;
   /** Duree, en mois. Defaut : 12. */
   dureeMois?: number;
@@ -92,20 +92,18 @@ function lendemain(iso: string): string {
 
 /**
  * Le cycle propose dans l'offre. La duree est celle que Sekou a demandee au contrat
- * (16/09/2026) ; le debut suit le mandat en place quand on le connait (le registre le
- * donne), sinon l'AG elle-meme.
+ * (16/09/2026). Le mandat commence le LENDEMAIN de l'AG qui le vote, toujours (Sekou,
+ * 15/10/2026) : l'ancienne regle « lendemain de la fin du mandat en place, sinon le jour
+ * de l'AG » donnait un debut faux a chaque offre.
  *
  * RIEN N'EST INVENTE (direction, 14/10/2026) : sans AG connue (ni saisie, ni prevue, ni
- * sur la fiche), la date d'AG reste en blanc ; sans debut connu, le debut et la fin aussi.
- * L'AG retombait sur la date du jour et le contrat partait avec des dates fausses.
- * `aujourdHuiISO` ne sert plus qu'a ecarter un mandat en place deja echu.
+ * sur la fiche), la date d'AG reste en blanc, le debut et la fin aussi. Un debut saisi
+ * a la main l'emporte toujours.
  */
-export function cycleOffre(p: Proposition, options: OptionsOffre, aujourdHuiISO: string): CycleContratChamps {
+export function cycleOffre(p: Proposition, options: OptionsOffre): CycleContratChamps {
   const dureeMois = options.dureeMois ?? 12;
   const dateAgISO = options.dateAgISO ?? p.agPrevueISO ?? p.immeuble.prochaineAgISO ?? "";
-  const finEnPlace = p.immeuble.finMandatActuelISO;
-  // Le mandat en place compte s'il court encore a l'AG (ou, AG non datee, aujourd'hui).
-  const debutISO = options.debutISO ?? (finEnPlace && finEnPlace >= (dateAgISO || aujourdHuiISO) ? lendemain(finEnPlace) : dateAgISO);
+  const debutISO = options.debutISO ?? (dateAgISO ? lendemain(dateAgISO) : "");
   const finISO = debutISO ? finDeCycle(debutISO, dureeMois) : "";
   return {
     dateAgISO,

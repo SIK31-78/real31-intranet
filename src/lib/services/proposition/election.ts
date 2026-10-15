@@ -45,12 +45,11 @@ export async function preparerElection(id: string): Promise<PreparationElection>
     getGestionnaireRepository().list(),
   ]);
   const codesExistants = copros.map((c) => c.code);
-  const aujourdHui = new Date().toISOString().slice(0, 10);
   return {
     proposition: p,
     codePropose: prochainCodeCopro(codesExistants),
     nomPropose: nomUsuelPropose(p),
-    debutProposeISO: cycleOffre(p, {}, aujourdHui).debutISO,
+    debutProposeISO: cycleOffre(p, {}).debutISO,
     agences: agences.map((a) => ({ id: a.id, code: a.code })),
     gestionnaires: gestionnaires.map((g) => ({ id: g.id, nomComplet: g.nomComplet })),
     codesExistants,
