@@ -58,7 +58,12 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<
     dossiers: triage.dossiers,
     contextes: [],
     plusDeMails: triage.plusDeMails,
-    coprosDuGestionnaire: mesCopros.map((c) => ({ code: c.code, nom: c.nom })),
+    // L'adresse aussi : c'est elle que l'équipe reconnaît (Sekou, 15/10/2026).
+    coprosDuGestionnaire: mesCopros.map((c) => ({
+      code: c.code,
+      nom: c.nom,
+      adresse: [c.adresse.ligne1, `${c.adresse.codePostal} ${c.adresse.ville}`.trim()].filter(Boolean).join(", "),
+    })),
   };
 }
 

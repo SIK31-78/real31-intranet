@@ -1347,7 +1347,7 @@ function AnalysePane({
   brouillon: string;
   coproCode: string;
   coproNom: string;
-  coprosDispo: { code: string; nom: string }[];
+  coprosDispo: { code: string; nom: string; adresse?: string }[];
   onRattacherCopro: (code: string) => void;
   dossiers: DossierBoite[] | null;
   dossierIdChoisi: string;
@@ -1448,8 +1448,8 @@ function AnalysePane({
               value={coproCode}
               onChange={(e) => onRattacherCopro(e.target.value)}
               aria-label="Copropriété du mail"
-              title={coproCode ? `${coproCode} · ${coproNom}` : "Rattacher à une copropriété"}
-              className="max-w-[200px]"
+              title={coproCode ? [coproCode, coproNom, coprosDispo.find((c) => c.code === coproCode)?.adresse].filter(Boolean).join(" · ") : "Rattacher à une copropriété"}
+              className="max-w-[360px]"
             >
               {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
               <option value="">{coproCode ? "Retirer la copropriété" : "Copropriété…"}</option>
@@ -1460,7 +1460,7 @@ function AnalysePane({
               ) : null}
               {coprosDispo.map((c) => (
                 <option key={c.code} value={c.code}>
-                  {c.code} · {c.nom}
+                  {[c.code, c.nom, c.adresse].filter(Boolean).join(" · ")}
                 </option>
               ))}
             </Select>

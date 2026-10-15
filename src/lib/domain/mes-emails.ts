@@ -256,7 +256,7 @@ export interface MesEmails {
   /** La boîte perso a rempli son plafond : « Plus de mails » en charge davantage. */
   plusDeMails?: boolean;
   /** Copros du portefeuille du gestionnaire (rempli par le service ; rattachement manuel). */
-  coprosDuGestionnaire?: { code: string; nom: string }[];
+  coprosDuGestionnaire?: { code: string; nom: string; adresse?: string }[];
 }
 
 // Tri CHRONOLOGIQUE (plus recent d'abord), comme une vraie boite mail. On NE trie plus
