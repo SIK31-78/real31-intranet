@@ -192,8 +192,24 @@ export class GraphMailboxProvider implements MailboxProvider {
       value?: { id: string; name: string; size: number; contentType: string; isInline?: boolean }[];
     };
     return (j.value ?? [])
-      .filter((a) => !a.isInline) // exclut les images inline (signatures)
+      // Exclut les IMAGES inline (logos de signature, photos collees : cf. listerImagesInline).
+      // Un PDF peut etre marque inline (plainte, devis du 03/10/2026) : c'est une vraie piece.
+      .filter((a) => !(a.isInline && /^image\//i.test(a.contentType)))
       .map((a) => ({ id: a.id, nom: a.name, taille: a.size, type: a.contentType }));
+  }
+
+  async listerImagesInline(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]> {
+    if (!p.boite) throw new Error("Images : boite manquante.");
+    const tk = await jetonGraph();
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    // Metadonnees seulement : chaque vignette charge son contenu a part (lirePieceJointe).
+    const url =
+      `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments` +
+      `?$filter=isInline eq true&$select=id,name,size,contentType`;
+    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    if (!r.ok) throw new Error(`Graph images inline ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as { value?: { id: string; name: string; size: number; contentType: string }[] };
+    return (j.value ?? []).map((a) => ({ id: a.id, nom: a.name, taille: a.size, type: a.contentType }));
   }
 
   async lirePieceJointe(p: {
