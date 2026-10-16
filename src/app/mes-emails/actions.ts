@@ -35,9 +35,10 @@ import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 import { coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-emails/reaffecter";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
-import type { ReponseEnvoyee } from "@/lib/domain/echanges";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { mettreALaCorbeille, type ResultatCorbeille } from "@/lib/services/mes-emails/corbeille";
+import { lireEnvoye, listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
+import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
@@ -718,6 +719,36 @@ export async function mettreALaCorbeilleAction(input: unknown): Promise<Res<Resu
   if (!cible || !perso) return echec("La corbeille ne vaut que pour votre boîte personnelle.");
   try {
     return { ok: true, donnees: await mettreALaCorbeille(cible, v.data.ids) };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
+/** Les 30 derniers mails envoyés de la boîte affichée (REA-341). Lecture seule. */
+export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeTrouve[]>> {
+  const g = await gestionnairePilote();
+  if (!g) return echec(PILOTE_SEUL);
+  const v = z.object({ boite: zBoite }).safeParse(input);
+  if (!v.success) return echec("Boîte invalide.");
+  const cible = await boiteCible(g, v.data.boite);
+  if (!cible) return echec("Boîte non autorisée.");
+  try {
+    return { ok: true, donnees: await listerEnvoyes(cible) };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
+/** Le texte d'un mail envoyé, par son id Graph, lu dans la boîte affichée (REA-341). */
+export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
+  const g = await gestionnairePilote();
+  if (!g) return echec(PILOTE_SEUL);
+  const v = z.object({ boite: zBoite, id: zId }).safeParse(input);
+  if (!v.success) return echec("Mail invalide.");
+  const cible = await boiteCible(g, v.data.boite);
+  if (!cible) return echec("Boîte non autorisée.");
+  try {
+    return { ok: true, donnees: await lireEnvoye(cible, v.data.id) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }

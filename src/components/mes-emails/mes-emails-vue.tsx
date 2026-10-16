@@ -84,6 +84,7 @@ import {
 } from "@/lib/domain/mes-emails-liste";
 import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
+import { EnvoyesVue } from "./envoyes-vue";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
   devaliderMailAction,
@@ -257,7 +258,8 @@ export function MesEmailsVue({
   // Pieces jointes REELLES chargees a la demande a l'ouverture (null = en cours).
   const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
-  const [vue, setVue] = useState<"a_traiter" | "conclus">("a_traiter");
+  // « Envoyés » (REA-341) : vue en pilote, lecture seule du dossier Éléments envoyés.
+  const [vue, setVue] = useState<"a_traiter" | "conclus" | "envoyes">("a_traiter");
   const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
   // Fichiers ajoutés depuis l'ordinateur à la réponse (en plus des PJ du mail d'origine).
   const [fichiersParMail, setFichiersParMail] = useState<Map<string, FichierJoint[]>>(new Map());
@@ -809,9 +811,10 @@ export function MesEmailsVue({
             options={[
               { value: "a_traiter", label: `À traiter · ${mailsBoite.filter((m) => !classes.has(m.id)).length}` },
               { value: "conclus", label: `Conclus · ${mailsBoite.filter((m) => classes.has(m.id)).length}` },
+              ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
             ]}
           />
-          {pilote ? (
+          {pilote && vue !== "envoyes" ? (
             <Select
               largeur="auto"
               value={placeInternes}
@@ -845,6 +848,8 @@ export function MesEmailsVue({
 
       {fouille ? (
         <ResultatsFouille fouille={fouille} onFermer={() => setFouille(null)} />
+      ) : pilote && vue === "envoyes" ? (
+        <EnvoyesVue key={boiteActive} boite={boiteActive} />
       ) : (
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* La liste, en premier : c'est ce qu'on vient chercher. */}

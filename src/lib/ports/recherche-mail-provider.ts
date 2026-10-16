@@ -8,6 +8,9 @@ export interface RechercheMailProvider {
   rechercher(p: { boite: string; kql: string; max: number }): Promise<EchangeTrouve[]>;
   /** Un message précis, par son internetMessageId (stable quand le mail est déplacé) ; null s'il n'y est plus. */
   trouver(p: { boite: string; internetMessageId: string }): Promise<EchangeTrouve | null>;
+  /** Les derniers messages du dossier « Éléments envoyés », les plus récents d'abord (écran
+   *  E-mails, vue « Envoyés », REA-341). `date` = date d'envoi. */
+  envoyes(p: { boite: string; max: number }): Promise<EchangeTrouve[]>;
   /** Corps complet d'un message trouvé, en texte. */
   lireCorps(p: { boite: string; id: string }): Promise<string>;
   /** Les messages ENVOYÉS de la boîte dans une conversation, après une date, du plus ancien au plus récent. */

@@ -74,6 +74,22 @@ export class GraphRechercheMail implements RechercheMailProvider {
     return out.slice(0, p.max);
   }
 
+  async envoyes(p: { boite: string; max: number }): Promise<EchangeTrouve[]> {
+    const tk = await jetonGraph();
+    // Le dossier par son nom connu (sentitems), trié par date d'envoi : une seule page,
+    // l'écran n'en montre que les derniers (REA-341, 16/10/2026).
+    const top = Math.min(Math.max(Math.trunc(p.max), 1), 50);
+    const r = await graphFetch(
+      `${GRAPH}/users/${encodeURIComponent(p.boite)}/mailFolders/sentitems/messages` +
+        `?$orderby=${encodeURIComponent("sentDateTime desc")}&$top=${top}&$select=${SELECT},sentDateTime`,
+      { headers: { Authorization: `Bearer ${tk}` } },
+    );
+    if (r.status === 403 || r.status === 404) throw new BoiteNonLisible(p.boite);
+    if (!r.ok) throw new Error(`Graph envoyés ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const l = ((await r.json()) as { value?: (GraphMessage & { sentDateTime?: string })[] }).value ?? [];
+    return l.map((m) => ({ ...versEchange(p.boite, m), date: m.sentDateTime ?? m.receivedDateTime }));
+  }
+
   async lireCorps(p: { boite: string; id: string }): Promise<string> {
     const tk = await jetonGraph();
     const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.id)}?$select=body`, {
