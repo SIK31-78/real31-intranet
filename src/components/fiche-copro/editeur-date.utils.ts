@@ -22,6 +22,27 @@ export const MODE_LABEL: Record<ModeReunion, string> = {
   hybride: "Hybride",
 };
 
+// REA-344 (16/10/2026) : le bouton « Fixer » du stepper ouvre DIRECTEMENT la saisie de la
+// date, au lieu de seulement defiler jusqu'au crayon. Un evenement de fenetre plutot qu'un
+// contexte React : le bouton (stepper, en haut de la fiche) et l'editeur (bloc des dates)
+// vivent dans deux branches de l'arbre sans parent client commun.
+export const EVENEMENT_OUVRIR_EDITEUR_DATE = "real31:ouvrir-editeur-date";
+
+export interface DemandeOuvertureDate {
+  coproCode: string;
+  type: "ag" | "cs";
+  quand: "prochaine" | "derniere";
+}
+
+/**
+ * Demande a l'EditeurDate correspondant de s'ouvrir. Rend true si un editeur a repondu
+ * (il annule l'evenement), false sinon : l'appelant garde alors son repli (focus seul).
+ */
+export function demanderOuvertureDate(d: DemandeOuvertureDate): boolean {
+  const ev = new CustomEvent<DemandeOuvertureDate>(EVENEMENT_OUVRIR_EDITEUR_DATE, { detail: d, cancelable: true });
+  return !window.dispatchEvent(ev);
+}
+
 /** "dans 6 semaines" / "dans 9 jours" : on bascule en jours sous 2 semaines, ou "6 sem."
  *  serait plus flou qu'utile a l'approche de l'echeance. */
 export function echeanceLisible(joursAvant: number, semainesAvant: number): string {

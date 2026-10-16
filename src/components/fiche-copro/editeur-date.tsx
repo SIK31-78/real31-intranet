@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, useTransition } from "react";
 import { X, Check } from "lucide-react";
 import { HEURE_DEFAUT_REUNION } from "@/lib/domain/reunion";
 import type { ModeReunion } from "@/lib/domain/confirmation-evenement";
@@ -25,12 +25,14 @@ import { LogistiqueReunion } from "./logistique-reunion";
 import { PointsAVerifier, type PointAVerifier } from "./points-a-verifier";
 import {
   DELAI_DISPO_MS,
+  EVENEMENT_OUVRIR_EDITEUR_DATE,
   MODE_LABEL,
   ZOE_EMAIL,
   echeanceLisible,
   memeEnsemble,
   useValeurDebouncee,
   type Collaborateur,
+  type DemandeOuvertureDate,
   type Dispo,
 } from "./editeur-date.utils";
 
@@ -437,6 +439,21 @@ export function EditeurDate({
     setConfirmeEffacer(false);
     setEdition(true);
   };
+
+  // REA-344 : le bouton « Fixer » du stepper demande l'ouverture de CET editeur (meme
+  // copro, meme type, meme « quand »). useEffectEvent : l'ecouteur appelle toujours
+  // l'`ouvrir` courant (props relues) sans se reabonner a chaque rendu.
+  const surDemandeOuverture = useEffectEvent((ev: Event) => {
+    const d = (ev as CustomEvent<DemandeOuvertureDate>).detail;
+    if (!d || d.coproCode !== coproCode || d.type !== type || d.quand !== quand) return;
+    ev.preventDefault(); // signale a l'appelant que la demande est prise
+    if (!edition) ouvrir();
+  });
+  useEffect(() => {
+    const ecouter = (ev: Event) => surDemandeOuverture(ev);
+    window.addEventListener(EVENEMENT_OUVRIR_EDITEUR_DATE, ecouter);
+    return () => window.removeEventListener(EVENEMENT_OUVRIR_EDITEUR_DATE, ecouter);
+  }, []);
 
   const fermer = () => {
     setEdition(false);
