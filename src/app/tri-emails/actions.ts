@@ -15,6 +15,8 @@ import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } f
 import { lirePieceJointeTri, listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
 import { coproDepuisPiecesJointes, type CoproDepuisPj } from "@/lib/services/tri-emails/copro-pieces-jointes";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
+import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
+import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 
 const zTexte = (max: number) => z.string().max(max);
 const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune"]);
@@ -156,4 +158,22 @@ export async function preciserCoproAction(input: unknown): Promise<Res> {
       revalidatePath("/tri-emails");
     },
   );
+}
+
+// --- Historique de la conversation (REA-352) -----------------------------------------
+
+/**
+ * L'historique cité sous un mail de la file (REA-352, 16/10/2026) : l'aperçu du tri est coupé
+ * avant le message cité, on ne savait donc pas à quoi le mail répondait sans ouvrir Outlook.
+ * Même service que l'écran E-mails, lu TOUJOURS dans la boîte du tri (jamais une boîte
+ * reçue du client), avec la garde de l'écran. Chaîne vide = rien de cité.
+ */
+export async function chargerHistoriqueTriAction(input: unknown): Promise<Res<string>> {
+  return actionGestionnaire(z.object({ internetMessageId: zMessage }), input, "tri-emails-historique", async (d, g) => {
+    gardePilote(g.email);
+    const boite = boiteTriConfiguree();
+    // L'échantillon est fictif : ses mails n'existent dans aucune boîte.
+    if (!boite || boite === "echantillon") return "";
+    return historiqueDuMail(boite, d.internetMessageId);
+  });
 }

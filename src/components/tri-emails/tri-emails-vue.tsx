@@ -38,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { VisionneusePj, type ApercuPj } from "@/components/mes-emails/visionneuse-pj";
+import { HistoriqueMailTri } from "@/components/tri-emails/historique-mail-tri";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { Tab, TabList, TabPanel } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
@@ -462,6 +463,8 @@ function DetailMail({
         >
           <p className="whitespace-pre-line text-ink-2 max-w-[68ch]">{mail.apercu}</p>
         </div>
+        {/* L'aperçu est coupé avant le message cité : l'échange complet se déplie ici (REA-352). */}
+        <HistoriqueMailTri key={mail.internetMessageId} internetMessageId={mail.internetMessageId} />
         {mail.aPiecesJointes && <PiecesJointes internetMessageId={mail.internetMessageId} />}
       </section>
 
