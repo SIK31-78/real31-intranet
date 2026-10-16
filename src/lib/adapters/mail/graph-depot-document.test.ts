@@ -24,7 +24,11 @@ function repondre(statutDossier = 201, statutEnvoi = 201, statutSite = 200) {
       return json(200, { value: [{ id: "d-lgc", webUrl: "https://real31france.sharepoint.com/sites/copro/LGC" }] });
     }
     if (url.includes(":/children")) return json(statutDossier, {});
-    if (methode === "PUT") return json(statutEnvoi, { webUrl: "https://sp/fichier.pdf" });
+    if (methode === "PUT") {
+      // Comme Graph en « rename » : un nom réel suffixé quand le conflit se règle en renommant.
+      const renomme = url.includes("conflictBehavior=rename");
+      return json(statutEnvoi, { id: "it-1", name: renomme ? "05 - contrat de syndic 1.pdf" : "05 - contrat de syndic.pdf", webUrl: "https://sp/fichier.pdf", parentReference: { driveId: "d-lgc" } });
+    }
     return json(404, {});
   });
 }
@@ -40,7 +44,7 @@ describe("GraphDepotDocumentProvider", () => {
   it("crée les dossiers manquants puis envoie le fichier au bon chemin", async () => {
     repondre();
     const r = await new GraphDepotDocumentProvider().deposer(depot);
-    expect(r).toEqual({ depose: true, webUrl: "https://sp/fichier.pdf" });
+    expect(r).toEqual({ depose: true, webUrl: "https://sp/fichier.pdf", driveId: "d-lgc", itemId: "it-1", nom: "05 - contrat de syndic.pdf" });
     const dossiers = appels.filter((a) => a.url.includes(":/children"));
     expect(dossiers.map((a) => a.url)).toEqual([
       "https://graph.microsoft.com/v1.0/drives/d-lgc/root:/Bleuets%202%20bis/AG:/children",
@@ -51,6 +55,20 @@ describe("GraphDepotDocumentProvider", () => {
     expect(envoi.url).toBe(
       "https://graph.microsoft.com/v1.0/drives/d-lgc/root:/Bleuets%202%20bis/AG/2026/Docs%20pour%20convocation/05%20-%20contrat%20de%20syndic.pdf:/content",
     );
+  });
+
+  it("par défaut le PUT remplace (pas de conflictBehavior) ; en « renommer » il porte ?@microsoft.graph.conflictBehavior=rename et rend le nom réel", async () => {
+    repondre();
+    await new GraphDepotDocumentProvider().deposer(depot);
+    expect(appels.find((a) => a.methode === "PUT")!.url.includes("conflictBehavior")).toBe(false);
+
+    appels = [];
+    const r = await new GraphDepotDocumentProvider().deposer({ ...depot, conflit: "renommer" });
+    const envoi = appels.find((a) => a.methode === "PUT")!;
+    expect(envoi.url).toBe(
+      "https://graph.microsoft.com/v1.0/drives/d-lgc/root:/Bleuets%202%20bis/AG/2026/Docs%20pour%20convocation/05%20-%20contrat%20de%20syndic.pdf:/content?@microsoft.graph.conflictBehavior=rename",
+    );
+    expect(r).toMatchObject({ depose: true, nom: "05 - contrat de syndic 1.pdf", itemId: "it-1" });
   });
 
   it("un dossier déjà présent (409) n'empêche pas l'envoi", async () => {

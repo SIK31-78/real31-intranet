@@ -6,8 +6,9 @@ import type { Cycle, RegleRelance } from "./types";
 const AUJ = "2026-05-17";
 const REGLE: RegleRelance = { sujet: "assurance", premierRappelJours: 180, orangeJours: 30, rougeJours: 60, cadenceJours: 7 };
 
+// Démarré à la main : un cycle d'amorçage sans activité serait « à démarrer », donc sans rappel.
 function cycle(over: Partial<Cycle> = {}): Cycle {
-  return { id: "c1", sujet: "assurance", coproCode: "S0247", statut: "en_cours", echeanceISO: "2027-03-01", etapes: {}, demarreManuellement: null, creeLeISO: "2026-01-01", ...over };
+  return { id: "c1", sujet: "assurance", coproCode: "S0247", statut: "en_cours", echeanceISO: "2027-03-01", etapes: {}, demarreManuellement: true, creeLeISO: "2026-01-01", ...over };
 }
 
 function entree(over: Partial<EntreeRappel> = {}): EntreeRappel {
@@ -32,6 +33,32 @@ describe("rappelsDus", () => {
       AUJ,
     );
     expect(dus.map((r) => r.cycleId)).toEqual(["ok", "ouverte-aujourdhui"]);
+  });
+
+  it("n'écarte un cycle « à démarrer » (amorçage sans activité) que tant qu'il n'a ni étape, ni offre, ni démarrage manuel", () => {
+    const amorce = (id: string, over: Partial<Cycle> = {}) => cycle({ id, echeanceISO: ouverteDepuis(10), demarreManuellement: null, ...over });
+    const dus = rappelsDus(
+      [
+        entree({ cycle: amorce("replie"), niveau: "orange" }),
+        entree({ cycle: amorce("avec-offre"), niveau: "orange", aActivite: true }),
+        entree({ cycle: amorce("avec-etape", { etapes: { offres_demandees: plusJours(AUJ, -3) } }), niveau: "vert" }),
+        entree({ cycle: amorce("demarre", { demarreManuellement: true }), niveau: "orange" }),
+      ],
+      AUJ,
+    );
+    expect(dus.map((r) => r.cycleId)).toEqual(["avec-offre", "avec-etape", "demarre"]);
+  });
+
+  it("n'envoie jamais sur une échéance aberrante (reste d'amorçage), même fenêtre ouverte", () => {
+    const dus = rappelsDus(
+      [
+        entree({ cycle: cycle({ id: "1906", echeanceISO: "1906-01-01" }), niveau: "rouge" }),
+        entree({ cycle: cycle({ id: "trop-vieille", echeanceISO: plusJours(AUJ, -3 * 365) }), niveau: "rouge" }),
+        entree({ cycle: cycle({ id: "ok", echeanceISO: ouverteDepuis(10) }), niveau: "vert" }),
+      ],
+      AUJ,
+    );
+    expect(dus.map((r) => r.cycleId)).toEqual(["ok"]);
   });
 
   it("une clé par période de cadence : contrats|sujet|cycle|période", () => {

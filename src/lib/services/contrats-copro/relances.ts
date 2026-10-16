@@ -16,6 +16,12 @@
 //
 // IDEMPOTENCE : la clé « contrats|<sujet>|<cycle>|<période> » est RÉSERVÉE avant l'envoi et
 // LIBÉRÉE si l'envoi échoue (le passage du lendemain retente). Trace illisible -> rien ne part.
+// Module mail coupé (MAIL_SOURCE != graph) -> on sort AVANT toute lecture : le provider Noop
+// « réussirait » et consommerait les clés, le vrai mail ne partirait jamais.
+//
+// ÉCARTÉS : les copros dont l'assurance est chez un courtier partenaire (il suit lui-même le
+// renouvellement, cf. lecture.estChezCourtierPartenaire), les cycles d'amorçage sans activité
+// (« à démarrer ») et les échéances aberrantes (filtres du domaine, rappelsDus).
 
 import {
   getAgenceRepository,
@@ -32,13 +38,20 @@ import {
   niveauCycle,
   rappelsDus,
   sujetMail,
+  type ContratCourant,
+  type Cycle,
+  type DevisCtq,
   type EntreeRappel,
+  type OffreAssurance,
+  type OffreGaz,
   type RappelDu,
   type SujetSuivi,
 } from "@/lib/domain/contrats-copro";
+import { mailModuleActif } from "@/lib/domain/mail-gate";
 import { signalerException } from "@/lib/observabilite";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { journaliser } from "./journal";
+import { courtiersPartenaires, estChezCourtierPartenaire } from "./lecture";
 
 export interface BilanRappelsContrats {
   jour: string;
@@ -115,6 +128,8 @@ export async function envoyerRappelsContrats(maintenant: Date = new Date()): Pro
   const armes = sujetsArmes();
   const bilan: BilanRappelsContrats = { jour, sujetsArmes: armes, candidats: 0, envoyes: [], dejaEnvoyes: [], ignores: [], erreurs: [] };
   if (armes.length === 0) return bilan;
+  // Provider Noop : rien ne partirait mais les clés seraient consommées. On ne lit même pas.
+  if (!mailModuleActif()) return bilan;
 
   const repo = getContratsCoproRepository();
   const [cycles, regles, copros] = await Promise.all([
@@ -123,13 +138,35 @@ export async function envoyerRappelsContrats(maintenant: Date = new Date()): Pro
     getCoproRepository().listerToutes(),
   ]);
   const parCode = new Map(copros.map((c) => [c.code, c]));
+  const retenus = cycles.filter((c) => {
+    const copro = parCode.get(c.coproCode);
+    return !!copro && copro.statut === "active";
+  });
+
+  // Lectures groupées : les offres des cycles (activité), les devis des copros CTQ (activité),
+  // le contrat courant des copros assurance (courtier partenaire). Jamais une requête par cycle.
+  const idsAssurance = retenus.filter((c) => c.sujet === "assurance").map((c) => c.id);
+  const idsGaz = retenus.filter((c) => c.sujet === "gaz").map((c) => c.id);
+  const codesCtq = [...new Set(retenus.filter((c) => c.sujet === "ctq_ascenseur" || c.sujet === "ctq_vmc").map((c) => c.coproCode))];
+  const codesAssurance = [...new Set(retenus.filter((c) => c.sujet === "assurance").map((c) => c.coproCode))];
+  const [offresAssurance, offresGaz, devis, contrats, partenaires] = await Promise.all([
+    idsAssurance.length ? repo.listerOffresAssurance(idsAssurance) : Promise.resolve([] as OffreAssurance[]),
+    idsGaz.length ? repo.listerOffresGaz(idsGaz) : Promise.resolve([] as OffreGaz[]),
+    codesCtq.length ? repo.listerDevisCtq(codesCtq) : Promise.resolve([] as DevisCtq[]),
+    codesAssurance.length ? repo.listerContratsCourants(codesAssurance) : Promise.resolve(new Map<string, ContratCourant>()),
+    codesAssurance.length ? courtiersPartenaires() : Promise.resolve([] as string[]),
+  ]);
+  const cyclesAvecOffre = new Set<string>([...offresAssurance.map((o) => o.cycleId), ...offresGaz.map((o) => o.cycleId)]);
+  const coproSujetAvecDevis = new Set(devis.map((d) => `${d.coproCode}|${d.sujet}`));
+  const aActivite = (c: Cycle) => cyclesAvecOffre.has(c.id) || coproSujetAvecDevis.has(`${c.coproCode}|${c.sujet}`);
+  const chezPartenaire = (c: Cycle) => c.sujet === "assurance" && estChezCourtierPartenaire(contrats.get(c.coproCode)?.assurance.courtier, partenaires);
 
   const entrees: EntreeRappel[] = [];
-  for (const cycle of cycles) {
-    const copro = parCode.get(cycle.coproCode);
-    if (!copro || copro.statut !== "active") continue;
+  for (const cycle of retenus) {
+    if (chezPartenaire(cycle)) continue;
+    const copro = parCode.get(cycle.coproCode)!;
     const regle = regles[cycle.sujet];
-    entrees.push({ cycle, coproNom: copro.nom, niveau: niveauCycle(cycle, regle, jour), regle });
+    entrees.push({ cycle, coproNom: copro.nom, niveau: niveauCycle(cycle, regle, jour), regle, aActivite: aActivite(cycle) });
   }
   const rappels: RappelDu[] = rappelsDus(entrees, jour);
   bilan.candidats = rappels.length;

@@ -9,8 +9,10 @@ const etat = vi.hoisted(() => ({
   base: null as unknown as { [k: string]: unknown },
   sharepointUrl: "https://real31.sharepoint.com/sites/copro/HLS/S104 - LE CYRANO/AG" as string | undefined,
   depotActif: true,
-  depots: [] as { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contentType?: string; taille: number }[],
+  depots: [] as { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contentType?: string; conflit?: string; taille: number }[],
   reponseDepot: { depose: true, webUrl: "https://sp/x", driveId: "drv", itemId: "itm" } as Record<string, unknown>,
+  /** true : le faux dépôt se comporte comme SharePoint en « renommer » (suffixe, itemId distinct). */
+  renommeLesDoublons: false,
 }));
 
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
@@ -20,8 +22,13 @@ vi.mock("@/lib/adapters/router", () => ({
   getCoproRepository: () => ({ findByCode: async (code: string) => ({ code, nom: "Copro", sharepointUrl: etat.sharepointUrl }) }),
   getDepotDocumentProvider: () => ({
     actif: etat.depotActif,
-    async deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer; contentType?: string }) {
-      etat.depots.push({ dossierUrl: p.dossierUrl, sousDossiers: p.sousDossiers, nomFichier: p.nomFichier, contentType: p.contentType, taille: p.contenu.length });
+    async deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer; contentType?: string; conflit?: string }) {
+      const deja = etat.depots.filter((d) => d.nomFichier === p.nomFichier).length;
+      etat.depots.push({ dossierUrl: p.dossierUrl, sousDossiers: p.sousDossiers, nomFichier: p.nomFichier, contentType: p.contentType, conflit: p.conflit, taille: p.contenu.length });
+      if (etat.renommeLesDoublons && p.conflit === "renommer" && deja > 0) {
+        const nom = p.nomFichier.replace(/(\.[^.]+)$/, ` ${deja}$1`);
+        return { depose: true, webUrl: `https://sp/${nom}`, driveId: "drv", itemId: `itm-${deja}`, nom };
+      }
       return etat.reponseDepot;
     },
   }),
@@ -54,6 +61,7 @@ beforeEach(() => {
   etat.depotActif = true;
   etat.depots = [];
   etat.reponseDepot = { depose: true, webUrl: "https://sp/x", driveId: "drv", itemId: "itm" };
+  etat.renommeLesDoublons = false;
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -76,6 +84,7 @@ describe("deposerDocument", () => {
       sousDossiers: ["Contrats", "Ascenseurs", "CTQ"],
       nomFichier: "S104_RAPPORT_CTQ_2026-10-16.pdf",
       contentType: "application/pdf",
+      conflit: "renommer",
     });
     expect(d).toMatchObject({ nomAffiche: "Rapport CTQ ascenseur A", nomFichier: "S104_RAPPORT_CTQ_2026-10-16.pdf", driveId: "drv", itemId: "itm", webUrl: "https://sp/x", deposeParId: "user-1" });
     expect(base.documents).toHaveLength(1);
@@ -89,6 +98,19 @@ describe("deposerDocument", () => {
     expect(etat.depots[0].nomFichier).toBe("S104_OFFRE_Allianz_2026-10-16.pdf");
     expect(etat.depots[0].sousDossiers).toEqual(["Contrats", "Assurance"]);
     await expect(deposerDocument(entree({ coproCode: "S088", sujet: "assurance", typeDocument: "offre", rattachement: { type: "offre_assurance", offreId: o.id } }), AUTEUR)).rejects.toThrow(/introuvable/);
+  });
+
+  it("deux dépôts du même nom le même jour : rien n'est écrasé, deux pointeurs distincts, le second porte le nom réel suffixé", async () => {
+    etat.renommeLesDoublons = true;
+    const d1 = await deposerDocument(entree(), AUTEUR);
+    const d2 = await deposerDocument(entree({ nomFichier: "Rapport CTQ ascenseur B.pdf" }), AUTEUR);
+    expect(etat.depots.map((d) => d.nomFichier)).toEqual(["S104_RAPPORT_CTQ_2026-10-16.pdf", "S104_RAPPORT_CTQ_2026-10-16.pdf"]);
+    expect(etat.depots.every((d) => d.conflit === "renommer")).toBe(true);
+    expect(d1).toMatchObject({ nomFichier: "S104_RAPPORT_CTQ_2026-10-16.pdf", itemId: "itm" });
+    expect(d2).toMatchObject({ nomFichier: "S104_RAPPORT_CTQ_2026-10-16 1.pdf", itemId: "itm-1", webUrl: "https://sp/S104_RAPPORT_CTQ_2026-10-16 1.pdf" });
+    expect(base.documents).toHaveLength(2);
+    expect(base.documents[0].id).not.toBe(base.documents[1].id);
+    expect(base.documents.map((d) => d.nomAffiche)).toEqual(["Rapport CTQ ascenseur A", "Rapport CTQ ascenseur B"]);
   });
 
   it("refuse sans sharepointUrl, et quand le dépôt est inactif, sans rien écrire", async () => {

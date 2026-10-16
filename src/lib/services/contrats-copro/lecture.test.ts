@@ -258,6 +258,23 @@ describe("suiviDeCopro", () => {
     expect(s!.assurance.concerne).toBe(true);
     expect(s!.gaz.concerne).toBe(false);
   });
+
+  it("mailActif : phase pilote (gate global + MAIL_PILOTES), faux sans e-mail d'auteur", async () => {
+    etat.copros = [copro("S104")];
+    try {
+      vi.stubEnv("MAIL_SOURCE", "graph");
+      vi.stubEnv("MAIL_PILOTES", "");
+      expect((await suiviDeCopro("S104", "g1", AUJOURDHUI, "fanny@real31.fr"))!.mailActif).toBe(true);
+      expect((await suiviDeCopro("S104", "g1", AUJOURDHUI))!.mailActif).toBe(false);
+      vi.stubEnv("MAIL_PILOTES", "sekou@real31.fr");
+      expect((await suiviDeCopro("S104", "g1", AUJOURDHUI, "fanny@real31.fr"))!.mailActif).toBe(false);
+      expect((await suiviDeCopro("S104", "g1", AUJOURDHUI, "Sekou@real31.fr"))!.mailActif).toBe(true);
+      vi.stubEnv("MAIL_SOURCE", "noop");
+      expect((await suiviDeCopro("S104", "g1", AUJOURDHUI, "sekou@real31.fr"))!.mailActif).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("listerSuivis", () => {

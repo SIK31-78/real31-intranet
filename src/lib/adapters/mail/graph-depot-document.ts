@@ -8,7 +8,7 @@
 
 import { graphFetch, jetonGraph } from "./graph-auth";
 import { resoudreDossier, siteDepuisUrl } from "@/lib/domain/contrat/depot-contrat";
-import type { DepotDocumentProvider, ResultatDepot } from "@/lib/ports/depot-document-provider";
+import type { ConflitDepot, DepotDocumentProvider, ResultatDepot } from "@/lib/ports/depot-document-provider";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const TAILLE_MAX = 4 * 1024 * 1024;
@@ -66,7 +66,7 @@ async function assurerDossier(tk: string, driveId: string, parent: string[], nom
 export class GraphDepotDocumentProvider implements DepotDocumentProvider {
   readonly actif = true;
 
-  async deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer; contentType?: string }): Promise<ResultatDepot> {
+  async deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer; contentType?: string; conflit?: ConflitDepot }): Promise<ResultatDepot> {
     try {
       if (p.contenu.length > TAILLE_MAX) throw new ErreurDepot("fichier de plus de 4 Mo, dépôt non prévu.");
       const site = siteDepuisUrl(p.dossierUrl);
@@ -80,18 +80,22 @@ export class GraphDepotDocumentProvider implements DepotDocumentProvider {
         await assurerDossier(tk, dossier.driveId, parent, sous);
         parent.push(sous);
       }
-      // PUT sur le chemin : remplace un fichier du même nom (la dernière édition fait foi).
-      const r = await graphFetch(`${GRAPH}/drives/${dossier.driveId}/root:/${chemin([...parent, p.nomFichier])}:/content`, {
+      // PUT sur le chemin : par défaut remplace un fichier du même nom (la dernière édition
+      // fait foi). En « renommer », Graph suffixe le nouveau (« nom 1.pdf ») et rend son nom
+      // réel : l'existant n'est jamais écrasé.
+      const conflit = p.conflit === "renommer" ? "?@microsoft.graph.conflictBehavior=rename" : "";
+      const r = await graphFetch(`${GRAPH}/drives/${dossier.driveId}/root:/${chemin([...parent, p.nomFichier])}:/content${conflit}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${tk}`, "Content-Type": p.contentType ?? "application/pdf" },
         body: new Uint8Array(p.contenu),
       });
-      const fichier = await lireJson<{ id?: string; webUrl: string; parentReference?: { driveId?: string } }>(r, "envoi du fichier");
+      const fichier = await lireJson<{ id?: string; name?: string; webUrl: string; parentReference?: { driveId?: string } }>(r, "envoi du fichier");
       return {
         depose: true,
         webUrl: fichier.webUrl,
         driveId: fichier.parentReference?.driveId ?? dossier.driveId,
         ...(fichier.id ? { itemId: fichier.id } : {}),
+        ...(fichier.name ? { nom: fichier.name } : {}),
       };
     } catch (e) {
       if (e instanceof ErreurDepot) return { depose: false, raison: e.message };

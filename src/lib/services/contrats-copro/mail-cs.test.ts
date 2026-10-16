@@ -213,6 +213,21 @@ describe("preparerMailCs", () => {
     etat.suivi = null;
     await expect(preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, AUTEUR)).rejects.toThrow("Copropriété inconnue du référentiel.");
   });
+
+  it("phase pilote (décision 9) : MAIL_PILOTES vide = tous ; avec allowlist, seuls les listés (casse ignorée), un compte sans e-mail est refusé", async () => {
+    const PILOTE = "L'envoi au conseil syndical depuis l'intranet n'est pas encore ouvert à ton compte (phase pilote).";
+    vi.stubEnv("MAIL_PILOTES", "");
+    await expect(preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, AUTEUR)).resolves.toBeTruthy();
+
+    vi.stubEnv("MAIL_PILOTES", "autre@real31.fr, SEKOU@real31.fr");
+    await expect(preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, AUTEUR)).resolves.toBeTruthy();
+    await expect(preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, { id: "u2", nom: "Camille", email: "camille@real31.fr" })).rejects.toThrow(PILOTE);
+    await expect(preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, { id: "u3", nom: "Sans mail" })).rejects.toThrow(PILOTE);
+
+    // Module coupé : c'est le message « environnement » qui prime, même pour un pilote.
+    vi.stubEnv("MAIL_SOURCE", "noop");
+    await expect(preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, AUTEUR)).rejects.toThrow("L'envoi de mail n'est pas activé sur cet environnement.");
+  });
 });
 
 describe("envoyerMailCs", () => {
@@ -232,6 +247,9 @@ describe("envoyerMailCs", () => {
     await expect(envoyerMailCs({ ...base, a: ["pas une adresse"] }, AUTEUR)).rejects.toThrow("Adresse invalide : pas une adresse");
     await expect(envoyerMailCs({ ...base, cc: ["mylène.pin@orange.fr"] }, AUTEUR)).rejects.toThrow("Adresse invalide : mylène.pin@orange.fr");
     await expect(envoyerMailCs(base, { id: "u1", nom: "Sans mail" })).rejects.toThrow(/adresse e-mail/);
+    vi.stubEnv("MAIL_PILOTES", "autre@real31.fr");
+    await expect(envoyerMailCs(base, AUTEUR)).rejects.toThrow(/phase pilote/);
+    vi.stubEnv("MAIL_PILOTES", "");
     vi.stubEnv("MAIL_SOURCE", "noop");
     await expect(envoyerMailCs(base, AUTEUR)).rejects.toThrow("L'envoi de mail n'est pas activé sur cet environnement.");
     expect(etat.envois).toHaveLength(0);

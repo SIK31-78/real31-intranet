@@ -6,7 +6,9 @@
 //
 // Réutilise le port de dépôt de l'intranet (contrat de syndic, pièces jointes de mail), étendu
 // pour rendre les identifiants Graph. Le dossier « Ascenseurs/CTQ » se crée segment par segment
-// (bug du 07/10 de l'ancienne application : un seul nom avec un « / » dedans).
+// (bug du 07/10 de l'ancienne application : un seul nom avec un « / » dedans). Un fichier du
+// même nom déjà présent n'est JAMAIS écrasé : SharePoint suffixe le nouveau et c'est ce nom
+// réel que le pointeur enregistre.
 
 import { getContratsCoproRepository, getCoproRepository, getDepotDocumentProvider } from "@/lib/adapters/router";
 import { LIBELLE_SUJET, type DocumentContrat, type RattachementDocument, type SujetSuivi, type TypeDocument } from "@/lib/domain/contrats-copro";
@@ -144,7 +146,7 @@ export async function deposerDocument(p: DeposerDocumentInput, auteur: AuteurCon
 
   const nomStocke = nomFichierStocke({ coproCode: p.coproCode, typeDocument: p.typeDocument, fournisseur: cible.fournisseur, jourISO: p.aujourdhuiISO, mime: p.mime });
   const sousDossiers = ["Contrats", ...SOUS_DOSSIERS_SUJET[p.sujet]];
-  const r = await depot.deposer({ dossierUrl: dossierCoproDepuisLienAg(copro.sharepointUrl), sousDossiers, nomFichier: nomStocke, contenu, contentType: p.mime });
+  const r = await depot.deposer({ dossierUrl: dossierCoproDepuisLienAg(copro.sharepointUrl), sousDossiers, nomFichier: nomStocke, contenu, contentType: p.mime, conflit: "renommer" });
   if (!r.depose) throw new Error(`Dépôt impossible dans SharePoint : ${r.raison}`);
   if (!r.driveId || !r.itemId) {
     throw new Error(`Le fichier est bien dans SharePoint (${sousDossiers.join(" / ")}) mais son identifiant n'a pas été renvoyé : le lien ne peut pas être enregistré. Signale-le.`);
@@ -154,7 +156,8 @@ export async function deposerDocument(p: DeposerDocumentInput, auteur: AuteurCon
     sujet: p.sujet,
     typeDocument: p.typeDocument,
     nomAffiche: nomAfficheDepuis(p.nomFichier),
-    nomFichier: nomStocke,
+    // Le nom réel rendu par SharePoint (suffixé en cas de doublon) ; repli : le nom calculé.
+    nomFichier: r.nom?.trim() || nomStocke,
     mime: p.mime,
     tailleOctets: contenu.length,
     driveId: r.driveId,

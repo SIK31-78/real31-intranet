@@ -16,8 +16,9 @@
 //   - les montants `Decimal` arrivent en nombre JSON (parfois en chaîne selon la config) ;
 //   - la suppression logique des offres (deletedAt / deletedById) dépend d'un SQL à passer
 //     (supabase/sql/intranet_contrats_offres_suppression_logique.sql) : tant que la colonne
-//     manque, la lecture repart sans le filtre et la suppression redevient physique, comme
-//     dans l'ancienne application ;
+//     manque, la lecture repart sans le filtre mais RETIRER une offre est refusé avec un
+//     message qui nomme le SQL (jamais de suppression dure en repli : une ligne effacée
+//     physiquement ne se retrouve pas) ;
 //   - pas de transaction en supabase-js : `cloturer` écrit le cycle clos PUIS le suivant
 //     (même approche qu'ADR-040), une panne entre les deux laisse un clos sans suivant, ce
 //     que l'écran « à compléter » rattrape.
@@ -377,9 +378,21 @@ function estColonneSuppressionAbsente(e: unknown): boolean {
   return m.includes("deletedAt") && (/does not exist/i.test(m) || m.includes("42703"));
 }
 
+/**
+ * Le même test sur une erreur PostgREST brute : code 42703 (colonne inconnue), ou un message
+ * qui nomme `deletedAt` ET parle bien de colonne absente (« does not exist », « schema cache »,
+ * « column »). Un autre échec qui citerait `deletedAt` par hasard (contrainte, droit) ne doit
+ * pas passer pour « SQL pas passé ».
+ */
 function estColonneSuppressionAbsentePg(error: ErreurPg): boolean {
-  return !!error && (error.code === "42703" || error.message.includes("deletedAt"));
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  const m = error.message ?? "";
+  return m.includes("deletedAt") && /does not exist|schema cache|column/i.test(m);
 }
+
+const MESSAGE_SUPPRESSION_LOGIQUE_ABSENTE =
+  "La suppression logique des offres n'est pas encore en place : SQL supabase/sql/intranet_contrats_offres_suppression_logique.sql à passer.";
 
 /** Lecture complète tolérante : [] et un avertissement si la table n'existe pas. */
 async function lireTolerant<T>(contexte: string, construire: (debut: number, fin: number) => Reponse): Promise<T[]> {
@@ -1058,18 +1071,14 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
   }
 
   /**
-   * Suppression logique (deletedAt). Si la colonne n'existe pas encore (SQL pas passé),
-   * on retombe sur la suppression physique de l'ancienne application, en l'annonçant.
+   * Suppression logique (deletedAt). Si la colonne n'existe pas encore (SQL pas passé), le
+   * retrait est REFUSÉ avec un message qui nomme le SQL : pas de suppression physique en repli,
+   * une offre effacée pour de bon ne se retrouve pas (la lecture, elle, se dégrade sans filtre).
    */
   private async supprimerLogiquement(table: string, id: string, contexte: string): Promise<void> {
     const sb = createSupabasePublicClient();
     const { data, error } = await sb.from(table).update({ deletedAt: maintenant(), updatedAt: maintenant() }).eq("id", id).select("id");
-    if (estColonneSuppressionAbsentePg(error)) {
-      avertir(contexte, "colonne deletedAt absente, suppression physique (SQL intranet_contrats_offres_suppression_logique.sql à passer)");
-      const { data: sup, error: errSup } = await sb.from(table).delete().eq("id", id).select("id");
-      exigerUneLigne(contexte, sup, errSup);
-      return;
-    }
+    if (estColonneSuppressionAbsentePg(error)) throw new Error(MESSAGE_SUPPRESSION_LOGIQUE_ABSENTE);
     exigerUneLigne(contexte, data, error);
   }
 
@@ -1332,17 +1341,9 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
     const sb = createSupabasePublicClient();
     const contexte = `Rattachement de l'entreprise ${p.entrepriseId} à ${p.coproCode} (${p.metier})`;
     filtreCodeCopro(p.coproCode); // valide le code
-    if (p.principal) {
-      // Un seul principal par métier : l'ancien redevient secondaire.
-      const { error } = await sb
-        .from(T_PRESTATAIRE)
-        .update({ principal: false })
-        .eq("copro_code", p.coproCode)
-        .eq("metier", p.metier)
-        .eq("principal", true)
-        .neq("entreprise_id", p.entrepriseId);
-      if (error) this.leverEcritureNative(contexte, T_PRESTATAIRE, error);
-    }
+    // Pas de transaction : on écrit d'abord le rattachement demandé, et seulement ensuite on
+    // rétrograde l'ancien principal. Si le second geste échoue, la copro a deux principaux le
+    // temps d'une relance ; dans l'autre ordre, elle n'en aurait plus aucun.
     const { error } = await sb
       .from(T_PRESTATAIRE)
       .upsert(
@@ -1350,6 +1351,17 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
         { onConflict: "copro_code,entreprise_id,metier" },
       );
     if (error) this.leverEcritureNative(contexte, T_PRESTATAIRE, error);
+    if (p.principal) {
+      // Un seul principal par métier : l'ancien redevient secondaire.
+      const { error: errRetrograde } = await sb
+        .from(T_PRESTATAIRE)
+        .update({ principal: false })
+        .eq("copro_code", p.coproCode)
+        .eq("metier", p.metier)
+        .eq("principal", true)
+        .neq("entreprise_id", p.entrepriseId);
+      if (errRetrograde) this.leverEcritureNative(contexte, T_PRESTATAIRE, errRetrograde);
+    }
   }
 
   async delierPrestataire(coproCode: string, entrepriseId: string, metier: MetierPrestataire): Promise<void> {

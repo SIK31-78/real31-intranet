@@ -112,6 +112,11 @@ export async function modifierImmeuble(p: { coproCode: string; patch: PatchFiche
 
   const propre: PatchFicheImmeuble = { ...p.patch, notes: nettoyerTexte(p.patch.notes) };
   if (!("notes" in p.patch)) delete propre.notes;
+  // La prime est un montant : un nombre fini, positif ou nul (le domaine refuse le négatif,
+  // on refuse aussi NaN et l'infini qu'une saisie « 1 2,3 » peut produire côté client).
+  if (propre.primeAssuranceActuelle != null && !(Number.isFinite(propre.primeAssuranceActuelle) && propre.primeAssuranceActuelle >= 0)) {
+    throw new Error("La prime d'assurance doit être un montant positif ou nul.");
+  }
   const erreur = erreurFicheImmeuble(propre, p.anneeCourante);
   if (erreur) throw new Error(erreur);
 

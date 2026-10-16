@@ -14,7 +14,6 @@ import {
   cycleInitial,
   demarrer,
   DUREE_CTQ_ANNEES,
-  estCourtierPartenaire,
   estJourISO,
   ETAPES,
   heritageOffreAssurance,
@@ -34,8 +33,9 @@ import {
 } from "@/lib/domain/contrats-copro";
 import type { ContratsCoproRepository } from "@/lib/ports/contrats-copro-repository";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
+import { jourParis } from "@/lib/services/date-du-jour";
 import { journaliser } from "./journal";
-import { courtiersPartenaires } from "./lecture";
+import { courtiersPartenaires, estChezCourtierPartenaire } from "./lecture";
 import type { AuteurContrats } from "./types";
 
 // --- Outils communs ----------------------------------------------------------------------
@@ -77,13 +77,32 @@ async function cyclesEnCours(repo: ContratsCoproRepository, coproCode: string, s
   return ascenseurId ? cycles.filter((c) => c.ascenseurId === ascenseurId) : cycles;
 }
 
-/** Le cycle qui suit `cycle` (même sujet, même copro, même appareil), s'il existe déjà. */
+/** Même appareil (CTQ ascenseur) ; pour les autres sujets, les deux sont sans appareil. */
+function memeAppareil(a: Cycle, b: Cycle): boolean {
+  return (a.ascenseurId ?? null) === (b.ascenseurId ?? null);
+}
+
+/**
+ * Le cycle EN COURS qui suit `cycle` (même sujet, même copro, même appareil), c'est-à-dire
+ * créé APRÈS lui. null s'il n'y en a pas : c'est une première clôture, le suivant sera créé.
+ * Aucun repli sur « le plus récent quel qu'il soit » : un cycle en cours créé AVANT le cycle
+ * qu'on clôt n'est pas son suivant, et l'ajuster en silence maquillerait une incohérence.
+ */
 async function suivantDe(repo: ContratsCoproRepository, cycle: Cycle): Promise<Cycle | null> {
-  const autres = (await cyclesEnCours(repo, cycle.coproCode, cycle.sujet, cycle.ascenseurId)).filter((c) => c.id !== cycle.id);
-  if (autres.length === 0) return null;
-  const apres = autres.filter((c) => c.creeLeISO > cycle.creeLeISO);
-  const candidats = apres.length ? apres : autres;
-  return candidats.sort((a, b) => (a.creeLeISO < b.creeLeISO ? 1 : -1))[0];
+  const apres = (await cyclesEnCours(repo, cycle.coproCode, cycle.sujet, cycle.ascenseurId)).filter((c) => c.id !== cycle.id && c.creeLeISO > cycle.creeLeISO);
+  if (apres.length === 0) return null;
+  return apres.sort((a, b) => (a.creeLeISO < b.creeLeISO ? 1 : -1))[0];
+}
+
+/**
+ * Re-clôture (D4) : seulement sur le DERNIER cycle clos du sujet (même copro, même appareil).
+ * Re-clôturer un cycle plus ancien ferait bouger l'échéance d'un suivant qui n'est pas le sien.
+ */
+async function exigerDernierClos(repo: ContratsCoproRepository, cycle: Cycle): Promise<void> {
+  const clos = await repo.listerCycles({ coproCodes: [cycle.coproCode], sujets: [cycle.sujet], statuts: ["clos"] });
+  if (clos.some((c) => c.id !== cycle.id && memeAppareil(c, cycle) && c.creeLeISO > cycle.creeLeISO)) {
+    throw new Error("Seul le dernier cycle clos peut être re-clôturé.");
+  }
 }
 
 function echeanceDepuisDernierCtq(dernierCtqISO: string | null): string | null {
@@ -286,12 +305,20 @@ export interface CloturerCycleInput {
  * Clôture atomique au sens métier (D3) : terminale datée, cycle clos, suivant créé ; ou
  * re-clôture (D4) : seule l'échéance du suivant existant bouge. Puis le report sur le contrat
  * courant (héritage de l'offre retenue) ou sur l'appareil (date du dernier CTQ).
+ *
+ * La re-clôture ne vaut que pour le DERNIER cycle clos, et seulement s'il a bien un suivant
+ * en cours créé après lui ; un cycle clos sans suivant est une incohérence à signaler, pas à
+ * réparer en silence par une seconde clôture.
  */
 export async function cloturerCycle(p: CloturerCycleInput, auteur: AuteurContrats): Promise<{ clos: Cycle; suivant: Cycle | null }> {
   await exigerPerimetre(p.coproCode, auteur.id);
   const repo = getContratsCoproRepository();
   const cycle = await chargerCycle(repo, p.coproCode, p.sujet, p.cycleId);
+  if (cycle.statut === "clos") await exigerDernierClos(repo, cycle);
   const suivantExistant = await suivantDe(repo, cycle);
+  if (cycle.statut === "clos" && !suivantExistant) {
+    throw new Error("Ce cycle clos n'a pas de cycle suivant en cours : le suivi est incohérent, signale-le plutôt que de le re-clôturer.");
+  }
 
   let offreGaz: OffreGaz | null = null;
   let offreAssurance: OffreAssurance | null = null;
@@ -394,15 +421,20 @@ interface ChampModifie {
   apres: unknown;
 }
 
+/** Les dates du contrat courant qui sont des FAITS passés : jamais dans le futur (une échéance, si). */
+const CHAMPS_DATE_PASSEE = new Set(["assurance.souscriptionISO", "vmc.dernierCtqISO"]);
+
 /**
  * Patch du contrat courant, journalisé champ par champ (avant / après lus sur la copro).
  * Règle spéciale (source `setInsuranceBroker`, D-DATA-24) : passer chez un courtier partenaire
- * archive le cycle assurance en cours, sauf s'il a été démarré à la main (D19 : une volonté
- * humaine ne s'archive pas toute seule).
+ * (comparaison par nom normalisé : « AREAS » vaut « Areas ») archive le cycle assurance en
+ * cours, sauf s'il a été démarré à la main (D19 : une volonté humaine ne s'archive pas toute
+ * seule). `aujourdhuiISO` (jour de Paris par défaut) borne les dates de faits passés.
  */
-export async function corrigerContrat(p: { coproCode: string; patch: PatchContratCourant }, auteur: AuteurContrats): Promise<void> {
+export async function corrigerContrat(p: { coproCode: string; patch: PatchContratCourant; aujourdhuiISO?: string }, auteur: AuteurContrats): Promise<void> {
   await exigerPerimetre(p.coproCode, auteur.id);
   const repo = getContratsCoproRepository();
+  const aujourdhuiISO = p.aujourdhuiISO ?? jourParis();
   const avant = await repo.getContratCourant(p.coproCode);
   if (!avant) throw new Error("Copropriété introuvable dans le référentiel des contrats.");
 
@@ -416,8 +448,12 @@ export async function corrigerContrat(p: { coproCode: string; patch: PatchContra
     for (const [champ, apres] of Object.entries(valeurs)) {
       if (apres === undefined) continue;
       const nettoye = typeof apres === "string" ? apres.trim() || null : apres;
+      const libelle = LIBELLE_CHAMP[`${groupe}.${champ}`] ?? champ;
       if (champ.endsWith("ISO") && nettoye !== null && !estJourISO(nettoye as string)) {
-        throw new Error(`${LIBELLE_CHAMP[`${groupe}.${champ}`] ?? champ} illisible : attendu un jour au format AAAA-MM-JJ.`);
+        throw new Error(`${libelle} illisible : attendu un jour au format AAAA-MM-JJ.`);
+      }
+      if (CHAMPS_DATE_PASSEE.has(`${groupe}.${champ}`) && nettoye !== null && (nettoye as string) > aujourdhuiISO) {
+        throw new Error(`La ${libelle} ne peut pas être dans le futur.`);
       }
       if ((courant[champ] ?? null) === nettoye) continue;
       retenu[champ] = nettoye;
@@ -440,7 +476,7 @@ export async function corrigerContrat(p: { coproCode: string; patch: PatchContra
   }
 
   const courtier = modifies.find((m) => m.groupe === "assurance" && m.champ === "courtier");
-  if (courtier && estCourtierPartenaire(courtier.apres as string | null, await courtiersPartenaires())) {
+  if (courtier && estChezCourtierPartenaire(courtier.apres as string | null, await courtiersPartenaires())) {
     const enCours = await cyclesEnCours(repo, p.coproCode, "assurance");
     for (const cycle of enCours) {
       if (cycle.demarreManuellement === true) continue;
@@ -494,6 +530,8 @@ export interface ModifierAppareilInput {
   identifiant?: string | null;
   dernierCtqISO?: string | null;
   notes?: string | null;
+  /** Borne du dernier CTQ (un contrôle est un fait passé) ; jour de Paris par défaut. */
+  aujourdhuiISO?: string;
 }
 
 const LIBELLE_CHAMP_APPAREIL: Record<"identifiant" | "dernierCtqISO" | "notes", string> = {
@@ -520,7 +558,11 @@ export async function modifierAppareil(p: ModifierAppareilInput, auteur: AuteurC
   };
   if (p.identifiant !== undefined) poser("identifiant", p.identifiant?.trim() || null);
   if (p.notes !== undefined) poser("notes", p.notes?.trim() || null);
-  if (p.dernierCtqISO !== undefined) poser("dernierCtqISO", jourOuNull(p.dernierCtqISO, "La date du dernier contrôle"));
+  if (p.dernierCtqISO !== undefined) {
+    const dernierCtqISO = jourOuNull(p.dernierCtqISO, "La date du dernier contrôle");
+    if (dernierCtqISO && dernierCtqISO > (p.aujourdhuiISO ?? jourParis())) throw new Error("La date du dernier contrôle ne peut pas être dans le futur.");
+    poser("dernierCtqISO", dernierCtqISO);
+  }
   if (modifies.length === 0) return avant;
 
   await repo.sauverAscenseur(apres);

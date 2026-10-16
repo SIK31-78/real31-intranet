@@ -12,7 +12,11 @@
 //
 // L'AVERTISSEMENT AVANT DÉPART (décision 9) est l'affaire de l'écran : une confirmation qui
 // rappelle les destinataires et « ce mail part vraiment » ; le service, lui, refuse ce qui ne
-// peut pas partir (module coupé, aucun destinataire, adresse invalide).
+// peut pas partir (module coupé, compte hors pilotes, aucun destinataire, adresse invalide).
+//
+// PHASE PILOTE (décision 9) : l'envoi n'est ouvert qu'aux comptes de l'allowlist MAIL_PILOTES
+// (gate global + allowlist, `mailModuleActifPour`), à la différence du mail de réunion qui ne
+// regarde que le gate global. Allowlist vide = tout le monde, une fois le pilote concluant.
 
 import { getGestionnaireRepository, getMailOutboundProvider, getModeleMailRepository, getSignatureProvider } from "@/lib/adapters/router";
 import {
@@ -27,7 +31,7 @@ import {
   type SujetSuivi,
   type VarianteMailCs,
 } from "@/lib/domain/contrats-copro";
-import { mailModuleActif } from "@/lib/domain/mail-gate";
+import { mailModuleActif, mailModuleActifPour } from "@/lib/domain/mail-gate";
 import { adresseMailValide } from "@/lib/domain/mes-emails-composition";
 import { ModelesMailNonConfigureError, type ModeleMailStocke } from "@/lib/domain/modeles-mail";
 import { destinatairesConseilSyndical, type SourceDestinataires } from "@/lib/services/coproprietes/destinataires-conseil";
@@ -62,6 +66,13 @@ export interface ApercuMailCs {
 
 const PREFIXE_MODELES = "contrats :";
 const MESSAGE_MAIL_INACTIF = "L'envoi de mail n'est pas activé sur cet environnement.";
+const MESSAGE_HORS_PILOTE = "L'envoi au conseil syndical depuis l'intranet n'est pas encore ouvert à ton compte (phase pilote).";
+
+/** Module coupé -> message environnement ; module actif mais compte hors allowlist -> message pilote. */
+function exigerMailOuvertPour(auteur: AuteurContrats): void {
+  if (!mailModuleActif()) throw new Error(MESSAGE_MAIL_INACTIF);
+  if (!mailModuleActifPour(auteur.email)) throw new Error(MESSAGE_HORS_PILOTE);
+}
 
 /** Texte de secours quand le modèle du seed manque en base : court, mais complet. */
 function modeleDeRepli(sujet: SujetSuivi, variante: VarianteMailCs): { sujet: string; corps: string } {
@@ -153,7 +164,7 @@ export async function preparerMailCs(
   auteur: AuteurContrats,
 ): Promise<ApercuMailCs> {
   await exigerPerimetre(p.coproCode, auteur.id);
-  if (!mailModuleActif()) throw new Error(MESSAGE_MAIL_INACTIF);
+  exigerMailOuvertPour(auteur);
 
   const suivi = await chargerSuivi(p.coproCode, auteur.id);
   const avertissements: string[] = [];
@@ -218,7 +229,7 @@ export async function envoyerMailCs(
   auteur: AuteurContrats,
 ): Promise<{ a: string[]; cc: string[] }> {
   await exigerPerimetre(p.coproCode, auteur.id);
-  if (!mailModuleActif()) throw new Error(MESSAGE_MAIL_INACTIF);
+  exigerMailOuvertPour(auteur);
   if (!auteur.email) throw new Error("Votre compte n'a pas d'adresse e-mail : impossible d'envoyer depuis votre boîte.");
 
   const a = nettoyerAdresses(p.a);

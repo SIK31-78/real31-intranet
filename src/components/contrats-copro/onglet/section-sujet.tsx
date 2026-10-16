@@ -40,6 +40,8 @@ export function SectionSujet({ suivi, sujet, courtiers, aujourdhuiISO }: { suivi
   const enCours = cyclesEnCours(data.cycles);
   const passes = cyclesPasses(data.cycles);
   const courant = enCours[0];
+  // L'historique est trié du plus récent au plus ancien : seul le premier clos se re-clôture.
+  const dernierClosId = passes.find((v) => v.cycle.statut === "clos")?.cycle.id ?? null;
 
   const compteursLigne: ReactNode =
     sujet === "gaz" ? (
@@ -65,6 +67,7 @@ export function SectionSujet({ suivi, sujet, courtiers, aujourdhuiISO }: { suivi
             offresGaz={sujet === "gaz" ? suivi.gaz.offres.filter((o) => o.cycleId === v.cycle.id) : undefined}
             compagnieActuelle={contrat.assurance.compagnie}
             offreRetenueNom={sujet === "assurance" ? nomOffreAssurance(suivi.assurance.offres, v.cycle.offreRetenueId) : sujet === "gaz" ? nomOffreGaz(suivi.gaz.offres, v.cycle.offreRetenueId) : null}
+            reClotureAutorisee={v.cycle.id === dernierClosId}
           />
         ))}
       </div>

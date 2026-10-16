@@ -9,6 +9,11 @@ const etat = vi.hoisted(() => ({
   cycles: [] as Cycle[],
   copros: [] as Record<string, unknown>[],
   collaborateurs: [] as Record<string, unknown>[],
+  /** Contrat courant par code copro (seul `assurance.courtier` compte ici). */
+  contrats: new Map<string, { assurance: { courtier: string | null } }>(),
+  offresAssurance: [] as { id: string; cycleId: string }[],
+  entreprises: [] as Record<string, unknown>[],
+  lectures: { contrats: 0, offresAssurance: 0 },
   traces: new Set<string>(),
   traceKo: false,
   panneMail: false,
@@ -32,7 +37,18 @@ vi.mock("@/lib/adapters/router", () => ({
       ctq_ascenseur: { sujet: "ctq_ascenseur", premierRappelJours: 120, orangeJours: 30, rougeJours: 60, cadenceJours: 7 },
       ctq_vmc: { sujet: "ctq_vmc", premierRappelJours: 120, orangeJours: 30, rougeJours: 60, cadenceJours: 7 },
     }),
+    listerContratsCourants: async (codes: string[]) => {
+      etat.lectures.contrats += 1;
+      return new Map([...etat.contrats].filter(([code]) => codes.includes(code)));
+    },
+    listerOffresAssurance: async (ids: string[]) => {
+      etat.lectures.offresAssurance += 1;
+      return etat.offresAssurance.filter((o) => ids.includes(o.cycleId));
+    },
+    listerOffresGaz: async () => [],
+    listerDevisCtq: async () => [],
   }),
+  getClesEntrepriseRepository: () => ({ lister: async () => etat.entreprises }),
   getCoproRepository: () => ({ listerToutes: async () => etat.copros }),
   getGestionnaireRepository: () => ({
     listTous: async () => [
@@ -70,8 +86,9 @@ const AUJ = "2026-05-17";
 /** Échéance d'assurance telle que la fenêtre (180 j) soit ouverte depuis `jours` jours. */
 const ouverteDepuis = (jours: number) => plusJours(AUJ, 180 - jours);
 
+// Démarré à la main : un cycle d'amorçage sans activité serait « à démarrer », donc sans rappel.
 const cycle = (over: Partial<Cycle> = {}): Cycle => ({
-  id: "c1", sujet: "assurance", coproCode: "S1", statut: "en_cours", echeanceISO: ouverteDepuis(10), etapes: {}, demarreManuellement: null, creeLeISO: "2026-01-01", ...over,
+  id: "c1", sujet: "assurance", coproCode: "S1", statut: "en_cours", echeanceISO: ouverteDepuis(10), etapes: {}, demarreManuellement: true, creeLeISO: "2026-01-01", ...over,
 });
 const copro = (code: string, over: Record<string, unknown> = {}) => ({ code, nom: `Copro ${code}`, statut: "active", agenceId: "ag-hls", managerId: "g1", assistantId: "g2", ...over });
 const referent = { id: "t", email: "titouan@real31.fr", actif: true, habilitations: [{ id: "h1", type: "referent_syndic", agence: "HLS", depuisISO: "2026-01-01" }] };
@@ -80,12 +97,17 @@ beforeEach(() => {
   etat.cycles = [];
   etat.copros = [copro("S1")];
   etat.collaborateurs = [referent];
+  etat.contrats = new Map();
+  etat.offresAssurance = [];
+  etat.entreprises = [];
+  etat.lectures = { contrats: 0, offresAssurance: 0 };
   etat.traces = new Set();
   etat.traceKo = false;
   etat.panneMail = false;
   etat.envois = [];
   etat.journal = [];
   vi.stubEnv("CONTRATS_RAPPELS_SUJETS", "assurance");
+  vi.stubEnv("MAIL_SOURCE", "graph");
   vi.stubEnv("INTRANET_URL", "https://real31.app/");
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -123,6 +145,42 @@ describe("envoyerRappelsContrats", () => {
     const b = await envoyerRappelsContrats(MAINTENANT);
     expect(b.candidats).toBe(0);
     expect(etat.envois).toHaveLength(0);
+  });
+
+  it("module mail coupé (provider Noop) -> on sort avant toute lecture, aucune clé consommée", async () => {
+    vi.stubEnv("MAIL_SOURCE", "noop");
+    etat.cycles = [cycle()];
+    const b = await envoyerRappelsContrats(MAINTENANT);
+    expect(b.sujetsArmes).toEqual(["assurance"]);
+    expect(b.candidats).toBe(0);
+    expect(b.envoyes).toEqual([]);
+    expect(etat.traces.size).toBe(0);
+    expect(etat.lectures).toEqual({ contrats: 0, offresAssurance: 0 });
+    // Le lendemain, module branché : le rappel part bien (la clé n'a pas été brûlée).
+    vi.stubEnv("MAIL_SOURCE", "graph");
+    expect((await envoyerRappelsContrats(MAINTENANT)).envoyes).toEqual(["contrats|assurance|c1|1"]);
+  });
+
+  it("assurance chez un courtier partenaire (nom normalisé) -> aucun rappel ; chez un courtier libre -> rappel", async () => {
+    etat.entreprises = [{ nom: "Areas", courtierPartenaire: true }];
+    etat.copros = [copro("S1"), copro("S2")];
+    etat.contrats.set("S1", { assurance: { courtier: "AREAS " } });
+    etat.contrats.set("S2", { assurance: { courtier: "Cabinet Dupont" } });
+    etat.cycles = [cycle({ id: "c1", coproCode: "S1" }), cycle({ id: "c2", coproCode: "S2" })];
+    const b = await envoyerRappelsContrats(MAINTENANT);
+    expect(b.candidats).toBe(1);
+    expect(b.envoyes).toEqual(["contrats|assurance|c2|1"]);
+    expect(etat.lectures.contrats).toBe(1);
+  });
+
+  it("cycle d'amorçage sans activité (« à démarrer ») -> pas de rappel ; avec une offre -> rappel", async () => {
+    etat.copros = [copro("S1"), copro("S2")];
+    etat.cycles = [cycle({ id: "c1", coproCode: "S1", demarreManuellement: null }), cycle({ id: "c2", coproCode: "S2", demarreManuellement: null })];
+    etat.offresAssurance = [{ id: "o1", cycleId: "c2" }];
+    const b = await envoyerRappelsContrats(MAINTENANT);
+    expect(b.candidats).toBe(1);
+    expect(b.envoyes).toEqual(["contrats|assurance|c2|1"]);
+    expect(etat.lectures.offresAssurance).toBe(1);
   });
 
   it("rappel dû (vert) -> un mail au binôme depuis la boîte du gestionnaire, sans copie, journalisé, une seule fois", async () => {

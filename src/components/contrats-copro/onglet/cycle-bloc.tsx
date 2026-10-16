@@ -40,6 +40,7 @@ export function CycleBloc({
   compagnieActuelle,
   offreRetenueNom,
   encadre = true,
+  reClotureAutorisee = false,
 }: {
   coproCode: string;
   sujet: SujetSuivi;
@@ -53,6 +54,11 @@ export function CycleBloc({
   offreRetenueNom?: string | null;
   /** false : rendu nu (dans la carte d'un appareil), sans Card autour. */
   encadre?: boolean;
+  /**
+   * « Re-clôturer » n'a de sens que sur le DERNIER cycle clos (D4 : seule l'échéance de son
+   * suivant bouge) ; l'appelant, qui a l'historique sous les yeux, le dit. Défaut false.
+   */
+  reClotureAutorisee?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -97,7 +103,7 @@ export function CycleBloc({
     <Button type="button" variant="doux" size="sm" loading={pending} onClick={lancerDemarrage}>
       <Play strokeWidth={1.5} /> Démarrer le suivi
     </Button>
-  ) : cycle.statut === "clos" && peutEcrire ? (
+  ) : cycle.statut === "clos" && peutEcrire && reClotureAutorisee ? (
     <Button type="button" variant="ghost" size="sm" onClick={() => setCloture(true)}>
       Re-clôturer
     </Button>

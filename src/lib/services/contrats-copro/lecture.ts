@@ -38,7 +38,7 @@ import {
 } from "@/lib/domain/contrats-copro";
 import { normaliserNomEntreprise } from "@/lib/domain/cles/normaliser";
 import type { Copropriete } from "@/lib/domain/copropriete";
-import { mailModuleActif } from "@/lib/domain/mail-gate";
+import { mailModuleActifPour } from "@/lib/domain/mail-gate";
 import { peutEcrireSurCopro } from "@/lib/services/coproprietes/copro-appartient";
 import { listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import { coproEnLecture, coprosEnLecture } from "@/lib/services/coproprietes/perimetre-lecture";
@@ -200,9 +200,11 @@ function niveauGlobalDe(vuesEnCours: readonly CycleVue[]): NiveauQualifie | null
 /**
  * Tout ce que l'onglet « Contrats » affiche pour une copro, en une lecture. null si la copro
  * est inconnue du référentiel. `auteurId` ne sert qu'à répondre « peut-il écrire ? » (ADR-041),
- * la lecture est celle du cabinet.
+ * la lecture est celle du cabinet. `auteurEmail` ne sert qu'à `mailActif` : le mail au conseil
+ * est en phase pilote (gate global + allowlist MAIL_PILOTES, décision 9) ; sans e-mail, le
+ * bouton reste masqué.
  */
-export async function suiviDeCopro(coproCode: string, auteurId: string, aujourdhuiISO: string): Promise<SuiviCopro | null> {
+export async function suiviDeCopro(coproCode: string, auteurId: string, aujourdhuiISO: string, auteurEmail?: string): Promise<SuiviCopro | null> {
   const copro = await coproEnLecture(coproCode);
   if (!copro) return null;
   const code = copro.code;
@@ -279,7 +281,7 @@ export async function suiviDeCopro(coproCode: string, auteurId: string, aujourdh
     journal,
     peutEcrire,
     depotActif: getDepotDocumentProvider().actif,
-    mailActif: mailModuleActif(),
+    mailActif: !!auteurEmail && mailModuleActifPour(auteurEmail),
     // Tous les cycles en cours comptent, y compris un cycle d'ascenseur orphelin d'appareil.
     niveauGlobal: niveauGlobalDe(vues.filter((v) => v.cycle.statut === "en_cours")),
   };

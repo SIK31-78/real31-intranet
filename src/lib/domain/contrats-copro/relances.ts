@@ -8,8 +8,9 @@
 // dédoublonne : un cron qui repasse dans la même période ne renvoie rien. Le rouge met la
 // direction en copie, comme le cron historique.
 
+import { estEcheanceAberrante } from "./a-completer";
 import { formatJourFR, joursEntre } from "./dates";
-import { debutFenetre, joursSansAvancement, progression } from "./qualification";
+import { debutFenetre, estCycleADemarrer, joursSansAvancement, progression } from "./qualification";
 import { LIBELLE_SUJET, LIBELLE_SUJET_LONG, type Cycle, type Niveau, type NiveauQualifie, type RegleRelance, type SujetSuivi } from "./types";
 
 export interface EntreeRappel {
@@ -17,6 +18,12 @@ export interface EntreeRappel {
   coproNom: string;
   niveau: NiveauQualifie;
   regle: RegleRelance;
+  /**
+   * Le cycle porte-t-il une offre ou un devis ? Un cycle d'amorçage sans aucune activité est
+   * « à démarrer » (replié à l'écran) : on ne relance pas un dossier que personne n'a ouvert.
+   * Défaut false.
+   */
+  aActivite?: boolean;
 }
 
 export interface RappelDu {
@@ -40,11 +47,17 @@ export function cleRappel(sujet: SujetSuivi, cycleId: string, periode: number): 
   return `contrats|${sujet}|${cycleId}|${periode}`;
 }
 
-/** Les rappels dus aujourd'hui : cycles en cours, datés, fenêtre ouverte ; jamais les « à compléter ». */
+/**
+ * Les rappels dus aujourd'hui : cycles en cours, datés, fenêtre ouverte. Jamais les « à
+ * compléter », jamais les « à démarrer » (amorçage sans activité), jamais une échéance
+ * aberrante (reste d'amorçage à corriger d'abord, décision 8).
+ */
 export function rappelsDus(entrees: readonly EntreeRappel[], aujourdhuiISO: string): RappelDu[] {
   const out: RappelDu[] = [];
-  for (const { cycle, coproNom, niveau, regle } of entrees) {
+  for (const { cycle, coproNom, niveau, regle, aActivite = false } of entrees) {
     if (cycle.statut !== "en_cours" || !cycle.echeanceISO || niveau === "a_completer") continue;
+    if (estCycleADemarrer(cycle, aActivite)) continue;
+    if (estEcheanceAberrante(cycle.echeanceISO, aujourdhuiISO)) continue;
     const debut = debutFenetre(cycle.echeanceISO, regle);
     if (debut > aujourdhuiISO) continue;
     const periode = Math.floor(joursEntre(debut, aujourdhuiISO) / Math.max(1, regle.cadenceJours));

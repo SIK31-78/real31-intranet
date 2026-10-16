@@ -62,7 +62,7 @@ export default async function CoproprietePage({
     })),
     // Trousseaux de cles de la copro (module cles) : une requete de plus, degradee en [].
     trousseauxDeCopro(fiche.copro.code, aujourdhuiISO).catch(() => []),
-    suiviDeCopro(fiche.copro.code, g.id, aujourdhuiISO).catch((e: unknown) => {
+    suiviDeCopro(fiche.copro.code, g.id, aujourdhuiISO, g.email).catch((e: unknown) => {
       console.warn(`[copropriete] onglet Contrats illisible pour ${fiche.copro.code} :`, e instanceof Error ? e.message : e);
       return null;
     }),

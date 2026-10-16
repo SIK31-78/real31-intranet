@@ -179,6 +179,14 @@ describe("modifierImmeuble", () => {
     expect(etat.patches).toEqual([]);
   });
 
+  it("refuse une prime d'assurance négative ou illisible (NaN), accepte zéro", async () => {
+    await expect(modifierImmeuble({ coproCode: "S0247", patch: { primeAssuranceActuelle: -1 }, anneeCourante: ANNEE }, AUTEUR)).rejects.toThrow(/prime/i);
+    await expect(modifierImmeuble({ coproCode: "S0247", patch: { primeAssuranceActuelle: Number.NaN }, anneeCourante: ANNEE }, AUTEUR)).rejects.toThrow(/prime/i);
+    expect(etat.patches).toEqual([]);
+    await modifierImmeuble({ coproCode: "S0247", patch: { primeAssuranceActuelle: 0 }, anneeCourante: ANNEE }, AUTEUR);
+    expect(etat.patches).toHaveLength(1);
+  });
+
   it("PPT non voté : la date d'adoption tombe même si le client l'envoie", async () => {
     etat.fiches.set("S0247", complete("S0247"));
     await modifierImmeuble({ coproCode: "S0247", patch: { pptVote: "non", pptAdoptionISO: "2026-01-01", pptInscritAG: "oui" }, anneeCourante: ANNEE }, AUTEUR);

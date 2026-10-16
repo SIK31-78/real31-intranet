@@ -11,7 +11,8 @@ const etat = vi.hoisted(() => ({ base: null as unknown as { [k: string]: unknown
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
 vi.mock("@/lib/services/coproprietes/exiger-perimetre", () => ({ exigerPerimetre: async () => undefined }));
 vi.mock("@/lib/adapters/router", () => ({ getContratsCoproRepository: () => etat.base }));
-vi.mock("./lecture", () => ({ courtiersPartenaires: async () => etat.partenaires }));
+// La liste des partenaires est doublée ; la comparaison par nom normalisé reste la vraie.
+vi.mock("./lecture", async (importOriginal) => ({ ...(await importOriginal<typeof import("./lecture")>()), courtiersPartenaires: async () => etat.partenaires }));
 
 import { cloturerCycle, corrigerContrat, creerAppareil, daterEtape, daterEtapeGroupee, definirEcheance, demarrerSuivi, modifierAppareil } from "./suivi";
 
@@ -158,6 +159,44 @@ describe("cloturerCycle", () => {
     expect(base.journal[0].type).toBe("cycle_recloture");
   });
 
+  it("re-clôture refusée sur un cycle clos plus ancien quand un clos plus récent existe", async () => {
+    base.ajouterContrat("S104");
+    const vieux = base.ajouterCycle({ sujet: "ctq_vmc", coproCode: "S104", statut: "clos", etapes: { ctq_realise: "2016-06-01" } });
+    const recent = base.ajouterCycle({ sujet: "ctq_vmc", coproCode: "S104", statut: "clos", etapes: { ctq_realise: "2021-06-01" } });
+    const enCours = base.ajouterCycle({ sujet: "ctq_vmc", coproCode: "S104", echeanceISO: "2026-06-01" });
+    await expect(cloturerCycle({ coproCode: "S104", sujet: "ctq_vmc", cycleId: vieux.id, dateTerminaleISO: "2016-06-15", aujourdhuiISO: AUJOURDHUI }, AUTEUR)).rejects.toThrow("Seul le dernier cycle clos peut être re-clôturé.");
+    expect(base.cycles.find((c) => c.id === enCours.id)?.echeanceISO).toBe("2026-06-01");
+    expect(base.journal).toHaveLength(0);
+    // Le dernier clos, lui, se re-clôture : l'échéance du cycle en cours suit.
+    const r = await cloturerCycle({ coproCode: "S104", sujet: "ctq_vmc", cycleId: recent.id, dateTerminaleISO: "2021-07-01", aujourdhuiISO: AUJOURDHUI }, AUTEUR);
+    expect(r.suivant?.id).toBe(enCours.id);
+    expect(r.suivant?.echeanceISO).toBe("2026-07-01");
+    expect(base.cycles).toHaveLength(3);
+  });
+
+  it("re-clôture refusée quand le cycle clos n'a aucun suivant créé après lui (incohérence), un en cours antérieur n'est pas pris pour suivant", async () => {
+    base.ajouterContrat("S104");
+    const anterieur = base.ajouterCycle({ sujet: "ctq_vmc", coproCode: "S104", echeanceISO: "2027-01-01" });
+    const clos = base.ajouterCycle({ sujet: "ctq_vmc", coproCode: "S104", statut: "clos", etapes: { ctq_realise: "2021-06-01" } });
+    await expect(cloturerCycle({ coproCode: "S104", sujet: "ctq_vmc", cycleId: clos.id, dateTerminaleISO: "2021-07-01", aujourdhuiISO: AUJOURDHUI }, AUTEUR)).rejects.toThrow(/incohérent/);
+    expect(base.cycles).toHaveLength(2);
+    expect(base.cycles.find((c) => c.id === anterieur.id)?.echeanceISO).toBe("2027-01-01");
+    expect(base.journal).toHaveLength(0);
+  });
+
+  it("CTQ ascenseur : la re-clôture ne regarde que les cycles du MÊME appareil", async () => {
+    const a = await base.creerAscenseur({ coproCode: "S104", identifiant: "A", dernierCtqISO: "2021-05-01" });
+    const b = await base.creerAscenseur({ coproCode: "S104", identifiant: "B", dernierCtqISO: "2023-05-01" });
+    const closA = base.ajouterCycle({ sujet: "ctq_ascenseur", coproCode: "S104", ascenseurId: a.id, statut: "clos", etapes: { ctq_realise: "2021-05-01" } });
+    const suivantA = base.ajouterCycle({ sujet: "ctq_ascenseur", coproCode: "S104", ascenseurId: a.id, echeanceISO: "2026-05-01" });
+    base.ajouterCycle({ sujet: "ctq_ascenseur", coproCode: "S104", ascenseurId: b.id, statut: "clos", etapes: { ctq_realise: "2023-05-01" } });
+    base.ajouterCycle({ sujet: "ctq_ascenseur", coproCode: "S104", ascenseurId: b.id, echeanceISO: "2028-05-01" });
+    const r = await cloturerCycle({ coproCode: "S104", sujet: "ctq_ascenseur", cycleId: closA.id, dateTerminaleISO: "2021-06-01", aujourdhuiISO: AUJOURDHUI }, AUTEUR);
+    expect(r.suivant?.id).toBe(suivantA.id);
+    expect(r.suivant?.echeanceISO).toBe("2026-06-01");
+    expect(base.ascenseurs.find((x) => x.id === a.id)?.dernierCtqISO).toBe("2021-06-01");
+  });
+
   it("assurance sans offre : reconduction, l'échéance saisie va sur la copro, compagnie inchangée", async () => {
     base.ajouterContrat("S104", { assurance: { compagnie: "AXA", numeroContrat: "N-1" } });
     const c = base.ajouterCycle({ sujet: "assurance", coproCode: "S104" });
@@ -223,6 +262,25 @@ describe("corrigerContrat", () => {
     await corrigerContrat({ coproCode: "S104", patch: { assurance: { courtier: "Cabinet Dupont" } } }, AUTEUR);
     expect(base.cycles[0].statut).toBe("en_cours");
   });
+
+  it("courtier partenaire par nom normalisé : « AREAS » archive quand le partenaire s'écrit « Areas »", async () => {
+    base.ajouterContrat("S104");
+    const amorce = base.ajouterCycle({ sujet: "assurance", coproCode: "S104" });
+    await corrigerContrat({ coproCode: "S104", patch: { assurance: { courtier: " AREAS " } } }, AUTEUR);
+    expect(base.cycles.find((c) => c.id === amorce.id)?.statut).toBe("archive");
+    expect(base.journal.map((e) => e.type)).toEqual(["contrat_corrige", "suivi_archive"]);
+    expect(base.journal[1].details).toEqual({ raison: "courtier partenaire (AREAS)" });
+  });
+
+  it("refuse une souscription d'assurance ou un dernier contrôle VMC dans le futur ; une échéance future reste permise", async () => {
+    base.ajouterContrat("S104");
+    await expect(corrigerContrat({ coproCode: "S104", patch: { assurance: { souscriptionISO: "2026-10-17" } }, aujourdhuiISO: AUJOURDHUI }, AUTEUR)).rejects.toThrow(/souscription.*futur/);
+    await expect(corrigerContrat({ coproCode: "S104", patch: { vmc: { dernierCtqISO: "2027-01-01" } }, aujourdhuiISO: AUJOURDHUI }, AUTEUR)).rejects.toThrow(/contrôle VMC.*futur/);
+    expect(base.journal).toHaveLength(0);
+    await corrigerContrat({ coproCode: "S104", patch: { assurance: { souscriptionISO: "2026-10-16", echeanceISO: "2027-10-16" }, vmc: { dernierCtqISO: "2026-10-01" } }, aujourdhuiISO: AUJOURDHUI }, AUTEUR);
+    expect(base.contrats.get("S104")?.assurance).toMatchObject({ souscriptionISO: "2026-10-16", echeanceISO: "2027-10-16" });
+    expect(base.contrats.get("S104")?.vmc.dernierCtqISO).toBe("2026-10-01");
+  });
 });
 
 describe("appareils", () => {
@@ -243,5 +301,13 @@ describe("appareils", () => {
     expect(base.cycles[0].echeanceISO).toBe("2030-01-15");
     expect(base.ascenseurs[0].dernierCtqISO).toBe("2025-06-01");
     expect(base.journal.filter((e) => e.type === "appareil_modifie")).toHaveLength(2);
+  });
+
+  it("refuse un dernier CTQ dans le futur (un contrôle est un fait passé)", async () => {
+    const a = await creerAppareil({ coproCode: "S104", dernierCtqISO: "2024-03-31" }, AUTEUR);
+    await expect(modifierAppareil({ coproCode: "S104", ascenseurId: a.id, dernierCtqISO: "2026-10-17", aujourdhuiISO: AUJOURDHUI }, AUTEUR)).rejects.toThrow(/futur/);
+    expect(base.ascenseurs[0].dernierCtqISO).toBe("2024-03-31");
+    await modifierAppareil({ coproCode: "S104", ascenseurId: a.id, dernierCtqISO: "2026-10-16", aujourdhuiISO: AUJOURDHUI }, AUTEUR);
+    expect(base.ascenseurs[0].dernierCtqISO).toBe("2026-10-16");
   });
 });

@@ -122,6 +122,8 @@ function CarteAppareil({ coproCode, appareil, cycles, peutEcrire, aujourdhuiISO 
   const [edition, setEdition] = useState(false);
   const enCours = cyclesEnCours(cycles);
   const passes = cyclesPasses(cycles);
+  // L'historique est trié du plus récent au plus ancien : seul le premier clos se re-clôture.
+  const dernierClosId = passes.find((v) => v.cycle.statut === "clos")?.cycle.id ?? null;
   return (
     <Card>
       <CardHeader>
@@ -153,7 +155,7 @@ function CarteAppareil({ coproCode, appareil, cycles, peutEcrire, aujourdhuiISO 
             </summary>
             <div className="mt-2 flex flex-col gap-3 border-t border-line pt-3">
               {passes.map((v) => (
-                <CycleBloc key={v.cycle.id} coproCode={coproCode} sujet={SUJET} vue={v} peutEcrire={peutEcrire} aujourdhuiISO={aujourdhuiISO} encadre={false} />
+                <CycleBloc key={v.cycle.id} coproCode={coproCode} sujet={SUJET} vue={v} peutEcrire={peutEcrire} aujourdhuiISO={aujourdhuiISO} encadre={false} reClotureAutorisee={v.cycle.id === dernierClosId} />
               ))}
             </div>
           </details>
