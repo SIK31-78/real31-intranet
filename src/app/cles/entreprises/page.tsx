@@ -10,7 +10,15 @@ import { Section } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { FormulaireEntreprise } from "@/components/cles/formulaire-entreprise";
-import { ListeEntreprises, metierDepuisParam } from "@/components/cles/liste-entreprises";
+import { ListeEntreprises } from "@/components/cles/liste-entreprises";
+import { METIERS_PRESTATAIRE, type MetierPrestataire } from "@/lib/domain/contrats-copro/types";
+
+// Le métier d'un `?metier=` d'URL, ou rien s'il est inconnu. Ici (serveur) et pas dans le
+// composant client : une fonction d'un module « use client » ne s'appelle pas depuis le serveur.
+function metierDepuisParam(valeur: string | string[] | undefined): MetierPrestataire | undefined {
+  const v = Array.isArray(valeur) ? valeur[0] : valeur;
+  return v && (METIERS_PRESTATAIRE as readonly string[]).includes(v) ? (v as MetierPrestataire) : undefined;
+}
 
 export const metadata: Metadata = { title: "Entreprises - Gestion des clés - REAL31 Intranet" };
 export const dynamic = "force-dynamic";

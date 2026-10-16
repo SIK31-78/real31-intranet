@@ -22,13 +22,6 @@ export interface EntrepriseLigne {
   courtierPartenaire?: boolean;
 }
 
-const METIERS = new Set<string>(METIERS_PRESTATAIRE);
-/** Le metier d'un `?metier=` d'URL, ou rien s'il est inconnu. */
-export function metierDepuisParam(valeur: string | string[] | undefined): MetierPrestataire | undefined {
-  const v = Array.isArray(valeur) ? valeur[0] : valeur;
-  return v && METIERS.has(v) ? (v as MetierPrestataire) : undefined;
-}
-
 type Filtre = "toutes" | "detiennent" | "retard" | "bloquees";
 
 export function ListeEntreprises({ entreprises, metierInitial }: { entreprises: EntrepriseLigne[]; metierInitial?: MetierPrestataire }) {
