@@ -67,7 +67,6 @@ import { TransmettreFacture } from "./transmettre-facture";
 import { ReponseEnvoyee } from "./reponse-envoyee";
 import { HistoriqueMail } from "./historique-mail";
 import { PasPourMoi } from "./pas-pour-moi";
-import { CorpsMail } from "./corps-mail";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { fusionnerModele, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
 import { estMailInterne } from "@/lib/domain/tri-emails";
@@ -1496,7 +1495,9 @@ function AnalysePane({
 
       {/* Le mail */}
       <div className="px-5 py-4">
-        <CorpsMail key={m.id} emailId={m.id} boite={boiteDuMail} texte={m.corps} />
+        <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
+          {m.corps}
+        </div>
         <HistoriqueMail key={m.id} emailId={m.id} boite={boiteDuMail} />
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">

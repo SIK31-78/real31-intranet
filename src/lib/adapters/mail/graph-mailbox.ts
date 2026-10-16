@@ -4,7 +4,6 @@
 // Best-effort : si aucun dossier ne correspond, on ne deplace rien.
 
 import type { DossierBoite, MailboxProvider, PieceJointeRef } from "@/lib/ports/mailbox-provider";
-import type { ImageInline } from "@/lib/domain/mail-html";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
@@ -207,36 +206,4 @@ export class GraphMailboxProvider implements MailboxProvider {
     const a = (await r.json()) as { name: string; contentType: string; contentBytes?: string };
     return { nom: a.name, type: a.contentType, base64: a.contentBytes ?? "" };
   }
-
-  async lireHtml(p: { boite: string; internetMessageId: string }): Promise<{ html: string; inline: ImageInline[] }> {
-    if (!p.boite) throw new Error("Corps HTML : boite manquante.");
-    const tk = await jetonGraph();
-    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
-    const u = `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}`;
-    const [rm, ra] = await Promise.all([
-      // Sans Prefer text : Graph rend le corps tel qu'il a été écrit (HTML le plus souvent).
-      graphFetch(`${u}?$select=body,hasAttachments`, { headers: { Authorization: `Bearer ${tk}` } }),
-      // Les images collées dans le corps : pièces jointes inline, contenu compris.
-      graphFetch(`${u}/attachments?$filter=isInline eq true`, { headers: { Authorization: `Bearer ${tk}` } }, 60_000),
-    ]);
-    if (!rm.ok) throw new Error(`Graph corps ${rm.status} : ${(await rm.text()).slice(0, 200)}`);
-    const m = (await rm.json()) as { body?: { contentType?: string; content?: string } };
-    const brut = m.body?.content ?? "";
-    // Un mail en texte brut s'affiche tel quel, échappé, dans un <pre>.
-    const html = m.body?.contentType?.toLowerCase() === "html" ? brut : `<pre style="white-space:pre-wrap;font-family:inherit">${echapperHtml(brut)}</pre>`;
-    const inline: ImageInline[] = [];
-    if (ra.ok) {
-      const j = (await ra.json()) as { value?: { contentId?: string; contentType?: string; contentBytes?: string }[] };
-      for (const a of j.value ?? []) {
-        if (a.contentId && a.contentBytes) inline.push({ contentId: a.contentId, type: a.contentType ?? "", base64: a.contentBytes });
-      }
-    } else {
-      console.warn("[graph-mailbox] images inline illisibles :", ra.status);
-    }
-    return { html, inline };
-  }
-}
-
-function echapperHtml(t: string): string {
-  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
