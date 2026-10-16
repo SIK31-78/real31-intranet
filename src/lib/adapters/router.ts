@@ -112,6 +112,9 @@ import type { ClesEntrepriseRepository, ClesPhotoStore, ClesRepository } from "@
 import { SupabaseClesEntrepriseRepository, SupabaseClesRepository } from "./supabase/supabase-cles-repository";
 import { SupabaseClesPhotoStore } from "./supabase/supabase-cles-photo-store";
 import { mockCles } from "./mock/mock-cles-repository";
+import type { ContratsCoproRepository } from "@/lib/ports/contrats-copro-repository";
+import { SupabaseContratsCoproRepository } from "./supabase/supabase-contrats-copro-repository";
+import { mockContratsCopro } from "./mock/mock-contrats-copro-repository";
 import { MockPerteRepository } from "./mock/mock-perte-repository";
 import { SupabaseJalonRepository } from "@/lib/adapters/supabase/supabase-jalon-repository";
 import { MockJalonRepository } from "@/lib/adapters/mock/mock-jalon-repository";
@@ -355,6 +358,14 @@ export function getClesEntrepriseRepository(): ClesEntrepriseRepository {
 export function getClesPhotoStore(): ClesPhotoStore {
   if (coproSourceEstSupabase()) return new SupabaseClesPhotoStore();
   return mockCles().photos;
+}
+
+// Contrats & contrôles (REA-333) : cycles, offres, devis, appareils, documents, fiche immeuble,
+// prestataires, règles de relance, journal. En réel : les tables de l'ancienne application
+// « Suivi des Contrats Copros » + deux tables natives. En mock : un jeu en mémoire.
+export function getContratsCoproRepository(): ContratsCoproRepository {
+  if (coproSourceEstSupabase()) return new SupabaseContratsCoproRepository();
+  return mockContratsCopro();
 }
 
 // Prise en main des copros (onboarding, table native intranet_copro_prise_en_main).
