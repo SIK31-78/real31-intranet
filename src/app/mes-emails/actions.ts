@@ -38,6 +38,7 @@ import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { mettreALaCorbeille, type ResultatCorbeille } from "@/lib/services/mes-emails/corbeille";
 import { lireEnvoye, listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
+import { transfererMail } from "@/lib/services/mes-emails/transferer";
 import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
@@ -749,6 +750,46 @@ export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
   if (!cible) return echec("Boîte non autorisée.");
   try {
     return { ok: true, donnees: await lireEnvoye(cible, v.data.id) };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
+/**
+ * Transférer un mail (REA-350) depuis la boîte qui le détient, pièces jointes d'origine
+ * comprises. Depuis la boîte perso, il part ; depuis une boîte partagée, il ne part que si
+ * l'envoi y est ouvert (MAIL_ENVOI=on, ADR-047), sinon il reste en brouillon dans Outlook.
+ */
+export async function transfererMailAction(input: unknown): Promise<Res<{ envoye: boolean; boite: string }>> {
+  const g = await gestionnairePilote();
+  if (!g?.email) return echec(PILOTE_SEUL);
+  const v = z
+    .object({
+      emailId: zId,
+      boite: zBoite,
+      a: z.array(z.string().trim().max(320).regex(EMAIL_RE)).min(1).max(50),
+      cc: z.array(z.string().trim().max(320).regex(EMAIL_RE)).max(50),
+      corps: zCorps,
+    })
+    .safeParse(input);
+  if (!v.success) return echec("Ajoute au moins un destinataire valide (50 au plus).");
+  const d = v.data;
+  if (d.a.length + d.cc.length > 50) return echec("Trop de destinataires (50 maximum).");
+  const cible = await boiteCible(g, d.boite);
+  if (!cible) return echec("Boîte non autorisée.");
+  const envoyer = cible === g.email.trim().toLowerCase() || envoiMailActif();
+  try {
+    const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
+    await transfererMail({
+      boite: cible,
+      internetMessageId: d.emailId,
+      a: d.a,
+      cc: d.cc,
+      corps: d.corps,
+      ...(signatureHtml ? { signatureHtml } : {}),
+      envoyer,
+    });
+    return { ok: true, donnees: { envoye: envoyer, boite: cible } };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }

@@ -85,6 +85,7 @@ import {
 import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
+import { TransfererMail } from "./transferer-mail";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
   devaliderMailAction,
@@ -1040,6 +1041,7 @@ export function MesEmailsVue({
               }}
               onValider={() => void valider(selection)}
               classementOutlook={data.boites.find((b) => b.id === boiteDuMail(selection))?.personnelle ?? true}
+              pilote={pilote}
               onParti={() => {
                 setPartis((p) => new Set(p).add(selection.id));
                 passerAuSuivant(selection);
@@ -1526,7 +1528,10 @@ function AnalysePane({
   classementOutlook,
   onParti,
   onConclure,
+  pilote = false,
 }: {
+  /** Nouveautés en pilote (super-admin) : « Transférer » (REA-350). */
+  pilote?: boolean;
   m: MailEntrant;
   /** undefined = en cours de chargement, null = indisponible. */
   contexte: ContexteCopro | null | undefined;
@@ -1625,6 +1630,16 @@ function AnalysePane({
                 <ReplyAll strokeWidth={1.75} />
                 Répondre à tous
               </Button>
+              {pilote ? (
+                <TransfererMail
+                  key={m.id}
+                  emailId={m.id}
+                  boite={boiteDuMail}
+                  boitePerso={boites.find((b) => b.id === boiteDuMail)?.personnelle ?? false}
+                  objet={m.objet}
+                  piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
+                />
+              ) : null}
             </div>
           )}
         </div>

@@ -4,7 +4,7 @@
 // texte du cockpit en commentaire (Graph garde le fil + la citation). Pas de
 // signature injectee (Signitic s'en charge cote Outlook).
 
-import type { MailOutboundProvider, PieceJointeMail, ReponseMail } from "@/lib/ports/mail-outbound-provider";
+import type { MailOutboundProvider, PieceJointeMail, ReponseMail, TransfertMail } from "@/lib/ports/mail-outbound-provider";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 function echapperHtml(s: string): string {
@@ -31,6 +31,45 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
       body: JSON.stringify({ comment: p.corps }),
     });
     if (!r.ok) throw new Error(`Graph createReply ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  }
+
+  /**
+   * Transfert d'un mail choisi a la main dans l'ecran E-mails (REA-350). Meme chemin que
+   * creerTransfert (createForward garde les pieces jointes d'origine), mais le corps est
+   * pose comme pour une reponse : mon texte et ma signature AU-DESSUS du message transfere
+   * (le commentaire de createForward est du texte brut, sans signature possible).
+   */
+  async transferer(p: TransfertMail): Promise<{ webLink?: string }> {
+    if (!p.boite) throw new Error("Transfert : boite manquante.");
+    if (dest(p.a).length === 0) throw new Error("Transfert : au moins un destinataire.");
+    const tk = await jetonGraph();
+    const u = `${GRAPH}/users/${encodeURIComponent(p.boite)}`;
+    const h = { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" };
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    const r1 = await graphFetch(`${u}/messages/${id}/createForward`, { method: "POST", headers: h, body: "{}" });
+    if (!r1.ok) throw new Error(`Graph createForward ${r1.status} : ${(await r1.text()).slice(0, 200)}`);
+    const draft = (await r1.json()) as { id: string; webLink?: string; body?: { content?: string } };
+    const transfere = draft.body?.content ?? "";
+    const monTexte = p.corps.trim()
+      ? `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`
+      : "";
+    const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
+    const r2 = await graphFetch(`${u}/messages/${encodeURIComponent(draft.id)}`, {
+      method: "PATCH",
+      headers: h,
+      body: JSON.stringify({
+        body: { contentType: "HTML", content: monTexte + signature + transfere },
+        toRecipients: dest(p.a),
+        ccRecipients: dest(p.cc),
+      }),
+    });
+    if (!r2.ok) throw new Error(`Graph PATCH transfert ${r2.status} : ${(await r2.text()).slice(0, 200)}`);
+    if (p.envoyer) {
+      const r3 = await graphFetch(`${u}/messages/${encodeURIComponent(draft.id)}/send`, { method: "POST", headers: h });
+      if (!r3.ok) throw new Error(`Graph send transfert ${r3.status} : ${(await r3.text()).slice(0, 200)}`);
+      return {};
+    }
+    return draft.webLink ? { webLink: draft.webLink } : {};
   }
 
   async creerTransfert(p: {

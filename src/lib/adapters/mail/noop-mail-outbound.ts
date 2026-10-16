@@ -17,6 +17,12 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     return {};
   }
 
+  async transferer(p: { internetMessageId: string; a: string[]; envoyer: boolean }): Promise<{ webLink?: string }> {
+    // Pas de PII en log (RGPD) : nombre de destinataires seulement.
+    console.log(`[mail-outbound:noop] transfert ${p.envoyer ? "envoye" : "en brouillon"} simule pour ${p.internetMessageId} (${p.a.length} dest.)`);
+    return {};
+  }
+
   async envoyer(p: {
     boite: string;
     internetMessageId: string;

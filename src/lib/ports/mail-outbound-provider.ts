@@ -24,6 +24,14 @@ export interface MailOutboundProvider {
   }): Promise<{ webLink?: string; internetMessageId?: string }>;
 
   /**
+   * TRANSFERE le message d'origine (pieces jointes d'origine conservees par Graph) a des
+   * destinataires choisis, depuis la boite qui DETIENT le mail : mon texte et ma signature
+   * au-dessus du message transfere, objet « TR: … » d'Outlook. `envoyer: false` laisse le
+   * transfert en BROUILLON (boite partagee pendant le pilote, ADR-047). REA-350 (16/10/2026).
+   */
+  transferer(p: TransfertMail): Promise<{ webLink?: string }>;
+
+  /**
    * ENVOIE une reponse au message d'origine (fil + citation conserves) avec des
    * destinataires CHOISIS (A / Cc / Cci). Cree un brouillon de reponse, y pose le
    * corps + les destinataires, puis l'envoie. Action irreversible (vrai mail).
@@ -123,4 +131,16 @@ export interface PieceJointeMail {
   nom: string;
   contentType: string;
   base64: string;
+}
+
+export interface TransfertMail {
+  boite: string;
+  internetMessageId: string;
+  a: string[];
+  cc: string[];
+  /** Texte écrit au-dessus du message transféré (peut être vide). */
+  corps: string;
+  signatureHtml?: string;
+  /** true = le transfert part ; false = il reste en brouillon dans la boîte. */
+  envoyer: boolean;
 }

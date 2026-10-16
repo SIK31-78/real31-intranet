@@ -43,7 +43,7 @@ import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./gli
 type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 
 /** Une personne en destinataire : toutes ses adresses partent ensemble. */
-type Personne = { cle: string; nom: string; emails: string[] };
+export type Personne = { cle: string; nom: string; emails: string[] };
 
 type FichierJoint = { nom: string; contentType: string; taille: number; base64: string };
 
@@ -94,7 +94,7 @@ function avecPrefixe(objet: string, ancienne: CoproChoisissable | null, nouvelle
   return nouvelle ? (reste ? objetCompose(nouvelle, reste) : `${prefixeObjetCopro(nouvelle)} - `) : reste;
 }
 
-const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
+export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
 export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles }: Props) {
   const toast = useToast();
@@ -470,8 +470,9 @@ function ChoixCopro({ actif, onClick, children }: { actif: boolean; onClick: () 
   );
 }
 
-/** Un champ À ou Cc : on tape un nom, l'annuaire propose les personnes ; une adresse tapée passe aussi. */
-function ChampPersonnes({
+/** Un champ À ou Cc : on tape un nom, l'annuaire propose les personnes ; une adresse tapée passe aussi.
+ *  Partagé avec le transfert d'un mail (REA-350) : même annuaire, même saisie. */
+export function ChampPersonnes({
   champ,
   label,
   personnes,
