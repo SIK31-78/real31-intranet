@@ -10,6 +10,7 @@ const etat = vi.hoisted(() => ({
   notifies: [] as string[],
   panneMail: false,
   assistante: null as { nomComplet: string; email: string } | null,
+  gestionnaire: null as { nomComplet: string; email: string } | null,
 }));
 
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
@@ -19,6 +20,9 @@ vi.mock("@/lib/services/coproprietes/assistante-de-copro", async (importOriginal
   ...(await importOriginal<typeof import("@/lib/services/coproprietes/assistante-de-copro")>()),
   async assistanteDeCopro() {
     return etat.assistante;
+  },
+  async gestionnaireDeCopro() {
+    return etat.gestionnaire;
   },
 }));
 vi.mock("@/lib/adapters/router", () => ({
@@ -78,6 +82,7 @@ beforeEach(() => {
   etat.notifies = [];
   etat.panneMail = false;
   etat.assistante = null;
+  etat.gestionnaire = null;
   vi.stubEnv("AUTH_URL", "https://real31.app/");
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
 });
@@ -99,6 +104,13 @@ describe("notifierRecapAg", () => {
     const r = await notifierRecapAg(recap);
     expect(r).toEqual({ envoye: true, a: ["isabelle.anglade@real31.fr"], assistanteEnCopie: "Julie Binôme" });
     expect(etat.envois[0]!.cc).toEqual(["wilfrid.tohoubi@real31.fr", "julie.binome@real31.fr"]);
+  });
+  it("REA-348 : l'assistante saisit le récap, le gestionnaire de la copro est en copie", async () => {
+    etat.assistante = { nomComplet: "Julie Binôme", email: "julie.binome@real31.fr" };
+    etat.gestionnaire = { nomComplet: "Wilfrid", email: "wilfrid.tohoubi@real31.fr" };
+    const r = await notifierRecapAg({ ...recap, boite: "julie.binome@real31.fr", par: "JB" });
+    expect(etat.envois[0]!.cc).toEqual(["julie.binome@real31.fr", "wilfrid.tohoubi@real31.fr"]);
+    expect(r.assistanteEnCopie).toBeUndefined();
   });
   it("REA-348 : pas de doublon quand l'assistante est celle qui saisit le recap", async () => {
     etat.assistante = { nomComplet: "Wilfrid", email: "Wilfrid.Tohoubi@real31.fr" };

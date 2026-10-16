@@ -40,6 +40,15 @@ async function emailDe(id: string | undefined): Promise<MembreTri | null> {
   return u?.email ? { nomComplet: u.nomComplet, email: minuscules(u.email) } : null;
 }
 
+/** Le gestionnaire de la copro (managerId) ; null s'il est inconnu ou sans adresse. */
+export async function gestionnaireDeCopro(copro: Pick<Copropriete, "managerId">): Promise<MembreTri | null> {
+  try {
+    return await emailDe(copro.managerId);
+  } catch {
+    return null;
+  }
+}
+
 /** L'assistante de la copro (binôme d'abord, équipe ensuite) ; null si personne n'est connu. */
 export async function assistanteDeCopro(copro: CoproPourAssistante): Promise<MembreTri | null> {
   try {

@@ -12,7 +12,7 @@ import { comptablesPourAgence } from "@/lib/domain/perimetre-comptable";
 import type { Creneau } from "@/lib/domain/facturation/commun";
 import type { TravauxVotes } from "@/lib/ports/recap-ag-repository";
 import { agenceDeCopro } from "@/lib/services/agences/resoudre-agence";
-import { assistanteDeCopro, copieAvecAssistante } from "@/lib/services/coproprietes/assistante-de-copro";
+import { assistanteDeCopro, copieAvecAssistante, gestionnaireDeCopro } from "@/lib/services/coproprietes/assistante-de-copro";
 import { signalerException } from "@/lib/observabilite";
 import { formatEuros, formatHeure, formatJour } from "@/lib/services/facturation/format";
 import { htmlNotificationRecap } from "./notifier-recap-html";
@@ -129,9 +129,14 @@ export async function notifierRecapAg(r: RecapANotifier): Promise<ResultatNotifi
     // et Titouan, 16/09/2026). Et a l'assistante de la copro, qui a besoin du recap pour
     // la suite de l'AG (REA-348, decision de Sekou du 16/10/2026 : la copie du mail
     // suffit, pas d'autre canal). Sans doublon si elle est deja destinataire.
-    const assistante = copro ? await assistanteDeCopro(copro) : null;
-    const cc = copieAvecAssistante([r.boite], assistante, a);
-    const assistanteEnCopie = cc.length > 1 && assistante ? assistante.nomComplet : undefined;
+    // Le gestionnaire de la copro est en copie meme quand c'est l'assistante qui saisit
+    // le recap (Sekou, 16/10/2026) : la copie ne depend pas de qui enregistre.
+    const [assistante, gestionnaire] = copro
+      ? await Promise.all([assistanteDeCopro(copro), gestionnaireDeCopro(copro)])
+      : [null, null];
+    const cc = copieAvecAssistante(copieAvecAssistante([r.boite], gestionnaire, a), assistante, a);
+    const assistanteEnCopie =
+      assistante && assistante.email !== r.boite.trim().toLowerCase() && cc.includes(assistante.email) ? assistante.nomComplet : undefined;
     await getMailOutboundProvider().envoyerNeuf({
       boite: r.boite,
       a,
