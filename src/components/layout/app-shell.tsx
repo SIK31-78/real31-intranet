@@ -7,7 +7,7 @@ import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-contex
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, estEquipeSyndic, peutVoirPropositions, profilDe } from "@/lib/auth/roles";
+import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, peutVoirReprises, peutVoirPropositions, profilDe } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
 import { compterMailsATrier } from "@/lib/services/tri-emails/compteur";
@@ -41,9 +41,10 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // Entree "Gestion courante" (facturation des honoraires du cabinet) : comptable
   // d'ENTREPRISE et super-admins seulement - pas le pole compta des copros.
   const gestionCouranteOuverte = peutVoirGestionCourante(g?.email);
-  // Reprise : l'equipe syndic. Le filtrage par dossier se fait dans la page (chacun ne
-  // voit que les reprises dont il est le gestionnaire, ou qui lui confient une etape).
-  const repriseOuverte = g ? estEquipeSyndic(profilDe(g)) : false;
+  // Reprise : l'equipe syndic et le pole comptable (REA-353, 16/10/2026). Le filtrage par
+  // dossier se fait dans la page (chacun ne voit que les reprises dont il fait partie de
+  // l'equipe, ou qui lui confient une etape).
+  const repriseOuverte = g ? peutVoirReprises(profilDe(g)) : false;
   // Vue comptable EPUREE : le comptable pur (pas super-admin/manager/directeur) a une
   // sidebar reduite (son dashboard + copros + coffre). Les profils qui pilotent tout
   // gardent la nav complete.

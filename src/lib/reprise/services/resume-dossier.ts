@@ -91,6 +91,12 @@ export function etapesAssigneesA(d: Dossier, personneId: string): Etape[] {
  * Les etapes qui lui sont ASSIGNEES comptent aussi : un assistant ou un comptable a qui on
  * a confie des etapes doit pouvoir ouvrir le dossier, sinon il ne peut pas les faire.
  *
+ * REA-353 (16/10/2026) : TOUT membre de l'equipe du dossier le voit, quel que soit son role
+ * (comptable, assistant...). La comptable nommee dans l'equipe tombait sur une 404 tant
+ * qu'aucune etape ne lui etait encore confiee, alors qu'elle prepare la reprise de la
+ * comptabilite des le cadrage. Seule la LECTURE s'elargit : les gestes reserves gardent
+ * leurs gardes cote serveur (exigerAdminReprise).
+ *
  * `voitTout` (direction, managers) court-circuite le filtre : le pilotage a besoin de la
  * vue d'ensemble.
  */
@@ -100,6 +106,6 @@ export function dossierVisiblePar(
   voitTout: boolean,
 ): boolean {
   if (voitTout) return true;
-  if (d.equipe?.gestionnaire?.id === personneId) return true;
+  if (Object.values(d.equipe ?? {}).some((p) => p?.id === personneId)) return true;
   return d.etapes.some((e) => e.assigneA?.id === personneId);
 }

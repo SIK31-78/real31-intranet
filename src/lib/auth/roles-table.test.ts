@@ -10,6 +10,7 @@ import {
   peutElire,
   peutFaireOffre,
   peutOuvrirPerte,
+  peutVoirReprises,
   peutVoirToutesLesPropositions,
 } from "./roles";
 
@@ -75,5 +76,15 @@ describe("intentions propositions", () => {
     expect(peutEditerContrat(vente)).toBe(false);
     expect(peutEditerBareme(dirigeant)).toBe(false);
     expect(peutEditerBareme({ email: "sekou@real31.fr" })).toBe(true);
+  });
+});
+
+describe("l'entree Reprise de copropriete (REA-353)", () => {
+  it("equipe syndic et pole compta ; pas hors syndic", () => {
+    expect(peutVoirReprises(gestionnaire)).toBe(true);
+    expect(peutVoirReprises(assistant)).toBe(true);
+    expect(peutVoirReprises(directrice)).toBe(true);
+    expect(peutVoirReprises(comptable)).toBe(true);
+    expect(peutVoirReprises(vente)).toBe(false);
   });
 });

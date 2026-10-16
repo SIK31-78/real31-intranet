@@ -64,10 +64,19 @@ describe("dossierVisiblePar", () => {
     expect(dossierVisiblePar(autre, CHRYSTELLE.id, false)).toBe(false);
   });
 
-  it("un autre rôle de l'équipe (comptable) ne suffit pas sans étape assignée", () => {
-    // Choix assumé : la demande porte sur le gestionnaire. Le comptable voit le dossier
-    // dès qu'une étape lui est confiée, ce qui est le cas en pratique.
+  it("la comptable de l'équipe voit le dossier, même sans étape assignée (REA-353)", () => {
+    // Avant le 16/10/2026 : 404 tant qu'aucune étape ne lui était confiée.
     const d = dossier({ equipe: { gestionnaire: CHRYSTELLE, comptable: ELSA } });
-    expect(dossierVisiblePar(d, ELSA.id, false)).toBe(false);
+    expect(dossierVisiblePar(d, ELSA.id, false)).toBe(true);
+  });
+
+  it("tout membre de l'équipe voit le dossier, quel que soit son rôle (REA-353)", () => {
+    const d = dossier({ equipe: { assistant: REMI } });
+    expect(dossierVisiblePar(d, REMI.id, false)).toBe(true);
+  });
+
+  it("être comptable d'UN dossier n'ouvre pas celui d'à côté", () => {
+    const autre = dossier({ ref: "S306", equipe: { gestionnaire: REMI, comptable: CHRYSTELLE } });
+    expect(dossierVisiblePar(autre, ELSA.id, false)).toBe(false);
   });
 });

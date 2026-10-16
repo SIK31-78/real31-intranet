@@ -30,7 +30,7 @@ export default async function DossiersReprisePage() {
     listerCollaborateurs(),
   ]);
 
-  // Chacun ne voit que SES reprises : celles dont il est le gestionnaire nomme, ou sur
+  // Chacun ne voit que SES reprises : celles dont il fait partie de l'equipe (REA-353), ou sur
   // lesquelles une etape lui est assignee. La direction et les managers voient tout.
   const voitTout = estAdminReprise(profilDe(g));
   const lignes: LigneDossierVue[] = dossiers

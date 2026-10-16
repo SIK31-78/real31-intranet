@@ -137,6 +137,10 @@ const NAV_COMPTABLE: Item[] = [
   // leur etaient deja ouvertes (repli comptable de coproAppartient), mais aucun lien n'y
   // menait depuis cette nav reduite (Isabelle, S224, 14/10/2026, REA-311).
   { key: "perte", label: "Perte de copropriété", href: "/perte-copro", icon: PackageMinus },
+  // Reprise de copropriete : la comptable nommee dans l'equipe d'un dossier doit pouvoir
+  // l'ouvrir (REA-353, 16/10/2026). Filtree par repriseOuverte ; la page ne liste que les
+  // dossiers dont elle fait partie de l'equipe.
+  { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
 ];
@@ -332,7 +336,7 @@ export function Sidebar({
   comptaOuvert?: boolean;
   /** Entree "Gestion courante" : comptable d'entreprise + super-admin seulement. */
   gestionCouranteOuverte?: boolean;
-  /** Entree "Reprise de copropriete" : l'equipe syndic (chacun ne voit que ses dossiers). */
+  /** Entree "Reprise de copropriete" : l'equipe syndic et le pole compta (chacun ne voit que ses dossiers). */
   repriseOuverte?: boolean;
   /** Vue comptable epuree : remplace la nav principale par NAV_COMPTABLE (dashboard compta + copros + coffre). */
   vueComptable?: boolean;
@@ -383,7 +387,10 @@ export function Sidebar({
         ) : vueComptable ? (
           // Comptable pur : nav reduite. Pas de titre de groupe (une seule liste courte).
           <div>
-            {NAV_COMPTABLE.filter((item) => item.key !== "gestion-courante" || gestionCouranteOuverte).map((item) => (
+            {NAV_COMPTABLE.filter(
+              (item) =>
+                (item.key !== "gestion-courante" || gestionCouranteOuverte) && (item.key !== "reprise" || repriseOuverte),
+            ).map((item) => (
               <NavItem key={item.key} item={item} active={item.key === active} />
             ))}
           </div>
@@ -398,8 +405,9 @@ export function Sidebar({
               // « E-mails » (boîte + recherche dans tous les échanges, ex-écran Échanges, 13/10/2026) :
               // les admins, et les agences qui ont une boîte commune configurée.
               if (item.key === "emails") return adminOuvert || echangesOuvert;
-              // "Reprise" : ouverte aux gestionnaires depuis le 08/10/2026. Chacun n'y voit
-              // que ses propres reprises (cf. dossierVisiblePar), la direction voit tout.
+              // "Reprise" : ouverte aux gestionnaires depuis le 08/10/2026, au pole compta
+              // depuis le 16/10/2026 (REA-353). Chacun n'y voit que les reprises dont il fait
+              // partie de l'equipe (cf. dossierVisiblePar), la direction voit tout.
               if (item.key === "reprise") return repriseOuverte;
               // "Tri des e-mails" (ADR-046) : pilote super-admin, et seulement si la boite est configuree.
               if (item.key === "tri-emails") return adminOuvert && triOuvert;

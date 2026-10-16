@@ -334,6 +334,17 @@ export function estEquipeSyndic(profil: Profil): boolean {
   return ROLES_SYNDIC_TABLE.has(roleTableNormalise(profil.roleTable)) || estDirection(profil);
 }
 
+/**
+ * Voir l'entree « Reprise de copropriete » : l'equipe syndic ET le pole comptable.
+ * REA-353 (16/10/2026) : la comptable nommee dans l'equipe d'un dossier de reprise doit
+ * pouvoir l'ouvrir (reprise de la comptabilite, balance, appels de fonds). Ce n'est qu'un
+ * acces : la liste reste filtree aux dossiers dont la personne fait partie de l'equipe
+ * (dossierVisiblePar), et les gestes reserves gardent leurs propres gardes.
+ */
+export function peutVoirReprises(profil: Profil): boolean {
+  return estEquipeSyndic(profil) || estComptable(profil.email, profil.roleTable);
+}
+
 /** Hors syndic : vente, location, accueil (AUTRE, GESTIONNAIRE_LOCATIVE). */
 export function estHorsSyndic(profil: Profil): boolean {
   return ROLES_HORS_SYNDIC_TABLE.has(roleTableNormalise(profil.roleTable)) && !estDirection(profil);
