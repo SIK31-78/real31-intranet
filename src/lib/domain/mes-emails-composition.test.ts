@@ -9,6 +9,7 @@ import {
   objetCompose,
   objetFactureEstale,
   prefixeObjetCopro,
+  resumeDestinataires,
 } from "./mes-emails-composition";
 
 const copro = { reference: "S0247", nom: "Résidence Le Cyrano", adresse: "12 rue des Lilas 78400 Chatou" };
@@ -114,5 +115,19 @@ describe("enLots", () => {
 
   it("une liste vide ne donne aucun lot", () => {
     expect(enLots([])).toEqual([]);
+  });
+});
+
+describe("resumeDestinataires (REA-349)", () => {
+  it("nomme un ou deux destinataires", () => {
+    expect(resumeDestinataires(["a@x.fr"])).toBe("a@x.fr");
+    expect(resumeDestinataires(["Mme Pin", "b@x.fr"])).toBe("Mme Pin et b@x.fr");
+  });
+  it("résume au-delà de deux, sans doublon ni vide", () => {
+    expect(resumeDestinataires(["a", "b", "c", "a", " "])).toBe("a, b et 1 autre");
+    expect(resumeDestinataires(["a", "b", "c", "d"])).toBe("a, b et 2 autres");
+  });
+  it("dit qu'il n'y a personne de visible", () => {
+    expect(resumeDestinataires([])).toBe("aucun destinataire visible");
   });
 });

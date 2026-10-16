@@ -69,7 +69,8 @@ import { HistoriqueMail } from "./historique-mail";
 import { PasPourMoi } from "./pas-pour-moi";
 import { ImagesMail } from "./images-mail";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
-import { fusionnerModele, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
+import { fusionnerModele, resumeDestinataires, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
+import { useToast } from "@/components/ui/toast";
 import { estMailInterne } from "@/lib/domain/tri-emails";
 import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
@@ -150,6 +151,7 @@ export function MesEmailsVue({
   const boiteParDefaut =
     data.boites.find((b) => b.personnelle)?.id ?? data.boites[0]?.id ?? "";
   const [boiteActive, setBoiteActive] = useState<string>(boiteParDefaut);
+  const toast = useToast();
 
   // Tout l'ecran (liste, compteurs, dossiers copro) ne parle que de la boite active.
   const mailsBoite = useMemo(
@@ -546,11 +548,14 @@ export function MesEmailsVue({
       );
       if (!r.ok) {
         setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
+        toast.err(`La réponse n'est pas partie : ${r.message ?? "erreur inconnue"}`);
         return;
       }
       setRepondus((p) => add(p, m.id));
-      // La réponse est partie : l'éditeur se referme, comme dans Outlook.
+      // La réponse est partie : l'éditeur se referme, comme dans Outlook. Le petit texte gris
+      // du haut ne suffisait pas (REA-349, 16/10/2026) : un toast dit à qui et depuis où.
       fermerReponse(m);
+      toast.ok(`Réponse envoyée à ${resumeDestinataires(dst.to)} depuis ${expediteur}.`);
       setMsgBrouillon(
         r.filConserve === false
           ? r.historiqueCite

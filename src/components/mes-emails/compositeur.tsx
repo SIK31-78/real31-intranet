@@ -24,6 +24,7 @@ import {
   sansPolitesseEnDouble,
   objetCompose,
   prefixeObjetCopro,
+  resumeDestinataires,
   type ContactCopro,
   type CoproChoisissable,
   type DestinataireTrouve,
@@ -264,7 +265,16 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         return;
       }
       const plusieurs = (res.mails ?? 1) > 1 ? ` (${res.mails} mails)` : "";
-      toast.ok(res.envoye ? `Mail envoyé depuis ${res.boite ?? "la boîte"}${plusieurs}.` : `Brouillon créé dans ${res.boite ?? "la boîte"}${plusieurs}, à relire puis envoyer dans Outlook.`);
+      // À qui et depuis quelle boîte (REA-349, 16/10/2026) : la fenêtre se ferme aussitôt,
+      // ce toast est la seule trace visible de l'envoi.
+      const pour = a.length
+        ? resumeDestinataires(a.map((p) => p.nom || p.emails[0] || ""))
+        : `toute la copropriété (${cci.length} adresses)`;
+      toast.ok(
+        res.envoye
+          ? `Mail envoyé à ${pour} depuis ${res.boite ?? "la boîte"}${plusieurs}.`
+          : `Brouillon pour ${pour} créé dans ${res.boite ?? "la boîte"}${plusieurs}, à relire puis envoyer dans Outlook.`,
+      );
       if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
       if (res.rattache === false) toast.warn(`${res.envoye ? "Mail envoyé" : "Brouillon créé"}, mais le rattachement au dossier a échoué.`);
       onTermine?.();

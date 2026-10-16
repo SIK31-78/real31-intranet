@@ -76,8 +76,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={api}>
       {children}
+      {/* Au-dessus des fenetres (modal et confirm en z-[70]) : en z-[60], une erreur ou la
+          confirmation d'envoi restait cachee derriere « Envoyer un e-mail » ouverte
+          (REA-349, 16/10/2026). Une notification doit se voir quelle que soit la fenetre. */}
       <div
-        className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 w-[340px] max-w-[calc(100vw-2rem)]"
+        className="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 w-[340px] max-w-[calc(100vw-2rem)]"
         role="region"
         aria-label="Notifications"
         aria-live="polite"

@@ -233,3 +233,16 @@ export function enLots<T>(liste: readonly T[], taille = LOT_MAX_DESTINATAIRES): 
   for (let i = 0; i < liste.length; i += taille) lots.push(liste.slice(i, i + taille));
   return lots;
 }
+
+/**
+ * « à qui » dans la confirmation d'envoi : les deux premiers, puis « et N autres ». Sans
+ * destinataire visible (toute la copro en Cci), on le dit plutôt que d'afficher du vide.
+ * REA-349 (16/10/2026) : la confirmation doit dire à qui et depuis quelle boîte.
+ */
+export function resumeDestinataires(noms: readonly string[]): string {
+  const l = [...new Set(noms.map((n) => n.trim()).filter(Boolean))];
+  if (l.length === 0) return "aucun destinataire visible";
+  if (l.length <= 2) return l.join(" et ");
+  const reste = l.length - 2;
+  return `${l.slice(0, 2).join(", ")} et ${reste} autre${reste > 1 ? "s" : ""}`;
+}
