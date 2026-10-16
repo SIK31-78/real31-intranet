@@ -43,6 +43,7 @@ describe("getSignatureProvider — repli sans clé Signitic", () => {
     const sansMail = getSignatureProvider().constructor.name;
     process.env.MAIL_SOURCE = "graph";
     expect(getSignatureProvider().constructor.name).toBe(sansMail);
-    expect(sansMail).toBe("SigniticSignatureProvider");
+    // Le vrai provider, derrière le cache partagé de 1 h (Sentry, 16/10/2026).
+    expect(sansMail).toBe("CachePartageSignature");
   });
 });
