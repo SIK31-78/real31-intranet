@@ -12,7 +12,7 @@ export async function reporterCoproAuTri(
   boite: string,
   internetMessageId: string,
   code: string,
-): Promise<{ corrige: boolean; autreDossier?: string }> {
+): Promise<{ corrige: boolean; autreDossier?: string; reference?: string }> {
   const b = boite.trim().toLowerCase();
   const partagee = (await boitesVisibles(g)).find((x) => x.id === b && !x.personnelle);
   if (!partagee) return { corrige: false };

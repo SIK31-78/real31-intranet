@@ -284,7 +284,7 @@ export async function corrigerCopro(
   internetMessageId: string,
   code: string,
   deps: DepsRangement = depsParDefaut(),
-): Promise<{ corrige: boolean; autreDossier?: string }> {
+): Promise<{ corrige: boolean; autreDossier?: string; reference?: string }> {
   const depuis = new Date(Date.now() - FENETRE_CORRECTION_JOURS * 86_400_000).toISOString();
   const e = (await deps.repo.journalDepuis(boite, depuis)).find((x) => x.internetMessageId === internetMessageId);
   if (!e) return { corrige: false };
@@ -311,5 +311,5 @@ export async function corrigerCopro(
 
   if (!reference || !e.dossierCle?.startsWith("binome:")) return { corrige: true };
   const attendu = await resoudreDossier({ type: "copro", reference }, deps).catch(() => null);
-  return attendu && attendu.cle !== e.dossierCle ? { corrige: true, autreDossier: attendu.nom } : { corrige: true };
+  return attendu && attendu.cle !== e.dossierCle ? { corrige: true, autreDossier: attendu.nom, reference } : { corrige: true };
 }

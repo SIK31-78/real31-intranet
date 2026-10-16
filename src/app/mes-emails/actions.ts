@@ -32,7 +32,7 @@ import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillo
 import { listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
-import { coprosPourReaffecter, envoyerABonneCopro, rendreAuTri } from "@/lib/services/tri-emails/reaffecter";
+import { coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-emails/reaffecter";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import type { ReponseEnvoyee } from "@/lib/domain/echanges";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
@@ -337,20 +337,6 @@ export async function coprosPourReaffecterAction(): Promise<Res<CoproDestination
   }
 }
 
-export async function rendreAuTriAction(emailId: string, boite?: string): Promise<Res> {
-  if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return echec("Données invalides.");
-  const g = await getGestionnaireCourant();
-  if (!g) return echec("Non connecté.");
-  const partagee = await boitePartageeDe(g, boite);
-  if (!partagee) return echec("Seul un mail de la boîte partagée peut être rendu au tri.");
-  try {
-    await rendreAuTri(partagee, emailId, g.email ?? g.id);
-    return { ok: true };
-  } catch (e) {
-    return echecDepuis(e, "mes-emails");
-  }
-}
-
 export async function envoyerABonneCoproAction(emailId: string, reference: string, boite?: string): Promise<Res<{ dossierNom: string }>> {
   const v = z.object({ emailId: zId, reference: z.string().regex(/^(SE|S)\d{3,4}$/i), boite: zBoite }).safeParse({ emailId, reference, boite });
   if (!v.success) return echec("Données invalides.");
@@ -550,7 +536,7 @@ export async function rattacherCoproAction(
   coproCode: string,
   coproNom: string,
   boite?: string,
-): Promise<{ ok: boolean; message?: string }> {
+): Promise<{ ok: boolean; message?: string; envoiPropose?: { reference: string; dossier: string } }> {
   if (!z.object({ emailId: zId, coproCode: zCopro, coproNom: zCourt, boite: zBoite }).safeParse({ emailId, coproCode, coproNom, boite }).success)
     return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
@@ -560,7 +546,12 @@ export async function rattacherCoproAction(
     // Boîte partagée : le journal du tri suit (vu par tout le binôme, mesure du tri).
     const tri = boite ? await reporterCoproAuTri(auth.g, boite, emailId, coproCode) : { corrige: false };
     if (tri.autreDossier) {
-      return { ok: true, message: `Copro corrigée dans le tri. Elle relève du dossier ${tri.autreDossier} : le mail n'a pas été déplacé.` };
+      // La copro relève d'un autre binôme : l'écran propose de lui envoyer le mail (REA-327).
+      return {
+        ok: true,
+        message: `Copro corrigée dans le tri. Elle relève du dossier ${tri.autreDossier}.`,
+        ...(tri.reference ? { envoiPropose: { reference: tri.reference, dossier: tri.autreDossier } } : {}),
+      };
     }
     return { ok: true, ...(tri.corrige ? { message: "Copro corrigée aussi dans le tri." } : {}) };
   } catch (e) {

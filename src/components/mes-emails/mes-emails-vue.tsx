@@ -93,6 +93,7 @@ import {
   chargerContexteCoproAction,
   rattacherADossierAction,
   creerDossierDepuisMailAction,
+  envoyerABonneCoproAction,
 } from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
@@ -171,6 +172,8 @@ export function MesEmailsVue({
       ),
   );
   // Mails partis ailleurs (« Pas pour moi ») : retirés de la liste sans attendre le rechargement.
+  // Copro choisie gérée par un autre binôme : l'envoi lui est proposé (REA-327).
+  const [envoisProposes, setEnvoisProposes] = useState<Map<string, { reference: string; dossier: string }>>(new Map());
   const [partis, setPartis] = useState<Set<string>>(new Set());
   const [classes, setClasses] = useState<Set<string>>(
     () => new Set(data.mails.filter((m) => m.statutTraitement === "classe").map((m) => m.id)),
@@ -315,6 +318,13 @@ export function MesEmailsVue({
     void rattacherCoproAction(m.id, code, nom, boiteDuMail(m)).then((r) => {
       if (!r.ok) setMsgClasser(r.message ?? "La copro n'a pas pu être enregistrée.");
       else if (r.message) setMsgClasser(r.message);
+      const propose = r.ok ? r.envoiPropose : undefined;
+      setEnvoisProposes((p) => {
+        const n = new Map(p);
+        if (propose) n.set(m.id, propose);
+        else n.delete(m.id);
+        return n;
+      });
     });
   };
 
@@ -789,6 +799,21 @@ export function MesEmailsVue({
               dossierACreer={dossierACreer(selection)}
               onCreerDossierOutlook={() => void creerDossierOutlook(selection)}
               msgClasser={msgClasser}
+              envoiPropose={envoisProposes.get(selection.id) ?? null}
+              onEnvoyerPropose={(p) => {
+                const m = selection;
+                void envoyerABonneCoproAction(m.id, p.reference, boiteDuMail(m)).then((r) => {
+                  if (!r.ok) return setMsgClasser(r.erreur);
+                  setMsgClasser(`Mail envoyé dans le dossier ${r.donnees?.dossierNom ?? p.dossier}.`);
+                  setEnvoisProposes((x) => {
+                    const n = new Map(x);
+                    n.delete(m.id);
+                    return n;
+                  });
+                  setPartis((x) => new Set(x).add(m.id));
+                  passerAuSuivant(m);
+                });
+              }}
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
               onGenererBrouillon={() => void genererBrouillon(selection)}
@@ -1301,6 +1326,8 @@ function AnalysePane({
   dossierACreer,
   onCreerDossierOutlook,
   msgClasser,
+  envoiPropose,
+  onEnvoyerPropose,
   changer,
   ouverts,
   onEditBrouillon,
@@ -1367,6 +1394,9 @@ function AnalysePane({
   dossierACreer: string | null;
   onCreerDossierOutlook: () => void;
   msgClasser: string | null;
+  /** Copro choisie gérée par un autre binôme : proposer de lui envoyer le mail (REA-327). */
+  envoiPropose: { reference: string; dossier: string } | null;
+  onEnvoyerPropose: (p: { reference: string; dossier: string }) => void;
   changer: boolean;
   ouverts: Set<string>;
   onEditBrouillon: (t: string) => void;
@@ -1488,10 +1518,18 @@ function AnalysePane({
             {changer ? <X strokeWidth={1.5} /> : <FolderPlus strokeWidth={1.5} />}
             {changer ? "Fermer" : ratt.intranet ? "Changer de dossier" : "Rattacher à un dossier"}
           </Button>
-          {/* Boîte partagée : un mail rangé chez le mauvais binôme repart (REA-327). */}
-          {!classementOutlook && onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} /> : null}
         </div>
         {msgClasser ? <p className="mt-1.5 text-meta text-ink-3">{msgClasser}</p> : null}
+        {envoiPropose ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2">
+            <span className="text-meta text-ink-2">
+              {envoiPropose.reference} est gérée par le binôme {envoiPropose.dossier}. Lui envoyer ce mail ?
+            </span>
+            <Button size="sm" variant="primary" onClick={() => onEnvoyerPropose(envoiPropose)}>
+              Envoyer au binôme {envoiPropose.dossier}
+            </Button>
+          </div>
+        ) : null}
         {msgBrouillon && !(brouillon || compose) ? <p className="mt-1.5 text-meta text-ink-3">{msgBrouillon}</p> : null}
       </div>
 
@@ -1781,10 +1819,14 @@ function AnalysePane({
             </Button>
           </>
         ) : (
-          <Button variant="primary" size="lg" onClick={onConclure}>
-            <CircleCheck strokeWidth={1.75} />
-            Conclure l&apos;événement
-          </Button>
+          <>
+            {/* Boîte partagée : même décision de fin que Conclure, « ce n'est pas pour moi » (REA-327). */}
+            {onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} /> : null}
+            <Button variant="primary" size="lg" onClick={onConclure}>
+              <CircleCheck strokeWidth={1.75} />
+              Conclure l&apos;événement
+            </Button>
+          </>
         )}
       </div>
     </Card>
