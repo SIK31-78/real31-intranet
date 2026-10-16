@@ -89,6 +89,7 @@ import { CompositeCoproRepository } from "@/lib/adapters/composite/composite-cop
 import { EstaleCoproProvider } from "@/lib/adapters/estale/estale-copro-provider";
 import { CachePartageCoprosEstale } from "@/lib/adapters/composite/cache-partage-copros-estale";
 import { CachePartageReferentielTri } from "@/lib/adapters/composite/cache-partage-referentiel-tri";
+import { CachePartageSignature } from "@/lib/adapters/composite/cache-partage-signature";
 import { unstable_cache } from "next/cache";
 import { SupabaseCoproDatesRepository } from "@/lib/adapters/supabase/supabase-copro-dates-repository";
 import type { OdjCsDocxRenderer } from "@/lib/ports/odj-cs-docx-renderer";
@@ -588,7 +589,13 @@ export function getDepotDocumentProvider(): DepotDocumentProvider {
 //   - envoi MOCK (dev, aucun mail ne part) -> signature de demo, pour travailler le rendu
 //     du cockpit sans cle Signitic. C'est son seul usage legitime.
 export function getSignatureProvider(): SignatureProvider {
-  if (process.env.SIGNITIC_API_KEY) return new SigniticSignatureProvider();
+  if (process.env.SIGNITIC_API_KEY) {
+    // 2,9 s par appel (Sentry, 16/10/2026) : partagée entre instances, 1 h par défaut.
+    const ttl = Number(process.env.SIGNITIC_TTL_S) || 3600;
+    return new CachePartageSignature(new SigniticSignatureProvider(), (charger) =>
+      unstable_cache(charger, ["signitic-signature-v1"], { revalidate: ttl, tags: ["signitic-signature"] }),
+    );
+  }
   return mailModuleActif() ? new SansSignatureProvider() : new MockSignatureProvider();
 }
 
