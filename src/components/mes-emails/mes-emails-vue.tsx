@@ -605,6 +605,10 @@ export function MesEmailsVue({
         sansPolitesseEnDouble(fusionnerModele(modele.corps, {
           copro_code: c.code,
           copro_nom: c.nom,
+          // La copro choisie à la main prime ; sinon celle attribuée au mail.
+          copro_adresse:
+            (data.coprosDuGestionnaire ?? []).find((x) => x.code === c.code)?.adresse ??
+            (c.code === m.coproCode ? (m.coproAdresse ?? "") : ""),
           destinataire_nom: m.de,
           gestionnaire_nom: data.gestionnaire.nomComplet,
           gestionnaire_initiales: data.gestionnaire.initiales,

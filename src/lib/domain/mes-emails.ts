@@ -169,6 +169,8 @@ export interface MailEntrant {
   /** Copropriete d'origine (la boite agrege plusieurs copros). */
   coproCode: string;
   coproNom: string;
+  /** Adresse de la copro sur une ligne (modeles : « Immeuble concerné »), si connue. */
+  coproAdresse?: string;
   /** Adresse de la boite QUI A RECU ce mail (cf. BoiteMail.id), en minuscules.
    *  Optionnel pour ne pas casser les fixtures anterieures au multi-boites : absent
    *  = boite personnelle du gestionnaire. Le service de lecture live le remplit

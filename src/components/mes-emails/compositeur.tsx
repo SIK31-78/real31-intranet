@@ -125,6 +125,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   function choisirCopro(ref: string) {
     const nouvelle = copros.find((x) => x.reference.toUpperCase() === ref.trim().toUpperCase()) ?? proposees.find((x) => x.reference === ref) ?? null;
     setObjet((o) => avecPrefixe(o, copro, nouvelle));
+    const modele = modeles.find((x) => x.id === modeleId);
+    if (modele && corps === corpsDuModele.current) remplirModele(modele, nouvelle);
     setRefCopro(ref);
     setConseil(null);
     setTouteCopro(null);
@@ -187,22 +189,31 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
 
   const depot = useDepotFichiers((l) => void ajouterFichiers(l));
 
-  const variables: VariablesModele = {
-    copro_code: copro?.reference ?? "",
-    copro_nom: copro?.nom ?? "",
-    copro_adresse: copro?.adresse ?? "",
+  const variablesPour = (c: CoproChoisissable | null): VariablesModele => ({
+    copro_code: c?.reference ?? "",
+    copro_nom: c?.nom ?? "",
+    copro_adresse: c?.adresse ?? "",
     destinataire_nom: a[0]?.nom ?? "",
     gestionnaire_nom: gestionnaireNom,
     agence,
     date: new Date().toLocaleDateString("fr-FR"),
-  };
+  });
+  // Le texte tel que le modèle l'a rempli : tant que la personne n'y a pas touché, choisir la
+  // copro APRÈS le modèle le remplit à nouveau (« Immeuble concerné » restait vide).
+  const corpsDuModele = useRef("");
+
+  function remplirModele(m: ModeleMail, c: CoproChoisissable | null) {
+    const texte = sansPolitesseEnDouble(fusionnerModele(m.corps, variablesPour(c)), signatureHtml);
+    corpsDuModele.current = texte;
+    setCorps(texte);
+  }
 
   function appliquerModele(id: string) {
     setModeleId(id);
     const m = modeles.find((x) => x.id === id);
     if (!m) return;
     setObjet(copro ? objetCompose(copro, m.sujet) : m.sujet);
-    setCorps(sansPolitesseEnDouble(fusionnerModele(m.corps, variables), signatureHtml));
+    remplirModele(m, copro);
   }
 
   const cci = cciCopro ? (touteCopro ?? []) : [];

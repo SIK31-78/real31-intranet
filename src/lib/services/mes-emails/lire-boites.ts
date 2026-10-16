@@ -116,6 +116,15 @@ export async function lireBoitesLive(
   ]);
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
   const coproNomDe = (code: string) => nomDe.get(code) ?? (code || "Non rattaché");
+  // L'adresse, pour les modeles (« Immeuble concerné : {{copro_adresse}} ») : le portefeuille,
+  // sinon le referentiel du tri (copro d'un autre binome sur la boite partagee).
+  const adresseDe = new Map<string, string>();
+  for (const c of referentiel?.copros ?? []) if (c.adresse) adresseDe.set(cleDeReference(c.reference) ?? c.reference, c.adresse);
+  for (const c of copros) {
+    const a = [c.adresse.ligne1, `${c.adresse.codePostal} ${c.adresse.ville}`.trim()].filter(Boolean).join(" ");
+    if (a) adresseDe.set(cleDeReference(c.code) ?? c.code, a);
+  }
+  const coproAdresseDe = (code: string) => (code ? adresseDe.get(cleDeReference(code) ?? code) : undefined);
   // La boite perso est pleine : il en reste sans doute d'autres a charger.
   const plusDeMails = parBoite.some(({ boite, bruts: lot }) => boite.personnelle && lot.length >= maxPerso);
   const boiteDe = new Map<string, string>();
@@ -216,6 +225,7 @@ export async function lireBoitesLive(
       recuLe: m.receivedAt,
       coproCode: m.copro,
       coproNom: coproNomDe(m.copro),
+      ...(coproAdresseDe(m.copro) ? { coproAdresse: coproAdresseDe(m.copro)! } : {}),
       lu: false,
       corps: corps || "(corps vide)",
       attachments: significantAttachments(m).map((x) => ({ nom: x.name })),
