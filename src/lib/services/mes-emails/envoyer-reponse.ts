@@ -29,6 +29,8 @@ export async function envoyerReponseMail(p: {
   boiteEnvoi: string;
   internetMessageId: string;
   corps: string;
+  /** Corps mis en forme, nettoyé et habillé (REA-345, pilote). */
+  corpsHtml?: string;
   sujet?: string;
   a: string[];
   cc: string[];
@@ -45,6 +47,7 @@ export async function envoyerReponseMail(p: {
       boite: p.boiteMessage,
       internetMessageId: p.internetMessageId,
       corps: p.corps,
+      ...(p.corpsHtml ? { corpsHtml: p.corpsHtml } : {}),
       ...(p.sujet !== undefined ? { sujet: p.sujet } : {}),
       a: p.a,
       cc: p.cc,
@@ -71,6 +74,7 @@ export async function envoyerReponseMail(p: {
     cci: p.cci,
     sujet: p.sujet || citation?.sujet || "",
     corps: p.corps,
+    ...(p.corpsHtml ? { corpsHtml: p.corpsHtml } : {}),
     ...(p.signatureHtml !== undefined ? { signatureHtml: p.signatureHtml } : {}),
     ...(p.piecesJointes?.length ? { piecesJointes: p.piecesJointes } : {}),
     ...(citation?.citationHtml ? { citationHtml: citation.citationHtml } : {}),

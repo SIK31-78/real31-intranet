@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import {
@@ -19,6 +20,7 @@ import {
   type ResultatBrouillon,
 } from "@/lib/services/mes-emails/composer-mail";
 import { ADRESSE_MAIL, adresseMailValide, type ContactCopro, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 
 const CTX = "mes-emails-composer";
 const INDISPONIBLE = "Le module e-mails n'est pas disponible.";
@@ -106,16 +108,21 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
         .array(z.object({ nom: z.string().trim().min(1).max(255), contentType: z.string().max(200), base64: z.string().max(4_200_000) }))
         .max(10)
         .default([]),
+      // Corps mis en forme (REA-345, pilote) : renettoyé côté serveur.
+      corpsHtml: z.string().optional(),
     })
     .refine((v) => v.a.length > 0 || v.cci.length > 0)
     .safeParse(input);
   if (!d.success) return echec(motifRefus(input));
+  const riche = corpsMisEnForme(estSuperAdmin(g.email), d.data.corpsHtml);
+  if (riche === "refuse") return echec("La mise en forme est en essai : elle n'est pas encore ouverte.");
   try {
-    const { objet, corps, a, cc, cci, dossierId, fichiers } = d.data;
+    const { objet, a, cc, cci, dossierId, fichiers } = d.data;
+    const corps = riche ? riche.corps : d.data.corps;
     return {
       ok: true,
       donnees: await creerBrouillonComposition(
-        { objet, corps, a, cc, ...(cci.length ? { cci } : {}), ...(dossierId ? { dossierId } : {}), ...(fichiers.length ? { piecesJointes: fichiers } : {}) },
+        { objet, corps, ...(riche ? { corpsHtml: riche.corpsHtml } : {}), a, cc, ...(cci.length ? { cci } : {}), ...(dossierId ? { dossierId } : {}), ...(fichiers.length ? { piecesJointes: fichiers } : {}) },
         g,
       ),
     };

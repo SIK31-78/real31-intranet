@@ -156,7 +156,8 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     //    destinataires. Signature injectee ICI car Signitic (add-in Outlook) ne s'applique
     //    pas a un envoi app-only.
     const citation = draft.body?.content ?? "";
-    const monTexte = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
+    // Corps mis en forme (REA-345) : deja nettoye et habille par l'appelant.
+    const monTexte = p.corpsHtml ?? `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
     const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
     const corpsPatch: Record<string, unknown> = {
       body: { contentType: "HTML", content: monTexte + signature + citation },
@@ -212,13 +213,15 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     cc?: string[];
     cci?: string[];
     signatureHtml?: string;
+    corpsHtml?: string;
     piecesJointes?: PieceJointeMail[];
   }): Promise<{ webLink?: string; internetMessageId?: string }> {
     if (!p.boite) throw new Error("Creation brouillon neuf : boite manquante.");
     const tk = await jetonGraph();
     // Meme rendu HTML que envoyer() (police Aptos 11), signature dessous quand on la connait.
+    // Corps mis en forme (REA-345) : deja nettoye et habille par l'appelant.
     const content =
-      `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>` +
+      (p.corpsHtml ?? `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`) +
       (p.signatureHtml ? `<br/>${p.signatureHtml}` : "");
     // POST /messages cree un message en statut Draft (on n'envoie PAS).
     const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages`, {

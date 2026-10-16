@@ -60,6 +60,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
             boite={boiteEnvoi()}
             signatureHtml={signatureHtml}
             modeles={modeles}
+            pilote={pilote}
           />
           <BoutonRafraichir />
         </form>

@@ -67,6 +67,8 @@ export interface MailOutboundProvider {
     cci?: string[];
     /** Signature (Signitic) posée sous le texte : un brouillon créé par l'app n'en a pas sinon. */
     signatureHtml?: string;
+    /** Corps mis en forme, déjà nettoyé et habillé (REA-345) ; `corps` reste le texte équivalent. */
+    corpsHtml?: string;
     piecesJointes?: PieceJointeMail[];
   }): Promise<{ webLink?: string; internetMessageId?: string; id?: string }>;
 
@@ -116,6 +118,8 @@ export interface ReponseMail {
   boite: string;
   internetMessageId: string;
   corps: string;
+  /** Corps mis en forme, déjà nettoyé et habillé (REA-345) ; `corps` reste le texte équivalent. */
+  corpsHtml?: string;
   sujet?: string;
   a: string[];
   cc: string[];

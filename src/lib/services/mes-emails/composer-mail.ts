@@ -119,6 +119,8 @@ export interface DemandeBrouillon {
   dossierId?: string;
   /** Fichiers joints depuis l'ordinateur. */
   piecesJointes?: PieceJointeMail[];
+  /** Corps mis en forme, nettoyé et habillé (REA-345, pilote) ; `corps` reste le texte équivalent. */
+  corpsHtml?: string;
 }
 
 export interface ResultatBrouillon {
@@ -174,6 +176,7 @@ export async function creerBrouillonComposition(
       boite,
       sujet: d.objet,
       corps: d.corps,
+      ...(d.corpsHtml ? { corpsHtml: d.corpsHtml } : {}),
       ...(a.length ? { a } : {}),
       ...(d.cc.length ? { cc: d.cc } : {}),
       ...(cci.length ? { cci } : {}),

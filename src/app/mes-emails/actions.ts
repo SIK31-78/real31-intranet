@@ -40,6 +40,7 @@ import { mettreALaCorbeille, type ResultatCorbeille } from "@/lib/services/mes-e
 import { lireEnvoye, listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
 import { transfererMail } from "@/lib/services/mes-emails/transferer";
 import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
+import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
@@ -480,6 +481,8 @@ export async function envoyerReponseAction(
   boiteMessage?: string,
   boiteEnvoi?: string,
   fichiers: unknown = [],
+  /** Corps mis en forme (REA-345, pilote) : renettoyé ici, jamais cru tel quel. */
+  corpsHtml?: unknown,
 ): Promise<{ ok: boolean; message?: string; filConserve?: boolean; historiqueCite?: boolean }> {
   const f = zFichiers.safeParse(fichiers);
   if (!f.success) return { ok: false, message: "Pièces jointes invalides (3 Mo et 10 fichiers au plus)." };
@@ -515,6 +518,9 @@ export async function envoyerReponseAction(
       message: "L'envoi depuis la boîte partagée est coupé pendant le pilote. Utilise « Brouillon Outlook » : il se relit et s'envoie dans Outlook.",
     };
   }
+  const riche = corpsMisEnForme(estSuperAdmin(g.email), corpsHtml);
+  if (riche === "refuse") return { ok: false, message: PILOTE_SEUL };
+  if (riche) corps = riche.corps;
   if (!corps.trim()) return { ok: false, message: "Le message est vide." };
   // Destinataires : adresses bien formees, au moins une en "A", plafond global (anti-spam).
   const tous = [...a, ...cc, ...cci].map((x) => x.trim()).filter(Boolean);
@@ -533,6 +539,7 @@ export async function envoyerReponseAction(
       boiteEnvoi: cibleEnvoi,
       internetMessageId: emailId,
       corps,
+      ...(riche ? { corpsHtml: riche.corpsHtml } : {}),
       sujet,
       a,
       cc,
@@ -662,12 +669,15 @@ export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolea
       pjIds: zIds,
       fichiers: zFichiers,
       boite: zBoite,
+      corpsHtml: z.string().optional(),
     })
     .safeParse(input);
   if (!v.success) return { ok: false, message: "Données invalides (pièces jointes : 3 Mo et 10 fichiers au plus)." };
   const d = v.data;
   const auth = await withGestionnaire(d.coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
+  const riche = corpsMisEnForme(estSuperAdmin(auth.g.email), d.corpsHtml);
+  if (riche === "refuse") return { ok: false, message: PILOTE_SEUL };
   const cible = await boiteCible(auth.g, d.boite);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   const invalide = [...d.a, ...d.cc, ...d.cci].map((x) => x.trim()).find((x) => x && !EMAIL_RE.test(x));
@@ -679,7 +689,8 @@ export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolea
       boite: cible,
       ...(signatureHtml ? { signatureHtml } : {}),
       internetMessageId: d.emailId,
-      corps: d.corps,
+      corps: riche ? riche.corps : d.corps,
+      ...(riche ? { corpsHtml: riche.corpsHtml } : {}),
       ...(d.sujet.trim() ? { sujet: d.sujet } : {}),
       a: d.a,
       cc: d.cc,

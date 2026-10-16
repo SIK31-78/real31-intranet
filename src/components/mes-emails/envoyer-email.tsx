@@ -21,7 +21,10 @@ export function EnvoyerEmail({
   boite,
   signatureHtml,
   modeles,
+  pilote = false,
 }: {
+  /** Nouveautés en pilote (super-admin) : texte mis en forme (REA-345). */
+  pilote?: boolean;
   gestionnaireNom: string;
   agence: string;
   brouillonPossible: boolean;
@@ -69,6 +72,7 @@ export function EnvoyerEmail({
                 boite={boite}
                 signatureHtml={signatureHtml}
                 modeles={modeles}
+                pilote={pilote}
                 onTermine={() => setOuvert(false)}
               />
             </div>

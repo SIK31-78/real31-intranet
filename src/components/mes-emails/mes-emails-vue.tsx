@@ -86,6 +86,8 @@ import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
 import { TransfererMail } from "./transferer-mail";
+import { EditeurRiche } from "./editeur-riche";
+import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
   devaliderMailAction,
@@ -202,6 +204,19 @@ export function MesEmailsVue({
     () => new Set(data.mails.filter((m) => m.statutTraitement === "classe").map((m) => m.id)),
   );
   const [edits, setEdits] = useState<Map<string, string>>(new Map());
+  // Réponse mise en forme (REA-345, pilote) : le HTML de l'éditeur, par mail, tant qu'on y a
+  // touché. `edits` en garde le texte (contrôles, brouillon enregistré). Un texte posé
+  // d'ailleurs (modèle, brouillon IA) efface ce HTML : l'éditeur repart de ce texte.
+  const [editsHtml, setEditsHtml] = useState<Map<string, string>>(new Map());
+  const oublierHtml = (id: string) =>
+    setEditsHtml((p) => {
+      if (!p.has(id)) return p;
+      const n = new Map(p);
+      n.delete(id);
+      return n;
+    });
+  /** Le HTML à envoyer : seulement en pilote, et si l'éditeur a servi. */
+  const corpsHtmlEnvoi = (m: MailEntrant): string | undefined => (pilote ? editsHtml.get(m.id) : undefined);
   const [overrides, setOverrides] = useState<Map<string, Rattachement>>(new Map());
   const [changer, setChanger] = useState(false);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
@@ -370,6 +385,7 @@ export function MesEmailsVue({
       emailId: m.id,
       coproCode: coproDe(m).code,
       corps: brouillonDe(m),
+      ...(corpsHtmlEnvoi(m) ? { corpsHtml: corpsHtmlEnvoi(m) } : {}),
       sujet: sujetDe(m),
       a: dst.to,
       cc: dst.cc,
@@ -463,6 +479,7 @@ export function MesEmailsVue({
     const r = await genererBrouillonAction(m.id, coproDe(m).code);
     if (r.ok) {
       setEdits((p) => new Map(p).set(m.id, r.brouillon ?? ""));
+      oublierHtml(m.id);
       setMsgBrouillon(r.brouillon ? null : "Aucune réponse externe pertinente pour ce mail.");
     } else {
       setMsgBrouillon(`Échec : ${r.message ?? ""}`);
@@ -624,6 +641,7 @@ export function MesEmailsVue({
         boiteDuMail(m),
         expediteur,
         fichiersEnvoi(m),
+        corpsHtmlEnvoi(m),
       );
       if (!r.ok) {
         setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
@@ -656,6 +674,7 @@ export function MesEmailsVue({
     };
     setComposeParMail((p) => del(p, m.id));
     setEdits((p) => new Map(p).set(m.id, ""));
+    oublierHtml(m.id);
     setDestParMail(sans);
     setSujetParMail(sans);
     setFichiersParMail(sans);
@@ -684,6 +703,7 @@ export function MesEmailsVue({
     const modele = modeles.find((x) => x.id === id);
     if (!modele) return;
     const c = coproDe(m);
+    oublierHtml(m.id);
     setEdits((p) =>
       new Map(p).set(
         m.id,
@@ -994,6 +1014,11 @@ export function MesEmailsVue({
               changer={changer}
               ouverts={ouverts}
               onEditBrouillon={(t) => setEdits((p) => new Map(p).set(selection.id, t))}
+              brouillonHtml={editsHtml.get(selection.id) ?? texteVersHtml(brouillonDe(selection))}
+              onEditBrouillonHtml={(h) => {
+                setEditsHtml((p) => new Map(p).set(selection.id, h));
+                setEdits((p) => new Map(p).set(selection.id, htmlVersTexte(h)));
+              }}
               onBlurBrouillon={() =>
                 void editBrouillonAction(selection.id, selection.coproCode, brouillonDe(selection))
               }
@@ -1529,9 +1554,14 @@ function AnalysePane({
   onParti,
   onConclure,
   pilote = false,
+  brouillonHtml,
+  onEditBrouillonHtml,
 }: {
-  /** Nouveautés en pilote (super-admin) : « Transférer » (REA-350). */
+  /** Nouveautés en pilote (super-admin) : « Transférer » (REA-350), mise en forme (REA-345). */
   pilote?: boolean;
+  /** La réponse en HTML pour l'éditeur mis en forme (pilote). */
+  brouillonHtml: string;
+  onEditBrouillonHtml: (html: string) => void;
   m: MailEntrant;
   /** undefined = en cours de chargement, null = indisponible. */
   contexte: ContexteCopro | null | undefined;
@@ -1867,7 +1897,11 @@ function AnalysePane({
                 </span>
               ))}
             </div>
-            <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" />
+            {pilote ? (
+              <EditeurRiche html={brouillonHtml} onChange={onEditBrouillonHtml} onBlur={onBlurBrouillon} label="Texte de la réponse" />
+            ) : (
+              <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" />
+            )}
             {signatureHtml ? (
               <div className="mt-2">
                 <span className="text-meta text-ink-3">Signature (ajoutée à l’envoi)</span>

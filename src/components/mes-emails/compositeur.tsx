@@ -39,6 +39,8 @@ import {
 } from "@/app/mes-emails/composer/actions";
 import { TYPE_DOSSIER_LABEL, type TypeDossier } from "@/lib/domain/dossier";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
+import { EditeurRiche } from "./editeur-riche";
+import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 
 type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 
@@ -62,6 +64,8 @@ type Props = {
   onTermine?: () => void;
   /** Modèles proposés (ceux de l'agence et du cabinet, cf. services/mes-emails/modeles-mail). */
   modeles: ModeleMail[];
+  /** Pilote (super-admin) : le message se met en forme (REA-345). Hors pilote, zone de texte. */
+  pilote?: boolean;
 };
 
 const LIBELLE_QUALITE: Record<string, string> = {
@@ -96,7 +100,7 @@ function avecPrefixe(objet: string, ancienne: CoproChoisissable | null, nouvelle
 
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
-export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false }: Props) {
   const toast = useToast();
   const confirmer = useConfirm();
   const [a, setA] = useState<Personne[]>([]);
@@ -115,6 +119,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   // L'objet complet, éditable : la copro choisie y pose son préfixe (code · adresse) pour le tri.
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
+  // Mise en forme (REA-345, pilote) : le HTML de l'éditeur ; `corps` en reste le texte, pour
+  // les contrôles et pour reconnaître un modèle non retouché.
+  const [corpsHtml, setCorpsHtml] = useState("");
+  function majCorpsTexte(texte: string) {
+    setCorps(texte);
+    setCorpsHtml(texteVersHtml(texte));
+  }
   const [fichiers, setFichiers] = useState<FichierJoint[]>([]);
   const [chargement, demarrer] = useTransition();
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -206,7 +217,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   function remplirModele(m: ModeleMail, c: CoproChoisissable | null) {
     const texte = sansPolitesseEnDouble(fusionnerModele(m.corps, variablesPour(c)), signatureHtml);
     corpsDuModele.current = texte;
-    setCorps(texte);
+    majCorpsTexte(texte);
   }
 
   function appliquerModele(id: string) {
@@ -248,6 +259,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       const r = await creerBrouillonCompositionAction({
         objet: objet.trim().replace(/\s*-$/, ""),
         corps,
+        ...(pilote && corpsHtml ? { corpsHtml } : {}),
         a: adresses(a),
         cc: adresses(cc),
         ...(cci.length ? { cci } : {}),
@@ -388,7 +400,20 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           <Input id="comp-objet" value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Objet du message" />
         </Field>
       </div>
-      <Textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={10} placeholder="Votre message…" aria-label="Message" />
+      {pilote ? (
+        <EditeurRiche
+          html={corpsHtml}
+          onChange={(h) => {
+            setCorpsHtml(h);
+            setCorps(htmlVersTexte(h));
+          }}
+          placeholder="Votre message…"
+          label="Message"
+          hauteur="min-h-56"
+        />
+      ) : (
+        <Textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={10} placeholder="Votre message…" aria-label="Message" />
+      )}
 
       <div className="flex flex-wrap items-center gap-1.5">
         <label className={classesBouton({ size: "sm" })}>
