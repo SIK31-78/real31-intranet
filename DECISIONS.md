@@ -2081,3 +2081,28 @@ Contenu mail = input non fiable (anti-injection déjà géré par l'adaptateur M
 
 ### Liens
 ADR-046 (tri), ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy). Vision long terme (tickets, plan d'action, playbooks) : projet Elron (`C:\Users\SekouKOMA\Projects\Elron`, docs 02/07). Session : https://claude.ai/code/session_018jC6a3XPuJA9Pj4BHtzGv6
+
+## ADR-048 - « Contrats & contrôles » : l'application Suivi des Contrats Copros devient un module de l'intranet
+
+**Statut** : en cours (branche `chantier/contrats-controles`, REA-333). Décidé le 16/10/2026 par Sekou, douze arbitrages tranchés sur le plan `docs/plan-integration-suivi-contrats-copros.md` (§9).
+
+### Contexte
+Le patron a développé une application autonome (`contratscopro.real31.app`, Next 14 + Prisma) qui suit quatre sujets par copropriété : l'assurance multirisque, le contrat gaz, le contrôle technique quinquennal des ascenseurs et le contrôle de la VMC gaz. Elle est utilisée tous les jours par une dizaine de collaborateurs. Elle partage DÉJÀ la base Supabase de l'intranet : les tables `Copropriete`, `User`, `Agency` que l'intranet lit et écrit partout sont les siennes. Deux applications, deux ORM, une même table : les rôles ajoutés par l'intranet dans `User.role` ont cassé l'autre application le 06/10/2026. Une précédente absorption avait donné un « sandwich » (code recopié, juxtaposé) ; on ne le refait pas.
+
+### Décisions
+1. **On reprend le besoin et les règles, pas le code.** Les règles validées par les directeurs en juin 2026 (niveau = dossier figé, fenêtre à J-180/90/120, orange à 30 jours sans étape, rouge à 60, clôture atomique qui ouvre le cycle suivant, offre retenue recopiée sur la copro, courtier partenaire qui archive le suivi) sont réécrites en fonctions pures dans `src/lib/domain/contrats-copro/` avec leurs tests. Aucun fichier de la source n'est copié.
+2. **Les tables de l'ancienne application sont gardées telles quelles** (`InsuranceTracking`, `ElevatorCtq`, `GasVmcCtq`, `GasContractTracking`, offres, devis, `Elevator`, `Document`, `BuildingMetadata`, `Building`, `ReminderRule`) et lues par un adapter supabase-js derrière le port `ContratsCoproRepository`. Zéro migration de données ; les deux applications peuvent coexister le temps de la bascule. Trois colonnes sont ajoutées (suppression logique des offres et devis) et deux tables natives créées (`intranet_contrats_journal`, immuable ; `intranet_copro_prestataire`).
+3. **Ce qui existe déjà dans l'intranet est réutilisé, le reste de la plomberie est abandonné** : auth et périmètre d'écriture ADR-041 (plus de modèle de droits propre), port mail et modèles `intranet_mail_modeles` (les 6 modèles migrent, le vocabulaire des variables s'étend), cascade des destinataires du conseil syndical, dépôt SharePoint (`DepotDocumentProvider`, étendu pour rendre l'identifiant du fichier), trace des rappels `intranet_rappels_envoyes`, blocs « à faire » de l'accueil, journal par copro. Abandonnés : auto-provisioning et tables de session, notifications in-app (jamais utilisées), remédiation post-CTQ (0 usage en 4 mois), routes « un PATCH par champ », importateurs d'amorçage, colonnes `alertLevel` et `searchNormalized`.
+4. **Le référentiel d'entreprises des clés devient celui du cabinet** (`metiers`, `courtier_partenaire`), relié à ESTALE par `estale_supplier_id` ; les 37 contacts et 152 liens de l'ancien carnet y sont repris par script. À terme ESTALE porte tous les ascensoristes et la table n'est qu'un cache.
+5. **Place dans le produit** : entrée « Contrats & contrôles » dans le groupe Gestion de la barre latérale, onglet « Contrats » interne à la fiche copropriété (il remplace le lien externe), liste consolidée des suivis avec un onglet « À compléter », bloc sur l'accueil, écran `/admin/relances` pour les seuils (gardés en base, décision 10).
+6. **Les rappels par mail n'arment rien par défaut** : le cron `/api/cron/echeances-contrats` n'envoie que pour les sujets listés dans `CONTRATS_RAPPELS_SUJETS`, après nettoyage des 44 échéances douteuses héritées (décision 8). Le mail au conseil syndical part directement de la boîte du gestionnaire, avec prévisualisation et confirmation (décision 9).
+7. **Les champs « métier courant »** (dates AG/CS, Pennylane, panier BPO…) sont la propriété exclusive de l'intranet : ils n'ont pas d'écran dans le module.
+8. **Bascule franche écran par écran** : dès que l'intranet écrit les étapes, l'ancienne application passe en lecture seule, puis s'éteint. L'historique `AuditLog` reste en archive SQL, sans écran.
+
+### Conséquences
+- Une seule application écrit dans `Copropriete` ; le drift d'enum entre deux ORM disparaît avec l'extinction de Prisma sur cette base.
+- La fiche immeuble (registre national) entre dans le périmètre initial ; le registre n'a pas d'API, un export fichier est possible plus tard.
+- Ce qui reste manuel : passer les trois SQL (`supabase/sql/intranet_contrats_*.sql`), lancer la reprise des prestataires, poser `CONTRATS_RAPPELS_SUJETS`, prévenir Emmanuel et l'équipe, figer l'ancienne application. Le runbook : `docs/runbook-bascule-contrats-controles.md`.
+
+### Liens
+Plan et inventaire : `docs/plan-integration-suivi-contrats-copros.md`. ADR-021 (absorption), ADR-041 (périmètre d'écriture), ADR-040 (journal immuable, référentiel d'entreprises), ADR-047 (garde-fous mail). Ticket REA-333.

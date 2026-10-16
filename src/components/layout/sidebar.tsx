@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  BellRing, Bot, Briefcase, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
+  BellRing, Bot, Briefcase, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ShieldAlert, ShieldCheck, Signature, Sparkles, Users, Vote,
   FilePen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -26,6 +26,9 @@ export type NavKey =
   | "gestion-courante"
   | "recap-ag"
   | "contrat"
+  // Contrats & contrôles (REA-333) : assurance, gaz, CTQ ascenseur et VMC des copros,
+  // reprend l'ancienne application « Contrats copro » qui n'est plus liée d'ici.
+  | "contrats-copro"
   // File des recaps RECUS (espace comptable, /comptabilite/recaps). Distincte de
   // "recap-ag" qui est l'ecran de SAISIE du gestionnaire (/recap-ag) : meme sujet,
   // deux metiers et deux destinations.
@@ -93,6 +96,7 @@ const GROUPES: { titre: string; items: Item[] }[] = [
     items: [
       { key: "recap-ag", label: "Récap AG", href: "/recap-ag", icon: ClipboardList },
       { key: "contrat", label: "Contrats de syndic", href: "/contrat", icon: FileSignature },
+      { key: "contrats-copro", label: "Contrats & contrôles", href: "/contrats-copro", icon: ShieldCheck },
       { key: "sinistres", label: "Sinistres", href: "/sinistre", icon: ShieldAlert },
       { key: "facturation", label: "Facturation", href: "/facturation", icon: Receipt },
     ],
@@ -188,10 +192,8 @@ type LienApp = { label: string; href: string; icon: ComponentType<{ className?: 
 // Applications REAL31 (les notres, s'ouvrent dans un nouvel onglet).
 const APPS_EXTERNES: LienApp[] = [
   { label: "Registre des mandats", href: "https://mandats.real31.app/", icon: FileSignature },
-  // Suivi des contrats fournisseurs des copropriétés. Le lien n'existait que dans les
-  // onglets d'une fiche copropriété : il fallait ouvrir une copro pour atteindre l'outil
-  // (demande Sekou, 06/10/2026).
-  { label: "Contrats copro", href: "https://contratscopro.real31.app/", icon: ScrollText },
+  // « Contrats copro » n'est plus listée ici : le suivi des contrats fournisseurs vit dans
+  // l'intranet depuis le 16/10/2026 (entrée « Contrats & contrôles » du groupe Gestion, REA-333).
 ];
 
 // Outils externes (tiers) qu'on utilise mais qui ne sont pas a nous.

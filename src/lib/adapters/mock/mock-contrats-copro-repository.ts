@@ -474,7 +474,7 @@ export function peuplerMockContratsCopro(repo: MockContratsCoproRepository): voi
 
   repo.journal.push(
     { id: "j-1", coproCode: "S104", sujet: "assurance", cycleId: "cyc-ass-s104", type: "etape_datee", horodatageISO: ts(-10, "10:12:00"), parUserId: "u-el", parNom: "Élise Lambert", details: { etape: "offres_demandees", date: j(-10) } },
-    { id: "j-2", coproCode: "S104", sujet: "assurance", cycleId: "cyc-ass-s104", type: "offre_creee", horodatageISO: ts(-1, "15:40:00"), parUserId: "u-lm", parNom: "Léa Martin", details: { assureur: "Allianz", prime: 4520 } },
+    { id: "j-2", coproCode: "S104", sujet: "assurance", cycleId: "cyc-ass-s104", type: "offre_creee", horodatageISO: ts(-1, "15:40:00"), parUserId: "u-lm", parNom: "Léa Martin", details: { fournisseur: "Allianz", montant: 4520 } },
     { id: "j-3", coproCode: "S104", sujet: "ctq_ascenseur", cycleId: null, type: "devis_cree", horodatageISO: ts(-2, "11:05:00"), parUserId: "u-el", parNom: "Élise Lambert", details: { prestataire: "Bureau Veritas", montant: 1250 } },
   );
 

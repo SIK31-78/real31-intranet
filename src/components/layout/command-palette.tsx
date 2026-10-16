@@ -27,6 +27,7 @@ const NAV: { label: string; href: string }[] = [
   { label: "Mes e-mails", href: "/mes-emails" },
   { label: "Récap AG", href: "/recap-ag" },
   { label: "Contrats de syndic", href: "/contrat" },
+  { label: "Contrats & contrôles", href: "/contrats-copro" },
   { label: "Sinistres", href: "/sinistre" },
   { label: "Facturation", href: "/facturation" },
   { label: "Coffre-fort", href: "/coffre" },

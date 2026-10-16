@@ -272,7 +272,11 @@ export const LIBELLES_APPLICATION: Record<ApplicationFeedback, string> = {
   real31: "Real31.app",
   estale: "ESTALE",
   "registre-mandats": "Registre des Mandats",
-  "suivi-contrats": "Suivi Contrats Copros",
+  // L'ancienne application de suivi des contrats, en lecture seule depuis que le module
+  // « Contrats & contrôles » de l'intranet la remplace (REA-333). La clé reste : elle est
+  // encodée dans le champ `page` des remontées passées. Un bug du module se signale comme
+  // une page Real31.app (le chemin est capturé tout seul), pas ici.
+  "suivi-contrats": "Suivi Contrats Copros (ancienne appli)",
   autre: "Autre",
 };
 

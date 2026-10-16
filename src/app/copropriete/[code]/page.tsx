@@ -4,6 +4,9 @@ import { getFicheCopro } from "@/lib/services/fiche-copro/get-fiche-copro";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { etatListeSecoursCS } from "@/lib/services/coproprietes/etat-liste-secours-cs";
 import { trousseauxDeCopro } from "@/lib/services/cles/lecture";
+import { suiviDeCopro } from "@/lib/services/contrats-copro/lecture";
+import { ficheImmeubleDe, ficheImmeubleVide } from "@/lib/services/contrats-copro/immeuble";
+import { entreprisesParMetiers, entreprisesParMetiersVides } from "@/lib/services/contrats-copro/prestataires";
 import { getGestionnaireCourant, mailModuleActif } from "@/lib/auth/session";
 import { peutVoirComptabilite } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
@@ -45,7 +48,10 @@ export default async function CoproprietePage({
   //  - etat de la liste de diffusion CS (secours) : source active (eStale vs secours) +
   //    adresses de secours. L'appel eStale est un hit de cache (deja lu par la fiche). On
   //    degrade en secours vide si la lecture echoue (l'ecran ne casse pas).
-  const [dossiers, listeSecoursCS, trousseaux] = await Promise.all([
+  //  - onglet Contrats (REA-333) : le suivi, la fiche immeuble, les entreprises par metier.
+  //    Chacun degrade separement : la fiche ne tombe jamais a cause de l'onglet (null = le
+  //    panneau le dit, fiche immeuble vide, listes vides).
+  const [dossiers, listeSecoursCS, trousseaux, suiviContrats, immeuble, entreprisesParMetier] = await Promise.all([
     getDossiersCopro(code, g.id),
     etatListeSecoursCS(code).catch(() => ({
       sourceActive: "aucune" as const,
@@ -56,6 +62,12 @@ export default async function CoproprietePage({
     })),
     // Trousseaux de cles de la copro (module cles) : une requete de plus, degradee en [].
     trousseauxDeCopro(fiche.copro.code, aujourdhuiISO).catch(() => []),
+    suiviDeCopro(fiche.copro.code, g.id, aujourdhuiISO).catch((e: unknown) => {
+      console.warn(`[copropriete] onglet Contrats illisible pour ${fiche.copro.code} :`, e instanceof Error ? e.message : e);
+      return null;
+    }),
+    ficheImmeubleDe(fiche.copro.code).catch(() => ficheImmeubleVide(fiche.copro.code)),
+    entreprisesParMetiers().catch(() => entreprisesParMetiersVides()),
   ]);
 
   return (
@@ -72,6 +84,10 @@ export default async function CoproprietePage({
           listeSecoursCS={listeSecoursCS}
           trousseaux={trousseaux}
           roleCompta={peutVoirComptabilite(g.email, g.role) ? "comptable" : "gestionnaire"}
+          suiviContrats={suiviContrats}
+          immeuble={immeuble}
+          entreprisesParMetier={entreprisesParMetier}
+          aujourdhuiISO={aujourdhuiISO}
         />
       </Page>
     </AppShell>

@@ -19,6 +19,12 @@ const etat = vi.hoisted(() => {
     /** Dernier cycle de contrat enregistre par l'intranet, par code copro. */
     contrats: {} as Record<string, { debutContrat: string; finContrat?: string | null; enregistreLeISO?: string }>,
     contratsEnPanne: false,
+    /** Echeance d'assurance du referentiel App A. */
+    assuranceEcheance: undefined as string | undefined,
+    /** Module « Contrats & controles » : courtier du contrat courant, cycles CTQ ascenseur. */
+    courtier: null as string | null,
+    cyclesCtq: [] as { echeanceISO: string | null; statut?: string; sujet?: string }[],
+    contratsCoproEnPanne: false,
     reset() {
       ref.appels.length = 0;
       ref.recaps = {};
@@ -26,6 +32,10 @@ const etat = vi.hoisted(() => {
       ref.mandatSyndicFin = undefined;
       ref.contrats = {};
       ref.contratsEnPanne = false;
+      ref.assuranceEcheance = undefined;
+      ref.courtier = null;
+      ref.cyclesCtq = [];
+      ref.contratsCoproEnPanne = false;
     },
   };
   return ref;
@@ -49,7 +59,24 @@ vi.mock("@/lib/adapters/router", () => ({
         priseEnGestion: "mars 2018",
         equipe: [],
         ...(etat.mandatSyndicFin ? { mandatSyndicFin: etat.mandatSyndicFin } : {}),
+        ...(etat.assuranceEcheance ? { assuranceEcheance: etat.assuranceEcheance } : {}),
       };
+    },
+  }),
+  // Le referentiel d'entreprises (courtiers partenaires) : vide, la liste de repli s'applique.
+  getClesEntrepriseRepository: () => ({
+    async lister() {
+      return [];
+    },
+  }),
+  getContratsCoproRepository: () => ({
+    async getContratCourant(code: string) {
+      if (etat.contratsCoproEnPanne) throw new Error("table absente");
+      return { coproCode: code, assurance: { courtier: etat.courtier } };
+    },
+    async listerCycles() {
+      if (etat.contratsCoproEnPanne) throw new Error("table absente");
+      return etat.cyclesCtq.map((c, i) => ({ id: `c${i}`, sujet: c.sujet ?? "ctq_ascenseur", statut: c.statut ?? "en_cours", echeanceISO: c.echeanceISO }));
     },
   }),
   getFacturationRepository: () => ({
@@ -178,5 +205,55 @@ describe("getFicheCopro - fin du mandat de syndic (REA-249)", () => {
     etat.contratsEnPanne = true;
     const fiche = await getFicheCopro("S024", "g1", TODAY);
     expect(libelleMandat(fiche)?.libelle).toBe("Mandat de syndic jusqu'au 30/06/2027");
+  });
+});
+
+describe("getFicheCopro - conformite du module Contrats & controles (REA-333)", () => {
+  const assurance = (fiche: Awaited<ReturnType<typeof getFicheCopro>>) => fiche?.conformite.find((c) => c.libelle.startsWith("Assurance"));
+  const ctq = (fiche: Awaited<ReturnType<typeof getFicheCopro>>) => fiche?.conformite.find((c) => c.libelle.startsWith("Prochain CTQ"));
+
+  it("courtier partenaire (graphie libre) : « suivie par le courtier » ok, meme avec une echeance passee", async () => {
+    etat.courtier = "AREAS ";
+    etat.assuranceEcheance = "2026-01-31";
+    const item = assurance(await getFicheCopro("S024", "g1", TODAY));
+    expect(item).toEqual({ libelle: "Assurance suivie par le courtier AREAS", etat: "ok" });
+  });
+
+  it("courtier hors partenaires : l'echeance du referentiel fait foi (passee -> ko)", async () => {
+    etat.courtier = "Courtier du coin";
+    etat.assuranceEcheance = "2026-01-31";
+    const item = assurance(await getFicheCopro("S024", "g1", TODAY));
+    expect(item).toEqual({ libelle: "Assurance jusqu'au 31/01/2026", etat: "ko" });
+  });
+
+  it("sans courtier ni echeance : aucune ligne assurance", async () => {
+    expect(assurance(await getFicheCopro("S024", "g1", TODAY))).toBeUndefined();
+  });
+
+  it("prochain CTQ ascenseur : la plus proche echeance en cours, ko si passee", async () => {
+    etat.cyclesCtq = [{ echeanceISO: "2027-03-01" }, { echeanceISO: "2026-06-30" }, { echeanceISO: null }];
+    expect(ctq(await getFicheCopro("S024", "g1", TODAY))).toEqual({ libelle: "Prochain CTQ ascenseur le 30/06/2026", etat: "ko" });
+  });
+
+  it("prochain CTQ a moins de 120 jours : attention ; au-dela : ok", async () => {
+    etat.cyclesCtq = [{ echeanceISO: "2026-10-01" }];
+    expect(ctq(await getFicheCopro("S024", "g1", TODAY))?.etat).toBe("attention");
+    etat.cyclesCtq = [{ echeanceISO: "2027-03-01" }];
+    expect(ctq(await getFicheCopro("S024", "g1", TODAY))?.etat).toBe("ok");
+  });
+
+  it("un cycle clos ou sans echeance ne compte pas", async () => {
+    etat.cyclesCtq = [{ echeanceISO: "2026-01-01", statut: "clos" }, { echeanceISO: null }];
+    expect(ctq(await getFicheCopro("S024", "g1", TODAY))).toBeUndefined();
+  });
+
+  it("source des contrats en panne : la fiche s'ouvre, sans ces lignes, le reste intact", async () => {
+    etat.contratsCoproEnPanne = true;
+    etat.assuranceEcheance = "2027-01-31";
+    etat.cyclesCtq = [{ echeanceISO: "2026-06-30" }];
+    const fiche = await getFicheCopro("S024", "g1", TODAY);
+    expect(fiche?.copro.code).toBe("S024");
+    expect(assurance(fiche)).toEqual({ libelle: "Assurance jusqu'au 31/01/2027", etat: "ok" });
+    expect(ctq(fiche)).toBeUndefined();
   });
 });

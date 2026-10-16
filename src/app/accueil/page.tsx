@@ -19,6 +19,7 @@ import { getAnnoncesActives } from "@/lib/services/annonces/get-annonces-actives
 import { listerRecapsEnRetard } from "@/lib/services/compta/recaps-en-retard";
 import { listerMandatsSansAg } from "@/lib/services/contrat/mandats-sans-ag";
 import { retardsPourCopros } from "@/lib/services/cles/lecture";
+import { echeancesPourAccueil } from "@/lib/services/contrats-copro/lecture";
 import { definirVueRequete, listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import { vuesDisponibles } from "@/lib/services/coproprietes/vue-perimetre";
 import { lireVueChoisie } from "@/lib/auth/vue-perimetre";
@@ -38,6 +39,7 @@ import { EchangesComptablesPanel } from "@/components/dashboard/echanges-comptab
 import { AlerteRecapsEnRetard } from "@/components/recap-ag/alerte-recaps-en-retard";
 import { AlerteMandatsSansAg } from "@/components/contrat/alerte-mandats-sans-ag";
 import { AlerteClesEnRetard } from "@/components/cles/alerte-cles-en-retard";
+import { AlerteEcheancesContrats } from "@/components/contrats-copro/alerte-echeances-contrats";
 
 import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Accueil - REAL31 Intranet" };
@@ -56,7 +58,7 @@ export default async function AccueilPage() {
   const vue = await lireVueChoisie(dispo.vues);
   definirVueRequete(vue);
   // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id (et la vue).
-  const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg, clesEnRetard] = await Promise.all([
+  const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg, clesEnRetard, echeancesContrats] = await Promise.all([
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
     getAccueilComplement(g),
@@ -71,6 +73,9 @@ export default async function AccueilPage() {
     listerMandatsSansAg(g.id, today),
     // Trousseaux de cles en retard sur les copros du portefeuille (ADR-040). Degrade en [].
     listerCoprosParRequete(g.id).then((copros) => retardsPourCopros(copros.map((c) => c.code), today)).catch(() => []),
+    // Suivis de contrats et de controles figes (rouges, oranges) et sans echeance, sur les
+    // copros de la vue (REA-333). Le service ne leve jamais : vide si la source tombe.
+    echeancesPourAccueil(g.id, today),
   ]);
 
   const prenom = g.nomComplet.split(" ")[0];
@@ -123,6 +128,10 @@ export default async function AccueilPage() {
 
         {/* Trousseaux de cles chez une entreprise au-dela du retour prevu, sur vos copros. Rien si vide. */}
         <AlerteClesEnRetard lignes={clesEnRetard} />
+
+        {/* Contrats et controles a suivre (assurance, gaz, CTQ) : dossiers figes dans leur fenetre
+            de renouvellement, et suivis sans echeance. Rien si vide. */}
+        <AlerteEcheancesContrats echeances={echeancesContrats} />
 
         {/* Annonces du reseau (direction), pilotees depuis /admin/annonces. Rien si vide :
             une carte "aucune annonce" n'apprend rien. */}

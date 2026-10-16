@@ -18,12 +18,15 @@ import type { StatutAg } from "@/lib/domain/supervision-ag";
 import { getSupervisionAg } from "@/lib/services/supervision-ag/get-supervision-ag";
 import { finContratEnCours, type DernierCycle } from "@/lib/domain/contrat/cycle-contrat";
 import {
+  getContratsCoproRepository,
   getCoproRepository,
   getFacturationRepository,
   getJalonRepository,
   getGestionnaireRepository,
   getRecapAgRepository,
 } from "@/lib/adapters/router";
+import { plusJours } from "@/lib/domain/contrats-copro/dates";
+import { courtiersPartenaires, estChezCourtierPartenaire } from "@/lib/services/contrats-copro/lecture";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { getConfirmations } from "@/lib/services/coproprietes/confirmation-evenement";
@@ -96,6 +99,45 @@ async function chargerDernierCycle(coproCode: string): Promise<DernierCycle | nu
   }
 }
 
+/** Un prochain CTQ ascenseur à moins de 120 jours passe en « attention » (fenêtre de suivi du sujet). */
+const FENETRE_CTQ_ASCENSEUR_JOURS = 120;
+
+interface ContratsCoproFiche {
+  /** Le courtier de la copro, s'il est un partenaire du cabinet (il suit lui-même le renouvellement). */
+  courtierPartenaire: string | null;
+  /** La plus proche échéance des contrôles d'ascenseur en cours ; null si aucune. */
+  prochainCtqAscenseurISO: string | null;
+}
+
+const CONTRATS_COPRO_VIDES: ContratsCoproFiche = { courtierPartenaire: null, prochainCtqAscenseurISO: null };
+
+/** Ce que le module « Contrats & contrôles » (REA-333) apporte à la conformité de la fiche :
+ *  le courtier partenaire et le prochain CTQ ascenseur. Dégrade en vide si la source tombe :
+ *  la fiche reste intacte, sans ces deux lignes. */
+async function chargerContratsCopro(coproCode: string): Promise<ContratsCoproFiche> {
+  try {
+    const repo = getContratsCoproRepository();
+    const [contrat, cycles, partenaires] = await Promise.all([
+      repo.getContratCourant(coproCode),
+      repo.listerCycles({ coproCodes: [coproCode], sujets: ["ctq_ascenseur"], statuts: ["en_cours"] }),
+      courtiersPartenaires(),
+    ]);
+    const courtier = contrat?.assurance.courtier?.trim() || null;
+    const echeances = cycles
+      .filter((c) => c.statut === "en_cours" && c.sujet === "ctq_ascenseur")
+      .map((c) => c.echeanceISO)
+      .filter((e): e is string => Boolean(e))
+      .sort();
+    return {
+      courtierPartenaire: estChezCourtierPartenaire(courtier, partenaires) ? courtier : null,
+      prochainCtqAscenseurISO: echeances[0] ?? null,
+    };
+  } catch (err) {
+    console.warn(`[fiche-copro] contrats et contrôles de ${coproCode} illisibles :`, (err as Error).message);
+    return CONTRATS_COPRO_VIDES;
+  }
+}
+
 export async function getFicheCopro(
   code: string,
   gestionnaireId: string,
@@ -120,7 +162,7 @@ export async function getFicheCopro(
   // et chargerStatutSupervision ne rejettent pas de facon a casser la fiche : chargerEstale
   // degrade, chargerStatutSupervision ne s'execute que sur un cas etroit.
   const scopeSupervision = options?.transverse ? undefined : gestionnaireId;
-  const [{ estale, estaleIndisponible }, jalons, compta, confirmations, statutSupervision, agenceCode, recapsAg, dernierCycle] =
+  const [{ estale, estaleIndisponible }, jalons, compta, confirmations, statutSupervision, agenceCode, recapsAg, dernierCycle, contratsCopro] =
     await Promise.all([
       chargerEstale(code),
       copro.prochaineAg ? getJalonRepository().getJalons(copro.code, copro.prochaineAg.date) : Promise.resolve([]),
@@ -132,6 +174,7 @@ export async function getFicheCopro(
       codeAgence(copro.agenceId),
       chargerRecapsAg(copro.code),
       chargerDernierCycle(copro.code),
+      chargerContratsCopro(copro.code),
     ]);
 
   // Confirmations AG/CS par le conseil syndical : lues UNE fois (avant : getEvenements les
@@ -167,10 +210,23 @@ export async function getFicheCopro(
     Number(aujourdhuiISO.slice(0, 4)),
   );
   if (itemPpt) conformiteReferentiel.push(itemPpt);
-  if (copro.assuranceEcheance) {
+  // Assurance : chez un courtier partenaire, c'est lui qui suit le renouvellement (REA-333,
+  // decision D-DATA-24) -> ok, meme sans echeance connue. Sinon l'echeance du referentiel.
+  if (contratsCopro.courtierPartenaire) {
+    conformiteReferentiel.push({ libelle: `Assurance suivie par le courtier ${contratsCopro.courtierPartenaire}`, etat: "ok" });
+  } else if (copro.assuranceEcheance) {
     conformiteReferentiel.push({
       libelle: `Assurance jusqu'au ${jjmmaaaa(copro.assuranceEcheance)}`,
       etat: copro.assuranceEcheance < aujourdhuiISO ? "ko" : "ok",
+    });
+  }
+  // Prochain controle quinquennal d'ascenseur (le plus proche des appareils suivis) : ko une
+  // fois passe, attention dans la fenetre de suivi, ok au-dela.
+  if (contratsCopro.prochainCtqAscenseurISO) {
+    const ctq = contratsCopro.prochainCtqAscenseurISO;
+    conformiteReferentiel.push({
+      libelle: `Prochain CTQ ascenseur le ${jjmmaaaa(ctq)}`,
+      etat: ctq < aujourdhuiISO ? "ko" : ctq <= plusJours(aujourdhuiISO, FENETRE_CTQ_ASCENSEUR_JOURS) ? "attention" : "ok",
     });
   }
   // Fin du mandat EN COURS, comme sur /contrat : le referentiel App A n'est PAS mis a jour
