@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
+import { COOKIE_PLACE_INTERNES } from "@/components/mes-emails/preference-liste";
+import { placeInternesValide } from "@/lib/domain/mes-emails-liste";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
 import { depotPieceJointeActif } from "@/lib/services/mes-emails/deposer-piece-jointe";
@@ -32,6 +36,11 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   // et reserve aux pilotes si MAIL_PILOTES est pose (deploiement pilote).
   if (!mailModuleActifPour(g.email)) redirect("/accueil");
   const maxPerso = plafondPerso((await searchParams).plus);
+  // PILOTE (16/10/2026) : le 15/10, un changement d'affichage de cet écran mis en prod sans
+  // avoir été vu a fait appeler toute l'agence. Toute nouveauté visible passe d'abord par
+  // le super-admin ; les actions serveur de ces nouveautés refusent aussi les autres.
+  const pilote = estSuperAdmin(g.email);
+  const placeInternes = pilote ? placeInternesValide((await cookies()).get(COOKIE_PLACE_INTERNES)?.value) : "meles";
   const [data, signatureHtml, modeles] = await Promise.all([
     getMesEmails(g, maxPerso),
     getSignatureGestionnaire(g),
@@ -62,6 +71,8 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
           maxPerso={maxPerso}
           modeles={modeles}
+          pilote={pilote}
+          placeInternesInitiale={placeInternes}
         />
       </Page>
     </AppShell>

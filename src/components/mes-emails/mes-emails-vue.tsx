@@ -71,7 +71,15 @@ import { ImagesMail } from "./images-mail";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { fusionnerModele, resumeDestinataires, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
 import { useToast } from "@/components/ui/toast";
+import { ecrirePlaceInternes } from "./preference-liste";
 import { estMailInterne } from "@/lib/domain/tri-emails";
+import {
+  LIBELLE_PLACE_INTERNES,
+  PLACES_INTERNES,
+  placeInternesValide,
+  regrouperInternes,
+  type PlaceInternes,
+} from "@/lib/domain/mes-emails-liste";
 import { VisionneusePj } from "./visionneuse-pj";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
@@ -132,8 +140,14 @@ export function MesEmailsVue({
   maxPerso = 40,
   agence = "",
   modeles,
+  pilote = false,
+  placeInternesInitiale = "meles",
 }: {
+  /** Préférence lue dans le cookie par la page (REA-351). */
+  placeInternesInitiale?: PlaceInternes;
   data: MesEmails;
+  /** Super-admin : voit les nouveautés de l'écran avant tout le monde (cf. page.tsx). */
+  pilote?: boolean;
   /** Modèles de réponse proposés (agence et cabinet). */
   modeles: ModeleMail[];
   /** Agence de la boîte (MAIL_TRI_AGENCE) : signe les modèles de réponse. */
@@ -187,6 +201,13 @@ export function MesEmailsVue({
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
   const [filtreCopro, setFiltreCopro] = useState<string>("toutes");
   const [recherche, setRecherche] = useState("");
+  // Collègues en haut ou en bas de la liste (REA-351, pilote). Retenu dans un cookie :
+  // préférence de lecture, pas un état partagé.
+  const [placeInternes, setPlaceInternes] = useState<PlaceInternes>(placeInternesInitiale);
+  function choisirPlaceInternes(v: PlaceInternes) {
+    setPlaceInternes(v);
+    ecrirePlaceInternes(v);
+  }
   // Recherche dans TOUS les échanges (ex-écran Échanges) : null = on regarde la boîte.
   const [fouille, setFouille] = useState<Fouille | null>(null);
   function lancerFouille() {
@@ -440,12 +461,16 @@ export function MesEmailsVue({
   const q = recherche.trim().toLowerCase();
   // « À traiter » = ce qui reste à conclure ; « Conclus » = les événements fermés, avec leur réponse.
   const matchVue = (m: MailEntrant): boolean => (vue === "conclus" ? classes.has(m.id) : !classes.has(m.id));
-  const visibles = mailsTries.filter(
-    (m) =>
-      !partis.has(m.id) &&
-      matchVue(m) &&
-      (filtreCopro === "toutes" || m.coproCode === filtreCopro) &&
-      (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
+  const visibles = regrouperInternes(
+    mailsTries.filter(
+      (m) =>
+        !partis.has(m.id) &&
+        matchVue(m) &&
+        (filtreCopro === "toutes" || m.coproCode === filtreCopro) &&
+        (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
+    ),
+    pilote ? placeInternes : "meles",
+    (m) => m.boite ?? boiteActive,
   );
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
@@ -735,6 +760,22 @@ export function MesEmailsVue({
               { value: "conclus", label: `Conclus · ${mailsBoite.filter((m) => classes.has(m.id)).length}` },
             ]}
           />
+          {pilote ? (
+            <Select
+              largeur="auto"
+              value={placeInternes}
+              onChange={(e) => choisirPlaceInternes(placeInternesValide(e.target.value))}
+              aria-label="Place des mails des collègues dans la liste"
+              title="Mails des collègues (adresse @real31.fr) regroupés en haut ou en bas de la liste"
+              className="h-7 text-meta"
+            >
+              {PLACES_INTERNES.map((p) => (
+                <option key={p} value={p}>
+                  {LIBELLE_PLACE_INTERNES[p]}
+                </option>
+              ))}
+            </Select>
+          ) : null}
           {filtreCopro !== "toutes" && (
             <button
               type="button"
