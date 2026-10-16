@@ -136,6 +136,24 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     return { u, h, draftId: draft.id, ...(draft.webLink ? { webLink: draft.webLink } : {}) };
   }
 
+  async citationReponse(p: { boite: string; internetMessageId: string }): Promise<{ citationHtml: string; sujet: string }> {
+    if (!p.boite) throw new Error("Citation : boite manquante.");
+    const tk = await jetonGraph();
+    const u = `${GRAPH}/users/${encodeURIComponent(p.boite)}`;
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    const h = { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" };
+    // Le brouillon de reponse porte la citation exacte d'Outlook ; on ne le garde pas.
+    const r = await graphFetch(`${u}/messages/${id}/createReply`, { method: "POST", headers: h, body: "{}" });
+    if (!r.ok) throw new Error(`Graph createReply (citation) ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const draft = (await r.json()) as { id: string; subject?: string; body?: { content?: string } };
+    const rd = await graphFetch(`${u}/messages/${draft.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } });
+    if (!rd.ok) {
+      // Le mail part quand meme ; un brouillon reste dans la boite : on le signale.
+      console.error(`[mail-outbound] brouillon de citation non supprime dans ${p.boite} (${rd.status})`);
+    }
+    return { citationHtml: draft.body?.content ?? "", sujet: draft.subject ?? "" };
+  }
+
   async envoyer(p: ReponseMail): Promise<void> {
     const { u, h, draftId } = await this.preparerReponse(p);
     const r3 = await graphFetch(`${u}/messages/${draftId}/send`, { method: "POST", headers: h });
@@ -216,6 +234,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     corpsHtml?: string;
     signatureHtml?: string;
     piecesJointes?: PieceJointeMail[];
+    citationHtml?: string;
   }): Promise<void> {
     if (!p.boite) throw new Error("Envoi : boite manquante.");
     if (dest(p.a).length === 0) throw new Error("Envoi : au moins un destinataire en 'A'.");
@@ -228,7 +247,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
     const message = {
       subject: p.sujet,
-      body: { contentType: "HTML", content: monTexte + signature },
+      body: { contentType: "HTML", content: monTexte + signature + (p.citationHtml ?? "") },
       toRecipients: dest(p.a),
       ccRecipients: dest(p.cc),
       bccRecipients: dest(p.cci),

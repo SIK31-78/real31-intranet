@@ -542,7 +542,9 @@ export function MesEmailsVue({
       fermerReponse(m);
       setMsgBrouillon(
         r.filConserve === false
-          ? `Envoyé depuis ${expediteur} ✓ (mail neuf, hors du fil d'origine)`
+          ? r.historiqueCite
+            ? `Envoyé depuis ${expediteur} ✓ (avec le message d'origine cité dessous)`
+            : `Envoyé depuis ${expediteur} ✓ (mail neuf, sans l'historique)`
           : `Réponse envoyée depuis ${expediteur} ✓`,
       );
     } finally {

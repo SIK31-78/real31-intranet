@@ -91,7 +91,17 @@ export interface MailOutboundProvider {
     signatureHtml?: string;
     /** Pieces jointes (le contrat de l'offre en PDF). Petites : Graph accepte ~3 Mo en base64 par sendMail. */
     piecesJointes?: PieceJointeMail[];
+    /** Message d'origine cite sous la signature (reponse depuis une autre boite, REA-302). */
+    citationHtml?: string;
   }): Promise<void>;
+
+  /**
+   * La citation qu'Outlook met sous une reponse a ce mail (« De : / Envoye : / A : / Objet : »
+   * puis le message) et l'objet « RE: ... ». Sert a repondre depuis une AUTRE boite sans
+   * perdre l'historique (REA-302) : un brouillon de reponse est cree dans la boite du mail,
+   * lu, puis supprime aussitot. Rien n'est envoye.
+   */
+  citationReponse(p: { boite: string; internetMessageId: string }): Promise<{ citationHtml: string; sujet: string }>;
 }
 
 export interface ReponseMail {

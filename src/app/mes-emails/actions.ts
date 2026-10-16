@@ -475,7 +475,7 @@ export async function envoyerReponseAction(
   boiteMessage?: string,
   boiteEnvoi?: string,
   fichiers: unknown = [],
-): Promise<{ ok: boolean; message?: string; filConserve?: boolean }> {
+): Promise<{ ok: boolean; message?: string; filConserve?: boolean; historiqueCite?: boolean }> {
   const f = zFichiers.safeParse(fichiers);
   if (!f.success) return { ok: false, message: "Pièces jointes invalides (3 Mo et 10 fichiers au plus)." };
   const v = z
@@ -523,7 +523,7 @@ export async function envoyerReponseAction(
     // Signature recuperee cote serveur (Signitic) et injectee : un envoi app-only ne passe
     // pas par l'add-in Outlook qui l'ajoute d'habitude.
     const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
-    const { filConserve } = await envoyerReponseMail({
+    const { filConserve, historiqueCite } = await envoyerReponseMail({
       boiteMessage: cibleMessage,
       boiteEnvoi: cibleEnvoi,
       internetMessageId: emailId,
@@ -537,7 +537,7 @@ export async function envoyerReponseAction(
       ...(f.data.length ? { piecesJointes: f.data } : {}),
     });
     revalidatePath("/mes-emails");
-    return { ok: true, filConserve };
+    return { ok: true, filConserve, ...(historiqueCite !== undefined ? { historiqueCite } : {}) };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
