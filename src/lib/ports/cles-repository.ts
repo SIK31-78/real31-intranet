@@ -14,6 +14,7 @@ import type {
   Trousseau,
   TypeMouvement,
 } from "@/lib/domain/cles/types";
+import type { MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 
 export interface FiltreReservations {
   trousseauId?: string;
@@ -89,6 +90,8 @@ export interface ClesRepository {
 
 export interface ClesEntrepriseRepository {
   lister(): Promise<Entreprise[]>;
+  /** Les entreprises qui exercent ce metier (referentiel du cabinet), triees par nom. [] si la colonne est absente. */
+  listerParMetier(metier: MetierPrestataire): Promise<Entreprise[]>;
   get(id: string): Promise<Entreprise | null>;
   getParNomNormalise(nomNormalise: string): Promise<Entreprise | null>;
   /** Leve si le nom normalise existe deja. */

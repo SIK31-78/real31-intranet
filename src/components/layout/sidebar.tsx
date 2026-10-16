@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  Bot, Briefcase, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
+  BellRing, Bot, Briefcase, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
   FilePen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -37,6 +37,8 @@ export type NavKey =
   | "nouveautes"
   | "cles-api"
   | "tarifs"
+  // Seuils de relance du module « Contrats & contrôles » (/admin/relances, REA-333).
+  | "relances"
   | "collaborateurs"
   | "linkus"
   | "modeles-mail"
@@ -177,6 +179,7 @@ const GROUPE_ADMIN: { titre: string; items: Item[] } = {
     { key: "modeles-mail", label: "Modèles de mail", href: "/admin/modeles-mail", icon: FilePen },
     { key: "cles-api", label: "Clés API", href: "/admin/cles-api", icon: Key },
     { key: "tarifs", label: "Barème annuel", href: "/admin/tarifs", icon: Euro },
+    { key: "relances", label: "Seuils de relance", href: "/admin/relances", icon: BellRing },
   ],
 };
 

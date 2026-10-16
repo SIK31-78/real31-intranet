@@ -16,6 +16,7 @@ import type {
   PageMouvements,
 } from "@/lib/ports/cles-repository";
 import type { Bien, Entreprise, Mouvement, Pret, Reservation, Trousseau } from "@/lib/domain/cles/types";
+import type { MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 
 export class MockClesRepository implements ClesRepository {
   trousseaux: Trousseau[] = [];
@@ -144,10 +145,13 @@ export class MockClesRepository implements ClesRepository {
 export class MockClesEntrepriseRepository implements ClesEntrepriseRepository {
   entreprises: Entreprise[] = [];
   private seq = 0;
-  constructor(private readonly noms?: Map<string, string>) {}
+  constructor(readonly nomsEntreprises?: Map<string, string>) {}
 
   async lister(): Promise<Entreprise[]> {
     return [...this.entreprises].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  }
+  async listerParMetier(metier: MetierPrestataire): Promise<Entreprise[]> {
+    return (await this.lister()).filter((e) => (e.metiers ?? []).includes(metier));
   }
   async get(id: string): Promise<Entreprise | null> {
     return this.entreprises.find((e) => e.id === id) ?? null;
@@ -162,13 +166,13 @@ export class MockClesEntrepriseRepository implements ClesEntrepriseRepository {
     void _cree;
     const cree: Entreprise = { ...champs, id: `e-${this.seq}`, creeLeISO: new Date().toISOString() };
     this.entreprises.push(cree);
-    this.noms?.set(cree.id, cree.nom);
+    this.nomsEntreprises?.set(cree.id, cree.nom);
     return cree;
   }
   async sauver(e: Entreprise): Promise<void> {
     const i = this.entreprises.findIndex((x) => x.id === e.id);
     if (i >= 0) this.entreprises[i] = e;
-    this.noms?.set(e.id, e.nom);
+    this.nomsEntreprises?.set(e.id, e.nom);
   }
 }
 
@@ -179,9 +183,30 @@ export class MockClesPhotoStore implements ClesPhotoStore {
   async televerser(): Promise<void> {}
 }
 
+/**
+ * Le jeu du referentiel d'entreprises du cabinet (decision 4 du 16/10/2026) : memes id que
+ * ceux du mock « Contrats & controles » (ent-ascenseurs-martin, ent-verdier-courtage,
+ * ent-vmc-services) pour que les prestataires des copros retombent sur ces fiches.
+ */
+export function peuplerMockClesEntreprises(repo: MockClesEntrepriseRepository): void {
+  const commun = { contacts: [], statut: "active" as const, relances: true, source: "intranet" as const, creeLeISO: "2026-10-01T08:00:00.000Z" };
+  const jeu: Entreprise[] = [
+    { ...commun, id: "ent-ascenseurs-martin", nom: "Ascenseurs Martin", nomNormalise: "ascenseurs martin", email: "contact@ascenseurs-martin.fr", telephone: "01 47 00 00 10", metiers: ["ascensoriste"], courtierPartenaire: false },
+    { ...commun, id: "ent-verdier-courtage", nom: "Cabinet Verdier Courtage", nomNormalise: "cabinet verdier courtage", email: "copro@verdier-courtage.fr", metiers: ["courtier"], courtierPartenaire: true },
+    { ...commun, id: "ent-vmc-services", nom: "VMC Services", nomNormalise: "vmc services", metiers: ["societe_vmc"], courtierPartenaire: false },
+    { ...commun, id: "ent-engie", nom: "Engie", nomNormalise: "engie", email: "copropriete@engie.com", metiers: ["fournisseur_gaz"], courtierPartenaire: false },
+  ];
+  for (const e of jeu) {
+    if (repo.entreprises.some((x) => x.nomNormalise === e.nomNormalise)) continue;
+    repo.entreprises.push(e);
+    repo.nomsEntreprises?.set(e.id, e.nom);
+  }
+}
+
 /** Instances partagees du mode mock (un seul jeu par process). */
 const REPO = new MockClesRepository();
 const ENTREPRISES = new MockClesEntrepriseRepository(REPO.nomsEntreprises);
+peuplerMockClesEntreprises(ENTREPRISES);
 const PHOTOS = new MockClesPhotoStore();
 
 export function mockCles(): { repo: MockClesRepository; entreprises: MockClesEntrepriseRepository; photos: MockClesPhotoStore } {

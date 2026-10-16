@@ -29,6 +29,7 @@ import type {
   Trousseau,
   TypeAcces,
 } from "@/lib/domain/cles/types";
+import { METIERS_PRESTATAIRE, type MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 import { createSupabasePublicClient } from "./public-client";
 
 type AccesRow = {
@@ -132,6 +133,9 @@ type EntrepriseRow = {
   motif_blocage: string | null;
   relances: boolean;
   estale_supplier_id: string | null;
+  /** Colonnes de intranet_contrats_controles.sql (REA-333) : absentes tant que le SQL n'est pas passe. */
+  metiers?: string[] | null;
+  courtier_partenaire?: boolean | null;
   source: "intranet" | "import_powerapps";
   created_at: string;
 };
@@ -147,7 +151,19 @@ const COLS_TROUSSEAU = `id, agence_code, numero, libelle, emplacement, compositi
 const COLS_RESERVATION = `id, trousseau_id, entreprise_id, contact, debut, fin_prevue, motif, origine, statut, pret_id, annulee_le, annulee_par, motif_annulation, cree_par, created_at, entreprise:${T_ENTREPRISE}(nom)`;
 const COLS_PRET = `id, trousseau_id, type, entreprise_id, contact, composition, reservation_id, motif, sorti_le, sorti_par_id, sorti_par_nom, retour_prevu_le, rendu_le, recu_par_id, recu_par_nom, retour_conforme, commentaire_retour, photo_retour_chemin, entreprise:${T_ENTREPRISE}(nom)`;
 const COLS_MOUVEMENT = "id, trousseau_id, type, horodatage, par_user_id, par_nom, agence_code, entreprise_id, pret_id, reservation_id, corrige_id, details";
-const COLS_ENTREPRISE = "id, nom, nom_normalise, telephone, email, adresse, contacts, note, statut, motif_blocage, relances, estale_supplier_id, source, created_at";
+const COLS_ENTREPRISE_SOCLE = "id, nom, nom_normalise, telephone, email, adresse, contacts, note, statut, motif_blocage, relances, estale_supplier_id, source, created_at";
+/** Avec les colonnes du referentiel du cabinet (metiers, courtier partenaire) ; on retombe sur le socle si elles manquent. */
+const COLS_ENTREPRISE = `${COLS_ENTREPRISE_SOCLE}, metiers, courtier_partenaire`;
+const MESSAGE_SQL_CONTRATS = "SQL intranet_contrats_controles.sql à passer (colonnes metiers / courtier_partenaire de intranet_cles_entreprise).";
+
+type ErreurSb = { code?: string; message: string } | null;
+type ResultatSb<T> = { data: T | null; error: ErreurSb };
+
+/** L'erreur Postgres « la colonne n'existe pas » (42703) sur l'une des deux colonnes du referentiel. */
+function colonnesMetiersAbsentes(error: ErreurSb | undefined): boolean {
+  if (!error) return false;
+  return /metiers|courtier_partenaire/.test(error.message) && (error.code === "42703" || /does not exist|n'existe pas|could not find|schema cache/i.test(error.message));
+}
 
 const nomJoint = (e: EntrepriseJointe | undefined): string | undefined => {
   if (!e) return undefined;
@@ -266,9 +282,28 @@ function entrepriseVersDomaine(r: EntrepriseRow): Entreprise {
     ...(r.motif_blocage ? { motifBlocage: r.motif_blocage } : {}),
     relances: r.relances ?? true,
     ...(r.estale_supplier_id ? { estaleSupplierId: r.estale_supplier_id } : {}),
+    metiers: metiersConnus(r.metiers),
+    courtierPartenaire: Boolean(r.courtier_partenaire),
     source: r.source,
     creeLeISO: r.created_at,
   };
+}
+
+/** Ne garde que les valeurs du domaine (la colonne est un text[] libre ; le script de reprise ecrit les memes codes). */
+function metiersConnus(valeurs: string[] | null | undefined): MetierPrestataire[] {
+  if (!Array.isArray(valeurs)) return [];
+  const connus = new Set<string>(METIERS_PRESTATAIRE);
+  return [...new Set(valeurs.filter((v): v is MetierPrestataire => connus.has(v)))];
+}
+
+/** Les deux colonnes du referentiel du cabinet, telles qu'on les ecrit. */
+function colonnesMetiers(e: Pick<Entreprise, "metiers" | "courtierPartenaire">): { metiers: MetierPrestataire[]; courtier_partenaire: boolean } {
+  return { metiers: metiersConnus(e.metiers), courtier_partenaire: Boolean(e.courtierPartenaire) };
+}
+
+/** Vrai si l'ecriture pose vraiment un metier ou le drapeau partenaire (sinon les valeurs par defaut suffisent). */
+function poseDesMetiers(e: Pick<Entreprise, "metiers" | "courtierPartenaire">): boolean {
+  return metiersConnus(e.metiers).length > 0 || Boolean(e.courtierPartenaire);
 }
 
 function accesVersRow(trousseauId: string, a: Omit<Acces, "id">): Omit<AccesRow, "id"> {
@@ -608,11 +643,33 @@ export class SupabaseClesRepository implements ClesRepository {
 }
 
 export class SupabaseClesEntrepriseRepository implements ClesEntrepriseRepository {
+  /**
+   * Lit avec les colonnes du referentiel du cabinet ; si elles n'existent pas encore (SQL
+   * intranet_contrats_controles.sql pas passe), relit sur le socle : le domaine recoit alors
+   * metiers [] et courtierPartenaire false. `construire` recoit la liste de colonnes a selectionner.
+   */
+  private async lire<T>(contexte: string, construire: (cols: string) => PromiseLike<ResultatSb<T>>): Promise<ResultatSb<T>> {
+    const premier = await construire(COLS_ENTREPRISE);
+    if (!colonnesMetiersAbsentes(premier.error)) return premier;
+    avertir(contexte, `colonnes metiers / courtier_partenaire absentes, lecture sans elles (${MESSAGE_SQL_CONTRATS})`);
+    return construire(COLS_ENTREPRISE_SOCLE);
+  }
+
   async lister(): Promise<Entreprise[]> {
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb.from(T_ENTREPRISE).select(COLS_ENTREPRISE).order("nom").range(0, 9999);
+    const { data, error } = await this.lire("lecture des entreprises", (cols) => sb.from(T_ENTREPRISE).select(cols).order("nom").range(0, 9999) as unknown as PromiseLike<ResultatSb<EntrepriseRow[]>>);
     if (error) {
       avertir("lecture des entreprises", error.message);
+      return [];
+    }
+    return (data ?? []).map(entrepriseVersDomaine);
+  }
+
+  async listerParMetier(metier: MetierPrestataire): Promise<Entreprise[]> {
+    const sb = createSupabasePublicClient();
+    const { data, error } = await sb.from(T_ENTREPRISE).select(COLS_ENTREPRISE).contains("metiers", [metier]).order("nom").range(0, 9999);
+    if (error) {
+      avertir(`entreprises du métier ${metier}`, colonnesMetiersAbsentes(error) ? `colonne metiers absente (${MESSAGE_SQL_CONTRATS})` : error.message);
       return [];
     }
     return ((data ?? []) as unknown as EntrepriseRow[]).map(entrepriseVersDomaine);
@@ -620,39 +677,42 @@ export class SupabaseClesEntrepriseRepository implements ClesEntrepriseRepositor
 
   async get(id: string): Promise<Entreprise | null> {
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb.from(T_ENTREPRISE).select(COLS_ENTREPRISE).eq("id", id).maybeSingle();
+    const { data, error } = await this.lire(`entreprise ${id}`, (cols) => sb.from(T_ENTREPRISE).select(cols).eq("id", id).maybeSingle() as unknown as PromiseLike<ResultatSb<EntrepriseRow>>);
     if (error) throw new Error(`Entreprise ${id} : ${error.message}`);
-    return data ? entrepriseVersDomaine(data as unknown as EntrepriseRow) : null;
+    return data ? entrepriseVersDomaine(data) : null;
   }
 
   async getParNomNormalise(nomNormalise: string): Promise<Entreprise | null> {
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb.from(T_ENTREPRISE).select(COLS_ENTREPRISE).eq("nom_normalise", nomNormalise).maybeSingle();
+    const { data, error } = await this.lire(`entreprise « ${nomNormalise} »`, (cols) => sb.from(T_ENTREPRISE).select(cols).eq("nom_normalise", nomNormalise).maybeSingle() as unknown as PromiseLike<ResultatSb<EntrepriseRow>>);
     if (error) throw new Error(`Entreprise « ${nomNormalise} » : ${error.message}`);
-    return data ? entrepriseVersDomaine(data as unknown as EntrepriseRow) : null;
+    return data ? entrepriseVersDomaine(data) : null;
   }
 
   async creer(e: NouvelleEntreprise): Promise<Entreprise> {
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb
-      .from(T_ENTREPRISE)
-      .insert({
-        nom: e.nom,
-        nom_normalise: e.nomNormalise,
-        telephone: e.telephone ?? null,
-        email: e.email ?? null,
-        adresse: e.adresse ?? null,
-        contacts: e.contacts,
-        note: e.note ?? null,
-        statut: e.statut,
-        motif_blocage: e.motifBlocage ?? null,
-        relances: e.relances,
-        estale_supplier_id: e.estaleSupplierId ?? null,
-        source: e.source,
-        cree_par: e.creeParNom ?? "intranet",
-      })
-      .select(COLS_ENTREPRISE)
-      .single();
+    const socle = {
+      nom: e.nom,
+      nom_normalise: e.nomNormalise,
+      telephone: e.telephone ?? null,
+      email: e.email ?? null,
+      adresse: e.adresse ?? null,
+      contacts: e.contacts,
+      note: e.note ?? null,
+      statut: e.statut,
+      motif_blocage: e.motifBlocage ?? null,
+      relances: e.relances,
+      estale_supplier_id: e.estaleSupplierId ?? null,
+      source: e.source,
+      cree_par: e.creeParNom ?? "intranet",
+    };
+    let { data, error } = await sb.from(T_ENTREPRISE).insert({ ...socle, ...colonnesMetiers(e) }).select(COLS_ENTREPRISE).single();
+    if (colonnesMetiersAbsentes(error)) {
+      // SQL pas passe : une entreprise sans metier se cree quand meme, comme avant.
+      if (poseDesMetiers(e)) throw new Error(`Entreprise ${e.nom} : ${MESSAGE_SQL_CONTRATS}`);
+      avertir(`création de ${e.nom}`, `colonnes metiers / courtier_partenaire absentes, écriture sans elles (${MESSAGE_SQL_CONTRATS})`);
+      ({ data, error } = await sb.from(T_ENTREPRISE).insert(socle).select(COLS_ENTREPRISE_SOCLE).single());
+    }
     if (error || !data) {
       const message = error?.message ?? "aucune ligne";
       throw new Error(/duplicate|unique/i.test(message) ? `L'entreprise « ${e.nom} » existe déjà.` : `Entreprise ${e.nom} : ${message}`);
@@ -662,23 +722,26 @@ export class SupabaseClesEntrepriseRepository implements ClesEntrepriseRepositor
 
   async sauver(e: Entreprise): Promise<void> {
     const sb = createSupabasePublicClient();
-    const { error } = await sb
-      .from(T_ENTREPRISE)
-      .update({
-        nom: e.nom,
-        nom_normalise: e.nomNormalise,
-        telephone: e.telephone ?? null,
-        email: e.email ?? null,
-        adresse: e.adresse ?? null,
-        contacts: e.contacts,
-        note: e.note ?? null,
-        statut: e.statut,
-        motif_blocage: e.motifBlocage ?? null,
-        relances: e.relances,
-        estale_supplier_id: e.estaleSupplierId ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", e.id);
+    const socle = {
+      nom: e.nom,
+      nom_normalise: e.nomNormalise,
+      telephone: e.telephone ?? null,
+      email: e.email ?? null,
+      adresse: e.adresse ?? null,
+      contacts: e.contacts,
+      note: e.note ?? null,
+      statut: e.statut,
+      motif_blocage: e.motifBlocage ?? null,
+      relances: e.relances,
+      estale_supplier_id: e.estaleSupplierId ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    let { error } = await sb.from(T_ENTREPRISE).update({ ...socle, ...colonnesMetiers(e) }).eq("id", e.id);
+    if (colonnesMetiersAbsentes(error)) {
+      if (poseDesMetiers(e)) throw new Error(`Entreprise ${e.nom} : ${MESSAGE_SQL_CONTRATS}`);
+      avertir(`modification de ${e.nom}`, `colonnes metiers / courtier_partenaire absentes, écriture sans elles (${MESSAGE_SQL_CONTRATS})`);
+      ({ error } = await sb.from(T_ENTREPRISE).update(socle).eq("id", e.id));
+    }
     if (error) {
       throw new Error(/duplicate|unique/i.test(error.message) ? `Une autre entreprise porte déjà le nom « ${e.nom} ».` : `Entreprise ${e.nom} : ${error.message}`);
     }

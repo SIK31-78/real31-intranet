@@ -212,12 +212,14 @@ type ContratRow = CoproRefRow & {
   gasVmcCount: number | null;
   selectedElevatorQuoteId: string | null;
   selectedGasVmcQuoteId: string | null;
+  registrationNumber: string | null;
+  registrationNotApplicable: boolean | null;
 };
 const COLS_CONTRAT =
   "id, referenceCrypto, referenceEstale, insuranceCompany, insuranceContractNumber, broker, " +
   "insuranceSubscriptionDate, insuranceDueDate, gasSupplier, gasPriceType, gasCurrentAmount, gasDueDate, " +
   "gasVmcCompany, gasVmcReference, lastGasVmcCtqDate, elevatorsCount, boilersCount, gasVmcCount, " +
-  "selectedElevatorQuoteId, selectedGasVmcQuoteId";
+  "selectedElevatorQuoteId, selectedGasVmcQuoteId, registrationNumber, registrationNotApplicable";
 
 type MetadataRow = {
   id: string;
@@ -573,6 +575,7 @@ function contratDepuisRow(row: ContratRow, meta: MetadataRow | undefined): Contr
       vmcGaz: row.gasVmcCount,
     },
     energieChauffage: meta?.heatingEnergy ?? null,
+    immatriculation: { numero: row.registrationNumber, nonApplicable: row.registrationNotApplicable },
     devisRetenu: { ctq_ascenseur: row.selectedElevatorQuoteId, ctq_vmc: row.selectedGasVmcQuoteId },
   };
 }
@@ -1147,6 +1150,9 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
     pose("elevatorsCount", k.ascenseurs);
     pose("boilersCount", k.chaudieres);
     pose("gasVmcCount", k.vmcGaz);
+    const im = patch.immatriculation ?? {};
+    pose("registrationNumber", im.numero);
+    pose("registrationNotApplicable", im.nonApplicable);
 
     if (Object.keys(maj).length > 0) {
       const { data, error } = await sb

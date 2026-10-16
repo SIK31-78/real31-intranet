@@ -59,6 +59,7 @@ function contratVide(coproCode: string): ContratCourant {
     vmc: { societe: null, reference: null, dernierCtqISO: null },
     compteurs: { ascenseurs: null, chaudieres: null, vmcGaz: null },
     energieChauffage: null,
+    immatriculation: { numero: null, nonApplicable: null },
     devisRetenu: { ctq_ascenseur: null, ctq_vmc: null },
   };
 }
@@ -227,6 +228,7 @@ export class MockContratsCoproRepository implements ContratsCoproRepository {
     c.gaz = { ...c.gaz, ...defini(patch.gaz) };
     c.vmc = { ...c.vmc, ...defini(patch.vmc) };
     c.compteurs = { ...c.compteurs, ...defini(patch.compteurs) };
+    c.immatriculation = { ...c.immatriculation, ...defini(patch.immatriculation) };
     if (patch.assurance?.prime !== undefined) {
       const fiche = this.fiches.get(coproCode);
       if (fiche) fiche.primeAssuranceActuelle = patch.assurance.prime;

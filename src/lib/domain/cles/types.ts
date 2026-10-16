@@ -10,6 +10,8 @@
 // AUCUN ETAT n'est stocke sur le trousseau hors la marque (introuvable, retire) : l'etat
 // se derive (cf. etat.ts). C'est le defaut PowerApps (statut ecrasable) qu'on ne reconduit pas.
 
+import type { MetierPrestataire } from "@/lib/domain/contrats-copro/types";
+
 export const AGENCES_CLES = ["ML", "LGC", "HLS", "ASN"] as const;
 
 export const TYPES_ELEMENT = ["cle", "badge", "bip", "telecommande", "pass", "autre"] as const;
@@ -149,6 +151,16 @@ export interface Entreprise {
   /** Recoit les mails de relance (opt-out a la main de l'agence). */
   relances: boolean;
   estaleSupplierId?: string;
+  /**
+   * Referentiel du cabinet (decision 4 du 16/10/2026, REA-333) : les metiers qui comptent pour
+   * « Contrats & controles » (ascensoriste, courtier, fournisseur de gaz...). Absent = [].
+   */
+  metiers?: MetierPrestataire[];
+  /**
+   * Courtier partenaire du cabinet : le renouvellement d'assurance n'y est pas suivi par le
+   * cabinet. N'a de sens que si `metiers` contient « courtier ». Absent = false.
+   */
+  courtierPartenaire?: boolean;
   source: SourceCles;
   creeLeISO: string;
 }

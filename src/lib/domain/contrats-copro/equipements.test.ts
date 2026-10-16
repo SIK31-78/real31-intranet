@@ -12,6 +12,7 @@ function contrat(over: Partial<ContratCourant> = {}): ContratCourant {
     vmc: { societe: null, reference: null, dernierCtqISO: null },
     compteurs: { ascenseurs: 0, chaudieres: 0, vmcGaz: 0 },
     energieChauffage: null,
+    immatriculation: { numero: null, nonApplicable: null },
     devisRetenu: { ctq_ascenseur: null, ctq_vmc: null },
     ...over,
   };

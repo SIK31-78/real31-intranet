@@ -5,6 +5,7 @@ import { getClesEntrepriseRepository, getClesPhotoStore, getClesRepository } fro
 import { normaliserNomEntreprise, numeroCanonique } from "@/lib/domain/cles/normaliser";
 import type { Acces, AdresseEntreprise, Contact, ElementComposition, Entreprise, Trousseau } from "@/lib/domain/cles/types";
 import { AGENCES_CLES } from "@/lib/domain/cles/types";
+import { METIERS_PRESTATAIRE, type MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 import { estDirectionCles, MESSAGE_HORS_AGENCE, MESSAGE_RESERVE_DIRECTION_CLES, peutOperer, type Acteur } from "./contexte";
 
 export interface TrousseauInput {
@@ -133,6 +134,28 @@ export interface EntrepriseInput {
   note?: string;
   relances?: boolean;
   estaleSupplierId?: string;
+  /** Referentiel du cabinet : les metiers qui comptent pour « Contrats & controles ». */
+  metiers?: MetierPrestataire[];
+  /** Courtier partenaire : n'a de sens que si `metiers` contient « courtier ». */
+  courtierPartenaire?: boolean;
+}
+
+export const MESSAGE_COURTIER_PARTENAIRE = "« Courtier partenaire du cabinet » ne s'applique qu'à un courtier en assurance : coche d'abord ce métier.";
+
+/** Dedoublonne et ne garde que les metiers connus du domaine. */
+function nettoyerMetiers(metiers: MetierPrestataire[] | undefined): MetierPrestataire[] {
+  const connus = new Set<string>(METIERS_PRESTATAIRE);
+  return [...new Set((metiers ?? []).filter((m) => connus.has(m)))];
+}
+
+/**
+ * Le drapeau partenaire n'existe que pour un courtier : coche par l'utilisateur sans le metier,
+ * on refuse en l'expliquant ; herite d'une fiche dont on retire le metier courtier, on le retombe.
+ */
+function partenaireCoherent(metiers: MetierPrestataire[], coche: boolean | undefined, herite: boolean): boolean {
+  if (metiers.includes("courtier")) return coche ?? herite;
+  if (coche) throw new Error(MESSAGE_COURTIER_PARTENAIRE);
+  return false;
 }
 
 function nettoyerContacts(contacts: Contact[] | undefined): Contact[] {
@@ -150,6 +173,8 @@ export async function creerEntreprise(input: EntrepriseInput, acteur: Acteur): P
   const repo = getClesEntrepriseRepository();
   const existante = await repo.getParNomNormalise(nomNormalise);
   if (existante) throw new Error(`« ${existante.nom} » existe déjà : choisis-la dans la liste.`);
+  const metiers = nettoyerMetiers(input.metiers);
+  const courtierPartenaire = partenaireCoherent(metiers, input.courtierPartenaire, false);
   return repo.creer({
     nom,
     nomNormalise,
@@ -161,6 +186,8 @@ export async function creerEntreprise(input: EntrepriseInput, acteur: Acteur): P
     statut: "active",
     relances: input.relances ?? true,
     ...(input.estaleSupplierId ? { estaleSupplierId: input.estaleSupplierId } : {}),
+    metiers,
+    courtierPartenaire,
     source: "intranet",
     creeParNom: acteur.nom,
   });
@@ -175,7 +202,10 @@ export async function modifierEntreprise(id: string, input: EntrepriseInput): Pr
   const nomNormalise = normaliserNomEntreprise(nom);
   const doublon = await repo.getParNomNormalise(nomNormalise);
   if (doublon && doublon.id !== e.id) throw new Error(`« ${doublon.nom} » existe déjà.`);
-  const maj: Entreprise = { ...e, nom, nomNormalise, contacts: nettoyerContacts(input.contacts), relances: input.relances ?? e.relances };
+  // Un appelant qui ne connait pas les metiers (comptoir) ne les efface pas.
+  const metiers = input.metiers === undefined ? nettoyerMetiers(e.metiers) : nettoyerMetiers(input.metiers);
+  const courtierPartenaire = partenaireCoherent(metiers, input.courtierPartenaire, Boolean(e.courtierPartenaire));
+  const maj: Entreprise = { ...e, nom, nomNormalise, contacts: nettoyerContacts(input.contacts), relances: input.relances ?? e.relances, metiers, courtierPartenaire };
   const champ = <K extends "telephone" | "email" | "note" | "estaleSupplierId">(k: K, v: string | undefined) => {
     if (v?.trim()) maj[k] = (k === "email" ? v.trim().toLowerCase() : v.trim()) as Entreprise[K];
     else delete maj[k];

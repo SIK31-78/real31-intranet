@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Input } from "@/components/ui/field";
+import { Input, Select } from "@/components/ui/field";
 import { Rows, Row } from "@/components/ui/list-rows";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { normaliserTexte } from "@/lib/domain/cles/normaliser";
+import { LIBELLE_METIER, METIERS_PRESTATAIRE, type MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 
 export interface EntrepriseLigne {
   id: string;
@@ -16,19 +17,31 @@ export interface EntrepriseLigne {
   detenus: number;
   enRetard: number;
   bloquee: boolean;
+  /** Referentiel du cabinet : absent = aucun metier declare. */
+  metiers?: MetierPrestataire[];
+  courtierPartenaire?: boolean;
+}
+
+const METIERS = new Set<string>(METIERS_PRESTATAIRE);
+/** Le metier d'un `?metier=` d'URL, ou rien s'il est inconnu. */
+export function metierDepuisParam(valeur: string | string[] | undefined): MetierPrestataire | undefined {
+  const v = Array.isArray(valeur) ? valeur[0] : valeur;
+  return v && METIERS.has(v) ? (v as MetierPrestataire) : undefined;
 }
 
 type Filtre = "toutes" | "detiennent" | "retard" | "bloquees";
 
-export function ListeEntreprises({ entreprises }: { entreprises: EntrepriseLigne[] }) {
+export function ListeEntreprises({ entreprises, metierInitial }: { entreprises: EntrepriseLigne[]; metierInitial?: MetierPrestataire }) {
   const [q, setQ] = useState("");
   const [filtre, setFiltre] = useState<Filtre | null>("toutes");
+  const [metier, setMetier] = useState<MetierPrestataire | "">(metierInitial ?? "");
   const visibles = useMemo(() => {
     const termes = normaliserTexte(q).split(" ").filter(Boolean);
     return entreprises
       .filter((e) => (filtre === "detiennent" ? e.detenus > 0 : filtre === "retard" ? e.enRetard > 0 : filtre === "bloquees" ? e.bloquee : true))
-      .filter((e) => termes.every((t) => normaliserTexte(`${e.nom} ${e.telephone ?? ""} ${e.email ?? ""}`).includes(t)));
-  }, [entreprises, q, filtre]);
+      .filter((e) => !metier || (e.metiers ?? []).includes(metier))
+      .filter((e) => termes.every((t) => normaliserTexte(`${e.nom} ${e.telephone ?? ""} ${e.email ?? ""} ${(e.metiers ?? []).map((m) => LIBELLE_METIER[m]).join(" ")}`).includes(t)));
+  }, [entreprises, q, filtre, metier]);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -44,7 +57,13 @@ export function ListeEntreprises({ entreprises }: { entreprises: EntrepriseLigne
             { value: "bloquees", label: `Bloquées · ${entreprises.filter((e) => e.bloquee).length}` },
           ]}
         />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, téléphone, e-mail…" largeur="auto" className="sm:w-64" aria-label="Rechercher une entreprise" autoFocus />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Select value={metier} onChange={(e) => setMetier(e.target.value as MetierPrestataire | "")} largeur="auto" className="sm:w-52" aria-label="Filtrer par métier">
+            <option value="">Tous les métiers</option>
+            {METIERS_PRESTATAIRE.map((m) => <option key={m} value={m}>{LIBELLE_METIER[m]}</option>)}
+          </Select>
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, téléphone, e-mail, métier…" largeur="auto" className="sm:w-64" aria-label="Rechercher une entreprise" autoFocus />
+        </div>
       </div>
       {visibles.length === 0 ? <EmptyState compact>Aucune entreprise ne correspond</EmptyState> : (
         <Rows>
@@ -53,7 +72,13 @@ export function ListeEntreprises({ entreprises }: { entreprises: EntrepriseLigne
               key={e.id}
               href={`/cles/entreprises/${e.id}`}
               ton={e.enRetard > 0 ? "err" : undefined}
-              principal={e.nom}
+              principal={
+                <span className="inline-flex items-center gap-1.5 flex-wrap">
+                  {e.nom}
+                  {(e.metiers ?? []).map((m) => <Badge key={m}>{LIBELLE_METIER[m]}</Badge>)}
+                  {e.courtierPartenaire && <Badge ton="brand">partenaire</Badge>}
+                </span>
+              }
               secondaire={[e.telephone, e.email].filter(Boolean).join(" · ")}
               droite={
                 <>

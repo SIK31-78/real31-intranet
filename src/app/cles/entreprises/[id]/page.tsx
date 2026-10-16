@@ -7,6 +7,7 @@ import { acteurCles } from "@/lib/auth/acteur-cles";
 import { estDirectionCles } from "@/lib/domain/cles/acteur";
 import { ficheEntreprise } from "@/lib/services/cles/lecture";
 import { LIBELLE_CONFORMITE } from "@/lib/domain/cles/types";
+import { LIBELLE_METIER } from "@/lib/domain/contrats-copro/types";
 import { joursDehors, libelleDuree } from "@/lib/domain/cles/etat";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
@@ -35,13 +36,15 @@ export default async function EntreprisePage({ params }: { params: Promise<{ id:
   if (!fiche) notFound();
   const { entreprise: e, detenus, enRetard, historique, reservations, mouvements, tauxRetard, numeros } = fiche;
   const prevues = reservations.filter((r) => r.statut === "prevue" && r.finPrevueISO >= aujourdhuiISO);
+  const metiers = e.metiers ?? [];
+  const partenaire = Boolean(e.courtierPartenaire) && metiers.includes("courtier");
 
   return (
     <AppShell user={g} active="cles" breadcrumb={`Gestion des clés · ${e.nom}`}>
       <Page largeur="travail">
         <PageHeader
           titre={e.nom}
-          eyebrow={[e.telephone, e.email, e.adresse?.ville].filter(Boolean).join(" · ") || undefined}
+          eyebrow={[...metiers.map((m) => LIBELLE_METIER[m] + (m === "courtier" && partenaire ? " partenaire" : "")), e.telephone, e.email, e.adresse?.ville].filter(Boolean).join(" · ") || undefined}
           badge={e.statut === "bloquee" ? <Badge ton="err" size="md" dot>bloquée{e.motifBlocage ? ` · ${e.motifBlocage}` : ""}</Badge> : enRetard > 0 ? <Badge ton="err" size="md" dot>{enRetard} trousseau{enRetard > 1 ? "x" : ""} en retard</Badge> : detenus.length > 0 ? <Badge ton="warn" size="md" dot>détient {detenus.length} trousseau{detenus.length > 1 ? "x" : ""}</Badge> : undefined}
           actions={
             <span className="flex items-center gap-2 flex-wrap justify-end">
@@ -102,6 +105,15 @@ export default async function EntreprisePage({ params }: { params: Promise<{ id:
                       <ul className="flex flex-col gap-0.5">{e.contacts.map((c, i) => <li key={i}>{c.nom}{c.principal ? " (principal)" : ""}{c.telephone ? ` · ${c.telephone}` : ""}{c.email ? ` · ${c.email}` : ""}</li>)}</ul>
                     )}
                   </DataRow>
+                  <DataRow label="Métiers">
+                    {metiers.length === 0 ? <span className="text-ink-3">aucun déclaré</span> : (
+                      <span className="inline-flex items-center gap-1.5 flex-wrap">
+                        {metiers.map((m) => <Badge key={m}>{LIBELLE_METIER[m]}</Badge>)}
+                        {partenaire && <Badge ton="brand">partenaire</Badge>}
+                      </span>
+                    )}
+                  </DataRow>
+                  {partenaire && <DataRow label="Assurance">renouvellement non suivi par le cabinet (courtier partenaire)</DataRow>}
                   <DataRow label="Relances">{e.relances ? "oui" : "non"}</DataRow>
                   {e.note && <DataRow label="Note">{e.note}</DataRow>}
                   {e.source === "import_powerapps" && <DataRow label="Origine">reprise de PowerApps</DataRow>}

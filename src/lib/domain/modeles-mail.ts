@@ -34,6 +34,16 @@ export const VARIABLES_MODELE: { cle: keyof VariablesModele; libelle: string }[]
   { cle: "gestionnaire_initiales", libelle: "Vos initiales" },
   { cle: "agence", libelle: "Agence" },
   { cle: "date", libelle: "Date du jour" },
+  // Modèles « Contrats : … » du module « Contrats & contrôles » (REA-333).
+  { cle: "contrat_actuel_fournisseur", libelle: "Contrats : fournisseur du contrat gaz actuel" },
+  { cle: "contrat_actuel_type_prix", libelle: "Contrats : type de prix du contrat gaz actuel (Variable / Fixe)" },
+  { cle: "contrat_actuel_montant", libelle: "Contrats : montant du contrat gaz actuel" },
+  { cle: "contrat_actuel_echeance", libelle: "Contrats : échéance du contrat actuel (gaz ou assurance selon le modèle)" },
+  { cle: "contrat_actuel_assureur", libelle: "Contrats : assureur du contrat actuel" },
+  { cle: "contrat_actuel_prime", libelle: "Contrats : prime d'assurance actuelle" },
+  { cle: "devis_prestataire", libelle: "Contrats : prestataire du devis retenu (ou de l'unique devis)" },
+  { cle: "devis_montant", libelle: "Contrats : montant de ce devis" },
+  { cle: "offres", libelle: "Contrats : tableau des offres ou devis (section générée)" },
 ];
 
 /** Les {{variables}} d'un texte que la fusion ne connaît pas (à corriger avant d'enregistrer). */

@@ -110,6 +110,18 @@ export interface VariablesModele {
   gestionnaire_initiales?: string;
   agence?: string;
   date?: string;
+  // Module « Contrats & contrôles » (REA-333) : les variables des modèles « Contrats : … »
+  // (seed supabase/sql/intranet_contrats_modeles_mail_seed.sql). `offres` est un MARQUEUR de
+  // section (tableau rendu par le service), déclaré ici pour que l'écran admin l'accepte.
+  contrat_actuel_fournisseur?: string;
+  contrat_actuel_type_prix?: string;
+  contrat_actuel_montant?: string;
+  contrat_actuel_echeance?: string;
+  contrat_actuel_assureur?: string;
+  contrat_actuel_prime?: string;
+  devis_prestataire?: string;
+  devis_montant?: string;
+  offres?: string;
 }
 
 /**
@@ -129,6 +141,8 @@ export function fusionnerModele(gabarit: string, variables: VariablesModele): st
 export const MODELE_CLES: Record<keyof VariablesModele, true> = {
   copro_code: true, copro_nom: true, copro_adresse: true, destinataire_nom: true,
   gestionnaire_nom: true, gestionnaire_initiales: true, agence: true, date: true,
+  contrat_actuel_fournisseur: true, contrat_actuel_type_prix: true, contrat_actuel_montant: true, contrat_actuel_echeance: true,
+  contrat_actuel_assureur: true, contrat_actuel_prime: true, devis_prestataire: true, devis_montant: true, offres: true,
 };
 
 // Formule de politesse finale d'un modèle (une ligne seule, en fin de texte).

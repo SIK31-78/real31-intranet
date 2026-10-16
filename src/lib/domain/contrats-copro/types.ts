@@ -225,6 +225,8 @@ export interface ContratCourant {
   };
   /** Énergie de chauffage (fiche immeuble) : "GAZ", "FIOUL", "ELECTRICITE"… ; null si inconnue. */
   energieChauffage: string | null;
+  /** Immatriculation au registre national ; `nonApplicable` = la copro n'en a légitimement pas (ASL…). */
+  immatriculation: { numero: string | null; nonApplicable: boolean | null };
   /** Devis CTQ retenus, par sujet (null = aucun). */
   devisRetenu: Record<SujetCtq, string | null>;
 }
@@ -235,6 +237,7 @@ export interface PatchContratCourant {
   gaz?: Partial<ContratCourant["gaz"]>;
   vmc?: Partial<ContratCourant["vmc"]>;
   compteurs?: Partial<ContratCourant["compteurs"]>;
+  immatriculation?: Partial<ContratCourant["immatriculation"]>;
 }
 
 // --- Documents (pointeurs SharePoint) ----------------------------------------------------

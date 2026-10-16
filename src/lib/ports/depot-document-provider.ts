@@ -3,7 +3,9 @@
 // Ne dépend de rien.
 
 export type ResultatDepot =
-  | { depose: true; webUrl: string }
+  /** `driveId` / `itemId` : identifiants Graph du fichier, quand l'adapter sait les rendre
+   *  (pointeurs de documents du module Contrats & contrôles). */
+  | { depose: true; webUrl: string; driveId?: string; itemId?: string }
   | { depose: false; raison: string };
 
 export interface DepotDocumentProvider {
@@ -13,6 +15,7 @@ export interface DepotDocumentProvider {
    * Dépose `contenu` sous `<dossierUrl>/<sousDossiers…>/<nomFichier>`. Les sous-dossiers
    * manquants sont créés, un fichier du même nom est remplacé (la dernière édition fait foi).
    * Ne lève pas : un échec revient en `raison`, lisible par l'utilisateur.
+   * `contentType` : type MIME du fichier (PDF par défaut).
    */
-  deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer }): Promise<ResultatDepot>;
+  deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer; contentType?: string }): Promise<ResultatDepot>;
 }

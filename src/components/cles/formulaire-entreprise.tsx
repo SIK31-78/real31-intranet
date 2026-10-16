@@ -1,6 +1,7 @@
 "use client";
 
-// Fiche entreprise : coordonnees, contacts, note, relances. Creation et modification.
+// Fiche entreprise : coordonnees, contacts, metiers (referentiel du cabinet), note, relances.
+// Creation et modification.
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea, Choix } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import type { Contact, Entreprise } from "@/lib/domain/cles/types";
+import { LIBELLE_METIER, METIERS_PRESTATAIRE, type MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 import { creerEntrepriseAction, modifierEntrepriseAction } from "@/app/cles/actions";
 
 export function FormulaireEntreprise({ entreprise, onFermer }: { entreprise?: Entreprise; onFermer?: () => void }) {
@@ -24,10 +26,18 @@ export function FormulaireEntreprise({ entreprise, onFermer }: { entreprise?: En
   const [note, setNote] = useState(entreprise?.note ?? "");
   const [relances, setRelances] = useState(entreprise?.relances ?? true);
   const [contacts, setContacts] = useState<Contact[]>(entreprise?.contacts ?? []);
+  const [metiers, setMetiers] = useState<MetierPrestataire[]>(entreprise?.metiers ?? []);
+  const [courtierPartenaire, setCourtierPartenaire] = useState(Boolean(entreprise?.courtierPartenaire));
+  const courtier = metiers.includes("courtier");
+
+  function basculerMetier(m: MetierPrestataire, coche: boolean) {
+    setMetiers(coche ? [...metiers, m] : metiers.filter((x) => x !== m));
+    if (m === "courtier" && !coche) setCourtierPartenaire(false);
+  }
 
   function valider() {
     demarrer(async () => {
-      const d = { nom, telephone: tel || undefined, email: mail || undefined, adresse: { ligne1: ligne1 || undefined, codePostal: cp || undefined, ville: ville || undefined }, contacts, note: note || undefined, relances };
+      const d = { nom, telephone: tel || undefined, email: mail || undefined, adresse: { ligne1: ligne1 || undefined, codePostal: cp || undefined, ville: ville || undefined }, contacts, note: note || undefined, relances, metiers, courtierPartenaire: courtier && courtierPartenaire };
       const res = entreprise ? await modifierEntrepriseAction({ ...d, entrepriseId: entreprise.id }) : await creerEntrepriseAction(d);
       if (!res.ok) return toast.err(res.erreur);
       toast.ok(entreprise ? `${nom} mise à jour.` : `${nom} créée.`);
@@ -60,6 +70,21 @@ export function FormulaireEntreprise({ entreprise, onFermer }: { entreprise?: En
           </div>
         ))}
         <div><Button type="button" variant="ghost" size="sm" onClick={() => setContacts([...contacts, { nom: "", principal: contacts.length === 0 }])}><Plus strokeWidth={1.5} /> Ajouter un contact</Button></div>
+      </fieldset>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-body font-medium text-ink mb-1">Métiers</legend>
+        <p className="text-meta text-ink-3">Le référentiel sert aussi aux contrats des copropriétés : coche ce que fait l’entreprise.</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+          {METIERS_PRESTATAIRE.map((m) => (
+            <Choix key={m} type="checkbox" checked={metiers.includes(m)} onChange={(e) => basculerMetier(m, e.target.checked)} label={LIBELLE_METIER[m]} />
+          ))}
+        </div>
+        {courtier && (
+          <div className="flex flex-col gap-0.5 pl-1">
+            <Choix type="checkbox" checked={courtierPartenaire} onChange={(e) => setCourtierPartenaire(e.target.checked)} label="Courtier partenaire du cabinet" />
+            <p className="text-meta text-ink-3 pl-5">Chez un courtier partenaire, le renouvellement d’assurance n’est pas suivi par le cabinet.</p>
+          </div>
+        )}
       </fieldset>
       <Field label="Note (facultatif)" htmlFor="ent-note"><Textarea id="ent-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
       <Choix type="checkbox" checked={relances} onChange={(e) => setRelances(e.target.checked)} label="Recevra les mails de rappel et de relance (quand ils seront en place)" />

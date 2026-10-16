@@ -66,7 +66,7 @@ async function assurerDossier(tk: string, driveId: string, parent: string[], nom
 export class GraphDepotDocumentProvider implements DepotDocumentProvider {
   readonly actif = true;
 
-  async deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer }): Promise<ResultatDepot> {
+  async deposer(p: { dossierUrl: string; sousDossiers: string[]; nomFichier: string; contenu: Buffer; contentType?: string }): Promise<ResultatDepot> {
     try {
       if (p.contenu.length > TAILLE_MAX) throw new ErreurDepot("fichier de plus de 4 Mo, dépôt non prévu.");
       const site = siteDepuisUrl(p.dossierUrl);
@@ -83,11 +83,16 @@ export class GraphDepotDocumentProvider implements DepotDocumentProvider {
       // PUT sur le chemin : remplace un fichier du même nom (la dernière édition fait foi).
       const r = await graphFetch(`${GRAPH}/drives/${dossier.driveId}/root:/${chemin([...parent, p.nomFichier])}:/content`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/pdf" },
+        headers: { Authorization: `Bearer ${tk}`, "Content-Type": p.contentType ?? "application/pdf" },
         body: new Uint8Array(p.contenu),
       });
-      const fichier = await lireJson<{ webUrl: string }>(r, "envoi du fichier");
-      return { depose: true, webUrl: fichier.webUrl };
+      const fichier = await lireJson<{ id?: string; webUrl: string; parentReference?: { driveId?: string } }>(r, "envoi du fichier");
+      return {
+        depose: true,
+        webUrl: fichier.webUrl,
+        driveId: fichier.parentReference?.driveId ?? dossier.driveId,
+        ...(fichier.id ? { itemId: fichier.id } : {}),
+      };
     } catch (e) {
       if (e instanceof ErreurDepot) return { depose: false, raison: e.message };
       return { depose: false, raison: `SharePoint injoignable (${e instanceof Error ? e.message : String(e)}).` };

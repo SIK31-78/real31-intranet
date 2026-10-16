@@ -10,14 +10,15 @@ import { Section } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { FormulaireEntreprise } from "@/components/cles/formulaire-entreprise";
-import { ListeEntreprises } from "@/components/cles/liste-entreprises";
+import { ListeEntreprises, metierDepuisParam } from "@/components/cles/liste-entreprises";
 
 export const metadata: Metadata = { title: "Entreprises - Gestion des clés - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
-export default async function EntreprisesPage() {
+export default async function EntreprisesPage({ searchParams }: { searchParams: Promise<{ metier?: string | string[] }> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
+  const metierInitial = metierDepuisParam((await searchParams).metier);
   const entreprises = await listerEntreprises(jourParis());
   const detentrices = entreprises.filter((e) => e.detenus > 0).length;
   return (
@@ -27,10 +28,10 @@ export default async function EntreprisesPage() {
           titre="Entreprises"
           eyebrow={`${entreprises.length} entreprise${entreprises.length > 1 ? "s" : ""} · ${detentrices} détiennent des trousseaux`}
           actions={<ButtonLink href="/cles" variant="ghost" size="sm"><ArrowLeft strokeWidth={1.5} /> Comptoir</ButtonLink>}
-          aide={<p>Le référentiel est commun à tout le cabinet. Une entreprise se crée aussi à la volée depuis « Sortir » ou « Réserver ». Bloquer une entreprise (direction) empêche de lui confier un trousseau.</p>}
+          aide={<p>Le référentiel est commun à tout le cabinet et sert aussi aux contrats des copropriétés : ascensoristes, courtiers, fournisseurs de gaz s’y retrouvent avec leurs métiers. Une entreprise se crée aussi à la volée depuis « Sortir » ou « Réserver ». Bloquer une entreprise (direction) empêche de lui confier un trousseau.</p>}
         />
         <Section id="ent-liste" titre="Toutes les entreprises" compte={entreprises.length}>
-          <ListeEntreprises entreprises={entreprises.map((e) => ({ id: e.id, nom: e.nom, telephone: e.telephone, email: e.email, detenus: e.detenus, enRetard: e.enRetard, bloquee: e.statut === "bloquee" }))} />
+          <ListeEntreprises metierInitial={metierInitial} entreprises={entreprises.map((e) => ({ id: e.id, nom: e.nom, telephone: e.telephone, email: e.email, detenus: e.detenus, enRetard: e.enRetard, bloquee: e.statut === "bloquee", metiers: e.metiers ?? [], courtierPartenaire: Boolean(e.courtierPartenaire) }))} />
         </Section>
         <Section id="ent-nouvelle" titre="Nouvelle entreprise">
           <Card><CardBody><FormulaireEntreprise /></CardBody></Card>

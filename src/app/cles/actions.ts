@@ -9,6 +9,7 @@ import { z } from "zod";
 import { actionGestionnaire } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { TYPES_ACCES, TYPES_ELEMENT } from "@/lib/domain/cles/types";
+import { METIERS_PRESTATAIRE } from "@/lib/domain/contrats-copro/types";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { acteurCles } from "@/lib/auth/acteur-cles";
 import { annulerReservation, corrigerPret, CHAMPS_CORRIGEABLES, enregistrerRetour, marquer, prolonger, reserver, sortir } from "@/lib/services/cles/comptoir";
@@ -191,6 +192,8 @@ const zEntreprise = z.object({
   contacts: z.array(zContact).max(20).optional(),
   note: z.string().trim().max(1000).optional(),
   relances: z.boolean().optional(),
+  metiers: z.array(z.enum(METIERS_PRESTATAIRE)).max(METIERS_PRESTATAIRE.length).optional(),
+  courtierPartenaire: z.boolean().optional(),
 });
 
 export async function creerEntrepriseAction(input: unknown): Promise<Res<{ entrepriseId: string; nom: string }>> {
