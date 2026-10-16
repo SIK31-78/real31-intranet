@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
@@ -62,6 +63,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
           maxPerso={maxPerso}
           modeles={modeles}
+          imagesOuvert={estSuperAdmin(g.email)}
         />
       </Page>
     </AppShell>

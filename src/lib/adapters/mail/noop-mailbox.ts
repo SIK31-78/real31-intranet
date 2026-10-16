@@ -4,6 +4,10 @@
 import type { DossierBoite, MailboxProvider, PieceJointeRef } from "@/lib/ports/mailbox-provider";
 
 export class NoopMailboxProvider implements MailboxProvider {
+  async listerImagesInline(): Promise<PieceJointeRef[]> {
+    return [];
+  }
+
   async classerDansCopro(p: {
     boite: string;
     internetMessageId: string;

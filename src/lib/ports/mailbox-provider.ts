@@ -39,6 +39,9 @@ export interface MailboxProvider {
    *  images inline (signatures). */
   listerPiecesJointes(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]>;
 
+  /** Les images INLINE du mail (collees dans le corps, logos compris), metadonnees seulement. */
+  listerImagesInline(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]>;
+
   /** Contenu d'une piece jointe (base64) pour telechargement cote client. */
   lirePieceJointe(p: {
     boite: string;

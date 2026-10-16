@@ -3,6 +3,7 @@
 // telechargement cote client. Passe par le routeur (ADR-001).
 
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
+import { imagesDuCorps } from "@/lib/domain/images-mail";
 import { getMailboxProvider } from "@/lib/adapters/router";
 
 export async function listerPiecesJointesMail(
@@ -10,6 +11,11 @@ export async function listerPiecesJointesMail(
   internetMessageId: string,
 ): Promise<PieceJointeRef[]> {
   return getMailboxProvider().listerPiecesJointes({ boite, internetMessageId });
+}
+
+/** Les photos collées dans le corps (logos de signature écartés), REA-328. */
+export async function listerImagesMail(boite: string, internetMessageId: string): Promise<PieceJointeRef[]> {
+  return imagesDuCorps(await getMailboxProvider().listerImagesInline({ boite, internetMessageId }));
 }
 
 export async function lirePieceJointeMail(
