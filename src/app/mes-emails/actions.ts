@@ -115,6 +115,11 @@ async function cibleStatut(g: Gestionnaire, emailId: string, coproCode: string, 
   return b && !b.personnelle ? { ...c, boitePartagee: b.id } : c;
 }
 
+// PERF (Sentry 16/10/2026) : les actions legeres ne relancent PAS la page entiere.
+// revalidatePath("/mes-emails") reconstruisait tout l'ecran apres un simple « Conclure »
+// (boites Graph, portefeuille ESTALE, signature Signitic) : p95 de 5 s. L'ecran tient deja
+// son etat (classes, etapes, brouillon, copro, mails partis) ; la page relue a la prochaine
+// visite prend l'etat persiste.
 // --- Actions d'etat (retour void : sur entree/auth invalide, on ne fait rien) -----------
 
 /** Conclure l'événement : le mail sort de la liste « à traiter », sans bouger dans Outlook. */
@@ -123,7 +128,6 @@ export async function marquerTraiteAction(emailId: string, coproCode: string, bo
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerStatut(await cibleStatut(auth.g, emailId, coproCode, boite), "classe", []);
-  revalidatePath("/mes-emails");
 }
 
 export async function devaliderMailAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
@@ -131,7 +135,6 @@ export async function devaliderMailAction(emailId: string, coproCode: string, bo
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerStatut(await cibleStatut(auth.g, emailId, coproCode, boite), "nouveau", []);
-  revalidatePath("/mes-emails");
 }
 
 export async function toggleEtapeAction(emailId: string, coproCode: string, etapes: number[]): Promise<void> {
@@ -140,7 +143,6 @@ export async function toggleEtapeAction(emailId: string, coproCode: string, etap
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerEtapes(cibleDe(auth.g, emailId, coproCode), etapes);
-  revalidatePath("/mes-emails");
 }
 
 export async function editBrouillonAction(emailId: string, coproCode: string, brouillon: string): Promise<void> {
@@ -149,7 +151,6 @@ export async function editBrouillonAction(emailId: string, coproCode: string, br
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerBrouillon(cibleDe(auth.g, emailId, coproCode), brouillon);
-  revalidatePath("/mes-emails");
 }
 
 export async function rattachementAction(
@@ -161,7 +162,6 @@ export async function rattachementAction(
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerRattachement(cibleDe(auth.g, emailId, coproCode), rattachement);
-  revalidatePath("/mes-emails");
 }
 
 export async function marquerLuAction(emailId: string, coproCode: string): Promise<void> {
@@ -345,7 +345,6 @@ export async function rendreAuTriAction(emailId: string, boite?: string): Promis
   if (!partagee) return echec("Seul un mail de la boîte partagée peut être rendu au tri.");
   try {
     await rendreAuTri(partagee, emailId, g.email ?? g.id);
-    revalidatePath("/mes-emails");
     return { ok: true };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
@@ -361,7 +360,6 @@ export async function envoyerABonneCoproAction(emailId: string, reference: strin
   if (!partagee) return echec("Seul un mail de la boîte partagée peut changer de binôme.");
   try {
     const r = await envoyerABonneCopro(partagee, emailId, reference.toUpperCase(), g.email ?? g.id);
-    revalidatePath("/mes-emails");
     return { ok: true, donnees: { dossierNom: r.dossierNom } };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
@@ -561,7 +559,6 @@ export async function rattacherCoproAction(
     await enregistrerCopro(cibleDe(auth.g, emailId, coproCode), coproNom);
     // Boîte partagée : le journal du tri suit (vu par tout le binôme, mesure du tri).
     const tri = boite ? await reporterCoproAuTri(auth.g, boite, emailId, coproCode) : { corrige: false };
-    revalidatePath("/mes-emails");
     if (tri.autreDossier) {
       return { ok: true, message: `Copro corrigée dans le tri. Elle relève du dossier ${tri.autreDossier} : le mail n'a pas été déplacé.` };
     }
@@ -631,7 +628,6 @@ export async function classerDansDossierAction(
     const c = cibleDe(g, emailId, coproCode);
     await enregistrerStatut(await cibleStatut(g, emailId, coproCode, cible), "classe", etapes, brouillon);
     await enregistrerDossier(c, folderId, folderNom);
-    revalidatePath("/mes-emails");
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
