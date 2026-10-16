@@ -131,11 +131,8 @@ export function MesEmailsVue({
   maxPerso = 40,
   agence = "",
   modeles,
-  imagesOuvert = false,
 }: {
   data: MesEmails;
-  /** Pilote « Images du mail » (REA-328) : super-admin seulement. */
-  imagesOuvert?: boolean;
   /** Modèles de réponse proposés (agence et cabinet). */
   modeles: ModeleMail[];
   /** Agence de la boîte (MAIL_TRI_AGENCE) : signe les modèles de réponse. */
@@ -836,7 +833,6 @@ export function MesEmailsVue({
               }
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
-              imagesOuvert={imagesOuvert}
               {...(depotDriveActif && coproDe(selection).code
                 ? { onDeposer: (pj: PieceJointeRef) => void deposerPj(selection, pj) }
                 : {})}
@@ -1353,7 +1349,6 @@ function AnalysePane({
   modeles,
   onTelecharger,
   onApercu,
-  imagesOuvert,
   onDeposer,
   adresseFactures,
   onTransmettreFacture,
@@ -1423,8 +1418,6 @@ function AnalysePane({
   modeles: ModeleMail[];
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
-  /** Vignettes des photos collées (pilote REA-328, super-admin). */
-  imagesOuvert: boolean;
   /** Déposer la PJ dans le dossier SharePoint de la copro. Absent = dépôt coupé ou mail sans copro. */
   onDeposer?: (pj: PieceJointeRef) => void;
   adresseFactures?: string;
@@ -1550,8 +1543,7 @@ function AnalysePane({
         <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
           {m.corps}
         </div>
-        {/* Pilote (REA-328) : réservé au super-admin tant que Sekou ne l'a pas validé. */}
-        {imagesOuvert ? <ImagesMail key={`img-${m.id}`} emailId={m.id} coproCode={coproCode} boite={boiteDuMail} onApercu={onApercu} /> : null}
+        <ImagesMail key={`img-${m.id}`} emailId={m.id} coproCode={coproCode} boite={boiteDuMail} onApercu={onApercu} />
         <HistoriqueMail key={m.id} emailId={m.id} boite={boiteDuMail} />
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">

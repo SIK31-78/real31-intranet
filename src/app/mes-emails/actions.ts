@@ -30,7 +30,6 @@ import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerImagesMail, listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
-import { estSuperAdmin } from "@/lib/auth/roles";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 import { coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-emails/reaffecter";
@@ -353,14 +352,11 @@ export async function envoyerABonneCoproAction(emailId: string, reference: strin
   }
 }
 
-/**
- * Les photos collées dans le corps (REA-328). PILOTE : réservé au super-admin tant que Sekou
- * ne l'a pas validé sur de vrais mails (rollback du 15/10 : ne plus ouvrir à tous sans voir).
- */
+/** Les photos collées dans le corps (REA-328), validées par Sekou le 16/10/2026 sur de vrais mails. */
 export async function chargerImagesMailAction(emailId: string, coproCode: string, boite?: string): Promise<PieceJointeRef[]> {
   if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return [];
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok || !auth.g.email || !estSuperAdmin(auth.g.email)) return [];
+  if (!auth.ok || !auth.g.email) return [];
   const cible = await boiteCible(auth.g, boite);
   if (!cible) return [];
   try {
