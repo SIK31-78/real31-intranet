@@ -105,7 +105,7 @@ export async function apercuRecapAgAction(
  */
 export async function creerRecapAgAction(
   demande: DemandeRecapAg,
-): Promise<Res<{ recapId: string; depassementHeures: number; factureId: string | null; mailComptableA: string[] }>> {
+): Promise<Res<{ recapId: string; depassementHeures: number; factureId: string | null; mailComptableA: string[]; mailAssistanteCc?: string }>> {
   const saisie = zDemande.safeParse(demande);
   if (!saisie.success) return { ok: false, erreur: erreurSaisie(saisie.error) };
 
@@ -118,6 +118,7 @@ export async function creerRecapAgAction(
       depassementHeures: resultat.depassementHeures,
       factureId: resultat.factureId,
       mailComptableA: resultat.mailComptableA,
+      ...(resultat.mailAssistanteCc ? { mailAssistanteCc: resultat.mailAssistanteCc } : {}),
     };
   });
 }

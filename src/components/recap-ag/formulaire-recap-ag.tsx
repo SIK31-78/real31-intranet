@@ -342,7 +342,9 @@ export function FormulaireRecapAg({
       if (!res.ok) return toast.err(res.erreur);
       const d = res.donnees;
       // Le mail au comptable est dit dans le toast : la personne sait qui a ete prevenue.
-      const mail = d?.mailComptableA?.length ? ` Mail envoyé à ${d.mailComptableA.join(", ")}.` : "";
+      // L'assistante de la copro est en copie (REA-348) : on le dit aussi.
+      const copie = d?.mailAssistanteCc ? `, copie à ${d.mailAssistanteCc}` : "";
+      const mail = d?.mailComptableA?.length ? ` Mail envoyé à ${d.mailComptableA.join(", ")}${copie}.` : "";
       toast.ok(
         (d?.factureId
           ? `Récap enregistré, dépassement de ${d.depassementHeures} h facturé.`

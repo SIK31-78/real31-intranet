@@ -9,9 +9,18 @@ const etat = vi.hoisted(() => ({
   envois: [] as { boite: string; a: string[]; cc: string[]; sujet: string; corps: string; corpsHtml?: string }[],
   notifies: [] as string[],
   panneMail: false,
+  assistante: null as { nomComplet: string; email: string } | null,
 }));
 
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
+// L'assistante de la copro (REA-348) : la resolution est testee a part, on garde la vraie
+// regle de dedoublonnage.
+vi.mock("@/lib/services/coproprietes/assistante-de-copro", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/coproprietes/assistante-de-copro")>()),
+  async assistanteDeCopro() {
+    return etat.assistante;
+  },
+}));
 vi.mock("@/lib/adapters/router", () => ({
   getCoproRepository: () => ({
     async findByCode(code: string) {
@@ -68,6 +77,7 @@ beforeEach(() => {
   etat.envois = [];
   etat.notifies = [];
   etat.panneMail = false;
+  etat.assistante = null;
   vi.stubEnv("AUTH_URL", "https://real31.app/");
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
 });
@@ -83,6 +93,18 @@ describe("notifierRecapAg", () => {
     expect(m.corps).toContain("https://real31.app/comptabilite/recaps/r1");
     expect(m.corpsHtml).toContain('href="https://real31.app/comptabilite/recaps/r1"');
     expect(etat.notifies).toEqual(["r1"]);
+  });
+  it("REA-348 : l'assistante de la copro en copie, dite au retour", async () => {
+    etat.assistante = { nomComplet: "Julie Binôme", email: "julie.binome@real31.fr" };
+    const r = await notifierRecapAg(recap);
+    expect(r).toEqual({ envoye: true, a: ["isabelle.anglade@real31.fr"], assistanteEnCopie: "Julie Binôme" });
+    expect(etat.envois[0]!.cc).toEqual(["wilfrid.tohoubi@real31.fr", "julie.binome@real31.fr"]);
+  });
+  it("REA-348 : pas de doublon quand l'assistante est celle qui saisit le recap", async () => {
+    etat.assistante = { nomComplet: "Wilfrid", email: "Wilfrid.Tohoubi@real31.fr" };
+    const r = await notifierRecapAg(recap);
+    expect(r.assistanteEnCopie).toBeUndefined();
+    expect(etat.envois[0]!.cc).toEqual(["wilfrid.tohoubi@real31.fr"]);
   });
   it("le corps reprend le mail MYTHEC champ par champ, travaux et contrat compris", () => {
     const c = corpsNotificationRecap(recap, "LES TILLEULS", "u");

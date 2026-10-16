@@ -12,6 +12,7 @@ import { comptablesPourAgence } from "@/lib/domain/perimetre-comptable";
 import type { Creneau } from "@/lib/domain/facturation/commun";
 import type { TravauxVotes } from "@/lib/ports/recap-ag-repository";
 import { agenceDeCopro } from "@/lib/services/agences/resoudre-agence";
+import { assistanteDeCopro, copieAvecAssistante } from "@/lib/services/coproprietes/assistante-de-copro";
 import { signalerException } from "@/lib/observabilite";
 import { formatEuros, formatHeure, formatJour } from "@/lib/services/facturation/format";
 import { htmlNotificationRecap } from "./notifier-recap-html";
@@ -46,6 +47,8 @@ export interface ResultatNotification {
   envoye: boolean;
   /** Destinataires en A (les comptables de l'agence). */
   a: string[];
+  /** L'assistante de la copro mise en copie (REA-348), absente si personne n'a ete ajoute. */
+  assistanteEnCopie?: string;
 }
 
 /** Base des liens dans les mails : l'URL publique de l'intranet. */
@@ -122,19 +125,24 @@ export async function notifierRecapAg(r: RecapANotifier): Promise<ResultatNotifi
     }
     const lien = `${urlIntranet()}/comptabilite/recaps/${encodeURIComponent(r.recapId)}`;
     const coproNom = copro?.nom ?? r.coproCode;
+    // Copie au gestionnaire : il voit que le comptable a bien recu (demande d'Isabelle
+    // et Titouan, 16/09/2026). Et a l'assistante de la copro, qui a besoin du recap pour
+    // la suite de l'AG (REA-348, decision de Sekou du 16/10/2026 : la copie du mail
+    // suffit, pas d'autre canal). Sans doublon si elle est deja destinataire.
+    const assistante = copro ? await assistanteDeCopro(copro) : null;
+    const cc = copieAvecAssistante([r.boite], assistante, a);
+    const assistanteEnCopie = cc.length > 1 && assistante ? assistante.nomComplet : undefined;
     await getMailOutboundProvider().envoyerNeuf({
       boite: r.boite,
       a,
-      // Copie au gestionnaire : il voit que le comptable a bien recu (demande d'Isabelle
-      // et Titouan, 16/09/2026).
-      cc: [r.boite],
+      cc,
       cci: [],
       sujet: sujetNotificationRecap(r),
       corps: corpsNotificationRecap(r, coproNom, lien),
       corpsHtml: htmlNotificationRecap(r, coproNom, lien),
     });
     await getRecapAgRepository().marquerNotifie(r.recapId).catch((e) => console.warn("[recap-ag] notif_comptable_at non posé :", (e as Error).message));
-    return { envoye: true, a };
+    return { envoye: true, a, ...(assistanteEnCopie ? { assistanteEnCopie } : {}) };
   } catch (e) {
     console.warn("[recap-ag] mail au comptable non envoyé :", (e as Error).message);
     signalerException(e, { source: "recap-ag", copro: r.coproCode, detail: { recapId: r.recapId } });

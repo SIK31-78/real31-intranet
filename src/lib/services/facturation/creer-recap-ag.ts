@@ -86,6 +86,8 @@ export interface ResultatRecapAg {
   factureId: string | null;
   /** Comptables qui ont recu le mail ([] si aucun envoi : mock, panne, agence inconnue). */
   mailComptableA: string[];
+  /** L'assistante de la copro mise en copie du mail (REA-348) ; absente sinon. */
+  mailAssistanteCc?: string;
 }
 
 /** Annee de bareme d'un recap AG : l'exercice approuve, soit N-1. */
@@ -379,6 +381,7 @@ export async function creerRecapAg(
       montantTtc: 0,
       factureId: null,
       mailComptableA: notification.a,
+      ...(notification.assistanteEnCopie ? { mailAssistanteCc: notification.assistanteEnCopie } : {}),
     };
   }
 
@@ -423,6 +426,7 @@ export async function creerRecapAg(
     montantTtc: calcul.montantTtc,
     factureId,
     mailComptableA: notification.a,
+    ...(notification.assistanteEnCopie ? { mailAssistanteCc: notification.assistanteEnCopie } : {}),
   };
 }
 
