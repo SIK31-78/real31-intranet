@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  Bot, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
+  Bot, Briefcase, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ScrollText, ShieldAlert, Signature, Sparkles, Users, Vote,
   FilePen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -46,6 +46,8 @@ export type NavKey =
   | "cles"
   // Hub IA du groupe : un lien vers une autre application, pas un ecran de l'intranet.
   | "hub-ia"
+  // L'ERP des equipes vente, location et accueil (REA-346) : lien externe lui aussi.
+  | "erp"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
   // surligne AUCUNE entree (avant, ils empruntaient "calendrier" a tort). Pas de
   // nouvelle entree sidebar - juste une valeur qui ne matche aucun item.
@@ -158,6 +160,10 @@ const NAV_HORS_SYNDIC: Item[] = [
   { key: "gestion-courante", label: "Gestion courante", href: "/gestion-courante", icon: Landmark },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
+  // L'ERP est l'outil quotidien de la vente, de la location et de
+  // l'accueil : il leur manquait un accès depuis l'intranet (REA-346, 16/10/2026). Dans
+  // cette nav et pas dans « Nos applications », que voit aussi le syndic qui ne s'en sert pas.
+  { key: "erp", label: "ERP", href: "https://erp.real31.app", icon: Briefcase, externe: true },
 ];
 
 // Administration (visible SUPER-ADMIN seulement, cf. AppShell adminOuvert) : le panneau
