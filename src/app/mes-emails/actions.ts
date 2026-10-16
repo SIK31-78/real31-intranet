@@ -10,6 +10,7 @@ import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import { z } from "zod";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
   enregistrerBrouillon,
@@ -36,6 +37,7 @@ import { coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-ema
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import type { ReponseEnvoyee } from "@/lib/domain/echanges";
 import { deposerPieceJointe } from "@/lib/services/mes-emails/deposer-piece-jointe";
+import { mettreALaCorbeille, type ResultatCorbeille } from "@/lib/services/mes-emails/corbeille";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
@@ -686,5 +688,37 @@ export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolea
     return { ok: true, ...(webLink ? { webLink } : {}) };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
+  }
+}
+
+// --- Nouveautés en PILOTE (super-admin seulement) ----------------------------
+// Le 15/10/2026, un changement d'affichage de l'écran mis en prod sans être vu a fait
+// appeler toute l'agence. Les nouveautés passent d'abord par le super-admin : la page ne
+// les montre qu'à lui (page.tsx), et leurs actions refusent ici un POST de quelqu'un d'autre.
+
+const PILOTE_SEUL = "Cette fonction est en essai : elle n'est pas encore ouverte.";
+
+async function gestionnairePilote(): Promise<Gestionnaire | null> {
+  const g = await getGestionnaireCourant();
+  return g?.email && mailModuleActifPour(g.email) && estSuperAdmin(g.email) ? g : null;
+}
+
+/**
+ * Met les mails cochés à la corbeille (REA-340) : « Éléments supprimés » d'Outlook,
+ * réversible. SEULEMENT dans la boîte personnelle : dans une boîte partagée, c'est le tri
+ * qui range les mails, et un mail supprimé y disparaîtrait pour tout le binôme.
+ */
+export async function mettreALaCorbeilleAction(input: unknown): Promise<Res<ResultatCorbeille>> {
+  const g = await gestionnairePilote();
+  if (!g) return echec(PILOTE_SEUL);
+  const v = z.object({ ids: z.array(zId).min(1).max(50), boite: zBoite }).safeParse(input);
+  if (!v.success) return echec("Sélection invalide (50 mails au plus).");
+  const cible = await boiteCible(g, v.data.boite);
+  const perso = (await boitesVisibles(g)).find((b) => b.id === cible)?.personnelle;
+  if (!cible || !perso) return echec("La corbeille ne vaut que pour votre boîte personnelle.");
+  try {
+    return { ok: true, donnees: await mettreALaCorbeille(cible, v.data.ids) };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
   }
 }

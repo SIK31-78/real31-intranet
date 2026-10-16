@@ -28,6 +28,7 @@ import {
   Archive,
   Reply,
   ReplyAll,
+  Trash2,
   FolderPlus,
 } from "lucide-react";
 import type {
@@ -71,6 +72,7 @@ import { ImagesMail } from "./images-mail";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { fusionnerModele, resumeDestinataires, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
 import { ecrirePlaceInternes } from "./preference-liste";
 import { estMailInterne } from "@/lib/domain/tri-emails";
 import {
@@ -104,6 +106,7 @@ import {
   rattacherADossierAction,
   creerDossierDepuisMailAction,
   envoyerABonneCoproAction,
+  mettreALaCorbeilleAction,
 } from "@/app/mes-emails/actions";
 
 type Statut = "nouveau" | "repondu" | "classe";
@@ -166,6 +169,7 @@ export function MesEmailsVue({
     data.boites.find((b) => b.personnelle)?.id ?? data.boites[0]?.id ?? "";
   const [boiteActive, setBoiteActive] = useState<string>(boiteParDefaut);
   const toast = useToast();
+  const confirmer = useConfirm();
 
   // Tout l'ecran (liste, compteurs, dossiers copro) ne parle que de la boite active.
   const mailsBoite = useMemo(
@@ -222,6 +226,10 @@ export function MesEmailsVue({
       ),
     );
   }
+  // Mails cochés pour la corbeille (REA-340, pilote) : boîte perso seulement.
+  const [coches, setCoches] = useState<Set<string>>(new Set());
+  const [corbeilleEnCours, setCorbeilleEnCours] = useState(false);
+  const corbeillePossible = pilote && (data.boites.find((b) => b.id === boiteActive)?.personnelle ?? false);
   // Modèle choisi pour la réponse, par mail (la liste se remet à « Aucun » à la fermeture).
   const [modeleParMail, setModeleParMail] = useState<Map<string, string>>(new Map());
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
@@ -511,6 +519,49 @@ export function MesEmailsVue({
     setOuverts(new Set());
     setMsgBrouillon(null);
     setMsgClasser(null);
+    setCoches(new Set());
+  }
+
+  // Corbeille (REA-340) : seulement les mails cochés ENCORE visibles (un filtre a pu en
+  // masquer), après confirmation. Réversible dans Outlook, et l'écran le dit.
+  const cochesVisibles = visibles.filter((m) => coches.has(m.id));
+  function cocher(id: string) {
+    setCoches((p) => (p.has(id) ? del(p, id) : add(p, id)));
+  }
+  async function mettreALaCorbeille() {
+    if (corbeilleEnCours || cochesVisibles.length === 0) return;
+    const n = cochesVisibles.length;
+    const ok = await confirmer({
+      titre: n > 1 ? `Mettre ces ${n} mails à la corbeille ?` : "Mettre ce mail à la corbeille ?",
+      message:
+        "Ils partent dans « Éléments supprimés » de votre boîte Outlook : on peut les y retrouver et les remettre tant que la corbeille n'est pas vidée.",
+      confirmer: "Mettre à la corbeille",
+      danger: true,
+    });
+    if (!ok) return;
+    setCorbeilleEnCours(true);
+    try {
+      const r = await mettreALaCorbeilleAction({ ids: cochesVisibles.map((m) => m.id), boite: boiteActive });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      const { deplaces, echecs } = r.donnees ?? { deplaces: [], echecs: [] };
+      setPartis((p) => new Set([...p, ...deplaces]));
+      setCoches(new Set());
+      if (deplaces.length) {
+        toast.ok(deplaces.length > 1 ? `${deplaces.length} mails mis à la corbeille.` : "Mail mis à la corbeille.");
+      }
+      if (echecs.length) {
+        toast.warn(
+          echecs.length > 1
+            ? `${echecs.length} mails n'ont pas pu être déplacés (déjà déplacés dans Outlook ?).`
+            : "Un mail n'a pas pu être déplacé (déjà déplacé dans Outlook ?).",
+        );
+      }
+    } finally {
+      setCorbeilleEnCours(false);
+    }
   }
 
   function ouvrir(id: string) {
@@ -799,10 +850,42 @@ export function MesEmailsVue({
         {/* La liste, en premier : c'est ce qu'on vient chercher. */}
         <aside className="w-full lg:w-[340px] shrink-0">
           <Card className="overflow-hidden">
+            {corbeillePossible && visibles.length > 0 ? (
+              <div className="flex items-center gap-2 px-3.5 py-2 border-b border-line">
+                <input
+                  type="checkbox"
+                  aria-label="Tout cocher"
+                  title="Tout cocher"
+                  checked={cochesVisibles.length > 0 && cochesVisibles.length === visibles.length}
+                  ref={(el) => {
+                    if (el) el.indeterminate = cochesVisibles.length > 0 && cochesVisibles.length < visibles.length;
+                  }}
+                  onChange={() =>
+                    setCoches(cochesVisibles.length === visibles.length ? new Set() : new Set(visibles.map((m) => m.id)))
+                  }
+                  className="accent-green-700 w-3.5 h-3.5"
+                />
+                <span className="text-meta text-ink-3 mr-auto">
+                  {cochesVisibles.length ? `${cochesVisibles.length} coché${cochesVisibles.length > 1 ? "s" : ""}` : "Cocher pour supprimer"}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={cochesVisibles.length === 0}
+                  loading={corbeilleEnCours}
+                  onClick={() => void mettreALaCorbeille()}
+                  title="Déplace les mails cochés dans « Éléments supprimés » d'Outlook"
+                >
+                  <Trash2 strokeWidth={1.5} />
+                  Mettre à la corbeille
+                </Button>
+              </div>
+            ) : null}
             <ul className="divide-y divide-line max-h-[calc(100vh-220px)] overflow-auto">
               {visibles.map((m) => (
                 <LigneMail
                   key={m.id}
+                  {...(corbeillePossible ? { coche: coches.has(m.id), onCocher: () => cocher(m.id) } : {})}
                   m={m}
                   actif={m.id === selection?.id}
                   lu={lus.has(m.id)}
@@ -995,8 +1078,13 @@ function LigneMail({
   reponse,
   conclus,
   onClick,
+  coche,
+  onCocher,
 }: {
   m: MailEntrant;
+  /** Case de sélection (corbeille, REA-340) : absente hors pilote et hors boîte perso. */
+  coche?: boolean;
+  onCocher?: () => void;
   actif: boolean;
   lu: boolean;
   statut: Statut;
@@ -1007,11 +1095,20 @@ function LigneMail({
 }) {
   const qui = m.de.replace(/ \(.*\)$/, "");
   return (
-    <li className={actif ? "bg-green-50" : "hover:bg-surface-2"}>
+    <li className={(actif ? "bg-green-50" : "hover:bg-surface-2") + (onCocher ? " flex items-start" : "")}>
+      {onCocher ? (
+        <input
+          type="checkbox"
+          checked={coche ?? false}
+          onChange={onCocher}
+          aria-label={`Cocher « ${m.objet} »`}
+          className="accent-green-700 w-3.5 h-3.5 mt-3 ml-3.5 shrink-0"
+        />
+      ) : null}
       <button
         type="button"
         onClick={onClick}
-        className="w-full text-left px-3.5 py-2.5 transition-colors"
+        className={"text-left py-2.5 transition-colors " + (onCocher ? "flex-1 min-w-0 pl-2 pr-3.5" : "w-full px-3.5")}
       >
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full shrink-0 ${!lu ? "bg-info-500" : "bg-transparent"}`} />

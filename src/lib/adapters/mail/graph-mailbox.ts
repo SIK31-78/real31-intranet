@@ -3,7 +3,7 @@
 // (S234) puis par nom de copro (tolerant), et deplace le message (POST .../move).
 // Best-effort : si aucun dossier ne correspond, on ne deplace rien.
 
-import type { DossierBoite, MailboxProvider, PieceJointeRef } from "@/lib/ports/mailbox-provider";
+import type { DossierBoite, MailboxProvider, PieceJointeRef, ResultatCorbeille } from "@/lib/ports/mailbox-provider";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
@@ -177,6 +177,32 @@ export class GraphMailboxProvider implements MailboxProvider {
     });
     if (!r.ok) throw new Error(`Graph move ${r.status} : ${(await r.text()).slice(0, 200)}`);
     return { deplace: true };
+  }
+
+  async mettreALaCorbeille(p: { boite: string; internetMessageIds: string[] }): Promise<ResultatCorbeille> {
+    if (!p.boite) throw new Error("Corbeille : boite manquante.");
+    const tk = await jetonGraph();
+    const u = `${GRAPH}/users/${encodeURIComponent(p.boite)}`;
+    const out: ResultatCorbeille = { deplaces: [], echecs: [] };
+    // Un par un (50 au plus, borne par l'action) : un mail introuvable ne doit pas faire
+    // echouer les autres, et le move de Graph n'a pas de version groupee simple.
+    // « deleteditems » est le nom connu du dossier : pas besoin de chercher son id.
+    for (const imid of p.internetMessageIds) {
+      try {
+        const id = await resoudreMessageId(tk, p.boite, imid);
+        const r = await graphFetch(`${u}/messages/${id}/move`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ destinationId: "deleteditems" }),
+        });
+        if (!r.ok) throw new Error(`Graph move corbeille ${r.status}`);
+        out.deplaces.push(imid);
+      } catch (e) {
+        console.warn("[mailbox] mail non mis a la corbeille :", (e as Error).message);
+        out.echecs.push(imid);
+      }
+    }
+    return out;
   }
 
   async listerPiecesJointes(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]> {

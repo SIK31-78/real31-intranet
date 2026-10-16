@@ -1,7 +1,7 @@
 // Adapter "boite aux lettres" no-op : ne deplace rien (pas de Graph). Pour
 // MAIL_SOURCE != graph (dev/demo) -> le classement reste cote intranet seulement.
 
-import type { DossierBoite, MailboxProvider, PieceJointeRef } from "@/lib/ports/mailbox-provider";
+import type { DossierBoite, MailboxProvider, PieceJointeRef, ResultatCorbeille } from "@/lib/ports/mailbox-provider";
 
 export class NoopMailboxProvider implements MailboxProvider {
   async listerImagesInline(): Promise<PieceJointeRef[]> {
@@ -34,6 +34,12 @@ export class NoopMailboxProvider implements MailboxProvider {
   }): Promise<{ deplace: boolean }> {
     console.log(`[mailbox:noop] classement simule de ${p.internetMessageId} -> dossier ${p.folderId}`);
     return { deplace: false };
+  }
+
+  async mettreALaCorbeille(p: { boite: string; internetMessageIds: string[] }): Promise<ResultatCorbeille> {
+    // Rien ne bouge sans Graph : tout est rendu en echec, l'ecran le dit au lieu de faire semblant.
+    console.log(`[mailbox:noop] corbeille simulee (${p.internetMessageIds.length} mails)`);
+    return { deplaces: [], echecs: [...p.internetMessageIds] };
   }
 
   async listerPiecesJointes(): Promise<PieceJointeRef[]> {

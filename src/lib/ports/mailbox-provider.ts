@@ -35,6 +35,14 @@ export interface MailboxProvider {
     folderId: string;
   }): Promise<{ deplace: boolean }>;
 
+  /**
+   * Met des mails a la corbeille : deplacement vers « Elements supprimes » (deleteditems),
+   * donc REVERSIBLE depuis Outlook, jamais une suppression definitive. Un echec sur un mail
+   * (deja deplace, introuvable) n'arrete pas les autres : on rend les deux listes.
+   * REA-340 (16/10/2026).
+   */
+  mettreALaCorbeille(p: { boite: string; internetMessageIds: string[] }): Promise<ResultatCorbeille>;
+
   /** Pieces jointes REELLES du mail (metadonnees), chargees a la demande. Exclut les
    *  images inline (signatures). */
   listerPiecesJointes(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]>;
@@ -48,4 +56,11 @@ export interface MailboxProvider {
     internetMessageId: string;
     attachmentId: string;
   }): Promise<{ nom: string; type: string; base64: string }>;
+}
+
+export interface ResultatCorbeille {
+  /** internetMessageId des mails deplaces dans « Elements supprimes ». */
+  deplaces: string[];
+  /** internetMessageId des mails restes en place (introuvables, refus Graph). */
+  echecs: string[];
 }
