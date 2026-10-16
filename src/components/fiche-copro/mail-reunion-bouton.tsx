@@ -43,6 +43,7 @@ export function MailReunionBouton({
   const [sujet, setSujet] = useState("");
   const [corps, setCorps] = useState("");
   const [avertissements, setAvertissements] = useState<string[]>([]);
+  const [assistante, setAssistante] = useState<{ nomComplet: string; email: string } | null>(null);
 
   function ouvrir() {
     startPrep(async () => {
@@ -53,7 +54,9 @@ export function MailReunionBouton({
       }
       setSource(r.source);
       setA(r.emails);
-      setCc([]);
+      // REA-343 : l'assistante de la copro arrive en copie, retirable comme toute adresse.
+      setCc(r.cc);
+      setAssistante(r.assistante);
       setSujet(r.sujet);
       setCorps(r.corps);
       setAvertissements(r.avertissements);
@@ -117,6 +120,7 @@ export function MailReunionBouton({
           sujet={sujet}
           corps={corps}
           avertissements={avertissements}
+          assistante={assistante}
           envoiEnCours={envoiEnCours}
           onA={setA}
           onCc={setCc}
@@ -137,6 +141,7 @@ function ModaleComposition({
   sujet,
   corps,
   avertissements,
+  assistante,
   envoiEnCours,
   onA,
   onCc,
@@ -151,6 +156,7 @@ function ModaleComposition({
   sujet: string;
   corps: string;
   avertissements: string[];
+  assistante: { nomComplet: string; email: string } | null;
   envoiEnCours: boolean;
   onA: (v: string[]) => void;
   onCc: (v: string[]) => void;
@@ -173,18 +179,16 @@ function ModaleComposition({
             </p>
           )}
 
-          {/* Non bloquant : le mail part tel quel, mais le gestionnaire sait que le lieu
-              manque (le modele n'invente rien) et peut le completer dans le message. */}
-          {avertissements.map((m) => (
-            <Callout key={m} ton="warn">
-              {m}
-            </Callout>
-          ))}
-
           <div className="border border-line bg-surface rounded-md px-2.5 py-2 flex flex-col gap-1">
             <LigneDest label="À" valeurs={a} onChange={onA} />
             <LigneDest label="Cc" valeurs={cc} onChange={onCc} />
           </div>
+          {/* Dit pourquoi une adresse est deja en copie (REA-343) : tant qu'elle y est. */}
+          {assistante && cc.includes(assistante.email) && (
+            <p className="text-meta text-ink-2">
+              {assistante.nomComplet}, assistante de la copro, est en copie. Retirez-la si besoin.
+            </p>
+          )}
 
           <Field label="Objet" htmlFor="mail-cs-objet">
             <Input id="mail-cs-objet" value={sujet} onChange={(e) => onSujet(e.target.value)} />
@@ -199,6 +203,16 @@ function ModaleComposition({
               className="resize-y"
             />
           </Field>
+
+          {/* Non bloquant : le mail part tel quel, mais le gestionnaire sait que le lieu
+              manque (le modele n'invente rien). Place juste avant le bouton Envoyer pour
+              qu'on ne le rate pas (REA-343, 16/10/2026 : en tete de modale, il passait
+              inapercu). */}
+          {avertissements.map((m) => (
+            <Callout key={m} ton="warn">
+              {m}
+            </Callout>
+          ))}
         </div>
       </ModalBody>
       <ModalFooter>

@@ -87,7 +87,10 @@ function lieuAbsent(d: DateReunionMail): boolean {
  * reunion concernee ; [] si tout est renseigne.
  */
 export function avertissementsLieuMail(infos: Pick<InfosMailDatesReunion, "cs" | "ag">): string[] {
-  const conseil = "le lieu n'apparaîtra pas : renseignez la salle ou le lieu de la réunion.";
+  // REA-343 (16/10/2026) : le texte dit OU poser le lieu (la date de reunion sur la fiche),
+  // le corps n'en invente jamais un.
+  const conseil =
+    "le lieu n'apparaîtra pas dans le mail. Posez la salle ou le lieu dans la date de réunion (le crayon de la date sur la fiche) avant d'envoyer, ou écrivez-le dans le message.";
   const avertissements: string[] = [];
   if (infos.cs && lieuAbsent(infos.cs)) avertissements.push(`CS préparatoire : ${conseil}`);
   if (infos.ag && lieuAbsent(infos.ag)) avertissements.push(`Assemblée générale : ${conseil}`);

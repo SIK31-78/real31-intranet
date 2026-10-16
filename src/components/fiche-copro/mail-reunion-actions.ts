@@ -37,6 +37,7 @@ import {
 } from "@/lib/services/coproprietes/destinataires-conseil";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { envoyerMailReunion } from "@/lib/services/coproprietes/envoyer-mail-reunion";
+import { assistanteDeCopro, copieAvecAssistante } from "@/lib/services/coproprietes/assistante-de-copro";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const zCode = z.string().trim().min(1).max(40);
@@ -49,6 +50,10 @@ type PreparerResult =
       ok: true;
       source: SourceDestinataires;
       emails: string[];
+      /** Copie pre-remplie : l'assistante de la copro (REA-343), retirable avant l'envoi. */
+      cc: string[];
+      /** Qui est mis en copie d'office, pour le dire dans la modale ; null si personne. */
+      assistante: { nomComplet: string; email: string } | null;
       sujet: string;
       corps: string;
       /** Alertes NON bloquantes a afficher avant envoi (ex. lieu absent du mail). */
@@ -132,11 +137,19 @@ export async function preparerMailReunionAction(coproCode: string): Promise<Prep
     dateConfirmationISO: dateConfirmationJ7(todayISO),
   };
 
-  const { source, emails } = await destinatairesConseilSyndical(coproCode);
+  const [{ source, emails }, assistante] = await Promise.all([
+    destinatairesConseilSyndical(coproCode),
+    assistanteDeCopro(copro),
+  ]);
+  // REA-343 (16/10/2026) : l'assistante suit les dates avec le gestionnaire, elle est en
+  // copie d'office. Pas de doublon si elle est deja en « À » ou si c'est elle qui envoie.
+  const cc = copieAvecAssistante([], assistante, [...emails, g.email]);
   return {
     ok: true,
     source,
     emails,
+    cc,
+    assistante: cc.length > 0 ? assistante : null,
     sujet: objetMailDatesReunion(infos),
     corps: corpsMailDatesReunion(infos),
     avertissements: avertissementsLieuMail(infos),

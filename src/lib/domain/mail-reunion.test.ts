@@ -155,7 +155,8 @@ describe("objet avec adresse (demande Sekou)", () => {
 });
 
 describe("avertissementsLieuMail (lieu absent du mail, non bloquant)", () => {
-  const LIEU = "le lieu n'apparaîtra pas : renseignez la salle ou le lieu de la réunion.";
+  const LIEU =
+    "le lieu n'apparaîtra pas dans le mail. Posez la salle ou le lieu dans la date de réunion (le crayon de la date sur la fiche) avant d'envoyer, ou écrivez-le dans le message.";
 
   it("ni mode ni salle : un avertissement par reunion proposee", () => {
     expect(
