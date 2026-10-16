@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Link2, Plus, Search } from "lucide-react";
 import { exigerAccesPropositions } from "@/app/propositions/acces";
+import { getAgenceRepository } from "@/lib/adapters/router";
 import { peutCompleterProposition, peutVoirToutesLesPropositions, profilDe } from "@/lib/auth/roles";
 import { etatRegistre, listerPropositions, type PropositionResume } from "@/lib/services/proposition/propositions";
 import { LIBELLE_ORIGINE, LIBELLE_STATUT, libelleAdresse, STATUTS_OUVERTS, STATUTS_PROPOSITION, type StatutProposition, TON_STATUT } from "@/lib/domain/proposition/proposition";
@@ -46,7 +47,7 @@ const TRIS: { value: string; label: string }[] = [
   { value: "adresse-asc", label: "Adresse A → Z" },
 ];
 
-type Params = { q?: string; statut?: string; tri?: string; vue?: string; gestionnaire?: string };
+type Params = { q?: string; statut?: string; tri?: string; vue?: string; gestionnaire?: string; agence?: string };
 
 /** Les statuts proposes en boutons : ce qui est ouvert, tout, puis chaque issue. */
 const STATUTS_BOUTONS: { value: NonNullable<FiltrePipeline["statut"]>; label: string }[] = [
@@ -57,7 +58,12 @@ const STATUTS_BOUTONS: { value: NonNullable<FiltrePipeline["statut"]>; label: st
 
 function lireFiltre(sp: Params): FiltrePipeline {
   const statut = sp.statut && (sp.statut === "toutes" || (STATUTS_PROPOSITION as readonly string[]).includes(sp.statut)) ? (sp.statut as FiltrePipeline["statut"]) : "ouvertes";
-  return { ...(sp.q?.trim() ? { texte: sp.q.trim() } : {}), ...(sp.gestionnaire?.trim() ? { gestionnaire: sp.gestionnaire.trim() } : {}), statut };
+  return {
+    ...(sp.q?.trim() ? { texte: sp.q.trim() } : {}),
+    ...(sp.gestionnaire?.trim() ? { gestionnaire: sp.gestionnaire.trim() } : {}),
+    ...(sp.agence?.trim() ? { agence: sp.agence.trim().toUpperCase() } : {}),
+    statut,
+  };
 }
 
 function lireTri(sp: Params): TriPipeline {
@@ -74,7 +80,13 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   const vue = sp.vue === "statut" ? "statut" : "liste";
 
   const profil = profilDe(g);
-  const [chargees, registre] = await Promise.all([listerPropositions(), etatRegistre()]);
+  // Les agences du cabinet (ML, LGC, HLS, ASN) pour le filtre (REA-355). Une panne de la
+  // table ne doit pas casser le pipeline : on retombe alors sur les agences des propositions.
+  const [chargees, registre, agencesCabinet] = await Promise.all([
+    listerPropositions(),
+    etatRegistre(),
+    getAgenceRepository().listerAgences().catch(() => []),
+  ]);
   // Hors syndic (vente, location, accueil) : le pipeline se limite aux contacts qu'on a notes.
   const toutes = peutVoirToutesLesPropositions(profil) ? chargees : chargees.filter((p) => p.creeParNom === g.nomComplet);
   const equipeSyndic = peutCompleterProposition(profil);
@@ -87,6 +99,10 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
   // selecteur n'offre que ce qui peut renvoyer un resultat.
   const gestionnaires = [...new Set(toutes.map((p) => p.gestionnaire).filter((n): n is string => Boolean(n)))].sort((a, b) => a.localeCompare(b, "fr"));
   const jePorte = Boolean(g.nomComplet) && gestionnaires.includes(g.nomComplet);
+  // Filtre par agence (REA-355, 16/10/2026) : la direction d'une agence veut ses propositions
+  // sans taper « LGC » dans la recherche, qui attrape aussi une adresse ou un commentaire.
+  const codesAgence = agencesCabinet.length > 0 ? agencesCabinet.map((a) => a.code.toUpperCase()) : toutes.map((p) => p.agence?.toUpperCase());
+  const agences = [...new Set(codesAgence.filter((c): c is string => Boolean(c)))].sort((a, b) => a.localeCompare(b, "fr"));
   // Les compteurs suivent les filtres (agence, annee, texte...) mais pas le statut : on
   // compte les en cours / acceptees / reportees DU PERIMETRE filtre, et la transformation
   // se calcule sur ses decisions.
@@ -103,7 +119,7 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
     return `/propositions?${q.toString()}`;
   };
   const lienVue = (v: "liste" | "statut") => lien({ vue: v === "statut" ? "statut" : undefined });
-  const filtreActif = Boolean(filtre.texte || filtre.gestionnaire || filtre.statut !== "ouvertes");
+  const filtreActif = Boolean(filtre.texte || filtre.gestionnaire || filtre.agence || filtre.statut !== "ouvertes");
 
   return (
     <AppShell user={g} active="propositions" breadcrumb="Propositions de contrat">
@@ -156,6 +172,13 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
                     <Button type="submit" variant="secondary" size="md"><Search strokeWidth={1.5} /> Chercher</Button>
                     {filtreActif && <ButtonLink href="/propositions" variant="ghost" size="md">Effacer</ButtonLink>}
                   </div>
+                </Field>
+                <Field label="Agence" htmlFor="f-agence" className="sm:w-36">
+                  <Select id="f-agence" name="agence" defaultValue={filtre.agence ?? ""}>
+                    <option value="">Toutes</option>
+                    {filtre.agence && !agences.includes(filtre.agence) && <option value={filtre.agence}>{filtre.agence}</option>}
+                    {agences.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </Select>
                 </Field>
                 <Field label="Gestionnaire" htmlFor="f-gest" className="sm:w-56">
                   <Select id="f-gest" name="gestionnaire" defaultValue={filtre.gestionnaire ?? ""}>
