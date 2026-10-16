@@ -64,8 +64,13 @@ async function dossiersSousInbox(tk: string, boite: string, profondeur = 2): Pro
   let niveau = await childFolders(tk, boite, "inbox");
   const tous: Folder[] = [...niveau];
   for (let d = 1; d < profondeur && niveau.length > 0; d++) {
+    // Par paquets de 4 (la limite de requêtes simultanées par boîte chez Graph), plutôt qu'un
+    // par un : 0,5 s par dossier mis bout à bout chez Mahaut (Sentry, 16/10/2026).
     const suivant: Folder[] = [];
-    for (const f of niveau) suivant.push(...(await childFolders(tk, boite, f.id)));
+    for (let i = 0; i < niveau.length; i += 4) {
+      const lots = await Promise.all(niveau.slice(i, i + 4).map((f) => childFolders(tk, boite, f.id)));
+      suivant.push(...lots.flat());
+    }
     tous.push(...suivant);
     niveau = suivant;
   }
