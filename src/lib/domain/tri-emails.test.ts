@@ -277,6 +277,39 @@ describe("suggererCopro", () => {
     });
   });
 
+  describe("un fournisseur n'est jamais une piste sûre (audit du 19/10/2026)", () => {
+    const ref: ReferentielTri = {
+      copros: [
+        { reference: "S0297", nom: "LE CYRANO", adresse: "", gestionnaire: null, assistant: null },
+        { reference: "S0305", nom: "URANUS", adresse: "", gestionnaire: null, assistant: null },
+      ],
+      expediteurs: {
+        "contact@ascensoriste.fr": [{ reference: "S0297", qualite: "fournisseur" }],
+        "gerant@exemple.fr": [
+          { reference: "S0305", qualite: "copropriétaire" },
+          { reference: "S0297", qualite: "fournisseur" },
+        ],
+      },
+    };
+
+    it("connu d'une seule copro comme fournisseur : indice faible", () => {
+      const s = suggererCopro(mail({ deAdresse: "contact@ascensoriste.fr", objet: "Facture" }), ref);
+      expect(s).toMatchObject({ nature: "faible", candidats: ["S0297"] });
+      expect(s.raison).toContain("Fournisseur");
+    });
+
+    it("le nom de l'immeuble cité passe avant le fournisseur", () => {
+      expect(suggererCopro(mail({ deAdresse: "contact@ascensoriste.fr", objet: "URANUS - panne" }), ref)).toMatchObject({
+        nature: "faible",
+        candidats: ["S0305"],
+      });
+    });
+
+    it("copropriétaire d'une copro et fournisseur d'une autre : à départager, la copro du copropriétaire d'abord", () => {
+      expect(suggererCopro(mail({ deAdresse: "gerant@exemple.fr" }), ref)).toMatchObject({ nature: "plusieurs", candidats: ["S0305", "S0297"] });
+    });
+  });
+
   it("signale une copro citee qui n'est pas sur ESTALE", () => {
     const s = suggererCopro(mail({ objet: "Résiliation s0142" }), REF);
     expect(s).toMatchObject({ nature: "hors-estale", candidats: [] });

@@ -496,24 +496,28 @@ export function suggererCopro(
     return { nature: "plusieurs", candidats: immeuble, raison: "Plusieurs « Immeuble concerné » cités dans l'échange." };
   }
 
-  // 2. Expediteur connu d'ESTALE ou de l'annuaire Crypto.
+  // 2. Expediteur connu d'ESTALE ou de l'annuaire Crypto. Un FOURNISSEUR ne compte pas ici :
+  // un prestataire ecrit pour toutes les copros ou il intervient, alors qu'ESTALE ou Crypto
+  // ne le rattache souvent qu'a une seule (audit du journal du tri, 19/10/2026).
+  // S'il n'est connu que comme fournisseur, il ne sert qu'en dernier recours (etape 5).
   const liens = ref.expediteurs[mail.deAdresse.trim().toLowerCase()] ?? [];
-  const references = [...new Set(liens.map((l) => l.reference))];
-  const ou = [...new Set(liens.map((l) => (l.source === "crypto" ? "Crypto" : "ESTALE")))].join(" et ");
-  if (references.length === 1) {
-    const qualite = LIBELLE_QUALITE[liens[0]!.qualite];
+  const forts = liens.filter((l) => l.qualite !== "fournisseur");
+  const ou = (ls: LienExpediteur[]) => [...new Set(ls.map((l) => (l.source === "crypto" ? "Crypto" : "ESTALE")))].join(" et ");
+  const references = [...new Set([...forts, ...liens].map((l) => l.reference))];
+  if (forts.length > 0 && references.length === 1) {
+    const qualite = LIBELLE_QUALITE[forts[0]!.qualite];
     return {
       nature: "sure",
       candidats: references,
-      raison: `Adresse connue dans ${ou} : ${qualite} de ${references[0]}.`,
+      raison: `Adresse connue dans ${ou(forts)} : ${qualite} de ${references[0]}.`,
     };
   }
-  if (references.length > 1) {
+  if (forts.length > 0) {
     const qualites = [...new Set(liens.map((l) => LIBELLE_QUALITE[l.qualite]))].join(", ");
     return {
       nature: "plusieurs",
       candidats: references,
-      raison: `Adresse connue dans ${ou} sur ${references.length} copropriétés (${qualites}).`,
+      raison: `Adresse connue dans ${ou(liens)} sur ${references.length} copropriétés (${qualites}).`,
     };
   }
 
@@ -539,6 +543,18 @@ export function suggererCopro(
   }
   if (indices.length > 1) {
     return { nature: "plusieurs", candidats: indices.map((i) => i.reference), raison: "Plusieurs copropriétés citées par leur nom ou adresse, à confirmer." };
+  }
+
+  // 5. Expediteur connu seulement comme fournisseur : au plus un indice faible.
+  if (references.length > 0) {
+    return {
+      nature: references.length === 1 ? "faible" : "plusieurs",
+      candidats: references,
+      raison:
+        references.length === 1
+          ? `Fournisseur connu dans ${ou(liens)} de ${references[0]}, à confirmer.`
+          : `Fournisseur connu dans ${ou(liens)} sur ${references.length} copropriétés, à confirmer.`,
+    };
   }
 
   // Un code est cite mais aucune copro du perimetre ne le porte : hors perimetre. On affiche
