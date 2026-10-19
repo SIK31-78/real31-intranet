@@ -11,6 +11,7 @@ import {
   destinationDe,
   lignesBinomes,
   nettoyerCorps,
+  retirerEnteteCabinet,
   suggestionSuivie,
   estAssistantDeCopro,
   referencesCitees,
@@ -277,6 +278,15 @@ describe("suggererCopro", () => {
     });
   });
 
+  it("ignore la signature du cabinet dans une réponse courte (audit du 19/10/2026)", () => {
+    const ref: ReferentielTri = {
+      copros: [{ reference: "S0158", nom: "MICHELET3", adresse: "3 place Michelet 78800 HOUILLES", gestionnaire: null, assistant: null }],
+      expediteurs: {},
+    };
+    const apercu = "Madame,\nNous ne pouvons pas agir sur les parties privatives.\nCordialement\n\nGestionnaire de copropriétés\nREAL 31 - L'expérience fait la différence\n3 Place Michelet\n78800 HOUILLES";
+    expect(suggererCopro(mail({ objet: "RE: Réclamation", apercu }), ref).nature).toBe("aucune");
+  });
+
   describe("noms qui sont des adresses, villes, numéro de rue (audit du 19/10/2026)", () => {
     const c = (reference: string, nom: string, adresse: string): CoproTri => ({ reference, nom, adresse, gestionnaire: null, assistant: null });
 
@@ -389,6 +399,15 @@ describe("coprosDansPdf", () => {
     ].join("\n");
     // L'en-tête (place Michelet -> S0158) est retirée ; seul le chantier (DOUCE FOLIE) ressort.
     expect(coprosDansPdf(facture, copros)).toEqual(["S0177"]);
+  });
+
+  it("devis sur deux colonnes : ne retire que le morceau du cabinet, l'adresse du chantier reste (audit du 19/10/2026)", () => {
+    const devis = [
+      "REAL 31 - 3 place Michelet 78800 Houilles        Adresse du chantier : 25 avenue Gabriel Péri 95870 Bezons",
+      "RCS Versailles 123 456 789    Devis n° D-2026",
+    ].join("\n");
+    expect(coprosDansPdf(devis, copros)).toEqual(["S0177"]);
+    expect(retirerEnteteCabinet("REAL 31 - 3 Place Michelet\n78800 HOUILLES\nBonjour")).not.toMatch(/michelet|houilles|real/i);
   });
 
   it("rien quand le PDF ne cite qu'un code hors périmètre ou l'en-tête", () => {

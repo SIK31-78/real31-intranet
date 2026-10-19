@@ -432,18 +432,34 @@ export function coprosImmeubleConcerne(texte: string, copros: CoproTri[]): strin
   return refs;
 }
 
-// Lignes du papier a en-tete du cabinet (son adresse, SIREN…) : a ignorer dans une piece
-// jointe, sinon toute facture rattache le mail a la copro ou siege l'agence (place Michelet).
-// Mesure du 13/10/2026 : sans ce filtre, 24 PDF sur 35 remontaient « place Michelet ».
-const LIGNE_ENTETE_CABINET = /real\s*31|place\s+michelet|\bsiren\b|\brcs\b|\bnaf\b|carte\s+professionnelle|garantie\s+financiere/i;
+// Le papier a en-tete du cabinet (son adresse, SIREN…) : a ignorer dans une piece jointe,
+// sinon toute facture rattache le mail a la copro ou siege l'agence (place Michelet). Mesure
+// du 13/10/2026 : sans ce filtre, 24 PDF sur 35 remontaient « place Michelet ».
+// Audit du journal du tri (19/10/2026) :
+//   - la signature des mails du cabinet (« REAL 31 … 3 Place Michelet / 78800 HOUILLES »)
+//     faisait de meme dans le CORPS d'une reponse courte : meme filtre sur le corps ;
+//   - on ne retire plus toute la LIGNE, seulement le morceau du cabinet : un devis sur deux
+//     colonnes met l'adresse du chantier sur la meme ligne que celle du cabinet.
+// Les mentions legales (SIREN, RCS…) sont retirees jusqu'a la fin de leur colonne (deux
+// espaces, une tabulation ou la fin de ligne).
+const ENTETE_CABINET = [
+  /real\s*31/gi,
+  /(?:\d{1,3}\s*,?\s*)?place\s+michelet(?:\s*,?\s*78800)?(?:\s*houilles)?/gi,
+  /(?<![a-z])(?:siren|rcs|naf|carte\s+professionnelle|garantie\s+financi[eè]re).*?(?= {2,}|\x09|$)/gim,
+];
+
+/** Le texte sans les morceaux du papier a en-tete / de la signature du cabinet. */
+export function retirerEnteteCabinet(texte: string): string {
+  return ENTETE_CABINET.reduce((t, re) => t.replace(re, " "), texte);
+}
 
 /**
  * References de copro trouvees dans le texte d'une piece jointe (facture, bon d'intervention),
- * apres avoir retire les lignes du papier a en-tete du cabinet : d'abord les codes cites, puis
+ * apres avoir retire le papier a en-tete du cabinet : d'abord les codes cites, puis
  * le nom d'immeuble / l'adresse du chantier (meme moteur que le mail). Toujours a confirmer.
  */
 export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
-  const utile = texte.split(/\r?\n/).filter((l) => !LIGNE_ENTETE_CABINET.test(normaliser(l))).join("\n");
+  const utile = retirerEnteteCabinet(texte);
   const parCle = new Map<string, CoproTri>();
   for (const c of copros) {
     const cle = cleDeReference(c.reference);
@@ -494,7 +510,9 @@ export function suggererCopro(
     const cle = cleDeReference(c.reference);
     if (cle) parCle.set(cle, c);
   }
-  const corps = nettoyerCorps(mail.apercu);
+  // Sans liens colles ni signature du cabinet (audit du journal du tri, 19/10/2026).
+  const preparer = (t: string) => retirerEnteteCabinet(nettoyerCorps(t));
+  const corps = preparer(mail.apercu);
 
   // 0. Numero d'immatriculation RNC cite (objet ou corps) : identifiant unique -> indice sur.
   // Les notifications de l'ANAH ne portent que ca (ni code, ni expediteur connu).
@@ -507,7 +525,7 @@ export function suggererCopro(
   }
 
   // « Immeuble concerné : … » cite dans l'echange (audit du journal du tri, 19/10/2026).
-  const immeuble = coprosImmeubleConcerne(mail.corps === undefined ? corps : nettoyerCorps(mail.corps), ref.copros);
+  const immeuble = coprosImmeubleConcerne(mail.corps === undefined ? corps : preparer(mail.corps), ref.copros);
 
   // 1. Code dans l'objet (le plus fiable : c'est souvent une reponse a nos propres mails).
   const dansObjet = referencesCitees(mail.objet);
