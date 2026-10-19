@@ -9,6 +9,7 @@ import {
   estMailInterne,
   destinationDe,
   lignesBinomes,
+  nettoyerCorps,
   suggestionSuivie,
   estAssistantDeCopro,
   referencesCitees,
@@ -197,6 +198,19 @@ describe("suggererCopro", () => {
       expediteurs: { "proprio@exemple.fr": [{ reference: "S0297", qualite: "copropriétaire" }] },
     };
     expect(suggererCopro(mail({ objet: "LE CYRANO", deAdresse: "proprio@exemple.fr" }), ref).candidats).toEqual(["S0297"]);
+  });
+
+  it("retire les liens Safelinks et les images [cid:] avant de lire le début du corps (audit du 19/10/2026)", () => {
+    const ref: ReferentielTri = {
+      copros: [{ reference: "S0247", nom: "LE CYRANO", adresse: "", gestionnaire: null, assistant: null }],
+      expediteurs: {},
+    };
+    const safelink = `<https://eur01.safelinks.protection.outlook.com/?url=${"x".repeat(700)}>`;
+    const apercu = `Pourquoi c'est important${safelink}
+[cid:image001.png@01DC0000.00000000]
+Bonjour, fuite au CYRANO.`;
+    expect(suggererCopro(mail({ apercu }), ref)).toMatchObject({ nature: "faible", candidats: ["S0247"] });
+    expect(nettoyerCorps("voir <https://a.fr/x> et [cid:img.png] puis https://b.fr/y fin")).toBe("voir  et  puis  fin");
   });
 
   it("signale une copro citee qui n'est pas sur ESTALE", () => {

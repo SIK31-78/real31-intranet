@@ -207,6 +207,17 @@ const MOTS_BANALS = new Set([
 // trop courte pour atteindre la signature (ou figure l'adresse du cabinet). Mesure du 13/10.
 const TETE_CORPS = 600;
 
+// Liens et images collés par Outlook dans le texte d'un mail : « <https://eur01.safelinks…> »
+// (Safelinks, souvent plus de 300 caractères), « [cid:image001.png@…] ». Audit du journal du
+// tri (19/10/2026) : ils mangeaient les TETE_CORPS caractères lus, si bien que le nom de
+// l'immeuble, écrit juste après, n'était jamais atteint. On les retire avant toute analyse.
+const LIENS_COLLES = /<(?:https?|mailto):[^>]*>|https?:\/\/\S+|\[cid:[^\]]*\]/gi;
+
+/** Le texte d'un mail sans les liens (Safelinks, mailto) ni les images en ligne ([cid:…]). */
+export function nettoyerCorps(texte: string): string {
+  return texte.replace(LIENS_COLLES, "");
+}
+
 function normaliser(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
@@ -364,10 +375,11 @@ export function suggererCopro(
     const cle = cleDeReference(c.reference);
     if (cle) parCle.set(cle, c);
   }
+  const corps = nettoyerCorps(mail.apercu);
 
   // 0. Numero d'immatriculation RNC cite (objet ou corps) : identifiant unique -> indice sur.
   // Les notifications de l'ANAH ne portent que ca (ni code, ni expediteur connu).
-  const immats = coprosParImmatriculation(`${mail.objet}\n${mail.apercu}`, ref.copros);
+  const immats = coprosParImmatriculation(`${mail.objet}\n${corps}`, ref.copros);
   if (immats.length === 1) {
     return { nature: "sure", candidats: immats, raison: `Numéro d'immatriculation de ${immats[0]} cité.` };
   }
@@ -412,7 +424,7 @@ export function suggererCopro(
   }
 
   // 3. Code dans le corps : indice faible (une signature, un historique cite...).
-  const dansCorps = referencesCitees(mail.apercu);
+  const dansCorps = referencesCitees(corps);
   const corpsEstale = dansCorps.map((k) => parCle.get(k)).filter((c): c is CoproTri => Boolean(c));
   if (corpsEstale.length > 0) {
     const refs = corpsEstale.map((c) => c.reference);
@@ -427,7 +439,7 @@ export function suggererCopro(
   // Indice faible : a confirmer au clic, rien ne bouge sans decision humaine. On ne lit que
   // l'objet et le DEBUT du corps : l'adresse du cabinet, en signature de bas de mail, ne
   // doit pas rattacher tous les mails (constat du 13/10/2026).
-  const indices = indicesNomAdresse(`${mail.objet}\n${mail.apercu.slice(0, TETE_CORPS)}`, ref.copros);
+  const indices = indicesNomAdresse(`${mail.objet}\n${corps.slice(0, TETE_CORPS)}`, ref.copros);
   if (indices.length === 1) {
     return { nature: "faible", candidats: [indices[0]!.reference], raison: indices[0]!.raison };
   }
@@ -438,7 +450,7 @@ export function suggererCopro(
   // Un code est cite mais aucune copro du perimetre ne le porte : hors perimetre. On affiche
   // le code tel qu'il est ecrit dans le mail ("S0142"), pas sa cle de comparaison.
   const premier = new RegExp(MOTIF_REFERENCE.source, "i").exec(`${mail.objet}
-${mail.apercu}`);
+${corps}`);
   if (premier) {
     return {
       nature: "hors-estale",
