@@ -28,6 +28,11 @@ export interface TriRepository {
   /** Parmi ces internetMessageId, ceux qui ont un rangement non annule. */
   dejaRanges(boite: string, internetMessageIds: string[]): Promise<Set<string>>;
   /**
+   * Pour chacune de ces conversations Graph, la copro du dernier rangement non annule (cle =
+   * conversationId). Colonne absente (SQL pas encore passe) : vide.
+   */
+  coprosDesConversations(boite: string, conversationIds: string[]): Promise<Map<string, string>>;
+  /**
    * Marque la ligne annulee, SEULEMENT si elle ne l'est pas deja ; true = c'est cet appel
    * qui l'a marquee. La tache planifiee et l'ouverture de l'ecran peuvent traiter le meme
    * mail au meme instant : seul le premier poursuit.

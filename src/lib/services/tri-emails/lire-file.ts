@@ -7,6 +7,7 @@
 
 import {
   AUCUN_BINOME,
+  avecMemeConversation,
   destinationDe,
   dossiersChoisissables,
   estMailInterne,
@@ -122,6 +123,14 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const tous = mailsRes.status === "fulfilled" ? mailsRes.value : [];
   const ranges = await repo.dejaRanges(boite, tous.map((m) => m.internetMessageId)).catch(() => new Set<string>());
   const bruts = tous.filter((m) => !ranges.has(m.internetMessageId));
+  // Historique du tri, MEME CONVERSATION seulement : la copro ou un mail du fil a deja ete
+  // range. Journal sans la colonne (SQL pas encore passe) ou illisible : sans historique.
+  const conversations = await repo
+    .coprosDesConversations(boite, bruts.map((m) => m.conversationId).filter((c): c is string => Boolean(c)))
+    .catch((e: unknown) => {
+      console.error("[tri-emails] historique des conversations :", e instanceof Error ? e.message : e);
+      return new Map<string, string>();
+    });
 
   const mails: MailDeLaFile[] = bruts.map((m) => {
     const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
@@ -142,7 +151,11 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     return {
       ...base,
       // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
-      suggestion: suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
+      suggestion: avecMemeConversation(
+        suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
+        m.conversationId ? conversations.get(m.conversationId) : null,
+        ref,
+      ),
     };
   });
 

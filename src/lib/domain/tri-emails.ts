@@ -166,6 +166,8 @@ export interface Suggestion {
   candidats: string[];
   /** Phrase affichee telle quelle : d'ou vient la suggestion. */
   raison: string;
+  /** La seule piste vient d'un mail de la meme conversation deja range (journal : « conversation »). */
+  origine?: "conversation";
 }
 
 // "S0297", "S297", "SE999" -> cle de comparaison "S297" / "SE999". ESTALE ecrit S0297 ;
@@ -694,6 +696,30 @@ ${corps}`);
   return { nature: "aucune", candidats: [], raison: "Adresse inconnue dans ESTALE et dans Crypto, et aucun code de copropriété dans le mail." };
 }
 
+/**
+ * Historique du tri, MEME CONVERSATION seulement (decision Sekou du 19/10/2026) : un mail de
+ * la meme conversation Graph a deja ete range dans `reference`. Jamais une piste sure : une
+ * conversation peut deriver vers une autre copro, et le premier rangement a pu etre faux.
+ *   - rien trouve (ou code hors perimetre) : piste faible sur cette copro ;
+ *   - une piste faible ou plusieurs : la copro s'ajoute en DERNIERE candidate (le contenu du
+ *     mail reste en tete), ou la raison le mentionne si elle y est deja ;
+ *   - une piste sure : inchangee.
+ * Pas d'historique par expediteur ni par numero de dossier.
+ */
+export function avecMemeConversation(s: Suggestion, reference: string | null | undefined, ref: ReferentielTri): Suggestion {
+  if (!reference || s.nature === "sure") return s;
+  const cle = cleDeReference(reference);
+  const copro = ref.copros.find((c) => cleDeReference(c.reference) === cle);
+  // La copro a quitte le perimetre de la boite depuis : on ne la propose plus.
+  if (!copro) return s;
+  const r = copro.reference;
+  const phrase = `Un mail de la même conversation a été rangé dans ${r}`;
+  if (s.nature === "aucune") return { nature: "faible", candidats: [r], raison: `${phrase}, à confirmer.`, origine: "conversation" };
+  if (s.nature === "hors-estale") return { nature: "faible", candidats: [r], raison: `${phrase}, à confirmer. ${s.raison}`, origine: "conversation" };
+  if (s.candidats.includes(r)) return { ...s, raison: `${s.raison} ${phrase}.` };
+  return { nature: "plusieurs", candidats: [...s.candidats, r], raison: `${s.raison} ${phrase}, à confirmer.` };
+}
+
 /** Ou part le mail quand on l'attribue a une copro : le dossier du binome (ADR-046). */
 export interface Destination {
   gestionnaire: MembreTri;
@@ -837,6 +863,8 @@ export interface EntreeJournalTri {
   internetMessageId: string;
   /** Id Graph du mail APRES deplacement (sert a l'annulation). */
   messageId: string;
+  /** Conversation Graph du mail : l'historique du tri ne sert qu'a la meme conversation. */
+  conversationId?: string;
   expediteur: string;
   objet: string;
   /** La copro principale du rangement (mesure des signaux) ; null s'il n'y en a pas. */
@@ -858,11 +886,12 @@ export interface EntreeJournalTri {
 }
 
 /**
- * Le signal retenu par le journal : la nature de la suggestion du mail, ou « pj » quand la
- * copro a ete proposee par la lecture des pieces jointes (coproDepuisPiecesJointes). Valeur
- * de la colonne texte `signal` de intranet_tri_journal, sans contrainte en base.
+ * Le signal retenu par le journal : la nature de la suggestion du mail, « pj » quand la
+ * copro a ete proposee par la lecture des pieces jointes (coproDepuisPiecesJointes), ou
+ * « conversation » quand la seule piste etait un mail de la meme conversation deja range.
+ * Valeur de la colonne texte `signal` de intranet_tri_journal, sans contrainte en base.
  */
-export type SignalTri = NatureSuggestion | "pj";
+export type SignalTri = NatureSuggestion | "pj" | "conversation";
 
 /**
  * Ce que le rangement journalise. Audit du journal du tri (19/10/2026) : quand le mail ne
@@ -871,10 +900,11 @@ export type SignalTri = NatureSuggestion | "pj";
  * des candidates, on garde sa suggestion : c'est elle que la revue mesure.
  */
 export function signalDuRangement(
-  suggestion: { nature: NatureSuggestion; candidats: string[] },
+  suggestion: { nature: NatureSuggestion; candidats: string[]; origine?: "conversation" },
   pj: { candidats: string[] } | null,
 ): { nature: SignalTri; candidats: string[] } {
   if (suggestion.candidats.length === 0 && pj && pj.candidats.length > 0) return { nature: "pj", candidats: pj.candidats };
+  if (suggestion.origine === "conversation") return { nature: "conversation", candidats: suggestion.candidats };
   return { nature: suggestion.nature, candidats: suggestion.candidats };
 }
 

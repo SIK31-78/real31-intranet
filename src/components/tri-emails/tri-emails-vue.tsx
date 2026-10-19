@@ -69,6 +69,7 @@ const LIBELLE_SIGNAL: Record<SignalTri, string> = {
   "hors-estale": "hors périmètre",
   aucune: "aucune piste",
   pj: "pièce jointe",
+  conversation: "même conversation",
 };
 
 function pastille(m: MailDeLaFile): string {

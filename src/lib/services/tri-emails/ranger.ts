@@ -168,6 +168,7 @@ export async function rangerMail(
     boite,
     internetMessageId,
     messageId,
+    ...(lu.conversationId ? { conversationId: lu.conversationId } : {}),
     expediteur: lu.expediteur || d.expediteur,
     objet: lu.objet || d.objet,
     coproReference: copro,

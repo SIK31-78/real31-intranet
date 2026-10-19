@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AUCUN_BINOME,
+  avecMemeConversation,
   cleDeReference,
   clesDossiersDe,
   constaterRangement,
@@ -716,5 +717,32 @@ describe("fusionnerReferentiels et registre national", () => {
     };
     const fusion = fusionnerReferentiels({ copros: [copro("S0297")], expediteurs: {} }, crypto, null);
     expect(fusion.copros[0]).toMatchObject({ reference: "S0297", nomsUsage: ["LE CLOS FLEURI"], adressesSecondaires: ["1 rue Haute 78500 Sartrouville"] });
+  });
+});
+
+describe("avecMemeConversation (historique du tri, même conversation seulement)", () => {
+  const rien = { nature: "aucune" as const, candidats: [], raison: "Rien." };
+
+  it("sans autre piste : la copro du fil en piste faible, jamais sûre", () => {
+    const s = avecMemeConversation(rien, "S297", REF);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0297"], origine: "conversation" });
+    expect(s.raison).toContain("même conversation");
+    expect(signalDuRangement(s, null)).toEqual({ nature: "conversation", candidats: ["S0297"] });
+  });
+
+  it("une piste sûre reste telle quelle", () => {
+    const sure = { nature: "sure" as const, candidats: ["S0305"], raison: "Code S0305 cité dans l'objet." };
+    expect(avecMemeConversation(sure, "S0297", REF)).toBe(sure);
+  });
+
+  it("une piste faible différente : la copro du fil s'ajoute en dernière candidate", () => {
+    const faible = { nature: "faible" as const, candidats: ["S0305"], raison: "Code S0305 cité dans le message." };
+    expect(avecMemeConversation(faible, "S0297", REF)).toMatchObject({ nature: "plusieurs", candidats: ["S0305", "S0297"] });
+    expect(avecMemeConversation(faible, "S0305", REF)).toMatchObject({ nature: "faible", candidats: ["S0305"] });
+  });
+
+  it("ignore une copro sortie du périmètre et l'absence d'historique", () => {
+    expect(avecMemeConversation(rien, "S0999", REF)).toBe(rien);
+    expect(avecMemeConversation(rien, null, REF)).toBe(rien);
   });
 });

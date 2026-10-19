@@ -36,6 +36,15 @@ function tableAbsente(error: { code?: string } | null): boolean {
   return error?.code === "42P01" || error?.code === "PGRST205";
 }
 
+// Colonne absente (intranet_tri_journal_conversation.sql pas encore passe) : en lecture
+// Postgres repond 42703, a l'ecriture PostgREST repond PGRST204.
+function colonneAbsente(error: { code?: string } | null): boolean {
+  return error?.code === "42703" || error?.code === "PGRST204";
+}
+
+/** Les conversationId Graph sont longs (~150 caracteres) : par lots, pour borner l'URL. */
+const LOT_CONVERSATIONS = 25;
+
 function erreur(quoi: string, error: { code?: string; message: string }): Error {
   return new Error(tableAbsente(error) ? `Tri des e-mails : tables absentes, passer ${SQL}.` : `Tri des e-mails (${quoi}) : ${error.message}`);
 }
@@ -157,27 +166,28 @@ export class SupabaseTriRepository implements TriRepository {
   }
 
   async journaliser(e: NouvelleEntreeJournal): Promise<string> {
-    const { data, error } = await createSupabasePublicClient()
-      .from("intranet_tri_journal")
-      .insert({
-        boite: e.boite,
-        internet_message_id: e.internetMessageId,
-        message_id: e.messageId,
-        expediteur: e.expediteur,
-        objet: e.objet,
-        copro_reference: e.coproReference,
-        copros: e.copros,
-        dossier_nom: e.dossierNom,
-        dossier_cle: e.dossierCle,
-        signal: e.signal,
-        candidats: e.candidats,
-        simulation: e.simulation,
-        par: e.par,
-      })
-      .select("id")
-      .single();
-    if (error) throw erreur("journal", error);
-    return (data as { id: string }).id;
+    const ligne = {
+      boite: e.boite,
+      internet_message_id: e.internetMessageId,
+      message_id: e.messageId,
+      expediteur: e.expediteur,
+      objet: e.objet,
+      copro_reference: e.coproReference,
+      copros: e.copros,
+      dossier_nom: e.dossierNom,
+      dossier_cle: e.dossierCle,
+      signal: e.signal,
+      candidats: e.candidats,
+      simulation: e.simulation,
+      par: e.par,
+    };
+    const inserer = (l: Record<string, unknown>) =>
+      createSupabasePublicClient().from("intranet_tri_journal").insert(l).select("id").single<{ id: string }>();
+    let res = await inserer(e.conversationId ? { ...ligne, conversation_id: e.conversationId } : ligne);
+    // Colonne conversation_id pas encore creee : le rangement passe quand meme, sans elle.
+    if (res.error && e.conversationId && colonneAbsente(res.error)) res = await inserer(ligne);
+    if (res.error) throw erreur("journal", res.error);
+    return res.data.id;
   }
 
   async entree(id: string) {
@@ -218,6 +228,36 @@ export class SupabaseTriRepository implements TriRepository {
       throw erreur("journal", error);
     }
     return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
+  }
+
+  async coprosDesConversations(boite: string, ids: string[]) {
+    const uniques = [...new Set(ids.filter(Boolean))];
+    const lots: string[][] = [];
+    for (let i = 0; i < uniques.length; i += LOT_CONVERSATIONS) lots.push(uniques.slice(i, i + LOT_CONVERSATIONS));
+    const reponses = await Promise.all(
+      lots.map((lot) =>
+        createSupabasePublicClient()
+          .from("intranet_tri_journal")
+          .select("conversation_id, copro_reference, fait_le")
+          .eq("boite", boite)
+          .is("annule_le", null)
+          .not("copro_reference", "is", null)
+          .in("conversation_id", lot)
+          .order("fait_le", { ascending: false })
+          .limit(500)
+          .returns<{ conversation_id: string; copro_reference: string }[]>(),
+      ),
+    );
+    const out = new Map<string, string>();
+    for (const { data, error } of reponses) {
+      if (error) {
+        if (tableAbsente(error) || colonneAbsente(error)) return new Map<string, string>();
+        throw erreur("journal", error);
+      }
+      // Les plus recents d'abord : le premier vu par conversation est le dernier rangement.
+      for (const r of data ?? []) if (!out.has(r.conversation_id)) out.set(r.conversation_id, r.copro_reference);
+    }
+    return out;
   }
 
   async marquerAnnule(id: string, par: string): Promise<boolean> {

@@ -64,6 +64,15 @@ export class MockTriRepository implements TriRepository {
       this.journal.filter((e) => e.boite === boite && e.annuleLe === null && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId),
     );
   }
+  async coprosDesConversations(boite: string, ids: string[]) {
+    const out = new Map<string, string>();
+    // Le journal garde les plus recents d'abord : le premier vu est le dernier rangement.
+    for (const e of this.journal) {
+      if (e.boite !== boite || e.annuleLe !== null || !e.coproReference || !e.conversationId) continue;
+      if (ids.includes(e.conversationId) && !out.has(e.conversationId)) out.set(e.conversationId, e.coproReference);
+    }
+    return out;
+  }
   async marquerAnnule(id: string): Promise<boolean> {
     const e = this.journal.find((x) => x.id === id);
     if (!e || e.annuleLe) return false;

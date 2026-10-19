@@ -19,8 +19,9 @@ import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 
 const zTexte = (max: number) => z.string().max(max);
-// « pj » : copro proposee par la lecture des pieces jointes (journal du tri, 19/10/2026).
-const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune", "pj"]);
+// « pj » : copro proposee par la lecture des pieces jointes (journal du tri, 19/10/2026) ;
+// « conversation » : seule piste, un mail du meme fil deja range.
+const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune", "pj", "conversation"]);
 
 const zRanger = z.object({
   messageId: z.string().min(1).max(400),
