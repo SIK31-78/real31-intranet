@@ -7,6 +7,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "./button";
+import { Callout } from "./callout";
 
 export interface ConfirmOptions {
   titre: string;
@@ -15,6 +16,8 @@ export interface ConfirmOptions {
   annuler?: string;
   /** Action destructive : bouton rouge. */
   danger?: boolean;
+  /** Mise en garde visible sous le message (ex. liste de destinataires suspecte, REA-356). */
+  avertissement?: string;
 }
 
 type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
@@ -77,6 +80,11 @@ function ConfirmDialog({ options, onRepondre }: { options: ConfirmOptions; onRep
       <div className="relative w-full max-w-[420px] rounded-xl border border-line bg-surface shadow-2 p-4 animate-scale-in">
         <h2 className="text-title font-semibold text-ink">{options.titre}</h2>
         {options.message && <p className="text-body text-ink-2 mt-1">{options.message}</p>}
+        {options.avertissement && (
+          <Callout ton="warn" className="mt-3">
+            {options.avertissement}
+          </Callout>
+        )}
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="ghost" size="lg" onClick={() => onRepondre(false)}>
             {options.annuler ?? "Annuler"}

@@ -19,7 +19,7 @@ import {
   type DossierComposition,
   type ResultatBrouillon,
 } from "@/lib/services/mes-emails/composer-mail";
-import { ADRESSE_MAIL, adresseMailValide, type ContactCopro, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import { ADRESSE_MAIL, adresseMailValide, type ContactsComposition, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 
 const CTX = "mes-emails-composer";
@@ -52,7 +52,7 @@ export async function rechercherDestinatairesAction(input: unknown): Promise<Res
   }
 }
 
-export async function listerContactsCompositionAction(input: unknown): Promise<Res<ContactCopro[]>> {
+export async function listerContactsCompositionAction(input: unknown): Promise<Res<ContactsComposition>> {
   if (!(await gestionnaire())) return echec(INDISPONIBLE);
   const d = z.object({ reference: zReference }).safeParse(input);
   if (!d.success) return echec("Référence de copropriété invalide.");

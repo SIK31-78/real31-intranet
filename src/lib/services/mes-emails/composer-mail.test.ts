@@ -7,6 +7,7 @@ const etat = vi.hoisted(() => ({
   proprietaires: null as { id: string; nom: string; email: string }[] | null,
   panneEstale: false,
   referenceDemandee: "",
+  lotsPrincipaux: 0 as number | null,
 }));
 
 vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({
@@ -15,6 +16,12 @@ vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({
   },
 }));
 vi.mock("@/lib/adapters/router", () => ({
+  getCoproRepository: () => ({
+    async findByCode(code: string) {
+      if (etat.lotsPrincipaux === null) throw new Error("base indisponible");
+      return { code, lotsPrincipaux: etat.lotsPrincipaux };
+    },
+  }),
   getContactsCoproProvider: () => ({
     async listerParCopro() {
       return [
@@ -38,11 +45,12 @@ describe("listerContactsComposition", () => {
   beforeEach(() => {
     etat.proprietaires = null;
     etat.panneEstale = false;
+    etat.lotsPrincipaux = 0;
   });
 
   it("copro ESTALE : les copropriétaires d'ESTALE remplacent ceux de Crypto", async () => {
     etat.proprietaires = [{ id: "o1", nom: "M. ACTUEL", email: "actuel@x.fr" }];
-    const r = await listerContactsComposition("S0178");
+    const { contacts: r } = await listerContactsComposition("S0178");
     expect(etat.referenceDemandee).toBe("S178");
     expect(r.map((c) => [c.email, c.qualite])).toEqual([
       ["loc@x.fr", "locataire"],
@@ -52,16 +60,25 @@ describe("listerContactsComposition", () => {
   });
 
   it("copro hors ESTALE : l'annuaire Crypto, complété du conseil syndical", async () => {
-    const r = await listerContactsComposition("S178");
+    const { contacts: r } = await listerContactsComposition("S178");
     expect(r.map((c) => c.email)).toEqual(["ancien@x.fr", "loc@x.fr", "presidente@x.fr"]);
   });
 
   it("ESTALE en panne : repli sur l'annuaire Crypto, noté dans les logs", async () => {
     etat.panneEstale = true;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const r = await listerContactsComposition("S178");
+    const { contacts: r } = await listerContactsComposition("S178");
     expect(r.map((c) => c.email)).toContain("ancien@x.fr");
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("repli sur l'annuaire Crypto"), "ESTALE HTTP 503");
     warn.mockRestore();
+  });
+
+  it("joint le nombre de lots principaux s'il est connu, null sinon (0 ou lecture ratée)", async () => {
+    etat.lotsPrincipaux = 42;
+    expect((await listerContactsComposition("S178")).lotsPrincipaux).toBe(42);
+    etat.lotsPrincipaux = 0;
+    expect((await listerContactsComposition("S178")).lotsPrincipaux).toBeNull();
+    etat.lotsPrincipaux = null;
+    expect((await listerContactsComposition("S178")).lotsPrincipaux).toBeNull();
   });
 });

@@ -12,6 +12,7 @@ vi.mock("@/lib/adapters/router", () => ({
   getContactsCoproProvider: () => ({ listerParCopro: etat.listerParCopro }),
   // Copro hors ESTALE (REA-356) : l'annuaire Crypto reste la source des copropriétaires.
   getCoproprietairesEstaleProvider: () => ({ listerJoignables: async () => null }),
+  getCoproRepository: () => ({ findByCode: async () => null }),
   getReferentielTriProvider: () => ({ charger: async () => ({ copros: [] }) }),
 }));
 vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({ donneesCoproEstale: etat.donnees }));
@@ -74,7 +75,7 @@ describe("listerContactsComposition", () => {
         { nomComplet: "Sans adresse", role: "membre" },
       ],
     });
-    const contacts = await listerContactsComposition("S0302");
+    const { contacts } = await listerContactsComposition("S0302");
     expect(etat.donnees).toHaveBeenCalledWith("S302");
     const cs = contacts.filter((c) => c.qualite === "conseil_syndical").map((c) => c.email.toLowerCase()).sort();
     expect(cs).toEqual(["pres@x.fr", "proprio@x.fr"]);

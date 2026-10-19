@@ -273,6 +273,63 @@ export function fusionnerContactsCopro(
   return [...parEmail.values()];
 }
 
+/** Les contacts d'une copro et, s'il est connu, son nombre de lots principaux (REA-356). */
+export interface ContactsComposition {
+  contacts: ContactCopro[];
+  /** null = inconnu (0 dans le référentiel, ou lecture impossible). */
+  lotsPrincipaux: number | null;
+}
+
+const pluriel = (k: number, mot: string) => `${k} ${mot}${k > 1 ? "s" : ""}`;
+
+/** Au-delà de ce nombre d'adresses par copropriétaire, la liste est suspecte (REA-356). */
+export const ADRESSES_PAR_COPROPRIETAIRE_MAX = 2.5;
+
+export interface ControleTouteLaCopro {
+  /** N : adresses qui partiront en copie cachée. */
+  adresses: number;
+  /** M : copropriétaires distincts (personnes) derrière ces adresses. */
+  coproprietaires: number;
+  /** « N adresses pour M copropriétaires », pour la confirmation d'envoi. */
+  resume: string;
+  /** « Vérifiez la liste : … » quand le rapport est anormal ; null sinon. */
+  alerte: string | null;
+}
+
+/**
+ * Garde-fou du mail « toute la copropriété » (REA-356, 19/10/2026). La S178 est partie à
+ * 80 adresses pour 42 copropriétaires : la confirmation dit désormais « N adresses pour M
+ * copropriétaires » et alerte quand c'est anormal (plus de 2,5 adresses par personne, ou
+ * plus de copropriétaires que de lots principaux). Une personne = `personne` (fiche Crypto
+ * ou propriétaire ESTALE) ; à défaut son nom, à défaut son adresse.
+ */
+export function controleTouteLaCopro(contacts: readonly ContactCopro[], lotsPrincipaux?: number | null): ControleTouteLaCopro {
+  const adresses = adressesTouteLaCopro(contacts);
+  const retenues = new Set(adresses);
+  const personnes = new Set<string>();
+  for (const c of contacts) {
+    const email = c.email.trim().toLowerCase();
+    if (!QUALITES_COPRO.has(c.qualite) || !retenues.has(email)) continue;
+    const nom = sansAccents(c.nom);
+    personnes.add(c.personne ?? (nom ? `nom:${nom}` : `email:${email}`));
+  }
+  const n = adresses.length;
+  const m = personnes.size;
+  const alertes: string[] = [];
+  if (m > 0 && n > ADRESSES_PAR_COPROPRIETAIRE_MAX * m) {
+    alertes.push(`${pluriel(n, "adresse")} pour ${pluriel(m, "copropriétaire")}, c'est beaucoup d'adresses par personne`);
+  }
+  if (lotsPrincipaux && lotsPrincipaux > 0 && m > lotsPrincipaux) {
+    alertes.push(`${pluriel(m, "copropriétaire")} pour ${pluriel(lotsPrincipaux, "lot")} principa${lotsPrincipaux > 1 ? "ux" : "l"}, d'anciens copropriétaires sont peut-être encore dans la liste`);
+  }
+  return {
+    adresses: n,
+    coproprietaires: m,
+    resume: `${pluriel(n, "adresse")} pour ${pluriel(m, "copropriétaire")}`,
+    alerte: alertes.length ? `Vérifiez la liste : ${alertes.join(" ; ")}.` : null,
+  };
+}
+
 /** Découpe une liste d'adresses en lots d'au plus `taille` (un mail par lot). */
 export function enLots<T>(liste: readonly T[], taille = LOT_MAX_DESTINATAIRES): T[][] {
   if (taille < 1) throw new Error("Taille de lot invalide.");

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adresseMailValide,
   adressesTouteLaCopro,
+  controleTouteLaCopro,
   enLots,
   sansPolitesseEnDouble,
   factureComplete,
@@ -144,6 +145,45 @@ describe("fusionnerContactsCopro (REA-356)", () => {
 
   it("copro ESTALE sans aucun propriétaire joignable : plus aucun copropriétaire Crypto", () => {
     expect(adressesTouteLaCopro(fusionnerContactsCopro(crypto, [], []))).toEqual([]);
+  });
+});
+
+describe("controleTouteLaCopro (REA-356)", () => {
+  const copro = (email: string, personne?: string, nom = "", qualite = "coproprietaire") => ({
+    email,
+    nom,
+    qualite,
+    ...(personne ? { personne } : {}),
+  });
+
+  it("compte les adresses et les personnes (une fiche et ses correspondants = une personne)", () => {
+    const r = controleTouteLaCopro([
+      copro("a@x.fr", "crypto:1"),
+      copro("a.bureau@x.fr", "crypto:1"),
+      copro("b@x.fr", "crypto:2", "", "conseil_syndical"),
+      copro("loc@x.fr", "crypto:3", "", "locataire"),
+      copro("invalide", "crypto:4"),
+    ]);
+    expect(r).toEqual({ adresses: 3, coproprietaires: 2, resume: "3 adresses pour 2 copropriétaires", alerte: null });
+  });
+
+  it("sans identifiant de personne : le nom, puis l'adresse", () => {
+    const r = controleTouteLaCopro([copro("a@x.fr", undefined, "Mme Éva DUPONT"), copro("b@x.fr", undefined, "mme eva dupont"), copro("c@x.fr")]);
+    expect(r).toMatchObject({ adresses: 3, coproprietaires: 2 });
+  });
+
+  it("alerte au-delà de 2,5 adresses par copropriétaire", () => {
+    const six = ["a", "b", "c", "d", "e", "f"].map((l) => copro(`${l}@x.fr`, "crypto:1"));
+    expect(controleTouteLaCopro(six).alerte).toBe("Vérifiez la liste : 6 adresses pour 1 copropriétaire, c'est beaucoup d'adresses par personne.");
+    expect(controleTouteLaCopro(six.slice(0, 2)).alerte).toBeNull();
+  });
+
+  it("alerte quand il y a plus de copropriétaires que de lots principaux, si on les connaît", () => {
+    const trois = [copro("a@x.fr", "crypto:1"), copro("b@x.fr", "crypto:2"), copro("c@x.fr", "crypto:3")];
+    expect(controleTouteLaCopro(trois, 2).alerte).toMatch(/^Vérifiez la liste : 3 copropriétaires pour 2 lots principaux/);
+    expect(controleTouteLaCopro(trois, 3).alerte).toBeNull();
+    expect(controleTouteLaCopro(trois, null).alerte).toBeNull();
+    expect(controleTouteLaCopro(trois, 0).alerte).toBeNull();
   });
 });
 

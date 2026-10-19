@@ -11,7 +11,7 @@ const TTL_MS = 10 * 60 * 1000;
 const ORDRE_QUALITE: Record<string, number> = { conseil_syndical: 0, coproprietaire: 1, locataire: 2, professionnel: 3, autre: 4 };
 
 type RowCopro = { referenceCrypto: string | null };
-type RowContact = { email: string; nom: string | null; qualite: string; metier: string | null };
+type RowContact = { email: string; tiers_id: string | null; nom: string | null; qualite: string; metier: string | null };
 type RowIdentite = { email: string; tiers_id: string; nom: string | null; qualite: string; metier: string | null; copro_code: string | null; source: string };
 // Large : le service garde ensuite les personnes de l'agence, puis les 15 premières.
 const MAX_IDENTITES = 60;
@@ -43,7 +43,7 @@ export class SupabaseContactsCopro implements ContactsCoproProvider {
     if (code) {
       const { data } = await sb
         .from("intranet_crypto_annuaire")
-        .select("email, nom, qualite, metier")
+        .select("email, tiers_id, nom, qualite, metier")
         .eq("copro_code", code)
         .order("email")
         .returns<RowContact[]>();
@@ -53,7 +53,15 @@ export class SupabaseContactsCopro implements ContactsCoproProvider {
         const email = r.email.trim().toLowerCase();
         if (!email) continue;
         const deja = parEmail.get(email);
-        const c: ContactCopro = { email, nom: (r.nom ?? "").trim(), qualite: r.qualite, ...(r.metier ? { metier: r.metier } : {}) };
+        // La fiche Crypto (correspondants compris) = la personne, pour compter les
+        // copropriétaires d'un envoi à toute la copropriété (REA-356).
+        const c: ContactCopro = {
+          email,
+          nom: (r.nom ?? "").trim(),
+          qualite: r.qualite,
+          ...(r.metier ? { metier: r.metier } : {}),
+          ...(r.tiers_id ? { personne: `crypto:${r.tiers_id}` } : {}),
+        };
         if (!deja || (!deja.nom && c.nom)) parEmail.set(email, deja ? { ...deja, nom: c.nom || deja.nom } : c);
       }
       contacts = [...parEmail.values()].sort(

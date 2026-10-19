@@ -19,6 +19,7 @@ import { useConfirm } from "@/components/ui/confirm";
 import {
   adresseMailValide,
   adressesTouteLaCopro,
+  controleTouteLaCopro,
   enLots,
   fusionnerModele,
   sansPolitesseEnDouble,
@@ -26,6 +27,7 @@ import {
   prefixeObjetCopro,
   resumeDestinataires,
   type ContactCopro,
+  type ControleTouteLaCopro,
   type CoproChoisissable,
   type DestinataireTrouve,
   type ModeleMail,
@@ -112,6 +114,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [conseil, setConseil] = useState<ContactCopro[] | null>(null);
   // Toute la copropriété (REA-305) : les adresses des copropriétaires, envoyées en copie cachée.
   const [touteCopro, setTouteCopro] = useState<string[] | null>(null);
+  // Garde-fou de l'envoi à toute la copropriété (REA-356) : N adresses pour M copropriétaires.
+  const [controleCopro, setControleCopro] = useState<ControleTouteLaCopro | null>(null);
   const [cciCopro, setCciCopro] = useState(false);
   const [dossiers, setDossiers] = useState<DossierAffiche[] | null>(null);
   const [dossierId, setDossierId] = useState("");
@@ -142,6 +146,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     setRefCopro(ref);
     setConseil(null);
     setTouteCopro(null);
+    setControleCopro(null);
     setCciCopro(false);
     setDossiers(null);
     setDossierId("");
@@ -155,8 +160,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       ]);
       if (derniereCopro.current !== c.reference) return;
       if (rc.ok) {
-        setConseil((rc.donnees ?? []).filter((x) => x.qualite === "conseil_syndical"));
-        setTouteCopro(adressesTouteLaCopro(rc.donnees ?? []));
+        const contacts = rc.donnees?.contacts ?? [];
+        setConseil(contacts.filter((x) => x.qualite === "conseil_syndical"));
+        setTouteCopro(adressesTouteLaCopro(contacts));
+        setControleCopro(controleTouteLaCopro(contacts, rc.donnees?.lotsPrincipaux));
       }
       if (rd.ok) setDossiers(rd.donnees ?? []);
     });
@@ -247,10 +254,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       const ok = await confirmer({
         titre: envoiDirect ? "Envoyer à toute la copropriété ?" : "Préparer le mail à toute la copropriété ?",
         message:
-          `${cci.length} adresses en copie cachée : aucun copropriétaire ne verra les autres.` +
+          (controleCopro
+            ? `${controleCopro.resume}, en copie cachée : aucun ne verra les autres.`
+            : `${cci.length} adresses en copie cachée : aucun copropriétaire ne verra les autres.`) +
           (lots > 1 ? ` Le mail partira en ${lots} envois, pour rester sous la limite de la messagerie.` : "") +
           (envoiDirect ? " Il part tout de suite." : " Le brouillon se relit dans Outlook."),
         confirmer: envoiDirect ? "Envoyer" : "Créer le brouillon",
+        ...(controleCopro?.alerte ? { avertissement: controleCopro.alerte } : {}),
       });
       if (!ok) return;
     }

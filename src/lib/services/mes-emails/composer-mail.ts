@@ -8,13 +8,14 @@
 
 import {
   getContactsCoproProvider,
+  getCoproRepository,
   getCoproprietairesEstaleProvider,
   getMailOutboundProvider,
   getReferentielTriProvider,
 } from "@/lib/adapters/router";
 import { boiteTriConfiguree, envoiMailActif, mailModuleActif } from "@/lib/domain/mail-gate";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
-import { enLots, fusionnerContactsCopro, type ContactCopro, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import { enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
@@ -25,7 +26,7 @@ import { refEchange } from "@/lib/domain/echanges";
 import { dossiersPourRattacher } from "@/lib/services/echanges/rechercher";
 import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email";
 
-export type { CoproChoisissable };
+export type { CoproChoisissable, ContactsComposition };
 
 /**
  * La boîte partagée d'où part le mail : celle de l'agence (MAIL_BOITE_TRI). null si le module
@@ -87,10 +88,12 @@ export async function rechercherDestinataires(texte: string): Promise<Destinatai
  * plus de Crypto (REA-356, 19/10/2026 : Crypto gardait d'anciens copropriétaires, le mail
  * « toute la copropriété » de la S178 est parti à 80 adresses). ESTALE en panne : repli sur
  * l'annuaire Crypto, comme avant, et on le note.
+ * Le nombre de lots principaux accompagne les contacts : la confirmation d'envoi à toute la
+ * copropriété s'en sert pour alerter (plus de copropriétaires que de lots = liste suspecte).
  */
-export async function listerContactsComposition(reference: string): Promise<ContactCopro[]> {
+export async function listerContactsComposition(reference: string): Promise<ContactsComposition> {
   const ref = normaliserRef(reference);
-  const [crypto, estale, proprietaires] = await Promise.all([
+  const [crypto, estale, proprietaires, copro] = await Promise.all([
     getContactsCoproProvider().listerParCopro(reference),
     donneesCoproEstale(ref).catch(() => null),
     getCoproprietairesEstaleProvider()
@@ -99,8 +102,15 @@ export async function listerContactsComposition(reference: string): Promise<Cont
         console.warn(`[composer] copropriétaires ESTALE indisponibles pour ${ref}, repli sur l'annuaire Crypto :`, (err as Error).message);
         return null;
       }),
+    // Garde-fou seulement : une lecture ratée ne bloque pas le compositeur.
+    getCoproRepository()
+      .findByCode(reference.trim().toUpperCase())
+      .catch(() => null),
   ]);
-  return fusionnerContactsCopro(crypto, proprietaires, estale?.conseilSyndical ?? []);
+  return {
+    contacts: fusionnerContactsCopro(crypto, proprietaires, estale?.conseilSyndical ?? []),
+    lotsPrincipaux: copro?.lotsPrincipaux && copro.lotsPrincipaux > 0 ? copro.lotsPrincipaux : null,
+  };
 }
 
 export type DossierComposition = Pick<Dossier, "id" | "titre" | "type" | "statut" | "coproCode">;
