@@ -267,6 +267,51 @@ function codePostalDe(adresse: string): string {
   return /\b(\d{5})\b/.exec(adresse)?.[1] ?? "";
 }
 
+// Noms Crypto colles ou abreges (« STMARTIN », « LEPLAZZA », « GALLIENI6 », « COEURJU »,
+// « COLOMBIE66 ») : le mail ecrit « St Martin », « Le Plazza », « Galliéni 6 », « Coeur
+// Julliand », « Colombier 66 ». Audit du journal du tri (19/10/2026) : ces copros n'etaient
+// jamais reconnues par leur nom. On compare le nom compacte (sans espace ni ponctuation,
+// « saint » = « st ») a une suite de mots CONSECUTIFS du mail, compactee elle aussi.
+// Seuils (prototype du 19/10) : 6 caracteres dont 4 lettres d'affilee pour l'egalite, 7
+// lettres pour un nom abrege ; en dessous (« PERI2 »), le risque de faux positif l'emporte.
+const COMPACT_MIN = 6;
+const ABREGE_MIN = 7;
+
+function jetonsCompacts(texte: string): string[] {
+  return normaliser(texte)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((t) => (t === "saint" ? "st" : t === "sainte" ? "ste" : t));
+}
+
+/** Le nom compacte de la copro est-il ecrit, en plusieurs mots consecutifs, dans le texte ? */
+function nomCompacteCite(nom: string, jetons: string[]): boolean {
+  const cible = jetonsCompacts(nom).join("");
+  if (cible.length < COMPACT_MIN || !/[a-z]{4}/.test(cible)) return false;
+  // Un nom abrege (« COEURJU ») est fait de lettres seules : « LECLOS_E » ou « PERI56 » ne
+  // sont pas des abreviations, « le clos est » ne doit pas trouver « LECLOS_E ».
+  const abregeable = /^[a-z]+$/i.test(normaliser(nom).trim()) && cible.length >= ABREGE_MIN;
+  // « COLOMBIE66 » : un radical abrege suivi du numero de rue.
+  const [, radical, numero] = /^([a-z]+)(\d+)$/.exec(cible) ?? [];
+  for (let i = 0; i < jetons.length; i++) {
+    let acc = "";
+    for (let j = i; j < jetons.length && acc.length < cible.length; j++) {
+      const avant = acc.length;
+      acc += jetons[j];
+      if (j === i) continue;
+      if (acc === cible) return true;
+      // La coupure tombe dans un mot suivant le premier : « coeur julliand » commence par « coeurju ».
+      if (abregeable && avant < cible.length && acc.startsWith(cible)) return true;
+    }
+    if (radical && numero && radical.length >= ABREGE_MIN) {
+      const t = jetons[i]!;
+      const voisinNumero = jetons[i + 1] === numero || jetons[i - 1] === numero;
+      if (t.startsWith(radical) && t.length - radical.length <= 3 && voisinNumero) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Copros dont le NOM d'immeuble ou l'ADRESSE est cite dans le texte (objet + apercu). Indice
  * faible, a confirmer : les prestataires ecrivent « LE CYRANO » ou « 71 rue de Bezons »
@@ -283,6 +328,7 @@ function codePostalDe(adresse: string): string {
 export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string }[] {
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const jetons = jetonsCompacts(texte);
   const parNom: { reference: string; raison: string }[] = [];
   const parAdresse: { reference: string; raison: string }[] = [];
   const vues = new Set<string>();
@@ -292,9 +338,10 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
     const ville = villeDe(c.adresse);
     const motsVille = new Set(motsSignificatifs(ville));
     const distinctifs = motsSignificatifs(c.nom).filter((m) => !motsVille.has(m));
-    const nomTrouve = distinctifs.length >= 2
+    const nomTrouve = (distinctifs.length >= 2
       ? distinctifs.every((m) => mots.has(m))
-      : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!);
+      : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!))
+      || nomCompacteCite(c.nom, jetons);
     if (nomTrouve) {
       parNom.push({ reference: c.reference, raison: `Immeuble « ${c.nom} » cité dans le mail, à confirmer.` });
       vues.add(cle);

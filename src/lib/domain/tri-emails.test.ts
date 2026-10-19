@@ -248,6 +248,35 @@ describe("suggererCopro", () => {
     });
   });
 
+  describe("noms Crypto collés ou abrégés (audit du 19/10/2026)", () => {
+    const c = (reference: string, nom: string): CoproTri => ({ reference, nom, adresse: "", gestionnaire: null, assistant: null });
+    const ref: ReferentielTri = {
+      copros: [c("S0109", "STMARTIN"), c("S0198", "LEPLAZZA"), c("S0291", "GALLIENI6"), c("S0288", "COEURJU"), c("S0176", "COLOMBIE66"), c("S0262", "LECLOS_E"), c("S0206", "PERI2")],
+      expediteurs: {},
+    };
+    const candidats = (objet: string) => suggererCopro(mail({ objet }), ref).candidats;
+
+    it("reconnaît un nom collé écrit en plusieurs mots, « saint » valant « st »", () => {
+      expect(candidats("Re: St Martin - devis plot parking")).toEqual(["S0109"]);
+      expect(candidats("Saint-Martin : devis")).toEqual(["S0109"]);
+      expect(candidats("TR: Le Plazza - fuite")).toEqual(["S0198"]);
+      expect(candidats("Re: Galliéni 6 - toitures")).toEqual(["S0291"]);
+    });
+
+    it("reconnaît un nom abrégé par Crypto", () => {
+      expect(candidats("Coeur Julliand - encombrants")).toEqual(["S0288"]);
+      expect(candidats("Re: Colombier 66 - lierre")).toEqual(["S0176"]);
+    });
+
+    it("pas de faux positif : mots non consécutifs, nom court, nom qui n'est pas une abréviation", () => {
+      expect(candidats("Le gardien de la rue Plazza")).toEqual([]);
+      expect(candidats("Le clos est fermé le samedi")).toEqual([]);
+      expect(candidats("Gabriel Péri 2 étages")).toEqual([]);
+      expect(candidats("Coeur de ville")).toEqual([]);
+      expect(candidats("Colombier 12")).toEqual([]);
+    });
+  });
+
   it("signale une copro citee qui n'est pas sur ESTALE", () => {
     const s = suggererCopro(mail({ objet: "Résiliation s0142" }), REF);
     expect(s).toMatchObject({ nature: "hors-estale", candidats: [] });
