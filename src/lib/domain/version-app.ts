@@ -26,3 +26,17 @@ export function estErreurVersionPerimee(e: unknown): boolean {
   if (name === "UnrecognizedActionError") return true;
   return typeof message === "string" && /Server Action .* was not found/i.test(message);
 }
+
+/** Un onglet caché moins longtemps que ça n'est pas « laissé ouvert » : on ne recharge pas. */
+export const ABSENCE_MIN_MS = 60 * 1000;
+
+/**
+ * Recharger tout seul un onglet périmé ? Oui seulement quand la personne REVIENT sur un
+ * onglet resté caché (pas sous ses yeux), qu'une nouvelle version est en ligne, et que rien
+ * n'est en cours de saisie ni de fenêtre ouverte : on ne perd jamais un texte. Sentry du
+ * 19/10/2026 : l'onglet E-mails de Nicolas, ouvert depuis le vendredi, parlait au serveur du
+ * lundi (au-delà de la Skew Protection) et plantait au premier clic.
+ */
+export function rechargerTout(p: { nouvelleVersion: boolean; cacheDepuisMs: number; saisieEnCours: boolean; fenetreOuverte: boolean }): boolean {
+  return p.nouvelleVersion && p.cacheDepuisMs >= ABSENCE_MIN_MS && !p.saisieEnCours && !p.fenetreOuverte;
+}

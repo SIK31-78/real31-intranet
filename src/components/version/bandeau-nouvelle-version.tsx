@@ -3,13 +3,15 @@
 // Bandeau « nouvelle version » (REA-312). Un onglet resté ouvert pendant une mise en ligne
 // garde l'ancien code : au-delà de la Skew Protection de Vercel, ses enregistrements
 // échouent. On compare la version de l'onglet à celle en ligne quand on revient sur
-// l'onglet et toutes les 5 minutes, et on prévient. Jamais de rechargement automatique :
-// il ferait perdre la saisie en cours.
+// l'onglet et toutes les 5 minutes, et on prévient.
+// Rechargement automatique (19/10/2026) : seulement quand on REVIENT sur un onglet resté
+// caché au moins une minute, sans saisie en cours ni fenêtre ouverte (cf. rechargerTout).
+// Sous les yeux de quelqu'un, ou avec un texte commencé, on prévient seulement.
 
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { estErreurVersionPerimee, versionChangee, VERSION_INCONNUE } from "@/lib/domain/version-app";
+import { estErreurVersionPerimee, rechargerTout, versionChangee, VERSION_INCONNUE } from "@/lib/domain/version-app";
 
 const VERSION_ONGLET = process.env.NEXT_PUBLIC_VERSION_APP ?? VERSION_INCONNUE;
 const INTERVALLE_MS = 5 * 60 * 1000;
@@ -22,18 +24,46 @@ export function signalerVersionPerimee(): void {
 
 type Etat = "a-jour" | "nouvelle" | "perimee";
 
+/** Un texte commencé quelque part dans la page (champ, zone de texte, éditeur). */
+function saisieEnCours(): boolean {
+  for (const el of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("textarea, input:not([type]), input[type=text], input[type=email], input[type=search]")) {
+    if (el.value !== el.defaultValue) return true;
+  }
+  for (const el of document.querySelectorAll<HTMLElement>("[contenteditable=true], [contenteditable='']")) {
+    if ((el.textContent ?? "").trim()) return true;
+  }
+  return false;
+}
+
+/** Une fenêtre (modale) ouverte : on ne la ferme pas d'autorité. */
+function fenetreOuverte(): boolean {
+  return document.querySelector("dialog[open], [role=dialog], [aria-modal=true]") !== null;
+}
+
 export function BandeauNouvelleVersion() {
   const [etat, setEtat] = useState<Etat>("a-jour");
 
   useEffect(() => {
     let arrete = false;
+    // Depuis quand l'onglet est caché (0 = visible).
+    let cacheDepuis = document.visibilityState === "hidden" ? Date.now() : 0;
     async function verifier() {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        if (!cacheDepuis) cacheDepuis = Date.now();
+        return;
+      }
+      const absence = cacheDepuis ? Date.now() - cacheDepuis : 0;
+      cacheDepuis = 0;
       try {
         const r = await fetch("/api/version", { cache: "no-store" });
         if (!r.ok) return;
         const { version } = (await r.json()) as { version?: string };
-        if (!arrete && versionChangee(VERSION_ONGLET, version)) {
+        const nouvelle = versionChangee(VERSION_ONGLET, version);
+        if (!arrete && rechargerTout({ nouvelleVersion: nouvelle, cacheDepuisMs: absence, saisieEnCours: saisieEnCours(), fenetreOuverte: fenetreOuverte() })) {
+          window.location.reload();
+          return;
+        }
+        if (!arrete && nouvelle) {
           setEtat((e) => (e === "perimee" ? e : "nouvelle"));
         }
       } catch {
