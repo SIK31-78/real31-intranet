@@ -48,13 +48,16 @@ export function metiersParTiers(casquettes, typesDeK) {
  * @param {any[]} e.tiers            Tiers.txt
  * @param {any[]} e.correspondants   TiersCorrespondants.txt
  * @param {any[]} e.mandats          MandatCopro.txt
+ * @param {Set<string>} e.mandatsAvecLot  IdRef des mandats qui portent au moins un lot (Lot.IdPropSyndic)
  * @param {any[]} e.immeubles        Immeuble.txt
  * @param {any[]} e.locataires       Locataire.txt
  * @param {Map<string,string>} e.metiers   tiers -> metier (metiersParTiers)
  * @param {Map<string,string>} e.codeParRnic  numero d'immatriculation normalise -> code copro
  * @returns {{ lignes: object[], bilan: object }}
  */
-export function construireAnnuaire({ tiers, correspondants, mandats, immeubles, locataires, metiers, codeParRnic }) {
+export function construireAnnuaire({ tiers, correspondants, mandats, mandatsAvecLot, immeubles, locataires, metiers, codeParRnic }) {
+  // Obligatoire : sans cet ensemble, chaque ancien copropriétaire redeviendrait destinataire.
+  if (!(mandatsAvecLot instanceof Set)) throw new Error("construireAnnuaire : mandatsAvecLot (Set des IdRef de mandat avec lot) manquant.");
   const rnicParEntite = new Map();
   for (const i of immeubles) {
     const r = norm(i.Registre_Numero);
@@ -65,11 +68,21 @@ export function construireAnnuaire({ tiers, correspondants, mandats, immeubles, 
   const coprosDe = new Map();
   const auConseil = new Set();
   let mandatsSansCopro = 0;
+  let mandatsSansLot = 0;
   for (const m of mandats) {
     const t = String(m.IDTiers);
     const code = codeParRnic.get(rnicParEntite.get(String(m.IdSociete)) ?? "");
     if (!code) {
       mandatsSansCopro++;
+      continue;
+    }
+    // REA-356 (19/10/2026) : Crypto garde le mandat d'un copropriétaire qui a vendu tous ses
+    // lots (« copropriétaire sans lot »). Le rattacher envoyait le mail « toute la
+    // copropriété » aux anciens copropriétaires (S178 : 65 mandats pour 42 propriétaires,
+    // 80 adresses au lieu de 61). Le propriétaire d'un lot est Lot.IdPropSyndic = MandatCopro.IdRef :
+    // un mandat sans lot ne rattache plus la fiche à la copro, ni au conseil syndical.
+    if (!mandatsAvecLot.has(String(m.IdRef))) {
+      mandatsSansLot++;
       continue;
     }
     (coprosDe.get(t) ?? coprosDe.set(t, new Set()).get(t)).add(code);
@@ -123,9 +136,26 @@ export function construireAnnuaire({ tiers, correspondants, mandats, immeubles, 
       adresses: emails.size,
       adressesAvecCopro: avecCopro.size,
       mandatsSansCopro,
+      mandatsSansLot,
       correspondantsInactifs,
     },
   };
+}
+
+/**
+ * IdRef des mandats qui portent au moins un lot, lus dans le texte de Lot.txt (REA-356).
+ * Lot.txt pese 192 Mo : on ne le parse pas en JSON, on n'en extrait que la colonne
+ * IdPropSyndic. Appelable sur des morceaux successifs du fichier (lecture en flux) en
+ * passant le meme ensemble ; 0 ou vide = lot sans proprietaire syndic, ignore.
+ * @param {string} texte
+ * @param {Set<string>} [dans]
+ * @returns {Set<string>}
+ */
+export function mandatsAvecLotDepuisTexte(texte, dans = new Set()) {
+  for (const m of texte.matchAll(/"IdPropSyndic"\s*:\s*"(\d*)"/g)) {
+    if (m[1] && !/^0+$/.test(m[1])) dans.add(m[1]);
+  }
+  return dans;
 }
 
 /** Numero d'immatriculation normalise -> notre code copro, depuis la table Copropriete. */

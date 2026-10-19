@@ -9,8 +9,9 @@
 //   node scripts/sync-annuaire-crypto.mjs --forcer   resynchronise meme si l'export n'a pas change
 //
 // Dossier de l'export : CRYPTO_EXPORT_DIR, sinon le chemin OneDrive par defaut ci-dessous.
-// Lit la cle service_role depuis .env.local. Ne lit QUE 7 petits fichiers de l'export : jamais la
-// comptabilite (9 Go) ni _Users.txt (comptes Crypto).
+// Lit la cle service_role depuis .env.local. Ne lit QUE 7 petits fichiers de l'export, plus Lot.txt
+// (192 Mo) lu en flux pour sa seule colonne IdPropSyndic (REA-356 : qui porte encore un lot) :
+// jamais la comptabilite (9 Go) ni _Users.txt (comptes Crypto).
 //
 // Chaque passage, reussi ou non, est note dans intranet_synchro : la tache planifiee de
 // l'intranet (/api/cron/annuaire-crypto) le relit chaque matin et alerte Sekou par mail.
@@ -19,11 +20,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { codesParRnic, construireAnnuaire, metiersParTiers } from "./lib/annuaire-crypto.mjs";
+import { codesParRnic, construireAnnuaire, mandatsAvecLotDepuisTexte, metiersParTiers } from "./lib/annuaire-crypto.mjs";
 
 const CLE = "annuaire-crypto";
 const DOSSIER_DEFAUT = "C:/Users/SekouKOMA/OneDrive - REAL 31 (1)/Export Crypto";
-const FICHIERS = ["Tiers", "TiersCorrespondants", "MandatCopro", "Immeuble", "Locataire", "_Casquette", "_TypeDeK"];
+const FICHIERS = ["Tiers", "TiersCorrespondants", "MandatCopro", "Immeuble", "Locataire", "_Casquette", "_TypeDeK", "Lot"];
 const PAQUET = 1000;
 
 const essai = process.argv.includes("--essai");
@@ -51,6 +52,24 @@ async function noter(champs) {
 // Les exports Crypto sont en Windows-1252 (accents) : lecture en latin1.
 const lire = (nom) => JSON.parse(fs.readFileSync(path.join(dossier, `${nom}.txt`), "latin1"));
 
+/**
+ * IdRef des mandats qui portent au moins un lot (REA-356, 19/10/2026). Lot.txt pese 192 Mo :
+ * pas de JSON.parse (memoire), lecture en flux et extraction de la seule colonne IdPropSyndic.
+ * Une valeur a cheval sur deux morceaux est rattrapee en gardant la fin du morceau precedent
+ * (les doublons ne comptent pas : c'est un ensemble).
+ */
+async function lireMandatsAvecLot() {
+  const ids = new Set();
+  let reste = "";
+  for await (const morceau of fs.createReadStream(path.join(dossier, "Lot.txt"), { encoding: "latin1", highWaterMark: 4 << 20 })) {
+    const texte = reste + morceau;
+    mandatsAvecLotDepuisTexte(texte, ids);
+    reste = texte.slice(-64);
+  }
+  if (ids.size === 0) throw new Error("Lot.txt ne contient aucun IdPropSyndic : export incomplet ?");
+  return ids;
+}
+
 async function synchroniser() {
   // 1. L'export est-il la ? De quand date-t-il ? (date du plus ancien des fichiers lus)
   for (const f of FICHIERS) {
@@ -76,6 +95,7 @@ async function synchroniser() {
     tiers: lire("Tiers"),
     correspondants: lire("TiersCorrespondants"),
     mandats: lire("MandatCopro"),
+    mandatsAvecLot: await lireMandatsAvecLot(),
     immeubles: lire("Immeuble"),
     locataires: lire("Locataire"),
     metiers,
@@ -83,7 +103,8 @@ async function synchroniser() {
   });
   console.log(
     `${bilan.lignes} lignes, ${bilan.adresses} adresses dont ${bilan.adressesAvecCopro} reliées à une copro` +
-      ` (${bilan.mandatsSansCopro} mandats sans copro connue, ${bilan.correspondantsInactifs} correspondants inactifs écartés).`,
+      ` (${bilan.mandatsSansCopro} mandats sans copro connue, ${bilan.mandatsSansLot} mandats sans lot écartés,` +
+      ` ${bilan.correspondantsInactifs} correspondants inactifs écartés).`,
   );
   if (essai) return;
 
@@ -102,7 +123,7 @@ async function synchroniser() {
     throw new Error(e2.message);
   }
 
-  await noter({ statut: "reussi", reussi_le: new Date().toISOString(), export_du: exportDu.toISOString(), lignes: n, message: `${bilan.adresses} adresses, ${bilan.adressesAvecCopro} reliées à une copro.` });
+  await noter({ statut: "reussi", reussi_le: new Date().toISOString(), export_du: exportDu.toISOString(), lignes: n, message: `${bilan.adresses} adresses, ${bilan.adressesAvecCopro} reliées à une copro, ${bilan.mandatsSansLot} mandats sans lot écartés.` });
   console.log(`Annuaire remplacé : ${n} lignes.`);
 }
 

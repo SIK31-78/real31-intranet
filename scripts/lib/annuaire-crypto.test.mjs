@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adresses, codesParRnic, construireAnnuaire, metiersParTiers } from "./annuaire-crypto.mjs";
+import { adresses, codesParRnic, construireAnnuaire, mandatsAvecLotDepuisTexte, metiersParTiers } from "./annuaire-crypto.mjs";
 
 const export1 = () => ({
   tiers: [
@@ -13,11 +13,12 @@ const export1 = () => ({
     { IdrefTiers: "2", Nom: "Ancien commercial", Email: "ancien@plomberie.fr", Inactif: "1" },
   ],
   mandats: [
-    { IDTiers: "1", IdSociete: "E1", ConseilSyndical: "Faux" },
-    { IDTiers: "1", IdSociete: "E2", ConseilSyndical: "Vrai" },
-    { IDTiers: "3", IdSociete: "E1", ConseilSyndical: "Faux" },
-    { IDTiers: "4", IdSociete: "E9", ConseilSyndical: "Faux" },
+    { IdRef: "M1", IDTiers: "1", IdSociete: "E1", ConseilSyndical: "Faux" },
+    { IdRef: "M2", IDTiers: "1", IdSociete: "E2", ConseilSyndical: "Vrai" },
+    { IdRef: "M3", IDTiers: "3", IdSociete: "E1", ConseilSyndical: "Faux" },
+    { IdRef: "M4", IDTiers: "4", IdSociete: "E9", ConseilSyndical: "Faux" },
   ],
+  mandatsAvecLot: new Set(["M1", "M2", "M3", "M4"]),
   immeubles: [
     { IdEntite: "E1", Registre_Numero: "aa 111" },
     { IdEntite: "E2", Registre_Numero: "BB222" },
@@ -58,6 +59,39 @@ describe("construireAnnuaire", () => {
     const { lignes, bilan } = construireAnnuaire(export1());
     expect(lignes.some((l) => l.tiers_id === "4")).toBe(false);
     expect(bilan).toMatchObject({ mandatsSansCopro: 1, adresses: 4, adressesAvecCopro: 2 });
+  });
+});
+
+describe("construireAnnuaire : mandats sans lot (REA-356)", () => {
+  it("un mandat sans lot ne rattache pas la fiche a la copro : elle reste dans l'annuaire, sans copro", () => {
+    const e = export1();
+    e.mandatsAvecLot = new Set(["M2", "M4"]); // DUPONT n'a plus de lot sur S101, MARTIN plus aucun
+    const { lignes } = construireAnnuaire(e);
+    expect(lignes.filter((l) => l.tiers_id === "1").map((l) => [l.copro_code, l.qualite])).toEqual([["S202", "conseil_syndical"]]);
+    expect(lignes.find((l) => l.email === "lise@bureau.fr")).toMatchObject({ copro_code: null, qualite: "autre" });
+  });
+
+  it("un membre du conseil syndical sans lot n'est plus marque conseil syndical", () => {
+    const e = export1();
+    e.mandatsAvecLot = new Set(["M1", "M3", "M4"]); // M2 = le mandat CS de DUPONT sur S202
+    const { lignes } = construireAnnuaire(e);
+    expect(lignes.some((l) => l.qualite === "conseil_syndical")).toBe(false);
+    expect(lignes.filter((l) => l.tiers_id === "1").map((l) => l.copro_code)).toEqual(["S101"]);
+  });
+
+  it("compte les mandats sans lot dans le bilan, et exige l'ensemble", () => {
+    const e = export1();
+    e.mandatsAvecLot = new Set(["M1"]);
+    expect(construireAnnuaire(e).bilan).toMatchObject({ mandatsSansLot: 2, mandatsSansCopro: 1 });
+    expect(() => construireAnnuaire({ ...export1(), mandatsAvecLot: undefined })).toThrow(/mandatsAvecLot/);
+  });
+
+  it("extrait les IdPropSyndic du texte de Lot.txt, sans les lots sans proprietaire", () => {
+    const texte = '[{"IdRef" : "82","IdPropSyndic" : "11484","IdPropTransac" : "0"},{"IdPropSyndic":"0"},{"IdPropSyndic" : ""},{"IdPropSyndic" : "77"}]';
+    expect([...mandatsAvecLotDepuisTexte(texte)].sort()).toEqual(["11484", "77"]);
+    const deja = new Set(["5"]);
+    expect(mandatsAvecLotDepuisTexte('{"IdPropSyndic" : "6"}', deja)).toBe(deja);
+    expect([...deja]).toEqual(["5", "6"]);
   });
 });
 
