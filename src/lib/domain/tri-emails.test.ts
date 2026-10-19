@@ -277,6 +277,51 @@ describe("suggererCopro", () => {
     });
   });
 
+  describe("noms qui sont des adresses, villes, numéro de rue (audit du 19/10/2026)", () => {
+    const c = (reference: string, nom: string, adresse: string): CoproTri => ({ reference, nom, adresse, gestionnaire: null, assistant: null });
+
+    it("un nom ESTALE qui est une adresse ne vaut pas nom de résidence : l'adresse et son numéro décident", () => {
+      const ref: ReferentielTri = {
+        copros: [
+          c("S0204", "152 AVENUE GABRIEL PERI BEZONS", "152 avenue Gabriel Péri 95870 Bezons"),
+          c("S0177", "DOUCE FOLIE", "25 avenue Gabriel Péri 95870 Bezons"),
+        ],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Fuite au 25 avenue Gabriel Péri 95870 Bezons" }), ref)).toMatchObject({ nature: "faible", candidats: ["S0177"] });
+      expect(suggererCopro(mail({ objet: "Fuite au 152 avenue Gabriel Péri 95870 Bezons" }), ref).candidats).toEqual(["S0204"]);
+    });
+
+    it("un nom de ville n'est distinctif pour aucune copro du référentiel", () => {
+      const ref: ReferentielTri = {
+        copros: [c("S0301", "LES JARDINS DE CHATOU", "3 rue Gambetta 78800 Houilles"), c("S0119", "IMPRESSION", "137 rue des Landes 78400 Chatou")],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Intervention à Chatou demain" }), ref).nature).toBe("aucune");
+    });
+
+    it("le nom n'écrase plus l'adresse : les deux copros, le nom d'abord", () => {
+      const ref: ReferentielTri = {
+        copros: [c("S0247", "LE CYRANO", ""), c("S0200", "URANUS", "18 rue Danton 78800 Houilles")],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Cyrano - devis pour le 18 rue Danton 78800 Houilles" }), ref)).toMatchObject({
+        nature: "plusieurs",
+        candidats: ["S0247", "S0200"],
+      });
+    });
+
+    it("le numéro de rue doit suivre, plages et « bis » compris", () => {
+      const ref: ReferentielTri = {
+        copros: [c("S0109", "TILLEULS", "86 rue E Vaillant - 89-91 rue M Berteaux 95870 Bezons"), c("S0243", "FAIDHERBE", "1 bis rue Faidherbe 78800 Houilles")],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Panne au 90 rue Maurice Berteaux 95870" }), ref).candidats).toEqual(["S0109"]);
+      expect(suggererCopro(mail({ objet: "Panne au 12 rue Maurice Berteaux 95870" }), ref).nature).toBe("aucune");
+      expect(suggererCopro(mail({ objet: "Interphone 1bis rue Faidherbe 78800" }), ref).candidats).toEqual(["S0243"]);
+    });
+  });
+
   describe("un fournisseur n'est jamais une piste sûre (audit du 19/10/2026)", () => {
     const ref: ReferentielTri = {
       copros: [

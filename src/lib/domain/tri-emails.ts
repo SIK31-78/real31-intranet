@@ -263,6 +263,44 @@ function villeDe(adresse: string): string {
   return (normaliser(adresse).split(/\b\d{5}\b/)[1] ?? "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// Types de voie qui font d'un « nom » ESTALE une adresse (« 12 RUE DE BEZONS »). Pas « square »,
+// « cours », « passage » ni « voie » : ils commencent aussi des noms de residence (« Le Square »).
+const VOIES_DANS_UN_NOM = new Set(["rue", "avenue", "av", "bd", "bld", "boulevard", "place", "chemin", "allee", "allees", "impasse", "quai", "route", "sente", "sentier", "ruelle"]);
+
+function nomEstAdresse(nom: string): boolean {
+  return normaliser(nom).split(/[^a-z0-9]+/).some((t) => VOIES_DANS_UN_NOM.has(t));
+}
+
+// Les mots de ville de tout le referentiel : « Bezons » dans le nom d'une copro de Houilles
+// n'est pas plus distinctif que dans celui d'une copro de Bezons. Memoise par referentiel.
+const cacheVilles = new WeakMap<CoproTri[], Set<string>>();
+
+function villesDu(copros: CoproTri[]): Set<string> {
+  const deja = cacheVilles.get(copros);
+  if (deja) return deja;
+  const villes = new Set(copros.flatMap((c) => motsSignificatifs(villeDe(c.adresse))));
+  cacheVilles.set(copros, villes);
+  return villes;
+}
+
+// Numeros de rue d'une adresse, avant le code postal : « 89-91 rue M Berteaux » -> 89, 90, 91 ;
+// « 12/14/16 rue G Flaubert » -> 12, 14, 16 ; « 1 bis » -> 1. Memoise comme les voies.
+const cacheNumeros = new Map<string, Set<string>>();
+
+function numerosDe(adresse: string): Set<string> {
+  const deja = cacheNumeros.get(adresse);
+  if (deja) return deja;
+  const avantCP = normaliser(adresse).split(/(?:^|[^0-9])[0-9]{5}(?:[^0-9]|$)/)[0] ?? "";
+  const numeros = new Set<string>();
+  for (const m of avantCP.matchAll(/[0-9]{1,4}/g)) numeros.add(String(Number(m[0])));
+  for (const m of avantCP.matchAll(/([0-9]{1,4}) *- *([0-9]{1,4})/g)) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (b > a && b - a < 30) for (let n = a; n <= b; n++) numeros.add(String(n));
+  }
+  cacheNumeros.set(adresse, numeros);
+  return numeros;
+}
+
 function codePostalDe(adresse: string): string {
   return /\b(\d{5})\b/.exec(adresse)?.[1] ?? "";
 }
@@ -316,12 +354,13 @@ function nomCompacteCite(nom: string, jetons: string[]): boolean {
  * Copros dont le NOM d'immeuble ou l'ADRESSE est cite dans le texte (objet + apercu). Indice
  * faible, a confirmer : les prestataires ecrivent « LE CYRANO » ou « 71 rue de Bezons »
  * plutot que le code. Deux garde-fous contre les faux positifs :
- *   - du nom, on retire les mots de la ville de la copro ; il faut >= 2 mots distinctifs
- *     presents, ou un seul d'au moins 5 lettres ;
- *   - une adresse ne compte que si la voie (type de voie inclus) fait >= 10 caracteres,
- *     apparait telle quelle, ET que le code postal ou la ville de la copro apparait aussi
- *     (« 71 rue de Bezons » a Carrieres ne matche pas un mail de Bezons). On rend au plus
- *     une raison par copro, le nom primant.
+ *   - du nom, on retire les mots de ville (de tout le referentiel) ; il faut >= 2 mots
+ *     distinctifs presents, ou un seul d'au moins 5 lettres ; un nom qui est une adresse
+ *     (« 12 RUE … ») ne compte pas comme nom ;
+ *   - une adresse ne compte que si le type de voie et ses mots porteurs sont cites, ET que
+ *     le code postal ou la ville de la copro apparait aussi (« 71 rue de Bezons » a
+ *     Carrieres ne matche pas un mail de Bezons), ET l'un de ses numeros. On rend au plus
+ *     une raison par copro : les copros trouvees par le nom d'abord, puis par l'adresse.
  * L'appelant ne passe ici que l'objet et le DEBUT du corps : une adresse de copro dans la
  * signature du cabinet (son bureau) ne doit pas rattacher tous les mails (constat du 13/10).
  */
@@ -329,6 +368,8 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
   const jetons = jetonsCompacts(texte);
+  const numerosCites = new Set(jetons.map((t) => /^(\d{1,4})(?:bis|ter|b|t)?$/.exec(t)?.[1]).filter((n): n is string => n !== undefined).map((n) => String(Number(n))));
+  const villes = villesDu(copros);
   const parNom: { reference: string; raison: string }[] = [];
   const parAdresse: { reference: string; raison: string }[] = [];
   const vues = new Set<string>();
@@ -337,7 +378,10 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
     if (!cle || vues.has(cle)) continue;
     const ville = villeDe(c.adresse);
     const motsVille = new Set(motsSignificatifs(ville));
-    const distinctifs = motsSignificatifs(c.nom).filter((m) => !motsVille.has(m));
+    // Un nom ESTALE qui est une adresse (« 152 AVENUE GABRIEL PERI BEZONS ») n'est pas un nom
+    // de residence : il passe par le controle d'adresse (lieu, numero), pas par le nom. Et un
+    // nom de ville n'est distinctif pour aucune copro (audit du journal du tri, 19/10/2026).
+    const distinctifs = nomEstAdresse(c.nom) ? [] : motsSignificatifs(c.nom).filter((m) => !motsVille.has(m) && !villes.has(m));
     const nomTrouve = (distinctifs.length >= 2
       ? distinctifs.every((m) => mots.has(m))
       : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!))
@@ -353,14 +397,18 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
     // le lieu (code postal ou ville) l'est aussi : « 71 rue de Bezons » à Carrières ne matche
     // pas un mail de Bezons 95870.
     const voie = lieuPresent ? voiesDe(c.adresse).find((v) => mots.has(v.type) && v.mots.every((m) => mots.has(m))) : undefined;
-    if (voie) {
+    // Le numero doit suivre (audit du 19/10/2026) : « 152 avenue Gabriel Péri » ne designe pas
+    // la copro du 25 de la meme avenue. Une adresse sans numero en base ne se controle pas.
+    const numeros = numerosDe(c.adresse);
+    if (voie && (numeros.size === 0 || [...numeros].some((n) => numerosCites.has(n)))) {
       parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie.type} ${voie.mots.join(" ")} » citée dans le mail, à confirmer.` });
       vues.add(cle);
     }
   }
-  // Le nom d'immeuble prime : s'il y a un « LE PLAZZA », on ne noie pas la suggestion sous
-  // les copros qui ne partagent que la rue (constat du 13/10/2026 : départage souvent evident).
-  return parNom.length > 0 ? parNom : parAdresse;
+  // Le nom d'immeuble passe en premier, mais n'ecrase plus l'adresse (audit du 19/10/2026) :
+  // un nom trouve a tort (un mot commun) masquait la bonne copro, citee par son adresse. Le
+  // controle du numero suffit a ecarter les voisines de la meme rue.
+  return [...parNom, ...parAdresse];
 }
 
 // « Immeuble concerné : 86 rue E Vaillant - 89-91 rue M Berteaux-BEZONS » : pied des mails
