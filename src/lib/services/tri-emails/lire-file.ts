@@ -12,8 +12,10 @@ import {
   dossiersChoisissables,
   estMailInterne,
   lignesBinomes,
+  motifCorbeille,
   type DossierChoisissable,
   suggererCopro,
+  suggestionCorbeille,
   type CoproTri,
   type Destination,
   type EntreeJournalTri,
@@ -134,6 +136,8 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
 
   const mails: MailDeLaFile[] = bruts.map((m) => {
     const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
+    // Non remis, reponse automatique : la corbeille est proposee a la place d'une copro.
+    const corbeille = motifCorbeille({ deAdresse: m.from, objet: m.subject });
     const base: MailATrier = {
       id: m.id,
       internetMessageId: m.internetMessageId,
@@ -142,6 +146,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
       deAdresse: m.from,
       ...(m.to.length ? { a: m.to } : {}),
       ...(estMailInterne(m.from, boite) ? { interne: true } : {}),
+      ...(corbeille ? { corbeille } : {}),
       objet: m.subject || "(sans objet)",
       recuLe: m.receivedAt,
       apercu: texte.slice(0, APERCU),
@@ -151,11 +156,13 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     return {
       ...base,
       // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
-      suggestion: avecMemeConversation(
-        suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
-        m.conversationId ? conversations.get(m.conversationId) : null,
-        ref,
-      ),
+      suggestion: corbeille
+        ? suggestionCorbeille(corbeille)
+        : avecMemeConversation(
+            suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
+            m.conversationId ? conversations.get(m.conversationId) : null,
+            ref,
+          ),
     };
   });
 

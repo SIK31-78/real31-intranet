@@ -74,6 +74,7 @@ const LIBELLE_SIGNAL: Record<SignalTri, string> = {
 
 function pastille(m: MailDeLaFile): string {
   const s = m.suggestion;
+  if (m.corbeille) return "Corbeille proposée";
   if (s.nature === "sure" || s.nature === "faible") return s.candidats[0]!;
   if (s.nature === "plusieurs") return `${s.candidats.length} copros possibles`;
   if (s.nature === "hors-estale") return "Hors périmètre";
@@ -341,6 +342,7 @@ function FileVue({
                 <span className="col-span-2 text-ink-2 truncate">{m.objet}</span>
                 <span className="col-span-2 mt-1 flex flex-wrap gap-1.5">
                   {m.interne && <Badge ton="err">Interne</Badge>}
+                  {!m.interne && m.corbeille && <Badge ton="err">{m.corbeille === "non-remis" ? "Non remis" : "Réponse auto"}</Badge>}
                   <Badge ton={TON[m.suggestion.nature]}>{pastille(m)}</Badge>
                   {m.suggestion.candidats.length === 1 && parRef.get(m.suggestion.candidats[0]!)?.inactive && <Badge ton="outline">copro inactive</Badge>}
                 </span>
@@ -404,10 +406,12 @@ function DetailMail({
   );
   // « En cours » se déduit : une analyse est due et ce mail n'a pas encore de réponse.
   const [analyseFinie, setAnalyseFinie] = useState<string | null>(null);
-  const analyseDue = !mail.interne && mail.aPiecesJointes && s.nature !== "sure" && !ANALYSE_PJ.has(mail.internetMessageId);
+  // Mail interne, non remis, réponse automatique : la corbeille est proposée, pas de lecture des PDF.
+  const aCorbeille = Boolean(mail.interne || mail.corbeille);
+  const analyseDue = !aCorbeille && mail.aPiecesJointes && s.nature !== "sure" && !ANALYSE_PJ.has(mail.internetMessageId);
   const pjEnCours = analyseDue && analyseFinie !== mail.internetMessageId;
   useEffect(() => {
-    if (mail.interne || !mail.aPiecesJointes || s.nature === "sure") return;
+    if (aCorbeille || !mail.aPiecesJointes || s.nature === "sure") return;
     // Déjà analysé (retour sur un mail) : pas de nouveau téléchargement des PDF.
     if (ANALYSE_PJ.has(mail.internetMessageId)) return;
     let actif = true;
@@ -427,7 +431,7 @@ function DetailMail({
     return () => {
       actif = false;
     };
-  }, [mail.internetMessageId, mail.aPiecesJointes, mail.interne, s.nature]);
+  }, [mail.internetMessageId, mail.aPiecesJointes, aCorbeille, s.nature]);
 
   const resultats = useMemo(() => {
     // Tolérante : « St Martin » trouve STMARTIN, la ville compte, S109 = S0109 (REA-327).
@@ -475,10 +479,22 @@ function DetailMail({
         {mail.aPiecesJointes && <PiecesJointes internetMessageId={mail.internetMessageId} />}
       </section>
 
-      {mail.interne && (
+      {aCorbeille && (
         <div className="rounded-xl border border-err-200 bg-err-50 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
           <span className="text-body text-ink">
-            <strong className="font-medium">Mail interne</strong> : réponse d&apos;un collègue, la boîte partagée est restée en copie. Sans utilité : à mettre en corbeille.
+            {mail.interne ? (
+              <>
+                <strong className="font-medium">Mail interne</strong> : réponse d&apos;un collègue, la boîte partagée est restée en copie. Sans utilité : à mettre en corbeille.
+              </>
+            ) : mail.corbeille === "non-remis" ? (
+              <>
+                <strong className="font-medium">Non remis</strong> : avis de non-remise d&apos;un mail envoyé. Proposé à la corbeille ; rien n&apos;est supprimé sans votre clic.
+              </>
+            ) : (
+              <>
+                <strong className="font-medium">Réponse automatique</strong> : absence ou accusé de réception. Proposée à la corbeille ; rien n&apos;est supprimé sans votre clic.
+              </>
+            )}
           </span>
           <Button variant="destructive" size="sm" disabled={enCours} onClick={supprimer}>
             Mettre à la corbeille

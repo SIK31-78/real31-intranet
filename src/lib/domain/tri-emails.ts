@@ -145,6 +145,8 @@ export interface MailATrier {
   a?: string[];
   /** Mail interne : réponse d'un collègue où la boîte partagée est restée en copie. À corbeille. */
   interne?: boolean;
+  /** Avis de non-remise ou reponse automatique : le tri propose la corbeille (motifCorbeille). */
+  corbeille?: MotifCorbeille;
   objet: string;
   /** ISO 8601. */
   recuLe: string;
@@ -545,6 +547,49 @@ export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
 export function estMailInterne(deAdresse: string, boite: string): boolean {
   const de = deAdresse.trim().toLowerCase();
   return /@real31\.fr$/.test(de) && de !== boite.trim().toLowerCase();
+}
+
+/** Pourquoi le tri propose la corbeille plutot qu'une copro. */
+export type MotifCorbeille = "non-remis" | "reponse-auto";
+
+// Objets des avis de non-remise et des reponses automatiques (Outlook en francais et en
+// anglais, serveurs de messagerie). Ancres en tete : « RE: Non remis… » est une vraie reponse.
+// Le texte est compare sans accents ; un prefixe entre crochets (« [EXTERNE] ») est toléré.
+const DEBUT_OBJET = String.raw`^\s*(?:\[[^\]]*\]\s*)?`;
+const OBJET_NON_REMIS = new RegExp(
+  DEBUT_OBJET +
+    String.raw`(?:non remis|message non remis|undeliverable|undelivered mail|delivery status notification|delivery (?:has )?failed|mail delivery (?:failed|failure|subsystem)|returned mail|echec de (?:la )?remise|notification d.etat de (?:la )?remise)`,
+  "i",
+);
+const OBJET_REPONSE_AUTO = new RegExp(
+  DEBUT_OBJET + String.raw`(?:reponse automatique|automatic reply|auto(?:matic)?[- ]?reply|autoreply|absence du bureau|absent du bureau|out of office)`,
+  "i",
+);
+// Expediteurs des avis de non-remise : postmaster, MAILER-DAEMON, l'adresse technique
+// d'Exchange Online (« MicrosoftExchange329e71ec…@… »).
+const EXPEDITEUR_NON_REMIS = /^(?:postmaster|mailer-daemon|microsoftexchange[0-9a-f]*)@/i;
+
+/**
+ * Avis de non-remise ou reponse automatique : le tri propose la corbeille au lieu d'une copro
+ * (decision Sekou du 19/10/2026). Ce n'est qu'une proposition : rien n'est supprime sans clic.
+ */
+export function motifCorbeille(m: { deAdresse: string; objet: string }): MotifCorbeille | null {
+  const objet = normaliser(m.objet);
+  if (EXPEDITEUR_NON_REMIS.test(m.deAdresse.trim()) || OBJET_NON_REMIS.test(objet)) return "non-remis";
+  if (OBJET_REPONSE_AUTO.test(objet)) return "reponse-auto";
+  return null;
+}
+
+/** La suggestion d'un mail a mettre a la corbeille : aucune copro, la raison le dit. */
+export function suggestionCorbeille(motif: MotifCorbeille): Suggestion {
+  return {
+    nature: "aucune",
+    candidats: [],
+    raison:
+      motif === "non-remis"
+        ? "Avis de non-remise d'un mail envoyé : proposé à la corbeille."
+        : "Réponse automatique (absence, accusé de réception) : proposée à la corbeille.",
+  };
 }
 
 const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {

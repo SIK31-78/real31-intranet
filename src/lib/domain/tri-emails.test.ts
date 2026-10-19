@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AUCUN_BINOME,
+  motifCorbeille,
   avecMemeConversation,
   cleDeReference,
   clesDossiersDe,
@@ -781,5 +782,32 @@ describe("copros inactives : reconnues, au plus une piste faible", () => {
 
   it("une copro inactive ne rend pas un dossier ambigu", () => {
     expect(coproDuDossier("binome:g@real31.fr", [copro("S0297"), inactive("S0182")], { "g@real31.fr": "GG" }, AUCUN_BINOME)).toBe("S0297");
+  });
+});
+
+describe("motifCorbeille (non remis, réponses automatiques)", () => {
+  const m = (objet: string, deAdresse = "quelquun@exemple.fr") => ({ objet, deAdresse });
+
+  it("reconnaît les avis de non-remise, par l'objet ou l'expéditeur", () => {
+    expect(motifCorbeille(m("Non remis : Convocation AG"))).toBe("non-remis");
+    expect(motifCorbeille(m("Undeliverable: Appel de fonds"))).toBe("non-remis");
+    expect(motifCorbeille(m("Delivery Status Notification (Failure)"))).toBe("non-remis");
+    expect(motifCorbeille(m("Échec de la remise du message"))).toBe("non-remis");
+    expect(motifCorbeille(m("Votre message", "MAILER-DAEMON@exemple.fr"))).toBe("non-remis");
+    expect(motifCorbeille(m("Votre message", "postmaster@exemple.fr"))).toBe("non-remis");
+    expect(motifCorbeille(m("Message", "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@exemple.fr"))).toBe("non-remis");
+  });
+
+  it("reconnaît les réponses automatiques", () => {
+    expect(motifCorbeille(m("Réponse automatique : Fuite parking"))).toBe("reponse-auto");
+    expect(motifCorbeille(m("Automatic reply: Devis"))).toBe("reponse-auto");
+    expect(motifCorbeille(m("Absence du bureau"))).toBe("reponse-auto");
+    expect(motifCorbeille(m("[EXTERNE] Out of Office: Facture"))).toBe("reponse-auto");
+  });
+
+  it("ne touche ni une vraie réponse ni un objet qui en parle", () => {
+    expect(motifCorbeille(m("RE: Non remis : Convocation AG"))).toBeNull();
+    expect(motifCorbeille(m("Courrier non remis au gardien, que faire ?"))).toBeNull();
+    expect(motifCorbeille(m("Fuite au 3e étage"))).toBeNull();
   });
 });
