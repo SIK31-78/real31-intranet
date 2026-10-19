@@ -333,6 +333,87 @@ describe("suggererCopro", () => {
     });
   });
 
+  describe("noms d'usage et adresses du registre national", () => {
+    const c = (reference: string, nom: string, adresse: string, extra: Partial<CoproTri> = {}): CoproTri => ({
+      reference,
+      nom,
+      adresse,
+      gestionnaire: null,
+      assistant: null,
+      ...extra,
+    });
+
+    it("reconnaît le nom d'usage quand le nom Crypto est un code (« LE CLOS FLEURI » pour LECLOS_XYZ)", () => {
+      const ref: ReferentielTri = {
+        copros: [c("S0901", "LECLOS_XYZ", "10 rue des Lilas 78500 Sartrouville", { nomsUsage: ["LE CLOS FLEURI B-C et D"] })],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Résidence Le Clos Fleuri : fuite bâtiment C" }), ref)).toMatchObject({
+        nature: "faible",
+        candidats: ["S0901"],
+      });
+      expect(suggererCopro(mail({ objet: "Résidence Le Clos Fleuri" }), ref).raison).toContain("registre national");
+    });
+
+    it("un nom d'usage à un seul mot distinctif exige toute la suite : « Fleuri » seul ne suffit pas", () => {
+      const ref: ReferentielTri = {
+        copros: [c("S0901", "LECLOS_XYZ", "", { nomsUsage: ["LE CLOS FLEURI"] })],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Message de M. Fleuri" }), ref).nature).toBe("aucune");
+      expect(suggererCopro(mail({ objet: "Le parc Fleuri" }), ref).nature).toBe("aucune");
+    });
+
+    it("ignore un nom d'usage générique, une adresse ou une saisie avec code postal", () => {
+      const ref: ReferentielTri = {
+        copros: [
+          c("S0902", "ZZA", "", { nomsUsage: ["RESIDENCE LE PARC"] }),
+          c("S0903", "ZZB", "", { nomsUsage: ["REFERENCIEL 92500 RUEIL MALMAISON"] }),
+          c("S0904", "ZZC", "", { nomsUsage: ["12 RUE DES TILLEULS"] }),
+        ],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Résidence le Parc, referenciel, rue des Tilleuls" }), ref).nature).toBe("aucune");
+    });
+
+    it("garde la règle à deux mots distinctifs : tous doivent être cités", () => {
+      const ref: ReferentielTri = {
+        copros: [c("S0905", "ZZD", "", { nomsUsage: ["LES HAUTS DE MONTFLEURY"] })],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "AG des Hauts de Montfleury" }), ref).candidats).toEqual(["S0905"]);
+      expect(suggererCopro(mail({ objet: "Rendez-vous à Montfleury" }), ref).nature).toBe("aucune");
+    });
+
+    it("reconnaît une adresse secondaire du registre, avec son lieu et son numéro", () => {
+      const ref: ReferentielTri = {
+        copros: [
+          c("S0906", "ZZE2", "2-4 Avenue des Platanes 92500 Rueil-Malmaison", {
+            adressesSecondaires: ["81 Boulevard Imaginaire 92500 Rueil-Malmaison"],
+          }),
+        ],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Sinistre au 81 boulevard Imaginaire, Rueil-Malmaison" }), ref)).toMatchObject({
+        nature: "faible",
+        candidats: ["S0906"],
+      });
+      expect(suggererCopro(mail({ objet: "Sinistre au 85 boulevard Imaginaire, Rueil-Malmaison" }), ref).nature).toBe("aucune");
+      expect(suggererCopro(mail({ objet: "Sinistre au 81 boulevard Imaginaire" }), ref).nature).toBe("aucune");
+    });
+
+    it("la ville d'une adresse secondaire n'est distinctive pour aucun nom", () => {
+      const ref: ReferentielTri = {
+        copros: [
+          c("S0907", "ZZF", "1 rue Haute 78500 Sartrouville", { adressesSecondaires: ["3 rue Basse 92999 Montvalon"] }),
+          c("S0908", "MONTVALON", "5 rue Large 78500 Sartrouville"),
+        ],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Travaux à Montvalon" }), ref).nature).toBe("aucune");
+    });
+  });
+
   describe("un fournisseur n'est jamais une piste sûre (audit du 19/10/2026)", () => {
     const ref: ReferentielTri = {
       copros: [
@@ -624,5 +705,16 @@ describe("clesDossiersDe (mes mails sur la boîte partagée)", () => {
 
   it("une assistante voit les dossiers de ses binômes, chez plusieurs gestionnaires", () => {
     expect([...clesDossiersDe("clara@real31.fr", b)].sort()).toEqual(["binome:clara@real31.fr", "binome:marc@real31.fr", "binome:sophie@real31.fr"]);
+  });
+});
+
+describe("fusionnerReferentiels et registre national", () => {
+  it("une copro ESTALE reprend les noms d'usage et adresses du registre venus de Crypto", () => {
+    const crypto: ReferentielTri = {
+      copros: [{ ...copro("S297"), nomsUsage: ["LE CLOS FLEURI"], adressesSecondaires: ["1 rue Haute 78500 Sartrouville"] }],
+      expediteurs: {},
+    };
+    const fusion = fusionnerReferentiels({ copros: [copro("S0297")], expediteurs: {} }, crypto, null);
+    expect(fusion.copros[0]).toMatchObject({ reference: "S0297", nomsUsage: ["LE CLOS FLEURI"], adressesSecondaires: ["1 rue Haute 78500 Sartrouville"] });
   });
 });

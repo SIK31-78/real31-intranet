@@ -29,6 +29,16 @@ export interface CoproTri {
   source?: SourceTri;
   /** Numero d'immatriculation au Registre National des Coproprietes (ex "AA6459523"), s'il est connu. */
   immatriculation?: string;
+  /**
+   * Noms d'usage au registre national (RNIC), joint par l'immatriculation : « Le Clos Martin »
+   * quand Crypto ecrit « LECLOS_BCD ». Reconnus comme le nom, avec des garde-fous plus stricts.
+   */
+  nomsUsage?: string[];
+  /**
+   * Autres adresses de la copro au registre national (adresse de reference et adresses
+   * complementaires), sur une ligne avec code postal et ville. Reconnues comme l'adresse.
+   */
+  adressesSecondaires?: string[];
 }
 
 export type SourceTri = "estale" | "crypto";
@@ -82,7 +92,15 @@ export function fusionnerReferentiels(
     parCle.set(
       cle,
       deja
-        ? { ...deja, gestionnaire: deja.gestionnaire ?? c.gestionnaire, assistant: deja.assistant ?? c.assistant, adresse: deja.adresse || c.adresse, immatriculation: deja.immatriculation ?? c.immatriculation }
+        ? {
+            ...deja,
+            gestionnaire: deja.gestionnaire ?? c.gestionnaire,
+            assistant: deja.assistant ?? c.assistant,
+            adresse: deja.adresse || c.adresse,
+            immatriculation: deja.immatriculation ?? c.immatriculation,
+            nomsUsage: deja.nomsUsage ?? c.nomsUsage,
+            adressesSecondaires: deja.adressesSecondaires ?? c.adressesSecondaires,
+          }
         : { ...c, source: "crypto" },
     );
   }
@@ -278,7 +296,7 @@ const cacheVilles = new WeakMap<CoproTri[], Set<string>>();
 function villesDu(copros: CoproTri[]): Set<string> {
   const deja = cacheVilles.get(copros);
   if (deja) return deja;
-  const villes = new Set(copros.flatMap((c) => motsSignificatifs(villeDe(c.adresse))));
+  const villes = new Set(copros.flatMap((c) => [c.adresse, ...(c.adressesSecondaires ?? [])].flatMap((a) => motsSignificatifs(villeDe(a)))));
   cacheVilles.set(copros, villes);
   return villes;
 }
@@ -350,6 +368,34 @@ function nomCompacteCite(nom: string, jetons: string[]): boolean {
   return false;
 }
 
+// Mots d'un nom d'usage du registre qui ne se repetent pas forcement dans un mail : les
+// articles, et le terme generique en tete (« Résidence les Tilleuls » -> « tilleuls »).
+const ARTICLES = new Set(["les", "des", "aux", "sur", "sous"]);
+const PREFIXES_GENERIQUES = new Set(["residence", "copropriete", "syndicat", "immeuble", "ensemble", "batiment", "batiments"]);
+
+/** Les mots d'un libelle sans articles ni lettres isolees (« LE CLOS MARTIN B-C et D » -> clos, martin). */
+function noyauDe(s: string): string[] {
+  return normaliser(s).split(/[^a-z0-9]+/).filter((t) => t.length >= 3 && !ARTICLES.has(t) && !/^\d+$/.test(t));
+}
+
+/**
+ * Le nom d'usage du registre est-il cite ? Memes garde-fous que le nom Crypto (mots de ville
+ * retires, nom generique ignore), plus stricts sur un nom a UN seul mot distinctif : « Le Clos
+ * Martin » exige « clos martin » a la suite, pas « Martin » seul (un patronyme). Un nom
+ * d'usage qui porte un code postal (« REFERENCIEL 92500 … », saisie de remplissage) ou qui est
+ * une adresse ne compte pas.
+ */
+function nomUsageCite(nomUsage: string, exclus: (m: string) => boolean, mots: Set<string>, noyauTexte: string): boolean {
+  if (/\b\d{5}\b/.test(nomUsage) || nomEstAdresse(nomUsage)) return false;
+  const distinctifs = motsSignificatifs(nomUsage).filter((m) => !exclus(m));
+  if (distinctifs.length === 0) return false;
+  if (distinctifs.length >= 2) return distinctifs.every((m) => mots.has(m));
+  const noyau = noyauDe(nomUsage);
+  while (noyau.length > 1 && PREFIXES_GENERIQUES.has(noyau[0]!)) noyau.shift();
+  if (noyau.length >= 2) return noyauTexte.includes(` ${noyau.join(" ")} `);
+  return distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!);
+}
+
 /**
  * Copros dont le NOM d'immeuble ou l'ADRESSE est cite dans le texte (objet + apercu). Indice
  * faible, a confirmer : les prestataires ecrivent « LE CYRANO » ou « 71 rue de Bezons »
@@ -370,39 +416,49 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
   const jetons = jetonsCompacts(texte);
   const numerosCites = new Set(jetons.map((t) => /^(\d{1,4})(?:bis|ter|b|t)?$/.exec(t)?.[1]).filter((n): n is string => n !== undefined).map((n) => String(Number(n))));
   const villes = villesDu(copros);
+  const noyauTexte = ` ${noyauDe(texte).join(" ")} `;
   const parNom: { reference: string; raison: string }[] = [];
   const parAdresse: { reference: string; raison: string }[] = [];
   const vues = new Set<string>();
   for (const c of copros) {
     const cle = cleDeReference(c.reference);
     if (!cle || vues.has(cle)) continue;
-    const ville = villeDe(c.adresse);
-    const motsVille = new Set(motsSignificatifs(ville));
+    const motsVille = new Set(motsSignificatifs(villeDe(c.adresse)));
+    const exclus = (m: string) => motsVille.has(m) || villes.has(m);
     // Un nom ESTALE qui est une adresse (« 152 AVENUE GABRIEL PERI BEZONS ») n'est pas un nom
     // de residence : il passe par le controle d'adresse (lieu, numero), pas par le nom. Et un
     // nom de ville n'est distinctif pour aucune copro (audit du journal du tri, 19/10/2026).
-    const distinctifs = nomEstAdresse(c.nom) ? [] : motsSignificatifs(c.nom).filter((m) => !motsVille.has(m) && !villes.has(m));
+    const distinctifs = nomEstAdresse(c.nom) ? [] : motsSignificatifs(c.nom).filter((m) => !exclus(m));
     const nomTrouve = (distinctifs.length >= 2
       ? distinctifs.every((m) => mots.has(m))
       : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!))
       || nomCompacteCite(c.nom, jetons);
-    if (nomTrouve) {
-      parNom.push({ reference: c.reference, raison: `Immeuble « ${c.nom} » cité dans le mail, à confirmer.` });
+    // Sinon, un nom d'usage du registre national (« Le Clos Martin » pour LECLOS_BCD).
+    const nomCite = nomTrouve ? c.nom : (c.nomsUsage ?? []).find((n) => nomUsageCite(n, exclus, mots, noyauTexte));
+    if (nomCite) {
+      const registre = nomCite !== c.nom ? " (nom au registre national)" : "";
+      parNom.push({ reference: c.reference, raison: `Immeuble « ${nomCite} »${registre} cité dans le mail, à confirmer.` });
       vues.add(cle);
       continue;
     }
-    const cp = codePostalDe(c.adresse);
-    const lieuPresent = (cp !== "" && mots.has(cp)) || (ville.length >= 4 && espace.includes(` ${ville} `));
-    // Une rue compte si son type (rue, avenue…) ET tous ses mots porteurs sont cités, ET que
-    // le lieu (code postal ou ville) l'est aussi : « 71 rue de Bezons » à Carrières ne matche
-    // pas un mail de Bezons 95870.
-    const voie = lieuPresent ? voiesDe(c.adresse).find((v) => mots.has(v.type) && v.mots.every((m) => mots.has(m))) : undefined;
-    // Le numero doit suivre (audit du 19/10/2026) : « 152 avenue Gabriel Péri » ne designe pas
-    // la copro du 25 de la meme avenue. Une adresse sans numero en base ne se controle pas.
-    const numeros = numerosDe(c.adresse);
-    if (voie && (numeros.size === 0 || [...numeros].some((n) => numerosCites.has(n)))) {
-      parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie.type} ${voie.mots.join(" ")} » citée dans le mail, à confirmer.` });
-      vues.add(cle);
+    // L'adresse de la copro, puis ses autres adresses au registre national (S269 : avenue de
+    // Colmar dans Crypto, boulevard National au registre). Chacune avec son propre lieu.
+    for (const adresse of [c.adresse, ...(c.adressesSecondaires ?? [])]) {
+      const ville = villeDe(adresse);
+      const cp = codePostalDe(adresse);
+      const lieuPresent = (cp !== "" && mots.has(cp)) || (ville.length >= 4 && espace.includes(` ${ville} `));
+      // Une rue compte si son type (rue, avenue…) ET tous ses mots porteurs sont cités, ET que
+      // le lieu (code postal ou ville) l'est aussi : « 71 rue de Bezons » à Carrières ne matche
+      // pas un mail de Bezons 95870.
+      const voie = lieuPresent ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => mots.has(m))) : undefined;
+      // Le numero doit suivre (audit du 19/10/2026) : « 152 avenue Gabriel Péri » ne designe pas
+      // la copro du 25 de la meme avenue. Une adresse sans numero en base ne se controle pas.
+      const numeros = numerosDe(adresse);
+      if (voie && (numeros.size === 0 || [...numeros].some((n) => numerosCites.has(n)))) {
+        parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie.type} ${voie.mots.join(" ")} » citée dans le mail, à confirmer.` });
+        vues.add(cle);
+        break;
+      }
     }
   }
   // Le nom d'immeuble passe en premier, mais n'ecrase plus l'adresse (audit du 19/10/2026) :
