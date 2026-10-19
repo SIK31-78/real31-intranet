@@ -38,7 +38,9 @@ export function boiteEnvoi(): string | null {
 
 export async function listerCoprosComposition(): Promise<CoproChoisissable[]> {
   const ref = await getReferentielTriProvider().charger();
+  // Les copros inactives (gardees pour reconnaitre le courrier entrant) ne recoivent plus de mail.
   return ref.copros
+    .filter((c) => !c.inactive)
     .map((c) => ({ reference: c.reference, nom: c.nom, adresse: c.adresse, gestionnaire: c.gestionnaire?.nomComplet ?? null }))
     .sort((a, b) => a.reference.localeCompare(b.reference, "fr"));
 }

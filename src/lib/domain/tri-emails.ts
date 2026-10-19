@@ -39,6 +39,11 @@ export interface CoproTri {
    * complementaires), sur une ligne avec code postal et ville. Reconnues comme l'adresse.
    */
   adressesSecondaires?: string[];
+  /**
+   * Copro INACTIVE dans l'intranet (mandat termine) : on recoit encore des mails de l'ancien
+   * syndic, de coproprietaires, de locataires. Reconnue, mais au plus en piste faible.
+   */
+  inactive?: boolean;
 }
 
 export type SourceTri = "estale" | "crypto";
@@ -555,12 +560,32 @@ const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {
  * Propose une copropriete ESTALE pour un mail. Ordre des indices, du plus fort au plus
  * faible : code cite dans l'objet, adresse de l'expediteur connue d'ESTALE, code cite
  * dans le corps. Rien n'est jamais applique sans le clic d'un collaborateur.
+ * Une copro INACTIVE n'est jamais une piste sure (plafonnerInactives).
  */
 export function suggererCopro(
   mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & {
     /** Le corps entier, historique cite compris, pour « Immeuble concerné » ; a defaut, l'apercu. */
     corps?: string;
   },
+  ref: ReferentielTri,
+): Suggestion {
+  return plafonnerInactives(suggestionBrute(mail, ref), ref);
+}
+
+/**
+ * Copros inactives (mandat termine) : au plus une piste faible, et apres les copros actives.
+ * Elles restent reconnues : l'ancien syndic, un coproprietaire ou un locataire ecrit encore.
+ */
+function plafonnerInactives(s: Suggestion, ref: ReferentielTri): Suggestion {
+  const inactives = new Set(ref.copros.filter((c) => c.inactive).map((c) => c.reference));
+  if (!s.candidats.some((r) => inactives.has(r))) return s;
+  const candidats = [...s.candidats.filter((r) => !inactives.has(r)), ...s.candidats.filter((r) => inactives.has(r))];
+  if (s.nature === "sure") return { nature: "faible", candidats, raison: `${s.raison} Copropriété inactive : à confirmer.` };
+  return { ...s, candidats };
+}
+
+function suggestionBrute(
+  mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & { corps?: string },
   ref: ReferentielTri,
 ): Suggestion {
   const parCle = new Map<string, CoproTri>();
@@ -624,7 +649,12 @@ export function suggererCopro(
   // un prestataire ecrit pour toutes les copros ou il intervient, alors qu'ESTALE ou Crypto
   // ne le rattache souvent qu'a une seule (audit du journal du tri, 19/10/2026).
   // S'il n'est connu que comme fournisseur, il ne sert qu'en dernier recours (etape 5).
-  const liens = ref.expediteurs[mail.deAdresse.trim().toLowerCase()] ?? [];
+  // Une adresse connue d'une copro active ET d'une copro inactive (ancien immeuble d'un
+  // coproprietaire) : l'inactive s'efface devant un lien de meme force sur une active.
+  const tousLiens = ref.expediteurs[mail.deAdresse.trim().toLowerCase()] ?? [];
+  const actifs = tousLiens.filter((l) => !parCle.get(cleDeReference(l.reference) ?? "")?.inactive);
+  const estFort = (l: LienExpediteur) => l.qualite !== "fournisseur";
+  const liens = actifs.some(estFort) || (!tousLiens.some(estFort) && actifs.length > 0) ? actifs : tousLiens;
   const forts = liens.filter((l) => l.qualite !== "fournisseur");
   const ou = (ls: LienExpediteur[]) => [...new Set(ls.map((l) => (l.source === "crypto" ? "Crypto" : "ESTALE")))].join(" et ");
   const references = [...new Set([...forts, ...liens].map((l) => l.reference))];
@@ -1038,7 +1068,8 @@ export function coproDuDossier(
   initialesParEmail: Record<string, string>,
   b: BinomesTri,
 ): string | null {
-  const candidates = copros.filter((c) => destinationDe(c, initialesParEmail, b)?.cle === cle);
+  // Une copro inactive ne rend pas le dossier ambigu : elle ne recoit plus de courrier suivi.
+  const candidates = copros.filter((c) => !c.inactive && destinationDe(c, initialesParEmail, b)?.cle === cle);
   return candidates.length === 1 ? candidates[0]!.reference : null;
 }
 

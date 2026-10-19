@@ -746,3 +746,40 @@ describe("avecMemeConversation (historique du tri, même conversation seulement)
     expect(avecMemeConversation(rien, null, REF)).toBe(rien);
   });
 });
+
+describe("copros inactives : reconnues, au plus une piste faible", () => {
+  const inactive = (reference: string): CoproTri => ({ ...copro(reference), inactive: true });
+  const ref: ReferentielTri = {
+    copros: [copro("S0297"), inactive("S0182"), { ...inactive("S0183"), immatriculation: "ZZ1234567" }],
+    expediteurs: {
+      "ancien@exemple.fr": [{ reference: "S0182", qualite: "copropriétaire" }],
+      "deux@exemple.fr": [
+        { reference: "S0182", qualite: "copropriétaire" },
+        { reference: "S0297", qualite: "copropriétaire" },
+      ],
+    },
+  };
+
+  it("un code dans l'objet d'une copro inactive donne une piste faible, pas sûre", () => {
+    const s = suggererCopro(mail({ objet: "RE: S0182 travaux" }), ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0182"] });
+    expect(s.raison).toContain("inactive");
+  });
+
+  it("l'immatriculation ou l'expéditeur d'une copro inactive : faible aussi", () => {
+    expect(suggererCopro(mail({ objet: "Registre ZZ1234567" }), ref)).toMatchObject({ nature: "faible", candidats: ["S0183"] });
+    expect(suggererCopro(mail({ deAdresse: "ancien@exemple.fr" }), ref)).toMatchObject({ nature: "faible", candidats: ["S0182"] });
+  });
+
+  it("un expéditeur connu d'une active et d'une inactive : l'active seule, en piste sûre", () => {
+    expect(suggererCopro(mail({ deAdresse: "deux@exemple.fr" }), ref)).toMatchObject({ nature: "sure", candidats: ["S0297"] });
+  });
+
+  it("plusieurs candidates : les actives d'abord", () => {
+    expect(suggererCopro(mail({ objet: "S0182 et S0297" }), ref)).toMatchObject({ nature: "plusieurs", candidats: ["S0297", "S0182"] });
+  });
+
+  it("une copro inactive ne rend pas un dossier ambigu", () => {
+    expect(coproDuDossier("binome:g@real31.fr", [copro("S0297"), inactive("S0182")], { "g@real31.fr": "GG" }, AUCUN_BINOME)).toBe("S0297");
+  });
+});

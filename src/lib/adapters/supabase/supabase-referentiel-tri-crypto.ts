@@ -1,6 +1,7 @@
 // Referentiel du tri pour les copros Crypto (decision du 12/10/2026 : syndic4 couvre toute
 // l'agence de Houilles, dont 33 copros sur 35 ne sont pas dans ESTALE). LECTURE SEULE.
-//   - les copros actives de l'agence et leur equipe : table Copropriete + User ;
+//   - les copros de l'agence (actives, et inactives marquees comme telles) et leur equipe :
+//     table Copropriete + User ;
 //   - les adresses connues : intranet_crypto_annuaire, synchronise chaque nuit depuis
 //     l'export Crypto (scripts/sync-annuaire-crypto.mjs, REA-291) ;
 //   - les noms d'usage et autres adresses au registre national : intranet_registre_copros
@@ -26,6 +27,7 @@ type RowCopro = {
   registrationNumber: string | null;
   managerId: string | null;
   assistantId: string | null;
+  status: string;
 };
 type RowUser = { id: string; name: string; email: string | null };
 type RowAnnuaire = { email: string; qualite: string; copro_code: string };
@@ -100,15 +102,19 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
       agencyId = data.id;
     }
 
+    // Les copros INACTIVES sont lues aussi (S182 : on recoit encore des mails de l'ancien
+    // syndic, de coproprietaires, de locataires) ; le tri les plafonne a une piste faible.
     let q = sb
       .from("Copropriete")
-      .select("referenceCrypto, referenceEstale, name, address1, postalCode, city, registrationNumber, managerId, assistantId")
-      .eq("status", "ACTIVE");
+      .select("referenceCrypto, referenceEstale, name, address1, postalCode, city, registrationNumber, managerId, assistantId, status")
+      .in("status", ["ACTIVE", "INACTIVE"]);
     if (agencyId) q = q.eq("agencyId", agencyId);
-    const { data: lignes, error } = await q.returns<RowCopro[]>();
+    const { data: lues, error } = await q.returns<RowCopro[]>();
     if (error) throw new Error(`Lecture Copropriete : ${error.message}`);
+    // Les actives d'abord : une fiche inactive qui porte le meme code qu'une active s'efface.
+    const lignes = [...(lues ?? [])].sort((a, b) => Number(a.status !== "ACTIVE") - Number(b.status !== "ACTIVE"));
 
-    const ids = [...new Set((lignes ?? []).flatMap((c) => [c.managerId, c.assistantId]).filter((x): x is string => Boolean(x)))];
+    const ids = [...new Set(lignes.flatMap((c) => [c.managerId, c.assistantId]).filter((x): x is string => Boolean(x)))];
     const membres = new Map<string, MembreTri>();
     if (ids.length) {
       const { data: users } = await sb.from("User").select("id, name, email").in("id", ids).returns<RowUser[]>();
@@ -118,10 +124,12 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
     // La reference affichee : celle d'ESTALE si la copro y est deja, sinon celle de Crypto.
     const copros: CoproTri[] = [];
     const referenceDuCodeCrypto = new Map<string, string>();
-    for (const c of lignes ?? []) {
+    const vues = new Set<string>();
+    for (const c of lignes) {
       const reference = (c.referenceEstale ?? c.referenceCrypto ?? "").trim();
-      if (!reference) continue;
-      if (c.referenceCrypto) referenceDuCodeCrypto.set(c.referenceCrypto.trim(), reference);
+      if (!reference || vues.has(reference)) continue;
+      vues.add(reference);
+      if (c.referenceCrypto && !referenceDuCodeCrypto.has(c.referenceCrypto.trim())) referenceDuCodeCrypto.set(c.referenceCrypto.trim(), reference);
       copros.push({
         reference,
         nom: c.name,
@@ -130,6 +138,7 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
         assistant: (c.assistantId && membres.get(c.assistantId)) || null,
         source: "crypto",
         ...(c.registrationNumber ? { immatriculation: c.registrationNumber.trim() } : {}),
+        ...(c.status === "INACTIVE" ? { inactive: true } : {}),
       });
     }
 

@@ -159,7 +159,9 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     };
   });
 
-  const lignes = lignesBinomes(gestionnaires, ref.copros, binomes, initiales);
+  // L'onglet « Binômes » ne liste que les copros actives : une copro inactive reste
+  // proposable dans la file, mais on ne l'affecte plus a un assistant.
+  const lignes = lignesBinomes(gestionnaires, ref.copros.filter((c) => !c.inactive), binomes, initiales);
   const copros: CoproDeLaFile[] = ref.copros.map((c) => ({ ...c, destination: destinationDe(c, initiales, binomes) }));
 
   return {

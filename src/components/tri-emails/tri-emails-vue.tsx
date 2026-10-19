@@ -342,6 +342,7 @@ function FileVue({
                 <span className="col-span-2 mt-1 flex flex-wrap gap-1.5">
                   {m.interne && <Badge ton="err">Interne</Badge>}
                   <Badge ton={TON[m.suggestion.nature]}>{pastille(m)}</Badge>
+                  {m.suggestion.candidats.length === 1 && parRef.get(m.suggestion.candidats[0]!)?.inactive && <Badge ton="outline">copro inactive</Badge>}
                 </span>
               </button>
             </li>
@@ -510,6 +511,7 @@ function DetailMail({
                   )}
                 >
                   <span className="font-mono text-meta text-green-700 font-medium">{ref}</span> {parRef.get(ref)?.nom}
+                  <MentionInactive copro={parRef.get(ref)} />
                 </button>
               ))}
             </div>
@@ -539,6 +541,7 @@ function DetailMail({
                         )}
                       >
                         <span className="font-mono text-meta text-green-700 font-medium">{ref}</span> {parRef.get(ref)?.nom}
+                        <MentionInactive copro={parRef.get(ref)} />
                       </button>
                     ))}
                 </div>
@@ -576,6 +579,7 @@ function DetailMail({
                       <span className="font-mono text-meta text-green-700 min-w-[52px]">{c.reference}</span>
                       <span className="text-ink">{c.nom}</span>
                       {c.source === "crypto" && <span className="text-meta text-ink-3">Crypto</span>}
+                      <MentionInactive copro={c} />
                       <span className="ml-auto text-meta text-ink-3 truncate">{c.adresse}</span>
                     </button>
                   </li>
@@ -583,6 +587,13 @@ function DetailMail({
               </ul>
             )}
           </div>
+        )}
+
+        {copro?.inactive && (
+          <p className="text-meta text-ink-2">
+            <strong className="font-medium text-ink">{copro.reference} est une copro inactive</strong> (mandat terminé) : vérifiez que le mail la
+            concerne bien avant de le ranger.
+          </p>
         )}
 
         {copro && (
@@ -1238,5 +1249,15 @@ function Case({ titre, children }: { titre: string; children: React.ReactNode })
       <span className="text-meta uppercase tracking-wider text-ink-3">{titre}</span>
       {children}
     </div>
+  );
+}
+
+/** « copro inactive » à côté d'une copro au mandat terminé : reconnue, jamais proposée comme sûre. */
+function MentionInactive({ copro }: { copro: CoproDeLaFile | undefined }) {
+  if (!copro?.inactive) return null;
+  return (
+    <Badge ton="outline" className="ml-1.5 align-middle">
+      copro inactive
+    </Badge>
   );
 }
