@@ -333,6 +333,16 @@ describe("suggererCopro", () => {
       expect(suggererCopro(mail({ objet: "Panne au 12 rue Maurice Berteaux 95870" }), ref).nature).toBe("aucune");
       expect(suggererCopro(mail({ objet: "Interphone 1bis rue Faidherbe 78800" }), ref).candidats).toEqual(["S0243"]);
     });
+
+    it("les abréviations de voie valent le mot entier, dans le mail comme en base", () => {
+      const ref: ReferentielTri = {
+        copros: [c("S0400", "LES ORMES", "12 boulevard des Platanes 92500 Exemple-Ville"), c("S0401", "LES CHENES", "7 av. des Peupliers 78800 Houilles")],
+        expediteurs: {},
+      };
+      expect(suggererCopro(mail({ objet: "Parking du 12 bd des Platanes 92500" }), ref).candidats).toEqual(["S0400"]);
+      expect(suggererCopro(mail({ objet: "Fuite au 7 avenue des Peupliers 78800" }), ref).candidats).toEqual(["S0401"]);
+      expect(suggererCopro(mail({ objet: "Parking du 14 bd des Platanes 92500" }), ref).nature).toBe("aucune");
+    });
   });
 
   describe("noms d'usage et adresses du registre national", () => {

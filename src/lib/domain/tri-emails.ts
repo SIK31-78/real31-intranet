@@ -262,6 +262,20 @@ const TYPES_VOIE = ["boulevard", "avenue", "impasse", "passage", "sentier", "rue
 // Segments de voie d'une adresse (avant le code postal), chacun = son type + ses mots de rue
 // porteurs de sens. "86 rue E Vaillant - 89-91 rue M Berteaux 95870" -> [rue:[vaillant], rue:[berteaux]].
 const RE_TYPES_VOIE = TYPES_VOIE.map((t) => [t, new RegExp(`\\b${t}\\b`)] as const);
+
+// Abreviations de type de voie, lues comme le mot entier, dans le mail comme en base : « 85 bd
+// National » (mail de Rueil, S269, 19/10/2026) doit valoir « boulevard National ». Le risque
+// d'un « r » ou d'un « pl » isole reste faible : il faut aussi les mots de la rue, le lieu et
+// le numero.
+const ABREVIATIONS_VOIE: Readonly<Record<string, string>> = {
+  bd: "boulevard", bld: "boulevard", blvd: "boulevard", bvd: "boulevard", boul: "boulevard",
+  av: "avenue", ave: "avenue", r: "rue", pl: "place", imp: "impasse", ch: "chemin", che: "chemin",
+  chem: "chemin", all: "allee", sq: "square", rte: "route", pass: "passage", crs: "cours",
+};
+
+function deplierVoie(mot: string): string {
+  return ABREVIATIONS_VOIE[mot] ?? mot;
+}
 // Le découpage d'une adresse est déterministe : mémoïsé (le moteur le redemande pour chaque
 // copro et chaque mail ; LGC = 144 copros x 100 mails par affichage).
 const cacheVoies = new Map<string, { type: string; mots: string[] }[]>();
@@ -273,7 +287,7 @@ function voiesDe(adresse: string): { type: string; mots: string[] }[] {
   const voies = avantCP
     .split(/[-/,;]| et /)
     .map((seg) => {
-      const n = seg.replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+      const n = seg.replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim().split(" ").map(deplierVoie).join(" ");
       const type = RE_TYPES_VOIE.find(([, re]) => re.test(n))?.[0];
       const mots = n.split(" ").filter((t) => t.length >= 4 && !MOTS_BANALS.has(t) && !/^\d+$/.test(t));
       return type && mots.length ? { type, mots } : null;
@@ -420,7 +434,7 @@ function nomUsageCite(nomUsage: string, exclus: (m: string) => boolean, mots: Se
  * signature du cabinet (son bureau) ne doit pas rattacher tous les mails (constat du 13/10).
  */
 export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string }[] {
-  const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/));
+  const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/).map(deplierVoie));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
   const jetons = jetonsCompacts(texte);
   const numerosCites = new Set(jetons.map((t) => /^(\d{1,4})(?:bis|ter|b|t)?$/.exec(t)?.[1]).filter((n): n is string => n !== undefined).map((n) => String(Number(n))));
