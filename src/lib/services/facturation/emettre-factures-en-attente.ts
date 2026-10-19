@@ -14,6 +14,7 @@
 
 import { getComptaEstaleProvider, getFacturationRepository, getInvoicingProvider } from "@/lib/adapters/router";
 import type { FactureAEmettre, TypePrestation } from "@/lib/ports/facturation-repository";
+import { signalerException } from "@/lib/observabilite";
 import { saisirFacturesDansEstale, type ResultatSaisieEstale } from "./saisir-factures-estale";
 
 /** Titre court de la ligne sur le PDF. Le legacy le tirait de la liste Produits ;
@@ -151,7 +152,14 @@ export async function emettreFacturesEnAttente(ids: string[]): Promise<ResultatE
     } catch (erreur) {
       const message = erreur instanceof Error ? erreur.message : String(erreur);
       // On persiste l'echec sans interrompre le lot : les factures suivantes
-      // doivent pouvoir partir.
+      // doivent pouvoir partir. Et on le SIGNALE (ADR-020, REA-380) : une cle revoquee
+      // ou une panne Pennylane mettait toutes les factures en erreur sans qu'aucune
+      // alerte ne parte, le statut dans l'historique etait le seul signal.
+      signalerException(erreur, {
+        source: "pennylane",
+        copro: facture.coproCode,
+        detail: { factureId: facture.id, typePrestation: facture.typePrestation },
+      });
       await repo.marquerErreur(facture.id, message);
       resultat.enErreur += 1;
       resultat.erreurs.push({ factureId: facture.id, message });

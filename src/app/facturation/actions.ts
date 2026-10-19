@@ -43,7 +43,7 @@ import {
 import { getFacturationRepository } from "@/lib/adapters/router";
 
 
-import { type Res, echecDepuis } from "@/lib/actions/resultat";
+import { type Res, echecDepuis, estTechnique } from "@/lib/actions/resultat";
 // Validation des entrees : ces Server Actions sont des endpoints POST publics.
 const zCode = z.string().trim().min(1).max(40);
 const zLibelle = z.string().trim().min(1).max(300);
@@ -63,6 +63,30 @@ const zCreneau = z.object({
 
 function revalider() {
   revalidatePath("/facturation", "layout");
+}
+
+/**
+ * Ce que l'action dit de l'EMISSION qui suit la creation (REA-380). La facture est en
+ * base quoi qu'il arrive ; `echecEmission` porte la raison pour laquelle elle n'est pas
+ * partie chez Pennylane. Absent = emise. L'ecran le dit au lieu d'annoncer « creee ».
+ */
+type AvecEmission<T> = T & { echecEmission?: string };
+
+export const MESSAGE_EMISSION_TECHNIQUE =
+  "l'envoi chez Pennylane a échoué (erreur technique, signalée). La facture est dans l'historique, en erreur : à renvoyer.";
+
+/**
+ * Emet la facture qu'on vient de creer (UNIQUEMENT celle-la, jamais toute la file : une
+ * facture laissee en attente ne doit pas partir par ricochet) et rapporte l'echec s'il y
+ * en a un. Un message technique (HTTP, reseau) ne sort pas vers le navigateur : il est
+ * deja signale a Sentry par le service, l'utilisateur voit quoi faire.
+ */
+async function emettreApresCreation(factureId: string | null): Promise<{ echecEmission?: string }> {
+  if (!factureId) return {};
+  const emission = await emettreFacturesEnAttente([factureId]);
+  const message = emission.erreurs[0]?.message;
+  if (!message) return {};
+  return { echecEmission: estTechnique(message) ? MESSAGE_EMISSION_TECHNIQUE : message };
 }
 
 /** Enveloppe commune : session, validation deja faite, execution, revalidation. */
@@ -172,12 +196,14 @@ export async function creerFactureCsAction(
   coproCode: string,
   reunion: z.infer<typeof zCreneau>,
 ): Promise<
-  Res<{
-    heuresFacturables: number;
-    montantHt: number;
-    franchiseHeures: number;
-    factureId: string | null;
-  }>
+  Res<
+    AvecEmission<{
+      heuresFacturables: number;
+      montantHt: number;
+      franchiseHeures: number;
+      factureId: string | null;
+    }>
+  >
 > {
   const saisie = z
     .object({ coproCode: zCode, reunion: zCreneau })
@@ -186,11 +212,8 @@ export async function creerFactureCsAction(
 
   return executer(async (managerId, initiales) => {
     const resultat = await creerFactureDepassementCs({ ...saisie.data, par: initiales }, managerId);
-    // Confirmation = « envoi en facturation » : on emet UNIQUEMENT la facture
-    // qu'on vient de creer, jamais toute la file (une facture laissee en attente
-    // ne doit pas partir par ricochet).
-    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
-    return resultat;
+    // Confirmation = « envoi en facturation ».
+    return { ...resultat, ...(await emettreApresCreation(resultat.factureId)) };
   });
 }
 
@@ -200,7 +223,7 @@ export async function creerFactureTravauxAction(
   honoraires:
     | { mode: "pourcentage"; montantTravauxHt: number; pourcentage: number }
     | { mode: "forfait"; forfaitTtc: number },
-): Promise<Res<{ montantHt: number; factureId: string | null }>> {
+): Promise<Res<AvecEmission<{ montantHt: number; factureId: string | null }>>> {
   const zHonoraires = z.discriminatedUnion("mode", [
     z.object({ mode: z.literal("pourcentage"), montantTravauxHt: zMontant, pourcentage: z.number().min(0).max(100) }),
     z.object({ mode: z.literal("forfait"), forfaitTtc: zMontant }),
@@ -213,8 +236,7 @@ export async function creerFactureTravauxAction(
   return executer(async (managerId, initiales) => {
     const resultat = await creerFactureSuiviTravaux({ ...saisie.data, par: initiales }, managerId);
     // Rien a facturer (montant a 0) : aucune facture creee, rien a emettre.
-    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
-    return resultat;
+    return { ...resultat, ...(await emettreApresCreation(resultat.factureId)) };
   });
 }
 
@@ -228,7 +250,7 @@ export async function creerFactureSinistreAction(
     assistanceExpertise?: boolean;
   },
   dateSinistre?: string,
-): Promise<Res<{ montantHt: number; factureId: string }>> {
+): Promise<Res<AvecEmission<{ montantHt: number; factureId: string }>>> {
   const zDiligences = z.object({
     dossierAssureur: z.boolean().optional(),
     deplacementLieux: z.boolean().optional(),
@@ -248,8 +270,7 @@ export async function creerFactureSinistreAction(
   return executer(async (managerId, initiales) => {
     const { dateSinistre: date, ...reste } = saisie.data;
     const resultat = await creerFactureSuiviSinistre({ ...reste, ...(date ? { dateSinistre: date } : {}), par: initiales }, managerId);
-    await emettreFacturesEnAttente([resultat.factureId]);
-    return resultat;
+    return { ...resultat, ...(await emettreApresCreation(resultat.factureId)) };
   });
 }
 
@@ -259,7 +280,7 @@ export async function creerFactureEtatDateAction(
   nomClient?: string,
   dateEtablissement?: string,
   montantTtcNegocie?: number,
-): Promise<Res<{ montantHt: number; factureId: string | null }>> {
+): Promise<Res<AvecEmission<{ montantHt: number; factureId: string | null }>>> {
   const saisie = z
     .object({
       coproCode: zCode,
@@ -283,8 +304,7 @@ export async function creerFactureEtatDateAction(
         ? await creerFacturePreEtatDate({ ...demande, par: initiales }, managerId)
         : await creerFactureEtatDate({ ...demande, par: initiales }, managerId);
     // Montant negocie a 0 : aucune facture creee, rien a emettre.
-    if (resultat.factureId) await emettreFacturesEnAttente([resultat.factureId]);
-    return resultat;
+    return { ...resultat, ...(await emettreApresCreation(resultat.factureId)) };
   });
 }
 

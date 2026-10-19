@@ -24,9 +24,12 @@ const etat = vi.hoisted(() => {
     /** Copros tenues dans ESTALE (marqueur hors BPO). */
     coprosEstale: new Set<string>(),
     estaleEnPanne: false,
+    /** Ce qui est parti vers Sentry (REA-380). */
+    signalements: [] as { source: string; copro?: string }[],
     reset() {
       ref.coprosEstale.clear();
       ref.estaleEnPanne = false;
+      ref.signalements = [];
       ref.aEmettre = [];
       ref.demandes = [];
       ref.erreurs = [];
@@ -36,6 +39,12 @@ const etat = vi.hoisted(() => {
   };
   return ref;
 });
+
+vi.mock("@/lib/observabilite", () => ({
+  signalerException: (_e: unknown, ctx: { source: string; copro?: string }) => {
+    etat.signalements.push(ctx);
+  },
+}));
 
 // Les mocks sont types sur les NOMS des methodes du port : un renommage casse tsc ici,
 // pas seulement en production (audit 16/09/2026).
@@ -209,5 +218,24 @@ describe("emission - un echec n'arrete pas le lot", () => {
     expect(resultat.enErreur).toBe(1);
     expect(etat.demandes).toHaveLength(0);
     expect(etat.erreurs[0]!.message).toMatch(/sans ligne/);
+  });
+});
+
+describe("emission - un echec est signale a Sentry (REA-380)", () => {
+  it("Pennylane refuse : un signalement par facture en echec, tague par copro, rien pour celles qui partent", async () => {
+    etat.aEmettre = [facture({ id: "f1", coproCode: "S001" }), facture({ id: "f2", coproCode: "S002" })];
+    etat.enPanne.add("S002");
+
+    await emettreFacturesEnAttente(["f1", "f2"]);
+
+    expect(etat.signalements).toEqual([{ source: "pennylane", copro: "S002", detail: expect.anything() }]);
+  });
+
+  it("tout part : aucun signalement", async () => {
+    etat.aEmettre = [facture({ id: "f1", coproCode: "S001" })];
+
+    await emettreFacturesEnAttente(["f1"]);
+
+    expect(etat.signalements).toHaveLength(0);
   });
 });

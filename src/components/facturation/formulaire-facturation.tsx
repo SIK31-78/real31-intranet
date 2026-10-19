@@ -127,7 +127,10 @@ export function FormulaireFacturation({
 
   function annoncer(
     res:
-      | { ok: true; donnees?: { montantHt?: number; factureId?: string | null; franchiseHeures?: number } }
+      | {
+          ok: true;
+          donnees?: { montantHt?: number; factureId?: string | null; franchiseHeures?: number; echecEmission?: string };
+        }
       | { ok: false; erreur: string },
   ) {
     if (!res.ok) {
@@ -135,7 +138,13 @@ export function FormulaireFacturation({
       return;
     }
     const montant = res.donnees?.montantHt;
-    if (res.donnees && "factureId" in res.donnees && res.donnees.factureId === null) {
+    if (res.donnees?.echecEmission) {
+      // La facture EST en base, mais pas chez Pennylane (REA-380) : le dire, au lieu
+      // d'annoncer « créée » et de laisser l'échec au fond de l'historique.
+      toast.err(
+        `Facture enregistrée${montant !== undefined ? ` (${montant.toFixed(2)} € HT)` : ""}, mais ${res.donnees.echecEmission}`,
+      );
+    } else if (res.donnees && "factureId" in res.donnees && res.donnees.factureId === null) {
       toast.ok(
         `Rien à facturer : la réunion ne dépasse pas la durée incluse au contrat (${res.donnees?.franchiseHeures ?? 0} h).`,
       );

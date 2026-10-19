@@ -8,6 +8,8 @@ const etat = vi.hoisted(() => ({
   perimetreRefuse: false,
   remises: 0,
   emissions: 0,
+  /** Message d'echec rendu par l'emission qui suit une creation (REA-380) ; null = emise. */
+  echecEmission: null as string | null,
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
@@ -28,18 +30,21 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 vi.mock("@/lib/services/facturation/emettre-factures-en-attente", () => ({
-  emettreFacturesEnAttente: async () => {
+  emettreFacturesEnAttente: async (ids: string[]) => {
     etat.emissions++;
+    if (etat.echecEmission) return { emises: 0, enErreur: 1, erreurs: [{ factureId: ids[0], message: etat.echecEmission }] };
     return { emises: 1, enErreur: 0, erreurs: [] };
   },
 }));
 vi.mock("@/lib/services/facturation/creer-facture-prestation-contrat", () => ({}));
 vi.mock("@/lib/services/facturation/creer-facture-depassement-cs", () => ({}));
 vi.mock("@/lib/services/facturation/creer-facture-suivi-travaux", () => ({}));
-vi.mock("@/lib/services/facturation/creer-facture-suivi-sinistre", () => ({}));
+vi.mock("@/lib/services/facturation/creer-facture-suivi-sinistre", () => ({
+  creerFactureSuiviSinistre: async () => ({ montantHt: 135, factureId: "0b1f6a3e-9c2d-4e7a-8f10-2a3b4c5d6e7f" }),
+}));
 vi.mock("@/lib/services/facturation/creer-facture-prestation-forfaitaire", () => ({}));
 
-import { rejouerFactureAction } from "./actions";
+import { MESSAGE_EMISSION_TECHNIQUE, creerFactureSinistreAction, rejouerFactureAction } from "./actions";
 
 const ID = "0b1f6a3e-9c2d-4e7a-8f10-2a3b4c5d6e7f";
 
@@ -48,6 +53,33 @@ beforeEach(() => {
   etat.perimetreRefuse = false;
   etat.remises = 0;
   etat.emissions = 0;
+  etat.echecEmission = null;
+});
+
+// REA-380 : la facture est en base, mais si Pennylane la refuse, l'ecran doit le dire au
+// lieu d'annoncer « creee » et de laisser l'echec au fond de l'historique.
+describe("creerFactureSinistreAction - l'echec d'emission remonte a l'ecran", () => {
+  it("emise : pas d'echec rapporte", async () => {
+    const r = await creerFactureSinistreAction("S072", "S072DODUPINDDE", { dossierAssureur: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.donnees?.echecEmission).toBeUndefined();
+    expect(etat.emissions).toBe(1);
+  });
+  it("refus METIER (client absent) : le message est rendu tel quel", async () => {
+    etat.echecEmission = "Aucun identifiant client de facturation pour la copropriete S072.";
+    const r = await creerFactureSinistreAction("S072", "S072DODUPINDDE", { dossierAssureur: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.donnees?.echecEmission).toBe(etat.echecEmission);
+  });
+  it("refus TECHNIQUE (HTTP 401) : le detail ne sort pas vers le navigateur, la phrase neutre oui", async () => {
+    etat.echecEmission = "Emission Pennylane : HTTP 401 Unauthorized - {\"error\":\"invalid token\"}";
+    const r = await creerFactureSinistreAction("S072", "S072DODUPINDDE", { dossierAssureur: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.donnees?.echecEmission).toBe(MESSAGE_EMISSION_TECHNIQUE);
+      expect(r.donnees?.echecEmission).not.toMatch(/401/);
+    }
+  });
 });
 
 describe("rejouerFactureAction", () => {
