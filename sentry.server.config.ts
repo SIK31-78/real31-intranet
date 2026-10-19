@@ -20,6 +20,8 @@ function expurgerFiche(event: Sentry.ErrorEvent): void {
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  // Rien depuis un serveur de dev : ses erreurs de saisie noyaient les vraies (20 sur 24 au 19/10/2026).
+  enabled: process.env.NODE_ENV === "production",
   environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   // Traces de performance : un echantillon suffit (on cherche les erreurs, pas le profil).
   tracesSampleRate: 0.1,

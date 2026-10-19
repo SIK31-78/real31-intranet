@@ -19,6 +19,8 @@ function expurgerFiche(event: Sentry.ErrorEvent): void {
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  // Rien depuis un serveur de dev : ses erreurs de saisie noyaient les vraies (20 sur 24 au 19/10/2026).
+  enabled: process.env.NODE_ENV === "production",
   environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
   // Tunnel MAISON : les enveloppes passent par notre domaine (bloqueurs de pub) et ne
   // sont relayees que vers notre projet (src/app/monitoring/route.ts).
