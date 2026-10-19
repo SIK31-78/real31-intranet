@@ -6,6 +6,7 @@ import {
   constaterRangement,
   coproDuDossier,
   coprosDansPdf,
+  coprosImmeubleConcerne,
   estMailInterne,
   destinationDe,
   lignesBinomes,
@@ -43,7 +44,7 @@ const REF: ReferentielTri = {
   },
 };
 
-const mail = (p: Partial<{ deAdresse: string; objet: string; apercu: string }>) => ({
+const mail = (p: Partial<{ deAdresse: string; objet: string; apercu: string; corps: string }>) => ({
   deAdresse: "inconnu@exemple.fr",
   objet: "Bonjour",
   apercu: "",
@@ -206,11 +207,45 @@ describe("suggererCopro", () => {
       expediteurs: {},
     };
     const safelink = `<https://eur01.safelinks.protection.outlook.com/?url=${"x".repeat(700)}>`;
-    const apercu = `Pourquoi c'est important${safelink}
-[cid:image001.png@01DC0000.00000000]
-Bonjour, fuite au CYRANO.`;
+    const apercu = `Pourquoi c'est important${safelink}\n[cid:image001.png@01DC0000.00000000]\nBonjour, fuite au CYRANO.`;
     expect(suggererCopro(mail({ apercu }), ref)).toMatchObject({ nature: "faible", candidats: ["S0247"] });
     expect(nettoyerCorps("voir <https://a.fr/x> et [cid:img.png] puis https://b.fr/y fin")).toBe("voir  et  puis  fin");
+  });
+
+  describe("« Immeuble concerné » cité dans l'échange (audit du 19/10/2026)", () => {
+    const ref: ReferentielTri = {
+      copros: [
+        { reference: "S0109", nom: "LES TILLEULS", adresse: "86 rue E Vaillant - 89-91 rue M Berteaux 95870 BEZONS", gestionnaire: null, assistant: null },
+        { reference: "S0176", nom: "LES ORMES", adresse: "66 rue du Colombier 78420 CARRIERES-SUR-SEINE", gestionnaire: null, assistant: null },
+        { reference: "S0178", nom: "LES ROSIERS", adresse: "125 rue Louise Michel 78500 SARTROUVILLE", gestionnaire: null, assistant: null },
+      ],
+      expediteurs: { "voisin@exemple.fr": [{ reference: "S0178", qualite: "copropriétaire" }] },
+    };
+    const historique = (ligne: string) =>
+      `Bonjour, c'est validé.\n${"Bla bla. ".repeat(200)}\n> Le 7 oct. 2026, Syndic a écrit :\n> Réf : AB/1234567\n> ${ligne}\n> Bonjour,`;
+
+    it("le pied cité loin dans l'historique désigne la copro, avant l'expéditeur connu", () => {
+      const corps = historique("Immeuble concerné : 86 rue E Vaillant - 89-91 rue M Berteaux-BEZONS\u200b");
+      const s = suggererCopro(mail({ deAdresse: "voisin@exemple.fr", objet: "Re: devis", apercu: corps.slice(0, 400), corps }), ref);
+      expect(s).toMatchObject({ nature: "sure", candidats: ["S0109"] });
+      expect(s.raison).toContain("Immeuble concerné");
+    });
+
+    it("lit aussi « Immeuble : » en début de ligne et la ville collée par un tiret", () => {
+      const corps = historique("Immeuble : 66 rue du Colombier-CARRIERES-SUR-SEINE");
+      expect(coprosImmeubleConcerne(corps, ref.copros)).toEqual(["S0176"]);
+      expect(coprosImmeubleConcerne("Je passerai dans l'immeuble : 66 rue du Colombier 78420", ref.copros)).toEqual([]);
+    });
+
+    it("contredit par le code de l'objet : à départager, le code d'abord", () => {
+      const corps = historique("Immeuble concerné : 66 rue du Colombier-CARRIERES-SUR-SEINE");
+      expect(suggererCopro(mail({ objet: "Re: S0178 · lierre", apercu: "", corps }), ref)).toMatchObject({
+        nature: "plusieurs",
+        candidats: ["S0178", "S0176"],
+      });
+      // D'accord avec l'objet : reste sûr.
+      expect(suggererCopro(mail({ objet: "Re: S0176 · lierre", apercu: "", corps }), ref)).toMatchObject({ nature: "sure", candidats: ["S0176"] });
+    });
   });
 
   it("signale une copro citee qui n'est pas sur ESTALE", () => {

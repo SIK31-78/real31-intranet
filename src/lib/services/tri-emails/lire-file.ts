@@ -141,7 +141,8 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     };
     return {
       ...base,
-      suggestion: suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE) }, ref),
+      // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
+      suggestion: suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
     };
   });
 

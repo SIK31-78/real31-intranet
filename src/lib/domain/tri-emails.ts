@@ -316,6 +316,27 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
   return parNom.length > 0 ? parNom : parAdresse;
 }
 
+// « Immeuble concerné : 86 rue E Vaillant - 89-91 rue M Berteaux-BEZONS » : pied des mails
+// envoyés depuis Crypto par le cabinet, que le prestataire ou le copropriétaire cite en
+// répondant. Audit du journal du tri (19/10/2026) : présent dans 36 des 122 mails de syndic4,
+// presque toujours dans l'historique cité (9 fois au-delà des 4 000 caractères lus). On le cherche
+// dans TOUT le corps. « Immeuble : » seul ne compte qu'en début de ligne (pas « l'immeuble »).
+const LIGNE_IMMEUBLE = /(?:^[>\s]*Immeuble|Immeuble\s+concern\S*)\s*:\s*([^\n\u200b]{5,150})/gim;
+
+/**
+ * References des copros designees par une ligne « Immeuble concerné : … » du corps (historique
+ * cite compris). L'adresse est lue par le moteur nom / adresse : la ville collee par Crypto
+ * (« …Berteaux-BEZONS ») est d'abord detachee pour que le lieu soit reconnu.
+ */
+export function coprosImmeubleConcerne(texte: string, copros: CoproTri[]): string[] {
+  const refs: string[] = [];
+  for (const m of texte.matchAll(LIGNE_IMMEUBLE)) {
+    const ligne = m[1]!.replace(/-(\p{Lu}[\p{Lu}' -]{2,})\s*$/u, " $1");
+    for (const i of indicesNomAdresse(ligne, copros)) if (!refs.includes(i.reference)) refs.push(i.reference);
+  }
+  return refs;
+}
+
 // Lignes du papier a en-tete du cabinet (son adresse, SIREN…) : a ignorer dans une piece
 // jointe, sinon toute facture rattache le mail a la copro ou siege l'agence (place Michelet).
 // Mesure du 13/10/2026 : sans ce filtre, 24 PDF sur 35 remontaient « place Michelet ».
@@ -367,7 +388,10 @@ const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {
  * dans le corps. Rien n'est jamais applique sans le clic d'un collaborateur.
  */
 export function suggererCopro(
-  mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu">,
+  mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & {
+    /** Le corps entier, historique cite compris, pour « Immeuble concerné » ; a defaut, l'apercu. */
+    corps?: string;
+  },
   ref: ReferentielTri,
 ): Suggestion {
   const parCle = new Map<string, CoproTri>();
@@ -387,11 +411,24 @@ export function suggererCopro(
     return { nature: "plusieurs", candidats: immats, raison: "Plusieurs numéros d'immatriculation cités." };
   }
 
+  // « Immeuble concerné : … » cite dans l'echange (audit du journal du tri, 19/10/2026).
+  const immeuble = coprosImmeubleConcerne(mail.corps === undefined ? corps : nettoyerCorps(mail.corps), ref.copros);
+
   // 1. Code dans l'objet (le plus fiable : c'est souvent une reponse a nos propres mails).
   const dansObjet = referencesCitees(mail.objet);
   const objetEstale = dansObjet.map((k) => parCle.get(k)).filter((c): c is CoproTri => Boolean(c));
   if (objetEstale.length === 1) {
     const c = objetEstale[0]!;
+    // Le pied « Immeuble concerné » designe une autre copro : on ne tranche pas (objet
+    // recopie d'un autre fil, « Re: S302 · … - Colombier 66 »).
+    const autres = immeuble.filter((r) => r !== c.reference);
+    if (immeuble.length > 0 && !immeuble.includes(c.reference)) {
+      return {
+        nature: "plusieurs",
+        candidats: [c.reference, ...autres],
+        raison: `Code ${c.reference} cité dans l'objet, mais « Immeuble concerné » désigne ${autres.join(", ")} : à départager.`,
+      };
+    }
     return { nature: "sure", candidats: [c.reference], raison: `Code ${c.reference} cité dans l'objet.` };
   }
   if (objetEstale.length > 1) {
@@ -400,6 +437,16 @@ export function suggererCopro(
       candidats: objetEstale.map((c) => c.reference),
       raison: "Plusieurs codes de copropriété cités dans l'objet.",
     };
+  }
+
+  // 1 bis. « Immeuble concerné : … » : le pied d'un mail du cabinet, cite dans la reponse.
+  // Il passe avant l'expediteur : un copropriétaire de plusieurs copros, ou un prestataire,
+  // ecrit au sujet de l'immeuble que notre propre mail designait.
+  if (immeuble.length === 1) {
+    return { nature: "sure", candidats: immeuble, raison: `« Immeuble concerné » cité dans l'échange : ${immeuble[0]}.` };
+  }
+  if (immeuble.length > 1) {
+    return { nature: "plusieurs", candidats: immeuble, raison: "Plusieurs « Immeuble concerné » cités dans l'échange." };
   }
 
   // 2. Expediteur connu d'ESTALE ou de l'annuaire Crypto.
