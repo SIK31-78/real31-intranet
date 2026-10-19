@@ -12,6 +12,7 @@ import {
   lignesBinomes,
   nettoyerCorps,
   retirerEnteteCabinet,
+  signalDuRangement,
   suggestionSuivie,
   estAssistantDeCopro,
   referencesCitees,
@@ -473,6 +474,19 @@ describe("suggestionSuivie", () => {
     expect(suggestionSuivie({ coproReference: "S0305", candidats: ["S0297", "S0305"] })).toBe(false);
     expect(suggestionSuivie({ coproReference: null, candidats: ["S0297"] })).toBe(false);
     expect(suggestionSuivie({ coproReference: "S0297", candidats: [] })).toBeNull();
+  });
+});
+
+describe("signalDuRangement (journal honnête, audit du 19/10/2026)", () => {
+  it("copro proposée par la lecture des PDF quand le mail n'avait aucune piste : signal « pj »", () => {
+    expect(signalDuRangement({ nature: "aucune", candidats: [] }, { candidats: ["S0177"] })).toEqual({ nature: "pj", candidats: ["S0177"] });
+    expect(signalDuRangement({ nature: "hors-estale", candidats: [] }, { candidats: ["S0177"] }).nature).toBe("pj");
+  });
+
+  it("garde la suggestion du mail quand elle avait des candidates, ou que les PDF n'ont rien donné", () => {
+    expect(signalDuRangement({ nature: "faible", candidats: ["S0297"] }, { candidats: ["S0177"] })).toEqual({ nature: "faible", candidats: ["S0297"] });
+    expect(signalDuRangement({ nature: "aucune", candidats: [] }, null)).toEqual({ nature: "aucune", candidats: [] });
+    expect(signalDuRangement({ nature: "aucune", candidats: [] }, { candidats: [] }).nature).toBe("aucune");
   });
 });
 

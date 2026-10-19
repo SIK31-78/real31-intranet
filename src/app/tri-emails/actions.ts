@@ -19,7 +19,8 @@ import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 
 const zTexte = (max: number) => z.string().max(max);
-const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune"]);
+// « pj » : copro proposee par la lecture des pieces jointes (journal du tri, 19/10/2026).
+const zNature = z.enum(["sure", "plusieurs", "faible", "hors-estale", "aucune", "pj"]);
 
 const zRanger = z.object({
   messageId: z.string().min(1).max(400),

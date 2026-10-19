@@ -792,13 +792,34 @@ export interface EntreeJournalTri {
   /** Cle stable du dossier (binome:..., comptabilite, divers) ; null sur les toutes premieres lignes. */
   dossierCle: string | null;
   /** La suggestion au moment du clic : sa nature et ses candidates (mesure de fiabilite). */
-  signal: NatureSuggestion | null;
+  signal: SignalTri | null;
   candidats: string[];
   /** true = rangement simule (ecriture Graph coupee) : le mail n'a pas bouge. */
   simulation: boolean;
   par: string;
   faitLe: string;
   annuleLe: string | null;
+}
+
+/**
+ * Le signal retenu par le journal : la nature de la suggestion du mail, ou « pj » quand la
+ * copro a ete proposee par la lecture des pieces jointes (coproDepuisPiecesJointes). Valeur
+ * de la colonne texte `signal` de intranet_tri_journal, sans contrainte en base.
+ */
+export type SignalTri = NatureSuggestion | "pj";
+
+/**
+ * Ce que le rangement journalise. Audit du journal du tri (19/10/2026) : quand le mail ne
+ * donnait aucune piste et que la copro venait d'un PDF, le journal notait « aucune piste » ;
+ * la mesure des signaux sous-estimait la lecture des pieces jointes. Si le mail avait deja
+ * des candidates, on garde sa suggestion : c'est elle que la revue mesure.
+ */
+export function signalDuRangement(
+  suggestion: { nature: NatureSuggestion; candidats: string[] },
+  pj: { candidats: string[] } | null,
+): { nature: SignalTri; candidats: string[] } {
+  if (suggestion.candidats.length === 0 && pj && pj.candidats.length > 0) return { nature: "pj", candidats: pj.candidats };
+  return { nature: suggestion.nature, candidats: suggestion.candidats };
 }
 
 /** La suggestion a-t-elle ete suivie ? Sert a mesurer chaque signal avant de l'automatiser. */

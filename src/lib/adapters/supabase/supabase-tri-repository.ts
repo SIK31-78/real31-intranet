@@ -2,7 +2,7 @@
 // intranet_tri_dossier, intranet_tri_journal (supabase/sql/intranet_tri_emails.sql).
 // Tables absentes (SQL pas encore passe) : lectures vides, ecritures en erreur claire.
 
-import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri, NatureSuggestion } from "@/lib/domain/tri-emails";
+import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri, SignalTri } from "@/lib/domain/tri-emails";
 import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -52,7 +52,7 @@ function versDomaine(r: RowJournal): EntreeJournalTri {
     copros: r.copros ?? (r.copro_reference ? [r.copro_reference] : []),
     dossierNom: r.dossier_nom,
     dossierCle: r.dossier_cle ?? null,
-    signal: (r.signal as NatureSuggestion | null) ?? null,
+    signal: (r.signal as SignalTri | null) ?? null,
     candidats: r.candidats ?? [],
     simulation: r.simulation,
     par: r.par,

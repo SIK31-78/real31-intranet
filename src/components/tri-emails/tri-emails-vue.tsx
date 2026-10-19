@@ -13,12 +13,14 @@ import type { CoproDeLaFile, FileATrier, MailDeLaFile } from "@/lib/services/tri
 import type { Collaborateur } from "@/lib/services/tri-emails/binomes";
 import {
   PAR_OUTLOOK,
+  signalDuRangement,
   suggestionSuivie,
   type CibleTri,
   type DossierChoisissable,
   type EntreeJournalTri,
   type LigneBinome,
   type NatureSuggestion,
+  type SignalTri,
 } from "@/lib/domain/tri-emails";
 import {
   affecterCoproAction,
@@ -60,12 +62,13 @@ const TITRE: Record<NatureSuggestion, string> = {
   aucune: "Pas de suggestion",
 };
 
-const LIBELLE_SIGNAL: Record<NatureSuggestion, string> = {
+const LIBELLE_SIGNAL: Record<SignalTri, string> = {
   sure: "suggestion sûre",
   faible: "indice faible",
   plusieurs: "plusieurs copros",
   "hors-estale": "hors périmètre",
   aucune: "aucune piste",
+  pj: "pièce jointe",
 };
 
 function pastille(m: MailDeLaFile): string {
@@ -135,7 +138,8 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
         expediteur: mail.deAdresse,
         objet: mail.objet,
         cible,
-        suggestion: { nature: mail.suggestion.nature, candidats: mail.suggestion.candidats },
+        // Copro venue d'un PDF : le journal le dit (audit du 19/10/2026).
+        suggestion: signalDuRangement(mail.suggestion, ANALYSE_PJ.get(mail.internetMessageId) ?? null),
       });
       if (!r.ok) {
         toast.err(r.erreur);
@@ -155,7 +159,8 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
         internetMessageId: mail.internetMessageId,
         expediteur: mail.deAdresse,
         objet: mail.objet,
-        suggestion: { nature: mail.suggestion.nature, candidats: mail.suggestion.candidats },
+        // Copro venue d'un PDF : le journal le dit (audit du 19/10/2026).
+        suggestion: signalDuRangement(mail.suggestion, ANALYSE_PJ.get(mail.internetMessageId) ?? null),
       });
       if (!r.ok) {
         toast.err(r.erreur);

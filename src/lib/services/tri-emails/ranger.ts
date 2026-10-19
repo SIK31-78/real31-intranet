@@ -13,7 +13,7 @@ import {
   lignesBinomes,
   type MembreTri,
   type CibleTri,
-  type NatureSuggestion,
+  type SignalTri,
 } from "@/lib/domain/tri-emails";
 import { boiteTriConfiguree, ecritureTriActive } from "@/lib/domain/mail-gate";
 import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
@@ -70,8 +70,9 @@ export interface DemandeRangement {
   expediteur: string;
   objet: string;
   cible: CibleTri;
-  /** La suggestion affichee au moment du clic (mesure de fiabilite des signaux). */
-  suggestion: { nature: NatureSuggestion; candidats: string[] } | null;
+  /** La suggestion affichee au moment du clic (mesure de fiabilite des signaux) ; « pj » si
+   *  la copro venait de la lecture des pieces jointes (signalDuRangement). */
+  suggestion: { nature: SignalTri; candidats: string[] } | null;
 }
 
 export interface ResultatRangement {
