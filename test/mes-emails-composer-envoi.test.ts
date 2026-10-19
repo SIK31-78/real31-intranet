@@ -10,6 +10,8 @@ const etat = vi.hoisted(() => ({
 vi.mock("@/lib/adapters/router", () => ({
   getMailOutboundProvider: () => ({ creerBrouillonNeuf: etat.creerBrouillonNeuf, envoyerBrouillon: etat.envoyerBrouillon }),
   getContactsCoproProvider: () => ({ listerParCopro: etat.listerParCopro }),
+  // Copro hors ESTALE (REA-356) : l'annuaire Crypto reste la source des copropriétaires.
+  getCoproprietairesEstaleProvider: () => ({ listerJoignables: async () => null }),
   getReferentielTriProvider: () => ({ charger: async () => ({ copros: [] }) }),
 }));
 vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({ donneesCoproEstale: etat.donnees }));

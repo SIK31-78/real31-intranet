@@ -6,10 +6,15 @@
 // syndicN (la boîte passée au provider). Le brouillon peut être rattaché à un dossier : son
 // internetMessageId survit à l'envoi, « Ouvrir le mail » depuis le dossier le retrouve.
 
-import { getContactsCoproProvider, getMailOutboundProvider, getReferentielTriProvider } from "@/lib/adapters/router";
+import {
+  getContactsCoproProvider,
+  getCoproprietairesEstaleProvider,
+  getMailOutboundProvider,
+  getReferentielTriProvider,
+} from "@/lib/adapters/router";
 import { boiteTriConfiguree, envoiMailActif, mailModuleActif } from "@/lib/domain/mail-gate";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
-import { enLots, type ContactCopro, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import { enLots, fusionnerContactsCopro, type ContactCopro, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
@@ -77,25 +82,25 @@ export async function rechercherDestinataires(texte: string): Promise<Destinatai
 }
 
 /**
- * Contacts d'une copro : l'annuaire Crypto, complete du conseil syndical ESTALE. Une copro
- * ESTALE n'a pas son CS dans l'annuaire Crypto : le bouton « Conseil syndical » restait vide
- * (retour du 14/10). Les membres ESTALE sans adresse sont ignores ; une adresse deja connue
- * de Crypto prend la qualite « conseil syndical ».
+ * Contacts d'une copro : l'annuaire Crypto, complété du conseil syndical ESTALE (retour du
+ * 14/10). Pour une copro présente dans ESTALE, les copropriétaires viennent d'ESTALE et non
+ * plus de Crypto (REA-356, 19/10/2026 : Crypto gardait d'anciens copropriétaires, le mail
+ * « toute la copropriété » de la S178 est parti à 80 adresses). ESTALE en panne : repli sur
+ * l'annuaire Crypto, comme avant, et on le note.
  */
 export async function listerContactsComposition(reference: string): Promise<ContactCopro[]> {
-  const [crypto, estale] = await Promise.all([
+  const ref = normaliserRef(reference);
+  const [crypto, estale, proprietaires] = await Promise.all([
     getContactsCoproProvider().listerParCopro(reference),
-    donneesCoproEstale(normaliserRef(reference)).catch(() => null),
+    donneesCoproEstale(ref).catch(() => null),
+    getCoproprietairesEstaleProvider()
+      .listerJoignables(ref)
+      .catch((err: unknown) => {
+        console.warn(`[composer] copropriétaires ESTALE indisponibles pour ${ref}, repli sur l'annuaire Crypto :`, (err as Error).message);
+        return null;
+      }),
   ]);
-  const parEmail = new Map(crypto.map((c) => [c.email.toLowerCase(), c]));
-  for (const m of estale?.conseilSyndical ?? []) {
-    const email = m.email?.trim().toLowerCase();
-    if (!email) continue;
-    const deja = parEmail.get(email);
-    if (deja) parEmail.set(email, { ...deja, qualite: "conseil_syndical" });
-    else parEmail.set(email, { email, nom: m.nomComplet, qualite: "conseil_syndical" });
-  }
-  return [...parEmail.values()];
+  return fusionnerContactsCopro(crypto, proprietaires, estale?.conseilSyndical ?? []);
 }
 
 export type DossierComposition = Pick<Dossier, "id" | "titre" | "type" | "statut" | "coproCode">;

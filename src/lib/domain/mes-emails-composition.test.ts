@@ -5,6 +5,7 @@ import {
   enLots,
   sansPolitesseEnDouble,
   factureComplete,
+  fusionnerContactsCopro,
   fusionnerModele,
   objetCompose,
   objetFactureEstale,
@@ -102,6 +103,47 @@ describe("adressesTouteLaCopro", () => {
       { email: "madame@x.fr", nom: "M. et Mme DURAND", qualite: "coproprietaire" },
     ];
     expect(adressesTouteLaCopro(couple)).toHaveLength(2);
+  });
+});
+
+describe("fusionnerContactsCopro (REA-356)", () => {
+  const crypto = [
+    { email: "ancien@x.fr", nom: "ANCIEN", qualite: "coproprietaire", personne: "crypto:1" },
+    { email: "cs.crypto@x.fr", nom: "CS CRYPTO", qualite: "conseil_syndical", personne: "crypto:2" },
+    { email: "loc@x.fr", nom: "LOCATAIRE", qualite: "locataire" },
+    { email: "Plombier@x.fr", nom: "PLOMBIER", qualite: "professionnel", metier: "Plomberie" },
+  ];
+
+  it("copro ESTALE : les copropriétaires Crypto sont remplacés par ceux d'ESTALE, locataires et pros restent", () => {
+    const r = fusionnerContactsCopro(crypto, [{ id: "o1", nom: "M. ACTUEL", email: " Actuel@X.fr " }], []);
+    expect(r.map((c) => [c.email, c.qualite])).toEqual([
+      ["loc@x.fr", "locataire"],
+      ["Plombier@x.fr", "professionnel"],
+      ["actuel@x.fr", "coproprietaire"],
+    ]);
+    expect(r.find((c) => c.email === "actuel@x.fr")).toMatchObject({ nom: "M. ACTUEL", personne: "estale:o1" });
+  });
+
+  it("copro ESTALE : le conseil syndical ESTALE marque le propriétaire, un membre absent est ajouté", () => {
+    const r = fusionnerContactsCopro(crypto, [{ id: "o1", nom: "M. ACTUEL", email: "actuel@x.fr" }], [
+      { nomComplet: "M. ACTUEL", email: "ACTUEL@x.fr" },
+      { nomComplet: "Mme AUTRE", email: "autre@x.fr" },
+      { nomComplet: "Sans adresse" },
+    ]);
+    expect(r.filter((c) => c.qualite === "conseil_syndical").map((c) => [c.email, c.personne])).toEqual([
+      ["actuel@x.fr", "estale:o1"],
+      ["autre@x.fr", undefined],
+    ]);
+  });
+
+  it("copro hors ESTALE (ou ESTALE en panne) : l'annuaire Crypto tel quel, complété du CS ESTALE", () => {
+    const r = fusionnerContactsCopro(crypto, null, [{ nomComplet: "X", email: "ancien@x.fr" }]);
+    expect(r).toHaveLength(4);
+    expect(r[0]).toMatchObject({ email: "ancien@x.fr", qualite: "conseil_syndical", personne: "crypto:1" });
+  });
+
+  it("copro ESTALE sans aucun propriétaire joignable : plus aucun copropriétaire Crypto", () => {
+    expect(adressesTouteLaCopro(fusionnerContactsCopro(crypto, [], []))).toEqual([]);
   });
 });
 

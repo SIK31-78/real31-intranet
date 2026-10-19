@@ -12,6 +12,19 @@ export interface ContactCopro {
   /** coproprietaire | conseil_syndical | locataire | professionnel | autre. */
   qualite: string;
   metier?: string;
+  /**
+   * La personne derrière l'adresse (REA-356) : « crypto:<tiers_id> » (fiche Crypto, ses
+   * correspondants compris) ou « estale:<owner id> ». Sert à compter les copropriétaires
+   * d'un envoi à toute la copropriété ; absent quand la source ne le dit pas.
+   */
+  personne?: string;
+}
+
+/** Un copropriétaire ESTALE actif qui accepte le mail (REA-356). */
+export interface CoproprietaireJoignable {
+  id: string;
+  nom: string;
+  email: string;
 }
 
 /** La copro telle qu'on en a besoin pour composer (sous-ensemble de CoproTri). */
@@ -224,6 +237,40 @@ export function adressesTouteLaCopro(contacts: readonly ContactCopro[]): string[
     if (QUALITES_COPRO.has(c.qualite) && adresseMailValide(email)) vues.add(email);
   }
   return [...vues].sort();
+}
+
+/**
+ * Contacts d'une copro, fusionnés depuis l'annuaire Crypto et ESTALE (REA-356, 19/10/2026).
+ * - `proprietairesEstale` non null (copro présente dans ESTALE) : les copropriétaires et le
+ *   conseil syndical de l'annuaire Crypto sont REMPLACÉS par les propriétaires actifs
+ *   d'ESTALE. Crypto y garde d'anciens copropriétaires (S178 : 80 adresses pour 42
+ *   propriétaires) ; ESTALE est la source de vérité de ses copros. Locataires et
+ *   professionnels de Crypto restent proposés.
+ * - null (copro hors ESTALE, ou ESTALE en panne) : l'annuaire Crypto tel quel.
+ * Dans les deux cas, le conseil syndical ESTALE marque « conseil_syndical » (retour du
+ * 14/10 : une copro ESTALE n'a pas son CS dans Crypto) ; un membre sans adresse est ignoré.
+ */
+export function fusionnerContactsCopro(
+  crypto: readonly ContactCopro[],
+  proprietairesEstale: readonly CoproprietaireJoignable[] | null,
+  conseilEstale: readonly { nomComplet: string; email?: string }[],
+): ContactCopro[] {
+  const parEmail = new Map<string, ContactCopro>();
+  const gardes = proprietairesEstale ? crypto.filter((c) => !QUALITES_COPRO.has(c.qualite)) : crypto;
+  for (const c of gardes) parEmail.set(c.email.trim().toLowerCase(), c);
+  for (const p of proprietairesEstale ?? []) {
+    const email = p.email.trim().toLowerCase();
+    if (!email) continue;
+    // Une adresse de locataire ou de pro chez Crypto qui est copropriétaire chez ESTALE : ESTALE l'emporte.
+    parEmail.set(email, { email, nom: p.nom, qualite: "coproprietaire", personne: `estale:${p.id}` });
+  }
+  for (const m of conseilEstale) {
+    const email = m.email?.trim().toLowerCase();
+    if (!email) continue;
+    const deja = parEmail.get(email);
+    parEmail.set(email, deja ? { ...deja, qualite: "conseil_syndical" } : { email, nom: m.nomComplet, qualite: "conseil_syndical" });
+  }
+  return [...parEmail.values()];
 }
 
 /** Découpe une liste d'adresses en lots d'au plus `taille` (un mail par lot). */

@@ -169,6 +169,9 @@ import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-
 import type { MailingEstaleProvider } from "@/lib/ports/mailing-estale-provider";
 import { EstaleMailingProvider } from "@/lib/adapters/estale/estale-mailing-provider";
 import { MockMailingEstaleProvider } from "@/lib/adapters/mock/mock-mailing-estale-provider";
+import type { CoproprietairesEstaleProvider } from "@/lib/ports/coproprietaires-estale-provider";
+import { EstaleCoproprietairesProvider } from "@/lib/adapters/estale/estale-coproprietaires-provider";
+import { MockCoproprietairesEstaleProvider } from "@/lib/adapters/mock/mock-coproprietaires-estale-provider";
 import type { ComptaRepository } from "@/lib/ports/compta-repository";
 import { SupabaseComptaRepository } from "@/lib/adapters/supabase/supabase-compta-repository";
 import { MockComptaRepository } from "@/lib/adapters/mock/mock-compta-repository";
@@ -643,6 +646,13 @@ export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
 export function getMailingEstaleProvider(): MailingEstaleProvider {
   if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleMailingProvider();
   return new MockMailingEstaleProvider();
+}
+
+// Copropriétaires ESTALE joignables par e-mail (REA-356) : pour une copro ESTALE, la liste
+// « toute la copropriété » du compositeur. Même bascule ; la doublure répond « pas dans ESTALE ».
+export function getCoproprietairesEstaleProvider(): CoproprietairesEstaleProvider {
+  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleCoproprietairesProvider();
+  return new MockCoproprietairesEstaleProvider();
 }
 
 // Pole compta (notes gestionnaire <-> comptable + flags). Table native
