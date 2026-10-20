@@ -44,7 +44,8 @@ vi.mock("@/lib/services/facturation/creer-facture-suivi-sinistre", () => ({
 }));
 vi.mock("@/lib/services/facturation/creer-facture-prestation-forfaitaire", () => ({}));
 
-import { MESSAGE_EMISSION_TECHNIQUE, creerFactureSinistreAction, rejouerFactureAction } from "./actions";
+import { creerFactureSinistreAction, rejouerFactureAction } from "./actions";
+import { MESSAGE_EMISSION_TECHNIQUE } from "./messages";
 
 const ID = "0b1f6a3e-9c2d-4e7a-8f10-2a3b4c5d6e7f";
 

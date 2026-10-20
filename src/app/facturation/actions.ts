@@ -9,6 +9,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { MESSAGE_EMISSION_TECHNIQUE } from "./messages";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
 import type { ApercuFacturation } from "@/lib/services/facturation/apercu";
@@ -71,9 +72,6 @@ function revalider() {
  * partie chez Pennylane. Absent = emise. L'ecran le dit au lieu d'annoncer « creee ».
  */
 type AvecEmission<T> = T & { echecEmission?: string };
-
-export const MESSAGE_EMISSION_TECHNIQUE =
-  "l'envoi chez Pennylane a échoué (erreur technique, signalée). La facture est dans l'historique, en erreur : à renvoyer.";
 
 /**
  * Emet la facture qu'on vient de creer (UNIQUEMENT celle-la, jamais toute la file : une
