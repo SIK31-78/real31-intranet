@@ -165,7 +165,7 @@ export class MockContratsCoproRepository implements ContratsCoproRepository {
     this.offresAssurance.push(cree);
     return { ...cree };
   }
-  async supprimerOffreAssurance(id: string): Promise<void> {
+  async supprimerOffreAssurance(id: string, _parUserId: string): Promise<void> {
     const o = this.offresAssurance.find((x) => x.id === id);
     if (!o) throw new Error(`Retrait de l'offre d'assurance ${id} : offre inconnue.`);
     o.supprimeeLeISO = new Date().toISOString();
@@ -179,7 +179,7 @@ export class MockContratsCoproRepository implements ContratsCoproRepository {
     this.offresGaz.push(cree);
     return { ...cree };
   }
-  async supprimerOffreGaz(id: string): Promise<void> {
+  async supprimerOffreGaz(id: string, _parUserId: string): Promise<void> {
     const o = this.offresGaz.find((x) => x.id === id);
     if (!o) throw new Error(`Retrait de l'offre gaz ${id} : offre inconnue.`);
     o.supprimeeLeISO = new Date().toISOString();
@@ -193,7 +193,7 @@ export class MockContratsCoproRepository implements ContratsCoproRepository {
     this.devis.push(cree);
     return { ...cree };
   }
-  async supprimerDevisCtq(id: string): Promise<void> {
+  async supprimerDevisCtq(id: string, _parUserId: string): Promise<void> {
     const d = this.devis.find((x) => x.id === id);
     if (!d) throw new Error(`Retrait du devis ${id} : devis inconnu.`);
     d.supprimeeLeISO = new Date().toISOString();

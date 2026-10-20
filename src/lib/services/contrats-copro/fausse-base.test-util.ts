@@ -167,7 +167,7 @@ export class FausseBaseContrats implements ContratsCoproRepository {
     this.offresAssurance.push(n);
     return n;
   }
-  async supprimerOffreAssurance(id: string): Promise<void> {
+  async supprimerOffreAssurance(id: string, _parUserId: string): Promise<void> {
     const o = this.offresAssurance.find((x) => x.id === id);
     if (o) o.supprimeeLeISO = "2026-10-16";
   }
@@ -179,7 +179,7 @@ export class FausseBaseContrats implements ContratsCoproRepository {
     this.offresGaz.push(n);
     return n;
   }
-  async supprimerOffreGaz(id: string): Promise<void> {
+  async supprimerOffreGaz(id: string, _parUserId: string): Promise<void> {
     const o = this.offresGaz.find((x) => x.id === id);
     if (o) o.supprimeeLeISO = "2026-10-16";
   }
@@ -191,7 +191,7 @@ export class FausseBaseContrats implements ContratsCoproRepository {
     this.devis.push(n);
     return n;
   }
-  async supprimerDevisCtq(id: string): Promise<void> {
+  async supprimerDevisCtq(id: string, _parUserId: string): Promise<void> {
     const d = this.devis.find((x) => x.id === id);
     if (d) d.supprimeeLeISO = "2026-10-16";
   }

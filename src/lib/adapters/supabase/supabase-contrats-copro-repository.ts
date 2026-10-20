@@ -986,8 +986,8 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
     return offreAssuranceDepuisRow(data as unknown as InsuranceOfferRow);
   }
 
-  async supprimerOffreAssurance(id: string): Promise<void> {
-    await this.supprimerLogiquement("InsuranceOffer", id, `Retrait de l'offre d'assurance ${id}`);
+  async supprimerOffreAssurance(id: string, parUserId: string): Promise<void> {
+    await this.supprimerLogiquement("InsuranceOffer", id, parUserId, `Retrait de l'offre d'assurance ${id}`);
   }
 
   async listerOffresGaz(cycleIds: readonly string[]): Promise<OffreGaz[]> {
@@ -1025,8 +1025,8 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
     return offreGazDepuisRow(data as unknown as GasOfferRow);
   }
 
-  async supprimerOffreGaz(id: string): Promise<void> {
-    await this.supprimerLogiquement("GasOffer", id, `Retrait de l'offre gaz ${id}`);
+  async supprimerOffreGaz(id: string, parUserId: string): Promise<void> {
+    await this.supprimerLogiquement("GasOffer", id, parUserId, `Retrait de l'offre gaz ${id}`);
   }
 
   async listerDevisCtq(coproCodes: readonly string[]): Promise<DevisCtq[]> {
@@ -1066,8 +1066,8 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
     return devisDepuisRow(data as unknown as CtqQuoteRow, d.coproCode);
   }
 
-  async supprimerDevisCtq(id: string): Promise<void> {
-    await this.supprimerLogiquement("CtqQuote", id, `Retrait du devis ${id}`);
+  async supprimerDevisCtq(id: string, parUserId: string): Promise<void> {
+    await this.supprimerLogiquement("CtqQuote", id, parUserId, `Retrait du devis ${id}`);
   }
 
   /**
@@ -1075,9 +1075,15 @@ export class SupabaseContratsCoproRepository implements ContratsCoproRepository 
    * retrait est REFUSÉ avec un message qui nomme le SQL : pas de suppression physique en repli,
    * une offre effacée pour de bon ne se retrouve pas (la lecture, elle, se dégrade sans filtre).
    */
-  private async supprimerLogiquement(table: string, id: string, contexte: string): Promise<void> {
+  // `deletedById` = l'auteur du retrait, comme sur Document : la ligne dit qui l'a retirée
+  // même si le journal est indisponible.
+  private async supprimerLogiquement(table: string, id: string, parUserId: string, contexte: string): Promise<void> {
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb.from(table).update({ deletedAt: maintenant(), updatedAt: maintenant() }).eq("id", id).select("id");
+    const { data, error } = await sb
+      .from(table)
+      .update({ deletedAt: maintenant(), deletedById: parUserId, updatedAt: maintenant() })
+      .eq("id", id)
+      .select("id");
     if (estColonneSuppressionAbsentePg(error)) throw new Error(MESSAGE_SUPPRESSION_LOGIQUE_ABSENTE);
     exigerUneLigne(contexte, data, error);
   }

@@ -79,15 +79,15 @@ export interface ContratsCoproRepository {
   /** Offres NON supprimées des cycles donnés. */
   listerOffresAssurance(cycleIds: readonly string[]): Promise<OffreAssurance[]>;
   creerOffreAssurance(o: NouvelleOffreAssurance): Promise<OffreAssurance>;
-  /** Suppression logique (supprimeeLeISO). */
-  supprimerOffreAssurance(id: string): Promise<void>;
+  /** Suppression logique (supprimeeLeISO) ; `parUserId` = l'auteur du retrait (public."User".id). */
+  supprimerOffreAssurance(id: string, parUserId: string): Promise<void>;
   listerOffresGaz(cycleIds: readonly string[]): Promise<OffreGaz[]>;
   creerOffreGaz(o: NouvelleOffreGaz): Promise<OffreGaz>;
-  supprimerOffreGaz(id: string): Promise<void>;
+  supprimerOffreGaz(id: string, parUserId: string): Promise<void>;
   /** Devis NON supprimés des copros données (les deux sujets CTQ). */
   listerDevisCtq(coproCodes: readonly string[]): Promise<DevisCtq[]>;
   creerDevisCtq(d: NouveauDevisCtq): Promise<DevisCtq>;
-  supprimerDevisCtq(id: string): Promise<void>;
+  supprimerDevisCtq(id: string, parUserId: string): Promise<void>;
   /** Le devis retenu d'une copro pour un sujet (null = aucun). Porté par la copro. */
   setDevisRetenu(coproCode: string, sujet: SujetCtq, devisId: string | null): Promise<void>;
 

@@ -104,7 +104,7 @@ export async function retirerOffreAssurance(p: { coproCode: string; cycleId: str
   if (refus) throw new Error(refus);
   const offre = (await repo.listerOffresAssurance([cycle.id])).find((o) => o.id === p.offreId);
   if (!offre) throw new Error("Cette offre est introuvable sur ce cycle.");
-  await repo.supprimerOffreAssurance(offre.id);
+  await repo.supprimerOffreAssurance(offre.id, auteur.id);
   await journaliser({
     coproCode: p.coproCode,
     sujet: "assurance",
@@ -162,7 +162,7 @@ export async function retirerOffreGaz(p: { coproCode: string; cycleId: string; o
   if (refus) throw new Error(refus);
   const offre = (await repo.listerOffresGaz([cycle.id])).find((o) => o.id === p.offreId);
   if (!offre) throw new Error("Cette offre est introuvable sur ce cycle.");
-  await repo.supprimerOffreGaz(offre.id);
+  await repo.supprimerOffreGaz(offre.id, auteur.id);
   await journaliser({
     coproCode: p.coproCode,
     sujet: "gaz",
@@ -219,7 +219,7 @@ export async function retirerDevis(p: { coproCode: string; devisId: string }, au
   if (contrat?.devisRetenu[devis.sujet] === devis.id) {
     throw new Error("Ce devis est celui retenu : retire d'abord sa sélection (ou retiens-en un autre) avant de le supprimer.");
   }
-  await repo.supprimerDevisCtq(devis.id);
+  await repo.supprimerDevisCtq(devis.id, auteur.id);
   await journaliser({
     coproCode: p.coproCode,
     sujet: devis.sujet,
