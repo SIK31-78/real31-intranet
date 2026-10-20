@@ -28,6 +28,12 @@ export interface TriRepository {
   /** Parmi ces internetMessageId, ceux qui ont un rangement non annule. */
   dejaRanges(boite: string, internetMessageIds: string[]): Promise<Set<string>>;
   /**
+   * Parmi ces internetMessageId, ceux qui ont AU MOINS une ligne de journal, annulee ou non.
+   * Le rangement automatique ne touche jamais un mail deja passe par le tri : range puis
+   * remis dans la file, il attend la decision d'une personne.
+   */
+  dejaJournalises(boite: string, internetMessageIds: string[]): Promise<Set<string>>;
+  /**
    * Pour chacune de ces conversations Graph, la copro du dernier rangement non annule (cle =
    * conversationId). Colonne absente (SQL pas encore passe) : vide.
    */

@@ -230,6 +230,19 @@ export class SupabaseTriRepository implements TriRepository {
     return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
   }
 
+  async dejaJournalises(boite: string, ids: string[]) {
+    if (ids.length === 0) return new Set<string>();
+    // Pas de filtre sur annule_le : un rangement annule compte (le mail a ete remis dans la
+    // file par quelqu'un). Table absente : erreur, le rangement automatique s'abstient.
+    const { data, error } = await createSupabasePublicClient()
+      .from("intranet_tri_journal")
+      .select("internet_message_id")
+      .eq("boite", boite)
+      .in("internet_message_id", ids);
+    if (error) throw erreur("journal", error);
+    return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
+  }
+
   async coprosDesConversations(boite: string, ids: string[]) {
     const uniques = [...new Set(ids.filter(Boolean))];
     const lots: string[][] = [];

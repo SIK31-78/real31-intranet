@@ -59,6 +59,9 @@ export class MockTriRepository implements TriRepository {
   async journalDepuis(boite: string, depuisISO: string) {
     return this.journal.filter((e) => e.boite === boite && e.annuleLe === null && e.faitLe >= depuisISO);
   }
+  async dejaJournalises(boite: string, ids: string[]) {
+    return new Set(this.journal.filter((e) => e.boite === boite && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId));
+  }
   async dejaRanges(boite: string, ids: string[]) {
     return new Set(
       this.journal.filter((e) => e.boite === boite && e.annuleLe === null && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId),
