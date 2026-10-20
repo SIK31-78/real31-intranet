@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adresseMailValide,
   adressesTouteLaCopro,
+  conseilPourComposition,
   controleTouteLaCopro,
   enLots,
   sansPolitesseEnDouble,
@@ -211,5 +212,35 @@ describe("resumeDestinataires (REA-349)", () => {
   });
   it("dit qu'il n'y a personne de visible", () => {
     expect(resumeDestinataires([])).toBe("aucun destinataire visible");
+  });
+});
+
+describe("conseilPourComposition (20/10/2026)", () => {
+  const contacts = [
+    { email: "couple.durand@x.fr", nom: "M. et Mme DURAND", qualite: "conseil_syndical" },
+    { email: "paul.durand@x.fr", nom: "M. DURAND Paul", qualite: "conseil_syndical" },
+    { email: "martin@x.fr", nom: "Mme MARTIN", qualite: "coproprietaire" },
+  ];
+
+  it("ne propose que les adresses de la cascade, nommées depuis les contacts", () => {
+    const r = conseilPourComposition({ source: "crypto", emails: [" Martin@X.fr", "inconnu@x.fr"] }, contacts);
+    expect(r).toEqual({
+      source: "crypto",
+      membres: [
+        { email: "martin@x.fr", nom: "Mme MARTIN", qualite: "conseil_syndical" },
+        { email: "inconnu@x.fr", nom: "", qualite: "conseil_syndical" },
+      ],
+    });
+  });
+
+  it("dédoublonne sans casse et écarte une adresse invalide", () => {
+    const r = conseilPourComposition({ source: "estale", emails: ["a@x.fr", "A@x.fr", "pas-une-adresse"] }, []);
+    expect(r.membres.map((m) => m.email)).toEqual(["a@x.fr"]);
+    expect(r.source).toBe("estale");
+  });
+
+  it("aucune adresse exploitable : source « aucune », saisie à la main", () => {
+    expect(conseilPourComposition({ source: "crypto", emails: ["pas-une-adresse"] }, contacts)).toEqual({ source: "aucune", membres: [] });
+    expect(conseilPourComposition({ source: "aucune", emails: [] }, contacts)).toEqual({ source: "aucune", membres: [] });
   });
 });

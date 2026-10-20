@@ -15,7 +15,8 @@ import {
 } from "@/lib/adapters/router";
 import { boiteTriConfiguree, envoiMailActif, mailModuleActif } from "@/lib/domain/mail-gate";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
-import { enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
+import { conseilPourComposition, enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
@@ -92,10 +93,12 @@ export async function rechercherDestinataires(texte: string): Promise<Destinatai
  * l'annuaire Crypto, comme avant, et on le note.
  * Le nombre de lots principaux accompagne les contacts : la confirmation d'envoi à toute la
  * copropriété s'en sert pour alerter (plus de copropriétaires que de lots = liste suspecte).
+ * Le bouton « Conseil syndical » prend `conseil` : la cascade du mail de date d'AG (ESTALE,
+ * sinon liste de diffusion CS), pas les fiches de l'annuaire cochées « conseil syndical ».
  */
 export async function listerContactsComposition(reference: string): Promise<ContactsComposition> {
   const ref = normaliserRef(reference);
-  const [crypto, estale, proprietaires, copro] = await Promise.all([
+  const [crypto, estale, proprietaires, copro, cascadeCS] = await Promise.all([
     getContactsCoproProvider().listerParCopro(reference),
     donneesCoproEstale(ref).catch(() => null),
     getCoproprietairesEstaleProvider()
@@ -108,10 +111,18 @@ export async function listerContactsComposition(reference: string): Promise<Cont
     getCoproRepository()
       .findByCode(reference.trim().toUpperCase())
       .catch(() => null),
+    // Le conseil syndical : la MÊME source que le mail de date d'AG (20/10/2026), et non
+    // plus les fiches de l'annuaire cochées « conseil syndical ». Lecture ratée : rien, saisie à la main.
+    destinatairesConseilSyndical(ref).catch((err: unknown) => {
+      console.warn(`[composer] conseil syndical indisponible pour ${ref} :`, (err as Error).message);
+      return { source: "aucune" as const, emails: [] as string[] };
+    }),
   ]);
+  const contacts = fusionnerContactsCopro(crypto, proprietaires, estale?.conseilSyndical ?? []);
   return {
-    contacts: fusionnerContactsCopro(crypto, proprietaires, estale?.conseilSyndical ?? []),
+    contacts,
     lotsPrincipaux: copro?.lotsPrincipaux && copro.lotsPrincipaux > 0 ? copro.lotsPrincipaux : null,
+    conseil: conseilPourComposition(cascadeCS, contacts),
   };
 }
 

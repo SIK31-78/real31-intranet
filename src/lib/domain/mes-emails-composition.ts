@@ -273,11 +273,49 @@ export function fusionnerContactsCopro(
   return [...parEmail.values()];
 }
 
+/**
+ * D'où vient la liste du conseil syndical (mêmes valeurs que la cascade du mail de date d'AG) :
+ * ESTALE, la liste de diffusion CS tenue dans l'intranet (« crypto » : importée une fois de
+ * Crypto, éditée depuis la fiche copro et le récap d'AG), ou rien (saisie à la main).
+ */
+export type SourceConseilComposition = "estale" | "crypto" | "aucune";
+
+/** Le conseil syndical proposé par le bouton « Conseil syndical » du compositeur. */
+export interface ConseilComposition {
+  source: SourceConseilComposition;
+  membres: ContactCopro[];
+}
+
+/**
+ * Le conseil syndical du compositeur (20/10/2026) : les adresses de la MÊME cascade que le
+ * mail de date d'AG (ESTALE, sinon liste de diffusion CS, sinon rien), et non plus les fiches
+ * de l'annuaire Crypto cochées « conseil syndical » (couples ET individus : 11 adresses au lieu
+ * de 6 sur la S288). Le nom vient des contacts de la copro quand l'adresse y figure ; une
+ * adresse dédoublonnée sans casse, invalide écartée.
+ */
+export function conseilPourComposition(
+  cascade: { source: SourceConseilComposition; emails: readonly string[] },
+  contacts: readonly ContactCopro[],
+): ConseilComposition {
+  const noms = new Map(contacts.map((c) => [c.email.trim().toLowerCase(), c.nom]));
+  const vues = new Set<string>();
+  const membres: ContactCopro[] = [];
+  for (const brute of cascade.emails) {
+    const email = brute.trim().toLowerCase();
+    if (!adresseMailValide(email) || vues.has(email)) continue;
+    vues.add(email);
+    membres.push({ email, nom: noms.get(email) ?? "", qualite: "conseil_syndical" });
+  }
+  return { source: membres.length ? cascade.source : "aucune", membres };
+}
+
 /** Les contacts d'une copro et, s'il est connu, son nombre de lots principaux (REA-356). */
 export interface ContactsComposition {
   contacts: ContactCopro[];
   /** null = inconnu (0 dans le référentiel, ou lecture impossible). */
   lotsPrincipaux: number | null;
+  /** Le conseil syndical à proposer en un clic (cascade ESTALE > liste de diffusion > rien). */
+  conseil: ConseilComposition;
 }
 
 const pluriel = (k: number, mot: string) => `${k} ${mot}${k > 1 ? "s" : ""}`;

@@ -26,8 +26,9 @@ import {
   objetCompose,
   prefixeObjetCopro,
   resumeDestinataires,
-  type ContactCopro,
+  type ConseilComposition,
   type ControleTouteLaCopro,
+  type SourceConseilComposition,
   type CoproChoisissable,
   type DestinataireTrouve,
   type ModeleMail,
@@ -78,6 +79,18 @@ const LIBELLE_QUALITE: Record<string, string> = {
   autre: "autre",
 };
 
+// D'où vient le conseil syndical proposé : dit sobrement, comme le mail de date d'AG.
+const LIBELLE_SOURCE_CONSEIL: Record<SourceConseilComposition, string> = {
+  estale: "ESTALE",
+  crypto: "liste de diffusion",
+  aucune: "aucune liste : adresses à saisir",
+};
+const TITRE_SOURCE_CONSEIL: Record<SourceConseilComposition, string> = {
+  estale: "Ajoute en « À » les membres du conseil syndical connus dans ESTALE",
+  crypto: "Ajoute en « À » la liste de diffusion du conseil syndical (fiche copro, mise à jour au récap d'AG)",
+  aucune: "Aucune liste de conseil syndical pour cette copropriété : tapez les noms ci-dessus",
+};
+
 const TAILLE_MAX_FICHIER = 3 * 1024 * 1024;
 
 function enBase64(f: File): Promise<string> {
@@ -111,7 +124,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [proposees, setProposees] = useState<(CoproChoisissable & { qualite: string })[]>([]);
   const [refCopro, setRefCopro] = useState("");
   const [autreCopro, setAutreCopro] = useState(false);
-  const [conseil, setConseil] = useState<ContactCopro[] | null>(null);
+  // Le conseil syndical : même source que le mail de date d'AG (ESTALE, sinon liste de diffusion).
+  const [conseil, setConseil] = useState<ConseilComposition | null>(null);
   // Toute la copropriété (REA-305) : les adresses des copropriétaires, envoyées en copie cachée.
   const [touteCopro, setTouteCopro] = useState<string[] | null>(null);
   // Garde-fou de l'envoi à toute la copropriété (REA-356) : N adresses pour M copropriétaires.
@@ -161,7 +175,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       if (derniereCopro.current !== c.reference) return;
       if (rc.ok) {
         const contacts = rc.donnees?.contacts ?? [];
-        setConseil(contacts.filter((x) => x.qualite === "conseil_syndical"));
+        setConseil(rc.donnees?.conseil ?? { source: "aucune", membres: [] });
         setTouteCopro(adressesTouteLaCopro(contacts));
         setControleCopro(controleTouteLaCopro(contacts, rc.donnees?.lotsPrincipaux));
       }
@@ -187,9 +201,9 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   }
 
   function ajouterConseil() {
-    if (!conseil?.length) return;
+    if (!conseil?.membres.length) return;
     const deja = new Set(adresses(a));
-    const ajout = conseil.filter((c) => !deja.has(c.email)).map((c) => ({ cle: c.email, nom: c.nom, emails: [c.email] }));
+    const ajout = conseil.membres.filter((c) => !deja.has(c.email)).map((c) => ({ cle: c.email, nom: c.nom, emails: [c.email] }));
     setA((l) => [...l, ...ajout]);
   }
 
@@ -364,10 +378,11 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         )}
         {copro && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={ajouterConseil} disabled={!conseil?.length} title="Ajoute tous les membres du conseil syndical en « À »">
+            <Button size="sm" onClick={ajouterConseil} disabled={!conseil?.membres.length} title={conseil ? TITRE_SOURCE_CONSEIL[conseil.source] : "Ajoute tous les membres du conseil syndical en « À »"}>
               <Users strokeWidth={1.5} />
-              {conseil === null ? "Conseil syndical…" : `Conseil syndical (${conseil.length})`}
+              {conseil === null ? "Conseil syndical…" : `Conseil syndical (${conseil.membres.length})`}
             </Button>
+            {conseil && <span className="text-meta text-ink-3">{LIBELLE_SOURCE_CONSEIL[conseil.source]}</span>}
             <Button
               size="sm"
               variant={cciCopro ? "doux" : "secondary"}

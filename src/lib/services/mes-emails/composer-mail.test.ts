@@ -8,6 +8,17 @@ const etat = vi.hoisted(() => ({
   panneEstale: false,
   referenceDemandee: "",
   lotsPrincipaux: 0 as number | null,
+  cascadeCS: { source: "aucune", emails: [] } as { source: "estale" | "crypto" | "aucune"; emails: string[] },
+  panneCS: false,
+  referenceCS: "",
+}));
+
+vi.mock("@/lib/services/coproprietes/destinataires-conseil", () => ({
+  async destinatairesConseilSyndical(code: string) {
+    etat.referenceCS = code;
+    if (etat.panneCS) throw new Error("liste indisponible");
+    return etat.cascadeCS;
+  },
 }));
 
 vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({
@@ -46,6 +57,8 @@ describe("listerContactsComposition", () => {
     etat.proprietaires = null;
     etat.panneEstale = false;
     etat.lotsPrincipaux = 0;
+    etat.cascadeCS = { source: "aucune", emails: [] };
+    etat.panneCS = false;
   });
 
   it("copro ESTALE : les copropriétaires d'ESTALE remplacent ceux de Crypto", async () => {
@@ -80,5 +93,28 @@ describe("listerContactsComposition", () => {
     expect((await listerContactsComposition("S178")).lotsPrincipaux).toBeNull();
     etat.lotsPrincipaux = null;
     expect((await listerContactsComposition("S178")).lotsPrincipaux).toBeNull();
+  });
+
+  it("conseil syndical : la cascade du mail de date d'AG, pas les fiches de l'annuaire cochées CS", async () => {
+    etat.cascadeCS = { source: "crypto", emails: ["Ancien@x.fr", "membre@x.fr"] };
+    const { conseil } = await listerContactsComposition("S0178");
+    expect(etat.referenceCS).toBe("S178");
+    expect(conseil.source).toBe("crypto");
+    // Le nom vient des contacts quand l'adresse y figure.
+    expect(conseil.membres).toEqual([
+      { email: "ancien@x.fr", nom: "ANCIEN", qualite: "conseil_syndical" },
+      { email: "membre@x.fr", nom: "", qualite: "conseil_syndical" },
+    ]);
+    // La présidente ESTALE garde sa casquette dans les contacts, mais n'est pas dans la liste.
+    expect(conseil.membres.map((m) => m.email)).not.toContain("presidente@x.fr");
+  });
+
+  it("conseil syndical illisible : rien de proposé, saisie à la main", async () => {
+    etat.panneCS = true;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { conseil, contacts } = await listerContactsComposition("S178");
+    expect(conseil).toEqual({ source: "aucune", membres: [] });
+    expect(contacts.length).toBeGreaterThan(0);
+    warn.mockRestore();
   });
 });
