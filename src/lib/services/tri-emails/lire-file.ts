@@ -21,9 +21,11 @@ import {
   type EntreeJournalTri,
   type LigneBinome,
   type MailATrier,
+  type ReferentielTri,
   type Suggestion,
 } from "@/lib/domain/tri-emails";
 import { boiteTriConfiguree, debutTri } from "@/lib/domain/mail-gate";
+import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import {
   getIngestionTri,
   getReferentielTriProvider,
@@ -70,6 +72,44 @@ export interface FileATrier {
 
 const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
 
+
+/**
+ * Un mail brut de la boite, tel que la file l'affiche, avec sa suggestion. Partage par
+ * l'ecran et le rangement automatique (ranger-auto.ts) : les deux voient la MEME piste.
+ * Sans lecture des pieces jointes : la piste « pj » ne se calcule qu'a l'ecran, a la demande.
+ * `coproConversation` : copro d'un mail de la meme conversation deja range (ou null).
+ */
+export function mailDeLaFile(m: RawMail, boite: string, ref: ReferentielTri, coproConversation: string | null | undefined): MailDeLaFile {
+  const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
+  // Non remis, reponse automatique : la corbeille est proposee a la place d'une copro.
+  const corbeille = motifCorbeille({ deAdresse: m.from, objet: m.subject });
+  const base: MailATrier = {
+    id: m.id,
+    internetMessageId: m.internetMessageId,
+    ...(m.conversationId ? { conversationId: m.conversationId } : {}),
+    deNom: m.fromName ?? m.from,
+    deAdresse: m.from,
+    ...(m.to.length ? { a: m.to } : {}),
+    ...(estMailInterne(m.from, boite) ? { interne: true } : {}),
+    ...(corbeille ? { corbeille } : {}),
+    objet: m.subject || "(sans objet)",
+    recuLe: m.receivedAt,
+    apercu: texte.slice(0, APERCU),
+    aPiecesJointes: m.attachments.length > 0,
+    ...(m.webLink ? { lienOutlook: m.webLink } : {}),
+  };
+  return {
+    ...base,
+    // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
+    suggestion: corbeille
+      ? suggestionCorbeille(corbeille)
+      : avecMemeConversation(
+          suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
+          coproConversation,
+          ref,
+        ),
+  };
+}
 
 export async function lireFileATrier(): Promise<FileATrier | null> {
   const boite = boiteTriConfiguree();
@@ -134,37 +174,9 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
       return new Map<string, string>();
     });
 
-  const mails: MailDeLaFile[] = bruts.map((m) => {
-    const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
-    // Non remis, reponse automatique : la corbeille est proposee a la place d'une copro.
-    const corbeille = motifCorbeille({ deAdresse: m.from, objet: m.subject });
-    const base: MailATrier = {
-      id: m.id,
-      internetMessageId: m.internetMessageId,
-      ...(m.conversationId ? { conversationId: m.conversationId } : {}),
-      deNom: m.fromName ?? m.from,
-      deAdresse: m.from,
-      ...(m.to.length ? { a: m.to } : {}),
-      ...(estMailInterne(m.from, boite) ? { interne: true } : {}),
-      ...(corbeille ? { corbeille } : {}),
-      objet: m.subject || "(sans objet)",
-      recuLe: m.receivedAt,
-      apercu: texte.slice(0, APERCU),
-      aPiecesJointes: m.attachments.length > 0,
-      ...(m.webLink ? { lienOutlook: m.webLink } : {}),
-    };
-    return {
-      ...base,
-      // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
-      suggestion: corbeille
-        ? suggestionCorbeille(corbeille)
-        : avecMemeConversation(
-            suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
-            m.conversationId ? conversations.get(m.conversationId) : null,
-            ref,
-          ),
-    };
-  });
+  const mails: MailDeLaFile[] = bruts.map((m) =>
+    mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null),
+  );
 
   // L'onglet « Binômes » ne liste que les copros actives : une copro inactive reste
   // proposable dans la file, mais on ne l'affecte plus a un assistant.
