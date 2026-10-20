@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { debutTri, lireRobotsFacture, recuDepuisDebutTri } from "./mail-gate";
+import { debutTri, lireRobotsFacture, recuDepuisDebutTri, triAutomatiqueActif } from "./mail-gate";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -41,5 +41,16 @@ describe("lireRobotsFacture (adresse factures ESTALE par agence)", () => {
       LGC: "bbb@invoice.estale.app",
     });
     expect(lireRobotsFacture("")).toEqual({});
+  });
+});
+
+describe("triAutomatiqueActif (MAIL_TRI_AUTO)", () => {
+  it("coupé par défaut, ouvert seulement par « on »", () => {
+    vi.stubEnv("MAIL_TRI_AUTO", "");
+    expect(triAutomatiqueActif()).toBe(false);
+    vi.stubEnv("MAIL_TRI_AUTO", "oui");
+    expect(triAutomatiqueActif()).toBe(false);
+    vi.stubEnv("MAIL_TRI_AUTO", " ON ");
+    expect(triAutomatiqueActif()).toBe(true);
   });
 });

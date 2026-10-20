@@ -1082,6 +1082,65 @@ export function lignesBinomes(
 /** Auteur des lignes de journal deduites d'un deplacement fait a la main dans Outlook. */
 export const PAR_OUTLOOK = "outlook";
 
+/** Auteur des lignes de journal du rangement automatique (tache planifiee, piste sure). */
+export const PAR_AUTOMATIQUE = "automatique";
+
+/**
+ * La seule boite rangee automatiquement (decision Sekou du 20/10/2026, mesure : 16 pistes
+ * sures sur 16 justes depuis les correctifs du 19/10). Une autre boite = une autre decision,
+ * donc un changement de code, pas un reglage d'environnement.
+ */
+export const BOITE_TRI_AUTOMATIQUE = "syndic4@real31.fr";
+
+/** Pourquoi un mail de la file n'est pas range automatiquement (bilan de la tache planifiee). */
+export type RefusAutomatique =
+  | "autre-boite"
+  | "corbeille"
+  | "interne"
+  | "pas-sure"
+  | "deja-passe"
+  | "copro-inconnue"
+  | "copro-inactive"
+  | "sans-destination";
+
+/**
+ * Ce mail de la file peut-il etre range SANS clic (ADR-046 : « un clic d'abord, puis de
+ * l'automatique signal par signal ») ? Seulement si TOUT est reuni :
+ *   - la boite est syndic4 (BOITE_TRI_AUTOMATIQUE) ;
+ *   - ni corbeille proposee (non remis, reponse automatique) ni mail interne ;
+ *   - piste « sure », sur UNE seule copro (pas « plusieurs », pas faible, pas l'historique
+ *     de la conversation, pas la lecture des PDF) ;
+ *   - le mail n'est jamais passe par le journal : ni range, ni range puis annule (quelqu'un
+ *     l'a remis dans la file : il veut decider lui-meme) ;
+ *   - la copro est dans le referentiel, active (deja plafonnee a « faible » par
+ *     suggererCopro : on reverifie) et son dossier de binome est connu (gestionnaire au
+ *     mandat et initiales).
+ * Pure : le service fournit le referentiel et le journal.
+ */
+export function rangeableAutomatiquement(
+  mail: Pick<MailATrier, "corbeille" | "interne"> & { suggestion: Suggestion },
+  ctx: {
+    boite: string;
+    /** Le mail a au moins une ligne de journal, annulee ou non. */
+    dejaPasse: boolean;
+    copros: CoproTri[];
+    initialesParEmail: Record<string, string>;
+    binomes?: BinomesTri;
+  },
+): { ok: true; reference: string } | { ok: false; motif: RefusAutomatique } {
+  if (ctx.boite.trim().toLowerCase() !== BOITE_TRI_AUTOMATIQUE) return { ok: false, motif: "autre-boite" };
+  if (mail.corbeille) return { ok: false, motif: "corbeille" };
+  if (mail.interne) return { ok: false, motif: "interne" };
+  const s = mail.suggestion;
+  if (s.nature !== "sure" || s.origine === "conversation" || s.candidats.length !== 1) return { ok: false, motif: "pas-sure" };
+  if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
+  const copro = ctx.copros.find((c) => c.reference === s.candidats[0]);
+  if (!copro) return { ok: false, motif: "copro-inconnue" };
+  if (copro.inactive) return { ok: false, motif: "copro-inactive" };
+  if (!destinationDe(copro, ctx.initialesParEmail, ctx.binomes)?.nomDossier) return { ok: false, motif: "sans-destination" };
+  return { ok: true, reference: copro.reference };
+}
+
 /** Un dossier deja cree par l'app dans la boite. */
 export interface DossierConnu {
   cle: string;

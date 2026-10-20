@@ -3,6 +3,8 @@ import {
   AUCUN_BINOME,
   motifCorbeille,
   avecMemeConversation,
+  rangeableAutomatiquement,
+  suggestionCorbeille,
   cleDeReference,
   clesDossiersDe,
   constaterRangement,
@@ -819,5 +821,64 @@ describe("motifCorbeille (non remis, réponses automatiques)", () => {
     expect(motifCorbeille(m("RE: Non remis : Convocation AG"))).toBeNull();
     expect(motifCorbeille(m("Courrier non remis au gardien, que faire ?"))).toBeNull();
     expect(motifCorbeille(m("Fuite au 3e étage"))).toBeNull();
+  });
+});
+
+describe("rangeableAutomatiquement (tri automatique, piste sûre de syndic4)", () => {
+  const BOITE = "syndic4@real31.fr";
+  const sure = (reference = "S0297") => ({ nature: "sure" as const, candidats: [reference], raison: `Code ${reference} cité dans l'objet.` });
+  const ctx = (o: Partial<Parameters<typeof rangeableAutomatiquement>[1]> = {}) => ({
+    boite: BOITE,
+    dejaPasse: false,
+    copros: [copro("S0297"), { ...copro("S0305"), inactive: true }, { ...copro("S0400"), gestionnaire: null }, copro("S0500", "sans.initiales@real31.fr")],
+    initialesParEmail: { "g@real31.fr": "GG" },
+    ...o,
+  });
+
+  it("range une piste sûre sur une copro active dont le dossier est connu", () => {
+    expect(rangeableAutomatiquement({ suggestion: sure() }, ctx())).toEqual({ ok: true, reference: "S0297" });
+  });
+
+  it("refuse toute autre boîte que syndic4", () => {
+    expect(rangeableAutomatiquement({ suggestion: sure() }, ctx({ boite: "syndic1@real31.fr" }))).toEqual({ ok: false, motif: "autre-boite" });
+    expect(rangeableAutomatiquement({ suggestion: sure() }, ctx({ boite: "echantillon" }))).toEqual({ ok: false, motif: "autre-boite" });
+  });
+
+  it("refuse quand la corbeille est proposée ou que le mail est interne", () => {
+    expect(rangeableAutomatiquement({ corbeille: "non-remis", suggestion: suggestionCorbeille("non-remis") }, ctx())).toEqual({ ok: false, motif: "corbeille" });
+    // Même avec une piste sûre par ailleurs : la corbeille prime.
+    expect(rangeableAutomatiquement({ corbeille: "reponse-auto", suggestion: sure() }, ctx())).toEqual({ ok: false, motif: "corbeille" });
+    expect(rangeableAutomatiquement({ interne: true, suggestion: sure() }, ctx())).toEqual({ ok: false, motif: "interne" });
+  });
+
+  it("refuse tout ce qui n'est pas une piste sûre sur une seule copro", () => {
+    for (const s of [
+      { nature: "plusieurs" as const, candidats: ["S0297", "S0305"], raison: "" },
+      { nature: "faible" as const, candidats: ["S0297"], raison: "" },
+      { nature: "aucune" as const, candidats: [], raison: "" },
+      { nature: "hors-estale" as const, candidats: [], raison: "" },
+      { nature: "sure" as const, candidats: ["S0297", "S0305"], raison: "" },
+      { nature: "sure" as const, candidats: ["S0297"], raison: "", origine: "conversation" as const },
+    ]) {
+      expect(rangeableAutomatiquement({ suggestion: s }, ctx())).toEqual({ ok: false, motif: "pas-sure" });
+    }
+  });
+
+  it("refuse un mail déjà passé par le tri (rangé, ou rangé puis remis dans la file)", () => {
+    expect(rangeableAutomatiquement({ suggestion: sure() }, ctx({ dejaPasse: true }))).toEqual({ ok: false, motif: "deja-passe" });
+  });
+
+  it("refuse une copro inactive, inconnue ou sans dossier de binôme", () => {
+    expect(rangeableAutomatiquement({ suggestion: sure("S0305") }, ctx())).toEqual({ ok: false, motif: "copro-inactive" });
+    expect(rangeableAutomatiquement({ suggestion: sure("S0999") }, ctx())).toEqual({ ok: false, motif: "copro-inconnue" });
+    expect(rangeableAutomatiquement({ suggestion: sure("S0400") }, ctx())).toEqual({ ok: false, motif: "sans-destination" });
+    expect(rangeableAutomatiquement({ suggestion: sure("S0500") }, ctx())).toEqual({ ok: false, motif: "sans-destination" });
+  });
+
+  it("une copro inactive citée dans l'objet n'arrive jamais en piste sûre", () => {
+    const ref: ReferentielTri = { copros: [{ ...copro("S0305"), inactive: true }], expediteurs: {} };
+    const s = suggererCopro(mail({ objet: "S0305 - fuite" }), ref);
+    expect(s.nature).toBe("faible");
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx({ copros: ref.copros }))).toEqual({ ok: false, motif: "pas-sure" });
   });
 });

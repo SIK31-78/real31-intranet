@@ -87,6 +87,15 @@ export function ecritureTriActive(): boolean {
 }
 
 /**
+ * Le tri range-t-il TOUT SEUL les mails a piste « sure » de syndic4 (tache planifiee,
+ * decision Sekou du 20/10/2026) ? Seulement si MAIL_TRI_AUTO=on. Coupe par defaut, pour
+ * l'arreter sans redeployer. Ecriture coupee (MAIL_TRI_ECRITURE) : rangements simules.
+ */
+export function triAutomatiqueActif(): boolean {
+  return (process.env.MAIL_TRI_AUTO ?? "").trim().toLowerCase() === "on";
+}
+
+/**
  * L'ENVOI réel d'un mail depuis une boîte PARTAGÉE (syndicN) est-il autorisé ? Seulement si
  * MAIL_ENVOI=on. Garde-fou dédié, séparé de MAIL_SOURCE (qui branche Graph) : tant qu'il est
  * coupé, on passe par le BROUILLON (créé sur clic, relu et envoyé dans Outlook). La réponse
