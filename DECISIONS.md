@@ -2035,6 +2035,16 @@ On garde l'ingestion Graph app-only (`graph-mail-ingestion.ts`) et le déplaceme
 - **Sécurité** : l'app porte encore `Application.ReadWrite.All` et `AppRoleAssignment.ReadWrite.All`, à retirer (REA-27). `Mail.ReadWrite` donne l'écriture sur toutes les boîtes du groupe de l'Access Policy : le groupe doit rester minimal.
 - **Règle de test** : aucun mail réel déplacé ou étiqueté sans l'accord de Sekou, geste par geste ; les essais se font sur la boîte `test-tri@`.
 
+### Révision du 20/10/2026 : piste « sûre » rangée automatiquement sur syndic4
+
+Décision Sekou du 20/10/2026, sur mesure : depuis les correctifs du 19/10, 16 pistes « sûre » sur 16 étaient justes. Le point 5 s'applique pour la première fois.
+
+- **Quoi** : la tâche planifiée `/api/cron/tri-emails` (5 min), après la réconciliation, range seule les mails de la boîte de réception dont la suggestion est « sûre », par le même service qu'un clic (`rangerMail` : dossier du binôme, étiquette, journal) avec `par = "automatique"` (`services/tri-emails/ranger-auto.ts`).
+- **Règle pure** `rangeableAutomatiquement` (`domain/tri-emails.ts`). Jamais automatique : une autre boîte que `syndic4@real31.fr` (constante `BOITE_TRI_AUTOMATIQUE` : l'élargir est une décision, donc du code) ; corbeille proposée (non remis, réponse automatique) ou mail interne ; toute piste autre que « sûre » sur une seule copro (plusieurs, faible, conversation, PDF) ; un mail ayant déjà une ligne de journal, **annulée comprise** (remis dans la file par quelqu'un : il décide lui-même) ; copro inconnue, inactive ou sans dossier de binôme.
+- **Bornes** : 30 rangements et 25 s par passage, un mail à la fois (deux mails vers un dossier à créer le créeraient deux fois) ; les plus anciens d'abord, le reste au passage suivant. Pas de délai minimal après réception : la période du cron en donne déjà un (0 à 5 min) et un clic qui arrive après le rangement automatique échoue proprement (« déjà rangé »).
+- **Interrupteurs** : `MAIL_TRI_AUTO=on` (coupé par défaut, se coupe sans redéployer) ; `MAIL_TRI_ECRITURE` coupé = rangements simulés et journalisés comme tels, comme un clic.
+- **Visible et annulable** : « Rangé automatiquement » dans le journal de l'écran (onglet « Rangés sur 7 jours », bouton Annuler habituel) et un bandeau qui compte ces rangements. Annulé (écran, « Pas pour moi », ou glissé en réception dans Outlook), le mail revient dans la file et n'est plus jamais rangé seul.
+
 ### Liens
 
 ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (délégations : le remplaçant favorise le dossier du titulaire), `docs/etude-mail-central.md`, maquette https://claude.ai/artifact/93Z4r2TGnimwebjkCud9nr.
