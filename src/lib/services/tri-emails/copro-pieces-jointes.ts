@@ -7,6 +7,7 @@ import { coprosDansPdf } from "@/lib/domain/tri-emails";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { getExtracteurPdf, getReferentielTriProvider } from "@/lib/adapters/router";
 import { listerPiecesJointesTri, lirePieceJointeTri } from "./pieces-jointes";
+import { signalerException } from "@/lib/observabilite";
 
 export interface CoproDepuisPj {
   /** References candidates (la plus probable d'abord). */
@@ -28,8 +29,11 @@ export async function coproDepuisPiecesJointes(internetMessageId: string): Promi
     try {
       const { base64 } = await lirePieceJointeTri(internetMessageId, pj.id);
       texte = await extracteur.texte(Uint8Array.from(Buffer.from(base64, "base64")));
-    } catch {
-      continue; // PDF illisible : on passe au suivant.
+    } catch (e) {
+      // PDF illisible : on passe au suivant, mais on le signale. Avalée sans bruit, une panne
+      // de l'extracteur en prod est passée inaperçue (19-20/10/2026).
+      signalerException(e, { source: "tri-emails-pj", detail: { piece: pj.nom } });
+      continue;
     }
     if (texte.replace(/\s/g, "").length < 40) continue; // scanne / sans couche texte.
     const candidats = coprosDansPdf(texte, copros);
