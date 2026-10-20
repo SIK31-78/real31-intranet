@@ -17,6 +17,7 @@ import { emettreFacturesEnAttente } from "@/lib/services/facturation/emettre-fac
 import { debutContratRequis, MESSAGE_DEBUT_CONTRAT_REQUIS } from "@/lib/domain/recap-ag/contrat-vote";
 import { listerClesRepartition } from "@/lib/services/recap-ag/cles-repartition";
 import type { CleRepartition } from "@/lib/domain/assemblee";
+import { conseilSyndicalElu, type ConseilSyndicalElu } from "@/lib/services/recap-ag/conseil-syndical-elu";
 
 
 import { type Res, echecDepuis } from "@/lib/actions/resultat";
@@ -134,6 +135,23 @@ export async function listerClesRepartitionAction(coproCode: string): Promise<Re
   if (!g) return { ok: false, erreur: "Session expirée." };
   try {
     return { ok: true, donnees: await listerClesRepartition(code.data, g.id) };
+  } catch (e) {
+    return echecDepuis(e, "recap-ag");
+  }
+}
+
+/**
+ * Le conseil syndical de la copro, pour le bloc « Conseil syndical élu » du récap : liste de
+ * diffusion CS et membres ESTALE. Lecture seule ; la mise à jour passe par l'action de la
+ * fiche copro (enregistrerListeSecoursCSAction), indépendante de l'enregistrement du récap.
+ */
+export async function conseilSyndicalEluAction(coproCode: string): Promise<Res<ConseilSyndicalElu>> {
+  const code = zCode.safeParse(coproCode);
+  if (!code.success) return { ok: false, erreur: "Données invalides." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  try {
+    return { ok: true, donnees: await conseilSyndicalElu(code.data, g.id) };
   } catch (e) {
     return echecDepuis(e, "recap-ag");
   }

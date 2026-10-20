@@ -29,6 +29,7 @@ import { heureDebutSuggeree, heureFinSuggeree } from "@/lib/domain/recap-ag/cren
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
 import { formatJour } from "@/lib/services/facturation/format";
+import { ConseilSyndicalElu } from "./conseil-syndical-elu";
 
 import { formatEuros } from "@/lib/domain/format-montant";
 import { lireMontant } from "@/lib/domain/lire-montant";
@@ -362,6 +363,7 @@ export function FormulaireRecapAg({
     setTravaux(travaux.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   return (
+    <div className="flex flex-col gap-4">
     <Card>
       <CardBody className="flex flex-col gap-6">
       <SectionForm
@@ -582,5 +584,10 @@ export function FormulaireRecapAg({
         )}
       </CardBody>
     </Card>
+
+    {/* Le CS vient d'etre vote : on fait verifier sa liste ici (20/10/2026). Bloc a part,
+        son propre enregistrement : il ne bloque jamais le recap. */}
+    <ConseilSyndicalElu coproCode={coproCode} />
+    </div>
   );
 }

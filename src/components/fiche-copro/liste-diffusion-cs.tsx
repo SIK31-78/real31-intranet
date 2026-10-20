@@ -10,6 +10,9 @@
 //    de SECOURS (Crypto/intranet). eStale garde la priorite : l'indicateur dit si l'edition
 //    affectera le mail. Une adresse mal formee ou interne @real31.fr bloque l'enregistrement
 //    (le serveur re-valide et deduplique de toute facon : defense en profondeur).
+//
+// Reutilise par le recap d'AG (bloc « Conseil syndical elu », 20/10/2026) : ouvert d'office
+// (le CS vient d'etre vote, on verifie la liste), et `onEnregistre` tient le parent a jour.
 
 import { useState } from "react";
 import { X, Save, Users, Pencil } from "lucide-react";
@@ -36,15 +39,24 @@ export function ListeDiffusionCS({
   estaleFournitEmails,
   destinatairesActifs,
   emailsSecours,
+  ouvertParDefaut = false,
+  onEnregistre,
 }: {
   coproCode: string;
   sourceActive: SourceDestinataires;
   estaleFournitEmails: boolean;
   destinatairesActifs: { email: string; nom?: string }[];
   emailsSecours: string[];
+  /** La liste s'affiche d'office en edition (recap d'AG) plutot que repliee (fiche). */
+  ouvertParDefaut?: boolean;
+  /** Appele apres un enregistrement reussi, avec la liste nettoyee par le serveur. */
+  onEnregistre?: (emails: string[]) => void;
 }) {
   const toast = useToast();
-  const [edit, setEdit] = useState(false);
+  const [edit, setEdit] = useState(ouvertParDefaut);
+  // Le curseur ne va dans la saisie que sur un clic « Modifier » : ouverte d'office, la liste
+  // ne doit pas voler le focus du formulaire qui l'entoure.
+  const [focusSaisie, setFocusSaisie] = useState(false);
   const [emails, setEmails] = useState<string[]>(emailsSecours);
   const [saisie, setSaisie] = useState("");
   const [enregistre, setEnregistre] = useState(false);
@@ -75,6 +87,7 @@ export function ListeDiffusionCS({
       setEmails(r.emails); // reflet du nettoyage serveur (dedup / exclusions)
       toast.ok("Liste de secours enregistrée.");
       setEdit(false);
+      onEnregistre?.(r.emails);
     } else {
       toast.err(r.message);
     }
@@ -94,7 +107,14 @@ export function ListeDiffusionCS({
           Liste de diffusion · Conseil syndical
         </Eyebrow>
         {!edit && (
-          <Button variant="ghost" size="sm" onClick={() => setEdit(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setEdit(true);
+              setFocusSaisie(true);
+            }}
+          >
             <Pencil strokeWidth={1.5} />
             Modifier la liste de secours
           </Button>
@@ -187,7 +207,7 @@ export function ListeDiffusionCS({
                 onBlur={ajouter}
                 placeholder="ajouter une adresse…"
                 aria-label="Ajouter une adresse à la liste de secours"
-                autoFocus
+                autoFocus={focusSaisie}
                 className="flex-1 min-w-36 h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
               />
             </div>
