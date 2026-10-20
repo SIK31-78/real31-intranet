@@ -8,7 +8,7 @@
 ## Où on en est
 
 - **Prod** : `real31.app`, branche `main` (le tronc, renommé le 25/09/2026, anciennement `increment/02-supabase`), déployée via le Vercel de la collègue qui suit `main`.
-- **Branche active** : `chantier/contrats-controles` (REA-333, ADR-048) : le module « Contrats & contrôles » qui reprend l'application Suivi des Contrats Copros du patron (assurance, gaz, CTQ ascenseur et VMC), écrit d'un bloc le 16/10/2026, non mergé. Runbook de bascule : `docs/runbook-bascule-contrats-controles.md`.
+- **Branche active** : `main` (le tronc). Le module « Contrats & contrôles » (REA-333, ADR-048) est **en production depuis le 20/10/2026** : il remplace l'application Suivi des Contrats Copros du patron (assurance, gaz, CTQ ascenseur et VMC). Runbook de bascule : `docs/runbook-bascule-contrats-controles.md` (étapes 1 et 2 faites : SQL passés, prestataires repris).
 - **Branches en pause** :
   - `chantier/mcp-distant` : MCP distant pour Claude Team, 4 lots codés et testés (ADR-042), sauvegardée sur GitHub, mise de côté le 25/09. Tout pour reprendre est dans le ticket REA-5.
   - `chantier/mail-v12` : chantier « Mes e-mails », en pause depuis fin août, non mergée (REA-15).
@@ -21,7 +21,7 @@
 
 ## Prochaine action
 
-Relire la branche `chantier/contrats-controles` sur le serveur de dev (fiche SE999, onglet Contrats ; `/contrats-copro` ; accueil), passer les trois SQL `supabase/sql/intranet_contrats_*.sql` dans l'ordre du runbook, recetter sur SE999, puis merger et prévenir Emmanuel avant de figer l'ancienne appli (étape 2 du plan).
+Contrats & contrôles, étape 3 du runbook : prévenir Emmanuel et les neuf gestionnaires actifs, publier la fiche process sur l'extranet, puis figer l'ancienne appli (`LECTURE_SEULE=1` dans son `canWrite.ts`). Ensuite fusionner les 5 quasi-doublons d'entreprises, nettoyer les 44 échéances douteuses via « À compléter », et armer les rappels sujet par sujet (`CONTRATS_RAPPELS_SUJETS`).
 
 ## Où trouver quoi
 
