@@ -6,6 +6,8 @@
 //   node scripts/import-cles-keyko.mjs --dump "<chemin>/keyko-asn-AAAA-MM-JJ.json" --ecrire   # ecrit reellement
 //   ... --photos "<chemin>/photos-reduites"                 # + verse les photos dans le bucket « cles »
 //   ... --ecrire --photos-seulement --photos "<chemin>"     # apres coup : rattache les photos aux trousseaux deja importes
+//   ... --ecrire --forcer-dump-ancien                       # import de TEST sur un dump perime (a purger ensuite)
+//   ... --ecrire --retirer-photos                           # avant une purge : retire du bucket les photos des trousseaux ASN
 //
 // Les photos se preparent a cote du dump : keyko-photos.mjs les telecharge (« <reference>--<id
 // Keyko>.jpg »), keyko-photos-reduire.py les ramene a 1600 px (727 Mo -> 40 Mo au 23/09, dont
@@ -53,6 +55,10 @@ const AGE_MAX_JOURS = 2;
 const iPhotos = process.argv.indexOf("--photos");
 const DOSSIER_PHOTOS = iPhotos >= 0 ? process.argv[iPhotos + 1] : null;
 const PHOTOS_SEULEMENT = process.argv.includes("--photos-seulement");
+// Import de TEST sur un vieux dump (Sekou 21/10/2026) : la donnee sera purgee avant le vrai
+// import (supabase/sql/purge_asn_keyko.sql, apres --retirer-photos).
+const FORCER_DUMP_ANCIEN = process.argv.includes("--forcer-dump-ancien");
+const RETIRER_PHOTOS = process.argv.includes("--retirer-photos");
 /** Meme plafond que l'ecran (TAILLE_MAX_PHOTO, services/cles/referentiel.ts). */
 const TAILLE_MAX_PHOTO = 8 * 1024 * 1024;
 
@@ -353,7 +359,7 @@ for (const a of rapport.avertissements) console.log("  - " + a);
 
 if (!ECRIRE) {
   console.log("\nDry-run : rien n'a été écrit.");
-  if (ageJours > AGE_MAX_JOURS) console.log(`Ce dump a ${ageJours} jours : --ecrire le refusera. Réextraire le jour de la mise en service.`);
+  if (ageJours > AGE_MAX_JOURS && !FORCER_DUMP_ANCIEN) console.log(`Ce dump a ${ageJours} jours : --ecrire le refusera. Réextraire le jour de la mise en service.`);
 } else {
   await ecrire();
 }
@@ -389,6 +395,22 @@ async function verserPhotos(idT) {
 }
 
 async function ecrire() {
+  if (RETIRER_PHOTOS) {
+    // Le SQL de purge ne peut pas vider le Storage (les fichiers vivent hors de la base) : on les
+    // retire ici, AVANT la purge, tant que les trousseaux disent encore ou sont leurs photos.
+    const { data, error } = await sb.from("intranet_cles_trousseau").select("photo_chemin").eq("agence_code", AGENCE).not("photo_chemin", "is", null);
+    if (error) {
+      console.error(`Lecture des photos ${AGENCE} : ${error.message}`);
+      process.exit(1);
+    }
+    const chemins = data.map((r) => r.photo_chemin);
+    for (let i = 0; i < chemins.length; i += 100) {
+      const { error: e } = await sb.storage.from("cles").remove(chemins.slice(i, i + 100));
+      if (e) console.warn(`photos ${i}-${i + 100} : ${e.message}`);
+    }
+    console.log(`✓ ${chemins.length} photos ${AGENCE} retirées du bucket « cles ». Passer maintenant supabase/sql/purge_asn_keyko.sql.`);
+    return;
+  }
   if (PHOTOS_SEULEMENT) {
     // Apres coup : les trousseaux sont deja la, on ne fait que rattacher les photos (par numero).
     const { data: existants, error } = await sb.from("intranet_cles_trousseau").select("id, numero").eq("agence_code", AGENCE);
@@ -399,10 +421,11 @@ async function ecrire() {
     await verserPhotos(new Map(existants.map((r) => [r.numero, r.id])));
     return;
   }
-  if (ageJours > AGE_MAX_JOURS) {
+  if (ageJours > AGE_MAX_JOURS && !FORCER_DUMP_ANCIEN) {
     console.error(`\nREFUS : le dump a ${ageJours} jours (maximum ${AGE_MAX_JOURS}). L'import est une photo à date : réextraire Keyko d'abord.`);
     process.exit(1);
   }
+  if (FORCER_DUMP_ANCIEN) console.log(`\n⚠ Import de TEST sur un dump de ${ageJours} jours : à purger avant le vrai import (--retirer-photos, puis purge_asn_keyko.sql).`);
   const { count: dejaT } = await sb.from("intranet_cles_trousseau").select("id", { count: "exact", head: true }).eq("agence_code", AGENCE);
   const { count: dejaB } = await sb.from("intranet_bien").select("id", { count: "exact", head: true }).eq("agence_code", AGENCE);
   if ((dejaT ?? 0) > 0 || (dejaB ?? 0) > 0) {
@@ -420,19 +443,20 @@ async function ecrire() {
     return out;
   }
 
-  // 1. Biens
-  const idsB = await inserer("intranet_bien", biens.map((b) => b.ligne), "id, source_ref");
-  const idBien = new Map(idsB.map((r) => [r.source_ref, r.id]));
-  console.log(`\n✓ ${idsB.length} biens`);
-
-  // 2. Trousseaux, puis les liens de double (le trousseau mere doit exister)
+  // 1. Trousseaux EN PREMIER : sans intranet_cles_import_keyko.sql, la source « import_keyko »
+  // viole le CHECK et le premier lot est refuse en entier, avant qu'aucun bien ne soit ecrit.
   const idsT = await inserer("intranet_cles_trousseau", trousseaux.map((t) => t.ligne), "id, numero");
   const idT = new Map(idsT.map((r) => [r.numero, r.id]));
   for (const t of trousseaux.filter((x) => x.jumeauDeRef && idT.has(x.jumeauDeRef.toUpperCase()))) {
     await sb.from("intranet_cles_trousseau").update({ jumeau_de: idT.get(t.jumeauDeRef.toUpperCase()) }).eq("id", idT.get(t.numero));
   }
-  console.log(`✓ ${idsT.length} trousseaux`);
+  console.log(`\n✓ ${idsT.length} trousseaux`);
   if (DOSSIER_PHOTOS) await verserPhotos(idT);
+
+  // 2. Biens
+  const idsB = await inserer("intranet_bien", biens.map((b) => b.ligne), "id, source_ref");
+  const idBien = new Map(idsB.map((r) => [r.source_ref, r.id]));
+  console.log(`✓ ${idsB.length} biens`);
 
   // 3. Acces : chaque trousseau ouvre son bien
   const lignesA = trousseaux
