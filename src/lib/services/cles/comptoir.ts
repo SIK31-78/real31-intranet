@@ -9,12 +9,12 @@
 import { getClesEntrepriseRepository, getClesRepository } from "@/lib/adapters/router";
 import { joursDehors, reservationCouvre, reservationImminente, verifierReservation, verifierRetour, verifierSortie } from "@/lib/domain/cles/etat";
 import type { ConformiteRetour, Contact, Marque, Pret, Reservation, Trousseau, TypePret } from "@/lib/domain/cles/types";
-import { estDirectionCles, MESSAGE_HORS_AGENCE, MESSAGE_RESERVE_DIRECTION_CLES, peutOperer, type Acteur } from "./contexte";
+import { activiteDuTrousseau, estDirectionCles, MESSAGE_HORS_AGENCE, MESSAGE_RESERVE_DIRECTION_CLES, peutOperer, type Acteur } from "./contexte";
 
 async function trousseauOperable(id: string, acteur: Acteur): Promise<Trousseau> {
   const t = await getClesRepository().getTrousseau(id);
   if (!t) throw new Error("Trousseau introuvable.");
-  if (!peutOperer(acteur, t.agenceCode)) throw new Error(MESSAGE_HORS_AGENCE);
+  if (!peutOperer(acteur, t.agenceCode, activiteDuTrousseau(t))) throw new Error(MESSAGE_HORS_AGENCE);
   return t;
 }
 

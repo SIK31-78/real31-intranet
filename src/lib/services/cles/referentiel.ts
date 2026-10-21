@@ -6,7 +6,7 @@ import { normaliserNomEntreprise, numeroCanonique } from "@/lib/domain/cles/norm
 import type { Acces, AdresseEntreprise, Contact, ElementComposition, Entreprise, Trousseau } from "@/lib/domain/cles/types";
 import { AGENCES_CLES } from "@/lib/domain/cles/types";
 import { METIERS_PRESTATAIRE, type MetierPrestataire } from "@/lib/domain/contrats-copro/types";
-import { estDirectionCles, MESSAGE_HORS_AGENCE, MESSAGE_RESERVE_DIRECTION_CLES, peutOperer, type Acteur } from "./contexte";
+import { activiteDuTrousseau, estDirectionCles, MESSAGE_HORS_AGENCE, MESSAGE_RESERVE_DIRECTION_CLES, peutOperer, type Acteur } from "./contexte";
 
 export interface TrousseauInput {
   agenceCode?: string;
@@ -38,7 +38,8 @@ function nettoyerAcces(acces: Omit<Acces, "id">[]): Omit<Acces, "id">[] {
 export async function creerTrousseau(input: TrousseauInput, acteur: Acteur): Promise<Trousseau> {
   const agenceCode = (input.agenceCode ?? acteur.agence ?? "").toUpperCase();
   if (!AGENCES_CLES.includes(agenceCode as (typeof AGENCES_CLES)[number])) throw new Error("Agence inconnue : précise l'agence du trousseau.");
-  if (!peutOperer(acteur, agenceCode)) throw new Error(MESSAGE_HORS_AGENCE);
+  const accesPropres = nettoyerAcces(input.acces);
+  if (!peutOperer(acteur, agenceCode, activiteDuTrousseau({ acces: accesPropres }))) throw new Error(MESSAGE_HORS_AGENCE);
   const numero = numeroCanonique(input.numero);
   if (!numero) throw new Error("Le numéro du trousseau est obligatoire.");
   const repo = getClesRepository();
@@ -54,7 +55,7 @@ export async function creerTrousseau(input: TrousseauInput, acteur: Acteur): Pro
     ...(input.consigne?.trim() ? { consigne: input.consigne.trim() } : {}),
     source: "intranet",
     creeParNom: acteur.nom,
-    acces: nettoyerAcces(input.acces),
+    acces: accesPropres,
   });
   await repo.ajouterMouvement({ trousseauId: t.id, type: "creation", parUserId: acteur.id, parNom: acteur.nom, agenceCode, details: { numero, libelle: t.libelle } });
   return t;
@@ -64,11 +65,13 @@ export async function modifierTrousseau(id: string, input: TrousseauInput, acteu
   const repo = getClesRepository();
   const t = await repo.getTrousseau(id);
   if (!t) throw new Error("Trousseau introuvable.");
-  if (!peutOperer(acteur, t.agenceCode)) throw new Error(MESSAGE_HORS_AGENCE);
+  if (!peutOperer(acteur, t.agenceCode, activiteDuTrousseau(t))) throw new Error(MESSAGE_HORS_AGENCE);
   const numero = numeroCanonique(input.numero);
   if (!numero) throw new Error("Le numéro du trousseau est obligatoire.");
   const composition = nettoyerComposition(input.composition);
   const acces = nettoyerAcces(input.acces).map((a, i) => ({ ...a, id: t.acces[i]?.id ?? `${t.id}-a${i}` }));
+  // Qui dirige l'activite d'origine ne fait pas glisser le trousseau dans une autre qu'il ne dirige pas.
+  if (!peutOperer(acteur, t.agenceCode, activiteDuTrousseau({ acces }))) throw new Error(MESSAGE_HORS_AGENCE);
   const maj: Trousseau = {
     ...t,
     numero,
@@ -109,7 +112,7 @@ export async function televerserPhoto(id: string, contenu: Uint8Array, contentTy
   if (contenu.byteLength > TAILLE_MAX_PHOTO) throw new Error("Photo trop lourde (8 Mo maximum).");
   const t = await getClesRepository().getTrousseau(id);
   if (!t) throw new Error("Trousseau introuvable.");
-  if (!peutOperer(acteur, t.agenceCode)) throw new Error(MESSAGE_HORS_AGENCE);
+  if (!peutOperer(acteur, t.agenceCode, activiteDuTrousseau(t))) throw new Error(MESSAGE_HORS_AGENCE);
   const chemin = `trousseaux/${id}.${ext}`;
   await getClesPhotoStore().televerser(chemin, contenu, contentType);
   await poserPhoto(id, chemin, acteur);
@@ -120,7 +123,7 @@ export async function poserPhoto(id: string, chemin: string, acteur: Acteur): Pr
   const repo = getClesRepository();
   const t = await repo.getTrousseau(id);
   if (!t) throw new Error("Trousseau introuvable.");
-  if (!peutOperer(acteur, t.agenceCode)) throw new Error(MESSAGE_HORS_AGENCE);
+  if (!peutOperer(acteur, t.agenceCode, activiteDuTrousseau(t))) throw new Error(MESSAGE_HORS_AGENCE);
   await repo.sauverTrousseau({ ...t, photoChemin: chemin });
   await repo.ajouterMouvement({ trousseauId: t.id, type: "modification", parUserId: acteur.id, parNom: acteur.nom, agenceCode: t.agenceCode, details: { motif: "photo mise à jour" } });
 }

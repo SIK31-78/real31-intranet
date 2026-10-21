@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { acteurCles } from "@/lib/auth/acteur-cles";
-import { estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
+import { activiteDuTrousseau, estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
 import { ficheTrousseau } from "@/lib/services/cles/lecture";
 import { coprosPourCles } from "@/lib/services/cles/copros-choix";
 import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ACCES, LIBELLE_TYPE_ELEMENT } from "@/lib/domain/cles/types";
@@ -45,7 +45,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
   const armoire = position ? occupationArmoire((await vueTrousseaux(fiche.resume.trousseau.agenceCode, aujourdhuiISO)).map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement }))) : null;
   const { resume, prets, reservations, mouvements, photoUrl } = fiche;
   const t = resume.trousseau;
-  const operable = peutOperer(acteur, t.agenceCode);
+  const operable = peutOperer(acteur, t.agenceCode, activiteDuTrousseau(t));
   const direction = estDirectionCles(acteur, t.agenceCode);
   const pret = resume.pret;
 

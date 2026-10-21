@@ -112,6 +112,49 @@ export function familleDe(c: { fonction?: string; roleTable?: string }): Famille
   }
 }
 
+/**
+ * Les trois ACTIVITES du cabinet : ce qu'un bien ou une copropriete releve, et donc ce
+ * qu'un encadrant dirige. A ne pas confondre avec la FamilleFonction, qui range les gens
+ * (« direction », « accueil » ne sont pas des activites : on ne gere pas un immeuble en
+ * « accueil »).
+ */
+export const ACTIVITES = ["syndic", "location", "transaction"] as const;
+export type Activite = (typeof ACTIVITES)[number];
+
+export const LIBELLE_ACTIVITE: Record<Activite, string> = {
+  syndic: "Syndic de copropriété",
+  location: "Location et gestion locative",
+  transaction: "Transaction",
+};
+
+/**
+ * Les activites qu'une fonction DIRIGE, sur tout le cabinet (ADR-049, Sekou 06/10/2026).
+ *
+ * Pourquoi par activite et pas par agence : la directrice de la location et le directeur de
+ * la vente encadrent leur metier dans les QUATRE agences. Leur donner « LGC + ASN » les
+ * rebloquerait des que ML ou HLS auraient des biens, et il faudrait recommencer a chaque
+ * ouverture d'agence.
+ *
+ * Diriger n'est pas exercer : un conseiller en vente travaille dans la transaction mais ne
+ * la dirige pas : il ecrit sur son agence, comme avant. Un responsable d'agence n'est pas ici
+ * non plus : son perimetre est son agence (role DIRECTEUR_AGENCE), pas un metier.
+ *
+ * Le directeur de copropriete n'y est pas (Sekou 21/10/2026) : il reste sur son agence, par
+ * son role DIRECTEUR_SYNDIC. Le syndic se pratique deja par agence, rien a ouvrir.
+ */
+export const ACTIVITES_DIRIGEES: Partial<Record<Fonction, readonly Activite[]>> = {
+  dirigeant: ACTIVITES,
+  responsable_transaction_gestion: ["transaction", "location"],
+  directeur_vente: ["transaction"],
+  responsable_gestion_locative: ["location"],
+};
+
+/** Les activites que cette personne dirige sur tout le cabinet (vide pour la plupart). */
+export function activitesDirigees(c: { fonction?: string | null }): Activite[] {
+  const f = (c.fonction ?? "") as Fonction;
+  return [...(ACTIVITES_DIRIGEES[f] ?? [])];
+}
+
 export const HABILITATIONS = ["referent_syndic"] as const;
 export type TypeHabilitation = (typeof HABILITATIONS)[number];
 export const LIBELLE_HABILITATION: Record<TypeHabilitation, string> = {
