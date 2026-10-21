@@ -4,8 +4,8 @@ import { activiteDuTrousseau, estDirectionCles, peutOperer, type Acteur } from "
 import type { Acces } from "./types";
 
 const copro = (ordre = 0): Pick<Acces, "bien" | "ordre"> => ({ bien: { type: "copro", code: "S0042" }, ordre });
-const lot = (ordre = 0): Pick<Acces, "bien" | "ordre"> => ({ bien: { type: "lot_locatif", ref: "BASSEVILLE-20" }, ordre });
-const vente = (ordre = 0): Pick<Acces, "bien" | "ordre"> => ({ bien: { type: "bien_vente", ref: "PICQUOT-35" }, ordre });
+const lot = (ordre = 0): Pick<Acces, "bien" | "ordre"> => ({ bien: { type: "lot_locatif", id: "b1", ref: "BASSEVILLE-20" }, ordre });
+const vente = (ordre = 0): Pick<Acces, "bien" | "ordre"> => ({ bien: { type: "bien_vente", id: "b2", ref: "PICQUOT-35" }, ordre });
 
 const GESTIONNAIRE_LGC: Acteur = { id: "u1", nom: "Neis L.", agence: "LGC", direction: [] };
 const NADINE: Acteur = { id: "u2", nom: "Nadine L.", agence: "LGC", direction: [], activitesDirigees: ["transaction", "location"] };

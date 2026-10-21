@@ -18,6 +18,12 @@ import type {
 import type { Bien, Entreprise, Mouvement, Pret, Reservation, Trousseau } from "@/lib/domain/cles/types";
 import type { MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 
+/** Une copro par son code, un bien hors syndic par son id. */
+function memeBien(a: Bien, b: Bien): boolean {
+  if (a.type === "copro" || b.type === "copro") return a.type === "copro" && b.type === "copro" && a.code === b.code;
+  return a.id === b.id;
+}
+
 export class MockClesRepository implements ClesRepository {
   trousseaux: Trousseau[] = [];
   reservations: Reservation[] = [];
@@ -47,8 +53,7 @@ export class MockClesRepository implements ClesRepository {
     return this.trousseaux.find((t) => t.agenceCode === agenceCode && t.numero === numero) ?? null;
   }
   async listerTrousseauxDuBien(bien: Bien): Promise<Trousseau[]> {
-    if (bien.type !== "copro") return [];
-    return this.trousseaux.filter((t) => t.acces.some((a) => a.bien.type === "copro" && a.bien.code === bien.code));
+    return this.trousseaux.filter((t) => t.acces.some((a) => memeBien(a.bien, bien)));
   }
   async creerTrousseau(t: NouveauTrousseau): Promise<Trousseau> {
     if (this.trousseaux.some((x) => x.agenceCode === t.agenceCode && x.numero === t.numero)) {

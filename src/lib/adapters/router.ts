@@ -112,6 +112,9 @@ import type { ClesEntrepriseRepository, ClesPhotoStore, ClesRepository } from "@
 import { SupabaseClesEntrepriseRepository, SupabaseClesRepository } from "./supabase/supabase-cles-repository";
 import { SupabaseClesPhotoStore } from "./supabase/supabase-cles-photo-store";
 import { mockCles } from "./mock/mock-cles-repository";
+import type { BienRepository } from "@/lib/ports/bien-repository";
+import { SupabaseBienRepository } from "./supabase/supabase-bien-repository";
+import { mockBiens } from "./mock/mock-bien-repository";
 import type { ContratsCoproRepository } from "@/lib/ports/contrats-copro-repository";
 import { SupabaseContratsCoproRepository } from "./supabase/supabase-contrats-copro-repository";
 import { mockContratsCopro } from "./mock/mock-contrats-copro-repository";
@@ -358,6 +361,13 @@ export function getClesEntrepriseRepository(): ClesEntrepriseRepository {
 export function getClesPhotoStore(): ClesPhotoStore {
   if (coproSourceEstSupabase()) return new SupabaseClesPhotoStore();
   return mockCles().photos;
+}
+
+// Biens hors syndic (intranet_bien, ADR-049) : location et transaction. Premier usage, les
+// trousseaux d'Asnieres ; les outils locatifs a venir liront le meme referentiel.
+export function getBienRepository(): BienRepository {
+  if (coproSourceEstSupabase()) return new SupabaseBienRepository();
+  return mockBiens();
 }
 
 // Contrats & contrôles (REA-333) : cycles, offres, devis, appareils, documents, fiche immeuble,

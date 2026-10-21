@@ -55,7 +55,7 @@ function biensDe(t: Trousseau, copros: Map<string, CoproRef>): BienResume[] {
       const c = copros.get(a.bien.code);
       return { bien: a.bien, libelle: c?.nom ?? a.bien.nom ?? a.bien.code, adresse: c?.adresse ?? "", coproCode: a.bien.code, ...(c?.gestionnaire ? { gestionnaire: c.gestionnaire } : {}), ...(c?.assistant ? { assistant: c.assistant } : {}) };
     }
-    return { bien: a.bien, libelle: a.bien.nom ?? a.bien.ref, adresse: "" };
+    return { bien: a.bien, libelle: a.bien.nom ?? a.bien.ref, adresse: a.bien.adresse ?? "" };
   });
 }
 

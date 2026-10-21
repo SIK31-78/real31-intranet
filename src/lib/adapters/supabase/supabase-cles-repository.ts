@@ -30,12 +30,30 @@ import type {
   TypeAcces,
 } from "@/lib/domain/cles/types";
 import { METIERS_PRESTATAIRE, type MetierPrestataire } from "@/lib/domain/contrats-copro/types";
+import { adresseEnLigne } from "@/lib/domain/bien";
 import { createSupabasePublicClient } from "./public-client";
 
-type AccesRow = {
+/** Le bien hors syndic joint a l'acces (intranet_bien), juste ce qu'il faut pour l'afficher. */
+type BienJoint = {
+  id: string;
+  reference: string;
+  libelle: string | null;
+  activite: "location" | "transaction";
+  numero_voie: string | null;
+  type_voie: string | null;
+  nom_voie: string | null;
+  complement: string | null;
+  code_postal: string | null;
+  ville: string | null;
+};
+
+export type AccesRow = {
   id: string;
   trousseau_id: string;
-  copropriete_id: string;
+  /** Exactement l'un des deux est renseigne (contrainte intranet_cles_acces_une_cible). */
+  copropriete_id: string | null;
+  bien_id: string | null;
+  bien?: BienJoint | BienJoint[] | null;
   immeuble: string | null;
   types: string[] | null;
   libelle: string;
@@ -146,8 +164,11 @@ const T_ENTREPRISE = "intranet_cles_entreprise";
 const T_RESERVATION = "intranet_cles_reservation";
 const T_PRET = "intranet_cles_pret";
 const T_MOUVEMENT = "intranet_cles_mouvement";
+const T_BIEN = "intranet_bien";
 
-const COLS_TROUSSEAU = `id, agence_code, numero, libelle, emplacement, composition, photo_chemin, marque, marque_depuis, sensible, consigne, jumeau_de, note, source, cree_par, created_at, acces:${T_ACCES}(id, trousseau_id, copropriete_id, immeuble, types, libelle, ordre)`;
+const COLS_ACCES = `id, trousseau_id, copropriete_id, bien_id, immeuble, types, libelle, ordre, bien:${T_BIEN}(id, reference, libelle, activite, numero_voie, type_voie, nom_voie, complement, code_postal, ville)`;
+
+const COLS_TROUSSEAU = `id, agence_code, numero, libelle, emplacement, composition, photo_chemin, marque, marque_depuis, sensible, consigne, jumeau_de, note, source, cree_par, created_at, acces:${T_ACCES}(${COLS_ACCES})`;
 const COLS_RESERVATION = `id, trousseau_id, entreprise_id, contact, debut, fin_prevue, motif, origine, statut, pret_id, annulee_le, annulee_par, motif_annulation, cree_par, created_at, entreprise:${T_ENTREPRISE}(nom)`;
 const COLS_PRET = `id, trousseau_id, type, entreprise_id, contact, composition, reservation_id, motif, sorti_le, sorti_par_id, sorti_par_nom, retour_prevu_le, rendu_le, recu_par_id, recu_par_nom, retour_conforme, commentaire_retour, photo_retour_chemin, entreprise:${T_ENTREPRISE}(nom)`;
 const COLS_MOUVEMENT = "id, trousseau_id, type, horodatage, par_user_id, par_nom, agence_code, entreprise_id, pret_id, reservation_id, corrige_id, details";
@@ -171,10 +192,33 @@ const nomJoint = (e: EntrepriseJointe | undefined): string | undefined => {
   return x?.nom;
 };
 
-function accesVersDomaine(r: AccesRow): Acces {
+function bienDeLAcces(r: AccesRow): Bien {
+  if (r.copropriete_id) return { type: "copro", code: r.copropriete_id };
+  const b = Array.isArray(r.bien) ? r.bien[0] : r.bien;
+  // Bien illisible (jointure refusee, ligne retiree a la main) : l'acces reste affiche, nomme
+  // comme tel, plutot que de faire tomber toute la liste des trousseaux.
+  if (!b) return { type: "lot_locatif", id: r.bien_id ?? "", ref: "Bien introuvable" };
+  const adresse = adresseEnLigne({
+    numeroVoie: b.numero_voie ?? undefined,
+    typeVoie: b.type_voie ?? undefined,
+    nomVoie: b.nom_voie ?? undefined,
+    complement: b.complement ?? undefined,
+    codePostal: b.code_postal ?? undefined,
+    ville: b.ville ?? undefined,
+  });
+  return {
+    type: b.activite === "transaction" ? "bien_vente" : "lot_locatif",
+    id: b.id,
+    ref: b.reference,
+    ...(b.libelle ? { nom: b.libelle } : {}),
+    ...(adresse ? { adresse } : {}),
+  };
+}
+
+export function accesVersDomaine(r: AccesRow): Acces {
   return {
     id: r.id,
-    bien: { type: "copro", code: r.copropriete_id },
+    bien: bienDeLAcces(r),
     ...(r.immeuble ? { immeuble: r.immeuble } : {}),
     types: (r.types ?? []) as TypeAcces[],
     libelle: r.libelle ?? "",
@@ -306,14 +350,12 @@ function poseDesMetiers(e: Pick<Entreprise, "metiers" | "courtierPartenaire">): 
   return metiersConnus(e.metiers).length > 0 || Boolean(e.courtierPartenaire);
 }
 
-function accesVersRow(trousseauId: string, a: Omit<Acces, "id">): Omit<AccesRow, "id"> {
-  if (a.bien.type !== "copro") {
-    // Reserve (Sekou 18/09) : lot locatif / bien en vente viendront par une extension de la table.
-    throw new Error(`Accès sur un bien « ${a.bien.type} » : non pris en charge dans cette version.`);
-  }
+export function accesVersRow(trousseauId: string, a: Omit<Acces, "id">): Omit<AccesRow, "id" | "bien"> {
+  if (a.bien.type !== "copro" && !a.bien.id) throw new Error(`Accès sur le bien « ${a.bien.ref} » : bien inconnu du référentiel.`);
   return {
     trousseau_id: trousseauId,
-    copropriete_id: a.bien.code,
+    copropriete_id: a.bien.type === "copro" ? a.bien.code : null,
+    bien_id: a.bien.type === "copro" ? null : a.bien.id,
     immeuble: a.immeuble ?? null,
     types: a.types,
     libelle: a.libelle,
@@ -358,18 +400,19 @@ export class SupabaseClesRepository implements ClesRepository {
   }
 
   async listerTrousseauxDuBien(bien: Bien): Promise<Trousseau[]> {
-    if (bien.type !== "copro") return [];
     const sb = createSupabasePublicClient();
-    const { data: acces, error } = await sb.from(T_ACCES).select("trousseau_id").eq("copropriete_id", bien.code);
+    const libelle = bien.type === "copro" ? bien.code : bien.ref;
+    const q = sb.from(T_ACCES).select("trousseau_id");
+    const { data: acces, error } = await (bien.type === "copro" ? q.eq("copropriete_id", bien.code) : q.eq("bien_id", bien.id));
     if (error) {
-      avertir(`trousseaux de ${bien.code}`, error.message);
+      avertir(`trousseaux de ${libelle}`, error.message);
       return [];
     }
     const ids = [...new Set(((acces ?? []) as { trousseau_id: string }[]).map((a) => a.trousseau_id))];
     if (ids.length === 0) return [];
     const { data, error: e2 } = await sb.from(T_TROUSSEAU).select(COLS_TROUSSEAU).in("id", ids).order("numero");
     if (e2) {
-      avertir(`trousseaux de ${bien.code}`, e2.message);
+      avertir(`trousseaux de ${libelle}`, e2.message);
       return [];
     }
     return ((data ?? []) as unknown as TrousseauRow[]).map(trousseauVersDomaine);

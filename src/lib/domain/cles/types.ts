@@ -70,14 +70,15 @@ export const LIBELLE_TYPE_ACCES: Record<TypeAcces, string> = {
 };
 
 /**
- * Ce qu'un acces ouvre. Aujourd'hui une copropriete ; les autres formes sont reservees
- * (gestion locative, transaction) et ne sont pas construites. Rien hors de l'adapter ne
- * doit supposer « trousseau = copro ».
+ * Ce qu'un acces ouvre : une copropriete (referentiel ESTALE / Crypto, par son code), ou un
+ * bien hors syndic (intranet_bien, ADR-049) gere en location ou mis en vente. Le type du bien
+ * hors syndic suit son activite : location -> lot_locatif, transaction -> bien_vente. Rien
+ * hors de l'adapter ne doit supposer « trousseau = copro ».
  */
 export type Bien =
   | { type: "copro"; code: string; nom?: string }
-  | { type: "lot_locatif"; ref: string; nom?: string }
-  | { type: "bien_vente"; ref: string; nom?: string };
+  | { type: "lot_locatif"; id: string; ref: string; nom?: string; adresse?: string }
+  | { type: "bien_vente"; id: string; ref: string; nom?: string; adresse?: string };
 
 export interface Acces {
   id: string;
@@ -93,7 +94,7 @@ export interface Acces {
 export const MARQUES = ["introuvable", "retire"] as const;
 export type Marque = (typeof MARQUES)[number];
 
-export type SourceCles = "intranet" | "import_powerapps";
+export type SourceCles = "intranet" | "import_powerapps" | "import_keyko";
 
 export interface Trousseau {
   id: string;
