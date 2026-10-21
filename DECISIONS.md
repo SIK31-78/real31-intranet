@@ -2106,3 +2106,43 @@ Le patron a développé une application autonome (`contratscopro.real31.app`, Ne
 
 ### Liens
 Plan et inventaire : `docs/plan-integration-suivi-contrats-copros.md`. ADR-021 (absorption), ADR-041 (périmètre d'écriture), ADR-040 (journal immuable, référentiel d'entreprises), ADR-047 (garde-fous mail). Ticket REA-333.
+
+---
+
+## ADR-049 - Le bien hors syndic, le périmètre « agence × activité » et la reprise de Keyko
+
+**Statut** : en cours (branche du ticket REA-53, worktree `.claude/worktrees/REA-53`). Décidé par Sekou les 06/10 et 21/10/2026. Étend l'ADR-040 (gestion des clés) ; la généralisation du périmètre à tout l'intranet reste à faire dans un ADR dédié.
+
+### Contexte
+L'agence d'Asnières (La Villa 92, rachetée, bientôt REAL31 ASN) tient ses clés dans **Keyko Manager**, une solution payante (25 €/mois) que le patron veut résilier dès que la reprise est faite (REA-91). Keyko ne connaît que des **biens en gestion locative ou en vente** : 260 biens, 219 trousseaux, 802 clés. Or le module clés de l'ADR-040 ne savait ouvrir qu'une copropriété (`intranet_cles_acces.copropriete_id` obligatoire, l'adapter refusait les autres formes de `Bien`).
+
+Deux contraintes ont orienté le choix :
+- « Pour la gestion locative il faut faire les choses bien car on va le faire pour toutes les agences, et real31.app aura bientôt des outils hors scope syndic » (Sekou, 06/10). Recopier l'adresse sur chaque trousseau aurait réglé Keyko et rien d'autre.
+- Le patron demande que Nadine (direction de la transaction et de la gestion locative), Xavier (direction de la vente) et Chrystelle opèrent sur LGC **et** ASN (REA-90). Leur donner une deuxième agence les rebloquerait dès que ML ou HLS auraient des biens : leur périmètre naturel est un **métier**, pas une agence.
+
+### Décisions
+1. **Un référentiel des biens hors syndic** : table `intranet_bien` (`supabase/sql/intranet_bien.sql`), domaine `src/lib/domain/bien.ts`. Un bien a une agence, une **activité** (`location` ou `transaction`), une référence unique dans l'agence, une adresse structurée, un digicode, un propriétaire et un drapeau `actif` (mandat fini = inactif, jamais supprimé). La copropriété, elle, reste dans ESTALE. Les outils locatifs à venir (mandats, baux, états des lieux) liront le même objet ; il n'appartient pas au module clés.
+2. **L'accès d'un trousseau vise une copropriété OU un bien**, jamais les deux, jamais aucun (`intranet_cles_acces.bien_id`, contrainte `intranet_cles_acces_une_cible`). Côté domaine, `Bien` garde ses trois formes ; les deux formes hors syndic portent l'id du bien, et leur type suit l'activité (location -> `lot_locatif`, transaction -> `bien_vente`). Seul l'adapter `supabase-cles-repository.ts` connaît la jointure. Un port `BienRepository` en lecture seule sert le futur formulaire « copro ou bien ».
+3. **Le périmètre du module clés devient « agence × activité »** (`domain/cles/acteur.ts`, résolu par `lib/auth/acteur-cles.ts`). Un trousseau prend l'activité de son accès principal (copro -> syndic). On opère sur un trousseau si l'on est de son agence, de sa direction, si une **délégation d'agence active** l'ouvre (`intranet_delegation`, ADR-041 : le module clés les ignorait jusque-là), ou si l'on **dirige son activité**. Les activités dirigées se déduisent de la fonction par un mapping déclaratif à côté de `FONCTIONS` (`ACTIVITES_DIRIGEES` dans `domain/collaborateur.ts`), sans nouvelle table : dirigeant -> tout ; responsable transaction et gestion -> transaction + location ; directeur de la vente -> transaction ; responsable de la gestion locative -> location.
+4. **Diriger un métier ouvre le comptoir, pas l'administration** : corriger un mouvement, retirer un trousseau, bloquer une entreprise restent à la direction de l'agence (`estDirectionCles` inchangé). Une modification de trousseau contrôle aussi l'activité de la nouvelle composition, pour qu'on ne fasse pas glisser un trousseau vers un métier qu'on ne dirige pas.
+5. **Le directeur de copropriété reste sur son agence** (Sekou, 21/10) : le syndic se pratique déjà par agence, son rôle `DIRECTEUR_SYNDIC` suffit, rien à ouvrir sur le cabinet.
+6. **Règles de reprise de Keyko** (`scripts/import-cles-keyko.mjs`, décisions du 21/10) :
+   - **L'import est une photo à date.** Les prêts ouverts sont repris tels qu'au jour de l'extraction ; `--ecrire` refuse un dump de plus de 2 jours : on réextrait le jour de la mise en service. Les emprunts clos restent dans le dump archivé, pas dans le journal immuable.
+   - **Activité par l'armoire** : « Transaction » -> transaction, « Gestion 1 à 5 » et « Location » -> location ; un bien rangé dans les deux sort en location et apparaît au rapport.
+   - **Les biens sans clé sont repris inactifs** (90 au dump du 23/09) : rien ne se perd si Asnières dit qu'ils servent encore.
+   - **Les numéros en double prennent le suffixe « -B »** avec la note « doublon Keyko à arbitrer » : les deux trousseaux physiques existent, Asnières tranche après.
+   - Le statut Keyko n'est pas repris (l'état se dérive des prêts, comme à LGC) ; la valeur déclarée des clés part dans la note du trousseau ; le propriétaire « AUTO » de Keyko est l'agence elle-même et n'est jamais repris.
+   - Écriture directe hors des services, comme la reprise PowerApps, sous la source `import_keyko` (`supabase/sql/intranet_cles_import_keyko.sql`). Le dump et les photos restent hors du dépôt (données personnelles).
+
+### Ce qu'on ne fait pas
+- **Le propriétaire n'est pas une entité** : il reste un snapshot sur le bien tant qu'aucun outil locatif ne l'exploite. Un référentiel de personnes sans usage serait de la donnée personnelle gardée pour rien ; il viendra avec les baux.
+- **Pas de refactor du périmètre d'écriture global** (`domain/perimetre-ecriture.ts`, centré copropriété, 54 gardes) avant l'échéance Keyko : la règle « agence × activité » est bornée au module clés. Sa généralisation fera l'objet d'un ADR dédié quand les autres outils hors syndic arriveront.
+- Pas de reprise des boîtes à clés connectées, du badge NFC emprunteur ni des SMS de Keyko : Asnières ne s'en sert pas.
+
+### Conséquences
+- Nadine, Xavier et Laurence MASSONI opèrent sur les trousseaux de leur métier dans les quatre agences, sans habilitation de plus. Chrystelle passe par une délégation d'agence datée vers ASN, à créer.
+- La source d'un bien est l'intranet par défaut ; si Asnières a un logiciel de gestion locative, `source` / `source_ref` permettent d'en devenir le miroir sans migration.
+- Ce qui reste : le formulaire « copro ou bien », les boutons des listes du comptoir (encore décidés sur l'agence de session), un libellé de prêt juste pour les particuliers en locatif (aujourd'hui « Copropriétaire ou conseil syndical »), les photos (728 Mo à redimensionner), l'import réel puis la résiliation.
+
+### Liens
+ADR-040 (gestion des clés, journal immuable), ADR-041 (délégations), ADR-022 (positionnement vis-à-vis d'ESTALE : ESTALE ne connaît pas ces biens, l'intranet les tient). Tickets REA-53 (reprise Keyko), REA-90 (périmètre), REA-91 (résiliation), REA-20 (trousseaux locatifs et transaction). Audit `docs/audit-gestion-des-cles-2026-09-18.md` (§2 et §16, démo Keyko).
