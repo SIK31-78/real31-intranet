@@ -13,7 +13,8 @@ Lire dans l'ordre : Linear (pilotage) -> `ROADMAP.md` (une page : branche, bloqu
 ## Plusieurs agents, UN seul dossier : ne jamais commiter le travail du voisin
 
 Sekou fait souvent travailler plusieurs agents en parallèle, **dans le même dossier
-`real31-intranet`** (il refuse les dossiers multiples, cf. sa règle « un seul dossier »).
+`real31-intranet`** (il refuse les dossiers multiples dans `Projects`, cf. sa règle « un seul
+dossier » ; seuls les worktrees cachés de `.claude/worktrees/` sont admis, voir plus bas).
 Un seul dossier = **un seul index Git partagé**. Trois collisions mesurées le 04/09/2026 :
 des commits qui emportaient le travail à moitié écrit d'un autre agent.
 
@@ -40,12 +41,45 @@ qu'il relise son propre diff (`git diff --stat`) d'abord.
 **Se répartir par ZONE DE CODE, pas par tâche.** Deux agents sur `src/components/layout/`
 se marcheront dessus même avec des sujets différents.
 
-**Worktree** (`git worktree add ../real31-chantier-x main`) : la seule étanchéité réelle,
-un index par agent. À réserver aux gros chantiers parallèles — ça coûte un second
-`pnpm install` et un dossier de plus, ce que Sekou n'aime pas. Nettoyer après.
+**Worktree, seulement dans `.claude/worktrees/`** (décision Sekou du 21/10/2026) : c'est la
+seule étanchéité réelle, un index Git par agent. Règles :
+
+- **Un seul chantier de code dans le dossier principal**, celui que Sekou suit de près.
+  Tout autre chantier de code part en worktree **dès que Sekou le demande** (« travaille dans
+  un worktree ») ou dès qu'un autre agent code déjà dans le dossier principal.
+- Le worktree est créé par Claude (outil `EnterWorktree`) **sous `.claude/worktrees/<REA-xx>`**,
+  jamais en `../real31-…` : rien ne doit apparaître dans `Projects`. Branche = le nom de branche
+  Linear du ticket. Premier geste : `corepack pnpm install`, puis copier `.env.local`.
+- Serveur de dev du worktree sur **un autre port** (`pnpm dev -p 3001`), jamais `rm .next`
+  du dossier principal.
+- Fin du chantier : rebase sur `main`, mise en ligne (règles ci-dessus), puis **retrait du
+  worktree et de la branche locale**. Un worktree oublié = à signaler à Sekou.
+- **Deux chantiers de code en même temps au maximum** sur le PC (≈ 4,6 Go de RAM libres).
+- Les chantiers **sans code** (reprises compta, Linear, mails, skills métier, documents)
+  n'ont besoin d'aucune isolation : autant en parallèle que Sekou veut.
 
 **Le crochet pre-push rejoue toute la CI** (tsc, eslint, vitest, audit UI) : deux agents qui
 poussent en même temps attendent chacun leur tour. C'est normal, ce n'est pas un blocage.
+
+---
+
+## Conversations : le contexte vit dans Linear, pas dans la conversation
+
+Décision Sekou du 21/10/2026 (il avait plus de 20 conversations et vivait de `claude --resume`).
+
+- **Deux sortes de conversations.** Une **conversation de pilotage** (Linear, « Ma semaine »,
+  préparation et compte rendu des points, mails, organisation), recréée chaque lundi. Une
+  **conversation par chantier**, c'est-à-dire par ticket, jetée quand le ticket passe en Done.
+- **« Reprends REA-xx »** : lire le ticket, ses commentaires et ses relations, puis la mémoire,
+  `ROADMAP.md` et le code concerné. Dire en trois lignes où on en est et le prochain geste,
+  puis travailler. Pas besoin de `--resume`.
+- **« On s'arrête »** : écrire dans le ticket un commentaire de reprise (fait, reste à faire,
+  prochain geste, branche ou worktree, fichiers touchés non commités). Mettre le statut à
+  jour. C'est ce commentaire qui permet de reprendre ailleurs, y compris sur le Mac.
+- `--resume` ne sert qu'à **finir la même tâche dans la journée**.
+- Un sujet qui n'a rien à voir avec le ticket de la conversation (organisation, autre
+  chantier) : le noter en ticket ou le renvoyer vers la conversation de pilotage, plutôt que
+  de le traiter sur place.
 
 ---
 

@@ -117,3 +117,6 @@ docs/**/*.jpg
 # Dossiers de travail des reprises de copropriete (scripts, JSON, extractions) — hors depot
 /reprise/*
 !/reprise/README.md
+
+# Worktrees de chantier créés par Claude (CLAUDE.md, décision du 21/10/2026)
+.claude/worktrees/
