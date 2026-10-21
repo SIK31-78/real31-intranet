@@ -7,7 +7,16 @@ import type { ExtracteurPdf } from "@/lib/ports/extracteur-pdf";
 export class PdfjsExtracteur implements ExtracteurPdf {
   async texte(octets: Uint8Array, maxPages = 3): Promise<string> {
     // Import dynamique : pdfjs ne doit pas alourdir les bundles qui ne lisent pas de PDF.
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    // Le worker est importe ICI, par un chemin ecrit en dur, et pose sur globalThis : pdfjs
+    // le prend alors dans le meme fil au lieu de le charger par un chemin calcule, que le
+    // traceur de Vercel ne suit pas (lecture des PDF du tri en panne en prod, REA-390). Pas
+    // de glob dans next.config : sous pnpm, il faisait refuser le paquet par Vercel.
+    const [pdfjs, worker] = await Promise.all([
+      import("pdfjs-dist/legacy/build/pdf.mjs"),
+      // @ts-expect-error pdfjs-dist ne livre pas de types pour le worker.
+      import("pdfjs-dist/legacy/build/pdf.worker.mjs"),
+    ]);
+    (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker ??= worker;
     const doc = await pdfjs.getDocument({
       data: octets,
       isEvalSupported: false,
