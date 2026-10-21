@@ -4,6 +4,13 @@
 //
 //   node scripts/import-cles-keyko.mjs --dump "<chemin>/keyko-asn-AAAA-MM-JJ.json"            # dry-run : rapport, rien d'ecrit
 //   node scripts/import-cles-keyko.mjs --dump "<chemin>/keyko-asn-AAAA-MM-JJ.json" --ecrire   # ecrit reellement
+//   ... --photos "<chemin>/photos-reduites"                 # + verse les photos dans le bucket « cles »
+//   ... --ecrire --photos-seulement --photos "<chemin>"     # apres coup : rattache les photos aux trousseaux deja importes
+//
+// Les photos se preparent a cote du dump : keyko-photos.mjs les telecharge (« <reference>--<id
+// Keyko>.jpg »), keyko-photos-reduire.py les ramene a 1600 px (727 Mo -> 40 Mo au 23/09, dont
+// 2 HEIC d'iPhone nommes .jpg). La correspondance se fait par l'id Keyko, stable meme quand
+// deux trousseaux ont la meme reference.
 //
 // Le dump contient des donnees personnelles (proprietaires, emprunteurs) : il reste HORS du
 // depot (Mythec-refactor/Gestion des cles/Keyko ASN/), comme les photos.
@@ -30,9 +37,11 @@
 //  - Prets : seuls les emprunts EN COURS au jour du dump. Societe -> pret « entreprise »
 //    (rapprochee du referentiel par nom normalise, sinon creee) ; particulier -> pret
 //    « coproprietaire » avec le contact en snapshot. Les emprunts clos restent dans le dump.
-//  - Photos : pas dans ce script (728 Mo a redimensionner d'abord, etape suivante).
+//  - Photos : versees en trousseaux/<id du trousseau>.jpg (meme chemin que l'ecran) ; une photo
+//    qui echoue n'arrete pas l'import, elle est listee et se rattrape par --photos-seulement.
 
 import fs from "node:fs";
+import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const AGENCE = "ASN";
@@ -41,9 +50,22 @@ const ECRIRE = process.argv.includes("--ecrire");
 const iDump = process.argv.indexOf("--dump");
 const CHEMIN_DUMP = iDump >= 0 ? process.argv[iDump + 1] : null;
 const AGE_MAX_JOURS = 2;
+const iPhotos = process.argv.indexOf("--photos");
+const DOSSIER_PHOTOS = iPhotos >= 0 ? process.argv[iPhotos + 1] : null;
+const PHOTOS_SEULEMENT = process.argv.includes("--photos-seulement");
+/** Meme plafond que l'ecran (TAILLE_MAX_PHOTO, services/cles/referentiel.ts). */
+const TAILLE_MAX_PHOTO = 8 * 1024 * 1024;
 
 if (!CHEMIN_DUMP || !fs.existsSync(CHEMIN_DUMP)) {
-  console.error('Usage : node scripts/import-cles-keyko.mjs --dump "<chemin du dump Keyko>" [--ecrire]');
+  console.error('Usage : node scripts/import-cles-keyko.mjs --dump "<chemin du dump Keyko>" [--photos "<dossier>"] [--ecrire [--photos-seulement]]');
+  process.exit(1);
+}
+if (DOSSIER_PHOTOS && !fs.existsSync(DOSSIER_PHOTOS)) {
+  console.error(`Dossier de photos introuvable : ${DOSSIER_PHOTOS}`);
+  process.exit(1);
+}
+if (PHOTOS_SEULEMENT && !DOSSIER_PHOTOS) {
+  console.error("--photos-seulement demande --photos <dossier>");
   process.exit(1);
 }
 
@@ -292,6 +314,18 @@ for (const e of dump.emprunts.filter((x) => !x.fini)) {
 // ---------------------------------------------------------------------------
 // Rapport
 // ---------------------------------------------------------------------------
+// Photos : le fichier de chaque trousseau, retrouve par l'id Keyko en fin de nom.
+const photoParKeykoId = new Map();
+if (DOSSIER_PHOTOS) {
+  for (const f of fs.readdirSync(DOSSIER_PHOTOS)) {
+    const m = f.match(/--(\d+)\.(jpe?g)$/i);
+    if (m) photoParKeykoId.set(Number(m[1]), path.join(DOSSIER_PHOTOS, f));
+  }
+}
+const photosAVerser = trousseaux.filter((t) => photoParKeykoId.has(t.keykoId)).map((t) => ({ numero: t.numero, fichier: photoParKeykoId.get(t.keykoId), taille: fs.statSync(photoParKeykoId.get(t.keykoId)).size }));
+const photosManquantes = trousseaux.filter((t) => t.photo && !photoParKeykoId.has(t.keykoId)).map((t) => t.numero);
+const photosTropLourdes = photosAVerser.filter((p) => p.taille > TAILLE_MAX_PHOTO);
+
 const actifs = biens.filter((b) => b.ligne.actif);
 const parActivite = (act) => actifs.filter((b) => b.ligne.activite === act).length;
 const nbCles = trousseauxKeyko.reduce((n, t) => n + (t.cles?.length ?? 0), 0);
@@ -299,7 +333,13 @@ const valeurTotale = trousseauxKeyko.reduce((s, t) => s + (t.cles ?? []).reduce(
 console.log(`\n=== Reprise Keyko Manager (${AGENCE}) → intranet_bien + intranet_cles_* (${ECRIRE ? "ÉCRITURE" : "dry-run"}) ===`);
 console.log(`Dump extrait le ${dump.extrait_le} (il y a ${ageJours} j) : ${dump.biens.length} biens, ${trousseauxKeyko.length} trousseaux, ${nbCles} clés (${valeurTotale.toLocaleString("fr-FR")} € déclarés), ${dump.emprunts.length} emprunts.`);
 console.log(`Biens : ${biens.length} dont ${actifs.length} actifs (location ${parActivite("location")}, transaction ${parActivite("transaction")}) et ${biens.length - actifs.length} sans clé, repris inactifs.`);
-console.log(`Trousseaux : ${trousseaux.length} · accès ${trousseaux.filter((t) => t.bienKeykoId).length} · doubles liés ${trousseaux.filter((t) => t.jumeauDeRef).length} · photos référencées ${trousseaux.filter((t) => t.photo).length} (téléversement : étape suivante)`);
+console.log(`Trousseaux : ${trousseaux.length} · accès ${trousseaux.filter((t) => t.bienKeykoId).length} · doubles liés ${trousseaux.filter((t) => t.jumeauDeRef).length} · photos référencées ${trousseaux.filter((t) => t.photo).length}`);
+if (DOSSIER_PHOTOS) {
+  const mo = (n) => `${(n / 1024 / 1024).toFixed(1)} Mo`;
+  console.log(`Photos : ${photosAVerser.length} à verser (${mo(photosAVerser.reduce((s, p) => s + p.taille, 0))}), ${photosManquantes.length} référencées dans Keyko mais absentes du dossier${photosManquantes.length ? ` (${photosManquantes.join(", ")})` : ""}, ${photosTropLourdes.length} au-dessus de 8 Mo${photosTropLourdes.length ? ` (${photosTropLourdes.map((p) => p.numero).join(", ")} : relancer keyko-photos-reduire.py)` : ""}`);
+} else {
+  console.log("Photos : aucun dossier fourni (--photos), elles ne seront pas versées.");
+}
 const parArmoire = new Map();
 for (const t of trousseaux) parArmoire.set(t.ligne.emplacement, (parArmoire.get(t.ligne.emplacement) ?? 0) + 1);
 console.log(`Par armoire : ${[...parArmoire].map(([a, n]) => `${a} ${n}`).join(", ")}`);
@@ -322,7 +362,43 @@ if (!ECRIRE) {
 // Écriture (pas de process.exit en fin de dry-run : sous Windows, il fait planter node quand
 // des connexions fetch sont encore ouvertes)
 // ---------------------------------------------------------------------------
+/** Verse les photos dans le bucket « cles » et les rattache. Une photo en echec n'arrete rien. */
+async function verserPhotos(idT) {
+  if (photosTropLourdes.length) console.warn(`${photosTropLourdes.length} photo(s) au-dessus de 8 Mo ignorée(s) : ${photosTropLourdes.map((p) => p.numero).join(", ")}`);
+  let n = 0;
+  const echecs = [];
+  for (const p of photosAVerser.filter((x) => x.taille <= TAILLE_MAX_PHOTO)) {
+    const id = idT.get(p.numero);
+    if (!id) {
+      echecs.push(`${p.numero} : trousseau absent en base`);
+      continue;
+    }
+    const chemin = `trousseaux/${id}.jpg`;
+    const { error } = await sb.storage.from("cles").upload(chemin, fs.readFileSync(p.fichier), { contentType: "image/jpeg", upsert: true });
+    if (error) {
+      echecs.push(`${p.numero} : ${error.message}`);
+      continue;
+    }
+    const { error: e2 } = await sb.from("intranet_cles_trousseau").update({ photo_chemin: chemin }).eq("id", id);
+    if (e2) echecs.push(`${p.numero} : photo versée mais non rattachée (${e2.message})`);
+    else n++;
+  }
+  console.log(`✓ ${n} photos versées`);
+  for (const e of echecs) console.log(`  - ${e}`);
+  if (echecs.length) console.log("  Rattrapage : relancer avec --ecrire --photos-seulement --photos <dossier>.");
+}
+
 async function ecrire() {
+  if (PHOTOS_SEULEMENT) {
+    // Apres coup : les trousseaux sont deja la, on ne fait que rattacher les photos (par numero).
+    const { data: existants, error } = await sb.from("intranet_cles_trousseau").select("id, numero").eq("agence_code", AGENCE);
+    if (error || !existants?.length) {
+      console.error(`\nREFUS : aucun trousseau ${AGENCE} en base${error ? ` (${error.message})` : ""}. Importer d'abord.`);
+      process.exit(1);
+    }
+    await verserPhotos(new Map(existants.map((r) => [r.numero, r.id])));
+    return;
+  }
   if (ageJours > AGE_MAX_JOURS) {
     console.error(`\nREFUS : le dump a ${ageJours} jours (maximum ${AGE_MAX_JOURS}). L'import est une photo à date : réextraire Keyko d'abord.`);
     process.exit(1);
@@ -356,6 +432,7 @@ async function ecrire() {
     await sb.from("intranet_cles_trousseau").update({ jumeau_de: idT.get(t.jumeauDeRef.toUpperCase()) }).eq("id", idT.get(t.numero));
   }
   console.log(`✓ ${idsT.length} trousseaux`);
+  if (DOSSIER_PHOTOS) await verserPhotos(idT);
 
   // 3. Acces : chaque trousseau ouvre son bien
   const lignesA = trousseaux
