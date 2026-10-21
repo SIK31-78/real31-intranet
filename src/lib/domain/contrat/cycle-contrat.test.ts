@@ -6,7 +6,7 @@
 // et tous les contrats imprimes changeront.
 
 import { describe, expect, it } from "vitest";
-import { cycleSuivant, finContratEnCours, finDeCycle, motifRefusCycle } from "./cycle-contrat";
+import { alertesDatesContrat, cycleSuivant, finContratAvantAg, finContratEnCours, finDeCycle, motifRefusCycle } from "./cycle-contrat";
 import { dureeContratTexte } from "./duree-contrat";
 
 describe("cycleSuivant", () => {
@@ -136,5 +136,51 @@ describe("finContratEnCours", () => {
 
   it("ignore une date de referentiel illisible plutot que de la comparer de travers", () => {
     expect(finContratEnCours("30/06/2026", cycle("2026-07-01"))).toBe("2027-06-30");
+  });
+});
+
+// Les cas reels releves le 21/10/2026 (base de prod) : S111 Villa La Croix et S065 ont ete
+// edites un an trop tard apres le recap ; S003 et S232 sont justes malgre un App A perime.
+describe("finContratAvantAg", () => {
+  const bascule = { debutISO: "2025-10-01", finISO: null, enregistreLeISO: "2026-07-22" };
+  const s111 = [{ debutISO: "2026-10-01", finISO: "2027-09-30", enregistreLeISO: "2026-10-01" }, bascule];
+
+  it("ecarte le cycle que le recap de cette AG a deja enregistre (S111)", () => {
+    expect(finContratAvantAg("2026-09-30", s111, "2026-09-29")).toBe("2026-09-30");
+    // Avant le correctif : la fin du dernier cycle, donc un debut au 01/10/2027.
+    expect(finContratEnCours("2026-09-30", s111[0])).toBe("2027-09-30");
+  });
+  it("mandat retroactif : le cycle enregistre apres l'AG est ecarte meme s'il commence avant", () => {
+    const cycles = [{ debutISO: "2026-10-01", finISO: "2027-09-30", enregistreLeISO: "2026-10-20" }];
+    expect(finContratAvantAg("2026-09-30", cycles, "2026-10-19")).toBe("2026-09-30");
+  });
+  it("App A mis a jour apres l'AG : sa fin est celle du cycle ecarte, elle ne compte pas", () => {
+    expect(finContratAvantAg("2027-09-30", s111, "2026-09-29")).toBeNull();
+  });
+  it("App A perime : le cycle enregistre avant l'AG fait foi (S003, S232)", () => {
+    expect(finContratAvantAg("2025-12-31", [{ debutISO: "2026-01-01", finISO: null, enregistreLeISO: "2026-07-22" }], "2026-11-03")).toBe("2026-12-31");
+    expect(finContratAvantAg("2026-01-16", [{ debutISO: "2026-01-17", finISO: "2027-01-16", enregistreLeISO: "2026-07-22" }], "2026-09-23")).toBe("2027-01-16");
+  });
+  it("sans date d'AG : tout ce qui est connu compte", () => {
+    expect(finContratAvantAg("2026-09-30", s111, undefined)).toBe("2027-09-30");
+  });
+});
+
+describe("alertesDatesContrat", () => {
+  const reperes = { finReferentielISO: "2026-09-30", cycles: [{ debutISO: "2026-10-01", finISO: "2027-09-30", enregistreLeISO: "2026-10-01" }] };
+
+  it("alerte sur la date de Villa La Croix, pas sur la bonne", () => {
+    expect(alertesDatesContrat({ dateAgISO: "2026-09-29", debutISO: "2027-10-01" }, reperes, "2026-10-03")).toEqual([
+      "le contrat précédent finit le 30/09/2026 : le nouveau devrait prendre effet le 01/10/2026, pas le 01/10/2027. À vérifier avant d'éditer.",
+    ]);
+    expect(alertesDatesContrat({ dateAgISO: "2026-09-29", debutISO: "2026-10-01" }, reperes, "2026-10-03")).toEqual([]);
+  });
+  it("un renouvellement anticipe (debut avant le lendemain) n'alerte pas", () => {
+    expect(alertesDatesContrat({ dateAgISO: "2026-06-15", debutISO: "2026-07-01" }, reperes, "2026-06-20")).toEqual([]);
+  });
+  it("alerte sur une AG de plus de 6 mois (S111, AG du 24/06/2025 pre-remplie le 29/09/2026)", () => {
+    const [a] = alertesDatesContrat({ dateAgISO: "2025-06-24", debutISO: "2026-10-01" }, { finReferentielISO: "2026-09-30", cycles: [] }, "2026-09-29");
+    expect(a).toBe("l'assemblée du 24/06/2025 date de plus de 6 mois : le barème appliqué sera celui de 2025. Vérifier la date.");
+    expect(alertesDatesContrat({ dateAgISO: "2026-04-01", debutISO: "2026-10-01" }, { finReferentielISO: "2026-09-30", cycles: [] }, "2026-09-30")).toEqual([]);
   });
 });

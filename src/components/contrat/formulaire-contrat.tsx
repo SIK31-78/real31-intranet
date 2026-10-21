@@ -31,9 +31,11 @@ import { Choix, Field, GroupeChoix, Input } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { telechargerPdf } from "./telecharger-pdf";
 import {
+  alertesDatesContrat,
   DUREES_CONTRAT_MOIS,
   finDeCycle,
   motifRefusCycle,
+  type ReperesDatesContrat,
 } from "@/lib/domain/contrat/cycle-contrat";
 import { dureeContratTexte } from "@/lib/domain/contrat/duree-contrat";
 import { lireMontant } from "@/lib/domain/lire-montant";
@@ -50,6 +52,8 @@ export function FormulaireContrat({
   forfaitPostauxTtc,
   fraisPostauxReels = false,
   sansFraisPostaux = false,
+  reperes,
+  aujourdhuiISO,
 }: {
   coproCode: string;
   dateAgISO: string;
@@ -62,6 +66,10 @@ export function FormulaireContrat({
   fraisPostauxReels?: boolean;
   /** Contrat de mandat (ASL / AFUL) : pas de forfait postal, le bloc n'apparait pas. */
   sansFraisPostaux?: boolean;
+  /** Contrats passes, pour le garde-fou des dates. Absent (formulaire vierge) : pas d'alerte. */
+  reperes?: ReperesDatesContrat;
+  /** Date du jour cote serveur (le seuil d'AG ancienne ne depend pas de l'horloge du poste). */
+  aujourdhuiISO?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -85,6 +93,8 @@ export function FormulaireContrat({
       : null;
   // Duree telle qu'elle s'imprimera, pour que « 15 mois » se lise avant d'editer.
   const duree = datesLisibles && refusCycle === null ? dureeContratTexte(debut, fin) : null;
+  // Garde-fou du 21/10/2026 (Villa La Croix) : il previent, il n'empeche pas d'editer.
+  const alertes = reperes && aujourdhuiISO && datesLisibles ? alertesDatesContrat({ dateAgISO: ag, debutISO: debut }, reperes, aujourdhuiISO) : [];
 
   // Un raccourci recalcule la fin depuis le debut. Changer le debut garde la fin en
   // place (le gestionnaire la voit et la corrige) - sauf quand elle est vide : poser un
@@ -204,6 +214,11 @@ export function FormulaireContrat({
       {refusCycle !== null && (
         <p className="text-body text-err-700">Cycle refusé : {refusCycle}.</p>
       )}
+      {alertes.map((a) => (
+        <p key={a} className="text-body text-warn-700" role="status">
+          Attention : {a}
+        </p>
+      ))}
       {duree !== null && (
         <p className="text-body text-ink-2">
           Durée imprimée : <span className="font-medium">{duree}</span>.

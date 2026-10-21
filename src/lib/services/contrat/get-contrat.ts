@@ -13,9 +13,10 @@ import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 import { signalerSiegeAgenceInconnu } from "@/lib/services/contrat/signaler-siege-agence";
 import {
   cycleSuivant,
-  finContratEnCours,
+  finContratAvantAg,
   finDeCycle,
   motifRefusCycle,
+  type ReperesDatesContrat,
 } from "@/lib/domain/contrat/cycle-contrat";
 import {
   assemblerChampsContrat,
@@ -62,14 +63,21 @@ export async function getContrat(
   coproCode: string,
   options: OptionsContrat = {},
 ): Promise<ChampsContrat> {
+  return (await preparerContrat(coproCode, options)).champs;
+}
+
+/** Les champs du contrat ET les reperes qui servent a controler ses dates (garde-fou). */
+export async function preparerContrat(
+  coproCode: string,
+  options: OptionsContrat = {},
+): Promise<{ champs: ChampsContrat; reperes: ReperesDatesContrat }> {
   const repo = getFacturationRepository();
-  const [donnees, parametres, derniersContrats, editions, coproRef] = await Promise.all([
+  const [donnees, parametres, cycles, editions, coproRef] = await Promise.all([
     repo.getDonneesContrat(coproCode),
     repo.getParametresCopro(coproCode),
-    // Le DERNIER cycle enregistre, meme s'il n'a pas commence : un renouvellement deja
-    // acte par le recap est ce que le prochain contrat doit suivre. Meme lecture que la
-    // liste, pour que la fiche et la liste racontent le meme cycle.
-    repo.listerDerniersContrats([coproCode]),
+    // TOUS les cycles : le contrat suit celui qu'on connaissait avant l'AG, qui n'est pas
+    // forcement le dernier (cf. finContratAvantAg).
+    repo.listerCyclesContrat(coproCode),
     repo.listerEditionsContrat(coproCode),
     // La date d'AG n'est PAS une donnee du contrat : c'est celle de l'assemblee qui va le
     // voter, et au moment ou on genere (la convocation) elle est deja fixee - c'est meme
@@ -86,19 +94,18 @@ export async function getContrat(
   );
 
   if (!donnees) throw new Error(`Contrat de syndic : copropriete ${coproCode} introuvable.`);
-  const contratCourant = derniersContrats.get(coproCode);
-  // La fin du contrat EN COURS croise les deux sources : le referentiel App A n'est pas
-  // mis a jour au renouvellement, l'intranet si (cf. finContratEnCours).
-  const finEnCours = finContratEnCours(
-    donnees.finMandatISO,
-    contratCourant
-      ? {
-          debutISO: contratCourant.debutContrat,
-          finISO: contratCourant.finContrat,
-          enregistreLeISO: contratCourant.enregistreLeISO,
-        }
-      : null,
-  );
+  // Le plus recent : ses honoraires et son forfait servent de valeurs par defaut.
+  const contratCourant = cycles[0];
+  const reperes: ReperesDatesContrat = {
+    finReferentielISO: donnees.finMandatISO,
+    cycles: cycles.map((c) => ({ debutISO: c.debutContrat, finISO: c.finContrat ?? null, enregistreLeISO: c.enregistreLeISO ?? null })),
+  };
+  // L'AG qui vote le contrat, quand on la connait : saisie, sinon planifiee.
+  const agConnue = options.dateAgISO ?? coproRef?.prochaineAg?.date;
+  // La fin du contrat que l'AG renouvelle croise les deux sources (App A n'est pas mis a
+  // jour au renouvellement, l'intranet si), en ecartant ce que l'AG a deja fait enregistrer :
+  // sinon une reedition apres le recap saute d'un an (Villa La Croix, 03/10/2026).
+  const finEnCours = finContratAvantAg(reperes.finReferentielISO, reperes.cycles, agConnue);
 
   // Le cycle propose : a la suite du mandat en cours ; pour une reprise sans aucun
   // mandat connu, a la prise en gestion. Le gestionnaire peut imposer les deux bornes
@@ -124,7 +131,7 @@ export async function getContrat(
   if (refus) throw new Error(`Contrat de syndic : ${refus} (${cycle.debut} → ${cycle.fin}).`);
   // L'AG planifiee d'abord ; a defaut le debut du cycle, qui reste editable dans le
   // formulaire. Mieux qu'une date inventee.
-  const dateAgISO = options.dateAgISO ?? coproRef?.prochaineAg?.date ?? cycle.debut;
+  const dateAgISO = agConnue ?? cycle.debut;
   // Le bareme est celui de l'ANNEE DE L'AG, pas de l'annee ou le mandat demarre : c'est
   // la regle du flow MYTHEC (`formatDateTime(date AG, 'yyyy')`), relue le 14/09/2026
   // apres que Sekou a bute sur des contrats « en attente du bareme 2027 » pour des AG
@@ -192,7 +199,7 @@ export async function getContrat(
   // logs) ; l'ecran de generation affiche le meme avertissement (REA-273).
   signalerSiegeAgenceInconnu(copro.agence, { copro: coproCode });
 
-  return assemblerChampsContrat(
+  const champs = assemblerChampsContrat(
     copro,
     {
       dateAgISO,
@@ -210,4 +217,5 @@ export async function getContrat(
     },
     tarifs,
   );
+  return { champs, reperes };
 }

@@ -261,6 +261,8 @@ export interface EditionContrat {
   finISO: string | null;
   /** Frais postaux au reel sur ce document. false pour les editions MYTHEC (forfait). */
   fraisPostauxReels: boolean;
+  /** Alertes de dates passees outre (vide : aucune, ou edition d'avant le 21/10/2026). */
+  alertes: string[];
   /** Horodatage de l'edition, ISO. */
   creeLe: string;
   creePar: string | null;
@@ -277,6 +279,8 @@ export interface NouvelleEditionContrat {
   fraisPostauxReels: boolean;
   /** Nom complet de qui edite. */
   creePar: string;
+  /** Alertes de dates passees outre a l'edition (garde-fou du 21/10/2026). */
+  alertes?: string[];
 }
 
 /** Une ligne du bareme annuel. */
@@ -310,6 +314,12 @@ export interface FacturationRepository {
    * un par un faisait autant d'allers-retours que de coproprietes.
    */
   listerDerniersContrats(coproCodes: string[]): Promise<Map<string, ContratCopro>>;
+  /**
+   * TOUS les cycles enregistres d'une copro, du plus recent au plus ancien. Le contrat a
+   * editer suit le cycle connu AVANT l'AG, qui n'est pas forcement le dernier (REA du
+   * 21/10/2026, Villa La Croix : le recap de l'AG avait deja enregistre le nouveau cycle).
+   */
+  listerCyclesContrat(coproCode: string): Promise<ContratCopro[]>;
   /** Parametres contractuels de la copro (franchises, plage d'AG). Null si copro inconnue. */
   getParametresCopro(coproCode: string): Promise<ParametresCopro | null>;
   /**

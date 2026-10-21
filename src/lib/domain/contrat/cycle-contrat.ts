@@ -129,6 +129,110 @@ export function estCycleDeBascule(cycle: DernierCycle): boolean {
   );
 }
 
+function finDuCycle(cycle: DernierCycle): string {
+  return cycle.finISO && JOUR_RE.test(cycle.finISO) ? cycle.finISO : finDeCycle(cycle.debutISO);
+}
+
+function lendemain(iso: string): string {
+  const d = parseISO(iso);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return toISO(d);
+}
+
+function jourFr(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+}
+
+/**
+ * Fin du contrat que l'AG renouvelle : le contrat PRECEDENT, tel qu'on le connaissait AVANT
+ * l'assemblee.
+ *
+ * L'INCIDENT (Villa La Croix S111, Fanny le 03/10/2026 ; meme cas sur S065) : le recap de
+ * l'AG du 29/09 avait enregistre le nouveau cycle 01/10/2026 -> 30/09/2027. Regenerer le
+ * contrat partait de la fin du DERNIER cycle connu, c'est-a-dire de lui-meme, et proposait
+ * un debut au 01/10/2027 : un an de trop.
+ *
+ * On ecarte donc tout cycle enregistre le jour de l'AG ou apres : c'est ce que l'AG a vote
+ * (ou plus tard). Pas de comparaison des DEBUTS a la date d'AG : un mandat retroactif au 1er
+ * du mois commence avant l'AG qui le vote (S029 : AG du 19/10, debut au 01/10). La fin du
+ * referentiel App A compte aussi, sauf si elle est celle d'un cycle ecarte (App A mis a jour
+ * apres l'AG). Sans date d'AG, tout ce qui est connu compte (= finContratEnCours).
+ */
+export function finContratAvantAg(
+  finReferentielISO: string | null | undefined,
+  cycles: readonly DernierCycle[],
+  dateAgISO: string | null | undefined,
+): string | null {
+  const ag = dateAgISO && JOUR_RE.test(dateAgISO) ? dateAgISO : null;
+  const valides = cycles.filter((c) => JOUR_RE.test(c.debutISO) && !estCycleDeBascule(c));
+  const votesParAg = (c: DernierCycle) => ag !== null && !!c.enregistreLeISO && c.enregistreLeISO.slice(0, 10) >= ag;
+  const connus = valides.filter((c) => !votesParAg(c));
+  const finsEcartees = new Set(valides.filter(votesParAg).map(finDuCycle));
+
+  const fins = connus.map(finDuCycle);
+  if (finReferentielISO && JOUR_RE.test(finReferentielISO) && !finsEcartees.has(finReferentielISO)) {
+    fins.push(finReferentielISO);
+  }
+  return fins.length > 0 ? fins.reduce((a, b) => (b > a ? b : a)) : null;
+}
+
+/**
+ * Le debut saisi laisse-t-il un trou apres le contrat precedent ? Rend le message, ou null.
+ * Alerte, jamais un refus (Sekou, 21/10/2026) : une reprise apres une periode sans syndic
+ * commence legitimement plus tard. Un debut AVANT le lendemain (renouvellement anticipe)
+ * n'alerte pas.
+ */
+export function alerteDebutApresContratPrecedent(debutISO: string, finPrecedenteISO: string | null): string | null {
+  if (!finPrecedenteISO || !JOUR_RE.test(debutISO) || !JOUR_RE.test(finPrecedenteISO)) return null;
+  const attendu = lendemain(finPrecedenteISO);
+  if (debutISO <= attendu) return null;
+  return (
+    `le contrat précédent finit le ${jourFr(finPrecedenteISO)} : le nouveau devrait prendre effet le ` +
+    `${jourFr(attendu)}, pas le ${jourFr(debutISO)}. À vérifier avant d'éditer.`
+  );
+}
+
+/** Au-dela, une date d'AG est suspecte (meme seuil que le recap AG, REA-166). */
+export const ANCIENNETE_AG_SUSPECTE_MOIS = 6;
+
+/**
+ * Date d'AG trop ancienne : c'est le pre-remplissage perime qui a fait editer trois contrats
+ * de S111 avec une AG du 24/06/2025, donc au bareme 2025 (29/09/2026). Rend le message, ou null.
+ */
+export function alerteAgAncienne(dateAgISO: string, aujourdhuiISO: string): string | null {
+  if (!JOUR_RE.test(dateAgISO) || !JOUR_RE.test(aujourdhuiISO)) return null;
+  const seuil = finDeCycle(dateAgISO, ANCIENNETE_AG_SUSPECTE_MOIS); // AG + 6 mois - 1 jour
+  if (seuil >= aujourdhuiISO) return null;
+  return (
+    `l'assemblée du ${jourFr(dateAgISO)} date de plus de ${ANCIENNETE_AG_SUSPECTE_MOIS} mois : ` +
+    `le barème appliqué sera celui de ${dateAgISO.slice(0, 4)}. Vérifier la date.`
+  );
+}
+
+/** Ce qu'il faut savoir des contrats passes pour controler les dates d'un nouveau contrat. */
+export interface ReperesDatesContrat {
+  /** Fin du mandat au referentiel App A (`syndicContractEndDate`). */
+  finReferentielISO: string | null;
+  /** Tous les cycles enregistres par l'intranet. */
+  cycles: DernierCycle[];
+}
+
+/**
+ * Les alertes de dates d'un contrat a editer (garde-fou du 21/10/2026). Pure : le formulaire
+ * l'appelle a chaque saisie, le serveur a l'edition pour en garder la trace. N'empeche rien.
+ */
+export function alertesDatesContrat(
+  saisie: { dateAgISO: string; debutISO: string },
+  reperes: ReperesDatesContrat,
+  aujourdhuiISO: string,
+): string[] {
+  const finPrecedente = finContratAvantAg(reperes.finReferentielISO, reperes.cycles, saisie.dateAgISO);
+  return [
+    alerteDebutApresContratPrecedent(saisie.debutISO, finPrecedente),
+    alerteAgAncienne(saisie.dateAgISO, aujourdhuiISO),
+  ].filter((a): a is string => a !== null);
+}
+
 /**
  * Fin du contrat REELLEMENT en cours : la plus tardive entre la date du referentiel App A
  * (`syndicContractEndDate`) et la fin du dernier cycle enregistre par l'intranet.

@@ -7,7 +7,8 @@
 
 import { getFacturationRepository } from "@/lib/adapters/router";
 import type { ChampsContrat } from "@/lib/domain/contrat/champs-contrat";
-import { getContrat, type OptionsContrat } from "./get-contrat";
+import { alertesDatesContrat } from "@/lib/domain/contrat/cycle-contrat";
+import { preparerContrat, type OptionsContrat } from "./get-contrat";
 
 export interface DemandeEdition extends OptionsContrat {
   coproCode: string;
@@ -22,8 +23,12 @@ export interface DemandeEdition extends OptionsContrat {
  */
 export async function editerContrat(demande: DemandeEdition): Promise<ChampsContrat> {
   const { coproCode, par, ...options } = demande;
-  const champs = await getContrat(coproCode, options);
+  const { champs, reperes } = await preparerContrat(coproCode, options);
+  // Le garde-fou n'empeche pas d'editer (Sekou, 21/10/2026) : on garde la trace de ce que
+  // le gestionnaire a passe outre, pour retrouver ces contrats apres coup.
+  const alertes = alertesDatesContrat(champs, reperes, new Date().toISOString().slice(0, 10));
   await getFacturationRepository().enregistrerEditionContrat({
+    ...(alertes.length > 0 ? { alertes } : {}),
     coproCode,
     dateAgISO: champs.dateAgISO,
     debutISO: champs.debutISO,

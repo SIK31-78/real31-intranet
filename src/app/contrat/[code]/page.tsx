@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { getContrat, getEditionsContrat } from "@/lib/services/contrat/get-contrat";
+import { getEditionsContrat, preparerContrat } from "@/lib/services/contrat/get-contrat";
 import { estAslOuAful, libelleFormeJuridique } from "@/lib/domain/copropriete";
 import { avertissementSiegeAgence } from "@/lib/domain/salles-reunion";
 import { getGestionnaireCourant } from "@/lib/auth/session";
@@ -59,9 +59,9 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
   if (!g) redirect("/dev-login");
   const dossierAg = dossierAgSharepoint(code);
 
-  let champs;
+  let champs, reperes;
   try {
-    champs = await getContrat(code);
+    ({ champs, reperes } = await preparerContrat(code));
   } catch (e) {
     const message = (e as Error).message;
     if (/introuvable/.test(message)) notFound();
@@ -149,6 +149,8 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
               forfaitPostauxTtc={champs.forfaitPostauxTtc}
               fraisPostauxReels={champs.fraisPostauxReels}
               sansFraisPostaux={mandat}
+              reperes={reperes}
+              aujourdhuiISO={new Date().toISOString().slice(0, 10)}
             />
           </CardBody>
         </Card>
@@ -258,6 +260,10 @@ export default async function ContratPage({ params }: { params: Promise<{ code: 
                       {e.statut === "erreur" ? (
                         <Badge ton="err" title={e.messageErreur ?? undefined}>
                           Échec
+                        </Badge>
+                      ) : e.alertes.length > 0 ? (
+                        <Badge ton="warn" title={e.alertes.join("\n")}>
+                          Édité malgré une alerte
                         </Badge>
                       ) : (
                         <Badge ton="ok">Édité</Badge>

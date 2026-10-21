@@ -41,6 +41,9 @@ const COLS_CONTRAT = `${COLS_CONTRAT_BASE}, fin_contrat, tarifs`;
 const COLS_EDITION_BASE =
   "copropriete_id, titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par";
 const COLS_EDITION = `${COLS_EDITION_BASE}, debut_contrat, fin_contrat, frais_postaux_reels`;
+// `alertes` arrive avec intranet_contrats_alertes.sql (21/10/2026) : lue a part pour qu'une
+// base sans la colonne garde les dates des editions.
+const COLS_EDITION_ALERTES = `${COLS_EDITION}, alertes`;
 function colonneAbsente(message: string | undefined, colonne: string): boolean {
   return Boolean(message && message.includes(colonne));
 }
@@ -466,12 +469,19 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       cree_le: new Date().toISOString(),
       cree_par: input.creePar,
     };
-    let { error } = await supabase.from("intranet_historique_contrats").insert({
+    const complet: Record<string, unknown> = {
       ...base,
       debut_contrat: input.debutISO,
       fin_contrat: input.finISO,
       frais_postaux_reels: input.fraisPostauxReels,
-    });
+    };
+    let { error } = await supabase
+      .from("intranet_historique_contrats")
+      .insert(input.alertes?.length ? { ...complet, alertes: input.alertes } : complet);
+    // Colonne `alertes` pas encore creee : l'edition se trace sans elles.
+    if (error && colonneAbsente(error.message, "alertes")) {
+      ({ error } = await supabase.from("intranet_historique_contrats").insert(complet));
+    }
     if (
       error &&
       (colonneAbsente(error.message, "fin_contrat") ||
@@ -558,6 +568,22 @@ export class SupabaseFacturationRepository implements FacturationRepository {
     return parCopro;
   }
 
+  async listerCyclesContrat(coproCode: string): Promise<ContratCopro[]> {
+    const supabase = createSupabasePublicClient();
+    const requete = (cols: string) =>
+      supabase
+        .from("intranet_suivi_contrats")
+        .select(cols)
+        .eq("copropriete_id", coproCode)
+        .order("debut_contrat", { ascending: false });
+    let { data, error } = await requete(COLS_CONTRAT);
+    if (error && (colonneAbsente(error.message, "fin_contrat") || colonneAbsente(error.message, "tarifs"))) {
+      ({ data, error } = await requete(COLS_CONTRAT_BASE));
+    }
+    if (error) throw new Error(`Lecture des cycles de ${coproCode} : ${error.message}`);
+    return ((data ?? []) as unknown as ContratRow[]).map(contratDepuisLigne);
+  }
+
   async listerEditionsContrat(coproCode: string): Promise<EditionContrat[]> {
     const parCopro = await this.listerEditionsContrats([coproCode]);
     return parCopro.get(coproCode) ?? [];
@@ -573,7 +599,8 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         .select(cols)
         .in("copropriete_id", coproCodes)
         .order("cree_le", { ascending: false });
-    let { data, error } = await requete(COLS_EDITION);
+    let { data, error } = await requete(COLS_EDITION_ALERTES);
+    if (error && colonneAbsente(error.message, "alertes")) ({ data, error } = await requete(COLS_EDITION));
     // Postgres ne nomme que la PREMIERE colonne absente : tester les deux.
     // Postgres ne nomme que la PREMIERE colonne absente : tester chacune des colonnes
     // arrivees apres la creation de la table.
@@ -604,6 +631,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         debut_contrat?: string | null;
         fin_contrat?: string | null;
         frais_postaux_reels?: boolean | null;
+        alertes?: string[] | null;
         cree_le: string;
         cree_par: string | null;
       };
@@ -619,6 +647,7 @@ export class SupabaseFacturationRepository implements FacturationRepository {
         debutISO: e.debut_contrat ? e.debut_contrat.slice(0, 10) : null,
         finISO: e.fin_contrat ? e.fin_contrat.slice(0, 10) : null,
         fraisPostauxReels: e.frais_postaux_reels === true,
+        alertes: e.alertes ?? [],
         creeLe: e.cree_le,
         creePar: e.cree_par,
       });

@@ -149,6 +149,10 @@ export class MockFacturationRepository implements FacturationRepository {
     return parCopro;
   }
 
+  async listerCyclesContrat(coproCode: string): Promise<ContratCopro[]> {
+    return CONTRATS.filter((c) => c.coproCode === coproCode).sort((a, b) => b.debutContrat.localeCompare(a.debutContrat));
+  }
+
   async listerEditionsContrat(): Promise<EditionContrat[]> {
     // Aucun historique en mock : l'ecran affiche « jamais edite », ce qui est vrai.
     return [];
