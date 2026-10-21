@@ -1,6 +1,13 @@
-# Vérifications à chaque push et chaque PR : typage, lint, tests unitaires, audit du design.
-# Pas de `next build` ici (il faudrait les secrets d'env) ; les tests *.smoke.ts, qui parlent
-# aux vrais services, restent hors CI (vitest ne les inclut pas).
+# Vérifications à chaque push et chaque PR : typage, lint, tests unitaires, audit du design,
+# et un `next build` complet. Les tests *.smoke.ts, qui parlent aux vrais services, restent
+# hors CI (vitest ne les inclut pas).
+#
+# Le job `build` (ajouté le 21/10/2026, décision Sekou) tourne sans aucun secret : les pages
+# sont dynamiques, rien n'appelle un service au build. Il attrape ce que tsc / eslint / vitest
+# ne voient pas (ex. : un `export const` dans un fichier « use server », qui a vidé un module
+# et bloqué la prod le 20/10/2026). Il ne reproduit PAS le paquetage Vercel : un déploiement
+# peut encore échouer après une CI verte, d'où la lecture du statut Vercel après chaque push.
+# Pas de `next build` dans le crochet pre-push local : trop lourd pour la machine.
 name: CI
 
 on:
@@ -27,3 +34,19 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: node scripts/audit-ui.mjs
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          NEXT_TELEMETRY_DISABLED: "1"
