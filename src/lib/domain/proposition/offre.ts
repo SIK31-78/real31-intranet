@@ -43,6 +43,15 @@ export const INCLUS_OFFRE = {
   nbVisites: 1,
 } as const;
 
+/**
+ * Reunions de CS au contrat = la reunion toujours incluse + les « CS complementaires » de la
+ * fiche. Le champ ne compte QUE les reunions en plus (tableau d'Emmanuel) : le prendre pour le
+ * total imprimait « 0 réunion » alors que le mail d'offre en promet une (21/10/2026).
+ */
+export function nbCsAuContrat(csComplementaires: number | undefined): number {
+  return INCLUS_OFFRE.nbCs + (csComplementaires ?? 0);
+}
+
 /** Ce que le contrat imprime a la place d'une valeur inconnue : une ligne a completer a la main. */
 export const BLANC_A_COMPLETER = "______________________________";
 
@@ -68,7 +77,7 @@ export function coproContratDepuisProposition(p: Proposition): CoproContrat {
     lotsAutres: im.lotsStationnement ?? 0,
     nbVisites: im.visitesPrevues ?? INCLUS_OFFRE.nbVisites,
     dureeAgHeures: INCLUS_OFFRE.dureeAgHeures,
-    nbCs: im.csPrevus ?? INCLUS_OFFRE.nbCs,
+    nbCs: nbCsAuContrat(im.csPrevus),
     dureeCsHeures: INCLUS_OFFRE.dureeCsHeures,
     finMaxAgHeure: INCLUS_OFFRE.finMaxAgHeure,
   };
@@ -160,7 +169,8 @@ export function texteMailOffre(p: Proposition, cycle: CycleContratChamps, signat
   const postaux = cycle.fraisPostauxReels
     ? "Les frais postaux sont refacturés au réel, sur justificatifs, sans marge."
     : `Forfait frais postaux : ${euros(cycle.forfaitPostauxTtc)} par an (réduit de 13 € par copropriétaire optant pour la dématérialisation).`;
-  const lots = p.immeuble.lotsPrincipaux ? ` pour ${p.immeuble.lotsPrincipaux} lots principaux` : "";
+  const nbCs = nbCsAuContrat(p.immeuble.csPrevus);
+  const lots = p.immeuble.lotsPrincipaux ?` pour ${p.immeuble.lotsPrincipaux} lots principaux` : "";
   const duree =
     cycle.debutISO && cycle.finISO ? ` (contrat du ${jj(cycle.debutISO)} au ${jj(cycle.finISO)})` : cycle.dureeMois ? ` (contrat de ${dureeEnClair(cycle.dureeMois)})` : "";
 
@@ -180,7 +190,7 @@ export function texteMailOffre(p: Proposition, cycle: CycleContratChamps, signat
     `Ce que comprend notre proposition`,
     `- Un compte bancaire séparé ouvert au nom de votre copropriété ;`,
     `- Une assemblée générale annuelle d'une durée de ${INCLUS_OFFRE.dureeAgHeures} heures (jusqu'à ${INCLUS_OFFRE.finMaxAgHeure}h00)${lieu} ;`,
-    `- Une réunion de conseil syndical de préparation de l'AG ;`,
+    nbCs === 1 ? `- Une réunion de conseil syndical de préparation de l'AG ;` : `- ${nbCs} réunions de conseil syndical, dont une de préparation de l'AG ;`,
     `- Une visite d'immeuble avec rédaction d'un compte rendu.`,
     ``,
     `Notre tarification`,

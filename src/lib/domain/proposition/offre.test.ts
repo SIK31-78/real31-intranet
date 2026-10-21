@@ -84,6 +84,12 @@ describe("contrat prospect", () => {
     expect(c).toMatchObject({ adresse1: "16 rue Sébastopol", codePostal: "92400", ville: "Courbevoie", immatriculation: "AB0175828", agence: "LGC", lotsPrincipaux: 8, lotsAutres: 4, nbVisites: 1, dureeAgHeures: 2, nbCs: 1, dureeCsHeures: 1, finMaxAgHeure: 20, assurance: "" });
     expect(coproContratDepuisProposition({ ...base, immeuble: { ...base.immeuble, assurance: "AXA", assuranceDateISO: "2024-01-01" } })).toMatchObject({ assurance: "AXA", assuranceDateISO: "2024-01-01" });
   });
+  it("CS : la reunion incluse + les complementaires de la fiche", () => {
+    const avec = (csPrevus?: number) => coproContratDepuisProposition({ ...base, immeuble: { ...base.immeuble, csPrevus } }).nbCs;
+    expect(avec(undefined)).toBe(1);
+    expect(avec(0)).toBe(1);
+    expect(avec(2)).toBe(3);
+  });
   it("immeuble neuf sans adresse : « Adresse à préciser » et une ligne a completer", () => {
     const c = coproContratDepuisProposition({ ...base, immeuble: { ...base.immeuble, adresse: "  " } });
     expect(c).toMatchObject({ nom: "Adresse à préciser", adresse1: BLANC_A_COMPLETER, codePostal: "92400", ville: "Courbevoie" });
@@ -110,6 +116,11 @@ describe("texteMailOffre", () => {
     expect(mail).toContain("13 rond-point du Souvenir Français ou 38 rue Jules Ferry");
     expect(mail).toContain("refacturés au réel");
     expect(mail).toContain("Emmanuel LOPES\nREAL 31 Immobilier");
+  });
+  it("annonce le nombre total de CS du contrat", () => {
+    expect(mail).toContain("- Une réunion de conseil syndical de préparation de l'AG ;");
+    const p = { ...base, immeuble: { ...base.immeuble, csPrevus: 1 } };
+    expect(texteMailOffre(p, cycleOffre(p, {}), { nom: "X" })).toContain("- 2 réunions de conseil syndical, dont une de préparation de l'AG ;");
   });
   it("forfait timbres quand il y en a un, Monsieur pour M.", () => {
     const p = { ...base, contact: { nom: "M. DUPONT" }, prix: { ...base.prix, fraisPostauxReels: false } };

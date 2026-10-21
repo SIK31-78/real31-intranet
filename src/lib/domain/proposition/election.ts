@@ -127,7 +127,9 @@ export function coproDepuisElection(p: Proposition, choix: ChoixElection, inclus
     dureeAgHeures: inclus.dureeAgHeures,
     debutMinAgHeure: inclus.debutMinAgHeure,
     finMaxAgHeure: inclus.finMaxAgHeure,
-    nbCs: p.immeuble.csPrevus ?? inclus.nbCs,
+    // La reunion incluse + les complementaires (cf. nbCsAuContrat) : la copro doit porter le
+    // meme nombre que le contrat signe.
+    nbCs: inclus.nbCs + (p.immeuble.csPrevus ?? 0),
     dureeCsHeures: inclus.dureeCsHeures,
     nbVisites: p.immeuble.visitesPrevues ?? inclus.nbVisites,
     fraisPostauxReels: p.prix.fraisPostauxReels ?? true,

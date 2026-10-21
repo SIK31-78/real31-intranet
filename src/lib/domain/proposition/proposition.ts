@@ -71,7 +71,7 @@ export interface Immeuble {
   gardiens?: number;
   /** Visites prevues au contrat (1 minimum). */
   visitesPrevues?: number;
-  /** Reunions de CS complementaires prevues. */
+  /** Reunions de CS EN PLUS de celle toujours incluse (cf. nbCsAuContrat) : 0 = une seule au contrat. */
   csPrevus?: number;
   periodeConstruction?: string;
   /** L'assureur du syndicat et la date de souscription, s'ils sont connus (ils vont au contrat). */
