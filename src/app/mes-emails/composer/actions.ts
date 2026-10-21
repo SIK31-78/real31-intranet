@@ -6,7 +6,6 @@
 
 import { z } from "zod";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
 import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import {
@@ -114,7 +113,7 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
     .refine((v) => v.a.length > 0 || v.cci.length > 0)
     .safeParse(input);
   if (!d.success) return echec(motifRefus(input));
-  const riche = corpsMisEnForme(estSuperAdmin(g.email), d.data.corpsHtml);
+  const riche = corpsMisEnForme(true, d.data.corpsHtml);
   if (riche === "refuse") return echec("La mise en forme est en essai : elle n'est pas encore ouverte.");
   try {
     const { objet, a, cc, cci, dossierId, fichiers } = d.data;

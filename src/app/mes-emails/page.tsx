@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { COOKIE_PLACE_INTERNES } from "@/components/mes-emails/preference-liste";
@@ -39,7 +38,10 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   // PILOTE (16/10/2026) : le 15/10, un changement d'affichage de cet écran mis en prod sans
   // avoir été vu a fait appeler toute l'agence. Toute nouveauté visible passe d'abord par
   // le super-admin ; les actions serveur de ces nouveautés refusent aussi les autres.
-  const pilote = estSuperAdmin(g.email);
+  // 21/10/2026 : les cinq nouveautés du pilote (corbeille groupée, Envoyés, mise en forme,
+  // Transférer, place des collègues : REA-340, 341, 345, 350, 351) sont ouvertes à tous.
+  // Pour un prochain essai, remettre `estSuperAdmin(g.email)` ici et dans les actions.
+  const pilote = true;
   const placeInternes = pilote ? placeInternesValide((await cookies()).get(COOKIE_PLACE_INTERNES)?.value) : "meles";
   const [data, signatureHtml, modeles] = await Promise.all([
     getMesEmails(g, maxPerso),

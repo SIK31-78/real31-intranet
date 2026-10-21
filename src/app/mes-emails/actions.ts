@@ -10,7 +10,6 @@ import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import { z } from "zod";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
   enregistrerBrouillon,
@@ -518,7 +517,7 @@ export async function envoyerReponseAction(
       message: "L'envoi depuis la boîte partagée est coupé pendant le pilote. Utilise « Brouillon Outlook » : il se relit et s'envoie dans Outlook.",
     };
   }
-  const riche = corpsMisEnForme(estSuperAdmin(g.email), corpsHtml);
+  const riche = corpsMisEnForme(true, corpsHtml);
   if (riche === "refuse") return { ok: false, message: PILOTE_SEUL };
   if (riche) corps = riche.corps;
   if (!corps.trim()) return { ok: false, message: "Le message est vide." };
@@ -676,7 +675,7 @@ export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolea
   const d = v.data;
   const auth = await withGestionnaire(d.coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
-  const riche = corpsMisEnForme(estSuperAdmin(auth.g.email), d.corpsHtml);
+  const riche = corpsMisEnForme(true, d.corpsHtml);
   if (riche === "refuse") return { ok: false, message: PILOTE_SEUL };
   const cible = await boiteCible(auth.g, d.boite);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
@@ -713,7 +712,8 @@ const PILOTE_SEUL = "Cette fonction est en essai : elle n'est pas encore ouverte
 
 async function gestionnairePilote(): Promise<Gestionnaire | null> {
   const g = await getGestionnaireCourant();
-  return g?.email && mailModuleActifPour(g.email) && estSuperAdmin(g.email) ? g : null;
+  // Ouvert à tous le 21/10/2026 (REA-340, 341, 345, 350, 351) : il reste le module mail.
+  return g?.email && mailModuleActifPour(g.email) ? g : null;
 }
 
 /**
