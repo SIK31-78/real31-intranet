@@ -144,13 +144,15 @@ export function SupervisionHeader({ supervision, cycle, role, onConclure }: Supe
               {/* L'ordre du jour est l'etape juste avant : il reste consultable d'ici, meme
                   cloture (Sekou 2026-09-10 : une fois l'etape franchie, le document
                   n'etait plus atteignable nulle part). Le Word est a cote : depuis le
-                  30/09, c'est LUI qu'on emporte en reunion de conseil syndical. */}
+                  30/09, c'est LUI qu'on emporte en reunion de conseil syndical.
+                  Le lien passe en bouton plein et en premier (REA-122 : en fantome,
+                  on ne le voyait pas). */}
               <div className="flex items-center gap-2 flex-wrap">
-                <TelechargementsOdj id={supervision.id} variant="secondary" size="sm" />
-                <ButtonLink href={`/odj/${supervision.id}`} variant="ghost" size="sm">
+                <ButtonLink href={`/odj/${supervision.id}`} variant="secondary" size="sm">
                   <FileText strokeWidth={1.5} />
                   Voir l&apos;ordre du jour
                 </ButtonLink>
+                <TelechargementsOdj id={supervision.id} variant="secondary" size="sm" />
               </div>
             </div>
           </div>
