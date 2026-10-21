@@ -12,14 +12,6 @@ const FICHIERS_CHROMIUM = [
   "./src/lib/services/pdf/polices/**",
 ];
 
-// pdfjs-dist (externe) charge son worker par un import dynamique a chemin calcule : le traceur
-// ne le suit pas sous pnpm. Sans lui, la lecture des PDF du tri echouait en prod sans bruit
-// (aucun rangement credite a une piece jointe du 19 au 20/10/2026, facture EDF du Cyrano).
-const FICHIERS_PDFJS = [
-  "./node_modules/pdfjs-dist/legacy/build/**",
-  "./node_modules/.pnpm/pdfjs-dist@*/node_modules/pdfjs-dist/legacy/build/**",
-];
-
 const nextConfig: NextConfig = {
   // Version figée dans le code client au build (REA-312) : le bandeau « nouvelle version »
   // la compare à celle que renvoie /api/version.
@@ -41,7 +33,11 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/contrat/**": FICHIERS_CHROMIUM,
     "/propositions/**": FICHIERS_CHROMIUM,
-    "/tri-emails/**": FICHIERS_PDFJS,
+    // PAS de glob pdfjs-dist ici (retiré le 21/10/2026). L'ajout du 20/10, censé embarquer le
+    // worker de pdfjs avec le tri des mails, laissait le build passer mais Vercel refusait
+    // ensuite le paquet : « invalid deployment package for a Serverless Function... files in
+    // symlinked directories » (node_modules/pdfjs-dist est un lien symbolique sous pnpm).
+    // Cinq déploiements ratés, prod figée 20 h. Le worker pdfjs reste à embarquer autrement.
     // ODJ du CS : le gabarit du cabinet est lu par chemin (adapters/docx), le logo aussi
     // (en-tete du Word rempli et de son PDF), et le PDF passe par Chromium comme le contrat.
     "/odj/**": [
