@@ -93,7 +93,15 @@ const dump = JSON.parse(fs.readFileSync(CHEMIN_DUMP, "utf8"));
 // ---------------------------------------------------------------------------
 /** Meme regle que domain/cles/normaliser.ts (unicite des entreprises). */
 const norm = (s) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const propre = (s) => (typeof s === "string" && s.trim() ? s.trim() : null);
+/**
+ * Keyko met en capitales sans toucher aux lettres accentuees : « ASNIèRES », « RéNOVATIONS ».
+ * Un texte sans aucune minuscule simple est un texte en capitales : on y remonte les accents.
+ * « Camilia » ou « rue Olympe De Gouges » ne sont pas touches.
+ */
+const casse = (s) => (/[a-z]/.test(s) || !/[à-ÿ]/.test(s) ? s : s.toUpperCase());
+const propre = (s) => (typeof s === "string" && s.trim() ? casse(s.trim()) : null);
+/** Une « societe » Keyko qui n'en est pas une : le proprietaire ou le locataire lui-meme. */
+const PSEUDO_SOCIETES = new Set(["proprietaire", "locataire", "particulier"]);
 const jour = (s) => (s ? String(s).slice(0, 10) : null);
 const ageJours = Math.floor((Date.now() - new Date(dump.extrait_le).getTime()) / 86_400_000);
 
@@ -279,7 +287,9 @@ for (const e of dump.emprunts.filter((x) => !x.fini)) {
   const contact = Object.fromEntries(
     Object.entries({ nom: [propre(emp.prenom), propre(emp.nom)].filter(Boolean).join(" ") || null, telephone: propre(emp.mobile) ?? propre(emp.telephone), email: propre(emp.mail) }).filter(([, v]) => v),
   );
-  const societe = propre(emp.societe);
+  const societeBrute = propre(emp.societe);
+  const societe = societeBrute && !PSEUDO_SOCIETES.has(norm(societeBrute)) ? societeBrute : null;
+  if (societeBrute && !societe) avertir(`emprunt ${e.reference} : société « ${societeBrute} » = un particulier, prêt repris comme tel`);
   let entreprise = null;
   if (societe) {
     const k = norm(societe);
@@ -481,7 +491,7 @@ async function ecrire() {
   // 6. Mouvements : reprise de chaque trousseau (date du dump) + la sortie de chaque pret ouvert.
   const pretParTrousseau = new Map(idsP.map((r) => [r.trousseau_id, r.id]));
   const lignesM = [
-    ...trousseaux.map((t) => ({ trousseau_id: idT.get(t.numero), type: "import", horodatage: dump.extrait_le, par_user_id: null, par_nom: CREE_PAR, agence_code: AGENCE, details: { libelle: "trousseau repris de Keyko", numero: t.numero, armoire: t.ligne.emplacement, keykoId: t.keykoId, photo: t.photo } })),
+    ...trousseaux.map((t) => ({ trousseau_id: idT.get(t.numero), type: "import", horodatage: dump.extrait_le, par_user_id: null, par_nom: CREE_PAR, agence_code: AGENCE, details: { libelle: "trousseau repris", numero: t.numero, armoire: t.ligne.emplacement, keykoId: t.keykoId, photo: t.photo } })),
     ...prets.map((p) => ({
       trousseau_id: idT.get(p.numero),
       type: "sortie",
