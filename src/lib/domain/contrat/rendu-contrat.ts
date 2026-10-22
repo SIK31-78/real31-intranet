@@ -131,9 +131,15 @@ function colonne(
     });
     const pleines = cellules.filter((c) => c.texte);
     const enTete = pleines.length > 0 && pleines.every((c) => estCelluleEnTete(c.texte));
-    // Un en-tete au milieu d'une grille : le classeur le repetait en haut de chaque page. Le
-    // <thead> se repete tout seul, on ne garde que le premier.
-    if (enTete && serie.length > 0) return;
+    // Un en-tete au milieu d'une grille : le classeur le repete en haut de chaque page, il
+    // ouvre donc un NOUVEAU tableau, place a sa ligne du classeur. Les fusionner faisait de
+    // l'annexe 1 un seul tableau de cent lignes, coupe n'importe ou : la fin du IV-14° sous
+    // le III-11°, les VI-24° et VI-25° colles au IV (contrat S111, 21/10/2026). Deux en-tetes
+    // de suite : le second ne sert a rien.
+    if (enTete && serie.length > 0) {
+      if (serie.every((l) => l.enTete)) return;
+      vider();
+    }
     const p = pos(i);
     if (serie.length === 0) serieDe = p.de;
     serieA = p.a ?? serieA;
@@ -234,7 +240,20 @@ export function rangeesVisAVis(a: ArbreContrat): RangeeVisAVis[] {
     if (rangee.gauche.length || rangee.droite.length) rangees.push(rangee);
     debut = fin;
   }
-  return rangees;
+  // Un titre en BAS d'une rangee se retrouvait seul au-dessus d'un grand blanc, son texte une
+  // rangee plus bas, quand la colonne d'en face etait plus haute (« 2. Forfait » de la fiche
+  // d'information, S111, 21/10/2026). Il descend dans la rangee suivante, avec ce qu'il annonce.
+  for (let i = 0; i < rangees.length - 1; i++) {
+    for (const cote of ["gauche", "droite"] as const) {
+      const ici = rangees[i]![cote];
+      const apres = rangees[i + 1]![cote];
+      const enFace = rangees[i]![cote === "gauche" ? "droite" : "gauche"];
+      // Jamais un titre qui a un bloc en face, ecrit sur la meme ligne du classeur.
+      const libre = (n: NoeudContrat) => n.type === "titre" && !enFace.some((f) => f.de !== undefined && f.de === n.de);
+      while (ici.length > 0 && libre(ici[ici.length - 1]!) && apres.length > 0) apres.unshift(ici.pop()!);
+    }
+  }
+  return rangees.filter((r) => r.gauche.length || r.droite.length);
 }
 
 /**
@@ -312,6 +331,118 @@ export function recollerPhrasesCoupees(
   return { gauche: g, droite: d, manques };
 }
 
+/**
+ * Meme defaut que RECOLLEMENTS, dans un TABLEAU : l'annexe 1 coupe le d) du IV-14° en bas de
+ * la colonne de gauche (« (sauf décision contraire de l'assemblée générale ») et en recopie la
+ * fin dans une ligne a part, en haut de la colonne de droite. Imprimee seule, cette ligne se
+ * lisait sous le III-11°, sans parenthese ouvrante (S111, 21/10/2026).
+ */
+const RECOLLEMENTS_CELLULES: readonly { readonly finCellule: string; readonly ligneSuite: string }[] = [
+  {
+    finCellule: "(sauf decision contraire de l'assemblee generale",
+    ligneSuite: "des coproprietaires statuant dans les conditions prevues a l'article 18 de la loi du 10 juillet 1965).",
+  },
+  // Annexe 2 : le 15° s'arrete a gauche sur « assemblées supplémentaires », les 15° (fin) a 19°
+  // sont en haut de la colonne de droite. Une page plus tot que leur debut des que l'annexe 2
+  // deborde.
+  {
+    finCellule: "creee en cours de mandat ainsi qu'aux assemblees supplementaires",
+    ligneSuite: "de ces memes structures si elles existaient anterieurement a la signature du contrat de syndic ;",
+  },
+];
+
+/** Recolle les cellules coupees entre les deux colonnes (cf. RECOLLEMENTS_CELLULES). */
+export function recollerCellulesCoupees(gauche: NoeudContrat[], droite: NoeudContrat[]): { gauche: NoeudContrat[]; droite: NoeudContrat[]; manques: string[] } {
+  const g = [...gauche];
+  const d = [...droite];
+  const manques: string[] = [];
+  for (const { finCellule, ligneSuite } of RECOLLEMENTS_CELLULES) {
+    const ig = g.findIndex((n) => n.type === "tableau" && n.lignes.some((l) => l.cellules.some((c) => repere(c.texte).endsWith(finCellule))));
+    const estSuite = (l: LigneTableau) => {
+      const pleines = l.cellules.filter((c) => c.texte.trim());
+      return pleines.length === 1 && repere(pleines[0]!.texte).startsWith(ligneSuite);
+    };
+    const id = d.findIndex((n) => n.type === "tableau" && n.lignes.some(estSuite));
+    if (ig === -1 || id === -1) {
+      manques.push(finCellule);
+      continue;
+    }
+    const cible = g[ig] as Extract<NoeudContrat, { type: "tableau" }>;
+    const source = d[id] as Extract<NoeudContrat, { type: "tableau" }>;
+    const suite = source.lignes.find(estSuite)!.cellules.find((c) => c.texte.trim())!.texte.trim();
+    g[ig] = {
+      ...cible,
+      lignes: cible.lignes.map((l) => ({
+        ...l,
+        cellules: l.cellules.map((c) => (repere(c.texte).endsWith(finCellule) ? { ...c, texte: `${c.texte.trimEnd()} ${suite}` } : c)),
+      })),
+    };
+    const reste = source.lignes.filter((l) => !estSuite(l));
+    // Plus que l'en-tete : le tableau n'a plus lieu d'etre.
+    if (reste.some((l) => !l.enTete)) d[id] = { ...source, lignes: reste };
+    else d.splice(id, 1);
+  }
+  return { gauche: g, droite: d, manques };
+}
+
+/**
+ * Une categorie de l'annexe 1 qui deborde sur la page suivante : le classeur reprend les
+ * prestations (« VI-24° », « VI-25° »...) sous une case de categorie VIDE et d'une seule ligne,
+ * les lignes suivantes comptant sur une cellule haute qui n'existe pas. Elles s'imprimaient
+ * decalees d'une colonne, hors du tableau. On fait de la case vide une cellule haute qui couvre
+ * toutes ces lignes, et on la nomme : « VI. - Gestion du personnel (suite) ».
+ */
+export function completerCategoriesSuite(gauche: NoeudContrat[], droite: NoeudContrat[]): { gauche: NoeudContrat[]; droite: NoeudContrat[] } {
+  const categories = new Map<string, string>();
+  for (const n of [...gauche, ...droite]) {
+    if (n.type !== "tableau") continue;
+    for (const l of n.lignes) {
+      const m = /^([IVX]+)\. - /.exec(l.cellules[0]?.texte ?? "");
+      if (m && (l.cellules[0]!.portee ?? 1) > 1) categories.set(m[1]!, l.cellules[0]!.texte);
+    }
+  }
+  const corriger = (n: NoeudContrat): NoeudContrat => {
+    if (n.type !== "tableau") return n;
+    const lignes = n.lignes.map((l) => ({ ...l, cellules: [...l.cellules] }));
+    const largeur = (l: LigneTableau) => l.cellules.reduce((s, c) => s + c.etendue, 0);
+    const nomSuite = (texte: string | undefined) => {
+      const romain = /^([IVX]+)-\d+°/.exec(texte ?? "")?.[1];
+      const nom = romain ? categories.get(romain) : undefined;
+      return nom ? `${nom} (suite)` : "";
+    };
+    // Deux formes du meme defaut, sous un en-tete repete :
+    //  - une case de categorie VIDE d'une ligne, suivie de lignes plus courtes (« VI-24° ») ;
+    //  - des lignes sans aucune case de categorie (« IV-15° » en haut de la colonne de droite).
+    // Dans les deux cas, une cellule haute nommee couvre toutes ces lignes.
+    let couvertes = 0;
+    for (let i = 0; i < lignes.length; i++) {
+      const l = lignes[i]!;
+      if (l.enTete) continue;
+      if (couvertes > 0) {
+        couvertes--;
+        continue;
+      }
+      const tete = l.cellules[0];
+      const pleine = largeur(l) === n.colonnes;
+      const caseVide = pleine && !!tete && !tete.texte.trim() && (tete.portee ?? 1) === 1 && tete.etendue === 2;
+      if (pleine && !caseVide) {
+        couvertes = (tete?.portee ?? 1) - 1;
+        continue;
+      }
+      if (!caseVide && largeur(l) !== n.colonnes - 2) continue;
+      let j = i + 1;
+      while (j < lignes.length && !lignes[j]!.enTete && largeur(lignes[j]!) === n.colonnes - 2) j++;
+      if (caseVide && j === i + 1) continue;
+      const portee = j - i > 1 ? { portee: j - i } : {};
+      if (caseVide) l.cellules[0] = { ...tete!, ...portee, texte: nomSuite(l.cellules[1]?.texte) };
+      else l.cellules.unshift({ texte: nomSuite(l.cellules[0]?.texte), montant: false, etendue: 2, ...portee });
+      couvertes = j - i - 1;
+    }
+    return { ...n, lignes };
+  };
+  return { gauche: gauche.map(corriger), droite: droite.map(corriger) };
+}
+
 export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   const table = tableRemplacement(champs);
   // ASL / AFUL : le contrat de mandat du gestionnaire, une colonne, sans les corrections
@@ -326,6 +457,8 @@ export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   if (champs.conditionsParticulieres) {
     droite.push({ type: "titre", texte: "CONDITIONS PARTICULIÈRES" }, { type: "paragraphe", texte: champs.conditionsParticulieres });
   }
-  const recolle = recollerPhrasesCoupees(colonne(GABARIT_GAUCHE, table, options, CASES_PAR_COLONNE, LIGNES_GAUCHE), droite);
+  const phrases = recollerPhrasesCoupees(colonne(GABARIT_GAUCHE, table, options, CASES_PAR_COLONNE, LIGNES_GAUCHE), droite);
+  const cellules = recollerCellulesCoupees(phrases.gauche, phrases.droite);
+  const recolle = completerCategoriesSuite(cellules.gauche, cellules.droite);
   return { titre: titre ?? "", enTete, gauche: recolle.gauche, droite: recolle.droite };
 }

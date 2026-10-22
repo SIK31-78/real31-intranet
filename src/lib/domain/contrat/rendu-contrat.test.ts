@@ -328,3 +328,61 @@ describe("debuts de page", () => {
     }
   });
 });
+
+// L'annexe 1 du classeur repete son en-tete a chaque page et coupe ses cellules d'une colonne a
+// l'autre. Fusionnee en un seul tableau, elle s'imprimait dans le desordre (S111, 21/10/2026) :
+// la fin du IV-14° sous le III-11°, les VI-24° et VI-25° colles au IV et decales d'une colonne.
+describe("annexes : tableaux coupes par le classeur", () => {
+  const a = arbreContrat(champs());
+  const tables = [...a.gauche, ...a.droite].filter((n): n is Extract<NoeudContrat, { type: "tableau" }> => n.type === "tableau");
+  const cellules = tables.flatMap((t) => t.lignes.flatMap((l) => l.cellules));
+
+  it("chaque ligne de chaque tableau remplit ses huit cases, cellules hautes comprises", () => {
+    for (const t of tables) {
+      const occupees = new Array<number>(t.lignes.length).fill(0);
+      t.lignes.forEach((l, i) => {
+        for (const c of l.cellules) for (let k = i; k < i + (c.portee ?? 1) && k < t.lignes.length; k++) occupees[k]! += c.etendue;
+      });
+      expect(occupees.every((n) => n === t.colonnes)).toBe(true);
+    }
+  });
+
+  it("le IV-14° porte sa phrase entiere, la suite n'est plus une ligne a part", () => {
+    const iv14 = cellules.find((c) => c.texte.includes("(sauf décision contraire de l'assemblée générale"))!;
+    expect(iv14.texte.trimEnd()).toMatch(/des copropriétaires statuant dans les conditions prévues à l’article 18 de la loi du 10 juillet 1965\)\.$/);
+    expect(cellules.some((c) => c.texte.startsWith("des copropriétaires statuant"))).toBe(false);
+  });
+
+  it("le 15° de l'annexe 2 et les 16° a 19° sont dans la meme cellule", () => {
+    const quinze = cellules.find((c) => c.texte.includes("15° Représentation du syndicat"))!;
+    expect(quinze.texte).toContain("supplémentaires de ces mêmes structures");
+    expect(quinze.texte).toContain("19° Opérations de liquidation");
+    expect(cellules.some((c) => c.texte.startsWith("de ces mêmes structures"))).toBe(false);
+  });
+
+  it("une categorie qui deborde est reprise, nommee, sur toutes ses lignes", () => {
+    const vi = cellules.find((c) => c.texte === "VI. - Gestion du personnel (suite)")!;
+    expect(vi.portee).toBe(5);
+    expect(cellules.find((c) => c.texte.startsWith("IV. - Administration") && c.texte.endsWith("(suite)"))).toBeDefined();
+  });
+
+  it("chaque en-tete repete ouvre son propre tableau", () => {
+    expect(tables.filter((t) => t.lignes[0]?.cellules.map((c) => c.texte).join("|") === "|PRESTATIONS|DÉTAILS").length).toBe(5);
+  });
+});
+
+describe("titres en bas de rangee", () => {
+  it("un titre sans bloc en face ne termine jamais une rangee suivie d'une autre", () => {
+    const rangees = rangeesVisAVis(arbreContrat(champs()));
+    for (let i = 0; i < rangees.length - 1; i++) {
+      for (const cote of ["gauche", "droite"] as const) {
+        const dernier = rangees[i]![cote].at(-1);
+        const enFace = rangees[i]![cote === "gauche" ? "droite" : "gauche"];
+        if (dernier?.type !== "titre" || !rangees[i + 1]![cote].length) continue;
+        expect(enFace.some((f) => f.de === dernier.de)).toBe(true);
+      }
+    }
+    const forfait = rangees.find((r) => r.gauche.some((n) => n.type === "titre" && n.texte === "2. Forfait"))!;
+    expect(forfait.gauche[0]).toMatchObject({ type: "titre", texte: "2. Forfait" });
+  });
+});

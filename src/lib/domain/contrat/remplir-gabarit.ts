@@ -114,8 +114,20 @@ const CORRECTION_7_1_1_FORFAIT =
 const CORRECTION_7_1_1_REEL =
   "Les frais de reprographie et les frais administratifs afférents aux prestations du forfait sont inclus dans la rémunération forfaitaire ; les frais d’affranchissement sont refacturés au réel, sur justificatif.";
 
+/**
+ * Coquilles de frappe du classeur, sans portee juridique (relevees sur S111 le 21/10/2026) :
+ * l'unite oubliee sur l'hypotheque (« 377.50 HT ») et l'espace avant le nombre de visites
+ * (« suivant :1 »).
+ */
+const COQUILLES: readonly [coquille: string, correction: string][] = [
+  ["[HypothequeHT] HT soit", "[HypothequeHT] € HT soit"],
+  ["visite(s) suivant :[Coproprietes.NbVisite]", "visite(s) suivant : [Coproprietes.NbVisite]"],
+];
+
 export function corrigerGabarit(texte: string, options: { fraisPostauxReels?: boolean } = {}): string {
-  return texte.split(COQUILLE_7_1_1).join(options.fraisPostauxReels ? CORRECTION_7_1_1_REEL : CORRECTION_7_1_1_FORFAIT);
+  let t = texte.split(COQUILLE_7_1_1).join(options.fraisPostauxReels ? CORRECTION_7_1_1_REEL : CORRECTION_7_1_1_FORFAIT);
+  for (const [coquille, correction] of COQUILLES) t = t.split(coquille).join(correction);
+  return t;
 }
 
 /**

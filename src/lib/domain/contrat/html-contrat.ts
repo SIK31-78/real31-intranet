@@ -27,6 +27,10 @@ const CSS = `
   table.grille > tbody > tr > td.gauche { padding-right: 9px; }
   table.grille > tbody > tr > td.droite { padding-left: 9px; }
   .bloc { min-width: 0; }
+  /* La marge basse du dernier bloc d'une rangee : quand la page est pleine, ces quelques pixels
+     debordaient sur une page neuve, aussitot quittee par le saut de page de la rangee suivante.
+     Une page blanche au milieu du contrat (S111, 21/10/2026). */
+  table.grille > tbody > tr > td > .bloc:last-child > :last-child { margin-bottom: 0; }
   .bloc > h2:first-child { margin-top: 0; }
   /* Un pixel de marge a droite : un bord de tableau ne doit jamais toucher la limite de page. */
   .colonne:last-child { padding-right: 2px; }
