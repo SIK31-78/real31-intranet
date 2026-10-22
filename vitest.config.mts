@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
 // Resout l'alias "@/..." (= src/...) pour les tests, comme tsconfig le fait pour
@@ -14,5 +14,11 @@ export default defineConfig({
       // « server-only » leve des qu'il est importe hors Server Component : doublure vide en test.
       "server-only": fileURLToPath(new URL("./test/server-only.ts", import.meta.url)),
     },
+  },
+  test: {
+    // Les worktrees de chantier vivent sous .claude/worktrees/ (decision Sekou, 21/10/2026) :
+    // sans cette exclusion, le crochet pre-push du dossier principal rejouait aussi les tests
+    // du chantier d'a cote, et un chantier en cours bloquait tous les push.
+    exclude: [...configDefaults.exclude, ".claude/**"],
   },
 });
