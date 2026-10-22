@@ -10,7 +10,9 @@ import {
   Inbox,
 } from "lucide-react";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estComptable, estVueComptable, peutVoirComptabilite } from "@/lib/auth/roles";
+import { estComptable, estVueComptable, peutVoirComptabilite, peutVoirGestionCourante } from "@/lib/auth/roles";
+import { listerCoprosHorsReferentiel, PAS_DE_CONTROLE } from "@/lib/services/facturation/copros-hors-referentiel";
+import { AlerteHorsReferentiel } from "@/components/gestion-courante/alerte-hors-referentiel";
 import { aUnPerimetreComptable, type PerimetreComptableEtendu } from "@/lib/domain/perimetre-comptable";
 import { perimetreComptableDe } from "@/lib/services/coproprietes/copro-appartient";
 import { getDashboardComptable } from "@/lib/services/compta/dashboard-comptable";
@@ -163,11 +165,15 @@ export default async function ComptabilitePage({
   // File des recaps post-AG. Elle ne peut PAS vivre dans le tableau ci-dessous : celui-ci
   // ne liste que les AG A VENIR (et `conclureAg` vide la prochaine AG des qu'elle est
   // tenue), donc une copro disparait de cet ecran au moment meme ou son recap arrive.
-  const recaps = await listerRecapsRecus({
-    managerId: g.id,
-    email: g.email,
-    estComptable: estComptable(g.email, g.role),
-  });
+  const [recaps, horsReferentiel] = await Promise.all([
+    listerRecapsRecus({
+      managerId: g.id,
+      email: g.email,
+      estComptable: estComptable(g.email, g.role),
+    }),
+    // Copros ESTALE jamais facturees (REA-407) : pour ceux qui facturent la gestion courante.
+    peutVoirGestionCourante(g.email) ? listerCoprosHorsReferentiel() : PAS_DE_CONTROLE,
+  ]);
 
   // Notes non traitees : derivees des lignes deja chargees (aucune requete de plus).
   const avecNotes = [...dashboard.confirmees, ...dashboard.aConfirmer]
@@ -186,6 +192,9 @@ export default async function ComptabilitePage({
             </p>
           }
         />
+
+        {/* Copros ESTALE sans ligne au referentiel, donc jamais facturees. Rien si vide. */}
+        <AlerteHorsReferentiel etat={horsReferentiel} contexte="accueil" />
 
         {/* APRES l'AG : la file des recaps recus. Point d'entree unique - sans ce bloc,
             l'espace comptable ne regarderait que vers l'avant. */}

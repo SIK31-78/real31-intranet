@@ -12,6 +12,12 @@ export interface CoproRepository {
    *  vues TRANSVERSES non cloisonnees (ex. dashboard du pole comptable). `list()` ne resout
    *  pas l'equipe en mode Supabase ; celle-ci la resout (une requete User batch, pas de N+1). */
   listerToutes(): Promise<Copropriete[]>;
+  /** Toutes les references du referentiel (Crypto et ESTALE), QUEL QUE SOIT le statut :
+   *  sert a reperer les copros ESTALE qui n'y ont pas de ligne (REA-407). */
+  listerReferences(): Promise<string[]>;
+  /** Les copros lues EN DIRECT dans ESTALE, sans fusion ni dates. null = ESTALE non
+   *  branche ou indisponible : on ne sait pas, ce qui n'est pas « aucune ». */
+  listerCoprosEstale(): Promise<Copropriete[] | null>;
   /** Renvoie la copro par son code, ou null si introuvable / hors scope du gestionnaire. */
   findByCode(code: string, managerId?: string): Promise<Copropriete | null>;
   /** Definit une date d'AG ou de CS (null = deplanifier / effacer). `quand` choisit

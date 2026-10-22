@@ -46,6 +46,12 @@ class FakeMiroir implements CoproRepository {
   async setDateEvenement(code: string, type: "ag" | "cs", quand: "prochaine" | "derniere", dateISO: string | null, managerId: string) {
     this.setAppels.push({ code, type, quand, dateISO, managerId });
   }
+  async listerReferences(): Promise<string[]> {
+    return this.rows.map((r) => r.code);
+  }
+  async listerCoprosEstale(): Promise<Copropriete[] | null> {
+    return null;
+  }
   async perdreCopro() {}
   async setFormeJuridique() {}
   async creerCopro() {}

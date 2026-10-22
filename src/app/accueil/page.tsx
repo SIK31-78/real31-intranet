@@ -23,7 +23,9 @@ import { echeancesPourAccueil } from "@/lib/services/contrats-copro/lecture";
 import { definirVueRequete, listerCoprosParRequete } from "@/lib/services/coproprietes/lister-copros-cache";
 import { vuesDisponibles } from "@/lib/services/coproprietes/vue-perimetre";
 import { lireVueChoisie } from "@/lib/auth/vue-perimetre";
-import { estSuperAdmin } from "@/lib/auth/roles";
+import { estSuperAdmin, peutVoirGestionCourante } from "@/lib/auth/roles";
+import { listerCoprosHorsReferentiel, PAS_DE_CONTROLE } from "@/lib/services/facturation/copros-hors-referentiel";
+import { AlerteHorsReferentiel } from "@/components/gestion-courante/alerte-hors-referentiel";
 import { SelecteurVue } from "@/components/layout/selecteur-vue";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
@@ -58,7 +60,7 @@ export default async function AccueilPage() {
   const vue = await lireVueChoisie(dispo.vues);
   definirVueRequete(vue);
   // Independants -> en parallele (gain de latence). Tous cloisonnes sur g.id (et la vue).
-  const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg, clesEnRetard, echeancesContrats] = await Promise.all([
+  const [agSemaine, affaires, complement, annonces, recapsEnRetard, mandatsSansAg, clesEnRetard, echeancesContrats, horsReferentiel] = await Promise.all([
     getAgSemaine(g.id),
     getAffairesEnCours(g.id),
     getAccueilComplement(g),
@@ -76,6 +78,9 @@ export default async function AccueilPage() {
     // Suivis de contrats et de controles figes (rouges, oranges) et sans echeance, sur les
     // copros de la vue (REA-333). Le service ne leve jamais : vide si la source tombe.
     echeancesPourAccueil(g.id, today),
+    // Copros ESTALE jamais facturees faute de ligne au referentiel (REA-407) : seulement
+    // pour ceux qui facturent la gestion courante (comptables d'entreprise, super-admin).
+    peutVoirGestionCourante(g.email) ? listerCoprosHorsReferentiel() : PAS_DE_CONTROLE,
   ]);
 
   const prenom = g.nomComplet.split(" ")[0];
@@ -121,6 +126,9 @@ export default async function AccueilPage() {
             la comptabilite attend pour travailler. Le composant ne rend RIEN quand la liste
             est vide - pas de bandeau vert de felicitations, pas de titre orphelin. */}
         <AlerteRecapsEnRetard lignes={recapsEnRetard} variante="gestionnaire" />
+
+        {/* Copros ESTALE sans ligne au referentiel, donc jamais facturees. Rien si vide. */}
+        <AlerteHorsReferentiel etat={horsReferentiel} contexte="accueil" />
 
         {/* Mandats qui se terminent sans AG planifiee : juste sous les recaps, meme
             registre (un trou dans la chaine AG), avant les annonces. Rien si vide. */}

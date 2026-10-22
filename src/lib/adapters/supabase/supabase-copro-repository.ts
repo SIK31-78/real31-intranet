@@ -239,6 +239,22 @@ export class SupabaseCoproRepository implements CoproRepository {
     return rows.map((row) => toDomaine(row, equipeDe(row))).filter((c) => c.statut === "active");
   }
 
+  // Les deux references de CHAQUE ligne, actives ou non (REA-407).
+  async listerReferences(): Promise<string[]> {
+    const supabase = createSupabasePublicClient();
+    const rows = await toutesLesLignes<Pick<CoproRow, "referenceCrypto" | "referenceEstale">>(
+      "Lecture des references public.Copropriete",
+      (debut, fin) =>
+        supabase.from("Copropriete").select("referenceCrypto, referenceEstale").order("id").range(debut, fin),
+    );
+    return rows.flatMap((r) => [r.referenceCrypto, r.referenceEstale].filter((x): x is string => Boolean(x)));
+  }
+
+  // Le miroir seul ne lit pas ESTALE : c'est le composite qui le fait.
+  async listerCoprosEstale(): Promise<Copropriete[] | null> {
+    return null;
+  }
+
   async findByCode(code: string, managerId?: string): Promise<Copropriete | null> {
     const supabase = createSupabasePublicClient();
 

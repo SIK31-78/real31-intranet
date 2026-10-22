@@ -99,6 +99,15 @@ export class MockCoproRepository implements CoproRepository {
     return COPROS[code] ?? null;
   }
 
+  // Le mock n'a pas de referentiel distinct : ses copros ESTALE y sont toutes connues.
+  async listerReferences(): Promise<string[]> {
+    return Object.keys(COPROS);
+  }
+
+  async listerCoprosEstale(): Promise<Copropriete[] | null> {
+    return Object.values(COPROS).filter((c) => c.source === "estale");
+  }
+
   async setFormeJuridique(coproCode: string, forme: FormeJuridique): Promise<void> {
     const c = COPROS[coproCode];
     if (c) c.formeJuridique = forme;

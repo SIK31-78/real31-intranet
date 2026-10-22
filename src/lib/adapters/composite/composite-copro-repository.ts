@@ -59,6 +59,19 @@ export class CompositeCoproRepository implements CoproRepository {
     return fusionnerCopros({ crypto: miroirTous, estale: estaleAvecDates });
   }
 
+  listerReferences(): Promise<string[]> {
+    return this.miroir.listerReferences();
+  }
+
+  async listerCoprosEstale(): Promise<Copropriete[] | null> {
+    try {
+      return await this.estale.listerCoprosEstale();
+    } catch (err) {
+      console.warn("[composite-copro] eStale indisponible (listerCoprosEstale) :", (err as Error).message);
+      return null;
+    }
+  }
+
   async findByCode(code: string, managerId?: string): Promise<Copropriete | null> {
     const refs = await this.refsEstaleSafe();
     // eStale KO (refs null) OU code non eStale -> miroir (les mirrorees y sont, les orphelines non).

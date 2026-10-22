@@ -8,6 +8,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { PanneauGestionCourante } from "@/components/gestion-courante/panneau-gestion-courante";
 import { PerdreCopro } from "@/components/gestion-courante/perdre-copro";
+import { AlerteHorsReferentiel } from "@/components/gestion-courante/alerte-hors-referentiel";
+import { listerCoprosHorsReferentiel } from "@/lib/services/facturation/copros-hors-referentiel";
 import { Section } from "@/components/ui/section";
 import { CardBody } from "@/components/ui/card";
 import { getCoproRepository } from "@/lib/adapters/router";
@@ -26,9 +28,13 @@ export default async function GestionCourantePage() {
   // Pour « Perdre une copropriete » : toutes les copros ACTIVES du cabinet (geste
   // transverse), et les dernieres pertes actees.
   const aujourdhuiISO = jourParis();
-  const [toutes, dossiers] = habilite
-    ? await Promise.all([getCoproRepository().listerToutes(), listerDossiersPerte(aujourdhuiISO)])
-    : [[], []];
+  const [toutes, dossiers, horsReferentiel] = habilite
+    ? await Promise.all([
+        getCoproRepository().listerToutes(),
+        listerDossiersPerte(aujourdhuiISO),
+        listerCoprosHorsReferentiel(),
+      ])
+    : [[], [], { copros: [], controle: true }];
   const perdues = dossiers.slice(0, 5).map((d) => ({
     id: d.id,
     coproCode: d.coproCode,
@@ -54,6 +60,10 @@ export default async function GestionCourantePage() {
             </p>
           }
         />
+
+        {/* Copros ESTALE sans ligne au referentiel (REA-407) : AVANT le panneau, parce
+            qu'elles n'y figurent pas et qu'on ne le verrait nulle part ailleurs. */}
+        {habilite && <AlerteHorsReferentiel etat={horsReferentiel} contexte="fournee" />}
 
         {habilite ? (
           <PanneauGestionCourante
