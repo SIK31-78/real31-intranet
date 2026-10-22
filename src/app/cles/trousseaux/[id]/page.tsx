@@ -8,8 +8,9 @@ import { acteurCles } from "@/lib/auth/acteur-cles";
 import { activiteDuTrousseau, estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
 import { ficheTrousseau } from "@/lib/services/cles/lecture";
 import { coprosPourCles } from "@/lib/services/cles/copros-choix";
-import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ACCES, LIBELLE_TYPE_ELEMENT } from "@/lib/domain/cles/types";
+import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ACCES } from "@/lib/domain/cles/types";
 import { joursDehors, libelleDuree } from "@/lib/domain/cles/etat";
+import { euros, texteComposition, valeurComposition } from "@/lib/domain/cles/composition";
 import { formatDateLongue } from "@/lib/format-date";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -46,6 +47,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
   const { resume, prets, reservations, mouvements, photoUrl } = fiche;
   const t = resume.trousseau;
   const operable = peutOperer(acteur, t.agenceCode, activiteDuTrousseau(t));
+  const valeur = valeurComposition(t.composition);
   const direction = estDirectionCles(acteur, t.agenceCode);
   const pret = resume.pret;
 
@@ -165,14 +167,16 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
                   <p className="text-meta text-ink-3">Pas de photo.</p>
                 )}
                 <DataList align="left" className="mt-3">
-                  <DataRow label="Composition">
-                    {t.composition.length === 0 ? <span className="text-ink-3">non renseignée</span> : t.composition.map((e) => `${e.quantite} ${LIBELLE_TYPE_ELEMENT[e.type]}${e.quantite > 1 ? "s" : ""}${e.libelle ? ` (${e.libelle})` : ""}`).join(", ")}
+                  <DataRow label="Composition" multiligne>
+                    {t.composition.length === 0 ? <span className="text-ink-3">non renseignée</span> : texteComposition(t.composition, true)}
                   </DataRow>
+                  {valeur !== null && <DataRow label="Valeur">{euros(valeur)}</DataRow>}
                   {t.emplacement && <DataRow label="Emplacement">{t.emplacement}</DataRow>}
-                  {t.note && <DataRow label="Note">{t.note}</DataRow>}
+                  {t.note && <DataRow label="Note" multiligne>{t.note}</DataRow>}
                   <DataRow label="Créé le">{formatDateLongue(t.creeLeISO.slice(0, 10))}</DataRow>
                   <DataRow label="Par">{t.creeParNom}</DataRow>
                   {t.source === "import_powerapps" && <DataRow label="Origine">repris de PowerApps</DataRow>}
+                  {t.source === "import_keyko" && <DataRow label="Origine">repris de Keyko</DataRow>}
                 </DataList>
               </CardBody>
             </Card>

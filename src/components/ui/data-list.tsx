@@ -16,17 +16,20 @@ export function DataRow({
   label,
   children,
   ton,
+  multiligne,
 }: {
   label: ReactNode;
   children: ReactNode;
   /** Colore la valeur (statut). */
   ton?: "ok" | "warn" | "err";
+  /** Texte libre (note, composition) : la valeur passe a la ligne au lieu d'etre coupee. */
+  multiligne?: boolean;
 }) {
   const couleur = ton === "ok" ? "text-ok-700" : ton === "warn" ? "text-warn-700" : ton === "err" ? "text-err-700" : "text-ink";
   return (
-    <div className="group/row flex items-center justify-between gap-3 min-h-7 py-0.5 [dl[data-align=left]_&]:justify-start">
+    <div className={cn("group/row flex justify-between gap-3 min-h-7 py-0.5 [dl[data-align=left]_&]:justify-start", multiligne ? "items-start" : "items-center")}>
       <dt className="text-ink-2 shrink-0 [dl[data-align=left]_&]:w-36">{label}</dt>
-      <dd className={cn("min-w-0 font-medium text-right truncate [dl[data-align=left]_&]:text-left", couleur)}>
+      <dd className={cn("min-w-0 font-medium text-right [dl[data-align=left]_&]:text-left", multiligne ? "whitespace-pre-line break-words" : "truncate", couleur)}>
         {children}
       </dd>
     </div>

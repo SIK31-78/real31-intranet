@@ -1,7 +1,8 @@
 // Le referentiel du module cles : trousseaux (fiche, acces, composition) et entreprises.
 // Toute modification de trousseau laisse un mouvement ; l'entreprise est cabinet.
 
-import { getClesEntrepriseRepository, getClesPhotoStore, getClesRepository } from "@/lib/adapters/router";
+import { getBienRepository, getClesEntrepriseRepository, getClesPhotoStore, getClesRepository } from "@/lib/adapters/router";
+import { adresseEnLigne } from "@/lib/domain/bien";
 import { normaliserNomEntreprise, numeroCanonique } from "@/lib/domain/cles/normaliser";
 import type { Acces, AdresseEntreprise, Contact, ElementComposition, Entreprise, Trousseau } from "@/lib/domain/cles/types";
 import { AGENCES_CLES } from "@/lib/domain/cles/types";
@@ -23,7 +24,16 @@ export interface TrousseauInput {
 
 function nettoyerComposition(c: ElementComposition[]): ElementComposition[] {
   return c
-    .map((e) => ({ type: e.type, libelle: (e.libelle ?? "").trim(), quantite: Math.max(1, Math.round(Number(e.quantite) || 1)) }))
+    .map((e) => {
+      const valeur = Number(e.valeurUnitaire);
+      return {
+        type: e.type,
+        libelle: (e.libelle ?? "").trim(),
+        quantite: Math.max(1, Math.round(Number(e.quantite) || 1)),
+        // Vide ou invalide = non valorise (jamais 0 par defaut : 0 € serait une information fausse).
+        ...(e.valeurUnitaire !== undefined && e.valeurUnitaire !== null && Number.isFinite(valeur) && valeur >= 0 ? { valeurUnitaire: Math.round(valeur * 100) / 100 } : {}),
+      };
+    })
     .filter((e) => e.type);
 }
 
@@ -31,14 +41,36 @@ function nettoyerAcces(acces: Omit<Acces, "id">[]): Omit<Acces, "id">[] {
   const propres = acces
     .filter((a) => a.bien.type !== "copro" || a.bien.code.trim())
     .map((a, i) => ({ ...a, bien: a.bien.type === "copro" ? { type: "copro" as const, code: a.bien.code.trim().toUpperCase() } : a.bien, libelle: (a.libelle ?? "").trim(), immeuble: a.immeuble?.trim() || undefined, ordre: i }));
-  if (propres.length === 0) throw new Error("Un trousseau ouvre au moins une copropriété.");
+  if (propres.length === 0) throw new Error("Un trousseau ouvre au moins une copropriété ou un bien.");
   return propres;
+}
+
+/**
+ * Les biens hors syndic relus en base (ADR-049) : l'ecran n'envoie que leur id. Le type (qui
+ * decide de l'activite, donc du droit d'operer) et la reference viennent du referentiel, et un
+ * bien d'une autre agence est refuse.
+ */
+async function resoudreBiens(acces: Omit<Acces, "id">[], agenceCode: string): Promise<Omit<Acces, "id">[]> {
+  if (acces.every((a) => a.bien.type === "copro")) return acces;
+  const repo = getBienRepository();
+  return Promise.all(
+    acces.map(async (a) => {
+      if (a.bien.type === "copro") return a;
+      const b = await repo.get(a.bien.id);
+      if (!b || b.agenceCode.toUpperCase() !== agenceCode.toUpperCase()) throw new Error("Ce bien est introuvable dans l'agence du trousseau.");
+      const adresse = adresseEnLigne(b.adresse);
+      return {
+        ...a,
+        bien: { type: b.activite === "transaction" ? "bien_vente" : "lot_locatif", id: b.id, ref: b.reference, ...(b.libelle ? { nom: b.libelle } : {}), ...(adresse ? { adresse } : {}) },
+      };
+    }),
+  );
 }
 
 export async function creerTrousseau(input: TrousseauInput, acteur: Acteur): Promise<Trousseau> {
   const agenceCode = (input.agenceCode ?? acteur.agence ?? "").toUpperCase();
   if (!AGENCES_CLES.includes(agenceCode as (typeof AGENCES_CLES)[number])) throw new Error("Agence inconnue : précise l'agence du trousseau.");
-  const accesPropres = nettoyerAcces(input.acces);
+  const accesPropres = await resoudreBiens(nettoyerAcces(input.acces), agenceCode);
   if (!peutOperer(acteur, agenceCode, activiteDuTrousseau({ acces: accesPropres }))) throw new Error(MESSAGE_HORS_AGENCE);
   const numero = numeroCanonique(input.numero);
   if (!numero) throw new Error("Le numéro du trousseau est obligatoire.");
@@ -69,7 +101,7 @@ export async function modifierTrousseau(id: string, input: TrousseauInput, acteu
   const numero = numeroCanonique(input.numero);
   if (!numero) throw new Error("Le numéro du trousseau est obligatoire.");
   const composition = nettoyerComposition(input.composition);
-  const acces = nettoyerAcces(input.acces).map((a, i) => ({ ...a, id: t.acces[i]?.id ?? `${t.id}-a${i}` }));
+  const acces = (await resoudreBiens(nettoyerAcces(input.acces), t.agenceCode)).map((a, i) => ({ ...a, id: t.acces[i]?.id ?? `${t.id}-a${i}` }));
   // Qui dirige l'activite d'origine ne fait pas glisser le trousseau dans une autre qu'il ne dirige pas.
   if (!peutOperer(acteur, t.agenceCode, activiteDuTrousseau({ acces }))) throw new Error(MESSAGE_HORS_AGENCE);
   const maj: Trousseau = {

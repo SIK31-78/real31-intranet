@@ -128,13 +128,23 @@ export async function corrigerPretAction(input: unknown): Promise<Res> {
 
 // --- Referentiel : trousseaux -------------------------------------------------------
 
-const zAcces = z.object({
-  coproCode: z.string().trim().regex(/^[A-Za-z0-9_-]{1,20}$/),
-  immeuble: z.string().trim().max(120).optional(),
-  types: z.array(z.enum(TYPES_ACCES)).max(14),
+// Un acces vise une copropriete (son code) OU un bien hors syndic (son id, ADR-049) ; le
+// service relit le bien en base, rien d'autre n'est pris de l'ecran.
+const zAcces = z
+  .object({
+    coproCode: z.string().trim().regex(/^[A-Za-z0-9_-]{1,20}$/).optional(),
+    bienId: zId.optional(),
+    immeuble: z.string().trim().max(120).optional(),
+    types: z.array(z.enum(TYPES_ACCES)).max(14),
+    libelle: z.string().trim().max(120),
+  })
+  .refine((a) => Boolean(a.coproCode) !== Boolean(a.bienId), { message: "Un accès vise une copropriété ou un bien." });
+const zElement = z.object({
+  type: z.enum(TYPES_ELEMENT),
   libelle: z.string().trim().max(120),
+  quantite: z.number().int().min(1).max(99),
+  valeurUnitaire: z.number().min(0).max(100_000).optional(),
 });
-const zElement = z.object({ type: z.enum(TYPES_ELEMENT), libelle: z.string().trim().max(120), quantite: z.number().int().min(1).max(99) });
 const zTrousseau = z.object({
   agenceCode: z.string().trim().toUpperCase().max(4).optional(),
   numero: z.string().trim().min(1).max(20),
@@ -150,7 +160,14 @@ const zTrousseau = z.object({
 function versInput(d: z.output<typeof zTrousseau>) {
   return {
     ...d,
-    acces: d.acces.map((a, i) => ({ bien: { type: "copro" as const, code: a.coproCode }, immeuble: a.immeuble, types: a.types, libelle: a.libelle, ordre: i })),
+    acces: d.acces.map((a, i) => ({
+      // Bien hors syndic : seul l'id compte, le service le relit (type, reference, agence).
+      bien: a.bienId ? { type: "lot_locatif" as const, id: a.bienId, ref: "" } : { type: "copro" as const, code: a.coproCode ?? "" },
+      immeuble: a.immeuble,
+      types: a.types,
+      libelle: a.libelle,
+      ordre: i,
+    })),
   };
 }
 

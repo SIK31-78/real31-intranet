@@ -11,7 +11,8 @@ import { Button, classesBouton } from "@/components/ui/button";
 import { Field, Input, Select, Textarea, Choix } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { useCombobox } from "@/components/ui/combobox";
-import { LIBELLE_TYPE_ACCES, LIBELLE_TYPE_ELEMENT, TYPES_ACCES, TYPES_ELEMENT, type Trousseau, type TypeAcces, type TypeElement } from "@/lib/domain/cles/types";
+import { LIBELLE_TYPE_ACCES, LIBELLE_TYPE_ELEMENT, TYPES_ACCES, TYPES_ELEMENT, type ElementComposition, type Trousseau, type TypeAcces, type TypeElement } from "@/lib/domain/cles/types";
+import { euros, valeurComposition } from "@/lib/domain/cles/composition";
 import { normaliserTexte } from "@/lib/domain/cles/normaliser";
 import { cn } from "@/lib/cn";
 import { creerTrousseauAction, modifierTrousseauAction, televerserPhotoAction } from "@/app/cles/actions";
@@ -25,6 +26,12 @@ export interface CoproChoix {
 
 interface AccesSaisi {
   coproCode: string;
+  /**
+   * Bien hors syndic deja rattache (Asnieres, ADR-049) : garde tel quel, pas encore choisissable
+   * ici. Le serveur relit le bien par son id, il ne croit pas ce libelle.
+   */
+  bienId?: string;
+  bienLibelle?: string;
   immeuble: string;
   types: TypeAcces[];
   libelle: string;
@@ -34,7 +41,15 @@ interface ElementSaisi {
   type: TypeElement;
   libelle: string;
   quantite: number;
+  /** Saisie libre en euros ; vide = non valorise. */
+  valeur: string;
 }
+
+const versSaisi = (e: ElementComposition): ElementSaisi => ({ type: e.type, libelle: e.libelle, quantite: e.quantite, valeur: e.valeurUnitaire === undefined ? "" : String(e.valeurUnitaire).replace(".", ",") });
+const versElement = (e: ElementSaisi): ElementComposition => {
+  const v = Number(e.valeur.replace(",", ".").replace(/[\s€]/g, ""));
+  return { type: e.type, libelle: e.libelle, quantite: e.quantite, ...(e.valeur.trim() && Number.isFinite(v) && v >= 0 ? { valeurUnitaire: v } : {}) };
+};
 
 export function FormulaireTrousseau({
   copros,
@@ -63,13 +78,19 @@ export function FormulaireTrousseau({
   const [sensible, setSensible] = useState(trousseau?.sensible ?? false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [consigne, setConsigne] = useState(trousseau?.consigne ?? "");
-  const [composition, setComposition] = useState<ElementSaisi[]>(trousseau?.composition.map((e) => ({ ...e })) ?? [{ type: "cle", libelle: "", quantite: 1 }]);
+  const [composition, setComposition] = useState<ElementSaisi[]>(trousseau?.composition.map(versSaisi) ?? [{ type: "cle", libelle: "", quantite: 1, valeur: "" }]);
   const [acces, setAcces] = useState<AccesSaisi[]>(
-    trousseau?.acces.map((a) => ({ coproCode: a.bien.type === "copro" ? a.bien.code : "", immeuble: a.immeuble ?? "", types: a.types, libelle: a.libelle })) ?? [{ coproCode: "", immeuble: "", types: ["total"], libelle: "Accès total" }],
+    trousseau?.acces.map((a) =>
+      a.bien.type === "copro"
+        ? { coproCode: a.bien.code, immeuble: a.immeuble ?? "", types: a.types, libelle: a.libelle }
+        : { coproCode: "", bienId: a.bien.id, bienLibelle: [a.bien.ref, a.bien.nom, a.bien.adresse].filter(Boolean).join(" · "), immeuble: a.immeuble ?? "", types: a.types, libelle: a.libelle },
+    ) ?? [{ coproCode: "", immeuble: "", types: ["total"], libelle: "Accès total" }],
   );
   const [tente, setTente] = useState(false);
+  const valeurTotale = valeurComposition(composition.map(versElement));
 
-  const pret = numero.trim().length > 0 && acces.some((a) => a.coproCode) && (Boolean(agence) || Boolean(trousseau));
+  const accesRenseigne = (a: AccesSaisi) => Boolean(a.coproCode || a.bienId);
+  const pret = numero.trim().length > 0 && acces.some(accesRenseigne) && (Boolean(agence) || Boolean(trousseau));
 
   function valider() {
     setTente(true);
@@ -80,8 +101,8 @@ export function FormulaireTrousseau({
         numero,
         libelle,
         emplacement: emplacement || undefined,
-        composition: composition.filter((e) => e.quantite > 0),
-        acces: acces.filter((a) => a.coproCode).map((a) => ({ coproCode: a.coproCode, immeuble: a.immeuble || undefined, types: a.types, libelle: a.libelle })),
+        composition: composition.filter((e) => e.quantite > 0).map(versElement),
+        acces: acces.filter(accesRenseigne).map((a) => ({ ...(a.bienId ? { bienId: a.bienId } : { coproCode: a.coproCode }), immeuble: a.immeuble || undefined, types: a.types, libelle: a.libelle })),
         note: note || undefined,
         sensible,
         consigne: sensible && consigne ? consigne : undefined,
@@ -132,7 +153,7 @@ export function FormulaireTrousseau({
       <fieldset className="flex flex-col gap-2">
         <legend className="text-body font-medium text-ink mb-1">Ce que le trousseau ouvre</legend>
         {acces.map((a, i) => (
-          <LigneAcces key={i} acces={a} copros={copros} erreur={tente && !a.coproCode} onChange={(n) => setAcces(acces.map((x, j) => (j === i ? n : x)))} onSupprimer={acces.length > 1 ? () => setAcces(acces.filter((_, j) => j !== i)) : undefined} />
+          <LigneAcces key={i} acces={a} copros={copros} erreur={tente && !accesRenseigne(a)} onChange={(n) => setAcces(acces.map((x, j) => (j === i ? n : x)))} onSupprimer={acces.length > 1 ? () => setAcces(acces.filter((_, j) => j !== i)) : undefined} />
         ))}
         <div>
           <Button type="button" variant="ghost" size="sm" onClick={() => setAcces([...acces, { coproCode: "", immeuble: "", types: [], libelle: "" }])}>
@@ -144,20 +165,22 @@ export function FormulaireTrousseau({
       <fieldset className="flex flex-col gap-2">
         <legend className="text-body font-medium text-ink mb-1">Composition <span className="font-normal text-ink-2">(contrôlée au retour)</span></legend>
         {composition.map((e, i) => (
-          <div key={i} className="grid grid-cols-[6rem_1fr_5rem_2rem] items-end gap-2">
+          <div key={i} className="grid grid-cols-[6rem_1fr_4rem_6rem_2rem] items-end gap-2">
             <Select value={e.type} onChange={(ev) => setComposition(composition.map((x, j) => (j === i ? { ...x, type: ev.target.value as TypeElement } : x)))} aria-label="Type d'élément">
               {TYPES_ELEMENT.map((t) => <option key={t} value={t}>{LIBELLE_TYPE_ELEMENT[t]}</option>)}
             </Select>
             <Input value={e.libelle} onChange={(ev) => setComposition(composition.map((x, j) => (j === i ? { ...x, libelle: ev.target.value } : x)))} placeholder="porte hall, Vigik, parking…" aria-label="Libellé de l'élément" />
             <Input type="number" min={1} max={99} value={e.quantite} onChange={(ev) => setComposition(composition.map((x, j) => (j === i ? { ...x, quantite: Number(ev.target.value) } : x)))} aria-label="Quantité" />
+            <Input inputMode="decimal" value={e.valeur} onChange={(ev) => setComposition(composition.map((x, j) => (j === i ? { ...x, valeur: ev.target.value } : x)))} placeholder="€ / unité" aria-label="Valeur unitaire en euros" />
             <Button type="button" variant="ghost" size="md" iconOnly aria-label="Retirer" onClick={() => setComposition(composition.filter((_, j) => j !== i))}><Trash2 strokeWidth={1.5} /></Button>
           </div>
         ))}
         <div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setComposition([...composition, { type: "badge", libelle: "", quantite: 1 }])}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setComposition([...composition, { type: "badge", libelle: "", quantite: 1, valeur: "" }])}>
             <Plus strokeWidth={1.5} /> Ajouter un élément
           </Button>
         </div>
+        {valeurTotale !== null && <p className="text-meta text-ink-2">Valeur du trousseau : <span className="font-medium text-ink">{euros(valeurTotale)}</span></p>}
       </fieldset>
 
       <div className="flex flex-col gap-2 rounded-lg border border-line p-3">
@@ -214,8 +237,12 @@ function LigneAcces({ acces, copros, erreur, onChange, onSupprimer }: { acces: A
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-line p-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-        <Field label="Copropriété" requis erreur={erreur ? "Choisis une copropriété" : undefined}>
-          {copro ? (
+        <Field label={acces.bienId ? "Bien" : "Copropriété"} requis erreur={erreur ? "Choisis une copropriété" : undefined}>
+          {acces.bienId ? (
+            <div className="flex items-center gap-2 min-h-8">
+              <span className="font-medium text-ink truncate">{acces.bienLibelle}</span>
+            </div>
+          ) : copro ? (
             <div className="flex items-center gap-2 min-h-8">
               <span className="font-mono text-ink-2">{copro.code}</span>
               <span className="font-medium text-ink truncate">{copro.nom}</span>

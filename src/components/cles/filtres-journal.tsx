@@ -9,7 +9,7 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { TYPES_MOUVEMENT } from "@/lib/domain/cles/types";
 
 const LIBELLES: Record<(typeof TYPES_MOUVEMENT)[number], string> = {
-  creation: "Création", modification: "Modification", composition_modifiee: "Composition", reservation: "Réservation", annulation_reservation: "Annulation", sortie: "Sortie", prolongation: "Report de retour", retour: "Retour", introuvable: "Introuvable", retrouve: "Retrouvé", retrait: "Retrait", correction: "Correction", relance: "Relance", import: "Reprise PowerApps",
+  creation: "Création", modification: "Modification", composition_modifiee: "Composition", reservation: "Réservation", annulation_reservation: "Annulation", sortie: "Sortie", prolongation: "Report de retour", retour: "Retour", introuvable: "Introuvable", retrouve: "Retrouvé", retrait: "Retrait", correction: "Correction", relance: "Relance", import: "Reprise (PowerApps, Keyko)",
 };
 
 export function FiltresJournal(init: { type: string; de: string; a: string; par: string }) {

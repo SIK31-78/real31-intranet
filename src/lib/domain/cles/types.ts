@@ -31,6 +31,11 @@ export interface ElementComposition {
   /** Ex. « porte hall », « Vigik », « parking ». Peut etre vide. */
   libelle: string;
   quantite: number;
+  /**
+   * Valeur d'UN element, en euros (cout de remplacement : utile a l'attestation et en cas
+   * de perte). Facultative ; Keyko la tenait cle par cle (REA-53, Sekou 22/10/2026).
+   */
+  valeurUnitaire?: number;
 }
 
 /** Les types d'acces de l'outil PowerApps (colonne AccessType), plus « secours » et « hall » qui vivaient dans les libelles. */

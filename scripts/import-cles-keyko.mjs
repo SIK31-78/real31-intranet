@@ -33,7 +33,7 @@
 //    l'agence elle-meme, jamais repris.
 //  - Trousseaux : numero = reference Keyko ; un numero en double prend le suffixe « -B » et la
 //    note « doublon Keyko a arbitrer ». Emplacement = nom de l'armoire. Composition = les cles
-//    regroupees par type. La valeur declaree des cles part dans la note.
+//    regroupees par type, avec leur valeur unitaire (champ valeurUnitaire de la composition).
 //  - Statut Keyko (disponible / indisponible / non-rendu) NON repris : l'etat se derive des
 //    prets ; les ecarts sont au rapport.
 //  - Prets : seuls les emprunts EN COURS au jour du dump. Societe -> pret « entreprise »
@@ -222,11 +222,12 @@ for (const t of trousseauxKeyko) {
   for (const c of cles) {
     const [type, libType] = TYPE_CLE[c.type_cle] ?? ["autre", c.type_cle ?? ""];
     const libelle = [libType, OUVERTURE[c.type_ouverture]].filter(Boolean).join(" · ");
-    const k = `${type}|${libelle}`;
-    compo.set(k, { type, libelle, quantite: (compo.get(k)?.quantite ?? 0) + 1 });
+    // Keyko valorise cle par cle : deux cles du meme type a des prix differents restent deux lignes.
+    const valeur = Number(c.valeur);
+    const valeurUnitaire = Number.isFinite(valeur) && valeur > 0 ? Math.round(valeur * 100) / 100 : undefined;
+    const k = `${type}|${libelle}|${valeurUnitaire ?? ""}`;
+    compo.set(k, { type, libelle, quantite: (compo.get(k)?.quantite ?? 0) + 1, ...(valeurUnitaire !== undefined ? { valeurUnitaire } : {}) });
   }
-  const valeur = cles.reduce((s, c) => s + (Number(c.valeur) || 0), 0);
-  if (valeur > 0) notes.push(`Valeur déclarée des clés dans Keyko : ${valeur.toLocaleString("fr-FR")} €.`);
   if (propre(t.commentaire)) notes.push(t.commentaire.trim());
 
   const typesAcces = ["total", ...new Set(cles.map((c) => ACCES_OUVERTURE[c.type_ouverture]).filter(Boolean))];
