@@ -56,4 +56,8 @@ describe("texteMouvement", () => {
     expect(texteMouvement({ ...base, type: "reservation", entrepriseNom: "ABSOLU", details: { debutISO: "2026-09-20", finPrevueISO: "2026-09-20" } })).toBe("Réservé pour ABSOLU du 20/09/2026 au 20/09/2026");
     expect(texteMouvement({ ...base, type: "import", details: { libelle: "Emprunté", incoherence: "restitué sans emprunt" } })).toMatch(/incohérence : restitué sans emprunt/);
   });
+  it("nomme la bonne reprise : PowerApps à LGC, Keyko à Asnières", () => {
+    expect(texteMouvement({ ...base, type: "import", details: { libelle: "trousseau repris" } })).toBe("Repris de PowerApps : trousseau repris");
+    expect(texteMouvement({ ...base, type: "import", details: { libelle: "trousseau repris", keykoId: 2692 } })).toBe("Repris de Keyko : trousseau repris");
+  });
 });

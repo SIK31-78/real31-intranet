@@ -49,7 +49,10 @@ export function texteMouvement(m: Mouvement): string {
       return `Correction${texte(d.champ) ? ` de ${texte(d.champ)}` : ""}${motif ? ` (${motif})` : ""}`;
     case "relance":
       return `Relance${typeof d.niveau === "number" ? ` n°${d.niveau}` : ""}${qui ? ` à ${qui}` : ""}`;
-    case "import":
-      return `Repris de PowerApps : ${texte(d.libelle) || "mouvement"}${texte(d.incoherence) ? ` (incohérence : ${texte(d.incoherence)})` : ""}`;
+    case "import": {
+      // Deux reprises : PowerApps (LGC, 18/09/2026) et Keyko (ASN, REA-53), reconnue a son keykoId.
+      const origine = d.keykoId !== undefined || d.import === "keyko" ? "Keyko" : "PowerApps";
+      return `Repris de ${origine} : ${texte(d.libelle) || "mouvement"}${texte(d.incoherence) ? ` (incohérence : ${texte(d.incoherence)})` : ""}`;
+    }
   }
 }
