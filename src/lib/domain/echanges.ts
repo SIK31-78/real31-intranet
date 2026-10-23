@@ -151,8 +151,12 @@ export interface ReponseEnvoyee {
   date: string;
   deNom: string;
   a: string[];
+  /** Objet de la réponse partie (REA-408). */
+  objet: string;
   /** Le texte écrit, sans le message cité en dessous. */
   corps: string;
+  /** Le message cité sous la réponse (l'historique), "" s'il n'y en a pas. Replié à l'écran. */
+  historique: string;
   lienOutlook?: string;
 }
 
@@ -173,6 +177,18 @@ export function sansCitation(corps: string): string {
   const texte = corps.replace(/\r\n/g, "\n");
   const i = texte.search(DEBUT_CITATION);
   return (i > 0 ? texte.slice(0, i) : texte).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Ce que sansCitation retire : le message d'origine cité sous une réponse (REA-408), borné
+ * à `max` caractères pour qu'un long fil n'alourdisse pas la page. "" sans citation.
+ */
+export function citationDe(corps: string, max = 30_000): string {
+  const texte = corps.replace(/\r\n/g, "\n");
+  const i = texte.search(DEBUT_CITATION);
+  if (i <= 0) return "";
+  const reste = texte.slice(i).replace(/\n{3,}/g, "\n\n").trim();
+  return reste.length > max ? `${reste.slice(0, max)}\n…` : reste;
 }
 
 /** La boîte ne répond pas à l'app : hors du groupe autorisé par la DSI (403) ou inexistante. */

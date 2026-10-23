@@ -50,6 +50,7 @@ export function ReponseEnvoyee({ emailId, boite }: { emailId: string; boite: str
           ) : (
             reponses.map((r) => (
               <div key={r.date} className="rounded-md border border-line bg-surface-2 px-3 py-2">
+                {r.objet ? <p className="text-body font-medium text-ink truncate" title={r.objet}>{r.objet}</p> : null}
                 <p className="text-meta text-ink-3">
                   {quand(r.date)}, par <span className="text-ink-2">{r.deNom}</span>
                   {r.a.length ? <> à {r.a.join(", ")}</> : null}
@@ -62,11 +63,35 @@ export function ReponseEnvoyee({ emailId, boite }: { emailId: string; boite: str
                 <div className="mt-1 text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[240px] overflow-auto">
                   {r.corps ? <TexteAvecLiens texte={r.corps} /> : <span className="italic text-ink-3">(réponse sans texte)</span>}
                 </div>
+                {r.historique ? <HistoriqueCite texte={r.historique} /> : null}
               </div>
             ))
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Le message cité sous la réponse, replié : on le déplie au besoin (REA-408). */
+function HistoriqueCite({ texte }: { texte: string }) {
+  const [ouvert, setOuvert] = useState(false);
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={() => setOuvert((o) => !o)}
+        aria-expanded={ouvert}
+        className="flex items-center gap-1 text-meta text-ink-3 hover:text-ink"
+      >
+        <ChevronRight strokeWidth={1.5} className={`w-3 h-3 transition-transform ${ouvert ? "rotate-90" : ""}`} />
+        {ouvert ? "Masquer l’historique" : "Afficher l’historique"}
+      </button>
+      {ouvert ? (
+        <div className="mt-1 text-meta text-ink-3 whitespace-pre-wrap leading-relaxed max-h-[240px] overflow-auto border-l-2 border-line pl-3">
+          <TexteAvecLiens texte={texte} />
+        </div>
+      ) : null}
     </div>
   );
 }

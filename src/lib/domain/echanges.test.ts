@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  citationDe,
   envoyesDuBinome,
   sansCitation,
   boiteAutorisee,
@@ -140,6 +141,12 @@ describe("réponse envoyée sans le message cité", () => {
   });
   it("garde tout quand rien n'est cité", () => {
     expect(sansCitation("  Bien reçu.  ")).toBe("Bien reçu.");
+  });
+  it("rend à part l'historique cité, borné", () => {
+    const corps = "Merci.\r\n\r\nDe : Jean Dupont <jean@x.fr>\r\nObjet : fuite\r\n\r\n\r\n\r\nBonjour, une fuite.";
+    expect(citationDe(corps)).toBe("De : Jean Dupont <jean@x.fr>\nObjet : fuite\n\nBonjour, une fuite.");
+    expect(citationDe("  Bien reçu.  ")).toBe("");
+    expect(citationDe("Ok.\nDe : x\nabcdef", 8)).toBe("De : x\na\n…");
   });
 });
 
