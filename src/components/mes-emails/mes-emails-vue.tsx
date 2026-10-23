@@ -73,7 +73,15 @@ import { PasPourMoi } from "./pas-pour-moi";
 import { ImagesMail } from "./images-mail";
 import { useAlerteSortie } from "./alerte-sortie";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
-import { fusionnerModele, resumeDestinataires, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
+import {
+  fusionnerModele,
+  prefixeObjetCopro,
+  resumeDestinataires,
+  sansPolitesseEnDouble,
+  type DestinataireTrouve,
+  type ModeleMail,
+} from "@/lib/domain/mes-emails-composition";
+import { rechercherDestinatairesAction } from "@/app/mes-emails/composer/actions";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { ecrirePlaceInternes } from "./preference-liste";
@@ -1387,10 +1395,30 @@ function LigneDest({
     if (e && !valeurs.includes(e)) onChange(champ, [...valeurs, e]);
     setSaisie("");
   };
+  // Recherche dans l'annuaire, comme « Envoyer un e-mail » et « Transférer » (REA-408) : un
+  // nom tapé propose les personnes ; une adresse tapée passe toujours telle quelle.
+  const [trouves, setTrouves] = useState<{ q: string; liste: DestinataireTrouve[] } | null>(null);
+  const q = saisie.trim();
+  const chercher = q.length >= 3 && !q.includes("@");
+  const resultats = chercher && trouves?.q === q ? trouves.liste : null;
+  useEffect(() => {
+    if (!chercher) return;
+    const t = setTimeout(() => {
+      void rechercherDestinatairesAction({ texte: q }).then((r) => setTrouves({ q, liste: r.ok ? (r.donnees ?? []) : [] }));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, chercher]);
+  // Une personne choisie : toutes ses adresses rejoignent le champ.
+  const ajouterPersonne = (d: DestinataireTrouve) => {
+    const nouvelles = d.emails.filter((e) => !valeurs.some((v) => v.toLowerCase() === e.toLowerCase()));
+    if (nouvelles.length) onChange(champ, [...valeurs, ...nouvelles]);
+    setSaisie("");
+    setTrouves(null);
+  };
   return (
     <div
       {...depot.zone}
-      className={"flex items-start gap-2 min-h-[24px] rounded " + (depot.survol ? "bg-green-50/60 ring-1 ring-green-600" : "")}
+      className={"relative flex items-start gap-2 min-h-[24px] rounded " + (depot.survol ? "bg-green-50/60 ring-1 ring-green-600" : "")}
     >
       <span className="w-7 shrink-0 pt-1 text-meta font-medium text-ink-3">{label}</span>
       <div className="flex-1 flex flex-wrap items-center gap-1">
@@ -1419,16 +1447,46 @@ function LigneDest({
           value={saisie}
           onChange={(ev) => setSaisie(ev.target.value)}
           onKeyDown={(ev) => {
+            if (ev.key === "Escape" && resultats) {
+              ev.preventDefault();
+              setTrouves(null);
+              return;
+            }
             if (ev.key === "Enter" || ev.key === "," || ev.key === ";") {
               ev.preventDefault();
-              ajouter();
+              if (resultats?.length === 1) ajouterPersonne(resultats[0]!);
+              else ajouter();
             }
           }}
           onBlur={ajouter}
-          placeholder="ajouter une adresse…"
+          placeholder="nom ou adresse…"
+          aria-label={`Destinataires ${label}`}
           className="flex-1 min-w-[120px] h-6 bg-transparent text-meta text-ink outline-none placeholder:text-ink-3"
         />
       </div>
+      {resultats && (
+        <ul className="absolute left-9 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto rounded-lg border border-line bg-surface shadow-2 py-1">
+          {resultats.length === 0 && <li className="px-3 py-2 text-meta text-ink-3">Personne de ce nom dans l&apos;annuaire Crypto.</li>}
+          {resultats.map((d) => (
+            <li key={d.cle}>
+              <button
+                type="button"
+                // Le clic ne doit pas d'abord vider le champ par le blur (qui ajouterait le nom tapé).
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => ajouterPersonne(d)}
+                className="w-full text-left px-3 py-1.5 hover:bg-surface-2"
+              >
+                <span className="text-body text-ink">{d.nom || d.emails[0]}</span>
+                {d.casquette ? <span className="text-meta text-ink-3"> · {d.casquette}</span> : null}
+                <span className="block text-meta text-ink-3 truncate">{d.emails.join(" ; ")}</span>
+                {d.copros.length > 0 && (
+                  <span className="block text-meta text-ink-2 truncate">{d.copros.map((c) => prefixeObjetCopro(c)).join("  |  ")}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
