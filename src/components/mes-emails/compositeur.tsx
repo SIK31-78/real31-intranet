@@ -4,7 +4,7 @@
 // l'annuaire rend la personne avec TOUTES ses adresses (certains en veulent deux) et ses
 // immeubles ; on choisit l'immeuble auquel rattacher le mail, ou aucun (c'est parfois perso).
 // Le conseil syndical s'ajoute d'un clic, toute la copropriété aussi (en copie cachée, REA-305).
-// L'objet est taggé par la copro pour le tri.
+// L'objet est taggé par la copro (code · nom) pour le tri.
 // Pièces jointes et signature (Signitic) partent avec. Le bouton ENVOIE quand l'envoi depuis
 // la boîte partagée est ouvert (MAIL_ENVOI=on) ; sinon il crée un BROUILLON, relu puis
 // envoyé depuis Outlook (ADR-047). Fichiers et destinataires se glissent-déposent.
@@ -25,6 +25,7 @@ import {
   sansPolitesseEnDouble,
   objetCompose,
   prefixeObjetCopro,
+  remplacerPrefixeCopro,
   resumeDestinataires,
   type ConseilComposition,
   type ControleTouteLaCopro,
@@ -102,17 +103,6 @@ function enBase64(f: File): Promise<string> {
   });
 }
 
-/** Remplace le préfixe copro de l'objet (celui de l'ancienne copro) par celui de la nouvelle. */
-function avecPrefixe(objet: string, ancienne: CoproChoisissable | null, nouvelle: CoproChoisissable | null): string {
-  let reste = objet.trim();
-  if (ancienne) {
-    const p = prefixeObjetCopro(ancienne);
-    if (reste.startsWith(p)) reste = reste.slice(p.length).replace(/^\s*-\s*/, "");
-  }
-  // Préfixe seul : on laisse « - » pour taper l'objet à la suite.
-  return nouvelle ? (reste ? objetCompose(nouvelle, reste) : `${prefixeObjetCopro(nouvelle)} - `) : reste;
-}
-
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
 export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false }: Props) {
@@ -134,7 +124,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [dossiers, setDossiers] = useState<DossierAffiche[] | null>(null);
   const [dossierId, setDossierId] = useState("");
   const [modeleId, setModeleId] = useState("");
-  // L'objet complet, éditable : la copro choisie y pose son préfixe (code · adresse) pour le tri.
+  // L'objet complet, éditable : la copro choisie y pose son préfixe (code · nom) pour le tri.
   const [objet, setObjet] = useState("");
   const [corps, setCorps] = useState("");
   // Mise en forme (REA-345, pilote) : le HTML de l'éditeur ; `corps` en reste le texte, pour
@@ -154,7 +144,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
 
   function choisirCopro(ref: string) {
     const nouvelle = copros.find((x) => x.reference.toUpperCase() === ref.trim().toUpperCase()) ?? proposees.find((x) => x.reference === ref) ?? null;
-    setObjet((o) => avecPrefixe(o, copro, nouvelle));
+    setObjet((o) => remplacerPrefixeCopro(o, copro, nouvelle));
     const modele = modeles.find((x) => x.id === modeleId);
     if (modele && corps === corpsDuModele.current) remplirModele(modele, nouvelle);
     setRefCopro(ref);

@@ -1,6 +1,6 @@
 // Composition d'un mail SORTANT depuis une boîte partagée (syndicN), façon « F1 » de Crypto :
-// on choisit un copropriétaire -> sa copro donne le code, le nom et l'adresse, qui tag­uent
-// l'objet (« S247 · Résidence X · 12 rue … ») pour que le mail soit retrouvable par le tri.
+// on choisit un copropriétaire -> sa copro donne le code et le nom, qui taguent l'objet
+// (« S247 · Résidence X ») pour que le mail soit retrouvable par le tri.
 // Modèles d'événement = gabarits simples {{variable}}. Domaine PUR : aucune dépendance,
 // aucun réseau -> testable tel quel. L'envoi réel vit ailleurs (gaté par envoiMailActif()).
 
@@ -93,11 +93,31 @@ export const ADRESSE_MAIL = /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-.]*)[A-Za-z0-9_+-]
 
 export const adresseMailValide = (e: string): boolean => e.length <= 320 && ADRESSE_MAIL.test(e);
 
-/** Objet complet d'un mail à une copro : le préfixe identifiant, puis le sujet saisi. */
-export function objetCompose(copro: CoproComposition, sujet: string, avecAdresse = true): string {
+/**
+ * Objet complet d'un mail à une copro : le préfixe identifiant, puis le sujet saisi. Sans
+ * l'adresse par défaut (REA-408) : « CODE · Nom », comme l'objet d'une réponse
+ * (sujetDeReponse) ; le code suffit au tri, l'adresse alourdissait l'objet.
+ */
+export function objetCompose(copro: CoproComposition, sujet: string, avecAdresse = false): string {
   const prefixe = prefixeObjetCopro(copro, avecAdresse);
   const s = sujet.trim();
   return s ? `${prefixe} - ${s}` : prefixe;
+}
+
+/**
+ * Change la copro d'un objet déjà saisi : retire le préfixe de l'ancienne copro (avec ou sans
+ * adresse : un objet tapé avant REA-408 la portait encore) et pose celui de la nouvelle.
+ * Préfixe seul : on laisse « - » pour taper l'objet à la suite.
+ */
+export function remplacerPrefixeCopro(objet: string, ancienne: CoproComposition | null, nouvelle: CoproComposition | null): string {
+  let reste = objet.trim();
+  if (ancienne) {
+    // Le plus long d'abord : le préfixe sans adresse est le début de celui avec adresse.
+    const prefixes = [prefixeObjetCopro(ancienne, true), prefixeObjetCopro(ancienne, false)];
+    const p = prefixes.find((x) => reste.startsWith(x));
+    if (p) reste = reste.slice(p.length).replace(/^\s*-\s*/, "").trim();
+  }
+  return nouvelle ? (reste ? objetCompose(nouvelle, reste) : `${prefixeObjetCopro(nouvelle, false)} - `) : reste;
 }
 
 /** Variables de fusion offertes aux modèles. Toutes facultatives : une variable absente devient "". */

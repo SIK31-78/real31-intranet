@@ -12,6 +12,7 @@ import {
   objetCompose,
   objetFactureEstale,
   prefixeObjetCopro,
+  remplacerPrefixeCopro,
   resumeDestinataires,
 } from "./mes-emails-composition";
 
@@ -33,9 +34,27 @@ describe("objet auto-taggé copro", () => {
     expect(prefixeObjetCopro(peri, false)).toBe("S0302 · 44/50 rue Gabriel Péri");
   });
 
-  it("colle le sujet saisi après le préfixe identifiant", () => {
-    expect(objetCompose(copro, "Fuite dans le hall", false)).toBe("S0247 · Résidence Le Cyrano - Fuite dans le hall");
-    expect(objetCompose(copro, "  ", false)).toBe("S0247 · Résidence Le Cyrano");
+  it("colle le sujet saisi après le préfixe identifiant, sans l'adresse (comme une réponse)", () => {
+    expect(objetCompose(copro, "Fuite dans le hall")).toBe("S0247 · Résidence Le Cyrano - Fuite dans le hall");
+    expect(objetCompose(copro, "  ")).toBe("S0247 · Résidence Le Cyrano");
+    // Une copro dont le nom est l'adresse garde ce nom.
+    const peri = { reference: "S0302", nom: "44/50 rue Gabriel Péri", adresse: "44/50 Rue Gabriel Péri 78800 Houilles" };
+    expect(objetCompose(peri, "AG")).toBe("S0302 · 44/50 rue Gabriel Péri - AG");
+  });
+
+  it("change de copro : l'ancien préfixe part, avec ou sans adresse", () => {
+    const autre = { reference: "S0101", nom: "Les Tilleuls", adresse: "3 rue Neuve 78800 Houilles" };
+    expect(remplacerPrefixeCopro("", null, copro)).toBe("S0247 · Résidence Le Cyrano - ");
+    expect(remplacerPrefixeCopro("S0247 · Résidence Le Cyrano - Fuite", copro, autre)).toBe("S0101 · Les Tilleuls - Fuite");
+    // Objet tapé avec l'ancien préfixe complet (adresse comprise).
+    expect(remplacerPrefixeCopro("S0247 · Résidence Le Cyrano · 12 rue des Lilas 78400 Chatou - Fuite", copro, autre)).toBe(
+      "S0101 · Les Tilleuls - Fuite",
+    );
+    expect(remplacerPrefixeCopro("S0247 · Résidence Le Cyrano - ", copro, autre)).toBe("S0101 · Les Tilleuls - ");
+    // Retour à « aucune copropriété » : le sujet seul reste.
+    expect(remplacerPrefixeCopro("S0247 · Résidence Le Cyrano - Fuite", copro, null)).toBe("Fuite");
+    // Un objet libre (pas du préfixe) est gardé tel quel.
+    expect(remplacerPrefixeCopro("Question", copro, autre)).toBe("S0101 · Les Tilleuls - Question");
   });
 });
 
