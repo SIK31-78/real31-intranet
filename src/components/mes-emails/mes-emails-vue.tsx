@@ -942,7 +942,7 @@ export function MesEmailsVue({
       {fouille ? (
         <ResultatsFouille fouille={fouille} onFermer={() => setFouille(null)} />
       ) : pilote && vue === "envoyes" ? (
-        <EnvoyesVue key={boiteActive} boite={boiteActive} />
+        <EnvoyesVue key={boiteActive} boite={boiteActive} partagee={!(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true)} />
       ) : (
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* La liste, en premier : c'est ce qu'on vient chercher. */}

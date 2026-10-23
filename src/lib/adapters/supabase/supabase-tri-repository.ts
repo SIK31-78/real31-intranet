@@ -27,6 +27,8 @@ type RowJournal = {
   par: string;
   fait_le: string;
   annule_le: string | null;
+  /** Absente tant que intranet_tri_journal_conversation.sql n'est pas passé. */
+  conversation_id?: string | null;
 };
 
 const COLS =
@@ -67,6 +69,7 @@ function versDomaine(r: RowJournal): EntreeJournalTri {
     par: r.par,
     faitLe: r.fait_le,
     annuleLe: r.annule_le,
+    ...(r.conversation_id ? { conversationId: r.conversation_id } : {}),
   };
 }
 
@@ -200,19 +203,24 @@ export class SupabaseTriRepository implements TriRepository {
   }
 
   async journalDepuis(boite: string, depuisISO: string) {
-    const { data, error } = await createSupabasePublicClient()
-      .from("intranet_tri_journal")
-      .select(COLS)
-      .eq("boite", boite)
-      .is("annule_le", null)
-      .gte("fait_le", depuisISO)
-      .order("fait_le", { ascending: false })
-      .limit(500);
+    const lire = (cols: string) =>
+      createSupabasePublicClient()
+        .from("intranet_tri_journal")
+        .select(cols)
+        .eq("boite", boite)
+        .is("annule_le", null)
+        .gte("fait_le", depuisISO)
+        .order("fait_le", { ascending: false })
+        .limit(500);
+    // La conversation sert aux « Envoyés » d'une boîte partagée (REA-408). Colonne pas
+    // encore créée : on relit sans elle, le journal reste lisible.
+    let { data, error } = await lire(`${COLS}, conversation_id`);
+    if (error && colonneAbsente(error)) ({ data, error } = await lire(COLS));
     if (error) {
       if (tableAbsente(error)) return [];
       throw erreur("journal", error);
     }
-    return ((data ?? []) as RowJournal[]).map(versDomaine);
+    return ((data ?? []) as unknown as RowJournal[]).map(versDomaine);
   }
 
   async dejaRanges(boite: string, ids: string[]) {

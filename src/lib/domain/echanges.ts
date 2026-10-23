@@ -156,6 +156,15 @@ export interface ReponseEnvoyee {
   lienOutlook?: string;
 }
 
+/**
+ * Les envoyés d'une boîte partagée qu'un binôme voit (REA-408) : ceux d'une conversation
+ * dont un mail lui a été distribué par le tri. Un envoyé sans conversation connue n'est
+ * à personne en particulier : il ne remonte pas. Ordre gardé, `max` au plus.
+ */
+export function envoyesDuBinome(envoyes: EchangeTrouve[], conversations: ReadonlySet<string>, max: number): EchangeTrouve[] {
+  return envoyes.filter((e) => e.conversationId !== undefined && conversations.has(e.conversationId)).slice(0, max);
+}
+
 // Début du message cité sous une réponse : en-tête Outlook FR/EN, séparateur, « Le … a écrit ».
 const DEBUT_CITATION = /^\s*(?:(?:De|From)\s?:.*$|-{3,}\s*(?:Message d'origine|Original Message)|_{10,}|Le .{5,120} a écrit\s?:|On .{5,120} wrote:)/im;
 

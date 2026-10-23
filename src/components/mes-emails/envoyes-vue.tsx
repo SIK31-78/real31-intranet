@@ -25,7 +25,7 @@ const dateHeure = (iso: string) =>
 
 type Etat = { enCours: true } | { enCours: false; envoyes: EchangeTrouve[] } | { enCours: false; erreur: string };
 
-export function EnvoyesVue({ boite }: { boite: string }) {
+export function EnvoyesVue({ boite, partagee = false }: { boite: string; /** Boîte partagée : filtrée au binôme (REA-408). */ partagee?: boolean }) {
   const [etat, setEtat] = useState<Etat>({ enCours: true });
   const [choisiId, setChoisiId] = useState<string | null>(null);
 
@@ -48,6 +48,7 @@ export function EnvoyesVue({ boite }: { boite: string }) {
       <Card className="px-6 py-16 text-center">
         <Send strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
         <p className="text-body font-medium text-ink mt-3">Aucun mail envoyé</p>
+        {partagee ? <p className="text-meta text-ink-3 mt-1">Seuls les envoyés de {boite} liés à vos mails apparaissent ici.</p> : null}
       </Card>
     );
   }
@@ -58,7 +59,9 @@ export function EnvoyesVue({ boite }: { boite: string }) {
       <aside className="w-full lg:w-[340px] shrink-0">
         <Card className="overflow-hidden">
           <p className="px-3.5 py-2 border-b border-line text-meta text-ink-3">
-            Les {envoyes.length} derniers mails partis de {boite}
+            {partagee
+              ? `Les ${envoyes.length} derniers envoyés de ${boite} liés à vos mails`
+              : `Les ${envoyes.length} derniers mails partis de ${boite}`}
           </p>
           <ul className="divide-y divide-line max-h-[calc(100vh-260px)] overflow-auto">
             {envoyes.map((e) => (

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  envoyesDuBinome,
   sansCitation,
   boiteAutorisee,
   boitesVisibles,
@@ -139,5 +140,33 @@ describe("réponse envoyée sans le message cité", () => {
   });
   it("garde tout quand rien n'est cité", () => {
     expect(sansCitation("  Bien reçu.  ")).toBe("Bien reçu.");
+  });
+});
+
+describe("envoyés d'une boîte partagée, filtrés au binôme", () => {
+  const envoye = (id: string, conversationId?: string): EchangeTrouve => ({
+    boite: "syndic9@exemple.fr",
+    id,
+    internetMessageId: `<${id}@exemple.fr>`,
+    ...(conversationId ? { conversationId } : {}),
+    objet: `Objet ${id}`,
+    deNom: "Syndic 9",
+    deAdresse: "syndic9@exemple.fr",
+    a: ["client@exemple.fr"],
+    cc: [],
+    date: "2026-10-20T10:00:00Z",
+    aPiecesJointes: false,
+    apercu: "",
+  });
+
+  it("ne garde que les conversations distribuées au binôme, dans l'ordre", () => {
+    const l = [envoye("1", "c-a"), envoye("2", "c-autre"), envoye("3"), envoye("4", "c-b"), envoye("5", "c-a")];
+    expect(envoyesDuBinome(l, new Set(["c-a", "c-b"]), 30).map((e) => e.id)).toEqual(["1", "4", "5"]);
+  });
+
+  it("borne le nombre gardé et rend vide sans conversation connue", () => {
+    const l = [envoye("1", "c-a"), envoye("2", "c-a"), envoye("3", "c-a")];
+    expect(envoyesDuBinome(l, new Set(["c-a"]), 2).map((e) => e.id)).toEqual(["1", "2"]);
+    expect(envoyesDuBinome(l, new Set(), 30)).toEqual([]);
   });
 });

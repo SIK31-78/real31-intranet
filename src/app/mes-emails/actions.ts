@@ -24,7 +24,7 @@ import {
 import type { Rattachement } from "@/lib/domain/mes-emails";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { envoiMailActif } from "@/lib/domain/mail-gate";
-import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
+import { boitesVisibles, conversationsDistribuees } from "@/lib/services/mes-emails/boites-visibles";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
 import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
@@ -736,7 +736,10 @@ export async function mettreALaCorbeilleAction(input: unknown): Promise<Res<Resu
   }
 }
 
-/** Les 30 derniers mails envoyés de la boîte affichée (REA-341). Lecture seule. */
+/**
+ * Les 30 derniers mails envoyés de la boîte affichée (REA-341). Lecture seule. Boîte
+ * partagée : seulement ceux des conversations distribuées à mon binôme (REA-408).
+ */
 export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeTrouve[]>> {
   const g = await gestionnairePilote();
   if (!g) return echec(PILOTE_SEUL);
@@ -745,7 +748,8 @@ export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeT
   const cible = await boiteCible(g, v.data.boite);
   if (!cible) return echec("Boîte non autorisée.");
   try {
-    return { ok: true, donnees: await listerEnvoyes(cible) };
+    const perso = (await boitesVisibles(g)).find((x) => x.id === cible)?.personnelle ?? false;
+    return { ok: true, donnees: await listerEnvoyes(cible, perso ? undefined : await conversationsDistribuees(g, cible)) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }

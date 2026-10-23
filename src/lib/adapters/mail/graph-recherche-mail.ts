@@ -76,18 +76,23 @@ export class GraphRechercheMail implements RechercheMailProvider {
 
   async envoyes(p: { boite: string; max: number }): Promise<EchangeTrouve[]> {
     const tk = await jetonGraph();
-    // Le dossier par son nom connu (sentitems), trié par date d'envoi : une seule page,
-    // l'écran n'en montre que les derniers (REA-341, 16/10/2026).
-    const top = Math.min(Math.max(Math.trunc(p.max), 1), 50);
-    const r = await graphFetch(
+    // Le dossier par son nom connu (sentitems), trié par date d'envoi : l'écran n'en montre
+    // que les derniers (REA-341, 16/10/2026). Au-delà de 50 (boîte partagée filtrée au
+    // binôme, REA-408), on suit les pages, borné à 200.
+    const max = Math.min(Math.max(Math.trunc(p.max), 1), 200);
+    let url =
       `${GRAPH}/users/${encodeURIComponent(p.boite)}/mailFolders/sentitems/messages` +
-        `?$orderby=${encodeURIComponent("sentDateTime desc")}&$top=${top}&$select=${SELECT},sentDateTime`,
-      { headers: { Authorization: `Bearer ${tk}` } },
-    );
-    if (r.status === 403 || r.status === 404) throw new BoiteNonLisible(p.boite);
-    if (!r.ok) throw new Error(`Graph envoyés ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    const l = ((await r.json()) as { value?: (GraphMessage & { sentDateTime?: string })[] }).value ?? [];
-    return l.map((m) => ({ ...versEchange(p.boite, m), date: m.sentDateTime ?? m.receivedDateTime }));
+      `?$orderby=${encodeURIComponent("sentDateTime desc")}&$top=${Math.min(max, 50)}&$select=${SELECT},sentDateTime`;
+    const out: EchangeTrouve[] = [];
+    while (url && out.length < max) {
+      const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+      if (r.status === 403 || r.status === 404) throw new BoiteNonLisible(p.boite);
+      if (!r.ok) throw new Error(`Graph envoyés ${r.status} : ${(await r.text()).slice(0, 200)}`);
+      const j = (await r.json()) as { value?: (GraphMessage & { sentDateTime?: string })[]; "@odata.nextLink"?: string };
+      for (const m of j.value ?? []) out.push({ ...versEchange(p.boite, m), date: m.sentDateTime ?? m.receivedDateTime });
+      url = j["@odata.nextLink"] ?? "";
+    }
+    return out.slice(0, max);
   }
 
   async lireCorps(p: { boite: string; id: string }): Promise<string> {
