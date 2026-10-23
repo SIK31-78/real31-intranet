@@ -3,21 +3,29 @@
 // Systeme de toasts global (notifications ephemeres). Accessible : la zone est
 // une live region (polite pour ok/info/warn, le toast d'erreur passe en role=alert).
 // API : const { ok, err, info, warn } = useToast().
+// Un succes peut porter un lien (ex. « Ouvrir le brouillon dans Outlook », REA-408) : il
+// s'ouvre dans un nouvel onglet et le toast reste alors plus longtemps.
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 type Ton = "ok" | "err" | "info" | "warn";
+/** Lien porte par un toast, ouvert dans un nouvel onglet. */
+export interface LienToast {
+  href: string;
+  libelle: string;
+}
 interface Toast {
   id: number;
   message: string;
   ton: Ton;
+  lien?: LienToast;
   /** En cours de sortie (animation) : retire du DOM 180 ms plus tard. */
   sortie?: boolean;
 }
 interface ToastApi {
-  ok: (message: string) => void;
+  ok: (message: string, lien?: LienToast) => void;
   err: (message: string) => void;
   info: (message: string) => void;
   warn: (message: string) => void;
@@ -26,6 +34,8 @@ interface ToastApi {
 /** Duree d'affichage des toasts NON bloquants (ok / info / warn). Les erreurs, elles,
  *  restent jusqu'a fermeture explicite : cf. `ajouter`. */
 const DUREE_SUCCES_MS = 5000;
+/** Un toast qui porte un lien : le temps de le lire et de cliquer. */
+const DUREE_AVEC_LIEN_MS = 12000;
 const DUREE_SORTIE_MS = 180;
 
 const ToastCtx = createContext<ToastApi | null>(null);
@@ -48,9 +58,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const ajouter = useCallback(
-    (ton: Ton, message: string) => {
+    (ton: Ton, message: string, lien?: LienToast) => {
       const id = ++compteur;
-      setToasts((liste) => [...liste, { id, message, ton }]);
+      setToasts((liste) => [...liste, { id, message, ton, ...(lien ? { lien } : {}) }]);
       // Une ERREUR ne s'efface pas toute seule (retour d'une collegue de Sekou,
       // 2026-07-29 : "c'est chiant que les messages d'erreur restent juste 5 secondes").
       // Nos messages d'erreur sont ACTIONNABLES et souvent longs ("Parametres d'AG non
@@ -58,14 +68,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       // depassement") : disparaitre avant d'avoir ete lus les rend inutiles, et
       // l'utilisateur ne peut meme pas les recopier pour demander de l'aide.
       // Un succes, lui, n'appelle aucune action -> il s'efface. La croix ferme les deux.
-      if (ton !== "err") setTimeout(() => retirer(id), DUREE_SUCCES_MS);
+      if (ton !== "err") setTimeout(() => retirer(id), lien ? DUREE_AVEC_LIEN_MS : DUREE_SUCCES_MS);
     },
     [retirer],
   );
 
   const api = useMemo<ToastApi>(
     () => ({
-      ok: (m) => ajouter("ok", m),
+      ok: (m, lien) => ajouter("ok", m, lien),
       err: (m) => ajouter("err", m),
       info: (m) => ajouter("info", m),
       warn: (m) => ajouter("warn", m),
@@ -112,7 +122,17 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
       )}
     >
       <Icone strokeWidth={1.5} className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-      <span className="flex-1">{toast.message}</span>
+      <span className="flex-1">
+        {toast.message}
+        {toast.lien ? (
+          <>
+            {" "}
+            <a href={toast.lien.href} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+              {toast.lien.libelle}
+            </a>
+          </>
+        ) : null}
+      </span>
       <button
         type="button"
         onClick={onClose}

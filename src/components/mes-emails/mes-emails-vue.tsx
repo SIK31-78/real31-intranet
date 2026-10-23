@@ -29,6 +29,7 @@ import {
   Reply,
   ReplyAll,
   Trash2,
+  ExternalLink,
   FolderPlus,
 } from "lucide-react";
 import type {
@@ -252,6 +253,9 @@ export function MesEmailsVue({
   // Modèle choisi pour la réponse, par mail (la liste se remet à « Aucun » à la fermeture).
   const [modeleParMail, setModeleParMail] = useState<Map<string, string>>(new Map());
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
+  // Le lien Outlook du brouillon créé, attaché au message qui l'annonce : un autre message
+  // (ou aucun) le fait disparaître sans rien avoir à remettre à zéro (REA-408).
+  const [lienBrouillon, setLienBrouillon] = useState<{ msg: string; url: string } | null>(null);
   // Verrou anti double-envoi : le bouton "Envoyer la réponse" declenche un envoi REEL
   // (irreversible). Tant qu'un envoi est en cours, on ignore les nouveaux clics et on grise
   // le bouton -> jamais deux mails envoyes pour un double-clic ou un clic pendant l'attente.
@@ -267,6 +271,7 @@ export function MesEmailsVue({
   );
   const [dossiersChoisis, setDossiersChoisis] = useState<Map<string, string>>(new Map());
   const [msgClasser, setMsgClasser] = useState<string | null>(null);
+  const [lienClasser, setLienClasser] = useState<{ msg: string; url: string } | null>(null);
   // Dossiers REELS (module Dossiers) de la copro, charges en lazy a l'ouverture du picker.
   const [dossiersReels, setDossiersReels] = useState<
     Map<string, { id: string; titre: string; type: TypeDossier }[]>
@@ -396,11 +401,11 @@ export function MesEmailsVue({
       fichiers: fichiersEnvoi(m),
       boite: boiteDuMail(m),
     });
-    setMsgBrouillon(
-      r.ok
-        ? `Brouillon créé dans ${boiteDuMail(m)}, avec destinataires, objet et pièces jointes : à relire puis envoyer dans Outlook.`
-        : `Échec : ${r.message ?? ""}`,
-    );
+    const msg = r.ok
+      ? `Brouillon créé dans ${boiteDuMail(m)}, avec destinataires, objet et pièces jointes : à relire puis envoyer dans Outlook.`
+      : `Échec : ${r.message ?? ""}`;
+    setMsgBrouillon(msg);
+    setLienBrouillon(r.ok && r.webLink ? { msg, url: r.webLink } : null);
   }
 
   // Ouvre l'editeur de reponse. « Répondre » = l'expediteur seul ; « Répondre à tous » =
@@ -467,7 +472,9 @@ export function MesEmailsVue({
   async function transmettreFactureMail(m: MailEntrant, f: { compte: string; fournisseur: string; libelle: string }) {
     setMsgClasser("Création du brouillon de transfert…");
     const r = await transmettreFactureAction(m.id, coproDe(m).code, f, boiteDuMail(m));
-    setMsgClasser(r.message ?? (r.ok ? "Brouillon créé." : "La transmission a échoué."));
+    const msg = r.message ?? (r.ok ? "Brouillon créé." : "La transmission a échoué.");
+    setMsgClasser(msg);
+    setLienClasser(r.ok && r.webLink ? { msg, url: r.webLink } : null);
   }
   const fermerApercu = () =>
     setApercu((a) => {
@@ -1031,6 +1038,7 @@ export function MesEmailsVue({
               dossierACreer={dossierACreer(selection)}
               onCreerDossierOutlook={() => void creerDossierOutlook(selection)}
               msgClasser={msgClasser}
+              lienClasser={lienClasser?.msg === msgClasser ? lienClasser.url : null}
               envoiPropose={envoisProposes.get(selection.id) ?? null}
               onEnvoyerPropose={(p) => {
                 const m = selection;
@@ -1083,6 +1091,7 @@ export function MesEmailsVue({
               onEnvoyer={() => void envoyerSeul(selection)}
               envoiEnCours={envoiEnCours}
               msgBrouillon={msgBrouillon}
+              lienBrouillon={lienBrouillon?.msg === msgBrouillon ? lienBrouillon.url : null}
               changer={changer}
               ouverts={ouverts}
               onEditBrouillon={(t) => setEdits((p) => new Map(p).set(selection.id, t))}
@@ -1252,6 +1261,16 @@ function LigneMail({
         </div>
       </button>
     </li>
+  );
+}
+
+/** « Ouvrir le brouillon dans Outlook », après le message qui annonce le brouillon créé. */
+function LienBrouillonOutlook({ href }: { href: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-info-700 hover:underline">
+      Ouvrir le brouillon dans Outlook
+      <ExternalLink strokeWidth={1.5} className="w-3 h-3" />
+    </a>
   );
 }
 
@@ -1581,6 +1600,7 @@ function AnalysePane({
   dossierACreer,
   onCreerDossierOutlook,
   msgClasser,
+  lienClasser = null,
   envoiPropose,
   onEnvoyerPropose,
   changer,
@@ -1619,6 +1639,7 @@ function AnalysePane({
   onEnvoyer,
   envoiEnCours,
   msgBrouillon,
+  lienBrouillon = null,
   onToggleChanger,
   onRattacherDossier,
   onCreerDossier,
@@ -1659,6 +1680,8 @@ function AnalysePane({
   dossierACreer: string | null;
   onCreerDossierOutlook: () => void;
   msgClasser: string | null;
+  /** Lien Outlook du brouillon annoncé par msgClasser (transmission de facture). */
+  lienClasser?: string | null;
   /** Copro choisie gérée par un autre binôme : proposer de lui envoyer le mail (REA-327). */
   envoiPropose: { reference: string; dossier: string } | null;
   onEnvoyerPropose: (p: { reference: string; dossier: string }) => void;
@@ -1702,6 +1725,8 @@ function AnalysePane({
   onEnvoyer: () => void;
   envoiEnCours: boolean;
   msgBrouillon: string | null;
+  /** Lien Outlook du brouillon de réponse annoncé par msgBrouillon. */
+  lienBrouillon?: string | null;
   onToggleChanger: () => void;
   onRattacherDossier: (dossierId: string, titre: string) => void;
   onCreerDossier: (type: TypeDossier, titre: string) => void;
@@ -1803,7 +1828,12 @@ function AnalysePane({
             {changer ? "Fermer" : ratt.intranet ? "Changer de dossier" : "Rattacher à un dossier"}
           </Button>
         </div>
-        {msgClasser ? <p className="mt-1.5 text-meta text-ink-3">{msgClasser}</p> : null}
+        {msgClasser ? (
+          <p className="mt-1.5 text-meta text-ink-3">
+            {msgClasser}
+            {lienClasser ? <LienBrouillonOutlook href={lienClasser} /> : null}
+          </p>
+        ) : null}
         {envoiPropose ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2">
             <span className="text-meta text-ink-2">
@@ -1814,7 +1844,12 @@ function AnalysePane({
             </Button>
           </div>
         ) : null}
-        {msgBrouillon && !(brouillon || compose) ? <p className="mt-1.5 text-meta text-ink-3">{msgBrouillon}</p> : null}
+        {msgBrouillon && !(brouillon || compose) ? (
+          <p className="mt-1.5 text-meta text-ink-3">
+            {msgBrouillon}
+            {lienBrouillon ? <LienBrouillonOutlook href={lienBrouillon} /> : null}
+          </p>
+        ) : null}
       </div>
 
       {/* Le mail */}
@@ -2007,7 +2042,12 @@ function AnalysePane({
               <Button variant="ghost" size="lg" onClick={onAnnuler} disabled={envoiEnCours}>
                 Annuler
               </Button>
-              {msgBrouillon ? <span className="text-meta text-ink-3">{msgBrouillon}</span> : null}
+              {msgBrouillon ? (
+                <span className="text-meta text-ink-3">
+                  {msgBrouillon}
+                  {lienBrouillon ? <LienBrouillonOutlook href={lienBrouillon} /> : null}
+                </span>
+              ) : null}
             </div>
           </div>
         )}

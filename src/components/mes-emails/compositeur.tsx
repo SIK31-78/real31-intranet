@@ -335,6 +335,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         res.envoye
           ? `Mail envoyé à ${pour} depuis ${res.boite ?? "la boîte"}${plusieurs}.`
           : `Brouillon pour ${pour} créé dans ${res.boite ?? "la boîte"}${plusieurs}, à relire puis envoyer dans Outlook.`,
+        !res.envoye && res.webLink ? { href: res.webLink, libelle: "Ouvrir le brouillon dans Outlook" } : undefined,
       );
       if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
       if (res.rattache === false) toast.warn(`${res.envoye ? "Mail envoyé" : "Brouillon créé"}, mais le rattachement au dossier a échoué.`);
