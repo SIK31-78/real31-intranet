@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decouperLiens, libelleCourt } from "./mes-emails-liens";
+import { decouperLiens, libelleCourt, sansMarqueursImage } from "./mes-emails-liens";
 
 describe("liens dans le texte d'un mail", () => {
   it("laisse un texte sans lien tel quel", () => {
@@ -57,5 +57,14 @@ describe("liens dans le texte d'un mail", () => {
     expect(decouperLiens("clic<javascript:alert(1)>")).toEqual([{ type: "texte", texte: "clic<javascript:alert(1)>" }]);
     expect(decouperLiens("javascript:alert(1) ftp://x.fr")).toEqual([{ type: "texte", texte: "javascript:alert(1) ftp://x.fr" }]);
     expect(decouperLiens("https:// rien")).toEqual([{ type: "texte", texte: "https:// rien" }]);
+  });
+});
+
+describe("marqueurs d'images intégrées", () => {
+  it("retire les [cid:…] et la ligne qui ne portait qu'eux", () => {
+    expect(sansMarqueursImage("Cordialement,\n[cid:image001.png@01DB5A2C.3F6E8B10]\nJean Martin")).toBe("Cordialement,\nJean Martin");
+    expect(sansMarqueursImage("Logo [cid:image002.jpg@01DB] et texte")).toBe("Logo et texte");
+    expect(sansMarqueursImage("A\n\n[cid:a.png]\n\nB")).toBe("A\n\nB");
+    expect(sansMarqueursImage("Aucun marqueur [ici]")).toBe("Aucun marqueur [ici]");
   });
 });

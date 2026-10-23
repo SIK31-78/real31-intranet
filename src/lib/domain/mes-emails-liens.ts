@@ -24,6 +24,20 @@ export function libelleCourt(url: string): string {
   return m ? `${m[1]}/…` : url;
 }
 
+/**
+ * Retire les marqueurs d'images intégrées (« [cid:image001.png@01DB…] ») que Graph laisse
+ * dans le texte à la place de chaque image. Presque toujours des logos de signature ; les
+ * images utiles restent visibles en vignettes sous le mail (ImagesMail). Une ligne qui ne
+ * portait que le marqueur disparaît avec lui.
+ */
+export function sansMarqueursImage(texte: string): string {
+  if (!texte.includes("[cid:")) return texte;
+  return texte
+    .replace(/^[ \t]*\[cid:[^\]\n]{0,300}\][ \t]*\n/gim, "")
+    .replace(/[ \t]*\[cid:[^\]\n]{0,300}\]/gi, "")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 export function decouperLiens(texte: string): MorceauTexte[] {
   const morceaux: MorceauTexte[] = [];
   let tampon = "";

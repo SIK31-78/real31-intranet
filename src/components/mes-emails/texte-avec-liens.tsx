@@ -1,14 +1,15 @@
 // Le texte brut d'un mail, ses liens rendus cliquables (REA-408). Le texte reste du texte :
 // le parent garde son whitespace-pre-wrap, seuls les liens http(s) et mailto deviennent des
-// <a> (découpe pure : domain/mes-emails-liens). Aucun HTML du mail n'est interprété.
+// <a> (découpe pure : domain/mes-emails-liens). Aucun HTML du mail n'est interprété. Les
+// marqueurs d'images intégrées « [cid:…] » sont retirés (les vignettes restent sous le mail).
 
 import { Fragment } from "react";
-import { decouperLiens } from "@/lib/domain/mes-emails-liens";
+import { decouperLiens, sansMarqueursImage } from "@/lib/domain/mes-emails-liens";
 
 export function TexteAvecLiens({ texte }: { texte: string }) {
   return (
     <>
-      {decouperLiens(texte).map((m, i) =>
+      {decouperLiens(sansMarqueursImage(texte)).map((m, i) =>
         m.type === "texte" ? (
           <Fragment key={i}>{m.texte}</Fragment>
         ) : (
