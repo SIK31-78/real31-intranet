@@ -28,7 +28,7 @@ import { JournalTable } from "@/components/cles/journal-table";
 import { CorrectionPret } from "@/components/cles/correction-pret";
 import { PhotoTrousseau } from "@/components/cles/photo-trousseau";
 import { PlanArmoire } from "@/components/cles/plan-armoire";
-import { libellePosition, occupationArmoire, positionTiroir } from "@/lib/domain/cles/armoire";
+import { armoireDe, libellePosition, occupationArmoire, positionTiroir } from "@/lib/domain/cles/armoire";
 import { vueTrousseaux } from "@/lib/services/cles/lecture";
 
 export const metadata: Metadata = { title: "Trousseau - REAL31 Intranet" };
@@ -42,8 +42,9 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
   const [acteur, fiche, copros] = await Promise.all([acteurCles(g), ficheTrousseau(id, aujourdhuiISO), coprosPourCles()]);
   if (!fiche) notFound();
   // Le plan de l'armoire de l'agence du trousseau, pour montrer ou le chercher / le ranger.
-  const position = positionTiroir(fiche.resume.trousseau.emplacement);
-  const armoire = position ? occupationArmoire((await vueTrousseaux(fiche.resume.trousseau.agenceCode, aujourdhuiISO)).map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement }))) : null;
+  const dims = armoireDe(fiche.resume.trousseau.agenceCode);
+  const position = positionTiroir(fiche.resume.trousseau.emplacement, dims);
+  const armoire = position ? occupationArmoire((await vueTrousseaux(fiche.resume.trousseau.agenceCode, aujourdhuiISO)).map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement })), dims) : null;
   const { resume, prets, reservations, mouvements, photoUrl } = fiche;
   const t = resume.trousseau;
   const operable = peutOperer(acteur, t.agenceCode, activiteDuTrousseau(t));
@@ -183,7 +184,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
             {position && armoire && (
               <Card>
                 <CardBody>
-                  <p className="text-meta text-ink-2 mb-2">Dans l&apos;armoire : <span className="font-mono text-ink">{position.code}</span>, {libellePosition(position)}</p>
+                  <p className="text-meta text-ink-2 mb-2">Dans l&apos;armoire : <span className="font-mono text-ink">{position.code}</span>, {libellePosition(position, dims)}</p>
                   <Link href={`/cles?tiroir=${position.code}`} className="block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600" aria-label={`Voir le tiroir ${position.code} dans l'armoire`}>
                     <PlanArmoire bacs={armoire.bacs} surligne={position.code} taille="mini" />
                   </Link>

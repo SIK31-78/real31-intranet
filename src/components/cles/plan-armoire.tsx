@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { ARMOIRE, type Bac } from "@/lib/domain/cles/armoire";
+import type { Bac } from "@/lib/domain/cles/armoire";
 
-// Le plan de l'armoire a cles : 6 colonnes de 20 bacs, dessines comme on les voit.
+// Le plan de l'armoire a cles de l'agence (6 colonnes a LGC, 3 a HLS), dessine comme on le voit.
 // Chaque bac porte sa couleur (vide, tout en agence, reserve, sorti, retard) et mene a la
 // liste de ce qu'il contient. `surligne` marque le bac qu'on cherche (fiche trousseau).
 // Rendu serveur, zero JS : c'est une grille de liens.
@@ -28,9 +28,11 @@ export function PlanArmoire({
   hrefBac?: (code: string) => string;
 }) {
   const mini = taille === "mini";
-  const colonnes = Array.from({ length: ARMOIRE.colonnes }, (_, c) => bacs.filter((b) => b.colonne === c + 1));
+  const nbColonnes = bacs.reduce((n, b) => Math.max(n, b.colonne), 0);
+  const colonnes = Array.from({ length: nbColonnes }, (_, c) => bacs.filter((b) => b.colonne === c + 1));
+  const grille = nbColonnes <= 3 ? "grid-cols-3" : mini ? "grid-cols-6" : "grid-cols-3 sm:grid-cols-6";
   return (
-    <div className={cn("grid gap-1.5", mini ? "grid-cols-6" : "grid-cols-3 sm:grid-cols-6")} role="list" aria-label="Plan de l'armoire à clés">
+    <div className={cn("grid gap-1.5", grille)} role="list" aria-label="Plan de l'armoire à clés">
       {colonnes.map((col, i) => (
         <div key={i} className="flex flex-col gap-0.5" role="listitem" aria-label={`Colonne ${i + 1}`}>
           {!mini && <span className="text-meta text-ink-3 text-center tabular-nums mb-0.5">col. {i + 1}</span>}

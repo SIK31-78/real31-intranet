@@ -22,7 +22,7 @@ import { estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
 import { ListeTrousseaux } from "@/components/cles/liste-trousseaux";
 import { JournalTable } from "@/components/cles/journal-table";
 import { LegendeArmoire, PlanArmoire } from "@/components/cles/plan-armoire";
-import { libellePosition, occupationArmoire, positionTiroir } from "@/lib/domain/cles/armoire";
+import { armoireDe, libellePosition, occupationArmoire, positionTiroir } from "@/lib/domain/cles/armoire";
 
 export const metadata: Metadata = { title: "Gestion des clés - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -43,9 +43,10 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
     copro ? trousseauxDeCopro(copro.toUpperCase(), aujourdhuiISO) : Promise.resolve([]),
   ]);
   const c = tb.compteurs;
-  const armoire = occupationArmoire(tb.resumes.map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement })));
-  const posTiroir = positionTiroir(tiroir);
-  const duTiroir = posTiroir ? tb.resumes.filter((r) => positionTiroir(r.trousseau.emplacement)?.code === posTiroir.code && r.etat !== "retire") : [];
+  const dims = armoireDe(acteur.agence);
+  const armoire = occupationArmoire(tb.resumes.map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement })), dims);
+  const posTiroir = positionTiroir(tiroir, dims);
+  const duTiroir = posTiroir ? tb.resumes.filter((r) => positionTiroir(r.trousseau.emplacement, dims)?.code === posTiroir.code && r.etat !== "retire") : [];
   const aGerer = tb.enRetard.length + tb.reservationsDuJour.length + tb.conflits.length + tb.reservationsNonRetirees.length;
 
   return (
@@ -77,7 +78,7 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
         {posTiroir && (
           <Section id="cles-tiroir" titre={`Tiroir ${posTiroir.code}`} compte={duTiroir.length} actions={<ButtonLink href="/cles#cles-armoire" variant="ghost" size="sm">Toute l&apos;armoire</ButtonLink>}>
-            <p className="text-body text-ink-2">{libellePosition(posTiroir).replace(/^c/, "C")}.</p>
+            <p className="text-body text-ink-2">{libellePosition(posTiroir, dims).replace(/^c/, "C")}.</p>
             {duTiroir.length === 0 ? <EmptyState compact>Bac vide</EmptyState> : <ListeComptoir resumes={duTiroir} aujourdhuiISO={aujourdhuiISO} peutOperer={acteur.agence ? peutOperer(acteur, acteur.agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, acteur.agence)} />}
           </Section>
         )}

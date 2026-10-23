@@ -1,10 +1,26 @@
-// L'armoire a cles de l'agence : 6 colonnes de 20 bacs, numerotes T001..T020 dans la
+// L'armoire a cles de l'agence : des colonnes de 20 bacs, numerotes T001..T020 dans la
 // premiere colonne, T021..T040 dans la deuxieme, etc. (Sekou, 18/09/2026, agence LGC).
+// Chaque agence a la sienne : 6 colonnes a LGC, 3 a HLS (Paperflow 60 tiroirs, 23/10/2026).
 // Fonctions pures : ou est un tiroir, ce qu'il contient, de quelle couleur le dessiner.
 
 import type { EtatTrousseau } from "./types";
 
-export const ARMOIRE = { colonnes: 6, bacs: 20 } as const;
+export interface DimensionsArmoire {
+  colonnes: number;
+  bacs: number;
+}
+
+/** L'armoire de LGC, la premiere : sert aussi aux agences sans armoire declaree et a la vue cabinet. */
+export const ARMOIRE: DimensionsArmoire = { colonnes: 6, bacs: 20 };
+
+const ARMOIRES: Record<string, DimensionsArmoire> = {
+  LGC: ARMOIRE,
+  HLS: { colonnes: 3, bacs: 20 },
+};
+
+export function armoireDe(agenceCode: string | undefined | null): DimensionsArmoire {
+  return ARMOIRES[(agenceCode ?? "").toUpperCase()] ?? ARMOIRE;
+}
 
 export interface PositionTiroir {
   code: string;
@@ -16,12 +32,12 @@ export interface PositionTiroir {
 }
 
 /** « T041 » -> { colonne 3, bac 1 }. null si le code ne suit pas T + nombre, ou hors armoire. */
-export function positionTiroir(code: string | undefined | null): PositionTiroir | null {
+export function positionTiroir(code: string | undefined | null, a: DimensionsArmoire = ARMOIRE): PositionTiroir | null {
   const m = (code ?? "").trim().toUpperCase().match(/^T0*(\d{1,3})$/);
   if (!m) return null;
   const numero = Number(m[1]);
-  if (numero < 1 || numero > ARMOIRE.colonnes * ARMOIRE.bacs) return null;
-  return { code: codeTiroir(numero), numero, colonne: Math.floor((numero - 1) / ARMOIRE.bacs) + 1, bac: ((numero - 1) % ARMOIRE.bacs) + 1 };
+  if (numero < 1 || numero > a.colonnes * a.bacs) return null;
+  return { code: codeTiroir(numero), numero, colonne: Math.floor((numero - 1) / a.bacs) + 1, bac: ((numero - 1) % a.bacs) + 1 };
 }
 
 export function codeTiroir(numero: number): string {
@@ -29,8 +45,8 @@ export function codeTiroir(numero: number): string {
 }
 
 /** « colonne 3, bac 1 (en haut) ». */
-export function libellePosition(p: PositionTiroir): string {
-  const ou = p.bac === 1 ? " (en haut)" : p.bac === ARMOIRE.bacs ? " (en bas)" : "";
+export function libellePosition(p: PositionTiroir, a: DimensionsArmoire = ARMOIRE): string {
+  const ou = p.bac === 1 ? " (en haut)" : p.bac === a.bacs ? " (en bas)" : "";
   return `colonne ${p.colonne}, bac ${p.bac}${ou}`;
 }
 
@@ -51,18 +67,18 @@ export interface Bac {
 }
 
 /** L'armoire entiere, bac par bac, a partir des trousseaux (ceux hors armoire sont ignores). */
-export function occupationArmoire(trousseaux: TrousseauDansTiroir[]): { bacs: Bac[]; horsArmoire: TrousseauDansTiroir[] } {
+export function occupationArmoire(trousseaux: TrousseauDansTiroir[], a: DimensionsArmoire = ARMOIRE): { bacs: Bac[]; horsArmoire: TrousseauDansTiroir[] } {
   const parCode = new Map<string, TrousseauDansTiroir[]>();
   const horsArmoire: TrousseauDansTiroir[] = [];
   for (const t of trousseaux) {
     if (t.etat === "retire") continue;
-    const p = positionTiroir(t.emplacement);
+    const p = positionTiroir(t.emplacement, a);
     if (!p) { horsArmoire.push(t); continue; }
     (parCode.get(p.code) ?? parCode.set(p.code, []).get(p.code)!).push(t);
   }
   const bacs: Bac[] = [];
-  for (let n = 1; n <= ARMOIRE.colonnes * ARMOIRE.bacs; n++) {
-    const p = positionTiroir(codeTiroir(n))!;
+  for (let n = 1; n <= a.colonnes * a.bacs; n++) {
+    const p = positionTiroir(codeTiroir(n), a)!;
     const contenu = (parCode.get(p.code) ?? []).sort((a, b) => a.numero.localeCompare(b.numero));
     bacs.push({ code: p.code, colonne: p.colonne, bac: p.bac, trousseaux: contenu, ton: tonDuBac(contenu) });
   }

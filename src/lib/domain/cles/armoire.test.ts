@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codeTiroir, libellePosition, occupationArmoire, positionTiroir, premierBacLibre } from "./armoire";
+import { armoireDe, codeTiroir, libellePosition, occupationArmoire, positionTiroir, premierBacLibre } from "./armoire";
 
 describe("armoire : 6 colonnes de 20 bacs", () => {
   it("place T001 en haut de la premiere colonne, T021 en haut de la deuxieme, T120 en bas de la sixieme", () => {
@@ -39,5 +39,23 @@ describe("armoire : 6 colonnes de 20 bacs", () => {
     expect(bacs[3].ton).toBe("vide");
     expect(horsArmoire.map((t) => t.numero)).toEqual(["R006", "R007"]);
     expect(premierBacLibre(bacs)).toBe("T004");
+  });
+});
+
+describe("armoire par agence", () => {
+  it("LGC et les agences sans armoire declaree gardent 6 colonnes ; HLS en a 3 de 20", () => {
+    expect(armoireDe("LGC")).toEqual({ colonnes: 6, bacs: 20 });
+    expect(armoireDe("asn")).toEqual({ colonnes: 6, bacs: 20 });
+    expect(armoireDe(undefined)).toEqual({ colonnes: 6, bacs: 20 });
+    expect(armoireDe("hls")).toEqual({ colonnes: 3, bacs: 20 });
+  });
+  it("a Houilles, T060 est le dernier bac et T061 est hors armoire", () => {
+    const hls = armoireDe("HLS");
+    expect(positionTiroir("T060", hls)).toMatchObject({ colonne: 3, bac: 20 });
+    expect(positionTiroir("T061", hls)).toBeNull();
+    expect(libellePosition(positionTiroir("T041", hls)!, hls)).toBe("colonne 3, bac 1 (en haut)");
+    const { bacs, horsArmoire } = occupationArmoire([{ id: "a", numero: "B001", etat: "en_agence", emplacement: "T075" }], hls);
+    expect(bacs).toHaveLength(60);
+    expect(horsArmoire.map((t) => t.numero)).toEqual(["B001"]);
   });
 });
