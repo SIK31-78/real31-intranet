@@ -1251,10 +1251,10 @@ function LigneMail({
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
           <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-3")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
-          {/* Même repère que l'écran de tri : un collègue du cabinet, pas un client. */}
+          {/* Un collègue du cabinet, pas un client : simple repère, ton neutre (pas une alerte, REA-408). */}
           {estMailInterne(m.expediteurEmail, m.boite ?? "") ? (
             <span className={"shrink-0" + (reponse || conclus ? "" : " ml-auto")}>
-              <Badge ton="err">Interne</Badge>
+              <Badge ton="neutral">Interne</Badge>
             </span>
           ) : null}
           {reponse ? (
