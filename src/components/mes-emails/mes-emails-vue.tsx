@@ -586,6 +586,41 @@ export function MesEmailsVue({
     }
   }
 
+  // Supprimer le mail ouvert (REA-408) : la même corbeille, pour un seul mail, en boîte
+  // perso seulement. Sur une boîte partagée, le mail disparaîtrait aussi pour le binôme.
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
+  const supprimable = (m: MailEntrant): boolean =>
+    pilote && (data.boites.find((b) => b.id === boiteDuMail(m))?.personnelle ?? false);
+  async function supprimerMail(m: MailEntrant) {
+    if (suppressionEnCours) return;
+    const ok = await confirmer({
+      titre: "Mettre ce mail à la corbeille ?",
+      message:
+        "Il part dans « Éléments supprimés » de votre boîte Outlook : on peut l'y retrouver et le remettre tant que la corbeille n'est pas vidée.",
+      confirmer: "Mettre à la corbeille",
+      danger: true,
+    });
+    if (!ok) return;
+    setSuppressionEnCours(true);
+    try {
+      const r = await mettreALaCorbeilleAction({ ids: [m.id], boite: boiteDuMail(m) });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      if (!r.donnees?.deplaces.includes(m.id)) {
+        toast.warn("Le mail n'a pas pu être déplacé (déjà déplacé dans Outlook ?).");
+        return;
+      }
+      passerAuSuivant(m);
+      setPartis((p) => add(p, m.id));
+      setCoches((p) => del(p, m.id));
+      toast.ok("Mail mis à la corbeille.");
+    } finally {
+      setSuppressionEnCours(false);
+    }
+  }
+
   function ouvrir(id: string) {
     setSelId(id);
     setChanger(false);
@@ -1109,6 +1144,9 @@ export function MesEmailsVue({
                 passerAuSuivant(selection);
               }}
               onConclure={() => marquerTraite(selection)}
+              {...(supprimable(selection)
+                ? { onSupprimer: () => void supprimerMail(selection), suppressionEnCours }
+                : {})}
               onDevalider={() => devalider(selection)}
               onToggleSection={toggleSection}
             />
@@ -1590,6 +1628,8 @@ function AnalysePane({
   classementOutlook,
   onParti,
   onConclure,
+  onSupprimer,
+  suppressionEnCours = false,
   pilote = false,
   brouillonHtml,
   onEditBrouillonHtml,
@@ -1674,6 +1714,9 @@ function AnalysePane({
   onParti?: () => void;
   /** Conclure l'événement (vocabulaire Crypto) : le mail sort de la liste, sans bouger dans Outlook. */
   onConclure: () => void;
+  /** Mettre le mail à la corbeille : boîte perso seulement (absent sinon). */
+  onSupprimer?: () => void;
+  suppressionEnCours?: boolean;
 }) {
   const classe = statut === "classe";
   const genEnCours = (msgBrouillon ?? "").startsWith("Génération");
@@ -1706,6 +1749,12 @@ function AnalysePane({
                   objet={m.objet}
                   piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
                 />
+              ) : null}
+              {onSupprimer ? (
+                <Button onClick={onSupprimer} loading={suppressionEnCours} title="Mettre ce mail dans « Éléments supprimés » d'Outlook">
+                  <Trash2 strokeWidth={1.5} />
+                  Supprimer
+                </Button>
               ) : null}
             </div>
           )}
