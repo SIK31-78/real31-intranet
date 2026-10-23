@@ -67,6 +67,7 @@ import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
 import { ReponseEnvoyee } from "./reponse-envoyee";
 import { HistoriqueMail } from "./historique-mail";
+import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 import { PasPourMoi } from "./pas-pour-moi";
 import { ImagesMail } from "./images-mail";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
@@ -1734,7 +1735,7 @@ function AnalysePane({
       {/* Le mail */}
       <div className="px-5 py-4">
         <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
-          {m.corps}
+          <TexteAvecLiens texte={m.corps} />
         </div>
         <ImagesMail key={`img-${m.id}`} emailId={m.id} coproCode={coproCode} boite={boiteDuMail} onApercu={onApercu} />
         <HistoriqueMail key={m.id} emailId={m.id} boite={boiteDuMail} />

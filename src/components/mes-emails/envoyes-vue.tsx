@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Callout } from "@/components/ui/callout";
 import type { EchangeTrouve } from "@/lib/domain/echanges";
 import { chargerEnvoyesAction, lireEnvoyeAction } from "@/app/mes-emails/actions";
+import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 
 const dateHeure = (iso: string) =>
   new Date(iso).toLocaleString("fr-FR", {
@@ -131,7 +132,7 @@ function DetailEnvoye({ e }: { e: EchangeTrouve }) {
         </dl>
       </div>
       <div className="px-5 py-4 text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[60vh] overflow-auto">
-        {erreur ? <span className="text-err-700">{erreur}</span> : corps === null ? <span className="text-ink-3">Chargement…</span> : corps.trim() || e.apercu}
+        {erreur ? <span className="text-err-700">{erreur}</span> : corps === null ? <span className="text-ink-3">Chargement…</span> : <TexteAvecLiens texte={corps.trim() || e.apercu} />}
       </div>
     </Card>
   );

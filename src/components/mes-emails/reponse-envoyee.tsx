@@ -8,6 +8,7 @@ import { useState } from "react";
 import { ChevronRight, CornerUpLeft, ExternalLink } from "lucide-react";
 import type { ReponseEnvoyee as Reponse } from "@/lib/domain/echanges";
 import { chargerReponsesEnvoyeesAction } from "@/app/mes-emails/actions";
+import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 
 function quand(iso: string): string {
   const d = new Date(iso);
@@ -59,7 +60,7 @@ export function ReponseEnvoyee({ emailId, boite }: { emailId: string; boite: str
                   ) : null}
                 </p>
                 <div className="mt-1 text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[240px] overflow-auto">
-                  {r.corps || <span className="italic text-ink-3">(réponse sans texte)</span>}
+                  {r.corps ? <TexteAvecLiens texte={r.corps} /> : <span className="italic text-ink-3">(réponse sans texte)</span>}
                 </div>
               </div>
             ))

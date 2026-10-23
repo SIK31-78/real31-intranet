@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { ChevronRight, History } from "lucide-react";
 import { chargerHistoriqueAction } from "@/app/mes-emails/actions";
+import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 
 export function HistoriqueMail({ emailId, boite }: { emailId: string; boite: string }) {
   const [ouvert, setOuvert] = useState(false);
@@ -39,7 +40,7 @@ export function HistoriqueMail({ emailId, boite }: { emailId: string; boite: str
             <p className="text-meta text-ink-3">Ce mail ne cite aucun message précédent.</p>
           ) : (
             <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[420px] overflow-auto border-l-2 border-line pl-3">
-              {texte}
+              <TexteAvecLiens texte={texte} />
             </div>
           )}
         </div>

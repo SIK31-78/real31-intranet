@@ -20,6 +20,7 @@ import {
   listerPiecesJointesEchangeAction,
   rattacherEchangeAction,
 } from "@/app/echanges/actions";
+import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 
 const SENS: Record<Sens, { libelle: string; Icone: typeof ArrowDownLeft; ton: "info" | "ok" | "neutral" }> = {
   recu: { libelle: "Reçu", Icone: ArrowDownLeft, ton: "info" },
@@ -120,7 +121,7 @@ function Detail({ e, coproParDefaut }: { e: EchangeTrouve; coproParDefaut?: stri
         )}
       </dl>
       <div className="max-h-[45vh] overflow-y-auto whitespace-pre-wrap text-body text-ink border-t border-line pt-2">
-        {erreur ? <span className="text-err-700">{erreur}</span> : corps === null ? <span className="text-ink-3">Chargement…</span> : corps.trim() || e.apercu}
+        {erreur ? <span className="text-err-700">{erreur}</span> : corps === null ? <span className="text-ink-3">Chargement…</span> : <TexteAvecLiens texte={corps.trim() || e.apercu} />}
       </div>
       {e.aPiecesJointes && <PiecesJointes boite={e.boite} internetMessageId={e.internetMessageId} />}
       <RattacherDossier e={e} coproParDefaut={coproParDefaut ?? ""} />
