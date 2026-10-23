@@ -45,6 +45,7 @@ import { TYPE_DOSSIER_LABEL, type TypeDossier } from "@/lib/domain/dossier";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { EditeurRiche } from "./editeur-riche";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
+import { useAlerteSortie } from "./alerte-sortie";
 
 type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 
@@ -70,6 +71,8 @@ type Props = {
   modeles: ModeleMail[];
   /** Pilote (super-admin) : le message se met en forme (REA-345). Hors pilote, zone de texte. */
   pilote?: boolean;
+  /** Prévient la fenêtre qu'une saisie est en cours (elle ne se ferme plus d'un clic à côté). */
+  onSaisie?: (enCours: boolean) => void;
 };
 
 const LIBELLE_QUALITE: Record<string, string> = {
@@ -105,7 +108,7 @@ function enBase64(f: File): Promise<string> {
 
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
-export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false, onSaisie }: Props) {
   const toast = useToast();
   const confirmer = useConfirm();
   const [a, setA] = useState<Personne[]>([]);
@@ -231,12 +234,44 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     majCorpsTexte(texte);
   }
 
-  function appliquerModele(id: string) {
-    setModeleId(id);
+  async function appliquerModele(id: string) {
     const m = modeles.find((x) => x.id === id);
+    // Un texte déjà écrit (autre que celui d'un modèle) ne s'écrase pas sans le demander.
+    if (m && corps.trim() && corps !== corpsDuModele.current) {
+      const ok = await confirmer({
+        titre: "Remplacer le message par le modèle ?",
+        message: "Le texte déjà écrit sera remplacé par celui du modèle.",
+        confirmer: "Remplacer",
+      });
+      if (!ok) return;
+    }
+    setModeleId(id);
     if (!m) return;
     setObjet(copro ? objetCompose(copro, m.sujet) : m.sujet);
     remplirModele(m, copro);
+  }
+
+  // Quelque chose est écrit : destinataire, objet au-delà du préfixe copro, message ou fichier.
+  const [parti, setParti] = useState(false);
+  const saisieEnCours =
+    !parti && Boolean(a.length || cc.length || fichiers.length || corps.trim() || remplacerPrefixeCopro(objet, copro, null).replace(/\s*-$/, ""));
+  useAlerteSortie(saisieEnCours);
+  useEffect(() => {
+    onSaisie?.(saisieEnCours);
+  }, [onSaisie, saisieEnCours]);
+
+  async function annuler() {
+    if (saisieEnCours) {
+      const ok = await confirmer({
+        titre: "Abandonner ce mail ?",
+        message: "Les destinataires, l'objet, le message et les pièces jointes saisis seront perdus.",
+        confirmer: "Abandonner",
+        annuler: "Continuer l'écriture",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    onTermine?.();
   }
 
   const cci = cciCopro ? (touteCopro ?? []) : [];
@@ -303,6 +338,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       );
       if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
       if (res.rattache === false) toast.warn(`${res.envoye ? "Mail envoyé" : "Brouillon créé"}, mais le rattachement au dossier a échoué.`);
+      setParti(true);
       onTermine?.();
     });
   }
@@ -402,7 +438,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
 
       <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
         <Field label="Modèle" htmlFor="comp-modele">
-          <Select id="comp-modele" value={modeleId} onChange={(e) => appliquerModele(e.target.value)}>
+          <Select id="comp-modele" value={modeleId} onChange={(e) => void appliquerModele(e.target.value)}>
             <option value="">Aucun</option>
             {modeles.map((m) => (
               <option key={m.id} value={m.id}>
@@ -470,7 +506,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           {brouillonPossible && !envoiDirect ? `Brouillon dans ${boite} : à relire puis envoyer dans Outlook.` : null}
         </span>
         {onTermine ? (
-          <Button variant="ghost" onClick={onTermine} disabled={envoiEnCours}>
+          <Button variant="ghost" onClick={() => void annuler()} disabled={envoiEnCours}>
             Annuler
           </Button>
         ) : null}
@@ -609,7 +645,16 @@ export function ChampPersonnes({
             setSaisie(e.target.value);
             setRefusee("");
           }}
+          // Liste de suggestions ou message d'erreur ouvert : Échap le ferme, pas la fenêtre.
+          data-echap-local={resultats || refusee ? "" : undefined}
           onKeyDown={(e) => {
+            if (e.key === "Escape" && (resultats || refusee)) {
+              e.preventDefault();
+              e.stopPropagation();
+              setTrouves(null);
+              setRefusee("");
+              return;
+            }
             if (e.key === "Enter" || e.key === "," || e.key === ";") {
               e.preventDefault();
               if (resultats?.length === 1) {

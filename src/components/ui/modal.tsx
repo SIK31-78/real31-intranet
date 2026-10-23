@@ -11,6 +11,12 @@
 // bloque les clics : la fenetre reste modale (aria-modal, focus piege, Echap ferme), et un
 // clic a cote ne la ferme plus (on ne perd pas un texte en cours en visant la page).
 // Sans l'option, le comportement est strictement celui d'avant.
+//
+// Option `saisieEnCours` (REA-408, fenetres d'ecriture de mail) : tant qu'elle est vraie, ni
+// Echap ni un clic a cote ne ferment la fenetre (on ne perd pas un mail a moitie ecrit) ;
+// la croix et les boutons restent, a l'appelant de faire confirmer. Fausse par defaut.
+// Un champ qui gere lui-meme Echap (liste de suggestions ouverte) porte `data-echap-local` :
+// Echap y ferme la liste, pas la fenetre.
 
 import {
   useCallback,
@@ -48,6 +54,7 @@ export function Modal({
   onFermer,
   size = "md",
   deplacable = false,
+  saisieEnCours = false,
   children,
 }: {
   titre: string;
@@ -55,6 +62,8 @@ export function Modal({
   size?: keyof typeof TAILLES;
   /** Fenetre deplacable par sa barre de titre, sans fond assombri (cf. en-tete). */
   deplacable?: boolean;
+  /** Une saisie est en cours : Echap et le clic a cote ne ferment plus (cf. en-tete). */
+  saisieEnCours?: boolean;
   children: ReactNode;
 }) {
   const panneauRef = useRef<HTMLDivElement>(null);
@@ -67,6 +76,11 @@ export function Modal({
   useEffect(() => {
     onFermerRef.current = onFermer;
   }, [onFermer]);
+  // Meme raison que onFermerRef : lu a la frappe, sans relancer l'effet de montage.
+  const saisieRef = useRef(saisieEnCours);
+  useEffect(() => {
+    saisieRef.current = saisieEnCours;
+  }, [saisieEnCours]);
 
   const focusables = useCallback((): HTMLElement[] => {
     const el = panneauRef.current;
@@ -83,6 +97,8 @@ export function Modal({
 
     function onKey(e: globalThis.KeyboardEvent) {
       if (e.key === "Escape") {
+        // Echap gere par le champ (liste de suggestions) ou saisie en cours : on ne ferme pas.
+        if ((e.target as HTMLElement | null)?.closest?.("[data-echap-local]") || saisieRef.current) return;
         e.stopPropagation();
         onFermerRef.current();
         return;
@@ -128,7 +144,7 @@ export function Modal({
         // Fond transparent : la page reste visible, mais les clics ne passent pas.
         <div className="absolute inset-0" />
       ) : (
-        <div className="absolute inset-0 bg-black/30 animate-fade-in" onClick={onFermer} />
+        <div className="absolute inset-0 bg-black/30 animate-fade-in" onClick={saisieEnCours ? undefined : onFermer} />
       )}
       <div
         ref={panneauRef}

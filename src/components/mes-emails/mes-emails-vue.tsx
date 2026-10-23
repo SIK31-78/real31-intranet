@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Mail,
   Sparkles,
@@ -70,6 +70,7 @@ import { HistoriqueMail } from "./historique-mail";
 import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 import { PasPourMoi } from "./pas-pour-moi";
 import { ImagesMail } from "./images-mail";
+import { useAlerteSortie } from "./alerte-sortie";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { fusionnerModele, resumeDestinataires, sansPolitesseEnDouble, type ModeleMail } from "@/lib/domain/mes-emails-composition";
 import { useToast } from "@/components/ui/toast";
@@ -685,6 +686,31 @@ export function MesEmailsVue({
     void editBrouillonAction(m.id, m.coproCode, "");
   }
 
+  // Une réponse en cours d'écriture (REA-408) : texte, objet retouché, pièce jointe, ou un
+  // destinataire qui n'était pas dans le mail d'origine. Ne se perd pas sans confirmation.
+  function reponseEnCours(m: MailEntrant): boolean {
+    if (brouillonDe(m).trim() || fichiersDe(m).length || pjJointesDe(m).size || sujetParMail.has(m.id)) return true;
+    const d = destParMail.get(m.id);
+    if (!d) return false;
+    const deja = new Set(Object.values(defautDestinataires(m)).flat().map((e) => e.toLowerCase()));
+    return [...d.to, ...d.cc, ...d.cci].some((e) => !deja.has(e.toLowerCase()));
+  }
+  async function annulerReponse(m: MailEntrant) {
+    if (reponseEnCours(m)) {
+      const ok = await confirmer({
+        titre: "Abandonner la réponse ?",
+        message: "Le texte, les destinataires ajoutés et les pièces jointes de la réponse seront perdus.",
+        confirmer: "Abandonner",
+        annuler: "Continuer la réponse",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    fermerReponse(m);
+  }
+  // Fermer ou recharger l'onglet avec une réponse ouverte et écrite : le navigateur demande.
+  useAlerteSortie(data.mails.some((m) => (composeParMail.has(m.id) || (edits.get(m.id) ?? "").trim() !== "") && reponseEnCours(m)));
+
   // Un destinataire glissé d'un champ à l'autre (À, Cc, Cci) : retiré de l'un, ajouté à l'autre.
   function deplacerDest(m: MailEntrant, depuis: keyof Destinataires, vers: keyof Destinataires, adresse: string) {
     const d = destinatairesDe(m);
@@ -698,31 +724,41 @@ export function MesEmailsVue({
     );
   }
 
+  // Le texte posé par le dernier modèle, par mail : passer d'un modèle à l'autre sans avoir
+  // retouché le texte ne demande rien.
+  const texteDuModele = useRef(new Map<string, string>());
   // Modèle appliqué à la réponse : le texte remplace le message, l'objet de la réponse reste.
-  function appliquerModeleReponse(m: MailEntrant, id: string) {
-    setModeleParMail((p) => new Map(p).set(m.id, id));
+  // Un texte déjà écrit (à la main ou par l'IA) ne s'écrase pas sans le demander (REA-408).
+  async function appliquerModeleReponse(m: MailEntrant, id: string) {
     const modele = modeles.find((x) => x.id === id);
+    const actuel = brouillonDe(m).trim();
+    if (modele && actuel && actuel !== texteDuModele.current.get(m.id)) {
+      const ok = await confirmer({
+        titre: "Remplacer la réponse par le modèle ?",
+        message: "Le texte déjà écrit sera remplacé par celui du modèle.",
+        confirmer: "Remplacer",
+      });
+      if (!ok) return;
+    }
+    setModeleParMail((p) => new Map(p).set(m.id, id));
     if (!modele) return;
     const c = coproDe(m);
     oublierHtml(m.id);
-    setEdits((p) =>
-      new Map(p).set(
-        m.id,
-        sansPolitesseEnDouble(fusionnerModele(modele.corps, {
-          copro_code: c.code,
-          copro_nom: c.nom,
-          // La copro choisie à la main prime ; sinon celle attribuée au mail.
-          copro_adresse:
-            (data.coprosDuGestionnaire ?? []).find((x) => x.code === c.code)?.adresse ??
-            (c.code === m.coproCode ? (m.coproAdresse ?? "") : ""),
-          destinataire_nom: m.de,
-          gestionnaire_nom: data.gestionnaire.nomComplet,
-          gestionnaire_initiales: data.gestionnaire.initiales,
-          agence,
-          date: new Date().toLocaleDateString("fr-FR"),
-        }), signatureHtml),
-      ),
-    );
+    const texte = sansPolitesseEnDouble(fusionnerModele(modele.corps, {
+      copro_code: c.code,
+      copro_nom: c.nom,
+      // La copro choisie à la main prime ; sinon celle attribuée au mail.
+      copro_adresse:
+        (data.coprosDuGestionnaire ?? []).find((x) => x.code === c.code)?.adresse ??
+        (c.code === m.coproCode ? (m.coproAdresse ?? "") : ""),
+      destinataire_nom: m.de,
+      gestionnaire_nom: data.gestionnaire.nomComplet,
+      gestionnaire_initiales: data.gestionnaire.initiales,
+      agence,
+      date: new Date().toLocaleDateString("fr-FR"),
+    }), signatureHtml);
+    texteDuModele.current.set(m.id, texte.trim());
+    setEdits((p) => new Map(p).set(m.id, texte));
   }
 
   // Classer = deplacer dans le dossier Outlook choisi (independant de l'envoi).
@@ -1001,8 +1037,8 @@ export function MesEmailsVue({
               onMajDestinataires={(champ, v) => majDest(selection, champ, v)}
               onDeplacerDestinataire={(depuis, vers, adresse) => deplacerDest(selection, depuis, vers, adresse)}
               modele={modeleParMail.get(selection.id) ?? ""}
-              onModele={(id) => appliquerModeleReponse(selection, id)}
-              onAnnuler={() => fermerReponse(selection)}
+              onModele={(id) => void appliquerModeleReponse(selection, id)}
+              onAnnuler={() => void annulerReponse(selection)}
               boites={data.boites}
               boiteDuMail={boiteDuMail(selection)}
               expediteur={expediteurDe(selection)}

@@ -9,6 +9,7 @@ import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { Callout } from "@/components/ui/callout";
+import { useConfirm } from "@/components/ui/confirm";
 import { Compositeur } from "./compositeur";
 import { listerCoprosCompositionAction } from "@/app/mes-emails/composer/actions";
 import type { CoproChoisissable, ModeleMail } from "@/lib/domain/mes-emails-composition";
@@ -36,6 +37,27 @@ export function EnvoyerEmail({
   const [ouvert, setOuvert] = useState(false);
   const [copros, setCopros] = useState<CoproChoisissable[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  // Un mail à moitié écrit ne se perd pas d'un clic à côté ni d'Échap ; la croix le fait confirmer.
+  const [saisie, setSaisie] = useState(false);
+  const confirmer = useConfirm();
+
+  function fermer() {
+    setOuvert(false);
+    setSaisie(false);
+  }
+  async function fermerSiConfirme() {
+    if (saisie) {
+      const ok = await confirmer({
+        titre: "Abandonner ce mail ?",
+        message: "Les destinataires, l'objet, le message et les pièces jointes saisis seront perdus.",
+        confirmer: "Abandonner",
+        annuler: "Continuer l'écriture",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    fermer();
+  }
 
   function ouvrir() {
     setOuvert(true);
@@ -56,7 +78,7 @@ export function EnvoyerEmail({
         Envoyer un e-mail
       </Button>
       {ouvert && (
-        <Modal titre="Envoyer un e-mail" size="lg" onFermer={() => setOuvert(false)}>
+        <Modal titre="Envoyer un e-mail" size="lg" onFermer={() => void fermerSiConfirme()} saisieEnCours={saisie}>
           <ModalBody>
           {copros === null ? (
             <p className="text-body text-ink-3">Chargement des copropriétés…</p>
@@ -73,7 +95,8 @@ export function EnvoyerEmail({
                 signatureHtml={signatureHtml}
                 modeles={modeles}
                 pilote={pilote}
-                onTermine={() => setOuvert(false)}
+                onTermine={fermer}
+                onSaisie={setSaisie}
               />
             </div>
           )}

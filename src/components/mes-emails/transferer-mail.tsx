@@ -11,10 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
 import { adresseMailValide, resumeDestinataires } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { transfererMailAction } from "@/app/mes-emails/actions";
 import { ChampPersonnes, LigneExpediteur, adresses, type Personne } from "./compositeur";
+import { useAlerteSortie } from "./alerte-sortie";
 
 export function TransfererMail({
   emailId,
@@ -72,6 +74,23 @@ function FenetreTransfert({
   const [cc, setCc] = useState<Personne[]>([]);
   const [corps, setCorps] = useState("");
   const [enCours, setEnCours] = useState(false);
+  const confirmer = useConfirm();
+  // Une saisie en cours ne se perd ni d'un clic à côté, ni d'Échap, ni en fermant l'onglet.
+  const saisieEnCours = Boolean(a.length || cc.length || corps.trim());
+  useAlerteSortie(saisieEnCours);
+  async function fermerSiConfirme() {
+    if (saisieEnCours) {
+      const ok = await confirmer({
+        titre: "Abandonner le transfert ?",
+        message: "Les destinataires et le message saisis seront perdus.",
+        confirmer: "Abandonner",
+        annuler: "Continuer l'écriture",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    onFermer();
+  }
 
   function deplacer(depuis: string, cle: string) {
     const [source, setSource, setCible] = depuis === "a" ? [a, setA, setCc] : [cc, setCc, setA];
@@ -113,7 +132,7 @@ function FenetreTransfert({
   }
 
   return (
-    <Modal titre="Transférer le mail" size="lg" onFermer={onFermer}>
+    <Modal titre="Transférer le mail" size="lg" onFermer={() => void fermerSiConfirme()} saisieEnCours={saisieEnCours}>
       <ModalBody>
         <div className="flex flex-col gap-3">
           <LigneExpediteur boite={boite} />
@@ -139,7 +158,7 @@ function FenetreTransfert({
         </div>
       </ModalBody>
       <ModalFooter>
-        <Button variant="ghost" onClick={onFermer} disabled={enCours}>
+        <Button variant="ghost" onClick={() => void fermerSiConfirme()} disabled={enCours}>
           Annuler
         </Button>
         <Button variant="primary" onClick={() => void transferer()} loading={enCours} disabled={adresses(a).length === 0}>
