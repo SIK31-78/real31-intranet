@@ -18,7 +18,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RechercheComptoir } from "@/components/cles/recherche-comptoir";
 import { LigneTrousseau } from "@/components/cles/ligne-trousseau";
 import { ListeComptoir } from "@/components/cles/liste-comptoir";
-import { estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
+import { agenceAffichee, agencesVisibles, estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
+import { ChoixAgenceCles } from "@/components/cles/choix-agence";
+import { LIBELLE_AGENCE_CLES } from "@/lib/domain/cles/types";
 import { ListeTrousseaux } from "@/components/cles/liste-trousseaux";
 import { JournalTable } from "@/components/cles/journal-table";
 import { LegendeArmoire, PlanArmoire } from "@/components/cles/plan-armoire";
@@ -31,19 +33,23 @@ export const dynamic = "force-dynamic";
 // reservations du jour, conflits), puis l'etat de tous les trousseaux. Rien ne s'affiche
 // quand une liste est vide (regle de l'accueil).
 
-export default async function ClesPage({ searchParams }: { searchParams: Promise<{ copro?: string; tiroir?: string }> }) {
+export default async function ClesPage({ searchParams }: { searchParams: Promise<{ copro?: string; tiroir?: string; agence?: string }> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const { copro, tiroir } = await searchParams;
+  const { copro, tiroir, agence: agenceDemandee } = await searchParams;
   const aujourdhuiISO = jourParis();
   const acteur = await acteurCles(g);
+  // L'agence affichee : la sienne par defaut, une autre si on y a acces (?agence=HLS).
+  const agence = agenceAffichee(acteur, agenceDemandee);
+  const visibles = agencesVisibles(acteur);
+  const suffixe = agence && agence !== acteur.agence ? `&agence=${agence}` : "";
   const [tb, index, deCopro] = await Promise.all([
-    tableauDeBord(acteur.agence, aujourdhuiISO),
-    indexRecherche(acteur.agence, aujourdhuiISO),
+    tableauDeBord(agence, aujourdhuiISO),
+    indexRecherche(agence, aujourdhuiISO),
     copro ? trousseauxDeCopro(copro.toUpperCase(), aujourdhuiISO) : Promise.resolve([]),
   ]);
   const c = tb.compteurs;
-  const dims = armoireDe(acteur.agence);
+  const dims = armoireDe(agence);
   const armoire = occupationArmoire(tb.resumes.map((r) => ({ id: r.trousseau.id, numero: r.trousseau.numero, etat: r.etat, emplacement: r.trousseau.emplacement })), dims);
   const posTiroir = positionTiroir(tiroir, dims);
   const duTiroir = posTiroir ? tb.resumes.filter((r) => positionTiroir(r.trousseau.emplacement, dims)?.code === posTiroir.code && r.etat !== "retire") : [];
@@ -54,32 +60,34 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
       <Page largeur="travail">
         <PageHeader
           titre="Gestion des clés"
-          eyebrow={acteur.agence ? `Agence ${acteur.agence} · ${formatDateLongue(aujourdhuiISO)}` : `Tout le cabinet · ${formatDateLongue(aujourdhuiISO)}`}
+          eyebrow={agence ? `Agence ${LIBELLE_AGENCE_CLES[agence] ?? agence} · ${formatDateLongue(aujourdhuiISO)}` : `Tout le cabinet · ${formatDateLongue(aujourdhuiISO)}`}
           actions={
             <span className="flex items-center gap-2">
               <ButtonLink href="/cles/entreprises" variant="secondary" size="sm"><Store strokeWidth={1.5} /> Entreprises</ButtonLink>
               <ButtonLink href="/cles/journal" variant="secondary" size="sm">Journal</ButtonLink>
-              {acteur.agence && (
-                <ButtonLink href="/cles/trousseaux/nouveau" variant="secondary" size="sm"><Plus strokeWidth={1.5} /> Nouveau trousseau</ButtonLink>
+              {agence && (
+                <ButtonLink href={`/cles/trousseaux/nouveau${agence !== acteur.agence ? `?agence=${agence}` : ""}`} variant="secondary" size="sm"><Plus strokeWidth={1.5} /> Nouveau trousseau</ButtonLink>
               )}
             </span>
           }
           aide={<p>Tape un numéro de trousseau, un nom de copropriété, une adresse ou une entreprise. Sur le trousseau : <strong>Sortir</strong>, <strong>Enregistrer le retour</strong>, <strong>Réserver</strong>. L&apos;état se déduit des prêts, il ne se modifie pas à la main.</p>}
         />
 
+        <ChoixAgenceCles agences={visibles} active={agence} />
+
         <RechercheComptoir index={index} />
 
         {copro && (
           <Section id="cles-copro" titre={`Trousseaux de ${copro.toUpperCase()}`} compte={deCopro.length} actions={<ButtonLink href={`/copropriete/${encodeURIComponent(copro.toUpperCase())}`} variant="ghost" size="sm">Fiche copropriété <ArrowRight strokeWidth={1.5} /></ButtonLink>}>
             {(() => { const b = deCopro[0]?.biens.find((x) => x.coproCode === copro.toUpperCase()); return b ? <p className="text-body text-ink-2">{b.libelle} · {b.adresse}{b.gestionnaire ? ` · gestionnaire : ${b.gestionnaire}` : ""}{b.assistant ? ` · assistant(e) : ${b.assistant}` : ""}</p> : null; })()}
-            {deCopro.length === 0 ? <EmptyState>Aucun trousseau rattaché à cette copropriété</EmptyState> : <ListeComptoir resumes={deCopro} aujourdhuiISO={aujourdhuiISO} peutOperer={acteur.agence ? peutOperer(acteur, acteur.agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, acteur.agence)} />}
+            {deCopro.length === 0 ? <EmptyState>Aucun trousseau rattaché à cette copropriété</EmptyState> : <ListeComptoir resumes={deCopro} aujourdhuiISO={aujourdhuiISO} peutOperer={agence ? peutOperer(acteur, agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, agence)} />}
           </Section>
         )}
 
         {posTiroir && (
-          <Section id="cles-tiroir" titre={`Tiroir ${posTiroir.code}`} compte={duTiroir.length} actions={<ButtonLink href="/cles#cles-armoire" variant="ghost" size="sm">Toute l&apos;armoire</ButtonLink>}>
+          <Section id="cles-tiroir" titre={`Tiroir ${posTiroir.code}`} compte={duTiroir.length} actions={<ButtonLink href={`/cles${suffixe.replace("&", "?")}#cles-armoire`} variant="ghost" size="sm">Toute l&apos;armoire</ButtonLink>}>
             <p className="text-body text-ink-2">{libellePosition(posTiroir, dims).replace(/^c/, "C")}.</p>
-            {duTiroir.length === 0 ? <EmptyState compact>Bac vide</EmptyState> : <ListeComptoir resumes={duTiroir} aujourdhuiISO={aujourdhuiISO} peutOperer={acteur.agence ? peutOperer(acteur, acteur.agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, acteur.agence)} />}
+            {duTiroir.length === 0 ? <EmptyState compact>Bac vide</EmptyState> : <ListeComptoir resumes={duTiroir} aujourdhuiISO={aujourdhuiISO} peutOperer={agence ? peutOperer(acteur, agence) : estDirectionCles(acteur)} direction={estDirectionCles(acteur, agence)} />}
           </Section>
         )}
 
@@ -155,7 +163,7 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
         {c.total > 0 && (
           <Section id="cles-armoire" titre="L'armoire" actions={<LegendeArmoire />}>
-            <PlanArmoire bacs={armoire.bacs} surligne={posTiroir?.code} />
+            <PlanArmoire bacs={armoire.bacs} surligne={posTiroir?.code} hrefBac={(code) => `/cles?tiroir=${code}${suffixe}`} />
             {armoire.horsArmoire.length > 0 && (
               <p className="text-meta text-ink-2">
                 Hors armoire ou sans tiroir : {armoire.horsArmoire.map((t) => t.numero).join(", ")}.
@@ -166,8 +174,8 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
         <Section id="cles-tous" titre="Tous les trousseaux" compte={c.total}>
           {tb.resumes.length === 0 ? (
-            <EmptyState action={acteur.agence ? <ButtonLink href="/cles/trousseaux/nouveau" variant="secondary" size="sm"><Plus strokeWidth={1.5} /> Créer le premier trousseau</ButtonLink> : undefined}>
-              Aucun trousseau {acteur.agence ? `pour l'agence ${acteur.agence}` : ""}
+            <EmptyState action={agence ? <ButtonLink href={`/cles/trousseaux/nouveau${agence !== acteur.agence ? `?agence=${agence}` : ""}`} variant="secondary" size="sm"><Plus strokeWidth={1.5} /> Créer le premier trousseau</ButtonLink> : undefined}>
+              Aucun trousseau {agence ? `pour l'agence de ${LIBELLE_AGENCE_CLES[agence] ?? agence}` : ""}
             </EmptyState>
           ) : (
             <ListeTrousseaux resumes={tb.resumes} />

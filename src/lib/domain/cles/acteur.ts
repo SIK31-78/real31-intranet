@@ -9,7 +9,7 @@
 // deuxieme agence la rebloquerait a la prochaine ouverture.
 
 import type { Activite } from "@/lib/domain/collaborateur";
-import type { Acces, Bien } from "./types";
+import { AGENCES_CLES, type Acces, type Bien } from "./types";
 
 export interface Acteur {
   id: string;
@@ -66,4 +66,20 @@ export function peutOperer(a: Acteur, agenceTrousseau: string, activite?: Activi
   if (a.agence !== undefined && memeAgence(a.agence, agenceTrousseau)) return true;
   if ((a.agencesDeleguees ?? []).some((x) => memeAgence(x, agenceTrousseau))) return true;
   return activite !== undefined && (a.activitesDirigees ?? []).includes(activite);
+}
+
+/**
+ * Les agences dont l'acteur peut ouvrir le comptoir, dans l'ordre du cabinet : celles ou il
+ * opere, plus toutes s'il dirige une activite (ses trousseaux sont dans les quatre). Plus
+ * d'une = l'ecran lui propose de choisir (Emmanuel, rattache a LGC, ne voyait pas HLS).
+ */
+export function agencesVisibles(a: Acteur): string[] {
+  if ((a.activitesDirigees ?? []).length > 0) return [...AGENCES_CLES];
+  return AGENCES_CLES.filter((ag) => peutOperer(a, ag));
+}
+
+/** L'agence affichee : celle demandee si l'acteur y a acces, sinon la sienne (undefined = tout le cabinet). */
+export function agenceAffichee(a: Acteur, demandee: string | undefined): string | undefined {
+  const d = demandee?.trim().toUpperCase();
+  return d && agencesVisibles(a).includes(d) ? d : a.agence;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activitesDirigees } from "@/lib/domain/collaborateur";
-import { activiteDuTrousseau, estDirectionCles, peutOperer, type Acteur } from "./acteur";
+import { activiteDuTrousseau, agenceAffichee, agencesVisibles, estDirectionCles, peutOperer, type Acteur } from "./acteur";
 import type { Acces } from "./types";
 
 const copro = (ordre = 0): Pick<Acces, "bien" | "ordre"> => ({ bien: { type: "copro", code: "S0042" }, ordre });
@@ -83,5 +83,37 @@ describe("activitesDirigees : le mapping des fonctions", () => {
     expect(activitesDirigees({ fonction: "directeur_copropriete" })).toEqual([]);
     expect(activitesDirigees({ fonction: undefined })).toEqual([]);
     expect(activitesDirigees({ fonction: "inexistante" })).toEqual([]);
+  });
+});
+
+describe("agencesVisibles / agenceAffichee : le choix d'agence du comptoir", () => {
+  const DIRECTION: Acteur = { id: "u6", nom: "Emmanuel L.", agence: "LGC", direction: "toutes" };
+
+  it("l'equipe d'une agence ne voit que la sienne : pas de choix", () => {
+    expect(agencesVisibles(GESTIONNAIRE_LGC)).toEqual(["LGC"]);
+  });
+
+  it("la direction voit les quatre, dans l'ordre du cabinet", () => {
+    expect(agencesVisibles(DIRECTION)).toEqual(["ML", "LGC", "HLS", "ASN"]);
+  });
+
+  it("une delegation ou un referent ajoute son agence", () => {
+    expect(agencesVisibles(CHRYSTELLE)).toEqual(["LGC", "ASN"]);
+    expect(agencesVisibles(REFERENT_ASN)).toEqual(["ML", "ASN"]);
+  });
+
+  it("qui dirige une activite voit les quatre : ses trousseaux sont partout", () => {
+    expect(agencesVisibles(NADINE)).toEqual(["ML", "LGC", "HLS", "ASN"]);
+  });
+
+  it("l'agence demandee si elle est visible, sinon la sienne", () => {
+    expect(agenceAffichee(DIRECTION, "hls")).toBe("HLS");
+    expect(agenceAffichee(DIRECTION, undefined)).toBe("LGC");
+    expect(agenceAffichee(GESTIONNAIRE_LGC, "HLS")).toBe("LGC");
+    expect(agenceAffichee(DIRECTION, "XYZ")).toBe("LGC");
+  });
+
+  it("sans agence ni demande : tout le cabinet (undefined), comme avant", () => {
+    expect(agenceAffichee({ id: "u7", nom: "Sans agence", direction: "toutes" }, undefined)).toBeUndefined();
   });
 });

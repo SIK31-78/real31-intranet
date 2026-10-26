@@ -14,6 +14,13 @@ import type { MetierPrestataire } from "@/lib/domain/contrats-copro/types";
 
 export const AGENCES_CLES = ["ML", "LGC", "HLS", "ASN"] as const;
 
+export const LIBELLE_AGENCE_CLES: Record<string, string> = {
+  ML: "Maisons-Laffitte",
+  LGC: "La Garenne",
+  HLS: "Houilles",
+  ASN: "Asnières",
+};
+
 export const TYPES_ELEMENT = ["cle", "badge", "bip", "telecommande", "pass", "autre"] as const;
 export type TypeElement = (typeof TYPES_ELEMENT)[number];
 
