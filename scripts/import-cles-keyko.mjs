@@ -7,7 +7,7 @@
 //   ... --photos "<chemin>/photos-reduites"                 # + verse les photos dans le bucket « cles »
 //   ... --ecrire --photos-seulement --photos "<chemin>"     # apres coup : rattache les photos aux trousseaux deja importes
 //   ... --ecrire --forcer-dump-ancien                       # import de TEST sur un dump perime (a purger ensuite)
-//   ... --ecrire --retirer-photos                           # avant une purge : retire du bucket les photos des trousseaux ASN
+//   ... --ecrire --retirer-photos                           # HORS SERVICE depuis le vrai import du 26/10/2026 (refuse de tourner)
 //
 // Les photos se preparent a cote du dump : keyko-photos.mjs les telecharge (« <reference>--<id
 // Keyko>.jpg »), keyko-photos-reduire.py les ramene a 1600 px (727 Mo -> 40 Mo au 23/09, dont
@@ -406,6 +406,12 @@ async function verserPhotos(idT) {
 }
 
 async function ecrire() {
+  if (RETIRER_PHOTOS) {
+    // Hors service depuis le vrai import du 26/10/2026 (REA-53), comme purge_asn_keyko.sql :
+    // les photos du bucket sont celles qu'Asnieres utilise, les retirer les perdrait.
+    console.error("\nREFUS : --retirer-photos est hors service depuis le vrai import du 26/10/2026 (REA-53). Aucune photo retirée.");
+    process.exit(1);
+  }
   if (RETIRER_PHOTOS) {
     // Le SQL de purge ne peut pas vider le Storage (les fichiers vivent hors de la base) : on les
     // retire ici, AVANT la purge, tant que les trousseaux disent encore ou sont leurs photos.

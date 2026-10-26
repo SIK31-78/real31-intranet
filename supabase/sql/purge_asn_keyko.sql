@@ -1,5 +1,9 @@
 -- PURGE de l'import Keyko d'Asnières (REA-53), à la demande, JAMAIS en routine.
 --
+-- ⛔ HORS SERVICE DEPUIS LE 26/10/2026 : le vrai import est fait (dump du 26/10) et Asnières
+-- travaille dans l'intranet. Le bloc « refus » ci-dessous arrête le script avant toute
+-- suppression. Ne le retirer qu'en sachant qu'on efface des sorties et retours réels.
+--
 -- Sert une seule fois : effacer l'import de TEST fait sur le vieux dump du 23/09 (décision
 -- Sekou du 21/10/2026) avant le vrai import sur un dump frais. Après le vrai import, ce
 -- fichier ne doit plus être passé : il effacerait des gestes réels d'Asnières.
@@ -12,6 +16,13 @@
 -- et le déclencheur reste en place.
 
 begin;
+
+-- Refus : le vrai import est fait, purger effacerait les gestes réels d'Asnières.
+do $$
+begin
+  raise exception 'purge_asn_keyko.sql est hors service depuis le vrai import du 26/10/2026 (REA-53) : rien n''a été supprimé.';
+end;
+$$;
 
 -- Inventaire avant (à comparer au rapport de l'import)
 select 'trousseaux' as quoi, count(*) from public.intranet_cles_trousseau where agence_code = 'ASN'
