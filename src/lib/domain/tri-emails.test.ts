@@ -1023,3 +1023,37 @@ describe("expediteursPublicite (corbeille proposée, apprise du journal, 26/10/2
     expect(rangeableAutomatiquement({ corbeille: "publicite", suggestion: sure }, ctx)).toEqual({ ok: false, motif: "corbeille" });
   });
 });
+
+describe("adresse à une lettre près (faute de frappe dans le nom de rue, 26/10/2026)", () => {
+  // Donnees inventees, sauf l'adresse de S210 (cas reel du 26/10).
+  const c = (reference: string, adresse: string, nom = `Copro ${reference}`): CoproTri => ({ reference, nom, adresse, gestionnaire: null, assistant: null });
+  const ref: ReferentielTri = {
+    copros: [c("S0210", "6 rue Marcel Sembat 78800 HOUILLES"), c("S0301", "12 rue Pasteur 78800 Houilles"), c("S0302", "12 rue Pastour 78800 Houilles")],
+    expediteurs: {},
+  };
+  const trouve = (texte: string) => suggererCopro(mail({ objet: "Intervention", apercu: texte }), ref);
+
+  it("« 6 rue Marcel SAMBAT 78800 » trouve S210", () => {
+    const s = trouve("Intervention au 6 rue Marcel SAMBAT 78800 ce jour.");
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0210"] });
+    expect(s.raison).toContain("une lettre d'écart");
+  });
+
+  it("un numéro différent, ou un code postal différent, ne trouve pas", () => {
+    expect(trouve("Intervention au 8 rue Marcel SAMBAT 78800 ce jour.").candidats).toEqual([]);
+    expect(trouve("Intervention au 6 rue Marcel SAMBAT 92000 ce jour.").candidats).toEqual([]);
+  });
+
+  it("deux rues proches d'une même ville ne se confondent pas", () => {
+    expect(trouve("Passage au 12 rue Pasteur 78800 Houilles.")).toMatchObject({ nature: "faible", candidats: ["S0301"] });
+    expect(trouve("Passage au 12 rue Pastour 78800 Houilles.")).toMatchObject({ nature: "faible", candidats: ["S0302"] });
+    // Une troisième orthographe, à une lettre des deux : on ne choisit pas.
+    expect(trouve("Passage au 12 rue Pastaur 78800 Houilles.").nature).toBe("plusieurs");
+  });
+
+  it("pas de tolérance sur un nom d'immeuble ni sur un mot court", () => {
+    const r: ReferentielTri = { copros: [c("S0400", "", "LE BELVEDERE"), c("S0401", "3 rue Lyon 78800 Houilles")], expediteurs: {} };
+    expect(suggererCopro(mail({ objet: "Résidence LE BELVEDARE" }), r).candidats).toEqual([]);
+    expect(suggererCopro(mail({ objet: "Au 3 rue Lion 78800" }), r).candidats).toEqual([]);
+  });
+});

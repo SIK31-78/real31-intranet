@@ -352,6 +352,29 @@ function numerosDe(adresse: string): Set<string> {
   return numeros;
 }
 
+/** Les deux mots ne different-ils que d'une lettre (remplacee, ajoutee ou retiree) ? */
+function uneLettreDEcart(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  const [court, long] = a.length <= b.length ? [a, b] : [b, a];
+  let i = 0;
+  while (i < court.length && court[i] === long[i]) i++;
+  // Meme longueur : une substitution ; sinon, la lettre en trop du plus long.
+  return court.length === long.length ? court.slice(i + 1) === long.slice(i + 1) : court.slice(i) === long.slice(i + 1);
+}
+
+// Une faute de frappe dans le nom de rue (« Marcel SAMBAT » pour « Marcel Sembat », S210,
+// 26/10/2026) : tolérée sur un mot d'au moins 5 lettres, seulement dans l'adresse, et
+// seulement quand le numero ET le lieu sont cites (indicesNomAdresse).
+const MOT_RUE_APPROCHE_MIN = 5;
+
+function motDeRueCite(mot: string, mots: Set<string>, approche: boolean): boolean {
+  if (mots.has(mot)) return true;
+  if (!approche || mot.length < MOT_RUE_APPROCHE_MIN) return false;
+  for (const m of mots) if (m.length >= MOT_RUE_APPROCHE_MIN && !/\d/.test(m) && uneLettreDEcart(mot, m)) return true;
+  return false;
+}
+
 function codePostalDe(adresse: string): string {
   return /\b(\d{5})\b/.exec(adresse)?.[1] ?? "";
 }
@@ -438,8 +461,10 @@ function nomUsageCite(nomUsage: string, exclus: (m: string) => boolean, mots: Se
  *     (« 12 RUE … ») ne compte pas comme nom ;
  *   - une adresse ne compte que si le type de voie et ses mots porteurs sont cites, ET que
  *     le code postal ou la ville de la copro apparait aussi (« 71 rue de Bezons » a
- *     Carrieres ne matche pas un mail de Bezons), ET l'un de ses numeros. On rend au plus
- *     une raison par copro : les copros trouvees par le nom d'abord, puis par l'adresse.
+ *     Carrieres ne matche pas un mail de Bezons), ET l'un de ses numeros. Une lettre d'ecart
+ *     dans un mot de rue d'au moins 5 lettres est toleree (« SAMBAT » pour « Sembat ») quand
+ *     le numero est cite, et seulement si aucune adresse n'est citee exactement. On rend au
+ *     plus une raison par copro : les copros trouvees par le nom d'abord, puis par l'adresse.
  * L'appelant ne passe ici que l'objet et le DEBUT du corps : une adresse de copro dans la
  * signature du cabinet (son bureau) ne doit pas rattacher tous les mails (constat du 13/10).
  */
@@ -452,6 +477,7 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
   const noyauTexte = ` ${noyauDe(texte).join(" ")} `;
   const parNom: { reference: string; raison: string }[] = [];
   const parAdresse: { reference: string; raison: string }[] = [];
+  const approchees: { reference: string; raison: string }[] = [];
   const vues = new Set<string>();
   for (const c of copros) {
     const cle = cleDeReference(c.reference);
@@ -483,21 +509,32 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
       // Une rue compte si son type (rue, avenue…) ET tous ses mots porteurs sont cités, ET que
       // le lieu (code postal ou ville) l'est aussi : « 71 rue de Bezons » à Carrières ne matche
       // pas un mail de Bezons 95870.
-      const voie = lieuPresent ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => mots.has(m))) : undefined;
+      if (!lieuPresent) continue;
       // Le numero doit suivre (audit du 19/10/2026) : « 152 avenue Gabriel Péri » ne designe pas
       // la copro du 25 de la meme avenue. Une adresse sans numero en base ne se controle pas.
       const numeros = numerosDe(adresse);
-      if (voie && (numeros.size === 0 || [...numeros].some((n) => numerosCites.has(n)))) {
+      const numeroCite = [...numeros].some((n) => numerosCites.has(n));
+      const voie = voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => mots.has(m)));
+      if (voie && (numeros.size === 0 || numeroCite)) {
         parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie.type} ${voie.mots.join(" ")} » citée dans le mail, à confirmer.` });
         vues.add(cle);
         break;
+      }
+      // Une lettre d'ecart dans le nom de rue : seulement si le numero est cite (pas d'adresse
+      // sans numero en base), en plus du lieu.
+      const approchee = numeroCite ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => motDeRueCite(m, mots, true))) : undefined;
+      if (approchee && !approchees.some((a) => a.reference === c.reference)) {
+        approchees.push({ reference: c.reference, raison: `Adresse proche de « ${approchee.type} ${approchee.mots.join(" ")} » citée dans le mail (une lettre d'écart), à confirmer.` });
       }
     }
   }
   // Le nom d'immeuble passe en premier, mais n'ecrase plus l'adresse (audit du 19/10/2026) :
   // un nom trouve a tort (un mot commun) masquait la bonne copro, citee par son adresse. Le
-  // controle du numero suffit a ecarter les voisines de la meme rue.
-  return [...parNom, ...parAdresse];
+  // controle du numero suffit a ecarter les voisines de la meme rue. Une adresse a une lettre
+  // pres ne compte que si aucune adresse n'est citee exactement : « 12 rue Pasteur » ne doit
+  // pas aussi trouver la copro du 12 rue Pastour.
+  const exactes = new Set([...parNom, ...parAdresse].map((i) => i.reference));
+  return [...parNom, ...parAdresse, ...(parAdresse.length === 0 ? approchees.filter((a) => !exactes.has(a.reference)) : [])];
 }
 
 // « Immeuble concerné : 86 rue E Vaillant - 89-91 rue M Berteaux-BEZONS » : pied des mails
