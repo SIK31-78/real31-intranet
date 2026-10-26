@@ -3,7 +3,7 @@
 // Tables absentes (SQL pas encore passe) : lectures vides, ecritures en erreur claire.
 
 import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri, SignalTri } from "@/lib/domain/tri-emails";
-import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
+import type { HistoriqueExpediteur, NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
 import { createSupabasePublicClient } from "./public-client";
 
 const SQL = "supabase/sql/intranet_tri_emails.sql puis intranet_tri_binomes_par_copro.sql";
@@ -46,6 +46,13 @@ function colonneAbsente(error: { code?: string } | null): boolean {
 
 /** Les conversationId Graph sont longs (~150 caracteres) : par lots, pour borner l'URL. */
 const LOT_CONVERSATIONS = 25;
+/** Expediteurs par requete (un filtre ilike chacun) : borne l'URL comme les conversations. */
+const LOT_EXPEDITEURS = 40;
+
+/** Valeur d'un filtre `or` PostgREST : entre guillemets (virgules, parentheses), `\` et `"` echappes. */
+function valeurOr(v: string): string {
+  return `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
 
 function erreur(quoi: string, error: { code?: string; message: string }): Error {
   return new Error(tableAbsente(error) ? `Tri des e-mails : tables absentes, passer ${SQL}.` : `Tri des e-mails (${quoi}) : ${error.message}`);
@@ -277,6 +284,47 @@ export class SupabaseTriRepository implements TriRepository {
       }
       // Les plus recents d'abord : le premier vu par conversation est le dernier rangement.
       for (const r of data ?? []) if (!out.has(r.conversation_id)) out.set(r.conversation_id, r.copro_reference);
+    }
+    return out;
+  }
+
+  async historiqueExpediteurs(boite: string, expediteurs: string[], depuisISO: string): Promise<HistoriqueExpediteur[]> {
+    const uniques = [...new Set(expediteurs.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+    const lots: string[][] = [];
+    for (let i = 0; i < uniques.length; i += LOT_EXPEDITEURS) lots.push(uniques.slice(i, i + LOT_EXPEDITEURS));
+    // ilike sans joker = egalite sans la casse (Graph ecrit « Mathis.ELIE@ » ou « mathis.elie@ »
+    // selon le mail). Un « _ » ou un « * » d'adresse elargit la recherche : le domaine refiltre
+    // a l'egalite exacte.
+    const reponses = await Promise.all(
+      lots.map((lot) =>
+        createSupabasePublicClient()
+          .from("intranet_tri_journal")
+          .select("expediteur, objet, dossier_cle, copro_reference, copros")
+          .eq("boite", boite)
+          .is("annule_le", null)
+          .gte("fait_le", depuisISO)
+          .or(lot.map((e) => `expediteur.ilike.${valeurOr(e)}`).join(","))
+          .limit(1000)
+          .returns<{ expediteur: string; objet: string; dossier_cle: string | null; copro_reference: string | null; copros: string[] | null }[]>(),
+      ),
+    );
+    const voulus = new Set(uniques);
+    const out: HistoriqueExpediteur[] = [];
+    for (const { data, error } of reponses) {
+      if (error) {
+        if (tableAbsente(error)) return [];
+        throw erreur("journal", error);
+      }
+      for (const r of data ?? []) {
+        if (!voulus.has(r.expediteur.trim().toLowerCase())) continue;
+        out.push({
+          expediteur: r.expediteur,
+          objet: r.objet,
+          dossierCle: r.dossier_cle ?? null,
+          coproReference: r.copro_reference,
+          copros: r.copros ?? (r.copro_reference ? [r.copro_reference] : []),
+        });
+      }
     }
     return out;
   }

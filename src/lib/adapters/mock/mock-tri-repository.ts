@@ -76,6 +76,10 @@ export class MockTriRepository implements TriRepository {
     }
     return out;
   }
+  async historiqueExpediteurs(boite: string, expediteurs: string[], depuisISO: string) {
+    const cles = new Set(expediteurs.map((e) => e.trim().toLowerCase()));
+    return this.journal.filter((e) => e.boite === boite && e.annuleLe === null && e.faitLe >= depuisISO && cles.has(e.expediteur.trim().toLowerCase()));
+  }
   async marquerAnnule(id: string): Promise<boolean> {
     const e = this.journal.find((x) => x.id === id);
     if (!e || e.annuleLe) return false;

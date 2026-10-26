@@ -11,6 +11,7 @@ import {
   destinationDe,
   dossiersChoisissables,
   estMailInterne,
+  expediteursPublicite,
   lignesBinomes,
   motifCorbeille,
   type DossierChoisissable,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/domain/tri-emails";
 import { boiteTriConfiguree, debutTri } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
+import type { TriRepository } from "@/lib/ports/tri-repository";
 import {
   getIngestionTri,
   getReferentielTriProvider,
@@ -71,6 +73,24 @@ export interface FileATrier {
 }
 
 const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
+/** Fenetre du journal lue pour apprendre les publicites. */
+const FENETRE_PUBLICITE_MS = 90 * 24 * 3600 * 1000;
+
+/**
+ * Les expediteurs de ces mails a proposer a la corbeille comme publicite (expediteursPublicite),
+ * d'une lecture groupee du journal. Journal illisible : aucun (la file reste affichable, et
+ * la tache planifiee, sans cette proposition, retombe sur ses autres garde-fous).
+ */
+export async function publicitesDeLaFile(repo: TriRepository, boite: string, mails: RawMail[], ref: ReferentielTri): Promise<Set<string>> {
+  if (mails.length === 0) return new Set();
+  try {
+    const historique = await repo.historiqueExpediteurs(boite, mails.map((m) => m.from), new Date(Date.now() - FENETRE_PUBLICITE_MS).toISOString());
+    return expediteursPublicite(historique, ref.expediteurs);
+  } catch (e) {
+    console.error("[tri-emails] publicités apprises du journal :", e instanceof Error ? e.message : e);
+    return new Set();
+  }
+}
 
 
 /**
@@ -79,10 +99,19 @@ const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
  * Sans lecture des pieces jointes : la piste « pj » ne se calcule qu'a l'ecran, a la demande.
  * `coproConversation` : copro d'un mail de la meme conversation deja range (ou null).
  */
-export function mailDeLaFile(m: RawMail, boite: string, ref: ReferentielTri, coproConversation: string | null | undefined): MailDeLaFile {
+export function mailDeLaFile(
+  m: RawMail,
+  boite: string,
+  ref: ReferentielTri,
+  coproConversation: string | null | undefined,
+  /** Expediteurs appris comme publicite (publicitesDeLaFile). */
+  publicites?: ReadonlySet<string>,
+): MailDeLaFile {
   const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
-  // Non remis, reponse automatique : la corbeille est proposee a la place d'une copro.
-  const corbeille = motifCorbeille({ deAdresse: m.from, objet: m.subject });
+  // Non remis, reponse automatique, publicite apprise : la corbeille est proposee a la place
+  // d'une copro. Un mail interne garde son propre motif (« Interne »).
+  const interne = estMailInterne(m.from, boite);
+  const corbeille = motifCorbeille({ deAdresse: m.from, objet: m.subject }, interne ? undefined : publicites);
   const base: MailATrier = {
     id: m.id,
     internetMessageId: m.internetMessageId,
@@ -90,7 +119,7 @@ export function mailDeLaFile(m: RawMail, boite: string, ref: ReferentielTri, cop
     deNom: m.fromName ?? m.from,
     deAdresse: m.from,
     ...(m.to.length ? { a: m.to } : {}),
-    ...(estMailInterne(m.from, boite) ? { interne: true } : {}),
+    ...(interne ? { interne: true } : {}),
     ...(corbeille ? { corbeille } : {}),
     objet: m.subject || "(sans objet)",
     recuLe: m.receivedAt,
@@ -174,8 +203,9 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
       return new Map<string, string>();
     });
 
+  const publicites = await publicitesDeLaFile(repo, boite, bruts, ref);
   const mails: MailDeLaFile[] = bruts.map((m) =>
-    mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null),
+    mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null, publicites),
   );
 
   // L'onglet « Binômes » ne liste que les copros actives : une copro inactive reste

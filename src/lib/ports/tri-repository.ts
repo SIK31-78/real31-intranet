@@ -5,6 +5,9 @@ import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri } from "@/lib/d
 
 export type NouvelleEntreeJournal = Omit<EntreeJournalTri, "id" | "faitLe" | "annuleLe">;
 
+/** Ce que l'apprentissage des publicites lit d'une ligne de journal. */
+export type HistoriqueExpediteur = Pick<EntreeJournalTri, "expediteur" | "objet" | "dossierCle" | "coproReference" | "copros">;
+
 export interface TriRepository {
   /** Binomes tenus dans l'intranet et affectations des copros. */
   binomes(): Promise<BinomesTri>;
@@ -38,6 +41,12 @@ export interface TriRepository {
    * conversationId). Colonne absente (SQL pas encore passe) : vide.
    */
   coprosDesConversations(boite: string, conversationIds: string[]): Promise<Map<string, string>>;
+  /**
+   * Les rangements NON annules depuis cette date des mails de ces expediteurs (adresse
+   * comparee sans la casse) : sert a apprendre les publicites (expediteursPublicite). Une
+   * lecture groupee pour toute la file, pas une par mail. Table absente : vide.
+   */
+  historiqueExpediteurs(boite: string, expediteurs: string[], depuisISO: string): Promise<HistoriqueExpediteur[]>;
   /**
    * Marque la ligne annulee, SEULEMENT si elle ne l'est pas deja ; true = c'est cet appel
    * qui l'a marquee. La tache planifiee et l'ouverture de l'ecran peuvent traiter le meme

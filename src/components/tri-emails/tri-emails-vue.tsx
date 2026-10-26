@@ -20,6 +20,7 @@ import {
   type DossierChoisissable,
   type EntreeJournalTri,
   type LigneBinome,
+  type MotifCorbeille,
   type NatureSuggestion,
   type SignalTri,
 } from "@/lib/domain/tri-emails";
@@ -71,6 +72,12 @@ const LIBELLE_SIGNAL: Record<SignalTri, string> = {
   aucune: "aucune piste",
   pj: "pièce jointe",
   conversation: "même conversation",
+};
+
+const LIBELLE_CORBEILLE: Record<MotifCorbeille, string> = {
+  "non-remis": "Non remis",
+  "reponse-auto": "Réponse auto",
+  publicite: "Publicité",
 };
 
 function pastille(m: MailDeLaFile): string {
@@ -354,7 +361,7 @@ function FileVue({
                 <span className="col-span-2 text-ink-2 truncate">{m.objet}</span>
                 <span className="col-span-2 mt-1 flex flex-wrap gap-1.5">
                   {m.interne && <Badge ton="err">Interne</Badge>}
-                  {!m.interne && m.corbeille && <Badge ton="err">{m.corbeille === "non-remis" ? "Non remis" : "Réponse auto"}</Badge>}
+                  {!m.interne && m.corbeille && <Badge ton="err">{LIBELLE_CORBEILLE[m.corbeille]}</Badge>}
                   <Badge ton={TON[m.suggestion.nature]}>{pastille(m)}</Badge>
                   {m.suggestion.candidats.length === 1 && parRef.get(m.suggestion.candidats[0]!)?.inactive && <Badge ton="outline">copro inactive</Badge>}
                 </span>
@@ -501,6 +508,10 @@ function DetailMail({
             ) : mail.corbeille === "non-remis" ? (
               <>
                 <strong className="font-medium">Non remis</strong> : avis de non-remise d&apos;un mail envoyé. Proposé à la corbeille ; rien n&apos;est supprimé sans votre clic.
+              </>
+            ) : mail.corbeille === "publicite" ? (
+              <>
+                <strong className="font-medium">Publicité</strong> : cet expéditeur a déjà été mis à la corbeille au moins deux fois, et jamais rangé. Proposé à la corbeille ; rien n&apos;est supprimé sans votre clic.
               </>
             ) : (
               <>

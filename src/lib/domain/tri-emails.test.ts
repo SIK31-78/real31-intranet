@@ -6,6 +6,7 @@ import {
   rangeableAutomatiquement,
   rangeableParPiecesJointes,
   aLirePiecesJointes,
+  expediteursPublicite,
   suggestionCorbeille,
   cleDeReference,
   clesDossiersDe,
@@ -976,5 +977,49 @@ describe("rangeableParPiecesJointes (PDF lus par la tâche planifiée, 26/10/202
     expect(aLirePiecesJointes({ aPiecesJointes: true, suggestion: rien }, pasSure, true)).toBe(false);
     expect(aLirePiecesJointes({ aPiecesJointes: true, suggestion: rien }, { ok: false, motif: "corbeille" }, false)).toBe(false);
     expect(aLirePiecesJointes({ aPiecesJointes: true, suggestion: rien }, { ok: true, reference: "S0297" }, false)).toBe(false);
+  });
+});
+
+describe("expediteursPublicite (corbeille proposée, apprise du journal, 26/10/2026)", () => {
+  // Donnees inventees.
+  const ligne = (expediteur: string, o: Partial<{ objet: string; dossierCle: string | null; coproReference: string | null; copros: string[] }> = {}) => ({
+    expediteur,
+    objet: "Offre spéciale",
+    dossierCle: "corbeille" as string | null,
+    coproReference: null as string | null,
+    copros: [] as string[],
+    ...o,
+  });
+
+  it("deux corbeilles, jamais rangé : publicité (adresse sans la casse)", () => {
+    const pubs = expediteursPublicite([ligne("Newsletter@Pub.fr"), ligne("newsletter@pub.fr")]);
+    expect([...pubs]).toEqual(["newsletter@pub.fr"]);
+    expect(motifCorbeille({ deAdresse: "NEWSLETTER@pub.fr", objet: "Nouvelle offre" }, pubs)).toBe("publicite");
+    expect(suggestionCorbeille("publicite").raison).toContain("au moins deux fois");
+  });
+
+  it("une seule corbeille, ou un seul rangement dans une copro ou un dossier de binôme : non", () => {
+    expect(expediteursPublicite([ligne("a@pub.fr")]).size).toBe(0);
+    expect(expediteursPublicite([ligne("a@pub.fr"), ligne("a@pub.fr"), ligne("a@pub.fr", { dossierCle: "binome:g@real31.fr" })]).size).toBe(0);
+    expect(expediteursPublicite([ligne("a@pub.fr"), ligne("a@pub.fr"), ligne("a@pub.fr", { dossierCle: "comptabilite", coproReference: "S0297", copros: ["S0297"] })]).size).toBe(0);
+    // Divers ou Comptabilité sans copro ne compte pas comme un rangement.
+    expect(expediteursPublicite([ligne("a@pub.fr"), ligne("a@pub.fr"), ligne("a@pub.fr", { dossierCle: "divers" })]).size).toBe(1);
+  });
+
+  it("par adresse, pas par domaine", () => {
+    expect(expediteursPublicite([ligne("a@pub.fr"), ligne("b@pub.fr")]).size).toBe(0);
+  });
+
+  it("ni le cabinet, ni une adresse connue d'une copro, ni des non-remis ou réponses automatiques", () => {
+    expect(expediteursPublicite([ligne("collegue@real31.fr"), ligne("collegue@real31.fr")]).size).toBe(0);
+    expect(expediteursPublicite([ligne("proprio@exemple.fr"), ligne("proprio@exemple.fr")], { "proprio@exemple.fr": [] }).size).toBe(0);
+    const absences = [ligne("x@exemple.fr", { objet: "Réponse automatique : AG" }), ligne("x@exemple.fr", { objet: "Non remis : PV" })];
+    expect(expediteursPublicite(absences).size).toBe(0);
+  });
+
+  it("la publicité bloque l'automatique comme les autres corbeilles", () => {
+    const sure = { nature: "sure" as const, candidats: ["S0297"], raison: "" };
+    const ctx = { boite: "syndic4@real31.fr", dejaPasse: false, copros: [copro("S0297")], initialesParEmail: { "g@real31.fr": "GG" } };
+    expect(rangeableAutomatiquement({ corbeille: "publicite", suggestion: sure }, ctx)).toEqual({ ok: false, motif: "corbeille" });
   });
 });

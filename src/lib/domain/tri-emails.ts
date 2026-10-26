@@ -573,8 +573,11 @@ export function estMailInterne(deAdresse: string, boite: string): boolean {
   return /@real31\.fr$/.test(de) && de !== boite.trim().toLowerCase();
 }
 
-/** Pourquoi le tri propose la corbeille plutot qu'une copro. */
-export type MotifCorbeille = "non-remis" | "reponse-auto";
+/**
+ * Pourquoi le tri propose la corbeille plutot qu'une copro. « publicite » : expediteur appris
+ * du journal (expediteursPublicite).
+ */
+export type MotifCorbeille = "non-remis" | "reponse-auto" | "publicite";
 
 // Objets des avis de non-remise et des reponses automatiques (Outlook en francais et en
 // anglais, serveurs de messagerie). Ancres en tete : « RE: Non remis… » est une vraie reponse.
@@ -597,10 +600,15 @@ const EXPEDITEUR_NON_REMIS = /^(?:postmaster|mailer-daemon|microsoftexchange[0-9
  * Avis de non-remise ou reponse automatique : le tri propose la corbeille au lieu d'une copro
  * (decision Sekou du 19/10/2026). Ce n'est qu'une proposition : rien n'est supprime sans clic.
  */
-export function motifCorbeille(m: { deAdresse: string; objet: string }): MotifCorbeille | null {
+export function motifCorbeille(
+  m: { deAdresse: string; objet: string },
+  /** Expediteurs appris du journal (expediteursPublicite), en minuscules. */
+  publicites?: ReadonlySet<string>,
+): MotifCorbeille | null {
   const objet = normaliser(m.objet);
   if (EXPEDITEUR_NON_REMIS.test(m.deAdresse.trim()) || OBJET_NON_REMIS.test(objet)) return "non-remis";
   if (OBJET_REPONSE_AUTO.test(objet)) return "reponse-auto";
+  if (publicites?.has(cleExpediteur(m.deAdresse))) return "publicite";
   return null;
 }
 
@@ -612,8 +620,53 @@ export function suggestionCorbeille(motif: MotifCorbeille): Suggestion {
     raison:
       motif === "non-remis"
         ? "Avis de non-remise d'un mail envoyé : proposé à la corbeille."
-        : "Réponse automatique (absence, accusé de réception) : proposée à la corbeille.",
+        : motif === "reponse-auto"
+          ? "Réponse automatique (absence, accusé de réception) : proposée à la corbeille."
+          : "Expéditeur déjà mis à la corbeille au moins deux fois, jamais rangé : proposé à la corbeille.",
   };
+}
+
+/** Cle du dossier « corbeille » dans le journal (supprimerMail). */
+export const DOSSIER_CORBEILLE = "corbeille";
+
+/** Un expediteur passe en « publicite » apres tant de mises a la corbeille. */
+export const CORBEILLES_PUBLICITE = 2;
+
+/** Adresse d'expediteur comparable : sans espaces, en minuscules (Graph ne garde pas la casse d'un mail a l'autre). */
+export function cleExpediteur(adresse: string): string {
+  return adresse.trim().toLowerCase();
+}
+
+/**
+ * Expediteurs dont les mails sont proposes a la corbeille comme publicite (decision Sekou du
+ * 26/10/2026), appris du journal du tri : mis a la corbeille au moins CORBEILLES_PUBLICITE fois
+ * et JAMAIS ranges dans une copro ni un dossier de binome (Comptabilité et Divers ne comptent
+ * pas). Une proposition, jamais une suppression automatique.
+ *   - Par ADRESSE exacte, pas par domaine : mesure du 26/10 sur syndic4, les 5 expediteurs
+ *     publicitaires ont chacun une adresse fixe (newsletter@…, marketing@…), alors qu'un
+ *     domaine regroupe souvent un prestataire (veolia.com : 3 adresses, dont des factures).
+ *   - Une corbeille d'avis de non-remise ou de reponse automatique ne compte pas : un
+ *     coproprietaire absent deux fois n'est pas une publicite.
+ *   - Jamais une adresse du cabinet (@real31.fr : deja « interne »), ni une adresse connue
+ *     d'une copro dans ESTALE ou Crypto (`connus` : coproprietaire, fournisseur…).
+ * Les lignes annulees ne doivent pas etre passees.
+ */
+export function expediteursPublicite(
+  historique: Pick<EntreeJournalTri, "expediteur" | "objet" | "dossierCle" | "coproReference" | "copros">[],
+  connus: Readonly<Record<string, unknown>> = {},
+): Set<string> {
+  const compte = new Map<string, { corbeille: number; range: boolean }>();
+  for (const e of historique) {
+    const cle = cleExpediteur(e.expediteur);
+    if (!cle || /@real31\.fr$/.test(cle)) continue;
+    const c = compte.get(cle) ?? { corbeille: 0, range: false };
+    if (e.coproReference || e.copros.length > 0 || e.dossierCle?.startsWith("binome:")) c.range = true;
+    else if (e.dossierCle === DOSSIER_CORBEILLE && !motifCorbeille({ deAdresse: e.expediteur, objet: e.objet })) c.corbeille++;
+    compte.set(cle, c);
+  }
+  const out = new Set<string>();
+  for (const [cle, c] of compte) if (c.corbeille >= CORBEILLES_PUBLICITE && !c.range && !(cle in connus)) out.add(cle);
+  return out;
 }
 
 const LIBELLE_QUALITE: Record<QualiteExpediteur, string> = {

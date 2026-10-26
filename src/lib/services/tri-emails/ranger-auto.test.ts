@@ -64,6 +64,10 @@ function journalEnMemoire() {
       new Set(lignes.filter((e) => e.boite === boite && !e.annuleLe && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId)),
     dejaJournalises: async (boite: string, ids: string[]) =>
       new Set(lignes.filter((e) => e.boite === boite && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId)),
+    historiqueExpediteurs: async (boite: string, expediteurs: string[]) => {
+      const cles = new Set(expediteurs.map((e) => e.toLowerCase()));
+      return lignes.filter((e) => e.boite === boite && !e.annuleLe && cles.has(e.expediteur.toLowerCase()));
+    },
     coprosDesConversations: async (boite: string, ids: string[]) => {
       const out = new Map<string, string>();
       for (const e of lignes) {
@@ -341,5 +345,25 @@ describe("rangerAutomatiquement : lecture des PDF (26/10/2026)", () => {
     const serre = await passer({ lirePdf: lent, budgetMs: 1_000, delaiPjMs: 5, memoirePj: new Map() });
     expect(serre.pj).toMatchObject({ lus: 0, reportes: 3 });
     erreur.mockRestore();
+  });
+});
+
+describe("rangerAutomatiquement : publicité apprise du journal (26/10/2026)", () => {
+  it("un expéditeur mis deux fois à la corbeille, jamais rangé : corbeille proposée, pas d'automatique", async () => {
+    // L'objet cite le nom d'un immeuble : sans la publicité, la piste faible serait rangée.
+    const pub = brut({ from: "Newsletter@pub.exemple.fr", subject: "Offre LE BELVEDERE", attachments: [{ name: "piece jointe" }] });
+    const { passer, repo } = monter([pub]);
+    for (const i of [1, 2]) {
+      await repo.journaliser({
+        boite: SYNDIC4, internetMessageId: `<pub${i}@exemple.fr>`, messageId: `p${i}`, expediteur: "newsletter@pub.exemple.fr",
+        objet: "Offre d'automne", coproReference: null, copros: [], dossierNom: "Corbeille", dossierCle: "corbeille",
+        signal: "aucune", candidats: [], simulation: false, par: "mylene@real31.fr",
+      });
+    }
+    const lirePdf = vi.fn(async () => ["S0305"]);
+    const bilan = await passer({ lirePdf, memoirePj: new Map() });
+    expect(bilan.ranges).toBe(0);
+    expect(bilan.refus).toEqual({ corbeille: 1 });
+    expect(lirePdf).not.toHaveBeenCalled();
   });
 });

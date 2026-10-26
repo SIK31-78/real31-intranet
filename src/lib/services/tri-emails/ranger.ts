@@ -6,6 +6,7 @@
 // (routeur). Sinon le rangement est simule : journalise, mais aucun mail ne bouge.
 
 import {
+  DOSSIER_CORBEILLE,
   DOSSIERS_HORS_BINOME,
   cleDeReference,
   destinationDe,
@@ -184,7 +185,7 @@ export async function rangerMail(
 }
 
 /** Dossier « corbeille » du journal : un mail supprime (newsletter, spam) mis aux elements supprimes. */
-export const CORBEILLE_CLE = "corbeille";
+export const CORBEILLE_CLE = DOSSIER_CORBEILLE;
 const CORBEILLE_NOM = "Corbeille";
 
 /**

@@ -29,7 +29,7 @@ import { debutTri, triAutomatiqueActif } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import { getIngestionTri } from "@/lib/adapters/router";
 import { coprosDeTousLesPdf } from "./copro-pieces-jointes";
-import { mailDeLaFile, type MailDeLaFile } from "./lire-file";
+import { mailDeLaFile, publicitesDeLaFile, type MailDeLaFile } from "./lire-file";
 import { depsParDefaut, rangerMail, type DepsRangement } from "./ranger";
 
 /** Mails lus a chaque passage : la meme fenetre que l'ecran. */
@@ -172,6 +172,8 @@ export async function rangerAutomatiquement(
     deps.repo.dejaJournalises(boite, lus.map((m) => m.internetMessageId)),
     conversations,
   ]);
+  // Les publicites apprises du journal : corbeille proposee, donc jamais rangees seules.
+  const publicites = await publicitesDeLaFile(deps.repo, boite, lus, ref);
   const depsPassage: DepsRangement = { ...deps, referentiel: { charger: () => referentiel }, initialesParEmail: () => initiales };
 
   // Les plus anciens d'abord : un report ne retarde que les derniers arrives.
@@ -180,7 +182,7 @@ export async function rangerAutomatiquement(
   const ctx = { boite, dejaPasse: false, copros: ref.copros, initialesParEmail, binomes };
   for (const m of [...lus].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))) {
     bilan.examines++;
-    const mail = mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null);
+    const mail = mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null, publicites);
     const dejaPasse = dejaPasses.has(m.internetMessageId);
     const decision = rangeableAutomatiquement(mail, { ...ctx, dejaPasse });
     // Le journal garde le signal reel (« sure » ou « faible ») : c'est lui que la revue mesure.
