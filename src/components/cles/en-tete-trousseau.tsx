@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import type { Trousseau, EtatTrousseau, Pret, Reservation } from "@/lib/domain/cles/types";
 import { ActionsTrousseau } from "./actions-trousseau";
-import { FormulaireTrousseau, type CoproChoix } from "./formulaire-trousseau";
+import { FormulaireTrousseau, type BienChoix, type CoproChoix } from "./formulaire-trousseau";
 
 export function EnTeteTrousseau(props: {
   trousseau: Trousseau;
@@ -20,6 +20,7 @@ export function EnTeteTrousseau(props: {
   peutOperer: boolean;
   direction: boolean;
   copros: CoproChoix[];
+  biens: BienChoix[];
 }) {
   const [edition, setEdition] = useState(false);
   return (
@@ -33,7 +34,7 @@ export function EnTeteTrousseau(props: {
       {edition && (
         <Modal titre={`Modifier ${props.trousseau.numero}`} onFermer={() => setEdition(false)} size="lg">
           <ModalBody>
-            <FormulaireTrousseau copros={props.copros} trousseau={props.trousseau} onFermer={() => setEdition(false)} />
+            <FormulaireTrousseau copros={props.copros} biens={props.biens} trousseau={props.trousseau} onFermer={() => setEdition(false)} />
           </ModalBody>
         </Modal>
       )}

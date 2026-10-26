@@ -1,8 +1,8 @@
 "use client";
 
 // La fiche d'un trousseau, en creation comme en modification : numero, libelle,
-// emplacement, composition (type × quantite), acces (copro + immeuble + types). Les
-// copropriétés viennent du referentiel (jamais ressaisies).
+// emplacement, composition (type × quantite), acces (copro ou bien + immeuble + types). Les
+// copropriétés et les biens viennent de leur referentiel (jamais ressaisis).
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -24,12 +24,21 @@ export interface CoproChoix {
   adresse: string;
 }
 
+/** Bien hors syndic (location, vente) de l'agence, ADR-049. */
+export interface BienChoix {
+  id: string;
+  agenceCode: string;
+  activite: "location" | "transaction";
+  reference: string;
+  nom: string;
+  adresse: string;
+}
+
+type ChoixAcces = { copro: CoproChoix } | { bien: BienChoix };
+
 interface AccesSaisi {
   coproCode: string;
-  /**
-   * Bien hors syndic deja rattache (Asnieres, ADR-049) : garde tel quel, pas encore choisissable
-   * ici. Le serveur relit le bien par son id, il ne croit pas ce libelle.
-   */
+  /** Bien hors syndic (ADR-049). Le serveur relit le bien par son id, il ne croit pas ce libelle. */
   bienId?: string;
   bienLibelle?: string;
   immeuble: string;
@@ -53,12 +62,15 @@ const versElement = (e: ElementSaisi): ElementComposition => {
 
 export function FormulaireTrousseau({
   copros,
+  biens = [],
   trousseau,
   agenceCode,
   agences,
   onFermer,
 }: {
   copros: CoproChoix[];
+  /** Biens des agences accessibles ; seuls ceux de l'agence du trousseau sont proposes. */
+  biens?: BienChoix[];
   /** Absent = creation. */
   trousseau?: Trousseau;
   /** Agence par defaut (session). */
@@ -89,6 +101,7 @@ export function FormulaireTrousseau({
   const [tente, setTente] = useState(false);
   const valeurTotale = valeurComposition(composition.map(versElement));
 
+  const biensAgence = useMemo(() => biens.filter((b) => b.agenceCode === (trousseau?.agenceCode ?? agence).toUpperCase()), [biens, trousseau?.agenceCode, agence]);
   const accesRenseigne = (a: AccesSaisi) => Boolean(a.coproCode || a.bienId);
   const pret = numero.trim().length > 0 && acces.some(accesRenseigne) && (Boolean(agence) || Boolean(trousseau));
 
@@ -153,11 +166,11 @@ export function FormulaireTrousseau({
       <fieldset className="flex flex-col gap-2">
         <legend className="text-body font-medium text-ink mb-1">Ce que le trousseau ouvre</legend>
         {acces.map((a, i) => (
-          <LigneAcces key={i} acces={a} copros={copros} erreur={tente && !accesRenseigne(a)} onChange={(n) => setAcces(acces.map((x, j) => (j === i ? n : x)))} onSupprimer={acces.length > 1 ? () => setAcces(acces.filter((_, j) => j !== i)) : undefined} />
+          <LigneAcces key={i} acces={a} copros={copros} biens={biensAgence} erreur={tente && !accesRenseigne(a)} onChange={(n) => setAcces(acces.map((x, j) => (j === i ? n : x)))} onSupprimer={acces.length > 1 ? () => setAcces(acces.filter((_, j) => j !== i)) : undefined} />
         ))}
         <div>
           <Button type="button" variant="ghost" size="sm" onClick={() => setAcces([...acces, { coproCode: "", immeuble: "", types: [], libelle: "" }])}>
-            <Plus strokeWidth={1.5} /> Autre copropriété ou accès
+            <Plus strokeWidth={1.5} /> {biensAgence.length > 0 ? "Autre accès" : "Autre copropriété ou accès"}
           </Button>
         </div>
       </fieldset>
@@ -223,24 +236,35 @@ export function FormulaireTrousseau({
   );
 }
 
-function LigneAcces({ acces, copros, erreur, onChange, onSupprimer }: { acces: AccesSaisi; copros: CoproChoix[]; erreur: boolean; onChange: (a: AccesSaisi) => void; onSupprimer?: () => void }) {
+function LigneAcces({ acces, copros, biens, erreur, onChange, onSupprimer }: { acces: AccesSaisi; copros: CoproChoix[]; biens: BienChoix[]; erreur: boolean; onChange: (a: AccesSaisi) => void; onSupprimer?: () => void }) {
   const [texte, setTexte] = useState("");
   const copro = copros.find((c) => c.code === acces.coproCode);
-  const resultats = useMemo(() => {
+  // Une seule recherche : les copros puis les biens de l'agence (Asnieres n'a que des biens).
+  const resultats = useMemo((): ChoixAcces[] => {
     const termes = normaliserTexte(texte).split(" ").filter(Boolean);
     if (termes.length === 0) return [];
-    return copros.filter((c) => { const f = normaliserTexte(`${c.code} ${c.nom} ${c.adresse}`); return termes.every((t) => f.includes(t)); }).slice(0, 8);
-  }, [copros, texte]);
-  const combobox = useCombobox(resultats, (c) => { onChange({ ...acces, coproCode: c.code }); setTexte(""); }, () => setTexte(""));
+    const trouve = (f: string) => termes.every((t) => normaliserTexte(f).includes(t));
+    return [
+      ...copros.filter((c) => trouve(`${c.code} ${c.nom} ${c.adresse}`)).slice(0, 8).map((c) => ({ copro: c })),
+      ...biens.filter((b) => trouve(`${b.reference} ${b.nom} ${b.adresse}`)).slice(0, 8).map((b) => ({ bien: b })),
+    ];
+  }, [copros, biens, texte]);
+  const choisir = (o: ChoixAcces) => {
+    onChange("copro" in o ? { ...acces, coproCode: o.copro.code, bienId: undefined, bienLibelle: undefined } : { ...acces, coproCode: "", bienId: o.bien.id, bienLibelle: [o.bien.reference, o.bien.nom, o.bien.adresse].filter(Boolean).join(" · ") });
+    setTexte("");
+  };
+  const combobox = useCombobox(resultats, choisir, () => setTexte(""));
+  const avecBiens = biens.length > 0;
   const toggle = (t: TypeAcces) => onChange({ ...acces, types: acces.types.includes(t) ? acces.types.filter((x) => x !== t) : [...acces.types, t] });
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-line p-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-        <Field label={acces.bienId ? "Bien" : "Copropriété"} requis erreur={erreur ? "Choisis une copropriété" : undefined}>
+        <Field label={acces.bienId ? "Bien" : avecBiens ? "Copropriété ou bien" : "Copropriété"} requis erreur={erreur ? (avecBiens ? "Choisis une copropriété ou un bien" : "Choisis une copropriété") : undefined}>
           {acces.bienId ? (
             <div className="flex items-center gap-2 min-h-8">
               <span className="font-medium text-ink truncate">{acces.bienLibelle}</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ ...acces, bienId: undefined, bienLibelle: undefined })}>Changer</Button>
             </div>
           ) : copro ? (
             <div className="flex items-center gap-2 min-h-8">
@@ -251,12 +275,16 @@ function LigneAcces({ acces, copros, erreur, onChange, onSupprimer }: { acces: A
             </div>
           ) : (
             <div className="relative">
-              <Input value={texte} onChange={(e) => setTexte(e.target.value)} onKeyDown={combobox.onKeyDown} {...combobox.input} placeholder="Code, nom ou adresse…" autoComplete="off" />
+              <Input value={texte} onChange={(e) => setTexte(e.target.value)} onKeyDown={combobox.onKeyDown} {...combobox.input} placeholder={avecBiens ? "Code, référence, propriétaire ou adresse…" : "Code, nom ou adresse…"} autoComplete="off" />
               {resultats.length > 0 && (
                 <ul {...combobox.liste} className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-line bg-surface shadow-2 py-1">
-                  {resultats.map((c, i) => (
-                    <li key={c.code} {...combobox.option(i)} onMouseDown={(ev) => { ev.preventDefault(); onChange({ ...acces, coproCode: c.code }); setTexte(""); }} className={cn("flex items-center gap-2 px-3 min-h-8 text-body cursor-pointer", i === combobox.actif ? "bg-surface-2" : "hover:bg-surface-2/60")}>
-                      <span className="font-mono text-ink-2">{c.code}</span><span className="font-medium truncate">{c.nom}</span><span className="text-ink-2 truncate">{c.adresse}</span>
+                  {resultats.map((o, i) => (
+                    <li key={"copro" in o ? o.copro.code : o.bien.id} {...combobox.option(i)} onMouseDown={(ev) => { ev.preventDefault(); choisir(o); }} className={cn("flex items-center gap-2 px-3 min-h-8 text-body cursor-pointer", i === combobox.actif ? "bg-surface-2" : "hover:bg-surface-2/60")}>
+                      {"copro" in o ? (
+                        <><span className="font-mono text-ink-2">{o.copro.code}</span><span className="font-medium truncate">{o.copro.nom}</span><span className="text-ink-2 truncate">{o.copro.adresse}</span></>
+                      ) : (
+                        <><span className="font-mono text-ink-2">{o.bien.reference}</span><span className="font-medium truncate">{o.bien.nom}</span><span className="text-ink-2 truncate">{o.bien.adresse}</span><span className="ml-auto shrink-0 text-meta text-ink-3">{o.bien.activite === "transaction" ? "vente" : "location"}</span></>
+                      )}
                     </li>
                   ))}
                 </ul>

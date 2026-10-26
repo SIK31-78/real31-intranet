@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { acteurCles } from "@/lib/auth/acteur-cles";
 import { agenceAffichee, agencesVisibles, estDirectionCles } from "@/lib/domain/cles/acteur";
-import { coprosPourCles } from "@/lib/services/cles/copros-choix";
+import { biensPourCles, coprosPourCles } from "@/lib/services/cles/copros-choix";
 import { AGENCES_CLES, LIBELLE_AGENCE_CLES } from "@/lib/domain/cles/types";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -21,6 +21,8 @@ export default async function NouveauTrousseauPage({ searchParams }: { searchPar
   // Arrive du comptoir d'une autre agence (?agence=HLS) : elle est preselectionnee.
   const agence = agenceAffichee(acteur, agenceDemandee);
   const direction = estDirectionCles(acteur);
+  const agencesFormulaire = direction ? [...AGENCES_CLES] : agencesVisibles(acteur);
+  const biens = await biensPourCles(agencesFormulaire.length ? agencesFormulaire : agence ? [agence] : []);
   return (
     <AppShell user={g} active="cles" breadcrumb="Gestion des clés · Nouveau trousseau">
       <Page largeur="travail">
@@ -28,7 +30,7 @@ export default async function NouveauTrousseauPage({ searchParams }: { searchPar
         {!agence && !direction ? (
           <Callout ton="warn">Ton agence n&apos;est pas connue : demande à la direction de la renseigner avant de créer des trousseaux.</Callout>
         ) : (
-          <Card><CardBody><FormulaireTrousseau copros={copros} agenceCode={agence} agences={direction ? [...AGENCES_CLES] : agencesVisibles(acteur).length > 1 ? agencesVisibles(acteur) : undefined} /></CardBody></Card>
+          <Card><CardBody><FormulaireTrousseau copros={copros} biens={biens} agenceCode={agence} agences={agencesFormulaire.length > 1 ? agencesFormulaire : undefined} /></CardBody></Card>
         )}
       </Page>
     </AppShell>

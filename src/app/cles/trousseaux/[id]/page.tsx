@@ -7,7 +7,7 @@ import { jourParis } from "@/lib/services/date-du-jour";
 import { acteurCles } from "@/lib/auth/acteur-cles";
 import { activiteDuTrousseau, estDirectionCles, peutOperer } from "@/lib/domain/cles/acteur";
 import { ficheTrousseau } from "@/lib/services/cles/lecture";
-import { coprosPourCles } from "@/lib/services/cles/copros-choix";
+import { biensPourCles, coprosPourCles } from "@/lib/services/cles/copros-choix";
 import { LIBELLE_CONFORMITE, LIBELLE_TYPE_ACCES } from "@/lib/domain/cles/types";
 import { joursDehors, libelleDuree } from "@/lib/domain/cles/etat";
 import { euros, texteComposition, valeurComposition } from "@/lib/domain/cles/composition";
@@ -40,6 +40,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
   if (!g) redirect("/dev-login");
   const aujourdhuiISO = jourParis();
   const [acteur, fiche, copros] = await Promise.all([acteurCles(g), ficheTrousseau(id, aujourdhuiISO), coprosPourCles()]);
+  const biens = fiche ? await biensPourCles([fiche.resume.trousseau.agenceCode]) : [];
   if (!fiche) notFound();
   // Le plan de l'armoire de l'agence du trousseau, pour montrer ou le chercher / le ranger.
   const dims = armoireDe(fiche.resume.trousseau.agenceCode);
@@ -61,7 +62,7 @@ export default async function TrousseauPage({ params }: { params: Promise<{ id: 
           badge={<PastilleEtat etat={resume.etat} size="md" detail={resume.etat === "en_retard" ? `${resume.joursRetard} j` : undefined} />}
           actions={
             <span className="flex items-center gap-2 flex-wrap justify-end">
-              <EnTeteTrousseau trousseau={t} etat={resume.etat} pret={pret} reservations={resume.reservations} aujourdhuiISO={aujourdhuiISO} peutOperer={operable} direction={direction} copros={copros} />
+              <EnTeteTrousseau trousseau={t} etat={resume.etat} pret={pret} reservations={resume.reservations} aujourdhuiISO={aujourdhuiISO} peutOperer={operable} direction={direction} copros={copros} biens={biens} />
               <ButtonLink href="/cles" variant="ghost" size="sm"><ArrowLeft strokeWidth={1.5} /> Comptoir</ButtonLink>
             </span>
           }
