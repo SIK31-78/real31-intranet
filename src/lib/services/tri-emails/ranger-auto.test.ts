@@ -276,3 +276,70 @@ describe("rangerAutomatiquement (cron, piste sûre de syndic4)", () => {
   });
 });
 
+
+describe("rangerAutomatiquement : lecture des PDF (26/10/2026)", () => {
+  const avecPj = (o: Partial<RawMail> = {}) => brut({ attachments: [{ name: "piece jointe" }], ...o });
+
+  it("range seul un mail sans piste quand ses PDF ne désignent qu'une copro, journal « pj »", async () => {
+    const m = avecPj({ subject: "Facture" });
+    const { passer, repo } = monter([m]);
+    const lirePdf = vi.fn(async () => ["S0305"]);
+    const bilan = await passer({ lirePdf, memoirePj: new Map() });
+    expect(bilan).toMatchObject({ ranges: 1, pj: { lus: 1, ranges: 1 } });
+    expect(lirePdf).toHaveBeenCalledWith(m.internetMessageId, REF.copros);
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ coproReference: "S0305", signal: "pj", candidats: ["S0305"], par: "automatique" });
+  });
+
+  it("deux copros dans les PDF : pas d'automatique, et le mail n'est pas relu au passage suivant", async () => {
+    const { passer } = monter([avecPj()]);
+    const lirePdf = vi.fn(async () => ["S0297", "S0305"]);
+    const memoirePj = new Map<string, number>();
+    expect(await passer({ lirePdf, memoirePj })).toMatchObject({ ranges: 0, pj: { lus: 1, refus: { "pj-plusieurs": 1 } } });
+    expect(await passer({ lirePdf, memoirePj })).toMatchObject({ ranges: 0, pj: { lus: 0, dejaLus: 1 } });
+    expect(lirePdf).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuse une copro du PDF que le mail ne propose pas, ou inactive", async () => {
+    // Le mail propose S0297 (code dans le corps) ; le PDF dit S0305.
+    const conflit = avecPj({ bodyText: "Voir S0297." });
+    const { passer } = monter([conflit, avecPj({ subject: "Ancien immeuble" })]);
+    const lirePdf = vi.fn(async (id: string) => (id === conflit.internetMessageId ? ["S0305"] : ["S0410"]));
+    const bilan = await passer({ lirePdf, memoirePj: new Map() });
+    expect(bilan.ranges).toBe(0);
+    expect(bilan.pj.refus).toEqual({ "pj-conflit": 1, "copro-inactive": 1 });
+  });
+
+  it("ne lit pas les PDF d'un mail rangeable, à la corbeille, interne ou déjà passé", async () => {
+    const deja = avecPj({ subject: "Facture" });
+    const mails = [
+      avecPj({ subject: "S0297 - facture" }),
+      avecPj({ from: "postmaster@exemple.fr", subject: "Non remis : facture" }),
+      avecPj({ from: "collegue@real31.fr", subject: "Facture" }),
+      deja,
+    ];
+    const { passer, repo } = monter(mails);
+    await repo.journaliser({
+      boite: SYNDIC4, internetMessageId: deja.internetMessageId, messageId: "x", expediteur: "", objet: "", coproReference: null,
+      copros: [], dossierNom: "Divers", dossierCle: "divers", signal: null, candidats: [], simulation: false, par: "mylene@real31.fr",
+    });
+    const lirePdf = vi.fn(async () => ["S0305"]);
+    const bilan = await passer({ lirePdf, memoirePj: new Map() });
+    expect(lirePdf).not.toHaveBeenCalled();
+    expect(bilan).toMatchObject({ ranges: 1, pj: { lus: 0 } });
+  });
+
+  it("borne le nombre de mails lus et le temps ; un PDF trop long est abandonné et retenu", async () => {
+    const { passer } = monter(Array.from({ length: 3 }, () => avecPj()));
+    const lent = vi.fn(() => new Promise<string[]>(() => {}));
+    const memoirePj = new Map<string, number>();
+    const erreur = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bilan = await passer({ lirePdf: lent, maxPj: 2, delaiPjMs: 5, memoirePj });
+    expect(bilan.pj).toMatchObject({ lus: 2, erreurs: 2, reportes: 1 });
+    expect(memoirePj.size).toBe(2);
+    // Plus assez de budget pour une lecture (delai + marge) : rien n'est lu.
+    const serre = await passer({ lirePdf: lent, budgetMs: 1_000, delaiPjMs: 5, memoirePj: new Map() });
+    expect(serre.pj).toMatchObject({ lus: 0, reportes: 3 });
+    erreur.mockRestore();
+  });
+});

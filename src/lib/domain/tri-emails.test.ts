@@ -4,6 +4,8 @@ import {
   motifCorbeille,
   avecMemeConversation,
   rangeableAutomatiquement,
+  rangeableParPiecesJointes,
+  aLirePiecesJointes,
   suggestionCorbeille,
   cleDeReference,
   clesDossiersDe,
@@ -931,5 +933,48 @@ describe("piste faible par le nom ou l'adresse : rangeable sans clic (26/10/2026
     const contredite = avecMemeConversation(suggererCopro(mail({ objet: "LE CYRANO" }), ref), "S0305", ref);
     expect(contredite.nature).toBe("plusieurs");
     expect(rangeableAutomatiquement({ suggestion: contredite }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+});
+
+describe("rangeableParPiecesJointes (PDF lus par la tâche planifiée, 26/10/2026)", () => {
+  const ctx = {
+    boite: "syndic4@real31.fr",
+    dejaPasse: false,
+    copros: [copro("S0297"), copro("S0305"), { ...copro("S0410"), inactive: true }],
+    initialesParEmail: { "g@real31.fr": "GG" },
+  };
+  const rien = { nature: "aucune" as const, candidats: [], raison: "" };
+
+  it("une seule copro dans les PDF : rangé", () => {
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: true, reference: "S0305" });
+    // Le PDF départage une piste « plusieurs ».
+    const plusieurs = { nature: "plusieurs" as const, candidats: ["S0297", "S0305"], raison: "" };
+    expect(rangeableParPiecesJointes({ suggestion: plusieurs }, ["S0297"], ctx)).toEqual({ ok: true, reference: "S0297" });
+  });
+
+  it("aucune, plusieurs, contradiction, copro inactive : pas d'automatique", () => {
+    expect(rangeableParPiecesJointes({ suggestion: rien }, [], ctx)).toEqual({ ok: false, motif: "pj-aucune" });
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0297", "S0305"], ctx)).toEqual({ ok: false, motif: "pj-plusieurs" });
+    const fournisseur = { nature: "faible" as const, candidats: ["S0297"], raison: "" };
+    expect(rangeableParPiecesJointes({ suggestion: fournisseur }, ["S0305"], ctx)).toEqual({ ok: false, motif: "pj-conflit" });
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0410"], ctx)).toEqual({ ok: false, motif: "copro-inactive" });
+  });
+
+  it("mêmes garde-fous que la piste sûre", () => {
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], { ...ctx, boite: "syndic1@real31.fr" })).toEqual({ ok: false, motif: "autre-boite" });
+    expect(rangeableParPiecesJointes({ corbeille: "non-remis", suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: false, motif: "corbeille" });
+    expect(rangeableParPiecesJointes({ interne: true, suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: false, motif: "interne" });
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], { ...ctx, dejaPasse: true })).toEqual({ ok: false, motif: "deja-passe" });
+    const hors = { nature: "hors-estale" as const, candidats: [], raison: "" };
+    expect(rangeableParPiecesJointes({ suggestion: hors }, ["S0305"], ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+
+  it("on ne lit les PDF que d'un mail sans piste rangeable, jamais passé, avec pièces jointes", () => {
+    const pasSure = { ok: false as const, motif: "pas-sure" as const };
+    expect(aLirePiecesJointes({ aPiecesJointes: true, suggestion: rien }, pasSure, false)).toBe(true);
+    expect(aLirePiecesJointes({ aPiecesJointes: false, suggestion: rien }, pasSure, false)).toBe(false);
+    expect(aLirePiecesJointes({ aPiecesJointes: true, suggestion: rien }, pasSure, true)).toBe(false);
+    expect(aLirePiecesJointes({ aPiecesJointes: true, suggestion: rien }, { ok: false, motif: "corbeille" }, false)).toBe(false);
+    expect(aLirePiecesJointes({ aPiecesJointes: true, suggestion: rien }, { ok: true, reference: "S0297" }, false)).toBe(false);
   });
 });

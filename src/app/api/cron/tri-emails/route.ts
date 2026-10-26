@@ -9,8 +9,9 @@
 // SANS EFFET tant que l'ecriture du tri n'est pas ouverte (MAIL_TRI_ECRITURE=on) ou que la
 // boite n'est pas configuree : le service rend un bilan vide.
 //
-// PUIS, si MAIL_TRI_AUTO=on (coupe par defaut) : rangement automatique des mails a piste
-// « sure » de syndic4 (ranger-auto.ts, decision du 20/10/2026). Apres la reconciliation : un
+// PUIS, si MAIL_TRI_AUTO=on (coupe par defaut) : rangement automatique des mails de syndic4
+// (ranger-auto.ts) : piste « sure » (20/10/2026), piste faible par le nom ou l'adresse, et
+// lecture des PDF des mails restes sans piste (26/10/2026). Apres la reconciliation : un
 // mail remis dans la file a la main est deja marque annule, il n'est donc pas re-range.
 
 import { reconcilierRangements } from "@/lib/services/tri-emails/reconcilier";
@@ -19,7 +20,8 @@ import { rangerAutomatiquement, type BilanAutomatique } from "@/lib/services/tri
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Un appel Graph par rangement relu (50 au plus, 4 a la fois), puis 30 rangements
-// automatiques au plus dans un budget de 25 s (ranger-auto.ts) : tient dans 60 s.
+// automatiques au plus dans un budget de 25 s (ranger-auto.ts), lecture des PDF comprise
+// (8 mails au plus, une lecture ne commence que si elle finit dans le budget) : tient dans 60 s.
 export const maxDuration = 60;
 
 function autorise(req: Request): boolean {
@@ -50,7 +52,8 @@ export async function GET(req: Request): Promise<Response> {
       automatique = await rangerAutomatiquement();
       if (automatique.actif) {
         console.log(
-          `[cron:tri-emails] auto rangés=${automatique.ranges} échecs=${automatique.echecs} reportés=${automatique.reportes} examinés=${automatique.examines}`,
+          `[cron:tri-emails] auto rangés=${automatique.ranges} échecs=${automatique.echecs} reportés=${automatique.reportes} examinés=${automatique.examines}` +
+            ` pdf_lus=${automatique.pj.lus} pdf_rangés=${automatique.pj.ranges} pdf_déjà_lus=${automatique.pj.dejaLus} pdf_reportés=${automatique.pj.reportes}`,
         );
       }
     } catch (e) {

@@ -1120,7 +1120,13 @@ export type RefusAutomatique =
   | "deja-passe"
   | "copro-inconnue"
   | "copro-inactive"
-  | "sans-destination";
+  | "sans-destination"
+  /** Lecture des PDF (rangeableParPiecesJointes) : aucune copro trouvee. */
+  | "pj-aucune"
+  /** Les PDF designent plusieurs copros. */
+  | "pj-plusieurs"
+  /** Le PDF designe une copro que le mail ne propose pas. */
+  | "pj-conflit";
 
 /**
  * La piste du mail suffit-elle a ranger sans clic ? Une piste « sure » (hors historique de la
@@ -1166,11 +1172,59 @@ export function rangeableAutomatiquement(
   const s = mail.suggestion;
   if (!pisteRangeable(s)) return { ok: false, motif: "pas-sure" };
   if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
-  const copro = ctx.copros.find((c) => c.reference === s.candidats[0]);
+  return coproRangeable(s.candidats[0]!, ctx);
+}
+
+type ContexteAutomatique = Parameters<typeof rangeableAutomatiquement>[1];
+type DecisionAutomatique = ReturnType<typeof rangeableAutomatiquement>;
+
+/** La copro existe, est active et son dossier de binome est connu. */
+function coproRangeable(reference: string, ctx: ContexteAutomatique): DecisionAutomatique {
+  const copro = ctx.copros.find((c) => c.reference === reference);
   if (!copro) return { ok: false, motif: "copro-inconnue" };
   if (copro.inactive) return { ok: false, motif: "copro-inactive" };
   if (!destinationDe(copro, ctx.initialesParEmail, ctx.binomes)?.nomDossier) return { ok: false, motif: "sans-destination" };
   return { ok: true, reference: copro.reference };
+}
+
+/**
+ * Faut-il lire les PDF de ce mail dans la tache planifiee (decision Sekou du 26/10/2026) ?
+ * Seulement un mail refuse faute de piste rangeable (« pas-sure » : les autres refus,
+ * corbeille, interne, autre boite, ne changeront pas), jamais passe par le journal, avec des
+ * pieces jointes, et qui ne cite pas un code hors perimetre (il parle d'une autre agence).
+ */
+export function aLirePiecesJointes(
+  mail: Pick<MailATrier, "aPiecesJointes"> & { suggestion: Suggestion },
+  decision: DecisionAutomatique,
+  dejaPasse: boolean,
+): boolean {
+  return !decision.ok && decision.motif === "pas-sure" && mail.aPiecesJointes && !dejaPasse && mail.suggestion.nature !== "hors-estale";
+}
+
+/**
+ * Le mail peut-il etre range SANS clic sur la foi de ses PDF ? Memes garde-fous que
+ * rangeableAutomatiquement (syndic4, ni corbeille ni interne, jamais passe par le journal,
+ * copro active au dossier connu), et :
+ *   - les PDF du mail, TOUS lus, designent UNE seule copro (`pdf` : leur union) ;
+ *   - si le mail lui-meme propose des copros (« plusieurs », fournisseur, code dans le corps),
+ *     celle du PDF doit en faire partie : deux indices qui se contredisent, c'est un humain
+ *     qui tranche.
+ */
+export function rangeableParPiecesJointes(
+  mail: Pick<MailATrier, "corbeille" | "interne"> & { suggestion: Suggestion },
+  pdf: string[],
+  ctx: ContexteAutomatique,
+): DecisionAutomatique {
+  if (ctx.boite.trim().toLowerCase() !== BOITE_TRI_AUTOMATIQUE) return { ok: false, motif: "autre-boite" };
+  if (mail.corbeille) return { ok: false, motif: "corbeille" };
+  if (mail.interne) return { ok: false, motif: "interne" };
+  if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
+  if (mail.suggestion.nature === "hors-estale") return { ok: false, motif: "pas-sure" };
+  if (pdf.length === 0) return { ok: false, motif: "pj-aucune" };
+  if (pdf.length > 1) return { ok: false, motif: "pj-plusieurs" };
+  const candidats = mail.suggestion.candidats;
+  if (candidats.length > 0 && !candidats.includes(pdf[0]!)) return { ok: false, motif: "pj-conflit" };
+  return coproRangeable(pdf[0]!, ctx);
 }
 
 /** Un dossier deja cree par l'app dans la boite. */
