@@ -114,7 +114,7 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
   const toast = useToast();
 
   const mails = file.mails.filter((m) => !masques.has(m.id));
-  // Rangements automatiques (piste sûre, tâche planifiée) encore en place : on les signale,
+  // Rangements automatiques (tâche planifiée) encore en place : on les signale,
   // ils s'annulent d'un clic dans l'onglet du journal.
   const rangesAuto = file.journal.filter((e) => e.par === PAR_AUTOMATIQUE).length;
 
@@ -211,8 +211,8 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
       {rangesAuto > 0 && (
         <div role="status" className="rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-body text-ink-2">
           {rangesAuto === 1
-            ? "Un mail à piste sûre a été rangé automatiquement ces 7 derniers jours."
-            : `${rangesAuto} mails à piste sûre ont été rangés automatiquement ces 7 derniers jours.`}{" "}
+            ? "Un mail a été rangé automatiquement ces 7 derniers jours."
+            : `${rangesAuto} mails ont été rangés automatiquement ces 7 derniers jours.`}{" "}
           Voir l&apos;onglet « Rangés sur 7 jours » pour les vérifier ou les annuler.
         </div>
       )}

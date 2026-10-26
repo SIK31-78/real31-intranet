@@ -1,5 +1,6 @@
-// Rangement AUTOMATIQUE des mails a piste « sure » de syndic4 (decision Sekou du 20/10/2026,
-// ADR-046 : « un clic d'abord, puis de l'automatique signal par signal »). Appele par la tache
+// Rangement AUTOMATIQUE des mails de syndic4 (decision Sekou du 20/10/2026, ADR-046 : « un clic
+// d'abord, puis de l'automatique signal par signal ») : piste « sure », et depuis le 26/10 piste
+// « faible » par le nom de l'immeuble ou son adresse (pisteRangeable). Appele par la tache
 // planifiee (/api/cron/tri-emails, toutes les 5 min), APRES la reconciliation.
 //
 // Meme geste qu'un clic : rangerMail (dossier du binome, etiquette, journal), avec
@@ -13,7 +14,9 @@ import {
   BOITE_TRI_AUTOMATIQUE,
   PAR_AUTOMATIQUE,
   rangeableAutomatiquement,
+  signalDuRangement,
   type RefusAutomatique,
+  type SignalTri,
 } from "@/lib/domain/tri-emails";
 import { debutTri, triAutomatiqueActif } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
@@ -73,30 +76,39 @@ export async function rangerAutomatiquement(
   // relit a chaque mail sinon).
   const referentiel = deps.referentiel.charger();
   const initiales = deps.initialesParEmail();
-  const [ref, initialesParEmail, binomes, dejaPasses] = await Promise.all([
+  // L'historique de la conversation, comme a l'ecran : une piste faible par le nom ou
+  // l'adresse que le fil contredit (rangé dans une autre copro) y devient « plusieurs ».
+  const conversations = deps.repo
+    .coprosDesConversations(boite, lus.map((m) => m.conversationId).filter((c): c is string => Boolean(c)))
+    .catch((e: unknown) => {
+      console.error("[tri-emails:auto] historique des conversations :", e instanceof Error ? e.message : e);
+      return new Map<string, string>();
+    });
+  const [ref, initialesParEmail, binomes, dejaPasses, coprosConversations] = await Promise.all([
     referentiel,
     initiales,
     deps.repo.binomes(),
     deps.repo.dejaJournalises(boite, lus.map((m) => m.internetMessageId)),
+    conversations,
   ]);
   const depsPassage: DepsRangement = { ...deps, referentiel: { charger: () => referentiel }, initialesParEmail: () => initiales };
 
   // Les plus anciens d'abord : un report ne retarde que les derniers arrives.
-  const aRanger: { m: RawMail; reference: string }[] = [];
+  const aRanger: { m: RawMail; reference: string; signal: { nature: SignalTri; candidats: string[] } }[] = [];
   for (const m of [...lus].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))) {
     bilan.examines++;
-    // Pas d'historique de conversation ici : il ne rend jamais une piste sure.
-    const mail = mailDeLaFile(m, boite, ref, null);
+    const mail = mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null);
     const dejaPasse = dejaPasses.has(m.internetMessageId);
     const decision = rangeableAutomatiquement(mail, { boite, dejaPasse, copros: ref.copros, initialesParEmail, binomes });
-    if (decision.ok) aRanger.push({ m, reference: decision.reference });
+    // Le journal garde le signal reel (« sure » ou « faible ») : c'est lui que la revue mesure.
+    if (decision.ok) aRanger.push({ m, reference: decision.reference, signal: signalDuRangement(mail.suggestion, null) });
     else bilan.refus[decision.motif] = (bilan.refus[decision.motif] ?? 0) + 1;
   }
 
   const max = opts.max ?? MAX_RANGES;
   const budget = opts.budgetMs ?? BUDGET_MS;
   // Un par un : deux mails vers un dossier pas encore cree le creeraient deux fois.
-  for (const { m, reference } of aRanger) {
+  for (const { m, reference, signal } of aRanger) {
     if (bilan.ranges + bilan.echecs >= max || maintenant() - debut > budget) {
       bilan.reportes++;
       continue;
@@ -109,7 +121,7 @@ export async function rangerAutomatiquement(
           expediteur: m.from,
           objet: m.subject || "(sans objet)",
           cible: { type: "copro", reference },
-          suggestion: { nature: "sure", candidats: [reference] },
+          suggestion: signal,
         },
         PAR_AUTOMATIQUE,
         depsPassage,

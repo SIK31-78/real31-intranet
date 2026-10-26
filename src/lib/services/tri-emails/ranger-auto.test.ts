@@ -20,7 +20,12 @@ const copro = (reference: string, o: Partial<CoproTri> = {}): CoproTri => ({
 });
 
 const REF: ReferentielTri = {
-  copros: [copro("S0297"), copro("S0305"), copro("S0410", { inactive: true })],
+  copros: [
+    copro("S0297"),
+    copro("S0305"),
+    copro("S0410", { inactive: true }),
+    copro("S0520", { nom: "LE BELVEDERE", adresse: "4 allée des Tilleuls 78800 Houilles" }),
+  ],
   expediteurs: { "proprio@exemple.fr": [{ reference: "S0297", qualite: "copropriétaire" }] },
 };
 
@@ -59,6 +64,13 @@ function journalEnMemoire() {
       new Set(lignes.filter((e) => e.boite === boite && !e.annuleLe && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId)),
     dejaJournalises: async (boite: string, ids: string[]) =>
       new Set(lignes.filter((e) => e.boite === boite && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId)),
+    coprosDesConversations: async (boite: string, ids: string[]) => {
+      const out = new Map<string, string>();
+      for (const e of lignes) {
+        if (e.boite === boite && !e.annuleLe && e.coproReference && e.conversationId && ids.includes(e.conversationId)) out.set(e.conversationId, e.coproReference);
+      }
+      return out;
+    },
     marquerAnnule: async (id: string) => {
       const e = lignes.find((x) => x.id === id && !x.annuleLe);
       if (e) e.annuleLe = new Date().toISOString();
@@ -169,6 +181,39 @@ describe("rangerAutomatiquement (cron, piste sûre de syndic4)", () => {
       simulation: false,
     });
     expect(rangement.etiqueter).toHaveBeenCalledWith(SYNDIC4, expect.any(String), { ajouter: ["S0297"] });
+  });
+
+  it("range une piste faible par le nom de l'immeuble, et journalise « faible »", async () => {
+    const m = brut({ subject: "Intervention LE BELVEDERE" });
+    const { passer, repo } = monter([m]);
+    expect(await passer()).toMatchObject({ ranges: 1 });
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ coproReference: "S0520", signal: "faible", candidats: ["S0520"], par: "automatique" });
+  });
+
+  it("ne range pas une piste faible que la conversation contredit", async () => {
+    const suite = brut({ conversationId: "fil-1", subject: "RE: intervention LE BELVEDERE" });
+    const { passer, repo } = monter([suite]);
+    // Un mail du meme fil deja range dans S0297 : l'ecran proposerait « plusieurs ».
+    await repo.journaliser({
+      boite: SYNDIC4,
+      internetMessageId: "<premier@exemple.fr>",
+      messageId: "g-premier",
+      conversationId: "fil-1",
+      expediteur: "inconnu@exemple.fr",
+      objet: "S0297 - fuite",
+      coproReference: "S0297",
+      copros: ["S0297"],
+      dossierNom: "GG",
+      dossierCle: "binome:gina.gestion@real31.fr",
+      signal: "sure",
+      candidats: ["S0297"],
+      simulation: false,
+      par: "automatique",
+    });
+    const bilan = await passer();
+    expect(bilan.ranges).toBe(0);
+    expect(bilan.refus).toEqual({ "pas-sure": 1 });
   });
 
   it("annulé d'un clic : le mail revient dans la file et n'est plus rangé automatiquement", async () => {

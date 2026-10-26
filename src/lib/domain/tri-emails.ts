@@ -173,9 +173,19 @@ export interface Suggestion {
   candidats: string[];
   /** Phrase affichee telle quelle : d'ou vient la suggestion. */
   raison: string;
-  /** La seule piste vient d'un mail de la meme conversation deja range (journal : « conversation »). */
-  origine?: "conversation";
+  /**
+   * D'ou vient la piste, quand ce n'est pas le contenu ordinaire du mail :
+   *   - « conversation » : la seule piste vient d'un mail de la meme conversation deja range
+   *     (journal : « conversation ») ;
+   *   - « nom-adresse » : piste faible sur UNE copro, trouvee par le nom de l'immeuble, son
+   *     adresse, ou un nom d'usage / une adresse du registre national, sans aucun code de
+   *     copro cite (decision Sekou du 26/10/2026 : rangeable sans clic, cf. pisteRangeable).
+   *     Jamais pour un fournisseur seul, un code dans le corps, l'historique de la conversation.
+   */
+  origine?: OrigineSuggestion;
 }
+
+export type OrigineSuggestion = "conversation" | "nom-adresse";
 
 // "S0297", "S297", "SE999" -> cle de comparaison "S297" / "SE999". ESTALE ecrit S0297 ;
 // les mails et d'autres outils ecrivent parfois S297 : la cle ignore les zeros de tete.
@@ -747,12 +757,21 @@ function suggestionBrute(
   }
 
   // 4. Nom de l'immeuble ou adresse cite (prestataires : « LE CYRANO », « 71 rue de Bezons »).
-  // Indice faible : a confirmer au clic, rien ne bouge sans decision humaine. On ne lit que
+  // Indice faible, mais sur UNE copro il est range sans clic sur syndic4 (origine
+  // « nom-adresse », decision du 26/10/2026 ; plusieurs copros : a choisir). On ne lit que
   // l'objet et le DEBUT du corps : l'adresse du cabinet, en signature de bas de mail, ne
   // doit pas rattacher tous les mails (constat du 13/10/2026).
   const indices = indicesNomAdresse(`${mail.objet}\n${corps.slice(0, TETE_CORPS)}`, ref.copros);
   if (indices.length === 1) {
-    return { nature: "faible", candidats: [indices[0]!.reference], raison: indices[0]!.raison };
+    // Un code hors perimetre cite a cote (« S0142 », copro d'une autre agence) : la piste reste
+    // a confirmer, elle ne porte pas l'origine qui la rend rangeable sans clic.
+    const codeHorsPerimetre = new RegExp(MOTIF_REFERENCE.source, "i").test(`${mail.objet}\n${corps}`);
+    return {
+      nature: "faible",
+      candidats: [indices[0]!.reference],
+      raison: indices[0]!.raison,
+      ...(codeHorsPerimetre ? {} : { origine: "nom-adresse" as const }),
+    };
   }
   if (indices.length > 1) {
     return { nature: "plusieurs", candidats: indices.map((i) => i.reference), raison: "Plusieurs copropriétés citées par leur nom ou adresse, à confirmer." };
@@ -989,7 +1008,7 @@ export type SignalTri = NatureSuggestion | "pj" | "conversation";
  * des candidates, on garde sa suggestion : c'est elle que la revue mesure.
  */
 export function signalDuRangement(
-  suggestion: { nature: NatureSuggestion; candidats: string[]; origine?: "conversation" },
+  suggestion: { nature: NatureSuggestion; candidats: string[]; origine?: OrigineSuggestion },
   pj: { candidats: string[] } | null,
 ): { nature: SignalTri; candidats: string[] } {
   if (suggestion.candidats.length === 0 && pj && pj.candidats.length > 0) return { nature: "pj", candidats: pj.candidats };
@@ -1104,12 +1123,25 @@ export type RefusAutomatique =
   | "sans-destination";
 
 /**
+ * La piste du mail suffit-elle a ranger sans clic ? Une piste « sure » (hors historique de la
+ * conversation), ou, depuis le 26/10/2026 (mesure : 15 faibles mono-candidat sur 15 justes),
+ * une piste « faible » trouvee par le nom de l'immeuble ou son adresse (origine
+ * « nom-adresse »). Toujours sur UNE seule copro.
+ */
+export function pisteRangeable(s: Suggestion): boolean {
+  if (s.candidats.length !== 1) return false;
+  if (s.nature === "sure") return s.origine !== "conversation";
+  return s.nature === "faible" && s.origine === "nom-adresse";
+}
+
+/**
  * Ce mail de la file peut-il etre range SANS clic (ADR-046 : « un clic d'abord, puis de
  * l'automatique signal par signal ») ? Seulement si TOUT est reuni :
  *   - la boite est syndic4 (BOITE_TRI_AUTOMATIQUE) ;
  *   - ni corbeille proposee (non remis, reponse automatique) ni mail interne ;
- *   - piste « sure », sur UNE seule copro (pas « plusieurs », pas faible, pas l'historique
- *     de la conversation, pas la lecture des PDF) ;
+ *   - piste rangeable (pisteRangeable), sur UNE seule copro : « sure », ou « faible » par le
+ *     nom de l'immeuble ou son adresse. Pas « plusieurs », pas un code dans le corps, pas un
+ *     fournisseur seul, pas l'historique de la conversation ;
  *   - le mail n'est jamais passe par le journal : ni range, ni range puis annule (quelqu'un
  *     l'a remis dans la file : il veut decider lui-meme) ;
  *   - la copro est dans le referentiel, active (deja plafonnee a « faible » par
@@ -1132,7 +1164,7 @@ export function rangeableAutomatiquement(
   if (mail.corbeille) return { ok: false, motif: "corbeille" };
   if (mail.interne) return { ok: false, motif: "interne" };
   const s = mail.suggestion;
-  if (s.nature !== "sure" || s.origine === "conversation" || s.candidats.length !== 1) return { ok: false, motif: "pas-sure" };
+  if (!pisteRangeable(s)) return { ok: false, motif: "pas-sure" };
   if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
   const copro = ctx.copros.find((c) => c.reference === s.candidats[0]);
   if (!copro) return { ok: false, motif: "copro-inconnue" };

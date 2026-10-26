@@ -2045,6 +2045,12 @@ Décision Sekou du 20/10/2026, sur mesure : depuis les correctifs du 19/10, 16 p
 - **Interrupteurs** : `MAIL_TRI_AUTO=on` (coupé par défaut, se coupe sans redéployer) ; `MAIL_TRI_ECRITURE` coupé = rangements simulés et journalisés comme tels, comme un clic.
 - **Visible et annulable** : « Rangé automatiquement » dans le journal de l'écran (onglet « Rangés sur 7 jours », bouton Annuler habituel) et un bandeau qui compte ces rangements. Annulé (écran, « Pas pour moi », ou glissé en réception dans Outlook), le mail revient dans la file et n'est plus jamais rangé seul.
 
+### Révision du 26/10/2026 : élargissement de l'automatique sur syndic4
+
+Bilan du 21 au 26/10 : 63 rangements automatiques, 0 annulé ; 81 manuels. Décisions Sekou du 26/10/2026 :
+
+- **Piste faible par le nom ou l'adresse** : une suggestion « faible » sur UNE copro, trouvée par le nom de l'immeuble, son adresse, un nom d'usage ou une adresse du registre national, porte l'origine `nom-adresse` (`suggererCopro`, étape 4) et est rangée seule (`pisteRangeable`). Mesure : 15 faibles mono-candidat sur 15 justes. Jamais : un fournisseur seul, un code dans le corps, l'historique de la conversation, une copro inactive, un code hors périmètre cité à côté. La tâche lit désormais l'historique de la conversation comme l'écran : un fil rangé dans une autre copro rend la piste « plusieurs ». Le journal garde le signal réel (« faible »).
+
 ### Liens
 
 ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (délégations : le remplaçant favorise le dossier du titulaire), `docs/etude-mail-central.md`, maquette https://claude.ai/artifact/93Z4r2TGnimwebjkCud9nr.

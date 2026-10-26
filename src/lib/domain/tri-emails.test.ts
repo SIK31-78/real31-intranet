@@ -882,3 +882,54 @@ describe("rangeableAutomatiquement (tri automatique, piste sûre de syndic4)", (
     expect(rangeableAutomatiquement({ suggestion: s }, ctx({ copros: ref.copros }))).toEqual({ ok: false, motif: "pas-sure" });
   });
 });
+
+describe("piste faible par le nom ou l'adresse : rangeable sans clic (26/10/2026)", () => {
+  const BOITE = "syndic4@real31.fr";
+  // Donnees inventees.
+  const actives: CoproTri[] = [
+    { ...copro("S0247"), nom: "LE CYRANO", adresse: "12 rue des Lilas 78400 Chatou" },
+    { ...copro("S0305"), nom: "LES PRIMEVERES", adresse: "8 rue des Peupliers 78800 Houilles", nomsUsage: ["Résidence les Glycines"] },
+    { ...copro("S0410"), nom: "LES CEDRES", adresse: "", inactive: true },
+  ];
+  const ref: ReferentielTri = {
+    copros: actives,
+    expediteurs: { "ascenseurs@exemple.fr": [{ reference: "S0247", qualite: "fournisseur" }] },
+  };
+  const ctx = { boite: BOITE, dejaPasse: false, copros: actives, initialesParEmail: { "g@real31.fr": "GG" } };
+  const decider = (m: Parameters<typeof mail>[0]) => rangeableAutomatiquement({ suggestion: suggererCopro(mail(m), ref) }, ctx);
+
+  it("le nom de l'immeuble seul, sur une copro : faible d'origine « nom-adresse », rangé", () => {
+    const s = suggererCopro(mail({ objet: "Intervention résidence LE CYRANO" }), ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0247"], origine: "nom-adresse" });
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx)).toEqual({ ok: true, reference: "S0247" });
+    // Le journal garde « faible », pas « sure ».
+    expect(signalDuRangement(s, null)).toEqual({ nature: "faible", candidats: ["S0247"] });
+  });
+
+  it("l'adresse ou un nom d'usage du registre : rangé aussi", () => {
+    expect(decider({ objet: "Compte rendu", apercu: "Passage au 12 rue des Lilas 78400 Chatou ce matin." })).toEqual({ ok: true, reference: "S0247" });
+    expect(decider({ objet: "Résidence les Glycines : badge" })).toEqual({ ok: true, reference: "S0305" });
+  });
+
+  it("refuse le fournisseur seul, le code dans le corps, l'historique de la conversation", () => {
+    expect(decider({ deAdresse: "ascenseurs@exemple.fr", objet: "Visite d'entretien" })).toEqual({ ok: false, motif: "pas-sure" });
+    expect(decider({ objet: "Bonjour", apercu: "Voir le dossier S0247." })).toEqual({ ok: false, motif: "pas-sure" });
+    const fil = avecMemeConversation(suggererCopro(mail({ objet: "Bonjour" }), ref), "S0247", ref);
+    expect(rangeableAutomatiquement({ suggestion: fil }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+
+  it("refuse quand un code hors périmètre est cité à côté du nom", () => {
+    const s = suggererCopro(mail({ objet: "S0142 et LE CYRANO" }), ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0247"] });
+    expect(s.origine).toBeUndefined();
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+
+  it("refuse deux copros citées, une copro inactive, et la conversation qui contredit", () => {
+    expect(decider({ objet: "LE CYRANO et Résidence les Glycines" })).toEqual({ ok: false, motif: "pas-sure" });
+    expect(decider({ objet: "Résidence LES CEDRES : fuite" })).toEqual({ ok: false, motif: "copro-inactive" });
+    const contredite = avecMemeConversation(suggererCopro(mail({ objet: "LE CYRANO" }), ref), "S0305", ref);
+    expect(contredite.nature).toBe("plusieurs");
+    expect(rangeableAutomatiquement({ suggestion: contredite }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+});
