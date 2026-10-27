@@ -15,7 +15,6 @@ import {
   FileText,
   CalendarCheck,
   ChevronRight,
-  FolderUp,
   Download,
   X,
   Send,
@@ -102,7 +101,6 @@ import {
   envoyerReponseAction,
   chargerPiecesJointesAction,
   telechargerPieceJointeAction,
-  deposerPieceJointeAction,
   transmettreFactureAction,
   rattacherCoproAction,
   chargerDossiersAction,
@@ -145,7 +143,6 @@ function formatTaille(octets: number): string {
 export function MesEmailsVue({
   data,
   signatureHtml,
-  depotDriveActif = false,
   adresseFactures = null,
   maxPerso = 40,
   agence = "",
@@ -165,8 +162,6 @@ export function MesEmailsVue({
   /** Plafond de la boîte perso pour cet affichage (« Plus de mails » l'augmente). */
   maxPerso?: number;
   signatureHtml?: string | null;
-  /** Dépôt SharePoint branché (SHAREPOINT_DEPOT_ACTIF) : affiche « Déposer » sur les PJ. */
-  depotDriveActif?: boolean;
   /** Boîte factures ESTALE de l'agence (MAIL_ROBOT_FACTURE_ESTALE) ; null = bouton masqué. */
   adresseFactures?: string | null;
 }) {
@@ -473,12 +468,6 @@ export function MesEmailsVue({
   async function voirPj(m: MailEntrant, pj: PieceJointeRef) {
     const b = await chargerBlobPj(m, pj);
     if (b) setApercu(b);
-  }
-  // Bon d'intervention, facture : rangé dans le dossier SharePoint de la copro du mail.
-  async function deposerPj(m: MailEntrant, pj: PieceJointeRef) {
-    setMsgClasser(`Dépôt de « ${pj.nom} » sur SharePoint…`);
-    const r = await deposerPieceJointeAction(m.id, coproDe(m).code, pj.id, m.recuLe ?? new Date().toISOString(), boiteDuMail(m));
-    setMsgClasser(r.ok ? `« ${pj.nom} » ${r.message ?? "déposé."}` : (r.message ?? "Le dépôt a échoué."));
   }
   // Facture : brouillon de transfert vers la boîte factures ESTALE, objet codifié.
   async function transmettreFactureMail(m: MailEntrant, f: { compte: string; fournisseur: string; libelle: string }) {
@@ -1086,9 +1075,6 @@ export function MesEmailsVue({
               piecesJointes={pjParMail.get(selection.id) ?? null}
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
-              {...(depotDriveActif && coproDe(selection).code
-                ? { onDeposer: (pj: PieceJointeRef) => void deposerPj(selection, pj) }
-                : {})}
               {...(adresseFactures
                 ? { adresseFactures, onTransmettreFacture: (f: { compte: string; fournisseur: string; libelle: string }) => transmettreFactureMail(selection, f) }
                 : {})}
@@ -1675,7 +1661,6 @@ function AnalysePane({
   modeles,
   onTelecharger,
   onApercu,
-  onDeposer,
   adresseFactures,
   onTransmettreFacture,
   pjJointes,
@@ -1755,8 +1740,6 @@ function AnalysePane({
   modeles: ModeleMail[];
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
-  /** Déposer la PJ dans le dossier SharePoint de la copro. Absent = dépôt coupé ou mail sans copro. */
-  onDeposer?: (pj: PieceJointeRef) => void;
   adresseFactures?: string;
   onTransmettreFacture?: (f: { compte: string; fournisseur: string; libelle: string }) => Promise<void>;
   pjJointes: Set<string>;
@@ -1939,17 +1922,6 @@ function AnalysePane({
                     >
                       <Download strokeWidth={1.5} className="w-3 h-3" />
                     </button>
-                    {onDeposer && (
-                      <button
-                        type="button"
-                        onClick={() => onDeposer(pj)}
-                        title="Déposer dans le dossier SharePoint de la copropriété"
-                        aria-label={`Déposer ${pj.nom} sur SharePoint`}
-                        className="text-ink-3 hover:text-ink"
-                      >
-                        <FolderUp strokeWidth={1.5} className="w-3 h-3" />
-                      </button>
-                    )}
                   </span>
                 ))
               )}

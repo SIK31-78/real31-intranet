@@ -9,7 +9,6 @@ import { COOKIE_PLACE_INTERNES } from "@/components/mes-emails/preference-liste"
 import { placeInternesValide } from "@/lib/domain/mes-emails-liste";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
-import { depotPieceJointeActif } from "@/lib/services/mes-emails/deposer-piece-jointe";
 import { adresseFacturesAgence } from "@/lib/services/mes-emails/transmettre-facture";
 import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
@@ -77,7 +76,6 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
         <MesEmailsVue
           data={data}
           signatureHtml={signatureHtml}
-          depotDriveActif={depotPieceJointeActif()}
           adresseFactures={adresseFacturesAgence()}
           agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
           maxPerso={maxPerso}
