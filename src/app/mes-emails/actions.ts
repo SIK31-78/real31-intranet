@@ -6,7 +6,7 @@
 // pas que sur l'UI) ; (3) ecrit puis revalide. L'identite vient du serveur, jamais du client.
 
 import { revalidatePath } from "next/cache";
-import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
+import { echec, echecDepuis, messageUtilisateur, type Res } from "@/lib/actions/resultat";
 import { z } from "zod";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
@@ -95,7 +95,10 @@ const zCopro = z.string().trim().max(40); // code copro (peut etre vide = retrai
 const zCourt = z.string().max(2000); // sujet, nom, titre, resume, nom de dossier
 const zCorps = z.string().max(100_000); // corps de mail / brouillon
 const zEmails = z.array(z.string().trim().max(320)).max(50);
-const zIds = z.array(z.string().max(600)).max(50);
+// Id d'attachment Graph : du base64 (lettres, chiffres, + / = et les variantes - _), jamais
+// autre chose. Il part dans une URL Graph : on refuse tout ce qui n'y a pas sa place (27/10/2026).
+const zAttachmentId = z.string().min(1).max(600).regex(/^[A-Za-z0-9_\-=+\/]+$/);
+const zIds = z.array(zAttachmentId).max(50);
 const zEtapes = z.array(z.number().int()).max(200);
 // Fichiers joints depuis l'ordinateur : 3 Mo chacun (envoi simple de Graph), 10 au plus.
 const zFichiers = z
@@ -356,7 +359,7 @@ export async function telechargerPieceJointeAction(
   attachmentId: string,
   boite?: string,
 ): Promise<{ ok: boolean; nom?: string; type?: string; base64?: string; message?: string }> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, attachmentId: zId, boite: zBoite }).safeParse({ emailId, coproCode, attachmentId, boite }).success)
+  if (!z.object({ emailId: zId, coproCode: zCopro, attachmentId: zAttachmentId, boite: zBoite }).safeParse({ emailId, coproCode, attachmentId, boite }).success)
     return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
@@ -367,7 +370,7 @@ export async function telechargerPieceJointeAction(
     const pj = await lirePieceJointeMail(cible, emailId, attachmentId);
     return { ok: true, ...pj };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -384,7 +387,7 @@ export async function deposerPieceJointeAction(
 ): Promise<{ ok: boolean; message?: string; webUrl?: string }> {
   if (
     !z
-      .object({ emailId: zId, coproCode: zCopro.min(1), attachmentId: zId, recuLe: z.string().max(40).regex(/^\d{4}-\d{2}-\d{2}/), boite: zBoite })
+      .object({ emailId: zId, coproCode: zCopro.min(1), attachmentId: zAttachmentId, recuLe: z.string().max(40).regex(/^\d{4}-\d{2}-\d{2}/), boite: zBoite })
       .safeParse({ emailId, coproCode, attachmentId, recuLe, boite }).success
   )
     return { ok: false, message: "Données invalides (la copropriété du mail est-elle renseignée ?)." };
@@ -419,7 +422,7 @@ export async function transmettreFactureAction(
     if (r.simulation) return { ok: true, message: `Aperçu : « ${r.objet} » vers ${r.destinataire} (boîte non branchée, rien créé).` };
     return { ok: true, ...(r.webLink ? { webLink: r.webLink } : {}), message: `Brouillon de transfert « ${r.objet} » créé vers ${r.destinataire} : à relire puis envoyer dans Outlook.` };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -441,7 +444,7 @@ export async function genererBrouillonAction(
     revalidatePath("/mes-emails");
     return { ok: true, brouillon: reponse };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -529,7 +532,7 @@ export async function envoyerReponseAction(
     revalidatePath("/mes-emails");
     return { ok: true, filConserve, ...(historiqueCite !== undefined ? { historiqueCite } : {}) };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -559,7 +562,7 @@ export async function rattacherCoproAction(
     }
     return { ok: true, ...(tri.corrige ? { message: "Copro corrigée aussi dans le tri." } : {}) };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -580,7 +583,7 @@ export async function creerDossierOutlookAction(nom: string, boite?: string): Pr
   try {
     return { ok: true, dossier: await creerDossierBoite(cible, nom.trim()) };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -625,7 +628,7 @@ export async function classerDansDossierAction(
     await enregistrerDossier(c, folderId, folderNom);
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
@@ -678,7 +681,7 @@ export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolea
     });
     return { ok: true, ...(webLink ? { webLink } : {}) };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 
