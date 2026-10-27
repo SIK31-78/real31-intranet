@@ -18,6 +18,7 @@ vi.mock("@/lib/adapters/router", () => ({
       copros: [
         { reference: "S0297", nom: "A", adresse: "", gestionnaire: { nomComplet: "Sandy", email: "Sandy@real31.fr" }, assistant: null },
         { reference: "S0305", nom: "B", adresse: "", gestionnaire: { nomComplet: "Océane", email: "oceane@real31.fr" }, assistant: null },
+        { reference: "S0400", nom: "C", adresse: "", gestionnaire: { nomComplet: "Sandy", email: "sandy@real31.fr" }, assistant: { nomComplet: "Julie", email: "julie@real31.fr" } },
       ],
       expediteurs: {},
     }),
@@ -63,6 +64,20 @@ describe("binomes du tri", () => {
     expect(b.binomes).toHaveLength(1);
     expect(b.binomes[0]).toMatchObject({ principal: true, assistant: { email: "julie@real31.fr" } });
     expect(b.parCopro).toEqual({});
+  });
+
+  it("copro dont la fiche nomme Julie : rien a stocker pour Julie, le principal s'impose a la main (27/10/2026)", async () => {
+    await definirPrincipal("sandy@real31.fr", "galiano@real31.fr", "sk");
+    await ajouterAssistant("sandy@real31.fr", "julie@real31.fr", "sk");
+    const b = (await etat.repo.binomes()).binomes;
+    const julie = b.find((x) => x.assistant.email === "julie@real31.fr")!;
+    const galiano = b.find((x) => x.principal)!;
+    await affecterCopro("S0400", null, "sk", ["HLS"]);
+    expect((await etat.repo.binomes()).parCopro).toEqual({ S0400: galiano.id });
+    await affecterCopro("S0400", julie.id, "sk", ["HLS"]);
+    expect((await etat.repo.binomes()).parCopro).toEqual({});
+    await affecterCopro("S0297", null, "sk", ["HLS"]);
+    expect((await etat.repo.binomes()).parCopro).toEqual({});
   });
 
   it("refuse d'affecter une copro a l'assistant d'un autre gestionnaire", async () => {

@@ -1050,9 +1050,10 @@ function BinomesVue({ lignes, collaborateurs }: { lignes: LigneBinome[]; collabo
   return (
     <div className="flex flex-col gap-3">
       <p className="text-meta text-ink-2 max-w-[75ch]">
-        Le gestionnaire de chaque copropriété vient d&apos;ESTALE ou de la fiche copro de l&apos;intranet ; les assistants se tiennent ici. L&apos;assistant
-        principal reçoit les mails de toutes les copropriétés du gestionnaire, sauf celles confiées à un autre
-        assistant. Changer d&apos;assistant ne déplace aucun mail : le dossier est renommé au prochain rangement.
+        Le gestionnaire de chaque copropriété vient d&apos;ESTALE ou de la fiche copro de l&apos;intranet ; les assistants se tiennent ici. Une
+        copropriété va au binôme de l&apos;assistant nommé sur sa fiche (ESTALE ou Crypto) quand il en fait partie, sinon à
+        l&apos;assistant principal ; un choix fait ci-dessous, copropriété par copropriété, passe avant la fiche. Changer
+        d&apos;assistant ne déplace aucun mail : le dossier est renommé au prochain rangement.
       </p>
       <ul className="flex flex-col gap-2.5">
         {lignes.map((l) => (

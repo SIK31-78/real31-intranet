@@ -1,9 +1,11 @@
 // Binomes du tri des e-mails (ADR-046) : ESTALE donne le gestionnaire de chaque copro,
 // l'intranet tient ses assistants. Un assistant PRINCIPAL par gestionnaire (les copros
 // sans affectation), d'autres au besoin, affectes copro par copro (arbitrage du 08/10/2026).
+// Depuis le 27/10/2026, une copro dont la fiche nomme un autre assistant du gestionnaire va
+// d'elle-meme a ce binome (`binomeDeCopro`) ; l'affectation a la main reste prioritaire.
 // Changer le principal renomme son dossier au prochain rangement ; aucun mail ne bouge.
 
-import type { MembreTri } from "@/lib/domain/tri-emails";
+import { binomeDeLaFiche, type MembreTri } from "@/lib/domain/tri-emails";
 import {
   getGestionnaireRepository,
   getReferentielTriProvider,
@@ -108,14 +110,18 @@ export async function affecterCopro(reference: string, binomeId: string | null, 
   const [ref, b] = await Promise.all([getReferentielTriProvider(agences).charger(), repo.binomes()]);
   const copro = ref.copros.find((c) => c.reference === reference);
   if (!copro?.gestionnaire) throw new Error(`La copropriété ${reference} n'a pas de gestionnaire dans ESTALE.`);
-  let cible = binomeId;
+  const g = minuscules(copro.gestionnaire.email);
+  // null = « le principal » : son id, pour pouvoir l'imposer quand la fiche designe un autre binome.
+  let cible = binomeId ?? b.binomes.find((x) => x.gestionnaireEmail === g && x.principal)?.id ?? null;
   if (cible) {
     const binome = b.binomes.find((x) => x.id === cible);
-    if (!binome || binome.gestionnaireEmail !== minuscules(copro.gestionnaire.email)) {
+    if (!binome || binome.gestionnaireEmail !== g) {
       throw new Error("Cet assistant ne travaille pas avec le gestionnaire de cette copropriété.");
     }
-    // Affecter au principal = pas d'affectation particuliere.
-    if (binome.principal) cible = null;
   }
+  // Pas d'affectation particuliere quand le choix est celui que donne deja la fiche, ou le
+  // principal (27/10/2026 : l'assistant de la fiche passe devant le principal).
+  const naturel = binomeDeLaFiche(copro, b) ?? b.binomes.find((x) => x.gestionnaireEmail === g && x.principal) ?? null;
+  if (cible === (naturel?.id ?? null)) cible = null;
   await repo.affecterCopro(reference, cible, par);
 }

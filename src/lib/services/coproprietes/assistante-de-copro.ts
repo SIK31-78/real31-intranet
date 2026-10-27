@@ -2,6 +2,7 @@
 // concernent (16/10/2026, REA-343 mail au CS pour les dates, REA-348 récap d'AG). UNE
 // seule règle pour les deux, dans l'ordre :
 //   1. le binôme tenu dans l'intranet (ADR-046) : l'assistant affecté à la copro, sinon
+//      celui de la fiche s'il est d'un binôme du gestionnaire (27/10/2026), sinon
 //      l'assistant principal de son gestionnaire. C'est la vérité du cabinet, ESTALE
 //      connaît rarement l'assistant (constat du 25/09/2026) ;
 //   2. à défaut, l'assistant de l'équipe de la copro (assistantId, posé par l'équipe
@@ -52,8 +53,9 @@ export async function gestionnaireDeCopro(copro: Pick<Copropriete, "managerId">)
 /** L'assistante de la copro (binôme d'abord, équipe ensuite) ; null si personne n'est connu. */
 export async function assistanteDeCopro(copro: CoproPourAssistante): Promise<MembreTri | null> {
   try {
-    const [gestionnaire, binomes] = await Promise.all([
+    const [gestionnaire, deLaFiche, binomes] = await Promise.all([
       emailDe(copro.managerId),
+      emailDe(copro.assistantId),
       getTriRepository()
         .binomes()
         .catch(() => AUCUN_BINOME),
@@ -65,7 +67,8 @@ export async function assistanteDeCopro(copro: CoproPourAssistante): Promise<Mem
           nom: copro.nom,
           adresse: "",
           gestionnaire,
-          assistant: null,
+          // Le même ordre que le tri : la fiche désigne le binôme avant le principal.
+          assistant: deLaFiche,
         },
         binomes,
       );
@@ -73,7 +76,7 @@ export async function assistanteDeCopro(copro: CoproPourAssistante): Promise<Mem
         return { nomComplet: binome.assistant.nomComplet, email: minuscules(binome.assistant.email) };
       }
     }
-    return await emailDe(copro.assistantId);
+    return deLaFiche;
   } catch (e) {
     console.warn("[assistante-de-copro] non résolue :", (e as Error).message);
     return null;

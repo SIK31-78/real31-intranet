@@ -1003,16 +1003,34 @@ export const AUCUN_BINOME: BinomesTri = { binomes: [], parCopro: {} };
 const minuscules = (e: string) => e.trim().toLowerCase();
 
 /**
- * Le binome d'une copro : celui qui lui est affecte, sinon le principal de son gestionnaire.
+ * Le binome d'une copro, dans cet ordre :
+ * 1. celui qui lui est affecte a la main (`parCopro`) ;
+ * 2. celui dont l'assistant est l'assistant de la fiche de la copro (ESTALE, ou Crypto
+ *    `assistantId` quand ESTALE ne le connait pas) ;
+ * 3. le principal de son gestionnaire.
+ * Pourquoi le 2 (27/10/2026, ADR-046 V2) : personne n'affecte les copros a la main, alors que
+ * les fiches Crypto et ESTALE sont a jour. Sur syndic2, un mail de S077 (Emmanuel LOPES,
+ * Galiano GUAETTA sur la fiche) partait dans EL-FS, le principal d'Emmanuel, au lieu d'EL-GG.
  * Une affectation qui pointe le binome d'un AUTRE gestionnaire (le mandat a change dans
- * ESTALE) est ignoree.
+ * ESTALE) est ignoree. Sans binome, `destinationDe` reprend l'assistant de la fiche.
  */
 export function binomeDeCopro(copro: CoproTri, b: BinomesTri): Binome | null {
   if (!copro.gestionnaire) return null;
   const g = minuscules(copro.gestionnaire.email);
   const affecte = b.parCopro[copro.reference];
   const parAffectation = affecte ? b.binomes.find((x) => x.id === affecte && x.gestionnaireEmail === g) : undefined;
-  return parAffectation ?? b.binomes.find((x) => x.gestionnaireEmail === g && x.principal) ?? null;
+  return parAffectation ?? binomeDeLaFiche(copro, b) ?? b.binomes.find((x) => x.gestionnaireEmail === g && x.principal) ?? null;
+}
+
+/**
+ * Le binome que designe la fiche de la copro, sans tenir compte des affectations a la main :
+ * celui du gestionnaire dont l'assistant est l'assistant de la fiche ; sinon null.
+ */
+export function binomeDeLaFiche(copro: CoproTri, b: BinomesTri): Binome | null {
+  if (!copro.gestionnaire || !copro.assistant?.email) return null;
+  const g = minuscules(copro.gestionnaire.email);
+  const a = minuscules(copro.assistant.email);
+  return b.binomes.find((x) => x.gestionnaireEmail === g && minuscules(x.assistant.email) === a) ?? null;
 }
 
 /**
@@ -1153,7 +1171,10 @@ export interface LigneBinome {
   gestionnaire: MembreTri;
   principal: BinomeAffiche | null;
   autres: BinomeAffiche[];
-  /** Ses copros ESTALE ; `binomeId` = affectation explicite (null : le principal). */
+  /**
+   * Ses copros ; `binomeId` = le binome qui la recoit quand ce n'est pas le principal
+   * (affectation a la main, ou assistant de la fiche depuis le 27/10/2026) ; null : le principal.
+   */
   copros: { reference: string; nom: string; binomeId: string | null }[];
   /** Assistant de copropriete connu d'ESTALE, propose quand l'intranet n'a pas de principal. */
   assistantEstale: MembreTri | null;
@@ -1203,8 +1224,8 @@ export function lignesBinomes(
         autres: siens.filter((x) => !x.principal).map(affiche),
         copros: l.copros
           .map((c) => {
-            const id = b.parCopro[c.reference];
-            return { reference: c.reference, nom: c.nom, binomeId: id && siens.some((x) => x.id === id) ? id : null };
+            const x = binomeDeCopro(c, b);
+            return { reference: c.reference, nom: c.nom, binomeId: x && !x.principal ? x.id : null };
           })
           .sort((x, y) => x.reference.localeCompare(y.reference)),
         assistantEstale: l.copros.find((c) => c.assistant)?.assistant ?? null,

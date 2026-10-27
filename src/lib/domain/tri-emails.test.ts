@@ -16,6 +16,7 @@ import {
   coprosImmeubleConcerne,
   estMailInterne,
   destinationDe,
+  binomeDeCopro,
   lignesBinomes,
   nettoyerCorps,
   retirerEnteteCabinet,
@@ -550,6 +551,54 @@ describe("destinationDe", () => {
     const c = { ...copro("S0297", "sophie@real31.fr"), assistant: NADIA };
     expect(destinationDe(c, ini)?.nomDossier).toBe("SK-NF");
     expect(destinationDe(c, ini, { binomes: [binome("b1", CLARA, true)], parCopro: {} })?.nomDossier).toBe("SK-CP");
+  });
+
+  describe("l'assistant de la fiche choisit le binome (27/10/2026, cas S077 de syndic2)", () => {
+    const iniEL = { "emmanuel@real31.fr": "EL", "fanny@real31.fr": "FS", "galiano@real31.fr": "GG" };
+    const FANNY = { nomComplet: "Fanny SORIVELLE", email: "fanny@real31.fr" };
+    const GALIANO = { nomComplet: "Galiano GUAETTA", email: "Galiano@real31.fr" };
+    const b = {
+      binomes: [binome("fs", FANNY, true, "emmanuel@real31.fr"), binome("gg", GALIANO, false, "emmanuel@real31.fr")],
+      parCopro: {},
+    };
+    const s077 = { ...copro("S077", "emmanuel@real31.fr"), assistant: { nomComplet: "Galiano", email: "galiano@real31.fr" } };
+
+    it("assistant de la fiche = assistant d'un binome secondaire : ce binome, EL-GG, cle binome:<id>", () => {
+      const d = destinationDe(s077, iniEL, b);
+      expect(d?.nomDossier).toBe("EL-GG");
+      expect(d?.cle).toBe("binome:gg");
+      expect(binomeDeCopro(s077, b)?.id).toBe("gg");
+    });
+
+    it("assistant de la fiche inconnu des binomes : le principal", () => {
+      const c = { ...s077, assistant: { nomComplet: "Autre", email: "autre@real31.fr" } };
+      expect(destinationDe(c, iniEL, b)?.nomDossier).toBe("EL-FS");
+      expect(destinationDe({ ...s077, assistant: null }, iniEL, b)?.cle).toBe("binome:emmanuel@real31.fr");
+    });
+
+    it("l'assistant d'un binome d'un AUTRE gestionnaire ne compte pas", () => {
+      const autre = { binomes: [...b.binomes, binome("x", { nomComplet: "Léa", email: "lea@real31.fr" }, false, "sandy@real31.fr")], parCopro: {} };
+      const c = { ...s077, assistant: { nomComplet: "Léa", email: "lea@real31.fr" } };
+      expect(destinationDe(c, iniEL, autre)?.nomDossier).toBe("EL-FS");
+    });
+
+    it("l'affectation a la main passe avant la fiche", () => {
+      expect(destinationDe(s077, iniEL, { ...b, parCopro: { S077: "fs" } })?.nomDossier).toBe("EL-FS");
+    });
+
+    it("Galiano voit le dossier EL-GG, Fanny ne le voit pas ; la copro se deduit du dossier", () => {
+      expect(clesDossiersDe("galiano@real31.fr", b).has("binome:gg")).toBe(true);
+      expect(clesDossiersDe("fanny@real31.fr", b).has("binome:gg")).toBe(false);
+      expect(clesDossiersDe("emmanuel@real31.fr", b).has("binome:gg")).toBe(true);
+      const autreCopro = copro("S078", "emmanuel@real31.fr");
+      expect(coproDuDossier("binome:gg", [s077, autreCopro], iniEL, b)).toBe("S077");
+      expect(coproDuDossier("binome:emmanuel@real31.fr", [s077, autreCopro], iniEL, b)).toBe("S078");
+    });
+
+    it("l'ecran des binomes montre EL-GG pour S077 sans affectation a la main", () => {
+      const [l] = lignesBinomes([], [s077], b, iniEL);
+      expect(l?.copros).toEqual([{ reference: "S077", nom: "Copro S077", binomeId: "gg" }]);
+    });
   });
 
   it("sans assistant, le dossier porte le seul gestionnaire et garde la meme cle", () => {
