@@ -511,6 +511,31 @@ export function MesEmailsVue({
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
 
+  // Le mail affiché est marqué lu et ses pièces jointes chargées, qu'il ait été cliqué ou
+  // affiché d'office (le premier de la liste à l'arrivée, après un changement de boîte, de vue
+  // ou de recherche). Jusqu'au 27/10/2026 seul le clic le faisait : le premier mail disait
+  // « Pièces jointes indisponibles » et « Transférer » n'en joignait aucune (bug B1). Une
+  // seule fois par mail : le reste de l'état de la vue peut changer sans rejouer les appels.
+  const selectionId = selection?.id ?? "";
+  const dejaAffiches = useRef(new Set<string>());
+  useEffect(() => {
+    if (!selectionId || dejaAffiches.current.has(selectionId)) return;
+    const m = data.mails.find((x) => x.id === selectionId);
+    if (!m) return;
+    dejaAffiches.current.add(selectionId);
+    if (!lus.has(selectionId)) {
+      setLus((prev) => new Set(prev).add(selectionId));
+      void marquerLuAction(selectionId, m.coproCode);
+    }
+    if (m.attachments.length > 0) {
+      setPjParMail((p) => new Map(p).set(selectionId, null));
+      const copro = coprosChoisies.get(selectionId)?.code ?? m.coproCode;
+      void chargerPiecesJointesAction(selectionId, copro, m.boite ?? boiteActive).then((pjs) =>
+        setPjParMail((prev) => new Map(prev).set(selectionId, pjs)),
+      );
+    }
+  }, [selectionId, data.mails, lus, coprosChoisies, boiteActive]);
+
   // Charge les dossiers reels de la copro quand on ouvre le picker de rattachement.
   const coproSel = selection?.coproCode ?? "";
   useEffect(() => {
@@ -628,23 +653,13 @@ export function MesEmailsVue({
     }
   }
 
+  // Ouvrir un mail d'un clic : la sélection change ; le marquage « lu » et les pièces jointes
+  // suivent la sélection (effet plus haut), que le mail ait été cliqué ou affiché d'office.
   function ouvrir(id: string) {
     setSelId(id);
     setChanger(false);
     setOuverts(new Set());
     setMsgBrouillon(null);
-    setLus((prev) => new Set(prev).add(id));
-    const m = data.mails.find((x) => x.id === id);
-    if (m) {
-      void marquerLuAction(id, m.coproCode);
-      // Charge les vraies pieces jointes a la demande (une seule fois par mail).
-      if (m.attachments.length > 0 && !pjParMail.has(id)) {
-        setPjParMail((p) => new Map(p).set(id, null));
-        void chargerPiecesJointesAction(id, coproDe(m).code, boiteDuMail(m)).then((pjs) =>
-          setPjParMail((prev) => new Map(prev).set(id, pjs)),
-        );
-      }
-    }
   }
   const add = (set: Set<string>, id: string) => new Set(set).add(id);
   const del = (set: Set<string>, id: string) => {
@@ -1050,9 +1065,8 @@ export function MesEmailsVue({
               onAjouterFichiers={(l) => void ajouterFichiers(selection, l)}
               onRetirerFichier={(i) => retirerFichier(selection, i)}
               modeles={modeles}
-              piecesJointes={
-                pjParMail.has(selection.id) ? (pjParMail.get(selection.id) ?? null) : []
-              }
+              // Pas encore demandées (premier rendu) ou en cours : null = « Chargement… ».
+              piecesJointes={pjParMail.get(selection.id) ?? null}
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
               {...(depotDriveActif && coproDe(selection).code
