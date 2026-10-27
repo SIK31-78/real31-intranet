@@ -7,10 +7,7 @@ import {
   Search,
   Link2,
   FilePlus2,
-  MessageSquare,
-  Wrench,
   Paperclip,
-  Flag,
   Check,
   Building2,
   Users,
@@ -34,9 +31,7 @@ import {
 } from "lucide-react";
 import type {
   ContexteCopro,
-  Dossier,
   DossierBoite,
-  EvenementKind,
   MailEntrant,
   MesEmails,
   ReponseOutlook,
@@ -44,7 +39,6 @@ import type {
   Rattachement,
 } from "@/lib/domain/mes-emails";
 import {
-  LIBELLE_TYPE,
   dossierOutlookSuggere,
   grouperDossiersBoite,
   libelleCorrespondant,
@@ -52,7 +46,6 @@ import {
   mailsDeLaBoite,
   sujetDeReponse,
   trierMails,
-  trouverDossier,
   typeDossierSuggere,
 } from "@/lib/domain/mes-emails";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
@@ -231,7 +224,6 @@ export function MesEmailsVue({
   const [overrides, setOverrides] = useState<Map<string, Rattachement>>(new Map());
   const [changer, setChanger] = useState(false);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
-  const [filtreCopro, setFiltreCopro] = useState<string>("toutes");
   const [recherche, setRecherche] = useState("");
   // Collègues en haut ou en bas de la liste (REA-351, pilote). Retenu dans un cookie :
   // préférence de lecture, pas un état partagé.
@@ -511,7 +503,6 @@ export function MesEmailsVue({
       (m) =>
         !partis.has(m.id) &&
         matchVue(m) &&
-        (filtreCopro === "toutes" || m.coproCode === filtreCopro) &&
         (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
     ),
     pilote ? placeInternes : "meles",
@@ -529,13 +520,15 @@ export function MesEmailsVue({
     );
   }, [changer, coproSel, dossiersReels]);
 
-  // Contexte ESTALE de la copro, charge a l'ouverture du volet Contexte et plus au chargement
-  // de la page (mesure prod du 14/10 : 2,3 s pour un volet replie par defaut).
+  // Contexte ESTALE de la copro, charge a l'ouverture du volet et plus au chargement de la
+  // page (mesure prod du 14/10 : 2,3 s pour un volet replie par defaut). Indexé sur la copro
+  // CHOISIE dans le sélecteur, pas celle d'origine (27/10/2026).
   const contexteOuvert = ouverts.has("contexte");
+  const coproContexte = selection ? coproDe(selection).code : "";
   useEffect(() => {
-    if (!contexteOuvert || !coproSel || contextes.has(coproSel)) return;
-    void chargerContexteCoproAction(coproSel).then((c) => setContextes((p) => new Map(p).set(coproSel, c)));
-  }, [contexteOuvert, coproSel, contextes]);
+    if (!contexteOuvert || !coproContexte || contextes.has(coproContexte)) return;
+    void chargerContexteCoproAction(coproContexte).then((c) => setContextes((p) => new Map(p).set(coproContexte, c)));
+  }, [contexteOuvert, coproContexte, contextes]);
 
   const rafraichirDossiersCopro = (code: string) =>
     setDossiersReels((p) => {
@@ -544,12 +537,11 @@ export function MesEmailsVue({
       return n;
     });
 
-  // Changer de boite : la selection, le filtre copro et la recherche de l'ancienne
-  // boite n'ont plus de sens ici -> on repart d'un ecran propre.
+  // Changer de boite : la selection et la recherche de l'ancienne boite n'ont plus de
+  // sens ici -> on repart d'un ecran propre.
   function choisirBoite(id: string) {
     if (id === boiteActive) return;
     setBoiteActive(id);
-    setFiltreCopro("toutes");
     setRecherche("");
     setSelId("");
     setChanger(false);
@@ -938,18 +930,6 @@ export function MesEmailsVue({
               ))}
             </Select>
           ) : null}
-          {filtreCopro !== "toutes" && (
-            <button
-              type="button"
-              onClick={() => setFiltreCopro("toutes")}
-              title="Retirer le filtre copropriété"
-              className="h-7 px-2.5 rounded-full text-meta border border-info-500/30 bg-info-50 text-info-700 inline-flex items-center gap-1"
-            >
-              <Building2 strokeWidth={1.5} className="w-3 h-3" />
-              {filtreCopro || "Non rattaché"}
-              <X strokeWidth={1.5} className="w-3 h-3" />
-            </button>
-          )}
         </div>
         )}
       </div>
@@ -1027,9 +1007,8 @@ export function MesEmailsVue({
           {selection ? (
             <AnalysePane
               m={selection}
-              contexte={selection.coproCode ? contextes.get(selection.coproCode) : null}
+              contexte={coproContexte ? contextes.get(coproContexte) : null}
               ratt={rattDe(selection)}
-              dossier={trouverDossier(data.dossiers, rattDe(selection).dossierId)}
               dossiersReels={dossiersReels.get(coproDe(selection).code) ?? null}
               typeSuggere={typeDossierSuggere(selection.type)}
               statut={statutDe(selection.id)}
@@ -1280,18 +1259,6 @@ function LienBrouillonOutlook({ href }: { href: string }) {
       <ExternalLink strokeWidth={1.5} className="w-3 h-3" />
     </a>
   );
-}
-
-function recommandation(m: MailEntrant, ratt: Rattachement): string {
-  if (!m.ticketable) return "Aucune action requise - à classer pour information.";
-  const cible = m.de.replace(/ \(.*\)$/, "");
-  const dossier =
-    ratt.statut === "existant"
-      ? `le dossier « ${ratt.dossierLabel} »`
-      : `un nouveau dossier « ${ratt.dossierLabel} »`;
-  return m.brouillonReponse
-    ? `Répondre à ${cible} et classer dans ${dossier}.`
-    : `Traiter et classer dans ${dossier}.`;
 }
 
 /**
@@ -1643,7 +1610,6 @@ function AnalysePane({
   m,
   contexte,
   ratt,
-  dossier,
   dossiersReels,
   typeSuggere,
   statut,
@@ -1719,10 +1685,9 @@ function AnalysePane({
   brouillonHtml: string;
   onEditBrouillonHtml: (html: string) => void;
   m: MailEntrant;
-  /** undefined = en cours de chargement, null = indisponible. */
+  /** Contexte ESTALE de la copro choisie : undefined = en cours de chargement, null = indisponible. */
   contexte: ContexteCopro | null | undefined;
   ratt: Rattachement;
-  dossier: Dossier | undefined;
   dossiersReels: { id: string; titre: string; type: TypeDossier }[] | null;
   typeSuggere: TypeDossier;
   statut: Statut;
@@ -2110,32 +2075,22 @@ function AnalysePane({
           </div>
         )}
 
-        {/* Tout le contexte replié dans UN seul volet. */}
-        <SectionRepliable
-          cle="contexte"
-          titre="Contexte"
-          compte={[LIBELLE_TYPE[m.type], contexte?.disponible ? "ESTALE" : null].filter(Boolean).join(" · ")}
-          icone={<Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" />}
-          open={ouverts.has("contexte")}
-          onToggle={onToggleSection}
-        >
-          <div className="flex flex-col gap-3 text-body">
-            <p className="text-ink">
-              <span className="text-ink-3">Suggestion de l&apos;assistant : </span>
-              {recommandation(m, ratt)}
-            </p>
-            {dossier && dossier.historique.length > 0 ? (
-              <div>
-                <p className="text-meta uppercase tracking-[0.06em] text-ink-3 mb-1">Fil ({dossier.historique.length})</p>
-                <Timeline dossier={dossier} />
-              </div>
-            ) : null}
-            <div>
-              <p className="text-meta uppercase tracking-[0.06em] text-ink-3 mb-1">Copropriété (ESTALE)</p>
-              <ContexteCoproContenu ctx={contexte} />
-            </div>
-          </div>
-        </SectionRepliable>
+        {/* La copropriété choisie, vue d'ESTALE : repliée, chargée à l'ouverture. Rien sans
+            copro. Le volet « Contexte » d'avant le 27/10/2026 affichait aussi un type « Autre »
+            (cache d'analyse plus jamais écrit), une « suggestion » à trois règles et un « Fil »
+            d'objets illisible : retirés à la demande de Sekou. */}
+        {coproCode ? (
+          <SectionRepliable
+            cle="contexte"
+            titre="Copropriété (ESTALE)"
+            compte={[coproCode, coproNom].filter(Boolean).join(" · ")}
+            icone={<Building2 strokeWidth={1.5} className="w-3.5 h-3.5" />}
+            open={ouverts.has("contexte")}
+            onToggle={onToggleSection}
+          >
+            <ContexteCoproContenu ctx={contexte} />
+          </SectionRepliable>
+        ) : null}
       </div>
       {/* Fin d'action, en bas à droite comme dans Crypto. */}
       <div className="px-5 py-3 border-t border-line flex flex-wrap items-center justify-end gap-3">
@@ -2254,31 +2209,6 @@ function SectionRepliable({
       </button>
       {open && <div className="pb-3 pl-5">{children}</div>}
     </div>
-  );
-}
-
-const KIND_ICON: Record<EvenementKind, React.ReactNode> = {
-  mail: <MessageSquare strokeWidth={1.5} className="w-3.5 h-3.5 text-info-700" />,
-  action: <Wrench strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-2" />,
-  pj: <Paperclip strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" />,
-  jalon: <Flag strokeWidth={1.5} className="w-3.5 h-3.5 text-green-700" />,
-};
-
-function Timeline({ dossier }: { dossier: Dossier }) {
-  return (
-    <ul className="flex flex-col gap-2.5 border-l border-line pl-3.5 ml-1">
-      {dossier.historique.map((e, i) => (
-        <li key={`${e.date}-${i}`} className="relative">
-          <span className="absolute -left-[22px] top-0.5 w-5 h-5 rounded-full bg-surface border border-line flex items-center justify-center">
-            {KIND_ICON[e.kind]}
-          </span>
-          <p className="text-body text-ink leading-snug">{e.resume}</p>
-          <p className="text-meta text-ink-3 mt-0.5">
-            {jourMois(e.date)} · {e.acteur}
-          </p>
-        </li>
-      ))}
-    </ul>
   );
 }
 

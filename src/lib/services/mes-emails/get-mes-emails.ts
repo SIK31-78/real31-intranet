@@ -52,11 +52,8 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<
     gestionnaire: { nomComplet: g.nomComplet, initiales: g.initiales },
     boites,
     nbMailsAnalyses: triage.nbMailsAnalyses,
-    // Lecture live : plus de date de synchro a afficher (elle ne pouvait qu'etre perimee).
-    dateCourante: "",
     mails,
     dossiers: triage.dossiers,
-    contextes: [],
     plusDeMails: triage.plusDeMails,
     // L'adresse aussi : c'est elle que l'équipe reconnaît (Sekou, 15/10/2026).
     coprosDuGestionnaire: mesCopros.map((c) => ({

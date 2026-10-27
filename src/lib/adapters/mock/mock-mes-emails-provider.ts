@@ -25,8 +25,6 @@ const DATA: MesEmails = {
   // pas et les mails (sans champ `boite`) sont traites comme la boite personnelle.
   boites: [],
   nbMailsAnalyses: 4317,
-  dateCourante: "12 juin 2026",
-  contextes: [], // rempli par le service (enrichissement eStale)
 
   dossiers: [
     {

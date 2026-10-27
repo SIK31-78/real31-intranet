@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, nomDossierCopro, phraseRecommandation, sujetDeReponse } from "./mes-emails";
+import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, nomDossierCopro, sujetDeReponse } from "./mes-emails";
 
 // Les regles de la reponse a un mail vivaient dans 1 500 lignes de JSX, sans test.
 
@@ -54,15 +54,6 @@ describe("nomDossierCopro", () => {
     expect(nomDossierCopro("S270", "Le Cyrano")).toBe("S270 - Le Cyrano");
     expect(nomDossierCopro("S270", "A/B : C")).toBe("S270 - A B C");
     expect(nomDossierCopro("S270", "")).toBe("S270");
-  });
-});
-
-describe("phraseRecommandation", () => {
-  it("dit a qui repondre et ou classer, selon le rattachement et le brouillon", () => {
-    const m = { ticketable: true, de: "M. Bardet (copropriétaire)", brouillonReponse: "Bonjour…" };
-    expect(phraseRecommandation(m, { statut: "existant", dossierLabel: "Fuite 3e" })).toBe("Répondre à M. Bardet et classer dans le dossier « Fuite 3e ».");
-    expect(phraseRecommandation({ ...m, brouillonReponse: undefined }, { statut: "nouveau", dossierLabel: "Fuite 3e" })).toBe("Traiter et classer dans un nouveau dossier « Fuite 3e ».");
-    expect(phraseRecommandation({ ...m, ticketable: false }, { statut: "nouveau", dossierLabel: "x" })).toBe("Aucune action requise - à classer pour information.");
   });
 });
 

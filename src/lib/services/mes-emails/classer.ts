@@ -1,17 +1,9 @@
-// Service : classe un mail dans un dossier Outlook (par copro ou par dossier choisi).
-// Passe par le routeur (ADR-001).
+// Service : classe un mail dans un dossier Outlook choisi. Passe par le routeur (ADR-001).
+// (Le classement « par copro » du port n'a plus d'appelant depuis le 27/10/2026 : le dossier
+// se choisit toujours dans la liste.)
 
 import { getMailboxProvider } from "@/lib/adapters/router";
 import type { DossierBoite } from "@/lib/ports/mailbox-provider";
-
-export async function classerDansCopro(
-  boite: string,
-  internetMessageId: string,
-  coproCode: string,
-  coproNom: string,
-): Promise<{ deplace: boolean; dossier?: string }> {
-  return getMailboxProvider().classerDansCopro({ boite, internetMessageId, coproCode, coproNom });
-}
 
 /** Liste les vrais dossiers de la boite (pour le selecteur de classement). */
 export async function listerDossiersBoite(boite: string): Promise<DossierBoite[]> {

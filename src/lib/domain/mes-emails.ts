@@ -178,10 +178,8 @@ export interface MailEntrant {
   boite?: string;
   /** Lu / non lu (feeling boite mail ; passe a true a l'ouverture). */
   lu: boolean;
-  /** Corps du mail (deja nettoye). Dans la LISTE envoyee au navigateur : un extrait
-   *  seulement (`corpsTronque`), le complet se charge a l'ouverture. */
+  /** Corps du mail (deja nettoye : sans l'historique cite, qui se charge a la demande). */
   corps: string;
-  corpsTronque?: boolean;
   attachments: PieceJointe[];
   // --- Analyse ---
   type: TypeMail;
@@ -249,12 +247,8 @@ export interface MesEmails {
   boites: BoiteMail[];
   /** Nombre de mails du backtest passes au tri. */
   nbMailsAnalyses: number;
-  /** Date du jour deja formatee, ex "12 juin 2026". */
-  dateCourante: string;
   mails: MailEntrant[];
   dossiers: Dossier[];
-  /** Contexte eStale par copro (rempli par le service). */
-  contextes: ContexteCopro[];
   /** La boîte perso a rempli son plafond : « Plus de mails » en charge davantage. */
   plusDeMails?: boolean;
   /** Copros du portefeuille du gestionnaire (rempli par le service ; rattachement manuel). */
@@ -282,10 +276,6 @@ export function mailsDeLaBoite(
 
 export function trouverDossier(dossiers: Dossier[], id: string): Dossier | undefined {
   return dossiers.find((d) => d.id === id);
-}
-
-export function trouverContexte(contextes: ContexteCopro[], coproCode: string): ContexteCopro | undefined {
-  return contextes.find((c) => c.coproCode === coproCode);
 }
 
 // --- La reponse a un mail : quatre regles metier, hors de l'ecran (audit 16/09/2026) -----
@@ -341,12 +331,4 @@ export function dossierOutlookSuggere(m: Pick<MailEntrant, "coproCode" | "coproN
 export function nomDossierCopro(code: string, nom: string): string {
   const n = nom.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
   return (n ? `${code.trim()} - ${n}` : code.trim()).slice(0, 120);
-}
-
-/** La phrase de l'assistant : quoi faire de ce mail. */
-export function phraseRecommandation(m: Pick<MailEntrant, "ticketable" | "de" | "brouillonReponse">, ratt: Pick<Rattachement, "statut" | "dossierLabel">): string {
-  if (!m.ticketable) return "Aucune action requise - à classer pour information.";
-  const cible = m.de.replace(/ \(.*\)$/, "");
-  const dossier = ratt.statut === "existant" ? `le dossier « ${ratt.dossierLabel} »` : `un nouveau dossier « ${ratt.dossierLabel} »`;
-  return m.brouillonReponse ? `Répondre à ${cible} et classer dans ${dossier}.` : `Traiter et classer dans ${dossier}.`;
 }

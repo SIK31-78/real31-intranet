@@ -15,13 +15,11 @@ import {
   enregistrerBrouillon,
   enregistrerCopro,
   enregistrerDossier,
-  enregistrerEtapes,
   enregistrerLu,
   enregistrerRattachement,
   enregistrerStatut,
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
-import type { Rattachement } from "@/lib/domain/mes-emails";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { envoiMailActif } from "@/lib/domain/mail-gate";
 import { boitesVisibles, conversationsDistribuees } from "@/lib/services/mes-emails/boites-visibles";
@@ -141,31 +139,12 @@ export async function devaliderMailAction(emailId: string, coproCode: string, bo
   await enregistrerStatut(await cibleStatut(auth.g, emailId, coproCode, boite), "nouveau", []);
 }
 
-export async function toggleEtapeAction(emailId: string, coproCode: string, etapes: number[]): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, etapes: zEtapes }).safeParse({ emailId, coproCode, etapes }).success)
-    return;
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return;
-  await enregistrerEtapes(cibleDe(auth.g, emailId, coproCode), etapes);
-}
-
 export async function editBrouillonAction(emailId: string, coproCode: string, brouillon: string): Promise<void> {
   if (!z.object({ emailId: zId, coproCode: zCopro, brouillon: zCorps }).safeParse({ emailId, coproCode, brouillon }).success)
     return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   await enregistrerBrouillon(cibleDe(auth.g, emailId, coproCode), brouillon);
-}
-
-export async function rattachementAction(
-  emailId: string,
-  coproCode: string,
-  rattachement: Rattachement,
-): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return;
-  await enregistrerRattachement(cibleDe(auth.g, emailId, coproCode), rattachement);
 }
 
 export async function marquerLuAction(emailId: string, coproCode: string): Promise<void> {
