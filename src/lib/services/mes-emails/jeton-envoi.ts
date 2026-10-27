@@ -29,6 +29,27 @@ export interface JetonBrouillon {
   exp: number;
 }
 
+/**
+ * Un brouillon NEUF du compositeur « Envoyer un e-mail » (27/10/2026) : même dépôt par tranches
+ * qu'une réponse, mais pas de mail d'origine ni de statut « répondu ». Nature à part : un jeton
+ * de mail neuf ne se finalise pas comme une réponse, ni l'inverse. Toute la copropriété en copie
+ * cachée part en plusieurs mails (lots) : un jeton par brouillon, `lot` sur `lots`.
+ */
+export interface JetonNeuf {
+  nature: "neuf";
+  boite: string;
+  draftId: string;
+  gid: string;
+  /** « envoyer » : MAIL_ENVOI et `envoi` de la boîte vérifiés à la préparation. */
+  mode: "envoyer" | "brouillon";
+  lot: number;
+  lots: number;
+  /** Premier lot seulement : de quoi inscrire le mail au journal du dossier après l'envoi. */
+  internetMessageId?: string;
+  dossier?: { id: string; pour: string; objet: string };
+  exp: number;
+}
+
 /** La session d'upload d'un fichier de plus de 3 Mo, entre deux tranches. */
 export interface JetonUpload {
   nature: "upload";
@@ -40,7 +61,7 @@ export interface JetonUpload {
   exp: number;
 }
 
-type Jeton = JetonBrouillon | JetonUpload;
+type Jeton = JetonBrouillon | JetonNeuf | JetonUpload;
 
 let cleDev: Buffer | null = null;
 

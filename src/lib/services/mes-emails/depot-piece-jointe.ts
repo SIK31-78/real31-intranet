@@ -1,13 +1,13 @@
-// Service : les fichiers de l'ordinateur joints à une réponse, déposés sur le brouillon déjà
-// préparé, une tranche à la fois (REA-421, 27/10/2026). Avant, ils voyageaient en base64 dans
-// l'action d'envoi : au-delà de 4,5 Mo par requête, Vercel coupait, et Graph refusait une pièce
-// de plus de 3 Mo en un seul POST. Maintenant : le navigateur envoie chaque fichier par tranches
+// Service : les fichiers de l'ordinateur joints à une réponse (ou à un mail neuf du compositeur),
+// déposés sur le brouillon déjà préparé, une tranche à la fois (REA-421, 27/10/2026). Avant,
+// ils voyageaient en base64 dans l'action d'envoi : au-delà de 4,5 Mo par requête, Vercel
+// coupait, et Graph refusait une pièce de plus de 3 Mo en un seul POST. Maintenant : le navigateur envoie chaque fichier par tranches
 // de 3,75 Mio à la route de dépôt ; sous 3 Mo, un POST simple ; au-delà, une session d'upload
 // Graph ouverte à la première tranche, dont l'URL voyage chiffrée dans un jeton.
 
 import { getMailOutboundProvider } from "@/lib/adapters/router";
 import { TAILLE_ENVOI_SIMPLE, TAILLE_MAX_FICHIER, TRANCHE_UPLOAD, typePieceJointe } from "@/lib/domain/piece-jointe-flux";
-import { DUREE_JETON_MS, ouvrirJeton, scellerJeton, type JetonBrouillon } from "./jeton-envoi";
+import { DUREE_JETON_MS, ouvrirJeton, scellerJeton, type JetonBrouillon, type JetonNeuf } from "./jeton-envoi";
 
 export type ResultatDepot = { ok: true; fini: boolean; session?: string } | { ok: false; statut: number; erreur: string };
 
@@ -18,6 +18,12 @@ const ENVOI_EXPIRE = "L'envoi a expiré (15 minutes) : recommence l'envoi.";
 /** Le brouillon du jeton, s'il appartient bien à la personne connectée. */
 export function brouillonDe(jeton: string, gid: string): JetonBrouillon | null {
   const j = ouvrirJeton(jeton, "brouillon");
+  return j && j.gid === gid ? j : null;
+}
+
+/** Le brouillon d'un mail neuf (compositeur), s'il appartient bien à la personne connectée. */
+export function brouillonNeufDe(jeton: string, gid: string): JetonNeuf | null {
+  const j = ouvrirJeton(jeton, "neuf");
   return j && j.gid === gid ? j : null;
 }
 
@@ -32,7 +38,8 @@ export async function deposerTranche(p: {
   debut: number;
   octets: Uint8Array;
 }): Promise<ResultatDepot> {
-  const brouillon = brouillonDe(p.jeton, p.gid);
+  // Une réponse (écran E-mails) ou un mail neuf (compositeur) : le dépôt est le même.
+  const brouillon = brouillonDe(p.jeton, p.gid) ?? brouillonNeufDe(p.jeton, p.gid);
   if (!brouillon) return refus(410, ENVOI_EXPIRE);
   const nom = p.nom.trim();
   if (!nom || nom.length > 255) return refus(400, "Nom de fichier invalide.");

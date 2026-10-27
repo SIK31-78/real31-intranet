@@ -1,5 +1,6 @@
 // POST /mes-emails/pj/depot (multipart/form-data) : une TRANCHE d'un fichier de l'ordinateur,
-// jointe au brouillon de réponse déjà préparé par preparerEnvoiAction (REA-421, 27/10/2026).
+// jointe au brouillon de réponse déjà préparé par preparerEnvoiAction (REA-421, 27/10/2026), ou
+// au brouillon neuf du compositeur préparé par preparerCompositionAction (même jeton, nature « neuf »).
 // Champs : jeton (du brouillon), session (rendue par la tranche précédente, absente à la
 // première), nom, type, taille (du fichier entier), debut (octet de départ), tranche (Blob de
 // 3,75 Mio au plus : une requête vers une fonction Vercel ne dépasse pas 4,5 Mo).
