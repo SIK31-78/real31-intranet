@@ -31,6 +31,20 @@ vi.mock("@/lib/adapters/router", async (original) => ({
       etat.ecrits.push({ quoi: "statut", gestionnaireId: p.gestionnaireId, emailId: p.emailId, statut: p.statut });
     },
   }),
+  getMailOutboundProvider: () => ({
+    envoyer: async (p: { boite: string; internetMessageId: string }) => {
+      etat.graph.push({ quoi: "envoi", boite: p.boite, id: p.internetMessageId });
+    },
+    // Réponse depuis une autre boîte que celle du mail : mail neuf, message d'origine cité.
+    citationReponse: async () => ({ sujet: "Fuite", citationHtml: "<p>cité</p>" }),
+    envoyerNeuf: async (p: { boite: string }) => {
+      etat.graph.push({ quoi: "envoi-neuf", boite: p.boite, id: "" });
+    },
+    transferer: async (p: { boite: string; internetMessageId: string; envoyer: boolean }) => {
+      etat.graph.push({ quoi: p.envoyer ? "transfert" : "brouillon-transfert", boite: p.boite, id: p.internetMessageId });
+      return {};
+    },
+  }),
   getMailboxProvider: () => ({
     marquerLu: async (p: { boite: string; internetMessageId: string }) => {
       if (etat.graphRefuse) throw new Error("Graph lu 403");
@@ -40,7 +54,7 @@ vi.mock("@/lib/adapters/router", async (original) => ({
 }));
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
 
-const { marquerLuAction } = await import("@/app/mes-emails/actions");
+const { envoyerReponseAction, marquerLuAction, transfererMailAction } = await import("@/app/mes-emails/actions");
 
 const SYNDIC4 = "syndic4@real31.fr";
 const sophie = { id: "u1", nomComplet: "Sophie K", initiales: "SK", email: "sophie@real31.fr", agencyId: "ag-hls", role: "GESTIONNAIRE" };
@@ -97,5 +111,39 @@ describe("marquerLuAction : lu dans l'intranet ET dans Outlook", () => {
     etat.graphRefuse = true;
     await expect(marquerLuAction("<perso@x>", "", "sophie@real31.fr")).resolves.toBeUndefined();
     expect(etat.ecrits).toEqual([{ quoi: "lu", gestionnaireId: "u1", emailId: "<perso@x>" }]);
+  });
+});
+
+describe("après un envoi, « répondu » est écrit en base", () => {
+  const repondre = (emailId: string, boite: string) =>
+    envoyerReponseAction(emailId, "S0297", "Bonjour, c'est noté.", "Re: Fuite", ["client@exemple.fr"], [], [], [], boite, "sophie@real31.fr");
+
+  it("boîte perso : statut personnel « repondu »", async () => {
+    const r = await repondre("<perso@x>", "sophie@real31.fr");
+    expect(r.ok).toBe(true);
+    expect(etat.graph).toEqual([{ quoi: "envoi", boite: "sophie@real31.fr", id: "<perso@x>" }]);
+    expect(etat.ecrits).toEqual([{ quoi: "statut", gestionnaireId: "u1", emailId: "<perso@x>", statut: "repondu" }]);
+  });
+
+  it("boîte partagée : statut personnel ET statut commun à la boîte (le binôme le voit)", async () => {
+    // Depuis la boîte perso sur un mail de syndic4 : l'envoi direct y reste permis.
+    const r = await repondre("<a-sophie@x>", SYNDIC4);
+    expect(r.ok).toBe(true);
+    expect(etat.ecrits).toEqual([
+      { quoi: "statut", gestionnaireId: "u1", emailId: "<a-sophie@x>", statut: "repondu" },
+      { quoi: "statut", gestionnaireId: `boite:${SYNDIC4}`, emailId: "<a-sophie@x>", statut: "repondu" },
+    ]);
+  });
+
+  it("transfert parti : « repondu » ; transfert resté en brouillon : rien", async () => {
+    const parti = await transfererMailAction({ emailId: "<perso@x>", boite: "sophie@real31.fr", a: ["collegue@real31.fr"], cc: [], corps: "" });
+    expect(parti.ok && parti.donnees?.envoye).toBe(true);
+    expect(etat.ecrits).toEqual([{ quoi: "statut", gestionnaireId: "u1", emailId: "<perso@x>", statut: "repondu" }]);
+
+    etat.ecrits = [];
+    // syndic4 : envoi coupé dans la config, le transfert reste un brouillon Outlook.
+    const brouillon = await transfererMailAction({ emailId: "<a-sophie@x>", boite: SYNDIC4, a: ["collegue@real31.fr"], cc: [], corps: "" });
+    expect(brouillon.ok && brouillon.donnees?.envoye).toBe(false);
+    expect(etat.ecrits).toEqual([]);
   });
 });

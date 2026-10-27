@@ -196,6 +196,17 @@ export function MesEmailsVue({
           .map((m) => m.id),
       ),
   );
+  // Réponse ou transfert PARTIS depuis l'écran, dans cette session (REA-422) : le badge le dit
+  // tout de suite, sans attendre que le marqueur d'Outlook soit relu au rechargement.
+  const [reponsesSession, setReponsesSession] = useState<Map<string, ReponseOutlook>>(new Map());
+  /** Le badge « Répondu » / « Transféré » : ce qui vient d'être fait ici, sinon le marqueur
+   *  d'Outlook (le dernier geste, fait dans l'un ou l'autre outil), sinon le statut en base. */
+  const reponseDe = (m: MailEntrant): ReponseOutlook | null =>
+    reponsesSession.get(m.id) ?? m.reponseOutlook ?? (repondus.has(m.id) ? "repondu" : null);
+  const noterReponse = (id: string, r: ReponseOutlook) => {
+    setRepondus((p) => add(p, id));
+    setReponsesSession((p) => new Map(p).set(id, r));
+  };
   // Mails partis ailleurs (« Pas pour moi ») : retirés de la liste sans attendre le rechargement.
   // Copro choisie gérée par un autre binôme : l'envoi lui est proposé (REA-327).
   const [envoisProposes, setEnvoisProposes] = useState<Map<string, { reference: string; dossier: string }>>(new Map());
@@ -410,8 +421,11 @@ export function MesEmailsVue({
       fichiers: fichiersEnvoi(m),
       boite: boiteDuMail(m),
     });
+    // Graph ne rend pas toujours le lien du brouillon (REA-422) : sans lien, on dit où le
+    // trouver plutôt que d'afficher un lien mort.
     const msg = r.ok
-      ? `Brouillon créé dans ${boiteDuMail(m)}, avec destinataires, objet et pièces jointes : à relire puis envoyer dans Outlook.`
+      ? `Brouillon créé dans ${boiteDuMail(m)}, avec destinataires, objet et pièces jointes : à relire puis envoyer dans Outlook.` +
+        (r.webLink ? "" : ` Il est dans le dossier « Brouillons » de ${boiteDuMail(m)}.`)
       : `Échec : ${r.message ?? ""}`;
     setMsgBrouillon(msg);
     setLienBrouillon(r.ok && r.webLink ? { msg, url: r.webLink } : null);
@@ -702,7 +716,7 @@ export function MesEmailsVue({
         toast.err(`La réponse n'est pas partie : ${r.message ?? "erreur inconnue"}`);
         return;
       }
-      setRepondus((p) => add(p, m.id));
+      noterReponse(m.id, "repondu");
       // La réponse est partie : l'éditeur se referme, comme dans Outlook. Le petit texte gris
       // du haut ne suffisait pas (REA-349, 16/10/2026) : un toast dit à qui et depuis où.
       fermerReponse(m);
@@ -1007,7 +1021,7 @@ export function MesEmailsVue({
                   actif={m.id === selection?.id}
                   lu={lus.has(m.id)}
                   statut={statutDe(m.id)}
-                  reponse={repondus.has(m.id) ? "repondu" : (m.reponseOutlook ?? null)}
+                  reponse={reponseDe(m)}
                   conclus={vue === "conclus"}
                   onClick={() => ouvrir(m.id)}
                 />
@@ -1160,6 +1174,7 @@ export function MesEmailsVue({
                 passerAuSuivant(selection);
               }}
               onConclure={() => marquerTraite(selection)}
+              onTransfere={() => noterReponse(selection.id, "transfere")}
               {...(supprimable(selection)
                 ? { onSupprimer: () => void supprimerMail(selection), suppressionEnCours }
                 : {})}
@@ -1693,6 +1708,7 @@ function AnalysePane({
   classementOutlook,
   onParti,
   onConclure,
+  onTransfere,
   onSupprimer,
   suppressionEnCours = false,
   pilote = false,
@@ -1779,6 +1795,8 @@ function AnalysePane({
   onParti?: () => void;
   /** Conclure l'événement (vocabulaire Crypto) : le mail sort de la liste, sans bouger dans Outlook. */
   onConclure: () => void;
+  /** Le transfert est parti (pas un brouillon) : badge « Transféré » (REA-422). */
+  onTransfere: () => void;
   /** Mettre le mail à la corbeille : boîte perso seulement (absent sinon). */
   onSupprimer?: () => void;
   suppressionEnCours?: boolean;
@@ -1812,6 +1830,7 @@ function AnalysePane({
                   boitePerso={boites.find((b) => b.id === boiteDuMail)?.personnelle ?? false}
                   objet={m.objet}
                   piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
+                  onTransfere={onTransfere}
                 />
               ) : null}
               {onSupprimer ? (

@@ -445,6 +445,22 @@ export async function transmettreFactureAction(
 
 // --- ENVOI REEL de la reponse (irreversible) ---------------------------------
 
+/**
+ * Après un envoi réussi (réponse ou transfert), le statut « répondu » est écrit en base
+ * (REA-422, 27/10/2026) : le badge et « Réponse envoyée » tiennent au rechargement, et sur une
+ * boîte partagée le binôme le voit aussi (statut commun). Il n'existe pas de statut « transféré » :
+ * c'est le marqueur d'Outlook (reponseOutlook) qui distingue le transfert à l'affichage.
+ * Jamais bloquant : le mail est parti, un échec d'écriture n'en fait pas un échec d'envoi.
+ */
+async function noterRepondu(g: Gestionnaire, emailId: string, coproCode: string, boite: string): Promise<void> {
+  try {
+    const c = (await cibleStatut(g, emailId, coproCode, boite)) ?? cibleDe(g, emailId, coproCode);
+    await enregistrerStatut(c, "repondu", []);
+  } catch (e) {
+    console.warn("[mes-emails] statut « répondu » non enregistré :", e instanceof Error ? e.message : e);
+  }
+}
+
 export async function envoyerReponseAction(
   emailId: string,
   coproCode: string,
@@ -526,6 +542,7 @@ export async function envoyerReponseAction(
       pjIds,
       ...(f.data.length ? { piecesJointes: f.data } : {}),
     });
+    await noterRepondu(g, emailId, coproCode, cibleMessage);
     revalidatePath("/mes-emails");
     return { ok: true, filConserve, ...(historiqueCite !== undefined ? { historiqueCite } : {}) };
   } catch (e) {
@@ -784,6 +801,8 @@ export async function transfererMailAction(input: unknown): Promise<Res<{ envoye
       ...(signatureHtml ? { signatureHtml } : {}),
       envoyer,
     });
+    // Parti (pas un simple brouillon) : « répondu » en base, comme une réponse (REA-422).
+    if (envoyer) await noterRepondu(g, d.emailId, "", cible);
     return { ok: true, donnees: { envoye: envoyer, boite: cible } };
   } catch (e) {
     return echecDepuis(e, "mes-emails");

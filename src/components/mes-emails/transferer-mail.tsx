@@ -24,6 +24,7 @@ export function TransfererMail({
   boitePerso,
   objet,
   piecesJointes,
+  onTransfere,
 }: {
   emailId: string;
   /** Boîte qui détient le mail : c'est d'elle que part le transfert. */
@@ -32,6 +33,8 @@ export function TransfererMail({
   objet: string;
   /** PJ réelles du mail (null = en cours de chargement). */
   piecesJointes: PieceJointeRef[] | null;
+  /** Le transfert est PARTI (pas un brouillon) : l'écran affiche « Transféré » (REA-422). */
+  onTransfere?: () => void;
 }) {
   const [ouvert, setOuvert] = useState(false);
   return (
@@ -47,6 +50,7 @@ export function TransfererMail({
           boitePerso={boitePerso}
           objet={objet}
           piecesJointes={piecesJointes}
+          {...(onTransfere ? { onTransfere } : {})}
           onFermer={() => setOuvert(false)}
         />
       ) : null}
@@ -60,6 +64,7 @@ function FenetreTransfert({
   boitePerso,
   objet,
   piecesJointes,
+  onTransfere,
   onFermer,
 }: {
   emailId: string;
@@ -67,6 +72,7 @@ function FenetreTransfert({
   boitePerso: boolean;
   objet: string;
   piecesJointes: PieceJointeRef[] | null;
+  onTransfere?: () => void;
   onFermer: () => void;
 }) {
   const toast = useToast();
@@ -119,6 +125,7 @@ function FenetreTransfert({
         toast.err(r.erreur);
         return;
       }
+      if (r.donnees?.envoye) onTransfere?.();
       const pour = resumeDestinataires(a.map((p) => p.nom || p.emails[0] || ""));
       toast.ok(
         r.donnees?.envoye
