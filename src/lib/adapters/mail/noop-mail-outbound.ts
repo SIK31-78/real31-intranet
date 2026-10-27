@@ -40,6 +40,27 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     return {};
   }
 
+  async preparerBrouillonReponse(p: { internetMessageId: string; a: string[] }): Promise<{ id: string }> {
+    console.log(`[mail-outbound:noop] brouillon de reponse simule pour ${p.internetMessageId} (${p.a.length} dest.)`);
+    return { id: "noop-brouillon" };
+  }
+
+  async ajouterPieceJointe(p: { octets: Uint8Array }): Promise<void> {
+    console.log(`[mail-outbound:noop] piece jointe simulee (${p.octets.byteLength} octets)`);
+  }
+
+  async ouvrirSessionUpload(): Promise<{ uploadUrl: string }> {
+    return { uploadUrl: "noop://session" };
+  }
+
+  async envoyerTranche(p: { debut: number; octets: Uint8Array; taille: number }): Promise<{ fini: boolean }> {
+    return { fini: p.debut + p.octets.byteLength >= p.taille };
+  }
+
+  async supprimerBrouillon(p: { id: string }): Promise<void> {
+    console.log(`[mail-outbound:noop] suppression du brouillon ${p.id} simulee`);
+  }
+
   async creerBrouillonNeuf(p: {
     boite: string;
     sujet: string;

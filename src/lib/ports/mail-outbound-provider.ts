@@ -47,6 +47,28 @@ export interface MailOutboundProvider {
   creerBrouillonReponse(p: ReponseMail): Promise<{ webLink?: string }>;
 
   /**
+   * L'envoi en trois temps de l'ecran E-mails (REA-421, 27/10/2026) : le brouillon de reponse
+   * complet (fil, citation, corps, destinataires, PJ d'origine re-jointes), dont on rend l'id
+   * Graph ; les fichiers de l'ordinateur y sont joints ensuite, un par un (ajouterPieceJointe
+   * ou session d'upload) ; puis envoyerBrouillon, ou le brouillon reste dans Outlook. Un echec
+   * avant le retour supprime le brouillon.
+   */
+  preparerBrouillonReponse(p: ReponseMail): Promise<{ id: string; webLink?: string }>;
+
+  /** Joint un fichier au brouillon : un POST sous 3 Mo, une session d'upload au-dela. */
+  ajouterPieceJointe(p: { boite: string; draftId: string; nom: string; contentType: string; octets: Uint8Array }): Promise<void>;
+
+  /** Ouvre une session d'upload (fichier de plus de 3 Mo) sur le brouillon. L'URL rendue porte
+   *  sa propre autorisation : elle ne quitte jamais le serveur en clair. */
+  ouvrirSessionUpload(p: { boite: string; draftId: string; nom: string; contentType: string; taille: number }): Promise<{ uploadUrl: string }>;
+
+  /** Depose une tranche [debut, debut + octets) d'une session ; `fini` quand la piece est complete. */
+  envoyerTranche(p: { uploadUrl: string; debut: number; octets: Uint8Array; taille: number }): Promise<{ fini: boolean }>;
+
+  /** Supprime un brouillon cree par l'app (envoi abandonne en cours de route). */
+  supprimerBrouillon(p: { boite: string; id: string }): Promise<void>;
+
+  /**
    * Cree un brouillon mail NEUF dans la boite (pas une reponse : aucun message
    * d'origine, aucun fil). Sert aux courriers sortants a froid (module sinistre :
    * declaration assureur, recours...). `corps` = texte (l'adapter le met en HTML
@@ -70,6 +92,8 @@ export interface MailOutboundProvider {
     /** Corps mis en forme, déjà nettoyé et habillé (REA-345) ; `corps` reste le texte équivalent. */
     corpsHtml?: string;
     piecesJointes?: PieceJointeMail[];
+    /** Message d'origine cite sous la signature (reponse depuis une autre boite, REA-302). */
+    citationHtml?: string;
   }): Promise<{ webLink?: string; internetMessageId?: string; id?: string }>;
 
   /**
@@ -127,7 +151,8 @@ export interface ReponseMail {
   signatureHtml?: string;
   /** Ids des pieces jointes du mail D'ORIGINE a re-joindre a la reponse. */
   pjIds?: string[];
-  /** Fichiers ajoutes depuis l'ordinateur (3 Mo max chacun : envoi simple de Graph). */
+  /** Fichiers ajoutes depuis l'ordinateur, passes dans la requete (petits : ils voyagent en
+   *  base64). L'ecran E-mails les depose apres coup sur le brouillon (REA-421). */
   piecesJointes?: PieceJointeMail[];
 }
 

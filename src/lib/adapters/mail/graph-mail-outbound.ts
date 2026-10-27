@@ -5,6 +5,7 @@
 // signature injectee (Signitic s'en charge cote Outlook).
 
 import type { MailOutboundProvider, PieceJointeMail, ReponseMail, TransfertMail } from "@/lib/ports/mail-outbound-provider";
+import { TAILLE_ENVOI_SIMPLE, TRANCHE_UPLOAD, plageTranche } from "@/lib/domain/piece-jointe-flux";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 function echapperHtml(s: string): string {
@@ -19,6 +20,100 @@ function echapperHtml(s: string): string {
 
 const dest = (adresses: string[]) =>
   adresses.filter((a) => a.includes("@")).map((a) => ({ emailAddress: { address: a.trim() } }));
+
+// --- Pieces jointes d'un brouillon (REA-421, 27/10/2026) ---------------------------------
+// Graph prend une piece de moins de 3 Mo en un POST (fileAttachment, base64). Au-dela, il
+// exige une session d'upload : createUploadSession, puis des PUT par tranches (multiples de
+// 320 Kio) avec Content-Range, jusqu'a la reponse 201. Avant, une piece de plus de 3 Mo
+// faisait echouer toute la reponse.
+
+/** Ouvre la session d'upload d'une piece sur le brouillon ; rend l'URL ou deposer les tranches. */
+async function ouvrirSession(
+  tk: string,
+  u: string,
+  draftId: string,
+  f: { nom: string; contentType: string; taille: number },
+): Promise<string> {
+  const r = await graphFetch(`${u}/messages/${encodeURIComponent(draftId)}/attachments/createUploadSession`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      AttachmentItem: { attachmentType: "file", name: f.nom, size: f.taille, contentType: f.contentType || "application/octet-stream" },
+    }),
+  });
+  if (!r.ok) throw new Error(`Graph session d'upload ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  const j = (await r.json()) as { uploadUrl?: string };
+  if (!j.uploadUrl) throw new Error("Graph session d'upload : uploadUrl absente.");
+  return j.uploadUrl;
+}
+
+/**
+ * Depose une tranche. L'URL de session porte sa propre autorisation : Graph refuse un
+ * en-tete Authorization sur ce PUT. 200 = tranche recue, la suite est attendue ; 201 = la
+ * piece est complete et jointe au brouillon.
+ */
+async function deposerTranche(uploadUrl: string, debut: number, octets: Uint8Array, taille: number): Promise<{ fini: boolean }> {
+  const r = await graphFetch(
+    uploadUrl,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream", "Content-Range": plageTranche(debut, octets.byteLength, taille) },
+      body: octets as unknown as BodyInit,
+    },
+    60_000,
+  );
+  if (r.status === 201) return { fini: true };
+  if (r.ok) return { fini: false };
+  throw new Error(`Graph tranche ${r.status} : ${(await r.text()).slice(0, 200)}`);
+}
+
+/** Joint des octets au brouillon : POST simple sous 3 Mo, session d'upload au-dela. */
+async function joindre(tk: string, u: string, draftId: string, f: { nom: string; contentType: string; octets: Uint8Array }): Promise<void> {
+  const taille = f.octets.byteLength;
+  if (taille < TAILLE_ENVOI_SIMPLE) {
+    const r = await graphFetch(
+      `${u}/messages/${encodeURIComponent(draftId)}/attachments`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: f.nom,
+          contentType: f.contentType || "application/octet-stream",
+          contentBytes: Buffer.from(f.octets.buffer, f.octets.byteOffset, taille).toString("base64"),
+        }),
+      },
+      60_000,
+    );
+    if (!r.ok) throw new Error(`Graph ajout PJ ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    return;
+  }
+  const uploadUrl = await ouvrirSession(tk, u, draftId, { nom: f.nom, contentType: f.contentType, taille });
+  for (let debut = 0; debut < taille; debut += TRANCHE_UPLOAD) {
+    const { fini } = await deposerTranche(uploadUrl, debut, f.octets.subarray(debut, debut + TRANCHE_UPLOAD), taille);
+    if (fini !== (debut + TRANCHE_UPLOAD >= taille)) throw new Error(`Graph session d'upload : reponse inattendue a l'octet ${debut}.`);
+  }
+}
+
+/**
+ * Le contenu d'une piece du mail d'origine, lu en octets bruts ($value) plutot qu'en base64
+ * dans du JSON (un tiers de moins, pas de grosse chaine). Il est tenu en memoire le temps de
+ * le joindre : la session d'upload veut la taille EXACTE, que Graph ne donne pas (la `size`
+ * de la piece depasse le contenu de quelques centaines a 25 000 octets, et $value n'a pas de
+ * Content-Length : mesure du 27/10/2026 sur syndic4). Une piece qui n'est pas un fichier (mail
+ * joint, lien) rend null : elle n'est pas re-jointe, comme avant.
+ */
+async function lirePieceOrigine(tk: string, u: string, messageId: string, aid: string): Promise<{ nom: string; contentType: string; octets: Uint8Array } | null> {
+  const base = `${u}/messages/${messageId}/attachments/${encodeURIComponent(aid)}`;
+  const h = { Authorization: `Bearer ${tk}` };
+  const rm = await graphFetch(`${base}?$select=name,contentType,size`, { headers: h });
+  if (!rm.ok) throw new Error(`Graph lire PJ ${rm.status} : ${(await rm.text()).slice(0, 200)}`);
+  const meta = (await rm.json()) as { "@odata.type"?: string; name?: string; contentType?: string };
+  if (meta["@odata.type"] && meta["@odata.type"] !== "#microsoft.graph.fileAttachment") return null;
+  const rv = await graphFetch(`${base}/$value`, { headers: h }, 60_000);
+  if (!rv.ok) throw new Error(`Graph lire PJ ${rv.status} : ${(await rv.text()).slice(0, 200)}`);
+  return { nom: meta.name ?? "piece-jointe", contentType: meta.contentType ?? "application/octet-stream", octets: new Uint8Array(await rv.arrayBuffer()) };
+}
 
 export class GraphMailOutboundProvider implements MailOutboundProvider {
   async creerBrouillon(p: { boite: string; internetMessageId: string; corps: string }): Promise<void> {
@@ -122,38 +217,16 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     // brouillon orphelin dans la boite, et le nouvel essai en creait un deuxieme (audit du
     // 27/10/2026) : on le supprime avant de remonter l'erreur.
     try {
-      // 1bis. Re-joint les PJ choisies du mail d'origine (recuperees puis ajoutees au draft).
+      // 1bis. Re-joint les PJ choisies du mail d'origine, une par une (au-dela de 3 Mo, par
+      //      session d'upload : REA-421).
       for (const aid of p.pjIds ?? []) {
-        // Timeout double sur la lecture/re-upload de PJ (plusieurs Mo en base64 possibles).
-        const ra = await graphFetch(`${u}/messages/${id}/attachments/${encodeURIComponent(aid)}`, { headers: { Authorization: `Bearer ${tk}` } }, 60_000);
-        if (!ra.ok) throw new Error(`Graph lire PJ ${ra.status} : ${(await ra.text()).slice(0, 200)}`);
-        const att = (await ra.json()) as { name: string; contentType: string; contentBytes?: string };
-        if (!att.contentBytes) continue;
-        const rp = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
-          method: "POST",
-          headers: h,
-          body: JSON.stringify({
-            "@odata.type": "#microsoft.graph.fileAttachment",
-            name: att.name,
-            contentType: att.contentType,
-            contentBytes: att.contentBytes,
-          }),
-        }, 60_000);
-        if (!rp.ok) throw new Error(`Graph ajout PJ ${rp.status} : ${(await rp.text()).slice(0, 200)}`);
+        const piece = await lirePieceOrigine(tk, u, id, aid);
+        if (piece) await joindre(tk, u, draft.id, piece);
       }
-      // 1ter. Fichiers ajoutes depuis l'ordinateur.
+      // 1ter. Fichiers ajoutes depuis l'ordinateur et passes dans la requete. L'ecran E-mails
+      //       n'en passe plus : ses fichiers arrivent ensuite par la route de depot (REA-421).
       for (const f of p.piecesJointes ?? []) {
-        const rf = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
-          method: "POST",
-          headers: h,
-          body: JSON.stringify({
-            "@odata.type": "#microsoft.graph.fileAttachment",
-            name: f.nom,
-            contentType: f.contentType || "application/octet-stream",
-            contentBytes: f.base64,
-          }),
-        }, 60_000);
-        if (!rf.ok) throw new Error(`Graph ajout fichier ${rf.status} : ${(await rf.text()).slice(0, 200)}`);
+        await joindre(tk, u, draft.id, { nom: f.nom, contentType: f.contentType, octets: new Uint8Array(Buffer.from(f.base64, "base64")) });
       }
 
       // 2. Pose le corps (mon texte + signature AU-DESSUS de la citation), le sujet et les
@@ -182,6 +255,37 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     }
 
     return { u, h, draftId: draft.id, ...(draft.webLink ? { webLink: draft.webLink } : {}) };
+  }
+
+  async preparerBrouillonReponse(p: ReponseMail): Promise<{ id: string; webLink?: string }> {
+    const { draftId, webLink } = await this.preparerReponse(p);
+    return { id: draftId, ...(webLink ? { webLink } : {}) };
+  }
+
+  async ajouterPieceJointe(p: { boite: string; draftId: string; nom: string; contentType: string; octets: Uint8Array }): Promise<void> {
+    if (!p.boite || !p.draftId) throw new Error("Piece jointe : boite ou brouillon manquant.");
+    const tk = await jetonGraph();
+    await joindre(tk, `${GRAPH}/users/${encodeURIComponent(p.boite)}`, p.draftId, p);
+  }
+
+  async ouvrirSessionUpload(p: { boite: string; draftId: string; nom: string; contentType: string; taille: number }): Promise<{ uploadUrl: string }> {
+    if (!p.boite || !p.draftId) throw new Error("Session d'upload : boite ou brouillon manquant.");
+    const tk = await jetonGraph();
+    return { uploadUrl: await ouvrirSession(tk, `${GRAPH}/users/${encodeURIComponent(p.boite)}`, p.draftId, p) };
+  }
+
+  async envoyerTranche(p: { uploadUrl: string; debut: number; octets: Uint8Array; taille: number }): Promise<{ fini: boolean }> {
+    return deposerTranche(p.uploadUrl, p.debut, p.octets, p.taille);
+  }
+
+  async supprimerBrouillon(p: { boite: string; id: string }): Promise<void> {
+    const tk = await jetonGraph();
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.id)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${tk}` },
+    });
+    // Deja supprime (404) : le but est atteint.
+    if (!r.ok && r.status !== 404) throw new Error(`Graph suppression brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
   }
 
   async citationReponse(p: { boite: string; internetMessageId: string }): Promise<{ citationHtml: string; sujet: string }> {
@@ -223,14 +327,16 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     signatureHtml?: string;
     corpsHtml?: string;
     piecesJointes?: PieceJointeMail[];
-  }): Promise<{ webLink?: string; internetMessageId?: string }> {
+    citationHtml?: string;
+  }): Promise<{ webLink?: string; internetMessageId?: string; id?: string }> {
     if (!p.boite) throw new Error("Creation brouillon neuf : boite manquante.");
     const tk = await jetonGraph();
     // Meme rendu HTML que envoyer() (police Aptos 11), signature dessous quand on la connait.
     // Corps mis en forme (REA-345) : deja nettoye et habille par l'appelant.
     const content =
       (p.corpsHtml ?? `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`) +
-      (p.signatureHtml ? `<br/>${p.signatureHtml}` : "");
+      (p.signatureHtml ? `<br/>${p.signatureHtml}` : "") +
+      (p.citationHtml ?? "");
     // POST /messages cree un message en statut Draft (on n'envoie PAS).
     const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages`, {
       method: "POST",
