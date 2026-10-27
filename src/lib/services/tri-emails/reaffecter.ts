@@ -15,9 +15,7 @@ const FENETRE_JOURS = 45;
 async function rangementEnCours(boite: string, internetMessageId: string, deps: DepsRangement): Promise<EntreeJournalTri> {
   if (deps.boite !== boite) throw new Error("Ce mail n'est pas dans la boîte triée.");
   const depuis = new Date(Date.now() - FENETRE_JOURS * 86_400_000).toISOString();
-  const e = (await deps.repo.journalDepuis(boite, depuis))
-    .filter((x) => x.internetMessageId === internetMessageId && !x.annuleLe)
-    .sort((a, b) => b.faitLe.localeCompare(a.faitLe))[0];
+  const e = await deps.repo.rangementActif(boite, internetMessageId, depuis);
   if (!e) throw new Error("Ce mail n'a pas été rangé par le tri : rien à rendre.");
   return e;
 }

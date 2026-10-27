@@ -38,8 +38,17 @@ export interface TriRepository {
   majCopro(id: string, reference: string | null): Promise<void>;
   journaliser(e: NouvelleEntreeJournal): Promise<string>;
   entree(id: string): Promise<EntreeJournalTri | null>;
-  /** Les rangements non annules depuis cette date, les plus recents d'abord. */
+  /** Les rangements non annules depuis cette date, les plus recents d'abord (plafonnes : revue a l'ecran, reconciliation). */
   journalDepuis(boite: string, depuisISO: string): Promise<EntreeJournalTri[]>;
+  /**
+   * Les rangements non annules depuis cette date vers ces dossiers (`dossierCle`), les plus
+   * recents d'abord : ce que « Mes e-mails » distribue a un binome. Filtre en base, par lots
+   * de cles : avant (27/10/2026), on relisait tout journalDepuis et son plafond de 500 lignes
+   * faisait disparaitre les mails les plus anciens des binomes des que la boite etait active.
+   */
+  journalPourCles(boite: string, depuisISO: string, cles: string[]): Promise<EntreeJournalTri[]>;
+  /** La ligne non annulee la plus recente de ce mail depuis cette date, ou null. */
+  rangementActif(boite: string, internetMessageId: string, depuisISO: string): Promise<EntreeJournalTri | null>;
   /** Parmi ces internetMessageId, ceux qui ont un rangement non annule. */
   dejaRanges(boite: string, internetMessageIds: string[], opts: OptionsDejaRange): Promise<Set<string>>;
   /**

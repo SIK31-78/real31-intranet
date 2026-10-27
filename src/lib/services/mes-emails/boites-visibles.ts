@@ -47,11 +47,16 @@ export async function conversationsDistribuees(g: Pick<Gestionnaire, "email">, b
   return out;
 }
 
-/** Les rangements recents de cette boite vers les dossiers de mes binomes, les plus recents d'abord. */
+/**
+ * Les rangements recents de cette boite vers les dossiers de mes binomes, les plus recents
+ * d'abord. Filtres en base par cle de dossier (27/10/2026) : relire tout le journal puis
+ * filtrer ici dependait de son plafond de lignes, et les mails les plus anciens d'un binome
+ * disparaissaient de « Mes e-mails » des que la boite etait active.
+ */
 async function rangementsDeMesBinomes(g: Pick<Gestionnaire, "email">, boite: string): Promise<EntreeJournalTri[]> {
   if (!g.email) return [];
   const repo = getTriRepository();
   const cles = clesDossiersDe(g.email, await repo.binomes());
   const depuis = new Date(Date.now() - FENETRE_JOURS * 86_400_000).toISOString();
-  return (await repo.journalDepuis(boite, depuis)).filter((e) => e.dossierCle && cles.has(e.dossierCle));
+  return repo.journalPourCles(boite, depuis, [...cles]);
 }

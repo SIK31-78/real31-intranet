@@ -272,7 +272,11 @@ export async function preciserCopro(
   await deps.repo.majCopro(journalId, reference);
 }
 
-/** Le journal du tri garde 45 jours (meme fenetre que la distribution aux binomes). */
+/**
+ * Fenetre de LECTURE du journal pour une correction : la meme que la distribution aux
+ * binomes (boites-visibles). Rien n'est purge : le journal garde tout, on ne corrige
+ * simplement pas un rangement plus ancien.
+ */
 const FENETRE_CORRECTION_JOURS = 45;
 
 /**
@@ -290,7 +294,7 @@ export async function corrigerCopro(
   deps: DepsRangement = depsParDefaut(),
 ): Promise<{ corrige: boolean; autreDossier?: string; reference?: string }> {
   const depuis = new Date(Date.now() - FENETRE_CORRECTION_JOURS * 86_400_000).toISOString();
-  const e = (await deps.repo.journalDepuis(boite, depuis)).find((x) => x.internetMessageId === internetMessageId);
+  const e = await deps.repo.rangementActif(boite, internetMessageId, depuis);
   if (!e) return { corrige: false };
 
   let reference: string | null = null;

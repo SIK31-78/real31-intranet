@@ -59,6 +59,14 @@ export class MockTriRepository implements TriRepository {
   async journalDepuis(boite: string, depuisISO: string) {
     return this.journal.filter((e) => e.boite === boite && e.annuleLe === null && e.faitLe >= depuisISO);
   }
+  async journalPourCles(boite: string, depuisISO: string, cles: string[]) {
+    const voulues = new Set(cles);
+    return this.journal.filter((e) => e.boite === boite && e.annuleLe === null && e.faitLe >= depuisISO && e.dossierCle !== null && voulues.has(e.dossierCle));
+  }
+  async rangementActif(boite: string, internetMessageId: string, depuisISO: string) {
+    // Le journal garde les plus recents d'abord : le premier trouve est le rangement en cours.
+    return this.journal.find((e) => e.boite === boite && e.internetMessageId === internetMessageId && e.annuleLe === null && e.faitLe >= depuisISO) ?? null;
+  }
   async dejaJournalises(boite: string, ids: string[], opts: OptionsDejaRange) {
     return new Set(
       this.journal

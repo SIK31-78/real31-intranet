@@ -48,6 +48,21 @@ function colonneAbsente(error: { code?: string } | null): boolean {
 const LOT_CONVERSATIONS = 25;
 /** Expediteurs par requete (un filtre ilike chacun) : borne l'URL comme les conversations. */
 const LOT_EXPEDITEURS = 40;
+/** internetMessageId (~60 caracteres) et cles de dossier par requete `in` : borne l'URL. */
+const LOT_IDENTIFIANTS = 50;
+/**
+ * Lignes lues au plus par requete de journal : 7 jours a 300 mails par jour tiennent. Les
+ * lectures ciblees (journalPourCles, rangementActif) filtrent en base et n'en dependent pas.
+ */
+const LIMITE_JOURNAL = 2000;
+
+function lotsDe<T>(valeurs: T[], taille: number): T[][] {
+  const lots: T[][] = [];
+  for (let i = 0; i < valeurs.length; i += taille) lots.push(valeurs.slice(i, i + taille));
+  return lots;
+}
+
+type ReponseJournal = PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>;
 
 /** Valeur d'un filtre `or` PostgREST : entre guillemets (virgules, parentheses), `\` et `"` echappes. */
 function valeurOr(v: string): string {
@@ -209,8 +224,22 @@ export class SupabaseTriRepository implements TriRepository {
     return data ? versDomaine(data as RowJournal) : null;
   }
 
+  /**
+   * Lit des lignes du journal AVEC conversation_id (les « Envoyés » d'une boite partagee,
+   * REA-408) ; colonne pas encore creee : on relit sans elle, le journal reste lisible.
+   */
+  private async lignes(lire: (cols: string) => ReponseJournal): Promise<EntreeJournalTri[]> {
+    let { data, error } = await lire(`${COLS}, conversation_id`);
+    if (error && colonneAbsente(error)) ({ data, error } = await lire(COLS));
+    if (error) {
+      if (tableAbsente(error)) return [];
+      throw erreur("journal", error);
+    }
+    return ((data ?? []) as RowJournal[]).map(versDomaine);
+  }
+
   async journalDepuis(boite: string, depuisISO: string) {
-    const lire = (cols: string) =>
+    return this.lignes((cols) =>
       createSupabasePublicClient()
         .from("intranet_tri_journal")
         .select(cols)
@@ -218,55 +247,87 @@ export class SupabaseTriRepository implements TriRepository {
         .is("annule_le", null)
         .gte("fait_le", depuisISO)
         .order("fait_le", { ascending: false })
-        .limit(500);
-    // La conversation sert aux « Envoyés » d'une boîte partagée (REA-408). Colonne pas
-    // encore créée : on relit sans elle, le journal reste lisible.
-    let { data, error } = await lire(`${COLS}, conversation_id`);
-    if (error && colonneAbsente(error)) ({ data, error } = await lire(COLS));
-    if (error) {
-      if (tableAbsente(error)) return [];
-      throw erreur("journal", error);
+        .limit(LIMITE_JOURNAL),
+    );
+  }
+
+  async journalPourCles(boite: string, depuisISO: string, cles: string[]) {
+    const uniques = [...new Set(cles.filter(Boolean))];
+    if (uniques.length === 0) return [];
+    const parLot = await Promise.all(
+      lotsDe(uniques, LOT_IDENTIFIANTS).map((lot) =>
+        this.lignes((cols) =>
+          createSupabasePublicClient()
+            .from("intranet_tri_journal")
+            .select(cols)
+            .eq("boite", boite)
+            .is("annule_le", null)
+            .gte("fait_le", depuisISO)
+            .in("dossier_cle", lot)
+            .order("fait_le", { ascending: false })
+            .limit(LIMITE_JOURNAL),
+        ),
+      ),
+    );
+    return parLot.flat().sort((a, b) => b.faitLe.localeCompare(a.faitLe));
+  }
+
+  async rangementActif(boite: string, internetMessageId: string, depuisISO: string) {
+    const [e] = await this.lignes((cols) =>
+      createSupabasePublicClient()
+        .from("intranet_tri_journal")
+        .select(cols)
+        .eq("boite", boite)
+        .eq("internet_message_id", internetMessageId)
+        .is("annule_le", null)
+        .gte("fait_le", depuisISO)
+        .order("fait_le", { ascending: false })
+        .limit(1),
+    );
+    return e ?? null;
+  }
+
+  /** Les internet_message_id de ces lignes, par lots de LOT_IDENTIFIANTS, fusionnes. */
+  private async identifiantsJournalises(
+    boite: string,
+    ids: string[],
+    opts: OptionsDejaRange & { nonAnnulesSeulement: boolean; tableAbsenteVide: boolean },
+  ): Promise<Set<string>> {
+    const uniques = [...new Set(ids.filter(Boolean))];
+    const out = new Set<string>();
+    if (uniques.length === 0) return out;
+    const reponses = await Promise.all(
+      lotsDe(uniques, LOT_IDENTIFIANTS).map((lot) => {
+        let requete = createSupabasePublicClient().from("intranet_tri_journal").select("internet_message_id").eq("boite", boite).in("internet_message_id", lot);
+        if (opts.nonAnnulesSeulement) requete = requete.is("annule_le", null);
+        // En reel, une ligne simulee (dev local, meme base) ne compte pas (27/10/2026).
+        if (opts.reellesSeulement) requete = requete.eq("simulation", false);
+        return requete;
+      }),
+    );
+    for (const { data, error } of reponses) {
+      if (error) {
+        if (opts.tableAbsenteVide && tableAbsente(error)) return new Set<string>();
+        throw erreur("journal", error);
+      }
+      for (const r of (data ?? []) as { internet_message_id: string }[]) out.add(r.internet_message_id);
     }
-    return ((data ?? []) as unknown as RowJournal[]).map(versDomaine);
+    return out;
   }
 
   async dejaRanges(boite: string, ids: string[], opts: OptionsDejaRange) {
-    if (ids.length === 0) return new Set<string>();
-    let requete = createSupabasePublicClient()
-      .from("intranet_tri_journal")
-      .select("internet_message_id")
-      .eq("boite", boite)
-      .is("annule_le", null)
-      .in("internet_message_id", ids);
-    // En reel, une ligne simulee (dev local, meme base) ne cache pas le mail (27/10/2026).
-    if (opts.reellesSeulement) requete = requete.eq("simulation", false);
-    const { data, error } = await requete;
-    if (error) {
-      if (tableAbsente(error)) return new Set<string>();
-      throw erreur("journal", error);
-    }
-    return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
+    return this.identifiantsJournalises(boite, ids, { ...opts, nonAnnulesSeulement: true, tableAbsenteVide: true });
   }
 
   async dejaJournalises(boite: string, ids: string[], opts: OptionsDejaRange) {
-    if (ids.length === 0) return new Set<string>();
     // Pas de filtre sur annule_le : un rangement annule compte (le mail a ete remis dans la
     // file par quelqu'un). Table absente : erreur, le rangement automatique s'abstient.
-    let requete = createSupabasePublicClient()
-      .from("intranet_tri_journal")
-      .select("internet_message_id")
-      .eq("boite", boite)
-      .in("internet_message_id", ids);
-    if (opts.reellesSeulement) requete = requete.eq("simulation", false);
-    const { data, error } = await requete;
-    if (error) throw erreur("journal", error);
-    return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
+    return this.identifiantsJournalises(boite, ids, { ...opts, nonAnnulesSeulement: false, tableAbsenteVide: false });
   }
 
   async coprosDesConversations(boite: string, ids: string[]) {
     const uniques = [...new Set(ids.filter(Boolean))];
-    const lots: string[][] = [];
-    for (let i = 0; i < uniques.length; i += LOT_CONVERSATIONS) lots.push(uniques.slice(i, i + LOT_CONVERSATIONS));
+    const lots = lotsDe(uniques, LOT_CONVERSATIONS);
     const reponses = await Promise.all(
       lots.map((lot) =>
         createSupabasePublicClient()
@@ -295,8 +356,7 @@ export class SupabaseTriRepository implements TriRepository {
 
   async historiqueExpediteurs(boite: string, expediteurs: string[], depuisISO: string): Promise<HistoriqueExpediteur[]> {
     const uniques = [...new Set(expediteurs.map((e) => e.trim().toLowerCase()).filter(Boolean))];
-    const lots: string[][] = [];
-    for (let i = 0; i < uniques.length; i += LOT_EXPEDITEURS) lots.push(uniques.slice(i, i + LOT_EXPEDITEURS));
+    const lots = lotsDe(uniques, LOT_EXPEDITEURS);
     // ilike sans joker = egalite sans la casse (Graph ecrit « Mathis.ELIE@ » ou « mathis.elie@ »
     // selon le mail). Un « _ » ou un « * » d'adresse elargit la recherche : le domaine refiltre
     // a l'egalite exacte.

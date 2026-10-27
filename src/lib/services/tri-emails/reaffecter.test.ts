@@ -27,7 +27,7 @@ const entree = (o: Partial<EntreeJournalTri> = {}): EntreeJournalTri => ({
 
 function deps(journal: EntreeJournalTri[]) {
   const repo = {
-    journalDepuis: vi.fn(async () => journal),
+    rangementActif: vi.fn(async (_b: string, imid: string) => journal.find((e) => e.internetMessageId === imid && !e.annuleLe) ?? null),
     entree: vi.fn(async (id: string) => journal.find((e) => e.id === id) ?? null),
     marquerAnnule: vi.fn(async () => {}),
     dejaRanges: vi.fn(async () => new Set<string>()),
