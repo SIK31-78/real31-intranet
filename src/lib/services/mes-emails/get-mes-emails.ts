@@ -74,6 +74,7 @@ function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
   if (!e) return m;
   return {
     ...m,
+    // Lu = lu dans l'intranet OU dans Outlook (m.lu, lu a la lecture des boites, REA-422).
     lu: e.lu || m.lu,
     statutTraitement: e.statut,
     ...(e.brouillon !== undefined ? { brouillonReponse: e.brouillon } : {}),

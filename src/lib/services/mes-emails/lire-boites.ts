@@ -3,6 +3,11 @@
 // Graph des boites visibles -> pipeline DETERMINISTE (nettoyage, rattachement copro,
 // regroupement par fil) -> cartes.
 //
+// Le « lu » vient d'Outlook (REA-422, 27/10/2026) : lu dans Outlook ou dans l'intranet, le
+// mail est lu partout (le service fusionne ensuite avec l'etat intranet). Lu par une
+// lecture legere (id + isRead) EN PARALLELE de l'ingestion, le temps que l'ingestion
+// demande elle-meme isRead ; une panne de cette lecture laisse les mails « non lus ».
+//
 // Aucun modele : le rattachement copro ne coute rien (recherche de texte, annuaire,
 // heritage par fil), il n'a jamais ete de l'IA. L'ancien cache de classification et le
 // brouillon IA ont ete retires le 27/10/2026 (REA-423) : chaque mail sort en type
@@ -17,7 +22,7 @@ import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import { cleanBody, significantAttachments } from "@/lib/domain/tri-mail/clean";
 import { groupAffaires } from "@/lib/domain/tri-mail/group";
 import { resoudreExpediteur } from "@/lib/domain/tri-mail/sender";
-import { getMailIngestionProvider, getReferentielTriProvider } from "@/lib/adapters/router";
+import { getMailboxProvider, getMailIngestionProvider, getReferentielTriProvider } from "@/lib/adapters/router";
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
 import { boiteTri, recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { jourParis } from "@/lib/services/date-du-jour";
@@ -63,6 +68,19 @@ function nomCourt(from: string): string {
   return (from.split("@")[0] ?? from).replace(/[._]/g, " ");
 }
 
+/** Marge de la fenetre du lu sur la boite perso : un mail arrive entre les deux lectures. */
+const MARGE_LU = 10;
+
+/** Le lu d'Outlook, best-effort : sans lui, l'ecran reste lisible (tout « non lu »). */
+function etatsLu(p: { boite: string; internetMessageIds: string[] } | { boite: string; recents: number }): Promise<Map<string, boolean>> {
+  return getMailboxProvider()
+    .lireEtatsLu(p)
+    .catch((err: unknown) => {
+      console.warn(`[mes-emails] lu Outlook illisible pour ${p.boite} :`, err instanceof Error ? err.message : err);
+      return new Map<string, boolean>();
+    });
+}
+
 /**
  * Ingere UNE boite. Boite perso : sa reception. Boite PARTAGEE : seulement les mails que le
  * tri a distribues aux binomes du gestionnaire (journal), relus par leur internetMessageId,
@@ -70,25 +88,38 @@ function nomCourt(from: string): string {
  * pas tomber l'ecran : on signale (Sentry) et on rend une liste vide, avec `erreur` pour
  * que l'ecran dise que la boite n'a pas pu etre lue (jusqu'au 27/10/2026 : liste vide muette).
  */
-async function ingererBoite(g: Gestionnaire, boite: BoiteMail, maxPerso: number): Promise<{ boite: BoiteMail; bruts: RawMail[]; erreur?: string }> {
+async function ingererBoite(
+  g: Gestionnaire,
+  boite: BoiteMail,
+  maxPerso: number,
+): Promise<{ boite: BoiteMail; bruts: RawMail[]; luOutlook: Map<string, boolean>; erreur?: string }> {
   try {
     const ingestion = getMailIngestionProvider();
-    if (boite.personnelle) return { boite, bruts: await ingestion.lireRecents({ email: boite.adresse, max: maxPerso }) };
+    if (boite.personnelle) {
+      const [bruts, luOutlook] = await Promise.all([
+        ingestion.lireRecents({ email: boite.adresse, max: maxPerso }),
+        etatsLu({ boite: boite.adresse, recents: maxPerso + MARGE_LU }),
+      ]);
+      return { boite, bruts, luOutlook };
+    }
     const distribues = await distributionDe(g, boite.adresse);
-    if (distribues.size === 0) return { boite, bruts: [] };
+    if (distribues.size === 0) return { boite, bruts: [], luOutlook: new Map() };
     const ids = [...distribues.keys()].slice(0, MAX_PARTAGEE);
-    const lus = ingestion.lireParIds
-      ? await ingestion.lireParIds(boite.adresse, ids)
-      : (await ingestion.lireRecents({ email: boite.adresse, max: 200 })).filter((m) => distribues.has(m.internetMessageId));
+    const [lus, luOutlook] = await Promise.all([
+      ingestion.lireParIds
+        ? ingestion.lireParIds(boite.adresse, ids)
+        : ingestion.lireRecents({ email: boite.adresse, max: 200 }).then((l) => l.filter((m) => distribues.has(m.internetMessageId))),
+      etatsLu({ boite: boite.adresse, internetMessageIds: ids }),
+    ]);
     // Rien d'avant la mise en service : les rangements des essais ne reviennent pas « a traiter ».
     const bruts = lus.filter((m) => recuDepuisDebutTri(m.receivedAt, boite.adresse));
     // La copro decidee au tri fait foi (choix humain) : on la pose avant toute deduction.
     for (const m of bruts) m.copro = distribues.get(m.internetMessageId) ?? "";
-    return { boite, bruts };
+    return { boite, bruts, luOutlook };
   } catch (err) {
     console.warn(`[mes-emails] boite ${boite.adresse} illisible :`, (err as Error).message);
     signalerException(err, { source: "mes-emails-lecture", detail: { boite: boite.adresse } });
-    return { boite, bruts: [], erreur: boite.adresse };
+    return { boite, bruts: [], luOutlook: new Map(), erreur: boite.adresse };
   }
 }
 
@@ -129,10 +160,13 @@ export async function lireBoitesLive(
   const plusDeMails = parBoite.some(({ boite, bruts: lot }) => boite.personnelle && lot.length >= maxPerso);
   const erreurs = parBoite.flatMap(({ erreur }) => (erreur ? [erreur] : []));
   const boiteDe = new Map<string, string>();
+  // Le lu d'Outlook de chaque mail brut (cle : id Graph, unique d'une boite a l'autre).
+  const luDe = new Map<string, boolean>();
   const bruts: RawMail[] = [];
-  for (const { boite, bruts: lot } of parBoite) {
+  for (const { boite, bruts: lot, luOutlook } of parBoite) {
     for (const b of lot) {
       boiteDe.set(b.id, boite.id);
+      luDe.set(b.id, luOutlook.get(b.internetMessageId) ?? false);
       bruts.push(b);
     }
   }
@@ -202,7 +236,7 @@ export async function lireBoitesLive(
       coproCode: m.copro,
       coproNom: coproNomDe(m.copro),
       ...(coproAdresseDe(m.copro) ? { coproAdresse: coproAdresseDe(m.copro)! } : {}),
-      lu: false,
+      lu: luDe.get(m.id) ?? false,
       corps: corps || "(corps vide)",
       attachments: significantAttachments(m).map((x) => ({ nom: x.name })),
       type: "autre",

@@ -19,6 +19,7 @@ import {
   enregistrerLu,
   enregistrerRattachement,
   enregistrerStatut,
+  marquerLuDansOutlook,
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
@@ -177,11 +178,21 @@ export async function editBrouillonAction(emailId: string, coproCode: string, br
   await enregistrerBrouillon(cibleDe(auth.g, emailId, coproCode), brouillon);
 }
 
-export async function marquerLuAction(emailId: string, coproCode: string): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success) return;
+/**
+ * Le mail ouvert est lu ici ET dans Outlook (REA-422, 27/10/2026). L'écriture Outlook passe
+ * par la garde des mails reçus (boîte partagée : distribué à mon binôme) et ne bloque
+ * jamais : un refus de Graph est journalisé, l'état intranet est posé quand même. Sur une
+ * boîte partagée, le lu d'Outlook vaut pour les collègues : c'est voulu.
+ */
+export async function marquerLuAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
+  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
-  await enregistrerLu(cibleDe(auth.g, emailId, coproCode));
+  const cible = auth.g.email ? await boiteDuMail(auth.g, boite, emailId) : null;
+  await Promise.all([
+    enregistrerLu(cibleDe(auth.g, emailId, coproCode)),
+    cible ? marquerLuDansOutlook(cible, emailId) : undefined,
+  ]);
 }
 
 /** Le contexte ESTALE d'une copro, à l'ouverture du volet Contexte (plus au chargement de

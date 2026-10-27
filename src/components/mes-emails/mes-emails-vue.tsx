@@ -183,6 +183,8 @@ export function MesEmailsVue({
   );
   const mailsTries = useMemo(() => trierMails(mailsBoite), [mailsBoite]);
   const [selId, setSelId] = useState<string>(mailsTries[0]?.id ?? "");
+  // `m.lu` = lu dans Outlook OU dans l'intranet (REA-422) : la pastille et le compteur bleu
+  // des onglets de boîte disent la même chose qu'Outlook.
   const [lus, setLus] = useState<Set<string>>(
     () => new Set(data.mails.filter((m) => m.lu).map((m) => m.id)),
   );
@@ -516,7 +518,8 @@ export function MesEmailsVue({
     // synchrone dans un effet (rendus en cascade).
     if (!lus.has(selectionId)) {
       queueMicrotask(() => setLus((prev) => new Set(prev).add(selectionId)));
-      void marquerLuAction(selectionId, m.coproCode);
+      // Lu aussi dans Outlook (REA-422) : la boîte qui détient le mail.
+      void marquerLuAction(selectionId, m.coproCode, m.boite ?? boiteActive);
     }
     if (m.attachments.length > 0) {
       queueMicrotask(() => setPjParMail((p) => new Map(p).set(selectionId, null)));
