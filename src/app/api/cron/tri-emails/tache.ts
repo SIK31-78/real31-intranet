@@ -26,6 +26,11 @@
 // l'automatique lit l'index. Son echec n'empeche pas les deux autres etapes (ils lisent
 // l'index tel qu'il est). Le budget de l'automatique se reduit si les etapes d'avant ont
 // traine : le tout reste dans les 60 s.
+//
+// REPRISE DES RANGEMENTS INTERROMPUS (REA-420, 27/10/2026) : apres la lecture et avant la
+// reconciliation, les lignes de journal restees « en_cours » plus de 2 min (fonction coupee ou
+// Supabase en panne entre le deplacement et la confirmation) sont tranchees d'apres la position
+// du mail (reprendre-en-cours.ts) : confirmees, annulees ou signalees. Bilan `reprises`.
 
 import { timingSafeEqual } from "node:crypto";
 import { boitesTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
@@ -39,6 +44,7 @@ import {
   type BilanSynchro,
 } from "@/lib/services/tri-emails/synchroniser-reception";
 import { rangerAutomatiquement, type BilanAutomatique } from "@/lib/services/tri-emails/ranger-auto";
+import { reprendreEnCours, type BilanReprise } from "@/lib/services/tri-emails/reprendre-en-cours";
 
 /** Comparaison en temps constant : longueurs egales d'abord (timingSafeEqual l'exige). */
 function secretsEgaux(donne: string, attendu: string): boolean {
@@ -110,6 +116,23 @@ export async function executerTachePlanifiee(req: Request, demandee: string | nu
     lecture = { erreur: messageDe(e) };
   }
 
+  // Avant la reconciliation et l'automatique : un mail rendu a la file ici peut etre range a
+  // ce passage, et une ligne confirmee est suivie par la reconciliation comme les autres.
+  let reprises: Etape<BilanReprise>;
+  try {
+    reprises = await reprendreEnCours(deps);
+    if (reprises.confirmees + reprises.annulees + reprises.introuvables + reprises.echecs > 0) {
+      console.log(
+        `[cron:tri-emails] ${boite} reprises confirmées=${reprises.confirmees} annulées=${reprises.annulees}` +
+          ` introuvables=${reprises.introuvables} échecs=${reprises.echecs}`,
+      );
+    }
+  } catch (e) {
+    console.error(`[cron:tri-emails] ${boite} reprise des rangements interrompus en échec : ${messageDe(e)}`);
+    signalerException(e, { source: "cron-tri-emails", detail: { etape: "reprise", boite } });
+    reprises = { erreur: messageDe(e) };
+  }
+
   let reconciliation: Etape<BilanReconciliation>;
   try {
     const bilan = await reconcilierRangements(deps, Date.now, delta);
@@ -139,5 +162,5 @@ export async function executerTachePlanifiee(req: Request, demandee: string | nu
   }
 
   const toutEchoue = "erreur" in reconciliation && "erreur" in automatique;
-  return Response.json({ boite, lecture, reconciliation, automatique }, { status: toutEchoue ? 500 : 200 });
+  return Response.json({ boite, lecture, reprises, reconciliation, automatique }, { status: toutEchoue ? 500 : 200 });
 }
