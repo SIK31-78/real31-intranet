@@ -33,11 +33,12 @@ import {
   getReferentielTriProvider,
   getTriRepository,
 } from "@/lib/adapters/router";
+import { compterMailsATrier } from "./compteur";
 import { rangementSimule } from "./ranger";
 import { listerCollaborateurs, listerGestionnairesCabinet, type Collaborateur } from "./binomes";
 
 /** Nombre de mails lus a chaque affichage : la file du jour, pas l'historique. */
-const MAX_FILE = 100;
+export const MAX_FILE = 100;
 /** Longueur du texte affiche ; la suggestion lit un peu plus loin. */
 const APERCU = 1500;
 const TEXTE_ANALYSE = 4000;
@@ -53,7 +54,12 @@ export interface CoproDeLaFile extends CoproTri {
 export interface FileATrier {
   /** Adresse lue, ou "echantillon". */
   boite: string;
+  /** Les MAX_FILE plus recents de la reception, moins ceux deja ranges. */
   mails: MailDeLaFile[];
+  /** true = la boite en contenait plus que les MAX_FILE lus : la file n'est pas toute la reception. */
+  tronquee: boolean;
+  /** Mails de la reception depuis la mise en service (compteur de la barre laterale), null si inconnu. */
+  totalReception: number | null;
   copros: CoproDeLaFile[];
   /** Rangements des 7 derniers jours (revue de fin de semaine), les plus recents d'abord. */
   journal: EntreeJournalTri[];
@@ -192,6 +198,11 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
       return new Map<string, string>();
     });
 
+  // La lecture est bornee a MAX_FILE : quand la boite en contient plus, l'en-tete le dit avec
+  // le vrai total (compteur de la pastille, deja en cache 60 s ; null s'il n'a pas repondu).
+  const tronquee = tous.length >= MAX_FILE;
+  const totalReception = tronquee ? await compterMailsATrier() : null;
+
   const publicites = await publicitesDeLaFile(repo, boite, bruts, ref);
   const mails: MailDeLaFile[] = bruts.map((m) =>
     mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null, publicites),
@@ -205,6 +216,8 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   return {
     boite,
     mails,
+    tronquee,
+    totalReception,
     copros,
     journal,
     binomes: lignes,

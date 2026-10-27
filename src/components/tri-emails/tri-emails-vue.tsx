@@ -122,9 +122,6 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
   const toast = useToast();
 
   const mails = file.mails.filter((m) => !masques.has(m.id));
-  // Rangements automatiques (tâche planifiée) encore en place : on les signale,
-  // ils s'annulent d'un clic dans l'onglet du journal.
-  const rangesAuto = file.journal.filter((e) => e.par === PAR_AUTOMATIQUE).length;
 
   // Arrivee automatique des nouveaux mails (demande du 08/10) : on relit la file toutes
   // les 60 s quand l'onglet est visible, et des qu'on y revient. Jamais pendant une action.
@@ -208,14 +205,6 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
 
   return (
     <div className="flex flex-col gap-4">
-      {rangesAuto > 0 && (
-        <div role="status" className="rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-body text-ink-2">
-          {rangesAuto === 1
-            ? "Un mail a été rangé automatiquement ces 7 derniers jours."
-            : `${rangesAuto} mails ont été rangés automatiquement ces 7 derniers jours.`}{" "}
-          Voir l&apos;onglet « Rangés sur 7 jours » pour les vérifier ou les annuler.
-        </div>
-      )}
       {dernier && (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2 text-body">
           <span className="min-w-0 flex-1">
@@ -958,6 +947,15 @@ function PreciserCopro({ entree, candidates }: { entree: EntreeJournalTri; candi
   );
 }
 
+/** Qui a range : la tache planifiee, une personne d'un clic, ou un glisser dans Outlook. */
+type FiltreJournal = "tous" | "automatique" | "main" | "outlook";
+
+function parDe(e: EntreeJournalTri): Exclude<FiltreJournal, "tous"> {
+  if (e.par === PAR_AUTOMATIQUE) return "automatique";
+  if (e.par === PAR_OUTLOOK) return "outlook";
+  return "main";
+}
+
 /** Revue de fin de semaine : chaque rangement, le signal qui l'avait propose, suivi ou non. */
 function JournalVue({
   journal,
@@ -970,65 +968,93 @@ function JournalVue({
   enCours: boolean;
   annuler: (journalId: string) => void;
 }) {
+  // Filtre par origine (27/10/2026) : remplace les bandeaux « N rangés automatiquement » et
+  // « N déplacés dans Outlook », qui ne comptaient que ce que ce rendu-la avait vu.
+  const [filtre, setFiltre] = useState<FiltreJournal>("tous");
+  const comptes = useMemo(() => {
+    const c = { tous: journal.length, automatique: 0, main: 0, outlook: 0 };
+    for (const e of journal) c[parDe(e)]++;
+    return c;
+  }, [journal]);
+  const visibles = useMemo(() => (filtre === "tous" ? journal : journal.filter((e) => parDe(e) === filtre)), [journal, filtre]);
+
   if (journal.length === 0) return <EmptyState>Aucun mail rangé ces 7 derniers jours.</EmptyState>;
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-      <table className="w-full text-body">
-        <thead className="bg-surface-2 text-meta uppercase tracking-wider text-ink-3">
-          <tr>
-            <th className="text-left font-medium px-3 py-2">Quand</th>
-            <th className="text-left font-medium px-3 py-2">Mail</th>
-            <th className="text-left font-medium px-3 py-2">Rangé dans</th>
-            <th className="text-left font-medium px-3 py-2">Signal</th>
-            <th className="text-left font-medium px-3 py-2">Par</th>
-            <th className="px-3 py-2">
-              <span className="sr-only">Action</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {journal.map((e) => {
-            const suivie = suggestionSuivie(e);
-            return (
-              <tr key={e.id} className="border-t border-line align-top">
-                <td className="px-3 py-2 font-mono text-meta text-ink-2 tabular-nums whitespace-nowrap">{heure(e.faitLe)}</td>
-                <td className="px-3 py-2 min-w-[220px]">
-                  <span className="text-ink">{e.objet}</span>
-                  <span className="block text-meta text-ink-3 font-mono">{e.expediteur}</span>
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <span className="font-mono">{e.dossierNom}</span>
-                  {e.coproReference && <span className="block text-meta text-ink-3 font-mono">{e.coproReference}</span>}
-                  {!e.coproReference && e.dossierCle?.startsWith("binome:") && (
-                    <PreciserCopro entree={e} candidates={copros.filter((c) => c.destination?.cle === e.dossierCle)} />
-                  )}
-                  {e.simulation && (
-                    <span className="block mt-1">
-                      <Badge ton="warn">Simulé</Badge>
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  {e.signal ? (
-                    <Badge ton={suivie === false ? "err" : suivie ? "ok" : "neutral"}>
-                      {LIBELLE_SIGNAL[e.signal]}
-                      {suivie === false ? " · corrigé" : suivie ? " · suivi" : ""}
-                    </Badge>
-                  ) : (
-                    <span className="text-ink-3">-</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-meta text-ink-2">{e.par === PAR_OUTLOOK ? "Glissé dans Outlook" : e.par === PAR_AUTOMATIQUE ? "Rangé automatiquement" : e.par}</td>
-                <td className="px-3 py-2 text-right">
-                  <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id)}>
-                    Annuler
-                  </Button>
-                </td>
+    <div className="flex flex-col gap-3">
+      <SegmentedControl<FiltreJournal>
+        size="sm"
+        label="Filtrer les rangements par origine"
+        value={filtre}
+        onChange={(v) => setFiltre(v ?? "tous")}
+        options={[
+          { value: "tous", label: `Tous (${comptes.tous})` },
+          { value: "automatique", label: `Automatiques (${comptes.automatique})` },
+          { value: "main", label: `À la main (${comptes.main})` },
+          { value: "outlook", label: `Outlook (${comptes.outlook})` },
+        ]}
+      />
+      {visibles.length === 0 ? (
+        <EmptyState>Aucun rangement de cette origine ces 7 derniers jours.</EmptyState>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+          <table className="w-full text-body">
+            <thead className="bg-surface-2 text-meta uppercase tracking-wider text-ink-3">
+              <tr>
+                <th className="text-left font-medium px-3 py-2">Quand</th>
+                <th className="text-left font-medium px-3 py-2">Mail</th>
+                <th className="text-left font-medium px-3 py-2">Rangé dans</th>
+                <th className="text-left font-medium px-3 py-2">Signal</th>
+                <th className="text-left font-medium px-3 py-2">Par</th>
+                <th className="px-3 py-2">
+                  <span className="sr-only">Action</span>
+                </th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {visibles.map((e) => {
+                const suivie = suggestionSuivie(e);
+                return (
+                  <tr key={e.id} className="border-t border-line align-top">
+                    <td className="px-3 py-2 font-mono text-meta text-ink-2 tabular-nums whitespace-nowrap">{heure(e.faitLe)}</td>
+                    <td className="px-3 py-2 min-w-[220px]">
+                      <span className="text-ink">{e.objet}</span>
+                      <span className="block text-meta text-ink-3 font-mono">{e.expediteur}</span>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="font-mono">{e.dossierNom}</span>
+                      {e.coproReference && <span className="block text-meta text-ink-3 font-mono">{e.coproReference}</span>}
+                      {!e.coproReference && e.dossierCle?.startsWith("binome:") && (
+                        <PreciserCopro entree={e} candidates={copros.filter((c) => c.destination?.cle === e.dossierCle)} />
+                      )}
+                      {e.simulation && (
+                        <span className="block mt-1">
+                          <Badge ton="warn">Simulé</Badge>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {e.signal ? (
+                        <Badge ton={suivie === false ? "err" : suivie ? "ok" : "neutral"}>
+                          {LIBELLE_SIGNAL[e.signal]}
+                          {suivie === false ? " · corrigé" : suivie ? " · suivi" : ""}
+                        </Badge>
+                      ) : (
+                        <span className="text-ink-3">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-meta text-ink-2">{e.par === PAR_OUTLOOK ? "Glissé dans Outlook" : e.par === PAR_AUTOMATIQUE ? "Rangé automatiquement" : e.par}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id)}>
+                        Annuler
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant, estSuperAdmin } from "@/lib/auth/session";
 import { deLAgenceDuTri } from "@/lib/services/tri-emails/acces";
-import { lireFileATrier } from "@/lib/services/tri-emails/lire-file";
+import { MAX_FILE, lireFileATrier, type FileATrier } from "@/lib/services/tri-emails/lire-file";
 import { diagnosticAnnuaire } from "@/lib/services/synchro/surveiller-annuaire";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -14,6 +14,19 @@ export const metadata: Metadata = { title: "Tri des e-mails - REAL31 Intranet" }
 
 // La file est la boite de reception lue en direct : jamais de rendu statique.
 export const dynamic = "force-dynamic";
+// Lecture de la boite, du referentiel et du journal : plus que les 10 s par defaut d'une
+// fonction Vercel quand Graph traine (27/10/2026).
+export const maxDuration = 60;
+
+/** « 12 mails dans la boîte de réception », et quand la file est bornee, d'ou vient la borne. */
+function metaFile(file: FileATrier): string {
+  const n = file.mails.length;
+  const base = `${n} ${n > 1 ? "mails" : "mail"} dans la boîte de réception`;
+  if (!file.tronquee) return base;
+  return file.totalReception !== null
+    ? `${base} (les ${MAX_FILE} plus récents, la boîte en contient ${file.totalReception} depuis la mise en service)`
+    : `${base} (les ${MAX_FILE} plus récents seulement)`;
+}
 
 export default async function TriEmailsPage() {
   const g = await getGestionnaireCourant();
@@ -30,7 +43,7 @@ export default async function TriEmailsPage() {
         <PageHeader
           titre="Tri des e-mails"
           badge={<Badge ton="outline">{file.boite === "echantillon" ? "Échantillon fictif" : file.boite}</Badge>}
-          meta={`${file.mails.length} ${file.mails.length > 1 ? "mails" : "mail"} dans la boîte de réception · ${file.copros.length} copropriétés (ESTALE : ${file.copros.filter((c) => c.source !== "crypto").length}, Crypto : ${file.copros.filter((c) => c.source === "crypto").length})`}
+          meta={metaFile(file)}
           aide={
             <p className="max-w-[65ch] text-ink-2">
               La file, c&apos;est la boîte de réception de la boîte générique. Pour chaque mail, l&apos;intranet propose
