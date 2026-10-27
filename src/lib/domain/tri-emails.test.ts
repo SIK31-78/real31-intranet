@@ -27,6 +27,7 @@ import {
   fusionnerReferentiels,
   type CoproTri,
   type ReferentielTri,
+  pisteRangeable,
 } from "./tri-emails";
 
 const copro = (reference: string, gestionnaire = "g@real31.fr"): CoproTri => ({
@@ -1037,6 +1038,9 @@ describe("adresse à une lettre près (faute de frappe dans le nom de rue, 26/10
     const s = trouve("Intervention au 6 rue Marcel SAMBAT 78800 ce jour.");
     expect(s).toMatchObject({ nature: "faible", candidats: ["S0210"] });
     expect(s.raison).toContain("une lettre d'écart");
+    // À confirmer d'un clic : pas rangée seule (27/10/2026).
+    expect(s.origine).toBeUndefined();
+    expect(pisteRangeable(s)).toBe(false);
   });
 
   it("un numéro différent, ou un code postal différent, ne trouve pas", () => {

@@ -468,7 +468,7 @@ function nomUsageCite(nomUsage: string, exclus: (m: string) => boolean, mots: Se
  * L'appelant ne passe ici que l'objet et le DEBUT du corps : une adresse de copro dans la
  * signature du cabinet (son bureau) ne doit pas rattacher tous les mails (constat du 13/10).
  */
-export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string }[] {
+export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string; approchee?: true }[] {
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/).map(deplierVoie));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
   const jetons = jetonsCompacts(texte);
@@ -477,7 +477,7 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
   const noyauTexte = ` ${noyauDe(texte).join(" ")} `;
   const parNom: { reference: string; raison: string }[] = [];
   const parAdresse: { reference: string; raison: string }[] = [];
-  const approchees: { reference: string; raison: string }[] = [];
+  const approchees: { reference: string; raison: string; approchee: true }[] = [];
   const vues = new Set<string>();
   for (const c of copros) {
     const cle = cleDeReference(c.reference);
@@ -524,7 +524,7 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
       // sans numero en base), en plus du lieu.
       const approchee = numeroCite ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => motDeRueCite(m, mots, true))) : undefined;
       if (approchee && !approchees.some((a) => a.reference === c.reference)) {
-        approchees.push({ reference: c.reference, raison: `Adresse proche de « ${approchee.type} ${approchee.mots.join(" ")} » citée dans le mail (une lettre d'écart), à confirmer.` });
+        approchees.push({ reference: c.reference, raison: `Adresse proche de « ${approchee.type} ${approchee.mots.join(" ")} » citée dans le mail (une lettre d'écart), à confirmer.`, approchee: true });
       }
     }
   }
@@ -856,11 +856,13 @@ function suggestionBrute(
     // Un code hors perimetre cite a cote (« S0142 », copro d'une autre agence) : la piste reste
     // a confirmer, elle ne porte pas l'origine qui la rend rangeable sans clic.
     const codeHorsPerimetre = new RegExp(MOTIF_REFERENCE.source, "i").test(`${mail.objet}\n${corps}`);
+    // Une adresse a une lettre pres reste aussi a confirmer (decision Sekou du 27/10/2026) :
+    // elle n'etait pas dans la mesure des 15 faibles justes, on l'observe d'abord.
     return {
       nature: "faible",
       candidats: [indices[0]!.reference],
       raison: indices[0]!.raison,
-      ...(codeHorsPerimetre ? {} : { origine: "nom-adresse" as const }),
+      ...(codeHorsPerimetre || indices[0]!.approchee ? {} : { origine: "nom-adresse" as const }),
     };
   }
   if (indices.length > 1) {
