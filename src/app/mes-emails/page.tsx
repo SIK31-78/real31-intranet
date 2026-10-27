@@ -10,7 +10,7 @@ import { COOKIE_PLACE_INTERNES } from "@/components/mes-emails/preference-liste"
 import { placeInternesValide } from "@/lib/domain/mes-emails-liste";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
-import { adresseFacturesAgence } from "@/lib/services/mes-emails/transmettre-facture";
+import { facturesEstaleConfigurees } from "@/lib/services/mes-emails/transmettre-facture";
 import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
@@ -82,8 +82,8 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
         <MesEmailsVue
           data={data}
           signatureHtml={signatureHtml}
-          adresseFactures={adresseFacturesAgence()}
-          agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
+          adresseFactures={facturesEstaleConfigurees() ? "la boîte factures ESTALE de l'agence de la copropriété" : null}
+          agence={agence}
           maxPerso={maxPerso}
           modeles={modeles}
           pilote={pilote}

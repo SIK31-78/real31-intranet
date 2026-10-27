@@ -406,7 +406,7 @@ export async function telechargerPieceJointeAction(
   }
 }
 
-// --- Transmettre une facture a la boite factures ESTALE de l'agence ------------
+// --- Transmettre une facture a la boite factures ESTALE de l'agence de la copro -
 // Brouillon de transfert (PJ conservees), objet codifie « COMPTE - FOURNISSEUR - Libelle ».
 
 export async function transmettreFactureAction(
@@ -423,7 +423,8 @@ export async function transmettreFactureAction(
   const cible = await boiteDuMail(auth.g, boite, emailId);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
-    const r = await transmettreFacture({ boite: cible, internetMessageId: emailId, facture });
+    // La boîte factures se choisit d'après l'agence de la copro du mail (refus sans copro).
+    const r = await transmettreFacture({ boite: cible, internetMessageId: emailId, coproCode, facture });
     if (r.simulation) return { ok: true, message: `Aperçu : « ${r.objet} » vers ${r.destinataire} (boîte non branchée, rien créé).` };
     return { ok: true, ...(r.webLink ? { webLink: r.webLink } : {}), message: `Brouillon de transfert « ${r.objet} » créé vers ${r.destinataire} : à relire puis envoyer dans Outlook.` };
   } catch (e) {

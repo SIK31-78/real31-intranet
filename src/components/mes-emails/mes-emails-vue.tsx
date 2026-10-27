@@ -157,12 +157,12 @@ export function MesEmailsVue({
   pilote?: boolean;
   /** Modèles de réponse proposés (agence et cabinet). */
   modeles: ModeleMail[];
-  /** Agence de la boîte (MAIL_TRI_AGENCE) : signe les modèles de réponse. */
+  /** Agence de la personne (27/10/2026) : signe les modèles de réponse. */
   agence?: string;
   /** Plafond de la boîte perso pour cet affichage (« Plus de mails » l'augmente). */
   maxPerso?: number;
   signatureHtml?: string | null;
-  /** Boîte factures ESTALE de l'agence (MAIL_ROBOT_FACTURE_ESTALE) ; null = bouton masqué. */
+  /** Où part la facture (texte affiché) ; null = aucune boîte factures ESTALE configurée, bouton masqué. */
   adresseFactures?: string | null;
 }) {
   // Boite affichee. Les deux boites ne sont JAMAIS fusionnees (decision Sekou 5) :
@@ -1928,7 +1928,7 @@ function AnalysePane({
             </div>
           )}
           {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
-            <TransmettreFacture destinataire={adresseFactures} onTransmettre={onTransmettreFacture} />
+            <TransmettreFacture destinataire={adresseFactures} coproChoisie={Boolean(coproCode)} onTransmettre={onTransmettreFacture} />
           )}
           {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={`reponse-${m.id}`} emailId={m.id} boite={boiteDuMail} />}
       </div>

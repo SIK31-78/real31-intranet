@@ -2,8 +2,9 @@
 
 // « Transmettre à ESTALE » : sur un mail portant une facture, saisir la codification
 // (compte, fournisseur, libellé) -> brouillon de transfert vers la boîte factures ESTALE de
-// l'agence, objet « 601000 - DGP NETTOYAGE - Entretien EV », pièces jointes conservées.
-// Repliable : fermé par défaut, il ne gêne pas la lecture des autres mails.
+// l'agence DE LA COPROPRIÉTÉ du mail (27/10/2026 : une boîte partagée sert parfois deux
+// agences), objet « 601000 - DGP NETTOYAGE - Entretien EV », pièces jointes conservées.
+// Sans copro choisie, le bouton reste fermé et le dit. Repliable : fermé par défaut.
 
 import { useState } from "react";
 import { Receipt } from "lucide-react";
@@ -12,16 +13,28 @@ import { factureComplete, objetFactureEstale } from "@/lib/domain/mes-emails-com
 
 export function TransmettreFacture({
   destinataire,
+  coproChoisie,
   onTransmettre,
 }: {
-  /** Boîte factures ESTALE de l'agence (affichée pour que l'on sache où ça part). */
+  /** Où part la facture (affiché pour que l'on sache où ça part). */
   destinataire: string;
+  /** La copro du mail est choisie : c'est elle qui désigne l'agence, donc la boîte factures. */
+  coproChoisie: boolean;
   onTransmettre: (f: { compte: string; fournisseur: string; libelle: string }) => Promise<void>;
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [f, setF] = useState({ compte: "", fournisseur: "", libelle: "" });
   const [enCours, setEnCours] = useState(false);
   const pret = factureComplete(f) && /^\d{3,8}$/.test(f.compte.trim());
+
+  if (!coproChoisie) {
+    return (
+      <span className="mt-2 inline-flex items-center gap-1 text-meta text-ink-3">
+        <Receipt strokeWidth={1.5} className="w-3.5 h-3.5" />
+        Transmettre la facture à ESTALE : choisis d&apos;abord la copropriété.
+      </span>
+    );
+  }
 
   if (!ouvert) {
     return (
@@ -46,7 +59,7 @@ export function TransmettreFacture({
       </div>
       <div className="text-ink-3">
         Objet : <span className="font-mono text-ink-2">{factureComplete(f) ? objetFactureEstale(f) : "-"}</span> · vers{" "}
-        <span className="font-mono">{destinataire}</span>
+        <span>{destinataire}</span>
       </div>
       <div className="flex items-center gap-2">
         <Button
