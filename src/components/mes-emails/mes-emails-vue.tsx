@@ -344,10 +344,17 @@ export function MesEmailsVue({
   // Dossier Outlook auto-detecte (nom contenant le code copro, puis le nom) : sert de
   // preselection ; l'utilisateur peut choisir un autre dossier (copro, agence, spam...).
   // Le sous-dossier Outlook de la copro, reconnu par son code (S270 = S0270) ou son nom.
-  const autoDossier = (m: MailEntrant): string => (dossiers ? dossierOutlookSuggere(m, dossiers) : "");
+  // La copro CHOISIE dans le sélecteur, pas celle d'origine (27/10/2026) : changer la copro
+  // change le dossier proposé et le dossier à créer.
+  const autoDossier = (m: MailEntrant): string => {
+    const c = coproDe(m);
+    return dossiers ? dossierOutlookSuggere({ coproCode: c.code, coproNom: c.nom }, dossiers) : "";
+  };
   // La copro n'a pas encore de sous-dossier : on propose de le créer, sous la forme « S270 - Nom ».
-  const dossierACreer = (m: MailEntrant): string | null =>
-    dossiers && m.coproCode && !dossierIdDe(m) ? nomDossierCopro(m.coproCode, m.coproNom) : null;
+  const dossierACreer = (m: MailEntrant): string | null => {
+    const c = coproDe(m);
+    return dossiers && c.code && !dossierIdDe(m) ? nomDossierCopro(c.code, c.nom) : null;
+  };
   async function creerDossierOutlook(m: MailEntrant) {
     const nom = dossierACreer(m);
     if (!nom) return;
@@ -536,8 +543,11 @@ export function MesEmailsVue({
     }
   }, [selectionId, data.mails, lus, coprosChoisies, boiteActive]);
 
+  // La copro CHOISIE du mail affiché (sélecteur), pas celle d'origine : les dossiers intranet
+  // et le contexte ESTALE la suivent. Avant le 27/10/2026 les dossiers étaient chargés sous la
+  // copro d'origine mais lus sous la copro choisie : « Chargement des dossiers… » sans fin.
+  const coproSel = selection ? coproDe(selection).code : "";
   // Charge les dossiers reels de la copro quand on ouvre le picker de rattachement.
-  const coproSel = selection?.coproCode ?? "";
   useEffect(() => {
     if (!changer || !coproSel || dossiersReels.has(coproSel)) return;
     void chargerDossiersCoproAction(coproSel).then((ds) =>
@@ -546,14 +556,12 @@ export function MesEmailsVue({
   }, [changer, coproSel, dossiersReels]);
 
   // Contexte ESTALE de la copro, charge a l'ouverture du volet et plus au chargement de la
-  // page (mesure prod du 14/10 : 2,3 s pour un volet replie par defaut). Indexé sur la copro
-  // CHOISIE dans le sélecteur, pas celle d'origine (27/10/2026).
+  // page (mesure prod du 14/10 : 2,3 s pour un volet replie par defaut).
   const contexteOuvert = ouverts.has("contexte");
-  const coproContexte = selection ? coproDe(selection).code : "";
   useEffect(() => {
-    if (!contexteOuvert || !coproContexte || contextes.has(coproContexte)) return;
-    void chargerContexteCoproAction(coproContexte).then((c) => setContextes((p) => new Map(p).set(coproContexte, c)));
-  }, [contexteOuvert, coproContexte, contextes]);
+    if (!contexteOuvert || !coproSel || contextes.has(coproSel)) return;
+    void chargerContexteCoproAction(coproSel).then((c) => setContextes((p) => new Map(p).set(coproSel, c)));
+  }, [contexteOuvert, coproSel, contextes]);
 
   const rafraichirDossiersCopro = (code: string) =>
     setDossiersReels((p) => {
@@ -1022,7 +1030,7 @@ export function MesEmailsVue({
           {selection ? (
             <AnalysePane
               m={selection}
-              contexte={coproContexte ? contextes.get(coproContexte) : null}
+              contexte={coproSel ? contextes.get(coproSel) : null}
               ratt={rattDe(selection)}
               dossiersReels={dossiersReels.get(coproDe(selection).code) ?? null}
               typeSuggere={typeDossierSuggere(selection.type)}
