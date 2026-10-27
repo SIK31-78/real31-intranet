@@ -73,7 +73,8 @@ export function EnvoyerEmail({
 
   return (
     <>
-      <Button size="sm" onClick={ouvrir}>
+      {/* type="button" : ce bouton a déjà vécu dans un <form> (27/10/2026), il ne doit jamais soumettre. */}
+      <Button type="button" size="sm" onClick={ouvrir}>
         <Send strokeWidth={1.5} />
         Envoyer un e-mail
       </Button>

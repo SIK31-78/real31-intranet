@@ -405,12 +405,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         )}
         {copro && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={ajouterConseil} disabled={!conseil?.membres.length} title={conseil ? TITRE_SOURCE_CONSEIL[conseil.source] : "Ajoute tous les membres du conseil syndical en « À »"}>
+            <Button type="button" size="sm" onClick={ajouterConseil} disabled={!conseil?.membres.length} title={conseil ? TITRE_SOURCE_CONSEIL[conseil.source] : "Ajoute tous les membres du conseil syndical en « À »"}>
               <Users strokeWidth={1.5} />
               {conseil === null ? "Conseil syndical…" : `Conseil syndical (${conseil.membres.length})`}
             </Button>
             {conseil && <span className="text-meta text-ink-3">{LIBELLE_SOURCE_CONSEIL[conseil.source]}</span>}
             <Button
+              type="button"
               size="sm"
               variant={cciCopro ? "doux" : "secondary"}
               aria-pressed={cciCopro}
@@ -507,11 +508,12 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           {brouillonPossible && !envoiDirect ? `Brouillon dans ${boite} : à relire puis envoyer dans Outlook.` : null}
         </span>
         {onTermine ? (
-          <Button variant="ghost" onClick={() => void annuler()} disabled={envoiEnCours}>
+          <Button type="button" variant="ghost" onClick={() => void annuler()} disabled={envoiEnCours}>
             Annuler
           </Button>
         ) : null}
-        <Button variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} loading={envoiEnCours} onClick={() => void creerBrouillon()}>
+        {/* type="button" : le compositeur a vécu dans le <form> « Actualiser » (27/10/2026) ; aucun de ses boutons ne soumet. */}
+        <Button type="button" variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} loading={envoiEnCours} onClick={() => void creerBrouillon()}>
           {!brouillonPossible ? "Vérifier l'aperçu" : envoiDirect ? (envoiEnCours ? "Envoi…" : "Envoyer") : "Créer le brouillon"}
         </Button>
       </div>

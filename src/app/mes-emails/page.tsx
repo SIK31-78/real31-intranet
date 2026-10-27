@@ -21,6 +21,9 @@ export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
 // Lecture LIVE des boites a chaque affichage (plus de synchro) : rendu a la demande.
 export const dynamic = "force-dynamic";
+// Deux boîtes Graph, le portefeuille ESTALE et la signature en série peuvent dépasser les
+// 15 s par défaut de Vercel sur une agence chargée (27/10/2026) : on laisse une minute.
+export const maxDuration = 60;
 
 // Boite perso : 40 mails par defaut (une seule page Graph), « Plus de mails » ajoute 40.
 function plafondPerso(plus: string | undefined): number {
@@ -52,7 +55,10 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   return (
     <AppShell user={g} active="emails" breadcrumb="E-mails">
       <Page largeur="travail">
-        <form action={rafraichirAction} className="flex items-center gap-3">
+        {/* Le <form> n'enveloppe QUE « Actualiser » : jusqu'au 27/10/2026 il englobait aussi le
+            compositeur « Envoyer un e-mail », dont chaque clic soumettait en plus une relecture
+            complète des boîtes (bug B5). */}
+        <div className="flex items-center gap-3">
           <h1 className="text-page font-medium tracking-tight text-ink mr-auto">E-mails</h1>
           <EnvoyerEmail
             gestionnaireNom={g.nomComplet}
@@ -64,8 +70,10 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
             modeles={modeles}
             pilote={pilote}
           />
-          <BoutonRafraichir />
-        </form>
+          <form action={rafraichirAction}>
+            <BoutonRafraichir />
+          </form>
+        </div>
         <MesEmailsVue
           data={data}
           signatureHtml={signatureHtml}
