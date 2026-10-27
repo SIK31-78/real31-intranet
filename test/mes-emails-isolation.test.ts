@@ -20,6 +20,17 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/lib/adapters/router", async (original) => ({
   ...(await original<typeof import("@/lib/adapters/router")>()),
   getTriRepository: () => etat.repo,
+  // Les « Envoyés » de syndic4 : une réponse dans la conversation de Sophie, une dans celle de Marc.
+  getRechercheMail: () => ({
+    envoyes: async () => [
+      { id: "env-sophie", conversationId: "conv-sophie" },
+      { id: "env-marc", conversationId: "conv-marc" },
+    ],
+    lireCorps: async (p: { boite: string; id: string }) => {
+      etat.lus.push({ boite: p.boite, id: p.id });
+      return "texte envoyé";
+    },
+  }),
   getAgenceRepository: () => ({
     listerAgences: async () => [
       { id: "ag-hls", code: "HLS" },
@@ -34,7 +45,7 @@ vi.mock("@/lib/services/mes-emails/historique-mail", () => ({
   },
 }));
 
-const { chargerHistoriqueAction, envoyerABonneCoproAction } = await import("@/app/mes-emails/actions");
+const { chargerHistoriqueAction, envoyerABonneCoproAction, lireEnvoyeAction } = await import("@/app/mes-emails/actions");
 const { boitesVisibles } = await import("@/lib/services/mes-emails/boites-visibles");
 
 const SYNDIC4 = "syndic4@real31.fr";
@@ -43,10 +54,11 @@ const sophie = { id: "u1", nomComplet: "Sophie K", initiales: "SK", email: "soph
 const nadia = { id: "u3", nomComplet: "Nadia L", initiales: "NL", email: "nadia@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
 const sekou = { id: "u9", nomComplet: "Sekou KOMA", initiales: "SKO", email: "sekou@real31.fr", agencyId: "ag-hls", role: "ADMIN" };
 
-const ranger = (boite: string, imid: string, gestionnaire: string) =>
+const ranger = (boite: string, imid: string, gestionnaire: string, conversationId?: string) =>
   etat.repo.journaliser({
     boite,
     internetMessageId: imid,
+    ...(conversationId ? { conversationId } : {}),
     messageId: imid,
     expediteur: "client@exemple.fr",
     objet: "Fuite",
@@ -71,8 +83,8 @@ beforeEach(async () => {
   );
   etat.repo = new MockTriRepository({ binomes: [], parCopro: {} });
   etat.lus = [];
-  await ranger(SYNDIC4, "<a-sophie@x>", "sophie@real31.fr");
-  await ranger(SYNDIC4, "<b-marc@x>", "marc@real31.fr");
+  await ranger(SYNDIC4, "<a-sophie@x>", "sophie@real31.fr", "conv-sophie");
+  await ranger(SYNDIC4, "<b-marc@x>", "marc@real31.fr", "conv-marc");
   await ranger(SYNDIC2, "<c-nadia@x>", "nadia@real31.fr");
 });
 
@@ -111,6 +123,14 @@ describe("un mail d'un autre binôme est refusé", () => {
     etat.session = sophie;
     const r = await envoyerABonneCoproAction("<b-marc@x>", "S0297", SYNDIC4);
     expect(r.ok).toBe(false);
+  });
+
+  it("« Envoyés » : lit une réponse de ma conversation, refuse celle d'un autre binôme (REA-422)", async () => {
+    etat.session = sophie;
+    expect(await lireEnvoyeAction({ boite: SYNDIC4, id: "env-sophie" })).toEqual({ ok: true, donnees: "texte envoyé" });
+    const refus = await lireEnvoyeAction({ boite: SYNDIC4, id: "env-marc" });
+    expect(refus.ok).toBe(false);
+    expect(etat.lus).toEqual([{ boite: SYNDIC4, id: "env-sophie" }]);
   });
 
   it("le super-admin en est exempté (pilote)", async () => {

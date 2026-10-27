@@ -747,7 +747,11 @@ export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeT
   }
 }
 
-/** Le texte d'un mail envoyé, par son id Graph, lu dans la boîte affichée (REA-341). */
+/**
+ * Le texte d'un mail envoyé, par son id Graph, lu dans la boîte affichée (REA-341). Boîte
+ * partagée : seulement un envoyé des conversations distribuées à mon binôme, comme la liste
+ * (REA-422, 27/10/2026 : avant, n'importe quel id Graph de la boîte se lisait).
+ */
 export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
   const g = await gestionnairePilote();
   if (!g) return echec(PILOTE_SEUL);
@@ -756,7 +760,10 @@ export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
   const cible = await boiteCible(g, v.data.boite);
   if (!cible) return echec("Boîte non autorisée.");
   try {
-    return { ok: true, donnees: await lireEnvoye(cible, v.data.id) };
+    const perso = (await boitesDe(g)).find((x) => x.id === cible)?.personnelle ?? false;
+    const texte = await lireEnvoye(cible, v.data.id, perso ? undefined : await conversationsDistribuees(g, cible));
+    if (texte === null) return echec("Ce mail envoyé ne fait pas partie des conversations de ton binôme.");
+    return { ok: true, donnees: texte };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }

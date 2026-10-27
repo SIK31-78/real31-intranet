@@ -21,6 +21,12 @@ export async function listerEnvoyes(boite: string, conversations?: ReadonlySet<s
   return envoyesDuBinome(lus, conversations, ENVOYES_AFFICHES);
 }
 
-export async function lireEnvoye(boite: string, id: string): Promise<string> {
+/**
+ * Le texte d'un mail envoyé, par son id Graph. `conversations` donné (boîte partagée, REA-422,
+ * 27/10/2026) : seulement un mail que la liste des envoyés montre au binôme ; un id pris
+ * ailleurs (réponse d'un autre binôme) rend null, sans lire le message.
+ */
+export async function lireEnvoye(boite: string, id: string, conversations?: ReadonlySet<string>): Promise<string | null> {
+  if (conversations && !(await listerEnvoyes(boite, conversations)).some((e) => e.id === id)) return null;
   return getRechercheMail().lireCorps({ boite, id });
 }
