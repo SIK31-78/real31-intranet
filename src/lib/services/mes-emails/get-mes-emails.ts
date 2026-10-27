@@ -49,7 +49,7 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<
   const mails = triage.mails.map((m) => {
     const avecEtat = appliquerEtat(m, etats.get(m.id));
     const commun = m.boite && partagees.has(m.boite) ? statutPartage(m.boite, lignesPartagees.get(m.id) ?? []) : null;
-    return commun ? { ...avecEtat, statutTraitement: commun.statut, etapesFaites: commun.etapesFaites } : avecEtat;
+    return commun ? { ...avecEtat, statutTraitement: commun.statut } : avecEtat;
   });
 
   return {
@@ -57,7 +57,6 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<
     boites,
     nbMailsAnalyses: triage.nbMailsAnalyses,
     mails,
-    dossiers: triage.dossiers,
     plusDeMails: triage.plusDeMails,
     boitesIllisibles: triage.erreurs,
     // L'adresse aussi : c'est elle que l'équipe reconnaît (Sekou, 15/10/2026).
@@ -69,14 +68,13 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<
   };
 }
 
-/** Applique l'etat persiste sur un mail : statut, etapes cochees, brouillon/rattachement edites, lu. */
+/** Applique l'etat persiste sur un mail : statut, brouillon/rattachement edites, lu. */
 function appliquerEtat(m: MailEntrant, e: EtatMail | undefined): MailEntrant {
   if (!e) return m;
   return {
     ...m,
     lu: e.lu || m.lu,
     statutTraitement: e.statut,
-    etapesFaites: e.etapesFaites,
     ...(e.brouillon !== undefined ? { brouillonReponse: e.brouillon } : {}),
     ...(e.rattachement !== undefined ? { rattachement: e.rattachement } : {}),
     ...(e.coproCode ? { coproCode: e.coproCode, coproNom: e.coproNom ?? m.coproNom } : {}),

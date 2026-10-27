@@ -33,9 +33,6 @@ export async function enregistrerStatut(c: Cible, statut: StatutTraitement, etap
     await repo.setStatut({ ...cle(c), gestionnaireId: cleEtatBoite(c.boitePartagee), statut, etapesFaites });
   }
 }
-export function enregistrerEtapes(c: Cible, etapesFaites: number[]) {
-  return getMesEmailsEtatRepository().setEtapes({ ...cle(c), etapesFaites });
-}
 export function enregistrerLu(c: Cible) {
   return getMesEmailsEtatRepository().setLu(cle(c));
 }

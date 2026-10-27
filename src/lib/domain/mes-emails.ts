@@ -71,11 +71,6 @@ export const LIBELLE_TYPE: Record<TypeMail, string> = {
   autre: "Autre",
 };
 
-/** Une etape du flow d'actions propose par l'assistant. */
-export interface ActionFlow {
-  ordre: number;
-  libelle: string;
-}
 
 /** Etat de traitement d'un mail par le gestionnaire (persiste, cloisonne). */
 export type StatutTraitement = "nouveau" | "repondu" | "classe";
@@ -187,38 +182,15 @@ export interface MailEntrant {
   priorite: Severite;
   badge: BadgeUrgence;
   rattachement: Rattachement;
-  // --- Propositions ---
+  // --- Reponse en cours (editee, persistee) ---
   brouillonReponse?: string;
-  flow: ActionFlow[];
   // --- Etat de traitement persiste (rempli par le service, cloisonne par gestionnaire) ---
   statutTraitement?: StatutTraitement;
-  etapesFaites?: number[];
   /** Dossier Outlook ou le mail a ete classe (presélection + affichage apres reload). */
   dossierClasseId?: string;
   dossierClasseNom?: string;
 }
 
-export type EvenementKind = "mail" | "action" | "pj" | "jalon";
-
-/** Un evenement de l'historique d'un dossier (timeline). */
-export interface EvenementDossier {
-  /** Date ISO "YYYY-MM-DD". */
-  date: string;
-  acteur: string;
-  resume: string;
-  kind: EvenementKind;
-}
-
-/** Un dossier (affaire) suivi dans le temps, avec son historique. */
-export interface Dossier {
-  id: string;
-  label: string;
-  coproCode: string;
-  coproNom: string;
-  type: TypeMail;
-  /** Historique du plus recent au plus ancien. */
-  historique: EvenementDossier[];
-}
 
 /**
  * Contexte metier REEL d'une copropriete, source eStale (CS, AG, comptes...).
@@ -248,7 +220,6 @@ export interface MesEmails {
   /** Nombre de mails du backtest passes au tri. */
   nbMailsAnalyses: number;
   mails: MailEntrant[];
-  dossiers: Dossier[];
   /** La boîte perso a rempli son plafond : « Plus de mails » en charge davantage. */
   plusDeMails?: boolean;
   /** Adresses des boîtes qui n'ont pas pu être lues : l'écran le dit au-dessus de la liste. */
@@ -276,9 +247,6 @@ export function mailsDeLaBoite(
   return mails.filter((m) => (m.boite ?? perso) === boiteId);
 }
 
-export function trouverDossier(dossiers: Dossier[], id: string): Dossier | undefined {
-  return dossiers.find((d) => d.id === id);
-}
 
 // --- La reponse a un mail : quatre regles metier, hors de l'ecran (audit 16/09/2026) -----
 

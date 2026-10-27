@@ -9,7 +9,6 @@ import type {
   MajBrouillon,
   MajCopro,
   MajDossier,
-  MajEtapes,
   MajRattachement,
   MajStatut,
   MesEmailsEtatRepository,
@@ -132,9 +131,6 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
       etapes_faites: p.etapesFaites,
       ...(p.brouillon !== undefined ? { brouillon: p.brouillon } : {}),
     });
-  }
-  async setEtapes(p: MajEtapes): Promise<void> {
-    await this.upsert(p, { etapes_faites: p.etapesFaites });
   }
   async setLu(p: CleEtat): Promise<void> {
     await this.upsert(p, { lu: true });

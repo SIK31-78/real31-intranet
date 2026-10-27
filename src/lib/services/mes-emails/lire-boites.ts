@@ -10,7 +10,7 @@
 // modele ; un mail jamais analyse sort simplement sans type ("autre"), et le
 // brouillon IA reste declenche a la demande. Passe par le routeur (ADR-001).
 
-import type { BadgeUrgence, Dossier, MailEntrant, TypeMail, UrgenceTon } from "@/lib/domain/mes-emails";
+import type { BadgeUrgence, MailEntrant, TypeMail, UrgenceTon } from "@/lib/domain/mes-emails";
 import { reponseDepuisVerbe } from "@/lib/domain/mes-emails";
 import type { Severite } from "@/lib/domain/commun";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
@@ -45,7 +45,6 @@ const VERSION_ANALYSE = "v3";
 
 export interface TriageLive {
   mails: MailEntrant[];
-  dossiers: Dossier[];
   /** Nombre de mails bruts remontes, toutes boites confondues. */
   nbMailsAnalyses: number;
   /** La boite perso a rempli son plafond : un « Plus de mails » a du sens. */
@@ -119,7 +118,7 @@ export async function lireBoitesLive(
   coprosEnCours: Copropriete[] | Promise<Copropriete[]>,
   maxPerso: number = MAX_PERSO,
 ): Promise<TriageLive> {
-  if (boites.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs: [] };
+  if (boites.length === 0) return { mails: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs: [] };
 
   // Boites, portefeuille (ESTALE en direct) et referentiel du tri sont lus EN PARALLELE :
   // leurs latences ne s'additionnent pas (mesure prod du 14/10 : jusqu'a 7 s en serie).
@@ -150,7 +149,7 @@ export async function lireBoitesLive(
       bruts.push(b);
     }
   }
-  if (bruts.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs };
+  if (bruts.length === 0) return { mails: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs };
 
   // Copro des mails que le tri n'a pas tranches : le MOTEUR DU TRI (codes, annuaire ESTALE+Crypto,
   // immatriculation, nom/adresse hors signature), seulement quand il est SUR. L'ancien
@@ -255,28 +254,8 @@ export async function lireBoitesLive(
         ...(filMultiple ? { confiance: Math.round(an.confidence * 100) } : {}),
       },
       ...(an.brouillon ? { brouillonReponse: an.brouillon } : {}),
-      flow: an.etapes.map((e, k) => ({ ordre: k + 1, libelle: e })),
     };
   });
 
-  // Dossiers : un par affaire (fil), pour le contexte/historique.
-  const dossiers: Dossier[] = affaires.map((aff, i) => {
-    const parDate = [...aff.mails].sort((x, y) => y.receivedAt.localeCompare(x.receivedAt));
-    const tete = parDate[0]!;
-    return {
-      id: `S${i + 1}`,
-      label: aff.label,
-      coproCode: aff.copro,
-      coproNom: coproNomDe(aff.copro),
-      type: analyseDe(tete.internetMessageId).type,
-      historique: parDate.slice(0, 8).map((m) => ({
-        date: jourDe(m.receivedAt),
-        acteur: nomCourt(m.from),
-        resume: (m.subject || cleanBody(m).slice(0, 60) || "mail").slice(0, 90),
-        kind: "mail" as const,
-      })),
-    };
-  });
-
-  return { mails, dossiers, nbMailsAnalyses: bruts.length, plusDeMails, erreurs };
+  return { mails, nbMailsAnalyses: bruts.length, plusDeMails, erreurs };
 }

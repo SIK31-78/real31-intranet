@@ -42,7 +42,6 @@ export type CleEtat = {
 };
 
 export type MajStatut = CleEtat & { statut: StatutTraitement; etapesFaites: number[]; brouillon?: string };
-export type MajEtapes = CleEtat & { etapesFaites: number[] };
 export type MajBrouillon = CleEtat & { brouillon: string };
 export type MajRattachement = CleEtat & { rattachement: Rattachement };
 export type MajCopro = CleEtat & { coproNom: string };
@@ -57,7 +56,6 @@ export interface MesEmailsEtatRepository {
   getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]>;
   /** Valider/devalider : pose le statut + les etapes (+ le brouillon final si fourni). */
   setStatut(p: MajStatut): Promise<void>;
-  setEtapes(p: MajEtapes): Promise<void>;
   setLu(p: CleEtat): Promise<void>;
   setBrouillon(p: MajBrouillon): Promise<void>;
   setRattachement(p: MajRattachement): Promise<void>;

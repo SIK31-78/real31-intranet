@@ -7,7 +7,6 @@ import type {
   MajBrouillon,
   MajCopro,
   MajDossier,
-  MajEtapes,
   MajRattachement,
   MajStatut,
   MesEmailsEtatRepository,
@@ -39,9 +38,6 @@ export class MockMesEmailsEtatRepository implements MesEmailsEtatRepository {
       etapesFaites: p.etapesFaites,
       ...(p.brouillon !== undefined ? { brouillon: p.brouillon } : {}),
     });
-  }
-  async setEtapes(p: MajEtapes): Promise<void> {
-    maj(p.gestionnaireId, p.emailId, { etapesFaites: p.etapesFaites });
   }
   async setLu(p: CleEtat): Promise<void> {
     maj(p.gestionnaireId, p.emailId, { lu: true });
