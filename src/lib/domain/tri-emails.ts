@@ -1091,7 +1091,23 @@ export interface EntreeJournalTri {
   par: string;
   faitLe: string;
   annuleLe: string | null;
+  /**
+   * Journal transactionnel (REA-420, 27/10/2026) : « en_cours » = ligne ecrite AVANT le
+   * deplacement, pas encore confirmee ; « fait » = rangement confirme. Absent : colonne pas
+   * encore creee (intranet_tri_journal_etat.sql), la ligne vaut « fait ».
+   */
+  etat?: EtatLigneJournal;
 }
+
+export type EtatLigneJournal = "en_cours" | "fait";
+
+/**
+ * Une ligne « en_cours » plus jeune que ce delai est un rangement en train de se faire : elle
+ * compte comme « deja range » (on ne le relance pas). Plus vieille, le geste a ete interrompu
+ * (Supabase ou la fonction coupee entre le deplacement et la confirmation) : les lectures
+ * l'ignorent et la tache planifiee la reprend (reprendre-en-cours.ts).
+ */
+export const DELAI_RANGEMENT_EN_COURS_MS = 2 * 60_000;
 
 /**
  * Le signal retenu par le journal : la nature de la suggestion du mail, « pj » quand la
@@ -1203,6 +1219,13 @@ export const PAR_OUTLOOK = "outlook";
 
 /** Auteur des lignes de journal du rangement automatique (tache planifiee, piste sure). */
 export const PAR_AUTOMATIQUE = "automatique";
+
+/**
+ * Auteur des annulations decidees par l'app elle-meme (REA-420) : deplacement refuse (le mail
+ * n'etait plus en reception), rangement interrompu que la reprise trouve encore en reception
+ * ou introuvable.
+ */
+export const PAR_SYSTEME = "systeme";
 
 /** Pourquoi un mail de la file n'est pas range automatiquement (bilan de la tache planifiee). */
 export type RefusAutomatique =

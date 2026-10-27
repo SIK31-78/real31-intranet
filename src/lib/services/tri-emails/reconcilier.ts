@@ -15,8 +15,15 @@
 //     pas de relecture a ce passage.
 // localiser ne sert plus qu'a voir un mail glisse d'un dossier de binome a un autre, sous le
 // meme budget qu'avant. Sans delta (repli), tout passe par localiser comme avant.
+//
+// Journal transactionnel (REA-420, 27/10/2026) : une ligne « en_cours » (rangement en train de
+// se faire, ou interrompu) n'est pas jugee ici : le mail peut encore etre en reception sans
+// avoir ete « remis ». La reprise des lignes interrompues est a part (reprendre-en-cours.ts).
+// Le suivi d'un mail glisse ailleurs qui bute sur un rangement actif (DejaRangeErreur) n'est
+// pas une panne : un autre geste l'a deja journalise.
 
 import { PAR_OUTLOOK, constaterRangement, coproDuDossier } from "@/lib/domain/tri-emails";
+import { DejaRangeErreur } from "@/lib/ports/tri-repository";
 import { etiqueterSansBloquer, type DepsRangement } from "./ranger";
 
 const FENETRE_MS = 7 * 24 * 3600 * 1000;
@@ -65,7 +72,7 @@ export async function reconcilierRangements(
     deps.repo.journalDepuis(boite, new Date(Date.now() - FENETRE_MS).toISOString()),
     deps.repo.dossiers(boite),
   ]);
-  const reels = journal.filter((e) => !e.simulation && e.dossierCle);
+  const reels = journal.filter((e) => !e.simulation && e.dossierCle && e.etat !== "en_cours");
 
   // Remis dans la generique, d'apres le delta : pas d'appel Graph pour le savoir.
   const traites = new Set<string>();
@@ -121,21 +128,26 @@ export async function reconcilierRangements(
         const [ref, initiales, binomes] = await charger();
         const copro = coproDuDossier(constat.vers.cle, ref.copros, initiales, binomes);
         if (copro) await etiqueterSansBloquer(deps, boite, pos.messageId, { ajouter: [copro] });
-        await deps.repo.journaliser({
-          boite,
-          internetMessageId: e.internetMessageId,
-          messageId: pos.messageId,
-          expediteur: e.expediteur,
-          objet: e.objet,
-          coproReference: copro,
-          copros: copro ? [copro] : [],
-          dossierNom: constat.vers.nom,
-          dossierCle: constat.vers.cle,
-          signal: null,
-          candidats: [],
-          simulation: false,
-          par: PAR_OUTLOOK,
-        });
+        try {
+          await deps.repo.journaliser({
+            boite,
+            internetMessageId: e.internetMessageId,
+            messageId: pos.messageId,
+            expediteur: e.expediteur,
+            objet: e.objet,
+            coproReference: copro,
+            copros: copro ? [copro] : [],
+            dossierNom: constat.vers.nom,
+            dossierCle: constat.vers.cle,
+            signal: null,
+            candidats: [],
+            simulation: false,
+            par: PAR_OUTLOOK,
+          });
+        } catch (err) {
+          if (err instanceof DejaRangeErreur) return;
+          throw err;
+        }
         bilan.deplaces++;
       }),
     );

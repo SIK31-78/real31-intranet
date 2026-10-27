@@ -34,6 +34,8 @@ function deps(journal: EntreeJournalTri[]) {
     dossier: vi.fn(async () => null),
     enregistrerDossier: vi.fn(async () => {}),
     journaliser: vi.fn(async () => "j2"),
+    // Repli sans colonne `etat` (REA-420) : la ligne s'ecrit apres le deplacement.
+    ouvrirRangement: vi.fn(async () => null),
     binomes: vi.fn(async () => AUCUN_BINOME),
   };
   const rangement = {

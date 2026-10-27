@@ -59,6 +59,16 @@ function journalEnMemoire() {
       lignes.push({ ...e, id, faitLe: new Date().toISOString(), annuleLe: null });
       return id;
     },
+    // Journal transactionnel (REA-420) : la ligne s'ouvre « en_cours » avant le deplacement.
+    ouvrirRangement: async (e: NouvelleEntreeJournal) => {
+      const id = `j${lignes.length + 1}`;
+      lignes.push({ ...e, id, faitLe: new Date().toISOString(), annuleLe: null, etat: "en_cours" });
+      return id;
+    },
+    confirmerRangement: async (id: string, messageId: string) => {
+      const e = lignes.find((x) => x.id === id);
+      if (e) Object.assign(e, { etat: "fait", messageId });
+    },
     entree: async (id: string) => lignes.find((e) => e.id === id) ?? null,
     journalDepuis: async (boite: string) => lignes.filter((e) => e.boite === boite && !e.annuleLe),
     dejaRanges: async (boite: string, ids: string[], o: OptionsDejaRange) =>

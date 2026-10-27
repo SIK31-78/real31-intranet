@@ -2,8 +2,12 @@
 // Policy aux boites du groupe REAL31-Intranet-MailRead. ECRIT dans la boite (creer et
 // renommer un dossier, deplacer un mail) : le routeur ne le branche que si
 // MAIL_TRI_ECRITURE=on. Plain fetch, pas de SDK.
+//
+// Ids immuables depuis le 27/10/2026 (graphFetch, REA-420) : un deplacement ne change plus
+// l'id. Un deplacement refuse en 404 leve MailHorsReception : le rangement annule alors sa
+// ligne « en_cours » au lieu de la laisser a la reprise.
 
-import type { MailEnReception, PositionMail, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
+import { MailHorsReception, type MailEnReception, type PositionMail, type RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import { GRAPH, graphFetch, jetonGraph } from "./graph-auth";
 
 const u = (boite: string) => `${GRAPH}/users/${encodeURIComponent(boite)}`;
@@ -84,13 +88,12 @@ export class GraphRangementTri implements RangementTriProvider {
   }
 
   async deplacer(boite: string, messageId: string, folderId: string): Promise<{ messageId: string }> {
-    const m = await json<{ id: string }>(
-      await appel(`${u(boite)}/messages/${encodeURIComponent(messageId)}/move`, {
-        method: "POST",
-        body: JSON.stringify({ destinationId: folderId }),
-      }),
-      "deplacement",
-    );
+    const r = await appel(`${u(boite)}/messages/${encodeURIComponent(messageId)}/move`, {
+      method: "POST",
+      body: JSON.stringify({ destinationId: folderId }),
+    });
+    if (r.status === 404) throw new MailHorsReception();
+    const m = await json<{ id: string }>(r, "deplacement");
     return { messageId: m.id };
   }
 

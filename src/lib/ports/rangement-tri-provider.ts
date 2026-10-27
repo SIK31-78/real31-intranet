@@ -2,6 +2,17 @@
 // encore a trier, assurer le dossier de destination, deplacer, remettre en reception.
 // Ne depend que du domaine.
 
+/**
+ * Le deplacement a ete refuse parce que le mail n'est plus la (Graph 404 : range ou supprime
+ * entre-temps). Le rangement annule sa ligne « en_cours » (REA-420).
+ */
+export class MailHorsReception extends Error {
+  constructor() {
+    super("Ce mail n'est plus dans la boîte de réception : quelqu'un l'a sans doute déjà rangé.");
+    this.name = "MailHorsReception";
+  }
+}
+
 /** Ce que la boite dit d'un mail encore dans sa boite de reception. */
 export interface MailEnReception {
   internetMessageId: string;
@@ -31,6 +42,7 @@ export interface RangementTriProvider {
   /**
    * Deplace le mail ; renvoie son id Graph apres deplacement (le meme depuis les ids immuables,
    * REA-420 du 27/10/2026 ; un ancien id mutable donne en entree en rend un nouveau).
+   * MailHorsReception si le mail n'est plus la.
    */
   deplacer(boite: string, messageId: string, folderId: string): Promise<{ messageId: string }>;
   /** Remet le mail dans la boite de reception (annulation). */

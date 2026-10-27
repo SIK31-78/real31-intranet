@@ -1,9 +1,30 @@
 // Adapter Supabase du tri des e-mails (ADR-046) : tables intranet_tri_binome,
 // intranet_tri_dossier, intranet_tri_journal (supabase/sql/intranet_tri_emails.sql).
 // Tables absentes (SQL pas encore passe) : lectures vides, ecritures en erreur claire.
+//
+// Journal transactionnel (REA-420, 27/10/2026, intranet_tri_journal_etat.sql) : colonne
+// `etat` (« en_cours » | « fait »). Toutes les lectures passent par lignesActives : une ligne
+// « en_cours » ne compte que pendant 2 min (rangement en train de se faire), au-dela elle est
+// ignoree et la tache planifiee la reprend. Colonne absente : chaque lecture est relue sans le
+// filtre et ouvrirRangement rend null (l'appelant journalise apres le deplacement, comme
+// avant). Un doublon actif (index unique partiel, 23505) devient DejaRangeErreur.
 
-import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri, SignalTri } from "@/lib/domain/tri-emails";
-import type { HistoriqueExpediteur, NouvelleEntreeJournal, OptionsDejaRange, TriRepository } from "@/lib/ports/tri-repository";
+import {
+  DELAI_RANGEMENT_EN_COURS_MS,
+  type Binome,
+  type BinomesTri,
+  type DossierConnu,
+  type EntreeJournalTri,
+  type EtatLigneJournal,
+  type SignalTri,
+} from "@/lib/domain/tri-emails";
+import {
+  DejaRangeErreur,
+  type HistoriqueExpediteur,
+  type NouvelleEntreeJournal,
+  type OptionsDejaRange,
+  type TriRepository,
+} from "@/lib/ports/tri-repository";
 import { createSupabasePublicClient } from "./public-client";
 
 const SQL = "supabase/sql/intranet_tri_emails.sql puis intranet_tri_binomes_par_copro.sql";
@@ -29,6 +50,8 @@ type RowJournal = {
   annule_le: string | null;
   /** Absente tant que intranet_tri_journal_conversation.sql n'est pas passé. */
   conversation_id?: string | null;
+  /** Absente tant que intranet_tri_journal_etat.sql n'est pas passé (REA-420). */
+  etat?: EtatLigneJournal;
 };
 
 const COLS =
@@ -38,10 +61,37 @@ function tableAbsente(error: { code?: string } | null): boolean {
   return error?.code === "42P01" || error?.code === "PGRST205";
 }
 
-// Colonne absente (intranet_tri_journal_conversation.sql pas encore passe) : en lecture
-// Postgres repond 42703, a l'ecriture PostgREST repond PGRST204.
-function colonneAbsente(error: { code?: string } | null): boolean {
-  return error?.code === "42703" || error?.code === "PGRST204";
+// Colonne absente (intranet_tri_journal_conversation.sql, _etat.sql pas encore passes) : en
+// lecture Postgres repond 42703, a l'ecriture PostgREST repond PGRST204. `nom` : seulement si
+// c'est cette colonne-la (les deux messages la citent).
+function colonneAbsente(error: { code?: string; message?: string } | null, nom?: string): boolean {
+  if (error?.code !== "42703" && error?.code !== "PGRST204") return false;
+  return !nom || (error.message ?? "").includes(nom);
+}
+
+/** Violation de l'index unique des rangements actifs (intranet_tri_journal_etat.sql). */
+const doublon = (error: { code?: string } | null) => error?.code === "23505";
+
+/**
+ * LE filtre des lignes actives (REA-420) : « fait », ou « en_cours » de moins de 2 min. Une
+ * seule fonction pour toutes les lectures du journal. `ouAussi` : l'autre filtre `or` de la
+ * meme requete s'il y en a un (un seul `or` par requete : les deux sont combines en ET).
+ */
+function lignesActives<Q extends AvecOr>(q: Q, avecEtat: boolean, ouAussi?: string): Q {
+  if (!avecEtat) return ouAussi ? (q.or(ouAussi) as Q) : q;
+  const seuil = new Date(Date.now() - DELAI_RANGEMENT_EN_COURS_MS).toISOString();
+  const actives = `etat.eq.fait,fait_le.gte.${seuil}`;
+  return q.or(ouAussi ? `and(or(${actives}),or(${ouAussi}))` : actives) as Q;
+}
+
+type Reponse = { data: unknown; error: { code?: string; message: string } | null };
+/** Une requete PostgREST, juste ce que lignesActives en utilise. */
+type AvecOr = { or(filtre: string): unknown };
+
+/** Lit avec le filtre des lignes actives, puis sans si la colonne `etat` n'existe pas encore. */
+async function avecRepliEtat(lire: (avecEtat: boolean) => PromiseLike<Reponse>): Promise<Reponse> {
+  const r = await lire(true);
+  return colonneAbsente(r.error, "etat") ? lire(false) : r;
 }
 
 /** Les conversationId Graph sont longs (~150 caracteres) : par lots, pour borner l'URL. */
@@ -62,7 +112,7 @@ function lotsDe<T>(valeurs: T[], taille: number): T[][] {
   return lots;
 }
 
-type ReponseJournal = PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>;
+type ReponseJournal = PromiseLike<Reponse>;
 
 /** Valeur d'un filtre `or` PostgREST : entre guillemets (virgules, parentheses), `\` et `"` echappes. */
 function valeurOr(v: string): string {
@@ -92,6 +142,7 @@ function versDomaine(r: RowJournal): EntreeJournalTri {
     faitLe: r.fait_le,
     annuleLe: r.annule_le,
     ...(r.conversation_id ? { conversationId: r.conversation_id } : {}),
+    ...(r.etat ? { etat: r.etat } : {}),
   };
 }
 
@@ -191,7 +242,21 @@ export class SupabaseTriRepository implements TriRepository {
   }
 
   async journaliser(e: NouvelleEntreeJournal): Promise<string> {
-    const ligne = {
+    const id = await this.inserer(e, null);
+    if (!id) throw new Error("Tri des e-mails (journal) : ligne non écrite.");
+    return id;
+  }
+
+  async ouvrirRangement(e: NouvelleEntreeJournal): Promise<string | null> {
+    return this.inserer(e, "en_cours");
+  }
+
+  /**
+   * Insere une ligne ; `etat` null = sans la colonne (ligne « fait » par defaut). Rend null si
+   * `etat` est demande et que la colonne n'existe pas encore (repli de l'appelant).
+   */
+  private async inserer(e: NouvelleEntreeJournal, etat: EtatLigneJournal | null): Promise<string | null> {
+    const ligne: Record<string, unknown> = {
       boite: e.boite,
       internet_message_id: e.internetMessageId,
       message_id: e.messageId,
@@ -205,37 +270,70 @@ export class SupabaseTriRepository implements TriRepository {
       candidats: e.candidats,
       simulation: e.simulation,
       par: e.par,
+      ...(etat ? { etat } : {}),
     };
     const inserer = (l: Record<string, unknown>) =>
       createSupabasePublicClient().from("intranet_tri_journal").insert(l).select("id").single<{ id: string }>();
     let res = await inserer(e.conversationId ? { ...ligne, conversation_id: e.conversationId } : ligne);
+    // Colonne etat pas encore creee : l'appelant journalisera apres le deplacement.
+    if (res.error && etat && colonneAbsente(res.error, "etat")) return null;
     // Colonne conversation_id pas encore creee : le rangement passe quand meme, sans elle.
     if (res.error && e.conversationId && colonneAbsente(res.error)) res = await inserer(ligne);
+    if (res.error && doublon(res.error)) throw new DejaRangeErreur();
     if (res.error) throw erreur("journal", res.error);
     return res.data.id;
   }
 
-  async entree(id: string) {
-    const { data, error } = await createSupabasePublicClient().from("intranet_tri_journal").select(COLS).eq("id", id).maybeSingle();
+  async confirmerRangement(id: string, messageId: string): Promise<void> {
+    const { error } = await createSupabasePublicClient()
+      .from("intranet_tri_journal")
+      .update({ etat: "fait", message_id: messageId })
+      .eq("id", id);
+    if (error) throw erreur("confirmation", error);
+  }
+
+  async enCoursAReprendre(boite: string, avantISO: string, max: number): Promise<EntreeJournalTri[]> {
+    const { data, error } = await createSupabasePublicClient()
+      .from("intranet_tri_journal")
+      .select(`${COLS}, conversation_id, etat`)
+      .eq("boite", boite)
+      .eq("etat", "en_cours")
+      .eq("simulation", false)
+      .is("annule_le", null)
+      .lt("fait_le", avantISO)
+      .order("fait_le", { ascending: true })
+      .limit(max);
     if (error) {
-      if (tableAbsente(error)) return null;
+      if (tableAbsente(error) || colonneAbsente(error)) return [];
       throw erreur("journal", error);
     }
-    return data ? versDomaine(data as RowJournal) : null;
+    return ((data ?? []) as unknown as RowJournal[]).map(versDomaine);
+  }
+
+  async entree(id: string) {
+    // Par son id, quel que soit son etat : l'annulation d'une ligne « en_cours » reste possible.
+    const [e] = await this.lignes((cols) => createSupabasePublicClient().from("intranet_tri_journal").select(cols).eq("id", id).limit(1), false);
+    return e ?? null;
   }
 
   /**
    * Lit des lignes du journal AVEC conversation_id (les « Envoyés » d'une boite partagee,
-   * REA-408) ; colonne pas encore creee : on relit sans elle, le journal reste lisible.
+   * REA-408) et `etat`, filtrees aux lignes actives (lignesActives) sauf `actives = false` ;
+   * colonne pas encore creee : on relit sans elle, le journal reste lisible.
    */
-  private async lignes(lire: (cols: string) => ReponseJournal): Promise<EntreeJournalTri[]> {
-    let { data, error } = await lire(`${COLS}, conversation_id`);
-    if (error && colonneAbsente(error)) ({ data, error } = await lire(COLS));
-    if (error) {
-      if (tableAbsente(error)) return [];
-      throw erreur("journal", error);
+  private async lignes<Q extends ReponseJournal & AvecOr>(lire: (cols: string) => Q, actives = true): Promise<EntreeJournalTri[]> {
+    let avecEtat = true;
+    let avecConversation = true;
+    for (;;) {
+      const cols = `${COLS}${avecConversation ? ", conversation_id" : ""}${avecEtat ? ", etat" : ""}`;
+      const requete = lire(cols);
+      const { data, error } = await (actives ? lignesActives(requete, avecEtat) : requete);
+      if (!error) return ((data ?? []) as RowJournal[]).map(versDomaine);
+      if (avecEtat && colonneAbsente(error, "etat")) avecEtat = false;
+      else if (avecConversation && colonneAbsente(error)) avecConversation = false;
+      else if (tableAbsente(error)) return [];
+      else throw erreur("journal", error);
     }
-    return ((data ?? []) as RowJournal[]).map(versDomaine);
   }
 
   async journalDepuis(boite: string, depuisISO: string) {
@@ -297,13 +395,15 @@ export class SupabaseTriRepository implements TriRepository {
     const out = new Set<string>();
     if (uniques.length === 0) return out;
     const reponses = await Promise.all(
-      lotsDe(uniques, LOT_IDENTIFIANTS).map((lot) => {
-        let requete = createSupabasePublicClient().from("intranet_tri_journal").select("internet_message_id").eq("boite", boite).in("internet_message_id", lot);
-        if (opts.nonAnnulesSeulement) requete = requete.is("annule_le", null);
-        // En reel, une ligne simulee (dev local, meme base) ne compte pas (27/10/2026).
-        if (opts.reellesSeulement) requete = requete.eq("simulation", false);
-        return requete;
-      }),
+      lotsDe(uniques, LOT_IDENTIFIANTS).map((lot) =>
+        avecRepliEtat((avecEtat) => {
+          let requete = createSupabasePublicClient().from("intranet_tri_journal").select("internet_message_id").eq("boite", boite).in("internet_message_id", lot);
+          if (opts.nonAnnulesSeulement) requete = requete.is("annule_le", null);
+          // En reel, une ligne simulee (dev local, meme base) ne compte pas (27/10/2026).
+          if (opts.reellesSeulement) requete = requete.eq("simulation", false);
+          return lignesActives(requete, avecEtat);
+        }),
+      ),
     );
     for (const { data, error } of reponses) {
       if (error) {
@@ -330,16 +430,20 @@ export class SupabaseTriRepository implements TriRepository {
     const lots = lotsDe(uniques, LOT_CONVERSATIONS);
     const reponses = await Promise.all(
       lots.map((lot) =>
-        createSupabasePublicClient()
-          .from("intranet_tri_journal")
-          .select("conversation_id, copro_reference, fait_le")
-          .eq("boite", boite)
-          .is("annule_le", null)
-          .not("copro_reference", "is", null)
-          .in("conversation_id", lot)
-          .order("fait_le", { ascending: false })
-          .limit(500)
-          .returns<{ conversation_id: string; copro_reference: string }[]>(),
+        avecRepliEtat((avecEtat) =>
+          lignesActives(
+            createSupabasePublicClient()
+              .from("intranet_tri_journal")
+              .select("conversation_id, copro_reference, fait_le")
+              .eq("boite", boite)
+              .is("annule_le", null)
+              .not("copro_reference", "is", null)
+              .in("conversation_id", lot),
+            avecEtat,
+          )
+            .order("fait_le", { ascending: false })
+            .limit(500),
+        ),
       ),
     );
     const out = new Map<string, string>();
@@ -349,7 +453,9 @@ export class SupabaseTriRepository implements TriRepository {
         throw erreur("journal", error);
       }
       // Les plus recents d'abord : le premier vu par conversation est le dernier rangement.
-      for (const r of data ?? []) if (!out.has(r.conversation_id)) out.set(r.conversation_id, r.copro_reference);
+      for (const r of (data ?? []) as { conversation_id: string; copro_reference: string }[]) {
+        if (!out.has(r.conversation_id)) out.set(r.conversation_id, r.copro_reference);
+      }
     }
     return out;
   }
@@ -362,15 +468,18 @@ export class SupabaseTriRepository implements TriRepository {
     // a l'egalite exacte.
     const reponses = await Promise.all(
       lots.map((lot) =>
-        createSupabasePublicClient()
-          .from("intranet_tri_journal")
-          .select("expediteur, objet, dossier_cle, copro_reference, copros")
-          .eq("boite", boite)
-          .is("annule_le", null)
-          .gte("fait_le", depuisISO)
-          .or(lot.map((e) => `expediteur.ilike.${valeurOr(e)}`).join(","))
-          .limit(1000)
-          .returns<{ expediteur: string; objet: string; dossier_cle: string | null; copro_reference: string | null; copros: string[] | null }[]>(),
+        avecRepliEtat((avecEtat) =>
+          lignesActives(
+            createSupabasePublicClient()
+              .from("intranet_tri_journal")
+              .select("expediteur, objet, dossier_cle, copro_reference, copros")
+              .eq("boite", boite)
+              .is("annule_le", null)
+              .gte("fait_le", depuisISO),
+            avecEtat,
+            lot.map((e) => `expediteur.ilike.${valeurOr(e)}`).join(","),
+          ).limit(1000),
+        ),
       ),
     );
     const voulus = new Set(uniques);
@@ -380,7 +489,7 @@ export class SupabaseTriRepository implements TriRepository {
         if (tableAbsente(error)) return [];
         throw erreur("journal", error);
       }
-      for (const r of data ?? []) {
+      for (const r of (data ?? []) as { expediteur: string; objet: string; dossier_cle: string | null; copro_reference: string | null; copros: string[] | null }[]) {
         if (!voulus.has(r.expediteur.trim().toLowerCase())) continue;
         out.push({
           expediteur: r.expediteur,
@@ -394,14 +503,18 @@ export class SupabaseTriRepository implements TriRepository {
     return out;
   }
 
-  async marquerAnnule(id: string, par: string): Promise<boolean> {
+  async marquerAnnule(id: string, par: string, raison?: string): Promise<boolean> {
     // UPDATE conditionnel : Postgres ne le fait reussir qu'une fois.
-    const { data, error } = await createSupabasePublicClient()
-      .from("intranet_tri_journal")
-      .update({ annule_le: new Date().toISOString(), annule_par: par })
-      .eq("id", id)
-      .is("annule_le", null)
-      .select("id");
+    const marquer = (avecRaison: boolean) =>
+      createSupabasePublicClient()
+        .from("intranet_tri_journal")
+        .update({ annule_le: new Date().toISOString(), annule_par: par, ...(avecRaison ? { annule_raison: raison } : {}) })
+        .eq("id", id)
+        .is("annule_le", null)
+        .select("id");
+    let { data, error } = await marquer(Boolean(raison));
+    // Colonne annule_raison pas encore creee : on annule sans la raison.
+    if (raison && colonneAbsente(error, "annule_raison")) ({ data, error } = await marquer(false));
     if (error) throw erreur("annulation", error);
     return ((data as unknown[] | null) ?? []).length > 0;
   }

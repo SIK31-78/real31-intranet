@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
-import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
+import { MailHorsReception, type RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { ReferentielTri } from "@/lib/domain/tri-emails";
-import { annulerRangement, corrigerCopro, rangerMail, type DemandeRangement, type DepsRangement } from "@/lib/services/tri-emails/ranger";
+import { annulerRangement, corrigerCopro, rangerMail, supprimerMail, type DemandeRangement, type DepsRangement } from "@/lib/services/tri-emails/ranger";
 
 const BOITE = "syndic2@real31.fr";
 
@@ -170,6 +170,97 @@ describe("rangerMail", () => {
     const r = await rangerMail(demande(), "a", d);
     expect(r.simulation).toBe(true);
     expect(await d.repo.dossier(BOITE, "binome:sandy@real31.fr")).toBeNull();
+  });
+});
+
+describe("rangerMail : journal transactionnel (REA-420)", () => {
+  const repoTri = () =>
+    new MockTriRepository({
+      binomes: [{ id: "b1", gestionnaireEmail: "sandy@real31.fr", assistant: { nomComplet: "Julie", email: "julie@real31.fr" }, principal: true }],
+      parCopro: {},
+    });
+
+  it("ecrit la ligne « en_cours » AVANT le deplacement, puis la confirme avec l'id definitif", async () => {
+    const { g } = fauxGraph();
+    const repo = repoTri();
+    let auDeplacement: unknown = null;
+    const deplacer = g.deplacer.bind(g);
+    g.deplacer = async (b, id, folderId) => {
+      auDeplacement = { ...(await repo.journalDepuis(BOITE, "2000-01-01"))[0] };
+      return deplacer(b, id, folderId);
+    };
+    const r = await rangerMail(demande(), "a", deps({ rangement: g, repo }));
+    expect(auDeplacement).toMatchObject({ etat: "en_cours", messageId: "m1", internetMessageId: "<m1>", dossierNom: "SC-JB", par: "a" });
+    expect(await repo.entree(r.journalId)).toMatchObject({ etat: "fait", messageId: "m1-deplace" });
+  });
+
+  it("deplacement refuse en 404 (plus en reception) : la ligne est annulee par « systeme »", async () => {
+    const { g } = fauxGraph();
+    g.deplacer = async () => {
+      throw new MailHorsReception();
+    };
+    const repo = repoTri();
+    const annuler = vi.spyOn(repo, "marquerAnnule");
+    await expect(rangerMail(demande(), "a", deps({ rangement: g, repo }))).rejects.toThrow(/plus dans la boîte de réception/);
+    expect(annuler).toHaveBeenCalledWith("j-1", "systeme", expect.stringMatching(/plus en réception/));
+    expect((await repo.entree("j-1"))?.annuleLe).not.toBeNull();
+    // Le mail peut etre range a nouveau (la ligne annulee ne compte plus).
+    expect(await repo.dejaRanges(BOITE, ["<m1>"], { reellesSeulement: true })).toEqual(new Set());
+  });
+
+  it("autre panne du deplacement : la ligne reste « en_cours » pour la reprise", async () => {
+    const { g } = fauxGraph();
+    g.deplacer = async () => {
+      throw new Error("Graph deplacement 503");
+    };
+    const repo = repoTri();
+    await expect(rangerMail(demande(), "a", deps({ rangement: g, repo }))).rejects.toThrow(/503/);
+    expect(await repo.entree("j-1")).toMatchObject({ etat: "en_cours", annuleLe: null });
+  });
+
+  it("Supabase en panne apres le deplacement : le mail est range, la ligne reste « en_cours »", async () => {
+    const { g, appels } = fauxGraph();
+    const repo = repoTri();
+    repo.confirmerRangement = async () => {
+      throw new Error("Supabase indisponible");
+    };
+    await expect(rangerMail(demande(), "a", deps({ rangement: g, repo }))).rejects.toThrow(/journal n'a pas pu être confirmé/);
+    expect(appels).toContain("deplacer m1 -> f-SC-JB");
+    expect(await repo.entree("j-1")).toMatchObject({ etat: "en_cours", annuleLe: null, messageId: "m1" });
+    // Pendant 2 min, la ligne compte comme « deja range » : pas de second rangement.
+    expect(await repo.dejaRanges(BOITE, ["<m1>"], { reellesSeulement: true })).toEqual(new Set(["<m1>"]));
+  });
+
+  it("une ligne « en_cours » de plus de 2 min est ignoree par les lectures, mais l'index unique refuse un second rangement", async () => {
+    const { g, appels } = fauxGraph();
+    const repo = repoTri();
+    repo.confirmerRangement = async () => {
+      throw new Error("Supabase indisponible");
+    };
+    await rangerMail(demande(), "a", deps({ rangement: g, repo })).catch(() => undefined);
+    repo.vieillir("j-1", 3 * 60_000);
+    expect(await repo.dejaRanges(BOITE, ["<m1>"], { reellesSeulement: true })).toEqual(new Set());
+    expect(await repo.journalDepuis(BOITE, "2000-01-01")).toEqual([]);
+    const avant = appels.length;
+    await expect(rangerMail(demande(), "a", deps({ rangement: g, repo }))).rejects.toThrow(/déjà été rangé/);
+    expect(appels.slice(avant).some((a) => a.startsWith("deplacer"))).toBe(false);
+  });
+
+  it("colonne `etat` absente (SQL pas passe) : journalise apres le deplacement, comme avant", async () => {
+    const { g } = fauxGraph();
+    const repo = repoTri();
+    repo.ouvrirRangement = async () => null;
+    const journaliser = vi.spyOn(repo, "journaliser");
+    const r = await rangerMail(demande(), "a", deps({ rangement: g, repo }));
+    expect(journaliser).toHaveBeenCalledWith(expect.objectContaining({ messageId: "m1-deplace", internetMessageId: "<m1>" }));
+    expect(await repo.entree(r.journalId)).toMatchObject({ messageId: "m1-deplace", annuleLe: null });
+  });
+
+  it("supprimerMail suit le meme geste : ligne « en_cours », corbeille, confirmation", async () => {
+    const { g } = fauxGraph();
+    const repo = repoTri();
+    const r = await supprimerMail(demande(), "a", deps({ rangement: g, repo }));
+    expect(await repo.entree(r.journalId)).toMatchObject({ etat: "fait", messageId: "m1-corbeille", dossierNom: "Corbeille" });
   });
 });
 

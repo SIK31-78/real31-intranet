@@ -14,10 +14,23 @@
 // l'index tout de suite, une annulation l'y remet ; la file n'attend pas le delta suivant. En
 // simulation, l'index ne bouge pas : le mail est toujours dans la boite, c'est le journal qui
 // le cache de la file (et le jour ou l'ecriture s'ouvre, les lignes simulees ne comptent plus).
+//
+// Journal transactionnel (REA-420, 27/10/2026) : avant, le mail etait deplace PUIS journalise ;
+// Supabase en panne ou la fonction coupee entre les deux laissait un mail dans le dossier du
+// binome sans ligne, donc invisible dans « E-mails » (qui distribue d'apres le journal) et
+// jamais repris. Maintenant (deplacerEtJournaliser) : (a) ligne « en_cours » ecrite AVANT le
+// deplacement, (b) deplacement, (c) etiquette, (d) ligne confirmee (« fait », id definitif).
+// Deplacement refuse en 404 (le mail n'est plus en reception) : ligne annulee par « systeme ».
+// Toute autre panne en (b) ou (d) : la ligne reste « en_cours », la tache planifiee la reprend
+// (reprendre-en-cours.ts). Une ligne « en_cours » de moins de 2 min compte comme « deja
+// range » : un clic et l'automatique ne rangent pas le meme mail en meme temps, et l'index
+// unique des rangements actifs refuse le second (DejaRangeErreur). Colonne `etat` absente
+// (SQL pas encore passe) : journalise apres le deplacement, comme avant.
 
 import {
   DOSSIER_CORBEILLE,
   DOSSIERS_HORS_BINOME,
+  PAR_SYSTEME,
   cleDeReference,
   destinationDe,
   dossiersChoisissables,
@@ -27,9 +40,9 @@ import {
   type SignalTri,
 } from "@/lib/domain/tri-emails";
 import { boiteTri, ecritureTriPour, type BoiteTriConfig } from "@/lib/domain/mail-gate";
-import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
+import { MailHorsReception, type RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
-import type { TriRepository } from "@/lib/ports/tri-repository";
+import { DejaRangeErreur, type NouvelleEntreeJournal, type TriRepository } from "@/lib/ports/tri-repository";
 import type { ReceptionIndex } from "@/lib/ports/reception-index";
 import { marquerRemis, marquerSortis } from "./synchroniser-reception";
 import { listerGestionnairesCabinet } from "./binomes";
@@ -150,6 +163,53 @@ export async function etiqueterSansBloquer(
   }
 }
 
+const DEJA_RANGE = "Ce mail a déjà été rangé.";
+
+/**
+ * Le geste transactionnel commun au rangement et a la suppression (REA-420, voir l'en-tete) :
+ * ligne « en_cours », deplacement, etiquette (`apres`), confirmation. Rend l'id de la ligne.
+ */
+async function deplacerEtJournaliser(
+  deps: DepsRangement,
+  ligne: NouvelleEntreeJournal,
+  deplacer: () => Promise<{ messageId: string }>,
+  apres: (messageId: string) => Promise<void> = async () => {},
+): Promise<string> {
+  let id: string | null;
+  try {
+    id = await deps.repo.ouvrirRangement(ligne);
+  } catch (e) {
+    if (e instanceof DejaRangeErreur) throw new Error(DEJA_RANGE);
+    throw e;
+  }
+
+  let messageId: string;
+  try {
+    ({ messageId } = await deplacer());
+  } catch (e) {
+    // Rien n'a bouge : la ligne est close tout de suite. Autre panne : on ne sait pas si le
+    // deplacement a eu lieu (reponse perdue), la ligne reste « en_cours » pour la reprise.
+    if (id && e instanceof MailHorsReception) {
+      await deps.repo
+        .marquerAnnule(id, PAR_SYSTEME, "déplacement refusé : le mail n'était plus en réception")
+        .catch((err: unknown) => console.error("[tri-emails] annulation de la ligne en cours :", err instanceof Error ? err.message : err));
+    }
+    throw e;
+  }
+  if (!deps.simulation) await marquerSortis(deps.index, ligne.boite, [ligne.internetMessageId]);
+  await apres(messageId);
+
+  // Repli sans colonne `etat` : la ligne s'ecrit apres coup, comme avant le 27/10/2026.
+  if (!id) return deps.repo.journaliser({ ...ligne, messageId });
+  try {
+    await deps.repo.confirmerRangement(id, messageId);
+  } catch (e) {
+    console.error("[tri-emails] confirmation du rangement :", e instanceof Error ? e.message : e);
+    throw new Error("Le mail est rangé, mais le journal n'a pas pu être confirmé : la tâche planifiée le reprendra d'ici quelques minutes.", { cause: e });
+  }
+  return id;
+}
+
 export async function rangerMail(
   d: DemandeRangement,
   par: string,
@@ -164,7 +224,7 @@ export async function rangerMail(
   const internetMessageId = lu.internetMessageId || d.internetMessageId;
   // En reel, une ligne simulee ne compte pas : elle n'a jamais deplace le mail (27/10/2026).
   if ((await deps.repo.dejaRanges(boite, [internetMessageId], { reellesSeulement: !deps.simulation })).size > 0) {
-    throw new Error("Ce mail a déjà été rangé.");
+    throw new Error(DEJA_RANGE);
   }
 
   const { cle, nom, copro, copros } = await resoudreDossier(d.cible, deps);
@@ -177,28 +237,33 @@ export async function rangerMail(
     await deps.repo.enregistrerDossier(boite, cle, { folderId, nom });
   }
 
-  const { messageId } = await deps.rangement.deplacer(boite, d.messageId, folderId);
-  if (!deps.simulation) await marquerSortis(deps.index, boite, [internetMessageId]);
-  // L'etiquette au code copro, pour chercher dans Outlook (increment 3). Pas d'etiquette
-  // pour Comptabilité / Divers : ils n'ont pas de copro.
-  const etiquetee = copros.length ? await etiqueterSansBloquer(deps, boite, messageId, { ajouter: copros }) : true;
-
-  const journalId = await deps.repo.journaliser({
-    boite,
-    internetMessageId,
-    messageId,
-    ...(lu.conversationId ? { conversationId: lu.conversationId } : {}),
-    expediteur: lu.expediteur || d.expediteur,
-    objet: lu.objet || d.objet,
-    coproReference: copro,
-    copros,
-    dossierNom: nom,
-    dossierCle: cle,
-    signal: d.suggestion?.nature ?? null,
-    candidats: d.suggestion?.candidats ?? [],
-    simulation: deps.simulation,
-    par,
-  });
+  let etiquetee = true;
+  const journalId = await deplacerEtJournaliser(
+    deps,
+    {
+      boite,
+      internetMessageId,
+      // Provisoire : l'id d'avant le deplacement, remplace a la confirmation.
+      messageId: d.messageId,
+      ...(lu.conversationId ? { conversationId: lu.conversationId } : {}),
+      expediteur: lu.expediteur || d.expediteur,
+      objet: lu.objet || d.objet,
+      coproReference: copro,
+      copros,
+      dossierNom: nom,
+      dossierCle: cle,
+      signal: d.suggestion?.nature ?? null,
+      candidats: d.suggestion?.candidats ?? [],
+      simulation: deps.simulation,
+      par,
+    },
+    () => deps.rangement.deplacer(boite, d.messageId, folderId),
+    // L'etiquette au code copro, pour chercher dans Outlook (increment 3). Pas d'etiquette
+    // pour Comptabilité / Divers : ils n'ont pas de copro.
+    async (messageId) => {
+      if (copros.length) etiquetee = await etiqueterSansBloquer(deps, boite, messageId, { ajouter: copros });
+    },
+  );
   return { journalId, dossierNom: nom, simulation: deps.simulation, etiquetteNonPosee: !etiquetee };
 }
 
@@ -223,26 +288,28 @@ export async function supprimerMail(
   if (!lu) throw new Error("Ce mail n'est plus dans la boîte de réception : quelqu'un l'a sans doute déjà rangé.");
   const internetMessageId = lu.internetMessageId || d.internetMessageId;
   if ((await deps.repo.dejaRanges(boite, [internetMessageId], { reellesSeulement: !deps.simulation })).size > 0) {
-    throw new Error("Ce mail a déjà été rangé.");
+    throw new Error(DEJA_RANGE);
   }
 
-  const { messageId } = await deps.rangement.supprimer(boite, d.messageId);
-  if (!deps.simulation) await marquerSortis(deps.index, boite, [internetMessageId]);
-  const journalId = await deps.repo.journaliser({
-    boite,
-    internetMessageId,
-    messageId,
-    expediteur: lu.expediteur || d.expediteur,
-    objet: lu.objet || d.objet,
-    coproReference: null,
-    copros: [],
-    dossierNom: CORBEILLE_NOM,
-    dossierCle: CORBEILLE_CLE,
-    signal: d.suggestion?.nature ?? null,
-    candidats: d.suggestion?.candidats ?? [],
-    simulation: deps.simulation,
-    par,
-  });
+  const journalId = await deplacerEtJournaliser(
+    deps,
+    {
+      boite,
+      internetMessageId,
+      messageId: d.messageId,
+      expediteur: lu.expediteur || d.expediteur,
+      objet: lu.objet || d.objet,
+      coproReference: null,
+      copros: [],
+      dossierNom: CORBEILLE_NOM,
+      dossierCle: CORBEILLE_CLE,
+      signal: d.suggestion?.nature ?? null,
+      candidats: d.suggestion?.candidats ?? [],
+      simulation: deps.simulation,
+      par,
+    },
+    () => deps.rangement.supprimer(boite, d.messageId),
+  );
   return { journalId, dossierNom: CORBEILLE_NOM, simulation: deps.simulation, etiquetteNonPosee: false };
 }
 

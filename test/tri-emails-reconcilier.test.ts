@@ -184,5 +184,31 @@ describe("reconcilierRangements", () => {
       });
       expect(localiser).not.toHaveBeenCalled();
     });
+
+    it("une ligne « en_cours » (rangement en train de se faire) n'est pas jugee : ni remise en file, ni localisee", async () => {
+      const { deps, repo, id } = await monter(ici("f-sc"));
+      await repo.marquerAnnule(id);
+      const enCours = await repo.ouvrirRangement({
+        boite: BOITE,
+        internetMessageId: "<m2>",
+        messageId: "m2",
+        expediteur: "x@exemple.fr",
+        objet: "Objet",
+        coproReference: "S0297",
+        copros: ["S0297"],
+        dossierNom: "SC",
+        dossierCle: "binome:sandy@real31.fr",
+        signal: "sure",
+        candidats: ["S0297"],
+        simulation: false,
+        par: "automatique",
+      });
+      const localiser = vi.fn(deps.rangement.localiser);
+      deps.rangement.localiser = localiser;
+      const bilan = await reconcilierRangements(deps, Date.now, { debut: plusTard(), presents: new Map([["<m2>", "m2"]]), sortis: [] });
+      expect(bilan).toEqual({ verifies: 0, remisEnFile: 0, deplaces: 0, echecs: 0 });
+      expect(localiser).not.toHaveBeenCalled();
+      expect((await repo.entree(enCours!))?.annuleLe).toBeNull();
+    });
   });
 });
