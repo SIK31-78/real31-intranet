@@ -5,7 +5,9 @@
 // L'adresse de boîte arrive du CLIENT (le mail affiché, le "De :" choisi). Elle n'est JAMAIS
 // crue sur parole : seule une boîte de la configuration visible est acceptée. Absente => boîte
 // personnelle, c'est-à-dire le comportement d'avant le multi-boîtes. Boîte partagée = celle de
-// MON agence (config MAIL_TRI_BOITES) ; toutes pour un super-admin.
+// MON agence (config MAIL_TRI_BOITES) ; toutes pour un super-admin. Délégation de portefeuille
+// active (complément d'ADR-041, 27/10/2026) : la boîte perso du titulaire est une boîte visible
+// comme la mienne (hors incarnation), donc acceptée ici, et seulement avec la délégation.
 
 import "server-only";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
@@ -27,9 +29,12 @@ export async function boitesDe(g: Personne) {
 }
 
 export async function boiteCible(g: Personne, demandee: string | undefined): Promise<string | null> {
-  const boites = await boitesDe(g);
+  return cibleParmi(await boitesDe(g), demandee);
+}
+
+function cibleParmi(boites: Awaited<ReturnType<typeof boitesDe>>, demandee: string | undefined): string | null {
   const cible =
-    (demandee ?? "").trim().toLowerCase() || boites.find((b) => b.personnelle)?.id || "";
+    (demandee ?? "").trim().toLowerCase() || boites.find((b) => b.personnelle && !b.pour)?.id || "";
   if (!cible) return null;
   return boiteAutorisee(boites, cible) ? cible : null;
 }
@@ -42,8 +47,24 @@ export async function boiteCible(g: Personne, demandee: string | undefined): Pro
  * super-admin en est exempte (pilote). La distribution est lue une fois par requete.
  */
 export async function boiteDuMail(g: Personne, demandee: string | undefined, emailId: string): Promise<string | null> {
-  const cible = await boiteCible(g, demandee);
+  const boites = await boitesDe(g);
+  const cible = cibleParmi(boites, demandee);
   if (!cible) return null;
-  if (cible === (g.email ?? "").trim().toLowerCase() || estSuperAdmin(g.email)) return cible; // la boite perso n'est dans boiteCible que hors incarnation
+  // Une boite perso (la mienne, ou celle d'un titulaire qui m'a confie son portefeuille) n'est
+  // dans les boites visibles que hors incarnation : tout son contenu m'est ouvert.
+  if (boites.find((b) => b.id === cible)?.personnelle || estSuperAdmin(g.email)) return cible;
   return (await mailDistribue(g, cible, emailId)) ? cible : null;
+}
+
+/**
+ * La nature d'une boite visible : « mienne » (ma boite perso), « deleguee » (la boite perso
+ * d'un titulaire, par delegation de portefeuille), « partagee », ou null (pas visible). Les
+ * envois depuis une boite perso, la mienne ou celle du titulaire, partent comme depuis « Ma
+ * boite » ; la corbeille et la creation de dossiers restent a ma seule boite.
+ */
+export async function natureBoite(g: Personne, cible: string | null | undefined): Promise<"mienne" | "deleguee" | "partagee" | null> {
+  const b = cible ? (await boitesDe(g)).find((x) => x.id === cible.trim().toLowerCase()) : undefined;
+  if (!b) return null;
+  if (!b.personnelle) return "partagee";
+  return b.pour ? "deleguee" : "mienne";
 }

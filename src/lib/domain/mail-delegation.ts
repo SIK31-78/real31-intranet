@@ -7,7 +7,10 @@
 // - Active = aujourd'hui entre `depuis` et `jusqua` (bornes comprises), non clôturée.
 // - Boîte partagée : les dossiers des binômes du titulaire s'ajoutent à ma distribution, et sa
 //   boîte partagée à mes boîtes s'il est d'une autre agence (boites-visibles).
+// - Boîte perso du titulaire : un onglet « Boîte de Fanny S. (délégation) », lu comme « Ma
+//   boîte » ; jamais en incarnation (« Changer de gestionnaire » ne lit aucune boîte perso).
 
+import type { BoiteMail } from "./boites-mail";
 import { delegationActive, type Delegation } from "./perimetre-ecriture";
 
 /** Une délégation telle que le dépôt la rend (clôturée = retirée avant terme). */
@@ -48,4 +51,32 @@ export function nomCourtTitulaire(nomComplet: string): string {
   const nom = mots.find(estNom) ?? mots[mots.length - 1]!;
   const prenom = mots.filter((m) => m !== nom).join(" ");
   return `${prenom} ${nom.charAt(0).toUpperCase()}.`;
+}
+
+/** La boîte perso d'un titulaire, telle que l'onglet la montre. */
+export function boitePersoDeleguee(t: Pick<TitulaireMail, "email" | "nomComplet">): BoiteMail {
+  const pour = nomCourtTitulaire(t.nomComplet) || t.email;
+  const adresse = t.email.trim().toLowerCase();
+  return { id: adresse, adresse, libelle: `Boîte de ${pour} (délégation)`, personnelle: true, pour };
+}
+
+/**
+ * Ajoute aux boîtes visibles les boîtes perso des titulaires, après les miennes. Jamais en
+ * incarnation, jamais une boîte déjà présente (la mienne, une partagée).
+ */
+export function avecBoitesPersoDeleguees(
+  boites: readonly BoiteMail[],
+  titulaires: readonly Pick<TitulaireMail, "email" | "nomComplet">[],
+  incarnation: boolean,
+): BoiteMail[] {
+  if (incarnation) return [...boites];
+  const out = [...boites];
+  const vues = new Set(out.map((b) => b.id));
+  for (const t of titulaires) {
+    const b = boitePersoDeleguee(t);
+    if (!b.id.includes("@") || vues.has(b.id)) continue;
+    vues.add(b.id);
+    out.push(b);
+  }
+  return out;
 }

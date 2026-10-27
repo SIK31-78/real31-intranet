@@ -17,6 +17,11 @@ export interface BoiteMail {
   libelle: string;
   /** true = boite personnelle du connecte ; false = boite partagee d'agence. */
   personnelle: boolean;
+  /**
+   * Boîte perso d'un titulaire ouverte par une délégation de portefeuille : « Fanny S. »
+   * (complément d'ADR-041, 27/10/2026). Absent : ma boîte, ou une boîte partagée.
+   */
+  pour?: string;
 }
 
 function normaliser(adresse: string): string {

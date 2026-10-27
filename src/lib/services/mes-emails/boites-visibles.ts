@@ -22,7 +22,7 @@ import { cache } from "react";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { construireBoites, type BoiteMail } from "@/lib/domain/boites-mail";
 import { boitesTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
-import { nomCourtTitulaire } from "@/lib/domain/mail-delegation";
+import { avecBoitesPersoDeleguees, nomCourtTitulaire } from "@/lib/domain/mail-delegation";
 import { clesDossiersDe, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import { getTriRepository } from "@/lib/adapters/router";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
@@ -35,7 +35,9 @@ type Personne = Pick<Gestionnaire, "email" | "agencyId"> & { id?: string };
 const FENETRE_JOURS = 45;
 
 /**
- * Ma boite perso, puis la boite triee de mon agence (aucune si mon agence n'a pas de boite).
+ * Ma boite perso, puis la boite triee de mon agence (aucune si mon agence n'a pas de boite),
+ * puis les boites perso des titulaires qui m'ont confie leur portefeuille (delegation active,
+ * complement d'ADR-041 du 27/10/2026 : « Boite de Fanny S. (delegation) »).
  * `superAdmin` (calcule par l'appelant, auth) : toutes les boites triees. La boite fictive
  * « echantillon » n'est jamais une boite a lire (construireBoites l'ecarte).
  */
@@ -43,12 +45,16 @@ export async function boitesVisibles(
   g: Personne,
   opts: { superAdmin?: boolean; sansBoitePerso?: boolean } = {},
 ): Promise<BoiteMail[]> {
-  const partagees = opts.superAdmin ? boitesTri() : await boitesPartageesDe(g);
+  const [partagees, titulaires] = await Promise.all([
+    opts.superAdmin ? boitesTri() : boitesPartageesDe(g),
+    g.id ? titulairesDelegants(g.id) : [],
+  ]);
   // Incarnation (« Changer de gestionnaire ») : jamais la boite perso de la personne incarnee
-  // (decision du 27/10/2026), seulement les boites partagees.
-  return construireBoites(g.email, partagees.map((b) => b.boite).join(",")).filter((b) => !(opts.sansBoitePerso && b.personnelle)).map((b) =>
+  // (decision du 27/10/2026), seulement les boites partagees ; ni celles de ses delegations.
+  const boites = construireBoites(g.email, partagees.map((b) => b.boite).join(",")).filter((b) => !(opts.sansBoitePerso && b.personnelle)).map((b) =>
     b.personnelle ? b : { ...b, libelle: `${b.libelle} · mes mails` },
   );
+  return avecBoitesPersoDeleguees(boites, titulaires, opts.sansBoitePerso ?? false);
 }
 
 /**

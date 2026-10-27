@@ -259,7 +259,12 @@ export function MesEmailsVue({
   // Mails cochés pour la corbeille (REA-340, pilote) : boîte perso seulement.
   const [coches, setCoches] = useState<Set<string>>(new Set());
   const [corbeilleEnCours, setCorbeilleEnCours] = useState(false);
-  const corbeillePossible = pilote && (data.boites.find((b) => b.id === boiteActive)?.personnelle ?? false);
+  // Ma boîte seulement : la boîte d'un titulaire ouverte par délégation se traite, ne se vide pas (27/10/2026).
+  const maBoite = (id: string): boolean => {
+    const b = data.boites.find((x) => x.id === id);
+    return !!b?.personnelle && !b.pour;
+  };
+  const corbeillePossible = pilote && maBoite(boiteActive);
   // Modèle choisi pour la réponse, par mail (la liste se remet à « Aucun » à la fermeture).
   const [modeleParMail, setModeleParMail] = useState<Map<string, string>>(new Map());
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
@@ -369,7 +374,7 @@ export function MesEmailsVue({
   // La copro n'a pas encore de sous-dossier : on propose de le créer, sous la forme « S270 - Nom ».
   const dossierACreer = (m: MailEntrant): string | null => {
     const c = coproDe(m);
-    return dossiers && c.code && !dossierIdDe(m) ? nomDossierCopro(c.code, c.nom) : null;
+    return dossiers && c.code && !dossierIdDe(m) && maBoite(boiteDuMail(m)) ? nomDossierCopro(c.code, c.nom) : null;
   };
   async function creerDossierOutlook(m: MailEntrant) {
     const nom = dossierACreer(m);
@@ -661,7 +666,7 @@ export function MesEmailsVue({
   // perso seulement. Sur une boîte partagée, le mail disparaîtrait aussi pour le binôme.
   const [suppressionEnCours, setSuppressionEnCours] = useState(false);
   const supprimable = (m: MailEntrant): boolean =>
-    pilote && (data.boites.find((b) => b.id === boiteDuMail(m))?.personnelle ?? false);
+    pilote && maBoite(boiteDuMail(m));
   async function supprimerMail(m: MailEntrant) {
     if (suppressionEnCours) return;
     const ok = await confirmer({

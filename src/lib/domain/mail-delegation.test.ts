@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nomCourtTitulaire, titulairesDelegantsActifs, type DelegationLue } from "./mail-delegation";
+import { avecBoitesPersoDeleguees, nomCourtTitulaire, titulairesDelegantsActifs, type DelegationLue } from "./mail-delegation";
 
 const d = (x: Partial<DelegationLue>): DelegationLue => ({
   id: "d1",
@@ -47,5 +47,36 @@ describe("nomCourtTitulaire", () => {
     expect(nomCourtTitulaire("Wilfrid-Huang TOHOUBI")).toBe("Wilfrid-Huang T.");
     expect(nomCourtTitulaire("Fanny")).toBe("Fanny");
     expect(nomCourtTitulaire("  ")).toBe("");
+  });
+});
+
+describe("avecBoitesPersoDeleguees (option a de Sekou, 27/10/2026)", () => {
+  const miennes = [
+    { id: "emmanuel@real31.fr", adresse: "emmanuel@real31.fr", libelle: "Ma boîte", personnelle: true },
+    { id: "syndic2@real31.fr", adresse: "syndic2@real31.fr", libelle: "syndic2 · mes mails", personnelle: false },
+  ];
+  const fanny = { email: "Fanny@real31.fr", nomComplet: "Fanny SORIVELLE" };
+
+  it("ajoute l'onglet « Boîte de Fanny S. (délégation) » après mes boîtes", () => {
+    expect(avecBoitesPersoDeleguees(miennes, [fanny], false).at(-1)).toEqual({
+      id: "fanny@real31.fr",
+      adresse: "fanny@real31.fr",
+      libelle: "Boîte de Fanny S. (délégation)",
+      personnelle: true,
+      pour: "Fanny S.",
+    });
+  });
+
+  it("jamais en incarnation, jamais une boîte déjà présente", () => {
+    expect(avecBoitesPersoDeleguees(miennes, [fanny], true)).toEqual(miennes);
+    expect(avecBoitesPersoDeleguees(miennes, [{ email: "syndic2@real31.fr", nomComplet: "X" }], false)).toEqual(miennes);
+  });
+
+  it("de bout en bout : portefeuille actif oui ; agence ou expirée, non", () => {
+    const jour = "2026-10-27";
+    const ouvre = (x: Partial<DelegationLue>) => titulairesDelegantsActifs([d(x)], "emmanuel", jour).length > 0;
+    expect(ouvre({})).toBe(true);
+    expect(ouvre({ portee: "agence", agenceCode: "LGC" })).toBe(false);
+    expect(ouvre({ jusquaISO: "2026-10-01" })).toBe(false);
   });
 });

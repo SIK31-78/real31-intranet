@@ -26,7 +26,7 @@ import { getMailboxProvider, getMailIngestionProvider, getReferentielTriProvider
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
 import { boiteTri, recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { jourParis } from "@/lib/services/date-du-jour";
-import { signalerException } from "@/lib/observabilite";
+import { signalerException, tracer } from "@/lib/observabilite";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { distributionDe, mailsParDelegation } from "./boites-visibles";
 
@@ -96,11 +96,14 @@ async function ingererBoite(
   try {
     const ingestion = getMailIngestionProvider();
     if (boite.personnelle) {
+      // Boite perso d'un titulaire, ouverte par delegation de portefeuille (complement d'ADR-041,
+      // 27/10/2026) : chaque lecture laisse une trace (qui lit la boite de qui, sans contenu).
+      if (boite.pour) tracer("mail-delegation", `${g.email ?? g.id} lit ${boite.adresse}`, { beneficiaire: g.id, titulaire: boite.adresse });
       const [bruts, luOutlook] = await Promise.all([
         ingestion.lireRecents({ email: boite.adresse, max: maxPerso }),
         etatsLu({ boite: boite.adresse, recents: maxPerso + MARGE_LU }),
       ]);
-      return { boite, bruts, luOutlook };
+      return { boite, bruts, luOutlook, ...(boite.pour ? { pour: new Map(bruts.map((m) => [m.internetMessageId, boite.pour!])) } : {}) };
     }
     const [distribues, pour] = await Promise.all([distributionDe(g, boite.adresse), mailsParDelegation(g, boite.adresse)]);
     if (distribues.size === 0) return { boite, bruts: [], luOutlook: new Map() };

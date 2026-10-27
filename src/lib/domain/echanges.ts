@@ -6,7 +6,9 @@
 // Domaine pur.
 //
 // QUI VOIT QUOI (Sekou, 12/10) : chacun voit la boîte commune de SON agence et SA boîte ;
-// personne ne fouille la boîte d'un collègue, sauf les super-admins pendant le pilote.
+// personne ne fouille la boîte d'un collègue, sauf les super-admins pendant le pilote, et
+// celui à qui ce collègue a confié son portefeuille (délégation active, 27/10/2026), jamais
+// en incarnation.
 // Ouvert d'abord à Houilles seulement : une agence sans boîte configurée n'a pas l'écran.
 
 /** Agence (code court, ex. « HLS ») -> ses boîtes communes. */
@@ -31,6 +33,11 @@ export interface Utilisateur {
   superAdmin: boolean;
   /** « Changer de gestionnaire » : jamais la boîte perso de la personne incarnée (27/10/2026). */
   incarne?: boolean;
+  /**
+   * Les boîtes perso des titulaires qui m'ont confié leur portefeuille (délégation active,
+   * complément d'ADR-041 du 27/10/2026) : fouillables comme la mienne, jamais en incarnation.
+   */
+  deleguees?: string[];
 }
 
 export interface BoiteVisible {
@@ -47,6 +54,11 @@ export function boitesVisibles(u: Utilisateur, parAgence: BoitesParAgence): Boit
   return [
     ...communes.map((adresse) => ({ adresse, nature: "commune" as const })),
     ...(communes.includes(email) || u.incarne ? [] : [{ adresse: email, nature: "perso" as const }]),
+    ...(u.incarne
+      ? []
+      : [...new Set((u.deleguees ?? []).map((d) => d.trim().toLowerCase()))]
+          .filter((d) => d.includes("@") && d !== email && !communes.includes(d))
+          .map((adresse) => ({ adresse, nature: "perso" as const }))),
   ];
 }
 

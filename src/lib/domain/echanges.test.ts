@@ -193,3 +193,22 @@ describe("envoyés d'une boîte partagée, filtrés au binôme", () => {
     expect(envoyesDuBinome(l, new Set(), 30)).toEqual([]);
   });
 });
+
+describe("délégation de portefeuille : la boîte perso du titulaire est fouillable (27/10/2026)", () => {
+  const emmanuel = { email: "emmanuel@real31.fr", agence: "LGC", superAdmin: false, deleguees: ["Fanny@real31.fr"] };
+
+  it("le bénéficiaire fouille la boîte perso du titulaire, comme la sienne", () => {
+    expect(boitesVisibles(emmanuel, PAR_AGENCE)).toEqual([
+      { adresse: "syndic2@real31.fr", nature: "commune" },
+      { adresse: "lgc-bis@exemple.fr", nature: "commune" },
+      { adresse: "emmanuel@real31.fr", nature: "perso" },
+      { adresse: "fanny@real31.fr", nature: "perso" },
+    ]);
+    expect(boiteAutorisee("fanny@real31.fr", emmanuel, PAR_AGENCE)).toBe(true);
+    expect(boiteAutorisee("galiano@real31.fr", emmanuel, PAR_AGENCE)).toBe(false);
+  });
+
+  it("jamais en incarnation", () => {
+    expect(boiteAutorisee("fanny@real31.fr", { ...emmanuel, incarne: true }, PAR_AGENCE)).toBe(false);
+  });
+});

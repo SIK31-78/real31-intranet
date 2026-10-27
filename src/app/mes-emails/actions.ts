@@ -24,7 +24,7 @@ import {
 } from "@/lib/services/mes-emails/maj-etat";
 import { envoiMailPour } from "@/lib/domain/mail-gate";
 import { conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
-import { boiteCible, boiteDuMail, boitesDe } from "./gardes-boites";
+import { boiteCible, boiteDuMail, boitesDe, natureBoite } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
@@ -150,7 +150,9 @@ export async function editBrouillonAction(emailId: string, coproCode: string, br
  * Le mail ouvert est lu ici ET dans Outlook (REA-422, 27/10/2026). L'écriture Outlook passe
  * par la garde des mails reçus (boîte partagée : distribué à mon binôme) et ne bloque
  * jamais : un refus de Graph est journalisé, l'état intranet est posé quand même. Sur une
- * boîte partagée, le lu d'Outlook vaut pour les collègues : c'est voulu.
+ * boîte partagée, le lu d'Outlook vaut pour les collègues : c'est voulu. Dans la boîte perso
+ * d'un titulaire ouverte par délégation (27/10/2026), le lu Outlook du titulaire change aussi,
+ * comme s'il lisait : accepté, c'est sa boîte et le remplaçant y travaille pour lui.
  */
 export async function marquerLuAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
   if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
@@ -465,8 +467,10 @@ export async function preparerEnvoiAction(input: unknown): Promise<{
   // Envoi RÉEL depuis une boîte partagée (syndicN) : seulement si l'envoi y est ouvert
   // (MAIL_ENVOI=on ET `envoi` dans la config de la boîte ; ADR-047, 27/10/2026). Un mail qui
   // part de la boîte commune engage le cabinet : pendant le pilote, on passe par le
-  // brouillon, relu puis envoyé dans Outlook. La boîte perso garde son comportement.
-  if (d.mode === "envoyer" && cibleEnvoi !== g.email.trim().toLowerCase() && !envoiMailPour(cibleEnvoi)) {
+  // brouillon, relu puis envoyé dans Outlook. La boîte perso garde son comportement, y compris
+  // celle d'un titulaire ouverte par délégation de portefeuille (27/10/2026) : la réponse part de
+  // SA boîte et reste dans son fil, comme s'il répondait.
+  if (d.mode === "envoyer" && (await natureBoite(g, cibleEnvoi)) === "partagee" && !envoiMailPour(cibleEnvoi)) {
     return {
       ok: false,
       message: "L'envoi depuis la boîte partagée est coupé pendant le pilote. Utilise « Brouillon Outlook » : il se relit et s'envoie dans Outlook.",
@@ -602,8 +606,8 @@ export async function creerDossierOutlookAction(nom: string, boite?: string): Pr
   if (!z.string().trim().min(1).max(120).safeParse(nom).success || !zBoite.safeParse(boite).success)
     return { ok: false, message: "Nom de dossier invalide." };
   const cible = await boiteCible(g, boite);
-  const perso = (await boitesDe(g)).find((b) => b.id === cible)?.personnelle;
-  if (!cible || !perso) return { ok: false, message: "Le dossier ne se crée que dans votre boîte personnelle." };
+  // Ma boîte seulement : la délégation ouvre la boîte du titulaire pour traiter, pas pour la réorganiser.
+  if (!cible || (await natureBoite(g, cible)) !== "mienne") return { ok: false, message: "Le dossier ne se crée que dans votre boîte personnelle." };
   try {
     return { ok: true, dossier: await creerDossierBoite(cible, nom.trim()) };
   } catch (e) {
@@ -680,8 +684,8 @@ export async function mettreALaCorbeilleAction(input: unknown): Promise<Res<Resu
   const v = z.object({ ids: z.array(zId).min(1).max(50), boite: zBoite }).safeParse(input);
   if (!v.success) return echec("Sélection invalide (50 mails au plus).");
   const cible = await boiteCible(g, v.data.boite);
-  const perso = (await boitesDe(g)).find((b) => b.id === cible)?.personnelle;
-  if (!cible || !perso) return echec("La corbeille ne vaut que pour votre boîte personnelle.");
+  // Ma boîte seulement, pas celle d'un titulaire ouverte par délégation (27/10/2026).
+  if (!cible || (await natureBoite(g, cible)) !== "mienne") return echec("La corbeille ne vaut que pour votre boîte personnelle.");
   try {
     return { ok: true, donnees: await mettreALaCorbeille(cible, v.data.ids) };
   } catch (e) {
@@ -753,7 +757,8 @@ export async function transfererMailAction(input: unknown): Promise<Res<{ envoye
   if (d.a.length + d.cc.length > 50) return echec("Trop de destinataires (50 maximum).");
   const cible = await boiteDuMail(g, d.boite, d.emailId);
   if (!cible) return echec("Boîte non autorisée.");
-  const envoyer = cible === g.email.trim().toLowerCase() || envoiMailPour(cible);
+  // Boîte perso (la mienne, ou celle d'un titulaire par délégation) : il part ; partagée : selon la config.
+  const envoyer = (await natureBoite(g, cible)) !== "partagee" || envoiMailPour(cible);
   try {
     const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
     await transfererMail({

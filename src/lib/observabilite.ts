@@ -73,3 +73,14 @@ export function signalerException(err: unknown, ctx: ContexteSignalement): void 
 export function attacherUtilisateur(u: { id: string; initiales: string } | null): void {
   Sentry.setUser(u ? { id: u.id, username: u.initiales } : null);
 }
+
+/**
+ * Trace legere d'un geste sensible, sans contenu (27/10/2026, lecture d'une boite perso par
+ * delegation) : une ligne structuree dans les journaux du serveur, et un fil d'Ariane Sentry
+ * qui accompagnera une erreur eventuelle de la meme requete. Pas d'evenement Sentry a part :
+ * ce n'est pas une anomalie. `donnees` : des identifiants de collaborateurs, jamais un tiers.
+ */
+export function tracer(categorie: string, message: string, donnees: Record<string, string> = {}): void {
+  console.info(`[${categorie}] ${message}`, JSON.stringify(donnees));
+  Sentry.addBreadcrumb({ category: categorie, message, level: "info", data: expurger(donnees) as Record<string, unknown> });
+}

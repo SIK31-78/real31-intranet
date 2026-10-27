@@ -12,11 +12,13 @@ const etat = vi.hoisted(() => ({
   repo: null as unknown as MockTriRepository,
   graph: [] as string[],
   sortant: [] as string[],
+  incarnation: false,
+  delegations: [] as Record<string, unknown>[],
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("@/lib/auth/session", () => ({
-  incarnationEnCours: async () => false,
+  incarnationEnCours: async () => etat.incarnation,
   getGestionnaireCourant: async () => etat.session,
   mailModuleActifPour: () => true,
 }));
@@ -29,6 +31,13 @@ vi.mock("@/lib/adapters/mail/graph-auth", () => ({
 vi.mock("@/lib/adapters/router", async (original) => ({
   ...(await original<typeof import("@/lib/adapters/router")>()),
   getTriRepository: () => etat.repo,
+  // Délégations (ADR-041) et collaborateurs, en mémoire : la boîte perso de Fanny pour Emmanuel.
+  getDelegationRepository: () => ({
+    listerPourBeneficiaire: async (id: string) => etat.delegations.filter((d) => d.aUserId === id),
+  }),
+  getGestionnaireRepository: () => ({
+    findById: async (id: string) => [sophie, emmanuel, fanny].find((p) => p.id === id) ?? null,
+  }),
   getAgenceRepository: () => ({
     listerAgences: async () => [
       { id: "ag-hls", code: "HLS" },
@@ -59,6 +68,8 @@ const { TRANCHE_UPLOAD } = await import("@/lib/domain/piece-jointe-flux");
 const SYNDIC4 = "syndic4@real31.fr";
 const SYNDIC2 = "syndic2@real31.fr";
 const sophie = { id: "u1", nomComplet: "Sophie K", initiales: "SK", email: "sophie@real31.fr", agencyId: "ag-hls", role: "GESTIONNAIRE" };
+const emmanuel = { id: "u5", nomComplet: "Emmanuel LOPES", initiales: "EL", email: "emmanuel@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
+const fanny = { id: "u6", nomComplet: "Fanny SORIVELLE", initiales: "FS", email: "fanny@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
 
 const ranger = (boite: string, imid: string, gestionnaire: string) =>
   etat.repo.journaliser({
@@ -103,6 +114,8 @@ beforeEach(async () => {
   etat.graph = [];
   etat.sortant = [];
   etat.session = sophie;
+  etat.incarnation = false;
+  etat.delegations = [];
   graphRend("Devis toiture été.pdf", "application/octet-stream");
   await ranger(SYNDIC4, "<a-sophie@x>", "sophie@real31.fr");
   await ranger(SYNDIC4, "<b-marc@x>", "marc@real31.fr");
@@ -238,5 +251,41 @@ describe("POST /mes-emails/pj/depot : un fichier déposé par tranches sur le br
   it("au-delà de 25 Mo : 413 ; tranche mal découpée : 400", async () => {
     expect((await deposer(tranche({ jeton: jeton(), nom: "gros.zip", type: "", taille: String(26 * 1024 * 1024), debut: "0" }, 10))).status).toBe(413);
     expect((await deposer(tranche({ jeton: jeton(), nom: "a.pdf", type: "", taille: "10", debut: "0" }, 9))).status).toBe(400);
+  });
+});
+
+describe("GET /mes-emails/pj : la boîte perso d'un titulaire, par délégation de portefeuille (27/10/2026)", () => {
+  const pjDeFanny = () => getMesEmails(url("/mes-emails/pj", { boite: "fanny@real31.fr", message: "<perso-fanny@x>", pj: "AAMk", inline: "1" }));
+  const deleguer = (x: Record<string, unknown> = {}) =>
+    etat.delegations.push({ id: "d1", deUserId: fanny.id, aUserId: emmanuel.id, portee: "portefeuille", depuisISO: "2000-01-01", jusquaISO: "2999-12-31", ...x });
+
+  it("sans délégation : 403, Graph n'est pas appelé", async () => {
+    etat.session = emmanuel;
+    expect((await pjDeFanny()).status).toBe(403);
+    expect(etat.graph).toEqual([]);
+  });
+
+  it("avec une délégation de portefeuille active : la pièce, lue dans la boîte de Fanny", async () => {
+    etat.session = emmanuel;
+    deleguer();
+    const r = await pjDeFanny();
+    expect(r.status).toBe(200);
+    expect(etat.graph[0]).toMatch(/^fanny%40real31\.fr\/messages\//);
+  });
+
+  it("délégation d'agence ou expirée : 403", async () => {
+    etat.session = emmanuel;
+    deleguer({ portee: "agence", agenceCode: "LGC" });
+    deleguer({ id: "d2", jusquaISO: "2001-01-01" });
+    expect((await pjDeFanny()).status).toBe(403);
+    expect(etat.graph).toEqual([]);
+  });
+
+  it("en incarnation : jamais la boîte perso du titulaire, même avec la délégation", async () => {
+    etat.session = emmanuel;
+    etat.incarnation = true;
+    deleguer();
+    expect((await pjDeFanny()).status).toBe(403);
+    expect(etat.graph).toEqual([]);
   });
 });

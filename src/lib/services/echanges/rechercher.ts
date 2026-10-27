@@ -25,6 +25,7 @@ import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email";
 import { boitesParAgenceBrut, boitesTri } from "@/lib/domain/mail-gate";
 import { getAgenceRepository, getMailboxProvider, getRechercheMail, getReferentielTriProvider } from "@/lib/adapters/router";
+import { titulairesDelegants } from "@/lib/services/mes-emails/delegations-mail";
 
 /** Par requête et par boîte : de quoi couvrir des années pour une copro, sans noyer l'écran. */
 const MAX_PAR_REQUETE = 150;
@@ -43,17 +44,23 @@ async function agences() {
   return valeur;
 }
 
-/** L'utilisateur tel que l'écran le voit : son agence en code lisible. */
+/**
+ * L'utilisateur tel que l'écran le voit : son agence en code lisible, et les boîtes perso des
+ * titulaires qui lui ont confié leur portefeuille (délégation active, jamais en incarnation).
+ */
 export async function utilisateurEchanges(
-  g: { email?: string; agencyId?: string },
+  g: { id?: string; email?: string; agencyId?: string },
   superAdmin: boolean,
   incarne = false,
 ): Promise<Utilisateur | null> {
   if (!g.email) return null;
   // Rien de configuré : pas d'écran, inutile d'interroger la base.
   if (!boitesParAgenceBrut().trim()) return { email: g.email.toLowerCase(), agence: null, superAdmin, incarne };
-  const agence = g.agencyId ? ((await agences()).find((a) => a.id === g.agencyId)?.code.toUpperCase() ?? null) : null;
-  return { email: g.email.toLowerCase(), agence, superAdmin, incarne };
+  const [agence, titulaires] = await Promise.all([
+    g.agencyId ? agences().then((l) => l.find((a) => a.id === g.agencyId)?.code.toUpperCase() ?? null) : null,
+    g.id && !incarne ? titulairesDelegants(g.id) : [],
+  ]);
+  return { email: g.email.toLowerCase(), agence, superAdmin, incarne, ...(titulaires.length ? { deleguees: titulaires.map((t) => t.email) } : {}) };
 }
 
 const parAgence = () => lireBoitesParAgence(boitesParAgenceBrut());

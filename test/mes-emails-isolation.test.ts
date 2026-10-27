@@ -221,3 +221,27 @@ describe("délégation de portefeuille : les mails du titulaire dans la boîte p
     expect(await chargerHistoriqueAction("<d-fanny@x>", SYNDIC2)).toBeNull();
   });
 });
+
+describe("délégation de portefeuille : la boîte perso du titulaire (option a, 27/10/2026)", () => {
+  it("avec la délégation, l'onglet « Boîte de Fanny S. (délégation) » et sa lecture ; sans, refusé", async () => {
+    etat.session = emmanuel;
+    expect(await chargerHistoriqueAction("<perso-fanny@x>", "fanny@real31.fr")).toBeNull();
+    deleguer(fanny, emmanuel);
+    expect((await boitesVisibles(emmanuel)).map((b) => b.libelle)).toEqual(["Ma boîte", "syndic2 · mes mails", "Boîte de Fanny S. (délégation)"]);
+    expect(await chargerHistoriqueAction("<perso-fanny@x>", "fanny@real31.fr")).toBe("> historique");
+    expect(etat.lus).toEqual([{ boite: "fanny@real31.fr", id: "<perso-fanny@x>" }]);
+  });
+
+  it("délégation d'agence : pas d'onglet", async () => {
+    deleguer(fanny, emmanuel, { portee: "agence", agenceCode: "LGC" });
+    expect((await boitesVisibles(emmanuel)).some((b) => b.id === "fanny@real31.fr")).toBe(false);
+  });
+
+  it("en incarnation : ni l'onglet ni la lecture, même avec la délégation", async () => {
+    deleguer(fanny, emmanuel);
+    etat.session = emmanuel;
+    etat.incarnation = true;
+    expect((await boitesVisibles(emmanuel, { sansBoitePerso: true })).some((b) => b.personnelle)).toBe(false);
+    expect(await chargerHistoriqueAction("<perso-fanny@x>", "fanny@real31.fr")).toBeNull();
+  });
+});
