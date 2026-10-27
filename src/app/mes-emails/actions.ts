@@ -22,14 +22,14 @@ import {
   marquerLuDansOutlook,
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
-import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { envoiMailPour } from "@/lib/domain/mail-gate";
-import { boitesVisibles, conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
+import { conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
+import { boiteCible, boiteDuMail, boitesDe } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
 import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
-import { listerImagesMail, listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
+import { listerImagesMail, listerPiecesJointesMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 import { coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-emails/reaffecter";
@@ -50,41 +50,10 @@ import type { DossierBoite } from "@/lib/domain/mes-emails";
 import { TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 
 // --- Boites ------------------------------------------------------------------
-// L'adresse de boite arrive du CLIENT (le mail affiche, le "De :" choisi). Elle n'est
-// JAMAIS crue sur parole : seule une boite de la configuration visible est acceptee.
-// Absente => boite personnelle, c'est-a-dire le comportement d'avant le multi-boites.
-// Boite partagee = celle de MON agence (config MAIL_TRI_BOITES) ; toutes pour un super-admin.
+// Gardes de boite (boitesDe, boiteCible, boiteDuMail) : dans gardes-boites.ts, partagees avec
+// les routes des pieces jointes (REA-421, 27/10/2026).
 
 const zBoite = z.string().max(320).optional();
-
-type Personne = Pick<Gestionnaire, "email" | "agencyId">;
-
-/** Les boites de la personne : la sienne, celle de son agence (toutes pour un super-admin). */
-function boitesDe(g: Personne) {
-  return boitesVisibles(g, { superAdmin: estSuperAdmin(g.email) });
-}
-
-async function boiteCible(g: Personne, demandee: string | undefined): Promise<string | null> {
-  const boites = await boitesDe(g);
-  const cible =
-    (demandee ?? "").trim().toLowerCase() || boites.find((b) => b.personnelle)?.id || "";
-  if (!cible) return null;
-  return boiteAutorisee(boites, cible) ? cible : null;
-}
-
-/**
- * La boite d'un MAIL RECU sur lequel on agit (isolation par binome, 27/10/2026) : la boite doit
- * etre visible (boiteCible), et dans une boite partagee le mail doit avoir ete distribue par
- * le tri a l'un de MES binomes. Sinon un identifiant de mail pris chez un autre binome (ou
- * fabrique) ouvrirait ses pieces jointes, son historique, une reponse en son nom. Le
- * super-admin en est exempte (pilote). La distribution est lue une fois par requete.
- */
-async function boiteDuMail(g: Personne, demandee: string | undefined, emailId: string): Promise<string | null> {
-  const cible = await boiteCible(g, demandee);
-  if (!cible) return null;
-  if (cible === (g.email ?? "").trim().toLowerCase() || estSuperAdmin(g.email)) return cible;
-  return (await mailDistribue(g, cible, emailId)) ? cible : null;
-}
 
 // --- Cloisonnement -----------------------------------------------------------
 // En mode boite REELLE (MAIL_SOURCE=graph), le cockpit lit la PROPRE boite du gestionnaire :
@@ -389,27 +358,6 @@ export async function chargerImagesMailAction(emailId: string, coproCode: string
   } catch (e) {
     console.warn("[mes-emails] images du corps indisponibles :", (e as Error).message);
     return [];
-  }
-}
-
-export async function telechargerPieceJointeAction(
-  emailId: string,
-  coproCode: string,
-  attachmentId: string,
-  boite?: string,
-): Promise<{ ok: boolean; nom?: string; type?: string; base64?: string; message?: string }> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, attachmentId: zAttachmentId, boite: zBoite }).safeParse({ emailId, coproCode, attachmentId, boite }).success)
-    return { ok: false, message: "Données invalides." };
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return auth;
-  if (!auth.g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  const cible = await boiteDuMail(auth.g, boite, emailId);
-  if (!cible) return { ok: false, message: "Boîte non autorisée." };
-  try {
-    const pj = await lirePieceJointeMail(cible, emailId, attachmentId);
-    return { ok: true, ...pj };
-  } catch (e) {
-    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }
 }
 

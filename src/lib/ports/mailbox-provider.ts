@@ -38,7 +38,19 @@ export interface MailboxProvider {
   /** Les images INLINE du mail (collees dans le corps, logos compris), metadonnees seulement. */
   listerImagesInline(p: { boite: string; internetMessageId: string }): Promise<PieceJointeRef[]>;
 
-  /** Contenu d'une piece jointe (base64) pour telechargement cote client. */
+  /**
+   * La piece jointe EN FLUX (REA-421, 27/10/2026) : l'aperçu et le telechargement la relaient
+   * sans la tenir en memoire, quelle que soit sa taille. `taille` est celle que Graph annonce,
+   * un peu plus grande que le contenu reel (proprietes de la piece) : jamais un Content-Length.
+   */
+  fluxPieceJointe(p: {
+    boite: string;
+    internetMessageId: string;
+    attachmentId: string;
+  }): Promise<{ nom: string; type: string; taille: number; corps: ReadableStream<Uint8Array> }>;
+
+  /** Contenu d'une piece jointe (base64), tenu en memoire : l'analyse des PDF du tri (cron) et
+   *  l'ecran Echanges. Les ecrans du mail passent par fluxPieceJointe. */
   lirePieceJointe(p: {
     boite: string;
     internetMessageId: string;

@@ -29,7 +29,6 @@ import {
   ajouterAssistantAction,
   annulerRangementAction,
   definirPrincipalAction,
-  lirePieceJointeTriAction,
   listerPiecesJointesTriAction,
   preciserCoproAction,
   coproDepuisPjAction,
@@ -45,6 +44,7 @@ import { VisionneusePj, type ApercuPj } from "@/components/mes-emails/visionneus
 import { HistoriqueMailTri } from "@/components/tri-emails/historique-mail-tri";
 import { BoiteTriProvider, useBoiteTri } from "@/components/tri-emails/boite-tri-contexte";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
+import { typePieceJointe, urlPieceJointe } from "@/lib/domain/piece-jointe-flux";
 import { Tab, TabList, TabPanel } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -93,17 +93,6 @@ function pastille(m: MailDeLaFile): string {
 // Résultat de l'analyse des PDF par mail (internetMessageId -> copro déduite ou null), pour
 // la durée de la page : revenir sur un mail ne relance pas le téléchargement des PDF.
 const ANALYSE_PJ = new Map<string, { candidats: string[]; piece: string } | null>();
-
-// Type MIME fiable d'une pièce jointe : l'extension du nom prime sur ce que Graph déclare
-// (il renvoie souvent « application/octet-stream » pour un PDF ou une image).
-const MIME_PAR_EXT: Record<string, string> = {
-  pdf: "application/pdf",
-  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
-};
-function mimePieceJointe(nom: string, declare: string | undefined): string {
-  const ext = nom.toLowerCase().split(".").pop() ?? "";
-  return MIME_PAR_EXT[ext] ?? declare ?? "application/octet-stream";
-}
 
 const heure = (iso: string) =>
   new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
@@ -859,7 +848,6 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
   const [pieces, setPieces] = useState<PieceJointeRef[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [apercu, setApercu] = useState<ApercuPj | null>(null);
-  const [ouverture, setOuverture] = useState<string | null>(null);
 
   useEffect(() => {
     let actif = true;
@@ -873,24 +861,12 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
     };
   }, [boite, internetMessageId]);
 
-  // L'URL objet du blob est liberee a la fermeture de l'apercu.
-  useEffect(() => () => {
-    if (apercu) URL.revokeObjectURL(apercu.url);
-  }, [apercu]);
-
-  async function ouvrir(pj: PieceJointeRef) {
-    setOuverture(pj.id);
-    const r = await lirePieceJointeTriAction({ boite, internetMessageId, attachmentId: pj.id });
-    setOuverture(null);
-    if (!r.ok || !r.donnees) {
-      setErreur(r.ok ? "Pièce jointe vide." : r.erreur);
-      return;
-    }
-    const octets = Uint8Array.from(atob(r.donnees.base64), (c) => c.charCodeAt(0));
-    // Graph étiquette souvent un PDF en « application/octet-stream » : l'extension prime,
-    // sinon ni le blob ni la visionneuse ne l'ouvrent en aperçu (constat du 13/10/2026).
-    const type = mimePieceJointe(r.donnees.nom, r.donnees.type);
-    setApercu({ nom: r.donnees.nom, type, url: URL.createObjectURL(new Blob([octets], { type })) });
+  // La pièce s'ouvre en flux depuis /tri-emails/pj (REA-421, 27/10/2026) : plus de base64, plus
+  // de limite de taille. Graph étiquette souvent un PDF en « application/octet-stream » :
+  // l'extension prime (constat du 13/10/2026), ici et dans la route.
+  function ouvrir(pj: PieceJointeRef) {
+    const url = (inline: boolean) => urlPieceJointe("tri-emails", { boite, message: internetMessageId, pj: pj.id, inline });
+    setApercu({ nom: pj.nom, type: typePieceJointe(pj.nom, pj.type), url: url(true), urlTelechargement: url(false) });
   }
 
   return (
@@ -908,12 +884,11 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
             <button
               key={pj.id}
               type="button"
-              disabled={ouverture !== null}
               onClick={() => ouvrir(pj)}
               className="inline-flex items-center gap-2 rounded-lg border border-line-2 bg-surface px-2.5 py-1 text-body hover:bg-surface-2 disabled:opacity-60"
             >
               <span className="text-ink truncate max-w-[260px]">{pj.nom}</span>
-              <span className="text-meta text-ink-3 tabular-nums">{ouverture === pj.id ? "ouverture…" : taille(pj.taille)}</span>
+              <span className="text-meta text-ink-3 tabular-nums">{taille(pj.taille)}</span>
             </button>
           ))}
         </div>

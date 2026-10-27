@@ -6,6 +6,7 @@
 
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { BOITE_ECHANTILLON } from "@/lib/domain/mail-gate";
+import { PieceJointeIntrouvable } from "@/lib/domain/piece-jointe-flux";
 import { getMailboxProvider } from "@/lib/adapters/router";
 
 function boiteLisible(boite: string | null | undefined): string | null {
@@ -27,4 +28,11 @@ export async function lirePieceJointeTri(
   const lisible = boiteLisible(boite);
   if (!lisible) throw new Error("Pas d'aperçu pour les mails fictifs de l'échantillon.");
   return getMailboxProvider().lirePieceJointe({ boite: lisible, internetMessageId, attachmentId });
+}
+
+/** La pièce en flux pour l'aperçu de /tri-emails (route /tri-emails/pj, REA-421, 27/10/2026). */
+export async function fluxPieceJointeTri(boite: string, internetMessageId: string, attachmentId: string) {
+  const lisible = boiteLisible(boite);
+  if (!lisible) throw new PieceJointeIntrouvable("Pas d'aperçu pour les mails fictifs de l'échantillon.");
+  return getMailboxProvider().fluxPieceJointe({ boite: lisible, internetMessageId, attachmentId });
 }

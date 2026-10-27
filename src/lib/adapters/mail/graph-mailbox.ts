@@ -4,6 +4,7 @@
 // Best-effort : si aucun dossier ne correspond, on ne deplace rien.
 
 import type { DossierBoite, MailboxProvider, PieceJointeRef, ResultatCorbeille } from "@/lib/ports/mailbox-provider";
+import { PieceJointeIntrouvable } from "@/lib/domain/piece-jointe-flux";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
@@ -181,6 +182,32 @@ export class GraphMailboxProvider implements MailboxProvider {
     if (!r.ok) throw new Error(`Graph images inline ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as { value?: { id: string; name: string; size: number; contentType: string }[] };
     return (j.value ?? []).map((a) => ({ id: a.id, nom: a.name, taille: a.size, type: a.contentType }));
+  }
+
+  async fluxPieceJointe(p: {
+    boite: string;
+    internetMessageId: string;
+    attachmentId: string;
+  }): Promise<{ nom: string; type: string; taille: number; corps: ReadableStream<Uint8Array> }> {
+    if (!p.boite) throw new Error("Piece jointe : boite manquante.");
+    const tk = await jetonGraph();
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId).catch((e: unknown) => {
+      throw /introuvable/i.test(e instanceof Error ? e.message : "") ? new PieceJointeIntrouvable("Mail introuvable.") : e;
+    });
+    const base = `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments/${encodeURIComponent(p.attachmentId)}`;
+    const h = { Authorization: `Bearer ${tk}` };
+    // 1. Les metadonnees seules (sans contentBytes) : nom, type, taille annoncee.
+    const rm = await graphFetch(`${base}?$select=name,contentType,size`, { headers: h });
+    if (rm.status === 404) throw new PieceJointeIntrouvable("Piece jointe introuvable.");
+    if (!rm.ok) throw new Error(`Graph piece jointe ${rm.status} : ${(await rm.text()).slice(0, 200)}`);
+    const a = (await rm.json()) as { name?: string; contentType?: string; size?: number };
+    // 2. Le contenu brut ($value) relaye tel quel. Graph ne donne pas de Content-Length (reponse
+    //    par morceaux, constate le 27/10/2026 sur syndic4) : le flux ne connait pas sa longueur.
+    //    55 s : le delai court aussi pendant la lecture du flux, sous les 60 s de la route.
+    const rv = await graphFetch(`${base}/$value`, { headers: h }, 55_000);
+    if (rv.status === 404) throw new PieceJointeIntrouvable("Piece jointe introuvable.");
+    if (!rv.ok || !rv.body) throw new Error(`Graph contenu piece jointe ${rv.status} : ${(await rv.text()).slice(0, 200)}`);
+    return { nom: a.name ?? "piece-jointe", type: a.contentType ?? "application/octet-stream", taille: a.size ?? 0, corps: rv.body };
   }
 
   async lirePieceJointe(p: {

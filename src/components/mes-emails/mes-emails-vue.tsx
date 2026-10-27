@@ -86,7 +86,8 @@ import {
   traitesAuChargement,
   type PlaceInternes,
 } from "@/lib/domain/mes-emails-liste";
-import { VisionneusePj } from "./visionneuse-pj";
+import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
+import { typePieceJointe, urlPieceJointe } from "@/lib/domain/piece-jointe-flux";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
 import { TransfererMail } from "./transferer-mail";
@@ -100,7 +101,6 @@ import {
   creerBrouillonAction,
   envoyerReponseAction,
   chargerPiecesJointesAction,
-  telechargerPieceJointeAction,
   transmettreFactureAction,
   rattacherCoproAction,
   chargerDossiersAction,
@@ -303,8 +303,8 @@ export function MesEmailsVue({
   const [expediteurParMail, setExpediteurParMail] = useState<Map<string, string>>(new Map());
   // PJ reçues a RE-JOINDRE a la reponse (ids d'attachment selectionnes), par mail.
   const [pjJointesParMail, setPjJointesParMail] = useState<Map<string, Set<string>>>(new Map());
-  // Visionneuse de piece jointe (PDF/image) : blob courant ouvert dans la modale.
-  const [apercu, setApercu] = useState<{ nom: string; type: string; url: string } | null>(null);
+  // Visionneuse de piece jointe (PDF/image) : la pièce ouverte, servie en flux par /mes-emails/pj.
+  const [apercu, setApercu] = useState<ApercuPj | null>(null);
 
   const dossiers = dossiersParBoite.get(boiteActive) ?? null;
 
@@ -456,35 +456,19 @@ export function MesEmailsVue({
     setFichiersParMail((p) => new Map(p).set(m.id, fichiersDe(m).filter((_, k) => k !== i)));
   const fichiersEnvoi = (m: MailEntrant) => fichiersDe(m).map(({ nom, contentType, base64 }) => ({ nom, contentType, base64 }));
 
-  // Recupere une PJ (base64 cote serveur) -> Blob -> URL objet (pour download OU apercu).
-  async function chargerBlobPj(
-    m: MailEntrant,
-    pj: PieceJointeRef,
-  ): Promise<{ nom: string; type: string; url: string } | null> {
-    const r = await telechargerPieceJointeAction(m.id, coproDe(m).code, pj.id, boiteDuMail(m));
-    if (!r.ok || !r.base64) return null;
-    const bin = atob(r.base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    // Graph étiquette parfois un PDF en octet-stream : le navigateur le télécharge au lieu de
-    // l'afficher. On corrige le type d'après l'extension avant de créer l'URL objet.
-    const nom = r.nom || pj.nom;
-    const type = typeDepuisNom(nom, r.type);
-    const url = URL.createObjectURL(new Blob([bytes], { type }));
-    return { nom, type, url };
-  }
-  async function telechargerPj(m: MailEntrant, pj: PieceJointeRef) {
-    const b = await chargerBlobPj(m, pj);
-    if (!b) return;
+  // La pièce est servie en flux par /mes-emails/pj (REA-421) : plus de base64 ni de blob, une
+  // pièce de 30 Mo s'ouvre comme une de 30 Ko. Graph étiquette parfois un PDF en octet-stream :
+  // le type se corrige d'après l'extension, ici pour la visionneuse et dans la route.
+  const urlPj = (m: MailEntrant, pj: PieceJointeRef, inline: boolean) =>
+    urlPieceJointe("mes-emails", { boite: boiteDuMail(m), message: m.id, pj: pj.id, inline });
+  function telechargerPj(m: MailEntrant, pj: PieceJointeRef) {
     const a = document.createElement("a");
-    a.href = b.url;
-    a.download = b.nom;
+    a.href = urlPj(m, pj, false);
+    a.download = pj.nom;
     a.click();
-    URL.revokeObjectURL(b.url);
   }
-  async function voirPj(m: MailEntrant, pj: PieceJointeRef) {
-    const b = await chargerBlobPj(m, pj);
-    if (b) setApercu(b);
+  function voirPj(m: MailEntrant, pj: PieceJointeRef) {
+    setApercu({ nom: pj.nom, type: typePieceJointe(pj.nom, pj.type), url: urlPj(m, pj, true), urlTelechargement: urlPj(m, pj, false) });
   }
   // Facture : brouillon de transfert vers la boîte factures ESTALE, objet codifié.
   async function transmettreFactureMail(m: MailEntrant, f: { compte: string; fournisseur: string; libelle: string }) {
@@ -494,11 +478,7 @@ export function MesEmailsVue({
     setMsgClasser(msg);
     setLienClasser(r.ok && r.webLink ? { msg, url: r.webLink } : null);
   }
-  const fermerApercu = () =>
-    setApercu((a) => {
-      if (a) URL.revokeObjectURL(a.url);
-      return null;
-    });
+  const fermerApercu = () => setApercu(null);
 
 
   const q = recherche.trim().toLowerCase();
@@ -2277,14 +2257,6 @@ function ContexteCoproContenu({ ctx }: { ctx: ContexteCopro | null | undefined }
       ) : null}
     </div>
   );
-}
-
-/** Type MIME fiable d'une PJ : celui de Graph, sauf s'il est générique et que l'extension parle. */
-function typeDepuisNom(nom: string, type: string | undefined): string {
-  if (type && type !== "application/octet-stream") return type;
-  const ext = /\.([a-z0-9]+)$/i.exec(nom)?.[1]?.toLowerCase();
-  const parExt: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
-  return (ext && parExt[ext]) || type || "application/octet-stream";
 }
 
 /** L'en-tête comme dans Outlook : De, À, Cc, Répondre à, date et heure. Rien n'est tronqué. */

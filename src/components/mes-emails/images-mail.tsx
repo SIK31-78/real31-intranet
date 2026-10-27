@@ -2,11 +2,14 @@
 
 // « Images du mail » (REA-328) : les photos collées dans le corps, en vignettes sous le texte.
 // Le texte reste l'affichage du mail ; un clic ouvre la photo dans la visionneuse des pièces
-// jointes. Rien ne s'affiche si le mail n'a pas de photo.
+// jointes. Rien ne s'affiche si le mail n'a pas de photo. Chaque vignette se charge en flux
+// depuis /mes-emails/pj (REA-421, 27/10/2026) : plus de base64, le navigateur met l'image en
+// cache le temps de la page et une photo de 10 Mo ne bloque plus les suivantes.
 
 import { useEffect, useState } from "react";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
-import { chargerImagesMailAction, telechargerPieceJointeAction } from "@/app/mes-emails/actions";
+import { chargerImagesMailAction } from "@/app/mes-emails/actions";
+import { urlPieceJointe } from "@/lib/domain/piece-jointe-flux";
 
 export function ImagesMail({
   emailId,
@@ -20,19 +23,11 @@ export function ImagesMail({
   onApercu: (pj: PieceJointeRef) => void;
 }) {
   const [images, setImages] = useState<PieceJointeRef[]>([]);
-  const [contenus, setContenus] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let actif = true;
-    void chargerImagesMailAction(emailId, coproCode, boite).then(async (liste) => {
-      if (!actif) return;
-      setImages(liste);
-      // Une vignette après l'autre : une photo de plusieurs Mo ne bloque pas les suivantes.
-      for (const pj of liste) {
-        const r = await telechargerPieceJointeAction(emailId, coproCode, pj.id, boite);
-        if (!actif) return;
-        if (r.ok && r.base64) setContenus((c) => ({ ...c, [pj.id]: `data:${r.type ?? pj.type};base64,${r.base64}` }));
-      }
+    void chargerImagesMailAction(emailId, coproCode, boite).then((liste) => {
+      if (actif) setImages(liste);
     });
     return () => {
       actif = false;
@@ -52,12 +47,13 @@ export function ImagesMail({
             title={pj.nom}
             className="w-24 h-24 rounded-md border border-line bg-surface-2 overflow-hidden hover:border-green-600"
           >
-            {contenus[pj.id] ? (
-              // eslint-disable-next-line @next/next/no-img-element -- data URI d'une pièce jointe, pas une image du site
-              <img src={contenus[pj.id]} alt={pj.nom} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-meta text-ink-3">…</span>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element -- pièce jointe servie par l'intranet, pas une image du site */}
+            <img
+              src={urlPieceJointe("mes-emails", { boite, message: emailId, pj: pj.id, inline: true })}
+              alt={pj.nom}
+              loading="lazy"
+              className="w-full h-full object-cover"
+            />
           </button>
         ))}
       </div>

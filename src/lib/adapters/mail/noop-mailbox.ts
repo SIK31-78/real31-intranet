@@ -36,6 +36,10 @@ export class NoopMailboxProvider implements MailboxProvider {
     return [];
   }
 
+  async fluxPieceJointe(): Promise<{ nom: string; type: string; taille: number; corps: ReadableStream<Uint8Array> }> {
+    throw new Error("Pieces jointes indisponibles (boite non branchee).");
+  }
+
   async lirePieceJointe(): Promise<{ nom: string; type: string; base64: string }> {
     throw new Error("Pieces jointes indisponibles (boite non branchee).");
   }

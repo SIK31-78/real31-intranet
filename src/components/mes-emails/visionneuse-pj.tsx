@@ -3,10 +3,12 @@
 import { Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export type ApercuPj = { nom: string; type: string; url: string };
+/** `url` : la pièce servie en ligne (aperçu) ; `urlTelechargement` : la même en téléchargement. */
+export type ApercuPj = { nom: string; type: string; url: string; urlTelechargement?: string };
 
 // Modale d'apercu d'une piece jointe (PDF en iframe, image en <img>, sinon telechargement).
-// Le blob (URL objet) est cree et revoque par l'orchestrateur.
+// Les adresses pointent sur la route en flux de l'ecran (/mes-emails/pj, /tri-emails/pj :
+// REA-421, 27/10/2026) : plus de blob construit a partir du base64, plus de limite de taille.
 export function VisionneusePj({
   apercu,
   onFermer,
@@ -18,7 +20,9 @@ export function VisionneusePj({
   // Tolérant : Graph peut mal étiqueter un PDF ; on se fie aussi à l'extension du nom.
   const nom = apercu.nom.toLowerCase();
   const estPdf = apercu.type.includes("pdf") || nom.endsWith(".pdf");
-  const estImage = apercu.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(nom);
+  // Pas de SVG : la route le sert en téléchargement (un SVG peut porter du script).
+  const estImage = /^image\/(png|jpeg|gif|webp|bmp)$/.test(apercu.type) || /\.(png|jpe?g|gif|webp|bmp)$/.test(nom);
+  const telechargement = apercu.urlTelechargement ?? apercu.url;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
@@ -32,7 +36,7 @@ export function VisionneusePj({
           <span className="text-body font-medium text-ink truncate">{apercu.nom}</span>
           <div className="flex items-center gap-2 shrink-0">
             <a
-              href={apercu.url}
+              href={telechargement}
               download={apercu.nom}
               className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-line text-body text-ink-2 hover:bg-surface-2"
             >
@@ -58,7 +62,7 @@ export function VisionneusePj({
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-2 text-body text-ink-3 px-4 text-center">
               <p>Aperçu non disponible pour ce type de fichier.</p>
-              <a href={apercu.url} download={apercu.nom} className="text-green-700 hover:underline">
+              <a href={telechargement} download={apercu.nom} className="text-green-700 hover:underline">
                 Télécharger «&nbsp;{apercu.nom}&nbsp;»
               </a>
             </div>

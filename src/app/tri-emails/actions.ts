@@ -18,7 +18,7 @@ import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
 import { annulerRangement, depsParDefaut, preciserCopro, rangerMail, supprimerMail } from "@/lib/services/tri-emails/ranger";
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
-import { lirePieceJointeTri, listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
+import { listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
 import { coproDepuisPiecesJointes, type CoproDepuisPj } from "@/lib/services/tri-emails/copro-pieces-jointes";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
@@ -146,7 +146,7 @@ export async function affecterCoproAction(input: unknown): Promise<Res> {
   );
 }
 
-// --- Pieces jointes (apercu) --------------------------------------------------------
+// --- Pieces jointes : la liste (le contenu passe en flux par /tri-emails/pj, REA-421) ----
 
 const zMessage = z.string().min(1).max(400);
 
@@ -155,19 +155,6 @@ export async function listerPiecesJointesTriAction(input: unknown): Promise<Res<
     const config = await gardeTri(g, d.boite);
     return listerPiecesJointesTri(config.boite, d.internetMessageId);
   });
-}
-
-export async function lirePieceJointeTriAction(input: unknown): Promise<Res<{ nom: string; type: string; base64: string }>> {
-  return actionGestionnaire(
-    // Id Graph d'une piece jointe : base64 URL-safe (un identifiant, jamais un chemin).
-    z.object({ boite: zBoite, internetMessageId: zMessage, attachmentId: z.string().min(1).max(600).regex(/^[A-Za-z0-9_\-=+\/]+$/) }),
-    input,
-    "tri-emails-pj",
-    async (d, g) => {
-      const config = await gardeTri(g, d.boite);
-      return lirePieceJointeTri(config.boite, d.internetMessageId, d.attachmentId);
-    },
-  );
 }
 
 export async function coproDepuisPjAction(input: unknown): Promise<Res<CoproDepuisPj | null>> {
