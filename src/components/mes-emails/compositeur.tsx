@@ -7,7 +7,8 @@
 // L'objet est taggé par la copro (code · nom) pour le tri.
 // Pièces jointes et signature (Signitic) partent avec. Le bouton ENVOIE quand l'envoi depuis
 // la boîte partagée est ouvert (MAIL_ENVOI=on) ; sinon il crée un BROUILLON, relu puis
-// envoyé depuis Outlook (ADR-047). Fichiers et destinataires se glissent-déposent.
+// envoyé depuis Outlook (ADR-047). Fichiers et destinataires se glissent-déposent. Les
+// fichiers (25 Mo) sont déposés par tranches sur le brouillon déjà créé, comme une réponse.
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { Building2, Paperclip, Users, X } from "lucide-react";
@@ -36,11 +37,15 @@ import {
   type VariablesModele,
 } from "@/lib/domain/mes-emails-composition";
 import {
-  creerBrouillonCompositionAction,
+  abandonnerCompositionAction,
+  finaliserCompositionAction,
   listerContactsCompositionAction,
   listerDossiersCompositionAction,
+  preparerCompositionAction,
   rechercherDestinatairesAction,
 } from "@/app/mes-emails/composer/actions";
+import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE } from "@/lib/domain/piece-jointe-flux";
+import { deposerFichier } from "./deposer-fichier";
 import { TYPE_DOSSIER_LABEL, type TypeDossier } from "@/lib/domain/dossier";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { EditeurRiche } from "./editeur-riche";
@@ -52,7 +57,8 @@ type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 /** Une personne en destinataire : toutes ses adresses partent ensemble. */
 export type Personne = { cle: string; nom: string; emails: string[] };
 
-type FichierJoint = { nom: string; contentType: string; taille: number; base64: string };
+/** Un fichier reste un File jusqu'à l'envoi ; `progres` (0 à 1) pendant son dépôt sur le brouillon. */
+type FichierJoint = { nom: string; taille: number; fichier: File; progres?: number };
 
 type Props = {
   copros: CoproChoisissable[];
@@ -95,19 +101,11 @@ const TITRE_SOURCE_CONSEIL: Record<SourceConseilComposition, string> = {
   aucune: "Aucune liste de conseil syndical pour cette copropriété : tapez les noms ci-dessus",
 };
 
-// Les fichiers du mail neuf voyagent en base64 dans l'action (×4/3) : une requête vers Vercel ne
-// dépasse pas 4,5 Mo, et l'action est bornée à 4 Mo (next.config.ts). 2,5 Mo de fichiers au
-// TOTAL, sinon l'envoi échouait sans message clair (27/10/2026). Les gros fichiers d'une
-// réponse passent, eux, par la route de dépôt (REA-421) ; le mail neuf ne l'a pas encore.
-const TAILLE_MAX_FICHIERS = 2.5 * 1024 * 1024;
-
-function enBase64(f: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(f);
-  });
+// Même affichage que les pièces d'une réponse (mes-emails-vue).
+function formatTaille(octets: number): string {
+  if (octets >= 1_000_000) return `${(octets / 1_000_000).toFixed(1)} Mo`;
+  if (octets >= 1000) return `${Math.round(octets / 1000)} Ko`;
+  return `${octets} o`;
 }
 
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
@@ -204,22 +202,30 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     setA((l) => [...l, ...ajout]);
   }
 
-  async function ajouterFichiers(liste: FileList | null) {
+  // Mêmes limites que la réponse (REA-421) : 25 Mo par fichier, 25 Mo au total, 10 fichiers.
+  function ajouterFichiers(liste: FileList | null) {
     if (!liste?.length) return;
     const ajout: FichierJoint[] = [];
     let total = fichiers.reduce((t, f) => t + f.taille, 0);
     for (const f of Array.from(liste)) {
-      if (total + f.size > TAILLE_MAX_FICHIERS) {
-        toast.warn(`« ${f.name} » ferait dépasser 2,5 Mo de pièces jointes : créez le mail ici, puis joignez-le dans Outlook.`);
+      if (f.size > TAILLE_MAX_FICHIER) {
+        toast.warn(`« ${f.name} » dépasse 25 Mo : à déposer sur SharePoint et à envoyer en lien.`);
+        continue;
+      }
+      if (total + f.size > TAILLE_MAX_TOTALE) {
+        toast.warn(`« ${f.name} » ferait dépasser 25 Mo de pièces jointes : à déposer sur SharePoint et à envoyer en lien.`);
         continue;
       }
       total += f.size;
-      ajout.push({ nom: f.name, contentType: f.type, taille: f.size, base64: await enBase64(f) });
+      ajout.push({ nom: f.name, taille: f.size, fichier: f });
     }
-    setFichiers((l) => [...l, ...ajout].slice(0, 10));
+    setFichiers((l) => [...l, ...ajout].slice(0, NB_MAX_FICHIERS));
   }
+  /** La progression du dépôt d'un fichier (0 à 1) ; index null : on efface toutes les barres. */
+  const majProgres = (i: number | null, fraction: number) =>
+    setFichiers((l) => l.map((f, k) => (i === null ? { nom: f.nom, taille: f.taille, fichier: f.fichier } : k === i ? { ...f, progres: fraction } : f)));
 
-  const depot = useDepotFichiers((l) => void ajouterFichiers(l));
+  const depot = useDepotFichiers((l) => ajouterFichiers(l));
 
   const variablesPour = (c: CoproChoisissable | null): VariablesModele => ({
     copro_code: c?.reference ?? "",
@@ -311,7 +317,9 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     }
     setEnvoiEnCours(true);
     demarrer(async () => {
-      const r = await creerBrouillonCompositionAction({
+      // Envoi en trois temps (27/10/2026, comme la réponse) : le brouillon d'abord, puis chaque
+      // fichier déposé par tranches (la pastille se remplit), puis l'envoi ou le brouillon laissé.
+      const prep = await preparerCompositionAction({
         objet: objet.trim().replace(/\s*-$/, ""),
         corps,
         ...(pilote && corpsHtml ? { corpsHtml } : {}),
@@ -319,18 +327,41 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         cc: adresses(cc),
         ...(cci.length ? { cci } : {}),
         ...(dossierId ? { dossierId } : {}),
-        fichiers: fichiers.map(({ nom, contentType, base64 }) => ({ nom, contentType, base64 })),
+        fichiers: fichiers.map(({ nom, taille }) => ({ nom, taille })),
       });
+      if (!prep.ok) {
+        setEnvoiEnCours(false);
+        toast.err(prep.erreur);
+        return;
+      }
+      const p = prep.donnees;
+      if (!p || p.simulation || !p.jetons?.length) {
+        setEnvoiEnCours(false);
+        toast.ok("Aperçu vérifié : aucune boîte branchée ici, rien n'est parti.");
+        return;
+      }
+      const jetons = p.jetons;
+      // Toute la copropriété en plusieurs mails : chaque brouillon reçoit les fichiers.
+      for (const [lot, jeton] of jetons.entries()) {
+        for (const [i, f] of fichiers.entries()) {
+          const d = await deposerFichier(jeton, f.fichier, (x) => majProgres(i, (lot + x) / jetons.length));
+          if (!d.ok) {
+            void abandonnerCompositionAction({ jetons });
+            majProgres(null, 0);
+            setEnvoiEnCours(false);
+            toast.err(`${d.erreur} Rien n'est parti, le mail est toujours là.`);
+            return;
+          }
+        }
+      }
+      const r = await finaliserCompositionAction({ jetons });
       setEnvoiEnCours(false);
+      majProgres(null, 0);
       if (!r.ok) {
         toast.err(r.erreur);
         return;
       }
-      const res = r.donnees;
-      if (!res || res.simulation) {
-        toast.ok("Aperçu vérifié : aucune boîte branchée ici, rien n'est parti.");
-        return;
-      }
+      const res = { ...r.donnees, ...(p.webLink ? { webLink: p.webLink } : {}) };
       const plusieurs = (res.mails ?? 1) > 1 ? ` (${res.mails} mails)` : "";
       // À qui et depuis quelle boîte (REA-349, 16/10/2026) : la fenêtre se ferme aussitôt,
       // ce toast est la seule trace visible de l'envoi.
@@ -483,16 +514,27 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
             multiple
             className="sr-only"
             onChange={(e) => {
-              void ajouterFichiers(e.target.files);
+              ajouterFichiers(e.target.files);
               e.target.value = "";
             }}
           />
         </label>
         {fichiers.length === 0 ? <span className="text-meta text-ink-3">ou glissez les fichiers ici</span> : null}
         {fichiers.map((f, i) => (
-          <span key={`${f.nom}-${i}`} className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2">
-            <span className="truncate max-w-[200px]">{f.nom}</span>
-            <button type="button" onClick={() => setFichiers((l) => l.filter((_, k) => k !== i))} aria-label={`Retirer ${f.nom}`} className="text-ink-3 hover:text-err-700">
+          <span key={`${f.nom}-${i}`} className="relative inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2 overflow-hidden">
+            {f.progres !== undefined ? (
+              // Dépôt en cours sur le brouillon : la pastille se remplit, tranche par tranche.
+              <span aria-hidden="true" className="absolute inset-y-0 left-0 bg-green-50 transition-[width]" style={{ width: `${Math.round(f.progres * 100)}%` }} />
+            ) : null}
+            <span className="relative truncate max-w-[200px]">{f.nom}</span>
+            <span className="relative text-ink-3">{f.progres !== undefined ? `${Math.round(f.progres * 100)} %` : formatTaille(f.taille)}</span>
+            <button
+              type="button"
+              onClick={() => setFichiers((l) => l.filter((_, k) => k !== i))}
+              disabled={envoiEnCours}
+              aria-label={`Retirer ${f.nom}`}
+              className="relative text-ink-3 hover:text-err-700"
+            >
               <X strokeWidth={1.5} className="w-3 h-3" />
             </button>
           </span>

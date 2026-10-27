@@ -1,8 +1,9 @@
 // Compositeur d'un mail SORTANT depuis la boîte partagée (syndicN), façon « F1 » de Crypto.
 // Fournit les DONNÉES (copros ESTALE+Crypto de l'agence, contacts et dossiers ouverts d'une
-// copro) et crée un BROUILLON, jamais d'envoi direct. L'objet/corps sont composés côté
-// domaine (pur), ici on orchestre les ports. Le brouillon se crée sur clic (geste de
-// validation) dès que Graph est branché ; l'envoi réel se fait dans Outlook. Expéditeur =
+// copro) et crée un BROUILLON, envoyé seulement si l'envoi de la boîte est ouvert (MAIL_ENVOI).
+// L'objet/corps sont composés côté domaine (pur), ici on orchestre les ports. Le brouillon se
+// crée sur clic (geste de validation) dès que Graph est branché, puis reçoit ses fichiers par
+// tranches (27/10/2026, comme la réponse) avant de partir ou de rester dans Outlook. Expéditeur =
 // syndicN (la boîte passée au provider). Le brouillon peut être rattaché à un dossier : son
 // internetMessageId survit à l'envoi, « Ouvrir le mail » depuis le dossier le retrouve.
 // Plusieurs boîtes (V2 du 27/10/2026) : la boîte d'envoi et les copros proposées sont celles
@@ -20,7 +21,6 @@ import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
 import { conseilPourComposition, enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
-import type { PieceJointeMail } from "@/lib/ports/mail-outbound-provider";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
 import { getSignatureGestionnaire } from "./get-signature";
@@ -29,6 +29,8 @@ import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { refEchange } from "@/lib/domain/echanges";
 import { dossiersPourRattacher } from "@/lib/services/echanges/rechercher";
 import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email";
+import { DUREE_JETON_MS, scellerJeton, type JetonNeuf } from "./jeton-envoi";
+import { brouillonNeufDe } from "./depot-piece-jointe";
 
 export type { CoproChoisissable, ContactsComposition };
 
@@ -156,8 +158,6 @@ export interface DemandeBrouillon {
   cci?: string[];
   /** Dossier auquel rattacher le mail (facultatif). */
   dossierId?: string;
-  /** Fichiers joints depuis l'ordinateur. */
-  piecesJointes?: PieceJointeMail[];
   /** Corps mis en forme, nettoyé et habillé (REA-345, pilote) ; `corps` reste le texte équivalent. */
   corpsHtml?: string;
 }
@@ -186,17 +186,37 @@ export function brouillonPossible(config: BoiteTriConfig | null): boolean {
   return mailModuleActif() && Boolean(boite) && boite !== BOITE_ECHANTILLON;
 }
 
+// Le mail neuf part en TROIS temps depuis le 27/10/2026, comme la réponse (REA-421) :
+//   1. preparerComposition crée le(s) brouillon(s) dans la boîte (destinataires, objet, corps,
+//      signature) et rend un jeton chiffré par brouillon ;
+//   2. le navigateur dépose chaque fichier par tranches sur chaque brouillon (/mes-emails/pj/depot) ;
+//   3. finaliserComposition envoie (mode « envoyer ») ou laisse le brouillon, puis inscrit le mail
+//      au journal du dossier ; un fichier refusé en route : abandonnerComposition les supprime.
+// Avant, les fichiers voyageaient en base64 dans l'action, plafonnés à 2,5 Mo au total.
+
+export interface PreparationComposition {
+  /** true = aperçu seulement (Graph absent / pas de vraie boîte) : aucun brouillon, aucun jeton. */
+  simulation: boolean;
+  boite: string | null;
+  /** Le mail partira à la finalisation (sinon il reste en brouillon dans Outlook). */
+  envoi?: boolean;
+  /** Un jeton par brouillon (un par lot de copie cachée), dans l'ordre des lots. */
+  jetons?: string[];
+  webLink?: string;
+  mails?: number;
+}
+
 /**
- * Crée un brouillon NEUF dans la boîte partagée (statut Draft, rien n'est envoyé) : c'est le
- * geste de validation, le mail se relit et part depuis Outlook (ADR-047). Sans Graph ou sans
- * vraie boîte, renvoie simulation:true sans rien écrire. Jamais d'envoi direct ici.
- * Si un dossier est demandé, le mail est inscrit à son journal (contrôle de périmètre inclus).
+ * Crée le(s) brouillon(s) NEUF(S) dans la boîte partagée, sans rien envoyer. Le mode (envoi ou
+ * brouillon) est décidé ICI, garde d'envoi comprise (MAIL_ENVOI et `envoi` de la boîte), et
+ * scellé dans le jeton : la finalisation ne peut pas l'élargir. Un échec en route supprime les
+ * brouillons déjà créés (pas d'orphelin dans la boîte).
  */
-export async function creerBrouillonComposition(
+export async function preparerComposition(
   d: DemandeBrouillon,
   g: Gestionnaire,
   config: BoiteTriConfig | null,
-): Promise<ResultatBrouillon> {
+): Promise<PreparationComposition> {
   const boite = boiteEnvoi(config);
   if (!brouillonPossible(config) || !boite) {
     return { simulation: true, boite };
@@ -208,44 +228,113 @@ export async function creerBrouillonComposition(
   // un mail par lot. Sans « À », le mail est adressé à la boîte elle-même.
   const a = d.a.length ? d.a : d.cci?.length ? [boite] : [];
   const lots = d.cci?.length ? enLots(d.cci) : [[]];
-  const envoi = envoiMailPour(boite);
-  let r: Awaited<ReturnType<typeof outbound.creerBrouillonNeuf>> = {};
-  let envoye = false;
-  for (const [i, cci] of lots.entries()) {
-    const cree = await outbound.creerBrouillonNeuf({
-      boite,
-      sujet: d.objet,
-      corps: d.corps,
-      ...(d.corpsHtml ? { corpsHtml: d.corpsHtml } : {}),
-      ...(a.length ? { a } : {}),
-      ...(d.cc.length ? { cc: d.cc } : {}),
-      ...(cci.length ? { cci } : {}),
-      ...(signatureHtml ? { signatureHtml } : {}),
-      ...(d.piecesJointes?.length ? { piecesJointes: d.piecesJointes } : {}),
-    });
-    if (i === 0) r = cree;
-    // Envoi réel (MAIL_ENVOI=on) : le brouillon part aussitôt. Créer puis envoyer garde
-    // l'internetMessageId, qui rattache le mail au dossier.
-    if (envoi && cree.id) {
-      await outbound.envoyerBrouillon({ boite, id: cree.id });
-      envoye = true;
+  const mode = envoiMailPour(boite) ? "envoyer" : "brouillon";
+  const crees: { id: string; webLink?: string; internetMessageId?: string }[] = [];
+  try {
+    for (const cci of lots) {
+      const cree = await outbound.creerBrouillonNeuf({
+        boite,
+        sujet: d.objet,
+        corps: d.corps,
+        ...(d.corpsHtml ? { corpsHtml: d.corpsHtml } : {}),
+        ...(a.length ? { a } : {}),
+        ...(d.cc.length ? { cc: d.cc } : {}),
+        ...(cci.length ? { cci } : {}),
+        ...(signatureHtml ? { signatureHtml } : {}),
+      });
+      // Sans id, ni dépôt de fichier ni envoi ne sont possibles.
+      if (!cree.id) throw new Error("Graph n'a pas rendu l'identifiant du brouillon.");
+      crees.push({ ...cree, id: cree.id });
     }
+  } catch (e) {
+    await supprimerBrouillons(boite, crees.map((c) => c.id));
+    throw e;
   }
-
-  let rattache: boolean | undefined;
-  if (d.dossierId && r.internetMessageId) {
-    const pour = d.cci?.length ? `toute la copropriété (${d.cci.length} adresses)` : d.a.slice(0, 2).join(", ") || "?";
-    const resume = `${envoye ? "Mail envoyé à" : "Mail préparé pour"} ${pour} : ${d.objet}`;
-    rattache = await rattacherEmailAuDossier(d.dossierId, g.id, g.initiales, resume, refEchange(boite, r.internetMessageId));
-  } else if (d.dossierId) {
-    rattache = false; // Graph n'a pas rendu d'identifiant : on le dit plutôt que de faire semblant.
-  }
+  const pour = d.cci?.length ? `toute la copropriété (${d.cci.length} adresses)` : d.a.slice(0, 2).join(", ") || "?";
+  const exp = Date.now() + DUREE_JETON_MS;
+  const jetons = crees.map((c, lot) =>
+    scellerJeton({
+      nature: "neuf",
+      boite,
+      draftId: c.id,
+      gid: g.id,
+      mode,
+      lot,
+      lots: crees.length,
+      ...(lot === 0 && c.internetMessageId ? { internetMessageId: c.internetMessageId } : {}),
+      ...(lot === 0 && d.dossierId ? { dossier: { id: d.dossierId, pour, objet: d.objet } } : {}),
+      exp,
+    }),
+  );
   return {
     simulation: false,
-    envoye,
     boite,
-    ...(r.webLink ? { webLink: r.webLink } : {}),
-    ...(rattache !== undefined ? { rattache } : {}),
-    mails: lots.length,
+    envoi: mode === "envoyer",
+    jetons,
+    ...(crees[0]?.webLink ? { webLink: crees[0].webLink } : {}),
+    mails: crees.length,
   };
+}
+
+/**
+ * Les brouillons d'une composition, si TOUS les jetons sont intacts, à la personne, et de la
+ * même composition (même boîte, même mode, lots 0..n-1 au complet). null sinon.
+ */
+function brouillonsDe(jetons: string[], gid: string): JetonNeuf[] | null {
+  const l: JetonNeuf[] = [];
+  for (const jeton of jetons) {
+    const j = brouillonNeufDe(jeton, gid);
+    if (!j) return null;
+    l.push(j);
+  }
+  l.sort((x, y) => x.lot - y.lot);
+  const premier = l[0];
+  if (!premier || premier.lots !== l.length) return null;
+  const memes = l.every((j, i) => j.lot === i && j.lots === premier.lots && j.boite === premier.boite && j.mode === premier.mode);
+  return memes ? l : null;
+}
+
+async function supprimerBrouillons(boite: string, ids: string[]): Promise<void> {
+  const outbound = getMailOutboundProvider();
+  for (const id of ids) {
+    try {
+      await outbound.supprimerBrouillon({ boite, id });
+    } catch (e) {
+      console.warn("[composer] brouillon abandonné non supprimé :", e instanceof Error ? e.message : e);
+    }
+  }
+}
+
+/**
+ * Le mail est prêt (fichiers déposés) : il part si le jeton le permet, sinon il reste en
+ * brouillon dans Outlook. Puis il est inscrit au journal du dossier demandé (contrôle de
+ * périmètre inclus) : créer puis envoyer garde l'internetMessageId, qui survit à l'envoi.
+ * null : jetons expirés, falsifiés ou d'une autre personne.
+ */
+export async function finaliserComposition(jetons: string[], g: Gestionnaire): Promise<ResultatBrouillon | null> {
+  const l = brouillonsDe(jetons, g.id);
+  const premier = l?.[0];
+  if (!l || !premier) return null;
+  const envoye = premier.mode === "envoyer";
+  if (envoye) {
+    const outbound = getMailOutboundProvider();
+    for (const j of l) await outbound.envoyerBrouillon({ boite: j.boite, id: j.draftId });
+  }
+  let rattache: boolean | undefined;
+  if (premier.dossier && premier.internetMessageId) {
+    const resume = `${envoye ? "Mail envoyé à" : "Mail préparé pour"} ${premier.dossier.pour} : ${premier.dossier.objet}`;
+    rattache = await rattacherEmailAuDossier(premier.dossier.id, g.id, g.initiales, resume, refEchange(premier.boite, premier.internetMessageId));
+  } else if (premier.dossier) {
+    rattache = false; // Graph n'a pas rendu d'identifiant : on le dit plutôt que de faire semblant.
+  }
+  return { simulation: false, envoye, boite: premier.boite, ...(rattache !== undefined ? { rattache } : {}), mails: l.length };
+}
+
+/** Un fichier n'a pas pu être joint : les brouillons incomplets sont retirés de la boîte. */
+export async function abandonnerComposition(jetons: string[], gid: string): Promise<boolean> {
+  const l = brouillonsDe(jetons, gid);
+  const premier = l?.[0];
+  if (!l || !premier) return false;
+  await supprimerBrouillons(premier.boite, l.map((j) => j.draftId));
+  return true;
 }
