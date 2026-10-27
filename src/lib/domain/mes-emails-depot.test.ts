@@ -20,4 +20,9 @@ describe("dépôt d'une pièce jointe sur SharePoint", () => {
     expect(nomFichierDepose('BI n°12: "urgent"?.pdf', "2026-10-13T08:12:00Z")).toBe("2026-10-13 - BI n°12- -urgent-.pdf");
     expect(nomFichierDepose("   ", "2026-10-13")).toBe("2026-10-13 - piece-jointe");
   });
+
+  it("date à l'heure de Paris, pas en UTC : un mail reçu à 0 h 30 n'est pas de la veille", () => {
+    expect(nomFichierDepose("bon.pdf", "2026-10-13T22:30:00Z")).toBe("2026-10-14 - bon.pdf");
+    expect(sousDossiersPieceRecue("2026-12-31T23:30:00Z")).toEqual([DOSSIER_PIECES_RECUES, "2027"]);
+  });
 });

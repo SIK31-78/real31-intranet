@@ -10,6 +10,18 @@
 /** Sous-dossier de la copro où vont les pièces reçues par mail. À valider (cf. en-tête). */
 export const DOSSIER_PIECES_RECUES = "Interventions";
 
+const PARIS = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" });
+
+/**
+ * « AAAA-MM-JJ » du jour de réception À PARIS. Graph horodate en UTC : « 2026-10-13T22:30:00Z »
+ * est le 14 octobre à Paris, et couper les dix premiers caractères datait le fichier de la
+ * veille (27/10/2026). Une date nue (« 2026-10-13 ») reste telle quelle.
+ */
+function jourParisDe(iso: string): string {
+  const d = new Date(iso);
+  return iso.includes("T") && !Number.isNaN(d.getTime()) ? PARIS.format(d) : iso.slice(0, 10);
+}
+
 /** Dossier racine de la copro, depuis son lien de dossier d'AG (on retire le dernier « /AG »). */
 export function dossierCoproDepuisLienAg(lienAg: string): string {
   return lienAg.trim().replace(/\/+$/, "").replace(/\/AG$/i, "");
@@ -17,7 +29,7 @@ export function dossierCoproDepuisLienAg(lienAg: string): string {
 
 /** Sous-dossiers sous la racine de la copro : la convention, puis l'année de réception. */
 export function sousDossiersPieceRecue(recuLeISO: string): string[] {
-  return [DOSSIER_PIECES_RECUES, recuLeISO.slice(0, 4)];
+  return [DOSSIER_PIECES_RECUES, jourParisDe(recuLeISO).slice(0, 4)];
 }
 
 /**
@@ -27,5 +39,5 @@ export function sousDossiersPieceRecue(recuLeISO: string): string[] {
  */
 export function nomFichierDepose(nomOrigine: string, recuLeISO: string): string {
   const propre = nomOrigine.replace(/["*:<>?/\\|#%]+/g, "-").replace(/\s+/g, " ").trim() || "piece-jointe";
-  return `${recuLeISO.slice(0, 10)} - ${propre}`;
+  return `${jourParisDe(recuLeISO)} - ${propre}`;
 }

@@ -28,6 +28,7 @@ import {
 } from "@/lib/adapters/router";
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
 import { recuDepuisDebutTri } from "@/lib/domain/mail-gate";
+import { jourParis } from "@/lib/services/date-du-jour";
 import { distributionDe } from "./boites-visibles";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
@@ -60,6 +61,13 @@ function badge(p: Severite): BadgeUrgence {
   if (p === "late") return { texte: "URGENT", ton: "err" as UrgenceTon };
   if (p === "soon") return { texte: "À TRAITER", ton: "warn" as UrgenceTon };
   return { texte: "INFO", ton: "neutral" as UrgenceTon };
+}
+
+// Le jour de réception À PARIS : Graph horodate en UTC, et `receivedAt.slice(0, 10)` faisait
+// basculer d'un jour les mails reçus après 22 h ou 23 h (bug B6, 27/10/2026).
+function jourDe(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : jourParis(d);
 }
 
 function nomCourt(from: string): string {
@@ -221,7 +229,7 @@ export async function lireBoitesLive(
       ...(reponseDepuisVerbe(m.dernierVerbe) ? { reponseOutlook: reponseDepuisVerbe(m.dernierVerbe)! } : {}),
       ...(m.replyTo?.length && m.replyTo.some((r) => r.adresse.toLowerCase() !== m.from.toLowerCase()) ? { repondreA: m.replyTo } : {}),
       objet: m.subject || "(sans objet)",
-      date: m.receivedAt.slice(0, 10),
+      date: jourDe(m.receivedAt),
       recuLe: m.receivedAt,
       coproCode: m.copro,
       coproNom: coproNomDe(m.copro),
@@ -255,7 +263,7 @@ export async function lireBoitesLive(
       coproNom: coproNomDe(aff.copro),
       type: analyseDe(tete.internetMessageId).type,
       historique: parDate.slice(0, 8).map((m) => ({
-        date: m.receivedAt.slice(0, 10),
+        date: jourDe(m.receivedAt),
         acteur: nomCourt(m.from),
         resume: (m.subject || cleanBody(m).slice(0, 60) || "mail").slice(0, 90),
         kind: "mail" as const,
