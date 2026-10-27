@@ -28,7 +28,7 @@ import { boiteTri, recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { signalerException } from "@/lib/observabilite";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
-import { distributionDe } from "./boites-visibles";
+import { distributionDe, mailsParDelegation } from "./boites-visibles";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
 // chasser les mails de la boite personnelle de l'affichage. Boite perso : 40 par defaut,
@@ -92,7 +92,7 @@ async function ingererBoite(
   g: Gestionnaire,
   boite: BoiteMail,
   maxPerso: number,
-): Promise<{ boite: BoiteMail; bruts: RawMail[]; luOutlook: Map<string, boolean>; erreur?: string }> {
+): Promise<{ boite: BoiteMail; bruts: RawMail[]; luOutlook: Map<string, boolean>; pour?: Map<string, string>; erreur?: string }> {
   try {
     const ingestion = getMailIngestionProvider();
     if (boite.personnelle) {
@@ -102,7 +102,7 @@ async function ingererBoite(
       ]);
       return { boite, bruts, luOutlook };
     }
-    const distribues = await distributionDe(g, boite.adresse);
+    const [distribues, pour] = await Promise.all([distributionDe(g, boite.adresse), mailsParDelegation(g, boite.adresse)]);
     if (distribues.size === 0) return { boite, bruts: [], luOutlook: new Map() };
     const ids = [...distribues.keys()].slice(0, MAX_PARTAGEE);
     const [lus, luOutlook] = await Promise.all([
@@ -115,7 +115,7 @@ async function ingererBoite(
     const bruts = lus.filter((m) => recuDepuisDebutTri(m.receivedAt, boite.adresse));
     // La copro decidee au tri fait foi (choix humain) : on la pose avant toute deduction.
     for (const m of bruts) m.copro = distribues.get(m.internetMessageId) ?? "";
-    return { boite, bruts, luOutlook };
+    return { boite, bruts, luOutlook, pour };
   } catch (err) {
     console.warn(`[mes-emails] boite ${boite.adresse} illisible :`, (err as Error).message);
     signalerException(err, { source: "mes-emails-lecture", detail: { boite: boite.adresse } });
@@ -162,11 +162,15 @@ export async function lireBoitesLive(
   const boiteDe = new Map<string, string>();
   // Le lu d'Outlook de chaque mail brut (cle : id Graph, unique d'une boite a l'autre).
   const luDe = new Map<string, boolean>();
+  // Pour qui le mail est arrive par delegation (badge « Pour Fanny S. »), par id Graph.
+  const pourDe = new Map<string, string>();
   const bruts: RawMail[] = [];
-  for (const { boite, bruts: lot, luOutlook } of parBoite) {
+  for (const { boite, bruts: lot, luOutlook, pour } of parBoite) {
     for (const b of lot) {
       boiteDe.set(b.id, boite.id);
       luDe.set(b.id, luOutlook.get(b.internetMessageId) ?? false);
+      const p = pour?.get(b.internetMessageId);
+      if (p) pourDe.set(b.id, p);
       bruts.push(b);
     }
   }
@@ -221,6 +225,7 @@ export async function lireBoitesLive(
     return {
       id: m.internetMessageId || m.id,
       boite: boiteDe.get(m.id) ?? boites[0]!.id,
+      ...(pourDe.has(m.id) ? { pour: pourDe.get(m.id)! } : {}),
       de: m.fromName || nomCourt(m.from),
       // L'adresse réelle, même d'un collègue : on doit pouvoir lui répondre (comme Outlook).
       expediteurEmail: m.from,

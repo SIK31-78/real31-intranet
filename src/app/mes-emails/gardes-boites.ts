@@ -14,7 +14,8 @@ import { incarnationEnCours } from "@/lib/auth/session";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { boitesVisibles, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
 
-export type Personne = Pick<Gestionnaire, "email" | "agencyId">;
+/** `id` : celui de la personne, pour ses délégations de portefeuille (complément d'ADR-041). */
+export type Personne = Pick<Gestionnaire, "id" | "email" | "agencyId">;
 
 /**
  * Les boites de la personne : la sienne, celle de son agence (toutes pour un super-admin). En

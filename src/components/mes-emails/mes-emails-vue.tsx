@@ -1273,6 +1273,12 @@ function LigneMail({
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
           <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-3")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
+          {/* Arrivé par une délégation de portefeuille : pour qui l'on répond (27/10/2026). */}
+          {m.pour ? (
+            <span className="shrink-0">
+              <Badge ton="brand">Pour {m.pour}</Badge>
+            </span>
+          ) : null}
           {/* Un collègue du cabinet, pas un client : simple repère, ton neutre (pas une alerte, REA-408). */}
           {estMailInterne(m.expediteurEmail, m.boite ?? "") ? (
             <span className={"shrink-0" + (reponse ? "" : " ml-auto")}>
@@ -2330,14 +2336,22 @@ function EnTeteMail({ m }: { m: MailEntrant }) {
     ["Date", `${formatDateLongue(m.date)}${heure ? ` à ${heure}` : ""}`],
   ];
   return (
-    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-meta">
-      {lignes.map(([label, valeur]) => (
-        <Fragment key={label}>
-          <dt className="text-ink-3">{label}</dt>
-          <dd className={(label === "De" ? "text-ink font-medium" : "text-ink-2") + " break-words select-text"}>{valeur}</dd>
-        </Fragment>
-      ))}
-    </dl>
+    <>
+      {/* Délégation de portefeuille : on répond pour le titulaire (27/10/2026). */}
+      {m.pour ? (
+        <div className="mt-2">
+          <Badge ton="brand">Pour {m.pour}</Badge>
+        </div>
+      ) : null}
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-meta">
+        {lignes.map(([label, valeur]) => (
+          <Fragment key={label}>
+            <dt className="text-ink-3">{label}</dt>
+            <dd className={(label === "De" ? "text-ink font-medium" : "text-ink-2") + " break-words select-text"}>{valeur}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    </>
   );
 }
 

@@ -142,6 +142,9 @@ export interface MailEntrant {
    *  = boite personnelle du gestionnaire. Le service de lecture live le remplit
    *  TOUJOURS. Sert au filtrage du rail et au "De :" par defaut de la reponse. */
   boite?: string;
+  /** Arrivé par une délégation de portefeuille : « Fanny S. », le titulaire pour qui l'on répond
+   *  (badge « Pour Fanny S. », complément d'ADR-041 du 27/10/2026). Absent : un mail à moi. */
+  pour?: string;
   /** Lu / non lu (feeling boite mail ; passe a true a l'ouverture). */
   lu: boolean;
   /** Corps du mail (deja nettoye : sans l'historique cite, qui se charge a la demande). */

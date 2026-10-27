@@ -33,6 +33,7 @@ vi.mock("@/lib/adapters/router", () => ({
 vi.mock("@/lib/services/tri-emails/acces", () => ({ boiteDe: async () => null }));
 vi.mock("./boites-visibles", () => ({
   distributionDe: async () => new Map([["<p1>", "S0297"]]),
+  mailsParDelegation: async () => new Map(),
 }));
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
 

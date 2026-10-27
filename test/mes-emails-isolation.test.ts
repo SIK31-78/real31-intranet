@@ -11,6 +11,7 @@ const etat = vi.hoisted(() => ({
   repo: null as unknown as MockTriRepository,
   lus: [] as { boite: string; id: string }[],
   incarnation: false,
+  delegations: [] as Record<string, unknown>[],
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
@@ -22,6 +23,13 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/lib/adapters/router", async (original) => ({
   ...(await original<typeof import("@/lib/adapters/router")>()),
   getTriRepository: () => etat.repo,
+  // Délégations (ADR-041) et collaborateurs : en mémoire, données inventées.
+  getDelegationRepository: () => ({
+    listerPourBeneficiaire: async (id: string) => etat.delegations.filter((d) => d.aUserId === id),
+  }),
+  getGestionnaireRepository: () => ({
+    findById: async (id: string) => PERSONNES.find((p) => p.id === id) ?? null,
+  }),
   // Les « Envoyés » de syndic4 : une réponse dans la conversation de Sophie, une dans celle de Marc.
   getRechercheMail: () => ({
     envoyes: async () => [
@@ -48,13 +56,20 @@ vi.mock("@/lib/services/mes-emails/historique-mail", () => ({
 }));
 
 const { chargerHistoriqueAction, envoyerABonneCoproAction, lireEnvoyeAction } = await import("@/app/mes-emails/actions");
-const { boitesVisibles } = await import("@/lib/services/mes-emails/boites-visibles");
+const { boitesVisibles, mailsParDelegation } = await import("@/lib/services/mes-emails/boites-visibles");
 
 const SYNDIC4 = "syndic4@real31.fr";
 const SYNDIC2 = "syndic2@real31.fr";
 const sophie = { id: "u1", nomComplet: "Sophie K", initiales: "SK", email: "sophie@real31.fr", agencyId: "ag-hls", role: "GESTIONNAIRE" };
 const nadia = { id: "u3", nomComplet: "Nadia L", initiales: "NL", email: "nadia@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
 const sekou = { id: "u9", nomComplet: "Sekou KOMA", initiales: "SKO", email: "sekou@real31.fr", agencyId: "ag-hls", role: "ADMIN" };
+const emmanuel = { id: "u5", nomComplet: "Emmanuel LOPES", initiales: "EL", email: "emmanuel@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
+const fanny = { id: "u6", nomComplet: "Fanny SORIVELLE", initiales: "FS", email: "fanny@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
+const PERSONNES = [sophie, nadia, sekou, emmanuel, fanny];
+
+/** Délégation de `de` vers `a` ; par défaut de portefeuille et active sur une période large. */
+const deleguer = (de: { id: string }, a: { id: string }, x: Record<string, unknown> = {}) =>
+  etat.delegations.push({ id: `d${etat.delegations.length + 1}`, deUserId: de.id, aUserId: a.id, portee: "portefeuille", depuisISO: "2000-01-01", jusquaISO: "2999-12-31", ...x });
 
 const ranger = (boite: string, imid: string, gestionnaire: string, conversationId?: string) =>
   etat.repo.journaliser({
@@ -86,6 +101,8 @@ beforeEach(async () => {
   etat.repo = new MockTriRepository({ binomes: [], parCopro: {} });
   etat.lus = [];
   etat.incarnation = false;
+  etat.delegations = [];
+  await ranger(SYNDIC2, "<d-fanny@x>", "fanny@real31.fr");
   await ranger(SYNDIC4, "<a-sophie@x>", "sophie@real31.fr", "conv-sophie");
   await ranger(SYNDIC4, "<b-marc@x>", "marc@real31.fr", "conv-marc");
   await ranger(SYNDIC2, "<c-nadia@x>", "nadia@real31.fr");
@@ -163,5 +180,44 @@ describe("un mail d'un autre binôme est refusé", () => {
     etat.session = sekou;
     expect(await chargerHistoriqueAction("<b-marc@x>", SYNDIC4)).toBe("> historique");
     expect(await chargerHistoriqueAction("<c-nadia@x>", SYNDIC2)).toBe("> historique");
+  });
+});
+
+describe("délégation de portefeuille : les mails du titulaire dans la boîte partagée (complément d'ADR-041, 27/10/2026)", () => {
+  it("sans délégation, Emmanuel ne lit pas un mail du dossier de Fanny", async () => {
+    etat.session = emmanuel;
+    expect(await chargerHistoriqueAction("<d-fanny@x>", SYNDIC2)).toBeNull();
+    expect(etat.lus).toEqual([]);
+  });
+
+  it("avec une délégation active, Emmanuel lit un mail du dossier FS, marqué « Pour Fanny S. »", async () => {
+    deleguer(fanny, emmanuel);
+    etat.session = emmanuel;
+    expect(await chargerHistoriqueAction("<d-fanny@x>", SYNDIC2)).toBe("> historique");
+    expect([...(await mailsParDelegation(emmanuel, SYNDIC2))]).toEqual([["<d-fanny@x>", "Fanny S."]]);
+  });
+
+  it("délégation expirée, clôturée ou d'agence : refusé", async () => {
+    etat.session = emmanuel;
+    deleguer(fanny, emmanuel, { jusquaISO: "2001-01-01" });
+    deleguer(fanny, emmanuel, { clotureeLeISO: "2026-10-01T08:00:00Z" });
+    deleguer(fanny, emmanuel, { portee: "agence", agenceCode: "LGC" });
+    expect(await chargerHistoriqueAction("<d-fanny@x>", SYNDIC2)).toBeNull();
+    expect(etat.lus).toEqual([]);
+  });
+
+  it("en incarnation, les délégations de la personne incarnée valent pour la boîte partagée", async () => {
+    deleguer(fanny, emmanuel);
+    etat.session = emmanuel;
+    etat.incarnation = true;
+    expect(await chargerHistoriqueAction("<d-fanny@x>", SYNDIC2)).toBe("> historique");
+  });
+
+  it("titulaire d'une autre agence : sa boîte partagée s'ajoute, limitée à ses dossiers", async () => {
+    deleguer(nadia, sophie);
+    etat.session = sophie;
+    expect((await boitesVisibles(sophie)).filter((b) => !b.personnelle).map((b) => b.id)).toEqual([SYNDIC4, SYNDIC2]);
+    expect(await chargerHistoriqueAction("<c-nadia@x>", SYNDIC2)).toBe("> historique");
+    expect(await chargerHistoriqueAction("<d-fanny@x>", SYNDIC2)).toBeNull();
   });
 });
