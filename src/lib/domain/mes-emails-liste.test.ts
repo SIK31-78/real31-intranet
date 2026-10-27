@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeInternesValide, regrouperInternes, traitesAuChargement } from "./mes-emails-liste";
+import { nonLusATraiter, pastilleEmails, placeInternesValide, regrouperInternes, traitesAuChargement } from "./mes-emails-liste";
 
 const mails = [
   { id: "1", expediteurEmail: "client@gmail.com" },
@@ -66,5 +66,40 @@ describe("traitesAuChargement (REA-422 : plus d'onglet « Conclus »)", () => {
       boites,
     );
     expect(r.size).toBe(0);
+  });
+});
+
+describe("nonLusATraiter : le compteur de chaque onglet de boîte (27/10/2026)", () => {
+  const liste = [
+    { id: "a", boite: "moi@real31.fr" },
+    { id: "b", boite: "moi@real31.fr" },
+    { id: "c", boite: "syndic2@real31.fr" },
+    { id: "d", boite: "syndic2@real31.fr" },
+    { id: "e" },
+  ];
+  it("non lus, encore à traiter, de cette boîte (sans boîte : la boîte par défaut)", () => {
+    expect(nonLusATraiter(liste, "moi@real31.fr", "moi@real31.fr", new Set(["a"]), new Set())).toBe(2);
+    expect(nonLusATraiter(liste, "syndic2@real31.fr", "moi@real31.fr", new Set(), new Set(["c"]))).toBe(1);
+    expect(nonLusATraiter(liste, "syndic2@real31.fr", "moi@real31.fr", new Set(["d"]), new Set(["c"]))).toBe(0);
+  });
+});
+
+describe("pastilleEmails : la pastille rouge de « E-mails » (27/10/2026)", () => {
+  it("boîte perso : les non lus d'Outlook de la fenêtre de l'écran", () => {
+    expect(pastilleEmails([new Map([["1", false], ["2", true], ["3", false]])], [], 80)).toBe(2);
+  });
+
+  it("boîte partagée : distribués, moins traités, moins ouverts dans l'intranet", () => {
+    const p = { distribues: ["a", "b", "c", "d"], traites: new Set(["a"]), lusIntranet: new Set(["b"]) };
+    expect(pastilleEmails([], [p], 80)).toBe(2);
+  });
+
+  it("borne chaque boîte partagée aux derniers distribués que l'écran lit, et additionne les boîtes", () => {
+    const p = { distribues: ["a", "b", "c", "d"], traites: new Set<string>(), lusIntranet: new Set<string>() };
+    expect(pastilleEmails([new Map([["x", false]])], [p, p], 3)).toBe(7);
+  });
+
+  it("rien à compter : 0", () => {
+    expect(pastilleEmails([], [], 80)).toBe(0);
   });
 });

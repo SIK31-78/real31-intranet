@@ -59,3 +59,52 @@ export function traitesAuChargement(
   const partagees = new Set(boites.filter((b) => !b.personnelle).map((b) => b.id));
   return new Set(mails.filter((m) => m.statutTraitement === "classe" && m.boite !== undefined && partagees.has(m.boite)).map((m) => m.id));
 }
+
+/**
+ * Le compteur d'un onglet de boîte (27/10/2026) : ses mails NON LUS encore À TRAITER. Lu = lu
+ * dans Outlook ou dans l'intranet ; à traiter = ni archivé (boîte perso) ni marqué traité
+ * (boîte partagée) dans cette session ou avant. La même règle pour chaque onglet : Ma boîte,
+ * les boîtes partagées, la boîte d'un titulaire ouverte par délégation. 0 : rien d'affiché.
+ */
+export function nonLusATraiter(
+  mails: readonly Pick<MailEntrant, "id" | "boite">[],
+  boite: string,
+  boiteParDefaut: string,
+  lus: ReadonlySet<string>,
+  traites: ReadonlySet<string>,
+): number {
+  return mails.filter((m) => (m.boite ?? boiteParDefaut) === boite && !lus.has(m.id) && !traites.has(m.id)).length;
+}
+
+/** Ce que la pastille sait d'une boîte partagée, sans lire Outlook (Supabase seulement). */
+export interface ComptePartagee {
+  /** Les mails distribués à mes binômes (et à ceux de mes délégations), les plus récents d'abord. */
+  distribues: readonly string[];
+  /** Marqués traités (statut commun « classe »). */
+  traites: ReadonlySet<string>;
+  /** Ouverts dans l'intranet par moi (le lu d'Outlook n'est pas en base). */
+  lusIntranet: ReadonlySet<string>;
+}
+
+/**
+ * La pastille rouge de l'entrée « E-mails » (27/10/2026) : le total des mails à traiter non
+ * lus de mes boîtes.
+ * - Boîte perso (la mienne, celle d'un titulaire par délégation) : les non lus d'Outlook dans
+ *   la fenêtre que l'écran affiche (`fenetrePerso` : les 40 plus récents de la réception).
+ * - Boîte partagée : les `plafondPartagee` derniers mails distribués (ceux que l'écran lit),
+ *   moins ceux marqués traités, moins ceux que j'ai ouverts dans l'intranet. Le lu d'Outlook
+ *   n'est pas en base : un mail lu seulement dans Outlook compte encore ici, alors que l'onglet
+ *   de l'écran ne le compte plus.
+ */
+export function pastilleEmails(
+  persos: readonly ReadonlyMap<string, boolean>[],
+  partagees: readonly ComptePartagee[],
+  plafondPartagee: number,
+): number {
+  let n = 0;
+  for (const lus of persos) for (const lu of lus.values()) if (!lu) n++;
+  for (const p of partagees) {
+    for (const id of p.distribues.slice(0, plafondPartagee)) if (!p.traites.has(id) && !p.lusIntranet.has(id)) n++;
+  }
+  return n;
+}

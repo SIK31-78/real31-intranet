@@ -6,10 +6,11 @@ import { SidebarDrawer } from "@/components/layout/sidebar-drawer";
 import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-context";
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
-import { getGestionnaireCourant, impersonationAutorisee, mailModuleActifPour } from "@/lib/auth/session";
+import { getGestionnaireCourant, impersonationAutorisee, incarnationEnCours, mailModuleActifPour } from "@/lib/auth/session";
 import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, peutVoirReprises, peutVoirPropositions, profilDe, droitsTri } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { compterMailsATrier } from "@/lib/services/tri-emails/compteur";
+import { compterMailsATraiter } from "@/lib/services/mes-emails/compteur-emails";
 import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
 import { echangesOuverts, utilisateurEchanges } from "@/lib/services/echanges/rechercher";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
@@ -60,6 +61,13 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const triATrier = boiteTri ? await compterMailsATrier(boiteTri.boite) : null;
   // "Échanges" : l'agence a une boite commune configuree (MAIL_BOITES_AGENCE), ou super-admin.
   const echangesOuvert = g ? echangesOuverts(await utilisateurEchanges(g, adminOuvert).catch(() => null)) : false;
+  // Pastille "E-mails" (27/10/2026) : les mails a traiter non lus de mes boites, comptee
+  // seulement pour qui voit l'entree ouverte, gardee une minute, abandonnee au-dela de 1,5 s
+  // (cf. compteur-emails). En incarnation, sans boite perso, comme l'ecran.
+  const emailsATraiter =
+    g && emailsOuvert && (adminOuvert || echangesOuvert)
+      ? await compterMailsATraiter(g, { superAdmin: adminOuvert, incarnation: await incarnationEnCours() })
+      : null;
   // Entree "Annuaire Linkus" : ADMIN de la table User (Léa, téléphonie) + super-admin.
   const linkusOuvert = peutExporterAnnuaireLinkus(g?.email, g?.role);
   // Entree "Collaborateurs" : la direction (table User, referents d'agence, super-admin).
@@ -104,6 +112,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               directionOuverte={directionOuverte}
               triOuvert={triOuvert}
               triATrier={triATrier}
+              emailsATraiter={emailsATraiter}
               echangesOuvert={echangesOuvert}
             />
           </SidebarDrawer>

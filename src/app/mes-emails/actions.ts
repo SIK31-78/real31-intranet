@@ -26,6 +26,7 @@ import { envoiMailPour } from "@/lib/domain/mail-gate";
 import { conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
 import { boiteCible, boiteDuMail, boitesDe, natureBoite } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
+import { oublierCompteurEmails } from "@/lib/services/mes-emails/compteur-emails";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { listerImagesMail, listerPiecesJointesMail } from "@/lib/services/mes-emails/pieces-jointes";
@@ -136,6 +137,7 @@ export async function marquerTraiteAction(emailId: string, coproCode: string, bo
   if (!auth.ok) return;
   const cible = await cibleStatut(auth.g, emailId, coproCode, boite);
   if (cible) await enregistrerStatut(cible, "classe", []);
+  oublierCompteurEmails(auth.g.id);
 }
 
 export async function editBrouillonAction(emailId: string, coproCode: string, brouillon: string): Promise<void> {
@@ -163,6 +165,7 @@ export async function marquerLuAction(emailId: string, coproCode: string, boite?
     enregistrerLu(cibleDe(auth.g, emailId, coproCode)),
     cible ? marquerLuDansOutlook(cible, emailId) : undefined,
   ]);
+  oublierCompteurEmails(auth.g.id);
 }
 
 /** Le contexte ESTALE d'une copro, à l'ouverture du volet Contexte (plus au chargement de
@@ -654,6 +657,7 @@ export async function classerDansDossierAction(
     const c = cibleDe(g, emailId, coproCode);
     await enregistrerStatut((await cibleStatut(g, emailId, coproCode, cible)) ?? c, "classe", etapes, brouillon);
     await enregistrerDossier(c, folderId, folderNom);
+    oublierCompteurEmails(g.id);
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
   } catch (e) {
     return { ok: false, message: messageUtilisateur(e, "mes-emails") };

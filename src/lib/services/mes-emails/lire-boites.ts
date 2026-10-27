@@ -42,7 +42,7 @@ async function agencesDuReferentiel(g: Gestionnaire, boites: BoiteMail[]): Promi
   const partagees = boites.filter((b) => !b.personnelle).flatMap((b) => boiteTri(b.adresse)?.agences ?? []);
   return [...new Set([...miennes, ...partagees])];
 }
-const MAX_PARTAGEE = 80;
+export const MAX_PARTAGEE = 80;
 
 export interface TriageLive {
   mails: MailEntrant[];

@@ -340,6 +340,7 @@ export function Sidebar({
   perteOuverte = false,
   triOuvert = false,
   triATrier = null,
+  emailsATraiter = null,
   echangesOuvert = false,
 }: {
   active: NavKey;
@@ -373,6 +374,8 @@ export function Sidebar({
   triOuvert?: boolean;
   /** Mails dans la boite de reception generique (pastille rouge) ; null = inconnu. */
   triATrier?: number | null;
+  /** Mails a traiter non lus de mes boites (pastille rouge de « E-mails », 27/10/2026). */
+  emailsATraiter?: number | null;
   /** Entree "Échanges" : l'agence de l'utilisateur a une boite commune configuree (Houilles d'abord), ou super-admin. */
   echangesOuvert?: boolean;
 }) {
@@ -443,6 +446,8 @@ export function Sidebar({
                   const it =
                     item.key === "emails" && !emailsOuvert
                       ? { ...item, aVenir: true }
+                      : item.key === "emails" && emailsATraiter
+                        ? { ...item, count: emailsATraiter, alerte: true }
                       : item.key === "tri-emails" && triATrier
                         ? { ...item, count: triATrier, alerte: true }
                         : item.key === "recap-ag" && recapsEnRetard

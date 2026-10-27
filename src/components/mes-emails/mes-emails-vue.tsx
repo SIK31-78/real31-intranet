@@ -84,6 +84,7 @@ import {
   placeInternesValide,
   regrouperInternes,
   traitesAuChargement,
+  nonLusATraiter,
   type PlaceInternes,
 } from "@/lib/domain/mes-emails-liste";
 import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
@@ -915,8 +916,9 @@ export function MesEmailsVue({
           {data.boites.length > 1 && (
             <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface-2 p-0.5">
               {data.boites.map((b) => {
-                // Non lus ENCORE à traiter : un mail archivé ou traité sans avoir été ouvert ne compte plus.
-                const nonLus = data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id) && !classes.has(m.id)).length;
+                // Non lus ENCORE à traiter, même règle pour chaque onglet (perso, partagée, délégation) :
+                // un mail archivé ou traité sans avoir été ouvert ne compte plus. Rien d'affiché à 0.
+                const nonLus = nonLusATraiter(data.mails, b.id, boiteParDefaut, lus, classes);
                 const actif = b.id === boiteActive;
                 return (
                   <button
