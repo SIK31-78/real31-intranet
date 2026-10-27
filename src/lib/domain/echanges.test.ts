@@ -24,6 +24,22 @@ const lgc = { email: "sandy@real31.fr", agence: "LGC", superAdmin: false };
 const ml = { email: "x@real31.fr", agence: "ML", superAdmin: false };
 const sekou = { email: "sekou.koma@real31.fr", agence: "LGC", superAdmin: true };
 
+describe("« Changer de gestionnaire » ne lit jamais la boîte perso (27/10/2026)", () => {
+  it("incarné : la boîte commune de son agence seulement, ni la sienne ni celle d'un collègue", () => {
+    const incarne = { ...lgc, incarne: true };
+    expect(boitesVisibles(incarne, PAR_AGENCE)).toEqual([
+      { adresse: "syndic2@real31.fr", nature: "commune" },
+      { adresse: "lgc-bis@exemple.fr", nature: "commune" },
+    ]);
+    expect(boiteAutorisee("sandy@real31.fr", incarne, PAR_AGENCE)).toBe(false);
+    expect(boiteAutorisee("syndic2@real31.fr", incarne, PAR_AGENCE)).toBe(true);
+  });
+
+  it("un super-admin incarné perd l'accès aux boîtes perso du cabinet", () => {
+    expect(boiteAutorisee("emmanuel.lopes@real31.fr", { ...sekou, incarne: true }, PAR_AGENCE)).toBe(false);
+  });
+});
+
 describe("qui voit quelles boîtes (décision du 12/10/2026)", () => {
   it("lit la configuration par agence", () => {
     expect(PAR_AGENCE).toEqual({ HLS: ["syndic4@real31.fr"], LGC: ["syndic2@real31.fr", "lgc-bis@exemple.fr"] });

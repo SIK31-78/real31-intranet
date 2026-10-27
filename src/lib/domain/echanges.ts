@@ -29,6 +29,8 @@ export interface Utilisateur {
   /** Code de l'agence de rattachement, ex. « HLS » ; null si inconnu. */
   agence: string | null;
   superAdmin: boolean;
+  /** « Changer de gestionnaire » : jamais la boîte perso de la personne incarnée (27/10/2026). */
+  incarne?: boolean;
 }
 
 export interface BoiteVisible {
@@ -44,7 +46,7 @@ export function boitesVisibles(u: Utilisateur, parAgence: BoitesParAgence): Boit
   if (communes.length === 0 && !u.superAdmin) return [];
   return [
     ...communes.map((adresse) => ({ adresse, nature: "commune" as const })),
-    ...(communes.includes(email) ? [] : [{ adresse: email, nature: "perso" as const }]),
+    ...(communes.includes(email) || u.incarne ? [] : [{ adresse: email, nature: "perso" as const }]),
   ];
 }
 
@@ -53,7 +55,7 @@ const DOMAINE_INTERNE = "@real31.fr";
 /** Peut-on lire cette boîte ? Les siennes ; toute boîte du cabinet pour un super-admin (pilote). */
 export function boiteAutorisee(boite: string, u: Utilisateur, parAgence: BoitesParAgence): boolean {
   const b = boite.trim().toLowerCase();
-  if (u.superAdmin) return b.endsWith(DOMAINE_INTERNE);
+  if (u.superAdmin && !u.incarne) return b.endsWith(DOMAINE_INTERNE);
   return boitesVisibles(u, parAgence).some((v) => v.adresse === b);
 }
 

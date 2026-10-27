@@ -29,9 +29,14 @@ const FENETRE_JOURS = 45;
  * `superAdmin` (calcule par l'appelant, auth) : toutes les boites triees. La boite fictive
  * « echantillon » n'est jamais une boite a lire (construireBoites l'ecarte).
  */
-export async function boitesVisibles(g: Pick<Gestionnaire, "email" | "agencyId">, opts: { superAdmin?: boolean } = {}): Promise<BoiteMail[]> {
+export async function boitesVisibles(
+  g: Pick<Gestionnaire, "email" | "agencyId">,
+  opts: { superAdmin?: boolean; sansBoitePerso?: boolean } = {},
+): Promise<BoiteMail[]> {
   const partagees = opts.superAdmin ? boitesTri() : [await boiteDe(g)].filter((b) => b !== null);
-  return construireBoites(g.email, partagees.map((b) => b.boite).join(",")).map((b) =>
+  // Incarnation (« Changer de gestionnaire ») : jamais la boite perso de la personne incarnee
+  // (decision du 27/10/2026), seulement les boites partagees.
+  return construireBoites(g.email, partagees.map((b) => b.boite).join(",")).filter((b) => !(opts.sansBoitePerso && b.personnelle)).map((b) =>
     b.personnelle ? b : { ...b, libelle: `${b.libelle} · mes mails` },
   );
 }

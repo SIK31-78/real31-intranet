@@ -16,6 +16,7 @@ const etat = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("@/lib/auth/session", () => ({
+  incarnationEnCours: async () => false,
   getGestionnaireCourant: async () => etat.session,
   mailModuleActifPour: () => true,
 }));

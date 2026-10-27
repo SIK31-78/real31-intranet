@@ -10,14 +10,19 @@
 import "server-only";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { estSuperAdmin } from "@/lib/auth/roles";
+import { incarnationEnCours } from "@/lib/auth/session";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { boitesVisibles, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
 
 export type Personne = Pick<Gestionnaire, "email" | "agencyId">;
 
-/** Les boites de la personne : la sienne, celle de son agence (toutes pour un super-admin). */
-export function boitesDe(g: Personne) {
-  return boitesVisibles(g, { superAdmin: estSuperAdmin(g.email) });
+/**
+ * Les boites de la personne : la sienne, celle de son agence (toutes pour un super-admin). En
+ * incarnation, sans la boite perso : une action ne peut pas lire ni ecrire dans la messagerie
+ * de la personne incarnee, meme appelee directement (27/10/2026).
+ */
+export async function boitesDe(g: Personne) {
+  return boitesVisibles(g, { superAdmin: estSuperAdmin(g.email), sansBoitePerso: await incarnationEnCours() });
 }
 
 export async function boiteCible(g: Personne, demandee: string | undefined): Promise<string | null> {
@@ -38,6 +43,6 @@ export async function boiteCible(g: Personne, demandee: string | undefined): Pro
 export async function boiteDuMail(g: Personne, demandee: string | undefined, emailId: string): Promise<string | null> {
   const cible = await boiteCible(g, demandee);
   if (!cible) return null;
-  if (cible === (g.email ?? "").trim().toLowerCase() || estSuperAdmin(g.email)) return cible;
+  if (cible === (g.email ?? "").trim().toLowerCase() || estSuperAdmin(g.email)) return cible; // la boite perso n'est dans boiteCible que hors incarnation
   return (await mailDistribue(g, cible, emailId)) ? cible : null;
 }

@@ -44,12 +44,16 @@ async function agences() {
 }
 
 /** L'utilisateur tel que l'écran le voit : son agence en code lisible. */
-export async function utilisateurEchanges(g: { email?: string; agencyId?: string }, superAdmin: boolean): Promise<Utilisateur | null> {
+export async function utilisateurEchanges(
+  g: { email?: string; agencyId?: string },
+  superAdmin: boolean,
+  incarne = false,
+): Promise<Utilisateur | null> {
   if (!g.email) return null;
   // Rien de configuré : pas d'écran, inutile d'interroger la base.
-  if (!boitesParAgenceBrut().trim()) return { email: g.email.toLowerCase(), agence: null, superAdmin };
+  if (!boitesParAgenceBrut().trim()) return { email: g.email.toLowerCase(), agence: null, superAdmin, incarne };
   const agence = g.agencyId ? ((await agences()).find((a) => a.id === g.agencyId)?.code.toUpperCase() ?? null) : null;
-  return { email: g.email.toLowerCase(), agence, superAdmin };
+  return { email: g.email.toLowerCase(), agence, superAdmin, incarne };
 }
 
 const parAgence = () => lireBoitesParAgence(boitesParAgenceBrut());

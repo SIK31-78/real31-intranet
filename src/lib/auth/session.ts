@@ -99,3 +99,20 @@ export const getGestionnaireCourant = cache(async (): Promise<Gestionnaire | nul
   const tous = await repo.list();
   return tous[0] ?? null;
 });
+
+/**
+ * Est-on « dans la peau » d'un autre collaborateur (selecteur « Changer de gestionnaire ») ?
+ * Decision du 27/10/2026, validee par Emmanuel : l'incarnation sert a voir les ecrans comme un
+ * collegue, JAMAIS a lire sa messagerie personnelle. Les ecrans de mail s'en servent pour
+ * retirer la boite perso de la personne incarnee.
+ *  - SSO actif : incarnation = la personne affichee n'est pas celle connectee en SSO.
+ *  - Sans SSO (dev local, aucune identite verifiee) : toute session est choisie au selecteur ;
+ *    seule l'identite d'un super-admin garde sa boite perso.
+ */
+export const incarnationEnCours = cache(async (): Promise<boolean> => {
+  const g = await getGestionnaireCourant();
+  if (!g?.email) return false;
+  const sso = await emailSso();
+  if (ssoConfigure) return !!sso && g.email.trim().toLowerCase() !== sso.trim().toLowerCase();
+  return !estSuperAdmin(g.email);
+});

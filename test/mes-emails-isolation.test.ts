@@ -10,11 +10,13 @@ const etat = vi.hoisted(() => ({
   session: null as Record<string, unknown> | null,
   repo: null as unknown as MockTriRepository,
   lus: [] as { boite: string; id: string }[],
+  incarnation: false,
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("@/lib/auth/session", () => ({
   getGestionnaireCourant: async () => etat.session,
+  incarnationEnCours: async () => etat.incarnation,
   mailModuleActifPour: () => true,
 }));
 vi.mock("@/lib/adapters/router", async (original) => ({
@@ -83,6 +85,7 @@ beforeEach(async () => {
   );
   etat.repo = new MockTriRepository({ binomes: [], parCopro: {} });
   etat.lus = [];
+  etat.incarnation = false;
   await ranger(SYNDIC4, "<a-sophie@x>", "sophie@real31.fr", "conv-sophie");
   await ranger(SYNDIC4, "<b-marc@x>", "marc@real31.fr", "conv-marc");
   await ranger(SYNDIC2, "<c-nadia@x>", "nadia@real31.fr");
@@ -97,6 +100,29 @@ describe("boîtes visibles par agence", () => {
     expect(await partagees(sophie)).toEqual([SYNDIC4]);
     expect(await partagees(nadia)).toEqual([SYNDIC2]);
     expect(await partagees(sekou, true)).toEqual([SYNDIC4, SYNDIC2]);
+  });
+});
+
+describe("« Changer de gestionnaire » ne lit jamais la boîte perso (27/10/2026)", () => {
+  it("sans incarnation, la personne lit sa propre boîte", async () => {
+    etat.session = sophie;
+    expect(await chargerHistoriqueAction("<perso@x>", "sophie@real31.fr")).toBe("> historique");
+    expect(etat.lus).toEqual([{ boite: "sophie@real31.fr", id: "<perso@x>" }]);
+  });
+
+  it("en incarnation, sa boîte perso n'est ni listée ni lisible, même par une action appelée directement", async () => {
+    etat.session = sophie;
+    etat.incarnation = true;
+    expect((await boitesVisibles(sophie, { sansBoitePerso: true })).some((b) => b.personnelle)).toBe(false);
+    expect(await chargerHistoriqueAction("<perso@x>", "sophie@real31.fr")).toBeNull();
+    expect(await chargerHistoriqueAction("<perso@x>", undefined)).toBeNull();
+    expect(etat.lus).toEqual([]);
+  });
+
+  it("en incarnation, la boîte partagée du binôme reste lisible", async () => {
+    etat.session = sophie;
+    etat.incarnation = true;
+    expect(await chargerHistoriqueAction("<a-sophie@x>", SYNDIC4)).toBe("> historique");
   });
 });
 

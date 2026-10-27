@@ -19,7 +19,7 @@ import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { lireBoitesLive } from "@/lib/services/mes-emails/lire-boites";
 import { statutPartage, type StatutEcrit } from "@/lib/services/mes-emails/statut-partage";
 
-export async function getMesEmails(g: Gestionnaire, maxPerso?: number, opts: { superAdmin?: boolean } = {}): Promise<MesEmails> {
+export async function getMesEmails(g: Gestionnaire, maxPerso?: number, opts: { superAdmin?: boolean; sansBoitePerso?: boolean } = {}): Promise<MesEmails> {
   // Boites visibles = source unique (perso + sous-dossier du binome sur la partagee de mon
   // agence ; toutes les boites triees pour un super-admin, calcule par la page).
   const boites = await boitesVisibles(g, opts);

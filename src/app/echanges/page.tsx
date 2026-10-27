@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getGestionnaireCourant, estSuperAdmin } from "@/lib/auth/session";
+import { getGestionnaireCourant, estSuperAdmin, incarnationEnCours } from "@/lib/auth/session";
 import {
   boitesDe,
   coprosEchanges,
@@ -27,7 +27,7 @@ const plusieurs = (v: string | string[] | undefined) => (Array.isArray(v) ? v : 
 export default async function EchangesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  const u = await utilisateurEchanges(g, estSuperAdmin(g.email));
+  const u = await utilisateurEchanges(g, estSuperAdmin(g.email), await incarnationEnCours());
   const boites = u ? boitesDe(u) : [];
   if (!u || boites.length === 0) redirect("/accueil");
 

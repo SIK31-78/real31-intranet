@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
-import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { getGestionnaireCourant, mailModuleActifPour, incarnationEnCours } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
@@ -52,7 +52,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   const [boite, agencePersonne] = await Promise.all([boiteDeComposition(g, superAdmin), agenceDesModeles(g.agencyId)]);
   const agence = agencePersonne ?? boite?.agences[0] ?? "";
   const [data, signatureHtml, modeles] = await Promise.all([
-    getMesEmails(g, maxPerso, { superAdmin }),
+    getMesEmails(g, maxPerso, { superAdmin, sansBoitePerso: await incarnationEnCours() }),
     getSignatureGestionnaire(g),
     modelesMailPour(agencePersonne),
   ]);

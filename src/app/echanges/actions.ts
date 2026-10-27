@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
-import { estSuperAdmin } from "@/lib/auth/session";
+import { estSuperAdmin, incarnationEnCours } from "@/lib/auth/session";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import {
   AccesRefuse,
@@ -30,7 +30,7 @@ const zBoite = z.string().email().max(320);
 const zId = z.string().min(1).max(400);
 
 async function utilisateur(g: Gestionnaire) {
-  const u = await utilisateurEchanges(g, estSuperAdmin(g.email));
+  const u = await utilisateurEchanges(g, estSuperAdmin(g.email), await incarnationEnCours());
   if (!u) throw new Refus("Adresse de connexion inconnue.");
   return u;
 }
