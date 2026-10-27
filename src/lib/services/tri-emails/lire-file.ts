@@ -4,6 +4,9 @@
 // Lecture : rien n'est deplace ici (le rangement vit dans ranger.ts). Les mails deja
 // ranges (journal non annule) sont retires de la file, ce qui couvre aussi la simulation
 // ou le mail n'a pas bouge.
+// Plusieurs boites (V2 du 27/10/2026) : la file est celle d'UNE boite triee, passee par
+// l'appelant (la boite de la personne, ou celle choisie par un super-admin), avec le
+// referentiel de ses agences et sa date de mise en service.
 
 import {
   AUCUN_BINOME,
@@ -25,7 +28,7 @@ import {
   type ReferentielTri,
   type Suggestion,
 } from "@/lib/domain/tri-emails";
-import { boiteTriConfiguree, debutTri } from "@/lib/domain/mail-gate";
+import { debutTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { TriRepository } from "@/lib/ports/tri-repository";
 import {
@@ -143,9 +146,9 @@ export function mailDeLaFile(
   };
 }
 
-export async function lireFileATrier(): Promise<FileATrier | null> {
-  const boite = boiteTriConfiguree();
-  if (!boite) return null;
+export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier> {
+  const boite = config.boite;
+  const depuis = debutTri(boite);
 
   // Le suivi des mails glisses a la main dans Outlook (reconcilier.ts) ne tourne plus ici
   // (27/10/2026) : il relancait jusqu'a 50 appels Graph a chaque rendu, soit toutes les 60 s
@@ -153,8 +156,8 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   // dans la generique reapparait donc dans la file au plus tard 5 min apres.
   const repo = getTriRepository();
   const [refRes, mailsRes, iniRes, binRes, journalRes, gestRes] = await Promise.allSettled([
-    getReferentielTriProvider().charger(),
-    getIngestionTri().lireRecents({ email: boite, max: MAX_FILE, ...(debutTri() ? { depuis: debutTri()! } : {}) }),
+    getReferentielTriProvider(config.agences).charger(),
+    getIngestionTri(boite).lireRecents({ email: boite, max: MAX_FILE, ...(depuis ? { depuis } : {}) }),
     listerCollaborateurs(),
     repo.binomes(),
     repo.journalDepuis(boite, new Date(Date.now() - SEPT_JOURS_MS).toISOString()),
@@ -186,7 +189,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   // n'a jamais bouge, il est bien dans la boite (27/10/2026). En simulation, elle le retire
   // de la file comme avant.
   const ranges = await repo
-    .dejaRanges(boite, tous.map((m) => m.internetMessageId), { reellesSeulement: !rangementSimule(boite) })
+    .dejaRanges(boite, tous.map((m) => m.internetMessageId), { reellesSeulement: !rangementSimule(config) })
     .catch(() => new Set<string>());
   const bruts = tous.filter((m) => !ranges.has(m.internetMessageId));
   // Historique du tri, MEME CONVERSATION seulement : la copro ou un mail du fil a deja ete
@@ -201,7 +204,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   // La lecture est bornee a MAX_FILE : quand la boite en contient plus, l'en-tete le dit avec
   // le vrai total (compteur de la pastille, deja en cache 60 s ; null s'il n'a pas repondu).
   const tronquee = tous.length >= MAX_FILE;
-  const totalReception = tronquee ? await compterMailsATrier() : null;
+  const totalReception = tronquee ? await compterMailsATrier(boite) : null;
 
   const publicites = await publicitesDeLaFile(repo, boite, bruts, ref);
   const mails: MailDeLaFile[] = bruts.map((m) =>
@@ -223,7 +226,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     binomes: lignes,
     dossiers: dossiersChoisissables(lignes),
     collaborateurs,
-    simulation: rangementSimule(boite),
+    simulation: rangementSimule(config),
     erreur: erreurs.length ? erreurs.join(" ") : null,
   };
 }

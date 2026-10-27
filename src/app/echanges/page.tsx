@@ -54,7 +54,7 @@ export default async function EchangesPage({ searchParams }: { searchParams: Pro
     tronque: false,
   });
   const [copros, resultat] = await Promise.all([
-    coprosEchanges().catch(() => []),
+    coprosEchanges(u).catch(() => []),
     mid && boiteDuLien
       ? trouverEchange(u, boiteDuLien, mid).then(
           (e): ResultatRecherche => ({

@@ -44,6 +44,12 @@ export interface CoproTri {
    * syndic, de coproprietaires, de locataires. Reconnue, mais au plus en piste faible.
    */
   inactive?: boolean;
+  /**
+   * Code de l'agence de la copro (HLS, LGC...), quand la source le dit : etablissement ESTALE
+   * (« REAL 31 - LGC »), agence de la fiche Crypto. Borne le referentiel d'une boite triee a
+   * ses agences (V2 du tri, 27/10/2026).
+   */
+  agence?: string;
 }
 
 export type SourceTri = "estale" | "crypto";
@@ -105,6 +111,7 @@ export function fusionnerReferentiels(
             immatriculation: deja.immatriculation ?? c.immatriculation,
             nomsUsage: deja.nomsUsage ?? c.nomsUsage,
             adressesSecondaires: deja.adressesSecondaires ?? c.adressesSecondaires,
+            agence: deja.agence ?? c.agence,
           }
         : { ...c, source: "crypto" },
     );
@@ -1196,16 +1203,10 @@ export const PAR_OUTLOOK = "outlook";
 /** Auteur des lignes de journal du rangement automatique (tache planifiee, piste sure). */
 export const PAR_AUTOMATIQUE = "automatique";
 
-/**
- * La seule boite rangee automatiquement (decision Sekou du 20/10/2026, mesure : 16 pistes
- * sures sur 16 justes depuis les correctifs du 19/10). Une autre boite = une autre decision,
- * donc un changement de code, pas un reglage d'environnement.
- */
-export const BOITE_TRI_AUTOMATIQUE = "syndic4@real31.fr";
-
 /** Pourquoi un mail de la file n'est pas range automatiquement (bilan de la tache planifiee). */
 export type RefusAutomatique =
-  | "autre-boite"
+  /** L'automatique est coupe pour cette boite (config de la boite ou MAIL_TRI_AUTO). */
+  | "automatique-coupe"
   | "corbeille"
   | "interne"
   | "pas-sure"
@@ -1235,7 +1236,8 @@ export function pisteRangeable(s: Suggestion): boolean {
 /**
  * Ce mail de la file peut-il etre range SANS clic (ADR-046 : « un clic d'abord, puis de
  * l'automatique signal par signal ») ? Seulement si TOUT est reuni :
- *   - la boite est syndic4 (BOITE_TRI_AUTOMATIQUE) ;
+ *   - l'automatique est ouvert pour la boite (`ctx.automatique` : drapeau `automatique` de
+ *     sa config ET MAIL_TRI_AUTO ; jusqu'au 27/10/2026, une constante syndic4 en dur) ;
  *   - ni corbeille proposee (non remis, reponse automatique) ni mail interne ;
  *   - piste rangeable (pisteRangeable), sur UNE seule copro : « sure », ou « faible » par le
  *     nom de l'immeuble ou son adresse. Pas « plusieurs », pas un code dans le corps, pas un
@@ -1250,7 +1252,8 @@ export function pisteRangeable(s: Suggestion): boolean {
 export function rangeableAutomatiquement(
   mail: Pick<MailATrier, "corbeille" | "interne"> & { suggestion: Suggestion },
   ctx: {
-    boite: string;
+    /** L'automatique est ouvert pour la boite du mail (config de la boite ET MAIL_TRI_AUTO). */
+    automatique: boolean;
     /** Le mail a au moins une ligne de journal, annulee ou non. */
     dejaPasse: boolean;
     copros: CoproTri[];
@@ -1258,7 +1261,7 @@ export function rangeableAutomatiquement(
     binomes?: BinomesTri;
   },
 ): { ok: true; reference: string } | { ok: false; motif: RefusAutomatique } {
-  if (ctx.boite.trim().toLowerCase() !== BOITE_TRI_AUTOMATIQUE) return { ok: false, motif: "autre-boite" };
+  if (!ctx.automatique) return { ok: false, motif: "automatique-coupe" };
   if (mail.corbeille) return { ok: false, motif: "corbeille" };
   if (mail.interne) return { ok: false, motif: "interne" };
   const s = mail.suggestion;
@@ -1282,7 +1285,7 @@ function coproRangeable(reference: string, ctx: ContexteAutomatique): DecisionAu
 /**
  * Faut-il lire les PDF de ce mail dans la tache planifiee (decision Sekou du 26/10/2026) ?
  * Seulement un mail refuse faute de piste rangeable (« pas-sure » : les autres refus,
- * corbeille, interne, autre boite, ne changeront pas), jamais passe par le journal, avec des
+ * corbeille, interne, automatique coupe, ne changeront pas), jamais passe par le journal, avec des
  * pieces jointes, et qui ne cite pas un code hors perimetre (il parle d'une autre agence).
  */
 export function aLirePiecesJointes(
@@ -1295,7 +1298,7 @@ export function aLirePiecesJointes(
 
 /**
  * Le mail peut-il etre range SANS clic sur la foi de ses PDF ? Memes garde-fous que
- * rangeableAutomatiquement (syndic4, ni corbeille ni interne, jamais passe par le journal,
+ * rangeableAutomatiquement (automatique ouvert pour la boite, ni corbeille ni interne, jamais passe par le journal,
  * copro active au dossier connu), et :
  *   - les PDF du mail, TOUS lus, designent UNE seule copro (`pdf` : leur union) ;
  *   - si le mail lui-meme propose des copros (« plusieurs », fournisseur, code dans le corps),
@@ -1307,7 +1310,7 @@ export function rangeableParPiecesJointes(
   pdf: string[],
   ctx: ContexteAutomatique,
 ): DecisionAutomatique {
-  if (ctx.boite.trim().toLowerCase() !== BOITE_TRI_AUTOMATIQUE) return { ok: false, motif: "autre-boite" };
+  if (!ctx.automatique) return { ok: false, motif: "automatique-coupe" };
   if (mail.corbeille) return { ok: false, motif: "corbeille" };
   if (mail.interne) return { ok: false, motif: "interne" };
   if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };

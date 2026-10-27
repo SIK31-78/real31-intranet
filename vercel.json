@@ -10,6 +10,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/tri-emails/syndic2@real31.fr",
+      "schedule": "1-59/5 * * * *"
+    },
+    {
       "path": "/api/cron/annuaire-crypto",
       "schedule": "0 6 * * *"
     },

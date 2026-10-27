@@ -43,6 +43,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { VisionneusePj, type ApercuPj } from "@/components/mes-emails/visionneuse-pj";
 import { HistoriqueMailTri } from "@/components/tri-emails/historique-mail-tri";
+import { BoiteTriProvider, useBoiteTri } from "@/components/tri-emails/boite-tri-contexte";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { Tab, TabList, TabPanel } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
@@ -144,6 +145,7 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
   function ranger(mail: MailDeLaFile, cible: CibleTri) {
     demarrer(async () => {
       const r = await rangerMailAction({
+        boite: file.boite,
         messageId: mail.id,
         internetMessageId: mail.internetMessageId,
         expediteur: mail.deAdresse,
@@ -166,6 +168,7 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
   function supprimer(mail: MailDeLaFile) {
     demarrer(async () => {
       const r = await supprimerMailAction({
+        boite: file.boite,
         messageId: mail.id,
         internetMessageId: mail.internetMessageId,
         expediteur: mail.deAdresse,
@@ -185,7 +188,7 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
 
   function annuler(journalId: string, mailId?: string) {
     demarrer(async () => {
-      const r = await annulerRangementAction({ journalId });
+      const r = await annulerRangementAction({ boite: file.boite, journalId });
       if (!r.ok) {
         toast.err(r.erreur);
         return;
@@ -204,58 +207,60 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {dernier && (
-        <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2 text-body">
-          <span className="min-w-0 flex-1">
-            {dernier.simulation ? "Simulé : " : ""}« {dernier.objet} » rangé dans <span className="font-mono">{dernier.dossierNom}</span>.
-          </span>
-          <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(dernier.journalId, dernier.mailId)}>
-            Annuler
-          </Button>
-        </div>
-      )}
-      <TabList label="Tri des e-mails">
-        <Tab id="tri-t-file" panelId="tri-p-file" active={onglet === "file"} onClick={() => setOnglet("file")} count={mails.length}>
-          À trier
-        </Tab>
-        <Tab
-          id="tri-t-journal"
-          panelId="tri-p-journal"
-          active={onglet === "journal"}
-          onClick={() => setOnglet("journal")}
-          count={file.journal.length}
-        >
-          Rangés sur 7 jours
-        </Tab>
-        {binomesModifiables && (
-          <Tab
-            id="tri-t-binomes"
-            panelId="tri-p-binomes"
-            active={onglet === "binomes"}
-            onClick={() => setOnglet("binomes")}
-            count={file.binomes.filter((b) => b.copros.length > 0 && !b.principal).length || undefined}
-          >
-            Binômes
-          </Tab>
+    <BoiteTriProvider boite={file.boite}>
+      <div className="flex flex-col gap-4">
+        {dernier && (
+          <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2 text-body">
+            <span className="min-w-0 flex-1">
+              {dernier.simulation ? "Simulé : " : ""}« {dernier.objet} » rangé dans <span className="font-mono">{dernier.dossierNom}</span>.
+            </span>
+            <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(dernier.journalId, dernier.mailId)}>
+              Annuler
+            </Button>
+          </div>
         )}
-      </TabList>
-      {onglet === "file" && (
-        <TabPanel id="tri-p-file" tabId="tri-t-file">
-          <FileVue copros={file.copros} dossiers={file.dossiers} mails={mails} enCours={enCours} ranger={ranger} supprimer={supprimer} />
-        </TabPanel>
-      )}
-      {onglet === "journal" && (
-        <TabPanel id="tri-p-journal" tabId="tri-t-journal">
-          <JournalVue journal={file.journal} copros={file.copros} enCours={enCours} annuler={(id) => annuler(id)} />
-        </TabPanel>
-      )}
-      {onglet === "binomes" && binomesModifiables && (
-        <TabPanel id="tri-p-binomes" tabId="tri-t-binomes">
-          <BinomesVue lignes={file.binomes} collaborateurs={file.collaborateurs} />
-        </TabPanel>
-      )}
-    </div>
+        <TabList label="Tri des e-mails">
+          <Tab id="tri-t-file" panelId="tri-p-file" active={onglet === "file"} onClick={() => setOnglet("file")} count={mails.length}>
+            À trier
+          </Tab>
+          <Tab
+            id="tri-t-journal"
+            panelId="tri-p-journal"
+            active={onglet === "journal"}
+            onClick={() => setOnglet("journal")}
+            count={file.journal.length}
+          >
+            Rangés sur 7 jours
+          </Tab>
+          {binomesModifiables && (
+            <Tab
+              id="tri-t-binomes"
+              panelId="tri-p-binomes"
+              active={onglet === "binomes"}
+              onClick={() => setOnglet("binomes")}
+              count={file.binomes.filter((b) => b.copros.length > 0 && !b.principal).length || undefined}
+            >
+              Binômes
+            </Tab>
+          )}
+        </TabList>
+        {onglet === "file" && (
+          <TabPanel id="tri-p-file" tabId="tri-t-file">
+            <FileVue copros={file.copros} dossiers={file.dossiers} mails={mails} enCours={enCours} ranger={ranger} supprimer={supprimer} />
+          </TabPanel>
+        )}
+        {onglet === "journal" && (
+          <TabPanel id="tri-p-journal" tabId="tri-t-journal">
+            <JournalVue journal={file.journal} copros={file.copros} enCours={enCours} annuler={(id) => annuler(id)} />
+          </TabPanel>
+        )}
+        {onglet === "binomes" && binomesModifiables && (
+          <TabPanel id="tri-p-binomes" tabId="tri-t-binomes">
+            <BinomesVue lignes={file.binomes} collaborateurs={file.collaborateurs} />
+          </TabPanel>
+        )}
+      </div>
+    </BoiteTriProvider>
   );
 }
 
@@ -397,6 +402,7 @@ function DetailMail({
   ranger: (cible: CibleTri) => void;
   supprimer: () => void;
 }) {
+  const boite = useBoiteTri();
   const [recherche, setRecherche] = useState("");
   const s = mail.suggestion;
   const copro = choisie ? parRef.get(choisie) ?? null : null;
@@ -419,7 +425,7 @@ function DetailMail({
     if (ANALYSE_PJ.has(mail.internetMessageId)) return;
     let actif = true;
     const id = mail.internetMessageId;
-    coproDepuisPjAction({ internetMessageId: id }).then(
+    coproDepuisPjAction({ boite, internetMessageId: id }).then(
       (r) => {
         // Le résultat est gardé même si on a quitté le mail entre-temps.
         if (r.ok) ANALYSE_PJ.set(id, r.donnees ?? null);
@@ -434,7 +440,7 @@ function DetailMail({
     return () => {
       actif = false;
     };
-  }, [mail.internetMessageId, mail.aPiecesJointes, aCorbeille, s.nature]);
+  }, [boite, mail.internetMessageId, mail.aPiecesJointes, aCorbeille, s.nature]);
 
   const resultats = useMemo(() => {
     // Tolérante : « St Martin » trouve STMARTIN, la ville compte, S109 = S0109 (REA-327).
@@ -755,7 +761,7 @@ function RangerAilleurs({
               type="search"
               value={rechDossier}
               onChange={(e) => setRechDossier(e.target.value)}
-              placeholder="Initiales ou nom : SC, Sandy, Galiano…"
+              placeholder="Initiales ou nom du gestionnaire ou de l'assistant…"
               autoComplete="off"
               className={champ}
             />
@@ -847,6 +853,7 @@ const taille = (o: number) => (o < 1024 * 1024 ? `${Math.max(1, Math.round(o / 1
 
 /** Les pieces jointes du mail, chargees a l'ouverture ; un clic ouvre l'apercu (PDF, image). */
 function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
+  const boite = useBoiteTri();
   const [pieces, setPieces] = useState<PieceJointeRef[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [apercu, setApercu] = useState<ApercuPj | null>(null);
@@ -854,7 +861,7 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
 
   useEffect(() => {
     let actif = true;
-    listerPiecesJointesTriAction({ internetMessageId }).then((r) => {
+    listerPiecesJointesTriAction({ boite, internetMessageId }).then((r) => {
       if (!actif) return;
       if (r.ok) setPieces(r.donnees ?? []);
       else setErreur(r.erreur);
@@ -862,7 +869,7 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
     return () => {
       actif = false;
     };
-  }, [internetMessageId]);
+  }, [boite, internetMessageId]);
 
   // L'URL objet du blob est liberee a la fermeture de l'apercu.
   useEffect(() => () => {
@@ -871,7 +878,7 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
 
   async function ouvrir(pj: PieceJointeRef) {
     setOuverture(pj.id);
-    const r = await lirePieceJointeTriAction({ internetMessageId, attachmentId: pj.id });
+    const r = await lirePieceJointeTriAction({ boite, internetMessageId, attachmentId: pj.id });
     setOuverture(null);
     if (!r.ok || !r.donnees) {
       setErreur(r.ok ? "Pièce jointe vide." : r.erreur);
@@ -916,6 +923,7 @@ function PiecesJointes({ internetMessageId }: { internetMessageId: string }) {
 
 /** Un mail glisse dans un dossier qui recoit plusieurs copros : on choisit laquelle. */
 function PreciserCopro({ entree, candidates }: { entree: EntreeJournalTri; candidates: CoproDeLaFile[] }) {
+  const boite = useBoiteTri();
   const [enCours, demarrer] = useTransition();
   const router = useRouter();
   const toast = useToast();
@@ -930,7 +938,7 @@ function PreciserCopro({ entree, candidates }: { entree: EntreeJournalTri; candi
           disabled={enCours}
           onClick={() =>
             demarrer(async () => {
-              const r = await preciserCoproAction({ journalId: entree.id, reference: c.reference });
+              const r = await preciserCoproAction({ boite, journalId: entree.id, reference: c.reference });
               if (!r.ok) {
                 toast.err(r.erreur);
                 return;
@@ -1156,6 +1164,7 @@ function ChoixCollaborateur({
 }
 
 function LigneBinomeVue({ ligne, collaborateurs }: { ligne: LigneBinome; collaborateurs: Collaborateur[] }) {
+  const boite = useBoiteTri();
   const [edition, setEdition] = useState<"principal" | "autre" | null>(null);
   const [enCours, demarrer] = useTransition();
   const router = useRouter();
@@ -1290,7 +1299,7 @@ function LigneBinomeVue({ ligne, collaborateurs }: { ligne: LigneBinome; collabo
                     disabled={enCours}
                     onChange={(v) => {
                       const binomeId = !v || v === "principal" ? null : v;
-                      agir(() => affecterCoproAction({ reference: c.reference, binomeId }), `${c.reference} affectée.`);
+                      agir(() => affecterCoproAction({ boite, reference: c.reference, binomeId }), `${c.reference} affectée.`);
                     }}
                   />
                 </li>

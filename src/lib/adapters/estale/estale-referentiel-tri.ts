@@ -5,6 +5,8 @@
 // ventes en cours, contacts fournisseurs. Une requete par copro, 4 a la fois, comme l'annuaire
 // Linkus : l'API coupe a 30 s, une mega-requete tomberait sur la limite quand le parc
 // grandira. Cache module de 10 min : mesure du 25/09/2026, ~0,6 s pour 9 copros.
+// Depuis le 27/10/2026, l'etablissement de la copro (« REAL 31 - LGC ») donne son agence :
+// une boite triee ne garde que les copros ESTALE de ses agences.
 
 import {
   estAssistantDeCopro,
@@ -16,10 +18,12 @@ import {
 import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
 import { estaleGql } from "./client";
 import { chargerCondosAccessibles } from "./condos-accessibles";
+import { codeAgenceDepuisEtablissement } from "./estale-copro-provider";
 
 const Q_COPRO = `query($id: ID!) {
   condo(id: $id) {
     reference name
+    establishment { name }
     address { housenumber street postcode city }
     collaborators { id role fullname email }
     serviceBook { mandate { managerID } }
@@ -33,6 +37,7 @@ const Q_COPRO = `query($id: ID!) {
 type Condo = {
   reference: string;
   name: string;
+  establishment: { name: string | null } | null;
   address: { housenumber: string | null; street: string | null; postcode: string | null; city: string | null } | null;
   collaborators: { id: string; role: string | null; fullname: string; email: string }[] | null;
   serviceBook: { mandate: { managerID: string | null } | null } | null;
@@ -71,12 +76,14 @@ function versCopro(c: Condo): CoproTri {
         .filter(Boolean)
         .join(" ")
     : "";
+  const agence = codeAgenceDepuisEtablissement(c.establishment?.name);
   return {
     reference: c.reference,
     nom: c.name,
     adresse,
     gestionnaire: g ? { nomComplet: g.fullname, email: g.email } : null,
     assistant: a ? { nomComplet: a.fullname, email: a.email } : null,
+    ...(agence ? { agence } : {}),
   };
 }
 

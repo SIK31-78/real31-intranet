@@ -76,7 +76,7 @@ export function _resetCacheCoprosEstale(): void {
 }
 
 /** "REAL 31 - HLS" -> "HLS" : le code d'agence est le suffixe apres "REAL 31 - ". */
-function codeAgenceDepuisEtablissement(nom: string | null | undefined): string | undefined {
+export function codeAgenceDepuisEtablissement(nom: string | null | undefined): string | undefined {
   if (!nom) return undefined;
   const m = nom.trim().match(/-\s*([A-Za-z]+)\s*$/);
   return m ? m[1].toUpperCase() : undefined;

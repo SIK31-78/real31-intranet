@@ -3,10 +3,12 @@
 // SEULE, sans OCR, sans IA : on extrait le texte, on retire l'en-tete du cabinet, on passe le
 // meme moteur que le mail. A l'ecran, toujours a confirmer par un clic ; la tache planifiee
 // range seule quand les PDF ne designent qu'une copro (coprosDeTousLesPdf, 26/10/2026).
+// Toujours dans UNE boite triee, avec le referentiel de SES agences (V2 du 27/10/2026).
 
 import { coprosDansPdf, type CoproTri } from "@/lib/domain/tri-emails";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import type { ExtracteurPdf } from "@/lib/ports/extracteur-pdf";
+import type { BoiteTriConfig } from "@/lib/domain/mail-gate";
 import { getExtracteurPdf, getReferentielTriProvider } from "@/lib/adapters/router";
 import { listerPiecesJointesTri, lirePieceJointeTri } from "./pieces-jointes";
 import { signalerException } from "@/lib/observabilite";
@@ -27,17 +29,17 @@ const MAX_PDF = 5;
 const TAILLE_MAX_PDF = 5 * 1024 * 1024;
 const estPdf = (p: PieceJointeRef) => /\.pdf$/i.test(p.nom) || /pdf/i.test(p.type);
 
-async function pdfsDuMail(internetMessageId: string): Promise<PieceJointeRef[]> {
-  return (await listerPiecesJointesTri(internetMessageId))
+async function pdfsDuMail(boite: string, internetMessageId: string): Promise<PieceJointeRef[]> {
+  return (await listerPiecesJointesTri(boite, internetMessageId))
     .filter((p) => estPdf(p) && p.taille <= TAILLE_MAX_PDF)
     .slice(0, MAX_PDF);
 }
 
 /** Le texte d'un PDF, ou null s'il est illisible ou scanne (sans couche texte). */
-async function texteDuPdf(internetMessageId: string, pj: PieceJointeRef, extracteur: ExtracteurPdf): Promise<string | null> {
+async function texteDuPdf(boite: string, internetMessageId: string, pj: PieceJointeRef, extracteur: ExtracteurPdf): Promise<string | null> {
   let texte = "";
   try {
-    const { base64 } = await lirePieceJointeTri(internetMessageId, pj.id);
+    const { base64 } = await lirePieceJointeTri(boite, internetMessageId, pj.id);
     texte = await extracteur.texte(Uint8Array.from(Buffer.from(base64, "base64")));
   } catch (e) {
     // PDF illisible : on passe au suivant, mais on le signale. Avalée sans bruit, une panne
@@ -48,13 +50,13 @@ async function texteDuPdf(internetMessageId: string, pj: PieceJointeRef, extract
   return texte.replace(/\s/g, "").length < 40 ? null : texte;
 }
 
-export async function coproDepuisPiecesJointes(internetMessageId: string): Promise<CoproDepuisPj | null> {
-  const pdfs = await pdfsDuMail(internetMessageId);
+export async function coproDepuisPiecesJointes(config: BoiteTriConfig, internetMessageId: string): Promise<CoproDepuisPj | null> {
+  const pdfs = await pdfsDuMail(config.boite, internetMessageId);
   if (pdfs.length === 0) return null;
 
-  const [{ copros }, extracteur] = [await getReferentielTriProvider().charger(), getExtracteurPdf()];
+  const [{ copros }, extracteur] = [await getReferentielTriProvider(config.agences).charger(), getExtracteurPdf()];
   for (const pj of pdfs) {
-    const texte = await texteDuPdf(internetMessageId, pj, extracteur);
+    const texte = await texteDuPdf(config.boite, internetMessageId, pj, extracteur);
     if (texte === null) continue;
     const candidats = coprosDansPdf(texte, copros);
     if (candidats.length > 0) return { candidats, piece: pj.nom };
@@ -68,13 +70,13 @@ export async function coproDepuisPiecesJointes(internetMessageId: string): Promi
  * viser une autre copro, et l'automatique exige qu'il n'y en ait qu'une. Le referentiel est
  * celui du passage (pas de rechargement).
  */
-export async function coprosDeTousLesPdf(internetMessageId: string, copros: CoproTri[]): Promise<string[]> {
-  const pdfs = await pdfsDuMail(internetMessageId);
+export async function coprosDeTousLesPdf(boite: string, internetMessageId: string, copros: CoproTri[]): Promise<string[]> {
+  const pdfs = await pdfsDuMail(boite, internetMessageId);
   const candidats: string[] = [];
   if (pdfs.length === 0) return candidats;
   const extracteur = getExtracteurPdf();
   for (const pj of pdfs) {
-    const texte = await texteDuPdf(internetMessageId, pj, extracteur);
+    const texte = await texteDuPdf(boite, internetMessageId, pj, extracteur);
     if (texte === null) continue;
     for (const r of coprosDansPdf(texte, copros)) if (!candidats.includes(r)) candidats.push(r);
   }

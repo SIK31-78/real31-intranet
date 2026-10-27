@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
 import { COOKIE_PLACE_INTERNES } from "@/components/mes-emails/preference-liste";
@@ -14,7 +15,7 @@ import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
 import { EnvoyerEmail } from "@/components/mes-emails/envoyer-email";
-import { boiteEnvoi, brouillonPossible, envoiDirectComposition } from "@/lib/services/mes-emails/composer-mail";
+import { boiteDeComposition, boiteEnvoi, brouillonPossible, envoiDirectComposition } from "@/lib/services/mes-emails/composer-mail";
 
 export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
@@ -45,10 +46,15 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   // Pour un prochain essai, remettre `estSuperAdmin(g.email)` ici et dans les actions.
   const pilote = true;
   const placeInternes = pilote ? placeInternesValide((await cookies()).get(COOKIE_PLACE_INTERNES)?.value) : "meles";
+  // Boîtes partagées, boîte d'envoi et agence : celles de l'agence de la personne (config
+  // MAIL_TRI_BOITES, 27/10/2026) ; un super-admin voit toutes les boîtes triées.
+  const superAdmin = estSuperAdmin(g.email);
+  const [boite, agencePersonne] = await Promise.all([boiteDeComposition(g, superAdmin), agenceDesModeles(g.agencyId)]);
+  const agence = agencePersonne ?? boite?.agences[0] ?? "";
   const [data, signatureHtml, modeles] = await Promise.all([
-    getMesEmails(g, maxPerso),
+    getMesEmails(g, maxPerso, { superAdmin }),
     getSignatureGestionnaire(g),
-    agenceDesModeles(g.agencyId).then(modelesMailPour),
+    modelesMailPour(agencePersonne),
   ]);
 
   return (
@@ -61,10 +67,10 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           <h1 className="text-page font-medium tracking-tight text-ink mr-auto">E-mails</h1>
           <EnvoyerEmail
             gestionnaireNom={g.nomComplet}
-            agence={(process.env.MAIL_TRI_AGENCE ?? "").trim()}
-            brouillonPossible={brouillonPossible()}
-            envoiDirect={envoiDirectComposition()}
-            boite={boiteEnvoi()}
+            agence={agence}
+            brouillonPossible={brouillonPossible(boite)}
+            envoiDirect={envoiDirectComposition(boite)}
+            boite={boiteEnvoi(boite)}
             signatureHtml={signatureHtml}
             modeles={modeles}
             pilote={pilote}

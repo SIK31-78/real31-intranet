@@ -7,7 +7,7 @@
 // appels Graph a chaque fois) : retire, la tache suffit.
 
 import { PAR_OUTLOOK, constaterRangement, coproDuDossier } from "@/lib/domain/tri-emails";
-import { depsParDefaut, etiqueterSansBloquer, type DepsRangement } from "./ranger";
+import { etiqueterSansBloquer, type DepsRangement } from "./ranger";
 
 const FENETRE_MS = 7 * 24 * 3600 * 1000;
 /** Au plus tant de rangements relus par passage (un appel Graph chacun). */
@@ -28,7 +28,8 @@ export interface BilanReconciliation {
   echecs: number;
 }
 
-export async function reconcilierRangements(deps: DepsRangement = depsParDefaut(), maintenant: () => number = Date.now): Promise<BilanReconciliation> {
+/** Une boite a la fois (deps de cette boite) : la tache planifiee passe boite par boite. */
+export async function reconcilierRangements(deps: DepsRangement, maintenant: () => number = Date.now): Promise<BilanReconciliation> {
   const bilan: BilanReconciliation = { verifies: 0, remisEnFile: 0, deplaces: 0, echecs: 0 };
   const boite = deps.boite;
   if (!boite || deps.simulation) return bilan;

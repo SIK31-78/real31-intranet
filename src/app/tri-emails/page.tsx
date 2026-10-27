@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getGestionnaireCourant, estSuperAdmin } from "@/lib/auth/session";
-import { deLAgenceDuTri } from "@/lib/services/tri-emails/acces";
+import { getGestionnaireCourant } from "@/lib/auth/session";
+import { droitsTri } from "@/lib/auth/roles";
+import { boitesTri } from "@/lib/domain/mail-gate";
+import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
 import { MAX_FILE, lireFileATrier, type FileATrier } from "@/lib/services/tri-emails/lire-file";
 import { diagnosticAnnuaire } from "@/lib/services/synchro/surveiller-annuaire";
 import { AppShell } from "@/components/layout/app-shell";
@@ -28,14 +31,37 @@ function metaFile(file: FileATrier): string {
     : `${base} (les ${MAX_FILE} plus récents seulement)`;
 }
 
-export default async function TriEmailsPage() {
+/** Super-admin et plusieurs boites : un lien par boite, la boite affichee en premier plan. */
+function ChoixBoite({ boites, active }: { boites: string[]; active: string }) {
+  return (
+    <nav aria-label="Boîte triée" className="flex flex-wrap items-center gap-1.5 text-meta">
+      {boites.map((b) =>
+        b === active ? (
+          <span key={b} aria-current="page" className="rounded-md border border-line bg-surface px-2 py-0.5 font-mono text-ink">
+            {b}
+          </span>
+        ) : (
+          <Link key={b} href={`/tri-emails?boite=${encodeURIComponent(b)}`} className="rounded-md px-2 py-0.5 font-mono text-ink-3 underline hover:text-ink">
+            {b}
+          </Link>
+        ),
+      )}
+    </nav>
+  );
+}
+
+export default async function TriEmailsPage({ searchParams }: { searchParams: Promise<{ boite?: string | string[] }> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  // L'agence de la boite et les super-admins (ADR-046, ouvert le 27/10/2026), et
-  // seulement si la boite est configuree.
-  if (!estSuperAdmin(g.email) && !(await deLAgenceDuTri(g.agencyId))) redirect("/accueil");
-  const [file, annuaire] = await Promise.all([lireFileATrier(), diagnosticAnnuaire()]);
-  if (!file) redirect("/accueil");
+  // V2 (27/10/2026) : l'equipe syndic trie la boite de son agence (config MAIL_TRI_BOITES) ;
+  // un super-admin choisit la boite par ?boite= (validee contre la config, defaut = la
+  // premiere). Une boite demandee qui n'est pas la sienne : retour a l'accueil.
+  const droits = droitsTri(g);
+  const demandee = (await searchParams).boite;
+  const config = await boiteTriAccessible(g, droits, typeof demandee === "string" ? demandee : null);
+  if (!config) redirect("/accueil");
+  const [file, annuaire] = await Promise.all([lireFileATrier(config), diagnosticAnnuaire()]);
+  const autresBoites = droits.superAdmin ? boitesTri().map((b) => b.boite) : [];
 
   return (
     <AppShell user={g} active="tri-emails" breadcrumb="Tri des e-mails">
@@ -44,9 +70,10 @@ export default async function TriEmailsPage() {
           titre="Tri des e-mails"
           badge={<Badge ton="outline">{file.boite === "echantillon" ? "Échantillon fictif" : file.boite}</Badge>}
           meta={metaFile(file)}
+          {...(autresBoites.length > 1 ? { actions: <ChoixBoite boites={autresBoites} active={file.boite} /> } : {})}
           aide={
             <p className="max-w-[65ch] text-ink-2">
-              La file, c&apos;est la boîte de réception de la boîte générique. Pour chaque mail, l&apos;intranet propose
+              La file, c&apos;est la boîte de réception de la boîte partagée de l&apos;agence. Pour chaque mail, l&apos;intranet propose
               une copropriété, ESTALE ou Crypto ; en le rangeant, le mail part dans le dossier du binôme (ou dans
               Comptabilité / Divers), où l&apos;équipe le traite et y répond depuis Outlook. L&apos;onglet « Rangés
               sur 7 jours » sert à la revue du vendredi : chaque rangement y montre le signal qui l&apos;a proposé.
@@ -65,7 +92,7 @@ export default async function TriEmailsPage() {
             <code>scripts\sync-annuaire-crypto.cmd</code>, sur le PC qui synchronise l&apos;export Crypto.
           </Callout>
         )}
-        <TriEmailsVue file={file} binomesModifiables={estSuperAdmin(g.email)} />
+        <TriEmailsVue file={file} binomesModifiables={droits.superAdmin} />
       </Page>
     </AppShell>
   );

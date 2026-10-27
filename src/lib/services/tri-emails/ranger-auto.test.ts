@@ -145,7 +145,7 @@ function monter(mails: RawMail[], o: { boite?: string; simulation?: boolean } = 
   return { repo, deps, passer, charger, ...boite };
 }
 
-describe("rangerAutomatiquement (cron, piste sûre de syndic4)", () => {
+describe("rangerAutomatiquement (cron, piste sûre)", () => {
   it("coupé (MAIL_TRI_AUTO absent) : ne lit rien, ne range rien", async () => {
     vi.stubEnv("MAIL_TRI_AUTO", "");
     const lireMails = vi.fn(async () => [brut({ subject: "S0297 - fuite" })]);
@@ -156,12 +156,25 @@ describe("rangerAutomatiquement (cron, piste sûre de syndic4)", () => {
     vi.unstubAllEnvs();
   });
 
-  it("une autre boîte que syndic4 : ne lit rien", async () => {
+  it("automatique coupé dans la config de la boîte (MAIL_TRI_AUTO ouvert) : ne lit rien", async () => {
+    vi.stubEnv("MAIL_TRI_AUTO", "on");
+    vi.stubEnv(
+      "MAIL_TRI_BOITES",
+      JSON.stringify([
+        { boite: SYNDIC4, agences: ["HLS"], ecriture: true, automatique: true, envoi: false },
+        { boite: "syndic2@real31.fr", agences: ["LGC", "ASN"], ecriture: true, automatique: false, envoi: false },
+      ]),
+    );
     const lireMails = vi.fn(async () => [brut({ subject: "S0297 - fuite" })]);
-    const { deps } = monter([], { boite: "syndic1@real31.fr" });
-    const bilan = await rangerAutomatiquement(deps, { actif: true, lireMails });
+    const coupee = await rangerAutomatiquement(monter([], { boite: "syndic2@real31.fr" }).deps, { lireMails });
+    expect(coupee.actif).toBe(false);
     expect(lireMails).not.toHaveBeenCalled();
-    expect(bilan.ranges).toBe(0);
+    // Une boîte hors de la config non plus.
+    expect((await rangerAutomatiquement(monter([], { boite: "syndic1@real31.fr" }).deps, { lireMails })).actif).toBe(false);
+    // La boîte ouverte, elle, lit sa réception.
+    expect((await rangerAutomatiquement(monter([]).deps, { lireMails })).actif).toBe(true);
+    expect(lireMails).toHaveBeenCalledTimes(1);
+    vi.unstubAllEnvs();
   });
 
   it("range la piste sûre comme un clic, et seulement elle", async () => {

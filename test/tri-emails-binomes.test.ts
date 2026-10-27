@@ -48,7 +48,7 @@ describe("binomes du tri", () => {
     await definirPrincipal("sandy@real31.fr", "galiano@real31.fr", "sk");
     await ajouterAssistant("sandy@real31.fr", "julie@real31.fr", "sk");
     const julie = (await etat.repo.binomes()).binomes.find((b) => b.assistant.email === "julie@real31.fr")!;
-    await affecterCopro("S0297", julie.id, "sk");
+    await affecterCopro("S0297", julie.id, "sk", ["HLS"]);
     expect((await etat.repo.binomes()).parCopro).toEqual({ S0297: julie.id });
     await expect(ajouterAssistant("sandy@real31.fr", "julie@real31.fr", "sk")).rejects.toThrow(/déjà assistant/);
   });
@@ -57,7 +57,7 @@ describe("binomes du tri", () => {
     await definirPrincipal("sandy@real31.fr", "galiano@real31.fr", "sk");
     await ajouterAssistant("sandy@real31.fr", "julie@real31.fr", "sk");
     const julie = (await etat.repo.binomes()).binomes.find((b) => b.assistant.email === "julie@real31.fr")!;
-    await affecterCopro("S0297", julie.id, "sk");
+    await affecterCopro("S0297", julie.id, "sk", ["HLS"]);
     await definirPrincipal("sandy@real31.fr", "julie@real31.fr", "sk");
     const b = await etat.repo.binomes();
     expect(b.binomes).toHaveLength(1);
@@ -69,14 +69,14 @@ describe("binomes du tri", () => {
     await definirPrincipal("sandy@real31.fr", "galiano@real31.fr", "sk");
     await ajouterAssistant("sandy@real31.fr", "julie@real31.fr", "sk");
     const julie = (await etat.repo.binomes()).binomes.find((b) => b.assistant.email === "julie@real31.fr")!;
-    await expect(affecterCopro("S0305", julie.id, "sk")).rejects.toThrow(/ne travaille pas/);
+    await expect(affecterCopro("S0305", julie.id, "sk", ["HLS"])).rejects.toThrow(/ne travaille pas/);
   });
 
   it("retirer un assistant rend ses copros au principal", async () => {
     await definirPrincipal("sandy@real31.fr", "galiano@real31.fr", "sk");
     await ajouterAssistant("sandy@real31.fr", "julie@real31.fr", "sk");
     const julie = (await etat.repo.binomes()).binomes.find((b) => b.assistant.email === "julie@real31.fr")!;
-    await affecterCopro("S0297", julie.id, "sk");
+    await affecterCopro("S0297", julie.id, "sk", ["HLS"]);
     await retirerAssistant(julie.id);
     expect((await etat.repo.binomes()).parCopro).toEqual({});
   });

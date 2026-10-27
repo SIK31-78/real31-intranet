@@ -5,6 +5,8 @@
 // validation) dès que Graph est branché ; l'envoi réel se fait dans Outlook. Expéditeur =
 // syndicN (la boîte passée au provider). Le brouillon peut être rattaché à un dossier : son
 // internetMessageId survit à l'envoi, « Ouvrir le mail » depuis le dossier le retrouve.
+// Plusieurs boîtes (V2 du 27/10/2026) : la boîte d'envoi et les copros proposées sont celles
+// de la boîte triée de l'agence de la personne (boiteDeComposition), plus une constante.
 
 import {
   getContactsCoproProvider,
@@ -13,7 +15,8 @@ import {
   getMailOutboundProvider,
   getReferentielTriProvider,
 } from "@/lib/adapters/router";
-import { boiteTriConfiguree, envoiMailActif, mailModuleActif } from "@/lib/domain/mail-gate";
+import { BOITE_ECHANTILLON, boitesTri, envoiMailPour, mailModuleActif, type BoiteTriConfig } from "@/lib/domain/mail-gate";
+import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
 import { conseilPourComposition, enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
@@ -30,15 +33,23 @@ import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email
 export type { CoproChoisissable, ContactsComposition };
 
 /**
- * La boîte partagée d'où part le mail : celle de l'agence (MAIL_BOITE_TRI). null si le module
- * n'est pas configuré ; "echantillon" en dev (aperçu possible, jamais de brouillon).
+ * La boîte triée de la personne pour composer : celle de son agence ; un super-admin sans
+ * boîte d'agence prend la première de la config (`superAdmin` vient de l'appelant, auth).
  */
-export function boiteEnvoi(): string | null {
-  return boiteTriConfiguree();
+export async function boiteDeComposition(g: Pick<Gestionnaire, "agencyId">, superAdmin: boolean): Promise<BoiteTriConfig | null> {
+  return (await boiteDe(g)) ?? (superAdmin ? (boitesTri()[0] ?? null) : null);
 }
 
-export async function listerCoprosComposition(): Promise<CoproChoisissable[]> {
-  const ref = await getReferentielTriProvider().charger();
+/**
+ * La boîte partagée d'où part le mail : celle de l'agence de la personne. null si son agence
+ * n'a pas de boîte ; "echantillon" en dev (aperçu possible, jamais de brouillon).
+ */
+export function boiteEnvoi(config: BoiteTriConfig | null): string | null {
+  return config?.boite ?? null;
+}
+
+export async function listerCoprosComposition(config: BoiteTriConfig | null): Promise<CoproChoisissable[]> {
+  const ref = await getReferentielTriProvider(config?.agences ?? []).charger();
   // Les copros inactives (gardees pour reconnaitre le courrier entrant) ne recoivent plus de mail.
   return ref.copros
     .filter((c) => !c.inactive)
@@ -50,13 +61,13 @@ export async function listerCoprosComposition(): Promise<CoproChoisissable[]> {
  * Chercher un destinataire par son nom (ou son adresse) : la personne, toutes ses adresses et
  * ses copros, pour choisir à laquelle rattacher le mail (ou aucune : c'est parfois perso).
  */
-export async function rechercherDestinataires(texte: string): Promise<DestinataireTrouve[]> {
+export async function rechercherDestinataires(texte: string, config: BoiteTriConfig | null): Promise<DestinataireTrouve[]> {
   const [identites, copros] = await Promise.all([
     getContactsCoproProvider().rechercherIdentites(texte),
-    listerCoprosComposition().catch(() => [] as CoproChoisissable[]),
+    listerCoprosComposition(config).catch(() => [] as CoproChoisissable[]),
   ]);
-  // Les copros de l'AGENCE seulement (MAIL_TRI_AGENCE) : un copropriétaire de La Garenne ne
-  // sort pas pour Houilles. Une fiche sans copro (artisan, notaire) reste proposée.
+  // Les copros des agences de la boîte seulement : un copropriétaire d'une autre agence ne
+  // sort pas. Une fiche sans copro (artisan, notaire) reste proposée.
   const parCle = new Map(copros.map((c) => [cleDeReference(c.reference) ?? c.reference, c]));
   const out: DestinataireTrouve[] = [];
   for (const i of identites) {
@@ -164,15 +175,15 @@ export interface ResultatBrouillon {
   mails?: number;
 }
 
-/** Le bouton du compositeur ENVOIE-t-il (MAIL_ENVOI=on) ou crée-t-il un brouillon ? */
-export function envoiDirectComposition(): boolean {
-  return brouillonPossible() && envoiMailActif();
+/** Le bouton du compositeur ENVOIE-t-il (MAIL_ENVOI=on ET `envoi` de la boîte) ou crée-t-il un brouillon ? */
+export function envoiDirectComposition(config: BoiteTriConfig | null): boolean {
+  return brouillonPossible(config) && envoiMailPour(boiteEnvoi(config));
 }
 
 /** Un brouillon peut-il être créé (Graph branché et vraie boîte partagée configurée) ? */
-export function brouillonPossible(): boolean {
-  const boite = boiteEnvoi();
-  return mailModuleActif() && Boolean(boite) && boite !== "echantillon";
+export function brouillonPossible(config: BoiteTriConfig | null): boolean {
+  const boite = boiteEnvoi(config);
+  return mailModuleActif() && Boolean(boite) && boite !== BOITE_ECHANTILLON;
 }
 
 /**
@@ -184,9 +195,10 @@ export function brouillonPossible(): boolean {
 export async function creerBrouillonComposition(
   d: DemandeBrouillon,
   g: Gestionnaire,
+  config: BoiteTriConfig | null,
 ): Promise<ResultatBrouillon> {
-  const boite = boiteEnvoi();
-  if (!brouillonPossible() || !boite) {
+  const boite = boiteEnvoi(config);
+  if (!brouillonPossible(config) || !boite) {
     return { simulation: true, boite };
   }
   // Signitic ne passe pas sur un brouillon créé par l'app : on pose la signature nous-mêmes.
@@ -196,7 +208,7 @@ export async function creerBrouillonComposition(
   // un mail par lot. Sans « À », le mail est adressé à la boîte elle-même.
   const a = d.a.length ? d.a : d.cci?.length ? [boite] : [];
   const lots = d.cci?.length ? enLots(d.cci) : [[]];
-  const envoi = envoiMailActif();
+  const envoi = envoiMailPour(boite);
   let r: Awaited<ReturnType<typeof outbound.creerBrouillonNeuf>> = {};
   let envoye = false;
   for (const [i, cci] of lots.entries()) {

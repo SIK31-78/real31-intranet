@@ -23,6 +23,8 @@ vi.mock("@/lib/services/dossiers/rattacher-email", () => ({ rattacherEmailAuDoss
 const { creerBrouillonComposition, listerContactsComposition } = await import("@/lib/services/mes-emails/composer-mail");
 
 const g = { id: "g1", initiales: "SK", email: "sk@real31.fr" } as Parameters<typeof creerBrouillonComposition>[1];
+// La boîte de l'agence de la personne (config du tri, 27/10/2026).
+const boite = { boite: "syndic4@real31.fr", agences: ["HLS"], depuis: null, ecriture: true, automatique: false, envoi: true };
 const demande = { objet: "S0302 · Le Tournois · 1 rue X - Fuite", corps: "Bonjour", a: ["cs@x.fr"], cc: [] };
 
 beforeEach(() => {
@@ -39,7 +41,7 @@ afterEach(() => {
 describe("creerBrouillonComposition", () => {
   it("envoie le brouillon quand l'envoi est ouvert", async () => {
     vi.stubEnv("MAIL_ENVOI", "on");
-    const r = await creerBrouillonComposition(demande, g);
+    const r = await creerBrouillonComposition(demande, g, boite);
     expect(r.envoye).toBe(true);
     expect(etat.envoyerBrouillon).toHaveBeenCalledWith({ boite: "syndic4@real31.fr", id: "AAMk1" });
   });
@@ -47,7 +49,7 @@ describe("creerBrouillonComposition", () => {
   it("toute la copropriété : copie cachée, adressé à la boîte, découpé en lots (REA-305)", async () => {
     vi.stubEnv("MAIL_ENVOI", "on");
     const cci = Array.from({ length: 500 }, (_, i) => `c${i}@x.fr`);
-    const r = await creerBrouillonComposition({ ...demande, a: [], cci }, g);
+    const r = await creerBrouillonComposition({ ...demande, a: [], cci }, g, boite);
     expect(r.mails).toBe(2);
     expect(etat.creerBrouillonNeuf).toHaveBeenCalledTimes(2);
     const [premier, second] = etat.creerBrouillonNeuf.mock.calls.map((c) => c[0]);
@@ -59,7 +61,7 @@ describe("creerBrouillonComposition", () => {
   });
 
   it("s'arrête au brouillon tant que l'envoi est coupé", async () => {
-    const r = await creerBrouillonComposition(demande, g);
+    const r = await creerBrouillonComposition(demande, g, boite);
     expect(r.envoye).toBe(false);
     expect(etat.envoyerBrouillon).not.toHaveBeenCalled();
   });

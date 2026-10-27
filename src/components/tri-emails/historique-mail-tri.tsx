@@ -2,15 +2,17 @@
 
 // « Historique de la conversation » sous un mail de la file à trier (REA-352, 16/10/2026) :
 // le même bloc que l'écran E-mails (components/mes-emails/historique-mail.tsx), branché sur
-// l'action du tri qui lit la boîte générique. Replié par défaut, lu au clic : les fils sont
+// l'action du tri qui lit la boîte triée affichée. Replié par défaut, lu au clic : les fils sont
 // parfois très longs et la file se parcourt vite. À monter avec key={internetMessageId}
 // pour repartir de zéro à chaque mail.
 
 import { useState } from "react";
 import { ChevronRight, History } from "lucide-react";
 import { chargerHistoriqueTriAction } from "@/app/tri-emails/actions";
+import { useBoiteTri } from "@/components/tri-emails/boite-tri-contexte";
 
 export function HistoriqueMailTri({ internetMessageId }: { internetMessageId: string }) {
+  const boite = useBoiteTri();
   const [ouvert, setOuvert] = useState(false);
   // undefined = pas encore demandé ; null = boîte illisible.
   const [texte, setTexte] = useState<string | null | undefined>(undefined);
@@ -18,7 +20,7 @@ export function HistoriqueMailTri({ internetMessageId }: { internetMessageId: st
   function basculer() {
     setOuvert((o) => !o);
     if (texte === undefined) {
-      void chargerHistoriqueTriAction({ internetMessageId }).then(
+      void chargerHistoriqueTriAction({ boite, internetMessageId }).then(
         (r) => setTexte(r.ok ? (r.donnees ?? "") : null),
         () => setTexte(null),
       );

@@ -828,11 +828,10 @@ describe("motifCorbeille (non remis, réponses automatiques)", () => {
   });
 });
 
-describe("rangeableAutomatiquement (tri automatique, piste sûre de syndic4)", () => {
-  const BOITE = "syndic4@real31.fr";
+describe("rangeableAutomatiquement (tri automatique, piste sûre)", () => {
   const sure = (reference = "S0297") => ({ nature: "sure" as const, candidats: [reference], raison: `Code ${reference} cité dans l'objet.` });
   const ctx = (o: Partial<Parameters<typeof rangeableAutomatiquement>[1]> = {}) => ({
-    boite: BOITE,
+    automatique: true,
     dejaPasse: false,
     copros: [copro("S0297"), { ...copro("S0305"), inactive: true }, { ...copro("S0400"), gestionnaire: null }, copro("S0500", "sans.initiales@real31.fr")],
     initialesParEmail: { "g@real31.fr": "GG" },
@@ -843,9 +842,8 @@ describe("rangeableAutomatiquement (tri automatique, piste sûre de syndic4)", (
     expect(rangeableAutomatiquement({ suggestion: sure() }, ctx())).toEqual({ ok: true, reference: "S0297" });
   });
 
-  it("refuse toute autre boîte que syndic4", () => {
-    expect(rangeableAutomatiquement({ suggestion: sure() }, ctx({ boite: "syndic1@real31.fr" }))).toEqual({ ok: false, motif: "autre-boite" });
-    expect(rangeableAutomatiquement({ suggestion: sure() }, ctx({ boite: "echantillon" }))).toEqual({ ok: false, motif: "autre-boite" });
+  it("refuse quand l'automatique est coupé pour la boîte (config de la boîte ou MAIL_TRI_AUTO)", () => {
+    expect(rangeableAutomatiquement({ suggestion: sure() }, ctx({ automatique: false }))).toEqual({ ok: false, motif: "automatique-coupe" });
   });
 
   it("refuse quand la corbeille est proposée ou que le mail est interne", () => {
@@ -888,7 +886,6 @@ describe("rangeableAutomatiquement (tri automatique, piste sûre de syndic4)", (
 });
 
 describe("piste faible par le nom ou l'adresse : rangeable sans clic (26/10/2026)", () => {
-  const BOITE = "syndic4@real31.fr";
   // Donnees inventees.
   const actives: CoproTri[] = [
     { ...copro("S0247"), nom: "LE CYRANO", adresse: "12 rue des Lilas 78400 Chatou" },
@@ -899,7 +896,7 @@ describe("piste faible par le nom ou l'adresse : rangeable sans clic (26/10/2026
     copros: actives,
     expediteurs: { "ascenseurs@exemple.fr": [{ reference: "S0247", qualite: "fournisseur" }] },
   };
-  const ctx = { boite: BOITE, dejaPasse: false, copros: actives, initialesParEmail: { "g@real31.fr": "GG" } };
+  const ctx = { automatique: true, dejaPasse: false, copros: actives, initialesParEmail: { "g@real31.fr": "GG" } };
   const decider = (m: Parameters<typeof mail>[0]) => rangeableAutomatiquement({ suggestion: suggererCopro(mail(m), ref) }, ctx);
 
   it("le nom de l'immeuble seul, sur une copro : faible d'origine « nom-adresse », rangé", () => {
@@ -940,7 +937,7 @@ describe("piste faible par le nom ou l'adresse : rangeable sans clic (26/10/2026
 
 describe("rangeableParPiecesJointes (PDF lus par la tâche planifiée, 26/10/2026)", () => {
   const ctx = {
-    boite: "syndic4@real31.fr",
+    automatique: true,
     dejaPasse: false,
     copros: [copro("S0297"), copro("S0305"), { ...copro("S0410"), inactive: true }],
     initialesParEmail: { "g@real31.fr": "GG" },
@@ -963,7 +960,7 @@ describe("rangeableParPiecesJointes (PDF lus par la tâche planifiée, 26/10/202
   });
 
   it("mêmes garde-fous que la piste sûre", () => {
-    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], { ...ctx, boite: "syndic1@real31.fr" })).toEqual({ ok: false, motif: "autre-boite" });
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], { ...ctx, automatique: false })).toEqual({ ok: false, motif: "automatique-coupe" });
     expect(rangeableParPiecesJointes({ corbeille: "non-remis", suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: false, motif: "corbeille" });
     expect(rangeableParPiecesJointes({ interne: true, suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: false, motif: "interne" });
     expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], { ...ctx, dejaPasse: true })).toEqual({ ok: false, motif: "deja-passe" });
@@ -1020,7 +1017,7 @@ describe("expediteursPublicite (corbeille proposée, apprise du journal, 26/10/2
 
   it("la publicité bloque l'automatique comme les autres corbeilles", () => {
     const sure = { nature: "sure" as const, candidats: ["S0297"], raison: "" };
-    const ctx = { boite: "syndic4@real31.fr", dejaPasse: false, copros: [copro("S0297")], initialesParEmail: { "g@real31.fr": "GG" } };
+    const ctx = { automatique: true, dejaPasse: false, copros: [copro("S0297")], initialesParEmail: { "g@real31.fr": "GG" } };
     expect(rangeableAutomatiquement({ corbeille: "publicite", suggestion: sure }, ctx)).toEqual({ ok: false, motif: "corbeille" });
   });
 });

@@ -2,8 +2,13 @@
 // dans le dossier du binome de sa copro (ou dans « Comptabilité » / « Divers »), et une
 // ligne de journal garde le signal qui l'avait propose. Annulable.
 //
-// SECURITE : l'ecriture reelle dans la boite n'est branchee que si MAIL_TRI_ECRITURE=on
-// (routeur). Sinon le rangement est simule : journalise, mais aucun mail ne bouge.
+// SECURITE : l'ecriture reelle dans la boite n'est branchee que si elle est ouverte pour
+// CETTE boite (MAIL_TRI_ECRITURE=on ET `ecriture` de sa config, routeur). Sinon le rangement
+// est simule : journalise, mais aucun mail ne bouge.
+//
+// Plusieurs boites (V2 du 27/10/2026) : les dependances se construisent pour UNE boite
+// (depsParDefaut(config)) : son referentiel (ses agences), son ecriture. Aucune boite par
+// defaut : l'appelant dit laquelle.
 
 import {
   DOSSIER_CORBEILLE,
@@ -16,7 +21,7 @@ import {
   type CibleTri,
   type SignalTri,
 } from "@/lib/domain/tri-emails";
-import { boiteTriConfiguree, ecritureTriActive } from "@/lib/domain/mail-gate";
+import { boiteTri, ecritureTriPour, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
 import type { TriRepository } from "@/lib/ports/tri-repository";
@@ -40,18 +45,18 @@ export interface DepsRangement {
   gestionnaires: () => Promise<MembreTri[]>;
 }
 
-/** Le rangement est-il simule ? Oui tant que l'ecriture n'est pas ouverte sur une vraie boite. */
-export function rangementSimule(boite: string | null = boiteTriConfiguree()): boolean {
-  return !(ecritureTriActive() && process.env.MAIL_SOURCE === "graph" && boite !== null && boite !== "echantillon");
+/** Le rangement est-il simule ? Oui tant que l'ecriture n'est pas ouverte sur cette vraie boite. */
+export function rangementSimule(config: BoiteTriConfig | null): boolean {
+  return !(ecritureTriPour(config) && process.env.MAIL_SOURCE === "graph");
 }
 
-export function depsParDefaut(): DepsRangement {
-  const boite = boiteTriConfiguree();
+/** Les dependances du rangement pour UNE boite triee (null = rien de configure : tout refuse). */
+export function depsParDefaut(config: BoiteTriConfig | null): DepsRangement {
   return {
-    boite,
-    simulation: rangementSimule(boite),
-    rangement: getRangementTri(),
-    referentiel: getReferentielTriProvider(),
+    boite: config?.boite ?? null,
+    simulation: rangementSimule(config),
+    rangement: getRangementTri(config),
+    referentiel: getReferentielTriProvider(config?.agences ?? []),
     repo: getTriRepository(),
     initialesParEmail: async () => {
       const out: Record<string, string> = {};
@@ -137,7 +142,7 @@ export async function etiqueterSansBloquer(
 export async function rangerMail(
   d: DemandeRangement,
   par: string,
-  deps: DepsRangement = depsParDefaut(),
+  deps: DepsRangement,
 ): Promise<ResultatRangement> {
   const boite = deps.boite;
   if (!boite) throw new Error("Le tri des e-mails n'est pas configuré.");
@@ -197,7 +202,7 @@ const CORBEILLE_NOM = "Corbeille";
 export async function supprimerMail(
   d: Pick<DemandeRangement, "messageId" | "internetMessageId" | "expediteur" | "objet" | "suggestion">,
   par: string,
-  deps: DepsRangement = depsParDefaut(),
+  deps: DepsRangement,
 ): Promise<ResultatRangement> {
   const boite = deps.boite;
   if (!boite) throw new Error("Le tri des e-mails n'est pas configuré.");
@@ -232,7 +237,7 @@ export async function supprimerMail(
 export async function annulerRangement(
   journalId: string,
   par: string,
-  deps: DepsRangement = depsParDefaut(),
+  deps: DepsRangement,
 ): Promise<void> {
   const e = await deps.repo.entree(journalId);
   if (!e || e.annuleLe) throw new Error("Ce rangement n'existe plus ou a déjà été annulé.");
@@ -257,7 +262,7 @@ export async function annulerRangement(
 export async function preciserCopro(
   journalId: string,
   reference: string,
-  deps: DepsRangement = depsParDefaut(),
+  deps: DepsRangement,
 ): Promise<void> {
   const e = await deps.repo.entree(journalId);
   if (!e || e.annuleLe) throw new Error("Ce rangement n'existe plus.");
@@ -292,7 +297,7 @@ export async function corrigerCopro(
   boite: string,
   internetMessageId: string,
   code: string,
-  deps: DepsRangement = depsParDefaut(),
+  deps: DepsRangement = depsParDefaut(boiteTri(boite)),
 ): Promise<{ corrige: boolean; autreDossier?: string; reference?: string }> {
   const depuis = new Date(Date.now() - FENETRE_CORRECTION_JOURS * 86_400_000).toISOString();
   const e = await deps.repo.rangementActif(boite, internetMessageId, depuis);

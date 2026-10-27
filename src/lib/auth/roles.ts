@@ -335,6 +335,18 @@ export function estEquipeSyndic(profil: Profil): boolean {
 }
 
 /**
+ * Droits du tri des e-mails (ADR-046, V2 du 27/10/2026) : l'equipe syndic trie la boite de son
+ * agence, le super-admin choisit la boite. Le service du tri (services/tri-emails/acces.ts)
+ * combine ces droits avec la config des boites ; il n'importe pas auth.
+ */
+export function droitsTri(g: { email?: string | null; role?: string | null; habilitations?: readonly string[] }): {
+  superAdmin: boolean;
+  equipeSyndic: boolean;
+} {
+  return { superAdmin: estSuperAdmin(g.email), equipeSyndic: estEquipeSyndic(profilDe(g)) };
+}
+
+/**
  * Voir l'entree « Reprise de copropriete » : l'equipe syndic ET le pole comptable.
  * REA-353 (16/10/2026) : la comptable nommee dans l'equipe d'un dossier de reprise doit
  * pouvoir l'ouvrir (reprise de la comptabilite, balance, appels de fonds). Ce n'est qu'un

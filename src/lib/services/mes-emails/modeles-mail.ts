@@ -8,9 +8,13 @@ import { modelesPourAgence } from "@/lib/domain/modeles-mail";
 import { getModeleMailRepository } from "@/lib/adapters/router";
 import { codeAgence } from "@/lib/services/agences/resoudre-agence";
 
-/** L'agence dont on propose les modèles : celle de la personne, sinon celle de la boîte triée. */
+/**
+ * L'agence de la personne : ses modèles, et le {{agence}} qui signe les mails. Depuis le
+ * 27/10/2026, plus de repli sur MAIL_TRI_AGENCE (une boîte peut servir deux agences, LGC et
+ * ASN) : agence inconnue = les modèles du cabinet seulement.
+ */
 export async function agenceDesModeles(agencyId: string | null | undefined): Promise<string | undefined> {
-  return (await codeAgence(agencyId).catch(() => undefined)) ?? ((process.env.MAIL_TRI_AGENCE ?? "").trim() || undefined);
+  return codeAgence(agencyId).catch(() => undefined);
 }
 
 export async function modelesMailPour(agence: string | undefined): Promise<ModeleMail[]> {

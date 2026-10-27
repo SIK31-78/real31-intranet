@@ -6,6 +6,7 @@
 // (rendreAuTri) n'avait aucun appelant hors de son test : retiré le 27/10/2026.
 
 import type { EntreeJournalTri } from "@/lib/domain/tri-emails";
+import { boiteTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import { annulerRangement, depsParDefaut, rangerMail, resoudreDossier, type DepsRangement, type ResultatRangement } from "./ranger";
 
@@ -30,7 +31,7 @@ export async function envoyerABonneCopro(
   internetMessageId: string,
   reference: string,
   par: string,
-  deps: DepsRangement = depsParDefaut(),
+  deps: DepsRangement = depsParDefaut(boiteTri(boite)),
 ): Promise<ResultatRangement> {
   const e = await rangementEnCours(boite, internetMessageId, deps);
   // Vérifie la destination AVANT de toucher au mail : une copro sans gestionnaire au mandat
@@ -57,8 +58,12 @@ export async function envoyerABonneCopro(
   );
 }
 
-/** Les copros où envoyer le mail : toutes celles de la boîte triée, pas le seul portefeuille. */
-export async function coprosPourReaffecter(deps: DepsRangement = depsParDefaut()): Promise<CoproDestination[]> {
+/**
+ * Les copros où envoyer le mail : toutes celles de la boîte triée (ses agences), pas le seul
+ * portefeuille. Sans boîte : aucune.
+ */
+export async function coprosPourReaffecter(config: BoiteTriConfig | null, deps: DepsRangement = depsParDefaut(config)): Promise<CoproDestination[]> {
+  if (!deps.boite) return [];
   const { copros } = await deps.referentiel.charger();
   return copros
     .map((c) => ({ reference: c.reference, nom: c.nom, adresse: c.adresse, gestionnaire: c.gestionnaire?.nomComplet ?? null }))

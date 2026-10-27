@@ -369,7 +369,7 @@ export function Sidebar({
   propositionsOuvertes?: boolean;
   /** Entree "Perte de copropriete" : la direction. */
   perteOuverte?: boolean;
-  /** Entree "Tri des e-mails" : la boite generique est configuree (MAIL_BOITE_TRI). */
+  /** Entree "Tri des e-mails" : la personne a une boite triee (celle de son agence), ou super-admin. */
   triOuvert?: boolean;
   /** Mails dans la boite de reception generique (pastille rouge) ; null = inconnu. */
   triATrier?: number | null;

@@ -99,10 +99,13 @@ export async function retirerAssistant(binomeId: string): Promise<void> {
   await repo.supprimerBinome(binomeId);
 }
 
-/** Confie une copro ESTALE a un assistant de son gestionnaire, ou la rend au principal (null). */
-export async function affecterCopro(reference: string, binomeId: string | null, par: string): Promise<void> {
+/**
+ * Confie une copro a un assistant de son gestionnaire, ou la rend au principal (null). La
+ * copro est cherchee dans le referentiel des `agences` de la boite affichee (27/10/2026).
+ */
+export async function affecterCopro(reference: string, binomeId: string | null, par: string, agences: readonly string[]): Promise<void> {
   const repo = getTriRepository();
-  const [ref, b] = await Promise.all([getReferentielTriProvider().charger(), repo.binomes()]);
+  const [ref, b] = await Promise.all([getReferentielTriProvider(agences).charger(), repo.binomes()]);
   const copro = ref.copros.find((c) => c.reference === reference);
   if (!copro?.gestionnaire) throw new Error(`La copropriété ${reference} n'a pas de gestionnaire dans ESTALE.`);
   let cible = binomeId;

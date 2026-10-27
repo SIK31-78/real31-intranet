@@ -19,9 +19,10 @@ import { groupAffaires } from "@/lib/domain/tri-mail/group";
 import { resoudreExpediteur } from "@/lib/domain/tri-mail/sender";
 import { getMailIngestionProvider, getReferentielTriProvider } from "@/lib/adapters/router";
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
-import { recuDepuisDebutTri } from "@/lib/domain/mail-gate";
+import { boiteTri, recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { signalerException } from "@/lib/observabilite";
+import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { distributionDe } from "./boites-visibles";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
@@ -29,6 +30,13 @@ import { distributionDe } from "./boites-visibles";
 // soit UNE page Graph (mesure prod du 14/10 : 80 mails = deux allers-retours de 1,1 s en
 // serie) ; « Plus de mails » en demande davantage.
 export const MAX_PERSO = 40;
+
+/** Les agences des boites partagees affichees, et celles de la boite de mon agence. */
+async function agencesDuReferentiel(g: Gestionnaire, boites: BoiteMail[]): Promise<string[]> {
+  const miennes = (await boiteDe(g).catch(() => null))?.agences ?? [];
+  const partagees = boites.filter((b) => !b.personnelle).flatMap((b) => boiteTri(b.adresse)?.agences ?? []);
+  return [...new Set([...miennes, ...partagees])];
+}
 const MAX_PARTAGEE = 80;
 
 export interface TriageLive {
@@ -73,7 +81,7 @@ async function ingererBoite(g: Gestionnaire, boite: BoiteMail, maxPerso: number)
       ? await ingestion.lireParIds(boite.adresse, ids)
       : (await ingestion.lireRecents({ email: boite.adresse, max: 200 })).filter((m) => distribues.has(m.internetMessageId));
     // Rien d'avant la mise en service : les rangements des essais ne reviennent pas « a traiter ».
-    const bruts = lus.filter((m) => recuDepuisDebutTri(m.receivedAt));
+    const bruts = lus.filter((m) => recuDepuisDebutTri(m.receivedAt, boite.adresse));
     // La copro decidee au tri fait foi (choix humain) : on la pose avant toute deduction.
     for (const m of bruts) m.copro = distribues.get(m.internetMessageId) ?? "";
     return { boite, bruts };
@@ -101,7 +109,10 @@ export async function lireBoitesLive(
   const [parBoite, copros, referentiel] = await Promise.all([
     Promise.all(boites.map((b) => ingererBoite(g, b, maxPerso))),
     Promise.resolve(coprosEnCours),
-    getReferentielTriProvider().charger().catch((): ReferentielTri | null => null),
+    // Les copros des agences des boites partagees affichees et de mon agence (27/10/2026).
+    agencesDuReferentiel(g, boites)
+      .then((agences) => getReferentielTriProvider(agences).charger())
+      .catch((): ReferentielTri | null => null),
   ]);
   const nomDe = new Map(copros.map((c) => [c.code, c.nom]));
   const coproNomDe = (code: string) => nomDe.get(code) ?? (code || "Non rattaché");

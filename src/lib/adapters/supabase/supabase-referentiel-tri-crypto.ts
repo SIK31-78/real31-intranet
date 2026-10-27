@@ -6,8 +6,9 @@
 //     l'export Crypto (scripts/sync-annuaire-crypto.mjs, REA-291) ;
 //   - les noms d'usage et autres adresses au registre national : intranet_registre_copros
 //     (scripts/importer-registre-copros.mjs), joint par l'immatriculation.
-// Agence : MAIL_TRI_AGENCE (nom court de la table Agency, ex. « HLS ») ; absente = tout le
-// parc. Cache module de 10 min, comme le referentiel ESTALE.
+// Agences : celles de la boite triee (nom court de la table Agency, ex. « HLS », ou
+// « LGC » et « ASN » pour syndic2 ; V2 du 27/10/2026). Aucune agence = aucune copro, jamais
+// tout le parc. Cache module de 10 min par liste d'agences, comme le referentiel ESTALE.
 
 import type { CoproTri, LienExpediteur, MembreTri, QualiteExpediteur, ReferentielTri } from "@/lib/domain/tri-emails";
 import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
@@ -18,6 +19,7 @@ const TTL_MS = 10 * 60 * 1000;
 const PAGE = 1000;
 
 type RowCopro = {
+  agencyId: string | null;
   referenceCrypto: string | null;
   referenceEstale: string | null;
   name: string;
@@ -79,37 +81,43 @@ const QUALITE: Record<string, QualiteExpediteur | undefined> = {
   locataire: "locataire",
 };
 
-let cache: { cle: string; valeur: ReferentielTri; expire: number } | null = null;
+/** Cache par liste d'agences (cle : codes tries, joints) : deux boites ne se marchent pas dessus. */
+const cache = new Map<string, { valeur: ReferentielTri; expire: number }>();
 
 export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
-  constructor(private readonly agence: string | null) {}
+  private readonly agences: string[];
+
+  constructor(agences: readonly string[]) {
+    this.agences = [...new Set(agences.map((a) => a.trim().toUpperCase()).filter(Boolean))].sort();
+  }
 
   async charger(): Promise<ReferentielTri> {
-    const cleCache = this.agence ?? "*";
-    if (cache && cache.cle === cleCache && Date.now() < cache.expire) return cache.valeur;
+    if (this.agences.length === 0) return { copros: [], expediteurs: {} };
+    const cleCache = this.agences.join(",");
+    const deja = cache.get(cleCache);
+    if (deja && Date.now() < deja.expire) return deja.valeur;
     const valeur = await this.lire();
-    cache = { cle: cleCache, valeur, expire: Date.now() + TTL_MS };
+    cache.set(cleCache, { valeur, expire: Date.now() + TTL_MS });
     return valeur;
   }
 
   private async lire(): Promise<ReferentielTri> {
     const sb = createSupabasePublicClient();
 
-    let agencyId: string | null = null;
-    if (this.agence) {
-      const { data, error } = await sb.from("Agency").select("id").eq("name", this.agence).maybeSingle<{ id: string }>();
-      if (error || !data) throw new Error(`Agence « ${this.agence} » introuvable (MAIL_TRI_AGENCE).`);
-      agencyId = data.id;
-    }
+    const { data: agences, error: errAgences } = await sb.from("Agency").select("id, name").in("name", this.agences).returns<{ id: string; name: string }[]>();
+    if (errAgences) throw new Error(`Lecture Agency : ${errAgences.message}`);
+    const codeParId = new Map((agences ?? []).map((a) => [a.id, a.name.trim().toUpperCase()]));
+    const absentes = this.agences.filter((a) => ![...codeParId.values()].includes(a));
+    if (absentes.length) throw new Error(`Agence(s) ${absentes.join(", ")} introuvable(s) dans la table Agency (config MAIL_TRI_BOITES).`);
 
     // Les copros INACTIVES sont lues aussi (S182 : on recoit encore des mails de l'ancien
     // syndic, de coproprietaires, de locataires) ; le tri les plafonne a une piste faible.
-    let q = sb
+    const { data: lues, error } = await sb
       .from("Copropriete")
-      .select("referenceCrypto, referenceEstale, name, address1, postalCode, city, registrationNumber, managerId, assistantId, status")
-      .in("status", ["ACTIVE", "INACTIVE"]);
-    if (agencyId) q = q.eq("agencyId", agencyId);
-    const { data: lues, error } = await q.returns<RowCopro[]>();
+      .select("agencyId, referenceCrypto, referenceEstale, name, address1, postalCode, city, registrationNumber, managerId, assistantId, status")
+      .in("status", ["ACTIVE", "INACTIVE"])
+      .in("agencyId", [...codeParId.keys()])
+      .returns<RowCopro[]>();
     if (error) throw new Error(`Lecture Copropriete : ${error.message}`);
     // Les actives d'abord : une fiche inactive qui porte le meme code qu'une active s'efface.
     const lignes = [...(lues ?? [])].sort((a, b) => Number(a.status !== "ACTIVE") - Number(b.status !== "ACTIVE"));
@@ -139,6 +147,7 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
         source: "crypto",
         ...(c.registrationNumber ? { immatriculation: c.registrationNumber.trim() } : {}),
         ...(c.status === "INACTIVE" ? { inactive: true } : {}),
+        ...(c.agencyId && codeParId.get(c.agencyId) ? { agence: codeParId.get(c.agencyId)! } : {}),
       });
     }
 
@@ -149,8 +158,7 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
     const codes = [...referenceDuCodeCrypto.keys()];
     try {
       for (let debut = 0; codes.length; debut += PAGE) {
-        let qa = sb.from("intranet_crypto_annuaire").select("email, qualite, copro_code").not("copro_code", "is", null);
-        if (agencyId) qa = qa.in("copro_code", codes);
+        const qa = sb.from("intranet_crypto_annuaire").select("email, qualite, copro_code").not("copro_code", "is", null).in("copro_code", codes);
         const { data, error: e } = await qa.order("email").range(debut, debut + PAGE - 1).returns<RowAnnuaire[]>();
         if (e) throw new Error(e.message);
         for (const a of data ?? []) {

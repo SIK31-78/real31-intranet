@@ -6,9 +6,11 @@
 
 import { z } from "zod";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import {
+  boiteDeComposition,
   creerBrouillonComposition,
   listerContactsComposition,
   listerCoprosComposition,
@@ -31,21 +33,26 @@ async function gestionnaire(): Promise<Gestionnaire | null> {
   return g && mailModuleActifPour(g.email) ? g : null;
 }
 
+/** La boîte triée de l'agence de la personne (27/10/2026) : boîte d'envoi et copros proposées. */
+const boiteDe = (g: Gestionnaire) => boiteDeComposition(g, estSuperAdmin(g.email));
+
 export async function listerCoprosCompositionAction(): Promise<Res<CoproChoisissable[]>> {
-  if (!(await gestionnaire())) return echec(INDISPONIBLE);
+  const g = await gestionnaire();
+  if (!g) return echec(INDISPONIBLE);
   try {
-    return { ok: true, donnees: await listerCoprosComposition() };
+    return { ok: true, donnees: await listerCoprosComposition(await boiteDe(g)) };
   } catch (e) {
     return echecDepuis(e, CTX);
   }
 }
 
 export async function rechercherDestinatairesAction(input: unknown): Promise<Res<DestinataireTrouve[]>> {
-  if (!(await gestionnaire())) return echec(INDISPONIBLE);
+  const g = await gestionnaire();
+  if (!g) return echec(INDISPONIBLE);
   const d = z.object({ texte: z.string().trim().min(3).max(100) }).safeParse(input);
   if (!d.success) return { ok: true, donnees: [] };
   try {
-    return { ok: true, donnees: await rechercherDestinataires(d.data.texte) };
+    return { ok: true, donnees: await rechercherDestinataires(d.data.texte, await boiteDe(g)) };
   } catch (e) {
     return echecDepuis(e, CTX);
   }
@@ -123,6 +130,7 @@ export async function creerBrouillonCompositionAction(input: unknown): Promise<R
       donnees: await creerBrouillonComposition(
         { objet, corps, ...(riche ? { corpsHtml: riche.corpsHtml } : {}), a, cc, ...(cci.length ? { cci } : {}), ...(dossierId ? { dossierId } : {}), ...(fichiers.length ? { piecesJointes: fichiers } : {}) },
         g,
+        await boiteDe(g),
       ),
     };
   } catch (e) {

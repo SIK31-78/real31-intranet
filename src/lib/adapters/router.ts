@@ -43,7 +43,7 @@ import type { ExtracteurPdf } from "@/lib/ports/extracteur-pdf";
 import { PdfjsExtracteur } from "@/lib/adapters/pdf/pdfjs-extracteur";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
 import { SupabaseTriRepository } from "@/lib/adapters/supabase/supabase-tri-repository";
-import { boiteTriConfiguree, ecritureTriActive } from "@/lib/domain/mail-gate";
+import { BOITE_ECHANTILLON, ecritureTriPour, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { SynchroRepository } from "@/lib/ports/synchro-repository";
 import { MockSynchroRepository } from "@/lib/adapters/mock/mock-synchro-repository";
 import { SupabaseSynchroRepository } from "@/lib/adapters/supabase/supabase-synchro-repository";
@@ -456,10 +456,10 @@ export function getMailIngestionProvider(): MailIngestionProvider {
   return new SampleMailIngestionProvider();
 }
 
-// Tri des e-mails V2 (ADR-046) : lecture de la boite generique. MAIL_BOITE_TRI=echantillon
-// -> mails fictifs (developpement sans la vraie boite) ; sinon Graph si MAIL_SOURCE=graph.
-export function getIngestionTri(): MailIngestionProvider {
-  if (process.env.MAIL_BOITE_TRI?.trim().toLowerCase() === "echantillon") return new EchantillonTriIngestion();
+// Tri des e-mails V2 (ADR-046) : lecture d'une boite triee. La boite « echantillon » -> mails
+// fictifs (developpement sans la vraie boite) ; sinon Graph si MAIL_SOURCE=graph.
+export function getIngestionTri(boite: string): MailIngestionProvider {
+  if (boite.trim().toLowerCase() === BOITE_ECHANTILLON) return new EchantillonTriIngestion();
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailIngestionProvider();
   return new EchantillonTriIngestion();
 }
@@ -469,27 +469,29 @@ function referentielTriEstalePartage(): ReferentielTriProvider {
   const ttl = Number(process.env.ESTALE_REFERENTIEL_TRI_TTL_S) || 3600;
   return new CachePartageReferentielTri(
     new EstaleReferentielTri(),
-    (charger) => unstable_cache(charger, ["estale-referentiel-tri-v1"], { revalidate: ttl, tags: ["estale-referentiel-tri"] }),
+    // v2 (27/10/2026) : chaque copro porte l'agence de son etablissement ESTALE.
+    (charger) => unstable_cache(charger, ["estale-referentiel-tri-v2"], { revalidate: ttl, tags: ["estale-referentiel-tri"] }),
   );
 }
 
 // Referentiel du tri (copros, equipe, adresses connues) : ESTALE + copros Crypto de
-// l'intranet et annuaire Crypto, bornes a l'agence de la boite (MAIL_TRI_AGENCE, ex. HLS).
+// l'intranet et annuaire Crypto, bornes aux AGENCES donnees (celles d'une boite triee, ex.
+// ["LGC","ASN"] pour syndic2 ; 27/10/2026). Aucune agence = aucune copro, jamais tout le parc.
 // Referentiel fictif hors Supabase.
-export function getReferentielTriProvider(): ReferentielTriProvider {
+export function getReferentielTriProvider(agences: readonly string[]): ReferentielTriProvider {
   if (!coproSourceEstSupabase()) return new MockReferentielTri();
-  const agence = process.env.MAIL_TRI_AGENCE?.trim() || null;
   return new ReferentielTriBoite(
     estaleConfigure() ? referentielTriEstalePartage() : null,
-    new SupabaseReferentielTriCrypto(agence),
-    agence !== null,
+    new SupabaseReferentielTriCrypto(agences),
+    agences,
   );
 }
 
-// Rangement du tri : ECRITURE reelle dans la boite seulement si MAIL_TRI_ECRITURE=on, avec
-// Graph branche et une vraie boite. Sinon simulation (rien ne bouge, journal "simulation").
-export function getRangementTri(): RangementTriProvider {
-  if (ecritureTriActive() && process.env.MAIL_SOURCE === "graph" && boiteTriConfiguree() !== "echantillon") {
+// Rangement du tri : ECRITURE reelle dans la boite seulement si l'ecriture est ouverte pour
+// elle (MAIL_TRI_ECRITURE=on ET `ecriture` de sa config), avec Graph branche et une vraie
+// boite. Sinon simulation (rien ne bouge, journal "simulation").
+export function getRangementTri(config: BoiteTriConfig | null): RangementTriProvider {
+  if (ecritureTriPour(config) && process.env.MAIL_SOURCE === "graph") {
     return new GraphRangementTri();
   }
   return new SimulationRangementTri();

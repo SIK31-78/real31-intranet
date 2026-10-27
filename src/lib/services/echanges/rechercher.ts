@@ -23,7 +23,7 @@ import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import type { Dossier } from "@/lib/domain/dossier";
 import { getDossiersCopro } from "@/lib/services/dossiers/get-dossiers";
 import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email";
-import { boitesParAgenceBrut } from "@/lib/domain/mail-gate";
+import { boitesParAgenceBrut, boitesTri } from "@/lib/domain/mail-gate";
 import { getAgenceRepository, getMailboxProvider, getRechercheMail, getReferentielTriProvider } from "@/lib/adapters/router";
 
 /** Par requête et par boîte : de quoi couvrir des années pour une copro, sans noyer l'écran. */
@@ -68,9 +68,18 @@ function garder(u: Utilisateur, boite: string): string {
   return b;
 }
 
-/** Les copros proposées dans la recherche : celles du référentiel du tri (agence de la boîte). */
-export async function coprosEchanges(): Promise<Pick<CoproTri, "reference" | "nom" | "source">[]> {
-  const ref = await getReferentielTriProvider().charger();
+/**
+ * Les agences dont on cherche les copros (27/10/2026) : celle de l'utilisateur ; pour un
+ * super-admin, toutes celles qui ont une boîte (écran Échanges ou tri). Jamais tout le parc.
+ */
+function agencesEchanges(u: Utilisateur): string[] {
+  if (!u.superAdmin) return u.agence ? [u.agence] : [];
+  return [...new Set([...Object.keys(parAgence()), ...boitesTri().flatMap((b) => b.agences)])];
+}
+
+/** Les copros proposées dans la recherche : celles du référentiel du tri, pour les agences de l'utilisateur. */
+export async function coprosEchanges(u: Utilisateur): Promise<Pick<CoproTri, "reference" | "nom" | "source">[]> {
+  const ref = await getReferentielTriProvider(agencesEchanges(u)).charger();
   return ref.copros.map((c) => ({ reference: c.reference, nom: c.nom, ...(c.source ? { source: c.source } : {}) })).sort((a, b) => a.reference.localeCompare(b.reference));
 }
 
@@ -90,7 +99,7 @@ export async function rechercherEchanges(u: Utilisateur, critere: CritereEchange
   let codes: string[] = [];
   if (critere.copro) {
     const cle = cleDeReference(critere.copro);
-    const ref = await getReferentielTriProvider().charger().catch(() => null);
+    const ref = await getReferentielTriProvider(agencesEchanges(u)).charger().catch(() => null);
     codes = codesDeCopro(critere.copro);
     if (ref && cle) {
       for (const [email, liens] of Object.entries(ref.expediteurs)) {

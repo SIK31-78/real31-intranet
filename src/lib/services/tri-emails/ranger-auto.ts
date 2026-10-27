@@ -1,4 +1,4 @@
-// Rangement AUTOMATIQUE des mails de syndic4 (decision Sekou du 20/10/2026, ADR-046 : « un clic
+// Rangement AUTOMATIQUE des mails d'une boite triee (decision Sekou du 20/10/2026, ADR-046 : « un clic
 // d'abord, puis de l'automatique signal par signal ») : piste « sure », et depuis le 26/10 piste
 // « faible » par le nom de l'immeuble ou son adresse (pisteRangeable). Appele par la tache
 // planifiee (/api/cron/tri-emails, toutes les 5 min), APRES la reconciliation.
@@ -11,11 +11,12 @@
 // par = « automatique ». Annulable d'un clic comme un rangement manuel ; un mail annule une
 // fois n'est plus jamais range tout seul (rangeableAutomatiquement : « deja-passe »).
 //
-// Interrupteurs : MAIL_TRI_AUTO=on (coupe par defaut) ; MAIL_TRI_ECRITURE coupe = rangements
-// simules et journalises comme tels, comme un clic.
+// Interrupteurs : MAIL_TRI_AUTO=on (coupe par defaut) ET `automatique` dans la config de la
+// boite (MAIL_TRI_BOITES ; jusqu'au 27/10/2026, une constante syndic4 en dur) ; ecriture
+// coupee (MAIL_TRI_ECRITURE ou `ecriture` de la boite) = rangements simules et journalises
+// comme tels, comme un clic. Une boite a la fois : la tache planifiee passe boite par boite.
 
 import {
-  BOITE_TRI_AUTOMATIQUE,
   PAR_AUTOMATIQUE,
   aLirePiecesJointes,
   rangeableAutomatiquement,
@@ -26,14 +27,14 @@ import {
   type RefusAutomatique,
   type SignalTri,
 } from "@/lib/domain/tri-emails";
-import { debutTri, triAutomatiqueActif } from "@/lib/domain/mail-gate";
+import { boiteTri, debutTri, triAutomatiquePour } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { TriRepository } from "@/lib/ports/tri-repository";
 import { getIngestionTri } from "@/lib/adapters/router";
 import { signalerException } from "@/lib/observabilite";
 import { coprosDeTousLesPdf } from "./copro-pieces-jointes";
 import { mailDeLaFile, publicitesDeLaFile, type MailDeLaFile } from "./lire-file";
-import { depsParDefaut, rangerMail, type DepsRangement } from "./ranger";
+import { rangerMail, type DepsRangement } from "./ranger";
 
 /** Mails lus a chaque passage : la meme fenetre que l'ecran. */
 const MAX_LUS = 100;
@@ -55,7 +56,7 @@ const MARGE_RANGEMENT_MS = 3_000;
  * contradiction, delai depasse) : on ne les retelecharge pas a chaque passage. Memoire de
  * l'instance seulement (une instance Vercel tiede sert plusieurs passages ; une instance
  * neuve relit) : pas de table pour ca. Bornee, et oubliee au bout d'un jour (le referentiel
- * peut avoir change).
+ * peut avoir change). Cle « boite|internetMessageId » : la meme instance sert plusieurs boites.
  */
 const PJ_SANS_SUITE = new Map<string, number>();
 const PJ_MEMOIRE_MAX = 1_000;
@@ -102,12 +103,12 @@ function avecDelai<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 export interface OptionsAutomatique {
-  /** Defaut : MAIL_TRI_AUTO=on. */
+  /** Defaut : MAIL_TRI_AUTO=on ET `automatique` dans la config de la boite. */
   actif?: boolean;
   max?: number;
   budgetMs?: number;
   maintenant?: () => number;
-  /** Defaut : la boite de reception, depuis la mise en service du tri (MAIL_TRI_DEPUIS). */
+  /** Defaut : la boite de reception, depuis la mise en service du tri de la boite (`depuis`). */
   lireMails?: (boite: string) => Promise<RawMail[]>;
   /** Defaut : coprosDeTousLesPdf (Graph + pdfjs). Rend l'union des copros de tous les PDF. */
   lirePdf?: (internetMessageId: string, copros: CoproTri[]) => Promise<string[]>;
@@ -145,16 +146,16 @@ export interface BilanAutomatique {
 }
 
 const lireParDefaut = (boite: string): Promise<RawMail[]> => {
-  const depuis = debutTri();
-  return getIngestionTri().lireRecents({ email: boite, max: MAX_LUS, ...(depuis ? { depuis } : {}) });
+  const depuis = debutTri(boite);
+  return getIngestionTri(boite).lireRecents({ email: boite, max: MAX_LUS, ...(depuis ? { depuis } : {}) });
 };
 
 export async function rangerAutomatiquement(
-  deps: DepsRangement = depsParDefaut(),
+  deps: DepsRangement,
   opts: OptionsAutomatique = {},
 ): Promise<BilanAutomatique> {
   const bilan: BilanAutomatique = {
-    actif: opts.actif ?? triAutomatiqueActif(),
+    actif: opts.actif ?? triAutomatiquePour(boiteTri(deps.boite)),
     examines: 0,
     ranges: 0,
     echecs: 0,
@@ -163,8 +164,9 @@ export async function rangerAutomatiquement(
     pj: { lus: 0, ranges: 0, dejaLus: 0, reportes: 0, erreurs: 0, refus: {} },
   };
   const boite = deps.boite;
-  // syndic4 seulement : rangeableAutomatiquement le refuserait mail par mail, inutile de lire.
-  if (!bilan.actif || !boite || boite !== BOITE_TRI_AUTOMATIQUE) return bilan;
+  // Automatique coupe pour la boite : rangeableAutomatiquement le refuserait mail par mail,
+  // inutile de lire.
+  if (!bilan.actif || !boite) return bilan;
 
   const maintenant = opts.maintenant ?? Date.now;
   const debut = maintenant();
@@ -205,7 +207,8 @@ export async function rangerAutomatiquement(
   // Les plus anciens d'abord : un report ne retarde que les derniers arrives.
   const aRanger: { m: RawMail; reference: string; signal: { nature: SignalTri; candidats: string[] } }[] = [];
   const aLirePj: { m: RawMail; mail: MailDeLaFile }[] = [];
-  const ctx = { boite, dejaPasse: false, copros: ref.copros, initialesParEmail, binomes };
+  // On est passe au-dela du coupe-circuit : l'automatique est ouvert pour cette boite.
+  const ctx = { automatique: true, dejaPasse: false, copros: ref.copros, initialesParEmail, binomes };
   for (const m of [...lus].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))) {
     bilan.examines++;
     const mail = mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null, publicites);
@@ -258,10 +261,11 @@ export async function rangerAutomatiquement(
   const maxPj = opts.maxPj ?? MAX_PJ;
   const delaiPj = opts.delaiPjMs ?? DELAI_PJ_MS;
   const memoire = opts.memoirePj ?? PJ_SANS_SUITE;
-  const lirePdf = opts.lirePdf ?? coprosDeTousLesPdf;
+  const lirePdf = opts.lirePdf ?? ((id: string, copros: CoproTri[]) => coprosDeTousLesPdf(boite, id, copros));
   for (const { m, mail } of aLirePj) {
     const id = m.internetMessageId;
-    if (dejaLuSansSuite(memoire, id, maintenant())) {
+    const cleMemoire = `${boite}|${id}`;
+    if (dejaLuSansSuite(memoire, cleMemoire, maintenant())) {
       bilan.pj.dejaLus++;
       continue;
     }
@@ -277,14 +281,14 @@ export async function rangerAutomatiquement(
     } catch (e) {
       bilan.pj.erreurs++;
       // Au-dela du delai, la relire au passage suivant prendrait encore le meme temps.
-      if (e instanceof DelaiDepasse) retenirSansSuite(memoire, id, maintenant());
+      if (e instanceof DelaiDepasse) retenirSansSuite(memoire, cleMemoire, maintenant());
       console.error(`[tri-emails:auto] PDF de ${id} : ${e instanceof Error ? e.message : String(e)}`);
       continue;
     }
     const decision = rangeableParPiecesJointes(mail, pdf, ctx);
     if (!decision.ok) {
       bilan.pj.refus[decision.motif] = (bilan.pj.refus[decision.motif] ?? 0) + 1;
-      retenirSansSuite(memoire, id, maintenant());
+      retenirSansSuite(memoire, cleMemoire, maintenant());
       continue;
     }
     if (await ranger(m, decision.reference, { nature: "pj", candidats: [decision.reference] })) bilan.pj.ranges++;
