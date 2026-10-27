@@ -8,16 +8,6 @@ export class NoopMailboxProvider implements MailboxProvider {
     return [];
   }
 
-  async classerDansCopro(p: {
-    boite: string;
-    internetMessageId: string;
-    coproCode: string;
-    coproNom: string;
-  }): Promise<{ deplace: boolean; dossier?: string }> {
-    console.log(`[mailbox:noop] classement simule de ${p.internetMessageId} (copro ${p.coproCode})`);
-    return { deplace: false };
-  }
-
   async listerDossiers(): Promise<DossierBoite[]> {
     return [];
   }

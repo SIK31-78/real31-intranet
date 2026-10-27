@@ -7,18 +7,6 @@ import type { DossierBoite, PieceJointeRef } from "@/lib/domain/mes-emails";
 export type { DossierBoite, PieceJointeRef };
 
 export interface MailboxProvider {
-  /**
-   * Deplace le mail dans le sous-dossier Outlook de la copropriete (best-effort,
-   * matching tolerant code/nom). Renvoie si un deplacement a eu lieu et le nom du
-   * dossier cible (null si aucun dossier ne correspond -> on ne touche a rien).
-   */
-  classerDansCopro(p: {
-    boite: string;
-    internetMessageId: string;
-    coproCode: string;
-    coproNom: string;
-  }): Promise<{ deplace: boolean; dossier?: string }>;
-
   /** Liste les vrais dossiers de la boite (racine + sous-dossiers de l'inbox sur 2
    *  niveaux, dedupliques) pour alimenter le selecteur de classement du cockpit. */
   listerDossiers(boite: string): Promise<DossierBoite[]>;

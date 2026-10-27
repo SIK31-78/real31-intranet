@@ -8,21 +8,6 @@ import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
 type Folder = { id: string; displayName: string };
 
-// Cache module des dossiers sous inbox, PAR boite (TTL 10 min). L'arborescence copro
-// bouge rarement, et son enumeration coute plusieurs pages Graph (100 dossiers/page,
-// 2 niveaux) a CHAQUE classement de mail. Le picker de dossiers (listerDossiers), lui,
-// reste live : un dossier cree dans Outlook doit y apparaitre tout de suite.
-const CACHE_DOSSIERS_TTL_MS = 10 * 60 * 1000;
-const cacheDossiersInbox = new Map<string, { dossiers: Folder[]; expire: number }>();
-
-async function dossiersSousInboxCache(tk: string, boite: string): Promise<Folder[]> {
-  const hit = cacheDossiersInbox.get(boite);
-  if (hit && Date.now() < hit.expire) return hit.dossiers;
-  const dossiers = await dossiersSousInbox(tk, boite);
-  cacheDossiersInbox.set(boite, { dossiers, expire: Date.now() + CACHE_DOSSIERS_TTL_MS });
-  return dossiers;
-}
-
 // Dossiers racine de la boite (Boite de reception, Archive, et tout dossier cree a
 // la racine : "Communication agence", "Spam", "Perso"...). Q1 du handoff resolue en
 // listant racine ET sous-inbox -> aucune hypothese sur l'emplacement des generiques.
@@ -77,47 +62,7 @@ async function dossiersSousInbox(tk: string, boite: string, profondeur = 2): Pro
   return tous;
 }
 
-function trouverDossier(dossiers: Folder[], coproCode: string, coproNom: string): Folder | undefined {
-  const code = coproCode.toLowerCase();
-  const nom = coproNom.toLowerCase();
-  if (code) {
-    const d = dossiers.find((f) => f.displayName.toLowerCase().includes(code));
-    if (d) return d;
-  }
-  if (nom && nom.length >= 4) {
-    const d = dossiers.find((f) => f.displayName.toLowerCase().includes(nom));
-    if (d) return d;
-  }
-  return undefined;
-}
-
 export class GraphMailboxProvider implements MailboxProvider {
-  async classerDansCopro(p: {
-    boite: string;
-    internetMessageId: string;
-    coproCode: string;
-    coproNom: string;
-  }): Promise<{ deplace: boolean; dossier?: string }> {
-    if (!p.boite) throw new Error("Classement : boite manquante.");
-    if (!p.coproCode && !p.coproNom) return { deplace: false };
-    const tk = await jetonGraph();
-    const dossiers = await dossiersSousInboxCache(tk, p.boite);
-    const cible = trouverDossier(dossiers, p.coproCode, p.coproNom);
-    if (!cible) {
-      // Pas de PII en log (ni boite, ni noms de dossiers copro) : juste le nombre.
-      console.warn(`[mailbox] aucun sous-dossier inbox ne correspond (${dossiers.length} dossiers).`);
-      return { deplace: false };
-    }
-    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
-    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/move`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ destinationId: cible.id }),
-    });
-    if (!r.ok) throw new Error(`Graph move ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    return { deplace: true, dossier: cible.displayName };
-  }
-
   async creerDossier(boite: string, nom: string): Promise<DossierBoite> {
     if (!boite || !nom.trim()) throw new Error("Creation dossier : boite ou nom manquant.");
     const tk = await jetonGraph();
@@ -135,7 +80,7 @@ export class GraphMailboxProvider implements MailboxProvider {
         if (!r.ok) throw new Error(`Graph creation dossier ${r.status} : ${(await r.text()).slice(0, 200)}`);
         return (await r.json()) as Folder;
       })());
-    cacheDossiersInbox.delete(boite);
+
     return { id: f.id, nom: f.displayName, niveau: 1 };
   }
 

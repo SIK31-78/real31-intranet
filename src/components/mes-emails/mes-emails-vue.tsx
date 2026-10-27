@@ -537,12 +537,14 @@ export function MesEmailsVue({
     const m = data.mails.find((x) => x.id === selectionId);
     if (!m) return;
     dejaAffiches.current.add(selectionId);
+    // Les mises a jour d'etat partent apres le rendu (microtache) : React refuse un setState
+    // synchrone dans un effet (rendus en cascade).
     if (!lus.has(selectionId)) {
-      setLus((prev) => new Set(prev).add(selectionId));
+      queueMicrotask(() => setLus((prev) => new Set(prev).add(selectionId)));
       void marquerLuAction(selectionId, m.coproCode);
     }
     if (m.attachments.length > 0) {
-      setPjParMail((p) => new Map(p).set(selectionId, null));
+      queueMicrotask(() => setPjParMail((p) => new Map(p).set(selectionId, null)));
       const copro = coprosChoisies.get(selectionId)?.code ?? m.coproCode;
       void chargerPiecesJointesAction(selectionId, copro, m.boite ?? boiteActive).then((pjs) =>
         setPjParMail((prev) => new Map(prev).set(selectionId, pjs)),
