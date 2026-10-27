@@ -15,6 +15,11 @@
 // boite (MAIL_TRI_BOITES ; jusqu'au 27/10/2026, une constante syndic4 en dur) ; ecriture
 // coupee (MAIL_TRI_ECRITURE ou `ecriture` de la boite) = rangements simules et journalises
 // comme tels, comme un clic. Une boite a la fois : la tache planifiee passe boite par boite.
+//
+// Lecture (REA-419, 27/10/2026) : toute la reception depuis la mise en service, d'apres
+// l'index local que la tache vient de mettre a jour (synchroniser-reception.ts), et plus les
+// 100 plus recents : un retard d'un jour ne laisse plus les plus anciens de cote. Index absent
+// (SQL pas passe) : la lecture directe d'avant.
 
 import {
   PAR_AUTOMATIQUE,
@@ -27,17 +32,15 @@ import {
   type RefusAutomatique,
   type SignalTri,
 } from "@/lib/domain/tri-emails";
-import { boiteTri, debutTri, triAutomatiquePour } from "@/lib/domain/mail-gate";
+import { boiteTri, triAutomatiquePour } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { TriRepository } from "@/lib/ports/tri-repository";
-import { getIngestionTri } from "@/lib/adapters/router";
 import { signalerException } from "@/lib/observabilite";
 import { coprosDeTousLesPdf } from "./copro-pieces-jointes";
 import { mailDeLaFile, publicitesDeLaFile, type MailDeLaFile } from "./lire-file";
 import { rangerMail, type DepsRangement } from "./ranger";
+import { lireReception } from "./synchroniser-reception";
 
-/** Mails lus a chaque passage : la meme fenetre que l'ecran. */
-const MAX_LUS = 100;
 /** Au plus tant de rangements par passage : quelques appels Graph chacun, un par un. */
 const MAX_RANGES = 30;
 /** Budget de temps des rangements, dans les 60 s du cron (la reconciliation passe avant). */
@@ -108,7 +111,7 @@ export interface OptionsAutomatique {
   max?: number;
   budgetMs?: number;
   maintenant?: () => number;
-  /** Defaut : la boite de reception, depuis la mise en service du tri de la boite (`depuis`). */
+  /** Defaut : la reception d'apres l'index, depuis la mise en service du tri de la boite (`depuis`). */
   lireMails?: (boite: string) => Promise<RawMail[]>;
   /** Defaut : coprosDeTousLesPdf (Graph + pdfjs). Rend l'union des copros de tous les PDF. */
   lirePdf?: (internetMessageId: string, copros: CoproTri[]) => Promise<string[]>;
@@ -145,10 +148,8 @@ export interface BilanAutomatique {
   };
 }
 
-const lireParDefaut = (boite: string): Promise<RawMail[]> => {
-  const depuis = debutTri(boite);
-  return getIngestionTri(boite).lireRecents({ email: boite, max: MAX_LUS, ...(depuis ? { depuis } : {}) });
-};
+// Sans relire Graph : la tache planifiee vient de mettre l'index a jour.
+const lireParDefaut = async (boite: string): Promise<RawMail[]> => (await lireReception(boite)).mails;
 
 export async function rangerAutomatiquement(
   deps: DepsRangement,

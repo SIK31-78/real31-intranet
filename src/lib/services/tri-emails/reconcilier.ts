@@ -5,6 +5,16 @@
 // la tache planifiee SEULEMENT (/api/cron/tri-emails, toutes les 5 min). Jusqu'au 27/10/2026
 // l'ecran le lancait aussi a chaque rendu (toutes les 60 s par onglet ouvert, jusqu'a 50
 // appels Graph a chaque fois) : retire, la tache suffit.
+//
+// Avec la lecture incrementale (REA-419, 27/10/2026), la tache passe d'abord le delta de la
+// reception (synchroniser-reception.ts) et le donne ici :
+//   - un mail que le delta voit DANS la reception alors qu'il a un rangement reel actif,
+//     anterieur au passage, a ete remis dans la generique : la ligne est annulee
+//     (par « outlook ») sans le localiser dans Graph ;
+//   - un mail que le delta vient de voir SORTIR de la reception a bien quitte la reception :
+//     pas de relecture a ce passage.
+// localiser ne sert plus qu'a voir un mail glisse d'un dossier de binome a un autre, sous le
+// meme budget qu'avant. Sans delta (repli), tout passe par localiser comme avant.
 
 import { PAR_OUTLOOK, constaterRangement, coproDuDossier } from "@/lib/domain/tri-emails";
 import { etiqueterSansBloquer, type DepsRangement } from "./ranger";
@@ -13,12 +23,24 @@ const FENETRE_MS = 7 * 24 * 3600 * 1000;
 /** Au plus tant de rangements relus par passage (un appel Graph chacun). */
 const MAX_VERIFIES = 50;
 const EN_PARALLELE = 4;
+/** Un rangement plus recent que la lecture moins cette marge n'est pas juge par le delta. */
+const MARGE_DELTA_MS = 60_000;
 /**
  * Budget de temps, verifie avant chaque lot : le rangement automatique passe APRES dans les
  * 60 s du cron et doit garder les siennes (25 s). Un lot de 4 appels Graph qui trainent ne
  * doit pas manger tout le passage (27/10/2026).
  */
 const BUDGET_MS = 15_000;
+
+/** Ce que la lecture incrementale du passage a vu de la reception (synchroniserReception). */
+export interface DeltaReconciliation {
+  /** Debut de la lecture (ISO) : seul un rangement anterieur peut etre « remis en reception ». */
+  debut: string;
+  /** Mails vus dans la reception : internetMessageId -> id Graph. */
+  presents: Map<string, string>;
+  /** internetMessageId des mails vus sortir de la reception. */
+  sortis: string[];
+}
 
 export interface BilanReconciliation {
   verifies: number;
@@ -29,7 +51,11 @@ export interface BilanReconciliation {
 }
 
 /** Une boite a la fois (deps de cette boite) : la tache planifiee passe boite par boite. */
-export async function reconcilierRangements(deps: DepsRangement, maintenant: () => number = Date.now): Promise<BilanReconciliation> {
+export async function reconcilierRangements(
+  deps: DepsRangement,
+  maintenant: () => number = Date.now,
+  delta?: DeltaReconciliation,
+): Promise<BilanReconciliation> {
   const bilan: BilanReconciliation = { verifies: 0, remisEnFile: 0, deplaces: 0, echecs: 0 };
   const boite = deps.boite;
   if (!boite || deps.simulation) return bilan;
@@ -39,7 +65,30 @@ export async function reconcilierRangements(deps: DepsRangement, maintenant: () 
     deps.repo.journalDepuis(boite, new Date(Date.now() - FENETRE_MS).toISOString()),
     deps.repo.dossiers(boite),
   ]);
-  const aVerifier = journal.filter((e) => !e.simulation && e.dossierCle).slice(0, MAX_VERIFIES);
+  const reels = journal.filter((e) => !e.simulation && e.dossierCle);
+
+  // Remis dans la generique, d'apres le delta : pas d'appel Graph pour le savoir.
+  const traites = new Set<string>();
+  if (delta) {
+    // Une minute de marge : un mail range juste avant la lecture peut encore y paraitre (Graph
+    // n'est pas toujours a jour a la seconde) ; s'il est vraiment revenu, le passage suivant le voit.
+    const avant = Date.parse(delta.debut) - MARGE_DELTA_MS;
+    for (const e of reels) {
+      const messageId = delta.presents.get(e.internetMessageId);
+      if (!messageId || !(Date.parse(e.faitLe) < avant)) continue;
+      traites.add(e.id);
+      try {
+        if (!(await deps.repo.marquerAnnule(e.id, PAR_OUTLOOK))) continue;
+        if (e.copros.length) await etiqueterSansBloquer(deps, boite, messageId, { retirer: e.copros });
+        bilan.remisEnFile++;
+      } catch (err) {
+        bilan.echecs++;
+        console.error("[tri-emails] reconciliation (delta) :", err instanceof Error ? err.message : err);
+      }
+    }
+  }
+  const sortis = new Set(delta?.sortis ?? []);
+  const aVerifier = reels.filter((e) => !traites.has(e.id) && !sortis.has(e.internetMessageId)).slice(0, MAX_VERIFIES);
   if (aVerifier.length === 0) return bilan;
 
   // Charge a la demande : seulement si un mail a change de dossier.

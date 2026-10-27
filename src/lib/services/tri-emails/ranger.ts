@@ -9,6 +9,11 @@
 // Plusieurs boites (V2 du 27/10/2026) : les dependances se construisent pour UNE boite
 // (depsParDefaut(config)) : son referentiel (ses agences), son ecriture. Aucune boite par
 // defaut : l'appelant dit laquelle.
+//
+// Index de la reception (REA-419, 27/10/2026) : un mail range ou supprime pour de vrai sort de
+// l'index tout de suite, une annulation l'y remet ; la file n'attend pas le delta suivant. En
+// simulation, l'index ne bouge pas : le mail est toujours dans la boite, c'est le journal qui
+// le cache de la file (et le jour ou l'ecriture s'ouvre, les lignes simulees ne comptent plus).
 
 import {
   DOSSIER_CORBEILLE,
@@ -25,10 +30,13 @@ import { boiteTri, ecritureTriPour, type BoiteTriConfig } from "@/lib/domain/mai
 import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
 import type { TriRepository } from "@/lib/ports/tri-repository";
+import type { ReceptionIndex } from "@/lib/ports/reception-index";
+import { marquerRemis, marquerSortis } from "./synchroniser-reception";
 import { listerGestionnairesCabinet } from "./binomes";
 import {
   getGestionnaireRepository,
   getRangementTri,
+  getReceptionIndex,
   getReferentielTriProvider,
   getTriRepository,
 } from "@/lib/adapters/router";
@@ -43,6 +51,8 @@ export interface DepsRangement {
   initialesParEmail: () => Promise<Record<string, string>>;
   /** Gestionnaires du cabinet (dossiers de binome choisissables a la main). */
   gestionnaires: () => Promise<MembreTri[]>;
+  /** Index de la reception, tenu a jour a chaque geste reel ; absent (tests) = rien a tenir. */
+  index?: ReceptionIndex;
 }
 
 /** Le rangement est-il simule ? Oui tant que l'ecriture n'est pas ouverte sur cette vraie boite. */
@@ -66,6 +76,7 @@ export function depsParDefaut(config: BoiteTriConfig | null): DepsRangement {
       return out;
     },
     gestionnaires: listerGestionnairesCabinet,
+    index: getReceptionIndex(),
   };
 }
 
@@ -167,6 +178,7 @@ export async function rangerMail(
   }
 
   const { messageId } = await deps.rangement.deplacer(boite, d.messageId, folderId);
+  if (!deps.simulation) await marquerSortis(deps.index, boite, [internetMessageId]);
   // L'etiquette au code copro, pour chercher dans Outlook (increment 3). Pas d'etiquette
   // pour Comptabilité / Divers : ils n'ont pas de copro.
   const etiquetee = copros.length ? await etiqueterSansBloquer(deps, boite, messageId, { ajouter: copros }) : true;
@@ -215,6 +227,7 @@ export async function supprimerMail(
   }
 
   const { messageId } = await deps.rangement.supprimer(boite, d.messageId);
+  if (!deps.simulation) await marquerSortis(deps.index, boite, [internetMessageId]);
   const journalId = await deps.repo.journaliser({
     boite,
     internetMessageId,
@@ -251,6 +264,7 @@ export async function annulerRangement(
     if (!pos) throw new Error("Le mail est introuvable dans la boîte (supprimé ?) : rien à annuler.");
     const { messageId } = pos.enReception ? pos : await deps.rangement.remettreEnReception(e.boite, pos.messageId);
     if (e.copros.length) await etiqueterSansBloquer(deps, e.boite, messageId, { retirer: e.copros });
+    await marquerRemis(deps.index, e.boite, e.internetMessageId, messageId);
   }
   await deps.repo.marquerAnnule(journalId, par);
 }

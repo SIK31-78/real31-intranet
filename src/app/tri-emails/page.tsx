@@ -5,7 +5,8 @@ import { getGestionnaireCourant } from "@/lib/auth/session";
 import { droitsTri } from "@/lib/auth/roles";
 import { boitesTri } from "@/lib/domain/mail-gate";
 import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
-import { MAX_FILE, lireFileATrier, type FileATrier } from "@/lib/services/tri-emails/lire-file";
+import { lireFileATrier, type FileATrier } from "@/lib/services/tri-emails/lire-file";
+import { MAX_REPLI } from "@/lib/services/tri-emails/synchroniser-reception";
 import { diagnosticAnnuaire } from "@/lib/services/synchro/surveiller-annuaire";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -21,14 +22,32 @@ export const dynamic = "force-dynamic";
 // fonction Vercel quand Graph traine (27/10/2026).
 export const maxDuration = 60;
 
-/** « 12 mails dans la boîte de réception », et quand la file est bornee, d'ou vient la borne. */
+/** « il y a 3 min » : l'age de la derniere lecture de la boite. */
+function ilYA(iso: string, maintenant: number = Date.now()): string {
+  const min = Math.floor((maintenant - Date.parse(iso)) / 60_000);
+  if (Number.isNaN(min)) return "";
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  return h < 24 ? `il y a ${h} h` : `il y a ${Math.floor(h / 24)} j`;
+}
+
+/**
+ * Index de la reception (REA-419, 27/10/2026) : « 220 mails à trier · à jour il y a 3 min ».
+ * Repli (index absent) : « 12 mails dans la boîte de réception », et quand la lecture directe
+ * est bornee, d'ou vient la borne.
+ */
 function metaFile(file: FileATrier): string {
   const n = file.mails.length;
+  if (file.source === "index") {
+    const base = `${n} ${n > 1 ? "mails" : "mail"} à trier`;
+    return file.synchroniseLe ? `${base} · à jour ${ilYA(file.synchroniseLe)}` : base;
+  }
   const base = `${n} ${n > 1 ? "mails" : "mail"} dans la boîte de réception`;
   if (!file.tronquee) return base;
   return file.totalReception !== null
-    ? `${base} (les ${MAX_FILE} plus récents, la boîte en contient ${file.totalReception} depuis la mise en service)`
-    : `${base} (les ${MAX_FILE} plus récents seulement)`;
+    ? `${base} (les ${MAX_REPLI} plus récents, la boîte en contient ${file.totalReception} depuis la mise en service)`
+    : `${base} (les ${MAX_REPLI} plus récents seulement)`;
 }
 
 /** Super-admin et plusieurs boites : un lien par boite, la boite affichee en premier plan. */

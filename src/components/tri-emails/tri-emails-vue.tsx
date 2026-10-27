@@ -122,6 +122,8 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
   const router = useRouter();
   const toast = useToast();
 
+  // Dans l'ordre du service : les plus anciens en haut (REA-419, 27/10/2026), toute la
+  // reception depuis la mise en service. Le filtre et le passage au suivant gardent cet ordre.
   const mails = file.mails.filter((m) => !masques.has(m.id));
 
   // Arrivee automatique des nouveaux mails (demande du 08/10) : on relit la file toutes

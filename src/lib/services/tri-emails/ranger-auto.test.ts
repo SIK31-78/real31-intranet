@@ -5,6 +5,7 @@ import type { PositionMail, RangementTriProvider } from "@/lib/ports/rangement-t
 import type { NouvelleEntreeJournal, OptionsDejaRange, TriRepository } from "@/lib/ports/tri-repository";
 import { annulerRangement, type DepsRangement } from "./ranger";
 import { rangerAutomatiquement } from "./ranger-auto";
+import type { ReceptionIndex } from "@/lib/ports/reception-index";
 
 // Donnees inventees.
 const SYNDIC4 = "syndic4@real31.fr";
@@ -91,6 +92,34 @@ function journalEnMemoire() {
   };
   return repo as typeof repo & TriRepository;
 }
+
+/** Index de la reception en memoire : juste ce que le rangement, l'annulation et la lecture utilisent. */
+class MemoireReceptionIndex {
+  private lignes = new Map<string, { m: RawMail; sorti: boolean }>();
+  async appliquer(_b: string, d: { ajoutes: RawMail[]; retires: string[] }) {
+    for (const m of d.ajoutes) this.lignes.set(m.internetMessageId, { m, sorti: false });
+    return { sortis: [] };
+  }
+  // Une seule boite dans ces tests : la boite n'est pas lue.
+  async enReception(boite?: string) {
+    void boite;
+    return [...this.lignes.values()].filter((l) => !l.sorti).map((l) => l.m);
+  }
+  async compter(boite?: string) {
+    return (await this.enReception(boite)).length;
+  }
+  async sortir(_b: string, ids: string[]) {
+    for (const id of ids) {
+      const l = this.lignes.get(id);
+      if (l) l.sorti = true;
+    }
+  }
+  async remettre(_b: string, id: string, messageId?: string) {
+    const l = this.lignes.get(id);
+    if (l) this.lignes.set(id, { m: { ...l.m, ...(messageId ? { id: messageId } : {}) }, sorti: false });
+  }
+}
+const commeIndex = (i: MemoireReceptionIndex) => i as unknown as ReceptionIndex;
 
 /** Boite fictive : un mail = un dossier ; un deplacement change l'id, comme Graph. */
 function boiteFictive(mails: RawMail[]) {
@@ -256,6 +285,36 @@ describe("rangerAutomatiquement (cron, piste sûre)", () => {
     expect(bilan.ranges).toBe(0);
     expect(bilan.refus).toEqual({ "deja-passe": 1 });
     expect(enReception()).toHaveLength(1);
+  });
+
+  it("index de la réception (REA-419) : rangé pour de vrai, il en sort tout de suite ; annulé, il y revient", async () => {
+    const m = brut({ from: "proprio@exemple.fr", subject: "Question" });
+    const { repo, deps, enReception } = monter([m]);
+    const index = new MemoireReceptionIndex();
+    await index.appliquer(SYNDIC4, { ajoutes: [m], retires: [] });
+    deps.index = commeIndex(index);
+    // Lecture par defaut remplacee par l'index, comme dans la tache planifiee.
+    const bilan = await rangerAutomatiquement(deps, { actif: true, lireMails: (b) => index.enReception(b) });
+    expect(bilan.ranges).toBe(1);
+    expect(await index.compter(SYNDIC4)).toBe(0);
+
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    await annulerRangement(e!.id, "mylene@real31.fr", deps);
+    const remis = await index.enReception(SYNDIC4);
+    expect(remis.map((x) => x.internetMessageId)).toEqual([m.internetMessageId]);
+    // Avec son nouvel id dans la reception, celui que Graph lui a donne en revenant.
+    expect(remis[0]!.id).toBe(enReception()[0]!.id);
+  });
+
+  it("en simulation, l'index ne bouge pas : le mail est toujours dans la boîte", async () => {
+    const m = brut({ subject: "S0297 - fuite" });
+    const { deps, rangement } = monter([m], { simulation: true });
+    vi.mocked(rangement.deplacer).mockImplementation(async (_b, id) => ({ messageId: id }));
+    const index = new MemoireReceptionIndex();
+    await index.appliquer(SYNDIC4, { ajoutes: [m], retires: [] });
+    deps.index = commeIndex(index);
+    expect((await rangerAutomatiquement(deps, { actif: true, lireMails: (b) => index.enReception(b) })).ranges).toBe(1);
+    expect(await index.compter(SYNDIC4)).toBe(1);
   });
 
   it("un mail déjà rangé (même en simulation, resté en réception) n'est pas rangé deux fois", async () => {

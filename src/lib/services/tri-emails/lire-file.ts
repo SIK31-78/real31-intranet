@@ -7,6 +7,10 @@
 // Plusieurs boites (V2 du 27/10/2026) : la file est celle d'UNE boite triee, passee par
 // l'appelant (la boite de la personne, ou celle choisie par un super-admin), avec le
 // referentiel de ses agences et sa date de mise en service.
+// Index de la reception (REA-419, 27/10/2026) : la file n'est plus « les 100 plus recents »
+// relus dans Graph a chaque affichage, mais TOUTE la reception depuis la mise en service, lue
+// dans l'index local (synchroniser-reception.ts), les plus anciens en haut. Index absent
+// (SQL pas passe) : l'ancienne lecture, et l'en-tete d'avant.
 
 import {
   AUCUN_BINOME,
@@ -28,20 +32,15 @@ import {
   type ReferentielTri,
   type Suggestion,
 } from "@/lib/domain/tri-emails";
-import { debutTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
+import type { BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { TriRepository } from "@/lib/ports/tri-repository";
-import {
-  getIngestionTri,
-  getReferentielTriProvider,
-  getTriRepository,
-} from "@/lib/adapters/router";
+import { getReferentielTriProvider, getTriRepository } from "@/lib/adapters/router";
 import { compterMailsATrier } from "./compteur";
+import { MAX_REPLI, lireReception, type LectureReception } from "./synchroniser-reception";
 import { rangementSimule } from "./ranger";
 import { listerCollaborateurs, listerGestionnairesCabinet, type Collaborateur } from "./binomes";
 
-/** Nombre de mails lus a chaque affichage : la file du jour, pas l'historique. */
-export const MAX_FILE = 100;
 /** Longueur du texte affiche ; la suggestion lit un peu plus loin. */
 const APERCU = 1500;
 const TEXTE_ANALYSE = 4000;
@@ -57,11 +56,18 @@ export interface CoproDeLaFile extends CoproTri {
 export interface FileATrier {
   /** Adresse lue, ou "echantillon". */
   boite: string;
-  /** Les MAX_FILE plus recents de la reception, moins ceux deja ranges. */
+  /** La reception depuis la mise en service, moins les mails deja ranges, les plus anciens en haut. */
   mails: MailDeLaFile[];
-  /** true = la boite en contenait plus que les MAX_FILE lus : la file n'est pas toute la reception. */
+  /**
+   * D'ou vient la file. "index" : toute la reception, d'apres l'index local ; "direct" : repli
+   * tant que l'index n'existe pas, les MAX_REPLI plus recents lus dans Graph.
+   */
+  source: LectureReception["source"];
+  /** Index : derniere lecture de la boite (ISO), null si inconnue. */
+  synchroniseLe: string | null;
+  /** Repli : la boite en contenait plus que les MAX_REPLI lus, la file n'est pas toute la reception. */
   tronquee: boolean;
-  /** Mails de la reception depuis la mise en service (compteur de la barre laterale), null si inconnu. */
+  /** Repli : mails de la reception depuis la mise en service (compteur de la barre laterale), null si inconnu. */
   totalReception: number | null;
   copros: CoproDeLaFile[];
   /** Rangements des 7 derniers jours (revue de fin de semaine), les plus recents d'abord. */
@@ -148,7 +154,6 @@ export function mailDeLaFile(
 
 export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier> {
   const boite = config.boite;
-  const depuis = debutTri(boite);
 
   // Le suivi des mails glisses a la main dans Outlook (reconcilier.ts) ne tourne plus ici
   // (27/10/2026) : il relancait jusqu'a 50 appels Graph a chaque rendu, soit toutes les 60 s
@@ -157,7 +162,8 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
   const repo = getTriRepository();
   const [refRes, mailsRes, iniRes, binRes, journalRes, gestRes] = await Promise.allSettled([
     getReferentielTriProvider(config.agences).charger(),
-    getIngestionTri(boite).lireRecents({ email: boite, max: MAX_FILE, ...(depuis ? { depuis } : {}) }),
+    // L'index, relu dans Graph d'abord s'il a plus de 2 min (5 s au plus, jamais bloquant).
+    lireReception(boite, { synchroniser: true }),
     listerCollaborateurs(),
     repo.binomes(),
     repo.journalDepuis(boite, new Date(Date.now() - SEPT_JOURS_MS).toISOString()),
@@ -184,7 +190,11 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
   const gestionnaires = gestRes.status === "fulfilled" ? gestRes.value : [];
   const journal = journalRes.status === "fulfilled" ? journalRes.value : [];
   if (journalRes.status === "rejected") erreurs.push("Le journal du tri est indisponible.");
-  const tous = mailsRes.status === "fulfilled" ? mailsRes.value : [];
+  const lecture = mailsRes.status === "fulfilled" ? mailsRes.value : null;
+  if (lecture?.avertissement) erreurs.push(lecture.avertissement);
+  // Du plus ancien au plus recent : on traite la file dans l'ordre d'arrivee (decision Sekou
+  // du 27/10/2026), le plus ancien est celui qui attend depuis le plus longtemps.
+  const tous = lecture?.mails ?? [];
   // En reel, une ligne simulee (session de dev sur la meme base) ne cache pas le mail : il
   // n'a jamais bouge, il est bien dans la boite (27/10/2026). En simulation, elle le retire
   // de la file comme avant.
@@ -201,9 +211,9 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
       return new Map<string, string>();
     });
 
-  // La lecture est bornee a MAX_FILE : quand la boite en contient plus, l'en-tete le dit avec
-  // le vrai total (compteur de la pastille, deja en cache 60 s ; null s'il n'a pas repondu).
-  const tronquee = tous.length >= MAX_FILE;
+  // Repli seulement : la lecture directe est bornee a MAX_REPLI ; quand la boite en contient
+  // plus, l'en-tete le dit avec le vrai total (compteur de la pastille, en cache 60 s).
+  const tronquee = lecture?.source === "direct" && tous.length >= MAX_REPLI;
   const totalReception = tronquee ? await compterMailsATrier(boite) : null;
 
   const publicites = await publicitesDeLaFile(repo, boite, bruts, ref);
@@ -219,6 +229,8 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
   return {
     boite,
     mails,
+    source: lecture?.source ?? "index",
+    synchroniseLe: lecture?.majLe ?? null,
     tronquee,
     totalReception,
     copros,

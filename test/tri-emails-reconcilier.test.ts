@@ -149,4 +149,40 @@ describe("reconcilierRangements", () => {
     const simule = await monter(ici("inbox", true));
     expect(await reconcilierRangements({ ...simule.deps, simulation: true })).toEqual({ verifies: 0, remisEnFile: 0, deplaces: 0, echecs: 0 });
   });
+
+  describe("avec la lecture incrementale de la reception (REA-419)", () => {
+    // Le rangement du montage date d'avant la lecture : faitLe = maintenant, lecture 2 min plus tard.
+    const plusTard = () => new Date(Date.now() + 120_000).toISOString();
+
+    it("un mail que le delta voit dans la reception est remis dans la file, sans le localiser", async () => {
+      const { deps, repo, id, appels } = await monter(ici("f-sc"));
+      const localiser = vi.fn(deps.rangement.localiser);
+      deps.rangement.localiser = localiser;
+      const bilan = await reconcilierRangements(deps, Date.now, { debut: plusTard(), presents: new Map([["<m1>", "m1-remis"]]), sortis: [] });
+      expect(bilan).toEqual({ verifies: 0, remisEnFile: 1, deplaces: 0, echecs: 0 });
+      expect(localiser).not.toHaveBeenCalled();
+      expect(appels).toEqual(["m1-remis + -S0297"]);
+      expect((await repo.entree(id))?.annuleLe).not.toBeNull();
+    });
+
+    it("un rangement plus recent que la lecture n'est pas juge par le delta : il est localise", async () => {
+      const { deps, repo, id } = await monter(ici("f-sc"));
+      const bilan = await reconcilierRangements(deps, Date.now, { debut: new Date().toISOString(), presents: new Map([["<m1>", "m1"]]), sortis: [] });
+      expect(bilan).toEqual({ verifies: 1, remisEnFile: 0, deplaces: 0, echecs: 0 });
+      expect((await repo.entree(id))?.annuleLe).toBeNull();
+    });
+
+    it("un mail que le delta vient de voir sortir n'est pas relu a ce passage", async () => {
+      const { deps } = await monter(ici("f-or"));
+      const localiser = vi.fn(deps.rangement.localiser);
+      deps.rangement.localiser = localiser;
+      expect(await reconcilierRangements(deps, Date.now, { debut: plusTard(), presents: new Map(), sortis: ["<m1>"] })).toEqual({
+        verifies: 0,
+        remisEnFile: 0,
+        deplaces: 0,
+        echecs: 0,
+      });
+      expect(localiser).not.toHaveBeenCalled();
+    });
+  });
 });
