@@ -66,6 +66,12 @@ const nextConfig: NextConfig = {
           dev: process.env.NODE_ENV !== "production",
         }),
       },
+      {
+        // La visionneuse affiche un PDF dans une iframe de la meme origine (REA-421, 27/10/2026) :
+        // la piece servie en flux ne peut pas garder le DENY ci-dessus (la derniere regle gagne).
+        source: "/:ecran(mes-emails|tri-emails)/pj",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
     ];
   },
 };
